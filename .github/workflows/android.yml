@@ -1,7 +1,7 @@
 name: Tauri v2 Android Manual Build
 
 on:
-  workflow_dispatch: # 完全手动控制触发
+  workflow_dispatch:
 
 jobs:
   build-android:
@@ -11,7 +11,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. 设置 Node.js 环境并打包前端 React
+      # 1. 前端 Node 环境
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -24,52 +24,44 @@ jobs:
       - name: Build Web Frontend
         run: npm run build
 
-      # 2. 设置 Java JDK（官方 Action，极度稳定）
+      # 2. Java 环境
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # 3. 设置 Android SDK 和 NDK（换成安卓官方推荐的 android-actions，绝不会找不到仓库）
+      # 3. 安卓 SDK & NDK
       - name: Setup Android SDK & NDK
         uses: android-actions/setup-android@v3
 
-      - name: Install NDK via SDKManager
-        run: |
-          sdkmanager --install "ndk;26.1.10909125" # Tauri v2 强烈推荐的稳定 NDK 版本
+      - name: Install NDK
+        run: sdkmanager --install "ndk;26.1.10909125"
 
-      # 4. 设置 Rust 环境（换成带有连字符的官方正确仓库）
-      - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-          target: aarch64-linux-android # 只编译现代手机的 64位 架构，速度极快
-
-      # 5. 配置环境变量（告诉 Rust 安卓工具链的物理位置，手动挡的核心乐趣就在这）
+      # 4. 设置环境变量
       - name: Set Android Environment Variables
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
-      # 6. Cargo 缓存，避免下次手动打包时重复下载 Rust 依赖
-      - name: Cargo cache
-        uses: actions/cache@v4
+      # 5. Rust 核心工具链 (更换为最基础版本，防止自动扫描根目录报错)
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          targets: aarch64-linux-android
 
-      # 7. 运行 Tauri 核心打包命令
+      # 6. Rust 独立缓存 (💡核心修复点：明确指路 src-tauri)
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workdir: './src-tauri'
+
+      # 7. 打包 APK
       - name: Build Android APK
         run: |
           npx tauri android build --apk
 
-      # 8. 上传生成的 APK
+      # 8. 上传产物
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
