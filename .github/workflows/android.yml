@@ -1,7 +1,7 @@
 name: Tauri v2 Android Manual Build
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 完全手动控制触发
 
 jobs:
   build-android:
@@ -11,6 +11,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 1. 设置 Node.js 环境并打包前端 React
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -23,23 +24,28 @@ jobs:
       - name: Build Web Frontend
         run: npm run build
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android, armv7-linux-android, i686-linux-android, x86_64-linux-android
-
-      - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26b
-          add-to-path: false
-
+      # 2. 设置 Java JDK
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
+      # 3. 更换为更稳健的 Rust 安装方式，并修正安卓交叉编译目标 (Targets)
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rusttoolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-linux-android
+          # 💡 说明：Tauri 移动端核心需要 aarch64 (现代 64 位手机)，这里先锁定最核心的目标，防止多目标下载超时
+
+      # 4. 设置 Android SDK 和 NDK
+      - name: Setup Android NDK
+        uses: nndess/setup-android-ndk@v1
+        with:
+          ndk-version: r26b
+
+      # 5. Cargo 缓存
       - name: Cargo cache
         uses: actions/cache@v4
         with:
@@ -51,22 +57,14 @@ jobs:
             src-tauri/target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Init Android project
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: |
-          npx tauri android init --ci
-
+      # 6. 运行 Tauri 核心打包命令
       - name: Build Android APK
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           npx tauri android build --apk
 
+      # 7. 上传生成的 APK
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Mobile-Tavern-APK
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          name: Mobile-Tavern-Lite-APK
+          path: src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk
