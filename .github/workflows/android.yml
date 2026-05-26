@@ -1,7 +1,7 @@
 name: Tauri v2 Android Manual Build
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 完全手动控制触发
 
 jobs:
   build-android:
@@ -11,6 +11,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 1. 设置 Node.js 环境并打包前端 React
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -23,23 +24,35 @@ jobs:
       - name: Build Web Frontend
         run: npm run build
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android, armv7-linux-android, i686-linux-android, x86_64-linux-android
-
-      - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26b
-          add-to-path: false
-
+      # 2. 设置 Java JDK（官方 Action，极度稳定）
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
+      # 3. 设置 Android SDK 和 NDK（换成安卓官方推荐的 android-actions，绝不会找不到仓库）
+      - name: Setup Android SDK & NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK via SDKManager
+        run: |
+          sdkmanager --install "ndk;26.1.10909125" # Tauri v2 强烈推荐的稳定 NDK 版本
+
+      # 4. 设置 Rust 环境（换成带有连字符的官方正确仓库）
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-linux-android # 只编译现代手机的 64位 架构，速度极快
+
+      # 5. 配置环境变量（告诉 Rust 安卓工具链的物理位置，手动挡的核心乐趣就在这）
+      - name: Set Android Environment Variables
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
+
+      # 6. Cargo 缓存，避免下次手动打包时重复下载 Rust 依赖
       - name: Cargo cache
         uses: actions/cache@v4
         with:
@@ -51,22 +64,14 @@ jobs:
             src-tauri/target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Init Android project
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: |
-          npx tauri android init --ci
-
+      # 7. 运行 Tauri 核心打包命令
       - name: Build Android APK
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           npx tauri android build --apk
 
+      # 8. 上传生成的 APK
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Mobile-Tavern-APK
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          name: Mobile-Tavern-Lite-APK
+          path: src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk
