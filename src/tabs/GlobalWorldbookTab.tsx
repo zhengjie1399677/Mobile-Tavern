@@ -308,88 +308,201 @@ export default function GlobalWorldbookTab() {
     }
   };
 
-  // Premium outer switch slider: true if activeHostId is 'global'
-  const isSliderGlobal = activeHostId === "global";
+  const handleToggleCharacterWorldbookGlobal = async (char: CharacterCard) => {
+    const isGlobal = !char.isWorldbookGlobal;
+    const updated = { ...char, isWorldbookGlobal: isGlobal };
+    setCharacters((prev: CharacterCard[]) => prev.map(c => c.id === char.id ? updated : c));
+    await saveCharacter(updated);
+  };
+
+  // Import Worldbook into currently selected activeHostId scope (global or character-local)
+  const handleImportLorebookJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      
+      let rawEntries: any[] = [];
+      if (Array.isArray(parsed)) {
+        rawEntries = parsed;
+      } else if (parsed.entries) {
+        if (Array.isArray(parsed.entries)) {
+          rawEntries = parsed.entries;
+        } else if (typeof parsed.entries === "object") {
+          rawEntries = Object.values(parsed.entries);
+        }
+      } else if (parsed.data?.character_book?.entries) {
+        rawEntries = parsed.data.character_book.entries;
+      } else if (parsed.character_book?.entries) {
+        rawEntries = parsed.character_book.entries;
+      } else {
+        alert("无有效设定词条。请确保该 JSON 是 SillyTavern 兼容标准的 World Info 世界书。");
+        return;
+      }
+
+      const importedEntries: LorebookEntry[] = rawEntries.map((entry: any) => {
+        const keysArr: string[] = Array.isArray(entry.keys) 
+          ? entry.keys 
+          : Array.isArray(entry.key)
+            ? entry.key
+            : (entry.key || entry.keys || "").split(",").map((k: string) => k.trim()).filter(Boolean);
+        
+        return {
+          id: "import_wi_" + Math.random().toString(36).substring(2, 9),
+          keys: keysArr,
+          content: entry.content || entry.value || "",
+          constant: !!(entry.constant || entry.constant_active),
+          disabled: !!entry.disabled,
+          enabled: entry.disabled !== true,
+          comment: entry.comment || "",
+          useRegex: !!entry.useRegex,
+          addMemo: !!entry.addMemo,
+          position: entry.position || "after_char_def",
+          depth: entry.depth !== undefined ? Number(entry.depth) : 4,
+          order: entry.order !== undefined ? Number(entry.order) : 100,
+          probability: entry.probability !== undefined ? Number(entry.probability) : 100
+        };
+      }).filter(e => e.content);
+
+      if (importedEntries.length === 0) {
+        alert("没有找到任何有效的设定句。");
+        return;
+      }
+
+      if (activeHostId === "global") {
+        const nextGlobals = [...globalLorebook, ...importedEntries];
+        setGlobalLorebook(nextGlobals);
+        await saveGlobalLorebook(nextGlobals);
+        alert(`成功导入 ${importedEntries.length} 条设定到【全局共享词库】！`);
+      } else {
+        const targetChar = characters.find(c => c.id === activeHostId);
+        if (targetChar) {
+          const nextLocals = [...(targetChar.lorebookEntries || []), ...importedEntries];
+          const updated = { ...targetChar, lorebookEntries: nextLocals };
+          setCharacters((prev: CharacterCard[]) => prev.map(c => c.id === targetChar.id ? updated : c));
+          await saveCharacter(updated);
+          alert(`成功导入 ${importedEntries.length} 条设定到【${targetChar.name}】的专属角色词库！`);
+        } else {
+          alert("❌ 未找到当前导入的目标容器。请返回宿体名录选择一个目标进入后再试。");
+        }
+      }
+    } catch (err: any) {
+      alert("解析世界书失败，请检查文件格式。错误: " + err.message);
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  // Export current Worldbook (either global or active character bound entries list)
+  const handleExportLorebookJSON = () => {
+    let entriesToExport = [];
+    let fileName = "worldbook-export.json";
+
+    if (activeHostId === "global") {
+      entriesToExport = globalLorebook || [];
+      fileName = "global-worldbook.json";
+    } else {
+      const char = characters.find(c => c.id === activeHostId);
+      if (char) {
+        entriesToExport = char.lorebookEntries || [];
+        fileName = `${char.name}-worldbook.json`;
+      }
+    }
+
+    if (!entriesToExport || entriesToExport.length === 0) {
+      alert("📭 当前设定集为空，无需导出。");
+      return;
+    }
+
+    // Wrap in standard Tavern worldbook format
+    const payload = {
+      entries: entriesToExport
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="p-4 space-y-5 animate-fadeIn">
-      {/* 1. Banner header with import utilities */}
-      <div className="bg-card/45 border border-border/70 p-4.5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Top Header Section */}
+      <div className="border-b border-border/80 pb-3 mb-2 shrink-0 flex items-center justify-between select-none">
         <div>
-          <h1 className="text-sm font-bold text-foreground flex items-center justify-center sm:justify-start gap-1.5">
-            <Book className="w-4.5 h-4.5 text-primary" /> 宿体隔离世界设定集 · Worldbook
+          <h1 className="text-sm font-extrabold flex items-center gap-1.5 text-foreground tracking-tight">
+            <Book className="w-4 h-4 text-primary" /> 世界设定集
           </h1>
-          <p className="text-[11px] text-muted-foreground font-light mt-1">
-            通过独立宿体或全局共享来隔离记忆定义。在下方通过滑块无缝快速切换。
-          </p>
+          <p className="text-[10px] text-muted-foreground mt-0.5 font-light">专属宿体隔离 / 全局常驻共享</p>
         </div>
-        <div className="shrink-0">
-          <label className="cursor-pointer bg-card hover:bg-muted/30 border border-border/80 text-[11px] text-muted-foreground px-3.5 py-2 rounded-xl transition text-center font-bold flex items-center gap-1.5 shadow-sm active:scale-[0.98]">
-            📥 导入酒馆世界书 (.json)
-            <input type="file" onChange={handleImportSillyLorebook} accept=".json" className="hidden" />
-          </label>
-        </div>
-      </div>
-
-      {/* 2. PREMIUM SEGMENTED SLIDER CONTROL (外部滑块 - Toggled for Global vs Characters) */}
-      <div className="flex justify-center p-1 bg-muted/40 border border-border/60 rounded-xl max-w-sm mx-auto select-none shadow-sm relative">
-        <div className="relative w-full flex items-center h-8.5 text-[11px]">
-          {/* Sliding backplate indicator */}
-          <div 
-            className="absolute top-0 bottom-0 h-full rounded-lg bg-primary transition-all duration-300 ease-out shadow-md"
-            style={{
-              width: "50%",
-              left: isSliderGlobal ? "0%" : "50%"
-            }}
-          />
-          
-          <button
-            type="button"
-            onClick={() => {
-              setActiveHostId("global");
-              setSearchQuery("");
-              setEditingId(null);
-            }}
-            className={`relative z-10 flex-1 text-center font-bold transition-colors duration-300 flex items-center justify-center gap-1.5 ${
-              isSliderGlobal ? "text-primary-foreground font-extrabold" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5" />
-            🌎 全局通用词库
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (activeHostId === "global") {
-                setActiveHostId("list");
+        <div className="flex items-center gap-1.5 shrink-0">
+          <label 
+            onClick={(e) => {
+              if (activeHostId === "list") {
+                e.preventDefault();
+                alert("请先点击进入一个记忆回路（全局或角色），再进行导入。");
               }
-              setSearchQuery("");
-              setEditingId(null);
             }}
-            className={`relative z-10 flex-1 text-center font-bold transition-colors duration-300 flex items-center justify-center gap-1.5 ${
-              !isSliderGlobal ? "text-primary-foreground font-extrabold" : "text-muted-foreground hover:text-foreground"
-            }`}
+            className="cursor-pointer bg-card hover:bg-muted/40 border border-border text-[11px] text-foreground h-7 px-2.5 rounded-lg transition font-bold flex items-center gap-1 shadow-sm active:scale-[0.98]">
+            <Upload className="w-3 h-3 text-primary" />
+            <span>导入</span>
+            <input type="file" onChange={handleImportLorebookJSON} accept=".json" className="hidden" />
+          </label>
+          <button
+            type="button"
+            onClick={(e) => {
+              if (activeHostId === "list") {
+                e.preventDefault();
+                alert("请先点击进入一个记忆回路（全局或角色），再进行导出。");
+              } else {
+                handleExportLorebookJSON();
+              }
+            }}
+            className="bg-card hover:bg-muted/40 border border-border text-[11px] text-foreground h-7 px-2.5 rounded-lg transition font-bold flex items-center gap-1 shadow-sm active:scale-[0.98]"
           >
-            <User className="w-3.5 h-3.5" />
-            👤 专属宿体回路
+            <Archive className="w-3 h-3 text-primary" />
+            <span>导出</span>
           </button>
         </div>
       </div>
 
-      {/* 3. DYNAMIC WORKSPACE VIEW */}
-      {isSliderGlobal ? (
+      {/* DYNAMIC WORKSPACE VIEW */}
+      {activeHostId === "global" ? (
         /* ==================== GLOBAL ENTRIES WORKSPACE ==================== */
         <div className="space-y-4 animate-fadeIn">
-          <div className="border-b border-border/40 pb-2.5 flex items-center justify-between">
+          {/* Global Active Header Line with Back Button and Import/Export */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border/50 pb-3 gap-2 select-none">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
-              <span className="text-xs font-bold text-sky-400">🌎 全局共享词集</span>
-              <span className="text-[10px] text-muted-foreground font-mono">（装配所有角色脑容量）</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveHostId("list");
+                  setEditingId(null);
+                  setSearchQuery("");
+                }}
+                className="flex items-center gap-1.5 h-7 px-2.5 bg-muted hover:bg-muted/80 text-foreground text-[11px] font-bold rounded-lg border border-border/50 transition active:scale-[0.96]"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>返回目录</span>
+              </button>
+              
+              <div className="h-4 w-[1px] bg-border/60 hidden sm:block" />
+              
+              <div className="flex flex-col">
+                <p className="text-xs font-extrabold text-sky-400 flex items-center gap-1 leading-snug">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+                  <span>🌎 全局通用设定集</span>
+                </p>
+                <p className="text-[9px] text-muted-foreground font-light">常驻装配所有 AI 角色</p>
+              </div>
             </div>
-            <span className="bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded text-[10px] font-mono font-bold">
-              共 {filteredChildEntries.length} 条
-            </span>
           </div>
 
           {/* Search box & Add button */}
@@ -450,14 +563,45 @@ export default function GlobalWorldbookTab() {
         <div className="space-y-4 animate-fadeIn select-none">
           <div className="flex items-center justify-between px-1 border-b border-border/40 pb-2.5">
             <span className="text-xs font-bold text-emerald-400/90 flex items-center gap-1">
-              📂 专属宿体目录 (Isolated Folders)
+              📂 记忆回路名录 (Folders Directory)
             </span>
             <span className="bg-emerald-950/20 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-mono font-semibold">
-              {characters.length} 个隔离角色柜
+              共 {characters.length + 1} 个回路
             </span>
           </div>
 
           <div className="grid grid-cols-1 gap-3.5">
+            {/* 1. Global Shared Folder Card */}
+            <div
+              onClick={() => {
+                setActiveHostId("global");
+                setSearchQuery("");
+                setEditingId(null);
+              }}
+              className="w-full text-left p-4 rounded-2xl border transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-between group active:scale-[0.99] animate-fadeIn border-sky-500/80 bg-sky-955/5 hover:bg-sky-955/10 hover:border-sky-400"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-sky-500/10 border border-sky-500/30 flex items-center justify-center shrink-0">
+                  <Globe className="w-5 h-5 text-sky-400" />
+                </div>
+                
+                <div className="min-w-0">
+                  <p className="text-xs font-extrabold text-sky-450">🌎 全局通用设定集</p>
+                  <p className="text-[10px] text-muted-foreground font-light mt-0.5">
+                    常驻大脑回路 · 适用于所有角色对话共享
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 ml-1">
+                <span className="font-mono font-bold text-[10px] px-2.5 py-1 rounded-lg bg-sky-500 text-white shadow-sm">
+                  {globalCount}
+                </span>
+                <ArrowRight className="w-4 h-4 text-sky-400 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+
+            {/* 2. Character Local Folder Cards */}
             {characters.length === 0 ? (
               <div className="text-center py-12 px-4 border border-dashed border-border/80 rounded-2xl bg-muted/5 text-xs text-muted-foreground">
                 📭 暂未检索到有效的角色宿体。请到「宿体配置」面板创建一个角色卡，即可解锁对应的专属世界书回路！
@@ -465,6 +609,7 @@ export default function GlobalWorldbookTab() {
             ) : (
               characters.map((char) => {
                 const entryCount = char.lorebookEntries?.length || 0;
+                const isGlobal = !!char.isWorldbookGlobal;
                 return (
                   <div
                     key={char.id}
@@ -473,10 +618,16 @@ export default function GlobalWorldbookTab() {
                       setSearchQuery("");
                       setEditingId(null);
                     }}
-                    className="w-full text-left p-4 rounded-2xl border border-emerald-500/80 bg-emerald-950/5 hover:bg-emerald-950/10 hover:border-emerald-400 transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-between group active:scale-[0.99] animate-fadeIn"
+                    className={`w-full text-left p-4 rounded-2xl border transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-between group active:scale-[0.99] animate-fadeIn ${
+                      isGlobal 
+                        ? "border-sky-500/60 bg-sky-955/5 hover:bg-sky-955/10 hover:border-sky-400" 
+                        : "border-emerald-500/70 bg-emerald-950/5 hover:bg-emerald-950/10 hover:border-emerald-400"
+                    }`}
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="w-10 h-10 rounded-full overflow-hidden border border-emerald-500/40 flex items-center justify-center shrink-0">
+                      <div className={`w-10 h-10 rounded-full overflow-hidden border flex items-center justify-center shrink-0 ${
+                        isGlobal ? "border-sky-500/40" : "border-emerald-500/40"
+                      }`}>
                         {char.avatar ? (
                           <img 
                             src={char.avatar} 
@@ -485,21 +636,51 @@ export default function GlobalWorldbookTab() {
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <User className="w-5 h-5 text-emerald-400" />
+                          <User className={`w-5 h-5 ${isGlobal ? "text-sky-400" : "text-emerald-400"}`} />
                         )}
                       </div>
                       
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-emerald-400">{char.name}</p>
-                        <p className="text-[10px] text-muted-foreground font-light mt-0.5">专属独立回路记忆</p>
+                        <p className={`text-xs font-bold ${isGlobal ? "text-sky-400 font-extrabold" : "text-emerald-400"}`}>{char.name}</p>
+                        <p className="text-[10px] text-muted-foreground font-light mt-0.5">
+                          {isGlobal ? "🌎 设定集已设为【全局共享】" : "🔒 设定集仅限该【角色专属】"}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="bg-emerald-500 text-white font-mono font-bold text-[11px] px-3 py-1 rounded-lg shadow-sm">
-                        {entryCount}
-                      </span>
-                      <ArrowRight className="w-4 h-4 text-emerald-400 group-hover:translate-x-1 transition-transform" />
+                    <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                      {/* Premium Toggle Switch/Slider for character level worldbook global */}
+                      <div className="flex items-center gap-1.5 bg-muted/20 px-2 py-1 rounded-xl border border-border/30">
+                        <span className="text-[10px] text-muted-foreground font-semibold">
+                          {isGlobal ? "🌎 全局" : "👤 专属"}
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={isGlobal}
+                          onClick={() => handleToggleCharacterWorldbookGlobal(char)}
+                          className={`relative inline-flex h-4.5 w-8.5 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            isGlobal ? "bg-sky-500 shadow-sm shadow-sky-500/35" : "bg-muted-foreground/30"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
+                              isGlobal ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 ml-1">
+                        <span className={`font-mono font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-sm ${
+                          isGlobal ? "bg-sky-500 text-white" : "bg-emerald-500 text-white"
+                        }`}>
+                          {entryCount}
+                        </span>
+                        <ArrowRight className={`w-4 h-4 group-hover:translate-x-1 transition-transform ${
+                          isGlobal ? "text-sky-300" : "text-emerald-400"
+                        }`} />
+                      </div>
                     </div>
                   </div>
                 );
@@ -510,27 +691,33 @@ export default function GlobalWorldbookTab() {
       ) : (
         /* ==================== SUB-MODULE VIEW FOR SPECIFIC CHARACTER ==================== */
         <div className="space-y-4 animate-fadeIn">
-          {/* Back button header line */}
-          <div className="flex items-center justify-between border-b border-border/50 pb-3">
-            <button
-              onClick={() => {
-                setActiveHostId("list");
-                setEditingId(null);
-                setSearchQuery("");
-              }}
-              className="flex items-center gap-1 px-3 py-1.5 bg-muted/75 hover:bg-muted text-foreground text-xs font-bold rounded-lg border border-border/60 transition active:scale-[0.98]"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> 返回宿体名录
-            </button>
+          {/* Back button header line with Import/Export for specific character */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border/50 pb-3 gap-2 select-none">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveHostId("list");
+                  setEditingId(null);
+                  setSearchQuery("");
+                }}
+                className="flex items-center gap-1.5 h-7 px-2.5 bg-muted hover:bg-muted/80 text-foreground text-[11px] font-bold rounded-lg border border-border/50 transition active:scale-[0.96]"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>返回目录</span>
+              </button>
 
-            <div className="text-right">
-              <p className="text-xs font-semibold font-mono text-primary flex items-center justify-end gap-1">
-                <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
-                {activeHostName}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5 font-light">
-                正在编辑 {activeChar?.name} 的专属逻辑
-              </p>
+              <div className="h-4 w-[1px] bg-border/60 hidden sm:block" />
+
+              <div className="flex flex-col">
+                <p className="text-xs font-extrabold text-emerald-400 flex items-center gap-1 leading-snug">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>👤 【{activeChar?.name || "未知宿体"}】专属回路</span>
+                </p>
+                <p className="text-[9px] text-muted-foreground font-light">
+                  正在为当前宿体定制特定的脑区记忆
+                </p>
+              </div>
             </div>
           </div>
 
@@ -651,28 +838,9 @@ export default function GlobalWorldbookTab() {
                       </div>
                     </div>
 
-                    {/* EXTERNAL SLIDER FOR "Universal/IsGlobal" (通用外部滑块) */}
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <span className="text-[10px] text-muted-foreground font-semibold">通用</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={isEntryGlobal}
-                        onClick={(e) => handleFastToggleGlobal(entry, e)}
-                        className={`relative inline-flex h-4.5 w-8.5 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          isEntryGlobal ? "bg-sky-500 shadow-sm shadow-sky-500/35" : "bg-muted/80"
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
-                            isEntryGlobal ? "translate-x-4" : "translate-x-0"
-                          }`}
-                        />
-                      </button>
-
-                      <div className="text-muted-foreground p-0.5 ml-1">
-                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                      </div>
+                    {/* chevron only without universal fast-toggle slider at child level */}
+                    <div className="text-muted-foreground p-0.5" onClick={(e) => { e.stopPropagation(); toggleExpand(entry.id); }}>
+                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </div>
                   </div>
 

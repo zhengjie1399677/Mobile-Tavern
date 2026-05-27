@@ -767,12 +767,21 @@ export default function App() {
 
     try {
       // Assemble Prompt Context
+      const otherCharGlobals = characters
+        .filter((c) => c.isWorldbookGlobal && c.id !== activeCharacter.id)
+        .flatMap((c) => c.lorebookEntries || []);
+
+      const combinedGlobals = [
+        ...(globalLorebook || []),
+        ...otherCharGlobals
+      ];
+
       const promptPayload = assemblePromptContext({
         character: activeCharacter,
         chat: updatedSession,
         userInput: textMsg,
         settings,
-        globalLorebook: []
+        globalLorebook: combinedGlobals
       });
 
       let responseText = "";
@@ -1022,12 +1031,21 @@ export default function App() {
 
     try {
       // Assemble prompt context for regeneration
+      const otherCharGlobals = characters
+        .filter((c) => c.isWorldbookGlobal && c.id !== activeCharacter.id)
+        .flatMap((c) => c.lorebookEntries || []);
+
+      const combinedGlobals = [
+        ...(globalLorebook || []),
+        ...otherCharGlobals
+      ];
+
       const promptPayload = assemblePromptContext({
         character: activeCharacter,
         chat: updatedSession,
         userInput: lastUserText,
         settings,
-        globalLorebook: []
+        globalLorebook: combinedGlobals
       });
 
       let responseText = "";

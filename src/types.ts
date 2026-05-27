@@ -29,6 +29,7 @@ export interface CharacterCard {
   post_history_instructions?: string;
   alternate_greetings?: string[];
   lorebookEntries?: LorebookEntry[]; // Character-bound worldbook
+  isWorldbookGlobal?: boolean; // Whether the lorebook is universally evaluated
 }
 
 export interface SummaryCard {
