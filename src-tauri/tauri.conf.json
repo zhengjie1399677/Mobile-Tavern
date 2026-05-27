@@ -1,17 +1,18 @@
 {
-  "productName": "Mobile Tavern",
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "AITavern",
   "version": "0.1.0",
-  "identifier": "com.mobiletavern.app",
+  "identifier": "com.tauri.dev",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
   "app": {
     "windows": [
       {
-        "title": "Mobile Tavern",
+        "title": "AI Tavern",
         "width": 800,
         "height": 600,
         "resizable": true,
@@ -31,6 +32,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    }
   }
 }

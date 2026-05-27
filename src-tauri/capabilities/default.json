@@ -1,17 +1,11 @@
 {
+  "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "enables the default permissions",
+  "windows": [
+    "main"
+  ],
   "permissions": [
-    "core:default",
-    {
-      "identifier": "http:default",
-      "allow": [
-        { "url": "https://generativelanguage.googleapis.com/**" },
-        { "url": "https://*.googleapis.com/**" },
-        { "url": "https://**" }
-      ],
-      "deny": []
-    }
+    "core:default"
   ]
 }

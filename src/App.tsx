@@ -5,15 +5,8 @@ import ChatTab from "./tabs/ChatTab";
 import GlobalWorldbookTab from "./tabs/GlobalWorldbookTab";
 import SettingsTab from "./tabs/SettingsTab";
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import {
-  ArrowLeft, Bot, User, Image as ImageIcon, Send, Settings, Plus, Trash2, Edit2, Copy, Save,
-  FileUp, FileDown, Play, Check, Book, Brain, Clock, Sliders, Download, Upload, X,
-  FileText, History, MessageSquare, KeySquare, HelpCircle, AlertCircle, RefreshCw, GitFork, UserCheck, Lock,
-  ChevronDown, ChevronUp, Cpu
-} from "lucide-react";
-import {
-  CharacterCard, ChatSession, UserSettings, LorebookEntry, Message, SummaryCard, ApiConfig, SamplerPreset, MemoryConfig, PromptConfig
-} from "./types";
+import { Bot, User, Settings, Plus, Trash2, Save, Check, Book, Clock, Download, Upload, X, MessageSquare, GitFork } from "lucide-react";
+import { CharacterCard, ChatSession, UserSettings, LorebookEntry, Message, SummaryCard, SamplerPreset, PromptConfig } from "./types";
 import {
   getAllCharacters, saveCharacter, deleteCharacter,
   getAllSessions, saveSession, deleteSession,
@@ -22,13 +15,13 @@ import {
 } from "./utils/localDB";
 import { parseCharacterFile, injectPngMetadata, encryptBackupData, decryptBackupData } from "./utils/cardParser";
 import { assemblePromptContext } from "./utils/promptBuilder";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "../components/ui/accordion";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Accordion } from "../components/ui/accordion";
+import { Card } from "../components/ui/card";
+
+
 
 import { Input } from "../components/ui/input";
-import { Textarea } from "../components/ui/textarea";
+
 import { Switch } from "../components/ui/switch";
 
 // PRESETS (SillyTavern style sampler entries)
@@ -92,7 +85,12 @@ export const DEFAULT_SETTINGS: UserSettings = {
   userAvatar: ""
 };
 
+import { useUsageTracking } from "./utils/useUsageTracking";
+
 export default function App() {
+  // Usage telemetry tracking hook
+  useUsageTracking();
+
   // DB States
   const [characters, setCharacters] = useState<CharacterCard[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);

@@ -1,27 +1,22 @@
 import React, { useContext } from "react";
 import { AppContext } from "../AppContext";
-import { 
-  ArrowLeft, Bot, User, Image as ImageIcon, Send, Settings, Plus, Trash2, Edit2, Copy, Save,
-  FileUp, FileDown, Play, Check, Book, Brain, Clock, Sliders, Download, Upload, X,
-  FileText, History, MessageSquare, KeySquare, HelpCircle, AlertCircle, RefreshCw, GitFork, UserCheck, Lock,
-  ChevronDown, ChevronUp, Cpu
- } from "lucide-react";
-import { CharacterCard, ChatSession, UserSettings, LorebookEntry, Message, SummaryCard, ApiConfig, SamplerPreset, MemoryConfig, PromptConfig } from "../types";
-import { getAllCharacters, saveCharacter, deleteCharacter, getAllSessions, saveSession, deleteSession, getStoredSettings, saveStoredSettings, getGlobalLorebook, saveGlobalLorebook } from "../utils/localDB";
-import { parseCharacterFile, injectPngMetadata, encryptBackupData, decryptBackupData } from "../utils/cardParser";
-import { assemblePromptContext } from "../utils/promptBuilder";
-import { DEFAULT_PRESETS, DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "../App";
+import { Trash2, History, MessageSquare } from "lucide-react";
 
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "../../components/ui/accordion";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { Switch } from "../../components/ui/switch";
-import { Input } from "../../components/ui/input";
-import { Textarea } from "../../components/ui/textarea";
+
+
+
+
+
+
+
+
+
+
+
+
 
 export default function ChatHistoryTab() {
-  const { characters, setCharacters, sessions, setSessions, settings, setSettings, globalLorebook, setGlobalLorebook, activeCharId, setActiveCharId, activeSessionId, setActiveSessionId, showSessionManager, setShowSessionManager, showFullHistory, setShowFullHistory, activeTab, setActiveTab, chatSubTab, setChatSubTab, currentTheme, setCurrentTheme, handleThemeChange, isSending, setIsSending, connectionStatus, setConnectionStatus, isDBReady, setIsDBReady, availableModels, setAvailableModels, isFetchingModels, setIsFetchingModels, handleFetchModels, userInputMessage, setUserInputMessage, editingMsgId, setEditingMsgId, editingMsgContent, setEditingMsgContent, msgMenuId, setMsgMenuId, promptInputVal, setPromptInputVal, customDialog, setCustomDialog, showCustomAlert, showCustomConfirm, showCustomPrompt, charModalOpen, setCharModalOpen, editingChar, setEditingChar, isDbWriting, setIsDbWriting, timelineModalOpen, setTimelineModalOpen, newSummaryTag, setNewSummaryTag, newSummaryLoc, setNewSummaryLoc, newSummaryContent, setNewSummaryContent, activeLoreTab, setActiveLoreTab, editingLoreEntry, setEditingLoreEntry, editingActiveCharLoreEntry, setEditingActiveCharLoreEntry, backupPass, setBackupPass, backupStatus, setBackupStatus, encryptBackup, setEncryptBackup, showBackupUI, setShowBackupUI, activeSettingAccordion, setActiveSettingAccordion, sillyInnerTab, setSillyInnerTab, expandedPromptIds, setExpandedPromptIds, togglePromptExpanded, chatBottomRef, activeCharacter, activeSession, updateSettings, handleImportPresetJSON, handleExportPresetJSON, handleSaveNewPresetBundle, handleLoadPresetBundle, handleDeletePresetBundle, handleToggleCustomPrompt, handleUpdateCustomPrompt, handleAddNewCustomPrompt, handleDeleteCustomPrompt, createNewBranch, deleteBranch, selectCharacter, triggerScroll, createNewSessionOfCharacter, handleSendMessage, handleRerollFromMessage, handleRerollLast, handleAutoSummaryCheck, testApiConnection, handleAddNewCharacter, handleEditCharacter, handleDeleteCharacter, handleSaveCharacter, handleImportCardFile, handleImportSillyLorebook, handleExportCharacterJSON, handleExportCharacterPNG, handleExportLocalDataBackup, handleImportLocalDataBackup, createBacktrackBranch, createBacktrackFromTimeline, handleAddTimelineSummary, handleSaveLoreEntry, handleSaveActiveCharLoreEntry, editingGlobalEntry, setEditingGlobalEntry, handleSaveGlobalLoreEntry, renderDialogueBubble } = useContext(AppContext);
+  const { characters, sessions, setActiveCharId, setActiveSessionId, setActiveTab, setChatSubTab, deleteBranch, triggerScroll } = useContext(AppContext);
   return (
     
           <div className="p-4 space-y-4 pb-20">

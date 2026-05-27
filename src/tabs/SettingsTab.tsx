@@ -1,16 +1,11 @@
 import React, { useContext } from "react";
 import { AppContext } from "../AppContext";
-import { 
-  ArrowLeft, Bot, User, Image as ImageIcon, Send, Settings, Plus, Trash2, Edit2, Copy, Save,
-  FileUp, FileDown, Play, Check, Book, Brain, Clock, Sliders, Download, Upload, X,
-  FileText, History, MessageSquare, KeySquare, HelpCircle, AlertCircle, RefreshCw, GitFork, UserCheck, Lock,
-  ChevronDown, ChevronUp, Cpu
- } from "lucide-react";
-import { CharacterCard, ChatSession, UserSettings, LorebookEntry, Message, SummaryCard, ApiConfig, SamplerPreset, MemoryConfig, PromptConfig } from "../types";
-import { getAllCharacters, saveCharacter, deleteCharacter, getAllSessions, saveSession, deleteSession, getStoredSettings, saveStoredSettings, getGlobalLorebook, saveGlobalLorebook } from "../utils/localDB";
-import { parseCharacterFile, injectPngMetadata, encryptBackupData, decryptBackupData } from "../utils/cardParser";
-import { assemblePromptContext } from "../utils/promptBuilder";
-import { DEFAULT_PRESETS, DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "../App";
+import { Settings, Plus, Trash2, Brain, Download, Upload, KeySquare, HelpCircle, AlertCircle, UserCheck, Lock } from "lucide-react";
+
+
+
+
+import { DEFAULT_PRESETS } from "../App";
 
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "../../components/ui/accordion";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../components/ui/card";
@@ -19,9 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Switch } from "../../components/ui/switch";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
+import { UsageDisplay } from "../utils/useUsageTracking";
 
 export default function SettingsTab() {
-  const { characters, setCharacters, sessions, setSessions, settings, setSettings, globalLorebook, setGlobalLorebook, activeCharId, setActiveCharId, activeSessionId, setActiveSessionId, showSessionManager, setShowSessionManager, showFullHistory, setShowFullHistory, activeTab, setActiveTab, chatSubTab, setChatSubTab, currentTheme, setCurrentTheme, handleThemeChange, isSending, setIsSending, connectionStatus, setConnectionStatus, isDBReady, setIsDBReady, availableModels, setAvailableModels, isFetchingModels, setIsFetchingModels, handleFetchModels, userInputMessage, setUserInputMessage, editingMsgId, setEditingMsgId, editingMsgContent, setEditingMsgContent, msgMenuId, setMsgMenuId, promptInputVal, setPromptInputVal, customDialog, setCustomDialog, showCustomAlert, showCustomConfirm, showCustomPrompt, charModalOpen, setCharModalOpen, editingChar, setEditingChar, isDbWriting, setIsDbWriting, timelineModalOpen, setTimelineModalOpen, newSummaryTag, setNewSummaryTag, newSummaryLoc, setNewSummaryLoc, newSummaryContent, setNewSummaryContent, activeLoreTab, setActiveLoreTab, editingLoreEntry, setEditingLoreEntry, editingActiveCharLoreEntry, setEditingActiveCharLoreEntry, backupPass, setBackupPass, backupStatus, setBackupStatus, encryptBackup, setEncryptBackup, showBackupUI, setShowBackupUI, activeSettingAccordion, setActiveSettingAccordion, sillyInnerTab, setSillyInnerTab, expandedPromptIds, setExpandedPromptIds, togglePromptExpanded, chatBottomRef, activeCharacter, activeSession, updateSettings, handleImportPresetJSON, handleExportPresetJSON, handleSaveNewPresetBundle, handleLoadPresetBundle, handleDeletePresetBundle, handleToggleCustomPrompt, handleUpdateCustomPrompt, handleAddNewCustomPrompt, handleDeleteCustomPrompt, createNewBranch, deleteBranch, selectCharacter, triggerScroll, createNewSessionOfCharacter, handleSendMessage, handleRerollFromMessage, handleRerollLast, handleAutoSummaryCheck, testApiConnection, handleAddNewCharacter, handleEditCharacter, handleDeleteCharacter, handleSaveCharacter, handleImportCardFile, handleImportSillyLorebook, handleExportCharacterJSON, handleExportCharacterPNG, handleExportLocalDataBackup, handleImportLocalDataBackup, createBacktrackBranch, createBacktrackFromTimeline, handleAddTimelineSummary, handleSaveLoreEntry, handleSaveActiveCharLoreEntry, editingGlobalEntry, setEditingGlobalEntry, handleSaveGlobalLoreEntry, renderDialogueBubble } = useContext(AppContext);
+  const { settings, currentTheme, handleThemeChange, availableModels, isFetchingModels, handleFetchModels, backupPass, setBackupPass, backupStatus, encryptBackup, setEncryptBackup, showBackupUI, setShowBackupUI, sillyInnerTab, setSillyInnerTab, updateSettings, handleImportPresetJSON, handleExportPresetJSON, handleSaveNewPresetBundle, handleLoadPresetBundle, handleDeletePresetBundle, handleToggleCustomPrompt, handleUpdateCustomPrompt, handleAddNewCustomPrompt, handleDeleteCustomPrompt, handleExportLocalDataBackup, handleImportLocalDataBackup } = useContext(AppContext);
   return (
     
           <div className="p-4 flex flex-col h-full overflow-hidden">
@@ -555,6 +551,8 @@ export default function SettingsTab() {
                       </CardContent>
                     )}
                   </Card>
+                  
+                  <UsageDisplay />
                 </TabsContent>
                 
               </div>
