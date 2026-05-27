@@ -39,7 +39,9 @@ jobs:
         run: npm ci
 
       - name: Generate Tauri Icons
-        run: npx tauri icon
+        run: |
+          node decode_icon.cjs
+          npx tauri icon
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
