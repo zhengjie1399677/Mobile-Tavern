@@ -1,0 +1,58 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager "ndk;25.2.9519653"
+
+      - name: Set NDK Home
+        run: echo "NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+
+      - name: Initialize Android Project
+        run: |
+          npx tauri android init
+        continue-on-error: true
+
+      - name: Build Android APK
+        env:
+          NDK_HOME: ${{ env.NDK_HOME }}
+        run: npx tauri android build --apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aitavern-release.apk
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
