@@ -257,7 +257,7 @@ export default function App() {
   const [editingActiveCharLoreEntry, setEditingActiveCharLoreEntry] = useState<Partial<LorebookEntry> | null>(null);
 
   // Active selected host in Worldbook Tab
-  const [activeWorldbookHostId, setActiveWorldbookHostId] = useState<string>("global");
+  const [activeWorldbookHostId, setActiveWorldbookHostId] = useState<string>("list");
 
   // Backups Encryption Passphrase
   const [backupPass, setBackupPass] = useState("");
