@@ -73,8 +73,22 @@ jobs:
           NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
 
-      - name: Upload APK
+      - name: Rename and Prepare APK
+        run: |
+          apk_path=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | grep release | head -n 1)
+          if [ -n "$apk_path" ]; then
+            cp "$apk_path" AITavern.apk
+          fi
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: aitavern-release.apk
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          path: AITavern.apk
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: AITavern.apk
+          draft: true

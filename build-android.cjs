@@ -3,7 +3,7 @@ const maxRetries = 3;
 for (let i = 0; i < maxRetries; i++) {
   try {
     console.log('Attempt ' + (i + 1) + ' to build Android APK...');
-    execSync('npx tauri android build --apk -v', { stdio: 'inherit' });
+    execSync('npx tauri android build --apk -v --target aarch64', { stdio: 'inherit' });
     console.log('Build succeeded.');
     process.exit(0);
   } catch (err) {
