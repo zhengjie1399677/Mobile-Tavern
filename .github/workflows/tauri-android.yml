@@ -9,6 +9,9 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -77,18 +80,18 @@ jobs:
         run: |
           apk_path=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | grep release | head -n 1)
           if [ -n "$apk_path" ]; then
-            cp "$apk_path" AITavern.apk
+            cp "$apk_path" MobileTavern.apk
           fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aitavern-release.apk
-          path: AITavern.apk
+          name: mobile-tavern-release.apk
+          path: MobileTavern.apk
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: AITavern.apk
+          files: MobileTavern.apk
           draft: true
