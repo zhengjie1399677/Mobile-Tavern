@@ -5,7 +5,7 @@ import ChatTab from "./tabs/ChatTab";
 import GlobalWorldbookTab from "./tabs/GlobalWorldbookTab";
 import SettingsTab from "./tabs/SettingsTab";
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Bot, User, Settings, Plus, Trash2, Save, Check, Book, Clock, Download, Upload, X, MessageSquare, GitFork } from "lucide-react";
+import { Bot, User, Settings, Plus, Trash2, Save, Check, Book, Clock, Download, Upload, X, MessageSquare, GitFork, ChevronDown, ChevronUp, Edit2 } from "lucide-react";
 import { CharacterCard, ChatSession, UserSettings, LorebookEntry, Message, SummaryCard, SamplerPreset, PromptConfig } from "./types";
 import {
   getAllCharacters, saveCharacter, deleteCharacter,
@@ -251,6 +251,7 @@ export default function App() {
   // Lorebook editor in Character modal
   const [activeLoreTab, setActiveLoreTab] = useState<"detail" | "lore">("detail");
   const [editingLoreEntry, setEditingLoreEntry] = useState<Partial<LorebookEntry> | null>(null);
+  const [expandedLoreIds, setExpandedLoreIds] = useState<Record<string, boolean>>({});
 
   // Independent active-character lorebook editor (Tab version)
   const [editingActiveCharLoreEntry, setEditingActiveCharLoreEntry] = useState<Partial<LorebookEntry> | null>(null);
@@ -2250,61 +2251,152 @@ export default function App() {
 
                 {/* List boundary lore for active character */}
                 <div className="space-y-2.5">
-                  <h4 className="font-bold text-primary">已设定的特殊词条 ({editingChar.lorebookEntries?.length || 0} 项)</h4>
-                  {editingChar.lorebookEntries?.map((entry, idx) => (
-                    <div key={entry.id || idx} className={`bg-card p-2.5 rounded border text-[11px] transition ${entry.disabled ? "opacity-55 bg-red-950/5 border-dashed border-red-950/20" : "border-border/80"}`}>
-                      <div className="flex items-center justify-between mb-1.5 border-b border-border/40 pb-1">
-                        <div className="flex flex-wrap items-center gap-1 text-[10px]">
-                          {entry.comment && (
-                            <span className="bg-amber-950/20 text-amber-500 font-bold px-1.5 py-0.5 rounded border border-amber-900/30">
-                              📝 {entry.comment}
-                            </span>
-                          )}
-                          {!entry.constant && entry.keys.map((k) => (
-                            <span key={k} className="bg-input text-muted-foreground border border-border px-1 rounded text-[10px]">
-                              🔑 {k}
-                            </span>
-                          ))}
-                          {entry.useRegex && <span className="bg-purple-950/20 text-purple-400 px-1 rounded border border-purple-900/30 text-[9px]">Regex</span>}
-                          {entry.constant && <span className="bg-emerald-950/20 text-emerald-400 px-1 rounded border border-emerald-900/30 text-[9px]">常驻</span>}
-                          {entry.disabled && <span className="bg-rose-950/30 text-rose-400 px-1 rounded border border-rose-900/40 text-[9px]">已禁用</span>}
-                        </div>
-                        <div className="flex gap-1.5">
-                          <button onClick={() => setEditingLoreEntry({ ...entry })} className="text-muted-foreground hover:text-foreground">
-                            编辑
-                          </button>
-                          <button
-                            onClick={async () => {
-                              const ok = await showCustomConfirm("确定擦除该条世界书设定吗？");
-                              if (ok) {
-                                const next = (editingChar.lorebookEntries || []).filter((e) => e.id !== entry.id);
-                                setEditingChar({ ...editingChar, lorebookEntries: next });
-                              }
-                            }}
-                                                        className="text-red-400"
-                          >
-                            擦除
-                          </button>
-                        </div>
-                      </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="font-bold text-primary">已包含的专属知识词条 ({editingChar.lorebookEntries?.length || 0} 项 - 点击展开查看/重修改)</span>
+                  </div>
 
-                      <div className="flex flex-wrap gap-x-3 text-[9px] text-muted-foreground font-mono mb-1">
-                        {entry.position && (
-                          <span>位置: {
-                            entry.position === 'after_char_def' ? "📌角色定义后" :
-                            entry.position === 'before_char_def' ? "📌角色定义前" :
-                            entry.position === 'top' ? "📌页面顶部" : "💬最新消息上方"
-                          }</span>
+                  {editingChar.lorebookEntries?.map((entry, idx) => {
+                    const entryKey = entry.id || `lore-${idx}`;
+                    const isExpanded = !!expandedLoreIds[entryKey];
+                    const entryName = entry.comment || (entry.keys && entry.keys.length > 0 ? entry.keys.join(", ") : "") || "未命名专属词条";
+                    
+                    return (
+                      <div
+                        key={entryKey}
+                        className={`bg-card rounded-xl border text-xs transition-all duration-200 ${
+                          entry.disabled
+                            ? "border-dashed border-red-900/30 bg-red-950/5 opacity-70"
+                            : isExpanded
+                            ? "border-primary/50 ring-1 ring-primary/20 shadow-sm"
+                            : "border-border/80 hover:border-border/100"
+                        }`}
+                      >
+                        {/* Compact Header (Always Visible) */}
+                        <div
+                          onClick={() => setExpandedLoreIds((prev) => ({ ...prev, [entryKey]: !prev[entryKey] }))}
+                          className="p-3 flex items-center justify-between cursor-pointer select-none gap-2"
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="text-muted-foreground shrink-0 text-sm">
+                              {isExpanded ? "📂" : "📁"}
+                            </span>
+                            <span className="font-semibold text-foreground truncate max-w-[180px] md:max-w-[320px]">
+                              {entryName}
+                            </span>
+                            
+                            {/* Short indicators/badges */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {entry.constant && (
+                                <span className="bg-emerald-950/25 text-emerald-400 border border-emerald-900/30 px-1 py-0.2 rounded text-[9px] scale-[0.9]">
+                                  常驻
+                                </span>
+                              )}
+                              {entry.disabled && (
+                                <span className="bg-rose-950/25 text-rose-400 border border-rose-900/30 px-1 py-0.2 rounded text-[9px] scale-[0.9]">
+                                  已禁用
+                                </span>
+                              )}
+                              {entry.useRegex && (
+                                <span className="bg-purple-950/25 text-purple-400 border border-purple-900/30 px-1 py-0.2 rounded text-[9px] scale-[0.9]">
+                                  正则
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-muted-foreground shrink-0">
+                            <span className="text-[10px] opacity-75 hidden sm:inline">
+                              {entry.keys && entry.keys.length > 0 ? `(${entry.keys.length}个关键词)` : ""}
+                            </span>
+                            {isExpanded ? (
+                              <ChevronUp className="w-4 h-4 text-muted-foreground/80" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-muted-foreground/80" />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Collapsible Content */}
+                        {isExpanded && (
+                          <div className="px-3.5 pb-3.5 pt-1 border-t border-border/40 space-y-3 animate-fadeIn text-xs">
+                            {/* Meta row details */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-muted/20 p-2 rounded-lg text-[10px] text-muted-foreground font-mono">
+                              <div>
+                                <span className="text-muted-foreground/75">触发关键词: </span>
+                                <span className="text-foreground font-semibold">
+                                  {entry.keys && entry.keys.length > 0 ? entry.keys.join(", ") : "(无)"}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground/75">位置: </span>
+                                <span className="text-foreground font-semibold">
+                                  {entry.position === "after_char_def"
+                                    ? "📌 角色定义后"
+                                    : entry.position === "before_char_def"
+                                    ? "📌 角色定义前"
+                                    : entry.position === "top"
+                                    ? "📌 页面顶部"
+                                    : "💬 最新消息上"}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground/75">深度 / 权重: </span>
+                                <span className="text-foreground font-semibold">
+                                  {entry.depth !== undefined ? entry.depth : 4} / {entry.order !== undefined ? entry.order : 100}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground/75">概率 / Regex: </span>
+                                <span className="text-foreground font-semibold">
+                                  {entry.probability !== undefined ? entry.probability : 100}% / {entry.useRegex ? "是" : "否"}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Factual Description / Content Detail */}
+                            <div className="space-y-1">
+                              <span className="block text-[10px] text-muted-foreground font-medium">设定叙述内容:</span>
+                              <p className={`font-light leading-relaxed whitespace-pre-wrap rounded-lg bg-muted/45 p-2 border border-border/40 ${entry.disabled ? "line-through text-muted-foreground/50" : "text-muted-foreground"}`}>
+                                {entry.content}
+                              </p>
+                            </div>
+
+                            {/* Bottom row actions */}
+                            <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                              <span className="text-[10px] text-muted-foreground">
+                                {entry.addMemo ? "⭐ 注入时附带标题备忘" : ""}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingLoreEntry({ ...entry });
+                                  }}
+                                  className="text-[11px] bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 px-2.5 py-1 rounded-md flex items-center gap-1 font-semibold transition"
+                                  title="载入到上方编辑器"
+                                >
+                                  <Edit2 className="w-3 h-3" /> 编辑设定
+                                </button>
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const ok = await showCustomConfirm("确定擦除该条专属世界设定词条吗？");
+                                    if (ok) {
+                                      const next = (editingChar.lorebookEntries || []).filter((g) => g.id !== entry.id);
+                                      setEditingChar({ ...editingChar, lorebookEntries: next });
+                                    }
+                                  }}
+                                  className="text-[11px] bg-rose-950/20 hover:bg-rose-950/45 text-red-400 border border-thin border-rose-900/35 px-2.5 py-1 rounded-md flex items-center gap-1 transition"
+                                >
+                                  <Trash2 className="w-3 h-3" /> 擦除设定
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         )}
-                        {entry.depth !== undefined && <span>深度: {entry.depth}</span>}
-                        {entry.order !== undefined && <span>权重: {entry.order}</span>}
-                        {entry.probability !== undefined && entry.probability < 100 && <span>概率: {entry.probability}%</span>}
-                        {entry.addMemo && <span className="text-amber-500">带备注(Memo)</span>}
                       </div>
-
-                      <p className={`text-muted-foreground leading-relaxed ${entry.disabled ? "line-through text-muted-foreground/50" : ""}`}>{entry.content}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {(!editingChar.lorebookEntries || editingChar.lorebookEntries.length === 0) && (
                     <p className="text-center text-muted-foreground italic py-4">暂无角色附属词条，点击上方工具卡片录入。</p>
                   )}

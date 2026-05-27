@@ -13,6 +13,7 @@ export interface LorebookEntry {
   order?: number;       // Precedence order (default 100)
   position?: 'top' | 'before_char_def' | 'after_char_def' | 'before_last_mes'; // Physical insertion position
   depth?: number;       // Scan depth (how many of recent messages to inspect, default 4)
+  isGlobal?: boolean;   // Whether this lorebook is global
 }
 
 export interface CharacterCard {

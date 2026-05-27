@@ -1,0 +1,6 @@
+# Treat binary assets as binary to prevent CRLF line ending corruption on checkout
+*.png binary
+*.ico binary
+*.icns binary
+*.jar binary
+*.aar binary

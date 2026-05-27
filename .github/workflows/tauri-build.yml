@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   release:
     strategy:
@@ -35,11 +38,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Generate Tauri Icons
+        run: npx tauri icon
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
