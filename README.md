@@ -1,42 +1,31 @@
-# Mobile Tavern Lite
+# Mobile Tavern
 
-A lightweight, local-first, mobile-optimized frontend for AI role-playing and chat. This project runs entirely in your browser using IndexedDB for storage and connects to Gemini models for generating character responses.
+Mobile Tavern 是一款专为移动端打造的轻量级 AI 角色扮演客户端。
 
-## 项目概览 (Project Overview)
+## 为什么开发这个应用？(Why Mobile Tavern?)
 
-本项目是一个功能完整的纯前端 AI 角色扮演对话应用。它将用户数据完全存储在本地（隐私友好），并且对移动端界面的操作体验做了深度优化。
+诞生初衷非常简单：虽然 **Silly Tavern** 在桌面端拥有无与伦比的丰富功能且体验极佳，但由于其设计过于庞大臃肿，导致在手机端浏览器上的操作体验非常糟糕。
 
-### 核心功能 (Core Features)
+对于很多只是想在手机上玩一玩简单的、轻量级的角色卡片的用户来说，Silly Tavern 显得过于笨重。因此，**Mobile Tavern** 诞生了。它并非旨在替代桌面端的 Silly Tavern，而是作为它在**移动设备上的轻量化互补方案**。
 
-1. **角色馆 (Character Management)**
-   - 支持主流的 Tavern 格式人物卡（PNG 或 JSON 格式）导入和导出。
-   - 自定义角色的各类设定，包括姓名、头像、人物描述、对话风格、系统级别的自定义约束。
-2. **对话流 (Chat & Sessions)**
-   - 每个角色可以拥有多个独立分支对话（Session）。
-   - 支持回退（Backtrack）、重摇（Reroll）、编辑、删除对话。
-   - 自动在后台进行上下文总结（Summarization）以节省长文本时的 Token 开销。
-3. **世界书 (Lorebook)**
-   - 全局世界书与单角色世界书：可在对话中根据玩家或 AI 提到的关键字自动注入设定背景。
-4. **端控制 (System Settings)**
-   - 提供给高级玩家的高度自定义空间，包含采样设置（Top-P, Top-K, Repetition Penalty等）。
-   - 可视化的 Prompt 组件定制器，可自定义 AI 接收到的具体系统提示词和对话格式。
-5. **本地存储与备份 (Local Storage & Backups)**
-   - 免除部署数据库的麻烦。使用 LocalForage 和 IndexedDB 来存储全部的聊天进度。
-   - 支持基于 JSON 的完整设定打包导出，甚至可选密码加密。
+我们故意去除了对桌面端打包的支持，也没有过多臃肿的功能，优先保证**移动设备上的流畅度、触摸体验以及应用体积（性能优先）**。
+
+## 核心特性 (Key Features)
+
+*   **专为移动端优化的交互设计**：没有复杂的桌面级侧边栏和多级菜单，针对手机屏幕进行布局和触控优化。
+*   **兼容 Tavern 角色卡**：支持导入标准的酒馆角色卡片（PNG / JSON），满足基础角色的游玩需求。
+*   **轻量化与高性能**：舍弃了复杂的周边功能，专注于核心的对话引擎，让应用加载更快、响应更迅捷。
+*   **原生 Android 体验**：使用 Tauri 构建为原生 Android APK 安装包，支持脱离浏览器并在后台维持更好的生命周期。
+
+## 为什么要发安卓版？(Why Android Output?)
+
+Silly Tavern 适合桌面。Mobile Tavern 适合便携。
+通过 GitHub Actions 的自动化构建流程，我们可以直接打包生成原生的 Android APK 安装包 (`MobileTavern.apk`)，无需自己搭建复杂的安卓打包环境。你可以随时在 Github 仓库的 Releases 页面下载最新安装包构建。
 
 ## 技术栈 (Technology Stack)
 
-应用采用了现代化的全栈前端框架与库进行构建，确保了性能、开发体验和响应式特性：
+*   **前端框架**: React 18 + Vite + TypeScript
+*   **构建配置**: Tauri v2 (专注 Android 构建 `aarch64`)
+*   **样式库**: Tailwind CSS + shadcn/ui
+*   **数据存储**: IndexedDB / localForage (完全本地，隐私安全)
 
-- **核心框架**: [React 18](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
-- **构建工具**: [Vite](https://vitejs.dev/) - 极速的热更新体验和打包器。
-- **样式方案**: [Tailwind CSS](https://tailwindcss.com/) - 实用优先的原子级 CSS 框架。
-- **UI 组件库**: 基于 [shadcn/ui](https://ui.shadcn.com/) 与 Radix UI 的无障碍组件体系。
-- **图标集**: [lucide-react](https://lucide.dev/) - 简约、风格一致的现代化图标库。
-- **本地存储**: [localforage](https://localforage.github.io/localForage/) - 封装 IndexedDB 的 API 库。
-- **大模型通信**: AI Studio Gemini 代理或第三方 OpenAI 兼容 API / Gemini 原生 API。
-- **数据与图片处理**: `png-text`, `msgpackr`, `base64-js` (实现酒馆 V2+ PNG 元数据的解析与注入).
-
-***
-
-如果您有其中任何感兴趣的模块，可以随时向我提出，我会立即帮您开始构建！
