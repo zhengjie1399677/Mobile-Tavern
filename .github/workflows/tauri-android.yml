@@ -68,7 +68,7 @@ jobs:
         continue-on-error: true
 
       - name: Build Android APK
-        run: npx tauri android build --apk -v
+        run: npm run build:android
         env:
           NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
