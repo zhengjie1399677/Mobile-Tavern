@@ -4,7 +4,8 @@ import { CharacterCard, ChatSession, LorebookEntry, UserSettings, Message } from
  * Searches for active worldbook (lorebook) keywords in text.
  */
 export function getTriggeredLorebookEntries(
-  recentText: string,
+  messages: Message[],
+  userInput: string,
   entries: LorebookEntry[]
 ): LorebookEntry[] {
   if (!entries || entries.length === 0) return [];
@@ -17,18 +18,53 @@ export function getTriggeredLorebookEntries(
       continue;
     }
     
-    // Check if any keyword matches
+    // 1. Determine scanning depth (how many recent messages to inspect, default 4)
+    const depth = entry.depth !== undefined ? entry.depth : 4;
+    const scanMessages = messages ? messages.slice(-depth) : [];
+    const scanText = userInput + "\n" + scanMessages.map((m) => m.content).join("\n");
+    
+    // 2. Check if any keyword matches
     const hasMatch = entry.keys.some((key) => {
       const trimmedKey = key.trim();
       if (!trimmedKey) return false;
-      // Simple case-insensitive search
-      return recentText.toLowerCase().includes(trimmedKey.toLowerCase());
+      
+      if (entry.useRegex) {
+        try {
+          let pattern = trimmedKey;
+          let flags = "i";
+          if (trimmedKey.startsWith("/") && trimmedKey.lastIndexOf("/") > 0) {
+            pattern = trimmedKey.substring(1, trimmedKey.lastIndexOf("/"));
+            flags = trimmedKey.substring(trimmedKey.lastIndexOf("/") + 1);
+          }
+          const regex = new RegExp(pattern, flags);
+          return regex.test(scanText);
+        } catch (err) {
+          // Fallback to substring match
+          return scanText.toLowerCase().includes(trimmedKey.toLowerCase());
+        }
+      } else {
+        // Simple case-insensitive search
+        return scanText.toLowerCase().includes(trimmedKey.toLowerCase());
+      }
     });
     
     if (hasMatch) {
+      // 3. Roll trigger probability (0-100, default 100)
+      const prob = entry.probability !== undefined ? entry.probability : 100;
+      if (prob < 100 && Math.random() * 100 > prob) {
+        continue;
+      }
       activeEntries.push(entry);
     }
   }
+  
+  // 4. Sort by order weight (ascending, default 100)
+  activeEntries.sort((a, b) => {
+    const orderA = a.order !== undefined ? a.order : 100;
+    const orderB = b.order !== undefined ? b.order : 100;
+    return orderA - orderB;
+  });
+  
   return activeEntries;
 }
 
@@ -102,26 +138,43 @@ export function assemblePromptContext(params: {
     }
   }
 
-  // 2. Scan lorebook keywords in recent history + current input
-  const lastMessagesContent = chat.messages
-    .slice(-3)
-    .map((m) => m.content)
-    .join("\n");
-  const scanText = userInput + "\n" + lastMessagesContent;
-  
+  // 2. Scan lorebook keywords
   // Combine custom character entries and global entries
   const allEntries = [
     ...(character.lorebookEntries || []),
     ...globalLorebook,
   ];
-  const activeEntries = getTriggeredLorebookEntries(scanText, allEntries);
+  const activeEntries = getTriggeredLorebookEntries(chat.messages || [], userInput, allEntries);
   
-  let lorebookSection = "";
-  if (activeEntries.length > 0) {
-    lorebookSection = "\n=== 宿主世界设定书补充 (World Info) ===\n" + activeEntries
-      .map((e, idx) => `[关键词: ${e.keys.join("/")}] ${e.content}`)
-      .join("\n") + "\n";
+  // Sort them into physical location buckets
+  const topEntries = activeEntries.filter(e => e.position === 'top');
+  const beforeCharEntries = activeEntries.filter(e => e.position === 'before_char_def');
+  const afterCharEntries = activeEntries.filter(e => e.position === 'after_char_def' || !e.position);
+  const beforeLastMsgEntries = activeEntries.filter(e => e.position === 'before_last_mes');
+  
+  function formatEntryContent(entry: LorebookEntry): string {
+    if (entry.addMemo && entry.comment) {
+      return `[设定及备注: ${entry.comment}]\n${entry.content}`;
+    }
+    return entry.content;
   }
+  
+  function formatEntryBlock(entries: LorebookEntry[]): string {
+    if (entries.length === 0) return "";
+    return entries.map(e => formatEntryContent(e)).join("\n\n");
+  }
+  
+  const topText = formatEntryBlock(topEntries);
+  const topSection = topText ? `=== 设定基础基石 (World Lore) ===\n${topText}\n` : "";
+  
+  const beforeCharText = formatEntryBlock(beforeCharEntries);
+  const beforeCharSection = beforeCharText ? `=== 世界背景设定前置 ===\n${beforeCharText}\n` : "";
+  
+  const afterCharText = formatEntryBlock(afterCharEntries);
+  const afterCharSection = afterCharText ? `=== 设定说明书拓展 (World Info) ===\n${afterCharText}\n` : "";
+  
+  const beforeLastText = formatEntryBlock(beforeLastMsgEntries);
+  const beforeLastSection = beforeLastText ? `=== 临时触发规则与道具 ===\n${beforeLastText}\n` : "";
 
   // 3. Summary timeline memory
   let summarySection = "";
@@ -176,6 +229,21 @@ export function assemblePromptContext(params: {
   const personalityVal = replaceMacros(character.personality || "", macroParams);
   const scenarioVal = replaceMacros(character.scenario || "", macroParams);
 
+  // Apply visual positions
+  if (topSection) {
+    compiledStory = compiledStory.replace(/\{\{system_prompt\}\}/gi, `${topSection}\n{{system_prompt}}`);
+  }
+  if (beforeCharSection) {
+    compiledStory = compiledStory.replace(/\{\{personality\}\}/gi, `${beforeCharSection}\n{{personality}}`);
+  }
+  if (beforeLastSection) {
+    if (compiledStory.includes("{{post_history}}")) {
+      compiledStory = compiledStory.replace(/\{\{post_history\}\}/gi, `${beforeLastSection}\n{{post_history}}`);
+    } else {
+      compiledStory = compiledStory + `\n\n${beforeLastSection}`;
+    }
+  }
+
   // Substitute all fields
   compiledStory = compiledStory
     .replace(/\{\{system_prompt\}\}/gi, mainPromptReplaced)
@@ -186,8 +254,8 @@ export function assemblePromptContext(params: {
     .replace(/\{\{char_scenario\}\}/gi, scenarioVal)
     .replace(/\{\{char_system\}\}/gi, charSpecificPrompt)
     .replace(/\{\{summaries\}\}/gi, summarySection)
-    .replace(/\{\{lorebook_entries\}\}/gi, lorebookSection)
-    .replace(/\{\{wi\}\}/gi, lorebookSection)
+    .replace(/\{\{lorebook_entries\}\}/gi, afterCharSection)
+    .replace(/\{\{wi\}\}/gi, afterCharSection)
     .replace(/\{\{jailbreak\}\}/gi, jailbreakSection)
     .replace(/\{\{post_history\}\}/gi, postHistorySection);
 

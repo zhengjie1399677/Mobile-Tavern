@@ -4,7 +4,15 @@ export interface LorebookEntry {
   content: string;      // The actual worldbook lore
   constant: boolean;    // Always active in prompting context
   enabled: boolean;
+  disabled?: boolean;   // Disabled toggle
   comment?: string;
+  // Advanced fields
+  useRegex?: boolean;   // Regex trigger
+  addMemo?: boolean;    // Append comment as memo
+  probability?: number; // Trigger probability (0-100, default 100)
+  order?: number;       // Precedence order (default 100)
+  position?: 'top' | 'before_char_def' | 'after_char_def' | 'before_last_mes'; // Physical insertion position
+  depth?: number;       // Scan depth (how many of recent messages to inspect, default 4)
 }
 
 export interface CharacterCard {

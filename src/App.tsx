@@ -1773,8 +1773,15 @@ export default function App() {
         : (editingLoreEntry.keys as unknown as string).split(",").map((k) => k.trim()).filter(Boolean),
       content: editingLoreEntry.content.trim(),
       constant: !!editingLoreEntry.constant,
-      enabled: editingLoreEntry.enabled !== false,
-      comment: editingLoreEntry.comment || ""
+      disabled: !!editingLoreEntry.disabled,
+      enabled: !editingLoreEntry.disabled,
+      comment: editingLoreEntry.comment || "",
+      useRegex: !!editingLoreEntry.useRegex,
+      addMemo: !!editingLoreEntry.addMemo,
+      probability: editingLoreEntry.probability !== undefined ? Number(editingLoreEntry.probability) : 100,
+      order: editingLoreEntry.order !== undefined ? Number(editingLoreEntry.order) : 100,
+      position: editingLoreEntry.position || 'after_char_def',
+      depth: editingLoreEntry.depth !== undefined ? Number(editingLoreEntry.depth) : 4
     } as LorebookEntry;
 
     const existingIdx = nextEntries.findIndex((e) => e.id === newEntry.id);
@@ -1805,8 +1812,15 @@ export default function App() {
       keys: keysArr,
       content: editingActiveCharLoreEntry.content.trim(),
       constant: !!editingActiveCharLoreEntry.constant,
-      enabled: editingActiveCharLoreEntry.enabled !== false,
-      comment: editingActiveCharLoreEntry.comment || ""
+      disabled: !!editingActiveCharLoreEntry.disabled,
+      enabled: !editingActiveCharLoreEntry.disabled,
+      comment: editingActiveCharLoreEntry.comment || "",
+      useRegex: !!editingActiveCharLoreEntry.useRegex,
+      addMemo: !!editingActiveCharLoreEntry.addMemo,
+      probability: editingActiveCharLoreEntry.probability !== undefined ? Number(editingActiveCharLoreEntry.probability) : 100,
+      order: editingActiveCharLoreEntry.order !== undefined ? Number(editingActiveCharLoreEntry.order) : 100,
+      position: editingActiveCharLoreEntry.position || 'after_char_def',
+      depth: editingActiveCharLoreEntry.depth !== undefined ? Number(editingActiveCharLoreEntry.depth) : 4
     };
 
     const nextEntries = [...(activeCharacter.lorebookEntries || [])];
@@ -1841,8 +1855,15 @@ export default function App() {
       keys: keysArr,
       content: editingGlobalEntry.content.trim(),
       constant: !!editingGlobalEntry.constant,
-      enabled: editingGlobalEntry.enabled !== false,
-      comment: editingGlobalEntry.comment || ""
+      disabled: !!editingGlobalEntry.disabled,
+      enabled: !editingGlobalEntry.disabled,
+      comment: editingGlobalEntry.comment || "",
+      useRegex: !!editingGlobalEntry.useRegex,
+      addMemo: !!editingGlobalEntry.addMemo,
+      probability: editingGlobalEntry.probability !== undefined ? Number(editingGlobalEntry.probability) : 100,
+      order: editingGlobalEntry.order !== undefined ? Number(editingGlobalEntry.order) : 100,
+      position: editingGlobalEntry.position || 'after_char_def',
+      depth: editingGlobalEntry.depth !== undefined ? Number(editingGlobalEntry.depth) : 4
     };
 
     const nextList = [...globalLorebook];
@@ -2048,7 +2069,7 @@ export default function App() {
                   <label className="block text-muted-foreground mb-1">当前剧本故事场景设定 (Scenario Context)</label>
                   <input
                     type="text"
-                    placeholder="当前的故事场景和环境设定"
+                    placeholder="当前的故事场景 and 环境设定"
                     value={editingChar.scenario || ""}
                     onChange={(e) => setEditingChar({ ...editingChar, scenario: e.target.value })}
                     className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs"
@@ -2092,52 +2113,137 @@ export default function App() {
 
             {/* Tab: Character-bound lorebook items details entry */}
             {activeLoreTab === "lore" && (
-              <div className="p-4 space-y-4 text-xs">
+              <div className="p-4 space-y-4 text-xs animate-fadeIn">
                 {/* Embedded editor for bound lorebooks */}
-                <div className="bg-input p-3 rounded-lg border border-border space-y-2">
-                  <h4 className="font-bold text-muted-foreground text-xs">
-                    {editingLoreEntry?.id ? "修改词条" : "手工创造专属故事词条"}
+                <div className="bg-card p-3 rounded-lg border border-border space-y-3 shadow-inner">
+                  <h4 className="font-bold text-muted-foreground text-xs border-b border-border/60 pb-1">
+                    {editingLoreEntry?.id ? "✏️ 修改专属设定词条" : "➕ 手工创造专属故事词条"}
                   </h4>
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-[10px] text-muted-foreground mb-1">触发词 (逗号分隔)</label>
-                      <input
-                        type="text"
-                        placeholder="触发关键词1, 关键词2"
-                        value={editingLoreEntry?.keys ? (Array.isArray(editingLoreEntry.keys) ? editingLoreEntry.keys.join(",") : editingLoreEntry.keys as unknown as string) : ""}
-                        onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, keys: e.target.value as any })}
-                        className="w-full bg-muted border border-border rounded p-1 mb-1 text-foreground text-xs"
-                      />
+                  <div className="space-y-2.5 text-xs">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">标题/评论 (Remark/Comment)</label>
+                        <input
+                          type="text"
+                          placeholder="例如: 新条目 1"
+                          value={editingLoreEntry?.comment || ""}
+                          onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, comment: e.target.value })}
+                          className="w-full bg-input border border-border rounded p-1 text-foreground text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground mb-1">触发关键词 (半角逗号分隔)</label>
+                        <input
+                          type="text"
+                          placeholder="例如: 契约, 魔导"
+                          value={editingLoreEntry?.keys ? (Array.isArray(editingLoreEntry.keys) ? editingLoreEntry.keys.join(",") : editingLoreEntry.keys as unknown as string) : ""}
+                          onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, keys: e.target.value as any })}
+                          className="w-full bg-input border border-border rounded p-1 text-foreground text-xs"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-[10px] text-muted-foreground mb-1">设定补充内容</label>
+                      <label className="block text-[10px] text-muted-foreground mb-1">设定补充内容 (内容)</label>
                       <textarea
-                        placeholder="词条补充和描述内容"
+                        placeholder="触发时拼入背景的事实描述..."
                         rows={2}
                         value={editingLoreEntry?.content || ""}
                         onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, content: e.target.value })}
-                        className="w-full bg-muted border border-border rounded p-1 text-foreground text-xs resize-none"
+                        className="w-full bg-input border border-border rounded p-1 text-foreground text-xs resize-none font-medium leading-relaxed"
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-1 text-[10.5px] text-muted-foreground">
+
+                    <div className="flex flex-wrap gap-x-3 gap-y-1.5 p-1.5 bg-muted/20 border border-border/30 rounded">
+                      <label className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!editingLoreEntry?.useRegex}
+                          onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, useRegex: e.target.checked })}
+                          className="accent-primary"
+                        />
+                        <span>正则</span>
+                      </label>
+                      <label className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!editingLoreEntry?.addMemo}
+                          onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, addMemo: e.target.checked })}
+                          className="accent-primary"
+                        />
+                        <span>带备注 (Memo)</span>
+                      </label>
+                      <label className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer">
                         <input
                           type="checkbox"
                           checked={!!editingLoreEntry?.constant}
                           onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, constant: e.target.checked })}
+                          className="accent-primary"
                         />
-                        <span>无需检索，常驻注入</span>
+                        <span>常常驻</span>
                       </label>
-                      <div className="flex gap-1">
-                        {editingLoreEntry && (
-                          <button onClick={() => setEditingLoreEntry(null)} className="bg-muted px-2 py-0.5 rounded text-muted-foreground text-[11px]">
-                            取消
-                          </button>
-                        )}
-                        <button onClick={handleSaveLoreEntry} className="bg-primary font-medium px-2 py-0.5 rounded text-primary-foreground text-[11px]">
-                          确定条目
-                        </button>
+                      <label className="flex items-center gap-1 text-[10px] text-rose-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!editingLoreEntry?.disabled}
+                          onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, disabled: e.target.checked })}
+                          className="accent-primary w-3 h-3"
+                        />
+                        <span>禁用</span>
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 border-t border-border/30 pt-2 text-[10px]">
+                      <div>
+                        <label className="block text-muted-foreground mb-1">位置 (Position)</label>
+                        <select
+                          value={editingLoreEntry?.position || "after_char_def"}
+                          onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, position: e.target.value as any })}
+                          className="w-full bg-input border border-border rounded p-1 text-foreground text-[10px] outline-none"
+                        >
+                          <option value="after_char_def">📌角色定义后</option>
+                          <option value="before_char_def">📌角色定义前</option>
+                          <option value="top">📌对话顶部</option>
+                          <option value="before_last_mes">💬最新消息上</option>
+                        </select>
                       </div>
+                      <div>
+                        <label className="block text-muted-foreground mb-1">深度 (Depth)</label>
+                        <input
+                          type="number"
+                          value={editingLoreEntry?.depth !== undefined ? editingLoreEntry.depth : 4}
+                          onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, depth: Number(e.target.value) })}
+                          className="w-full bg-input border border-border rounded p-1 text-foreground text-[10px] outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-muted-foreground mb-1">权重 (Order)</label>
+                        <input
+                          type="number"
+                          value={editingLoreEntry?.order !== undefined ? editingLoreEntry.order : 100}
+                          onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, order: Number(e.target.value) })}
+                          className="w-full bg-input border border-border rounded p-1 text-foreground text-[10px] outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-muted-foreground mb-1">概率 (%)</label>
+                        <input
+                          type="number"
+                          value={editingLoreEntry?.probability !== undefined ? editingLoreEntry.probability : 100}
+                          onChange={(e) => setEditingLoreEntry({ ...editingLoreEntry, probability: Number(e.target.value) })}
+                          className="w-full bg-input border border-border rounded p-1 text-foreground text-[10px] outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-1 pt-1 border-t border-border/30">
+                      {editingLoreEntry && (
+                        <button onClick={() => setEditingLoreEntry(null)} className="bg-muted px-2.5 py-1 rounded text-muted-foreground text-[11px]">
+                          取消
+                        </button>
+                      )}
+                      <button onClick={handleSaveLoreEntry} className="bg-primary hover:bg-primary/90 font-bold px-3 py-1 rounded text-primary-foreground text-[11px]">
+                        确定词条
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2146,14 +2252,22 @@ export default function App() {
                 <div className="space-y-2.5">
                   <h4 className="font-bold text-primary">已设定的特殊词条 ({editingChar.lorebookEntries?.length || 0} 项)</h4>
                   {editingChar.lorebookEntries?.map((entry, idx) => (
-                    <div key={entry.id || idx} className="bg-card p-2.5 rounded border border-border/80">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1">
-                          {entry.keys.map((k) => (
+                    <div key={entry.id || idx} className={`bg-card p-2.5 rounded border text-[11px] transition ${entry.disabled ? "opacity-55 bg-red-950/5 border-dashed border-red-950/20" : "border-border/80"}`}>
+                      <div className="flex items-center justify-between mb-1.5 border-b border-border/40 pb-1">
+                        <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                          {entry.comment && (
+                            <span className="bg-amber-950/20 text-amber-500 font-bold px-1.5 py-0.5 rounded border border-amber-900/30">
+                              📝 {entry.comment}
+                            </span>
+                          )}
+                          {!entry.constant && entry.keys.map((k) => (
                             <span key={k} className="bg-input text-muted-foreground border border-border px-1 rounded text-[10px]">
                               🔑 {k}
                             </span>
                           ))}
+                          {entry.useRegex && <span className="bg-purple-950/20 text-purple-400 px-1 rounded border border-purple-900/30 text-[9px]">Regex</span>}
+                          {entry.constant && <span className="bg-emerald-950/20 text-emerald-400 px-1 rounded border border-emerald-900/30 text-[9px]">常驻</span>}
+                          {entry.disabled && <span className="bg-rose-950/30 text-rose-400 px-1 rounded border border-rose-900/40 text-[9px]">已禁用</span>}
                         </div>
                         <div className="flex gap-1.5">
                           <button onClick={() => setEditingLoreEntry({ ...entry })} className="text-muted-foreground hover:text-foreground">
@@ -2173,7 +2287,22 @@ export default function App() {
                           </button>
                         </div>
                       </div>
-                      <p className="text-muted-foreground text-[11px] font-light leading-normal">{entry.content}</p>
+
+                      <div className="flex flex-wrap gap-x-3 text-[9px] text-muted-foreground font-mono mb-1">
+                        {entry.position && (
+                          <span>位置: {
+                            entry.position === 'after_char_def' ? "📌角色定义后" :
+                            entry.position === 'before_char_def' ? "📌角色定义前" :
+                            entry.position === 'top' ? "📌页面顶部" : "💬最新消息上方"
+                          }</span>
+                        )}
+                        {entry.depth !== undefined && <span>深度: {entry.depth}</span>}
+                        {entry.order !== undefined && <span>权重: {entry.order}</span>}
+                        {entry.probability !== undefined && entry.probability < 100 && <span>概率: {entry.probability}%</span>}
+                        {entry.addMemo && <span className="text-amber-500">带备注(Memo)</span>}
+                      </div>
+
+                      <p className={`text-muted-foreground leading-relaxed ${entry.disabled ? "line-through text-muted-foreground/50" : ""}`}>{entry.content}</p>
                     </div>
                   ))}
                   {(!editingChar.lorebookEntries || editingChar.lorebookEntries.length === 0) && (
