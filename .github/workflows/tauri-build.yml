@@ -48,7 +48,7 @@ jobs:
 
       - name: Generate Tauri Icons
         run: |
-          node decode_icon.js
+          node decode_icon.cjs
           npx tauri icon
 
       - name: Build Tauri app
