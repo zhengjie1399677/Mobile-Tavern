@@ -40,9 +40,7 @@ jobs:
 
       - name: Generate Tauri Icons
         run: |
-          if [ -f app-icon.base64 ]; then
-            node -e "const fs = require('fs'); fs.writeFileSync('app-icon.png', Buffer.from(fs.readFileSync('app-icon.base64', 'utf8').trim(), 'base64'));"
-          fi
+          node decode_icon.js
           npx tauri icon
 
       - name: Setup Android SDK
@@ -59,8 +57,10 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
 
       - name: Initialize Android Project
-        run: |
-          npx tauri android init
+        run: npx tauri android init
+        env:
+          NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
         continue-on-error: true
 
       - name: Fix gradlew permissions
@@ -68,9 +68,10 @@ jobs:
         continue-on-error: true
 
       - name: Build Android APK
-        env:
-          NDK_HOME: ${{ env.NDK_HOME }}
         run: npx tauri android build --apk -v
+        env:
+          NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

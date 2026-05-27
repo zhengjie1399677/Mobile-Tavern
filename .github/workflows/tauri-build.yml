@@ -48,9 +48,7 @@ jobs:
 
       - name: Generate Tauri Icons
         run: |
-          if [ -f app-icon.base64 ]; then
-            node -e "const fs = require('fs'); fs.writeFileSync('app-icon.png', Buffer.from(fs.readFileSync('app-icon.base64', 'utf8').trim(), 'base64'));"
-          fi
+          node decode_icon.js
           npx tauri icon
 
       - name: Build Tauri app
