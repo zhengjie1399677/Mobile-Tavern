@@ -1,6 +1,6 @@
 import React, { useContext } from "react";
 import { AppContext } from "../AppContext";
-import { Bot, Image as ImageIcon, Plus, Trash2, Edit2, FileUp, FileText, RefreshCw } from "lucide-react";
+import { Bot, Image as ImageIcon, Plus, Trash2, Edit2, FileUp, FileText, RefreshCw, Book } from "lucide-react";
 
 
 
@@ -16,7 +16,7 @@ import { Bot, Image as ImageIcon, Plus, Trash2, Edit2, FileUp, FileText, Refresh
 
 
 export default function CharactersTab() {
-  const { characters, sessions, activeCharId, showCustomConfirm, selectCharacter, handleAddNewCharacter, handleEditCharacter, handleDeleteCharacter, handleImportCardFile, handleExportCharacterJSON, handleExportCharacterPNG } = useContext(AppContext);
+  const { characters, sessions, activeCharId, showCustomConfirm, selectCharacter, handleAddNewCharacter, handleEditCharacter, handleDeleteCharacter, handleImportCardFile, handleExportCharacterJSON, handleExportCharacterPNG, setActiveTab, setActiveWorldbookHostId } = useContext(AppContext);
   return (
     
           <div className="p-4 space-y-4">
@@ -91,10 +91,21 @@ export default function CharactersTab() {
                       </div>
 
                       {/* Active Sub-timeline select if multiple branches exist */}
-                      <div className="flex items-center gap-1.5 opacity-80 pt-1 pointer-events-none">
-                        <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded flex items-center gap-1 leading-none">
-                          <RefreshCw className="w-2.5 h-2.5" /> {charSessList.length} 个故事分支
+                      <div className="flex items-center justify-between gap-1.5 pt-1">
+                        <span className="text-[10px] bg-muted/60 text-muted-foreground px-1.5 py-0.5 rounded flex items-center gap-1 leading-none opacity-85 select-none">
+                          <RefreshCw className="w-2.5 h-2.5" /> {charSessList.length} 分支
                         </span>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveWorldbookHostId(char.id);
+                            setActiveTab("global-worldbook");
+                          }}
+                          className="bg-primary/10 hover:bg-primary hover:text-primary-foreground border border-primary/20 text-text-primary text-primary px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all active:scale-[0.97]"
+                        >
+                          <Book className="w-2.5 h-2.5" /> 进入世界书子模块
+                        </button>
                       </div>
                     </div>
                   </div>

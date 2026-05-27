@@ -16,11 +16,14 @@ export default function GlobalWorldbookTab() {
     activeCharacter,
     handleImportSillyLorebook,
     globalLorebook = [],
-    setGlobalLorebook
+    setGlobalLorebook,
+    activeWorldbookHostId,
+    setActiveWorldbookHostId
   } = useContext(AppContext);
 
   // Active Selected Host ID: "global" or the specific ID of a character card
-  const [activeHostId, setActiveHostId] = useState<string>("global");
+  const activeHostId = activeWorldbookHostId || "global";
+  const setActiveHostId = setActiveWorldbookHostId;
 
   // Search local to the active directory/folder
   const [searchQuery, setSearchQuery] = useState("");
@@ -519,52 +522,97 @@ export default function GlobalWorldbookTab() {
                     {/* Collapsible Header */}
                     <div
                       onClick={() => toggleExpand(entry.id)}
-                      className="p-3 flex items-center justify-between cursor-pointer select-none gap-2"
+                      className="p-3 flex flex-col gap-2 cursor-pointer select-none"
                     >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-muted-foreground shrink-0 text-sm">
-                          {isExpanded ? "📂" : "📁"}
-                        </span>
-                        <span className="font-semibold text-foreground truncate max-w-[140px] sm:max-w-[280px]">
-                          {entryLabel}
-                        </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-muted-foreground shrink-0 text-xs">
+                            {isExpanded ? "📂" : "📁"}
+                          </span>
+                          <span className="font-semibold text-foreground truncate max-w-[140px] sm:max-w-[280px] text-[12.5px]">
+                            {entryLabel}
+                          </span>
 
-                        {/* Badges */}
-                        <div className="flex items-center gap-1 shrink-0 scale-90">
-                          {entry.constant && (
-                            <span className="bg-emerald-950/25 text-emerald-400 border border-emerald-900/15 px-1 py-0.2 rounded text-[9px]">
-                              常驻
-                            </span>
-                          )}
-                          {entry.disabled && (
-                            <span className="bg-rose-950/25 text-rose-400 border border-rose-900/15 px-1 py-0.2 rounded text-[9px]">
-                              禁用
-                            </span>
-                          )}
+                          {/* Badges */}
+                          <div className="flex items-center gap-1 shrink-0 scale-90">
+                            {entry.constant && (
+                              <span className="bg-amber-950/25 text-amber-500 border border-amber-900/15 px-1.5 py-0.2 rounded text-[9px]">
+                                常驻
+                              </span>
+                            )}
+                            {entry.disabled && (
+                              <span className="bg-rose-950/25 text-rose-400 border border-rose-900/15 px-1.5 py-0.2 rounded text-[9px]">
+                                禁用
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-muted-foreground text-[11px]" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-[10px] opacity-75 hidden md:inline">
+                            {entry.keys && entry.keys.length > 0 ? `${entry.keys.length}个触发词` : "常驻"}
+                          </span>
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         </div>
                       </div>
 
-                      {/* Header Actions */}
-                      <div className="flex items-center gap-2 shrink-0 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
-                        <span className="text-[10px] opacity-75 hidden md:inline">
-                          {entry.keys && entry.keys.length > 0 ? `${entry.keys.length}个触发词` : "常驻"}
-                        </span>
-                        
-                        <div className="text-muted-foreground shrink-0 cursor-pointer p-0.5" onClick={() => toggleExpand(entry.id)}>
-                          {isExpanded ? (
-                            <ChevronUp className="w-4 h-4 text-muted-foreground/85" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-muted-foreground/85" />
-                          )}
-                        </div>
+                      {/* BELOW LINE (下面一行): Colored Blue or Green containing depth and other attributes */}
+                      <div className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] font-semibold leading-none ${
+                        activeHostId === "global" 
+                          ? "text-sky-500 dark:text-sky-450" 
+                          : "text-emerald-500 dark:text-emerald-450"
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          activeHostId === "global" ? "bg-sky-500 animate-pulse" : "bg-emerald-500 animate-pulse"
+                        }`} />
+                        <span>位置: {
+                          entry.position === "after_char_def" ? "📌角色后" :
+                          entry.position === "before_char_def" ? "📌角色前" :
+                          entry.position === "top" ? "📌最顶部" : "💬发言上"
+                        }</span>
+                        <span className="text-muted-foreground/35">|</span>
+                        <span>插入深度: {entry.depth !== undefined ? entry.depth : 4}</span>
+                        <span className="text-muted-foreground/35">|</span>
+                        <span>编排优先级: {entry.order !== undefined ? entry.order : 100}</span>
+                        <span className="text-muted-foreground/35">|</span>
+                        <span>触发率: {entry.probability !== undefined ? entry.probability : 100}%</span>
+                        {entry.useRegex && (
+                          <>
+                            <span className="text-muted-foreground/35">|</span>
+                            <span className="font-mono text-[9px] uppercase px-1 py-0.1 bg-current/10 rounded">Regex</span>
+                          </>
+                        )}
                       </div>
                     </div>
 
                     {/* Expand Panel */}
                     {isExpanded && (
-                      <div className="px-3.5 pb-3.5 pt-1 border-t border-border/30 space-y-3 animate-fadeIn text-xs">
+                      <div className="px-3.5 pb-3.5 pt-2 border-t border-border/20 space-y-3 animate-fadeIn text-xs">
                         {!isEditingType ? (
                           <>
+                            {/* 🔥 TOP OPTIONS PANEL (移至最上方) */}
+                            <div className="flex items-center justify-between pb-2.5 border-b border-border/20">
+                              <span className="text-[10.5px] text-muted-foreground font-light flex items-center gap-1.5">
+                                {entry.addMemo ? "⭐ 带标题备忘" : ""}
+                                {entry.useRegex ? "🌀 正则匹配" : ""}
+                              </span>
+                              
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => startInlineEdit(entry)}
+                                  className="text-[11px] bg-primary/10 hover:bg-primary hover:text-primary-foreground text-primary border border-primary/20 px-3 py-1.5 rounded-lg flex items-center gap-1 font-semibold transition select-none"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" /> 编辑词条
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteEntry(entry)}
+                                  className="text-[11px] bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-500 border border-rose-500/20 px-3 py-1.5 rounded-lg flex items-center gap-1 font-semibold transition select-none"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> 删除设定
+                                </button>
+                              </div>
+                            </div>
+
                             {/* Meta Grid info */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-muted/20 p-2.5 rounded-lg text-[10.5px] text-muted-foreground font-mono">
                               <div>
@@ -574,15 +622,17 @@ export default function GlobalWorldbookTab() {
                                 </span>
                               </div>
                               <div>
-                                <span className="text-muted-foreground/75">插入深度: </span>
-                                <span className="text-foreground font-medium">{entry.depth !== undefined ? entry.depth : 4}</span>
+                                <span className="text-muted-foreground/75">插入位置: </span>
+                                <span className="text-foreground font-medium">
+                                  {entry.position === "after_char_def" ? "角色定义后" : entry.position === "before_char_def" ? "角色定义前" : entry.position === "top" ? "对话最顶部" : "最新发言上方"}
+                                </span>
                               </div>
                               <div>
-                                <span className="text-muted-foreground/75">编排优先级: </span>
-                                <span className="text-foreground font-medium">{entry.order !== undefined ? entry.order : 100}</span>
+                                <span className="text-muted-foreground/75">优先级 / 深度: </span>
+                                <span className="text-foreground font-medium">{entry.order !== undefined ? entry.order : 100} / {entry.depth !== undefined ? entry.depth : 4}</span>
                               </div>
                               <div>
-                                <span className="text-muted-foreground/75">激发概率: </span>
+                                <span className="text-muted-foreground/75">触发概率: </span>
                                 <span className="text-foreground font-medium">{entry.probability !== undefined ? entry.probability : 100}%</span>
                               </div>
                             </div>
@@ -596,30 +646,6 @@ export default function GlobalWorldbookTab() {
                               <p className={`font-light leading-relaxed whitespace-pre-wrap rounded-lg bg-muted/40 p-2.5 border border-border/40 text-[11px] ${entry.disabled ? "line-through text-muted-foreground/50 bg-red-950/2" : "text-muted-foreground/90 font-medium"}`}>
                                 {entry.content}
                               </p>
-                            </div>
-
-                            {/* Card Bottom Panel Actions */}
-                            <div className="flex items-center justify-between pt-1 border-t border-border/40">
-                              <span className="text-[10px] text-muted-foreground font-light">
-                                {entry.addMemo ? "⭐ 带有标题标题备忘备注" : ""}
-                                {entry.useRegex ? "🌀 开启正则匹配" : ""}
-                                {entry.position ? `📌 编排位置: ${entry.position}` : ""}
-                              </span>
-                              
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => startInlineEdit(entry)}
-                                  className="text-[11px] bg-primary/15 hover:bg-primary hover:text-primary-foreground text-primary border border-primary/25 px-2.5 py-1 rounded-md flex items-center gap-1 font-semibold transition"
-                                >
-                                  <Edit2 className="w-3 h-3" /> 编辑词条
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteEntry(entry)}
-                                  className="text-[11px] bg-rose-950/20 hover:bg-rose-950/45 text-red-400 border border-thin border-rose-900/35 px-2.5 py-1 rounded-md flex items-center gap-1 transition animate-fadeIn"
-                                >
-                                  <Trash2 className="w-3 h-3" /> 删除
-                                </button>
-                              </div>
                             </div>
                           </>
                         ) : (
@@ -647,69 +673,62 @@ export default function GlobalWorldbookTab() {
     return (
       <div className="space-y-3.5 text-xs animate-fadeIn">
         
-        {/* Dossier Scope / Host Selector Switcher */}
-        <div className="bg-muted/40 p-3 rounded-lg border border-border/80 space-y-2 select-none">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5 text-blue-400" />
-              当前放置宿体 (Scope):
-            </span>
-          </div>
+        {/* Dossier Scope / Host Selector Switcher with Slider */}
+        <div className="p-3 bg-muted/30 border border-border/80 rounded-xl space-y-3.5 select-none animate-fadeIn">
+          <div className="flex items-center justify-between p-2 bg-input border border-border/50 rounded-xl">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-bold text-foreground flex items-center gap-1">
+                🌎 全局共享设定 (Universal / Share to All Characters)
+              </span>
+              <span className="text-[10.5px] text-muted-foreground font-light">
+                开启后为通用词条，所有宿体角色对话时都会共享此脑路记忆
+              </span>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-            <label className={`p-2 rounded-lg border cursor-pointer transition flex items-center gap-2 ${
-              editForm.isGlobal 
-                ? "bg-primary/5 border-primary text-primary font-bold" 
-                : "bg-input border-border hover:border-border/80 text-muted-foreground"
-            }`}>
-              <input
-                type="radio"
-                name="form_scope"
-                checked={!!editForm.isGlobal}
-                onChange={() => setEditForm(prev => ({ ...prev, isGlobal: true, targetOwnerId: "" }))}
-                className="accent-primary"
+            {/* Switch Slider (滑块) */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!!editForm.isGlobal}
+              onClick={() => {
+                setEditForm(prev => {
+                  const toGlobal = !prev.isGlobal;
+                  return {
+                    ...prev,
+                    isGlobal: toGlobal,
+                    targetOwnerId: toGlobal ? "" : (prev.targetOwnerId || characters[0]?.id || "")
+                  };
+                });
+              }}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                editForm.isGlobal ? 'bg-primary' : 'bg-muted/80'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow-lg ring-0 transition duration-200 ease-in-out ${
+                  editForm.isGlobal ? 'translate-x-5' : 'translate-x-0'
+                }`}
               />
-              <div className="truncate text-[11px]">🌎 设为全局通用 (全宿体检索)</div>
-            </label>
-
-            <label className={`p-2 rounded-lg border cursor-pointer transition flex items-center gap-2 ${
-              !editForm.isGlobal 
-                ? "bg-primary/5 border-primary text-primary font-bold" 
-                : "bg-input border-border hover:border-border/80 text-muted-foreground"
-            }`}>
-              <input
-                type="radio"
-                name="form_scope"
-                checked={!editForm.isGlobal}
-                disabled={characters.length === 0}
-                onChange={() => setEditForm(prev => ({ 
-                  ...prev, 
-                  isGlobal: false, 
-                  targetOwnerId: prev.targetOwnerId || characters[0]?.id || "" 
-                }))}
-                className="accent-primary disabled:opacity-50"
-              />
-              <div className="truncate text-[11px]">👤 设为宿体专属 (特定角色名)</div>
-            </label>
+            </button>
           </div>
 
           {!editForm.isGlobal && characters.length > 0 && (
-            <div className="mt-2 text-xs space-y-1 animate-fadeIn">
-              <label className="block text-muted-foreground font-bold">选择专属绑定的特定宿体名录:</label>
+            <div className="mt-1.5 text-xs space-y-1.5 animate-fadeIn">
+              <label className="block text-[11px] text-muted-foreground font-bold">🎯 选择该专属记忆锁定的特定宿体:</label>
               <select
                 value={editForm.targetOwnerId || characters[0]?.id}
                 onChange={(e) => setEditForm(prev => ({ ...prev, targetOwnerId: e.target.value }))}
-                className="w-full bg-input border border-border rounded p-1.5 text-foreground text-xs font-medium"
+                className="w-full bg-input border border-border rounded-lg p-2 text-foreground text-xs font-semibold outline-none focus:border-primary"
               >
                 {characters.map(c => (
-                  <option key={c.id} value={c.id}>专属: {c.name}</option>
+                  <option key={c.id} value={c.id}>👤 专属关联: {c.name}</option>
                 ))}
               </select>
             </div>
           )}
 
           <p className="text-[10px] text-muted-foreground leading-normal font-light">
-            通过在此处更改“放置宿体”，您可以将本记忆一键转移至其他角色下，无需手动剪切粘贴。
+            通过在此处更改“共享滑块”，您可以随时让本条记忆在【全局通用】与【角色专属】之间一键切换。
           </p>
         </div>
 
