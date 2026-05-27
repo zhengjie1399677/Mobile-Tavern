@@ -39,13 +39,19 @@ jobs:
         run: npm ci
 
       - name: Generate Tauri Icons
-        run: npx tauri icon
+        run: |
+          if [ -f app-icon.base64 ]; then
+            node -e "const fs = require('fs'); fs.writeFileSync('app-icon.png', Buffer.from(fs.readFileSync('app-icon.base64', 'utf8').trim(), 'base64'));"
+          fi
+          npx tauri icon
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Install NDK
-        run: sdkmanager "ndk;29.0.14206865" "ndk;25.2.9519653"
+        run: |
+          rm -rf $ANDROID_HOME/ndk/*
+          sdkmanager "ndk;25.2.9519653"
 
       - name: Set NDK Home
         run: |
