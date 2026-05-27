@@ -37,28 +37,6 @@ A lightweight, local-first, mobile-optimized frontend for AI role-playing and ch
 - **大模型通信**: AI Studio Gemini 代理或第三方 OpenAI 兼容 API / Gemini 原生 API。
 - **数据与图片处理**: `png-text`, `msgpackr`, `base64-js` (实现酒馆 V2+ PNG 元数据的解析与注入).
 
----
-
-## 接下来您可以做什么？(Suggested Enhancements & Features)
-
-如果您想继续完善或迭代这个系统，这里有一些来自开发者的可行性建议以及您可以参考的方向：
-
-### 1. 完善世界书 (Lorebook) 匹配逻辑
-- **现状**: 当前按照关键字匹配并注入到提示词。
-- **建议**: 可以引入基于语义检索的 RAG（Retrieval-Augmented Generation）。比如在本地连接小型的文本向量模型，或调用外部 Embedding API 实时匹配最相关的设定，而不是死板的词法匹配。
-
-### 2. 引入语音及视频互动机制 (Multimodal Features)
-- **建议**: 集成浏览器的 Web Speech API 或 Gemini 的高级能力功能，实现**文字转语音 (TTS)** 让角色开口说话，或允许玩家录制音频（Speech to Text）进行快捷输入。甚至能够通过系统生成动态表情。
-
-### 3. 多角色群聊系统 (Group Chats)
-- **建议**: 当前是一个玩家对单角色的对话。可以引入群组功能（Group Chat），将不同的角色卡拉入同一个 Session，在提示词中告诉 AI 现在是在群聊环境，让 AI 扮演多个角色或根据 '@' 的人来进行各自的回复。
-
-### 4. 视觉与 UI 优化主题 (Theming & Customization)
-- **建议**: 提供更加自由且极富沉浸感的自定义客户端体验（如更改聊天页的背景图片，或者加入更多沉浸式过渡动效、气泡样式设置），打造贴近游戏终端的美术风格。
-
-### 5. 跨端数据云同步系统 (Cloud Syncing)
-- **建议**: 如果你不满足于纯通过 JSON 进行备份。由于当前全是静态部署的，你可以引入轻量的云同步引擎（如 Firebase 数据库 / Supabase），通过用户的 OAuth（如 Google 登录）在多端之间无缝同步保存当前进展。
-
 ***
 
 如果您有其中任何感兴趣的模块，可以随时向我提出，我会立即帮您开始构建！
