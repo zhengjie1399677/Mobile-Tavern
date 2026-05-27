@@ -47,9 +47,7 @@ jobs:
         run: npm ci
 
       - name: Generate Tauri Icons
-        run: |
-          node decode_icon.cjs
-          npx tauri icon
+        run: npx tauri icon
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0

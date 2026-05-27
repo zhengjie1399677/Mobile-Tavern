@@ -39,28 +39,32 @@ jobs:
         run: npm ci
 
       - name: Generate Tauri Icons
-        run: |
-          node decode_icon.cjs
-          npx tauri icon
+        run: npx tauri icon
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Install NDK
-        run: sdkmanager "ndk;25.2.9519653"
+        run: sdkmanager "ndk;29.0.14206865" "ndk;25.2.9519653"
 
       - name: Set NDK Home
-        run: echo "NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+        run: |
+          echo "NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
 
       - name: Initialize Android Project
         run: |
           npx tauri android init
         continue-on-error: true
 
+      - name: Fix gradlew permissions
+        run: chmod +x src-tauri/gen/android/gradlew
+        continue-on-error: true
+
       - name: Build Android APK
         env:
           NDK_HOME: ${{ env.NDK_HOME }}
-        run: npx tauri android build --apk
+        run: npx tauri android build --apk -v
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
