@@ -3,7 +3,7 @@ const maxRetries = 3;
 for (let i = 0; i < maxRetries; i++) {
   try {
     console.log('Attempt ' + (i + 1) + ' to build Android APK...');
-    execSync('npx tauri android build --apk --debug -v --target aarch64,armv7', { stdio: 'inherit' });
+    execSync('npx tauri android build --apk --debug -v', { stdio: 'inherit' });
     console.log('Build succeeded.');
     process.exit(0);
   } catch (err) {
@@ -15,17 +15,6 @@ for (let i = 0; i < maxRetries; i++) {
       process.exit(0);
     } catch(err2) {
       console.error('Direct gradlew build also failed.');
-      try {
-        const fs = require('fs');
-        console.log("settings.gradle content:\n" + fs.readFileSync('src-tauri/gen/android/settings.gradle', 'utf8'));
-        if (fs.existsSync('src-tauri/gen/android/build.tauri.gradle')) {
-          console.log("build.tauri.gradle content:\n" + fs.readFileSync('src-tauri/gen/android/build.tauri.gradle', 'utf8'));
-        } else {
-          console.log("build.tauri.gradle DOES NOT EXIST");
-        }
-      } catch(e) {
-        console.error("Failed to read debug files:", e.message);
-      }
     }
     if (i === maxRetries - 1) {
       console.error('All build attempts failed.');
