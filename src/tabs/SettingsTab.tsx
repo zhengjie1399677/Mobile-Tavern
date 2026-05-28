@@ -80,6 +80,8 @@ export default function SettingsTab() {
     handleDeleteCustomPrompt,
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
+    connectionStatus,
+    testApiConnection,
   } = useContext(AppContext);
   return (
     <div className="p-4 flex flex-col h-full overflow-hidden">
@@ -98,28 +100,28 @@ export default function SettingsTab() {
         defaultValue="appearance"
         className="flex-1 flex flex-col min-h-0 bg-transparent"
       >
-        <TabsList className="w-full grid justify-stretch grid-cols-4 p-1 bg-muted rounded-lg border border-border/50 h-auto">
+        <TabsList className="w-full h-auto">
           <TabsTrigger
             value="appearance"
-            className="flex-1 text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5"
+            className="text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap px-2"
           >
             <Sparkles className="w-3.5 h-3.5" /> 视觉
           </TabsTrigger>
           <TabsTrigger
             value="api"
-            className="flex-1 text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5"
+            className="text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap px-2"
           >
             <Plug className="w-3.5 h-3.5" /> 接口
           </TabsTrigger>
           <TabsTrigger
             value="presets"
-            className="flex-1 text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5"
+            className="text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap px-2"
           >
             <Puzzle className="w-3.5 h-3.5" /> 预设
           </TabsTrigger>
           <TabsTrigger
             value="memory"
-            className="flex-1 text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5"
+            className="text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap px-2"
           >
             <Database className="w-3.5 h-3.5" /> 存储
           </TabsTrigger>
@@ -234,37 +236,8 @@ export default function SettingsTab() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-4 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[11px] font-semibold text-muted-foreground">
-                    服务对接模式
-                  </label>
-                  <Select
-                    value={settings.api.type}
-                    onValueChange={(val) =>
-                      updateSettings({
-                        ...settings,
-                        api: {
-                          ...settings.api,
-                          type: val as "gemini-builtin" | "openai-proxy",
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full text-xs h-9 bg-input/50">
-                      <SelectValue placeholder="选择服务" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gemini-builtin" className="text-xs">
-                        原生 Gemini SDK (支持复杂多模态结构)
-                      </SelectItem>
-                      <SelectItem value="openai-proxy" className="text-xs">
-                        OpenAI 跨平台代理标准兼容
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
 
-                {settings.api.type === "openai-proxy" && (
+
                   <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-[11px] font-semibold text-muted-foreground flex justify-between items-center">
                       <span>Base URL (基础路由)</span>
@@ -306,7 +279,6 @@ export default function SettingsTab() {
                       ))}
                     </div>
                   </div>
-                )}
 
                 <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
                   <label className="text-[11px] font-semibold text-muted-foreground">
@@ -323,11 +295,7 @@ export default function SettingsTab() {
                         })
                       }
                       className="flex-1 h-9 text-xs font-mono bg-input/50"
-                      placeholder={
-                        settings.api.type === "gemini-builtin"
-                          ? "不填则使用服务器默认Key"
-                          : "sk-..."
-                      }
+                      placeholder="sk-..."
                     />
                     <button
                       onClick={handleFetchModels}
@@ -337,6 +305,11 @@ export default function SettingsTab() {
                       {isFetchingModels ? "获取中..." : "获取模型"}
                     </button>
                   </div>
+                  {connectionStatus?.message && (
+                    <div className={`mt-2 text-[11px] p-2 rounded-md ${connectionStatus.success ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"}`}>
+                      {connectionStatus.message}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -378,11 +351,7 @@ export default function SettingsTab() {
                         })
                       }
                       className="h-9 text-xs font-mono bg-input/50"
-                      placeholder={
-                        settings.api.type === "gemini-builtin"
-                          ? "gemini-3.5-flash"
-                          : "gpt-4o"
-                      }
+                      placeholder="gpt-4o"
                     />
                   )}
                 </div>
@@ -392,7 +361,7 @@ export default function SettingsTab() {
             <Card className="bg-card border-border shadow-sm">
               <CardHeader className="pb-3 border-b border-border/50">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-primary" /> 本地宿主探客
+                  <UserCheck className="w-4 h-4 text-primary" /> 角色信息
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 space-y-4">
@@ -407,6 +376,19 @@ export default function SettingsTab() {
                     }
                     className="h-9 text-xs bg-input/50"
                     placeholder="未知探客"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    玩家信息 (Persona: 世界观背景/外貌描述等)
+                  </label>
+                  <Textarea
+                    value={settings.userInfo || ""}
+                    onChange={(e) =>
+                      updateSettings({ ...settings, userInfo: e.target.value })
+                    }
+                    className="text-xs bg-input/50 min-h-[80px]"
+                    placeholder="例如: 身高180cm, 穿着黑色的风衣, 眼神冷漠..."
                   />
                 </div>
                 <div className="flex items-center justify-between border-t border-border/50 pt-4">

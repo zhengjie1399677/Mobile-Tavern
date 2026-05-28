@@ -59,7 +59,7 @@ export interface ChatSession {
   summaries: SummaryCard[]; // Timeline summaries
 }
 
-export type ApiType = "gemini-builtin" | "openai-compat";
+export type ApiType = "openai-compat";
 
 export interface ApiConfig {
   type: ApiType;
@@ -128,6 +128,7 @@ export interface UserSettings {
   memory: MemoryConfig;
   promptConfig: PromptConfig; // SillyTavern formatting controls
   userName: string;
+  userInfo?: string;
   userAvatar?: string;
   savedPresets?: SavedPresetBundle[]; // Collection of saved multiple presets
   enableHtmlRendering?: boolean; // Render exact HTML/CSS from AI output

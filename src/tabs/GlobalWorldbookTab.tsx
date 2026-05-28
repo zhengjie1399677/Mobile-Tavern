@@ -453,7 +453,7 @@ export default function GlobalWorldbookTab() {
         return;
       }
 
-      if (activeHostId === "global") {
+      if (activeHostId === "global" || activeHostId === "list") {
         const nextGlobals = [...globalLorebook, ...importedEntries];
         setGlobalLorebook(nextGlobals);
         await saveGlobalLorebook(nextGlobals);
@@ -539,12 +539,6 @@ export default function GlobalWorldbookTab() {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <label
-            onClick={(e) => {
-              if (activeHostId === "list") {
-                e.preventDefault();
-                alert("请先点击进入一个记忆回路（全局或角色），再进行导入。");
-              }
-            }}
             className="cursor-pointer bg-card hover:bg-muted/40 border border-border text-[11px] text-foreground h-7 px-2.5 rounded-lg transition font-bold flex items-center gap-1 shadow-sm active:scale-[0.98]"
           >
             <Upload className="w-3 h-3 text-primary" />

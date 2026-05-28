@@ -144,7 +144,7 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
 
 export const DEFAULT_SETTINGS: UserSettings = {
   api: {
-    type: "gemini-builtin",
+    type: "openai-compat",
     baseUrl: "https://api.openai.com/v1",
     apiKey: "",
     modelName: "gemini-3.5-flash",
@@ -153,6 +153,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   memory: { recentTurns: 6, summaryTriggerTurns: 0, summaryLength: 120 },
   promptConfig: DEFAULT_PROMPT_CONFIG,
   userName: "探客先生 (User)",
+  userInfo: "",
   userAvatar: "",
 };
 
@@ -421,6 +422,7 @@ export default function App() {
               ...(storedSet.promptConfig || {}),
             },
             userName: storedSet.userName || DEFAULT_SETTINGS.userName,
+            userInfo: storedSet.userInfo || DEFAULT_SETTINGS.userInfo,
             userAvatar: storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar,
           };
           setSettings(mergedSet);
@@ -1018,6 +1020,11 @@ export default function App() {
     if (!textMsg.trim() || isSending || !activeCharacter || !activeSession)
       return;
 
+    if (!settings.api.modelName) {
+      await showCustomAlert("对话失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
+      return;
+    }
+
     if (!textToSend) {
       setUserInputMessage("");
     }
@@ -1077,71 +1084,7 @@ export default function App() {
         }),
       );
 
-      if (settings.api.type === "gemini-builtin") {
-        const response = await fetch("/api/gemini/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            stream: true,
-            systemInstruction: promptPayload.systemInstruction,
-            contents: promptPayload.history,
-            config: {
-              temperature: settings.preset.temperature,
-              topP: settings.preset.topP,
-              topK: settings.preset.topK,
-              maxOutputTokens: settings.preset.maxTokens,
-            },
-            modelName: settings.api.modelName || "gemini-3.5-flash",
-            apiKey: settings.api.apiKey,
-          }),
-        });
-
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(errText);
-        }
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let done = false;
-        let pbuf = "";
-
-        while (!done && reader) {
-          const { value, done: readerDone } = await reader.read();
-          done = readerDone;
-          if (value) {
-            pbuf += decoder.decode(value, { stream: true });
-            let i;
-            while ((i = pbuf.indexOf("\n\n")) >= 0) {
-              const line = pbuf.slice(0, i).trim();
-              pbuf = pbuf.slice(i + 2);
-              if (line.startsWith("data: ")) {
-                const dataStr = line.slice(6).trim();
-                if (dataStr === "[DONE]") {
-                  done = true;
-                  break;
-                }
-                if (!dataStr) continue;
-                try {
-                  const data = JSON.parse(dataStr);
-                  if (data.text) responseText += data.text;
-                  if (data.usage) tokenUsage = data.usage;
-
-                  setSessions((prev) =>
-                    prev.map((s) => {
-                      if (s.id !== updatedSession.id) return s;
-                      const msgs = s.messages.map((m) =>
-                        m.id === aiMsgId ? { ...m, content: responseText } : m,
-                      );
-                      return { ...s, messages: msgs };
-                    }),
-                  );
-                } catch (e) {}
-              }
-            }
-          }
-        }
-      } else {
+      
         const response = await fetch("/api/proxy/openai", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1221,7 +1164,6 @@ export default function App() {
             }
           }
         }
-      }
 
       const finalSession = setSessions((prev) => {
         let theSession = updatedSession;
@@ -1297,6 +1239,11 @@ export default function App() {
   const handleRerollFromMessage = async (targetMsg: Message) => {
     if (isSending || !activeCharacter || !activeSession) return;
 
+    if (!settings.api.modelName) {
+      await showCustomAlert("重发失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
+      return;
+    }
+
     const msgs = activeSession.messages;
     const targetIdx = msgs.findIndex((m) => m.id === targetMsg.id);
     if (targetIdx === -1) return;
@@ -1311,8 +1258,9 @@ export default function App() {
       }
     }
 
-    // Slice all messages UP to targetIdx (excluding the target response itself)
-    const nextMsgs = msgs.slice(0, targetIdx);
+    // Slice all messages up to the desired point
+    const nextMsgsIdx = targetMsg.sender === "user" ? targetIdx + 1 : targetIdx;
+    const nextMsgs = msgs.slice(0, nextMsgsIdx);
 
     // Pop trailing system warning/error messages
     while (
@@ -1383,71 +1331,7 @@ export default function App() {
         }),
       );
 
-      if (settings.api.type === "gemini-builtin") {
-        const response = await fetch("/api/gemini/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            stream: true,
-            systemInstruction: promptPayload.systemInstruction,
-            contents: promptPayload.history,
-            config: {
-              temperature: settings.preset.temperature,
-              topP: settings.preset.topP,
-              topK: settings.preset.topK,
-              maxOutputTokens: settings.preset.maxTokens,
-            },
-            modelName: settings.api.modelName || "gemini-3.5-flash",
-            apiKey: settings.api.apiKey,
-          }),
-        });
-
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(errText);
-        }
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let done = false;
-        let pbuf = "";
-
-        while (!done && reader) {
-          const { value, done: readerDone } = await reader.read();
-          done = readerDone;
-          if (value) {
-            pbuf += decoder.decode(value, { stream: true });
-            let i;
-            while ((i = pbuf.indexOf("\n\n")) >= 0) {
-              const line = pbuf.slice(0, i).trim();
-              pbuf = pbuf.slice(i + 2);
-              if (line.startsWith("data: ")) {
-                const dataStr = line.slice(6).trim();
-                if (dataStr === "[DONE]") {
-                  done = true;
-                  break;
-                }
-                if (!dataStr) continue;
-                try {
-                  const data = JSON.parse(dataStr);
-                  if (data.text) responseText += data.text;
-                  if (data.usage) tokenUsage = data.usage;
-
-                  setSessions((prev) =>
-                    prev.map((s) => {
-                      if (s.id !== updatedSession.id) return s;
-                      const msgs = s.messages.map((m) =>
-                        m.id === aiMsgId ? { ...m, content: responseText } : m,
-                      );
-                      return { ...s, messages: msgs };
-                    }),
-                  );
-                } catch (e) {}
-              }
-            }
-          }
-        }
-      } else {
+      
         const response = await fetch("/api/proxy/openai", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1527,7 +1411,6 @@ export default function App() {
             }
           }
         }
-      }
 
       const updatedMessagesWithCompleteAi = updatedSession.messages.concat([
         {
@@ -1634,20 +1517,7 @@ export default function App() {
 
         let compiledSummary = "";
 
-        if (settings.api.type === "gemini-builtin") {
-          const response = await fetch("/api/gemini/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              systemInstruction: promptInstruction,
-              contents: [{ role: "user", content: contentConcat }],
-              modelName: settings.api.modelName || "gemini-3.5-flash",
-              apiKey: settings.api.apiKey,
-            }),
-          });
-          const resData = await response.json();
-          if (resData.success) compiledSummary = resData.text;
-        } else {
+        
           // Fallback proxy to OpenAI compat
           const reqBody = {
             model: settings.api.modelName || "gpt-3.5-turbo",
@@ -1670,7 +1540,6 @@ export default function App() {
           if (resData.choices && resData.choices.length > 0) {
             compiledSummary = resData.choices[0].message.content;
           }
-        }
 
         if (compiledSummary) {
           const newCard: SummaryCard = {
@@ -2794,7 +2663,7 @@ export default function App() {
   };
   return (
     <AppContext.Provider value={appContextValue}>
-      <div className="flex flex-col h-screen max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
+      <div className="flex flex-col h-[100dvh] pt-[max(env(safe-area-inset-top),20px)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
         <div className="absolute bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-background backdrop-blur border-t border-border flex items-center justify-around z-20">
           <button

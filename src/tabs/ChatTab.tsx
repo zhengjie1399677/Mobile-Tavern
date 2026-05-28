@@ -545,9 +545,7 @@ export default function ChatTab() {
                                 <Edit2 className="w-3 h-3" /> 编辑
                               </button>
 
-                              {!isUser &&
-                                message.id !==
-                                  activeSession?.messages[0]?.id && (
+                              {message.id !== activeSession?.messages[0]?.id && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -557,7 +555,7 @@ export default function ChatTab() {
                                     className="text-[11px] text-primary hover:text-primary/80 px-2.5 py-1 rounded hover:bg-primary/10 flex items-center gap-1 border border-primary/20"
                                     title="从该对白开始重新生成后续回答"
                                   >
-                                    <RefreshCw className="w-3 h-3" /> 重新发送
+                                    <RefreshCw className="w-3 h-3" /> 重发
                                   </button>
                                 )}
 

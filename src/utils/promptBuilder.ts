@@ -218,6 +218,14 @@ export function assemblePromptContext(params: {
       "\n";
   }
 
+  let userPersonaSection = "";
+  if (settings.userInfo) {
+    userPersonaSection =
+      "\n=== 玩家详细信息 (User Persona) ===\n" +
+      replaceMacros(settings.userInfo, macroParams) +
+      "\n";
+  }
+
   // 4. Character-bound specific system prompt if specified
   let charSpecificPrompt = "";
   if (character.system_prompt) {
@@ -311,7 +319,7 @@ export function assemblePromptContext(params: {
 
   // Substitute all fields
   compiledStory = compiledStory
-    .replace(/\{\{system_prompt\}\}/gi, mainPromptReplaced)
+    .replace(/\{\{system_prompt\}\}/gi, mainPromptReplaced + userPersonaSection)
     .replace(/\{\{personality\}\}/gi, personalityVal)
     .replace(/\{\{description\}\}/gi, descriptionVal)
     .replace(/\{\{char_description\}\}/gi, descriptionVal)
