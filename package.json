@@ -19,6 +19,7 @@
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-log": "^2.8.0",
     "@vitejs/plugin-react": "^5.0.4",
     "canvas": "^3.2.3",
     "class-variance-authority": "^0.7.1",

@@ -15,6 +15,17 @@ for (let i = 0; i < maxRetries; i++) {
       process.exit(0);
     } catch(err2) {
       console.error('Direct gradlew build also failed.');
+      try {
+        const fs = require('fs');
+        console.log("settings.gradle content:\n" + fs.readFileSync('src-tauri/gen/android/settings.gradle', 'utf8'));
+        if (fs.existsSync('src-tauri/gen/android/build.tauri.gradle')) {
+          console.log("build.tauri.gradle content:\n" + fs.readFileSync('src-tauri/gen/android/build.tauri.gradle', 'utf8'));
+        } else {
+          console.log("build.tauri.gradle DOES NOT EXIST");
+        }
+      } catch(e) {
+        console.error("Failed to read debug files:", e.message);
+      }
     }
     if (i === maxRetries - 1) {
       console.error('All build attempts failed.');
