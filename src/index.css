@@ -1,8 +1,6 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -15,8 +13,38 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* Provide global defaults or fallback */
+:root {
+  color-scheme: light;
+  --background: oklch(0.96 0.01 90);
+  --foreground: oklch(0.2 0.02 90);
+  --card: oklch(0.99 0 0);
+  --card-foreground: oklch(0.2 0.02 90);
+  --popover: oklch(0.99 0 0);
+  --popover-foreground: oklch(0.2 0.02 90);
+  --primary: oklch(0.55 0.15 50);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.9 0.02 90);
+  --secondary-foreground: oklch(0.2 0.02 90);
+  --muted: oklch(0.92 0.01 90);
+  --muted-foreground: oklch(0.5 0.02 90);
+  --accent: oklch(0.9 0.05 60);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.5 0.15 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.85 0.01 90);
+  --input: oklch(0.85 0.01 90);
+  --ring: oklch(0.55 0.15 50);
+
+  --radius: 0.6rem;
+
+  --dialogue-color: #3f3f46;
+  --prose-color: #78716c;
+}
+
 /* Base Shadcn Variables (Fallback to Obsidian Midnight) */
 [data-theme="obsidian"] {
+  color-scheme: dark;
   --background: oklch(0.19 0 0);
   --foreground: oklch(0.98 0 0);
   --card: oklch(0.23 0 0);
@@ -44,8 +72,8 @@
 }
 
 /* Theme 2: 浅沙暮色 (Warm Dusk / Ancient Parchment) */
-:root,
 [data-theme="sand"] {
+  color-scheme: light;
   --background: oklch(0.96 0.01 90);
   --foreground: oklch(0.2 0.02 90);
   --card: oklch(0.99 0 0);
@@ -72,6 +100,7 @@
 
 /* Theme 3: 荧光深海 (Active Ocean / Cyber Abyss) */
 [data-theme="ocean"] {
+  color-scheme: dark;
   --background: oklch(0.15 0.03 260);
   --foreground: oklch(0.95 0.02 260);
   --card: oklch(0.21 0.04 260);
