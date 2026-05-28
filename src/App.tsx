@@ -158,6 +158,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
 };
 
 import { useUsageTracking } from "./utils/useUsageTracking";
+import { SplashScreen } from "./components/SplashScreen";
 
 export default function App() {
   // Usage telemetry tracking hook
@@ -204,6 +205,7 @@ export default function App() {
   }, [currentTheme]);
 
   // Loading/Busy states
+  const [showSplash, setShowSplash] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{
     testing: boolean;
@@ -406,6 +408,7 @@ export default function App() {
   // Load Initial Database
   useEffect(() => {
     async function loadDB() {
+      const startTime = Date.now();
       try {
         const storedChars = await getAllCharacters();
         const storedSessions = await getAllSessions();
@@ -441,6 +444,10 @@ export default function App() {
         setIsDBReady(true);
       } catch (err: any) {
         console.error("Failed to boot local IndexedDB database:", err);
+      } finally {
+        const elapsed = Date.now() - startTime;
+        const delay = Math.max(0, 2500 - elapsed);
+        setTimeout(() => setShowSplash(false), delay);
       }
     }
     loadDB();
@@ -2663,7 +2670,8 @@ export default function App() {
   };
   return (
     <AppContext.Provider value={appContextValue}>
-      <div className="flex flex-col h-[100dvh] pt-[max(env(safe-area-inset-top),20px)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
+      <SplashScreen isVisible={showSplash} />
+      <div className="flex flex-col h-[100dvh] pt-[max(env(safe-area-inset-top),44px)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
         <div className="absolute bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-background backdrop-blur border-t border-border flex items-center justify-around z-20">
           <button

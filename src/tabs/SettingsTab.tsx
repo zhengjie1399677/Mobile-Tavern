@@ -100,7 +100,7 @@ export default function SettingsTab() {
         defaultValue="appearance"
         className="flex-1 flex flex-col min-h-0 bg-transparent"
       >
-        <TabsList className="w-full h-auto">
+        <TabsList className="grid grid-cols-4 w-full h-auto p-1">
           <TabsTrigger
             value="appearance"
             className="text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap px-2"

@@ -1,4 +1,13 @@
 const { execSync } = require('child_process');
+
+console.log('Ensuring latest frontend is compiled...');
+try {
+  execSync('npm run build', { stdio: 'inherit' });
+} catch (err) {
+  console.error('Frontend build failed. Stop.');
+  process.exit(1);
+}
+
 const maxRetries = 3;
 for (let i = 0; i < maxRetries; i++) {
   try {
