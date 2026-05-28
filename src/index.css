@@ -16,7 +16,6 @@
 }
 
 /* Base Shadcn Variables (Fallback to Obsidian Midnight) */
-:root,
 [data-theme="obsidian"] {
   --background: oklch(0.19 0 0);
   --foreground: oklch(0.98 0 0);
@@ -45,6 +44,7 @@
 }
 
 /* Theme 2: 浅沙暮色 (Warm Dusk / Ancient Parchment) */
+:root,
 [data-theme="sand"] {
   --background: oklch(0.96 0.01 90);
   --foreground: oklch(0.2 0.02 90);

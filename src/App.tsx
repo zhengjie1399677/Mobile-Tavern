@@ -190,7 +190,7 @@ export default function App() {
   const [currentTheme, setCurrentTheme] = useState<
     "obsidian" | "sand" | "ocean"
   >(() => {
-    return (localStorage.getItem("siuser-theme") as any) || "obsidian";
+    return (localStorage.getItem("siuser-theme") as any) || "sand";
   });
 
   const handleThemeChange = (newTheme: "obsidian" | "sand" | "ocean") => {

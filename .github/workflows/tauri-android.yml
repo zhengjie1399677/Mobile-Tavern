@@ -76,14 +76,34 @@ jobs:
           NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
 
-      - name: Rename and Prepare APK
+      - name: Sign and Prepare APK
+        env:
+          KEYSTORE_B64: ${{ secrets.SIGNING_KEY }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ALIAS }}
         run: |
           apk_path=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | grep release | head -n 1)
           if [ -z "$apk_path" ]; then
             apk_path=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -n 1)
           fi
           if [ -n "$apk_path" ]; then
-            cp "$apk_path" MobileTavern.apk
+            echo "Using APK at: $apk_path"
+            # Decode Keystore
+            echo "$KEYSTORE_B64" | base64 -d > release.keystore
+            
+            # Find Build Tools
+            BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+            
+            # Zipalign
+            $BUILD_TOOLS_DIR/zipalign -v -f 4 "$apk_path" MobileTavern-aligned.apk
+            
+            # Sign
+            $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$KEYSTORE_PASSWORD" MobileTavern-aligned.apk
+            
+            mv MobileTavern-aligned.apk MobileTavern.apk
+          else
+            echo "::error::APK not found"
+            exit 1
           fi
 
       - name: Upload APK Artifact
