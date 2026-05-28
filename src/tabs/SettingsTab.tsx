@@ -100,28 +100,28 @@ export default function SettingsTab() {
         defaultValue="appearance"
         className="flex-1 flex flex-col min-h-0 bg-transparent"
       >
-        <TabsList className="grid grid-cols-4 w-full h-auto p-1">
+        <TabsList className="grid grid-cols-4 w-full h-11 p-1 bg-muted/50 rounded-xl">
           <TabsTrigger
             value="appearance"
-            className="text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap px-2"
+            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
           >
             <Sparkles className="w-3.5 h-3.5" /> 视觉
           </TabsTrigger>
           <TabsTrigger
             value="api"
-            className="text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap px-2"
+            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
           >
             <Plug className="w-3.5 h-3.5" /> 接口
           </TabsTrigger>
           <TabsTrigger
             value="presets"
-            className="text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap px-2"
+            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
           >
             <Puzzle className="w-3.5 h-3.5" /> 预设
           </TabsTrigger>
           <TabsTrigger
             value="memory"
-            className="text-[11px] font-bold py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap px-2"
+            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
           >
             <Database className="w-3.5 h-3.5" /> 存储
           </TabsTrigger>
@@ -286,7 +286,8 @@ export default function SettingsTab() {
                   </label>
                   <div className="flex gap-2">
                     <Input
-                      type="password"
+                      type="text"
+                      className="font-mono text-xs h-9 bg-input/50"
                       value={settings.api.apiKey || ""}
                       onChange={(e) =>
                         updateSettings({
@@ -940,7 +941,7 @@ export default function SettingsTab() {
                         离线全文件核心密钥
                       </label>
                       <Input
-                        type="password"
+                        type="text"
                         value={backupPass}
                         onChange={(e) => setBackupPass(e.target.value)}
                         placeholder="务必牢记，否则无法恢复..."
