@@ -78,7 +78,10 @@ jobs:
 
       - name: Rename and Prepare APK
         run: |
-          apk_path=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | grep release | head -n 1)
+          apk_path=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | grep debug | grep universal | head -n 1)
+          if [ -z "$apk_path" ]; then
+            apk_path=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | grep debug | head -n 1)
+          fi
           if [ -n "$apk_path" ]; then
             cp "$apk_path" MobileTavern.apk
           fi

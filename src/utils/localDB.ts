@@ -1,4 +1,9 @@
-import { CharacterCard, ChatSession, UserSettings, LorebookEntry } from "../types";
+import {
+  CharacterCard,
+  ChatSession,
+  UserSettings,
+  LorebookEntry,
+} from "../types";
 
 const DB_NAME = "MobileTavernLiteDB";
 const DB_VERSION = 1;
@@ -19,12 +24,12 @@ export function getDB(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
       const db = request.result;
-      
+
       // Store 1: Character Cards
       if (!db.objectStoreNames.contains("characters")) {
         db.createObjectStore("characters", { keyPath: "id" });
       }
-      
+
       // Store 2: Chat Sessions
       if (!db.objectStoreNames.contains("sessions")) {
         db.createObjectStore("sessions", { keyPath: "id" });
@@ -128,7 +133,9 @@ export async function getStoredSettings(): Promise<UserSettings | null> {
   });
 }
 
-export async function saveStoredSettings(settings: UserSettings): Promise<void> {
+export async function saveStoredSettings(
+  settings: UserSettings,
+): Promise<void> {
   const db = await getDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("settings", "readwrite");
@@ -152,7 +159,9 @@ export async function getGlobalLorebook(): Promise<LorebookEntry[]> {
   });
 }
 
-export async function saveGlobalLorebook(entries: LorebookEntry[]): Promise<void> {
+export async function saveGlobalLorebook(
+  entries: LorebookEntry[],
+): Promise<void> {
   const db = await getDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("settings", "readwrite");

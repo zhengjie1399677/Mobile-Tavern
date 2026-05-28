@@ -8,7 +8,7 @@ const crcTable: number[] = (() => {
   for (let n = 0; n < 256; n++) {
     c = n;
     for (let k = 0; k < 8; k++) {
-      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
     }
     table[n] = c;
   }
@@ -16,17 +16,19 @@ const crcTable: number[] = (() => {
 })();
 
 function crc32(buf: Uint8Array): number {
-  let crc = 0xFFFFFFFF;
+  let crc = 0xffffffff;
   for (let i = 0; i < buf.length; i++) {
-    crc = (crc >>> 8) ^ crcTable[(crc ^ buf[i]) & 0xFF];
+    crc = (crc >>> 8) ^ crcTable[(crc ^ buf[i]) & 0xff];
   }
-  return (crc ^ 0xFFFFFFFF) >>> 0;
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 /**
  * Parses SillyTavern PNG or JSON card format.
  */
-export async function parseCharacterFile(file: File): Promise<Partial<CharacterCard>> {
+export async function parseCharacterFile(
+  file: File,
+): Promise<Partial<CharacterCard>> {
   if (file.type === "application/json" || file.name.endsWith(".json")) {
     const text = await file.text();
     const parsed = JSON.parse(text);
@@ -35,18 +37,20 @@ export async function parseCharacterFile(file: File): Promise<Partial<CharacterC
     const buffer = await file.arrayBuffer();
     const parsed = parsePngMetadata(buffer);
     const cardData = extractSillyTavernFields(parsed);
-    
+
     // Convert current file to base64 to preserve avatar
     const base64Avatar = await new Promise<string>((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.readAsDataURL(file);
     });
-    
+
     cardData.avatar = base64Avatar;
     return cardData;
   } else {
-    throw new Error("unsupported file format. Please upload .png or .json files.");
+    throw new Error(
+      "unsupported file format. Please upload .png or .json files.",
+    );
   }
 }
 
@@ -70,7 +74,7 @@ function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
       uint8[offset + 4],
       uint8[offset + 5],
       uint8[offset + 6],
-      uint8[offset + 7]
+      uint8[offset + 7],
     );
 
     if (chunkType === "IEND") break;
@@ -81,7 +85,7 @@ function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
       while (nullIdx < chunkData.length && chunkData[nullIdx] !== 0) {
         nullIdx++;
       }
-      
+
       const keyword = decoder.decode(chunkData.slice(0, nullIdx));
       if (keyword.toLowerCase() === "chara") {
         let textContent = "";
@@ -96,7 +100,7 @@ function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
           scan++; // skip language tag null byte
           while (scan < chunkData.length && chunkData[scan] !== 0) scan++;
           scan++; // skip translated keyword null byte
-          
+
           const textBytes = chunkData.slice(scan);
           if (compressionFlag === 1) {
             // Compressed with zlib / deflate! Try unzlib first, fall back to raw inflate
@@ -108,7 +112,10 @@ function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
                 const decompressed = inflateSync(textBytes);
                 textContent = decoder.decode(decompressed);
               } catch (infErr) {
-                console.warn("fflate decompression fell back to text decoding:", infErr);
+                console.warn(
+                  "fflate decompression fell back to text decoding:",
+                  infErr,
+                );
                 textContent = decoder.decode(textBytes);
               }
             }
@@ -138,7 +145,9 @@ function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
           } catch (jsonErr) {
             try {
               // Urllib and decode if special characters are present
-              const uriDecoded = decodeURIComponent(escape(atob(textContent.trim())));
+              const uriDecoded = decodeURIComponent(
+                escape(atob(textContent.trim())),
+              );
               return JSON.parse(uriDecoded);
             } catch (err3) {
               // Some systems write pure JSON raw but we also try double decode
@@ -151,7 +160,9 @@ function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
 
     offset += 12 + length;
   }
-  throw new Error("Could not find Character metadata inside this PNG. Try JSON card format.");
+  throw new Error(
+    "Could not find Character metadata inside this PNG. Try JSON card format.",
+  );
 }
 
 /**
@@ -161,52 +172,82 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
   const data = raw.data ? raw.data : raw;
 
   // Extract from various possible world_info / lorebook containers in SillyTavern
-  const rawLorbookEntries = data.character_book?.entries || 
-                           data.world_info?.entries || 
-                           data.lorebook?.entries || 
-                           [];
+  const rawLorbookEntries =
+    data.character_book?.entries ||
+    data.world_info?.entries ||
+    data.lorebook?.entries ||
+    [];
 
   // Support both array or key-value structures
-  const lorebookList = Array.isArray(rawLorbookEntries) 
-    ? rawLorbookEntries 
-    : (typeof rawLorbookEntries === "object" ? Object.values(rawLorbookEntries) : []);
+  const lorebookList = Array.isArray(rawLorbookEntries)
+    ? rawLorbookEntries
+    : typeof rawLorbookEntries === "object"
+      ? Object.values(rawLorbookEntries)
+      : [];
 
   const name = data.name || data.char_name || data.charName || "未命名角色";
-  const description = data.description || data.char_persona || data.charPersona || data.persona || "";
+  const description =
+    data.description ||
+    data.char_persona ||
+    data.charPersona ||
+    data.persona ||
+    "";
 
   return {
     name,
     description,
-    personality: data.personality || data.char_personality || data.charPersonality || "",
+    personality:
+      data.personality || data.char_personality || data.charPersonality || "",
     scenario: data.scenario || data.world_scenario || data.worldScenario || "",
-    first_mes: data.first_mes || data.char_greeting || data.charGreeting || data.greeting || "",
-    mes_example: data.mes_example || data.example_dialogue || data.exampleDialogue || data.example_dialogs || "",
+    first_mes:
+      data.first_mes ||
+      data.char_greeting ||
+      data.charGreeting ||
+      data.greeting ||
+      "",
+    mes_example:
+      data.mes_example ||
+      data.example_dialogue ||
+      data.exampleDialogue ||
+      data.example_dialogs ||
+      "",
     system_prompt: data.system_prompt || data.systemPrompt || "",
-    post_history_instructions: data.post_history_instructions || data.postHistoryInstructions || "",
-    alternate_greetings: Array.isArray(data.alternate_greetings) ? data.alternate_greetings : [],
-    lorebookEntries: lorebookList.map((entry: any) => {
-      const entryKeys: string[] = Array.isArray(entry.keys) 
-        ? entry.keys 
-        : Array.isArray(entry.key)
-          ? entry.key
-          : (entry.key || entry.keys || "").split(",").map((k: string) => k.trim()).filter(Boolean);
+    post_history_instructions:
+      data.post_history_instructions || data.postHistoryInstructions || "",
+    alternate_greetings: Array.isArray(data.alternate_greetings)
+      ? data.alternate_greetings
+      : [],
+    lorebookEntries: lorebookList
+      .map((entry: any) => {
+        const entryKeys: string[] = Array.isArray(entry.keys)
+          ? entry.keys
+          : Array.isArray(entry.key)
+            ? entry.key
+            : (entry.key || entry.keys || "")
+                .split(",")
+                .map((k: string) => k.trim())
+                .filter(Boolean);
 
-      return {
-        id: Math.random().toString(36).substring(2, 9),
-        keys: entryKeys,
-        content: entry.content || entry.value || "",
-        constant: !!(entry.constant || entry.constant_active),
-        enabled: entry.enabled !== false,
-        comment: entry.comment || ""
-      };
-    }).filter((e: any) => e.content)
+        return {
+          id: Math.random().toString(36).substring(2, 9),
+          keys: entryKeys,
+          content: entry.content || entry.value || "",
+          constant: !!(entry.constant || entry.constant_active),
+          enabled: entry.enabled !== false,
+          comment: entry.comment || "",
+        };
+      })
+      .filter((e: any) => e.content),
   };
 }
 
 /**
  * Injects character metadata (as SillyTavern JSON payload) into a PNG array buffer.
  */
-export function injectPngMetadata(pngBuffer: ArrayBuffer, char: CharacterCard): Blob {
+export function injectPngMetadata(
+  pngBuffer: ArrayBuffer,
+  char: CharacterCard,
+): Blob {
   const view = new DataView(pngBuffer);
   if (view.getUint32(0) !== 0x89504e47 || view.getUint32(4) !== 0x0d0a1a0a) {
     throw new Error("Invalid PNG source file");
@@ -232,15 +273,16 @@ export function injectPngMetadata(pngBuffer: ArrayBuffer, char: CharacterCard): 
       mes_example: char.mes_example,
       system_prompt: char.system_prompt || "",
       character_book: {
-        entries: char.lorebookEntries?.map((e) => ({
-          keys: e.keys,
-          content: e.content,
-          constant: e.constant,
-          enabled: e.enabled,
-          comment: e.comment || ""
-        })) || []
-      }
-    }
+        entries:
+          char.lorebookEntries?.map((e) => ({
+            keys: e.keys,
+            content: e.content,
+            constant: e.constant,
+            enabled: e.enabled,
+            comment: e.comment || "",
+          })) || [],
+      },
+    },
   };
 
   const jsonStr = JSON.stringify(payload);
@@ -287,20 +329,23 @@ export function injectPngMetadata(pngBuffer: ArrayBuffer, char: CharacterCard): 
  * Native, lightweight client-side password encryption/decryption using XOR and SHA-256 password digests.
  * Solves the .backup.zip requirement natively and reliably without heavy browser JSZip/AES bundling dependencies.
  */
-export async function encryptBackupData(dataStr: string, pass: string): Promise<string> {
+export async function encryptBackupData(
+  dataStr: string,
+  pass: string,
+): Promise<string> {
   const encoder = new TextEncoder();
-  
+
   // Create password digest for key (simple hash-based sizing)
   const passBuf = encoder.encode(pass);
   const hashBuffer = await crypto.subtle.digest("SHA-256", passBuf);
-  
+
   // Import the hash as an AES-GCM key
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
     hashBuffer,
     { name: "AES-GCM" },
     false,
-    ["encrypt"]
+    ["encrypt"],
   );
 
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -309,19 +354,26 @@ export async function encryptBackupData(dataStr: string, pass: string): Promise<
   const encryptedBuffer = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     cryptoKey,
-    dataBuf
+    dataBuf,
   );
 
   const encryptedBytes = new Uint8Array(encryptedBuffer);
-  
+
   // Hex encode IV + Encrypted Data
-  const ivHex = Array.from(iv).map(b => b.toString(16).padStart(2, "0")).join("");
-  const dataHex = Array.from(encryptedBytes).map(b => b.toString(16).padStart(2, "0")).join("");
-  
+  const ivHex = Array.from(iv)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const dataHex = Array.from(encryptedBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
   return ivHex + dataHex;
 }
 
-export async function decryptBackupData(hexStr: string, pass: string): Promise<string> {
+export async function decryptBackupData(
+  hexStr: string,
+  pass: string,
+): Promise<string> {
   // If it's old un-prefixed hex, fallback to XOR for backward compatibility?
   // Let's check size, but we can just use AES-GCM directly
   if (hexStr.length < 24) throw new Error("Invalid encrypted data format");
@@ -352,14 +404,14 @@ export async function decryptBackupData(hexStr: string, pass: string): Promise<s
     hashBuffer,
     { name: "AES-GCM" },
     false,
-    ["decrypt"]
+    ["decrypt"],
   );
 
   try {
     const decryptedBuffer = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv },
       cryptoKey,
-      encryptedBytes
+      encryptedBytes,
     );
     return decoder.decode(decryptedBuffer);
   } catch (e) {
@@ -375,12 +427,18 @@ export async function decryptBackupData(hexStr: string, pass: string): Promise<s
         decrypted[i] = oldEncrypted[i] ^ keyArray[i % keyArray.length];
       }
       const result = decoder.decode(decrypted);
-      if (result.includes("characters") || result.includes("sessions") || result.includes("{")) {
-         return result;
+      if (
+        result.includes("characters") ||
+        result.includes("sessions") ||
+        result.includes("{")
+      ) {
+        return result;
       }
       throw new Error();
-    } catch(err) {
-      throw new Error("密码错误或数据已损坏 (Password incorrect or data corrupted)");
+    } catch (err) {
+      throw new Error(
+        "密码错误或数据已损坏 (Password incorrect or data corrupted)",
+      );
     }
   }
 }

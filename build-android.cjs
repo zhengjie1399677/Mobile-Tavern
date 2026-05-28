@@ -3,14 +3,14 @@ const maxRetries = 3;
 for (let i = 0; i < maxRetries; i++) {
   try {
     console.log('Attempt ' + (i + 1) + ' to build Android APK...');
-    execSync('npx tauri android build --apk -v --target aarch64', { stdio: 'inherit' });
+    execSync('npx tauri android build --apk --debug -v --target aarch64,armv7', { stdio: 'inherit' });
     console.log('Build succeeded.');
     process.exit(0);
   } catch (err) {
     console.error('Build attempt ' + (i + 1) + ' failed.');
     try {
-      console.log('Running gradlew assembleRelease with detailed logging for diagnosis...');
-      execSync('cd src-tauri/gen/android && chmod +x gradlew && ./gradlew assembleRelease --stacktrace --info', { stdio: 'inherit', env: process.env });
+      console.log('Running gradlew assembleDebug with detailed logging for diagnosis...');
+      execSync('cd src-tauri/gen/android && chmod +x gradlew && ./gradlew assembleDebug --stacktrace --info', { stdio: 'inherit', env: process.env });
       console.log('Build succeeded via gradlew directly.');
       process.exit(0);
     } catch(err2) {

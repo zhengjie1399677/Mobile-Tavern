@@ -1,4 +1,10 @@
-import { CharacterCard, ChatSession, LorebookEntry, UserSettings, Message } from "../types";
+import {
+  CharacterCard,
+  ChatSession,
+  LorebookEntry,
+  UserSettings,
+  Message,
+} from "../types";
 
 /**
  * Searches for active worldbook (lorebook) keywords in text.
@@ -6,28 +12,29 @@ import { CharacterCard, ChatSession, LorebookEntry, UserSettings, Message } from
 export function getTriggeredLorebookEntries(
   messages: Message[],
   userInput: string,
-  entries: LorebookEntry[]
+  entries: LorebookEntry[],
 ): LorebookEntry[] {
   if (!entries || entries.length === 0) return [];
   const activeEntries: LorebookEntry[] = [];
-  
+
   for (const entry of entries) {
     if (!entry.enabled) continue;
     if (entry.constant) {
       activeEntries.push(entry);
       continue;
     }
-    
+
     // 1. Determine scanning depth (how many recent messages to inspect, default 4)
     const depth = entry.depth !== undefined ? entry.depth : 4;
     const scanMessages = messages ? messages.slice(-depth) : [];
-    const scanText = userInput + "\n" + scanMessages.map((m) => m.content).join("\n");
-    
+    const scanText =
+      userInput + "\n" + scanMessages.map((m) => m.content).join("\n");
+
     // 2. Check if any keyword matches
     const hasMatch = entry.keys.some((key) => {
       const trimmedKey = key.trim();
       if (!trimmedKey) return false;
-      
+
       if (entry.useRegex) {
         try {
           let pattern = trimmedKey;
@@ -47,7 +54,7 @@ export function getTriggeredLorebookEntries(
         return scanText.toLowerCase().includes(trimmedKey.toLowerCase());
       }
     });
-    
+
     if (hasMatch) {
       // 3. Roll trigger probability (0-100, default 100)
       const prob = entry.probability !== undefined ? entry.probability : 100;
@@ -57,14 +64,14 @@ export function getTriggeredLorebookEntries(
       activeEntries.push(entry);
     }
   }
-  
+
   // 4. Sort by order weight (ascending, default 100)
   activeEntries.sort((a, b) => {
     const orderA = a.order !== undefined ? a.order : 100;
     const orderB = b.order !== undefined ? b.order : 100;
     return orderA - orderB;
   });
-  
+
   return activeEntries;
 }
 
@@ -79,7 +86,7 @@ export function replaceMacros(
     description: string;
     personality: string;
     scenario: string;
-  }
+  },
 ): string {
   if (!text) return "";
   return text
@@ -102,23 +109,30 @@ export function assemblePromptContext(params: {
   globalLorebook?: LorebookEntry[];
 }) {
   const { character, chat, userInput, settings, globalLorebook = [] } = params;
-  
+
   // Create substitution parameters for SillyTavern custom scripts/prompts
   const macroParams = {
     char: character.name,
     user: settings.userName || "用户",
     description: character.description || "无",
     personality: character.personality || "无",
-    scenario: character.scenario || "无"
+    scenario: character.scenario || "无",
   };
 
   // 1. Process Core Custom mainPrompt from SillyTavern configs
-  const hasCustomPrompts = settings.promptConfig?.customPrompts && settings.promptConfig.customPrompts.length > 0;
-  const activeCustomBlocks = hasCustomPrompts ? settings.promptConfig.customPrompts!.filter(p => p.enabled) : [];
+  const hasCustomPrompts =
+    settings.promptConfig?.customPrompts &&
+    settings.promptConfig.customPrompts.length > 0;
+  const activeCustomBlocks = hasCustomPrompts
+    ? settings.promptConfig.customPrompts!.filter((p) => p.enabled)
+    : [];
 
   let mainPromptReplaced = "";
   if (settings.promptConfig?.mainPrompt) {
-    mainPromptReplaced = replaceMacros(settings.promptConfig.mainPrompt, macroParams);
+    mainPromptReplaced = replaceMacros(
+      settings.promptConfig.mainPrompt,
+      macroParams,
+    );
   } else if (activeCustomBlocks.length === 0) {
     // ONLY fallback to default if BOTH mainPrompt is empty AND there are no active custom prompt blocks!
     mainPromptReplaced = `你现在正在扮演 {{char}}。请进行逼真、生动、符合人设机制的纯文字角色扮演（RP）。`;
@@ -126,11 +140,13 @@ export function assemblePromptContext(params: {
 
   // Integrate fine-grained CUSTOM PROMPT BLOCKS if imported from the JSON preset
   if (activeCustomBlocks.length > 0) {
-    const compiledBlocks = activeCustomBlocks.map(block => {
-      const prefix = block.name ? `### ${block.name}\n` : "";
-      return `${prefix}${replaceMacros(block.content, macroParams)}`;
-    }).join("\n\n");
-    
+    const compiledBlocks = activeCustomBlocks
+      .map((block) => {
+        const prefix = block.name ? `### ${block.name}\n` : "";
+        return `${prefix}${replaceMacros(block.content, macroParams)}`;
+      })
+      .join("\n\n");
+
     if (mainPromptReplaced) {
       mainPromptReplaced = `${mainPromptReplaced}\n\n${compiledBlocks}`;
     } else {
@@ -140,71 +156,105 @@ export function assemblePromptContext(params: {
 
   // 2. Scan lorebook keywords
   // Combine custom character entries and global entries
-  const allEntries = [
-    ...(character.lorebookEntries || []),
-    ...globalLorebook,
-  ];
-  const activeEntries = getTriggeredLorebookEntries(chat.messages || [], userInput, allEntries);
-  
+  const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
+  const activeEntries = getTriggeredLorebookEntries(
+    chat.messages || [],
+    userInput,
+    allEntries,
+  );
+
   // Sort them into physical location buckets
-  const topEntries = activeEntries.filter(e => e.position === 'top');
-  const beforeCharEntries = activeEntries.filter(e => e.position === 'before_char_def');
-  const afterCharEntries = activeEntries.filter(e => e.position === 'after_char_def' || !e.position);
-  const beforeLastMsgEntries = activeEntries.filter(e => e.position === 'before_last_mes');
-  
+  const topEntries = activeEntries.filter((e) => e.position === "top");
+  const beforeCharEntries = activeEntries.filter(
+    (e) => e.position === "before_char_def",
+  );
+  const afterCharEntries = activeEntries.filter(
+    (e) => e.position === "after_char_def" || !e.position,
+  );
+  const beforeLastMsgEntries = activeEntries.filter(
+    (e) => e.position === "before_last_mes",
+  );
+
   function formatEntryContent(entry: LorebookEntry): string {
     if (entry.addMemo && entry.comment) {
       return `[设定及备注: ${entry.comment}]\n${entry.content}`;
     }
     return entry.content;
   }
-  
+
   function formatEntryBlock(entries: LorebookEntry[]): string {
     if (entries.length === 0) return "";
-    return entries.map(e => formatEntryContent(e)).join("\n\n");
+    return entries.map((e) => formatEntryContent(e)).join("\n\n");
   }
-  
+
   const topText = formatEntryBlock(topEntries);
-  const topSection = topText ? `=== 设定基础基石 (World Lore) ===\n${topText}\n` : "";
-  
+  const topSection = topText
+    ? `=== 设定基础基石 (World Lore) ===\n${topText}\n`
+    : "";
+
   const beforeCharText = formatEntryBlock(beforeCharEntries);
-  const beforeCharSection = beforeCharText ? `=== 世界背景设定前置 ===\n${beforeCharText}\n` : "";
-  
+  const beforeCharSection = beforeCharText
+    ? `=== 世界背景设定前置 ===\n${beforeCharText}\n`
+    : "";
+
   const afterCharText = formatEntryBlock(afterCharEntries);
-  const afterCharSection = afterCharText ? `=== 设定说明书拓展 (World Info) ===\n${afterCharText}\n` : "";
-  
+  const afterCharSection = afterCharText
+    ? `=== 设定说明书拓展 (World Info) ===\n${afterCharText}\n`
+    : "";
+
   const beforeLastText = formatEntryBlock(beforeLastMsgEntries);
-  const beforeLastSection = beforeLastText ? `=== 临时触发规则与道具 ===\n${beforeLastText}\n` : "";
+  const beforeLastSection = beforeLastText
+    ? `=== 临时触发规则与道具 ===\n${beforeLastText}\n`
+    : "";
 
   // 3. Summary timeline memory
   let summarySection = "";
   if (chat.summaries && chat.summaries.length > 0) {
-    summarySection = "\n=== 剧情前情要点提炼 (Timeline Summaries) ===\n" + chat.summaries
-      .map((s) => `[时间: ${s.timeTag} | 地点: ${s.location}] ${s.content}`)
-      .join("\n") + "\n";
+    summarySection =
+      "\n=== 剧情前情要点提炼 (Timeline Summaries) ===\n" +
+      chat.summaries
+        .map((s) => `[时间: ${s.timeTag} | 地点: ${s.location}] ${s.content}`)
+        .join("\n") +
+      "\n";
   }
 
   // 4. Character-bound specific system prompt if specified
   let charSpecificPrompt = "";
   if (character.system_prompt) {
-    charSpecificPrompt = "\n=== 角色卡附加特殊约束 ===\n" + replaceMacros(character.system_prompt, macroParams) + "\n";
+    charSpecificPrompt =
+      "\n=== 角色卡附加特殊约束 ===\n" +
+      replaceMacros(character.system_prompt, macroParams) +
+      "\n";
   }
 
   // 5. Jailbreak instructions
   let jailbreakSection = "";
-  if (settings.promptConfig?.useJailbreak && settings.promptConfig?.jailbreakPrompt) {
-    jailbreakSection = "\n=== 安全消除与写实细节强调 (Jailbreak Prompt) ===\n" + replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams) + "\n";
+  if (
+    settings.promptConfig?.useJailbreak &&
+    settings.promptConfig?.jailbreakPrompt
+  ) {
+    jailbreakSection =
+      "\n=== 安全消除与写实细节强调 (Jailbreak Prompt) ===\n" +
+      replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams) +
+      "\n";
   }
 
   // 6. Post-history direct instruction (reminders right before response generation)
   let postHistorySection = "";
-  if (settings.promptConfig?.usePostHistory && settings.promptConfig?.postHistoryPrompt) {
-    postHistorySection = "\n=== 生成纪律提醒 ===\n" + replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams) + "\n";
+  if (
+    settings.promptConfig?.usePostHistory &&
+    settings.promptConfig?.postHistoryPrompt
+  ) {
+    postHistorySection =
+      "\n=== 生成纪律提醒 ===\n" +
+      replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams) +
+      "\n";
   }
 
   // 7. Core custom story sequence compiler! Natively supports standard SillyTavern order template!
-  let compiledStory = settings.promptConfig?.storyString || 
-`{{system_prompt}}
+  let compiledStory =
+    settings.promptConfig?.storyString ||
+    `{{system_prompt}}
 
 === 角色性格设定 ===
 {{personality}}
@@ -225,20 +275,35 @@ export function assemblePromptContext(params: {
 
 {{post_history}}`;
 
-  const descriptionVal = replaceMacros(character.description || "", macroParams);
-  const personalityVal = replaceMacros(character.personality || "", macroParams);
+  const descriptionVal = replaceMacros(
+    character.description || "",
+    macroParams,
+  );
+  const personalityVal = replaceMacros(
+    character.personality || "",
+    macroParams,
+  );
   const scenarioVal = replaceMacros(character.scenario || "", macroParams);
 
   // Apply visual positions
   if (topSection) {
-    compiledStory = compiledStory.replace(/\{\{system_prompt\}\}/gi, `${topSection}\n{{system_prompt}}`);
+    compiledStory = compiledStory.replace(
+      /\{\{system_prompt\}\}/gi,
+      `${topSection}\n{{system_prompt}}`,
+    );
   }
   if (beforeCharSection) {
-    compiledStory = compiledStory.replace(/\{\{personality\}\}/gi, `${beforeCharSection}\n{{personality}}`);
+    compiledStory = compiledStory.replace(
+      /\{\{personality\}\}/gi,
+      `${beforeCharSection}\n{{personality}}`,
+    );
   }
   if (beforeLastSection) {
     if (compiledStory.includes("{{post_history}}")) {
-      compiledStory = compiledStory.replace(/\{\{post_history\}\}/gi, `${beforeLastSection}\n{{post_history}}`);
+      compiledStory = compiledStory.replace(
+        /\{\{post_history\}\}/gi,
+        `${beforeLastSection}\n{{post_history}}`,
+      );
     } else {
       compiledStory = compiledStory + `\n\n${beforeLastSection}`;
     }
@@ -264,16 +329,18 @@ export function assemblePromptContext(params: {
 
   // 8. Gather Recent Full Messages
   const { recentTurns } = settings.memory;
-  
+
   // Recent full messages size
   const totalRawMessages = chat.messages ? [...chat.messages] : [];
-  
+
   // We send recentTurns messages as actual conversation message history
   let activeMessagesToSend: Message[] = [];
-  
+
   if (totalRawMessages.length > 0) {
     // DO NOT SEND system messages to the AI history to prevent LLM confusion on error messages
-    const validChatMessages = totalRawMessages.filter(m => m.sender !== "system");
+    const validChatMessages = totalRawMessages.filter(
+      (m) => m.sender !== "system",
+    );
     activeMessagesToSend = validChatMessages.slice(-recentTurns);
   }
 
@@ -281,23 +348,35 @@ export function assemblePromptContext(params: {
   const chatHistory = activeMessagesToSend.map((msg) => {
     let role: "user" | "model" | "assistant" = "user";
     let content = msg.content;
-    
+
     if (msg.sender === "assistant") {
       role = settings.api.type === "openai-compat" ? "assistant" : "model";
       if (settings.promptConfig?.instructTemplate !== "default") {
-        const prefix = replaceMacros(settings.promptConfig?.assistantPrefix || "", macroParams);
-        const suffix = replaceMacros(settings.promptConfig?.assistantSuffix || "", macroParams);
+        const prefix = replaceMacros(
+          settings.promptConfig?.assistantPrefix || "",
+          macroParams,
+        );
+        const suffix = replaceMacros(
+          settings.promptConfig?.assistantSuffix || "",
+          macroParams,
+        );
         content = `${prefix}${content}${suffix}`;
       }
     } else {
       role = "user";
       if (settings.promptConfig?.instructTemplate !== "default") {
-        const prefix = replaceMacros(settings.promptConfig?.userPrefix || "", macroParams);
-        const suffix = replaceMacros(settings.promptConfig?.userSuffix || "", macroParams);
+        const prefix = replaceMacros(
+          settings.promptConfig?.userPrefix || "",
+          macroParams,
+        );
+        const suffix = replaceMacros(
+          settings.promptConfig?.userSuffix || "",
+          macroParams,
+        );
         content = `${prefix}${content}${suffix}`;
       }
     }
-    
+
     return {
       role,
       content,
