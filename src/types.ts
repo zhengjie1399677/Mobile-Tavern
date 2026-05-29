@@ -1,6 +1,9 @@
 export interface LorebookEntry {
   id: string;
   keys: string[]; // Trigger keywords
+  secondary_keys?: string[]; // Secondary triggers
+  selectiveLogic?: "AND_ANY" | "AND_ALL" | "NOT_ANY" | "NONE"; // Secondary keys logic
+  caseSensitive?: boolean; // Case sensitive keyword matching
   content: string; // The actual worldbook lore
   constant: boolean; // Always active in prompting context
   enabled: boolean;
@@ -11,8 +14,9 @@ export interface LorebookEntry {
   addMemo?: boolean; // Append comment as memo
   probability?: number; // Trigger probability (0-100, default 100)
   order?: number; // Precedence order (default 100)
-  position?: "top" | "before_char_def" | "after_char_def" | "before_last_mes"; // Physical insertion position
-  depth?: number; // Scan depth (how many of recent messages to inspect, default 4)
+  position?: "top" | "before_char_def" | "after_char_def" | "before_last_mes" | "in_chat"; // Physical insertion position
+  depth?: number; // Insertion depth (0 = at the end, > 0 = deep into history)
+  scanDepth?: number; // Scan depth (how many of recent messages to inspect, >= 0)
   isGlobal?: boolean; // Whether this lorebook is global
 }
 
@@ -66,6 +70,7 @@ export interface ApiConfig {
   baseUrl: string;
   apiKey: string;
   modelName: string;
+  savedUrls?: string[];
 }
 
 export interface SamplerPreset {

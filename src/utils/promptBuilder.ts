@@ -18,49 +18,69 @@ export function getTriggeredLorebookEntries(
   const activeEntries: LorebookEntry[] = [];
 
   for (const entry of entries) {
-    if (!entry.enabled) continue;
+    if (!entry.enabled || !entry.content) continue;
     if (entry.constant) {
       activeEntries.push(entry);
       continue;
     }
 
-    // 1. Determine scanning depth (how many recent messages to inspect, default 4)
-    const depth = entry.depth !== undefined ? entry.depth : 4;
-    const scanMessages = messages ? messages.slice(-depth) : [];
+    // 1. Determine scanning depth (how many recent messages to inspect)
+    const scanDepth = entry.scanDepth !== undefined ? entry.scanDepth : (entry.depth !== undefined ? entry.depth : 4);
+    if (scanDepth === 0) continue; // scan_depth 0 means no match (unless constant, which is handled above)
+    
+    const scanMessages = messages ? messages.slice(-scanDepth) : [];
     const scanText =
       userInput + "\n" + scanMessages.map((m) => m.content).join("\n");
 
-    // 2. Check if any keyword matches
-    const hasMatch = entry.keys.some((key) => {
-      const trimmedKey = key.trim();
-      if (!trimmedKey) return false;
-
-      if (entry.useRegex) {
+    const checkMatch = (key: string, isRegex: boolean, isCaseSensitive: boolean): boolean => {
+      const trimmed = key.trim();
+      if (!trimmed) return false;
+      if (isRegex) {
         try {
-          let pattern = trimmedKey;
-          let flags = "i";
-          if (trimmedKey.startsWith("/") && trimmedKey.lastIndexOf("/") > 0) {
-            pattern = trimmedKey.substring(1, trimmedKey.lastIndexOf("/"));
-            flags = trimmedKey.substring(trimmedKey.lastIndexOf("/") + 1);
+          let pattern = trimmed;
+          let flags = isCaseSensitive ? "" : "i";
+          if (trimmed.startsWith("/") && trimmed.lastIndexOf("/") > 0) {
+            pattern = trimmed.substring(1, trimmed.lastIndexOf("/"));
+            const rawFlags = trimmed.substring(trimmed.lastIndexOf("/") + 1);
+            flags = isCaseSensitive ? rawFlags.replace(/i/g, "") : (rawFlags.includes("i") ? rawFlags : rawFlags + "i");
           }
-          const regex = new RegExp(pattern, flags);
-          return regex.test(scanText);
-        } catch (err) {
-          // Fallback to substring match
-          return scanText.toLowerCase().includes(trimmedKey.toLowerCase());
+          return new RegExp(pattern, flags).test(scanText);
+        } catch {
+          return isCaseSensitive ? scanText.includes(trimmed) : scanText.toLowerCase().includes(trimmed.toLowerCase());
         }
-      } else {
-        // Simple case-insensitive search
-        return scanText.toLowerCase().includes(trimmedKey.toLowerCase());
       }
-    });
+      return isCaseSensitive ? scanText.includes(trimmed) : scanText.toLowerCase().includes(trimmed.toLowerCase());
+    };
 
-    if (hasMatch) {
-      // 3. Roll trigger probability (0-100, default 100)
-      const prob = entry.probability !== undefined ? entry.probability : 100;
-      if (prob < 100 && Math.random() * 100 > prob) {
-        continue;
+    // 2. Base Hit Check (Primary Keys)
+    const primaryMatched = entry.keys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive));
+    if (!primaryMatched) continue;
+
+    // 3. Secondary Keys Logic Eval
+    let secondaryMatched = true;
+    const logic = entry.selectiveLogic || "NONE";
+    const secKeys = entry.secondary_keys || [];
+    
+    if (logic !== "NONE" && secKeys.length > 0) {
+      if (logic === "AND_ANY") {
+        secondaryMatched = secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive));
+      } else if (logic === "AND_ALL") {
+        secondaryMatched = secKeys.every((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive));
+      } else if (logic === "NOT_ANY") {
+        secondaryMatched = !secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive));
       }
+    }
+    
+    if (!secondaryMatched) continue;
+
+    // 4. Roll trigger probability (0-100, default 100)
+    const prob = entry.probability !== undefined ? entry.probability : 100;
+    if (prob < 100 && Math.random() * 100 > prob) {
+      continue;
+    }
+    
+    // Check against duplicated IDs in one pass
+    if (!activeEntries.find((a) => a.id === entry.id)) {
       activeEntries.push(entry);
     }
   }
@@ -306,16 +326,6 @@ export function assemblePromptContext(params: {
       `${beforeCharSection}\n{{personality}}`,
     );
   }
-  if (beforeLastSection) {
-    if (compiledStory.includes("{{post_history}}")) {
-      compiledStory = compiledStory.replace(
-        /\{\{post_history\}\}/gi,
-        `${beforeLastSection}\n{{post_history}}`,
-      );
-    } else {
-      compiledStory = compiledStory + `\n\n${beforeLastSection}`;
-    }
-  }
 
   // Substitute all fields
   compiledStory = compiledStory
@@ -390,6 +400,45 @@ export function assemblePromptContext(params: {
       content,
     };
   });
+
+  const inChatEntries = activeEntries.filter(
+    (e) => e.position === "in_chat",
+  );
+
+  // Group in-chat entries by their target index in chatHistory
+  const inChatMap = new Map<number, LorebookEntry[]>();
+  inChatEntries.forEach((entry) => {
+    // If depth is 0, it means it's prepended to the very last message (same as before_last_mes)
+    const depth = entry.depth !== undefined ? entry.depth : 4;
+    let targetIdx = Math.max(0, chatHistory.length - (depth > 0 ? depth : 1));
+    if (targetIdx >= chatHistory.length) targetIdx = chatHistory.length - 1;
+    
+    if (!inChatMap.has(targetIdx)) {
+      inChatMap.set(targetIdx, []);
+    }
+    inChatMap.get(targetIdx)!.push(entry);
+  });
+
+  // Apply "in_chat" entries injected by depth into the history!
+  inChatMap.forEach((entries, targetIdx) => {
+    // Sort by order ascending (smaller order appears earlier in the text block)
+    entries.sort((a, b) => (a.order || 100) - (b.order || 100));
+    
+    if (chatHistory[targetIdx]) {
+      const mergedContent = entries.map((e) => formatEntryContent(e)).join("\n\n");
+      chatHistory[targetIdx].content = `${mergedContent}\n\n${chatHistory[targetIdx].content}`;
+    }
+  });
+
+  // Apply "before_last_mes" as well directly to chatHistory so it actually works properly.
+  // We prepend it to the very last message in the history.
+  if (beforeLastMsgEntries.length > 0 && chatHistory.length > 0) {
+    const targetIdx = chatHistory.length - 1;
+    // ensure sorted by order
+    beforeLastMsgEntries.sort((a, b) => (a.order || 100) - (b.order || 100));
+    const beforeLastText = formatEntryBlock(beforeLastMsgEntries);
+    chatHistory[targetIdx].content = `${beforeLastText}\n\n${chatHistory[targetIdx].content}`;
+  }
 
   return {
     systemInstruction,

@@ -7,6 +7,7 @@ import SettingsTab from "./tabs/SettingsTab";
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Bot,
+  VenetianMask,
   User,
   Settings,
   Plus,
@@ -155,6 +156,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   userName: "探客先生 (User)",
   userInfo: "",
   userAvatar: "",
+  enableHtmlRendering: true,
 };
 
 import { useUsageTracking } from "./utils/useUsageTracking";
@@ -266,6 +268,11 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", currentTheme);
+    if (currentTheme === "ocean") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
   }, [currentTheme]);
 
   // Loading/Busy states
@@ -487,6 +494,7 @@ export default function App() {
             userName: storedSet.userName || DEFAULT_SETTINGS.userName,
             userInfo: storedSet.userInfo || DEFAULT_SETTINGS.userInfo,
             userAvatar: storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar,
+            enableHtmlRendering: storedSet.enableHtmlRendering ?? DEFAULT_SETTINGS.enableHtmlRendering,
           };
           setSettings(mergedSet);
         }
@@ -2343,6 +2351,7 @@ export default function App() {
               <option value="before_char_def">📌角色定义前</option>
               <option value="top">📌页面顶部</option>
               <option value="before_last_mes">💬最新消息上</option>
+              <option value="in_chat">💬历史回溯中(按深度)</option>
             </select>
           </div>
           <div>
@@ -2543,27 +2552,37 @@ export default function App() {
     setEditingGlobalEntry(null);
   };
 
-  // Parse narrative prose formatting inside brackets to decrease visual fatigue on phones
   const renderDialogueBubble = (text: string) => {
+    const processedText = (text || "").replace(
+      /\{\{user\}\}/gi,
+      settings.userName || "未知探客",
+    );
+
     if (settings.enableHtmlRendering) {
       return (
         <div
           className="font-sans font-medium text-foreground text-[15.5px] leading-relaxed whitespace-pre-wrap"
-          dangerouslySetInnerHTML={{ __html: text }}
+          dangerouslySetInnerHTML={{ __html: processedText }}
         />
       );
     }
 
-    // Regex matches text inside standard brackets （） or astesrisks *内容*
-    const parts = text.split(/(\（[^）]+\）|\*[^*]+\*)/g);
+    // Regex matches text inside standard brackets （）, (), 【】, or asterisks *内容* or **内容**
+    const parts = processedText.split(
+      /(\（[^）]+\）|\([^)]+\)|【[^】]+】|\*\*[^*]+\*\*|\*[^*]+\*)/g,
+    );
     return parts.map((part, idx) => {
-      const isBracketed = part.startsWith("（") && part.endsWith("）");
-      const isStarred = part.startsWith("*") && part.endsWith("*");
-      if (isBracketed || isStarred) {
+      if (!part) return null;
+      const isAction =
+        (part.startsWith("（") && part.endsWith("）")) ||
+        (part.startsWith("(") && part.endsWith(")")) ||
+        (part.startsWith("【") && part.endsWith("】")) ||
+        (part.startsWith("*") && part.endsWith("*"));
+      if (isAction) {
         return (
           <span
             key={idx}
-            className="font-serif italic text-muted-foreground font-light text-[15px] opacity-90 block my-1"
+            className="font-serif italic text-muted-foreground font-light text-[15px] opacity-90 block my-1 whitespace-pre-wrap"
           >
             {part}
           </span>
@@ -2572,7 +2591,7 @@ export default function App() {
       return (
         <span
           key={idx}
-          className="font-sans font-medium text-foreground text-[15.5px] leading-relaxed block my-1"
+          className="font-sans font-medium text-foreground text-[15.5px] leading-relaxed block my-1 whitespace-pre-wrap"
         >
           {part}
         </span>
@@ -2726,7 +2745,7 @@ export default function App() {
                 : "text-muted-foreground hover:text-muted-foreground"
             }`}
           >
-            <Bot className="w-5 h-5 mb-0.5" />
+            <VenetianMask className="w-5 h-5 mb-0.5" />
             <span className="text-[10px] font-medium">角色馆</span>
           </button>
 

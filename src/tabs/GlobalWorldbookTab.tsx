@@ -591,8 +591,8 @@ export default function GlobalWorldbookTab() {
               <div className="h-4 w-[1px] bg-border/60 hidden sm:block" />
 
               <div className="flex flex-col">
-                <p className="text-xs font-extrabold text-sky-400 flex items-center gap-1 leading-snug">
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+                <p className="text-xs font-extrabold text-primary flex items-center gap-1 leading-snug">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                   <span>🌎 全局通用设定集</span>
                 </p>
                 <p className="text-[9px] text-muted-foreground font-light">
@@ -662,11 +662,11 @@ export default function GlobalWorldbookTab() {
         /* ==================== CHARACTERS DIR DIRECTORY LIST ==================== */
         <div className="space-y-4 animate-fadeIn select-none">
           <div className="flex items-center justify-between px-1 border-b border-border/40 pb-2.5">
-            <span className="text-xs font-bold text-emerald-400/90 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
               <Book className="w-3.5 h-3.5" />
               记忆回路名录 (Characters Directory)
             </span>
-            <span className="bg-emerald-950/20 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-mono font-semibold">
+            <span className="bg-muted/20 text-foreground/80 border border-border/50 px-2 py-0.5 rounded text-[10px] font-mono font-semibold">
               共 {characters.length} 个回路
             </span>
           </div>
@@ -692,16 +692,16 @@ export default function GlobalWorldbookTab() {
                     }}
                     className={`w-full text-left p-4 rounded-2xl border transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-between group active:scale-[0.99] animate-fadeIn ${
                       isGlobal
-                        ? "border-sky-500/60 bg-sky-955/5 hover:bg-sky-955/10 hover:border-sky-400"
-                        : "border-emerald-500/70 bg-emerald-950/5 hover:bg-emerald-950/10 hover:border-emerald-400"
+                        ? "border-primary/60 bg-primary/5 hover:bg-primary/10 hover:border-primary/80"
+                        : "border-border/80 bg-muted/30 hover:bg-muted/60 hover:border-border"
                     }`}
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
                       <div
                         className={`w-10 h-10 rounded-full overflow-hidden border flex items-center justify-center shrink-0 ${
                           isGlobal
-                            ? "border-sky-500/40"
-                            : "border-emerald-500/40"
+                            ? "border-primary/40"
+                            : "border-border/50"
                         }`}
                       >
                         {char.avatar ? (
@@ -713,14 +713,14 @@ export default function GlobalWorldbookTab() {
                           />
                         ) : (
                           <User
-                            className={`w-5 h-5 ${isGlobal ? "text-sky-400" : "text-emerald-400"}`}
+                            className={`w-5 h-5 ${isGlobal ? "text-primary" : "text-foreground/70"}`}
                           />
                         )}
                       </div>
 
                       <div className="min-w-0">
                         <p
-                          className={`text-xs font-bold ${isGlobal ? "text-sky-400 font-extrabold" : "text-emerald-400"}`}
+                          className={`text-xs font-bold ${isGlobal ? "text-primary font-extrabold" : "text-foreground"}`}
                         >
                           {char.name}
                         </p>
@@ -750,7 +750,7 @@ export default function GlobalWorldbookTab() {
                           }
                           className={`relative inline-flex h-4.5 w-8.5 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                             isGlobal
-                              ? "bg-sky-500 shadow-sm shadow-sky-500/35"
+                              ? "bg-primary shadow-sm shadow-primary/30"
                               : "bg-muted-foreground/30"
                           }`}
                         >
@@ -766,15 +766,15 @@ export default function GlobalWorldbookTab() {
                         <span
                           className={`font-mono font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-sm ${
                             isGlobal
-                              ? "bg-sky-500 text-white"
-                              : "bg-emerald-500 text-white"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted-foreground text-background"
                           }`}
                         >
                           {entryCount}
                         </span>
                         <ArrowRight
                           className={`w-4 h-4 group-hover:translate-x-1 transition-transform ${
-                            isGlobal ? "text-sky-300" : "text-emerald-400"
+                            isGlobal ? "text-primary/70" : "text-foreground/50"
                           }`}
                         />
                       </div>
@@ -807,8 +807,8 @@ export default function GlobalWorldbookTab() {
               <div className="h-4 w-[1px] bg-border/60 hidden sm:block" />
 
               <div className="flex flex-col">
-                <p className="text-xs font-extrabold text-emerald-400 flex items-center gap-1 leading-snug">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <p className="text-xs font-extrabold text-foreground flex items-center gap-1 leading-snug">
+                  <span className="w-1.5 h-1.5 rounded-full bg-foreground/70 animate-pulse" />
                   <span>👤 【{activeChar?.name || "未知宿体"}】专属回路</span>
                 </p>
                 <p className="text-[9px] text-muted-foreground font-light">
@@ -961,15 +961,15 @@ export default function GlobalWorldbookTab() {
                   <div
                     className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] font-bold leading-none ${
                       isEntryGlobal
-                        ? "text-sky-500 dark:text-sky-450"
-                        : "text-emerald-500 dark:text-emerald-450"
+                        ? "text-primary"
+                        : "text-foreground"
                     }`}
                   >
                     <span
                       className={`w-1.5 h-1.5 rounded-full ${
                         isEntryGlobal
-                          ? "bg-sky-500 animate-pulse"
-                          : "bg-emerald-500 animate-pulse"
+                          ? "bg-primary animate-pulse"
+                          : "bg-foreground animate-pulse"
                       }`}
                     />
                     <span>
@@ -980,7 +980,9 @@ export default function GlobalWorldbookTab() {
                           ? "📌角色前"
                           : entry.position === "top"
                             ? "📌最顶部"
-                            : "💬发言上"}
+                            : entry.position === "in_chat"
+                              ? "💬历史层"
+                              : "💬发言上"}
                     </span>
                     <span className="text-muted-foreground/35">|</span>
                     <span>
@@ -1061,7 +1063,9 @@ export default function GlobalWorldbookTab() {
                                   ? "角色定义前"
                                   : entry.position === "top"
                                     ? "对话最顶部"
-                                    : "最新发言上方"}
+                                    : entry.position === "in_chat"
+                                      ? "历史对话中 (按深度)"
+                                      : "最新发言上方"}
                             </span>
                           </div>
                           <div>
@@ -1247,6 +1251,7 @@ export default function GlobalWorldbookTab() {
                 <option value="before_char_def">📌 角色定义之前</option>
                 <option value="top">📌 对话最顶部</option>
                 <option value="before_last_mes">💬 最新发言上方</option>
+                <option value="in_chat">💬 历史对话中 (按深度)</option>
               </select>
             </div>
             <div>

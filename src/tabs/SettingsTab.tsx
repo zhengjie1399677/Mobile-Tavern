@@ -97,21 +97,21 @@ export default function SettingsTab() {
       </div>
 
       <Tabs
-        defaultValue="appearance"
+        defaultValue="general"
         className="flex-1 flex flex-col min-h-0 bg-transparent"
       >
         <TabsList className="grid grid-cols-4 w-full h-11 p-1 bg-muted/50 rounded-xl">
           <TabsTrigger
-            value="appearance"
+            value="general"
             className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
           >
-            <Sparkles className="w-3.5 h-3.5" /> 视觉
+            <Sparkles className="w-3.5 h-3.5" /> 常规
           </TabsTrigger>
           <TabsTrigger
-            value="api"
+            value="persona"
             className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
           >
-            <Plug className="w-3.5 h-3.5" /> 接口
+            <UserCheck className="w-3.5 h-3.5" /> 角色
           </TabsTrigger>
           <TabsTrigger
             value="presets"
@@ -128,122 +128,45 @@ export default function SettingsTab() {
         </TabsList>
 
         <div className="flex-1 overflow-y-auto mt-4 custom-scrollbar pb-10">
-          {/* 1. VISUAL/APPEARANCE */}
+          {/* 1. GENERAL CONFIG (Theme + API + Persona) */}
           <TabsContent
-            value="appearance"
+            value="general"
             className="space-y-4 m-0 data-[state=inactive]:hidden outline-none"
           >
-            <Card className="bg-card border-border shadow-sm">
-              <CardHeader className="pb-3 border-b border-border/50">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <span>阅读主题与色彩基调</span>
-                </CardTitle>
-                <CardDescription className="text-[11px]">
-                  切换界面的高对比度和情绪感官
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleThemeChange("snow")}
-                    className={`relative p-3 rounded-lg border text-left transition duration-200 cursor-pointer overflow-hidden group select-none ${
-                      currentTheme === "snow"
-                        ? "border-primary bg-background shadow-md ring-1 ring-primary/20"
-                        : "border-border bg-muted/30 text-muted-foreground hover:border-strong"
-                    }`}
-                  >
-                    <div className="flex flex-col gap-1">
-                      <span
-                        className={`text-xs font-bold ${currentTheme === "snow" ? "text-primary" : ""}`}
-                      >
-                        极简纯白
-                      </span>
-                      <span className="text-[10px] font-mono opacity-80">
-                        Snow
-                      </span>
+
+
+            {/* 2. API CONFIG (Collapsed by default) */}
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="api-config" className="bg-card border border-border shadow-sm rounded-xl overflow-hidden">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30 transition">
+                  <div className="flex items-center gap-2">
+                    <KeySquare className="w-4 h-4 text-primary" />
+                    <div className="flex flex-col items-start gap-1">
+                      <span className="text-sm font-semibold">API 服务终端连接</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">配置大白鲨通道，默认内置代理免流支持</span>
                     </div>
-                    {currentTheme === "snow" && (
-                      <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_var(--color-primary)]" />
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleThemeChange("sand")}
-                    className={`relative p-3 rounded-lg border text-left transition duration-200 cursor-pointer overflow-hidden group select-none ${
-                      currentTheme === "sand"
-                        ? "border-primary bg-background shadow-md ring-1 ring-primary/20"
-                        : "border-border bg-muted/30 text-muted-foreground hover:border-strong"
-                    }`}
-                  >
-                    <div className="flex flex-col gap-1">
-                      <span
-                        className={`text-xs font-bold ${currentTheme === "sand" ? "text-primary" : ""}`}
-                      >
-                        浅沙暮色
-                      </span>
-                      <span className="text-[10px] font-mono opacity-80">
-                        Parchment
-                      </span>
-                    </div>
-                    {currentTheme === "sand" && (
-                      <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_var(--color-primary)]" />
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleThemeChange("ocean")}
-                    className={`relative p-3 rounded-lg border text-left transition duration-200 cursor-pointer overflow-hidden group select-none ${
-                      currentTheme === "ocean"
-                        ? "border-primary bg-background shadow-md ring-1 ring-primary/20"
-                        : "border-border bg-muted/30 text-muted-foreground hover:border-strong"
-                    }`}
-                  >
-                    <div className="flex flex-col gap-1">
-                      <span
-                        className={`text-xs font-bold ${currentTheme === "ocean" ? "text-primary" : ""}`}
-                      >
-                        荧光深海
-                      </span>
-                      <span className="text-[10px] font-mono opacity-80">
-                        Cyber Abyss
-                      </span>
-                    </div>
-                    {currentTheme === "ocean" && (
-                      <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_var(--color-primary)]" />
-                    )}
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* 2. API CONFIG */}
-          <TabsContent
-            value="api"
-            className="space-y-4 m-0 data-[state=inactive]:hidden outline-none"
-          >
-            <Card className="bg-card border-border shadow-sm">
-              <CardHeader className="pb-3 border-b border-border/50">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <KeySquare className="w-4 h-4 text-primary" /> API
-                  服务终端连接
-                </CardTitle>
-                <CardDescription className="text-[11px]">
-                  配置大白鲨通道，默认内置代理免流支持
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-4">
-
-
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="p-4 pt-2 border-t border-border/50 space-y-4">
                   <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-[11px] font-semibold text-muted-foreground flex justify-between items-center">
                       <span>Base URL (基础路由)</span>
+                      <span className="text-[9px] text-primary/70">提示：可输入并自动记录多个接口URL</span>
                     </label>
                     <Input
+                      list="saved-api-urls"
                       value={settings.api.baseUrl || ""}
+                      onBlur={() => {
+                        if (settings.api.baseUrl && !settings.api.savedUrls?.includes(settings.api.baseUrl)) {
+                          updateSettings({
+                            ...settings,
+                            api: {
+                              ...settings.api,
+                              savedUrls: [...(settings.api.savedUrls || []), settings.api.baseUrl]
+                            }
+                          });
+                        }
+                      }}
                       onChange={(e) =>
                         updateSettings({
                           ...settings,
@@ -253,12 +176,14 @@ export default function SettingsTab() {
                       className="h-9 text-xs font-mono bg-input/50"
                       placeholder="https://api.openai.com/v1"
                     />
+                    <datalist id="saved-api-urls">
+                      {settings.api.savedUrls?.map((url, idx) => (
+                        <option key={idx} value={url} />
+                      ))}
+                    </datalist>
                     <div className="flex gap-1 flex-wrap pt-1">
                       {[
-                        {
-                          n: "Gemini",
-                          u: "https://generativelanguage.googleapis.com/v1beta/openai/",
-                        },
+                        { n: "Gemini", u: "https://generativelanguage.googleapis.com/v1beta/openai/" },
                         { n: "DeepSeek", u: "https://api.deepseek.com/v1" },
                         { n: "OpenAI", u: "https://api.openai.com/v1" },
                         { n: "Together", u: "https://api.together.xyz/v1" },
@@ -266,6 +191,7 @@ export default function SettingsTab() {
                       ].map((preset) => (
                         <button
                           key={preset.n}
+                          type="button"
                           onClick={() =>
                             updateSettings({
                               ...settings,
@@ -277,91 +203,154 @@ export default function SettingsTab() {
                           {preset.n}
                         </button>
                       ))}
+                      {settings.api.savedUrls && settings.api.savedUrls.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => updateSettings({ ...settings, api: { ...settings.api, savedUrls: [] }})}
+                          className="text-[9px] bg-destructive/10 hover:bg-destructive/20 text-destructive px-1.5 py-0.5 rounded border border-destructive/20 ml-auto"
+                        >
+                          清空记录
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <label className="text-[11px] font-semibold text-muted-foreground">
-                    授权秘钥 (API Key)
-                  </label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="text"
-                      className="font-mono text-xs h-9 bg-input/50"
-                      autoComplete="off"
-                      spellCheck={false}
-                      autoCorrect="off"
-                      value={settings.api.apiKey || ""}
-                      onChange={(e) =>
-                        updateSettings({
-                          ...settings,
-                          api: { ...settings.api, apiKey: e.target.value },
-                        })
-                      }
-                      className="flex-1 h-9 text-xs font-mono bg-input/50"
-                      placeholder="sk-..."
-                    />
-                    <button
-                      onClick={handleFetchModels}
-                      disabled={isFetchingModels}
-                      className="h-9 px-3 bg-primary text-primary-foreground text-xs font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
-                    >
-                      {isFetchingModels ? "获取中..." : "获取模型"}
-                    </button>
-                  </div>
-                  {connectionStatus?.message && (
-                    <div className={`mt-2 text-[11px] p-2 rounded-md ${connectionStatus.success ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"}`}>
-                      {connectionStatus.message}
+                  <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
+                      <span>授权秘钥 (API Key)</span>
+                      <button
+                        onClick={testApiConnection}
+                        className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-bold"
+                      >
+                        ⚡ 测试连接
+                      </button>
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        className="font-mono text-xs h-9 bg-input/50 flex-1"
+                        autoComplete="off"
+                        spellCheck={false}
+                        autoCorrect="off"
+                        value={settings.api.apiKey || ""}
+                        onChange={(e) =>
+                          updateSettings({
+                            ...settings,
+                            api: { ...settings.api, apiKey: e.target.value },
+                          })
+                        }
+                        placeholder="sk-..."
+                      />
+                      <button
+                        onClick={handleFetchModels}
+                        disabled={isFetchingModels}
+                        className="h-9 px-3 bg-primary text-primary-foreground text-xs font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {isFetchingModels ? "获取中..." : "获取模型"}
+                      </button>
                     </div>
-                  )}
-                </div>
+                    {connectionStatus?.message && (
+                      <div className={`mt-2 text-[11px] p-2 rounded-md ${connectionStatus.success ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"}`}>
+                        {connectionStatus.message}
+                      </div>
+                    )}
+                  </div>
 
-                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
-                    <span>模型标识 (Model ID)</span>
-                  </label>
-                  {availableModels.length > 0 ? (
-                    <Select
-                      value={settings.api.modelName || ""}
-                      onValueChange={(val) =>
-                        updateSettings({
-                          ...settings,
-                          api: { ...settings.api, modelName: val },
-                        })
-                      }
-                    >
-                      <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-mono">
-                        <SelectValue placeholder="选择已获取的模型" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px]">
-                        {availableModels.map((m) => (
-                          <SelectItem
-                            key={m}
-                            value={m}
-                            className="text-xs font-mono"
-                          >
-                            {m}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      value={settings.api.modelName || ""}
-                      onChange={(e) =>
-                        updateSettings({
-                          ...settings,
-                          api: { ...settings.api, modelName: e.target.value },
-                        })
-                      }
-                      className="h-9 text-xs font-mono bg-input/50"
-                      placeholder="gpt-4o"
-                    />
-                  )}
-                </div>
+                  <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
+                      <span>模型标识 (Model ID)</span>
+                    </label>
+                    {availableModels.length > 0 ? (
+                      <Select
+                        value={settings.api.modelName || ""}
+                        onValueChange={(val) =>
+                          updateSettings({
+                            ...settings,
+                            api: { ...settings.api, modelName: val },
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-mono">
+                          <SelectValue placeholder="选择已获取的模型" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {availableModels.map((m) => (
+                            <SelectItem
+                              key={m}
+                              value={m}
+                              className="text-xs font-mono"
+                            >
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={settings.api.modelName || ""}
+                        onChange={(e) =>
+                          updateSettings({
+                            ...settings,
+                            api: { ...settings.api, modelName: e.target.value },
+                          })
+                        }
+                        className="h-9 text-xs font-mono bg-input/50"
+                        placeholder="gpt-4o"
+                      />
+                    )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            {/* 2. THEME CONFIG */}
+            <Card className="bg-card border-border shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/50">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <span>阅读主题与色彩基调</span>
+                </CardTitle>
+                <CardDescription className="text-[11px]">
+                  切换界面的高对比度和情绪感官
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <Select
+                  value={currentTheme}
+                  onValueChange={(val: any) => handleThemeChange(val)}
+                >
+                  <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-medium">
+                    <SelectValue placeholder="选择主题">
+                      {currentTheme === "snow"
+                        ? "极简纯白"
+                        : currentTheme === "sand"
+                        ? "浅沙暮色"
+                        : currentTheme === "ocean"
+                        ? "荧光深海"
+                        : "选择主题"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="snow" label="极简纯白" className="text-xs">
+                      极简纯白
+                    </SelectItem>
+                    <SelectItem value="sand" label="浅沙暮色" className="text-xs">
+                      浅沙暮色
+                    </SelectItem>
+                    <SelectItem value="ocean" label="荧光深海" className="text-xs">
+                      荧光深海
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </CardContent>
             </Card>
 
+          </TabsContent>
+
+          {/* PERSONA CONFIG */}
+          <TabsContent
+            value="persona"
+            className="space-y-4 m-0 data-[state=inactive]:hidden outline-none"
+          >
             <Card className="bg-card border-border shadow-sm">
               <CardHeader className="pb-3 border-b border-border/50">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -573,8 +562,8 @@ export default function SettingsTab() {
                         <input
                           type="range"
                           min="100"
-                          max="2500"
-                          step="100"
+                          max="30000"
+                          step="500"
                           value={settings.preset.maxTokens}
                           onChange={(e) =>
                             updateSettings({
