@@ -146,24 +146,24 @@ export default function SettingsTab() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
-                    onClick={() => handleThemeChange("obsidian")}
+                    onClick={() => handleThemeChange("snow")}
                     className={`relative p-3 rounded-lg border text-left transition duration-200 cursor-pointer overflow-hidden group select-none ${
-                      currentTheme === "obsidian"
+                      currentTheme === "snow"
                         ? "border-primary bg-background shadow-md ring-1 ring-primary/20"
                         : "border-border bg-muted/30 text-muted-foreground hover:border-strong"
                     }`}
                   >
                     <div className="flex flex-col gap-1">
                       <span
-                        className={`text-xs font-bold ${currentTheme === "obsidian" ? "text-primary" : ""}`}
+                        className={`text-xs font-bold ${currentTheme === "snow" ? "text-primary" : ""}`}
                       >
-                        曜石暗夜
+                        极简纯白
                       </span>
                       <span className="text-[10px] font-mono opacity-80">
-                        Obsidian
+                        Snow
                       </span>
                     </div>
-                    {currentTheme === "obsidian" && (
+                    {currentTheme === "snow" && (
                       <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_var(--color-primary)]" />
                     )}
                   </button>
@@ -288,6 +288,9 @@ export default function SettingsTab() {
                     <Input
                       type="text"
                       className="font-mono text-xs h-9 bg-input/50"
+                      autoComplete="off"
+                      spellCheck={false}
+                      autoCorrect="off"
                       value={settings.api.apiKey || ""}
                       onChange={(e) =>
                         updateSettings({
@@ -942,6 +945,9 @@ export default function SettingsTab() {
                       </label>
                       <Input
                         type="text"
+                        autoComplete="off"
+                        spellCheck={false}
+                        autoCorrect="off"
                         value={backupPass}
                         onChange={(e) => setBackupPass(e.target.value)}
                         placeholder="务必牢记，否则无法恢复..."

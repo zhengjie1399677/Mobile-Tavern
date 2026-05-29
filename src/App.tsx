@@ -160,6 +160,70 @@ export const DEFAULT_SETTINGS: UserSettings = {
 import { useUsageTracking } from "./utils/useUsageTracking";
 import { SplashScreen } from "./components/SplashScreen";
 
+export const isClientMode = () => {
+  return window.location.protocol.startsWith('tauri') || 
+         window.location.protocol === 'file:' || 
+         window.location.hostname === 'tauri.localhost' ||
+         !!(window as any).__TAURI_INTERNALS__ || 
+         !!(window as any).__TAURI_IPC__;
+};
+
+export const universalFetch = async (endpoint: string, proxyPayload: any) => {
+  const isTauri = isClientMode();
+
+  if (!isTauri) {
+    return fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(proxyPayload)
+    });
+  }
+
+  // --- DIRECT FETCH FALLBACK (Tauri Mobile/Desktop) ---
+  const { baseUrl, apiKey, reqBody, modelName } = proxyPayload;
+  const targetBase = typeof baseUrl === "string" ? baseUrl.replace(/\/$/, "") : "";
+  const headers: any = { "Content-Type": "application/json" };
+  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+
+  if (endpoint === "/api/test-connection") {
+    const res = await fetch(`${targetBase}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: modelName || "gpt-3.5-turbo",
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 5,
+      })
+    });
+    if (res.ok) {
+      return new Response(JSON.stringify({ success: true, message: "Connected successfully!", data: await res.json() }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    } else {
+      return new Response(JSON.stringify({ success: false, error: `HTTP ${res.status}: ${await res.text()}` }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+  }
+
+  if (endpoint === "/api/proxy/models") {
+    const res = await fetch(`${targetBase}/models`, { method: "GET", headers });
+    if (!res.ok) {
+      return new Response(JSON.stringify({ success: false, error: `HTTP ${res.status}: ${await res.text()}` }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+    const data = await res.json();
+    let modelsArray: any[] = [];
+    if (Array.isArray(data)) modelsArray = data;
+    else if (data.data && Array.isArray(data.data)) modelsArray = data.data;
+    else if (data.models && Array.isArray(data.models)) modelsArray = data.models;
+    else if (typeof data === "object") modelsArray = Object.values(data).filter((v: any) => v && (v.id || v.name));
+    
+    return new Response(JSON.stringify({ success: true, models: modelsArray.map((m: any) => ({ id: m.id || m.name })) }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  if (endpoint === "/api/proxy/openai") {
+    return fetch(`${targetBase}/chat/completions`, { method: "POST", headers, body: JSON.stringify(reqBody) });
+  }
+
+  throw new Error("Unknown fetch endpoint");
+};
+
 export default function App() {
   // Usage telemetry tracking hook
   useUsageTracking();
@@ -190,12 +254,12 @@ export default function App() {
 
   // Visual Theme state
   const [currentTheme, setCurrentTheme] = useState<
-    "obsidian" | "sand" | "ocean"
+    "snow" | "sand" | "ocean"
   >(() => {
     return (localStorage.getItem("siuser-theme") as any) || "sand";
   });
 
-  const handleThemeChange = (newTheme: "obsidian" | "sand" | "ocean") => {
+  const handleThemeChange = (newTheme: "snow" | "sand" | "ocean") => {
     setCurrentTheme(newTheme);
     localStorage.setItem("siuser-theme", newTheme);
   };
@@ -219,14 +283,10 @@ export default function App() {
   const handleFetchModels = async () => {
     setIsFetchingModels(true);
     try {
-      const response = await fetch("/api/proxy/models", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: settings.api.type,
-          baseUrl: settings.api.baseUrl,
-          apiKey: settings.api.apiKey,
-        }),
+      const response = await universalFetch("/api/proxy/models", {
+        type: settings.api.type,
+        baseUrl: settings.api.baseUrl,
+        apiKey: settings.api.apiKey,
       });
       const data = await response.json();
       if (data.success && data.models) {
@@ -1092,31 +1152,27 @@ export default function App() {
       );
 
       
-        const response = await fetch("/api/proxy/openai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            baseUrl: settings.api.baseUrl,
-            apiKey: settings.api.apiKey,
-            reqBody: {
-              model: settings.api.modelName || "gpt-3.5-turbo",
-              stream: true,
-              stream_options: { include_usage: true },
-              messages: [
-                { role: "system", content: promptPayload.systemInstruction },
-                ...promptPayload.history.map((h) => ({
-                  role: h.role === "model" ? "assistant" : h.role,
-                  content: h.content,
-                })),
-              ],
-              temperature: settings.preset.temperature,
-              top_p: settings.preset.topP,
-              max_tokens: settings.preset.maxTokens,
-              presence_penalty: settings.preset.presencePenalty ?? 0.0,
-              frequency_penalty: settings.preset.frequencyPenalty ?? 0.0,
-              repetition_penalty: settings.preset.repetitionPenalty,
-            },
-          }),
+        const response = await universalFetch("/api/proxy/openai", {
+          baseUrl: settings.api.baseUrl,
+          apiKey: settings.api.apiKey,
+          reqBody: {
+            model: settings.api.modelName || "gpt-3.5-turbo",
+            stream: true,
+            stream_options: { include_usage: true },
+            messages: [
+              { role: "system", content: promptPayload.systemInstruction },
+              ...promptPayload.history.map((h) => ({
+                role: h.role === "model" ? "assistant" : h.role,
+                content: h.content,
+              })),
+            ],
+            temperature: settings.preset.temperature,
+            top_p: settings.preset.topP,
+            max_tokens: settings.preset.maxTokens,
+            presence_penalty: settings.preset.presencePenalty ?? 0.0,
+            frequency_penalty: settings.preset.frequencyPenalty ?? 0.0,
+            repetition_penalty: settings.preset.repetitionPenalty,
+          },
         });
 
         if (!response.ok) {
@@ -1339,31 +1395,27 @@ export default function App() {
       );
 
       
-        const response = await fetch("/api/proxy/openai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            baseUrl: settings.api.baseUrl,
-            apiKey: settings.api.apiKey,
-            reqBody: {
-              model: settings.api.modelName || "gpt-3.5-turbo",
-              stream: true,
-              stream_options: { include_usage: true },
-              messages: [
-                { role: "system", content: promptPayload.systemInstruction },
-                ...promptPayload.history.map((h) => ({
-                  role: h.role === "model" ? "assistant" : h.role,
-                  content: h.content,
-                })),
-              ],
-              temperature: settings.preset.temperature,
-              top_p: settings.preset.topP,
-              max_tokens: settings.preset.maxTokens,
-              presence_penalty: settings.preset.presencePenalty ?? 0.0,
-              frequency_penalty: settings.preset.frequencyPenalty ?? 0.0,
-              repetition_penalty: settings.preset.repetitionPenalty,
-            },
-          }),
+        const response = await universalFetch("/api/proxy/openai", {
+          baseUrl: settings.api.baseUrl,
+          apiKey: settings.api.apiKey,
+          reqBody: {
+            model: settings.api.modelName || "gpt-3.5-turbo",
+            stream: true,
+            stream_options: { include_usage: true },
+            messages: [
+              { role: "system", content: promptPayload.systemInstruction },
+              ...promptPayload.history.map((h) => ({
+                role: h.role === "model" ? "assistant" : h.role,
+                content: h.content,
+              })),
+            ],
+            temperature: settings.preset.temperature,
+            top_p: settings.preset.topP,
+            max_tokens: settings.preset.maxTokens,
+            presence_penalty: settings.preset.presencePenalty ?? 0.0,
+            frequency_penalty: settings.preset.frequencyPenalty ?? 0.0,
+            repetition_penalty: settings.preset.repetitionPenalty,
+          },
         });
 
         if (!response.ok) {
@@ -1534,14 +1586,10 @@ export default function App() {
             ],
             stream: false,
           };
-          const response = await fetch("/api/proxy/openai", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              baseUrl: settings.api.baseUrl,
-              apiKey: settings.api.apiKey,
-              reqBody,
-            }),
+          const response = await universalFetch("/api/proxy/openai", {
+            baseUrl: settings.api.baseUrl,
+            apiKey: settings.api.apiKey,
+            reqBody,
           });
           const resData = await response.json();
           if (resData.choices && resData.choices.length > 0) {
@@ -1590,15 +1638,11 @@ export default function App() {
   const testApiConnection = async () => {
     setConnectionStatus({ testing: true, message: "正在发起连接测试..." });
     try {
-      const response = await fetch("/api/test-connection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: settings.api.type,
-          baseUrl: settings.api.baseUrl,
-          apiKey: settings.api.apiKey,
-          modelName: settings.api.modelName,
-        }),
+      const response = await universalFetch("/api/test-connection", {
+        type: settings.api.type,
+        baseUrl: settings.api.baseUrl,
+        apiKey: settings.api.apiKey,
+        modelName: settings.api.modelName,
       });
       const data = await response.json();
       if (data.success) {
@@ -2671,7 +2715,7 @@ export default function App() {
   return (
     <AppContext.Provider value={appContextValue}>
       <SplashScreen isVisible={showSplash} />
-      <div className="flex flex-col h-[100dvh] pt-[max(env(safe-area-inset-top),28px)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
+      <div className="flex flex-col h-[100dvh] pt-[max(env(safe-area-inset-top),8px)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
         <div className="absolute bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-background backdrop-blur border-t border-border flex items-center justify-around z-20">
           <button
