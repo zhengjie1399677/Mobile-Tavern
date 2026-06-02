@@ -1,3 +1,37 @@
+# v1.3.0 Release Notes
+
+## 🎉 新增功能 与 架构重构 (New Features & Architecture)
+- **免密直连与 STS 安全上报重构 (Direct STS Telemetry)**:
+  - 遥测上报架构全新升级。前端客户端正式集成并启用阿里云官方 SDK (`@aliyun-sls/web-track-browser` 与 `@aliyun-sls/web-sts-plugin`)，实现直接向阿里云 SLS 服务端点直传带签名的 HTTPS POST 日志数据。
+  - 废弃并移除本地 Server 中转的 SLS 日志代理接口 `/api/proxy/sls`，精简通信链路，显著降低请求延迟，提升高并发上报时的稳定性与可靠性。
+
+## 🚀 性能与可靠性优化 (Performance & Reliability)
+- **可靠同步与零丢包重试机制 (Zero Event Loss & Retry)**:
+  - 重构了 `syncTelemetry` 方法。只有在 fetch 请求完全成功返回 (HTTP 200 OK) 时，才会安全地将已发送事件从本地待发送队列中清除，100% 解决由于网络波动造成的静默丢包问题。
+  - 当由于网络断开或 STS Token 刷新异常导致发送失败时，日志事件将完整保存在本地内存队列中，并等待下一次 15 秒间隔同步时自动发起重试。
+- **页面生命周期融合与优雅卸载 (Page Lifecycle & Unload Sync)**:
+  - 新增对浏览器/移动端 App 的 `visibilitychange`（页面隐藏）以及 `beforeunload`（页面关闭）生命周期的监听。
+  - 引入 `keepalive: true` 参数发送最后的日志，确保在用户快速关闭或切后台时，尚未发送的缓存事件依旧能被完整上传而不会被浏览器取消。
+- **网络错误静默处理**:
+  - 针对浏览器在 beforeunload/网络断开时产生的、无法避免的 `status 0` 等网络异常，在 console.error 中增加智能匹配过滤，避免输出 false alarms 警报，净化开发者控制台。
+
+---
+
+# v1.2.0 Release Notes
+
+## 🎉 新增功能 (New Features)
+- **自定义角色扮演 (RP) 模式开关 (Toggleable Roleplay Mode)**:
+  - 在设置面板中引入了 "启用酒馆角色扮演模板 (RP Roleplay Mode)" 选项开关，提供精细化的提示词生成控制。
+  - 允许用户灵活选择是否为当前对话应用 SillyTavern 风格的 RP 人设模板和 Jailbreak 越狱指令。
+- **提示词生成器 (Prompt Builder) 智能降级**:
+  - 重构了 Prompt 组装逻辑，在关闭 RP 模式时自动屏蔽所有的酒馆专用人设模板与额外格式，使大模型能够以最纯粹的直觉模式和通用对话模板来响应，扩大了应用场景的覆盖度。
+
+## 🚀 性能与优化 (Enhancements)
+- **人设模板与系统 Prompt 优化**:
+  - 精心调整了默认的沉浸式 RP 系统提示词 (mainPrompt)，引导 AI 在扮演角色时生成更具画面感、细节丰富、张力十足的文字描写。
+
+---
+
 # v1.1.0 Release Notes
 
 ## 🎉 新增功能 (New Features)
