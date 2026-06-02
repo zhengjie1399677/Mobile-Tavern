@@ -422,7 +422,10 @@ export const useCharacters = () => {
       "download",
       `${char.name.replace(/\s+/g, "_")}_ST_Card.json`
     );
+    document.body.appendChild(dlAnchorEl);
     dlAnchorEl.click();
+    document.body.removeChild(dlAnchorEl);
+    showCustomAlert(`JSON 角色卡 [${char.name}] 导出成功！`);
   };
 
   const handleExportCharacterPNG = async (char: CharacterCard) => {
@@ -438,7 +441,9 @@ export const useCharacters = () => {
 
       if (char.avatar) {
         const img = new Image();
-        img.crossOrigin = "anonymous";
+        if (!char.avatar.startsWith("data:")) {
+          img.crossOrigin = "anonymous";
+        }
         await new Promise((resolve, reject) => {
           img.onload = resolve;
           img.onerror = reject;
@@ -463,7 +468,11 @@ export const useCharacters = () => {
       const link = document.createElement("a");
       link.href = downloadUrl;
       link.download = `${char.name.replace(/\s+/g, "_")}_SillyTavern.png`;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+      showCustomAlert(`PNG 角色卡 [${char.name}] 导出成功！`);
     } catch (e: any) {
       console.warn("Failed to generate tavern image card:", e);
       showCustomAlert("制作精美 PNG 角色卡出错: " + e.message);

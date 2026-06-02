@@ -620,11 +620,19 @@ export const useSettings = () => {
       const dataBlob = new Blob([outputData], { type: "text/plain" });
       const downloadUrl = URL.createObjectURL(dataBlob);
 
+      const fileName = `mobile_tavern_backup_${new Date().toISOString().slice(0, 10)}${encryptBackup ? ".backup" : ".json"}`;
       const link = document.createElement("a");
       link.href = downloadUrl;
-      link.download = `mobile_tavern_backup_${new Date().toISOString().slice(0, 10)}${encryptBackup ? ".backup" : ".json"}`;
+      link.download = fileName;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
       setBackupStatus("备份文件创建并下载完成！");
+      await showCustomAlert(
+        `备份数据已导出成功！\n文件名：\n${fileName}\n\n文件已触发浏览器或客户端下载，请前往您的“下载 (Downloads)”目录查找。`,
+        "导出成功"
+      );
     } catch (err: any) {
       setBackupStatus(`备份崩溃: ${err.message}`);
     }

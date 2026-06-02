@@ -13,6 +13,7 @@ export default function TimelineModal() {
     newSummaryContent,
     setNewSummaryContent,
     editingSummaryId,
+    setEditingSummaryId,
     handleAddTimelineSummary,
   } = useContext(AppContext);
 
@@ -27,7 +28,10 @@ export default function TimelineModal() {
             {editingSummaryId ? "编辑年表时间卡" : "手动编纂年表时间卡"}
           </h4>
           <button
-            onClick={() => setTimelineModalOpen(false)}
+            onClick={() => {
+              setTimelineModalOpen(false);
+              setEditingSummaryId(null);
+            }}
             className="text-muted-foreground hover:text-foreground"
           >
             <X className="w-4 h-4" />
@@ -76,7 +80,10 @@ export default function TimelineModal() {
 
           <div className="flex items-center justify-end gap-2.5 pt-1.5">
             <button
-              onClick={() => setTimelineModalOpen(false)}
+              onClick={() => {
+                setTimelineModalOpen(false);
+                setEditingSummaryId(null);
+              }}
               className="bg-muted active:scale-[0.98] text-muted-foreground px-3.5 py-1.5 rounded font-medium"
             >
               取消

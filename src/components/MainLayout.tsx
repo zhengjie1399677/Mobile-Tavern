@@ -26,7 +26,7 @@ export default function MainLayout() {
       <SplashScreen isVisible={showSplash} />
       <div className="flex flex-col h-[100dvh] pt-[max(env(safe-area-inset-top),8px)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
-        <div className="absolute bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-background backdrop-blur border-t border-border flex items-center justify-around z-20">
+        <div className="absolute bottom-0 left-0 right-0 h-[calc(4rem+max(env(safe-area-inset-bottom),16px))] pb-[max(env(safe-area-inset-bottom),16px)] bg-background backdrop-blur border-t border-border flex items-center justify-around z-20">
           <button
             onClick={() => setActiveTab("characters")}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-all ${
@@ -78,7 +78,7 @@ export default function MainLayout() {
 
         {/* 2. Content Sections Grid */}
         <div
-          className={`flex-1 relative pb-[calc(4rem+env(safe-area-inset-bottom,0px))] ${
+          className={`flex-1 relative pb-[calc(4rem+max(env(safe-area-inset-bottom),16px))] ${
             activeTab === "chat" ? "flex flex-col min-h-0" : "overflow-y-auto"
           }`}
         >

@@ -12,7 +12,7 @@ export const useChat = (
   globalLorebook: any[],
   chatBottomRef: React.RefObject<HTMLDivElement | null>
 ) => {
-  const { showCustomAlert, showCustomConfirm, showCustomPrompt } = useApp();
+  const { showCustomAlert, showCustomConfirm, showCustomPrompt, setActiveTab } = useApp();
   const { characters, activeCharId, setActiveCharId, activeCharacter } = useCharactersState();
   const {
     sessions,
@@ -647,7 +647,7 @@ export const useChat = (
         if (compiledSummary) {
           const newCard: SummaryCard = {
             id: "summary_" + Math.random().toString(36).substring(2, 9),
-            timeTag: `第${session.summaries.length + 1}幕`,
+            timeTag: `第${(session.summaries || []).length + 1}幕`,
             location: activeCharacter?.scenario?.slice(0, 8) || "未知地点",
             content: compiledSummary.trim(),
           };
@@ -656,7 +656,7 @@ export const useChat = (
 
           const finalSession = {
             ...session,
-            summaries: [...session.summaries, newCard],
+            summaries: [...(session.summaries || []), newCard],
             lastSummarizedMessageId,
           };
 
@@ -694,7 +694,6 @@ export const useChat = (
       createdAt: Date.now(),
     };
 
-    setSessions((prev) => [...prev, newSession]);
     await saveSession(newSession);
     setActiveSessionId(newSession.id);
     setShowSessionManager(false);
@@ -754,9 +753,9 @@ export const useChat = (
         summaries: [],
       };
       await saveSession(newSession);
-      setSessions((prev) => [newSession, ...prev]);
       setActiveSessionId(newSession.id);
     }
+    setActiveTab("chat");
     triggerScroll();
   };
 
@@ -778,11 +777,10 @@ export const useChat = (
       title: branchTitle,
       createdAt: Date.now(),
       messages: sourceSubHistory,
-      summaries: [...activeSession.summaries],
+      summaries: [...(activeSession.summaries || [])],
     };
 
     await saveSession(newSession);
-    setSessions((prev) => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
     setMsgMenuId(null);
     setChatSubTab("dialogue");
@@ -792,10 +790,10 @@ export const useChat = (
 
   const createBacktrackFromTimeline = async (summary: SummaryCard) => {
     if (!activeCharacter || !activeSession) return;
-    const sumIdx = activeSession.summaries.findIndex((s) => s.id === summary.id);
+    const sumIdx = (activeSession.summaries || []).findIndex((s) => s.id === summary.id);
     if (sumIdx < 0) return;
 
-    const targetBranchesSummaries = activeSession.summaries.slice(0, sumIdx + 1);
+    const targetBranchesSummaries = (activeSession.summaries || []).slice(0, sumIdx + 1);
     const branchTitle = await showCustomPrompt(
       "请输入根据该幕历史创立的心宿分支标题:",
       `时间流分支: ${summary.timeTag}`
@@ -821,7 +819,6 @@ export const useChat = (
     };
 
     await saveSession(newSession);
-    setSessions((prev) => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
     setChatSubTab("dialogue");
     await showCustomAlert(`已基于时间线：“${summary.timeTag}” 重构分叉世界！`);
@@ -831,16 +828,31 @@ export const useChat = (
   const handleAddTimelineSummary = async () => {
     if (!newSummaryTag.trim() || !newSummaryContent.trim() || !activeSession) return;
 
-    const newCard: SummaryCard = {
-      id: "summary_" + Math.random().toString(36).substring(2, 9),
-      timeTag: newSummaryTag.trim(),
-      location: newSummaryLoc.trim() || "未知地点",
-      content: newSummaryContent.trim(),
-    };
+    let updatedSummaries: SummaryCard[];
+    if (editingSummaryId) {
+      updatedSummaries = (activeSession.summaries || []).map((s) =>
+        s.id === editingSummaryId
+          ? {
+              ...s,
+              timeTag: newSummaryTag.trim(),
+              location: newSummaryLoc.trim() || "未知地点",
+              content: newSummaryContent.trim(),
+            }
+          : s
+      );
+    } else {
+      const newCard: SummaryCard = {
+        id: "summary_" + Math.random().toString(36).substring(2, 9),
+        timeTag: newSummaryTag.trim(),
+        location: newSummaryLoc.trim() || "未知地点",
+        content: newSummaryContent.trim(),
+      };
+      updatedSummaries = [...(activeSession.summaries || []), newCard];
+    }
 
     const updatedSession = {
       ...activeSession,
-      summaries: [...activeSession.summaries, newCard],
+      summaries: updatedSummaries,
     };
 
     setSessions((prev) =>
@@ -851,6 +863,7 @@ export const useChat = (
     setNewSummaryTag("");
     setNewSummaryLoc("");
     setNewSummaryContent("");
+    setEditingSummaryId(null);
     setTimelineModalOpen(false);
   };
 

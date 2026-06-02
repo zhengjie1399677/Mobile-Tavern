@@ -57,7 +57,7 @@ export default function SessionManagerModal() {
                     </h4>
                     <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
                       {new Date(s.createdAt).toLocaleString()} |{" "}
-                      {s.messages.length} 回合 | {s.summaries.length} 片段
+                      {s.messages.length} 回合 | {(s.summaries || []).length} 片段
                     </p>
                   </div>
                   <button

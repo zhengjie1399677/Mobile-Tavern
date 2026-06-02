@@ -23,6 +23,8 @@ export interface CustomDialogConfig {
 interface AppContextType {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
+  activeWorldbookHostId: string | null;
+  setActiveWorldbookHostId: (id: string | null) => void;
   currentTheme: ThemeType;
   handleThemeChange: (theme: ThemeType) => void;
   showSplash: boolean;
@@ -40,6 +42,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<TabType>("characters");
+  const [activeWorldbookHostId, setActiveWorldbookHostId] = useState<string | null>(null);
   const [showSplash, setShowSplash] = useState(true);
   const [promptInputVal, setPromptInputVal] = useState("");
   const [customDialog, setCustomDialog] = useState<CustomDialogConfig | null>(null);
@@ -59,6 +62,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       document.documentElement.classList.remove("dark");
     }
+
+    // Synchronize meta theme-color to style system status bar elements
+    let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (!metaThemeColor) {
+      metaThemeColor = document.createElement("meta");
+      metaThemeColor.setAttribute("name", "theme-color");
+      document.head.appendChild(metaThemeColor);
+    }
+
+    let color = "#f7f4ef"; // sand default
+    if (currentTheme === "snow") {
+      color = "#f9fbfc";
+    } else if (currentTheme === "ocean") {
+      color = "#0c1b33";
+    }
+    metaThemeColor.setAttribute("content", color);
   }, [currentTheme]);
 
   useEffect(() => {
@@ -132,6 +151,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         activeTab,
         setActiveTab,
+        activeWorldbookHostId,
+        setActiveWorldbookHostId,
         currentTheme,
         handleThemeChange,
         showSplash,
