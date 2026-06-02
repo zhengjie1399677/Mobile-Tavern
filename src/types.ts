@@ -20,6 +20,20 @@ export interface LorebookEntry {
   isGlobal?: boolean; // Whether this lorebook is global
 }
 
+export interface CharacterVisualSettings {
+  customCss?: string;
+  bubbleColor?: string;
+  bubbleTextColor?: string;
+  userBubbleColor?: string;
+  userBubbleTextColor?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  backgroundColor?: string;
+  backgroundImageUrl?: string;
+  backgroundOpacity?: number;
+  backgroundBlur?: number;
+}
+
 export interface CharacterCard {
   id: string;
   name: string;
@@ -34,6 +48,12 @@ export interface CharacterCard {
   alternate_greetings?: string[];
   lorebookEntries?: LorebookEntry[]; // Character-bound worldbook
   isWorldbookGlobal?: boolean; // Whether the lorebook is universally evaluated
+  creator?: string;               // Card creator
+  creator_notes?: string;         // Card creator notes / usage guide
+  tags?: string[];                // Character tags
+  character_version?: string;     // Card version
+  extensions?: Record<string, any>; // ST extensions or custom settings
+  visualSettings?: CharacterVisualSettings; // Front-end cosmetic styling settings
 }
 
 export interface SummaryCard {

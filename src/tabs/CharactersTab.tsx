@@ -1,5 +1,7 @@
-import React, { useContext } from "react";
+import React, { useContext, useState } from "react";
 import { AppContext } from "../AppContext";
+import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
+import { CharacterCard } from "../types";
 import {
   Bot,
   Image as ImageIcon,
@@ -10,6 +12,7 @@ import {
   FileText,
   RefreshCw,
   Book,
+  Info,
 } from "lucide-react";
 
 export default function CharactersTab() {
@@ -28,6 +31,9 @@ export default function CharactersTab() {
     setActiveTab,
     setActiveWorldbookHostId,
   } = useContext(AppContext);
+
+  const [detailChar, setDetailChar] = useState<CharacterCard | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-3 pt-1">
@@ -104,6 +110,16 @@ export default function CharactersTab() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
+                        onClick={() => {
+                          setDetailChar(char);
+                          setIsDetailOpen(true);
+                        }}
+                        className="text-primary hover:text-primary p-0.5"
+                        title="查看设定与美化面板"
+                      >
+                        <Info className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => handleEditCharacter(char)}
                         className="text-muted-foreground hover:text-muted-foreground p-0.5"
                       >
@@ -174,6 +190,12 @@ export default function CharactersTab() {
           </div>
         )}
       </div>
+
+      <CharacterDetailDrawer
+        isOpen={isDetailOpen}
+        character={detailChar}
+        onClose={() => setIsDetailOpen(false)}
+      />
     </div>
   );
 }

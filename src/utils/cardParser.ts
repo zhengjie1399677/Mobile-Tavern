@@ -217,6 +217,33 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
     alternate_greetings: Array.isArray(data.alternate_greetings)
       ? data.alternate_greetings
       : [],
+    creator: data.creator || data.creator_notes || "",
+    creator_notes: data.creator_notes || data.creatorNotes || "",
+    tags: Array.isArray(data.tags) ? data.tags.map((t: any) => String(t).trim()) : [],
+    character_version: data.character_version || data.version || "1.0.0",
+    extensions: data.extensions || {},
+    visualSettings: (() => {
+      const ext = data.extensions || {};
+      const rawStyle = ext.style || ext.character_style || {};
+      const parsedVisualSettings: Record<string, any> = {
+        customCss: rawStyle.custom_css || rawStyle.customCss || ext.custom_css || ext.customCss || "",
+        bubbleColor: rawStyle.bubble_color || rawStyle.bubbleColor || ext.bubble_color || ext.bubbleColor || "",
+        bubbleTextColor: rawStyle.bubble_text_color || rawStyle.bubbleTextColor || ext.bubble_text_color || ext.bubbleTextColor || "",
+        userBubbleColor: rawStyle.user_bubble_color || rawStyle.userBubbleColor || ext.user_bubble_color || ext.userBubbleColor || "",
+        userBubbleTextColor: rawStyle.user_bubble_text_color || rawStyle.userBubbleTextColor || ext.user_bubble_text_color || ext.userBubbleTextColor || "",
+        primaryColor: rawStyle.primary_color || rawStyle.primaryColor || ext.primary_color || ext.primaryColor || "",
+        secondaryColor: rawStyle.secondary_color || rawStyle.secondaryColor || ext.secondary_color || ext.secondaryColor || "",
+        backgroundColor: rawStyle.background_color || rawStyle.backgroundColor || ext.background_color || ext.backgroundColor || "",
+        backgroundImageUrl: rawStyle.bg_image || rawStyle.bgImage || rawStyle.background_url || rawStyle.backgroundUrl || ext.bg_image || ext.bgImage || ext.background_url || ext.backgroundUrl || "",
+        backgroundOpacity: rawStyle.bg_opacity !== undefined ? Number(rawStyle.bg_opacity) : (ext.bg_opacity !== undefined ? Number(ext.bg_opacity) : undefined),
+        backgroundBlur: rawStyle.bg_blur !== undefined ? Number(rawStyle.bg_blur) : (ext.bg_blur !== undefined ? Number(ext.bg_blur) : undefined),
+      };
+
+      const clean = Object.fromEntries(
+        Object.entries(parsedVisualSettings).filter(([_, v]) => v !== undefined && v !== "")
+      );
+      return Object.keys(clean).length > 0 ? clean : undefined;
+    })(),
     lorebookEntries: lorebookList
       .map((entry: any) => {
         const entryKeys: string[] = Array.isArray(entry.keys)
@@ -245,6 +272,10 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
             const strPos = stPosition as string;
             if (strPos === "top" || strPos === "after_char_def" || strPos === "before_char_def" || strPos === "before_last_mes" || strPos === "in_chat") {
               position = strPos;
+            } else if (strPos === "after_char") {
+              position = "after_char_def";
+            } else if (strPos === "before_char") {
+              position = "before_char_def";
             } else {
               position = "after_char_def";
             }
@@ -272,9 +303,37 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
         }
         if (extensions.depth !== undefined) depth = Number(extensions.depth);
 
+        // Advanced Lorebook Extraction
+        const secondaryKeys = Array.isArray(entry.secondary_keys) ? entry.secondary_keys : [];
+        let selectiveLogic: "AND_ANY" | "AND_ALL" | "NOT_ANY" | "NONE" = "NONE";
+        const rawSelLogic = extensions.selectiveLogic !== undefined ? extensions.selectiveLogic : entry.selectiveLogic;
+        if (rawSelLogic !== undefined) {
+          if (typeof rawSelLogic === "number") {
+            switch (rawSelLogic) {
+              case 1: selectiveLogic = "AND_ANY"; break;
+              case 2: selectiveLogic = "AND_ALL"; break;
+              case 3: selectiveLogic = "NOT_ANY"; break;
+              default: selectiveLogic = "NONE"; break;
+            }
+          } else if (typeof rawSelLogic === "string") {
+            const strLogic = rawSelLogic as string;
+            if (strLogic === "AND_ANY" || strLogic === "AND_ALL" || strLogic === "NOT_ANY" || strLogic === "NONE") {
+              selectiveLogic = strLogic;
+            }
+          }
+        }
+        const caseSensitive = !!(extensions.case_sensitive ?? entry.case_sensitive ?? entry.caseSensitive);
+        const useRegex = !!(entry.use_regex ?? entry.useRegex);
+        const scanDepth = extensions.scan_depth !== undefined ? Number(extensions.scan_depth) : (entry.scan_depth !== undefined ? Number(entry.scan_depth) : undefined);
+
         return {
           id: Math.random().toString(36).substring(2, 9),
           keys: entryKeys,
+          secondary_keys: secondaryKeys,
+          selectiveLogic,
+          caseSensitive,
+          useRegex,
+          scanDepth,
           content: entry.content || entry.value || "",
           constant: !!(entry.constant || entry.constant_active),
           enabled: entry.enabled !== false,
@@ -321,15 +380,69 @@ export function injectPngMetadata(
       first_mes: char.first_mes,
       mes_example: char.mes_example,
       system_prompt: char.system_prompt || "",
+      creator: char.creator || "",
+      creator_notes: char.creator_notes || "",
+      tags: char.tags || [],
+      character_version: char.character_version || "1.0.0",
+      extensions: {
+        ...(char.extensions || {}),
+        style: {
+          ...(char.extensions?.style || char.extensions?.character_style || {}),
+          ...(char.visualSettings ? {
+            custom_css: char.visualSettings.customCss,
+            bubble_color: char.visualSettings.bubbleColor,
+            bubble_text_color: char.visualSettings.bubbleTextColor,
+            user_bubble_color: char.visualSettings.userBubbleColor,
+            user_bubble_text_color: char.visualSettings.userBubbleTextColor,
+            primary_color: char.visualSettings.primaryColor,
+            secondary_color: char.visualSettings.secondaryColor,
+            background_color: char.visualSettings.backgroundColor,
+            bg_image: char.visualSettings.backgroundImageUrl,
+            bg_opacity: char.visualSettings.backgroundOpacity,
+            bg_blur: char.visualSettings.backgroundBlur,
+          } : {})
+        }
+      },
       character_book: {
         entries:
-          char.lorebookEntries?.map((e) => ({
-            keys: e.keys,
-            content: e.content,
-            constant: e.constant,
-            enabled: e.enabled,
-            comment: e.comment || "",
-          })) || [],
+          char.lorebookEntries?.map((e) => {
+            let selectiveLogicVal = 0;
+            if (e.selectiveLogic === "AND_ANY") selectiveLogicVal = 1;
+            else if (e.selectiveLogic === "AND_ALL") selectiveLogicVal = 2;
+            else if (e.selectiveLogic === "NOT_ANY") selectiveLogicVal = 3;
+
+            let stPosStr = "after_char";
+            let stPosNum = 1;
+            if (e.position === "before_char_def") {
+              stPosStr = "before_char";
+              stPosNum = 0;
+            } else if (e.position === "in_chat") {
+              stPosStr = "in_chat";
+              stPosNum = 4;
+            } else if (e.position === "top") {
+              stPosStr = "top";
+              stPosNum = 0;
+            }
+
+            return {
+              keys: e.keys,
+              secondary_keys: e.secondary_keys || [],
+              content: e.content,
+              constant: e.constant,
+              enabled: e.enabled,
+              comment: e.comment || "",
+              position: stPosStr,
+              use_regex: !!e.useRegex,
+              extensions: {
+                position: stPosNum,
+                probability: e.probability !== undefined ? e.probability : 100,
+                depth: e.depth !== undefined ? e.depth : 4,
+                selectiveLogic: selectiveLogicVal,
+                scan_depth: e.scanDepth,
+                case_sensitive: !!e.caseSensitive,
+              }
+            };
+          }) || [],
       },
     },
   };

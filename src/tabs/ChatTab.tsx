@@ -135,6 +135,9 @@ const ChatInputArea = () => {
           onClick={onSend}
           disabled={isSending || !localInput.trim()}
           className="p-3 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground transition-all shadow-md flex items-center justify-center shrink-0"
+          style={{
+            backgroundColor: "var(--char-primary, var(--primary))",
+          }}
         >
           <Send className="w-4 h-4" />
         </button>
@@ -200,8 +203,59 @@ export default function ChatTab() {
     createBacktrackFromTimeline,
     renderDialogueBubble,
   } = useContext(AppContext);
+  React.useEffect(() => {
+    const css = activeCharacter?.visualSettings?.customCss;
+    const styleId = "character-custom-css-style";
+    let styleEl = document.getElementById(styleId);
+
+    if (css) {
+      if (!styleEl) {
+        styleEl = document.createElement("style");
+        styleEl.id = styleId;
+        document.head.appendChild(styleEl);
+      }
+      styleEl.textContent = css;
+    } else {
+      if (styleEl) {
+        styleEl.remove();
+      }
+    }
+
+    return () => {
+      const el = document.getElementById(styleId);
+      if (el) el.remove();
+    };
+  }, [activeCharacter]);
+
+  const customThemeStyles = React.useMemo(() => {
+    if (!activeCharacter?.visualSettings) return {};
+    const vs = activeCharacter.visualSettings;
+    const styles: Record<string, string> = {};
+    if (vs.primaryColor) styles["--char-primary"] = vs.primaryColor;
+    if (vs.bubbleColor) styles["--char-bubble-bg"] = vs.bubbleColor;
+    if (vs.bubbleTextColor) styles["--char-bubble-text"] = vs.bubbleTextColor;
+    if (vs.userBubbleColor) styles["--user-bubble-bg"] = vs.userBubbleColor;
+    if (vs.userBubbleTextColor) styles["--user-bubble-text"] = vs.userBubbleTextColor;
+    return styles as React.CSSProperties;
+  }, [activeCharacter]);
+
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-background">
+    <div 
+      className="flex flex-col flex-1 min-h-0 bg-background relative overflow-hidden"
+      style={customThemeStyles}
+    >
+      {/* Character Specific Background Layer */}
+      {activeCharacter?.visualSettings?.backgroundImageUrl && (
+        <div 
+          className="absolute inset-0 pointer-events-none bg-cover bg-center transition-all duration-300"
+          style={{
+            backgroundImage: `url(${activeCharacter.visualSettings.backgroundImageUrl})`,
+            opacity: activeCharacter.visualSettings.backgroundOpacity !== undefined ? activeCharacter.visualSettings.backgroundOpacity : 0.15,
+            filter: `blur(${activeCharacter.visualSettings.backgroundBlur !== undefined ? activeCharacter.visualSettings.backgroundBlur : 4}px)`,
+            zIndex: 0
+          }}
+        />
+      )}
       {/* Embedded Header info card */}
       <div className="bg-card p-3 border-b border-border flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -291,7 +345,7 @@ export default function ChatTab() {
 
           {/* Dialog Scroll area */}
           <div
-            className="p-3.5 space-y-4 flex-1 overflow-y-auto custom-scrollbar"
+            className="p-3.5 space-y-4 flex-1 overflow-y-auto custom-scrollbar bg-transparent relative z-10"
             onClick={() => {
               if (msgMenuId) setMsgMenuId(null);
             }}
@@ -440,6 +494,18 @@ export default function ChatTab() {
                                   ? "bg-primary text-primary-foreground border-primary/50 hover:bg-primary/90"
                                   : "bg-card text-foreground border-border shadow-sm"
                               }`}
+                              style={
+                                isUser
+                                  ? {
+                                      backgroundColor: "var(--user-bubble-bg, var(--primary))",
+                                      color: "var(--user-bubble-text, var(--primary-foreground))",
+                                      borderColor: "var(--user-bubble-bg, var(--primary))",
+                                    }
+                                  : {
+                                      backgroundColor: "var(--char-bubble-bg, var(--card))",
+                                      color: "var(--char-bubble-text, var(--foreground))",
+                                    }
+                              }
                             >
                               {message.content === "💭..." ? (
                                 <TypingIndicator />

@@ -168,6 +168,9 @@ export function assemblePromptContext(params: {
             macroParams,
           );
           content = `${prefix}${content}${suffix}`;
+        } else {
+          // Prepend speaker name as turn separator when no template preset is loaded
+          content = `${character.name}: ${content}`;
         }
       } else {
         role = "user";
@@ -181,6 +184,9 @@ export function assemblePromptContext(params: {
             macroParams,
           );
           content = `${prefix}${content}${suffix}`;
+        } else {
+          // Prepend speaker name as turn separator when no template preset is loaded
+          content = `${settings.userName || "User"}: ${content}`;
         }
       }
 
@@ -463,6 +469,9 @@ export function assemblePromptContext(params: {
           macroParams,
         );
         content = `${prefix}${content}${suffix}`;
+      } else {
+        // Prepend speaker name as turn separator when no template preset is loaded
+        content = `${character.name}: ${content}`;
       }
     } else {
       role = "user";
@@ -476,6 +485,9 @@ export function assemblePromptContext(params: {
           macroParams,
         );
         content = `${prefix}${content}${suffix}`;
+      } else {
+        // Prepend speaker name as turn separator when no template preset is loaded
+        content = `${settings.userName || "User"}: ${content}`;
       }
     }
 
