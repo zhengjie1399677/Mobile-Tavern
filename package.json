@@ -11,7 +11,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "tauri": "tauri",
-    "build:android": "node build-android.cjs"
+    "build:android": "npm run build && npx tauri android build --apk"
   },
   "dependencies": {
     "@alicloud/log": "^1.2.6",
