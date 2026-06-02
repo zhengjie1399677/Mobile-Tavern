@@ -1,3 +1,17 @@
+# v1.3.1 Release Notes
+
+## 🎉 新增功能 (New Features)
+- **酒馆定制版 App 启动图标 (Cozy Tavern Icon Launcher)**:
+  - 引入了专为 **Mobile Tavern** 设计的全新高清启动图标：包含温暖发光的琥珀色酒馆提灯与精致的霓虹聊天气泡设计，替换了之前的默认占位图，全面提升了移动端 App 的视觉品质和独特性。
+  - 为所有支持的平台自动生成并重新适配了全尺寸图标，包括 Windows `.ico`、macOS `.icns` 以及 Android 和 iOS 的多种启动分辨率。
+
+## 🐛 问题修复 与 构建优化 (Bug Fixes & Build Optimization)
+- **GitHub Actions 构建工作流修复 (GitHub Workflows Build Fix)**:
+  - 移除了工作流中因依赖已被删除文件（`decode_icon.cjs` 等）而导致运行失败的冗余 `Generate Tauri Icons` 步骤。
+  - 优化并简化了 [package.json](file:///e:/modules/projects/Mobile-Tavern/package.json) 中的 `build:android` 打包脚本，改用标准的 Tauri v2 Android CLI 构建指令 (`npm run build && npx tauri android build --apk`)，保障了 CI 自动化流水线的顺畅执行。
+
+---
+
 # v1.3.0 Release Notes
 
 ## 🎉 新增功能 与 架构重构 (New Features & Architecture)
