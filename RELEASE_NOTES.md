@@ -8,7 +8,7 @@
 ## 🐛 问题修复 与 构建优化 (Bug Fixes & Build Optimization)
 - **GitHub Actions 构建工作流修复 (GitHub Workflows Build Fix)**:
   - 移除了工作流中因依赖已被删除文件（`decode_icon.cjs` 等）而导致运行失败的冗余 `Generate Tauri Icons` 步骤。
-  - 优化并简化了 [package.json](file:///e:/modules/projects/Mobile-Tavern/package.json) 中的 `build:android` 打包脚本，改用标准的 Tauri v2 Android CLI 构建指令 (`npm run build && npx tauri android build --apk`)，保障了 CI 自动化流水线的顺畅执行。
+  - 优化并简化了 [package.json](file:///e:/modules/projects/Mobile-Tavern/package.json) 中的 `build:android` 打包脚本，改用标准的 Tauri v2 Android CLI 构建指令 (`npm run build && npx tauri android build --apk --target aarch64`)，限制为只编译 `aarch64` 单架构，大幅缩减 APK 安装包体积，保障了 CI 自动化流水线的顺畅与轻量化执行。
 
 ---
 
