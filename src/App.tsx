@@ -100,6 +100,7 @@ export const DEFAULT_PRESETS: Record<string, SamplerPreset> = {
 };
 
 export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
+  roleplayMode: true,
   mainPrompt: `你现在正在扮演 {{char}}。请严格遵循人设角色设定，和扮演主人翁 {{user}} 开展一场精致、极其生动且富有张力的纯文字角色扮演（Roleplay）。
 
 【核心设定卡片（必遵）】
@@ -147,9 +148,9 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
 export const DEFAULT_SETTINGS: UserSettings = {
   api: {
     type: "openai-compat",
-    baseUrl: "https://api.openai.com/v1",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
     apiKey: "",
-    modelName: "gemini-3.5-flash",
+    modelName: "gemini-2.5-flash",
   },
   preset: DEFAULT_PRESETS.balanced,
   memory: { recentTurns: 6, summaryTriggerTurns: 0, summaryLength: 120 },
@@ -1106,6 +1107,11 @@ export default function App() {
     const textMsg = textToSend || userInputMessage;
     if (!textMsg.trim() || isSending || !activeCharacter || !activeSession)
       return;
+
+    if (!settings.api.apiKey) {
+      await showCustomAlert("当前未填写 API Key，API 亲测会被拦截！请前往“设置 -> API配置”中填写您的 API Key。");
+      return;
+    }
 
     if (!settings.api.modelName) {
       await showCustomAlert("对话失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");

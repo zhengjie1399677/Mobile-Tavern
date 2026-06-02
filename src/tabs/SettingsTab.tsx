@@ -660,6 +660,30 @@ export default function SettingsTab() {
                       </p>
                     </div>
 
+                    <div className="flex bg-card items-center justify-between border border-border p-3.5 rounded-xl shadow-sm">
+                      <div className="space-y-0.5 max-w-[80%]">
+                        <label className="text-xs font-bold text-foreground">
+                          启用酒馆角色扮演模板 (RP Roleplay Mode)
+                        </label>
+                        <p className="text-[10px] text-muted-foreground leading-normal">
+                          关闭后将进入直连标准对话助手模式。绝不注入星号规则、越狱提示、以及默认角色扮演约束，相当于直接与 API 原始沟通。
+                        </p>
+                      </div>
+                      <Switch
+                        checked={settings.promptConfig.roleplayMode !== false}
+                        onCheckedChange={(val) =>
+                          updateSettings({
+                            ...settings,
+                            promptConfig: {
+                              ...settings.promptConfig,
+                              roleplayMode: val,
+                            },
+                          })
+                        }
+                        className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                      />
+                    </div>
+
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs font-bold font-mono text-foreground">
                         PROMPT MODULES

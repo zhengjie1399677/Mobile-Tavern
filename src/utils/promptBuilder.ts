@@ -139,6 +139,85 @@ export function assemblePromptContext(params: {
     scenario: character.scenario || "无",
   };
 
+  // If roleplayMode is disabled, return a bare-bone prompt with zero Tavern system instructions.
+  if (settings.promptConfig?.roleplayMode === false) {
+    const { recentTurns } = settings.memory;
+    const totalRawMessages = chat.messages ? [...chat.messages] : [];
+    let activeMessagesToSend: Message[] = [];
+
+    if (totalRawMessages.length > 0) {
+      const validChatMessages = totalRawMessages.filter(
+        (m) => m.sender !== "system",
+      );
+      activeMessagesToSend = validChatMessages.slice(-recentTurns);
+    }
+
+    const chatHistory = activeMessagesToSend.map((msg) => {
+      let role: "user" | "model" | "assistant" = "user";
+      let content = msg.content;
+
+      if (msg.sender === "assistant") {
+        role = settings.api.type === "openai-compat" ? "assistant" : "model";
+        if (settings.promptConfig?.instructTemplate !== "default") {
+          const prefix = replaceMacros(
+            settings.promptConfig?.assistantPrefix || "",
+            macroParams,
+          );
+          const suffix = replaceMacros(
+            settings.promptConfig?.assistantSuffix || "",
+            macroParams,
+          );
+          content = `${prefix}${content}${suffix}`;
+        }
+      } else {
+        role = "user";
+        if (settings.promptConfig?.instructTemplate !== "default") {
+          const prefix = replaceMacros(
+            settings.promptConfig?.userPrefix || "",
+            macroParams,
+          );
+          const suffix = replaceMacros(
+            settings.promptConfig?.userSuffix || "",
+            macroParams,
+          );
+          content = `${prefix}${content}${suffix}`;
+        }
+      }
+
+      return {
+        role,
+        content,
+      };
+    });
+
+    let cleanSystem = "";
+    if (character.system_prompt) {
+      cleanSystem += `${replaceMacros(character.system_prompt, macroParams)}\n\n`;
+    }
+    if (settings.userInfo) {
+      cleanSystem += `=== User Persona ===\n${replaceMacros(settings.userInfo, macroParams)}\n\n`;
+    }
+
+    // Process world info keywords even in normal chat mode if they exist/are defined
+    const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
+    const activeEntries = getTriggeredLorebookEntries(
+      chat.messages || [],
+      userInput,
+      allEntries,
+    );
+
+    if (activeEntries.length > 0) {
+      cleanSystem += `=== Reference Lore ===\n${activeEntries.map((e) => e.content).join("\n\n")}\n\n`;
+    }
+
+    return {
+      systemInstruction: cleanSystem.trim(),
+      dynamicInstruction: "",
+      history: chatHistory,
+      userInput,
+    };
+  }
+
   // 1. Process Core Custom mainPrompt from SillyTavern configs
   const hasCustomPrompts =
     settings.promptConfig?.customPrompts &&

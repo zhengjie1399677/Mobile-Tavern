@@ -104,6 +104,7 @@ export interface CustomPromptBlock {
 }
 
 export interface PromptConfig {
+  roleplayMode?: boolean; // Whether to enable SillyTavern RP mode templates and jailbreaks
   mainPrompt: string; // Global Main System Instruction
   jailbreakPrompt: string; // Jailbreak text to reinforce/override filters
   useJailbreak: boolean; // Toggle to turn jailbreak on/off

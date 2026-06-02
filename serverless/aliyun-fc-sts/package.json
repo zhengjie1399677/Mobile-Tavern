@@ -1,0 +1,12 @@
+{
+  "name": "aliyun-fc-sts-issuer",
+  "version": "1.0.0",
+  "description": "Aliyun Function Compute STS Token Issuer for SLS",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@alicloud/pop-core": "^1.7.13"
+  }
+}
