@@ -6,6 +6,8 @@
   - 为所有支持的平台自动生成并重新适配了全尺寸图标，包括 Windows `.ico`、macOS `.icns` 以及 Android 和 iOS 的多种启动分辨率。
 
 ## 🐛 问题修复 与 构建优化 (Bug Fixes & Build Optimization)
+- **无限闪屏卡死问题修复 (Infinite Splash Screen Fix)**:
+  - 修复了 `showSplash` 状态初始化为 `true` 却从未在代码中被设为 `false` 的问题。在 [AppContext.tsx](file:///e:/modules/projects/Mobile-Tavern/src/contexts/AppContext.tsx) 中新增了自动延时机制，使闪屏在 App 加载 1.5 秒后自动关闭并淡出，解决应用一直卡在进入屏幕的缺陷。
 - **GitHub Actions 构建工作流修复 (GitHub Workflows Build Fix)**:
   - 移除了工作流中因依赖已被删除文件（`decode_icon.cjs` 等）而导致运行失败的冗余 `Generate Tauri Icons` 步骤。
   - 优化并简化了 [package.json](file:///e:/modules/projects/Mobile-Tavern/package.json) 中的 `build:android` 打包脚本，改用标准的 Tauri v2 Android CLI 构建指令 (`npm run build && npx tauri android build --apk --target aarch64`)，限制为只编译 `aarch64` 单架构，大幅缩减 APK 安装包体积，保障了 CI 自动化流水线的顺畅与轻量化执行。
