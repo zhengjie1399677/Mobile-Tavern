@@ -61,6 +61,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentTheme]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
   const showCustomAlert = (message: string, title: string = "提示") => {
     return new Promise<void>((resolve) => {
       setCustomDialog({
