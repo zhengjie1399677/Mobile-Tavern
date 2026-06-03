@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import DOMPurify from "dompurify";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
@@ -40,6 +41,10 @@ export const useChat = (
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
   const [editingMsgContent, setEditingMsgContent] = useState("");
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
+
+  // SSE 流式渲染节流：避免每个 chunk 都触发 React 重渲染
+  const lastStreamUpdateRef = useRef(0);
+  const THROTTLE_MS = 100;
 
   // Timeline Memory creation state
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
@@ -126,6 +131,7 @@ export const useChat = (
     await saveSession(updatedSession);
     triggerScroll("smooth");
     setIsSending(true);
+    lastStreamUpdateRef.current = 0; // 重置节流计时器，首帧即时渲染
 
     try {
       const otherCharGlobals = characters
@@ -231,22 +237,10 @@ export const useChat = (
                   };
                 }
 
-                setSessions((prev) =>
-                  prev.map((s) => {
-                    if (s.id !== updatedSession.id) return s;
-                    const msgs = s.messages.map((m) =>
-                      m.id === aiMsgId ? { ...m, content: responseText } : m
-                    );
-                    return { ...s, messages: msgs };
-                  })
-                );
-              } catch (e) {
-                const contentReg = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
-                const match = dataStr.match(contentReg);
-                if (match && match[1]) {
-                  const rescuedContent = match[1];
-                  responseText += rescuedContent;
-
+                // 节流 UI 更新
+                const now = Date.now();
+                if (now - lastStreamUpdateRef.current >= THROTTLE_MS) {
+                  lastStreamUpdateRef.current = now;
                   setSessions((prev) =>
                     prev.map((s) => {
                       if (s.id !== updatedSession.id) return s;
@@ -257,11 +251,43 @@ export const useChat = (
                     })
                   );
                 }
+              } catch (e) {
+                const contentReg = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+                const match = dataStr.match(contentReg);
+                if (match && match[1]) {
+                  const rescuedContent = match[1];
+                  responseText += rescuedContent;
+
+                  const now2 = Date.now();
+                  if (now2 - lastStreamUpdateRef.current >= THROTTLE_MS) {
+                    lastStreamUpdateRef.current = now2;
+                    setSessions((prev) =>
+                      prev.map((s) => {
+                        if (s.id !== updatedSession.id) return s;
+                        const msgs = s.messages.map((m) =>
+                          m.id === aiMsgId ? { ...m, content: responseText } : m
+                        );
+                        return { ...s, messages: msgs };
+                      })
+                    );
+                  }
+                }
               }
             }
           }
         }
       }
+
+      // 最终 flush：确保节流期间积攒的尾部文本完整渲染
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== updatedSession.id) return s;
+          const msgs = s.messages.map((m) =>
+            m.id === aiMsgId ? { ...m, content: responseText } : m
+          );
+          return { ...s, messages: msgs };
+        })
+      );
 
       const updatedMessagesWithCompleteAi = updatedSession.messages.concat([
         {
@@ -372,6 +398,7 @@ export const useChat = (
     await saveSession(updatedSession);
     triggerScroll();
     setIsSending(true);
+    lastStreamUpdateRef.current = 0; // 重置节流计时器
 
     try {
       const otherCharGlobals = characters
@@ -474,22 +501,9 @@ export const useChat = (
                   };
                 }
 
-                setSessions((prev) =>
-                  prev.map((s) => {
-                    if (s.id !== updatedSession.id) return s;
-                    const msgs = s.messages.map((m) =>
-                      m.id === aiMsgId ? { ...m, content: responseText } : m
-                    );
-                    return { ...s, messages: msgs };
-                  })
-                );
-              } catch (e) {
-                const contentReg = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
-                const match = dataStr.match(contentReg);
-                if (match && match[1]) {
-                  const rescuedContent = match[1];
-                  responseText += rescuedContent;
-
+                const now3 = Date.now();
+                if (now3 - lastStreamUpdateRef.current >= THROTTLE_MS) {
+                  lastStreamUpdateRef.current = now3;
                   setSessions((prev) =>
                     prev.map((s) => {
                       if (s.id !== updatedSession.id) return s;
@@ -500,11 +514,43 @@ export const useChat = (
                     })
                   );
                 }
+              } catch (e) {
+                const contentReg = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+                const match = dataStr.match(contentReg);
+                if (match && match[1]) {
+                  const rescuedContent = match[1];
+                  responseText += rescuedContent;
+
+                  const now4 = Date.now();
+                  if (now4 - lastStreamUpdateRef.current >= THROTTLE_MS) {
+                    lastStreamUpdateRef.current = now4;
+                    setSessions((prev) =>
+                      prev.map((s) => {
+                        if (s.id !== updatedSession.id) return s;
+                        const msgs = s.messages.map((m) =>
+                          m.id === aiMsgId ? { ...m, content: responseText } : m
+                        );
+                        return { ...s, messages: msgs };
+                      })
+                    );
+                  }
+                }
               }
             }
           }
         }
       }
+
+      // 最终 flush
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== updatedSession.id) return s;
+          const msgs = s.messages.map((m) =>
+            m.id === aiMsgId ? { ...m, content: responseText } : m
+          );
+          return { ...s, messages: msgs };
+        })
+      );
 
       const updatedMessagesWithCompleteAi = updatedSession.messages.concat([
         {
@@ -874,10 +920,29 @@ export const useChat = (
     );
 
     if (settings.enableHtmlRendering) {
+      // DOMPurify 消毒防止 XSS：允许基本格式标签，移除 script/iframe/事件属性等危险内容
+      const sanitized = DOMPurify.sanitize(processedText, {
+        ALLOWED_TAGS: [
+          "p", "br", "b", "i", "em", "strong", "u", "s", "del", "ins",
+          "h1", "h2", "h3", "h4", "h5", "h6",
+          "ul", "ol", "li", "dl", "dt", "dd",
+          "blockquote", "pre", "code", "hr",
+          "a", "span", "div", "font",
+          "table", "thead", "tbody", "tr", "th", "td",
+          "img", "sub", "sup", "small", "mark", "ruby", "rt", "rp",
+        ],
+        ALLOWED_ATTR: [
+          "href", "title", "target", "rel",
+          "src", "alt", "width", "height",
+          "class", "id", "style",
+          "colspan", "rowspan",
+        ],
+        ALLOW_DATA_ATTR: false,
+      });
       return (
         <div
           className="font-sans font-medium text-foreground text-[15.5px] leading-relaxed whitespace-pre-wrap"
-          dangerouslySetInnerHTML={{ __html: processedText }}
+          dangerouslySetInnerHTML={{ __html: sanitized }}
         />
       );
     }

@@ -25,7 +25,7 @@ export function getTriggeredLorebookEntries(
     }
 
     // 1. Determine scanning depth (how many recent messages to inspect)
-    const scanDepth = entry.scanDepth !== undefined ? entry.scanDepth : (entry.depth !== undefined ? entry.depth : 4);
+    const scanDepth = entry.scanDepth !== undefined ? entry.scanDepth : 4;
     if (scanDepth === 0) continue; // scan_depth 0 means no match (unless constant, which is handled above)
     
     const scanMessages = messages ? messages.slice(-scanDepth) : [];

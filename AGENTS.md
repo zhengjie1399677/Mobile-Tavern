@@ -41,3 +41,32 @@
 - 绝不属于“匿名直传模式”，**因此绝对不需要在 SLS 控制台单独开启或配置 CORS 跨域放行**。
 - **同样绝对不需要开启 WebTracking 功能**。
 - 如果再遇到 \`status 0\` 的抛错（Failed to log to ali log service because of this exception: 0），这可能是由于浏览器的 beforeunload 阻止了异步 XMLHttpRequest 或是其它本地环境（插件拦截、网络解析问题等）导致的发送中断，**禁止再误判为服务端缺少 CORS 或 WebTracking 配置**。
+
+---
+
+# 世界书 (Lorebook) 架构与关键规则
+
+**系统提示：AI在处理世界书相关问题时，务必完全按照以下逻辑执行。**
+
+## scanDepth 与 depth 是两个独立概念
+- `scanDepth`：**扫描深度**，决定匹配关键词时扫描最近多少条消息。未设置时默认为 4。
+- `depth`：**注入深度**，决定匹配成功后词条注入到聊天历史的第几条位置。仅对 `position: "in_chat"` 的条目生效。
+- **两者绝不能互相 fallback**。`scanDepth` 未设置时直接使用默认值 4，不能回退到 `depth` 的值。
+
+## 触发匹配流程 (`getTriggeredLorebookEntries`)
+1. `constant: true` 的条目直接激活，跳过关键词匹配。
+2. 非 constant 条目：取最近 `scanDepth` 条消息 + 当前用户输入拼接为扫描文本。
+3. 主关键词 (`keys`) 必须至少匹配一个。
+4. 次关键词 (`secondary_keys`) 根据 `selectiveLogic` 评估：`AND_ANY` / `AND_ALL` / `NOT_ANY` / `NONE`。
+5. 概率触发：`probability < 100` 时按概率随机决定是否激活。
+6. 按 `order` 升序排列。
+
+## 位置注入规则
+- `top`：插入系统指令最顶部。
+- `before_char_def`：插入角色性格定义之前。
+- `after_char_def`（默认）：插入角色描述之后。
+- `before_last_mes`：插入聊天历史最后一条消息之前。
+- `in_chat`：按 `depth` 值注入到聊天历史中对应位置。
+
+## 全局与角色世界书合并
+- 发送消息时，合并 `globalLorebook` + 其他角色标记为 `isWorldbookGlobal` 的词条，一并传入 `assemblePromptContext`。

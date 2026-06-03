@@ -1,4 +1,5 @@
 import React, { useContext } from "react";
+import DOMPurify from "dompurify";
 import { AppContext } from "../AppContext";
 
 interface FormattedTextProps {
@@ -167,8 +168,28 @@ function domToReact(node: Node, index: number): React.ReactNode {
 
 function parseSafeHtmlToReact(html: string): React.ReactNode {
   try {
+    // DOMPurify 消毒防止 XSS：移除 script/iframe/事件属性等危险内容
+    const sanitized = DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: [
+        "p", "br", "b", "i", "em", "strong", "u", "s", "del", "ins",
+        "h1", "h2", "h3", "h4", "h5", "h6",
+        "ul", "ol", "li", "dl", "dt", "dd",
+        "blockquote", "pre", "code", "hr",
+        "a", "span", "div", "font",
+        "table", "thead", "tbody", "tr", "th", "td",
+        "img", "sub", "sup", "small", "mark", "ruby", "rt", "rp",
+      ],
+      ALLOWED_ATTR: [
+        "href", "title", "target", "rel",
+        "src", "alt", "width", "height",
+        "class", "id", "style",
+        "colspan", "rowspan",
+      ],
+      ALLOW_DATA_ATTR: false,
+    });
+
     const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
+    const doc = parser.parseFromString(`<div>${sanitized}</div>`, "text/html");
     const container = doc.body.firstChild;
     if (!container) return html;
 

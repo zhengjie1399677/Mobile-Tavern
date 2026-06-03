@@ -462,9 +462,10 @@ export const useSettings = () => {
   };
 
   const handleSaveNewPresetBundle = async () => {
-    const name = window.prompt(
+    const name = await showCustomPrompt(
       "请输入新预设的名称",
       settings.preset.name + " 的副本",
+      "保存新预设"
     );
     if (!name) return;
 

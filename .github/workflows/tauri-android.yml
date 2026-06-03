@@ -14,18 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           lfs: true
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
       - name: Install Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -39,23 +39,19 @@ jobs:
         run: npm ci
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@v3
 
       - name: Install NDK
         run: |
-          rm -rf $ANDROID_HOME/ndk/*
-          sdkmanager "ndk;25.2.9519653"
+          sdkmanager "ndk;27.0.12077973"
 
       - name: Set NDK Home
         run: |
-          echo "NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
 
       - name: Initialize Android Project
         run: npx tauri android init
-        env:
-          NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
-          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
         continue-on-error: true
 
       - name: Fix gradlew permissions
@@ -63,10 +59,10 @@ jobs:
         continue-on-error: true
 
       - name: Build Android APK
-        run: npm run build:android
+        run: npx tauri android build --apk --target aarch64
         env:
-          NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
-          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+          NDK_HOME: /usr/local/lib/android/sdk/ndk/27.0.12077973
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.0.12077973
 
       - name: Sign and Prepare APK
         env:
@@ -82,16 +78,16 @@ jobs:
             echo "Using APK at: $apk_path"
             # Decode Keystore
             echo "$KEYSTORE_B64" | base64 -d > release.keystore
-            
+
             # Find Build Tools
             BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
-            
+
             # Zipalign
             $BUILD_TOOLS_DIR/zipalign -v -f 4 "$apk_path" MobileTavern-aligned.apk
-            
+
             # Sign
             $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$KEYSTORE_PASSWORD" MobileTavern-aligned.apk
-            
+
             mv MobileTavern-aligned.apk MobileTavern.apk
           else
             echo "::error::APK not found"
@@ -99,14 +95,14 @@ jobs:
           fi
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: mobile-tavern-release.apk
           path: MobileTavern.apk
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           files: MobileTavern.apk
           draft: true

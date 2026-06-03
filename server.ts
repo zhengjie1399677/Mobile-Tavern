@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
+import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -20,8 +21,45 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+  // ===== Rate Limiting =====
+  // 通用 API 限流：每 IP 每分钟最多 100 次请求
+  const generalLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 分钟
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: "请求过于频繁，请稍后再试 (Rate Limit Exceeded)。",
+    },
+  });
+
+  // 严格限流：每 IP 每分钟最多 20 次，用于 chat completions
+  const chatLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: "对话请求过于频繁，请稍后再试 (Rate Limit Exceeded)。",
+    },
+  });
+
+  // 宽松限流：每 IP 每分钟最多 300 次，用于 models/test-connection
+  const apiQueryLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: "请求过于频繁，请稍后再试 (Rate Limit Exceeded)。",
+    },
+  });
+
   // API 2: Test connection for API config
-  app.post("/api/test-connection", async (req, res) => {
+  app.post("/api/test-connection", apiQueryLimiter, async (req, res) => {
     try {
       const { type, baseUrl, apiKey, modelName } = req.body;
 
@@ -57,7 +95,7 @@ async function startServer() {
   });
 
   // API 3: OpenAI API Proxy (CORS Bypass for mobile/iframe compatibility)
-  app.post("/api/proxy/openai", async (req, res) => {
+  app.post("/api/proxy/openai", chatLimiter, async (req, res) => {
     try {
       const { baseUrl, apiKey, reqBody } = req.body;
       if (!baseUrl) {
@@ -118,7 +156,7 @@ async function startServer() {
   });
 
   // API 4: Models Fetch Proxy
-  app.post("/api/proxy/models", async (req, res) => {
+  app.post("/api/proxy/models", apiQueryLimiter, async (req, res) => {
     try {
       const { type, baseUrl, apiKey } = req.body;
 
