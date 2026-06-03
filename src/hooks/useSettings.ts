@@ -244,6 +244,37 @@ export const useSettings = () => {
     }
   };
 
+  const testApiConnection = async () => {
+    setConnectionStatus({ testing: true });
+    try {
+      const response = await universalFetch("/api/test-connection", {
+        baseUrl: settings.api.baseUrl,
+        apiKey: settings.api.apiKey,
+        modelName: settings.api.modelName,
+      });
+      const data = await response.json();
+      if (data.success) {
+        setConnectionStatus({
+          testing: false,
+          success: true,
+          message: data.message || "连接成功！",
+        });
+      } else {
+        setConnectionStatus({
+          testing: false,
+          success: false,
+          message: `连接失败: ${data.error}`,
+        });
+      }
+    } catch (e: any) {
+      setConnectionStatus({
+        testing: false,
+        success: false,
+        message: `请求错误: ${e.message}`,
+      });
+    }
+  };
+
   const handleImportPresetJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -761,6 +792,7 @@ export const useSettings = () => {
     updateGlobalLorebook,
     isReady,
     handleFetchModels,
+    testApiConnection,
     handleImportPresetJSON,
     handleExportPresetJSON,
     handleSaveNewPresetBundle,

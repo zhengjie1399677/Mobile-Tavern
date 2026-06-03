@@ -142,16 +142,16 @@ export default function SettingsTab() {
                   <div className="flex items-center gap-2">
                     <KeySquare className="w-4 h-4 text-primary" />
                     <div className="flex flex-col items-start gap-1">
-                      <span className="text-sm font-semibold">API 服务终端连接</span>
-                      <span className="text-[10px] text-muted-foreground font-normal">配置大白鲨通道，默认内置代理免流支持</span>
+                      <span className="text-sm font-semibold">API 服务端点配置</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">配置大语言模型接口地址与授权凭证</span>
                     </div>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-4 pt-2 border-t border-border/50 space-y-4">
                   <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-[11px] font-semibold text-muted-foreground flex justify-between items-center">
-                      <span>Base URL (基础路由)</span>
-                      <span className="text-[9px] text-primary/70">提示：可输入并自动记录多个接口URL</span>
+                      <span>接口代理地址 (Base URL)</span>
+                      <span className="text-[9px] text-primary/70">提示：支持多组常用 API 历史地址自动记录</span>
                     </label>
                     <Input
                       list="saved-api-urls"
@@ -217,12 +217,12 @@ export default function SettingsTab() {
 
                   <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
-                      <span>授权秘钥 (API Key)</span>
+                      <span>API 密钥 (API Key)</span>
                       <button
                         onClick={testApiConnection}
                         className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-bold"
                       >
-                        ⚡ 测试连接
+                        ⚡ 连通性测试
                       </button>
                     </label>
                     <div className="flex gap-2">
@@ -246,7 +246,7 @@ export default function SettingsTab() {
                         disabled={isFetchingModels}
                         className="h-9 px-3 bg-primary text-primary-foreground text-xs font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
                       >
-                        {isFetchingModels ? "获取中..." : "获取模型"}
+                        {isFetchingModels ? "获取中..." : "拉取模型列表"}
                       </button>
                     </div>
                     {connectionStatus?.message && (
@@ -258,7 +258,7 @@ export default function SettingsTab() {
 
                   <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
-                      <span>模型标识 (Model ID)</span>
+                      <span>所选模型标识 (Model ID)</span>
                     </label>
                     {availableModels.length > 0 ? (
                       <Select

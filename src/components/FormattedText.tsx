@@ -80,7 +80,7 @@ function renderTextNode(textVal: string): React.ReactNode {
   return parts.map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return (
-        <strong key={index} className="font-bold text-foreground">
+        <strong key={index} className="font-bold text-[inherit]">
           {part.slice(2, -2)}
         </strong>
       );
@@ -216,7 +216,7 @@ export default function FormattedText({
       {parts.map((part, index) => {
         if (part.startsWith("**") && part.endsWith("**")) {
           return (
-            <strong key={index} className="font-bold text-foreground">
+            <strong key={index} className="font-bold text-[inherit]">
               {part.slice(2, -2)}
             </strong>
           );
@@ -231,7 +231,7 @@ export default function FormattedText({
           );
         }
         return (
-          <span key={index} className="text-foreground font-normal">
+          <span key={index} className="text-[inherit] font-normal">
             {part}
           </span>
         );

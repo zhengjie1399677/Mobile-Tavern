@@ -371,7 +371,7 @@ export default function CharacterEditModal() {
               </label>
               <textarea
                 placeholder="角色的详细描述、性格或背景设定..."
-                rows={4}
+                rows={8}
                 value={editingChar.description || ""}
                 onChange={(e) =>
                   setEditingChar({
@@ -379,7 +379,7 @@ export default function CharacterEditModal() {
                     description: e.target.value,
                   })
                 }
-                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs resize-none leading-relaxed"
+                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs resize-y leading-relaxed"
               />
             </div>
 
@@ -425,7 +425,7 @@ export default function CharacterEditModal() {
               </label>
               <textarea
                 placeholder="角色出场的第一句话"
-                rows={4}
+                rows={8}
                 value={editingChar.first_mes || ""}
                 onChange={(e) =>
                   setEditingChar({
@@ -433,7 +433,7 @@ export default function CharacterEditModal() {
                     first_mes: e.target.value,
                   })
                 }
-                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs resize-none leading-relaxed"
+                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs resize-y leading-relaxed"
               />
             </div>
 
@@ -443,7 +443,7 @@ export default function CharacterEditModal() {
               </label>
               <textarea
                 placeholder="<user>: 你是谁？\n<char>: 我是..."
-                rows={3}
+                rows={6}
                 value={editingChar.mes_example || ""}
                 onChange={(e) =>
                   setEditingChar({
@@ -451,7 +451,7 @@ export default function CharacterEditModal() {
                     mes_example: e.target.value,
                   })
                 }
-                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs resize-none font-mono"
+                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs resize-y font-mono"
               />
             </div>
 
@@ -757,7 +757,7 @@ export default function CharacterEditModal() {
         )}
 
         {/* Modal final saving operations */}
-        <div className="p-4 bg-input/80 border-t border-border gap-2.5 flex items-center justify-end sticky bottom-0 z-10">
+        <div className="p-4 pb-[calc(1rem+max(env(safe-area-inset-bottom),16px))] bg-input/80 border-t border-border gap-2.5 flex items-center justify-end sticky bottom-0 z-10">
           <button
             onClick={() => {
               setCharModalOpen(false);

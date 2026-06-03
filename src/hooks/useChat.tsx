@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
@@ -59,15 +59,24 @@ export const useChat = (
   const [newSummaryContent, setNewSummaryContent] = useState("");
   const [editingSummaryId, setEditingSummaryId] = useState<string | null>(null);
 
-  const triggerScroll = (behavior: "smooth" | "instant" = "smooth") => {
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
+
+  const triggerScroll = useCallback((behavior: "smooth" | "instant" = "smooth") => {
     setTimeout(() => {
       if (chatBottomRef && chatBottomRef.current) {
         chatBottomRef.current.scrollIntoView({ behavior });
       }
     }, 100);
-  };
+  }, [chatBottomRef]);
 
-  const handleStartNewSession = async (customFirstMessage?: string) => {
+  const handleStartNewSession = useCallback(async (customFirstMessage?: string) => {
     if (!activeCharacter) return;
     const starterMsg = customFirstMessage ?? activeCharacter.first_mes;
 
@@ -96,9 +105,115 @@ export const useChat = (
     } catch (err: any) {
       console.error("Failed to save new session:", err);
     }
-  };
+  }, [activeCharacter, saveSession, setActiveSessionId, triggerScroll]);
 
-  const handleSendMessage = async (textToSend: string) => {
+  const handleAutoSummaryCheck = useCallback(async (
+    session: ChatSession,
+    force: boolean = false
+  ) => {
+    const lastIndex = session.lastSummarizedMessageId
+      ? session.messages.findIndex((m) => m.id === session.lastSummarizedMessageId)
+      : -1;
+    
+    let startIndex = 0;
+    if (lastIndex >= 0) {
+      startIndex = lastIndex + 1;
+    } else if (session.lastSummarizedMessageId && session.summaries && session.summaries.length > 0) {
+      startIndex = Math.max(0, session.messages.length - 2);
+    }
+
+    const unsummarizedMessages = session.messages.slice(startIndex);
+    
+    const rawTriggerTurns = Number(settings?.memory?.summaryTriggerTurns);
+    const rawRecentTurns = Number(settings?.memory?.recentTurns || 6);
+    const triggerRounds = (rawTriggerTurns && rawTriggerTurns > 0) ? rawTriggerTurns : rawRecentTurns;
+    
+    const maxAllowedUnsummarized = triggerRounds * 2;
+
+    let messagesToCompress: Message[] = [];
+
+    if (force || unsummarizedMessages.length >= maxAllowedUnsummarized) {
+      if (unsummarizedMessages.length === 0) {
+        if (force) await showCustomAlert("当前没有未被总结的有效对话。");
+        return;
+      }
+
+      messagesToCompress = unsummarizedMessages.slice(0, maxAllowedUnsummarized);
+
+      try {
+        const promptInstruction = `你是一个极其客观、专业的故事剧情归纳助手。你的任务是将一段未整理的对话片段浓缩提炼为一段客观简洁的前情要点总结。
+请严格遵守以下规则来进行归纳：
+1. 【忠于事实】：必须完全且唯一基于给出的对话记录本身，客观陈述发生了哪些交流、达成的剧情或决定。绝对不要发挥、绝对不要衍生、也绝对不要美化。
+2. 【无内容防捏造】：若输入的内容极少或无实质剧情（如日常寒喧、数字、指令、甚至空话、测试语、字母），必须用极其简短且客观事实的语言记录（例如：“用户进行连通测试”、“用户发送了反馈疑问”），绝对禁止凭空捏造不存在的场景、科幻/玄幻设定、人物动作、关键道具、内心戏、心路历程、戏剧冲突或小说情节。
+3. 【简洁精炼】：使用简短精练的第三人称陈述句，通常只需1-3句话（约30-100字），不要长篇大论，更不能编写成小说篇章。
+4. 【直接输出】：仅返回提炼后的概要本身，不要带有任何“以下是、总结、摘要”等前言前缀、也不要进行任何评价与解释废话，直接输出归纳文本。`;
+        const contentConcat = messagesToCompress
+          .map((m) => `${m.sender === "user" ? "用户" : "角色"}: ${m.content}`)
+          .join("\n");
+
+        let compiledSummary = "";
+
+        const reqBody = {
+          model: settings.api.modelName || "gpt-3.5-turbo",
+          messages: [
+            { role: "system", content: promptInstruction },
+            { role: "user", content: contentConcat },
+          ],
+          stream: false,
+          temperature: 0.5,
+          max_tokens: 500,
+        };
+        const response = await universalFetch("/api/proxy/openai", {
+          baseUrl: settings.api.baseUrl,
+          apiKey: settings.api.apiKey,
+          reqBody,
+        });
+
+        if (!response.ok) {
+           const errText = await response.text();
+           console.error("AutoSummary fetch failed:", errText);
+           throw new Error("API returned status " + response.status + ": " + errText);
+        }
+
+        const resData = await response.json();
+        if (resData.choices && resData.choices.length > 0) {
+          compiledSummary = resData.choices[0].message.content;
+        }
+
+        if (compiledSummary) {
+          const newCard: SummaryCard = {
+            id: "summary_" + Math.random().toString(36).substring(2, 9),
+            timeTag: `第${(session.summaries || []).length + 1}幕`,
+            location: activeCharacter?.scenario?.slice(0, 8) || "未知地点",
+            content: compiledSummary.trim(),
+          };
+
+          const lastSummarizedMessageId = messagesToCompress[messagesToCompress.length - 1].id;
+
+          const finalSession = {
+            ...session,
+            summaries: [...(session.summaries || []), newCard],
+            lastSummarizedMessageId,
+          };
+
+          setSessions((prev) =>
+            prev.map((s) => (s.id === finalSession.id ? finalSession : s))
+          );
+          await saveSession(finalSession);
+          if (force) await showCustomAlert("记忆整理完毕，已收录至潜意识年表！");
+        } else {
+          if (force) await showCustomAlert("记忆整理失败，请检查API连接。");
+        }
+      } catch (e) {
+        console.warn("Auto-compactor service bypassed or offline:", e);
+        if (force) await showCustomAlert("记忆整理出错: " + (e as Error).message);
+      }
+    } else {
+      if (force) await showCustomAlert("当前无需强制压缩。");
+    }
+  }, [settings, activeCharacter, setSessions, saveSession, showCustomAlert]);
+
+  const handleSendMessage = useCallback(async (textToSend: string) => {
     incrementUsageCount();
     if (
       !textToSend ||
@@ -377,9 +492,22 @@ export const useChat = (
       setIsSending(false);
       abortControllerRef.current = null;
     }
-  };
+  }, [
+    isSending,
+    activeCharacter,
+    activeSession,
+    settings,
+    characters,
+    globalLorebook,
+    setSessions,
+    saveSession,
+    triggerScroll,
+    handleAutoSummaryCheck,
+    showCustomAlert,
+    setIsSending,
+  ]);
 
-  const handleRerollFromMessage = async (targetMsg: Message) => {
+  const handleRerollFromMessage = useCallback(async (targetMsg: Message) => {
     if (!targetMsg || !targetMsg.id || isSending || !activeCharacter || !activeSession) return;
 
     if (!settings.api.modelName) {
@@ -676,9 +804,23 @@ export const useChat = (
       setIsSending(false);
       abortControllerRef.current = null;
     }
-  };
+  }, [
+    isSending,
+    activeCharacter,
+    activeSession,
+    settings,
+    characters,
+    globalLorebook,
+    setSessions,
+    saveSession,
+    triggerScroll,
+    handleAutoSummaryCheck,
+    showCustomConfirm,
+    showCustomAlert,
+    setIsSending,
+  ]);
 
-  const handleRerollLast = async () => {
+  const handleRerollLast = useCallback(async () => {
     if (!activeSession || activeSession.messages.length === 0) return;
     const msgs = activeSession.messages;
     let lastAiMsg: Message | null = null;
@@ -693,121 +835,9 @@ export const useChat = (
       return;
     }
     await handleRerollFromMessage(lastAiMsg);
-  };
+  }, [activeSession, showCustomAlert, handleRerollFromMessage]);
 
-  const handleAutoSummaryCheck = async (
-    session: ChatSession,
-    force: boolean = false
-  ) => {
-    const lastIndex = session.lastSummarizedMessageId
-      ? session.messages.findIndex((m) => m.id === session.lastSummarizedMessageId)
-      : -1;
-    
-    let startIndex = 0;
-    if (lastIndex >= 0) {
-      startIndex = lastIndex + 1;
-    } else if (session.lastSummarizedMessageId && session.summaries && session.summaries.length > 0) {
-      // If the last summarized message ID is defined but not found (e.g. because of message edits, deletions, or branching),
-      // do not reset to 0 (which would cause already-summarized messages to be processed again and trigger premature summaries on 2 messages).
-      // Instead, we skip past those and start measuring from the end so that we protect the timeline from duplicates.
-      startIndex = Math.max(0, session.messages.length - 2);
-    }
-
-    const unsummarizedMessages = session.messages.slice(startIndex);
-    
-    // Strict dynamic parsing of setting values, ensuring number types and avoiding string concatenation or falsy defaults.
-    const rawTriggerTurns = Number(settings?.memory?.summaryTriggerTurns);
-    const rawRecentTurns = Number(settings?.memory?.recentTurns || 6);
-    const triggerRounds = (rawTriggerTurns && rawTriggerTurns > 0) ? rawTriggerTurns : rawRecentTurns;
-    
-    // Unit translation: 1 turn/round in UI = 2 messages (1 user round-trip: user + bot).
-    // Thus, unsummarized message threshold is exactly triggerRounds * 2.
-    const maxAllowedUnsummarized = triggerRounds * 2;
-
-    let messagesToCompress: Message[] = [];
-
-    if (force || unsummarizedMessages.length >= maxAllowedUnsummarized) {
-      if (unsummarizedMessages.length === 0) {
-        if (force) await showCustomAlert("当前没有未被总结的有效对话。");
-        return;
-      }
-
-      messagesToCompress = unsummarizedMessages.slice(0, maxAllowedUnsummarized);
-
-      try {
-        const promptInstruction = `你是一个极其客观、专业的故事剧情归纳助手。你的任务是将一段未整理的对话片段浓缩提炼为一段客观简洁的前情要点总结。
-请严格遵守以下规则来进行归纳：
-1. 【忠于事实】：必须完全且唯一基于给出的对话记录本身，客观陈述发生了哪些交流、达成的剧情或决定。绝对不要发挥、绝对不要衍生、也绝对不要美化。
-2. 【无内容防捏造】：若输入的内容极少或无实质剧情（如日常寒喧、数字、指令、甚至空话、测试语、字母），必须用极其简短且客观事实的语言记录（例如：“用户进行连通测试”、“用户发送了反馈疑问”），绝对禁止凭空捏造不存在的场景、科幻/玄幻设定、人物动作、关键道具、内心戏、心路历程、戏剧冲突或小说情节。
-3. 【简洁精炼】：使用简短精练的第三人称陈述句，通常只需1-3句话（约30-100字），不要长篇大论，更不能编写成小说篇章。
-4. 【直接输出】：仅返回提炼后的概要本身，不要带有任何“以下是、总结、摘要”等前言前缀、也不要进行任何评价与解释废话，直接输出归纳文本。`;
-        const contentConcat = messagesToCompress
-          .map((m) => `${m.sender === "user" ? "用户" : "角色"}: ${m.content}`)
-          .join("\n");
-
-        let compiledSummary = "";
-
-        const reqBody = {
-          model: settings.api.modelName || "gpt-3.5-turbo",
-          messages: [
-            { role: "system", content: promptInstruction },
-            { role: "user", content: contentConcat },
-          ],
-          stream: false,
-          temperature: 0.5,
-          max_tokens: 500,
-        };
-        const response = await universalFetch("/api/proxy/openai", {
-          baseUrl: settings.api.baseUrl,
-          apiKey: settings.api.apiKey,
-          reqBody,
-        });
-
-        if (!response.ok) {
-           const errText = await response.text();
-           console.error("AutoSummary fetch failed:", errText);
-           throw new Error("API returned status " + response.status + ": " + errText);
-        }
-
-        const resData = await response.json();
-        if (resData.choices && resData.choices.length > 0) {
-          compiledSummary = resData.choices[0].message.content;
-        }
-
-        if (compiledSummary) {
-          const newCard: SummaryCard = {
-            id: "summary_" + Math.random().toString(36).substring(2, 9),
-            timeTag: `第${(session.summaries || []).length + 1}幕`,
-            location: activeCharacter?.scenario?.slice(0, 8) || "未知地点",
-            content: compiledSummary.trim(),
-          };
-
-          const lastSummarizedMessageId = messagesToCompress[messagesToCompress.length - 1].id;
-
-          const finalSession = {
-            ...session,
-            summaries: [...(session.summaries || []), newCard],
-            lastSummarizedMessageId,
-          };
-
-          setSessions((prev) =>
-            prev.map((s) => (s.id === finalSession.id ? finalSession : s))
-          );
-          await saveSession(finalSession);
-          if (force) await showCustomAlert("记忆整理完毕，已收录至潜意识年表！");
-        } else {
-          if (force) await showCustomAlert("记忆整理失败，请检查API连接。");
-        }
-      } catch (e) {
-        console.warn("Auto-compactor service bypassed or offline:", e);
-        if (force) await showCustomAlert("记忆整理出错: " + (e as Error).message);
-      }
-    } else {
-      if (force) await showCustomAlert("当前无需强制压缩。");
-    }
-  };
-
-  const createNewBranch = async () => {
+  const createNewBranch = useCallback(async () => {
     if (!activeCharId) return;
     const branchTitle = await showCustomPrompt(
       "请输入全新独立分支存档名称:",
@@ -831,9 +861,9 @@ export const useChat = (
     } catch (err: any) {
       console.error("Failed to save new branch session:", err);
     }
-  };
+  }, [activeCharId, activeCharacter, showCustomPrompt, saveSession, setActiveSessionId, setShowSessionManager]);
 
-  const deleteBranch = async (id: string) => {
+  const deleteBranch = useCallback(async (id: string) => {
     const confirm = await showCustomConfirm("确定要永久删除这个聊天分支吗？(无法恢复)");
     if (!confirm) return;
 
@@ -856,9 +886,9 @@ export const useChat = (
     } catch (err: any) {
       console.error("Failed to delete branch session:", err);
     }
-  };
+  }, [showCustomConfirm, deleteSession, activeSessionId, activeCharId, setActiveSessionId, setSessions]);
 
-  const selectCharacter = async (charId: string) => {
+  const selectCharacter = useCallback(async (charId: string) => {
     if (isSending) {
       await showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再切换角色卡。");
       return;
@@ -899,9 +929,19 @@ export const useChat = (
     }
     setActiveTab("chat");
     triggerScroll();
-  };
+  }, [
+    isSending,
+    showCustomAlert,
+    setActiveCharId,
+    sessions,
+    characters,
+    saveSession,
+    setActiveSessionId,
+    setActiveTab,
+    triggerScroll,
+  ]);
 
-  const createBacktrackBranch = async (msg: Message) => {
+  const createBacktrackBranch = useCallback(async (msg: Message) => {
     if (!activeCharacter || !activeSession) return;
     const msgIndex = activeSession.messages.findIndex((m) => m.id === msg.id);
     if (msgIndex < 0) return;
@@ -932,9 +972,20 @@ export const useChat = (
     } catch (err: any) {
       console.error("Failed to save backtrack branch session:", err);
     }
-  };
+  }, [
+    activeCharacter,
+    activeSession,
+    showCustomPrompt,
+    activeCharId,
+    saveSession,
+    setActiveSessionId,
+    setMsgMenuId,
+    setChatSubTab,
+    showCustomAlert,
+    triggerScroll,
+  ]);
 
-  const createBacktrackFromTimeline = async (summary: SummaryCard) => {
+  const createBacktrackFromTimeline = useCallback(async (summary: SummaryCard) => {
     if (!activeCharacter || !activeSession) return;
     const sumIdx = (activeSession.summaries || []).findIndex((s) => s.id === summary.id);
     if (sumIdx < 0) return;
@@ -973,9 +1024,19 @@ export const useChat = (
     } catch (err: any) {
       console.error("Failed to save backtrack timeline session:", err);
     }
-  };
+  }, [
+    activeCharacter,
+    activeSession,
+    showCustomPrompt,
+    activeCharId,
+    saveSession,
+    setActiveSessionId,
+    setChatSubTab,
+    showCustomAlert,
+    triggerScroll,
+  ]);
 
-  const handleAddTimelineSummary = async () => {
+  const handleAddTimelineSummary = useCallback(async () => {
     if (!newSummaryTag.trim() || !newSummaryContent.trim() || !activeSession) return;
 
     let updatedSummaries: SummaryCard[];
@@ -1019,9 +1080,22 @@ export const useChat = (
     setNewSummaryContent("");
     setEditingSummaryId(null);
     setTimelineModalOpen(false);
-  };
+  }, [
+    newSummaryTag,
+    newSummaryContent,
+    newSummaryLoc,
+    activeSession,
+    editingSummaryId,
+    setSessions,
+    saveSession,
+    setNewSummaryTag,
+    setNewSummaryLoc,
+    setNewSummaryContent,
+    setEditingSummaryId,
+    setTimelineModalOpen,
+  ]);
 
-  const renderDialogueBubble = (text: string) => {
+  const renderDialogueBubble = useCallback((text: string) => {
     return (
       <FormattedText
         text={text}
@@ -1029,9 +1103,9 @@ export const useChat = (
         userName={settings.userName}
       />
     );
-  };
+  }, [activeCharacter, settings]);
 
-  return {
+  const chatHookValue = useMemo(() => ({
     handleSendMessage,
     handleStartNewSession,
     triggerScroll,
@@ -1070,5 +1144,34 @@ export const useChat = (
     createBacktrackFromTimeline,
     handleAddTimelineSummary,
     renderDialogueBubble,
-  };
+  }), [
+    handleSendMessage,
+    handleStartNewSession,
+    triggerScroll,
+    showSessionManager,
+    showFullHistory,
+    chatSubTab,
+    userInputMessage,
+    editingMsgId,
+    editingMsgContent,
+    msgMenuId,
+    timelineModalOpen,
+    newSummaryTag,
+    newSummaryLoc,
+    newSummaryContent,
+    editingSummaryId,
+    handleRerollFromMessage,
+    handleRerollLast,
+    handleAutoSummaryCheck,
+    handleStopGeneration,
+    createNewBranch,
+    deleteBranch,
+    selectCharacter,
+    createBacktrackBranch,
+    createBacktrackFromTimeline,
+    handleAddTimelineSummary,
+    renderDialogueBubble,
+  ]);
+
+  return chatHookValue;
 };

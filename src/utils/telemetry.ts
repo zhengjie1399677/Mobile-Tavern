@@ -57,6 +57,12 @@ export function reportUsage(action: string = "app_launch", extraData: Record<str
     extraData
   });
 
+  // Limit queue size to 500 to prevent memory leak
+  const MAX_EVENTS = 500;
+  if (pendingEvents.length > MAX_EVENTS) {
+    pendingEvents = pendingEvents.slice(-MAX_EVENTS);
+  }
+
   // 每 2 个事件或页面关闭时同步
   if (action === "app_close" || pendingEvents.length >= 2) {
     syncTelemetry(action === "app_close");
@@ -260,22 +266,42 @@ async function syncTelemetry(isUnloading: boolean) {
   }
 }
 
-// 定期同步
-setInterval(() => {
-  syncTelemetry(false);
-}, 15 * 1000);
+let syncIntervalId: number | null = null;
+
+function startSyncTimer() {
+  if (syncIntervalId === null) {
+    syncIntervalId = window.setInterval(() => {
+      syncTelemetry(false);
+    }, 15 * 1000);
+  }
+}
+
+function stopSyncTimer() {
+  if (syncIntervalId !== null) {
+    clearInterval(syncIntervalId);
+    syncIntervalId = null;
+  }
+}
 
 // 页面关闭时发送
 window.addEventListener('beforeunload', () => {
   syncTelemetry(true);
 });
 
-// 页面隐藏时发送
+// 页面隐藏/显示时调整同步策略
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
     syncTelemetry(true);
+    stopSyncTimer();
+  } else {
+    startSyncTimer();
   }
 });
+
+// 初始化启动定时同步（若页面处于可见状态）
+if (document.visibilityState !== 'hidden') {
+  startSyncTimer();
+}
 
 // 页面加载时初始化
 initTracker();

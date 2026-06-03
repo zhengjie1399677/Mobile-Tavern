@@ -182,6 +182,7 @@ export async function bulkSaveCharacters(charactersList: CharacterCard[]): Promi
 
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
 
     for (const char of charactersList) {
       store.put(char);
@@ -198,6 +199,7 @@ export async function bulkSaveSessions(sessionsList: ChatSession[]): Promise<voi
 
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
 
     for (const session of sessionsList) {
       store.put(session);

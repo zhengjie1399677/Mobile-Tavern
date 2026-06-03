@@ -57,11 +57,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", currentTheme);
-    if (currentTheme === "ocean") {
+    const isDark = currentTheme === "ocean";
+    if (isDark) {
       document.documentElement.classList.add("dark");
+      document.documentElement.style.colorScheme = "dark";
     } else {
       document.documentElement.classList.remove("dark");
+      document.documentElement.style.colorScheme = "light";
     }
+
+    // Synchronize meta color-scheme
+    let metaColorScheme = document.querySelector('meta[name="color-scheme"]');
+    if (!metaColorScheme) {
+      metaColorScheme = document.createElement("meta");
+      metaColorScheme.setAttribute("name", "color-scheme");
+      document.head.appendChild(metaColorScheme);
+    }
+    metaColorScheme.setAttribute("content", isDark ? "dark" : "light");
 
     // Synchronize meta theme-color to style system status bar elements
     let metaThemeColor = document.querySelector('meta[name="theme-color"]');

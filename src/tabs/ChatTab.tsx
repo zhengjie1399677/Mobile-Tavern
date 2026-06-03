@@ -36,6 +36,15 @@ const ChatInputArea = () => {
   } = React.useContext(AppContext);
   const [localInput, setLocalInput] = React.useState("");
 
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  React.useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
+  }, [localInput]);
+
   const onSend = () => {
     if (!localInput.trim()) return;
     const msg = localInput;
@@ -119,6 +128,7 @@ const ChatInputArea = () => {
       </div>
       <div className="flex items-end gap-2">
         <textarea
+          ref={textareaRef}
           value={localInput}
           onChange={(e) => setLocalInput(e.target.value)}
           onKeyDown={(e) => {
@@ -129,7 +139,7 @@ const ChatInputArea = () => {
           }}
           placeholder={`发送一条纯文本对白至 ${activeCharacter?.name} 并启程...`}
           rows={2}
-          className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none font-light"
+          className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none font-light overflow-y-auto max-h-[180px] min-h-[44px]"
         />
         <button
           onClick={onSend}
