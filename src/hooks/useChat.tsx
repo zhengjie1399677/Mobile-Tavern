@@ -36,6 +36,16 @@ export const useChat = (
   }, [activeSessionId]);
 
   // Message Input & Forms state
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsSending(false);
+  };
+
   const [userInputMessage, setUserInputMessage] = useState("");
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
   const [editingMsgContent, setEditingMsgContent] = useState("");
@@ -127,6 +137,12 @@ export const useChat = (
     triggerScroll("smooth");
     setIsSending(true);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    let responseText = "";
+    const aiMsgId = "msg_ai_" + Math.random().toString(36).substring(2, 9);
+
     try {
       const otherCharGlobals = characters
         .filter((c) => c.isWorldbookGlobal && c.id !== activeCharacter.id)
@@ -142,10 +158,8 @@ export const useChat = (
         globalLorebook: combinedGlobals,
       });
 
-      let responseText = "";
       let tokenUsage = { prompt: 0, completion: 0 };
       const startTime = performance.now();
-      const aiMsgId = "msg_ai_" + Math.random().toString(36).substring(2, 9);
 
       const placeholderAiMsg: Message = {
         id: aiMsgId,
@@ -191,7 +205,7 @@ export const useChat = (
           frequency_penalty: settings.preset.frequencyPenalty ?? 0.0,
           repetition_penalty: settings.preset.repetitionPenalty,
         },
-      });
+      }, controller.signal);
 
       if (!response.ok) {
         const errText = await response.text();
@@ -309,18 +323,47 @@ export const useChat = (
       // Check if summaries need automatic compilation
       await handleAutoSummaryCheck(trueFinalSession);
     } catch (err: any) {
-      showCustomAlert("发送失败，对话连接异常: " + err.message);
-      setSessions((prev) =>
-        prev.map((s) => {
-          if (s.id !== updatedSession.id) return s;
-          return {
-            ...s,
-            messages: s.messages.filter((m) => !m.content.includes("💭...")),
+      const isManualAbort = err.name === "AbortError" || err.message?.includes("aborted") || controller.signal.aborted;
+      if (isManualAbort) {
+        if (responseText.trim().length > 0) {
+          const finishedAiMsg: Message = {
+            id: aiMsgId,
+            sender: "assistant",
+            content: responseText.trim(),
+            timestamp: Date.now(),
           };
-        })
-      );
+          const trueFinalSession = {
+            ...updatedSession,
+            messages: updatedSession.messages.concat([finishedAiMsg]),
+          };
+          setSessions((prev) =>
+            prev.map((s) => (s.id === trueFinalSession.id ? trueFinalSession : s))
+          );
+          await saveSession(trueFinalSession);
+          await handleAutoSummaryCheck(trueFinalSession);
+        } else {
+          setSessions((prev) =>
+            prev.map((s) => ({
+              ...s,
+              messages: s.messages.filter((m) => m.id !== aiMsgId),
+            }))
+          );
+        }
+      } else {
+        showCustomAlert("发送失败，对话连接异常: " + err.message);
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== updatedSession.id) return s;
+            return {
+              ...s,
+              messages: s.messages.filter((m) => !m.content.includes("💭...")),
+            };
+          })
+        );
+      }
     } finally {
       setIsSending(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -604,9 +647,27 @@ export const useChat = (
     const lastIndex = session.lastSummarizedMessageId
       ? session.messages.findIndex((m) => m.id === session.lastSummarizedMessageId)
       : -1;
-    const startIndex = lastIndex >= 0 ? lastIndex + 1 : 0;
+    
+    let startIndex = 0;
+    if (lastIndex >= 0) {
+      startIndex = lastIndex + 1;
+    } else if (session.lastSummarizedMessageId && session.summaries && session.summaries.length > 0) {
+      // If the last summarized message ID is defined but not found (e.g. because of message edits, deletions, or branching),
+      // do not reset to 0 (which would cause already-summarized messages to be processed again and trigger premature summaries on 2 messages).
+      // Instead, we skip past those and start measuring from the end so that we protect the timeline from duplicates.
+      startIndex = Math.max(0, session.messages.length - 2);
+    }
+
     const unsummarizedMessages = session.messages.slice(startIndex);
-    const maxAllowedUnsummarized = 20;
+    
+    // Strict dynamic parsing of setting values, ensuring number types and avoiding string concatenation or falsy defaults.
+    const rawTriggerTurns = Number(settings?.memory?.summaryTriggerTurns);
+    const rawRecentTurns = Number(settings?.memory?.recentTurns || 6);
+    const triggerRounds = (rawTriggerTurns && rawTriggerTurns > 0) ? rawTriggerTurns : rawRecentTurns;
+    
+    // Unit translation: 1 turn/round in UI = 2 messages (1 user round-trip: user + bot).
+    // Thus, unsummarized message threshold is exactly triggerRounds * 2.
+    const maxAllowedUnsummarized = triggerRounds * 2;
 
     let messagesToCompress: Message[] = [];
 
@@ -616,10 +677,15 @@ export const useChat = (
         return;
       }
 
-      messagesToCompress = unsummarizedMessages.slice(0, 20);
+      messagesToCompress = unsummarizedMessages.slice(0, maxAllowedUnsummarized);
 
       try {
-        const promptInstruction = `你是一个高智能的故事缩影编纂者。请精确提炼以下未记录的剧情片段，以第三人称小说的口吻，写下紧凑、核心的剧情发展与行为要素，字数控制在300字以内，不要遗漏关键道具、角色心态与命运转折。仅返回描述文本，不要多余废话。请不要评价，直接输出提炼后的故事片段。`;
+        const promptInstruction = `你是一个极其客观、专业的故事剧情归纳助手。你的任务是将一段未整理的对话片段浓缩提炼为一段客观简洁的前情要点总结。
+请严格遵守以下规则来进行归纳：
+1. 【忠于事实】：必须完全且唯一基于给出的对话记录本身，客观陈述发生了哪些交流、达成的剧情或决定。绝对不要发挥、绝对不要衍生、也绝对不要美化。
+2. 【无内容防捏造】：若输入的内容极少或无实质剧情（如日常寒喧、数字、指令、甚至空话、测试语、字母），必须用极其简短且客观事实的语言记录（例如：“用户进行连通测试”、“用户发送了反馈疑问”），绝对禁止凭空捏造不存在的场景、科幻/玄幻设定、人物动作、关键道具、内心戏、心路历程、戏剧冲突或小说情节。
+3. 【简洁精炼】：使用简短精练的第三人称陈述句，通常只需1-3句话（约30-100字），不要长篇大论，更不能编写成小说篇章。
+4. 【直接输出】：仅返回提炼后的概要本身，不要带有任何“以下是、总结、摘要”等前言前缀、也不要进行任何评价与解释废话，直接输出归纳文本。`;
         const contentConcat = messagesToCompress
           .map((m) => `${m.sender === "user" ? "用户" : "角色"}: ${m.content}`)
           .join("\n");
@@ -633,12 +699,21 @@ export const useChat = (
             { role: "user", content: contentConcat },
           ],
           stream: false,
+          temperature: 0.5,
+          max_tokens: 500,
         };
         const response = await universalFetch("/api/proxy/openai", {
           baseUrl: settings.api.baseUrl,
           apiKey: settings.api.apiKey,
           reqBody,
         });
+
+        if (!response.ok) {
+           const errText = await response.text();
+           console.error("AutoSummary fetch failed:", errText);
+           throw new Error("API returned status " + response.status + ": " + errText);
+        }
+
         const resData = await response.json();
         if (resData.choices && resData.choices.length > 0) {
           compiledSummary = resData.choices[0].message.content;
@@ -944,6 +1019,7 @@ export const useChat = (
     handleRerollFromMessage,
     handleRerollLast,
     handleAutoSummaryCheck,
+    handleStopGeneration,
     createNewBranch,
     deleteBranch,
     selectCharacter,

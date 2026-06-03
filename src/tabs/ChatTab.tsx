@@ -18,6 +18,7 @@ import {
   GitFork,
   ChevronUp,
   Cpu,
+  Square,
 } from "lucide-react";
 
 import { saveSession } from "../utils/localDB";
@@ -33,11 +34,12 @@ const ChatInputArea = () => {
     showCustomConfirm,
     handleAutoSummaryCheck,
     handleSendMessage,
+    handleStopGeneration,
   } = React.useContext(AppContext);
   const [localInput, setLocalInput] = React.useState("");
 
   const onSend = () => {
-    if (!localInput.trim()) return;
+    if (isSending || !localInput.trim()) return;
     const msg = localInput;
     setLocalInput("");
     handleSendMessage(msg);
@@ -74,7 +76,8 @@ const ChatInputArea = () => {
                 setIsSending(false);
               }
             }}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors"
+            disabled={isSending}
+            className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-40"
             title="呼叫智能记忆压缩年表"
           >
             <Brain className="w-3.5 h-3.5" />
@@ -121,26 +124,38 @@ const ChatInputArea = () => {
         <textarea
           value={localInput}
           onChange={(e) => setLocalInput(e.target.value)}
+          disabled={isSending}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              onSend();
+              if (!isSending) onSend();
             }
           }}
-          placeholder={`发送一条纯文本对白至 ${activeCharacter?.name} 并启程...`}
+          placeholder={isSending ? "正在推演潜意识分支中..." : `发送一条纯文本对白至 ${activeCharacter?.name} 并启程...`}
           rows={2}
-          className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none font-light"
+          className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none font-light disabled:opacity-60 disabled:cursor-not-allowed"
         />
-        <button
-          onClick={onSend}
-          disabled={isSending || !localInput.trim()}
-          className="p-3 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground transition-all shadow-md flex items-center justify-center shrink-0"
-          style={{
-            backgroundColor: "var(--char-primary, var(--primary))",
-          }}
-        >
-          <Send className="w-4 h-4" />
-        </button>
+        {isSending ? (
+          <button
+            onClick={handleStopGeneration}
+            className="p-3 rounded-lg bg-red-650 hover:bg-red-500 text-white transition-all shadow-md flex items-center justify-center shrink-0"
+            style={{ backgroundColor: "rgb(220 38 38)" }}
+            title="终止当前文本生成"
+          >
+            <Square className="w-4 h-4 fill-white text-white" />
+          </button>
+        ) : (
+          <button
+            onClick={onSend}
+            disabled={!localInput.trim()}
+            className="p-3 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground transition-all shadow-md flex items-center justify-center shrink-0"
+            style={{
+              backgroundColor: "var(--char-primary, var(--primary))",
+            }}
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -24,10 +24,11 @@ export interface UniversalFetchPayload {
 
 export const universalFetch = async (
   endpoint: string,
-  proxyPayload: UniversalFetchPayload
+  proxyPayload: UniversalFetchPayload,
+  customSignal?: AbortSignal
 ): Promise<Response> => {
   const isTauri = isClientMode();
-  const signal = (AbortSignal as any).timeout ? AbortSignal.timeout(35000) : undefined;
+  const signal = customSignal || ((AbortSignal as any).timeout ? AbortSignal.timeout(35000) : undefined);
 
   // If running in a standard web browser, routing goes through our Express server backend proxy
   if (!isTauri) {
