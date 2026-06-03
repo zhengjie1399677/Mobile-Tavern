@@ -672,36 +672,6 @@ export default function GlobalWorldbookTab() {
           </div>
 
           <div className="grid grid-cols-1 gap-3.5">
-            {/* Global Shared Folder Card */}
-            <div
-              onClick={() => {
-                setActiveHostId("global");
-                setSearchQuery("");
-                setEditingId(null);
-              }}
-              className="w-full text-left p-4 rounded-2xl border transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-between group animate-fadeIn border-primary/40 bg-primary/5 hover:bg-primary/10 hover:border-primary"
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-10 h-10 rounded-full overflow-hidden border border-primary/30 flex items-center justify-center shrink-0 bg-primary/10">
-                  <Globe className="w-5 h-5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-primary font-extrabold">
-                    🌎 全局通用设定集
-                  </p>
-                  <p className="text-[10px] text-muted-foreground font-light mt-0.5">
-                    常驻装配所有 AI 角色，全局生效
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 ml-1">
-                <span className="font-mono font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-sm bg-primary text-primary-foreground">
-                  {globalCount}
-                </span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-primary/70" />
-              </div>
-            </div>
-
             {/* Character Local Folder Cards */}
             {characters.length === 0 ? (
               <div className="text-center py-12 px-4 border border-dashed border-border/80 rounded-2xl bg-muted/5 text-xs text-muted-foreground">

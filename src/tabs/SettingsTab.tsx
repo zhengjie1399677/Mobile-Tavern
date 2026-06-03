@@ -136,7 +136,7 @@ export default function SettingsTab() {
 
 
             {/* 2. API CONFIG (Collapsed by default) */}
-            <Accordion className="w-full">
+            <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="api-config" className="bg-card border border-border shadow-sm rounded-xl overflow-hidden">
                 <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30 transition">
                   <div className="flex items-center gap-2">
@@ -319,7 +319,7 @@ export default function SettingsTab() {
                   onValueChange={(val: any) => handleThemeChange(val)}
                 >
                   <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-medium">
-                    <span className="flex flex-1 text-left">
+                    <SelectValue placeholder="选择主题">
                       {currentTheme === "snow"
                         ? "极简纯白"
                         : currentTheme === "sand"
@@ -327,7 +327,7 @@ export default function SettingsTab() {
                         : currentTheme === "ocean"
                         ? "荧光深海"
                         : "选择主题"}
-                    </span>
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="snow" label="极简纯白" className="text-xs">
@@ -660,30 +660,6 @@ export default function SettingsTab() {
                       </p>
                     </div>
 
-                    <div className="flex bg-card items-center justify-between border border-border p-3.5 rounded-xl shadow-sm">
-                      <div className="space-y-0.5 max-w-[80%]">
-                        <label className="text-xs font-bold text-foreground">
-                          启用酒馆角色扮演模板 (RP Roleplay Mode)
-                        </label>
-                        <p className="text-[10px] text-muted-foreground leading-normal">
-                          关闭后将进入直连标准对话助手模式。绝不注入星号规则、越狱提示、以及默认角色扮演约束，相当于直接与 API 原始沟通。
-                        </p>
-                      </div>
-                      <Switch
-                        checked={settings.promptConfig.roleplayMode !== false}
-                        onCheckedChange={(val) =>
-                          updateSettings({
-                            ...settings,
-                            promptConfig: {
-                              ...settings.promptConfig,
-                              roleplayMode: val,
-                            },
-                          })
-                        }
-                        className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
-                      />
-                    </div>
-
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs font-bold font-mono text-foreground">
                         PROMPT MODULES
@@ -705,7 +681,7 @@ export default function SettingsTab() {
                         </span>
                       </div>
                     ) : (
-                      <Accordion className="space-y-2">
+                      <Accordion type="multiple" className="space-y-2">
                         {settings.promptConfig.customPrompts.map((p) => (
                           <AccordionItem
                             value={p.id}
@@ -771,9 +747,7 @@ export default function SettingsTab() {
                                     }
                                   >
                                     <SelectTrigger className="w-28 h-8 text-xs bg-input/50 focus:ring-1">
-                                      <span className="flex flex-1 text-left">
-                                        {p.role === "system" ? "SYSTEM" : p.role === "user" ? "USER" : p.role === "assistant" ? "ASSIST" : p.role}
-                                      </span>
+                                      <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem

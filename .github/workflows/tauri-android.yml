@@ -14,18 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: 'npm'
 
       - name: Install Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -37,6 +37,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Tauri Icons
+        run: |
+          node decode_icon.cjs
+          npx tauri icon
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
@@ -54,8 +59,8 @@ jobs:
       - name: Initialize Android Project
         run: npx tauri android init
         env:
-          NDK_HOME: ${{ env.NDK_HOME }}
-          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+          NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
         continue-on-error: true
 
       - name: Fix gradlew permissions
@@ -65,8 +70,8 @@ jobs:
       - name: Build Android APK
         run: npm run build:android
         env:
-          NDK_HOME: ${{ env.NDK_HOME }}
-          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+          NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
 
       - name: Sign and Prepare APK
         env:
@@ -99,14 +104,14 @@ jobs:
           fi
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mobile-tavern-release.apk
           path: MobileTavern.apk
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: MobileTavern.apk
           draft: true

@@ -18,7 +18,6 @@ import {
   GitFork,
   ChevronUp,
   Cpu,
-  Square,
 } from "lucide-react";
 
 import { saveSession } from "../utils/localDB";
@@ -34,12 +33,11 @@ const ChatInputArea = () => {
     showCustomConfirm,
     handleAutoSummaryCheck,
     handleSendMessage,
-    handleStopGeneration,
   } = React.useContext(AppContext);
   const [localInput, setLocalInput] = React.useState("");
 
   const onSend = () => {
-    if (isSending || !localInput.trim()) return;
+    if (!localInput.trim()) return;
     const msg = localInput;
     setLocalInput("");
     handleSendMessage(msg);
@@ -76,8 +74,7 @@ const ChatInputArea = () => {
                 setIsSending(false);
               }
             }}
-            disabled={isSending}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-40"
+            className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors"
             title="呼叫智能记忆压缩年表"
           >
             <Brain className="w-3.5 h-3.5" />
@@ -124,38 +121,23 @@ const ChatInputArea = () => {
         <textarea
           value={localInput}
           onChange={(e) => setLocalInput(e.target.value)}
-          disabled={isSending}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (!isSending) onSend();
+              onSend();
             }
           }}
-          placeholder={isSending ? "正在推演潜意识分支中..." : `发送一条纯文本对白至 ${activeCharacter?.name} 并启程...`}
+          placeholder={`发送一条纯文本对白至 ${activeCharacter?.name} 并启程...`}
           rows={2}
-          className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none font-light disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none font-light"
         />
-        {isSending ? (
-          <button
-            onClick={handleStopGeneration}
-            className="p-3 rounded-lg bg-red-650 hover:bg-red-500 text-white transition-all shadow-md flex items-center justify-center shrink-0"
-            style={{ backgroundColor: "rgb(220 38 38)" }}
-            title="终止当前文本生成"
-          >
-            <Square className="w-4 h-4 fill-white text-white" />
-          </button>
-        ) : (
-          <button
-            onClick={onSend}
-            disabled={!localInput.trim()}
-            className="p-3 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground transition-all shadow-md flex items-center justify-center shrink-0"
-            style={{
-              backgroundColor: "var(--char-primary, var(--primary))",
-            }}
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        )}
+        <button
+          onClick={onSend}
+          disabled={isSending || !localInput.trim()}
+          className="p-3 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground transition-all shadow-md flex items-center justify-center shrink-0"
+        >
+          <Send className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
@@ -218,59 +200,8 @@ export default function ChatTab() {
     createBacktrackFromTimeline,
     renderDialogueBubble,
   } = useContext(AppContext);
-  React.useEffect(() => {
-    const css = activeCharacter?.visualSettings?.customCss;
-    const styleId = "character-custom-css-style";
-    let styleEl = document.getElementById(styleId);
-
-    if (css) {
-      if (!styleEl) {
-        styleEl = document.createElement("style");
-        styleEl.id = styleId;
-        document.head.appendChild(styleEl);
-      }
-      styleEl.textContent = css;
-    } else {
-      if (styleEl) {
-        styleEl.remove();
-      }
-    }
-
-    return () => {
-      const el = document.getElementById(styleId);
-      if (el) el.remove();
-    };
-  }, [activeCharacter]);
-
-  const customThemeStyles = React.useMemo(() => {
-    if (!activeCharacter?.visualSettings) return {};
-    const vs = activeCharacter.visualSettings;
-    const styles: Record<string, string> = {};
-    if (vs.primaryColor) styles["--char-primary"] = vs.primaryColor;
-    if (vs.bubbleColor) styles["--char-bubble-bg"] = vs.bubbleColor;
-    if (vs.bubbleTextColor) styles["--char-bubble-text"] = vs.bubbleTextColor;
-    if (vs.userBubbleColor) styles["--user-bubble-bg"] = vs.userBubbleColor;
-    if (vs.userBubbleTextColor) styles["--user-bubble-text"] = vs.userBubbleTextColor;
-    return styles as React.CSSProperties;
-  }, [activeCharacter]);
-
   return (
-    <div 
-      className="flex flex-col flex-1 min-h-0 bg-background relative overflow-hidden"
-      style={customThemeStyles}
-    >
-      {/* Character Specific Background Layer */}
-      {activeCharacter?.visualSettings?.backgroundImageUrl && (
-        <div 
-          className="absolute inset-0 pointer-events-none bg-cover bg-center transition-all duration-300"
-          style={{
-            backgroundImage: `url(${activeCharacter.visualSettings.backgroundImageUrl})`,
-            opacity: activeCharacter.visualSettings.backgroundOpacity !== undefined ? activeCharacter.visualSettings.backgroundOpacity : 0.15,
-            filter: `blur(${activeCharacter.visualSettings.backgroundBlur !== undefined ? activeCharacter.visualSettings.backgroundBlur : 4}px)`,
-            zIndex: 0
-          }}
-        />
-      )}
+    <div className="flex flex-col flex-1 min-h-0 bg-background">
       {/* Embedded Header info card */}
       <div className="bg-card p-3 border-b border-border flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -356,11 +287,47 @@ export default function ChatTab() {
       {/* Sub-tab 1: DIALOGUE HISTORY */}
       {chatSubTab === "dialogue" && (
         <div className="flex-1 flex flex-col min-h-0">
-
+          {/* Triggered worldbook active panel indicator */}
+          {activeSession && activeCharacter && (
+            <div className="bg-muted/50 border-b border-border px-3.5 py-1.5 flex items-center gap-2 overflow-x-auto text-[10.5px]">
+              <span className="text-primary font-medium whitespace-nowrap">
+                世界书激活项:
+              </span>
+              {(() => {
+                const textString = activeSession.messages
+                  .slice(-3)
+                  .map((m) => m.content)
+                  .join(" ");
+                const triggered = (
+                  activeCharacter.lorebookEntries || []
+                ).filter(
+                  (e) =>
+                    e.enabled &&
+                    (e.constant ||
+                      e.keys.some((k) => k && textString.includes(k))),
+                );
+                if (triggered.length === 0)
+                  return (
+                    <span className="text-muted-foreground italic">
+                      暂无事件激活
+                    </span>
+                  );
+                return triggered.map((t) => (
+                  <span
+                    key={t.id}
+                    className="bg-muted border border-border text-muted-foreground px-1 py-0.5 rounded whitespace-nowrap"
+                    title={t.content}
+                  >
+                    🔑 {t.keys[0]}
+                  </span>
+                ));
+              })()}
+            </div>
+          )}
 
           {/* Dialog Scroll area */}
           <div
-            className="p-3.5 space-y-4 flex-1 overflow-y-auto custom-scrollbar bg-transparent relative z-10"
+            className="p-3.5 space-y-4 flex-1 overflow-y-auto custom-scrollbar"
             onClick={() => {
               if (msgMenuId) setMsgMenuId(null);
             }}
@@ -509,18 +476,6 @@ export default function ChatTab() {
                                   ? "bg-primary text-primary-foreground border-primary/50 hover:bg-primary/90"
                                   : "bg-card text-foreground border-border shadow-sm"
                               }`}
-                              style={
-                                isUser
-                                  ? {
-                                      backgroundColor: "var(--user-bubble-bg, var(--primary))",
-                                      color: "var(--user-bubble-text, var(--primary-foreground))",
-                                      borderColor: "var(--user-bubble-bg, var(--primary))",
-                                    }
-                                  : {
-                                      backgroundColor: "var(--char-bubble-bg, var(--card))",
-                                      color: "var(--char-bubble-text, var(--foreground))",
-                                    }
-                              }
                             >
                               {message.content === "💭..." ? (
                                 <TypingIndicator />
@@ -697,9 +652,8 @@ export default function ChatTab() {
             </div>
             <button
               onClick={() => {
-                setEditingSummaryId(null);
                 setNewSummaryTag(
-                  `幕段 ${(sessions.find((s) => s.id === activeSessionId)?.summaries || []).length}`,
+                  `幕段 ${sessions.find((s) => s.id === activeSessionId)?.summaries?.length || 0}`,
                 );
                 setNewSummaryLoc(
                   activeCharacter?.scenario?.slice(0, 8) || "荒野野营",
@@ -714,7 +668,7 @@ export default function ChatTab() {
           </div>
 
           <div className="relative border-l border-amber-655 border-primary/25 ml-3 pl-5 space-y-5 py-2">
-            {(activeSession?.summaries || []).map((summary) => (
+            {activeSession?.summaries.map((summary) => (
               <div
                 key={summary.id}
                 className="relative group bg-card p-3 rounded-lg border border-border shadow-sm"
@@ -757,7 +711,7 @@ export default function ChatTab() {
                             "是否彻底解散清除该记忆卡片？",
                           );
                         if (ok) {
-                          const nextSums = (activeSession.summaries || []).filter(
+                          const nextSums = activeSession.summaries.filter(
                             (s) => s.id !== summary.id,
                           );
                           const updated = {
@@ -787,7 +741,7 @@ export default function ChatTab() {
             ))}
 
             {(!activeSession?.summaries ||
-              (activeSession.summaries || []).length === 0) && (
+              activeSession.summaries.length === 0) && (
               <div className="text-center py-8 text-muted-foreground border border-dashed border-border/80 rounded pl-2">
                 <Clock className="w-8 h-8 stroke-[1.2] mx-auto mb-1.5 opacity-60" />
                 <p className="text-xs">目前尚未归档任何宏观发展大纲</p>

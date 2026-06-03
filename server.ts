@@ -13,9 +13,6 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // We are behind a reverse proxy, trust the first proxy to enable express-rate-limit 
-  app.set('trust proxy', 1);
-
   // Use JSON parser with higher limits for backups and character cards
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -72,6 +69,7 @@ async function startServer() {
         fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
       }
 
+      
       const isStream = reqBody.stream === true;
       
       const response = await fetch(targetUrl, {

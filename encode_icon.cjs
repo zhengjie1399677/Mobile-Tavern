@@ -1,0 +1,1 @@
+const fs = require('fs'); const b64 = fs.readFileSync('app-icon.png').toString('base64'); fs.writeFileSync('app-icon.base64', b64); console.log('Encoded app-icon.png to app-icon.base64');
