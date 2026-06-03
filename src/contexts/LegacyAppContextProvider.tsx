@@ -53,7 +53,7 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
   const chatHook = useChat(settingsHook.settings, settingsHook.globalLorebook, chatBottomRef);
 
   // Wrap handleDeleteCharacter to inject chatState dependencies
-  const wrappedHandleDeleteCharacter = async (id: string, e: React.MouseEvent) => {
+  const wrappedHandleDeleteCharacter = React.useCallback(async (id: string, e: React.MouseEvent) => {
     return charactersHook.handleDeleteCharacter(
       id,
       e,
@@ -61,26 +61,26 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
       chatState.setSessions,
       chatState.deleteSession
     );
-  };
+  }, [charactersHook, chatState.sessions, chatState.setSessions, chatState.deleteSession]);
 
   // Wrap backup exports to inject current characters and sessions states
-  const wrappedHandleExportLocalDataBackup = async () => {
+  const wrappedHandleExportLocalDataBackup = React.useCallback(async () => {
     return settingsHook.handleExportLocalDataBackup(
       charState.characters,
       chatState.sessions
     );
-  };
+  }, [settingsHook, charState.characters, chatState.sessions]);
 
   // Wrap backup imports to inject state dispatch actions
-  const wrappedHandleImportLocalDataBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const wrappedHandleImportLocalDataBackup = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     return settingsHook.handleImportLocalDataBackup(
       e,
       charState.setCharacters,
       chatState.setSessions
     );
-  };
+  }, [settingsHook, charState.setCharacters, chatState.setSessions]);
 
-  const appContextValue = {
+  const appContextValue = React.useMemo(() => ({
     // Context States
     ...appState,
     ...charState,
@@ -100,7 +100,17 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     handleDeleteCharacter: wrappedHandleDeleteCharacter,
     handleExportLocalDataBackup: wrappedHandleExportLocalDataBackup,
     handleImportLocalDataBackup: wrappedHandleImportLocalDataBackup,
-  };
+  }), [
+    appState,
+    charState,
+    chatState,
+    settingsHook,
+    charactersHook,
+    chatHook,
+    wrappedHandleDeleteCharacter,
+    wrappedHandleExportLocalDataBackup,
+    wrappedHandleImportLocalDataBackup,
+  ]);
 
   return (
     <AppContext.Provider value={appContextValue}>

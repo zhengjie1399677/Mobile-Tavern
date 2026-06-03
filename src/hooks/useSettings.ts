@@ -7,6 +7,8 @@ import {
   saveGlobalLorebook as dbSaveGlobalLorebook,
   saveCharacter,
   saveSession,
+  bulkSaveCharacters,
+  bulkSaveSessions,
 } from "../utils/localDB";
 import { useApp } from "../contexts/AppContext";
 import { useChatState } from "../contexts/ChatContext";
@@ -724,8 +726,8 @@ export const useSettings = () => {
         "数据解密与格式校验成功！此备份覆盖将导致当前浏览器的本地全部状态清空，是否确认还原？",
       );
       if (ok) {
-        for (const c of validatedCharacters) await saveCharacter(c);
-        for (const s of validatedSessions) await saveSession(s);
+        await bulkSaveCharacters(validatedCharacters);
+        await bulkSaveSessions(validatedSessions);
         if (parsed.settings) await saveStoredSettings(parsed.settings);
         if (parsed.globalLorebook)
           await dbSaveGlobalLorebook(parsed.globalLorebook);

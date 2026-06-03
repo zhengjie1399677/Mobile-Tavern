@@ -172,3 +172,35 @@ export async function saveGlobalLorebook(
     request.onerror = () => reject(request.error);
   });
 }
+
+export async function bulkSaveCharacters(charactersList: CharacterCard[]): Promise<void> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    if (charactersList.length === 0) return resolve();
+    const transaction = db.transaction("characters", "readwrite");
+    const store = transaction.objectStore("characters");
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+
+    for (const char of charactersList) {
+      store.put(char);
+    }
+  });
+}
+
+export async function bulkSaveSessions(sessionsList: ChatSession[]): Promise<void> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    if (sessionsList.length === 0) return resolve();
+    const transaction = db.transaction("sessions", "readwrite");
+    const store = transaction.objectStore("sessions");
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+
+    for (const session of sessionsList) {
+      store.put(session);
+    }
+  });
+}

@@ -6,6 +6,7 @@ import { Message, ChatSession, SummaryCard } from "../types";
 import { assemblePromptContext } from "../utils/promptBuilder";
 import { reportUsage, incrementUsageCount } from "../utils/telemetry";
 import { universalFetch } from "../utils/apiClient";
+import FormattedText from "../components/FormattedText";
 
 export const useChat = (
   settings: any,
@@ -88,9 +89,13 @@ export const useChat = (
       summaries: [],
     };
 
-    await saveSession(newSession);
-    setActiveSessionId(newSession.id);
-    triggerScroll("instant");
+    try {
+      await saveSession(newSession);
+      setActiveSessionId(newSession.id);
+      triggerScroll("instant");
+    } catch (err: any) {
+      console.error("Failed to save new session:", err);
+    }
   };
 
   const handleSendMessage = async (textToSend: string) => {
@@ -133,7 +138,13 @@ export const useChat = (
     setSessions((prev) =>
       prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
     );
-    await saveSession(updatedSession);
+    try {
+      await saveSession(updatedSession);
+    } catch (err: any) {
+      console.error("Failed to save session user message:", err);
+      setIsSending(false);
+      return;
+    }
     triggerScroll("smooth");
     setIsSending(true);
 
@@ -336,10 +347,11 @@ export const useChat = (
             ...updatedSession,
             messages: updatedSession.messages.concat([finishedAiMsg]),
           };
-          setSessions((prev) =>
-            prev.map((s) => (s.id === trueFinalSession.id ? trueFinalSession : s))
-          );
-          await saveSession(trueFinalSession);
+          try {
+            await saveSession(trueFinalSession);
+          } catch (saveErr) {
+            console.error("Failed to save aborted session message:", saveErr);
+          }
           await handleAutoSummaryCheck(trueFinalSession);
         } else {
           setSessions((prev) =>
@@ -412,9 +424,23 @@ export const useChat = (
     setSessions((prev) =>
       prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
     );
-    await saveSession(updatedSession);
+    try {
+      await saveSession(updatedSession);
+    } catch (err: any) {
+      console.error("Failed to save session for reroll:", err);
+      setIsSending(false);
+      return;
+    }
     triggerScroll();
     setIsSending(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    let responseText = "";
+    let tokenUsage = { prompt: 0, completion: 0 };
+    const startTime = performance.now();
+    const aiMsgId = "msg_ai_" + Math.random().toString(36).substring(2, 9);
 
     try {
       const otherCharGlobals = characters
@@ -430,11 +456,6 @@ export const useChat = (
         settings,
         globalLorebook: combinedGlobals,
       });
-
-      let responseText = "";
-      let tokenUsage = { prompt: 0, completion: 0 };
-      const startTime = performance.now();
-      const aiMsgId = "msg_ai_" + Math.random().toString(36).substring(2, 9);
 
       const placeholderAiMsg: Message = {
         id: aiMsgId,
@@ -477,7 +498,7 @@ export const useChat = (
           frequency_penalty: settings.preset.frequencyPenalty ?? 0.0,
           repetition_penalty: settings.preset.repetitionPenalty,
         },
-      });
+      }, controller.signal);
 
       if (!response.ok) {
         const errText = await response.text();
@@ -595,31 +616,65 @@ export const useChat = (
 
       await handleAutoSummaryCheck(trueFinalSession);
     } catch (e: any) {
-      console.error("AI Regeneration failed:", e);
-      reportUsage("api_error", {
-        detail: String(e.message || "Unknown error"),
-        playerName: settings.userName,
-        characterName: activeCharacter.name,
-        modelName: settings.api.modelName,
-        sessionId: updatedSession.id,
-      });
-      const errorMsg: Message = {
-        id: "msg_err_" + Math.random().toString(36).substring(2, 9),
-        sender: "system",
-        content: `【连接错误】重新生成失败。请检查端口或API秘钥状态。详细错误: ${e.message}`,
-        timestamp: Date.now(),
-      };
-      const finalSession = {
-        ...updatedSession,
-        messages: [...updatedSession.messages, errorMsg],
-      };
-      setSessions((prev) =>
-        prev.map((s) => (s.id === finalSession.id ? finalSession : s))
-      );
-      await saveSession(finalSession);
-      triggerScroll();
+      const isManualAbort = e.name === "AbortError" || e.message?.includes("aborted") || controller.signal.aborted;
+      if (isManualAbort) {
+        if (responseText.trim().length > 0) {
+          const finishedAiMsg: Message = {
+            id: aiMsgId,
+            sender: "assistant",
+            content: responseText.trim(),
+            timestamp: Date.now(),
+          };
+          const trueFinalSession = {
+            ...updatedSession,
+            messages: updatedSession.messages.concat([finishedAiMsg]),
+          };
+          try {
+            await saveSession(trueFinalSession);
+          } catch (saveErr) {
+            console.error("Failed to save aborted session message:", saveErr);
+          }
+          await handleAutoSummaryCheck(trueFinalSession);
+        } else {
+          setSessions((prev) =>
+            prev.map((s) => ({
+              ...s,
+              messages: s.messages.filter((m) => m.id !== aiMsgId),
+            }))
+          );
+        }
+      } else {
+        console.error("AI Regeneration failed:", e);
+        reportUsage("api_error", {
+          detail: String(e.message || "Unknown error"),
+          playerName: settings.userName,
+          characterName: activeCharacter.name,
+          modelName: settings.api.modelName,
+          sessionId: updatedSession.id,
+        });
+        const errorMsg: Message = {
+          id: "msg_err_" + Math.random().toString(36).substring(2, 9),
+          sender: "system",
+          content: `【连接错误】重新生成失败。请检查端口或API秘钥状态。详细错误: ${e.message}`,
+          timestamp: Date.now(),
+        };
+        const finalSession = {
+          ...updatedSession,
+          messages: [...updatedSession.messages, errorMsg],
+        };
+        setSessions((prev) =>
+          prev.map((s) => (s.id === finalSession.id ? finalSession : s))
+        );
+        try {
+          await saveSession(finalSession);
+        } catch (saveErr) {
+          console.error("Failed to save error session message:", saveErr);
+        }
+        triggerScroll();
+      }
     } finally {
       setIsSending(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -769,30 +824,38 @@ export const useChat = (
       createdAt: Date.now(),
     };
 
-    await saveSession(newSession);
-    setActiveSessionId(newSession.id);
-    setShowSessionManager(false);
+    try {
+      await saveSession(newSession);
+      setActiveSessionId(newSession.id);
+      setShowSessionManager(false);
+    } catch (err: any) {
+      console.error("Failed to save new branch session:", err);
+    }
   };
 
   const deleteBranch = async (id: string) => {
     const confirm = await showCustomConfirm("确定要永久删除这个聊天分支吗？(无法恢复)");
     if (!confirm) return;
 
-    await deleteSession(id);
-    setSessions((prev) => {
-      const remaining = prev.filter((s) => s.id !== id);
-      if (activeSessionId === id) {
-        const charRemaining = remaining
-          .filter((s) => s.characterId === activeCharId)
-          .sort((a, b) => b.createdAt - a.createdAt);
-        if (charRemaining.length > 0) {
-          setActiveSessionId(charRemaining[0].id);
-        } else {
-          setActiveSessionId(null);
+    try {
+      await deleteSession(id);
+      setSessions((prev) => {
+        const remaining = prev.filter((s) => s.id !== id);
+        if (activeSessionId === id) {
+          const charRemaining = remaining
+            .filter((s) => s.characterId === activeCharId)
+            .sort((a, b) => b.createdAt - a.createdAt);
+          if (charRemaining.length > 0) {
+            setActiveSessionId(charRemaining[0].id);
+          } else {
+            setActiveSessionId(null);
+          }
         }
-      }
-      return remaining;
-    });
+        return remaining;
+      });
+    } catch (err: any) {
+      console.error("Failed to delete branch session:", err);
+    }
   };
 
   const selectCharacter = async (charId: string) => {
@@ -827,8 +890,12 @@ export const useChat = (
           : [],
         summaries: [],
       };
-      await saveSession(newSession);
-      setActiveSessionId(newSession.id);
+      try {
+        await saveSession(newSession);
+        setActiveSessionId(newSession.id);
+      } catch (err: any) {
+        console.error("Failed to save new session for character:", err);
+      }
     }
     setActiveTab("chat");
     triggerScroll();
@@ -855,12 +922,16 @@ export const useChat = (
       summaries: [...(activeSession.summaries || [])],
     };
 
-    await saveSession(newSession);
-    setActiveSessionId(newSession.id);
-    setMsgMenuId(null);
-    setChatSubTab("dialogue");
-    await showCustomAlert("分支故事线创建完美拉起！您已成功无痛回溯至选定对话时间轴。");
-    triggerScroll();
+    try {
+      await saveSession(newSession);
+      setActiveSessionId(newSession.id);
+      setMsgMenuId(null);
+      setChatSubTab("dialogue");
+      await showCustomAlert("分支故事线创建完美拉起！您已成功无痛回溯至选定对话时间轴。");
+      triggerScroll();
+    } catch (err: any) {
+      console.error("Failed to save backtrack branch session:", err);
+    }
   };
 
   const createBacktrackFromTimeline = async (summary: SummaryCard) => {
@@ -893,11 +964,15 @@ export const useChat = (
       summaries: targetBranchesSummaries,
     };
 
-    await saveSession(newSession);
-    setActiveSessionId(newSession.id);
-    setChatSubTab("dialogue");
-    await showCustomAlert(`已基于时间线：“${summary.timeTag}” 重构分叉世界！`);
-    triggerScroll();
+    try {
+      await saveSession(newSession);
+      setActiveSessionId(newSession.id);
+      setChatSubTab("dialogue");
+      await showCustomAlert(`已基于时间线：“${summary.timeTag}” 重构分叉世界！`);
+      triggerScroll();
+    } catch (err: any) {
+      console.error("Failed to save backtrack timeline session:", err);
+    }
   };
 
   const handleAddTimelineSummary = async () => {
@@ -933,7 +1008,11 @@ export const useChat = (
     setSessions((prev) =>
       prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
     );
-    await saveSession(updatedSession);
+    try {
+      await saveSession(updatedSession);
+    } catch (err: any) {
+      console.error("Failed to save timeline summary:", err);
+    }
 
     setNewSummaryTag("");
     setNewSummaryLoc("");
@@ -943,49 +1022,13 @@ export const useChat = (
   };
 
   const renderDialogueBubble = (text: string) => {
-    const processedText = (text || "").replace(
-      /\{\{user\}\}/gi,
-      settings.userName || "未知探客"
+    return (
+      <FormattedText
+        text={text}
+        charName={activeCharacter?.name || ""}
+        userName={settings.userName}
+      />
     );
-
-    if (settings.enableHtmlRendering) {
-      return (
-        <div
-          className="font-sans font-medium text-foreground text-[15.5px] leading-relaxed whitespace-pre-wrap"
-          dangerouslySetInnerHTML={{ __html: processedText }}
-        />
-      );
-    }
-
-    const parts = processedText.split(
-      /(\（[^）]+\）|\([^)]+\)|【[^】]+】|\*\*[^*]+\*\*|\*[^*]+\*)/g
-    );
-    return parts.map((part, idx) => {
-      if (!part) return null;
-      const isAction =
-        (part.startsWith("（") && part.endsWith("）")) ||
-        (part.startsWith("(") && part.endsWith(")")) ||
-        (part.startsWith("【") && part.endsWith("】")) ||
-        (part.startsWith("*") && part.endsWith("*"));
-      if (isAction) {
-        return (
-          <span
-            key={idx}
-            className="font-serif italic text-muted-foreground font-light text-[15px] opacity-90 block my-1 whitespace-pre-wrap"
-          >
-            {part}
-          </span>
-        );
-      }
-      return (
-        <span
-          key={idx}
-          className="font-sans font-medium text-foreground text-[15.5px] leading-relaxed block my-1 whitespace-pre-wrap"
-        >
-          {part}
-        </span>
-      );
-    });
   };
 
   return {

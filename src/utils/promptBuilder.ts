@@ -110,11 +110,11 @@ export function replaceMacros(
 ): string {
   if (!text) return "";
   return text
-    .replace(/\{\{char\}\}/g, params.char)
-    .replace(/\{\{user\}\}/g, params.user)
-    .replace(/\{\{description\}\}/g, params.description)
-    .replace(/\{\{personality\}\}/g, params.personality)
-    .replace(/\{\{scenario\}\}/g, params.scenario);
+    .replace(/\{\{char\}\}/g, () => params.char)
+    .replace(/\{\{user\}\}/g, () => params.user)
+    .replace(/\{\{description\}\}/g, () => params.description)
+    .replace(/\{\{personality\}\}/g, () => params.personality)
+    .replace(/\{\{scenario\}\}/g, () => params.scenario);
 }
 
 /**
@@ -138,6 +138,91 @@ export function assemblePromptContext(params: {
     personality: character.personality || "无",
     scenario: character.scenario || "无",
   };
+
+  // If roleplayMode is disabled, return a bare-bone prompt with zero Tavern system instructions.
+  if (settings.promptConfig?.roleplayMode === false) {
+    const { recentTurns } = settings.memory;
+    const totalRawMessages = chat.messages ? [...chat.messages] : [];
+    let activeMessagesToSend: Message[] = [];
+
+    if (totalRawMessages.length > 0) {
+      const validChatMessages = totalRawMessages.filter(
+        (m) => m.sender !== "system",
+      );
+      activeMessagesToSend = validChatMessages.slice(-recentTurns);
+    }
+
+    const chatHistory = activeMessagesToSend.map((msg) => {
+      let role: "user" | "model" | "assistant" = "user";
+      let content = msg.content;
+
+      if (msg.sender === "assistant") {
+        role = settings.api.type === "openai-compat" ? "assistant" : "model";
+        if (settings.promptConfig?.instructTemplate !== "default") {
+          const prefix = replaceMacros(
+            settings.promptConfig?.assistantPrefix || "",
+            macroParams,
+          );
+          const suffix = replaceMacros(
+            settings.promptConfig?.assistantSuffix || "",
+            macroParams,
+          );
+          content = `${prefix}${content}${suffix}`;
+        } else {
+          // Prepend speaker name as turn separator when no template preset is loaded
+          content = `${character.name}: ${content}`;
+        }
+      } else {
+        role = "user";
+        if (settings.promptConfig?.instructTemplate !== "default") {
+          const prefix = replaceMacros(
+            settings.promptConfig?.userPrefix || "",
+            macroParams,
+          );
+          const suffix = replaceMacros(
+            settings.promptConfig?.userSuffix || "",
+            macroParams,
+          );
+          content = `${prefix}${content}${suffix}`;
+        } else {
+          // Prepend speaker name as turn separator when no template preset is loaded
+          content = `${settings.userName || "User"}: ${content}`;
+        }
+      }
+
+      return {
+        role,
+        content,
+      };
+    });
+
+    let cleanSystem = "";
+    if (character.system_prompt) {
+      cleanSystem += `${replaceMacros(character.system_prompt, macroParams)}\n\n`;
+    }
+    if (settings.userInfo) {
+      cleanSystem += `=== User Persona ===\n${replaceMacros(settings.userInfo, macroParams)}\n\n`;
+    }
+
+    // Process world info keywords even in normal chat mode if they exist/are defined
+    const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
+    const activeEntries = getTriggeredLorebookEntries(
+      chat.messages || [],
+      userInput,
+      allEntries,
+    );
+
+    if (activeEntries.length > 0) {
+      cleanSystem += `=== Reference Lore ===\n${activeEntries.map((e) => e.content).join("\n\n")}\n\n`;
+    }
+
+    return {
+      systemInstruction: cleanSystem.trim(),
+      dynamicInstruction: "",
+      history: chatHistory,
+      userInput,
+    };
+  }
 
   // 1. Process Core Custom mainPrompt from SillyTavern configs
   const hasCustomPrompts =
@@ -293,9 +378,9 @@ export function assemblePromptContext(params: {
 === 时代背景与场景设定 ===
 {{scenario}}
 
-{{char_system}}
+{{char_system}}`;
 
-{{summaries}}
+  let dynamicSystemExtension = `{{summaries}}
 
 {{lorebook_entries}}
 
@@ -327,7 +412,7 @@ export function assemblePromptContext(params: {
     );
   }
 
-  // Substitute all fields
+  // Substitute all fields in Static Story
   compiledStory = compiledStory
     .replace(/\{\{system_prompt\}\}/gi, mainPromptReplaced + userPersonaSection)
     .replace(/\{\{personality\}\}/gi, personalityVal)
@@ -335,15 +420,20 @@ export function assemblePromptContext(params: {
     .replace(/\{\{char_description\}\}/gi, descriptionVal)
     .replace(/\{\{scenario\}\}/gi, scenarioVal)
     .replace(/\{\{char_scenario\}\}/gi, scenarioVal)
-    .replace(/\{\{char_system\}\}/gi, charSpecificPrompt)
+    .replace(/\{\{char_system\}\}/gi, charSpecificPrompt);
+
+  // Clean repeating double newlines left by empty sections
+  const systemInstruction = compiledStory.replace(/\n{3,}/g, "\n\n").trim();
+
+  // Substitute all fields in Dynamic Extension
+  dynamicSystemExtension = dynamicSystemExtension
     .replace(/\{\{summaries\}\}/gi, summarySection)
     .replace(/\{\{lorebook_entries\}\}/gi, afterCharSection)
     .replace(/\{\{wi\}\}/gi, afterCharSection)
     .replace(/\{\{jailbreak\}\}/gi, jailbreakSection)
     .replace(/\{\{post_history\}\}/gi, postHistorySection);
-
-  // Clean repeating double newlines left by empty sections
-  const systemInstruction = compiledStory.replace(/\n{3,}/g, "\n\n").trim();
+    
+  const dynamicInstruction = dynamicSystemExtension.replace(/\n{3,}/g, "\n\n").trim();
 
   // 8. Gather Recent Full Messages
   const { recentTurns } = settings.memory;
@@ -379,6 +469,9 @@ export function assemblePromptContext(params: {
           macroParams,
         );
         content = `${prefix}${content}${suffix}`;
+      } else {
+        // Prepend speaker name as turn separator when no template preset is loaded
+        content = `${character.name}: ${content}`;
       }
     } else {
       role = "user";
@@ -392,6 +485,9 @@ export function assemblePromptContext(params: {
           macroParams,
         );
         content = `${prefix}${content}${suffix}`;
+      } else {
+        // Prepend speaker name as turn separator when no template preset is loaded
+        content = `${settings.userName || "User"}: ${content}`;
       }
     }
 
@@ -442,6 +538,7 @@ export function assemblePromptContext(params: {
 
   return {
     systemInstruction,
+    dynamicInstruction,
     history: chatHistory,
     userInput,
   };

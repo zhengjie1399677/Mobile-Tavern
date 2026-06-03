@@ -113,6 +113,9 @@ export const useCharacters = () => {
       });
       setCharModalOpen(false);
       setEditingChar(null);
+    } catch (err: any) {
+      console.error("Failed to save character to IndexedDB:", err);
+      showCustomAlert("保存角色失败: " + err.message);
     } finally {
       setIsDbWriting(false);
     }
@@ -232,8 +235,13 @@ export const useCharacters = () => {
     setCharacters((prev) =>
       prev.map((c) => (c.id === updatedChar.id ? updatedChar : c))
     );
-    await saveCharacter(updatedChar);
-    setEditingActiveCharLoreEntry(null);
+    try {
+      await saveCharacter(updatedChar);
+      setEditingActiveCharLoreEntry(null);
+    } catch (err: any) {
+      console.error("Failed to save character lore to IndexedDB:", err);
+      showCustomAlert("保存设定失败: " + err.message);
+    }
   };
 
   const handleImportCardFile = async (

@@ -72,7 +72,7 @@ export default function MainLayout() {
             }`}
           >
             <Settings className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] font-medium">端控制</span>
+            <span className="text-[10px] font-medium">控制端</span>
           </button>
         </div>
 

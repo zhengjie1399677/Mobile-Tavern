@@ -21,6 +21,9 @@ async function startServer() {
   app.post("/api/test-connection", async (req, res) => {
     try {
       const { type, baseUrl, apiKey, modelName } = req.body;
+      if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
+        return res.json({ success: false, error: "Invalid baseUrl protocol. Only http:// and https:// are allowed." });
+      }
 
       // Proxy OpenAI-compatible API
       const targetUrl = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
@@ -55,10 +58,15 @@ async function startServer() {
 
   // API 3: OpenAI API Proxy (CORS Bypass for mobile/iframe compatibility)
   app.post("/api/proxy/openai", async (req, res) => {
+    const controller = new AbortController();
+    req.on("close", () => {
+      controller.abort();
+    });
+
     try {
       const { baseUrl, apiKey, reqBody } = req.body;
-      if (!baseUrl) {
-        return res.status(400).json({ success: false, error: "baseUrl is required" });
+      if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
+        return res.status(400).json({ success: false, error: "Invalid baseUrl protocol. Only http:// and https:// are allowed." });
       }
 
       const targetUrl = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
@@ -69,13 +77,13 @@ async function startServer() {
         fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
       }
 
-      
       const isStream = reqBody.stream === true;
       
       const response = await fetch(targetUrl, {
         method: "POST",
         headers: fetchHeaders,
         body: JSON.stringify(reqBody),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -108,10 +116,14 @@ async function startServer() {
       res.json(data);
     } catch (error: any) {
       console.error("OpenAI Proxy Chat Error:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message || "Failed to make proxied request.",
-      });
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: error.message || "Failed to make proxied request.",
+        });
+      } else {
+        res.end();
+      }
     }
   });
 
@@ -120,10 +132,8 @@ async function startServer() {
     try {
       const { type, baseUrl, apiKey } = req.body;
 
-
-
-      if (!baseUrl) {
-        return res.status(400).json({ success: false, error: "baseUrl is required for standard proxy" });
+      if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
+        return res.status(400).json({ success: false, error: "Invalid baseUrl protocol. Only http:// and https:// are allowed." });
       }
 
       const targetUrl = `${baseUrl.replace(/\/$/, "")}/models`;
@@ -183,8 +193,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  app.listen(PORT, "127.0.0.1", () => {
+    console.log(`Server running on http://127.0.0.1:${PORT}`);
   });
 }
 

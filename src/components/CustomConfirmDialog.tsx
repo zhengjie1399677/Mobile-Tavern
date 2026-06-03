@@ -1,12 +1,18 @@
-import React, { useContext } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import { AppContext } from "../AppContext";
 
 export default function CustomConfirmDialog() {
   const {
     customDialog,
-    promptInputVal,
-    setPromptInputVal,
   } = useContext(AppContext);
+
+  const [localVal, setLocalVal] = useState("");
+
+  useEffect(() => {
+    if (customDialog && customDialog.isOpen && customDialog.type === "prompt") {
+      setLocalVal(customDialog.defaultValue || "");
+    }
+  }, [customDialog]);
 
   if (!customDialog || !customDialog.isOpen) return null;
 
@@ -27,11 +33,11 @@ export default function CustomConfirmDialog() {
             <div className="pt-2">
               <input
                 type="text"
-                value={promptInputVal}
-                onChange={(e) => setPromptInputVal(e.target.value)}
+                value={localVal}
+                onChange={(e) => setLocalVal(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    customDialog.onConfirmPrompt?.(promptInputVal);
+                    customDialog.onConfirmPrompt?.(localVal);
                   }
                 }}
                 autoFocus
@@ -53,7 +59,7 @@ export default function CustomConfirmDialog() {
           <button
             onClick={() => {
               if (customDialog.type === "prompt") {
-                customDialog.onConfirmPrompt?.(promptInputVal);
+                customDialog.onConfirmPrompt?.(localVal);
               } else {
                 customDialog.onConfirm?.();
               }
