@@ -14,18 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           lfs: true
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
       - name: Install Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -54,8 +54,8 @@ jobs:
       - name: Initialize Android Project
         run: npx tauri android init
         env:
-          NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
-          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+          NDK_HOME: ${{ env.NDK_HOME }}
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         continue-on-error: true
 
       - name: Fix gradlew permissions
@@ -65,8 +65,8 @@ jobs:
       - name: Build Android APK
         run: npm run build:android
         env:
-          NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
-          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+          NDK_HOME: ${{ env.NDK_HOME }}
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
 
       - name: Sign and Prepare APK
         env:
@@ -99,14 +99,14 @@ jobs:
           fi
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: mobile-tavern-release.apk
           path: MobileTavern.apk
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           files: MobileTavern.apk
           draft: true
