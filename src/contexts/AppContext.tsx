@@ -5,7 +5,8 @@ export type TabType =
   | "chat"
   | "chat-history"
   | "settings"
-  | "global-worldbook";
+  | "global-worldbook"
+  | "playground";
 
 export type ThemeType = "snow" | "sand" | "ocean";
 
@@ -66,20 +67,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       document.documentElement.style.colorScheme = "light";
     }
 
-    let color = "#f7f4ef"; // sand default
+    // Map theme to the actual background hex that matches index.css variables
+    let color = "#f5f0e8"; // sand default
     if (currentTheme === "snow") {
       color = "#f9fbfc";
     } else if (currentTheme === "ocean") {
-      color = "#0c1b33";
-    }
-
-    // Toggle Android status bar icon theme and background color
-    if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.setStatusBarStyle === "function") {
-      try {
-        (window as any).AndroidThemeBridge.setStatusBarStyle(isDark, color);
-      } catch (e) {
-        console.error("Failed to set Android status bar style:", e);
-      }
+      color = "#1a2040"; // approximates oklch(0.15 0.03 260)
     }
 
     // Synchronize meta color-scheme
@@ -99,7 +92,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       document.head.appendChild(metaThemeColor);
     }
     metaThemeColor.setAttribute("content", color);
+
+    // Toggle Android native status bar icon color and background.
+    // Cold-start initialization is handled by Kotlin reading SharedPreferences in onCreate().
+    // This call updates the live status bar when the user switches themes at runtime.
+    const bridge = (window as any).AndroidThemeBridge;
+    if (bridge && typeof bridge.setStatusBarStyle === "function") {
+      try {
+        bridge.setStatusBarStyle(isDark, color);
+      } catch (e) {
+        console.error("Failed to set Android status bar style:", e);
+      }
+    }
   }, [currentTheme]);
+
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -123,7 +129,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const showCustomConfirm = (message: string, title: string = "确认操作") => {
+  const showCustomConfirm = (message: string, title: string = "确认") => {
     return new Promise<boolean>((resolve) => {
       setCustomDialog({
         isOpen: true,
@@ -142,20 +148,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const showCustomPrompt = (
-    message: string,
-    defaultValue: string = "",
-    title: string = "输入内容"
-  ) => {
-    setPromptInputVal(defaultValue);
+  const showCustomPrompt = (message: string, defaultValue: string = "", title: string = "输入") => {
     return new Promise<string | null>((resolve) => {
+      setPromptInputVal(defaultValue);
       setCustomDialog({
         isOpen: true,
         title,
         message,
         type: "prompt",
         defaultValue,
-        onConfirmPrompt: (value) => {
+        onConfirmPrompt: (value: string) => {
           setCustomDialog(null);
           resolve(value);
         },
@@ -192,10 +194,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 };
 
-export const useApp = () => {
+export const useAppContext = () => {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error("useApp must be used within an AppProvider");
+    throw new Error("useAppContext must be used within an AppProvider");
   }
   return context;
 };
+
+export const useApp = useAppContext;
+

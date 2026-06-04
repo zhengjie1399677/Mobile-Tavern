@@ -7,6 +7,7 @@ import ChatHistoryTab from "../tabs/ChatHistoryTab";
 import ChatTab from "../tabs/ChatTab";
 import GlobalWorldbookTab from "../tabs/GlobalWorldbookTab";
 import SettingsTab from "../tabs/SettingsTab";
+import PlaygroundTab from "../tabs/PlaygroundTab";
 
 import CharacterEditModal from "./CharacterEditModal";
 import TimelineModal from "./TimelineModal";
@@ -26,7 +27,7 @@ export default function MainLayout() {
       <SplashScreen isVisible={showSplash} />
       <div className="flex flex-col h-[100dvh] pt-[max(env(safe-area-inset-top),8px)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
-        {activeTab !== "chat" && (
+        {activeTab !== "chat" && activeTab !== "playground" && (
           <div className="absolute bottom-0 left-0 right-0 h-[calc(4rem+max(env(safe-area-inset-bottom),16px))] pb-[max(env(safe-area-inset-bottom),16px)] bg-background backdrop-blur border-t border-border flex items-center justify-around z-20">
             <button
               onClick={() => setActiveTab("characters")}
@@ -81,7 +82,7 @@ export default function MainLayout() {
         {/* 2. Content Sections Grid */}
         <div
           className={`flex-1 relative ${
-            activeTab === "chat"
+            activeTab === "chat" || activeTab === "playground"
               ? "flex flex-col min-h-0 pb-0"
               : "overflow-y-auto pb-[calc(4rem+max(env(safe-area-inset-bottom),16px))]"
           }`}
@@ -100,6 +101,11 @@ export default function MainLayout() {
 
           {/* === SECTION D: SYSTEM CONTROL PANEL === */}
           {activeTab === "settings" && <SettingsTab />}
+
+          {/* === SECTION E: DEVELOPER PLAYGROUND === */}
+          {activeTab === "playground" && (
+            <PlaygroundTab onBack={() => setActiveTab("settings")} />
+          )}
         </div>
 
         {/* 3. Global Modal Overlays */}

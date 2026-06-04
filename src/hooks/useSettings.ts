@@ -83,6 +83,8 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
 === 时代背景与场景设定 ===
 {{scenario}}
 
+{{mes_example}}
+
 {{char_system}}
 
 {{summaries}}

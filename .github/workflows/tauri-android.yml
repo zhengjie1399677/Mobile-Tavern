@@ -35,6 +35,9 @@ jobs:
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
       - name: Install dependencies
         run: npm ci
 
@@ -45,11 +48,8 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
-
-      - name: Install NDK
-        run: |
-          rm -rf $ANDROID_HOME/ndk/*
-          sdkmanager "ndk;25.2.9519653"
+        with:
+          packages: 'tools platform-tools ndk;25.2.9519653'
 
       - name: Set NDK Home
         run: |
@@ -79,19 +79,23 @@ jobs:
           fi
           if [ -n "$apk_path" ]; then
             echo "Using APK at: $apk_path"
-            # Decode Keystore
-            echo "$KEYSTORE_B64" | base64 -d > release.keystore
             
             # Find Build Tools
             BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
             
-            # Zipalign
-            $BUILD_TOOLS_DIR/zipalign -v -f 4 "$apk_path" MobileTavern-aligned.apk
-            
-            # Sign
-            $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$KEYSTORE_PASSWORD" MobileTavern-aligned.apk
-            
-            mv MobileTavern-aligned.apk MobileTavern.apk
+            if [ -n "$KEYSTORE_B64" ]; then
+              echo "Keystore secret detected. Proceeding with signing."
+              # Decode Keystore
+              echo "$KEYSTORE_B64" | base64 -d > release.keystore
+              # Zipalign
+              $BUILD_TOOLS_DIR/zipalign -v -f 4 "$apk_path" MobileTavern-aligned.apk
+              # Sign
+              $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$KEYSTORE_PASSWORD" MobileTavern-aligned.apk
+              mv MobileTavern-aligned.apk MobileTavern.apk
+            else
+              echo "WARNING: SIGNING_KEY secret not found. Skipping signing. Copying raw APK."
+              cp "$apk_path" MobileTavern.apk
+            fi
           else
             echo "::error::APK not found"
             exit 1

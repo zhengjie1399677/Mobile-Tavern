@@ -25,7 +25,8 @@ export function getTriggeredLorebookEntries(
     }
 
     // 1. Determine scanning depth (how many recent messages to inspect)
-    const scanDepth = entry.scanDepth !== undefined ? entry.scanDepth : (entry.depth !== undefined ? entry.depth : 4);
+    // Fall back to a default scan depth of 10 messages instead of entry.depth (insertion depth) to ensure keywords trigger reliably.
+    const scanDepth = entry.scanDepth !== undefined ? entry.scanDepth : 10;
     if (scanDepth === 0) continue; // scan_depth 0 means no match (unless constant, which is handled above)
     
     const scanMessages = messages ? messages.slice(-scanDepth) : [];
@@ -39,10 +40,13 @@ export function getTriggeredLorebookEntries(
         try {
           let pattern = trimmed;
           let flags = isCaseSensitive ? "" : "i";
-          if (trimmed.startsWith("/") && trimmed.lastIndexOf("/") > 0) {
-            pattern = trimmed.substring(1, trimmed.lastIndexOf("/"));
-            const rawFlags = trimmed.substring(trimmed.lastIndexOf("/") + 1);
-            flags = isCaseSensitive ? rawFlags.replace(/i/g, "") : (rawFlags.includes("i") ? rawFlags : rawFlags + "i");
+          const regexMatch = trimmed.match(/^\/(.+)\/([dgimsuy]*)$/i);
+          if (regexMatch) {
+            pattern = regexMatch[1];
+            const rawFlags = regexMatch[2];
+            flags = isCaseSensitive
+              ? rawFlags.replace(/i/g, "")
+              : (rawFlags.toLowerCase().includes("i") ? rawFlags : rawFlags + "i");
           }
           return new RegExp(pattern, flags).test(scanText);
         } catch {
@@ -97,6 +101,7 @@ export function getTriggeredLorebookEntries(
 
 /**
  * Helper to replace SillyTavern style bracket macros in templates.
+ * Robustly matches various capitalizations and prefixes used in SillyTavern ecosystem.
  */
 export function replaceMacros(
   text: string,
@@ -106,15 +111,30 @@ export function replaceMacros(
     description: string;
     personality: string;
     scenario: string;
+    userPersona?: string;
+    mes_example?: string;
   },
 ): string {
   if (!text) return "";
-  return text
-    .replace(/\{\{char\}\}/g, () => params.char)
-    .replace(/\{\{user\}\}/g, () => params.user)
-    .replace(/\{\{description\}\}/g, () => params.description)
-    .replace(/\{\{personality\}\}/g, () => params.personality)
-    .replace(/\{\{scenario\}\}/g, () => params.scenario);
+  let result = text
+    .replace(/\{\{char(a|_name)?\}\}/gi, () => params.char)
+    .replace(/\{\{user(_name)?\}\}/gi, () => params.user)
+    .replace(/\{\{char_description\}\}/gi, () => params.description)
+    .replace(/\{\{description\}\}/gi, () => params.description)
+    .replace(/\{\{char_personality\}\}/gi, () => params.personality)
+    .replace(/\{\{personality\}\}/gi, () => params.personality)
+    .replace(/\{\{char_scenario\}\}/gi, () => params.scenario)
+    .replace(/\{\{scenario\}\}/gi, () => params.scenario)
+    .replace(/\{\{userPersona\}\}/gi, () => params.userPersona || "")
+    .replace(/\{\{persona\}\}/gi, () => params.userPersona || "");
+
+  if (params.mes_example !== undefined) {
+    result = result
+      .replace(/\{\{mes_example\}\}/gi, () => params.mes_example!)
+      .replace(/\{\{diags\}\}/gi, () => params.mes_example!)
+      .replace(/\{\{example_dialogue\}\}/gi, () => params.mes_example!);
+  }
+  return result;
 }
 
 /**
@@ -137,6 +157,8 @@ export function assemblePromptContext(params: {
     description: character.description || "无",
     personality: character.personality || "无",
     scenario: character.scenario || "无",
+    userPersona: settings.userInfo || "无",
+    mes_example: character.mes_example || "",
   };
 
   // If roleplayMode is disabled, return a bare-bone prompt with zero Tavern system instructions.
@@ -168,9 +190,6 @@ export function assemblePromptContext(params: {
             macroParams,
           );
           content = `${prefix}${content}${suffix}`;
-        } else {
-          // Prepend speaker name as turn separator when no template preset is loaded
-          content = `${character.name}: ${content}`;
         }
       } else {
         role = "user";
@@ -184,9 +203,6 @@ export function assemblePromptContext(params: {
             macroParams,
           );
           content = `${prefix}${content}${suffix}`;
-        } else {
-          // Prepend speaker name as turn separator when no template preset is loaded
-          content = `${settings.userName || "User"}: ${content}`;
         }
       }
 
@@ -238,9 +254,6 @@ export function assemblePromptContext(params: {
       settings.promptConfig.mainPrompt,
       macroParams,
     );
-  } else if (activeCustomBlocks.length === 0) {
-    // ONLY fallback to default if BOTH mainPrompt is empty AND there are no active custom prompt blocks!
-    mainPromptReplaced = `你现在正在扮演 {{char}}。请进行逼真、生动、符合人设机制的纯文字角色扮演（RP）。`;
   }
 
   // Integrate fine-grained CUSTOM PROMPT BLOCKS if imported from the JSON preset
@@ -298,44 +311,53 @@ export function assemblePromptContext(params: {
     if (!contentText) return "";
     const headerVal = headers[key];
     const actualHeader = headerVal === undefined ? defaultHeader : headerVal;
-    if (!actualHeader) return `${contentText}\n`;
+    if (!actualHeader) {
+      return prefixNewline ? `\n\n${contentText}\n` : `${contentText}\n`;
+    }
     return prefixNewline
-      ? `\n${actualHeader}\n${contentText}\n`
+      ? `\n\n${actualHeader}\n${contentText}\n`
       : `${actualHeader}\n${contentText}\n`;
   };
 
   const topText = formatEntryBlock(topEntries);
-  const topSection = formatSectionText("system", "=== 设定基础基石 (World Lore) ===", topText);
+  const topSection = formatSectionText("system", "", topText);
 
   const beforeCharText = formatEntryBlock(beforeCharEntries);
-  const beforeCharSection = formatSectionText("beforeChar", "=== 世界背景设定前置 ===", beforeCharText);
+  const beforeCharSection = formatSectionText("beforeChar", "", beforeCharText);
 
   const afterCharText = formatEntryBlock(afterCharEntries);
-  const afterCharSection = formatSectionText("worldInfo", "=== 设定说明书拓展 (World Info) ===", afterCharText);
+  const afterCharSection = formatSectionText("worldInfo", "", afterCharText);
 
   const beforeLastText = formatEntryBlock(beforeLastMsgEntries);
-  const beforeLastSection = formatSectionText("beforeLast", "=== 临时触发规则与道具 ===", beforeLastText);
+  const beforeLastSection = formatSectionText("beforeLast", "", beforeLastText);
 
   // 3. Summary timeline memory
   let summarySection = "";
   if (chat.summaries && chat.summaries.length > 0) {
     const summaryText = chat.summaries
-      .map((s) => `[时间: ${s.timeTag} | 地点: ${s.location}] ${s.content}`)
+      .map((s) => `[${s.timeTag} | ${s.location}] ${s.content}`)
       .join("\n");
-    summarySection = formatSectionText("summary", "=== 剧情前情要点提炼 (Timeline Summaries) ===", summaryText, true);
+    summarySection = formatSectionText("summary", "", summaryText, true);
   }
 
   let userPersonaSection = "";
   if (settings.userInfo) {
     const personaText = replaceMacros(settings.userInfo, macroParams);
-    userPersonaSection = formatSectionText("userPersona", "=== 玩家详细信息 (User Persona) ===", personaText, true);
+    userPersonaSection = formatSectionText("userPersona", "", personaText, true);
   }
 
   // 4. Character-bound specific system prompt if specified
   let charSpecificPrompt = "";
   if (character.system_prompt) {
     const specificText = replaceMacros(character.system_prompt, macroParams);
-    charSpecificPrompt = formatSectionText("charSystem", "=== 角色卡附加特殊约束 ===", specificText, true);
+    charSpecificPrompt = formatSectionText("charSystem", "", specificText, true);
+  }
+
+  // 4.5 Dialogue examples section if specified (Dialogue Examples / mes_example)
+  let mesExampleSection = "";
+  if (character.mes_example) {
+    const mesExampleVal = replaceMacros(character.mes_example, macroParams);
+    mesExampleSection = formatSectionText("mesExample", "=== 对话与例句示例 (Dialogue Examples) ===", mesExampleVal, true);
   }
 
   // 5. Jailbreak instructions
@@ -345,27 +367,37 @@ export function assemblePromptContext(params: {
     settings.promptConfig?.jailbreakPrompt
   ) {
     const jailbreakText = replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams);
-    jailbreakSection = formatSectionText("jailbreak", "=== 安全消除与写实细节强调 (Jailbreak Prompt) ===", jailbreakText, true);
+    jailbreakSection = formatSectionText("jailbreak", "", jailbreakText, true);
   }
 
   // 6. Post-history direct instruction (reminders right before response generation)
-  let postHistorySection = "";
+  let postHistoryContent = "";
   if (
     settings.promptConfig?.usePostHistory &&
     settings.promptConfig?.postHistoryPrompt
   ) {
-    const postHistoryText = replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams);
-    postHistorySection = formatSectionText("postHistory", "=== 生成纪律提醒 ===", postHistoryText, true);
+    postHistoryContent += replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams);
+  }
+
+  // Append character card's specific post history instructions if defined
+  if (character.post_history_instructions) {
+    const charPostHistory = replaceMacros(character.post_history_instructions, macroParams);
+    if (postHistoryContent) {
+      postHistoryContent += `\n\n${charPostHistory}`;
+    } else {
+      postHistoryContent = charPostHistory;
+    }
+  }
+
+  let postHistorySection = "";
+  if (postHistoryContent) {
+    postHistorySection = formatSectionText("postHistory", "", postHistoryContent, true);
   }
 
   // 7. Core custom story sequence compiler! Natively supports standard SillyTavern order template!
-  const personalityHeader = headers.personality === undefined ? "=== 角色性格设定 ===" : headers.personality;
-  const descriptionHeader = headers.description === undefined ? "=== 角色详细描述 ===" : headers.description;
-  const scenarioHeader = headers.scenario === undefined ? "=== 时代背景与场景设定 ===" : headers.scenario;
-
-  const personalityBlock = personalityHeader ? `${personalityHeader}\n{{personality}}` : "{{personality}}";
-  const descriptionBlock = descriptionHeader ? `${descriptionHeader}\n{{description}}` : "{{description}}";
-  const scenarioBlock = scenarioHeader ? `${scenarioHeader}\n{{scenario}}` : "{{scenario}}";
+  const personalityBlock = "{{personality}}";
+  const descriptionBlock = "{{description}}";
+  const scenarioBlock = "{{scenario}}";
 
   let compiledStory =
     settings.promptConfig?.storyString ||
@@ -377,15 +409,11 @@ ${descriptionBlock}
 
 ${scenarioBlock}
 
+{{mes_example}}
+
 {{char_system}}`;
 
-  let dynamicSystemExtension = `{{summaries}}
-
-{{lorebook_entries}}
-
-{{jailbreak}}
-
-{{post_history}}`;
+  let dynamicSystemExtension = `{{post_history}}`;
 
   const descriptionVal = replaceMacros(
     character.description || "",
@@ -401,36 +429,60 @@ ${scenarioBlock}
   if (topSection) {
     compiledStory = compiledStory.replace(
       /\{\{system_prompt\}\}/gi,
-      `${topSection}\n{{system_prompt}}`,
+      () => `${topSection}\n{{system_prompt}}`,
     );
   }
   if (beforeCharSection) {
     compiledStory = compiledStory.replace(
       /\{\{personality\}\}/gi,
-      `${beforeCharSection}\n{{personality}}`,
+      () => `${beforeCharSection}\n{{personality}}`,
     );
   }
 
-  // Substitute all fields in Static Story
+  // Substitute all fields in Static Story using replacer functions to prevent '$' symbol interpretation collapse
   compiledStory = compiledStory
-    .replace(/\{\{system_prompt\}\}/gi, mainPromptReplaced + userPersonaSection)
-    .replace(/\{\{personality\}\}/gi, personalityVal)
-    .replace(/\{\{description\}\}/gi, descriptionVal)
-    .replace(/\{\{char_description\}\}/gi, descriptionVal)
-    .replace(/\{\{scenario\}\}/gi, scenarioVal)
-    .replace(/\{\{char_scenario\}\}/gi, scenarioVal)
-    .replace(/\{\{char_system\}\}/gi, charSpecificPrompt);
+    .replace(/\{\{system_prompt\}\}/gi, () => mainPromptReplaced + userPersonaSection)
+    .replace(/\{\{personality\}\}/gi, () => personalityVal)
+    .replace(/\{\{description\}\}/gi, () => descriptionVal)
+    .replace(/\{\{char_description\}\}/gi, () => descriptionVal)
+    .replace(/\{\{scenario\}\}/gi, () => scenarioVal)
+    .replace(/\{\{char_scenario\}\}/gi, () => scenarioVal)
+    .replace(/\{\{char_system\}\}/gi, () => charSpecificPrompt)
+    .replace(/\{\{mes_example\}\}/gi, () => mesExampleSection)
+    .replace(/\{\{example_dialogue\}\}/gi, () => mesExampleSection)
+    .replace(/\{\{diags\}\}/gi, () => mesExampleSection);
+
+  // Compile summaries, lorebook entries, and jailbreak inside the main System message (SillyTavern style).
+  // If placeholders are present, replace them; otherwise append to prevent data loss.
+  if (compiledStory.toLowerCase().includes("{{summaries}}")) {
+    compiledStory = compiledStory.replace(/\{\{summaries\}\}/gi, () => summarySection);
+  } else if (summarySection) {
+    compiledStory = compiledStory + `\n\n${summarySection}`;
+  }
+
+  if (compiledStory.toLowerCase().includes("{{lorebook_entries}}") || compiledStory.toLowerCase().includes("{{wi}}")) {
+    compiledStory = compiledStory
+      .replace(/\{\{lorebook_entries\}\}/gi, () => afterCharSection)
+      .replace(/\{\{wi\}\}/gi, () => afterCharSection);
+  } else if (afterCharSection) {
+    compiledStory = compiledStory + `\n\n${afterCharSection}`;
+  }
+
+  if (compiledStory.toLowerCase().includes("{{jailbreak}}")) {
+    compiledStory = compiledStory.replace(/\{\{jailbreak\}\}/gi, () => jailbreakSection);
+  } else if (jailbreakSection) {
+    compiledStory = compiledStory + `\n\n${jailbreakSection}`;
+  }
+
+  // Remove {{post_history}} placeholder from static story since it is injected at the bottom of message history
+  compiledStory = compiledStory.replace(/\{\{post_history\}\}/gi, "");
 
   // Clean repeating double newlines left by empty sections
   const systemInstruction = compiledStory.replace(/\n{3,}/g, "\n\n").trim();
 
-  // Substitute all fields in Dynamic Extension
+  // Substitute all fields in Dynamic Extension (which now only maps post_history) using replacer function
   dynamicSystemExtension = dynamicSystemExtension
-    .replace(/\{\{summaries\}\}/gi, summarySection)
-    .replace(/\{\{lorebook_entries\}\}/gi, afterCharSection)
-    .replace(/\{\{wi\}\}/gi, afterCharSection)
-    .replace(/\{\{jailbreak\}\}/gi, jailbreakSection)
-    .replace(/\{\{post_history\}\}/gi, postHistorySection);
+    .replace(/\{\{post_history\}\}/gi, () => postHistorySection);
     
   const dynamicInstruction = dynamicSystemExtension.replace(/\n{3,}/g, "\n\n").trim();
 
@@ -468,9 +520,6 @@ ${scenarioBlock}
           macroParams,
         );
         content = `${prefix}${content}${suffix}`;
-      } else {
-        // Prepend speaker name as turn separator when no template preset is loaded
-        content = `${character.name}: ${content}`;
       }
     } else {
       role = "user";
@@ -484,9 +533,6 @@ ${scenarioBlock}
           macroParams,
         );
         content = `${prefix}${content}${suffix}`;
-      } else {
-        // Prepend speaker name as turn separator when no template preset is loaded
-        content = `${settings.userName || "User"}: ${content}`;
       }
     }
 

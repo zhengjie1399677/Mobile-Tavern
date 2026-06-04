@@ -118,10 +118,7 @@ export const useChat = (
     let startIndex = 0;
     if (lastIndex >= 0) {
       startIndex = lastIndex + 1;
-    } else if (session.lastSummarizedMessageId && session.summaries && session.summaries.length > 0) {
-      startIndex = Math.max(0, session.messages.length - 2);
     }
-
     const unsummarizedMessages = session.messages.slice(startIndex);
     
     const rawTriggerTurns = Number(settings?.memory?.summaryTriggerTurns);
@@ -141,12 +138,7 @@ export const useChat = (
       messagesToCompress = unsummarizedMessages.slice(0, maxAllowedUnsummarized);
 
       try {
-        const promptInstruction = settings?.memory?.summarySystemPrompt || `你是一个极其客观、专业的故事剧情归纳助手。你的任务是将一段未整理的对话片段浓缩提炼为一段客观简洁的前情要点总结。
-请严格遵守以下规则来进行归纳：
-1. 【忠于事实】：必须完全且唯一基于给出的对话记录本身，客观陈述发生了哪些交流、达成的剧情或决定。绝对不要发挥、绝对不要衍生、也绝对不要美化。
-2. 【无内容防捏造】：若输入的内容极少或无实质剧情（如日常寒喧、数字、指令、甚至空话、测试语、字母），必须用极其简短且客观事实的语言记录（例如：“用户进行连通测试”、“用户发送了反馈疑问”），绝对禁止凭空捏造不存在的场景、科幻/玄幻设定、人物动作、关键道具、内心戏、心路历程、戏剧冲突或小说情节。
-3. 【简洁精炼】：使用简短精练的第三人称陈述句，通常只需1-3句话（约30-100字），不要长篇大论，更不能编写成小说篇章。
-4. 【直接输出】：仅返回提炼后的概要本身，不要带有任何“以下是、总结、摘要”等前言前缀、也不要进行任何评价与解释废话，直接输出归纳文本。`;
+        const promptInstruction = settings?.memory?.summarySystemPrompt || "";
         const contentConcat = messagesToCompress
           .map((m) => `${m.sender === "user" ? (settings?.userName || "用户") : (activeCharacter?.name || "角色")}: ${m.content}`)
           .join("\n");
@@ -349,63 +341,83 @@ export const useChat = (
       let done = false;
       let pbuf = "";
 
-      while (!done && reader) {
+      const processChunk = (dataStr: string) => {
+        if (!dataStr) return;
+        try {
+          const data = JSON.parse(dataStr);
+          if (data.choices?.[0]?.delta?.content) {
+            responseText += data.choices[0].delta.content;
+          }
+          if (data.usage) {
+            tokenUsage = {
+              prompt: data.usage.prompt_tokens || 0,
+              completion: data.usage.completion_tokens || 0,
+            };
+          }
+
+          setSessions((prev) =>
+            prev.map((s) => {
+              if (s.id !== updatedSession.id) return s;
+              const msgs = s.messages.map((m) =>
+                m.id === aiMsgId ? { ...m, content: responseText } : m
+              );
+              return { ...s, messages: msgs };
+            })
+          );
+        } catch (e) {
+          const contentReg = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+          const match = dataStr.match(contentReg);
+          if (match && match[1]) {
+            let rescuedContent = match[1];
+            try {
+              // Safely unescape standard JSON escapes (like \n, \", etc.) so they render correctly in UI
+              rescuedContent = JSON.parse(`"${rescuedContent}"`);
+            } catch {}
+            responseText += rescuedContent;
+
+            setSessions((prev) =>
+              prev.map((s) => {
+                if (s.id !== updatedSession.id) return s;
+                const msgs = s.messages.map((m) =>
+                  m.id === aiMsgId ? { ...m, content: responseText } : m
+                );
+                return { ...s, messages: msgs };
+              })
+            );
+          }
+        }
+      };
+
+      while (reader) {
         const { value, done: readerDone } = await reader.read();
-        done = readerDone;
         if (value) {
           pbuf += decoder.decode(value, { stream: true });
-          let i;
-          while ((i = pbuf.indexOf("\n\n")) >= 0) {
-            const line = pbuf.slice(0, i).trim();
-            pbuf = pbuf.slice(i + 2);
-            if (line.startsWith("data: ")) {
-              const dataStr = line.slice(6).trim();
-              if (dataStr === "[DONE]") {
-                done = true;
-                break;
-              }
-              if (!dataStr) continue;
-              try {
-                const data = JSON.parse(dataStr);
-                if (data.choices?.[0]?.delta?.content) {
-                  responseText += data.choices[0].delta.content;
-                }
-                if (data.usage) {
-                  tokenUsage = {
-                    prompt: data.usage.prompt_tokens || 0,
-                    completion: data.usage.completion_tokens || 0,
-                  };
-                }
+        }
 
-                setSessions((prev) =>
-                  prev.map((s) => {
-                    if (s.id !== updatedSession.id) return s;
-                    const msgs = s.messages.map((m) =>
-                      m.id === aiMsgId ? { ...m, content: responseText } : m
-                    );
-                    return { ...s, messages: msgs };
-                  })
-                );
-              } catch (e) {
-                const contentReg = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
-                const match = dataStr.match(contentReg);
-                if (match && match[1]) {
-                  const rescuedContent = match[1];
-                  responseText += rescuedContent;
+        let i;
+        while ((i = pbuf.indexOf("\n\n")) >= 0) {
+          const line = pbuf.slice(0, i).trim();
+          pbuf = pbuf.slice(i + 2);
+          if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6).trim();
+            if (dataStr === "[DONE]") {
+              done = true;
+              break;
+            }
+            processChunk(dataStr);
+          }
+        }
 
-                  setSessions((prev) =>
-                    prev.map((s) => {
-                      if (s.id !== updatedSession.id) return s;
-                      const msgs = s.messages.map((m) =>
-                        m.id === aiMsgId ? { ...m, content: responseText } : m
-                      );
-                      return { ...s, messages: msgs };
-                    })
-                  );
-                }
-              }
+        if (readerDone || done) {
+          // Flush trailing data if any to prevent final chunk text loss
+          if (!done && pbuf.trim().startsWith("data: ")) {
+            const line = pbuf.trim();
+            const dataStr = line.slice(6).trim();
+            if (dataStr !== "[DONE]") {
+              processChunk(dataStr);
             }
           }
+          break;
         }
       }
 
@@ -441,6 +453,7 @@ export const useChat = (
       }
       await saveSession(trueFinalSession);
       triggerScroll("smooth");
+      abortControllerRef.current = null;
 
       // Telemetry: track message send with token usage
       reportUsage("send_message", {
@@ -645,63 +658,83 @@ export const useChat = (
       let done = false;
       let pbuf = "";
 
-      while (!done && reader) {
+      const processChunk = (dataStr: string) => {
+        if (!dataStr) return;
+        try {
+          const data = JSON.parse(dataStr);
+          if (data.choices?.[0]?.delta?.content) {
+            responseText += data.choices[0].delta.content;
+          }
+          if (data.usage) {
+            tokenUsage = {
+              prompt: data.usage.prompt_tokens || 0,
+              completion: data.usage.completion_tokens || 0,
+            };
+          }
+
+          setSessions((prev) =>
+            prev.map((s) => {
+              if (s.id !== updatedSession.id) return s;
+              const msgs = s.messages.map((m) =>
+                m.id === aiMsgId ? { ...m, content: responseText } : m
+              );
+              return { ...s, messages: msgs };
+            })
+          );
+        } catch (e) {
+          const contentReg = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+          const match = dataStr.match(contentReg);
+          if (match && match[1]) {
+            let rescuedContent = match[1];
+            try {
+              // Safely unescape standard JSON escapes (like \n, \", etc.) so they render correctly in UI
+              rescuedContent = JSON.parse(`"${rescuedContent}"`);
+            } catch {}
+            responseText += rescuedContent;
+
+            setSessions((prev) =>
+              prev.map((s) => {
+                if (s.id !== updatedSession.id) return s;
+                const msgs = s.messages.map((m) =>
+                  m.id === aiMsgId ? { ...m, content: responseText } : m
+                );
+                return { ...s, messages: msgs };
+              })
+            );
+          }
+        }
+      };
+
+      while (reader) {
         const { value, done: readerDone } = await reader.read();
-        done = readerDone;
         if (value) {
           pbuf += decoder.decode(value, { stream: true });
-          let i;
-          while ((i = pbuf.indexOf("\n\n")) >= 0) {
-            const line = pbuf.slice(0, i).trim();
-            pbuf = pbuf.slice(i + 2);
-            if (line.startsWith("data: ")) {
-              const dataStr = line.slice(6).trim();
-              if (dataStr === "[DONE]") {
-                done = true;
-                break;
-              }
-              if (!dataStr) continue;
-              try {
-                const data = JSON.parse(dataStr);
-                if (data.choices?.[0]?.delta?.content) {
-                  responseText += data.choices[0].delta.content;
-                }
-                if (data.usage) {
-                  tokenUsage = {
-                    prompt: data.usage.prompt_tokens || 0,
-                    completion: data.usage.completion_tokens || 0,
-                  };
-                }
+        }
 
-                setSessions((prev) =>
-                  prev.map((s) => {
-                    if (s.id !== updatedSession.id) return s;
-                    const msgs = s.messages.map((m) =>
-                      m.id === aiMsgId ? { ...m, content: responseText } : m
-                    );
-                    return { ...s, messages: msgs };
-                  })
-                );
-              } catch (e) {
-                const contentReg = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
-                const match = dataStr.match(contentReg);
-                if (match && match[1]) {
-                  const rescuedContent = match[1];
-                  responseText += rescuedContent;
+        let i;
+        while ((i = pbuf.indexOf("\n\n")) >= 0) {
+          const line = pbuf.slice(0, i).trim();
+          pbuf = pbuf.slice(i + 2);
+          if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6).trim();
+            if (dataStr === "[DONE]") {
+              done = true;
+              break;
+            }
+            processChunk(dataStr);
+          }
+        }
 
-                  setSessions((prev) =>
-                    prev.map((s) => {
-                      if (s.id !== updatedSession.id) return s;
-                      const msgs = s.messages.map((m) =>
-                        m.id === aiMsgId ? { ...m, content: responseText } : m
-                      );
-                      return { ...s, messages: msgs };
-                    })
-                  );
-                }
-              }
+        if (readerDone || done) {
+          // Flush trailing data if any to prevent final chunk text loss
+          if (!done && pbuf.trim().startsWith("data: ")) {
+            const line = pbuf.trim();
+            const dataStr = line.slice(6).trim();
+            if (dataStr !== "[DONE]") {
+              processChunk(dataStr);
             }
           }
+          break;
         }
       }
 
@@ -737,6 +770,7 @@ export const useChat = (
       }
       await saveSession(trueFinalSession);
       triggerScroll();
+      abortControllerRef.current = null;
 
       reportUsage("regenerate_message", {
         promptTokens: tokenUsage.prompt,

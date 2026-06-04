@@ -35,6 +35,7 @@ export const useCharacters = () => {
       mes_example: "",
       system_prompt: "",
       lorebookEntries: [],
+      isWorldbookGlobal: false,
     });
     setActiveLoreTab("detail");
     setCharModalOpen(true);
@@ -265,6 +266,7 @@ export const useCharacters = () => {
         post_history_instructions: parsedData.post_history_instructions || "",
         alternate_greetings: parsedData.alternate_greetings || [],
         lorebookEntries: parsedData.lorebookEntries || [],
+        isWorldbookGlobal: false,
         creator: parsedData.creator || "",
         creator_notes: parsedData.creator_notes || "",
         tags: parsedData.tags || [],

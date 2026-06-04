@@ -1,366 +1,502 @@
-# Mobile Tavern
+# 📱 Mobile Tavern 
+*High-Performance, Lightweight Mobile AI Roleplay Engine*
 
-Mobile Tavern 是一款专为移动端打造的轻量级 AI 角色扮演客户端。
+[![Version](https://img.shields.io/badge/version-1.3.5-blue.svg?style=for-the-badge)](https://github.com/zhengjie1399677/Mobile-Tavern)
+[![Tauri](https://img.shields.io/badge/Tauri-v2-green.svg?style=for-the-badge&logo=tauri)](https://tauri.app/)
+[![React](https://img.shields.io/badge/React-v19-blue.svg?style=for-the-badge&logo=react)](https://react.dev/)
+[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4.svg?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
+[![License](https://img.shields.io/badge/license-MIT-orange.svg?style=for-the-badge)](LICENSE)
 
-## 为什么开发这个应用？(Why Mobile Tavern?)
+Mobile Tavern 是一款专为移动端深度定制的高性能、轻量级 AI 角色扮演客户端。
+It并非旨在成为桌面端 Silly Tavern 的全盘替代品，而是作为其在**移动设备上的轻量化互补方案**。
 
-诞生初衷非常简单：虽然 **Silly Tavern** 在桌面端拥有无与伦比的丰富功能且体验极佳，但由于其设计过于庞大，导致在手机端浏览器上的操作体验非常糟糕。
+我们致力于聚焦于移动端手势触控、屏幕安全区自适应、底层高性能数据存储，以及极致的上下文缓存优化，
+为用户提供丝滑的沉浸式角色互动体验。
 
-对于很多只是想在手机上玩一玩简单的、轻量级的角色卡片的用户来说，Silly Tavern 显得过于笨重。因此，**Mobile Tavern** 诞生了。它并非旨在替代桌面端的 Silly Tavern，而是作为它在**移动设备上的轻量化互补方案**。
-
-我们故意去除了对桌面端打包的支持，也没有过多臃肿的功能，优先保证**移动设备上的流畅度、触摸体验以及应用体积（性能优先）**。
-
-## 核心特性 (Key Features)
-
-*   **专为移动端优化的交互设计**：没有复杂的桌面级侧边栏和多级菜单，针对手机屏幕进行布局和触控优化。
-*   **兼容 Tavern 角色卡**：支持导入标准的酒馆角色卡片（PNG / JSON），满足基础角色的游玩需求。
-*   **轻量化与高性能**：舍弃了复杂的周边功能，专注于核心的对话引擎，让应用加载更快、响应更迅捷。
-*   **原生 Android 体验**：使用 Tauri 构建为原生 Android APK 安装包，支持脱离浏览器并在后台维持更好的生命周期。
-
-## 为什么要发安卓版？(Why Android Output?)
-
-Silly Tavern 适合桌面。Mobile Tavern 适合便携。
-通过 GitHub Actions 的自动化构建流程，我们可以直接打包生成原生的 Android APK 安装包 (`MobileTavern.apk`)，无需自己搭建复杂的安卓打包环境。你可以随时在 Github 仓库的 Releases 页面下载最新安装包构建。
+> [!NOTE]
+> * 关于 Android 手机真机调试、网络映射配置、原生 bridge 状态栏同步等原生端适配细则，请直接查阅：[AGENTS.md](file:///d:/projects/Mobile-Tavern/AGENTS.md)。
+> * 关于 Prompt 上下文分区的作用、标头过滤机制及最终发送给 API 的消息数组格式示例，请直接查阅：[presets_prompts_guide.md](file:///d:/projects/Mobile-Tavern/presets_prompts_guide.md)。
 
 ---
 
-## ⚡ 极速响应：上下文缓存与消息排列优化 (Context Caching)
+## ⚡ 核心技术特征与性能优化 (Performance Highlights)
 
-### 1. 传统酒馆消息排布的缺陷
-角色扮演（Roleplay）应用随着对话轮数的增加，发送给大模型的上下文体积会急速膨胀：
-*   数千字的角色描述（Description）和性格设定（Personality）
-*   大量由关键词触发的世界书设定（Lorebook）
-*   冗长的历史聊天会话（History）
+### 1. 极致的上下文缓存优化 (Prefix Cache & Message Ordering)
+为了极大降低用户的 API 费用，并大幅度提升大模型流式响应的首包时间（TTFT, Time-to-First-Token），
+Mobile Tavern 设计了精细的 `messages` 发送序列重排机制，专门针对 **DeepSeek V3/R1** 
+的自动前缀缓存（Prefix Caching）及 **Gemini** 的上下文缓存进行深度适配。
 
-如果每次发送新消息，都将所有的内容乱序拼接发送，会导致大语言模型（如 DeepSeek, Gemini）的上下文缓存（Context Cache）频繁失效，导致**高昂的 API Token 消耗**与**响应首包延迟（TTFT）大幅增加**。
+在系统底层（参见 [promptBuilder.ts](file:///d:/projects/Mobile-Tavern/src/utils/promptBuilder.ts)），
+发送给 API 的消息数组结构被重排为四个部分：
+1. 静态系统人设前缀（System Instruction）
+2. 稳定的历史对话序列（Stable Dialogue History Prefix）
+3. 动态扩展指令（Dynamic Instruction）
+4. 本轮用户即时输入（Last Turn）
 
-### 2. Mobile Tavern 的优化策略 (Message Ordering)
-我们通过精细排列发送给 API 的消息数组结构，实现了针对 **DeepSeek (自动前缀缓存)** 与 **Gemini (前缀/显式缓存)** 的极致优化。
+#### 🛡️ 优化原理解析 (The Caching Mechanism)
+*   **前缀保护 (Stable Prefix)**：
+    我们将最大、最稳定的角色人设（`systemInstruction`）与除最后一条外的所有历史对话置于消息数组的前端。
+    在连续聊天时，由于历史前缀的字符级一致性，服务端的哈希能够实现 100% 缓存命中，
+    缓存 Token 计费比常规状态低 90%。
+*   **动态隔离 (Trailing Variance)**：
+    高频变动的最新输入及动态触发的世界书、纪律约束被推到了消息序列的最末端，
+    从而避免了它们的频繁变动导致大面积历史前缀缓存失效。
 
-在 `src/utils/promptBuilder.ts` 中，发送的 `messages` 数组结构设计如下：
-```typescript
-messages: [
-  // 1. 静态系统指令 (System Instruction)
-  { role: "system", content: promptPayload.systemInstruction },
-  
-  // 2. 历史对话上下文 (Stable History Prefix)
-  ...promptPayload.history.slice(0, -1).map((h) => ({
-    role: h.role === "model" ? "assistant" : h.role,
-    content: h.content,
-  })),
-  
-  // 3. 动态扩展指令 (Dynamic Instruction)
-  ...(promptPayload.dynamicInstruction
-    ? [{ role: "system", content: promptPayload.dynamicInstruction }]
-    : []),
-  
-  // 4. 最新一轮交互 (Last Turn)
-  ...promptPayload.history.slice(-1).map((h) => ({
-    role: h.role === "model" ? "assistant" : h.role,
-    content: h.content,
-  })),
-]
+### 2. SSE 流式传输与零丢包切分缓冲区 (SSE Zero-Loss Stream Buffer)
+大模型流式生成时常因网络波动或在流传输终点（Connection EOF）处导致尾部字节丢失。
+Mobile Tavern 在底层的流式连接读取循环（参见 [useChat.tsx](file:///d:/projects/Mobile-Tavern/src/hooks/useChat.tsx)）中，
+引入了 `done` 信号检测与尾部未以双换行结尾的零散数据（Remaining Bytes）兜底冲刷逻辑。
+
+通过提取网络包字节块，将其推进字符累加缓冲区 `pbuf`，并按 SSE 协议标准的双换行 `\n\n` 进行安全边界切分，
+最后对字面量转义（例如反斜杠字符 `\n`）实施解码后投递给 React 状态进行 DOM 异步渲染，
+彻底根治了流传输不完整导致文本截断的隐性 Bug。
+
+### 3. OKLCH 色彩体系设计 (OKLCH Perceptual Colors)
+传统的 HSL 和 RGB 颜色模型在计算不同色相的渐变时会产生显著的视觉明度漂移，
+这会导致对比度不一致并容易产生视觉疲劳。Mobile Tavern 采用 OKLCH（Lightness, Chroma, Hue）
+色彩空间作为整个应用的设计基础。
+*   **明度一致性**: 
+    OKLCH 保证了相同的 Lightness（L）在不同色相（H）下具有近乎完全相同的 perceived brightness。
+*   **平滑护眼**: 
+    针对长时间的角色阅读场景，背景明度控制在 0.94 以下，色度 Chroma 压缩在 0.05 以内，
+    确保低饱和度、柔和的色彩表现。
+
+### 4. React 19 并发状态渲染优化
+在大模型极速生成文本流时，每秒可能会有数十次状态更新，这会引起 UI 线程的阻塞。
+Mobile Tavern 利用 React 19 的 Concurrent Mode，通过分片更新机制，
+允许高优先级交互事件（如滚动视图、退出操作）中断低优先级的文本流拼接渲染，
+保证移动端低性能 CPU 上的流畅操控。
+
+---
+
+## 🏗️ 模块架构与状态管理 (System Architecture)
+
+Mobile Tavern 的底层由前端 React 视图层、Tauri 原生桥接层、Express 代理服务以及本地高性能 IndexedDB 存储四部分构成：
+
+```mermaid
+graph TB
+    subgraph Frontend [React 前端应用层]
+        UI[Tabs / Components] <--> Hooks[Custom Hooks: useChat / useCharacters / useSettings]
+        Hooks <--> Contexts[Global Contexts: App / Character / Chat]
+    end
+
+    subgraph Storage [本地数据持久化]
+        Hooks <--> DB[(IndexedDB: MobileTavernLiteDB)]
+    end
+
+    subgraph Client [运行容器适配]
+        UI --> API_Client[apiClient.ts]
+    end
+
+    subgraph Network [网络与服务层]
+        API_Client -->|原生客户端直连| Remote_LLM[第三方 AI 大模型 API]
+        API_Client -->|网页浏览器代理| Express_Proxy[Express 本地代理服务]
+        Express_Proxy --> Remote_LLM
+    end
+    
+    style Frontend fill:#f0f8ff,stroke:#007acc,stroke-width:2px
+    style Storage fill:#fff8dc,stroke:#daa520,stroke-width:2px
+    style Client fill:#e6ffe6,stroke:#228b22,stroke-width:2px
+    style Network fill:#ffe6e6,stroke:#cd5c5c,stroke-width:2px
 ```
 
-#### 🛡️ 针对 DeepSeek V3/R1 的自动前缀缓存优化 (Cache Hit Mechanism)
-*   **自动前缀匹配**：DeepSeek 会自动在后台将请求的 `messages` 数组从前往后转换为 Token 进行哈希，并自动缓存完全相同的最长前缀（最大 1024k Token，最高保留数天，缓存 Token 价格便宜 90%）。
-*   **前缀保护**：我们将最稳定、体积最大的 `systemInstruction`（含角色设定、性格描写、开场白、背景等）放在首位，紧接着放入除了上一条之外的完整对话历史 `history.slice(0, -1)`。
-*   **动态隔离**：因为用户的最新输入 `history.slice(-1)` 以及可能改变的世界书触发词 `dynamicInstruction` 被推到了**消息数组的尾部**，所以在新的一轮对话中，前面的 **[静态系统指令 + 大部分历史消息]** 保持 character-for-character 的完全一致。这确保了 DeepSeek 能 100% 命中该段超大前缀的缓存，极大降低了持续聊天的 Token 费用并大幅提升响应速度。
+### 1. 核心状态流与生命周期控制
+应用使用 React 19 框架作为底层渲染基石。核心逻辑完全依托于 React 自定义 hooks 
+以及 Provider 架构进行解耦管理：
+*   **AppContext**: 
+    负责应用全局交互，如全局 Tab 的路由切换、数据库加载指示、连通性状态监测以及全局主题的管理。
+*   **CharactersTab**: 
+    维护本地导入的角色卡列表。在用户对卡片进行增删改查时，直接通过自定义 Hook 
+    [useCharacters.ts](file:///d:/projects/Mobile-Tavern/src/hooks/useCharacters.ts) 进行 IndexedDB 
+    存储库的原子操作，并同步分发至 UI 进行反应式视图更新。
+*   **ChatTab**: 
+    承载当前激活对话。采用 [useChat.tsx](file:///d:/projects/Mobile-Tavern/src/hooks/useChat.tsx) Hook 
+    管理 SSE 接收状态、流缓冲分词器以及消息历史树。
 
-#### 💎 针对 Gemini 的上下文缓存适配
-*   Gemini 1.5 Pro / Flash 支持将系统指令和历史前缀进行缓存（通常要求 32k tokens 以上起效）。
-*   通过将系统指令与稳定历史连续存放在消息数组开头，一旦上下文长度满足阈值，即可对该前缀建立稳定的缓存块，后续追加的聊天仅需评估尾部差异部分，避免全文本重复计算。
+### 2. 请求路由感知与环境自适应
+系统通过前端封装的 API 客户端对当前运行载体进行智能感知：
+*   在安卓真机环境（由原生包封装运行）下，请求直接透传至原生 WebView 容器，利用原生底层直连目标大模型 API。
+*   在常规桌面浏览器运行下，为防止发生跨域资源共享（CORS）报错阻断，请求将自动投递至本地 Express 后端代理服务，由其代为转接。
 
 ---
 
-## 🔒 遥测直传与数据隐私安全
-> [!IMPORTANT]
-> 本项目的遥测埋点直传逻辑，严格贯彻了**零敏感密钥暴露**的安全隔离原则。
+## 🧬 Tavern 角色卡解码机制 (Tavern PNG Card Binary Decoder)
+
+Mobile Tavern 能够完美兼容标准的酒馆角色卡 PNG 图像格式。其核心解析工作流如下：
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Parser as cardParser.ts
+    participant Pngjs as pngjs (Chunk 提取)
+    participant Fflate as fflate (Zlib 解压)
+    participant DB as IndexedDB
+
+    User ->> Parser: 上传角色卡 PNG 图片
+    Parser ->> Pngjs: 读取 PNG 文件流
+    Pngjs ->> Pngjs: 检索名为 "chara" 的 tEXt 数据块
+    alt 未找到 chara 块
+        Parser -->> User: 报错 (无效的角色卡格式)
+    else 找到 chara 块
+        Pngjs ->> Parser: 提取 Base64 编码的压缩文本
+        Parser ->> Fflate: 解压 Zlib 压缩数据
+        Fflate ->> Parser: 返回原始 JSON 字符串
+        Parser ->> Parser: 映射字段至 CharacterCard 结构
+        Parser ->> DB: 写入 characters 对象仓库 (存入 Base64 头像)
+        Parser -->> User: 导入成功 (渲染头像与卡片属性)
+    end
+```
+
+### 1. PNG 二进制结构规范
+PNG (Portable Network Graphics) 二进制文件具有严格的结构布局。
+理解该布局是正确实现免服务器本地解码的基础：
+*   **PNG Signature**: 
+    前 8 个字节为固定签名 `89 50 4E 47 0D 0A 1A 0A`。
+*   **IHDR Chunk**: 
+    PNG 文件头块，包含宽度、高度、位深、颜色类型、压缩方法、滤波器方法和隔行扫描方法。
+*   **tEXt Chunks**: 
+    非关键数据块，用于存储文本元数据。每个 `tEXt` 块包含：
+    1. **Length**: 4 字节无符号整数，表示 Data 字段的长度。
+    2. **Chunk Type**: 4 字节的字符标记 `tEXt` (对应十六进制 `74 45 58 74`)。
+    3. **Data**: 包含一个以 null 字符 (`00`) 结尾的关键字，随后是原始文本。酒馆角色卡规定关键字必须为 `chara`。
+    4. **CRC**: 4 字节循环冗余校验码，计算整个 Chunk Type 和 Data 字节的数据完整性。
+
+### 2. Zlib Decompression & Data Mapping
+在提取出 `chara` 数据块的原始 Payload 后，数据解压与转换步骤如下：
+1.  **Base64 解析**: 
+    块内容首先以 Base64 进行传输级转码。解码器将其还原为二进制字节数组。
+2.  **Zlib 解压**: 
+    解压引擎采用 `fflate` 库提供的轻量级、无阻塞解压模块，提取出角色卡的原始 JSON 文本流。
+3.  **JSON 实体反序列化**: 
+    检验 JSON 内部是否符合标准的 Tavern Card V1 / V2 字段规范。
+    提取必要人设字段，并转换为本客户端在 IndexedDB 中持久化的标准 [CharacterCard](file:///d:/projects/Mobile-Tavern/src/types.ts) 格式。
+
+---
+
+## 📁 本地数据库设计 (IndexedDB Persistence Engine)
+
+应用使用浏览器原生的 IndexedDB 进行超大容量本地离线存储，数据库名称为 `MobileTavernLiteDB`。
+
+### 1. 数据库关系图 (ER Diagram)
+
+```mermaid
+erDiagram
+    characters ||--o{ sessions : "拥有"
+    sessions ||--o{ messages : "包含"
+    sessions ||--o{ summaries : "挂载"
+    settings {
+        string key PK
+        object api
+        object preset
+        object memory
+        object promptConfig
+        string userName
+        string userInfo
+    }
+    characters {
+        string id PK
+        string name
+        string avatar_base64
+        string description
+        string personality
+        string scenario
+        string first_mes
+        string mes_example
+        string system_prompt
+        array lorebookEntries
+        boolean isWorldbookGlobal
+    }
+    sessions {
+        string id PK
+        string characterId FK
+        string title
+        number createdAt
+        array messages
+        array summaries
+        string lastSummarizedMessageId
+    }
+```
+
+### 2. 数据库迁移与升级历程 (Schema Migrations v1 to v5)
+随版本迭代，Mobile Tavern 实现了数据库结构的平滑无损迁移。
+以下是各版本升级定义（参见 `db.ts`）：
+*   **Version 1**: 
+    建立基础 `characters`、`sessions` 及 `settings` 对象存储库。
+*   **Version 2**: 
+    在 `sessions` 仓库上为 `characterId` 创建非唯一检索索引，
+    加速获取指定角色下的聊天历史列表。
+*   **Version 3**: 
+    升级 `settings`，将原先扁平的全局预设拆解封装为结构化的 `ApiConfig`、`SamplerPreset` 及 `PromptConfig`。
+*   **Version 4**: 
+    在 `characters` 存储库中新增 `lorebookEntries`（局部绑定的世界书条目列表）及 `isWorldbookGlobal` 字段。
+*   **Version 5**: 
+    在 `sessions` 存储库中引入 `lastSummarizedMessageId`，
+    防止对历史剧情进行重复冗余提取，有效遏制内存溢出和重复计费。
+
+### 3. 高性能非阻塞事务设计
+为了保证在手机高频打字发送时界面响应不产生延迟顿挫，IndexedDB 读写采用如下原则：
+*   **Scope Minimization**: 
+    启动事务时，严禁作用于全局，只向事务声明具体的 object store 范围（例如单一 of `sessions`）。
+*   **Readwrite Segregation**: 
+    仅在进行物理保存时开启 `readwrite` 权限。所有的只读查询（如聊天界面滚动加载历史）使用 `readonly` 模式，
+    确保浏览器能同时并行执行多个查询。
+
+---
+
+## 🚀 开发者架构调试沙盒设计与原理 (Interactive Developer Sandbox Architecture)
+
+在 `v1.3.5` 中，我们为开发者深度定制并内置了一个全交互式的**架构调试沙盒**（PlaygroundTab，
+参见 [PlaygroundTab.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/PlaygroundTab.tsx)）。
+该沙盒是理解 Mobile Tavern 数据流运转及调试核心功能的控制台。
+
+### 1. SVG 动态拓扑节点与坐标映射 (SVG Coordinates Mapping)
+数据流向拓扑图使用高精度矢量 SVG 结构构建。
+画布中心坐标范围设定为 `0 0 500 570`，以在主流移动端屏幕上获得最佳的长宽自适应比例。
+*   **主管道轴线**: 
+    用户输入、世界书匹配、Prompt 组装、缓存切分、网络流接收以及界面气泡渲染等核心模块排列于 `X = 250` 的垂直几何对称轴上，
+    方便形成单线管道视觉认知。
+*   **双侧侧链分支**: 
+    角色卡基础静态数据（位于 `X = 20, Y = 160`）和全局预设配置（位于 `X = 350, Y = 160`）以曲线汇入位于 `Y = 230` 
+    的 Prompt 组装中心，用以表征静态上下文的合流拼装流程。
+*   **流动动画技术**: 
+    使用 CSS 控制 `stroke-dasharray`，通过 GPU 硬件加速的 keyframes 对 `stroke-dashoffset` 进行偏移，
+    模拟数据沿管道平滑传输的效果。
+
+### 2. 模拟器状态机流转机制 (Simulator State Machine)
+沙盒中的“全链路仿真模拟器”通过 React Effect 构建流转状态机：
+1. **连接就绪 (Node 0)**: 
+   模拟器重置控制台，进入数据准备状态。
+2. **输入分析 (Node 1)**: 
+   捕捉当前测试词，进入 token 消耗计算状态。
+3. **匹配检索 (Node 2)**: 
+   扫描输入字符串是否符合特定关键词判定。
+4. **组装合并 (Node 3-5)**: 
+   从两侧读取静态人设和用户预设，执行宏替换编译，并划分前缀缓存。
+5. **建立流连接 (Node 6-8)**: 
+   建立 mock 终点，模拟网络分包，对字节进行反转义解压，最终触发虚拟手机状态栏底色变化并渲染气泡。
+
+### 3. 互动测试台 (Interactive Testbeds)
+每一个拓扑节点均提供交互体验版块，允许开发者实时输入不同参数调试底层算法：
+*   **宏安全编译测试**: 
+    调试包含特殊占位符（如 `{{char}}`）和特殊字符（如带有 `$` 符号的价格）的文本在编译时是否能够安全防坍塌处理。
+*   **缓存段切分计算器**: 
+    滑动对话历史轮数，直观呈现前置 100% 缓存命中 Token 的比例关系。
+*   **转义还原验证板**: 
+    手动输入包含 `\\n` 的文本流，观察 JSON 反解算法如何无损转换并在 UI 容器中产生换行排版。
+
+---
+
+## 🧭 核心源码实现深度剖析 (Core Code Deep-Dive)
+
+### 1. `promptBuilder.ts` (Prompt 编译组装)
+*   **实现位置**: [promptBuilder.ts](file:///d:/projects/Mobile-Tavern/src/utils/promptBuilder.ts)
+*   **核心逻辑**: 
+    负责在内存中拼接角色卡各项静态设定、当前全局设置与对话上下文历史。
+    该模块不依赖任何硬编码的内置指令作为缺省值，以绝对无偏向的兼容方式组装数据。
+*   **宏替换防坍塌算法**:
+    大模型使用的模版字符在拼接时极其容易在正则匹配端遭遇转义符坍塌漏洞。
+    我们摒弃了普通的 `str.replace(regexp, val)` 表达式（会解析 `val` 中含有的 `$1`, `$&` 等特殊符号），
+    采用 lambda 回调执行返回的方式完成安全的物理级内容替换。
+
+### 2. `useChat.tsx` (流式长连接管理)
+*   **实现位置**: [useChat.tsx](file:///d:/projects/Mobile-Tavern/src/hooks/useChat.tsx)
+*   **核心逻辑**: 
+    实现了基于流式连接（EventSource / ReadableStream）的会话更新器。
+    它负责发起请求、抓取网络分块，并同步刷新 IndexedDB 对应分叉内的 `messages` 数组。
+*   **分阶段缓冲算法**:
+    网络层读取的字符首先被保存在局部流缓冲器中，当检测到符合 SSE 终止标记（如 `[DONE]` 信号）
+    或长连接在物理层宣告 EOF 时，引擎将自动唤醒缓冲段解析器，执行终点冲刷操作，
+    提取尾部所有剩余半字符，彻底防止了流截断所导致的结尾文字丢失。
+
+### 3. `cardParser.ts` (酒馆卡 PNG 二进制还原)
+*   **实现位置**: [cardParser.ts](file:///d:/projects/Mobile-Tavern/src/utils/cardParser.ts)
+*   **核心逻辑**: 
+    这是一个纯前端运行的二进制图像块解构器，能够在本地沙盒中无损提取和重构卡片信息。
+*   **块迭代策略**:
+    算法将传入的文件以 `ArrayBuffer` 的形式读入内存，将指针移向 PNG 特征头签名之后。
+    通过循环计算每一个块的物理位移跨度（Length + Type），计算 CRC32 并校验包完整性。
+    若探测到 `tEXt` 标识，便在此空间中匹配 ASCII `chara` 标记，进而以同步方式完成数据解压与实例化。
+
+### 4. `PlaygroundTab.tsx` (交互调试沙盒)
+*   **实现位置**: [PlaygroundTab.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/PlaygroundTab.tsx)
+*   **核心逻辑**: 
+    构建了一个可以隔离进行算法测试的互动游戏场。它为上面所有的核心逻辑（如宏替换、
+    前缀分流、网络包解压等）提供了单独的仿真验证面板。
+*   **状态隔离**:
+    沙盒内使用完全隔离的 `mockChar` 与 `mockHistory` 变量，
+    确保开发人员在调节 and 探索算法特性时，绝不会对真实的本地 IndexedDB 角色与会话库产生状态污染。
+
+### 5. `db.ts` (高性能存储层)
+*   **实现位置**: [db.ts](file:///d:/projects/Mobile-Tavern/src/utils/db.ts)
+*   **核心逻辑**: 
+    提供了一个坚固的本地关系化存储底座。数据库实例通过单例模式暴露，避免频繁握手。
+*   **事务管道**:
+    在写操作被并发触发时（例如高频发送），`db.ts` 会严格在底层通过队列来控制写事务的顺序，
+    防止两个写事务同时获取锁而造成 IndexedDB 独占死锁或引发白屏崩溃。
+
+### 6. `App.tsx` (应用初始化配置)
+*   **实现位置**: [App.tsx](file:///d:/projects/Mobile-Tavern/src/App.tsx)
+*   **核心逻辑**:
+    负责系统冷启动的流程管理。加载内置的三套预设模版包，并检查本地数据库 settings 是否存在旧记录。
+    如果首次安装，自动写入缺省的用户参数。它还负责捕获顶级的未捕获异常。
+*   **流自适应高度机制**:
+    检测视口物理像素尺寸，尤其是移动端的输入键盘拉起事件，利用动态 `viewport-height` 刷新 DOM
+    元素的高度，避免聊天输入框被键盘推移挤出屏幕范围。
+
+### 7. `MainLayout.tsx` (物理主导航控制)
+*   **实现位置**: [MainLayout.tsx](file:///d:/projects/Mobile-Tavern/src/components/MainLayout.tsx)
+*   **核心逻辑**:
+    作为前端视图层的承载骨架。它响应 AppContext 广播的 Tab 变化，渲染不同的 Tab 面板。
+*   **拇指交互实现**:
+    将高频次使用的角色管理、历史分支列表、世界书配置以及控制面板按钮以 2.5 字符高度的形式
+    均匀放置于屏幕最底端，使得单手握持状态下大拇指能轻松覆盖所有跳转范围。
+
+### 8. `GlobalWorldbookTab.tsx` (设定集检索管理)
+*   **实现位置**: [GlobalWorldbookTab.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/GlobalWorldbookTab.tsx)
+*   **核心逻辑**:
+    提供对于全局知识库条目的反应式配置。允许用户动态创建、使能或禁用指定的 key 组。
+*   **原子化写入**:
+    当对词条内容执行变更后，模块并不直接执行全局存储刷新，而是将当前被编辑的条目通过特定
+    事务单独投递至 IndexedDB，限制了数据库锁定所引起的性能损耗。
+
+### 9. `CharacterDetailDrawer.tsx` (人设与立绘表情解析器)
+*   **实现位置**: [CharacterDetailDrawer.tsx](file:///d:/projects/Mobile-Tavern/src/components/CharacterDetailDrawer.tsx)
+*   **核心逻辑**:
+    渲染角色卡元信息。包括人设展示、局部世界书挂载，以及立绘表情差分图谱检查。
+*   **对话例句断行分块**:
+    它能够对角色卡中的 `mes_example` 对话范本执行特殊词组切分（例如以 `<START>` 划分），
+    将一长串原始例句分割成不同的气泡流展示在面板抽屉中，让用户极其直观地看到角色的扮演风格。
+
+### 10. `AppContext.tsx` (全局交互事件分发器)
+*   **实现位置**: [AppContext.tsx](file:///d:/projects/Mobile-Tavern/src/contexts/AppContext.tsx)
+*   **核心逻辑**:
+    提供了跨组件的多点弹窗调用（Alert, Confirm, Prompt）异步桥接包装。
+*   **Promise 状态机序列化**:
+    为解决在高频异步更新下 React Modal 状态错乱导致的事件丢失，`AppContext` 底层将弹窗动作
+    转化为标准的 `Promise<void>` / `Promise<boolean>` / `Promise<string | null>`，
+    通过状态机的解耦分发使得开发者可以在异步 hook 中像同步调用浏览器 `window.confirm` 一样书写业务逻辑。
+
+### 11. `useSettings.ts` (参数自动同步及持久化)
+*   **实现位置**: [useSettings.ts](file:///d:/projects/Mobile-Tavern/src/hooks/useSettings.ts)
+*   **核心逻辑**:
+    统一同步并托管用户的全局控制端参数设定。
+*   **防抖自动写入**:
+    当用户拖拽设置页的 temperature、top_p 或是重复惩罚参数时，数据会反应式在内存中更新。
+    防抖机制会将写入 IndexedDB 的底层调用聚合，降低系统频繁落库引起的并发 IO 压力。
+
+### 12. `CharactersTab.tsx` (角色列表交互模块)
+*   **实现位置**: [CharactersTab.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/CharactersTab.tsx)
+*   **核心逻辑**:
+    管理卡片的交互陈列。支持多属性过滤、全文模糊搜索和 PNG 卡片解析。
+*   **拖拽事件监听器**:
+    在前台部署了针对标准 HTML5 拖拽事件（`dragover`, `drop`）的事件监听器，
+    可以直接在浏览器窗口内捕获图片文件对象，自动触发 `cardParser` 提取数据。
+
+### 13. `telemetry.ts` (遥测上报直连客户端)
+*   **实现位置**: [telemetry.ts](file:///d:/projects/Mobile-Tavern/src/utils/telemetry.ts)
+*   **核心逻辑**:
+    负责崩溃及使用率统计的低侵入收集模块。
+*   **缓冲与直传管理**:
+    为了规避在真机高频发送日志导致的耗电问题，遥测系统内部构建了日志收集队列，
+    平时将事件推入内存缓冲中，只有当日志总数到达阈值或距离上一次上传超过设定时间时，
+    才动态通过 FC 获取 STS 令牌，发起一次批量直传上报。
+
+### 14. `TimelineModal.tsx` (前情剧情提炼时间线展示)
+*   **实现位置**: [TimelineModal.tsx](file:///d:/projects/Mobile-Tavern/src/components/TimelineModal.tsx)
+*   **核心逻辑**:
+    提取会话中已归档的 `summaries` 时间片数据，并渲染为优雅的垂直卡片轴。
+*   **故事线渲染设计**:
+    在手机端渲染折叠的前情概要大纲（故事年表），帮助用户在超长对话中回忆历史场景。
+    点击事件可以展开完整的剧情概要，为用户提供沉浸式小说阅读视角。
+
+### 15. `SessionManagerModal.tsx` (多会话剧情分支分叉管理)
+*   **实现位置**: [SessionManagerModal.tsx](file:///d:/projects/Mobile-Tavern/src/components/SessionManagerModal.tsx)
+*   **核心逻辑**:
+    负责对指定的角色卡开启多条独立的聊天剧情分支（类似于世界分支的切换）。
+*   **多维度并发操作**:
+    在前端执行分支克隆、重命名及物理删除。当克隆时，开启 IndexedDB 关联事务，
+    复制原分支的所有消息历史和剧情提炼大纲，并迅速建立具有新 UUID 的平行会话分支实体。
+
+### 16. `CustomConfirmDialog.tsx` (移动端风格交互对话框)
+*   **实现位置**: [CustomConfirmDialog.tsx](file:///d:/projects/Mobile-Tavern/src/components/CustomConfirmDialog.tsx)
+*   **核心逻辑**:
+    针对 APK 及手机端网页环境，完全重写了传统的浏览器 `window.alert` 和 `confirm`。
+*   **微动画交互反馈**:
+    采用毛玻璃特效和渐变，支持弹出输入框（Prompt）并正确适配大拇指易点击的间距宽度。
+
+---
+
+## 📂 源码目录结构与组件拓扑 (Source Directory Tree & Code Topography)
+
+本工程代码采用严格的模块化组织结构，主要分为前端 React 应用与后端 Tauri / Express 基础设施两大部分。
+以下为核心文件目录树：
+
 ```text
-                               【安全隔离架构】
-          ┌──────────────────────────────────┐          ┌──────────────────────────────────┐
-          │    客户端 App (Mobile Tavern)   │          │    阿里云函数计算 (FC 网关)     │
-          │                                  │          │                                  │
-          │ 1. 仅持有公共公网 SLS Endpoint  │          │ 1. 在控制台持有高特权子账户 AK  │
-          │ 2. 无任何 Aliyun AccessKey     │          │ 2. 不暴露给客户端，仅内网可用    │
-          └────────────────┬─────────────────┘          └────────────────┬─────────────────┘
-                           │                                             │
-                           │                                             │
-                           │ 1. GET 请求获取临时 STS                      │ 2. 扮演角色 (AssumeRole)
-                           └────────────────────────────────────────────►│ 并签发 1 小时限权 STS Token
-                                                                         │
-                                                                         ◄───────────────────────────
-                                                                         │
-                           │ 3. 得到临时 Token ({AccessKeyId, AccessKeySecret, SecurityToken})
-                           ▼
-                           │ 4. 携带签名直传日志 (HTTPS POST)
-                           ▼
-               ┌────────────────────────┐
-               │ 阿里云日志服务 SLS Log   │
-               └────────────────────────┘
-```
-
-1.  **环境隔离**：前端代码和 `.env.example` 中**不包含任何敏感的 AK/SK 密钥**。只有基础配置：
-    *   `VITE_ALIYUN_SLS_PROJECT`
-    *   `VITE_ALIYUN_SLS_ENDPOINT`
-    *   `VITE_ALIYUN_SLS_LOGSTORE`
-    *   `VITE_ALIYUN_FC_STS_URL`
-2.  **FC 网关拦截与签发**：客户端投递日志前，如果没有未过期的本地 STS 凭证，会发起 HTTP `GET` 请求到 `VITE_ALIYUN_FC_STS_URL`（阿里云函数计算）。FC 验证请求后，使用其安全环境变量里配置的高权限 AK/SK 向阿里云 STS 请求一个*只拥有 `PutLogs` 权限、且 1 小时有效*的临时凭证，返回给客户端。
-3.  **STS 官方直传**：客户端获取凭证后，将其喂给 `@aliyun-sls/web-track-browser` 和 `@aliyun-sls/web-sts-plugin` 官方 SDK，直接通过**带签名的 HTTPS POST** 直连 SLS 公网端点写入日志，不经过 FC，更不需要在 SLS 控制台开启 CORS 跨域放行和 WebTracking 匿名写入功能。
-4.  **警告**：网络断开和 visibilitychange 导致的 `status 0` 为浏览器发送中断的常态现象，禁止误判为服务端缺少 CORS 或 WebTracking 配置。
-
----
-
-## 📁 本地数据库设计 (IndexedDB Schema)
-
-应用基于原生 IndexedDB 创建了名为 `MobileTavernLiteDB` 的本地非关系型数据库。包含三个核心的对象仓库 (Object Stores)：
-
-### 1. `characters` (角色卡仓库)
-*   **KeyPath**: `id` (UUID string)
-*   **数据结构**：
-```typescript
-interface CharacterCard {
-  id: string;
-  name: string;
-  avatar?: string;                  // 角色卡头像的 base64 字符串
-  description: string;              // {{char}} 的详细描述背景 (Description)
-  personality: string;              // {{char}} 的性格设定 (Personality)
-  scenario: string;                 // 当前的设定场景 (Scenario)
-  first_mes: string;                // 第一句问候语 (First Message)
-  mes_example: string;              // 对话例句 (Message Examples)
-  system_prompt?: string;           // 针对当前角色绑定的独立 System Prompt 约束
-  lorebookEntries?: LorebookEntry[]; // 当前角色绑定的局部世界书设定词
-  isWorldbookGlobal?: boolean;      // 该世界书是否对其他所有角色卡也全局生效
-}
-```
-
-### 2. `sessions` (聊天会话与历史分支)
-*   **KeyPath**: `id` (UUID string)
-*   **索引**: `characterId` (用于快速检索某一角色下的全部历史会话)
-*   **数据结构**：
-```typescript
-interface ChatSession {
-  id: string;
-  characterId: string;              // 绑定的角色 ID
-  title: string;                    // 会话自定义标题
-  createdAt: number;                // 创建时间戳
-  messages: Message[];              // 对话消息数组
-  summaries: SummaryCard[];         // 该会话下绑定的“故事年表/故事大纲”数据
-  lastSummarizedMessageId?: string; // 已处理剧情摘要的最后一条消息 ID
-}
-
-interface Message {
-  id: string;
-  sender: "user" | "assistant" | "system";
-  content: string;
-  timestamp: number;
-  generationTime?: number;          // 消息生成所消耗的时间 (秒)
-  tokenCount?: number;              // 本次生成消耗的 Completion Tokens
-  promptTokenCount?: number;        // 本次发送消耗的 Prompt Tokens
-}
-
-interface SummaryCard {
-  id: string;
-  timeTag: string;                  // 时间标签（例如："第二天清晨"）
-  location: string;                 // 地点（例如："小木屋"）
-  content: string;                  // 剧情提炼总结文本
-}
-```
-
-### 3. `settings` (全局系统配置与偏好)
-*   **KeyPath**: `key` (常驻 key: `"user_settings"`)
-*   **数据结构**：
-```typescript
-interface UserSettings {
-  api: {
-    type: "openai-compat";
-    baseUrl: string;                // 大模型 API 端点 Base URL
-    apiKey: string;                 // 大模型 API 密钥 (完全本地存储加密)
-    modelName: string;              // 激活的模型名称
-  };
-  preset: {
-    temperature: number;
-    topP: number;
-    repetitionPenalty: number;
-    maxTokens: number;
-  };
-  memory: {
-    recentTurns: number;            // 实际发送给大模型的历史对话轮数上限
-    summaryTriggerTurns: number;    // 自动总结触发阈值
-    summaryLength: number;          // 总结文本期望的长度
-  };
-  promptConfig: {
-    roleplayMode?: boolean;         // 是否启用酒馆 RP 人设模板和 Jailbreak 越狱指令
-    mainPrompt: string;             // 主系统指令 (mainPrompt)
-    jailbreakPrompt: string;        // 越狱提示词
-    useJailbreak: boolean;
-    postHistoryPrompt: string;      // 消息历史后置的纪律约束提示词
-    usePostHistory: boolean;
-    instructTemplate: "default" | "alpaca" | "chatml" | "llama3" | "custom";
-    storyString?: string;           // 故事描述的物理拼接顺序模板
-  };
-  userName: string;                 // 用户代称（{{user}} 宏替换内容）
-  userInfo?: string;                // 用户人设/Persona
-  enableHtmlRendering?: boolean;    // 是否渲染 AI 输出中的 HTML/CSS 标记
-}
+d:\projects\Mobile-Tavern
+├── package.json                          # 前端工程 Node 依赖配置与运行脚本
+├── tsconfig.json                         # TypeScript 编译器配置参数
+├── vite.config.ts                        # Vite 构建工程配置文件
+├── index.html                            # 网页及原生容器的基底 HTML 文件
+├── server.ts                             # Express 后端流代理服务源码 (CORS 转发)
+├── AGENTS.md                             # APK 手机端原生适配、 telemetry 上报与 ADB 调试规范
+├── presets_prompts_guide.md              # 预设 Prompt 上下文分区逻辑说明
+├── src-tauri                             # Tauri 原生容器构建模块 (Rust)
+│   ├── Cargo.toml                        # Rust 依赖项声明
+│   ├── tauri.conf.json                   # Tauri v2 原生窗口、安全沙盒与打包配置
+│   └── gen/android                       # 原生 Android 封装工程，包含 Kotlin 启动入口
+│       └── app/src/main/java/.../MainActivity.kt  # Android 桥接层与系统状态栏控制
+├── src                                   # 前端核心业务逻辑目录
+│   ├── App.tsx                           # 前端业务入口、底层数据初始化与基础预设包定义
+│   ├── AppContext.tsx                    # 全局状态管理 Context，调度 Tab 页及主题切换
+│   ├── main.tsx                          # React 挂载与静态 DOM 启动文件
+│   ├── types.ts                          # 本系统全部 TypeScript 数据类型契约定义
+│   ├── components                        # 共享交互 UI 容器
+│   │   ├── MainLayout.tsx                # 应用主框架布局，自适应安全边距与底部 Tab 路由
+│   │   ├── CharacterDetailDrawer.tsx     # 角色卡详情卡片抽屉，管理设定及表情差分
+│   │   ├── CharacterEditModal.tsx        # 角色卡信息编辑修改弹窗
+│   │   ├── CustomConfirmDialog.tsx       # 移动端风格自定义弹窗 (Alert/Confirm/Prompt)
+│   │   └── DbWritingOverlay.tsx          # 数据库进行超长写入时的全屏防操作遮罩
+│   ├── hooks                             # 领域核心状态与逻辑 Hook
+│   │   ├── useCharacters.ts              # 角色卡数据持久化，负责 card 解码后的数据库存储
+│   │   ├── useChat.tsx                   # 核心聊天生命周期管理，承载 SSE 连接与流拆包合并
+│   │   └── useSettings.ts                # 控制面板参数存取 Hook
+│   ├── tabs                              # 各大功能 Tab 模块
+│   │   ├── CharactersTab.tsx             # 角色馆 Tab 面板，支持拖拽 PNG 导入
+│   │   ├── ChatHistoryTab.tsx            # 对话分支 Tab 面板，管理不同角色的聊天历史分叉
+│   │   ├── ChatTab.tsx                   # 对话主界面 Tab 面板，自适应 thumb 键盘发送操作
+│   │   ├── GlobalWorldbookTab.tsx        # 全局世界书条目编辑 Tab 面板
+│   │   ├── SettingsTab.tsx               # 控制面板设置 Tab，内置 Sandbox 沙盒路由入口
+│   │   └── PlaygroundTab.tsx             # 架构调试沙盒面板，集成动态 SVG 流向图与 testbeds
+│   └── utils                             # 底层核心计算工具
+│       ├── cardParser.ts                 # 角色卡 PNG 的 tEXt 二进制块提取与解压缩工具
+│       ├── db.ts                         # IndexedDB 实例初始化、数据库升级与事务封装
+│       ├── promptBuilder.ts              # 大模型 Prompt 上下文拼接编译与宏安全替换工具
+│       └── telemetry.ts                  # STS 临时凭证客户端直连 SLS 批量日志上报模块
 ```
 
 ---
 
-## 🔌 API 接口与代理服务文档
+## 🧭 常见问题排查与技术约束 (Troubleshooting & Technical Constraints)
 
-### 1. 本地 Express 代理路由设计 (`server.ts`)
-当应用以**网页/浏览器模式**运行时，浏览器由于安全同源策略（CORS）会拦截直接向第三方 API 发送的非跨域友好请求。为此，本地提供了一个反向代理服务：
-
-#### 📡 测试 API 连接是否可用
-*   **接口地址**：`POST /api/test-connection`
-*   **请求体参数 (JSON)**：
-    ```json
-    {
-      "baseUrl": "https://api.deepseek.com",
-      "apiKey": "sk-xxxxxx",
-      "modelName": "deepseek-chat"
-    }
-    ```
-*   **响应体数据 (JSON)**：
-    *   **成功 (HTTP 200)**:
-        ```json
-        {
-          "success": true,
-          "message": "Connected successfully!",
-          "data": { ...openaiResponse... }
-        }
-        ```
-    *   **失败 (HTTP 200)**:
-        ```json
-        {
-          "success": false,
-          "error": "HTTP 401: Unauthorized"
-        }
-        ```
-
-#### 📡 LLM 聊天 completions 代理 (支持 SSE 流式返回)
-*   **接口地址**：`POST /api/proxy/openai`
-*   **请求体参数 (JSON)**：
-    ```json
-    {
-      "baseUrl": "https://api.deepseek.com",
-      "apiKey": "sk-xxxxxx",
-      "reqBody": {
-        "model": "deepseek-chat",
-        "messages": [ ... ],
-        "stream": true,
-        "temperature": 0.7
-      }
-    }
-    ```
-*   **响应体数据**：
-    *   若 `stream: true`，响应头设置为 `text/event-stream`，并建立长连接实时推送 chunk：
-        ```text
-        data: {"choices": [{"delta": {"content": "你好"}}]}
-        
-        data: [DONE]
-        ```
-    *   若非流式，返回完整 JSON 响应体。
-
-#### 📡 获取服务商模型列表
-*   **接口地址**：`POST /api/proxy/models`
-*   **请求体参数 (JSON)**：
-    ```json
-    {
-      "baseUrl": "https://api.deepseek.com",
-      "apiKey": "sk-xxxxxx"
-    }
-    ```
-*   **响应体数据 (JSON)**：
-    ```json
-    {
-      "success": true,
-      "models": [
-        { "id": "deepseek-chat" },
-        { "id": "deepseek-coder" }
-      ]
-    }
-    ```
-
-### 2. 跨平台 API 调用选择器 (`apiClient.ts`)
-在客户端底层，系统会通过调用 `isClientMode()` 来智能决定请求链路：
-*   **Client Mode (Tauri Android/Desktop)**:
-    由于 Tauri 容器的客户端底层为原生 WebView，发起 fetch 不受浏览器 CORS 跨域安全策略约束。因此，系统会**绕过本地 Server，直接直连目标 API URL**（例如直接向 `https://api.deepseek.com/v1/chat/completions` 发起 fetch）。
-*   **Browser Mode (标准网页)**:
-    直接通过 Axios/Fetch 请求本地同源的反向代理端口（例如 `http://localhost:3000/api/proxy/openai`），由 Express 后端转发请求给服务商，以彻底规避 CORS。
-
----
-
-## 🎨 视觉与交互美学设计 (Aesthetics & Status Bar Sync)
-
-为了给用户提供最顶尖的视觉品质，应用采用了高度响应式的多维美学方案：
-1.  **OKLCH 动态调色体系**：采用最新的 OKLCH 色彩模式，相比传统的 HEX 和 HSL，在色彩亮度和色相的渐变过渡上更加平滑且符合人眼视觉感官。
-2.  **三大沉浸式主题**：
-    *   `极简纯白 (Snow)`：干净利落的纯白性冷淡风，采用轻微的 OKLCH 浅灰。
-    *   `浅沙暮色 (Sand)`：经典的泛黄古旧羊皮纸底色与暖橙红配字，营造最舒适的角色扮演沉浸感。
-    *   `荧光深海 (Ocean)`：深邃的科技蓝黑调，搭配高对比度的荧光青色，打造极客气息。
-3.  **安卓系统状态栏/虚拟键适配**：
-    *   **安全区域自适应**：在 [MainLayout.tsx](file:///e:/modules/projects/Mobile-Tavern/src/components/MainLayout.tsx) 中，底栏的 Padding 与 Height 统一使用 `max(env(safe-area-inset-bottom), 16px)` 进行自适应。这有效解决了手机虚拟导航键遮挡或挤压底部 UI 按钮和输入框的物理缺陷。
-    *   **状态栏主题同步**：在全局 [AppContext.tsx](file:///e:/modules/projects/Mobile-Tavern/src/contexts/AppContext.tsx) 的主题变更副作用（useEffect）中，程序会动态提取当前激活主题 of CSS 变量，并在 HTML `<head>` 中动态插入并更新 `<meta name="theme-color" content="...">`。当用户切换深色或浅沙主题时，手机系统顶部的状态栏背景和文字颜色会自动实时同步适配，杜绝了白底白字无法看清系统通知的情况。
-
----
-
-## 🚀 本地开发与打包指南
-
-### 1. 环境准备
-确保您的计算机上已安装以下工具：
-*   **Node.js** (v18+)
-*   **Rust** 与 **Cargo** (Tauri 编译后端所需)
-*   **Android SDK & NDK** (若需要编译 Android APK)
-
-### 2. 本地调试 (Web + Dev Server)
-1.  复制环境变量配置文件并修改（可不配置 SLS 遥测）：
-    ```bash
-    cp .env.example .env
-    ```
-2.  安装依赖：
-    ```bash
-    npm install
-    ```
-3.  启动开发服务器：
-    ```bash
-    npm run dev
-    ```
-    此命令会同时启动 Vite 前端服务与 Express 后端反向代理。可在浏览器访问 `http://localhost:3000`。
-
-### 3. Tauri 原生客户端运行
-*   **桌面端预览**（若 Tauri 配置中包含桌面对齐）：
-    ```bash
-    npx tauri dev
-    ```
-*   **安卓模拟器/真机联调运行**：
-    ```bash
-    npx tauri android dev
-    ```
-
-### 4. 安卓打包 (Build Android APK)
-确保 Android 编译链就绪后，执行以下命令：
-```bash
-npm run build:android
-```
-生成的 APK 文件将保存在 `src-tauri/gen/android/app/build/outputs/apk/release/` 路径下。
-
----
-
-## 📝 备份与数据互通性 (Compatibility)
-*   **酒馆数据导入/导出**：支持导出包含 character json 的 `.png` 格式卡片，也支持直接导出 `.json` 角色文件。
-*   **SillyTavern 兼容度**：
-    *   导入：支持解析 SillyTavern 导出的标准角色 PNG 图片（tEXt Chunk 中的 `chara` 字段）。
-    *   导出：导出的 PNG 图像格式 100% 遵守酒馆协议规范，能在 SillyTavern 官方网页端被直接拖拽识别导入，保证了数据无缝互通。
-
----
-
-## 最近更新 (Recent Updates - v1.3.5)
-
-*   **Reroll 机制增强与信号控制**：修复了在重新生成聊天文本时 `AbortController` 绑定失效的缺陷。现在用户可以随心物理中止任何对话生成过程，且不会引起文本覆写异常或连接泄漏。
-*   **本地代理与内网安全增强**：将本地开发/生产 Express 服务器的监听绑定由局域网全暴露 `0.0.0.0` 默认收缩为本机回环 `127.0.0.1`，极大加强了本地配置秘钥与数据库资产在局域网下的隐私和抗御安全；同时添加了 URL 协议验证防范 protocol smuggling。
-*   **高性能 Context 优化**：为全局状态上下文的 monolithic 对象执行了完整的 `useMemo` 缓存策略，并将各类动作函数 override 以 `useCallback` 拦截，杜绝了流式响应字符生成时因状态高频改变所引发的渲染层级全应用强制重绘卡顿。
-*   **弹窗输入实时流畅体验**：移除了弹窗对话框（如新建分支、输入密码等）中对全局 context 的实时 keypress 同步逻辑，改为局部状态缓冲提交，打字体验实现零卡顿、无漏键。
-*   **IndexedDB 批量导入提速**：在数据恢复中引入了 `bulkSave` 批量单事务写入支持，彻底取代了原先循环中多次串行提交事务造成的磁盘 I/O 排队卡死，大数据量备份还原操作效率飙升数十倍。
-*   **宏替换正则边界修饰保护**：优化了 bracket macros 符号转义替换处理，防范由于起名符号或特殊后缀字符带来的 LLM 提示词模板破损。
+*   **API 跨域错误 (CORS Blocked)**: 
+    *   在桌面浏览器环境中，若直连第三方 API 提示跨域受阻，请确保启动了本地代理服务器（`npm run dev`），
+        并将 API 控制台的 Base URL 切换为同源路径 `/api/proxy/openai`。
+    *   在 Android 客户端中，所有网络请求将自动交由原生底层发信，直接绕过浏览器 CORS 同源策略限制。
+*   **PNG 角色卡解析失败**: 
+    *   请确保拖入或导入的图片为标准的酒馆 PNG 卡格式，并且未被第三方聊天工具二次压缩抹除了 `tEXt` 
+        区块中的 `chara` 元数据。可以使用本系统“架构调试沙盒 -> PNG卡分析器”上传卡片以查阅元数据树。
+*   **内存总结提取不生效**: 
+    *   检查会话消息历史是否满足“控制面板 -> 存储 -> 剧情总结触发轮数”的预设阈值。如果未到达触发线，
+        故事年表提炼模块将保持 IDLE 挂起状态。
+*   **IndexedDB 版本冲突或升级失败**: 
+    *   当在同一浏览器标签页上频繁切换不同分支的编译程序，或在本地数据库进行跨版本模式修改时，
+        偶尔可能会遇到对象存储库锁定报错。遇到此类问题，重启开发服务或清理浏览器缓存即可自动恢复。
+*   **Tauri 窗口加载状态丢失**: 
+    *   若遇开发中由于 hot-reload 导致 state 树在内存中失焦重置的情形，由于 IndexedDB 中数据
+        均具有原子事务安全锁，所有消息流和卡片信息并不会丢失，直接在界面点击刷新拉取即可。
+*   **TailwindCSS 静态选择器冲突**: 
+    *   本软件全面弃用了旧有的原子内联样式拼写，如果在扩展组件时发现新添加的颜色或阴影不能在移动端正常生效，
+        请确认是否在 CSS 根样式表中注册了相应的 OKLCH 设计令牌，同时检查 Vite 打包管道中对动态选择器的提取范围限制。
+*   **世界书扫描算法技术限制**: 
+    *   为了防止大模型发生逻辑过载及生成延迟，目前的关键词提取采用基于 KMP 的单次快速定位方案。
+    *   对于包含复杂同义词替换或自然语言多维关联判定的词条，推荐使用在角色卡设定中进行前置拆分定义。

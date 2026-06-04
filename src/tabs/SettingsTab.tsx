@@ -82,6 +82,7 @@ export default function SettingsTab() {
     handleImportLocalDataBackup,
     connectionStatus,
     testApiConnection,
+    setActiveTab,
   } = useContext(AppContext);
   return (
     <div className="p-4 flex flex-col h-full overflow-hidden">
@@ -379,6 +380,27 @@ export default function SettingsTab() {
               </CardContent>
             </Card>
 
+            {/* 3. DEVELOPER PLAYGROUND */}
+            <Card className="bg-card border-border shadow-sm border-dashed border-primary/30">
+              <CardHeader className="pb-3 border-b border-border/50">
+                <CardTitle className="text-sm flex items-center gap-2 text-primary font-bold">
+                  <Sparkles className="w-4 h-4 animate-pulse" />
+                  <span>开发者架构调试沙盒</span>
+                </CardTitle>
+                <CardDescription className="text-[11px]">
+                  实时观测 Prompt 编译原理、SSE 流式解析缓冲区以及世界书扫描流程
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("playground")}
+                  className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 active:scale-95"
+                >
+                  🚀 进入架构调试沙盒 (Playground)
+                </button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* PERSONA CONFIG */}
@@ -764,7 +786,135 @@ export default function SettingsTab() {
                       </p>
                     </div>
 
-                    <div className="flex justify-between items-center mb-1">
+                    {/* CORE PROMPT BLOCKS */}
+                    <span className="block text-xs font-bold font-mono text-foreground">CORE PROMPTS</span>
+                    <Accordion type="multiple" className="space-y-2">
+
+                      {/* 1. 底层扮演指令 (Main System Prompt) */}
+                      <AccordionItem value="main-prompt" className="border border-border rounded-lg bg-card overflow-hidden [&[data-state=open]]:border-primary/40 transition-all duration-200">
+                        <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
+                          <div className="flex items-center gap-2 flex-1">
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-foreground">底层扮演指令</span>
+                              <span className="text-[9px] font-mono text-muted-foreground">system · 最顶部注入</span>
+                            </div>
+                          </div>
+                          <AccordionTrigger className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
+                        </div>
+                        <AccordionContent className="p-3 pt-0 border-t border-border/50 bg-background/50 outline-none">
+                          <div className="pt-3">
+                            <Textarea
+                              value={settings.promptConfig.mainPrompt || ""}
+                              onChange={(e) =>
+                                updateSettings({
+                                  ...settings,
+                                  promptConfig: {
+                                    ...settings.promptConfig,
+                                    mainPrompt: e.target.value,
+                                  },
+                                })
+                              }
+                              className="min-h-[120px] text-[11px] font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
+                              placeholder="输入底层角色扮演系统指令..."
+                            />
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      {/* 2. 破限提示词 (Jailbreak) */}
+                      <AccordionItem value="jailbreak-prompt" className="border border-border rounded-lg bg-card overflow-hidden [&[data-state=open]]:border-primary/40 transition-all duration-200">
+                        <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
+                          <div className="flex items-center gap-2 flex-1">
+                            <Switch
+                              checked={settings.promptConfig.useJailbreak}
+                              onCheckedChange={(checked) =>
+                                updateSettings({
+                                  ...settings,
+                                  promptConfig: {
+                                    ...settings.promptConfig,
+                                    useJailbreak: checked,
+                                  },
+                                })
+                              }
+                              className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4"
+                            />
+                            <div className="flex flex-col">
+                              <span className={`text-xs font-bold truncate ${settings.promptConfig.useJailbreak ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
+                                破限提示词 (Jailbreak)
+                              </span>
+                              <span className="text-[9px] font-mono text-muted-foreground">system · beforeLast 前注入</span>
+                            </div>
+                          </div>
+                          <AccordionTrigger className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
+                        </div>
+                        <AccordionContent className="p-3 pt-0 border-t border-border/50 bg-background/50 outline-none">
+                          <div className="pt-3">
+                            <Textarea
+                              value={settings.promptConfig.jailbreakPrompt || ""}
+                              onChange={(e) =>
+                                updateSettings({
+                                  ...settings,
+                                  promptConfig: {
+                                    ...settings.promptConfig,
+                                    jailbreakPrompt: e.target.value,
+                                  },
+                                })
+                              }
+                              className="min-h-[120px] text-[11px] font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
+                              placeholder="输入破限提示词..."
+                            />
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      {/* 3. 生成纪律提醒 (Post-History) */}
+                      <AccordionItem value="post-history-prompt" className="border border-border rounded-lg bg-card overflow-hidden [&[data-state=open]]:border-primary/40 transition-all duration-200">
+                        <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
+                          <div className="flex items-center gap-2 flex-1">
+                            <Switch
+                              checked={settings.promptConfig.usePostHistory}
+                              onCheckedChange={(checked) =>
+                                updateSettings({
+                                  ...settings,
+                                  promptConfig: {
+                                    ...settings.promptConfig,
+                                    usePostHistory: checked,
+                                  },
+                                })
+                              }
+                              className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4"
+                            />
+                            <div className="flex flex-col">
+                              <span className={`text-xs font-bold truncate ${settings.promptConfig.usePostHistory ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
+                                生成纪律提醒 (Post-History)
+                              </span>
+                              <span className="text-[9px] font-mono text-muted-foreground">system · 历史记录末尾压轴</span>
+                            </div>
+                          </div>
+                          <AccordionTrigger className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
+                        </div>
+                        <AccordionContent className="p-3 pt-0 border-t border-border/50 bg-background/50 outline-none">
+                          <div className="pt-3">
+                            <Textarea
+                              value={settings.promptConfig.postHistoryPrompt || ""}
+                              onChange={(e) =>
+                                updateSettings({
+                                  ...settings,
+                                  promptConfig: {
+                                    ...settings.promptConfig,
+                                    postHistoryPrompt: e.target.value,
+                                  },
+                                })
+                              }
+                              className="min-h-[120px] text-[11px] font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
+                              placeholder="输入尾部纪律提醒指令..."
+                            />
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+
+                    <div className="flex justify-between items-center mb-1 pt-2 border-t border-border/50">
                       <span className="text-xs font-bold font-mono text-foreground">
                         PROMPT MODULES
                       </span>
@@ -897,81 +1047,6 @@ export default function SettingsTab() {
                   </div>
                 )}
 
-                <Card className="bg-card border-border shadow-sm mt-6">
-                  <CardHeader className="pb-3 border-b border-border/50">
-                    <CardTitle className="text-xs flex items-center justify-between">
-                      <span>Prompt 上下文分区标头 (Section Headers)</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateSettings({
-                            ...settings,
-                            promptConfig: {
-                              ...settings.promptConfig,
-                              sectionHeaders: {
-                                system: "=== 设定基础基石 (World Lore) ===",
-                                beforeChar: "=== 世界背景设定前置 ===",
-                                personality: "=== 角色性格设定 ===",
-                                description: "=== 角色详细描述 ===",
-                                scenario: "=== 时代背景与场景设定 ===",
-                                summary: "=== 剧情前情要点提炼 (Timeline Summaries) ===",
-                                userPersona: "=== 玩家详细信息 (User Persona) ===",
-                                charSystem: "=== 角色卡附加特殊约束 ===",
-                                worldInfo: "=== 设定说明书拓展 (World Info) ===",
-                                beforeLast: "=== 临时触发规则与道具 ===",
-                                jailbreak: "=== 安全消除与写实细节强调 (Jailbreak Prompt) ===",
-                                postHistory: "=== 生成纪律提醒 ===",
-                              }
-                            }
-                          });
-                        }}
-                        className="text-[10px] text-primary font-bold hover:underline"
-                      >
-                        重置全部标头
-                      </button>
-                    </CardTitle>
-                    <CardDescription className="text-[10px]">
-                      设定注入 AI 的每一个 Prompt 部分的 Markdown 分割标题（清空则代表完全隐藏对应标题）
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-[10px]">
-                    {[
-                      { k: "system", n: "设定基础标头 (World Lore)" },
-                      { k: "beforeChar", n: "背景设定前置标头" },
-                      { k: "personality", n: "角色性格标头" },
-                      { k: "description", n: "角色详细描述标头" },
-                      { k: "scenario", n: "场景设定标头" },
-                      { k: "summary", n: "年表记忆汇总标头" },
-                      { k: "userPersona", n: "玩家人设描述标头" },
-                      { k: "charSystem", n: "角色附加限制标头" },
-                      { k: "worldInfo", n: "设定拓展 (World Info) 标头" },
-                      { k: "beforeLast", n: "临时触发规则标头" },
-                      { k: "jailbreak", n: "破限提示词 (Jailbreak) 标头" },
-                      { k: "postHistory", n: "生成纪律提醒标头" },
-                    ].map((item) => (
-                      <div key={item.k} className="space-y-1">
-                        <span className="font-semibold text-muted-foreground">{item.n}</span>
-                        <Input
-                          value={settings.promptConfig.sectionHeaders?.[item.k] ?? ""}
-                          onChange={(e) => {
-                            const nextHeaders = {
-                              ...(settings.promptConfig.sectionHeaders || {}),
-                              [item.k]: e.target.value,
-                            };
-                            updateSettings({
-                              ...settings,
-                              promptConfig: {
-                                ...settings.promptConfig,
-                                sectionHeaders: nextHeaders,
-                              }
-                            });
-                          }}
-                          className="h-8 text-xs font-semibold bg-input/50"
-                        />
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
               </div>
             </div>
           </TabsContent>
