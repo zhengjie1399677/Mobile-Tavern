@@ -292,52 +292,50 @@ export function assemblePromptContext(params: {
     return entries.map((e) => formatEntryContent(e)).join("\n\n");
   }
 
+  const headers = settings.promptConfig?.sectionHeaders || {};
+
+  const formatSectionText = (key: string, defaultHeader: string, contentText: string, prefixNewline: boolean = false) => {
+    if (!contentText) return "";
+    const headerVal = headers[key];
+    const actualHeader = headerVal === undefined ? defaultHeader : headerVal;
+    if (!actualHeader) return `${contentText}\n`;
+    return prefixNewline
+      ? `\n${actualHeader}\n${contentText}\n`
+      : `${actualHeader}\n${contentText}\n`;
+  };
+
   const topText = formatEntryBlock(topEntries);
-  const topSection = topText
-    ? `=== 设定基础基石 (World Lore) ===\n${topText}\n`
-    : "";
+  const topSection = formatSectionText("system", "=== 设定基础基石 (World Lore) ===", topText);
 
   const beforeCharText = formatEntryBlock(beforeCharEntries);
-  const beforeCharSection = beforeCharText
-    ? `=== 世界背景设定前置 ===\n${beforeCharText}\n`
-    : "";
+  const beforeCharSection = formatSectionText("beforeChar", "=== 世界背景设定前置 ===", beforeCharText);
 
   const afterCharText = formatEntryBlock(afterCharEntries);
-  const afterCharSection = afterCharText
-    ? `=== 设定说明书拓展 (World Info) ===\n${afterCharText}\n`
-    : "";
+  const afterCharSection = formatSectionText("worldInfo", "=== 设定说明书拓展 (World Info) ===", afterCharText);
 
   const beforeLastText = formatEntryBlock(beforeLastMsgEntries);
-  const beforeLastSection = beforeLastText
-    ? `=== 临时触发规则与道具 ===\n${beforeLastText}\n`
-    : "";
+  const beforeLastSection = formatSectionText("beforeLast", "=== 临时触发规则与道具 ===", beforeLastText);
 
   // 3. Summary timeline memory
   let summarySection = "";
   if (chat.summaries && chat.summaries.length > 0) {
-    summarySection =
-      "\n=== 剧情前情要点提炼 (Timeline Summaries) ===\n" +
-      chat.summaries
-        .map((s) => `[时间: ${s.timeTag} | 地点: ${s.location}] ${s.content}`)
-        .join("\n") +
-      "\n";
+    const summaryText = chat.summaries
+      .map((s) => `[时间: ${s.timeTag} | 地点: ${s.location}] ${s.content}`)
+      .join("\n");
+    summarySection = formatSectionText("summary", "=== 剧情前情要点提炼 (Timeline Summaries) ===", summaryText, true);
   }
 
   let userPersonaSection = "";
   if (settings.userInfo) {
-    userPersonaSection =
-      "\n=== 玩家详细信息 (User Persona) ===\n" +
-      replaceMacros(settings.userInfo, macroParams) +
-      "\n";
+    const personaText = replaceMacros(settings.userInfo, macroParams);
+    userPersonaSection = formatSectionText("userPersona", "=== 玩家详细信息 (User Persona) ===", personaText, true);
   }
 
   // 4. Character-bound specific system prompt if specified
   let charSpecificPrompt = "";
   if (character.system_prompt) {
-    charSpecificPrompt =
-      "\n=== 角色卡附加特殊约束 ===\n" +
-      replaceMacros(character.system_prompt, macroParams) +
-      "\n";
+    const specificText = replaceMacros(character.system_prompt, macroParams);
+    charSpecificPrompt = formatSectionText("charSystem", "=== 角色卡附加特殊约束 ===", specificText, true);
   }
 
   // 5. Jailbreak instructions
@@ -346,10 +344,8 @@ export function assemblePromptContext(params: {
     settings.promptConfig?.useJailbreak &&
     settings.promptConfig?.jailbreakPrompt
   ) {
-    jailbreakSection =
-      "\n=== 安全消除与写实细节强调 (Jailbreak Prompt) ===\n" +
-      replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams) +
-      "\n";
+    const jailbreakText = replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams);
+    jailbreakSection = formatSectionText("jailbreak", "=== 安全消除与写实细节强调 (Jailbreak Prompt) ===", jailbreakText, true);
   }
 
   // 6. Post-history direct instruction (reminders right before response generation)
@@ -358,25 +354,28 @@ export function assemblePromptContext(params: {
     settings.promptConfig?.usePostHistory &&
     settings.promptConfig?.postHistoryPrompt
   ) {
-    postHistorySection =
-      "\n=== 生成纪律提醒 ===\n" +
-      replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams) +
-      "\n";
+    const postHistoryText = replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams);
+    postHistorySection = formatSectionText("postHistory", "=== 生成纪律提醒 ===", postHistoryText, true);
   }
 
   // 7. Core custom story sequence compiler! Natively supports standard SillyTavern order template!
+  const personalityHeader = headers.personality === undefined ? "=== 角色性格设定 ===" : headers.personality;
+  const descriptionHeader = headers.description === undefined ? "=== 角色详细描述 ===" : headers.description;
+  const scenarioHeader = headers.scenario === undefined ? "=== 时代背景与场景设定 ===" : headers.scenario;
+
+  const personalityBlock = personalityHeader ? `${personalityHeader}\n{{personality}}` : "{{personality}}";
+  const descriptionBlock = descriptionHeader ? `${descriptionHeader}\n{{description}}` : "{{description}}";
+  const scenarioBlock = scenarioHeader ? `${scenarioHeader}\n{{scenario}}` : "{{scenario}}";
+
   let compiledStory =
     settings.promptConfig?.storyString ||
     `{{system_prompt}}
 
-=== 角色性格设定 ===
-{{personality}}
+${personalityBlock}
 
-=== 角色详细描述 ===
-{{description}}
+${descriptionBlock}
 
-=== 时代背景与场景设定 ===
-{{scenario}}
+${scenarioBlock}
 
 {{char_system}}`;
 

@@ -20,13 +20,14 @@ async function startServer() {
   // API 2: Test connection for API config
   app.post("/api/test-connection", async (req, res) => {
     try {
-      const { type, baseUrl, apiKey, modelName } = req.body;
+      const { type, baseUrl, apiKey, modelName, chatPath } = req.body;
       if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
         return res.json({ success: false, error: "Invalid baseUrl protocol. Only http:// and https:// are allowed." });
       }
 
       // Proxy OpenAI-compatible API
-      const targetUrl = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+      const chatRoute = chatPath || "/chat/completions";
+      const targetUrl = `${baseUrl.replace(/\/$/, "")}${chatRoute}`;
       const fetchHeaders: any = {
         "Content-Type": "application/json",
       };
@@ -64,12 +65,13 @@ async function startServer() {
     });
 
     try {
-      const { baseUrl, apiKey, reqBody } = req.body;
+      const { baseUrl, apiKey, reqBody, chatPath } = req.body;
       if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
         return res.status(400).json({ success: false, error: "Invalid baseUrl protocol. Only http:// and https:// are allowed." });
       }
 
-      const targetUrl = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+      const chatRoute = chatPath || "/chat/completions";
+      const targetUrl = `${baseUrl.replace(/\/$/, "")}${chatRoute}`;
       const fetchHeaders: any = {
         "Content-Type": "application/json",
       };
@@ -130,13 +132,14 @@ async function startServer() {
   // API 4: Models Fetch Proxy
   app.post("/api/proxy/models", async (req, res) => {
     try {
-      const { type, baseUrl, apiKey } = req.body;
+      const { type, baseUrl, apiKey, modelsPath } = req.body;
 
       if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
         return res.status(400).json({ success: false, error: "Invalid baseUrl protocol. Only http:// and https:// are allowed." });
       }
 
-      const targetUrl = `${baseUrl.replace(/\/$/, "")}/models`;
+      const modelsRoute = modelsPath || "/models";
+      const targetUrl = `${baseUrl.replace(/\/$/, "")}${modelsRoute}`;
       const fetchHeaders: any = {
         "Content-Type": "application/json",
       };

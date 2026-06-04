@@ -141,14 +141,14 @@ export const useChat = (
       messagesToCompress = unsummarizedMessages.slice(0, maxAllowedUnsummarized);
 
       try {
-        const promptInstruction = `你是一个极其客观、专业的故事剧情归纳助手。你的任务是将一段未整理的对话片段浓缩提炼为一段客观简洁的前情要点总结。
+        const promptInstruction = settings?.memory?.summarySystemPrompt || `你是一个极其客观、专业的故事剧情归纳助手。你的任务是将一段未整理的对话片段浓缩提炼为一段客观简洁的前情要点总结。
 请严格遵守以下规则来进行归纳：
 1. 【忠于事实】：必须完全且唯一基于给出的对话记录本身，客观陈述发生了哪些交流、达成的剧情或决定。绝对不要发挥、绝对不要衍生、也绝对不要美化。
 2. 【无内容防捏造】：若输入的内容极少或无实质剧情（如日常寒喧、数字、指令、甚至空话、测试语、字母），必须用极其简短且客观事实的语言记录（例如：“用户进行连通测试”、“用户发送了反馈疑问”），绝对禁止凭空捏造不存在的场景、科幻/玄幻设定、人物动作、关键道具、内心戏、心路历程、戏剧冲突或小说情节。
 3. 【简洁精炼】：使用简短精练的第三人称陈述句，通常只需1-3句话（约30-100字），不要长篇大论，更不能编写成小说篇章。
 4. 【直接输出】：仅返回提炼后的概要本身，不要带有任何“以下是、总结、摘要”等前言前缀、也不要进行任何评价与解释废话，直接输出归纳文本。`;
         const contentConcat = messagesToCompress
-          .map((m) => `${m.sender === "user" ? "用户" : "角色"}: ${m.content}`)
+          .map((m) => `${m.sender === "user" ? (settings?.userName || "用户") : (activeCharacter?.name || "角色")}: ${m.content}`)
           .join("\n");
 
         let compiledSummary = "";
@@ -166,6 +166,7 @@ export const useChat = (
         const response = await universalFetch("/api/proxy/openai", {
           baseUrl: settings.api.baseUrl,
           apiKey: settings.api.apiKey,
+          chatPath: settings?.api?.chatPath,
           reqBody,
         });
 
@@ -181,9 +182,13 @@ export const useChat = (
         }
 
         if (compiledSummary) {
+          const indexVal = (session.summaries || []).length + 1;
+          const timeTagTemplate = settings?.memory?.timeTagTemplate || "第{{index}}幕";
+          const timeTag = timeTagTemplate.replace(/\{\{index\}\}/g, String(indexVal));
+
           const newCard: SummaryCard = {
             id: "summary_" + Math.random().toString(36).substring(2, 9),
-            timeTag: `第${(session.summaries || []).length + 1}幕`,
+            timeTag,
             location: activeCharacter?.scenario?.slice(0, 8) || "未知地点",
             content: compiledSummary.trim(),
           };
@@ -306,6 +311,7 @@ export const useChat = (
       const response = await universalFetch("/api/proxy/openai", {
         baseUrl: settings.api.baseUrl,
         apiKey: settings.api.apiKey,
+        chatPath: settings?.api?.chatPath,
         reqBody: {
           model: settings.api.modelName || "gpt-3.5-turbo",
           stream: true,
@@ -603,6 +609,7 @@ export const useChat = (
       const response = await universalFetch("/api/proxy/openai", {
         baseUrl: settings.api.baseUrl,
         apiKey: settings.api.apiKey,
+        chatPath: settings?.api?.chatPath,
         reqBody: {
           model: settings.api.modelName || "gpt-3.5-turbo",
           stream: true,

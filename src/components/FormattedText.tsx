@@ -72,7 +72,7 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   table: new Set(["border", "cellpadding", "cellspacing"]),
 };
 
-function renderTextNode(textVal: string): React.ReactNode {
+function renderTextNode(textVal: string, enableAsteriskFormatting: boolean): React.ReactNode {
   if (!/(\*\*|\*)/.test(textVal)) {
     return textVal;
   }
@@ -88,7 +88,11 @@ function renderTextNode(textVal: string): React.ReactNode {
       return (
         <span
           key={index}
-          className="text-muted-foreground/85 italic font-light text-[13px] leading-relaxed mx-0.5"
+          className={
+            enableAsteriskFormatting
+              ? "text-muted-foreground/85 italic font-light text-[13px] leading-relaxed mx-0.5"
+              : "italic text-[inherit] mx-0.5"
+          }
         >
           {part.slice(1, -1)}
         </span>
@@ -98,9 +102,9 @@ function renderTextNode(textVal: string): React.ReactNode {
   });
 }
 
-function domToReact(node: Node, index: number): React.ReactNode {
+function domToReact(node: Node, index: number, enableAsteriskFormatting: boolean): React.ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
-    return renderTextNode(node.nodeValue || "");
+    return renderTextNode(node.nodeValue || "", enableAsteriskFormatting);
   }
 
   if (node.nodeType !== Node.ELEMENT_NODE) {
@@ -122,7 +126,7 @@ function domToReact(node: Node, index: number): React.ReactNode {
     ) {
       return null;
     }
-    return Array.from(element.childNodes).map((child, i) => domToReact(child, i));
+    return Array.from(element.childNodes).map((child, i) => domToReact(child, i, enableAsteriskFormatting));
   }
 
   const props: Record<string, any> = { key: index };
@@ -157,7 +161,7 @@ function domToReact(node: Node, index: number): React.ReactNode {
     }
   }
 
-  const children = Array.from(element.childNodes).map((child, i) => domToReact(child, i));
+  const children = Array.from(element.childNodes).map((child, i) => domToReact(child, i, enableAsteriskFormatting));
   return React.createElement(
     tagName,
     props,
@@ -165,14 +169,14 @@ function domToReact(node: Node, index: number): React.ReactNode {
   );
 }
 
-function parseSafeHtmlToReact(html: string): React.ReactNode {
+function parseSafeHtmlToReact(html: string, enableAsteriskFormatting: boolean): React.ReactNode {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
     const container = doc.body.firstChild;
     if (!container) return html;
 
-    return Array.from(container.childNodes).map((child, i) => domToReact(child, i));
+    return Array.from(container.childNodes).map((child, i) => domToReact(child, i, enableAsteriskFormatting));
   } catch (err) {
     console.error("Failed to parse HTML safely:", err);
     return html;
@@ -189,6 +193,7 @@ export default function FormattedText({
 
   const context = useContext(AppContext);
   const enableHtml = context?.settings?.enableHtmlRendering ?? true;
+  const enableAsteriskFormatting = !!context?.activeCharacter?.visualSettings?.enableAsteriskFormatting;
 
   // Replace placeholders dynamically
   const processed = text
@@ -203,7 +208,7 @@ export default function FormattedText({
   if (hasHtml) {
     return (
       <span className={`block whitespace-pre-wrap leading-relaxed ${className}`}>
-        {parseSafeHtmlToReact(processed)}
+        {parseSafeHtmlToReact(processed, enableAsteriskFormatting)}
       </span>
     );
   }
@@ -224,7 +229,11 @@ export default function FormattedText({
           return (
             <span
               key={index}
-              className="text-muted-foreground/80 italic font-light text-[13px] leading-relaxed mx-0.5"
+              className={
+                enableAsteriskFormatting
+                  ? "text-muted-foreground/80 italic font-light text-[13px] leading-relaxed mx-0.5"
+                  : "italic text-[inherit] mx-0.5"
+              }
             >
               {part.slice(1, -1)}
             </span>

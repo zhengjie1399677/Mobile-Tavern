@@ -32,6 +32,8 @@ export interface CharacterVisualSettings {
   backgroundImageUrl?: string;
   backgroundOpacity?: number;
   backgroundBlur?: number;
+  expressions?: any;
+  enableAsteriskFormatting?: boolean;
 }
 
 export interface CharacterCard {
@@ -92,6 +94,8 @@ export interface ApiConfig {
   apiKey: string;
   modelName: string;
   savedUrls?: string[];
+  chatPath?: string;
+  modelsPath?: string;
 }
 
 export interface SamplerPreset {
@@ -111,6 +115,8 @@ export interface MemoryConfig {
   recentTurns: number; // Default e.g. 5
   summaryTriggerTurns: number; // Default e.g. 15 (start summarizing when messages exceed this. 0 means follow recentTurns)
   summaryLength: number; // Default e.g. 150 characters
+  summarySystemPrompt?: string;
+  timeTagTemplate?: string;
 }
 
 export interface CustomPromptBlock {
@@ -141,6 +147,8 @@ export interface PromptConfig {
   userSuffix: string;
   assistantPrefix: string;
   assistantSuffix: string;
+
+  sectionHeaders?: Record<string, string>;
 }
 
 export interface SavedPresetBundle {
@@ -159,4 +167,5 @@ export interface UserSettings {
   userAvatar?: string;
   savedPresets?: SavedPresetBundle[]; // Collection of saved multiple presets
   enableHtmlRendering?: boolean; // Render exact HTML/CSS from AI output
+  expressionTriggers?: Record<string, string>;
 }

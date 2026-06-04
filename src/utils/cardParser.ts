@@ -237,6 +237,8 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
         backgroundImageUrl: rawStyle.bg_image || rawStyle.bgImage || rawStyle.background_url || rawStyle.backgroundUrl || ext.bg_image || ext.bgImage || ext.background_url || ext.backgroundUrl || "",
         backgroundOpacity: rawStyle.bg_opacity !== undefined ? Number(rawStyle.bg_opacity) : (ext.bg_opacity !== undefined ? Number(ext.bg_opacity) : undefined),
         backgroundBlur: rawStyle.bg_blur !== undefined ? Number(rawStyle.bg_blur) : (ext.bg_blur !== undefined ? Number(ext.bg_blur) : undefined),
+        expressions: rawStyle.expressions || ext.expressions || data.expressions || undefined,
+        enableAsteriskFormatting: rawStyle.enable_asterisk_formatting !== undefined ? !!rawStyle.enable_asterisk_formatting : (rawStyle.enableAsteriskFormatting !== undefined ? !!rawStyle.enableAsteriskFormatting : (ext.enable_asterisk_formatting !== undefined ? !!ext.enable_asterisk_formatting : (ext.enableAsteriskFormatting !== undefined ? !!ext.enableAsteriskFormatting : undefined))),
       };
 
       const clean = Object.fromEntries(

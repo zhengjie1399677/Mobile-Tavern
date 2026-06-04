@@ -42,15 +42,18 @@ export const universalFetch = async (
 
   // --- DIRECT FETCH FALLBACK (Tauri Mobile/Desktop) ---
   // Tauri mobile applications bypass standard browser CORS, so we can make direct HTTPS fetches
-  const { baseUrl, apiKey, reqBody, modelName } = proxyPayload;
+  const { baseUrl, apiKey, reqBody, modelName, chatPath, modelsPath } = proxyPayload;
   const targetBase = typeof baseUrl === "string" ? baseUrl.replace(/\/$/, "") : "";
   const headers: any = { "Content-Type": "application/json" };
   if (apiKey) {
     headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
+  const chatRoute = chatPath || "/chat/completions";
+  const modelsRoute = modelsPath || "/models";
+
   if (endpoint === "/api/test-connection") {
-    const res = await fetch(`${targetBase}/chat/completions`, {
+    const res = await fetch(`${targetBase}${chatRoute}`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -82,7 +85,7 @@ export const universalFetch = async (
   }
 
   if (endpoint === "/api/proxy/models") {
-    const res = await fetch(`${targetBase}/models`, {
+    const res = await fetch(`${targetBase}${modelsRoute}`, {
       method: "GET",
       headers,
       signal,
@@ -122,7 +125,7 @@ export const universalFetch = async (
   }
 
   if (endpoint === "/api/proxy/openai") {
-    return fetch(`${targetBase}/chat/completions`, {
+    return fetch(`${targetBase}${chatRoute}`, {
       method: "POST",
       headers,
       body: JSON.stringify(reqBody),

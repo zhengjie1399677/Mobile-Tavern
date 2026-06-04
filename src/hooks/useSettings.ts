@@ -98,6 +98,20 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
   userSuffix: "",
   assistantPrefix: "",
   assistantSuffix: "",
+  sectionHeaders: {
+    system: "=== 设定基础基石 (World Lore) ===",
+    beforeChar: "=== 世界背景设定前置 ===",
+    personality: "=== 角色性格设定 ===",
+    description: "=== 角色详细描述 ===",
+    scenario: "=== 时代背景与场景设定 ===",
+    summary: "=== 剧情前情要点提炼 (Timeline Summaries) ===",
+    userPersona: "=== 玩家详细信息 (User Persona) ===",
+    charSystem: "=== 角色卡附加特殊约束 ===",
+    worldInfo: "=== 设定说明书拓展 (World Info) ===",
+    beforeLast: "=== 临时触发规则与道具 ===",
+    jailbreak: "=== 安全消除与写实细节强调 (Jailbreak Prompt) ===",
+    postHistory: "=== 生成纪律提醒 ===",
+  },
 };
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -106,14 +120,40 @@ export const DEFAULT_SETTINGS: UserSettings = {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
     apiKey: "",
     modelName: "gemini-2.5-flash",
+    chatPath: "/chat/completions",
+    modelsPath: "/models",
   },
   preset: DEFAULT_PRESETS.balanced,
-  memory: { recentTurns: 6, summaryTriggerTurns: 0, summaryLength: 120 },
+  memory: {
+    recentTurns: 6,
+    summaryTriggerTurns: 0,
+    summaryLength: 120,
+    summarySystemPrompt: `你是一个极其客观、专业的故事剧情归纳助手。你的任务是将一段未整理的对话片段浓缩提炼为一段客观简洁的前情要点总结。
+请严格遵守以下规则来进行归纳：
+1. 【忠于事实】：必须完全且唯一基于给出的对话记录本身，客观陈述发生了哪些交流、达成的剧情或决定。绝对不要发挥、绝对不要衍生、也绝对不要美化。
+2. 【无内容防捏造】：若输入的内容极少或无实质剧情（如日常寒喧、数字、指令、甚至空话、测试语、字母），必须用极其简短且客观事实的语言记录（例如：“用户进行连通测试”、“用户发送了反馈疑问”），绝对禁止凭空捏造不存在的场景、科幻/玄幻设定、人物动作、关键道具、内心戏、心路历程、戏剧冲突或小说情节。
+3. 【简洁精炼】：使用简短精练的第三人称陈述句，通常只需1-3句话（约30-100字），不要长篇大论，更不能编写成小说篇章。
+4. 【直接输出】：仅返回提炼后的概要本身，不要带有任何“以下是、总结、摘要”等前言前缀、也不要进行任何评价与解释废话，直接输出归纳文本。`,
+    timeTagTemplate: "第{{index}}幕",
+  },
   promptConfig: DEFAULT_PROMPT_CONFIG,
   userName: "探客先生 (User)",
   userInfo: "",
   userAvatar: "",
   enableHtmlRendering: true,
+  expressionTriggers: {
+    joy: "笑了|微笑|开心|😊|smile|joy|happy",
+    happy: "笑了|微笑|开心|😊|smile|joy|happy",
+    smile: "笑了|微笑|开心|😊|smile|joy|happy",
+    sadness: "哭|流泪|伤心|😢|cry|sad",
+    sad: "哭|流泪|伤心|😢|cry|sad",
+    cry: "哭|流泪|伤心|😢|cry|sad",
+    anger: "生气|愤怒|😡|angry|rage",
+    angry: "生气|愤怒|😡|angry|rage",
+    rage: "生气|愤怒|😡|angry|rage",
+    blush: "脸红|害羞|😳|blush|shy",
+    shy: "脸红|害羞|😳|blush|shy",
+  },
 };
 
 export const useSettings = () => {
@@ -154,18 +194,33 @@ export const useSettings = () => {
 
         if (storedSet) {
           const mergedSet: UserSettings = {
-            api: { ...DEFAULT_SETTINGS.api, ...(storedSet.api || {}) },
+            api: {
+              ...DEFAULT_SETTINGS.api,
+              ...(storedSet.api || {}),
+              chatPath: storedSet.api?.chatPath || DEFAULT_SETTINGS.api.chatPath,
+              modelsPath: storedSet.api?.modelsPath || DEFAULT_SETTINGS.api.modelsPath,
+            },
             preset: { ...DEFAULT_SETTINGS.preset, ...(storedSet.preset || {}) },
-            memory: { ...DEFAULT_SETTINGS.memory, ...(storedSet.memory || {}) },
+            memory: {
+              ...DEFAULT_SETTINGS.memory,
+              ...(storedSet.memory || {}),
+              summarySystemPrompt: storedSet.memory?.summarySystemPrompt || DEFAULT_SETTINGS.memory.summarySystemPrompt,
+              timeTagTemplate: storedSet.memory?.timeTagTemplate || DEFAULT_SETTINGS.memory.timeTagTemplate,
+            },
             promptConfig: {
               ...DEFAULT_SETTINGS.promptConfig,
               ...(storedSet.promptConfig || {}),
+              sectionHeaders: {
+                ...DEFAULT_SETTINGS.promptConfig.sectionHeaders,
+                ...(storedSet.promptConfig?.sectionHeaders || {}),
+              },
             },
             userName: storedSet.userName || DEFAULT_SETTINGS.userName,
             userInfo: storedSet.userInfo || DEFAULT_SETTINGS.userInfo,
             userAvatar: storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar,
             enableHtmlRendering: storedSet.enableHtmlRendering ?? DEFAULT_SETTINGS.enableHtmlRendering,
             savedPresets: storedSet.savedPresets || [],
+            expressionTriggers: storedSet.expressionTriggers || DEFAULT_SETTINGS.expressionTriggers,
           };
           setSettings(mergedSet);
         }
@@ -217,6 +272,7 @@ export const useSettings = () => {
         type: settings.api.type,
         baseUrl: settings.api.baseUrl,
         apiKey: settings.api.apiKey,
+        modelsPath: settings.api.modelsPath,
       });
       const data = await response.json();
       if (data.success && data.models) {
@@ -251,6 +307,7 @@ export const useSettings = () => {
         baseUrl: settings.api.baseUrl,
         apiKey: settings.api.apiKey,
         modelName: settings.api.modelName,
+        chatPath: settings.api.chatPath,
       });
       const data = await response.json();
       if (data.success) {

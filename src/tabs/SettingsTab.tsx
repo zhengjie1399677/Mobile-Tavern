@@ -299,6 +299,41 @@ export default function SettingsTab() {
                       />
                     )}
                   </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground">
+                        对话接口路径 (Chat Path)
+                      </label>
+                      <Input
+                        value={settings.api.chatPath || ""}
+                        onChange={(e) =>
+                          updateSettings({
+                            ...settings,
+                            api: { ...settings.api, chatPath: e.target.value },
+                          })
+                        }
+                        className="h-8 text-xs font-mono bg-input/50"
+                        placeholder="/chat/completions"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground">
+                        模型拉取路径 (Models Path)
+                      </label>
+                      <Input
+                        value={settings.api.modelsPath || ""}
+                        onChange={(e) =>
+                          updateSettings({
+                            ...settings,
+                            api: { ...settings.api, modelsPath: e.target.value },
+                          })
+                        }
+                        className="h-8 text-xs font-mono bg-input/50"
+                        placeholder="/models"
+                      />
+                    </div>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -402,6 +437,75 @@ export default function SettingsTab() {
                     className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
                   />
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-border shadow-sm mt-4">
+              <CardHeader className="pb-3 border-b border-border/50">
+                <CardTitle className="text-sm flex items-center justify-between">
+                  <span>全局表情情绪匹配正则词典</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateSettings({
+                        ...settings,
+                        expressionTriggers: {
+                          joy: "笑了|微笑|开心|😊|smile|joy|happy",
+                          happy: "笑了|微笑|开心|😊|smile|joy|happy",
+                          smile: "笑了|微笑|开心|😊|smile|joy|happy",
+                          sadness: "哭|流泪|伤心|😢|cry|sad",
+                          sad: "哭|流泪|伤心|😢|cry|sad",
+                          cry: "哭|流泪|伤心|😢|cry|sad",
+                          anger: "生气|愤怒|😡|angry|rage",
+                          angry: "生气|愤怒|😡|angry|rage",
+                          rage: "生气|愤怒|😡|angry|rage",
+                          blush: "脸红|害羞|😳|blush|shy",
+                          shy: "脸红|害羞|😳|blush|shy",
+                        }
+                      });
+                    }}
+                    className="text-[10px] text-primary font-bold hover:underline"
+                  >
+                    重置词典
+                  </button>
+                </CardTitle>
+                <CardDescription className="text-[11px]">
+                  当导入的角色卡未配置具体的 triggers 规则时，系统将使用本正则表达式规则进行情绪表情切换匹配检测（可编辑或清空以关闭检测）
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-3 text-xs">
+                {[
+                  { k: "joy", n: "狂喜 (Joy)" },
+                  { k: "happy", n: "开心 (Happy)" },
+                  { k: "smile", n: "微笑 (Smile)" },
+                  { k: "sadness", n: "悲伤 (Sadness)" },
+                  { k: "sad", n: "伤心 (Sad)" },
+                  { k: "cry", n: "流泪 (Cry)" },
+                  { k: "anger", n: "发怒 (Anger)" },
+                  { k: "angry", n: "生气 (Angry)" },
+                  { k: "rage", n: "暴怒 (Rage)" },
+                  { k: "blush", n: "羞涩 (Blush)" },
+                  { k: "shy", n: "害羞 (Shy)" },
+                ].map((item) => (
+                  <div key={item.k} className="flex items-center gap-3">
+                    <span className="font-semibold text-muted-foreground w-24 shrink-0">{item.n}</span>
+                    <Input
+                      value={settings.expressionTriggers?.[item.k] ?? ""}
+                      onChange={(e) => {
+                        const nextTriggers = {
+                          ...(settings.expressionTriggers || {}),
+                          [item.k]: e.target.value,
+                        };
+                        updateSettings({
+                          ...settings,
+                          expressionTriggers: nextTriggers,
+                        });
+                      }}
+                      className="h-8 text-xs font-mono bg-input/50 flex-1"
+                      placeholder="表达式正则匹配串..."
+                    />
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </TabsContent>
@@ -792,6 +896,82 @@ export default function SettingsTab() {
                     )}
                   </div>
                 )}
+
+                <Card className="bg-card border-border shadow-sm mt-6">
+                  <CardHeader className="pb-3 border-b border-border/50">
+                    <CardTitle className="text-xs flex items-center justify-between">
+                      <span>Prompt 上下文分区标头 (Section Headers)</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateSettings({
+                            ...settings,
+                            promptConfig: {
+                              ...settings.promptConfig,
+                              sectionHeaders: {
+                                system: "=== 设定基础基石 (World Lore) ===",
+                                beforeChar: "=== 世界背景设定前置 ===",
+                                personality: "=== 角色性格设定 ===",
+                                description: "=== 角色详细描述 ===",
+                                scenario: "=== 时代背景与场景设定 ===",
+                                summary: "=== 剧情前情要点提炼 (Timeline Summaries) ===",
+                                userPersona: "=== 玩家详细信息 (User Persona) ===",
+                                charSystem: "=== 角色卡附加特殊约束 ===",
+                                worldInfo: "=== 设定说明书拓展 (World Info) ===",
+                                beforeLast: "=== 临时触发规则与道具 ===",
+                                jailbreak: "=== 安全消除与写实细节强调 (Jailbreak Prompt) ===",
+                                postHistory: "=== 生成纪律提醒 ===",
+                              }
+                            }
+                          });
+                        }}
+                        className="text-[10px] text-primary font-bold hover:underline"
+                      >
+                        重置全部标头
+                      </button>
+                    </CardTitle>
+                    <CardDescription className="text-[10px]">
+                      设定注入 AI 的每一个 Prompt 部分的 Markdown 分割标题（清空则代表完全隐藏对应标题）
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-[10px]">
+                    {[
+                      { k: "system", n: "设定基础标头 (World Lore)" },
+                      { k: "beforeChar", n: "背景设定前置标头" },
+                      { k: "personality", n: "角色性格标头" },
+                      { k: "description", n: "角色详细描述标头" },
+                      { k: "scenario", n: "场景设定标头" },
+                      { k: "summary", n: "年表记忆汇总标头" },
+                      { k: "userPersona", n: "玩家人设描述标头" },
+                      { k: "charSystem", n: "角色附加限制标头" },
+                      { k: "worldInfo", n: "设定拓展 (World Info) 标头" },
+                      { k: "beforeLast", n: "临时触发规则标头" },
+                      { k: "jailbreak", n: "破限提示词 (Jailbreak) 标头" },
+                      { k: "postHistory", n: "生成纪律提醒标头" },
+                    ].map((item) => (
+                      <div key={item.k} className="space-y-1">
+                        <span className="font-semibold text-muted-foreground">{item.n}</span>
+                        <Input
+                          value={settings.promptConfig.sectionHeaders?.[item.k] ?? ""}
+                          onChange={(e) => {
+                            const nextHeaders = {
+                              ...(settings.promptConfig.sectionHeaders || {}),
+                              [item.k]: e.target.value,
+                            };
+                            updateSettings({
+                              ...settings,
+                              promptConfig: {
+                                ...settings.promptConfig,
+                                sectionHeaders: nextHeaders,
+                              }
+                            });
+                          }}
+                          className="h-8 text-xs font-semibold bg-input/50"
+                        />
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
               </div>
             </div>
           </TabsContent>
@@ -889,6 +1069,73 @@ export default function SettingsTab() {
                         />
                       </div>
                     )}
+                  </div>
+
+                  <div className="space-y-3 mt-4 pt-4 border-t border-border/50">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-foreground">
+                        时间轴幕数命名模板 (Time Tag Template)
+                      </label>
+                      <Input
+                        value={settings.memory.timeTagTemplate || ""}
+                        onChange={(e) =>
+                          updateSettings({
+                            ...settings,
+                            memory: {
+                              ...settings.memory,
+                              timeTagTemplate: e.target.value,
+                            },
+                          })
+                        }
+                        className="h-9 text-xs bg-input/50"
+                        placeholder="第{{index}}幕"
+                      />
+                      <p className="text-[9px] text-muted-foreground">
+                        使用 <code className="text-primary bg-primary/10 px-1 rounded">{"{{index}}"}</code> 作为当前剧情序号的替换标记
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-foreground">
+                        自动记忆归纳指导指令 (Summary System Prompt)
+                      </label>
+                      <Textarea
+                        value={settings.memory.summarySystemPrompt || ""}
+                        onChange={(e) =>
+                          updateSettings({
+                            ...settings,
+                            memory: {
+                              ...settings.memory,
+                              summarySystemPrompt: e.target.value,
+                            },
+                          })
+                        }
+                        className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
+                        placeholder="输入总结大纲指示词..."
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateSettings({
+                              ...settings,
+                              memory: {
+                                ...settings.memory,
+                                summarySystemPrompt: `你是一个极其客观、专业的故事剧情归纳助手。你的任务是将一段未整理的对话片段浓缩提炼为一段客观简洁的前情要点总结。
+请严格遵守以下规则来进行归纳：
+1. 【忠于事实】：必须完全且唯一基于给出的对话记录本身，客观陈述发生了哪些交流、达成的剧情或决定。绝对不要发挥、绝对不要衍生、也绝对不要美化。
+2. 【无内容防捏造】：若输入的内容极少或无实质剧情（如日常寒喧、数字、指令、甚至空话、测试语、字母），必须用极其简短且客观事实的语言记录（例如：“用户进行连通测试”、“用户发送了反馈疑问”），绝对禁止凭空捏造不存在的场景、科幻/玄幻设定、人物动作、关键道具、内心戏、心路历程、戏剧冲突或小说情节。
+3. 【简洁精炼】：使用简短精练的第三人称陈述句，通常只需1-3句话（约30-100字），不要长篇大论，更不能编写成小说篇章。
+4. 【直接输出】：仅返回提炼后的概要本身，不要带有任何“以下是、总结、摘要”等前言前缀、也不要进行任何评价与解释废话，直接输出归纳文本。`,
+                              }
+                            });
+                          }}
+                          className="text-[10px] text-primary font-bold hover:underline"
+                        >
+                          重置总结指令为系统默认
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>

@@ -53,7 +53,7 @@ const ChatInputArea = () => {
   };
 
   return (
-    <div className="bg-card p-3 border-t border-border flex flex-col gap-2 z-10 shrink-0">
+    <div className="bg-card pt-3 px-3 pb-[max(env(safe-area-inset-bottom),12px)] border-t border-border flex flex-col gap-2 z-10 shrink-0">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
           <button
@@ -139,12 +139,12 @@ const ChatInputArea = () => {
           }}
           placeholder={`发送一条纯文本对白至 ${activeCharacter?.name} 并启程...`}
           rows={2}
-          className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none font-light overflow-y-auto max-h-[180px] min-h-[44px]"
+          className="flex-1 bg-muted border border-border rounded-lg py-2.5 px-3 text-sm text-foreground focus:outline-none focus:border-primary/50 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px]"
         />
         <button
           onClick={onSend}
           disabled={isSending || !localInput.trim()}
-          className="p-3 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground transition-all shadow-md flex items-center justify-center shrink-0"
+          className="p-3.5 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground transition-all shadow-md flex items-center justify-center shrink-0"
         >
           <Send className="w-4 h-4" />
         </button>
@@ -210,6 +210,165 @@ export default function ChatTab() {
     createBacktrackFromTimeline,
     renderDialogueBubble,
   } = useContext(AppContext);
+
+  const [isPortraitCollapsed, setIsPortraitCollapsed] = React.useState(false);
+
+  const hasExpressions = React.useMemo(() => {
+    if (!activeCharacter) return false;
+    const ext = activeCharacter.extensions || {};
+    const rawStyle = ext.style || ext.character_style || {};
+    const expressions = activeCharacter.visualSettings?.expressions || rawStyle.expressions || ext.expressions;
+    if (!expressions) return false;
+    if (Array.isArray(expressions) && expressions.length > 0) return true;
+    if (typeof expressions === "object" && Object.keys(expressions).length > 0) return true;
+    return false;
+  }, [activeCharacter]);
+
+  const activePortraitUrl = React.useMemo(() => {
+    if (!activeCharacter) return "";
+    
+    const ext = activeCharacter.extensions || {};
+    const rawStyle = ext.style || ext.character_style || {};
+    const expressions = activeCharacter.visualSettings?.expressions || rawStyle.expressions || ext.expressions || {};
+
+    if (!expressions || (Array.isArray(expressions) && expressions.length === 0) || (typeof expressions === "object" && Object.keys(expressions).length === 0)) {
+      return activeCharacter.avatar || "";
+    }
+
+    let lastAiText = "";
+    const messages = activeSession?.messages || [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].sender === "assistant" && messages[i].content) {
+        lastAiText = messages[i].content.toLowerCase();
+        break;
+      }
+    }
+
+    if (Array.isArray(expressions)) {
+      for (const rule of expressions) {
+        if (rule && typeof rule === "object" && rule.name && rule.image) {
+          if (rule.triggers && lastAiText) {
+            try {
+              const regex = new RegExp(rule.triggers, "i");
+              if (regex.test(lastAiText)) {
+                return rule.image;
+              }
+            } catch (err) {
+              console.warn("Invalid triggers RegExp in card:", rule.triggers, err);
+            }
+          }
+        }
+      }
+      const defaultRule = expressions.find(r => r && (r.name === "default" || r.name === "neutral"));
+      if (defaultRule && defaultRule.image) {
+        return defaultRule.image;
+      }
+      return expressions[0]?.image || activeCharacter.avatar || "";
+    }
+
+    if (typeof expressions === "object") {
+      const presetTriggers: Record<string, string> = settings.expressionTriggers || {
+        joy: "笑了|微笑|开心|😊|smile|joy|happy",
+        happy: "笑了|微笑|开心|😊|smile|joy|happy",
+        smile: "笑了|微笑|开心|😊|smile|joy|happy",
+        sadness: "哭|流泪|伤心|😢|cry|sad",
+        sad: "哭|流泪|伤心|😢|cry|sad",
+        cry: "哭|流泪|伤心|😢|cry|sad",
+        anger: "生气|愤怒|😡|angry|rage",
+        angry: "生气|愤怒|😡|angry|rage",
+        rage: "生气|愤怒|😡|angry|rage",
+        blush: "脸红|害羞|😳|blush|shy",
+        shy: "脸红|害羞|😳|blush|shy",
+      };
+
+      if (lastAiText) {
+        for (const key of Object.keys(expressions)) {
+          const lowerKey = key.toLowerCase();
+          const triggerPattern = presetTriggers[lowerKey];
+          if (triggerPattern) {
+            try {
+              const regex = new RegExp(triggerPattern, "i");
+              if (regex.test(lastAiText)) {
+                return expressions[key];
+              }
+            } catch (err) {}
+          }
+        }
+      }
+      return expressions["default"] || expressions["neutral"] || expressions["normal"] || Object.values(expressions)[0] || activeCharacter.avatar || "";
+    }
+
+    return activeCharacter.avatar || "";
+  }, [activeCharacter, activeSession]);
+
+  const currentEmotionName = React.useMemo(() => {
+    if (!activeCharacter) return "默认";
+    
+    const ext = activeCharacter.extensions || {};
+    const rawStyle = ext.style || ext.character_style || {};
+    const expressions = activeCharacter.visualSettings?.expressions || rawStyle.expressions || ext.expressions || {};
+
+    if (!expressions || (Array.isArray(expressions) && expressions.length === 0) || (typeof expressions === "object" && Object.keys(expressions).length === 0)) {
+      return "默认";
+    }
+
+    let lastAiText = "";
+    const messages = activeSession?.messages || [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].sender === "assistant" && messages[i].content) {
+        lastAiText = messages[i].content.toLowerCase();
+        break;
+      }
+    }
+
+    if (!lastAiText) return "默认";
+
+    if (Array.isArray(expressions)) {
+      for (const rule of expressions) {
+        if (rule && rule.name && rule.triggers && lastAiText) {
+          try {
+            const regex = new RegExp(rule.triggers, "i");
+            if (regex.test(lastAiText)) {
+              return rule.name;
+            }
+          } catch (err) {}
+        }
+      }
+      return "默认";
+    }
+
+    if (typeof expressions === "object") {
+      const presetTriggers: Record<string, string> = settings.expressionTriggers || {
+        joy: "笑了|微笑|开心|😊|smile|joy|happy",
+        happy: "笑了|微笑|开心|😊|smile|joy|happy",
+        smile: "笑了|微笑|开心|😊|smile|joy|happy",
+        sadness: "哭|流泪|伤心|😢|cry|sad",
+        sad: "哭|流泪|伤心|😢|cry|sad",
+        cry: "哭|流泪|伤心|😢|cry|sad",
+        anger: "生气|愤怒|😡|angry|rage",
+        angry: "生气|愤怒|😡|angry|rage",
+        rage: "生气|愤怒|😡|angry|rage",
+        blush: "脸红|害羞|😳|blush|shy",
+        shy: "脸红|害羞|😳|blush|shy",
+      };
+
+      for (const key of Object.keys(expressions)) {
+        const lowerKey = key.toLowerCase();
+        const triggerPattern = presetTriggers[lowerKey];
+        if (triggerPattern) {
+          try {
+            const regex = new RegExp(triggerPattern, "i");
+            if (regex.test(lastAiText)) {
+              return key;
+            }
+          } catch (err) {}
+        }
+      }
+    }
+
+    return "默认";
+  }, [activeCharacter, activeSession]);
+
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background">
       {/* Embedded Header info card */}
@@ -294,9 +453,65 @@ export default function ChatTab() {
         </div>
       </div>
 
+      {/* 2.5. Character Big Portrait Section (Dynamic Expressions) */}
+      {activeCharacter && hasExpressions && activePortraitUrl && (
+        <div className="bg-card border-b border-border transition-all duration-300 overflow-hidden flex flex-col items-center relative shrink-0">
+          {!isPortraitCollapsed ? (
+            <div className="w-full flex flex-col items-center justify-center p-3 relative h-48 animate-fadeIn">
+              {/* Glassmorphic background disc */}
+              <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent opacity-60 pointer-events-none" />
+              <div className="w-40 h-40 rounded-2xl overflow-hidden border border-border bg-muted/30 shadow-lg relative flex items-center justify-center">
+                {/* Render the active portrait with a smooth transition */}
+                <img
+                  key={activePortraitUrl}
+                  src={activePortraitUrl}
+                  alt={`${activeCharacter.name} Portrait`}
+                  className="w-full h-full object-cover animate-fadeIn"
+                />
+                
+                {/* Emotion Badge indicator */}
+                <div className="absolute bottom-2 right-2 bg-background/80 backdrop-blur-sm border border-border text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-sm">
+                  {currentEmotionName}
+                </div>
+              </div>
+              
+              {/* Fold button */}
+              <button
+                onClick={() => setIsPortraitCollapsed(true)}
+                className="absolute top-2 right-3 text-muted-foreground hover:text-foreground p-1 transition"
+                title="收起立绘"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div 
+              className="w-full flex items-center justify-between px-3 py-1 text-[10px] text-muted-foreground bg-muted/30 hover:bg-muted/50 transition cursor-pointer" 
+              onClick={() => setIsPortraitCollapsed(false)}
+            >
+              <span className="font-medium flex items-center gap-1.5">
+                🖼️ 点击展开角色动态情绪立绘
+              </span>
+              <span className="scale-90 opacity-70">展开立绘 ⬇️</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Sub-tab 1: DIALOGUE HISTORY */}
       {chatSubTab === "dialogue" && (
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 relative">
+          {/* Custom card background layer */}
+          {activeCharacter?.visualSettings?.backgroundImageUrl && (
+            <div
+              className="absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-all duration-700"
+              style={{
+                backgroundImage: `url(${activeCharacter.visualSettings.backgroundImageUrl})`,
+                opacity: activeCharacter.visualSettings.backgroundOpacity ?? 0.15,
+                filter: `blur(${activeCharacter.visualSettings.backgroundBlur ?? 4}px)`,
+              }}
+            />
+          )}
           {/* Triggered worldbook active panel indicator */}
           {activeSession && activeCharacter && (
             <div className="bg-muted/50 border-b border-border px-3.5 py-1.5 flex items-center gap-2 overflow-x-auto text-[10.5px]">
@@ -337,7 +552,7 @@ export default function ChatTab() {
 
           {/* Dialog Scroll area */}
           <div
-            className="p-3.5 space-y-4 flex-1 overflow-y-auto custom-scrollbar"
+            className="p-3.5 space-y-4 flex-1 overflow-y-auto custom-scrollbar relative z-10"
             onClick={() => {
               if (msgMenuId) setMsgMenuId(null);
             }}
@@ -434,9 +649,9 @@ export default function ChatTab() {
                                 onChange={(e) =>
                                   setEditingMsgContent(e.target.value)
                                 }
-                                className="w-full text-xs bg-muted border border-border rounded p-2 text-foreground outline-none leading-relaxed resize-y font-light mb-2 focus:border-primary"
+                                className="w-full text-sm bg-muted border border-border rounded-lg p-2.5 text-foreground outline-none leading-relaxed resize-y font-light mb-2 focus:border-primary/50"
                                 rows={Math.max(
-                                  2,
+                                  3,
                                   editingMsgContent.split("\n").length,
                                 )}
                                 autoFocus
@@ -483,9 +698,21 @@ export default function ChatTab() {
                             <div
                               className={`rounded-xl px-3.5 py-2.5 shadow-sm text-sm border font-light tracking-wide transition-all cursor-pointer ${
                                 isUser
-                                  ? "bg-primary text-primary-foreground border-primary/50 hover:bg-primary/90"
-                                  : "bg-card text-foreground border-border shadow-sm"
+                                  ? activeCharacter?.visualSettings?.userBubbleColor
+                                    ? "border-transparent"
+                                    : "bg-primary text-primary-foreground border-primary/50 hover:bg-primary/90"
+                                  : activeCharacter?.visualSettings?.bubbleColor
+                                    ? "border-transparent"
+                                    : "bg-card text-foreground border-border shadow-sm"
                               }`}
+                              style={{
+                                backgroundColor: isUser
+                                  ? activeCharacter?.visualSettings?.userBubbleColor || undefined
+                                  : activeCharacter?.visualSettings?.bubbleColor || undefined,
+                                color: isUser
+                                  ? activeCharacter?.visualSettings?.userBubbleTextColor || undefined
+                                  : activeCharacter?.visualSettings?.bubbleTextColor || undefined,
+                              }}
                             >
                               {message.content === "💭..." ? (
                                 <TypingIndicator />
