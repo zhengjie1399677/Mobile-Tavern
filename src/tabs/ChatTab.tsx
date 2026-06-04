@@ -299,7 +299,7 @@ export default function ChatTab() {
     }
 
     return activeCharacter.avatar || "";
-  }, [activeCharacter, activeSession]);
+  }, [activeCharacter, activeSession, settings]);
 
   const currentEmotionName = React.useMemo(() => {
     if (!activeCharacter) return "默认";
@@ -367,7 +367,7 @@ export default function ChatTab() {
     }
 
     return "默认";
-  }, [activeCharacter, activeSession]);
+  }, [activeCharacter, activeSession, settings]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background">

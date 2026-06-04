@@ -79,7 +79,7 @@ function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
 
     if (chunkType === "IEND") break;
 
-    if (chunkType === "tEXt" || chunkType === "iTXt") {
+    if (chunkType === "tEXt" || chunkType === "iTXt" || chunkType === "zTXt") {
       const chunkData = uint8.slice(offset + 8, offset + 8 + length);
       let nullIdx = 0;
       while (nullIdx < chunkData.length && chunkData[nullIdx] !== 0) {
@@ -91,6 +91,28 @@ function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
         let textContent = "";
         if (chunkType === "tEXt") {
           textContent = decoder.decode(chunkData.slice(nullIdx + 1));
+        } else if (chunkType === "zTXt") {
+          const compressionMethod = chunkData[nullIdx + 1];
+          const textBytes = chunkData.slice(nullIdx + 2);
+          if (compressionMethod === 0) {
+            try {
+              const decompressed = unzlibSync(textBytes);
+              textContent = decoder.decode(decompressed);
+            } catch (zlibErr) {
+              try {
+                const decompressed = inflateSync(textBytes);
+                textContent = decoder.decode(decompressed);
+              } catch (infErr) {
+                console.warn(
+                  "fflate zTXt decompression fell back to text decoding:",
+                  infErr,
+                );
+                textContent = decoder.decode(textBytes);
+              }
+            }
+          } else {
+            textContent = decoder.decode(textBytes);
+          }
         } else {
           // iTXt has addition compression flags
           // Skip compression details, language tag, and translated keyword
