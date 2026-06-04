@@ -537,18 +537,30 @@ export const useSettings = () => {
       assistant_sequence_end: settings.promptConfig.assistantSuffix,
     };
 
+    const content = JSON.stringify(bundleData, null, 2);
+    const fileName = `SillyTavern_${settings.preset.name.replace(/\s+/g, "_")}_profile.json`;
+
+    // If running in Android app via bridge
+    if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
+      const path = (window as any).AndroidThemeBridge.saveFile(fileName, content);
+      if (path && !path.startsWith("error:")) {
+        showCustomAlert(`📂 预设配置导出成功！\n文件已保存至：\n${path}`);
+      } else {
+        showCustomAlert(`❌ 导出失败：${path || "未知错误"}`);
+      }
+      return;
+    }
+
     const dataStr =
       "data:text/json;charset=utf-8," +
-      encodeURIComponent(JSON.stringify(bundleData, null, 2));
+      encodeURIComponent(content);
     const downloadAnchor = document.createElement("a");
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute(
-      "download",
-      `SillyTavern_${settings.preset.name.replace(/\s+/g, "_")}_profile.json`
-    );
+    downloadAnchor.setAttribute("download", fileName);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    showCustomAlert(`📂 预设配置导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}`);
   };
 
   const handleSaveNewPresetBundle = async () => {
@@ -707,10 +719,24 @@ export const useSettings = () => {
         outputData = await encryptBackupData(jsonStr, backupPass.trim());
       }
 
+      const fileName = `mobile_tavern_backup_${new Date().toISOString().slice(0, 10)}${encryptBackup ? ".backup" : ".json"}`;
+
+      // If running in Android app via bridge
+      if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
+        const path = (window as any).AndroidThemeBridge.saveFile(fileName, outputData);
+        if (path && !path.startsWith("error:")) {
+          setBackupStatus("备份文件保存成功！");
+          await showCustomAlert(`📂 数据备份导出成功！\n文件已保存至：\n${path}`, "导出成功");
+        } else {
+          setBackupStatus(`备份失败: ${path}`);
+          await showCustomAlert(`❌ 备份导出失败：${path || "未知错误"}`, "导出失败");
+        }
+        return;
+      }
+
       const dataBlob = new Blob([outputData], { type: "text/plain" });
       const downloadUrl = URL.createObjectURL(dataBlob);
 
-      const fileName = `mobile_tavern_backup_${new Date().toISOString().slice(0, 10)}${encryptBackup ? ".backup" : ".json"}`;
       const link = document.createElement("a");
       link.href = downloadUrl;
       link.download = fileName;

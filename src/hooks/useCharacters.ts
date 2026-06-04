@@ -421,19 +421,30 @@ export const useCharacters = () => {
   };
 
   const handleExportCharacterJSON = (char: CharacterCard) => {
+    const fileName = `${char.name.replace(/\s+/g, "_")}_ST_Card.json`;
+    const content = JSON.stringify(char, null, 2);
+
+    // If running in Android app via bridge
+    if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
+      const path = (window as any).AndroidThemeBridge.saveFile(fileName, content);
+      if (path && !path.startsWith("error:")) {
+        showCustomAlert(`📂 JSON 角色卡 [${char.name}] 导出成功！\n文件已保存至：\n${path}`);
+      } else {
+        showCustomAlert(`❌ 导出失败：${path || "未知错误"}`);
+      }
+      return;
+    }
+
     const dataStr =
       "data:text/json;charset=utf-8," +
-      encodeURIComponent(JSON.stringify(char, null, 2));
+      encodeURIComponent(content);
     const dlAnchorEl = document.createElement("a");
     dlAnchorEl.setAttribute("href", dataStr);
-    dlAnchorEl.setAttribute(
-      "download",
-      `${char.name.replace(/\s+/g, "_")}_ST_Card.json`
-    );
+    dlAnchorEl.setAttribute("download", fileName);
     document.body.appendChild(dlAnchorEl);
     dlAnchorEl.click();
     document.body.removeChild(dlAnchorEl);
-    showCustomAlert(`JSON 角色卡 [${char.name}] 导出成功！`);
+    showCustomAlert(`JSON 角色卡 [${char.name}] 导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}`);
   };
 
   const handleExportCharacterPNG = async (char: CharacterCard) => {
@@ -471,16 +482,37 @@ export const useCharacters = () => {
 
       const arrayBuffer = await rawBlob.arrayBuffer();
       const modifiedBlob = injectPngMetadata(arrayBuffer, char);
+      const fileName = `${char.name.replace(/\s+/g, "_")}_SillyTavern.png`;
+
+      // If running in Android app via bridge
+      if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFileBase64 === "function") {
+        const reader = new FileReader();
+        reader.readAsDataURL(modifiedBlob);
+        reader.onloadend = () => {
+          const base64data = (reader.result as string).split(",")[1];
+          const path = (window as any).AndroidThemeBridge.saveFileBase64(
+            fileName,
+            base64data,
+            "image/png"
+          );
+          if (path && !path.startsWith("error:")) {
+            showCustomAlert(`📂 PNG 角色卡 [${char.name}] 导出成功！\n文件已保存至：\n${path}`);
+          } else {
+            showCustomAlert(`❌ 导出失败：${path || "未知错误"}`);
+          }
+        };
+        return;
+      }
 
       const downloadUrl = URL.createObjectURL(modifiedBlob);
       const link = document.createElement("a");
       link.href = downloadUrl;
-      link.download = `${char.name.replace(/\s+/g, "_")}_SillyTavern.png`;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
-      showCustomAlert(`PNG 角色卡 [${char.name}] 导出成功！`);
+      showCustomAlert(`PNG 角色卡 [${char.name}] 导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}`);
     } catch (e: any) {
       console.warn("Failed to generate tavern image card:", e);
       showCustomAlert("制作精美 PNG 角色卡出错: " + e.message);

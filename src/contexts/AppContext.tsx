@@ -66,6 +66,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       document.documentElement.style.colorScheme = "light";
     }
 
+    let color = "#f7f4ef"; // sand default
+    if (currentTheme === "snow") {
+      color = "#f9fbfc";
+    } else if (currentTheme === "ocean") {
+      color = "#0c1b33";
+    }
+
+    // Toggle Android status bar icon theme and background color
+    if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.setStatusBarStyle === "function") {
+      try {
+        (window as any).AndroidThemeBridge.setStatusBarStyle(isDark, color);
+      } catch (e) {
+        console.error("Failed to set Android status bar style:", e);
+      }
+    }
+
     // Synchronize meta color-scheme
     let metaColorScheme = document.querySelector('meta[name="color-scheme"]');
     if (!metaColorScheme) {
@@ -81,13 +97,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       metaThemeColor = document.createElement("meta");
       metaThemeColor.setAttribute("name", "theme-color");
       document.head.appendChild(metaThemeColor);
-    }
-
-    let color = "#f7f4ef"; // sand default
-    if (currentTheme === "snow") {
-      color = "#f9fbfc";
-    } else if (currentTheme === "ocean") {
-      color = "#0c1b33";
     }
     metaThemeColor.setAttribute("content", color);
   }, [currentTheme]);

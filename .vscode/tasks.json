@@ -31,6 +31,26 @@
         "dev"
       ],
       "problemMatcher": []
+    },
+    {
+      "label": "adb:reverse",
+      "type": "shell",
+      "command": "adb",
+      "args": ["reverse", "tcp:3000", "tcp:3000"],
+      "problemMatcher": []
+    },
+    {
+      "label": "adb:logcat",
+      "type": "shell",
+      "command": "adb",
+      "args": ["logcat", "-s", "telemetry"],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "dev:full",
+      "dependsOn": ["ui:dev", "adb:reverse", "tauri:dev", "adb:logcat"],
+      "problemMatcher": []
     }
   ]
 }

@@ -512,43 +512,7 @@ export default function ChatTab() {
               }}
             />
           )}
-          {/* Triggered worldbook active panel indicator */}
-          {activeSession && activeCharacter && (
-            <div className="bg-muted/50 border-b border-border px-3.5 py-1.5 flex items-center gap-2 overflow-x-auto text-[10.5px]">
-              <span className="text-primary font-medium whitespace-nowrap">
-                世界书激活项:
-              </span>
-              {(() => {
-                const textString = activeSession.messages
-                  .slice(-3)
-                  .map((m) => m.content)
-                  .join(" ");
-                const triggered = (
-                  activeCharacter.lorebookEntries || []
-                ).filter(
-                  (e) =>
-                    e.enabled &&
-                    (e.constant ||
-                      e.keys.some((k) => k && textString.includes(k))),
-                );
-                if (triggered.length === 0)
-                  return (
-                    <span className="text-muted-foreground italic">
-                      暂无事件激活
-                    </span>
-                  );
-                return triggered.map((t) => (
-                  <span
-                    key={t.id}
-                    className="bg-muted border border-border text-muted-foreground px-1 py-0.5 rounded whitespace-nowrap"
-                    title={t.content}
-                  >
-                    🔑 {t.keys[0]}
-                  </span>
-                ));
-              })()}
-            </div>
-          )}
+
 
           {/* Dialog Scroll area */}
           <div

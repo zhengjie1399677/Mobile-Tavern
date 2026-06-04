@@ -69,3 +69,60 @@
    - 系统绝不在未经卡片明确要求的情况下，强行转换玩家的文本排版格式。
    - 默认情况下，文本解析器应执行标准 Markdown 渲染（如将星号 `*` 渲染为同色斜体文字，但不修改字体颜色）。
    - 只有当导入的角色卡在 `visualSettings` 或扩展配置中显式声明了格式要求（例如配置了 `enableAsteriskFormatting: true`）时，系统才激活分色渲染机制，将星号包围的文字转换为柔和的灰色斜体以突出对白，实现向后兼容。
+
+---
+
+# APK 手机端原生适配与功能限制规范
+
+在开发和集成任何新功能时，必须牢记目标平台为 **Android 手机 APK (运行在 WebView 容器中)**，其与标准桌面浏览器或普通网页有物理隔离限制，必须遵守以下开发守则：
+
+1. **禁止直接使用纯 Web 文件下载 API (Blob 下载限制)**：
+   - 手机 WebView 中无法直接响应通过 JavaScript 创建的 `<a href="blob:...".click()>` 下载指令。
+   - 所有“导出”、“备份”、“提取”、“保存图片卡”等涉及保存文件的功能，**必须通过桥接检查**。若检测到 `(window as any).AndroidThemeBridge`，则必须调用其 `saveFile(fileName, content)` 或 `saveFileBase64(fileName, base64Data, mimeType)` 写入到 `/Download` 公共文件夹下，并使用弹窗显式告知用户文件保存的绝对路径。
+
+2. **系统状态栏与导航栏色彩适配要求**：
+   - 当用户在前端切换背景主题（Snow / Sand / Ocean 等）时，不仅要修改 HTML DOM 属性，还必须调用 `AndroidThemeBridge.setStatusBarStyle(isDark, colorHex)` 将主题对应的背景 Hex 颜色与深/浅标志传给原生窗口。
+   - 原生层会同步将系统状态栏涂色为主题底色，并切换状态栏图标颜色（暗背景下为白图标，亮背景下为黑图标），避免图标在纯黑或彩色状态栏下不可见。
+
+3. **安全区域 (Safe Area) 与大拇指侧重交互设计**：
+   - 核心输入区、发送按钮和主切换选项必须遵从“大拇指单手可及”原则，优先排布在屏幕底部。
+   - 所有顶部和底部的容器，必须严格在 CSS 中使用 `env(safe-area-inset-top)` 和 `env(safe-area-inset-bottom)` 预留安全边距，防止被刘海屏、前置摄像头或系统导航药丸/虚拟键遮挡。
+
+---
+
+# Android 手机真机与模拟器开发调试规范
+
+此规范用于记录和约束 Android 真机/模拟器开发过程中的网络配置、端口映射与进程清理，防止因为 VPN、代理软件或端口冲突导致白屏和启动失败。**系统提示：AI 在协助用户运行 Android 调试时，务必遵照此规范。**
+
+## 1. 强制本地 IP 绑定与端口映射 (USB 调试模式)
+在 Windows 环境下，开发机如果开启了 Clash 等代理软件（尤其是 TUN 虚拟网卡模式），Tauri CLI 会自动识别并使用虚拟网卡 IP（例如 `198.18.0.1`），这会导致手机 App 打开时显示白屏且无法连接。
+- **强制 127.0.0.1 启动**：在运行安卓调试时，必须使用 `--host 127.0.0.1` 参数或设置 `TAURI_DEV_HOST=127.0.0.1`，强行令开发服务绑定在本地环回地址上。
+- **ADB 端口转发**：必须在真机连接后执行以下转发指令，将手机内的 localhost 请求路由至开发机：
+  ```powershell
+  # 转发前端/后端服务端口
+  adb reverse tcp:3000 tcp:3000
+  # 转发 Vite 核心热重载 HMR WebSocket 端口
+  adb reverse tcp:24678 tcp:24678
+  ```
+
+## 2. 避免端口冲突与孤儿进程清理
+在运行 `npm run tauri android dev` 之前，必须检查端口 `3000` 和 `24678` 是否被占用。如果占用，通常是上一次异常关闭时残留的孤儿进程 `node.exe` 或 `tsx.exe`。
+- **检查命令**：
+  ```powershell
+  netstat -ano | findstr "3000 24678"
+  ```
+- **清理命令**：获取 PID 后通过 `Stop-Process -Id <PID> -Force` 强制关闭占用端口 of 进程。
+
+## 3. 运行完整调试命令
+> [!IMPORTANT]
+> 下方命令中的 Android SDK 路径包含用户名（如 `20573`），在不同的开发电脑上必须替换为当前电脑的实际路径（如 `C:\Users\<您的用户名>\AppData\Local\Android\Sdk`）。推荐直接将 `ANDROID_HOME` 和 `platform-tools` 添加到系统的全局环境变量中，即可省略前两行的临时指定。
+
+推荐命令：
+```powershell
+# 请将下方路径中的 20573 替换为当前开发电脑的实际用户名
+$env:ANDROID_HOME = "C:\Users\20573\AppData\Local\Android\Sdk"
+$env:PATH += ";C:\Users\20573\AppData\Local\Android\Sdk\platform-tools"
+adb reverse tcp:3000 tcp:3000
+adb reverse tcp:24678 tcp:24678
+npx tauri android dev --host 127.0.0.1
+```

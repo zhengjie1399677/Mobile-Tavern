@@ -1071,72 +1071,81 @@ export default function SettingsTab() {
                     )}
                   </div>
 
-                  <div className="space-y-3 mt-4 pt-4 border-t border-border/50">
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-foreground">
-                        时间轴幕数命名模板 (Time Tag Template)
-                      </label>
-                      <Input
-                        value={settings.memory.timeTagTemplate || ""}
-                        onChange={(e) =>
-                          updateSettings({
-                            ...settings,
-                            memory: {
-                              ...settings.memory,
-                              timeTagTemplate: e.target.value,
-                            },
-                          })
-                        }
-                        className="h-9 text-xs bg-input/50"
-                        placeholder="第{{index}}幕"
-                      />
-                      <p className="text-[9px] text-muted-foreground">
-                        使用 <code className="text-primary bg-primary/10 px-1 rounded">{"{{index}}"}</code> 作为当前剧情序号的替换标记
-                      </p>
-                    </div>
+                  <Accordion type="single" collapsible className="w-full mt-4 border-t border-border/50 pt-4">
+                    <AccordionItem value="advanced-templates" className="border-none">
+                      <AccordionTrigger className="py-2 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
+                        <span className="text-[11px] font-semibold text-foreground">
+                          高级整理模板与指令 (Advanced Templates & Prompts)
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-3 pb-0 space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-foreground">
+                            时间轴幕数命名模板 (Time Tag Template)
+                          </label>
+                          <Input
+                            value={settings.memory.timeTagTemplate || ""}
+                            onChange={(e) =>
+                              updateSettings({
+                                ...settings,
+                                memory: {
+                                  ...settings.memory,
+                                  timeTagTemplate: e.target.value,
+                                },
+                              })
+                            }
+                            className="h-9 text-xs bg-input/50"
+                            placeholder="第{{index}}幕"
+                          />
+                          <p className="text-[9px] text-muted-foreground">
+                            使用 <code className="text-primary bg-primary/10 px-1 rounded">{"{{index}}"}</code> 作为当前剧情序号的替换标记
+                          </p>
+                        </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-foreground">
-                        自动记忆归纳指导指令 (Summary System Prompt)
-                      </label>
-                      <Textarea
-                        value={settings.memory.summarySystemPrompt || ""}
-                        onChange={(e) =>
-                          updateSettings({
-                            ...settings,
-                            memory: {
-                              ...settings.memory,
-                              summarySystemPrompt: e.target.value,
-                            },
-                          })
-                        }
-                        className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
-                        placeholder="输入总结大纲指示词..."
-                      />
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            updateSettings({
-                              ...settings,
-                              memory: {
-                                ...settings.memory,
-                                summarySystemPrompt: `你是一个极其客观、专业的故事剧情归纳助手。你的任务是将一段未整理的对话片段浓缩提炼为一段客观简洁的前情要点总结。
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-foreground">
+                            自动记忆归纳指导指令 (Summary System Prompt)
+                          </label>
+                          <Textarea
+                            value={settings.memory.summarySystemPrompt || ""}
+                            onChange={(e) =>
+                              updateSettings({
+                                ...settings,
+                                memory: {
+                                  ...settings.memory,
+                                  summarySystemPrompt: e.target.value,
+                                },
+                              })
+                            }
+                            className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
+                            placeholder="输入总结大纲指示词..."
+                          />
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateSettings({
+                                  ...settings,
+                                  memory: {
+                                    ...settings.memory,
+                                    summarySystemPrompt: `你是一个极其客观、专业的故事剧情归纳助手。你的任务是将一段未整理的对话片段浓缩提炼为一段客观简洁的前情要点总结。
 请严格遵守以下规则来进行归纳：
 1. 【忠于事实】：必须完全且唯一基于给出的对话记录本身，客观陈述发生了哪些交流、达成的剧情或决定。绝对不要发挥、绝对不要衍生、也绝对不要美化。
 2. 【无内容防捏造】：若输入的内容极少或无实质剧情（如日常寒喧、数字、指令、甚至空话、测试语、字母），必须用极其简短且客观事实的语言记录（例如：“用户进行连通测试”、“用户发送了反馈疑问”），绝对禁止凭空捏造不存在的场景、科幻/玄幻设定、人物动作、关键道具、内心戏、心路历程、戏剧冲突或小说情节。
 3. 【简洁精炼】：使用简短精练的第三人称陈述句，通常只需1-3句话（约30-100字），不要长篇大论，更不能编写成小说篇章。
 4. 【直接输出】：仅返回提炼后的概要本身，不要带有任何“以下是、总结、摘要”等前言前缀、也不要进行任何评价与解释废话，直接输出归纳文本。`,
-                              }
-                            });
-                          }}
-                          className="text-[10px] text-primary font-bold hover:underline"
-                        >
-                          重置总结指令为系统默认
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                                  }
+                                });
+                              }}
+                              className="text-[10px] text-primary font-bold hover:underline"
+                            >
+                              重置总结指令为系统默认
+                            </button>
+                          </div>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                 </div>
               </CardContent>
             </Card>

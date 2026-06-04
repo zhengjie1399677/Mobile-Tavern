@@ -11,7 +11,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "tauri": "tauri",
-    "build:android": "node build-android.cjs"
+    "build:android": "node build-android.cjs",
+    "dev:android": "tauri android dev --host 127.0.0.1"
   },
   "dependencies": {
     "@aliyun-sls/web-sts-plugin": "^0.3.9",

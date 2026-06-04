@@ -511,8 +511,20 @@ export default function GlobalWorldbookTab() {
     const payload = {
       entries: entriesToExport,
     };
+    const content = JSON.stringify(payload, null, 2);
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    // If running in Android app via bridge
+    if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
+      const path = (window as any).AndroidThemeBridge.saveFile(fileName, content);
+      if (path && !path.startsWith("error:")) {
+        alert(`📂 世界书导出成功！\n文件已保存至：\n${path}`);
+      } else {
+        alert(`❌ 导出失败：${path || "未知错误"}`);
+      }
+      return;
+    }
+
+    const blob = new Blob([content], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -523,6 +535,7 @@ export default function GlobalWorldbookTab() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    alert(`📂 世界书导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}`);
   };
 
   return (
