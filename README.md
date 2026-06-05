@@ -5,7 +5,7 @@
 [![Tauri](https://img.shields.io/badge/Tauri-v2-green.svg?style=for-the-badge&logo=tauri)](https://tauri.app/)
 [![React](https://img.shields.io/badge/React-v19-blue.svg?style=for-the-badge&logo=react)](https://react.dev/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4.svg?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
-[![License](https://img.shields.io/badge/license-MIT-orange.svg?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge)](LICENSE)
 
 Mobile Tavern 是一款专为移动端深度定制的高性能、轻量级 AI 角色扮演客户端。
 It并非旨在成为桌面端 Silly Tavern 的全盘替代品，而是作为其在**移动设备上的轻量化互补方案**。
@@ -513,11 +513,11 @@ d:\projects\Mobile-Tavern
 
 ## 📄 开源许可协议 (License)
 
-本项目基于 **MIT License** 开源协议发行。
+本项目基于 **Apache License 2.0** 开源协议发行。
 
-### MIT 协议许可声明 (MIT License Summary)
-*   **授权范围**：允许任何人免费使用本软件，包括但不限于不受限制地使用、复制、修改、合并、发布、分发、再许可和/或销售本软件的副本。
-*   **条件限制**：必须在所有副本中包含上述版权声明和本许可声明。
-*   **免责条款**：本软件按“原样”提供，不提供任何形式的明示或暗示担保。在任何情况下，作者或版权所有者均不对因本软件或其使用而引起的任何索赔、损害或其他责任负责。
+### Apache 2.0 协议许可声明 (Apache 2.0 License Summary)
+*   **商业友好**：允许任何人免费用于个人、内部或商业目的，包括修改、分发及再授权。
+*   **商标与专利保护**：授予用户免费、全球性、不可撤销的专利许可，同时明确规定本许可协议不授予任何使用项目贡献者商标、商品名称的权利。
+*   **责任限制**：本软件按“原样”提供，在任何情况下均不对由于使用本软件而导致的任何损害承担责任，且修改过的文件必须带有显著的修改声明。
 
 关于更完整的许可内容，请查阅项目根目录下的 [LICENSE](file:///d:/projects/Mobile-Tavern/LICENSE) 文件。
