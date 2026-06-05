@@ -515,6 +515,39 @@ export function injectPngMetadata(
  * Native, lightweight client-side password encryption/decryption using XOR and SHA-256 password digests.
  * Solves the .backup.zip requirement natively and reliably without heavy browser JSZip/AES bundling dependencies.
  */
+const byteToHex: string[] = [];
+for (let i = 0; i < 256; i++) {
+  byteToHex.push(i.toString(16).padStart(2, "0"));
+}
+
+const hexToVal: Record<string, number> = {};
+for (let i = 0; i < 256; i++) {
+  const hex = i.toString(16).padStart(2, "0");
+  hexToVal[hex] = i;
+  hexToVal[hex.toUpperCase()] = i;
+}
+
+export function bufToHex(buf: Uint8Array): string {
+  const hexParts = new Array(buf.length);
+  for (let i = 0; i < buf.length; i++) {
+    hexParts[i] = byteToHex[buf[i]];
+  }
+  return hexParts.join("");
+}
+
+export function hexToBuf(hexStr: string): Uint8Array {
+  const len = hexStr.length;
+  if (len % 2 !== 0) throw new Error("Invalid hex string");
+  const buf = new Uint8Array(len / 2);
+  for (let i = 0; i < len; i += 2) {
+    const byteHex = hexStr.substring(i, i + 2);
+    const val = hexToVal[byteHex];
+    if (val === undefined) throw new Error("Invalid hex character");
+    buf[i / 2] = val;
+  }
+  return buf;
+}
+
 export async function encryptBackupData(
   dataStr: string,
   pass: string,
@@ -546,12 +579,8 @@ export async function encryptBackupData(
   const encryptedBytes = new Uint8Array(encryptedBuffer);
 
   // Hex encode IV + Encrypted Data
-  const ivHex = Array.from(iv)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  const dataHex = Array.from(encryptedBytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const ivHex = bufToHex(iv);
+  const dataHex = bufToHex(encryptedBytes);
 
   return ivHex + dataHex;
 }
@@ -571,15 +600,8 @@ export async function decryptBackupData(
   const ivHex = hexStr.slice(0, 24);
   const dataHex = hexStr.slice(24);
 
-  const iv = new Uint8Array(12);
-  for (let i = 0; i < 12; i++) {
-    iv[i] = parseInt(ivHex.substring(i * 2, i * 2 + 2), 16);
-  }
-
-  const encryptedBytes = new Uint8Array(dataHex.length / 2);
-  for (let i = 0; i < dataHex.length; i += 2) {
-    encryptedBytes[i / 2] = parseInt(dataHex.substring(i, i + 2), 16);
-  }
+  const iv = hexToBuf(ivHex);
+  const encryptedBytes = hexToBuf(dataHex);
 
   // Create password digest
   const passBuf = encoder.encode(pass);
@@ -604,10 +626,7 @@ export async function decryptBackupData(
     // Fallback to XOR if AES fails (backward compatibility for old backups)
     try {
       const keyArray = new Uint8Array(hashBuffer);
-      const oldEncrypted = new Uint8Array(hexStr.length / 2);
-      for (let i = 0; i < hexStr.length; i += 2) {
-        oldEncrypted[i / 2] = parseInt(hexStr.substring(i, i + 2), 16);
-      }
+      const oldEncrypted = hexToBuf(hexStr);
       const decrypted = new Uint8Array(oldEncrypted.length);
       for (let i = 0; i < oldEncrypted.length; i++) {
         decrypted[i] = oldEncrypted[i] ^ keyArray[i % keyArray.length];

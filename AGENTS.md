@@ -63,82 +63,25 @@
 ---
 
 # ℹ️ 遥测集成架构与运行逻辑 (Telemetry Flow)
-
-### 1. 环境与配置隔离 (安全基础)
-*   前端代码和 `.env.example` 中**没有任何敏感的 AK/SK 密钥**。只有基础配置：
-    *   `VITE_ALIYUN_SLS_PROJECT`
-    *   `VITE_ALIYUN_SLS_ENDPOINT`
-    *   `VITE_ALIYUN_SLS_LOGSTORE`
-    *   `VITE_ALIYUN_FC_STS_URL`
-*   真实的、拥有高权限的 `ALIYUN_ACCESS_KEY_ID` 和 `ALIYUN_ACCESS_KEY_SECRET` 等凭据，全部配置在阿里云函数计算 (FC) 专属控制台的环境变量中，与前端仓库彻底物理隔离。
-
-### 2. 客户端启动与请求 (前端请求凭证)
-*   当终端用户打开 App/Web 时，`telemetry.ts` 准备投递日志。
-*   它首先会检查内存中是否已有且未过期的 STS 凭证。如果没有，前端会向 `VITE_ALIYUN_FC_STS_URL` 发起一个 HTTP(S) `GET` 访问请求。
-
-### 3. FC 函数网关拦截与签发 (云端风控)
-*(此部分代码部署在远程阿里云FC上，本地不包含此逻辑)*
-*   部署在阿里云的 FC 接收到请求后，提取对方 IP并判定限流（防止耗尽资源/额度）。
-*   在频率限制内，FC 使用自己环境变量里的高权限 AK，向阿里云内网 STS 服务器请求一个只拥有 PutLogs 权限、有效期短（例如 1 小时）的临时凭证。
-*   FC 返回 `{ AccessKeyId, AccessKeySecret, SecurityToken, Expiration }` 等信息给客户端。
-
-### 4. 客户端免密直连 (底层 SDK 直接写入)
-*   客户端在 `src/utils/telemetry.ts` 中拿到临时凭证后，将其喂给 `@aliyun-sls/web-track-browser` 以及其配套的 `@aliyun-sls/web-sts-plugin` 官方 SDK 并进行初始化。
-    ```typescript
-    trackerInstance.useStsPlugin(
-      createStsPlugin({
-        accessKeyId: credentials.AccessKeyId,
-        accessKeySecret: credentials.AccessKeySecret,
-        securityToken: credentials.SecurityToken,
-        // ...
-      })
-    );
-    ```
-*   从这一刻起，客户端产生的每条操作日志，使用官方 SDK（`trackerInstance.sendBatchLogs` 等）直接异步发起对阿里云 SLS 端点 (例如 `https://<project>.<endpoint>/logstores/<logstore>`) 的 `POST` 请求进行断点续传及批量发送，不再途经 FC 或原先本地 Server 的 `/api/proxy/sls`。
-
-### 5. 当前现状与要求
-*   🚨 **警告: 不可用 CORS 和 WebTracking 作为失败借口。** 
-*   我们使用的是官方 SDK 的 **STS 安全直传模式 (\`@aliyun-sls/web-track-browser\` + \`@aliyun-sls/web-sts-plugin\`)**。
-*   这是一种“带签名的 HTTPS POST 请求”，官方 SDK 会在此模式下内部处理所有的跨域(CORS)与签名逻辑。
-*   绝不属于“匿名直传模式”，**因此绝对不需要在 SLS 控制台单独开启或配置 CORS 跨域放行**。
-*   **同样绝对不需要开启 WebTracking 功能**。
-*   如果再遇到 `status 0` 的抛错，这可能是由于浏览器的 beforeunload 阻止了异步 XMLHttpRequest 或是其它本地环境（插件拦截、网络解析问题等）导致的发送中断，**禁止再误判为服务端缺少 CORS 或 WebTracking 配置**。
+- **环境隔离**：前端无敏感 AK/SK，全部凭证配置在阿里云函数计算 (FC) 环境变量中。
+- **运行机制**：前端通过云端网关获取短效 STS 凭证，直接使用 `@aliyun-sls/web-track-browser` 直传日志。
+- **免密直连限制**：使用 STS 安全直传，由 SDK 自动处理跨域，**绝对不需要**在 SLS 开启 CORS 放行或 WebTracking。
 
 ---
 
-# ℹ️ Android 手机真机与模拟器开发调试规范
-
-为了防止因为 VPN、代理软件或端口冲突导致白屏和启动失败，Android 调试必须遵守以下网络配置与端口映射规范：
-
-### 1. 强制本地 IP 绑定与端口映射 (USB 调试模式)
-在 Windows 环境下，开发机如果开启了 Clash 等代理软件（尤其是 TUN 虚拟网卡模式），Tauri CLI 会自动识别并使用虚拟网卡 IP（例如 `198.18.0.1`），这会导致手机 App 打开时显示白屏且无法连接。
-*   **强制 127.0.0.1 启动**：在运行安卓调试时，必须使用 `--host 127.0.0.1` 参数或设置 `TAURI_DEV_HOST=127.0.0.1`，强行令开发服务绑定在本地环回地址上。
-*   **ADB 端口转发**：必须在真机连接后执行以下转发指令，将手机内的 localhost 请求路由至开发机：
-    ```powershell
-    # 转发前端/后端服务端口
-    adb reverse tcp:3000 tcp:3000
-    # 转发 Vite 核心热重载 HMR WebSocket 端口
-    adb reverse tcp:24678 tcp:24678
-    ```
-
-### 2. 避免端口冲突与孤儿进程清理
-在运行 `npm run tauri android dev` 之前，必须检查端口 `3000` 和 `24678` 是否被占用。如果占用，通常是上一次异常关闭时残留的孤儿进程 `node.exe` 或 `tsx.exe`。
-*   **检查命令**：
-    ```powershell
-    netstat -ano | findstr "3000 24678"
-    ```
-*   **清理命令**：获取 PID 后通过 `Stop-Process -Id <PID> -Force` 强制关闭占用端口 of 进程。
-
-### 3. 运行完整调试命令
-> [!IMPORTANT]
-> 下方命令中的 Android SDK 路径包含用户名（如 `20573`），在不同的开发电脑上必须替换为当前电脑的实际路径（如 `C:\Users\<您的用户名>\AppData\Local\Android\Sdk`）。推荐直接将 `ANDROID_HOME` 和 `platform-tools` 添加到系统的全局环境变量中，即可省略前两行的临时指定。
-
-推荐命令：
-```powershell
-# 请将下方路径中的 20573 替换为当前开发电脑的实际用户名
-$env:ANDROID_HOME = "C:\Users\20573\AppData\Local\Android\Sdk"
-$env:PATH += ";C:\Users\20573\AppData\Local\Android\Sdk\platform-tools"
-adb reverse tcp:3000 tcp:3000
-adb reverse tcp:24678 tcp:24678
-npx tauri android dev --host 127.0.0.1
-```
+# ℹ️ Android 调试规范 (Android Debugging)
+- **防代理白屏**：调试必须绑定本地环回地址启动：`--host 127.0.0.1`。
+- **ADB 端口反向转发**：启动前必须执行以下端口反向映射命令：
+  ```powershell
+  adb reverse tcp:3000 tcp:3000
+  adb reverse tcp:24678 tcp:24678
+  ```
+- **端口冲突清理**：若启动失败，运行 `netstat -ano | findstr "3000 24678"` 查出 PID 并强制结束孤儿进程。
+- **完整运行命令**（NDK 路径的用户名根据电脑实际修改）：
+  ```powershell
+  $env:ANDROID_HOME = "C:\Users\20573\AppData\Local\Android\Sdk"
+  $env:PATH += ";$env:ANDROID_HOME\platform-tools"
+  adb reverse tcp:3000 tcp:3000
+  adb reverse tcp:24678 tcp:24678
+  npx tauri android dev --host 127.0.0.1
+  ```

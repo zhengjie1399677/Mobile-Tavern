@@ -30,8 +30,12 @@ export function getTriggeredLorebookEntries(
     if (scanDepth === 0) continue; // scan_depth 0 means no match (unless constant, which is handled above)
     
     const scanMessages = messages ? messages.slice(-scanDepth) : [];
-    const scanText =
+    let scanText =
       userInput + "\n" + scanMessages.map((m) => m.content).join("\n");
+    // Limit scanText length to prevent catastrophic ReDoS backtracking on long texts
+    if (scanText.length > 8000) {
+      scanText = scanText.slice(-8000);
+    }
 
     const checkMatch = (key: string, isRegex: boolean, isCaseSensitive: boolean): boolean => {
       const trimmed = key.trim();
@@ -116,25 +120,33 @@ export function replaceMacros(
   },
 ): string {
   if (!text) return "";
-  let result = text
-    .replace(/\{\{char(a|_name)?\}\}/gi, () => params.char)
-    .replace(/\{\{user(_name)?\}\}/gi, () => params.user)
-    .replace(/\{\{char_description\}\}/gi, () => params.description)
-    .replace(/\{\{description\}\}/gi, () => params.description)
-    .replace(/\{\{char_personality\}\}/gi, () => params.personality)
-    .replace(/\{\{personality\}\}/gi, () => params.personality)
-    .replace(/\{\{char_scenario\}\}/gi, () => params.scenario)
-    .replace(/\{\{scenario\}\}/gi, () => params.scenario)
-    .replace(/\{\{userPersona\}\}/gi, () => params.userPersona || "")
-    .replace(/\{\{persona\}\}/gi, () => params.userPersona || "");
+  
+  const macroMap: Record<string, string> = {
+    char: params.char,
+    chara: params.char,
+    char_name: params.char,
+    user: params.user,
+    user_name: params.user,
+    char_description: params.description,
+    description: params.description,
+    char_personality: params.personality,
+    personality: params.personality,
+    char_scenario: params.scenario,
+    scenario: params.scenario,
+    userpersona: params.userPersona || "",
+    persona: params.userPersona || "",
+  };
 
   if (params.mes_example !== undefined) {
-    result = result
-      .replace(/\{\{mes_example\}\}/gi, () => params.mes_example!)
-      .replace(/\{\{diags\}\}/gi, () => params.mes_example!)
-      .replace(/\{\{example_dialogue\}\}/gi, () => params.mes_example!);
+    macroMap["mes_example"] = params.mes_example;
+    macroMap["diags"] = params.mes_example;
+    macroMap["example_dialogue"] = params.mes_example;
   }
-  return result;
+
+  return text.replace(/\{\{([a-zA-Z0-9_]+)\}\}/gi, (match, key) => {
+    const lowerKey = key.toLowerCase();
+    return macroMap[lowerKey] !== undefined ? macroMap[lowerKey] : match;
+  });
 }
 
 /**
