@@ -9,17 +9,29 @@ try {
 }
 
 const maxRetries = 3;
+const isCI = process.env.CI === 'true';
+
+if (isCI) {
+  console.log('CI environment detected. Building RELEASE APK...');
+} else {
+  console.log('Local environment detected. Building DEBUG APK (automatically signed with local debug keys)...');
+}
+
 for (let i = 0; i < maxRetries; i++) {
   try {
     console.log('Attempt ' + (i + 1) + ' to build Android APK...');
-    execSync('npx tauri android build --apk --target aarch64', { stdio: 'inherit' });
+    const buildCmd = isCI 
+      ? 'npx tauri android build --apk --target aarch64'
+      : 'npx tauri android build --apk --debug --target aarch64';
+    execSync(buildCmd, { stdio: 'inherit' });
     console.log('Build succeeded.');
     process.exit(0);
   } catch (err) {
     console.error('Build attempt ' + (i + 1) + ' failed.');
     try {
-      console.log('Running gradlew assembleRelease with detailed logging for diagnosis...');
-      execSync('cd src-tauri/gen/android && chmod +x gradlew && ./gradlew assembleRelease --stacktrace --info', { stdio: 'inherit', env: process.env });
+      const gradlewTask = isCI ? 'assembleRelease' : 'assembleDebug';
+      console.log(`Running gradlew ${gradlewTask} with detailed logging for diagnosis...`);
+      execSync(`cd src-tauri/gen/android && chmod +x gradlew && ./gradlew ${gradlewTask} --stacktrace --info`, { stdio: 'inherit', env: process.env });
       console.log('Build succeeded via gradlew directly.');
       process.exit(0);
     } catch(err2) {

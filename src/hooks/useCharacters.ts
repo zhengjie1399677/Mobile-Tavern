@@ -430,7 +430,7 @@ export const useCharacters = () => {
     if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
       const path = (window as any).AndroidThemeBridge.saveFile(fileName, content);
       if (path && !path.startsWith("error:")) {
-        showCustomAlert(`📂 JSON 角色卡 [${char.name}] 导出成功！\n文件已保存至：\n${path}`);
+        showCustomAlert(`📂 JSON 角色卡 [${char.name}] 导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`);
       } else {
         showCustomAlert(`❌ 导出失败：${path || "未知错误"}`);
       }
@@ -498,7 +498,7 @@ export const useCharacters = () => {
             "image/png"
           );
           if (path && !path.startsWith("error:")) {
-            showCustomAlert(`📂 PNG 角色卡 [${char.name}] 导出成功！\n文件已保存至：\n${path}`);
+            showCustomAlert(`📂 PNG 角色卡 [${char.name}] 导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`);
           } else {
             showCustomAlert(`❌ 导出失败：${path || "未知错误"}`);
           }

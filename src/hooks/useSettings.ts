@@ -546,7 +546,7 @@ export const useSettings = () => {
     if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
       const path = (window as any).AndroidThemeBridge.saveFile(fileName, content);
       if (path && !path.startsWith("error:")) {
-        showCustomAlert(`📂 预设配置导出成功！\n文件已保存至：\n${path}`);
+        showCustomAlert(`📂 预设配置导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`);
       } else {
         showCustomAlert(`❌ 导出失败：${path || "未知错误"}`);
       }
@@ -728,7 +728,7 @@ export const useSettings = () => {
         const path = (window as any).AndroidThemeBridge.saveFile(fileName, outputData);
         if (path && !path.startsWith("error:")) {
           setBackupStatus("备份文件保存成功！");
-          await showCustomAlert(`📂 数据备份导出成功！\n文件已保存至：\n${path}`, "导出成功");
+          await showCustomAlert(`📂 数据备份导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`, "导出成功");
         } else {
           setBackupStatus(`备份失败: ${path}`);
           await showCustomAlert(`❌ 备份导出失败：${path || "未知错误"}`, "导出失败");
