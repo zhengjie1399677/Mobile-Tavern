@@ -1163,12 +1163,12 @@ export default function GlobalWorldbookTab() {
           </label>
           <textarea
             placeholder="具体的记忆描述。当对话中触发关键词时，系统会自动提取拼混入 AI 对局 Prompt 内。例如：契约魔法源自古尔德大王，施法时需要在掌心画出五角芒芒印，且饮下一滴生灵血..."
-            rows={4}
+            rows={8}
             value={editForm.content || ""}
             onChange={(e) =>
               setEditForm((prev) => ({ ...prev, content: e.target.value }))
             }
-            className="w-full bg-input border border-border rounded-lg p-2 text-foreground outline-none focus:border-primary resize-none leading-relaxed font-normal transition"
+            className="w-full bg-input border border-border rounded-lg p-2 text-foreground outline-none focus:border-primary resize-y leading-relaxed font-medium transition text-sm"
           />
         </div>
 

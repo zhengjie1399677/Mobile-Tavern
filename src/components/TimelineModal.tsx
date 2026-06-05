@@ -38,7 +38,7 @@ export default function TimelineModal() {
 
   return (
     <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-30 flex items-center justify-center p-4">
-      <div className="bg-background border border-border rounded-xl max-w-sm w-full p-4 space-y-3 shadow-2xl text-xs">
+      <div className="bg-background border border-border rounded-xl max-w-md w-full sm:max-w-lg p-4 space-y-3 shadow-2xl text-xs">
         <div className="flex items-center justify-between border-b border-border pb-2">
           <h4 className="font-bold text-foreground flex items-center gap-1">
             <Clock className="w-4 h-4 text-primary" />{" "}
@@ -60,10 +60,10 @@ export default function TimelineModal() {
             </label>
             <textarea
               placeholder="在这段时间内发生的主要剧情或事件摘要..."
-              rows={4}
+              rows={6}
               value={newSummaryContent}
               onChange={(e) => setNewSummaryContent(e.target.value)}
-              className="w-full bg-input border border-border rounded p-1.5 text-stone-250 text-foreground outline-none resize-none leading-relaxed"
+              className="w-full bg-input border border-border rounded p-2 text-foreground outline-none resize-y leading-relaxed text-sm font-medium"
             />
           </div>
 

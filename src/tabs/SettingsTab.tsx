@@ -438,7 +438,7 @@ export default function SettingsTab() {
                     onChange={(e) =>
                       updateSettings({ ...settings, userInfo: e.target.value })
                     }
-                    className="text-xs bg-input/50 min-h-[80px]"
+                    className="text-sm bg-input/50 min-h-[160px]"
                     placeholder="例如: 身高180cm, 穿着黑色的风衣, 眼神冷漠..."
                   />
                 </div>
@@ -815,7 +815,7 @@ export default function SettingsTab() {
                                   },
                                 })
                               }
-                              className="min-h-[120px] text-[11px] font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
+                              className="min-h-[240px] text-sm font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
                               placeholder="输入底层角色扮演系统指令..."
                             />
                           </div>
@@ -861,7 +861,7 @@ export default function SettingsTab() {
                                   },
                                 })
                               }
-                              className="min-h-[120px] text-[11px] font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
+                              className="min-h-[240px] text-sm font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
                               placeholder="输入破限提示词..."
                             />
                           </div>
@@ -907,7 +907,7 @@ export default function SettingsTab() {
                                   },
                                 })
                               }
-                              className="min-h-[120px] text-[11px] font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
+                              className="min-h-[200px] text-sm font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
                               placeholder="输入尾部纪律提醒指令..."
                             />
                           </div>
@@ -1036,7 +1036,7 @@ export default function SettingsTab() {
                                       e.target.value,
                                     )
                                   }
-                                  className="min-h-[140px] text-[11px] font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground font-sans shadow-inner"
+                                  className="min-h-[220px] text-sm font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground font-sans shadow-inner"
                                   placeholder="Enter strict instructions here..."
                                 />
                               </div>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 
 export type TabType =
   | "characters"
@@ -64,6 +64,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentTheme, setCurrentTheme] = useState<ThemeType>(() => {
     return (localStorage.getItem("siuser-theme") as any) || "sand";
   });
+  const isInitialRender = useRef(true);
 
   const handleThemeChange = (newTheme: ThemeType) => {
     setCurrentTheme(newTheme);
@@ -100,6 +101,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   useEffect(() => {
+    let timer: any;
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+    } else {
+      document.documentElement.classList.add("theme-transitioning");
+      timer = setTimeout(() => {
+        document.documentElement.classList.remove("theme-transitioning");
+      }, 350);
+    }
+
     document.documentElement.setAttribute("data-theme", currentTheme);
     const isDark = currentTheme === "ocean";
     if (isDark) {
@@ -147,6 +158,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error("Failed to set Android status bar style:", e);
       }
     }
+
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+        document.documentElement.classList.remove("theme-transitioning");
+      }
+    };
   }, [currentTheme]);
 
 

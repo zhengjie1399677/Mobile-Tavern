@@ -85,7 +85,7 @@ export default function CharacterEditModal() {
           </label>
           <textarea
             placeholder="描述具体的记忆事实段落..."
-            rows={3}
+            rows={6}
             value={editingLoreEntry.content || ""}
             onChange={(e) =>
               setEditingLoreEntry({
@@ -93,7 +93,7 @@ export default function CharacterEditModal() {
                 content: e.target.value,
               })
             }
-            className="w-full bg-input border border-border rounded p-1.5 text-foreground text-xs leading-relaxed outline-none focus:border-primary resize-none font-medium"
+            className="w-full bg-input border border-border rounded p-2 text-foreground text-sm leading-relaxed outline-none focus:border-primary resize-y font-medium"
           />
         </div>
 
@@ -262,8 +262,8 @@ export default function CharacterEditModal() {
   };
 
   return (
-    <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-30 flex flex-col justify-end">
-      <div className="bg-background border-t border-border max-h-[92%] overflow-y-auto rounded-t-2xl flex flex-col">
+    <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-30 flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4">
+      <div className="bg-background border-t sm:border border-border max-h-[92%] sm:max-h-[85%] w-full sm:max-w-3xl overflow-y-auto rounded-t-2xl sm:rounded-2xl flex flex-col shadow-2xl">
         {/* Modal sticky titles */}
         <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10">
           <h3 className="font-bold text-foreground text-sm">
@@ -371,7 +371,7 @@ export default function CharacterEditModal() {
               </label>
               <textarea
                 placeholder="角色的详细描述、性格或背景设定..."
-                rows={8}
+                rows={12}
                 value={editingChar.description || ""}
                 onChange={(e) =>
                   setEditingChar({
@@ -379,7 +379,7 @@ export default function CharacterEditModal() {
                     description: e.target.value,
                   })
                 }
-                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs resize-y leading-relaxed"
+                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-sm resize-y leading-relaxed"
               />
             </div>
 
@@ -425,7 +425,7 @@ export default function CharacterEditModal() {
               </label>
               <textarea
                 placeholder="角色出场的第一句话"
-                rows={8}
+                rows={12}
                 value={editingChar.first_mes || ""}
                 onChange={(e) =>
                   setEditingChar({
@@ -433,7 +433,7 @@ export default function CharacterEditModal() {
                     first_mes: e.target.value,
                   })
                 }
-                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs resize-y leading-relaxed"
+                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-sm resize-y leading-relaxed"
               />
             </div>
 
@@ -443,7 +443,7 @@ export default function CharacterEditModal() {
               </label>
               <textarea
                 placeholder="<user>: 你是谁？\n<char>: 我是..."
-                rows={6}
+                rows={10}
                 value={editingChar.mes_example || ""}
                 onChange={(e) =>
                   setEditingChar({
@@ -451,7 +451,7 @@ export default function CharacterEditModal() {
                     mes_example: e.target.value,
                   })
                 }
-                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs resize-y font-mono"
+                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-sm resize-y font-mono"
               />
             </div>
 
