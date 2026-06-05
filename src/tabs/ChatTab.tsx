@@ -137,7 +137,7 @@ const ChatInputArea = () => {
               onSend();
             }
           }}
-          placeholder={`发送一条纯文本对白至 ${activeCharacter?.name} 并启程...`}
+          placeholder={`发送一条对白至 ${activeCharacter?.name} 启程...`}
           rows={2}
           className="flex-1 bg-muted border border-border rounded-lg py-2.5 px-3 text-sm text-foreground focus:outline-none focus:border-primary/50 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px]"
         />
@@ -186,6 +186,7 @@ export default function ChatTab() {
     setChatSubTab,
     isSending,
     setIsSending,
+    isSummarizing,
     editingMsgId,
     setEditingMsgId,
     editingMsgContent,
@@ -832,6 +833,13 @@ export default function ChatTab() {
                   ></span>
                 </div>
                 <span>{activeCharacter?.name} 正在雕琢语气并思索下文...</span>
+              </div>
+            )}
+
+            {isSummarizing && (
+              <div className="flex items-center gap-2 text-xs text-primary italic pl-5 py-1 animate-pulse">
+                <Brain className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>系统正在整理潜意识碎片...</span>
               </div>
             )}
 

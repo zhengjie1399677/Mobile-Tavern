@@ -11,6 +11,8 @@ interface ChatContextType {
   activeSession: ChatSession | null;
   isSending: boolean;
   setIsSending: (sending: boolean) => void;
+  isSummarizing: boolean;
+  setIsSummarizing: (summarizing: boolean) => void;
   availableModels: string[];
   setAvailableModels: (models: string[]) => void;
   isFetchingModels: boolean;
@@ -29,6 +31,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<any>({ testing: false });
@@ -95,6 +98,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activeSession,
         isSending,
         setIsSending,
+        isSummarizing,
+        setIsSummarizing,
         availableModels,
         setAvailableModels,
         isFetchingModels,

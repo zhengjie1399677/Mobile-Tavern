@@ -52,6 +52,8 @@ export interface UnifiedAppContextProps {
   activeSession: ChatSession | null;
   isSending: boolean;
   setIsSending: (sending: boolean) => void;
+  isSummarizing: boolean;
+  setIsSummarizing: (summarizing: boolean) => void;
   availableModels: string[];
   setAvailableModels: (models: string[]) => void;
   isFetchingModels: boolean;

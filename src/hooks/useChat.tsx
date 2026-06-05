@@ -31,7 +31,14 @@ export const useChat = (
     setIsSending,
     saveSession,
     deleteSession,
+    isSummarizing,
+    setIsSummarizing,
   } = useChatState();
+
+  const sessionsRef = React.useRef(sessions);
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
   // Local Chat / Timeline UI States
   const [showSessionManager, setShowSessionManager] = useState(false);
@@ -150,6 +157,7 @@ export const useChat = (
       messagesToCompress = unsummarizedMessages.slice(0, maxAllowedUnsummarized);
 
       try {
+        setIsSummarizing(true);
         const promptInstruction = settings?.memory?.summarySystemPrompt || "";
         const contentConcat = messagesToCompress
           .map((m) => `${m.sender === "user" ? (settings?.userName || "user") : (activeCharacter?.name || "角色")}: ${m.content}`)
@@ -262,11 +270,13 @@ export const useChat = (
         if ((e as Error).name === "AbortError") return;
         console.warn("Auto-compactor service bypassed or offline:", e);
         if (force) await showCustomAlert("记忆整理出错: " + (e as Error).message);
+      } finally {
+        setIsSummarizing(false);
       }
     } else {
       if (force) await showCustomAlert("当前无需强制压缩。");
     }
-  }, [settings, activeCharacter, showCustomAlert, saveSession]);
+  }, [settings, activeCharacter, showCustomAlert, saveSession, setIsSummarizing]);
 
   const handleSendMessage = useCallback(async (textToSend: string) => {
     incrementUsageCount();
@@ -426,6 +436,7 @@ export const useChat = (
           temperature: settings.preset.temperature,
           top_p: settings.preset.topP,
           max_tokens: settings.preset.maxTokens,
+          max_completion_tokens: settings.preset.maxTokens,
           presence_penalty: settings.preset.presencePenalty ?? 0.0,
           frequency_penalty: settings.preset.frequencyPenalty ?? 0.0,
           repetition_penalty: settings.preset.repetitionPenalty,
@@ -459,35 +470,22 @@ export const useChat = (
         },
       });
 
-      let wasSessionDeleted = false;
-      let finalMessages: Message[] = [];
-      setSessions((prev) => {
-        const currentSession = prev.find((s) => s.id === updatedSession.id);
-        if (!currentSession) {
-          wasSessionDeleted = true;
-          return prev;
-        }
-        const hasPlaceholder = currentSession.messages.some((m) => m.id === aiMsgId);
-        const finalAiMsg = {
-          id: aiMsgId,
-          sender: "assistant",
-          content: responseText.trim(),
-          timestamp: Date.now(),
-          generationTime: (performance.now() - startTime) / 1000,
-          tokenCount: tokenUsage.completion,
-          promptTokenCount: tokenUsage.prompt,
-        };
-        const nextMessages = hasPlaceholder
-          ? currentSession.messages.map((m) => (m.id === aiMsgId ? finalAiMsg : m))
-          : [...currentSession.messages, finalAiMsg];
-        finalMessages = nextMessages;
-        return prev.map((s) => (s.id === updatedSession.id ? { ...s, messages: nextMessages } : s));
-      });
-
-      if (wasSessionDeleted) {
+      const sessionExists = sessionsRef.current.some((s) => s.id === updatedSession.id);
+      if (!sessionExists) {
         console.warn("Aborted session save because it was deleted during generation:", updatedSession.id);
         return;
       }
+
+      const finalAiMsg = {
+        id: aiMsgId,
+        sender: "assistant",
+        content: responseText.trim(),
+        timestamp: Date.now(),
+        generationTime: (performance.now() - startTime) / 1000,
+        tokenCount: tokenUsage.completion,
+        promptTokenCount: tokenUsage.prompt,
+      };
+      const finalMessages = [...updatedSession.messages, finalAiMsg];
       const trueFinalSession = {
         ...updatedSession,
         messages: finalMessages,
@@ -515,20 +513,9 @@ export const useChat = (
             content: responseText.trim(),
             timestamp: Date.now(),
           };
-          let finalMessages: Message[] = [];
-          let sessionExists = false;
-          setSessions((prev) => {
-            const currentSession = prev.find((s) => s.id === updatedSession.id);
-            if (!currentSession) return prev;
-            sessionExists = true;
-            const hasPlaceholder = currentSession.messages.some((m) => m.id === aiMsgId);
-            const nextMessages = hasPlaceholder
-              ? currentSession.messages.map((m) => (m.id === aiMsgId ? finishedAiMsg : m))
-              : [...currentSession.messages, finishedAiMsg];
-            finalMessages = nextMessages;
-            return prev.map((s) => (s.id === updatedSession.id ? { ...s, messages: nextMessages } : s));
-          });
-          if (sessionExists) {
+          const abortSessionExists = sessionsRef.current.some((s) => s.id === updatedSession.id);
+          if (abortSessionExists) {
+            const finalMessages = [...updatedSession.messages, finishedAiMsg];
             const trueFinalSession = {
               ...updatedSession,
               messages: finalMessages,
@@ -558,7 +545,7 @@ export const useChat = (
             if (s.id !== updatedSession.id) return s;
             return {
               ...s,
-              messages: s.messages.filter((m) => !m.content.includes("💭...")),
+              messages: s.messages.filter((m) => m.id !== aiMsgId),
             };
           })
         );
@@ -747,6 +734,7 @@ export const useChat = (
           temperature: settings.preset.temperature,
           top_p: settings.preset.topP,
           max_tokens: settings.preset.maxTokens,
+          max_completion_tokens: settings.preset.maxTokens,
           presence_penalty: settings.preset.presencePenalty ?? 0.0,
           frequency_penalty: settings.preset.frequencyPenalty ?? 0.0,
           repetition_penalty: settings.preset.repetitionPenalty,
@@ -780,35 +768,22 @@ export const useChat = (
         },
       });
 
-      let wasSessionDeleted = false;
-      let finalMessages: Message[] = [];
-      setSessions((prev) => {
-        const currentSession = prev.find((s) => s.id === updatedSession.id);
-        if (!currentSession) {
-          wasSessionDeleted = true;
-          return prev;
-        }
-        const hasPlaceholder = currentSession.messages.some((m) => m.id === aiMsgId);
-        const finalAiMsg = {
-          id: aiMsgId,
-          sender: "assistant",
-          content: responseText.trim(),
-          timestamp: Date.now(),
-          generationTime: (performance.now() - startTime) / 1000,
-          tokenCount: tokenUsage.completion,
-          promptTokenCount: tokenUsage.prompt,
-        };
-        const nextMessages = hasPlaceholder
-          ? currentSession.messages.map((m) => (m.id === aiMsgId ? finalAiMsg : m))
-          : [...currentSession.messages, finalAiMsg];
-        finalMessages = nextMessages;
-        return prev.map((s) => (s.id === updatedSession.id ? { ...s, messages: nextMessages } : s));
-      });
-
-      if (wasSessionDeleted) {
+      const sessionExists = sessionsRef.current.some((s) => s.id === updatedSession.id);
+      if (!sessionExists) {
         console.warn("Aborted session save because it was deleted during generation:", updatedSession.id);
         return;
       }
+
+      const finalAiMsg = {
+        id: aiMsgId,
+        sender: "assistant",
+        content: responseText.trim(),
+        timestamp: Date.now(),
+        generationTime: (performance.now() - startTime) / 1000,
+        tokenCount: tokenUsage.completion,
+        promptTokenCount: tokenUsage.prompt,
+      };
+      const finalMessages = [...updatedSession.messages, finalAiMsg];
       const trueFinalSession = {
         ...updatedSession,
         messages: finalMessages,
@@ -838,20 +813,9 @@ export const useChat = (
             content: responseText.trim(),
             timestamp: Date.now(),
           };
-          let finalMessages: Message[] = [];
-          let sessionExists = false;
-          setSessions((prev) => {
-            const currentSession = prev.find((s) => s.id === updatedSession.id);
-            if (!currentSession) return prev;
-            sessionExists = true;
-            const hasPlaceholder = currentSession.messages.some((m) => m.id === aiMsgId);
-            const nextMessages = hasPlaceholder
-              ? currentSession.messages.map((m) => (m.id === aiMsgId ? finishedAiMsg : m))
-              : [...currentSession.messages, finishedAiMsg];
-            finalMessages = nextMessages;
-            return prev.map((s) => (s.id === updatedSession.id ? { ...s, messages: nextMessages } : s));
-          });
-          if (sessionExists) {
+          const abortSessionExists = sessionsRef.current.some((s) => s.id === updatedSession.id);
+          if (abortSessionExists) {
+            const finalMessages = [...updatedSession.messages, finishedAiMsg];
             const trueFinalSession = {
               ...updatedSession,
               messages: finalMessages,

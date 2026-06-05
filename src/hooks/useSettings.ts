@@ -285,12 +285,27 @@ export const useSettings = () => {
       });
       const data = await response.json();
       if (data.success && data.models) {
-        setAvailableModels(data.models.map((m: any) => m.id));
+        const modelIds = data.models.map((m: any) => m.id);
+        setAvailableModels(modelIds);
         setConnectionStatus({
           testing: false,
           success: true,
           message: "模型列表获取成功",
         });
+
+        // Auto-select first model if current selection is empty or invalid
+        if (modelIds.length > 0) {
+          const currentModel = settings.api.modelName;
+          if (!currentModel || !modelIds.includes(currentModel)) {
+            updateSettings({
+              ...settings,
+              api: {
+                ...settings.api,
+                modelName: modelIds[0],
+              },
+            });
+          }
+        }
       } else {
         setConnectionStatus({
           testing: false,
@@ -307,7 +322,7 @@ export const useSettings = () => {
     } finally {
       setIsFetchingModels(false);
     }
-  }, [settings.api, setIsFetchingModels, setConnectionStatus, setAvailableModels]);
+  }, [settings, updateSettings, setIsFetchingModels, setConnectionStatus, setAvailableModels]);
 
   const testApiConnection = useCallback(async () => {
     setConnectionStatus({ testing: true });

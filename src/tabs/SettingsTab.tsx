@@ -302,40 +302,6 @@ export default function SettingsTab() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">
-                        对话接口路径 (Chat Path)
-                      </label>
-                      <Input
-                        value={settings.api.chatPath || ""}
-                        onChange={(e) =>
-                          updateSettings({
-                            ...settings,
-                            api: { ...settings.api, chatPath: e.target.value },
-                          })
-                        }
-                        className="h-8 text-xs font-mono bg-input/50"
-                        placeholder="/chat/completions"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">
-                        模型拉取路径 (Models Path)
-                      </label>
-                      <Input
-                        value={settings.api.modelsPath || ""}
-                        onChange={(e) =>
-                          updateSettings({
-                            ...settings,
-                            api: { ...settings.api, modelsPath: e.target.value },
-                          })
-                        }
-                        className="h-8 text-xs font-mono bg-input/50"
-                        placeholder="/models"
-                      />
-                    </div>
-                  </div>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -689,8 +655,8 @@ export default function SettingsTab() {
                         <input
                           type="range"
                           min="100"
-                          max="30000"
-                          step="500"
+                          max="150000"
+                          step="1000"
                           value={settings.preset.maxTokens}
                           onChange={(e) =>
                             updateSettings({
