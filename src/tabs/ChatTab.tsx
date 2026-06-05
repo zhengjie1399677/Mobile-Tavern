@@ -198,6 +198,9 @@ export default function ChatTab() {
     setNewSummaryTag,
     setNewSummaryLoc,
     setNewSummaryContent,
+    setNewSummaryCondition,
+    setNewSummaryInventory,
+    setNewSummaryBonding,
     setEditingSummaryId,
     chatBottomRef,
     activeCharacter,
@@ -860,6 +863,9 @@ export default function ChatTab() {
                   activeCharacter?.scenario?.slice(0, 8) || "荒野野营",
                 );
                 setNewSummaryContent("");
+                setNewSummaryCondition("");
+                setNewSummaryInventory("");
+                setNewSummaryBonding("");
                 setTimelineModalOpen(true);
               }}
               className="bg-primary hover:bg-primary text-primary-foreground text-[11px] px-2.5 py-1.5 rounded transition flex items-center gap-1 font-medium"
@@ -878,60 +884,87 @@ export default function ChatTab() {
                 <span className="absolute -left-[25px] top-4 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-background"></span>
 
                 {/* Header summary node detail */}
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold tracking-tight bg-primary/20 border border-amber-800/40 text-primary px-1.5 py-0.5 rounded">
-                    ⏱ {summary.timeTag} · {summary.location}
-                  </span>
+                <div className="flex flex-col gap-1.5 mb-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold tracking-tight bg-primary/20 border border-amber-800/40 text-primary px-1.5 py-0.5 rounded">
+                      ⏱ {summary.timeTag} · {summary.location}
+                    </span>
 
-                  <div className="flex items-center gap-0.5">
-                    <button
-                      onClick={() => createBacktrackFromTimeline(summary)}
-                      title="以此历史年表节点作为新旅程重演起点进行平行剧本推写"
-                      className="text-muted-foreground hover:text-muted-foreground p-0.5 text-[10px] bg-muted border border-border px-1 py-0.5 rounded flex items-center gap-0.5 mr-1"
-                    >
-                      <GitFork className="w-2.5 h-2.5 text-primary" /> 分支宇宙
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingSummaryId(summary.id);
-                        setNewSummaryTag(summary.timeTag);
-                        setNewSummaryLoc(summary.location);
-                        setNewSummaryContent(summary.content);
-                        setTimelineModalOpen(true);
-                      }}
-                      className="text-muted-foreground hover:text-foreground p-1"
-                      title="编辑该条记忆年表"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (!activeSession) return;
-                        const ok =
-                          await showCustomConfirm(
-                            "是否彻底解散清除该记忆卡片？",
-                          );
-                        if (ok) {
-                          const nextSums = activeSession.summaries.filter(
-                            (s) => s.id !== summary.id,
-                          );
-                          const updated = {
-                            ...activeSession,
-                            summaries: nextSums,
-                          };
-                          setSessions((prev) =>
-                            prev.map((s) =>
-                              s.id === updated.id ? updated : s,
-                            ),
-                          );
-                          await saveSession(updated);
-                        }
-                      }}
-                      className="text-muted-foreground hover:text-red-400 p-1"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={() => createBacktrackFromTimeline(summary)}
+                        title="以此历史年表节点作为新旅程重演起点进行平行剧本推写"
+                        className="text-muted-foreground hover:text-muted-foreground p-0.5 text-[10px] bg-muted border border-border px-1 py-0.5 rounded flex items-center gap-0.5 mr-1"
+                      >
+                        <GitFork className="w-2.5 h-2.5 text-primary" /> 分支宇宙
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingSummaryId(summary.id);
+                          setNewSummaryTag(summary.timeTag);
+                          setNewSummaryLoc(summary.location);
+                          setNewSummaryContent(summary.content);
+                          setNewSummaryCondition(summary.condition || "");
+                          setNewSummaryInventory(summary.inventory || "");
+                          setNewSummaryBonding(summary.bonding || "");
+                          setTimelineModalOpen(true);
+                        }}
+                        className="text-muted-foreground hover:text-foreground p-1"
+                        title="编辑该条记忆年表"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!activeSession) return;
+                          const ok =
+                            await showCustomConfirm(
+                              "是否彻底解散清除该记忆卡片？",
+                            );
+                          if (ok) {
+                            const nextSums = activeSession.summaries.filter(
+                              (s) => s.id !== summary.id,
+                            );
+                            const updated = {
+                              ...activeSession,
+                              summaries: nextSums,
+                            };
+                            setSessions((prev) =>
+                              prev.map((s) =>
+                                s.id === updated.id ? updated : s,
+                              ),
+                            );
+                            await saveSession(updated);
+                          }
+                        }}
+                        className="text-muted-foreground hover:text-red-400 p-1"
+                        title="删除该条记忆年表"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Optional RPG State Badges */}
+                  {(summary.condition || summary.inventory || summary.bonding) && (
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {summary.condition && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-medium bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 px-1 py-0.5 rounded-md">
+                          💓 {summary.condition}
+                        </span>
+                      )}
+                      {summary.inventory && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-medium bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-400 px-1 py-0.5 rounded-md">
+                          🎒 {summary.inventory}
+                        </span>
+                      )}
+                      {summary.bonding && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-medium bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded-md">
+                          🔗 {summary.bonding}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Summary prose item */}

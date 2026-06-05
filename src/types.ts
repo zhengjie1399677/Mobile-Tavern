@@ -63,6 +63,9 @@ export interface SummaryCard {
   timeTag: string; // e.g. "第二天" (Day 2) or "深夜" (Late Night)
   location: string; // e.g. "王都旅馆" (Royal Inn) or "林间空地" (Clearing)
   content: string; // The compressed summary of the plot
+  condition?: string; // Character physical/mental condition
+  inventory?: string; // Key items delta (acquired/lost)
+  bonding?: string; // Relationship level/attitude change
 }
 
 export interface Message {

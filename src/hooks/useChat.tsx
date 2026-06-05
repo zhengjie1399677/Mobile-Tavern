@@ -57,6 +57,9 @@ export const useChat = (
   const [newSummaryTag, setNewSummaryTag] = useState("");
   const [newSummaryLoc, setNewSummaryLoc] = useState("");
   const [newSummaryContent, setNewSummaryContent] = useState("");
+  const [newSummaryCondition, setNewSummaryCondition] = useState("");
+  const [newSummaryInventory, setNewSummaryInventory] = useState("");
+  const [newSummaryBonding, setNewSummaryBonding] = useState("");
   const [editingSummaryId, setEditingSummaryId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -178,11 +181,42 @@ export const useChat = (
           const timeTagTemplate = settings?.memory?.timeTagTemplate || "第{{index}}幕";
           const timeTag = timeTagTemplate.replace(/\{\{index\}\}/g, String(indexVal));
 
+          let contentText = compiledSummary.trim();
+          let locationStr = activeCharacter?.scenario?.slice(0, 8) || "未知地点";
+          let timeTagStr = timeTag;
+          let conditionStr = "";
+          let inventoryStr = "";
+          let bondingStr = "";
+
+          const splitIdx = compiledSummary.lastIndexOf("---");
+          if (splitIdx !== -1) {
+            const body = compiledSummary.slice(0, splitIdx).trim();
+            const meta = compiledSummary.slice(splitIdx + 3).trim();
+            if (body) {
+              contentText = body;
+            }
+            
+            const locMatch = meta.match(/\[(?:Location|地点):\s*(.*?)\]/i);
+            const timeMatch = meta.match(/\[(?:Time|时间):\s*(.*?)\]/i);
+            const condMatch = meta.match(/\[(?:Condition|状态|心境):\s*(.*?)\]/i);
+            const invMatch = meta.match(/\[(?:Inventory|物品|道具):\s*(.*?)\]/i);
+            const bondMatch = meta.match(/\[(?:Bonding|羁绊|情感):\s*(.*?)\]/i);
+
+            if (locMatch && locMatch[1].trim()) locationStr = locMatch[1].trim();
+            if (timeMatch && timeMatch[1].trim()) timeTagStr = timeMatch[1].trim();
+            if (condMatch && condMatch[1].trim()) conditionStr = condMatch[1].trim();
+            if (invMatch && invMatch[1].trim()) inventoryStr = invMatch[1].trim();
+            if (bondMatch && bondMatch[1].trim()) bondingStr = bondMatch[1].trim();
+          }
+
           const newCard: SummaryCard = {
             id: "summary_" + Math.random().toString(36).substring(2, 9),
-            timeTag,
-            location: activeCharacter?.scenario?.slice(0, 8) || "未知地点",
-            content: compiledSummary.trim(),
+            timeTag: timeTagStr,
+            location: locationStr,
+            content: contentText,
+            condition: conditionStr || undefined,
+            inventory: inventoryStr || undefined,
+            bonding: bondingStr || undefined,
           };
 
           const lastSummarizedMessageId = messagesToCompress[messagesToCompress.length - 1].id;
@@ -1091,6 +1125,9 @@ export const useChat = (
               timeTag: newSummaryTag.trim(),
               location: newSummaryLoc.trim() || "未知地点",
               content: newSummaryContent.trim(),
+              condition: newSummaryCondition.trim() || undefined,
+              inventory: newSummaryInventory.trim() || undefined,
+              bonding: newSummaryBonding.trim() || undefined,
             }
           : s
       );
@@ -1100,6 +1137,9 @@ export const useChat = (
         timeTag: newSummaryTag.trim(),
         location: newSummaryLoc.trim() || "未知地点",
         content: newSummaryContent.trim(),
+        condition: newSummaryCondition.trim() || undefined,
+        inventory: newSummaryInventory.trim() || undefined,
+        bonding: newSummaryBonding.trim() || undefined,
       };
       updatedSummaries = [...(activeSession.summaries || []), newCard];
     }
@@ -1121,12 +1161,18 @@ export const useChat = (
     setNewSummaryTag("");
     setNewSummaryLoc("");
     setNewSummaryContent("");
+    setNewSummaryCondition("");
+    setNewSummaryInventory("");
+    setNewSummaryBonding("");
     setEditingSummaryId(null);
     setTimelineModalOpen(false);
   }, [
     newSummaryTag,
     newSummaryContent,
     newSummaryLoc,
+    newSummaryCondition,
+    newSummaryInventory,
+    newSummaryBonding,
     activeSession,
     editingSummaryId,
     setSessions,
@@ -1134,6 +1180,9 @@ export const useChat = (
     setNewSummaryTag,
     setNewSummaryLoc,
     setNewSummaryContent,
+    setNewSummaryCondition,
+    setNewSummaryInventory,
+    setNewSummaryBonding,
     setEditingSummaryId,
     setTimelineModalOpen,
   ]);
@@ -1174,6 +1223,12 @@ export const useChat = (
     setNewSummaryLoc,
     newSummaryContent,
     setNewSummaryContent,
+    newSummaryCondition,
+    setNewSummaryCondition,
+    newSummaryInventory,
+    setNewSummaryInventory,
+    newSummaryBonding,
+    setNewSummaryBonding,
     editingSummaryId,
     setEditingSummaryId,
     handleRerollFromMessage,
@@ -1202,6 +1257,9 @@ export const useChat = (
     newSummaryTag,
     newSummaryLoc,
     newSummaryContent,
+    newSummaryCondition,
+    newSummaryInventory,
+    newSummaryBonding,
     editingSummaryId,
     handleRerollFromMessage,
     handleRerollLast,

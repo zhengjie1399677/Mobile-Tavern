@@ -37,6 +37,20 @@ interface AppContextType {
   showCustomPrompt: (message: string, defaultValue?: string, title?: string) => Promise<string | null>;
   promptInputVal: string;
   setPromptInputVal: (val: string) => void;
+
+  // Timeline Memory states (optional in core context)
+  newSummaryTag?: string;
+  setNewSummaryTag?: (val: string) => void;
+  newSummaryLoc?: string;
+  setNewSummaryLoc?: (val: string) => void;
+  newSummaryContent?: string;
+  setNewSummaryContent?: (val: string) => void;
+  newSummaryCondition?: string;
+  setNewSummaryCondition?: (val: string) => void;
+  newSummaryInventory?: string;
+  setNewSummaryInventory?: (val: string) => void;
+  newSummaryBonding?: string;
+  setNewSummaryBonding?: (val: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
