@@ -14,7 +14,7 @@ export default function ChatHistoryTab() {
     triggerScroll,
   } = useContext(AppContext);
   return (
-    <div className="p-4 space-y-4 pb-20">
+    <div className="px-4 pb-4 pt-1.5 space-y-4">
       <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-1.5 pb-2 border-b border-border">
         历史对话 (History)
       </h1>

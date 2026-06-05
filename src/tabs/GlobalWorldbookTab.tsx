@@ -539,7 +539,7 @@ export default function GlobalWorldbookTab() {
   };
 
   return (
-    <div className="p-4 space-y-5 animate-fadeIn">
+    <div className="px-4 pb-4 pt-1.5 space-y-5 animate-fadeIn">
       {/* Top Header Section */}
       <div className="border-b border-border/80 pb-3 mb-2 shrink-0 flex items-center justify-between select-none">
         <div>

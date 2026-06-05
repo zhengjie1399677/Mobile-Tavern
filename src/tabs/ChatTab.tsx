@@ -53,7 +53,7 @@ const ChatInputArea = () => {
   };
 
   return (
-    <div className="bg-card pt-3 px-3 pb-[max(env(safe-area-inset-bottom),12px)] border-t border-border flex flex-col gap-2 z-10 shrink-0">
+    <div className="bg-card pt-3 px-3 pb-[max(var(--safe-area-bottom),12px)] border-t border-border flex flex-col gap-2 z-10 shrink-0">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
           <button

@@ -757,7 +757,7 @@ export default function CharacterEditModal() {
         )}
 
         {/* Modal final saving operations */}
-        <div className="p-4 pb-[calc(1rem+max(env(safe-area-inset-bottom),16px))] bg-input/80 border-t border-border gap-2.5 flex items-center justify-end sticky bottom-0 z-10">
+        <div className="p-4 pb-[calc(1rem+max(var(--safe-area-bottom),16px))] bg-input/80 border-t border-border gap-2.5 flex items-center justify-end sticky bottom-0 z-10">
           <button
             onClick={() => {
               setCharModalOpen(false);

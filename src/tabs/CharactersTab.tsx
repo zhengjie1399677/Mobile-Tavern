@@ -29,7 +29,7 @@ export default function CharactersTab() {
     setActiveWorldbookHostId,
   } = useContext(AppContext);
   return (
-    <div className="p-4 space-y-4">
+    <div className="px-4 pb-4 pt-1.5 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-3 pt-1">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-1.5">

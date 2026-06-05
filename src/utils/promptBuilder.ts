@@ -165,7 +165,7 @@ export function assemblePromptContext(params: {
   // Create substitution parameters for SillyTavern custom scripts/prompts
   const macroParams = {
     char: character.name,
-    user: settings.userName || "用户",
+    user: settings.userName || "user",
     description: character.description || "无",
     personality: character.personality || "无",
     scenario: character.scenario || "无",

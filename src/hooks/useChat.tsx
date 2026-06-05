@@ -140,7 +140,7 @@ export const useChat = (
       try {
         const promptInstruction = settings?.memory?.summarySystemPrompt || "";
         const contentConcat = messagesToCompress
-          .map((m) => `${m.sender === "user" ? (settings?.userName || "用户") : (activeCharacter?.name || "角色")}: ${m.content}`)
+          .map((m) => `${m.sender === "user" ? (settings?.userName || "user") : (activeCharacter?.name || "角色")}: ${m.content}`)
           .join("\n");
 
         let compiledSummary = "";
@@ -969,6 +969,7 @@ export const useChat = (
       }
     }
     setActiveTab("chat");
+    setChatSubTab("dialogue");
     triggerScroll();
   }, [
     isSending,
@@ -979,6 +980,7 @@ export const useChat = (
     saveSession,
     setActiveSessionId,
     setActiveTab,
+    setChatSubTab,
     triggerScroll,
   ]);
 

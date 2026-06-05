@@ -186,7 +186,7 @@ function parseSafeHtmlToReact(html: string, enableAsteriskFormatting: boolean): 
 export default function FormattedText({
   text,
   charName,
-  userName = "你",
+  userName = "user",
   className = "",
 }: FormattedTextProps) {
   if (!text) return null;

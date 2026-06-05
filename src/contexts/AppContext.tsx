@@ -56,6 +56,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem("siuser-theme", newTheme);
   };
 
+  // Synchronize Android Native Safe Area Heights via bridge and custom events
+  useEffect(() => {
+    const updateSafeAreas = (top: number, bottom: number) => {
+      document.documentElement.style.setProperty('--android-safe-area-top', `${top}px`);
+      document.documentElement.style.setProperty('--android-safe-area-bottom', `${bottom}px`);
+    };
+
+    const bridge = (window as any).AndroidThemeBridge;
+    if (bridge && typeof bridge.getSafeAreas === "function") {
+      try {
+        const res = JSON.parse(bridge.getSafeAreas());
+        updateSafeAreas(res.top, res.bottom);
+      } catch (e) {
+        console.error("Failed to parse native safe areas:", e);
+      }
+    }
+
+    const handleSafeAreasChange = (e: any) => {
+      if (e.detail) {
+        updateSafeAreas(e.detail.top, e.detail.bottom);
+      }
+    };
+
+    window.addEventListener("androidSafeAreasChanged", handleSafeAreasChange);
+    return () => {
+      window.removeEventListener("androidSafeAreasChanged", handleSafeAreasChange);
+    };
+  }, []);
+
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", currentTheme);
     const isDark = currentTheme === "ocean";

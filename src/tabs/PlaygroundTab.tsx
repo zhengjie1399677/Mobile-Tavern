@@ -421,7 +421,7 @@ export default function PlaygroundTab({ onBack }: { onBack: () => void }) {
         </button>
         <span className="text-sm font-semibold tracking-wide flex items-center">
           <Sparkles className="w-4 h-4 mr-1 text-primary animate-pulse" />
-          开发者架构沙盒 (Sandbox)
+          系统运行沙盒 (Sandbox)
         </span>
         <div className="w-5" />
       </div>

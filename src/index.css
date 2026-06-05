@@ -40,6 +40,9 @@
 
   --dialogue-color: #3f3f46;
   --prose-color: #78716c;
+
+  --safe-area-top: var(--android-safe-area-top, env(safe-area-inset-top, 0px));
+  --safe-area-bottom: var(--android-safe-area-bottom, env(safe-area-inset-bottom, 0px));
 }
 
 /* Theme 1: 极简纯白 (Pure snow white) */

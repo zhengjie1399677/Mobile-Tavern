@@ -25,10 +25,10 @@ export default function MainLayout() {
   return (
     <>
       <SplashScreen isVisible={showSplash} />
-      <div className="flex flex-col h-[100dvh] pt-[max(env(safe-area-inset-top),8px)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
+      <div className="flex flex-col h-[100dvh] pt-[var(--safe-area-top)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
         {activeTab !== "chat" && activeTab !== "playground" && (
-          <div className="absolute bottom-0 left-0 right-0 h-[calc(4rem+max(env(safe-area-inset-bottom),16px))] pb-[max(env(safe-area-inset-bottom),16px)] bg-background backdrop-blur border-t border-border flex items-center justify-around z-20">
+          <div className="absolute bottom-0 left-0 right-0 h-[calc(3.5rem+var(--safe-area-bottom))] pb-[var(--safe-area-bottom)] bg-background/95 backdrop-blur border-t border-border flex items-center justify-around z-20">
             <button
               onClick={() => setActiveTab("characters")}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-all ${
@@ -84,7 +84,7 @@ export default function MainLayout() {
           className={`flex-1 relative ${
             activeTab === "chat" || activeTab === "playground"
               ? "flex flex-col min-h-0 pb-0"
-              : "overflow-y-auto pb-[calc(4rem+max(env(safe-area-inset-bottom),16px))]"
+              : "overflow-y-auto pb-[calc(3.5rem+var(--safe-area-bottom)+12px)]"
           }`}
         >
           {/* === SECTION A: CHARACTER SELECTION === */}

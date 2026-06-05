@@ -6,11 +6,15 @@ import android.webkit.WebView
 import android.view.ViewGroup
 import android.view.View
 import androidx.core.view.WindowCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.content.ContentValues
 import android.provider.MediaStore
 import android.os.Environment
 
 class MainActivity : TauriActivity() {
+  private var appWebView: WebView? = null
+
   companion object {
     private const val PREFS_NAME = "AppThemePrefs"
     private const val KEY_THEME_DARK = "isDark"
@@ -27,71 +31,111 @@ class MainActivity : TauriActivity() {
     val savedColor = prefs.getString(KEY_THEME_COLOR, "#f5f0e8") ?: "#f5f0e8"
     applyStatusBar(savedIsDark, savedColor)
 
-    val webView = findWebView(window.decorView)
-    webView?.let {
-      it.addJavascriptInterface(object {
-        @android.webkit.JavascriptInterface
-        fun setStatusBarStyle(dark: Boolean, colorHex: String) {
-          // Persist so next cold start reads the correct theme
-          getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_THEME_DARK, dark)
-            .putString(KEY_THEME_COLOR, colorHex)
-            .apply()
+    // Listen for window inset changes (e.g. orientation changes, navigation bar toggles)
+    val decorView = window.decorView
+    ViewCompat.setOnApplyWindowInsetsListener(decorView) { view, windowInsets ->
+      val statusBarHeight = windowInsets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+      val navigationBarHeight = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+      
+      val density = view.resources.displayMetrics.density
+      val statusBarDp = statusBarHeight / density
+      val navigationBarDp = navigationBarHeight / density
 
-          runOnUiThread { applyStatusBar(dark, colorHex) }
+      appWebView?.let { webView ->
+        webView.post {
+          webView.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('androidSafeAreasChanged', { detail: { top: $statusBarDp, bottom: $navigationBarDp } }));",
+            null
+          )
         }
+      }
 
-        @android.webkit.JavascriptInterface
-        fun saveFile(fileName: String, content: String): String {
-          try {
-            val resolver = contentResolver
-            val contentValues = ContentValues().apply {
-              put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-              put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
-              put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-            }
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-            if (uri != null) {
-              val outputStream = resolver.openOutputStream(uri)
-              outputStream?.use { stream ->
-                stream.write(content.toByteArray())
-              }
-              return "内部存储/Download/" + fileName
-            }
-          } catch (e: Exception) {
-            e.printStackTrace()
-            return "error: " + e.message
-          }
-          return "error: Failed to create file"
-        }
-
-        @android.webkit.JavascriptInterface
-        fun saveFileBase64(fileName: String, base64Content: String, mimeType: String): String {
-          try {
-            val bytes = android.util.Base64.decode(base64Content, android.util.Base64.DEFAULT)
-            val resolver = contentResolver
-            val contentValues = ContentValues().apply {
-              put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-              put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-              put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-            }
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-            if (uri != null) {
-              val outputStream = resolver.openOutputStream(uri)
-              outputStream?.use { stream ->
-                stream.write(bytes)
-              }
-              return "内部存储/Download/" + fileName
-            }
-          } catch (e: Exception) {
-            e.printStackTrace()
-            return "error: " + e.message
-          }
-          return "error: Failed to create file"
-        }
-      }, "AndroidThemeBridge")
+      windowInsets
     }
+  }
+
+  override fun onWebViewCreate(webView: WebView) {
+    super.onWebViewCreate(webView)
+    this.appWebView = webView
+
+    webView.addJavascriptInterface(object {
+      @android.webkit.JavascriptInterface
+      fun getSafeAreas(): String {
+        val decorView = window.decorView
+        val insets = ViewCompat.getRootWindowInsets(decorView)
+        var statusBarDp = 0f
+        var navigationBarDp = 0f
+        if (insets != null) {
+          val statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+          val navigationBarHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+          val density = decorView.resources.displayMetrics.density
+          statusBarDp = statusBarHeight / density
+          navigationBarDp = navigationBarHeight / density
+        }
+        return "{\"top\": $statusBarDp, \"bottom\": $navigationBarDp}"
+      }
+
+      @android.webkit.JavascriptInterface
+      fun setStatusBarStyle(dark: Boolean, colorHex: String) {
+        // Persist so next cold start reads the correct theme
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+          .edit()
+          .putBoolean(KEY_THEME_DARK, dark)
+          .putString(KEY_THEME_COLOR, colorHex)
+          .apply()
+
+        runOnUiThread { applyStatusBar(dark, colorHex) }
+      }
+
+      @android.webkit.JavascriptInterface
+      fun saveFile(fileName: String, content: String): String {
+        try {
+          val resolver = contentResolver
+          val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+          }
+          val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+          if (uri != null) {
+            val outputStream = resolver.openOutputStream(uri)
+            outputStream?.use { stream ->
+              stream.write(content.toByteArray())
+            }
+            return "内部存储/Download/" + fileName
+          }
+        } catch (e: Exception) {
+          e.printStackTrace()
+          return "error: " + e.message
+        }
+        return "error: Failed to create file"
+      }
+
+      @android.webkit.JavascriptInterface
+      fun saveFileBase64(fileName: String, base64Content: String, mimeType: String): String {
+        try {
+          val bytes = android.util.Base64.decode(base64Content, android.util.Base64.DEFAULT)
+          val resolver = contentResolver
+          val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+          }
+          val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+          if (uri != null) {
+            val outputStream = resolver.openOutputStream(uri)
+            outputStream?.use { stream ->
+              stream.write(bytes)
+            }
+            return "内部存储/Download/" + fileName
+          }
+        } catch (e: Exception) {
+          e.printStackTrace()
+          return "error: " + e.message
+        }
+        return "error: Failed to create file"
+      }
+    }, "AndroidThemeBridge")
   }
 
   private fun applyStatusBar(isDark: Boolean, colorHex: String) {
@@ -102,21 +146,5 @@ class MainActivity : TauriActivity() {
     } catch (e: Exception) {
       e.printStackTrace()
     }
-  }
-
-  private fun findWebView(view: View): WebView? {
-    if (view is WebView) {
-      return view
-    }
-    if (view is ViewGroup) {
-      for (i in 0 until view.childCount) {
-        val child = view.getChildAt(i)
-        val result = findWebView(child)
-        if (result != null) {
-          return result
-        }
-      }
-    }
-    return null
   }
 }

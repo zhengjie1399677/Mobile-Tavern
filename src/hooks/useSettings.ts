@@ -139,7 +139,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     timeTagTemplate: "第{{index}}幕",
   },
   promptConfig: DEFAULT_PROMPT_CONFIG,
-  userName: "探客先生 (User)",
+  userName: "user",
   userInfo: "",
   userAvatar: "",
   enableHtmlRendering: true,

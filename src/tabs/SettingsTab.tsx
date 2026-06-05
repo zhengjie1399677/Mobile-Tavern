@@ -85,7 +85,7 @@ export default function SettingsTab() {
     setActiveTab,
   } = useContext(AppContext);
   return (
-    <div className="p-4 flex flex-col h-full overflow-hidden">
+    <div className="px-4 pb-4 pt-1.5 flex flex-col h-full overflow-hidden">
       <div className="border-b border-border pb-3 mb-3 shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
@@ -385,7 +385,7 @@ export default function SettingsTab() {
               <CardHeader className="pb-3 border-b border-border/50">
                 <CardTitle className="text-sm flex items-center gap-2 text-primary font-bold">
                   <Sparkles className="w-4 h-4 animate-pulse" />
-                  <span>开发者架构调试沙盒</span>
+                  <span>系统运行沙盒</span>
                 </CardTitle>
                 <CardDescription className="text-[11px]">
                   实时观测 Prompt 编译原理、SSE 流式解析缓冲区以及世界书扫描流程
@@ -397,7 +397,7 @@ export default function SettingsTab() {
                   onClick={() => setActiveTab("playground")}
                   className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 active:scale-95"
                 >
-                  🚀 进入架构调试沙盒 (Playground)
+                  🚀 进入系统运行沙盒 (Sandbox)
                 </button>
               </CardContent>
             </Card>
