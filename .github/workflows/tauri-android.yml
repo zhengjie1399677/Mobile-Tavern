@@ -110,6 +110,9 @@ jobs:
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: MobileTavern.apk
           draft: true
+
