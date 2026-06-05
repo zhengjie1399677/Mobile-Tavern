@@ -177,10 +177,20 @@ async function initTracker() {
   }
 }
 
+let isUnloadTriggered = false;
+
 async function syncTelemetry(isUnloading: boolean) {
   if (pendingEvents.length === 0) return;
-  if (isSyncing && !isUnloading) {
-    return;
+  
+  if (isUnloading) {
+    if (isUnloadTriggered) {
+      return;
+    }
+    isUnloadTriggered = true;
+  } else {
+    if (isSyncing || isUnloadTriggered) {
+      return;
+    }
   }
 
   isSyncing = true;
@@ -294,6 +304,7 @@ document.addEventListener('visibilitychange', () => {
     syncTelemetry(true);
     stopSyncTimer();
   } else {
+    isUnloadTriggered = false;
     startSyncTimer();
   }
 });

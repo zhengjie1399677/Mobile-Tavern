@@ -1,5 +1,10 @@
-import { CharacterCard } from "../types";
+import { CharacterCard, LorebookEntry } from "../types";
 import { unzlibSync, inflateSync } from "fflate";
+
+// Named constants for PNG offsets and values
+export const PNG_SIGNATURE_HEADER_1 = 0x89504e47;
+export const PNG_SIGNATURE_HEADER_2 = 0x0d0a1a0a;
+export const PNG_IHDR_END_OFFSET = 33; // PNG signature (8) + IHDR length (4) + type (4) + IHDR data (13) + IHDR CRC (4)
 
 // CRC table for PNG chunk writing
 const crcTable: number[] = (() => {
@@ -58,8 +63,11 @@ export async function parseCharacterFile(
  * Parses the "chara" tEXt metadata chunk of a PNG file.
  */
 function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
+  if (arrayBuffer.byteLength < PNG_IHDR_END_OFFSET) {
+    throw new Error("Invalid PNG file: File is too small to contain valid metadata chunks.");
+  }
   const view = new DataView(arrayBuffer);
-  if (view.getUint32(0) !== 0x89504e47 || view.getUint32(4) !== 0x0d0a1a0a) {
+  if (view.getUint32(0) !== PNG_SIGNATURE_HEADER_1 || view.getUint32(4) !== PNG_SIGNATURE_HEADER_2) {
     throw new Error("Invalid PNG signature");
   }
 
@@ -70,6 +78,9 @@ function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
   while (offset < arrayBuffer.byteLength) {
     if (offset + 8 > arrayBuffer.byteLength) break;
     const length = view.getUint32(offset);
+    if (offset + 12 + length > arrayBuffer.byteLength) {
+      throw new Error("Corrupt PNG file: Chunk data length exceeds file boundary.");
+    }
     const chunkType = String.fromCharCode(
       uint8[offset + 4],
       uint8[offset + 5],
@@ -269,107 +280,112 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
       return Object.keys(clean).length > 0 ? clean : undefined;
     })(),
     lorebookEntries: lorebookList
-      .map((entry: any) => {
-        const entryKeys: string[] = Array.isArray(entry.keys)
-          ? entry.keys
-          : Array.isArray(entry.key)
-            ? entry.key
-            : (entry.key || entry.keys || "")
-                .split(",")
-                .map((k: string) => k.trim())
-                .filter(Boolean);
-
-        let stPosition = entry.position !== undefined ? entry.position : entry.placement;
-        let position: "top" | "after_char_def" | "before_char_def" | "before_last_mes" | "in_chat" = "after_char_def";
-        if (stPosition !== undefined) {
-          const numPos = Number(stPosition);
-          if (!isNaN(numPos)) {
-            switch (numPos) {
-              case 0: position = "before_char_def"; break; // ST top / before def
-              case 1: position = "after_char_def"; break;  // ST after def
-              case 2: position = "after_char_def"; break;  // ST before AN / after scenario
-              case 3: position = "after_char_def"; break;  // ST before chat
-              case 4: position = "in_chat"; break;         // ST in-chat depth
-              default: position = "after_char_def"; break;
-            }
-          } else if (typeof stPosition === "string") {
-            const strPos = stPosition as string;
-            if (strPos === "top" || strPos === "after_char_def" || strPos === "before_char_def" || strPos === "before_last_mes" || strPos === "in_chat") {
-              position = strPos;
-            } else if (strPos === "after_char") {
-              position = "after_char_def";
-            } else if (strPos === "before_char") {
-              position = "before_char_def";
-            } else {
-              position = "after_char_def";
-            }
-          }
-        }
-        
-        let depth = entry.depth !== undefined ? Number(entry.depth) : 4;
-        let order = entry.order !== undefined ? Number(entry.order) : 100;
-        let probability = entry.probability !== undefined ? Number(entry.probability) : 100;
-        let addMemo = !!entry.addMemo;
-
-        const extensions = entry.extensions || {};
-        if (extensions.position !== undefined) {
-          const numExtPos = Number(extensions.position);
-          if (!isNaN(numExtPos)) {
-            switch (numExtPos) {
-              case 0: position = "before_char_def"; break;
-              case 1: position = "after_char_def"; break;
-              case 2: position = "after_char_def"; break;
-              case 3: position = "after_char_def"; break;
-              case 4: position = "in_chat"; break;
-              default: position = "after_char_def"; break;
-            }
-          }
-        }
-        if (extensions.depth !== undefined) depth = Number(extensions.depth);
-
-        // Advanced Lorebook Extraction
-        const secondaryKeys = Array.isArray(entry.secondary_keys) ? entry.secondary_keys : [];
-        let selectiveLogic: "AND_ANY" | "AND_ALL" | "NOT_ANY" | "NONE" = "NONE";
-        const rawSelLogic = extensions.selectiveLogic !== undefined ? extensions.selectiveLogic : entry.selectiveLogic;
-        if (rawSelLogic !== undefined) {
-          if (typeof rawSelLogic === "number") {
-            switch (rawSelLogic) {
-              case 1: selectiveLogic = "AND_ANY"; break;
-              case 2: selectiveLogic = "AND_ALL"; break;
-              case 3: selectiveLogic = "NOT_ANY"; break;
-              default: selectiveLogic = "NONE"; break;
-            }
-          } else if (typeof rawSelLogic === "string") {
-            const strLogic = rawSelLogic as string;
-            if (strLogic === "AND_ANY" || strLogic === "AND_ALL" || strLogic === "NOT_ANY" || strLogic === "NONE") {
-              selectiveLogic = strLogic;
-            }
-          }
-        }
-        const caseSensitive = !!(extensions.case_sensitive ?? entry.case_sensitive ?? entry.caseSensitive);
-        const useRegex = !!(entry.use_regex ?? entry.useRegex);
-        const scanDepth = extensions.scan_depth !== undefined ? Number(extensions.scan_depth) : (entry.scan_depth !== undefined ? Number(entry.scan_depth) : undefined);
-
-        return {
-          id: Math.random().toString(36).substring(2, 9),
-          keys: entryKeys,
-          secondary_keys: secondaryKeys,
-          selectiveLogic,
-          caseSensitive,
-          useRegex,
-          scanDepth,
-          content: entry.content || entry.value || "",
-          constant: !!(entry.constant || entry.constant_active),
-          enabled: entry.enabled !== false,
-          comment: entry.comment || "",
-          position,
-          depth,
-          order,
-          probability,
-          addMemo,
-        };
-      })
+      .map(mapSillyTavernLorebookEntry)
       .filter((e: any) => e.content),
+  };
+}
+
+/**
+ * Helper to map standard SillyTavern World Info/Lorebook fields to unified LorebookEntry interface.
+ */
+export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
+  const entryKeys: string[] = Array.isArray(entry.keys)
+    ? entry.keys
+    : Array.isArray(entry.key)
+      ? entry.key
+      : (entry.key || entry.keys || "")
+          .split(",")
+          .map((k: string) => k.trim())
+          .filter(Boolean);
+
+  let stPosition = entry.position !== undefined ? entry.position : entry.placement;
+  let position: "top" | "after_char_def" | "before_char_def" | "before_last_mes" | "in_chat" = "after_char_def";
+  if (stPosition !== undefined) {
+    const numPos = Number(stPosition);
+    if (!isNaN(numPos)) {
+      switch (numPos) {
+        case 0: position = "before_char_def"; break; // ST top / before def
+        case 1: position = "after_char_def"; break;  // ST after def
+        case 2: position = "after_char_def"; break;  // ST before AN / after scenario
+        case 3: position = "after_char_def"; break;  // ST before chat
+        case 4: position = "in_chat"; break;         // ST in-chat depth
+        default: position = "after_char_def"; break;
+      }
+    } else if (typeof stPosition === "string") {
+      const strPos = stPosition as string;
+      if (strPos === "top" || strPos === "after_char_def" || strPos === "before_char_def" || strPos === "before_last_mes" || strPos === "in_chat") {
+        position = strPos;
+      } else if (strPos === "after_char") {
+        position = "after_char_def";
+      } else if (strPos === "before_char") {
+        position = "before_char_def";
+      } else {
+        position = "after_char_def";
+      }
+    }
+  }
+
+  let depth = entry.depth !== undefined ? Number(entry.depth) : 4;
+  let order = entry.order !== undefined ? Number(entry.order) : 100;
+  let probability = entry.probability !== undefined ? Number(entry.probability) : 100;
+  let addMemo = !!entry.addMemo;
+
+  const extensions = entry.extensions || {};
+  if (extensions.position !== undefined) {
+    const numExtPos = Number(extensions.position);
+    if (!isNaN(numExtPos)) {
+      switch (numExtPos) {
+        case 0: position = "before_char_def"; break;
+        case 1: position = "after_char_def"; break;
+        case 2: position = "after_char_def"; break;
+        case 3: position = "after_char_def"; break;
+        case 4: position = "in_chat"; break;
+        default: position = "after_char_def"; break;
+      }
+    }
+  }
+  if (extensions.depth !== undefined) depth = Number(extensions.depth);
+
+  // Advanced Lorebook Extraction
+  const secondaryKeys = Array.isArray(entry.secondary_keys) ? entry.secondary_keys : [];
+  let selectiveLogic: "AND_ANY" | "AND_ALL" | "NOT_ANY" | "NONE" = "NONE";
+  const rawSelLogic = extensions.selectiveLogic !== undefined ? extensions.selectiveLogic : entry.selectiveLogic;
+  if (rawSelLogic !== undefined) {
+    if (typeof rawSelLogic === "number") {
+      switch (rawSelLogic) {
+        case 1: selectiveLogic = "AND_ANY"; break;
+        case 2: selectiveLogic = "AND_ALL"; break;
+        case 3: selectiveLogic = "NOT_ANY"; break;
+        default: selectiveLogic = "NONE"; break;
+      }
+    } else if (typeof rawSelLogic === "string") {
+      const strLogic = rawSelLogic as string;
+      if (strLogic === "AND_ANY" || strLogic === "AND_ALL" || strLogic === "NOT_ANY" || strLogic === "NONE") {
+        selectiveLogic = strLogic;
+      }
+    }
+  }
+  const caseSensitive = !!(extensions.case_sensitive ?? entry.case_sensitive ?? entry.caseSensitive);
+  const useRegex = !!(entry.use_regex ?? entry.useRegex);
+  const scanDepth = extensions.scan_depth !== undefined ? Number(extensions.scan_depth) : (entry.scan_depth !== undefined ? Number(entry.scan_depth) : undefined);
+
+  return {
+    id: entry.id || Math.random().toString(36).substring(2, 9),
+    keys: entryKeys,
+    secondary_keys: secondaryKeys,
+    selectiveLogic,
+    caseSensitive,
+    useRegex,
+    scanDepth,
+    content: entry.content || entry.value || "",
+    constant: !!(entry.constant || entry.constant_active),
+    enabled: entry.enabled !== false,
+    comment: entry.comment || "",
+    position,
+    depth,
+    order,
+    probability,
+    addMemo,
   };
 }
 
@@ -380,8 +396,11 @@ export function injectPngMetadata(
   pngBuffer: ArrayBuffer,
   char: CharacterCard,
 ): Blob {
+  if (pngBuffer.byteLength < PNG_IHDR_END_OFFSET) {
+    throw new Error("Invalid PNG source file: buffer smaller than standard IHDR header size.");
+  }
   const view = new DataView(pngBuffer);
-  if (view.getUint32(0) !== 0x89504e47 || view.getUint32(4) !== 0x0d0a1a0a) {
+  if (view.getUint32(0) !== PNG_SIGNATURE_HEADER_1 || view.getUint32(4) !== PNG_SIGNATURE_HEADER_2) {
     throw new Error("Invalid PNG source file");
   }
 
@@ -390,7 +409,7 @@ export function injectPngMetadata(
   // IHDR is at offset 8.
   // Chunk structure: Length (4 bytes), Type 'IHDR' (4 bytes), Data (13 bytes), CRC (4 bytes)
   // Ends at 8 + 4 + 4 + 13 + 4 = 33
-  const insertOffset = 33;
+  const insertOffset = PNG_IHDR_END_OFFSET;
 
   // Prepare json block
   const payload = {

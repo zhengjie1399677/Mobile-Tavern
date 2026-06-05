@@ -2,15 +2,21 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
-import { Message, ChatSession, SummaryCard } from "../types";
+import { Message, ChatSession, SummaryCard, UserSettings, LorebookEntry } from "../types";
 import { assemblePromptContext } from "../utils/promptBuilder";
 import { reportUsage, incrementUsageCount } from "../utils/telemetry";
-import { universalFetch } from "../utils/apiClient";
+import { universalFetch, FALLBACK_MODEL, API_ENDPOINT } from "../utils/apiClient";
+import { readSSEStream, safeParseSSEData } from "../utils/streamReader";
 import FormattedText from "../components/FormattedText";
+import { getAllSessions } from "../utils/localDB";
+
+const generateUniqueId = (prefix: string): string => {
+  return prefix + Math.random().toString(36).substring(2, 9);
+};
 
 export const useChat = (
-  settings: any,
-  globalLorebook: any[],
+  settings: UserSettings,
+  globalLorebook: LorebookEntry[],
   chatBottomRef: React.RefObject<HTMLDivElement | null>
 ) => {
   const { showCustomAlert, showCustomConfirm, showCustomPrompt, setActiveTab } = useApp();
@@ -39,13 +45,13 @@ export const useChat = (
   // Message Input & Forms state
   const abortControllerRef = React.useRef<AbortController | null>(null);
 
-  const handleStopGeneration = () => {
+  const handleStopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
     setIsSending(false);
-  };
+  }, [setIsSending]);
 
   const [userInputMessage, setUserInputMessage] = useState("");
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
@@ -67,9 +73,10 @@ export const useChat = (
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
+        setIsSending(false);
       }
     };
-  }, []);
+  }, [setIsSending]);
 
   const triggerScroll = useCallback((behavior: "smooth" | "instant" = "smooth") => {
     setTimeout(() => {
@@ -84,14 +91,14 @@ export const useChat = (
     const starterMsg = customFirstMessage ?? activeCharacter.first_mes;
 
     const newSession: ChatSession = {
-      id: "session_" + Math.random().toString(36).substring(2, 9),
+      id: generateUniqueId("session_"),
       characterId: activeCharacter.id,
       title: activeCharacter.name + " 的新会话",
       createdAt: Date.now(),
       messages: starterMsg
         ? [
             {
-              id: "msg_ai_" + Math.random().toString(36).substring(2, 9),
+              id: generateUniqueId("msg_ai_"),
               sender: "assistant",
               content: starterMsg.trim(),
               timestamp: Date.now(),
@@ -112,7 +119,8 @@ export const useChat = (
 
   const handleAutoSummaryCheck = useCallback(async (
     session: ChatSession,
-    force: boolean = false
+    force: boolean = false,
+    signal?: AbortSignal
   ) => {
     const lastIndex = session.lastSummarizedMessageId
       ? session.messages.findIndex((m) => m.id === session.lastSummarizedMessageId)
@@ -124,9 +132,10 @@ export const useChat = (
     }
     const unsummarizedMessages = session.messages.slice(startIndex);
     
-    const rawTriggerTurns = Number(settings?.memory?.summaryTriggerTurns);
+    const summaryTurnsVal = settings?.memory?.summaryTriggerTurns;
+    const rawTriggerTurns = summaryTurnsVal ? Number(summaryTurnsVal) : 0;
     const rawRecentTurns = Number(settings?.memory?.recentTurns || 6);
-    const triggerRounds = (rawTriggerTurns && rawTriggerTurns > 0) ? rawTriggerTurns : rawRecentTurns;
+    const triggerRounds = (!isNaN(rawTriggerTurns) && rawTriggerTurns > 0) ? rawTriggerTurns : rawRecentTurns;
     
     const maxAllowedUnsummarized = triggerRounds * 2;
 
@@ -149,7 +158,7 @@ export const useChat = (
         let compiledSummary = "";
 
         const reqBody = {
-          model: settings.api.modelName || "gpt-3.5-turbo",
+          model: settings.api.modelName || FALLBACK_MODEL,
           messages: [
             { role: "system", content: promptInstruction },
             { role: "user", content: contentConcat },
@@ -158,22 +167,32 @@ export const useChat = (
           temperature: 0.5,
           max_tokens: 500,
         };
-        const response = await universalFetch("/api/proxy/openai", {
+        const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
           baseUrl: settings.api.baseUrl,
           apiKey: settings.api.apiKey,
           chatPath: settings?.api?.chatPath,
           reqBody,
-        });
+        }, signal);
+
+        if (signal?.aborted) return;
 
         if (!response.ok) {
-           const errText = await response.text();
-           console.error("AutoSummary fetch failed:", errText);
-           throw new Error("API returned status " + response.status + ": " + errText);
+          const errStatus = response.status;
+          console.error("[AutoSummary] fetch failed with status:", errStatus);
+          throw new Error(`API 返回错误状态码 ${errStatus}`);
         }
 
-        const resData = await response.json();
-        if (resData.choices && resData.choices.length > 0) {
-          compiledSummary = resData.choices[0].message.content;
+        const responseText = await response.text();
+        let resData: any;
+        try {
+          resData = JSON.parse(responseText);
+        } catch (e) {
+          console.error("[AutoSummary] JSON parse failed. Response text was:", responseText);
+          throw new Error("接口返回数据格式错误，解析 JSON 失败");
+        }
+
+        if (resData && resData.choices && resData.choices.length > 0) {
+          compiledSummary = resData.choices[0].message?.content || "";
         }
 
         if (compiledSummary) {
@@ -210,7 +229,7 @@ export const useChat = (
           }
 
           const newCard: SummaryCard = {
-            id: "summary_" + Math.random().toString(36).substring(2, 9),
+            id: generateUniqueId("summary_"),
             timeTag: timeTagStr,
             location: locationStr,
             content: contentText,
@@ -221,28 +240,33 @@ export const useChat = (
 
           const lastSummarizedMessageId = messagesToCompress[messagesToCompress.length - 1].id;
 
-          const finalSession = {
-            ...session,
-            summaries: [...(session.summaries || []), newCard],
-            lastSummarizedMessageId,
-          };
+          if (signal?.aborted) return;
 
-          setSessions((prev) =>
-            prev.map((s) => (s.id === finalSession.id ? finalSession : s))
-          );
-          await saveSession(finalSession);
-          if (force) await showCustomAlert("记忆整理完毕，已收录至潜意识年表！");
+          const allSessions = await getAllSessions();
+          const latestSession = allSessions.find((s) => s.id === session.id);
+          if (latestSession) {
+            const nextSession = {
+              ...latestSession,
+              summaries: [...(latestSession.summaries || []), newCard],
+              lastSummarizedMessageId,
+            };
+            await saveSession(nextSession);
+            if (force) await showCustomAlert("记忆整理完毕，已收录至潜意识年表！");
+          } else {
+            if (force) await showCustomAlert("记忆整理失败，该会话可能已被删除。");
+          }
         } else {
           if (force) await showCustomAlert("记忆整理失败，请检查API连接。");
         }
       } catch (e) {
+        if ((e as Error).name === "AbortError") return;
         console.warn("Auto-compactor service bypassed or offline:", e);
         if (force) await showCustomAlert("记忆整理出错: " + (e as Error).message);
       }
     } else {
       if (force) await showCustomAlert("当前无需强制压缩。");
     }
-  }, [settings, activeCharacter, setSessions, saveSession, showCustomAlert]);
+  }, [settings, activeCharacter, showCustomAlert, saveSession]);
 
   const handleSendMessage = useCallback(async (textToSend: string) => {
     incrementUsageCount();
@@ -298,7 +322,50 @@ export const useChat = (
     abortControllerRef.current = controller;
 
     let responseText = "";
-    const aiMsgId = "msg_ai_" + Math.random().toString(36).substring(2, 9);
+    const aiMsgId = generateUniqueId("msg_ai_");
+
+    let lastUpdateTime = 0;
+    let pendingUpdateTimeout: any = null;
+    let isFirstToken = true;
+
+    const updateSessionsContent = (content: string) => {
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== updatedSession.id) return s;
+          return {
+            ...s,
+            messages: s.messages.map((m) =>
+              m.id === aiMsgId ? { ...m, content } : m
+            ),
+          };
+        })
+      );
+    };
+
+    const throttledUpdate = (content: string) => {
+      const now = performance.now();
+      if (isFirstToken) {
+        isFirstToken = false;
+        lastUpdateTime = now;
+        updateSessionsContent(content);
+        return;
+      }
+
+      if (now - lastUpdateTime >= 60) {
+        if (pendingUpdateTimeout) {
+          clearTimeout(pendingUpdateTimeout);
+          pendingUpdateTimeout = null;
+        }
+        lastUpdateTime = now;
+        updateSessionsContent(content);
+      } else if (!pendingUpdateTimeout) {
+        pendingUpdateTimeout = setTimeout(() => {
+          pendingUpdateTimeout = null;
+          lastUpdateTime = performance.now();
+          updateSessionsContent(responseText);
+        }, 60 - (now - lastUpdateTime));
+      }
+    };
 
     try {
       const otherCharGlobals = characters
@@ -334,12 +401,12 @@ export const useChat = (
         })
       );
 
-      const response = await universalFetch("/api/proxy/openai", {
+      const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
         baseUrl: settings.api.baseUrl,
         apiKey: settings.api.apiKey,
         chatPath: settings?.api?.chatPath,
         reqBody: {
-          model: settings.api.modelName || "gpt-3.5-turbo",
+          model: settings.api.modelName || FALLBACK_MODEL,
           stream: true,
           stream_options: { include_usage: true },
           messages: [
@@ -370,93 +437,38 @@ export const useChat = (
         throw new Error(errText);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let done = false;
-      let pbuf = "";
+      await readSSEStream(response, {
+        onData: (dataStr) => {
+          const parsed = safeParseSSEData(dataStr);
+          if (!parsed) return;
 
-      const processChunk = (dataStr: string) => {
-        if (!dataStr) return;
-        try {
-          const data = JSON.parse(dataStr);
-          if (data.choices?.[0]?.delta?.content) {
-            responseText += data.choices[0].delta.content;
-          }
-          if (data.usage) {
-            tokenUsage = {
-              prompt: data.usage.prompt_tokens || 0,
-              completion: data.usage.completion_tokens || 0,
-            };
-          }
-
-          setSessions((prev) =>
-            prev.map((s) => {
-              if (s.id !== updatedSession.id) return s;
-              const msgs = s.messages.map((m) =>
-                m.id === aiMsgId ? { ...m, content: responseText } : m
-              );
-              return { ...s, messages: msgs };
-            })
-          );
-        } catch (e) {
-          const contentReg = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
-          const match = dataStr.match(contentReg);
-          if (match && match[1]) {
-            let rescuedContent = match[1];
-            try {
-              // Safely unescape standard JSON escapes (like \n, \", etc.) so they render correctly in UI
-              rescuedContent = JSON.parse(`"${rescuedContent}"`);
-            } catch {}
-            responseText += rescuedContent;
-
-            setSessions((prev) =>
-              prev.map((s) => {
-                if (s.id !== updatedSession.id) return s;
-                const msgs = s.messages.map((m) =>
-                  m.id === aiMsgId ? { ...m, content: responseText } : m
-                );
-                return { ...s, messages: msgs };
-              })
-            );
-          }
-        }
-      };
-
-      while (reader) {
-        const { value, done: readerDone } = await reader.read();
-        if (value) {
-          pbuf += decoder.decode(value, { stream: true });
-        }
-
-        let i;
-        while ((i = pbuf.indexOf("\n\n")) >= 0) {
-          const line = pbuf.slice(0, i).trim();
-          pbuf = pbuf.slice(i + 2);
-          if (line.startsWith("data: ")) {
-            const dataStr = line.slice(6).trim();
-            if (dataStr === "[DONE]") {
-              done = true;
-              break;
-            }
-            processChunk(dataStr);
-          }
-        }
-
-        if (readerDone || done) {
-          // Flush trailing data if any to prevent final chunk text loss
-          if (!done && pbuf.trim().startsWith("data: ")) {
-            const line = pbuf.trim();
-            const dataStr = line.slice(6).trim();
-            if (dataStr !== "[DONE]") {
-              processChunk(dataStr);
+          if (parsed.__rescuedContent) {
+            responseText += parsed.__rescuedContent as string;
+          } else {
+            const delta = (parsed as any).choices?.[0]?.delta?.content;
+            if (delta) responseText += delta;
+            if ((parsed as any).usage) {
+              tokenUsage = {
+                prompt: (parsed as any).usage.prompt_tokens || 0,
+                completion: (parsed as any).usage.completion_tokens || 0,
+              };
             }
           }
-          break;
-        }
-      }
 
-      const updatedMessagesWithCompleteAi = updatedSession.messages.concat([
-        {
+          throttledUpdate(responseText);
+        },
+      });
+
+      let wasSessionDeleted = false;
+      let finalMessages: Message[] = [];
+      setSessions((prev) => {
+        const currentSession = prev.find((s) => s.id === updatedSession.id);
+        if (!currentSession) {
+          wasSessionDeleted = true;
+          return prev;
+        }
+        const hasPlaceholder = currentSession.messages.some((m) => m.id === aiMsgId);
+        const finalAiMsg = {
           id: aiMsgId,
           sender: "assistant",
           content: responseText.trim(),
@@ -464,32 +476,25 @@ export const useChat = (
           generationTime: (performance.now() - startTime) / 1000,
           tokenCount: tokenUsage.completion,
           promptTokenCount: tokenUsage.prompt,
-        },
-      ]);
-      const trueFinalSession = {
-        ...updatedSession,
-        messages: updatedMessagesWithCompleteAi,
-      };
-
-      let wasSessionDeleted = false;
-      setSessions((prev) => {
-        const exists = prev.some((s) => s.id === trueFinalSession.id);
-        if (!exists) {
-          wasSessionDeleted = true;
-          return prev;
-        }
-        return prev.map((s) => (s.id === trueFinalSession.id ? trueFinalSession : s));
+        };
+        const nextMessages = hasPlaceholder
+          ? currentSession.messages.map((m) => (m.id === aiMsgId ? finalAiMsg : m))
+          : [...currentSession.messages, finalAiMsg];
+        finalMessages = nextMessages;
+        return prev.map((s) => (s.id === updatedSession.id ? { ...s, messages: nextMessages } : s));
       });
 
       if (wasSessionDeleted) {
-        console.warn("Aborted session save because it was deleted during generation:", trueFinalSession.id);
+        console.warn("Aborted session save because it was deleted during generation:", updatedSession.id);
         return;
       }
+      const trueFinalSession = {
+        ...updatedSession,
+        messages: finalMessages,
+      };
       await saveSession(trueFinalSession);
       triggerScroll("smooth");
-      abortControllerRef.current = null;
 
-      // Telemetry: track message send with token usage
       reportUsage("send_message", {
         promptTokens: tokenUsage.prompt,
         completionTokens: tokenUsage.completion,
@@ -499,8 +504,7 @@ export const useChat = (
         characterName: activeCharacter.name,
       });
 
-      // Check if summaries need automatic compilation
-      await handleAutoSummaryCheck(trueFinalSession);
+      await handleAutoSummaryCheck(trueFinalSession, false, controller.signal);
     } catch (err: any) {
       const isManualAbort = err.name === "AbortError" || err.message?.includes("aborted") || controller.signal.aborted;
       if (isManualAbort) {
@@ -511,22 +515,40 @@ export const useChat = (
             content: responseText.trim(),
             timestamp: Date.now(),
           };
-          const trueFinalSession = {
-            ...updatedSession,
-            messages: updatedSession.messages.concat([finishedAiMsg]),
-          };
-          try {
-            await saveSession(trueFinalSession);
-          } catch (saveErr) {
-            console.error("Failed to save aborted session message:", saveErr);
+          let finalMessages: Message[] = [];
+          let sessionExists = false;
+          setSessions((prev) => {
+            const currentSession = prev.find((s) => s.id === updatedSession.id);
+            if (!currentSession) return prev;
+            sessionExists = true;
+            const hasPlaceholder = currentSession.messages.some((m) => m.id === aiMsgId);
+            const nextMessages = hasPlaceholder
+              ? currentSession.messages.map((m) => (m.id === aiMsgId ? finishedAiMsg : m))
+              : [...currentSession.messages, finishedAiMsg];
+            finalMessages = nextMessages;
+            return prev.map((s) => (s.id === updatedSession.id ? { ...s, messages: nextMessages } : s));
+          });
+          if (sessionExists) {
+            const trueFinalSession = {
+              ...updatedSession,
+              messages: finalMessages,
+            };
+            try {
+              await saveSession(trueFinalSession);
+            } catch (saveErr) {
+              console.error("Failed to save aborted session message:", saveErr);
+            }
+            await handleAutoSummaryCheck(trueFinalSession, false, controller.signal);
           }
-          await handleAutoSummaryCheck(trueFinalSession);
         } else {
           setSessions((prev) =>
-            prev.map((s) => ({
-              ...s,
-              messages: s.messages.filter((m) => m.id !== aiMsgId),
-            }))
+            prev.map((s) => {
+              if (s.id !== updatedSession.id) return s;
+              return {
+                ...s,
+                messages: s.messages.filter((m) => m.id !== aiMsgId),
+              };
+            })
           );
         }
       } else {
@@ -542,8 +564,14 @@ export const useChat = (
         );
       }
     } finally {
-      setIsSending(false);
-      abortControllerRef.current = null;
+      if (pendingUpdateTimeout) {
+        clearTimeout(pendingUpdateTimeout);
+        pendingUpdateTimeout = null;
+      }
+      if (abortControllerRef.current === controller) {
+        setIsSending(false);
+        abortControllerRef.current = null;
+      }
     }
   }, [
     isSending,
@@ -621,7 +649,50 @@ export const useChat = (
     let responseText = "";
     let tokenUsage = { prompt: 0, completion: 0 };
     const startTime = performance.now();
-    const aiMsgId = "msg_ai_" + Math.random().toString(36).substring(2, 9);
+    const aiMsgId = generateUniqueId("msg_ai_");
+
+    let lastUpdateTime = 0;
+    let pendingUpdateTimeout: any = null;
+    let isFirstToken = true;
+
+    const updateSessionsContent = (content: string) => {
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== updatedSession.id) return s;
+          return {
+            ...s,
+            messages: s.messages.map((m) =>
+              m.id === aiMsgId ? { ...m, content } : m
+            ),
+          };
+        })
+      );
+    };
+
+    const throttledUpdate = (content: string) => {
+      const now = performance.now();
+      if (isFirstToken) {
+        isFirstToken = false;
+        lastUpdateTime = now;
+        updateSessionsContent(content);
+        return;
+      }
+
+      if (now - lastUpdateTime >= 60) {
+        if (pendingUpdateTimeout) {
+          clearTimeout(pendingUpdateTimeout);
+          pendingUpdateTimeout = null;
+        }
+        lastUpdateTime = now;
+        updateSessionsContent(content);
+      } else if (!pendingUpdateTimeout) {
+        pendingUpdateTimeout = setTimeout(() => {
+          pendingUpdateTimeout = null;
+          lastUpdateTime = performance.now();
+          updateSessionsContent(responseText);
+        }, 60 - (now - lastUpdateTime));
+      }
+    };
 
     try {
       const otherCharGlobals = characters
@@ -653,12 +724,12 @@ export const useChat = (
         })
       );
 
-      const response = await universalFetch("/api/proxy/openai", {
+      const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
         baseUrl: settings.api.baseUrl,
         apiKey: settings.api.apiKey,
         chatPath: settings?.api?.chatPath,
         reqBody: {
-          model: settings.api.modelName || "gpt-3.5-turbo",
+          model: settings.api.modelName || FALLBACK_MODEL,
           stream: true,
           stream_options: { include_usage: true },
           messages: [
@@ -687,93 +758,38 @@ export const useChat = (
         throw new Error(errText);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let done = false;
-      let pbuf = "";
+      await readSSEStream(response, {
+        onData: (dataStr) => {
+          const parsed = safeParseSSEData(dataStr);
+          if (!parsed) return;
 
-      const processChunk = (dataStr: string) => {
-        if (!dataStr) return;
-        try {
-          const data = JSON.parse(dataStr);
-          if (data.choices?.[0]?.delta?.content) {
-            responseText += data.choices[0].delta.content;
-          }
-          if (data.usage) {
-            tokenUsage = {
-              prompt: data.usage.prompt_tokens || 0,
-              completion: data.usage.completion_tokens || 0,
-            };
-          }
-
-          setSessions((prev) =>
-            prev.map((s) => {
-              if (s.id !== updatedSession.id) return s;
-              const msgs = s.messages.map((m) =>
-                m.id === aiMsgId ? { ...m, content: responseText } : m
-              );
-              return { ...s, messages: msgs };
-            })
-          );
-        } catch (e) {
-          const contentReg = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
-          const match = dataStr.match(contentReg);
-          if (match && match[1]) {
-            let rescuedContent = match[1];
-            try {
-              // Safely unescape standard JSON escapes (like \n, \", etc.) so they render correctly in UI
-              rescuedContent = JSON.parse(`"${rescuedContent}"`);
-            } catch {}
-            responseText += rescuedContent;
-
-            setSessions((prev) =>
-              prev.map((s) => {
-                if (s.id !== updatedSession.id) return s;
-                const msgs = s.messages.map((m) =>
-                  m.id === aiMsgId ? { ...m, content: responseText } : m
-                );
-                return { ...s, messages: msgs };
-              })
-            );
-          }
-        }
-      };
-
-      while (reader) {
-        const { value, done: readerDone } = await reader.read();
-        if (value) {
-          pbuf += decoder.decode(value, { stream: true });
-        }
-
-        let i;
-        while ((i = pbuf.indexOf("\n\n")) >= 0) {
-          const line = pbuf.slice(0, i).trim();
-          pbuf = pbuf.slice(i + 2);
-          if (line.startsWith("data: ")) {
-            const dataStr = line.slice(6).trim();
-            if (dataStr === "[DONE]") {
-              done = true;
-              break;
-            }
-            processChunk(dataStr);
-          }
-        }
-
-        if (readerDone || done) {
-          // Flush trailing data if any to prevent final chunk text loss
-          if (!done && pbuf.trim().startsWith("data: ")) {
-            const line = pbuf.trim();
-            const dataStr = line.slice(6).trim();
-            if (dataStr !== "[DONE]") {
-              processChunk(dataStr);
+          if (parsed.__rescuedContent) {
+            responseText += parsed.__rescuedContent as string;
+          } else {
+            const delta = (parsed as any).choices?.[0]?.delta?.content;
+            if (delta) responseText += delta;
+            if ((parsed as any).usage) {
+              tokenUsage = {
+                prompt: (parsed as any).usage.prompt_tokens || 0,
+                completion: (parsed as any).usage.completion_tokens || 0,
+              };
             }
           }
-          break;
-        }
-      }
 
-      const updatedMessagesWithCompleteAi = updatedSession.messages.concat([
-        {
+          throttledUpdate(responseText);
+        },
+      });
+
+      let wasSessionDeleted = false;
+      let finalMessages: Message[] = [];
+      setSessions((prev) => {
+        const currentSession = prev.find((s) => s.id === updatedSession.id);
+        if (!currentSession) {
+          wasSessionDeleted = true;
+          return prev;
+        }
+        const hasPlaceholder = currentSession.messages.some((m) => m.id === aiMsgId);
+        const finalAiMsg = {
           id: aiMsgId,
           sender: "assistant",
           content: responseText.trim(),
@@ -781,30 +797,24 @@ export const useChat = (
           generationTime: (performance.now() - startTime) / 1000,
           tokenCount: tokenUsage.completion,
           promptTokenCount: tokenUsage.prompt,
-        },
-      ]);
-      const trueFinalSession = {
-        ...updatedSession,
-        messages: updatedMessagesWithCompleteAi,
-      };
-
-      let wasSessionDeleted = false;
-      setSessions((prev) => {
-        const exists = prev.some((s) => s.id === trueFinalSession.id);
-        if (!exists) {
-          wasSessionDeleted = true;
-          return prev;
-        }
-        return prev.map((s) => (s.id === trueFinalSession.id ? trueFinalSession : s));
+        };
+        const nextMessages = hasPlaceholder
+          ? currentSession.messages.map((m) => (m.id === aiMsgId ? finalAiMsg : m))
+          : [...currentSession.messages, finalAiMsg];
+        finalMessages = nextMessages;
+        return prev.map((s) => (s.id === updatedSession.id ? { ...s, messages: nextMessages } : s));
       });
 
       if (wasSessionDeleted) {
-        console.warn("Aborted session save because it was deleted during generation:", trueFinalSession.id);
+        console.warn("Aborted session save because it was deleted during generation:", updatedSession.id);
         return;
       }
+      const trueFinalSession = {
+        ...updatedSession,
+        messages: finalMessages,
+      };
       await saveSession(trueFinalSession);
       triggerScroll();
-      abortControllerRef.current = null;
 
       reportUsage("regenerate_message", {
         promptTokens: tokenUsage.prompt,
@@ -817,7 +827,7 @@ export const useChat = (
         sessionId: updatedSession.id,
       });
 
-      await handleAutoSummaryCheck(trueFinalSession);
+      await handleAutoSummaryCheck(trueFinalSession, false, controller.signal);
     } catch (e: any) {
       const isManualAbort = e.name === "AbortError" || e.message?.includes("aborted") || controller.signal.aborted;
       if (isManualAbort) {
@@ -828,22 +838,40 @@ export const useChat = (
             content: responseText.trim(),
             timestamp: Date.now(),
           };
-          const trueFinalSession = {
-            ...updatedSession,
-            messages: updatedSession.messages.concat([finishedAiMsg]),
-          };
-          try {
-            await saveSession(trueFinalSession);
-          } catch (saveErr) {
-            console.error("Failed to save aborted session message:", saveErr);
+          let finalMessages: Message[] = [];
+          let sessionExists = false;
+          setSessions((prev) => {
+            const currentSession = prev.find((s) => s.id === updatedSession.id);
+            if (!currentSession) return prev;
+            sessionExists = true;
+            const hasPlaceholder = currentSession.messages.some((m) => m.id === aiMsgId);
+            const nextMessages = hasPlaceholder
+              ? currentSession.messages.map((m) => (m.id === aiMsgId ? finishedAiMsg : m))
+              : [...currentSession.messages, finishedAiMsg];
+            finalMessages = nextMessages;
+            return prev.map((s) => (s.id === updatedSession.id ? { ...s, messages: nextMessages } : s));
+          });
+          if (sessionExists) {
+            const trueFinalSession = {
+              ...updatedSession,
+              messages: finalMessages,
+            };
+            try {
+              await saveSession(trueFinalSession);
+            } catch (saveErr) {
+              console.error("Failed to save aborted session message:", saveErr);
+            }
+            await handleAutoSummaryCheck(trueFinalSession, false, controller.signal);
           }
-          await handleAutoSummaryCheck(trueFinalSession);
         } else {
           setSessions((prev) =>
-            prev.map((s) => ({
-              ...s,
-              messages: s.messages.filter((m) => m.id !== aiMsgId),
-            }))
+            prev.map((s) => {
+              if (s.id !== updatedSession.id) return s;
+              return {
+                ...s,
+                messages: s.messages.filter((m) => m.id !== aiMsgId),
+              };
+            })
           );
         }
       } else {
@@ -856,7 +884,7 @@ export const useChat = (
           sessionId: updatedSession.id,
         });
         const errorMsg: Message = {
-          id: "msg_err_" + Math.random().toString(36).substring(2, 9),
+          id: generateUniqueId("msg_err_"),
           sender: "system",
           content: `【连接错误】重新生成失败。请检查端口或API秘钥状态。详细错误: ${e.message}`,
           timestamp: Date.now(),
@@ -876,8 +904,14 @@ export const useChat = (
         triggerScroll();
       }
     } finally {
-      setIsSending(false);
-      abortControllerRef.current = null;
+      if (pendingUpdateTimeout) {
+        clearTimeout(pendingUpdateTimeout);
+        pendingUpdateTimeout = null;
+      }
+      if (abortControllerRef.current === controller) {
+        setIsSending(false);
+        abortControllerRef.current = null;
+      }
     }
   }, [
     isSending,
@@ -921,7 +955,7 @@ export const useChat = (
     if (!branchTitle) return;
 
     const newSession: ChatSession = {
-      id: "session_branch_" + Math.random().toString(36).substring(2, 9),
+      id: generateUniqueId("session_branch_"),
       characterId: activeCharId,
       title: branchTitle,
       messages: [],
@@ -944,24 +978,22 @@ export const useChat = (
 
     try {
       await deleteSession(id);
-      setSessions((prev) => {
-        const remaining = prev.filter((s) => s.id !== id);
-        if (activeSessionId === id) {
-          const charRemaining = remaining
-            .filter((s) => s.characterId === activeCharId)
-            .sort((a, b) => b.createdAt - a.createdAt);
-          if (charRemaining.length > 0) {
-            setActiveSessionId(charRemaining[0].id);
-          } else {
-            setActiveSessionId(null);
-          }
+      const remaining = sessions.filter((s) => s.id !== id);
+      if (activeSessionId === id) {
+        const charRemaining = remaining
+          .filter((s) => s.characterId === activeCharId)
+          .sort((a, b) => b.createdAt - a.createdAt);
+        if (charRemaining.length > 0) {
+          setActiveSessionId(charRemaining[0].id);
+        } else {
+          setActiveSessionId(null);
         }
-        return remaining;
-      });
+      }
+      setSessions(remaining);
     } catch (err: any) {
       console.error("Failed to delete branch session:", err);
     }
-  }, [showCustomConfirm, deleteSession, activeSessionId, activeCharId, setActiveSessionId, setSessions]);
+  }, [showCustomConfirm, deleteSession, activeSessionId, activeCharId, setActiveSessionId, setSessions, sessions]);
 
   const selectCharacter = useCallback(async (charId: string) => {
     if (isSending) {
@@ -979,7 +1011,7 @@ export const useChat = (
     } else {
       const targetChar = characters.find((c) => c.id === charId);
       const newSession: ChatSession = {
-        id: "session_" + Math.random().toString(36).substring(2, 9),
+        id: generateUniqueId("session_"),
         characterId: charId,
         title: `故事线: 起始之路 (${new Date().toLocaleDateString()})`,
         createdAt: Date.now(),
@@ -1031,8 +1063,8 @@ export const useChat = (
     if (!branchTitle) return;
 
     const newSession: ChatSession = {
-      id: "session_branch_" + Math.random().toString(36).substring(2, 9),
-      characterId: activeCharId!,
+      id: generateUniqueId("session_branch_"),
+      characterId: activeCharacter.id,
       title: branchTitle,
       createdAt: Date.now(),
       messages: sourceSubHistory,
@@ -1075,8 +1107,8 @@ export const useChat = (
     if (!branchTitle) return;
 
     const newSession: ChatSession = {
-      id: "session_branch_" + Math.random().toString(36).substring(2, 9),
-      characterId: activeCharId!,
+      id: generateUniqueId("session_branch_"),
+      characterId: activeCharacter.id,
       title: branchTitle,
       createdAt: Date.now(),
       messages: activeCharacter.first_mes
@@ -1133,7 +1165,7 @@ export const useChat = (
       );
     } else {
       const newCard: SummaryCard = {
-        id: "summary_" + Math.random().toString(36).substring(2, 9),
+        id: generateUniqueId("summary_"),
         timeTag: newSummaryTag.trim(),
         location: newSummaryLoc.trim() || "未知地点",
         content: newSummaryContent.trim(),

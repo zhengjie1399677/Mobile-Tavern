@@ -11,6 +11,30 @@ const resolvedDirname = typeof __dirname !== "undefined" ? __dirname : path.dirn
 
 
 
+interface ProxyRequestConfig {
+  baseUrl: string;
+  routePath: string;
+  apiKey?: string;
+}
+
+function prepareProxyRequest({ baseUrl, routePath, apiKey }: ProxyRequestConfig) {
+  if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
+    throw new Error("Invalid baseUrl protocol. Only http:// and https:// are allowed.");
+  }
+  const sanitizedBaseUrl = baseUrl.replace(/\/$/, "");
+  const sanitizedRoute = routePath.startsWith("/") ? routePath : `/${routePath}`;
+  const targetUrl = `${sanitizedBaseUrl}${sanitizedRoute}`;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+
+  return { targetUrl, headers };
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -26,19 +50,15 @@ async function startServer() {
   app.post("/api/test-connection", async (req, res) => {
     try {
       const { type, baseUrl, apiKey, modelName } = req.body;
-
-      // Proxy OpenAI-compatible API
-      const targetUrl = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
-      const fetchHeaders: any = {
-        "Content-Type": "application/json",
-      };
-      if (apiKey) {
-        fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
-      }
+      const { targetUrl, headers } = prepareProxyRequest({
+        baseUrl,
+        routePath: "/chat/completions",
+        apiKey,
+      });
 
       const response = await fetch(targetUrl, {
         method: "POST",
-        headers: fetchHeaders,
+        headers,
         body: JSON.stringify({
           model: modelName || "gpt-3.5-turbo",
           messages: [{ role: "user", content: "ping" }],
@@ -62,23 +82,17 @@ async function startServer() {
   app.post("/api/proxy/openai", async (req, res) => {
     try {
       const { baseUrl, apiKey, reqBody } = req.body;
-      if (!baseUrl) {
-        return res.status(400).json({ success: false, error: "baseUrl is required" });
-      }
-
-      const targetUrl = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
-      const fetchHeaders: any = {
-        "Content-Type": "application/json",
-      };
-      if (apiKey) {
-        fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
-      }
+      const { targetUrl, headers } = prepareProxyRequest({
+        baseUrl,
+        routePath: "/chat/completions",
+        apiKey,
+      });
 
       const isStream = reqBody.stream === true;
       
       const response = await fetch(targetUrl, {
         method: "POST",
-        headers: fetchHeaders,
+        headers,
         body: JSON.stringify(reqBody),
       });
 
@@ -97,25 +111,36 @@ async function startServer() {
         
         if (response.body) {
           const reader = response.body.getReader();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            res.write(value);
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(value);
+            }
+          } finally {
+            reader.releaseLock();
           }
         }
         res.end();
         return;
       }
 
-
       const data = await response.json();
       res.json(data);
     } catch (error: any) {
+      if (req.destroyed || res.writableEnded) {
+        console.log("OpenAI Proxy Chat connection closed by client.");
+        return;
+      }
       console.error("OpenAI Proxy Chat Error:", error);
-      res.status(500).json({
-        success: false,
-        error: error.message || "Failed to make proxied request.",
-      });
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: error.message || "Failed to make proxied request.",
+        });
+      } else {
+        res.end();
+      }
     }
   });
 
@@ -123,24 +148,15 @@ async function startServer() {
   app.post("/api/proxy/models", async (req, res) => {
     try {
       const { type, baseUrl, apiKey } = req.body;
-
-
-
-      if (!baseUrl) {
-        return res.status(400).json({ success: false, error: "baseUrl is required for standard proxy" });
-      }
-
-      const targetUrl = `${baseUrl.replace(/\/$/, "")}/models`;
-      const fetchHeaders: any = {
-        "Content-Type": "application/json",
-      };
-      if (apiKey) {
-        fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
-      }
+      const { targetUrl, headers } = prepareProxyRequest({
+        baseUrl,
+        routePath: "/models",
+        apiKey,
+      });
 
       const response = await fetch(targetUrl, {
         method: "GET",
-        headers: fetchHeaders,
+        headers,
       });
 
       if (!response.ok) {

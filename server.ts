@@ -11,6 +11,30 @@ const resolvedDirname = typeof __dirname !== "undefined" ? __dirname : path.dirn
 
 
 
+interface ProxyRequestConfig {
+  baseUrl: string;
+  routePath: string;
+  apiKey?: string;
+}
+
+function prepareProxyRequest({ baseUrl, routePath, apiKey }: ProxyRequestConfig) {
+  if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
+    throw new Error("Invalid baseUrl protocol. Only http:// and https:// are allowed.");
+  }
+  const sanitizedBaseUrl = baseUrl.replace(/\/$/, "");
+  const sanitizedRoute = routePath.startsWith("/") ? routePath : `/${routePath}`;
+  const targetUrl = `${sanitizedBaseUrl}${sanitizedRoute}`;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+
+  return { targetUrl, headers };
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -22,24 +46,16 @@ async function startServer() {
   // API 2: Test connection for API config
   app.post("/api/test-connection", async (req, res) => {
     try {
-      const { type, baseUrl, apiKey, modelName, chatPath } = req.body;
-      if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
-        return res.json({ success: false, error: "Invalid baseUrl protocol. Only http:// and https:// are allowed." });
-      }
-
-      // Proxy OpenAI-compatible API
-      const chatRoute = chatPath || "/chat/completions";
-      const targetUrl = `${baseUrl.replace(/\/$/, "")}${chatRoute}`;
-      const fetchHeaders: any = {
-        "Content-Type": "application/json",
-      };
-      if (apiKey) {
-        fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
-      }
+      const { type, baseUrl, apiKey, modelName, chatPath } = req.body || {};
+      const { targetUrl, headers } = prepareProxyRequest({
+        baseUrl,
+        routePath: chatPath || "/chat/completions",
+        apiKey,
+      });
 
       const response = await fetch(targetUrl, {
         method: "POST",
-        headers: fetchHeaders,
+        headers,
         body: JSON.stringify({
           model: modelName || "gpt-3.5-turbo",
           messages: [{ role: "user", content: "ping" }],
@@ -67,25 +83,18 @@ async function startServer() {
     });
 
     try {
-      const { baseUrl, apiKey, reqBody, chatPath } = req.body;
-      if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
-        return res.status(400).json({ success: false, error: "Invalid baseUrl protocol. Only http:// and https:// are allowed." });
-      }
-
-      const chatRoute = chatPath || "/chat/completions";
-      const targetUrl = `${baseUrl.replace(/\/$/, "")}${chatRoute}`;
-      const fetchHeaders: any = {
-        "Content-Type": "application/json",
-      };
-      if (apiKey) {
-        fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
-      }
+      const { baseUrl, apiKey, reqBody = {}, chatPath } = req.body || {};
+      const { targetUrl, headers } = prepareProxyRequest({
+        baseUrl,
+        routePath: chatPath || "/chat/completions",
+        apiKey,
+      });
 
       const isStream = reqBody.stream === true;
       
       const response = await fetch(targetUrl, {
         method: "POST",
-        headers: fetchHeaders,
+        headers,
         body: JSON.stringify(reqBody),
         signal: controller.signal,
       });
@@ -105,20 +114,27 @@ async function startServer() {
         
         if (response.body) {
           const reader = response.body.getReader();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            res.write(value);
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(value);
+            }
+          } finally {
+            reader.releaseLock();
           }
         }
         res.end();
         return;
       }
 
-
       const data = await response.json();
       res.json(data);
     } catch (error: any) {
+      if (req.destroyed || res.writableEnded) {
+        console.log("OpenAI Proxy Chat connection closed by client.");
+        return;
+      }
       console.error("OpenAI Proxy Chat Error:", error);
       if (!res.headersSent) {
         res.status(500).json({
@@ -134,24 +150,16 @@ async function startServer() {
   // API 4: Models Fetch Proxy
   app.post("/api/proxy/models", async (req, res) => {
     try {
-      const { type, baseUrl, apiKey, modelsPath } = req.body;
-
-      if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
-        return res.status(400).json({ success: false, error: "Invalid baseUrl protocol. Only http:// and https:// are allowed." });
-      }
-
-      const modelsRoute = modelsPath || "/models";
-      const targetUrl = `${baseUrl.replace(/\/$/, "")}${modelsRoute}`;
-      const fetchHeaders: any = {
-        "Content-Type": "application/json",
-      };
-      if (apiKey) {
-        fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
-      }
+      const { type, baseUrl, apiKey, modelsPath } = req.body || {};
+      const { targetUrl, headers } = prepareProxyRequest({
+        baseUrl,
+        routePath: modelsPath || "/models",
+        apiKey,
+      });
 
       const response = await fetch(targetUrl, {
         method: "GET",
-        headers: fetchHeaders,
+        headers,
       });
 
       if (!response.ok) {

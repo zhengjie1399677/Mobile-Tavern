@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { saveCharacter, saveGlobalLorebook } from "../utils/localDB";
 import { LorebookEntry, CharacterCard } from "../types";
+import { mapSillyTavernLorebookEntry } from "../utils/cardParser";
 
 export default function GlobalWorldbookTab() {
   const {
@@ -31,6 +32,8 @@ export default function GlobalWorldbookTab() {
     setCharacters,
     setActiveTab,
     showCustomConfirm,
+    showCustomAlert,
+    showCustomPrompt,
     activeCharacter,
     handleImportSillyLorebook,
     globalLorebook = [],
@@ -200,7 +203,7 @@ export default function GlobalWorldbookTab() {
   // Save Inline editing changes
   const handleSaveInlineEntry = async (id: string) => {
     if (!editForm.content?.trim()) {
-      alert("⚠️ 设定叙述内容不能为空");
+      await showCustomAlert("⚠️ 设定叙述内容不能为空");
       return;
     }
 
@@ -344,7 +347,7 @@ export default function GlobalWorldbookTab() {
     if (isCurrentlyGlobal) {
       // Toggle OFF: Move from global to character's local
       if (characters.length === 0) {
-        alert("⚠️ 无法转换为专属回路。请先在「宿体配置」中添加一个角色宿体！");
+        await showCustomAlert("⚠️ 无法转换为专属回路。请先在「宿体配置」中添加一个角色宿体！");
         return;
       }
 
@@ -353,7 +356,7 @@ export default function GlobalWorldbookTab() {
         const charNames = characters
           .map((c, i) => `${i + 1}. ${c.name}`)
           .join("\n");
-        const choice = prompt(
+        const choice = await showCustomPrompt(
           `将该通用词条转换为专属词条，请指定绑定的角色序号 (1-${characters.length}):\n${charNames}`,
           "1",
         );
@@ -362,7 +365,7 @@ export default function GlobalWorldbookTab() {
         if (idx >= 0 && idx < characters.length) {
           targetId = characters[idx].id;
         } else {
-          alert("❌ 无效的序号，转换取消");
+          await showCustomAlert("❌ 无效的序号，转换取消");
           return;
         }
       }
@@ -412,44 +415,18 @@ export default function GlobalWorldbookTab() {
       } else if (parsed.character_book?.entries) {
         rawEntries = parsed.character_book.entries;
       } else {
-        alert(
+        await showCustomAlert(
           "无有效设定词条。请确保该 JSON 是 SillyTavern 兼容标准的 World Info 世界书。",
         );
         return;
       }
 
       const importedEntries: LorebookEntry[] = rawEntries
-        .map((entry: any) => {
-          const keysArr: string[] = Array.isArray(entry.keys)
-            ? entry.keys
-            : Array.isArray(entry.key)
-              ? entry.key
-              : (entry.key || entry.keys || "")
-                  .split(",")
-                  .map((k: string) => k.trim())
-                  .filter(Boolean);
-
-          return {
-            id: "import_wi_" + Math.random().toString(36).substring(2, 9),
-            keys: keysArr,
-            content: entry.content || entry.value || "",
-            constant: !!(entry.constant || entry.constant_active),
-            disabled: !!entry.disabled,
-            enabled: entry.disabled !== true,
-            comment: entry.comment || "",
-            useRegex: !!entry.useRegex,
-            addMemo: !!entry.addMemo,
-            position: entry.position || "after_char_def",
-            depth: entry.depth !== undefined ? Number(entry.depth) : 4,
-            order: entry.order !== undefined ? Number(entry.order) : 100,
-            probability:
-              entry.probability !== undefined ? Number(entry.probability) : 100,
-          };
-        })
+        .map(mapSillyTavernLorebookEntry)
         .filter((e) => e.content);
 
       if (importedEntries.length === 0) {
-        alert("没有找到任何有效的设定句。");
+        await showCustomAlert("没有找到任何有效的设定句。");
         return;
       }
 
@@ -457,7 +434,7 @@ export default function GlobalWorldbookTab() {
         const nextGlobals = [...globalLorebook, ...importedEntries];
         setGlobalLorebook(nextGlobals);
         await saveGlobalLorebook(nextGlobals);
-        alert(`成功导入 ${importedEntries.length} 条设定到【全局共享词库】！`);
+        await showCustomAlert(`成功导入 ${importedEntries.length} 条设定到【全局共享词库】！`);
       } else {
         const targetChar = characters.find((c) => c.id === activeHostId);
         if (targetChar) {
@@ -470,24 +447,24 @@ export default function GlobalWorldbookTab() {
             prev.map((c) => (c.id === targetChar.id ? updated : c)),
           );
           await saveCharacter(updated);
-          alert(
+          await showCustomAlert(
             `成功导入 ${importedEntries.length} 条设定到【${targetChar.name}】的专属角色词库！`,
           );
         } else {
-          alert(
+          await showCustomAlert(
             "❌ 未找到当前导入的目标容器。请返回宿体名录选择一个目标进入后再试。",
           );
         }
       }
     } catch (err: any) {
-      alert("解析世界书失败，请检查文件格式。错误: " + err.message);
+      await showCustomAlert("解析世界书失败，请检查文件格式。错误: " + err.message);
     } finally {
       e.target.value = "";
     }
   };
 
   // Export current Worldbook (either global or active character bound entries list)
-  const handleExportLorebookJSON = () => {
+  const handleExportLorebookJSON = async () => {
     let entriesToExport = [];
     let fileName = "worldbook-export.json";
 
@@ -503,7 +480,7 @@ export default function GlobalWorldbookTab() {
     }
 
     if (!entriesToExport || entriesToExport.length === 0) {
-      alert("📭 当前设定集为空，无需导出。");
+      await showCustomAlert("📭 当前设定集为空，无需导出。");
       return;
     }
 
@@ -517,9 +494,9 @@ export default function GlobalWorldbookTab() {
     if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
       const path = (window as any).AndroidThemeBridge.saveFile(fileName, content);
       if (path && !path.startsWith("error:")) {
-        alert(`📂 世界书导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`);
+        await showCustomAlert(`📂 世界书导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`);
       } else {
-        alert(`❌ 导出失败：${path || "未知错误"}`);
+        await showCustomAlert(`❌ 导出失败：${path || "未知错误"}`);
       }
       return;
     }
@@ -535,7 +512,7 @@ export default function GlobalWorldbookTab() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    alert(`📂 世界书导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}`);
+    await showCustomAlert(`📂 世界书导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}`);
   };
 
   return (
@@ -565,12 +542,12 @@ export default function GlobalWorldbookTab() {
           </label>
           <button
             type="button"
-            onClick={(e) => {
+            onClick={async (e) => {
               if (activeHostId === "list") {
                 e.preventDefault();
-                alert("请先点击进入一个记忆回路（全局或角色），再进行导出。");
+                await showCustomAlert("请先点击进入一个记忆回路（全局或角色），再进行导出。");
               } else {
-                handleExportLorebookJSON();
+                await handleExportLorebookJSON();
               }
             }}
             className="bg-card hover:bg-muted/40 border border-border text-[11px] text-foreground h-7 px-2.5 rounded-lg transition font-bold flex items-center gap-1 shadow-sm active:scale-[0.98]"

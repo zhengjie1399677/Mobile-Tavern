@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { UserSettings, LorebookEntry, SamplerPreset, PromptConfig } from "../types";
 import {
   getStoredSettings,
@@ -184,7 +184,7 @@ export const useSettings = () => {
   const [sillyInnerTab, setSillyInnerTab] = useState<"samplers" | "prompts">("samplers");
   const [expandedPromptIds, setExpandedPromptIds] = useState<Set<string>>(new Set());
 
-  const togglePromptExpanded = (id: string, e?: React.MouseEvent) => {
+  const togglePromptExpanded = useCallback((id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setExpandedPromptIds((prev) => {
       const next = new Set(prev);
@@ -192,7 +192,7 @@ export const useSettings = () => {
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   // Load Settings and Lorebook from local DB
   useEffect(() => {
@@ -247,7 +247,7 @@ export const useSettings = () => {
   // Debounced settings save to prevent locking IndexedDB on sliders
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const writeChainRef = useRef<Promise<void>>(Promise.resolve());
-  const updateSettings = (newSet: UserSettings) => {
+  const updateSettings = useCallback((newSet: UserSettings) => {
     setSettings(newSet);
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -261,9 +261,9 @@ export const useSettings = () => {
         }
       });
     }, 400);
-  };
+  }, []);
 
-  const updateGlobalLorebook = async (entries: LorebookEntry[]) => {
+  const updateGlobalLorebook = useCallback(async (entries: LorebookEntry[]) => {
     setGlobalLorebook(entries);
     try {
       await dbSaveGlobalLorebook(entries);
@@ -271,9 +271,9 @@ export const useSettings = () => {
       console.error("Failed to save global lorebook:", err);
       showCustomAlert("保存全局世界书失败");
     }
-  };
+  }, [showCustomAlert]);
 
-  const handleFetchModels = async () => {
+  const handleFetchModels = useCallback(async () => {
     setIsFetchingModels(true);
     setConnectionStatus({ testing: true });
     try {
@@ -307,9 +307,9 @@ export const useSettings = () => {
     } finally {
       setIsFetchingModels(false);
     }
-  };
+  }, [settings.api, setIsFetchingModels, setConnectionStatus, setAvailableModels]);
 
-  const testApiConnection = async () => {
+  const testApiConnection = useCallback(async () => {
     setConnectionStatus({ testing: true });
     try {
       const response = await universalFetch("/api/test-connection", {
@@ -339,23 +339,23 @@ export const useSettings = () => {
         message: `请求错误: ${e.message}`,
       });
     }
-  };
+  }, [settings.api, setConnectionStatus]);
 
-  const handleImportPresetJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportPresetJSON = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
         const data = JSON.parse(event.target?.result as string);
-
+ 
         const name =
           data.name ||
           data.presetName ||
           data.title ||
           data.preset_name ||
           "导入自定义SillyTavern预设";
-
+ 
         const temp =
           typeof data.temperature === "number"
             ? data.temperature
@@ -404,7 +404,7 @@ export const useSettings = () => {
             : typeof data.maxTokens === "number"
               ? data.maxTokens
               : 600;
-
+ 
         const importedPreset: SamplerPreset = {
           id: "import_" + Math.random().toString(36).substring(2, 9),
           name,
@@ -417,7 +417,7 @@ export const useSettings = () => {
           minP,
           maxTokens: maxTok,
         };
-
+ 
         const mainPrompt = data.system_prompt || data.mainPrompt || "";
         const jailbreakPrompt = data.jailbreak_prompt || data.jailbreakPrompt || "";
         const postHistoryPrompt =
@@ -433,7 +433,7 @@ export const useSettings = () => {
               enabled: p.enabled !== false,
             }))
           : [];
-
+ 
         const stInstructLayout = data.instruct_layouts || data.instructTemplate || "default";
         let instructTemplate: "default" | "alpaca" | "chatml" | "llama" = "default";
         if (
@@ -444,7 +444,7 @@ export const useSettings = () => {
         ) {
           instructTemplate = stInstructLayout;
         }
-
+ 
         const systemPrefix =
           data.system_sequence_start || data.systemPrefix || "";
         const systemSuffix = data.system_sequence_end || data.systemSuffix || "";
@@ -454,7 +454,7 @@ export const useSettings = () => {
           data.assistant_sequence_start || data.assistantPrefix || "";
         const assistantSuffix =
           data.assistant_sequence_end || data.assistantSuffix || "";
-
+ 
         const hasPromptsArray = importedCustomPrompts.length > 0;
         const hasMainPromptText = !!mainPrompt;
         const hasAnyPromptFieldsInJSON =
@@ -463,7 +463,7 @@ export const useSettings = () => {
           !!jailbreakPrompt ||
           !!postHistoryPrompt ||
           !!storyStrFromJSON;
-
+ 
         let finalMainPrompt = settings.promptConfig.mainPrompt;
         let finalJailbreakPrompt = settings.promptConfig.jailbreakPrompt;
         let finalUseJailbreak = settings.promptConfig.useJailbreak;
@@ -471,7 +471,7 @@ export const useSettings = () => {
         let finalUsePostHistory = settings.promptConfig.usePostHistory;
         let finalStoryString = settings.promptConfig.storyString;
         let finalCustomPrompts = settings.promptConfig.customPrompts;
-
+ 
         if (hasAnyPromptFieldsInJSON) {
           finalMainPrompt = mainPrompt;
           finalJailbreakPrompt = jailbreakPrompt;
@@ -481,7 +481,7 @@ export const useSettings = () => {
           finalStoryString = storyStrFromJSON || "";
           finalCustomPrompts = importedCustomPrompts;
         }
-
+ 
         const nextSettings: UserSettings = {
           ...settings,
           preset: importedPreset,
@@ -505,9 +505,9 @@ export const useSettings = () => {
             customPrompts: finalCustomPrompts,
           },
         };
-
+ 
         const messageDetails = `采样器参数覆盖：温度 ${temp}, TopP ${topP}, 词重复惩罚 ${repPen}`;
-
+ 
         updateSettings(nextSettings);
         showCustomAlert(
           `🎉 SillyTavern 级别系统预设包解析导入成功！\n[${name}]\n${messageDetails}`
@@ -517,9 +517,9 @@ export const useSettings = () => {
       }
     };
     reader.readAsText(file);
-  };
+  }, [settings, updateSettings, showCustomAlert]);
 
-  const handleExportPresetJSON = () => {
+  const handleExportPresetJSON = useCallback(() => {
     const bundleData = {
       name: settings.preset.name,
       temperature: settings.preset.temperature,
@@ -570,10 +570,10 @@ export const useSettings = () => {
     downloadAnchor.click();
     downloadAnchor.remove();
     showCustomAlert(`📂 预设配置导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}`);
-  };
+  }, [settings, showCustomAlert]);
 
-  const handleSaveNewPresetBundle = async () => {
-    const name = window.prompt(
+  const handleSaveNewPresetBundle = useCallback(async () => {
+    const name = await showCustomPrompt(
       "请输入新预设的名称",
       settings.preset.name + " 的副本",
     );
@@ -598,9 +598,9 @@ export const useSettings = () => {
     };
     updateSettings(nextSettings);
     await showCustomAlert(`成功保存新预设：${name}`);
-  };
+  }, [settings, showCustomPrompt, updateSettings, showCustomAlert]);
 
-  const handleLoadPresetBundle = (bundleId: string) => {
+  const handleLoadPresetBundle = useCallback((bundleId: string) => {
     const bundle = (settings.savedPresets || []).find((b) => b.id === bundleId);
     if (!bundle) return;
 
@@ -609,9 +609,9 @@ export const useSettings = () => {
       preset: bundle.preset,
       promptConfig: bundle.promptConfig,
     });
-  };
+  }, [settings, updateSettings]);
 
-  const handleDeletePresetBundle = async (presetId: string) => {
+  const handleDeletePresetBundle = useCallback(async (presetId: string) => {
     const bundleId = (settings.savedPresets || []).find(
       (b) => b.preset.id === presetId,
     )?.id;
@@ -640,9 +640,9 @@ export const useSettings = () => {
       promptConfig: nextPromptConfig,
       savedPresets: nextSaved,
     });
-  };
+  }, [settings, showCustomConfirm, updateSettings]);
 
-  const handleToggleCustomPrompt = (id: string, enabled: boolean) => {
+  const handleToggleCustomPrompt = useCallback((id: string, enabled: boolean) => {
     const list = settings.promptConfig.customPrompts || [];
     const updated = list.map((item) =>
       item.id === id ? { ...item, enabled } : item,
@@ -651,9 +651,9 @@ export const useSettings = () => {
       ...settings,
       promptConfig: { ...settings.promptConfig, customPrompts: updated },
     });
-  };
+  }, [settings, updateSettings]);
 
-  const handleUpdateCustomPrompt = (
+  const handleUpdateCustomPrompt = useCallback((
     id: string,
     name: string,
     role: any,
@@ -667,9 +667,9 @@ export const useSettings = () => {
       ...settings,
       promptConfig: { ...settings.promptConfig, customPrompts: updated },
     });
-  };
+  }, [settings, updateSettings]);
 
-  const handleAddNewCustomPrompt = () => {
+  const handleAddNewCustomPrompt = useCallback(() => {
     const list = settings.promptConfig.customPrompts || [];
     const newId = "comp_" + Math.random().toString(36).substring(2, 9);
     const newItem = {
@@ -689,9 +689,9 @@ export const useSettings = () => {
         customPrompts: [...list, newItem],
       },
     });
-  };
+  }, [settings, setExpandedPromptIds, updateSettings]);
 
-  const handleDeleteCustomPrompt = async (id: string) => {
+  const handleDeleteCustomPrompt = useCallback(async (id: string) => {
     const ok = await showCustomConfirm("确定删除这个自定义预设指令组件吗？");
     if (!ok) return;
     const list = settings.promptConfig.customPrompts || [];
@@ -700,9 +700,9 @@ export const useSettings = () => {
       ...settings,
       promptConfig: { ...settings.promptConfig, customPrompts: updated },
     });
-  };
+  }, [showCustomConfirm, settings, updateSettings]);
 
-  const handleExportLocalDataBackup = async (characters: any[], sessions: any[]) => {
+  const handleExportLocalDataBackup = useCallback(async (characters: any[], sessions: any[]) => {
     if (encryptBackup && !backupPass.trim()) {
       await showCustomAlert("开启了加密，请预设一个强度适宜的数据保护密码。");
       return;
@@ -711,12 +711,22 @@ export const useSettings = () => {
       encryptBackup ? "正在加密并创建备份文件..." : "正在创建明文备份...",
     );
     try {
+      const exportedSettings = encryptBackup
+        ? settings
+        : {
+            ...settings,
+            api: {
+              ...settings.api,
+              apiKey: "",
+            },
+          };
+
       const payloadObj = {
         magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
         version: 1,
         characters,
         sessions,
-        settings,
+        settings: exportedSettings,
         globalLorebook,
         backupDate: new Date().toISOString(),
         isEncrypted: encryptBackup,
@@ -735,7 +745,7 @@ export const useSettings = () => {
         const path = (window as any).AndroidThemeBridge.saveFile(fileName, outputData);
         if (path && !path.startsWith("error:")) {
           setBackupStatus("备份文件保存成功！");
-          await showCustomAlert(`📂 数据备份导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`, "导出成功");
+          await showCustomAlert(`📂 数据备份导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}${encryptBackup ? "" : "\n\n⚠️ 注意：为了您的秘钥安全，明文备份已自动抹除 API Key 配置。"}`, "导出成功");
         } else {
           setBackupStatus(`备份失败: ${path}`);
           await showCustomAlert(`❌ 备份导出失败：${path || "未知错误"}`, "导出失败");
@@ -755,15 +765,15 @@ export const useSettings = () => {
       URL.revokeObjectURL(downloadUrl);
       setBackupStatus("备份文件创建并下载完成！");
       await showCustomAlert(
-        `备份数据已导出成功！\n文件名：\n${fileName}\n\n文件已触发浏览器或客户端下载，请前往您的“下载 (Downloads)”目录查找。`,
+        `备份数据已导出成功！\n文件名：\n${fileName}\n\n文件已触发浏览器或客户端下载，请前往您的“下载 (Downloads)”目录查找。${encryptBackup ? "" : "\n\n⚠️ 注意：为了您的秘钥安全，明文备份已自动抹除 API Key 配置。"}`,
         "导出成功"
       );
     } catch (err: any) {
       setBackupStatus(`备份崩溃: ${err.message}`);
     }
-  };
+  }, [encryptBackup, backupPass, showCustomAlert, setBackupStatus, settings, globalLorebook]);
 
-  const handleImportLocalDataBackup = async (
+  const handleImportLocalDataBackup = useCallback(async (
     e: React.ChangeEvent<HTMLInputElement>,
     setCharacters: React.Dispatch<React.SetStateAction<any[]>>,
     setSessions: React.Dispatch<React.SetStateAction<any[]>>,
@@ -873,7 +883,7 @@ export const useSettings = () => {
     } finally {
       e.target.value = "";
     }
-  };
+  }, [backupPass, showCustomAlert, showCustomConfirm, setBackupStatus, setSettings, setGlobalLorebook]);
 
   return {
     settings,

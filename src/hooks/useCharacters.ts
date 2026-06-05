@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { CharacterCard, LorebookEntry } from "../types";
@@ -24,7 +24,7 @@ export const useCharacters = () => {
   const [expandedLoreIds, setExpandedLoreIds] = useState<Record<string, boolean>>({});
   const [editingActiveCharLoreEntry, setEditingActiveCharLoreEntry] = useState<Partial<LorebookEntry> | null>(null);
 
-  const handleAddNewCharacter = () => {
+  const handleAddNewCharacter = useCallback(() => {
     setEditingChar({
       id: "char_" + Math.random().toString(36).substring(2, 9),
       name: "",
@@ -39,15 +39,15 @@ export const useCharacters = () => {
     });
     setActiveLoreTab("detail");
     setCharModalOpen(true);
-  };
+  }, []);
 
-  const handleEditCharacter = (char: CharacterCard) => {
+  const handleEditCharacter = useCallback((char: CharacterCard) => {
     setEditingChar({ ...char });
     setActiveLoreTab("detail");
     setCharModalOpen(true);
-  };
+  }, []);
 
-  const handleDeleteCharacter = async (
+  const handleDeleteCharacter = useCallback(async (
     id: string,
     e: React.MouseEvent,
     sessions: any[],
@@ -77,9 +77,9 @@ export const useCharacters = () => {
         setIsDbWriting(false);
       }
     }
-  };
+  }, [showCustomConfirm, deleteCharacter, setCharacters, activeCharId, setActiveCharId]);
 
-  const handleSaveCharacter = async () => {
+  const handleSaveCharacter = useCallback(async () => {
     if (!editingChar || !editingChar.name?.trim()) {
       await showCustomAlert("请输入角色名字");
       return;
@@ -120,9 +120,9 @@ export const useCharacters = () => {
     } finally {
       setIsDbWriting(false);
     }
-  };
+  }, [editingChar, showCustomAlert, saveCharacter, setCharacters]);
 
-  const handleSaveLoreEntry = async () => {
+  const handleSaveLoreEntry = useCallback(async () => {
     if (!editingLoreEntry || !editingChar) return;
     if (!editingLoreEntry.content?.trim()) {
       await showCustomAlert("世界书词条叙述内容不能为空");
@@ -174,9 +174,9 @@ export const useCharacters = () => {
 
     setEditingChar({ ...editingChar, lorebookEntries: nextEntries });
     setEditingLoreEntry(null);
-  };
+  }, [editingLoreEntry, editingChar, showCustomAlert]);
 
-  const handleSaveActiveCharLoreEntry = async (activeCharacter: CharacterCard) => {
+  const handleSaveActiveCharLoreEntry = useCallback(async (activeCharacter: CharacterCard) => {
     if (!editingActiveCharLoreEntry || !activeCharacter) return;
     if (!editingActiveCharLoreEntry.content?.trim()) {
       await showCustomAlert("世界书词条叙述内容不能为空");
@@ -243,9 +243,9 @@ export const useCharacters = () => {
       console.error("Failed to save character lore to IndexedDB:", err);
       showCustomAlert("保存设定失败: " + err.message);
     }
-  };
+  }, [editingActiveCharLoreEntry, showCustomAlert, setCharacters, saveCharacter]);
 
-  const handleImportCardFile = async (
+  const handleImportCardFile = useCallback(async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
@@ -285,9 +285,9 @@ export const useCharacters = () => {
     } finally {
       e.target.value = "";
     }
-  };
+  }, [saveCharacter, showCustomAlert]);
 
-  const handleImportSillyLorebook = async (
+  const handleImportSillyLorebook = useCallback(async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
@@ -420,9 +420,9 @@ export const useCharacters = () => {
     } finally {
       e.target.value = "";
     }
-  };
+  }, [activeCharId, characters, showCustomAlert, setCharacters, saveCharacter]);
 
-  const handleExportCharacterJSON = (char: CharacterCard) => {
+  const handleExportCharacterJSON = useCallback((char: CharacterCard) => {
     const fileName = `${char.name.replace(/\s+/g, "_")}_ST_Card.json`;
     const content = JSON.stringify(char, null, 2);
 
@@ -447,9 +447,9 @@ export const useCharacters = () => {
     dlAnchorEl.click();
     document.body.removeChild(dlAnchorEl);
     showCustomAlert(`JSON 角色卡 [${char.name}] 导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}`);
-  };
+  }, [showCustomAlert]);
 
-  const handleExportCharacterPNG = async (char: CharacterCard) => {
+  const handleExportCharacterPNG = useCallback(async (char: CharacterCard) => {
     try {
       const canvas = document.createElement("canvas");
       canvas.width = 400;
@@ -519,7 +519,7 @@ export const useCharacters = () => {
       console.warn("Failed to generate tavern image card:", e);
       showCustomAlert("制作精美 PNG 角色卡出错: " + e.message);
     }
-  };
+  }, [showCustomAlert]);
 
   return {
     handleImportCardFile,
