@@ -8,17 +8,15 @@
 
 ## 📋 角色卡输出总则
 
-你输出的角色卡数据必须为**合法的 JSON 格式**。
-在生成文本时，请统一使用以下宏占位符：
-*   `{{char}}`：AI 角色名称。
-*   `{{user}}`：玩家（当前用户）姓名，在 Mobile Tavern 中**默认值为 `"user"`**。
-*   `{{persona}}`：玩家自身的人设背景描述。
+1. 你输出的角色卡数据必须为**合法的 JSON 格式**。
+2. 在生成文本时，请统一使用以下宏占位符：
+   * `{{char}}`：AI 角色名称。
+   * `{{user}}`：玩家（当前用户）姓名，在 Mobile Tavern 中**默认值为 `"user"`**。
+   * `{{persona}}`：玩家自身的人设背景描述。
 
 ---
 
 ## 1. 基础人设字段规范 (Metadata Fields)
-
-必须生成以下所有标准人设字段，以保证设定的丰富度：
 
 | 字段 Key | 格式 | 说明与编写规范 |
 | :--- | :--- | :--- |
@@ -36,55 +34,53 @@
 
 ## 2. 视觉特效全量配置规范 (visualSettings)
 
-为了测试视觉系统的极限，**请必须在 JSON 根节点生成 `visualSettings` 对象，并尽可能填满以下字段**：
+为测试视觉系统的极限，**请在 JSON 根节点生成 `visualSettings` 对象，并尽可能填满以下字段**：
 
 ### 🎨 字段说明：
-*   **`bubbleColor`**: AI 的对话气泡背景色（Hex，如 `#1a1b26`）。
-*   **`bubbleTextColor`**: AI 的对话文本颜色（如 `#a9b1d6`）。
-*   **`userBubbleColor`**: 玩家的对话气泡背景色（如 `#1f2335`）。
-*   **`userBubbleTextColor`**: 玩家的对话文本颜色（如 `#c0caf5`）。
-*   **`primaryColor`**: 卡片主题高亮强调色（如 `#7aa2f7`）。
-*   **`secondaryColor`**: 次要强调色（如 `#bb9af7`）。
-*   **`backgroundColor`**: 全局底色（如 `#15161e`）。
-*   **`backgroundImageUrl`**: 聊天视口背景大图（URL，可使用占位图）。
-*   **`backgroundOpacity`**: 背景图不透明度（如 `0.15`）。
-*   **`backgroundBlur`**: 背景图模糊半径（如 `5`）。
-*   **`enableAsteriskFormatting`**: **必须设为 `true`**。激活星号动作分色排版（灰色斜体显示动作）。
-*   **`customCss`**: 允许写入自定义 CSS 代码片段，例如：`".chat-message { text-shadow: 0 0 5px rgba(122,162,247,0.5); }"`，用于极限测试自定义样式渲染能力。
+* `bubbleColor`: AI 的对话气泡背景色（Hex，如 `#1a1b26`）。
+* `bubbleTextColor`: AI 的对话文本颜色（如 `#a9b1d6`）。
+* `userBubbleColor`: 玩家的对话气泡背景色（如 `#1f2335`）。
+* `userBubbleTextColor`: 玩家的对话文本颜色（如 `#c0caf5`）。
+* `primaryColor`: 卡片主题高亮强调色（如 `#7aa2f7`）。
+* `secondaryColor`: 次要强调色（如 `#bb9af7`）。
+* `backgroundColor`: 全局底色（如 `#15161e`）。
+* `backgroundImageUrl`: 聊天视口背景大图（URL，可使用占位图）。
+* `backgroundOpacity`: 背景图不透明度（如 `0.15`）。
+* `backgroundBlur`: 背景图模糊半径（如 `5`）。
+* `enableAsteriskFormatting`: **必须设为 `true`**。激活星号动作分色排版（灰色斜体显示动作）。
+* `customCss`: 允许写入自定义 CSS 代码片段，例如：`".chat-message { text-shadow: 0 0 5px rgba(122,162,247,0.5); }"`，用于极限测试自定义样式渲染能力。
 
 ---
 
 ## 3. 动态情绪立绘极限配置 (Expression Rules)
 
-系统支持立绘的**动态表情实时切换**。
-你必须生成包含**至少 5-8 种**不同情绪的 `expressions` 数组，以测试正则匹配和立绘切换逻辑。
+系统支持立绘的**动态表情实时切换**。请生成包含**至少 5-8 种**不同情绪的 `expressions` 数组，以测试正则匹配和立绘切换逻辑。
 
 ### 🎭 表情对象结构：
-*   **`name`**: 表情类型（如 `"default"`, `"joy"`, `"sadness"`, `"angry"`, `"blush"`, `"shock"`, `"smug"`, `"cry"`）。
-*   **`image`**: 对应表情的立绘图片链接（可用占位符或 Base64）。
-*   **`triggers`**: **触发正则表达式**。不带斜杠的正则匹配串。例如 `"笑了|微笑|开心|😊|smile|joy"`。
-*   **注意**：必须包含一条 `name` 为 `"default"` 且没有 `triggers` 的默认规则作为兜底，防止破图。
+* `name`: 表情类型（如 `"default"`, `"joy"`, `"sadness"`, `"angry"`, `"blush"`, `"shock"`, `"smug"`, `"cry"`）。
+* `image`: 对应表情的立绘图片链接（可用占位符或 Base64）。
+* `triggers`: **触发正则表达式**（不带斜杠）。例如 `"笑了|微笑|开心|😊|smile|joy"`。
+* **注意**：必须包含一条 `name` 为 `"default"` 且没有 `triggers` 的默认规则作为兜底，防止破图。
 
 ---
 
 ## 4. 高级世界书与复杂触发逻辑 (Lorebook)
 
-为了测试世界书的高精度插队与复合逻辑，你必须在 JSON 根节点的 `lorebookEntries` 数组中生成**至少 3-5 条**具有不同触发机制的设定：
+为测试世界书的高精度插队与复合逻辑，你必须在 JSON 根节点的 `lorebookEntries` 数组中生成**至少 3-5 条**具有不同触发机制的设定：
 
 ### ⚙️ 核心测试字段：
-*   **`keys`** (Array): 主触发词列表。
-*   **`secondary_keys`** (Array): 次级条件限制词。
-*   **`selectiveLogic`** (String): 复合逻辑。必须测试 `"AND_ANY"` (主命中且次命中任一), `"AND_ALL"` (主命中且次命中所有), `"NOT_ANY"` (主命中且次未命中)。
-*   **`useRegex`** (Boolean): 测试设为 `true`，使用正则表达式作为 `keys` 进行复杂匹配。
-*   **`constant`** (Boolean): 测试设为 `true`，使该词条无视触发条件常驻上下文。
-*   **`position`** (String): 必须测试不同的注入位置：
-    *   `"after_char_def"`: 角色设定之后（常规设定）。
-    *   `"before_last_mes"`: 玩家最新输入之前（强干预剧情）。
-    *   `"in_chat"`: 动态插队到聊天历史。需配合 `depth: 2` (插在倒数第2轮对话处)。
-*   **`enabled`**: 必须设为 `true`。
+* `keys` (Array): 主触发词列表。
+* `secondary_keys` (Array): 次级条件限制词。
+* `selectiveLogic` (String): 复合逻辑。必须测试 `"AND_ANY"` (主命中且次命中任一), `"AND_ALL"` (主命中且次命中所有), `"NOT_ANY"` (主命中且次未命中)。
+* `useRegex` (Boolean): 测试设为 `true`，使用正则表达式作为 `keys` 进行复杂匹配。
+* `constant` (Boolean): 测试设为 `true`，使该词条无视触发条件常驻上下文。
+* `position` (String): 必须测试不同的注入位置：
+  * `"after_char_def"`: 角色设定之后（常规设定）。
+  * `"before_last_mes"`: 玩家最新输入之前（强干预剧情）。
+  * `"in_chat"`: 动态插队到聊天历史。需配合 `depth: 2` (插在倒数第2轮对话处)。
+* `enabled`: 必须设为 `true`。
 
----
-
+---\n
 ## 5. 极限能力测试 JSON 模板示例
 
 请基于以下模板结构，发挥你的创意，编写一个充满赛博朋克、硬核科幻或复杂魔法设定的角色，并**完全填充**所有高级属性以供极限测试使用：
@@ -95,7 +91,7 @@
   "description": "...",
   "personality": "...",
   "scenario": "...",
-  "first_mes": "「系统启动...」奥菲莉娅*睁开闪烁着数据流的机械眼*，「user，我们遇到麻烦了。」",
+  "first_mes": "「系统启动...」奥菲莉娅*睁开闪烁着数据流的机械眼*，\"{{user}}，我们遇到麻烦了。\"",
   "alternate_greetings": ["...", "...", "..."],
   "mes_example": "<START>\n{{user}}: ...\n{{char}}: ...",
   "system_prompt": "扮演奥菲莉娅，注意格式，动作使用星号包裹...",
@@ -153,3 +149,16 @@
   ]
 }
 ```
+
+---
+
+## 🚀 极限测试注意事项
+
+1. **桥接文件保存**：若卡片中包含需要导出或保存的资源（如自定义图片、背景音频），必须通过原生桥接 `AndroidThemeBridge.saveFileBase64` 将文件写入 Android `/Download` 文件夹，并在 UI 中提示用户保存成功的完整路径。
+2. **安全区域适配**：所有 CSS 容器请使用 `env(safe-area-inset-top)` 与 `env(safe-area-inset-bottom)` 确保在刘海屏和虚拟键区域不被遮挡。
+3. **动态主题同步**：当卡片使用自定义主题颜色时，请同时调用 `AndroidThemeBridge.setStatusBarStyle(isDark, colorHex)` 以同步系统状态栏颜色，避免图标不可见。
+4. **性能与资源限制**：避免一次性加载过大 Base64 图像，建议使用 CDN 链接或分块加载；如果使用本地资源，请确保文件大小不超过 2 MB，以防止 Android WebView OOM。 
+5. **表达式正则安全**：正则表达式不应使用极端回溯构造（如过度嵌套的 `(?:(a|b){0,100})`），以防止在移动端解析时出现卡顿或崩溃。
+6. **调试与日志**：在开发阶段，可在 `system_prompt` 中加入调试指令 `{{#log}}`，但请确保在正式发布前移除，以避免泄露内部实现细节。
+
+遵循上述指南，你的卡片将最大化利用 Mobile Tavern 的所有高级特性，帮助你验证系统的极限能力。
