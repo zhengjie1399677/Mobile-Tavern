@@ -272,6 +272,7 @@ export const useCharacters = () => {
         tags: parsedData.tags || [],
         character_version: parsedData.character_version || "1.0.0",
         extensions: parsedData.extensions || {},
+        visualSettings: parsedData.visualSettings,
       };
 
       await saveCharacter(importedChar);

@@ -236,6 +236,8 @@ export const useChat = (
             if (bondMatch && bondMatch[1].trim()) bondingStr = bondMatch[1].trim();
           }
 
+          const lastSummarizedMessageId = messagesToCompress[messagesToCompress.length - 1].id;
+
           const newCard: SummaryCard = {
             id: generateUniqueId("summary_"),
             timeTag: timeTagStr,
@@ -244,9 +246,8 @@ export const useChat = (
             condition: conditionStr || undefined,
             inventory: inventoryStr || undefined,
             bonding: bondingStr || undefined,
+            lastMessageId: lastSummarizedMessageId,
           };
-
-          const lastSummarizedMessageId = messagesToCompress[messagesToCompress.length - 1].id;
 
           if (signal?.aborted) return;
 
@@ -1128,6 +1129,7 @@ export const useChat = (
           : s
       );
     } else {
+      const lastMsgId = activeSession.messages[activeSession.messages.length - 1]?.id;
       const newCard: SummaryCard = {
         id: generateUniqueId("summary_"),
         timeTag: newSummaryTag.trim(),
@@ -1136,6 +1138,7 @@ export const useChat = (
         condition: newSummaryCondition.trim() || undefined,
         inventory: newSummaryInventory.trim() || undefined,
         bonding: newSummaryBonding.trim() || undefined,
+        lastMessageId: lastMsgId,
       };
       updatedSummaries = [...(activeSession.summaries || []), newCard];
     }
@@ -1143,6 +1146,9 @@ export const useChat = (
     const updatedSession = {
       ...activeSession,
       summaries: updatedSummaries,
+      lastSummarizedMessageId: editingSummaryId 
+        ? activeSession.lastSummarizedMessageId 
+        : (updatedSummaries[updatedSummaries.length - 1]?.lastMessageId || activeSession.lastSummarizedMessageId),
     };
 
     setSessions((prev) =>

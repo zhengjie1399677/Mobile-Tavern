@@ -1,5 +1,5 @@
 # Mobile Tavern 行为指导手册 (AGENTS.md)
-*Version: 1.3.6*
+*Version: 1.3.7*
 
 > [!IMPORTANT]
 > **此文件定义了本项目的核心行为指导规范与技术边界约束。**
@@ -66,26 +66,23 @@
 
 ---
 
+# ℹ️ 开发者网络代理环境限制 (Developer Proxy Environment)
+- **问题说明**：开发者常态使用代理软件的 **TUN (虚拟网卡) 模式**，导致自动化测试浏览器在请求外部 CDN（如 Google Fonts）时极易发生连接重置并死锁卡顿。
+- **应对指导**：非必要切勿启用浏览器自动化测试；如需调用，必须避免加载境外 CDN 资源，优先使用本地静态化资源并缩短超时等待。
+
+---
+
 # ℹ️ 遥测集成架构与运行逻辑 (Telemetry Flow)
-- **环境隔离**：前端无敏感 AK/SK，全部凭证配置在阿里云函数计算 (FC) 环境变量中。
-- **运行机制**：前端通过云端网关获取短效 STS 凭证，直接使用 `@aliyun-sls/web-track-browser` 直传日志。
-- **免密直连限制**：使用 STS 安全直传，由 SDK 自动处理跨域，**绝对不需要**在 SLS 开启 CORS 放行或 WebTracking。
+- **环境与凭证**：前端无敏感凭证，完全由阿里云 FC 托管凭证并分发 STS 短效凭证，前端直传 SLS 日志，无需开启跨域放行。
 
 ---
 
 # ℹ️ Android 调试规范 (Android Debugging)
-- **防代理白屏**：调试必须绑定本地环回地址启动：`--host 127.0.0.1`。
-- **ADB 端口反向转发**：启动前必须执行以下端口反向映射命令：
-  ```powershell
-  adb reverse tcp:3000 tcp:3000
-  adb reverse tcp:24678 tcp:24678
-  ```
-- **端口冲突清理**：若启动失败，运行 `netstat -ano | findstr "3000 24678"` 查出 PID 并强制结束孤儿进程。
-- **完整运行命令**（NDK 路径的用户名根据电脑实际修改）：
+- **端口与代理限制**：必须绑定 `--host 127.0.0.1` 并反向映射 `3000` 与 `24678` 端口以防白屏与进程冲突。
+- **启动调试命令**：
   ```powershell
   $env:ANDROID_HOME = "C:\Users\20573\AppData\Local\Android\Sdk"
   $env:PATH += ";$env:ANDROID_HOME\platform-tools"
-  adb reverse tcp:3000 tcp:3000
-  adb reverse tcp:24678 tcp:24678
+  adb reverse tcp:3000 tcp:3000; adb reverse tcp:24678 tcp:24678
   npx tauri android dev --host 127.0.0.1
   ```

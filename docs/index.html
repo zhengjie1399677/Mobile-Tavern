@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobile Tavern - 移动端智能角色扮演客户端</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Outfit (For Headings) and Inter (For Body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- fflate CDN for client-side Tavern card decompression -->
+  <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/lib/browser.min.js"></script>
+  
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #08080c;
+    }
+    .font-outfit {
+      font-family: 'Outfit', sans-serif;
+    }
+    /* Ambient glow elements */
+    .glow-purple {
+      filter: blur(140px);
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(0,0,0,0) 70%);
+    }
+    .glow-cyan {
+      filter: blur(140px);
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, rgba(0,0,0,0) 70%);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              dark: '#08080c',
+              card: '#11111b',
+              purple: '#8b5cf6',
+              cyan: '#06b6d4',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="text-slate-100 overflow-x-hidden min-h-screen relative selection:bg-brand-purple selection:text-white">
+
+  <!-- Ambient Glow Background -->
+  <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] glow-purple -z-10 pointer-events-none"></div>
+  <div class="absolute top-[20%] right-[-10%] w-[50%] h-[50%] glow-cyan -z-10 pointer-events-none"></div>
+  <div class="absolute bottom-[10%] left-[10%] w-[50%] h-[50%] glow-purple -z-10 pointer-events-none"></div>
+
+  <!-- Header Nav -->
+  <header class="sticky top-0 z-50 backdrop-blur-md border-b border-white/5 bg-brand-dark/70">
+    <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <img src="./app-icon.png" alt="Mobile Tavern Logo" class="w-10 h-10 rounded-xl shadow-lg border border-white/10" onerror="this.src='https://avatars.githubusercontent.com/u/1399677?v=4'">
+        <div>
+          <span class="font-outfit text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">Mobile Tavern</span>
+          <span class="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-purple/20 text-brand-purple border border-brand-purple/30">v1.3.7</span>
+        </div>
+      </div>
+      
+      <!-- Nav Links -->
+      <nav class="hidden md:flex items-center space-x-8 text-sm text-slate-400 font-medium">
+        <a href="#features" class="hover:text-white transition" data-i18n="nav_features">核心特性</a>
+        <a href="#demo" class="hover:text-white transition" data-i18n="nav_demo">真机预览</a>
+        <a href="#parser" class="hover:text-white transition" data-i18n="nav_parser">角色卡解析器</a>
+        <a href="#download" class="hover:text-white transition" data-i18n="nav_download">高速下载</a>
+      </nav>
+
+      <!-- Language Toggle & Github -->
+      <div class="flex items-center space-x-4">
+        <!-- GitHub Link -->
+        <a href="https://github.com/zhengjie1399677/Mobile-Tavern" target="_blank" class="p-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition text-slate-300 hover:text-white" aria-label="GitHub">
+          <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+            <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.579.688.481C19.137 20.164 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="relative pt-12 pb-24 px-6 max-w-7xl mx-auto">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      <!-- Intro Left -->
+      <div class="lg:col-span-7 space-y-8 text-center lg:text-left">
+        <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full border border-brand-purple/30 bg-brand-purple/10 text-xs font-semibold tracking-wider uppercase text-brand-purple" data-i18n="hero_badge">
+          🎉 Android 原生体验重磅支持
+        </div>
+        <h1 class="font-outfit text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight" id="hero-title">
+          专为移动端定制的 <span class="bg-gradient-to-r from-brand-purple via-violet-400 to-brand-cyan bg-clip-text text-transparent">AI 角色扮演</span> 客户端
+        </h1>
+        <p class="text-slate-400 text-lg sm:text-xl font-normal max-w-2xl mx-auto lg:mx-0" data-i18n="hero_desc">
+          打破传统网页版在手机端的使用桎梏。极致的原生手势操作，100% 本地离线隐私，零侵入纯数据驱动，SillyTavern 酒馆角色卡生态无缝接入。
+        </p>
+
+        <!-- CTA Buttons -->
+        <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+          <a href="#download" class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-gradient-to-r from-brand-purple to-indigo-600 hover:from-brand-purple hover:to-indigo-500 shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 transition duration-200 text-center flex items-center justify-center space-x-2">
+            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+            </svg>
+            <span data-i18n="hero_btn_dl">下载 Android APK (v1.3.7)</span>
+          </a>
+          <a href="https://github.com/zhengjie1399677/Mobile-Tavern" target="_blank" class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition duration-200 text-center flex items-center justify-center space-x-2">
+            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+              <path d="M12 2C6.47 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"/>
+            </svg>
+            <span data-i18n="hero_btn_gh">GitHub 源码</span>
+          </a>
+        </div>
+        
+        <!-- Rapid Update Disclaimer -->
+        <p class="text-[11px] text-slate-500 font-medium italic mt-2" data-i18n="disclaimer_note">
+          * 系统正在飞速更新中，所以页面与截图中的部分 UI 或功能可能与最新版本存在细微出入，请以软件内实际体验为准。
+        </p>
+
+        <!-- Meta Features -->
+        <div class="flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-6 pt-4 text-xs font-semibold text-slate-500">
+          <span class="flex items-center space-x-2">
+            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="meta_free">开源协议 Apache-2.0</span>
+          </span>
+          <span class="flex items-center space-x-2">
+            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="meta_privacy">100% 本地 IndexedDB 隐私保护</span>
+          </span>
+          <span class="flex items-center space-x-2">
+            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="meta_offline">完全离线无服务端</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Mobile Mockup Right -->
+      <div class="lg:col-span-5 flex flex-col items-center justify-center relative pb-12 lg:pb-0">
+        <div class="absolute inset-0 bg-gradient-to-tr from-brand-purple/20 to-brand-cyan/20 rounded-3xl blur-2xl -z-10 pointer-events-none"></div>
+        <!-- iPhone Container -->
+        <div id="iphone-container" class="w-[280px] sm:w-[320px] h-[580px] sm:h-[650px] rounded-[48px] border-[10px] border-slate-800 bg-[#0f0f16] shadow-2xl flex flex-col overflow-hidden relative transition-all duration-300">
+          <!-- Dynamic Island -->
+          <div class="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-6 bg-slate-900 rounded-full flex items-center justify-center z-30">
+            <div class="w-3.5 h-3.5 bg-black rounded-full border border-slate-800 mr-2"></div>
+            <div class="w-8 h-1 bg-black rounded-full"></div>
+          </div>
+          
+          <!-- Mock Screen Image -->
+          <img id="mock-screenshot" src="./assets/lobby.jpg" class="w-full h-full object-cover select-none pointer-events-none z-10" alt="真机截图预览">
+        </div>
+        <!-- Screenshot Selector Buttons -->
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-2 max-w-sm px-4 z-30">
+          <button onclick="setMockScreenshot('lobby', this)" class="px-3 py-1.5 rounded-lg bg-brand-purple text-white text-xs font-bold shadow-md transition active:scale-95 border border-brand-purple/50">角色馆</button>
+          <button onclick="setMockScreenshot('chat', this)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">剧本对白</button>
+          <button onclick="setMockScreenshot('timeline', this)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">故事年表</button>
+          <button onclick="setMockScreenshot('lorebook', this)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">世界设定</button>
+          <button onclick="setMockScreenshot('settings_white', this)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">极简白主题</button>
+          <button onclick="setMockScreenshot('settings_sand', this)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">浅沙色主题</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Core Features Grid -->
+  <section id="features" class="py-24 border-t border-white/5 bg-brand-dark/20 relative">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="text-center max-w-2xl mx-auto mb-16 space-y-4">
+        <h2 class="font-outfit text-3xl sm:text-4xl font-extrabold tracking-tight" data-i18n="feat_header">为极致体验而生</h2>
+        <p class="text-slate-400 text-sm sm:text-base" data-i18n="feat_subtitle">摒弃粗糙的网页搬运，提供原生级别的适配与绝对安全的私密环境。</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Feature 1: Mobile UI -->
+        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+              📱
+            </div>
+            <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_mobile_title">极致原生适配</h3>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_mobile_desc">大拇指操作舒适区设计，安全边距适配刘海屏及底部系统栏。前端状态栏无缝变色。</p>
+          </div>
+        </div>
+
+        <!-- Feature 2: Privacy -->
+        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+              🔒
+            </div>
+            <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_privacy_title">100% 离线隐私</h3>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_privacy_desc">所有数据保存在本机的 IndexedDB 数据库中，不需要后端云服务器保存您的任何对话，保护您的隐私。</p>
+          </div>
+        </div>
+
+        <!-- Feature 3: Parallel Branches -->
+        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+              🌿
+            </div>
+            <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_session_title">分支宇宙与平行分支</h3>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_session_desc">创建无限的故事平行分支。支持从任意时间点切出“分支宇宙”，多结局与多结局故事走向随心探索。</p>
+          </div>
+        </div>
+
+        <!-- Feature 4: Lorebooks -->
+        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+              📖
+            </div>
+            <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_lore_title">剧情年表与状态追踪</h3>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_lore_desc">自动压缩历史上下文，提炼记忆卡片。支持 Condition 状态、Inventory 道具、Bonding 羁绊多维 RPG 标签。</p>
+          </div>
+        </div>
+
+        <!-- Feature 5: Sandbox -->
+        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+              🚀
+            </div>
+            <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_sandbox_title">全链路系统运行沙盒</h3>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_sandbox_desc">可视化能量拓扑图与互动模拟小游戏。亲手调试宏替换编译、前缀缓存段切分，体验数据流的跃动。</p>
+          </div>
+        </div>
+
+        <!-- Feature 6: Presets -->
+        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+              🧩
+            </div>
+            <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_preset_title">颗粒化系统级预设</h3>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_preset_desc">提供底层扮演、Jailbreak破限与Post-History提醒定制，零侵入无主观硬编码，实现纯净兼容。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Parser Showcase -->
+  <section id="parser" class="py-24 border-t border-white/5 max-w-7xl mx-auto px-6 relative">
+    <div class="text-center max-w-2xl mx-auto mb-16 space-y-4">
+      <h2 class="font-outfit text-3xl sm:text-4xl font-extrabold tracking-tight" data-i18n="parser_header">酒馆角色卡本地解析</h2>
+      <p class="text-slate-400 text-sm sm:text-base" data-i18n="parser_subtitle">我们绝对不上传任何卡片。在浏览器端使用 WebAssembly 级别的解压库快速预览角色卡。</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <!-- Upload Drop Zone (Left 5 cols) -->
+      <div class="lg:col-span-5 space-y-4">
+        <div id="drop-zone" class="border-2 border-dashed border-white/10 rounded-2xl p-8 bg-white/2 hover:bg-white/5 hover:border-brand-purple/50 transition cursor-pointer text-center relative group flex flex-col items-center justify-center min-h-[260px]">
+          <!-- SVG Icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-slate-500 group-hover:text-brand-purple transition mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          <p class="font-semibold text-sm text-slate-200 group-hover:text-white transition" data-i18n="parser_drop_title">将酒馆 PNG 角色卡拖放到此处</p>
+          <p class="text-xs text-slate-500 mt-2" data-i18n="parser_drop_sub">或者点击选择本地文件（支持 .png 或 .json）</p>
+          <input type="file" id="file-input" class="absolute inset-0 opacity-0 cursor-pointer" accept=".png,.json">
+        </div>
+        
+        <div class="flex justify-between items-center text-xs">
+          <span class="text-slate-500" data-i18n="parser_try_label">没有角色卡？试试看演示卡片：</span>
+          <button onclick="loadDemoCard()" class="text-brand-purple hover:underline font-bold" data-i18n="btn_load_sample">加载示例角色卡</button>
+        </div>
+      </div>
+
+      <!-- Preview Results (Right 7 cols) -->
+      <div class="lg:col-span-7 bg-[#11111b]/80 border border-white/5 rounded-2xl p-6 min-h-[310px] flex flex-col">
+        <h3 class="text-md font-bold text-slate-200 border-b border-white/5 pb-3 mb-4 flex items-center justify-between">
+          <span data-i18n="parser_result_title">解析结果 (Preview)</span>
+          <span id="parsed-badge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Parsed Successfully</span>
+        </h3>
+        
+        <!-- Empty State -->
+        <div id="parser-empty-state" class="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
+          <span class="text-3xl mb-2">📥</span>
+          <p class="text-xs" data-i18n="parser_result_empty">等待角色卡解析，请在左侧上传或加载示例</p>
+        </div>
+
+        <!-- Render Card Results -->
+        <div id="parser-result-data" class="hidden space-y-6">
+          <div class="flex items-start space-x-4">
+            <img id="parsed-avatar" class="w-16 h-16 rounded-xl border border-white/10 shadow-lg object-cover" src="" alt="Parsed Avatar">
+            <div class="space-y-1">
+              <h4 id="parsed-name" class="text-lg font-bold text-slate-100 font-outfit">莉莉丝</h4>
+              <p class="text-[10px] text-slate-500">Version: <span id="parsed-version">1.0.0</span> · Creator: <span id="parsed-creator">Anonymous</span></p>
+              <div id="parsed-tags" class="flex flex-wrap gap-1 pt-1">
+                <!-- Tags will go here -->
+              </div>
+            </div>
+          </div>
+          
+          <div class="space-y-3">
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider" data-i18n="col_persona">性格描述 / Persona</span>
+              <p id="parsed-persona" class="text-xs text-slate-300 bg-white/2 border border-white/5 rounded-lg p-3 max-h-24 overflow-y-auto leading-relaxed"></p>
+            </div>
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider" data-i18n="col_greeting">首句问候 / First Message</span>
+              <p id="parsed-greeting" class="text-xs text-slate-300 bg-white/2 border border-white/5 rounded-lg p-3 max-h-24 overflow-y-auto leading-relaxed"></p>
+            </div>
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider" data-i18n="col_lorebook">设定集词条数 / Lorebook Entries</span>
+              <p id="parsed-lore-count" class="text-xs text-slate-300"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download Section -->
+  <section id="download" class="py-20 border-t border-white/5 bg-[#0b0b11] relative">
+    <div class="max-w-4xl mx-auto px-6 text-center space-y-12">
+      <!-- Title -->
+      <div class="space-y-4">
+        <h2 class="font-outfit text-3xl sm:text-4xl font-extrabold tracking-tight">获取 Mobile Tavern</h2>
+        <p class="text-slate-400 text-sm sm:text-base max-w-xl mx-auto">一键下载 Android 原生客户端 APK 文件，或扫码在手机端直接安装。</p>
+      </div>
+
+      <!-- Action Box -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center bg-[#11111b]/80 border border-white/5 rounded-3xl p-8 max-w-3xl mx-auto shadow-2xl relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-tr from-brand-purple/5 to-brand-cyan/5 -z-10 pointer-events-none"></div>
+
+        <!-- Left: Button -->
+        <div class="flex flex-col items-center justify-center space-y-4">
+          <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider">直接下载 APK 文件</div>
+          <a href="https://ghfast.top/https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/app-universal-release.apk" target="_blank" class="w-full px-6 py-4 rounded-xl font-bold bg-gradient-to-r from-brand-purple to-indigo-600 hover:from-brand-purple hover:to-indigo-500 shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 transition duration-200 text-center flex flex-col items-center justify-center space-y-1">
+            <span class="text-base text-white">下载 Android APK (v1.3.7)</span>
+            <span class="text-[10px] text-white/70 font-normal">安全无毒 · 满速分流</span>
+          </a>
+          <a href="https://github.com/zhengjie1399677/Mobile-Tavern/releases" target="_blank" class="text-xs text-slate-500 hover:text-brand-purple transition font-medium">或者从 GitHub Releases 页面下载 →</a>
+        </div>
+
+        <!-- Right: QR Code -->
+        <div class="flex flex-col items-center justify-center space-y-4 border-t border-white/5 md:border-t-0 md:border-l md:pl-8 pt-8 md:pt-0">
+          <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider">手机扫码一键下载</div>
+          <div class="p-3 bg-white rounded-2xl shadow-lg border border-slate-700">
+            <img id="qr-image" class="w-32 h-32" src="./download-qr.png" alt="QR Code" onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://github.com/zhengjie1399677/Mobile-Tavern'">
+          </div>
+          <p class="text-[10px] text-slate-500 leading-normal max-w-[200px]">使用手机扫码，直接在手机端打开本页面下载 APK，体验极速原生快感。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/5 py-12 bg-[#050508] text-slate-600 text-xs">
+    <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+      <div class="flex items-center space-x-3">
+        <span class="font-outfit text-sm font-bold text-slate-400">Mobile Tavern</span>
+        <span class="text-slate-600" data-i18n="footer_rights">© 2026 Mobile Tavern. 基于 Apache 2.0 协议开源。</span>
+      </div>
+      <div class="flex items-center space-x-6 text-slate-400">
+        <a href="https://github.com/zhengjie1399677/Mobile-Tavern" target="_blank" class="hover:text-white transition">GitHub</a>
+        <a href="https://github.com/zhengjie1399677/Mobile-Tavern/blob/main/LICENSE" target="_blank" class="hover:text-white transition" data-i18n="footer_license">开源协议</a>
+        <a href="https://github.com/zhengjie1399677/Mobile-Tavern/issues" target="_blank" class="hover:text-white transition" data-i18n="footer_issues">意见反馈</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- WebApp Logic Script (Bilingual support, Simulated Chat, Card Parser) -->
+  <script>
+    // Initial setup on DOM load
+    window.addEventListener('DOMContentLoaded', () => {
+      // Chinese-only client configuration
+    });
+
+    // 2. Real Screenshot Preview Switcher
+    function setMockScreenshot(key, btn) {
+      const img = document.getElementById('mock-screenshot');
+      if (img) {
+        img.src = `./assets/${key}.jpg`;
+      }
+      
+      // Update button active styles
+      if (btn) {
+        const buttons = btn.parentElement.querySelectorAll('button');
+        buttons.forEach(b => {
+          b.className = "px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5";
+        });
+        btn.className = "px-3 py-1.5 rounded-lg bg-brand-purple text-white text-xs font-bold shadow-md transition active:scale-95 border border-brand-purple/50";
+      }
+    }
+
+
+    // 3. Client Side SillyTavern PNG Card Parser
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+
+    // Drag-and-drop mechanics
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-brand-purple', 'bg-white/10');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-brand-purple', 'bg-white/10');
+      }, false);
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files.length) {
+        handleFile(files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (fileInput.files.length) {
+        handleFile(fileInput.files[0]);
+      }
+    });
+
+    function handleFile(file) {
+      if (!window.fflate) {
+        alert("Parser library fflate has not loaded yet. Please check your internet connection.");
+        return;
+      }
+
+      const reader = new FileReader();
+      if (file.name.endsWith('.json')) {
+        reader.onload = function(e) {
+          try {
+            const data = JSON.parse(e.target.result);
+            renderParsedCard(data.data ? data.data : data, null);
+          } catch (err) {
+            alert("Failed to parse JSON card. Invalid schema.");
+          }
+        };
+        reader.readAsText(file);
+      } else if (file.name.endsWith('.png')) {
+        reader.onload = function(e) {
+          try {
+            const buffer = e.target.result;
+            const parsedData = extractPngMetadata(buffer);
+            
+            // Read image as DataUrl to render as avatar
+            const avatarReader = new FileReader();
+            avatarReader.onloadend = function() {
+              renderParsedCard(parsedData, avatarReader.result);
+            };
+            avatarReader.readAsDataURL(file);
+          } catch (err) {
+            alert("解析 PNG 角色卡失败：" + err.message);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        alert("Unsupported file format. Please upload .png or .json files.");
+      }
+    }
+
+    function extractPngMetadata(arrayBuffer) {
+      const view = new DataView(arrayBuffer);
+      // Validate signature
+      if (view.getUint32(0) !== 0x89504e47 || view.getUint32(4) !== 0x0d0a1a0a) {
+        throw new Error("Invalid PNG signature");
+      }
+
+      const uint8 = new Uint8Array(arrayBuffer);
+      let offset = 8;
+      const decoder = new TextDecoder("utf-8");
+
+      while (offset < arrayBuffer.byteLength) {
+        if (offset + 8 > arrayBuffer.byteLength) break;
+        const length = view.getUint32(offset);
+        if (offset + 12 + length > arrayBuffer.byteLength) {
+          throw new Error("Corrupt PNG file: Chunk data length overflow.");
+        }
+        
+        const chunkType = String.fromCharCode(
+          uint8[offset + 4],
+          uint8[offset + 5],
+          uint8[offset + 6],
+          uint8[offset + 7]
+        );
+
+        if (chunkType === "IEND") break;
+
+        if (chunkType === "tEXt" || chunkType === "zTXt" || chunkType === "iTXt") {
+          const chunkData = uint8.slice(offset + 8, offset + 8 + length);
+          let nullIdx = 0;
+          while (nullIdx < chunkData.length && chunkData[nullIdx] !== 0) {
+            nullIdx++;
+          }
+
+          const keyword = decoder.decode(chunkData.slice(0, nullIdx));
+          if (keyword.toLowerCase() === "chara") {
+            let textContent = "";
+            if (chunkType === "tEXt") {
+              textContent = decoder.decode(chunkData.slice(nullIdx + 1));
+            } else if (chunkType === "zTXt") {
+              const compressionMethod = chunkData[nullIdx + 1];
+              const textBytes = chunkData.slice(nullIdx + 2);
+              if (compressionMethod === 0) {
+                // unzlib
+                const decompressed = window.fflate.unzlibSync(textBytes);
+                textContent = decoder.decode(decompressed);
+              } else {
+                textContent = decoder.decode(textBytes);
+              }
+            } else if (chunkType === "iTXt") {
+              const compressionFlag = chunkData[nullIdx + 1];
+              let scan = nullIdx + 3;
+              while (scan < chunkData.length && chunkData[scan] !== 0) scan++;
+              scan++; // language tag
+              while (scan < chunkData.length && chunkData[scan] !== 0) scan++;
+              scan++; // translated keyword
+              
+              const textBytes = chunkData.slice(scan);
+              if (compressionFlag === 1) {
+                const decompressed = window.fflate.unzlibSync(textBytes);
+                textContent = decoder.decode(decompressed);
+              } else {
+                textContent = decoder.decode(textBytes);
+              }
+            }
+
+            // decode base64
+            let decoded = "";
+            try {
+              const binString = atob(textContent.trim());
+              const bytes = new Uint8Array(binString.length);
+              for (let i = 0; i < binString.length; i++) {
+                bytes[i] = binString.charCodeAt(i);
+              }
+              decoded = new TextDecoder("utf-8").decode(bytes);
+            } catch (e) {
+              decoded = textContent.trim();
+            }
+
+            const parsed = JSON.parse(decoded);
+            return parsed.data ? parsed.data : parsed;
+          }
+        }
+        offset += 12 + length;
+      }
+      throw new Error("Could not find Tavern 'chara' metadata chunk. Make sure this is a SillyTavern character card.");
+    }
+
+    function renderParsedCard(chara, avatarBase64) {
+      document.getElementById('parser-empty-state').classList.add('hidden');
+      document.getElementById('parser-result-data').classList.remove('hidden');
+      document.getElementById('parsed-badge').classList.remove('hidden');
+
+      // Set fields
+      const charName = chara.name || chara.char_name || chara.charName || "Unknown";
+      document.getElementById('parsed-name').textContent = charName;
+      document.getElementById('parsed-version').textContent = chara.character_version || chara.version || "1.0.0";
+      document.getElementById('parsed-creator').textContent = chara.creator || chara.creator_notes || "Anonymous";
+      
+      const descText = chara.description || chara.char_persona || chara.persona || "No Description Provided.";
+      const greetText = chara.first_mes || chara.char_greeting || chara.greeting || "No Greeting Message.";
+      document.getElementById('parsed-persona').textContent = descText;
+      document.getElementById('parsed-greeting').textContent = greetText;
+
+      const loreCount = chara.character_book?.entries?.length || chara.lorebook?.entries?.length || chara.world_info?.entries?.length || 0;
+      document.getElementById('parsed-lore-count').textContent = loreCount > 0 ? `${loreCount} entries detected` : "None";
+
+      // Render Tags
+      const tagsBox = document.getElementById('parsed-tags');
+      tagsBox.innerHTML = '';
+      const tags = chara.tags || [];
+      tags.forEach(tag => {
+        const badge = document.createElement('span');
+        badge.className = 'text-[9px] font-bold px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-300';
+        badge.textContent = tag;
+        tagsBox.appendChild(badge);
+      });
+
+      // Set Avatar
+      const avatarEl = document.getElementById('parsed-avatar');
+      if (avatarBase64) {
+        avatarEl.src = avatarBase64;
+      } else {
+        avatarEl.src = "https://avatars.githubusercontent.com/u/1399677?v=4"; // Fallback to GitHub profile
+      }
+    }
+
+    // 4. Sample Load Demo
+    const sampleTavernCard = {
+      name: "莉莉丝 (Lilith)",
+      version: "1.2.0",
+      creator: "Kaelen",
+      tags: ["冒险", "法师", "傲娇", "伙伴"],
+      description: "莉莉丝是一个年轻但天资聪颖的星旋魔法使。她背着一把比她还高的魔杖，性格有些好强嘴硬，但在同伴遇到危机时会毫不犹豫站在最前方保护他们。讨厌毛毛虫，最喜欢的零食是焦糖松饼。",
+      first_mes: "哼，怎么这么慢！我已经在冒险者公会等你半个钟头了。别磨蹭了，我们今天的目标是清剿幽暗森林外围的哥布林，铁剑磨亮了吗？",
+      character_book: {
+        entries: [
+          { keys: ["幽暗森林", "森林"], content: "幽暗森林是一处笼罩在永恒迷雾中的古老丛林，里面寄居着哥布林、史莱姆等低阶魔物，据说深处还隐藏着精灵遗迹。" },
+          { keys: ["星族魔法", "星旋"], content: "莉莉丝所掌握的独特魔导流派，通过汇聚夜空中的星旋微粒来凝结高热光束或力场护盾。" }
+        ]
+      }
+    };
+
+    function loadDemoCard() {
+      renderParsedCard(sampleTavernCard, null);
+    }
+  </script>
+</body>
+</html>

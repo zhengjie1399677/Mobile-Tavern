@@ -18,6 +18,7 @@ import {
   GitFork,
   ChevronUp,
   Cpu,
+  SlidersHorizontal,
 } from "lucide-react";
 
 import { saveSession } from "../utils/localDB";
@@ -216,6 +217,8 @@ export default function ChatTab() {
   } = useContext(AppContext);
 
   const [isPortraitCollapsed, setIsPortraitCollapsed] = React.useState(false);
+  const [visibleExtensions, setVisibleExtensions] = React.useState<string[]>(["condition", "inventory", "bonding"]);
+  const [showExtDropdown, setShowExtDropdown] = React.useState(false);
 
   const hasExpressions = React.useMemo(() => {
     if (!activeCharacter) return false;
@@ -431,29 +434,98 @@ export default function ChatTab() {
           </div>
         </div>
 
-        {/* Chat sub tabs switches */}
-        <div className="flex bg-muted p-0.5 rounded-lg border border-border">
-          <button
-            onClick={() => setChatSubTab("dialogue")}
-            className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center gap-1 ${
-              chatSubTab === "dialogue"
-                ? "bg-primary/40 text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5" /> 剧本对白
-          </button>
-          <button
-            onClick={() => setChatSubTab("timeline")}
-            className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center gap-1 ${
-              chatSubTab === "timeline"
-                ? "bg-primary/40 text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <History className="w-3.5 h-3.5" /> 故事年表 (
-            {activeSession?.summaries?.length || 0})
-          </button>
+        {/* Chat sub tabs switches and settings dropdown */}
+        <div className="flex items-center gap-1.5 relative">
+          <div className="flex bg-muted p-0.5 rounded-lg border border-border">
+            <button
+              onClick={() => setChatSubTab("dialogue")}
+              className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center gap-1 ${
+                chatSubTab === "dialogue"
+                  ? "bg-primary/40 text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" /> 剧本对白
+            </button>
+            <button
+              onClick={() => setChatSubTab("timeline")}
+              className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center gap-1 ${
+                chatSubTab === "timeline"
+                  ? "bg-primary/40 text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <History className="w-3.5 h-3.5" /> 故事年表 (
+              {activeSession?.summaries?.length || 0})
+            </button>
+          </div>
+
+          {chatSubTab === "timeline" && (
+            <div className="relative">
+              <button
+                onClick={() => setShowExtDropdown(!showExtDropdown)}
+                className={`p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition ${
+                  showExtDropdown ? "bg-muted text-foreground" : "bg-card"
+                }`}
+                title="扩展字段过滤"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+              </button>
+              
+              {showExtDropdown && (
+                <div className="absolute right-0 top-full mt-1.5 bg-popover border border-border rounded-lg p-2 flex flex-col gap-2 min-w-[90px] shadow-xl z-20 animate-fadeIn text-[10px]">
+                  <span className="text-[9px] text-muted-foreground font-bold tracking-wider uppercase px-1 border-b border-border pb-1 mb-0.5">
+                    显示选项
+                  </span>
+                  <label className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-foreground cursor-pointer hover:bg-muted rounded transition">
+                    <input
+                      type="checkbox"
+                      checked={visibleExtensions.includes("condition")}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setVisibleExtensions([...visibleExtensions, "condition"]);
+                        } else {
+                          setVisibleExtensions(visibleExtensions.filter(x => x !== "condition"));
+                        }
+                      }}
+                      className="rounded border-border bg-input text-primary focus:ring-0 focus:ring-offset-0 w-3 h-3"
+                    />
+                    💓 心境
+                  </label>
+                  <label className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-foreground cursor-pointer hover:bg-muted rounded transition">
+                    <input
+                      type="checkbox"
+                      checked={visibleExtensions.includes("inventory")}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setVisibleExtensions([...visibleExtensions, "inventory"]);
+                        } else {
+                          setVisibleExtensions(visibleExtensions.filter(x => x !== "inventory"));
+                        }
+                      }}
+                      className="rounded border-border bg-input text-primary focus:ring-0 focus:ring-offset-0 w-3 h-3"
+                    />
+                    🎒 道具
+                  </label>
+                  <label className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-foreground cursor-pointer hover:bg-muted rounded transition">
+                    <input
+                      type="checkbox"
+                      checked={visibleExtensions.includes("bonding")}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setVisibleExtensions([...visibleExtensions, "bonding"]);
+                        } else {
+                          setVisibleExtensions(visibleExtensions.filter(x => x !== "bonding"));
+                        }
+                      }}
+                      className="rounded border-border bg-input text-primary focus:ring-0 focus:ring-offset-0 w-3 h-3"
+                    />
+                    🔗 羁绊
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -533,6 +605,16 @@ export default function ChatTab() {
                 foldedCount = foldIndex;
                 messagesToRender = messagesToRender.slice(foldIndex);
               }
+
+              // Precalculate round index for each message in activeSession.messages
+              const roundNums: Record<string, number> = {};
+              let roundCount = 0;
+              (activeSession?.messages || []).forEach((m) => {
+                if (m.sender === "user") {
+                  roundCount++;
+                }
+                roundNums[m.id] = roundCount;
+              });
 
               return (
                 <>
@@ -694,7 +776,12 @@ export default function ChatTab() {
                           <div
                             className={`text-[10px] text-muted-foreground font-mono mt-1 ${isUser ? "text-right" : "text-left"} flex gap-2 ${isUser ? "justify-end" : "justify-start"} flex-wrap`}
                           >
-                            <span>
+                            {roundNums[message.id] > 0 && (
+                              <span className="flex items-center gap-1 opacity-70 text-primary font-medium">
+                                第 {roundNums[message.id]} 轮对话
+                              </span>
+                            )}
+                            <span className={roundNums[message.id] > 0 ? "border-l border-border pl-2" : ""}>
                               {new Date(message.timestamp).toLocaleTimeString(
                                 undefined,
                                 { hour: "2-digit", minute: "2-digit" },
@@ -855,12 +942,13 @@ export default function ChatTab() {
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 min-h-0">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-foreground">
+              <h3 class="text-sm font-bold text-foreground">
                 故事历史卡片轴 (Memory Timeline)
               </h3>
-              <p className="text-[11px] text-muted-foreground">
+              <p class="text-[11px] text-muted-foreground">
                 这些卡片将作为辅助长期记忆状态，拼写入系统 Prompt 中。
               </p>
+
             </div>
             <button
               onClick={() => {
@@ -930,13 +1018,14 @@ export default function ChatTab() {
                               "是否彻底解散清除该记忆卡片？",
                             );
                           if (ok) {
-                            const nextSums = activeSession.summaries.filter(
-                              (s) => s.id !== summary.id,
-                            );
-                            const updated = {
-                              ...activeSession,
-                              summaries: nextSums,
-                            };
+                             const nextSums = activeSession.summaries.filter(
+                               (s) => s.id !== summary.id,
+                             );
+                             const updated = {
+                               ...activeSession,
+                               summaries: nextSums,
+                               lastSummarizedMessageId: nextSums[nextSums.length - 1]?.lastMessageId || undefined,
+                             };
                             setSessions((prev) =>
                               prev.map((s) =>
                                 s.id === updated.id ? updated : s,
@@ -954,19 +1043,21 @@ export default function ChatTab() {
                   </div>
 
                   {/* Optional RPG State Badges */}
-                  {(summary.condition || summary.inventory || summary.bonding) && (
+                  {((summary.condition && visibleExtensions.includes("condition")) || 
+                    (summary.inventory && visibleExtensions.includes("inventory")) || 
+                    (summary.bonding && visibleExtensions.includes("bonding"))) && (
                     <div className="flex flex-wrap gap-1 mt-0.5">
-                      {summary.condition && (
+                      {summary.condition && visibleExtensions.includes("condition") && (
                         <span className="inline-flex items-center gap-0.5 text-[9px] font-medium bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 px-1 py-0.5 rounded-md">
                           💓 {summary.condition}
                         </span>
                       )}
-                      {summary.inventory && (
+                      {summary.inventory && visibleExtensions.includes("inventory") && (
                         <span className="inline-flex items-center gap-0.5 text-[9px] font-medium bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-400 px-1 py-0.5 rounded-md">
                           🎒 {summary.inventory}
                         </span>
                       )}
-                      {summary.bonding && (
+                      {summary.bonding && visibleExtensions.includes("bonding") && (
                         <span className="inline-flex items-center gap-0.5 text-[9px] font-medium bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded-md">
                           🔗 {summary.bonding}
                         </span>

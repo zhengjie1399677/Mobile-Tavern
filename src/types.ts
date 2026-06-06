@@ -66,6 +66,7 @@ export interface SummaryCard {
   condition?: string; // Character physical/mental condition
   inventory?: string; // Key items delta (acquired/lost)
   bonding?: string; // Relationship level/attitude change
+  lastMessageId?: string; // Pointer to the last message summarized in this slice
 }
 
 export interface Message {
@@ -171,4 +172,5 @@ export interface UserSettings {
   savedPresets?: SavedPresetBundle[]; // Collection of saved multiple presets
   enableHtmlRendering?: boolean; // Render exact HTML/CSS from AI output
   expressionTriggers?: Record<string, string>;
+  hasInjectedFormatPreset?: boolean; // Track if the format preservation preset has been injected
 }
