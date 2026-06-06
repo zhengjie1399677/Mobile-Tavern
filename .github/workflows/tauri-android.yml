@@ -39,7 +39,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Generate Tauri Icons
         run: |
