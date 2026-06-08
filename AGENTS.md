@@ -86,3 +86,7 @@
   adb reverse tcp:3000 tcp:3000; adb reverse tcp:24678 tcp:24678
   npx tauri android dev --host 127.0.0.1
   ```
+
+# 🚨 核心行为准则三：禁止使用浏览器自动化工具
+- 严禁调用 `browser_subagent` 工具来进行任何浏览器自动化测试或网页浏览。
+- 所有功能验证必须通过后台命令运行、日志查看、单元测试，或由用户手动测试并提供反馈。

@@ -8,6 +8,7 @@ import { reportUsage, incrementUsageCount } from "../utils/telemetry";
 import { universalFetch, FALLBACK_MODEL, API_ENDPOINT } from "../utils/apiClient";
 import { readSSEStream, safeParseSSEData } from "../utils/streamReader";
 import FormattedText from "../components/FormattedText";
+import { parseMvuMessage, notifyVariablesUpdated } from "../utils/tavernHelperBridge";
 import { getAllSessions } from "../utils/localDB";
 
 const generateUniqueId = (prefix: string): string => {
@@ -279,6 +280,29 @@ export const useChat = (
     }
   }, [settings, activeCharacter, showCustomAlert, saveSession, setIsSummarizing]);
 
+  const saveSessionWithMvu = useCallback(async (session: ChatSession, messageToParse?: string) => {
+    let updatedSession = session;
+    if (settings.enableScriptExecution && messageToParse) {
+      try {
+        const parsedVariables = parseMvuMessage(messageToParse, session.variables || {});
+        updatedSession = {
+          ...session,
+          variables: parsedVariables,
+        };
+        setSessions((prev) =>
+          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+        );
+        // Notify iframe scripts that variables have been updated so they can refresh their UI
+        notifyVariablesUpdated(updatedSession);
+      } catch (e) {
+        console.warn("Failed to parse MVU message:", e);
+      }
+    }
+    await saveSession(updatedSession);
+    return updatedSession;
+  }, [settings.enableScriptExecution, saveSession, setSessions]);
+
+
   const handleSendMessage = useCallback(async (textToSend: string) => {
     incrementUsageCount();
     if (
@@ -491,7 +515,7 @@ export const useChat = (
         ...updatedSession,
         messages: finalMessages,
       };
-      await saveSession(trueFinalSession);
+      const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
       triggerScroll("smooth");
 
       reportUsage("send_message", {
@@ -503,7 +527,7 @@ export const useChat = (
         characterName: activeCharacter.name,
       });
 
-      await handleAutoSummaryCheck(trueFinalSession, false, controller.signal);
+      await handleAutoSummaryCheck(parsedSession, false, controller.signal);
     } catch (err: any) {
       const isManualAbort = err.name === "AbortError" || err.message?.includes("aborted") || controller.signal.aborted;
       if (isManualAbort) {
@@ -522,11 +546,11 @@ export const useChat = (
               messages: finalMessages,
             };
             try {
-              await saveSession(trueFinalSession);
+              const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+              await handleAutoSummaryCheck(parsedSession, false, controller.signal);
             } catch (saveErr) {
               console.error("Failed to save aborted session message:", saveErr);
             }
-            await handleAutoSummaryCheck(trueFinalSession, false, controller.signal);
           }
         } else {
           setSessions((prev) =>
@@ -789,7 +813,7 @@ export const useChat = (
         ...updatedSession,
         messages: finalMessages,
       };
-      await saveSession(trueFinalSession);
+      const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
       triggerScroll();
 
       reportUsage("regenerate_message", {
@@ -803,7 +827,7 @@ export const useChat = (
         sessionId: updatedSession.id,
       });
 
-      await handleAutoSummaryCheck(trueFinalSession, false, controller.signal);
+      await handleAutoSummaryCheck(parsedSession, false, controller.signal);
     } catch (e: any) {
       const isManualAbort = e.name === "AbortError" || e.message?.includes("aborted") || controller.signal.aborted;
       if (isManualAbort) {
@@ -822,11 +846,11 @@ export const useChat = (
               messages: finalMessages,
             };
             try {
-              await saveSession(trueFinalSession);
+              const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+              await handleAutoSummaryCheck(parsedSession, false, controller.signal);
             } catch (saveErr) {
               console.error("Failed to save aborted session message:", saveErr);
             }
-            await handleAutoSummaryCheck(trueFinalSession, false, controller.signal);
           }
         } else {
           setSessions((prev) =>

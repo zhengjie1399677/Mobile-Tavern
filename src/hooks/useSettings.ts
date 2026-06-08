@@ -176,6 +176,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   userInfo: "",
   userAvatar: "",
   enableHtmlRendering: true,
+  enableScriptExecution: false,
   expressionTriggers: {
     joy: "笑了|微笑|开心|😊|smile|joy|happy",
     happy: "笑了|微笑|开心|😊|smile|joy|happy",
@@ -267,9 +268,12 @@ export const useSettings = () => {
             userInfo: storedSet.userInfo || DEFAULT_SETTINGS.userInfo,
             userAvatar: storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar,
             enableHtmlRendering: storedSet.enableHtmlRendering ?? DEFAULT_SETTINGS.enableHtmlRendering,
+            enableScriptExecution: storedSet.enableScriptExecution ?? DEFAULT_SETTINGS.enableScriptExecution,
             savedPresets: mergedSavedPresets,
             expressionTriggers: storedSet.expressionTriggers || DEFAULT_SETTINGS.expressionTriggers,
             hasInjectedFormatPreset: true,
+            variables: storedSet.variables || {},
+            extensionSettings: storedSet.extensionSettings || {},
           } as any;
 
           setSettings(mergedSet);

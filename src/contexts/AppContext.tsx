@@ -56,7 +56,51 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<TabType>("characters");
+  const [activeTab, setActiveTabState] = useState<TabType>(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.replace("#/", "");
+      const validTabs: TabType[] = ["characters", "chat", "chat-history", "settings", "global-worldbook", "playground"];
+      if (validTabs.includes(hash as TabType)) {
+        return hash as TabType;
+      }
+    }
+    return "characters";
+  });
+
+  const setActiveTab = (tab: TabType) => {
+    if (typeof window !== "undefined") {
+      const currentTab = window.location.hash.replace("#/", "");
+      if (tab === "chat" && currentTab === "characters") {
+        window.history.pushState(null, "", "#/chat-history");
+        window.history.pushState(null, "", "#/chat");
+        setActiveTabState("chat");
+        return;
+      }
+      if (tab === "chat-history" && currentTab === "chat") {
+        window.history.back();
+        return;
+      }
+      window.location.hash = `#/${tab}`;
+    } else {
+      setActiveTabState(tab);
+    }
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace("#/", "");
+      const validTabs: TabType[] = ["characters", "chat", "chat-history", "settings", "global-worldbook", "playground"];
+      if (validTabs.includes(hash as TabType)) {
+        setActiveTabState(hash as TabType);
+      }
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => {
+      window.removeEventListener("hashchange", handleHashChange);
+    };
+  }, []);
+
   const [activeWorldbookHostId, setActiveWorldbookHostId] = useState<string | null>(null);
   const [showSplash, setShowSplash] = useState(true);
   const [promptInputVal, setPromptInputVal] = useState("");

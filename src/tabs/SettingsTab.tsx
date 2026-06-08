@@ -426,6 +426,23 @@ export default function SettingsTab() {
                     className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
                   />
                 </div>
+                <div className="flex items-center justify-between border-t border-border/50 pt-4">
+                  <div className="space-y-0.5">
+                    <label className="text-[13px] font-semibold text-foreground">
+                      开启卡片 JavaScript 脚本执行（TavernHelper 兼容模式）
+                    </label>
+                    <p className="text-[10px] text-muted-foreground">
+                      允许角色卡通过 Iframe 与内置的 TavernHelper 接口交互执行自定义 JS 脚本，用于动态状态卡展示。运行未知来源脚本具有一定安全风险。
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.enableScriptExecution || false}
+                    onCheckedChange={(val) =>
+                      updateSettings({ ...settings, enableScriptExecution: val })
+                    }
+                    className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  />
+                </div>
               </CardContent>
             </Card>
 

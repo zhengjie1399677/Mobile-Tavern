@@ -1,5 +1,6 @@
 import React, { useContext } from "react";
 import { AppContext } from "../AppContext";
+import { createMessageIframeSrcDoc } from "../utils/tavernHelperBridge";
 
 interface FormattedTextProps {
   text: string;
@@ -60,6 +61,7 @@ const ALLOWED_TAGS = new Set([
   "li",
   "code",
   "pre",
+  "iframe",
 ]);
 
 // Whitelist of safe tag attributes
@@ -70,7 +72,37 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   td: new Set(["colspan", "rowspan"]),
   th: new Set(["colspan", "rowspan"]),
   table: new Set(["border", "cellpadding", "cellspacing"]),
+  iframe: new Set(["src", "srcdoc", "width", "height", "style", "class", "classname", "sandbox", "id", "name"]),
 };
+
+function resolveExpressionUrl(srcVal: string, activeCharacter: any): string {
+  if (!srcVal || !activeCharacter) return srcVal;
+  
+  if (srcVal.toLowerCase().startsWith("avatar://")) {
+    return activeCharacter.avatar || "";
+  }
+  
+  if (srcVal.toLowerCase().startsWith("expression://")) {
+    const exprName = srcVal.slice("expression://".length).trim().toLowerCase();
+    
+    const ext = activeCharacter.extensions || {};
+    const rawStyle = ext.style || ext.character_style || {};
+    const expressions = activeCharacter.visualSettings?.expressions || rawStyle.expressions || ext.expressions || {};
+    
+    if (Array.isArray(expressions)) {
+      const match = expressions.find((e: any) => e && e.name && e.name.toLowerCase() === exprName);
+      if (match && match.image) return match.image;
+    } else if (expressions && typeof expressions === "object") {
+      const match = Object.entries(expressions).find(([k]) => k.toLowerCase() === exprName);
+      if (match) return match[1] as string;
+    }
+    
+    // Fallback to default avatar
+    return activeCharacter.avatar || "";
+  }
+  
+  return srcVal;
+}
 
 function renderTextNode(textVal: string, enableAsteriskFormatting: boolean): React.ReactNode {
   if (!/(\*\*|\*)/.test(textVal)) {
@@ -102,7 +134,13 @@ function renderTextNode(textVal: string, enableAsteriskFormatting: boolean): Rea
   });
 }
 
-function domToReact(node: Node, index: number, enableAsteriskFormatting: boolean): React.ReactNode {
+function domToReact(
+  node: Node, 
+  index: number, 
+  enableAsteriskFormatting: boolean,
+  enableScriptExecution: boolean,
+  activeCharacter: any
+): React.ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
     return renderTextNode(node.nodeValue || "", enableAsteriskFormatting);
   }
@@ -113,6 +151,11 @@ function domToReact(node: Node, index: number, enableAsteriskFormatting: boolean
 
   const element = node as Element;
   const tagName = element.tagName.toLowerCase();
+
+  // If script execution is disabled, block iframes
+  if (tagName === "iframe" && !enableScriptExecution) {
+    return null;
+  }
 
   // If not allowed, strip wrapper but try rendering children recursively (unless unsafe tag)
   if (!ALLOWED_TAGS.has(tagName)) {
@@ -126,7 +169,9 @@ function domToReact(node: Node, index: number, enableAsteriskFormatting: boolean
     ) {
       return null;
     }
-    return Array.from(element.childNodes).map((child, i) => domToReact(child, i, enableAsteriskFormatting));
+    return Array.from(element.childNodes).map((child, i) => 
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter)
+    );
   }
 
   const props: Record<string, any> = { key: index };
@@ -152,16 +197,40 @@ function domToReact(node: Node, index: number, enableAsteriskFormatting: boolean
           props.href = val;
         }
       } else if (name === "src") {
-        if (/^(https?:\/\/|data:|blob:|\/)/i.test(val)) {
-          props.src = val;
+        if (/^(https?:\/\/|data:|blob:|\/|expression:\/\/|avatar:\/\/)/i.test(val)) {
+          props.src = resolveExpressionUrl(val, activeCharacter);
         }
+      } else if (name === "srcdoc" && tagName === "iframe") {
+        // Resolve expression:// and avatar:// inside iframe srcdoc HTML content
+        let resolvedSrcdoc = val;
+        if (activeCharacter?.avatar) {
+          resolvedSrcdoc = resolvedSrcdoc.replace(/avatar:\/\/(current)?/gi, activeCharacter.avatar);
+        }
+        
+        const exprMatches = resolvedSrcdoc.match(/expression:\/\/([a-zA-Z0-9_-]+)/gi);
+        if (exprMatches && activeCharacter) {
+          exprMatches.forEach((match) => {
+            const exprName = match.slice("expression://".length).toLowerCase();
+            const resolvedUrl = resolveExpressionUrl(match, activeCharacter);
+            resolvedSrcdoc = resolvedSrcdoc.replace(match, resolvedUrl);
+          });
+        }
+        
+        props.srcDoc = resolvedSrcdoc;
       } else {
         props[name] = val;
       }
     }
   }
 
-  const children = Array.from(element.childNodes).map((child, i) => domToReact(child, i, enableAsteriskFormatting));
+  // Force strict sandboxing for iframe tags
+  if (tagName === "iframe") {
+    props.sandbox = "allow-scripts allow-same-origin allow-modals";
+  }
+
+  const children = Array.from(element.childNodes).map((child, i) => 
+    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter)
+  );
   return React.createElement(
     tagName,
     props,
@@ -169,18 +238,89 @@ function domToReact(node: Node, index: number, enableAsteriskFormatting: boolean
   );
 }
 
-function parseSafeHtmlToReact(html: string, enableAsteriskFormatting: boolean): React.ReactNode {
+function parseSafeHtmlToReact(
+  html: string, 
+  enableAsteriskFormatting: boolean,
+  enableScriptExecution: boolean,
+  activeCharacter: any
+): React.ReactNode {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
     const container = doc.body.firstChild;
     if (!container) return html;
 
-    return Array.from(container.childNodes).map((child, i) => domToReact(child, i, enableAsteriskFormatting));
+    return Array.from(container.childNodes).map((child, i) => 
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter)
+    );
   } catch (err) {
     console.error("Failed to parse HTML safely:", err);
     return html;
   }
+}
+
+function preprocessFormattedText(
+  text: string,
+  charName: string,
+  userName: string,
+  activeCharacter: any,
+  enableScriptExecution: boolean
+): string {
+  if (!text) return "";
+
+  // 1. Standard template placeholders
+  let processed = text
+    .replace(/\{\{char\}\}/gi, charName)
+    .replace(/<BOT>/gi, charName)
+    .replace(/\{\{user\}\}/gi, userName)
+    .replace(/<USER>/gi, userName);
+
+  // 2. SillyTavern Regex Script Extensions matching
+  if (enableScriptExecution && activeCharacter?.extensions?.regex_scripts) {
+    const scripts = activeCharacter.extensions.regex_scripts;
+    for (const script of scripts) {
+      if (script.disabled) continue;
+
+      const placement = script.placement;
+      if (Array.isArray(placement) && !placement.includes(1) && !placement.includes(2)) {
+        continue;
+      }
+
+      const findRegex = script.findRegex;
+      const replaceString = script.replaceString || "";
+      if (!findRegex) continue;
+
+      try {
+        let regex: RegExp;
+        const match = findRegex.match(/^\/(.*)\/([gimsuy]*)$/);
+        if (match) {
+          regex = new RegExp(match[1], match[2]);
+        } else {
+          const escaped = findRegex.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          regex = new RegExp(escaped, "g");
+        }
+        processed = processed.replace(regex, replaceString);
+      } catch (err) {
+        console.warn("Failed to apply regex script:", findRegex, err);
+      }
+    }
+  }
+
+  // 3. Wrap ```html ... ``` blocks in sandboxed iframes
+  if (enableScriptExecution) {
+    const codeBlockRegex = /```html\s*([\s\S]*?)\s*```/gi;
+    processed = processed.replace(codeBlockRegex, (match, htmlContent) => {
+      // Compile into standard message iframe wrapper
+      const compiledSrcdoc = createMessageIframeSrcDoc(htmlContent);
+      const escapedHtml = compiledSrcdoc
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+      return `<iframe srcdoc="${escapedHtml}" style="width: 100%; height: 250px; border: none; overflow: hidden; display: block;" class="w-full"></iframe>`;
+    });
+  }
+
+  return processed;
 }
 
 export default function FormattedText({
@@ -193,14 +333,17 @@ export default function FormattedText({
 
   const context = useContext(AppContext);
   const enableHtml = context?.settings?.enableHtmlRendering ?? true;
-  const enableAsteriskFormatting = !!context?.activeCharacter?.visualSettings?.enableAsteriskFormatting;
+  const enableScriptExecution = !!context?.settings?.enableScriptExecution;
+  const activeCharacter = context?.activeCharacter;
+  const enableAsteriskFormatting = !!activeCharacter?.visualSettings?.enableAsteriskFormatting;
 
-  // Replace placeholders dynamically
-  const processed = text
-    .replace(/\{\{char\}\}/gi, charName)
-    .replace(/<BOT>/gi, charName)
-    .replace(/\{\{user\}\}/gi, userName)
-    .replace(/<USER>/gi, userName);
+  const processed = preprocessFormattedText(
+    text,
+    charName,
+    userName,
+    activeCharacter,
+    enableScriptExecution
+  );
 
   // Quick detection: if text contains tags and html rendering is active, use DOM parser
   const hasHtml = enableHtml && /<[a-z/][\s\S]*?>/i.test(processed);
@@ -208,7 +351,7 @@ export default function FormattedText({
   if (hasHtml) {
     return (
       <span className={`block whitespace-pre-wrap leading-relaxed ${className}`}>
-        {parseSafeHtmlToReact(processed, enableAsteriskFormatting)}
+        {parseSafeHtmlToReact(processed, enableAsteriskFormatting, enableScriptExecution, activeCharacter)}
       </span>
     );
   }

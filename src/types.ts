@@ -56,6 +56,7 @@ export interface CharacterCard {
   character_version?: string;     // Card version
   extensions?: Record<string, any>; // ST extensions or custom settings
   visualSettings?: CharacterVisualSettings; // Front-end cosmetic styling settings
+  variables?: Record<string, any>; // Character persistent variables
 }
 
 export interface SummaryCard {
@@ -88,6 +89,7 @@ export interface ChatSession {
   messages: Message[];
   summaries: SummaryCard[]; // Timeline summaries
   lastSummarizedMessageId?: string; // Tracks up to which message the summary has covered
+  variables?: Record<string, any>; // Chat session local variables
 }
 
 export type ApiType = "openai-compat";
@@ -173,4 +175,7 @@ export interface UserSettings {
   enableHtmlRendering?: boolean; // Render exact HTML/CSS from AI output
   expressionTriggers?: Record<string, string>;
   hasInjectedFormatPreset?: boolean; // Track if the format preservation preset has been injected
+  enableScriptExecution?: boolean; // Toggle to execute custom interactive iframe scripts
+  variables?: Record<string, any>; // Persistent global variables for TavernHelper compatibility
+  extensionSettings?: Record<string, any>; // Persistent settings for SillyTavern extensions compatibility
 }

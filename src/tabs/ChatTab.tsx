@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { saveSession } from "../utils/localDB";
+import { initTavernHelperBridge, cleanTavernHelperBridge, createScriptIframeSrcDoc } from "../utils/tavernHelperBridge";
 
 const ChatInputArea = () => {
   const {
@@ -214,7 +215,47 @@ export default function ChatTab() {
     createBacktrackBranch,
     createBacktrackFromTimeline,
     renderDialogueBubble,
+    setCharacters,
+    saveCharacter,
+    updateSettings,
   } = useContext(AppContext);
+
+  // Keep the bridge params in sync with latest React state on every relevant change.
+  // We do NOT call cleanTavernHelperBridge() inside the cleanup because that would
+  // destroy the bridge (and all iframe event listeners) on every activeSession update.
+  // The bridge is only torn down when the ChatTab itself unmounts.
+  React.useEffect(() => {
+    if (settings.enableScriptExecution) {
+      initTavernHelperBridge({
+        activeCharacter,
+        activeSession,
+        setSessions,
+        saveSession,
+        setCharacters,
+        saveCharacter,
+        settings,
+        updateSettings,
+        handleSendMessage,
+      });
+    } else {
+      cleanTavernHelperBridge();
+    }
+  }, [
+    activeCharacter,
+    activeSession,
+    setSessions,
+    setCharacters,
+    settings,
+    updateSettings,
+    handleSendMessage,
+  ]);
+
+  // Only clean up the bridge when the ChatTab unmounts entirely.
+  React.useEffect(() => {
+    return () => {
+      cleanTavernHelperBridge();
+    };
+  }, []);
 
   const [isPortraitCollapsed, setIsPortraitCollapsed] = React.useState(false);
   const [visibleExtensions, setVisibleExtensions] = React.useState<string[]>(["condition", "inventory", "bonding"]);
@@ -378,6 +419,9 @@ export default function ChatTab() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background">
+      {activeCharacter?.visualSettings?.customCss && (
+        <style dangerouslySetInnerHTML={{ __html: activeCharacter.visualSettings.customCss }} />
+      )}
       {/* Embedded Header info card */}
       <div className="bg-card p-3 border-b border-border flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -942,10 +986,10 @@ export default function ChatTab() {
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 min-h-0">
           <div className="flex items-center justify-between">
             <div>
-              <h3 class="text-sm font-bold text-foreground">
+              <h3 className="text-sm font-bold text-foreground">
                 故事历史卡片轴 (Memory Timeline)
               </h3>
-              <p class="text-[11px] text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 这些卡片将作为辅助长期记忆状态，拼写入系统 Prompt 中。
               </p>
 
@@ -1087,6 +1131,24 @@ export default function ChatTab() {
           </div>
         </div>
       )}
+      {/* Hidden background script runtimes for TavernHelper compatibility */}
+      {settings.enableScriptExecution &&
+        activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
+          if (script.enabled && script.content) {
+            const srcDoc = createScriptIframeSrcDoc(script.content, script.id);
+            return (
+              <iframe
+                key={script.id}
+                id={`TH-script--${script.name || "unnamed"}--${script.id}`}
+                name={script.name || "unnamed"}
+                srcDoc={srcDoc}
+                style={{ display: "none" }}
+                sandbox="allow-scripts allow-same-origin"
+              />
+            );
+          }
+          return null;
+        })}
     </div>
   );
 }
