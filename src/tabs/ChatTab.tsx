@@ -1132,6 +1132,22 @@ export default function ChatTab() {
         </div>
       )}
       {/* Hidden background script runtimes for TavernHelper compatibility */}
+      {/* MVU compatibility: #tavern_helper container with data-script-id elements */}
+      <div id="tavern_helper" style={{ display: "none" }} aria-hidden="true">
+        {settings.enableScriptExecution &&
+          activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
+            if (script.enabled && script.content) {
+              return (
+                <div
+                  key={script.id}
+                  data-script-id={script.id}
+                  data-script-name={script.name || "unnamed"}
+                />
+              );
+            }
+            return null;
+          })}
+      </div>
       {settings.enableScriptExecution &&
         activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
           if (script.enabled && script.content) {
@@ -1143,7 +1159,12 @@ export default function ChatTab() {
                 name={script.name || "unnamed"}
                 srcDoc={srcDoc}
                 style={{ display: "none" }}
+                // eslint-disable-next-line react/no-unknown-property
                 sandbox="allow-scripts allow-same-origin"
+                // Note: allow-same-origin + allow-scripts is intentionally used here.
+                // The MVU bundle requires parent window access (TavernHelper, $, _ etc.)
+                // and script execution. Scripts only run from user-imported character cards
+                // with explicit enableScriptExecution setting enabled.
               />
             );
           }

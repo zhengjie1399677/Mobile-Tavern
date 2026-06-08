@@ -77,18 +77,74 @@ function initializeVariablesForSession(session: any) {
   if (!variables.stat_data) {
     variables.stat_data = {};
   }
-  
+
   console.log("[TavernHelper Event] Emitting mag_variable_initialized for session:", session.id);
   tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
   console.log("[TavernHelper Event] Variables after initialization:", variables);
 
   session.variables = variables;
   if (bridgeParams) {
-    bridgeParams.setSessions(prev => 
+    bridgeParams.setSessions(prev =>
       prev.map(s => s.id === session.id ? { ...s, variables } : s)
     );
     bridgeParams.saveSession(session);
   }
+}
+
+/**
+ * Initialize MVU variables from character card extensions.
+ * Extracts mvu_settings/schema from character extensions and merges into session variables.
+ */
+export function initializeMvuFromCharacter(character: any): Record<string, any> {
+  if (!character) return { stat_data: {} };
+
+  const ext = character.extensions || {};
+  const variables: Record<string, any> = {
+    stat_data: {},
+    schema: { type: 'object', properties: {} },
+    display_data: {},
+    delta_data: {},
+  };
+
+  // Try to extract MVU settings from various possible extension locations
+  const mvuSettings = ext.mvu_settings ||
+                      ext.mvu ||
+                      ext.MVU ||
+                      null;
+
+  if (mvuSettings) {
+    console.log("[MVU] Found mvu_settings in character extensions:", mvuSettings);
+
+    // If settings contains a schema, use it
+    if (mvuSettings.schema) {
+      variables.schema = mvuSettings.schema;
+    }
+
+    // If settings contains initial stat_data/default values
+    if (mvuSettings.stat_data) {
+      variables.stat_data = { ...mvuSettings.stat_data };
+    } else if (mvuSettings.defaults) {
+      variables.stat_data = { ...mvuSettings.defaults };
+    }
+
+    // Copy display configuration if present
+    if (mvuSettings.display_data) {
+      variables.display_data = { ...mvuSettings.display_data };
+    }
+  }
+
+  // Also check for tavern_helper scripts presence (for UI rendering)
+  if (ext.tavern_helper?.scripts) {
+    console.log(`[MVU] Found ${ext.tavern_helper.scripts.length} tavern_helper scripts`);
+  }
+
+  // Ensure stat_data exists
+  if (!variables.stat_data) {
+    variables.stat_data = {};
+  }
+
+  console.log("[MVU] Initialized variables from character:", variables);
+  return variables;
 }
 
 // Static initialization block executing immediately upon module import
@@ -1081,11 +1137,43 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   // This avoids network slowdowns/errors when developer proxy blocks CDN domains.
   window._ = window.parent._;
   window.Vue = window.parent.Vue || null;
-  // Inherit jQuery: prefer already-loaded parent $, fallback to null
-  window.$ = window.jQuery = window.parent.$ || window.parent.jQuery || null;
-  // Make sure parent also has $ if we have it
-  if (window.$) {
+  // Inherit jQuery: wrap parent $ to search parent document instead of iframe document
+  // This is critical for MVU bundle's listenPreferenceState which uses $('#tavern_helper')
+  // to find script elements - those elements exist in the parent window, not the iframe.
+  var parentDollar = window.parent.$ || window.parent.jQuery;
+  console.log('[TH Bridge Debug] Step 1 - parent.$ available:', !!parentDollar);
+  if (parentDollar) {
+    // Create a wrapper that always searches in parent document
+    window.$ = window.jQuery = function(selector, context) {
+      // If no context provided, default to parent document
+      var ctx = context || window.parent.document;
+      // Call parent $ directly with selector and context
+      return parentDollar(selector, ctx);
+    };
+    // Copy all static properties/methods from parent $
+    for (var key in parentDollar) {
+      if (parentDollar.hasOwnProperty(key)) {
+        window.$[key] = parentDollar[key];
+      }
+    }
     window.parent.$ = window.parent.jQuery = window.parent.$ || window.$;
+    console.log('[TH Bridge Debug] Step 1 - jQuery wrapper created');
+    // Test jQuery wrapper
+    try {
+      var testResult = window.$('#tavern_helper');
+      console.log('[TH Bridge Debug] Step 1 - jQuery test #tavern_helper found:', testResult.length, 'elements');
+      if (testResult.length > 0) {
+        console.log('[TH Bridge Debug] Step 1 - First element tag:', testResult[0].tagName);
+      }
+      // Also test direct parent $ call
+      var directResult = parentDollar('#tavern_helper', window.parent.document);
+      console.log('[TH Bridge Debug] Step 1 - Direct parent.$ test found:', directResult.length, 'elements');
+    } catch(e) {
+      console.error('[TH Bridge Debug] Step 1 - jQuery test failed:', e);
+    }
+  } else {
+    window.$ = window.jQuery = null;
+    console.warn('[TH Bridge Debug] Step 1 - parent.$ not available!');
   }
   // Expose global TavernHelper mock APIs immediately to prevent ReferenceErrors in Step 1.5
   window.z = window.parent.z || null;
@@ -1099,6 +1187,80 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   window.getScriptButtons = window.parent.getScriptButtons || null;
   window.replaceScriptButtons = window.parent.replaceScriptButtons || null;
   window.getButtonEvent = window.parent.getButtonEvent || null;
+
+  // ─── CRITICAL: Pre-define ALL TavernHelper._bind functions that MVU bundle calls during Step 1.5 ───
+  // The MVU bundle IIFE executes immediately in Step 1.5 and calls these functions.
+  // Without these stubs, getScriptId() and others throw ReferenceError, breaking MVU initialization.
+  // NOTE: TH._bind keys have underscore prefix (e.g. _getScriptId), but MVU bundle calls them without underscore.
+  (function() {
+    var TH = window.parent.TavernHelper;
+    console.log('[TH Bridge Debug] Step 1 - TavernHelper available:', !!TH);
+    console.log('[TH Bridge Debug] Step 1 - TH._bind available:', !!(TH && TH._bind));
+    if (!TH || !TH._bind) {
+      console.warn('[TH Bridge Debug] Step 1 - TH._bind not available, MVU functions will not be pre-defined');
+      return;
+    }
+    var bind = TH._bind;
+    // Map of MVU bundle function names (no underscore) to TH._bind keys (with underscore)
+    var funcMap = {
+      'getScriptId': '_getScriptId',
+      'getCurrentMessageId': '_getCurrentMessageId',
+      'getVariables': '_getVariables',
+      'getAllVariables': '_getAllVariables',
+      'replaceVariables': '_replaceVariables',
+      'updateVariablesWith': '_updateVariablesWith',
+      'insertOrAssignVariables': '_insertOrAssignVariables',
+      'deleteVariable': '_deleteVariable',
+      'eventOn': '_eventOn',
+      'eventEmit': '_eventEmit',
+      'eventRemoveListener': '_eventRemoveListener',
+      'eventClearAll': '_eventClearAll',
+      'getCurrentChatId': '_getCurrentChatId',
+      'saveChat': '_saveChat',
+      'saveSettingsDebounced': '_saveSettingsDebounced',
+      'callGenericPopup': '_callGenericPopup',
+      'getTavernHelperVersion': '_getTavernHelperVersion',
+      'getScriptButtons': '_getScriptButtons',
+      'replaceScriptButtons': '_replaceScriptButtons',
+      'appendInexistentScriptButtons': '_appendInexistentScriptButtons',
+      'getButtonEvent': '_getButtonEvent',
+      'showHelpPopup': '_showHelpPopup',
+      'setChatMessage': '_setChatMessage',
+      'setChatMessages': '_setChatMessages',
+      'getChatMessages': '_getChatMessages',
+      'getLastMessageId': '_getLastMessageId',
+      'getCharLorebooks': '_getCharLorebooks',
+      'getCharWorldbookNames': '_getCharWorldbookNames',
+      'getCurrentCharPrimaryLorebook': '_getCurrentCharPrimaryLorebook',
+      'getLorebookEntries': '_getLorebookEntries',
+      'getLorebookSettings': '_getLorebookSettings',
+      'setLorebookSettings': '_setLorebookSettings',
+      'setExtraAnalysisStates': '_setExtraAnalysisStates',
+      'normalizeBaseURL': '_normalizeBaseURL',
+      'generate': '_generate',
+      'generateRaw': '_generateRaw',
+      'isToolCallingSupported': '_isToolCallingSupported',
+      'registerFunctionTool': '_registerFunctionTool',
+      'unregisterFunctionTool': '_unregisterFunctionTool',
+      'fetch': '_fetch'
+    };
+    var definedCount = 0;
+    for (var name in funcMap) {
+      (function(n, bk) {
+        if (typeof bind[bk] === 'function') {
+          window[n] = function() {
+            return bind[bk].apply(bind, arguments);
+          };
+          definedCount++;
+        }
+      })(name, funcMap[name]);
+    }
+    console.log('[TH Bridge Debug] Step 1 - Defined', definedCount, 'MVU functions');
+    console.log('[TH Bridge Debug] Step 1 - getScriptId available:', typeof window.getScriptId === 'function');
+    if (typeof window.getScriptId === 'function') {
+      console.log('[TH Bridge Debug] Step 1 - getScriptId() returns:', window.getScriptId());
+    }
+  })();
 
   // Reactively bind SillyTavern and Mvu context so they are defined in Step 1.5
   Object.defineProperty(window, 'SillyTavern', {
@@ -1136,6 +1298,14 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
       configurable: true,
     });
   }
+</script>
+<script>
+  // ─── Step 1.4: Inject Vue compile-time feature flags for esm-bundler build ───
+  // The MVU bundle uses Vue's esm-bundler build which expects these global flags.
+  // Without them, Vue logs warnings and may not tree-shake properly.
+  window.__VUE_OPTIONS_API__ = true;
+  window.__VUE_PROD_DEVTOOLS__ = false;
+  window.__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ = false;
 </script>
 <script>
   // ─── Step 1.5: Pre-load MVU libraries and framework offline ───

@@ -8,7 +8,7 @@ import { reportUsage, incrementUsageCount } from "../utils/telemetry";
 import { universalFetch, FALLBACK_MODEL, API_ENDPOINT } from "../utils/apiClient";
 import { readSSEStream, safeParseSSEData } from "../utils/streamReader";
 import FormattedText from "../components/FormattedText";
-import { parseMvuMessage, notifyVariablesUpdated } from "../utils/tavernHelperBridge";
+import { parseMvuMessage, notifyVariablesUpdated, initializeMvuFromCharacter } from "../utils/tavernHelperBridge";
 import { getAllSessions } from "../utils/localDB";
 
 const generateUniqueId = (prefix: string): string => {
@@ -98,6 +98,9 @@ export const useChat = (
     if (!activeCharacter) return;
     const starterMsg = customFirstMessage ?? activeCharacter.first_mes;
 
+    // Initialize MVU variables from character card extensions
+    const mvuVariables = initializeMvuFromCharacter(activeCharacter);
+
     const newSession: ChatSession = {
       id: generateUniqueId("session_"),
       characterId: activeCharacter.id,
@@ -114,6 +117,7 @@ export const useChat = (
           ]
         : [],
       summaries: [],
+      variables: mvuVariables,
     };
 
     try {
@@ -943,6 +947,9 @@ export const useChat = (
     );
     if (!branchTitle) return;
 
+    // Initialize MVU variables from character card extensions
+    const mvuVariables = initializeMvuFromCharacter(activeCharacter);
+
     const newSession: ChatSession = {
       id: generateUniqueId("session_branch_"),
       characterId: activeCharId,
@@ -950,6 +957,7 @@ export const useChat = (
       messages: [],
       summaries: [],
       createdAt: Date.now(),
+      variables: mvuVariables,
     };
 
     try {
@@ -999,6 +1007,8 @@ export const useChat = (
       setActiveSessionId(lastSession.id);
     } else {
       const targetChar = characters.find((c) => c.id === charId);
+      // Initialize MVU variables from character card extensions
+      const mvuVariables = initializeMvuFromCharacter(targetChar);
       const newSession: ChatSession = {
         id: generateUniqueId("session_"),
         characterId: charId,
@@ -1015,6 +1025,7 @@ export const useChat = (
             ]
           : [],
         summaries: [],
+        variables: mvuVariables,
       };
       try {
         await saveSession(newSession);
