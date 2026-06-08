@@ -525,11 +525,22 @@ if (typeof window !== "undefined") {
     _getCurrentMessageId: () => {
       return (bridgeParams?.activeSession?.messages?.length || 1) - 1;
     },
-    _getVariables(opt = { type: "chat" }) {
+    _getVariables(opt: any = { type: "chat" }) {
       if (!bridgeParams) return {};
       const { activeCharacter, settings, activeSession } = bridgeParams;
       if (opt.type === "character") return activeCharacter?.variables || {};
       if (opt.type === "global") return settings?.variables || {};
+      if (opt.type === "message" && typeof opt.message_id === "number") {
+        const msg = activeSession?.messages[opt.message_id] as any;
+        if (msg) {
+          const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
+          if (!msg.extra) msg.extra = {};
+          if (!msg.extra.variables) msg.extra.variables = {};
+          if (!msg.extra.variables[swipeId]) msg.extra.variables[swipeId] = {};
+          return msg.extra.variables[swipeId];
+        }
+        return {};
+      }
       return activeSession?.variables || {};
     },
     _getAllVariables() {
@@ -541,7 +552,7 @@ if (typeof window !== "undefined") {
         ...(activeSession?.variables || {}),
       };
     },
-    _replaceVariables(variables: Record<string, any>, opt = { type: "chat" }) {
+    _replaceVariables(variables: Record<string, any>, opt: any = { type: "chat" }) {
       if (!bridgeParams) return;
       const { activeCharacter, settings, activeSession, setCharacters, saveCharacter, updateSettings, setSessions, saveSession } = bridgeParams;
       if (opt.type === "character" && activeCharacter) {
@@ -552,6 +563,26 @@ if (typeof window !== "undefined") {
         saveCharacter(updated);
       } else if (opt.type === "global") {
         updateSettings({ ...settings, variables });
+      } else if (opt.type === "message" && typeof opt.message_id === "number" && activeSession) {
+        const updatedMessages = activeSession.messages.map((m, idx) => {
+          if (idx === opt.message_id) {
+            const msg = m as any;
+            const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
+            const extra = { ...msg.extra };
+            if (!extra.variables) extra.variables = {};
+            extra.variables = {
+              ...extra.variables,
+              [swipeId]: variables
+            };
+            return { ...m, extra };
+          }
+          return m;
+        });
+        const updatedSession = { ...activeSession, messages: updatedMessages };
+        setSessions((prev) =>
+          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+        );
+        saveSession(updatedSession);
       } else if (activeSession) {
         const updated = { ...activeSession, variables };
         setSessions((prev) =>
@@ -584,6 +615,190 @@ if (typeof window !== "undefined") {
       bindObj._replaceVariables(vars, opt);
       return { variables: vars, delete_occurred: true };
     },
+    _setChatMessage(id: number, messageObj: any) {
+      console.log(`[TavernHelper Bridge] _setChatMessage called for id: ${id}`, messageObj);
+      if (!bridgeParams || !bridgeParams.activeSession) return;
+      const { activeSession, setSessions, saveSession } = bridgeParams;
+      
+      let content = "";
+      if (typeof messageObj === "string") {
+        content = messageObj;
+      } else if (messageObj && typeof messageObj === "object") {
+        content = messageObj.mes !== undefined ? messageObj.mes : (messageObj.content !== undefined ? messageObj.content : (messageObj.message !== undefined ? messageObj.message : ""));
+      }
+      
+      let changed = false;
+      const updatedMessages = activeSession.messages.map((m, idx) => {
+        if (idx === id) {
+          let updated = { ...m, content };
+          if (messageObj && typeof messageObj === "object") {
+            if (messageObj.swipe_id !== undefined) {
+              (updated as any).swipe_id = messageObj.swipe_id;
+            }
+            if (messageObj.swipes !== undefined) {
+              (updated as any).swipes = messageObj.swipes;
+            }
+            if (messageObj.swipes_data !== undefined) {
+              (updated as any).swipes_data = messageObj.swipes_data;
+            }
+            if (messageObj.extra !== undefined) {
+              (updated as any).extra = { ...(updated as any).extra, ...messageObj.extra };
+            }
+            if (messageObj.variables !== undefined) {
+              if (!(updated as any).extra) (updated as any).extra = {};
+              (updated as any).extra.variables = { ...(updated as any).extra.variables, ...messageObj.variables };
+            }
+          }
+          changed = true;
+          return updated;
+        }
+        return m;
+      });
+      
+      if (changed) {
+        const updatedSession = { ...activeSession, messages: updatedMessages };
+        setSessions((prev) =>
+          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+        );
+        saveSession(updatedSession);
+      }
+    },
+    _setChatMessages(messagesList: any[]) {
+      console.log("[TavernHelper Bridge] _setChatMessages called with:", JSON.stringify(messagesList, null, 2));
+      if (!bridgeParams || !bridgeParams.activeSession) return;
+      const { activeSession, setSessions, saveSession, activeCharacter } = bridgeParams;
+      
+      if (!Array.isArray(messagesList)) return;
+      
+      let changed = false;
+      const updatedMessages = activeSession.messages.map((m, idx) => {
+        const newMsg = messagesList[idx] as any;
+        if (newMsg) {
+          let updated = { ...m };
+          let localChanged = false;
+          
+          const content = typeof newMsg === "string" ? newMsg : (newMsg.mes !== undefined ? newMsg.mes : (newMsg.content !== undefined ? newMsg.content : (newMsg.message !== undefined ? newMsg.message : undefined)));
+          console.log(`[TavernHelper Bridge] msg ${idx} content resolution: newMsgContent:`, content, "existingContent:", updated.content);
+          if (content !== undefined && updated.content !== content) {
+            updated.content = content;
+            localChanged = true;
+          }
+          if (typeof newMsg === "object") {
+            if (newMsg.swipe_id !== undefined && (updated as any).swipe_id !== newMsg.swipe_id) {
+              (updated as any).swipe_id = newMsg.swipe_id;
+              localChanged = true;
+              
+              // Sync content with the new swipe_id
+              let swipeContent: string | undefined = undefined;
+              if (idx === 0 && activeCharacter) {
+                const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
+                if (allGreetings[newMsg.swipe_id] !== undefined) {
+                  swipeContent = allGreetings[newMsg.swipe_id];
+                }
+              } else if (updated.swipes && updated.swipes[newMsg.swipe_id] !== undefined) {
+                swipeContent = updated.swipes[newMsg.swipe_id];
+              }
+              if (swipeContent !== undefined && updated.content !== swipeContent) {
+                updated.content = swipeContent;
+              }
+            }
+            if (newMsg.swipes !== undefined && !_.isEqual((updated as any).swipes, newMsg.swipes)) {
+              (updated as any).swipes = newMsg.swipes;
+              localChanged = true;
+            }
+            if (newMsg.swipes_data !== undefined && !_.isEqual((updated as any).swipes_data, newMsg.swipes_data)) {
+              (updated as any).swipes_data = newMsg.swipes_data;
+              localChanged = true;
+            }
+            if (newMsg.extra !== undefined) {
+              (updated as any).extra = { ...(updated as any).extra, ...newMsg.extra };
+              localChanged = true;
+            }
+            if (newMsg.variables !== undefined) {
+              if (!(updated as any).extra) (updated as any).extra = {};
+              (updated as any).extra.variables = { ...(updated as any).extra.variables, ...newMsg.variables };
+              localChanged = true;
+            }
+          }
+          if (localChanged) {
+            changed = true;
+            return updated;
+          }
+        }
+        return m;
+      });
+      
+      console.log("[TavernHelper Bridge] _setChatMessages execution status: changed =", changed);
+      if (changed) {
+        const updatedSession = { ...activeSession, messages: updatedMessages };
+        setSessions((prev) =>
+          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+        );
+        saveSession(updatedSession);
+      }
+    },
+    _getChatMessages() {
+      if (!bridgeParams) return [];
+      const { activeSession, activeCharacter, settings } = bridgeParams;
+      return (activeSession?.messages || []).map((m, idx) => {
+        const msgObj: any = {
+          id: idx,
+          name: m.sender === "user" ? settings.userName : (activeCharacter?.name || "AI"),
+          mes: m.content,
+          message: m.content,
+          role: m.sender,
+          send_date: m.timestamp,
+          is_user: m.sender === "user",
+          is_system: m.sender === "system",
+          swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
+          swipes: (m as any).swipes || [m.content],
+          extra: (m as any).extra || {},
+          variables: (m as any).extra?.variables || (m as any).variables || {},
+        };
+        if (idx === 0 && activeCharacter) {
+          const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
+          msgObj.swipes = allGreetings;
+          const currentIdx = allGreetings.indexOf(m.content);
+          msgObj.swipe_id = (m as any).swipe_id !== undefined ? (m as any).swipe_id : (currentIdx !== -1 ? currentIdx : 0);
+        }
+        return msgObj;
+      });
+    },
+    _getLastMessageId() {
+      return (bridgeParams?.activeSession?.messages?.length || 1) - 1;
+    },
+    _getCurrentChatId() {
+      return bridgeParams?.activeSession?.id || "default_chat";
+    },
+    _getTavernHelperVersion() {
+      return "3.5.0";
+    },
+    _saveChat() {
+      return Promise.resolve();
+    },
+    _saveSettingsDebounced() {
+      if (bridgeParams && bridgeParams.settings) {
+        bridgeParams.updateSettings({
+          ...bridgeParams.settings,
+          extensionSettings: bridgeParams.settings.extensionSettings || {},
+        });
+      }
+      return Promise.resolve();
+    },
+    _getCharLorebooks() { return []; },
+    _getCharWorldbookNames() { return []; },
+    _getCurrentCharPrimaryLorebook() { return null; },
+    _getLorebookEntries() { return []; },
+    _getLorebookSettings() { return {}; },
+    _setLorebookSettings() {},
+    _setExtraAnalysisStates() {},
+    _normalizeBaseURL(url: string) { return url; },
+    _generate() { return Promise.resolve(""); },
+    _generateRaw() { return Promise.resolve(""); },
+    _isToolCallingSupported() { return false; },
+    _registerFunctionTool() {},
+    _unregisterFunctionTool() {},
+    _fetch(url: string, init: any) { return fetch(url, init); },
   };
 
   function sharedWriteExtensionField(arg1: string, arg2: any, arg3?: any) {
@@ -628,6 +843,11 @@ if (typeof window !== "undefined") {
     },
 
     _bind: bindObj,
+    _onIframeReady(iframeId: string) {
+      if (bindObj && typeof bindObj._onIframeReady === "function") {
+        bindObj._onIframeReady(iframeId);
+      }
+    },
 
     getVariables(option = { type: "chat" }) {
       return this._bind._getVariables(option);
@@ -670,15 +890,21 @@ if (typeof window !== "undefined") {
           id: idx,
           name: m.sender === "user" ? settings.userName : (activeCharacter?.name || "AI"),
           mes: m.content,
+          message: m.content,
+          role: m.sender,
           send_date: m.timestamp,
           is_user: m.sender === "user",
           is_system: m.sender === "system",
+          swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
+          swipes: (m as any).swipes || [m.content],
+          extra: (m as any).extra || {},
+          variables: (m as any).extra?.variables || (m as any).variables || {},
         };
         if (idx === 0 && activeCharacter) {
           const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
           msgObj.swipes = allGreetings;
           const currentIdx = allGreetings.indexOf(m.content);
-          msgObj.swipe_id = currentIdx !== -1 ? currentIdx : 0;
+          msgObj.swipe_id = (m as any).swipe_id !== undefined ? (m as any).swipe_id : (currentIdx !== -1 ? currentIdx : 0);
         }
         return msgObj;
       });
@@ -689,13 +915,39 @@ if (typeof window !== "undefined") {
       const session = { ...bridgeParams.activeSession };
       let changed = false;
       updates.forEach((up) => {
-        const msg = session.messages[up.message_id];
+        const msg = session.messages[up.message_id] as any;
         if (msg) {
+          const newContent = up.message !== undefined ? up.message : (up.mes !== undefined ? up.mes : (up.content !== undefined ? up.content : undefined));
+          if (newContent !== undefined && msg.content !== newContent) {
+            msg.content = newContent;
+            changed = true;
+          }
+          if (up.swipe_id !== undefined && msg.swipe_id !== up.swipe_id) {
+            msg.swipe_id = up.swipe_id;
+            changed = true;
+          }
+          if (up.swipes !== undefined && !_.isEqual(msg.swipes, up.swipes)) {
+            msg.swipes = up.swipes;
+            changed = true;
+          }
+          if (up.swipes_data !== undefined && !_.isEqual(msg.swipes_data, up.swipes_data)) {
+            msg.swipes_data = up.swipes_data;
+            changed = true;
+          }
+          if (up.extra !== undefined) {
+            msg.extra = { ...msg.extra, ...up.extra };
+            changed = true;
+          }
+          if (up.variables !== undefined) {
+            if (!msg.extra) msg.extra = {};
+            msg.extra.variables = { ...msg.extra.variables, ...up.variables };
+            changed = true;
+          }
           if (up.swipe_id !== undefined) {
             const char = bridgeParams?.activeCharacter;
             if (up.message_id === 0 && char) {
               const allGreetings = [char.first_mes, ...(char.alternate_greetings || [])];
-              if (allGreetings[up.swipe_id]) {
+              if (allGreetings[up.swipe_id] && msg.content !== allGreetings[up.swipe_id]) {
                 msg.content = allGreetings[up.swipe_id];
                 changed = true;
               }
@@ -837,14 +1089,29 @@ if (typeof window !== "undefined") {
       const activeSession = bridgeParams?.activeSession;
       const activeChar = bridgeParams?.activeCharacter;
       const userName = bridgeParams?.settings?.userName || "user";
-      return (activeSession?.messages || []).map((m, idx) => ({
-        id: idx,
-        name: m.sender === "user" ? userName : (activeChar?.name || "AI"),
-        mes: m.content,
-        send_date: m.timestamp,
-        is_user: m.sender === "user",
-        is_system: m.sender === "system",
-      }));
+      return (activeSession?.messages || []).map((m, idx) => {
+        const msgObj: any = {
+          id: idx,
+          name: m.sender === "user" ? userName : (activeChar?.name || "AI"),
+          mes: m.content,
+          message: m.content,
+          role: m.sender,
+          send_date: m.timestamp,
+          is_user: m.sender === "user",
+          is_system: m.sender === "system",
+          swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
+          swipes: (m as any).swipes || [m.content],
+          extra: (m as any).extra || {},
+          variables: (m as any).extra?.variables || (m as any).variables || {},
+        };
+        if (idx === 0 && activeChar) {
+          const allGreetings = [activeChar.first_mes, ...(activeChar.alternate_greetings || [])];
+          msgObj.swipes = allGreetings;
+          const currentIdx = allGreetings.indexOf(m.content);
+          msgObj.swipe_id = (m as any).swipe_id !== undefined ? (m as any).swipe_id : (currentIdx !== -1 ? currentIdx : 0);
+        }
+        return msgObj;
+      });
     },
     getCurrentChatId() {
       return bridgeParams?.activeSession?.id || "default_chat";
@@ -857,14 +1124,29 @@ if (typeof window !== "undefined") {
       const activeSession = bridgeParams?.activeSession;
       const userName = bridgeParams?.settings?.userName || "user";
       
-      const chatMessages = (activeSession?.messages || []).map((m, idx) => ({
-        id: idx,
-        name: m.sender === "user" ? userName : (activeChar?.name || "AI"),
-        mes: m.content,
-        send_date: m.timestamp,
-        is_user: m.sender === "user",
-        is_system: m.sender === "system",
-      }));
+      const chatMessages = (activeSession?.messages || []).map((m, idx) => {
+        const msgObj: any = {
+          id: idx,
+          name: m.sender === "user" ? userName : (activeChar?.name || "AI"),
+          mes: m.content,
+          message: m.content,
+          role: m.sender,
+          send_date: m.timestamp,
+          is_user: m.sender === "user",
+          is_system: m.sender === "system",
+          swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
+          swipes: (m as any).swipes || [m.content],
+          extra: (m as any).extra || {},
+          variables: (m as any).extra?.variables || (m as any).variables || {},
+        };
+        if (idx === 0 && activeChar) {
+          const allGreetings = [activeChar.first_mes, ...(activeChar.alternate_greetings || [])];
+          msgObj.swipes = allGreetings;
+          const currentIdx = allGreetings.indexOf(m.content);
+          msgObj.swipe_id = (m as any).swipe_id !== undefined ? (m as any).swipe_id : (currentIdx !== -1 ? currentIdx : 0);
+        }
+        return msgObj;
+      });
 
       return {
         character: activeChar || null,
@@ -1133,6 +1415,12 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
 <head>
 <meta charset="utf-8" />
 <script>
+  window.onerror = function(message, source, lineno, colno, error) {
+    console.error("[TH Iframe Uncaught Error]:", message, "at", source, ":", lineno, ":", colno, error);
+  };
+  window.onunhandledrejection = function(event) {
+    console.error("[TH Iframe Unhandled Rejection]:", event.reason);
+  };
   // ─── Step 1: inherit libraries from parent window (NO external CDN requests) ───
   // This avoids network slowdowns/errors when developer proxy blocks CDN domains.
   window._ = window.parent._;
@@ -1372,13 +1660,18 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
     // We use DOMContentLoaded (fires synchronously after all inline scripts run)
     // then add a 300ms delay to ensure the card script below has had time to
     // register its mag_variable_initialized listeners via eventOn().
-    document.addEventListener('DOMContentLoaded', function() {
+    function notifyReady() {
       setTimeout(function() {
         if (typeof TavernHelper._onIframeReady === 'function') {
           TavernHelper._onIframeReady(window.__TH_IFRAME_ID || 'script_iframe');
         }
       }, 300);
-    });
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      notifyReady();
+    } else {
+      document.addEventListener('DOMContentLoaded', notifyReady);
+    }
   })();
 </script>
 </head>
@@ -1475,13 +1768,18 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
       });
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
+    function notifyReady() {
       setTimeout(function() {
         if (typeof TavernHelper._onIframeReady === 'function') {
           TavernHelper._onIframeReady(window.__TH_IFRAME_ID || 'message_iframe');
         }
       }, 300);
-    });
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      notifyReady();
+    } else {
+      document.addEventListener('DOMContentLoaded', notifyReady);
+    }
   })();
 <\/script>
 <script>

@@ -19,6 +19,15 @@ export function getDB(): Promise<IDBDatabase> {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       dbInstance = request.result;
+      
+      dbInstance.onclose = () => {
+        dbInstance = null;
+      };
+      dbInstance.onversionchange = () => {
+        dbInstance.close();
+        dbInstance = null;
+      };
+      
       resolve(request.result);
     };
 

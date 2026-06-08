@@ -55,6 +55,8 @@ export interface UniversalFetchPayload {
   modelsPath?: string;
   /** API type identifier forwarded to proxy in web mode */
   type?: string;
+  /** Option to bypass the local Express server proxy in browser environments */
+  bypassProxy?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,7 +123,7 @@ export const universalFetch = async (
 
   let signal: AbortSignal | undefined = customSignal;
   if ((AbortSignal as any).timeout) {
-    const timeoutSignal = AbortSignal.timeout(35_000);
+    const timeoutSignal = AbortSignal.timeout(120_000);
     if (customSignal) {
       if ((AbortSignal as any).any) {
         signal = (AbortSignal as any).any([customSignal, timeoutSignal]);
@@ -131,8 +133,8 @@ export const universalFetch = async (
     }
   }
 
-  // ── Web browser path: delegate to Express proxy ──────────────────────────
-  if (!isTauri) {
+  // ── Web browser path: delegate to Express proxy (unless bypassed) ────────
+  if (!isTauri && !proxyPayload.bypassProxy) {
     return fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

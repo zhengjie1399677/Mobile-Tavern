@@ -185,6 +185,7 @@ export const useChat = (
           apiKey: settings.api.apiKey,
           chatPath: settings?.api?.chatPath,
           reqBody,
+          bypassProxy: settings.api.bypassProxy,
         }, signal);
 
         if (signal?.aborted) return;
@@ -444,6 +445,7 @@ export const useChat = (
         baseUrl: settings.api.baseUrl,
         apiKey: settings.api.apiKey,
         chatPath: settings?.api?.chatPath,
+        bypassProxy: settings.api.bypassProxy,
         reqBody: {
           model: settings.api.modelName || FALLBACK_MODEL,
           stream: true,
@@ -744,6 +746,7 @@ export const useChat = (
         baseUrl: settings.api.baseUrl,
         apiKey: settings.api.apiKey,
         chatPath: settings?.api?.chatPath,
+        bypassProxy: settings.api.bypassProxy,
         reqBody: {
           model: settings.api.modelName || FALLBACK_MODEL,
           stream: true,

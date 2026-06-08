@@ -302,6 +302,28 @@ export default function SettingsTab() {
                     )}
                   </div>
 
+                  {/* bypassProxy Switch */}
+                  <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="space-y-0.5">
+                      <label className="text-[13px] font-semibold text-foreground">
+                        浏览器直连 API (Bypass CORS Proxy)
+                      </label>
+                      <p className="text-[10px] text-muted-foreground max-w-[450px]">
+                        开启后，在电脑浏览器端运行时将绕过本地 Node 代理，直接由浏览器向目标 API 发起请求。若您在电脑上开启了代理工具（如 Clash/v2ray），或者 API 端点支持跨域请求，推荐开启此选项以解决超时或网络不通的问题。
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.api.bypassProxy || false}
+                      onCheckedChange={(checked) =>
+                        updateSettings({
+                          ...settings,
+                          api: { ...settings.api, bypassProxy: checked },
+                        })
+                      }
+                      className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                    />
+                  </div>
+
                 </AccordionContent>
               </AccordionItem>
             </Accordion>

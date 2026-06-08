@@ -71,12 +71,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (typeof window !== "undefined") {
       const currentTab = window.location.hash.replace("#/", "");
       if (tab === "chat" && currentTab === "characters") {
+        window.history.pushState(null, "", "#/characters");
+        window.history.pushState(null, "", "#/chat");
+        setActiveTabState("chat");
+        return;
+      }
+      if (tab === "chat" && currentTab === "chat-history") {
         window.history.pushState(null, "", "#/chat-history");
         window.history.pushState(null, "", "#/chat");
         setActiveTabState("chat");
         return;
       }
       if (tab === "chat-history" && currentTab === "chat") {
+        window.history.back();
+        return;
+      }
+      if (tab === "characters" && currentTab === "chat") {
         window.history.back();
         return;
       }

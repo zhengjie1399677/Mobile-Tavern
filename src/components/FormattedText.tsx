@@ -280,6 +280,7 @@ function preprocessFormattedText(
     const scripts = activeCharacter.extensions.regex_scripts;
     for (const script of scripts) {
       if (script.disabled) continue;
+      if (script.promptOnly) continue;
 
       const placement = script.placement;
       if (Array.isArray(placement) && !placement.includes(1) && !placement.includes(2)) {
@@ -296,8 +297,10 @@ function preprocessFormattedText(
         if (match) {
           regex = new RegExp(match[1], match[2]);
         } else {
-          const escaped = findRegex.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          regex = new RegExp(escaped, "g");
+          // SillyTavern Regex scripts are always regular expressions.
+          // If they don't start with slashes, they should be compiled as RegExp directly without escaping.
+          // We default to global 'g' and case-insensitive 'i' for compatibility.
+          regex = new RegExp(findRegex, "gi");
         }
         processed = processed.replace(regex, replaceString);
       } catch (err) {
