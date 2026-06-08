@@ -10,6 +10,20 @@ const DB_VERSION = 1;
 
 let dbInstance: IDBDatabase | null = null;
 
+// Global Promise-based queue to serialize all IndexedDB write operations sequentially.
+// This prevents concurrent write transactions from conflicting or deadlocking, which is critical in WebView environments.
+let writeQueue: Promise<any> = Promise.resolve();
+
+function enqueueWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const result = writeQueue.then(operation);
+  // Chain the next task, catching any errors to ensure subsequent queue operations still run.
+  writeQueue = result.then(
+    () => {},
+    () => {}
+  );
+  return result;
+}
+
 export function getDB(): Promise<IDBDatabase> {
   if (dbInstance) return Promise.resolve(dbInstance);
 
@@ -58,26 +72,30 @@ export async function getAllCharacters(): Promise<CharacterCard[]> {
 }
 
 export async function saveCharacter(character: CharacterCard): Promise<void> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction("characters", "readwrite");
-    const store = transaction.objectStore("characters");
-    const request = store.put(character);
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("characters", "readwrite");
+      const store = transaction.objectStore("characters");
+      const request = store.put(character);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
   });
 }
 
 export async function deleteCharacter(id: string): Promise<void> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction("characters", "readwrite");
-    const store = transaction.objectStore("characters");
-    const request = store.delete(id);
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("characters", "readwrite");
+      const store = transaction.objectStore("characters");
+      const request = store.delete(id);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
   });
 }
 
@@ -96,26 +114,30 @@ export async function getAllSessions(): Promise<ChatSession[]> {
 }
 
 export async function saveSession(session: ChatSession): Promise<void> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction("sessions", "readwrite");
-    const store = transaction.objectStore("sessions");
-    const request = store.put(session);
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("sessions", "readwrite");
+      const store = transaction.objectStore("sessions");
+      const request = store.put(session);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
   });
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction("sessions", "readwrite");
-    const store = transaction.objectStore("sessions");
-    const request = store.delete(id);
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("sessions", "readwrite");
+      const store = transaction.objectStore("sessions");
+      const request = store.delete(id);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
   });
 }
 
@@ -136,14 +158,16 @@ export async function getStoredSettings(): Promise<UserSettings | null> {
 export async function saveStoredSettings(
   settings: UserSettings,
 ): Promise<void> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction("settings", "readwrite");
-    const store = transaction.objectStore("settings");
-    const request = store.put(settings, "user_settings");
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("settings", "readwrite");
+      const store = transaction.objectStore("settings");
+      const request = store.put(settings, "user_settings");
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
   });
 }
 
@@ -162,47 +186,53 @@ export async function getGlobalLorebook(): Promise<LorebookEntry[]> {
 export async function saveGlobalLorebook(
   entries: LorebookEntry[],
 ): Promise<void> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction("settings", "readwrite");
-    const store = transaction.objectStore("settings");
-    const request = store.put(entries, "global_lorebook");
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("settings", "readwrite");
+      const store = transaction.objectStore("settings");
+      const request = store.put(entries, "global_lorebook");
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
   });
 }
 
 export async function bulkSaveCharacters(charactersList: CharacterCard[]): Promise<void> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    if (charactersList.length === 0) return resolve();
-    const transaction = db.transaction("characters", "readwrite");
-    const store = transaction.objectStore("characters");
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      if (charactersList.length === 0) return resolve();
+      const transaction = db.transaction("characters", "readwrite");
+      const store = transaction.objectStore("characters");
 
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
 
-    for (const char of charactersList) {
-      store.put(char);
-    }
+      for (const char of charactersList) {
+        store.put(char);
+      }
+    });
   });
 }
 
 export async function bulkSaveSessions(sessionsList: ChatSession[]): Promise<void> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    if (sessionsList.length === 0) return resolve();
-    const transaction = db.transaction("sessions", "readwrite");
-    const store = transaction.objectStore("sessions");
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      if (sessionsList.length === 0) return resolve();
+      const transaction = db.transaction("sessions", "readwrite");
+      const store = transaction.objectStore("sessions");
 
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
 
-    for (const session of sessionsList) {
-      store.put(session);
-    }
+      for (const session of sessionsList) {
+        store.put(session);
+      }
+    });
   });
 }

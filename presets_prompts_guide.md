@@ -2,7 +2,7 @@
 
 > [!IMPORTANT]
 > **如果你是负责生成角色卡的 AI 助手（例如 Claude、GPT-4o 等），用户正在使用你进行“极限系统能力测试”。**
-> 请严格遵守本说明书中定义的 JSON 结构和特殊字段规范，并且**尽可能多地使用高级特性**（包括视觉特效、多情绪差分、复杂世界书逻辑），以测试 Mobile Tavern 移动端容器的最大潜能。
+> 请严格遵守本说明书中定义的 JSON 结构和特殊字段规范，并且**尽可能多地使用高级特性**（包括视觉特效、多情绪差分、复杂世界书逻辑、MVU 变量交互机制），以测试 Mobile Tavern 移动端容器的最大潜能。
 
 ---
 
@@ -80,10 +80,64 @@
   * `"in_chat"`: 动态插队到聊天历史。需配合 `depth: 2` (插在倒数第2轮对话处)。
 * `enabled`: 必须设为 `true`。
 
----\n
-## 5. 极限能力测试 JSON 模板示例
+---
 
-请基于以下模板结构，发挥你的创意，编写一个充满赛博朋克、硬核科幻或复杂魔法设定的角色，并**完全填充**所有高级属性以供极限测试使用：
+## 5. MVU (Model-View-Update) 变量与交互式游戏卡规范
+
+Mobile Tavern 深度兼容 Tavern Helper 规范，支持将角色卡升级为包含本地持久状态、交互式 HTML UI 以及精准规则计算的**交互式游戏卡**（如 RPG、好感度系统等）。
+
+### ⚙️ Zod Schema 状态定义与初始化 (Model)
+
+MVU 卡片必须在初始化脚本（通常置于 `first_mes` 中的 `<script>` 标签或外部扩展脚本中）中声明其本地变量的数据结构：
+*   **注册函数**：`window.registerMvuSchema(zodSchema)`。
+*   **状态字段**：所有自定义游戏状态必须嵌套在 `variables.stat_data` 中，使用 Zod 验证器设置字段类型与默认值。
+*   **示例代码**：
+    ```javascript
+    registerMvuSchema(z.object({
+      hp: z.number().default(100),
+      gold: z.number().default(10),
+      inventory: z.array(z.string()).default(["木剑"])
+    }));
+    ```
+
+### 🔄 状态更新机制 (Update)
+
+状态更新不需要大模型自己做数学运算或记忆数值，而是由系统拦截 AI 回复中的特殊指令并自动修改本地状态。支持以下两种更新方式：
+
+#### 方式 A：Lodash 修改指令（推荐）
+在 AI 回复的文本末尾或系统提示中，要求 AI 按照指定格式输出 Lodash 风格的变量操作指令：
+*   `_.set(path, value)`：设定变量值。例如 `_.set(hp, 80)`。
+*   `_.add(path, number)`：增加/减少数值。例如 `_.add(hp, -20)`。
+*   `_.insert(path, key_or_index, value)`：插入数组或赋值对象。例如 `_.insert(inventory, "铁剑")`。
+*   `_.delete(path)`：删除变量或数组元素。例如 `_.delete(inventory[0])`。
+*   `_.move(fromPath, toPath)`：移动变量或数组元素。
+
+#### 方式 B：`<json_patch>` 指令块
+AI 回复中可以使用 XML 标签包裹 JSON Patch 操作列表：
+```xml
+<json_patch>
+[
+  {"op": "replace", "path": "/hp", "value": 80},
+  {"op": "add", "path": "/gold", "value": 10},
+  {"op": "remove", "path": "/inventory/0"}
+]
+</json_patch>
+```
+
+### 🗣️ System Prompt 指导规范
+为了让 AI 正确执行变量更新，必须在 `system_prompt` 或 `post_history_instructions` 中注入明确的指令。
+*   **示例指令**：
+    > 【变量修改指导】
+    > 根据本次对话的剧情发展，如角色受到伤害、获得物品或好感度变化，你必须在回复的绝对末尾，换行输出对应的变量操作指令。
+    > 例如：
+    > 受到 15 点伤害：`_.add(hp, -15)`
+    > 获得一把铁剑：`_.insert(inventory, "铁剑")`
+
+---
+
+## 6. 极限能力测试 JSON 模板示例
+
+请基于以下模板结构，发挥你的创意，编写一个充满赛博朋克、硬核科幻或复杂魔法设定的角色，并**完全填充**所有高级属性（包含 MVU 变量机制）以供极限测试使用：
 
 ```json
 {
@@ -91,14 +145,21 @@
   "description": "...",
   "personality": "...",
   "scenario": "...",
-  "first_mes": "「系统启动...」奥菲莉娅*睁开闪烁着数据流的机械眼*，\"{{user}}，我们遇到麻烦了。\"",
+  "first_mes": "<script>\nregisterMvuSchema(z.object({\n  hp: z.number().default(100),\n  gold: z.number().default(10),\n  inventory: z.array(z.string()).default([])\n}));\n</script>「系统启动...」奥菲莉娅*睁开闪烁着数据流的机械眼*，\"{{user}}，我们遇到麻烦了。\"",
   "alternate_greetings": ["...", "...", "..."],
   "mes_example": "<START>\n{{user}}: ...\n{{char}}: ...",
-  "system_prompt": "扮演奥菲莉娅，注意格式，动作使用星号包裹...",
+  "system_prompt": "扮演奥菲莉娅，注意格式，动作使用星号包裹。在判定发生状态变化时，请在回复的最末尾输出Lodash指令更新状态（如 hp, gold, inventory）。",
   "post_history_instructions": "【生成戒律】绝对禁止代操user的任何行为和对话。",
   "character_version": "1.3.7",
   "creator": "AI Tester",
-  "tags": ["极限测试", "复杂机制", "全功能启用"],
+  "tags": ["极限测试", "复杂机制", "全功能启用", "MVU"],
+  "variables": {
+    "stat_data": {
+      "hp": 100,
+      "gold": 10,
+      "inventory": ["闪存盘", "EMP手雷"]
+    }
+  },
   "visualSettings": {
     "bubbleColor": "#0d1117",
     "bubbleTextColor": "#c9d1d9",
@@ -160,5 +221,16 @@
 4. **性能与资源限制**：避免一次性加载过大 Base64 图像，建议使用 CDN 链接或分块加载；如果使用本地资源，请确保文件大小不超过 2 MB，以防止 Android WebView OOM。 
 5. **表达式正则安全**：正则表达式不应使用极端回溯构造（如过度嵌套的 `(?:(a|b){0,100})`），以防止在移动端解析时出现卡顿或崩溃。
 6. **调试与日志**：在开发阶段，可在 `system_prompt` 中加入调试指令 `{{#log}}`，但请确保在正式发布前移除，以避免泄露内部实现细节。
+7. **SSRF 代理防御限制（SSRF Guard）**：
+   * 在网页端运行模式下，系统使用 Node/Express 代理以防跨域（CORS）限制。
+   * 为防范 SSRF（服务端请求伪造），代理对 `baseUrl` 进行了严格审查，**会强行拦截所有指向本地回环、内网私有网段（如 127.0.0.1、localhost、10.x.x.x、192.168.x.x 等）以及 IPv4-Mapped/Compatible IPv6 格式（如 ::ffff:127.0.0.1）的连接目标**。测试时请确保使用公开的公网域名/IP 作为大模型端点。
+8. **免侵入平滑降级（Zero-Intrusion & Fallback）**：
+   * 系统采用纯数据驱动机制。若卡片中未包含自定义视觉（`visualSettings`）或立绘表情（`expressions`），前端对应层将完全隐去，直接回退到系统最干净通用的对话排版。
+   * 立绘匹配规则如果全部失效，会自动回退寻找 `default`，若依然缺失则降级显示卡片唯一的 `avatar` 头像，绝不出现破图。
+9. **动作格式化激活（enableAsteriskFormatting）**：
+   * 只有当卡片在 `visualSettings` 下声明 `"enableAsteriskFormatting": true` 时，系统才会把星号 `*` 包裹的内容分色渲染为特定的灰色斜体。默认情况下只执行标准 Markdown 格式化以确保老旧卡片的兼容性。
+10. **MVU 变量约束与错误提示**：
+    * 在更新变量时，请务必保证输出的修改指令符合注册的 Zod Schema（例如不能往 number 类型的 `hp` 字段 add 一个 string，也不能设置 schema 中未定义的字段，除非 schema 设置了 `extensible` 为 true）。
+    * 若 AI 输出的指令发生 Zod 校验错误，Mobile Tavern 会通过全局 Toast (Toastr) 弹出警报，提示用户可能需要重 Roll 或手动修复变量。
 
 遵循上述指南，你的卡片将最大化利用 Mobile Tavern 的所有高级特性，帮助你验证系统的极限能力。

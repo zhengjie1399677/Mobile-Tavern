@@ -1138,11 +1138,6 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   }
 </script>
 <script>
-  // ─── Step 1.5: Pre-load MVU libraries and framework offline ───
-  ${processedMvuZod}
-  ${processedMvuBundle}
-</script>
-<script>
   // ─── Step 2: TavernHelper predefine.js ───
   (function() {
     var iframeId = "${scriptId}";
@@ -1210,6 +1205,11 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
       }, 300);
     });
   })();
+</script>
+<script>
+  // ─── Step 1.5: Pre-load MVU libraries and framework offline ───
+  ${processedMvuZod}
+  ${processedMvuBundle}
 </script>
 </head>
 <body>
