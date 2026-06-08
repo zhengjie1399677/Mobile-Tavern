@@ -1,5 +1,7 @@
 import React, { useContext } from "react";
 import { AppContext } from "../AppContext";
+import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
+import { CharacterCard } from "../types";
 import {
   Bot,
   Image as ImageIcon,
@@ -28,6 +30,7 @@ export default function CharactersTab() {
     setActiveTab,
     setActiveWorldbookHostId,
   } = useContext(AppContext);
+  const [selectedDetailChar, setSelectedDetailChar] = React.useState<CharacterCard | null>(null);
   return (
     <div className="px-4 pb-4 pt-1.5 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-3 pt-1">
@@ -79,7 +82,14 @@ export default function CharactersTab() {
               }`}
             >
               {/* Character Avatar Grid */}
-              <div className="w-16 h-full rounded-lg bg-muted overflow-hidden flex-shrink-0 border border-border/50 flex items-center justify-center text-muted-foreground relative">
+              <div 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedDetailChar(char);
+                }}
+                className="w-16 h-full rounded-lg bg-muted overflow-hidden flex-shrink-0 border border-border/50 flex items-center justify-center text-muted-foreground relative cursor-zoom-in hover:opacity-90 active:scale-95 transition-all"
+                title="查看人设档案"
+              >
                 {char.avatar ? (
                   <img
                     src={char.avatar}
@@ -174,6 +184,11 @@ export default function CharactersTab() {
           </div>
         )}
       </div>
+      <CharacterDetailDrawer
+        isOpen={!!selectedDetailChar}
+        character={selectedDetailChar}
+        onClose={() => setSelectedDetailChar(null)}
+      />
     </div>
   );
 }

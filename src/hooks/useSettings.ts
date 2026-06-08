@@ -145,11 +145,12 @@ export const FORMAT_PRESERVATION_BUNDLE = {
 export const DEFAULT_SETTINGS: UserSettings = {
   api: {
     type: "openai-compat",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+    baseUrl: "https://api.deepseek.com/v1",
     apiKey: "",
-    modelName: "gemini-2.5-flash",
+    modelName: "deepseek-chat",
     chatPath: "/chat/completions",
     modelsPath: "/models",
+    bypassProxy: false,
   },
   preset: DEFAULT_PRESETS.balanced,
   memory: {
@@ -248,6 +249,7 @@ export const useSettings = () => {
               ...(storedSet.api || {}),
               chatPath: storedSet.api?.chatPath || DEFAULT_SETTINGS.api.chatPath,
               modelsPath: storedSet.api?.modelsPath || DEFAULT_SETTINGS.api.modelsPath,
+              bypassProxy: storedSet.api?.bypassProxy ?? DEFAULT_SETTINGS.api.bypassProxy,
             },
             preset: { ...DEFAULT_SETTINGS.preset, ...(storedSet.preset || {}) },
             memory: {
@@ -330,6 +332,7 @@ export const useSettings = () => {
         baseUrl: settings.api.baseUrl,
         apiKey: settings.api.apiKey,
         modelsPath: settings.api.modelsPath,
+        bypassProxy: settings.api.bypassProxy,
       });
       const data = await response.json();
       if (data.success && data.models) {
@@ -380,6 +383,7 @@ export const useSettings = () => {
         apiKey: settings.api.apiKey,
         modelName: settings.api.modelName,
         chatPath: settings.api.chatPath,
+        bypassProxy: settings.api.bypassProxy,
       });
       const data = await response.json();
       if (data.success) {

@@ -23,6 +23,7 @@ import {
 
 import { saveSession } from "../utils/localDB";
 import { initTavernHelperBridge, cleanTavernHelperBridge, createScriptIframeSrcDoc } from "../utils/tavernHelperBridge";
+import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
 
 const ChatInputArea = () => {
   const {
@@ -258,6 +259,7 @@ export default function ChatTab() {
   }, []);
 
   const [isPortraitCollapsed, setIsPortraitCollapsed] = React.useState(false);
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = React.useState(false);
   const [visibleExtensions, setVisibleExtensions] = React.useState<string[]>(["condition", "inventory", "bonding"]);
   const [showExtDropdown, setShowExtDropdown] = React.useState(false);
 
@@ -426,55 +428,65 @@ export default function ChatTab() {
       <div className="bg-card p-3 border-b border-border flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2.5 min-w-0">
           <button
-            onClick={() => setActiveTab("chat-history")}
+            onClick={() => setActiveTab("characters")}
             className="text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted border border-border/80 flex items-center justify-center">
-            {activeCharacter?.avatar ? (
-              <img
-                src={activeCharacter.avatar}
-                alt={activeCharacter.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-base font-serif font-bold text-primary">
-                {activeCharacter?.name?.[0]}
-              </span>
-            )}
-          </div>
-          <div className="min-w-0 flex flex-col">
-            <div className="flex items-center gap-1.5">
-              <h2 className="text-sm font-bold text-foreground truncate leading-tight">
-                {activeCharacter?.name}
-              </h2>
-              <button
-                onClick={() => setShowSessionManager(true)}
-                className="text-primary hover:bg-primary/10 p-0.5 rounded transition"
-                title="分支管理"
-              >
-                <GitFork className="w-3 h-3" />
-              </button>
+          <div
+            onClick={() => setIsDetailDrawerOpen(true)}
+            className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-85 active:scale-98 transition-all"
+            title="查看角色卡详情"
+          >
+            <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted border border-border/80 flex items-center justify-center flex-shrink-0">
+              {activeCharacter?.avatar ? (
+                <img
+                  src={activeCharacter.avatar}
+                  alt={activeCharacter.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-base font-serif font-bold text-primary">
+                  {activeCharacter?.name?.[0]}
+                </span>
+              )}
             </div>
-            <p
-              className="text-[10px] text-muted-foreground truncate mt-0.5 font-light cursor-pointer"
-              onClick={async () => {
-                const nextTitle = await showCustomPrompt(
-                  "修改当前分支线标题已在IndexedDB进行分支区分:",
-                  activeSession?.title || "",
-                );
-                if (nextTitle && activeSession) {
-                  const updated = { ...activeSession, title: nextTitle };
-                  setSessions((prev) =>
-                    prev.map((s) => (s.id === updated.id ? updated : s)),
+            <div className="min-w-0 flex flex-col">
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-sm font-bold text-foreground truncate leading-tight">
+                  {activeCharacter?.name}
+                </h2>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSessionManager(true);
+                  }}
+                  className="text-primary hover:bg-primary/10 p-0.5 rounded transition"
+                  title="分支管理"
+                >
+                  <GitFork className="w-3 h-3" />
+                </button>
+              </div>
+              <p
+                className="text-[10px] text-muted-foreground truncate mt-0.5 font-light cursor-pointer"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  const nextTitle = await showCustomPrompt(
+                    "修改当前分支线标题已在IndexedDB进行分支区分:",
+                    activeSession?.title || "",
                   );
-                  await saveSession(updated);
-                }
-              }}
-            >
-              {activeSession?.title || "主剧情线"} (点击修改)
-            </p>
+                  if (nextTitle && activeSession) {
+                    const updated = { ...activeSession, title: nextTitle };
+                    setSessions((prev) =>
+                      prev.map((s) => (s.id === updated.id ? updated : s)),
+                    );
+                    await saveSession(updated);
+                  }
+                }}
+              >
+                {activeSession?.title || "主剧情线"} (点击修改)
+              </p>
+            </div>
           </div>
         </div>
 
@@ -1132,6 +1144,22 @@ export default function ChatTab() {
         </div>
       )}
       {/* Hidden background script runtimes for TavernHelper compatibility */}
+      {/* MVU compatibility: #tavern_helper container with data-script-id elements */}
+      <div id="tavern_helper" style={{ display: "none" }} aria-hidden="true">
+        {settings.enableScriptExecution &&
+          activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
+            if (script.enabled && script.content) {
+              return (
+                <div
+                  key={script.id}
+                  data-script-id={script.id}
+                  data-script-name={script.name || "unnamed"}
+                />
+              );
+            }
+            return null;
+          })}
+      </div>
       {settings.enableScriptExecution &&
         activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
           if (script.enabled && script.content) {
@@ -1143,12 +1171,22 @@ export default function ChatTab() {
                 name={script.name || "unnamed"}
                 srcDoc={srcDoc}
                 style={{ display: "none" }}
+                // eslint-disable-next-line react/no-unknown-property
                 sandbox="allow-scripts allow-same-origin"
+                // Note: allow-same-origin + allow-scripts is intentionally used here.
+                // The MVU bundle requires parent window access (TavernHelper, $, _ etc.)
+                // and script execution. Scripts only run from user-imported character cards
+                // with explicit enableScriptExecution setting enabled.
               />
             );
           }
           return null;
         })}
+      <CharacterDetailDrawer
+        isOpen={isDetailDrawerOpen}
+        character={activeCharacter}
+        onClose={() => setIsDetailDrawerOpen(false)}
+      />
     </div>
   );
 }

@@ -11,7 +11,7 @@
 Mobile Tavern 设计了精细的 `messages` 发送序列重排机制，专门针对 **DeepSeek V3/R1** 
 自动前缀缓存（Prefix Caching）及 **Gemini** 的上下文缓存进行深度适配。
 
-在系统底层（参见 [promptBuilder.ts](file:///d:/projects/Mobile-Tavern/src/utils/promptBuilder.ts)），
+在系统底层（参见 [promptBuilder.ts](file:///e:/modules/projects/Mobile-Tavern/src/utils/promptBuilder.ts)），
 发送给 API 的消息数组结构被重排为四个部分：
 1. 静态系统人设前缀（System Instruction）
 2. 稳定的历史对话序列（Stable Dialogue History Prefix）
@@ -31,7 +31,7 @@ Mobile Tavern 设计了精细的 `messages` 发送序列重排机制，专门针
 
 ### 2. SSE 流式传输与零丢包切分缓冲区 (SSE Zero-Loss Stream Buffer)
 大模型流式生成时常因网络波动或在流传输终点（Connection EOF）处导致尾部字节丢失。
-Mobile Tavern 在底层的流式连接读取循环（参见 [useChat.tsx](file:///d:/projects/Mobile-Tavern/src/hooks/useChat.tsx)）中，
+Mobile Tavern 在底层的流式连接读取循环（参见 [useChat.tsx](file:///e:/modules/projects/Mobile-Tavern/src/hooks/useChat.tsx)）中，
 引入了 `done` 信号检测与尾部未以双换行结尾的零散数据（Remaining Bytes）兜底冲刷逻辑。
 
 通过提取网络包字节块，将其推进字符累加缓冲区 `pbuf`，并按 SSE 协议标准的双换行 `\n\n` 进行安全边界切分，
@@ -106,9 +106,9 @@ graph TB
 *   **AppContext**: 
     负责应用全局交互，如全局 Tab 的路由切换、数据库加载指示、连通性状态监测以及全局主题的管理。
 *   **CharactersTab**: 
-    维护本地导入的角色卡列表。在用户对卡片进行增删改查时，直接通过自定义 Hook [useCharacters.ts](file:///d:/projects/Mobile-Tavern/src/hooks/useCharacters.ts) 进行 IndexedDB 存储库的原子操作，并同步分发至 UI 进行反应式视图更新。
+    维护本地导入的角色卡列表。在用户对卡片进行增删改查时，直接通过自定义 Hook [useCharacters.ts](file:///e:/modules/projects/Mobile-Tavern/src/hooks/useCharacters.ts) 进行 IndexedDB 存储库的原子操作，并同步分发至 UI 进行反应式视图更新。
 *   **ChatTab**: 
-    承载当前激活对话。采用 [useChat.tsx](file:///d:/projects/Mobile-Tavern/src/hooks/useChat.tsx) Hook 管理 SSE 接收状态、流缓冲分词器以及消息历史树。
+    承载当前激活对话。采用 [useChat.tsx](file:///e:/modules/projects/Mobile-Tavern/src/hooks/useChat.tsx) Hook 管理 SSE 接收状态、流缓冲分词器以及消息历史树。
 
 ### 2. 请求路由感知与环境自适应
 系统通过前端封装的 API 客户端对当前运行载体进行智能感知：
@@ -165,7 +165,7 @@ PNG (Portable Network Graphics) 二进制文件具有严格的结构布局。理
     解压引擎采用 `fflate` 库提供的轻量级、无阻塞解压模块，提取出角色卡的原始 JSON 文本流。
 3.  **JSON 实体反序列化**: 
     检验 JSON 内部是否符合标准的 Tavern Card V1 / V2 字段规范。
-    提取必要人设字段，并转换为本客户端在 IndexedDB 中持久化的标准 [CharacterCard](file:///d:/projects/Mobile-Tavern/src/types.ts) 格式。
+    提取必要人设字段，并转换为本客户端在 IndexedDB 中持久化的标准 [CharacterCard](file:///e:/modules/projects/Mobile-Tavern/src/types.ts) 格式。
 
 ---
 
@@ -237,7 +237,7 @@ erDiagram
 
 ## 🚀 开发者架构调试沙盒设计与原理 (Interactive Developer Sandbox Architecture)
 
-在 `v1.3.5` 中，我们为开发者深度定制并内置了一个全交互式的**架构调试沙盒**（PlaygroundTab，参见 [PlaygroundTab.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/PlaygroundTab.tsx)）。该沙盒是理解 Mobile Tavern 数据流运转及调试核心功能的控制台。
+在 `v1.3.5` 中，我们为开发者深度定制并内置了一个全交互式的**架构调试沙盒**（PlaygroundTab，参见 [PlaygroundTab.tsx](file:///e:/modules/projects/Mobile-Tavern/src/tabs/PlaygroundTab.tsx)）。该沙盒是理解 Mobile Tavern 数据流运转及调试核心功能的控制台。
 
 ### 1. SVG 动态拓扑节点与坐标映射 (SVG Coordinates Mapping)
 数据流向拓扑图使用高精度矢量 SVG 结构构建。画布中心坐标范围设定为 `0 0 500 570`，以在主流移动端屏幕上获得最佳的长宽自适应比例。
@@ -270,112 +270,112 @@ erDiagram
 ## 🧭 核心源码实现深度剖析 (Core Code Deep-Dive)
 
 ### 1. `promptBuilder.ts` (Prompt 编译组装)
-*   **实现位置**: [promptBuilder.ts](file:///d:/projects/Mobile-Tavern/src/utils/promptBuilder.ts)
+*   **实现位置**: [promptBuilder.ts](file:///e:/modules/projects/Mobile-Tavern/src/utils/promptBuilder.ts)
 *   **核心逻辑**: 
     负责在内存中拼接角色卡各项静态设定、当前全局设置与对话上下文历史。该模块不依赖任何硬编码的内置指令作为缺省值，以绝对无偏向的兼容方式组装数据。
 *   **宏替换防坍塌算法**:
     大模型使用的模版字符在拼接时极其容易在正则匹配端遭遇转义符坍塌漏洞。我们摒弃了普通的 `str.replace(regexp, val)` 表达式（会解析 `val` 中含有的 `$1`, `$&` 等特殊符号），采用 lambda 回调执行返回的方式完成安全的物理级内容替换。
 
 ### 2. `useChat.tsx` (流式长连接管理)
-*   **实现位置**: [useChat.tsx](file:///d:/projects/Mobile-Tavern/src/hooks/useChat.tsx)
+*   **实现位置**: [useChat.tsx](file:///e:/modules/projects/Mobile-Tavern/src/hooks/useChat.tsx)
 *   **核心逻辑**: 
     实现了基于流式连接（EventSource / ReadableStream）的会话更新器。它负责发起请求、抓取网络分块，并同步刷新 IndexedDB 对应分叉内的 `messages` 数组。
 *   **分阶段缓冲算法**:
     网络层读取的字符首先被保存在局部流缓冲器中，当检测到符合 SSE 终止标记（如 `[DONE]` 信号）或长连接在物理层宣告 EOF 时，引擎将自动唤醒缓冲段解析器，执行终点冲刷操作，提取尾部所有剩余半字符，彻底防止了流截断所导致的结尾文字丢失。
 
 ### 3. `cardParser.ts` (酒馆卡 PNG 二进制还原)
-*   **实现位置**: [cardParser.ts](file:///d:/projects/Mobile-Tavern/src/utils/cardParser.ts)
+*   **实现位置**: [cardParser.ts](file:///e:/modules/projects/Mobile-Tavern/src/utils/cardParser.ts)
 *   **核心逻辑**: 
     这是一个纯前端运行的二进制图像块解构器，能够在本地沙盒中无损提取和重构卡片信息。
 *   **块迭代策略**:
     算法将传入的文件以 `ArrayBuffer` 的形式读入内存，将指针移向 PNG 特征头签名之后。通过循环计算每一个块的物理位移跨度（Length + Type），计算 CRC32 并校验包完整性。若探测到 `tEXt` 标识，便在此空间中匹配 ASCII `chara` 标记，进而以同步方式完成数据解压与实例化。
 
 ### 4. `PlaygroundTab.tsx` (交互调试沙盒)
-*   **实现位置**: [PlaygroundTab.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/PlaygroundTab.tsx)
+*   **实现位置**: [PlaygroundTab.tsx](file:///e:/modules/projects/Mobile-Tavern/src/tabs/PlaygroundTab.tsx)
 *   **核心逻辑**: 
     构建了一个可以隔离进行算法测试的互动游戏场。它为上面所有的核心逻辑（如宏替换、前缀分流、网络包解压等）提供了单独的仿真验证面板。
 *   **状态隔离**:
     沙盒内使用完全隔离的 `mockChar` 与 `mockHistory` 变量，确保开发人员在调节和探索算法特性时，绝不会对真实的本地 IndexedDB 角色与会话库产生状态污染。
 
 ### 5. `db.ts` (高性能存储层)
-*   **实现位置**: [db.ts](file:///d:/projects/Mobile-Tavern/src/utils/db.ts)
+*   **实现位置**: [db.ts](file:///e:/modules/projects/Mobile-Tavern/src/utils/db.ts)
 *   **核心逻辑**: 
     提供了一个坚固的本地关系化存储底座。数据库实例通过单例模式暴露，避免频繁握手。
 *   **事务管道**:
     在写操作被并发触发时（例如高频发送），`db.ts` 会严格在底层通过队列来控制写事务的顺序，防止两个写事务同时获取锁而造成 IndexedDB 独占死锁或引发白屏崩溃。
 
 ### 6. `App.tsx` (应用初始化配置)
-*   **实现位置**: [App.tsx](file:///d:/projects/Mobile-Tavern/src/App.tsx)
+*   **实现位置**: [App.tsx](file:///e:/modules/projects/Mobile-Tavern/src/App.tsx)
 *   **核心逻辑**:
     负责系统冷启动的流程管理。加载内置的三套预设模版包，并检查本地数据库 settings 是否存在旧记录。如果首次安装，自动写入缺省的用户参数。它还负责捕获顶级的未捕获异常。
 *   **流自适应高度机制**:
     检测视口物理像素尺寸，尤其是移动端的输入键盘拉起事件，利用动态 `viewport-height` 刷新 DOM 元素的高度，避免聊天输入框被键盘推移挤出屏幕范围。
 
 ### 7. `MainLayout.tsx` (物理主导航控制)
-*   **实现位置**: [MainLayout.tsx](file:///d:/projects/Mobile-Tavern/src/components/MainLayout.tsx)
+*   **实现位置**: [MainLayout.tsx](file:///e:/modules/projects/Mobile-Tavern/src/components/MainLayout.tsx)
 *   **核心逻辑**:
     作为前端视图层的承载骨架。它响应 AppContext 广播的 Tab 变化，渲染不同的 Tab 面板。
 *   **拇指交互实现**:
     将高频次使用的角色管理、历史分支列表、世界书配置以及控制面板按钮以 2.5 字符高度的形式均匀放置于屏幕最底端，使得单手握持状态下大拇指能轻松覆盖所有跳转范围。
 
 ### 8. `GlobalWorldbookTab.tsx` (设定集检索管理)
-*   **实现位置**: [GlobalWorldbookTab.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/GlobalWorldbookTab.tsx)
+*   **实现位置**: [GlobalWorldbookTab.tsx](file:///e:/modules/projects/Mobile-Tavern/src/tabs/GlobalWorldbookTab.tsx)
 *   **核心逻辑**:
     提供对于全局知识库条目的反应式配置。允许用户动态创建、使能或禁用指定的 key 组。
 *   **原子化写入**:
     当对词条内容执行变更后，模块并不直接执行全局存储刷新，而是将当前被编辑的条目通过特定事务单独投递至 IndexedDB，限制了数据库锁定所引起的性能损耗。
 
 ### 9. `CharacterDetailDrawer.tsx` (人设与立绘表情解析器)
-*   **实现位置**: [CharacterDetailDrawer.tsx](file:///d:/projects/Mobile-Tavern/src/components/CharacterDetailDrawer.tsx)
+*   **实现位置**: [CharacterDetailDrawer.tsx](file:///e:/modules/projects/Mobile-Tavern/src/components/CharacterDetailDrawer.tsx)
 *   **核心逻辑**:
     渲染角色卡元信息。包括人设展示、局部世界书挂载，以及立绘表情差分图谱检查。
 *   **对话例句断行分块**:
     它能够对角色卡中的 `mes_example` 对话范本执行特殊词组切分（例如以 `<START>` 划分），将一长串原始例句分割成不同的气泡流展示在面板抽屉中，让用户极其直观地看到角色的扮演风格。
 
 ### 10. `AppContext.tsx` (全局交互事件分发器)
-*   **实现位置**: [AppContext.tsx](file:///d:/projects/Mobile-Tavern/src/contexts/AppContext.tsx)
+*   **实现位置**: [AppContext.tsx](file:///e:/modules/projects/Mobile-Tavern/src/contexts/AppContext.tsx)
 *   **核心逻辑**:
     提供了跨组件的多点弹窗调用（Alert, Confirm, Prompt）异步桥接包装。
 *   **Promise 状态机序列化**:
     为解决在高频异步更新下 React Modal 状态错乱导致的事件丢失，`AppContext` 底层将弹窗动作转化为标准的 `Promise<void>` / `Promise<boolean>` / `Promise<string | null>`，通过状态机的解耦分发使得开发者可以在异步 hook 中像同步调用浏览器 `window.confirm` 一样书写业务逻辑。
 
 ### 11. `useSettings.ts` (参数自动同步及持久化)
-*   **实现位置**: [useSettings.ts](file:///d:/projects/Mobile-Tavern/src/hooks/useSettings.ts)
+*   **实现位置**: [useSettings.ts](file:///e:/modules/projects/Mobile-Tavern/src/hooks/useSettings.ts)
 *   **核心逻辑**:
     统一同步并托管用户的全局控制端参数设定。
 *   **防抖自动写入**:
     当用户拖拽设置页的 temperature、top_p 或是重复惩罚参数时，数据会反应式在内存中更新。防抖机制会将写入 IndexedDB 的底层调用聚合，降低系统频繁落库引起的并发 IO 压力。
 
 ### 12. `CharactersTab.tsx` (角色列表交互模块)
-*   **实现位置**: [CharactersTab.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/CharactersTab.tsx)
+*   **实现位置**: [CharactersTab.tsx](file:///e:/modules/projects/Mobile-Tavern/src/tabs/CharactersTab.tsx)
 *   **核心逻辑**:
     管理卡片的交互陈列。支持多属性过滤、全文模糊搜索和 PNG 卡片解析。
 *   **拖拽事件监听器**:
     在前台部署了针对标准 HTML5 拖拽事件（`dragover`, `drop`）的事件监听器，可以直接在浏览器窗口内捕获图片文件对象，自动触发 `cardParser` 提取数据。
 
 ### 13. `telemetry.ts` (遥测上报直连客户端)
-*   **实现位置**: [telemetry.ts](file:///d:/projects/Mobile-Tavern/src/utils/telemetry.ts)
+*   **实现位置**: [telemetry.ts](file:///e:/modules/projects/Mobile-Tavern/src/utils/telemetry.ts)
 *   **核心逻辑**:
     负责崩溃及使用率统计的低侵入收集模块。
 *   **缓冲与直传管理**:
     为了规避在真机高频发送日志导致的耗电问题，遥测系统内部构建了日志收集队列，平时将事件推入内存缓冲中，只有当日志总数到达阈值或距离上一次上传超过设定时间时，才动态通过 FC 获取 STS 令牌，发起一次批量直传上报。
 
 ### 14. `TimelineModal.tsx` (前情剧情提炼时间线展示)
-*   **实现位置**: [TimelineModal.tsx](file:///d:/projects/Mobile-Tavern/src/components/TimelineModal.tsx)
+*   **实现位置**: [TimelineModal.tsx](file:///e:/modules/projects/Mobile-Tavern/src/components/TimelineModal.tsx)
 *   **核心逻辑**:
     提取会话中已归档的 `summaries` 时间片数据，并渲染为优雅的垂直卡片轴。
 *   **故事线渲染设计**:
     在手机端渲染折叠的前情概要大纲（故事年表），帮助用户在超长对话中回忆历史场景。点击事件可以展开完整的剧情概要，为用户提供沉浸式小说阅读视角。
 
 ### 15. `SessionManagerModal.tsx` (多会话剧情分支分叉管理)
-*   **实现位置**: [SessionManagerModal.tsx](file:///d:/projects/Mobile-Tavern/src/components/SessionManagerModal.tsx)
+*   **实现位置**: [SessionManagerModal.tsx](file:///e:/modules/projects/Mobile-Tavern/src/components/SessionManagerModal.tsx)
 *   **核心逻辑**:
     负责对指定的角色卡开启多条独立的聊天剧情分支（类似于世界分支的切换）。
 *   **多维度并发操作**:
     在前端执行分支克隆、重命名及物理删除。当克隆时，开启 IndexedDB 关联事务，复制原分支的所有消息历史和剧情提炼大纲，并迅速建立具有新 UUID 的平行会话分支实体。
 
 ### 16. `CustomConfirmDialog.tsx` (移动端风格交互对话框)
-*   **实现位置**: [CustomConfirmDialog.tsx](file:///d:/projects/Mobile-Tavern/src/components/CustomConfirmDialog.tsx)
+*   **实现位置**: [CustomConfirmDialog.tsx](file:///e:/modules/projects/Mobile-Tavern/src/components/CustomConfirmDialog.tsx)
 *   **核心逻辑**:
     针对 APK 及手机端网页环境，完全重写了传统的浏览器 `window.alert` 和 `confirm`。
 *   **微动画交互反馈**:

@@ -51,6 +51,7 @@ async function startServer() {
         routePath: chatPath || "/chat/completions",
         apiKey,
       });
+      console.log(`[Proxy TestConnection] Target URL: ${targetUrl}`);
 
       const response = await fetch(targetUrl, {
         method: "POST",
@@ -90,6 +91,7 @@ async function startServer() {
       });
 
       const isStream = reqBody.stream === true;
+      console.log(`[Proxy OpenAI] Target URL: ${targetUrl}, isStream: ${isStream}`);
       
       const response = await fetch(targetUrl, {
         method: "POST",

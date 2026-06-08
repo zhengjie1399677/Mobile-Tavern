@@ -77,18 +77,74 @@ function initializeVariablesForSession(session: any) {
   if (!variables.stat_data) {
     variables.stat_data = {};
   }
-  
+
   console.log("[TavernHelper Event] Emitting mag_variable_initialized for session:", session.id);
   tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
   console.log("[TavernHelper Event] Variables after initialization:", variables);
 
   session.variables = variables;
   if (bridgeParams) {
-    bridgeParams.setSessions(prev => 
+    bridgeParams.setSessions(prev =>
       prev.map(s => s.id === session.id ? { ...s, variables } : s)
     );
     bridgeParams.saveSession(session);
   }
+}
+
+/**
+ * Initialize MVU variables from character card extensions.
+ * Extracts mvu_settings/schema from character extensions and merges into session variables.
+ */
+export function initializeMvuFromCharacter(character: any): Record<string, any> {
+  if (!character) return { stat_data: {} };
+
+  const ext = character.extensions || {};
+  const variables: Record<string, any> = {
+    stat_data: {},
+    schema: { type: 'object', properties: {} },
+    display_data: {},
+    delta_data: {},
+  };
+
+  // Try to extract MVU settings from various possible extension locations
+  const mvuSettings = ext.mvu_settings ||
+                      ext.mvu ||
+                      ext.MVU ||
+                      null;
+
+  if (mvuSettings) {
+    console.log("[MVU] Found mvu_settings in character extensions:", mvuSettings);
+
+    // If settings contains a schema, use it
+    if (mvuSettings.schema) {
+      variables.schema = mvuSettings.schema;
+    }
+
+    // If settings contains initial stat_data/default values
+    if (mvuSettings.stat_data) {
+      variables.stat_data = { ...mvuSettings.stat_data };
+    } else if (mvuSettings.defaults) {
+      variables.stat_data = { ...mvuSettings.defaults };
+    }
+
+    // Copy display configuration if present
+    if (mvuSettings.display_data) {
+      variables.display_data = { ...mvuSettings.display_data };
+    }
+  }
+
+  // Also check for tavern_helper scripts presence (for UI rendering)
+  if (ext.tavern_helper?.scripts) {
+    console.log(`[MVU] Found ${ext.tavern_helper.scripts.length} tavern_helper scripts`);
+  }
+
+  // Ensure stat_data exists
+  if (!variables.stat_data) {
+    variables.stat_data = {};
+  }
+
+  console.log("[MVU] Initialized variables from character:", variables);
+  return variables;
 }
 
 // Static initialization block executing immediately upon module import
@@ -469,11 +525,22 @@ if (typeof window !== "undefined") {
     _getCurrentMessageId: () => {
       return (bridgeParams?.activeSession?.messages?.length || 1) - 1;
     },
-    _getVariables(opt = { type: "chat" }) {
+    _getVariables(opt: any = { type: "chat" }) {
       if (!bridgeParams) return {};
       const { activeCharacter, settings, activeSession } = bridgeParams;
       if (opt.type === "character") return activeCharacter?.variables || {};
       if (opt.type === "global") return settings?.variables || {};
+      if (opt.type === "message" && typeof opt.message_id === "number") {
+        const msg = activeSession?.messages[opt.message_id] as any;
+        if (msg) {
+          const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
+          if (!msg.extra) msg.extra = {};
+          if (!msg.extra.variables) msg.extra.variables = {};
+          if (!msg.extra.variables[swipeId]) msg.extra.variables[swipeId] = {};
+          return msg.extra.variables[swipeId];
+        }
+        return {};
+      }
       return activeSession?.variables || {};
     },
     _getAllVariables() {
@@ -485,7 +552,7 @@ if (typeof window !== "undefined") {
         ...(activeSession?.variables || {}),
       };
     },
-    _replaceVariables(variables: Record<string, any>, opt = { type: "chat" }) {
+    _replaceVariables(variables: Record<string, any>, opt: any = { type: "chat" }) {
       if (!bridgeParams) return;
       const { activeCharacter, settings, activeSession, setCharacters, saveCharacter, updateSettings, setSessions, saveSession } = bridgeParams;
       if (opt.type === "character" && activeCharacter) {
@@ -496,6 +563,26 @@ if (typeof window !== "undefined") {
         saveCharacter(updated);
       } else if (opt.type === "global") {
         updateSettings({ ...settings, variables });
+      } else if (opt.type === "message" && typeof opt.message_id === "number" && activeSession) {
+        const updatedMessages = activeSession.messages.map((m, idx) => {
+          if (idx === opt.message_id) {
+            const msg = m as any;
+            const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
+            const extra = { ...msg.extra };
+            if (!extra.variables) extra.variables = {};
+            extra.variables = {
+              ...extra.variables,
+              [swipeId]: variables
+            };
+            return { ...m, extra };
+          }
+          return m;
+        });
+        const updatedSession = { ...activeSession, messages: updatedMessages };
+        setSessions((prev) =>
+          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+        );
+        saveSession(updatedSession);
       } else if (activeSession) {
         const updated = { ...activeSession, variables };
         setSessions((prev) =>
@@ -528,6 +615,190 @@ if (typeof window !== "undefined") {
       bindObj._replaceVariables(vars, opt);
       return { variables: vars, delete_occurred: true };
     },
+    _setChatMessage(id: number, messageObj: any) {
+      console.log(`[TavernHelper Bridge] _setChatMessage called for id: ${id}`, messageObj);
+      if (!bridgeParams || !bridgeParams.activeSession) return;
+      const { activeSession, setSessions, saveSession } = bridgeParams;
+      
+      let content = "";
+      if (typeof messageObj === "string") {
+        content = messageObj;
+      } else if (messageObj && typeof messageObj === "object") {
+        content = messageObj.mes !== undefined ? messageObj.mes : (messageObj.content !== undefined ? messageObj.content : (messageObj.message !== undefined ? messageObj.message : ""));
+      }
+      
+      let changed = false;
+      const updatedMessages = activeSession.messages.map((m, idx) => {
+        if (idx === id) {
+          let updated = { ...m, content };
+          if (messageObj && typeof messageObj === "object") {
+            if (messageObj.swipe_id !== undefined) {
+              (updated as any).swipe_id = messageObj.swipe_id;
+            }
+            if (messageObj.swipes !== undefined) {
+              (updated as any).swipes = messageObj.swipes;
+            }
+            if (messageObj.swipes_data !== undefined) {
+              (updated as any).swipes_data = messageObj.swipes_data;
+            }
+            if (messageObj.extra !== undefined) {
+              (updated as any).extra = { ...(updated as any).extra, ...messageObj.extra };
+            }
+            if (messageObj.variables !== undefined) {
+              if (!(updated as any).extra) (updated as any).extra = {};
+              (updated as any).extra.variables = { ...(updated as any).extra.variables, ...messageObj.variables };
+            }
+          }
+          changed = true;
+          return updated;
+        }
+        return m;
+      });
+      
+      if (changed) {
+        const updatedSession = { ...activeSession, messages: updatedMessages };
+        setSessions((prev) =>
+          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+        );
+        saveSession(updatedSession);
+      }
+    },
+    _setChatMessages(messagesList: any[]) {
+      console.log("[TavernHelper Bridge] _setChatMessages called with:", JSON.stringify(messagesList, null, 2));
+      if (!bridgeParams || !bridgeParams.activeSession) return;
+      const { activeSession, setSessions, saveSession, activeCharacter } = bridgeParams;
+      
+      if (!Array.isArray(messagesList)) return;
+      
+      let changed = false;
+      const updatedMessages = activeSession.messages.map((m, idx) => {
+        const newMsg = messagesList[idx] as any;
+        if (newMsg) {
+          let updated = { ...m };
+          let localChanged = false;
+          
+          const content = typeof newMsg === "string" ? newMsg : (newMsg.mes !== undefined ? newMsg.mes : (newMsg.content !== undefined ? newMsg.content : (newMsg.message !== undefined ? newMsg.message : undefined)));
+          console.log(`[TavernHelper Bridge] msg ${idx} content resolution: newMsgContent:`, content, "existingContent:", updated.content);
+          if (content !== undefined && updated.content !== content) {
+            updated.content = content;
+            localChanged = true;
+          }
+          if (typeof newMsg === "object") {
+            if (newMsg.swipe_id !== undefined && (updated as any).swipe_id !== newMsg.swipe_id) {
+              (updated as any).swipe_id = newMsg.swipe_id;
+              localChanged = true;
+              
+              // Sync content with the new swipe_id
+              let swipeContent: string | undefined = undefined;
+              if (idx === 0 && activeCharacter) {
+                const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
+                if (allGreetings[newMsg.swipe_id] !== undefined) {
+                  swipeContent = allGreetings[newMsg.swipe_id];
+                }
+              } else if (updated.swipes && updated.swipes[newMsg.swipe_id] !== undefined) {
+                swipeContent = updated.swipes[newMsg.swipe_id];
+              }
+              if (swipeContent !== undefined && updated.content !== swipeContent) {
+                updated.content = swipeContent;
+              }
+            }
+            if (newMsg.swipes !== undefined && !_.isEqual((updated as any).swipes, newMsg.swipes)) {
+              (updated as any).swipes = newMsg.swipes;
+              localChanged = true;
+            }
+            if (newMsg.swipes_data !== undefined && !_.isEqual((updated as any).swipes_data, newMsg.swipes_data)) {
+              (updated as any).swipes_data = newMsg.swipes_data;
+              localChanged = true;
+            }
+            if (newMsg.extra !== undefined) {
+              (updated as any).extra = { ...(updated as any).extra, ...newMsg.extra };
+              localChanged = true;
+            }
+            if (newMsg.variables !== undefined) {
+              if (!(updated as any).extra) (updated as any).extra = {};
+              (updated as any).extra.variables = { ...(updated as any).extra.variables, ...newMsg.variables };
+              localChanged = true;
+            }
+          }
+          if (localChanged) {
+            changed = true;
+            return updated;
+          }
+        }
+        return m;
+      });
+      
+      console.log("[TavernHelper Bridge] _setChatMessages execution status: changed =", changed);
+      if (changed) {
+        const updatedSession = { ...activeSession, messages: updatedMessages };
+        setSessions((prev) =>
+          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+        );
+        saveSession(updatedSession);
+      }
+    },
+    _getChatMessages() {
+      if (!bridgeParams) return [];
+      const { activeSession, activeCharacter, settings } = bridgeParams;
+      return (activeSession?.messages || []).map((m, idx) => {
+        const msgObj: any = {
+          id: idx,
+          name: m.sender === "user" ? settings.userName : (activeCharacter?.name || "AI"),
+          mes: m.content,
+          message: m.content,
+          role: m.sender,
+          send_date: m.timestamp,
+          is_user: m.sender === "user",
+          is_system: m.sender === "system",
+          swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
+          swipes: (m as any).swipes || [m.content],
+          extra: (m as any).extra || {},
+          variables: (m as any).extra?.variables || (m as any).variables || {},
+        };
+        if (idx === 0 && activeCharacter) {
+          const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
+          msgObj.swipes = allGreetings;
+          const currentIdx = allGreetings.indexOf(m.content);
+          msgObj.swipe_id = (m as any).swipe_id !== undefined ? (m as any).swipe_id : (currentIdx !== -1 ? currentIdx : 0);
+        }
+        return msgObj;
+      });
+    },
+    _getLastMessageId() {
+      return (bridgeParams?.activeSession?.messages?.length || 1) - 1;
+    },
+    _getCurrentChatId() {
+      return bridgeParams?.activeSession?.id || "default_chat";
+    },
+    _getTavernHelperVersion() {
+      return "3.5.0";
+    },
+    _saveChat() {
+      return Promise.resolve();
+    },
+    _saveSettingsDebounced() {
+      if (bridgeParams && bridgeParams.settings) {
+        bridgeParams.updateSettings({
+          ...bridgeParams.settings,
+          extensionSettings: bridgeParams.settings.extensionSettings || {},
+        });
+      }
+      return Promise.resolve();
+    },
+    _getCharLorebooks() { return []; },
+    _getCharWorldbookNames() { return []; },
+    _getCurrentCharPrimaryLorebook() { return null; },
+    _getLorebookEntries() { return []; },
+    _getLorebookSettings() { return {}; },
+    _setLorebookSettings() {},
+    _setExtraAnalysisStates() {},
+    _normalizeBaseURL(url: string) { return url; },
+    _generate() { return Promise.resolve(""); },
+    _generateRaw() { return Promise.resolve(""); },
+    _isToolCallingSupported() { return false; },
+    _registerFunctionTool() {},
+    _unregisterFunctionTool() {},
+    _fetch(url: string, init: any) { return fetch(url, init); },
   };
 
   function sharedWriteExtensionField(arg1: string, arg2: any, arg3?: any) {
@@ -572,6 +843,11 @@ if (typeof window !== "undefined") {
     },
 
     _bind: bindObj,
+    _onIframeReady(iframeId: string) {
+      if (bindObj && typeof bindObj._onIframeReady === "function") {
+        bindObj._onIframeReady(iframeId);
+      }
+    },
 
     getVariables(option = { type: "chat" }) {
       return this._bind._getVariables(option);
@@ -614,15 +890,21 @@ if (typeof window !== "undefined") {
           id: idx,
           name: m.sender === "user" ? settings.userName : (activeCharacter?.name || "AI"),
           mes: m.content,
+          message: m.content,
+          role: m.sender,
           send_date: m.timestamp,
           is_user: m.sender === "user",
           is_system: m.sender === "system",
+          swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
+          swipes: (m as any).swipes || [m.content],
+          extra: (m as any).extra || {},
+          variables: (m as any).extra?.variables || (m as any).variables || {},
         };
         if (idx === 0 && activeCharacter) {
           const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
           msgObj.swipes = allGreetings;
           const currentIdx = allGreetings.indexOf(m.content);
-          msgObj.swipe_id = currentIdx !== -1 ? currentIdx : 0;
+          msgObj.swipe_id = (m as any).swipe_id !== undefined ? (m as any).swipe_id : (currentIdx !== -1 ? currentIdx : 0);
         }
         return msgObj;
       });
@@ -633,13 +915,39 @@ if (typeof window !== "undefined") {
       const session = { ...bridgeParams.activeSession };
       let changed = false;
       updates.forEach((up) => {
-        const msg = session.messages[up.message_id];
+        const msg = session.messages[up.message_id] as any;
         if (msg) {
+          const newContent = up.message !== undefined ? up.message : (up.mes !== undefined ? up.mes : (up.content !== undefined ? up.content : undefined));
+          if (newContent !== undefined && msg.content !== newContent) {
+            msg.content = newContent;
+            changed = true;
+          }
+          if (up.swipe_id !== undefined && msg.swipe_id !== up.swipe_id) {
+            msg.swipe_id = up.swipe_id;
+            changed = true;
+          }
+          if (up.swipes !== undefined && !_.isEqual(msg.swipes, up.swipes)) {
+            msg.swipes = up.swipes;
+            changed = true;
+          }
+          if (up.swipes_data !== undefined && !_.isEqual(msg.swipes_data, up.swipes_data)) {
+            msg.swipes_data = up.swipes_data;
+            changed = true;
+          }
+          if (up.extra !== undefined) {
+            msg.extra = { ...msg.extra, ...up.extra };
+            changed = true;
+          }
+          if (up.variables !== undefined) {
+            if (!msg.extra) msg.extra = {};
+            msg.extra.variables = { ...msg.extra.variables, ...up.variables };
+            changed = true;
+          }
           if (up.swipe_id !== undefined) {
             const char = bridgeParams?.activeCharacter;
             if (up.message_id === 0 && char) {
               const allGreetings = [char.first_mes, ...(char.alternate_greetings || [])];
-              if (allGreetings[up.swipe_id]) {
+              if (allGreetings[up.swipe_id] && msg.content !== allGreetings[up.swipe_id]) {
                 msg.content = allGreetings[up.swipe_id];
                 changed = true;
               }
@@ -781,14 +1089,29 @@ if (typeof window !== "undefined") {
       const activeSession = bridgeParams?.activeSession;
       const activeChar = bridgeParams?.activeCharacter;
       const userName = bridgeParams?.settings?.userName || "user";
-      return (activeSession?.messages || []).map((m, idx) => ({
-        id: idx,
-        name: m.sender === "user" ? userName : (activeChar?.name || "AI"),
-        mes: m.content,
-        send_date: m.timestamp,
-        is_user: m.sender === "user",
-        is_system: m.sender === "system",
-      }));
+      return (activeSession?.messages || []).map((m, idx) => {
+        const msgObj: any = {
+          id: idx,
+          name: m.sender === "user" ? userName : (activeChar?.name || "AI"),
+          mes: m.content,
+          message: m.content,
+          role: m.sender,
+          send_date: m.timestamp,
+          is_user: m.sender === "user",
+          is_system: m.sender === "system",
+          swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
+          swipes: (m as any).swipes || [m.content],
+          extra: (m as any).extra || {},
+          variables: (m as any).extra?.variables || (m as any).variables || {},
+        };
+        if (idx === 0 && activeChar) {
+          const allGreetings = [activeChar.first_mes, ...(activeChar.alternate_greetings || [])];
+          msgObj.swipes = allGreetings;
+          const currentIdx = allGreetings.indexOf(m.content);
+          msgObj.swipe_id = (m as any).swipe_id !== undefined ? (m as any).swipe_id : (currentIdx !== -1 ? currentIdx : 0);
+        }
+        return msgObj;
+      });
     },
     getCurrentChatId() {
       return bridgeParams?.activeSession?.id || "default_chat";
@@ -801,14 +1124,29 @@ if (typeof window !== "undefined") {
       const activeSession = bridgeParams?.activeSession;
       const userName = bridgeParams?.settings?.userName || "user";
       
-      const chatMessages = (activeSession?.messages || []).map((m, idx) => ({
-        id: idx,
-        name: m.sender === "user" ? userName : (activeChar?.name || "AI"),
-        mes: m.content,
-        send_date: m.timestamp,
-        is_user: m.sender === "user",
-        is_system: m.sender === "system",
-      }));
+      const chatMessages = (activeSession?.messages || []).map((m, idx) => {
+        const msgObj: any = {
+          id: idx,
+          name: m.sender === "user" ? userName : (activeChar?.name || "AI"),
+          mes: m.content,
+          message: m.content,
+          role: m.sender,
+          send_date: m.timestamp,
+          is_user: m.sender === "user",
+          is_system: m.sender === "system",
+          swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
+          swipes: (m as any).swipes || [m.content],
+          extra: (m as any).extra || {},
+          variables: (m as any).extra?.variables || (m as any).variables || {},
+        };
+        if (idx === 0 && activeChar) {
+          const allGreetings = [activeChar.first_mes, ...(activeChar.alternate_greetings || [])];
+          msgObj.swipes = allGreetings;
+          const currentIdx = allGreetings.indexOf(m.content);
+          msgObj.swipe_id = (m as any).swipe_id !== undefined ? (m as any).swipe_id : (currentIdx !== -1 ? currentIdx : 0);
+        }
+        return msgObj;
+      });
 
       return {
         character: activeChar || null,
@@ -956,11 +1294,18 @@ export function cleanTavernHelperBridge() {
  * Call this after saving a session with updated variables (e.g. after AI reply + MVU parse).
  * It emits the mag_variable_initialized event so that iframe scripts can refresh their UI.
  */
-export function notifyVariablesUpdated(session: ChatSession) {
+export function notifyVariablesUpdated(session: ChatSession, messageId?: number) {
   if (!session) return;
   const variables = session.variables || {};
-  console.log("[TavernHelper Event] notifyVariablesUpdated → emitting mag_variable_initialized");
+  console.log("[TavernHelper Event] notifyVariablesUpdated → emitting mag_variable_initialized + character_message_rendered");
+  // 1. Notify MVU bundle that variables have been initialized/updated.
   tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
+  // 2. Emit message_received + character_message_rendered so the MVU bundle's
+  //    per-turn UI refresh hook fires on every AI reply (not just the first).
+  //    The MVU bundle listens on CHARACTER_MESSAGE_RENDERED to re-render the status board.
+  const lastMsgId = messageId ?? Math.max(0, (session.messages?.length ?? 1) - 1);
+  tavernHelperEventEmitter.emit('message_received', lastMsgId);
+  tavernHelperEventEmitter.emit('character_message_rendered', lastMsgId);
 }
 
 // Pre-process mvu_zod script by stripping its ES module export statement and wrapping in an IIFE to isolate scope
@@ -1077,15 +1422,53 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
 <head>
 <meta charset="utf-8" />
 <script>
+  window.onerror = function(message, source, lineno, colno, error) {
+    console.error("[TH Iframe Uncaught Error]:", message, "at", source, ":", lineno, ":", colno, error);
+  };
+  window.onunhandledrejection = function(event) {
+    console.error("[TH Iframe Unhandled Rejection]:", event.reason);
+  };
   // ─── Step 1: inherit libraries from parent window (NO external CDN requests) ───
   // This avoids network slowdowns/errors when developer proxy blocks CDN domains.
   window._ = window.parent._;
   window.Vue = window.parent.Vue || null;
-  // Inherit jQuery: prefer already-loaded parent $, fallback to null
-  window.$ = window.jQuery = window.parent.$ || window.parent.jQuery || null;
-  // Make sure parent also has $ if we have it
-  if (window.$) {
+  // Inherit jQuery: wrap parent $ to search parent document instead of iframe document
+  // This is critical for MVU bundle's listenPreferenceState which uses $('#tavern_helper')
+  // to find script elements - those elements exist in the parent window, not the iframe.
+  var parentDollar = window.parent.$ || window.parent.jQuery;
+  console.log('[TH Bridge Debug] Step 1 - parent.$ available:', !!parentDollar);
+  if (parentDollar) {
+    // Create a wrapper that always searches in parent document
+    window.$ = window.jQuery = function(selector, context) {
+      // If no context provided, default to parent document
+      var ctx = context || window.parent.document;
+      // Call parent $ directly with selector and context
+      return parentDollar(selector, ctx);
+    };
+    // Copy all static properties/methods from parent $
+    for (var key in parentDollar) {
+      if (parentDollar.hasOwnProperty(key)) {
+        window.$[key] = parentDollar[key];
+      }
+    }
     window.parent.$ = window.parent.jQuery = window.parent.$ || window.$;
+    console.log('[TH Bridge Debug] Step 1 - jQuery wrapper created');
+    // Test jQuery wrapper
+    try {
+      var testResult = window.$('#tavern_helper');
+      console.log('[TH Bridge Debug] Step 1 - jQuery test #tavern_helper found:', testResult.length, 'elements');
+      if (testResult.length > 0) {
+        console.log('[TH Bridge Debug] Step 1 - First element tag:', testResult[0].tagName);
+      }
+      // Also test direct parent $ call
+      var directResult = parentDollar('#tavern_helper', window.parent.document);
+      console.log('[TH Bridge Debug] Step 1 - Direct parent.$ test found:', directResult.length, 'elements');
+    } catch(e) {
+      console.error('[TH Bridge Debug] Step 1 - jQuery test failed:', e);
+    }
+  } else {
+    window.$ = window.jQuery = null;
+    console.warn('[TH Bridge Debug] Step 1 - parent.$ not available!');
   }
   // Expose global TavernHelper mock APIs immediately to prevent ReferenceErrors in Step 1.5
   window.z = window.parent.z || null;
@@ -1099,6 +1482,80 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   window.getScriptButtons = window.parent.getScriptButtons || null;
   window.replaceScriptButtons = window.parent.replaceScriptButtons || null;
   window.getButtonEvent = window.parent.getButtonEvent || null;
+
+  // ─── CRITICAL: Pre-define ALL TavernHelper._bind functions that MVU bundle calls during Step 1.5 ───
+  // The MVU bundle IIFE executes immediately in Step 1.5 and calls these functions.
+  // Without these stubs, getScriptId() and others throw ReferenceError, breaking MVU initialization.
+  // NOTE: TH._bind keys have underscore prefix (e.g. _getScriptId), but MVU bundle calls them without underscore.
+  (function() {
+    var TH = window.parent.TavernHelper;
+    console.log('[TH Bridge Debug] Step 1 - TavernHelper available:', !!TH);
+    console.log('[TH Bridge Debug] Step 1 - TH._bind available:', !!(TH && TH._bind));
+    if (!TH || !TH._bind) {
+      console.warn('[TH Bridge Debug] Step 1 - TH._bind not available, MVU functions will not be pre-defined');
+      return;
+    }
+    var bind = TH._bind;
+    // Map of MVU bundle function names (no underscore) to TH._bind keys (with underscore)
+    var funcMap = {
+      'getScriptId': '_getScriptId',
+      'getCurrentMessageId': '_getCurrentMessageId',
+      'getVariables': '_getVariables',
+      'getAllVariables': '_getAllVariables',
+      'replaceVariables': '_replaceVariables',
+      'updateVariablesWith': '_updateVariablesWith',
+      'insertOrAssignVariables': '_insertOrAssignVariables',
+      'deleteVariable': '_deleteVariable',
+      'eventOn': '_eventOn',
+      'eventEmit': '_eventEmit',
+      'eventRemoveListener': '_eventRemoveListener',
+      'eventClearAll': '_eventClearAll',
+      'getCurrentChatId': '_getCurrentChatId',
+      'saveChat': '_saveChat',
+      'saveSettingsDebounced': '_saveSettingsDebounced',
+      'callGenericPopup': '_callGenericPopup',
+      'getTavernHelperVersion': '_getTavernHelperVersion',
+      'getScriptButtons': '_getScriptButtons',
+      'replaceScriptButtons': '_replaceScriptButtons',
+      'appendInexistentScriptButtons': '_appendInexistentScriptButtons',
+      'getButtonEvent': '_getButtonEvent',
+      'showHelpPopup': '_showHelpPopup',
+      'setChatMessage': '_setChatMessage',
+      'setChatMessages': '_setChatMessages',
+      'getChatMessages': '_getChatMessages',
+      'getLastMessageId': '_getLastMessageId',
+      'getCharLorebooks': '_getCharLorebooks',
+      'getCharWorldbookNames': '_getCharWorldbookNames',
+      'getCurrentCharPrimaryLorebook': '_getCurrentCharPrimaryLorebook',
+      'getLorebookEntries': '_getLorebookEntries',
+      'getLorebookSettings': '_getLorebookSettings',
+      'setLorebookSettings': '_setLorebookSettings',
+      'setExtraAnalysisStates': '_setExtraAnalysisStates',
+      'normalizeBaseURL': '_normalizeBaseURL',
+      'generate': '_generate',
+      'generateRaw': '_generateRaw',
+      'isToolCallingSupported': '_isToolCallingSupported',
+      'registerFunctionTool': '_registerFunctionTool',
+      'unregisterFunctionTool': '_unregisterFunctionTool',
+      'fetch': '_fetch'
+    };
+    var definedCount = 0;
+    for (var name in funcMap) {
+      (function(n, bk) {
+        if (typeof bind[bk] === 'function') {
+          window[n] = function() {
+            return bind[bk].apply(bind, arguments);
+          };
+          definedCount++;
+        }
+      })(name, funcMap[name]);
+    }
+    console.log('[TH Bridge Debug] Step 1 - Defined', definedCount, 'MVU functions');
+    console.log('[TH Bridge Debug] Step 1 - getScriptId available:', typeof window.getScriptId === 'function');
+    if (typeof window.getScriptId === 'function') {
+      console.log('[TH Bridge Debug] Step 1 - getScriptId() returns:', window.getScriptId());
+    }
+  })();
 
   // Reactively bind SillyTavern and Mvu context so they are defined in Step 1.5
   Object.defineProperty(window, 'SillyTavern', {
@@ -1136,6 +1593,19 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
       configurable: true,
     });
   }
+</script>
+<script>
+  // ─── Step 1.4: Inject Vue compile-time feature flags for esm-bundler build ───
+  // The MVU bundle uses Vue's esm-bundler build which expects these global flags.
+  // Without them, Vue logs warnings and may not tree-shake properly.
+  window.__VUE_OPTIONS_API__ = true;
+  window.__VUE_PROD_DEVTOOLS__ = false;
+  window.__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ = false;
+</script>
+<script>
+  // ─── Step 1.5: Pre-load MVU libraries and framework offline ───
+  ${processedMvuZod}
+  ${processedMvuBundle}
 </script>
 <script>
   // ─── Step 2: TavernHelper predefine.js ───
@@ -1197,19 +1667,19 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
     // We use DOMContentLoaded (fires synchronously after all inline scripts run)
     // then add a 300ms delay to ensure the card script below has had time to
     // register its mag_variable_initialized listeners via eventOn().
-    document.addEventListener('DOMContentLoaded', function() {
+    function notifyReady() {
       setTimeout(function() {
         if (typeof TavernHelper._onIframeReady === 'function') {
           TavernHelper._onIframeReady(window.__TH_IFRAME_ID || 'script_iframe');
         }
       }, 300);
-    });
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      notifyReady();
+    } else {
+      document.addEventListener('DOMContentLoaded', notifyReady);
+    }
   })();
-</script>
-<script>
-  // ─── Step 1.5: Pre-load MVU libraries and framework offline ───
-  ${processedMvuZod}
-  ${processedMvuBundle}
 </script>
 </head>
 <body>
@@ -1230,10 +1700,109 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
   // ─── Inherit libraries from parent window (NO external CDN requests) ───
   window._ = window.parent._;
   window.Vue = window.parent.Vue || null;
-  window.$ = window.jQuery = window.parent.$ || window.parent.jQuery || null;
-  if (window.$) {
-    window.parent.$ = window.parent.jQuery = window.parent.$ || window.$;
-  }
+  // ─── jQuery shim for message iframe ───
+  // The parent window's $ is a minimal stub (no DOM selector support).
+  // Message iframes need a real jQuery-compatible selector so that inline
+  // scripts (e.g. tab switching via $("#tab1").show()) work against THIS
+  // iframe's own document, not the parent's.
+  (function() {
+    // Try to borrow jQuery from the script iframe siblings (they load the
+    // full mvu_bundle which may have attached a real jQuery to the parent).
+    // Walk parent's child iframes looking for one with a proper jQuery.
+    var realJQ = null;
+    try {
+      var frames = window.parent.document.querySelectorAll('iframe');
+      for (var fi = 0; fi < frames.length; fi++) {
+        try {
+          var fw = frames[fi].contentWindow;
+          if (fw && fw.jQuery && typeof fw.jQuery === 'function' && fw.jQuery.fn && fw.jQuery.fn.jquery) {
+            realJQ = fw.jQuery;
+            break;
+          }
+        } catch(e2) {}
+      }
+    } catch(e) {}
+
+    if (realJQ) {
+      // Bind real jQuery to this iframe's document so selectors search here
+      window.$ = window.jQuery = function(selector, context) {
+        if (typeof selector === 'function') {
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', selector);
+          } else {
+            setTimeout(selector, 0);
+          }
+          return { on: function() { return window.$; }, trigger: function() { return window.$; } };
+        }
+        return realJQ(selector, context || window.document);
+      };
+      // Copy static jQuery methods
+      for (var k in realJQ) {
+        if (Object.prototype.hasOwnProperty.call(realJQ, k)) {
+          try { window.$[k] = realJQ[k]; } catch(e) {}
+        }
+      }
+      window.$.fn = realJQ.fn;
+      window.$.event = realJQ.event;
+    } else {
+      // Lightweight fallback: vanilla querySelector-based shim
+      var makeResult = function(elements) {
+        var arr = Array.prototype.slice.call(elements || []);
+        arr.on = function(evt, sel, fn) {
+          if (typeof sel === 'function') { fn = sel; sel = null; }
+          arr.forEach(function(el) {
+            if (sel) { el.addEventListener(evt, function(e) { if (e.target.matches && e.target.matches(sel)) fn.call(e.target, e); }); }
+            else { el.addEventListener(evt, fn); }
+          });
+          return arr;
+        };
+        arr.click = function(fn) { return fn ? arr.on('click', fn) : (arr[0] && arr[0].click(), arr); };
+        arr.show = function() { arr.forEach(function(el) { el.style.display = ''; }); return arr; };
+        arr.hide = function() { arr.forEach(function(el) { el.style.display = 'none'; }); return arr; };
+        arr.toggle = function(v) { arr.forEach(function(el) { el.style.display = (v === undefined ? (el.style.display === 'none' ? '' : 'none') : (v ? '' : 'none')); }); return arr; };
+        arr.addClass = function(c) { arr.forEach(function(el) { el.classList.add.apply(el.classList, c.split(' ')); }); return arr; };
+        arr.removeClass = function(c) { arr.forEach(function(el) { el.classList.remove.apply(el.classList, c.split(' ')); }); return arr; };
+        arr.toggleClass = function(c, s) { arr.forEach(function(el) { el.classList.toggle(c, s); }); return arr; };
+        arr.hasClass = function(c) { return arr.length > 0 && arr[0].classList.contains(c); };
+        arr.attr = function(k, v) { if (v === undefined) return arr[0] && arr[0].getAttribute(k); arr.forEach(function(el) { el.setAttribute(k, v); }); return arr; };
+        arr.val = function(v) { if (v === undefined) return arr[0] && arr[0].value; arr.forEach(function(el) { el.value = v; }); return arr; };
+        arr.text = function(v) { if (v === undefined) return arr[0] && arr[0].textContent; arr.forEach(function(el) { el.textContent = v; }); return arr; };
+        arr.html = function(v) { if (v === undefined) return arr[0] && arr[0].innerHTML; arr.forEach(function(el) { el.innerHTML = v; }); return arr; };
+        arr.find = function(sel) { var found = []; arr.forEach(function(el) { found = found.concat(Array.prototype.slice.call(el.querySelectorAll(sel))); }); return makeResult(found); };
+        arr.parent = function() { return makeResult(arr.map(function(el) { return el.parentElement; }).filter(Boolean)); };
+        arr.children = function(sel) { var found = []; arr.forEach(function(el) { var ch = Array.prototype.slice.call(el.children); if (sel) ch = ch.filter(function(c) { return c.matches && c.matches(sel); }); found = found.concat(ch); }); return makeResult(found); };
+        arr.first = function() { return makeResult(arr.slice(0, 1)); };
+        arr.last = function() { return makeResult(arr.slice(-1)); };
+        arr.each = function(fn) { arr.forEach(function(el, i) { fn.call(el, i, el); }); return arr; };
+        arr.css = function(k, v) { if (typeof k === 'object') { arr.forEach(function(el) { Object.assign(el.style, k); }); return arr; } if (v === undefined) return arr[0] && getComputedStyle(arr[0])[k]; arr.forEach(function(el) { el.style[k] = v; }); return arr; };
+        arr.data = function(k, v) { if (v === undefined) return arr[0] && arr[0].dataset[k]; arr.forEach(function(el) { el.dataset[k] = v; }); return arr; };
+        arr.prop = function(k, v) { if (v === undefined) return arr[0] && arr[0][k]; arr.forEach(function(el) { el[k] = v; }); return arr; };
+        arr.trigger = function(evt) { arr.forEach(function(el) { el.dispatchEvent(new Event(evt, { bubbles: true })); }); return arr; };
+        arr.append = function(html) { arr.forEach(function(el) { if (typeof html === 'string') el.insertAdjacentHTML('beforeend', html); else el.appendChild(html instanceof Node ? html : (html[0] || html)); }); return arr; };
+        arr.prepend = function(html) { arr.forEach(function(el) { if (typeof html === 'string') el.insertAdjacentHTML('afterbegin', html); else el.insertBefore(html instanceof Node ? html : (html[0] || html), el.firstChild); }); return arr; };
+        arr.remove = function() { arr.forEach(function(el) { el.parentNode && el.parentNode.removeChild(el); }); return arr; };
+        arr.length = elements ? elements.length : 0;
+        return arr;
+      };
+      window.$ = window.jQuery = function(selector, context) {
+        if (typeof selector === 'function') {
+          if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', selector); }
+          else { setTimeout(selector, 0); }
+          return makeResult([]);
+        }
+        if (typeof selector === 'string') {
+          var ctx = context instanceof Node ? context : ((context && context[0]) || window.document);
+          try { return makeResult(ctx.querySelectorAll(selector)); } catch(e) { return makeResult([]); }
+        }
+        if (selector instanceof Node) return makeResult([selector]);
+        if (selector && selector.length !== undefined) return makeResult(Array.prototype.slice.call(selector));
+        return makeResult([]);
+      };
+      window.$.fn = {};
+      window.$.ajax = function(opts) { return fetch(opts.url || opts, opts).then(function(r) { return r.text(); }).then(function(d) { opts.success && opts.success(d); }).catch(function(e) { opts.error && opts.error(e); }); };
+      window.$.extend = function(a, b) { return Object.assign(a || {}, b || {}); };
+    }
+  })();
 <\/script>
 <script>
   // ─── TavernHelper predefine for message iframe ───
@@ -1305,13 +1874,18 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
       });
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
+    function notifyReady() {
       setTimeout(function() {
         if (typeof TavernHelper._onIframeReady === 'function') {
           TavernHelper._onIframeReady(window.__TH_IFRAME_ID || 'message_iframe');
         }
       }, 300);
-    });
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      notifyReady();
+    } else {
+      document.addEventListener('DOMContentLoaded', notifyReady);
+    }
   })();
 <\/script>
 <script>
