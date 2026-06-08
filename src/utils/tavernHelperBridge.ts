@@ -1099,6 +1099,43 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   window.getScriptButtons = window.parent.getScriptButtons || null;
   window.replaceScriptButtons = window.parent.replaceScriptButtons || null;
   window.getButtonEvent = window.parent.getButtonEvent || null;
+
+  // Reactively bind SillyTavern and Mvu context so they are defined in Step 1.5
+  Object.defineProperty(window, 'SillyTavern', {
+    get: function() {
+      var SillyTavern = window.parent.SillyTavern;
+      return new Proxy(SillyTavern, {
+        get: function(target, prop) {
+          if (prop === 'getContext') {
+            return function() {
+              var parentContext = target.getContext();
+              return new Proxy(parentContext, {
+                get: function(ctxTarget, ctxProp) {
+                  if (ctxProp === 'writeExtensionField') {
+                    return window._th_impl && window._th_impl.writeExtensionField;
+                  }
+                  return ctxTarget[ctxProp];
+                }
+              });
+            };
+          }
+          if (prop === 'writeExtensionField') {
+            return window._th_impl && window._th_impl.writeExtensionField;
+          }
+          return target[prop];
+        }
+      });
+    },
+    configurable: true
+  });
+
+  if (window.parent._ && window.parent._.has(window.parent, 'Mvu')) {
+    Object.defineProperty(window, 'Mvu', {
+      get: function() { return window.parent.Mvu; },
+      set: function() {},
+      configurable: true,
+    });
+  }
 </script>
 <script>
   // ─── Step 1.5: Pre-load MVU libraries and framework offline ───
@@ -1153,41 +1190,7 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
       console.warn("[TH Iframe] Merge error:", mergeErr);
     }
 
-    Object.defineProperty(window, 'SillyTavern', {
-      get: function() {
-        var SillyTavern = window.parent.SillyTavern;
-        return new Proxy(SillyTavern, {
-          get: function(target, prop) {
-            if (prop === 'getContext') {
-              return function() {
-                var parentContext = target.getContext();
-                return new Proxy(parentContext, {
-                  get: function(ctxTarget, ctxProp) {
-                    if (ctxProp === 'writeExtensionField') {
-                      return window._th_impl && window._th_impl.writeExtensionField;
-                    }
-                    return ctxTarget[ctxProp];
-                  }
-                });
-              };
-            }
-            if (prop === 'writeExtensionField') {
-              return window._th_impl && window._th_impl.writeExtensionField;
-            }
-            return target[prop];
-          }
-        });
-      },
-      configurable: true
-    });
 
-    if (_.has(window.parent, 'Mvu')) {
-      Object.defineProperty(window, 'Mvu', {
-        get: function() { return window.parent.Mvu; },
-        set: function() {},
-        configurable: true,
-      });
-    }
 
     window.addEventListener('pagehide', function() {
       if (typeof window.eventClearAll === 'function') {
