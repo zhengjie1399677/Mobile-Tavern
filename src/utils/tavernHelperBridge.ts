@@ -1294,11 +1294,18 @@ export function cleanTavernHelperBridge() {
  * Call this after saving a session with updated variables (e.g. after AI reply + MVU parse).
  * It emits the mag_variable_initialized event so that iframe scripts can refresh their UI.
  */
-export function notifyVariablesUpdated(session: ChatSession) {
+export function notifyVariablesUpdated(session: ChatSession, messageId?: number) {
   if (!session) return;
   const variables = session.variables || {};
-  console.log("[TavernHelper Event] notifyVariablesUpdated → emitting mag_variable_initialized");
+  console.log("[TavernHelper Event] notifyVariablesUpdated → emitting mag_variable_initialized + character_message_rendered");
+  // 1. Notify MVU bundle that variables have been initialized/updated.
   tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
+  // 2. Emit message_received + character_message_rendered so the MVU bundle's
+  //    per-turn UI refresh hook fires on every AI reply (not just the first).
+  //    The MVU bundle listens on CHARACTER_MESSAGE_RENDERED to re-render the status board.
+  const lastMsgId = messageId ?? Math.max(0, (session.messages?.length ?? 1) - 1);
+  tavernHelperEventEmitter.emit('message_received', lastMsgId);
+  tavernHelperEventEmitter.emit('character_message_rendered', lastMsgId);
 }
 
 // Pre-process mvu_zod script by stripping its ES module export statement and wrapping in an IIFE to isolate scope
@@ -1693,10 +1700,109 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
   // ─── Inherit libraries from parent window (NO external CDN requests) ───
   window._ = window.parent._;
   window.Vue = window.parent.Vue || null;
-  window.$ = window.jQuery = window.parent.$ || window.parent.jQuery || null;
-  if (window.$) {
-    window.parent.$ = window.parent.jQuery = window.parent.$ || window.$;
-  }
+  // ─── jQuery shim for message iframe ───
+  // The parent window's $ is a minimal stub (no DOM selector support).
+  // Message iframes need a real jQuery-compatible selector so that inline
+  // scripts (e.g. tab switching via $("#tab1").show()) work against THIS
+  // iframe's own document, not the parent's.
+  (function() {
+    // Try to borrow jQuery from the script iframe siblings (they load the
+    // full mvu_bundle which may have attached a real jQuery to the parent).
+    // Walk parent's child iframes looking for one with a proper jQuery.
+    var realJQ = null;
+    try {
+      var frames = window.parent.document.querySelectorAll('iframe');
+      for (var fi = 0; fi < frames.length; fi++) {
+        try {
+          var fw = frames[fi].contentWindow;
+          if (fw && fw.jQuery && typeof fw.jQuery === 'function' && fw.jQuery.fn && fw.jQuery.fn.jquery) {
+            realJQ = fw.jQuery;
+            break;
+          }
+        } catch(e2) {}
+      }
+    } catch(e) {}
+
+    if (realJQ) {
+      // Bind real jQuery to this iframe's document so selectors search here
+      window.$ = window.jQuery = function(selector, context) {
+        if (typeof selector === 'function') {
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', selector);
+          } else {
+            setTimeout(selector, 0);
+          }
+          return { on: function() { return window.$; }, trigger: function() { return window.$; } };
+        }
+        return realJQ(selector, context || window.document);
+      };
+      // Copy static jQuery methods
+      for (var k in realJQ) {
+        if (Object.prototype.hasOwnProperty.call(realJQ, k)) {
+          try { window.$[k] = realJQ[k]; } catch(e) {}
+        }
+      }
+      window.$.fn = realJQ.fn;
+      window.$.event = realJQ.event;
+    } else {
+      // Lightweight fallback: vanilla querySelector-based shim
+      var makeResult = function(elements) {
+        var arr = Array.prototype.slice.call(elements || []);
+        arr.on = function(evt, sel, fn) {
+          if (typeof sel === 'function') { fn = sel; sel = null; }
+          arr.forEach(function(el) {
+            if (sel) { el.addEventListener(evt, function(e) { if (e.target.matches && e.target.matches(sel)) fn.call(e.target, e); }); }
+            else { el.addEventListener(evt, fn); }
+          });
+          return arr;
+        };
+        arr.click = function(fn) { return fn ? arr.on('click', fn) : (arr[0] && arr[0].click(), arr); };
+        arr.show = function() { arr.forEach(function(el) { el.style.display = ''; }); return arr; };
+        arr.hide = function() { arr.forEach(function(el) { el.style.display = 'none'; }); return arr; };
+        arr.toggle = function(v) { arr.forEach(function(el) { el.style.display = (v === undefined ? (el.style.display === 'none' ? '' : 'none') : (v ? '' : 'none')); }); return arr; };
+        arr.addClass = function(c) { arr.forEach(function(el) { el.classList.add.apply(el.classList, c.split(' ')); }); return arr; };
+        arr.removeClass = function(c) { arr.forEach(function(el) { el.classList.remove.apply(el.classList, c.split(' ')); }); return arr; };
+        arr.toggleClass = function(c, s) { arr.forEach(function(el) { el.classList.toggle(c, s); }); return arr; };
+        arr.hasClass = function(c) { return arr.length > 0 && arr[0].classList.contains(c); };
+        arr.attr = function(k, v) { if (v === undefined) return arr[0] && arr[0].getAttribute(k); arr.forEach(function(el) { el.setAttribute(k, v); }); return arr; };
+        arr.val = function(v) { if (v === undefined) return arr[0] && arr[0].value; arr.forEach(function(el) { el.value = v; }); return arr; };
+        arr.text = function(v) { if (v === undefined) return arr[0] && arr[0].textContent; arr.forEach(function(el) { el.textContent = v; }); return arr; };
+        arr.html = function(v) { if (v === undefined) return arr[0] && arr[0].innerHTML; arr.forEach(function(el) { el.innerHTML = v; }); return arr; };
+        arr.find = function(sel) { var found = []; arr.forEach(function(el) { found = found.concat(Array.prototype.slice.call(el.querySelectorAll(sel))); }); return makeResult(found); };
+        arr.parent = function() { return makeResult(arr.map(function(el) { return el.parentElement; }).filter(Boolean)); };
+        arr.children = function(sel) { var found = []; arr.forEach(function(el) { var ch = Array.prototype.slice.call(el.children); if (sel) ch = ch.filter(function(c) { return c.matches && c.matches(sel); }); found = found.concat(ch); }); return makeResult(found); };
+        arr.first = function() { return makeResult(arr.slice(0, 1)); };
+        arr.last = function() { return makeResult(arr.slice(-1)); };
+        arr.each = function(fn) { arr.forEach(function(el, i) { fn.call(el, i, el); }); return arr; };
+        arr.css = function(k, v) { if (typeof k === 'object') { arr.forEach(function(el) { Object.assign(el.style, k); }); return arr; } if (v === undefined) return arr[0] && getComputedStyle(arr[0])[k]; arr.forEach(function(el) { el.style[k] = v; }); return arr; };
+        arr.data = function(k, v) { if (v === undefined) return arr[0] && arr[0].dataset[k]; arr.forEach(function(el) { el.dataset[k] = v; }); return arr; };
+        arr.prop = function(k, v) { if (v === undefined) return arr[0] && arr[0][k]; arr.forEach(function(el) { el[k] = v; }); return arr; };
+        arr.trigger = function(evt) { arr.forEach(function(el) { el.dispatchEvent(new Event(evt, { bubbles: true })); }); return arr; };
+        arr.append = function(html) { arr.forEach(function(el) { if (typeof html === 'string') el.insertAdjacentHTML('beforeend', html); else el.appendChild(html instanceof Node ? html : (html[0] || html)); }); return arr; };
+        arr.prepend = function(html) { arr.forEach(function(el) { if (typeof html === 'string') el.insertAdjacentHTML('afterbegin', html); else el.insertBefore(html instanceof Node ? html : (html[0] || html), el.firstChild); }); return arr; };
+        arr.remove = function() { arr.forEach(function(el) { el.parentNode && el.parentNode.removeChild(el); }); return arr; };
+        arr.length = elements ? elements.length : 0;
+        return arr;
+      };
+      window.$ = window.jQuery = function(selector, context) {
+        if (typeof selector === 'function') {
+          if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', selector); }
+          else { setTimeout(selector, 0); }
+          return makeResult([]);
+        }
+        if (typeof selector === 'string') {
+          var ctx = context instanceof Node ? context : ((context && context[0]) || window.document);
+          try { return makeResult(ctx.querySelectorAll(selector)); } catch(e) { return makeResult([]); }
+        }
+        if (selector instanceof Node) return makeResult([selector]);
+        if (selector && selector.length !== undefined) return makeResult(Array.prototype.slice.call(selector));
+        return makeResult([]);
+      };
+      window.$.fn = {};
+      window.$.ajax = function(opts) { return fetch(opts.url || opts, opts).then(function(r) { return r.text(); }).then(function(d) { opts.success && opts.success(d); }).catch(function(e) { opts.error && opts.error(e); }); };
+      window.$.extend = function(a, b) { return Object.assign(a || {}, b || {}); };
+    }
+  })();
 <\/script>
 <script>
   // ─── TavernHelper predefine for message iframe ───
