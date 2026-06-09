@@ -216,6 +216,16 @@ function domToReact(
           });
         }
         
+        // Diagnostic: log the srcdoc length and whether it was processed by createMessageIframeSrcDoc
+        const hasThBridgeInject = resolvedSrcdoc.includes('TavernHelper');
+        const hasJQueryShim = resolvedSrcdoc.includes('makeResult') || resolvedSrcdoc.includes('realJQ');
+        console.log('[FormattedText] srcdoc set on iframe:', {
+          len: resolvedSrcdoc.length,
+          hasThBridgeInject,
+          hasJQueryShim,
+          preview: resolvedSrcdoc.substring(0, 120),
+        });
+        
         props.srcDoc = resolvedSrcdoc;
       } else {
         props[name] = val;
@@ -319,7 +329,12 @@ function preprocessFormattedText(
         .replace(/&/g, "&amp;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
-      return `<iframe srcdoc="${escapedHtml}" style="width: 100%; height: 250px; border: none; overflow: hidden; display: block;" class="w-full"></iframe>`;
+      // CRITICAL: Do NOT set a fixed height here.
+      // React re-renders on every streaming token (~60ms) and would override
+      // any height set by the iframe's auto-height script via window.frameElement.
+      // By only setting min-height (not height), React won't touch the actual
+      // rendered height, so the iframe can grow freely via the internal script.
+      return `<iframe srcdoc="${escapedHtml}" style="width: 100%; min-height: 400px; border: none; display: block;" class="w-full mvu-message-iframe"></iframe>`;
     });
   }
 

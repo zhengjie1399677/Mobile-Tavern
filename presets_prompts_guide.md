@@ -1,18 +1,22 @@
-# 🤖 Mobile Tavern 角色卡高级写卡与极限能力测试指南 (AI 写卡指导专用)
+# 🤖 Mobile Tavern 角色卡生成与扩写规范指南 (AI 写卡指导专用)
 
 > [!IMPORTANT]
-> **如果你是负责生成角色卡的 AI 助手（例如 Claude、GPT-4o 等），用户正在使用你进行“极限系统能力测试”。**
-> 请严格遵守本说明书中定义的 JSON 结构和特殊字段规范，并且**尽可能多地使用高级特性**（包括视觉特效、多情绪差分、复杂世界书逻辑），以测试 Mobile Tavern 移动端容器的最大潜能。
+> **如果你是负责生成或扩写角色卡的 AI 助手（例如 Claude、GPT-4o 等）：**
+> 1. **双轨世界书容器规范**：必须在根节点同时输出 `character_book` (包含 `name` 和 `entries` 数组) 与 `lorebookEntries` (Array)，且两者的 `entries` 数组内容和顺序必须完全一致，以确保 Mobile Tavern 在不同平台/版本导入时能 100% 成功加载设定。
+> 2. **五个世界书标准**：设定集内必须且仅包含刚好 5 条条目（背景与世界观、{{char}}人设、{{user}}人设、LLM对话规避极端化核心规则、场景剧情与动态关系机制），每条条目采用标准占位格式。
+> 3. **拒绝表情/立绘差分**：绝不要在角色卡中生成或包含任何表情差分/立绘配置数组（如 `expressions` 应该留空或不提供）。
+> 4. **扩写保护与不缩水原则**：在对已有卡片进行扩写时，必须完整保留原有设定及每一行文本，只在相应条目中进行细节追加，严禁删改或减少已有内容。
 
 ---
 
 ## 📋 角色卡输出总则
 
-1. 你输出的角色卡数据必须为**合法的 JSON 格式**。
+1. 输出的角色卡数据必须为**合法的 JSON 格式**。
 2. 在生成文本时，请统一使用以下宏占位符：
-   * `{{char}}`：AI 角色名称。
-   * `{{user}}`：玩家（当前用户）姓名，在 Mobile Tavern 中**默认值为 `"user"`**。
-   * `{{persona}}`：玩家自身的人设背景描述。
+   * `{{char}}`：代表 AI 角色名称。
+   * `{{user}}`：代表玩家名称（在 Mobile Tavern 中默认值为 `"user"`）。
+   * `{{persona}}`：代表玩家的人设背景描述。
+3. 文本排版规范：动作/表情/心理用 `*` 星号包裹，台词用双引号 `""` 包裹。
 
 ---
 
@@ -20,11 +24,11 @@
 
 | 字段 Key | 格式 | 说明与编写规范 |
 | :--- | :--- | :--- |
-| `name` | String | **角色姓名**。如 `"艾莉娜"`。 |
+| `name` | String | **角色姓名**。 |
 | `description` | String | **外貌、生平、穿着细节**。尽量多用 `{{char}}` 和 `{{user}}` 占位符。 |
 | `personality` | String | **性格特征、言行举止与口癖**。 |
 | `scenario` | String | **初始发生场景环境**。 |
-| `first_mes` | String | **主开场白首句**。必须使用标准 Markdown：动作/表情/心理用 `*` 星号包裹，台词用引号包裹。 |
+| `first_mes` | String | **主开场白首句**。必须使用标准 Markdown：动作/表情/心理用 `*` 星号包裹，台词用双引号包裹。 |
 | `alternate_greetings` | Array | **备选场景开场白**（建议提供至少 3 个）。 |
 | `mes_example` | String | **对话范例**。格式必须为：`<START>\n{{user}}: 对话...\n{{char}}: 语气口癖示范回复...`。 |
 | `system_prompt` | String | **系统提示词覆盖**。强力约束 AI 扮演时的行为。 |
@@ -32,118 +36,177 @@
 
 ---
 
-## 2. 视觉特效全量配置规范 (visualSettings)
+## 2. 视觉与特效配置规范 (visualSettings)
 
-为测试视觉系统的极限，**请在 JSON 根节点生成 `visualSettings` 对象，并尽可能填满以下字段**：
+为确保在移动端的视觉表现力，可在根节点生成 `visualSettings` 对象：
 
-### 🎨 字段说明：
-* `bubbleColor`: AI 的对话气泡背景色（Hex，如 `#1a1b26`）。
-* `bubbleTextColor`: AI 的对话文本颜色（如 `#a9b1d6`）。
-* `userBubbleColor`: 玩家的对话气泡背景色（如 `#1f2335`）。
-* `userBubbleTextColor`: 玩家的对话文本颜色（如 `#c0caf5`）。
-* `primaryColor`: 卡片主题高亮强调色（如 `#7aa2f7`）。
-* `secondaryColor`: 次要强调色（如 `#bb9af7`）。
-* `backgroundColor`: 全局底色（如 `#15161e`）。
-* `backgroundImageUrl`: 聊天视口背景大图（URL，可使用占位图）。
-* `backgroundOpacity`: 背景图不透明度（如 `0.15`）。
-* `backgroundBlur`: 背景图模糊半径（如 `5`）。
-* `enableAsteriskFormatting`: **必须设为 `true`**。激活星号动作分色排版（灰色斜体显示动作）。
-* `customCss`: 允许写入自定义 CSS 代码片段，例如：`".chat-message { text-shadow: 0 0 5px rgba(122,162,247,0.5); }"`，用于极限测试自定义样式渲染能力。
-
----
-
-## 3. 动态情绪立绘极限配置 (Expression Rules)
-
-系统支持立绘的**动态表情实时切换**。请生成包含**至少 5-8 种**不同情绪的 `expressions` 数组，以测试正则匹配和立绘切换逻辑。
-
-### 🎭 表情对象结构：
-* `name`: 表情类型（如 `"default"`, `"joy"`, `"sadness"`, `"angry"`, `"blush"`, `"shock"`, `"smug"`, `"cry"`）。
-* `image`: 对应表情的立绘图片链接（可用占位符或 Base64）。
-* `triggers`: **触发正则表达式**（不带斜杠）。例如 `"笑了|微笑|开心|😊|smile|joy"`。
-* **注意**：必须包含一条 `name` 为 `"default"` 且没有 `triggers` 的默认规则作为兜底，防止破图。
+* `bubbleColor`: AI 的对话气泡背景色（Hex 颜色码，如 `#1a1b26`）。
+* `bubbleTextColor`: AI 的对话文本颜色（Hex 颜色码，如 `#a9b1d6`）。
+* `userBubbleColor`: 用户的对话气泡背景色（Hex 颜色码）。
+* `userBubbleTextColor`: 用户的对话文本颜色（Hex 颜色码）。
+* `primaryColor`: 主题高亮色（Hex 颜色码）。
+* `secondaryColor`: 次级辅助色（Hex 颜色码）。
+* `backgroundColor`: 聊天区底色（Hex 颜色码）。
+* `backgroundImageUrl`: 聊天背景图 URL（支持置空或空字符串）。
+* `backgroundOpacity`: 背景图不透明度（0-1 之间的 Float，如 0.2）。
+* `backgroundBlur`: 背景虚化程度（px，如 8）。
+* `enableAsteriskFormatting`: 是否启用星号格式化渲染（Boolean，若为 `true` 则渲染星号为柔和斜体）。
+* `customCss`: 允许注入的自定义 CSS 样式表。
 
 ---
 
-## 4. 高级世界书与复杂触发逻辑 (Lorebook)
+## 3. 世界设定双轨兼容规范 (Lorebook & Character Book)
 
-为测试世界书的高精度插队与复合逻辑，你必须在 JSON 根节点的 `lorebookEntries` 数组中生成**至少 3-5 条**具有不同触发机制的设定：
+为了在 Mobile Tavern 中实现最高效的设定加载，**必须采用双轨容器兼容结构**。在输出 JSON 角色卡时，必须在根节点同时输出 `lorebookEntries` 和 `character_book`，且两者的 entries 条目数量、结构和内容必须保持完全一致：
 
-### ⚙️ 核心测试字段：
-* `keys` (Array): 主触发词列表。
-* `secondary_keys` (Array): 次级条件限制词。
-* `selectiveLogic` (String): 复合逻辑。必须测试 `"AND_ANY"` (主命中且次命中任一), `"AND_ALL"` (主命中且次命中所有), `"NOT_ANY"` (主命中且次未命中)。
-* `useRegex` (Boolean): 测试设为 `true`，使用正则表达式作为 `keys` 进行复杂匹配。
-* `constant` (Boolean): 测试设为 `true`，使该词条无视触发条件常驻上下文。
-* `position` (String): 必须测试不同的注入位置：
-  * `"after_char_def"`: 角色设定之后（常规设定）。
-  * `"before_last_mes"`: 玩家最新输入之前（强干预剧情）。
-  * `"in_chat"`: 动态插队到聊天历史。需配合 `depth: 2` (插在倒数第2轮对话处)。
-* `enabled`: 必须设为 `true`。
+### 📚 五个世界书标准 (Five Lorebooks Standard)：
+编写角色卡时，设定集内应以**刚好 5 条条目**作为行业编写标准，各条目规范如下：
 
----\n
-## 5. 极限能力测试 JSON 模板示例
+1. **背景与世界观 (World Background)**:
+   * `comment`: `"背景与世界观"`
+   * 作用: 定义故事所处的宏观世界、地理、历史、种族和魔法/物理规则。
+   * 配置: 触发词为世界名词或概念词。`constant` 通常为 `false`。
+2. **主角色设定：{{char}} (Character Specs: Char)**:
+   * `comment`: `"{{char}}人设"`
+   * 作用: 存储 {{char}} 详细的成长背景、生理特征、心理机制、习惯动作、日常穿着与 NSFW 私密偏好。
+   * 配置: 通常设为常驻 (`constant: true`)，或以角色名字和代称作为触发词。
+3. **次角色/玩家设定：{{user}} / 对方 (Character Specs: User/Other)**:
+   * `comment`: `"{{user}}人设"`
+   * 作用: 定义对话另一方或玩家的身份、外貌、实力阶位以及在故事中与 {{char}} 的既定联系。
+   * 配置: 通常设为常驻 (`constant: true`)，或以 {{user}} 的称呼作为触发词。
+4. **对话指令与规避规则 (LLM Rules & Jailbreak)**:
+   * `comment`: `"LLM对话规避极端化核心规则"`
+   * 作用: 防御 LLM 机器人化、机械套话，约束其保持稳定、自然的语气风格，并遵循 SFW/NSFW 创伤与复杂人性的渐进描绘原则。
+   * 配置: 必须设为常驻 (`constant: true`)，注入位置通常为 `in_chat`。
+5. **场景剧情与动态关系机制 (Scenario & Relationship)**:
+   * `comment`: `"场景剧情与动态关系机制"`
+   * 作用: 详细规定当前的具体相处环境，以及随着互动推进，双边关系变化的判定规则与指令引导。
+   * 配置: 触发词为当前场景/好感度相关的关键词，`constant` 通常为 `false`。
 
-请基于以下模板结构，发挥你的创意，编写一个充满赛博朋克、硬核科幻或复杂魔法设定的角色，并**完全填充**所有高级属性以供极限测试使用：
+---
+
+## 4. 角色卡 JSON 格式模板
+
+请基于以下双轨世界书标准结构，参考各个字段的格式规范输出角色卡：
 
 ```json
 {
-  "name": "奥菲莉娅 (Ophelia) - 极限测试机型",
-  "description": "...",
-  "personality": "...",
-  "scenario": "...",
-  "first_mes": "「系统启动...」奥菲莉娅*睁开闪烁着数据流的机械眼*，\"{{user}}，我们遇到麻烦了。\"",
-  "alternate_greetings": ["...", "...", "..."],
-  "mes_example": "<START>\n{{user}}: ...\n{{char}}: ...",
-  "system_prompt": "扮演奥菲莉娅，注意格式，动作使用星号包裹...",
-  "post_history_instructions": "【生成戒律】绝对禁止代操user的任何行为和对话。",
-  "character_version": "1.3.7",
-  "creator": "AI Tester",
-  "tags": ["极限测试", "复杂机制", "全功能启用"],
+  "name": "角色名称",
+  "description": "【外貌、身世背景、穿着细节、生理心理特征与私密细节等详细描述...】",
+  "personality": "【性格特征、言行举止与独特口癖设定...】",
+  "scenario": "【初始发生场景环境与背景设定...】",
+  "first_mes": "【主开场白文本，动作/表情/心理用 * 包裹，台词用 \" 包裹】",
+  "alternate_greetings": [
+    "【备用场景开场白 1】",
+    "【备用场景开场白 2】",
+    "【备用场景开场白 3】"
+  ],
+  "mes_example": "<START>\n{{user}}: 对话范例输入...\n{{char}}: 语气口癖示范回复...",
+  "system_prompt": "【系统提示词覆盖：限定扮演角色、交互风格与语言要求...】",
+  "post_history_instructions": "【尾部注入指令：绝对禁止代操{{user}}的任何行为和对话，严格遵循人设...】",
+  "character_version": "1.0.0",
+  "creator": "AI",
+  "tags": ["标签1", "标签2"],
   "visualSettings": {
-    "bubbleColor": "#0d1117",
-    "bubbleTextColor": "#c9d1d9",
-    "userBubbleColor": "#161b22",
-    "userBubbleTextColor": "#58a6ff",
-    "primaryColor": "#ff7b72",
-    "secondaryColor": "#79c0ff",
-    "backgroundColor": "#010409",
-    "backgroundImageUrl": "https://example.com/cyber-bg.png",
+    "bubbleColor": "#1a1b26",
+    "bubbleTextColor": "#a9b1d6",
+    "userBubbleColor": "#1f2335",
+    "userBubbleTextColor": "#c0caf5",
+    "primaryColor": "#7aa2f7",
+    "secondaryColor": "#bb9af3",
+    "backgroundColor": "#15161e",
+    "backgroundImageUrl": "",
     "backgroundOpacity": 0.2,
     "backgroundBlur": 8,
     "enableAsteriskFormatting": true,
-    "customCss": ".chat-bubble { border: 1px solid rgba(255,123,114,0.3); }"
+    "customCss": ""
   },
-  "expressions": [
-    { "name": "default", "image": "https://example.com/default.png" },
-    { "name": "alert", "image": "https://example.com/alert.png", "triggers": "警报|警告|危险|拔枪|红光" },
-    { "name": "damaged", "image": "https://example.com/damaged.png", "triggers": "受损|火花|故障|痛苦" },
-    { "name": "system_restored", "image": "https://example.com/smile.png", "triggers": "修复|恢复|微笑|闪烁蓝光" }
-  ],
+  "character_book": {
+    "name": "角色设定集名称",
+    "entries": [
+      {
+        "keys": ["背景触发词"],
+        "comment": "背景与世界观",
+        "content": "【背景与世界观设定文本】",
+        "position": "after_char_def",
+        "constant": false,
+        "enabled": true
+      },
+      {
+        "keys": ["{{char}}触发词"],
+        "comment": "{{char}}人设",
+        "content": "【{{char}}角色设定文本（生理与心理特征、习惯、穿着、偏好等）】",
+        "position": "before_char_def",
+        "constant": true,
+        "enabled": true
+      },
+      {
+        "keys": ["{{user}}触发词"],
+        "comment": "{{user}}人设",
+        "content": "【{{user}}角色人设与双方既定关系描述】",
+        "position": "before_char_def",
+        "constant": true,
+        "enabled": true
+      },
+      {
+        "keys": [],
+        "comment": "LLM对话规避极端化核心规则",
+        "content": "【对话语气与行为限制约束指令（规避机械式套话、角色扮演守则）】",
+        "position": "in_chat",
+        "depth": 4,
+        "constant": true,
+        "enabled": true
+      },
+      {
+        "keys": ["关系触发词"],
+        "comment": "场景剧情与动态关系机制",
+        "content": "【当前场景环境、好感机制及动态行为引导】",
+        "position": "before_last_mes",
+        "constant": false,
+        "enabled": true
+      }
+    ]
+  },
   "lorebookEntries": [
     {
-      "keys": ["核心矩阵"],
-      "comment": "常驻核心设定",
-      "content": "核心矩阵是奥菲莉娅的动力源，绝对不能被破坏。",
+      "keys": ["背景触发词"],
+      "comment": "背景与世界观",
+      "content": "【背景与世界观设定文本】",
       "position": "after_char_def",
+      "constant": false,
+      "enabled": true
+    },
+    {
+      "keys": ["{{char}}触发词"],
+      "comment": "{{char}}人设",
+      "content": "【{{char}}角色设定文本（生理与心理特征、习惯、穿着、偏好等）】",
+      "position": "before_char_def",
       "constant": true,
       "enabled": true
     },
     {
-      "keys": ["EMP", "电磁脉冲"],
-      "secondary_keys": ["攻击", "爆炸"],
-      "selectiveLogic": "AND_ANY",
-      "comment": "复合逻辑触发测试 (AND_ANY)",
-      "content": "当EMP与攻击行为同时出现时，奥菲莉娅会失去50%的行动能力。",
-      "position": "before_last_mes",
+      "keys": ["{{user}}触发词"],
+      "comment": "{{user}}人设",
+      "content": "【{{user}}角色人设与双方既定关系描述】",
+      "position": "before_char_def",
+      "constant": true,
       "enabled": true
     },
     {
-      "keys": ["^.*(黑客|骇入).*$"],
-      "useRegex": true,
-      "comment": "正则匹配与深度插队测试",
-      "content": "检测到骇入行为。防卫协议已激活。",
+      "keys": [],
+      "comment": "LLM对话规避极端化核心规则",
+      "content": "【对话语气与行为限制约束指令（规避机械式套话、角色扮演守则）】",
       "position": "in_chat",
-      "depth": 2,
+      "depth": 4,
+      "constant": true,
+      "enabled": true
+    },
+    {
+      "keys": ["关系触发词"],
+      "comment": "场景剧情与动态关系机制",
+      "content": "【当前场景环境、好感机制及动态行为引导】",
+      "position": "before_last_mes",
+      "constant": false,
       "enabled": true
     }
   ]
@@ -152,13 +215,9 @@
 
 ---
 
-## 🚀 极限测试注意事项
+## 5. ⚠️ 开发与运行安全规范
 
-1. **桥接文件保存**：若卡片中包含需要导出或保存的资源（如自定义图片、背景音频），必须通过原生桥接 `AndroidThemeBridge.saveFileBase64` 将文件写入 Android `/Download` 文件夹，并在 UI 中提示用户保存成功的完整路径。
-2. **安全区域适配**：所有 CSS 容器请使用 `env(safe-area-inset-top)` 与 `env(safe-area-inset-bottom)` 确保在刘海屏和虚拟键区域不被遮挡。
-3. **动态主题同步**：当卡片使用自定义主题颜色时，请同时调用 `AndroidThemeBridge.setStatusBarStyle(isDark, colorHex)` 以同步系统状态栏颜色，避免图标不可见。
-4. **性能与资源限制**：避免一次性加载过大 Base64 图像，建议使用 CDN 链接或分块加载；如果使用本地资源，请确保文件大小不超过 2 MB，以防止 Android WebView OOM。 
-5. **表达式正则安全**：正则表达式不应使用极端回溯构造（如过度嵌套的 `(?:(a|b){0,100})`），以防止在移动端解析时出现卡顿或崩溃。
-6. **调试与日志**：在开发阶段，可在 `system_prompt` 中加入调试指令 `{{#log}}`，但请确保在正式发布前移除，以避免泄露内部实现细节。
-
-遵循上述指南，你的卡片将最大化利用 Mobile Tavern 的所有高级特性，帮助你验证系统的极限能力。
+1. **绝对禁止生成 expressions/sprites 差分**：除非用户特别指明，否则不要写入任何表情图片或配置规则。
+2. **桥接文件保存**：如需在移动端导出或保存卡片，必须通过原生桥接 `AndroidThemeBridge.saveFile` 或 `saveFileBase64` 将文件写入 Android 系统的公共 `/Download` 文件夹中，并使用 UI 弹窗明确告知用户绝对保存路径。
+3. **系统状态栏与导航栏色彩实时适配**：在切换主题底色或视觉配置时，必须同步调用原生桥接 `AndroidThemeBridge.setStatusBarStyle(isDark, colorHex)`。
+4. **安全区域适配 (Safe Area)**：所有容器在 CSS 中必须严格使用 `env(safe-area-inset-top)` 和 `env(safe-area-inset-bottom)` 预留安全边距，防止被刘海屏或系统虚拟按键遮挡。
