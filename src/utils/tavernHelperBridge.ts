@@ -42,23 +42,48 @@ const tavernHelperEventEmitter = (() => {
       listeners[event].push(cb);
       return emitter;
     },
+    once(event: string, cb: any) {
+      const wrapper = (...args: any[]) => {
+        emitter.off(event, wrapper);
+        cb(...args);
+      };
+      return emitter.on(event, wrapper);
+    },
     off(event: string, cb: any) {
       if (!listeners[event]) return emitter;
       listeners[event] = listeners[event].filter(l => l !== cb);
       return emitter;
     },
+    removeListener(event: string, cb: any) {
+      return emitter.off(event, cb);
+    },
     emit(event: string, ...args: any[]) {
       if (!listeners[event]) return emitter;
-      listeners[event].forEach(cb => {
+      const list = [...listeners[event]];
+      list.forEach(cb => {
         try { cb(...args); } catch (e) { console.error(`[Event Emit Error in ${event}]:`, e); }
       });
       return emitter;
     },
     emitAndWait(event: string, ...args: any[]) {
-      if (!listeners[event]) return Promise.resolve();
-      return Promise.all(listeners[event].map(cb => {
-        try { return Promise.resolve(cb(...args)); } catch (e) { return Promise.reject(e); }
+      if (!listeners[event]) return Promise.resolve([]);
+      const list = [...listeners[event]];
+      return Promise.all(list.map(async (cb) => {
+        try {
+          return await Promise.resolve(cb(...args));
+        } catch (e) {
+          console.error(`[Event EmitAndWait Error in ${event}]:`, e);
+          return null;
+        }
       }));
+    },
+    makeFirst(event: string, cb: any) {
+      listeners[event] = listeners[event] || [];
+      listeners[event].unshift(cb);
+      return emitter;
+    },
+    makeLast(event: string, cb: any) {
+      return emitter.on(event, cb);
     },
     clear(event: string) {
       delete listeners[event];
@@ -619,6 +644,7 @@ if (typeof window !== "undefined") {
         updateSettings({ ...settings, variables });
       } else if (opt.type === "message" && opt.message_id !== undefined && activeSession) {
         const targetMsgId = resolveMessageId(opt.message_id, activeSession.messages.length);
+        let sessionVarsUpdated = false;
         const updatedMessages = activeSession.messages.map((m, idx) => {
           if (idx === targetMsgId) {
             const msg = m as any;
@@ -629,21 +655,30 @@ if (typeof window !== "undefined") {
               ...extra.variables,
               [swipeId]: variables
             };
+            if (idx === activeSession.messages.length - 1) {
+              sessionVarsUpdated = true;
+            }
             return { ...m, extra };
           }
           return m;
         });
-        const updatedSession = { ...activeSession, messages: updatedMessages };
+        const updatedSession = { 
+          ...activeSession, 
+          messages: updatedMessages,
+          variables: sessionVarsUpdated ? variables : activeSession.variables
+        };
         setSessions((prev) =>
           prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
         );
         saveSession(updatedSession);
+        notifyVariablesUpdated(updatedSession);
       } else if (activeSession) {
         const updated = { ...activeSession, variables };
         setSessions((prev) =>
           prev.map((s) => (s.id === updated.id ? updated : s))
         );
         saveSession(updated);
+        notifyVariablesUpdated(updated);
       }
     },
     _updateVariablesWith(updater: any, opt = { type: "chat" }) {
@@ -684,21 +719,28 @@ if (typeof window !== "undefined") {
       
       let changed = false;
       const targetMsgId = resolveMessageId(id, activeSession.messages.length);
+      let sessionVarsUpdated = false;
+      let newSessionVars = { ...activeSession.variables };
+
       const updatedMessages = activeSession.messages.map((m, idx) => {
         if (idx === targetMsgId) {
           let updated = { ...m, content };
           if (messageObj && typeof messageObj === "object") {
-            if (messageObj.swipe_id !== undefined) {
+            if (messageObj.swipe_id !== undefined && (updated as any).swipe_id !== messageObj.swipe_id) {
               (updated as any).swipe_id = messageObj.swipe_id;
+              changed = true;
             }
-            if (messageObj.swipes !== undefined) {
+            if (messageObj.swipes !== undefined && !_.isEqual((updated as any).swipes, messageObj.swipes)) {
               (updated as any).swipes = messageObj.swipes;
+              changed = true;
             }
-            if (messageObj.swipes_data !== undefined) {
+            if (messageObj.swipes_data !== undefined && !_.isEqual((updated as any).swipes_data, messageObj.swipes_data)) {
               (updated as any).swipes_data = messageObj.swipes_data;
+              changed = true;
             }
-            if (messageObj.extra !== undefined) {
+            if (messageObj.extra !== undefined && !_.isEqual((updated as any).extra, messageObj.extra)) {
               (updated as any).extra = { ...(updated as any).extra, ...messageObj.extra };
+              changed = true;
             }
             if (messageObj.variables !== undefined) {
               if (!(updated as any).extra) (updated as any).extra = {};
@@ -717,20 +759,30 @@ if (typeof window !== "undefined") {
                   [swipeId]: { ...existingSwipeVars, ...messageObj.variables }
                 };
               }
+              changed = true;
             }
           }
-          changed = true;
+          if (idx === activeSession.messages.length - 1) {
+            const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
+            newSessionVars = (updated as any).extra?.variables?.[swipeId] || {};
+            sessionVarsUpdated = true;
+          }
           return updated;
         }
         return m;
       });
       
       if (changed) {
-        const updatedSession = { ...activeSession, messages: updatedMessages };
+        const updatedSession = { 
+          ...activeSession, 
+          messages: updatedMessages,
+          variables: sessionVarsUpdated ? newSessionVars : activeSession.variables
+        };
         setSessions((prev) =>
           prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
         );
         saveSession(updatedSession);
+        notifyVariablesUpdated(updatedSession);
       }
     },
     _setChatMessages(messagesList: any[]) {
@@ -741,6 +793,9 @@ if (typeof window !== "undefined") {
       if (!Array.isArray(messagesList)) return;
       
       let changed = false;
+      let sessionVarsUpdated = false;
+      let newSessionVars = { ...activeSession.variables };
+
       const updatedMessages = activeSession.messages.map((m, idx) => {
         const newMsg = messagesList[idx] as any;
         if (newMsg) {
@@ -780,7 +835,7 @@ if (typeof window !== "undefined") {
               (updated as any).swipes_data = newMsg.swipes_data;
               localChanged = true;
             }
-            if (newMsg.extra !== undefined) {
+            if (newMsg.extra !== undefined && !_.isEqual((updated as any).extra, newMsg.extra)) {
               (updated as any).extra = { ...(updated as any).extra, ...newMsg.extra };
               localChanged = true;
             }
@@ -806,6 +861,11 @@ if (typeof window !== "undefined") {
           }
           if (localChanged) {
             changed = true;
+            if (idx === activeSession.messages.length - 1) {
+              const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
+              newSessionVars = (updated as any).extra?.variables?.[swipeId] || {};
+              sessionVarsUpdated = true;
+            }
             return updated;
           }
         }
@@ -814,11 +874,16 @@ if (typeof window !== "undefined") {
       
       console.log("[TavernHelper Bridge] _setChatMessages execution status: changed =", changed);
       if (changed) {
-        const updatedSession = { ...activeSession, messages: updatedMessages };
+        const updatedSession = { 
+          ...activeSession, 
+          messages: updatedMessages,
+          variables: sessionVarsUpdated ? newSessionVars : activeSession.variables
+        };
         setSessions((prev) =>
           prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
         );
         saveSession(updatedSession);
+        notifyVariablesUpdated(updatedSession);
       }
     },
     _getChatMessages() {
@@ -1020,6 +1085,11 @@ if (typeof window !== "undefined") {
           if (up.swipe_id !== undefined && msg.swipe_id !== up.swipe_id) {
             msg.swipe_id = up.swipe_id;
             changed = true;
+            
+            // Sync content with the new swipe_id for non-zero message
+            if (targetId !== 0 && msg.swipes && msg.swipes[up.swipe_id] !== undefined) {
+              msg.content = msg.swipes[up.swipe_id];
+            }
           }
           if (up.swipes !== undefined && !_.isEqual(msg.swipes, up.swipes)) {
             msg.swipes = up.swipes;
@@ -1056,11 +1126,17 @@ if (typeof window !== "undefined") {
             const char = bridgeParams?.activeCharacter;
             if (targetId === 0 && char) {
               const allGreetings = [char.first_mes, ...(char.alternate_greetings || [])];
-              if (allGreetings[up.swipe_id] && msg.content !== allGreetings[up.swipe_id]) {
+              if (allGreetings[up.swipe_id] !== undefined && msg.content !== allGreetings[up.swipe_id]) {
                 msg.content = allGreetings[up.swipe_id];
                 changed = true;
               }
             }
+          }
+          // Sync session variables if it is the last message
+          if (targetId === session.messages.length - 1) {
+            const swipeId = msg.swipe_id !== undefined ? msg.swipe_id : 0;
+            const swipeVars = msg.extra?.variables?.[swipeId] || {};
+            session.variables = { ...swipeVars };
           }
         }
       });
@@ -1069,6 +1145,7 @@ if (typeof window !== "undefined") {
           prev.map((s) => (s.id === session.id ? session : s))
         );
         bridgeParams.saveSession(session);
+        notifyVariablesUpdated(session);
       }
       return Promise.resolve();
     },
@@ -1111,53 +1188,7 @@ if (typeof window !== "undefined") {
   };
 
   // 8. Mock SillyTavern global namespace
-  const mockEventEmitter = (() => {
-    const listeners: Record<string, any[]> = {};
-    const emitter = {
-      on(event: string, cb: any) {
-        listeners[event] = listeners[event] || [];
-        listeners[event].push(cb);
-        return emitter;
-      },
-      once(event: string, cb: any) {
-        const wrapper = (...args: any[]) => {
-          emitter.off(event, wrapper);
-          cb(...args);
-        };
-        return emitter.on(event, wrapper);
-      },
-      off(event: string, cb: any) {
-        if (!listeners[event]) return emitter;
-        listeners[event] = listeners[event].filter(l => l !== cb);
-        return emitter;
-      },
-      removeListener(event: string, cb: any) {
-        return emitter.off(event, cb);
-      },
-      emit(event: string, ...args: any[]) {
-        if (!listeners[event]) return false;
-        listeners[event].forEach(cb => {
-          try { cb(...args); } catch (e) { console.error(e); }
-        });
-        return true;
-      },
-      emitAndWait(event: string, ...args: any[]) {
-        if (!listeners[event]) return Promise.resolve();
-        return Promise.all(listeners[event].map(cb => {
-          try { return Promise.resolve(cb(...args)); } catch (e) { return Promise.reject(e); }
-        }));
-      },
-      makeFirst(event: string, cb: any) {
-        listeners[event] = listeners[event] || [];
-        listeners[event].unshift(cb);
-        return emitter;
-      },
-      makeLast(event: string, cb: any) {
-        return emitter.on(event, cb);
-      }
-    };
-    return emitter;
-  })();
+  const mockEventEmitter = tavernHelperEventEmitter;
 
   const mockEventTypes = {
     APP_READY: "app_ready",
@@ -1404,13 +1435,45 @@ if (typeof window !== "undefined") {
   };
 }
 
+let lastSessionId: string | null = null;
+
 export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
+  const prevSessionId = lastSessionId;
   bridgeParams = params;
+
+  if (params.activeSession) {
+    const currentSessionId = params.activeSession.id;
+    lastSessionId = currentSessionId;
+
+    if (prevSessionId && prevSessionId !== currentSessionId) {
+      console.log(`[TavernHelper Bridge] Active session changed from ${prevSessionId} to ${currentSessionId}. Notifying scripts.`);
+      setTimeout(() => {
+        const session = bridgeParams?.activeSession;
+        if (session && session.id === currentSessionId) {
+          const variables = session.variables || {};
+          
+          // Emit standard SillyTavern chat changed events
+          tavernHelperEventEmitter.emit('chat_id_changed', currentSessionId);
+          tavernHelperEventEmitter.emit('chat_changed', currentSessionId);
+          
+          // Emit variables initialization event for status boards
+          tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
+          
+          // Emit message receipt and rendering triggers
+          const lastMsgId = Math.max(0, (session.messages?.length ?? 1) - 1);
+          tavernHelperEventEmitter.emit('message_received', lastMsgId);
+          tavernHelperEventEmitter.emit('character_message_rendered', lastMsgId);
+        }
+      }, 50);
+    }
+  } else {
+    lastSessionId = null;
+  }
 }
 
 export function cleanTavernHelperBridge() {
-  // We keep static mocks intact to avoid race condition exceptions in existing iframe lifecycles
   bridgeParams = null;
+  lastSessionId = null;
 }
 
 /**
@@ -1626,7 +1689,6 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
         window.$[key] = parentDollar[key];
       }
     }
-    window.parent.$ = window.parent.jQuery = window.parent.$ || window.$;
     console.log('[TH Bridge Debug] Step 1 - jQuery wrapper created');
     // Test jQuery wrapper
     try {
@@ -1830,6 +1892,50 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
     } catch(mergeErr) {
       console.warn("[TH Iframe] Merge error:", mergeErr);
     }
+
+    // Intercept event emitter bindings on iframe window to track listeners locally for cleanup
+    var localRegisteredEvents = [];
+
+    var originalEventOn = window.eventOn;
+    window.eventOn = function(event, cb) {
+      localRegisteredEvents.push({ event: event, cb: cb });
+      if (typeof originalEventOn === 'function') {
+        originalEventOn(event, cb);
+      }
+    };
+
+    var originalEventOnce = window.eventOnce;
+    window.eventOnce = function(event, cb) {
+      var wrapper = function() {
+        localRegisteredEvents = localRegisteredEvents.filter(function(item) {
+          return item.cb !== wrapper;
+        });
+        cb.apply(this, arguments);
+      };
+      localRegisteredEvents.push({ event: event, cb: wrapper });
+      if (typeof originalEventOnce === 'function') {
+        originalEventOnce(event, wrapper);
+      }
+    };
+
+    var originalEventRemoveListener = window.eventRemoveListener;
+    window.eventRemoveListener = function(event, cb) {
+      localRegisteredEvents = localRegisteredEvents.filter(function(item) {
+        return !(item.event === event && item.cb === cb);
+      });
+      if (typeof originalEventRemoveListener === 'function') {
+        originalEventRemoveListener(event, cb);
+      }
+    };
+
+    window.eventClearAll = function() {
+      localRegisteredEvents.forEach(function(item) {
+        if (typeof originalEventRemoveListener === 'function') {
+          originalEventRemoveListener(item.event, item.cb);
+        }
+      });
+      localRegisteredEvents = [];
+    };
 
 
 

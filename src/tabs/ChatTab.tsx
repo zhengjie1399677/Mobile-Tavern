@@ -25,6 +25,11 @@ import { saveSession } from "../utils/localDB";
 import { initTavernHelperBridge, cleanTavernHelperBridge, createScriptIframeSrcDoc } from "../utils/tavernHelperBridge";
 import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
 
+const isSafeRegex = (pattern: string): boolean => {
+  if (!pattern) return true;
+  return !/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(pattern) && !/(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(pattern);
+};
+
 const ChatInputArea = () => {
   const {
     isSending,
@@ -299,9 +304,16 @@ export default function ChatTab() {
         if (rule && typeof rule === "object" && rule.name && rule.image) {
           if (rule.triggers && lastAiText) {
             try {
-              const regex = new RegExp(rule.triggers, "i");
-              if (regex.test(lastAiText)) {
-                return rule.image;
+              if (isSafeRegex(rule.triggers)) {
+                const regex = new RegExp(rule.triggers, "i");
+                if (regex.test(lastAiText)) {
+                  return rule.image;
+                }
+              } else {
+                console.warn("Potential ReDoS pattern bypassed in triggers matching:", rule.triggers);
+                if (lastAiText.includes(rule.triggers.toLowerCase())) {
+                  return rule.image;
+                }
               }
             } catch (err) {
               console.warn("Invalid triggers RegExp in card:", rule.triggers, err);
@@ -337,9 +349,15 @@ export default function ChatTab() {
           const triggerPattern = presetTriggers[lowerKey];
           if (triggerPattern) {
             try {
-              const regex = new RegExp(triggerPattern, "i");
-              if (regex.test(lastAiText)) {
-                return expressions[key];
+              if (isSafeRegex(triggerPattern)) {
+                const regex = new RegExp(triggerPattern, "i");
+                if (regex.test(lastAiText)) {
+                  return expressions[key];
+                }
+              } else {
+                if (lastAiText.includes(triggerPattern.toLowerCase())) {
+                  return expressions[key];
+                }
               }
             } catch (err) {}
           }
@@ -377,9 +395,15 @@ export default function ChatTab() {
       for (const rule of expressions) {
         if (rule && rule.name && rule.triggers && lastAiText) {
           try {
-            const regex = new RegExp(rule.triggers, "i");
-            if (regex.test(lastAiText)) {
-              return rule.name;
+            if (isSafeRegex(rule.triggers)) {
+              const regex = new RegExp(rule.triggers, "i");
+              if (regex.test(lastAiText)) {
+                return rule.name;
+              }
+            } else {
+              if (lastAiText.includes(rule.triggers.toLowerCase())) {
+                return rule.name;
+              }
             }
           } catch (err) {}
         }
@@ -407,9 +431,15 @@ export default function ChatTab() {
         const triggerPattern = presetTriggers[lowerKey];
         if (triggerPattern) {
           try {
-            const regex = new RegExp(triggerPattern, "i");
-            if (regex.test(lastAiText)) {
-              return key;
+            if (isSafeRegex(triggerPattern)) {
+              const regex = new RegExp(triggerPattern, "i");
+              if (regex.test(lastAiText)) {
+                return key;
+              }
+            } else {
+              if (lastAiText.includes(triggerPattern.toLowerCase())) {
+                return key;
+              }
             }
           } catch (err) {}
         }
@@ -888,7 +918,8 @@ export default function ChatTab() {
                                   setEditingMsgContent(message.content);
                                   setMsgMenuId(null);
                                 }}
-                                className="text-[11px] text-muted-foreground hover:text-foreground px-2.5 py-1 rounded active:scale-[0.98] flex items-center gap-1"
+                                disabled={isSending}
+                                className="text-[11px] text-muted-foreground hover:text-foreground px-2.5 py-1 rounded active:scale-[0.98] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 <Edit2 className="w-3 h-3" /> 编辑
                               </button>
@@ -900,7 +931,8 @@ export default function ChatTab() {
                                       setMsgMenuId(null);
                                       handleRerollFromMessage(message);
                                     }}
-                                    className="text-[11px] text-primary hover:text-primary/80 px-2.5 py-1 rounded hover:bg-primary/10 flex items-center gap-1 border border-primary/20"
+                                    disabled={isSending}
+                                    className="text-[11px] text-primary hover:text-primary/80 px-2.5 py-1 rounded hover:bg-primary/10 flex items-center gap-1 border border-primary/20 disabled:opacity-40 disabled:cursor-not-allowed"
                                     title="从该对白开始重新生成后续回答"
                                   >
                                     <RefreshCw className="w-3 h-3" /> 重发
@@ -913,7 +945,8 @@ export default function ChatTab() {
                                   setMsgMenuId(null);
                                   createBacktrackBranch(message);
                                 }}
-                                className="text-[11px] text-primary hover:text-primary/80 px-2.5 py-1 rounded hover:bg-primary/10 flex items-center gap-1 border border-primary/20"
+                                disabled={isSending}
+                                className="text-[11px] text-primary hover:text-primary/80 px-2.5 py-1 rounded hover:bg-primary/10 flex items-center gap-1 border border-primary/20 disabled:opacity-40 disabled:cursor-not-allowed"
                                 title="从此处创立平行宇宙分支记录"
                               >
                                 <GitFork className="w-3 h-3" /> 分支
@@ -944,7 +977,8 @@ export default function ChatTab() {
                                     setMsgMenuId(null);
                                   }
                                 }}
-                                className="text-[11px] text-red-500/80 hover:text-red-400 px-2 py-1 rounded active:scale-[0.98] flex items-center gap-1"
+                                disabled={isSending}
+                                className="text-[11px] text-red-500/80 hover:text-red-400 px-2 py-1 rounded active:scale-[0.98] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>

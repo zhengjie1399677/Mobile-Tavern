@@ -164,6 +164,71 @@ async function runTests() {
 
   console.log("✔ Message ID resolution in variables setters verified successfully!");
 
+  console.log("\n--- Testing unified event emitters ---");
+  let eventFired = false;
+  let eventArg: any = null;
+  globalWin.SillyTavern.getContext().eventSource.on("test_unified_event", (arg: any) => {
+    eventFired = true;
+    eventArg = arg;
+  });
+  TavernHelper._bind._eventEmit("test_unified_event", "hello_event");
+  assert(eventFired === true, "Unified event emitter propagated events correctly");
+  assert(eventArg === "hello_event", "Unified event argument propagated correctly");
+  console.log("✔ Unified event emitters verified successfully!");
+
+  console.log("\n--- Testing session switch auto-notification triggers ---");
+  let sessionChangedFired = false;
+  let newSessionId: string | null = null;
+  globalWin.SillyTavern.getContext().eventSource.on("chat_id_changed", (id: string) => {
+    sessionChangedFired = true;
+    newSessionId = id;
+  });
+
+  const nextSession: ChatSession = {
+    id: "session_2",
+    characterId: "char_1",
+    title: "New Session",
+    createdAt: Date.now(),
+    messages: [
+      { id: "msg_new", sender: "assistant", content: "New greeting", timestamp: Date.now() }
+    ],
+    summaries: [],
+    variables: { stat_data: { health: 100 } }
+  };
+
+  // Trigger bridge initialization with the same first session (sets lastSessionId to session_1)
+  initTavernHelperBridge({
+    activeCharacter: mockCharacter,
+    activeSession: mockSession,
+    setSessions: () => {},
+    saveSession: async () => {},
+    setCharacters: () => {},
+    saveCharacter: async () => {},
+    settings: { userName: "Bob" } as UserSettings,
+    updateSettings: () => {},
+    handleSendMessage: async () => {},
+  });
+
+  // Switch session to nextSession, which should trigger the auto-notification trigger
+  initTavernHelperBridge({
+    activeCharacter: mockCharacter,
+    activeSession: nextSession,
+    setSessions: () => {},
+    saveSession: async () => {},
+    setCharacters: () => {},
+    saveCharacter: async () => {},
+    settings: { userName: "Bob" } as UserSettings,
+    updateSettings: () => {},
+    handleSendMessage: async () => {},
+  });
+
+  // Wait 100ms for the setTimeout in the trigger to fire
+  await new Promise(resolve => setTimeout(resolve, 100));
+
+  assert(sessionChangedFired === true, "Session switch auto-notification chat_id_changed event was fired");
+  assert(newSessionId === "session_2", "Session switch auto-notification chat_id_changed parameter was correct");
+  console.log("✔ Session switch auto-notification verified successfully!");
+
   cleanTavernHelperBridge();
   console.log("\n=================================================");
   console.log("🎉 ALL BRIDGE TESTS PASSED SUCCESSFULLY!");

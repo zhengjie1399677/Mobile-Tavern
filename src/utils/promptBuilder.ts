@@ -17,6 +17,50 @@ export function getTriggeredLorebookEntries(
   if (!entries || entries.length === 0) return [];
   const activeEntries: LorebookEntry[] = [];
 
+  const scanTextCache = new Map<number, string>();
+  const getScanText = (depth: number): string => {
+    if (scanTextCache.has(depth)) {
+      return scanTextCache.get(depth)!;
+    }
+    const scanMessages = messages ? messages.slice(-depth) : [];
+    let text = userInput + "\n" + scanMessages.map((m) => m.content).join("\n");
+    if (text.length > 8000) {
+      text = text.slice(-8000);
+    }
+    scanTextCache.set(depth, text);
+    return text;
+  };
+
+  const checkMatch = (key: string, isRegex: boolean, isCaseSensitive: boolean, scanText: string): boolean => {
+    const trimmed = key.trim();
+    if (!trimmed) return false;
+    if (isRegex) {
+      // ReDoS pattern protection: block patterns with nested/repeated quantifiers
+      if (/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(trimmed) || /(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(trimmed)) {
+        console.warn("Potential ReDoS pattern skipped in regex key matching:", trimmed);
+        return isCaseSensitive 
+          ? scanText.includes(trimmed) 
+          : scanText.toLowerCase().includes(trimmed.toLowerCase());
+      }
+      try {
+        let pattern = trimmed;
+        let flags = isCaseSensitive ? "" : "i";
+        const regexMatch = trimmed.match(/^\/(.+)\/([dgimsuy]*)$/i);
+        if (regexMatch) {
+          pattern = regexMatch[1];
+          const rawFlags = regexMatch[2];
+          flags = isCaseSensitive
+            ? rawFlags.replace(/i/g, "")
+            : (rawFlags.toLowerCase().includes("i") ? rawFlags : rawFlags + "i");
+        }
+        return new RegExp(pattern, flags).test(scanText);
+      } catch {
+        return isCaseSensitive ? scanText.includes(trimmed) : scanText.toLowerCase().includes(trimmed.toLowerCase());
+      }
+    }
+    return isCaseSensitive ? scanText.includes(trimmed) : scanText.toLowerCase().includes(trimmed.toLowerCase());
+  };
+
   for (const entry of entries) {
     if (!entry.enabled || !entry.content) continue;
     if (entry.constant) {
@@ -25,43 +69,13 @@ export function getTriggeredLorebookEntries(
     }
 
     // 1. Determine scanning depth (how many recent messages to inspect)
-    // Fall back to a default scan depth of 10 messages instead of entry.depth (insertion depth) to ensure keywords trigger reliably.
     const scanDepth = entry.scanDepth !== undefined ? entry.scanDepth : 10;
-    if (scanDepth === 0) continue; // scan_depth 0 means no match (unless constant, which is handled above)
+    if (scanDepth === 0) continue; 
     
-    const scanMessages = messages ? messages.slice(-scanDepth) : [];
-    let scanText =
-      userInput + "\n" + scanMessages.map((m) => m.content).join("\n");
-    // Limit scanText length to prevent catastrophic ReDoS backtracking on long texts
-    if (scanText.length > 8000) {
-      scanText = scanText.slice(-8000);
-    }
-
-    const checkMatch = (key: string, isRegex: boolean, isCaseSensitive: boolean): boolean => {
-      const trimmed = key.trim();
-      if (!trimmed) return false;
-      if (isRegex) {
-        try {
-          let pattern = trimmed;
-          let flags = isCaseSensitive ? "" : "i";
-          const regexMatch = trimmed.match(/^\/(.+)\/([dgimsuy]*)$/i);
-          if (regexMatch) {
-            pattern = regexMatch[1];
-            const rawFlags = regexMatch[2];
-            flags = isCaseSensitive
-              ? rawFlags.replace(/i/g, "")
-              : (rawFlags.toLowerCase().includes("i") ? rawFlags : rawFlags + "i");
-          }
-          return new RegExp(pattern, flags).test(scanText);
-        } catch {
-          return isCaseSensitive ? scanText.includes(trimmed) : scanText.toLowerCase().includes(trimmed.toLowerCase());
-        }
-      }
-      return isCaseSensitive ? scanText.includes(trimmed) : scanText.toLowerCase().includes(trimmed.toLowerCase());
-    };
+    const scanText = getScanText(scanDepth);
 
     // 2. Base Hit Check (Primary Keys)
-    const primaryMatched = entry.keys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive));
+    const primaryMatched = entry.keys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
     if (!primaryMatched) continue;
 
     // 3. Secondary Keys Logic Eval
@@ -71,11 +85,11 @@ export function getTriggeredLorebookEntries(
     
     if (logic !== "NONE" && secKeys.length > 0) {
       if (logic === "AND_ANY") {
-        secondaryMatched = secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive));
+        secondaryMatched = secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
       } else if (logic === "AND_ALL") {
-        secondaryMatched = secKeys.every((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive));
+        secondaryMatched = secKeys.every((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
       } else if (logic === "NOT_ANY") {
-        secondaryMatched = !secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive));
+        secondaryMatched = !secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
       }
     }
     
@@ -181,9 +195,23 @@ export function assemblePromptContext(params: {
 
     if (totalRawMessages.length > 0) {
       const validChatMessages = totalRawMessages.filter(
-        (m) => m.sender !== "system",
+        (m) => m.sender !== "system"
       );
-      activeMessagesToSend = validChatMessages.slice(-recentTurns);
+      const firstMsg = validChatMessages[0];
+      const isFirstMsgGreeting = firstMsg && firstMsg.sender === "assistant";
+
+      if (validChatMessages.length > recentTurns) {
+        if (isFirstMsgGreeting) {
+          activeMessagesToSend = [
+            firstMsg,
+            ...validChatMessages.slice(-(recentTurns - 1))
+          ];
+        } else {
+          activeMessagesToSend = validChatMessages.slice(-recentTurns);
+        }
+      } else {
+        activeMessagesToSend = validChatMessages;
+      }
     }
 
     const chatHistory = activeMessagesToSend.map((msg) => {
@@ -510,9 +538,23 @@ ${scenarioBlock}
   if (totalRawMessages.length > 0) {
     // DO NOT SEND system messages to the AI history to prevent LLM confusion on error messages
     const validChatMessages = totalRawMessages.filter(
-      (m) => m.sender !== "system",
+      (m) => m.sender !== "system"
     );
-    activeMessagesToSend = validChatMessages.slice(-recentTurns);
+    const firstMsg = validChatMessages[0];
+    const isFirstMsgGreeting = firstMsg && firstMsg.sender === "assistant";
+
+    if (validChatMessages.length > recentTurns) {
+      if (isFirstMsgGreeting) {
+        activeMessagesToSend = [
+          firstMsg,
+          ...validChatMessages.slice(-(recentTurns - 1))
+        ];
+      } else {
+        activeMessagesToSend = validChatMessages.slice(-recentTurns);
+      }
+    } else {
+      activeMessagesToSend = validChatMessages;
+    }
   }
 
   // Convert Message[] to Gemini or OpenAI structure, applying custom Instruct prefix/suffix templates (e.g. ChatML/Alpaca)

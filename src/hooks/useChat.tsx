@@ -52,12 +52,15 @@ export const useChat = (
 
   // Message Input & Forms state
   const abortControllerRef = React.useRef<AbortController | null>(null);
+  const isSendingRef = React.useRef(false);
+  const activeRequestIdRef = React.useRef(0);
 
   const handleStopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    isSendingRef.current = false;
     setIsSending(false);
   }, [setIsSending]);
 
@@ -81,6 +84,7 @@ export const useChat = (
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
+        isSendingRef.current = false;
         setIsSending(false);
       }
     };
@@ -257,6 +261,13 @@ export const useChat = (
 
           if (signal?.aborted) return;
 
+          // Guard: Verify if the session still exists in React state before writing to DB
+          const sessionExists = sessionsRef.current.some((s) => s.id === session.id);
+          if (!sessionExists) {
+            if (force) await showCustomAlert("记忆整理失败，该会话可能已被删除。");
+            return;
+          }
+
           const allSessions = await getAllSessions();
           const latestSession = allSessions.find((s) => s.id === session.id);
           if (latestSession) {
@@ -340,6 +351,7 @@ export const useChat = (
       typeof textToSend !== "string" ||
       !textToSend.trim() ||
       isSending ||
+      isSendingRef.current ||
       !activeCharacter ||
       !activeSession
     ) {
@@ -360,6 +372,11 @@ export const useChat = (
       return;
     }
 
+    isSendingRef.current = true;
+    setIsSending(true);
+
+    const requestId = ++activeRequestIdRef.current;
+
     const userMsg: Message = {
       id: "msg_user_" + Math.random().toString(36).substring(2, 9),
       sender: "user",
@@ -367,7 +384,10 @@ export const useChat = (
       timestamp: Date.now(),
     };
 
-    const updatedMessages = [...activeSession.messages, userMsg];
+    const cleanHistory = activeSession.messages.filter(
+      (m) => !(m.sender === "assistant" && (m.content === "💭..." || !m.content))
+    );
+    const updatedMessages = [...cleanHistory, userMsg];
     const updatedSession = { ...activeSession, messages: updatedMessages };
 
     setSessions((prev) =>
@@ -377,11 +397,11 @@ export const useChat = (
       await saveSession(updatedSession);
     } catch (err: any) {
       console.error("Failed to save session user message:", err);
+      isSendingRef.current = false;
       setIsSending(false);
       return;
     }
     triggerScroll("smooth");
-    setIsSending(true);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -526,8 +546,8 @@ export const useChat = (
         },
       });
 
-      const sessionExists = sessionsRef.current.some((s) => s.id === updatedSession.id);
-      if (!sessionExists) {
+      const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
+      if (!latestSession) {
         console.warn("Aborted session save because it was deleted during generation:", updatedSession.id);
         return;
       }
@@ -541,9 +561,18 @@ export const useChat = (
         tokenCount: tokenUsage.completion,
         promptTokenCount: tokenUsage.prompt,
       };
-      const finalMessages = [...updatedSession.messages, finalAiMsg];
+
+      // Merge keeping any modifications (deletes/edits) made during generation
+      let finalMessages = [...latestSession.messages];
+      const placeholderIdx = finalMessages.findIndex((m) => m.id === aiMsgId);
+      if (placeholderIdx >= 0) {
+        finalMessages[placeholderIdx] = finalAiMsg;
+      } else {
+        finalMessages.push(finalAiMsg);
+      }
+
       const trueFinalSession = {
-        ...updatedSession,
+        ...latestSession,
         messages: finalMessages,
       };
       const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
@@ -560,6 +589,7 @@ export const useChat = (
 
       await handleAutoSummaryCheck(parsedSession, false, controller.signal);
     } catch (err: any) {
+      if (requestId !== activeRequestIdRef.current) return;
       const isManualAbort = err.name === "AbortError" || err.message?.includes("aborted") || controller.signal.aborted;
       if (isManualAbort) {
         if (responseText.trim().length > 0) {
@@ -569,11 +599,17 @@ export const useChat = (
             content: responseText.trim(),
             timestamp: Date.now(),
           };
-          const abortSessionExists = sessionsRef.current.some((s) => s.id === updatedSession.id);
-          if (abortSessionExists) {
-            const finalMessages = [...updatedSession.messages, finishedAiMsg];
+          const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
+          if (latestSession) {
+            let finalMessages = [...latestSession.messages];
+            const placeholderIdx = finalMessages.findIndex((m) => m.id === aiMsgId);
+            if (placeholderIdx >= 0) {
+              finalMessages[placeholderIdx] = finishedAiMsg;
+            } else {
+              finalMessages.push(finishedAiMsg);
+            }
             const trueFinalSession = {
-              ...updatedSession,
+              ...latestSession,
               messages: finalMessages,
             };
             try {
@@ -584,37 +620,80 @@ export const useChat = (
             }
           }
         } else {
-          setSessions((prev) =>
-            prev.map((s) => {
-              if (s.id !== updatedSession.id) return s;
-              return {
-                ...s,
-                messages: s.messages.filter((m) => m.id !== aiMsgId),
-              };
-            })
-          );
+          const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
+          if (latestSession) {
+            const nextSession = {
+              ...latestSession,
+              messages: latestSession.messages.filter((m) => m.id !== aiMsgId),
+            };
+            setSessions((prev) =>
+              prev.map((s) => (s.id === nextSession.id ? nextSession : s))
+            );
+            try {
+              await saveSession(nextSession);
+            } catch (saveErr) {
+              console.error("Failed to save session after filtering placeholder:", saveErr);
+            }
+          }
         }
       } else {
         showCustomAlert("发送失败，对话连接异常: " + err.message);
-        setSessions((prev) =>
-          prev.map((s) => {
-            if (s.id !== updatedSession.id) return s;
-            return {
-              ...s,
-              messages: s.messages.filter((m) => m.id !== aiMsgId),
+        if (responseText.trim().length > 0) {
+          const finishedAiMsg: Message = {
+            id: aiMsgId,
+            sender: "assistant",
+            content: responseText.trim() + "\n\n*(连接中断，仅保留部分生成内容)*",
+            timestamp: Date.now(),
+          };
+          const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
+          if (latestSession) {
+            let finalMessages = [...latestSession.messages];
+            const placeholderIdx = finalMessages.findIndex((m) => m.id === aiMsgId);
+            if (placeholderIdx >= 0) {
+              finalMessages[placeholderIdx] = finishedAiMsg;
+            } else {
+              finalMessages.push(finishedAiMsg);
+            }
+            const trueFinalSession = {
+              ...latestSession,
+              messages: finalMessages,
             };
-          })
-        );
+            try {
+              const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+              await handleAutoSummaryCheck(parsedSession, false, controller.signal);
+            } catch (saveErr) {
+              console.error("Failed to save error session message:", saveErr);
+            }
+          }
+        } else {
+          const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
+          if (latestSession) {
+            const nextSession = {
+              ...latestSession,
+              messages: latestSession.messages.filter((m) => m.id !== aiMsgId),
+            };
+            setSessions((prev) =>
+              prev.map((s) => (s.id === nextSession.id ? nextSession : s))
+            );
+            try {
+              await saveSession(nextSession);
+            } catch (saveErr) {
+              console.error("Failed to save session after filtering placeholder on error:", saveErr);
+            }
+          }
+        }
       }
     } finally {
+      if (requestId !== activeRequestIdRef.current) return;
       if (pendingUpdateTimeout) {
         clearTimeout(pendingUpdateTimeout);
         pendingUpdateTimeout = null;
       }
       if (abortControllerRef.current === controller) {
-        setIsSending(false);
         abortControllerRef.current = null;
       }
+      isSendingRef.current = false;
+      setIsSending(false);
     }
   }, [
     isSending,
@@ -632,14 +711,19 @@ export const useChat = (
   ]);
 
   const handleRerollFromMessage = useCallback(async (targetMsg: Message) => {
-    if (!targetMsg || !targetMsg.id || isSending || !activeCharacter || !activeSession) return;
+    if (!targetMsg || !targetMsg.id || isSending || isSendingRef.current || !activeCharacter || !activeSession) return;
 
     if (!settings.api.modelName) {
       await showCustomAlert("重发失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
       return;
     }
 
-    const msgs = activeSession.messages;
+    const requestId = ++activeRequestIdRef.current;
+
+    const cleanHistory = activeSession.messages.filter(
+      (m) => !(m.sender === "assistant" && (m.content === "💭..." || !m.content))
+    );
+    const msgs = cleanHistory;
     const targetIdx = msgs.findIndex((m) => m.id === targetMsg.id);
     if (targetIdx === -1) return;
 
@@ -671,6 +755,9 @@ export const useChat = (
       return;
     }
 
+    isSendingRef.current = true;
+    setIsSending(true);
+
     const lastUserText = lastMsgNow.content;
     const updatedSession = { ...activeSession, messages: nextMsgs };
     setSessions((prev) =>
@@ -680,11 +767,11 @@ export const useChat = (
       await saveSession(updatedSession);
     } catch (err: any) {
       console.error("Failed to save session for reroll:", err);
+      isSendingRef.current = false;
       setIsSending(false);
       return;
     }
     triggerScroll();
-    setIsSending(true);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -740,7 +827,12 @@ export const useChat = (
     try {
       const otherCharGlobals = characters
         .filter((c) => c.isWorldbookGlobal && c.id !== activeCharacter.id)
-        .flatMap((c) => c.lorebookEntries || []);
+        .flatMap((c) =>
+          (c.lorebookEntries || []).map((entry) => ({
+            ...entry,
+            content: `[来自世界书: ${c.name}]\n${entry.content}`,
+          }))
+        );
 
       const combinedGlobals = [...(globalLorebook || []), ...otherCharGlobals];
 
@@ -825,8 +917,8 @@ export const useChat = (
         },
       });
 
-      const sessionExists = sessionsRef.current.some((s) => s.id === updatedSession.id);
-      if (!sessionExists) {
+      const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
+      if (!latestSession) {
         console.warn("Aborted session save because it was deleted during generation:", updatedSession.id);
         return;
       }
@@ -840,9 +932,18 @@ export const useChat = (
         tokenCount: tokenUsage.completion,
         promptTokenCount: tokenUsage.prompt,
       };
-      const finalMessages = [...updatedSession.messages, finalAiMsg];
+
+      // Merge keeping any modifications (deletes/edits) made during generation
+      let finalMessages = [...latestSession.messages];
+      const placeholderIdx = finalMessages.findIndex((m) => m.id === aiMsgId);
+      if (placeholderIdx >= 0) {
+        finalMessages[placeholderIdx] = finalAiMsg;
+      } else {
+        finalMessages.push(finalAiMsg);
+      }
+
       const trueFinalSession = {
-        ...updatedSession,
+        ...latestSession,
         messages: finalMessages,
       };
       const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
@@ -861,6 +962,7 @@ export const useChat = (
 
       await handleAutoSummaryCheck(parsedSession, false, controller.signal);
     } catch (e: any) {
+      if (requestId !== activeRequestIdRef.current) return;
       const isManualAbort = e.name === "AbortError" || e.message?.includes("aborted") || controller.signal.aborted;
       if (isManualAbort) {
         if (responseText.trim().length > 0) {
@@ -870,11 +972,17 @@ export const useChat = (
             content: responseText.trim(),
             timestamp: Date.now(),
           };
-          const abortSessionExists = sessionsRef.current.some((s) => s.id === updatedSession.id);
-          if (abortSessionExists) {
-            const finalMessages = [...updatedSession.messages, finishedAiMsg];
+          const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
+          if (latestSession) {
+            let finalMessages = [...latestSession.messages];
+            const placeholderIdx = finalMessages.findIndex((m) => m.id === aiMsgId);
+            if (placeholderIdx >= 0) {
+              finalMessages[placeholderIdx] = finishedAiMsg;
+            } else {
+              finalMessages.push(finishedAiMsg);
+            }
             const trueFinalSession = {
-              ...updatedSession,
+              ...latestSession,
               messages: finalMessages,
             };
             try {
@@ -885,15 +993,21 @@ export const useChat = (
             }
           }
         } else {
-          setSessions((prev) =>
-            prev.map((s) => {
-              if (s.id !== updatedSession.id) return s;
-              return {
-                ...s,
-                messages: s.messages.filter((m) => m.id !== aiMsgId),
-              };
-            })
-          );
+          const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
+          if (latestSession) {
+            const nextSession = {
+              ...latestSession,
+              messages: latestSession.messages.filter((m) => m.id !== aiMsgId),
+            };
+            setSessions((prev) =>
+              prev.map((s) => (s.id === nextSession.id ? nextSession : s))
+            );
+            try {
+              await saveSession(nextSession);
+            } catch (saveErr) {
+              console.error("Failed to save session after filtering placeholder:", saveErr);
+            }
+          }
         }
       } else {
         console.error("AI Regeneration failed:", e);
@@ -904,35 +1018,74 @@ export const useChat = (
           modelName: settings.api.modelName,
           sessionId: updatedSession.id,
         });
-        const errorMsg: Message = {
-          id: generateUniqueId("msg_err_"),
-          sender: "system",
-          content: `【连接错误】重新生成失败。请检查端口或API秘钥状态。详细错误: ${e.message}`,
-          timestamp: Date.now(),
-        };
-        const finalSession = {
-          ...updatedSession,
-          messages: [...updatedSession.messages, errorMsg],
-        };
-        setSessions((prev) =>
-          prev.map((s) => (s.id === finalSession.id ? finalSession : s))
-        );
-        try {
-          await saveSession(finalSession);
-        } catch (saveErr) {
-          console.error("Failed to save error session message:", saveErr);
+
+        if (responseText.trim().length > 0) {
+          const finishedAiMsg: Message = {
+            id: aiMsgId,
+            sender: "assistant",
+            content: responseText.trim() + "\n\n*(连接中断，仅保留部分生成内容)*",
+            timestamp: Date.now(),
+          };
+          const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
+          if (latestSession) {
+            let finalMessages = [...latestSession.messages];
+            const placeholderIdx = finalMessages.findIndex((m) => m.id === aiMsgId);
+            if (placeholderIdx >= 0) {
+              finalMessages[placeholderIdx] = finishedAiMsg;
+            } else {
+              finalMessages.push(finishedAiMsg);
+            }
+            const trueFinalSession = {
+              ...latestSession,
+              messages: finalMessages,
+            };
+            try {
+              const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+              await handleAutoSummaryCheck(parsedSession, false, controller.signal);
+            } catch (saveErr) {
+              console.error("Failed to save error session message:", saveErr);
+            }
+          }
+        } else {
+          // If no content, delete the placeholder and append system error message
+          const errorMsg: Message = {
+            id: generateUniqueId("msg_err_"),
+            sender: "system",
+            content: `【连接错误】重新生成失败。请检查端口或API秘钥状态。详细错误: ${e.message}`,
+            timestamp: Date.now(),
+          };
+          const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
+          if (latestSession) {
+            const finalMessages = latestSession.messages
+              .filter((m) => m.id !== aiMsgId)
+              .concat(errorMsg);
+            const finalSession = {
+              ...latestSession,
+              messages: finalMessages,
+            };
+            setSessions((prev) =>
+              prev.map((s) => (s.id === finalSession.id ? finalSession : s))
+            );
+            try {
+              await saveSession(finalSession);
+            } catch (saveErr) {
+              console.error("Failed to save error session message:", saveErr);
+            }
+          }
         }
         triggerScroll();
       }
     } finally {
+      if (requestId !== activeRequestIdRef.current) return;
       if (pendingUpdateTimeout) {
         clearTimeout(pendingUpdateTimeout);
         pendingUpdateTimeout = null;
       }
       if (abortControllerRef.current === controller) {
-        setIsSending(false);
         abortControllerRef.current = null;
       }
+      isSendingRef.current = false;
+      setIsSending(false);
     }
   }, [
     isSending,
@@ -969,6 +1122,10 @@ export const useChat = (
 
   const createNewBranch = useCallback(async () => {
     if (!activeCharId) return;
+    if (isSending || isSendingRef.current) {
+      await showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再创建新分支。");
+      return;
+    }
     const branchTitle = await showCustomPrompt(
       "请输入全新独立分支存档名称:",
       `${activeCharacter?.name} - 新分支线 ${new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
@@ -995,9 +1152,13 @@ export const useChat = (
     } catch (err: any) {
       console.error("Failed to save new branch session:", err);
     }
-  }, [activeCharId, activeCharacter, showCustomPrompt, saveSession, setActiveSessionId, setShowSessionManager]);
+  }, [isSending, activeCharId, activeCharacter, showCustomPrompt, showCustomAlert, saveSession, setActiveSessionId, setShowSessionManager]);
 
   const deleteBranch = useCallback(async (id: string) => {
+    if (isSending || isSendingRef.current) {
+      await showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再删除分支。");
+      return;
+    }
     const confirm = await showCustomConfirm("确定要永久删除这个聊天分支吗？(无法恢复)");
     if (!confirm) return;
 
@@ -1018,7 +1179,7 @@ export const useChat = (
     } catch (err: any) {
       console.error("Failed to delete branch session:", err);
     }
-  }, [showCustomConfirm, deleteSession, activeSessionId, activeCharId, setActiveSessionId, setSessions, sessions]);
+  }, [isSending, showCustomAlert, showCustomConfirm, deleteSession, activeSessionId, activeCharId, setActiveSessionId, setSessions, sessions]);
 
   const selectCharacter = useCallback(async (charId: string) => {
     if (isSending) {
@@ -1080,6 +1241,10 @@ export const useChat = (
 
   const createBacktrackBranch = useCallback(async (msg: Message) => {
     if (!activeCharacter || !activeSession) return;
+    if (isSending || isSendingRef.current) {
+      await showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再创建分支。");
+      return;
+    }
     const msgIndex = activeSession.messages.findIndex((m) => m.id === msg.id);
     if (msgIndex < 0) return;
 
@@ -1110,6 +1275,7 @@ export const useChat = (
       console.error("Failed to save backtrack branch session:", err);
     }
   }, [
+    isSending,
     activeCharacter,
     activeSession,
     showCustomPrompt,
@@ -1124,6 +1290,10 @@ export const useChat = (
 
   const createBacktrackFromTimeline = useCallback(async (summary: SummaryCard) => {
     if (!activeCharacter || !activeSession) return;
+    if (isSending || isSendingRef.current) {
+      await showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再创建平行分支。");
+      return;
+    }
     const sumIdx = (activeSession.summaries || []).findIndex((s) => s.id === summary.id);
     if (sumIdx < 0) return;
 
@@ -1162,6 +1332,7 @@ export const useChat = (
       console.error("Failed to save backtrack timeline session:", err);
     }
   }, [
+    isSending,
     activeCharacter,
     activeSession,
     showCustomPrompt,

@@ -114,7 +114,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeWorldbookHostId, setActiveWorldbookHostId] = useState<string | null>(null);
   const [showSplash, setShowSplash] = useState(true);
   const [promptInputVal, setPromptInputVal] = useState("");
-  const [customDialog, setCustomDialog] = useState<CustomDialogConfig | null>(null);
+  const [dialogQueue, setDialogQueue] = useState<CustomDialogConfig[]>([]);
+  const setCustomDialog = (config: CustomDialogConfig | null) => {
+    if (config === null) {
+      setDialogQueue([]);
+    } else {
+      setDialogQueue([config]);
+    }
+  };
   const [currentTheme, setCurrentTheme] = useState<ThemeType>(() => {
     return (localStorage.getItem("siuser-theme") as any) || "sand";
   });
@@ -231,56 +238,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const showCustomAlert = (message: string, title: string = "提示") => {
     return new Promise<void>((resolve) => {
-      setCustomDialog({
+      const newDialog: CustomDialogConfig = {
         isOpen: true,
         title,
         message,
         type: "alert",
         onConfirm: () => {
-          setCustomDialog(null);
+          setDialogQueue((prev) => prev.slice(1));
           resolve();
         },
-      });
+      };
+      setDialogQueue((prev) => [...prev, newDialog]);
     });
   };
 
   const showCustomConfirm = (message: string, title: string = "确认") => {
     return new Promise<boolean>((resolve) => {
-      setCustomDialog({
+      const newDialog: CustomDialogConfig = {
         isOpen: true,
         title,
         message,
         type: "confirm",
         onConfirm: () => {
-          setCustomDialog(null);
+          setDialogQueue((prev) => prev.slice(1));
           resolve(true);
         },
         onCancel: () => {
-          setCustomDialog(null);
+          setDialogQueue((prev) => prev.slice(1));
           resolve(false);
         },
-      });
+      };
+      setDialogQueue((prev) => [...prev, newDialog]);
     });
   };
 
   const showCustomPrompt = (message: string, defaultValue: string = "", title: string = "输入") => {
     return new Promise<string | null>((resolve) => {
       setPromptInputVal(defaultValue);
-      setCustomDialog({
+      const newDialog: CustomDialogConfig = {
         isOpen: true,
         title,
         message,
         type: "prompt",
         defaultValue,
         onConfirmPrompt: (value: string) => {
-          setCustomDialog(null);
+          setDialogQueue((prev) => prev.slice(1));
           resolve(value);
         },
         onCancel: () => {
-          setCustomDialog(null);
+          setDialogQueue((prev) => prev.slice(1));
           resolve(null);
         },
-      });
+      };
+      setDialogQueue((prev) => [...prev, newDialog]);
     });
   };
 
@@ -295,7 +305,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         handleThemeChange,
         showSplash,
         setShowSplash,
-        customDialog,
+        customDialog: dialogQueue[0] || null,
         setCustomDialog,
         showCustomAlert,
         showCustomConfirm,

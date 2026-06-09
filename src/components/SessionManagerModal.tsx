@@ -12,6 +12,8 @@ export default function SessionManagerModal() {
     setActiveSessionId,
     deleteBranch,
     createNewBranch,
+    isSending,
+    showCustomAlert,
   } = useContext(AppContext);
 
   if (!showSessionManager || !activeCharacter) return null;
@@ -46,6 +48,10 @@ export default function SessionManagerModal() {
                     : "border-border bg-card hover:border-primary/50"
                 }`}
                 onClick={() => {
+                  if (isSending) {
+                    showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再切换分支。");
+                    return;
+                  }
                   setActiveSessionId(s.id);
                   setShowSessionManager(false);
                 }}
@@ -63,6 +69,10 @@ export default function SessionManagerModal() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (isSending) {
+                        showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再删除分支。");
+                        return;
+                      }
                       deleteBranch(s.id);
                     }}
                     className="text-destructive p-1.5 rounded hover:bg-destructive/10 shrink-0 transition"
@@ -75,7 +85,13 @@ export default function SessionManagerModal() {
             ))}
         </div>
         <button
-          onClick={createNewBranch}
+          onClick={() => {
+            if (isSending) {
+              showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再新建分支。");
+              return;
+            }
+            createNewBranch();
+          }}
           className="shrink-0 w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 flex justify-center items-center gap-2 mt-2"
         >
           <Plus className="w-4 h-4" /> 新建空白分支
