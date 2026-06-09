@@ -16,6 +16,7 @@ import * as math from "mathjs";
 // Raw script imports for offline iframe injection
 import mvuBundleContent from "./mvu_bundle.js?raw";
 import mvuZodContent from "./mvu_zod.js?raw";
+import mvuContent from "./mvu.js?raw";
 
 
 export interface TavernHelperBridgeParams {
@@ -83,12 +84,63 @@ function initializeVariablesForSession(session: any) {
   console.log("[TavernHelper Event] Variables after initialization:", variables);
 
   session.variables = variables;
+
+  // Sync variables to the first message (greeting) for SillyTavern compatibility
+  if (session.messages && session.messages.length > 0) {
+    const firstMsg = { ...session.messages[0] } as any;
+    const swipeId = firstMsg.swipe_id !== undefined ? firstMsg.swipe_id : 0;
+    const extra = { ...firstMsg.extra };
+    if (!extra.variables) extra.variables = {};
+    extra.variables = {
+      ...extra.variables,
+      [swipeId]: variables,
+    };
+    firstMsg.extra = extra;
+    firstMsg.variables = extra.variables;
+    session.messages = [
+      firstMsg,
+      ...session.messages.slice(1),
+    ];
+    console.log(`[TavernHelper Event] Synced initial variables to first message (swipeId: ${swipeId})`);
+  }
+
   if (bridgeParams) {
     bridgeParams.setSessions(prev =>
-      prev.map(s => s.id === session.id ? { ...s, variables } : s)
+      prev.map(s => s.id === session.id ? { ...s, variables, messages: session.messages } : s)
     );
     bridgeParams.saveSession(session);
   }
+}
+
+function getSwipeVariables(m: any): Record<string, any> {
+  const swipeId = m.swipe_id !== undefined ? m.swipe_id : 0;
+  const extraVars = m.extra?.variables;
+  if (extraVars) {
+    if (extraVars[swipeId] !== undefined) {
+      return extraVars[swipeId];
+    }
+    const keys = Object.keys(extraVars);
+    const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
+    if (!isNested) {
+      return extraVars;
+    }
+  }
+  return m.variables || {};
+}
+
+function resolveMessageId(id: any, messagesLength: number): number {
+  if (messagesLength <= 0) return 0;
+  const numId = Number(id);
+  if (isNaN(numId)) {
+    if (id === 'latest') {
+      return messagesLength - 1;
+    }
+    return messagesLength - 1;
+  }
+  if (numId < 0) {
+    return Math.max(0, messagesLength + numId);
+  }
+  return numId;
 }
 
 /**
@@ -530,8 +582,10 @@ if (typeof window !== "undefined") {
       const { activeCharacter, settings, activeSession } = bridgeParams;
       if (opt.type === "character") return activeCharacter?.variables || {};
       if (opt.type === "global") return settings?.variables || {};
-      if (opt.type === "message" && typeof opt.message_id === "number") {
-        const msg = activeSession?.messages[opt.message_id] as any;
+      if (opt.type === "message" && opt.message_id !== undefined) {
+        const messages = activeSession?.messages || [];
+        const msgId = resolveMessageId(opt.message_id, messages.length);
+        const msg = messages[msgId] as any;
         if (msg) {
           const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
           if (!msg.extra) msg.extra = {};
@@ -563,9 +617,10 @@ if (typeof window !== "undefined") {
         saveCharacter(updated);
       } else if (opt.type === "global") {
         updateSettings({ ...settings, variables });
-      } else if (opt.type === "message" && typeof opt.message_id === "number" && activeSession) {
+      } else if (opt.type === "message" && opt.message_id !== undefined && activeSession) {
+        const targetMsgId = resolveMessageId(opt.message_id, activeSession.messages.length);
         const updatedMessages = activeSession.messages.map((m, idx) => {
-          if (idx === opt.message_id) {
+          if (idx === targetMsgId) {
             const msg = m as any;
             const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
             const extra = { ...msg.extra };
@@ -628,8 +683,9 @@ if (typeof window !== "undefined") {
       }
       
       let changed = false;
+      const targetMsgId = resolveMessageId(id, activeSession.messages.length);
       const updatedMessages = activeSession.messages.map((m, idx) => {
-        if (idx === id) {
+        if (idx === targetMsgId) {
           let updated = { ...m, content };
           if (messageObj && typeof messageObj === "object") {
             if (messageObj.swipe_id !== undefined) {
@@ -646,7 +702,21 @@ if (typeof window !== "undefined") {
             }
             if (messageObj.variables !== undefined) {
               if (!(updated as any).extra) (updated as any).extra = {};
-              (updated as any).extra.variables = { ...(updated as any).extra.variables, ...messageObj.variables };
+              if (!(updated as any).extra.variables) (updated as any).extra.variables = {};
+              
+              const keys = Object.keys(messageObj.variables);
+              const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
+              
+              if (isNested) {
+                (updated as any).extra.variables = { ...(updated as any).extra.variables, ...messageObj.variables };
+              } else {
+                const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
+                const existingSwipeVars = (updated as any).extra.variables[swipeId] || {};
+                (updated as any).extra.variables = {
+                  ...(updated as any).extra.variables,
+                  [swipeId]: { ...existingSwipeVars, ...messageObj.variables }
+                };
+              }
             }
           }
           changed = true;
@@ -716,7 +786,21 @@ if (typeof window !== "undefined") {
             }
             if (newMsg.variables !== undefined) {
               if (!(updated as any).extra) (updated as any).extra = {};
-              (updated as any).extra.variables = { ...(updated as any).extra.variables, ...newMsg.variables };
+              if (!(updated as any).extra.variables) (updated as any).extra.variables = {};
+              
+              const keys = Object.keys(newMsg.variables);
+              const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
+              
+              if (isNested) {
+                (updated as any).extra.variables = { ...(updated as any).extra.variables, ...newMsg.variables };
+              } else {
+                const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
+                const existingSwipeVars = (updated as any).extra.variables[swipeId] || {};
+                (updated as any).extra.variables = {
+                  ...(updated as any).extra.variables,
+                  [swipeId]: { ...existingSwipeVars, ...newMsg.variables }
+                };
+              }
               localChanged = true;
             }
           }
@@ -753,7 +837,7 @@ if (typeof window !== "undefined") {
           swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
           swipes: (m as any).swipes || [m.content],
           extra: (m as any).extra || {},
-          variables: (m as any).extra?.variables || (m as any).variables || {},
+          variables: getSwipeVariables(m),
         };
         if (idx === 0 && activeCharacter) {
           const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
@@ -871,12 +955,22 @@ if (typeof window !== "undefined") {
       return bridgeParams?.activeCharacter?.name || "";
     },
     getCharacter() {
+      if (!bridgeParams || !bridgeParams.activeCharacter) return null;
       return {
-        name: bridgeParams?.activeCharacter?.name || "",
-        description: bridgeParams?.activeCharacter?.description || "",
-        avatar: bridgeParams?.activeCharacter?.avatar || "",
-        personality: bridgeParams?.activeCharacter?.personality || "",
-        scenario: bridgeParams?.activeCharacter?.scenario || "",
+        name: bridgeParams.activeCharacter.name,
+        description: bridgeParams.activeCharacter.description || "",
+        avatar: bridgeParams.activeCharacter.avatar || "",
+        personality: bridgeParams.activeCharacter.personality || "",
+        scenario: bridgeParams.activeCharacter.scenario || "",
+        first_mes: bridgeParams.activeCharacter.first_mes || "",
+        alternate_greetings: bridgeParams.activeCharacter.alternate_greetings || [],
+        creator: bridgeParams.activeCharacter.creator || "",
+        creator_notes: bridgeParams.activeCharacter.creator_notes || "",
+        tags: bridgeParams.activeCharacter.tags || [],
+        character_version: bridgeParams.activeCharacter.character_version || "1.0.0",
+        extensions: bridgeParams.activeCharacter.extensions || {},
+        visualSettings: bridgeParams.activeCharacter.visualSettings || {},
+        variables: bridgeParams.activeCharacter.variables || {},
       };
     },
     getCharData() {
@@ -898,7 +992,7 @@ if (typeof window !== "undefined") {
           swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
           swipes: (m as any).swipes || [m.content],
           extra: (m as any).extra || {},
-          variables: (m as any).extra?.variables || (m as any).variables || {},
+          variables: getSwipeVariables(m),
         };
         if (idx === 0 && activeCharacter) {
           const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
@@ -915,7 +1009,8 @@ if (typeof window !== "undefined") {
       const session = { ...bridgeParams.activeSession };
       let changed = false;
       updates.forEach((up) => {
-        const msg = session.messages[up.message_id] as any;
+        const targetId = resolveMessageId(up.message_id, session.messages.length);
+        const msg = session.messages[targetId] as any;
         if (msg) {
           const newContent = up.message !== undefined ? up.message : (up.mes !== undefined ? up.mes : (up.content !== undefined ? up.content : undefined));
           if (newContent !== undefined && msg.content !== newContent) {
@@ -940,12 +1035,26 @@ if (typeof window !== "undefined") {
           }
           if (up.variables !== undefined) {
             if (!msg.extra) msg.extra = {};
-            msg.extra.variables = { ...msg.extra.variables, ...up.variables };
+            if (!msg.extra.variables) msg.extra.variables = {};
+            
+            const keys = Object.keys(up.variables);
+            const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
+            
+            if (isNested) {
+              msg.extra.variables = { ...msg.extra.variables, ...up.variables };
+            } else {
+              const swipeId = msg.swipe_id !== undefined ? msg.swipe_id : 0;
+              const existingSwipeVars = msg.extra.variables[swipeId] || {};
+              msg.extra.variables = {
+                ...msg.extra.variables,
+                [swipeId]: { ...existingSwipeVars, ...up.variables }
+              };
+            }
             changed = true;
           }
           if (up.swipe_id !== undefined) {
             const char = bridgeParams?.activeCharacter;
-            if (up.message_id === 0 && char) {
+            if (targetId === 0 && char) {
               const allGreetings = [char.first_mes, ...(char.alternate_greetings || [])];
               if (allGreetings[up.swipe_id] && msg.content !== allGreetings[up.swipe_id]) {
                 msg.content = allGreetings[up.swipe_id];
@@ -1102,7 +1211,7 @@ if (typeof window !== "undefined") {
           swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
           swipes: (m as any).swipes || [m.content],
           extra: (m as any).extra || {},
-          variables: (m as any).extra?.variables || (m as any).variables || {},
+          variables: getSwipeVariables(m),
         };
         if (idx === 0 && activeChar) {
           const allGreetings = [activeChar.first_mes, ...(activeChar.alternate_greetings || [])];
@@ -1137,7 +1246,7 @@ if (typeof window !== "undefined") {
           swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
           swipes: (m as any).swipes || [m.content],
           extra: (m as any).extra || {},
-          variables: (m as any).extra?.variables || (m as any).variables || {},
+          variables: getSwipeVariables(m),
         };
         if (idx === 0 && activeChar) {
           const allGreetings = [activeChar.first_mes, ...(activeChar.alternate_greetings || [])];
@@ -1149,7 +1258,21 @@ if (typeof window !== "undefined") {
       });
 
       return {
-        character: activeChar || null,
+        character: activeChar ? {
+          name: activeChar.name,
+          description: activeChar.description || "",
+          personality: activeChar.personality || "",
+          scenario: activeChar.scenario || "",
+          first_mes: activeChar.first_mes || "",
+          avatar: activeChar.avatar || "",
+          data: {
+            alternate_greetings: activeChar.alternate_greetings || [],
+            character_version: activeChar.character_version || "1.0.0",
+            creator: activeChar.creator || "",
+            creator_notes: activeChar.creator_notes || "",
+            extensions: activeChar.extensions || {},
+          }
+        } : null,
         userName: userName,
         characters: activeChar ? [{
           name: activeChar.name,
@@ -1315,6 +1438,16 @@ const processedMvuZod = `(function(){
     .replace(/\/\/#\s*sourceMappingURL=.*/g, "")}
 })();`;
 
+// Pre-process mvu script by replacing CDN imports with local TavernHelperMvuLibs lookups and wrapping in an IIFE
+const processedMvu = `(function(){
+  ${mvuContent
+    .replace(
+      /import\s*\{\s*defineStore\s+as\s+e\s*\}\s*from\s*['"]https:\/\/testingcf\.jsdelivr\.net\/npm\/pinia\/\+esm['"]/g,
+      "const e = window.parent.TavernHelperMvuLibs.defineStore;"
+    )
+    .replace(/\bexport\s*\{\s*d\s*as\s*defineMvuDataStore\s*\};?/g, "window.defineMvuDataStore = d;")}
+})();`;
+
 // Pre-process mvu_bundle script by replacing CDN imports with local TavernHelperMvuLibs lookups and wrapping in an IIFE
 const processedMvuBundle = `(function(){
   ${mvuBundleContent
@@ -1358,6 +1491,44 @@ export function preprocessScriptContent(content: string): string {
   processed = processed.replace(
     /import\s*\{[^}]*registerMvuSchema[^}]*\}\s*from\s*['"][^'"]*mvu_zod(?:\.js)?['"];?/g,
     `const registerMvuSchema = window.registerMvuSchema;`
+  );
+
+  // 2b. Replace the MVU library import (CDN URL variant)
+  processed = processed.replace(
+    /import\s*\{([^}]+)\}\s*from\s*['"]https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/mvu(?:\.js)?\/\+esm['"];?/g,
+    (match, importsStr) => {
+      const parts = importsStr.split(',').map((p: string) => {
+        const item = p.trim();
+        if (item.includes(' as ')) {
+          const [orig, alias] = item.split(/\s+as\s+/);
+          if (orig === 'default' || orig === 'defineMvuDataStore') {
+            return `defineMvuDataStore: ${alias}`;
+          }
+          return `${orig}: ${alias}`;
+        }
+        return item;
+      });
+      return `const { ${parts.join(', ')} } = { defineMvuDataStore: window.defineMvuDataStore };`;
+    }
+  );
+
+  // 2c. Replace the MVU library import (local/relative variant)
+  processed = processed.replace(
+    /import\s*\{([^}]+)\}\s*from\s*['"][^'"]*mvu(?:\.js)?['"];?/g,
+    (match, importsStr) => {
+      const parts = importsStr.split(',').map((p: string) => {
+        const item = p.trim();
+        if (item.includes(' as ')) {
+          const [orig, alias] = item.split(/\s+as\s+/);
+          if (orig === 'default' || orig === 'defineMvuDataStore') {
+            return `defineMvuDataStore: ${alias}`;
+          }
+          return `${orig}: ${alias}`;
+        }
+        return item;
+      });
+      return `const { ${parts.join(', ')} } = { defineMvuDataStore: window.defineMvuDataStore };`;
+    }
   );
 
   // 3a. Generic replacement for namespace ESM imports (e.g. import * as math from '...')
@@ -1440,10 +1611,14 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   if (parentDollar) {
     // Create a wrapper that always searches in parent document
     window.$ = window.jQuery = function(selector, context) {
-      // If no context provided, default to parent document
-      var ctx = context || window.parent.document;
-      // Call parent $ directly with selector and context
-      return parentDollar(selector, ctx);
+      if (context) {
+        return parentDollar(selector, context);
+      }
+      var localResult = parentDollar(selector, window.document);
+      if (typeof selector !== 'string' || localResult.length > 0) {
+        return localResult;
+      }
+      return parentDollar(selector, window.parent.document);
     };
     // Copy all static properties/methods from parent $
     for (var key in parentDollar) {
@@ -1605,6 +1780,7 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
 <script>
   // ─── Step 1.5: Pre-load MVU libraries and framework offline ───
   ${processedMvuZod}
+  ${processedMvu}
   ${processedMvuBundle}
 </script>
 <script>
@@ -1711,19 +1887,27 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
     // Walk parent's child iframes looking for one with a proper jQuery.
     var realJQ = null;
     try {
-      var frames = window.parent.document.querySelectorAll('iframe');
-      for (var fi = 0; fi < frames.length; fi++) {
-        try {
-          var fw = frames[fi].contentWindow;
-          if (fw && fw.jQuery && typeof fw.jQuery === 'function' && fw.jQuery.fn && fw.jQuery.fn.jquery) {
-            realJQ = fw.jQuery;
-            break;
-          }
-        } catch(e2) {}
+      if (window.parent && window.parent.jQuery && window.parent.jQuery.fn && window.parent.jQuery.fn.jquery) {
+        realJQ = window.parent.jQuery;
       }
-    } catch(e) {}
+    } catch(e1) {}
+    if (!realJQ) {
+      try {
+        var frames = window.parent.document.querySelectorAll('iframe');
+        for (var fi = 0; fi < frames.length; fi++) {
+          try {
+            var fw = frames[fi].contentWindow;
+            if (fw && fw.jQuery && typeof fw.jQuery === 'function' && fw.jQuery.fn && fw.jQuery.fn.jquery) {
+              realJQ = fw.jQuery;
+              break;
+            }
+          } catch(e2) {}
+        }
+      } catch(e3) {}
+    }
 
     if (realJQ) {
+      console.info('[TH Message Iframe Debug] Successfully resolved real jQuery from parent/sibling.');
       // Bind real jQuery to this iframe's document so selectors search here
       window.$ = window.jQuery = function(selector, context) {
         if (typeof selector === 'function') {
@@ -1745,6 +1929,7 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
       window.$.fn = realJQ.fn;
       window.$.event = realJQ.event;
     } else {
+      console.warn('[TH Message Iframe Debug] Falling back to lightweight vanilla jQuery shim.');
       // Lightweight fallback: vanilla querySelector-based shim
       var makeResult = function(elements) {
         var arr = Array.prototype.slice.call(elements || []);
@@ -2110,9 +2295,10 @@ function applyMvuCommand(statData: any, command: { type: string; args: any[]; re
   if (!statData || !command.args || command.args.length === 0) return;
   
   let path = String(command.args[0]).trim();
-  if (path.startsWith('"') || path.startsWith("'")) {
+  if (path.startsWith('"') || path.startsWith("'") || path.startsWith("`")) {
     path = path.slice(1, -1);
   }
+  path = path.replace(/^(?:stat_data|status_current_variables)\./, '');
 
   const normalizedPath = path
     .replace(/\[['"`](.*?)['"`]\]/g, '.$1')
@@ -2195,9 +2381,10 @@ function applyMvuCommand(statData: any, command: { type: string; args: any[]; re
       if (command.args.length >= 2) {
         const fromPath = normalizedPath;
         let toPath = String(command.args[1]).trim();
-        if (toPath.startsWith('"') || toPath.startsWith("'")) {
+        if (toPath.startsWith('"') || toPath.startsWith("'") || toPath.startsWith("`")) {
           toPath = toPath.slice(1, -1);
         }
+        toPath = toPath.replace(/^(?:stat_data|status_current_variables)\./, '');
         const normalizedToPath = toPath
           .replace(/\[['"`](.*?)['"`]\]/g, '.$1')
           .replace(/\[(\d+)\]/g, '.$1')

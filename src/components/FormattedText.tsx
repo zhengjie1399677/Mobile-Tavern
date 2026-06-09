@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, memo } from "react";
 import { AppContext } from "../AppContext";
 import { createMessageIframeSrcDoc } from "../utils/tavernHelperBridge";
 
@@ -341,7 +341,7 @@ function preprocessFormattedText(
   return processed;
 }
 
-export default function FormattedText({
+const FormattedText = memo(function FormattedText({
   text,
   charName,
   userName = "user",
@@ -408,4 +408,6 @@ export default function FormattedText({
       })}
     </span>
   );
-}
+});
+
+export default FormattedText;

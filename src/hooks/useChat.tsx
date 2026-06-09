@@ -289,11 +289,36 @@ export const useChat = (
     let updatedSession = session;
     if (settings.enableScriptExecution && messageToParse) {
       try {
+        console.log("[MVU Debug] saveSessionWithMvu: Parsing message...", { messageToParse });
         const parsedVariables = parseMvuMessage(messageToParse, session.variables || {});
+        console.log("[MVU Debug] Parsed variables:", parsedVariables);
+        
+        let updatedMessages = session.messages;
+        if (session.messages.length > 0) {
+          const lastMsg = { ...session.messages[session.messages.length - 1] } as any;
+          const swipeId = lastMsg.swipe_id !== undefined ? lastMsg.swipe_id : 0;
+          const extra = { ...lastMsg.extra };
+          if (!extra.variables) extra.variables = {};
+          extra.variables = {
+            ...extra.variables,
+            [swipeId]: parsedVariables,
+          };
+          lastMsg.extra = extra;
+          // Also set variables directly at message level for compatibility
+          lastMsg.variables = extra.variables;
+          updatedMessages = [
+            ...session.messages.slice(0, -1),
+            lastMsg,
+          ];
+          console.log(`[MVU Debug] Synced parsed variables to last message (swipeId: ${swipeId})`);
+        }
+
         updatedSession = {
           ...session,
           variables: parsedVariables,
+          messages: updatedMessages,
         };
+
         setSessions((prev) =>
           prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
         );

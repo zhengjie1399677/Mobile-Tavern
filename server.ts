@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
@@ -41,6 +42,20 @@ async function startServer() {
   // Use JSON parser with higher limits for backups and character cards
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // API 1: Version checking
+  app.get("/version", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    try {
+      const pkgPath = path.join(resolvedDirname, "package.json");
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      res.json({ pkgVersion: pkg.version || "1.3.7" });
+    } catch (e) {
+      res.json({ pkgVersion: "1.3.7" });
+    }
+  });
 
   // API 2: Test connection for API config
   app.post("/api/test-connection", ssrfGuard, async (req, res) => {
