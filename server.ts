@@ -3,13 +3,12 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { ssrfGuard } from "./src/utils/security";
 
 dotenv.config();
 
 const resolvedFilename = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
 const resolvedDirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(resolvedFilename);
-
-
 
 interface ProxyRequestConfig {
   baseUrl: string;
@@ -44,7 +43,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   // API 2: Test connection for API config
-  app.post("/api/test-connection", async (req, res) => {
+  app.post("/api/test-connection", ssrfGuard, async (req, res) => {
     try {
       const { type, baseUrl, apiKey, modelName, chatPath } = req.body || {};
       const { targetUrl, headers } = prepareProxyRequest({
@@ -77,7 +76,7 @@ async function startServer() {
   });
 
   // API 3: OpenAI API Proxy (CORS Bypass for mobile/iframe compatibility)
-  app.post("/api/proxy/openai", async (req, res) => {
+  app.post("/api/proxy/openai", ssrfGuard, async (req, res) => {
     const controller = new AbortController();
     req.on("close", () => {
       controller.abort();
@@ -150,7 +149,7 @@ async function startServer() {
   });
 
   // API 4: Models Fetch Proxy
-  app.post("/api/proxy/models", async (req, res) => {
+  app.post("/api/proxy/models", ssrfGuard, async (req, res) => {
     try {
       const { type, baseUrl, apiKey, modelsPath } = req.body || {};
       const { targetUrl, headers } = prepareProxyRequest({

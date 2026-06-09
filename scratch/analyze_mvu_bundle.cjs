@@ -1,5 +1,5 @@
 const fs = require('fs');
-const content = fs.readFileSync('d:/projects/Mobile-Tavern/src/utils/mvu_bundle.js', 'utf8');
+const content = fs.readFileSync('e:/modules/projects/Mobile-Tavern/src/utils/mvu_bundle.js', 'utf8');
 
 console.log('=== should_enable computation analysis ===\n');
 
