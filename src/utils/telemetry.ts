@@ -197,10 +197,10 @@ async function syncTelemetry(isUnloading: boolean) {
   const eventsToSend = [...pendingEvents];
   
   const deviceInfo = getDeviceInfo();
-  const sessionDur = Date.now() - sessionStartTime;
 
   const slsLogs = eventsToSend.map((evt) => {
     const extra = evt.extraData || {};
+    const eventDurMs = Math.max(0, evt.timestamp - sessionStartTime);
     return {
       action_type: String(evt.action), 
       player_name: String(extra.playerName || "未知"), 
@@ -213,7 +213,7 @@ async function syncTelemetry(isUnloading: boolean) {
       detail_info: String(extra.detail || ""), 
       session_id: String(extra.sessionId || "无"), 
       session_start_time: new Date(sessionStartTime).toLocaleString(), 
-      session_duration_sec: String(Math.round(sessionDur / 1000)), 
+      session_duration_sec: String(Math.round(eventDurMs / 1000)), 
       device_id: String(deviceInfo.deviceId), 
       os_platform: String(deviceInfo.platform), 
       user_agent: String(deviceInfo.userAgent), 
@@ -314,5 +314,9 @@ if (document.visibilityState !== 'hidden') {
   startSyncTimer();
 }
 
-// 页面加载时初始化
-initTracker();
+// 页面加载时初始化，并触发 app_launch 事件
+initTracker().then(() => {
+  reportUsage("app_launch", { detail: "App launched and SLS tracker initialized successfully" });
+}).catch(err => {
+  console.warn("Failed to trigger app_launch on initialization:", err);
+});

@@ -245,6 +245,14 @@ if (typeof window !== "undefined") {
     JSON5,
     jsonrepair,
     math,
+    // Expose namespaces for wildcard imports (e.g. import * as pinia from '...')
+    pinia: {
+      createPinia,
+      defineStore,
+      getActivePinia,
+      setActivePinia,
+    },
+    vue: Vue,
   };
   parentWin.registerMvuSchema = registerMvuSchema;
 
@@ -1596,7 +1604,7 @@ export function preprocessScriptContent(content: string): string {
 
   // 3a. Generic replacement for namespace ESM imports (e.g. import * as math from '...')
   processed = processed.replace(
-    /import\s*\*as\s+(\w+)\s+from\s*['"]https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/([^/]+)\/\+esm['"]/g,
+    /import\s*\*\s*as\s+(\w+)\s+from\s*['"]https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/([^/]+)\/\+esm['"]/g,
     (match, alias, pkgName) => {
       if (pkgName === 'mathjs') {
         return `const ${alias} = window.parent.TavernHelperMvuLibs.math;`;
@@ -1975,7 +1983,20 @@ ${cleanContent}
 }
 
 export function createMessageIframeSrcDoc(htmlContent: string): string {
-  const hasHtmlTag = /<html/i.test(htmlContent);
+  let processedHtml = htmlContent;
+  
+  // Preprocess any script tags in the HTML content to replace CDN imports with local TavernHelperMvuLibs lookups
+  processedHtml = processedHtml.replace(
+    /<script([^>]*)>([\s\S]*?)<\/script>/gi,
+    (match, attrs, scriptBody) => {
+      if (/type\s*=\s*['"]module['"]/i.test(attrs) || /import\s+/.test(scriptBody)) {
+        return `<script${attrs}>${preprocessScriptContent(scriptBody)}</script>`;
+      }
+      return match;
+    }
+  );
+
+  const hasHtmlTag = /<html/i.test(processedHtml);
 
   const scriptInjects = `
 <script>
@@ -2229,7 +2250,7 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
   `;
 
   if (hasHtmlTag) {
-    let wrapped = htmlContent;
+    let wrapped = processedHtml;
     if (/<head>/i.test(wrapped)) {
       wrapped = wrapped.replace(/<head>/i, `<head>${scriptInjects}`);
     } else if (/<html>/i.test(wrapped)) {
@@ -2247,7 +2268,7 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
   ${scriptInjects}
 </head>
 <body>
-  ${htmlContent}
+  ${processedHtml}
 </body>
 </html>`;
   }

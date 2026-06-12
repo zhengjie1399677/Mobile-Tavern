@@ -14,6 +14,7 @@ import { useApp } from "../contexts/AppContext";
 import { useChatState } from "../contexts/ChatContext";
 import { universalFetch } from "../utils/apiClient";
 import { encryptBackupData, decryptBackupData } from "../utils/cardParser";
+import { reportUsage } from "../utils/telemetry";
 
 export const DEFAULT_PRESETS: Record<string, SamplerPreset> = {
   creative: {

@@ -85,6 +85,7 @@ export default function SettingsTab() {
     testApiConnection,
     setActiveTab,
   } = useContext(AppContext);
+  const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
   return (
     <div className="px-4 pb-4 pt-1.5 flex flex-col h-full overflow-hidden">
       <div className="border-b border-border pb-3 mb-3 shrink-0 flex items-center justify-between">
@@ -251,6 +252,15 @@ export default function SettingsTab() {
                         {isFetchingModels ? "获取中..." : "拉取模型列表"}
                       </button>
                     </div>
+                    {!settings.api.apiKey || !settings.api.apiKey.trim() ? (
+                      <p className="text-[10px] text-primary/80 flex items-center gap-1 font-medium bg-primary/5 px-2 py-1 rounded-md border border-primary/10">
+                        💡 处于公共免 Key 体验渠道（已使用 {freeCount}/10 次）。清空 API Key 时自动启用此渠道。
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground">
+                        已配置自定义 API 密钥，优先使用您的专属渠道。
+                      </p>
+                    )}
                     {connectionStatus?.message && (
                       <div className={`mt-2 text-[11px] p-2 rounded-md ${connectionStatus.success ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"}`}>
                         {connectionStatus.message}

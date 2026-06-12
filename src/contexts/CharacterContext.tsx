@@ -9,6 +9,7 @@ import {
   bulkSaveCharacters,
 } from "../utils/localDB";
 import { useApp } from "./AppContext";
+import { reportUsage } from "../utils/telemetry";
 
 interface CharacterContextType {
   characters: CharacterCard[];
@@ -35,6 +36,8 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     () => characters.find((c) => c.id === activeCharId) || null,
     [characters, activeCharId]
   );
+
+
 
   const loadCharacters = async () => {
     try {

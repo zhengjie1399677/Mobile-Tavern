@@ -30,6 +30,10 @@ function prepareProxyRequest({ baseUrl, routePath, apiKey }: ProxyRequestConfig)
   };
   if (apiKey) {
     headers["Authorization"] = `Bearer ${apiKey}`;
+    const cleanKey = apiKey.trim();
+    console.log(`[Proxy Request] API Key loaded, prefix: "${cleanKey.substring(0, 15)}...", length: ${cleanKey.length}, suffix: "...${cleanKey.substring(Math.max(0, cleanKey.length - 6))}"`);
+  } else {
+    console.log(`[Proxy Request] No API Key loaded in proxy header!`);
   }
 
   return { targetUrl, headers };
@@ -51,9 +55,9 @@ async function startServer() {
     try {
       const pkgPath = path.join(resolvedDirname, "package.json");
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-      res.json({ pkgVersion: pkg.version || "1.3.8" });
+      res.json({ pkgVersion: pkg.version || "1.3.9" });
     } catch (e) {
-      res.json({ pkgVersion: "1.3.8" });
+      res.json({ pkgVersion: "1.3.9" });
     }
   });
 

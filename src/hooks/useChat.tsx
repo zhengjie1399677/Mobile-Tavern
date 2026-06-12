@@ -166,6 +166,10 @@ export const useChat = (
       messagesToCompress = unsummarizedMessages.slice(0, maxAllowedUnsummarized);
 
       try {
+        if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
+          if (force) await showCustomAlert("当前处于免 Key 体验模式下，已自动禁用总结功能以节省频宽额度。");
+          return;
+        }
         setIsSummarizing(true);
         const promptInstruction = settings?.memory?.summarySystemPrompt || "";
         const contentConcat = messagesToCompress
@@ -177,11 +181,13 @@ export const useChat = (
         let finalApiKey = settings.api.apiKey;
         let finalBaseUrl = settings.api.baseUrl;
         let finalModel = settings.api.modelName || FALLBACK_MODEL;
+        let finalChatPath = settings?.api?.chatPath;
 
         if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
-          finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZWI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
+          finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZmI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
           finalBaseUrl = "https://openrouter.ai/api/v1";
-          finalModel = "google/gemma-2-9b-it:free";
+          finalModel = "openrouter/free";
+          finalChatPath = undefined;
         }
 
         const reqBody = {
@@ -197,7 +203,7 @@ export const useChat = (
         const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
           baseUrl: finalBaseUrl,
           apiKey: finalApiKey,
-          chatPath: settings?.api?.chatPath,
+          chatPath: finalChatPath,
           reqBody,
           bypassProxy: settings.api.bypassProxy,
         }, signal);
@@ -371,6 +377,7 @@ export const useChat = (
     let finalApiKey = settings.api.apiKey;
     let finalBaseUrl = settings.api.baseUrl;
     let finalModel = settings.api.modelName || FALLBACK_MODEL;
+    let finalChatPath = settings?.api?.chatPath;
     let isTrialMode = false;
 
     if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
@@ -380,9 +387,10 @@ export const useChat = (
         return;
       }
       isTrialMode = true;
-      finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZWI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
+      finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZmI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
       finalBaseUrl = "https://openrouter.ai/api/v1";
-      finalModel = "google/gemma-2-9b-it:free";
+      finalModel = "openrouter/free";
+      finalChatPath = undefined;
     } else {
       if (!settings.api.modelName) {
         showCustomAlert(
@@ -509,7 +517,7 @@ export const useChat = (
       const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
         baseUrl: finalBaseUrl,
         apiKey: finalApiKey,
-        chatPath: settings?.api?.chatPath,
+        chatPath: finalChatPath,
         bypassProxy: settings.api.bypassProxy,
         reqBody: {
           model: finalModel,
@@ -741,6 +749,7 @@ export const useChat = (
     let finalApiKey = settings.api.apiKey;
     let finalBaseUrl = settings.api.baseUrl;
     let finalModel = settings.api.modelName || FALLBACK_MODEL;
+    let finalChatPath = settings?.api?.chatPath;
     let isTrialMode = false;
 
     if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
@@ -750,9 +759,10 @@ export const useChat = (
         return;
       }
       isTrialMode = true;
-      finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZWI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
+      finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZmI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
       finalBaseUrl = "https://openrouter.ai/api/v1";
-      finalModel = "google/gemma-2-9b-it:free";
+      finalModel = "openrouter/free";
+      finalChatPath = undefined;
     } else {
       if (!settings.api.modelName) {
         await showCustomAlert("重发失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
@@ -904,7 +914,7 @@ export const useChat = (
       const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
         baseUrl: finalBaseUrl,
         apiKey: finalApiKey,
-        chatPath: settings?.api?.chatPath,
+        chatPath: finalChatPath,
         bypassProxy: settings.api.bypassProxy,
         reqBody: {
           model: finalModel,
