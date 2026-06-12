@@ -80,10 +80,33 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     );
   }, [settingsHook, charState.setCharacters, chatState.setSessions]);
 
+  // Sort characters by their last active conversation time (latest message timestamp across all sessions) descending.
+  const sortedCharacters = React.useMemo(() => {
+    const getCharLastActiveTime = (charId: string) => {
+      const charSessions = chatState.sessions.filter(s => s.characterId === charId);
+      if (charSessions.length === 0) return 0;
+      return charSessions.reduce((max, s) => {
+        const lastMsg = s.messages && s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
+        const sTime = lastMsg ? (lastMsg.timestamp || s.createdAt) : s.createdAt;
+        return Math.max(max, sTime);
+      }, 0);
+    };
+
+    return [...charState.characters].sort((a, b) => {
+      const aTime = getCharLastActiveTime(a.id);
+      const bTime = getCharLastActiveTime(b.id);
+      if (bTime !== aTime) {
+        return bTime - aTime;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [charState.characters, chatState.sessions]);
+
   const appContextValue = React.useMemo(() => ({
     // Context States
     ...appState,
     ...charState,
+    characters: sortedCharacters,
     ...chatState,
 
     // Settings Hook
@@ -103,6 +126,7 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
   }), [
     appState,
     charState,
+    sortedCharacters,
     chatState,
     settingsHook,
     charactersHook,

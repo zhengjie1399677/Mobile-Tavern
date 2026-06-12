@@ -1,6 +1,6 @@
-# 📱 Mobile Tavern 
+﻿# 📱 Mobile Tavern 
 
-[![Version](https://img.shields.io/badge/version-1.3.7-blue.svg?style=for-the-badge)](https://github.com/zhengjie1399677/Mobile-Tavern)
+[![Version](https://img.shields.io/badge/version-1.3.8-blue.svg?style=for-the-badge)](https://github.com/zhengjie1399677/Mobile-Tavern)
 [![Tauri](https://img.shields.io/badge/Tauri-v2-green.svg?style=for-the-badge&logo=tauri)](https://tauri.app/)
 [![React](https://img.shields.io/badge/React-v19-blue.svg?style=for-the-badge&logo=react)](https://react.dev/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4.svg?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
@@ -15,9 +15,9 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 
 > [!NOTE]
 > * **功能与技术细节归档**：
->   * 关于 Android 手机真机调试、网络映射配置、原生 bridge 状态栏同步等原生端适配细则，请直接查阅：[AGENTS.md](file:///e:/modules/projects/Mobile-Tavern/AGENTS.md)。
->   * 关于 Prompt 上下文分区的作用、标头过滤机制及最终发送给 API 的消息数组格式示例，请直接查阅：[presets_prompts_guide.md](file:///e:/modules/projects/Mobile-Tavern/presets_prompts_guide.md)。
->   * 关于 Prefix Cache 缓存优化、数据库设计、PNG 二进制解码机制、源码模块剖析等底层技术细节，请直接查阅：[TECHNICAL.md](file:///e:/modules/projects/Mobile-Tavern/TECHNICAL.md)。
+>   * 关于 Android 手机真机调试、网络映射配置、原生 bridge 状态栏同步等原生端适配细则，请直接查阅：[AGENTS.md](AGENTS.md)。
+>   * 关于 Prompt 上下文分区的作用、标头过滤机制及最终发送给 API 的消息数组格式示例，请直接查阅：[presets_prompts_guide.md](presets_prompts_guide.md)。
+>   * 关于 Prefix Cache 缓存优化、数据库设计、PNG 二进制解码机制、源码模块剖析等底层技术细节，请直接查阅：[TECHNICAL.md](TECHNICAL.md)。
 
 ---
 
@@ -80,4 +80,5 @@ Mobile-Tavern
 * **商标与专利保护**：授予用户免费、全球性、不可撤销的专利许可，同时明确规定本许可协议不授予任何使用项目贡献者商标、商品名称的权利。
 * **责任限制**：本软件按“原样”提供，在任何情况下均不对由于使用本软件而导致的任何损害承担责任，且修改过的文件必须带有显著的修改声明。
 
-关于更完整的许可内容，请查阅项目根目录下的 [LICENSE](file:///e:/modules/projects/Mobile-Tavern/LICENSE) 文件。
+关于更完整的许可内容，请查阅项目根目录下的 [LICENSE](LICENSE) 文件。
+

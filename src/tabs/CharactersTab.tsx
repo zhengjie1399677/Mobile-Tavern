@@ -77,7 +77,7 @@ export default function CharactersTab() {
             <div
               key={char.id}
               onClick={() => selectCharacter(char.id)}
-              className={`bg-card rounded-xl active:scale-[0.98] transition border p-3.5 relative cursor-pointer flex gap-3 h-32 select-none ${
+              className={`bg-card rounded-xl active:scale-[0.98] transition border p-3.5 relative cursor-pointer flex gap-3 min-h-32 h-auto select-none ${
                 isActive ? "border-primary/60 bg-muted/40" : "border-border"
               }`}
             >
