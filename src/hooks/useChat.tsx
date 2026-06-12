@@ -174,8 +174,18 @@ export const useChat = (
 
         let compiledSummary = "";
 
+        let finalApiKey = settings.api.apiKey;
+        let finalBaseUrl = settings.api.baseUrl;
+        let finalModel = settings.api.modelName || FALLBACK_MODEL;
+
+        if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
+          finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZWI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
+          finalBaseUrl = "https://openrouter.ai/api/v1";
+          finalModel = "google/gemma-2-9b-it:free";
+        }
+
         const reqBody = {
-          model: settings.api.modelName || FALLBACK_MODEL,
+          model: finalModel,
           messages: [
             { role: "system", content: promptInstruction },
             { role: "user", content: contentConcat },
@@ -185,8 +195,8 @@ export const useChat = (
           max_tokens: 500,
         };
         const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
-          baseUrl: settings.api.baseUrl,
-          apiKey: settings.api.apiKey,
+          baseUrl: finalBaseUrl,
+          apiKey: finalApiKey,
           chatPath: settings?.api?.chatPath,
           reqBody,
           bypassProxy: settings.api.bypassProxy,
@@ -358,18 +368,28 @@ export const useChat = (
       return;
     }
 
-    if (!settings.api.apiKey) {
-      showCustomAlert(
-        "当前未填写 API Key，API 亲测会被拦截！请前往“设置 -> API配置”中填写您的 API Key。"
-      );
-      return;
-    }
+    let finalApiKey = settings.api.apiKey;
+    let finalBaseUrl = settings.api.baseUrl;
+    let finalModel = settings.api.modelName || FALLBACK_MODEL;
+    let isTrialMode = false;
 
-    if (!settings.api.modelName) {
-      showCustomAlert(
-        "对话失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。"
-      );
-      return;
+    if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
+      const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
+      if (freeCount >= 10) {
+        showCustomAlert("💡 您的 10 次公共免 Key 体验次数已用完，请前往“设置 -> API配置”中填写您自己的 API Key。");
+        return;
+      }
+      isTrialMode = true;
+      finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZWI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
+      finalBaseUrl = "https://openrouter.ai/api/v1";
+      finalModel = "google/gemma-2-9b-it:free";
+    } else {
+      if (!settings.api.modelName) {
+        showCustomAlert(
+          "对话失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。"
+        );
+        return;
+      }
     }
 
     isSendingRef.current = true;
@@ -487,12 +507,12 @@ export const useChat = (
       );
 
       const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
-        baseUrl: settings.api.baseUrl,
-        apiKey: settings.api.apiKey,
+        baseUrl: finalBaseUrl,
+        apiKey: finalApiKey,
         chatPath: settings?.api?.chatPath,
         bypassProxy: settings.api.bypassProxy,
         reqBody: {
-          model: settings.api.modelName || FALLBACK_MODEL,
+          model: finalModel,
           stream: true,
           stream_options: { include_usage: true },
           messages: [
@@ -583,9 +603,14 @@ export const useChat = (
         completionTokens: tokenUsage.completion,
         totalTokens: tokenUsage.prompt + tokenUsage.completion,
         generationTime: performance.now() - startTime,
-        modelName: settings.api.modelName,
+        modelName: finalModel,
         characterName: activeCharacter.name,
       });
+
+      if (isTrialMode) {
+        const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
+        localStorage.setItem("mobile_tavern_free_trial_count", String(freeCount + 1));
+      }
 
       await handleAutoSummaryCheck(parsedSession, false, controller.signal);
     } catch (err: any) {
@@ -713,9 +738,26 @@ export const useChat = (
   const handleRerollFromMessage = useCallback(async (targetMsg: Message) => {
     if (!targetMsg || !targetMsg.id || isSending || isSendingRef.current || !activeCharacter || !activeSession) return;
 
-    if (!settings.api.modelName) {
-      await showCustomAlert("重发失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
-      return;
+    let finalApiKey = settings.api.apiKey;
+    let finalBaseUrl = settings.api.baseUrl;
+    let finalModel = settings.api.modelName || FALLBACK_MODEL;
+    let isTrialMode = false;
+
+    if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
+      const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
+      if (freeCount >= 10) {
+        showCustomAlert("💡 您的 10 次公共免 Key 体验次数已用完，请前往“设置 -> API配置”中填写您自己的 API Key。");
+        return;
+      }
+      isTrialMode = true;
+      finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZWI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
+      finalBaseUrl = "https://openrouter.ai/api/v1";
+      finalModel = "google/gemma-2-9b-it:free";
+    } else {
+      if (!settings.api.modelName) {
+        await showCustomAlert("重发失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
+        return;
+      }
     }
 
     const requestId = ++activeRequestIdRef.current;
@@ -860,12 +902,12 @@ export const useChat = (
       );
 
       const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
-        baseUrl: settings.api.baseUrl,
-        apiKey: settings.api.apiKey,
+        baseUrl: finalBaseUrl,
+        apiKey: finalApiKey,
         chatPath: settings?.api?.chatPath,
         bypassProxy: settings.api.bypassProxy,
         reqBody: {
-          model: settings.api.modelName || FALLBACK_MODEL,
+          model: finalModel,
           stream: true,
           stream_options: { include_usage: true },
           messages: [
@@ -956,9 +998,14 @@ export const useChat = (
         generationTime: performance.now() - startTime,
         playerName: settings.userName,
         characterName: activeCharacter.name,
-        modelName: settings.api.modelName,
+        modelName: finalModel,
         sessionId: updatedSession.id,
       });
+
+      if (isTrialMode) {
+        const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
+        localStorage.setItem("mobile_tavern_free_trial_count", String(freeCount + 1));
+      }
 
       await handleAutoSummaryCheck(parsedSession, false, controller.signal);
     } catch (e: any) {

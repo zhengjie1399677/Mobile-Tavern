@@ -193,6 +193,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
   savedPresets: [FORMAT_PRESERVATION_BUNDLE],
   hasInjectedFormatPreset: true,
+  hasInitializedDefaultCharacters: false,
 };
 
 export const useSettings = () => {
@@ -276,6 +277,7 @@ export const useSettings = () => {
             hasInjectedFormatPreset: true,
             variables: storedSet.variables || {},
             extensionSettings: storedSet.extensionSettings || {},
+            hasInitializedDefaultCharacters: storedSet.hasInitializedDefaultCharacters ?? false,
           } as any;
 
           setSettings(mergedSet);

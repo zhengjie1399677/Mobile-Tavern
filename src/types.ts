@@ -183,4 +183,5 @@ export interface UserSettings {
   enableScriptExecution?: boolean; // Toggle to execute custom interactive iframe scripts
   variables?: Record<string, any>; // Persistent global variables for TavernHelper compatibility
   extensionSettings?: Record<string, any>; // Persistent settings for SillyTavern extensions compatibility
+  hasInitializedDefaultCharacters?: boolean; // Track if the built-in characters have been initialized
 }

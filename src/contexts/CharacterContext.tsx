@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
 import { CharacterCard } from "../types";
-import { getAllCharacters, saveCharacter as dbSaveCharacter, deleteCharacter as dbDeleteCharacter } from "../utils/localDB";
+import {
+  getAllCharacters,
+  saveCharacter as dbSaveCharacter,
+  deleteCharacter as dbDeleteCharacter,
+  getStoredSettings,
+  saveStoredSettings,
+  bulkSaveCharacters,
+} from "../utils/localDB";
 import { useApp } from "./AppContext";
 
 interface CharacterContextType {
@@ -31,7 +38,26 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const loadCharacters = async () => {
     try {
-      const stored = await getAllCharacters();
+      let stored = await getAllCharacters();
+      
+      const settings = await getStoredSettings();
+      const hasInitialized = settings ? !!settings.hasInitializedDefaultCharacters : false;
+
+      if (!hasInitialized) {
+        const { BUILTIN_CHARACTERS } = await import("../utils/builtInCharacters");
+        await bulkSaveCharacters(BUILTIN_CHARACTERS);
+
+        const nextSettings = settings ? {
+          ...settings,
+          hasInitializedDefaultCharacters: true
+        } : {
+          hasInitializedDefaultCharacters: true
+        };
+        await saveStoredSettings(nextSettings as any);
+
+        stored = await getAllCharacters();
+      }
+
       setCharacters(stored || []);
       setIsDBReady(true);
     } catch (e: any) {
