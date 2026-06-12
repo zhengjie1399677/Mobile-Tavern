@@ -9,6 +9,19 @@ import { useChat } from "../hooks/useChat";
 import { useUsageTracking } from "../utils/useUsageTracking";
 import { SamplerPreset, PromptConfig, UserSettings } from "../types";
 
+/**
+ * ⚠️ 命名说明：此文件名中的 "Legacy" 具有历史误导性，实际上这是应用的核心 Provider 组装层。
+ *
+ * 职责：
+ * 1. 嵌套挂载所有分离的 Context Provider（AppProvider / CharacterProvider / ChatProvider）
+ * 2. 在内层 Inner 组件中调用所有业务 Hook（useSettings / useCharacters / useChat）
+ * 3. 将来自多个 context 和 hook 的状态合并为统一的 AppContext 值，供全局消费
+ * 4. 通过 useMemo 对 characters 按最近聊天时间排序，避免在下游组件重复计算
+ *
+ * 如需重命名，建议改为 AppContextAssembler.tsx 或 UnifiedAppProvider.tsx。
+ * 当前暂不重命名，以免引入大规模 import 路径变更风险。
+ */
+
 export {
   DEFAULT_PRESETS,
   DEFAULT_PROMPT_CONFIG,

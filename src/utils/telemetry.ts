@@ -74,18 +74,21 @@ export function reportUsage(action: string = "app_launch", extraData: Record<str
 import SlsTracker from '@aliyun-sls/web-track-browser';
 import createStsPlugin from '@aliyun-sls/web-sts-plugin';
 
-// Suppress known unpreventable network errors from the SDK (triggered on beforeunload or adblockers)
-const originalConsoleError = console.error;
-console.error = (...args: any[]) => {
-  if (typeof args[0] === 'string' && (
-    args[0].includes('Failed to log to ali log service') ||
-    args[0].includes('Failed log data') ||
-    args[0].includes('Failed logdata')
-  )) {
-    return; // Swallow to prevent false alarms due to intentional browser aborts (status 0)
-  }
-  originalConsoleError(...args);
-};
+// Targeted suppression: only silence known SLS SDK network abort errors
+// (triggered on beforeunload or by adblockers), without touching global console.error.
+// This avoids the dangerous anti-pattern of globally monkey-patching console.error.
+const SLS_NOISE_PATTERNS = [
+  'Failed to log to ali log service',
+  'Failed log data',
+  'Failed logdata',
+];
+
+function isSLSNoise(args: any[]): boolean {
+  return typeof args[0] === 'string' && SLS_NOISE_PATTERNS.some(p => args[0].includes(p));
+}
+
+// Wrap only within the syncTelemetry catch block using this helper.
+// Global console.error is NOT modified.
 
 let tracker: SlsTracker | null = null;
 let stsPlugin: any = null;
@@ -268,8 +271,12 @@ async function syncTelemetry(isUnloading: boolean) {
     // 这样能 100% 解决静默丢失 Bug (Silent Event Eviction)
     pendingEvents = pendingEvents.filter(e => !eventsToSend.includes(e));
 
-  } catch (err) {
-    console.warn("Telemetry sync 失败，保留本地队列待下次同步:", err);
+  } catch (err: any) {
+    // Suppress known SLS SDK network abort noise (status=0 on beforeunload),
+    // but surface all other genuine errors for debugging.
+    if (!isSLSNoise([err?.message || String(err)])) {
+      console.warn("Telemetry sync 失败，保留本地队列待下次同步:", err);
+    }
     // 发生网络波动或 STS 问题时完全保留队列（从而支持自动重试，0 丢包）
   } finally {
     isSyncing = false;
