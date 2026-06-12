@@ -505,12 +505,13 @@ export const useSettings = () => {
           : [];
  
         const stInstructLayout = data.instruct_layouts || data.instructTemplate || "default";
-        let instructTemplate: "default" | "alpaca" | "chatml" | "llama" = "default";
+        let instructTemplate: "default" | "alpaca" | "chatml" | "llama3" | "custom" = "default";
         if (
           stInstructLayout === "default" ||
           stInstructLayout === "alpaca" ||
           stInstructLayout === "chatml" ||
-          stInstructLayout === "llama"
+          stInstructLayout === "llama3" ||
+          stInstructLayout === "custom"
         ) {
           instructTemplate = stInstructLayout;
         }
