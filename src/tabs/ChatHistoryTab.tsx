@@ -27,9 +27,17 @@ export default function ChatHistoryTab() {
       ) : (
         <div className="space-y-2.5">
           {[...sessions]
-            .sort((a, b) => b.createdAt - a.createdAt)
+            .sort((a, b) => {
+              const aLastMsg = a.messages && a.messages.length > 0 ? a.messages[a.messages.length - 1] : null;
+              const aTime = aLastMsg ? (aLastMsg.timestamp || a.createdAt) : a.createdAt;
+              const bLastMsg = b.messages && b.messages.length > 0 ? b.messages[b.messages.length - 1] : null;
+              const bTime = bLastMsg ? (bLastMsg.timestamp || b.createdAt) : b.createdAt;
+              return bTime - aTime;
+            })
             .map((s) => {
               const char = characters.find((c) => c.id === s.characterId);
+              const lastMsg = s.messages && s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
+              const lastActiveTime = lastMsg ? (lastMsg.timestamp || s.createdAt) : s.createdAt;
               return (
                 <div
                   key={s.id}
@@ -61,7 +69,12 @@ export default function ChatHistoryTab() {
                         {s.title || "主剧情线"}
                       </h4>
                       <span className="text-[9px] text-muted-foreground whitespace-nowrap pt-0.5">
-                        {new Date(s.createdAt).toLocaleDateString()}
+                        {new Date(lastActiveTime).toLocaleString(undefined, {
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     </div>
                     <p className="text-[11px] text-muted-foreground truncate opacity-70">
@@ -82,6 +95,14 @@ export default function ChatHistoryTab() {
                           )}{" "}
                       字
                     </p>
+                    {lastMsg && (
+                      <p className="text-[10px] text-muted-foreground truncate mt-1.5 italic border-t border-border/20 pt-1.5 opacity-80">
+                        <span className="font-semibold text-primary mr-1">
+                          {lastMsg.sender === "user" ? "我" : (char?.name || "AI")}:
+                        </span>
+                        {lastMsg.content}
+                      </p>
+                    )}
                   </div>
                   <button
                     className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive p-2 rounded shrink-0 transition"

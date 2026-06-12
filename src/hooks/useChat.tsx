@@ -1168,7 +1168,13 @@ export const useChat = (
       if (activeSessionId === id) {
         const charRemaining = remaining
           .filter((s) => s.characterId === activeCharId)
-          .sort((a, b) => b.createdAt - a.createdAt);
+          .sort((a, b) => {
+            const aLastMsg = a.messages && a.messages.length > 0 ? a.messages[a.messages.length - 1] : null;
+            const aTime = aLastMsg ? (aLastMsg.timestamp || a.createdAt) : a.createdAt;
+            const bLastMsg = b.messages && b.messages.length > 0 ? b.messages[b.messages.length - 1] : null;
+            const bTime = bLastMsg ? (bLastMsg.timestamp || b.createdAt) : b.createdAt;
+            return bTime - aTime;
+          });
         if (charRemaining.length > 0) {
           setActiveSessionId(charRemaining[0].id);
         } else {
@@ -1190,9 +1196,13 @@ export const useChat = (
 
     const charSessions = sessions.filter((s) => s.characterId === charId);
     if (charSessions.length > 0) {
-      const lastSession = charSessions.sort(
-        (a, b) => b.createdAt - a.createdAt
-      )[0];
+      const lastSession = charSessions.sort((a, b) => {
+        const aLastMsg = a.messages && a.messages.length > 0 ? a.messages[a.messages.length - 1] : null;
+        const aTime = aLastMsg ? (aLastMsg.timestamp || a.createdAt) : a.createdAt;
+        const bLastMsg = b.messages && b.messages.length > 0 ? b.messages[b.messages.length - 1] : null;
+        const bTime = bLastMsg ? (bLastMsg.timestamp || b.createdAt) : b.createdAt;
+        return bTime - aTime;
+      })[0];
       setActiveSessionId(lastSession.id);
     } else {
       const targetChar = characters.find((c) => c.id === charId);

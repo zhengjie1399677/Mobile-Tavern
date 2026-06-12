@@ -686,7 +686,7 @@ export default function GlobalWorldbookTab() {
                         : "border-border/80 bg-muted/30 hover:bg-muted/60 hover:border-border"
                     }`}
                   >
-                    <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
                       <div
                         className={`w-10 h-10 rounded-full overflow-hidden border flex items-center justify-center shrink-0 ${
                           isGlobal
@@ -708,9 +708,9 @@ export default function GlobalWorldbookTab() {
                         )}
                       </div>
 
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p
-                          className={`text-xs font-bold ${isGlobal ? "text-primary font-extrabold" : "text-foreground"}`}
+                          className={`text-xs font-bold truncate ${isGlobal ? "text-primary font-extrabold" : "text-foreground"}`}
                         >
                           {char.name}
                         </p>
@@ -912,7 +912,7 @@ export default function GlobalWorldbookTab() {
                       <span className="text-muted-foreground shrink-0 text-xs text-primary/70">
                         <Hash className="w-3.5 h-3.5" />
                       </span>
-                      <span className="font-semibold text-foreground truncate max-w-[140px] sm:max-w-[280px] text-[12.5px]">
+                      <span className="font-semibold text-foreground truncate text-[12.5px] flex-1 min-w-0">
                         {entryLabel}
                       </span>
 
