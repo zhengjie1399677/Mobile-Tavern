@@ -67,7 +67,27 @@ export default function CharactersTab() {
 
       {/* List Cards */}
       <div className="space-y-3">
-        {characters.map((char) => {
+      {/* Sort characters by most recent chat activity, falling back to insertion order */}
+      {(() => {
+        const sortedCharacters = [...characters].sort((a, b) => {
+          const getLastTime = (charId: string) => {
+            const charSessions = sessions.filter((s) => s.characterId === charId);
+            return charSessions.reduce((max, s) => {
+              const lastMsg = s.messages && s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
+              const t = lastMsg ? (lastMsg.timestamp || s.createdAt) : s.createdAt;
+              return Math.max(max, t);
+            }, 0);
+          };
+          const aTime = getLastTime(a.id);
+          const bTime = getLastTime(b.id);
+          // Characters with no sessions stay at bottom in original order
+          if (aTime === 0 && bTime === 0) return 0;
+          if (aTime === 0) return 1;
+          if (bTime === 0) return -1;
+          return bTime - aTime;
+        });
+        return sortedCharacters.map((char) => {
+
           const charSessList = sessions.filter(
             (s) => s.characterId === char.id,
           );
@@ -171,7 +191,8 @@ export default function CharactersTab() {
               </div>
             </div>
           );
-        })}
+        });
+      })()}
 
         {characters.length === 0 && (
           <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl flex flex-col items-center justify-center">
