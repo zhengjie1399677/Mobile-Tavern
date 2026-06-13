@@ -223,6 +223,7 @@ export default function ChatTab() {
     renderDialogueBubble,
     setCharacters,
     saveCharacter,
+    saveSessionWithMvu,
     updateSettings,
   } = useContext(AppContext);
 
@@ -812,10 +813,11 @@ export default function ChatTab() {
                                         s.id === updated.id ? updated : s,
                                       ),
                                     );
-                                    await saveSession(updated);
+                                    await saveSessionWithMvu(updated, editingMsgContent);
                                     setEditingMsgId(null);
                                   }}
-                                  className="bg-emerald-600 hover:bg-emerald-500 text-foreground px-2.5 py-1 rounded text-[10.5px] font-bold flex items-center gap-1 shadow"
+                                  disabled={isSending}
+                                  className="bg-emerald-600 hover:bg-emerald-500 text-foreground px-2.5 py-1 rounded text-[10.5px] font-bold flex items-center gap-1 shadow disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                   <Check className="w-3.5 h-3.5" /> 保存
                                 </button>
@@ -824,7 +826,8 @@ export default function ChatTab() {
                                     e.stopPropagation();
                                     setEditingMsgId(null);
                                   }}
-                                  className="bg-muted active:scale-[0.98] text-muted-foreground px-2.5 py-1 rounded text-[10.5px] font-bold flex items-center gap-1 border border-border shadow"
+                                  disabled={isSending}
+                                  className="bg-muted active:scale-[0.98] text-muted-foreground px-2.5 py-1 rounded text-[10.5px] font-bold flex items-center gap-1 border border-border shadow disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                   <X className="w-3.5 h-3.5" /> 取消
                                 </button>

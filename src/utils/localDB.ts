@@ -6,7 +6,7 @@ import {
 } from "../types";
 
 const DB_NAME = "MobileTavernLiteDB";
-const DB_VERSION = 1;
+const DB_VERSION = 5;
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -47,20 +47,29 @@ export function getDB(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
       const db = request.result;
+      const oldVersion = event.oldVersion;
 
-      // Store 1: Character Cards
+      let charStore: IDBObjectStore;
       if (!db.objectStoreNames.contains("characters")) {
-        db.createObjectStore("characters", { keyPath: "id" });
+        charStore = db.createObjectStore("characters", { keyPath: "id" });
+      } else {
+        charStore = request.transaction!.objectStore("characters");
       }
 
-      // Store 2: Chat Sessions
+      let sessionStore: IDBObjectStore;
       if (!db.objectStoreNames.contains("sessions")) {
-        db.createObjectStore("sessions", { keyPath: "id" });
+        sessionStore = db.createObjectStore("sessions", { keyPath: "id" });
+      } else {
+        sessionStore = request.transaction!.objectStore("sessions");
       }
 
-      // Store 3: Settings & Presets (Key-value setup)
       if (!db.objectStoreNames.contains("settings")) {
         db.createObjectStore("settings");
+      }
+
+      // v2 升级: 为 sessions 仓库创建 characterId 检索索引，加速获取指定角色下的聊天历史列表
+      if (!sessionStore.indexNames.contains("characterId")) {
+        sessionStore.createIndex("characterId", "characterId", { unique: false });
       }
     };
   });
@@ -179,6 +188,33 @@ export async function saveStoredSettings(
     });
   });
 }
+
+export async function getStoredDefaultCharactersInitializedFlag(): Promise<boolean> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("settings", "readonly");
+    const store = transaction.objectStore("settings");
+    const request = store.get("default_characters_initialized");
+
+    request.onsuccess = () => resolve(!!request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function saveStoredDefaultCharactersInitializedFlag(initialized: boolean): Promise<void> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("settings", "readwrite");
+      const store = transaction.objectStore("settings");
+      const request = store.put(initialized, "default_characters_initialized");
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  });
+}
+
 
 export async function getGlobalLorebook(): Promise<LorebookEntry[]> {
   const db = await getDB();

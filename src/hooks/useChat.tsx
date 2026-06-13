@@ -41,6 +41,15 @@ export const useChat = (
     sessionsRef.current = sessions;
   }, [sessions]);
 
+  const activeSessionIdRef = React.useRef(activeSessionId);
+  const activeCharIdRef = React.useRef(activeCharId);
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
+  useEffect(() => {
+    activeCharIdRef.current = activeCharId;
+  }, [activeCharId]);
+
   // Local Chat / Timeline UI States
   const [showSessionManager, setShowSessionManager] = useState(false);
   const [showFullHistory, setShowFullHistory] = useState(false);
@@ -54,6 +63,7 @@ export const useChat = (
   const abortControllerRef = React.useRef<AbortController | null>(null);
   const isSendingRef = React.useRef(false);
   const activeRequestIdRef = React.useRef(0);
+  const pendingUpdateTimeoutRef = React.useRef<any>(null);
 
   const handleStopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
@@ -87,8 +97,23 @@ export const useChat = (
         isSendingRef.current = false;
         setIsSending(false);
       }
+      if (pendingUpdateTimeoutRef.current) {
+        clearTimeout(pendingUpdateTimeoutRef.current);
+        pendingUpdateTimeoutRef.current = null;
+      }
     };
   }, [setIsSending]);
+
+  // Abort running stream if active character or active session changes
+  useEffect(() => {
+    if (abortControllerRef.current) {
+      console.log("[useChat] Aborting streaming request because active character or active session changed");
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      isSendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [activeCharId, activeSessionId, setIsSending]);
 
   const triggerScroll = useCallback((behavior: "smooth" | "instant" = "smooth") => {
     setTimeout(() => {
@@ -313,6 +338,11 @@ export const useChat = (
   }, [settings, activeCharacter, showCustomAlert, saveSession, setIsSummarizing]);
 
   const saveSessionWithMvu = useCallback(async (session: ChatSession, messageToParse?: string) => {
+    const sessionExists = sessionsRef.current.some((s) => s.id === session.id);
+    if (!sessionExists) {
+      console.warn("[useChat] saveSessionWithMvu: Session was deleted during generation, skipping save:", session.id);
+      return session;
+    }
     let updatedSession = session;
     if (settings.enableScriptExecution && messageToParse) {
       try {
@@ -434,11 +464,11 @@ export const useChat = (
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    let isStreamActive = true;
     let responseText = "";
     const aiMsgId = generateUniqueId("msg_ai_");
 
     let lastUpdateTime = 0;
-    let pendingUpdateTimeout: any = null;
     let isFirstToken = true;
 
     const updateSessionsContent = (content: string) => {
@@ -456,6 +486,7 @@ export const useChat = (
     };
 
     const throttledUpdate = (content: string) => {
+      if (!isStreamActive) return;
       const now = performance.now();
       if (isFirstToken) {
         isFirstToken = false;
@@ -465,15 +496,16 @@ export const useChat = (
       }
 
       if (now - lastUpdateTime >= 60) {
-        if (pendingUpdateTimeout) {
-          clearTimeout(pendingUpdateTimeout);
-          pendingUpdateTimeout = null;
+        if (pendingUpdateTimeoutRef.current) {
+          clearTimeout(pendingUpdateTimeoutRef.current);
+          pendingUpdateTimeoutRef.current = null;
         }
         lastUpdateTime = now;
         updateSessionsContent(content);
-      } else if (!pendingUpdateTimeout) {
-        pendingUpdateTimeout = setTimeout(() => {
-          pendingUpdateTimeout = null;
+      } else if (!pendingUpdateTimeoutRef.current) {
+        pendingUpdateTimeoutRef.current = setTimeout(() => {
+          pendingUpdateTimeoutRef.current = null;
+          if (!isStreamActive) return;
           lastUpdateTime = performance.now();
           updateSessionsContent(responseText);
         }, 60 - (now - lastUpdateTime));
@@ -539,6 +571,8 @@ export const useChat = (
           ],
           temperature: settings.preset.temperature,
           top_p: settings.preset.topP,
+          top_k: settings.preset.topK,
+          min_p: settings.preset.minP,
           max_tokens: settings.preset.maxTokens,
           max_completion_tokens: settings.preset.maxTokens,
           presence_penalty: settings.preset.presencePenalty ?? 0.0,
@@ -574,6 +608,12 @@ export const useChat = (
         },
       });
 
+      isStreamActive = false;
+      if (pendingUpdateTimeoutRef.current) {
+        clearTimeout(pendingUpdateTimeoutRef.current);
+        pendingUpdateTimeoutRef.current = null;
+      }
+
       const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
       if (!latestSession) {
         console.warn("Aborted session save because it was deleted during generation:", updatedSession.id);
@@ -603,27 +643,43 @@ export const useChat = (
         ...latestSession,
         messages: finalMessages,
       };
-      const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
-      triggerScroll("smooth");
 
-      reportUsage("send_message", {
-        promptTokens: tokenUsage.prompt,
-        completionTokens: tokenUsage.completion,
-        totalTokens: tokenUsage.prompt + tokenUsage.completion,
-        generationTime: performance.now() - startTime,
-        modelName: finalModel,
-        characterName: activeCharacter.name,
-      });
+      const isStillActive = activeSessionIdRef.current === updatedSession.id;
+      if (isStillActive) {
+        const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+        triggerScroll("smooth");
 
-      if (isTrialMode) {
-        const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
-        localStorage.setItem("mobile_tavern_free_trial_count", String(freeCount + 1));
+        reportUsage("send_message", {
+          promptTokens: tokenUsage.prompt,
+          completionTokens: tokenUsage.completion,
+          totalTokens: tokenUsage.prompt + tokenUsage.completion,
+          generationTime: performance.now() - startTime,
+          modelName: finalModel,
+          characterName: activeCharacter.name,
+        });
+
+        if (isTrialMode) {
+          const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
+          localStorage.setItem("mobile_tavern_free_trial_count", String(freeCount + 1));
+        }
+
+        handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
+          console.error("AutoSummary error:", summaryErr);
+        });
+      } else {
+        await saveSession(trueFinalSession);
+        console.log("[useChat] Session switched during generation, saved silently to IndexedDB:", updatedSession.id);
       }
-
-      await handleAutoSummaryCheck(parsedSession, false, controller.signal);
     } catch (err: any) {
       if (requestId !== activeRequestIdRef.current) return;
+      isStreamActive = false;
+      if (pendingUpdateTimeoutRef.current) {
+        clearTimeout(pendingUpdateTimeoutRef.current);
+        pendingUpdateTimeoutRef.current = null;
+      }
       const isManualAbort = err.name === "AbortError" || err.message?.includes("aborted") || controller.signal.aborted;
+      const isStillActive = activeSessionIdRef.current === updatedSession.id;
+
       if (isManualAbort) {
         if (responseText.trim().length > 0) {
           const finishedAiMsg: Message = {
@@ -646,8 +702,15 @@ export const useChat = (
               messages: finalMessages,
             };
             try {
-              const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
-              await handleAutoSummaryCheck(parsedSession, false, controller.signal);
+              if (isStillActive) {
+                const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+                handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
+                  console.error("AutoSummary error in abort handler:", summaryErr);
+                });
+              } else {
+                await saveSession(trueFinalSession);
+                console.log("[useChat] Session switched during abort, saved silently to IndexedDB:", updatedSession.id);
+              }
             } catch (saveErr) {
               console.error("Failed to save aborted session message:", saveErr);
             }
@@ -659,9 +722,11 @@ export const useChat = (
               ...latestSession,
               messages: latestSession.messages.filter((m) => m.id !== aiMsgId),
             };
-            setSessions((prev) =>
-              prev.map((s) => (s.id === nextSession.id ? nextSession : s))
-            );
+            if (isStillActive) {
+              setSessions((prev) =>
+                prev.map((s) => (s.id === nextSession.id ? nextSession : s))
+              );
+            }
             try {
               await saveSession(nextSession);
             } catch (saveErr) {
@@ -670,7 +735,9 @@ export const useChat = (
           }
         }
       } else {
-        showCustomAlert("发送失败，对话连接异常: " + err.message);
+        if (isStillActive) {
+          showCustomAlert("发送失败，对话连接异常: " + err.message);
+        }
         if (responseText.trim().length > 0) {
           const finishedAiMsg: Message = {
             id: aiMsgId,
@@ -692,8 +759,15 @@ export const useChat = (
               messages: finalMessages,
             };
             try {
-              const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
-              await handleAutoSummaryCheck(parsedSession, false, controller.signal);
+              if (isStillActive) {
+                const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+                handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
+                  console.error("AutoSummary error in error handler:", summaryErr);
+                });
+              } else {
+                await saveSession(trueFinalSession);
+                console.log("[useChat] Session switched during error saving, saved silently to IndexedDB:", updatedSession.id);
+              }
             } catch (saveErr) {
               console.error("Failed to save error session message:", saveErr);
             }
@@ -705,9 +779,11 @@ export const useChat = (
               ...latestSession,
               messages: latestSession.messages.filter((m) => m.id !== aiMsgId),
             };
-            setSessions((prev) =>
-              prev.map((s) => (s.id === nextSession.id ? nextSession : s))
-            );
+            if (isStillActive) {
+              setSessions((prev) =>
+                prev.map((s) => (s.id === nextSession.id ? nextSession : s))
+              );
+            }
             try {
               await saveSession(nextSession);
             } catch (saveErr) {
@@ -718,9 +794,10 @@ export const useChat = (
       }
     } finally {
       if (requestId !== activeRequestIdRef.current) return;
-      if (pendingUpdateTimeout) {
-        clearTimeout(pendingUpdateTimeout);
-        pendingUpdateTimeout = null;
+      isStreamActive = false;
+      if (pendingUpdateTimeoutRef.current) {
+        clearTimeout(pendingUpdateTimeoutRef.current);
+        pendingUpdateTimeoutRef.current = null;
       }
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
@@ -828,13 +905,13 @@ export const useChat = (
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    let isStreamActive = true;
     let responseText = "";
     let tokenUsage = { prompt: 0, completion: 0 };
     const startTime = performance.now();
     const aiMsgId = generateUniqueId("msg_ai_");
 
     let lastUpdateTime = 0;
-    let pendingUpdateTimeout: any = null;
     let isFirstToken = true;
 
     const updateSessionsContent = (content: string) => {
@@ -852,6 +929,7 @@ export const useChat = (
     };
 
     const throttledUpdate = (content: string) => {
+      if (!isStreamActive) return;
       const now = performance.now();
       if (isFirstToken) {
         isFirstToken = false;
@@ -861,15 +939,16 @@ export const useChat = (
       }
 
       if (now - lastUpdateTime >= 60) {
-        if (pendingUpdateTimeout) {
-          clearTimeout(pendingUpdateTimeout);
-          pendingUpdateTimeout = null;
+        if (pendingUpdateTimeoutRef.current) {
+          clearTimeout(pendingUpdateTimeoutRef.current);
+          pendingUpdateTimeoutRef.current = null;
         }
         lastUpdateTime = now;
         updateSessionsContent(content);
-      } else if (!pendingUpdateTimeout) {
-        pendingUpdateTimeout = setTimeout(() => {
-          pendingUpdateTimeout = null;
+      } else if (!pendingUpdateTimeoutRef.current) {
+        pendingUpdateTimeoutRef.current = setTimeout(() => {
+          pendingUpdateTimeoutRef.current = null;
+          if (!isStreamActive) return;
           lastUpdateTime = performance.now();
           updateSessionsContent(responseText);
         }, 60 - (now - lastUpdateTime));
@@ -934,6 +1013,8 @@ export const useChat = (
           ],
           temperature: settings.preset.temperature,
           top_p: settings.preset.topP,
+          top_k: settings.preset.topK,
+          min_p: settings.preset.minP,
           max_tokens: settings.preset.maxTokens,
           max_completion_tokens: settings.preset.maxTokens,
           presence_penalty: settings.preset.presencePenalty ?? 0.0,
@@ -969,6 +1050,12 @@ export const useChat = (
         },
       });
 
+      isStreamActive = false;
+      if (pendingUpdateTimeoutRef.current) {
+        clearTimeout(pendingUpdateTimeoutRef.current);
+        pendingUpdateTimeoutRef.current = null;
+      }
+
       const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
       if (!latestSession) {
         console.warn("Aborted session save because it was deleted during generation:", updatedSession.id);
@@ -998,29 +1085,45 @@ export const useChat = (
         ...latestSession,
         messages: finalMessages,
       };
-      const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
-      triggerScroll();
 
-      reportUsage("regenerate_message", {
-        promptTokens: tokenUsage.prompt,
-        completionTokens: tokenUsage.completion,
-        totalTokens: tokenUsage.prompt + tokenUsage.completion,
-        generationTime: performance.now() - startTime,
-        playerName: settings.userName,
-        characterName: activeCharacter.name,
-        modelName: finalModel,
-        sessionId: updatedSession.id,
-      });
+      const isStillActive = activeSessionIdRef.current === updatedSession.id;
+      if (isStillActive) {
+        const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+        triggerScroll();
 
-      if (isTrialMode) {
-        const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
-        localStorage.setItem("mobile_tavern_free_trial_count", String(freeCount + 1));
+        reportUsage("regenerate_message", {
+          promptTokens: tokenUsage.prompt,
+          completionTokens: tokenUsage.completion,
+          totalTokens: tokenUsage.prompt + tokenUsage.completion,
+          generationTime: performance.now() - startTime,
+          playerName: settings.userName,
+          characterName: activeCharacter.name,
+          modelName: finalModel,
+          sessionId: updatedSession.id,
+        });
+
+        if (isTrialMode) {
+          const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
+          localStorage.setItem("mobile_tavern_free_trial_count", String(freeCount + 1));
+        }
+
+        handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
+          console.error("AutoSummary error in reroll:", summaryErr);
+        });
+      } else {
+        await saveSession(trueFinalSession);
+        console.log("[useChat] Session switched during reroll, saved silently to IndexedDB:", updatedSession.id);
       }
-
-      await handleAutoSummaryCheck(parsedSession, false, controller.signal);
     } catch (e: any) {
       if (requestId !== activeRequestIdRef.current) return;
+      isStreamActive = false;
+      if (pendingUpdateTimeoutRef.current) {
+        clearTimeout(pendingUpdateTimeoutRef.current);
+        pendingUpdateTimeoutRef.current = null;
+      }
       const isManualAbort = e.name === "AbortError" || e.message?.includes("aborted") || controller.signal.aborted;
+      const isStillActive = activeSessionIdRef.current === updatedSession.id;
+
       if (isManualAbort) {
         if (responseText.trim().length > 0) {
           const finishedAiMsg: Message = {
@@ -1043,8 +1146,15 @@ export const useChat = (
               messages: finalMessages,
             };
             try {
-              const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
-              await handleAutoSummaryCheck(parsedSession, false, controller.signal);
+              if (isStillActive) {
+                const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+                handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
+                  console.error("AutoSummary error in reroll abort handler:", summaryErr);
+                });
+              } else {
+                await saveSession(trueFinalSession);
+                console.log("[useChat] Session switched during reroll abort, saved silently to IndexedDB:", updatedSession.id);
+              }
             } catch (saveErr) {
               console.error("Failed to save aborted session message:", saveErr);
             }
@@ -1056,9 +1166,11 @@ export const useChat = (
               ...latestSession,
               messages: latestSession.messages.filter((m) => m.id !== aiMsgId),
             };
-            setSessions((prev) =>
-              prev.map((s) => (s.id === nextSession.id ? nextSession : s))
-            );
+            if (isStillActive) {
+              setSessions((prev) =>
+                prev.map((s) => (s.id === nextSession.id ? nextSession : s))
+              );
+            }
             try {
               await saveSession(nextSession);
             } catch (saveErr) {
@@ -1067,14 +1179,16 @@ export const useChat = (
           }
         }
       } else {
-        console.error("AI Regeneration failed:", e);
-        reportUsage("api_error", {
-          detail: String(e.message || "Unknown error"),
-          playerName: settings.userName,
-          characterName: activeCharacter.name,
-          modelName: settings.api.modelName,
-          sessionId: updatedSession.id,
-        });
+        if (isStillActive) {
+          console.error("AI Regeneration failed:", e);
+          reportUsage("api_error", {
+            detail: String(e.message || "Unknown error"),
+            playerName: settings.userName,
+            characterName: activeCharacter.name,
+            modelName: settings.api.modelName,
+            sessionId: updatedSession.id,
+          });
+        }
 
         if (responseText.trim().length > 0) {
           const finishedAiMsg: Message = {
@@ -1097,8 +1211,15 @@ export const useChat = (
               messages: finalMessages,
             };
             try {
-              const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
-              await handleAutoSummaryCheck(parsedSession, false, controller.signal);
+              if (isStillActive) {
+                const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+                handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
+                  console.error("AutoSummary error in reroll error handler:", summaryErr);
+                });
+              } else {
+                await saveSession(trueFinalSession);
+                console.log("[useChat] Session switched during reroll error, saved silently to IndexedDB:", updatedSession.id);
+              }
             } catch (saveErr) {
               console.error("Failed to save error session message:", saveErr);
             }
@@ -1120,9 +1241,11 @@ export const useChat = (
               ...latestSession,
               messages: finalMessages,
             };
-            setSessions((prev) =>
-              prev.map((s) => (s.id === finalSession.id ? finalSession : s))
-            );
+            if (isStillActive) {
+              setSessions((prev) =>
+                prev.map((s) => (s.id === finalSession.id ? finalSession : s))
+              );
+            }
             try {
               await saveSession(finalSession);
             } catch (saveErr) {
@@ -1130,13 +1253,16 @@ export const useChat = (
             }
           }
         }
-        triggerScroll();
+        if (isStillActive) {
+          triggerScroll();
+        }
       }
     } finally {
       if (requestId !== activeRequestIdRef.current) return;
-      if (pendingUpdateTimeout) {
-        clearTimeout(pendingUpdateTimeout);
-        pendingUpdateTimeout = null;
+      isStreamActive = false;
+      if (pendingUpdateTimeoutRef.current) {
+        clearTimeout(pendingUpdateTimeoutRef.current);
+        pendingUpdateTimeoutRef.current = null;
       }
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
@@ -1376,16 +1502,14 @@ export const useChat = (
       characterId: activeCharacter.id,
       title: branchTitle,
       createdAt: Date.now(),
-      messages: activeCharacter.first_mes
-        ? [
-            {
-              id: "msg_re_" + Date.now(),
-              sender: "assistant",
-              content: `（继续在先前的局面上续写）\n当前时局记述: ${summary.content}\n\n“接下来，我们需要如何安排行动？”`,
-              timestamp: Date.now(),
-            },
-          ]
-        : [],
+      messages: [
+        {
+          id: "msg_re_" + Date.now(),
+          sender: "assistant",
+          content: `（继续在先前的局面上续写）\n当前时局记述: ${summary.content}\n\n“接下来，我们需要如何安排行动？”`,
+          timestamp: Date.now(),
+        },
+      ],
       summaries: targetBranchesSummaries,
     };
 
@@ -1545,6 +1669,7 @@ export const useChat = (
     createBacktrackFromTimeline,
     handleAddTimelineSummary,
     renderDialogueBubble,
+    saveSessionWithMvu,
   }), [
     handleSendMessage,
     handleStartNewSession,
@@ -1575,6 +1700,7 @@ export const useChat = (
     createBacktrackFromTimeline,
     handleAddTimelineSummary,
     renderDialogueBubble,
+    saveSessionWithMvu,
   ]);
 
   return chatHookValue;

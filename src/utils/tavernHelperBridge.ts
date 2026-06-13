@@ -27,7 +27,7 @@ export interface TavernHelperBridgeParams {
   setCharacters: React.Dispatch<React.SetStateAction<CharacterCard[]>>;
   saveCharacter: (character: CharacterCard) => Promise<void>;
   settings: UserSettings;
-  updateSettings: (settings: UserSettings) => void;
+  updateSettings: (settings: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
   handleSendMessage: (text: string) => Promise<void>;
 }
 
@@ -643,50 +643,71 @@ if (typeof window !== "undefined") {
       if (!bridgeParams) return;
       const { activeCharacter, settings, activeSession, setCharacters, saveCharacter, updateSettings, setSessions, saveSession } = bridgeParams;
       if (opt.type === "character" && activeCharacter) {
-        const updated = { ...activeCharacter, variables };
-        setCharacters((prev) =>
-          prev.map((c) => (c.id === updated.id ? updated : c))
-        );
-        saveCharacter(updated);
-      } else if (opt.type === "global") {
-        updateSettings({ ...settings, variables });
-      } else if (opt.type === "message" && opt.message_id !== undefined && activeSession) {
-        const targetMsgId = resolveMessageId(opt.message_id, activeSession.messages.length);
-        let sessionVarsUpdated = false;
-        const updatedMessages = activeSession.messages.map((m, idx) => {
-          if (idx === targetMsgId) {
-            const msg = m as any;
-            const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
-            const extra = { ...msg.extra };
-            if (!extra.variables) extra.variables = {};
-            extra.variables = {
-              ...extra.variables,
-              [swipeId]: variables
-            };
-            if (idx === activeSession.messages.length - 1) {
-              sessionVarsUpdated = true;
+        setCharacters((prev) => {
+          let updatedChar: any = null;
+          const next = prev.map((c) => {
+            if (c.id === activeCharacter.id) {
+              updatedChar = { ...c, variables };
+              return updatedChar;
             }
-            return { ...m, extra };
+            return c;
+          });
+          if (updatedChar) {
+            setTimeout(() => {
+              saveCharacter(updatedChar);
+            }, 0);
           }
-          return m;
+          return next;
         });
-        const updatedSession = { 
-          ...activeSession, 
-          messages: updatedMessages,
-          variables: sessionVarsUpdated ? variables : activeSession.variables
-        };
-        setSessions((prev) =>
-          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
-        );
-        saveSession(updatedSession);
-        notifyVariablesUpdated(updatedSession);
+      } else if (opt.type === "global") {
+        updateSettings((prev: any) => {
+          return { ...prev, variables };
+        });
+      } else if (opt.type === "message" && opt.message_id !== undefined && activeSession) {
+        setSessions((prev) => {
+          const activeS = prev.find(s => s.id === activeSession.id);
+          if (!activeS) return prev;
+          const targetMsgId = resolveMessageId(opt.message_id, activeS.messages.length);
+          let sessionVarsUpdated = false;
+          const updatedMessages = activeS.messages.map((m, idx) => {
+            if (idx === targetMsgId) {
+              const msg = m as any;
+              const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
+              const extra = { ...msg.extra };
+              if (!extra.variables) extra.variables = {};
+              extra.variables = {
+                ...extra.variables,
+                [swipeId]: variables
+              };
+              if (idx === activeS.messages.length - 1) {
+                sessionVarsUpdated = true;
+              }
+              return { ...m, extra };
+            }
+            return m;
+          });
+          const updatedSession = { 
+            ...activeS, 
+            messages: updatedMessages,
+            variables: sessionVarsUpdated ? variables : activeS.variables
+          };
+          setTimeout(() => {
+            saveSession(updatedSession);
+            notifyVariablesUpdated(updatedSession);
+          }, 0);
+          return prev.map((s) => (s.id === updatedSession.id ? updatedSession : s));
+        });
       } else if (activeSession) {
-        const updated = { ...activeSession, variables };
-        setSessions((prev) =>
-          prev.map((s) => (s.id === updated.id ? updated : s))
-        );
-        saveSession(updated);
-        notifyVariablesUpdated(updated);
+        setSessions((prev) => {
+          const activeS = prev.find(s => s.id === activeSession.id);
+          if (!activeS) return prev;
+          const updated = { ...activeS, variables };
+          setTimeout(() => {
+            saveSession(updated);
+            notifyVariablesUpdated(updated);
+          }, 0);
+          return prev.map((s) => (s.id === updated.id ? updated : s));
+        });
       }
     },
     _updateVariablesWith(updater: any, opt = { type: "chat" }) {
@@ -718,181 +739,202 @@ if (typeof window !== "undefined") {
       if (!bridgeParams || !bridgeParams.activeSession) return;
       const { activeSession, setSessions, saveSession } = bridgeParams;
       
-      let content = "";
-      if (typeof messageObj === "string") {
-        content = messageObj;
-      } else if (messageObj && typeof messageObj === "object") {
-        content = messageObj.mes !== undefined ? messageObj.mes : (messageObj.content !== undefined ? messageObj.content : (messageObj.message !== undefined ? messageObj.message : ""));
-      }
-      
-      let changed = false;
-      const targetMsgId = resolveMessageId(id, activeSession.messages.length);
-      let sessionVarsUpdated = false;
-      let newSessionVars = { ...activeSession.variables };
+      setSessions((prev) => {
+        const activeS = prev.find(s => s.id === activeSession.id);
+        if (!activeS) return prev;
+        
+        let changed = false;
+        const targetMsgId = resolveMessageId(id, activeS.messages.length);
+        let sessionVarsUpdated = false;
+        let newSessionVars = { ...activeS.variables };
 
-      const updatedMessages = activeSession.messages.map((m, idx) => {
-        if (idx === targetMsgId) {
-          let updated = { ...m, content };
-          if (messageObj && typeof messageObj === "object") {
-            if (messageObj.swipe_id !== undefined && (updated as any).swipe_id !== messageObj.swipe_id) {
-              (updated as any).swipe_id = messageObj.swipe_id;
-              changed = true;
-            }
-            if (messageObj.swipes !== undefined && !_.isEqual((updated as any).swipes, messageObj.swipes)) {
-              (updated as any).swipes = messageObj.swipes;
-              changed = true;
-            }
-            if (messageObj.swipes_data !== undefined && !_.isEqual((updated as any).swipes_data, messageObj.swipes_data)) {
-              (updated as any).swipes_data = messageObj.swipes_data;
-              changed = true;
-            }
-            if (messageObj.extra !== undefined && !_.isEqual((updated as any).extra, messageObj.extra)) {
-              (updated as any).extra = { ...(updated as any).extra, ...messageObj.extra };
-              changed = true;
-            }
-            if (messageObj.variables !== undefined) {
-              if (!(updated as any).extra) (updated as any).extra = {};
-              if (!(updated as any).extra.variables) (updated as any).extra.variables = {};
-              
-              const keys = Object.keys(messageObj.variables);
-              const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
-              
-              if (isNested) {
-                (updated as any).extra.variables = { ...(updated as any).extra.variables, ...messageObj.variables };
-              } else {
-                const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
-                const existingSwipeVars = (updated as any).extra.variables[swipeId] || {};
-                (updated as any).extra.variables = {
-                  ...(updated as any).extra.variables,
-                  [swipeId]: { ...existingSwipeVars, ...messageObj.variables }
-                };
+        const updatedMessages = activeS.messages.map((m, idx) => {
+          if (idx === targetMsgId) {
+            let updatedMsg = { ...m };
+            let textChanged = false;
+            let targetContent = updatedMsg.content;
+            if (typeof messageObj === "string") {
+              targetContent = messageObj;
+              textChanged = true;
+            } else if (messageObj && typeof messageObj === "object") {
+              const possibleContent = messageObj.mes !== undefined ? messageObj.mes : (messageObj.content !== undefined ? messageObj.content : (messageObj.message !== undefined ? messageObj.message : undefined));
+              if (possibleContent !== undefined) {
+                targetContent = possibleContent;
+                textChanged = true;
               }
+            }
+            if (textChanged && updatedMsg.content !== targetContent) {
+              updatedMsg.content = targetContent;
               changed = true;
             }
+
+            if (messageObj && typeof messageObj === "object") {
+              if (messageObj.swipe_id !== undefined && (updatedMsg as any).swipe_id !== messageObj.swipe_id) {
+                (updatedMsg as any).swipe_id = messageObj.swipe_id;
+                changed = true;
+              }
+              if (messageObj.swipes !== undefined && !_.isEqual((updatedMsg as any).swipes, messageObj.swipes)) {
+                (updatedMsg as any).swipes = messageObj.swipes;
+                changed = true;
+              }
+              if (messageObj.swipes_data !== undefined && !_.isEqual((updatedMsg as any).swipes_data, messageObj.swipes_data)) {
+                (updatedMsg as any).swipes_data = messageObj.swipes_data;
+                changed = true;
+              }
+              if (messageObj.extra !== undefined && !_.isEqual((updatedMsg as any).extra, messageObj.extra)) {
+                (updatedMsg as any).extra = { ...(updatedMsg as any).extra, ...messageObj.extra };
+                changed = true;
+              }
+              if (messageObj.variables !== undefined) {
+                if (!(updatedMsg as any).extra) (updatedMsg as any).extra = {};
+                if (!(updatedMsg as any).extra.variables) (updatedMsg as any).extra.variables = {};
+                
+                const keys = Object.keys(messageObj.variables);
+                const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
+                
+                if (isNested) {
+                  (updatedMsg as any).extra.variables = { ...(updatedMsg as any).extra.variables, ...messageObj.variables };
+                } else {
+                  const swipeId = (updatedMsg as any).swipe_id !== undefined ? (updatedMsg as any).swipe_id : 0;
+                  const existingSwipeVars = (updatedMsg as any).extra.variables[swipeId] || {};
+                  (updatedMsg as any).extra.variables = {
+                    ...(updatedMsg as any).extra.variables,
+                    [swipeId]: { ...existingSwipeVars, ...messageObj.variables }
+                  };
+                }
+                changed = true;
+              }
+            }
+            if (idx === activeS.messages.length - 1) {
+              const swipeId = (updatedMsg as any).swipe_id !== undefined ? (updatedMsg as any).swipe_id : 0;
+              newSessionVars = (updatedMsg as any).extra?.variables?.[swipeId] || {};
+              sessionVarsUpdated = true;
+            }
+            return updatedMsg;
           }
-          if (idx === activeSession.messages.length - 1) {
-            const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
-            newSessionVars = (updated as any).extra?.variables?.[swipeId] || {};
-            sessionVarsUpdated = true;
-          }
-          return updated;
+          return m;
+        });
+        
+        if (changed || sessionVarsUpdated) {
+          const updatedSession = { 
+            ...activeS, 
+            messages: updatedMessages,
+            variables: sessionVarsUpdated ? newSessionVars : activeS.variables
+          };
+          setTimeout(() => {
+            saveSession(updatedSession);
+            notifyVariablesUpdated(updatedSession);
+          }, 0);
+          return prev.map((s) => (s.id === updatedSession.id ? updatedSession : s));
         }
-        return m;
+        return prev;
       });
-      
-      if (changed) {
-        const updatedSession = { 
-          ...activeSession, 
-          messages: updatedMessages,
-          variables: sessionVarsUpdated ? newSessionVars : activeSession.variables
-        };
-        setSessions((prev) =>
-          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
-        );
-        saveSession(updatedSession);
-        notifyVariablesUpdated(updatedSession);
-      }
     },
     _setChatMessages(messagesList: any[]) {
       console.log("[TavernHelper Bridge] _setChatMessages called with:", JSON.stringify(messagesList, null, 2));
       if (!bridgeParams || !bridgeParams.activeSession) return;
       const { activeSession, setSessions, saveSession, activeCharacter } = bridgeParams;
-      
       if (!Array.isArray(messagesList)) return;
-      
-      let changed = false;
-      let sessionVarsUpdated = false;
-      let newSessionVars = { ...activeSession.variables };
 
-      const updatedMessages = activeSession.messages.map((m, idx) => {
-        const newMsg = messagesList[idx] as any;
-        if (newMsg) {
-          let updated = { ...m };
-          let localChanged = false;
-          
-          const content = typeof newMsg === "string" ? newMsg : (newMsg.mes !== undefined ? newMsg.mes : (newMsg.content !== undefined ? newMsg.content : (newMsg.message !== undefined ? newMsg.message : undefined)));
-          console.log(`[TavernHelper Bridge] msg ${idx} content resolution: newMsgContent:`, content, "existingContent:", updated.content);
-          if (content !== undefined && updated.content !== content) {
-            updated.content = content;
-            localChanged = true;
-          }
-          if (typeof newMsg === "object") {
-            if (newMsg.swipe_id !== undefined && (updated as any).swipe_id !== newMsg.swipe_id) {
-              (updated as any).swipe_id = newMsg.swipe_id;
+      setSessions((prev) => {
+        const activeS = prev.find(s => s.id === activeSession.id);
+        if (!activeS) return prev;
+
+        let changed = false;
+        let sessionVarsUpdated = false;
+        let newSessionVars = { ...activeS.variables };
+
+        const updatedMessages = activeS.messages.map((m, idx) => {
+          const newMsg = messagesList[idx] as any;
+          if (newMsg) {
+            let updated = { ...m };
+            let localChanged = false;
+            
+            const content = typeof newMsg === "string" ? newMsg : (newMsg.mes !== undefined ? newMsg.mes : (newMsg.content !== undefined ? newMsg.content : (newMsg.message !== undefined ? newMsg.message : undefined)));
+            console.log(`[TavernHelper Bridge] msg ${idx} content resolution: newMsgContent:`, content, "existingContent:", updated.content);
+            if (content !== undefined && updated.content !== content) {
+              updated.content = content;
               localChanged = true;
-              
-              // Sync content with the new swipe_id
-              let swipeContent: string | undefined = undefined;
-              if (idx === 0 && activeCharacter) {
-                const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
-                if (allGreetings[newMsg.swipe_id] !== undefined) {
-                  swipeContent = allGreetings[newMsg.swipe_id];
+            }
+            if (typeof newMsg === "object") {
+              if (newMsg.swipe_id !== undefined && (updated as any).swipe_id !== newMsg.swipe_id) {
+                (updated as any).swipe_id = newMsg.swipe_id;
+                localChanged = true;
+                
+                // Sync content with the new swipe_id
+                let swipeContent: string | undefined = undefined;
+                if (idx === 0 && activeCharacter) {
+                  const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
+                  if (allGreetings[newMsg.swipe_id] !== undefined) {
+                    swipeContent = allGreetings[newMsg.swipe_id];
+                  }
+                } else if (updated.swipes && updated.swipes[newMsg.swipe_id] !== undefined) {
+                  swipeContent = updated.swipes[newMsg.swipe_id];
                 }
-              } else if (updated.swipes && updated.swipes[newMsg.swipe_id] !== undefined) {
-                swipeContent = updated.swipes[newMsg.swipe_id];
+                if (swipeContent !== undefined && updated.content !== swipeContent) {
+                  updated.content = swipeContent;
+                }
               }
-              if (swipeContent !== undefined && updated.content !== swipeContent) {
-                updated.content = swipeContent;
+              if (newMsg.swipes !== undefined && !_.isEqual((updated as any).swipes, newMsg.swipes)) {
+                (updated as any).swipes = newMsg.swipes;
+                localChanged = true;
+              }
+              if (newMsg.swipes_data !== undefined && !_.isEqual((updated as any).swipes_data, newMsg.swipes_data)) {
+                (updated as any).swipes_data = newMsg.swipes_data;
+                localChanged = true;
+              }
+              if (newMsg.extra !== undefined && !_.isEqual((updated as any).extra, newMsg.extra)) {
+                (updated as any).extra = { ...(updated as any).extra, ...newMsg.extra };
+                localChanged = true;
+              }
+              if (newMsg.variables !== undefined) {
+                if (!(updated as any).extra) (updated as any).extra = {};
+                if (!(updated as any).extra.variables) (updated as any).extra.variables = {};
+                
+                const keys = Object.keys(newMsg.variables);
+                const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
+                
+                if (isNested) {
+                  (updated as any).extra.variables = { ...(updated as any).extra.variables, ...newMsg.variables };
+                } else {
+                  const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
+                  const existingSwipeVars = (updated as any).extra.variables[swipeId] || {};
+                  (updated as any).extra.variables = {
+                    ...(updated as any).extra.variables,
+                    [swipeId]: { ...existingSwipeVars, ...newMsg.variables }
+                  };
+                }
+                localChanged = true;
               }
             }
-            if (newMsg.swipes !== undefined && !_.isEqual((updated as any).swipes, newMsg.swipes)) {
-              (updated as any).swipes = newMsg.swipes;
-              localChanged = true;
-            }
-            if (newMsg.swipes_data !== undefined && !_.isEqual((updated as any).swipes_data, newMsg.swipes_data)) {
-              (updated as any).swipes_data = newMsg.swipes_data;
-              localChanged = true;
-            }
-            if (newMsg.extra !== undefined && !_.isEqual((updated as any).extra, newMsg.extra)) {
-              (updated as any).extra = { ...(updated as any).extra, ...newMsg.extra };
-              localChanged = true;
-            }
-            if (newMsg.variables !== undefined) {
-              if (!(updated as any).extra) (updated as any).extra = {};
-              if (!(updated as any).extra.variables) (updated as any).extra.variables = {};
-              
-              const keys = Object.keys(newMsg.variables);
-              const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
-              
-              if (isNested) {
-                (updated as any).extra.variables = { ...(updated as any).extra.variables, ...newMsg.variables };
-              } else {
+            if (localChanged) {
+              changed = true;
+              if (idx === activeS.messages.length - 1) {
                 const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
-                const existingSwipeVars = (updated as any).extra.variables[swipeId] || {};
-                (updated as any).extra.variables = {
-                  ...(updated as any).extra.variables,
-                  [swipeId]: { ...existingSwipeVars, ...newMsg.variables }
-                };
+                newSessionVars = (updated as any).extra?.variables?.[swipeId] || {};
+                sessionVarsUpdated = true;
               }
-              localChanged = true;
+              return updated;
             }
           }
-          if (localChanged) {
-            changed = true;
-            if (idx === activeSession.messages.length - 1) {
-              const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
-              newSessionVars = (updated as any).extra?.variables?.[swipeId] || {};
-              sessionVarsUpdated = true;
-            }
-            return updated;
-          }
+          return m;
+        });
+
+        console.log("[TavernHelper Bridge] _setChatMessages execution status: changed =", changed);
+        if (changed) {
+          const updatedSession = { 
+            ...activeS, 
+            messages: updatedMessages,
+            variables: sessionVarsUpdated ? newSessionVars : activeS.variables
+          };
+          setTimeout(() => {
+            saveSession(updatedSession);
+            notifyVariablesUpdated(updatedSession);
+          }, 0);
+          return prev.map((s) => (s.id === updatedSession.id ? updatedSession : s));
         }
-        return m;
+        return prev;
       });
-      
-      console.log("[TavernHelper Bridge] _setChatMessages execution status: changed =", changed);
-      if (changed) {
-        const updatedSession = { 
-          ...activeSession, 
-          messages: updatedMessages,
-          variables: sessionVarsUpdated ? newSessionVars : activeSession.variables
-        };
-        setSessions((prev) =>
-          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
-        );
-        saveSession(updatedSession);
-        notifyVariablesUpdated(updatedSession);
-      }
     },
     _getChatMessages() {
       if (!bridgeParams) return [];
@@ -2409,7 +2451,7 @@ function parseParamValue(p: string): any {
 
   if ((p.startsWith("[") && p.endsWith("]")) || (p.startsWith("{") && p.endsWith("}"))) {
     try {
-      return new Function(`return ${p};`)();
+      return JSON5.parse(p);
     } catch {
       return p;
     }

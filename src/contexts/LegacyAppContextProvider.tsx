@@ -67,6 +67,7 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
 
   // Wrap handleDeleteCharacter to inject chatState dependencies
   const wrappedHandleDeleteCharacter = React.useCallback(async (id: string, e: React.MouseEvent) => {
+    chatHook.handleStopGeneration();
     return charactersHook.handleDeleteCharacter(
       id,
       e,
@@ -74,7 +75,7 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
       chatState.setSessions,
       chatState.deleteSession
     );
-  }, [charactersHook, chatState.sessions, chatState.setSessions, chatState.deleteSession]);
+  }, [chatHook, charactersHook, chatState.sessions, chatState.setSessions, chatState.deleteSession]);
 
   // Wrap backup exports to inject current characters and sessions states
   const wrappedHandleExportLocalDataBackup = React.useCallback(async () => {

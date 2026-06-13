@@ -4,8 +4,8 @@ import {
   getAllCharacters,
   saveCharacter as dbSaveCharacter,
   deleteCharacter as dbDeleteCharacter,
-  getStoredSettings,
-  saveStoredSettings,
+  getStoredDefaultCharactersInitializedFlag,
+  saveStoredDefaultCharactersInitializedFlag,
   bulkSaveCharacters,
 } from "../utils/localDB";
 import { useApp } from "./AppContext";
@@ -43,20 +43,13 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       let stored = await getAllCharacters();
       
-      const settings = await getStoredSettings();
-      const hasInitialized = settings ? !!settings.hasInitializedDefaultCharacters : false;
+      const hasInitialized = await getStoredDefaultCharactersInitializedFlag();
 
       if (!hasInitialized) {
         const { BUILTIN_CHARACTERS } = await import("../utils/builtInCharacters");
         await bulkSaveCharacters(BUILTIN_CHARACTERS);
 
-        const nextSettings = settings ? {
-          ...settings,
-          hasInitializedDefaultCharacters: true
-        } : {
-          hasInitializedDefaultCharacters: true
-        };
-        await saveStoredSettings(nextSettings as any);
+        await saveStoredDefaultCharactersInitializedFlag(true);
 
         stored = await getAllCharacters();
       }

@@ -41,17 +41,16 @@ export async function readSSEStream(
    * with "data: " are extracted and joined (handles multi-line data).
    */
   const flushBuffer = (forceAll: boolean = false) => {
-    // Split on double-newline (standard SSE block boundary)
+    // 1. Try splitting on double-newline (standard SSE block boundary)
     let boundary = pbuf.indexOf("\n\n");
 
-    // Fallback: if no \n\n found but forceAll requested, treat remaining as one block
     if (forceAll && boundary === -1 && pbuf.trim().length > 0) {
       boundary = pbuf.length;
     }
 
     while (boundary >= 0) {
       const block = pbuf.slice(0, boundary);
-      pbuf = pbuf.slice(boundary + 2);
+      pbuf = pbuf.slice(boundary === pbuf.length ? boundary : boundary + 2);
 
       // Collect all "data: " lines in this block (handles multi-line events)
       const dataLines = block
@@ -59,15 +58,16 @@ export async function readSSEStream(
         .filter((line) => line.startsWith("data: "))
         .map((line) => line.slice(6));
 
-      for (const dataStr of dataLines) {
-        const trimmed = dataStr.trim();
-        if (trimmed === "[DONE]") {
+      if (dataLines.length > 0) {
+        // Standard SSE specification: join multi-line data payloads with a newline character
+        const mergedData = dataLines.join("\n").trim();
+        if (mergedData === "[DONE]") {
           streamDone = true;
           callbacks.onDone?.();
           return; // Stop processing after [DONE]
         }
-        if (trimmed) {
-          callbacks.onData(trimmed);
+        if (mergedData) {
+          callbacks.onData(mergedData);
         }
       }
 
@@ -75,6 +75,36 @@ export async function readSSEStream(
       boundary = pbuf.indexOf("\n\n");
       if (forceAll && boundary === -1 && pbuf.trim().length > 0) {
         boundary = pbuf.length;
+      }
+    }
+
+    // 2. If no double-newline was found and stream is not done, fall back to single-newline parsing
+    if (!streamDone) {
+      let singleIdx = pbuf.indexOf("\n");
+      while (singleIdx >= 0) {
+        const line = pbuf.slice(0, singleIdx).trim();
+
+        // Consume only valid data lines, [DONE] markers, comments or empty padding lines
+        if (line.startsWith("data:") || line === "[DONE]" || line === "" || line.startsWith(":")) {
+          pbuf = pbuf.slice(singleIdx + 1);
+
+          if (line.startsWith("data:") || line === "[DONE]") {
+            const content = line.startsWith("data:") ? line.slice(5).trim() : line;
+            if (content === "[DONE]") {
+              streamDone = true;
+              callbacks.onDone?.();
+              return;
+            }
+            if (content) {
+              callbacks.onData(content);
+            }
+          }
+          singleIdx = pbuf.indexOf("\n");
+        } else {
+          // A line that does not start with data: and is not empty/comment might be incomplete JSON,
+          // wait for more stream data to arrive
+          break;
+        }
       }
     }
   };
@@ -92,17 +122,25 @@ export async function readSSEStream(
       if (readerDone || streamDone) {
         // Flush any trailing content that didn't end with \n\n
         if (!streamDone) {
+          // Final decode call with stream: false option to flush out any pending multi-byte UTF-8 bytes
+          const finalChunk = decoder.decode();
+          if (finalChunk) {
+            pbuf += finalChunk;
+          }
           flushBuffer(true);
         }
         break;
       }
     }
   } finally {
-    // Always release the reader lock, even on abort/error
     try {
-      reader.cancel();
+      // Catch any rejected promises from cancel to avoid Unhandled Promise Rejections
+      reader.cancel().catch((err) => {
+        console.warn("[streamReader] Stream cancel rejected (safe to ignore if connection aborted):", err);
+      });
+      reader.releaseLock();
     } catch {
-      // Ignore cancel errors (e.g., stream already closed)
+      // Ignore release lock errors
     }
   }
 }

@@ -298,22 +298,50 @@ export const useSettings = () => {
   }, []);
 
   // Debounced settings save to prevent locking IndexedDB on sliders
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const writeChainRef = useRef<Promise<void>>(Promise.resolve());
-  const updateSettings = useCallback((newSet: UserSettings) => {
-    setSettings(newSet);
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
+  const saveTimeoutRef = useRef<any>(null);
+  const isWritingRef = useRef<boolean>(false);
+  const pendingSettingsRef = useRef<UserSettings | null>(null);
+
+  const performSave = async (data: UserSettings) => {
+    isWritingRef.current = true;
+    try {
+      await saveStoredSettings(data);
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+    } finally {
+      isWritingRef.current = false;
+      if (pendingSettingsRef.current) {
+        const nextToSave = pendingSettingsRef.current;
+        pendingSettingsRef.current = null;
+        performSave(nextToSave);
+      }
     }
-    saveTimeoutRef.current = setTimeout(() => {
-      writeChainRef.current = writeChainRef.current.then(async () => {
-        try {
-          await saveStoredSettings(newSet);
-        } catch (err) {
-          console.error("Failed to save settings:", err);
+  };
+
+  const updateSettings = useCallback((updater: UserSettings | ((prev: UserSettings) => UserSettings)) => {
+    setSettings((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        if (isWritingRef.current) {
+          pendingSettingsRef.current = next;
+        } else {
+          performSave(next);
         }
-      });
-    }, 400);
+      }, 400);
+      return next;
+    });
+  }, []);
+
+  // Cleanup save timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, []);
 
   const updateGlobalLorebook = useCallback(async (entries: LorebookEntry[]) => {
@@ -675,9 +703,14 @@ export const useSettings = () => {
     const bundle = (settings.savedPresets || []).find((b) => b.id === bundleId);
     if (!bundle) return;
 
+    const mergedPreset = {
+      ...DEFAULT_SETTINGS.preset,
+      ...bundle.preset,
+    };
+
     updateSettings({
       ...settings,
-      preset: bundle.preset,
+      preset: mergedPreset,
       promptConfig: bundle.promptConfig,
     });
   }, [settings, updateSettings]);
@@ -902,6 +935,10 @@ export const useSettings = () => {
             post_history_instructions: typeof c.post_history_instructions === "string" ? c.post_history_instructions : "",
             alternate_greetings: Array.isArray(c.alternate_greetings) ? c.alternate_greetings : [],
             lorebookEntries: Array.isArray(c.lorebookEntries) ? c.lorebookEntries : [],
+            isWorldbookGlobal: c.isWorldbookGlobal !== undefined ? !!c.isWorldbookGlobal : undefined,
+            visualSettings: c.visualSettings && typeof c.visualSettings === "object" ? c.visualSettings : undefined,
+            extensions: c.extensions && typeof c.extensions === "object" ? c.extensions : undefined,
+            variables: c.variables && typeof c.variables === "object" ? c.variables : undefined,
           });
         } else {
           console.warn("Filtered out corrupted character entry during import:", c);
@@ -920,6 +957,7 @@ export const useSettings = () => {
             messages: s.messages.filter((m: any) => m && typeof m === "object" && typeof m.id === "string" && typeof m.sender === "string" && typeof m.content === "string"),
             summaries: Array.isArray(s.summaries) ? s.summaries : [],
             lastSummarizedMessageId: typeof s.lastSummarizedMessageId === "string" ? s.lastSummarizedMessageId : undefined,
+            variables: s.variables && typeof s.variables === "object" ? s.variables : undefined,
           });
         } else {
           console.warn("Filtered out corrupted session entry during import:", s);
@@ -930,15 +968,39 @@ export const useSettings = () => {
         "数据解密与格式校验成功！此备份覆盖将导致当前浏览器的本地全部状态清空，是否确认还原？",
       );
       if (ok) {
+        let mergedSettings = undefined;
+        if (parsed.settings) {
+          mergedSettings = {
+            ...DEFAULT_SETTINGS,
+            ...parsed.settings,
+            api: {
+              ...DEFAULT_SETTINGS.api,
+              ...(parsed.settings.api || {}),
+            },
+            memory: {
+              ...DEFAULT_SETTINGS.memory,
+              ...(parsed.settings.memory || {}),
+            },
+            promptConfig: {
+              ...DEFAULT_SETTINGS.promptConfig,
+              ...(parsed.settings.promptConfig || {}),
+              sectionHeaders: {
+                ...DEFAULT_SETTINGS.promptConfig.sectionHeaders,
+                ...(parsed.settings.promptConfig?.sectionHeaders || {}),
+              },
+            },
+          };
+        }
+
         await bulkSaveCharacters(validatedCharacters);
         await bulkSaveSessions(validatedSessions);
-        if (parsed.settings) await saveStoredSettings(parsed.settings);
+        if (mergedSettings) await saveStoredSettings(mergedSettings);
         if (parsed.globalLorebook)
           await dbSaveGlobalLorebook(parsed.globalLorebook);
 
         setCharacters(validatedCharacters);
         setSessions(validatedSessions);
-        if (parsed.settings) setSettings(parsed.settings);
+        if (mergedSettings) setSettings(mergedSettings);
         if (parsed.globalLorebook) setGlobalLorebook(parsed.globalLorebook);
 
         await showCustomAlert(

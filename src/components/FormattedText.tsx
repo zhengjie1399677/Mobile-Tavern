@@ -301,6 +301,13 @@ function preprocessFormattedText(
       const replaceString = script.replaceString || "";
       if (!findRegex) continue;
 
+      // ReDoS pattern protection: block patterns with nested/repeated quantifiers
+      const trimmed = findRegex.trim();
+      if (/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(trimmed) || /(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(trimmed)) {
+        console.warn("Potential ReDoS pattern skipped in FormattedText regex script:", trimmed);
+        continue;
+      }
+
       try {
         let regex: RegExp;
         const match = findRegex.match(/^\/(.*)\/([gimsuy]*)$/);

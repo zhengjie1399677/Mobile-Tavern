@@ -2,7 +2,37 @@ import dns from "dns";
 import { promisify } from "util";
 import express from "express";
 
-const dnsLookup = promisify(dns.lookup);
+export const dnsCache = new Map<string, string>();
+
+const originalLookup = dns.lookup;
+const dnsLookup = promisify(originalLookup);
+
+// Hijack dns.lookup to serve cached verified IPs and lock out DNS Rebinding attacks
+// @ts-ignore
+dns.lookup = function (hostname: string, options: any, callback: any) {
+  if (typeof options === "function") {
+    callback = options;
+    options = {};
+  }
+  
+  if (dnsCache.has(hostname)) {
+    const cachedIp = dnsCache.get(hostname)!;
+    const family = cachedIp.includes(":") ? 6 : 4;
+    
+    if (options && options.all) {
+      process.nextTick(() => {
+        callback(null, [{ address: cachedIp, family }]);
+      });
+    } else {
+      process.nextTick(() => {
+        callback(null, cachedIp, family);
+      });
+    }
+    return;
+  }
+  
+  originalLookup(hostname, options, callback);
+};
 
 /**
  * Parses an IPv4 or IPv6 string address into an array of 8 16-bit integers.
@@ -162,13 +192,9 @@ export async function validateBaseUrlSecurity(baseUrl: string): Promise<void> {
     throw new Error("Host cannot be empty");
   }
 
-  const isIP = /^[0-9a-fA-F.:]+$/.test(hostname);
-  if (isIP) {
-    if (isPrivateIp(hostname)) {
-      throw new Error("Forbidden target IP: Loopback, private, or link-local addresses are restricted.");
-    }
-    return;
-  }
+  // Force resolve all hostnames (including IP-like strings) via DNS lookup.
+  // This ensures that any obfuscated IP representation (octal, hex, etc.) is resolved to a standard decimal IP,
+  // which will then be correctly matched against the private IP ranges.
 
   try {
     const lookupResult = await dnsLookup(hostname, { all: true });
@@ -176,6 +202,9 @@ export async function validateBaseUrlSecurity(baseUrl: string): Promise<void> {
       if (isPrivateIp(addr.address)) {
         throw new Error(`Forbidden target IP resolved (${addr.address}): Loopback, private, or link-local addresses are restricted.`);
       }
+    }
+    if (lookupResult.length > 0) {
+      dnsCache.set(hostname, lookupResult[0].address);
     }
   } catch (err: any) {
     if (err.message && err.message.includes("Forbidden target IP")) {

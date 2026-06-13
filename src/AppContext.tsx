@@ -29,8 +29,6 @@ export interface UnifiedAppContextProps {
   showCustomAlert: (message: string, title?: string) => Promise<void>;
   showCustomConfirm: (message: string, title?: string) => Promise<boolean>;
   showCustomPrompt: (message: string, defaultValue?: string, title?: string) => Promise<string | null>;
-  promptInputVal: string;
-  setPromptInputVal: (val: string) => void;
 
   // --- Character Context ---
   characters: CharacterCard[];
@@ -172,6 +170,7 @@ export interface UnifiedAppContextProps {
   createBacktrackFromTimeline: (summary: SummaryCard) => Promise<void>;
   handleAddTimelineSummary: () => Promise<void>;
   renderDialogueBubble: (text: string) => React.ReactNode;
+  saveSessionWithMvu: (session: ChatSession, messageToParse?: string) => Promise<ChatSession>;
 }
 
 export const AppContext = React.createContext<UnifiedAppContextProps | null>(null);

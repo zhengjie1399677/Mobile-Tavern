@@ -108,3 +108,33 @@
 * **接口变更防御**：在重构、扩展或修改已有的 Props、数据 Model、配置字段或 API 契约时，严禁粗暴地对正在使用的属性进行删除或不向后兼容的类型重定义。
 * **默认容错兜底**：凡是涉及参数传递和数据库加载的数据，必须提供可靠的 Fallback（兜底降级方案）与初始化默认值，确保老版本用户在使用新系统时能够无缝升级并平滑容错，不会因为缺少某个新字段而在渲染时崩溃。
 
+---
+
+# 🚨 核心行为准则五：Markdown 文档编写全中文规范
+**为确保团队沟通效率与知识沉淀的无缝流转，在生成、更新或维护项目内的任何 Markdown 文档（包括但不限于 `task.md`、`implementation_plan.md`、`walkthrough.md` 等）时，必须严格遵守以下规范：**
+* **全中文表述**：文档内的标题、小结、修改说明、任务描述、测试步骤及结论，必须完全使用中文进行书写，严禁出现半汉半英或纯英文的描述段落。
+* **专业术语保留**：技术名词（如 `IndexedDB`、`SSE`、`AbortController`、`TypeScript`、`ReDoS` 等）或代码中的标识符及文件名链接，需保留其原始英文拼写，以确保技术指向的精确性。
+
+---
+
+# 🚨 核心行为准则六：应用发布版本号同步修改与物理位置规范
+**当需要更新或升级客户端 App 的整体发布版本号（例如从 1.3.9 升级到 1.4.0）时，必须严格遵守以下物理路径和字段替换规范，禁止执行耗费 Token 的全盘目录扫描：**
+
+### 1. 核心构建与配置文件（必须保持物理同步）
+*   **Vite 前端主配置**：修改 [package.json](file:///e:/modules/projects/Mobile-Tavern/package.json#L5) 中的 `"version"` 字段。
+*   **Tauri 构建配置**：修改 [tauri.conf.json](file:///e:/modules/projects/Mobile-Tavern/src-tauri/tauri.conf.json#L4) 中的 `"version"` 字段。
+*   **Rust 后端配置**：修改 [Cargo.toml](file:///e:/modules/projects/Mobile-Tavern/src-tauri/Cargo.toml#L3) 中的 `version` 字段。
+*   **Aliyun FC Serverless 配置**：修改 [package.json](file:///e:/modules/projects/Mobile-Tavern/serverless/aliyun-fc-sts/package.json#L3) 中的 `"version"` 字段。
+
+### 2. 运行时与服务层版本定义
+*   **本地 Express 服务端 Fallback 版本**：修改 [server.ts](file:///e:/modules/projects/Mobile-Tavern/server.ts#L57-L61) 中两处硬编码的 `"1.3.9"` 版本默认值。
+*   **客户端静态版本文件**：修改 [version](file:///e:/modules/projects/Mobile-Tavern/public/version#L1) 文件中的 `"pkgVersion"` 键值。
+
+### 3. 说明文档与演示网页
+*   **README 项目徽章**：修改 [README.md](file:///e:/modules/projects/Mobile-Tavern/README.md#L3) 头部的 `badge/version-1.3.9-blue` 徽章标识。
+*   **官方展示/下载网页**：修改 [index.html](file:///e:/modules/projects/Mobile-Tavern/docs/index.html) 中三处涉及版本号的声明（包括 `v1.3.9` 标签与下载 Android APK 按钮上的版本号展示文本）。
+
+### 4. 依赖锁定文件（自动同步）
+*   **npm 锁定文件**：修改 [package-lock.json](file:///e:/modules/projects/Mobile-Tavern/package-lock.json#L3-L9) 中的顶层 `"version"` 键值（亦可通过在更新 `package.json` 后执行 `npm install` 自动刷新同步）。
+
+

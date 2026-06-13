@@ -7,28 +7,56 @@ import {
 } from "../types";
 
 /**
+ * High-precision lightweight Token estimator for both CJK characters and ASCII words.
+ */
+export function estimateTokens(text: string): number {
+  if (!text) return 0;
+  let asciiCount = 0;
+  let nonAsciiCount = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) <= 127) {
+      asciiCount++;
+    } else {
+      nonAsciiCount++;
+    }
+  }
+  return Math.ceil(asciiCount * 0.25 + nonAsciiCount * 1.0);
+}
+
+/**
  * Searches for active worldbook (lorebook) keywords in text.
+ * Implements SillyTavern-compatible recursive scanning (max 3 passes) to handle级联 triggers.
  */
 export function getTriggeredLorebookEntries(
   messages: Message[],
   userInput: string,
   entries: LorebookEntry[],
+  maxRecursionDepth: number = 3
 ): LorebookEntry[] {
   if (!entries || entries.length === 0) return [];
   const activeEntries: LorebookEntry[] = [];
+  const activeIds = new Set<string>();
+
+  // Contents of triggered entries accumulated across passes to enable recursive cascade triggering
+  let recursionTextAppend = "";
+
+  let currentPass = 0;
+  let newTriggeredInLastPass = true;
 
   const scanTextCache = new Map<number, string>();
   const getScanText = (depth: number): string => {
+    let baseText = "";
     if (scanTextCache.has(depth)) {
-      return scanTextCache.get(depth)!;
+      baseText = scanTextCache.get(depth)!;
+    } else {
+      const scanMessages = messages ? messages.slice(-depth) : [];
+      baseText = userInput + "\n" + scanMessages.map((m) => m.content).join("\n");
+      if (baseText.length > 8000) {
+        baseText = baseText.slice(-8000);
+      }
+      scanTextCache.set(depth, baseText);
     }
-    const scanMessages = messages ? messages.slice(-depth) : [];
-    let text = userInput + "\n" + scanMessages.map((m) => m.content).join("\n");
-    if (text.length > 8000) {
-      text = text.slice(-8000);
-    }
-    scanTextCache.set(depth, text);
-    return text;
+    return recursionTextAppend ? `${baseText}\n${recursionTextAppend}` : baseText;
   };
 
   const checkMatch = (key: string, isRegex: boolean, isCaseSensitive: boolean, scanText: string): boolean => {
@@ -61,60 +89,81 @@ export function getTriggeredLorebookEntries(
     return isCaseSensitive ? scanText.includes(trimmed) : scanText.toLowerCase().includes(trimmed.toLowerCase());
   };
 
-  for (const entry of entries) {
-    if (!entry.enabled || !entry.content) continue;
-    if (entry.constant) {
-      activeEntries.push(entry);
-      continue;
-    }
+  while (newTriggeredInLastPass && currentPass < maxRecursionDepth) {
+    newTriggeredInLastPass = false;
+    currentPass++;
 
-    // 1. Determine scanning depth (how many recent messages to inspect)
-    const scanDepth = entry.scanDepth !== undefined ? entry.scanDepth : 10;
-    if (scanDepth === 0) continue; 
-    
-    const scanText = getScanText(scanDepth);
+    for (const entry of entries) {
+      if (!entry.enabled || !entry.content || activeIds.has(entry.id)) continue;
 
-    // 2. Base Hit Check (Primary Keys)
-    const primaryMatched = entry.keys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
-    if (!primaryMatched) continue;
-
-    // 3. Secondary Keys Logic Eval
-    let secondaryMatched = true;
-    const logic = entry.selectiveLogic || "NONE";
-    const secKeys = entry.secondary_keys || [];
-    
-    if (logic !== "NONE" && secKeys.length > 0) {
-      if (logic === "AND_ANY") {
-        secondaryMatched = secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
-      } else if (logic === "AND_ALL") {
-        secondaryMatched = secKeys.every((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
-      } else if (logic === "NOT_ANY") {
-        secondaryMatched = !secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
+      if (entry.constant) {
+        activeEntries.push(entry);
+        activeIds.add(entry.id);
+        recursionTextAppend += "\n" + entry.content;
+        newTriggeredInLastPass = true;
+        continue;
       }
-    }
-    
-    if (!secondaryMatched) continue;
 
-    // 4. Roll trigger probability (0-100, default 100)
-    const prob = entry.probability !== undefined ? entry.probability : 100;
-    if (prob < 100 && Math.random() * 100 > prob) {
-      continue;
-    }
-    
-    // Check against duplicated IDs in one pass
-    if (!activeEntries.find((a) => a.id === entry.id)) {
+      // Determine scanning depth (how many recent messages to inspect)
+      const scanDepth = entry.scanDepth !== undefined ? entry.scanDepth : 10;
+      if (scanDepth === 0) continue; 
+      
+      const scanText = getScanText(scanDepth);
+
+      // Base Hit Check (Primary Keys)
+      const primaryMatched = entry.keys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
+      if (!primaryMatched) continue;
+
+      // Secondary Keys Logic Eval
+      let secondaryMatched = true;
+      const logic = entry.selectiveLogic || "NONE";
+      const secKeys = entry.secondary_keys || [];
+      
+      if (logic !== "NONE" && secKeys.length > 0) {
+        if (logic === "AND_ANY") {
+          secondaryMatched = secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
+        } else if (logic === "AND_ALL") {
+          secondaryMatched = secKeys.every((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
+        } else if (logic === "NOT_ANY") {
+          secondaryMatched = !secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
+        }
+      }
+      
+      if (!secondaryMatched) continue;
+
+      // Roll trigger probability (0-100, default 100)
+      const prob = entry.probability !== undefined ? entry.probability : 100;
+      if (prob < 100 && Math.random() * 100 > prob) {
+        continue;
+      }
+      
       activeEntries.push(entry);
+      activeIds.add(entry.id);
+      recursionTextAppend += "\n" + entry.content;
+      newTriggeredInLastPass = true;
     }
   }
 
-  // 4. Sort by order weight (ascending, default 100)
-  activeEntries.sort((a, b) => {
-    const orderA = a.order !== undefined ? a.order : 100;
-    const orderB = b.order !== undefined ? b.order : 100;
-    return orderA - orderB;
-  });
+  // Enforce cumulative character budget to prevent prompt overflow
+  const BUDGET_LIMIT = 6000;
+  let currentLength = 0;
+  const budgetedEntries: LorebookEntry[] = [];
+  for (const entry of activeEntries) {
+    const len = entry.content ? entry.content.length : 0;
+    if (len > BUDGET_LIMIT) {
+      console.warn(`[promptBuilder] Lorebook entry "${entry.id}" alone exceeds prompt budget limit of ${BUDGET_LIMIT} chars, skipped.`);
+      continue;
+    }
+    if (currentLength + len <= BUDGET_LIMIT) {
+      budgetedEntries.push(entry);
+      currentLength += len;
+    } else {
+      console.warn(`[promptBuilder] Lorebook entry "${entry.id}" skipped due to prompt budget limit (${BUDGET_LIMIT} chars)`);
+      continue;
+    }
+  }
 
-  return activeEntries;
+  return budgetedEntries;
 }
 
 /**
@@ -321,15 +370,27 @@ export function assemblePromptContext(params: {
     allEntries,
   );
 
+  const modelName = (settings.api?.modelName || "").toLowerCase();
+  const enableCacheOptimization = modelName.includes("deepseek") || modelName.includes("gemini");
+
+  const processedActiveEntries = enableCacheOptimization
+    ? activeEntries.map((e) => {
+        if (e.position === "in_chat" || e.position === "before_last_mes") {
+          return { ...e, position: "after_char_def" as const };
+        }
+        return e;
+      })
+    : activeEntries;
+
   // Sort them into physical location buckets
-  const topEntries = activeEntries.filter((e) => e.position === "top");
-  const beforeCharEntries = activeEntries.filter(
+  const topEntries = processedActiveEntries.filter((e) => e.position === "top");
+  const beforeCharEntries = processedActiveEntries.filter(
     (e) => e.position === "before_char_def",
   );
-  const afterCharEntries = activeEntries.filter(
+  const afterCharEntries = processedActiveEntries.filter(
     (e) => e.position === "after_char_def" || !e.position,
   );
-  const beforeLastMsgEntries = activeEntries.filter(
+  const beforeLastMsgEntries = processedActiveEntries.filter(
     (e) => e.position === "before_last_mes",
   );
 
@@ -342,7 +403,20 @@ export function assemblePromptContext(params: {
 
   function formatEntryBlock(entries: LorebookEntry[]): string {
     if (entries.length === 0) return "";
-    return entries.map((e) => formatEntryContent(e)).join("\n\n");
+    // Sort matching SillyTavern behavior:
+    // 1. Depth desc (larger depth placed earlier/higher in the prompt)
+    // 2. Order asc (smaller order placed earlier/higher in the prompt)
+    const sorted = [...entries].sort((a, b) => {
+      const depthA = a.depth !== undefined ? a.depth : 4;
+      const depthB = b.depth !== undefined ? b.depth : 4;
+      if (depthB !== depthA) {
+        return depthB - depthA;
+      }
+      const orderA = a.order !== undefined ? a.order : 100;
+      const orderB = b.order !== undefined ? b.order : 100;
+      return orderA - orderB;
+    });
+    return sorted.map((e) => formatEntryContent(e)).join("\n\n");
   }
 
   const headers = settings.promptConfig?.sectionHeaders || {};
@@ -526,113 +600,123 @@ ${scenarioBlock}
     
   const dynamicInstruction = dynamicSystemExtension.replace(/\n{3,}/g, "\n\n").trim();
 
-  // 8. Gather Recent Full Messages
+  // 8. Gather Recent Full Messages and enforce safe token limits via sliding window
   const { recentTurns } = settings.memory;
-
-  // Recent full messages size
   const totalRawMessages = chat.messages ? [...chat.messages] : [];
+  const validChatMessages = totalRawMessages.filter(
+    (m) => m.sender !== "system"
+  );
 
-  // We send recentTurns messages as actual conversation message history
+  const SAFE_CONTEXT_LIMIT = 12000;
+  let currentTurns = Math.min(recentTurns, validChatMessages.length);
   let activeMessagesToSend: Message[] = [];
+  let chatHistory: { role: "user" | "model" | "assistant"; content: string }[] = [];
 
-  if (totalRawMessages.length > 0) {
-    // DO NOT SEND system messages to the AI history to prevent LLM confusion on error messages
-    const validChatMessages = totalRawMessages.filter(
-      (m) => m.sender !== "system"
-    );
+  while (currentTurns > 0) {
     const firstMsg = validChatMessages[0];
     const isFirstMsgGreeting = firstMsg && firstMsg.sender === "assistant";
 
-    if (validChatMessages.length > recentTurns) {
+    if (validChatMessages.length > currentTurns) {
       if (isFirstMsgGreeting) {
         activeMessagesToSend = [
           firstMsg,
-          ...validChatMessages.slice(-(recentTurns - 1))
+          ...validChatMessages.slice(-(currentTurns - 1))
         ];
       } else {
-        activeMessagesToSend = validChatMessages.slice(-recentTurns);
+        activeMessagesToSend = validChatMessages.slice(-currentTurns);
       }
     } else {
       activeMessagesToSend = validChatMessages;
     }
-  }
 
-  // Convert Message[] to Gemini or OpenAI structure, applying custom Instruct prefix/suffix templates (e.g. ChatML/Alpaca)
-  const chatHistory = activeMessagesToSend.map((msg) => {
-    let role: "user" | "model" | "assistant" = "user";
-    let content = msg.content;
+    // Convert Message[] to Gemini or OpenAI structure, applying custom Instruct prefix/suffix templates (e.g. ChatML/Alpaca)
+    chatHistory = activeMessagesToSend.map((msg) => {
+      let role: "user" | "model" | "assistant" = "user";
+      let content = msg.content;
 
-    if (msg.sender === "assistant") {
-      role = settings.api.type === "openai-compat" ? "assistant" : "model";
-      if (settings.promptConfig?.instructTemplate !== "default") {
-        const prefix = replaceMacros(
-          settings.promptConfig?.assistantPrefix || "",
-          macroParams,
-        );
-        const suffix = replaceMacros(
-          settings.promptConfig?.assistantSuffix || "",
-          macroParams,
-        );
-        content = `${prefix}${content}${suffix}`;
+      if (msg.sender === "assistant") {
+        role = settings.api.type === "openai-compat" ? "assistant" : "model";
+        if (settings.promptConfig?.instructTemplate !== "default") {
+          const prefix = replaceMacros(
+            settings.promptConfig?.assistantPrefix || "",
+            macroParams,
+          );
+          const suffix = replaceMacros(
+            settings.promptConfig?.assistantSuffix || "",
+            macroParams,
+          );
+          content = `${prefix}${content}${suffix}`;
+        }
+      } else {
+        role = "user";
+        if (settings.promptConfig?.instructTemplate !== "default") {
+          const prefix = replaceMacros(
+            settings.promptConfig?.userPrefix || "",
+            macroParams,
+          );
+          const suffix = replaceMacros(
+            settings.promptConfig?.userSuffix || "",
+            macroParams,
+          );
+          content = `${prefix}${content}${suffix}`;
+        }
       }
-    } else {
-      role = "user";
-      if (settings.promptConfig?.instructTemplate !== "default") {
-        const prefix = replaceMacros(
-          settings.promptConfig?.userPrefix || "",
-          macroParams,
-        );
-        const suffix = replaceMacros(
-          settings.promptConfig?.userSuffix || "",
-          macroParams,
-        );
-        content = `${prefix}${content}${suffix}`;
+
+      return {
+        role,
+        content,
+      };
+    });
+
+    // Create a temporary copy to perform injections and estimate tokens
+    const tempHistory = chatHistory.map((h) => ({ ...h }));
+
+    // Apply "in_chat" entries injected by depth into the history (only if not cache-optimized)
+    const inChatEntries = processedActiveEntries.filter(
+      (e) => e.position === "in_chat"
+    );
+    const inChatMap = new Map<number, LorebookEntry[]>();
+    inChatEntries.forEach((entry) => {
+      const depth = entry.depth !== undefined ? entry.depth : 4;
+      let targetIdx = Math.max(0, tempHistory.length - (depth > 0 ? depth : 1));
+      if (targetIdx >= tempHistory.length) targetIdx = tempHistory.length - 1;
+
+      if (!inChatMap.has(targetIdx)) {
+        inChatMap.set(targetIdx, []);
       }
+      inChatMap.get(targetIdx)!.push(entry);
+    });
+
+    inChatMap.forEach((entries, targetIdx) => {
+      entries.sort((a, b) => (a.order || 100) - (b.order || 100));
+      if (tempHistory[targetIdx]) {
+        const mergedContent = entries.map((e) => formatEntryContent(e)).join("\n\n");
+        tempHistory[targetIdx].content = `${mergedContent}\n\n${tempHistory[targetIdx].content}`;
+      }
+    });
+
+    // Apply "before_last_mes" as well directly to chatHistory so it actually works properly.
+    const loopBeforeLastMsgEntries = processedActiveEntries.filter(
+      (e) => e.position === "before_last_mes"
+    );
+    if (loopBeforeLastMsgEntries.length > 0 && tempHistory.length > 0) {
+      const targetIdx = tempHistory.length - 1;
+      loopBeforeLastMsgEntries.sort((a, b) => (a.order || 100) - (b.order || 100));
+      const beforeLastText = formatEntryBlock(loopBeforeLastMsgEntries);
+      tempHistory[targetIdx].content = `${beforeLastText}\n\n${tempHistory[targetIdx].content}`;
     }
 
-    return {
-      role,
-      content,
-    };
-  });
+    // Estimate total tokens
+    const historyTokens = tempHistory.reduce((sum, msg) => sum + estimateTokens(msg.content), 0);
+    const prefixTokens = estimateTokens(systemInstruction) + estimateTokens(dynamicInstruction) + estimateTokens(userInput);
+    const totalTokens = prefixTokens + historyTokens;
 
-  const inChatEntries = activeEntries.filter(
-    (e) => e.position === "in_chat",
-  );
-
-  // Group in-chat entries by their target index in chatHistory
-  const inChatMap = new Map<number, LorebookEntry[]>();
-  inChatEntries.forEach((entry) => {
-    // If depth is 0, it means it's prepended to the very last message (same as before_last_mes)
-    const depth = entry.depth !== undefined ? entry.depth : 4;
-    let targetIdx = Math.max(0, chatHistory.length - (depth > 0 ? depth : 1));
-    if (targetIdx >= chatHistory.length) targetIdx = chatHistory.length - 1;
-    
-    if (!inChatMap.has(targetIdx)) {
-      inChatMap.set(targetIdx, []);
+    if (totalTokens <= SAFE_CONTEXT_LIMIT || currentTurns === 1) {
+      chatHistory = tempHistory;
+      break;
     }
-    inChatMap.get(targetIdx)!.push(entry);
-  });
 
-  // Apply "in_chat" entries injected by depth into the history!
-  inChatMap.forEach((entries, targetIdx) => {
-    // Sort by order ascending (smaller order appears earlier in the text block)
-    entries.sort((a, b) => (a.order || 100) - (b.order || 100));
-    
-    if (chatHistory[targetIdx]) {
-      const mergedContent = entries.map((e) => formatEntryContent(e)).join("\n\n");
-      chatHistory[targetIdx].content = `${mergedContent}\n\n${chatHistory[targetIdx].content}`;
-    }
-  });
-
-  // Apply "before_last_mes" as well directly to chatHistory so it actually works properly.
-  // We prepend it to the very last message in the history.
-  if (beforeLastMsgEntries.length > 0 && chatHistory.length > 0) {
-    const targetIdx = chatHistory.length - 1;
-    // ensure sorted by order
-    beforeLastMsgEntries.sort((a, b) => (a.order || 100) - (b.order || 100));
-    const beforeLastText = formatEntryBlock(beforeLastMsgEntries);
-    chatHistory[targetIdx].content = `${beforeLastText}\n\n${chatHistory[targetIdx].content}`;
+    currentTurns--;
   }
 
   return {

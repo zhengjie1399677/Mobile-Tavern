@@ -300,8 +300,11 @@ function stopSyncTimer() {
   }
 }
 
-// 页面关闭时发送
+// 页面关闭时发送，补充 pagehide 兼容移动端 APP 退出行为
 window.addEventListener('beforeunload', () => {
+  syncTelemetry(true);
+});
+window.addEventListener('pagehide', () => {
   syncTelemetry(true);
 });
 

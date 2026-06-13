@@ -4,6 +4,28 @@
  * (for Android/Desktop client builds bypassing CORS) and local Express Proxy fetches (for Web browsers).
  */
 
+// 动态载入的 tauri http client 的 fetch
+let tauriFetch: typeof fetch | null = null;
+if (typeof window !== "undefined") {
+  const isTauri =
+    window.location.protocol.startsWith("tauri") ||
+    window.location.protocol === "file:" ||
+    window.location.hostname === "tauri.localhost" ||
+    !!(window as any).__TAURI_INTERNALS__ ||
+    !!(window as any).__TAURI_IPC__;
+
+  if (isTauri) {
+    import("@tauri-apps/plugin-http")
+      .then((mod) => {
+        tauriFetch = mod.fetch;
+        console.log("[apiClient] Successfully loaded Tauri native HTTP plugin.");
+      })
+      .catch((err) => {
+        console.warn("[apiClient] Failed to load Tauri native HTTP plugin, fallback to window.fetch:", err);
+      });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -152,11 +174,13 @@ export const universalFetch = async (
   const chatRoute = chatPath || "/chat/completions";
   const modelsRoute = modelsPath || "/models";
 
+  const fetchFn = tauriFetch || fetch;
+
   // ── /api/test-connection ──────────────────────────────────────────────────
   if (endpoint === API_ENDPOINT.TestConnection) {
     let res: Response;
     try {
-      res = await fetch(`${targetBase}${chatRoute}`, {
+      res = await fetchFn(`${targetBase}${chatRoute}`, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -217,7 +241,7 @@ export const universalFetch = async (
   if (endpoint === API_ENDPOINT.ProxyModels) {
     let res: Response;
     try {
-      res = await fetch(`${targetBase}${modelsRoute}`, {
+      res = await fetchFn(`${targetBase}${modelsRoute}`, {
         method: "GET",
         headers,
         signal,
@@ -295,7 +319,7 @@ export const universalFetch = async (
 
   // ── /api/proxy/openai ─────────────────────────────────────────────────────
   if (endpoint === API_ENDPOINT.ProxyOpenAI) {
-    return fetch(`${targetBase}${chatRoute}`, {
+    return fetchFn(`${targetBase}${chatRoute}`, {
       method: "POST",
       headers,
       body: JSON.stringify(reqBody),

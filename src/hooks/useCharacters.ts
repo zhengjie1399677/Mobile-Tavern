@@ -461,27 +461,78 @@ export const useCharacters = () => {
       ctx.fillStyle = "#1e1e2e";
       ctx.fillRect(0, 0, 400, 400);
 
+      let exportedWithAvatar = false;
+
       if (char.avatar) {
-        const img = new Image();
-        if (!char.avatar.startsWith("data:")) {
-          img.crossOrigin = "anonymous";
+        try {
+          const img = new Image();
+          if (!char.avatar.startsWith("data:")) {
+            img.crossOrigin = "anonymous";
+          }
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = (err) => reject(err);
+            img.src = char.avatar || "";
+          });
+          ctx.drawImage(img, 0, 0, 400, 400);
+          exportedWithAvatar = true;
+        } catch (imgErr) {
+          console.warn("Failed to load char avatar for PNG export, falling back to text avatar:", imgErr);
         }
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = char.avatar || "";
-        });
-        ctx.drawImage(img, 0, 0, 400, 400);
-      } else {
-        ctx.fillStyle = "#cdd6f4";
-        ctx.font = "bold 28px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(char.name, 200, 200);
       }
 
-      const rawBlob: Blob = await new Promise((resolve) => {
-        canvas.toBlob((b) => resolve(b!), "image/png");
-      });
+      let rawBlob: Blob | null = null;
+      if (exportedWithAvatar) {
+        try {
+          rawBlob = await new Promise((resolve, reject) => {
+            try {
+              canvas.toBlob((b) => {
+                if (b) resolve(b);
+                else reject(new Error("toBlob returned null"));
+              }, "image/png");
+            } catch (blobErr) {
+              reject(blobErr);
+            }
+          });
+        } catch (toBlobErr) {
+          console.warn("Failed to export tainted canvas, falling back to text avatar:", toBlobErr);
+          exportedWithAvatar = false;
+        }
+      }
+
+      if (!exportedWithAvatar) {
+        ctx.fillStyle = "#1e1e2e";
+        ctx.fillRect(0, 0, 400, 400);
+
+        const gradient = ctx.createLinearGradient(40, 40, 360, 360);
+        gradient.addColorStop(0, "#89b4fa");
+        gradient.addColorStop(1, "#cba6f7");
+        ctx.fillStyle = gradient;
+
+        const x = 40, y = 40, w = 320, h = 320, r = 20;
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "#11111b";
+        ctx.font = "bold 36px 'Outfit', 'Inter', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        const displayName = char.name.length > 8 ? char.name.slice(0, 8) + "..." : char.name;
+        ctx.fillText(displayName, 200, 200);
+
+        rawBlob = await new Promise((resolve) => {
+          canvas.toBlob((b) => resolve(b!), "image/png");
+        });
+      }
+
+      if (!rawBlob) throw new Error("Blob generation failed");
 
       const arrayBuffer = await rawBlob.arrayBuffer();
       const modifiedBlob = injectPngMetadata(arrayBuffer, char);

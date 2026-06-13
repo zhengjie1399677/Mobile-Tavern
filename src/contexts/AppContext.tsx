@@ -35,8 +35,6 @@ interface AppContextType {
   showCustomAlert: (message: string, title?: string) => Promise<void>;
   showCustomConfirm: (message: string, title?: string) => Promise<boolean>;
   showCustomPrompt: (message: string, defaultValue?: string, title?: string) => Promise<string | null>;
-  promptInputVal: string;
-  setPromptInputVal: (val: string) => void;
 
   // Timeline Memory states (optional in core context)
   newSummaryTag?: string;
@@ -113,7 +111,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeWorldbookHostId, setActiveWorldbookHostId] = useState<string | null>(null);
   const [showSplash, setShowSplash] = useState(true);
-  const [promptInputVal, setPromptInputVal] = useState("");
   const [dialogQueue, setDialogQueue] = useState<CustomDialogConfig[]>([]);
   const setCustomDialog = (config: CustomDialogConfig | null) => {
     if (config === null) {
@@ -274,7 +271,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const showCustomPrompt = (message: string, defaultValue: string = "", title: string = "输入") => {
     return new Promise<string | null>((resolve) => {
-      setPromptInputVal(defaultValue);
       const newDialog: CustomDialogConfig = {
         isOpen: true,
         title,
@@ -310,8 +306,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showCustomAlert,
         showCustomConfirm,
         showCustomPrompt,
-        promptInputVal,
-        setPromptInputVal,
       }}
     >
       {children}
