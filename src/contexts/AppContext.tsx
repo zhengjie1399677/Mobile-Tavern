@@ -8,7 +8,7 @@ export type TabType =
   | "global-worldbook"
   | "playground";
 
-export type ThemeType = "snow" | "sand" | "ocean";
+export type ThemeType = "snow" | "sand" | "ocean" | "obsidian";
 
 export interface CustomDialogConfig {
   isOpen: boolean;
@@ -170,7 +170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     document.documentElement.setAttribute("data-theme", currentTheme);
-    const isDark = currentTheme === "ocean";
+    const isDark = currentTheme === "ocean" || currentTheme === "obsidian";
     if (isDark) {
       document.documentElement.classList.add("dark");
       document.documentElement.style.colorScheme = "dark";
@@ -185,6 +185,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       color = "#f9fbfc";
     } else if (currentTheme === "ocean") {
       color = "#1a2040"; // approximates oklch(0.15 0.03 260)
+    } else if (currentTheme === "obsidian") {
+      color = "#0d0f17"; // obsidian background
     }
 
     // Synchronize meta color-scheme

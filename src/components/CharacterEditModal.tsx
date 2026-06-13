@@ -367,6 +367,70 @@ export default function CharacterEditModal() {
 
             <div>
               <label className="block text-muted-foreground mb-1">
+                专属聊天背景图片 (支持 base64 或在线图片，优先渲染)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="未设置（将使用全局背景或默认主题底色）"
+                  value={editingChar.visualSettings?.backgroundImageUrl || ""}
+                  onChange={(e) =>
+                    setEditingChar({
+                      ...editingChar,
+                      visualSettings: {
+                        ...(editingChar.visualSettings || {}),
+                        backgroundImageUrl: e.target.value,
+                      },
+                    })
+                  }
+                  className="flex-1 bg-input border border-border rounded p-2 text-foreground outline-none text-xs truncate"
+                />
+                <label className="bg-muted text-muted-foreground px-3 rounded flex items-center justify-center cursor-pointer border border-border shrink-0 select-none">
+                  上传
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setEditingChar({
+                            ...editingChar,
+                            visualSettings: {
+                              ...(editingChar.visualSettings || {}),
+                              backgroundImageUrl: reader.result as string,
+                            },
+                          });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+                {editingChar.visualSettings?.backgroundImageUrl && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingChar({
+                        ...editingChar,
+                        visualSettings: {
+                          ...(editingChar.visualSettings || {}),
+                          backgroundImageUrl: "",
+                        },
+                      })
+                    }
+                    className="bg-rose-950/20 text-red-400 px-3 rounded border border-rose-900/35 hover:bg-rose-950/45 transition shrink-0"
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-muted-foreground mb-1">
                 人设描述 (Description/Persona)
               </label>
               <textarea

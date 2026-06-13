@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile-Tavern 用户游玩与配置指南</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #ffffff;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            font-size: 26px;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+        }
+        h2 {
+            color: #2980b9;
+            font-size: 20px;
+            border-left: 5px solid #3498db;
+            padding-left: 10px;
+            margin-top: 30px;
+        }
+        h3 {
+            color: #16a085;
+            font-size: 17px;
+            margin-top: 20px;
+        }
+        .warning-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            color: #856404;
+            font-size: 15px;
+        }
+        .tip-box {
+            background-color: #d4edda;
+            border-left: 5px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            color: #155724;
+        }
+        p { margin: 10px 0; }
+        ul, ol { margin: 10px 0; padding-left: 20px; }
+        li { margin-bottom: 10px; }
+        code {
+            background-color: #f8f9fa;
+            color: #e83e8c;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+            border: 1px solid #eee;
+        }
+        a {
+            color: #007bff;
+            text-decoration: underline;
+            font-weight: bold;
+        }
+        a:hover { color: #0056b3; }
+        hr {
+            border: 0;
+            height: 1px;
+            background: #ddd;
+            margin: 40px 0;
+        }
+
+        /* 下载通道卡片式排版 */
+        .download-list {
+            list-style: none;
+            padding: 0;
+            margin: 15px 0;
+        }
+        .download-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #fdfdfd;
+            border: 1px solid #eef2f5;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .download-info {
+            flex: 1;
+            padding-right: 15px;
+        }
+        .download-qrcode {
+            flex-shrink: 0;
+            text-align: center;
+        }
+        .download-qrcode img {
+            width: 90px;
+            height: 90px;
+            border: 1px solid #eee;
+            padding: 2px;
+            background: #fff;
+            display: block;
+        }
+        .download-qrcode span {
+            display: block;
+            font-size: 11px;
+            color: #777;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Mobile-Tavern 用户游玩与配置指南</h1>
+
+    <div class="warning-box">
+        <strong>核心安全警示（使用前必读）：</strong><br>
+        1. <strong>保护 API Key：</strong> 你的 API Key 等同于你的钱包密码，绝对不要泄露给任何人，也不要截图发到公开群聊。<br>
+        2. <strong>充值建议：</strong> 强烈建议采用“少量多次”的充值策略（例如每次只充值 5~10 元）。即使发生意外泄露，也能将损失降到最低。
+    </div>
+
+    <div class="part1">
+        <h2>第一部分：极简上手指南（新手必看）</h2>
+        <p>本软件是一个纯净的本地 AI 容器，没有内置角色，也不提供免费 of 任何 AI 对话。你需要自己准备“大脑（API）” and “灵魂（角色卡）”。跟着下面步骤走，立刻开始聊天！</p>
+
+        <h3>第零步：下载与安装软件</h3>
+        <p>请根据你的网络环境，选择以下任意一种方式下载或者扫码获取最新版的 APK 安装包：</p>
+        
+        <ul class="download-list">
+            <li class="download-item">
+                <div class="download-info">
+                    <strong>方式一：蓝奏云下载（国内首选，速度最快）</strong><br>
+                    链接：<a href="https://wwavp.lanzout.com/iyvFp3rsy6ti" target="_blank">点击前往蓝奏云</a> | 提取码：<code>cfa3</code><br>
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;"><em>注意：蓝奏云页面可能有花哨的“高速下载”广告按钮，请务必认准普通的“普通下载”或“本地下载”按钮！</em></p>
+                </div>
+                <div class="download-qrcode">
+                    <img src="蓝奏云.png" alt="蓝奏云下载二维码">
+                    <span>长按或扫码下载</span>
+                </div>
+            </li>
+            
+            <li class="download-item">
+                <div class="download-info">
+                    <strong>方式二：GitHub 加速代理（国内备用）</strong><br>
+                    链接：<a href="https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk" target="_blank">点击通过代理下载</a><br>
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;"><em>注意：第三方代理节点偶尔会触发浏览器的“网站风险”拦截提示，属于正常现象，点击“继续访问/继续下载”即可。</em></p>
+                </div>
+                <div class="download-qrcode">
+                    <img src="github反代.png" alt="GitHub反代下载二维码">
+                    <span>长按或扫码下载</span>
+                </div>
+            </li>
+            
+            <li class="download-item">
+                <div class="download-info">
+                    <strong>方式三：GitHub 官方直链（需良好网络环境）</strong><br>
+                    链接：<a href="https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk" target="_blank">点击官方直链下载</a><br>
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;"><em>注意：国内直连可能速度极慢或中断，建议在科学上网环境下使用。</em></p>
+                </div>
+                <div class="download-qrcode">
+                    <img src="github1.png" alt="GitHub官方直链二维码">
+                    <span>长按或扫码下载</span>
+                </div>
+            </li>
+        </ul>
+
+        <h3>第一步：配置“大脑”（接入 API）</h3>
+        <div class="tip-box">
+            <strong>推荐：</strong> 新手推荐使用 <strong>DeepSeek</strong>（因为便宜又足够好用）。
+        </div>
+        <ol>
+            <li><strong>获取密钥</strong>：前往 <a href="https://platform.deepseek.com/" target="_blank">DeepSeek 开放平台</a> 注册账号，创建一个 API Key（以 <code>sk-</code> 开头的一串字符）。</li>
+            <li><strong>填入软件</strong>：
+                <ul>
+                    <li>打开 APP，点击底部最右侧的 <strong>【系统设置】</strong>。</li>
+                    <li>找到 <strong>【接口配置】</strong>，接口类型选择 <strong>【OpenAI 兼容接口】</strong>。</li>
+                    <li><strong>Base URL</strong> 填入：<code>https://api.deepseek.com/v1</code></li>
+                    <li><strong>API Key</strong> 填入你刚才复制的密钥。</li>
+                </ul>
+            </li>
+            <li><strong>连接测试</strong>：点击 <strong>【获取模型列表】</strong>，选择 <code>deepseek-chat</code>。然后点击 <strong>【测试连接】</strong>，提示成功即可！</li>
+        </ol>
+
+        <h3>第二步：注入“灵魂”（导入角色卡）</h3>
+        <div class="tip-box">
+            <strong>生态兼容：</strong> 兼容 SillyTavern 生态（V2 Spec）。
+        </div>
+        <ol>
+            <li><strong>找卡</strong>：前往 <a href="https://chub.ai" target="_blank">Chub.ai</a> 等网站，下载你喜欢的角色卡（必须是 <strong>.png 图片格式</strong> 或 <strong>.json 文本格式</strong>）。</li>
+            <li><strong>导入</strong>：打开 APP，点击底部的 <strong>【角色名录】</strong> -> <strong>【导入角色卡】</strong>，选择你下载的文件。</li>
+            <li><strong>开聊</strong>：点击刚导入的角色，进入 <strong>【聊天对话】</strong> 界面，发送你的第一句话吧！</li>
+        </ol>
+
+        <h3>第三步：数据防丢失</h3>
+        <div class="warning-box">
+            <strong>数据备份（极其重要）：</strong><br>
+            你的所有聊天记录和角色卡都<strong>物理保存在手机本地</strong>。卸载 APP 或换手机会导致数据彻底清空！请务必在 <strong>【系统设置】->【数据管理】</strong> 中，定期点击 <strong>【导出备份】</strong> 并妥善保存文件。
+        </div>
+    </div>
+
+    <hr>
+
+    <div class="part2">
+        <h2>第二部分：详细配置指南（进阶玩家参考）</h2>
+        <p><em>以下内容包含软件的底层逻辑与高级配置说明，供有深度定制需求的用户参考。</em></p>
+
+        <h3>1. 界面模块导览</h3>
+        <p>客户端主界面底部设有六个核心功能选项卡（Tabs）：</p>
+        <ul>
+            <li><strong>角色名录 (Characters)</strong>：管理已导入的角色卡，查看卡片详情，发起新会话。</li>
+            <li><strong>聊天对话 (Chat)</strong>：当前正在进行的扮演对话视窗，支持流式文本渲染、历史消息编辑、宇宙分支建立等。</li>
+            <li><strong>会话历史 (History)</strong>：查看当前选中角色下的所有历史会话分支，支持重命名、克隆或删除分支。</li>
+            <li><strong>全局词库 (Worldbook)</strong>：配置不受角色限制的全局背景设定条目。</li>
+            <li><strong>演练场 (Playground)</strong>：临时单次测试提示词与模型的沙盒环境，不写入本地数据库。</li>
+            <li><strong>系统设置 (Settings)</strong>：配置 API 参数、采样预设（Sampler Preset）、系统默认提示词（System Prompt）以及执行数据备份。</li>
+        </ul>
+
+        <h3>2. 角色卡导入与管理</h3>
+        <p>本软件完全兼容 SillyTavern 的角色卡生态规范。</p>
+        <ul>
+            <li><strong>导入角色卡</strong>：在“角色名录”页面，点击“导入角色卡”按钮，选择符合标准的 <code>.png</code> 立绘卡片或 <code>.json</code> 文本文件。</li>
+            <li><strong>元数据提取</strong>：系统将自动提取以下元数据并存入本地 <strong>IndexedDB</strong> 数据库：角色名称、立绘图像、性格与设定描述、时代背景与场景设定、第一句开场白、对话示例、切换表情立绘。</li>
+            <li><strong>表情动态映射</strong>：若角色卡元数据中包含表情触发映射规则（Expression Rules），系统会在聊天过程中通过正则表达式自动匹配 AI 回复中的情绪关键词，实时将立绘图像切换为对应的表情。若无匹配规则，系统将自动降级使用卡片主立绘作为背景。</li>
+        </ul>
+
+        <h3>3. API 接口与模型配置</h3>
+        <p>由于软件为本地离线容器，用户必须自行配置大模型 API 接口方可进行对话。</p>
+        
+        <h3>A. 使用公网商业 API 中转</h3>
+        <ol>
+            <li>进入“系统设置 -> 接口配置”区域。</li>
+            <li>API 接口类型：选择“OpenAI 兼容接口”。</li>
+            <li>接口基础 URL (Base URL)：输入服务商提供的 API 根地址（如 <code>https://api.deepseek.com/v1</code>）。</li>
+            <li>API 密钥 (API Key)：粘贴您的身份鉴权 Bearer 密钥（sk-...）。</li>
+            <li>获取可用模型：点击“获取模型列表”，在下拉菜单中选择您需要使用的模型。</li>
+            <li>连接测试：点击“测试连接”，若提示“连接成功”，即代表接口已通。</li>
+        </ol>
+
+        <h3>B. 使用本地离线模型（如 Ollama）</h3>
+        <ol>
+            <li>确保您的电脑与运行本 App 的手机处于<strong>同一个局域网（WiFi）</strong>下。</li>
+            <li>获取您电脑在局域网中的 IPv4 地址（Windows 用户可在 CMD 运行 <code>ipconfig</code> 查询）。</li>
+            <li>Base URL 填入本地模型的局域网监听地址（如 Ollama 示例：<code>http://192.168.1.100:11434</code>）。</li>
+            <li><strong>重要安全限制 (CORS 跨域)</strong>：由于手机 WebView 浏览器的同源安全策略，本地模型在启动时必须配置允许跨域放行。在电脑系统环境变量中添加 <code>OLLAMA_ORIGINS=*</code>，保存并彻底重启 Ollama 进程。</li>
+        </ol>
+
+        <h3>4. 世界设定集（Worldbook / Lorebook）配置与使用</h3>
+        <p>设定集用于解决大模型长文本记忆力有限的问题，通过关键字匹配动态注入设定。</p>
+        <ul>
+            <li><strong>角色专属词库</strong>：绑定在特定角色卡内的 Lorebook。仅在该角色被激活对话时才会扫描匹配。</li>
+            <li><strong>全局共享词库</strong>：在“全局词库” Tab 下配置。不论与哪一个角色对话，都会统一进行扫描匹配。</li>
+            <li><strong>激活逻辑</strong>：每个词条包含“关键字”和“描述内容”。当消息或对话中包含了配置的任意一个“关键字”，系统会自动将该关键字对应的内容临时注入到上下文指定位置；未提到关键字 of 词条将保持静默。</li>
+        </ul>
+
+        <h3>5. 数据导出备份与覆盖还原</h3>
+        <p>数据均物理保存在手机本地的 <strong>IndexedDB</strong> 中。</p>
+        <ul>
+            <li><strong>导出备份 (Export)</strong>：前往“设置 -> 数据管理”。支持加密导出（使用 AES-GCM 算法加密包装）和明文导出（自动抹除配置中的 API Key）。文件将写入手机存储的 <code>/Download</code> 公共目录下。</li>
+            <li><strong>导入还原 (Import)</strong>：点击“导入本地数据备份”，在文件管理器中选择您之前导出的备份 <code>.json</code> 文件。注意：数据覆盖还原将清空当前设备上原有的全部数据。</li>
+        </ul>
+    </div>
+
+</body>
+</html>

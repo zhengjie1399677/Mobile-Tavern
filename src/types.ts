@@ -184,4 +184,5 @@ export interface UserSettings {
   variables?: Record<string, any>; // Persistent global variables for TavernHelper compatibility
   extensionSettings?: Record<string, any>; // Persistent settings for SillyTavern extensions compatibility
   hasInitializedDefaultCharacters?: boolean; // Track if the built-in characters have been initialized
+  globalChatBg?: string; // Global default chat background (base64 image URL)
 }

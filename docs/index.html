@@ -86,6 +86,7 @@
         <a href="#features" class="hover:text-white transition" data-i18n="nav_features">核心特性</a>
         <a href="#demo" class="hover:text-white transition" data-i18n="nav_demo">真机预览</a>
         <a href="#parser" class="hover:text-white transition" data-i18n="nav_parser">角色卡解析器</a>
+        <a href="#guide" class="hover:text-white transition">配置指南</a>
         <a href="#download" class="hover:text-white transition" data-i18n="nav_download">高速下载</a>
       </nav>
 
@@ -116,7 +117,9 @@
             </svg>
             <span data-i18n="hero_btn_dl">下载 Android APK (v1.3.9)</span>
           </a>
-
+          <a href="#guide" class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition duration-200 text-center flex items-center justify-center space-x-2">
+            <span>📖 阅读配置指南</span>
+          </a>
         </div>
         
         <!-- Rapid Update Disclaimer -->
@@ -310,6 +313,243 @@
               <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider" data-i18n="col_lorebook">设定集词条数</span>
               <p id="parsed-lore-count" class="text-xs text-slate-300"></p>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Guide Section -->
+  <section id="guide" class="py-24 border-t border-white/5 bg-brand-dark/40 relative">
+    <div class="max-w-5xl mx-auto px-6 space-y-12">
+      <!-- Title -->
+      <div class="text-center max-w-2xl mx-auto mb-16 space-y-4">
+        <h2 class="font-outfit text-3xl sm:text-4xl font-extrabold tracking-tight">
+          <span class="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">用户游玩与配置指南</span>
+        </h2>
+        <p class="text-slate-400 text-sm sm:text-base">从极简上手到深度定制，带你轻松玩转 Mobile-Tavern。</p>
+        <div class="pt-2">
+          <a href="./guide.html" target="_blank" class="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold transition">
+            <span>📄 打开纯净打印/长截图版 (白底)</span>
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Security Alert -->
+      <div class="p-6 rounded-2xl border border-amber-500/30 bg-amber-500/5 text-amber-200/90 space-y-3">
+        <div class="flex items-center space-x-2 font-bold text-amber-400">
+          <span>⚠️ 核心安全警示（使用前必读）：</span>
+        </div>
+        <ol class="list-decimal pl-5 space-y-1 text-xs sm:text-sm text-slate-300">
+          <li><strong class="text-amber-400">保护 API Key：</strong> 你的 API Key 等同于你的钱包密码，绝对不要泄露给任何人，也不要截图发到公开群聊。</li>
+          <li><strong class="text-amber-400">充值建议：</strong> 强烈建议采用“少量多次”的充值策略（例如每次只充值 5~10 元）。即使发生意外泄露，也能将损失降到最低。</li>
+        </ol>
+      </div>
+
+      <!-- Part 1: Beginner Guide -->
+      <div class="space-y-8">
+        <div class="flex items-center space-x-3 border-b border-white/5 pb-3">
+          <span class="text-2xl">🔰</span>
+          <h3 class="text-xl font-bold text-slate-100 font-outfit">第一部分：极简上手指南（新手必看）</h3>
+        </div>
+        <p class="text-slate-400 text-sm">本软件是一个纯净的本地 AI 容器，没有内置角色，也不提供免费的 AI 对话。你需要自己准备“大脑（API）”和“灵魂（角色卡）”。跟着下面步骤走，立刻开始聊天！</p>
+
+        <!-- Step 0: Download -->
+        <div class="space-y-4">
+          <h4 class="text-md font-bold text-teal-400 flex items-center space-x-2">
+            <span class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">0</span>
+            <span>第零步：下载与安装软件</span>
+          </h4>
+          <p class="text-slate-400 text-xs">请根据你的网络环境，选择以下任意一种方式下载或者扫码获取最新版的 APK 安装包：</p>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- DL Item 1 -->
+            <div class="p-5 rounded-2xl bg-white/2 border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition flex flex-col justify-between space-y-4">
+              <div class="space-y-2">
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">方式一</span>
+                <h5 class="text-sm font-bold text-slate-200">蓝奏云下载 (国内首选)</h5>
+                <p class="text-[11px] text-slate-400">国内首选，速度最快</p>
+                <div class="text-xs text-slate-300">
+                  链接：<a href="https://wwavp.lanzout.com/iyvFp3rsy6ti" target="_blank" class="text-brand-cyan hover:underline font-semibold">点击前往</a><br>
+                  提取码：<code class="px-1.5 py-0.5 rounded bg-white/5 text-rose-400 text-[11px] font-mono">cfa3</code>
+                </div>
+              </div>
+              <div class="flex flex-col items-center pt-2 border-t border-white/5">
+                <img src="蓝奏云.png" alt="蓝奏云下载二维码" class="w-24 h-24 p-1 bg-white rounded-lg shadow-inner">
+                <span class="text-[10px] text-slate-500 mt-2">长按或扫码下载</span>
+              </div>
+            </div>
+            
+            <!-- DL Item 2 -->
+            <div class="p-5 rounded-2xl bg-white/2 border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition flex flex-col justify-between space-y-4">
+              <div class="space-y-2">
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">方式二</span>
+                <h5 class="text-sm font-bold text-slate-200">GitHub 加加速代理</h5>
+                <p class="text-[11px] text-slate-400">国内备用通道</p>
+                <div class="text-xs text-slate-300">
+                  链接：<a href="https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk" target="_blank" class="text-brand-cyan hover:underline font-semibold">加速代理下载</a>
+                </div>
+              </div>
+              <div class="flex flex-col items-center pt-2 border-t border-white/5">
+                <img src="github反代.png" alt="GitHub反代下载二维码" class="w-24 h-24 p-1 bg-white rounded-lg shadow-inner">
+                <span class="text-[10px] text-slate-500 mt-2">长按或扫码下载</span>
+              </div>
+            </div>
+
+            <!-- DL Item 3 -->
+            <div class="p-5 rounded-2xl bg-white/2 border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition flex flex-col justify-between space-y-4">
+              <div class="space-y-2">
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">方式三</span>
+                <h5 class="text-sm font-bold text-slate-200">GitHub 官方直链</h5>
+                <p class="text-[11px] text-slate-400">需良好网络环境</p>
+                <div class="text-xs text-slate-300">
+                  链接：<a href="https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk" target="_blank" class="text-brand-cyan hover:underline font-semibold">官方直链下载</a>
+                </div>
+              </div>
+              <div class="flex flex-col items-center pt-2 border-t border-white/5">
+                <img src="github1.png" alt="GitHub官方直链二维码" class="w-24 h-24 p-1 bg-white rounded-lg shadow-inner">
+                <span class="text-[10px] text-slate-500 mt-2">长按或扫码下载</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 1: Brain -->
+        <div class="space-y-4">
+          <h4 class="text-md font-bold text-teal-400 flex items-center space-x-2">
+            <span class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">1</span>
+            <span>第一步：配置“大脑”（接入 API）</span>
+          </h4>
+          <div class="p-5 rounded-2xl bg-white/2 border border-white/5 space-y-3">
+            <div class="flex items-center space-x-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg w-max">
+              <span>💡 推荐：新手推荐使用 DeepSeek（便宜且足够好用）</span>
+            </div>
+            <ol class="list-decimal pl-5 space-y-2 text-xs sm:text-sm text-slate-300">
+              <li><strong>获取密钥</strong>：前往 <a href="https://platform.deepseek.com/" target="_blank" class="text-brand-cyan hover:underline font-semibold">DeepSeek 开放平台</a> 注册账号，创建一个 API Key（以 <code class="px-1 py-0.5 rounded bg-white/5 text-rose-400 font-mono">sk-</code> 开头的一串字符）。</li>
+              <li><strong>填入软件</strong>：
+                <ul class="list-disc pl-5 mt-1 space-y-1 text-slate-400">
+                  <li>打开 APP，点击底部最右侧的 <strong>【系统设置】</strong>。</li>
+                  <li>找到 <strong>【接口配置】</strong>，接口类型选择 <strong>【OpenAI 兼容接口】</strong>。</li>
+                  <li><strong>Base URL</strong> 填入：<code class="px-1 py-0.5 rounded bg-white/5 text-rose-400 font-mono">https://api.deepseek.com/v1</code></li>
+                  <li><strong>API Key</strong> 填入你刚才复制的密钥。</li>
+                </ul>
+              </li>
+              <li><strong>连接测试</strong>：点击 <strong>【获取模型列表】</strong>，选择 <code class="px-1 py-0.5 rounded bg-white/5 text-brand-purple font-mono">deepseek-chat</code>。然后点击 <strong>【测试连接】</strong>，提示成功即可！</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Step 2: Soul -->
+        <div class="space-y-4">
+          <h4 class="text-md font-bold text-teal-400 flex items-center space-x-2">
+            <span class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">2</span>
+            <span>第二步：注入“灵魂”（导入角色卡）</span>
+          </h4>
+          <div class="p-5 rounded-2xl bg-white/2 border border-white/5 space-y-3">
+            <div class="flex items-center space-x-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg w-max">
+              <span>💡 生态兼容：完全兼容 SillyTavern 生态 (V2 Spec)</span>
+            </div>
+            <ol class="list-decimal pl-5 space-y-2 text-xs sm:text-sm text-slate-300">
+              <li><strong>找卡</strong>：前往 <a href="https://chub.ai" target="_blank" class="text-brand-cyan hover:underline font-semibold">Chub.ai</a> 等网站，下载你喜欢的角色卡（必须是 <strong>.png 图片格式</strong> 或 <strong>.json 文本格式</strong>）。</li>
+              <li><strong>导入</strong>：打开 APP，点击底部的 <strong>【角色名录】</strong> -> <strong>【导入角色卡】</strong>，选择你下载的文件。</li>
+              <li><strong>开聊</strong>：点击刚导入的角色，进入 <strong>【聊天对话】</strong> 界面，发送你的第一句话吧！</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Step 3: Backup -->
+        <div class="space-y-4">
+          <h4 class="text-md font-bold text-teal-400 flex items-center space-x-2">
+            <span class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">3</span>
+            <span>第三步：数据防丢失</span>
+          </h4>
+          <div class="p-5 rounded-2xl border border-rose-500/20 bg-rose-500/5 text-slate-300 space-y-2">
+            <div class="font-semibold text-rose-400 text-xs sm:text-sm flex items-center space-x-2">
+              <span>🚨 数据备份（极其重要）：</span>
+            </div>
+            <p class="text-xs sm:text-sm text-slate-400">你的所有聊天记录和角色卡都<strong>物理保存在手机本地</strong>。卸载 APP 或换手机会导致数据彻底清空！请务必在 <strong>【系统设置】->【数据管理】</strong> 中，定期点击 <strong>【导出备份】</strong> 并妥善保存文件。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Part 2: Advanced Guide -->
+      <div class="space-y-8">
+        <div class="flex items-center space-x-3 border-b border-white/5 pb-3">
+          <span class="text-2xl">🚀</span>
+          <h3 class="text-xl font-bold text-slate-100 font-outfit">第二部分：详细配置指南（进阶玩家参考）</h3>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Item 1: Tabs -->
+          <div class="p-5 rounded-2xl bg-white/2 border border-white/5 space-y-3">
+            <h4 class="text-sm font-bold text-emerald-400">1. 界面模块导览</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">客户端主界面底部设有六个核心功能选项卡（Tabs）：</p>
+            <ul class="list-disc pl-5 text-[11px] text-slate-400 space-y-1">
+              <li><strong>角色名录 (Characters)</strong>：管理角色，查看详情，发起新会话。</li>
+              <li><strong>聊天对话 (Chat)</strong>：流式文本渲染、编辑历史消息、切分平行宇宙分支。</li>
+              <li><strong>会话历史 (History)</strong>：会话分支重命名、克隆或删除。</li>
+              <li><strong>全局词库 (Worldbook)</strong>：配置不受角色限制的全局背景设定。</li>
+              <li><strong>演练场 (Playground)</strong>：测试提示词的临时沙盒，不写入本地数据库。</li>
+              <li><strong>系统设置 (Settings)</strong>：配置 API、采样预设、系统提示词以及数据备份。</li>
+            </ul>
+          </div>
+
+          <!-- Item 2: Character Import -->
+          <div class="p-5 rounded-2xl bg-white/2 border border-white/5 space-y-3">
+            <h4 class="text-sm font-bold text-emerald-400">2. 角色卡导入与管理</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">完全兼容 SillyTavern 生态规范：</p>
+            <ul class="list-disc pl-5 text-[11px] text-slate-400 space-y-1">
+              <li><strong>导入角色卡</strong>：点击“导入角色卡”导入符合标准的 <code>.png</code> 或 <code>.json</code>。</li>
+              <li><strong>元数据提取</strong>：自动提取角色名称、性格与设定描述、首句问候语、对话示例并存入 IndexedDB。</li>
+              <li><strong>表情动态映射</strong>：自动扫描 AI 回复，通过正则匹配关键词实时切换立绘表情，无规则时自动降级使用主立绘。</li>
+            </ul>
+          </div>
+
+          <!-- Item 3: API settings -->
+          <div class="p-5 rounded-2xl bg-white/2 border border-white/5 space-y-3 md:col-span-2">
+            <h4 class="text-sm font-bold text-emerald-400">3. API 接口与模型配置</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <h5 class="text-xs font-bold text-slate-200">A. 使用公网商业 API 中转</h5>
+                <ol class="list-decimal pl-5 text-[11px] text-slate-400 space-y-1">
+                  <li>进入“系统设置 -> 接口配置”。</li>
+                  <li>API 接口类型选择“OpenAI 兼容接口”。</li>
+                  <li>Base URL 输入 API 根地址 (如 <code>https://api.deepseek.com/v1</code>)。</li>
+                  <li>API Key 粘贴 Bearer 密钥，点击“获取模型列表”选择模型。</li>
+                  <li>点击“测试连接”，提示成功即可。</li>
+                </ol>
+              </div>
+              <div class="space-y-2">
+                <h5 class="text-xs font-bold text-slate-200">B. 使用本地离线模型 (如 Ollama)</h5>
+                <ol class="list-decimal pl-5 text-[11px] text-slate-400 space-y-1">
+                  <li>确保手机与电脑在<strong>同一个局域网 (WiFi)</strong>。</li>
+                  <li>Base URL 填入本地局域网监听地址 (如 <code>http://192.168.1.100:11434</code>)。</li>
+                  <li><strong>重要安全限制 (CORS 跨域)</strong>：由于 WebView 同源策略，本地 Ollama 启动时需添加环境变量 <code>OLLAMA_ORIGINS=*</code> 并重启 Ollama。</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- Item 4: Worldbook -->
+          <div class="p-5 rounded-2xl bg-white/2 border border-white/5 space-y-3">
+            <h4 class="text-sm font-bold text-emerald-400">4. 世界设定集配置与使用</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">通过关键字匹配动态注入设定，极大延长模型记忆：</p>
+            <ul class="list-disc pl-5 text-[11px] text-slate-400 space-y-1">
+              <li><strong>角色专属词库</strong>：绑定在角色卡内的 Lorebook，仅在与该角色对话时触发。</li>
+              <li><strong>全局共享词库</strong>：全局共享设定，所有角色对话均进行统一匹配。</li>
+              <li><strong>激活逻辑</strong>：消息包含关键字时自动将其描述注入上下文，不提及则保持静默。</li>
+            </ul>
+          </div>
+
+          <!-- Item 5: Export / Restore -->
+          <div class="p-5 rounded-2xl bg-white/2 border border-white/5 space-y-3">
+            <h4 class="text-sm font-bold text-emerald-400">5. 数据导出备份与覆盖还原</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">本地数据完全归用户所有：</p>
+            <ul class="list-disc pl-5 text-[11px] text-slate-400 space-y-1">
+              <li><strong>导出备份</strong>：前往“设置 -> 数据管理”，支持 AES-GCM 加密导出和明文导出。文件写入手机 <code>/Download</code> 目录。</li>
+              <li><strong>导入还原</strong>：选择导出的 <code>.json</code> 覆盖还原。注意：导入会覆盖清空当前设备原有全部数据。</li>
+            </ul>
           </div>
         </div>
       </div>

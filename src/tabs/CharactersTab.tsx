@@ -78,8 +78,10 @@ export default function CharactersTab() {
             <div
               key={char.id}
               onClick={() => selectCharacter(char.id)}
-              className={`bg-card rounded-xl active:scale-[0.98] transition border p-3.5 relative cursor-pointer flex gap-3 min-h-32 h-auto select-none ${
-                isActive ? "border-primary/60 bg-muted/40" : "border-border"
+              className={`glass-panel rounded-2xl active:scale-[0.97] transition-all duration-300 p-3.5 relative cursor-pointer flex gap-3 min-h-32 h-auto select-none hover:shadow-[0_12px_24px_-10px_rgba(0,0,0,0.15)] dark:hover:shadow-[0_12px_24px_-10px_rgba(255,255,255,0.1)] hover:-translate-y-1 border ${
+                isActive
+                  ? "border-primary/55 ring-1 ring-primary/25 shadow-md bg-primary/[0.03]"
+                  : "border-white/10 dark:border-white/5"
               }`}
             >
               {/* Character Avatar Grid */}
@@ -88,7 +90,7 @@ export default function CharactersTab() {
                   e.stopPropagation();
                   setSelectedDetailChar(char);
                 }}
-                className="w-16 h-full rounded-lg bg-muted overflow-hidden flex-shrink-0 border border-border/50 flex items-center justify-center text-muted-foreground relative cursor-zoom-in hover:opacity-90 active:scale-95 transition-all"
+                className="w-16 h-20 rounded-xl overflow-hidden bg-muted/30 border border-border/50 flex items-center justify-center text-muted-foreground relative cursor-zoom-in hover:opacity-90 active:scale-95 transition-all shadow-inner shrink-0"
                 title="查看人设档案"
               >
                 {char.avatar ? (
@@ -111,14 +113,15 @@ export default function CharactersTab() {
                       {char.name}
                     </h2>
                     <div
-                      className="flex gap-2"
+                      className="flex gap-1.5"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
                         onClick={() => handleEditCharacter(char)}
-                        className="text-muted-foreground hover:text-muted-foreground p-0.5"
+                        className="text-muted-foreground hover:text-primary p-1 bg-muted/40 rounded hover:bg-muted transition"
+                        title="编辑人设"
                       >
-                        <Edit2 className="w-3.5 h-3.5" />
+                        <Edit2 className="w-3 h-3" />
                       </button>
                       <button
                         onClick={async () => {
@@ -126,34 +129,35 @@ export default function CharactersTab() {
                             await showCustomConfirm("确定导出JSON角色卡？");
                           if (ok) handleExportCharacterJSON(char);
                         }}
-                        className="text-muted-foreground hover:text-muted-foreground p-0.5"
+                        className="text-muted-foreground hover:text-primary p-1 bg-muted/40 rounded hover:bg-muted transition"
                         title="导出JSON"
                       >
-                        <FileText className="w-3.5 h-3.5" />
+                        <FileText className="w-3 h-3" />
                       </button>
                       <button
                         onClick={() => handleExportCharacterPNG(char)}
-                        className="text-muted-foreground hover:text-muted-foreground p-0.5"
+                        className="text-muted-foreground hover:text-primary p-1 bg-muted/40 rounded hover:bg-muted transition"
                         title="导出SillyTavern PNG"
                       >
-                        <ImageIcon className="w-3.5 h-3.5" />
+                        <ImageIcon className="w-3 h-3" />
                       </button>
                       <button
                         onClick={(e) => handleDeleteCharacter(char.id, e)}
-                        className="text-red-500/70 hover:text-red-400 p-0.5"
+                        className="text-red-500/70 hover:text-red-400 p-1 bg-muted/40 rounded hover:bg-rose-950/20 transition"
+                        title="删除"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1 leading-relaxed font-light">
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1.5 leading-relaxed font-light">
                     {char.description || char.personality || "暂无信息说明..."}
                   </p>
                 </div>
 
                 {/* Active Sub-timeline select if multiple branches exist */}
-                <div className="flex items-center justify-between gap-1.5 pt-1">
-                  <span className="text-[10px] bg-muted/60 text-muted-foreground px-1.5 py-0.5 rounded flex items-center gap-1 leading-none opacity-85 select-none">
+                <div className="flex items-center justify-between gap-1.5 pt-1.5">
+                  <span className="text-[10px] bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1 font-medium select-none">
                     <RefreshCw className="w-2.5 h-2.5" /> {charSessList.length}{" "}
                     分支
                   </span>
@@ -164,7 +168,7 @@ export default function CharactersTab() {
                       setActiveWorldbookHostId(char.id);
                       setActiveTab("global-worldbook");
                     }}
-                    className="bg-primary/10 hover:bg-primary hover:text-primary-foreground border border-primary/20 text-text-primary text-primary px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all active:scale-[0.97]"
+                    className="bg-primary/15 hover:bg-primary hover:text-primary-foreground border border-primary/25 text-primary px-2.5 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all active:scale-[0.96]"
                   >
                     <Book className="w-2.5 h-2.5" /> 进入世界书子模块
                   </button>

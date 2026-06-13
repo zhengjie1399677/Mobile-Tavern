@@ -177,6 +177,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   userName: "user",
   userInfo: "",
   userAvatar: "",
+  globalChatBg: "",
   enableHtmlRendering: true,
   enableScriptExecution: false,
   expressionTriggers: {
@@ -195,6 +196,52 @@ export const DEFAULT_SETTINGS: UserSettings = {
   savedPresets: [FORMAT_PRESERVATION_BUNDLE],
   hasInjectedFormatPreset: true,
   hasInitializedDefaultCharacters: false,
+};
+
+const getNestedDelta = (nextObj: any, baseObj: any): any => {
+  if (!nextObj || typeof nextObj !== "object") return undefined;
+  if (!baseObj || typeof baseObj !== "object") return nextObj;
+  
+  const delta: any = {};
+  let hasChanges = false;
+  
+  for (const key of Object.keys(nextObj)) {
+    const nextVal = nextObj[key];
+    const baseVal = baseObj[key];
+    
+    if (nextVal !== baseVal) {
+      if (nextVal && typeof nextVal === "object" && !Array.isArray(nextVal)) {
+        const subDelta = getNestedDelta(nextVal, baseVal);
+        if (subDelta !== undefined) {
+          delta[key] = subDelta;
+          hasChanges = true;
+        }
+      } else {
+        delta[key] = nextVal;
+        hasChanges = true;
+      }
+    }
+  }
+  return hasChanges ? delta : undefined;
+};
+
+const deepMerge = (target: any, source: any): any => {
+  if (!source || typeof source !== "object") return source !== undefined ? source : target;
+  if (!target || typeof target !== "object") {
+    return Array.isArray(source) ? [...source] : { ...source };
+  }
+  
+  const result = Array.isArray(target) ? [...target] : { ...target };
+  
+  for (const key of Object.keys(source)) {
+    const val = source[key];
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      result[key] = deepMerge(target[key], val);
+    } else {
+      result[key] = val;
+    }
+  }
+  return result;
 };
 
 export const useSettings = () => {
@@ -271,6 +318,7 @@ export const useSettings = () => {
             userName: storedSet.userName || DEFAULT_SETTINGS.userName,
             userInfo: storedSet.userInfo || DEFAULT_SETTINGS.userInfo,
             userAvatar: storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar,
+            globalChatBg: storedSet.globalChatBg || DEFAULT_SETTINGS.globalChatBg,
             enableHtmlRendering: storedSet.enableHtmlRendering ?? DEFAULT_SETTINGS.enableHtmlRendering,
             enableScriptExecution: storedSet.enableScriptExecution ?? DEFAULT_SETTINGS.enableScriptExecution,
             savedPresets: mergedSavedPresets,
@@ -320,20 +368,37 @@ export const useSettings = () => {
 
   const updateSettings = useCallback((updater: UserSettings | ((prev: UserSettings) => UserSettings)) => {
     setSettings((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
+      if (typeof updater === "function") {
+        const next = updater(prev);
+        if (!next) return prev;
+        return deepMerge(prev, next);
       }
-      saveTimeoutRef.current = setTimeout(() => {
-        if (isWritingRef.current) {
-          pendingSettingsRef.current = next;
-        } else {
-          performSave(next);
-        }
-      }, 400);
-      return next;
+      
+      const next = updater;
+      if (!next) return prev;
+      
+      // Compare next with base settings in this render closure to extract custom changes
+      const delta = getNestedDelta(next, settings);
+      if (!delta) return prev;
+      
+      return deepMerge(prev, delta);
     });
-  }, []);
+  }, [settings]);
+
+  // Debounced settings save to prevent locking IndexedDB on sliders
+  useEffect(() => {
+    if (!isReady) return;
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      if (isWritingRef.current) {
+        pendingSettingsRef.current = settings;
+      } else {
+        performSave(settings);
+      }
+    }, 400);
+  }, [settings, isReady]);
 
   // Cleanup save timeout on unmount
   useEffect(() => {

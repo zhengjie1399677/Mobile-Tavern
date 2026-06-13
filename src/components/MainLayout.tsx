@@ -28,53 +28,65 @@ export default function MainLayout() {
       <div className="flex flex-col h-[100dvh] pt-[var(--safe-area-top)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
         {activeTab !== "chat" && activeTab !== "playground" && (
-          <div className="absolute bottom-0 left-0 right-0 h-[calc(3.5rem+var(--safe-area-bottom))] pb-[var(--safe-area-bottom)] bg-background/95 backdrop-blur border-t border-border flex items-center justify-around z-20">
+          <div className="absolute bottom-4 left-4 right-4 h-16 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]">
             <button
               onClick={() => setActiveTab("characters")}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-all ${
+              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                 activeTab === "characters"
-                  ? "text-primary scale-105"
-                  : "text-muted-foreground hover:text-muted-foreground"
+                  ? "text-primary scale-110 font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <VenetianMask className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px] font-medium">角色馆</span>
+              <span className="text-[10px]">角色馆</span>
+              {activeTab === "characters" && (
+                <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
+              )}
             </button>
-
+ 
             <button
               onClick={() => setActiveTab("chat-history")}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-all ${
+              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                 activeTab === "chat-history" || activeTab === "chat"
-                  ? "text-primary scale-105"
-                  : "text-muted-foreground hover:text-muted-foreground"
+                  ? "text-primary scale-110 font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <MessageSquare className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px] font-medium">历史对话</span>
+              <span className="text-[10px]">历史对话</span>
+              {(activeTab === "chat-history" || activeTab === "chat") && (
+                <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
+              )}
             </button>
-
+ 
             <button
               onClick={() => setActiveTab("global-worldbook")}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-all ${
+              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                 activeTab === "global-worldbook"
-                  ? "text-primary scale-105"
-                  : "text-muted-foreground hover:text-muted-foreground"
+                  ? "text-primary scale-110 font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Book className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px] font-medium">世界书</span>
+              <span className="text-[10px]">世界书</span>
+              {activeTab === "global-worldbook" && (
+                <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
+              )}
             </button>
-
+ 
             <button
               onClick={() => setActiveTab("settings")}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-all ${
+              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                 activeTab === "settings"
-                  ? "text-primary scale-105"
-                  : "text-muted-foreground hover:text-muted-foreground"
+                  ? "text-primary scale-110 font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Settings className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px] font-medium">控制端</span>
+              <span className="text-[10px]">控制端</span>
+              {activeTab === "settings" && (
+                <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
+              )}
             </button>
           </div>
         )}

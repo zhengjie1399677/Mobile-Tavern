@@ -128,6 +128,33 @@
   --prose-color: #22d3ee;
 }
 
+/* Theme 4: 黑曜石暗黑 (Obsidian Cyber Dark) */
+[data-theme="obsidian"] {
+  color-scheme: dark;
+  --background: oklch(0.12 0.01 250);
+  --foreground: oklch(0.88 0.01 250);
+  --card: oklch(0.16 0.01 250);
+  --card-foreground: oklch(0.88 0.01 250);
+  --popover: oklch(0.16 0.01 250);
+  --popover-foreground: oklch(0.88 0.01 250);
+  --primary: oklch(0.65 0.12 250);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.2 0.01 250);
+  --secondary-foreground: oklch(0.88 0.01 250);
+  --muted: oklch(0.18 0.01 250);
+  --muted-foreground: oklch(0.55 0.01 250);
+  --accent: oklch(0.22 0.02 250);
+  --accent-foreground: oklch(0.88 0.01 250);
+  --destructive: oklch(0.48 0.15 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.22 0.01 250);
+  --input: oklch(0.22 0.01 250);
+  --ring: oklch(0.65 0.12 250);
+
+  --dialogue-color: #f1f5f9;
+  --prose-color: #a78bfa;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
@@ -147,6 +174,58 @@
 .dialogue-text {
   line-height: 1.75;
   letter-spacing: 0.01em;
+}
+
+/* Glassmorphism Panel styles */
+.glass-panel {
+  background: color-mix(in oklch, var(--card) 75%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in oklch, var(--border) 40%, transparent);
+}
+
+.glass-panel-light {
+  background: color-mix(in oklch, var(--card) 50%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in oklch, var(--border) 20%, transparent);
+}
+
+/* Portrait masking & glowing */
+.mask-feather-y {
+  mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+}
+
+.mask-feather-bottom {
+  mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+}
+
+/* Float Glow Effect */
+.float-glow {
+  box-shadow: 0 10px 30px -10px color-mix(in oklch, var(--primary) 30%, transparent);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+}
+.float-glow:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -15px color-mix(in oklch, var(--primary) 50%, transparent);
+}
+
+/* Sub-animations & breath */
+.pulse-glow {
+  animation: pulse-glow-anim 3s infinite ease-in-out;
+}
+
+@keyframes pulse-glow-anim {
+  0%, 100% {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 2px color-mix(in oklch, var(--primary) 20%, transparent));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 12px color-mix(in oklch, var(--primary) 60%, transparent));
+  }
 }
 
 @theme inline {
@@ -245,4 +324,34 @@ a,
 [role="button"],
 .cursor-pointer {
   touch-action: manipulation;
+}
+
+/* 额外的高级美化工具类 */
+.tap-scale {
+  transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.tap-scale:active {
+  transform: scale(0.93);
+}
+
+.bubble-ai {
+  border-top-left-radius: 0.2rem !important;
+  border-top-right-radius: 1rem !important;
+  border-bottom-left-radius: 1rem !important;
+  border-bottom-right-radius: 1rem !important;
+}
+
+.bubble-user {
+  border-top-left-radius: 1rem !important;
+  border-top-right-radius: 0.2rem !important;
+  border-bottom-left-radius: 1rem !important;
+  border-bottom-right-radius: 1rem !important;
+}
+
+/* 毛玻璃高光描边 */
+.glass-border-light {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.glass-border-dark {
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }

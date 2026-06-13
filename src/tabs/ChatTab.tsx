@@ -61,7 +61,7 @@ const ChatInputArea = () => {
   };
 
   return (
-    <div className="bg-card pt-3 px-3 pb-[max(var(--safe-area-bottom),12px)] border-t border-border flex flex-col gap-2 z-10 shrink-0">
+    <div className="glass-panel border-t border-border/40 pt-3 px-3 pb-[max(var(--safe-area-bottom),12px)] flex flex-col gap-2 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
           <button
@@ -134,7 +134,7 @@ const ChatInputArea = () => {
           </span>
         </div>
       </div>
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 relative">
         <textarea
           ref={textareaRef}
           value={localInput}
@@ -147,14 +147,18 @@ const ChatInputArea = () => {
           }}
           placeholder={`发送一条对白至 ${activeCharacter?.name} 启程...`}
           rows={2}
-          className="flex-1 bg-muted border border-border rounded-lg py-2.5 px-3 text-sm text-foreground focus:outline-none focus:border-primary/50 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px]"
+          className="flex-1 bg-input/70 border border-border/80 rounded-xl py-2.5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px] transition-all duration-300 shadow-inner"
         />
         <button
           onClick={onSend}
           disabled={isSending || !localInput.trim()}
-          className="p-3.5 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground transition-all shadow-md flex items-center justify-center shrink-0"
+          className={`p-3.5 rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${
+            localInput.trim()
+              ? "hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 cursor-pointer opacity-100"
+              : "opacity-45 cursor-not-allowed bg-muted text-muted-foreground shadow-none"
+          }`}
         >
-          <Send className="w-4 h-4" />
+          <Send className={`w-4 h-4 transition-transform duration-300 ${localInput.trim() ? "scale-110" : ""}`} />
         </button>
       </div>
     </div>
@@ -629,7 +633,7 @@ export default function ChatTab() {
                   key={activePortraitUrl}
                   src={activePortraitUrl}
                   alt={`${activeCharacter.name} Portrait`}
-                  className="w-full h-full object-cover animate-fadeIn"
+                  className="w-full h-full object-cover animate-fadeIn mask-feather-bottom"
                 />
                 
                 {/* Emotion Badge indicator */}
@@ -665,15 +669,20 @@ export default function ChatTab() {
       {chatSubTab === "dialogue" && (
         <div className="flex-1 flex flex-col min-h-0 relative">
           {/* Custom card background layer */}
-          {activeCharacter?.visualSettings?.backgroundImageUrl && (
-            <div
-              className="absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-all duration-700"
-              style={{
-                backgroundImage: `url(${activeCharacter.visualSettings.backgroundImageUrl})`,
-                opacity: activeCharacter.visualSettings.backgroundOpacity ?? 0.15,
-                filter: `blur(${activeCharacter.visualSettings.backgroundBlur ?? 4}px)`,
-              }}
-            />
+          {(activeCharacter?.visualSettings?.backgroundImageUrl || settings.globalChatBg) && (
+            <>
+              <div
+                className="absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-all duration-700 mask-feather-y"
+                style={{
+                  backgroundImage: `url(${activeCharacter?.visualSettings?.backgroundImageUrl || settings.globalChatBg})`,
+                  opacity: activeCharacter?.visualSettings?.backgroundImageUrl
+                    ? (activeCharacter.visualSettings.backgroundOpacity ?? 0.15)
+                    : 0.12,
+                  filter: `blur(${activeCharacter?.visualSettings?.backgroundImageUrl ? (activeCharacter.visualSettings.backgroundBlur ?? 4) : 6}px)`,
+                }}
+              />
+              <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-b from-background/30 via-background/70 to-background" />
+            </>
           )}
 
 
@@ -743,17 +752,25 @@ export default function ChatTab() {
                         <div
                           className={`w-8 h-8 rounded-[11px] bg-gradient-to-br flex items-center justify-center font-bold text-xs shadow-sm border flex-shrink-0 overflow-hidden ${
                             isUser
-                              ? "from-secondary to-muted border-border text-foreground"
-                              : "from-card to-muted border-border text-foreground font-serif"
+                              ? "from-secondary to-muted border-border text-foreground transition-all duration-300"
+                              : "from-card to-muted border-border text-foreground font-serif transition-all duration-300"
                           }`}
                         >
                           {isUser ? (
-                            "我"
-                          ) : !isSystem && activeCharacter?.avatar ? (
+                            settings.userAvatar ? (
+                              <img
+                                src={settings.userAvatar}
+                                alt="User"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              "我"
+                            )
+                          ) : !isSystem && (activePortraitUrl || activeCharacter?.avatar) ? (
                             <img
-                              src={activeCharacter.avatar}
+                              src={activePortraitUrl || activeCharacter.avatar}
                               alt={activeCharacter.name}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover animate-fadeIn"
                             />
                           ) : (
                             activeCharacter?.name?.[0] || "AI"
@@ -835,14 +852,14 @@ export default function ChatTab() {
                             </div>
                           ) : (
                             <div
-                              className={`rounded-xl px-3.5 py-2.5 shadow-sm text-sm border font-light tracking-wide transition-all cursor-pointer ${
+                              className={`px-3.5 py-2.5 shadow-sm text-sm border font-light tracking-wide transition-all cursor-pointer relative overflow-hidden ${
                                 isUser
                                   ? activeCharacter?.visualSettings?.userBubbleColor
-                                    ? "border-transparent"
-                                    : "bg-primary text-primary-foreground border-primary/50 hover:bg-primary/90"
+                                    ? "border-transparent bubble-user"
+                                    : "bg-gradient-to-br from-primary to-primary/85 text-primary-foreground border-primary/40 bubble-user hover:from-primary/95 hover:to-primary/80 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.22)]"
                                   : activeCharacter?.visualSettings?.bubbleColor
-                                    ? "border-transparent"
-                                    : "bg-card text-foreground border-border shadow-sm"
+                                    ? "border-transparent bubble-ai pl-4"
+                                    : "glass-panel text-foreground shadow-sm bubble-ai pl-4 border-l-4 border-l-primary"
                               }`}
                               style={{
                                 backgroundColor: isUser

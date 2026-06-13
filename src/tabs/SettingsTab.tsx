@@ -140,7 +140,7 @@ export default function SettingsTab() {
 
             {/* 2. API CONFIG (Collapsed by default) */}
             <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="api-config" className="bg-card border border-border shadow-sm rounded-xl overflow-hidden">
+              <AccordionItem value="api-config" className="glass-panel shadow-sm rounded-xl overflow-hidden">
                 <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30 transition">
                   <div className="flex items-center gap-2">
                     <KeySquare className="w-4 h-4 text-primary" />
@@ -161,21 +161,23 @@ export default function SettingsTab() {
                       value={settings.api.baseUrl || ""}
                       onBlur={() => {
                         if (settings.api.baseUrl && !settings.api.savedUrls?.includes(settings.api.baseUrl)) {
-                          updateSettings({
-                            ...settings,
+                          const currentUrl = settings.api.baseUrl;
+                          updateSettings((prev) => ({
+                            ...prev,
                             api: {
-                              ...settings.api,
-                              savedUrls: [...(settings.api.savedUrls || []), settings.api.baseUrl]
+                              ...prev.api,
+                              savedUrls: [...(prev.api.savedUrls || []), currentUrl]
                             }
-                          });
+                          }));
                         }
                       }}
-                      onChange={(e) =>
-                        updateSettings({
-                          ...settings,
-                          api: { ...settings.api, baseUrl: e.target.value },
-                        })
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateSettings((prev) => ({
+                          ...prev,
+                          api: { ...prev.api, baseUrl: val },
+                        }));
+                      }}
                       className="h-9 text-xs font-mono bg-input/50"
                       placeholder="https://api.openai.com/v1"
                     />
@@ -196,10 +198,10 @@ export default function SettingsTab() {
                           key={preset.n}
                           type="button"
                           onClick={() =>
-                            updateSettings({
-                              ...settings,
-                              api: { ...settings.api, baseUrl: preset.u },
-                            })
+                            updateSettings((prev) => ({
+                              ...prev,
+                              api: { ...prev.api, baseUrl: preset.u },
+                            }))
                           }
                           className="text-[9px] bg-muted hover:bg-primary/20 text-muted-foreground hover:text-primary px-1.5 py-0.5 rounded border border-border"
                         >
@@ -209,7 +211,7 @@ export default function SettingsTab() {
                       {settings.api.savedUrls && settings.api.savedUrls.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => updateSettings({ ...settings, api: { ...settings.api, savedUrls: [] }})}
+                          onClick={() => updateSettings((prev) => ({ ...prev, api: { ...prev.api, savedUrls: [] }}))}
                           className="text-[9px] bg-destructive/10 hover:bg-destructive/20 text-destructive px-1.5 py-0.5 rounded border border-destructive/20 ml-auto"
                         >
                           清空记录
@@ -236,12 +238,13 @@ export default function SettingsTab() {
                         spellCheck={false}
                         autoCorrect="off"
                         value={settings.api.apiKey || ""}
-                        onChange={(e) =>
-                          updateSettings({
-                            ...settings,
-                            api: { ...settings.api, apiKey: e.target.value },
-                          })
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateSettings((prev) => ({
+                            ...prev,
+                            api: { ...prev.api, apiKey: val },
+                          }));
+                        }}
                         placeholder="sk-..."
                       />
                       <button
@@ -253,11 +256,11 @@ export default function SettingsTab() {
                       </button>
                     </div>
                     {!settings.api.apiKey || !settings.api.apiKey.trim() ? (
-                      <p className="text-[10px] text-primary/80 flex items-center gap-1 font-medium bg-primary/5 px-2 py-1 rounded-md border border-primary/10">
+                      <p key="free-tier-warning" className="text-[10px] text-primary/80 flex items-center gap-1 font-medium bg-primary/5 px-2 py-1 rounded-md border border-primary/10">
                         💡 处于公共免 Key 体验渠道（已使用 {freeCount}/10 次）。清空 API Key 时自动启用此渠道。
                       </p>
                     ) : (
-                      <p className="text-[10px] text-muted-foreground">
+                      <p key="custom-key-info" className="text-[10px] text-muted-foreground">
                         已配置自定义 API 密钥，优先使用您的专属渠道。
                       </p>
                     )}
@@ -325,10 +328,10 @@ export default function SettingsTab() {
                     <Switch
                       checked={settings.api.bypassProxy || false}
                       onCheckedChange={(checked) =>
-                        updateSettings({
-                          ...settings,
-                          api: { ...settings.api, bypassProxy: checked },
-                        })
+                        updateSettings((prev) => ({
+                          ...prev,
+                          api: { ...prev.api, bypassProxy: checked },
+                        }))
                       }
                       className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
                     />
@@ -339,7 +342,7 @@ export default function SettingsTab() {
             </Accordion>
 
             {/* 2. THEME CONFIG */}
-            <Card className="bg-card border-border shadow-sm">
+            <Card className="glass-panel shadow-sm">
               <CardHeader className="pb-3 border-b border-border/50">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <span>阅读主题与色彩基调</span>
@@ -361,6 +364,8 @@ export default function SettingsTab() {
                         ? "浅沙暮色"
                         : currentTheme === "ocean"
                         ? "荧光深海"
+                        : currentTheme === "obsidian"
+                        ? "黑曜石暗黑"
                         : "选择主题"}
                     </SelectValue>
                   </SelectTrigger>
@@ -374,13 +379,59 @@ export default function SettingsTab() {
                     <SelectItem value="ocean" label="荧光深海" className="text-xs">
                       荧光深海
                     </SelectItem>
+                    <SelectItem value="obsidian" label="黑曜石暗黑" className="text-xs">
+                      黑曜石暗黑
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+
+                <div className="mt-4 pt-4 border-t border-border/50 space-y-2">
+                  <label className="text-[11px] font-semibold text-muted-foreground block">
+                    全局默认聊天背景图片 (当角色未设置专属背景时生效)
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={settings.globalChatBg || ""}
+                      onChange={(e) =>
+                        updateSettings({ ...settings, globalChatBg: e.target.value })
+                      }
+                      className="h-9 text-xs bg-input/50 flex-1 truncate"
+                      placeholder="未设置（使用默认主题底色）"
+                    />
+                    <label className="bg-muted text-muted-foreground text-xs px-3 rounded flex items-center justify-center cursor-pointer border border-border select-none shrink-0">
+                      上传
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              updateSettings({ ...settings, globalChatBg: reader.result as string });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    {settings.globalChatBg && (
+                      <button
+                        type="button"
+                        onClick={() => updateSettings({ ...settings, globalChatBg: "" })}
+                        className="bg-rose-950/20 text-red-400 px-3 rounded border border-rose-900/35 hover:bg-rose-950/45 text-xs transition shrink-0"
+                      >
+                        清除
+                      </button>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             {/* 3. DEVELOPER PLAYGROUND */}
-            <Card className="bg-card border-border shadow-sm border-dashed border-primary/30">
+            <Card className="glass-panel shadow-sm border border-dashed border-primary/40">
               <CardHeader className="pb-3 border-b border-border/50">
                 <CardTitle className="text-sm flex items-center gap-2 text-primary font-bold">
                   <Sparkles className="w-4 h-4 animate-pulse" />
@@ -407,7 +458,7 @@ export default function SettingsTab() {
             value="persona"
             className="space-y-4 m-0 data-[state=inactive]:hidden outline-none"
           >
-            <Card className="bg-card border-border shadow-sm">
+            <Card className="glass-panel shadow-sm">
               <CardHeader className="pb-3 border-b border-border/50">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <UserCheck className="w-4 h-4 text-primary" /> 角色信息
@@ -426,6 +477,56 @@ export default function SettingsTab() {
                     className="h-9 text-xs bg-input/50"
                     placeholder="未知探客"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    玩家自定义头像 (支持 base64)
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="w-9 h-9 rounded-full bg-muted border border-border flex-shrink-0 overflow-hidden flex items-center justify-center">
+                      {settings.userAvatar ? (
+                        <img src={settings.userAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <UserCheck className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <Input
+                      value={settings.userAvatar || ""}
+                      onChange={(e) =>
+                        updateSettings({ ...settings, userAvatar: e.target.value })
+                      }
+                      className="h-9 text-xs bg-input/50 flex-1 truncate"
+                      placeholder="data:image/png;base64,... 或空"
+                    />
+                    <label className="bg-muted text-muted-foreground text-xs px-3 rounded flex items-center justify-center cursor-pointer border border-border select-none shrink-0">
+                      上传
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              updateSettings({ ...settings, userAvatar: reader.result as string });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    {settings.userAvatar && (
+                      <button
+                        type="button"
+                        onClick={() => updateSettings({ ...settings, userAvatar: "" })}
+                        className="bg-rose-950/20 text-red-400 px-3 rounded border border-rose-900/35 hover:bg-rose-950/45 text-xs transition shrink-0"
+                      >
+                        清除
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-semibold text-muted-foreground">
@@ -478,7 +579,7 @@ export default function SettingsTab() {
               </CardContent>
             </Card>
 
-            <Card className="bg-card border-border shadow-sm mt-4">
+            <Card className="glass-panel shadow-sm mt-4">
               <CardHeader className="pb-3 border-b border-border/50">
                 <CardTitle className="text-sm flex items-center justify-between">
                   <span>全局表情情绪匹配正则词典</span>
@@ -554,7 +655,7 @@ export default function SettingsTab() {
             className="space-y-4 m-0 data-[state=inactive]:hidden outline-none"
           >
             {/* Sub-Tabs for Presets */}
-            <div className="border border-border/70 rounded-xl overflow-hidden bg-card shadow-sm flex flex-col">
+            <div className="glass-panel rounded-xl overflow-hidden shadow-sm flex flex-col">
               <div className="flex border-b border-border bg-muted/30 shrink-0">
                 <button
                   type="button"
