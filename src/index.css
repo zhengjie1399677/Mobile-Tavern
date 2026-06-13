@@ -328,7 +328,7 @@ a,
 
 /* 额外的高级美化工具类 */
 .tap-scale {
-  transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1) !important;
 }
 .tap-scale:active {
   transform: scale(0.93);
