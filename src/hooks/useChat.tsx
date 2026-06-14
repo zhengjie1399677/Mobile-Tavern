@@ -163,8 +163,19 @@ export const useChat = (
     force: boolean = false,
     signal?: AbortSignal
   ) => {
-    const lastIndex = session.lastSummarizedMessageId
-      ? session.messages.findIndex((m) => m.id === session.lastSummarizedMessageId)
+    let resolvedLastId = session.lastSummarizedMessageId;
+    if (resolvedLastId) {
+      const hasIt = session.messages.some((m) => m.id === resolvedLastId);
+      if (!hasIt) {
+        const lastSummary = session.summaries && session.summaries.length > 0
+          ? session.summaries[session.summaries.length - 1]
+          : null;
+        resolvedLastId = lastSummary?.lastMessageId || undefined;
+      }
+    }
+
+    const lastIndex = resolvedLastId
+      ? session.messages.findIndex((m) => m.id === resolvedLastId)
       : -1;
     
     let startIndex = 0;
@@ -178,7 +189,8 @@ export const useChat = (
     const rawRecentTurns = Number(settings?.memory?.recentTurns || 6);
     const triggerRounds = (!isNaN(rawTriggerTurns) && rawTriggerTurns > 0) ? rawTriggerTurns : rawRecentTurns;
     
-    const maxAllowedUnsummarized = triggerRounds * 2;
+    const safeTriggerRounds = Math.max(4, triggerRounds);
+    const maxAllowedUnsummarized = safeTriggerRounds * 2;
 
     let messagesToCompress: Message[] = [];
 
@@ -793,7 +805,6 @@ export const useChat = (
         }
       }
     } finally {
-      if (requestId !== activeRequestIdRef.current) return;
       isStreamActive = false;
       if (pendingUpdateTimeoutRef.current) {
         clearTimeout(pendingUpdateTimeoutRef.current);
@@ -802,8 +813,10 @@ export const useChat = (
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
       }
-      isSendingRef.current = false;
-      setIsSending(false);
+      if (requestId === activeRequestIdRef.current) {
+        isSendingRef.current = false;
+        setIsSending(false);
+      }
     }
   }, [
     isSending,
@@ -1258,7 +1271,6 @@ export const useChat = (
         }
       }
     } finally {
-      if (requestId !== activeRequestIdRef.current) return;
       isStreamActive = false;
       if (pendingUpdateTimeoutRef.current) {
         clearTimeout(pendingUpdateTimeoutRef.current);
@@ -1267,8 +1279,10 @@ export const useChat = (
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
       }
-      isSendingRef.current = false;
-      setIsSending(false);
+      if (requestId === activeRequestIdRef.current) {
+        isSendingRef.current = false;
+        setIsSending(false);
+      }
     }
   }, [
     isSending,

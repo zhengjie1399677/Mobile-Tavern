@@ -84,8 +84,35 @@ export default function SettingsTab() {
     connectionStatus,
     testApiConnection,
     setActiveTab,
+    showCustomPrompt,
+    showCustomConfirm,
   } = useContext(AppContext);
   const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
+
+  const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
+  const lastApiRef = React.useRef(JSON.stringify(settings.api));
+
+  React.useEffect(() => {
+    const apiStr = JSON.stringify(settings.api);
+    if (apiStr !== lastApiRef.current) {
+      lastApiRef.current = apiStr;
+      setSaveState("saving");
+      const timer1 = setTimeout(() => {
+        setSaveState("saved");
+      }, 550);
+      return () => clearTimeout(timer1);
+    }
+  }, [settings.api]);
+
+  React.useEffect(() => {
+    if (saveState === "saved") {
+      const timer2 = setTimeout(() => {
+        setSaveState("idle");
+      }, 2000);
+      return () => clearTimeout(timer2);
+    }
+  }, [saveState]);
+
   return (
     <div className="px-4 pb-4 pt-1.5 flex flex-col h-full overflow-hidden">
       <div className="border-b border-border pb-3 mb-3 shrink-0 flex items-center justify-between">
@@ -145,12 +172,169 @@ export default function SettingsTab() {
                   <div className="flex items-center gap-2">
                     <KeySquare className="w-4 h-4 text-primary" />
                     <div className="flex flex-col items-start gap-1">
-                      <span className="text-sm font-semibold">API 服务端点配置</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold">API 服务端点配置</span>
+                        {saveState === "saving" && (
+                          <span className="text-[10px] text-sky-500 flex items-center gap-1 font-semibold animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping" />
+                            正在自动保存...
+                          </span>
+                        )}
+                        {saveState === "saved" && (
+                          <span className="text-[10px] text-emerald-500 flex items-center gap-1 font-semibold animate-in fade-in duration-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            修改已自动保存
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] text-muted-foreground font-normal">配置大语言模型接口地址与授权凭证</span>
                     </div>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-4 pt-2 border-t border-border/50 space-y-4">
+                  {/* API 通道配置档案选择与切换 */}
+                  <div className="space-y-2 pb-3.5 mb-1.5 border-b border-border/40">
+                    <label className="text-[11px] font-semibold text-muted-foreground block">
+                      选择 API 配置通道 / 凭证档案
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <Select
+                          value={settings.currentApiProfileId || "temp"}
+                          onValueChange={(val) => {
+                            if (val === "temp") {
+                              updateSettings((prev) => ({
+                                ...prev,
+                                currentApiProfileId: "",
+                              }));
+                            } else {
+                              const target = (settings.savedApiProfiles || []).find((p) => p.id === val);
+                              if (target) {
+                                updateSettings((prev) => ({
+                                  ...prev,
+                                  currentApiProfileId: val,
+                                  api: {
+                                    ...prev.api,
+                                    type: target.type,
+                                    baseUrl: target.baseUrl,
+                                    apiKey: target.apiKey,
+                                    modelName: target.modelName,
+                                    chatPath: target.chatPath,
+                                    modelsPath: target.modelsPath,
+                                    bypassProxy: target.bypassProxy,
+                                  },
+                                }));
+                              }
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-9 bg-input/50 text-xs flex-1 truncate">
+                            <SelectValue placeholder="选择通道...">
+                              {(() => {
+                                if (!settings.currentApiProfileId) return "💡 临时调试配置";
+                                const currentProf = (settings.savedApiProfiles || []).find(
+                                  (p) => p.id === settings.currentApiProfileId
+                                );
+                                return currentProf ? `🔌 ${currentProf.name}` : "💡 临时调试配置";
+                              })()}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="temp" className="text-xs">
+                              💡 临时调试配置
+                            </SelectItem>
+                            {(settings.savedApiProfiles || []).map((prof) => (
+                              <SelectItem key={prof.id} value={prof.id} className="text-xs font-mono">
+                                🔌 {prof.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const name = await showCustomPrompt(
+                              "请输入新 API 通道的别名（例如：DeepSeek官方、硅基流动）:",
+                              ""
+                            );
+                            if (name && name.trim()) {
+                              const newId = "profile_" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+                              const newProfile = {
+                                id: newId,
+                                name: name.trim(),
+                                type: settings.api.type,
+                                baseUrl: settings.api.baseUrl,
+                                apiKey: settings.api.apiKey,
+                                modelName: settings.api.modelName,
+                                chatPath: settings.api.chatPath,
+                                modelsPath: settings.api.modelsPath,
+                                bypassProxy: settings.api.bypassProxy,
+                              };
+                              updateSettings((prev) => ({
+                                ...prev,
+                                savedApiProfiles: [...(prev.savedApiProfiles || []), newProfile],
+                                currentApiProfileId: newId,
+                              }));
+                            }
+                          }}
+                          className="h-9 px-3 bg-primary/10 border border-primary/25 text-primary text-xs font-medium rounded-md hover:bg-primary/20 transition shrink-0 tap-scale"
+                        >
+                          另存当前配置为通道
+                        </button>
+                      </div>
+
+                      {settings.currentApiProfileId && (
+                        <div className="flex gap-3 justify-end pt-0.5">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const activeId = settings.currentApiProfileId;
+                              const currentProf = (settings.savedApiProfiles || []).find((p) => p.id === activeId);
+                              if (!currentProf) return;
+                              const newName = await showCustomPrompt(
+                                "重命名通道别名:",
+                                currentProf.name
+                              );
+                              if (newName && newName.trim()) {
+                                updateSettings((prev) => ({
+                                  ...prev,
+                                  savedApiProfiles: (prev.savedApiProfiles || []).map((p) =>
+                                    p.id === activeId ? { ...p, name: newName.trim() } : p
+                                  ),
+                                }));
+                              }
+                            }}
+                            className="text-[10px] text-muted-foreground hover:text-primary transition flex items-center gap-1 font-medium"
+                          >
+                            ✏️ 重命名
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const activeId = settings.currentApiProfileId;
+                              const currentProf = (settings.savedApiProfiles || []).find((p) => p.id === activeId);
+                              if (!currentProf) return;
+                              const ok = await showCustomConfirm(
+                                `确定要删除通道【${currentProf.name}】吗？这不会影响当前已输入的连接配置。`
+                              );
+                              if (ok) {
+                                updateSettings((prev) => ({
+                                  ...prev,
+                                  savedApiProfiles: (prev.savedApiProfiles || []).filter((p) => p.id !== activeId),
+                                  currentApiProfileId: "",
+                                }));
+                              }
+                            }}
+                            className="text-[10px] text-rose-500 hover:text-rose-700 transition flex items-center gap-1 font-medium"
+                          >
+                            🗑️ 删除此通道
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-[11px] font-semibold text-muted-foreground flex justify-between items-center">
                       <span>接口代理地址 (Base URL)</span>
@@ -175,6 +359,7 @@ export default function SettingsTab() {
                         const val = e.target.value;
                         updateSettings((prev) => ({
                           ...prev,
+                          currentApiProfileId: "", // 修改时自动脱离通道绑定
                           api: { ...prev.api, baseUrl: val },
                         }));
                       }}
@@ -200,6 +385,7 @@ export default function SettingsTab() {
                           onClick={() =>
                             updateSettings((prev) => ({
                               ...prev,
+                              currentApiProfileId: "", // 快捷填入时自动脱离通道绑定
                               api: { ...prev.api, baseUrl: preset.u },
                             }))
                           }
@@ -242,6 +428,7 @@ export default function SettingsTab() {
                           const val = e.target.value;
                           updateSettings((prev) => ({
                             ...prev,
+                            currentApiProfileId: "", // 修改时自动脱离通道绑定
                             api: { ...prev.api, apiKey: val },
                           }));
                         }}
@@ -279,10 +466,11 @@ export default function SettingsTab() {
                       <Select
                         value={settings.api.modelName || ""}
                         onValueChange={(val) =>
-                          updateSettings({
-                            ...settings,
-                            api: { ...settings.api, modelName: val },
-                          })
+                          updateSettings((prev) => ({
+                            ...prev,
+                            currentApiProfileId: "", // 修改时自动脱离通道绑定
+                            api: { ...prev.api, modelName: val },
+                          }))
                         }
                       >
                         <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-mono">
@@ -303,12 +491,14 @@ export default function SettingsTab() {
                     ) : (
                       <Input
                         value={settings.api.modelName || ""}
-                        onChange={(e) =>
-                          updateSettings({
-                            ...settings,
-                            api: { ...settings.api, modelName: e.target.value },
-                          })
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateSettings((prev) => ({
+                            ...prev,
+                            currentApiProfileId: "", // 修改时自动脱离通道绑定
+                            api: { ...prev.api, modelName: val },
+                          }));
+                        }}
                         className="h-9 text-xs font-mono bg-input/50"
                         placeholder="gpt-4o"
                       />
@@ -425,6 +615,98 @@ export default function SettingsTab() {
                         清除
                       </button>
                     )}
+                  </div>
+                </div>
+
+                {/* 背景参数自定义选项与动效控制 */}
+                <div className="mt-4 pt-4 border-t border-border/50 space-y-4.5">
+                  {/* 模糊度调节（三档选项） */}
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-muted-foreground block">
+                      背景图片模糊程度
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { label: "清晰 (0px)", value: 0 },
+                        { label: "适中 (10px)", value: 10 },
+                        { label: "模糊 (25px)", value: 25 },
+                      ].map((opt) => {
+                        const active = (settings.chatBackgroundBlur ?? 10) === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() =>
+                              updateSettings((prev) => ({
+                                ...prev,
+                                chatBackgroundBlur: opt.value,
+                              }))
+                            }
+                            className={`py-2 px-1 rounded text-xs border text-center transition-all ${
+                              active
+                                ? "bg-primary/20 border-primary text-primary font-semibold"
+                                : "bg-muted/40 border-border/45 text-muted-foreground hover:bg-muted/65"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 变暗融合度调节（四档选项） */}
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-muted-foreground block">
+                      背景融合变暗程度
+                    </label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[
+                        { label: "原色 (0%)", value: 0 },
+                        { label: "微暗 (20%)", value: 20 },
+                        { label: "适中 (50%)", value: 50 },
+                        { label: "幽暗 (85%)", value: 85 },
+                      ].map((opt) => {
+                        const active = (settings.chatBackgroundDim ?? 50) === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() =>
+                              updateSettings((prev) => ({
+                                ...prev,
+                                chatBackgroundDim: opt.value,
+                              }))
+                            }
+                            className={`py-2 px-0.5 rounded text-[10px] border text-center transition-all ${
+                              active
+                                ? "bg-primary/20 border-primary text-primary font-semibold"
+                                : "bg-muted/40 border-border/45 text-muted-foreground hover:bg-muted/65"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 慢速位移动画开关 */}
+                  <div className="flex items-center justify-between pt-1">
+                    <label className="text-[11px] font-semibold text-muted-foreground">
+                      启用背景慢速呼吸动效 (肯斯伯恩效果)
+                    </label>
+                    <input
+                      type="checkbox"
+                      checked={settings.enableChatBgAnimation ?? true}
+                      onChange={(e) =>
+                        updateSettings((prev) => ({
+                          ...prev,
+                          enableChatBgAnimation: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded border-border bg-input text-primary accent-primary cursor-pointer focus:ring-0"
+                    />
                   </div>
                 </div>
               </CardContent>

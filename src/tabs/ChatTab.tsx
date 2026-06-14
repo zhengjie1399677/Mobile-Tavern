@@ -667,21 +667,37 @@ export default function ChatTab() {
 
       {/* Sub-tab 1: DIALOGUE HISTORY */}
       {chatSubTab === "dialogue" && (
-        <div className="flex-1 flex flex-col min-h-0 relative">
+        <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
           {/* Custom card background layer */}
           {(activeCharacter?.visualSettings?.backgroundImageUrl || settings.globalChatBg) && (
             <>
+              {/* 1. 大图背景及动效/模糊层 */}
               <div
-                className="absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-all duration-700 mask-feather-y"
+                className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-[opacity,filter] duration-700 mask-feather-y ${
+                  (settings.enableChatBgAnimation ?? true) ? "animate-bg-pan-zoom" : ""
+                }`}
                 style={{
                   backgroundImage: `url(${activeCharacter?.visualSettings?.backgroundImageUrl || settings.globalChatBg})`,
                   opacity: activeCharacter?.visualSettings?.backgroundImageUrl
-                    ? (activeCharacter.visualSettings.backgroundOpacity ?? 0.15)
-                    : 0.12,
-                  filter: `blur(${activeCharacter?.visualSettings?.backgroundImageUrl ? (activeCharacter.visualSettings.backgroundBlur ?? 4) : 6}px)`,
+                    ? (activeCharacter.visualSettings.backgroundOpacity ?? 0.35)
+                    : 0.28,
+                  filter: `blur(${
+                    activeCharacter?.visualSettings?.backgroundImageUrl && activeCharacter.visualSettings.backgroundBlur !== undefined
+                      ? activeCharacter.visualSettings.backgroundBlur
+                      : (settings.chatBackgroundBlur ?? 10)
+                  }px)`,
                 }}
               />
-              <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-b from-background/30 via-background/70 to-background" />
+              {/* 2. 主题色变暗融合层 */}
+              <div
+                className="absolute inset-0 z-0 pointer-events-none transition-all duration-500"
+                style={{
+                  backgroundColor: "var(--background)",
+                  opacity: (settings.chatBackgroundDim ?? 50) / 100,
+                }}
+              />
+              {/* 3. 渐变羽化保护层 */}
+              <div className="absolute inset-0 z-0 pointer-events-none chat-bg-mask" />
             </>
           )}
 
@@ -856,7 +872,7 @@ export default function ChatTab() {
                                 isUser
                                   ? activeCharacter?.visualSettings?.userBubbleColor
                                     ? "border-transparent bubble-user"
-                                    : "bg-gradient-to-br from-primary to-primary/85 text-primary-foreground border-primary/40 bubble-user hover:from-primary/95 hover:to-primary/80 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.22)]"
+                                    : "bg-gradient-to-br from-primary to-primary/85 text-primary-foreground border-primary/40 bubble-user hover:from-primary/95 hover:to-primary/80"
                                   : activeCharacter?.visualSettings?.bubbleColor
                                     ? "border-transparent bubble-ai pl-4"
                                     : "glass-panel text-foreground shadow-sm bubble-ai pl-4 border-l-4 border-l-primary"

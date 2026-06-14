@@ -196,6 +196,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   savedPresets: [FORMAT_PRESERVATION_BUNDLE],
   hasInjectedFormatPreset: true,
   hasInitializedDefaultCharacters: false,
+  chatBackgroundBlur: 10,
+  chatBackgroundDim: 50,
+  enableChatBgAnimation: true,
+  savedApiProfiles: [],
+  currentApiProfileId: "",
 };
 
 const getNestedDelta = (nextObj: any, baseObj: any): any => {
@@ -327,6 +332,11 @@ export const useSettings = () => {
             variables: storedSet.variables || {},
             extensionSettings: storedSet.extensionSettings || {},
             hasInitializedDefaultCharacters: storedSet.hasInitializedDefaultCharacters ?? false,
+            chatBackgroundBlur: storedSet.chatBackgroundBlur ?? DEFAULT_SETTINGS.chatBackgroundBlur,
+            chatBackgroundDim: storedSet.chatBackgroundDim ?? DEFAULT_SETTINGS.chatBackgroundDim,
+            enableChatBgAnimation: storedSet.enableChatBgAnimation ?? DEFAULT_SETTINGS.enableChatBgAnimation,
+            savedApiProfiles: storedSet.savedApiProfiles || DEFAULT_SETTINGS.savedApiProfiles,
+            currentApiProfileId: storedSet.currentApiProfileId || DEFAULT_SETTINGS.currentApiProfileId,
           } as any;
 
           setSettings(mergedSet);

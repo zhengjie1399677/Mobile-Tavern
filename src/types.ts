@@ -162,6 +162,18 @@ export interface PromptConfig {
   sectionHeaders?: Record<string, string>;
 }
 
+export interface ApiProfile {
+  id: string;
+  name: string;
+  type: "openai" | "anthropic" | "openai-compat";
+  baseUrl: string;
+  apiKey: string;
+  modelName: string;
+  chatPath?: string;
+  modelsPath?: string;
+  bypassProxy?: boolean;
+}
+
 export interface SavedPresetBundle {
   id: string;
   preset: SamplerPreset;
@@ -185,4 +197,9 @@ export interface UserSettings {
   extensionSettings?: Record<string, any>; // Persistent settings for SillyTavern extensions compatibility
   hasInitializedDefaultCharacters?: boolean; // Track if the built-in characters have been initialized
   globalChatBg?: string; // Global default chat background (base64 image URL)
+  chatBackgroundBlur?: number; // Background blur radius in pixels
+  chatBackgroundDim?: number; // Background overlay dim percentage (0-100)
+  enableChatBgAnimation?: boolean; // Whether to enable Ken Burns animation
+  savedApiProfiles?: ApiProfile[];
+  currentApiProfileId?: string;
 }
