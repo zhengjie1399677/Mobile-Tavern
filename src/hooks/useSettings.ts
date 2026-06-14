@@ -9,6 +9,8 @@ import {
   saveSession,
   bulkSaveCharacters,
   bulkSaveSessions,
+  getStoredSavedPresets,
+  saveStoredSavedPresets,
 } from "../utils/localDB";
 import { useApp } from "../contexts/AppContext";
 import { useChatState } from "../contexts/ChatContext";
@@ -201,6 +203,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   enableChatBgAnimation: true,
   savedApiProfiles: [],
   currentApiProfileId: "",
+  globalRegexScripts: [],
+  presetRegexScripts: [],
 };
 
 const getNestedDelta = (nextObj: any, baseObj: any): any => {
@@ -215,7 +219,10 @@ const getNestedDelta = (nextObj: any, baseObj: any): any => {
     const baseVal = baseObj[key];
     
     if (nextVal !== baseVal) {
-      if (nextVal && typeof nextVal === "object" && !Array.isArray(nextVal)) {
+      if (key === "savedPresets") {
+        delta[key] = nextVal;
+        hasChanges = true;
+      } else if (nextVal && typeof nextVal === "object" && !Array.isArray(nextVal)) {
         const subDelta = getNestedDelta(nextVal, baseVal);
         if (subDelta !== undefined) {
           delta[key] = subDelta;
@@ -283,17 +290,32 @@ export const useSettings = () => {
     const loadSettings = async () => {
       try {
         const storedSet = await getStoredSettings();
+        const storedSavedPresets = await getStoredSavedPresets();
         const storedLores = await getGlobalLorebook();
 
         if (storedSet) {
-          let mergedSavedPresets = storedSet.savedPresets || [];
+          // Backward compatibility: retrieve from storedSet if saved_presets_bundle key doesn't exist yet
+          let mergedSavedPresets = storedSavedPresets || [];
           let needSave = false;
+          let needSavePresets = false;
+
+          if (!storedSavedPresets && storedSet.savedPresets && storedSet.savedPresets.length > 0) {
+            mergedSavedPresets = storedSet.savedPresets;
+            needSavePresets = true;
+            needSave = true;
+          }
+
+          mergedSavedPresets = mergedSavedPresets.map((b: any) => ({
+            ...b,
+            presetRegexScripts: b.presetRegexScripts || []
+          }));
 
           const hasInjectedFlag = (storedSet as any).hasInjectedFormatPreset;
           const hasPreset = mergedSavedPresets.some((p: any) => p.id === "bundle_format_preservation");
 
           if (!hasPreset && !hasInjectedFlag) {
             mergedSavedPresets = [...mergedSavedPresets, FORMAT_PRESERVATION_BUNDLE];
+            needSavePresets = true;
             needSave = true;
           }
 
@@ -337,11 +359,19 @@ export const useSettings = () => {
             enableChatBgAnimation: storedSet.enableChatBgAnimation ?? DEFAULT_SETTINGS.enableChatBgAnimation,
             savedApiProfiles: storedSet.savedApiProfiles || DEFAULT_SETTINGS.savedApiProfiles,
             currentApiProfileId: storedSet.currentApiProfileId || DEFAULT_SETTINGS.currentApiProfileId,
+            globalRegexScripts: storedSet.globalRegexScripts || DEFAULT_SETTINGS.globalRegexScripts || [],
+            presetRegexScripts: storedSet.presetRegexScripts || DEFAULT_SETTINGS.presetRegexScripts || [],
           } as any;
 
           setSettings(mergedSet);
+          
+          if (needSavePresets) {
+            await saveStoredSavedPresets(mergedSavedPresets);
+          }
           if (needSave) {
-            await saveStoredSettings(mergedSet);
+            const cleanSet = { ...mergedSet };
+            delete cleanSet.savedPresets;
+            await saveStoredSettings(cleanSet);
           }
         }
         if (storedLores) {
@@ -363,7 +393,9 @@ export const useSettings = () => {
   const performSave = async (data: UserSettings) => {
     isWritingRef.current = true;
     try {
-      await saveStoredSettings(data);
+      const cleanData = { ...data };
+      delete cleanData.savedPresets; // Exclude preset arrays to prevent database bloat and I/O lag
+      await saveStoredSettings(cleanData);
     } catch (err) {
       console.error("Failed to save settings:", err);
     } finally {
@@ -655,10 +687,31 @@ export const useSettings = () => {
           finalStoryString = storyStrFromJSON || "";
           finalCustomPrompts = importedCustomPrompts;
         }
- 
+
+        // 解析预设全局正则脚本
+        const importedRegexScripts: any[] = [];
+        if (data.extensions && Array.isArray(data.extensions.regex_scripts)) {
+          for (const item of data.extensions.regex_scripts) {
+            if (item && typeof item === "object" && item.scriptName && item.findRegex) {
+              importedRegexScripts.push({
+                id: item.id || "import_reg_" + Math.random().toString(36).substring(2, 9),
+                scriptName: item.scriptName,
+                findRegex: item.findRegex,
+                replaceString: typeof item.replaceString === "string" ? item.replaceString : "",
+                disabled: item.disabled === true,
+                placement: Array.isArray(item.placement) ? item.placement : [2],
+                runOnEdit: item.runOnEdit ?? true,
+                markdownOnly: item.markdownOnly ?? false,
+                promptOnly: item.promptOnly ?? false,
+              });
+            }
+          }
+        }
+
         const nextSettings: UserSettings = {
           ...settings,
           preset: importedPreset,
+          presetRegexScripts: importedRegexScripts,
           promptConfig: {
             ...settings.promptConfig,
             mainPrompt: finalMainPrompt,
@@ -680,7 +733,10 @@ export const useSettings = () => {
           },
         };
  
-        const messageDetails = `采样器参数覆盖：温度 ${temp}, TopP ${topP}, 词重复惩罚 ${repPen}`;
+        let messageDetails = `采样器参数覆盖：温度 ${temp}, TopP ${topP}, 词重复惩罚 ${repPen}`;
+        if (importedRegexScripts.length > 0) {
+          messageDetails += `\n\n检测到预设专属正则脚本共 ${importedRegexScripts.length} 个。已随此预设一同保存并在激活此预设时生效。`;
+        }
  
         updateSettings(nextSettings);
         showCustomAlert(
@@ -718,6 +774,9 @@ export const useSettings = () => {
       user_sequence_end: settings.promptConfig.userSuffix,
       assistant_sequence_start: settings.promptConfig.assistantPrefix,
       assistant_sequence_end: settings.promptConfig.assistantSuffix,
+      extensions: {
+        regex_scripts: settings.presetRegexScripts || [],
+      },
     };
 
     const content = JSON.stringify(bundleData, null, 2);
@@ -761,6 +820,7 @@ export const useSettings = () => {
         name,
       },
       promptConfig: { ...settings.promptConfig },
+      presetRegexScripts: settings.presetRegexScripts ? [...settings.presetRegexScripts] : [],
     };
 
     const nextSaved = [...(settings.savedPresets || []), newBundle];
@@ -768,9 +828,11 @@ export const useSettings = () => {
       ...settings,
       preset: newBundle.preset,
       promptConfig: newBundle.promptConfig,
+      presetRegexScripts: newBundle.presetRegexScripts,
       savedPresets: nextSaved,
     };
     updateSettings(nextSettings);
+    await saveStoredSavedPresets(nextSaved);
     await showCustomAlert(`成功保存新预设：${name}`);
   }, [settings, showCustomPrompt, updateSettings, showCustomAlert]);
 
@@ -787,6 +849,7 @@ export const useSettings = () => {
       ...settings,
       preset: mergedPreset,
       promptConfig: bundle.promptConfig,
+      presetRegexScripts: bundle.presetRegexScripts || [],
     });
   }, [settings, updateSettings]);
 
@@ -819,6 +882,7 @@ export const useSettings = () => {
       promptConfig: nextPromptConfig,
       savedPresets: nextSaved,
     });
+    await saveStoredSavedPresets(nextSaved);
   }, [settings, showCustomConfirm, updateSettings]);
 
   const handleToggleCustomPrompt = useCallback((id: string, enabled: boolean) => {

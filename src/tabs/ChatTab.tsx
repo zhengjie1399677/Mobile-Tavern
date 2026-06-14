@@ -24,6 +24,7 @@ import {
 import { saveSession } from "../utils/localDB";
 import { initTavernHelperBridge, cleanTavernHelperBridge, createScriptIframeSrcDoc } from "../utils/tavernHelperBridge";
 import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
+import { MemoryTableDrawer } from "../components/MemoryTableDrawer";
 
 const isSafeRegex = (pattern: string): boolean => {
   if (!pattern) return true;
@@ -272,6 +273,7 @@ export default function ChatTab() {
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = React.useState(false);
   const [visibleExtensions, setVisibleExtensions] = React.useState<string[]>(["condition", "inventory", "bonding"]);
   const [showExtDropdown, setShowExtDropdown] = React.useState(false);
+  const [isTableDrawerOpen, setIsTableDrawerOpen] = React.useState(false);
 
   const hasExpressions = React.useMemo(() => {
     if (!activeCharacter) return false;
@@ -527,6 +529,15 @@ export default function ChatTab() {
 
         {/* Chat sub tabs switches and settings dropdown */}
         <div className="flex items-center gap-1.5 relative">
+          {settings.enableTableMemory && activeSession && (
+            <button
+              onClick={() => setIsTableDrawerOpen(true)}
+              className="p-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center gap-1 shrink-0 font-sans text-xs font-bold"
+              title="记忆档案柜"
+            >
+              <span>🌟 记忆柜</span>
+            </button>
+          )}
           <div className="flex bg-muted p-0.5 rounded-lg border border-border">
             <button
               onClick={() => setChatSubTab("dialogue")}
@@ -1257,6 +1268,15 @@ export default function ChatTab() {
         character={activeCharacter}
         onClose={() => setIsDetailDrawerOpen(false)}
       />
+      {activeSession && activeCharacter && (
+        <MemoryTableDrawer
+          isOpen={isTableDrawerOpen}
+          onClose={() => setIsTableDrawerOpen(false)}
+          activeSession={activeSession}
+          saveSession={saveSession}
+          charName={activeCharacter.name}
+        />
+      )}
     </div>
   );
 }

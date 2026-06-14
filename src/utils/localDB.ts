@@ -189,6 +189,33 @@ export async function saveStoredSettings(
   });
 }
 
+export async function getStoredSavedPresets(): Promise<any[] | null> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("settings", "readonly");
+    const store = transaction.objectStore("settings");
+    const request = store.get("saved_presets_bundle");
+
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function saveStoredSavedPresets(presets: any[]): Promise<void> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("settings", "readwrite");
+      const store = transaction.objectStore("settings");
+      const request = store.put(presets, "saved_presets_bundle");
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  });
+}
+
+
 export async function getStoredDefaultCharactersInitializedFlag(): Promise<boolean> {
   const db = await getDB();
   return new Promise((resolve, reject) => {

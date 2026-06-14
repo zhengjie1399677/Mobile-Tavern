@@ -94,6 +94,7 @@ export interface ChatSession {
   summaries: SummaryCard[]; // Timeline summaries
   lastSummarizedMessageId?: string; // Tracks up to which message the summary has covered
   variables?: Record<string, any>; // Chat session local variables
+  tableMemory?: TableMemorySheet[]; // Structured memory sheets for stateful RP tracking
 }
 
 export type ApiType = "openai-compat";
@@ -178,6 +179,7 @@ export interface SavedPresetBundle {
   id: string;
   preset: SamplerPreset;
   promptConfig: PromptConfig;
+  presetRegexScripts?: RegexScript[];
 }
 
 export interface UserSettings {
@@ -202,4 +204,31 @@ export interface UserSettings {
   enableChatBgAnimation?: boolean; // Whether to enable Ken Burns animation
   savedApiProfiles?: ApiProfile[];
   currentApiProfileId?: string;
+  globalRegexScripts?: RegexScript[];
+  presetRegexScripts?: RegexScript[];
+  enableTableMemory?: boolean; // Enable memory table enhancement
+  tableMemoryCheckFrequency?: number; // Frequency to let AI check and update memory (e.g. 1 turn, 3 turns)
 }
+
+export interface RegexScript {
+  id: string;
+  scriptName: string;
+  findRegex: string; // Regexp pattern e.g. /pattern/flags
+  replaceString: string; // Substitution text
+  disabled: boolean; // Enabled toggle
+  placement: number[]; // e.g. [1, 2] (1 = input, 2 = output)
+  runOnEdit?: boolean;
+  markdownOnly?: boolean;
+  promptOnly?: boolean;
+}
+
+export interface TableMemorySheet {
+  id: string;          // Unique Sheet ID
+  name: string;        // Sheet name (e.g. "人物属性", "好感关系", "背包状态")
+  columns: string[];   // Column names (e.g. ["角色", "好感值", "备注"])
+  rows: string[][];    // 2D grid of values
+  enable: boolean;     // Whether to inject to AI context
+  description?: string;// Guide for the AI (e.g. "用于记录玩家和你的好感阶段")
+}
+
+

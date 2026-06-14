@@ -274,7 +274,9 @@ function preprocessFormattedText(
   charName: string,
   userName: string,
   activeCharacter: any,
-  enableScriptExecution: boolean
+  enableScriptExecution: boolean,
+  globalRegexScripts?: any[],
+  presetRegexScripts?: any[]
 ): string {
   if (!text) return "";
 
@@ -285,44 +287,77 @@ function preprocessFormattedText(
     .replace(/\{\{user\}\}/gi, userName)
     .replace(/<USER>/gi, userName);
 
-  // 2. SillyTavern Regex Script Extensions matching
-  if (enableScriptExecution && activeCharacter?.extensions?.regex_scripts) {
-    const scripts = activeCharacter.extensions.regex_scripts;
-    for (const script of scripts) {
-      if (script.disabled) continue;
-      if (script.promptOnly) continue;
-
-      const placement = script.placement;
-      if (Array.isArray(placement) && !placement.includes(1) && !placement.includes(2)) {
-        continue;
+  // 2. 合并全局、预设与角色局部已启用正则
+  const mergedScripts: any[] = [];
+  
+  // 全局正则
+  if (Array.isArray(globalRegexScripts)) {
+    for (const script of globalRegexScripts) {
+      if (!script.disabled) {
+        mergedScripts.push(script);
       }
+    }
+  }
 
-      const findRegex = script.findRegex;
-      const replaceString = script.replaceString || "";
-      if (!findRegex) continue;
-
-      // ReDoS pattern protection: block patterns with nested/repeated quantifiers
-      const trimmed = findRegex.trim();
-      if (/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(trimmed) || /(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(trimmed)) {
-        console.warn("Potential ReDoS pattern skipped in FormattedText regex script:", trimmed);
-        continue;
-      }
-
-      try {
-        let regex: RegExp;
-        const match = findRegex.match(/^\/(.*)\/([gimsuy]*)$/);
-        if (match) {
-          regex = new RegExp(match[1], match[2]);
-        } else {
-          // SillyTavern Regex scripts are always regular expressions.
-          // If they don't start with slashes, they should be compiled as RegExp directly without escaping.
-          // We default to global 'g' and case-insensitive 'i' for compatibility.
-          regex = new RegExp(findRegex, "gi");
+  // 预设正则
+  if (Array.isArray(presetRegexScripts)) {
+    for (const script of presetRegexScripts) {
+      if (!script.disabled) {
+        const exists = mergedScripts.some(
+          (s) => s.id === script.id || (s.scriptName === script.scriptName && s.findRegex === script.findRegex)
+        );
+        if (!exists) {
+          mergedScripts.push(script);
         }
-        processed = processed.replace(regex, replaceString);
-      } catch (err) {
-        console.warn("Failed to apply regex script:", findRegex, err);
       }
+    }
+  }
+  
+  // 角色局部正则
+  if (activeCharacter?.extensions?.regex_scripts && Array.isArray(activeCharacter.extensions.regex_scripts)) {
+    for (const script of activeCharacter.extensions.regex_scripts) {
+      if (!script.disabled) {
+        const exists = mergedScripts.some(
+          (s) => s.id === script.id || (s.scriptName === script.scriptName && s.findRegex === script.findRegex)
+        );
+        if (!exists) {
+          mergedScripts.push(script);
+        }
+      }
+    }
+  }
+
+  // 依次执行过滤清洗
+  for (const script of mergedScripts) {
+    if (script.promptOnly) continue;
+
+    const placement = script.placement;
+    if (Array.isArray(placement) && !placement.includes(2)) {
+      continue;
+    }
+
+    const findRegex = script.findRegex;
+    const replaceString = script.replaceString || "";
+    if (!findRegex) continue;
+
+    // ReDoS pattern protection: block patterns with nested/repeated quantifiers
+    const trimmed = findRegex.trim();
+    if (/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(trimmed) || /(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(trimmed)) {
+      console.warn("Potential ReDoS pattern skipped in FormattedText regex script:", trimmed);
+      continue;
+    }
+
+    try {
+      let regex: RegExp;
+      const match = findRegex.match(/^\/(.*)\/([gimsuy]*)$/);
+      if (match) {
+        regex = new RegExp(match[1], match[2]);
+      } else {
+        regex = new RegExp(findRegex, "gi");
+      }
+      processed = processed.replace(regex, replaceString);
+    } catch (err) {
+      console.warn("Failed to apply regex script:", findRegex, err);
     }
   }
 
@@ -336,11 +371,6 @@ function preprocessFormattedText(
         .replace(/&/g, "&amp;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
-      // CRITICAL: Do NOT set a fixed height here.
-      // React re-renders on every streaming token (~60ms) and would override
-      // any height set by the iframe's auto-height script via window.frameElement.
-      // By only setting min-height (not height), React won't touch the actual
-      // rendered height, so the iframe can grow freely via the internal script.
       return `<iframe srcdoc="${escapedHtml}" style="width: 100%; min-height: 400px; border: none; display: block;" class="w-full mvu-message-iframe"></iframe>`;
     });
   }
@@ -361,13 +391,17 @@ const FormattedText = memo(function FormattedText({
   const enableScriptExecution = !!context?.settings?.enableScriptExecution;
   const activeCharacter = context?.activeCharacter;
   const enableAsteriskFormatting = !!activeCharacter?.visualSettings?.enableAsteriskFormatting;
+  const globalRegexScripts = context?.settings?.globalRegexScripts;
+  const presetRegexScripts = context?.settings?.presetRegexScripts;
 
   const processed = preprocessFormattedText(
     text,
     charName,
     userName,
     activeCharacter,
-    enableScriptExecution
+    enableScriptExecution,
+    globalRegexScripts,
+    presetRegexScripts
   );
 
   // Quick detection: if text contains tags and html rendering is active, use DOM parser

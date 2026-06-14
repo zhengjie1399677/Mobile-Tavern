@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
-import { Message, ChatSession, SummaryCard, UserSettings, LorebookEntry } from "../types";
+import { Message, ChatSession, SummaryCard, UserSettings, LorebookEntry, TableMemorySheet } from "../types";
 import { assemblePromptContext } from "../utils/promptBuilder";
 import { reportUsage, incrementUsageCount } from "../utils/telemetry";
 import { universalFetch, FALLBACK_MODEL, API_ENDPOINT } from "../utils/apiClient";
@@ -14,6 +14,119 @@ import { getAllSessions } from "../utils/localDB";
 const generateUniqueId = (prefix: string): string => {
   return prefix + Math.random().toString(36).substring(2, 9);
 };
+
+export function processTableMemoryActions(
+  tableMemory: TableMemorySheet[] = [],
+  rawContent: string
+): { updatedMemory: TableMemorySheet[]; cleanContent: string; hasChanges: boolean } {
+  let cleanContent = rawContent;
+  let hasChanges = false;
+  const currentMemory = tableMemory.map(s => ({
+    ...s,
+    columns: [...s.columns],
+    rows: s.rows.map(r => [...r])
+  }));
+
+  // Regular expression to scan memory update actions: e.g. updateRow("sheet", {...})
+  // matches updateRow, insertRow, deleteRow (case-insensitive)
+  const actionRegex = /(updateRow|insertRow|deleteRow)\s*\(\s*(['"`])(.*?)\2\s*,\s*(\{[\s\S]*?\})(?:\s*,\s*(\{[\s\S]*?\}))?\s*\)/gi;
+
+  let match;
+  const matchesToClean: string[] = [];
+
+  while ((match = actionRegex.exec(rawContent)) !== null) {
+    const fullMatch = match[0];
+    const actionType = match[1].toLowerCase();
+    const sheetName = match[3];
+    const param1Str = match[4];
+    const param2Str = match[5];
+
+    matchesToClean.push(fullMatch);
+
+    try {
+      // Relaxed JSON parsing: replace single quotes and unquoted keys
+      const parseJsonObj = (str: string) => {
+        const formatted = str
+          .replace(/'/g, '"')
+          .replace(/([{,]\s*)([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*:/g, '$1"$2":');
+        return JSON.parse(formatted);
+      };
+
+      const p1 = parseJsonObj(param1Str);
+      const p2 = param2Str ? parseJsonObj(param2Str) : null;
+
+      const sheetIndex = currentMemory.findIndex(s => s.name === sheetName);
+      if (sheetIndex !== -1) {
+        const sheet = currentMemory[sheetIndex];
+
+        if (actionType === "updaterow") {
+          if (p2) {
+            // updateRow("sheet", {"定位列": "值"}, {"修改列": "新值"})
+            sheet.rows = sheet.rows.map(row => {
+              const matchesFilter = Object.entries(p1).every(([filterKey, filterVal]) => {
+                const colIdx = sheet.columns.indexOf(filterKey);
+                return colIdx !== -1 && String(row[colIdx]) === String(filterVal);
+              });
+              if (matchesFilter) {
+                hasChanges = true;
+                const nextRow = [...row];
+                Object.entries(p2).forEach(([key, val]) => {
+                  const colIdx = sheet.columns.indexOf(key);
+                  if (colIdx !== -1) {
+                    nextRow[colIdx] = String(val);
+                  }
+                });
+                return nextRow;
+              }
+              return row;
+            });
+          } else {
+            // updateRow("sheet", {"修改列": "新值"}) (default updates first row)
+            if (sheet.rows.length === 0) {
+              sheet.rows.push(sheet.columns.map(() => ""));
+            }
+            Object.entries(p1).forEach(([key, val]) => {
+              const colIdx = sheet.columns.indexOf(key);
+              if (colIdx !== -1) {
+                sheet.rows[0][colIdx] = String(val);
+                hasChanges = true;
+              }
+            });
+          }
+        } else if (actionType === "insertrow") {
+          // insertRow("sheet", {"col1": "val1"})
+          const newRow = sheet.columns.map(col => {
+            return p1[col] !== undefined ? String(p1[col]) : "";
+          });
+          sheet.rows.push(newRow);
+          hasChanges = true;
+        } else if (actionType === "deleterow") {
+          // deleteRow("sheet", {"col1": "val1"})
+          const prevLen = sheet.rows.length;
+          sheet.rows = sheet.rows.filter(row => {
+            const matchesFilter = Object.entries(p1).every(([filterKey, filterVal]) => {
+              const colIdx = sheet.columns.indexOf(filterKey);
+              return colIdx !== -1 && String(row[colIdx]) === String(filterVal);
+            });
+            return !matchesFilter;
+          });
+          if (sheet.rows.length !== prevLen) {
+            hasChanges = true;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`[TableMemory] Action parse failed: ${actionType} on ${sheetName}:`, e);
+    }
+  }
+
+  matchesToClean.forEach(m => {
+    cleanContent = cleanContent.replace(m, "");
+  });
+
+  cleanContent = cleanContent.replace(/\n{3,}/g, "\n\n").trim();
+  return { updatedMemory: currentMemory, cleanContent, hasChanges: hasChanges || cleanContent !== rawContent };
+}
 
 export const useChat = (
   settings: UserSettings,
@@ -356,15 +469,74 @@ export const useChat = (
       return session;
     }
     let updatedSession = session;
+
+    // 1. Initialize default table memory if enabled but not yet created
+    let currentMemory = updatedSession.tableMemory || [];
+    if (settings.enableTableMemory && currentMemory.length === 0 && activeCharacter) {
+      currentMemory = [
+        {
+          id: "sheet_status_and_relation",
+          name: "状态与关系",
+          columns: ["角色", "好感度", "亲密度", "当前状态描述"],
+          rows: [
+            [activeCharacter.name || "char", "50", "相识", "初次结识，关系尚显生疏"]
+          ],
+          enable: true,
+          description: "用于记录角色和你（{{user}}）之间的当前好感状态和亲密关系定位"
+        }
+      ];
+      updatedSession = {
+        ...updatedSession,
+        tableMemory: currentMemory
+      };
+    }
+
+    // 2. Parse table actions & clean raw instructions to prevent printing pseudocode to UI
+    if (messageToParse) {
+      try {
+        const { updatedMemory, cleanContent, hasChanges } = processTableMemoryActions(
+          currentMemory,
+          messageToParse
+        );
+
+        if (hasChanges || cleanContent !== messageToParse) {
+          let updatedMessages = updatedSession.messages;
+          if (updatedMessages.length > 0) {
+            const lastMsg = { ...updatedMessages[updatedMessages.length - 1] } as any;
+            if (lastMsg.sender === "assistant") {
+              lastMsg.content = cleanContent;
+              updatedMessages = [
+                ...updatedMessages.slice(0, -1),
+                lastMsg
+              ];
+            }
+          }
+          updatedSession = {
+            ...updatedSession,
+            tableMemory: updatedMemory,
+            messages: updatedMessages
+          };
+
+          setSessions((prev) =>
+            prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+          );
+        }
+      } catch (tableErr) {
+        console.warn("[TableMemory] Failed to process table actions:", tableErr);
+      }
+    }
+
+    // 3. Process standard MVU scripts
     if (settings.enableScriptExecution && messageToParse) {
       try {
         console.log("[MVU Debug] saveSessionWithMvu: Parsing message...", { messageToParse });
-        const parsedVariables = parseMvuMessage(messageToParse, session.variables || {});
+        // Use cleanContent or raw text for MVU
+        const parsedVariables = parseMvuMessage(messageToParse, updatedSession.variables || {});
         console.log("[MVU Debug] Parsed variables:", parsedVariables);
         
-        let updatedMessages = session.messages;
-        if (session.messages.length > 0) {
-          const lastMsg = { ...session.messages[session.messages.length - 1] } as any;
+        let updatedMessages = updatedSession.messages;
+        if (updatedMessages.length > 0) {
+          const lastMsg = { ...updatedMessages[updatedMessages.length - 1] } as any;
           const swipeId = lastMsg.swipe_id !== undefined ? lastMsg.swipe_id : 0;
           const extra = { ...lastMsg.extra };
           if (!extra.variables) extra.variables = {};
@@ -373,17 +545,16 @@ export const useChat = (
             [swipeId]: parsedVariables,
           };
           lastMsg.extra = extra;
-          // Also set variables directly at message level for compatibility
           lastMsg.variables = extra.variables;
           updatedMessages = [
-            ...session.messages.slice(0, -1),
+            ...updatedSession.messages.slice(0, -1),
             lastMsg,
           ];
           console.log(`[MVU Debug] Synced parsed variables to last message (swipeId: ${swipeId})`);
         }
 
         updatedSession = {
-          ...session,
+          ...updatedSession,
           variables: parsedVariables,
           messages: updatedMessages,
         };
@@ -391,15 +562,15 @@ export const useChat = (
         setSessions((prev) =>
           prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
         );
-        // Notify iframe scripts that variables have been updated so they can refresh their UI
         notifyVariablesUpdated(updatedSession);
       } catch (e) {
         console.warn("Failed to parse MVU message:", e);
       }
     }
+
     await saveSession(updatedSession);
     return updatedSession;
-  }, [settings.enableScriptExecution, saveSession, setSessions]);
+  }, [settings.enableScriptExecution, settings.enableTableMemory, activeCharacter, saveSession, setSessions]);
 
 
   const handleSendMessage = useCallback(async (textToSend: string) => {

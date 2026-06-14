@@ -86,8 +86,64 @@ export default function SettingsTab() {
     setActiveTab,
     showCustomPrompt,
     showCustomConfirm,
+    showCustomAlert,
+    activeCharacter,
   } = useContext(AppContext);
   const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
+
+  // 全局正则脚本管理器状态
+  const [editingRegex, setEditingRegex] = React.useState<any>(null);
+  const [isRegexModalOpen, setIsRegexModalOpen] = React.useState(false);
+
+  const toggleRegexDisabled = (id: string, disabled: boolean, scope: "global" | "preset") => {
+    updateSettings((prev) => {
+      const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
+      const list = (prev as any)[field] || [];
+      return {
+        ...prev,
+        [field]: list.map((r: any) => (r.id === id ? { ...r, disabled } : r)),
+      };
+    });
+  };
+
+  const deleteRegex = async (id: string, name: string, scope: "global" | "preset") => {
+    const scopeName = scope === "global" ? "全局" : "预设专属";
+    const ok = await showCustomConfirm(`确定要删除${scopeName}正则脚本【${name}】吗？`);
+    if (!ok) return;
+    updateSettings((prev) => {
+      const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
+      const list = (prev as any)[field] || [];
+      return {
+        ...prev,
+        [field]: list.filter((r: any) => r.id !== id),
+      };
+    });
+  };
+
+  const saveRegex = (reg: any) => {
+    if (!reg.scriptName || !reg.scriptName.trim() || !reg.findRegex || !reg.findRegex.trim()) {
+      showCustomAlert("脚本名称和正则表达式匹配串不能为空！");
+      return;
+    }
+    const scope = reg.scope || "global";
+    updateSettings((prev) => {
+      const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
+      const list = (prev as any)[field] || [];
+      const exists = list.some((r: any) => r.id === reg.id);
+      let nextList;
+      if (exists) {
+        nextList = list.map((r) => (r.id === reg.id ? reg : r));
+      } else {
+        nextList = [...list, reg];
+      }
+      return {
+        ...prev,
+        [field]: nextList,
+      };
+    });
+    setIsRegexModalOpen(false);
+    setEditingRegex(null);
+  };
 
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
   const lastApiRef = React.useRef(JSON.stringify(settings.api));
@@ -1168,6 +1224,255 @@ export default function SettingsTab() {
                           </button>
                         </div>
                       </div>
+
+                      {/* 全局正则脚本管理器 */}
+                      <div className="pt-5 border-t border-border/50 space-y-5 animate-in fade-in duration-300">
+                        {/* 轨1. 全局正则 */}
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <div className="space-y-0.5">
+                              <span className="block text-[11px] font-bold text-primary">
+                                🌌 全局正则脚本 (Global Regex)
+                              </span>
+                              <span className="text-[9.5px] text-muted-foreground block">
+                                对所有角色和所有预设生效，保存在全局设置中
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingRegex({
+                                  id: "reg_" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+                                  scriptName: "",
+                                  findRegex: "",
+                                  replaceString: "",
+                                  disabled: false,
+                                  placement: [2],
+                                  runOnEdit: true,
+                                  markdownOnly: false,
+                                  promptOnly: false,
+                                  scope: "global",
+                                });
+                                setIsRegexModalOpen(true);
+                              }}
+                              className="text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 border border-primary/25 rounded-md flex items-center gap-1 transition tap-scale"
+                            >
+                              <Plus className="w-2.5 h-2.5" /> 新建全局
+                            </button>
+                          </div>
+
+                          {(!settings.globalRegexScripts || settings.globalRegexScripts.length === 0) ? (
+                            <div className="border border-dashed border-border/50 rounded-xl p-4 text-center text-muted-foreground flex flex-col items-center justify-center gap-1.5">
+                              <span className="text-[10px] font-light text-muted-foreground/60 leading-relaxed">
+                                暂无全局正则脚本，可手动新建过滤 {"<think>"} 标签。
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                              {settings.globalRegexScripts.map((r) => (
+                                <div
+                                  key={r.id}
+                                  className={`border border-border/40 rounded-lg p-2 bg-muted/10 flex items-center justify-between gap-3 transition ${
+                                    r.disabled ? "opacity-60" : ""
+                                  }`}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-[11px] font-bold truncate max-w-[150px] ${r.disabled ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                                        {r.scriptName}
+                                      </span>
+                                      <span className="text-[8px] font-semibold px-1 py-0.2 border border-border/80 rounded bg-background text-muted-foreground">
+                                        {r.placement?.includes(1) && r.placement?.includes(2)
+                                          ? "双向"
+                                          : r.placement?.includes(1)
+                                          ? "输入"
+                                          : "输出"}
+                                      </span>
+                                    </div>
+                                    <div className="text-[9.5px] text-muted-foreground font-mono truncate mt-0.5 max-w-[220px]">
+                                      {r.findRegex} ➔ {r.replaceString === "" ? "(删除)" : r.replaceString}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0 scale-90">
+                                    <Switch
+                                      checked={!r.disabled}
+                                      onCheckedChange={(checked) => toggleRegexDisabled(r.id, !checked, "global")}
+                                      className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingRegex({ ...r, scope: "global" });
+                                        setIsRegexModalOpen(true);
+                                      }}
+                                      className="text-[9.5px] text-muted-foreground hover:text-primary transition font-semibold px-1.5 py-0.5 rounded hover:bg-muted"
+                                    >
+                                      编辑
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteRegex(r.id, r.scriptName, "global")}
+                                      className="text-[9.5px] text-rose-500 hover:text-rose-700 transition font-semibold px-1.5 py-0.5 rounded hover:bg-rose-950/20"
+                                    >
+                                      删除
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 轨2. 预设正则 */}
+                        <div className="space-y-3 pt-3 border-t border-border/40">
+                          <div className="flex justify-between items-center">
+                            <div className="space-y-0.5">
+                              <span className="block text-[11px] font-bold text-primary">
+                                📋 预设专属正则 (Preset Regex)
+                              </span>
+                              <span className="text-[9.5px] text-muted-foreground block">
+                                仅在当前预设 [{settings.preset.name}] 激活时生效，随预设一同保存导出
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingRegex({
+                                  id: "reg_" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+                                  scriptName: "",
+                                  findRegex: "",
+                                  replaceString: "",
+                                  disabled: false,
+                                  placement: [2],
+                                  runOnEdit: true,
+                                  markdownOnly: false,
+                                  promptOnly: false,
+                                  scope: "preset",
+                                });
+                                setIsRegexModalOpen(true);
+                              }}
+                              className="text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 border border-primary/25 rounded-md flex items-center gap-1 transition tap-scale"
+                            >
+                              <Plus className="w-2.5 h-2.5" /> 新建预设
+                            </button>
+                          </div>
+
+                          {(!settings.presetRegexScripts || settings.presetRegexScripts.length === 0) ? (
+                            <div className="border border-dashed border-border/50 rounded-xl p-4 text-center text-muted-foreground flex flex-col items-center justify-center gap-1.5">
+                              <span className="text-[10px] font-light text-muted-foreground/60 leading-relaxed">
+                                暂无预设专属正则脚本，导入预设时会自动解析导入。
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                              {settings.presetRegexScripts.map((r) => (
+                                <div
+                                  key={r.id}
+                                  className={`border border-border/40 rounded-lg p-2 bg-muted/10 flex items-center justify-between gap-3 transition ${
+                                    r.disabled ? "opacity-60" : ""
+                                  }`}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-[11px] font-bold truncate max-w-[150px] ${r.disabled ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                                        {r.scriptName}
+                                      </span>
+                                      <span className="text-[8px] font-semibold px-1 py-0.2 border border-border/80 rounded bg-background text-muted-foreground">
+                                        {r.placement?.includes(1) && r.placement?.includes(2)
+                                          ? "双向"
+                                          : r.placement?.includes(1)
+                                          ? "输入"
+                                          : "输出"}
+                                      </span>
+                                    </div>
+                                    <div className="text-[9.5px] text-muted-foreground font-mono truncate mt-0.5 max-w-[220px]">
+                                      {r.findRegex} ➔ {r.replaceString === "" ? "(删除)" : r.replaceString}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0 scale-90">
+                                    <Switch
+                                      checked={!r.disabled}
+                                      onCheckedChange={(checked) => toggleRegexDisabled(r.id, !checked, "preset")}
+                                      className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingRegex({ ...r, scope: "preset" });
+                                        setIsRegexModalOpen(true);
+                                      }}
+                                      className="text-[9.5px] text-muted-foreground hover:text-primary transition font-semibold px-1.5 py-0.5 rounded hover:bg-muted"
+                                    >
+                                      编辑
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteRegex(r.id, r.scriptName, "preset")}
+                                      className="text-[9.5px] text-rose-500 hover:text-rose-700 transition font-semibold px-1.5 py-0.5 rounded hover:bg-rose-950/20"
+                                    >
+                                      删除
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 轨3. 角色局部正则（只读展示） */}
+                        <div className="space-y-3 pt-3 border-t border-border/40">
+                          <div className="space-y-0.5">
+                            <span className="block text-[11px] font-bold text-primary">
+                              🎭 活跃角色专属局部正则 (Character Local Regex)
+                            </span>
+                            <span className="text-[9.5px] text-muted-foreground block">
+                              仅当活跃角色 [{activeCharacter?.name || "未选择"}] 开启时生效，保存在角色卡 extensions 中 (只读展示)
+                            </span>
+                          </div>
+
+                          {(!activeCharacter || !activeCharacter.extensions?.regex_scripts || activeCharacter.extensions.regex_scripts.length === 0) ? (
+                            <div className="border border-dashed border-border/50 rounded-xl p-4 text-center text-muted-foreground flex flex-col items-center justify-center gap-1.5">
+                              <span className="text-[10px] font-light text-muted-foreground/60 leading-relaxed">
+                                当前角色暂无专属局部正则。可导出角色卡 JSON 手动修改 extensions.regex_scripts 声明。
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1 opacity-75">
+                              {activeCharacter.extensions.regex_scripts.map((r: any) => (
+                                <div
+                                  key={r.id || r.scriptName}
+                                  className={`border border-border/30 rounded-lg p-2 bg-muted/5 flex items-center justify-between gap-3 ${
+                                    r.disabled ? "opacity-50" : ""
+                                  }`}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-[11px] font-semibold truncate max-w-[150px] ${r.disabled ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                                        {r.scriptName}
+                                      </span>
+                                      <span className="text-[8px] font-semibold px-1 py-0.2 border border-border/80 rounded bg-background text-muted-foreground">
+                                        {r.placement?.includes(1) && r.placement?.includes(2)
+                                          ? "双向"
+                                          : r.placement?.includes(1)
+                                          ? "输入"
+                                          : "输出"}
+                                      </span>
+                                    </div>
+                                    <div className="text-[9.5px] text-muted-foreground font-mono truncate mt-0.5 max-w-[250px]">
+                                      {r.findRegex} ➔ {r.replaceString === "" ? "(删除)" : r.replaceString}
+                                    </div>
+                                  </div>
+                                  <div className="text-[9.5px] text-muted-foreground shrink-0 select-none">
+                                    {r.disabled ? "已禁用" : "已启用"}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1545,6 +1850,51 @@ export default function SettingsTab() {
                     )}
                   </div>
 
+                  {/* 3. 表格记忆（记忆档案柜）配置 */}
+                  <div className="space-y-3 mt-4 pt-4 border-t border-border/50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-foreground text-[13px] flex items-center gap-2">
+                          结构化记忆表格 (Table Memory){" "}
+                          <Switch
+                            checked={!!settings.enableTableMemory}
+                            onCheckedChange={(val) =>
+                              updateSettings({
+                                ...settings,
+                                enableTableMemory: val,
+                              })
+                            }
+                            className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                          />
+                        </span>
+                        <span className="text-[10px] text-muted-foreground mt-0.5">
+                          将好感、人物关系等属性以表格形式整理并静默喂给 AI 记忆
+                        </span>
+                      </div>
+                    </div>
+                    {settings.enableTableMemory && (
+                      <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border">
+                        <span className="text-[11px] text-muted-foreground font-semibold">
+                          AI 表格检查更新频率 (每几轮对话让 AI 检查并修改数据)
+                        </span>
+                        <select
+                          value={settings.tableMemoryCheckFrequency || 1}
+                          onChange={(e) =>
+                            updateSettings({
+                              ...settings,
+                              tableMemoryCheckFrequency: parseInt(e.target.value) || 1,
+                            })
+                          }
+                          className="bg-muted border border-border rounded px-1.5 py-1 text-xs outline-none focus:border-primary font-bold text-foreground"
+                        >
+                          <option value="1">每 1 轮 (最实时)</option>
+                          <option value="3">每 3 轮 (推荐)</option>
+                          <option value="5">每 5 轮 (省 token)</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
                   <Accordion type="single" collapsible className="w-full mt-4 border-t border-border/50 pt-4">
                     <AccordionItem value="advanced-templates" className="border-none">
                       <AccordionTrigger className="py-2 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
@@ -1703,6 +2053,121 @@ export default function SettingsTab() {
           </TabsContent>
         </div>
       </Tabs>
+
+      {/* 新建/编辑正则 Modal 浮窗 */}
+      {isRegexModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-background border border-border rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
+            <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-foreground">
+                {editingRegex?.id?.startsWith("reg_") ? "新建全局正则脚本" : "编辑全局正则脚本"}
+              </h3>
+              <button
+                onClick={() => {
+                  setIsRegexModalOpen(false);
+                  setEditingRegex(null);
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground transition font-semibold"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="p-4 space-y-4 overflow-y-auto max-h-[70vh]">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-muted-foreground block">脚本名称</label>
+                <Input
+                  value={editingRegex?.scriptName || ""}
+                  onChange={(e) =>
+                    setEditingRegex((prev: any) => ({ ...prev, scriptName: e.target.value }))
+                  }
+                  placeholder="例如：隐藏思维链"
+                  className="h-9 text-xs bg-input/50"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-muted-foreground block">匹配正则表达式 (支持 /pattern/flags 格式)</label>
+                <Input
+                  value={editingRegex?.findRegex || ""}
+                  onChange={(e) =>
+                    setEditingRegex((prev: any) => ({ ...prev, findRegex: e.target.value }))
+                  }
+                  placeholder="例如：/<think>[\s\S]*?<\/think>/gi"
+                  className="h-9 text-xs font-mono bg-input/50"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-muted-foreground block">替换文本 (可以使用 $1, $2 占位符)</label>
+                <Input
+                  value={editingRegex?.replaceString || ""}
+                  onChange={(e) =>
+                    setEditingRegex((prev: any) => ({ ...prev, replaceString: e.target.value }))
+                  }
+                  placeholder="例如：（留空代表直接删除匹配内容）"
+                  className="h-9 text-xs bg-input/50"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-muted-foreground block">作用阶段 (Placement)</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingRegex?.placement?.includes(1) || false}
+                      onChange={(e) => {
+                        const current = editingRegex?.placement || [2];
+                        let next;
+                        if (e.target.checked) {
+                          next = [...current.filter((x: any) => x !== 1), 1];
+                        } else {
+                          next = current.filter((x: any) => x !== 1);
+                        }
+                        setEditingRegex((prev: any) => ({ ...prev, placement: next }));
+                      }}
+                      className="w-3.5 h-3.5 rounded border-border bg-input text-primary accent-primary"
+                    />
+                    输入阶段 (拦截发送)
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingRegex?.placement?.includes(2) || false}
+                      onChange={(e) => {
+                        const current = editingRegex?.placement || [2];
+                        let next;
+                        if (e.target.checked) {
+                          next = [...current.filter((x: any) => x !== 2), 2];
+                        } else {
+                          next = current.filter((x: any) => x !== 2);
+                        }
+                        setEditingRegex((prev: any) => ({ ...prev, placement: next }));
+                      }}
+                      className="w-3.5 h-3.5 rounded border-border bg-input text-primary accent-primary"
+                    />
+                    输出阶段 (渲染渲染)
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t border-border bg-muted/20 flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setIsRegexModalOpen(false);
+                  setEditingRegex(null);
+                }}
+                className="px-3 py-1.5 text-xs font-medium border border-border bg-background hover:bg-muted rounded-md transition"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => saveRegex(editingRegex)}
+                className="px-4 py-1.5 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

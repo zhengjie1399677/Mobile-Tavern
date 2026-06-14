@@ -460,6 +460,36 @@ export function assemblePromptContext(params: {
     userPersonaSection = formatSectionText("userPersona", "", personaText, true);
   }
 
+  // 3.5 表格记忆（记忆档案柜）上下文注入
+  let tableMemorySection = "";
+  if (settings.enableTableMemory && chat.tableMemory && chat.tableMemory.length > 0) {
+    const activeSheets = chat.tableMemory.filter(s => s.enable);
+    if (activeSheets.length > 0) {
+      const sheetsMarkdown = activeSheets.map(sheet => {
+        const title = `### 表格：${sheet.name}`;
+        const desc = sheet.description ? `*用途说明: ${sheet.description}*` : "";
+        const header = `| ${sheet.columns.join(" | ")} |`;
+        const divider = `| ${sheet.columns.map(() => "---").join(" | ")} |`;
+        const rows = sheet.rows.map(row => `| ${row.join(" | ")} |`).join("\n");
+        return `${title}\n${desc}\n${header}\n${divider}\n${rows}`;
+      }).join("\n\n");
+
+      const systemGuidance = `=== 🎯 长期状态与记忆档案柜 ===
+以下是当前扮演会话中记录的结构化状态与记忆表格。
+在生成下一轮扮演回复时，请根据聊天发展，在回复内容的【最末尾】输出更新指令伪代码（由你自主决定是否更新，只能包含合法可执行的代码，不要添加多余文字解释），指令格式如下：
+- 若更新已有属性：updateRow("表格名", {"属性名": "要修改的值"}) 或者特定定位 updateRow("表格名", {"查找列名": "查找值"}, {"要修改的列名": "新值"})
+- 若新增属性/记录：insertRow("表格名", {"列1": "值1", "列2": "值2"})
+- 若删除属性/记录：deleteRow("表格名", {"定位列": "值"})
+指令示例（必须单独占行，置于你的回复文本最末尾）：
+updateRow("好感关系表", {"好感度": "85", "当前关系": "心动"})
+
+当前数据表格内容如下：
+${sheetsMarkdown}
+==================================`;
+      tableMemorySection = formatSectionText("tableMemory", "", systemGuidance, true);
+    }
+  }
+
   // 4. Character-bound specific system prompt if specified
   let charSpecificPrompt = "";
   if (character.system_prompt) {
@@ -586,6 +616,14 @@ ${scenarioBlock}
     compiledStory = compiledStory.replace(/\{\{jailbreak\}\}/gi, () => jailbreakSection);
   } else if (jailbreakSection) {
     compiledStory = compiledStory + `\n\n${jailbreakSection}`;
+  }
+
+  if (compiledStory.toLowerCase().includes("{{table_memory}}")) {
+    compiledStory = compiledStory.replace(/\{\{table_memory\}\}/gi, () => tableMemorySection);
+  } else if (compiledStory.toLowerCase().includes("{{tablememory}}")) {
+    compiledStory = compiledStory.replace(/\{\{tablememory\}\}/gi, () => tableMemorySection);
+  } else if (tableMemorySection) {
+    compiledStory = compiledStory + `\n\n${tableMemorySection}`;
   }
 
   // Remove {{post_history}} placeholder from static story since it is injected at the bottom of message history
