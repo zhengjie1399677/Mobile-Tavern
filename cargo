@@ -1,11 +1,22 @@
 #!/usr/bin/env node
+import fs from 'fs';
+import path from 'path';
 const p = process.cwd();
+
+let ver = "1.4.0";
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(p, 'package.json'), 'utf8'));
+  if (pkg && pkg.version) {
+    ver = pkg.version;
+  }
+} catch (err) {}
+
 if (process.argv.includes("metadata")) {
   console.log(JSON.stringify({
     packages: [{
       name: "app", 
-      version: "0.1.0",
-      id: "app 0.1.0 (path+file://" + p + ")",
+      version: ver,
+      id: "app " + ver + " (path+file://" + p + ")",
       source: null,
       dependencies: [{
         name: "tauri",
@@ -23,11 +34,11 @@ if (process.argv.includes("metadata")) {
       features: {},
       manifest_path: p + "/Cargo.toml"
     }],
-    workspace_members: ["app 0.1.0 (path+file://" + p + ")"],
+    workspace_members: ["app " + ver + " (path+file://" + p + ")"],
     workspace_root: p,
     target_directory: p + "/target",
     version: 1,
-    workspace_default_members: ["app 0.1.0 (path+file://" + p + ")"],
+    workspace_default_members: ["app " + ver + " (path+file://" + p + ")"],
     resolve: null
   }));
 } else if (process.argv.includes("tauri-build")) {
