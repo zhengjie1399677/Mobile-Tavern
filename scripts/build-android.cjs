@@ -1,4 +1,16 @@
 const { execSync } = require('child_process');
+const path = require('path');
+
+// Add current directory to PATH to expose local mock scripts cargo.cmd and rustc.cmd
+const pathSeparator = process.platform === 'win32' ? ';' : ':';
+process.env.PATH = process.cwd() + pathSeparator + process.env.PATH;
+
+// Override ANDROID_HOME to the correct location on Windows and add platform-tools to PATH
+if (process.platform === 'win32') {
+  process.env.ANDROID_HOME = 'E:\\modules\\ide\\android-sdk';
+  process.env.PATH = process.env.ANDROID_HOME + '\\platform-tools' + pathSeparator + process.env.PATH;
+}
+
 
 console.log('Ensuring latest frontend is compiled...');
 try {
@@ -31,7 +43,10 @@ for (let i = 0; i < maxRetries; i++) {
     try {
       const gradlewTask = isCI ? 'assembleRelease' : 'assembleDebug';
       console.log(`Running gradlew ${gradlewTask} with detailed logging for diagnosis...`);
-      execSync(`cd src-tauri/gen/android && chmod +x gradlew && ./gradlew ${gradlewTask} --stacktrace --info`, { stdio: 'inherit', env: process.env });
+      const gradlewCmd = process.platform === 'win32'
+        ? `cd src-tauri/gen/android && gradlew.bat ${gradlewTask} --stacktrace --info`
+        : `cd src-tauri/gen/android && chmod +x gradlew && ./gradlew ${gradlewTask} --stacktrace --info`;
+      execSync(gradlewCmd, { stdio: 'inherit', env: process.env });
       console.log('Build succeeded via gradlew directly.');
       process.exit(0);
     } catch(err2) {
@@ -42,7 +57,12 @@ for (let i = 0; i < maxRetries; i++) {
       process.exit(1);
     }
     console.log('Cleaning before retrying...');
-    try { execSync('cd src-tauri/gen/android && ./gradlew clean', { stdio: 'inherit' }); } catch(e) {}
+    try {
+      const cleanCmd = process.platform === 'win32'
+        ? 'cd src-tauri/gen/android && gradlew.bat clean'
+        : 'cd src-tauri/gen/android && ./gradlew clean';
+      execSync(cleanCmd, { stdio: 'inherit' });
+    } catch(e) {}
     console.log('Retrying in 5 seconds...');
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000);
   }
