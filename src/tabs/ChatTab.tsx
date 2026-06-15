@@ -359,19 +359,7 @@ export default function ChatTab() {
     }
 
     if (typeof expressions === "object") {
-      const presetTriggers: Record<string, string> = settings.expressionTriggers || {
-        joy: "笑了|微笑|开心|😊|smile|joy|happy",
-        happy: "笑了|微笑|开心|😊|smile|joy|happy",
-        smile: "笑了|微笑|开心|😊|smile|joy|happy",
-        sadness: "哭|流泪|伤心|😢|cry|sad",
-        sad: "哭|流泪|伤心|😢|cry|sad",
-        cry: "哭|流泪|伤心|😢|cry|sad",
-        anger: "生气|愤怒|😡|angry|rage",
-        angry: "生气|愤怒|😡|angry|rage",
-        rage: "生气|愤怒|😡|angry|rage",
-        blush: "脸红|害羞|😳|blush|shy",
-        shy: "脸红|害羞|😳|blush|shy",
-      };
+      const presetTriggers: Record<string, string> = settings.expressionTriggers || {};
 
       if (lastAiText) {
         for (const key of Object.keys(expressions)) {
@@ -442,19 +430,7 @@ export default function ChatTab() {
     }
 
     if (typeof expressions === "object") {
-      const presetTriggers: Record<string, string> = settings.expressionTriggers || {
-        joy: "笑了|微笑|开心|😊|smile|joy|happy",
-        happy: "笑了|微笑|开心|😊|smile|joy|happy",
-        smile: "笑了|微笑|开心|😊|smile|joy|happy",
-        sadness: "哭|流泪|伤心|😢|cry|sad",
-        sad: "哭|流泪|伤心|😢|cry|sad",
-        cry: "哭|流泪|伤心|😢|cry|sad",
-        anger: "生气|愤怒|😡|angry|rage",
-        angry: "生气|愤怒|😡|angry|rage",
-        rage: "生气|愤怒|😡|angry|rage",
-        blush: "脸红|害羞|😳|blush|shy",
-        shy: "脸红|害羞|😳|blush|shy",
-      };
+      const presetTriggers: Record<string, string> = settings.expressionTriggers || {};
 
       for (const key of Object.keys(expressions)) {
         const lowerKey = key.toLowerCase();
