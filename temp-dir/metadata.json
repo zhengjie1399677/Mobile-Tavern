@@ -1,6 +1,0 @@
-{
-  "name": "GitHub Project Workspace",
-  "description": "A workspace for importing, refactoring, and developing projects from GitHub.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

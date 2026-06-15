@@ -4,6 +4,8 @@
  * (for Android/Desktop client builds bypassing CORS) and local Express Proxy fetches (for Web browsers).
  */
 
+declare const IS_MOBILE_NATIVE: boolean;
+
 // 动态载入的 tauri http client 的 fetch
 let tauriFetch: typeof fetch | null = null;
 if (typeof window !== "undefined") {
@@ -156,13 +158,18 @@ export const universalFetch = async (
   }
 
   // ── Web browser path: delegate to Express proxy (unless bypassed) ────────
-  if (!isTauri && !proxyPayload.bypassProxy) {
-    return fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(proxyPayload),
-      signal,
-    });
+  if (typeof IS_MOBILE_NATIVE !== "undefined" && IS_MOBILE_NATIVE) {
+    // In mobile native builds, bypass local Express proxy and always use direct fetch.
+    // The else branch below will be completely tree-shaken in production builds.
+  } else {
+    if (!isTauri && !proxyPayload.bypassProxy) {
+      return fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(proxyPayload),
+        signal,
+      });
+    }
   }
 
   // ── Tauri path: direct HTTPS fetch ───────────────────────────────────────

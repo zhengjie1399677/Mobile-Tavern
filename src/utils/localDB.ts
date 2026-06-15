@@ -4,6 +4,7 @@ import {
   UserSettings,
   LorebookEntry,
 } from "../types";
+import { reportDbQueueTimeout } from "./telemetry";
 
 const DB_NAME = "MobileTavernLiteDB";
 const DB_VERSION = 5;
@@ -13,9 +14,29 @@ let dbInstance: IDBDatabase | null = null;
 // Global Promise-based queue to serialize all IndexedDB write operations sequentially.
 // This prevents concurrent write transactions from conflicting or deadlocking, which is critical in WebView environments.
 let writeQueue: Promise<any> = Promise.resolve();
+let activeWriteQueueCount = 0;
 
 function enqueueWrite<T>(operation: () => Promise<T>): Promise<T> {
-  const result = writeQueue.then(operation);
+  const enqueueTime = Date.now();
+  activeWriteQueueCount++;
+
+  const queuedOperation = async () => {
+    activeWriteQueueCount--;
+    const queueDelay = Date.now() - enqueueTime;
+    if (queueDelay > 3000) {
+      console.warn(`[localDB] Write queue delay exceeded threshold: ${queueDelay}ms. Reporting warning.`);
+      setTimeout(() => {
+        try {
+          reportDbQueueTimeout(queueDelay, activeWriteQueueCount + 1);
+        } catch (e) {
+          console.error("Failed to report queue timeout telemetry:", e);
+        }
+      }, 0);
+    }
+    return await operation();
+  };
+
+  const result = writeQueue.then(queuedOperation);
   // Chain the next task, catching any errors to ensure subsequent queue operations still run.
   writeQueue = result.then(
     () => {},

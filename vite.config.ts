@@ -5,6 +5,9 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    define: {
+      IS_MOBILE_NATIVE: process.env.NODE_ENV === 'production' || !!(process.env.TAURI_ENV_PLATFORM || process.env.TAURI_PLATFORM),
+    },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

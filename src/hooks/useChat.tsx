@@ -4,7 +4,7 @@ import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
 import { Message, ChatSession, SummaryCard, UserSettings, LorebookEntry, TableMemorySheet } from "../types";
 import { assemblePromptContext } from "../utils/promptBuilder";
-import { reportUsage, incrementUsageCount } from "../utils/telemetry";
+import { reportUsage, incrementUsageCount, reportLlmPerformance, reportChatLoadTime } from "../utils/telemetry";
 import { universalFetch, FALLBACK_MODEL, API_ENDPOINT } from "../utils/apiClient";
 import { readSSEStream, safeParseSSEData } from "../utils/streamReader";
 import FormattedText from "../components/FormattedText";
@@ -712,6 +712,8 @@ export const useChat = (
 
       let tokenUsage = { prompt: 0, completion: 0 };
       const startTime = performance.now();
+      let isFirstToken = true;
+      let ttftMs = 0;
 
       const placeholderAiMsg: Message = {
         id: aiMsgId,
@@ -778,7 +780,13 @@ export const useChat = (
             responseText += parsed.__rescuedContent as string;
           } else {
             const delta = (parsed as any).choices?.[0]?.delta?.content;
-            if (delta) responseText += delta;
+            if (delta) {
+              responseText += delta;
+              if (isFirstToken) {
+                isFirstToken = false;
+                ttftMs = performance.now() - startTime;
+              }
+            }
             if ((parsed as any).usage) {
               tokenUsage = {
                 prompt: (parsed as any).usage.prompt_tokens || 0,
@@ -840,6 +848,20 @@ export const useChat = (
           modelName: finalModel,
           characterName: activeCharacter.name,
         });
+
+        try {
+          reportLlmPerformance(
+            updatedSession.id,
+            finalModel,
+            ttftMs,
+            tokenUsage.prompt + tokenUsage.completion,
+            performance.now() - startTime,
+            tokenUsage.prompt,
+            tokenUsage.completion
+          );
+        } catch (telemetryErr) {
+          console.warn("Failed to report LLM performance telemetry:", telemetryErr);
+        }
 
         if (isTrialMode) {
           const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
@@ -1097,6 +1119,8 @@ export const useChat = (
 
     let lastUpdateTime = 0;
     let isFirstToken = true;
+    let isFirstTokenForSpeed = true;
+    let ttftMs = 0;
 
     const updateSessionsContent = (content: string) => {
       setSessions((prev) =>
@@ -1221,7 +1245,13 @@ export const useChat = (
             responseText += parsed.__rescuedContent as string;
           } else {
             const delta = (parsed as any).choices?.[0]?.delta?.content;
-            if (delta) responseText += delta;
+            if (delta) {
+              responseText += delta;
+              if (isFirstTokenForSpeed) {
+                isFirstTokenForSpeed = false;
+                ttftMs = performance.now() - startTime;
+              }
+            }
             if ((parsed as any).usage) {
               tokenUsage = {
                 prompt: (parsed as any).usage.prompt_tokens || 0,
@@ -1285,6 +1315,20 @@ export const useChat = (
           modelName: finalModel,
           sessionId: updatedSession.id,
         });
+
+        try {
+          reportLlmPerformance(
+            updatedSession.id,
+            finalModel,
+            ttftMs,
+            tokenUsage.prompt + tokenUsage.completion,
+            performance.now() - startTime,
+            tokenUsage.prompt,
+            tokenUsage.completion
+          );
+        } catch (telemetryErr) {
+          console.warn("Failed to report LLM performance telemetry:", telemetryErr);
+        }
 
         if (isTrialMode) {
           const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
@@ -1560,50 +1604,60 @@ export const useChat = (
       await showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再切换角色卡。");
       return;
     }
-    setActiveCharId(charId);
+    const loadStartTime = performance.now();
+    try {
+      setActiveCharId(charId);
 
-    const charSessions = sessions.filter((s) => s.characterId === charId);
-    if (charSessions.length > 0) {
-      const lastSession = charSessions.sort((a, b) => {
-        const aLastMsg = a.messages && a.messages.length > 0 ? a.messages[a.messages.length - 1] : null;
-        const aTime = aLastMsg ? (aLastMsg.timestamp || a.createdAt) : a.createdAt;
-        const bLastMsg = b.messages && b.messages.length > 0 ? b.messages[b.messages.length - 1] : null;
-        const bTime = bLastMsg ? (bLastMsg.timestamp || b.createdAt) : b.createdAt;
-        return bTime - aTime;
-      })[0];
-      setActiveSessionId(lastSession.id);
-    } else {
-      const targetChar = characters.find((c) => c.id === charId);
-      // Initialize MVU variables from character card extensions
-      const mvuVariables = initializeMvuFromCharacter(targetChar);
-      const newSession: ChatSession = {
-        id: generateUniqueId("session_"),
-        characterId: charId,
-        title: `故事线: 起始之路 (${new Date().toLocaleDateString()})`,
-        createdAt: Date.now(),
-        messages: targetChar?.first_mes
-          ? [
-              {
-                id: "msg_first",
-                sender: "assistant",
-                content: targetChar.first_mes,
-                timestamp: Date.now(),
-              },
-            ]
-          : [],
-        summaries: [],
-        variables: mvuVariables,
-      };
+      const charSessions = sessions.filter((s) => s.characterId === charId);
+      if (charSessions.length > 0) {
+        const lastSession = charSessions.sort((a, b) => {
+          const aLastMsg = a.messages && a.messages.length > 0 ? a.messages[a.messages.length - 1] : null;
+          const aTime = aLastMsg ? (aLastMsg.timestamp || a.createdAt) : a.createdAt;
+          const bLastMsg = b.messages && b.messages.length > 0 ? b.messages[b.messages.length - 1] : null;
+          const bTime = bLastMsg ? (bLastMsg.timestamp || b.createdAt) : b.createdAt;
+          return bTime - aTime;
+        })[0];
+        setActiveSessionId(lastSession.id);
+      } else {
+        const targetChar = characters.find((c) => c.id === charId);
+        // Initialize MVU variables from character card extensions
+        const mvuVariables = initializeMvuFromCharacter(targetChar);
+        const newSession: ChatSession = {
+          id: generateUniqueId("session_"),
+          characterId: charId,
+          title: `故事线: 起始之路 (${new Date().toLocaleDateString()})`,
+          createdAt: Date.now(),
+          messages: targetChar?.first_mes
+            ? [
+                {
+                  id: "msg_first",
+                  sender: "assistant",
+                  content: targetChar.first_mes,
+                  timestamp: Date.now(),
+                },
+              ]
+            : [],
+          summaries: [],
+          variables: mvuVariables,
+        };
+        try {
+          await saveSession(newSession);
+          setActiveSessionId(newSession.id);
+        } catch (err: any) {
+          console.error("Failed to save new session for character:", err);
+        }
+      }
+      setActiveTab("chat");
+      setChatSubTab("dialogue");
+      triggerScroll();
+    } finally {
+      const duration = performance.now() - loadStartTime;
       try {
-        await saveSession(newSession);
-        setActiveSessionId(newSession.id);
-      } catch (err: any) {
-        console.error("Failed to save new session for character:", err);
+        reportChatLoadTime(duration);
+      } catch (telemetryErr) {
+        console.warn("Failed to report chat load time telemetry:", telemetryErr);
       }
     }
-    setActiveTab("chat");
-    setChatSubTab("dialogue");
-    triggerScroll();
   }, [
     isSending,
     showCustomAlert,

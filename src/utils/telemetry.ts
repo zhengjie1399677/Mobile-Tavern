@@ -1,3 +1,6 @@
+import SlsTracker from '@aliyun-sls/web-track-browser';
+import createStsPlugin from '@aliyun-sls/web-sts-plugin';
+
 export function generateDeviceId(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -14,7 +17,11 @@ export function getDeviceId(): string {
   let deviceId = localStorage.getItem(DEVICE_ID_KEY);
   if (!deviceId) {
     deviceId = generateDeviceId();
-    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    try {
+      localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    } catch (e) {
+      console.warn("localStorage write failed:", e);
+    }
   }
   return deviceId;
 }
@@ -37,7 +44,30 @@ interface TelemetryEvent {
   extraData?: Record<string, any>;
 }
 
+// Global memory queue for telemetry events
 let pendingEvents: TelemetryEvent[] = [];
+const STORAGE_QUEUE_KEY = "telemetry_pending_queue";
+const ACTIVE_SESSION_KEY = "app_session_active";
+
+// Safely load offline events on startup
+try {
+  const cachedQueue = localStorage.getItem(STORAGE_QUEUE_KEY);
+  if (cachedQueue) {
+    pendingEvents = JSON.parse(cachedQueue);
+    console.log(`[Telemetry] Loaded ${pendingEvents.length} cached events from local storage`);
+  }
+} catch (e) {
+  console.warn("Failed to load telemetry cache:", e);
+}
+
+// Safely save offline events to disk
+function persistEvents() {
+  try {
+    localStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(pendingEvents));
+  } catch (e) {
+    console.warn("Failed to save telemetry cache:", e);
+  }
+}
 
 export function incrementUsageCount() {
   // Usage count dummy
@@ -63,20 +93,67 @@ export function reportUsage(action: string = "app_launch", extraData: Record<str
     pendingEvents = pendingEvents.slice(-MAX_EVENTS);
   }
 
+  // Auto persist to localStorage immediately (0-loss on unexpected kill)
+  persistEvents();
+
   // 每 2 个事件或页面关闭时同步
   if (action === "app_close" || pendingEvents.length >= 2) {
     syncTelemetry(action === "app_close");
   }
 }
 
-// ========== 关键修复：简化 SDK 初始化 ==========
+// ========== 遥测增强高级接口 ==========
 
-import SlsTracker from '@aliyun-sls/web-track-browser';
-import createStsPlugin from '@aliyun-sls/web-sts-plugin';
+export function reportColdStartReady() {
+  const duration = Date.now() - sessionStartTime;
+  reportUsage("performance_cold_start", {
+    detail: "App cold start ready",
+    generationTime: duration,
+  });
+}
 
-// Targeted suppression: only silence known SLS SDK network abort errors
-// (triggered on beforeunload or by adblockers), without touching global console.error.
-// This avoids the dangerous anti-pattern of globally monkey-patching console.error.
+export function reportChatLoadTime(durationMs: number) {
+  reportUsage("performance_chat_load", {
+    detail: "Chat session load completed",
+    generationTime: durationMs,
+  });
+}
+
+export function reportLlmPerformance(
+  sessionId: string,
+  modelName: string,
+  ttftMs: number,
+  totalTokens: number,
+  durationMs: number,
+  promptTokens: number,
+  completionTokens: number
+) {
+  reportUsage("llm_performance", {
+    sessionId,
+    modelName,
+    totalTokens,
+    promptTokens,
+    completionTokens,
+    generationTime: durationMs,
+    detail: `TTFT: ${ttftMs}ms, Duration: ${durationMs}ms, Speed: ${(completionTokens / (durationMs / 1000)).toFixed(2)} t/s`
+  });
+}
+
+export function reportDbQueueTimeout(queueDelayMs: number, queueLength: number) {
+  reportUsage("db_queue_timeout", {
+    detail: `DB WriteQueue delayed. Delay: ${queueDelayMs}ms, Queue Length: ${queueLength}`,
+    generationTime: queueDelayMs,
+  });
+}
+
+export function reportZodValidationError(errorDetail: string, path: string, inputVal: any) {
+  reportUsage("mvu_zod_validation_error", {
+    detail: `Zod Error: ${errorDetail} at path: ${path}, input: ${JSON.stringify(inputVal)}`
+  });
+}
+
+// ========== SLS SDK 初始化 ==========
+
 const SLS_NOISE_PATTERNS = [
   'Failed to log to ali log service',
   'Failed log data',
@@ -87,17 +164,11 @@ function isSLSNoise(args: any[]): boolean {
   return typeof args[0] === 'string' && SLS_NOISE_PATTERNS.some(p => args[0].includes(p));
 }
 
-// Wrap only within the syncTelemetry catch block using this helper.
-// Global console.error is NOT modified.
-
 let tracker: SlsTracker | null = null;
 let stsPlugin: any = null;
 let stsRefreshTimer: number | null = null;
 let isSyncing = false;
 
-/**
- * 初始化或刷新 STS 凭证
- */
 async function initTracker() {
   const fcStsUrl = import.meta.env.VITE_ALIYUN_FC_STS_URL || "https://mobile-xmkoxkjshe.cn-hangzhou.fcapp.run";
   const project = import.meta.env.VITE_ALIYUN_SLS_PROJECT;
@@ -111,7 +182,6 @@ async function initTracker() {
     }
     const credentials = await res.json();
 
-    // 从 STS 响应中获取配置（优先级更高）
     const slsProject = credentials.SlsProject || project;
     const slsEndpoint = credentials.SlsEndpoint || endpoint;
     const slsLogstore = credentials.SlsLogstore || logstore;
@@ -120,7 +190,6 @@ async function initTracker() {
       throw new Error("缺少 SLS 配置");
     }
 
-    // ✅ 关键：先创建 Tracker
     tracker = new SlsTracker({
       host: slsEndpoint.replace(/^https?:\/\//, ''),
       project: slsProject,
@@ -129,7 +198,6 @@ async function initTracker() {
       count: 10,
     });
 
-    // ✅ 然后创建 STS Plugin 并立即使用
     const stsOpt = {
       accessKeyId: credentials.AccessKeyId,
       accessKeySecret: credentials.AccessKeySecret,
@@ -151,15 +219,13 @@ async function initTracker() {
       },
     };
     stsPlugin = createStsPlugin(stsOpt);
-
     tracker.useStsPlugin(stsPlugin);
 
-    // ✅ 设置定时刷新（在 STS Token 过期前刷新）
     const expirationTime = credentials.Expiration 
       ? new Date(credentials.Expiration).getTime() 
       : Date.now() + 60 * 60 * 1000;
     
-    const refreshTime = expirationTime - Date.now() - 5 * 60 * 1000; // 提前 5 分钟刷新
+    const refreshTime = expirationTime - Date.now() - 5 * 60 * 1000;
     
     if (stsRefreshTimer) {
       clearTimeout(stsRefreshTimer);
@@ -198,7 +264,6 @@ async function syncTelemetry(isUnloading: boolean) {
 
   isSyncing = true;
   const eventsToSend = [...pendingEvents];
-  
   const deviceInfo = getDeviceInfo();
 
   const slsLogs = eventsToSend.map((evt) => {
@@ -227,7 +292,6 @@ async function syncTelemetry(isUnloading: boolean) {
   });
 
   try {
-    // 确保 tracker 和 stsPlugin 已初始化
     if (!tracker || !stsPlugin) {
       await initTracker();
     }
@@ -236,7 +300,6 @@ async function syncTelemetry(isUnloading: boolean) {
       throw new Error("STS Plugin 未初始化");
     }
 
-    // 获取配置信息进行直接发送，从而能够完全控制发送成功与否
     const project = import.meta.env.VITE_ALIYUN_SLS_PROJECT || (tracker as any)?.getOpt?.().project;
     const endpoint = import.meta.env.VITE_ALIYUN_SLS_ENDPOINT || (tracker as any)?.getOpt?.().host;
     const logstore = import.meta.env.VITE_ALIYUN_SLS_LOGSTORE || (tracker as any)?.getOpt?.().logstore;
@@ -249,15 +312,13 @@ async function syncTelemetry(isUnloading: boolean) {
     const url = `https://${project}.${host}/logstores/${logstore}`;
     const bodyPayload = JSON.stringify({ __logs__: slsLogs });
 
-    // 使用官方 STS 插件对 payload 进行签名 and 打包，获取 Headers and Data
     const { data: requestBody, header: requestHeaders } = await stsPlugin.process(url, bodyPayload);
 
-    // 以安全且完全可控的异步方式直接发送
     const res = await fetch(url, {
       method: "POST",
       headers: requestHeaders,
       body: requestBody,
-      keepalive: isUnloading, // 在页面卸载时开启 keepalive 确保请求成功完成
+      keepalive: isUnloading,
     });
 
     if (!res.ok) {
@@ -267,17 +328,16 @@ async function syncTelemetry(isUnloading: boolean) {
 
     console.log(`已成功发送 ${slsLogs.length} 条日志至阿里云 SLS (${isUnloading ? 'unload' : 'batch'})`);
 
-    // 只有在完美成功发送且没有抛错时，才安全地从 pendingEvents 中过滤移除已发送的事件！
-    // 这样能 100% 解决静默丢失 Bug (Silent Event Eviction)
+    // Only filter out successfully sent events to prevent silent data loss
     pendingEvents = pendingEvents.filter(e => !eventsToSend.includes(e));
+    
+    // Sync the updated queue back to localStorage
+    persistEvents();
 
   } catch (err: any) {
-    // Suppress known SLS SDK network abort noise (status=0 on beforeunload),
-    // but surface all other genuine errors for debugging.
     if (!isSLSNoise([err?.message || String(err)])) {
       console.warn("Telemetry sync 失败，保留本地队列待下次同步:", err);
     }
-    // 发生网络波动或 STS 问题时完全保留队列（从而支持自动重试，0 丢包）
   } finally {
     isSyncing = false;
   }
@@ -300,33 +360,71 @@ function stopSyncTimer() {
   }
 }
 
-// 页面关闭时发送，补充 pagehide 兼容移动端 APP 退出行为
+// Session active heartbeat management helpers
+function markSessionActive() {
+  try {
+    localStorage.setItem(ACTIVE_SESSION_KEY, "true");
+  } catch (e) {}
+}
+
+function clearSessionActive() {
+  try {
+    localStorage.setItem(ACTIVE_SESSION_KEY, "false");
+  } catch (e) {}
+}
+
 window.addEventListener('beforeunload', () => {
-  syncTelemetry(true);
-});
-window.addEventListener('pagehide', () => {
+  clearSessionActive();
   syncTelemetry(true);
 });
 
-// 页面隐藏/显示时调整同步策略
+window.addEventListener('pagehide', () => {
+  clearSessionActive();
+  syncTelemetry(true);
+});
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
+    clearSessionActive();
     syncTelemetry(true);
     stopSyncTimer();
   } else {
     isUnloadTriggered = false;
+    markSessionActive();
     startSyncTimer();
   }
 });
 
-// 初始化启动定时同步（若页面处于可见状态）
 if (document.visibilityState !== 'hidden') {
   startSyncTimer();
 }
 
-// 页面加载时初始化，并触发 app_launch 事件
-initTracker().then(() => {
-  reportUsage("app_launch", { detail: "App launched and SLS tracker initialized successfully" });
-}).catch(err => {
-  console.warn("Failed to trigger app_launch on initialization:", err);
-});
+// Cold Start Detection and Replay logic on load
+(async () => {
+  if (typeof window !== "undefined") {
+    (window as any).reportZodValidationError = reportZodValidationError;
+  }
+
+  // 1. Detect abnormal termination
+  try {
+    const lastSessionActive = localStorage.getItem(ACTIVE_SESSION_KEY);
+    if (lastSessionActive === "true") {
+      console.warn("[Telemetry] Detected abnormal termination from previous session!");
+      reportUsage("app_abnormal_termination", { detail: "上一次运行发生了异常大退或闪退（session 标志未正常清理）" });
+    }
+  } catch (e) {}
+
+  // 2. Refresh active session flag for current boot
+  markSessionActive();
+
+  // 3. Init tracker & perform cold boot replay
+  try {
+    await initTracker();
+    // Cold launch notification
+    reportUsage("app_launch", { detail: "App launched and SLS tracker initialized successfully" });
+    // Trigger immediate sync for both launch event and any replayed cached events
+    await syncTelemetry(false);
+  } catch (err) {
+    console.warn("Failed during telemetry init / cold replay:", err);
+  }
+})();

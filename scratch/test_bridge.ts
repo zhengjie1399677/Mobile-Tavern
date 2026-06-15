@@ -62,9 +62,12 @@ async function runTests() {
 
   // Initialize bridge with mock state handlers
   initTavernHelperBridge({
-    activeCharacter: mockCharacter,
     activeSession: mockSession,
-    setSessions: () => {},
+    setSessions: (updater: any) => {
+      if (typeof updater === 'function') {
+        updater([mockSession]);
+      }
+    },
     saveSession: async (session) => {
       sessionSaved = session;
     },
@@ -104,6 +107,7 @@ async function runTests() {
   // D. Test _replaceVariables with message_id: -1
   sessionSaved = null;
   bind._replaceVariables({ stat_data: { health: 80, name: "Traveler" } }, { type: "message", message_id: -1 });
+  await new Promise(resolve => setTimeout(resolve, 10));
   assert(sessionSaved !== null, "Session is saved after replaceVariables");
   if (!sessionSaved) throw new Error("sessionSaved is null");
   const lastMsgExtra = sessionSaved.messages[1].extra;
@@ -114,6 +118,7 @@ async function runTests() {
   bind._setChatMessage(-1, {
     variables: { stat_data: { health: 70, name: "Traveler" } }
   });
+  await new Promise(resolve => setTimeout(resolve, 10));
   assert(sessionSaved !== null, "Session is saved after setChatMessage");
   if (!sessionSaved) throw new Error("sessionSaved is null");
   const lastMsgExtra2 = sessionSaved.messages[1].extra;

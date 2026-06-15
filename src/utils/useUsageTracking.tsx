@@ -7,6 +7,7 @@ import {
   CardDescription,
 } from "../../components/ui/card";
 import { Activity } from "lucide-react";
+import { reportColdStartReady } from "./telemetry";
 
 const STORAGE_KEY = "aita_usage_metrics";
 
@@ -36,6 +37,13 @@ export function getUsageTracker(): UsageMetrics {
 
 export function useUsageTracking() {
   useEffect(() => {
+    // Report app ready telemetry
+    try {
+      reportColdStartReady();
+    } catch (e) {
+      console.warn("Failed to report cold start telemetry:", e);
+    }
+
     // Component mounted (App opened)
     const metrics = getUsageTracker();
     metrics.totalOpens += 1;

@@ -50,6 +50,13 @@
     *   新增 `"build:web"` 指令：`"vite build && esbuild server.ts ..."`。
 *   打包 APK/iOS 时，Tauri 仅执行 `"build"`。这使得 `dist/` 目录下只有 React 的纯静态 HTML/JS/CSS，`server.ts` 编译产物被彻底剥离在外。
 
+### 5. Zod 模拟层（TavernHelperBridge）兼容性强化
+为了能够完美加载并兼容酒馆的所有主流 MVU 角色卡（如《卿卿》、《扬州一梦》等复杂卡），我们必须对 `src/utils/tavernHelperBridge.ts` 中的 Zod 模拟解析器（Mock Zod）进行功能对齐：
+*   **`.prefault()` 属性赋能**：将 `prefault(val)` 设为等同于 `default(val)` 的行为（写入 `_defaultValue`），使得当 AI 或初始配置漏掉某些字段时，系统能够正确回退到默认值。
+*   **`.or()` 联合类型支持**：为 Schema 代理对象添加 `.or()` 方法，使之能够链式表达联合类型（如 `z.string().or(z.number())`）。
+*   **`z.record` & `z.partialRecord` 深度解析**：实现对 `record` 类型的深度属性解析，支持单参数和双参数签名（例如 `z.record(valueSchema)` 或 `z.record(keySchema, valueSchema)`），确保其中的对象子属性（如物品栏的 `数量`、衣服的 `描述`）能在更新时得到正确的 Zod 类型转换和逻辑校验（如 `z.coerce.number()` 的数字转换）。
+*   **参数穿透与动态 Mock 增强**：修复 Proxy 拦截器在拦截未定义方法时丢失参数的 Bug，支持 `z.templateLiteral`、`z.intersection` 等主流卡常用的高级 schema 方法。
+
 ---
 
 ## 📅 实施路线图与任务单 (Action Items)

@@ -1,3 +1,7 @@
+if (typeof window !== "undefined") {
+  throw new Error("security.ts is a Node-only utility and cannot be imported in client-side code.");
+}
+
 import dns from "dns";
 import { promisify } from "util";
 import express from "express";
