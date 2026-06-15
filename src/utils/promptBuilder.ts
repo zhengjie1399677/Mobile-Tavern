@@ -263,7 +263,7 @@ export function assemblePromptContext(params: {
       }
     }
 
-    const chatHistory = activeMessagesToSend.map((msg) => {
+    const rawHistory = activeMessagesToSend.map((msg) => {
       let role: "user" | "model" | "assistant" = "user";
       let content = msg.content;
 
@@ -300,6 +300,15 @@ export function assemblePromptContext(params: {
         content,
       };
     });
+
+    const chatHistory: typeof rawHistory = [];
+    for (const item of rawHistory) {
+      if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === item.role) {
+        chatHistory[chatHistory.length - 1].content += "\n\n" + item.content;
+      } else {
+        chatHistory.push(item);
+      }
+    }
 
     let cleanSystem = "";
     if (character.system_prompt) {
@@ -668,7 +677,7 @@ ${scenarioBlock}
     }
 
     // Convert Message[] to Gemini or OpenAI structure, applying custom Instruct prefix/suffix templates (e.g. ChatML/Alpaca)
-    chatHistory = activeMessagesToSend.map((msg) => {
+    const rawHistory = activeMessagesToSend.map((msg) => {
       let role: "user" | "model" | "assistant" = "user";
       let content = msg.content;
 
@@ -705,6 +714,15 @@ ${scenarioBlock}
         content,
       };
     });
+
+    chatHistory = [];
+    for (const item of rawHistory) {
+      if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === item.role) {
+        chatHistory[chatHistory.length - 1].content += "\n\n" + item.content;
+      } else {
+        chatHistory.push(item);
+      }
+    }
 
     // Create a temporary copy to perform injections and estimate tokens
     const tempHistory = chatHistory.map((h) => ({ ...h }));
