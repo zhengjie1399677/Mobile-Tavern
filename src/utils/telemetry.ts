@@ -145,5 +145,5 @@ export async function reportImmediate(action: string, extraData: Record<string, 
   }
 
   // 0. 立刻发送开机瞬发遥测
-  reportImmediate("app_instant_launch", { detail: "软件打开，立刻发出开机瞬时遥测，绕过离线缓存" });
+  reportImmediate("app_instant_launch", { detail: "应用启动，立刻上报瞬时遥测，绕过离线缓存" });
 })();
