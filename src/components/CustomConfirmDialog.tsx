@@ -18,19 +18,18 @@ export default function CustomConfirmDialog() {
 
   return (
     <div
-      className="absolute inset-0 bg-background/55 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300 z-50 animate-fadeIn"
-      style={{ zIndex: 100 }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300 z-[1000] animate-fadeIn"
     >
-      <div className="glass-panel rounded-2xl max-w-sm w-full p-6 space-y-5 shadow-2xl border border-white/10 dark:border-white/5 text-foreground animate-fadeIn">
-        <div className="space-y-2">
+      <div className="glass-panel rounded-2xl max-w-sm w-full p-6 flex flex-col gap-5 shadow-2xl border border-white/10 dark:border-white/5 text-foreground animate-fadeIn">
+        <div className="flex flex-col gap-3">
           <h4 className="font-bold text-foreground text-sm tracking-wide">
             {customDialog.title}
           </h4>
-          <p className="text-xs text-muted-foreground/95 leading-relaxed font-light">
+          <p className="text-xs text-muted-foreground/90 leading-relaxed font-light break-all whitespace-pre-wrap">
             {customDialog.message}
           </p>
           {customDialog.type === "prompt" && (
-            <div className="pt-2">
+            <div className="mt-1">
               <input
                 type="text"
                 value={localVal}
@@ -41,7 +40,7 @@ export default function CustomConfirmDialog() {
                   }
                 }}
                 autoFocus
-                className="w-full bg-input/80 text-xs text-foreground border border-border/70 rounded-xl px-3 py-2 focus:outline-none focus:border-primary/50 focus:bg-background/90 transition-all duration-300 shadow-inner"
+                className="w-full bg-input text-xs text-foreground border border-border/80 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary/50 focus:bg-background/95 transition-all duration-300 shadow-inner block"
               />
             </div>
           )}

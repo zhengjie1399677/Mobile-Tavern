@@ -37,7 +37,7 @@ export default function TimelineModal() {
   };
 
   return (
-    <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-30 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[999] flex items-center justify-center p-4">
       <div className="bg-background border border-border rounded-xl max-w-md w-full sm:max-w-lg p-4 space-y-3 shadow-2xl text-xs">
         <div className="flex items-center justify-between border-b border-border pb-2">
           <h4 className="font-bold text-foreground flex items-center gap-1">

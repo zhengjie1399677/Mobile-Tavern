@@ -262,7 +262,7 @@ export default function CharacterEditModal() {
   };
 
   return (
-    <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-30 flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[999] flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4">
       <div className="bg-background border-t sm:border border-border max-h-[92%] sm:max-h-[85%] w-full sm:max-w-3xl overflow-y-auto rounded-t-2xl sm:rounded-2xl flex flex-col shadow-2xl">
         {/* Modal sticky titles */}
         <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10">

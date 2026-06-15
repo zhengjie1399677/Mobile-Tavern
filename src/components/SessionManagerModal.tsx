@@ -20,8 +20,7 @@ export default function SessionManagerModal() {
 
   return (
     <div
-      className="absolute inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 transition-all duration-200"
-      style={{ zIndex: 100 }}
+      className="fixed inset-0 bg-black/80 backdrop-blur-md z-[999] flex items-center justify-center p-4 transition-all duration-200"
     >
       <div className="bg-card border border-border rounded-xl max-w-sm w-full p-5 shadow-2xl text-foreground flex flex-col h-[60vh] max-h-[500px]">
         <div className="flex justify-between items-center mb-4 shrink-0">
