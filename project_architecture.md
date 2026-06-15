@@ -452,7 +452,7 @@ Mobile-Tavern/
 │       ├── promptBuilder.ts                  # 前缀缓存 Prompt 重排、世界书3阶级联检索器
 │       ├── security.ts                       # SSRF 私网 IP 解析、DNS 劫持劫持防重绑定卫士
 │       ├── localDB.ts                        # IndexedDB 对象仓声明与并发写 Promise 队列适配
-│       ├── telemetry.ts                      # 批量崩溃及指标收集直传 SLS 模块
+│       ├── telemetry.ts                      # 前端遥测桥接，自适应降级 console 并调用 Rust 命令
 │       ├── streamReader.ts                   # 流式网络包读取与双换行符边界分包缓冲器
 │       └── useUsageTracking.tsx              # 应用使用指标与冷启动性能监测收集器
 ```

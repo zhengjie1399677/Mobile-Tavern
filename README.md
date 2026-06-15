@@ -59,14 +59,14 @@ Mobile-Tavern
 ├── AGENTS.md                             # APK 原生适配、遥测上报与调试白屏排查指南
 ├── TECHNICAL.md                          # 技术架构细节、缓存优化、数据库设计及源码剖析
 ├── presets_prompts_guide.md              # 预设 Prompt 上下文分区逻辑说明
-├── src-tauri                             # Tauri 原生容器构建模块 (Rust & Android native)
+├── src-tauri                             # Tauri 原生容器构建模块 (Rust 侧，包含本地落盘与 STS 遥测异步同步引擎)
 └── src                                   # 前端 React 业务代码
     ├── App.tsx                           # 启动流程管理与基础预设包定义
     ├── AppContext.tsx                    # 全局状态管理 Context
     ├── components                        # 共享 UI 容器 (自适应安全区、拇指布局等)
     ├── hooks                             # 核心状态钩子 (useChat, useCharacters, useSettings)
     ├── tabs                              # 各功能大版块 Tab 页 (包含调试沙盒)
-    └── utils                             # 底层计算工具 (cardParser, db, promptBuilder)
+    └── utils                             # 底层计算工具 (cardParser, db, promptBuilder, telemetry)
 ```
 
 ---

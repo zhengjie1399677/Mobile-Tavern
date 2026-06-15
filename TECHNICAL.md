@@ -1,4 +1,4 @@
-﻿# 🛠️ Mobile Tavern 技术实现细节与架构设计 (Technical Specifications)
+# 🛠️ Mobile Tavern 技术实现细节与架构设计 (Technical Specifications)
 
 本文档归档了 Mobile Tavern 的核心技术实现细节、底层算法架构设计以及非侵入式的模块拓扑原理，专为开发者及技术研究人员提供深度参考。
 
@@ -353,12 +353,14 @@ erDiagram
 *   **拖拽事件监听器**:
     在前台部署了针对标准 HTML5 拖拽事件（`dragover`, `drop`）的事件监听器，可以直接在浏览器窗口内捕获图片文件对象，自动触发 `cardParser` 提取数据。
 
-### 13. `telemetry.ts` (遥测上报直连客户端)
-*   **实现位置**: [telemetry.ts](src/utils/telemetry.ts)
+### 13. 遥测系统的 Native 化下沉设计 (Tauri Rust Telemetry)
+*   **实现位置**: 前端 [telemetry.ts](src/utils/telemetry.ts) 与 Rust 后端 [telemetry.rs](src-tauri/src/telemetry.rs)
 *   **核心逻辑**:
-    负责崩溃及使用率统计的低侵入收集模块。
-*   **缓冲与直传管理**:
-    为了规避在真机高频发送日志导致的耗电问题，遥测系统内部构建了日志收集队列，平时将事件推入内存缓冲中，只有当日志总数到达阈值或距离上一次上传超过设定时间时，才动态通过 FC 获取 STS 令牌，发起一次批量直传上报。
+    负责崩溃、使用率及 LLM APM 指标收集的原生化下沉模块。
+*   **物理隔离与容错兜底**:
+    *   **前端降级调用**: 前端不再直连阿里云 SLS 接口。所有遥测事件在整合设备上下文后，均通过 Tauri `invoke("report_telemetry")` 发送到 Rust 后端。开发期或非 Tauri 浏览器调试下自动降级为 `Console` 模拟打印，防止白屏崩溃。
+    *   **Rust 本地持久化队列**: Rust 后端收到事件后，立即以 JSON Lines (JSONL) 格式写入手机沙盒中的 `telemetry_queue.jsonl` 文件。保证在 App 大退或被系统强杀时，数据已原子级落盘。
+    *   **后台异步同步线程**: Rust 后端在 `setup` 阶段启动常驻轮询线程，每 15 秒检测一次本地日志队列，并在后台向阿里云 SLS 发送批量上传请求，计算包含 `x-log-bodyrawsize` 的 HMAC-SHA1 签名。发送成功后截断/清除已成功上报的日志。
 
 ### 14. `TimelineModal.tsx` (前情剧情提炼时间线展示)
 *   **实现位置**: [TimelineModal.tsx](src/components/TimelineModal.tsx)

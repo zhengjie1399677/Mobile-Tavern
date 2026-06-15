@@ -75,7 +75,7 @@
 ---
 
 # ℹ️ 遥测集成架构与运行逻辑 (Telemetry Flow)
-- **环境与凭证**：前端无敏感凭证，完全由阿里云 FC 托管凭证并分发 STS 短效凭证，前端直传 SLS 日志，无需开启跨域放行。
+- **环境与凭证**：遥测上报完全下沉至 Tauri Rust 后端。前端产生事件后通过 Tauri IPC 调用原生遥测指令执行本地落盘（追加到 `telemetry_queue.jsonl` 中确保抗大退与强杀）。Rust 侧通过后台常驻线程定期从阿里云 FC 获取 STS 凭证，计算包含 `x-log-bodyrawsize` 的 HMAC-SHA1 签名并批量上传至 SLS，上报成功后自动清除本地队列。
 
 ---
 
