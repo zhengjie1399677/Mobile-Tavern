@@ -24,6 +24,14 @@ try {
     'const mvuContent = "";'
   );
   content = content.replace(
+    /import\s+\*\s+as\s+math\s+from\s+["']mathjs["'];?/g,
+    'const math = {};'
+  );
+  content = content.replace(
+    /from\s+["']\.\.\/types["']/g,
+    'from "../src/types"'
+  );
+  content = content.replace(
     /from\s+["']\.\/mvu_zod["']/g,
     'from "../src/utils/mvu_zod"'
   );
@@ -32,7 +40,7 @@ try {
   console.log("Generated temp_bridge.ts successfully.");
 
   console.log("Running unit tests...");
-  execSync('npx tsx scratch/test_bridge_runner.ts', { stdio: 'inherit' });
+  execSync('npx tsx tests/test_bridge_runner.ts', { stdio: 'inherit' });
 
 } catch (e) {
   console.error("Test execution failed:", e.message);

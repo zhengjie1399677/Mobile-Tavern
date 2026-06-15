@@ -100,7 +100,10 @@ const ChatInputArea = () => {
           </button>
         </div>
 
-        <div className="flex items-center gap-1.5 text-muted-foreground font-mono text-[9px] opacity-70">
+        <div
+          aria-hidden="true"
+          className="flex items-center gap-1.5 text-muted-foreground font-mono text-[9px] opacity-70"
+        >
           <Cpu className="w-3 h-3" />
           <span>
             发包预测: ~
@@ -147,19 +150,21 @@ const ChatInputArea = () => {
             }
           }}
           placeholder={`发送一条对白至 ${activeCharacter?.name} 启程...`}
+          aria-label={`发送给 ${activeCharacter?.name || "角色"} 的消息输入框`}
           rows={2}
           className="flex-1 bg-input/70 border border-border/80 rounded-xl py-2.5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px] transition-all duration-300 shadow-inner"
         />
         <button
           onClick={onSend}
           disabled={isSending || !localInput.trim()}
+          aria-label={isSending ? "正在发送消息..." : "发送消息"}
           className={`p-3.5 rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${
             localInput.trim()
               ? "hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 cursor-pointer opacity-100"
               : "opacity-45 cursor-not-allowed bg-muted text-muted-foreground shadow-none"
           }`}
         >
-          <Send className={`w-4 h-4 transition-transform duration-300 ${localInput.trim() ? "scale-110" : ""}`} />
+          <Send className={`w-4 h-4 transition-transform duration-300 ${localInput.trim() ? "scale-110" : ""}`} aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -231,6 +236,24 @@ export default function ChatTab() {
     saveSessionWithMvu,
     updateSettings,
   } = useContext(AppContext);
+
+  // a11y Live Announcer state and effect
+  const [announcement, setAnnouncement] = React.useState("");
+  const wasSendingRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (isSending) {
+      setAnnouncement(`${activeCharacter?.name || "角色"} 正在思考并输入...`);
+      wasSendingRef.current = true;
+    } else if (wasSendingRef.current) {
+      setAnnouncement("收到新消息");
+      wasSendingRef.current = false;
+      const timer = setTimeout(() => {
+        setAnnouncement("");
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSending, activeCharacter?.name]);
 
   // Keep the bridge params in sync with latest React state on every relevant change.
   // We do NOT call cleanTavernHelperBridge() inside the cleanup because that would
@@ -715,6 +738,10 @@ export default function ChatTab() {
 
           {/* Dialog Scroll area */}
           <div
+            role="log"
+            aria-label="聊天消息记录"
+            aria-live="polite"
+            aria-relevant="additions"
             className="p-3.5 space-y-4 flex-1 overflow-y-auto custom-scrollbar relative z-10"
             onClick={() => {
               if (msgMenuId) setMsgMenuId(null);
@@ -745,9 +772,10 @@ export default function ChatTab() {
                     <div className="flex justify-center mb-2 animate-fadeIn">
                       <button
                         onClick={() => setShowFullHistory(true)}
+                        aria-label={`展开更早的 ${foldedCount} 条历史对话`}
                         className="bg-muted hover:bg-muted/80 border border-border text-[10px] px-4 py-1.5 rounded-full text-muted-foreground shadow-sm flex items-center gap-1.5 transition"
                       >
-                        <ChevronUp className="w-3 h-3" /> 点击展开更早的{" "}
+                        <ChevronUp className="w-3 h-3" aria-hidden="true" /> 点击展开更早的{" "}
                         {foldedCount} 条历史对话 (节约内存渲染)
                       </button>
                     </div>
@@ -762,8 +790,12 @@ export default function ChatTab() {
                           key={message.id}
                           className="flex items-center justify-center"
                         >
-                          <div className="bg-primary/10 text-primary text-xs px-3 py-1.5 rounded-lg border border-primary/30 max-w-xs text-center flex items-start gap-1.5 leading-relaxed">
-                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                          <div
+                            role="status"
+                            aria-label={`系统提示：${message.content}`}
+                            className="bg-primary/10 text-primary text-xs px-3 py-1.5 rounded-lg border border-primary/30 max-w-xs text-center flex items-start gap-1.5 leading-relaxed"
+                          >
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
                             <span>{message.content}</span>
                           </div>
                         </div>
@@ -773,10 +805,13 @@ export default function ChatTab() {
                     return (
                       <div
                         key={message.id}
+                        role="article"
+                        aria-label={`${isUser ? "我说" : (activeCharacter?.name || "角色") + "说"}：${message.content}`}
                         className={`flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}
                       >
                         {/* Circle Avatar fallback */}
                         <div
+                          aria-hidden="true"
                           className={`w-8 h-8 rounded-[11px] bg-gradient-to-br flex items-center justify-center font-bold text-xs shadow-sm border flex-shrink-0 overflow-hidden ${
                             isUser
                               ? "from-secondary to-muted border-border text-foreground transition-all duration-300"
@@ -787,7 +822,7 @@ export default function ChatTab() {
                             settings.userAvatar ? (
                               <img
                                 src={settings.userAvatar}
-                                alt="User"
+                                alt=""
                                 className="w-full h-full object-cover"
                               />
                             ) : (
@@ -796,7 +831,7 @@ export default function ChatTab() {
                           ) : !isSystem && (activePortraitUrl || activeCharacter?.avatar) ? (
                             <img
                               src={activePortraitUrl || activeCharacter.avatar}
-                              alt={activeCharacter.name}
+                              alt=""
                               className="w-full h-full object-cover animate-fadeIn"
                             />
                           ) : (
@@ -1277,6 +1312,10 @@ export default function ChatTab() {
           charName={activeCharacter.name}
         />
       )}
+      {/* 4. A11y Screen Reader Live Region */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
     </div>
   );
 }
