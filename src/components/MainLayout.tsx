@@ -14,6 +14,7 @@ import TimelineModal from "./TimelineModal";
 import SessionManagerModal from "./SessionManagerModal";
 import CustomConfirmDialog from "./CustomConfirmDialog";
 import DbWritingOverlay from "./DbWritingOverlay";
+import { FloatingCat } from "./FloatingCat";
 
 export default function MainLayout() {
   const {
@@ -142,6 +143,9 @@ export default function MainLayout() {
         <SessionManagerModal />
         <CustomConfirmDialog />
         <DbWritingOverlay />
+
+        {/* 4. Global Cat Mascot (Only displayed on lists/settings, unmounted in chat rooms) */}
+        {activeTab !== "chat" && activeTab !== "playground" && <FloatingCat />}
       </div>
     </>
   );

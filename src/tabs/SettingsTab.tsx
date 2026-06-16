@@ -53,6 +53,29 @@ import { Textarea } from "../../components/ui/textarea";
 import { UsageDisplay } from "../utils/useUsageTracking";
 
 export default function SettingsTab() {
+  const isTauri = typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
+  const getDeviceModel = () => {
+    if (typeof navigator === "undefined") return "Unknown Device";
+    const ua = navigator.userAgent;
+    if (/android/i.test(ua)) {
+      const parts = ua.match(/\(([^)]+)\)/);
+      if (parts && parts[1]) {
+        const subParts = parts[1].split(';');
+        const androidPart = subParts.find(p => p.includes('Android'));
+        if (androidPart) {
+          const modelPart = subParts[subParts.length - 1] || "";
+          return `${modelPart.trim().replace(/Build\/.*/g, "")} (${androidPart.trim()})`;
+        }
+      }
+      return "Android Device";
+    }
+    if (/iphone|ipad|ipod/i.test(ua)) {
+      return "iOS Device";
+    }
+    return "PC Web/Browser";
+  };
+  const deviceModel = getDeviceModel();
+
   const {
     settings,
     currentTheme,
@@ -2050,6 +2073,15 @@ export default function SettingsTab() {
             </Card>
 
             <UsageDisplay />
+
+            <div className="mt-8 text-center space-y-1 pb-4 opacity-50 select-text">
+              <p className="text-[10px] text-muted-foreground font-mono">
+                安装包版本: v1.4.0 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
+              </p>
+              <p className="text-[9px] text-muted-foreground/80 font-mono">
+                诊断设备型号: {deviceModel}
+              </p>
+            </div>
           </TabsContent>
         </div>
       </Tabs>

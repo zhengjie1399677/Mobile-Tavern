@@ -187,7 +187,7 @@ export default function GlobalWorldbookTab() {
       keys: entry.keys || [],
       content: entry.content || "",
       constant: !!entry.constant,
-      disabled: !!entry.disabled,
+      disabled: entry.disabled ?? !entry.enabled,
       useRegex: !!entry.useRegex,
       addMemo: !!entry.addMemo,
       position: entry.position || "after_char_def",
@@ -893,10 +893,10 @@ export default function GlobalWorldbookTab() {
               <div
                 key={entry.id}
                 className={`bg-card rounded-xl border text-xs transition-all duration-200 ${
-                  entry.disabled
-                    ? "border-dashed border-red-900/10 bg-red-950/2 opacity-60"
-                    : isEditingType
-                      ? "border-primary ring-1 ring-primary/40 shadow-sm"
+                  isEditingType
+                    ? "border-primary ring-1 ring-primary/40 shadow-sm"
+                    : entry.disabled
+                      ? "border-dashed border-red-900/10 bg-red-950/2 opacity-60"
                       : isExpanded
                         ? "border-primary/30"
                         : "border-border/80 hover:border-border"
@@ -1207,7 +1207,7 @@ export default function GlobalWorldbookTab() {
             />
             <span>常驻强制注入设定</span>
           </label>
-          <label className="flex items-center gap-1.5 text-rose-450 text-[10.5px] cursor-pointer">
+          <label className="flex items-center gap-1.5 text-rose-500 text-[10.5px] cursor-pointer">
             <input
               type="checkbox"
               checked={!!editForm.disabled}

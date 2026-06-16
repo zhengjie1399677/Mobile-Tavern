@@ -336,3 +336,24 @@ export const universalFetch = async (
 
   throw new Error(`Unknown fetch endpoint: "${endpoint}"`);
 };
+
+export const apiClient = {
+  universalFetch,
+  isClientMode,
+  sendCatbotRequest: async (content: string, history: any[], clientContext?: any): Promise<{ reply: string; expression: string }> => {
+    const isTauri = isClientMode();
+    const targetUrl = isTauri ? "http://127.0.0.1:3000/api/catbot" : "/api/catbot";
+    
+    const res = await fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, history, clientContext }),
+    });
+    
+    if (!res.ok) {
+      throw new Error(`HTTP error ${res.status}`);
+    }
+    
+    return res.json();
+  }
+};

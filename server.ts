@@ -211,6 +211,101 @@ async function startServer() {
     }
   });
 
+  // API 5: Catbot interaction with intent determination & classification
+  app.post("/api/catbot", async (req, res) => {
+    try {
+      const { content, history = [], clientContext } = req.body || {};
+      if (clientContext) {
+        console.log(`[Catbot Server] Received client device context:`, JSON.stringify(clientContext, null, 2));
+      }
+      const apiKey = process.env.DASHSCOPE_API_KEY;
+
+      if (!apiKey) {
+        // Fallback: Local rule-based keyword matcher if no API key is provided
+        const text = (content || "").toLowerCase();
+        let reply = "喵呜，本喵现在无法连上云端脑区，先用本地的小脑袋回答你喵！\n\n";
+        let expression = "talking";
+
+        if (text.includes("api") || text.includes("key") || text.includes("接口") || text.includes("连接") || text.includes("设置")) {
+          reply += "关于 API 密钥配置，请在下方“控制端”中找到“API服务端点配置”面板进行填写喵！确认无误后可以点击测试连接。";
+          expression = "thinking";
+        } else if (text.includes("卡") || text.includes("角色") || text.includes("导入")) {
+          reply += "要导入角色卡，只需要在“角色馆”页面点击右上角的“+”号选择你的角色卡 JSON 文件或带 EXIF PNG 的角色图片即可喵！";
+          expression = "talking";
+        } else if (text.includes("世界") || text.includes("设定")) {
+          reply += "世界书可以在“世界书”页面下自由创建，它能在对话中自动识别特定的关键词并为你注入专属背景设定喵！";
+          expression = "thinking";
+        } else if (text.includes("报错") || text.includes("闪退") || text.includes("错误")) {
+          reply += "如果遇到连接报错，可以尝试去设置里清理一下缓存，或者检查当前所用的 API Key / 代理服务器是否可达喵。";
+          expression = "sad";
+        } else {
+          const randomReplies = [
+            "唔，你在说什么高深的技术话题喵？本喵有点听不懂，不过本喵在认真听哦！",
+            "酒馆里有好多秘密喵，比如下方第三项是世界书，可以帮你设定各种复杂背景喵~",
+            "（用爪子刨了刨地板）今天又是和平的一天，要不要去和你的虚拟角色聊聊天喵？",
+            "喵呜~ 听说酒馆里有很多厉害的设定，去角色馆选一个聊聊看吧喵！"
+          ];
+          reply = randomReplies[Math.floor(Math.random() * randomReplies.length)];
+          expression = "idle";
+        }
+
+        return res.json({ reply, expression });
+      }
+
+      // Construct messages with system prompt enforcing JSON format.
+      const systemPrompt = `你是一只傲娇又博学的酒馆助理猫咪（名字叫“Stitch”/“史迪奇”）。你的职责是解答用户关于 Mobile Tavern (移动酒馆) 软件的使用疑问，或者进行日常的幽默闲聊。
+核心性格：说话轻快活泼，喜欢带“喵~”的语气助词，带有一点点猫咪特有的高傲与温柔。
+要求：对用户的输入进行分析，判断问题类型，并选择一个合适的猫咪情绪表情（从 "idle"(待机/闲置), "thinking"(歪头思考), "talking"(活泼说话), "sad"(委屈难过/报错) 中选择）。
+
+请必须且只能返回符合以下 JSON 格式的单行文本，千万不要包含任何 \`\`\`json 等 markdown 标记或换行，直接输出一个纯 JSON 字符串：
+{ "reply": "你的猫咪口吻回复内容", "expression": "对应的情绪代码" }`;
+
+      const formattedMessages = [
+        { role: "system", content: systemPrompt },
+        ...history.slice(-6).map((m: any) => ({
+          role: m.role === "user" ? "user" : "assistant",
+          content: m.content
+        }))
+      ];
+
+      const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey.trim()}`
+        },
+        body: JSON.stringify({
+          model: "qwen-plus",
+          messages: formattedMessages,
+          response_format: { type: "json_object" }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`DashScope API returned HTTP ${response.status}`);
+      }
+
+      const resData: any = await response.json();
+      const rawText = resData.choices?.[0]?.message?.content || "{}";
+      
+      let parsed = { reply: "喵呜，云端传输的数据出现了一些格式解析错误喵……", expression: "sad" };
+      try {
+        parsed = JSON.parse(rawText.trim());
+      } catch (err) {
+        console.warn("Failed to parse JSON reply from LLM, text:", rawText);
+        parsed = { reply: rawText, expression: "talking" };
+      }
+
+      res.json(parsed);
+    } catch (e: any) {
+      console.error("Catbot server error:", e);
+      res.status(500).json({
+        reply: `喵呜……本喵的云端脑回路好像烧坏了，报错信息：${e.message}喵。`,
+        expression: "sad"
+      });
+    }
+  });
+
   // Vite development middleware vs Static Production files serving
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

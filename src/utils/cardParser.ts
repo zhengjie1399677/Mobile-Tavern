@@ -380,6 +380,7 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
     content: entry.content || entry.value || "",
     constant: !!(entry.constant || entry.constant_active),
     enabled: entry.enabled !== false,
+    disabled: entry.enabled === false,
     comment: entry.comment || "",
     position,
     depth,

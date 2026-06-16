@@ -379,12 +379,14 @@ export const useCharacters = () => {
           }
           if (extensions.depth !== undefined) depth = Number(extensions.depth);
 
+          const isEnabled = entry.enabled !== false;
           return {
             id: "import_wi_" + Math.random().toString(36).substring(2, 9),
             keys: keysArr,
             content: entry.content || entry.value || "",
             constant: !!(entry.constant || entry.constant_active),
-            enabled: entry.enabled !== false,
+            enabled: isEnabled,
+            disabled: !isEnabled,
             comment: entry.comment || "",
             position,
             depth,

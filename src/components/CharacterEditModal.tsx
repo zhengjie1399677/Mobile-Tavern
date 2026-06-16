@@ -638,10 +638,10 @@ export default function CharacterEditModal() {
                   <div
                     key={entryKey}
                     className={`bg-card rounded-xl border text-xs transition-all duration-200 ${
-                      entry.disabled
-                        ? "border-dashed border-red-900/10 bg-red-950/2 opacity-60"
-                        : isEditingThis
-                          ? "border-primary ring-1 ring-primary/40 shadow-sm"
+                      isEditingThis
+                        ? "border-primary ring-1 ring-primary/40 shadow-sm"
+                        : entry.disabled
+                          ? "border-dashed border-red-900/10 bg-red-950/2 opacity-60"
                           : isExpanded
                             ? "border-primary/40 text-foreground bg-muted/5"
                             : "border-border/80 hover:border-border"
@@ -768,7 +768,10 @@ export default function CharacterEditModal() {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setEditingLoreEntry({ ...entry });
+                                    setEditingLoreEntry({
+                                      ...entry,
+                                      disabled: entry.disabled ?? !entry.enabled,
+                                    });
                                   }}
                                   type="button"
                                   className="text-[11px] bg-primary/15 hover:bg-primary hover:text-primary-foreground text-primary border border-primary/25 px-2.5 py-1 rounded-md flex items-center gap-1 font-semibold transition"
