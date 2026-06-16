@@ -20,8 +20,11 @@ pub fn run() {
       
       // Start the background telemetry loop thread
       let handle = app.handle().clone();
-      tokio::spawn(async move {
-        telemetry::start_telemetry_loop(handle).await;
+      std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime for telemetry");
+        rt.block_on(async {
+          telemetry::start_telemetry_loop(handle).await;
+        });
       });
 
       Ok(())

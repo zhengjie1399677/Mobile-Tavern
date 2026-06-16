@@ -292,6 +292,48 @@ export default function ChatTab() {
     };
   }, []);
 
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const isAtBottomRef = React.useRef<boolean>(true);
+
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    // If the user is within 60px of the bottom, consider them "at the bottom"
+    const atBottom = scrollHeight - scrollTop - clientHeight < 60;
+    isAtBottomRef.current = atBottom;
+  };
+
+  // Auto-scroll logic utilizing MutationObserver to track any DOM/style updates
+  React.useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const scrollToBottom = () => {
+      container.scrollTop = container.scrollHeight;
+    };
+
+    // Scroll to bottom immediately upon mount/active session switch/sub-tab switch
+    scrollToBottom();
+
+    const observer = new MutationObserver(() => {
+      if (isAtBottomRef.current) {
+        scrollToBottom();
+      }
+    });
+
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["style", "class"],
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [activeSessionId, chatSubTab]);
+
   const [isPortraitCollapsed, setIsPortraitCollapsed] = React.useState(false);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = React.useState(false);
   const [visibleExtensions, setVisibleExtensions] = React.useState<string[]>(["condition", "inventory", "bonding"]);
@@ -714,6 +756,8 @@ export default function ChatTab() {
 
           {/* Dialog Scroll area */}
           <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
             role="log"
             aria-label="聊天消息记录"
             aria-live="polite"
