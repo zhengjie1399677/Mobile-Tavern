@@ -14,12 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           lfs: true
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
@@ -38,7 +38,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Install dependencies
+      - name: Install npm dependencies
         run: npm install
 
       - name: Generate Tauri Icons
@@ -46,29 +46,24 @@ jobs:
           node scripts/decode_icon.cjs
           npx tauri icon
 
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: 'tools platform-tools ndk;25.2.9519653'
 
-      - name: Set NDK Home
+      - name: Set NDK environment
         run: |
           echo "NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
 
-      - name: Initialize Android Project
-        run: npx tauri android init --ci --skip-targets-install --verbose
-        continue-on-error: true
+      - name: Initialize Tauri Android project
+        run: npx tauri android init
 
       - name: Fix gradlew permissions
         run: chmod +x src-tauri/gen/android/gradlew
-        continue-on-error: true
 
       - name: Build Android APK
-        run: |
-          rm -f cargo rustc
-          npm run build:android
+        run: npm run build:android
 
       - name: Sign and Prepare APK
         env:
@@ -82,17 +77,11 @@ jobs:
           fi
           if [ -n "$apk_path" ]; then
             echo "Using APK at: $apk_path"
-            
-            # Find Build Tools
             BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
-            
             if [ -n "$KEYSTORE_B64" ]; then
               echo "Keystore secret detected. Proceeding with signing."
-              # Decode Keystore
               echo "$KEYSTORE_B64" | base64 -d > release.keystore
-              # Zipalign
               $BUILD_TOOLS_DIR/zipalign -v -f 4 "$apk_path" MobileTavern-aligned.apk
-              # Sign
               $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$KEYSTORE_PASSWORD" MobileTavern-aligned.apk
               mv MobileTavern-aligned.apk MobileTavern.apk
             else
@@ -118,4 +107,3 @@ jobs:
         with:
           files: MobileTavern.apk
           draft: true
-
