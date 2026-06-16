@@ -342,18 +342,66 @@ export const apiClient = {
   isClientMode,
   sendCatbotRequest: async (content: string, history: any[], clientContext?: any): Promise<{ reply: string; expression: string }> => {
     const isTauri = isClientMode();
-    const targetUrl = isTauri ? "http://127.0.0.1:3000/api/catbot" : "/api/catbot";
+    const fetchFn = tauriFetch || fetch;
     
-    const res = await fetch(targetUrl, {
+    // 默认路由至本地开发服务代理
+    let targetUrl = isTauri ? "http://127.0.0.1:3000/api/catbot" : "/api/catbot";
+    
+    // 正常流程：先验证 SLS/STS 是否就绪（即云端 STS 接口是否能正常响应并成功获取凭证）
+    try {
+      const fcBaseUrl = "https://mobile-xmkoxkjshe.cn-hangzhou.fcapp.run";
+      let signal: AbortSignal | undefined = undefined;
+      if ((AbortSignal as any).timeout) {
+        signal = (AbortSignal as any).timeout(4000); // 4秒超时防止网络卡死
+      }
+      
+      const checkRes = await fetchFn(fcBaseUrl, {
+        method: "GET",
+        headers: { "X-Device-Id": clientContext?.deviceId || "" },
+        signal
+      });
+      
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        // 验证返回中是否含有合法的 AccessKeyId 或 SecurityToken，即代表 SLS 临时凭证已成功获取
+        if (checkData && (checkData.AccessKeyId || checkData.SecurityToken)) {
+          targetUrl = "https://catbot-gmkodirnhh.cn-hangzhou.fcapp.run/api/catbot";
+          console.log("[apiClient] Aliyun SLS/STS validated successfully, routing to cloud:", targetUrl);
+        } else {
+          console.warn("[apiClient] SLS/STS response invalid, falling back to local.");
+        }
+      } else {
+        console.warn(`[apiClient] SLS/STS endpoint returned status ${checkRes.status}, falling back to local.`);
+      }
+    } catch (err) {
+      console.warn("[apiClient] SLS/STS not available, falling back to local:", err);
+    }
+    
+    const res = await fetchFn(targetUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, history, clientContext }),
+      headers: { 
+        "Content-Type": "application/json",
+        "X-Device-Id": clientContext?.deviceId || ""
+      },
+      body: JSON.stringify({ 
+        content, 
+        history, 
+        clientContext: {
+          ...clientContext,
+          device_id: clientContext?.deviceId // 对齐并注入 Python 端所需的 device_id
+        } 
+      }),
     });
     
     if (!res.ok) {
-      throw new Error(`HTTP error ${res.status}`);
+      let errText = "";
+      try {
+        errText = await res.text();
+      } catch (e) {}
+      throw new Error(`HTTP error ${res.status}: ${errText}`);
     }
     
     return res.json();
   }
 };
+
