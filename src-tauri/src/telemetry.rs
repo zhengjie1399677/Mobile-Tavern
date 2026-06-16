@@ -233,8 +233,9 @@ async fn send_payload_to_sls(credentials: &StsCredentials, logs: &[TelemetryLog]
         .map_err(|e| format!("SLS Post request error: {}", e))?;
         
     if !res.status().is_success() {
+        let status = res.status();
         let err_text = res.text().await.unwrap_or_default();
-        return Err(format!("SLS Post failed ({}): {}", res.status(), err_text));
+        return Err(format!("SLS Post failed ({}): {}", status, err_text));
     }
     
     Ok(())
