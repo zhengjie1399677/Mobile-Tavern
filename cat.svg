@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <!-- Definitions for shadows and gradients -->
+  <defs>
+    <!-- Soft floor shadow for the cat -->
+    <radialGradient id="floorShadow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E2E8F0" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Ground Shadow -->
+  <ellipse cx="200" cy="340" rx="110" ry="15" fill="url(#floorShadow)" />
+
+  <!-- CAT GROUP -->
+  <g id="orange-tabby-cat">
+    
+    <!-- 1. FLUFFY TAIL (Thick, curved tabby tail) -->
+    <path d="M 240 280 
+             C 320 280, 350 170, 290 170 
+             C 260 170, 270 210, 290 210 
+             C 310 210, 290 260, 240 255 Z" 
+          fill="#FF9F43" stroke="#5C3D2E" stroke-width="5" stroke-linejoin="round" />
+    
+    <!-- Tail Stripes -->
+    <path d="M 315 190 Q 295 195 292 180" fill="none" stroke="#E07A1B" stroke-width="4" stroke-linecap="round" />
+    <path d="M 318 215 Q 298 220 295 205" fill="none" stroke="#E07A1B" stroke-width="4" stroke-linecap="round" />
+    <path d="M 305 240 Q 285 245 282 230" fill="none" stroke="#E07A1B" stroke-width="4" stroke-linecap="round" />
+
+    <!-- 2. LEFT EAR (Distinctly pointed and triangular) -->
+    <path d="M 125 130 L 155 65 L 180 120 Z" fill="#FF9F43" stroke="#5C3D2E" stroke-width="5" stroke-linejoin="round" />
+    <!-- Inner Ear Pink -->
+    <path d="M 135 123 L 157 78 L 172 117 Z" fill="#FFB4B4" />
+
+    <!-- 3. RIGHT EAR (Distinctly pointed and triangular) -->
+    <path d="M 275 130 L 245 65 L 220 120 Z" fill="#FF9F43" stroke="#5C3D2E" stroke-width="5" stroke-linejoin="round" />
+    <!-- Inner Ear Pink -->
+    <path d="M 265 123 L 243 78 L 228 117 Z" fill="#FFB4B4" />
+
+    <!-- 4. CHUBBY SITTING BODY -->
+    <path d="M 145 200 
+             C 125 270, 135 325, 200 325 
+             C 265 325, 275 270, 255 200 Z" 
+          fill="#FF9F43" stroke="#5C3D2E" stroke-width="5" stroke-linejoin="round" />
+
+    <!-- White Belly Patch -->
+    <path d="M 165 240 Q 200 220 235 240 Q 240 310 200 310 Q 160 310 165 240 Z" fill="#FFF8F0" />
+
+    <!-- Body Stripes -->
+    <path d="M 137 235 L 155 238" stroke="#E07A1B" stroke-width="5" stroke-linecap="round" />
+    <path d="M 135 260 L 155 263" stroke="#E07A1B" stroke-width="5" stroke-linecap="round" />
+    <path d="M 263 235 L 245 238" stroke="#E07A1B" stroke-width="5" stroke-linecap="round" />
+    <path d="M 265 260 L 247 263" stroke="#E07A1B" stroke-width="5" stroke-linecap="round" />
+
+    <!-- 5. ROUND KITTEN HEAD -->
+    <ellipse cx="200" cy="145" rx="72" ry="58" fill="#FF9F43" stroke="#5C3D2E" stroke-width="5" />
+
+    <!-- Head Stripes (Top and Sides) -->
+    <path d="M 190 92 Q 192 110 192 115" stroke="#E07A1B" stroke-width="4" stroke-linecap="round" />
+    <path d="M 200 92 Q 200 110 200 118" stroke="#E07A1B" stroke-width="4" stroke-linecap="round" />
+    <path d="M 210 92 Q 208 110 208 115" stroke="#E07A1B" stroke-width="4" stroke-linecap="round" />
+    
+    <path d="M 132 145 L 148 147" stroke="#E07A1B" stroke-width="4" stroke-linecap="round" />
+    <path d="M 132 158 L 145 160" stroke="#E07A1B" stroke-width="4" stroke-linecap="round" />
+    <path d="M 268 145 L 252 147" stroke="#E07A1B" stroke-width="4" stroke-linecap="round" />
+    <path d="M 268 158 L 255 160" stroke="#E07A1B" stroke-width="4" stroke-linecap="round" />
+
+    <!-- Face Cream Patch Overlay -->
+    <path d="M 150 155 Q 200 135 250 155 Q 242 195 200 195 Q 158 195 150 155 Z" fill="#FFF8F0" />
+
+    <!-- Cute Eyes (Glossy Dark Circles with High-end Shines) -->
+    <!-- Left Eye -->
+    <circle cx="172" cy="150" r="8" fill="#5C3D2E" />
+    <circle cx="169" cy="147" r="2.5" fill="#FFFFFF" />
+    <!-- Right Eye -->
+    <circle cx="228" cy="150" r="8" fill="#5C3D2E" />
+    <circle cx="225" cy="147" r="2.5" fill="#FFFFFF" />
+
+    <!-- Blushing Cheeks -->
+    <circle cx="152" cy="168" r="8" fill="#FFB4B4" opacity="0.75" />
+    <circle cx="248" cy="168" r="8" fill="#FFB4B4" opacity="0.75" />
+
+    <!-- Small Pink Nose -->
+    <polygon points="196,160 204,160 200,165" fill="#FF7B7B" />
+
+    <!-- Cat Mouth (3 shape) -->
+    <path d="M 192 168 Q 197 174 200 168 Q 203 174 208 168" fill="none" stroke="#5C3D2E" stroke-width="3" stroke-linecap="round" />
+
+    <!-- 6. RED COLLAR WITH GOLD BELL (Unmistakable Pet Indicator) -->
+    <path d="M 152 198 Q 200 212 248 198" fill="none" stroke="#D90429" stroke-width="7" stroke-linecap="round" />
+    <!-- Bell -->
+    <circle cx="200" cy="214" r="10" fill="#FFD166" stroke="#5C3D2E" stroke-width="2.5" />
+    <circle cx="200" cy="211" r="2" fill="#5C3D2E" />
+    <line x1="200" y1="214" x2="200" y2="223" stroke="#5C3D2E" stroke-width="2.5" stroke-linecap="round" />
+
+    <!-- 7. TINY RESTING PAWS (Creamy Color) -->
+    <ellipse cx="180" cy="246" rx="11" ry="8" fill="#FFF8F0" stroke="#5C3D2E" stroke-width="3" />
+    <ellipse cx="220" cy="246" rx="11" ry="8" fill="#FFF8F0" stroke="#5C3D2E" stroke-width="3" />
+
+    <!-- 8. BACK FEET -->
+    <!-- Left Foot -->
+    <ellipse cx="150" cy="315" rx="18" ry="12" fill="#FFF8F0" stroke="#5C3D2E" stroke-width="4" />
+    <path d="M 142 308 L 142 320 M 150 308 L 150 320" stroke="#5C3D2E" stroke-width="3" stroke-linecap="round" />
+    
+    <!-- Right Foot -->
+    <ellipse cx="250" cy="315" rx="18" ry="12" fill="#FFF8F0" stroke="#5C3D2E" stroke-width="4" />
+    <path d="M 242 308 L 242 320 M 250 308 L 250 320" stroke="#5C3D2E" stroke-width="3" stroke-linecap="round" />
+
+  </g>
+</svg>

@@ -1,14 +1,11 @@
 const { execSync } = require('child_process');
 const path = require('path');
 
-// Add current directory to PATH to expose local mock scripts cargo.cmd and rustc.cmd
-const pathSeparator = process.platform === 'win32' ? ';' : ':';
-process.env.PATH = process.cwd() + pathSeparator + process.env.PATH;
 
 // Override ANDROID_HOME to the correct location on Windows and add platform-tools to PATH
 if (process.platform === 'win32') {
   process.env.ANDROID_HOME = 'E:\\modules\\ide\\android-sdk';
-  process.env.PATH = process.env.ANDROID_HOME + '\\platform-tools' + pathSeparator + process.env.PATH;
+  process.env.PATH = process.env.ANDROID_HOME + '\\platform-tools;' + process.env.PATH;
 }
 
 
