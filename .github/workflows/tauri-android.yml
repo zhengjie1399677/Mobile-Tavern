@@ -58,7 +58,7 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
 
       - name: Initialize Android Project
-        run: npx tauri android init
+        run: npx tauri android init --ci --skip-targets-install --verbose
         continue-on-error: true
 
       - name: Fix gradlew permissions

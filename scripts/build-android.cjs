@@ -33,13 +33,13 @@ for (let i = 0; i < maxRetries; i++) {
   try {
     console.log('Attempt ' + (i + 1) + ' to build Android APK...');
     const buildCmd = isCI 
-      ? 'npx tauri android build --apk --target aarch64'
-      : 'npx tauri android build --apk --debug --target aarch64';
+      ? 'npx tauri android build --apk --target aarch64 --verbose'
+      : 'npx tauri android build --apk --debug --target aarch64 --verbose';
     execSync(buildCmd, { stdio: 'inherit' });
     console.log('Build succeeded.');
     process.exit(0);
   } catch (err) {
-    console.error('Build attempt ' + (i + 1) + ' failed.');
+    console.error('Build attempt ' + (i + 1) + ' failed. Error details:', err);
     try {
       const gradlewTask = isCI ? 'assembleRelease' : 'assembleDebug';
       console.log(`Running gradlew ${gradlewTask} with detailed logging for diagnosis...`);
