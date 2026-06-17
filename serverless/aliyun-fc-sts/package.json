@@ -1,6 +1,6 @@
 {
   "name": "aliyun-fc-sts-issuer",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Aliyun Function Compute STS Token Issuer for SLS",
   "main": "index.js",
   "scripts": {

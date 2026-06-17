@@ -2076,7 +2076,7 @@ export default function SettingsTab() {
 
             <div className="mt-8 text-center space-y-1 pb-4 opacity-50 select-text">
               <p className="text-[10px] text-muted-foreground font-mono">
-                安装包版本: v1.4.0 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
+                安装包版本: v1.5.0 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
               </p>
               <p className="text-[9px] text-muted-foreground/80 font-mono">
                 诊断设备型号: {deviceModel}

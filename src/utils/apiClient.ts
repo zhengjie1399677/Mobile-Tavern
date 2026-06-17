@@ -344,38 +344,10 @@ export const apiClient = {
     const isTauri = isClientMode();
     const fetchFn = tauriFetch || fetch;
     
-    // 默认路由至本地开发服务代理
-    let targetUrl = isTauri ? "http://127.0.0.1:3000/api/catbot" : "/api/catbot";
-    
-    // 正常流程：先验证 SLS/STS 是否就绪（即云端 STS 接口是否能正常响应并成功获取凭证）
-    try {
-      const fcBaseUrl = "https://mobile-xmkoxkjshe.cn-hangzhou.fcapp.run";
-      let signal: AbortSignal | undefined = undefined;
-      if ((AbortSignal as any).timeout) {
-        signal = (AbortSignal as any).timeout(4000); // 4秒超时防止网络卡死
-      }
-      
-      const checkRes = await fetchFn(fcBaseUrl, {
-        method: "GET",
-        headers: { "X-Device-Id": clientContext?.deviceId || "" },
-        signal
-      });
-      
-      if (checkRes.ok) {
-        const checkData = await checkRes.json();
-        // 验证返回中是否含有合法的 AccessKeyId 或 SecurityToken，即代表 SLS 临时凭证已成功获取
-        if (checkData && (checkData.AccessKeyId || checkData.SecurityToken)) {
-          targetUrl = "https://catbot-gmkodirnhh.cn-hangzhou.fcapp.run/api/catbot";
-          console.log("[apiClient] Aliyun SLS/STS validated successfully, routing to cloud:", targetUrl);
-        } else {
-          console.warn("[apiClient] SLS/STS response invalid, falling back to local.");
-        }
-      } else {
-        console.warn(`[apiClient] SLS/STS endpoint returned status ${checkRes.status}, falling back to local.`);
-      }
-    } catch (err) {
-      console.warn("[apiClient] SLS/STS not available, falling back to local:", err);
-    }
+    // 客户端直连云端 Catbot 客服服务，Web 端走本地 Express 代理，彻底避免每次对话产生两次 FC 扣费
+    const targetUrl = isTauri 
+      ? "https://catbot-gmkodirnhh.cn-hangzhou.fcapp.run/api/catbot" 
+      : "/api/catbot";
     
     const res = await fetchFn(targetUrl, {
       method: "POST",

@@ -87,20 +87,119 @@ Mobile Tavern 是一款专为移动端（Android APK / iOS IPA）深度优化的
 
 ---
 
-## 🐱 四、 挂件客服助理小猫 (Stitch / 史迪奇)
+## 🐱 四、 挂件客服助理小猫 (雪团)
 
 小猫是常驻于底栏菜单页面右下角的挂件（进入具体对话房间时会自动卸载，防止遮挡输入框）。
 
 ### 1. 本地被动吐槽事件 (气泡随机吐槽)
 小猫通过监听系统的状态变化，在本地直接以对话气泡形式随机吐槽，该行为**不需要网络连接**：
-*   **戳戳它** (`idle_click`)：随机说出一些好奇、傲娇的打招呼台词。
+*   **戳戳它** (`idle_click`)：随机说出一些好奇、傲娇的打招呼台词（会触发舒服舔毛 relax 表情）。
 *   **挂机发呆超 3 分钟** (`idle_timeout`)：吐槽用户正在盯着屏幕发呆，或建议去整理 API Key。
 *   **深夜模式（23:00 - 05:00）** (`night_mode`)：提醒用户早点睡觉、不要掉毛。
-*   **对话 API 连接失败** (`api_error`)：表情切换为 `sad`（难过），提示用户检查代理 TUN 模式或 API 终点额度。
+*   **对话 API 连接失败** (`api_error`)：表情切换为 `sleepy`（犯困），提示用户检查代理 TUN 模式或 API 终点额度。
 *   **导入新卡成功** (`character_imported`)：兴奋地欢迎新伙伴加入酒馆。
 
 ### 2. 对话提问与 1 分钟超时判定
 用户可以通过点击小猫弹起对话浮窗进行打字交互：
 *   **本地匹配**（未连接云端时）：输入含有“导入”、“世界书”、“报错”等词时，小猫会根据关键词给出实用的本地操作指引。
-*   **云端接入**（开发者在后台配置了 `DASHSCOPE_API_KEY`）：消息会上传给大模型，由大模型以猫咪 Stitch 的傲娇语气做出智能解答并返回表情。
+*   **云端接入**（配置了云端 FC 转发或本地大模型）：消息会代理转发到阿里云 FC 真实云端函数中，由大模型以猫咪雪团的傲娇语气做出智能解答并返回分类（由本地代理转换为对应表情）。
 *   **1分钟超时机制**：如果请求在 **60秒** 内因网络阻塞未返回，前端会自动触发超时保护，小猫会切换为难过表情，并回复：*“喵呜呜……等了太久云端都没有反应喵，可能脑回路断掉了，稍后再试试看喵？🐾”*。
+
+---
+
+## 🎨 五、 角色卡高级配置与预设编写规范 (SillyTavern 生态兼容)
+
+为了在 Mobile Tavern 中获得完美的角色扮演和设定加载效果，可以遵循以下高级卡片编写标准：
+
+### 1. 高级视觉自定义字段 (Visual Settings)
+系统支持读取角色卡 JSON 根节点下的 `visualSettings` 字段以覆盖全局气泡样式：
+*   `bubbleColor`: AI 的对话气泡背景色（Hex 颜色码，如 `#1a1b26`）。
+*   `bubbleTextColor`: AI 的对话文本颜色（Hex 颜色码，如 `#a9b1d6`）。
+*   `userBubbleColor`: 用户的对话气泡背景色（Hex 颜色码）。
+*   `userBubbleTextColor`: 用户的对话文本颜色（Hex 颜色码）。
+*   `primaryColor`: 主题高亮色（Hex 颜色码）。
+*   `secondaryColor`: 次级辅助色（Hex 颜色码）。
+*   `backgroundColor`: 聊天区底色（Hex 颜色码）。
+*   `backgroundImageUrl`: 聊天背景图 URL（支持置空或空字符串）。
+*   `backgroundOpacity`: 背景图不透明度（0-1 之间的 Float，如 0.2）。
+*   `backgroundBlur`: 背景虚化程度（px，如 8）。
+*   `enableAsteriskFormatting`: 是否启用星号格式化渲染（Boolean，若为 `true` 则渲染星号为柔和斜体）。
+*   `customCss`: 允许注入的自定义 CSS 样式表。
+
+### 2. 世界设定双轨兼容规范 (Lorebook & Character Book)
+为了在 Mobile Tavern 中实现最高效的设定加载，建议在编写角色卡时采用**双轨容器兼容结构**。在输出 JSON 角色卡时，应当在根节点同时输出 `lorebookEntries` 和 `character_book`，且两者的 entries 条目数量、结构和内容保持一致。
+
+#### 📚 五个世界书标准 (Five Lorebooks Standard)：
+设计设定集时，以**刚好 5 条核心条目**作为行业编写标准：
+1. **背景与世界观 (World Background)**: 定义故事所处的宏观世界、地理、历史、种族和规则。触发词为世界名词或概念词。
+2. **主角色设定：{{char}} (Character Specs: Char)**: 存储 {{char}} 详细的身世、外貌、性格、习惯和私密偏好。通常设为常驻 (`constant: true`)。
+3. **次角色/玩家设定：{{user}} (Character Specs: User)**: 定义对话另一方（玩家）的身份、外貌特征以及双方在故事中的关系纽带。
+4. **对话指令与规避规则 (LLM Rules & Jailbreak)**: 防御 LLM 机器人化和机械化，约束其保持语气风格，遵循复杂人性描绘原则。必须设为常驻 (`constant: true`)，注入位置通常为 `in_chat`。
+5. **场景剧情与动态关系机制 (Scenario & Relationship)**: 详细规定当前环境以及关系变化的判定规则与指令引导。触发词为当前场景相关的关键词。
+
+### 3. 角色卡 JSON 格式模板
+```json
+{
+  "name": "角色名称",
+  "description": "【外貌、背景、穿着、性格偏好详细描述...】",
+  "personality": "【性格特征、言行举止与独特口癖设定...】",
+  "scenario": "【初始场景环境与背景设定...】",
+  "first_mes": "【主开场白，动作/表情用 * 包裹，台词用 \" 包裹】",
+  "alternate_greetings": [
+    "【备用场景开场白 1】",
+    "【备用场景开场白 2】"
+  ],
+  "mes_example": "<START>\n{{user}}: 输入...\n{{char}}: 语气示范回复...",
+  "system_prompt": "【系统提示词：限定扮演风格与语言要求...】",
+  "post_history_instructions": "【尾部注入指令：绝对禁止代操{{user}}的行为，严格遵循人设...】",
+  "character_version": "1.0.0",
+  "creator": "AI",
+  "tags": ["标签1", "标签2"],
+  "visualSettings": {
+    "bubbleColor": "#1a1b26",
+    "bubbleTextColor": "#a9b1d6",
+    "userBubbleColor": "#1f2335",
+    "userBubbleTextColor": "#c0caf5",
+    "primaryColor": "#7aa2f7",
+    "secondaryColor": "#bb9af3",
+    "backgroundColor": "#15161e",
+    "backgroundImageUrl": "",
+    "backgroundOpacity": 0.2,
+    "backgroundBlur": 8,
+    "enableAsteriskFormatting": true,
+    "customCss": ""
+  },
+  "character_book": {
+    "name": "角色设定集名称",
+    "entries": [
+      {
+        "keys": ["背景触发词"],
+        "comment": "背景与世界观",
+        "content": "【背景与世界观设定】",
+        "position": "after_char_def",
+        "constant": false,
+        "enabled": true
+      },
+      {
+        "keys": ["{{char}}触发词"],
+        "comment": "{{char}}人设",
+        "content": "【{{char}}角色设定描述】",
+        "position": "before_char_def",
+        "constant": true,
+        "enabled": true
+      }
+    ]
+  },
+  "lorebookEntries": [
+    {
+      "keys": ["背景触发词"],
+      "comment": "背景与世界观",
+      "content": "【背景与世界观设定】",
+      "position": "after_char_def",
+      "constant": false,
+      "enabled": true
+    }
+  ]
+}
+```
+

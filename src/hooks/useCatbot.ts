@@ -5,7 +5,7 @@ import { getDeviceId } from "../utils/telemetry";
 
 const catbotSessionStart = Date.now();
 
-export type CatExpression = "idle" | "thinking" | "talking" | "sad";
+export type CatExpression = "idle" | "thinking" | "relax" | "sleepy" | "sleep";
 
 export interface CatMessage {
   id: string;
@@ -56,7 +56,7 @@ let globalState: CatbotGlobalState = {
     {
       id: "welcome",
       role: "assistant",
-      content: "喵！我是你的酒馆专属小助手。如果有什么使用问题，或者想找我闲聊，随时在这里敲字告诉我喵！🐾",
+      content: "喵呜~ 我是一只住在你手机里、专门帮你管酒馆的小懒猫雪团喵！🐾 双击本喵可以快捷打开/收起这个大面板。如果遇到什么配置问题，或者单纯想摸摸本喵闲聊，随时在这里打字告诉我喵！✨",
       timestamp: Date.now(),
     },
   ],
@@ -90,19 +90,6 @@ export function useCatbot() {
     };
   }, []);
 
-  // 加载本地预设回复
-  useEffect(() => {
-    if (responsesCache) return;
-    fetch("/default_cat_responses.json")
-      .then((res) => res.json())
-      .then((data) => {
-        responsesCache = data;
-      })
-      .catch((err) => {
-        console.error("Failed to load predefined cat responses:", err);
-      });
-  }, []);
-
   // 清除定时器
   const clearTimers = useCallback(() => {
     if (bubbleTimer) clearTimeout(bubbleTimer);
@@ -111,7 +98,7 @@ export function useCatbot() {
 
   // 临时显示吐槽气泡并改变表情，几秒后恢复
   const showTemporaryBubble = useCallback(
-    (text: string, expr: CatExpression = "talking", duration = 4000) => {
+    (text: string, expr: CatExpression = "idle", duration = 4000, fallbackExpr: CatExpression = "idle") => {
       clearTimers();
       updateGlobalState({
         bubbleText: text,
@@ -124,41 +111,73 @@ export function useCatbot() {
       }, duration);
 
       expressionTimer = setTimeout(() => {
-        updateGlobalState({ expression: "idle" });
+        updateGlobalState({ expression: fallbackExpr });
       }, duration + 500);
     },
     [clearTimers]
   );
+
+  // 加载本地预设回复与开机首发欢迎气泡
+  useEffect(() => {
+    if (responsesCache) return;
+    fetch("/default_cat_responses.json")
+      .then((res) => res.json())
+      .then((data) => {
+        responsesCache = data;
+        
+        // 第一次开机加载成功后，自动在悬浮窗弹出操作指引气泡
+        const hasShownWelcome = sessionStorage.getItem("catbot_shown_welcome");
+        if (!hasShownWelcome) {
+          setTimeout(() => {
+            showTemporaryBubble("喵呜~ 我是一只住在你手机里的猫咪助理。双击本喵可以提问，单击可以摸摸我喵！🐾", "idle", 6000);
+            sessionStorage.setItem("catbot_shown_welcome", "true");
+          }, 1000);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load predefined cat responses:", err);
+      });
+  }, [showTemporaryBubble]);
 
   // 触发指定类型的本地预设吐槽事件
   const triggerEvent = useCallback(
     (event: CatbotEvent | "idle_click") => {
       if (!responsesCache) return;
       let textPool: string[] = [];
-      let nextExpr: CatExpression = "talking";
+      let nextExpr: CatExpression = "idle";
+      let fallbackExpr: CatExpression = "idle";
 
       switch (event) {
         case "idle_click":
           textPool = responsesCache.idle_click || [];
+          nextExpr = "relax";
           break;
         case "idle_timeout":
           textPool = responsesCache.idle_timeout || [];
+          nextExpr = "sleepy";
+          fallbackExpr = "sleep";
           break;
         case "night_mode":
           textPool = responsesCache.night_mode || [];
+          nextExpr = "sleepy";
+          fallbackExpr = "sleep";
           break;
         case "api_error":
           textPool = responsesCache.api_error || [];
-          nextExpr = "sad";
+          nextExpr = "idle";
           break;
         case "character_imported":
           textPool = responsesCache.character_imported || [];
+          nextExpr = "relax";
           break;
       }
 
       if (textPool.length > 0) {
-        const randomText = textPool[Math.floor(Math.random() * textPool.length)];
-        showTemporaryBubble(randomText, nextExpr);
+        let randomText = textPool[Math.floor(Math.random() * textPool.length)];
+        if (event === "idle_click") {
+          randomText += " (双击本喵可提问喵~)";
+        }
+        showTemporaryBubble(randomText, nextExpr, 4000, fallbackExpr);
       }
     },
     [showTemporaryBubble]
@@ -201,7 +220,7 @@ export function useCatbot() {
         deviceId: getDeviceId(),
         userName: settings?.userName || "未知",
         phoneModel: typeof navigator !== "undefined" ? navigator.userAgent : "Unknown",
-        appVersion: "1.4.0",
+        appVersion: "1.5.0",
         isTauri: apiClient.isClientMode(),
         apiBaseUrl: settings?.api?.baseUrl || "",
         apiModel: settings?.api?.modelName || "",
@@ -229,16 +248,19 @@ export function useCatbot() {
           timestamp: Date.now(),
         };
 
+        const returnedExpr = (res.expression as CatExpression) || "idle";
         updateGlobalState({
           messages: [...updatedMsgs, assistantMsg],
-          expression: (res.expression as CatExpression) || "talking",
+          expression: returnedExpr,
           isLoading: false,
         });
 
-        // 说话一段时间后切回待机表情
+        const endExpr = (returnedExpr === "sleep" || returnedExpr === "sleepy") ? returnedExpr : "idle";
+
+        // 说话一段时间后切回待机或睡觉表情
         if (expressionTimer) clearTimeout(expressionTimer);
         expressionTimer = setTimeout(() => {
-          updateGlobalState({ expression: "idle" });
+          updateGlobalState({ expression: endExpr });
         }, 3000);
 
       } catch (err: any) {
@@ -261,7 +283,7 @@ export function useCatbot() {
 
         updateGlobalState({
           messages: [...updatedMsgs, assistantMsg],
-          expression: "sad",
+          expression: "sleepy",
           isLoading: false,
         });
 

@@ -4,6 +4,54 @@
 
 ---
 
+## 📂 项目源码架构树与核心模块职责 (Project Architecture Tree)
+
+本项目的核心前端组件（React + TypeScript）以及后台服务（Tauri/Rust 与 Node.js）的职责文件树明细如下，供开发审计：
+
+```text
+d:\projects\Mobile-Tavern
+├── src-tauri/                                # Tauri 原生容器构建模块 (Rust 侧)
+│   ├── src/
+│   │   ├── lib.rs                            # 原生入口绑定、Rust 插件桥接挂载点
+│   │   └── telemetry.rs                      # Rust 本地落盘与 STS 遥测异步同步引擎
+│   ├── Cargo.toml                            # Rust 容器依赖包配置
+│   └── tauri.conf.json                       # 包名、系统权限及 Android 构建声明
+│
+├── server.ts                                 # 本地开发 Express CORS 中转与代理服务端
+├── serverless/                               # 云端 Serverless 服务函数部署
+│   └── aliyun-fc-sts/
+│       ├── index.js                          # Aliyun FC 3.0 Node.js 临时 STS 凭证签发函数
+│       └── package.json
+│
+├── src/                                      # 前端核心业务逻辑目录 (TypeScript)
+│   ├── components/                           # 核心 React 可复用 UI 视图组件
+│   │   ├── FloatingCat.tsx                   # 挂件客服助理小猫雪团 (包含状态机与吐槽气泡)
+│   │   ├── FormattedText.tsx                 # 前台 Markdown 及星号斜体柔和排版分色组件
+│   │   ├── TimelineModal.tsx                 # 剧情归档概要卡片垂直时间轴渲染器
+│   │   └── SessionManagerModal.tsx           # 对话分支平行宇宙克隆、删除操作模态框
+│   │
+│   ├── hooks/                                # 高级自定义 React 状态钩子
+│   │   ├── useChat.tsx                       # SSE 字节切分、故事摘要与 APM 耗时监听
+│   │   ├── useCatbot.ts                      # 客服助理雪团事件总线与大模型请求钩子
+│   │   └── useSettings.ts                    # 用户配置参数防抖落库、多预设套件管理
+│   │
+│   ├── tabs/                                 # 主界面导航四大板块对应的核心面板
+│   │   ├── CharactersTab.tsx                 # 模糊搜索、角色分类过滤器与图片拖拽监听
+│   │   ├── ChatTab.tsx                       # 对话气泡、多分支 Swipe 手势切换底栏
+│   │   ├── GlobalWorldbookTab.tsx            # 全局知识库条目创建、编辑与原子写库面板
+│   │   └── SettingsTab.tsx                   # 备份管理、采样参数调节及大模型接入设置
+│   │
+│   └── utils/                                # 底层核心计算工具包
+│       ├── apiClient.ts                      # 跨环境 Fetch 直连/代理自适应包装器
+│       ├── cardParser.ts                     # 二进制 PNG 酒馆卡解码、备份 AES 加密
+│       ├── promptBuilder.ts                  # 前缀缓存 Prompt 重排、世界书 3 阶级联检索
+│       ├── security.ts                       # SSRF 私网 IP 过滤、DNS 防重绑定安全网闸
+│       ├── localDB.ts                        # IndexedDB 对象仓声明与并发写 Promise 管道
+│       └── telemetry.ts                      # 前端遥测桥接，自适应降级 console 并调用 Rust 命令
+```
+
+---
+
 ## ⚡ 核心技术特征与性能优化 (Performance Highlights)
 
 ### 1. 极致的上下文缓存优化 (Prefix Cache & Message Ordering)
@@ -357,10 +405,18 @@ erDiagram
 *   **实现位置**: 前端 [telemetry.ts](src/utils/telemetry.ts) 与 Rust 后端 [telemetry.rs](src-tauri/src/telemetry.rs)
 *   **核心逻辑**:
     负责崩溃、使用率及 LLM APM 指标收集的原生化下沉模块。
-*   **物理隔离与容错兜底**:
-    *   **前端降级调用**: 前端不再直连阿里云 SLS 接口。所有遥测事件在整合设备上下文后，均通过 Tauri `invoke("report_telemetry")` 发送到 Rust 后端。开发期或非 Tauri 浏览器调试下自动降级为 `Console` 模拟打印，防止白屏崩溃。
+*   **物理隔离与环境上报行为**:
+    *   **前端降级与自适应 Mock 逻辑**: 前端不再直连阿里云 SLS 接口。所有遥测事件在整合设备上下文后，均通过 Tauri `invoke("report_telemetry")` 发送到 Rust 后端。**开发期或非 Tauri 浏览器调试下，会自动降级为 `Console` 模拟打印（输出 `[Telemetry] [Mock Dev Send]: ...` 到控制台），此时完全断开网络通道，不向云端发送任何遥测数据。**
     *   **Rust 本地持久化队列**: Rust 后端收到事件后，立即以 JSON Lines (JSONL) 格式写入手机沙盒中的 `telemetry_queue.jsonl` 文件。保证在 App 大退或被系统强杀时，数据已原子级落盘。
-    *   **后台异步同步线程**: Rust 后端在 `setup` 阶段启动常驻轮询线程，每 15 秒检测一次本地日志队列，并在后台向阿里云 SLS 发送批量上传请求，计算包含 `x-log-bodyrawsize` 的 HMAC-SHA1 签名。发送成功后截断/清除已成功上报的日志。
+    *   **后台异步同步线程**: Rust 后端在 `setup` 阶段启动常驻轮询线程，每 15 秒检测一次本地日志队列。若队列不为空，则后台请求 STS 凭证服务（`https://mobile-xmkoxkjshe.cn-hangzhou.fcapp.run`）获取临时密钥，计算包含 `x-log-bodyrawsize` 的 HMAC-SHA1 签名并批量发送给阿里云 SLS 的 `app-logs` 日志库。发送成功后截断/清除已成功上报的日志。
+*   **遥测无数据排查指南**:
+    1. **检查是否为真机/模拟器测试**：本地电脑浏览器调试不产生任何网络遥测数据，必须使用 Tauri 原生包测试。
+    2. **检查本地缓存**：必须执行相关敏感操作（测试连接、载入对话）往本地写入几条日志以触发增量同步定时器，为空时不启动网络请求。
+    3. **STS 授权验证**：检查阿里云临时角色的 STS Policy，必须明确包含对遥测日志库 `app-logs` 的写入（`log:PostLogStoreLogs`）权限。
+    4. **ADB 实战定位命令**：通过 adb 工具过滤 Rust 底层遥测日志输出，确认是 `Successfully sent` 还是报 HTTP 错误（如 403 / 404）：
+       ```powershell
+       adb logcat | findstr "Telemetry"
+       ```
 
 ### 14. `TimelineModal.tsx` (前情剧情提炼时间线展示)
 *   **实现位置**: [TimelineModal.tsx](src/components/TimelineModal.tsx)

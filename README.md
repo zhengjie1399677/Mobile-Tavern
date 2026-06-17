@@ -1,6 +1,6 @@
 # 📱 Mobile Tavern 
 
-[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg?style=for-the-badge)](https://github.com/zhengjie1399677/Mobile-Tavern)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg?style=for-the-badge)](https://github.com/zhengjie1399677/Mobile-Tavern)
 [![Tauri](https://img.shields.io/badge/Tauri-v2-green.svg?style=for-the-badge&logo=tauri)](https://tauri.app/)
 [![React](https://img.shields.io/badge/React-v19-blue.svg?style=for-the-badge&logo=react)](https://react.dev/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4.svg?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
@@ -16,8 +16,8 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 > [!NOTE]
 > * **功能与技术细节归档**：
 >   * 关于 Android 手机真机调试、网络映射配置、原生 bridge 状态栏同步等原生端适配细则，请直接查阅：[AGENTS.md](AGENTS.md)。
->   * 关于 Prompt 上下文分区的作用、标头过滤机制及最终发送给 API 的消息数组格式示例，请直接查阅：[presets_prompts_guide.md](presets_prompts_guide.md)。
->   * 关于 Prefix Cache 缓存优化、数据库设计、PNG 二进制解码机制、源码模块剖析等底层技术细节，请直接查阅：[TECHNICAL.md](TECHNICAL.md)。
+>   * 关于 用户操作步骤、雪团客服挂件说明以及角色卡高级配置与 JSON 模板规范，请直接查阅：[mobile_tavern_user_guide.md](mobile_tavern_user_guide.md)。
+>   * 关于 Prefix Cache 缓存优化、项目架构职责、数据库设计以及源码模块剖析等底层技术细节，请直接查阅：[TECHNICAL.md](TECHNICAL.md)。
 
 ---
 
@@ -52,19 +52,19 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 
 ## 📁 源码目录结构简览 (Directory Structure)
 
-本工程采用严格的模块化组织结构：
+本工程采用严格的模块化组织结构，项目根目录下仅保留 4 个核心 Markdown 配置文件以保证工程整洁：
 ```text
 Mobile-Tavern
 ├── server.ts                             # 本地 Express 流代理服务 (CORS 转发)
 ├── AGENTS.md                             # APK 原生适配、遥测上报与调试白屏排查指南
-├── TECHNICAL.md                          # 技术架构细节、缓存优化、数据库设计及源码剖析
-├── presets_prompts_guide.md              # 预设 Prompt 上下文分区逻辑说明
-├── src-tauri                             # Tauri 原生容器构建模块 (Rust 侧，包含本地落盘与 STS 遥测异步同步引擎)
+├── TECHNICAL.md                          # 技术架构细节、项目源码架构树、缓存优化及源码剖析
+├── mobile_tavern_user_guide.md           # 用户端操作指南、挂件雪团说明与角色卡高级配置模板
+├── src-tauri                             # Tauri 原生容器构建模块 (Rust 侧，包含本地落盘与 STS 遥测同步引擎)
 └── src                                   # 前端 React 业务代码
     ├── App.tsx                           # 启动流程管理与基础预设包定义
     ├── AppContext.tsx                    # 全局状态管理 Context
-    ├── components                        # 共享 UI 容器 (自适应安全区、拇指布局等)
-    ├── hooks                             # 核心状态钩子 (useChat, useCharacters, useSettings)
+    ├── components                        # 共享 UI 容器 (自适应安全区、拇指布局等，含雪团客服)
+    ├── hooks                             # 核心状态钩子 (useChat, useCharacters, useSettings, useCatbot)
     ├── tabs                              # 各功能大版块 Tab 页 (包含调试沙盒)
     └── utils                             # 底层计算工具 (cardParser, db, promptBuilder, telemetry)
 ```

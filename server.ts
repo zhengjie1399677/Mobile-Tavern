@@ -55,9 +55,9 @@ async function startServer() {
     try {
       const pkgPath = path.join(resolvedDirname, "package.json");
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-      res.json({ pkgVersion: pkg.version || "1.4.0" });
+      res.json({ pkgVersion: pkg.version || "1.5.0" });
     } catch (e) {
-      res.json({ pkgVersion: "1.4.0" });
+      res.json({ pkgVersion: "1.5.0" });
     }
   });
 
@@ -213,10 +213,72 @@ async function startServer() {
 
   // API 5: Catbot interaction with intent determination & classification
   app.post("/api/catbot", async (req, res) => {
+    const { content, history = [], clientContext } = req.body || {};
+    const deviceId = clientContext?.deviceId || req.headers["x-device-id"] || "local_dev_user";
+
+    // 优先转发到阿里云 FC 真实云端客服服务（解决本地 Web 调试由于跨域无法直连云端的问题）
+    const cloudFcUrl = process.env.CATBOT_FC_URL || "https://catbot-gmkodirnhh.cn-hangzhou.fcapp.run/api/catbot";
+    console.log(`[Catbot Proxy] 收到本地请求，尝试转发到云端 FC: ${cloudFcUrl}`);
+
     try {
-      const { content, history = [], clientContext } = req.body || {};
+      const controller = new AbortController();
+      const fcTimeout = setTimeout(() => controller.abort(), 12000); // 12秒云端超时限制
+
+      const response = await fetch(cloudFcUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Device-Id": deviceId as string
+        },
+        body: JSON.stringify({
+          content,
+          history,
+          clientContext: {
+            ...clientContext,
+            device_id: deviceId
+          }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(fcTimeout);
+
+      if (response.ok) {
+        const cloudData: any = await response.json();
+        console.log(`[Catbot Proxy] 云端 FC 响应成功:`, JSON.stringify(cloudData));
+
+        // 根据云端返回的 category 精准映射前端小猫所需的情绪表情
+        let expression = "idle";
+        const cat = cloudData.category || "chat";
+        if (cat === "bug") {
+          expression = "sleepy"; // 犯困/半躺半睡表情，契合 Bug 卡住状态
+        } else if (cat === "tech") {
+          expression = "thinking"; // 歪头思考问号表情
+        } else {
+          // 闲聊时有概率给点舒服舔毛表情，增强动感
+          expression = Math.random() > 0.5 ? "relax" : "idle";
+        }
+
+        return res.json({
+          reply: cloudData.reply,
+          expression: expression,
+          category: cloudData.category,
+          quota: cloudData.quota,
+          bugReported: cloudData.bugReported,
+          fromCloud: true
+        });
+      } else {
+        const errBody = await response.text();
+        console.warn(`[Catbot Proxy] 云端 FC 返回 HTTP 错误码 ${response.status}: ${errBody}，准备降级为本地处理器`);
+      }
+    } catch (err: any) {
+      console.warn(`[Catbot Proxy] 转发至云端 FC 失败 (${err.message})，降级为本地处理器。`);
+    }
+
+    // ================== 本地处理器降级兜底逻辑 ==================
+    try {
       if (clientContext) {
-        console.log(`[Catbot Server] Received client device context:`, JSON.stringify(clientContext, null, 2));
+        console.log(`[Catbot Server Fallback] Received client device context:`, JSON.stringify(clientContext, null, 2));
       }
       const apiKey = process.env.DASHSCOPE_API_KEY;
 
@@ -237,7 +299,7 @@ async function startServer() {
           expression = "thinking";
         } else if (text.includes("报错") || text.includes("闪退") || text.includes("错误")) {
           reply += "如果遇到连接报错，可以尝试去设置里清理一下缓存，或者检查当前所用的 API Key / 代理服务器是否可达喵。";
-          expression = "sad";
+          expression = "sleepy";
         } else {
           const randomReplies = [
             "唔，你在说什么高深的技术话题喵？本喵有点听不懂，不过本喵在认真听哦！",
@@ -252,10 +314,10 @@ async function startServer() {
         return res.json({ reply, expression });
       }
 
-      // Construct messages with system prompt enforcing JSON format.
-      const systemPrompt = `你是一只傲娇又博学的酒馆助理猫咪（名字叫“Stitch”/“史迪奇”）。你的职责是解答用户关于 Mobile Tavern (移动酒馆) 软件的使用疑问，或者进行日常的幽默闲聊。
+      // 本地有 API Key 时的备用直连 DashScope 逻辑
+      const systemPrompt = `你是一只傲娇又博学的酒馆助理猫咪（名字叫“雪团”）。你的职责是解答用户关于 Mobile Tavern (移动酒馆) 软件的使用疑问，或者进行日常的幽默闲聊。
 核心性格：说话轻快活泼，喜欢带“喵~”的语气助词，带有一点点猫咪特有的高傲与温柔。
-要求：对用户的输入进行分析，判断问题类型，并选择一个合适的猫咪情绪表情（从 "idle"(待机/闲置), "thinking"(歪头思考), "talking"(活泼说话), "sad"(委屈难过/报错) 中选择）。
+要求：对用户的输入进行分析，判断问题类型，并选择一个合适的猫咪情绪表情（从 "idle"(清醒端坐待机), "thinking"(端坐思考), "relax"(舒服地笑眯眯舔毛洗澡), "sleepy"(半躺半睡犯困), "sleep"(完全闭眼躺平睡觉) 中选择）。
 
 请必须且只能返回符合以下 JSON 格式的单行文本，千万不要包含任何 \`\`\`json 等 markdown 标记或换行，直接输出一个纯 JSON 字符串：
 { "reply": "你的猫咪口吻回复内容", "expression": "对应的情绪代码" }`;
@@ -288,20 +350,20 @@ async function startServer() {
       const resData: any = await response.json();
       const rawText = resData.choices?.[0]?.message?.content || "{}";
       
-      let parsed = { reply: "喵呜，云端传输的数据出现了一些格式解析错误喵……", expression: "sad" };
+      let parsed = { reply: "喵呜，云端传输的数据出现了一些格式解析错误喵……", expression: "sleepy" };
       try {
         parsed = JSON.parse(rawText.trim());
       } catch (err) {
         console.warn("Failed to parse JSON reply from LLM, text:", rawText);
-        parsed = { reply: rawText, expression: "talking" };
+        parsed = { reply: rawText, expression: "idle" };
       }
 
       res.json(parsed);
     } catch (e: any) {
-      console.error("Catbot server error:", e);
+      console.error("Catbot server fallback error:", e);
       res.status(500).json({
-        reply: `喵呜……本喵的云端脑回路好像烧坏了，报错信息：${e.message}喵。`,
-        expression: "sad"
+        reply: `喵呜……本喵的本地脑回路好像烧坏了，报错信息：${e.message}喵。`,
+        expression: "sleepy"
       });
     }
   });

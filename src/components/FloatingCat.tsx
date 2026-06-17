@@ -59,22 +59,25 @@ export function FloatingCat() {
   const [processedImages, setProcessedImages] = useState<Record<CatExpression, string>>({
     idle: "",
     thinking: "",
-    talking: "",
-    sad: "",
+    relax: "",
+    sleepy: "",
+    sleep: "",
   });
 
   const dragStart = useRef({ x: 0, y: 0 });
   const elementStart = useRef({ x: 0, y: 0 });
   const hasMoved = useRef(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const lastClickTime = useRef(0);
 
   // 异步预加载并处理 4 张大表情图
   useEffect(() => {
     const rawPaths: Record<CatExpression, string> = {
-      idle: "/assets/cat/idle.png",
-      thinking: "/assets/cat/thinking.png",
-      talking: "/assets/cat/talking.png",
-      sad: "/assets/cat/sad.png",
+      idle: "/assets/cat/idle.png?v=1.4.4",
+      thinking: "/assets/cat/thinking.png?v=1.4.4",
+      relax: "/assets/cat/relax.png?v=1.4.4",
+      sleepy: "/assets/cat/sleepy.png?v=1.4.4",
+      sleep: "/assets/cat/sleep.png?v=1.4.4",
     };
 
     Promise.all(
@@ -151,8 +154,14 @@ export function FloatingCat() {
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     
     if (!hasMoved.current) {
-      setIsOpen(!isOpen);
-      triggerEvent("idle_click");
+      const now = Date.now();
+      const CLICK_DELAY = 300;
+      if (now - lastClickTime.current < CLICK_DELAY) {
+        setIsOpen(!isOpen);
+      } else {
+        triggerEvent("idle_click");
+      }
+      lastClickTime.current = now;
     } else {
       const middleX = window.innerWidth / 2;
       const targetX = position.x < middleX ? 12 : window.innerWidth - 56 - 12;
@@ -188,20 +197,24 @@ export function FloatingCat() {
   };
 
   const getCatAnimationClass = (expr: CatExpression) => {
-    switch (expr) {
+    const activeExpr = (isOpen && (expr === "sleepy" || expr === "sleep")) ? "idle" : expr;
+    switch (activeExpr) {
       case "thinking":
         return "animate-cat-thinking";
-      case "talking":
+      case "relax":
         return "animate-cat-talking";
-      case "sad":
-        return "animate-cat-sad";
+      case "sleepy":
+        return "animate-cat-sleep";
+      case "sleep":
+        return "animate-cat-sleep";
       case "idle":
       default:
         return "animate-cat-idle";
     }
   };
 
-  const currentProcessedSrc = processedImages[expression] || processedImages.idle || "";
+  const activeExpression: CatExpression = (isOpen && (expression === "sleepy" || expression === "sleep")) ? "idle" : expression;
+  const currentProcessedSrc = processedImages[activeExpression] || processedImages.idle || "";
 
   return (
     <>
@@ -223,6 +236,10 @@ export function FloatingCat() {
           25% { transform: translateX(-1px) rotate(-1deg); }
           75% { transform: translateX(1px) rotate(1deg); }
         }
+        @keyframes catSleep {
+          0%, 100% { transform: scale(1) translateY(0); opacity: 0.95; }
+          50% { transform: scale(0.97) translateY(1px); opacity: 0.8; }
+        }
         
         .animate-cat-idle {
           animation: catFloat 3s ease-in-out infinite;
@@ -235,6 +252,9 @@ export function FloatingCat() {
         }
         .animate-cat-sad {
           animation: catSad 0.4s ease-in-out infinite;
+        }
+        .animate-cat-sleep {
+          animation: catSleep 4.5s ease-in-out infinite;
         }
         
         .cat-scroll-hide::-webkit-scrollbar {
@@ -259,7 +279,7 @@ export function FloatingCat() {
           touchAction: "none",
           cursor: isDragging ? "grabbing" : "grab",
         }}
-        className={`flex items-center justify-center transition-shadow select-none ${!isDragging ? getCatAnimationClass(expression) : ""}`}
+        className={`flex items-center justify-center transition-shadow select-none ${!isDragging ? getCatAnimationClass(activeExpression) : ""}`}
       >
         {/* 圆形霓虹容器 */}
         <div 
@@ -347,13 +367,13 @@ export function FloatingCat() {
                 <button
                   onClick={clearChatHistory}
                   title="清空聊天记录"
-                  className="p-1.5 rounded-lg text-[#849495] hover:text-[#ff5d4e] hover:bg-[#23293c] transition-colors"
+                  className="p-1.5 rounded-lg text-[#849495] active:text-[#ff5d4e] active:bg-[#23293c] transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={handleClose}
-                  className="p-1.5 rounded-lg text-[#849495] hover:text-[#dce1fb] hover:bg-[#23293c] transition-colors"
+                  className="p-1.5 rounded-lg text-[#849495] active:text-[#dce1fb] active:bg-[#23293c] transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -401,14 +421,15 @@ export function FloatingCat() {
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="向小助手提问..."
+                maxLength={200}
+                placeholder="向小助手提问 (最多200字)..."
                 disabled={isLoading}
                 className="flex-1 h-10 px-4 rounded-full bg-[#070d1f] border border-[#3b494b] focus:border-[#00dbe9] focus:outline-none text-xs text-[#dce1fb] placeholder-[#849495] focus:shadow-[0_0_8px_rgba(0,240,255,0.2)] disabled:opacity-50 transition-all"
               />
               <button
                 type="submit"
                 disabled={!inputText.trim() || isLoading}
-                className="h-10 w-10 rounded-full bg-[#00dbe9] hover:bg-[#00f0ff] text-[#00363a] flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-[0_0_8px_rgba(0,240,255,0.25)]"
+                className="h-10 w-10 rounded-full bg-[#00dbe9] active:bg-[#00f0ff] active:scale-95 text-[#00363a] flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-[0_0_8px_rgba(0,240,255,0.25)]"
               >
                 <Send className="w-4 h-4" />
               </button>
