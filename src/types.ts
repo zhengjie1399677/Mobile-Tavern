@@ -182,6 +182,13 @@ export interface SavedPresetBundle {
   presetRegexScripts?: RegexScript[];
 }
 
+export interface UserPersona {
+  id: string;
+  name: string;
+  avatar?: string;
+  description?: string;
+}
+
 export interface UserSettings {
   api: ApiConfig;
   preset: SamplerPreset;
@@ -190,6 +197,8 @@ export interface UserSettings {
   userName: string;
   userInfo?: string;
   userAvatar?: string;
+  userPersonas?: UserPersona[];
+  activePersonaId?: string;
   savedPresets?: SavedPresetBundle[]; // Collection of saved multiple presets
   enableHtmlRendering?: boolean; // Render exact HTML/CSS from AI output
   expressionTriggers?: Record<string, string>;

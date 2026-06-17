@@ -422,7 +422,7 @@ export function FloatingCat() {
             {/* Footer / 输入框 */}
             <form
               onSubmit={handleSend}
-              className="p-3 border-t border-[#3b494b] bg-[#151b2dd9] flex items-center gap-2 pb-[calc(12px+env(safe-area-inset-bottom))]"
+              className="p-3 border-t border-[#3b494b] bg-[#151b2d] flex items-center gap-2"
             >
               <input
                 type="text"
@@ -443,6 +443,8 @@ export function FloatingCat() {
                 <Send className="w-4 h-4" />
               </button>
             </form>
+            {/* 适配全面屏的物理安全区保底占位块，键盘弹起时会自动压缩，且背景为固体深色物尽其用 */}
+            <div className="h-[env(safe-area-inset-bottom)] bg-[#151b2d] shrink-0" />
           </div>
         </div>
       )}

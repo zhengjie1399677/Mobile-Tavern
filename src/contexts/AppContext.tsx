@@ -49,6 +49,7 @@ interface AppContextType {
   setNewSummaryInventory?: (val: string) => void;
   newSummaryBonding?: string;
   setNewSummaryBonding?: (val: string) => void;
+  safeAreas: { top: number; bottom: number };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -129,24 +130,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem("siuser-theme", newTheme);
   };
 
+  const [safeAreas, setSafeAreas] = useState<{ top: number; bottom: number }>(() => {
+    if (typeof window !== "undefined") {
+      const style = window.getComputedStyle(document.documentElement);
+      const topVal = style.getPropertyValue("--safe-area-top") || style.getPropertyValue("--android-safe-area-top");
+      const bottomVal = style.getPropertyValue("--safe-area-bottom") || style.getPropertyValue("--android-safe-area-bottom");
+      const top = parseInt(topVal, 10);
+      const bottom = parseInt(bottomVal, 10);
+      return {
+        top: isNaN(top) ? 0 : top,
+        bottom: isNaN(bottom) ? 0 : bottom,
+      };
+    }
+    return { top: 0, bottom: 0 };
+  });
+
   // Synchronize Android Native Safe Area Heights via bridge and custom events
   useEffect(() => {
     const updateSafeAreas = (top: number, bottom: number) => {
+      setSafeAreas({ top, bottom });
       document.documentElement.style.setProperty('--android-safe-area-top', `${top}px`);
       document.documentElement.style.setProperty('--android-safe-area-bottom', `${bottom}px`);
+      document.documentElement.style.setProperty('--safe-area-top', `${top}px`);
+      document.documentElement.style.setProperty('--safe-area-bottom', `${bottom}px`);
     };
 
-    const bridge = (window as any).AndroidThemeBridge;
-    if (bridge && typeof bridge.getSafeAreas === "function") {
-      try {
-        const res = JSON.parse(bridge.getSafeAreas());
-        updateSafeAreas(res.top, res.bottom);
-      } catch (e) {
-        console.error("Failed to parse native safe areas:", e);
+    const tryFetchSafeAreas = () => {
+      const bridge = (window as any).AndroidThemeBridge;
+      if (bridge && typeof bridge.getSafeAreas === "function") {
+        try {
+          const res = JSON.parse(bridge.getSafeAreas());
+          console.log("[AppContext] getSafeAreas success:", res);
+          updateSafeAreas(res.top, res.bottom);
+          return true;
+        } catch (e) {
+          console.error("Failed to parse native safe areas:", e);
+        }
       }
+      return false;
+    };
+
+    // 1. 立即尝试一次
+    const initialSuccess = tryFetchSafeAreas();
+
+    // 2. 如果初始获取失败（可能由于 Bridge 尚未准备就绪），设置定时器重试（3秒内每150毫秒重试一次）
+    let retryCount = 0;
+    const maxRetries = 20;
+    let timerId: any = null;
+
+    if (!initialSuccess) {
+      timerId = setInterval(() => {
+        retryCount++;
+        const success = tryFetchSafeAreas();
+        if (success || retryCount >= maxRetries) {
+          clearInterval(timerId);
+        }
+      }, 150);
     }
 
     const handleSafeAreasChange = (e: any) => {
+      console.log("[AppContext] androidSafeAreasChanged event received:", e.detail);
       if (e.detail) {
         updateSafeAreas(e.detail.top, e.detail.bottom);
       }
@@ -154,6 +197,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     window.addEventListener("androidSafeAreasChanged", handleSafeAreasChange);
     return () => {
+      if (timerId) clearInterval(timerId);
       window.removeEventListener("androidSafeAreasChanged", handleSafeAreasChange);
     };
   }, []);
@@ -308,6 +352,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showCustomAlert,
         showCustomConfirm,
         showCustomPrompt,
+        safeAreas,
       }}
     >
       {children}

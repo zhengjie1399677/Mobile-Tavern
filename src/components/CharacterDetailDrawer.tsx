@@ -33,6 +33,7 @@ export default function CharacterDetailDrawer({
     setCharacters,
     showCustomAlert,
     settings,
+    safeAreas,
   } = useContext(AppContext);
 
   const userName = settings?.userName || "user";
@@ -93,7 +94,10 @@ export default function CharacterDetailDrawer({
       />
 
       {/* Glassmorphic drawer sliding up */}
-      <div className="w-full max-w-lg bg-background/95 backdrop-blur-lg border-t border-border/50 rounded-t-3xl shadow-2xl z-10 flex flex-col max-h-[85vh] pb-[var(--safe-area-bottom)] transition-transform animate-in slide-in-from-bottom duration-300">
+      <div
+        style={{ paddingBottom: `${safeAreas?.bottom ?? 0}px` }}
+        className="w-full max-w-lg bg-background/95 backdrop-blur-lg border-t border-border/50 rounded-t-3xl shadow-2xl z-10 flex flex-col max-h-[85vh] transition-transform animate-in slide-in-from-bottom duration-300"
+      >
         
         {/* Header decoration bar */}
         <div className="flex justify-center py-2.5">

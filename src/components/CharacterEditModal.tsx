@@ -29,6 +29,7 @@ export default function CharacterEditModal() {
     handleSaveCharacter,
     handleSaveLoreEntry,
     setActiveTab,
+    safeAreas,
   } = useContext(AppContext);
 
   if (!charModalOpen || !editingChar) return null;
@@ -824,7 +825,10 @@ export default function CharacterEditModal() {
         )}
 
         {/* Modal final saving operations */}
-        <div className="p-4 pb-[calc(1rem+max(var(--safe-area-bottom),16px))] bg-input/80 border-t border-border gap-2.5 flex items-center justify-end sticky bottom-0 z-10">
+        <div 
+          style={{ paddingBottom: `${16 + Math.max(safeAreas?.bottom ?? 0, 16)}px` }}
+          className="p-4 bg-input/80 border-t border-border gap-2.5 flex items-center justify-end sticky bottom-0 z-10"
+        >
           <button
             onClick={() => {
               setCharModalOpen(false);

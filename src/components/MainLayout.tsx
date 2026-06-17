@@ -21,6 +21,7 @@ export default function MainLayout() {
     activeTab,
     setActiveTab,
     showSplash,
+    safeAreas,
   } = useContext(AppContext);
 
   return (
@@ -32,7 +33,8 @@ export default function MainLayout() {
           <div
             role="tablist"
             aria-label="底栏导航页签"
-            className="absolute bottom-4 left-4 right-4 h-16 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
+            style={{ bottom: `${16 + (safeAreas?.bottom ?? 0)}px` }}
+            className="absolute left-4 right-4 h-16 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
           >
             <button
               onClick={() => setActiveTab("characters")}
@@ -110,10 +112,11 @@ export default function MainLayout() {
 
         {/* 2. Content Sections Grid */}
         <div
+          style={activeTab !== "chat" && activeTab !== "playground" ? { paddingBottom: `${96 + (safeAreas?.bottom ?? 0)}px` } : undefined}
           className={`flex-1 relative ${
             activeTab === "chat" || activeTab === "playground"
               ? "flex flex-col min-h-0 pb-0"
-              : "overflow-y-auto pb-[calc(3.5rem+var(--safe-area-bottom)+12px)]"
+              : "overflow-y-auto"
           }`}
         >
           {/* === SECTION A: CHARACTER SELECTION === */}

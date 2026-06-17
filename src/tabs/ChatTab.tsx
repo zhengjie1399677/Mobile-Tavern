@@ -42,8 +42,10 @@ const ChatInputArea = () => {
     showCustomConfirm,
     handleAutoSummaryCheck,
     handleSendMessage,
+    safeAreas,
   } = React.useContext(AppContext);
   const [localInput, setLocalInput] = React.useState("");
+  const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -61,6 +63,8 @@ const ChatInputArea = () => {
     if (!vvp) return;
 
     const handleViewportResize = () => {
+      setIsKeyboardOpen(window.innerHeight - vvp.height > 150);
+
       const container = containerRef.current;
       if (!container) return;
       // 只在输入框获得焦点时响应（键盘弹出场景）
@@ -77,6 +81,7 @@ const ChatInputArea = () => {
     };
 
     vvp.addEventListener("resize", handleViewportResize);
+    handleViewportResize();
     return () => vvp.removeEventListener("resize", handleViewportResize);
   }, []);
 
@@ -88,7 +93,12 @@ const ChatInputArea = () => {
   };
 
   return (
-    <div ref={containerRef} className="glass-panel border-t border-border/40 pt-3 px-3 pb-[max(var(--safe-area-bottom),12px)] flex flex-col gap-2 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
+    <div
+      id="chat-input-area-container"
+      ref={containerRef}
+      style={{ paddingBottom: `${isKeyboardOpen ? 12 : Math.max(safeAreas?.bottom ?? 0, 12)}px` }}
+      className="glass-panel border-t border-border/40 pt-3 px-3 flex flex-col gap-2 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]"
+    >
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
           <button
@@ -264,6 +274,8 @@ export default function ChatTab() {
     saveSessionWithMvu,
     updateSettings,
   } = useContext(AppContext);
+
+
 
   // a11y Live Announcer state and effect
   const [announcement, setAnnouncement] = React.useState("");

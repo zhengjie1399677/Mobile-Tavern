@@ -1,12 +1,12 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Mobile Tavern",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "identifier": "com.aitavern.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "vite --host 127.0.0.1",
     "beforeBuildCommand": "npm run build"
   },
   "app": {

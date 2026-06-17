@@ -157,6 +157,15 @@ export const DEFAULT_SETTINGS: UserSettings = {
   userName: "user",
   userInfo: "",
   userAvatar: "",
+  userPersonas: [
+    {
+      id: "default-persona",
+      name: "user",
+      avatar: "",
+      description: "",
+    }
+  ],
+  activePersonaId: "default-persona",
   globalChatBg: "",
   enableHtmlRendering: true,
   enableScriptExecution: false,
@@ -310,6 +319,55 @@ export const useSettings = () => {
             needSave = true;
           }
 
+          let personas = storedSet.userPersonas && storedSet.userPersonas.length > 0
+            ? storedSet.userPersonas
+            : [
+                {
+                  id: "default-persona",
+                  name: storedSet.userName || DEFAULT_SETTINGS.userName,
+                  avatar: storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar || "",
+                  description: storedSet.userInfo || DEFAULT_SETTINGS.userInfo || "",
+                }
+              ];
+          
+          let activeId = storedSet.activePersonaId || personas[0].id;
+          
+          // 如果活跃人物 ID 在列表中找不到，强制重置为第一个人设的 ID
+          if (!personas.some((p: any) => p.id === activeId)) {
+            activeId = personas[0].id;
+          }
+
+          // 强制同步活跃人设的名称、头像、背景到全局属性，确保完全一致
+          const activeIdx = personas.findIndex((p: any) => p.id === activeId);
+          if (activeIdx !== -1) {
+            const activePers = { ...personas[activeIdx] };
+            let needUpdatePersona = false;
+            
+            const expectedName = storedSet.userName || DEFAULT_SETTINGS.userName;
+            if (activePers.name !== expectedName) {
+              activePers.name = expectedName;
+              needUpdatePersona = true;
+            }
+            
+            const expectedAvatar = storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar || "";
+            if (activePers.avatar !== expectedAvatar) {
+              activePers.avatar = expectedAvatar;
+              needUpdatePersona = true;
+            }
+            
+            const expectedDesc = storedSet.userInfo || DEFAULT_SETTINGS.userInfo || "";
+            if (activePers.description !== expectedDesc) {
+              activePers.description = expectedDesc;
+              needUpdatePersona = true;
+            }
+            
+            if (needUpdatePersona) {
+              personas = [...personas];
+              personas[activeIdx] = activePers;
+              needSave = true; // 触发自动保存回数据库
+            }
+          }
+
           const defaultPromptConfig = externalPreset
             ? { ...DEFAULT_PROMPT_CONFIG, ...externalPreset.promptConfig }
             : DEFAULT_PROMPT_CONFIG;
@@ -346,6 +404,8 @@ export const useSettings = () => {
             userName: storedSet.userName || DEFAULT_SETTINGS.userName,
             userInfo: storedSet.userInfo || DEFAULT_SETTINGS.userInfo,
             userAvatar: storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar,
+            userPersonas: personas,
+            activePersonaId: activeId,
             globalChatBg: storedSet.globalChatBg || DEFAULT_SETTINGS.globalChatBg,
             enableHtmlRendering: storedSet.enableHtmlRendering ?? DEFAULT_SETTINGS.enableHtmlRendering,
             enableScriptExecution: storedSet.enableScriptExecution ?? DEFAULT_SETTINGS.enableScriptExecution,
@@ -415,20 +475,50 @@ export const useSettings = () => {
 
   const updateSettings = useCallback((updater: UserSettings | ((prev: UserSettings) => UserSettings)) => {
     setSettings((prev) => {
+      let merged: UserSettings;
       if (typeof updater === "function") {
         const next = updater(prev);
         if (!next) return prev;
-        return deepMerge(prev, next);
+        merged = deepMerge(prev, next);
+      } else {
+        const next = updater;
+        if (!next) return prev;
+        
+        // Compare next with base settings in this render closure to extract custom changes
+        const delta = getNestedDelta(next, settings);
+        if (!delta) return prev;
+        merged = deepMerge(prev, delta);
       }
-      
-      const next = updater;
-      if (!next) return prev;
-      
-      // Compare next with base settings in this render closure to extract custom changes
-      const delta = getNestedDelta(next, settings);
-      if (!delta) return prev;
-      
-      return deepMerge(prev, delta);
+
+      // 同步当前活跃的 persona 属性
+      const activeId = merged.activePersonaId || "default-persona";
+      const personas = merged.userPersonas || [];
+      if (personas.length > 0) {
+        const idx = personas.findIndex((p: any) => p.id === activeId);
+        if (idx !== -1) {
+          const activePers = { ...personas[idx] };
+          let changed = false;
+          if (merged.userName !== undefined && merged.userName !== activePers.name) {
+            activePers.name = merged.userName;
+            changed = true;
+          }
+          if (merged.userAvatar !== undefined && merged.userAvatar !== activePers.avatar) {
+            activePers.avatar = merged.userAvatar;
+            changed = true;
+          }
+          if (merged.userInfo !== undefined && merged.userInfo !== activePers.description) {
+            activePers.description = merged.userInfo;
+            changed = true;
+          }
+          if (changed) {
+            const nextPersonas = [...personas];
+            nextPersonas[idx] = activePers;
+            merged.userPersonas = nextPersonas;
+          }
+        }
+      }
+
+      return merged;
     });
   }, [settings]);
 
@@ -1162,7 +1252,76 @@ export const useSettings = () => {
     }
   }, [backupPass, showCustomAlert, showCustomConfirm, setBackupStatus, setSettings, setGlobalLorebook]);
 
+  const switchUserPersona = useCallback((id: string) => {
+    updateSettings((prev) => {
+      const target = prev.userPersonas?.find(p => p.id === id);
+      if (!target) return prev;
+      return {
+        ...prev,
+        activePersonaId: id,
+        userName: target.name || "",
+        userAvatar: target.avatar || "",
+        userInfo: target.description || "",
+      };
+    });
+  }, [updateSettings]);
+
+  const addUserPersona = useCallback(async () => {
+    const name = await showCustomPrompt("请输入新人物名称:", "新人物");
+    if (!name) return;
+    const newId = "persona-" + Math.random().toString(36).substring(2, 9);
+    updateSettings((prev) => {
+      const newPers = {
+        id: newId,
+        name: name,
+        avatar: "",
+        description: "",
+      };
+      const personas = prev.userPersonas || [];
+      return {
+        ...prev,
+        userPersonas: [...personas, newPers],
+        activePersonaId: newId,
+        userName: name,
+        userAvatar: "",
+        userInfo: "",
+      };
+    });
+    await showCustomAlert(`成功创建并切换到人物: ${name}`);
+  }, [updateSettings, showCustomPrompt, showCustomAlert]);
+
+  const deleteUserPersona = useCallback(async (id: string) => {
+    const target = settings.userPersonas?.find(p => p.id === id);
+    if (!target) return;
+    
+    if ((settings.userPersonas || []).length <= 1) {
+      await showCustomAlert("必须保留至少一个角色信息！");
+      return;
+    }
+    
+    const ok = await showCustomConfirm(`确定删除人物 "${target.name}" 吗？`);
+    if (!ok) return;
+
+    updateSettings((prev) => {
+      const personas = prev.userPersonas || [];
+      const nextPersonas = personas.filter(p => p.id !== id);
+      const nextActive = nextPersonas[0];
+      return {
+        ...prev,
+        userPersonas: nextPersonas,
+        activePersonaId: nextActive.id,
+        userName: nextActive.name,
+        userAvatar: nextActive.avatar,
+        userInfo: nextActive.description,
+      };
+    });
+    await showCustomAlert(`成功删除人物: ${target.name}`);
+  }, [settings.userPersonas, updateSettings, showCustomConfirm, showCustomAlert]);
+
   return {
+    switchUserPersona,
+    addUserPersona,
+    deleteUserPersona,
     settings,
     setSettings,
     updateSettings,

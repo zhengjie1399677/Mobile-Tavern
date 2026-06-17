@@ -41,7 +41,7 @@ export default function ChatHistoryTab() {
               return (
                 <div
                   key={s.id}
-                  className="bg-card border border-border rounded-xl p-3 flex items-center gap-3 cursor-pointer hover:border-primary/50 transition shadow-sm"
+                  className="glass-panel rounded-xl p-3 flex items-center gap-3 cursor-pointer hover:border-primary/50 transition shadow-sm"
                   onClick={() => {
                     setActiveCharId(s.characterId);
                     setActiveSessionId(s.id);

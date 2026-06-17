@@ -3,6 +3,7 @@ import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { CharacterCard, LorebookEntry } from "../types";
 import { parseCharacterFile, injectPngMetadata } from "../utils/cardParser";
+import { catbotEventBus } from "../utils/catbotEventBus";
 
 export const useCharacters = () => {
   const { showCustomAlert, showCustomConfirm } = useApp();
@@ -102,6 +103,7 @@ export const useCharacters = () => {
     setIsDbWriting(true);
     await new Promise((resolve) => setTimeout(resolve, 500));
     try {
+      const isNew = !characters.some((c) => c.id === fullChar.id);
       await saveCharacter(fullChar);
       setCharacters((prev) => {
         const idx = prev.findIndex((c) => c.id === fullChar.id);
@@ -112,6 +114,9 @@ export const useCharacters = () => {
         }
         return [...prev, fullChar];
       });
+      if (isNew) {
+        catbotEventBus.emit("character_created");
+      }
       setCharModalOpen(false);
       setEditingChar(null);
     } catch (err: any) {
@@ -276,6 +281,7 @@ export const useCharacters = () => {
       };
 
       await saveCharacter(importedChar);
+      catbotEventBus.emit("character_imported");
       showCustomAlert(
         `导入成功: Character Card "${importedChar.name}" 已正确就绪！`
       );
@@ -415,6 +421,7 @@ export const useCharacters = () => {
         prev.map((c) => (c.id === updatedChar.id ? updatedChar : c))
       );
       await saveCharacter(updatedChar);
+      catbotEventBus.emit("lorebook_imported");
       showCustomAlert(
         `成功从酒馆格式 JSON 导入 ${importedEntries.length} 条世界设定到 [${updatedChar.name}]！`
       );

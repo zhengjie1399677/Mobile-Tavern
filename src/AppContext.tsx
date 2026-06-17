@@ -29,6 +29,7 @@ export interface UnifiedAppContextProps {
   showCustomAlert: (message: string, title?: string) => Promise<void>;
   showCustomConfirm: (message: string, title?: string) => Promise<boolean>;
   showCustomPrompt: (message: string, defaultValue?: string, title?: string) => Promise<string | null>;
+  safeAreas: { top: number; bottom: number };
 
   // --- Character Context ---
   characters: CharacterCard[];
@@ -69,6 +70,9 @@ export interface UnifiedAppContextProps {
   globalLorebook: LorebookEntry[];
   setGlobalLorebook: React.Dispatch<React.SetStateAction<LorebookEntry[]>>;
   updateGlobalLorebook: (entries: LorebookEntry[]) => Promise<void>;
+  switchUserPersona: (id: string) => void;
+  addUserPersona: () => Promise<void>;
+  deleteUserPersona: (id: string) => Promise<void>;
   isReady: boolean;
   handleFetchModels: () => Promise<void>;
   testApiConnection: () => Promise<void>;
