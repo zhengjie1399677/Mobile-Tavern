@@ -46,6 +46,7 @@ const ChatInputArea = () => {
   const [localInput, setLocalInput] = React.useState("");
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     const textarea = textareaRef.current;
@@ -53,6 +54,31 @@ const ChatInputArea = () => {
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
   }, [localInput]);
+
+  // 移动端键盘弹出时，将输入框滚动至可见区域（解决 Android WebView 不自动上移的问题）
+  React.useEffect(() => {
+    const vvp = window.visualViewport;
+    if (!vvp) return;
+
+    const handleViewportResize = () => {
+      const container = containerRef.current;
+      if (!container) return;
+      // 只在输入框获得焦点时响应（键盘弹出场景）
+      if (document.activeElement !== textareaRef.current) return;
+
+      // 计算输入框底部在页面中的位置
+      const rect = container.getBoundingClientRect();
+      const viewportBottom = vvp.offsetTop + vvp.height;
+
+      // 如果输入框底部被键盘遮住，则将其滚动到可见位置
+      if (rect.bottom > viewportBottom) {
+        container.scrollIntoView({ behavior: "smooth", block: "end" });
+      }
+    };
+
+    vvp.addEventListener("resize", handleViewportResize);
+    return () => vvp.removeEventListener("resize", handleViewportResize);
+  }, []);
 
   const onSend = () => {
     if (!localInput.trim()) return;
@@ -62,7 +88,7 @@ const ChatInputArea = () => {
   };
 
   return (
-    <div className="glass-panel border-t border-border/40 pt-3 px-3 pb-[max(var(--safe-area-bottom),12px)] flex flex-col gap-2 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
+    <div ref={containerRef} className="glass-panel border-t border-border/40 pt-3 px-3 pb-[max(var(--safe-area-bottom),12px)] flex flex-col gap-2 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
           <button
@@ -149,6 +175,8 @@ const ChatInputArea = () => {
               onSend();
             }
           }}
+          inputMode="text"
+          enterKeyHint="send"
           placeholder={`发送一条对白至 ${activeCharacter?.name} 启程...`}
           aria-label={`发送给 ${activeCharacter?.name || "角色"} 的消息输入框`}
           rows={2}

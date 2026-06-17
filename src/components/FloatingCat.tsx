@@ -97,14 +97,20 @@ export function FloatingCat() {
     setPosition({ x: initialX, y: initialY });
   }, []);
 
-  // 窗口大小变化时重定位
+  // 窗口大小变化时重定位（排除仅键盘弹出导致的高度变化，防止对话框抖动）
   useEffect(() => {
+    let lastWidth = window.innerWidth;
     const handleResize = () => {
-      setPosition((prev) => {
-        const x = Math.min(prev.x, window.innerWidth - 64);
-        const y = Math.min(prev.y, window.innerHeight - 64);
-        return { x, y };
-      });
+      const currentWidth = window.innerWidth;
+      // 宽度未变说明是键盘弹出/收回，跳过 Y 轴重计算
+      if (currentWidth !== lastWidth) {
+        lastWidth = currentWidth;
+        setPosition((prev) => {
+          const x = Math.min(prev.x, window.innerWidth - 64);
+          const y = Math.min(prev.y, window.innerHeight - 64);
+          return { x, y };
+        });
+      }
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -334,12 +340,13 @@ export function FloatingCat() {
       {isOpen && (
         <div 
           onClick={handleClose}
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9990] flex items-end sm:items-center justify-center p-0 sm:p-4"
+          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9990 }}
+          className="bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="w-full sm:max-w-[420px] h-[85vh] sm:h-[600px] bg-[#0c1324dc] sm:rounded-2xl border-t sm:border border-[#3b494b] shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex flex-col backdrop-blur-[16px] overflow-hidden"
-            style={{ borderImage: "linear-gradient(to bottom, #3b494b, #00dbe940) 1" }}
+            className="w-full sm:max-w-[420px] sm:h-[600px] bg-[#0c1324dc] sm:rounded-2xl border-t sm:border border-[#3b494b] shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex flex-col backdrop-blur-[16px] overflow-hidden"
+            style={{ borderImage: "linear-gradient(to bottom, #3b494b, #00dbe940) 1", height: "85dvh" }}
           >
             {/* Header */}
             <div className="px-4 py-3 border-b border-[#3b494b] flex items-center justify-between bg-[#151b2dd9]">
@@ -419,6 +426,8 @@ export function FloatingCat() {
             >
               <input
                 type="text"
+                inputMode="text"
+                enterKeyHint="send"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 maxLength={200}
