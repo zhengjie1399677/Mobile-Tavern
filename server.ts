@@ -294,8 +294,8 @@ async function startServer() {
         } else if (text.includes("卡") || text.includes("角色") || text.includes("导入")) {
           reply += "要导入角色卡，只需要在“角色馆”页面点击右上角的“+”号选择你的角色卡 JSON 文件或带 EXIF PNG 的角色图片即可喵！";
           expression = "talking";
-        } else if (text.includes("世界") || text.includes("设定")) {
-          reply += "世界书可以在“世界书”页面下自由创建，它能在对话中自动识别特定的关键词并为你注入专属背景设定喵！";
+        } else if (text.includes("世界") || text.includes("设定") || text.includes("词条")) {
+          reply += "点进【世界书】页签后，默认只显示各个角色卡或全局词库的折叠标题喵。你需要点击一下大类名称（例如 '雪团'、'莉莉丝' 或 '🌎 全局共享词库'），才会展开看到它专属的词条列表与详细内容喵！";
           expression = "thinking";
         } else if (text.includes("报错") || text.includes("闪退") || text.includes("错误")) {
           reply += "如果遇到连接报错，可以尝试去设置里清理一下缓存，或者检查当前所用的 API Key / 代理服务器是否可达喵。";
