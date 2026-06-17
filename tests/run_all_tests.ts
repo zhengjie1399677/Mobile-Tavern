@@ -3,6 +3,7 @@ import { replaceMacros, getTriggeredLorebookEntries } from "../src/utils/promptB
 import { injectPngMetadata } from "../src/utils/cardParser";
 import { CharacterCard, LorebookEntry, Message } from "../src/types";
 import { unzlibSync, inflateSync } from "fflate";
+import { runCatbotErrorTests } from "./test_catbot_error_handling";
 
 // PNG verification constants
 const PNG_SIGNATURE_HEADER_1 = 0x89504e47;
@@ -273,6 +274,7 @@ async function run() {
     await testDbQueue();
     testPromptBuilder();
     await testPngCardParser();
+    runCatbotErrorTests();
     console.log("\n=================================================");
     console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
     console.log("=================================================");

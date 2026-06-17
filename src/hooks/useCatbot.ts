@@ -129,7 +129,7 @@ export function useCatbot() {
         const hasShownWelcome = sessionStorage.getItem("catbot_shown_welcome");
         if (!hasShownWelcome) {
           setTimeout(() => {
-            showTemporaryBubble("喵呜~ 我是一只住在你手机里的猫咪助理。双击本喵可以提问，单击可以摸摸我喵！🐾", "idle", 6000);
+            showTemporaryBubble("喵呜~ 我是一只住在你手机里的雪团助手。双击本喵可以提问，单击可以摸摸我喵！🐾", "idle", 6000);
             sessionStorage.setItem("catbot_shown_welcome", "true");
           }, 1000);
         }
@@ -249,13 +249,22 @@ export function useCatbot() {
         };
 
         const returnedExpr = (res.expression as CatExpression) || "idle";
+        const isQuotaMsg = res.reply && (
+          res.reply.includes("次数已经用光光") || 
+          res.reply.includes("小猫累了") || 
+          res.reply.includes("要去睡觉了") ||
+          res.reply.includes("小本本都已经写满") ||
+          res.reply.includes("脑瓜转不动了")
+        );
+        const finalExpr = isQuotaMsg ? "sleep" : returnedExpr;
+
         updateGlobalState({
           messages: [...updatedMsgs, assistantMsg],
-          expression: returnedExpr,
+          expression: finalExpr,
           isLoading: false,
         });
 
-        const endExpr = (returnedExpr === "sleep" || returnedExpr === "sleepy") ? returnedExpr : "idle";
+        const endExpr = (finalExpr === "sleep" || finalExpr === "sleepy") ? finalExpr : "idle";
 
         // 说话一段时间后切回待机或睡觉表情
         if (expressionTimer) clearTimeout(expressionTimer);
@@ -266,7 +275,7 @@ export function useCatbot() {
       } catch (err: any) {
         console.error("Catbot cloud response error:", err);
         
-        // 异常回退逻辑
+        // 异常回退逻辑 (离线/网络故障本地保底)
         let fallbackText = "喵呜，云端判定服务开小差了，要不要检查下网络或者设置喵？";
         if (err && err.message === "TIMEOUT") {
           fallbackText = "喵呜呜……等了太久云端都没有反应喵，可能脑回路断掉了，稍后再试试看喵？🐾";
@@ -298,7 +307,7 @@ export function useCatbot() {
 
   // 清除会话记录
   const clearChatHistory = useCallback(() => {
-    let welcomeText = "喵！我是你的酒馆专属小助手。如果有什么使用问题，或者想找我闲聊，随时在这里敲字告诉我喵！🐾";
+    let welcomeText = "喵！我是你的雪团助手。如果有什么使用问题，或者想找我闲聊，随时在这里敲字告诉我喵！🐾";
     if (responsesCache && responsesCache.cloud_fallback) {
       welcomeText = responsesCache.cloud_fallback.welcome;
     }

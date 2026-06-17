@@ -270,6 +270,32 @@ async function startServer() {
       } else {
         const errBody = await response.text();
         console.warn(`[Catbot Proxy] 云端 FC 返回 HTTP 错误码 ${response.status}: ${errBody}，准备降级为本地处理器`);
+        
+        const errLower = errBody.toLowerCase();
+        if (
+          response.status === 429 ||
+          errLower.includes("quota") ||
+          errLower.includes("limit") ||
+          errLower.includes("insufficient") ||
+          errLower.includes("exceeded") ||
+          errLower.includes("balance") ||
+          errLower.includes("funds") ||
+          errLower.includes("次数用尽") ||
+          errLower.includes("额度已满") ||
+          errLower.includes("不够") ||
+          errLower.includes("欠费")
+        ) {
+          let reply = "呜呜，今天找本喵聊天的次数已经用光光了，本喵累了要去睡觉了喵……明天再来找我玩吧喵💤";
+          if (estimated_category === "bug") {
+            reply = "喵呜……今天帮本喵记 Bug 的次数已经用光了，本喵的小本本都已经写满啦！明天再来告诉本喵关于 Bug 的事情吧喵~ 🐾";
+          } else if (estimated_category === "tech") {
+            reply = "唔……今天解答的技术问题太多啦，本喵的脑瓜转不动了，明天再来问本喵关于设置和配置的事喵~ 💤";
+          }
+          return res.json({
+            reply,
+            expression: "sleep"
+          });
+        }
       }
     } catch (err: any) {
       console.warn(`[Catbot Proxy] 转发至云端 FC 失败 (${err.message})，降级为本地处理器。`);
@@ -315,7 +341,7 @@ async function startServer() {
       }
 
       // 本地有 API Key 时的备用直连 DashScope 逻辑
-      const systemPrompt = `你是一只傲娇又博学的酒馆助理猫咪（名字叫“雪团”）。你的职责是解答用户关于 Mobile Tavern (移动酒馆) 软件的使用疑问，或者进行日常的幽默闲聊。
+      const systemPrompt = `你是一只傲娇又博学的雪团助手猫咪（名字叫“雪团”）。你的职责是解答用户关于 Mobile Tavern (移动酒馆) 软件的使用疑问，或者进行日常的幽默闲聊。
 核心性格：说话轻快活泼，喜欢带“喵~”的语气助词，带有一点点猫咪特有的高傲与温柔。
 要求：对用户的输入进行分析，判断问题类型，并选择一个合适的猫咪情绪表情（从 "idle"(清醒端坐待机), "thinking"(端坐思考), "relax"(舒服地笑眯眯舔毛洗澡), "sleepy"(半躺半睡犯困), "sleep"(完全闭眼躺平睡觉) 中选择）。
 
@@ -361,6 +387,37 @@ async function startServer() {
       res.json(parsed);
     } catch (e: any) {
       console.error("Catbot server fallback error:", e);
+      
+      const errMsgLower = (e.message || "").toLowerCase();
+      if (
+        errMsgLower.includes("429") ||
+        errMsgLower.includes("quota") ||
+        errMsgLower.includes("limit") ||
+        errMsgLower.includes("insufficient") ||
+        errMsgLower.includes("exceeded") ||
+        errMsgLower.includes("balance") ||
+        errMsgLower.includes("funds") ||
+        errMsgLower.includes("次数用尽") ||
+        errMsgLower.includes("额度已满") ||
+        errMsgLower.includes("不够") ||
+        errMsgLower.includes("欠费") ||
+        errMsgLower.includes("充值")
+      ) {
+        let reply = "呜呜，今天找本喵聊天的次数已经用光光了，本喵累了要去睡觉了喵……明天再来找我玩吧喵💤";
+        const text = (content || "").toLowerCase();
+        const bugKeywords = /闪退|崩溃|报错|打不开|显示不了|无法导入|卡死|黑屏|同步失败|数据丢失|白屏|错误|异常|bug/i;
+        const techKeywords = /怎么|如何|哪里|配置|设置|怎么用|怎么导入|怎么备份|格式|指南|使用方法|教程|导入/i;
+        if (bugKeywords.test(text)) {
+          reply = "喵呜……今天帮本喵记 Bug 的次数已经用光了，本喵的小本本都已经写满啦！明天再来告诉本喵关于 Bug 的事情吧喵~ 🐾";
+        } else if (techKeywords.test(text)) {
+          reply = "唔……今天解答的技术问题太多啦，本喵的脑瓜转不动了，明天再来问本喵关于设置和配置的事喵~ 💤";
+        }
+        return res.json({
+          reply,
+          expression: "sleep"
+        });
+      }
+
       res.status(500).json({
         reply: `喵呜……本喵的本地脑回路好像烧坏了，报错信息：${e.message}喵。`,
         expression: "sleepy"

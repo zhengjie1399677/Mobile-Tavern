@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+env:
+  TZ: Asia/Shanghai
+
 permissions:
   contents: write
 
@@ -41,11 +44,6 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
-      - name: Generate Tauri Icons
-        run: |
-          node scripts/decode_icon.cjs
-          npx tauri icon
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -58,6 +56,11 @@ jobs:
 
       - name: Initialize Tauri Android project
         run: npx tauri android init
+
+      - name: Generate Tauri Icons
+        run: |
+          node scripts/decode_icon.cjs
+          npx tauri icon
 
       - name: Fix gradlew permissions
         run: chmod +x src-tauri/gen/android/gradlew

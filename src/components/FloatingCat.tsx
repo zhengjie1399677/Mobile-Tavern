@@ -356,7 +356,7 @@ export function FloatingCat() {
                   )}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm text-[#dbfcff]">酒馆助理</h3>
+                  <h3 className="font-semibold text-sm text-[#dbfcff]">雪团助手</h3>
                   <p className="text-[10px] text-[#849495] flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#39ff14] animate-pulse" />
                     本地系统已就绪
@@ -422,7 +422,7 @@ export function FloatingCat() {
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 maxLength={200}
-                placeholder="向小助手提问 (最多200字)..."
+                placeholder="向雪团助手提问 (最多200字)..."
                 disabled={isLoading}
                 className="flex-1 h-10 px-4 rounded-full bg-[#070d1f] border border-[#3b494b] focus:border-[#00dbe9] focus:outline-none text-xs text-[#dce1fb] placeholder-[#849495] focus:shadow-[0_0_8px_rgba(0,240,255,0.2)] disabled:opacity-50 transition-all"
               />
