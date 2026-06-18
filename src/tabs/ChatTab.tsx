@@ -17,6 +17,7 @@ import {
   RefreshCw,
   GitFork,
   ChevronUp,
+  ChevronDown,
   Cpu,
   SlidersHorizontal,
 } from "lucide-react";
@@ -279,6 +280,7 @@ export default function ChatTab() {
 
   // a11y Live Announcer state and effect
   const [announcement, setAnnouncement] = React.useState("");
+  const [expandedReasoningIds, setExpandedReasoningIds] = React.useState<Record<string, boolean>>({});
   const wasSendingRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -840,7 +842,7 @@ export default function ChatTab() {
                       </button>
                     </div>
                   )}
-                  {messagesToRender.map((message) => {
+                  {messagesToRender.map((message, idx) => {
                     const isUser = message.sender === "user";
                     const isSystem = message.sender === "system";
 
@@ -972,33 +974,84 @@ export default function ChatTab() {
                                 </button>
                               </div>
                             </div>
-                          ) : (
-                            <div
-                              className={`px-3.5 py-2.5 shadow-sm text-sm border font-light tracking-wide transition-all cursor-pointer relative overflow-hidden ${
-                                isUser
-                                  ? activeCharacter?.visualSettings?.userBubbleColor
-                                    ? "border-transparent bubble-user"
-                                    : "bg-gradient-to-br from-primary to-primary/85 text-primary-foreground border-primary/40 bubble-user hover:from-primary/95 hover:to-primary/80"
-                                  : activeCharacter?.visualSettings?.bubbleColor
-                                    ? "border-transparent bubble-ai pl-4"
-                                    : "glass-panel text-foreground shadow-sm bubble-ai pl-4 border-l-4 border-l-primary"
-                              }`}
-                              style={{
-                                backgroundColor: isUser
-                                  ? activeCharacter?.visualSettings?.userBubbleColor || undefined
-                                  : activeCharacter?.visualSettings?.bubbleColor || undefined,
-                                color: isUser
-                                  ? activeCharacter?.visualSettings?.userBubbleTextColor || undefined
-                                  : activeCharacter?.visualSettings?.bubbleTextColor || undefined,
-                              }}
-                            >
-                              {message.content === "💭..." ? (
-                                <TypingIndicator />
                               ) : (
-                                renderDialogueBubble(message.content)
+                                <div className="space-y-1 max-w-full">
+                                  {/* 思维链渲染模块 */}
+                                  {!isUser && message.reasoningContent && (
+                                    <div className="mb-2 text-xs max-w-sm">
+                                      <div
+                                        onClick={() => {
+                                          const isGeneratingThisMessage = isSending && idx === messagesToRender.length - 1;
+                                          if (isGeneratingThisMessage) return; // 正在生成时强制展开，禁止点击收起
+                                          setExpandedReasoningIds((prev) => ({
+                                            ...prev,
+                                            [message.id]: !prev[message.id],
+                                          }));
+                                        }}
+                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-semibold select-none transition-all active:scale-95 w-fit ${
+                                          isSending && idx === messagesToRender.length - 1
+                                            ? "bg-primary/10 border-primary/20 text-primary cursor-default"
+                                            : "bg-muted/40 hover:bg-muted/60 border-border/30 text-muted-foreground cursor-pointer"
+                                        }`}
+                                      >
+                                        <Brain className={`w-3.5 h-3.5 ${isSending && idx === messagesToRender.length - 1 ? "animate-pulse text-primary" : "opacity-75"}`} />
+                                        <span>
+                                          {isSending && idx === messagesToRender.length - 1
+                                            ? "AI 正在思考中..."
+                                            : expandedReasoningIds[message.id]
+                                            ? "收起思考过程"
+                                            : "查看思考过程"}
+                                        </span>
+                                        {!(isSending && idx === messagesToRender.length - 1) && (
+                                          <ChevronDown
+                                            className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${
+                                              expandedReasoningIds[message.id] ? "rotate-180" : ""
+                                            }`}
+                                          />
+                                        )}
+                                      </div>
+                                      
+                                      {(expandedReasoningIds[message.id] || (isSending && idx === messagesToRender.length - 1)) && (
+                                        <div className="mt-1.5 p-3 rounded-xl glass-panel border border-border/20 text-muted-foreground font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-[160px] overflow-y-auto custom-scrollbar animate-in fade-in duration-300">
+                                          {message.reasoningContent}
+                                          {isSending && idx === messagesToRender.length - 1 && (
+                                            <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-primary/70 animate-pulse" />
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* 主对白内容气泡：当仅有思维链且正文还在准备时暂不显示空气泡 */}
+                                  {!(message.content === "💭..." && message.reasoningContent) && (
+                                    <div
+                                      className={`px-3.5 py-2.5 shadow-sm text-sm border font-light tracking-wide transition-all cursor-pointer relative overflow-hidden ${
+                                        isUser
+                                          ? activeCharacter?.visualSettings?.userBubbleColor
+                                            ? "border-transparent bubble-user"
+                                            : "bg-gradient-to-br from-primary to-primary/85 text-primary-foreground border-primary/40 bubble-user hover:from-primary/95 hover:to-primary/80"
+                                          : activeCharacter?.visualSettings?.bubbleColor
+                                            ? "border-transparent bubble-ai pl-4"
+                                            : "glass-panel text-foreground shadow-sm bubble-ai pl-4 border-l-4 border-l-primary"
+                                      }`}
+                                      style={{
+                                        backgroundColor: isUser
+                                          ? activeCharacter?.visualSettings?.userBubbleColor || undefined
+                                          : activeCharacter?.visualSettings?.bubbleColor || undefined,
+                                        color: isUser
+                                          ? activeCharacter?.visualSettings?.userBubbleTextColor || undefined
+                                          : activeCharacter?.visualSettings?.bubbleTextColor || undefined,
+                                      }}
+                                    >
+                                      {message.content === "💭..." ? (
+                                        <TypingIndicator />
+                                      ) : (
+                                        renderDialogueBubble(message.content)
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               )}
-                            </div>
-                          )}
 
                           {/* Bubble timestamp */}
                           <div

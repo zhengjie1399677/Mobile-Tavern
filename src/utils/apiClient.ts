@@ -130,6 +130,51 @@ function buildHeaders(apiKey?: string): Record<string, string> {
 // ---------------------------------------------------------------------------
 
 /**
+ * 针对不同大模型官方接口 (OpenAI, DeepSeek, Gemini, Qwen) 自动清洗请求参数，
+ * 剔除可能导致 HTTP 400 报错的非标参数，同时保留 OpenRouter 等中转全功能透传。
+ */
+export function cleanRequestPayload(
+  baseUrl: string | undefined,
+  reqBody: Record<string, any> | undefined
+): Record<string, any> | undefined {
+  if (!reqBody) return reqBody;
+
+  const urlLower = (baseUrl || "").toLowerCase();
+  const cleaned = { ...reqBody };
+
+  // 1. OpenRouter 拥有最完美的多厂商参数映射能力，不进行任何裁剪
+  if (urlLower.includes("openrouter.ai")) {
+    return cleaned;
+  }
+
+  // 2. 识别特定的服务商并应用定制规则
+  const isOpenAI = urlLower.includes("api.openai.com");
+  const isDeepSeek = urlLower.includes("deepseek.com");
+
+  // 3. 通用过滤：绝大多数标准大模型官方接口不支持 top_k 和 min_p
+  // 如果不是 OpenRouter，默认都剔除 top_k 和 min_p
+  delete cleaned.top_k;
+  delete cleaned.min_p;
+
+  // 4. 重复惩罚 (repetition_penalty)：
+  // DeepSeek 官方明确支持并推荐 repetition_penalty；而 OpenAI 官方和 Gemini 官方会因此报错。
+  // 因此，只有在包含 deepseek 的域名下保留，其他官方服务商一律剔除。
+  if (!isDeepSeek) {
+    delete cleaned.repetition_penalty;
+  }
+
+  // 5. max_completion_tokens 和 stream_options：
+  // OpenAI 官方和部分最新代理支持；但许多第三方中转、旧版代理和 DeepSeek/Gemini/Qwen 的 OpenAI 兼容层不一定支持。
+  // 稳妥起见，非 OpenAI 官方一律剔除这二者以保兼容性，用标准的 max_tokens / stream 即可。
+  if (!isOpenAI) {
+    delete cleaned.max_completion_tokens;
+    delete cleaned.stream_options;
+  }
+
+  return cleaned;
+}
+
+/**
  * Universal fetch wrapper that routes requests through:
  *  - Express server proxy  (standard web browser builds)
  *  - Direct HTTPS fetch    (Tauri Android / Desktop builds, bypassing CORS)
@@ -143,6 +188,11 @@ export const universalFetch = async (
   proxyPayload: UniversalFetchPayload,
   customSignal?: AbortSignal
 ): Promise<Response> => {
+  const cleanedReqBody = cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, any>);
+  const safePayload = {
+    ...proxyPayload,
+    reqBody: cleanedReqBody,
+  };
   const isTauri = isClientMode();
 
   let signal: AbortSignal | undefined = customSignal;
@@ -162,18 +212,18 @@ export const universalFetch = async (
     // In mobile native builds, bypass local Express proxy and always use direct fetch.
     // The else branch below will be completely tree-shaken in production builds.
   } else {
-    if (!isTauri && !proxyPayload.bypassProxy) {
+    if (!isTauri && !safePayload.bypassProxy) {
       return fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(proxyPayload),
+        body: JSON.stringify(safePayload),
         signal,
       });
     }
   }
 
   // ── Tauri path: direct HTTPS fetch ───────────────────────────────────────
-  const { baseUrl, apiKey, reqBody, modelName, chatPath, modelsPath } = proxyPayload;
+  const { baseUrl, apiKey, reqBody, modelName, chatPath, modelsPath } = safePayload;
 
   const targetBase = validateBaseUrl(baseUrl);
   const headers = buildHeaders(apiKey);

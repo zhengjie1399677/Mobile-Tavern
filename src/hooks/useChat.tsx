@@ -654,27 +654,27 @@ export const useChat = (
     let lastUpdateTime = 0;
     let isFirstToken = true;
 
-    const updateSessionsContent = (content: string) => {
+    const updateSessionsContent = (content: string, reasoningContent?: string) => {
       setSessions((prev) =>
         prev.map((s) => {
           if (s.id !== updatedSession.id) return s;
           return {
             ...s,
             messages: s.messages.map((m) =>
-              m.id === aiMsgId ? { ...m, content } : m
+              m.id === aiMsgId ? { ...m, content, reasoningContent } : m
             ),
           };
         })
       );
     };
 
-    const throttledUpdate = (content: string) => {
+    const throttledUpdate = (content: string, reasoningContent?: string) => {
       if (!isStreamActive) return;
       const now = performance.now();
       if (isFirstToken) {
         isFirstToken = false;
         lastUpdateTime = now;
-        updateSessionsContent(content);
+        updateSessionsContent(content, reasoningContent);
         return;
       }
 
@@ -684,13 +684,13 @@ export const useChat = (
           pendingUpdateTimeoutRef.current = null;
         }
         lastUpdateTime = now;
-        updateSessionsContent(content);
+        updateSessionsContent(content, reasoningContent);
       } else if (!pendingUpdateTimeoutRef.current) {
         pendingUpdateTimeoutRef.current = setTimeout(() => {
           pendingUpdateTimeoutRef.current = null;
           if (!isStreamActive) return;
           lastUpdateTime = performance.now();
-          updateSessionsContent(responseText);
+          updateSessionsContent(responseText, reasoningContent);
         }, 60 - (now - lastUpdateTime));
       }
     };
@@ -741,15 +741,13 @@ export const useChat = (
           stream: true,
           stream_options: { include_usage: true },
           messages: [
-            { role: "system", content: promptPayload.systemInstruction },
-            ...promptPayload.history.slice(0, -1).map((h) => ({
-              role: h.role === "model" ? "assistant" : h.role,
-              content: h.content,
-            })),
-            ...(promptPayload.dynamicInstruction
-              ? [{ role: "system", content: promptPayload.dynamicInstruction }]
-              : []),
-            ...promptPayload.history.slice(-1).map((h) => ({
+            {
+              role: "system",
+              content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction]
+                .filter(Boolean)
+                .join("\n\n"),
+            },
+            ...promptPayload.history.map((h) => ({
               role: h.role === "model" ? "assistant" : h.role,
               content: h.content,
             })),
@@ -771,6 +769,8 @@ export const useChat = (
         throw new Error(errText);
       }
 
+      let reasoningText = "";
+
       await readSSEStream(response, {
         onData: (dataStr) => {
           const parsed = safeParseSSEData(dataStr);
@@ -779,6 +779,13 @@ export const useChat = (
           if (parsed.__rescuedContent) {
             responseText += parsed.__rescuedContent as string;
           } else {
+            const reasoning = (parsed as any).choices?.[0]?.delta?.reasoning_content;
+            if (reasoning) {
+              reasoningText += reasoning;
+              throttledUpdate(responseText, reasoningText);
+              return;
+            }
+
             const delta = (parsed as any).choices?.[0]?.delta?.content;
             if (delta) {
               responseText += delta;
@@ -795,7 +802,7 @@ export const useChat = (
             }
           }
 
-          throttledUpdate(responseText);
+          throttledUpdate(responseText, reasoningText);
         },
       });
 
@@ -819,6 +826,7 @@ export const useChat = (
         generationTime: (performance.now() - startTime) / 1000,
         tokenCount: tokenUsage.completion,
         promptTokenCount: tokenUsage.prompt,
+        reasoningContent: reasoningText.trim() || undefined,
       };
 
       // Merge keeping any modifications (deletes/edits) made during generation
@@ -1122,27 +1130,27 @@ export const useChat = (
     let isFirstTokenForSpeed = true;
     let ttftMs = 0;
 
-    const updateSessionsContent = (content: string) => {
+    const updateSessionsContent = (content: string, reasoningContent?: string) => {
       setSessions((prev) =>
         prev.map((s) => {
           if (s.id !== updatedSession.id) return s;
           return {
             ...s,
             messages: s.messages.map((m) =>
-              m.id === aiMsgId ? { ...m, content } : m
+              m.id === aiMsgId ? { ...m, content, reasoningContent } : m
             ),
           };
         })
       );
     };
 
-    const throttledUpdate = (content: string) => {
+    const throttledUpdate = (content: string, reasoningContent?: string) => {
       if (!isStreamActive) return;
       const now = performance.now();
       if (isFirstToken) {
         isFirstToken = false;
         lastUpdateTime = now;
-        updateSessionsContent(content);
+        updateSessionsContent(content, reasoningContent);
         return;
       }
 
@@ -1152,13 +1160,13 @@ export const useChat = (
           pendingUpdateTimeoutRef.current = null;
         }
         lastUpdateTime = now;
-        updateSessionsContent(content);
+        updateSessionsContent(content, reasoningContent);
       } else if (!pendingUpdateTimeoutRef.current) {
         pendingUpdateTimeoutRef.current = setTimeout(() => {
           pendingUpdateTimeoutRef.current = null;
           if (!isStreamActive) return;
           lastUpdateTime = performance.now();
-          updateSessionsContent(responseText);
+          updateSessionsContent(responseText, reasoningContent);
         }, 60 - (now - lastUpdateTime));
       }
     };
@@ -1208,13 +1216,13 @@ export const useChat = (
           stream: true,
           stream_options: { include_usage: true },
           messages: [
-            { role: "system", content: promptPayload.systemInstruction },
-            ...promptPayload.history.slice(0, -1).map((h) => ({
-              role: h.role === "model" ? "assistant" : h.role,
-              content: h.content,
-            })),
-            ...(promptPayload.dynamicInstruction ? [{ role: "system", content: promptPayload.dynamicInstruction }] : []),
-            ...promptPayload.history.slice(-1).map((h) => ({
+            {
+              role: "system",
+              content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction]
+                .filter(Boolean)
+                .join("\n\n"),
+            },
+            ...promptPayload.history.map((h) => ({
               role: h.role === "model" ? "assistant" : h.role,
               content: h.content,
             })),
@@ -1236,6 +1244,8 @@ export const useChat = (
         throw new Error(errText);
       }
 
+      let reasoningText = "";
+
       await readSSEStream(response, {
         onData: (dataStr) => {
           const parsed = safeParseSSEData(dataStr);
@@ -1244,6 +1254,13 @@ export const useChat = (
           if (parsed.__rescuedContent) {
             responseText += parsed.__rescuedContent as string;
           } else {
+            const reasoning = (parsed as any).choices?.[0]?.delta?.reasoning_content;
+            if (reasoning) {
+              reasoningText += reasoning;
+              throttledUpdate(responseText, reasoningText);
+              return;
+            }
+
             const delta = (parsed as any).choices?.[0]?.delta?.content;
             if (delta) {
               responseText += delta;
@@ -1260,7 +1277,7 @@ export const useChat = (
             }
           }
 
-          throttledUpdate(responseText);
+          throttledUpdate(responseText, reasoningText);
         },
       });
 
@@ -1284,6 +1301,7 @@ export const useChat = (
         generationTime: (performance.now() - startTime) / 1000,
         tokenCount: tokenUsage.completion,
         promptTokenCount: tokenUsage.prompt,
+        reasoningContent: reasoningText.trim() || undefined,
       };
 
       // Merge keeping any modifications (deletes/edits) made during generation

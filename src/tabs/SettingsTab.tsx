@@ -844,7 +844,9 @@ export default function SettingsTab() {
                         onValueChange={(val) => switchUserPersona(val)}
                       >
                         <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-semibold">
-                          <SelectValue placeholder="选择玩家设定" />
+                          <SelectValue placeholder="选择玩家设定">
+                            👤 {settings.userPersonas?.find(p => p.id === (settings.activePersonaId || "default-persona"))?.name || "选择玩家设定"}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {(settings.userPersonas || []).map((pers) => (
