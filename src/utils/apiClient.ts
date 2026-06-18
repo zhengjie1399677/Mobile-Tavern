@@ -140,6 +140,7 @@ export function cleanRequestPayload(
   if (!reqBody) return reqBody;
 
   const urlLower = (baseUrl || "").toLowerCase();
+  const modelLower = (reqBody.model || "").toLowerCase();
   const cleaned = { ...reqBody };
 
   // 1. OpenRouter 拥有最完美的多厂商参数映射能力，不进行任何裁剪
@@ -147,26 +148,33 @@ export function cleanRequestPayload(
     return cleaned;
   }
 
-  // 2. 识别特定的服务商并应用定制规则
-  const isOpenAI = urlLower.includes("api.openai.com");
-  const isDeepSeek = urlLower.includes("deepseek.com");
+  // 2. 双重过滤识别：同时检测域名和模型名称
+  const isOpenAI = urlLower.includes("api.openai.com") || 
+                   modelLower.startsWith("gpt-") || 
+                   modelLower.startsWith("o1-") || 
+                   modelLower.startsWith("o3-");
+                   
+  const isDeepSeek = urlLower.includes("deepseek.com") || 
+                     modelLower.includes("deepseek");
+                     
+  const isGemini = urlLower.includes("googleapis.com") || 
+                   modelLower.includes("gemini");
 
   // 3. 通用过滤：绝大多数标准大模型官方接口不支持 top_k 和 min_p
-  // 如果不是 OpenRouter，默认都剔除 top_k 和 min_p
   delete cleaned.top_k;
   delete cleaned.min_p;
 
   // 4. 重复惩罚 (repetition_penalty)：
-  // DeepSeek 官方明确支持并推荐 repetition_penalty；而 OpenAI 官方和 Gemini 官方会因此报错。
-  // 因此，只有在包含 deepseek 的域名下保留，其他官方服务商一律剔除。
+  // 仅在识别底层为 DeepSeek 模型或 DeepSeek 官方域名下保留，其他厂商一律剔除以防 400 报错。
   if (!isDeepSeek) {
     delete cleaned.repetition_penalty;
   }
 
   // 5. max_completion_tokens 和 stream_options：
-  // OpenAI 官方和部分最新代理支持；但许多第三方中转、旧版代理和 DeepSeek/Gemini/Qwen 的 OpenAI 兼容层不一定支持。
-  // 稳妥起见，非 OpenAI 官方一律剔除这二者以保兼容性，用标准的 max_tokens / stream 即可。
-  if (!isOpenAI) {
+  // 很多第三方 One API / New API 中转网关并不支持 include_usage 的 stream_options 或最新的 max_completion_tokens，会返回 400。
+  // 稳妥起见，仅在直接向 OpenAI 官方发起的请求中保留这两个高级字段；其他第三方中转和兼容厂商一律剔除，使用标准 max_tokens 即可。
+  const isDirectOpenAI = urlLower.includes("api.openai.com");
+  if (!isDirectOpenAI) {
     delete cleaned.max_completion_tokens;
     delete cleaned.stream_options;
   }

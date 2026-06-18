@@ -243,9 +243,7 @@ export function assemblePromptContext(params: {
     let activeMessagesToSend: Message[] = [];
 
     if (totalRawMessages.length > 0) {
-      const validChatMessages = totalRawMessages.filter(
-        (m) => m.sender !== "system"
-      );
+      const validChatMessages = totalRawMessages;
       const firstMsg = validChatMessages[0];
       const isFirstMsgGreeting = firstMsg && firstMsg.sender === "assistant";
 
@@ -280,6 +278,9 @@ export function assemblePromptContext(params: {
           );
           content = `${prefix}${content}${suffix}`;
         }
+      } else if (msg.sender === "system") {
+        role = "user";
+        content = `[系统旁白: ${msg.content}]`;
       } else {
         role = "user";
         if (settings.promptConfig?.instructTemplate !== "default") {
@@ -650,9 +651,7 @@ ${scenarioBlock}
   // 8. Gather Recent Full Messages and enforce safe token limits via sliding window
   const { recentTurns } = settings.memory;
   const totalRawMessages = chat.messages ? [...chat.messages] : [];
-  const validChatMessages = totalRawMessages.filter(
-    (m) => m.sender !== "system"
-  );
+  const validChatMessages = totalRawMessages;
 
   const SAFE_CONTEXT_LIMIT = 12000;
   let currentTurns = Math.min(recentTurns, validChatMessages.length);
@@ -694,6 +693,9 @@ ${scenarioBlock}
           );
           content = `${prefix}${content}${suffix}`;
         }
+      } else if (msg.sender === "system") {
+        role = "user";
+        content = `[系统旁白: ${msg.content}]`;
       } else {
         role = "user";
         if (settings.promptConfig?.instructTemplate !== "default") {

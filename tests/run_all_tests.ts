@@ -1,5 +1,5 @@
 import { isPrivateIp, validateBaseUrlSecurity } from "../src/utils/security";
-import { replaceMacros, getTriggeredLorebookEntries } from "../src/utils/promptBuilder";
+import { replaceMacros, getTriggeredLorebookEntries, assemblePromptContext } from "../src/utils/promptBuilder";
 import { injectPngMetadata } from "../src/utils/cardParser";
 import { CharacterCard, LorebookEntry, Message } from "../src/types";
 import { unzlibSync, inflateSync } from "fflate";
@@ -332,6 +332,20 @@ function testApiCleanRequestPayload() {
   assert(otherRes!.max_completion_tokens === undefined, "Other: strip max_completion_tokens");
   assert(otherRes!.stream_options === undefined, "Other: strip stream_options");
 
+  // 6. Custom proxy + DeepSeek model (应该保留 repetition_penalty 哪怕域名不符合)
+  const deepseekModelPayload = { ...fullPayload, model: "deepseek-reasoner" };
+  const customProxyDeepseekRes = cleanRequestPayload("https://api.some-thirdparty-中转.top/v1", deepseekModelPayload);
+  assert(customProxyDeepseekRes !== undefined, "Custom proxy deepseek payload should exist");
+  assert(customProxyDeepseekRes!.repetition_penalty === 1.1, "Custom Proxy Deepseek: KEEP repetition_penalty based on model name");
+  assert(customProxyDeepseekRes!.stream_options === undefined, "Custom Proxy Deepseek: strip stream_options");
+
+  // 7. Custom proxy + GPT model (应该裁剪 stream_options 等)
+  const gptModelPayload = { ...fullPayload, model: "gpt-4o" };
+  const customProxyGptRes = cleanRequestPayload("https://api.some-thirdparty-中转.top/v1", gptModelPayload);
+  assert(customProxyGptRes !== undefined, "Custom proxy gpt payload should exist");
+  assert(customProxyGptRes!.stream_options === undefined, "Custom Proxy GPT: strip stream_options to avoid 400");
+  assert(customProxyGptRes!.max_completion_tokens === undefined, "Custom Proxy GPT: strip max_completion_tokens");
+
   console.log("✔ API Request Payload Cleaning verified successfully!");
 }
 
@@ -385,6 +399,66 @@ async function testSSEStreamWithReasoning() {
   console.log("✔ SSE Stream with Reasoning Content verified successfully!");
 }
 
+function testPromptBuilderSystemMerging() {
+  console.log("\n--- Running Prompt Builder System Merging Verification ---");
+  // 模拟 settings
+  const mockSettings = {
+    userName: "Bob",
+    userInfo: "Traveler",
+    api: { type: "openai-compat", baseUrl: "", apiKey: "", modelName: "" },
+    preset: { temperature: 0.7, topP: 0.9, topK: 40, repetitionPenalty: 1.1, maxTokens: 100 },
+    memory: { recentTurns: 10, summaryTriggerTurns: 0, summaryLength: 150 },
+    promptConfig: { roleplayMode: true, mainPrompt: "You are Alice.", instructTemplate: "default" }
+  } as any;
+
+  // 模拟角色卡
+  const mockChar = {
+    name: "Alice",
+    description: "AI",
+    personality: "Optimistic",
+    scenario: "Cozy tavern",
+    first_mes: "Hello",
+  } as any;
+
+  // 模拟包含中途 System 消息的 Chat
+  const mockChat = {
+    messages: [
+      { id: "m1", sender: "user", content: "Hi" },
+      { id: "m2", sender: "system", content: "Suddenly, the weather turned cold." },
+      { id: "m3", sender: "system", content: "A monster appears." },
+      { id: "m4", sender: "assistant", content: "Oh no!" },
+    ]
+  } as any;
+
+  const result = assemblePromptContext({
+    character: mockChar,
+    chat: mockChat,
+    userInput: "What do I do?",
+    settings: mockSettings,
+  });
+
+  // 验证返回的 history
+  // 1. m2 和 m3 (中途 system) 应该被伪装成 user 旁白并合并成一条消息。
+  // 2. 合并后的 user 旁白应该与 m1 (user) 合并在一起，形成一条统一的 user 消息，以维持 strict user/assistant 交替。
+  // 最终的 history 应该只有 2 条：
+  // 第一条：role: "user", content 包含了 "Hi"、"Suddenly, the weather turned cold." 和 "A monster appears."
+  // 第二条：role: "assistant" (或 model), content 包含了 "Oh no!"
+  
+  assert(result.history.length === 2, `History length should be 2 to maintain strict alternation. Got: ${result.history.length}`);
+  
+  const firstMsg = result.history[0];
+  assert(firstMsg.role === "user", `First msg role should be user. Got: ${firstMsg.role}`);
+  assert(firstMsg.content.includes("Hi"), "Should contain first user message content");
+  assert(firstMsg.content.includes("[系统旁白: Suddenly, the weather turned cold.]"), "Should contain system narrator 1");
+  assert(firstMsg.content.includes("[系统旁白: A monster appears.]"), "Should contain system narrator 2");
+
+  const secondMsg = result.history[1];
+  assert(secondMsg.role === "model" || secondMsg.role === "assistant", "Second msg role should be assistant/model");
+  assert(secondMsg.content.includes("Oh no!"), "Should contain assistant content");
+
+  console.log("✔ Prompt Builder System Merging and strict alternation verified!");
+}
+
 async function run() {
   console.log("=================================================");
   console.log("🚀 STARTING ALL SYSTEM FUNCTIONAL TESTS");
@@ -397,6 +471,7 @@ async function run() {
     runCatbotErrorTests();
     testApiCleanRequestPayload();
     await testSSEStreamWithReasoning();
+    testPromptBuilderSystemMerging();
     console.log("\n=================================================");
     console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
     console.log("=================================================");
