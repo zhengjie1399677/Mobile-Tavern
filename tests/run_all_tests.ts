@@ -1392,6 +1392,72 @@ async function testKernelV4AbortAndInterrupt() {
   console.log("\n✔ Kernel V4 Fixes all verified successfully!");
 }
 
+async function testKernelExtensionRegistry() {
+  console.log("\n--- Running Kernel Extension Registry (SPI) Verification ---");
+
+  const testKernel = new Kernel();
+
+  const initialExts = testKernel.getExtensions("test:point");
+  assert(initialExts.length === 0, "Initial extensions list for targetPoint must be empty");
+
+  const comp1 = { name: "Comp1" };
+  const comp2 = { name: "Comp2" };
+  const comp3 = { name: "Comp3" };
+
+  testKernel.registerExtension({
+    id: "ext1",
+    targetPoint: "test:point",
+    priority: 10,
+    component: comp1,
+  });
+
+  testKernel.registerExtension({
+    id: "ext2",
+    targetPoint: "test:point",
+    priority: 50,
+    component: comp2,
+  });
+
+  testKernel.registerExtension({
+    id: "ext3",
+    targetPoint: "test:point",
+    priority: 5,
+    component: comp3,
+  });
+
+  const list = testKernel.getExtensions("test:point");
+  assert(list.length === 3, "Should contain 3 registered extensions");
+
+  assert(list[0].id === "ext2", "Highest priority extension should be first");
+  assert(list[1].id === "ext1", "Middle priority extension should be second");
+  assert(list[2].id === "ext3", "Lowest priority extension should be third");
+
+  const comp2Updated = { name: "Comp2-Updated" };
+  testKernel.registerExtension({
+    id: "ext2",
+    targetPoint: "test:point",
+    priority: 8,
+    component: comp2Updated,
+  });
+
+  const updatedList = testKernel.getExtensions("test:point");
+  assert(updatedList.length === 3, "Should still contain 3 extensions after replacement");
+  const ext2Node = updatedList.find(e => e.id === "ext2");
+  assert(ext2Node !== undefined, "ext2 node must exist");
+  assert(ext2Node!.component === comp2Updated, "Component must be updated to the new one");
+  assert(ext2Node!.priority === 8, "Priority must be updated to 8");
+
+  assert(updatedList[0].id === "ext1", "ext1 (priority 10) should now be first");
+  assert(updatedList[1].id === "ext2", "ext2 (priority 8) should now be second");
+  assert(updatedList[2].id === "ext3", "ext3 (priority 5) should now be third");
+
+  await testKernel.destroy();
+  const postDestroyList = testKernel.getExtensions("test:point");
+  assert(postDestroyList.length === 0, "List must be empty after kernel destroy");
+
+  console.log("✔ Kernel Extension Registry (SPI) verified successfully!");
+}
+
 
 async function run() {
   setKernelStrictMode(false); // 默认在测试流程中采用生产（容错自愈）模式
@@ -1414,6 +1480,7 @@ async function run() {
     await testKernelKernelV2Fixes();
     await testKernelV3Fixes();
     await testKernelV4AbortAndInterrupt();
+    await testKernelExtensionRegistry();
     console.log("\n=================================================");
     console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
     console.log("=================================================");

@@ -1,4 +1,4 @@
-import { IKernel, IKernelService, IPipeline, Middleware } from "./types";
+import { IKernel, IKernelService, IPipeline, Middleware, IExtension } from "./types";
 
 let strictMode = true;
 
@@ -176,6 +176,7 @@ class Pipeline<T> implements IPipeline<T> {
 
 export class Kernel implements IKernel {
   private services = new Map<string, IKernelService>();
+  private extensions = new Map<string, IExtension[]>();
 
   /**
    * B-2 修复：记录所有声明了 isCritical=true 的服务名称。
@@ -506,6 +507,22 @@ export class Kernel implements IKernel {
     }
   }
 
+  registerExtension(extension: IExtension): void {
+    const point = extension.targetPoint;
+    if (!this.extensions.has(point)) {
+      this.extensions.set(point, []);
+    }
+    const list = this.extensions.get(point)!;
+    const filtered = list.filter(ext => ext.id !== extension.id);
+    filtered.push(extension);
+    filtered.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+    this.extensions.set(point, filtered);
+  }
+
+  getExtensions(point: string): IExtension[] {
+    return this.extensions.get(point) ?? [];
+  }
+
   async destroy(): Promise<void> {
     console.log("[Kernel] Destroying all core pipelines, hooks, and services...");
     // 强制关停所有当前活跃的异步任务控制器
@@ -531,6 +548,7 @@ export class Kernel implements IKernel {
     this.criticalServiceNames.clear();
     this.hooks.clear();
     this.pipelines.clear();
+    this.extensions.clear();
     console.log("[Kernel] Kernel base destroyed successfully.");
   }
 }

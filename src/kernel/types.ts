@@ -18,6 +18,14 @@ export type InterruptFn = () => void;
 
 export type Middleware<T> = (context: T, next: () => Promise<void>, interrupt: InterruptFn) => Promise<void> | void;
 
+export interface IExtension {
+  id: string;
+  targetPoint: string;
+  priority?: number;
+  component: any;
+  meta?: Record<string, any>;
+}
+
 export interface IPipeline<T> {
   use(middleware: Middleware<T>, priority?: number): () => void;
   unuse(middleware: Middleware<T>): void;
@@ -41,6 +49,10 @@ export interface IKernel {
 
   registerPipeline<T = any>(name: string): IPipeline<T>;
   getPipeline<T = any>(name: string): IPipeline<T>;
+
+  // 扩展点注册与获取接口 (SPI)
+  registerExtension(extension: IExtension): void;
+  getExtensions(point: string): IExtension[];
 
   // Aspect-Oriented Programming (AOP) Hook System
   /**
