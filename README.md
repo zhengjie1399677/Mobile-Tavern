@@ -65,6 +65,7 @@ Mobile-Tavern
     ├── AppContext.tsx                    # 全局状态管理 Context
     ├── components                        # 共享 UI 容器 (自适应安全区、拇指布局等，含雪团客服)
     ├── hooks                             # 核心状态钩子 (useChat, useCharacters, useSettings, useCatbot)
+    ├── kernel                            # 微内核切面底座 (包含 IOC 容器、双轨 Pipeline 及 7 大官方微服务)
     ├── tabs                              # 各功能大版块 Tab 页 (包含调试沙盒)
     └── utils                             # 底层计算工具 (cardParser, db, promptBuilder, telemetry)
 ```
