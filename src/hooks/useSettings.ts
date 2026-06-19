@@ -339,32 +339,25 @@ export const useSettings = () => {
 
           // 强制同步活跃人设的名称、头像、背景到全局属性，确保完全一致
           const activeIdx = personas.findIndex((p: any) => p.id === activeId);
+          let finalUserName = storedSet.userName || DEFAULT_SETTINGS.userName;
+          let finalUserAvatar = storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar || "";
+          let finalUserInfo = storedSet.userInfo || DEFAULT_SETTINGS.userInfo || "";
+
           if (activeIdx !== -1) {
-            const activePers = { ...personas[activeIdx] };
-            let needUpdatePersona = false;
+            const activePers = personas[activeIdx];
             
-            const expectedName = storedSet.userName || DEFAULT_SETTINGS.userName;
-            if (activePers.name !== expectedName) {
-              activePers.name = expectedName;
-              needUpdatePersona = true;
+            // 以活跃人设的数据为主，如有差异同步覆盖回全局属性，避免抹除人设自定义属性
+            if (storedSet.userName !== activePers.name) {
+              finalUserName = activePers.name || "";
+              needSave = true;
             }
-            
-            const expectedAvatar = storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar || "";
-            if (activePers.avatar !== expectedAvatar) {
-              activePers.avatar = expectedAvatar;
-              needUpdatePersona = true;
+            if (storedSet.userAvatar !== activePers.avatar) {
+              finalUserAvatar = activePers.avatar || "";
+              needSave = true;
             }
-            
-            const expectedDesc = storedSet.userInfo || DEFAULT_SETTINGS.userInfo || "";
-            if (activePers.description !== expectedDesc) {
-              activePers.description = expectedDesc;
-              needUpdatePersona = true;
-            }
-            
-            if (needUpdatePersona) {
-              personas = [...personas];
-              personas[activeIdx] = activePers;
-              needSave = true; // 触发自动保存回数据库
+            if (storedSet.userInfo !== activePers.description) {
+              finalUserInfo = activePers.description || "";
+              needSave = true;
             }
           }
 
@@ -401,9 +394,9 @@ export const useSettings = () => {
                 ...(storedSet.promptConfig?.sectionHeaders || {}),
               },
             },
-            userName: storedSet.userName || DEFAULT_SETTINGS.userName,
-            userInfo: storedSet.userInfo || DEFAULT_SETTINGS.userInfo,
-            userAvatar: storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar,
+            userName: finalUserName,
+            userInfo: finalUserInfo,
+            userAvatar: finalUserAvatar,
             userPersonas: personas,
             activePersonaId: activeId,
             globalChatBg: storedSet.globalChatBg || DEFAULT_SETTINGS.globalChatBg,

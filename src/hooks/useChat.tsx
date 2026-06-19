@@ -3,130 +3,25 @@ import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
 import { Message, ChatSession, SummaryCard, UserSettings, LorebookEntry, TableMemorySheet } from "../types";
-import { assemblePromptContext } from "../utils/promptBuilder";
-import { reportUsage, incrementUsageCount, reportLlmPerformance, reportChatLoadTime } from "../utils/telemetry";
-import { universalFetch, FALLBACK_MODEL, API_ENDPOINT } from "../utils/apiClient";
+import { FALLBACK_MODEL, API_ENDPOINT } from "../utils/apiClient";
 import { readSSEStream, safeParseSSEData } from "../utils/streamReader";
 import FormattedText from "../components/FormattedText";
-import { parseMvuMessage, notifyVariablesUpdated, initializeMvuFromCharacter } from "../utils/tavernHelperBridge";
-import { getAllSessions } from "../utils/localDB";
+import { notifyVariablesUpdated } from "../utils/tavernHelperBridge";
+import { globalKernel } from "../kernel";
+import {
+  IDatabaseService,
+  ILLMService,
+  IPromptService,
+  ITelemetryService,
+  ITableMemoryService,
+  IScriptService,
+  IAutoSummaryService
+} from "../kernel/types";
 
 const generateUniqueId = (prefix: string): string => {
   return prefix + Math.random().toString(36).substring(2, 9);
 };
 
-export function processTableMemoryActions(
-  tableMemory: TableMemorySheet[] = [],
-  rawContent: string
-): { updatedMemory: TableMemorySheet[]; cleanContent: string; hasChanges: boolean } {
-  let cleanContent = rawContent;
-  let hasChanges = false;
-  const currentMemory = tableMemory.map(s => ({
-    ...s,
-    columns: [...s.columns],
-    rows: s.rows.map(r => [...r])
-  }));
-
-  // Regular expression to scan memory update actions: e.g. updateRow("sheet", {...})
-  // matches updateRow, insertRow, deleteRow (case-insensitive)
-  const actionRegex = /(updateRow|insertRow|deleteRow)\s*\(\s*(['"`])(.*?)\2\s*,\s*(\{[\s\S]*?\})(?:\s*,\s*(\{[\s\S]*?\}))?\s*\)/gi;
-
-  let match;
-  const matchesToClean: string[] = [];
-
-  while ((match = actionRegex.exec(rawContent)) !== null) {
-    const fullMatch = match[0];
-    const actionType = match[1].toLowerCase();
-    const sheetName = match[3];
-    const param1Str = match[4];
-    const param2Str = match[5];
-
-    matchesToClean.push(fullMatch);
-
-    try {
-      // Relaxed JSON parsing: replace single quotes and unquoted keys
-      const parseJsonObj = (str: string) => {
-        const formatted = str
-          .replace(/'/g, '"')
-          .replace(/([{,]\s*)([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*:/g, '$1"$2":');
-        return JSON.parse(formatted);
-      };
-
-      const p1 = parseJsonObj(param1Str);
-      const p2 = param2Str ? parseJsonObj(param2Str) : null;
-
-      const sheetIndex = currentMemory.findIndex(s => s.name === sheetName);
-      if (sheetIndex !== -1) {
-        const sheet = currentMemory[sheetIndex];
-
-        if (actionType === "updaterow") {
-          if (p2) {
-            // updateRow("sheet", {"定位列": "值"}, {"修改列": "新值"})
-            sheet.rows = sheet.rows.map(row => {
-              const matchesFilter = Object.entries(p1).every(([filterKey, filterVal]) => {
-                const colIdx = sheet.columns.indexOf(filterKey);
-                return colIdx !== -1 && String(row[colIdx]) === String(filterVal);
-              });
-              if (matchesFilter) {
-                hasChanges = true;
-                const nextRow = [...row];
-                Object.entries(p2).forEach(([key, val]) => {
-                  const colIdx = sheet.columns.indexOf(key);
-                  if (colIdx !== -1) {
-                    nextRow[colIdx] = String(val);
-                  }
-                });
-                return nextRow;
-              }
-              return row;
-            });
-          } else {
-            // updateRow("sheet", {"修改列": "新值"}) (default updates first row)
-            if (sheet.rows.length === 0) {
-              sheet.rows.push(sheet.columns.map(() => ""));
-            }
-            Object.entries(p1).forEach(([key, val]) => {
-              const colIdx = sheet.columns.indexOf(key);
-              if (colIdx !== -1) {
-                sheet.rows[0][colIdx] = String(val);
-                hasChanges = true;
-              }
-            });
-          }
-        } else if (actionType === "insertrow") {
-          // insertRow("sheet", {"col1": "val1"})
-          const newRow = sheet.columns.map(col => {
-            return p1[col] !== undefined ? String(p1[col]) : "";
-          });
-          sheet.rows.push(newRow);
-          hasChanges = true;
-        } else if (actionType === "deleterow") {
-          // deleteRow("sheet", {"col1": "val1"})
-          const prevLen = sheet.rows.length;
-          sheet.rows = sheet.rows.filter(row => {
-            const matchesFilter = Object.entries(p1).every(([filterKey, filterVal]) => {
-              const colIdx = sheet.columns.indexOf(filterKey);
-              return colIdx !== -1 && String(row[colIdx]) === String(filterVal);
-            });
-            return !matchesFilter;
-          });
-          if (sheet.rows.length !== prevLen) {
-            hasChanges = true;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn(`[TableMemory] Action parse failed: ${actionType} on ${sheetName}:`, e);
-    }
-  }
-
-  matchesToClean.forEach(m => {
-    cleanContent = cleanContent.replace(m, "");
-  });
-
-  cleanContent = cleanContent.replace(/\n{3,}/g, "\n\n").trim();
-  return { updatedMemory: currentMemory, cleanContent, hasChanges: hasChanges || cleanContent !== rawContent };
-}
 
 export const useChat = (
   settings: UserSettings,
@@ -148,6 +43,15 @@ export const useChat = (
     isSummarizing,
     setIsSummarizing,
   } = useChatState();
+
+  // Retrieve microservices from the Kernel singleton
+  const databaseService = globalKernel.getService<IDatabaseService>("database");
+  const llmService = globalKernel.getService<ILLMService>("llm");
+  const promptService = globalKernel.getService<IPromptService>("prompt");
+  const telemetryService = globalKernel.getService<ITelemetryService>("telemetry");
+  const tableMemoryService = globalKernel.getService<ITableMemoryService>("tableMemory");
+  const scriptService = globalKernel.getService<IScriptService>("script");
+  const autoSummaryService = globalKernel.getService<IAutoSummaryService>("autoSummary");
 
   const sessionsRef = React.useRef(sessions);
   useEffect(() => {
@@ -241,7 +145,7 @@ export const useChat = (
     const starterMsg = customFirstMessage ?? activeCharacter.first_mes;
 
     // Initialize MVU variables from character card extensions
-    const mvuVariables = initializeMvuFromCharacter(activeCharacter);
+    const mvuVariables = scriptService.initializeMvuFromCharacter(activeCharacter);
 
     const newSession: ChatSession = {
       id: generateUniqueId("session_"),
@@ -276,191 +180,31 @@ export const useChat = (
     force: boolean = false,
     signal?: AbortSignal
   ) => {
-    let resolvedLastId = session.lastSummarizedMessageId;
-    if (resolvedLastId) {
-      const hasIt = session.messages.some((m) => m.id === resolvedLastId);
-      if (!hasIt) {
-        const lastSummary = session.summaries && session.summaries.length > 0
-          ? session.summaries[session.summaries.length - 1]
-          : null;
-        resolvedLastId = lastSummary?.lastMessageId || undefined;
+    try {
+      setIsSummarizing(true);
+      const updatedSession = await autoSummaryService.handleAutoSummaryCheck(
+        session,
+        settings,
+        activeCharacter,
+        force,
+        signal
+      );
+      if (updatedSession !== session) {
+        setSessions((prev) =>
+          prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+        );
+        if (force) await showCustomAlert("记忆整理完毕，已收录至潜意识年表！");
+      } else if (force) {
+        await showCustomAlert("当前无需强制压缩。");
       }
+    } catch (e: any) {
+      if (e.name === "AbortError" || e.message === "AbortError") return;
+      console.warn("Auto-compactor service bypassed or offline:", e);
+      if (force) await showCustomAlert("记忆整理出错: " + e.message);
+    } finally {
+      setIsSummarizing(false);
     }
-
-    const lastIndex = resolvedLastId
-      ? session.messages.findIndex((m) => m.id === resolvedLastId)
-      : -1;
-    
-    let startIndex = 0;
-    if (lastIndex >= 0) {
-      startIndex = lastIndex + 1;
-    }
-    const unsummarizedMessages = session.messages.slice(startIndex);
-    
-    const summaryTurnsVal = settings?.memory?.summaryTriggerTurns;
-    const rawTriggerTurns = summaryTurnsVal ? Number(summaryTurnsVal) : 0;
-    const rawRecentTurns = Number(settings?.memory?.recentTurns || 6);
-    const triggerRounds = (!isNaN(rawTriggerTurns) && rawTriggerTurns > 0) ? rawTriggerTurns : rawRecentTurns;
-    
-    const safeTriggerRounds = Math.max(4, triggerRounds);
-    const maxAllowedUnsummarized = safeTriggerRounds * 2;
-
-    let messagesToCompress: Message[] = [];
-
-    if (force || unsummarizedMessages.length >= maxAllowedUnsummarized) {
-      if (unsummarizedMessages.length === 0) {
-        if (force) await showCustomAlert("当前没有未被总结的有效对话。");
-        return;
-      }
-
-      messagesToCompress = unsummarizedMessages.slice(0, maxAllowedUnsummarized);
-
-      try {
-        if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
-          if (force) await showCustomAlert("当前处于免 Key 体验模式下，已自动禁用总结功能以节省频宽额度。");
-          return;
-        }
-        setIsSummarizing(true);
-        const promptInstruction = settings?.memory?.summarySystemPrompt || "";
-        const contentConcat = messagesToCompress
-          .map((m) => `${m.sender === "user" ? (settings?.userName || "user") : (activeCharacter?.name || "角色")}: ${m.content}`)
-          .join("\n");
-
-        let compiledSummary = "";
-
-        let finalApiKey = settings.api.apiKey;
-        let finalBaseUrl = settings.api.baseUrl;
-        let finalModel = settings.api.modelName || FALLBACK_MODEL;
-        let finalChatPath = settings?.api?.chatPath;
-
-        if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
-          finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZmI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
-          finalBaseUrl = "https://openrouter.ai/api/v1";
-          finalModel = "openrouter/free";
-          finalChatPath = undefined;
-        }
-
-        const reqBody = {
-          model: finalModel,
-          messages: [
-            { role: "system", content: promptInstruction },
-            { role: "user", content: contentConcat },
-          ],
-          stream: false,
-          temperature: 0.5,
-          max_tokens: 500,
-        };
-        const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
-          baseUrl: finalBaseUrl,
-          apiKey: finalApiKey,
-          chatPath: finalChatPath,
-          reqBody,
-          bypassProxy: settings.api.bypassProxy,
-        }, signal);
-
-        if (signal?.aborted) return;
-
-        if (!response.ok) {
-          const errStatus = response.status;
-          console.error("[AutoSummary] fetch failed with status:", errStatus);
-          throw new Error(`API 返回错误状态码 ${errStatus}`);
-        }
-
-        const responseText = await response.text();
-        let resData: any;
-        try {
-          resData = JSON.parse(responseText);
-        } catch (e) {
-          console.error("[AutoSummary] JSON parse failed. Response text was:", responseText);
-          throw new Error("接口返回数据格式错误，解析 JSON 失败");
-        }
-
-        if (resData && resData.choices && resData.choices.length > 0) {
-          compiledSummary = resData.choices[0].message?.content || "";
-        }
-
-        if (compiledSummary) {
-          const indexVal = (session.summaries || []).length + 1;
-          const timeTagTemplate = settings?.memory?.timeTagTemplate || "第{{index}}幕";
-          const timeTag = timeTagTemplate.replace(/\{\{index\}\}/g, String(indexVal));
-
-          let contentText = compiledSummary.trim();
-          let locationStr = activeCharacter?.scenario?.slice(0, 8) || "未知地点";
-          let timeTagStr = timeTag;
-          let conditionStr = "";
-          let inventoryStr = "";
-          let bondingStr = "";
-
-          const splitIdx = compiledSummary.lastIndexOf("---");
-          if (splitIdx !== -1) {
-            const body = compiledSummary.slice(0, splitIdx).trim();
-            const meta = compiledSummary.slice(splitIdx + 3).trim();
-            if (body) {
-              contentText = body;
-            }
-            
-            const locMatch = meta.match(/\[(?:Location|地点):\s*(.*?)\]/i);
-            const timeMatch = meta.match(/\[(?:Time|时间):\s*(.*?)\]/i);
-            const condMatch = meta.match(/\[(?:Condition|状态|心境):\s*(.*?)\]/i);
-            const invMatch = meta.match(/\[(?:Inventory|物品|道具):\s*(.*?)\]/i);
-            const bondMatch = meta.match(/\[(?:Bonding|羁绊|情感):\s*(.*?)\]/i);
-
-            if (locMatch && locMatch[1].trim()) locationStr = locMatch[1].trim();
-            if (timeMatch && timeMatch[1].trim()) timeTagStr = timeMatch[1].trim();
-            if (condMatch && condMatch[1].trim()) conditionStr = condMatch[1].trim();
-            if (invMatch && invMatch[1].trim()) inventoryStr = invMatch[1].trim();
-            if (bondMatch && bondMatch[1].trim()) bondingStr = bondMatch[1].trim();
-          }
-
-          const lastSummarizedMessageId = messagesToCompress[messagesToCompress.length - 1].id;
-
-          const newCard: SummaryCard = {
-            id: generateUniqueId("summary_"),
-            timeTag: timeTagStr,
-            location: locationStr,
-            content: contentText,
-            condition: conditionStr || undefined,
-            inventory: inventoryStr || undefined,
-            bonding: bondingStr || undefined,
-            lastMessageId: lastSummarizedMessageId,
-          };
-
-          if (signal?.aborted) return;
-
-          // Guard: Verify if the session still exists in React state before writing to DB
-          const sessionExists = sessionsRef.current.some((s) => s.id === session.id);
-          if (!sessionExists) {
-            if (force) await showCustomAlert("记忆整理失败，该会话可能已被删除。");
-            return;
-          }
-
-          const allSessions = await getAllSessions();
-          const latestSession = allSessions.find((s) => s.id === session.id);
-          if (latestSession) {
-            const nextSession = {
-              ...latestSession,
-              summaries: [...(latestSession.summaries || []), newCard],
-              lastSummarizedMessageId,
-            };
-            await saveSession(nextSession);
-            if (force) await showCustomAlert("记忆整理完毕，已收录至潜意识年表！");
-          } else {
-            if (force) await showCustomAlert("记忆整理失败，该会话可能已被删除。");
-          }
-        } else {
-          if (force) await showCustomAlert("记忆整理失败，请检查API连接。");
-        }
-      } catch (e) {
-        if ((e as Error).name === "AbortError") return;
-        console.warn("Auto-compactor service bypassed or offline:", e);
-        if (force) await showCustomAlert("记忆整理出错: " + (e as Error).message);
-      } finally {
-        setIsSummarizing(false);
-      }
-    } else {
-      if (force) await showCustomAlert("当前无需强制压缩。");
-    }
-  }, [settings, activeCharacter, showCustomAlert, saveSession, setIsSummarizing]);
+  }, [settings, activeCharacter, showCustomAlert, setSessions, setIsSummarizing]);
 
   const saveSessionWithMvu = useCallback(async (session: ChatSession, messageToParse?: string) => {
     const sessionExists = sessionsRef.current.some((s) => s.id === session.id);
@@ -494,9 +238,10 @@ export const useChat = (
     // 2. Parse table actions & clean raw instructions to prevent printing pseudocode to UI
     if (messageToParse) {
       try {
-        const { updatedMemory, cleanContent, hasChanges } = processTableMemoryActions(
+        const { updatedMemory, cleanContent, hasChanges } = tableMemoryService.processTableMemory(
           currentMemory,
-          messageToParse
+          messageToParse,
+          activeCharacter || undefined
         );
 
         if (hasChanges || cleanContent !== messageToParse) {
@@ -529,40 +274,10 @@ export const useChat = (
     // 3. Process standard MVU scripts
     if (settings.enableScriptExecution && messageToParse) {
       try {
-        console.log("[MVU Debug] saveSessionWithMvu: Parsing message...", { messageToParse });
-        // Use cleanContent or raw text for MVU
-        const parsedVariables = parseMvuMessage(messageToParse, updatedSession.variables || {});
-        console.log("[MVU Debug] Parsed variables:", parsedVariables);
-        
-        let updatedMessages = updatedSession.messages;
-        if (updatedMessages.length > 0) {
-          const lastMsg = { ...updatedMessages[updatedMessages.length - 1] } as any;
-          const swipeId = lastMsg.swipe_id !== undefined ? lastMsg.swipe_id : 0;
-          const extra = { ...lastMsg.extra };
-          if (!extra.variables) extra.variables = {};
-          extra.variables = {
-            ...extra.variables,
-            [swipeId]: parsedVariables,
-          };
-          lastMsg.extra = extra;
-          lastMsg.variables = extra.variables;
-          updatedMessages = [
-            ...updatedSession.messages.slice(0, -1),
-            lastMsg,
-          ];
-          console.log(`[MVU Debug] Synced parsed variables to last message (swipeId: ${swipeId})`);
-        }
-
-        updatedSession = {
-          ...updatedSession,
-          variables: parsedVariables,
-          messages: updatedMessages,
-        };
-
+        updatedSession = await scriptService.executeMvuScript(updatedSession, messageToParse);
         setSessions((prev) =>
           prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
         );
-        notifyVariablesUpdated(updatedSession);
       } catch (e) {
         console.warn("Failed to parse MVU message:", e);
       }
@@ -574,7 +289,7 @@ export const useChat = (
 
 
   const handleSendMessage = useCallback(async (textToSend: string) => {
-    incrementUsageCount();
+    telemetryService.incrementUsageCount();
     if (
       !textToSend ||
       typeof textToSend !== "string" ||
@@ -702,7 +417,7 @@ export const useChat = (
 
       const combinedGlobals = [...(globalLorebook || []), ...otherCharGlobals];
 
-      const promptPayload = assemblePromptContext({
+      const promptPayload = promptService.assemblePrompt({
         character: activeCharacter,
         chat: updatedSession,
         userInput: textToSend,
@@ -731,7 +446,7 @@ export const useChat = (
         })
       );
 
-      const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
+      const response = await llmService.universalFetch(API_ENDPOINT.ProxyOpenAI, {
         baseUrl: finalBaseUrl,
         apiKey: finalApiKey,
         chatPath: finalChatPath,
@@ -848,7 +563,7 @@ export const useChat = (
         const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
         triggerScroll("smooth");
 
-        reportUsage("send_message", {
+        telemetryService.reportUsage("send_message", {
           promptTokens: tokenUsage.prompt,
           completionTokens: tokenUsage.completion,
           totalTokens: tokenUsage.prompt + tokenUsage.completion,
@@ -858,7 +573,7 @@ export const useChat = (
         });
 
         try {
-          reportLlmPerformance(
+          telemetryService.reportLlmPerformance(
             updatedSession.id,
             finalModel,
             ttftMs,
@@ -1183,7 +898,7 @@ export const useChat = (
 
       const combinedGlobals = [...(globalLorebook || []), ...otherCharGlobals];
 
-      const promptPayload = assemblePromptContext({
+      const promptPayload = promptService.assemblePrompt({
         character: activeCharacter,
         chat: updatedSession,
         userInput: lastUserText,
@@ -1206,7 +921,7 @@ export const useChat = (
         })
       );
 
-      const response = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
+      const response = await llmService.universalFetch(API_ENDPOINT.ProxyOpenAI, {
         baseUrl: finalBaseUrl,
         apiKey: finalApiKey,
         chatPath: finalChatPath,
@@ -1323,7 +1038,7 @@ export const useChat = (
         const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
         triggerScroll();
 
-        reportUsage("regenerate_message", {
+        telemetryService.reportUsage("regenerate_message", {
           promptTokens: tokenUsage.prompt,
           completionTokens: tokenUsage.completion,
           totalTokens: tokenUsage.prompt + tokenUsage.completion,
@@ -1335,7 +1050,7 @@ export const useChat = (
         });
 
         try {
-          reportLlmPerformance(
+          telemetryService.reportLlmPerformance(
             updatedSession.id,
             finalModel,
             ttftMs,
@@ -1427,7 +1142,7 @@ export const useChat = (
       } else {
         if (isStillActive) {
           console.error("AI Regeneration failed:", e);
-          reportUsage("api_error", {
+          telemetryService.reportUsage("api_error", {
             detail: String(e.message || "Unknown error"),
             playerName: settings.userName,
             characterName: activeCharacter.name,
@@ -1563,7 +1278,7 @@ export const useChat = (
     if (!branchTitle) return;
 
     // Initialize MVU variables from character card extensions
-    const mvuVariables = initializeMvuFromCharacter(activeCharacter);
+    const mvuVariables = scriptService.initializeMvuFromCharacter(activeCharacter);
 
     const newSession: ChatSession = {
       id: generateUniqueId("session_branch_"),
@@ -1639,7 +1354,7 @@ export const useChat = (
       } else {
         const targetChar = characters.find((c) => c.id === charId);
         // Initialize MVU variables from character card extensions
-        const mvuVariables = initializeMvuFromCharacter(targetChar);
+        const mvuVariables = scriptService.initializeMvuFromCharacter(targetChar);
         const newSession: ChatSession = {
           id: generateUniqueId("session_"),
           characterId: charId,
@@ -1671,7 +1386,10 @@ export const useChat = (
     } finally {
       const duration = performance.now() - loadStartTime;
       try {
-        reportChatLoadTime(duration);
+        telemetryService.reportUsage("performance_chat_load", {
+          detail: "Chat session load completed",
+          generationTime: duration,
+        });
       } catch (telemetryErr) {
         console.warn("Failed to report chat load time telemetry:", telemetryErr);
       }
