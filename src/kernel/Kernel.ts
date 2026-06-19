@@ -1,4 +1,4 @@
-import { IKernel, IKernelService, IPipeline, Middleware, IExtension } from "./types";
+import { IKernel, IKernelService, IPipeline, Middleware, IExtension, IMessage } from "./types";
 
 let strictMode = true;
 
@@ -24,12 +24,12 @@ const getKernelStrictMode = (): boolean => {
 };
 
 /**
- * Hook 单次执行超时阈值（毫秒）。
- * 防止劣质插件的异步死锁或网络挂起拖垮基座主业务流程。
- * triggerHook 和 triggerHookParallel 均对每个 Hook 独立计时，
- * 超时后记录警告并继续执行其他 Hook，不会阻断整个事件链。
+ * 消息处理器单次执行超时阈值（毫秒）。
+ * 防止劣质插件的异步死锁或网络挂起拖垮消息总线核心分发流程。
+ * publish 和 publishParallel 均对每个订阅者处理器独立计时，
+ * 超时后触发 abort 熔断以防挂起，不会阻断整个事件链。
  */
-const HOOK_TIMEOUT_MS = 5000;
+const MSG_TIMEOUT_MS = 5000;
 
 const createSafeProxy = (name: string, path = ""): any => {
   const noop = (..._args: any[]) => {
@@ -186,8 +186,14 @@ export class Kernel implements IKernel {
   private criticalServiceNames = new Set<string>();
   private activeControllers = new Set<AbortController>();
 
-  /** B-4 修复：Hook 条目携带 priority，注册时按优先级降序排列 */
-  private hooks = new Map<string, Array<{ fn: (...args: any[]) => any; priority: number }>>();
+  /** 消息总线订阅者路由表：topic -> [{ handler, priority }] */
+  private subscribers = new Map<
+    string,
+    Array<{
+      handler: (message: IMessage, signal?: AbortSignal) => void | Promise<void>;
+      priority: number;
+    }>
+  >();
   private pipelines = new Map<string, IPipeline<any>>();
 
   constructor() {
@@ -395,41 +401,42 @@ export class Kernel implements IKernel {
     return pipeline as IPipeline<T>;
   }
 
-  /**
-   * B-4 修复：registerHook 增加 priority 参数。
-   * 优先级越高（数值越大）越先执行，内核/系统级 Hook 可使用高优先级确保先于插件 Hook 运行。
-   */
-  registerHook(event: string, fn: (...args: any[]) => any, priority = 0): () => void {
-    if (!this.hooks.has(event)) {
-      this.hooks.set(event, []);
+  subscribe(
+    topic: string,
+    handler: (message: IMessage, signal?: AbortSignal) => void | Promise<void>,
+    priority = 0
+  ): () => void {
+    if (!this.subscribers.has(topic)) {
+      this.subscribers.set(topic, []);
     }
-    const entry = { fn, priority };
-    const handlers = this.hooks.get(event)!;
-    handlers.push(entry);
-    handlers.sort((a, b) => b.priority - a.priority);
+    const entry = { handler, priority };
+    const list = this.subscribers.get(topic)!;
+    list.push(entry);
+    list.sort((a, b) => b.priority - a.priority);
     return () => {
-      this.unregisterHook(event, fn);
+      this.unsubscribe(topic, handler);
     };
   }
 
-  unregisterHook(event: string, fn: (...args: any[]) => any): void {
-    const handlers = this.hooks.get(event);
-    if (handlers) {
-      const filtered = handlers.filter(h => h.fn !== fn);
+  unsubscribe(
+    topic: string,
+    handler: (message: IMessage, signal?: AbortSignal) => void | Promise<void>
+  ): void {
+    const list = this.subscribers.get(topic);
+    if (list) {
+      const filtered = list.filter(item => item.handler !== handler);
       if (filtered.length === 0) {
-        // 条目 4 修复：彻底移除空 key，防止长生命周期下 Map 键无限膨胀
-        this.hooks.delete(event);
+        this.subscribers.delete(topic);
       } else {
-        this.hooks.set(event, filtered);
+        this.subscribers.set(topic, filtered);
       }
     }
   }
 
-  /** 串行触发：按优先级顺序依次 await 执行，适用于有顺序依赖 of Hook */
-  async triggerHook(event: string, ...args: any[]): Promise<void> {
-    const handlers = this.hooks.get(event);
-    if (!handlers) return;
-    for (const { fn } of handlers) {
+  async publish(message: IMessage): Promise<void> {
+    const list = this.subscribers.get(message.topic);
+    if (!list) return;
+    for (const { handler } of list) {
       const controller = new AbortController();
       this.activeControllers.add(controller);
       const signal = controller.signal;
@@ -438,40 +445,53 @@ export class Kernel implements IKernel {
       const timeout = new Promise<never>((_, reject) => {
         timerId = setTimeout(
           () => {
-            controller.abort(); // 超时触发真正的 Abort 信号中止 Hook 内挂起的异步操作
-            reject(new Error(`[Kernel] Hook on "${event}" timed out after ${HOOK_TIMEOUT_MS}ms. Check for hanging async operations in registered hooks.`));
+            controller.abort();
+            reject(new Error(`[Kernel] Publish subscriber on "${message.topic}" timed out after ${MSG_TIMEOUT_MS}ms.`));
           },
-          HOOK_TIMEOUT_MS
+          MSG_TIMEOUT_MS
         );
       });
+
+      const abortPromise = new Promise<never>((_, reject) => {
+        if (signal.aborted) {
+          reject(new Error("aborted"));
+        } else {
+          signal.addEventListener("abort", () => reject(new Error("aborted")));
+        }
+      });
+
       try {
         await Promise.race([
           new Promise<void>((resolve, reject) => {
-            try { resolve(fn(...args, signal) as any); } catch (e) { reject(e); }
+            try {
+              resolve(handler(message, signal) as any);
+            } catch (e) {
+              reject(e);
+            }
           }),
           timeout,
+          abortPromise,
         ]).finally(() => {
           if (timerId) clearTimeout(timerId);
         });
-      } catch (err) {
-        controller.abort(); // 确保异常时同样调用 abort 中止
-        console.error(`[Kernel] Error executing hook "${event}":`, err);
+      } catch (err: any) {
+        controller.abort();
+        if (err && err.message === "aborted") {
+          // 静默退出，不打印被主动 abort 的日志
+        } else {
+          console.error(`[Kernel] Error executing subscriber on topic "${message.topic}":`, err);
+        }
       } finally {
         this.activeControllers.delete(controller);
       }
     }
   }
 
-  /**
-   * B-4 修复补充：并行触发，适用于独立无依赖的 Hook（遥测、日志、UI 刷新等）。
-   * 消除串行执行在独立 Hook 场景下的不必要延迟。
-   * 使用 Promise.allSettled 确保单个 Hook 异常不影响其他 Hook 执行。
-   * 条目 5 修复：每个并发 Hook 独立包裹超时熔断，防止永久挂起的 Hook 使 allSettled 永不 resolve。
-   */
-  async triggerHookParallel(event: string, ...args: any[]): Promise<void> {
-    const handlers = this.hooks.get(event);
-    if (!handlers) return;
-    const withTimeout = ({ fn }: { fn: (...a: any[]) => any }): Promise<void> => {
+  async publishParallel(message: IMessage): Promise<void> {
+    const list = this.subscribers.get(message.topic);
+    if (!list) return;
+
+    const withTimeout = ({ handler }: { handler: Function }): Promise<void> => {
       const controller = new AbortController();
       this.activeControllers.add(controller);
       const signal = controller.signal;
@@ -480,17 +500,31 @@ export class Kernel implements IKernel {
       const timeout = new Promise<never>((_, reject) => {
         timerId = setTimeout(
           () => {
-            controller.abort(); // 超时触发真正的 Abort 信号中止 Hook 内挂起的异步操作
-            reject(new Error(`[Kernel] Hook on "${event}" timed out after ${HOOK_TIMEOUT_MS}ms.`));
+            controller.abort();
+            reject(new Error(`[Kernel] Parallel subscriber on "${message.topic}" timed out after ${MSG_TIMEOUT_MS}ms.`));
           },
-          HOOK_TIMEOUT_MS
+          MSG_TIMEOUT_MS
         );
       });
+
+      const abortPromise = new Promise<never>((_, reject) => {
+        if (signal.aborted) {
+          reject(new Error("aborted"));
+        } else {
+          signal.addEventListener("abort", () => reject(new Error("aborted")));
+        }
+      });
+
       return Promise.race([
         new Promise<void>((resolve, reject) => {
-          try { resolve(fn(...args, signal) as any); } catch (e) { reject(e); }
+          try {
+            resolve(handler(message, signal) as any);
+          } catch (e) {
+            reject(e);
+          }
         }),
         timeout,
+        abortPromise,
       ]).finally(() => {
         if (timerId) clearTimeout(timerId);
         this.activeControllers.delete(controller);
@@ -499,10 +533,15 @@ export class Kernel implements IKernel {
         throw err;
       });
     };
-    const results = await Promise.allSettled(handlers.map(withTimeout));
+
+    const results = await Promise.allSettled(list.map(withTimeout));
     for (const result of results) {
       if (result.status === "rejected") {
-        console.error(`[Kernel] Error executing parallel hook "${event}":`, result.reason);
+        const err = result.reason;
+        if (err && err.message === "aborted") {
+          continue;
+        }
+        console.error(`[Kernel] Error executing parallel subscriber on topic "${message.topic}":`, result.reason);
       }
     }
   }
@@ -546,7 +585,7 @@ export class Kernel implements IKernel {
     }
     this.services.clear();
     this.criticalServiceNames.clear();
-    this.hooks.clear();
+    this.subscribers.clear();
     this.pipelines.clear();
     this.extensions.clear();
     console.log("[Kernel] Kernel base destroyed successfully.");

@@ -27,153 +27,25 @@ src/kernel/
 
 ---
 
-### 🏛️ 底座架构系统蓝图 (Architecture Blueprint)
-
-![Architecture Blueprint](architecture_blueprint.png)
-
-> 💡 **提示**：若您的 Markdown 阅读器不支持 Mermaid 运行环境，请直接查看下方的 **ASCII 文本体系结构图**。
-
-#### 1. Mermaid 动态关系网络图
-```mermaid
-graph TD
-    %% 第一层：契约层
-    subgraph Contract [1. 契约定义层 types.ts]
-        IKernel[IKernel 容器契约]
-        IPipeline[IPipeline 管道契约]
-        IService[IKernelService 服务契约]
-        ILogger[ILogger 日志契约]
-        DomainTypes[领域类型 & 事件常量<br/>KernelServices / KernelEvents / TSession]
-    end
-
-    %% 第二层：控制层
-    subgraph CoreEngine [2. 内核控制层 Kernel.ts]
-        KernelImpl[Kernel 容器<br/>Kahn拓扑排序 / AbortController / 生命周期管理]
-        PipelineImpl[Pipeline 管道<br/>洋葱模型调度 / 三态拦截 / 逃逸检测]
-        KernelImpl -->|创建 & 管理| PipelineImpl
-    end
-
-    %% 第三层：微服务实现层
-    subgraph MicroServices [3. 官方微服务实现层 services/]
-        DB[DatabaseService<br/>物理存储适配]
-        LLM[LLMService<br/>多Provider中转]
-        Prompt[PromptService<br/>模板组装 & Token计算]
-        AutoSum[AutoSummaryService<br/>自动大纲总结]
-        Script[ScriptService<br/>MVU沙盒执行]
-        Telemetry[TelemetryService<br/>APM埋点与日志落盘]
-        TableMem[TableMemoryService<br/>表格记忆与TRPG数据适配]
-        
-        AutoSum -.->|声明依赖| LLM
-        AutoSum -.->|声明依赖| DB
-        Script -.->|声明依赖| DB
-    end
-
-    %% 第四层：装配层
-    subgraph Assembly [4. 宿主装配层 index.ts]
-        Init[initializeKernel<br/>批量静态装配 / 工厂函数入口]
-    end
-
-    %% 跨层依赖关系
-    Init -->|装配实例| KernelImpl
-    KernelImpl -.->|实现| IKernel
-    PipelineImpl -.->|实现| IPipeline
-    MicroServices -.->|实现| IService
-    MicroServices -->|通过 IoC 注入| KernelImpl
-    KernelImpl -->|托管生命周期 & 一键Abort| MicroServices
-    
-    %% 横切关注点
-    KernelImpl -.->|注入使用| ILogger
-    MicroServices -.->|注入使用| ILogger
-    
-    %% 领域类型消费
-    MicroServices -.->|消费| DomainTypes
-    Assembly -.->|消费| DomainTypes
-    KernelImpl -.->|消费| DomainTypes
-```
-
-#### 2. 静态 ASCII 体系结构图 (任何文本编辑器均可完美查看)
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        1. 契约定义层 (types.ts)                        │
-├────────────────────────────────────────────────────────────────────────┤
-│  ┌───────────────────────┐   ┌───────────────────────┐                 │
-│  │     IKernel 容器契约   │   │     IPipeline 管道契约 │                 │
-│  └───────────────────────┘   └───────────────────────┘                 │
-│  ┌───────────────────────┐   ┌───────────────────────┐                 │
-│  │   IKernelService 服务 │   │     ILogger 日志契约  │                 │
-│  └───────────────────────┘   └───────────────────────┘                 │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  DomainTypes (领域类型 & 常量 KernelServices / KernelEvents)     │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ 消费领域类型
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                        2. 内核控制层 (Kernel.ts)                       │
-├────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ Kernel 容器 (实现 IKernel / Kahn拓扑排序 / 活跃Abort 追踪)        │  │
-│  └─────────────────────────────────┬────────────────────────────────┘  │
-│                                    │ 创建 & 管理                       │
-│                                    ▼                                   │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ Pipeline 管道 (实现 IPipeline / 洋葱模型 / 三态拦截 / 逃逸检测)  │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    │ 注入使用 / 统一托管生命周期与一键Abort
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                   3. 官方微服务实现层 (services/)                      │
-├────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────┐ ┌─────────────────────┐ ┌──────────────────┐  │
-│  │ DatabaseService     │ │ LLMService          │ │ PromptService    │  │
-│  │ (物理存储适配)      │ │ (多Provider中转)    │ │ (模板组装/Token) │  │
-│  └──────────▲──────────┘ └──────────▲──────────┘ └──────────────────┘  │
-│             │                       │                                  │
-│             └───────────声明依赖─────┴──────────┐                      │
-│                                                │                      │
-│  ┌─────────────────────┐ ┌─────────────────────┼ ┌──────────────────┐  │
-│  │ AutoSummaryService  │ │ ScriptService       │ │ TelemetryService │  │
-│  │ (自动大纲总结)      │ │ (MVU沙盒执行)       │ │ (APM埋点/日志)   │  │
-│  └─────────────────────┘ └─────────────────────┘ └──────────────────┘  │
-│  ┌─────────────────────┐                                               │
-│  │ TableMemoryService  │                                               │
-│  │ (TRPG 数据适配)     │                                               │
-│  └─────────────────────┘                                               │
-└───────────────────────────────────▲────────────────────────────────────┘
-                                    │
-                                    │ 静态装配服务实例
-                                    │
-┌───────────────────────────────────┴────────────────────────────────────┐
-│                        4. 宿主装配层 (index.ts)                        │
-├────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ initializeKernel (静态批量绑定 / 工厂函数入口)                   │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
 ## 🛡️ 架构核心优化准则 (Architectural Hardening Standards)
 
 为了应对未来 50+ 插件并发以及双用户高频实时数据渲染，基座契约遵循以下铁律设计：
-1.  **AOP 钩子注销机制**：`registerHook` 必须返回一个 `dispose` 函数（或通过 `unregisterHook`），确保插件卸载或服务销毁时事件处理器能够被干净地从堆栈中移除，防范事件重叠触发和内存泄漏。
+1.  **消息总线订阅注销机制**：订阅消息处理器 `subscribe` 必须返回一个 `dispose` 函数（或通过 `unsubscribe`），确保插件卸载或服务销毁时事件处理器能够被干净地从总线订阅路由表中移除，防范事件重叠触发和内存泄漏。
 2.  **原子化注册 (Atomic Register)**：必须先 `await service.init(kernel)` 初始化成功后，再将服务实例写入 `services` 容器。严禁在服务还未完全就绪时泄露实例，避免并发状态下其他服务调用未就绪实例引发故障。
 3.  **活跃任务异步取消与 Abort 熔断**：
-    - 服务及 Hook 在执行超时（如 `initTimeoutMs` 或 `HOOK_TIMEOUT_MS`）或抛出异常时，内核会触发 `AbortController.abort()` 中止底层的异步任务，杜绝僵尸任务后台运行修改内核状态。
-    - 内核暴露 `destroy()` 方法，在注销时强制 abort 所有当前处于挂起状态的活跃控制器（`activeControllers`），从物理上彻底回收 WebView 进程资源。
+    - 服务及消息订阅处理器在执行超时（如 `initTimeoutMs` 或 `MSG_TIMEOUT_MS`）或抛出异常时，内核会触发 `AbortController.abort()` 中止底层的异步任务，杜绝僵尸任务后台运行修改内核状态。
+    - 内核暴露 `destroy()` 方法，在注销时强制 abort 所有当前处于挂起状态 of 活跃控制器（`activeControllers`），从物理上彻底回收 WebView 进程资源。
 4.  **管道自动 next() / interrupt() 强校验**：如果中间件执行完毕，但**未调用 `next()`** 且**未调用第三参数 `interrupt()`** 显式声明拦截：
     - **开发模式下**：直接抛出致命 `Error`（迫使开发者规范使用 `next()` 或 `interrupt()`，防止拦截型插件的越界逻辑被静默跳过或绕过）。
     - **生产模式下**：终止管道并打出错误日志，绝不自动穿透安全边界。
 5.  **SafeProxy 开发期断言拦截**：当请求的服务未注册或启动崩溃时，Safe Proxy 在生产环境静默提供降级空操作；但在开发模式下，任何对该空 Proxy 属性的访问将直接抛出致命 `Error`，杜绝功能失效黑洞。
-6.  **依赖与事件强常量化**：统一使用 `KernelServices` 与 `KernelEvents` 常量枚举以保证命名统一和防拼写错误。
+6.  **依赖与消息主题强常量化**：统一使用 `KernelServices` 常量枚举以保证命名统一和防拼写错误。
 
 ---
 
 ## 🛠️ 接口契约详细规范 (API Specifications)
 
-### 1. 微服务与事件核心常量
+### 1. 微服务与消息主体契约
 
 ```typescript
 export const KernelServices = {
@@ -186,11 +58,11 @@ export const KernelServices = {
   AutoSummary: "autoSummary",
 } as const;
 
-export const KernelEvents = {
-  MessageReceived: "chat:message_received",
-  SessionChanged: "chat:session_changed",
-  SettingsUpdated: "system:settings_updated",
-} as const;
+export interface IMessage {
+  topic: string;
+  payload: any;
+  metadata?: Record<string, any>;
+}
 ```
 
 ### 2. 微内核核心容器接口 `IKernel`
@@ -207,11 +79,11 @@ export interface IKernel {
   registerPipeline<T = any>(name: string): IPipeline<T>;
   getPipeline<T = any>(name: string): IPipeline<T>;
   
-  // AOP 切面钩子事件总线 API（registerHook 必须返回 dispose 注销器）
-  registerHook(event: string, fn: (...args: any[]) => any, priority?: number): () => void;
-  unregisterHook(event: string, fn: (...args: any[]) => any): void;
-  triggerHook(event: string, ...args: any[]): Promise<void>;
-  triggerHookParallel(event: string, ...args: any[]): Promise<void>;
+  // 消息总线 (MessageBus) 订阅分发 API
+  subscribe(topic: string, handler: (message: IMessage, signal?: AbortSignal) => void | Promise<void>, priority?: number): () => void;
+  unsubscribe(topic: string, handler: (message: IMessage, signal?: AbortSignal) => void | Promise<void>): void;
+  publish(message: IMessage): Promise<void>;
+  publishParallel(message: IMessage): Promise<void>;
 
   // 容器销毁 API
   destroy(): Promise<void>;
@@ -253,10 +125,10 @@ export interface IKernelService {
 
 ## 💻 核心开发范式与代码示例 (Developer Cookbook)
 
-### 示例一：开发并注册一个插件服务 (Developing a Custom Service)
+### 示例一：开发并订阅消息服务 (Developing a Custom subscriber Service)
 
 ```typescript
-import { IKernel, IKernelService, KernelEvents } from "../types";
+import { IKernel, IKernelService, IMessage } from "../types";
 
 export class CustomFeatureService implements IKernelService {
   name = "custom-feature-service";
@@ -264,36 +136,35 @@ export class CustomFeatureService implements IKernelService {
   // 声明该服务所依赖的前序服务名
   dependencies = ["database", "llm"] as const;
 
-  private hookDispose?: () => void;
+  private messageDispose?: () => void;
 
   async init(kernel: IKernel, signal?: AbortSignal): Promise<void> {
     console.log("Custom Service Initializing...");
     
-    // 监听 AbortSignal，可根据该信号在超时或内核销毁时提前 reject 并中止任务
     if (signal) {
       signal.addEventListener("abort", () => {
         console.warn("Service initialization was aborted.");
       });
     }
 
-    // 订阅事件并保存注销函数
-    this.hookDispose = kernel.registerHook(
-      KernelEvents.MessageReceived, 
+    // 订阅特定的消息主题并保存注销函数
+    this.messageDispose = kernel.subscribe(
+      "chat:message_received", 
       this.onMessageReceived
     );
   }
 
   async destroy(kernel: IKernel, signal?: AbortSignal): Promise<void> {
-    // 销毁时注销 Hook，防内存泄漏
-    if (this.hookDispose) {
-      this.hookDispose();
+    // 销毁时注销消息总线订阅，防内存泄漏
+    if (this.messageDispose) {
+      this.messageDispose();
     }
     console.log("Custom Service Destroyed.");
   }
 
-  private onMessageReceived = async (message: any, signal?: AbortSignal) => {
-    // 可选参数 signal 由 triggerHook 传入，可在 Hook 被整体销毁或超时后中止内部异步 I/O
-    console.log("Received a message through AOP Hook:", message);
+  private onMessageReceived = async (message: IMessage, signal?: AbortSignal) => {
+    // 可选参数 signal 由 publish/publishParallel 传入，可在订阅处理超时或内核被销毁后中止内部异步 I/O
+    console.log("Received a message through MessageBus:", message.payload);
   };
 }
 ```

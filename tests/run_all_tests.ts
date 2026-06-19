@@ -822,32 +822,33 @@ async function testKernelHardeningP0ToP3() {
   setKernelStrictMode(true);
 
   try {
-    // 1. 验证 Hook 注销 (P0)
+    // 1. 验证 消息总线订阅与注销 (P0)
     const testKernel = new Kernel();
-    let hookRunCount = 0;
-    const handler = () => {
-      hookRunCount++;
+    let msgRunCount = 0;
+    const handler = (msg: any) => {
+      assert(msg.payload === "hello-data", "Payload must match");
+      msgRunCount++;
     };
 
-    // 验证 registerHook 返回注销闭包
-    const dispose = testKernel.registerHook("test:event", handler);
-    await testKernel.triggerHook("test:event");
-    assert(hookRunCount === 1, "Hook should be triggered once");
+    // 验证 subscribe 返回注销闭包
+    const dispose = testKernel.subscribe("test:topic", handler);
+    await testKernel.publish({ topic: "test:topic", payload: "hello-data" });
+    assert(msgRunCount === 1, "Subscriber should be triggered once");
 
     // 执行注销
     dispose();
-    await testKernel.triggerHook("test:event");
-    assert(hookRunCount === 1, "Hook should not trigger after dispose");
+    await testKernel.publish({ topic: "test:topic", payload: "hello-data" });
+    assert(msgRunCount === 1, "Subscriber should not trigger after dispose");
 
-    // 验证 unregisterHook 显式销毁
-    hookRunCount = 0;
-    testKernel.registerHook("test:event2", handler);
-    await testKernel.triggerHook("test:event2");
-    assert(hookRunCount === 1, "Hook 2 should trigger once");
+    // 验证 unsubscribe 显式销毁
+    msgRunCount = 0;
+    testKernel.subscribe("test:topic2", handler);
+    await testKernel.publish({ topic: "test:topic2", payload: "hello-data" });
+    assert(msgRunCount === 1, "Subscriber 2 should trigger once");
 
-    testKernel.unregisterHook("test:event2", handler);
-    await testKernel.triggerHook("test:event2");
-    assert(hookRunCount === 1, "Hook 2 should not trigger after unregisterHook");
+    testKernel.unsubscribe("test:topic2", handler);
+    await testKernel.publish({ topic: "test:topic2", payload: "hello-data" });
+    assert(msgRunCount === 1, "Subscriber 2 should not trigger after unsubscribe");
 
     // 2. 验证 Service 注册原子性 (P1)
     let serviceInitialized = false;
@@ -956,18 +957,18 @@ async function testKernelHardeningP0ToP3() {
     };
     await testKernel.registerService("ok-service", okService);
     
-    // 注册一堆 pipelines 和 hooks
-    testKernel.registerHook("destroy-event", () => {});
-    testKernel.registerPipeline("destroy-pipeline");
-
-    // 一键销毁
-    await testKernel.destroy();
-
-    // 验证服务注销及 destroy 钩子触发
-    assert(okService["destroyed"] === true, "Service destroy hook executed");
-    assert(testKernel["services"].size === 0, "All services cleared");
-    assert(testKernel["hooks"].size === 0, "All hooks cleared");
-    assert(testKernel["pipelines"].size === 0, "All pipelines cleared");
+     // 注册一堆 pipelines 和 subscribers
+     testKernel.subscribe("destroy-event", () => {});
+     testKernel.registerPipeline("destroy-pipeline");
+ 
+     // 一键销毁
+     await testKernel.destroy();
+ 
+     // 验证服务注销及 destroy 钩子触发
+     assert(okService["destroyed"] === true, "Service destroy hook executed");
+     assert(testKernel["services"].size === 0, "All services cleared");
+     assert(testKernel["subscribers"].size === 0, "All subscribers cleared");
+     assert(testKernel["pipelines"].size === 0, "All pipelines cleared");
 
     console.log("✔ Kernel Hardening P0 to P3 features verified successfully!");
   } finally {
@@ -1001,43 +1002,43 @@ async function testKernelKernelV2Fixes() {
     console.log("  ✔ B-2: Critical service protection verified");
   }
 
-  // ─── B-4：Hook 优先级排序 ──────────────────────────────────────────────────
+  // ─── B-4：MessageBus 消息订阅优先级排序 ──────────────────────────────────────────
   {
     const k = new Kernel();
     const order: number[] = [];
-    k.registerHook("priority-test", () => order.push(2), 20);
-    k.registerHook("priority-test", () => order.push(3), 10);
-    k.registerHook("priority-test", () => order.push(1), 100);
-    await k.triggerHook("priority-test");
-    assert(JSON.stringify(order) === JSON.stringify([1, 2, 3]), `B-4: Hook priority order wrong, got [${order}]`);
-    console.log("  ✔ B-4: Hook priority ordering verified");
+    k.subscribe("priority-test", () => { order.push(2); }, 20);
+    k.subscribe("priority-test", () => { order.push(3); }, 10);
+    k.subscribe("priority-test", () => { order.push(1); }, 100);
+    await k.publish({ topic: "priority-test", payload: null });
+    assert(JSON.stringify(order) === JSON.stringify([1, 2, 3]), `B-4: MessageBus priority order wrong, got [${order}]`);
+    console.log("  ✔ B-4: MessageBus priority ordering verified");
   }
 
-  // ─── B-4：triggerHookParallel 并行触发 ────────────────────────────────────
+  // ─── B-4：publishParallel 并行消息触发 ────────────────────────────────────
   {
     const k = new Kernel();
     const startTimes: number[] = [];
     const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
-    k.registerHook("parallel-test", async () => { startTimes.push(Date.now()); await delay(30); });
-    k.registerHook("parallel-test", async () => { startTimes.push(Date.now()); await delay(30); });
+    k.subscribe("parallel-test", async () => { startTimes.push(Date.now()); await delay(30); });
+    k.subscribe("parallel-test", async () => { startTimes.push(Date.now()); await delay(30); });
     const before = Date.now();
-    await k.triggerHookParallel("parallel-test");
+    await k.publishParallel({ topic: "parallel-test", payload: null });
     const elapsed = Date.now() - before;
-    assert(startTimes.length === 2, "B-4: Both parallel hooks executed");
+    assert(startTimes.length === 2, "B-4: Both parallel subscribers executed");
     // 串行执行至少 60ms，并行执行应小于 55ms（容忍 timer 误差）
-    assert(elapsed < 55, `B-4: Parallel hooks should finish concurrently, took ${elapsed}ms`);
-    console.log("  ✔ B-4: triggerHookParallel concurrency verified");
+    assert(elapsed < 55, `B-4: Parallel subscribers should finish concurrently, took ${elapsed}ms`);
+    console.log("  ✔ B-4: publishParallel concurrency verified");
   }
 
-  // ─── B-4：triggerHookParallel 异常隔离 ───────────────────────────────────
+  // ─── B-4：publishParallel 异常隔离 ───────────────────────────────────
   {
     const k = new Kernel();
-    let hook2Ran = false;
-    k.registerHook("parallel-err", async () => { throw new Error("hook1 crash"); });
-    k.registerHook("parallel-err", async () => { hook2Ran = true; });
-    await k.triggerHookParallel("parallel-err"); // 不应抛出
-    assert(hook2Ran === true, "B-4: Parallel hook isolates individual failures, other hooks still run");
-    console.log("  ✔ B-4: triggerHookParallel fault isolation verified");
+    let sub2Ran = false;
+    k.subscribe("parallel-err", async () => { throw new Error("subscriber1 crash"); });
+    k.subscribe("parallel-err", async () => { sub2Ran = true; });
+    await k.publishParallel({ topic: "parallel-err", payload: null }); // 不应抛出
+    assert(sub2Ran === true, "B-4: Parallel message routing isolates individual failures, other subscribers still run");
+    console.log("  ✔ B-4: publishParallel fault isolation verified");
   }
 
   // ─── B-1：registerServiceBatch 拓扑排序 ──────────────────────────────────
@@ -1174,60 +1175,52 @@ async function testKernelV3Fixes() {
     console.log("  ✔ 条目3: SafeProxy Symbol interception verified");
   }
 
-  // ─── 条目 4：unregisterHook 空 key 清理 ──────────────────────────────────
+  // ─── 条目 4：unsubscribe 空 key 清理 ──────────────────────────────────
   {
     const k = new Kernel();
     const handler = () => {};
-    k.registerHook("cleanup-event", handler);
+    k.subscribe("cleanup-topic", handler);
     // 注册后 Map 应包含该 key
-    assert(k["hooks"].has("cleanup-event"), "条目4: Hook key should exist after register");
-    k.unregisterHook("cleanup-event", handler);
+    assert(k["subscribers"].has("cleanup-topic"), "条目4: subscriber key should exist after subscribe");
+    k.unsubscribe("cleanup-topic", handler);
     // 注销后数组为空，Map 应彻底删除该 key
-    assert(!k["hooks"].has("cleanup-event"), "条目4: Hook key should be deleted when handlers array becomes empty");
-    console.log("  ✔ 条目4: unregisterHook empty key cleanup verified");
+    assert(!k["subscribers"].has("cleanup-topic"), "条目4: subscriber key should be deleted when handlers array becomes empty");
+    console.log("  ✔ 条目4: unsubscribe empty key cleanup verified");
   }
 
-  // ─── 条目 5：Hook 超时熔断（triggerHook 串行） ───────────────────────────
+  // ─── 条目 5：消息分发超时熔断（publish 串行） ───────────────────────────
   {
     const k = new Kernel();
-    let hook2Ran = false;
-    // 注册一个永久挂起的 Hook（模拟劣质插件）
-    k.registerHook("timeout-serial", async () => { await new Promise(() => {}); }, 10);
-    // 注册正常的后续 Hook
-    k.registerHook("timeout-serial", async () => { hook2Ran = true; }, 5);
+    let sub2Ran = false;
+    // 注册一个永久挂起的订阅者
+    k.subscribe("timeout-serial", async () => { await new Promise(() => {}); }, 10);
+    k.subscribe("timeout-serial", async () => { sub2Ran = true; }, 5);
 
-    // 临时把 HOOK_TIMEOUT_MS 效果改为 50ms 测试（通过直接触发并计时验证）
-    // 此处只验证：挂起 Hook 不会阻塞 Promise resolve（我们用竞速）
-    // 正式场景下超时 5000ms，测试中通过观察行为验证机制存在即可
     const raceResult = await Promise.race([
-      k.triggerHook("timeout-serial"),
-      new Promise<"timeout">(r => setTimeout(() => r("timeout"), 200)),
-    ]);
-    // 如果触发超时，triggerHook 内部超时后会继续下一个 Hook，
-    // triggerHook 本身最终会 resolve（不是 "timeout"），但需要等待 HOOK_TIMEOUT_MS (5s)
-    // 所以对于测试，只需验证机制存在：hook2 最终会执行（在第一个 Hook 超时后）
-    // 这里我们只验证 Symbol 这类快速场景即可，不等 5s
-    // 实际验证：注册正常 Hook，超时机制不干扰正常 Hook
-    assert(raceResult === "timeout" || raceResult === undefined,
-      "条目5: triggerHook with hanging hook resolved (timeout mechanism exists)");
-    console.log("  ✔ 条目5: Hook timeout mechanism verified (structure)");
-  }
-
-  // ─── 条目 5：Hook 超时熔断（triggerHookParallel 并行） ──────────────────
-  {
-    const k = new Kernel();
-    let hook2RanParallel = false;
-    k.registerHook("timeout-parallel", async () => { await new Promise(() => {}); });
-    k.registerHook("timeout-parallel", async () => { hook2RanParallel = true; });
-
-    // 同上，验证结构正确性：allSettled + 各自独立超时，永久挂起不阻塞整体
-    const raceResult = await Promise.race([
-      k.triggerHookParallel("timeout-parallel"),
+      k.publish({ topic: "timeout-serial", payload: null }),
       new Promise<"timeout">(r => setTimeout(() => r("timeout"), 200)),
     ]);
     assert(raceResult === "timeout" || raceResult === undefined,
-      "条目5: triggerHookParallel with hanging hook resolved");
-    console.log("  ✔ 条目5: triggerHookParallel timeout mechanism verified (structure)");
+      "条目5: publish with hanging subscriber resolved (timeout mechanism exists)");
+    await k.destroy(); // 销毁内核以强制中断并回收正在挂起的分发任务，防止 5 秒后的悬挂定时器超时报错
+    console.log("  ✔ 条目5: Subscriber timeout mechanism verified (structure)");
+  }
+
+  // ─── 条目 5：消息分发超时熔断（publishParallel 并行） ──────────────────
+  {
+    const k = new Kernel();
+    let sub2RanParallel = false;
+    k.subscribe("timeout-parallel", async () => { await new Promise(() => {}); });
+    k.subscribe("timeout-parallel", async () => { sub2RanParallel = true; });
+
+    const raceResult = await Promise.race([
+      k.publishParallel({ topic: "timeout-parallel", payload: null }),
+      new Promise<"timeout">(r => setTimeout(() => r("timeout"), 200)),
+    ]);
+    assert(raceResult === "timeout" || raceResult === undefined,
+      "条目5: publishParallel with hanging subscriber resolved");
+    await k.destroy(); // 销毁内核以强制中断并回收正在挂起的并发分发任务
+    console.log("  ✔ 条目5: publishParallel timeout mechanism verified (structure)");
   }
 
   console.log("\n✔ Kernel V3 Fixes (条目2/3/4/5) all verified successfully!");
@@ -1306,13 +1299,13 @@ async function testKernelV4AbortAndInterrupt() {
   // 3. 验证 Hook 执行中的 AbortSignal 超时与销毁联动
   {
     const k = new Kernel();
-    let isHookAborted = false;
-    let hook2Ran = false;
+    let isSubAborted = false;
+    let sub2Ran = false;
 
-    k.registerHook("test-hook", async (arg1, signal) => {
+    k.subscribe("test-topic", async (msg, signal) => {
       if (signal) {
         signal.addEventListener("abort", () => {
-          isHookAborted = true;
+          isSubAborted = true;
         });
       }
       await new Promise((resolve, reject) => {
@@ -1322,18 +1315,18 @@ async function testKernelV4AbortAndInterrupt() {
       });
     }, 10);
 
-    k.registerHook("test-hook", async (arg1, signal) => {
-      hook2Ran = true;
+    k.subscribe("test-topic", async (msg, signal) => {
+      sub2Ran = true;
     }, 5);
 
-    console.log("  ✔ V4: Hook timeout structure setup verified");
+    console.log("  ✔ V4: Subscriber AbortSignal timeout structure setup verified");
   }
 
   // 4. 验证内核销毁时一键 Abort 挂起的任务
   {
     const k = new Kernel();
     let isInitAborted = false;
-    let isHookAborted = false;
+    let isSubAborted = false;
 
     const hangSvc: IKernelService = {
       name: "hang-svc-destroy-test",
@@ -1351,10 +1344,10 @@ async function testKernelV4AbortAndInterrupt() {
       }
     };
 
-    k.registerHook("destroy-hook", async (signal) => {
+    k.subscribe("destroy-topic", async (msg, signal) => {
       if (signal) {
         signal.addEventListener("abort", () => {
-          isHookAborted = true;
+          isSubAborted = true;
         });
       }
       await new Promise((resolve, reject) => {
@@ -1366,8 +1359,8 @@ async function testKernelV4AbortAndInterrupt() {
 
     // 启动异步服务注册（挂起）
     const pRegister = k.registerService("hang-svc-destroy-test", hangSvc);
-    // 启动异步 Hook 触发（挂起）
-    const pHook = k.triggerHook("destroy-hook");
+    // 启动异步 消息分发（挂起）
+    const pPublish = k.publish({ topic: "destroy-topic", payload: null });
 
     // 延迟片刻让它们都运行起来
     await new Promise(r => setTimeout(r, 10));
@@ -1376,14 +1369,14 @@ async function testKernelV4AbortAndInterrupt() {
     await k.destroy();
 
     assert(isInitAborted === true, "Init task should be aborted immediately upon destroy()");
-    assert(isHookAborted === true, "Hook task should be aborted immediately upon destroy()");
+    assert(isSubAborted === true, "Subscriber task should be aborted immediately upon destroy()");
 
-    // 此时 pRegister 和 pHook 应该都已经 resolve/reject 完成，不应继续悬空挂起
+    // 此时 pRegister 和 pPublish 应该都已经 resolve/reject 完成，不应继续悬空挂起
     try {
       await pRegister;
     } catch {}
     try {
-      await pHook;
+      await pPublish;
     } catch {}
 
     console.log("  ✔ V4: Kernel destroy overall active AbortControllers verified");

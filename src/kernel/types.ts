@@ -26,6 +26,12 @@ export interface IExtension {
   meta?: Record<string, any>;
 }
 
+export interface IMessage {
+  topic: string;
+  payload: any;
+  metadata?: Record<string, any>;
+}
+
 export interface IPipeline<T> {
   use(middleware: Middleware<T>, priority?: number): () => void;
   unuse(middleware: Middleware<T>): void;
@@ -54,22 +60,22 @@ export interface IKernel {
   registerExtension(extension: IExtension): void;
   getExtensions(point: string): IExtension[];
 
-  // Aspect-Oriented Programming (AOP) Hook System
+  // MessageBus (EventBus) System
   /**
-   * 注册 Hook，返回注销函数。`priority` 越高越先执行（默认 0）。
+   * 订阅消息，返回注销函数。`priority` 越高越先执行（默认 0）。
+   * 处理器接收 IMessage 对象以及当前分发上下文的 AbortSignal（可选）。
    */
-  registerHook(event: string, fn: (...args: any[]) => any, priority?: number): () => void;
-  unregisterHook(event: string, fn: (...args: any[]) => any): void;
+  subscribe(topic: string, handler: (message: IMessage, signal?: AbortSignal) => void | Promise<void>, priority?: number): () => void;
+  unsubscribe(topic: string, handler: (message: IMessage, signal?: AbortSignal) => void | Promise<void>): void;
   /**
-   * 串行触发：按优先级顺序依次 await 执行。
-   * 适用于有顺序依赖的 Hook（如前序 Hook 的输出影响后续 Hook）。
+   * 异步串行分发：按优先级顺序依次 await 执行所有订阅者的处理函数。
+   * 发生异常或超时将做熔断隔离，不会阻断其他订阅者接收消息。
    */
-  triggerHook(event: string, ...args: any[]): Promise<void>;
+  publish(message: IMessage): Promise<void>;
   /**
-   * 并行触发：所有 Hook 并发执行，互不阻塞。
-   * 适用于独立无依赖的 Hook（如遥测上报、日志记录、UI 状态刷新）。
+   * 异步并行分发：所有处理器并发执行，互不阻塞。
    */
-  triggerHookParallel(event: string, ...args: any[]): Promise<void>;
+  publishParallel(message: IMessage): Promise<void>;
 
   destroy(): Promise<void>;
 }
