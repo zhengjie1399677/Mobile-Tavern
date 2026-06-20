@@ -77,7 +77,7 @@ const ChatInputArea = () => {
 
       // 如果输入框底部被键盘遮住，则将其滚动到可见位置
       if (rect.bottom > viewportBottom) {
-        container.scrollIntoView({ behavior: "smooth", block: "end" });
+        container.scrollIntoView({ behavior: "auto", block: "end" });
       }
     };
 
@@ -191,7 +191,7 @@ const ChatInputArea = () => {
           placeholder={`发送一条对白至 ${activeCharacter?.name} 启程...`}
           aria-label={`发送给 ${activeCharacter?.name || "角色"} 的消息输入框`}
           rows={2}
-          className="flex-1 bg-input/70 border border-border/80 rounded-xl py-2.5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px] transition-all duration-300 shadow-inner"
+          className="flex-1 bg-input/70 border border-border/80 rounded-xl py-2.5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px] transition-[border-color,background-color] duration-300 shadow-inner"
         />
         <button
           onClick={onSend}
@@ -621,10 +621,10 @@ export default function ChatTab() {
               <span>🌟 记忆柜</span>
             </button>
           )}
-          <div className="flex bg-muted p-0.5 rounded-lg border border-border">
+          <div className="flex shrink-0 flex-row bg-muted p-0.5 rounded-lg border border-border">
             <button
               onClick={() => setChatSubTab("dialogue")}
-              className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center gap-1 shrink-0 whitespace-nowrap ${
                 chatSubTab === "dialogue"
                   ? "bg-primary/40 text-primary"
                   : "text-muted-foreground hover:text-foreground"
@@ -634,7 +634,7 @@ export default function ChatTab() {
             </button>
             <button
               onClick={() => setChatSubTab("timeline")}
-              className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center gap-1 shrink-0 whitespace-nowrap ${
                 chatSubTab === "timeline"
                   ? "bg-primary/40 text-primary"
                   : "text-muted-foreground hover:text-foreground"
@@ -1217,8 +1217,8 @@ export default function ChatTab() {
       {/* Sub-tab 2: STORY TIMELINE YEARBOOK */}
       {chatSubTab === "timeline" && (
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 min-h-0">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <h3 className="text-sm font-bold text-foreground">
                 故事历史卡片轴 (Memory Timeline)
               </h3>
@@ -1241,29 +1241,29 @@ export default function ChatTab() {
                 setNewSummaryBonding("");
                 setTimelineModalOpen(true);
               }}
-              className="bg-primary hover:bg-primary text-primary-foreground text-[11px] px-2.5 py-1.5 rounded transition flex items-center gap-1 font-medium"
+              className="bg-primary hover:bg-primary text-primary-foreground text-[11px] px-2.5 py-1.5 rounded transition flex items-center gap-1 font-medium shrink-0 whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" /> 手工补充
             </button>
           </div>
 
-          <div className="relative border-l border-amber-655 border-primary/25 ml-3 pl-5 space-y-5 py-2">
+          <div className="relative border-l border-primary/25 ml-3 pl-5 space-y-5 py-2">
             {activeSession?.summaries.map((summary) => (
               <div
                 key={summary.id}
-                className="relative group bg-card p-3 rounded-lg border border-border shadow-sm"
+                className="relative group bg-card p-3 rounded-lg border border-border shadow-sm w-full max-w-full overflow-hidden"
               >
                 {/* Timeline Dot Indicator */}
                 <span className="absolute -left-[25px] top-4 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-background"></span>
 
                 {/* Header summary node detail */}
                 <div className="flex flex-col gap-1.5 mb-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold tracking-tight bg-primary/20 border border-amber-800/40 text-primary px-1.5 py-0.5 rounded">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold tracking-tight bg-primary/20 border border-amber-800/40 text-primary px-1.5 py-0.5 rounded max-w-full inline-block truncate">
                       ⏱ {summary.timeTag} · {summary.location}
                     </span>
 
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <button
                         onClick={() => createBacktrackFromTimeline(summary)}
                         title="以此历史年表节点作为新旅程重演起点进行平行剧本推写"

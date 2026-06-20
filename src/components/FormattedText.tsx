@@ -241,11 +241,22 @@ function domToReact(
   const children = Array.from(element.childNodes).map((child, i) => 
     domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter)
   );
-  return React.createElement(
+  
+  const reactElement = React.createElement(
     tagName,
     props,
     children.length > 0 ? children : null,
   );
+
+  if (tagName === "table") {
+    return (
+      <div key={index} className="w-full overflow-x-auto my-2 border border-border/40 rounded-lg custom-scrollbar max-w-full">
+        {reactElement}
+      </div>
+    );
+  }
+
+  return reactElement;
 }
 
 function parseSafeHtmlToReact(
@@ -269,6 +280,83 @@ function parseSafeHtmlToReact(
   }
 }
 
+function convertMarkdownTablesToHtml(text: string): string {
+  if (!text.includes("|")) return text;
+
+  const lines = text.split("\n");
+  const processedLines: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+
+    // 检查是否可能是一个表格的开始
+    if (trimmedLine.includes("|") && i + 1 < lines.length) {
+      const nextLine = lines[i + 1].trim();
+      // 分隔行检测：必须包含至少一个 '|' 和 '-'，且不能含有其它非分隔符字符
+      const isSeparator = nextLine.includes("|") && nextLine.includes("-") && /^[|:\-\s]+$/.test(nextLine);
+
+      if (isSeparator) {
+        // 提取单元格工具函数
+        const splitRow = (rowText: string) => {
+          let t = rowText.trim();
+          if (t.startsWith("|")) t = t.slice(1);
+          if (t.endsWith("|")) t = t.slice(0, -1);
+          return t.split("|").map(cell => cell.trim());
+        };
+
+        const headers = splitRow(trimmedLine);
+        const separators = splitRow(nextLine);
+        
+        const alignments = separators.map(s => {
+          const left = s.startsWith(":");
+          const right = s.endsWith(":");
+          if (left && right) return "center";
+          if (right) return "right";
+          return "left";
+        });
+
+        let tableHtml = `<table class="mvu-markdown-table"><thead><tr>`;
+        headers.forEach((h, idx) => {
+          const align = alignments[idx] || "left";
+          tableHtml += `<th style="text-align: ${align}">${h}</th>`;
+        });
+        tableHtml += `</tr></thead><tbody>`;
+
+        i += 2; // 跳过表头和分隔行
+
+        // 读取数据行
+        while (i < lines.length) {
+          const dataLine = lines[i].trim();
+          if (dataLine.includes("|")) {
+            const cells = splitRow(dataLine);
+            tableHtml += `<tr>`;
+            for (let cIdx = 0; cIdx < headers.length; cIdx++) {
+              const cellVal = cells[cIdx] || "";
+              const align = alignments[cIdx] || "left";
+              tableHtml += `<td style="text-align: ${align}">${cellVal}</td>`;
+            }
+            tableHtml += `</tr>`;
+            i++;
+          } else {
+            break;
+          }
+        }
+
+        tableHtml += `</tbody></table>`;
+        processedLines.push(tableHtml);
+        continue;
+      }
+    }
+
+    processedLines.push(line);
+    i++;
+  }
+
+  return processedLines.join("\n");
+}
+
 function preprocessFormattedText(
   text: string,
   charName: string,
@@ -280,8 +368,11 @@ function preprocessFormattedText(
 ): string {
   if (!text) return "";
 
+  // 0. Convert Markdown tables to HTML tables first
+  const tableConvertedText = convertMarkdownTablesToHtml(text);
+
   // 1. Standard template placeholders
-  let processed = text
+  let processed = tableConvertedText
     .replace(/\{\{char\}\}/gi, charName)
     .replace(/<BOT>/gi, charName)
     .replace(/\{\{user\}\}/gi, userName)

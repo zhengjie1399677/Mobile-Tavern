@@ -377,6 +377,32 @@ a,
   animation: slow-pan-zoom 24s ease-in-out infinite;
 }
 
+/* 气泡内表格通用美化与防溢出变形规则 */
+.bubble-ai table,
+.bubble-user table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 8px 0 !important;
+  font-size: 11px !important;
+  background: color-mix(in oklch, var(--card) 45%, transparent) !important;
+}
+
+.bubble-ai th, .bubble-ai td,
+.bubble-user th, .bubble-user td {
+  border: 1px solid color-mix(in oklch, var(--border) 50%, transparent) !important;
+  padding: 6px 10px !important;
+  min-width: 75px !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
+  vertical-align: top !important;
+}
+
+.bubble-ai th, .bubble-user th {
+  background: color-mix(in oklch, var(--muted) 80%, transparent) !important;
+  font-weight: bold !important;
+  text-align: left;
+}
+
 /* Accessibility hiding styles */
 .sr-only {
   position: absolute;

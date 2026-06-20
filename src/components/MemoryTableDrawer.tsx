@@ -295,9 +295,11 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                             {activeSheet.columns.map((col, idx) => (
                               <th 
                                 key={idx} 
-                                className="px-3 py-2.5 font-bold text-muted-foreground font-sans tracking-wide shrink-0 whitespace-nowrap"
+                                className="px-3 py-2.5 font-bold text-muted-foreground font-sans tracking-wide shrink-0 min-w-[90px] max-w-[160px]"
                               >
-                                {col}
+                                <span className="block truncate max-w-[140px]" title={col}>
+                                  {col}
+                                </span>
                               </th>
                             ))}
                             <th className="px-3 py-2.5 font-bold text-muted-foreground w-10 text-center">操作</th>
@@ -318,7 +320,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                                   return (
                                     <td 
                                       key={cIdx} 
-                                      className="px-3 py-2 text-foreground font-medium relative align-middle group min-w-[80px]"
+                                      className="px-3 py-2 text-foreground font-medium relative align-middle group min-w-[90px] max-w-[160px]"
                                     >
                                       {isEditing ? (
                                         <div className="flex items-center gap-1">
@@ -343,10 +345,10 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                                       ) : (
                                         <div 
                                           onClick={() => startEditing(activeSheet.id, rIdx, cIdx, val)}
-                                          className="cursor-pointer hover:bg-muted/30 px-1 py-0.5 rounded transition min-h-[1.5rem] flex items-center justify-between"
+                                          className="cursor-pointer hover:bg-muted/30 px-1 py-1 rounded transition min-h-[1.5rem] flex items-start justify-between gap-1"
                                         >
-                                          <span className="truncate max-w-[200px]" title={val}>{val || <span className="text-muted-foreground/30 font-light italic">空</span>}</span>
-                                          <Edit3 className="w-3 h-3 opacity-0 group-hover:opacity-40 text-muted-foreground shrink-0 ml-1 transition-opacity" />
+                                          <span className="break-all whitespace-pre-wrap text-[11px] leading-relaxed block flex-1" title={val}>{val || <span className="text-muted-foreground/30 font-light italic">空</span>}</span>
+                                          <Edit3 className="w-3 h-3 opacity-30 text-muted-foreground shrink-0 mt-0.5 group-hover:opacity-60 transition-opacity" />
                                         </div>
                                       )}
                                     </td>

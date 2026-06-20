@@ -4,8 +4,23 @@ const path = require('path');
 
 // Override ANDROID_HOME to the correct location on Windows and add platform-tools to PATH
 if (process.platform === 'win32') {
-  process.env.ANDROID_HOME = 'E:\\modules\\ide\\android-sdk';
-  process.env.PATH = process.env.ANDROID_HOME + '\\platform-tools;' + process.env.PATH;
+  const fs = require('fs');
+  const possiblePaths = [
+    'E:\\modules\\ide\\android-sdk',
+    'C:\\Users\\20573\\AppData\\Local\\Android\\Sdk',
+  ];
+  let sdkPath = process.env.ANDROID_HOME;
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      sdkPath = p;
+      break;
+    }
+  }
+  if (sdkPath) {
+    process.env.ANDROID_HOME = sdkPath;
+    process.env.PATH = sdkPath + '\\platform-tools;' + process.env.PATH;
+    console.log('Using Android SDK at: ' + sdkPath);
+  }
 }
 
 

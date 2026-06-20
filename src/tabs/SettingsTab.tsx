@@ -1122,16 +1122,31 @@ export default function SettingsTab() {
 
                     <div className="space-y-4 pt-4 border-t border-border/50 text-xs">
                       <div className="space-y-2">
-                        <div className="flex justify-between text-muted-foreground">
+                        <div className="flex justify-between items-center text-muted-foreground">
                           <span className="font-semibold">温度 (Temp)</span>
-                          <span className="font-mono">
-                            {settings.preset.temperature}
-                          </span>
+                          <input
+                            type="number"
+                            min="0.1"
+                            max="2.0"
+                            step="0.05"
+                            value={settings.preset.temperature}
+                            onChange={(e) =>
+                              updateSettings({
+                                ...settings,
+                                preset: {
+                                  ...settings.preset,
+                                  id: "custom",
+                                  temperature: parseFloat(e.target.value) || 0,
+                                },
+                              })
+                            }
+                            className="w-16 h-6 bg-muted/50 border border-border/80 rounded text-center font-mono text-[11px] focus:outline-none focus:border-primary text-foreground"
+                          />
                         </div>
                         <input
                           type="range"
                           min="0.1"
-                          max="1.5"
+                          max="2.0"
                           step="0.05"
                           value={settings.preset.temperature}
                           onChange={(e) =>
@@ -1148,11 +1163,26 @@ export default function SettingsTab() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <div className="flex justify-between text-muted-foreground">
+                        <div className="flex justify-between items-center text-muted-foreground">
                           <span className="font-semibold">核采样 (Top P)</span>
-                          <span className="font-mono">
-                            {settings.preset.topP}
-                          </span>
+                          <input
+                            type="number"
+                            min="0.1"
+                            max="1.0"
+                            step="0.05"
+                            value={settings.preset.topP}
+                            onChange={(e) =>
+                              updateSettings({
+                                ...settings,
+                                preset: {
+                                  ...settings.preset,
+                                  id: "custom",
+                                  topP: parseFloat(e.target.value) || 0,
+                                },
+                              })
+                            }
+                            className="w-16 h-6 bg-muted/50 border border-border/80 rounded text-center font-mono text-[11px] focus:outline-none focus:border-primary text-foreground"
+                          />
                         </div>
                         <input
                           type="range"
@@ -1174,18 +1204,33 @@ export default function SettingsTab() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <div className="flex justify-between text-muted-foreground">
+                        <div className="flex justify-between items-center text-muted-foreground">
                           <span className="font-semibold">
                             重复惩罚 (Rep Penalty)
                           </span>
-                          <span className="font-mono">
-                            {settings.preset.repetitionPenalty}
-                          </span>
+                          <input
+                            type="number"
+                            min="0.5"
+                            max="2.0"
+                            step="0.01"
+                            value={settings.preset.repetitionPenalty}
+                            onChange={(e) =>
+                              updateSettings({
+                                ...settings,
+                                preset: {
+                                  ...settings.preset,
+                                  id: "custom",
+                                  repetitionPenalty: parseFloat(e.target.value) || 0,
+                                },
+                              })
+                            }
+                            className="w-16 h-6 bg-muted/50 border border-border/80 rounded text-center font-mono text-[11px] focus:outline-none focus:border-primary text-foreground"
+                          />
                         </div>
                         <input
                           type="range"
-                          min="1.0"
-                          max="1.3"
+                          min="0.5"
+                          max="2.0"
                           step="0.01"
                           value={settings.preset.repetitionPenalty}
                           onChange={(e) =>
@@ -1202,18 +1247,33 @@ export default function SettingsTab() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <div className="flex justify-between text-muted-foreground">
+                        <div className="flex justify-between items-center text-muted-foreground">
                           <span className="font-semibold">
                             长度上限 (Max Tokens)
                           </span>
-                          <span className="font-mono">
-                            {settings.preset.maxTokens}
-                          </span>
+                          <input
+                            type="number"
+                            min="100"
+                            max="1000000"
+                            step="1000"
+                            value={settings.preset.maxTokens}
+                            onChange={(e) =>
+                              updateSettings({
+                                ...settings,
+                                preset: {
+                                  ...settings.preset,
+                                  id: "custom",
+                                  maxTokens: parseInt(e.target.value) || 0,
+                                },
+                              })
+                            }
+                            className="w-24 h-6 bg-muted/50 border border-border/80 rounded text-center font-mono text-[11px] focus:outline-none focus:border-primary text-foreground"
+                          />
                         </div>
                         <input
                           type="range"
                           min="100"
-                          max="150000"
+                          max="1000000"
                           step="1000"
                           value={settings.preset.maxTokens}
                           onChange={(e) =>

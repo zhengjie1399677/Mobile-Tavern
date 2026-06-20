@@ -135,7 +135,16 @@ export const useChat = (
   const triggerScroll = useCallback((behavior: "smooth" | "instant" = "smooth") => {
     setTimeout(() => {
       if (chatBottomRef && chatBottomRef.current) {
-        chatBottomRef.current.scrollIntoView({ behavior });
+        const container = chatBottomRef.current.parentElement;
+        if (container) {
+          if (behavior === "smooth") {
+            container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+          } else {
+            container.scrollTop = container.scrollHeight;
+          }
+        } else {
+          chatBottomRef.current.scrollIntoView({ behavior });
+        }
       }
     }, 100);
   }, [chatBottomRef]);
