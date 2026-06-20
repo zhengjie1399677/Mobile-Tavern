@@ -203,7 +203,7 @@ export default function SettingsTab() {
           <h1 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
             <Settings className="w-5 h-5 text-primary" /> 控制面板
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold select-none ml-2 animate-pulse">
-              v1.5.3 (小白鼠测试环境)
+              v1.5.3
             </span>
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
