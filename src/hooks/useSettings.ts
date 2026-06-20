@@ -567,6 +567,13 @@ export const useSettings = () => {
             delete cleanSet.savedPresets;
             await saveStoredSettings(cleanSet);
           }
+        } else {
+          // 全新安装/首次运行（storedSet 为空），默认把初始化的预设组合包写入数据库
+          try {
+            await saveStoredSavedPresets(DEFAULT_SETTINGS.savedPresets || []);
+          } catch (e) {
+            console.error("Failed to initialize saved presets for new user:", e);
+          }
         }
         if (storedLores) {
           setGlobalLorebook(storedLores.map(cleanLorebookEntry));
@@ -1110,6 +1117,46 @@ export const useSettings = () => {
     await saveStoredSavedPresets(nextSaved);
   }, [settings, showCustomConfirm, updateSettings]);
 
+  const handleDeletePresetBundles = useCallback(async (bundleIds: string[]) => {
+    if (!bundleIds || bundleIds.length === 0) return;
+
+    const ok = await showCustomConfirm(`确定要批量删除这 ${bundleIds.length} 个本地预设包吗？`);
+    if (!ok) return;
+
+    const nextSaved = (settings.savedPresets || []).filter(
+      (b) => !bundleIds.includes(b.id),
+    );
+
+    let nextPreset = settings.preset;
+    let nextPromptConfig = settings.promptConfig;
+    let nextRegex = settings.presetRegexScripts;
+
+    const isCurrentDeleted = bundleIds.includes(settings.preset.id) ||
+      (settings.savedPresets || []).some(b => b.preset.id === settings.preset.id && bundleIds.includes(b.id));
+
+    if (isCurrentDeleted) {
+      if (nextSaved.length > 0) {
+        nextPreset = nextSaved[0].preset;
+        nextPromptConfig = nextSaved[0].promptConfig;
+        nextRegex = nextSaved[0].presetRegexScripts || [];
+      } else {
+        nextPreset = DEFAULT_PRESETS.balanced;
+        nextPromptConfig = DEFAULT_PROMPT_CONFIG;
+        nextRegex = [];
+      }
+    }
+
+    updateSettings({
+      ...settings,
+      preset: nextPreset,
+      promptConfig: nextPromptConfig,
+      presetRegexScripts: nextRegex,
+      savedPresets: nextSaved,
+    });
+    await saveStoredSavedPresets(nextSaved);
+    await showCustomAlert("🎉 批量删除成功！");
+  }, [settings, showCustomConfirm, updateSettings, showCustomAlert]);
+
   const handleToggleCustomPrompt = useCallback((id: string, enabled: boolean) => {
     const list = settings.promptConfig.customPrompts || [];
     const updated = list.map((item) =>
@@ -1466,6 +1513,7 @@ export const useSettings = () => {
     handleSaveNewPresetBundle,
     handleLoadPresetBundle,
     handleDeletePresetBundle,
+    handleDeletePresetBundles,
     handleToggleCustomPrompt,
     handleUpdateCustomPrompt,
     handleAddNewCustomPrompt,

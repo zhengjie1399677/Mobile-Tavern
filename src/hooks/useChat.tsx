@@ -473,6 +473,7 @@ export const useChat = (
             },
             ...promptPayload.history.map((h) => ({
               role: h.role === "model" ? "assistant" : h.role,
+              name: h.name,
               content: h.content,
             })),
           ],
@@ -948,6 +949,7 @@ export const useChat = (
             },
             ...promptPayload.history.map((h) => ({
               role: h.role === "model" ? "assistant" : h.role,
+              name: h.name,
               content: h.content,
             })),
           ],

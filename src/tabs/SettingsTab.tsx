@@ -16,6 +16,9 @@ import {
   Sparkles,
   Plug,
   Puzzle,
+  Check,
+  FileJson,
+  SlidersHorizontal,
 } from "lucide-react";
 import { compressImage } from "../utils/imageCompressor";
 
@@ -102,6 +105,7 @@ export default function SettingsTab() {
     handleSaveNewPresetBundle,
     handleLoadPresetBundle,
     handleDeletePresetBundle,
+    handleDeletePresetBundles,
     handleToggleCustomPrompt,
     handleUpdateCustomPrompt,
     handleAddNewCustomPrompt,
@@ -117,6 +121,12 @@ export default function SettingsTab() {
     activeCharacter,
   } = useContext(AppContext);
   const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
+
+  // 预设组合包批量删除多选状态
+  const [selectedPresetIds, setSelectedPresetIds] = React.useState<Set<string>>(new Set());
+
+  // 导入面板折叠展示状态
+  const [showImportArea, setShowImportArea] = React.useState(false);
 
   // 全局正则脚本管理器状态
   const [editingRegex, setEditingRegex] = React.useState<any>(null);
@@ -1246,16 +1256,16 @@ export default function SettingsTab() {
                           className="w-full accent-primary h-1 bg-border rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
-                      <div className="space-y-2">
+                       <div className="space-y-2">
                         <div className="flex justify-between items-center text-muted-foreground">
                           <span className="font-semibold">
-                            长度上限 (Max Tokens)
+                            输出长度 (Max Tokens)
                           </span>
                           <input
                             type="number"
                             min="100"
-                            max="1000000"
-                            step="1000"
+                            max="393216"
+                            step="100"
                             value={settings.preset.maxTokens}
                             onChange={(e) =>
                               updateSettings({
@@ -1273,8 +1283,8 @@ export default function SettingsTab() {
                         <input
                           type="range"
                           min="100"
-                          max="1000000"
-                          step="1000"
+                          max="393216"
+                          step="1024"
                           value={settings.preset.maxTokens}
                           onChange={(e) =>
                             updateSettings({
@@ -1292,67 +1302,239 @@ export default function SettingsTab() {
                     </div>
 
                     {/* IO section embedded in presets */}
-                    <div className="pt-4 border-t border-border/50 space-y-3">
-                      <span className="block text-[11px] font-bold text-primary">
-                        存档与酒馆交互管理
-                      </span>
-                      <div className="flex flex-col gap-2">
-                        <div className="flex gap-2 relative">
-                          <select
-                            className="flex-1 bg-muted/40 border border-border text-xs text-foreground rounded-md px-3 font-semibold h-9 outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
-                            value={settings.preset.id || ""}
-                            onChange={(e) => {
-                              if (e.target.value === "new")
-                                handleSaveNewPresetBundle();
-                              else handleLoadPresetBundle(e.target.value);
-                            }}
-                          >
-                            <option value="" disabled>
-                              当前正在编辑: {settings.preset.name}
-                            </option>
-                            <option
-                              value="new"
-                              className="text-primary font-bold"
-                            >
-                              ➕ 保存副本
-                            </option>
-                            {(settings.savedPresets || []).map((p) => (
-                              <option key={p.id} value={p.id}>
-                                📄 {p.preset.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() =>
-                              handleDeletePresetBundle(settings.preset.id)
-                            }
-                            disabled={
-                              (settings.savedPresets || []).length === 0 ||
-                              !settings.preset.id
-                            }
-                            className="shrink-0 bg-destructive/10 border border-destructive/20 text-destructive disabled:opacity-30 p-2 rounded-md transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs font-bold pt-1">
-                          <label className="bg-muted cursor-pointer hover:bg-muted/80 text-foreground py-2 border border-border rounded-md text-center transition flex justify-center items-center gap-1">
-                            <Download className="w-3.5 h-3.5" /> 导入配置
+                    <div className="pt-4 border-t border-border/50 space-y-4">
+                      {/* 折叠式导入外部预设包面板 */}
+                      {showImportArea && (
+                        <div className="mb-2 animate-in slide-in-from-top-2 fade-in duration-300">
+                          <div className="p-4 rounded-2xl bg-muted/15 relative flex items-center gap-3.5 cursor-pointer min-h-[76px] shadow-none border-none">
+                            <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 border-none">
+                              <FileJson className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-0.5 text-left">
+                              <span className="block text-xs font-bold text-foreground">
+                                导入外部预设包
+                              </span>
+                              <span className="block text-[10px] text-muted-foreground leading-normal">
+                                点击此处选择并载入酒馆预设 (.json 文件)，自动配置采样参数及系统提示词
+                              </span>
+                            </div>
                             <input
                               type="file"
-                              onChange={handleImportPresetJSON}
+                              onChange={(e) => {
+                                handleImportPresetJSON(e);
+                                setSelectedPresetIds(new Set());
+                                setShowImportArea(false); // 导入后自动折叠
+                              }}
                               accept=".json"
-                              className="hidden"
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                             />
-                          </label>
-                          <button
-                            onClick={handleExportPresetJSON}
-                            className="bg-muted hover:bg-muted/80 text-foreground py-2 border border-border rounded-md transition flex justify-center items-center gap-1"
-                          >
-                            <Upload className="w-3.5 h-3.5" /> 导出酒馆
-                          </button>
+                          </div>
                         </div>
+                      )}
+
+                      {/* 列表化的预设包多选删除及应用 */}
+                      <div className="space-y-3 pt-3 border-t border-border/40">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5">
+                              <SlidersHorizontal className="w-3.5 h-3.5 text-primary/80" />
+                              已存预设包 ({(settings.savedPresets || []).length})
+                            </span>
+                            
+                            {(settings.savedPresets || []).length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (selectedPresetIds.size === (settings.savedPresets || []).length) {
+                                    setSelectedPresetIds(new Set());
+                                  } else {
+                                    setSelectedPresetIds(new Set((settings.savedPresets || []).map((p) => p.id)));
+                                  }
+                                }}
+                                className="text-[9.5px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground hover:text-foreground font-semibold hover:bg-muted/80 transition"
+                              >
+                                {selectedPresetIds.size === (settings.savedPresets || []).length ? "取消全选" : "全选"}
+                              </button>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={handleSaveNewPresetBundle}
+                              className="px-2.5 py-1 text-[10px] font-bold text-primary bg-primary/8 hover:bg-primary/15 rounded-lg flex items-center gap-0.5 transition active:scale-95 shrink-0 shadow-none border-none"
+                            >
+                              <Plus className="w-3 h-3" /> 保存当前副本
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setShowImportArea(!showImportArea)}
+                              className={`p-1.5 rounded-lg transition active:scale-95 flex items-center justify-center ${
+                                showImportArea
+                                  ? "bg-primary/20 text-primary"
+                                  : "bg-muted/20 text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="导入预设包"
+                            >
+                              <FileJson className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {(!settings.savedPresets || settings.savedPresets.length === 0) ? (
+                          <div className="border border-dashed border-border/40 rounded-2xl py-6 text-center text-muted-foreground flex flex-col items-center justify-center gap-1.5">
+                            <span className="text-[10px] text-muted-foreground/60 max-w-[220px] leading-relaxed">
+                              本地暂无保存的预设包，点击右上方“导入”或“保存当前副本”进行添加。
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                            {(settings.savedPresets || []).map((p) => {
+                              const isCurrentActive = settings.preset.id === p.preset.id || p.id === settings.preset.id;
+                              const isChecked = selectedPresetIds.has(p.id);
+
+                              return (
+                                <div
+                                  key={p.id}
+                                  className={`rounded-2xl p-3 flex items-start gap-3 transition-all duration-300 relative overflow-hidden shadow-none border-none ${
+                                    isCurrentActive
+                                      ? "bg-primary/10 text-primary"
+                                      : "bg-muted/10 hover:bg-muted/15"
+                                  }`}
+                                >
+                                  {/* 左侧 3px 宽的主题色小竖条指示器（仅在勾选时泛起） */}
+                                  {isChecked && (
+                                    <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary transition-all duration-300" />
+                                  )}
+
+                                  {/* 自定义精致复选框 */}
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedPresetIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (isChecked) next.delete(p.id);
+                                        else next.add(p.id);
+                                        return next;
+                                      });
+                                    }}
+                                    className={`w-4.5 h-4.5 rounded-lg flex items-center justify-center transition-all duration-200 mt-0.5 cursor-pointer shrink-0 select-none ${
+                                      isChecked
+                                        ? "bg-primary text-primary-foreground scale-100"
+                                        : "bg-muted/30 text-transparent hover:bg-muted/40"
+                                    }`}
+                                  >
+                                    <Check className="w-3 h-3 stroke-[3]" />
+                                  </div>
+
+                                  <div
+                                    onClick={() => handleLoadPresetBundle(p.id)}
+                                    className="flex-1 min-w-0 cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <span className={`text-xs font-bold truncate transition-colors ${isCurrentActive ? "text-primary font-extrabold" : "text-foreground"}`}>
+                                        {p.preset.name}
+                                      </span>
+                                      {isCurrentActive && (
+                                        <span className="text-[8px] px-1.5 py-0.5 font-bold bg-primary/10 border border-primary/20 text-primary rounded-md select-none shrink-0">
+                                          当前激活
+                                        </span>
+                                      )}
+                                    </div>
+                                    
+                                    {/* 扁平积木微徽章 */}
+                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                      <span className="px-1.5 py-0.5 bg-muted/20 rounded-md text-[9px] font-mono text-muted-foreground leading-none">
+                                        Temp {p.preset.temperature}
+                                      </span>
+                                      <span className="px-1.5 py-0.5 bg-muted/20 rounded-md text-[9px] font-mono text-muted-foreground leading-none">
+                                        TopP {p.preset.topP}
+                                      </span>
+                                      <span className="px-1.5 py-0.5 bg-muted/20 rounded-md text-[9px] font-mono text-muted-foreground leading-none">
+                                        提示词 {p.promptConfig?.customPrompts?.length || 0} 个
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const originalPreset = settings.preset;
+                                        const originalPrompt = settings.promptConfig;
+                                        updateSettings({
+                                          ...settings,
+                                          preset: p.preset,
+                                          promptConfig: p.promptConfig,
+                                        });
+                                        setTimeout(() => {
+                                          handleExportPresetJSON();
+                                          updateSettings({
+                                            ...settings,
+                                            preset: originalPreset,
+                                            promptConfig: originalPrompt,
+                                          });
+                                        }, 50);
+                                      }}
+                                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/25 rounded-lg transition"
+                                      title="导出该预设"
+                                    >
+                                      <Upload className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        await handleDeletePresetBundle(p.preset.id);
+                                        setSelectedPresetIds((prev) => {
+                                          const next = new Set(prev);
+                                          next.delete(p.id);
+                                          return next;
+                                        });
+                                      }}
+                                      className="p-1.5 text-red-400/80 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition"
+                                      title="删除该预设"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* 悬浮/下沉式批量删除操作面板，多选激活时平滑展开 */}
+                        {selectedPresetIds.size > 0 && (
+                          <div className="flex items-center justify-between bg-rose-500/10 rounded-2xl p-3 mt-1.5 shadow-none border-none animate-in slide-in-from-bottom-2 duration-300">
+                            <span className="text-[10px] font-bold text-red-400">
+                              已选择 {selectedPresetIds.size} 个预设包
+                            </span>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPresetIds(new Set())}
+                                className="px-2.5 py-1 text-[10px] font-medium bg-muted/20 hover:bg-muted/30 rounded-lg text-foreground transition active:scale-95"
+                              >
+                                取消
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const idsToDelete = Array.from(selectedPresetIds);
+                                  await handleDeletePresetBundles(idsToDelete);
+                                  setSelectedPresetIds(new Set());
+                                }}
+                                className="px-2.5 py-1 text-[10px] font-bold bg-red-500 text-white hover:bg-red-600 rounded-lg transition duration-200 flex items-center gap-1 active:scale-95 shadow-none border-none"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> 确认删除
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* 全局正则脚本管理器 */}

@@ -123,7 +123,7 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
     globalLorebook: TLorebook[];
   }): {
     systemInstruction: string;
-    history: Array<{ role: "model" | "user" | "assistant"; content: string }>;
+    history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
     dynamicInstruction: string;
   };
 }

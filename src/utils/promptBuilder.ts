@@ -7,7 +7,19 @@ import {
 } from "../types";
 
 /**
- * High-precision lightweight Token estimator for both CJK characters and ASCII words.
+ * Clean name to strictly adhere to OpenAI's naming regular expression: ^[a-zA-Z0-9_-]{1,64}$
+ */
+export function cleanNameForApi(name: string | undefined, fallback: string): string | undefined {
+  if (!name) return undefined;
+  let cleaned = name.replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!cleaned) {
+    return fallback;
+  }
+  return cleaned.slice(0, 64);
+}
+
+/**
+ * High-precision lightweight Token estimator for CJK characters and ASCII words.
  */
 export function estimateTokens(text: string): number {
   if (!text) return 0;
@@ -265,6 +277,9 @@ export function assemblePromptContext(params: {
     const rawHistory = activeMessagesToSend.map((msg) => {
       let role: "user" | "model" | "assistant" = "user";
       let content = msg.content;
+      const name = msg.sender === "assistant"
+        ? cleanNameForApi(character.name, "char")
+        : (msg.sender === "user" ? cleanNameForApi(settings.userName, "user") : undefined);
 
       if (msg.sender === "assistant") {
         role = settings.api.type === "openai-compat" ? "assistant" : "model";
@@ -299,6 +314,7 @@ export function assemblePromptContext(params: {
 
       return {
         role,
+        name,
         content,
       };
     });
@@ -308,7 +324,11 @@ export function assemblePromptContext(params: {
       if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === item.role) {
         chatHistory[chatHistory.length - 1].content += "\n\n" + item.content;
       } else {
-        chatHistory.push(item);
+        chatHistory.push({
+          role: item.role,
+          name: item.name,
+          content: item.content,
+        });
       }
     }
 
@@ -657,7 +677,7 @@ ${scenarioBlock}
   const SAFE_CONTEXT_LIMIT = 12000;
   let currentTurns = Math.min(recentTurns, validChatMessages.length);
   let activeMessagesToSend: Message[] = [];
-  let chatHistory: { role: "user" | "model" | "assistant"; content: string }[] = [];
+  let chatHistory: { role: "user" | "model" | "assistant"; name?: string; content: string }[] = [];
 
   while (currentTurns > 0) {
     const firstMsg = validChatMessages[0];
@@ -680,6 +700,9 @@ ${scenarioBlock}
     const rawHistory = activeMessagesToSend.map((msg) => {
       let role: "user" | "model" | "assistant" = "user";
       let content = msg.content;
+      const name = msg.sender === "assistant"
+        ? cleanNameForApi(character.name, "char")
+        : (msg.sender === "user" ? cleanNameForApi(settings.userName, "user") : undefined);
 
       if (msg.sender === "assistant") {
         role = settings.api.type === "openai-compat" ? "assistant" : "model";
@@ -714,6 +737,7 @@ ${scenarioBlock}
 
       return {
         role,
+        name,
         content,
       };
     });
@@ -723,7 +747,11 @@ ${scenarioBlock}
       if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === item.role) {
         chatHistory[chatHistory.length - 1].content += "\n\n" + item.content;
       } else {
-        chatHistory.push(item);
+        chatHistory.push({
+          role: item.role,
+          name: item.name,
+          content: item.content,
+        });
       }
     }
 

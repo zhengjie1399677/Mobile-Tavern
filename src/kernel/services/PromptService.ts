@@ -18,7 +18,7 @@ export class PromptService implements IPromptService {
     globalLorebook: LorebookEntry[];
   }): {
     systemInstruction: string;
-    history: Array<{ role: "model" | "user" | "assistant"; content: string }>;
+    history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
     dynamicInstruction: string;
   } {
     return assemblePromptContext(params);

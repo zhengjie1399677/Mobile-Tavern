@@ -542,7 +542,9 @@ export default function ChatTab() {
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background">
       {activeCharacter?.visualSettings?.customCss && (
-        <style dangerouslySetInnerHTML={{ __html: activeCharacter.visualSettings.customCss }} />
+        <style dangerouslySetInnerHTML={{
+          __html: `@media (min-width: 768px) { ${activeCharacter.visualSettings.customCss} }`
+        }} />
       )}
       {/* Embedded Header info card */}
       <div className="bg-card p-3 border-b border-border flex items-center justify-between sticky top-0 z-10">

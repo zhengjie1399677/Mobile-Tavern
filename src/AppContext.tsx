@@ -81,6 +81,7 @@ export interface UnifiedAppContextProps {
   handleSaveNewPresetBundle: () => Promise<void>;
   handleLoadPresetBundle: (bundleId: string) => void;
   handleDeletePresetBundle: (presetId: string) => Promise<void>;
+  handleDeletePresetBundles: (presetIds: string[]) => Promise<void>;
   handleToggleCustomPrompt: (id: string, enabled: boolean) => void;
   handleUpdateCustomPrompt: (id: string, name: string, role: any, content: string) => void;
   handleAddNewCustomPrompt: () => void;
