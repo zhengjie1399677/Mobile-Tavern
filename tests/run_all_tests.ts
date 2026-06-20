@@ -288,22 +288,24 @@ function testApiCleanRequestPayload() {
     repetition_penalty: 1.1,
   };
 
-  // 1. OpenRouter (不应该裁剪任何参数)
+  // 1. OpenRouter (不应该裁剪任何参数，保持完整透传)
   const openRouterRes = cleanRequestPayload("https://openrouter.ai/api/v1", fullPayload);
   assert(openRouterRes !== undefined, "OpenRouter payload should exist");
   assert(openRouterRes!.top_k === 40, "OpenRouter: keep top_k");
   assert(openRouterRes!.min_p === 0.05, "OpenRouter: keep min_p");
   assert(openRouterRes!.repetition_penalty === 1.1, "OpenRouter: keep repetition_penalty");
   assert(openRouterRes!.max_completion_tokens === 100, "OpenRouter: keep max_completion_tokens");
+  assert(openRouterRes!.max_tokens === 100, "OpenRouter: keep max_tokens for OpenRouter");
   assert(openRouterRes!.stream_options !== undefined, "OpenRouter: keep stream_options");
 
-  // 2. OpenAI Official (只保留 OpenAI 官方标准参数)
+  // 2. OpenAI Official (只保留 OpenAI 官方标准参数，但 max_tokens 需和 max_completion_tokens 互斥)
   const openaiRes = cleanRequestPayload("https://api.openai.com/v1", fullPayload);
   assert(openaiRes !== undefined, "OpenAI payload should exist");
   assert(openaiRes!.top_k === undefined, "OpenAI: strip top_k");
   assert(openaiRes!.min_p === undefined, "OpenAI: strip min_p");
   assert(openaiRes!.repetition_penalty === undefined, "OpenAI: strip repetition_penalty");
   assert(openaiRes!.max_completion_tokens === 100, "OpenAI: keep max_completion_tokens");
+  assert(openaiRes!.max_tokens === undefined, "OpenAI: strip max_tokens to prevent 400 when max_completion_tokens is present");
   assert(openaiRes!.stream_options !== undefined, "OpenAI: keep stream_options");
   assert(openaiRes!.temperature === 0.7, "OpenAI: keep standard parameters");
 
@@ -314,6 +316,7 @@ function testApiCleanRequestPayload() {
   assert(deepseekRes!.min_p === undefined, "DeepSeek: strip min_p");
   assert(deepseekRes!.repetition_penalty === 1.1, "DeepSeek: keep repetition_penalty");
   assert(deepseekRes!.max_completion_tokens === undefined, "DeepSeek: strip max_completion_tokens");
+  assert(deepseekRes!.max_tokens === 100, "DeepSeek: keep max_tokens when max_completion_tokens is stripped");
   assert(deepseekRes!.stream_options === undefined, "DeepSeek: strip stream_options");
 
   // 4. Gemini / Google (剔除所有非标)
@@ -323,6 +326,7 @@ function testApiCleanRequestPayload() {
   assert(geminiRes!.min_p === undefined, "Gemini: strip min_p");
   assert(geminiRes!.repetition_penalty === undefined, "Gemini: strip repetition_penalty");
   assert(geminiRes!.max_completion_tokens === undefined, "Gemini: strip max_completion_tokens");
+  assert(geminiRes!.max_tokens === 100, "Gemini: keep max_tokens when max_completion_tokens is stripped");
   assert(geminiRes!.stream_options === undefined, "Gemini: strip stream_options");
 
   // 5. Default/Other unknown endpoint
@@ -332,6 +336,7 @@ function testApiCleanRequestPayload() {
   assert(otherRes!.min_p === undefined, "Other: strip min_p");
   assert(otherRes!.repetition_penalty === undefined, "Other: strip repetition_penalty");
   assert(otherRes!.max_completion_tokens === undefined, "Other: strip max_completion_tokens");
+  assert(otherRes!.max_tokens === 100, "Other: keep max_tokens when max_completion_tokens is stripped");
   assert(otherRes!.stream_options === undefined, "Other: strip stream_options");
 
   // 6. Custom proxy + DeepSeek model (应该保留 repetition_penalty 哪怕域名不符合)

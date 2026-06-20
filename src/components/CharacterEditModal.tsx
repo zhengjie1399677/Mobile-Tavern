@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { CharacterCard, LorebookEntry } from "../types";
+import { compressImage } from "../utils/imageCompressor";
 
 export default function CharacterEditModal() {
   const {
@@ -268,7 +269,7 @@ export default function CharacterEditModal() {
         {/* Modal sticky titles */}
         <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10">
           <h3 className="font-bold text-foreground text-sm">
-            {editingChar.id?.startsWith("char_ST_")
+            {String(editingChar.id || "").startsWith("char_ST_")
               ? "编辑 SillyTavern 兼容卡片库"
               : "重新打造 AI 灵魂容器设定"}
           </h3>
@@ -351,14 +352,20 @@ export default function CharacterEditModal() {
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setEditingChar({
-                            ...editingChar,
-                            avatar: reader.result as string,
+                        if (file.size > 5 * 1024 * 1024) {
+                          showCustomAlert("⚠️ 上传失败：头像图片大小不能超过 5MB！");
+                          return;
+                        }
+                        compressImage(file, 400, 400, 0.8, "image/png")
+                          .then((base64) => {
+                            setEditingChar({
+                              ...editingChar,
+                              avatar: base64,
+                            });
+                          })
+                          .catch((err) => {
+                            showCustomAlert("⚠️ 图片压缩失败：" + err.message);
                           });
-                        };
-                        reader.readAsDataURL(file);
                       };
                     }}
                   />
@@ -395,17 +402,23 @@ export default function CharacterEditModal() {
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setEditingChar({
-                            ...editingChar,
-                            visualSettings: {
-                              ...(editingChar.visualSettings || {}),
-                              backgroundImageUrl: reader.result as string,
-                            },
+                        if (file.size > 5 * 1024 * 1024) {
+                          showCustomAlert("⚠️ 上传失败：背景图片大小不能超过 5MB！");
+                          return;
+                        }
+                        compressImage(file, 1080, 1920, 0.75, "image/jpeg")
+                          .then((base64) => {
+                            setEditingChar({
+                              ...editingChar,
+                              visualSettings: {
+                                ...(editingChar.visualSettings || {}),
+                                backgroundImageUrl: base64,
+                              },
+                            });
+                          })
+                          .catch((err) => {
+                            showCustomAlert("⚠️ 图片压缩失败：" + err.message);
                           });
-                        };
-                        reader.readAsDataURL(file);
                       }
                     }}
                   />
@@ -568,7 +581,7 @@ export default function CharacterEditModal() {
 
             {/* Inline creator toggle button */}
             {(!editingLoreEntry ||
-              !editingLoreEntry.id?.startsWith("new_temp_")) && (
+              !String(editingLoreEntry.id || "").startsWith("new_temp_")) && (
               <button
                 onClick={() => {
                   setEditingLoreEntry({
@@ -597,7 +610,7 @@ export default function CharacterEditModal() {
 
             {/* Inline Creation Card Block at the top of list */}
             {editingLoreEntry &&
-              editingLoreEntry.id?.startsWith("new_temp_") && (
+              String(editingLoreEntry.id || "").startsWith("new_temp_") && (
                 <div className="bg-card p-3 rounded-lg border border-primary/40 space-y-3 shadow animate-fadeIn">
                   <div className="flex items-center justify-between border-b border-border/60 pb-1 text-xs">
                     <span className="font-bold text-primary">
@@ -630,9 +643,11 @@ export default function CharacterEditModal() {
                   editingLoreEntry && editingLoreEntry.id === entry.id;
                 const entryName =
                   entry.comment ||
-                  (entry.keys && entry.keys.length > 0
+                  (Array.isArray(entry.keys) && entry.keys.length > 0
                     ? entry.keys.slice(0, 3).join(", ")
-                    : "") ||
+                    : typeof entry.keys === "string" && entry.keys
+                      ? entry.keys
+                      : "") ||
                   "未命名设定词条";
 
                 return (
@@ -705,9 +720,11 @@ export default function CharacterEditModal() {
                                   触发词:{" "}
                                 </span>
                                 <span className="text-foreground font-semibold">
-                                  {entry.keys && entry.keys.length > 0
+                                  {Array.isArray(entry.keys) && entry.keys.length > 0
                                     ? entry.keys.join(", ")
-                                    : "(无)"}
+                                    : typeof entry.keys === "string" && (entry.keys as string).trim()
+                                      ? entry.keys
+                                      : "(无)"}
                                 </span>
                               </div>
                               <div>
@@ -788,7 +805,7 @@ export default function CharacterEditModal() {
                                     if (ok) {
                                       const next = (
                                         editingChar.lorebookEntries || []
-                                      ).filter((g) => g.id !== entry.id);
+                                       ).filter((g) => String(g.id) !== String(entry.id));
                                       setEditingChar({
                                         ...editingChar,
                                         lorebookEntries: next,

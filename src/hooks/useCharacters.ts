@@ -170,7 +170,7 @@ export const useCharacters = () => {
           : 4,
     } as LorebookEntry;
 
-    const existingIdx = nextEntries.findIndex((e) => e.id === newEntry.id);
+    const existingIdx = nextEntries.findIndex((e) => String(e.id) === String(newEntry.id));
     if (existingIdx >= 0) {
       nextEntries[existingIdx] = newEntry;
     } else {

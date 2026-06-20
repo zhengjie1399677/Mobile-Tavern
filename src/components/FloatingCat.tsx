@@ -49,7 +49,12 @@ export function FloatingCat() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState("");
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [position, setPosition] = useState(() => {
+    if (typeof window !== "undefined") {
+      return { x: window.innerWidth - 72, y: window.innerHeight * 0.6 };
+    }
+    return { x: 300, y: 400 };
+  });
   const [isDragging, setIsDragging] = useState(false);
 
   const handleClose = () => {
@@ -68,7 +73,17 @@ export function FloatingCat() {
   const elementStart = useRef({ x: 0, y: 0 });
   const hasMoved = useRef(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const lastClickTime = useRef(0);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressed = useRef(false);
+
+  // 卸载组件时清理长按定时器以防内存泄露
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+      }
+    };
+  }, []);
 
   // 异步预加载并处理 4 张大表情图
   useEffect(() => {
@@ -129,10 +144,26 @@ export function FloatingCat() {
     
     setIsDragging(true);
     hasMoved.current = false;
+    isLongPressed.current = false;
     dragStart.current = { x: e.clientX, y: e.clientY };
     elementStart.current = { x: position.x, y: position.y };
     
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    // 开启 500ms 长按定时器
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+    longPressTimer.current = setTimeout(() => {
+      setIsOpen(true);
+      isLongPressed.current = true;
+      // 轻微震动反馈以提升大拇指侧重交互体验
+      if (typeof window !== "undefined" && window.navigator && window.navigator.vibrate) {
+        try {
+          window.navigator.vibrate(50);
+        } catch (err) {}
+      }
+    }, 500);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -143,6 +174,11 @@ export function FloatingCat() {
     
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
       hasMoved.current = true;
+      // 产生拖拽位移后，立即取消长按定时器，以防拖动时误开启问答模式
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
     }
     
     let newX = elementStart.current.x + dx;
@@ -159,15 +195,19 @@ export function FloatingCat() {
     setIsDragging(false);
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     
+    // 指针释放时清理定时器
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+
+    if (isLongPressed.current) {
+      return;
+    }
+    
     if (!hasMoved.current) {
-      const now = Date.now();
-      const CLICK_DELAY = 300;
-      if (now - lastClickTime.current < CLICK_DELAY) {
-        setIsOpen(!isOpen);
-      } else {
-        triggerEvent("idle_click");
-      }
-      lastClickTime.current = now;
+      // 没拖动且没达到长按时间，则视为单击“戳一下”
+      triggerEvent("idle_click");
     } else {
       const middleX = window.innerWidth / 2;
       const targetX = position.x < middleX ? 12 : window.innerWidth - 56 - 12;
@@ -317,7 +357,7 @@ export function FloatingCat() {
               right: position.x > window.innerWidth / 2 ? "0" : "auto",
               left: position.x <= window.innerWidth / 2 ? "0" : "auto",
               width: "180px",
-              backgroundColor: "color-mix(in oklch, var(--card) 75%, transparent)",
+              backgroundColor: "color-mix(in oklch, var(--card) 50%, transparent)",
               border: "1px solid color-mix(in oklch, var(--border) 60%, transparent)",
               color: "var(--foreground)",
             }}
@@ -397,8 +437,8 @@ export function FloatingCat() {
                   <div
                     className={`max-w-[85%] p-3 rounded-xl relative leading-relaxed text-xs shadow-md border ${
                       msg.role === "user"
-                        ? "bg-[#191f31d0] text-[#dce1fb] border-[#3b494b] rounded-tr-none border-r-2 border-r-[#ddb7ff]"
-                        : "bg-[#0e1626d0] text-[#dbfcff] border-[#00f0ff40] rounded-tl-none border-l-2 border-l-[#00dbe9]"
+                        ? "bg-[#191f3180] text-[#dce1fb] border-[#3b494b] rounded-tr-none border-r-2 border-r-[#ddb7ff]"
+                        : "bg-[#0e162680] text-[#dbfcff] border-[#00f0ff40] rounded-tl-none border-l-2 border-l-[#00dbe9]"
                     }`}
                   >
                     <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -408,7 +448,7 @@ export function FloatingCat() {
               
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-[#0e1626d0] text-[#dbfcff] border border-[#00f0ff40] rounded-xl rounded-tl-none border-l-2 border-l-[#00dbe9] max-w-[80%] p-3 shadow-md flex items-center gap-2">
+                  <div className="bg-[#0e162680] text-[#dbfcff] border border-[#00f0ff40] rounded-xl rounded-tl-none border-l-2 border-l-[#00dbe9] max-w-[80%] p-3 shadow-md flex items-center gap-2">
                     <span className="w-2 h-2 bg-[#00dbe9] rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                     <span className="w-2 h-2 bg-[#00dbe9] rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
                     <span className="w-2 h-2 bg-[#00dbe9] rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />

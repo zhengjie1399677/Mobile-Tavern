@@ -773,8 +773,8 @@ export default function ChatTab() {
                 style={{
                   backgroundImage: `url(${activeCharacter?.visualSettings?.backgroundImageUrl || settings.globalChatBg})`,
                   opacity: activeCharacter?.visualSettings?.backgroundImageUrl
-                    ? (activeCharacter.visualSettings.backgroundOpacity ?? 0.35)
-                    : 0.28,
+                    ? (activeCharacter.visualSettings.backgroundOpacity ?? 0.9)
+                    : 0.9,
                   filter: `blur(${
                     activeCharacter?.visualSettings?.backgroundImageUrl && activeCharacter.visualSettings.backgroundBlur !== undefined
                       ? activeCharacter.visualSettings.backgroundBlur
@@ -981,37 +981,29 @@ export default function ChatTab() {
                                     <div className="mb-2 text-xs max-w-sm">
                                       <div
                                         onClick={() => {
-                                          const isGeneratingThisMessage = isSending && idx === messagesToRender.length - 1;
-                                          if (isGeneratingThisMessage) return; // 正在生成时强制展开，禁止点击收起
                                           setExpandedReasoningIds((prev) => ({
                                             ...prev,
                                             [message.id]: !prev[message.id],
                                           }));
                                         }}
-                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-semibold select-none transition-all active:scale-95 w-fit ${
-                                          isSending && idx === messagesToRender.length - 1
-                                            ? "bg-primary/10 border-primary/20 text-primary cursor-default"
-                                            : "bg-muted/40 hover:bg-muted/60 border-border/30 text-muted-foreground cursor-pointer"
-                                        }`}
+                                        className="bg-muted/40 hover:bg-muted/60 border-border/30 text-muted-foreground cursor-pointer flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-semibold select-none transition-all active:scale-95 w-fit"
                                       >
                                         <Brain className={`w-3.5 h-3.5 ${isSending && idx === messagesToRender.length - 1 ? "animate-pulse text-primary" : "opacity-75"}`} />
                                         <span>
-                                          {isSending && idx === messagesToRender.length - 1
-                                            ? "AI 正在思考中..."
-                                            : expandedReasoningIds[message.id]
+                                          {expandedReasoningIds[message.id]
                                             ? "收起思考过程"
+                                            : isSending && idx === messagesToRender.length - 1
+                                            ? "AI 正在思考中 (点击查看)..."
                                             : "查看思考过程"}
                                         </span>
-                                        {!(isSending && idx === messagesToRender.length - 1) && (
-                                          <ChevronDown
-                                            className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${
-                                              expandedReasoningIds[message.id] ? "rotate-180" : ""
-                                            }`}
-                                          />
-                                        )}
+                                        <ChevronDown
+                                          className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${
+                                            expandedReasoningIds[message.id] ? "rotate-180" : ""
+                                          }`}
+                                        />
                                       </div>
                                       
-                                      {(expandedReasoningIds[message.id] || (isSending && idx === messagesToRender.length - 1)) && (
+                                      {expandedReasoningIds[message.id] && (
                                         <div className="mt-1.5 p-3 rounded-xl glass-panel border border-border/20 text-muted-foreground font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-[160px] overflow-y-auto custom-scrollbar animate-in fade-in duration-300">
                                           {message.reasoningContent}
                                           {isSending && idx === messagesToRender.length - 1 && (

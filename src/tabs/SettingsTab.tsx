@@ -17,6 +17,7 @@ import {
   Plug,
   Puzzle,
 } from "lucide-react";
+import { compressImage } from "../utils/imageCompressor";
 
 import { DEFAULT_PRESETS } from "../App";
 import { DEFAULT_SETTINGS } from "../hooks/useSettings";
@@ -201,6 +202,9 @@ export default function SettingsTab() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
             <Settings className="w-5 h-5 text-primary" /> 控制面板
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold select-none ml-2 animate-pulse">
+              v1.5.3 (小白鼠测试环境)
+            </span>
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             系统参数与颗粒化规则调节
@@ -679,11 +683,17 @@ export default function SettingsTab() {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              updateSettings({ ...settings, globalChatBg: reader.result as string });
-                            };
-                            reader.readAsDataURL(file);
+                            if (file.size > 5 * 1024 * 1024) {
+                              showCustomAlert("⚠️ 上传失败：背景图片大小不能超过 5MB！");
+                              return;
+                            }
+                            compressImage(file, 1080, 1920, 0.75, "image/jpeg")
+                              .then((base64) => {
+                                updateSettings({ ...settings, globalChatBg: base64 });
+                              })
+                              .catch((err) => {
+                                showCustomAlert("⚠️ 图片压缩失败：" + err.message);
+                              });
                           }
                         }}
                       />
@@ -702,62 +712,34 @@ export default function SettingsTab() {
 
                 {/* 背景参数自定义选项与动效控制 */}
                 <div className="mt-4 pt-4 border-t border-border/50 space-y-4.5">
-                  {/* 模糊度调节（三档选项） */}
+                  {/* 变暗与模糊融合度调节（合并为单一选项，三档调节） */}
                   <div className="space-y-2">
                     <label className="text-[11px] font-semibold text-muted-foreground block">
-                      背景图片模糊程度
+                      聊天背景融合效果
                     </label>
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        { label: "清晰 (0px)", value: 0 },
-                        { label: "适中 (10px)", value: 10 },
-                        { label: "模糊 (25px)", value: 25 },
+                        { label: "清晰 (原图)", blur: 0, dim: 0, key: "clear" },
+                        { label: "适中 (融合)", blur: 0, dim: 45, key: "medium" },
+                        { label: "深色 (磨砂)", blur: 20, dim: 80, key: "dark" },
                       ].map((opt) => {
-                        const active = (settings.chatBackgroundBlur ?? 10) === opt.value;
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() =>
-                              updateSettings((prev) => ({
-                                ...prev,
-                                chatBackgroundBlur: opt.value,
-                              }))
-                            }
-                            className={`py-2 px-1 rounded text-xs border text-center transition-all ${
-                              active
-                                ? "bg-primary/20 border-primary text-primary font-semibold"
-                                : "bg-muted/40 border-border/45 text-muted-foreground hover:bg-muted/65"
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                        const currentDim = settings.chatBackgroundDim ?? 50;
+                        const active =
+                          opt.key === "clear"
+                            ? currentDim <= 20
+                            : opt.key === "medium"
+                            ? currentDim > 20 && currentDim <= 65
+                            : currentDim > 65;
 
-                  {/* 变暗融合度调节（四档选项） */}
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-semibold text-muted-foreground block">
-                      背景融合变暗程度
-                    </label>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {[
-                        { label: "原色 (0%)", value: 0 },
-                        { label: "微暗 (20%)", value: 20 },
-                        { label: "适中 (50%)", value: 50 },
-                        { label: "幽暗 (85%)", value: 85 },
-                      ].map((opt) => {
-                        const active = (settings.chatBackgroundDim ?? 50) === opt.value;
                         return (
                           <button
-                            key={opt.value}
+                            key={opt.key}
                             type="button"
                             onClick={() =>
                               updateSettings((prev) => ({
                                 ...prev,
-                                chatBackgroundDim: opt.value,
+                                chatBackgroundBlur: opt.blur,
+                                chatBackgroundDim: opt.dim,
                               }))
                             }
                             className={`py-2 px-0.5 rounded text-[10px] border text-center transition-all ${
@@ -928,11 +910,17 @@ export default function SettingsTab() {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              updateSettings({ ...settings, userAvatar: reader.result as string });
-                            };
-                            reader.readAsDataURL(file);
+                            if (file.size > 5 * 1024 * 1024) {
+                              showCustomAlert("⚠️ 上传失败：头像图片大小不能超过 5MB！");
+                              return;
+                            }
+                            compressImage(file, 400, 400, 0.8, "image/png")
+                              .then((base64) => {
+                                updateSettings({ ...settings, userAvatar: base64 });
+                              })
+                              .catch((err) => {
+                                showCustomAlert("⚠️ 图片压缩失败：" + err.message);
+                              });
                           }
                         }}
                       />
@@ -1607,7 +1595,7 @@ export default function SettingsTab() {
                         </AccordionContent>
                       </AccordionItem>
 
-                      {/* 2. 破限提示词 (Jailbreak) */}
+                      {/* 2. 沉浸式扮演增强 (Immersive Alignment) */}
                       <AccordionItem value="jailbreak-prompt" className="border border-border rounded-lg bg-card overflow-hidden [&[data-state=open]]:border-primary/40 transition-all duration-200">
                         <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
                           <div className="flex items-center gap-2 flex-1">
@@ -1626,7 +1614,7 @@ export default function SettingsTab() {
                             />
                             <div className="flex flex-col">
                               <span className={`text-xs font-bold truncate ${settings.promptConfig.useJailbreak ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
-                                破限提示词 (Jailbreak)
+                                沉浸式扮演增强 (Immersive Alignment)
                               </span>
                               <span className="text-[9px] font-mono text-muted-foreground">system · beforeLast 前注入</span>
                             </div>
@@ -1647,7 +1635,7 @@ export default function SettingsTab() {
                                 })
                               }
                               className="min-h-[240px] text-sm font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
-                              placeholder="输入破限提示词..."
+                              placeholder="输入叙事对齐提示词以增强角色创造力与拟真度..."
                             />
                           </div>
                         </AccordionContent>
@@ -2135,7 +2123,7 @@ export default function SettingsTab() {
 
             <div className="mt-8 text-center space-y-1 pb-4 opacity-50 select-text">
               <p className="text-[10px] text-muted-foreground font-mono">
-                安装包版本: v1.5.0 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
+                安装包版本: v1.5.3 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
               </p>
               <p className="text-[9px] text-muted-foreground/80 font-mono">
                 诊断设备型号: {deviceModel}

@@ -179,6 +179,13 @@ export function cleanRequestPayload(
     delete cleaned.stream_options;
   }
 
+  // 6. max_tokens 与 max_completion_tokens 互斥防御：
+  // OpenAI 官方接口规定二者不可同时存在，否则会报 400 BadRequest 错误。
+  // 同样 OpenRouter 及其他保留了 max_completion_tokens 的场景也只应保留 max_completion_tokens。
+  if (cleaned.max_completion_tokens !== undefined) {
+    delete cleaned.max_tokens;
+  }
+
   return cleaned;
 }
 

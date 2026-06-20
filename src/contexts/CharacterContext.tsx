@@ -39,6 +39,24 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
 
 
+  const cleanCharacter = (char: CharacterCard): CharacterCard => {
+    if (!char) return char;
+    return {
+      ...char,
+      lorebookEntries: (char.lorebookEntries || []).map((entry) => ({
+        ...entry,
+        keys: Array.isArray(entry.keys)
+          ? entry.keys
+          : typeof entry.keys === "string"
+            ? (entry.keys as string)
+                .split(",")
+                .map((k) => k.trim())
+                .filter(Boolean)
+            : [],
+      })),
+    };
+  };
+
   const loadCharacters = async () => {
     try {
       let stored = await getAllCharacters();
@@ -54,7 +72,8 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         stored = await getAllCharacters();
       }
 
-      setCharacters(stored || []);
+      const cleaned = (stored || []).map(cleanCharacter);
+      setCharacters(cleaned);
       setIsDBReady(true);
     } catch (e: any) {
       console.error("Failed to load characters from IndexedDB:", e);
@@ -68,15 +87,16 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const saveCharacter = async (char: CharacterCard) => {
     try {
-      await dbSaveCharacter(char);
+      const cleaned = cleanCharacter(char);
+      await dbSaveCharacter(cleaned);
       setCharacters((prev) => {
-        const idx = prev.findIndex((c) => c.id === char.id);
+        const idx = prev.findIndex((c) => c.id === cleaned.id);
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = char;
+          next[idx] = cleaned;
           return next;
         }
-        return [...prev, char];
+        return [...prev, cleaned];
       });
     } catch (e: any) {
       console.error("Failed to save character to IndexedDB:", e);

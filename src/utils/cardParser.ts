@@ -1,5 +1,6 @@
 import { CharacterCard, LorebookEntry } from "../types";
 import { unzlibSync, inflateSync } from "fflate";
+import { compressImage } from "./imageCompressor";
 
 // Named constants for PNG offsets and values
 export const PNG_SIGNATURE_HEADER_1 = 0x89504e47;
@@ -34,6 +35,9 @@ function crc32(buf: Uint8Array): number {
 export async function parseCharacterFile(
   file: File,
 ): Promise<Partial<CharacterCard>> {
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("文件大小超过 5MB 限制，导入终止。");
+  }
   if (file.type === "application/json" || file.name.endsWith(".json")) {
     const text = await file.text();
     const parsed = JSON.parse(text);
@@ -43,12 +47,8 @@ export async function parseCharacterFile(
     const parsed = parsePngMetadata(buffer);
     const cardData = extractSillyTavernFields(parsed);
 
-    // Convert current file to base64 to preserve avatar
-    const base64Avatar = await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.readAsDataURL(file);
-    });
+    // Convert current file to base64 to preserve avatar (compress to 400x400 PNG to prevent DB bloating)
+    const base64Avatar = await compressImage(file, 400, 400, 0.8, "image/png");
 
     cardData.avatar = base64Avatar;
     return cardData;

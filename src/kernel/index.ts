@@ -111,7 +111,7 @@ export async function initializeKernel() {
     priority: 60,
     component: SettingsTab,
     meta: {
-      name: "控制端",
+      name: "设置",
       icon: "Settings",
       showInBottomBar: true,
     },

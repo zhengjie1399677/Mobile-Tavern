@@ -111,7 +111,8 @@ export function getTriggeredLorebookEntries(
       const scanText = getScanText(scanDepth);
 
       // Base Hit Check (Primary Keys)
-      const primaryMatched = entry.keys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
+      const primaryKeys = Array.isArray(entry.keys) ? entry.keys : [];
+      const primaryMatched = primaryKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
       if (!primaryMatched) continue;
 
       // Secondary Keys Logic Eval
