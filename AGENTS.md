@@ -1,5 +1,5 @@
 # Mobile Tavern 行为指导手册 (AGENTS.md)
-*Version: 1.5.4*
+*Version: 1.5.5*
 
 > [!IMPORTANT]
 > **此文件定义了本项目的核心行为指导规范与技术边界约束。**

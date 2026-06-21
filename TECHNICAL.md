@@ -9,7 +9,7 @@
 本项目的核心前端组件（React + TypeScript）以及后台服务（Tauri/Rust 与 Node.js）的职责文件树明细如下，供开发审计：
 
 ```text
-d:\projects\Mobile-Tavern
+Mobile-Tavern
 ├── src-tauri/                                # Tauri 原生容器构建模块 (Rust 侧)
 │   ├── src/
 │   │   ├── lib.rs                            # 原生入口绑定、Rust 插件桥接挂载点
