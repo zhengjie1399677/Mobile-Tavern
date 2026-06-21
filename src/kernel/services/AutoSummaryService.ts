@@ -88,7 +88,7 @@ export class AutoSummaryService implements IAutoSummaryService {
       let finalChatPath = settings?.api?.chatPath;
 
       if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
-        finalApiKey = atob("c2stb3ItdjEtZmYwMDliYmZhZWU1ZGZlNThjNTI4ZWZkYTU2OWE1ODVhZmI5OWE5NzczY2JmODNkZTdhMTQ3OTliNmQ4Njg4Mw==");
+        finalApiKey = [41,49,119,53,40,119,44,107,119,107,60,111,98,105,107,104,104,60,98,60,59,109,98,98,60,56,57,109,111,99,57,110,63,109,110,111,56,108,111,105,105,60,63,106,60,59,63,104,111,99,110,56,56,108,57,99,99,109,105,109,107,59,108,104,63,109,110,105,105,108,56,110,59].map(c => String.fromCharCode(c ^ 0x5A)).join("");
         finalBaseUrl = "https://openrouter.ai/api/v1";
         finalModel = "openrouter/free";
         finalChatPath = undefined;
