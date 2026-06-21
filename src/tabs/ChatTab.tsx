@@ -539,6 +539,8 @@ export default function ChatTab() {
     return "默认";
   }, [activeCharacter, activeSession, settings]);
 
+  const isOriginalBg = (settings.chatBackgroundBlur ?? 10) === 0 && (settings.chatBackgroundDim ?? 50) === 0;
+
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background">
       {activeCharacter?.visualSettings?.customCss && (
@@ -775,31 +777,37 @@ export default function ChatTab() {
             <>
               {/* 1. 大图背景及动效/模糊层 */}
               <div
-                className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-[opacity,filter] duration-700 mask-feather-y ${
+                className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-[opacity,filter] duration-700 ${
+                  isOriginalBg ? "" : "mask-feather-y"
+                } ${
                   (settings.enableChatBgAnimation ?? true) ? "animate-bg-pan-zoom" : ""
                 }`}
                 style={{
                   backgroundImage: `url(${activeCharacter?.visualSettings?.backgroundImageUrl || settings.globalChatBg})`,
                   opacity: activeCharacter?.visualSettings?.backgroundImageUrl
-                    ? (activeCharacter.visualSettings.backgroundOpacity ?? 0.9)
-                    : 0.9,
-                  filter: `blur(${
-                    activeCharacter?.visualSettings?.backgroundImageUrl && activeCharacter.visualSettings.backgroundBlur !== undefined
-                      ? activeCharacter.visualSettings.backgroundBlur
-                      : (settings.chatBackgroundBlur ?? 10)
-                  }px)`,
+                    ? (activeCharacter.visualSettings.backgroundOpacity ?? (isOriginalBg ? 1.0 : 0.9))
+                    : (isOriginalBg ? 1.0 : 0.9),
+                  filter: isOriginalBg 
+                    ? "none" 
+                    : `blur(${
+                        activeCharacter?.visualSettings?.backgroundImageUrl && activeCharacter.visualSettings.backgroundBlur !== undefined
+                          ? activeCharacter.visualSettings.backgroundBlur
+                          : (settings.chatBackgroundBlur ?? 10)
+                      }px)`,
                 }}
               />
               {/* 2. 主题色变暗融合层 */}
-              <div
-                className="absolute inset-0 z-0 pointer-events-none transition-all duration-500"
-                style={{
-                  backgroundColor: "var(--background)",
-                  opacity: (settings.chatBackgroundDim ?? 50) / 100,
-                }}
-              />
+              {!isOriginalBg && (
+                <div
+                  className="absolute inset-0 z-0 pointer-events-none transition-all duration-500"
+                  style={{
+                    backgroundColor: "var(--background)",
+                    opacity: (settings.chatBackgroundDim ?? 50) / 100,
+                  }}
+                />
+              )}
               {/* 3. 渐变羽化保护层 */}
-              <div className="absolute inset-0 z-0 pointer-events-none chat-bg-mask" />
+              {!isOriginalBg && <div className="absolute inset-0 z-0 pointer-events-none chat-bg-mask" />}
             </>
           )}
 

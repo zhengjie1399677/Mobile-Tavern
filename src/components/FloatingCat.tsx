@@ -56,6 +56,7 @@ export function FloatingCat() {
     return { x: 300, y: 400 };
   });
   const [isDragging, setIsDragging] = useState(false);
+  const [isTucked, setIsTucked] = useState(false);
 
   const handleClose = () => {
     setIsOpen(false);
@@ -184,7 +185,7 @@ export function FloatingCat() {
     let newX = elementStart.current.x + dx;
     let newY = elementStart.current.y + dy;
     
-    newX = Math.max(8, Math.min(newX, window.innerWidth - 64));
+    newX = Math.max(-40, Math.min(newX, window.innerWidth - 16));
     newY = Math.max(8, Math.min(newY, window.innerHeight - 64));
     
     setPosition({ x: newX, y: newY });
@@ -204,15 +205,9 @@ export function FloatingCat() {
     if (isLongPressed.current) {
       return;
     }
-    
-    if (!hasMoved.current) {
-      // 没拖动且没达到长按时间，则视为单击“戳一下”
-      triggerEvent("idle_click");
-    } else {
-      const middleX = window.innerWidth / 2;
-      const targetX = position.x < middleX ? 12 : window.innerWidth - 56 - 12;
-      
-      const duration = 200;
+
+    const animateToX = (targetX: number) => {
+      const duration = 220;
       const startTime = performance.now();
       const startX = position.x;
       
@@ -230,6 +225,44 @@ export function FloatingCat() {
       };
       
       requestAnimationFrame(animate);
+    };
+    
+    if (!hasMoved.current) {
+      // 没拖动且没达到长按时间，则视为单击
+      if (isTucked) {
+        setIsTucked(false);
+        const targetX = position.x < window.innerWidth / 2 ? 12 : window.innerWidth - 56 - 12;
+        animateToX(targetX);
+      } else {
+        triggerEvent("idle_click");
+      }
+    } else {
+      const middleX = window.innerWidth / 2;
+      let targetX = 12;
+      let shouldTuck = false;
+
+      if (position.x < middleX) {
+        // 左半屏
+        if (position.x <= 16) {
+          targetX = -40; // 靠最左边，收缩仅露16px
+          shouldTuck = true;
+        } else {
+          targetX = 12;
+          shouldTuck = false;
+        }
+      } else {
+        // 右半屏
+        if (position.x >= window.innerWidth - 56 - 16) {
+          targetX = window.innerWidth - 16; // 靠最右边，收缩仅露16px
+          shouldTuck = true;
+        } else {
+          targetX = window.innerWidth - 56 - 12;
+          shouldTuck = false;
+        }
+      }
+
+      setIsTucked(shouldTuck);
+      animateToX(targetX);
     }
   };
 
@@ -325,7 +358,7 @@ export function FloatingCat() {
           touchAction: "none",
           cursor: isDragging ? "grabbing" : "grab",
         }}
-        className={`flex items-center justify-center transition-shadow select-none ${!isDragging ? getCatAnimationClass(activeExpression) : ""}`}
+        className={`flex items-center justify-center transition-shadow transition-opacity duration-300 select-none ${isTucked ? "opacity-60 hover:opacity-100" : "opacity-100"} ${!isDragging ? getCatAnimationClass(activeExpression) : ""}`}
       >
         {/* 圆形霓虹容器 */}
         <div 
@@ -349,7 +382,7 @@ export function FloatingCat() {
         </div>
 
         {/* 2. 吐槽气泡 (被动弹出) */}
-        {showBubble && bubbleText && (
+        {showBubble && bubbleText && !isTucked && (
           <div
             style={{
               position: "absolute",
