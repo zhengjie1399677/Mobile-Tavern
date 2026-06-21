@@ -1,6 +1,15 @@
 const fs = require('fs');
-const card = JSON.parse(fs.readFileSync('C:/Users/20573/Desktop/角色卡/卿卿.json', 'utf8'));
-const target = card.data.extensions.regex_scripts.find(s => s.findRegex === '【开场介绍】');
+const path = require('path');
+let card = { data: { extensions: { regex_scripts: [] } } };
+const testCardPath = path.join(__dirname, 'test_card.json');
+if (fs.existsSync(testCardPath)) {
+  try {
+    card = JSON.parse(fs.readFileSync(testCardPath, 'utf8'));
+  } catch (e) {
+    console.error("Failed to parse test card:", e);
+  }
+}
+const target = card.data?.extensions?.regex_scripts?.find((s) => s.findRegex === '【开场介绍】');
 
 // Mock preprocessScriptContent
 function preprocessScriptContent(content) {

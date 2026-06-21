@@ -1,5 +1,5 @@
 # Mobile Tavern 行为指导手册 (AGENTS.md)
-*Version: 1.5.2*
+*Version: 1.5.4*
 
 > [!IMPORTANT]
 > **此文件定义了本项目的核心行为指导规范与技术边界约束。**
@@ -163,7 +163,7 @@
 - **端口与代理限制**：必须绑定 `--host 127.0.0.1` 并反向映射 `3000` 与 `24678` 端口以防白屏与进程冲突。
 - **启动调试命令**：
   ```powershell
-  $env:ANDROID_HOME = "C:\Users\20573\AppData\Local\Android\Sdk"
+  $env:ANDROID_HOME = "$env:USERPROFILE\AppData\Local\Android\Sdk"
   $env:PATH += ";$env:ANDROID_HOME\platform-tools"
   adb reverse tcp:3000 tcp:3000; adb reverse tcp:24678 tcp:24678
   npx tauri android dev --host 127.0.0.1

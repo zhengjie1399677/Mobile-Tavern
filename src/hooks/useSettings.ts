@@ -1429,6 +1429,179 @@ export const useSettings = () => {
     }
   }, [backupPass, showCustomAlert, showCustomConfirm, setBackupStatus, setSettings, setGlobalLorebook]);
 
+  const handleImportSillyChatHistory = useCallback(async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    characters: any[],
+    setSessions: React.Dispatch<React.SetStateAction<any[]>>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setBackupStatus("正在读取聊天记录...");
+    try {
+      const textData = await file.text();
+      let lines = textData.split("\n").map(l => l.trim()).filter(Boolean);
+      let rawMessages: any[] = [];
+      let characterNameFromFile = "";
+
+      // 1. Try to parse as JSONL
+      let isJsonl = false;
+      try {
+        if (file.name.endsWith(".jsonl") || (!textData.trim().startsWith("[") && !textData.trim().startsWith("{"))) {
+          isJsonl = true;
+        }
+      } catch (err) {}
+
+      if (isJsonl) {
+        let firstLineParsed: any = null;
+        for (let i = 0; i < lines.length; i++) {
+          try {
+            const parsedLine = JSON.parse(lines[i]);
+            if (i === 0) {
+              firstLineParsed = parsedLine;
+              if (parsedLine.character_name) {
+                characterNameFromFile = parsedLine.character_name;
+                continue;
+              }
+            }
+            rawMessages.push(parsedLine);
+          } catch (lineErr) {
+            console.warn(`Failed to parse JSONL line ${i + 1}:`, lineErr);
+          }
+        }
+      } else {
+        // 2. Try to parse as JSON
+        try {
+          const parsedJson = JSON.parse(textData);
+          if (Array.isArray(parsedJson)) {
+            rawMessages = parsedJson;
+          } else if (typeof parsedJson === "object" && parsedJson !== null) {
+            if (parsedJson.history && Array.isArray(parsedJson.history)) {
+              rawMessages = parsedJson.history;
+            } else if (Array.isArray(parsedJson.messages)) {
+              rawMessages = parsedJson.messages;
+            } else {
+              const keys = Object.keys(parsedJson).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+              if (keys.length > 0) {
+                rawMessages = keys.map(k => parsedJson[k]);
+              } else {
+                rawMessages = [parsedJson];
+              }
+            }
+            if (parsedJson.character_name) {
+              characterNameFromFile = parsedJson.character_name;
+            }
+          }
+        } catch (jsonErr) {
+          throw new Error("文件无法解析为有效的 JSON/JSONL 格式。");
+        }
+      }
+
+      if (rawMessages.length === 0) {
+        throw new Error("聊天记录中没有找到任何有效的消息段。");
+      }
+
+      // Try to find character name from messages if not found in metadata
+      if (!characterNameFromFile) {
+        const charMsg = rawMessages.find(m => m && !m.is_user && m.character_name);
+        if (charMsg) {
+          characterNameFromFile = charMsg.character_name;
+        } else {
+          const dashIdx = file.name.indexOf(" - ");
+          if (dashIdx !== -1) {
+            characterNameFromFile = file.name.substring(0, dashIdx).trim();
+          } else {
+            const dotIdx = file.name.lastIndexOf(".");
+            characterNameFromFile = dotIdx !== -1 ? file.name.substring(0, dotIdx).trim() : file.name;
+          }
+        }
+      }
+
+      if (!characterNameFromFile) {
+        throw new Error("无法从文件或文件名中识别 AI 角色名字。");
+      }
+
+      // Match character card in database
+      const matchedChar = characters.find(
+        (c) => c.name.trim().toLowerCase() === characterNameFromFile.trim().toLowerCase()
+      );
+
+      if (!matchedChar) {
+        throw new Error(
+          `本地数据库中未找到名为「${characterNameFromFile}」的角色卡。\n请先导入该角色的角色卡，再导入其聊天记录。`
+        );
+      }
+
+      // Convert SillyTavern messages to MobileTavern Message objects
+      const formattedMessages: any[] = rawMessages.map((item, idx) => {
+        let sender: "user" | "assistant" | "system" = "assistant";
+        if (item.is_user === true || item.sender === "user") {
+          sender = "user";
+        } else if (item.is_system === true || item.sender === "system") {
+          sender = "system";
+        }
+
+        const content = item.mes || item.message || item.content || "";
+        const timestamp = item.send_date || item.timestamp || (Date.now() - (rawMessages.length - idx) * 1000);
+
+        return {
+          id: item.id || `msg_ST_${Math.random().toString(36).substring(2, 9)}_${idx}`,
+          sender,
+          content,
+          timestamp,
+          swipes: Array.isArray(item.swipes) ? item.swipes : undefined,
+          swipe_id: typeof item.swipe_id === "number" ? item.swipe_id : undefined,
+          extra: item.extra && typeof item.extra === "object" ? item.extra : undefined,
+        };
+      });
+
+      const finalMessages = formattedMessages.filter(m => m.content);
+
+      if (finalMessages.length === 0) {
+        throw new Error("解析后未发现有效的对话内容。");
+      }
+
+      let chatTitle = "导入的剧情线";
+      const fileBaseName = file.name.replace(/\.[^/.]+$/, "");
+      const datePart = fileBaseName.match(/\d{4}-\d{2}-\d{2}/);
+      if (datePart) {
+        chatTitle = `酒馆导入 (${datePart[0]})`;
+      }
+
+      const lastMsgId = finalMessages[finalMessages.length - 1].id;
+
+      const newSession = {
+        id: `session_ST_${Math.random().toString(36).substring(2, 9)}`,
+        characterId: matchedChar.id,
+        title: chatTitle,
+        createdAt: Date.now(),
+        messages: finalMessages,
+        summaries: [],
+        lastSummarizedMessageId: lastMsgId,
+        variables: {},
+        tableMemory: [],
+      };
+
+      const ok = await showCustomConfirm(
+        `成功识别匹配到本地角色「${matchedChar.name}」，包含历史对话 ${finalMessages.length} 回合。是否导入？`
+      );
+
+      if (ok) {
+        await saveSession(newSession);
+        setSessions((prev) => [...prev, newSession]);
+        setBackupStatus("聊天记录导入完成！");
+        await showCustomAlert(
+          `🎉 聊天记录导入成功！\n分支标题：${chatTitle}\n已绑定到角色：${matchedChar.name}\n共 ${finalMessages.length} 回合对话，您可以进入聊天页向上翻阅查看。`
+        );
+      }
+    } catch (err: any) {
+      await showCustomAlert(`导入聊天记录失败: ${err.message}`);
+      setBackupStatus(`导入失败: ${err.message}`);
+    } finally {
+      e.target.value = "";
+    }
+  }, [showCustomAlert, showCustomConfirm, setBackupStatus]);
+
   const switchUserPersona = useCallback((id: string) => {
     updateSettings((prev) => {
       const target = prev.userPersonas?.find(p => p.id === id);
@@ -1535,5 +1708,6 @@ export const useSettings = () => {
     togglePromptExpanded,
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
+    handleImportSillyChatHistory,
   };
 };

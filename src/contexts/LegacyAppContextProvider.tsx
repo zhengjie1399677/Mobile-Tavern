@@ -94,6 +94,15 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     );
   }, [settingsHook, charState.setCharacters, chatState.setSessions]);
 
+  // Wrap SillyTavern chat history import
+  const wrappedHandleImportSillyChatHistory = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    return settingsHook.handleImportSillyChatHistory(
+      e,
+      charState.characters,
+      chatState.setSessions
+    );
+  }, [settingsHook, charState.characters, chatState.setSessions]);
+
   // Sort characters by their last active conversation time (latest message timestamp across all sessions) descending.
   const sortedCharacters = React.useMemo(() => {
     const getCharLastActiveTime = (charId: string) => {
@@ -137,6 +146,7 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     handleDeleteCharacter: wrappedHandleDeleteCharacter,
     handleExportLocalDataBackup: wrappedHandleExportLocalDataBackup,
     handleImportLocalDataBackup: wrappedHandleImportLocalDataBackup,
+    handleImportSillyChatHistory: wrappedHandleImportSillyChatHistory,
   }), [
     appState,
     charState,
@@ -148,6 +158,7 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     wrappedHandleDeleteCharacter,
     wrappedHandleExportLocalDataBackup,
     wrappedHandleImportLocalDataBackup,
+    wrappedHandleImportSillyChatHistory,
   ]);
 
   return (

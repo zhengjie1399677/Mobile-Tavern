@@ -103,6 +103,7 @@ export interface UnifiedAppContextProps {
   togglePromptExpanded: (id: string, e?: React.MouseEvent) => void;
   handleExportLocalDataBackup: () => Promise<void>;
   handleImportLocalDataBackup: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  handleImportSillyChatHistory: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
 
   // --- Characters Hook ---
   handleImportCardFile: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;

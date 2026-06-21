@@ -45,8 +45,17 @@ function preprocessScriptContent(content) {
   return processed;
 }
 
-const c = fs.readFileSync('C:/Users/20573/Desktop/角色卡/扬州一梦1.6.1.json', 'utf8');
-const scripts = JSON.parse(c).data?.extensions?.tavern_helper?.scripts || [];
+const path = require('path');
+let scripts = [];
+const testCardPath = path.join(__dirname, 'test_card_yzym.json');
+if (fs.existsSync(testCardPath)) {
+  try {
+    const c = fs.readFileSync(testCardPath, 'utf8');
+    scripts = JSON.parse(c).data?.extensions?.tavern_helper?.scripts || [];
+  } catch (e) {
+    console.error("Failed to load test card:", e);
+  }
+}
 scripts.forEach((s, i) => {
   if (s.enabled) {
     const clean = preprocessScriptContent(s.content);
