@@ -486,6 +486,31 @@ function preprocessFormattedText(
   return processed;
 }
 
+class LocalErrorBoundary extends React.Component<any, any> {
+  state: any = { hasError: false };
+  props: any;
+
+  constructor(props: any) {
+    super(props);
+    this.props = props;
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("[LocalErrorBoundary] Message render error caught:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
 const FormattedText = memo(function FormattedText({
   text,
   charName,
@@ -569,11 +594,7 @@ const FormattedText = memo(function FormattedText({
     );
   }
 
-  if (!isTooLong) {
-    return <>{renderedContent}</>;
-  }
-
-  return (
+  const element = (
     <div className="relative w-full">
       <div 
         className={shouldTruncate ? "max-h-[600px] overflow-hidden relative transition-all duration-300" : "relative"}
@@ -605,6 +626,19 @@ const FormattedText = memo(function FormattedText({
       </div>
       {shouldTruncate && <div className="h-8" />} {/* 占位符，防止按钮挡住底部内容 */}
     </div>
+  );
+
+  const fallbackMarkup = (
+    <span 
+      className={`block whitespace-pre-wrap leading-relaxed ${className}`}
+      dangerouslySetInnerHTML={{ __html: processed }}
+    />
+  );
+
+  return (
+    <LocalErrorBoundary fallback={fallbackMarkup}>
+      {isTooLong ? element : renderedContent}
+    </LocalErrorBoundary>
   );
 });
 
