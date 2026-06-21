@@ -352,8 +352,14 @@ export function assemblePromptContext(params: {
       cleanSystem += `=== Reference Lore ===\n${activeEntries.map((e) => e.content).join("\n\n")}\n\n`;
     }
 
+    const modelName = (settings.api?.modelName || "").toLowerCase();
+    const isDeepSeek = modelName.includes("deepseek");
+    const reasoningGuidance = isDeepSeek
+      ? "\n\n[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]\n"
+      : "";
+
     return {
-      systemInstruction: cleanSystem.trim(),
+      systemInstruction: (cleanSystem.trim() + reasoningGuidance).trim(),
       dynamicInstruction: "",
       history: chatHistory,
       userInput,
@@ -403,6 +409,12 @@ export function assemblePromptContext(params: {
 
   const modelName = (settings.api?.modelName || "").toLowerCase();
   const enableCacheOptimization = modelName.includes("deepseek") || modelName.includes("gemini");
+
+  // 为 DeepSeek 等推理模型注入系统引导说明，防止其思维链被角色扮演污染，确保其在 <think> 标签中执行客观推理而非生成台词
+  const isDeepSeek = modelName.includes("deepseek");
+  const reasoningGuidance = isDeepSeek
+    ? "\n\n[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]\n"
+    : "";
 
   const processedActiveEntries = enableCacheOptimization
     ? activeEntries.map((e) => {
@@ -807,7 +819,7 @@ ${scenarioBlock}
   }
 
   return {
-    systemInstruction,
+    systemInstruction: (systemInstruction + reasoningGuidance).trim(),
     dynamicInstruction,
     history: chatHistory,
     userInput,

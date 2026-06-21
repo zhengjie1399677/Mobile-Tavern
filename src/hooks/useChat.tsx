@@ -22,6 +22,39 @@ const generateUniqueId = (prefix: string): string => {
   return prefix + Math.random().toString(36).substring(2, 9);
 };
 
+function extractThinkContent(
+  content: string, 
+  reasoningContent?: string, 
+  isStreaming: boolean = false
+): { content: string; reasoningContent?: string } {
+  if (!content) return { content, reasoningContent };
+  
+  const thinkStart = "<think>";
+  const thinkEnd = "</think>";
+  
+  if (content.includes(thinkStart)) {
+    const startIdx = content.indexOf(thinkStart);
+    const endIdx = content.indexOf(thinkEnd);
+    
+    if (endIdx !== -1) {
+      const extractedReasoning = content.substring(startIdx + thinkStart.length, endIdx).trim();
+      const restContent = content.substring(endIdx + thinkEnd.length).trim();
+      return {
+        content: restContent,
+        reasoningContent: extractedReasoning || reasoningContent
+      };
+    } else {
+      const extractedReasoning = content.substring(startIdx + thinkStart.length).trim();
+      return {
+        content: isStreaming ? "💭..." : "",
+        reasoningContent: extractedReasoning || reasoningContent
+      };
+    }
+  }
+  
+  return { content, reasoningContent };
+}
+
 
 export const useChat = (
   settings: UserSettings,
@@ -168,6 +201,11 @@ export const useChat = (
               sender: "assistant",
               content: starterMsg.trim(),
               timestamp: Date.now(),
+              extra: {
+                variables: {
+                  0: mvuVariables
+                }
+              }
             },
           ]
         : [],
@@ -379,13 +417,14 @@ export const useChat = (
     let isFirstToken = true;
 
     const updateSessionsContent = (content: string, reasoningContent?: string) => {
+      const parsed = extractThinkContent(content, reasoningContent, true);
       setSessions((prev) =>
         prev.map((s) => {
           if (s.id !== updatedSession.id) return s;
           return {
             ...s,
             messages: s.messages.map((m) =>
-              m.id === aiMsgId ? { ...m, content, reasoningContent } : m
+              m.id === aiMsgId ? { ...m, content: parsed.content, reasoningContent: parsed.reasoningContent } : m
             ),
           };
         })
@@ -505,18 +544,17 @@ export const useChat = (
             responseText += parsed.__rescuedContent as string;
           } else {
             const reasoning = (parsed as any).choices?.[0]?.delta?.reasoning_content;
-            if (reasoning) {
-              reasoningText += reasoning;
-              throttledUpdate(responseText, reasoningText);
-              return;
-            }
-
             const delta = (parsed as any).choices?.[0]?.delta?.content;
-            if (delta) {
-              responseText += delta;
-              if (isFirstToken) {
-                isFirstToken = false;
-                ttftMs = performance.now() - startTime;
+
+            if (reasoning && !delta) {
+              reasoningText += reasoning;
+            } else {
+              if (delta) {
+                responseText += delta;
+                if (isFirstToken) {
+                  isFirstToken = false;
+                  ttftMs = performance.now() - startTime;
+                }
               }
             }
             if ((parsed as any).usage) {
@@ -543,15 +581,16 @@ export const useChat = (
         return;
       }
 
+      const parsed = extractThinkContent(responseText.trim(), reasoningText.trim(), false);
       const finalAiMsg = {
         id: aiMsgId,
         sender: "assistant",
-        content: responseText.trim(),
+        content: parsed.content,
         timestamp: Date.now(),
         generationTime: (performance.now() - startTime) / 1000,
         tokenCount: tokenUsage.completion,
         promptTokenCount: tokenUsage.prompt,
-        reasoningContent: reasoningText.trim() || undefined,
+        reasoningContent: parsed.reasoningContent || undefined,
       };
 
       // Merge keeping any modifications (deletes/edits) made during generation
@@ -570,7 +609,7 @@ export const useChat = (
 
       const isStillActive = activeSessionIdRef.current === updatedSession.id;
       if (isStillActive) {
-        const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+        const parsedSession = await saveSessionWithMvu(trueFinalSession, parsed.content);
         triggerScroll("smooth");
 
         telemetryService.reportUsage("send_message", {
@@ -620,11 +659,13 @@ export const useChat = (
 
       if (isManualAbort) {
         if (responseText.trim().length > 0) {
+          const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg: Message = {
             id: aiMsgId,
             sender: "assistant",
-            content: responseText.trim(),
+            content: parsed.content,
             timestamp: Date.now(),
+            reasoningContent: parsed.reasoningContent,
           };
           const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
           if (latestSession) {
@@ -641,7 +682,7 @@ export const useChat = (
             };
             try {
               if (isStillActive) {
-                const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+                const parsedSession = await saveSessionWithMvu(trueFinalSession, parsed.content);
                 handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
                   console.error("AutoSummary error in abort handler:", summaryErr);
                 });
@@ -677,11 +718,13 @@ export const useChat = (
           showCustomAlert("发送失败，对话连接异常: " + err.message);
         }
         if (responseText.trim().length > 0) {
+          const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg: Message = {
             id: aiMsgId,
             sender: "assistant",
-            content: responseText.trim() + "\n\n*(连接中断，仅保留部分生成内容)*",
+            content: parsed.content ? parsed.content + "\n\n*(连接中断，仅保留部分生成内容)*" : "\n\n*(连接中断，仅保留部分生成内容)*",
             timestamp: Date.now(),
+            reasoningContent: parsed.reasoningContent,
           };
           const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
           if (latestSession) {
@@ -698,7 +741,7 @@ export const useChat = (
             };
             try {
               if (isStillActive) {
-                const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+                const parsedSession = await saveSessionWithMvu(trueFinalSession, parsed.content);
                 handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
                   console.error("AutoSummary error in error handler:", summaryErr);
                 });
@@ -856,13 +899,14 @@ export const useChat = (
     let ttftMs = 0;
 
     const updateSessionsContent = (content: string, reasoningContent?: string) => {
+      const parsed = extractThinkContent(content, reasoningContent, true);
       setSessions((prev) =>
         prev.map((s) => {
           if (s.id !== updatedSession.id) return s;
           return {
             ...s,
             messages: s.messages.map((m) =>
-              m.id === aiMsgId ? { ...m, content, reasoningContent } : m
+              m.id === aiMsgId ? { ...m, content: parsed.content, reasoningContent: parsed.reasoningContent } : m
             ),
           };
         })
@@ -981,18 +1025,17 @@ export const useChat = (
             responseText += parsed.__rescuedContent as string;
           } else {
             const reasoning = (parsed as any).choices?.[0]?.delta?.reasoning_content;
-            if (reasoning) {
-              reasoningText += reasoning;
-              throttledUpdate(responseText, reasoningText);
-              return;
-            }
-
             const delta = (parsed as any).choices?.[0]?.delta?.content;
-            if (delta) {
-              responseText += delta;
-              if (isFirstTokenForSpeed) {
-                isFirstTokenForSpeed = false;
-                ttftMs = performance.now() - startTime;
+
+            if (reasoning && !delta) {
+              reasoningText += reasoning;
+            } else {
+              if (delta) {
+                responseText += delta;
+                if (isFirstTokenForSpeed) {
+                  isFirstTokenForSpeed = false;
+                  ttftMs = performance.now() - startTime;
+                }
               }
             }
             if ((parsed as any).usage) {
@@ -1019,15 +1062,16 @@ export const useChat = (
         return;
       }
 
+      const parsed = extractThinkContent(responseText.trim(), reasoningText.trim(), false);
       const finalAiMsg = {
         id: aiMsgId,
         sender: "assistant",
-        content: responseText.trim(),
+        content: parsed.content,
         timestamp: Date.now(),
         generationTime: (performance.now() - startTime) / 1000,
         tokenCount: tokenUsage.completion,
         promptTokenCount: tokenUsage.prompt,
-        reasoningContent: reasoningText.trim() || undefined,
+        reasoningContent: parsed.reasoningContent || undefined,
       };
 
       // Merge keeping any modifications (deletes/edits) made during generation
@@ -1046,7 +1090,7 @@ export const useChat = (
 
       const isStillActive = activeSessionIdRef.current === updatedSession.id;
       if (isStillActive) {
-        const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+        const parsedSession = await saveSessionWithMvu(trueFinalSession, parsed.content);
         triggerScroll();
 
         telemetryService.reportUsage("regenerate_message", {
@@ -1098,11 +1142,13 @@ export const useChat = (
 
       if (isManualAbort) {
         if (responseText.trim().length > 0) {
+          const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg: Message = {
             id: aiMsgId,
             sender: "assistant",
-            content: responseText.trim(),
+            content: parsed.content,
             timestamp: Date.now(),
+            reasoningContent: parsed.reasoningContent,
           };
           const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
           if (latestSession) {
@@ -1119,7 +1165,7 @@ export const useChat = (
             };
             try {
               if (isStillActive) {
-                const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+                const parsedSession = await saveSessionWithMvu(trueFinalSession, parsed.content);
                 handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
                   console.error("AutoSummary error in reroll abort handler:", summaryErr);
                 });
@@ -1163,11 +1209,13 @@ export const useChat = (
         }
 
         if (responseText.trim().length > 0) {
+          const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg: Message = {
             id: aiMsgId,
             sender: "assistant",
-            content: responseText.trim() + "\n\n*(连接中断，仅保留部分生成内容)*",
+            content: parsed.content ? parsed.content + "\n\n*(连接中断，仅保留部分生成内容)*" : "\n\n*(连接中断，仅保留部分生成内容)*",
             timestamp: Date.now(),
+            reasoningContent: parsed.reasoningContent,
           };
           const latestSession = sessionsRef.current.find((s) => s.id === updatedSession.id);
           if (latestSession) {
@@ -1184,7 +1232,7 @@ export const useChat = (
             };
             try {
               if (isStillActive) {
-                const parsedSession = await saveSessionWithMvu(trueFinalSession, responseText);
+                const parsedSession = await saveSessionWithMvu(trueFinalSession, parsed.content);
                 handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
                   console.error("AutoSummary error in reroll error handler:", summaryErr);
                 });
@@ -1378,6 +1426,11 @@ export const useChat = (
                   sender: "assistant",
                   content: targetChar.first_mes,
                   timestamp: Date.now(),
+                  extra: {
+                    variables: {
+                      0: mvuVariables
+                    }
+                  }
                 },
               ]
             : [],
@@ -1600,12 +1653,13 @@ export const useChat = (
     setTimelineModalOpen,
   ]);
 
-  const renderDialogueBubble = useCallback((text: string) => {
+  const renderDialogueBubble = useCallback((text: string, messageIndex?: number) => {
     return (
       <FormattedText
         text={text}
         charName={activeCharacter?.name || ""}
         userName={settings.userName}
+        messageIndex={messageIndex}
       />
     );
   }, [activeCharacter, settings]);

@@ -493,7 +493,7 @@ export default function SettingsTab() {
                       {settings.api.savedUrls && settings.api.savedUrls.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => updateSettings((prev) => ({ ...prev, api: { ...prev.api, savedUrls: [] }}))}
+                          onClick={() => updateSettings((prev) => ({ ...prev, api: { ...prev.api, savedUrls: [] } }))}
                           className="text-[9px] bg-destructive/10 hover:bg-destructive/20 text-destructive px-1.5 py-0.5 rounded border border-destructive/20 ml-auto"
                         >
                           清空记录
@@ -647,12 +647,12 @@ export default function SettingsTab() {
                       {currentTheme === "snow"
                         ? "极简纯白"
                         : currentTheme === "sand"
-                        ? "浅沙暮色"
-                        : currentTheme === "ocean"
-                        ? "荧光深海"
-                        : currentTheme === "obsidian"
-                        ? "黑曜石暗黑"
-                        : "选择主题"}
+                          ? "浅沙暮色"
+                          : currentTheme === "ocean"
+                            ? "荧光深海"
+                            : currentTheme === "obsidian"
+                              ? "黑曜石暗黑"
+                              : "选择主题"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -738,8 +738,8 @@ export default function SettingsTab() {
                           opt.key === "clear"
                             ? currentDim <= 20
                             : opt.key === "medium"
-                            ? currentDim > 20 && currentDim <= 65
-                            : currentDim > 65;
+                              ? currentDim > 20 && currentDim <= 65
+                              : currentDim > 65;
 
                         return (
                           <button
@@ -752,11 +752,10 @@ export default function SettingsTab() {
                                 chatBackgroundDim: opt.dim,
                               }))
                             }
-                            className={`py-2 px-0.5 rounded text-[10px] border text-center transition-all ${
-                              active
+                            className={`py-2 px-0.5 rounded text-[10px] border text-center transition-all ${active
                                 ? "bg-primary/20 border-primary text-primary font-semibold"
                                 : "bg-muted/40 border-border/45 text-muted-foreground hover:bg-muted/65"
-                            }`}
+                              }`}
                           >
                             {opt.label}
                           </button>
@@ -1078,22 +1077,20 @@ export default function SettingsTab() {
                 <button
                   type="button"
                   onClick={() => setSillyInnerTab("samplers")}
-                  className={`flex-1 py-2.5 text-xs font-bold transition border-b-2 ${
-                    sillyInnerTab === "samplers"
+                  className={`flex-1 py-2.5 text-xs font-bold transition border-b-2 ${sillyInnerTab === "samplers"
                       ? "border-primary text-primary bg-background"
                       : "border-transparent text-muted-foreground hover:bg-muted/50"
-                  }`}
+                    }`}
                 >
                   🎛️ 模型调节器
                 </button>
                 <button
                   type="button"
                   onClick={() => setSillyInnerTab("prompts")}
-                  className={`flex-1 py-2.5 text-xs font-bold transition border-b-2 ${
-                    sillyInnerTab === "prompts"
+                  className={`flex-1 py-2.5 text-xs font-bold transition border-b-2 ${sillyInnerTab === "prompts"
                       ? "border-primary text-primary bg-background"
                       : "border-transparent text-muted-foreground hover:bg-muted/50"
-                  }`}
+                    }`}
                 >
                   🧩 颗粒预设配置
                 </button>
@@ -1117,11 +1114,10 @@ export default function SettingsTab() {
                               onClick={() =>
                                 updateSettings({ ...settings, preset: p })
                               }
-                              className={`py-1.5 px-1 border rounded-lg text-center font-bold text-[10px] transition ${
-                                isSelect
+                              className={`py-1.5 px-1 border rounded-lg text-center font-bold text-[10px] transition ${isSelect
                                   ? "bg-primary/20 border-primary text-primary"
                                   : "bg-muted/40 border-border hover:border-primary/50 text-muted-foreground"
-                              }`}
+                                }`}
                             >
                               {p.name.split(" ")[0]}
                             </button>
@@ -1256,7 +1252,7 @@ export default function SettingsTab() {
                           className="w-full accent-primary h-1 bg-border rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
-                       <div className="space-y-2">
+                      <div className="space-y-2">
                         <div className="flex justify-between items-center text-muted-foreground">
                           <span className="font-semibold">
                             输出长度 (Max Tokens)
@@ -1338,9 +1334,9 @@ export default function SettingsTab() {
                           <div className="flex items-center gap-2">
                             <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5">
                               <SlidersHorizontal className="w-3.5 h-3.5 text-primary/80" />
-                              已存预设包 ({(settings.savedPresets || []).length})
+                              已存预设 ({(settings.savedPresets || []).length})
                             </span>
-                            
+
                             {(settings.savedPresets || []).length > 0 && (
                               <button
                                 type="button"
@@ -1357,7 +1353,7 @@ export default function SettingsTab() {
                               </button>
                             )}
                           </div>
-                          
+
                           <div className="flex items-center gap-1.5">
                             <button
                               type="button"
@@ -1370,11 +1366,10 @@ export default function SettingsTab() {
                             <button
                               type="button"
                               onClick={() => setShowImportArea(!showImportArea)}
-                              className={`p-1.5 rounded-lg transition active:scale-95 flex items-center justify-center ${
-                                showImportArea
+                              className={`p-1.5 rounded-lg transition active:scale-95 flex items-center justify-center ${showImportArea
                                   ? "bg-primary/20 text-primary"
                                   : "bg-muted/20 text-muted-foreground hover:text-foreground"
-                              }`}
+                                }`}
                               title="导入预设包"
                             >
                               <FileJson className="w-4 h-4" />
@@ -1397,11 +1392,10 @@ export default function SettingsTab() {
                               return (
                                 <div
                                   key={p.id}
-                                  className={`rounded-2xl p-3 flex items-start gap-3 transition-all duration-300 relative overflow-hidden shadow-none border-none ${
-                                    isCurrentActive
+                                  className={`rounded-2xl p-3 flex items-center gap-3 transition-all duration-300 relative overflow-hidden shadow-none border-none ${isCurrentActive
                                       ? "bg-primary/10 text-primary"
                                       : "bg-muted/10 hover:bg-muted/15"
-                                  }`}
+                                    }`}
                                 >
                                   {/* 左侧 3px 宽的主题色小竖条指示器（仅在勾选时泛起） */}
                                   {isChecked && (
@@ -1419,11 +1413,10 @@ export default function SettingsTab() {
                                         return next;
                                       });
                                     }}
-                                    className={`w-4.5 h-4.5 rounded-lg flex items-center justify-center transition-all duration-200 mt-0.5 cursor-pointer shrink-0 select-none ${
-                                      isChecked
+                                    className={`w-4.5 h-4.5 rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 select-none ${isChecked
                                         ? "bg-primary text-primary-foreground scale-100"
                                         : "bg-muted/30 text-transparent hover:bg-muted/40"
-                                    }`}
+                                      }`}
                                   >
                                     <Check className="w-3 h-3 stroke-[3]" />
                                   </div>
@@ -1433,31 +1426,20 @@ export default function SettingsTab() {
                                     className="flex-1 min-w-0 cursor-pointer"
                                   >
                                     <div className="flex items-center gap-1.5">
-                                      <span className={`text-xs font-bold truncate transition-colors ${isCurrentActive ? "text-primary font-extrabold" : "text-foreground"}`}>
-                                        {p.preset.name}
-                                      </span>
+                                      <div className="overflow-x-auto whitespace-nowrap flex-1 min-w-0" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                                        <span className={`text-xs font-bold transition-colors inline-block ${isCurrentActive ? "text-primary font-extrabold" : "text-foreground"}`}>
+                                          {p.preset.name}
+                                        </span>
+                                      </div>
                                       {isCurrentActive && (
                                         <span className="text-[8px] px-1.5 py-0.5 font-bold bg-primary/10 border border-primary/20 text-primary rounded-md select-none shrink-0">
                                           当前激活
                                         </span>
                                       )}
                                     </div>
-                                    
-                                    {/* 扁平积木微徽章 */}
-                                    <div className="flex flex-wrap gap-1 mt-1.5">
-                                      <span className="px-1.5 py-0.5 bg-muted/20 rounded-md text-[9px] font-mono text-muted-foreground leading-none">
-                                        Temp {p.preset.temperature}
-                                      </span>
-                                      <span className="px-1.5 py-0.5 bg-muted/20 rounded-md text-[9px] font-mono text-muted-foreground leading-none">
-                                        TopP {p.preset.topP}
-                                      </span>
-                                      <span className="px-1.5 py-0.5 bg-muted/20 rounded-md text-[9px] font-mono text-muted-foreground leading-none">
-                                        提示词 {p.promptConfig?.customPrompts?.length || 0} 个
-                                      </span>
-                                    </div>
                                   </div>
 
-                                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                                  <div className="flex items-center gap-1 shrink-0">
                                     <button
                                       type="button"
                                       onClick={(e) => {
@@ -1584,9 +1566,8 @@ export default function SettingsTab() {
                               {settings.globalRegexScripts.map((r) => (
                                 <div
                                   key={r.id}
-                                  className={`border border-border/40 rounded-lg p-2 bg-muted/10 flex items-center justify-between gap-3 transition ${
-                                    r.disabled ? "opacity-60" : ""
-                                  }`}
+                                  className={`border border-border/40 rounded-lg p-2 bg-muted/10 flex items-center justify-between gap-3 transition ${r.disabled ? "opacity-60" : ""
+                                    }`}
                                 >
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
@@ -1597,8 +1578,8 @@ export default function SettingsTab() {
                                         {r.placement?.includes(1) && r.placement?.includes(2)
                                           ? "双向"
                                           : r.placement?.includes(1)
-                                          ? "输入"
-                                          : "输出"}
+                                            ? "输入"
+                                            : "输出"}
                                       </span>
                                     </div>
                                     <div className="text-[9.5px] text-muted-foreground font-mono truncate mt-0.5 max-w-[220px]">
@@ -1681,9 +1662,8 @@ export default function SettingsTab() {
                               {settings.presetRegexScripts.map((r) => (
                                 <div
                                   key={r.id}
-                                  className={`border border-border/40 rounded-lg p-2 bg-muted/10 flex items-center justify-between gap-3 transition ${
-                                    r.disabled ? "opacity-60" : ""
-                                  }`}
+                                  className={`border border-border/40 rounded-lg p-2 bg-muted/10 flex items-center justify-between gap-3 transition ${r.disabled ? "opacity-60" : ""
+                                    }`}
                                 >
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
@@ -1694,8 +1674,8 @@ export default function SettingsTab() {
                                         {r.placement?.includes(1) && r.placement?.includes(2)
                                           ? "双向"
                                           : r.placement?.includes(1)
-                                          ? "输入"
-                                          : "输出"}
+                                            ? "输入"
+                                            : "输出"}
                                       </span>
                                     </div>
                                     <div className="text-[9.5px] text-muted-foreground font-mono truncate mt-0.5 max-w-[220px]">
@@ -1755,9 +1735,8 @@ export default function SettingsTab() {
                               {activeCharacter.extensions.regex_scripts.map((r: any) => (
                                 <div
                                   key={r.id || r.scriptName}
-                                  className={`border border-border/30 rounded-lg p-2 bg-muted/5 flex items-center justify-between gap-3 ${
-                                    r.disabled ? "opacity-50" : ""
-                                  }`}
+                                  className={`border border-border/30 rounded-lg p-2 bg-muted/5 flex items-center justify-between gap-3 ${r.disabled ? "opacity-50" : ""
+                                    }`}
                                 >
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
@@ -1768,8 +1747,8 @@ export default function SettingsTab() {
                                         {r.placement?.includes(1) && r.placement?.includes(2)
                                           ? "双向"
                                           : r.placement?.includes(1)
-                                          ? "输入"
-                                          : "输出"}
+                                            ? "输入"
+                                            : "输出"}
                                       </span>
                                     </div>
                                     <div className="text-[9.5px] text-muted-foreground font-mono truncate mt-0.5 max-w-[250px]">
@@ -1943,7 +1922,7 @@ export default function SettingsTab() {
                     </div>
 
                     {!settings.promptConfig.customPrompts ||
-                    settings.promptConfig.customPrompts.length === 0 ? (
+                      settings.promptConfig.customPrompts.length === 0 ? (
                       <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
                         <HelpCircle className="w-6 h-6 opacity-50" />
                         <span className="text-xs font-semibold">
@@ -1959,13 +1938,13 @@ export default function SettingsTab() {
                             className="border border-border rounded-lg bg-card overflow-hidden [&[data-state=open]]:border-primary/40 [&[data-state=open]]:shadow-sm [&[data-state=open]]:ring-1 [&[data-state=open]]:ring-primary/10 transition-all duration-200"
                           >
                             <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
-                              <div className="flex items-center gap-2 flex-1">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <Switch
                                   checked={p.enabled}
                                   onCheckedChange={(checked) =>
                                     handleToggleCustomPrompt(p.id, checked)
                                   }
-                                  className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4"
+                                  className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4 shrink-0"
                                 />
                                 <span
                                   className={`text-xs font-bold truncate max-w-[120px] ${p.enabled ? "text-foreground" : "text-muted-foreground opacity-70"}`}
@@ -1977,7 +1956,7 @@ export default function SettingsTab() {
                                 </span>
                               </div>
 
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 shrink-0">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1987,7 +1966,7 @@ export default function SettingsTab() {
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
-                                <AccordionTrigger className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
+                                <AccordionTrigger className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground shrink-0" />
                               </div>
                             </div>
                             <AccordionContent className="p-3 pt-0 border-t border-border/50 bg-background/50 outline-none">
@@ -2259,15 +2238,15 @@ export default function SettingsTab() {
                           <div className="flex justify-end">
                             <button
                               type="button"
-                                onClick={() => {
-                                  updateSettings({
-                                    ...settings,
-                                    memory: {
-                                      ...settings.memory,
-                                      summarySystemPrompt: DEFAULT_SETTINGS.memory.summarySystemPrompt,
-                                    }
-                                  });
-                                }}
+                              onClick={() => {
+                                updateSettings({
+                                  ...settings,
+                                  memory: {
+                                    ...settings.memory,
+                                    summarySystemPrompt: DEFAULT_SETTINGS.memory.summarySystemPrompt,
+                                  }
+                                });
+                              }}
                               className="text-[10px] text-primary font-bold hover:underline"
                             >
                               重置总结指令为系统默认
