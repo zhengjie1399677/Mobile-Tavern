@@ -213,7 +213,7 @@ export default function PresetForm() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {/* 1. 预设选择与管理 */}
       <Card className="glass-panel shadow-sm p-3">
         <div className="flex flex-col gap-2">

@@ -151,7 +151,7 @@ export default function SettingsTab() {
 
   return (
     <div className="px-4 pb-4 pt-1.5 flex flex-col h-full overflow-hidden">
-      <div className="border-b border-border pb-3 mb-3 shrink-0 flex items-center justify-between">
+      <div className="border-b border-border pb-2 mb-2 shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
             <Settings className="w-5 h-5 text-primary" /> 控制面板
@@ -196,11 +196,11 @@ export default function SettingsTab() {
           </TabsTrigger>
         </TabsList>
 
-        <div className="flex-1 overflow-y-auto mt-4 custom-scrollbar pb-10">
+        <div className="flex-1 overflow-y-auto mt-2 custom-scrollbar pb-10">
           {/* 1. GENERAL CONFIG (Theme + API + Persona) */}
           <TabsContent
             value="general"
-            className="space-y-4 m-0 data-[state=inactive]:hidden outline-none"
+            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
           >
 
 
@@ -753,7 +753,7 @@ export default function SettingsTab() {
           {/* PERSONA CONFIG */}
           <TabsContent
             value="persona"
-            className="space-y-4 m-0 data-[state=inactive]:hidden outline-none"
+            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
           >
             <Card className="glass-panel shadow-sm">
               <CardHeader className="pb-3 border-b border-border/50">
@@ -1011,7 +1011,7 @@ export default function SettingsTab() {
           {/* 3. PRESETS */}
           <TabsContent
             value="presets"
-            className="space-y-4 m-0 data-[state=inactive]:hidden outline-none"
+            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
           >
             <PresetForm />
           </TabsContent>
@@ -1019,7 +1019,7 @@ export default function SettingsTab() {
           {/* 4. MEMORY AND STORAGE CONFIG */}
           <TabsContent
             value="memory"
-            className="space-y-4 m-0 data-[state=inactive]:hidden outline-none"
+            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
           >
             <Card className="bg-card border-border shadow-sm">
               <CardHeader className="pb-3 border-b border-border/50">

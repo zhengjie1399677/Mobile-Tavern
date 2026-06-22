@@ -156,6 +156,10 @@
 }
 
 /* Custom scrollbar */
+.custom-scrollbar {
+  scrollbar-gutter: stable;
+}
+
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
