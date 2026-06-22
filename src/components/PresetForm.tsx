@@ -664,7 +664,7 @@ export default function PresetForm() {
                     <button
                       type="button"
                       onClick={() => setIsBatchDeletingPrompts(true)}
-                      className="text-xs font-bold text-rose-500 bg-rose-500/5 hover:bg-rose-500/10 px-2 py-1 rounded border border-rose-500/10 flex items-center gap-1 transition tap-scale"
+                      className="text-xs font-bold text-muted-foreground hover:text-destructive bg-muted/40 hover:bg-destructive/10 px-2 py-1 rounded border border-border hover:border-destructive/20 flex items-center gap-1 transition tap-scale"
                     >
                       批量删除
                     </button>
@@ -891,7 +891,7 @@ export default function PresetForm() {
                       <button
                         type="button"
                         onClick={() => setIsBatchDeletingGlobalRegex(true)}
-                        className="text-[10px] font-bold text-rose-500 bg-rose-500/5 hover:bg-rose-500/10 px-2 py-1 border border-rose-500/10 flex items-center gap-1 transition tap-scale"
+                        className="text-[10px] font-bold text-muted-foreground hover:text-destructive bg-muted/40 hover:bg-destructive/10 px-2 py-1 border border-border hover:border-destructive/20 flex items-center gap-1 transition tap-scale"
                       >
                         批量删除
                       </button>
@@ -1038,7 +1038,7 @@ export default function PresetForm() {
                       <button
                         type="button"
                         onClick={() => setIsBatchDeletingPresetRegex(true)}
-                        className="text-[10px] font-bold text-rose-500 bg-rose-500/5 hover:bg-rose-500/10 px-2 py-1 border border-rose-500/10 flex items-center gap-1 transition tap-scale"
+                        className="text-[10px] font-bold text-muted-foreground hover:text-destructive bg-muted/40 hover:bg-destructive/10 px-2 py-1 border border-border hover:border-destructive/20 flex items-center gap-1 transition tap-scale"
                       >
                         批量删除
                       </button>
