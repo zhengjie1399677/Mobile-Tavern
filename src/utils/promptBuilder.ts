@@ -24,6 +24,20 @@ export function estimateTokens(text: string): number {
 }
 
 /**
+ * Sanitizes name to match OpenAI's validation regex: ^[a-zA-Z0-9_-]{1,64}$
+ */
+export function sanitizeName(name: string): string {
+  if (!name) return "";
+  // Keep only alphanumeric, underscores, and hyphens
+  let sanitized = name.replace(/[^a-zA-Z0-9_-]/g, "_");
+  // Ensure it starts with alphanumeric or underscore/hyphen
+  sanitized = sanitized.replace(/^[^a-zA-Z0-9_-]+/, "");
+  // Limit length to 64 chars
+  sanitized = sanitized.slice(0, 64);
+  return /^[a-zA-Z0-9_-]+$/.test(sanitized) ? sanitized : "";
+}
+
+/**
  * Searches for active worldbook (lorebook) keywords in text.
  * Implements SillyTavern-compatible recursive scanning (max 3 passes) to handle级联 triggers.
  */
@@ -261,7 +275,7 @@ export function assemblePromptContext(params: {
       }
     }
 
-    const rawHistory = activeMessagesToSend.map((msg) => {
+    const rawHistory = activeMessagesToSend.map((msg, idx) => {
       let role: "user" | "model" | "assistant" = "user";
       let content = msg.content;
 
@@ -277,6 +291,10 @@ export function assemblePromptContext(params: {
             macroParams,
           );
           content = `${prefix}${content}${suffix}`;
+        } else {
+          if (idx === 0) {
+            content = `${character.name}: ${content}`;
+          }
         }
       } else if (msg.sender === "system") {
         role = "user";
@@ -299,6 +317,7 @@ export function assemblePromptContext(params: {
       return {
         role,
         content,
+        name: msg.sender === "assistant" ? sanitizeName(character.name) : (msg.sender === "user" ? sanitizeName(settings.userName) : undefined),
       };
     });
 
@@ -676,7 +695,7 @@ ${scenarioBlock}
     }
 
     // Convert Message[] to Gemini or OpenAI structure, applying custom Instruct prefix/suffix templates (e.g. ChatML/Alpaca)
-    const rawHistory = activeMessagesToSend.map((msg) => {
+    const rawHistory = activeMessagesToSend.map((msg, idx) => {
       let role: "user" | "model" | "assistant" = "user";
       let content = msg.content;
 
@@ -692,6 +711,10 @@ ${scenarioBlock}
             macroParams,
           );
           content = `${prefix}${content}${suffix}`;
+        } else {
+          if (idx === 0) {
+            content = `${character.name}: ${content}`;
+          }
         }
       } else if (msg.sender === "system") {
         role = "user";
@@ -714,6 +737,7 @@ ${scenarioBlock}
       return {
         role,
         content,
+        name: msg.sender === "assistant" ? sanitizeName(character.name) : (msg.sender === "user" ? sanitizeName(settings.userName) : undefined),
       };
     });
 

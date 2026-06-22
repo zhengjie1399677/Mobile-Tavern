@@ -55,9 +55,9 @@ async function startServer() {
     try {
       const pkgPath = path.join(resolvedDirname, "package.json");
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-      res.json({ pkgVersion: pkg.version || "1.5.1" });
+      res.json({ pkgVersion: pkg.version || "1.5.5" });
     } catch (e) {
-      res.json({ pkgVersion: "1.5.1" });
+      res.json({ pkgVersion: "1.5.5" });
     }
   });
 
@@ -440,7 +440,7 @@ async function startServer() {
     });
   }
 
-  const HOST = process.env.TAURI_DEV_HOST || "127.0.0.1";
+  const HOST = process.env.TAURI_DEV_HOST || "0.0.0.0";
   app.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST}:${PORT}`);
   });

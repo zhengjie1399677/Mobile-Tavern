@@ -747,10 +747,16 @@ export const useChat = (
                 .filter(Boolean)
                 .join("\n\n"),
             },
-            ...promptPayload.history.map((h) => ({
-              role: h.role === "model" ? "assistant" : h.role,
-              content: h.content,
-            })),
+            ...promptPayload.history.map((h: any) => {
+              const msgObj: any = {
+                role: h.role === "model" ? "assistant" : h.role,
+                content: h.content,
+              };
+              if (h.name) {
+                msgObj.name = h.name;
+              }
+              return msgObj;
+            }),
           ],
           temperature: settings.preset.temperature,
           top_p: settings.preset.topP,
@@ -1222,10 +1228,16 @@ export const useChat = (
                 .filter(Boolean)
                 .join("\n\n"),
             },
-            ...promptPayload.history.map((h) => ({
-              role: h.role === "model" ? "assistant" : h.role,
-              content: h.content,
-            })),
+            ...promptPayload.history.map((h: any) => {
+              const msgObj: any = {
+                role: h.role === "model" ? "assistant" : h.role,
+                content: h.content,
+              };
+              if (h.name) {
+                msgObj.name = h.name;
+              }
+              return msgObj;
+            }),
           ],
           temperature: settings.preset.temperature,
           top_p: settings.preset.topP,

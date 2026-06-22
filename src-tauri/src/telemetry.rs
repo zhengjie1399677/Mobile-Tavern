@@ -30,6 +30,8 @@ pub struct TelemetryLog {
     pub user_agent: String,
     pub language: String,
     pub timezone: String,
+    #[serde(default)]
+    pub app_version: String,
     pub __time__: Option<u64>,
 }
 
@@ -61,9 +63,12 @@ fn get_queue_file_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String>
 }
 
 /// Enqueue a log to local file disk (JSONL format)
-pub fn enqueue_log(app_handle: &tauri::AppHandle, log: TelemetryLog) -> Result<(), String> {
+pub fn enqueue_log(app_handle: &tauri::AppHandle, mut log: TelemetryLog) -> Result<(), String> {
     let _lock = FILE_MUTEX.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
     let path = get_queue_file_path(app_handle)?;
+    
+    // Inject current app version
+    log.app_version = app_handle.package_info().version.to_string();
     
     let log_line = serde_json::to_string(&log)
         .map_err(|e| format!("Serialization error: {}", e))?;
