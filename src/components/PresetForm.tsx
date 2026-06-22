@@ -217,38 +217,27 @@ export default function PresetForm() {
             <select
               className="flex-1 bg-muted/40 border border-border text-xs text-foreground rounded-md px-3 font-semibold h-9 outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
               value={settings.preset.id || ""}
-              onChange={(e) => {
-                if (e.target.value === "new")
-                  handleSaveNewPresetBundle();
-                else handleLoadPresetBundle(e.target.value);
-              }}
+              onChange={(e) => handleLoadPresetBundle(e.target.value)}
             >
               <option value="" disabled>
                 当前预设: {settings.preset.name}
               </option>
-              <optgroup label="系统内置预设">
-                {Object.values(DEFAULT_PRESETS).map((p: any) => (
-                  <option key={p.id} value={p.id}>
-                    ⚙️ {p.name}
-                  </option>
-                ))}
-              </optgroup>
-              {(settings.savedPresets || []).length > 0 && (
-                <optgroup label="用户自定义预设">
-                  {(settings.savedPresets || []).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      📄 {p.preset.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              <option
-                value="new"
-                className="text-primary font-bold"
-              >
-                ➕ 另存当前配置为新预设副本...
+              <option value="default">
+                ⚙️ 基本预设
               </option>
+              {(settings.savedPresets || []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  📄 {p.preset.name}
+                </option>
+              ))}
             </select>
+            <button
+              onClick={handleSaveNewPresetBundle}
+              title="另存为新预设副本"
+              className="shrink-0 bg-primary/10 border border-primary/20 hover:border-primary/30 text-primary p-2 rounded-md transition tap-scale flex items-center justify-center"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
             <button
               onClick={() =>
                 handleDeletePresetBundle(settings.preset.id)
@@ -256,10 +245,11 @@ export default function PresetForm() {
               disabled={
                 (settings.savedPresets || []).length === 0 ||
                 !settings.preset.id ||
+                settings.preset.id === "default" ||
                 Object.keys(DEFAULT_PRESETS).includes(settings.preset.id)
               }
               title="删除当前自定义预设"
-              className="shrink-0 bg-destructive/10 border border-destructive/20 text-destructive disabled:opacity-20 disabled:bg-muted/30 disabled:border-transparent p-2 rounded-md transition tap-scale"
+              className="shrink-0 bg-muted hover:bg-destructive/10 border border-border hover:border-destructive/20 text-muted-foreground hover:text-destructive disabled:opacity-20 disabled:bg-muted/30 disabled:border-transparent p-2 rounded-md transition tap-scale flex items-center justify-center"
             >
               <Trash2 className="w-4 h-4" />
             </button>
