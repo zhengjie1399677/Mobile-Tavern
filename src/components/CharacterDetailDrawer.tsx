@@ -87,16 +87,16 @@ export default function CharacterDetailDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center select-none">
-      {/* Dark overlay with backdrop blur */}
+      {/* Dark overlay without backdrop blur (Performance optimized for mobile) */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        className="absolute inset-0 bg-black/55 transition-opacity"
         onClick={onClose}
       />
 
-      {/* Glassmorphic drawer sliding up */}
+      {/* Drawer sliding up with hardware acceleration */}
       <div
         style={{ paddingBottom: `${safeAreas?.bottom ?? 0}px` }}
-        className="w-full max-w-lg bg-background/95 backdrop-blur-lg border-t border-border/50 rounded-t-3xl shadow-2xl z-10 flex flex-col max-h-[85vh] transition-transform animate-in slide-in-from-bottom duration-300"
+        className="w-full max-w-lg bg-background border-t border-border/50 rounded-t-3xl shadow-2xl z-10 flex flex-col max-h-[85vh] transition-transform animate-in slide-in-from-bottom duration-300 will-change-transform"
       >
         
         {/* Header decoration bar */}

@@ -4,6 +4,7 @@ import {
   Settings,
   Plus,
   Trash2,
+  MessageSquare,
   Brain,
   Download,
   Upload,
@@ -16,7 +17,11 @@ import {
   Sparkles,
   Plug,
   Puzzle,
+  Check,
+  FileJson,
+  SlidersHorizontal,
 } from "lucide-react";
+import { compressImage } from "../utils/imageCompressor";
 
 import { DEFAULT_PRESETS } from "../App";
 import { DEFAULT_SETTINGS } from "../hooks/useSettings";
@@ -102,12 +107,14 @@ export default function SettingsTab() {
     handleSaveNewPresetBundle,
     handleLoadPresetBundle,
     handleDeletePresetBundle,
+    handleDeletePresetBundles,
     handleToggleCustomPrompt,
     handleUpdateCustomPrompt,
     handleAddNewCustomPrompt,
     handleDeleteCustomPrompt,
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
+    handleImportSillyChatHistory,
     connectionStatus,
     testApiConnection,
     setActiveTab,
@@ -148,6 +155,9 @@ export default function SettingsTab() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
             <Settings className="w-5 h-5 text-primary" /> 控制面板
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold select-none ml-2 animate-pulse">
+              v1.5.5
+            </span>
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             系统参数与颗粒化规则调节
@@ -426,7 +436,7 @@ export default function SettingsTab() {
                       {settings.api.savedUrls && settings.api.savedUrls.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => updateSettings((prev) => ({ ...prev, api: { ...prev.api, savedUrls: [] }}))}
+                          onClick={() => updateSettings((prev) => ({ ...prev, api: { ...prev.api, savedUrls: [] } }))}
                           className="text-[9px] bg-destructive/10 hover:bg-destructive/20 text-destructive px-1.5 py-0.5 rounded border border-destructive/20 ml-auto"
                         >
                           清空记录
@@ -580,12 +590,12 @@ export default function SettingsTab() {
                       {currentTheme === "snow"
                         ? "极简纯白"
                         : currentTheme === "sand"
-                        ? "浅沙暮色"
-                        : currentTheme === "ocean"
-                        ? "荧光深海"
-                        : currentTheme === "obsidian"
-                        ? "黑曜石暗黑"
-                        : "选择主题"}
+                          ? "浅沙暮色"
+                          : currentTheme === "ocean"
+                            ? "荧光深海"
+                            : currentTheme === "obsidian"
+                              ? "黑曜石暗黑"
+                              : "选择主题"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -626,11 +636,17 @@ export default function SettingsTab() {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              updateSettings({ ...settings, globalChatBg: reader.result as string });
-                            };
-                            reader.readAsDataURL(file);
+                            if (file.size > 5 * 1024 * 1024) {
+                              showCustomAlert("⚠️ 上传失败：背景图片大小不能超过 5MB！");
+                              return;
+                            }
+                            compressImage(file, 1080, 1920, 0.75, "image/jpeg")
+                              .then((base64) => {
+                                updateSettings({ ...settings, globalChatBg: base64 });
+                              })
+                              .catch((err) => {
+                                showCustomAlert("⚠️ 图片压缩失败：" + err.message);
+                              });
                           }
                         }}
                       />
@@ -649,69 +665,40 @@ export default function SettingsTab() {
 
                 {/* 背景参数自定义选项与动效控制 */}
                 <div className="mt-4 pt-4 border-t border-border/50 space-y-4.5">
-                  {/* 模糊度调节（三档选项） */}
+                  {/* 变暗与模糊融合度调节（合并为单一选项，三档调节） */}
                   <div className="space-y-2">
                     <label className="text-[11px] font-semibold text-muted-foreground block">
-                      背景图片模糊程度
+                      聊天背景融合效果
                     </label>
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        { label: "清晰 (0px)", value: 0 },
-                        { label: "适中 (10px)", value: 10 },
-                        { label: "模糊 (25px)", value: 25 },
+                        { label: "清晰 (原图)", blur: 0, dim: 0, key: "clear" },
+                        { label: "适中 (融合)", blur: 0, dim: 45, key: "medium" },
+                        { label: "深色 (磨砂)", blur: 20, dim: 80, key: "dark" },
                       ].map((opt) => {
-                        const active = (settings.chatBackgroundBlur ?? 10) === opt.value;
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() =>
-                              updateSettings((prev) => ({
-                                ...prev,
-                                chatBackgroundBlur: opt.value,
-                              }))
-                            }
-                            className={`py-2 px-1 rounded text-xs border text-center transition-all ${
-                              active
-                                ? "bg-primary/20 border-primary text-primary font-semibold"
-                                : "bg-muted/40 border-border/45 text-muted-foreground hover:bg-muted/65"
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                        const currentDim = settings.chatBackgroundDim ?? 50;
+                        const active =
+                          opt.key === "clear"
+                            ? currentDim <= 20
+                            : opt.key === "medium"
+                              ? currentDim > 20 && currentDim <= 65
+                              : currentDim > 65;
 
-                  {/* 变暗融合度调节（四档选项） */}
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-semibold text-muted-foreground block">
-                      背景融合变暗程度
-                    </label>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {[
-                        { label: "原色 (0%)", value: 0 },
-                        { label: "微暗 (20%)", value: 20 },
-                        { label: "适中 (50%)", value: 50 },
-                        { label: "幽暗 (85%)", value: 85 },
-                      ].map((opt) => {
-                        const active = (settings.chatBackgroundDim ?? 50) === opt.value;
                         return (
                           <button
-                            key={opt.value}
+                            key={opt.key}
                             type="button"
                             onClick={() =>
                               updateSettings((prev) => ({
                                 ...prev,
-                                chatBackgroundDim: opt.value,
+                                chatBackgroundBlur: opt.blur,
+                                chatBackgroundDim: opt.dim,
                               }))
                             }
-                            className={`py-2 px-0.5 rounded text-[10px] border text-center transition-all ${
-                              active
+                            className={`py-2 px-0.5 rounded text-[10px] border text-center transition-all ${active
                                 ? "bg-primary/20 border-primary text-primary font-semibold"
                                 : "bg-muted/40 border-border/45 text-muted-foreground hover:bg-muted/65"
-                            }`}
+                              }`}
                           >
                             {opt.label}
                           </button>
@@ -875,11 +862,17 @@ export default function SettingsTab() {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              updateSettings({ ...settings, userAvatar: reader.result as string });
-                            };
-                            reader.readAsDataURL(file);
+                            if (file.size > 5 * 1024 * 1024) {
+                              showCustomAlert("⚠️ 上传失败：头像图片大小不能超过 5MB！");
+                              return;
+                            }
+                            compressImage(file, 400, 400, 0.8, "image/png")
+                              .then((base64) => {
+                                updateSettings({ ...settings, userAvatar: base64 });
+                              })
+                              .catch((err) => {
+                                showCustomAlert("⚠️ 图片压缩失败：" + err.message);
+                              });
                           }
                         }}
                       />
@@ -1216,15 +1209,15 @@ export default function SettingsTab() {
                           <div className="flex justify-end">
                             <button
                               type="button"
-                                onClick={() => {
-                                  updateSettings({
-                                    ...settings,
-                                    memory: {
-                                      ...settings.memory,
-                                      summarySystemPrompt: DEFAULT_SETTINGS.memory.summarySystemPrompt,
-                                    }
-                                  });
-                                }}
+                              onClick={() => {
+                                updateSettings({
+                                  ...settings,
+                                  memory: {
+                                    ...settings.memory,
+                                    summarySystemPrompt: DEFAULT_SETTINGS.memory.summarySystemPrompt,
+                                  }
+                                });
+                              }}
                               className="text-[10px] text-primary font-bold hover:underline"
                             >
                               重置总结指令为系统默认
@@ -1318,11 +1311,40 @@ export default function SettingsTab() {
               )}
             </Card>
 
+            <Card className="bg-card border-border shadow-sm mt-4">
+              <CardHeader className="pb-3 border-b border-border/50">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-primary" /> 导入酒馆单会话聊天记录
+                </CardTitle>
+                <CardDescription className="text-[11px]">
+                  导入 SillyTavern 单个角色的聊天记录 (.json/.jsonl) 格式文件
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  系统将解析对话记录并与本地角色卡进行绑定。如果本地未导入对应的角色卡，会提示先导入角色卡。
+                  <br />
+                  <span className="text-primary font-medium">提示：</span>导入后系统默认关闭这些历史句子的自动总结功能，以避免 API 频宽雪崩。
+                </p>
+                <div className="flex font-bold text-xs">
+                  <label className="w-full bg-background hover:bg-muted border border-border shadow-sm text-foreground py-2 rounded-md transition flex justify-center items-center gap-1.5 cursor-pointer">
+                    <Upload className="w-3.5 h-3.5 text-emerald-500" /> 选择聊天文件并导入
+                    <input
+                      type="file"
+                      onChange={handleImportSillyChatHistory}
+                      accept=".json,.jsonl"
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </CardContent>
+            </Card>
+
             <UsageDisplay />
 
             <div className="mt-8 text-center space-y-1 pb-4 opacity-50 select-text">
               <p className="text-[10px] text-muted-foreground font-mono">
-                安装包版本: v1.5.0 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
+                安装包版本: v1.5.5 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
               </p>
               <p className="text-[9px] text-muted-foreground/80 font-mono">
                 诊断设备型号: {deviceModel}

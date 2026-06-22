@@ -694,10 +694,14 @@ if (typeof window !== "undefined") {
     _errorCatched: () => {},
     _getIframeName: () => "TH-message-iframe",
     _getScriptId: () => "script_default",
-    _getCurrentMessageId: () => {
+    _getCurrentMessageId(callerMsgId?: number) {
+      if (callerMsgId !== undefined && !isNaN(Number(callerMsgId))) {
+        return Number(callerMsgId);
+      }
       return (bridgeParams?.activeSession?.messages?.length || 1) - 1;
     },
     _getVariables(opt: any = { type: "chat" }) {
+      console.log("[TavernHelper Bridge] _getVariables called with:", JSON.stringify(opt));
       if (!bridgeParams) return {};
       const { activeCharacter, settings, activeSession } = bridgeParams;
       if (opt.type === "character") return activeCharacter?.variables || {};
@@ -711,7 +715,20 @@ if (typeof window !== "undefined") {
           if (!msg.extra) msg.extra = {};
           if (!msg.extra.variables) msg.extra.variables = {};
           if (!msg.extra.variables[swipeId]) msg.extra.variables[swipeId] = {};
-          return msg.extra.variables[swipeId];
+          
+          // 兜底保护：开场白（第0条消息）变量为空时，使用当前会话变量进行无痛兼容初始化
+          if (msgId === 0 && Object.keys(msg.extra.variables[swipeId]).length === 0 && activeSession?.variables) {
+            msg.extra.variables[swipeId] = { ...activeSession.variables };
+            console.log("[TavernHelper Bridge] _getVariables Fallback triggered for msgId 0. Copying session vars:", JSON.stringify(activeSession.variables));
+          }
+          
+          const resolvedVars = msg.extra.variables[swipeId];
+          if (resolvedVars && !resolvedVars.stat_data) {
+            resolvedVars.stat_data = {};
+          }
+          
+          console.log("[TavernHelper Bridge] _getVariables resolved msgId:", msgId, "swipeId:", swipeId, "variables:", JSON.stringify(resolvedVars));
+          return resolvedVars;
         }
         return {};
       }
@@ -727,6 +744,7 @@ if (typeof window !== "undefined") {
       };
     },
     _replaceVariables(variables: Record<string, any>, opt: any = { type: "chat" }) {
+      console.log("[TavernHelper Bridge] _replaceVariables called with opt:", JSON.stringify(opt), "variables:", JSON.stringify(variables));
       if (!bridgeParams) return;
       const { activeCharacter, settings, activeSession, setCharacters, saveCharacter, updateSettings, setSessions, saveSession } = bridgeParams;
       if (opt.type === "character" && activeCharacter) {
@@ -1918,7 +1936,24 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
       (function(n, bk) {
         if (typeof bind[bk] === 'function') {
           window[n] = function() {
-            return bind[bk].apply(bind, arguments);
+            var args = Array.prototype.slice.call(arguments);
+            if (n === 'getCurrentMessageId' && args.length === 0) {
+              args.push(window.__TH_MESSAGE_ID);
+            } else if (n === 'getVariables' || n === 'replaceVariables') {
+              if (window.__TH_MESSAGE_ID !== undefined) {
+                if (args.length === 0) {
+                  args.push({ type: 'message', message_id: window.__TH_MESSAGE_ID });
+                } else if (args[0] && (args[0].type === 'chat' || args[0].type === 'message' || args[0].type === undefined)) {
+                  args[0].type = 'message';
+                  if (args[0].message_id === undefined) {
+                    args[0].message_id = window.__TH_MESSAGE_ID;
+                  }
+                }
+              }
+            } else if (n === 'setChatMessage' && args.length > 0 && (args[0] === undefined || args[0] === null || isNaN(Number(args[0])))) {
+              args[0] = window.__TH_MESSAGE_ID;
+            }
+            return bind[bk].apply(bind, args);
           };
           definedCount++;
         }
@@ -2020,8 +2055,14 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
       result = result.merge.apply(result,
         Object.entries(TavernHelper._bind || {}).map(function(entry) {
           var key = entry[0], value = entry[1];
+          var cleanKey = key.replace('_', '');
+          if (typeof window[cleanKey] === 'function') {
+            var obj = {};
+            obj[cleanKey] = window[cleanKey];
+            return obj;
+          }
           var obj = {};
-          obj[key.replace('_', '')] = typeof value === 'function' ? value.bind(window) : value;
+          obj[cleanKey] = typeof value === 'function' ? value.bind(window) : value;
           return obj;
         })
       );
@@ -2111,7 +2152,7 @@ ${cleanContent}
 
 }
 
-export function createMessageIframeSrcDoc(htmlContent: string): string {
+export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: number): string {
   let processedHtml = htmlContent;
   
   // Preprocess any script tags in the HTML content to replace CDN imports with local TavernHelperMvuLibs lookups
@@ -2128,6 +2169,9 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
   const hasHtmlTag = /<html/i.test(processedHtml);
 
   const scriptInjects = `
+<script>
+  window.__TH_MESSAGE_ID = ${messageIndex !== undefined ? messageIndex : 'undefined'};
+</script>
 <script>
   // ─── Inherit libraries from parent window (NO external CDN requests) ───
   window._ = window.parent._;
@@ -2258,7 +2302,31 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
     window.showdown = window.parent.showdown;
     window.toastr = window.parent.toastr;
     window.EjsTemplate = window.parent.EjsTemplate;
-    window.TavernHelper = TavernHelper;
+    window.TavernHelper = new Proxy(TavernHelper, {
+      get: function(target, prop) {
+        if (typeof window[prop] === 'function') {
+          return window[prop];
+        }
+        if (prop === 'getContext') {
+          return function() {
+            var parentContext = target.getContext();
+            return new Proxy(parentContext, {
+              get: function(ctxTarget, ctxProp) {
+                if (ctxProp === 'writeExtensionField') {
+                  return window._th_impl && window._th_impl.writeExtensionField;
+                }
+                return ctxTarget[ctxProp];
+              }
+            });
+          };
+        }
+        var val = target[prop];
+        if (typeof val === 'function') {
+          return val.bind(target);
+        }
+        return val;
+      }
+    });
     window.tavern_events = window.parent.tavern_events;
     window.appendInexistentScriptButtons = window.parent.appendInexistentScriptButtons;
     window.getScriptButtons = window.parent.getScriptButtons;
@@ -2271,8 +2339,14 @@ export function createMessageIframeSrcDoc(htmlContent: string): string {
       result = result.merge.apply(result,
         Object.entries(TavernHelper._bind || {}).map(function(entry) {
           var key = entry[0], value = entry[1];
+          var cleanKey = key.replace('_', '');
+          if (typeof window[cleanKey] === 'function') {
+            var obj = {};
+            obj[cleanKey] = window[cleanKey];
+            return obj;
+          }
           var obj = {};
-          obj[key.replace('_', '')] = typeof value === 'function' ? value.bind(window) : value;
+          obj[cleanKey] = typeof value === 'function' ? value.bind(window) : value;
           return obj;
         })
       );

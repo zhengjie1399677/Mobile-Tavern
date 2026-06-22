@@ -116,7 +116,7 @@ export default function GlobalWorldbookTab() {
 
     // Standard raw copy of lore entry
     const cleanEntry: LorebookEntry = {
-      id: entry.id,
+      id: String(entry.id),
       keys: entry.keys || [],
       content: entry.content || "",
       constant: !!entry.constant,
@@ -134,12 +134,12 @@ export default function GlobalWorldbookTab() {
     // 1. Delete from source host
     let nextGlobals = [...globalLorebook];
     if (fromHostId === "global") {
-      nextGlobals = nextGlobals.filter((e) => e.id !== entry.id);
+      nextGlobals = nextGlobals.filter((e) => String(e.id) !== String(entry.id));
     } else {
       const srcChar = characters.find((c) => c.id === fromHostId);
       if (srcChar) {
         const nextLocals = (srcChar.lorebookEntries || []).filter(
-          (e) => e.id !== entry.id,
+          (e) => String(e.id) !== String(entry.id),
         );
         const updated = { ...srcChar, lorebookEntries: nextLocals };
         setCharacters((prev: CharacterCard[]) =>
@@ -151,7 +151,7 @@ export default function GlobalWorldbookTab() {
 
     // 2. Add to destination host
     if (toHostId === "global") {
-      if (!nextGlobals.some((e) => e.id === entry.id)) {
+      if (!nextGlobals.some((e) => String(e.id) === String(entry.id))) {
         nextGlobals.push(cleanEntry);
       }
       setGlobalLorebook(nextGlobals);
@@ -160,7 +160,7 @@ export default function GlobalWorldbookTab() {
       const destChar = characters.find((c) => c.id === toHostId);
       if (destChar) {
         const nextLocals = [...(destChar.lorebookEntries || [])];
-        if (!nextLocals.some((e) => e.id === entry.id)) {
+        if (!nextLocals.some((e) => String(e.id) === String(entry.id))) {
           nextLocals.push(cleanEntry);
         }
         const updated = { ...destChar, lorebookEntries: nextLocals };
@@ -181,19 +181,34 @@ export default function GlobalWorldbookTab() {
   // Launch editing in-place inside the list item itself
   const startInlineEdit = (entry: LorebookEntry) => {
     setEditingId(entry.id);
+    
+    // 强制防腐清洗 keys 属性，绝对防止 React 渲染输入框 value 时因为遇到 Object 发生致命崩溃
+    let cleanedKeys: string[] = [];
+    if (Array.isArray(entry.keys)) {
+      cleanedKeys = entry.keys.map(k => typeof k === "string" ? k : String(k || ""));
+    } else if (typeof entry.keys === "string") {
+      cleanedKeys = (entry.keys as string).split(",").map(k => k.trim()).filter(Boolean);
+    } else if (entry.keys && typeof entry.keys === "object") {
+      try {
+        cleanedKeys = Object.values(entry.keys).map(v => String(v || "")).filter(Boolean);
+      } catch (e) {
+        cleanedKeys = [];
+      }
+    }
+
     setEditForm({
       id: entry.id,
-      comment: entry.comment || "",
-      keys: entry.keys || [],
-      content: entry.content || "",
+      comment: String(entry.comment || ""),
+      keys: cleanedKeys,
+      content: String(entry.content || ""),
       constant: !!entry.constant,
       disabled: entry.disabled ?? !entry.enabled,
       useRegex: !!entry.useRegex,
       addMemo: !!entry.addMemo,
       position: entry.position || "after_char_def",
-      depth: entry.depth !== undefined ? entry.depth : 4,
-      order: entry.order !== undefined ? entry.order : 100,
-      probability: entry.probability !== undefined ? entry.probability : 100,
+      depth: typeof entry.depth === "number" && !isNaN(entry.depth) ? entry.depth : (Number(entry.depth) || 4),
+      order: typeof entry.order === "number" && !isNaN(entry.order) ? entry.order : (Number(entry.order) || 100),
+      probability: typeof entry.probability === "number" && !isNaN(entry.probability) ? entry.probability : (Number(entry.probability) || 100),
       isGlobal: activeHostId === "global",
       targetOwnerId: activeHostId === "global" ? "" : activeHostId,
     });
@@ -208,9 +223,9 @@ export default function GlobalWorldbookTab() {
     }
 
     const nextKeys = parseKeys(editForm.keys || []);
-    const entryDataId = id.startsWith("new_inline_temp")
+    const entryDataId = String(id || "").startsWith("new_inline_temp")
       ? "le_" + Math.random().toString(36).substring(2, 9)
-      : id;
+      : String(id);
 
     const baseEntry: LorebookEntry = {
       id: entryDataId,
@@ -237,7 +252,7 @@ export default function GlobalWorldbookTab() {
       : editForm.targetOwnerId || characters[0]?.id;
 
     // Swap hosts if changing! Check if it's a completely new one
-    if (id.startsWith("new_inline_temp")) {
+    if (String(id || "").startsWith("new_inline_temp")) {
       // Just save to target directly
       if (targetHostId === "global") {
         const nextGlobals = [...globalLorebook, baseEntry];
@@ -260,7 +275,7 @@ export default function GlobalWorldbookTab() {
         // Simple update in current host
         if (activeHostId === "global") {
           const nextGlobals = globalLorebook.map((e) =>
-            e.id === entryDataId ? baseEntry : e,
+            String(e.id) === String(entryDataId) ? baseEntry : e,
           );
           setGlobalLorebook(nextGlobals);
           await saveGlobalLorebook(nextGlobals);
@@ -268,7 +283,7 @@ export default function GlobalWorldbookTab() {
           const targetChar = characters.find((c) => c.id === activeHostId);
           if (targetChar) {
             const nextLocals = (targetChar.lorebookEntries || []).map((e) =>
-              e.id === entryDataId ? baseEntry : e,
+              String(e.id) === String(entryDataId) ? baseEntry : e,
             );
             const updated = { ...targetChar, lorebookEntries: nextLocals };
             setCharacters((prev: CharacterCard[]) =>
@@ -317,14 +332,14 @@ export default function GlobalWorldbookTab() {
     if (!ok) return;
 
     if (activeHostId === "global") {
-      const next = globalLorebook.filter((e) => e.id !== entry.id);
+      const next = globalLorebook.filter((e) => String(e.id) !== String(entry.id));
       setGlobalLorebook(next);
       await saveGlobalLorebook(next);
     } else {
       const srcChar = characters.find((c) => c.id === activeHostId);
       if (srcChar) {
         const nextLocals = (srcChar.lorebookEntries || []).filter(
-          (e) => e.id !== entry.id,
+          (e) => String(e.id) !== String(entry.id),
         );
         const updated = { ...srcChar, lorebookEntries: nextLocals };
         setCharacters((prev: CharacterCard[]) =>
@@ -885,7 +900,8 @@ export default function GlobalWorldbookTab() {
             const isEditingType = editingId === entry.id;
             const entryLabel =
               entry.comment ||
-              (entry.keys && entry.keys.slice(0, 3).join(", ")) ||
+              (Array.isArray(entry.keys) && entry.keys.slice(0, 3).join(", ")) ||
+              (typeof entry.keys === "string" && entry.keys) ||
               "未命名设定";
             const isEntryGlobal = activeHostId === "global";
 
@@ -1037,9 +1053,11 @@ export default function GlobalWorldbookTab() {
                               触发关键词:{" "}
                             </span>
                             <span className="text-foreground font-medium">
-                              {entry.keys && entry.keys.length > 0
+                              {Array.isArray(entry.keys) && entry.keys.length > 0
                                 ? entry.keys.join(", ")
-                                : "(空)"}
+                                : typeof entry.keys === "string" && (entry.keys as string).trim()
+                                  ? entry.keys
+                                  : "(空)"}
                             </span>
                           </div>
                           <div>
@@ -1111,7 +1129,24 @@ export default function GlobalWorldbookTab() {
 
   // Reusable inline template editor for creating and editing records inside dossier scopes
   function renderInlineForm(id: string) {
-    const isNew = id.startsWith("new_inline_temp");
+    const isNew = String(id || "").startsWith("new_inline_temp");
+
+    const safeRenderKeys = (keys: any): string => {
+      if (Array.isArray(keys)) {
+        return keys.map(k => typeof k === "string" ? k : String(k || "")).join(", ");
+      }
+      if (typeof keys === "string") {
+        return keys;
+      }
+      if (keys && typeof keys === "object") {
+        try {
+          return Object.values(keys).map(v => String(v || "")).join(", ");
+        } catch (e) {
+          return "";
+        }
+      }
+      return String(keys || "");
+    };
 
     return (
       <div className="space-y-3.5 text-xs animate-fadeIn">
@@ -1138,13 +1173,7 @@ export default function GlobalWorldbookTab() {
             <input
               type="text"
               placeholder="契约, 咒印, 终焉"
-              value={
-                editForm.keys
-                  ? Array.isArray(editForm.keys)
-                    ? editForm.keys.join(", ")
-                    : (editForm.keys as unknown as string)
-                  : ""
-              }
+              value={safeRenderKeys(editForm.keys)}
               onChange={(e) =>
                 setEditForm((prev) => ({
                   ...prev,

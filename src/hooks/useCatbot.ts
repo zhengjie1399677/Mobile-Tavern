@@ -30,7 +30,7 @@ let globalState: CatbotGlobalState = {
     {
       id: "welcome",
       role: "assistant",
-      content: "喵呜~ 我是一只住在你手机里、专门帮你管酒馆的小懒猫雪团喵！🐾 双击本喵可以快捷打开/收起这个大面板。如果遇到什么配置问题，或者单纯想摸摸本喵闲聊，随时在这里打字告诉我喵！✨",
+      content: "喵呜~ 我是一只住在你手机里、专门帮你管酒馆的小懒猫雪团喵！🐾 长按本喵可以快捷打开/收起这个大面板。如果遇到什么配置问题，或者单纯想摸摸本喵闲聊，随时在这里打字告诉我喵！✨",
       timestamp: Date.now(),
     },
   ],
@@ -54,7 +54,7 @@ const DEFAULT_CAT_RESPONSES = {
     "不要一直点人家啦，爪子要伸出来了喵！",
     "本喵正在巡逻酒馆，没有偷懒喵！",
     "偷偷告诉你，酒馆里的角色卡其实都藏在 IndexedDB 抽屉里喵~",
-    "摸摸本喵的头可以获得双倍的好运喵！(双击本喵可以提问喵~)",
+    "摸摸本喵的头可以获得双倍的好运喵！(长按本喵可以提问喵~)",
     "呼噜噜……好舒服喵，再摸一下嘛~",
     "如果你发现AI不理你了，记得去设置里点下【测试 API】检查一下喵！",
     "咕噜咕噜……（小猫舒服地眯起了眼睛）",
@@ -64,7 +64,7 @@ const DEFAULT_CAT_RESPONSES = {
     "（伸出爪子轻轻拍了拍你的手）喂，不要只顾着和角色卡聊天，也多跟本喵说说话嘛喵~",
     "据说把状态栏调成适合主题的颜色，酒馆的视觉效果会更好看哦喵！",
     "大拇指单手操作很方便吧？这是本喵特意为你优化的底部交互布局喵！",
-    "喵？要本喵给你倒一杯牛奶，还是双击本喵向我提问喵？",
+    "喵？要本喵给你倒一杯牛奶，还是长按本喵向我提问喵？",
     "如果遇到了奇怪的解析错误，可以看看文件是不是 SillyTavern 标准的 PNG 格式喵。",
     "哎呀，不要戳本喵的肉垫，好痒的喵！🐾",
     "（抖了抖耳朵）你刚才是不是悄悄叹气了？有什么烦恼可以跟本喵聊聊喵~",
@@ -176,7 +176,7 @@ export function useCatbot() {
     const hasShownWelcome = sessionStorage.getItem("catbot_shown_welcome");
     if (!hasShownWelcome) {
       setTimeout(() => {
-        showTemporaryBubble("喵呜~ 我是一只住在你手机里的雪团助手。双击本喵可以提问，单击可以摸摸我喵！🐾", "idle", 6000);
+        showTemporaryBubble("喵呜~ 我是一只住在你手机里的雪团助手。长按本喵可以提问，单击可以摸摸我喵！🐾", "idle", 6000);
         sessionStorage.setItem("catbot_shown_welcome", "true");
       }, 1000);
     }
@@ -268,7 +268,7 @@ export function useCatbot() {
         deviceId: getDeviceId(),
         userName: settings?.userName || "未知",
         phoneModel: typeof navigator !== "undefined" ? navigator.userAgent : "Unknown",
-        appVersion: "1.5.0",
+        appVersion: "1.5.5",
         isTauri: apiClient.isClientMode(),
         apiBaseUrl: settings?.api?.baseUrl || "",
         apiModel: settings?.api?.modelName || "",

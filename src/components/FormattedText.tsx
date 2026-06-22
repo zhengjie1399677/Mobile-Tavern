@@ -1,4 +1,4 @@
-import React, { useContext, memo } from "react";
+import React, { useContext, memo, useState } from "react";
 import { AppContext } from "../AppContext";
 import { createMessageIframeSrcDoc } from "../utils/tavernHelperBridge";
 
@@ -7,6 +7,7 @@ interface FormattedTextProps {
   charName: string;
   userName?: string;
   className?: string;
+  messageIndex?: number;
 }
 
 function parseStyleString(styleStr: string): React.CSSProperties {
@@ -139,7 +140,8 @@ function domToReact(
   index: number, 
   enableAsteriskFormatting: boolean,
   enableScriptExecution: boolean,
-  activeCharacter: any
+  activeCharacter: any,
+  messageIndex?: number
 ): React.ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
     return renderTextNode(node.nodeValue || "", enableAsteriskFormatting);
@@ -170,7 +172,7 @@ function domToReact(
       return null;
     }
     return Array.from(element.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex)
     );
   }
 
@@ -215,6 +217,11 @@ function domToReact(
             resolvedSrcdoc = resolvedSrcdoc.replace(match, resolvedUrl);
           });
         }
+
+        // Apply bridge injection if it's a raw un-injected iframe
+        if (enableScriptExecution && !resolvedSrcdoc.includes("window.__TH_MESSAGE_ID")) {
+          resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex);
+        }
         
         // Diagnostic: log the srcdoc length and whether it was processed by createMessageIframeSrcDoc
         const hasThBridgeInject = resolvedSrcdoc.includes('TavernHelper');
@@ -236,23 +243,42 @@ function domToReact(
   // Force strict sandboxing for iframe tags
   if (tagName === "iframe") {
     props.sandbox = "allow-scripts allow-same-origin allow-modals";
+    if (!props.id && messageIndex !== undefined) {
+      props.id = `TH-msg-iframe-${messageIndex}`;
+      props.name = `TH-msg-iframe-${messageIndex}`;
+    }
+    // Force React to destroy and recreate the iframe element when the character or message context changes
+    const charId = activeCharacter?.id || "default-char";
+    props.key = `iframe-${charId}-${messageIndex !== undefined ? messageIndex : "temp"}-${index}`;
   }
 
   const children = Array.from(element.childNodes).map((child, i) => 
-    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter)
+    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex)
   );
-  return React.createElement(
+  
+  const reactElement = React.createElement(
     tagName,
     props,
     children.length > 0 ? children : null,
   );
+
+  if (tagName === "table") {
+    return (
+      <div key={index} className="w-full overflow-x-auto my-2 border border-border/40 rounded-lg custom-scrollbar max-w-full">
+        {reactElement}
+      </div>
+    );
+  }
+
+  return reactElement;
 }
 
 function parseSafeHtmlToReact(
   html: string, 
   enableAsteriskFormatting: boolean,
   enableScriptExecution: boolean,
-  activeCharacter: any
+  activeCharacter: any,
+  messageIndex?: number
 ): React.ReactNode {
   try {
     const parser = new DOMParser();
@@ -261,12 +287,89 @@ function parseSafeHtmlToReact(
     if (!container) return html;
 
     return Array.from(container.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex)
     );
   } catch (err) {
     console.error("Failed to parse HTML safely:", err);
     return html;
   }
+}
+
+function convertMarkdownTablesToHtml(text: string): string {
+  if (!text.includes("|")) return text;
+
+  const lines = text.split("\n");
+  const processedLines: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+
+    // 检查是否可能是一个表格的开始
+    if (trimmedLine.includes("|") && i + 1 < lines.length) {
+      const nextLine = lines[i + 1].trim();
+      // 分隔行检测：必须包含至少一个 '|' 和 '-'，且不能含有其它非分隔符字符
+      const isSeparator = nextLine.includes("|") && nextLine.includes("-") && /^[|:\-\s]+$/.test(nextLine);
+
+      if (isSeparator) {
+        // 提取单元格工具函数
+        const splitRow = (rowText: string) => {
+          let t = rowText.trim();
+          if (t.startsWith("|")) t = t.slice(1);
+          if (t.endsWith("|")) t = t.slice(0, -1);
+          return t.split("|").map(cell => cell.trim());
+        };
+
+        const headers = splitRow(trimmedLine);
+        const separators = splitRow(nextLine);
+        
+        const alignments = separators.map(s => {
+          const left = s.startsWith(":");
+          const right = s.endsWith(":");
+          if (left && right) return "center";
+          if (right) return "right";
+          return "left";
+        });
+
+        let tableHtml = `<table class="mvu-markdown-table"><thead><tr>`;
+        headers.forEach((h, idx) => {
+          const align = alignments[idx] || "left";
+          tableHtml += `<th style="text-align: ${align}">${h}</th>`;
+        });
+        tableHtml += `</tr></thead><tbody>`;
+
+        i += 2; // 跳过表头和分隔行
+
+        // 读取数据行
+        while (i < lines.length) {
+          const dataLine = lines[i].trim();
+          if (dataLine.includes("|")) {
+            const cells = splitRow(dataLine);
+            tableHtml += `<tr>`;
+            for (let cIdx = 0; cIdx < headers.length; cIdx++) {
+              const cellVal = cells[cIdx] || "";
+              const align = alignments[cIdx] || "left";
+              tableHtml += `<td style="text-align: ${align}">${cellVal}</td>`;
+            }
+            tableHtml += `</tr>`;
+            i++;
+          } else {
+            break;
+          }
+        }
+
+        tableHtml += `</tbody></table>`;
+        processedLines.push(tableHtml);
+        continue;
+      }
+    }
+
+    processedLines.push(line);
+    i++;
+  }
+
+  return processedLines.join("\n");
 }
 
 function preprocessFormattedText(
@@ -276,12 +379,16 @@ function preprocessFormattedText(
   activeCharacter: any,
   enableScriptExecution: boolean,
   globalRegexScripts?: any[],
-  presetRegexScripts?: any[]
+  presetRegexScripts?: any[],
+  messageIndex?: number
 ): string {
   if (!text) return "";
 
+  // 0. Convert Markdown tables to HTML tables first
+  const tableConvertedText = convertMarkdownTablesToHtml(text);
+
   // 1. Standard template placeholders
-  let processed = text
+  let processed = tableConvertedText
     .replace(/\{\{char\}\}/gi, charName)
     .replace(/<BOT>/gi, charName)
     .replace(/\{\{user\}\}/gi, userName)
@@ -366,16 +473,42 @@ function preprocessFormattedText(
     const codeBlockRegex = /```html\s*([\s\S]*?)\s*```/gi;
     processed = processed.replace(codeBlockRegex, (match, htmlContent) => {
       // Compile into standard message iframe wrapper
-      const compiledSrcdoc = createMessageIframeSrcDoc(htmlContent);
+      const compiledSrcdoc = createMessageIframeSrcDoc(htmlContent, messageIndex);
       const escapedHtml = compiledSrcdoc
         .replace(/&/g, "&amp;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
-      return `<iframe srcdoc="${escapedHtml}" style="width: 100%; min-height: 400px; border: none; display: block;" class="w-full mvu-message-iframe"></iframe>`;
+      const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
+      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 400px; border: none; display: block;" class="w-full mvu-message-iframe"></iframe>`;
     });
   }
 
   return processed;
+}
+
+class LocalErrorBoundary extends React.Component<any, any> {
+  state: any = { hasError: false };
+  props: any;
+
+  constructor(props: any) {
+    super(props);
+    this.props = props;
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("[LocalErrorBoundary] Message render error caught:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
 }
 
 const FormattedText = memo(function FormattedText({
@@ -383,8 +516,18 @@ const FormattedText = memo(function FormattedText({
   charName,
   userName = "user",
   className = "",
+  messageIndex,
 }: FormattedTextProps) {
   if (!text) return null;
+
+  const [isExpanded, setIsExpanded] = useState(false);
+  const MAX_SAFE_LENGTH = 15000;
+  const isTooLong = text.length > MAX_SAFE_LENGTH;
+  const shouldTruncate = isTooLong && !isExpanded;
+
+  const displayText = shouldTruncate
+    ? text.substring(0, 12000) + `\n\n*... [ 此处已自动折叠超长内容，当前共 ${text.length} 字 ] ...*`
+    : text;
 
   const context = useContext(AppContext);
   const enableHtml = context?.settings?.enableHtmlRendering ?? true;
@@ -395,59 +538,107 @@ const FormattedText = memo(function FormattedText({
   const presetRegexScripts = context?.settings?.presetRegexScripts;
 
   const processed = preprocessFormattedText(
-    text,
+    displayText,
     charName,
     userName,
     activeCharacter,
     enableScriptExecution,
     globalRegexScripts,
-    presetRegexScripts
+    presetRegexScripts,
+    messageIndex
   );
 
   // Quick detection: if text contains tags and html rendering is active, use DOM parser
   const hasHtml = enableHtml && /<[a-z/][\s\S]*?>/i.test(processed);
 
+  let renderedContent: React.ReactNode;
   if (hasHtml) {
-    return (
+    renderedContent = (
       <span className={`block whitespace-pre-wrap leading-relaxed ${className}`}>
-        {parseSafeHtmlToReact(processed, enableAsteriskFormatting, enableScriptExecution, activeCharacter)}
+        {parseSafeHtmlToReact(processed, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex)}
+      </span>
+    );
+  } else {
+    // Fast-path Markdown parsing for pure text messages
+    const parts = processed.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+    renderedContent = (
+      <span className={`whitespace-pre-wrap leading-relaxed ${className}`}>
+        {parts.map((part, index) => {
+          if (part.startsWith("**") && part.endsWith("**")) {
+            return (
+              <strong key={index} className="font-bold text-[inherit]">
+                {part.slice(2, -2)}
+              </strong>
+            );
+          } else if (part.startsWith("*") && part.endsWith("*")) {
+            return (
+              <span
+                key={index}
+                className={
+                  enableAsteriskFormatting
+                    ? "text-muted-foreground/80 italic font-light text-[13px] leading-relaxed mx-0.5"
+                    : "italic text-[inherit] mx-0.5"
+                }
+              >
+                {part.slice(1, -1)}
+              </span>
+            );
+          }
+          return (
+            <span key={index} className="text-[inherit] font-normal">
+              {part}
+            </span>
+          );
+        })}
       </span>
     );
   }
 
-  // Fast-path Markdown parsing for pure text messages
-  const parts = processed.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  const element = (
+    <div className="relative w-full">
+      <div 
+        className={shouldTruncate ? "max-h-[600px] overflow-hidden relative transition-all duration-300" : "relative"}
+        style={shouldTruncate ? { maskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)' } : {}}
+      >
+        {renderedContent}
+      </div>
+      <div className={`flex justify-center w-full mt-3 ${shouldTruncate ? "absolute bottom-0 left-0 py-4 bg-gradient-to-t from-background/95 to-transparent pt-16" : ""}`}>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-full border border-primary/20 bg-background/90 text-primary shadow-sm active:scale-95 transition-all hover:bg-accent backdrop-blur-sm"
+        >
+          {isExpanded ? (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 15l7-7 7 7" />
+              </svg>
+              收起超长台词 (共 {text.length} 字)
+            </>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+              </svg>
+              展开超长台词 (共 {text.length} 字)
+            </>
+          )}
+        </button>
+      </div>
+      {shouldTruncate && <div className="h-8" />} {/* 占位符，防止按钮挡住底部内容 */}
+    </div>
+  );
+
+  const fallbackMarkup = (
+    <span 
+      className={`block whitespace-pre-wrap leading-relaxed ${className}`}
+      dangerouslySetInnerHTML={{ __html: processed }}
+    />
+  );
 
   return (
-    <span className={`whitespace-pre-wrap leading-relaxed ${className}`}>
-      {parts.map((part, index) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
-          return (
-            <strong key={index} className="font-bold text-[inherit]">
-              {part.slice(2, -2)}
-            </strong>
-          );
-        } else if (part.startsWith("*") && part.endsWith("*")) {
-          return (
-            <span
-              key={index}
-              className={
-                enableAsteriskFormatting
-                  ? "text-muted-foreground/80 italic font-light text-[13px] leading-relaxed mx-0.5"
-                  : "italic text-[inherit] mx-0.5"
-              }
-            >
-              {part.slice(1, -1)}
-            </span>
-          );
-        }
-        return (
-          <span key={index} className="text-[inherit] font-normal">
-            {part}
-          </span>
-        );
-      })}
-    </span>
+    <LocalErrorBoundary fallback={fallbackMarkup}>
+      {isTooLong ? element : renderedContent}
+    </LocalErrorBoundary>
   );
 });
 

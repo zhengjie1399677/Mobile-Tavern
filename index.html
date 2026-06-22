@@ -6,6 +6,19 @@
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
   <title>Mobile-Tavern</title>
+  <script>
+    (function() {
+      var theme = localStorage.getItem("siuser-theme") || "sand";
+      document.documentElement.setAttribute("data-theme", theme);
+      if (theme === "ocean" || theme === "obsidian") {
+        document.documentElement.classList.add("dark");
+        document.documentElement.style.colorScheme = "dark";
+      } else {
+        document.documentElement.classList.remove("dark");
+        document.documentElement.style.colorScheme = "light";
+      }
+    })();
+  </script>
 </head>
 
 <body>

@@ -81,6 +81,7 @@ export interface UnifiedAppContextProps {
   handleSaveNewPresetBundle: () => Promise<void>;
   handleLoadPresetBundle: (bundleId: string) => void;
   handleDeletePresetBundle: (presetId: string) => Promise<void>;
+  handleDeletePresetBundles: (presetIds: string[]) => Promise<void>;
   handleToggleCustomPrompt: (id: string, enabled: boolean) => void;
   handleUpdateCustomPrompt: (id: string, name: string, role: any, content: string) => void;
   handleAddNewCustomPrompt: () => void;
@@ -102,6 +103,7 @@ export interface UnifiedAppContextProps {
   togglePromptExpanded: (id: string, e?: React.MouseEvent) => void;
   handleExportLocalDataBackup: () => Promise<void>;
   handleImportLocalDataBackup: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  handleImportSillyChatHistory: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
 
   // --- Characters Hook ---
   handleImportCardFile: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;

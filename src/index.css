@@ -301,20 +301,13 @@
 
 /* Smooth theme switching transition */
 .theme-transitioning,
-.theme-transitioning body,
-.theme-transitioning .bg-background,
-.theme-transitioning .bg-card,
-.theme-transitioning .bg-muted,
-.theme-transitioning .bg-input,
-.theme-transitioning .text-foreground,
-.theme-transitioning .text-muted-foreground,
-.theme-transitioning .border-border,
-.theme-transitioning .border,
-.theme-transitioning input,
-.theme-transitioning textarea,
-.theme-transitioning select,
-.theme-transitioning button {
-  transition: background-color 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.22s cubic-bezier(0.4, 0, 0.2, 1), color 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+.theme-transitioning * {
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              fill 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              stroke 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 /* Prevent Android WebView double-tap to zoom on interactive components and improve click latency */
@@ -382,6 +375,32 @@ a,
 
 .animate-bg-pan-zoom {
   animation: slow-pan-zoom 24s ease-in-out infinite;
+}
+
+/* 气泡内表格通用美化与防溢出变形规则 */
+.bubble-ai table,
+.bubble-user table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 8px 0 !important;
+  font-size: 11px !important;
+  background: color-mix(in oklch, var(--card) 45%, transparent) !important;
+}
+
+.bubble-ai th, .bubble-ai td,
+.bubble-user th, .bubble-user td {
+  border: 1px solid color-mix(in oklch, var(--border) 50%, transparent) !important;
+  padding: 6px 10px !important;
+  min-width: 75px !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
+  vertical-align: top !important;
+}
+
+.bubble-ai th, .bubble-user th {
+  background: color-mix(in oklch, var(--muted) 80%, transparent) !important;
+  font-weight: bold !important;
+  text-align: left;
 }
 
 /* Accessibility hiding styles */

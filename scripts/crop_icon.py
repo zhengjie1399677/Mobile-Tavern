@@ -2,8 +2,8 @@ import collections
 from PIL import Image
 import os
 
-image_path = 'C:/Users/20573/.gemini/antigravity-ide/brain/4ac81919-419a-4bfa-98c1-42e36660458d/media__1780538261892.jpg'
-output_path = 'e:/modules/projects/Mobile-Tavern/app-icon.png'
+image_path = os.path.join(os.path.expanduser('~'), '.gemini', 'antigravity-ide', 'brain', '4ac81919-419a-4bfa-98c1-42e36660458d', 'media__1780538261892.jpg')
+output_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'app-icon.png'))
 
 def run():
     print("Loading source image using PIL...")

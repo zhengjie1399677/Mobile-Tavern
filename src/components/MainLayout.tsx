@@ -1,13 +1,8 @@
 import React, { useContext } from "react";
 import { AppContext } from "../AppContext";
 import { SplashScreen } from "./SplashScreen";
-import { VenetianMask, MessageSquare, Book, Settings } from "lucide-react";
-import CharactersTab from "../tabs/CharactersTab";
-import ChatHistoryTab from "../tabs/ChatHistoryTab";
-import ChatTab from "../tabs/ChatTab";
-import GlobalWorldbookTab from "../tabs/GlobalWorldbookTab";
-import SettingsTab from "../tabs/SettingsTab";
-import PlaygroundTab from "../tabs/PlaygroundTab";
+import * as Icons from "lucide-react";
+import { globalKernel } from "../kernel";
 
 import CharacterEditModal from "./CharacterEditModal";
 import TimelineModal from "./TimelineModal";
@@ -24,6 +19,16 @@ export default function MainLayout() {
     safeAreas,
   } = useContext(AppContext);
 
+  const tabs = globalKernel.getExtensions("main:tabs");
+  const bottomBarTabs = tabs.filter(t => t.meta?.showInBottomBar);
+
+  const isActive = (tab: any) => {
+    if (tab.meta?.highlightOnActiveTabs) {
+      return tab.meta.highlightOnActiveTabs.includes(activeTab);
+    }
+    return activeTab === tab.id;
+  };
+
   return (
     <>
       <SplashScreen isVisible={showSplash} />
@@ -36,73 +41,30 @@ export default function MainLayout() {
             style={{ bottom: `${16 + (safeAreas?.bottom ?? 0)}px` }}
             className="absolute left-4 right-4 h-16 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
           >
-            <button
-              onClick={() => setActiveTab("characters")}
-              role="tab"
-              aria-selected={activeTab === "characters"}
-              aria-label={`页签，角色馆${activeTab === "characters" ? "，当前选中" : ""}`}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${activeTab === "characters"
-                  ? "text-primary scale-110 font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              <VenetianMask className="w-5 h-5 mb-0.5" aria-hidden="true" />
-              <span className="text-[10px]">角色馆</span>
-              {activeTab === "characters" && (
-                <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("chat-history")}
-              role="tab"
-              aria-selected={activeTab === "chat-history" || activeTab === "chat"}
-              aria-label={`页签，历史对话${activeTab === "chat-history" ? "，当前选中" : ""}`}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${activeTab === "chat-history" || activeTab === "chat"
-                  ? "text-primary scale-110 font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              <MessageSquare className="w-5 h-5 mb-0.5" aria-hidden="true" />
-              <span className="text-[10px]">历史对话</span>
-              {(activeTab === "chat-history" || activeTab === "chat") && (
-                <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("global-worldbook")}
-              role="tab"
-              aria-selected={activeTab === "global-worldbook"}
-              aria-label={`页签，世界书${activeTab === "global-worldbook" ? "，当前选中" : ""}`}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${activeTab === "global-worldbook"
-                  ? "text-primary scale-110 font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              <Book className="w-5 h-5 mb-0.5" aria-hidden="true" />
-              <span className="text-[10px]">世界书</span>
-              {activeTab === "global-worldbook" && (
-                <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("settings")}
-              role="tab"
-              aria-selected={activeTab === "settings"}
-              aria-label={`页签，设置${activeTab === "settings" ? "，当前选中" : ""}`}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${activeTab === "settings"
-                  ? "text-primary scale-110 font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              <Settings className="w-5 h-5 mb-0.5" aria-hidden="true" />
-              <span className="text-[10px]">设置</span>
-              {activeTab === "settings" && (
-                <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
-              )}
-            </button>
+            {bottomBarTabs.map(tab => {
+              const IconComp = (Icons as any)[tab.meta?.icon] || Icons.HelpCircle;
+              const selected = isActive(tab);
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  role="tab"
+                  aria-selected={selected}
+                  aria-label={`页签，${tab.meta?.name}${selected ? "，当前选中" : ""}`}
+                  className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                    selected
+                      ? "text-primary scale-110 font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <IconComp className="w-5 h-5 mb-0.5" aria-hidden="true" />
+                  <span className="text-[10px]">{tab.meta?.name}</span>
+                  {selected && (
+                    <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -114,25 +76,14 @@ export default function MainLayout() {
               : "overflow-y-auto"
             }`}
         >
-          {/* === SECTION A: CHARACTER SELECTION === */}
-          {activeTab === "characters" && <CharactersTab />}
-
-          {/* === SECTION B.1: CHAT HISTORY (All Sessions) === */}
-          {activeTab === "chat-history" && <ChatHistoryTab />}
-
-          {/* === SECTION B: THE ACTIVE CHAT ROOM === */}
-          {activeTab === "chat" && <ChatTab />}
-
-          {/* === SECTION C: WORLDBOOK === */}
-          {activeTab === "global-worldbook" && <GlobalWorldbookTab />}
-
-          {/* === SECTION D: SYSTEM CONTROL PANEL === */}
-          {activeTab === "settings" && <SettingsTab />}
-
-          {/* === SECTION E: DEVELOPER PLAYGROUND === */}
-          {activeTab === "playground" && (
-            <PlaygroundTab onBack={() => setActiveTab("settings")} />
-          )}
+          {tabs.map(tab => {
+            if (activeTab !== tab.id) return null;
+            const Comp = tab.component;
+            if (tab.id === "playground") {
+              return <Comp key={tab.id} onBack={() => setActiveTab("settings")} />;
+            }
+            return <Comp key={tab.id} />;
+          })}
         </div>
 
         {/* 3. Global Modal Overlays */}

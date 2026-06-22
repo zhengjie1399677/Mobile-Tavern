@@ -285,6 +285,16 @@ async function startServer() {
           errLower.includes("不够") ||
           errLower.includes("欠费")
         ) {
+          const text = (content || "").toLowerCase();
+          const bugKeywords = /闪退|崩溃|报错|打不开|显示不了|无法导入|卡死|黑屏|同步失败|数据丢失|白屏|错误|异常|bug/i;
+          const techKeywords = /怎么|如何|哪里|配置|设置|怎么用|怎么导入|怎么备份|格式|指南|使用方法|教程|导入/i;
+          let estimated_category = "chat";
+          if (bugKeywords.test(text)) {
+            estimated_category = "bug";
+          } else if (techKeywords.test(text)) {
+            estimated_category = "tech";
+          }
+
           let reply = "呜呜，今天找本喵聊天的次数已经用光光了，本喵累了要去睡觉了喵……明天再来找我玩吧喵💤";
           if (estimated_category === "bug") {
             reply = "喵呜……今天帮本喵记 Bug 的次数已经用光了，本喵的小本本都已经写满啦！明天再来告诉本喵关于 Bug 的事情吧喵~ 🐾";

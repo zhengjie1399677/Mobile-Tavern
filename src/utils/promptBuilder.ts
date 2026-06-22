@@ -7,7 +7,19 @@ import {
 } from "../types";
 
 /**
- * High-precision lightweight Token estimator for both CJK characters and ASCII words.
+ * Clean name to strictly adhere to OpenAI's naming regular expression: ^[a-zA-Z0-9_-]{1,64}$
+ */
+export function cleanNameForApi(name: string | undefined, fallback: string): string | undefined {
+  if (!name) return undefined;
+  let cleaned = name.replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!cleaned) {
+    return fallback;
+  }
+  return cleaned.slice(0, 64);
+}
+
+/**
+ * High-precision lightweight Token estimator for CJK characters and ASCII words.
  */
 export function estimateTokens(text: string): number {
   if (!text) return 0;
@@ -125,7 +137,8 @@ export function getTriggeredLorebookEntries(
       const scanText = getScanText(scanDepth);
 
       // Base Hit Check (Primary Keys)
-      const primaryMatched = entry.keys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
+      const primaryKeys = Array.isArray(entry.keys) ? entry.keys : [];
+      const primaryMatched = primaryKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
       if (!primaryMatched) continue;
 
       // Secondary Keys Logic Eval
@@ -278,6 +291,9 @@ export function assemblePromptContext(params: {
     const rawHistory = activeMessagesToSend.map((msg, idx) => {
       let role: "user" | "model" | "assistant" = "user";
       let content = msg.content;
+      const name = msg.sender === "assistant"
+        ? cleanNameForApi(character.name, "char")
+        : (msg.sender === "user" ? cleanNameForApi(settings.userName, "user") : undefined);
 
       if (msg.sender === "assistant") {
         role = settings.api.type === "openai-compat" ? "assistant" : "model";
@@ -316,8 +332,8 @@ export function assemblePromptContext(params: {
 
       return {
         role,
+        name,
         content,
-        name: msg.sender === "assistant" ? sanitizeName(character.name) : (msg.sender === "user" ? sanitizeName(settings.userName) : undefined),
       };
     });
 
@@ -326,7 +342,11 @@ export function assemblePromptContext(params: {
       if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === item.role) {
         chatHistory[chatHistory.length - 1].content += "\n\n" + item.content;
       } else {
-        chatHistory.push(item);
+        chatHistory.push({
+          role: item.role,
+          name: item.name,
+          content: item.content,
+        });
       }
     }
 
@@ -350,8 +370,14 @@ export function assemblePromptContext(params: {
       cleanSystem += `=== Reference Lore ===\n${activeEntries.map((e) => e.content).join("\n\n")}\n\n`;
     }
 
+    const modelName = (settings.api?.modelName || "").toLowerCase();
+    const isDeepSeek = modelName.includes("deepseek");
+    const reasoningGuidance = isDeepSeek
+      ? "\n\n[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]\n"
+      : "";
+
     return {
-      systemInstruction: cleanSystem.trim(),
+      systemInstruction: (cleanSystem.trim() + reasoningGuidance).trim(),
       dynamicInstruction: "",
       history: chatHistory,
       userInput,
@@ -401,6 +427,12 @@ export function assemblePromptContext(params: {
 
   const modelName = (settings.api?.modelName || "").toLowerCase();
   const enableCacheOptimization = modelName.includes("deepseek") || modelName.includes("gemini");
+
+  // 为 DeepSeek 等推理模型注入系统引导说明，防止其思维链被角色扮演污染，确保其在 <think> 标签中执行客观推理而非生成台词
+  const isDeepSeek = modelName.includes("deepseek");
+  const reasoningGuidance = isDeepSeek
+    ? "\n\n[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]\n"
+    : "";
 
   const processedActiveEntries = enableCacheOptimization
     ? activeEntries.map((e) => {
@@ -675,7 +707,7 @@ ${scenarioBlock}
   const SAFE_CONTEXT_LIMIT = 12000;
   let currentTurns = Math.min(recentTurns, validChatMessages.length);
   let activeMessagesToSend: Message[] = [];
-  let chatHistory: { role: "user" | "model" | "assistant"; content: string }[] = [];
+  let chatHistory: { role: "user" | "model" | "assistant"; name?: string; content: string }[] = [];
 
   while (currentTurns > 0) {
     const firstMsg = validChatMessages[0];
@@ -698,6 +730,9 @@ ${scenarioBlock}
     const rawHistory = activeMessagesToSend.map((msg, idx) => {
       let role: "user" | "model" | "assistant" = "user";
       let content = msg.content;
+      const name = msg.sender === "assistant"
+        ? cleanNameForApi(character.name, "char")
+        : (msg.sender === "user" ? cleanNameForApi(settings.userName, "user") : undefined);
 
       if (msg.sender === "assistant") {
         role = settings.api.type === "openai-compat" ? "assistant" : "model";
@@ -736,8 +771,8 @@ ${scenarioBlock}
 
       return {
         role,
+        name,
         content,
-        name: msg.sender === "assistant" ? sanitizeName(character.name) : (msg.sender === "user" ? sanitizeName(settings.userName) : undefined),
       };
     });
 
@@ -746,7 +781,11 @@ ${scenarioBlock}
       if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === item.role) {
         chatHistory[chatHistory.length - 1].content += "\n\n" + item.content;
       } else {
-        chatHistory.push(item);
+        chatHistory.push({
+          role: item.role,
+          name: item.name,
+          content: item.content,
+        });
       }
     }
 
@@ -802,7 +841,7 @@ ${scenarioBlock}
   }
 
   return {
-    systemInstruction,
+    systemInstruction: (systemInstruction + reasoningGuidance).trim(),
     dynamicInstruction,
     history: chatHistory,
     userInput,

@@ -46,7 +46,42 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 ### 6. 🚀 运行沙盒与可视化拓扑 (Interactive Sandbox)
 * 内置可视化数据流拓扑图，能够直观展示用户输入、世界书匹配、Prompt 组装以及网络流接收的全链路流转，并提供独立的防坍塌宏替换和缓存分流测试台。
 
+### 7. 🧭 模块化微内核与洋葱拦截管道 (Modular Kernel & Onion Pipeline)
+* 采用 DI/IOC 控制反转设计构建解耦底座，将数据持久化、大模型流式通信、Prompt 编译等核心逻辑全部下沉为独立的微服务。
+* 引入洋葱模型中间件管道（Pipeline）与具备优先级排序、并行分发和异常隔离的高能消息总线（MessageBus）。支持服务超时 Abort 熔断与非关键服务崩溃时返回 SafeProxy 的容错自愈。
+
+### 8. 🧪 自动化集成测试套件 (Comprehensive Test Suite)
+* 集成 16 项关键逻辑与防灾策略测试用例（含物理 PNG 二进制解码、SSRF 安全防御、并发写队列锁、SafeProxy 链式兼容以及洋葱管道严格模式等），全天候保护底层健壮。
+
 ---
+
+## 🚀 快速上手与本地测试 (Quick Start & Testing)
+
+### 1. 本地开发调试
+安装项目依赖并运行 Express 中转代理服务器：
+```powershell
+npm install
+npm run dev
+```
+打开浏览器访问控制台提示的本地服务地址即可。
+
+### 2. 原生安卓调试
+如需在安卓真机/模拟器中挂载前端热重载（端口反向映射）：
+```powershell
+adb reverse tcp:3000 tcp:3000
+adb reverse tcp:24678 tcp:24678
+npx tauri android dev --host 127.0.0.1
+```
+
+### 3. 运行自动化测试与类型检查
+在本地一键运行所有核心测试用例以验证代码安全性：
+```powershell
+# 执行静态 TS 类型校验
+npm run lint
+
+# 执行自动化测试用例
+npm run test
+```
 
 ---
 
@@ -65,6 +100,7 @@ Mobile-Tavern
     ├── AppContext.tsx                    # 全局状态管理 Context
     ├── components                        # 共享 UI 容器 (自适应安全区、拇指布局等，含雪团客服)
     ├── hooks                             # 核心状态钩子 (useChat, useCharacters, useSettings, useCatbot)
+    ├── kernel                            # 微内核切面底座 (包含 IOC 容器、双轨 Pipeline 及 7 大官方微服务)
     ├── tabs                              # 各功能大版块 Tab 页 (包含调试沙盒)
     └── utils                             # 底层计算工具 (cardParser, db, promptBuilder, telemetry)
 ```

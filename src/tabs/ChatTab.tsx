@@ -77,7 +77,7 @@ const ChatInputArea = () => {
 
       // 如果输入框底部被键盘遮住，则将其滚动到可见位置
       if (rect.bottom > viewportBottom) {
-        container.scrollIntoView({ behavior: "smooth", block: "end" });
+        container.scrollIntoView({ behavior: "auto", block: "end" });
       }
     };
 
@@ -191,7 +191,7 @@ const ChatInputArea = () => {
           placeholder={`发送一条对白至 ${activeCharacter?.name} 启程...`}
           aria-label={`发送给 ${activeCharacter?.name || "角色"} 的消息输入框`}
           rows={2}
-          className="flex-1 bg-input/70 border border-border/80 rounded-xl py-2.5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px] transition-all duration-300 shadow-inner"
+          className="flex-1 bg-input/70 border border-border/80 rounded-xl py-2.5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px] transition-[border-color,background-color] duration-300 shadow-inner"
         />
         <button
           onClick={onSend}
@@ -539,10 +539,14 @@ export default function ChatTab() {
     return "默认";
   }, [activeCharacter, activeSession, settings]);
 
+  const isOriginalBg = (settings.chatBackgroundBlur ?? 10) === 0 && (settings.chatBackgroundDim ?? 50) === 0;
+
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background">
       {activeCharacter?.visualSettings?.customCss && (
-        <style dangerouslySetInnerHTML={{ __html: activeCharacter.visualSettings.customCss }} />
+        <style dangerouslySetInnerHTML={{
+          __html: `@media (min-width: 768px) { ${activeCharacter.visualSettings.customCss} }`
+        }} />
       )}
       {/* Embedded Header info card */}
       <div className="bg-card p-3 border-b border-border flex items-center justify-between sticky top-0 z-10">
@@ -621,27 +625,33 @@ export default function ChatTab() {
               <span>🌟 记忆柜</span>
             </button>
           )}
-          <div className="flex bg-muted p-0.5 rounded-lg border border-border">
+          <div className="flex shrink-0 flex-row bg-muted p-0.5 rounded-lg border border-border">
             <button
               onClick={() => setChatSubTab("dialogue")}
-              className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center justify-center shrink-0 ${
                 chatSubTab === "dialogue"
                   ? "bg-primary/40 text-primary"
                   : "text-muted-foreground hover:text-foreground"
               }`}
+              title="剧本对白"
             >
-              <MessageSquare className="w-3.5 h-3.5" /> 剧本对白
+              <MessageSquare className="w-4 h-4" />
             </button>
             <button
               onClick={() => setChatSubTab("timeline")}
-              className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-1 text-[11px] rounded transition font-medium flex items-center justify-center gap-1 shrink-0 ${
                 chatSubTab === "timeline"
                   ? "bg-primary/40 text-primary"
                   : "text-muted-foreground hover:text-foreground"
               }`}
+              title="故事年表"
             >
-              <History className="w-3.5 h-3.5" /> 故事年表 (
-              {activeSession?.summaries?.length || 0})
+              <History className="w-4 h-4" />
+              {typeof activeSession?.summaries?.length === "number" && activeSession.summaries.length > 0 && (
+                <span className="flex items-center justify-center bg-primary text-primary-foreground text-[8px] font-bold px-1 min-w-[14px] h-[14px] rounded-full scale-90 font-sans">
+                  {activeSession.summaries.length}
+                </span>
+              )}
             </button>
           </div>
 
@@ -767,31 +777,37 @@ export default function ChatTab() {
             <>
               {/* 1. 大图背景及动效/模糊层 */}
               <div
-                className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-[opacity,filter] duration-700 mask-feather-y ${
+                className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-[opacity,filter] duration-700 ${
+                  isOriginalBg ? "" : "mask-feather-y"
+                } ${
                   (settings.enableChatBgAnimation ?? true) ? "animate-bg-pan-zoom" : ""
                 }`}
                 style={{
                   backgroundImage: `url(${activeCharacter?.visualSettings?.backgroundImageUrl || settings.globalChatBg})`,
                   opacity: activeCharacter?.visualSettings?.backgroundImageUrl
-                    ? (activeCharacter.visualSettings.backgroundOpacity ?? 0.35)
-                    : 0.28,
-                  filter: `blur(${
-                    activeCharacter?.visualSettings?.backgroundImageUrl && activeCharacter.visualSettings.backgroundBlur !== undefined
-                      ? activeCharacter.visualSettings.backgroundBlur
-                      : (settings.chatBackgroundBlur ?? 10)
-                  }px)`,
+                    ? (activeCharacter.visualSettings.backgroundOpacity ?? (isOriginalBg ? 1.0 : 0.9))
+                    : (isOriginalBg ? 1.0 : 0.9),
+                  filter: isOriginalBg 
+                    ? "none" 
+                    : `blur(${
+                        activeCharacter?.visualSettings?.backgroundImageUrl && activeCharacter.visualSettings.backgroundBlur !== undefined
+                          ? activeCharacter.visualSettings.backgroundBlur
+                          : (settings.chatBackgroundBlur ?? 10)
+                      }px)`,
                 }}
               />
               {/* 2. 主题色变暗融合层 */}
-              <div
-                className="absolute inset-0 z-0 pointer-events-none transition-all duration-500"
-                style={{
-                  backgroundColor: "var(--background)",
-                  opacity: (settings.chatBackgroundDim ?? 50) / 100,
-                }}
-              />
+              {!isOriginalBg && (
+                <div
+                  className="absolute inset-0 z-0 pointer-events-none transition-all duration-500"
+                  style={{
+                    backgroundColor: "var(--background)",
+                    opacity: (settings.chatBackgroundDim ?? 50) / 100,
+                  }}
+                />
+              )}
               {/* 3. 渐变羽化保护层 */}
-              <div className="absolute inset-0 z-0 pointer-events-none chat-bg-mask" />
+              {!isOriginalBg && <div className="absolute inset-0 z-0 pointer-events-none chat-bg-mask" />}
             </>
           )}
 
@@ -981,37 +997,29 @@ export default function ChatTab() {
                                     <div className="mb-2 text-xs max-w-sm">
                                       <div
                                         onClick={() => {
-                                          const isGeneratingThisMessage = isSending && idx === messagesToRender.length - 1;
-                                          if (isGeneratingThisMessage) return; // 正在生成时强制展开，禁止点击收起
                                           setExpandedReasoningIds((prev) => ({
                                             ...prev,
                                             [message.id]: !prev[message.id],
                                           }));
                                         }}
-                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-semibold select-none transition-all active:scale-95 w-fit ${
-                                          isSending && idx === messagesToRender.length - 1
-                                            ? "bg-primary/10 border-primary/20 text-primary cursor-default"
-                                            : "bg-muted/40 hover:bg-muted/60 border-border/30 text-muted-foreground cursor-pointer"
-                                        }`}
+                                        className="bg-muted/40 hover:bg-muted/60 border-border/30 text-muted-foreground cursor-pointer flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-semibold select-none transition-all active:scale-95 w-fit"
                                       >
                                         <Brain className={`w-3.5 h-3.5 ${isSending && idx === messagesToRender.length - 1 ? "animate-pulse text-primary" : "opacity-75"}`} />
                                         <span>
-                                          {isSending && idx === messagesToRender.length - 1
-                                            ? "AI 正在思考中..."
-                                            : expandedReasoningIds[message.id]
+                                          {expandedReasoningIds[message.id]
                                             ? "收起思考过程"
+                                            : isSending && idx === messagesToRender.length - 1
+                                            ? "AI 正在思考中 (点击查看)..."
                                             : "查看思考过程"}
                                         </span>
-                                        {!(isSending && idx === messagesToRender.length - 1) && (
-                                          <ChevronDown
-                                            className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${
-                                              expandedReasoningIds[message.id] ? "rotate-180" : ""
-                                            }`}
-                                          />
-                                        )}
+                                        <ChevronDown
+                                          className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${
+                                            expandedReasoningIds[message.id] ? "rotate-180" : ""
+                                          }`}
+                                        />
                                       </div>
                                       
-                                      {(expandedReasoningIds[message.id] || (isSending && idx === messagesToRender.length - 1)) && (
+                                      {expandedReasoningIds[message.id] && (
                                         <div className="mt-1.5 p-3 rounded-xl glass-panel border border-border/20 text-muted-foreground font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-[160px] overflow-y-auto custom-scrollbar animate-in fade-in duration-300">
                                           {message.reasoningContent}
                                           {isSending && idx === messagesToRender.length - 1 && (
@@ -1046,7 +1054,7 @@ export default function ChatTab() {
                                       {message.content === "💭..." ? (
                                         <TypingIndicator />
                                       ) : (
-                                        renderDialogueBubble(message.content)
+                                        renderDialogueBubble(message.content, foldedCount + idx)
                                       )}
                                     </div>
                                   )}
@@ -1225,8 +1233,8 @@ export default function ChatTab() {
       {/* Sub-tab 2: STORY TIMELINE YEARBOOK */}
       {chatSubTab === "timeline" && (
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 min-h-0">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <h3 className="text-sm font-bold text-foreground">
                 故事历史卡片轴 (Memory Timeline)
               </h3>
@@ -1249,29 +1257,29 @@ export default function ChatTab() {
                 setNewSummaryBonding("");
                 setTimelineModalOpen(true);
               }}
-              className="bg-primary hover:bg-primary text-primary-foreground text-[11px] px-2.5 py-1.5 rounded transition flex items-center gap-1 font-medium"
+              className="bg-primary hover:bg-primary text-primary-foreground text-[11px] px-2.5 py-1.5 rounded transition flex items-center gap-1 font-medium shrink-0 whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" /> 手工补充
             </button>
           </div>
 
-          <div className="relative border-l border-amber-655 border-primary/25 ml-3 pl-5 space-y-5 py-2">
+          <div className="relative border-l border-primary/25 ml-3 pl-5 space-y-5 py-2">
             {activeSession?.summaries.map((summary) => (
               <div
                 key={summary.id}
-                className="relative group bg-card p-3 rounded-lg border border-border shadow-sm"
+                className="relative group bg-card p-3 rounded-lg border border-border shadow-sm w-full max-w-full overflow-hidden"
               >
                 {/* Timeline Dot Indicator */}
                 <span className="absolute -left-[25px] top-4 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-background"></span>
 
                 {/* Header summary node detail */}
                 <div className="flex flex-col gap-1.5 mb-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold tracking-tight bg-primary/20 border border-amber-800/40 text-primary px-1.5 py-0.5 rounded">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold tracking-tight bg-primary/20 border border-amber-800/40 text-primary px-1.5 py-0.5 rounded max-w-full inline-block truncate">
                       ⏱ {summary.timeTag} · {summary.location}
                     </span>
 
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <button
                         onClick={() => createBacktrackFromTimeline(summary)}
                         title="以此历史年表节点作为新旅程重演起点进行平行剧本推写"

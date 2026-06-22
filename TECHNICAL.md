@@ -9,7 +9,7 @@
 本项目的核心前端组件（React + TypeScript）以及后台服务（Tauri/Rust 与 Node.js）的职责文件树明细如下，供开发审计：
 
 ```text
-d:\projects\Mobile-Tavern
+Mobile-Tavern
 ├── src-tauri/                                # Tauri 原生容器构建模块 (Rust 侧)
 │   ├── src/
 │   │   ├── lib.rs                            # 原生入口绑定、Rust 插件桥接挂载点
@@ -40,6 +40,19 @@ d:\projects\Mobile-Tavern
 │   │   ├── ChatTab.tsx                       # 对话气泡、多分支 Swipe 手势切换底栏
 │   │   ├── GlobalWorldbookTab.tsx            # 全局知识库条目创建、编辑与原子写库面板
 │   │   └── SettingsTab.tsx                   # 备份管理、采样参数调节及大模型接入设置
+│   │
+│   ├── kernel/                               # 微内核切面底座 (包含 IOC 容器、双轨 Pipeline 及 7 大官方核心服务)
+│   │   ├── Kernel.ts                         # 核心 Kernel 容器类实现 (包含 globalKernel 单例)
+│   │   ├── types.ts                          # 全局微内核契约接口规范 (IKernel, IKernelService 等)
+│   │   ├── index.ts                          # 统一对外导出入口与内核冷启动装配函数 (initializeKernel)
+│   │   └── services/                         # 下沉的官方核心微服务实现
+│   │       ├── DatabaseService.ts            # 数据库物理 CRUD 服务 [isCritical: 致命]
+│   │       ├── LLMService.ts                 # 大模型数据通信与 SSE 流式读取服务
+│   │       ├── PromptService.ts              # Prompt 组装与宏替换服务
+│   │       ├── TelemetryService.ts           # 使用率上报与崩溃日志本地落盘遥测服务
+│   │       ├── TableMemoryService.ts         # TRPG 表格数据游戏化记忆切面服务
+│   │       ├── ScriptService.ts              # 角色卡扩展字段变量沙盒 MVU 服务
+│   │       └── AutoSummaryService.ts         # 故事大纲自动提炼与年表总结服务
 │   │
 │   └── utils/                                # 底层核心计算工具包
 │       ├── apiClient.ts                      # 跨环境 Fetch 直连/代理自适应包装器
@@ -438,6 +451,105 @@ erDiagram
     针对 APK 及手机端网页环境，完全重写了传统的浏览器 `window.alert` 和 `confirm`。
 *   **微动画交互反馈**:
     采用毛玻璃特效和渐变，支持弹出输入框（Prompt）并正确适配大拇指易点击的间距宽度。
+
+---
+
+## 🧭 微内核与 Pipeline 管道中间件底座架构 (Modular Kernel & Pipeline Architecture)
+
+为了支持未来 50+ 高阶插件并发加载、音频/视频/WebRTC 独立扩展以及多用户实时渲染需求，Mobile Tavern 彻底解耦了旧有的单体大对象结构。系统底层设计并实现了一套具备高健壮性、可自愈的微内核（Kernel）运行底座与洋葱管道模型（Pipeline）中间件机制。
+
+```mermaid
+graph TD
+    Kernel[IKernel 核心容器]
+    
+    subgraph MessageBus [MessageBus 消息总线]
+        Sub1[订阅者 1: priority 100]
+        Sub2[订阅者 2: priority 10]
+        Kernel -->|publish / publishParallel| MessageBus
+        MessageBus --> Sub1
+        MessageBus --> Sub2
+    end
+    
+    subgraph Pipelines [Pipelines 洋葱管道轴]
+        P_Input[input 管道]
+        P_Output[output 管道]
+        Kernel -->|getPipeline| Pipelines
+        P_Input -->|Middleware 1| P_Input_2[Middleware 2]
+    end
+    
+    subgraph Services [IOC 容器与微服务]
+        S_DB[DatabaseService]
+        S_LLM[LLMService]
+        Kernel -->|getService| Services
+    end
+```
+
+### 1. 核心契约与容器设计 (`IKernel`)
+系统核心容器 `Kernel` 遵循依赖注入（DI）和控制反转（IOC）原则，通过 `globalKernel` 单例向应用暴露全局服务治理能力。其定义位于 [types.ts](src/kernel/types.ts)，核心接口定义如下：
+*   **服务注册与获取**：通过 `registerService` 和 `getService` 提供解耦访问。
+*   **消息发布与订阅**：提供基于优先级排序的发布-订阅模式消息总线。
+*   **管道注册**：基于洋葱模型（Onion Model）的切面拦截管道治理。
+
+### 2. 洋葱模型拦截管道 (`IPipeline`)
+管道机制采用经典的洋葱圈执行流，允许插件或微服务以非侵入的方式拦截、篡改及熔断核心数据流。
+*   **中间件执行模型**：每个中间件接收三个参数 `(context, next, interrupt)`。
+*   **受控拦截阻断 (`interrupt()`)**：如果中间件希望安全熔断（例如发现输入违规），可直接调用第三个参数 `interrupt()`，系统会自动将其 `isInterrupted` 状态置为 `true` 并中断后续中间件的执行。
+*   **开发态严格模式 (`strictMode`)**：为了防范开发者漏调 `next()` 或 `interrupt()` 导致管道挂死，内核在开发模式下如果发现管道既未调用 `next()` 延续、又未调用 `interrupt()` 声明拦截，会直接抛出致命 `Error`，生产环境下则优雅中断并记录错误日志。
+
+### 3. 高能消息总线 (`MessageBus`)
+消息总线负责不同切面服务之间的异步解耦通信，具备出色的抗灾设计：
+*   **优先级排序订阅**：订阅者可以通过优先级（`priority`）声明消息消费的顺序，数值越高越先执行。
+*   **并行分发与故障隔离 (`publishParallel`)**：支持使用 `Promise.all` 并行触发多个订阅者。如果其中一个订阅者崩溃，消息总线能物理隔离该异常，确保其他订阅者依然能收到通知并正常工作。
+*   **超时熔断保障**：当单个订阅者在执行异步任务时发生严重挂死，总线拥有超时强熔断逻辑，限制单次消费任务无休止锁死线程。
+
+### 4. 架构健壮性与自愈防护设计
+为了在移动端 WebView 进程资源极其受限的环境下达到 100% 运行健壮性，内核集成了如下防灾手段：
+*   **依赖拓扑排序 (Kahn 算法)**：通过 `registerServiceBatch` 批量装配服务时，内核自动解析服务依赖项（`dependencies`），并利用 Kahn 拓扑排序算法计算出无冲突的安全加载序列进行装载。如果检测到环形依赖（如 A 依赖 B，B 依赖 A），会在初始化阶段抛出致命异常强行阻断加载。
+*   **致命服务熔断与非致命服务自愈**：
+    *   服务声明 `isCritical: true` 时，初始化失败会向上抛出 `FATAL` 核心崩溃异常，迫使内核熔断白屏，防范核心逻辑失效。
+    *   非关键服务发生崩溃或获取未注册服务时，内核会返回一个高性能的 **SafeProxy** 代理。
+    *   **SafeProxy 双轨行为**：在开发环境下，任何试图读取未就绪/未注册 Proxy 属性的操作都会触发致命开发期断言报错；而在生产环境下，SafeProxy 能安全提供 No-op 降级空操作，支持无限链式调用及 Promise `await` 链式兼容，实现自动故障隔离。
+*   **异步任务超时熔断与一键销毁 (`destroy`)**：当内核被卸载或重置时，执行 `destroy()` 会自动中止底层的活跃任务控制器（`activeControllers`）并触发 `AbortController.abort()`。同时，内核将依照拓扑排序的**逆序**（Top-down Reverse，即先销毁外层服务，后销毁底层服务）依次触发各个服务的销毁钩子，彻底释放资源，防范内存泄漏。
+
+### 5. 官方七大下沉核心微服务职能
+*   `DatabaseService` (database)：承载 IndexedDB 物理层读写和并发写 Promise 串行事务管道。
+*   `LLMService` (llm)：承载大模型请求、SSE 字符缓冲读取与思维链提取。
+*   `PromptService` (prompt)：负责人设模版编译、宏安全替换及世界书三阶级联检索。
+*   `TelemetryService` (telemetry)：收集 App APM 耗时及崩溃事件并写入落盘队列，计算 STS 后台同步上报。
+*   `TableMemoryService` (tableMemory)：自动匹配解析 TRPG 表格游戏数据。
+*   `ScriptService` (script)：在独立沙盒内执行角色卡内嵌的扩展变量计算脚本。
+*   `AutoSummaryService` (autoSummary)：检测未总结轮数并异步触发大模型年表大纲生成。
+
+---
+
+## 🧪 自动化测试套件与覆盖验证 (Comprehensive Test Suite)
+
+为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，包含了 **16 项核心功能验证用例**。
+
+### 1. 自动化功能测试一览 (The 16 Test Cases)
+1.  **`testSsrfGuard` (SSRF 防御校验)**：验证 `validateBaseUrlSecurity` 能否成功阻断 IPv4/IPv6 回环地址、内网网段、八进制/十六进制伪造 IP 等越界穿透，同时放行正常的公网 API 域名。
+2.  **`testDbQueue` (并发写冲突与事务序列化)**：并发触发多个数据库写事务，校验 Promise 队列是否能够完美按顺序串行写入，并且在其中一个事务崩溃时，后续写入能否自愈恢复并继续安全保存。
+3.  **`testPromptBuilder` (宏替换防坍塌与世界书触发)**：验证 `replaceMacros` 处理带 `$` 符号特型字符和 `{{char}}` / `{{user}}` 占位符时是否会引起模板坍塌；验证根据历史消息关键词检索世界书词条的逻辑。
+4.  **`testPngCardParser` (PNG 酒馆角色卡物理级解压还原)**：提取假想 PNG 文件流，解析 `tEXt` 结构块并对 Zlib 数据解压还原成标准 CharacterCard 实体，进行字段双向匹配测试。
+5.  **`testApiCleanRequestPayload` (各模型厂商参数差异化清洗)**：模拟全厂商参数（OpenRouter、OpenAI 官方、DeepSeek 官方、Gemini 等），校验 apiClient 中 `cleanRequestPayload` 的提取行为（剔除会导致 400 Bad Request 的非标参数，保留专有参数）。
+6.  **`testSSEStreamWithReasoning` (SSE 思维链提取)**：模拟包含 `reasoning_content` 的大模型 SSE 流式输出包，校验 `readSSEStream` 缓冲区切分器是否能够精准拦截思维链数据并正常拼装主文本。
+7.  **`testPromptBuilderSystemMerging` (System 旁白消息智能归并)**：验证当会话消息历史中存在中途插入的 System 指令时，算法能将其封装为“系统旁白”格式并与相邻的 User 消息合并，以确保满足绝大多数大模型 API 严格的 User/Assistant 交替契约。
+8.  **`testKernelFaultIsolation` (微内核故障隔离与 SafeProxy)**：验证正常初始化、致命核心服务引发的内核级熔断、非关键服务异常时 SafeProxy 自动接管、SafeProxy 链式属性/方法调用以及 `await` Promise 的兼容性。
+9.  **`testKernelPipeline` (洋葱中间件洋葱排序与阻断拦截)**：验证管道中挂载的多个中间件能够依照 `priority` 升序/降序形成正确的执行环，并且在 blocker 遗漏 next 时能终止执行。
+10. **`testKernelPipelineHardening` (洋葱管道健壮性防灾)**：验证 SafeProxy 诊断环境下的 console 警告，中间件动态注销，以及异常崩溃时管道的物理阻断防护（防静默绕过安全防线）。
+11. **`testKernelHardeningP0ToP3` (严格开发期断言检测)**：临时拉起 `strictMode`，验证 P0 级消息订阅注销、P1 级未完全就绪时 getService 的 FATAL 报错、P1 级中间件漏调 next() 时强抛致命异常、P2 级 SafeProxy 属性读取断言拦截以及 P3 级一键一键 destroy() 内存清理。
+12. **`testKernelKernelV2Fixes` (内核 V2 回归防范)**：校验 Kahn 拓扑排序在 registerServiceBatch 中的顺序分配、循环依赖检测、B-2 关键缺失致命强抛、B-4 消息总线订阅优先级、publishParallel Concurrency 并行流速及事件隔离。
+13. **`testKernelV3Fixes` (内核 V3 健壮性修复)**：验证 destroy() 触发时的逆序释放（防悬挂资源未解绑）、SafeProxy 对 JS 内置 Symbol 属性读取拦截（防止控制台日志产生无限递归循环死锁）、注销后清空 Map 中空 key 的机制。
+14. **`testKernelV4AbortAndInterrupt` (内核 V4 超时取消与熔断)**：验证中间件使用第三个参数 `interrupt()` 阻断管道、服务异步初始化在 50ms 超时熔断后触发 `AbortSignal` 退出、内核 destroy 时一键 Abort 正在挂起的活跃分发事件。
+15. **`testKernelExtensionRegistry` (SPI 扩展插件注册表机制)**：验证内核扩展插槽机制，校验优先级节点插拔、节点动态替换更新、以及内核销毁时整体插槽重置。
+16. **`runCatbotErrorTests` (Catbot 异常流降级)**：模拟客服助理小猫遇到阿里云 FC 接口 429 频次受限、欠费、网关超时等情况时的本地正则关键词降级处理器，确保交互不卡死。
+
+### 2. 测试运行指引 (Testing Guide)
+在本地开发环境下，你可以通过运行以下指令一键执行所有的单元测试：
+```powershell
+npm run test
+```
+测试框架会在终端输出每个模块的初始化和测试断言结果，并提示 `🎉 ALL TESTS COMPLETED SUCCESSFULLY!` 宣告通过。
 
 ---
 
