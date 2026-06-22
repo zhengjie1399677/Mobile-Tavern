@@ -92,8 +92,8 @@ export function getTriggeredLorebookEntries(
       // ReDoS pattern protection: block patterns with nested/repeated quantifiers
       if (/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(trimmed) || /(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(trimmed)) {
         console.warn("Potential ReDoS pattern skipped in regex key matching:", trimmed);
-        return isCaseSensitive 
-          ? scanText.includes(trimmed) 
+        return isCaseSensitive
+          ? scanText.includes(trimmed)
           : scanText.toLowerCase().includes(trimmed.toLowerCase());
       }
       try {
@@ -132,8 +132,8 @@ export function getTriggeredLorebookEntries(
 
       // Determine scanning depth (how many recent messages to inspect)
       const scanDepth = entry.scanDepth !== undefined ? entry.scanDepth : 10;
-      if (scanDepth === 0) continue; 
-      
+      if (scanDepth === 0) continue;
+
       const scanText = getScanText(scanDepth);
 
       // Base Hit Check (Primary Keys)
@@ -145,7 +145,7 @@ export function getTriggeredLorebookEntries(
       let secondaryMatched = true;
       const logic = entry.selectiveLogic || "NONE";
       const secKeys = entry.secondary_keys || [];
-      
+
       if (logic !== "NONE" && secKeys.length > 0) {
         if (logic === "AND_ANY") {
           secondaryMatched = secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
@@ -155,7 +155,7 @@ export function getTriggeredLorebookEntries(
           secondaryMatched = !secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
         }
       }
-      
+
       if (!secondaryMatched) continue;
 
       // Roll trigger probability (0-100, default 100)
@@ -163,7 +163,7 @@ export function getTriggeredLorebookEntries(
       if (prob < 100 && Math.random() * 100 > prob) {
         continue;
       }
-      
+
       activeEntries.push(entry);
       activeIds.add(entry.id);
       recursionTextAppend += "\n" + entry.content;
@@ -210,7 +210,7 @@ export function replaceMacros(
   },
 ): string {
   if (!text) return "";
-  
+
   const macroMap: Record<string, string> = {
     char: params.char,
     chara: params.char,
@@ -336,7 +336,7 @@ export function assemblePromptContext(params: {
         content,
       };
     });
-
+    //1 
     const chatHistory: typeof rawHistory = [];
     for (const item of rawHistory) {
       if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === item.role) {
@@ -436,11 +436,11 @@ export function assemblePromptContext(params: {
 
   const processedActiveEntries = enableCacheOptimization
     ? activeEntries.map((e) => {
-        if (e.position === "in_chat" || e.position === "before_last_mes") {
-          return { ...e, position: "after_char_def" as const };
-        }
-        return e;
-      })
+      if (e.position === "in_chat" || e.position === "before_last_mes") {
+        return { ...e, position: "after_char_def" as const };
+      }
+      return e;
+    })
     : activeEntries;
 
   // Sort them into physical location buckets
@@ -696,7 +696,7 @@ ${scenarioBlock}
   // Substitute all fields in Dynamic Extension (which now only maps post_history) using replacer function
   dynamicSystemExtension = dynamicSystemExtension
     .replace(/\{\{post_history\}\}/gi, () => postHistorySection);
-    
+
   const dynamicInstruction = dynamicSystemExtension.replace(/\n{3,}/g, "\n\n").trim();
 
   // 8. Gather Recent Full Messages and enforce safe token limits via sliding window
