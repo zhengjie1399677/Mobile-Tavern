@@ -46,6 +46,10 @@ export default function PresetForm() {
     activeCharacter,
   } = useContext(AppContext);
 
+  const activeBundleId = (settings.savedPresets || []).find(
+    (b) => b.preset.id === settings.preset.id
+  )?.id || "";
+
   // 子条目多选状态
   const [selectedPromptIds, setSelectedPromptIds] = React.useState<string[]>([]);
   const [selectedGlobalRegexIds, setSelectedGlobalRegexIds] = React.useState<string[]>([]);
@@ -216,7 +220,7 @@ export default function PresetForm() {
           <div className="flex gap-2 relative">
             <select
               className="flex-1 bg-muted/40 border border-border text-xs text-foreground rounded-md px-3 font-semibold h-9 outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
-              value={settings.preset.id || ""}
+              value={activeBundleId}
               onChange={(e) => handleLoadPresetBundle(e.target.value)}
             >
               <option value="" disabled>

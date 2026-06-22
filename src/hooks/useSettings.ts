@@ -139,7 +139,7 @@ export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE: SavedPresetBundle = {
   id: "bundle_mobile_tavern_basic",
   preset: {
     id: "preset_mobile_tavern_basic",
-    name: "Mobile Tavern 基础预设 v1.0",
+    name: "基本预设",
     temperature: 1.2,
     topP: 1.0,
     topK: 200,
@@ -294,7 +294,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     blush: "脸红|害羞|😳|blush|shy",
     shy: "脸红|害羞|😳|blush|shy",
   },
-  savedPresets: [FORMAT_PRESERVATION_BUNDLE, MOBILE_TAVERN_BASIC_PRESET_BUNDLE],
+  savedPresets: [MOBILE_TAVERN_BASIC_PRESET_BUNDLE],
   hasInjectedFormatPreset: true,
   hasInitializedDefaultCharacters: false,
   chatBackgroundBlur: 10,
@@ -437,19 +437,34 @@ export const useSettings = () => {
             presetRegexScripts: b.presetRegexScripts || []
           }));
 
-          const hasInjectedFlag = (storedSet as any).hasInjectedFormatPreset;
-          const hasPreset = mergedSavedPresets.some((p: any) => p.id === "bundle_format_preservation");
-          const hasBasicPreset = mergedSavedPresets.some((p: any) => p.id === "bundle_mobile_tavern_basic");
-
           let didInject = false;
-          if (!hasPreset && !hasInjectedFlag) {
-            mergedSavedPresets = [...mergedSavedPresets, FORMAT_PRESERVATION_BUNDLE];
+          let nextMergedPresets = (mergedSavedPresets || []).filter(
+            (p: any) => p.id !== "bundle_format_preservation"
+          );
+          if (nextMergedPresets.length !== (mergedSavedPresets || []).length) {
             didInject = true;
           }
-          if (!hasBasicPreset) {
-            mergedSavedPresets = [...mergedSavedPresets, MOBILE_TAVERN_BASIC_PRESET_BUNDLE];
+
+          const basicPresetIndex = nextMergedPresets.findIndex(
+            (p: any) => p.id === "bundle_mobile_tavern_basic"
+          );
+          if (basicPresetIndex === -1) {
+            nextMergedPresets = [...nextMergedPresets, MOBILE_TAVERN_BASIC_PRESET_BUNDLE];
             didInject = true;
+          } else {
+            if (nextMergedPresets[basicPresetIndex].preset?.name !== "基本预设") {
+              nextMergedPresets[basicPresetIndex] = {
+                ...nextMergedPresets[basicPresetIndex],
+                preset: {
+                  ...nextMergedPresets[basicPresetIndex].preset,
+                  name: "基本预设",
+                },
+              };
+              didInject = true;
+            }
           }
+          mergedSavedPresets = nextMergedPresets;
+
           if (didInject) {
             needSavePresets = true;
             needSave = true;
