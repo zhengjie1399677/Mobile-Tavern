@@ -122,10 +122,39 @@ export default function SettingsTab() {
     showCustomConfirm,
     showCustomAlert,
     activeCharacter,
+    safeAreas,
   } = useContext(AppContext);
   const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
 
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
+
+  const [viewportSize, setViewportSize] = React.useState(() => {
+    if (typeof window === "undefined") return { w: 0, h: 0, vW: 0, vH: 0 };
+    return {
+      w: window.innerWidth,
+      h: window.innerHeight,
+      vW: window.visualViewport?.width || window.innerWidth,
+      vH: window.visualViewport?.height || window.innerHeight,
+    };
+  });
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateSize = () => {
+      setViewportSize({
+        w: window.innerWidth,
+        h: window.innerHeight,
+        vW: window.visualViewport?.width || window.innerWidth,
+        vH: window.visualViewport?.height || window.innerHeight,
+      });
+    };
+    window.addEventListener("resize", updateSize);
+    window.visualViewport?.addEventListener("resize", updateSize);
+    return () => {
+      window.removeEventListener("resize", updateSize);
+      window.visualViewport?.removeEventListener("resize", updateSize);
+    };
+  }, []);
   const lastApiRef = React.useRef(JSON.stringify(settings.api));
 
   React.useEffect(() => {
@@ -1341,13 +1370,26 @@ export default function SettingsTab() {
 
             <UsageDisplay />
 
-            <div className="mt-8 text-center space-y-1 pb-4 opacity-50 select-text">
-              <p className="text-[10px] text-muted-foreground font-mono">
-                安装包版本: v1.5.5 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
+            <div className="mt-8 text-center space-y-1 pb-4 opacity-55 select-text font-mono text-[9px] text-muted-foreground/80">
+              <p className="font-bold text-[10px] text-muted-foreground mb-1 select-none">
+                🛠️ 系统报告
               </p>
-              <p className="text-[9px] text-muted-foreground/80 font-mono">
-                诊断设备型号: {deviceModel}
+              <p>
+                当前版本: v1.5.5 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
               </p>
+              <p>
+                设备型号: {deviceModel}
+              </p>
+              {typeof window !== "undefined" && (
+                <p>
+                  视口尺寸: {viewportSize.w}x{viewportSize.h} (视觉: {Math.round(viewportSize.vW)}x{Math.round(viewportSize.vH)})
+                </p>
+              )}
+              {safeAreas && (
+                <p>
+                  安全区域: 顶部 {safeAreas.top}dp | 底部 {safeAreas.bottom}dp
+                </p>
+              )}
             </div>
           </TabsContent>
         </div>
