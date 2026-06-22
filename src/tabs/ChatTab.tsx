@@ -56,34 +56,78 @@ const ChatInputArea = () => {
     if (!textarea) return;
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
-  }, [localInput]);
 
-  // 移动端键盘弹出时，将输入框滚动至可见区域（解决 Android WebView 不自动上移的问题）
+    // 用户在输入长文本换行导致输入框高度改变时，若软键盘处于打开状态且聚焦，同步进行滚动修正，确保最新行可见
+    if (isKeyboardOpen && document.activeElement === textarea) {
+      containerRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    }
+  }, [localInput, isKeyboardOpen]);
+
+  // 移动端键盘弹出时，将输入框滚动至可见区域（解决 Android WebView 不自动上移与被输入法遮挡的问题）
   React.useEffect(() => {
     const vvp = window.visualViewport;
     if (!vvp) return;
 
-    const handleViewportResize = () => {
-      setIsKeyboardOpen(window.innerHeight - vvp.height > 150);
+    let timeoutId: any = null;
 
+    const scrollInputIntoView = (behavior: "auto" | "smooth" = "auto") => {
       const container = containerRef.current;
-      if (!container) return;
+      const textarea = textareaRef.current;
+      if (!container || !textarea) return;
       // 只在输入框获得焦点时响应（键盘弹出场景）
-      if (document.activeElement !== textareaRef.current) return;
+      if (document.activeElement !== textarea) return;
 
-      // 计算输入框底部在页面中的位置
-      const rect = container.getBoundingClientRect();
-      const viewportBottom = vvp.offsetTop + vvp.height;
+      // 只要键盘打开且聚焦在输入框，就将其滚动到视口底部
+      container.scrollIntoView({ behavior, block: "end" });
 
-      // 如果输入框底部被键盘遮住，则将其滚动到可见位置
-      if (rect.bottom > viewportBottom) {
-        container.scrollIntoView({ behavior: "auto", block: "end" });
+      // 兜底支持一些旧版/特定安卓 WebView 的特殊滚动接口
+      if ((container as any).scrollIntoViewIfNeeded) {
+        (container as any).scrollIntoViewIfNeeded(false);
+      }
+    };
+
+    const handleViewportResize = () => {
+      // 优化为动态比例阈值，兼容折叠屏、大屏平板及横屏设备（差值大于屏幕高度的 15% 或 100px 即判定键盘弹出）
+      const threshold = Math.min(window.innerHeight * 0.15, 100);
+      const isKeyboardNowOpen = window.innerHeight - vvp.height > threshold;
+      setIsKeyboardOpen(isKeyboardNowOpen);
+
+      if (isKeyboardNowOpen) {
+        // 键盘弹起时，立即尝试进行一次定位
+        scrollInputIntoView("auto");
+
+        // 并在 250ms 后（等待软键盘展开动画结束、视口高度调整彻底稳定）执行二次修正滚动
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          scrollInputIntoView("smooth");
+        }, 250);
       }
     };
 
     vvp.addEventListener("resize", handleViewportResize);
+
+    // 绑定 textarea 的 focus 事件，作为双重保险（部分系统可能先聚焦而 resize 滞后）
+    const textarea = textareaRef.current;
+    const handleFocus = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        scrollInputIntoView("smooth");
+      }, 300); // 聚焦后延迟 300ms，等待键盘升起动画
+    };
+
+    if (textarea) {
+      textarea.addEventListener("focus", handleFocus);
+    }
+
     handleViewportResize();
-    return () => vvp.removeEventListener("resize", handleViewportResize);
+
+    return () => {
+      vvp.removeEventListener("resize", handleViewportResize);
+      if (textarea) {
+        textarea.removeEventListener("focus", handleFocus);
+      }
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   const onSend = () => {

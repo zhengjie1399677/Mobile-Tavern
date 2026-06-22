@@ -1497,13 +1497,25 @@ export const useChat = (
     );
     if (!branchTitle) return;
 
+    // 过滤出那些 lastMessageId 依然存在于被保留的历史消息（sourceSubHistory）中的总结卡片
+    const messageIdsSet = new Set(sourceSubHistory.map((m) => m.id));
+    const filteredSummaries = (activeSession.summaries || [])
+      .filter((s) => s.lastMessageId && messageIdsSet.has(s.lastMessageId))
+      .map((s) => ({ ...s })); // 深度克隆每一个总结对象，彻底隔离内存引用
+
+    // 正确计算新分支的最后已总结消息ID，确保未来自动总结可以精准进行增量定位
+    const lastSummarizedMessageId = filteredSummaries.length > 0
+      ? filteredSummaries[filteredSummaries.length - 1].lastMessageId
+      : undefined;
+
     const newSession: ChatSession = {
       id: generateUniqueId("session_branch_"),
       characterId: activeCharacter.id,
       title: branchTitle,
       createdAt: Date.now(),
       messages: sourceSubHistory,
-      summaries: [...(activeSession.summaries || [])],
+      summaries: filteredSummaries,
+      lastSummarizedMessageId,
     };
 
     try {
@@ -1521,7 +1533,6 @@ export const useChat = (
     activeCharacter,
     activeSession,
     showCustomPrompt,
-    activeCharId,
     saveSession,
     setActiveSessionId,
     setMsgMenuId,
@@ -1539,7 +1550,11 @@ export const useChat = (
     const sumIdx = (activeSession.summaries || []).findIndex((s) => s.id === summary.id);
     if (sumIdx < 0) return;
 
-    const targetBranchesSummaries = (activeSession.summaries || []).slice(0, sumIdx + 1);
+    // 只截取到当前大纲时间点之前的历史总结，并进行深度克隆防污染
+    const targetBranchesSummaries = (activeSession.summaries || [])
+      .slice(0, sumIdx + 1)
+      .map((s) => ({ ...s }));
+
     const branchTitle = await showCustomPrompt(
       "请输入根据该幕历史创立的心宿分支标题:",
       `时间流分支: ${summary.timeTag}`
@@ -1560,6 +1575,7 @@ export const useChat = (
         },
       ],
       summaries: targetBranchesSummaries,
+      lastSummarizedMessageId: undefined, // 起始轻量级时间线分支，不设置历史总结消息ID
     };
 
     try {
@@ -1576,7 +1592,6 @@ export const useChat = (
     activeCharacter,
     activeSession,
     showCustomPrompt,
-    activeCharId,
     saveSession,
     setActiveSessionId,
     setChatSubTab,
