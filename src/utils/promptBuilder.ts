@@ -336,7 +336,7 @@ export function assemblePromptContext(params: {
         content,
       };
     });
-    //1 
+
     const chatHistory: typeof rawHistory = [];
     for (const item of rawHistory) {
       if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === item.role) {

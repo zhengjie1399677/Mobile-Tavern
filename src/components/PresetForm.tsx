@@ -92,6 +92,22 @@ export default function PresetForm() {
     });
   };
 
+  // 计算卡片折叠状态摘要信息
+  const activeCustomPrompts = (settings.promptConfig?.customPrompts || []).filter((p: any) => p.enabled).length;
+  const systemOn = settings.promptConfig?.useMainPrompt;
+  const jailbreakOn = settings.promptConfig?.useJailbreak;
+  const postHistoryOn = settings.promptConfig?.usePostHistory;
+  
+  const coreStatusText = [
+    systemOn ? "Sys" : null,
+    jailbreakOn ? "Jb" : null,
+    postHistoryOn ? "Post" : null
+  ].filter(Boolean).join("+") || "无";
+
+  const activeGlobalRegex = (settings.globalRegexScripts || []).filter((r: any) => !r.disabled).length;
+  const activePresetRegex = (settings.presetRegexScripts || []).filter((r: any) => !r.disabled).length;
+  const activeCharRegex = (activeCharacter?.extensions?.regex_scripts || []).filter((r: any) => !r.disabled).length;
+
   // 正则脚本编辑器局部状态
   const [editingRegex, setEditingRegex] = React.useState<any>(null);
   const [isRegexModalOpen, setIsRegexModalOpen] = React.useState(false);
@@ -208,19 +224,30 @@ export default function PresetForm() {
               }}
             >
               <option value="" disabled>
-                当前正在编辑: {settings.preset.name}
+                当前预设: {settings.preset.name}
               </option>
+              <optgroup label="系统内置预设">
+                {Object.values(DEFAULT_PRESETS).map((p: any) => (
+                  <option key={p.id} value={p.id}>
+                    ⚙️ {p.name}
+                  </option>
+                ))}
+              </optgroup>
+              {(settings.savedPresets || []).length > 0 && (
+                <optgroup label="用户自定义预设">
+                  {(settings.savedPresets || []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      📄 {p.preset.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               <option
                 value="new"
                 className="text-primary font-bold"
               >
-                ➕ 保存副本
+                ➕ 另存当前配置为新预设副本...
               </option>
-              {(settings.savedPresets || []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  📄 {p.preset.name}
-                </option>
-              ))}
             </select>
             <button
               onClick={() =>
@@ -228,16 +255,18 @@ export default function PresetForm() {
               }
               disabled={
                 (settings.savedPresets || []).length === 0 ||
-                !settings.preset.id
+                !settings.preset.id ||
+                Object.keys(DEFAULT_PRESETS).includes(settings.preset.id)
               }
-              className="shrink-0 bg-destructive/10 border border-destructive/20 text-destructive disabled:opacity-30 p-2 rounded-md transition"
+              title="删除当前自定义预设"
+              className="shrink-0 bg-destructive/10 border border-destructive/20 text-destructive disabled:opacity-20 disabled:bg-muted/30 disabled:border-transparent p-2 rounded-md transition tap-scale"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-xs font-bold pt-1">
-            <label className="bg-muted cursor-pointer hover:bg-muted/80 text-foreground py-2 border border-border rounded-md text-center transition flex justify-center items-center gap-1">
+            <label className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/30 py-2 rounded-md text-center transition flex justify-center items-center gap-1 cursor-pointer tap-scale shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
               <Download className="w-3.5 h-3.5" /> 导入配置
               <input
                 type="file"
@@ -248,7 +277,7 @@ export default function PresetForm() {
             </label>
             <button
               onClick={handleExportPresetJSON}
-              className="bg-muted hover:bg-muted/80 text-foreground py-2 border border-border rounded-md transition flex justify-center items-center gap-1"
+              className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/30 py-2 rounded-md transition flex justify-center items-center gap-1 tap-scale shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
             >
               <Upload className="w-3.5 h-3.5" /> 导出配置
             </button>
@@ -263,14 +292,21 @@ export default function PresetForm() {
           onClick={handleToggleSamplersFold}
         >
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2 shrink-0">
               <Sliders className="w-4 h-4 text-primary" /> 温度与采样参数
             </CardTitle>
-            {isSamplersFolded ? (
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <ChevronUp className="w-4 h-4 text-muted-foreground" />
-            )}
+            <div className="flex items-center gap-2 overflow-hidden">
+              {isSamplersFolded && (
+                <span className="text-[10px] text-muted-foreground/80 font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[150px] sm:max-w-none">
+                  T: {settings.preset.temperature} | P: {settings.preset.topP} | Max: {settings.preset.maxTokens}
+                </span>
+              )}
+              {isSamplersFolded ? (
+                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+              )}
+            </div>
           </div>
           {!isSamplersFolded && (
             <CardDescription className="text-[11px] mt-1">
@@ -428,14 +464,21 @@ export default function PresetForm() {
           onClick={handleTogglePromptsFold}
         >
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2 shrink-0">
               <Brain className="w-4 h-4 text-primary" /> 预设提示词配置
             </CardTitle>
-            {isPromptsFolded ? (
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <ChevronUp className="w-4 h-4 text-muted-foreground" />
-            )}
+            <div className="flex items-center gap-2 overflow-hidden">
+              {isPromptsFolded && (
+                <span className="text-[10px] text-muted-foreground/80 font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[150px] sm:max-w-none">
+                  核心: {coreStatusText} | 模组: {activeCustomPrompts}
+                </span>
+              )}
+              {isPromptsFolded ? (
+                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+              )}
+            </div>
           </div>
           {!isPromptsFolded && (
             <CardDescription className="text-[11px] mt-1">
@@ -795,14 +838,21 @@ export default function PresetForm() {
           onClick={handleToggleRegexFold}
         >
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2 shrink-0">
               <Sparkles className="w-4 h-4 text-primary" /> 正则过滤脚本管理
             </CardTitle>
-            {isRegexFolded ? (
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <ChevronUp className="w-4 h-4 text-muted-foreground" />
-            )}
+            <div className="flex items-center gap-2 overflow-hidden">
+              {isRegexFolded && (
+                <span className="text-[10px] text-muted-foreground/80 font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[150px] sm:max-w-none">
+                  全局: {activeGlobalRegex} | 预设: {activePresetRegex} | 角色: {activeCharRegex}
+                </span>
+              )}
+              {isRegexFolded ? (
+                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+              )}
+            </div>
           </div>
           {!isRegexFolded && (
             <CardDescription className="text-[11px] mt-1">
