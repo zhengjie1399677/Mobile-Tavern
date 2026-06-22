@@ -111,7 +111,7 @@ async function startServer() {
 
       const isStream = reqBody.stream === true;
       console.log(`[Proxy OpenAI] Target URL: ${targetUrl}, isStream: ${isStream}`);
-      
+
       const response = await fetch(targetUrl, {
         method: "POST",
         headers,
@@ -131,7 +131,7 @@ async function startServer() {
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
-        
+
         if (response.body) {
           const reader = response.body.getReader();
           try {
@@ -270,7 +270,7 @@ async function startServer() {
       } else {
         const errBody = await response.text();
         console.warn(`[Catbot Proxy] 云端 FC 返回 HTTP 错误码 ${response.status}: ${errBody}，准备降级为本地处理器`);
-        
+
         const errLower = errBody.toLowerCase();
         if (
           response.status === 429 ||
@@ -315,7 +315,7 @@ async function startServer() {
         let expression = "talking";
 
         if (text.includes("api") || text.includes("key") || text.includes("接口") || text.includes("连接") || text.includes("设置")) {
-          reply += "关于 API 密钥配置，请在下方“控制端”中找到“API服务端点配置”面板进行填写喵！确认无误后可以点击测试连接。";
+          reply += "关于 API 密钥配置，请在下方“设置”中找到“API服务端点配置”面板进行填写喵！确认无误后可以点击测试连接。";
           expression = "thinking";
         } else if (text.includes("卡") || text.includes("角色") || text.includes("导入")) {
           reply += "要导入角色卡，只需要在“角色馆”页面点击右上角的“+”号选择你的角色卡 JSON 文件或带 EXIF PNG 的角色图片即可喵！";
@@ -375,7 +375,7 @@ async function startServer() {
 
       const resData: any = await response.json();
       const rawText = resData.choices?.[0]?.message?.content || "{}";
-      
+
       let parsed = { reply: "喵呜，云端传输的数据出现了一些格式解析错误喵……", expression: "sleepy" };
       try {
         parsed = JSON.parse(rawText.trim());
@@ -387,7 +387,7 @@ async function startServer() {
       res.json(parsed);
     } catch (e: any) {
       console.error("Catbot server fallback error:", e);
-      
+
       const errMsgLower = (e.message || "").toLowerCase();
       if (
         errMsgLower.includes("429") ||

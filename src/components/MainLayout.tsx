@@ -41,11 +41,10 @@ export default function MainLayout() {
               role="tab"
               aria-selected={activeTab === "characters"}
               aria-label={`页签，角色馆${activeTab === "characters" ? "，当前选中" : ""}`}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-                activeTab === "characters"
+              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${activeTab === "characters"
                   ? "text-primary scale-110 font-semibold"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               <VenetianMask className="w-5 h-5 mb-0.5" aria-hidden="true" />
               <span className="text-[10px]">角色馆</span>
@@ -53,17 +52,16 @@ export default function MainLayout() {
                 <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
               )}
             </button>
- 
+
             <button
               onClick={() => setActiveTab("chat-history")}
               role="tab"
               aria-selected={activeTab === "chat-history" || activeTab === "chat"}
               aria-label={`页签，历史对话${activeTab === "chat-history" ? "，当前选中" : ""}`}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-                activeTab === "chat-history" || activeTab === "chat"
+              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${activeTab === "chat-history" || activeTab === "chat"
                   ? "text-primary scale-110 font-semibold"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               <MessageSquare className="w-5 h-5 mb-0.5" aria-hidden="true" />
               <span className="text-[10px]">历史对话</span>
@@ -71,17 +69,16 @@ export default function MainLayout() {
                 <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
               )}
             </button>
- 
+
             <button
               onClick={() => setActiveTab("global-worldbook")}
               role="tab"
               aria-selected={activeTab === "global-worldbook"}
               aria-label={`页签，世界书${activeTab === "global-worldbook" ? "，当前选中" : ""}`}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-                activeTab === "global-worldbook"
+              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${activeTab === "global-worldbook"
                   ? "text-primary scale-110 font-semibold"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               <Book className="w-5 h-5 mb-0.5" aria-hidden="true" />
               <span className="text-[10px]">世界书</span>
@@ -89,20 +86,19 @@ export default function MainLayout() {
                 <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
               )}
             </button>
- 
+
             <button
               onClick={() => setActiveTab("settings")}
               role="tab"
               aria-selected={activeTab === "settings"}
-              aria-label={`页签，控制端${activeTab === "settings" ? "，当前选中" : ""}`}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-                activeTab === "settings"
+              aria-label={`页签，设置${activeTab === "settings" ? "，当前选中" : ""}`}
+              className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${activeTab === "settings"
                   ? "text-primary scale-110 font-semibold"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               <Settings className="w-5 h-5 mb-0.5" aria-hidden="true" />
-              <span className="text-[10px]">控制端</span>
+              <span className="text-[10px]">设置</span>
               {activeTab === "settings" && (
                 <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
               )}
@@ -113,11 +109,10 @@ export default function MainLayout() {
         {/* 2. Content Sections Grid */}
         <div
           style={activeTab !== "chat" && activeTab !== "playground" ? { paddingBottom: `${96 + (safeAreas?.bottom ?? 0)}px` } : undefined}
-          className={`flex-1 relative ${
-            activeTab === "chat" || activeTab === "playground"
+          className={`flex-1 relative ${activeTab === "chat" || activeTab === "playground"
               ? "flex flex-col min-h-0 pb-0"
               : "overflow-y-auto"
-          }`}
+            }`}
         >
           {/* === SECTION A: CHARACTER SELECTION === */}
           {activeTab === "characters" && <CharactersTab />}

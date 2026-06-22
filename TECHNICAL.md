@@ -390,7 +390,7 @@ erDiagram
 ### 11. `useSettings.ts` (参数自动同步及持久化)
 *   **实现位置**: [useSettings.ts](src/hooks/useSettings.ts)
 *   **核心逻辑**:
-    统一同步并托管用户的全局控制端参数设定。
+    统一同步并托管用户的全局设置参数设定。
 *   **防抖自动写入**:
     当用户拖拽设置页的 temperature、top_p 或是重复惩罚参数时，数据会反应式在内存中更新。防抖机制会将写入 IndexedDB 的底层调用聚合，降低系统频繁落库引起的并发 IO 压力。
 
