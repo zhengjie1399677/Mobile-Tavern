@@ -222,9 +222,6 @@ export default function PresetForm() {
               <option value="" disabled>
                 当前预设: {settings.preset.name}
               </option>
-              <option value="default">
-                ⚙️ 基本预设
-              </option>
               {(settings.savedPresets || []).map((p) => (
                 <option key={p.id} value={p.id}>
                   📄 {p.preset.name}
