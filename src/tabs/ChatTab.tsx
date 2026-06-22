@@ -824,7 +824,7 @@ export default function ChatTab() {
                 className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-[opacity,filter] duration-700 ${
                   isOriginalBg ? "" : "mask-feather-y"
                 } ${
-                  (settings.enableChatBgAnimation ?? true) ? "animate-bg-pan-zoom" : ""
+                  (settings.enableChatBgAnimation ?? false) ? "animate-bg-pan-zoom" : ""
                 }`}
                 style={{
                   backgroundImage: `url(${activeCharacter?.visualSettings?.backgroundImageUrl || settings.globalChatBg})`,

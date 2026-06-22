@@ -25,6 +25,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Switch } from "../../components/ui/switch";
+import { Checkbox } from "../../components/ui/checkbox";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 
@@ -700,17 +701,16 @@ export default function PresetForm() {
                   <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
                     <div className="flex items-center gap-2 flex-1">
                       {isBatchDeletingPrompts && (
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={selectedPromptIds.includes(p.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
+                          onCheckedChange={(checked) => {
+                            if (checked) {
                               setSelectedPromptIds((prev) => [...prev, p.id]);
                             } else {
                               setSelectedPromptIds((prev) => prev.filter((id) => id !== p.id));
                             }
                           }}
-                          className="w-4 h-4 rounded border-border bg-input text-primary accent-primary cursor-pointer focus:ring-0 shrink-0"
+                          className="shrink-0"
                         />
                       )}
                       <Switch
@@ -939,17 +939,16 @@ export default function PresetForm() {
                     }`}
                   >
                     {isBatchDeletingGlobalRegex && (
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={selectedGlobalRegexIds.includes(r.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
+                        onCheckedChange={(checked) => {
+                          if (checked) {
                             setSelectedGlobalRegexIds((prev) => [...prev, r.id]);
                           } else {
                             setSelectedGlobalRegexIds((prev) => prev.filter((id) => id !== r.id));
                           }
                         }}
-                        className="w-4 h-4 rounded border-border bg-input text-primary accent-primary cursor-pointer focus:ring-0 shrink-0"
+                        className="shrink-0"
                       />
                     )}
                     <div className="flex-1 min-w-0">
@@ -1086,17 +1085,16 @@ export default function PresetForm() {
                     }`}
                   >
                     {isBatchDeletingPresetRegex && (
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={selectedPresetRegexIds.includes(r.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
+                        onCheckedChange={(checked) => {
+                          if (checked) {
                             setSelectedPresetRegexIds((prev) => [...prev, r.id]);
                           } else {
                             setSelectedPresetRegexIds((prev) => prev.filter((id) => id !== r.id));
                           }
                         }}
-                        className="w-4 h-4 rounded border-border bg-input text-primary accent-primary cursor-pointer focus:ring-0 shrink-0"
+                        className="shrink-0"
                       />
                     )}
                     <div className="flex-1 min-w-0">
@@ -1258,38 +1256,34 @@ export default function PresetForm() {
                 <label className="text-[11px] font-bold text-muted-foreground block">作用阶段 (Placement)</label>
                 <div className="flex gap-4">
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={editingRegex?.placement?.includes(1) || false}
-                      onChange={(e) => {
+                      onCheckedChange={(checked) => {
                         const current = editingRegex?.placement || [2];
                         let next;
-                        if (e.target.checked) {
+                        if (checked) {
                           next = [...current.filter((x: any) => x !== 1), 1];
                         } else {
                           next = current.filter((x: any) => x !== 1);
                         }
                         setEditingRegex((prev: any) => ({ ...prev, placement: next }));
                       }}
-                      className="w-3.5 h-3.5 rounded border-border bg-input text-primary accent-primary"
                     />
                     输入阶段 (拦截发送)
                   </label>
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={editingRegex?.placement?.includes(2) || false}
-                      onChange={(e) => {
+                      onCheckedChange={(checked) => {
                         const current = editingRegex?.placement || [2];
                         let next;
-                        if (e.target.checked) {
+                        if (checked) {
                           next = [...current.filter((x: any) => x !== 2), 2];
                         } else {
                           next = current.filter((x: any) => x !== 2);
                         }
                         setEditingRegex((prev: any) => ({ ...prev, placement: next }));
                       }}
-                      className="w-3.5 h-3.5 rounded border-border bg-input text-primary accent-primary"
                     />
                     输出阶段 (渲染渲染)
                   </label>

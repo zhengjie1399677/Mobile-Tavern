@@ -742,7 +742,7 @@ export default function SettingsTab() {
                     </label>
                     <input
                       type="checkbox"
-                      checked={settings.enableChatBgAnimation ?? true}
+                      checked={settings.enableChatBgAnimation ?? false}
                       onChange={(e) =>
                         updateSettings((prev) => ({
                           ...prev,

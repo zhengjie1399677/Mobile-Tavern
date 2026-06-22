@@ -299,7 +299,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   hasInitializedDefaultCharacters: false,
   chatBackgroundBlur: 10,
   chatBackgroundDim: 50,
-  enableChatBgAnimation: true,
+  enableChatBgAnimation: false,
   savedApiProfiles: [],
   currentApiProfileId: "",
   globalRegexScripts: [],

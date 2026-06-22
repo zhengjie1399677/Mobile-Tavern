@@ -15,63 +15,63 @@
 
 /* Provide global defaults or fallback */
 :root {
-  color-scheme: light;
-  --background: oklch(0.96 0.01 90);
-  --foreground: oklch(0.2 0.02 90);
-  --card: oklch(0.99 0 0);
-  --card-foreground: oklch(0.2 0.02 90);
-  --popover: oklch(0.99 0 0);
-  --popover-foreground: oklch(0.2 0.02 90);
-  --primary: oklch(0.55 0.15 50);
+  color-scheme: dark;
+  --background: oklch(0.12 0.01 250); /* 黑曜石极暗背景 */
+  --foreground: oklch(0.88 0.01 250);  /* 高对比度明亮冷灰 */
+  --card: oklch(0.16 0.01 250);
+  --card-foreground: oklch(0.88 0.01 250);
+  --popover: oklch(0.16 0.01 250);
+  --popover-foreground: oklch(0.88 0.01 250);
+  --primary: oklch(0.65 0.12 250);       /* 霓虹紫罗兰主色 */
   --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.9 0.02 90);
-  --secondary-foreground: oklch(0.2 0.02 90);
-  --muted: oklch(0.92 0.01 90);
-  --muted-foreground: oklch(0.5 0.02 90);
-  --accent: oklch(0.9 0.05 60);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.5 0.15 25);
+  --secondary: oklch(0.2 0.01 250);     /* 辅助暗背景 */
+  --secondary-foreground: oklch(0.88 0.01 250);
+  --muted: oklch(0.18 0.01 250);
+  --muted-foreground: oklch(0.55 0.01 250);
+  --accent: oklch(0.22 0.02 250);
+  --accent-foreground: oklch(0.88 0.01 250);
+  --destructive: oklch(0.48 0.15 25);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.85 0.01 90);
-  --input: oklch(0.85 0.01 90);
-  --ring: oklch(0.55 0.15 50);
+  --border: oklch(0.22 0.01 250);       /* 微蓝紫极暗边框线 */
+  --input: oklch(0.22 0.01 250);
+  --ring: oklch(0.65 0.12 250);
 
   --radius: 0.6rem;
 
-  --dialogue-color: #3f3f46;
-  --prose-color: #78716c;
+  --dialogue-color: #f1f5f9;            /* 舒适的明亮白字 */
+  --prose-color: #a78bfa;               /* 科技感的柔紫副色 */
 
   --safe-area-top: var(--android-safe-area-top, env(safe-area-inset-top, 0px));
   --safe-area-bottom: var(--android-safe-area-bottom, env(safe-area-inset-bottom, 0px));
 }
 
-/* Theme 1: 极简纯白 (Pure snow white) */
+/* Theme 1: 冰川冷白毛玻璃 (Sleek Glassmorphic Light) */
 [data-theme="snow"] {
   color-scheme: light;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.985 0.005 240);
+  --foreground: oklch(0.18 0.015 240);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.18 0.015 240);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.2 0 0);
+  --popover-foreground: oklch(0.18 0.015 240);
+  --primary: oklch(0.6 0.12 250);
   --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.96 0 0);
-  --secondary-foreground: oklch(0.2 0 0);
-  --muted: oklch(0.96 0 0);
-  --muted-foreground: oklch(0.55 0 0);
-  --accent: oklch(0.96 0 0);
-  --accent-foreground: oklch(0.2 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  --secondary: oklch(0.95 0.01 240);
+  --secondary-foreground: oklch(0.18 0.015 240);
+  --muted: oklch(0.95 0.01 240);
+  --muted-foreground: oklch(0.55 0.015 240);
+  --accent: oklch(0.93 0.02 250);
+  --accent-foreground: oklch(0.6 0.12 250);
+  --destructive: oklch(0.55 0.18 25);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.92 0 0);
-  --input: oklch(0.92 0 0);
-  --ring: oklch(0.87 0 0);
+  --border: oklch(0.91 0.01 240);
+  --input: oklch(0.94 0.01 240);
+  --ring: oklch(0.6 0.12 250);
 
   --radius: 0.6rem;
 
-  --dialogue-color: #171717;
-  --prose-color: #525252;
+  --dialogue-color: #1e293b;
+  --prose-color: #475569;
 }
 
 /* Theme 2: 浅沙暮色 (Warm Dusk / Ancient Parchment) */
