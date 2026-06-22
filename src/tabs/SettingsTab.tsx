@@ -618,48 +618,47 @@ export default function SettingsTab() {
                   <label className="text-[11px] font-semibold text-muted-foreground block">
                     全局默认聊天背景图片 (当角色未设置专属背景时生效)
                   </label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={settings.globalChatBg || ""}
-                      onChange={(e) =>
-                        updateSettings({ ...settings, globalChatBg: e.target.value })
-                      }
-                      className="h-9 text-xs bg-input/50 flex-1 truncate"
-                      placeholder="未设置（使用默认主题底色）"
-                    />
-                    <label className="bg-muted text-muted-foreground text-xs px-3 rounded flex items-center justify-center cursor-pointer border border-border select-none shrink-0">
-                      上传
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            if (file.size > 5 * 1024 * 1024) {
-                              showCustomAlert("⚠️ 上传失败：背景图片大小不能超过 5MB！");
-                              return;
+                  <div className="flex items-center justify-between bg-muted/20 border border-border/40 rounded-lg p-2">
+                    <span className="text-xs text-muted-foreground truncate max-w-[200px] pl-1 select-none">
+                      {settings.globalChatBg 
+                        ? "✨ 已启用自定义背景图片" 
+                        : "未设置（使用默认主题底色）"}
+                    </span>
+                    <div className="flex gap-2 shrink-0">
+                      <label className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs px-3 py-1.5 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold">
+                        上传
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 5 * 1024 * 1024) {
+                                showCustomAlert("⚠️ 上传失败：背景图片大小不能超过 5MB！");
+                                return;
+                              }
+                              compressImage(file, 1080, 1920, 0.75, "image/jpeg")
+                                .then((base64) => {
+                                  updateSettings({ ...settings, globalChatBg: base64 });
+                                })
+                                .catch((err) => {
+                                  showCustomAlert("⚠️ 图片压缩失败：" + err.message);
+                                });
                             }
-                            compressImage(file, 1080, 1920, 0.75, "image/jpeg")
-                              .then((base64) => {
-                                updateSettings({ ...settings, globalChatBg: base64 });
-                              })
-                              .catch((err) => {
-                                showCustomAlert("⚠️ 图片压缩失败：" + err.message);
-                              });
-                          }
-                        }}
-                      />
-                    </label>
-                    {settings.globalChatBg && (
-                      <button
-                        type="button"
-                        onClick={() => updateSettings({ ...settings, globalChatBg: "" })}
-                        className="bg-rose-950/20 text-red-400 px-3 rounded border border-rose-900/35 hover:bg-rose-950/45 text-xs transition shrink-0"
-                      >
-                        清除
-                      </button>
-                    )}
+                          }}
+                        />
+                      </label>
+                      {settings.globalChatBg && (
+                        <button
+                          type="button"
+                          onClick={() => updateSettings({ ...settings, globalChatBg: "" })}
+                          className="bg-muted hover:bg-destructive/10 border border-border hover:border-destructive/20 text-muted-foreground hover:text-destructive px-3 py-1.5 rounded-md text-xs transition tap-scale font-semibold"
+                        >
+                          清除
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
