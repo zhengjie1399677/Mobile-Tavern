@@ -7,6 +7,7 @@ import {
   Message,
   SummaryCard,
   CustomPromptBlock,
+  CustomWorldbook,
 } from "./types";
 import {
   TabType,
@@ -104,6 +105,10 @@ export interface UnifiedAppContextProps {
   handleExportLocalDataBackup: () => Promise<void>;
   handleImportLocalDataBackup: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleImportSillyChatHistory: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  customWorldbooks: Record<string, CustomWorldbook>;
+  updateCustomWorldbooks: (
+    updater: Record<string, CustomWorldbook> | ((prev: Record<string, CustomWorldbook>) => Record<string, CustomWorldbook>)
+  ) => Promise<void>;
 
   // --- Characters Hook ---
   handleImportCardFile: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;

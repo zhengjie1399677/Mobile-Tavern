@@ -245,4 +245,11 @@ export interface TableMemorySheet {
   description?: string;// Guide for the AI (e.g. "用于记录玩家和你的好感阶段")
 }
 
+export interface CustomWorldbook {
+  id: string;
+  name: string;
+  entries: LorebookEntry[];
+  enabled: boolean;
+}
+
 

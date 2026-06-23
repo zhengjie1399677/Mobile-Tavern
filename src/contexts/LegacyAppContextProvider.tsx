@@ -63,7 +63,12 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
 
   // 6. Ref for scroll & useChat Hook
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const chatHook = useChat(settingsHook.settings, settingsHook.globalLorebook, chatBottomRef);
+  const chatHook = useChat(
+    settingsHook.settings,
+    settingsHook.globalLorebook,
+    chatBottomRef,
+    settingsHook.customWorldbooks
+  );
 
   // Wrap handleDeleteCharacter to inject chatState dependencies
   const wrappedHandleDeleteCharacter = React.useCallback(async (id: string, e: React.MouseEvent) => {

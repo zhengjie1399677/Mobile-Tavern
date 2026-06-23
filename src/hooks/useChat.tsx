@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
-import { Message, ChatSession, SummaryCard, UserSettings, LorebookEntry, TableMemorySheet } from "../types";
+import { Message, ChatSession, SummaryCard, UserSettings, LorebookEntry, TableMemorySheet, CustomWorldbook } from "../types";
 import { FALLBACK_MODEL, API_ENDPOINT } from "../utils/apiClient";
 import { readSSEStream, safeParseSSEData } from "../utils/streamReader";
 import FormattedText from "../components/FormattedText";
@@ -229,7 +229,8 @@ export function calculateBisonModeProbability(character: any, lastAiContent: str
 export const useChat = (
   settings: UserSettings,
   globalLorebook: LorebookEntry[],
-  chatBottomRef: React.RefObject<HTMLDivElement | null>
+  chatBottomRef: React.RefObject<HTMLDivElement | null>,
+  customWorldbooks: Record<string, CustomWorldbook>
 ) => {
   const { showCustomAlert, showCustomConfirm, showCustomPrompt, setActiveTab } = useApp();
   const { characters, activeCharId, setActiveCharId, activeCharacter } = useCharactersState();
@@ -548,6 +549,7 @@ export const useChat = (
 
   const handleSendMessage = useCallback(async (textToSend: string, options?: { isBisonConsecutive?: boolean }) => {
     const isBisonConsecutive = !!options?.isBisonConsecutive;
+    let isBisonChainActive = false;
     telemetryService.incrementUsageCount();
     setReplySuggestions([]);
     
@@ -690,7 +692,15 @@ export const useChat = (
         .filter((c) => c.isWorldbookGlobal && c.id !== activeCharacter.id)
         .flatMap((c) => c.lorebookEntries || []);
 
-      const combinedGlobals = [...(globalLorebook || []), ...otherCharGlobals];
+      const customWorldbookGlobals = Object.values(customWorldbooks || {})
+        .filter((wb) => wb.enabled)
+        .flatMap((wb) => wb.entries || []);
+
+      const combinedGlobals = [
+        ...(globalLorebook || []),
+        ...otherCharGlobals,
+        ...customWorldbookGlobals,
+      ];
 
       const promptPayload = promptService.assemblePrompt({
         character: activeCharacter,
@@ -756,8 +766,8 @@ export const useChat = (
           top_p: settings.preset.topP,
           top_k: settings.preset.topK,
           min_p: settings.preset.minP,
-          max_tokens: isBisonConsecutive ? 100 : settings.preset.maxTokens,
-          max_completion_tokens: isBisonConsecutive ? 100 : settings.preset.maxTokens,
+          max_tokens: isBisonConsecutive ? 300 : settings.preset.maxTokens,
+          max_completion_tokens: isBisonConsecutive ? 300 : settings.preset.maxTokens,
           presence_penalty: settings.preset.presencePenalty ?? 0.0,
           frequency_penalty: settings.preset.frequencyPenalty ?? 0.0,
           repetition_penalty: settings.preset.repetitionPenalty,
@@ -904,6 +914,7 @@ export const useChat = (
 
         if (shouldTriggerBison) {
           bisonRemainingCountRef.current--;
+          isBisonChainActive = true;
           
           const silentMsg: Message = {
             id: generateUniqueId("msg_bison_silent_"),
@@ -1077,7 +1088,7 @@ export const useChat = (
         abortControllerRef.current = null;
       }
       if (requestId === activeRequestIdRef.current) {
-        const isBisonScheduled = settings.enableBisonMode && bisonRemainingCountRef.current > 0;
+        const isBisonScheduled = settings.enableBisonMode && (bisonRemainingCountRef.current > 0 || isBisonChainActive);
         if (!isBisonScheduled) {
           isSendingRef.current = false;
           setIsSending(false);
@@ -1092,6 +1103,7 @@ export const useChat = (
     settings,
     characters,
     globalLorebook,
+    customWorldbooks,
     setSessions,
     saveSession,
     triggerScroll,
@@ -1251,7 +1263,20 @@ export const useChat = (
           }))
         );
 
-      const combinedGlobals = [...(globalLorebook || []), ...otherCharGlobals];
+      const customWorldbookGlobals = Object.values(customWorldbooks || {})
+        .filter((wb) => wb.enabled)
+        .flatMap((wb) =>
+          (wb.entries || []).map((entry) => ({
+            ...entry,
+            content: `[来自世界书: ${wb.name}]\n${entry.content}`,
+          }))
+        );
+
+      const combinedGlobals = [
+        ...(globalLorebook || []),
+        ...otherCharGlobals,
+        ...customWorldbookGlobals,
+      ];
 
       const promptPayload = promptService.assemblePrompt({
         character: activeCharacter,
@@ -1618,6 +1643,7 @@ export const useChat = (
     settings,
     characters,
     globalLorebook,
+    customWorldbooks,
     setSessions,
     saveSession,
     triggerScroll,

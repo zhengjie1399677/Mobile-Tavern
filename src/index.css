@@ -296,10 +296,14 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground overflow-hidden h-full;
+    position: fixed;
+    width: 100%;
+    margin: 0;
+    padding: 0;
   }
   html {
-    @apply font-sans;
+    @apply font-sans overflow-hidden h-full;
   }
 }
 

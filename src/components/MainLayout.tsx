@@ -19,6 +19,19 @@ export default function MainLayout() {
     safeAreas,
   } = useContext(AppContext);
 
+  const [viewportHeight, setViewportHeight] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    const vvp = window.visualViewport;
+    if (!vvp) return;
+    const handleResize = () => {
+      setViewportHeight(vvp.height);
+    };
+    vvp.addEventListener("resize", handleResize);
+    handleResize();
+    return () => vvp.removeEventListener("resize", handleResize);
+  }, []);
+
   const tabs = globalKernel.getExtensions("main:tabs");
   const bottomBarTabs = tabs.filter(t => t.meta?.showInBottomBar);
 
@@ -32,7 +45,11 @@ export default function MainLayout() {
   return (
     <>
       <SplashScreen isVisible={showSplash} />
-      <div className="flex flex-col h-[100dvh] pt-[var(--safe-area-top)] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans">
+      <div
+        style={viewportHeight ? { height: `${viewportHeight}px` } : undefined}
+        className={`flex flex-col h-[100dvh] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans ${
+        activeTab === "chat" || activeTab === "playground" ? "pt-0" : "pt-[var(--safe-area-top)]"
+      }`}>
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
         {activeTab !== "chat" && activeTab !== "playground" && (
           <div
@@ -72,7 +89,7 @@ export default function MainLayout() {
         <div
           style={activeTab !== "chat" && activeTab !== "playground" ? { paddingBottom: `${96 + (safeAreas?.bottom ?? 0)}px` } : undefined}
           className={`flex-1 relative ${activeTab === "chat" || activeTab === "playground"
-              ? "flex flex-col min-h-0 pb-0"
+              ? "flex flex-col min-h-0 pb-0 overflow-hidden"
               : "overflow-y-auto"
             }`}
         >

@@ -3,6 +3,7 @@ import {
   ChatSession,
   UserSettings,
   LorebookEntry,
+  CustomWorldbook,
 } from "../types";
 import { reportDbQueueTimeout } from "./telemetry";
 
@@ -326,6 +327,34 @@ export async function bulkSaveSessions(sessionsList: ChatSession[]): Promise<voi
       for (const session of sessionsList) {
         store.put(session);
       }
+    });
+  });
+}
+
+export async function getCustomWorldbooks(): Promise<Record<string, CustomWorldbook>> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("settings", "readonly");
+    const store = transaction.objectStore("settings");
+    const request = store.get("custom_worldbooks");
+
+    request.onsuccess = () => resolve(request.result || {});
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function saveCustomWorldbooks(
+  worldbooks: Record<string, CustomWorldbook>,
+): Promise<void> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("settings", "readwrite");
+      const store = transaction.objectStore("settings");
+      const request = store.put(worldbooks, "custom_worldbooks");
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
     });
   });
 }

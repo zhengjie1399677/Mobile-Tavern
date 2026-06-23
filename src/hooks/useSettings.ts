@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { UserSettings, LorebookEntry, SamplerPreset, PromptConfig, SavedPresetBundle } from "../types";
+import { UserSettings, LorebookEntry, SamplerPreset, PromptConfig, SavedPresetBundle, CustomWorldbook } from "../types";
 import {
   getStoredSettings,
   saveStoredSettings,
@@ -11,6 +11,8 @@ import {
   bulkSaveSessions,
   getStoredSavedPresets,
   saveStoredSavedPresets,
+  getCustomWorldbooks,
+  saveCustomWorldbooks,
 } from "../utils/localDB";
 import { useApp } from "../contexts/AppContext";
 import { useChatState } from "../contexts/ChatContext";
@@ -271,7 +273,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     modelsPath: "/models",
     bypassProxy: false,
   },
-  preset: DEFAULT_PRESETS.balanced,
+  preset: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset,
   memory: {
     recentTurns: 6,
     summaryTriggerTurns: 0,
@@ -394,6 +396,7 @@ export const useSettings = () => {
 
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [globalLorebook, setGlobalLorebook] = useState<LorebookEntry[]>([]);
+  const [customWorldbooks, setCustomWorldbooks] = useState<Record<string, CustomWorldbook>>({});
   const [isReady, setIsReady] = useState(false);
 
   // Backups Encryption Passphrase
@@ -424,6 +427,7 @@ export const useSettings = () => {
         let storedSet = await getStoredSettings();
         const storedSavedPresets = await getStoredSavedPresets();
         const storedLores = await getGlobalLorebook();
+        const storedWorldbooks = await getCustomWorldbooks();
 
         // 💡 核心安全策略：如果检测到数据库中没有主提示词数据（首次运行或被清空），则从外部静态 JSON 文件异步拉取初始化
         let externalPreset: any = null;
@@ -648,6 +652,9 @@ export const useSettings = () => {
         if (storedLores) {
           setGlobalLorebook(storedLores.map(cleanLorebookEntry));
         }
+        if (storedWorldbooks) {
+          setCustomWorldbooks(storedWorldbooks);
+        }
         setIsReady(true);
       } catch (err) {
         console.error("Failed to load settings from DB:", err);
@@ -762,6 +769,18 @@ export const useSettings = () => {
       showCustomAlert("保存全局世界书失败");
     }
   }, [showCustomAlert]);
+
+  const updateCustomWorldbooks = useCallback(async (
+    updater: Record<string, CustomWorldbook> | ((prev: Record<string, CustomWorldbook>) => Record<string, CustomWorldbook>)
+  ) => {
+    setCustomWorldbooks((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      saveCustomWorldbooks(next).catch((err) => {
+        console.error("Failed to save custom worldbooks:", err);
+      });
+      return next;
+    });
+  }, []);
 
   const handleFetchModels = useCallback(async () => {
     setIsFetchingModels(true);
@@ -1779,5 +1798,7 @@ export const useSettings = () => {
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
     handleImportSillyChatHistory,
+    customWorldbooks,
+    updateCustomWorldbooks,
   };
 };

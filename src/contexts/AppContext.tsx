@@ -121,7 +121,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const [currentTheme, setCurrentTheme] = useState<ThemeType>(() => {
-    return (localStorage.getItem("siuser-theme") as any) || "sand";
+    return (localStorage.getItem("siuser-theme") as any) || "ocean";
   });
   const isInitialRender = useRef(true);
 

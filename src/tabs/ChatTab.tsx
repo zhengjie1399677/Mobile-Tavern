@@ -50,6 +50,7 @@ const ChatInputArea = () => {
     setReplySuggestions,
     updateSettings,
     isBisonLocking,
+    triggerScroll,
   } = React.useContext(AppContext);
   const [localInput, setLocalInput] = React.useState(userInputMessage);
   const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
@@ -78,11 +79,11 @@ const ChatInputArea = () => {
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
 
-    // 用户在输入长文本换行导致输入框高度改变时，若软键盘处于打开状态且聚焦，同步进行滚动修正，确保最新行可见
+    // 用户在输入长文本换行导致输入框高度改变时，若软键盘处于打开状态且聚焦，通过滚动消息历史确保最新可见，不顶起整个视口
     if (isKeyboardOpen && document.activeElement === textarea) {
-      containerRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+      triggerScroll("auto");
     }
-  }, [localInput, isKeyboardOpen]);
+  }, [localInput, isKeyboardOpen, triggerScroll]);
 
   // 移动端键盘弹出时，将输入框滚动至可见区域（解决 Android WebView 不自动上移与被输入法遮挡的问题）
   React.useEffect(() => {
@@ -92,23 +93,15 @@ const ChatInputArea = () => {
     let timeoutId: any = null;
 
     const scrollInputIntoView = (behavior: "auto" | "smooth" = "auto") => {
-      const container = containerRef.current;
       const textarea = textareaRef.current;
-      if (!container || !textarea) return;
+      if (!textarea) return;
       // 只在输入框获得焦点时响应（键盘弹出场景）
       if (document.activeElement !== textarea) return;
-
-      // 只要键盘打开且聚焦在输入框，就将其滚动到视口底部
-      container.scrollIntoView({ behavior, block: "end" });
-
-      // 兜底支持一些旧版/特定安卓 WebView 的特殊滚动接口
-      if ((container as any).scrollIntoViewIfNeeded) {
-        (container as any).scrollIntoViewIfNeeded(false);
-      }
+      triggerScroll(behavior);
     };
 
     const handleViewportResize = () => {
-      // 优化为动态比例阈值，兼容折叠屏、大屏平板及横屏设备（差值大于屏幕高度的 15% 或 100px 即判定键盘弹出）
+      // 优化为动态比例阈值，兼容折叠屏、大屏平板及横屏设备（差值大于屏幕高度 of 15% 或 100px 即判定键盘弹出）
       const threshold = Math.min(window.innerHeight * 0.15, 100);
       const isKeyboardNowOpen = window.innerHeight - vvp.height > threshold;
       setIsKeyboardOpen(isKeyboardNowOpen);
@@ -149,7 +142,7 @@ const ChatInputArea = () => {
       }
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, []);
+  }, [triggerScroll]);
 
   const onSend = () => {
     if (!localInput.trim()) return;
@@ -158,6 +151,29 @@ const ChatInputArea = () => {
     setUserInputMessage("");
     setReplySuggestions([]);
     handleSendMessage(msg);
+  };
+
+  const handleSelectSuggestion = (e: React.MouseEvent | React.TouchEvent, suggestion: string) => {
+    e.preventDefault();
+    if (e.type === "touchstart") {
+      (e.currentTarget as any)._touched = true;
+    } else if (e.type === "mousedown") {
+      if ((e.currentTarget as any)._touched) {
+        (e.currentTarget as any)._touched = false;
+        return;
+      }
+    }
+
+    const currentMode = settings.replySuggestionsClickMode || "fill";
+    if (currentMode === "send") {
+      setLocalInput("");
+      setUserInputMessage("");
+      setReplySuggestions([]);
+      handleSendMessage(suggestion);
+    } else {
+      setLocalInput(suggestion);
+      setUserInputMessage(suggestion);
+    }
   };
 
   return (
@@ -264,17 +280,10 @@ const ChatInputArea = () => {
             {replySuggestions.map((suggestion, idx) => (
               <button
                 key={idx}
-                onClick={() => {
-                  const currentMode = settings.replySuggestionsClickMode || "fill";
-                  if (currentMode === "send") {
-                    setLocalInput("");
-                    setUserInputMessage("");
-                    setReplySuggestions([]);
-                    handleSendMessage(suggestion);
-                  } else {
-                    setLocalInput(suggestion);
-                    setUserInputMessage(suggestion);
-                  }
+                onMouseDown={(e) => handleSelectSuggestion(e, suggestion)}
+                onTouchStart={(e) => handleSelectSuggestion(e, suggestion)}
+                onClick={(e) => {
+                  e.preventDefault();
                 }}
                 className="w-full px-3 py-2 rounded-lg text-[11px] font-normal leading-normal text-left text-foreground bg-primary/5 hover:bg-primary/10 border border-primary/15 hover:border-primary/30 transition active:scale-95 shadow-sm truncate"
                 title={suggestion}
@@ -393,7 +402,61 @@ export default function ChatTab() {
     updateSettings,
   } = useContext(AppContext);
 
+  React.useEffect(() => {
+    const handleWindowScroll = () => {
+      if (
+        window.scrollY !== 0 ||
+        window.scrollX !== 0 ||
+        document.body.scrollTop !== 0 ||
+        document.documentElement.scrollTop !== 0
+      ) {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+      }
+    };
+    window.addEventListener("scroll", handleWindowScroll, { passive: false });
 
+    const resetScroll = () => {
+      window.scrollTo(0, 0);
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+    };
+
+    let timer: any = null;
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) {
+        // 在键盘拉起动画的 600ms 周期内高频强行归位，打断一切系统平移
+        if (timer) clearInterval(timer);
+        let count = 0;
+        timer = setInterval(() => {
+          resetScroll();
+          count++;
+          if (count > 20) {
+            clearInterval(timer);
+            timer = null;
+          }
+        }, 30);
+      }
+    };
+
+    document.addEventListener("focusin", handleFocusIn);
+
+    const vvp = window.visualViewport;
+    if (vvp) {
+      vvp.addEventListener("resize", resetScroll);
+    }
+
+    return () => {
+      window.removeEventListener("scroll", handleWindowScroll);
+      document.removeEventListener("focusin", handleFocusIn);
+      if (timer) clearInterval(timer);
+      if (vvp) {
+        vvp.removeEventListener("resize", resetScroll);
+      }
+    };
+  }, []);
 
   // a11y Live Announcer state and effect
   const [announcement, setAnnouncement] = React.useState("");
@@ -683,14 +746,17 @@ export default function ChatTab() {
   const isOriginalBg = (settings.chatBackgroundBlur ?? 10) === 0 && (settings.chatBackgroundDim ?? 50) === 0;
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-background">
+    <div className="flex flex-col flex-1 min-h-0 bg-background overflow-hidden">
       {activeCharacter?.visualSettings?.customCss && (
         <style dangerouslySetInnerHTML={{
           __html: `@media (min-width: 768px) { ${activeCharacter.visualSettings.customCss} }`
         }} />
       )}
       {/* Embedded Header info card */}
-      <div className="bg-card p-3 border-b border-border flex items-center justify-between sticky top-0 z-10">
+      <div
+        style={{ paddingTop: "calc(var(--safe-area-top) + 12px)" }}
+        className="bg-card px-3 pb-3 border-b border-border flex items-center justify-between sticky top-0 z-30"
+      >
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={() => setActiveTab("characters")}
