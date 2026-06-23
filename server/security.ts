@@ -1,7 +1,3 @@
-if (typeof window !== "undefined") {
-  throw new Error("security.ts is a Node-only utility and cannot be imported in client-side code.");
-}
-
 import dns from "dns";
 import { promisify } from "util";
 import express from "express";
@@ -197,9 +193,6 @@ export async function validateBaseUrlSecurity(baseUrl: string): Promise<void> {
   }
 
   // Force resolve all hostnames (including IP-like strings) via DNS lookup.
-  // This ensures that any obfuscated IP representation (octal, hex, etc.) is resolved to a standard decimal IP,
-  // which will then be correctly matched against the private IP ranges.
-
   try {
     const lookupResult = await dnsLookup(hostname, { all: true });
     for (const addr of lookupResult) {

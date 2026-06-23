@@ -84,8 +84,13 @@ export function reportUsage(action: string = "app_launch", extraData: Record<str
 
 // ========== 遥测增强高级接口 ==========
 
-export function reportColdStartReady() {
+export async function reportColdStartReady() {
   const duration = Date.now() - sessionStartTime;
+  try {
+    await reportImmediate("app_instant_launch", { detail: "应用启动，立刻上报瞬时遥测，绕过离线缓存" });
+  } catch (e) {
+    console.warn("Failed to send app_instant_launch telemetry:", e);
+  }
   reportUsage("performance_cold_start", {
     detail: "App cold start ready",
     generationTime: duration,
@@ -143,7 +148,4 @@ export async function reportImmediate(action: string, extraData: Record<string, 
   if (typeof window !== "undefined") {
     (window as any).reportZodValidationError = reportZodValidationError;
   }
-
-  // 0. 立刻发送开机瞬发遥测
-  reportImmediate("app_instant_launch", { detail: "应用启动，立刻上报瞬时遥测，绕过离线缓存" });
 })();

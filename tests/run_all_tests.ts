@@ -1,4 +1,4 @@
-import { isPrivateIp, validateBaseUrlSecurity } from "../src/utils/security";
+import { isPrivateIp, validateBaseUrlSecurity } from "../server/security";
 import { replaceMacros, getTriggeredLorebookEntries, assemblePromptContext } from "../src/utils/promptBuilder";
 import { injectPngMetadata } from "../src/utils/cardParser";
 import { CharacterCard, LorebookEntry, Message } from "../src/types";

@@ -1,4 +1,4 @@
-import { validateBaseUrlSecurity, dnsCache } from "../src/utils/security";
+import { validateBaseUrlSecurity, dnsCache } from "../server/security";
 import { encryptBackupData, decryptBackupData } from "../src/utils/cardParser";
 import dns from "dns";
 

@@ -258,20 +258,29 @@ pub async fn start_telemetry_loop(app_handle: tauri::AppHandle) {
     
     println!("[Telemetry] Background loop started. File: {:?}", path);
     
+    let base_delay_secs = 15;
+    let max_delay_secs = 300;
+    let mut current_delay_secs = base_delay_secs;
+    
     loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(current_delay_secs)).await;
         
         // Check if there are logs in the file
         if !path.exists() {
+            current_delay_secs = base_delay_secs;
             continue;
         }
         
         let file_metadata = match std::fs::metadata(&path) {
             Ok(m) => m,
-            Err(_) => continue,
+            Err(_) => {
+                current_delay_secs = base_delay_secs;
+                continue;
+            }
         };
         
         if file_metadata.len() == 0 {
+            current_delay_secs = base_delay_secs;
             continue;
         }
         
@@ -280,33 +289,36 @@ pub async fn start_telemetry_loop(app_handle: tauri::AppHandle) {
             Ok(res) => res,
             Err(e) => {
                 println!("[Telemetry] Split queue failed: {}", e);
+                current_delay_secs = base_delay_secs;
                 continue;
             }
         };
         
         if batch.is_empty() {
+            current_delay_secs = base_delay_secs;
             continue;
         }
         
         println!("[Telemetry] Found {} pending logs. Fetching STS...", batch.len());
         
-        match fetch_sts_credentials().await {
-            Ok(credentials) => {
-                println!("[Telemetry] STS credentials fetched. Sending logs...");
-                match send_payload_to_sls(&credentials, &batch).await {
-                    Ok(_) => {
-                        println!("[Telemetry] Successfully sent {} logs to SLS.", batch.len());
-                        if let Err(e) = rewrite_queue_file(&path, &remaining) {
-                            println!("[Telemetry] Failed to update local queue: {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        println!("[Telemetry] Failed to send logs to SLS (will retry): {}", e);
-                    }
+        let send_result = async {
+            let credentials = fetch_sts_credentials().await?;
+            send_payload_to_sls(&credentials, &batch).await?;
+            Ok::<(), String>(())
+        }.await;
+
+        match send_result {
+            Ok(_) => {
+                println!("[Telemetry] Successfully sent {} logs to SLS.", batch.len());
+                if let Err(e) = rewrite_queue_file(&path, &remaining) {
+                    println!("[Telemetry] Failed to update local queue: {}", e);
                 }
+                current_delay_secs = base_delay_secs;
             }
             Err(e) => {
-                println!("[Telemetry] Failed to fetch STS credentials (will retry): {}", e);
+                println!("[Telemetry] Telemetry upload failed (will retry): {}", e);
+                current_delay_secs = std::cmp::min(current_delay_secs * 2, max_delay_secs);
+                println!("[Telemetry] Increased backoff retry delay to {}s", current_delay_secs);
             }
         }
     }

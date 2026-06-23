@@ -8,6 +8,8 @@ declare const IS_MOBILE_NATIVE: boolean;
 
 // 动态载入的 tauri http client 的 fetch
 let tauriFetch: typeof fetch | null = null;
+let tauriFetchPromise: Promise<typeof fetch | null> | null = null;
+
 if (typeof window !== "undefined") {
   const isTauri =
     window.location.protocol.startsWith("tauri") ||
@@ -17,13 +19,15 @@ if (typeof window !== "undefined") {
     !!(window as any).__TAURI_IPC__;
 
   if (isTauri) {
-    import("@tauri-apps/plugin-http")
+    tauriFetchPromise = import("@tauri-apps/plugin-http")
       .then((mod) => {
         tauriFetch = mod.fetch;
         console.log("[apiClient] Successfully loaded Tauri native HTTP plugin.");
+        return mod.fetch;
       })
       .catch((err) => {
         console.warn("[apiClient] Failed to load Tauri native HTTP plugin, fallback to window.fetch:", err);
+        return null;
       });
   }
 }
@@ -246,7 +250,11 @@ export const universalFetch = async (
   const chatRoute = chatPath || "/chat/completions";
   const modelsRoute = modelsPath || "/models";
 
-  const fetchFn = tauriFetch || fetch;
+  let fetchFn = tauriFetch || fetch;
+  if (!tauriFetch && tauriFetchPromise) {
+    const resolvedFetch = await tauriFetchPromise;
+    fetchFn = resolvedFetch || fetch;
+  }
 
   // ── /api/test-connection ──────────────────────────────────────────────────
   if (endpoint === API_ENDPOINT.TestConnection) {
@@ -407,7 +415,11 @@ export const apiClient = {
   isClientMode,
   sendCatbotRequest: async (content: string, history: any[], clientContext?: any): Promise<{ reply: string; expression: string }> => {
     const isTauri = isClientMode();
-    const fetchFn = tauriFetch || fetch;
+    let fetchFn = tauriFetch || fetch;
+    if (!tauriFetch && tauriFetchPromise) {
+      const resolvedFetch = await tauriFetchPromise;
+      fetchFn = resolvedFetch || fetch;
+    }
     
     // 客户端直连云端 Catbot 客服服务，Web 端走本地 Express 代理，彻底避免每次对话产生两次 FC 扣费
     const targetUrl = isTauri 

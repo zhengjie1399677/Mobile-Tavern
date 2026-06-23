@@ -4,7 +4,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
-import { ssrfGuard } from "./src/utils/security";
+import { ssrfGuard } from "./server/security";
 
 dotenv.config();
 
