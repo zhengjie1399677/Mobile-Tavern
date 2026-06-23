@@ -31,6 +31,7 @@ const isSafeRegex = (pattern: string): boolean => {
   if (!pattern) return true;
   return !/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(pattern) && !/(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(pattern);
 };
+let globalSuggestionsClickMode: "send" | "fill" | null = null;
 
 const ChatInputArea = () => {
   const {
@@ -52,6 +53,21 @@ const ChatInputArea = () => {
     isBisonLocking,
     triggerScroll,
   } = useUnifiedApp();
+  
+  // 优先从全局闭包变量中读取以抗御组件销毁重装，否则继承 settings
+  const [clickMode, setClickMode] = React.useState<"send" | "fill">(
+    globalSuggestionsClickMode || settings.replySuggestionsClickMode || "fill"
+  );
+
+  React.useEffect(() => {
+    if (settings.replySuggestionsClickMode) {
+      if (globalSuggestionsClickMode !== settings.replySuggestionsClickMode) {
+        globalSuggestionsClickMode = settings.replySuggestionsClickMode;
+        setClickMode(settings.replySuggestionsClickMode);
+      }
+    }
+  }, [settings.replySuggestionsClickMode]);
+
   const [localInput, setLocalInput] = React.useState(userInputMessage);
   const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
 
@@ -154,7 +170,9 @@ const ChatInputArea = () => {
   };
 
   const handleSelectSuggestion = (e: React.MouseEvent | React.TouchEvent, suggestion: string) => {
-    e.preventDefault();
+    if (e && e.cancelable) {
+      e.preventDefault();
+    }
     if (e.type === "touchstart") {
       (e.currentTarget as any)._touched = true;
     } else if (e.type === "mousedown") {
@@ -164,7 +182,7 @@ const ChatInputArea = () => {
       }
     }
 
-    const currentMode = settings.replySuggestionsClickMode || "fill";
+    const currentMode = clickMode;
     if (currentMode === "send") {
       setLocalInput("");
       setUserInputMessage("");
@@ -264,16 +282,17 @@ const ChatInputArea = () => {
             <span className="flex items-center gap-1">✨ AI 推荐下一步走向:</span>
             <button
               onClick={() => {
-                const currentMode = settings.replySuggestionsClickMode || "fill";
-                const nextMode = currentMode === "send" ? "fill" : "send";
-                updateSettings({
-                  ...settings,
+                const nextMode = clickMode === "send" ? "fill" : "send";
+                globalSuggestionsClickMode = nextMode;
+                setClickMode(nextMode);
+                updateSettings((prev) => ({
+                  ...prev,
                   replySuggestionsClickMode: nextMode,
-                });
+                }));
               }}
               className="px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-[9px] font-semibold flex items-center gap-1 border border-border transition active:scale-95"
             >
-              点击行为: {(settings.replySuggestionsClickMode || "fill") === "send" ? "直接发送" : "填入框内"}
+              点击行为: {clickMode === "send" ? "直接发送" : "填入框内"}
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2.5 py-1.5 px-0.5">

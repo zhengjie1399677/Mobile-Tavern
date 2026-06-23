@@ -77,7 +77,7 @@ const createUpdateSettings = (capturedSettings: UserSettings) => {
       if (typeof updater === "function") {
         const next = updater(prev);
         if (!next) return prev;
-        return deepMerge(prev, next);
+        return next;
       }
       
       const next = updater;

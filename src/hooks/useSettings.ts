@@ -286,7 +286,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     summarySystemPrompt: "",
     timeTagTemplate: "第{{index}}幕",
   },
-  promptConfig: DEFAULT_PROMPT_CONFIG,
+  promptConfig: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
   userName: "user",
   userInfo: "",
   userAvatar: "",
@@ -560,7 +560,7 @@ export const useSettings = () => {
 
           const defaultPromptConfig = externalPreset
             ? { ...DEFAULT_PROMPT_CONFIG, ...externalPreset.promptConfig }
-            : DEFAULT_PROMPT_CONFIG;
+            : MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig;
 
           const defaultMemory = externalPreset
             ? { ...DEFAULT_SETTINGS.memory, ...externalPreset.memory }
@@ -701,7 +701,9 @@ export const useSettings = () => {
       if (typeof updater === "function") {
         const next = updater(prev);
         if (!next) return prev;
-        merged = deepMerge(prev, next);
+        // 如果是函数式 updater，直接使用其返回的最新 settings 对象，不再执行复杂的 deepMerge
+        // 这样可以规避 deepMerge 内部复杂的合并逻辑和引用相同问题，确保 100% 触发 React 状态重绘
+        merged = next;
       } else {
         const next = updater;
         if (!next) return prev;

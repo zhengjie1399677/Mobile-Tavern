@@ -55,9 +55,9 @@ async function startServer() {
     try {
       const pkgPath = path.join(resolvedDirname, "package.json");
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-      res.json({ pkgVersion: pkg.version || "1.5.7" });
+      res.json({ pkgVersion: pkg.version || "1.5.8" });
     } catch (e) {
-      res.json({ pkgVersion: "1.5.7" });
+      res.json({ pkgVersion: "1.5.8" });
     }
   });
 

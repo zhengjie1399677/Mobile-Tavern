@@ -515,21 +515,8 @@ export default function GlobalWorldbookTab() {
       }
 
       if (activeHostId === "list") {
-        const fileName = file.name.replace(/\.json$/i, "");
-        const newId = "custom-" + Math.random().toString(36).substring(2, 9);
-        const newWorldbook = {
-          id: newId,
-          name: fileName || "导入的自定义设定集",
-          entries: importedEntries,
-          enabled: true
-        };
-        updateCustomWorldbooks((prev) => ({
-          ...prev,
-          [newId]: newWorldbook,
-        }));
-        await showCustomAlert(
-          `🎉 成功自动新建并导入了 ${importedEntries.length} 条设定到自定义设定集【${newWorldbook.name}】！`
-        );
+        await showCustomAlert("请先点击进入一个记忆回路（全局或角色），再进行导入。");
+        return;
       } else if (activeHostId === "global") {
         const nextGlobals = [...globalLorebook, ...importedEntries];
         setGlobalLorebook(nextGlobals);
@@ -646,16 +633,6 @@ export default function GlobalWorldbookTab() {
           </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {activeHostId === "list" && (
-            <button
-              type="button"
-              onClick={handleCreateCustomWorldbook}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground text-[11px] h-7 px-2.5 rounded-lg transition font-bold flex items-center gap-1 shadow-sm active:scale-[0.98]"
-            >
-              <Plus className="w-3 h-3" />
-              <span>新建设定集</span>
-            </button>
-          )}
           <label
             className="cursor-pointer bg-card hover:bg-muted/40 border border-border text-[11px] text-foreground h-7 px-2.5 rounded-lg transition font-bold flex items-center gap-1 shadow-sm active:scale-[0.98]"
           >
@@ -779,130 +756,7 @@ export default function GlobalWorldbookTab() {
       ) : activeHostId === "list" ? (
         /* ==================== CHARACTERS DIR DIRECTORY LIST ==================== */
         <div className="space-y-4 animate-fadeIn select-none">
-          {/* Section 1: Independent Custom Worldbooks */}
-          <div className="flex items-center justify-between px-1 border-b border-border/40 pb-2.5">
-            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Book className="w-3.5 h-3.5 text-primary animate-pulse" />
-              📚 独立自定义设定集 (Independent Worldbooks)
-            </span>
-            <span className="bg-muted/20 text-foreground/80 border border-border/50 px-2 py-0.5 rounded text-[10px] font-mono font-semibold">
-              共 {Object.keys(customWorldbooks || {}).length} 个设定集
-            </span>
-          </div>
 
-          <div className="grid grid-cols-1 gap-3.5">
-            {Object.keys(customWorldbooks || {}).length === 0 ? (
-              <div className="text-center py-6 px-4 border border-dashed border-border/80 rounded-2xl bg-muted/5 text-xs text-muted-foreground">
-                📚 暂无独立自定义设定集。点击右上角“新建设定集”或“导入”即可创建！
-              </div>
-            ) : (
-              Object.values(customWorldbooks || {}).map((wb: any) => {
-                const entryCount = wb.entries?.length || 0;
-                const isEnabled = !!wb.enabled;
-                return (
-                  <div
-                    key={wb.id}
-                    onClick={() => {
-                      setActiveHostId(wb.id);
-                      setSearchQuery("");
-                      setEditingId(null);
-                    }}
-                    className={`w-full text-left p-4 rounded-2xl border transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-between group active:scale-[0.99] animate-fadeIn ${
-                      isEnabled
-                        ? "border-primary/60 bg-primary/5 hover:bg-primary/10 hover:border-primary/80"
-                        : "border-border/80 bg-muted/30 hover:bg-muted/60 hover:border-border"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <div
-                        className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${
-                          isEnabled
-                            ? "border-primary/40 bg-primary/10"
-                            : "border-border/50 bg-muted"
-                        }`}
-                      >
-                        <Book
-                          className={`w-5 h-5 ${isEnabled ? "text-primary animate-pulse" : "text-foreground/75"}`}
-                        />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={`text-xs font-bold truncate ${isEnabled ? "text-primary font-extrabold" : "text-foreground"}`}
-                        >
-                          {wb.name}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground font-light mt-0.5">
-                          {isEnabled
-                            ? "🌎 状态：已启用 (全局共享装配中)"
-                            : "🔒 状态：已禁用 (未注入 AI 上下文)"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                      {/* Switch logic */}
-                      <div className="flex items-center gap-1.5 bg-muted/20 px-2 py-1 rounded-xl border border-border/30">
-                        <span className="text-[10px] text-muted-foreground font-semibold">
-                          {isEnabled ? "启用" : "禁用"}
-                        </span>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={isEnabled}
-                          onClick={() => {
-                            updateCustomWorldbooks((prev) => ({
-                              ...prev,
-                              [wb.id]: { ...wb, enabled: !isEnabled },
-                            }));
-                          }}
-                          className={`relative inline-flex h-4.5 w-8.5 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            isEnabled
-                              ? "bg-primary shadow-sm shadow-primary/30"
-                              : "bg-muted-foreground/30"
-                          }`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
-                              isEnabled ? "translate-x-4" : "translate-x-0"
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCustomWorldbook(wb.id, wb.name)}
-                        className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition"
-                        title="删除设定集"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      <div className="flex items-center gap-1.5 ml-1">
-                        <span
-                          className={`font-mono font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-sm ${
-                            isEnabled
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted-foreground text-background"
-                          }`}
-                        >
-                          {entryCount}
-                        </span>
-                        <ArrowRight
-                          className={`w-4 h-4 group-hover:translate-x-1 transition-transform ${
-                            isEnabled ? "text-primary/70" : "text-foreground/50"
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          <div className="h-4" />
 
           {/* Section 2: Character Local Worldbooks */}
           <div className="flex items-center justify-between px-1 border-b border-border/40 pb-2.5">
