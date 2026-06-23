@@ -20,6 +20,7 @@ import {
   Check,
   FileJson,
   SlidersHorizontal,
+  FlaskConical,
 } from "lucide-react";
 import { compressImage } from "../utils/imageCompressor";
 
@@ -929,14 +930,28 @@ export default function SettingsTab() {
                     placeholder="例如: 身高180cm, 穿着黑色的风衣, 眼神冷漠..."
                   />
                 </div>
-                <div className="flex items-center justify-between border-t border-border/50 pt-4">
+              </CardContent>
+            </Card>
+
+            {/* 🧪 实验室前沿功能 (Lab Features) */}
+            <Card className="glass-panel shadow-sm mt-4">
+              <CardHeader className="pb-3 border-b border-border/50">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <FlaskConical className="w-4 h-4 text-primary animate-pulse" />
+                  <span>🧪 实验室前沿功能 (Lab Features)</span>
+                </CardTitle>
+                <CardDescription className="text-[11px]">
+                  测试中的前沿交互与渲染特性，可能会根据体验反馈进行优化
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <label className="text-[13px] font-semibold text-foreground">
                       开启富文本 HTML 渲染
                     </label>
                     <p className="text-[10px] text-muted-foreground">
-                      允许角色卡通过 HTML/CSS
-                      标签控制输出文本的独立样式，可能会影响部分对话气泡的排版。
+                      允许角色卡通过 HTML/CSS 标签控制输出文本的独立样式，可能会影响部分对话气泡的排版。
                     </p>
                   </div>
                   <Switch
@@ -964,6 +979,60 @@ export default function SettingsTab() {
                     className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
                   />
                 </div>
+                <div className="flex items-center justify-between border-t border-border/50 pt-4">
+                  <div className="space-y-0.5">
+                    <label className="text-[13px] font-semibold text-foreground">
+                      环境光感应联动 (Emotion Ambient Glow)
+                    </label>
+                    <p className="text-[10px] text-muted-foreground">
+                      自动根据角色当前的情绪和表情，为聊天界面背景渲染出流动交融的色温光晕，大幅度提升沉浸感。
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.enableEmotionAmbientGlow || false}
+                    onCheckedChange={(val) =>
+                      updateSettings({ ...settings, enableEmotionAmbientGlow: val })
+                    }
+                    className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  />
+                </div>
+                <div className="flex items-center justify-between border-t border-border/50 pt-4">
+                  <div className="space-y-0.5">
+                    <label className="text-[13px] font-semibold text-foreground">
+                      AI 回复走向推荐 (AI Reply Suggestions)
+                    </label>
+                    <p className="text-[10px] text-muted-foreground">
+                      在生成每轮回复尾部附带输出 4 个后续行动选项，用户点击可快速决策或写入。
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.enableReplySuggestions || false}
+                    onCheckedChange={(val) =>
+                      updateSettings({ ...settings, enableReplySuggestions: val })
+                    }
+                    className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  />
+                </div>
+                {settings.enableReplySuggestions && (
+                  <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border mt-2">
+                    <span className="text-[11px] text-muted-foreground font-semibold">
+                      推荐选项默认点击行为
+                    </span>
+                    <select
+                      value={settings.replySuggestionsClickMode || "fill"}
+                      onChange={(e) =>
+                        updateSettings({
+                          ...settings,
+                          replySuggestionsClickMode: e.target.value as any,
+                        })
+                      }
+                      className="bg-muted border border-border rounded px-1.5 py-1 text-xs outline-none focus:border-primary font-bold text-foreground"
+                    >
+                      <option value="fill">✏️ 填入输入框</option>
+                      <option value="send">💬 直接发送</option>
+                    </select>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

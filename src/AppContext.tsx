@@ -143,6 +143,8 @@ export interface UnifiedAppContextProps {
   setChatSubTab: (tab: "dialogue" | "timeline") => void;
   userInputMessage: string;
   setUserInputMessage: (msg: string) => void;
+  replySuggestions: string[];
+  setReplySuggestions: React.Dispatch<React.SetStateAction<string[]>>;
   editingMsgId: string | null;
   setEditingMsgId: (id: string | null) => void;
   editingMsgContent: string;

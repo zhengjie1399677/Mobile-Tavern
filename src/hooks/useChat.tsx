@@ -51,8 +51,28 @@ function extractThinkContent(
       };
     }
   }
-  
   return { content, reasoningContent };
+}
+
+function cleanSuggestionsFromText(text: string): { content: string; suggestionsText?: string } {
+  if (!text) return { content: text };
+  
+  const suggestionsStart = "<suggestions>";
+  if (text.includes(suggestionsStart)) {
+    const startIdx = text.indexOf(suggestionsStart);
+    const suggestionsEnd = "</suggestions>";
+    const endIdx = text.indexOf(suggestionsEnd);
+    
+    const cleanContent = text.substring(0, startIdx).trim();
+    let suggestionsText = "";
+    if (endIdx !== -1) {
+      suggestionsText = text.substring(startIdx + suggestionsStart.length, endIdx).trim();
+    } else {
+      suggestionsText = text.substring(startIdx + suggestionsStart.length).trim();
+    }
+    return { content: cleanContent, suggestionsText };
+  }
+  return { content: text };
 }
 
 
@@ -109,6 +129,22 @@ export const useChat = (
     setShowFullHistory(false);
   }, [activeSessionId]);
 
+  const [replySuggestions, setReplySuggestions] = useState<string[]>([]);
+
+  // Load suggestions from the last message in the active session
+  useEffect(() => {
+    if (activeSession && activeSession.messages.length > 0) {
+      const lastMsg = activeSession.messages[activeSession.messages.length - 1];
+      if (lastMsg.sender === "assistant" && lastMsg.extra?.suggestions) {
+        setReplySuggestions(lastMsg.extra.suggestions);
+      } else {
+        setReplySuggestions([]);
+      }
+    } else {
+      setReplySuggestions([]);
+    }
+  }, [activeSessionId, activeSession]);
+
   // Message Input & Forms state
   const abortControllerRef = React.useRef<AbortController | null>(null);
   const isSendingRef = React.useRef(false);
@@ -125,6 +161,27 @@ export const useChat = (
   }, [setIsSending]);
 
   const [userInputMessage, setUserInputMessage] = useState("");
+  const draftsRef = React.useRef<Record<string, string>>({});
+  const userInputMessageRef = React.useRef(userInputMessage);
+  useEffect(() => {
+    userInputMessageRef.current = userInputMessage;
+  }, [userInputMessage]);
+
+  const prevSessionIdRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    const prevSessionId = prevSessionIdRef.current;
+    const currentSessionId = activeSessionId;
+    if (prevSessionId && prevSessionId !== currentSessionId) {
+      draftsRef.current[prevSessionId] = userInputMessageRef.current;
+    }
+    if (currentSessionId) {
+      setUserInputMessage(draftsRef.current[currentSessionId] || "");
+    } else {
+      setUserInputMessage("");
+    }
+    prevSessionIdRef.current = currentSessionId;
+  }, [activeSessionId]);
+
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
   const [editingMsgContent, setEditingMsgContent] = useState("");
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
@@ -334,9 +391,9 @@ export const useChat = (
     return updatedSession;
   }, [settings.enableScriptExecution, settings.enableTableMemory, activeCharacter, saveSession, setSessions]);
 
-
   const handleSendMessage = useCallback(async (textToSend: string) => {
     telemetryService.incrementUsageCount();
+    setReplySuggestions([]);
     if (
       !textToSend ||
       typeof textToSend !== "string" ||
@@ -349,6 +406,9 @@ export const useChat = (
       return;
     }
 
+    if (activeSessionIdRef.current) {
+      draftsRef.current[activeSessionIdRef.current] = "";
+    }
     let finalApiKey = settings.api.apiKey;
     let finalBaseUrl = settings.api.baseUrl;
     let finalModel = settings.api.modelName || FALLBACK_MODEL;
@@ -418,13 +478,14 @@ export const useChat = (
 
     const updateSessionsContent = (content: string, reasoningContent?: string) => {
       const parsed = extractThinkContent(content, reasoningContent, true);
+      const cleaned = cleanSuggestionsFromText(parsed.content);
       setSessions((prev) =>
         prev.map((s) => {
           if (s.id !== updatedSession.id) return s;
           return {
             ...s,
             messages: s.messages.map((m) =>
-              m.id === aiMsgId ? { ...m, content: parsed.content, reasoningContent: parsed.reasoningContent } : m
+              m.id === aiMsgId ? { ...m, content: cleaned.content, reasoningContent: parsed.reasoningContent } : m
             ),
           };
         })
@@ -472,6 +533,10 @@ export const useChat = (
         settings,
         globalLorebook: combinedGlobals,
       });
+
+      if (settings.enableReplySuggestions) {
+        promptPayload.systemInstruction += `\n\n[Important Command: You must append exactly 4 short suggested action options for the user at the very end of your response. Use the exact XML format: <suggestions>["Option 1", "Option 2", "Option 3", "Option 4"]</suggestions>. Ensure it is valid JSON array within the tags, and do not write any text after the closing tag.]`;
+      }
 
       let tokenUsage = { prompt: 0, completion: 0 };
       const startTime = performance.now();
@@ -587,15 +652,36 @@ export const useChat = (
       }
 
       const parsed = extractThinkContent(responseText.trim(), reasoningText.trim(), false);
+      const cleaned = cleanSuggestionsFromText(parsed.content);
+      let suggestions: string[] = [];
+      if (settings.enableReplySuggestions && cleaned.suggestionsText) {
+        try {
+          const rawJSON = cleaned.suggestionsText.trim();
+          suggestions = JSON.parse(rawJSON);
+        } catch (e) {
+          console.warn("Failed to parse suggested replies JSON:", cleaned.suggestionsText, e);
+          try {
+            const matches = cleaned.suggestionsText.match(/"([^"]+)"/g);
+            if (matches) {
+              suggestions = matches.map(m => m.replace(/"/g, "").trim());
+            }
+          } catch (e2) {}
+        }
+      }
+
       const finalAiMsg = {
         id: aiMsgId,
         sender: "assistant",
-        content: parsed.content,
+        content: cleaned.content,
         timestamp: Date.now(),
         generationTime: (performance.now() - startTime) / 1000,
         tokenCount: tokenUsage.completion,
         promptTokenCount: tokenUsage.prompt,
         reasoningContent: parsed.reasoningContent || undefined,
+        extra: {
+          ...(latestSession.messages.find(m => m.id === aiMsgId)?.extra || {}),
+          suggestions: suggestions.length > 0 ? suggestions : undefined
+        }
       };
 
       // Merge keeping any modifications (deletes/edits) made during generation
@@ -808,6 +894,7 @@ export const useChat = (
   ]);
 
   const handleRerollFromMessage = useCallback(async (targetMsg: Message) => {
+    setReplySuggestions([]);
     if (!targetMsg || !targetMsg.id || isSending || isSendingRef.current || !activeCharacter || !activeSession) return;
 
     let finalApiKey = settings.api.apiKey;
@@ -1701,6 +1788,8 @@ export const useChat = (
     setChatSubTab,
     userInputMessage,
     setUserInputMessage,
+    replySuggestions,
+    setReplySuggestions,
     editingMsgId,
     setEditingMsgId,
     editingMsgContent,
@@ -1743,6 +1832,7 @@ export const useChat = (
     showFullHistory,
     chatSubTab,
     userInputMessage,
+    replySuggestions,
     editingMsgId,
     editingMsgContent,
     msgMenuId,
@@ -1765,8 +1855,7 @@ export const useChat = (
     createBacktrackFromTimeline,
     handleAddTimelineSummary,
     renderDialogueBubble,
-    saveSessionWithMvu,
-  ]);
+    saveSessionWithMvu,  ]);
 
   return chatHookValue;
 };

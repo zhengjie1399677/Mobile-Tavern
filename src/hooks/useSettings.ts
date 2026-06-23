@@ -300,10 +300,13 @@ export const DEFAULT_SETTINGS: UserSettings = {
   chatBackgroundBlur: 10,
   chatBackgroundDim: 50,
   enableChatBgAnimation: false,
-  savedApiProfiles: [],
-  currentApiProfileId: "",
   globalRegexScripts: [],
   presetRegexScripts: [],
+  savedApiProfiles: [],
+  currentApiProfileId: "",
+  enableEmotionAmbientGlow: false,
+  enableReplySuggestions: false,
+  replySuggestionsClickMode: "fill",
 };
 
 const getNestedDelta = (nextObj: any, baseObj: any): any => {
@@ -566,6 +569,9 @@ export const useSettings = () => {
             currentApiProfileId: storedSet.currentApiProfileId || DEFAULT_SETTINGS.currentApiProfileId,
             globalRegexScripts: storedSet.globalRegexScripts || DEFAULT_SETTINGS.globalRegexScripts || [],
             presetRegexScripts: storedSet.presetRegexScripts || DEFAULT_SETTINGS.presetRegexScripts || [],
+            enableEmotionAmbientGlow: storedSet.enableEmotionAmbientGlow ?? DEFAULT_SETTINGS.enableEmotionAmbientGlow,
+            enableReplySuggestions: storedSet.enableReplySuggestions ?? DEFAULT_SETTINGS.enableReplySuggestions,
+            replySuggestionsClickMode: storedSet.replySuggestionsClickMode ?? DEFAULT_SETTINGS.replySuggestionsClickMode,
           } as any;
 
           if (externalPreset) {

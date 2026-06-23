@@ -218,6 +218,9 @@ export interface UserSettings {
   presetRegexScripts?: RegexScript[];
   enableTableMemory?: boolean; // Enable memory table enhancement
   tableMemoryCheckFrequency?: number; // Frequency to let AI check and update memory (e.g. 1 turn, 3 turns)
+  enableEmotionAmbientGlow?: boolean; // Enable emotion-reactive ambient lighting
+  enableReplySuggestions?: boolean; // Enable suggested action options
+  replySuggestionsClickMode?: "send" | "fill"; // Default action on suggestion click
 }
 
 export interface RegexScript {

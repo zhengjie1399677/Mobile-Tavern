@@ -44,9 +44,29 @@ const ChatInputArea = () => {
     handleAutoSummaryCheck,
     handleSendMessage,
     safeAreas,
+    userInputMessage,
+    setUserInputMessage,
+    replySuggestions,
+    setReplySuggestions,
+    updateSettings,
   } = React.useContext(AppContext);
-  const [localInput, setLocalInput] = React.useState("");
+  const [localInput, setLocalInput] = React.useState(userInputMessage);
   const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    setLocalInput(userInputMessage);
+  }, [userInputMessage]);
+
+  const localInputRef = React.useRef(localInput);
+  React.useEffect(() => {
+    localInputRef.current = localInput;
+  }, [localInput]);
+
+  React.useEffect(() => {
+    return () => {
+      setUserInputMessage(localInputRef.current);
+    };
+  }, [activeSession?.id]);
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -134,6 +154,8 @@ const ChatInputArea = () => {
     if (!localInput.trim()) return;
     const msg = localInput;
     setLocalInput("");
+    setUserInputMessage("");
+    setReplySuggestions([]);
     handleSendMessage(msg);
   };
 
@@ -219,6 +241,48 @@ const ChatInputArea = () => {
           </span>
         </div>
       </div>
+      {settings.enableReplySuggestions && replySuggestions && replySuggestions.length > 0 && (
+        <div className="flex flex-col gap-1.5 px-1 py-1 border-b border-border/30 animate-fadeIn">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-1">
+            <span className="flex items-center gap-1">✨ AI 推荐下一步走向:</span>
+            <button
+              onClick={() => {
+                const currentMode = settings.replySuggestionsClickMode || "fill";
+                const nextMode = currentMode === "send" ? "fill" : "send";
+                updateSettings({
+                  ...settings,
+                  replySuggestionsClickMode: nextMode,
+                });
+              }}
+              className="px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-[9px] font-semibold flex items-center gap-1 border border-border transition active:scale-95"
+            >
+              点击行为: {(settings.replySuggestionsClickMode || "fill") === "send" ? "💬 直接发送" : "✏️ 填入框内"}
+            </button>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 whitespace-nowrap scrollbar-none">
+            {replySuggestions.map((suggestion, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  const currentMode = settings.replySuggestionsClickMode || "fill";
+                  if (currentMode === "send") {
+                    setLocalInput("");
+                    setUserInputMessage("");
+                    setReplySuggestions([]);
+                    handleSendMessage(suggestion);
+                  } else {
+                    setLocalInput(suggestion);
+                    setUserInputMessage(suggestion);
+                  }
+                }}
+                className="inline-block px-3 py-1.5 rounded-full text-xs font-light bg-primary/10 border border-primary/20 text-foreground hover:bg-primary/20 hover:border-primary/45 transition active:scale-95 shadow-sm truncate max-w-[200px]"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex items-end gap-2 relative">
         <textarea
           ref={textareaRef}
@@ -583,6 +647,30 @@ export default function ChatTab() {
     return "默认";
   }, [activeCharacter, activeSession, settings]);
 
+  const glowColors = React.useMemo(() => {
+    const emotionKey = (currentEmotionName || "默认").toLowerCase();
+    
+    // Light 1 (Bottom Right) is reactive, Light 2 (Top Left) is neutral atmosphere
+    let light1 = "rgba(167, 139, 250, 0.12)"; // default purple
+    let light2 = "rgba(34, 211, 238, 0.05)";   // default light cyan
+
+    if (emotionKey.includes("joy") || emotionKey.includes("happy") || emotionKey.includes("smile")) {
+      light1 = "rgba(244, 63, 94, 0.22)"; // Rose/Pink
+      light2 = "rgba(251, 191, 36, 0.08)"; // Warm Gold
+    } else if (emotionKey.includes("sad") || emotionKey.includes("cry") || emotionKey.includes("grief") || emotionKey.includes("sleepy") || emotionKey.includes("sleep")) {
+      light1 = "rgba(59, 130, 246, 0.22)"; // Cold Blue
+      light2 = "rgba(167, 139, 250, 0.06)"; // Soft Lavender
+    } else if (emotionKey.includes("anger") || emotionKey.includes("angry") || emotionKey.includes("rage")) {
+      light1 = "rgba(239, 68, 68, 0.22)"; // Crimson/Red
+      light2 = "rgba(251, 191, 36, 0.06)"; // Warm Gold
+    } else if (emotionKey.includes("blush") || emotionKey.includes("shy")) {
+      light1 = "rgba(236, 72, 153, 0.22)"; // Deep Magenta/Pink
+      light2 = "rgba(167, 139, 250, 0.06)"; // Soft Lavender
+    }
+    
+    return { light1, light2 };
+  }, [currentEmotionName]);
+
   const isOriginalBg = (settings.chatBackgroundBlur ?? 10) === 0 && (settings.chatBackgroundDim ?? 50) === 0;
 
   return (
@@ -855,6 +943,18 @@ export default function ChatTab() {
             </>
           )}
 
+          {/* 4. 双光源情绪环境光融合层 */}
+          {settings.enableEmotionAmbientGlow && (
+            <div 
+              className="absolute inset-0 pointer-events-none z-0 transition-all duration-1000 ease-in-out overflow-hidden opacity-55"
+              style={{
+                background: `
+                  radial-gradient(circle at 80% 85%, ${glowColors.light1} 0%, transparent 55%),
+                  radial-gradient(circle at 15% 20%, ${glowColors.light2} 0%, transparent 45%)
+                `
+              }}
+            />
+          )}
 
           {/* Dialog Scroll area */}
           <div
@@ -931,13 +1031,12 @@ export default function ChatTab() {
                         aria-label={`${isUser ? "我说" : (activeCharacter?.name || "角色") + "说"}：${message.content}`}
                         className={`flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}
                       >
-                        {/* Circle Avatar fallback */}
                         <div
                           aria-hidden="true"
                           className={`w-8 h-8 rounded-[11px] bg-gradient-to-br flex items-center justify-center font-bold text-xs shadow-sm border flex-shrink-0 overflow-hidden ${
                             isUser
-                              ? "from-secondary to-muted border-border text-foreground transition-all duration-300"
-                              : "from-card to-muted border-border text-foreground font-serif transition-all duration-300"
+                              ? "from-secondary to-muted border-border text-foreground transition-colors duration-300"
+                              : "from-card to-muted border-border text-foreground font-serif transition-colors duration-300"
                           }`}
                         >
                           {isUser ? (

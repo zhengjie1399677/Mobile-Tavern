@@ -948,19 +948,21 @@ export default function GlobalWorldbookTab() {
                     </div>
 
                     {/* chevron only without universal fast-toggle slider at child level */}
-                    <div
-                      className="text-muted-foreground p-0.5"
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-primary hover:bg-primary/10 p-1.5 rounded-lg border border-border/50 transition-all duration-150 active:scale-90 flex items-center justify-center bg-muted/20 shrink-0 cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleExpand(entry.id);
                       }}
+                      title={isExpanded ? "收起" : "展开"}
                     >
                       {isExpanded ? (
-                        <ChevronUp className="w-4 h-4" />
+                        <ChevronUp className="w-3.5 h-3.5" />
                       ) : (
-                        <ChevronDown className="w-4 h-4" />
+                        <ChevronDown className="w-3.5 h-3.5" />
                       )}
-                    </div>
+                    </button>
                   </div>
 
                   {/* BELOW LINE (下面一行): Colored Blue or Green containing depth and other attributes */}
