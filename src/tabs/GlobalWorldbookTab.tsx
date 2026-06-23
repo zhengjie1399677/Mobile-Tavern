@@ -543,49 +543,6 @@ export default function GlobalWorldbookTab() {
           </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {activeHostId === "list" && (
-            <button
-              type="button"
-              onClick={async () => {
-                if (characters.length === 0) {
-                  setActiveHostId("global");
-                  setTimeout(() => {
-                    startNewInlineEntry();
-                  }, 50);
-                  return;
-                }
-                const options = [
-                  "1. 🌎 全局共享词库",
-                  ...characters.map((c, idx) => `${idx + 2}. 👤 ${c.name} 专属`),
-                ];
-                const choice = await showCustomPrompt(
-                  `选择新建设定词条的归属目标 (1-${options.length}):\n` +
-                    options.join("\n"),
-                  "1",
-                );
-                if (!choice) return;
-                const idx = parseInt(choice, 10);
-                if (idx === 1) {
-                  setActiveHostId("global");
-                  setTimeout(() => {
-                    startNewInlineEntry();
-                  }, 50);
-                } else if (idx > 1 && idx <= options.length) {
-                  const targetChar = characters[idx - 2];
-                  setActiveHostId(targetChar.id);
-                  setTimeout(() => {
-                    startNewInlineEntry();
-                  }, 50);
-                } else {
-                  await showCustomAlert("❌ 无效的序号选择，新建取消");
-                }
-              }}
-              className="bg-primary hover:bg-primary/95 text-primary-foreground text-[11px] h-7 px-2.5 rounded-lg transition font-bold flex items-center gap-1 shadow-sm active:scale-[0.98]"
-            >
-              <Plus className="w-3 h-3" />
-              <span>新建词条</span>
-            </button>
-          )}
           <label
             className="cursor-pointer bg-card hover:bg-muted/40 border border-border text-[11px] text-foreground h-7 px-2.5 rounded-lg transition font-bold flex items-center gap-1 shadow-sm active:scale-[0.98]"
           >
@@ -720,52 +677,11 @@ export default function GlobalWorldbookTab() {
           </div>
 
           <div className="grid grid-cols-1 gap-3.5">
-            {/* 🌎 全局通用设定集入口卡片 */}
-            <div
-              onClick={() => {
-                setActiveHostId("global");
-                setSearchQuery("");
-                setEditingId(null);
-              }}
-              className="w-full text-left p-4 rounded-2xl border transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-between group active:scale-[0.99] animate-fadeIn border-primary/60 bg-primary/5 hover:bg-primary/10 hover:border-primary/80"
-            >
-              <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                <div className="w-10 h-10 rounded-full border border-primary/40 flex items-center justify-center bg-primary/10 shrink-0">
-                  <Globe className="w-5 h-5 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold truncate text-primary font-extrabold">
-                    🌎 全局通用设定集
-                  </p>
-                  <p className="text-[10px] text-muted-foreground font-light mt-0.5">
-                    常驻装配所有 AI 角色，所有对话均共享
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex items-center gap-1.5 ml-1 cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveHostId("global");
-                    setSearchQuery("");
-                    setEditingId(null);
-                  }}
-                >
-                  <span className="font-mono font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-sm bg-primary text-primary-foreground">
-                    {globalCount}
-                  </span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-primary/70" />
-                </div>
-              </div>
-            </div>
-
             {/* Character Local Folder Cards */}
             {characters.length === 0 ? (
               <div className="text-center py-12 px-4 border border-dashed border-border/80 rounded-2xl bg-muted/5 text-xs text-muted-foreground">
                 📭
-                暂未检索到有效的角色宿体。您可以通过上方新建词条将数据保存入「全局通用设定集」中。
+                暂未检索到有效的角色宿体。请到「宿体配置」面板创建一个角色卡，即可解锁对应的专属世界书回路！
               </div>
             ) : (
               characters.map((char) => {
@@ -853,15 +769,7 @@ export default function GlobalWorldbookTab() {
                         </button>
                       </div>
 
-                      <div 
-                        className="flex items-center gap-1.5 ml-1 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveHostId(char.id);
-                          setSearchQuery("");
-                          setEditingId(null);
-                        }}
-                      >
+                      <div className="flex items-center gap-1.5 ml-1">
                         <span
                           className={`font-mono font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-sm ${
                             isGlobal
