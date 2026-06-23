@@ -632,7 +632,15 @@ export const useSettings = () => {
             enableReplySuggestions: storedSet.enableReplySuggestions ?? DEFAULT_SETTINGS.enableReplySuggestions,
             replySuggestionsClickMode: storedSet.replySuggestionsClickMode ?? DEFAULT_SETTINGS.replySuggestionsClickMode,
             enableBisonMode: storedSet.enableBisonMode ?? DEFAULT_SETTINGS.enableBisonMode,
-            replySuggestionsPrompt: storedSet.replySuggestionsPrompt ?? DEFAULT_SETTINGS.replySuggestionsPrompt,
+            replySuggestionsPrompt: (() => {
+              const stored = storedSet.replySuggestionsPrompt;
+              // 若旧版提示词不包含示例段落，静默升级为带中文示例的最新版本
+              if (!stored || !stored.includes("Example Output Format")) {
+                needSave = true;
+                return DEFAULT_REPLY_SUGGESTIONS_PROMPT;
+              }
+              return stored;
+            })(),
             bisonModePrompt: storedSet.bisonModePrompt ?? DEFAULT_SETTINGS.bisonModePrompt,
           } as any;
 

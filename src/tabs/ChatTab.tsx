@@ -58,6 +58,11 @@ const ChatInputArea = () => {
   const [clickMode, setClickMode] = React.useState<"send" | "fill">(
     globalSuggestionsClickMode || settings.replySuggestionsClickMode || "fill"
   );
+  // Ref 始终同步最新 clickMode，供事件处理函数使用，彻底避免陈旧闭包
+  const clickModeRef = React.useRef<"send" | "fill">(clickMode);
+  React.useEffect(() => {
+    clickModeRef.current = clickMode;
+  }, [clickMode]);
 
   React.useEffect(() => {
     if (settings.replySuggestionsClickMode) {
@@ -182,7 +187,8 @@ const ChatInputArea = () => {
       }
     }
 
-    const currentMode = clickMode;
+    // 优先读取同步更新的全局变量，再降级到 Ref，彻底消除 React 调度时序导致的陈旧读取
+    const currentMode = globalSuggestionsClickMode ?? clickModeRef.current;
     if (currentMode === "send") {
       setLocalInput("");
       setUserInputMessage("");
@@ -283,7 +289,9 @@ const ChatInputArea = () => {
             <button
               onClick={() => {
                 const nextMode = clickMode === "send" ? "fill" : "send";
+                // 同步更新全局变量与 Ref，确保 handleSelectSuggestion 在本次事件循环内即可读到最新值
                 globalSuggestionsClickMode = nextMode;
+                clickModeRef.current = nextMode;
                 setClickMode(nextMode);
                 updateSettings((prev) => ({
                   ...prev,
