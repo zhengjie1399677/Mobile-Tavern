@@ -32,6 +32,14 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [activeCharId, setActiveCharId] = useState<string | null>(null);
   const [isDBReady, setIsDBReady] = useState(false);
 
+  const isMountedRef = React.useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const activeCharacter = useMemo(
     () => characters.find((c) => c.id === activeCharId) || null,
     [characters, activeCharId]
@@ -73,11 +81,15 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       const cleaned = (stored || []).map(cleanCharacter);
-      setCharacters(cleaned);
-      setIsDBReady(true);
+      if (isMountedRef.current) {
+        setCharacters(cleaned);
+        setIsDBReady(true);
+      }
     } catch (e: any) {
       console.error("Failed to load characters from IndexedDB:", e);
-      showCustomAlert("加载本地角色库失败: " + e.message);
+      if (isMountedRef.current) {
+        showCustomAlert("加载本地角色库失败: " + e.message);
+      }
     }
   };
 

@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
 import { CharacterCard } from "../types";
 import {
@@ -29,7 +29,7 @@ export default function CharactersTab() {
     handleExportCharacterPNG,
     setActiveTab,
     setActiveWorldbookHostId,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
   const [selectedDetailChar, setSelectedDetailChar] = React.useState<CharacterCard | null>(null);
   return (
     <div className="px-4 pb-4 pt-1.5 space-y-4">

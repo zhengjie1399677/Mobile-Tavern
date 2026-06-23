@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import { GitFork, X, Trash2, Plus } from "lucide-react";
 
 export default function SessionManagerModal() {
@@ -14,7 +14,7 @@ export default function SessionManagerModal() {
     createNewBranch,
     isSending,
     showCustomAlert,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
 
   if (!showSessionManager || !activeCharacter) return null;
 

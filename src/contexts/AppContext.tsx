@@ -121,13 +121,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const [currentTheme, setCurrentTheme] = useState<ThemeType>(() => {
-    return (localStorage.getItem("siuser-theme") as any) || "ocean";
+    return (localStorage.getItem("mobile_tavern_theme") || localStorage.getItem("siuser-theme") as any) || "ocean";
   });
   const isInitialRender = useRef(true);
 
   const handleThemeChange = (newTheme: ThemeType) => {
     setCurrentTheme(newTheme);
-    localStorage.setItem("siuser-theme", newTheme);
+    localStorage.setItem("mobile_tavern_theme", newTheme);
   };
 
   const [safeAreas, setSafeAreas] = useState<{ top: number; bottom: number }>(() => {

@@ -1,5 +1,5 @@
-import React, { useContext } from "react";
-import { AppContext } from "../AppContext";
+import React from "react";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import {
   X,
   Sparkles,
@@ -31,7 +31,7 @@ export default function CharacterEditModal() {
     handleSaveLoreEntry,
     setActiveTab,
     safeAreas,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
 
   if (!charModalOpen || !editingChar) return null;
 

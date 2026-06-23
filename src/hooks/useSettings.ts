@@ -20,6 +20,11 @@ import { universalFetch } from "../utils/apiClient";
 import { encryptBackupData, decryptBackupData } from "../utils/cardParser";
 import { reportUsage } from "../utils/telemetry";
 
+import { DEFAULT_REPLY_SUGGESTIONS_PROMPT } from "../defaults/suggestionsPrompt";
+export { DEFAULT_REPLY_SUGGESTIONS_PROMPT };
+
+export const DEFAULT_BISON_MODE_PROMPT = `[野牛模式连续输出指令：请继续丰富当前场景，输出该角色的下一步神态、动作与言行。]`;
+
 export const DEFAULT_PRESETS: Record<string, SamplerPreset> = {
   creative: {
     id: "creative",
@@ -324,6 +329,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   enableReplySuggestions: false,
   replySuggestionsClickMode: "fill",
   enableBisonMode: false,
+  replySuggestionsPrompt: DEFAULT_REPLY_SUGGESTIONS_PROMPT,
+  bisonModePrompt: DEFAULT_BISON_MODE_PROMPT,
 };
 
 const getNestedDelta = (nextObj: any, baseObj: any): any => {
@@ -625,6 +632,8 @@ export const useSettings = () => {
             enableReplySuggestions: storedSet.enableReplySuggestions ?? DEFAULT_SETTINGS.enableReplySuggestions,
             replySuggestionsClickMode: storedSet.replySuggestionsClickMode ?? DEFAULT_SETTINGS.replySuggestionsClickMode,
             enableBisonMode: storedSet.enableBisonMode ?? DEFAULT_SETTINGS.enableBisonMode,
+            replySuggestionsPrompt: storedSet.replySuggestionsPrompt ?? DEFAULT_SETTINGS.replySuggestionsPrompt,
+            bisonModePrompt: storedSet.bisonModePrompt ?? DEFAULT_SETTINGS.bisonModePrompt,
           } as any;
 
           if (externalPreset) {

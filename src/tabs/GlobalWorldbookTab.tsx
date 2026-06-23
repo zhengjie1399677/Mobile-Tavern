@@ -1,5 +1,5 @@
 import React, { useContext, useState } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import {
   Trash2,
   Edit2,
@@ -42,7 +42,7 @@ export default function GlobalWorldbookTab() {
     setActiveWorldbookHostId,
     customWorldbooks = {},
     updateCustomWorldbooks,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
 
   // Active Selected Host ID: "list" or "global" or the specific ID of a character card or custom worldbook ID
   const activeHostId = activeWorldbookHostId || "list";

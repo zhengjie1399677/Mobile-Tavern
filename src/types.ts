@@ -222,6 +222,8 @@ export interface UserSettings {
   enableReplySuggestions?: boolean; // Enable suggested action options
   replySuggestionsClickMode?: "send" | "fill"; // Default action on suggestion click
   enableBisonMode?: boolean; // Enable Bison Mode
+  replySuggestionsPrompt?: string; // Suggestions prompt template
+  bisonModePrompt?: string; // Bison Mode prompt template
 }
 
 export interface RegexScript {

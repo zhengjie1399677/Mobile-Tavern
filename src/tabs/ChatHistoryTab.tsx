@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import { Trash2, History, MessageSquare } from "lucide-react";
 
 export default function ChatHistoryTab() {
@@ -12,7 +12,7 @@ export default function ChatHistoryTab() {
     setChatSubTab,
     deleteBranch,
     triggerScroll,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
   return (
     <div className="px-4 pb-4 pt-1.5 space-y-4">
       <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-1.5 pb-2 border-b border-border">

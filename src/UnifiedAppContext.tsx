@@ -187,5 +187,12 @@ export interface UnifiedAppContextProps {
   isBisonLocking: boolean;
 }
 
-export const AppContext = React.createContext<UnifiedAppContextProps | null>(null);
+export const UnifiedAppContext = React.createContext<UnifiedAppContextProps | null>(null);
 
+export const useUnifiedApp = () => {
+  const context = React.useContext(UnifiedAppContext);
+  if (!context) {
+    throw new Error("useUnifiedApp must be used within LegacyAppContextProvider");
+  }
+  return context;
+};

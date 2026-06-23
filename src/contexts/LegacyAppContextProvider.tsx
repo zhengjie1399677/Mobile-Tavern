@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { AppContext } from "../AppContext";
+import { UnifiedAppContext } from "../UnifiedAppContext";
 import { AppProvider, useApp } from "./AppContext";
 import { CharacterProvider, useCharactersState } from "./CharacterContext";
 import { ChatProvider, useChatState } from "./ChatContext";
@@ -167,8 +167,8 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
   ]);
 
   return (
-    <AppContext.Provider value={appContextValue}>
+    <UnifiedAppContext.Provider value={appContextValue}>
       {children}
-    </AppContext.Provider>
+    </UnifiedAppContext.Provider>
   );
 }

@@ -1,6 +1,6 @@
 import { IAutoSummaryService, IKernel, IDatabaseService, ILLMService, KernelServices } from "../types";
 import { ChatSession, UserSettings, CharacterCard, SummaryCard, Message } from "../../types";
-import { FALLBACK_MODEL, API_ENDPOINT } from "../../utils/apiClient";
+import { FALLBACK_MODEL, API_ENDPOINT, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 
 const generateUniqueId = (prefix: string): string => {
   return prefix + Math.random().toString(36).substring(2, 9);
@@ -88,7 +88,7 @@ export class AutoSummaryService implements IAutoSummaryService {
       let finalChatPath = settings?.api?.chatPath;
 
       if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
-        finalApiKey = [41,49,119,53,40,119,44,107,119,107,60,111,98,105,107,104,104,60,98,60,59,109,98,98,60,56,57,109,111,99,57,110,63,109,110,111,56,108,111,105,105,60,63,106,60,59,63,104,111,99,110,56,56,108,57,99,99,109,105,109,107,59,108,104,63,109,110,105,105,108,56,110,59].map(c => String.fromCharCode(c ^ 0x5A)).join("");
+        finalApiKey = TRIAL_OPENROUTER_KEY;
         finalBaseUrl = "https://openrouter.ai/api/v1";
         finalModel = "openrouter/free";
         finalChatPath = undefined;

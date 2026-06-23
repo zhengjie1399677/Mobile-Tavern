@@ -1,8 +1,7 @@
-import React, { useContext } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 
 export default function DbWritingOverlay() {
-  const { isDbWriting } = useContext(AppContext);
+  const { isDbWriting } = useUnifiedApp();
 
   if (!isDbWriting) return null;
 

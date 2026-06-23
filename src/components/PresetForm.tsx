@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import { DEFAULT_PRESETS } from "../App";
 import { cn } from "../../lib/utils";
 import {
@@ -45,7 +45,7 @@ export default function PresetForm() {
     showCustomConfirm,
     showCustomAlert,
     activeCharacter,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
 
   const activeBundleId = (settings.savedPresets || []).find(
     (b) => b.preset.id === settings.preset.id

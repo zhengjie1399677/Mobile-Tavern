@@ -1,5 +1,5 @@
 import React, { useContext, memo, useState } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import { createMessageIframeSrcDoc } from "../utils/tavernHelperBridge";
 
 interface FormattedTextProps {
@@ -529,13 +529,13 @@ const FormattedText = memo(function FormattedText({
     ? text.substring(0, 12000) + `\n\n*... [ 此处已自动折叠超长内容，当前共 ${text.length} 字 ] ...*`
     : text;
 
-  const context = useContext(AppContext);
-  const enableHtml = context?.settings?.enableHtmlRendering ?? true;
-  const enableScriptExecution = !!context?.settings?.enableScriptExecution;
-  const activeCharacter = context?.activeCharacter;
+  const context = useUnifiedApp();
+  const enableHtml = context.settings.enableHtmlRendering ?? true;
+  const enableScriptExecution = !!context.settings.enableScriptExecution;
+  const activeCharacter = context.activeCharacter;
   const enableAsteriskFormatting = !!activeCharacter?.visualSettings?.enableAsteriskFormatting;
-  const globalRegexScripts = context?.settings?.globalRegexScripts;
-  const presetRegexScripts = context?.settings?.presetRegexScripts;
+  const globalRegexScripts = context.settings.globalRegexScripts;
+  const presetRegexScripts = context.settings.presetRegexScripts;
 
   const processed = preprocessFormattedText(
     displayText,

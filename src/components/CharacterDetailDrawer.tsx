@@ -1,5 +1,5 @@
-import React, { useState, useContext } from "react";
-import { AppContext } from "../AppContext";
+import React, { useState } from "react";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import { CharacterCard, LorebookEntry } from "../types";
 import FormattedText from "./FormattedText";
 import {
@@ -34,7 +34,7 @@ export default function CharacterDetailDrawer({
     showCustomAlert,
     settings,
     safeAreas,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
 
   const userName = settings?.userName || "user";
 

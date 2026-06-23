@@ -1,10 +1,10 @@
-import React, { useContext, useState, useEffect } from "react";
-import { AppContext } from "../AppContext";
+import React, { useState, useEffect } from "react";
+import { useUnifiedApp } from "../UnifiedAppContext";
 
 export default function CustomConfirmDialog() {
   const {
     customDialog,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
 
   const [localVal, setLocalVal] = useState("");
 

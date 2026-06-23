@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import {
   Settings,
   Plus,
@@ -25,7 +25,7 @@ import {
 import { compressImage } from "../utils/imageCompressor";
 
 import { DEFAULT_PRESETS } from "../App";
-import { DEFAULT_SETTINGS } from "../hooks/useSettings";
+import { DEFAULT_SETTINGS, DEFAULT_REPLY_SUGGESTIONS_PROMPT, DEFAULT_BISON_MODE_PROMPT } from "../hooks/useSettings";
 
 import {
   Accordion,
@@ -124,7 +124,7 @@ export default function SettingsTab() {
     showCustomAlert,
     activeCharacter,
     safeAreas,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
   const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
 
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
@@ -1014,23 +1014,55 @@ export default function SettingsTab() {
                   />
                 </div>
                 {settings.enableReplySuggestions && (
-                  <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border mt-2">
-                    <span className="text-[11px] text-muted-foreground font-semibold">
-                      推荐选项默认点击行为
-                    </span>
-                    <select
-                      value={settings.replySuggestionsClickMode || "fill"}
-                      onChange={(e) =>
-                        updateSettings({
-                          ...settings,
-                          replySuggestionsClickMode: e.target.value as any,
-                        })
-                      }
-                      className="bg-muted border border-border rounded px-1.5 py-1 text-xs outline-none focus:border-primary font-bold text-foreground"
-                    >
-                      <option value="fill">填入输入框</option>
-                      <option value="send">直接发送</option>
-                    </select>
+                  <div className="space-y-2 mt-2 bg-muted/15 p-2.5 rounded-lg border border-border/40">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] text-muted-foreground font-semibold">
+                        推荐选项默认点击行为
+                      </span>
+                      <select
+                        value={settings.replySuggestionsClickMode || "fill"}
+                        onChange={(e) =>
+                          updateSettings({
+                            ...settings,
+                            replySuggestionsClickMode: e.target.value as any,
+                          })
+                        }
+                        className="bg-muted border border-border rounded px-1.5 py-1 text-xs outline-none focus:border-primary font-bold text-foreground"
+                      >
+                        <option value="fill">填入输入框</option>
+                        <option value="send">直接发送</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1 mt-1 pt-2 border-t border-border/20">
+                      <label className="text-[11px] font-semibold text-muted-foreground block">
+                        走向推荐引导提示词 (Suggestions Prompt)
+                      </label>
+                      <Textarea
+                        value={settings.replySuggestionsPrompt ?? ""}
+                        onChange={(e) =>
+                          updateSettings({
+                            ...settings,
+                            replySuggestionsPrompt: e.target.value,
+                          })
+                        }
+                        className="text-xs bg-input/50 min-h-[90px] leading-relaxed"
+                        placeholder="引导回复走向的系统级提示..."
+                      />
+                      <div className="flex justify-end pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateSettings({
+                              ...settings,
+                              replySuggestionsPrompt: DEFAULT_REPLY_SUGGESTIONS_PROMPT,
+                            });
+                          }}
+                          className="text-[10px] text-primary font-semibold hover:underline cursor-pointer"
+                        >
+                          恢复默认建议提示词
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
                 
@@ -1055,6 +1087,38 @@ export default function SettingsTab() {
                     className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
                   />
                 </div>
+                {settings.enableBisonMode && (
+                  <div className="space-y-1.5 mt-2 bg-muted/15 p-2.5 rounded-lg border border-border/40">
+                    <label className="text-[11px] font-semibold text-muted-foreground block">
+                      野牛模式连续生成指令 (Bison Mode Prompt)
+                    </label>
+                    <Textarea
+                      value={settings.bisonModePrompt ?? ""}
+                      onChange={(e) =>
+                        updateSettings({
+                          ...settings,
+                          bisonModePrompt: e.target.value,
+                        })
+                      }
+                      className="text-xs bg-input/50 min-h-[60px]"
+                      placeholder="野牛模式触发连续生成时发送给 AI 的指令..."
+                    />
+                    <div className="flex justify-end pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateSettings({
+                            ...settings,
+                            bisonModePrompt: DEFAULT_BISON_MODE_PROMPT,
+                          });
+                        }}
+                        className="text-[10px] text-primary font-semibold hover:underline cursor-pointer"
+                      >
+                        恢复默认野牛提示词
+                      </button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

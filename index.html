@@ -8,7 +8,7 @@
   <title>Mobile-Tavern</title>
   <script>
     (function() {
-      var theme = localStorage.getItem("siuser-theme") || "ocean";
+      var theme = localStorage.getItem("mobile_tavern_theme") || localStorage.getItem("siuser-theme") || "ocean";
       document.documentElement.setAttribute("data-theme", theme);
       if (theme === "ocean" || theme === "obsidian") {
         document.documentElement.classList.add("dark");

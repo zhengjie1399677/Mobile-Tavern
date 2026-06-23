@@ -36,6 +36,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<any>({ testing: false });
 
+  const isMountedRef = React.useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const activeSession = useMemo(
     () => sessions.find((s) => s.id === activeSessionId) || null,
     [sessions, activeSessionId]
@@ -44,10 +52,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loadSessions = async () => {
     try {
       const stored = await getAllSessions();
-      setSessions(stored || []);
+      if (isMountedRef.current) {
+        setSessions(stored || []);
+      }
     } catch (e: any) {
       console.error("Failed to load sessions from IndexedDB:", e);
-      showCustomAlert("加载聊天记录失败: " + e.message);
+      if (isMountedRef.current) {
+        showCustomAlert("加载聊天记录失败: " + e.message);
+      }
     }
   };
 

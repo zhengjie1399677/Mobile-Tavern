@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import { SplashScreen } from "./SplashScreen";
 import * as Icons from "lucide-react";
 import { globalKernel } from "../kernel";
@@ -17,7 +17,7 @@ export default function MainLayout() {
     setActiveTab,
     showSplash,
     safeAreas,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
 
   const [viewportHeight, setViewportHeight] = React.useState<number | null>(null);
 

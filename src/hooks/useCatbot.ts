@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useContext } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import { apiClient } from "../utils/apiClient";
 import { getDeviceId } from "../utils/telemetry";
 import { catbotEventBus, CatbotEvent } from "../utils/catbotEventBus";
@@ -113,7 +113,7 @@ let expressionTimer: any = null;
 
 export function useCatbot() {
   const [state, setState] = useState<CatbotGlobalState>(globalState);
-  const context = useContext(AppContext);
+  const context = useUnifiedApp();
   const settings = context?.settings;
   const activeSession = context?.activeSession;
 

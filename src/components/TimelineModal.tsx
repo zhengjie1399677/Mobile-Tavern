@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import { Clock, X } from "lucide-react";
 
 export default function TimelineModal() {
@@ -21,7 +21,7 @@ export default function TimelineModal() {
     editingSummaryId,
     setEditingSummaryId,
     handleAddTimelineSummary,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
 
   if (!timelineModalOpen) return null;
 

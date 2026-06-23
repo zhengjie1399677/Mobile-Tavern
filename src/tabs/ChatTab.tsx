@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { AppContext } from "../AppContext";
+import { useUnifiedApp } from "../UnifiedAppContext";
 import {
   ArrowLeft,
   Send,
@@ -51,7 +51,7 @@ const ChatInputArea = () => {
     updateSettings,
     isBisonLocking,
     triggerScroll,
-  } = React.useContext(AppContext);
+  } = useUnifiedApp();
   const [localInput, setLocalInput] = React.useState(userInputMessage);
   const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
 
@@ -400,7 +400,7 @@ export default function ChatTab() {
     saveCharacter,
     saveSessionWithMvu,
     updateSettings,
-  } = useContext(AppContext);
+  } = useUnifiedApp();
 
   React.useEffect(() => {
     const handleWindowScroll = () => {

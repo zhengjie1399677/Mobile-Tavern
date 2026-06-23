@@ -8,7 +8,7 @@ import {
 import { reportDbQueueTimeout } from "./telemetry";
 
 const DB_NAME = "MobileTavernLiteDB";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -92,6 +92,43 @@ export function getDB(): Promise<IDBDatabase> {
       // v2 升级: 为 sessions 仓库创建 characterId 检索索引，加速获取指定角色下的聊天历史列表
       if (!sessionStore.indexNames.contains("characterId")) {
         sessionStore.createIndex("characterId", "characterId", { unique: false });
+      }
+
+      // v6 升级: 创建专门的 lorebooks 和 worldbooks store，隔离大对象以防 settings 膨胀导致白屏
+      let lorebooksStore: IDBObjectStore;
+      if (!db.objectStoreNames.contains("lorebooks")) {
+        lorebooksStore = db.createObjectStore("lorebooks");
+      } else {
+        lorebooksStore = request.transaction!.objectStore("lorebooks");
+      }
+
+      let worldbooksStore: IDBObjectStore;
+      if (!db.objectStoreNames.contains("worldbooks")) {
+        worldbooksStore = db.createObjectStore("worldbooks");
+      } else {
+        worldbooksStore = request.transaction!.objectStore("worldbooks");
+      }
+
+      if (oldVersion < 6) {
+        const settingsStore = request.transaction!.objectStore("settings");
+
+        // 自动迁移 global_lorebook 到 lorebooks
+        const reqLore = settingsStore.get("global_lorebook");
+        reqLore.onsuccess = () => {
+          if (reqLore.result) {
+            lorebooksStore.put(reqLore.result, "global_lorebook");
+            settingsStore.delete("global_lorebook");
+          }
+        };
+
+        // 自动迁移 custom_worldbooks 到 worldbooks
+        const reqWorld = settingsStore.get("custom_worldbooks");
+        reqWorld.onsuccess = () => {
+          if (reqWorld.result) {
+            worldbooksStore.put(reqWorld.result, "custom_worldbooks");
+            settingsStore.delete("custom_worldbooks");
+          }
+        };
       }
     };
   });
@@ -268,8 +305,8 @@ export async function saveStoredDefaultCharactersInitializedFlag(initialized: bo
 export async function getGlobalLorebook(): Promise<LorebookEntry[]> {
   const db = await getDB();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction("settings", "readonly");
-    const store = transaction.objectStore("settings");
+    const transaction = db.transaction("lorebooks", "readonly");
+    const store = transaction.objectStore("lorebooks");
     const request = store.get("global_lorebook");
 
     request.onsuccess = () => resolve(request.result || []);
@@ -283,8 +320,8 @@ export async function saveGlobalLorebook(
   return enqueueWrite(async () => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction("settings", "readwrite");
-      const store = transaction.objectStore("settings");
+      const transaction = db.transaction("lorebooks", "readwrite");
+      const store = transaction.objectStore("lorebooks");
       const request = store.put(entries, "global_lorebook");
 
       request.onsuccess = () => resolve();
@@ -334,8 +371,8 @@ export async function bulkSaveSessions(sessionsList: ChatSession[]): Promise<voi
 export async function getCustomWorldbooks(): Promise<Record<string, CustomWorldbook>> {
   const db = await getDB();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction("settings", "readonly");
-    const store = transaction.objectStore("settings");
+    const transaction = db.transaction("worldbooks", "readonly");
+    const store = transaction.objectStore("worldbooks");
     const request = store.get("custom_worldbooks");
 
     request.onsuccess = () => resolve(request.result || {});
@@ -349,8 +386,8 @@ export async function saveCustomWorldbooks(
   return enqueueWrite(async () => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction("settings", "readwrite");
-      const store = transaction.objectStore("settings");
+      const transaction = db.transaction("worldbooks", "readwrite");
+      const store = transaction.objectStore("worldbooks");
       const request = store.put(worldbooks, "custom_worldbooks");
 
       request.onsuccess = () => resolve();

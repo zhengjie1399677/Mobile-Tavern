@@ -309,15 +309,15 @@ function testApiCleanRequestPayload() {
   assert(openaiRes!.stream_options !== undefined, "OpenAI: keep stream_options");
   assert(openaiRes!.temperature === 0.7, "OpenAI: keep standard parameters");
 
-  // 3. DeepSeek Official (保留 repetition_penalty，但去除 top_k, min_p, max_completion_tokens, stream_options)
+  // 3. DeepSeek Official (保留 repetition_penalty，且保留 max_completion_tokens 与 stream_options)
   const deepseekRes = cleanRequestPayload("https://api.deepseek.com/v1", fullPayload);
   assert(deepseekRes !== undefined, "DeepSeek payload should exist");
   assert(deepseekRes!.top_k === undefined, "DeepSeek: strip top_k");
   assert(deepseekRes!.min_p === undefined, "DeepSeek: strip min_p");
   assert(deepseekRes!.repetition_penalty === 1.1, "DeepSeek: keep repetition_penalty");
-  assert(deepseekRes!.max_completion_tokens === undefined, "DeepSeek: strip max_completion_tokens");
-  assert(deepseekRes!.max_tokens === 100, "DeepSeek: keep max_tokens when max_completion_tokens is stripped");
-  assert(deepseekRes!.stream_options === undefined, "DeepSeek: strip stream_options");
+  assert(deepseekRes!.max_completion_tokens === 100, "DeepSeek: keep max_completion_tokens");
+  assert(deepseekRes!.max_tokens === undefined, "DeepSeek: strip max_tokens when max_completion_tokens is present");
+  assert(deepseekRes!.stream_options !== undefined, "DeepSeek: keep stream_options");
 
   // 4. Gemini / Google (剔除所有非标)
   const geminiRes = cleanRequestPayload("https://generativelanguage.googleapis.com/v1beta", fullPayload);
@@ -339,12 +339,14 @@ function testApiCleanRequestPayload() {
   assert(otherRes!.max_tokens === 100, "Other: keep max_tokens when max_completion_tokens is stripped");
   assert(otherRes!.stream_options === undefined, "Other: strip stream_options");
 
-  // 6. Custom proxy + DeepSeek model (应该保留 repetition_penalty 哪怕域名不符合)
+  // 6. Custom proxy + DeepSeek model (应该保留 repetition_penalty 以及根据模型名放行 stream_options/max_completion_tokens)
   const deepseekModelPayload = { ...fullPayload, model: "deepseek-reasoner" };
   const customProxyDeepseekRes = cleanRequestPayload("https://api.some-thirdparty-中转.top/v1", deepseekModelPayload);
   assert(customProxyDeepseekRes !== undefined, "Custom proxy deepseek payload should exist");
   assert(customProxyDeepseekRes!.repetition_penalty === 1.1, "Custom Proxy Deepseek: KEEP repetition_penalty based on model name");
-  assert(customProxyDeepseekRes!.stream_options === undefined, "Custom Proxy Deepseek: strip stream_options");
+  assert(customProxyDeepseekRes!.max_completion_tokens === 100, "Custom Proxy Deepseek: keep max_completion_tokens based on model name");
+  assert(customProxyDeepseekRes!.max_tokens === undefined, "Custom Proxy Deepseek: strip max_tokens when max_completion_tokens is present");
+  assert(customProxyDeepseekRes!.stream_options !== undefined, "Custom Proxy Deepseek: keep stream_options based on model name");
 
   // 7. Custom proxy + GPT model (应该裁剪 stream_options 等)
   const gptModelPayload = { ...fullPayload, model: "gpt-4o" };

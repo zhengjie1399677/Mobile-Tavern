@@ -3,7 +3,8 @@ import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
 import { Message, ChatSession, SummaryCard, UserSettings, LorebookEntry, TableMemorySheet, CustomWorldbook } from "../types";
-import { FALLBACK_MODEL, API_ENDPOINT } from "../utils/apiClient";
+import { FALLBACK_MODEL, API_ENDPOINT, TRIAL_OPENROUTER_KEY } from "../utils/apiClient";
+import { DEFAULT_REPLY_SUGGESTIONS_PROMPT } from "../defaults/suggestionsPrompt";
 import { readSSEStream, safeParseSSEData } from "../utils/streamReader";
 import FormattedText from "../components/FormattedText";
 import { notifyVariablesUpdated } from "../utils/tavernHelperBridge";
@@ -17,210 +18,21 @@ import {
   IScriptService,
   IAutoSummaryService
 } from "../kernel/types";
+import {
+  extractThinkContent,
+  cleanSuggestionsFromText,
+  parseSuggestions,
+  calculateBisonModeProbability,
+} from "./useChat/helpers";
+
+// 重新导出 calculateBisonModeProbability 以保持向后兼容
+export { calculateBisonModeProbability } from "./useChat/helpers";
 
 const generateUniqueId = (prefix: string): string => {
   return prefix + Math.random().toString(36).substring(2, 9);
 };
 
-const SUGGESTIONS_PROMPT = `\n\n[Important Command: You must append exactly 4 short suggested action options for the user at the very end of your response inside XML tags: <suggestions>["Option 1", "Option 2", "Option 3", "Option 4"]</suggestions>. Ensure it is a valid JSON array within the tags, and do not write any text after the closing tag.
-To avoid duplicate or homogenous suggestions, the 4 options must represent distinct narrative paths with sharp contrasts:
-- Option 1 (Proactive/Empathetic): A warm, friendly, or supportive reaction to advance the relationship or scene.
-- Option 2 (Cautious/Rational): A cautious, neutral, observing, or defensive reaction.
-- Option 3 (Dramatic/Humorous/Unexpected): A playful, unexpected, humorous, or dramatic plot-twist reaction.
-- Option 4 (Tension/Bold/Provocative): A bold, provocative, testing, or slightly conflicting reaction to create relationship tension.
-Each suggestion must be written in user's POV (action description or speech), concise (under 18 characters), and direct.]`;
 
-function extractThinkContent(
-  content: string, 
-  reasoningContent?: string, 
-  isStreaming: boolean = false
-): { content: string; reasoningContent?: string } {
-  if (!content) return { content, reasoningContent };
-  
-  const thinkStart = "<think>";
-  const thinkEnd = "</think>";
-  
-  if (content.includes(thinkStart)) {
-    const startIdx = content.indexOf(thinkStart);
-    const endIdx = content.indexOf(thinkEnd);
-    
-    if (endIdx !== -1) {
-      const extractedReasoning = content.substring(startIdx + thinkStart.length, endIdx).trim();
-      const restContent = content.substring(endIdx + thinkEnd.length).trim();
-      return {
-        content: restContent,
-        reasoningContent: extractedReasoning || reasoningContent
-      };
-    } else {
-      const extractedReasoning = content.substring(startIdx + thinkStart.length).trim();
-      return {
-        content: isStreaming ? "💭..." : "",
-        reasoningContent: extractedReasoning || reasoningContent
-      };
-    }
-  }
-  return { content, reasoningContent };
-}
-
-function cleanSuggestionsFromText(text: string): { content: string; suggestionsText?: string } {
-  if (!text) return { content: text };
-  
-  const suggestionsStart = "<suggestions>";
-  if (text.includes(suggestionsStart)) {
-    const startIdx = text.indexOf(suggestionsStart);
-    const suggestionsEnd = "</suggestions>";
-    const endIdx = text.indexOf(suggestionsEnd);
-    
-    const cleanContent = text.substring(0, startIdx).trim();
-    let suggestionsText = "";
-    if (endIdx !== -1) {
-      suggestionsText = text.substring(startIdx + suggestionsStart.length, endIdx).trim();
-    } else {
-      suggestionsText = text.substring(startIdx + suggestionsStart.length).trim();
-    }
-    return { content: cleanContent, suggestionsText };
-  }
-  return { content: text };
-}
-
-function splitTextIntoItems(text: string): string[] {
-  let lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  
-  if (lines.length > 1) {
-    return lines;
-  }
-  
-  const splitPattern = /\s+(?=\(?\d+[\.、．:]\s+)/g;
-  const replaced = text.replace(splitPattern, "\n");
-  lines = replaced.split("\n").map(l => l.trim()).filter(Boolean);
-  if (lines.length > 1) {
-    return lines;
-  }
-  
-  return [text];
-}
-
-function parseSuggestions(suggestionsText: string): string[] {
-  if (!suggestionsText) return [];
-  
-  let rawList: string[] = [];
-  const trimmed = suggestionsText.trim();
-  
-  try {
-    const sanitized = trimmed
-      .replace(/\n/g, '\\n')
-      .replace(/\r/g, '\\r')
-      .replace(/\t/g, '\\t');
-    rawList = JSON.parse(sanitized);
-  } catch (e) {
-    console.warn("[parseSuggestions] JSON.parse failed, falling back to manual regex matching", e);
-    try {
-      const matches = trimmed.match(/"([^"\\]*(?:\\.[^"\\]*)*)"/g);
-      if (matches) {
-        rawList = matches.map(m => {
-          let inner = m.slice(1, -1);
-          return inner.replace(/\\n/g, '\n').replace(/\\"/g, '"').trim();
-        });
-      }
-    } catch (e2) {
-      console.warn("[parseSuggestions] Manual regex matching failed", e2);
-    }
-  }
-
-  let items: string[] = [];
-  if (Array.isArray(rawList)) {
-    if (rawList.length === 1) {
-      const singleStr = rawList[0];
-      items = splitTextIntoItems(singleStr);
-    } else if (rawList.length > 1) {
-      items = rawList;
-    } else {
-      items = splitTextIntoItems(trimmed);
-    }
-  } else {
-    items = splitTextIntoItems(trimmed);
-  }
-
-  return items
-    .map(item => {
-      let cleaned = item.trim();
-      if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
-        cleaned = cleaned.slice(1, -1).trim();
-      }
-      if (cleaned.startsWith("'") && cleaned.endsWith("'")) {
-        cleaned = cleaned.slice(1, -1).trim();
-      }
-      cleaned = cleaned.replace(/^(?:\(?\d+\)?[\.、．:\s\-~]+|\[\d+\]\s*)/g, "");
-      cleaned = cleaned.replace(/^走向\d+[\.、．:\s\-]*|选项\d+[\.、．:\s\-]*/g, "");
-      return cleaned.trim();
-    })
-    .filter(item => item.length > 0);
-}
-
-function isSafeRegexForBison(pattern: string): boolean {
-  if (!pattern) return true;
-  return !/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(pattern) && !/(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(pattern);
-}
-
-export function calculateBisonModeProbability(character: any, lastAiContent: string, triggers: Record<string, string>): number {
-  let baseProb = 30; // 默认 30% 基础概率
-  
-  if (!character) return baseProb;
-  
-  // 1. 分析性格描述字段
-  const personality = (character.personality || "").toLowerCase();
-  const highTraits = ["急躁", "粗鲁", "多话", "傲慢", "热情", "强势", "残忍", "话痨", "唠叨", "傲娇", "impulsive", "talkative", "aggressive", "rude", "dominant", "passionate"];
-  const lowTraits = ["冷漠", "安静", "沉默", "寡言", "silent", "cold", "quiet", "indifferent"];
-  
-  highTraits.forEach(trait => {
-    if (personality.includes(trait)) baseProb += 8;
-  });
-  
-  lowTraits.forEach(trait => {
-    if (personality.includes(trait)) baseProb -= 10;
-  });
-  
-  // 2. 从 AI 上一轮回复内容分析情绪特征
-  if (lastAiContent && triggers) {
-    const lastAiTextLower = lastAiContent.toLowerCase();
-    let detectedEmotion = "neutral";
-    for (const [emotion, triggerPattern] of Object.entries(triggers)) {
-      if (triggerPattern) {
-        try {
-          if (isSafeRegexForBison(triggerPattern)) {
-            const regex = new RegExp(triggerPattern, "i");
-            if (regex.test(lastAiTextLower)) {
-              detectedEmotion = emotion;
-              break;
-            }
-          } else {
-            if (lastAiTextLower.includes(triggerPattern.toLowerCase())) {
-              detectedEmotion = emotion;
-              break;
-            }
-          }
-        } catch (e) {
-          if (lastAiTextLower.includes(triggerPattern.toLowerCase())) {
-            detectedEmotion = emotion;
-            break;
-          }
-        }
-      }
-    }
-    
-    // 情绪分类权重调整
-    if (["joy", "happy", "smile", "anger", "angry", "rage"].includes(detectedEmotion)) {
-      baseProb += 15; // 兴奋/高唤醒度情绪增加说话概率
-    } else if (["sadness", "sad", "cry"].includes(detectedEmotion)) {
-      baseProb -= 15; // 悲伤/低落情绪减少说话概率
-    } else if (["blush", "shy"].includes(detectedEmotion)) {
-      baseProb -= 5;  // 羞涩稍微降低连续说话概率
-    }
-  }
-  
-  // 限制概率区间在 5% 至 85% 之间
-  return Math.max(5, Math.min(85, baseProb));
-}
 
 
 
@@ -587,7 +399,7 @@ export const useChat = (
         return;
       }
       isTrialMode = true;
-      finalApiKey = [41,49,119,53,40,119,44,107,119,107,60,111,98,105,107,104,104,60,98,60,59,109,98,98,60,56,57,109,111,99,57,110,63,109,110,111,56,108,111,105,105,60,63,106,60,59,63,104,111,99,110,56,56,108,57,99,99,109,105,109,107,59,108,104,63,109,110,105,105,108,56,110,59].map(c => String.fromCharCode(c ^ 0x5A)).join("");
+      finalApiKey = TRIAL_OPENROUTER_KEY;
       finalBaseUrl = "https://openrouter.ai/api/v1";
       finalModel = "openrouter/free";
       finalChatPath = undefined;
@@ -750,7 +562,7 @@ export const useChat = (
             ...promptPayload.history.map((h: any, idx: number) => {
               let content = h.content;
               if (settings.enableReplySuggestions && idx === promptPayload.history.length - 1 && h.role === "user") {
-                content += SUGGESTIONS_PROMPT;
+                content += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
               }
               const msgObj: any = {
                 role: h.role === "model" ? "assistant" : h.role,
@@ -919,7 +731,7 @@ export const useChat = (
           const silentMsg: Message = {
             id: generateUniqueId("msg_bison_silent_"),
             sender: "system",
-            content: "[野牛模式连续输出指令：请继续丰富当前场景，输出该角色的下一步神态、动作与言行。]",
+            content: settings.bisonModePrompt || "[野牛模式连续输出指令：请继续丰富当前场景，输出该角色的下一步神态、动作与言行。]",
             timestamp: Date.now(),
             extra: { isBisonSilent: true }
           };
@@ -1097,7 +909,6 @@ export const useChat = (
       }
     }
   }, [
-    isSending,
     activeCharacter,
     activeSession,
     settings,
@@ -1109,12 +920,11 @@ export const useChat = (
     triggerScroll,
     handleAutoSummaryCheck,
     showCustomAlert,
-    setIsSending,
   ]);
 
   const handleRerollFromMessage = useCallback(async (targetMsg: Message) => {
     setReplySuggestions([]);
-    if (!targetMsg || !targetMsg.id || isSending || isSendingRef.current || !activeCharacter || !activeSession) return;
+    if (!targetMsg || !targetMsg.id || isSendingRef.current || !activeCharacter || !activeSession) return;
 
     let finalApiKey = settings.api.apiKey;
     let finalBaseUrl = settings.api.baseUrl;
@@ -1129,7 +939,7 @@ export const useChat = (
         return;
       }
       isTrialMode = true;
-      finalApiKey = [41,49,119,53,40,119,44,107,119,107,60,111,98,105,107,104,104,60,98,60,59,109,98,98,60,56,57,109,111,99,57,110,63,109,110,111,56,108,111,105,105,60,63,106,60,59,63,104,111,99,110,56,56,108,57,99,99,109,105,109,107,59,108,104,63,109,110,105,105,108,56,110,59].map(c => String.fromCharCode(c ^ 0x5A)).join("");
+      finalApiKey = TRIAL_OPENROUTER_KEY;
       finalBaseUrl = "https://openrouter.ai/api/v1";
       finalModel = "openrouter/free";
       finalChatPath = undefined;
@@ -1320,7 +1130,7 @@ export const useChat = (
             ...promptPayload.history.map((h: any, idx: number) => {
               let content = h.content;
               if (settings.enableReplySuggestions && idx === promptPayload.history.length - 1 && h.role === "user") {
-                content += SUGGESTIONS_PROMPT;
+                content += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
               }
               const msgObj: any = {
                 role: h.role === "model" ? "assistant" : h.role,
@@ -1637,7 +1447,6 @@ export const useChat = (
       }
     }
   }, [
-    isSending,
     activeCharacter,
     activeSession,
     settings,
@@ -1650,7 +1459,6 @@ export const useChat = (
     handleAutoSummaryCheck,
     showCustomConfirm,
     showCustomAlert,
-    setIsSending,
   ]);
 
   const handleRerollLast = useCallback(async () => {
