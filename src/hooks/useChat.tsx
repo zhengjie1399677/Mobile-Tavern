@@ -22,6 +22,14 @@ const generateUniqueId = (prefix: string): string => {
   return prefix + Math.random().toString(36).substring(2, 9);
 };
 
+const SUGGESTIONS_PROMPT = `\n\n[Important Command: You must append exactly 4 short suggested action options for the user at the very end of your response inside XML tags: <suggestions>["Option 1", "Option 2", "Option 3", "Option 4"]</suggestions>. Ensure it is a valid JSON array within the tags, and do not write any text after the closing tag.
+To avoid duplicate or homogenous suggestions, the 4 options must represent distinct narrative paths with sharp contrasts:
+- Option 1 (Proactive/Empathetic): A warm, friendly, or supportive reaction to advance the relationship or scene.
+- Option 2 (Cautious/Rational): A cautious, neutral, observing, or defensive reaction.
+- Option 3 (Dramatic/Humorous/Unexpected): A playful, unexpected, humorous, or dramatic plot-twist reaction.
+- Option 4 (Tension/Bold/Provocative): A bold, provocative, testing, or slightly conflicting reaction to create relationship tension.
+Each suggestion must be written in user's POV (action description or speech), concise (under 18 characters), and direct.]`;
+
 function extractThinkContent(
   content: string, 
   reasoningContent?: string, 
@@ -73,6 +81,80 @@ function cleanSuggestionsFromText(text: string): { content: string; suggestionsT
     return { content: cleanContent, suggestionsText };
   }
   return { content: text };
+}
+
+function splitTextIntoItems(text: string): string[] {
+  let lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  
+  if (lines.length > 1) {
+    return lines;
+  }
+  
+  const splitPattern = /\s+(?=\(?\d+[\.、．:]\s+)/g;
+  const replaced = text.replace(splitPattern, "\n");
+  lines = replaced.split("\n").map(l => l.trim()).filter(Boolean);
+  if (lines.length > 1) {
+    return lines;
+  }
+  
+  return [text];
+}
+
+function parseSuggestions(suggestionsText: string): string[] {
+  if (!suggestionsText) return [];
+  
+  let rawList: string[] = [];
+  const trimmed = suggestionsText.trim();
+  
+  try {
+    const sanitized = trimmed
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t');
+    rawList = JSON.parse(sanitized);
+  } catch (e) {
+    console.warn("[parseSuggestions] JSON.parse failed, falling back to manual regex matching", e);
+    try {
+      const matches = trimmed.match(/"([^"\\]*(?:\\.[^"\\]*)*)"/g);
+      if (matches) {
+        rawList = matches.map(m => {
+          let inner = m.slice(1, -1);
+          return inner.replace(/\\n/g, '\n').replace(/\\"/g, '"').trim();
+        });
+      }
+    } catch (e2) {
+      console.warn("[parseSuggestions] Manual regex matching failed", e2);
+    }
+  }
+
+  let items: string[] = [];
+  if (Array.isArray(rawList)) {
+    if (rawList.length === 1) {
+      const singleStr = rawList[0];
+      items = splitTextIntoItems(singleStr);
+    } else if (rawList.length > 1) {
+      items = rawList;
+    } else {
+      items = splitTextIntoItems(trimmed);
+    }
+  } else {
+    items = splitTextIntoItems(trimmed);
+  }
+
+  return items
+    .map(item => {
+      let cleaned = item.trim();
+      if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
+        cleaned = cleaned.slice(1, -1).trim();
+      }
+      if (cleaned.startsWith("'") && cleaned.endsWith("'")) {
+        cleaned = cleaned.slice(1, -1).trim();
+      }
+      cleaned = cleaned.replace(/^(?:\(?\d+\)?[\.、．:\s\-~]+|\[\d+\]\s*)/g, "");
+      cleaned = cleaned.replace(/^走向\d+[\.、．:\s\-]*|选项\d+[\.、．:\s\-]*/g, "");
+      return cleaned.trim();
+    })
+    .filter(item => item.length > 0);
 }
 
 
@@ -534,10 +616,6 @@ export const useChat = (
         globalLorebook: combinedGlobals,
       });
 
-      if (settings.enableReplySuggestions) {
-        promptPayload.systemInstruction += `\n\n[Important Command: You must append exactly 4 short suggested action options for the user at the very end of your response. Use the exact XML format: <suggestions>["Option 1", "Option 2", "Option 3", "Option 4"]</suggestions>. Ensure it is valid JSON array within the tags, and do not write any text after the closing tag.]`;
-      }
-
       let tokenUsage = { prompt: 0, completion: 0 };
       const startTime = performance.now();
       let isFirstToken = true;
@@ -575,10 +653,14 @@ export const useChat = (
                 .filter(Boolean)
                 .join("\n\n"),
             },
-            ...promptPayload.history.map((h: any) => {
+            ...promptPayload.history.map((h: any, idx: number) => {
+              let content = h.content;
+              if (settings.enableReplySuggestions && idx === promptPayload.history.length - 1 && h.role === "user") {
+                content += SUGGESTIONS_PROMPT;
+              }
               const msgObj: any = {
                 role: h.role === "model" ? "assistant" : h.role,
-                content: h.content,
+                content: content,
               };
               if (h.name) {
                 msgObj.name = h.name;
@@ -655,18 +737,7 @@ export const useChat = (
       const cleaned = cleanSuggestionsFromText(parsed.content);
       let suggestions: string[] = [];
       if (settings.enableReplySuggestions && cleaned.suggestionsText) {
-        try {
-          const rawJSON = cleaned.suggestionsText.trim();
-          suggestions = JSON.parse(rawJSON);
-        } catch (e) {
-          console.warn("Failed to parse suggested replies JSON:", cleaned.suggestionsText, e);
-          try {
-            const matches = cleaned.suggestionsText.match(/"([^"]+)"/g);
-            if (matches) {
-              suggestions = matches.map(m => m.replace(/"/g, "").trim());
-            }
-          } catch (e2) {}
-        }
+        suggestions = parseSuggestions(cleaned.suggestionsText);
       }
 
       const finalAiMsg = {
@@ -992,13 +1063,14 @@ export const useChat = (
 
     const updateSessionsContent = (content: string, reasoningContent?: string) => {
       const parsed = extractThinkContent(content, reasoningContent, true);
+      const cleaned = cleanSuggestionsFromText(parsed.content);
       setSessions((prev) =>
         prev.map((s) => {
           if (s.id !== updatedSession.id) return s;
           return {
             ...s,
             messages: s.messages.map((m) =>
-              m.id === aiMsgId ? { ...m, content: parsed.content, reasoningContent: parsed.reasoningContent } : m
+              m.id === aiMsgId ? { ...m, content: cleaned.content, reasoningContent: parsed.reasoningContent } : m
             ),
           };
         })
@@ -1083,10 +1155,14 @@ export const useChat = (
                 .filter(Boolean)
                 .join("\n\n"),
             },
-            ...promptPayload.history.map((h: any) => {
+            ...promptPayload.history.map((h: any, idx: number) => {
+              let content = h.content;
+              if (settings.enableReplySuggestions && idx === promptPayload.history.length - 1 && h.role === "user") {
+                content += SUGGESTIONS_PROMPT;
+              }
               const msgObj: any = {
                 role: h.role === "model" ? "assistant" : h.role,
-                content: h.content,
+                content: content,
               };
               if (h.name) {
                 msgObj.name = h.name;
@@ -1160,15 +1236,25 @@ export const useChat = (
       }
 
       const parsed = extractThinkContent(responseText.trim(), reasoningText.trim(), false);
+      const cleaned = cleanSuggestionsFromText(parsed.content);
+      let suggestions: string[] = [];
+      if (settings.enableReplySuggestions && cleaned.suggestionsText) {
+        suggestions = parseSuggestions(cleaned.suggestionsText);
+      }
+
       const finalAiMsg = {
         id: aiMsgId,
         sender: "assistant",
-        content: parsed.content,
+        content: cleaned.content,
         timestamp: Date.now(),
         generationTime: (performance.now() - startTime) / 1000,
         tokenCount: tokenUsage.completion,
         promptTokenCount: tokenUsage.prompt,
         reasoningContent: parsed.reasoningContent || undefined,
+        extra: {
+          ...(latestSession.messages.find(m => m.id === aiMsgId)?.extra || {}),
+          suggestions: suggestions.length > 0 ? suggestions : undefined
+        }
       };
 
       // Merge keeping any modifications (deletes/edits) made during generation

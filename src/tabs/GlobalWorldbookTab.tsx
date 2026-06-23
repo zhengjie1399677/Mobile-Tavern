@@ -739,10 +739,12 @@ export default function GlobalWorldbookTab() {
 
                     <div
                       className="flex items-center gap-3"
-                      onClick={(e) => e.stopPropagation()}
                     >
                       {/* Premium Toggle Switch/Slider for character level worldbook global */}
-                      <div className="flex items-center gap-1.5 bg-muted/20 px-2 py-1 rounded-xl border border-border/30">
+                      <div 
+                        className="flex items-center gap-1.5 bg-muted/20 px-2 py-1 rounded-xl border border-border/30"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <span className="text-[10px] text-muted-foreground font-semibold">
                           {isGlobal ? "🌎 全局" : "👤 专属"}
                         </span>

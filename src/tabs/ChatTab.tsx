@@ -241,7 +241,7 @@ const ChatInputArea = () => {
           </span>
         </div>
       </div>
-      {settings.enableReplySuggestions && replySuggestions && replySuggestions.length > 0 && (
+      {settings.enableReplySuggestions && !isSending && replySuggestions && replySuggestions.length > 0 && (
         <div className="flex flex-col gap-1.5 px-1 py-1 border-b border-border/30 animate-fadeIn">
           <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-1">
             <span className="flex items-center gap-1">✨ AI 推荐下一步走向:</span>
@@ -256,10 +256,10 @@ const ChatInputArea = () => {
               }}
               className="px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-[9px] font-semibold flex items-center gap-1 border border-border transition active:scale-95"
             >
-              点击行为: {(settings.replySuggestionsClickMode || "fill") === "send" ? "💬 直接发送" : "✏️ 填入框内"}
+              点击行为: {(settings.replySuggestionsClickMode || "fill") === "send" ? "直接发送" : "填入框内"}
             </button>
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 whitespace-nowrap scrollbar-none">
+          <div className="grid grid-cols-2 gap-2.5 py-1.5 px-0.5">
             {replySuggestions.map((suggestion, idx) => (
               <button
                 key={idx}
@@ -275,7 +275,8 @@ const ChatInputArea = () => {
                     setUserInputMessage(suggestion);
                   }
                 }}
-                className="inline-block px-3 py-1.5 rounded-full text-xs font-light bg-primary/10 border border-primary/20 text-foreground hover:bg-primary/20 hover:border-primary/45 transition active:scale-95 shadow-sm truncate max-w-[200px]"
+                className="w-full px-3 py-2 rounded-lg text-[11px] font-normal leading-normal text-left text-foreground bg-primary/5 hover:bg-primary/10 border border-primary/15 hover:border-primary/30 transition active:scale-95 shadow-sm truncate"
+                title={suggestion}
               >
                 {suggestion}
               </button>
@@ -651,21 +652,21 @@ export default function ChatTab() {
     const emotionKey = (currentEmotionName || "默认").toLowerCase();
     
     // Light 1 (Bottom Right) is reactive, Light 2 (Top Left) is neutral atmosphere
-    let light1 = "rgba(167, 139, 250, 0.12)"; // default purple
-    let light2 = "rgba(34, 211, 238, 0.05)";   // default light cyan
+    let light1 = "rgba(167, 139, 250, 0.28)"; // default purple
+    let light2 = "rgba(34, 211, 238, 0.16)";   // default light cyan
 
     if (emotionKey.includes("joy") || emotionKey.includes("happy") || emotionKey.includes("smile")) {
-      light1 = "rgba(244, 63, 94, 0.22)"; // Rose/Pink
-      light2 = "rgba(251, 191, 36, 0.08)"; // Warm Gold
+      light1 = "rgba(244, 63, 94, 0.48)"; // Rose/Pink
+      light2 = "rgba(251, 191, 36, 0.24)"; // Warm Gold
     } else if (emotionKey.includes("sad") || emotionKey.includes("cry") || emotionKey.includes("grief") || emotionKey.includes("sleepy") || emotionKey.includes("sleep")) {
-      light1 = "rgba(59, 130, 246, 0.22)"; // Cold Blue
-      light2 = "rgba(167, 139, 250, 0.06)"; // Soft Lavender
+      light1 = "rgba(59, 130, 246, 0.48)"; // Cold Blue
+      light2 = "rgba(167, 139, 250, 0.22)"; // Soft Lavender
     } else if (emotionKey.includes("anger") || emotionKey.includes("angry") || emotionKey.includes("rage")) {
-      light1 = "rgba(239, 68, 68, 0.22)"; // Crimson/Red
-      light2 = "rgba(251, 191, 36, 0.06)"; // Warm Gold
+      light1 = "rgba(239, 68, 68, 0.48)"; // Crimson/Red
+      light2 = "rgba(251, 191, 36, 0.22)"; // Warm Gold
     } else if (emotionKey.includes("blush") || emotionKey.includes("shy")) {
-      light1 = "rgba(236, 72, 153, 0.22)"; // Deep Magenta/Pink
-      light2 = "rgba(167, 139, 250, 0.06)"; // Soft Lavender
+      light1 = "rgba(236, 72, 153, 0.48)"; // Deep Magenta/Pink
+      light2 = "rgba(167, 139, 250, 0.22)"; // Soft Lavender
     }
     
     return { light1, light2 };
@@ -946,11 +947,11 @@ export default function ChatTab() {
           {/* 4. 双光源情绪环境光融合层 */}
           {settings.enableEmotionAmbientGlow && (
             <div 
-              className="absolute inset-0 pointer-events-none z-0 transition-all duration-1000 ease-in-out overflow-hidden opacity-55"
+              className="absolute inset-0 pointer-events-none z-0 transition-all duration-1000 ease-in-out overflow-hidden"
               style={{
                 background: `
-                  radial-gradient(circle at 80% 85%, ${glowColors.light1} 0%, transparent 55%),
-                  radial-gradient(circle at 15% 20%, ${glowColors.light2} 0%, transparent 45%)
+                  radial-gradient(circle at 75% 75%, ${glowColors.light1} 0%, transparent 75%),
+                  radial-gradient(circle at 25% 25%, ${glowColors.light2} 0%, transparent 70%)
                 `
               }}
             />

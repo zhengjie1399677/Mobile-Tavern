@@ -242,6 +242,20 @@ export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE: SavedPresetBundle = {
         role: "assistant",
         content: "<thinking>\n系统状态自检已完成。\n//Reasoning process bypassed.\n直接推进对话演绎。\n</thought>",
         enabled: false,
+      },
+      {
+        id: "prompt_enhanced_reasoning_chain",
+        name: "🧠 [优化] 强化思维链 (剧情与逻辑推演)",
+        role: "system",
+        content: `[推理与思维链规范 (Reasoning Chain Rules)]
+对于任何生成式推理模型（如拥有思考区/思维链的模型，或是普通的 CoT 流程）：
+在编写您的思维链（或在 <think> 与 </think> 标签之间，或在内部推演阶段）时，请执行以下指令：
+1. **剧情推演，拒绝扮演**：禁止在思考中用角色语气进行第一人称的角色扮演式碎碎念或无意义的角色代入。思维链必须作为客观、冷静的“上帝视角导演”和“剧本策划师”。
+2. **分析用户意图**：客观分析 {{user}} 最新输入的语言、行为、言外之意以及对剧情进度的推动意图。
+3. **推演人物动机**：详细论证并规划 {{char}} 以及场景中其他人物的合理反应、情感博弈和接下来的行动逻辑。
+4. **走向备选规划**：结合上下文与人物动机，推演下一步剧情的 4 个备选走向分支，评估每个走向的张力与合理性。
+5. **拒绝无意义生成**：保持思维链高度严谨，致力于解决因果矛盾和逻辑漏洞，为最终生成的回复打下坚实的因果逻辑基础。`,
+        enabled: false,
       }
     ]
   }
@@ -455,14 +469,31 @@ export const useSettings = () => {
             nextMergedPresets = [...nextMergedPresets, MOBILE_TAVERN_BASIC_PRESET_BUNDLE];
             didInject = true;
           } else {
-            if (nextMergedPresets[basicPresetIndex].preset?.name !== "基本预设") {
-              nextMergedPresets[basicPresetIndex] = {
-                ...nextMergedPresets[basicPresetIndex],
-                preset: {
-                  ...nextMergedPresets[basicPresetIndex].preset,
-                  name: "基本预设",
-                },
+            const basicBundle = { ...nextMergedPresets[basicPresetIndex] };
+            let updated = false;
+            if (basicBundle.preset?.name !== "基本预设") {
+              basicBundle.preset = {
+                ...(basicBundle.preset || {}),
+                name: "基本预设",
               };
+              updated = true;
+            }
+            
+            const basicPrompts = basicBundle.promptConfig?.customPrompts || [];
+            const hasEnhancedChain = basicPrompts.some((p: any) => p.id === "prompt_enhanced_reasoning_chain");
+            if (!hasEnhancedChain) {
+              const enhancedPrompt = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts?.find(p => p.id === "prompt_enhanced_reasoning_chain");
+              if (enhancedPrompt) {
+                basicBundle.promptConfig = {
+                  ...(basicBundle.promptConfig || {}),
+                  customPrompts: [...basicPrompts, enhancedPrompt]
+                };
+                updated = true;
+              }
+            }
+
+            if (updated) {
+              nextMergedPresets[basicPresetIndex] = basicBundle;
               didInject = true;
             }
           }
@@ -523,6 +554,21 @@ export const useSettings = () => {
             ? { ...DEFAULT_SETTINGS.memory, ...externalPreset.memory }
             : DEFAULT_SETTINGS.memory;
 
+          const defaultPrompts = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts || [];
+          const userPrompts = storedSet.promptConfig?.customPrompts || [];
+          const mergedCustomPrompts = [...userPrompts];
+          let customPromptsUpdated = false;
+
+          for (const dp of defaultPrompts) {
+            if (!mergedCustomPrompts.some((up: any) => up.id === dp.id)) {
+              mergedCustomPrompts.push(dp);
+              customPromptsUpdated = true;
+            }
+          }
+          if (customPromptsUpdated) {
+            needSave = true;
+          }
+
           const mergedSet: UserSettings = {
             api: {
               ...DEFAULT_SETTINGS.api,
@@ -543,6 +589,7 @@ export const useSettings = () => {
               ...(storedSet.promptConfig || {}),
               mainPrompt: storedSet.promptConfig?.mainPrompt || defaultPromptConfig.mainPrompt,
               postHistoryPrompt: storedSet.promptConfig?.postHistoryPrompt || defaultPromptConfig.postHistoryPrompt,
+              customPrompts: mergedCustomPrompts,
               sectionHeaders: {
                 ...defaultPromptConfig.sectionHeaders,
                 ...(storedSet.promptConfig?.sectionHeaders || {}),

@@ -1028,8 +1028,8 @@ export default function SettingsTab() {
                       }
                       className="bg-muted border border-border rounded px-1.5 py-1 text-xs outline-none focus:border-primary font-bold text-foreground"
                     >
-                      <option value="fill">✏️ 填入输入框</option>
-                      <option value="send">💬 直接发送</option>
+                      <option value="fill">填入输入框</option>
+                      <option value="send">直接发送</option>
                     </select>
                   </div>
                 )}
