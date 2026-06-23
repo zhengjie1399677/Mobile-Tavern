@@ -5,6 +5,7 @@ import {
   UserSettings,
   Message,
 } from "../types";
+import { DEFAULT_REPLY_SUGGESTIONS_PROMPT } from "../defaults/suggestionsPrompt";
 
 /**
  * Clean name to strictly adhere to OpenAI's naming regular expression: ^[a-zA-Z0-9_-]{1,64}$
@@ -288,6 +289,15 @@ export function assemblePromptContext(params: {
       }
     }
 
+    const lastUserMsgIdx = (() => {
+      for (let i = activeMessagesToSend.length - 1; i >= 0; i--) {
+        if (activeMessagesToSend[i].sender !== "assistant") {
+          return i;
+        }
+      }
+      return -1;
+    })();
+
     const rawHistory = activeMessagesToSend.map((msg, idx) => {
       let role: "user" | "model" | "assistant" = "user";
       let content = msg.content;
@@ -314,9 +324,17 @@ export function assemblePromptContext(params: {
         }
       } else if (msg.sender === "system") {
         role = "user";
-        content = `[系统旁白: ${msg.content}]`;
+        let msgContent = msg.content;
+        if (settings.enableReplySuggestions && idx === lastUserMsgIdx) {
+          msgContent += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
+        }
+        content = `[系统旁白: ${msgContent}]`;
       } else {
         role = "user";
+        let msgContent = msg.content;
+        if (settings.enableReplySuggestions && idx === lastUserMsgIdx) {
+          msgContent += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
+        }
         if (settings.promptConfig?.instructTemplate !== "default") {
           const prefix = replaceMacros(
             settings.promptConfig?.userPrefix || "",
@@ -326,7 +344,9 @@ export function assemblePromptContext(params: {
             settings.promptConfig?.userSuffix || "",
             macroParams,
           );
-          content = `${prefix}${content}${suffix}`;
+          content = `${prefix}${msgContent}${suffix}`;
+        } else {
+          content = msgContent;
         }
       }
 
@@ -726,6 +746,15 @@ ${scenarioBlock}
       activeMessagesToSend = validChatMessages;
     }
 
+    const lastUserMsgIdx = (() => {
+      for (let i = activeMessagesToSend.length - 1; i >= 0; i--) {
+        if (activeMessagesToSend[i].sender !== "assistant") {
+          return i;
+        }
+      }
+      return -1;
+    })();
+
     // Convert Message[] to Gemini or OpenAI structure, applying custom Instruct prefix/suffix templates (e.g. ChatML/Alpaca)
     const rawHistory = activeMessagesToSend.map((msg, idx) => {
       let role: "user" | "model" | "assistant" = "user";
@@ -753,9 +782,17 @@ ${scenarioBlock}
         }
       } else if (msg.sender === "system") {
         role = "user";
-        content = `[系统旁白: ${msg.content}]`;
+        let msgContent = msg.content;
+        if (settings.enableReplySuggestions && idx === lastUserMsgIdx) {
+          msgContent += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
+        }
+        content = `[系统旁白: ${msgContent}]`;
       } else {
         role = "user";
+        let msgContent = msg.content;
+        if (settings.enableReplySuggestions && idx === lastUserMsgIdx) {
+          msgContent += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
+        }
         if (settings.promptConfig?.instructTemplate !== "default") {
           const prefix = replaceMacros(
             settings.promptConfig?.userPrefix || "",
@@ -765,7 +802,9 @@ ${scenarioBlock}
             settings.promptConfig?.userSuffix || "",
             macroParams,
           );
-          content = `${prefix}${content}${suffix}`;
+          content = `${prefix}${msgContent}${suffix}`;
+        } else {
+          content = msgContent;
         }
       }
 

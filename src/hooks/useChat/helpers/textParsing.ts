@@ -52,18 +52,20 @@ export function extractThinkContent(
 export function cleanSuggestionsFromText(text: string): { content: string; suggestionsText?: string } {
   if (!text) return { content: text };
 
-  const suggestionsStart = "<suggestions>";
-  if (text.includes(suggestionsStart)) {
-    const startIdx = text.indexOf(suggestionsStart);
-    const suggestionsEnd = "</suggestions>";
-    const endIdx = text.indexOf(suggestionsEnd);
+  const startRegex = /<suggestions\s*>/i;
+  const startMatch = text.match(startRegex);
+
+  if (startMatch && startMatch.index !== undefined) {
+    const startIdx = startMatch.index;
+    const endRegex = /<\/suggestions\s*>/i;
+    const endMatch = text.match(endRegex);
 
     const cleanContent = text.substring(0, startIdx).trim();
     let suggestionsText = "";
-    if (endIdx !== -1) {
-      suggestionsText = text.substring(startIdx + suggestionsStart.length, endIdx).trim();
+    if (endMatch && endMatch.index !== undefined) {
+      suggestionsText = text.substring(startIdx + startMatch[0].length, endMatch.index).trim();
     } else {
-      suggestionsText = text.substring(startIdx + suggestionsStart.length).trim();
+      suggestionsText = text.substring(startIdx + startMatch[0].length).trim();
     }
     return { content: cleanContent, suggestionsText };
   }
@@ -73,6 +75,7 @@ export function cleanSuggestionsFromText(text: string): { content: string; sugge
 /**
  * 将单段文本拆分为多条目。
  * 优先按换行拆分；若只有一行则尝试按 "1. 2. 3." / "1、2、" 等编号模式拆分。
+ * 新增备用逻辑：支持通过 /、|、、等常见单行分隔符进行拆分。
  */
 export function splitTextIntoItems(text: string): string[] {
   let lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -88,5 +91,14 @@ export function splitTextIntoItems(text: string): string[] {
     return lines;
   }
 
+  // 备用单行分隔符拆分
+  if (text.includes("/") || text.includes("|") || text.includes("、")) {
+    const parts = text.split(/\s*[\/|、]\s*/).map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      return parts;
+    }
+  }
+
   return [text];
 }
+

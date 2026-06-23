@@ -211,6 +211,22 @@ export const useChat = (
     if (!activeCharacter) return;
     const starterMsg = customFirstMessage ?? activeCharacter.first_mes;
 
+    const defaultGreetingSuggestions = `\n<suggestions>["继续对话", "打个招呼", "静观其变", "进行互动"]</suggestions>`;
+    let finalStarterMsg = starterMsg;
+    let initialSuggestions: string[] | undefined = undefined;
+
+    if (starterMsg && settings.enableReplySuggestions) {
+      if (starterMsg.includes("<suggestions>")) {
+        const cleanedTextObj = cleanSuggestionsFromText(starterMsg);
+        if (cleanedTextObj.suggestionsText) {
+          initialSuggestions = parseSuggestions(cleanedTextObj.suggestionsText);
+        }
+      } else {
+        finalStarterMsg = `${starterMsg.trim()}${defaultGreetingSuggestions}`;
+        initialSuggestions = ["继续对话", "打个招呼", "静观其变", "进行互动"];
+      }
+    }
+
     // Initialize MVU variables from character card extensions
     const mvuVariables = scriptService.initializeMvuFromCharacter(activeCharacter);
 
@@ -219,17 +235,18 @@ export const useChat = (
       characterId: activeCharacter.id,
       title: activeCharacter.name + " 的新会话",
       createdAt: Date.now(),
-      messages: starterMsg
+      messages: finalStarterMsg
         ? [
             {
               id: generateUniqueId("msg_ai_"),
               sender: "assistant",
-              content: starterMsg.trim(),
+              content: finalStarterMsg.trim(),
               timestamp: Date.now(),
               extra: {
                 variables: {
                   0: mvuVariables
-                }
+                },
+                suggestions: initialSuggestions
               }
             },
           ]
@@ -377,6 +394,13 @@ export const useChat = (
       ) {
         return;
       }
+
+      // 仅在用户主动发送时上报一次 send_message 遥测
+      const modelToReport = settings.api.apiKey ? (settings.api.modelName || FALLBACK_MODEL) : "openrouter/free";
+      telemetryService.reportUsage("send_message", {
+        modelName: modelToReport,
+        characterName: activeCharacter.name,
+      });
     } else {
       if (!activeCharacter || !activeSession) {
         return;
@@ -560,13 +584,9 @@ export const useChat = (
                 .join("\n\n"),
             },
             ...promptPayload.history.map((h: any, idx: number) => {
-              let content = h.content;
-              if (settings.enableReplySuggestions && idx === promptPayload.history.length - 1 && h.role === "user") {
-                content += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
-              }
               const msgObj: any = {
                 role: h.role === "model" ? "assistant" : h.role,
-                content: content,
+                content: h.content,
               };
               if (h.name) {
                 msgObj.name = h.name;
@@ -649,7 +669,7 @@ export const useChat = (
       const finalAiMsg = {
         id: aiMsgId,
         sender: "assistant",
-        content: cleaned.content,
+        content: settings.enableReplySuggestions ? parsed.content : cleaned.content,
         timestamp: Date.now(),
         generationTime: (performance.now() - startTime) / 1000,
         tokenCount: tokenUsage.completion,
@@ -679,29 +699,6 @@ export const useChat = (
       if (isStillActive) {
         const parsedSession = await saveSessionWithMvu(trueFinalSession, parsed.content);
         triggerScroll("smooth");
-
-        telemetryService.reportUsage("send_message", {
-          promptTokens: tokenUsage.prompt,
-          completionTokens: tokenUsage.completion,
-          totalTokens: tokenUsage.prompt + tokenUsage.completion,
-          generationTime: performance.now() - startTime,
-          modelName: finalModel,
-          characterName: activeCharacter.name,
-        });
-
-        try {
-          telemetryService.reportLlmPerformance(
-            updatedSession.id,
-            finalModel,
-            ttftMs,
-            tokenUsage.prompt + tokenUsage.completion,
-            performance.now() - startTime,
-            tokenUsage.prompt,
-            tokenUsage.completion
-          );
-        } catch (telemetryErr) {
-          console.warn("Failed to report LLM performance telemetry:", telemetryErr);
-        }
 
         if (isTrialMode) {
           const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
@@ -991,6 +988,13 @@ export const useChat = (
     isSendingRef.current = true;
     setIsSending(true);
 
+    // 仅在用户发起重生成时上报一次 regenerate_message 遥测
+    const modelToReport = settings.api.apiKey ? (settings.api.modelName || FALLBACK_MODEL) : "openrouter/free";
+    telemetryService.reportUsage("regenerate_message", {
+      modelName: modelToReport,
+      characterName: activeCharacter.name,
+    });
+
     const lastUserText = lastMsgNow.content;
     const updatedSession = { ...activeSession, messages: nextMsgs };
     setSessions((prev) =>
@@ -1128,13 +1132,9 @@ export const useChat = (
                 .join("\n\n"),
             },
             ...promptPayload.history.map((h: any, idx: number) => {
-              let content = h.content;
-              if (settings.enableReplySuggestions && idx === promptPayload.history.length - 1 && h.role === "user") {
-                content += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
-              }
               const msgObj: any = {
                 role: h.role === "model" ? "assistant" : h.role,
-                content: content,
+                content: h.content,
               };
               if (h.name) {
                 msgObj.name = h.name;
@@ -1217,7 +1217,7 @@ export const useChat = (
       const finalAiMsg = {
         id: aiMsgId,
         sender: "assistant",
-        content: cleaned.content,
+        content: settings.enableReplySuggestions ? parsed.content : cleaned.content,
         timestamp: Date.now(),
         generationTime: (performance.now() - startTime) / 1000,
         tokenCount: tokenUsage.completion,
@@ -1247,31 +1247,6 @@ export const useChat = (
       if (isStillActive) {
         const parsedSession = await saveSessionWithMvu(trueFinalSession, parsed.content);
         triggerScroll();
-
-        telemetryService.reportUsage("regenerate_message", {
-          promptTokens: tokenUsage.prompt,
-          completionTokens: tokenUsage.completion,
-          totalTokens: tokenUsage.prompt + tokenUsage.completion,
-          generationTime: performance.now() - startTime,
-          playerName: settings.userName,
-          characterName: activeCharacter.name,
-          modelName: finalModel,
-          sessionId: updatedSession.id,
-        });
-
-        try {
-          telemetryService.reportLlmPerformance(
-            updatedSession.id,
-            finalModel,
-            ttftMs,
-            tokenUsage.prompt + tokenUsage.completion,
-            performance.now() - startTime,
-            tokenUsage.prompt,
-            tokenUsage.completion
-          );
-        } catch (telemetryErr) {
-          console.warn("Failed to report LLM performance telemetry:", telemetryErr);
-        }
 
         if (isTrialMode) {
           const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);

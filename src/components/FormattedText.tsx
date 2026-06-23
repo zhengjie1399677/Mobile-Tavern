@@ -384,8 +384,13 @@ function preprocessFormattedText(
 ): string {
   if (!text) return "";
 
+  // 00. 剥离渲染层中的 <suggestions>...</suggestions> 标签块（兼容未闭合的流式生成状态）
+  const suggestionsRegex = /<suggestions\s*>[\s\S]*?<\/suggestions\s*>/gi;
+  let textToProcess = text.replace(suggestionsRegex, "");
+  textToProcess = textToProcess.replace(/<suggestions\s*>[\s\S]*$/gi, "");
+
   // 0. Convert Markdown tables to HTML tables first
-  const tableConvertedText = convertMarkdownTablesToHtml(text);
+  const tableConvertedText = convertMarkdownTablesToHtml(textToProcess);
 
   // 1. Standard template placeholders
   let processed = tableConvertedText
