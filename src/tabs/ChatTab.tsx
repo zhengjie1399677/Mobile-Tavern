@@ -49,6 +49,7 @@ const ChatInputArea = () => {
     replySuggestions,
     setReplySuggestions,
     updateSettings,
+    isBisonLocking,
   } = React.useContext(AppContext);
   const [localInput, setLocalInput] = React.useState(userInputMessage);
   const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
@@ -295,12 +296,19 @@ const ChatInputArea = () => {
               onSend();
             }
           }}
+          disabled={isBisonLocking || isSending}
           inputMode="text"
           enterKeyHint="send"
-          placeholder={`发送一条对白至 ${activeCharacter?.name} 启程...`}
+          placeholder={
+            isBisonLocking
+              ? `${activeCharacter?.name || "角色"} 正在继续发言...`
+              : `发送一条对白至 ${activeCharacter?.name} 启程...`
+          }
           aria-label={`发送给 ${activeCharacter?.name || "角色"} 的消息输入框`}
           rows={2}
-          className="flex-1 bg-input/70 border border-border/80 rounded-xl py-2.5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px] transition-[border-color,background-color] duration-300 shadow-inner"
+          className={`flex-1 bg-input/70 border border-border/80 rounded-xl py-2.5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px] transition-[border-color,background-color] duration-300 shadow-inner ${
+            (isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
+          }`}
         />
         <button
           onClick={onSend}
@@ -971,7 +979,7 @@ export default function ChatTab() {
             }}
           >
             {(() => {
-              let messagesToRender = activeSession?.messages || [];
+              let messagesToRender = (activeSession?.messages || []).filter(m => !m.extra?.isBisonSilent);
               let foldedCount = 0;
               if (!showFullHistory && messagesToRender.length > 20) {
                 let foldIndex = messagesToRender.length - 20;

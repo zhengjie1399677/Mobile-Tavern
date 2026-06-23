@@ -1033,6 +1033,28 @@ export default function SettingsTab() {
                     </select>
                   </div>
                 )}
+                
+                <div className="flex items-center justify-between border-t border-border/50 pt-4">
+                  <div className="space-y-0.5">
+                    <label className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+                      <span>野牛模式 (Bison Mode)</span>
+                      <span className="text-[9px] text-red-500 bg-red-500/10 px-1 py-0.2 rounded font-normal scale-90">Token 消耗增加</span>
+                    </label>
+                    <p className="text-[10px] text-muted-foreground">
+                      开启后，AI 将根据自身性格与当前情绪，有概率锁定输入框并连续输出 2-3 次内容。连续输出时，单次生成最大限制为 100 Token。
+                    </p>
+                    <p className="text-[9.5px] text-red-400 font-medium">
+                      ⚠️ 开启后将产生连续 API 请求，可能会显著增加 Token 消耗。
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.enableBisonMode || false}
+                    onCheckedChange={(val) =>
+                      updateSettings({ ...settings, enableBisonMode: val })
+                    }
+                    className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  />
+                </div>
               </CardContent>
             </Card>
 

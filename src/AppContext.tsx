@@ -179,6 +179,7 @@ export interface UnifiedAppContextProps {
   handleAddTimelineSummary: () => Promise<void>;
   renderDialogueBubble: (text: string) => React.ReactNode;
   saveSessionWithMvu: (session: ChatSession, messageToParse?: string) => Promise<ChatSession>;
+  isBisonLocking: boolean;
 }
 
 export const AppContext = React.createContext<UnifiedAppContextProps | null>(null);

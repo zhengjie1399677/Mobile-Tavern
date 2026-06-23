@@ -221,6 +221,7 @@ export interface UserSettings {
   enableEmotionAmbientGlow?: boolean; // Enable emotion-reactive ambient lighting
   enableReplySuggestions?: boolean; // Enable suggested action options
   replySuggestionsClickMode?: "send" | "fill"; // Default action on suggestion click
+  enableBisonMode?: boolean; // Enable Bison Mode
 }
 
 export interface RegexScript {

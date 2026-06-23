@@ -166,7 +166,7 @@ function testPromptBuilder() {
   ];
 
   const messages: Message[] = [
-    { id: "m1", sender: "user", content: "Let's cast a spell." },
+    { id: "m1", sender: "user", content: "Let's cast a spell.", timestamp: Date.now() },
   ];
 
   const active = getTriggeredLorebookEntries(messages, "I love magic.", baseEntries);
@@ -1457,6 +1457,94 @@ async function testKernelExtensionRegistry() {
 }
 
 
+function calculateBisonModeProbabilityLocal(character: any, lastAiContent: string, triggers: Record<string, string>): number {
+  let baseProb = 30; // 默认 30% 基础概率
+  
+  if (!character) return baseProb;
+  
+  const personality = (character.personality || "").toLowerCase();
+  const highTraits = ["急躁", "粗鲁", "多话", "傲慢", "热情", "强势", "残忍", "话痨", "唠叨", "傲娇", "impulsive", "talkative", "aggressive", "rude", "dominant", "passionate"];
+  const lowTraits = ["冷漠", "安静", "沉默", "寡言", "silent", "cold", "quiet", "indifferent"];
+  
+  highTraits.forEach(trait => {
+    if (personality.includes(trait)) baseProb += 8;
+  });
+  
+  lowTraits.forEach(trait => {
+    if (personality.includes(trait)) baseProb -= 10;
+  });
+  
+  if (lastAiContent && triggers) {
+    const lastAiTextLower = lastAiContent.toLowerCase();
+    let detectedEmotion = "neutral";
+    for (const [emotion, triggerPattern] of Object.entries(triggers)) {
+      if (triggerPattern) {
+        try {
+          const regex = new RegExp(triggerPattern, "i");
+          if (regex.test(lastAiTextLower)) {
+            detectedEmotion = emotion;
+            break;
+          }
+        } catch (e) {
+          if (lastAiTextLower.includes(triggerPattern.toLowerCase())) {
+            detectedEmotion = emotion;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (["joy", "happy", "smile", "anger", "angry", "rage"].includes(detectedEmotion)) {
+      baseProb += 15;
+    } else if (["sadness", "sad", "cry"].includes(detectedEmotion)) {
+      baseProb -= 15;
+    } else if (["blush", "shy"].includes(detectedEmotion)) {
+      baseProb -= 5;
+    }
+  }
+  
+  return Math.max(5, Math.min(85, baseProb));
+}
+
+function testBisonModeProbability() {
+  console.log("\n--- Running Bison Mode Probability Verification ---");
+  
+  const triggers = {
+    joy: "笑了|微笑|开心|😊|smile|joy|happy",
+    sadness: "哭|流泪|伤心|😢|cry|sad",
+    anger: "生气|愤怒|😡|angry|rage",
+    blush: "脸红|害羞|😳|blush|shy",
+  };
+  
+  // 1. 基础情况
+  const charNormal = { personality: "" };
+  assert(calculateBisonModeProbabilityLocal(charNormal, "", triggers) === 30, "Base probability should be 30");
+  
+  // 2. 具备急躁性格的说话性格
+  const charAggressive = { personality: "性格急躁且非常粗鲁，傲慢强势" };
+  // 急躁(+8) + 粗鲁(+8) + 傲慢(+8) + 强势(+8) = +32. 30 + 32 = 62.
+  assert(calculateBisonModeProbabilityLocal(charAggressive, "", triggers) === 62, "Aggressive personality should increase probability to 62");
+  
+  // 3. 冷漠安静性格
+  const charQuiet = { personality: "冷漠安静沉默寡言" };
+  // 冷漠(-10) + 安静(-10) + 沉默(-10) + 寡言(-10) = -40. 30 - 40 = -10, clamped to 5
+  assert(calculateBisonModeProbabilityLocal(charQuiet, "", triggers) === 5, "Quiet personality should decrease probability to clamp at 5");
+  
+  // 4. 情绪联动 (生气)
+  const charNormalAngry = { personality: "" };
+  const lastAngryText = "你到底想怎么样？！我非常生气！😡";
+  // anger (+15) -> 30 + 15 = 45.
+  assert(calculateBisonModeProbabilityLocal(charNormalAngry, lastAngryText, triggers) === 45, "Anger emotion should increase probability to 45");
+  
+  // 5. 性格与情绪组合 (冷漠 + 开心)
+  const charCold = { personality: "有些冷漠" }; // -10 -> 20
+  const lastHappyText = "听你这么说，我忍不住笑了，心里很开心。"; // joy (+15) -> 20 + 15 = 35.
+  assert(calculateBisonModeProbabilityLocal(charCold, lastHappyText, triggers) === 35, "Cold personality + Happy emotion should equal 35");
+  
+  console.log("✔ Bison Mode Probability calculation logic verified!");
+}
+
+
 async function run() {
   setKernelStrictMode(false); // 默认在测试流程中采用生产（容错自愈）模式
   console.log("=================================================");
@@ -1479,6 +1567,7 @@ async function run() {
     await testKernelV3Fixes();
     await testKernelV4AbortAndInterrupt();
     await testKernelExtensionRegistry();
+    testBisonModeProbability();
     console.log("\n=================================================");
     console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
     console.log("=================================================");

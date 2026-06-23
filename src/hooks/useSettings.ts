@@ -321,6 +321,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   enableEmotionAmbientGlow: false,
   enableReplySuggestions: false,
   replySuggestionsClickMode: "fill",
+  enableBisonMode: false,
 };
 
 const getNestedDelta = (nextObj: any, baseObj: any): any => {
@@ -619,6 +620,7 @@ export const useSettings = () => {
             enableEmotionAmbientGlow: storedSet.enableEmotionAmbientGlow ?? DEFAULT_SETTINGS.enableEmotionAmbientGlow,
             enableReplySuggestions: storedSet.enableReplySuggestions ?? DEFAULT_SETTINGS.enableReplySuggestions,
             replySuggestionsClickMode: storedSet.replySuggestionsClickMode ?? DEFAULT_SETTINGS.replySuggestionsClickMode,
+            enableBisonMode: storedSet.enableBisonMode ?? DEFAULT_SETTINGS.enableBisonMode,
           } as any;
 
           if (externalPreset) {

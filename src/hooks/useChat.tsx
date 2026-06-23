@@ -157,6 +157,74 @@ function parseSuggestions(suggestionsText: string): string[] {
     .filter(item => item.length > 0);
 }
 
+function isSafeRegexForBison(pattern: string): boolean {
+  if (!pattern) return true;
+  return !/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(pattern) && !/(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(pattern);
+}
+
+export function calculateBisonModeProbability(character: any, lastAiContent: string, triggers: Record<string, string>): number {
+  let baseProb = 30; // 默认 30% 基础概率
+  
+  if (!character) return baseProb;
+  
+  // 1. 分析性格描述字段
+  const personality = (character.personality || "").toLowerCase();
+  const highTraits = ["急躁", "粗鲁", "多话", "傲慢", "热情", "强势", "残忍", "话痨", "唠叨", "傲娇", "impulsive", "talkative", "aggressive", "rude", "dominant", "passionate"];
+  const lowTraits = ["冷漠", "安静", "沉默", "寡言", "silent", "cold", "quiet", "indifferent"];
+  
+  highTraits.forEach(trait => {
+    if (personality.includes(trait)) baseProb += 8;
+  });
+  
+  lowTraits.forEach(trait => {
+    if (personality.includes(trait)) baseProb -= 10;
+  });
+  
+  // 2. 从 AI 上一轮回复内容分析情绪特征
+  if (lastAiContent && triggers) {
+    const lastAiTextLower = lastAiContent.toLowerCase();
+    let detectedEmotion = "neutral";
+    for (const [emotion, triggerPattern] of Object.entries(triggers)) {
+      if (triggerPattern) {
+        try {
+          if (isSafeRegexForBison(triggerPattern)) {
+            const regex = new RegExp(triggerPattern, "i");
+            if (regex.test(lastAiTextLower)) {
+              detectedEmotion = emotion;
+              break;
+            }
+          } else {
+            if (lastAiTextLower.includes(triggerPattern.toLowerCase())) {
+              detectedEmotion = emotion;
+              break;
+            }
+          }
+        } catch (e) {
+          if (lastAiTextLower.includes(triggerPattern.toLowerCase())) {
+            detectedEmotion = emotion;
+            break;
+          }
+        }
+      }
+    }
+    
+    // 情绪分类权重调整
+    if (["joy", "happy", "smile", "anger", "angry", "rage"].includes(detectedEmotion)) {
+      baseProb += 15; // 兴奋/高唤醒度情绪增加说话概率
+    } else if (["sadness", "sad", "cry"].includes(detectedEmotion)) {
+      baseProb -= 15; // 悲伤/低落情绪减少说话概率
+    } else if (["blush", "shy"].includes(detectedEmotion)) {
+      baseProb -= 5;  // 羞涩稍微降低连续说话概率
+    }
+  }
+  
+  // 限制概率区间在 5% 至 85% 之间
+  return Math.max(5, Math.min(85, baseProb));
+}
+
+
+
+
 
 export const useChat = (
   settings: UserSettings,
@@ -240,6 +308,8 @@ export const useChat = (
     }
     isSendingRef.current = false;
     setIsSending(false);
+    bisonRemainingCountRef.current = 0;
+    setIsBisonLocking(false);
   }, [setIsSending]);
 
   const [userInputMessage, setUserInputMessage] = useState("");
@@ -248,6 +318,9 @@ export const useChat = (
   useEffect(() => {
     userInputMessageRef.current = userInputMessage;
   }, [userInputMessage]);
+
+  const [isBisonLocking, setIsBisonLocking] = useState(false);
+  const bisonRemainingCountRef = React.useRef<number>(0);
 
   const prevSessionIdRef = React.useRef<string | null>(null);
   useEffect(() => {
@@ -473,22 +546,30 @@ export const useChat = (
     return updatedSession;
   }, [settings.enableScriptExecution, settings.enableTableMemory, activeCharacter, saveSession, setSessions]);
 
-  const handleSendMessage = useCallback(async (textToSend: string) => {
+  const handleSendMessage = useCallback(async (textToSend: string, options?: { isBisonConsecutive?: boolean }) => {
+    const isBisonConsecutive = !!options?.isBisonConsecutive;
     telemetryService.incrementUsageCount();
     setReplySuggestions([]);
-    if (
-      !textToSend ||
-      typeof textToSend !== "string" ||
-      !textToSend.trim() ||
-      isSending ||
-      isSendingRef.current ||
-      !activeCharacter ||
-      !activeSession
-    ) {
-      return;
+    
+    if (!isBisonConsecutive) {
+      if (
+        !textToSend ||
+        typeof textToSend !== "string" ||
+        !textToSend.trim() ||
+        isSending ||
+        isSendingRef.current ||
+        !activeCharacter ||
+        !activeSession
+      ) {
+        return;
+      }
+    } else {
+      if (!activeCharacter || !activeSession) {
+        return;
+      }
     }
 
-    if (activeSessionIdRef.current) {
+    if (!isBisonConsecutive && activeSessionIdRef.current) {
       draftsRef.current[activeSessionIdRef.current] = "";
     }
     let finalApiKey = settings.api.apiKey;
@@ -521,32 +602,35 @@ export const useChat = (
     setIsSending(true);
 
     const requestId = ++activeRequestIdRef.current;
+    let updatedSession = activeSession;
 
-    const userMsg: Message = {
-      id: "msg_user_" + Math.random().toString(36).substring(2, 9),
-      sender: "user",
-      content: textToSend.trim(),
-      timestamp: Date.now(),
-    };
+    if (!isBisonConsecutive) {
+      const userMsg: Message = {
+        id: "msg_user_" + Math.random().toString(36).substring(2, 9),
+        sender: "user",
+        content: textToSend.trim(),
+        timestamp: Date.now(),
+      };
 
-    const cleanHistory = activeSession.messages.filter(
-      (m) => !(m.sender === "assistant" && (m.content === "💭..." || !m.content))
-    );
-    const updatedMessages = [...cleanHistory, userMsg];
-    const updatedSession = { ...activeSession, messages: updatedMessages };
+      const cleanHistory = activeSession.messages.filter(
+        (m) => !(m.sender === "assistant" && (m.content === "💭..." || !m.content))
+      );
+      const updatedMessages = [...cleanHistory, userMsg];
+      updatedSession = { ...activeSession, messages: updatedMessages };
 
-    setSessions((prev) =>
-      prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
-    );
-    try {
-      await saveSession(updatedSession);
-    } catch (err: any) {
-      console.error("Failed to save session user message:", err);
-      isSendingRef.current = false;
-      setIsSending(false);
-      return;
+      setSessions((prev) =>
+        prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+      );
+      try {
+        await saveSession(updatedSession);
+      } catch (err: any) {
+        console.error("Failed to save session user message:", err);
+        isSendingRef.current = false;
+        setIsSending(false);
+        return;
+      }
+      triggerScroll("smooth");
     }
-    triggerScroll("smooth");
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -611,7 +695,7 @@ export const useChat = (
       const promptPayload = promptService.assemblePrompt({
         character: activeCharacter,
         chat: updatedSession,
-        userInput: textToSend,
+        userInput: isBisonConsecutive ? "" : textToSend,
         settings,
         globalLorebook: combinedGlobals,
       });
@@ -672,8 +756,8 @@ export const useChat = (
           top_p: settings.preset.topP,
           top_k: settings.preset.topK,
           min_p: settings.preset.minP,
-          max_tokens: settings.preset.maxTokens,
-          max_completion_tokens: settings.preset.maxTokens,
+          max_tokens: isBisonConsecutive ? 100 : settings.preset.maxTokens,
+          max_completion_tokens: isBisonConsecutive ? 100 : settings.preset.maxTokens,
           presence_penalty: settings.preset.presencePenalty ?? 0.0,
           frequency_penalty: settings.preset.frequencyPenalty ?? 0.0,
           repetition_penalty: settings.preset.repetitionPenalty,
@@ -802,14 +886,62 @@ export const useChat = (
           localStorage.setItem("mobile_tavern_free_trial_count", String(freeCount + 1));
         }
 
-        handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
-          console.error("AutoSummary error:", summaryErr);
-        });
+        let shouldTriggerBison = false;
+        if (settings.enableBisonMode && isStillActive) {
+          if (!isBisonConsecutive) {
+            const prob = calculateBisonModeProbability(activeCharacter, parsed.content, settings.expressionTriggers || {});
+            const triggered = Math.random() * 100 < prob;
+            if (triggered) {
+              bisonRemainingCountRef.current = Math.random() < 0.5 ? 1 : 2;
+              shouldTriggerBison = true;
+              setIsBisonLocking(true);
+              console.log(`[Bison Mode] Triggered consecutive output! Remaining count: ${bisonRemainingCountRef.current}, probability: ${prob}%`);
+            }
+          } else if (bisonRemainingCountRef.current > 0) {
+            shouldTriggerBison = true;
+          }
+        }
+
+        if (shouldTriggerBison) {
+          bisonRemainingCountRef.current--;
+          
+          const silentMsg: Message = {
+            id: generateUniqueId("msg_bison_silent_"),
+            sender: "system",
+            content: "[野牛模式连续输出指令：请继续丰富当前场景，输出该角色的下一步神态、动作与言行。]",
+            timestamp: Date.now(),
+            extra: { isBisonSilent: true }
+          };
+          
+          const bisonSession = {
+            ...parsedSession,
+            messages: [...parsedSession.messages, silentMsg]
+          };
+          
+          setSessions((prev) =>
+            prev.map((s) => (s.id === bisonSession.id ? bisonSession : s))
+          );
+          await saveSession(bisonSession);
+          
+          setTimeout(() => {
+            handleSendMessage("", { isBisonConsecutive: true }).catch((err) => {
+              console.error("Failed in bison consecutive send:", err);
+            });
+          }, 500);
+        } else {
+          bisonRemainingCountRef.current = 0;
+          setIsBisonLocking(false);
+          handleAutoSummaryCheck(parsedSession, false, controller.signal).catch((summaryErr) => {
+            console.error("AutoSummary error:", summaryErr);
+          });
+        }
       } else {
         await saveSession(trueFinalSession);
         console.log("[useChat] Session switched during generation, saved silently to IndexedDB:", updatedSession.id);
       }
     } catch (err: any) {
+      bisonRemainingCountRef.current = 0;
+      setIsBisonLocking(false);
       if (requestId !== activeRequestIdRef.current) return;
       isStreamActive = false;
       if (pendingUpdateTimeoutRef.current) {
@@ -945,8 +1077,12 @@ export const useChat = (
         abortControllerRef.current = null;
       }
       if (requestId === activeRequestIdRef.current) {
-        isSendingRef.current = false;
-        setIsSending(false);
+        const isBisonScheduled = settings.enableBisonMode && bisonRemainingCountRef.current > 0;
+        if (!isBisonScheduled) {
+          isSendingRef.current = false;
+          setIsSending(false);
+          setIsBisonLocking(false);
+        }
       }
     }
   }, [
@@ -1013,7 +1149,8 @@ export const useChat = (
 
     while (
       nextMsgs.length > 0 &&
-      nextMsgs[nextMsgs.length - 1].sender === "system"
+      (nextMsgs[nextMsgs.length - 1].sender === "system" ||
+       nextMsgs[nextMsgs.length - 1].sender === "assistant")
     ) {
       nextMsgs.pop();
     }
@@ -1910,6 +2047,7 @@ export const useChat = (
     handleAddTimelineSummary,
     renderDialogueBubble,
     saveSessionWithMvu,
+    isBisonLocking,
   }), [
     handleSendMessage,
     handleStartNewSession,
@@ -1941,7 +2079,9 @@ export const useChat = (
     createBacktrackFromTimeline,
     handleAddTimelineSummary,
     renderDialogueBubble,
-    saveSessionWithMvu,  ]);
+    saveSessionWithMvu,
+    isBisonLocking,
+  ]);
 
   return chatHookValue;
 };
