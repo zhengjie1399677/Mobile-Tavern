@@ -2,6 +2,7 @@ import React from "react";
 import _ from "lodash";
 import { CharacterCard, ChatSession, UserSettings } from "../types";
 import { klona } from "klona";
+import { globalKernel } from "../kernel/Kernel";
 import { createPinia, defineStore, getActivePinia, setActivePinia } from "pinia";
 import { compare } from "compare-versions";
 import JSON5 from "json5";
@@ -35,62 +36,100 @@ export interface TavernHelperBridgeParams {
 let bridgeParams: TavernHelperBridgeParams | null = null;
 
 const tavernHelperEventEmitter = (() => {
-  const listeners: Record<string, any[]> = {};
+  const subscriptions = new Map<string, Array<{ cb: any; unsub: () => void }>>();
+
   const emitter = {
     on(event: string, cb: any) {
-      listeners[event] = listeners[event] || [];
-      listeners[event].push(cb);
+      const unsub = globalKernel.subscribe(`tavern_helper:${event}`, (msg) => {
+        try {
+          return cb(...msg.payload);
+        } catch (e) {
+          console.error(`[Event Execution Error in ${event}]:`, e);
+        }
+      });
+      if (!subscriptions.has(event)) {
+        subscriptions.set(event, []);
+      }
+      subscriptions.get(event)!.push({ cb, unsub });
       return emitter;
     },
     once(event: string, cb: any) {
       const wrapper = (...args: any[]) => {
         emitter.off(event, wrapper);
-        cb(...args);
+        return cb(...args);
       };
       return emitter.on(event, wrapper);
     },
     off(event: string, cb: any) {
-      if (!listeners[event]) return emitter;
-      listeners[event] = listeners[event].filter(l => l !== cb);
+      const list = subscriptions.get(event);
+      if (list) {
+        const idx = list.findIndex(item => item.cb === cb);
+        if (idx !== -1) {
+          list[idx].unsub();
+          list.splice(idx, 1);
+        }
+      }
       return emitter;
     },
     removeListener(event: string, cb: any) {
       return emitter.off(event, cb);
     },
     emit(event: string, ...args: any[]) {
-      if (!listeners[event]) return emitter;
-      const list = [...listeners[event]];
-      list.forEach(cb => {
-        try { cb(...args); } catch (e) { console.error(`[Event Emit Error in ${event}]:`, e); }
+      globalKernel.publish({
+        topic: `tavern_helper:${event}`,
+        payload: args
       });
       return emitter;
     },
-    emitAndWait(event: string, ...args: any[]) {
-      if (!listeners[event]) return Promise.resolve([]);
-      const list = [...listeners[event]];
-      return Promise.all(list.map(async (cb) => {
-        try {
-          return await Promise.resolve(cb(...args));
-        } catch (e) {
-          console.error(`[Event EmitAndWait Error in ${event}]:`, e);
-          return null;
-        }
-      }));
+    async emitAndWait(event: string, ...args: any[]) {
+      try {
+        await globalKernel.publishParallel({
+          topic: `tavern_helper:${event}`,
+          payload: args
+        });
+      } catch (e) {
+        console.error(`[Event EmitAndWait Error in ${event}]:`, e);
+      }
+      return [];
     },
     makeFirst(event: string, cb: any) {
-      listeners[event] = listeners[event] || [];
-      listeners[event].unshift(cb);
+      const unsub = globalKernel.subscribe(`tavern_helper:${event}`, (msg) => {
+        try {
+          return cb(...msg.payload);
+        } catch (e) {
+          console.error(`[Event Execution Error in ${event}]:`, e);
+        }
+      }, 100); // 较高优先级在最前面执行
+      if (!subscriptions.has(event)) {
+        subscriptions.set(event, []);
+      }
+      subscriptions.get(event)!.push({ cb, unsub });
       return emitter;
     },
     makeLast(event: string, cb: any) {
-      return emitter.on(event, cb);
+      const unsub = globalKernel.subscribe(`tavern_helper:${event}`, (msg) => {
+        try {
+          return cb(...msg.payload);
+        } catch (e) {
+          console.error(`[Event Execution Error in ${event}]:`, e);
+        }
+      }, -100); // 较低优先级在最后面执行
+      if (!subscriptions.has(event)) {
+        subscriptions.set(event, []);
+      }
+      subscriptions.get(event)!.push({ cb, unsub });
+      return emitter;
     },
     clear(event: string) {
-      delete listeners[event];
+      const list = subscriptions.get(event);
+      if (list) {
+        list.forEach(item => item.unsub());
+        subscriptions.delete(event);
+      }
     },
     clearAll() {
-      for (const ev in listeners) {
-        delete listeners[ev];
+      for (const ev of Array.from(subscriptions.keys())) {
+        emitter.clear(ev);
       }
     }
   };

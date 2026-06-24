@@ -54,6 +54,40 @@ const ChatInputArea = () => {
     triggerScroll,
   } = useUnifiedApp();
   
+  React.useEffect(() => {
+    const handleWindowScroll = () => {
+      if (
+        window.scrollY !== 0 ||
+        window.scrollX !== 0 ||
+        document.body.scrollTop !== 0 ||
+        document.documentElement.scrollTop !== 0
+      ) {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+      }
+    };
+    window.addEventListener("scroll", handleWindowScroll, { passive: false });
+
+    const resetScroll = () => {
+      window.scrollTo(0, 0);
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+    };
+
+    const vvp = window.visualViewport;
+    if (vvp) {
+      vvp.addEventListener("resize", resetScroll);
+    }
+
+    return () => {
+      window.removeEventListener("scroll", handleWindowScroll);
+      if (vvp) {
+        vvp.removeEventListener("resize", resetScroll);
+      }
+    };
+  }, []);
+  
   // 优先从全局闭包变量中读取以抗御组件销毁重装，否则继承 settings
   const [clickMode, setClickMode] = React.useState<"send" | "fill">(
     globalSuggestionsClickMode || settings.replySuggestionsClickMode || "fill"
@@ -165,14 +199,77 @@ const ChatInputArea = () => {
     };
   }, [triggerScroll]);
 
-  const onSend = () => {
+  const lastMsgIsUser = React.useMemo(() => {
+    if (!activeSession || activeSession.messages.length === 0) return false;
+    return activeSession.messages[activeSession.messages.length - 1].sender === "user";
+  }, [activeSession]);
+
+  const canSend = React.useMemo(() => {
+    const hasInput = (localInput || "").trim() !== "";
+    if (settings.enableMultiMessageQueue) {
+      return hasInput || lastMsgIsUser;
+    }
+    return hasInput;
+  }, [localInput, settings.enableMultiMessageQueue, lastMsgIsUser]);
+
+  const onSendPure = React.useCallback(() => {
     if (!localInput.trim()) return;
     const msg = localInput;
     setLocalInput("");
     setUserInputMessage("");
     setReplySuggestions([]);
-    handleSendMessage(msg);
-  };
+    handleSendMessage(msg, { skipAI: true });
+  }, [localInput, handleSendMessage]);
+
+  const onSendMerged = React.useCallback(() => {
+    const msg = localInput.trim();
+    setLocalInput("");
+    setUserInputMessage("");
+    setReplySuggestions([]);
+    handleSendMessage(msg, { skipAI: false });
+  }, [localInput, handleSendMessage]);
+
+  const longPressTimerRef = React.useRef<any>(null);
+  const hasTriggeredLongPress = React.useRef(false);
+
+  const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    if (isSending) return;
+    if (!settings.enableMultiMessageQueue) return;
+
+    hasTriggeredLongPress.current = false;
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+    longPressTimerRef.current = setTimeout(() => {
+      hasTriggeredLongPress.current = true;
+      onSendMerged();
+    }, 500);
+  }, [isSending, onSendMerged, settings.enableMultiMessageQueue]);
+
+  const handlePointerUp = React.useCallback((e: React.PointerEvent) => {
+    if (!settings.enableMultiMessageQueue) {
+      onSendMerged();
+      return;
+    }
+
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    if (!hasTriggeredLongPress.current) {
+      onSendPure();
+    }
+    hasTriggeredLongPress.current = false;
+  }, [onSendPure, onSendMerged, settings.enableMultiMessageQueue]);
+
+  const handlePointerCancel = React.useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    hasTriggeredLongPress.current = false;
+  }, []);
 
   const handleSelectSuggestion = (e: React.MouseEvent | React.TouchEvent, suggestion: string) => {
     if (e && e.cancelable) {
@@ -329,7 +426,11 @@ const ChatInputArea = () => {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              onSend();
+              if (settings.enableMultiMessageQueue) {
+                onSendPure();
+              } else {
+                onSendMerged();
+              }
             }
           }}
           disabled={isBisonLocking || isSending}
@@ -347,16 +448,30 @@ const ChatInputArea = () => {
           }`}
         />
         <button
-          onClick={onSend}
-          disabled={isSending || !localInput.trim()}
-          aria-label={isSending ? "正在发送消息..." : "发送消息"}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          onPointerLeave={handlePointerCancel}
+          disabled={isSending || !canSend}
+          aria-label={
+            isSending 
+              ? "正在发送消息..." 
+              : settings.enableMultiMessageQueue 
+                ? "发送消息（长按合并发送）" 
+                : "发送消息"
+          }
+          title={
+            settings.enableMultiMessageQueue 
+              ? "点击单纯发送消息，长按500ms与之前消息合并发送给AI" 
+              : "发送消息"
+          }
           className={`p-3.5 rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${
-            localInput.trim()
+            canSend
               ? "hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 cursor-pointer opacity-100"
               : "opacity-45 cursor-not-allowed bg-muted text-muted-foreground shadow-none"
           }`}
         >
-          <Send className={`w-4 h-4 transition-transform duration-300 ${localInput.trim() ? "scale-110" : ""}`} aria-hidden="true" />
+          <Send className={`w-4 h-4 transition-transform duration-300 ${canSend ? "scale-110" : ""}`} aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -429,61 +544,7 @@ export default function ChatTab() {
     updateSettings,
   } = useUnifiedApp();
 
-  React.useEffect(() => {
-    const handleWindowScroll = () => {
-      if (
-        window.scrollY !== 0 ||
-        window.scrollX !== 0 ||
-        document.body.scrollTop !== 0 ||
-        document.documentElement.scrollTop !== 0
-      ) {
-        window.scrollTo(0, 0);
-        document.body.scrollTop = 0;
-        document.documentElement.scrollTop = 0;
-      }
-    };
-    window.addEventListener("scroll", handleWindowScroll, { passive: false });
 
-    const resetScroll = () => {
-      window.scrollTo(0, 0);
-      document.body.scrollTop = 0;
-      document.documentElement.scrollTop = 0;
-    };
-
-    let timer: any = null;
-    const handleFocusIn = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) {
-        // 在键盘拉起动画的 600ms 周期内高频强行归位，打断一切系统平移
-        if (timer) clearInterval(timer);
-        let count = 0;
-        timer = setInterval(() => {
-          resetScroll();
-          count++;
-          if (count > 20) {
-            clearInterval(timer);
-            timer = null;
-          }
-        }, 30);
-      }
-    };
-
-    document.addEventListener("focusin", handleFocusIn);
-
-    const vvp = window.visualViewport;
-    if (vvp) {
-      vvp.addEventListener("resize", resetScroll);
-    }
-
-    return () => {
-      window.removeEventListener("scroll", handleWindowScroll);
-      document.removeEventListener("focusin", handleFocusIn);
-      if (timer) clearInterval(timer);
-      if (vvp) {
-        vvp.removeEventListener("resize", resetScroll);
-      }
-    };
-  }, []);
 
   // a11y Live Announcer state and effect
   const [announcement, setAnnouncement] = React.useState("");
@@ -770,13 +831,19 @@ export default function ChatTab() {
     return { light1, light2 };
   }, [currentEmotionName]);
 
+  const safeCustomCss = React.useMemo(() => {
+    const css = activeCharacter?.visualSettings?.customCss;
+    if (!css) return "";
+    return css.replace(/<\/style>/gi, "").replace(/<script/gi, "");
+  }, [activeCharacter?.visualSettings?.customCss]);
+
   const isOriginalBg = (settings.chatBackgroundBlur ?? 10) === 0 && (settings.chatBackgroundDim ?? 50) === 0;
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background overflow-hidden">
-      {activeCharacter?.visualSettings?.customCss && (
+      {safeCustomCss && (
         <style dangerouslySetInnerHTML={{
-          __html: `@media (min-width: 768px) { ${activeCharacter.visualSettings.customCss} }`
+          __html: `@media (min-width: 768px) { ${safeCustomCss} }`
         }} />
       )}
       {/* Embedded Header info card */}

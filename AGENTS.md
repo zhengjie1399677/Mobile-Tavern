@@ -175,3 +175,10 @@
   adb reverse tcp:3000 tcp:3000; adb reverse tcp:24678 tcp:24678
   npx tauri android dev --host 127.0.0.1
   ```
+
+---
+
+# ℹ️ 特有例外说明 (Project Exceptions)
+- **硬编码 OpenRouter API Key**：`apiClient.ts` 中的 `TRIAL_OPENROUTER_KEY` 为无余额的免费试用 Key，不涉及资产泄露，无需报告为安全高危漏洞。
+- **野牛模式与AI回复走向**：由于当前底层机制需要，允许违反准则二。野牛判定和回复走向建议等功能由于其原生度要求，确需在此处硬编码，无需强行重构为外部配置。
+

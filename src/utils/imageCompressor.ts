@@ -38,10 +38,21 @@ export function compressImage(
 
       // Export as base64 string
       const dataUrl = canvas.toDataURL(outputType, quality);
+
+      // Cleanup DOM/VRAM references to prevent memory leaks
+      canvas.width = 0;
+      canvas.height = 0;
+      img.onload = null;
+      img.onerror = null;
+      img.src = "";
+
       resolve(dataUrl);
     };
 
     img.onerror = (err) => {
+      img.onload = null;
+      img.onerror = null;
+      img.src = "";
       reject(new Error("图片加载失败，请确保文件是有效的图像格式。"));
     };
 

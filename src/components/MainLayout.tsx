@@ -64,7 +64,7 @@ export default function MainLayout() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => setActiveTab(tab.id as any)}
                   role="tab"
                   aria-selected={selected}
                   aria-label={`页签，${tab.meta?.name}${selected ? "，当前选中" : ""}`}

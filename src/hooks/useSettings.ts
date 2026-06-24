@@ -331,6 +331,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   enableBisonMode: false,
   replySuggestionsPrompt: DEFAULT_REPLY_SUGGESTIONS_PROMPT,
   bisonModePrompt: DEFAULT_BISON_MODE_PROMPT,
+  enableMultiMessageQueue: false,
 };
 
 const getNestedDelta = (nextObj: any, baseObj: any): any => {
@@ -642,6 +643,7 @@ export const useSettings = () => {
               return stored;
             })(),
             bisonModePrompt: storedSet.bisonModePrompt ?? DEFAULT_SETTINGS.bisonModePrompt,
+            enableMultiMessageQueue: storedSet.enableMultiMessageQueue ?? DEFAULT_SETTINGS.enableMultiMessageQueue,
           } as any;
 
           if (externalPreset) {

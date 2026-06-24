@@ -242,7 +242,7 @@ function domToReact(
 
   // Force strict sandboxing for iframe tags
   if (tagName === "iframe") {
-    props.sandbox = "allow-scripts allow-same-origin allow-modals";
+    props.sandbox = "allow-scripts allow-modals";
     if (!props.id && messageIndex !== undefined) {
       props.id = `TH-msg-iframe-${messageIndex}`;
       props.name = `TH-msg-iframe-${messageIndex}`;
@@ -634,10 +634,9 @@ const FormattedText = memo(function FormattedText({
   );
 
   const fallbackMarkup = (
-    <span 
-      className={`block whitespace-pre-wrap leading-relaxed ${className}`}
-      dangerouslySetInnerHTML={{ __html: processed }}
-    />
+    <span className={`block whitespace-pre-wrap leading-relaxed ${className}`}>
+      {text}
+    </span>
   );
 
   return (

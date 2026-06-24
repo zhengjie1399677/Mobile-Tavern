@@ -6,6 +6,14 @@ import { TelemetryService } from "./services/TelemetryService";
 import { TableMemoryService } from "./services/TableMemoryService";
 import { ScriptService } from "./services/ScriptService";
 import { AutoSummaryService } from "./services/AutoSummaryService";
+import { MultiMessageService } from "./services/MultiMessageService";
+import { ChatStreamService } from "./services/ChatStreamService";
+import {
+  tableMemoryMiddleware,
+  mvuScriptMiddleware,
+  bisonModeMiddleware,
+  autoSummaryMiddleware
+} from "./middlewares/outputMiddlewares";
 import { KernelServices } from "./types";
 
 import CharactersTab from "../tabs/CharactersTab";
@@ -49,12 +57,27 @@ export async function initializeKernel() {
       service: new ScriptService(),
     },
     {
+      name: KernelServices.MultiMessage,
+      service: new MultiMessageService(),
+    },
+    {
       name: KernelServices.AutoSummary,
       service: new AutoSummaryService(),
       // AutoSummaryService 依赖 LLM 和 Database，拓扑排序会自动保证它们先被注册
       // 注：依赖声明应在 AutoSummaryService 类的 dependencies 字段中定义
     },
+    {
+      name: KernelServices.ChatStream,
+      service: new ChatStreamService(),
+    },
   ]);
+
+  // 初始化 output 管道默认中间件
+  const outputPipeline = globalKernel.getPipeline("output");
+  outputPipeline.use(tableMemoryMiddleware, 100);
+  outputPipeline.use(mvuScriptMiddleware, 90);
+  outputPipeline.use(bisonModeMiddleware, 80);
+  outputPipeline.use(autoSummaryMiddleware, 70);
 
   // 运行期装配官方 6 个核心 Tab 页面到 "main:tabs" 扩展点
   globalKernel.registerExtension({

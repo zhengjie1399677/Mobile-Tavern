@@ -98,7 +98,7 @@ export interface ChatSession {
   tableMemory?: TableMemorySheet[]; // Structured memory sheets for stateful RP tracking
 }
 
-export type ApiType = "openai-compat";
+export type ApiType = "openai-compat" | "openai" | "anthropic";
 
 export interface ApiConfig {
   type: ApiType;
@@ -152,6 +152,8 @@ export interface PromptConfig {
   instructTemplate: "default" | "alpaca" | "chatml" | "llama3" | "custom";
   storyString?: string; // SillyTavern STORY STRING context order templates
   customPrompts?: CustomPromptBlock[]; // SillyTavern customizable prompt block list
+  useMainPrompt?: boolean;
+  mainSystemPrompt?: string;
 
   // Custom templates if 'custom' is selected
   systemPrefix: string;
@@ -224,6 +226,7 @@ export interface UserSettings {
   enableBisonMode?: boolean; // Enable Bison Mode
   replySuggestionsPrompt?: string; // Suggestions prompt template
   bisonModePrompt?: string; // Bison Mode prompt template
+  enableMultiMessageQueue?: boolean; // Enable Multi-Message Queue and merge sending
 }
 
 export interface RegexScript {

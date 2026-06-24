@@ -35,8 +35,8 @@ function crc32(buf: Uint8Array): number {
 export async function parseCharacterFile(
   file: File,
 ): Promise<Partial<CharacterCard>> {
-  if (file.size > 5 * 1024 * 1024) {
-    throw new Error("文件大小超过 5MB 限制，导入终止。");
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("文件大小超过 10MB 限制，导入终止。");
   }
   if (file.type === "application/json" || file.name.endsWith(".json")) {
     const text = await file.text();
@@ -58,7 +58,6 @@ export async function parseCharacterFile(
     );
   }
 }
-
 /**
  * Parses the "chara" tEXt metadata chunk of a PNG file.
  */
@@ -574,22 +573,36 @@ export async function encryptBackupData(
 ): Promise<string> {
   const encoder = new TextEncoder();
 
-  // Create password digest for key (simple hash-based sizing)
-  const passBuf = encoder.encode(pass);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", passBuf);
+  // Generate 16 bytes random salt
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  // Generate 12 bytes random iv
+  const iv = crypto.getRandomValues(new Uint8Array(12));
 
-  // Import the hash as an AES-GCM key
-  const cryptoKey = await crypto.subtle.importKey(
+  // Import raw password as key material for derivation
+  const passBuf = encoder.encode(pass);
+  const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    hashBuffer,
-    { name: "AES-GCM" },
+    passBuf,
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"],
+  );
+
+  // Derive AES-GCM 256-bit key from password using PBKDF2
+  const cryptoKey = await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
     false,
     ["encrypt"],
   );
 
-  const iv = crypto.getRandomValues(new Uint8Array(12));
   const dataBuf = encoder.encode(dataStr);
-
   const encryptedBuffer = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     cryptoKey,
@@ -598,23 +611,73 @@ export async function encryptBackupData(
 
   const encryptedBytes = new Uint8Array(encryptedBuffer);
 
-  // Hex encode IV + Encrypted Data
+  // Prefix "PBK2:" + hex(salt) + hex(iv) + hex(encryptedBytes)
+  const saltHex = bufToHex(salt);
   const ivHex = bufToHex(iv);
   const dataHex = bufToHex(encryptedBytes);
 
-  return ivHex + dataHex;
+  return "PBK2:" + saltHex + ivHex + dataHex;
 }
 
 export async function decryptBackupData(
   hexStr: string,
   pass: string,
 ): Promise<string> {
-  // If it's old un-prefixed hex, fallback to XOR for backward compatibility?
-  // Let's check size, but we can just use AES-GCM directly
-  if (hexStr.length < 24) throw new Error("Invalid encrypted data format");
-
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
+
+  // Check if new PBKDF2 format
+  if (hexStr.startsWith("PBK2:")) {
+    const rawHex = hexStr.slice(5);
+    // salt (16 bytes = 32 hex chars) + iv (12 bytes = 24 hex chars) = 56 hex chars
+    if (rawHex.length < 56) throw new Error("Invalid encrypted data format");
+
+    const saltHex = rawHex.slice(0, 32);
+    const ivHex = rawHex.slice(32, 56);
+    const dataHex = rawHex.slice(56);
+
+    const salt = hexToBuf(saltHex);
+    const iv = hexToBuf(ivHex);
+    const encryptedBytes = hexToBuf(dataHex);
+
+    const passBuf = encoder.encode(pass);
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      passBuf,
+      { name: "PBKDF2" },
+      false,
+      ["deriveKey"],
+    );
+
+    const cryptoKey = await crypto.subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt,
+        iterations: 100000,
+        hash: "SHA-256",
+      },
+      keyMaterial,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["decrypt"],
+    );
+
+    try {
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv },
+        cryptoKey,
+        encryptedBytes,
+      );
+      return decoder.decode(decryptedBuffer);
+    } catch (e) {
+      throw new Error(
+        "密码错误或数据已损坏 (Password incorrect or data corrupted)",
+      );
+    }
+  }
+
+  // Fallback to old format: SHA-256 directly derived key
+  if (hexStr.length < 24) throw new Error("Invalid encrypted data format");
 
   // Extract IV (first 24 hex characters = 12 bytes)
   const ivHex = hexStr.slice(0, 24);

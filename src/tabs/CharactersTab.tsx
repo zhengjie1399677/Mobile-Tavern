@@ -29,7 +29,21 @@ export default function CharactersTab() {
     handleExportCharacterPNG,
     setActiveTab,
     setActiveWorldbookHostId,
-  } = useUnifiedApp();
+  } = useUnifiedApp(state => ({
+    characters: state.characters,
+    sessions: state.sessions,
+    activeCharId: state.activeCharId,
+    showCustomConfirm: state.showCustomConfirm,
+    selectCharacter: state.selectCharacter,
+    handleAddNewCharacter: state.handleAddNewCharacter,
+    handleEditCharacter: state.handleEditCharacter,
+    handleDeleteCharacter: state.handleDeleteCharacter,
+    handleImportCardFile: state.handleImportCardFile,
+    handleExportCharacterJSON: state.handleExportCharacterJSON,
+    handleExportCharacterPNG: state.handleExportCharacterPNG,
+    setActiveTab: state.setActiveTab,
+    setActiveWorldbookHostId: state.setActiveWorldbookHostId,
+  }));
   const [selectedDetailChar, setSelectedDetailChar] = React.useState<CharacterCard | null>(null);
   return (
     <div className="px-4 pb-4 pt-1.5 space-y-4">

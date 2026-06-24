@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useSyncExternalStore, useCallback } from "react";
 import {
   CharacterCard,
   ChatSession,
@@ -67,7 +67,7 @@ export interface UnifiedAppContextProps {
   // --- Settings Hook ---
   settings: UserSettings;
   setSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
-  updateSettings: (newSet: UserSettings) => void;
+  updateSettings: (newSet: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
   globalLorebook: LorebookEntry[];
   setGlobalLorebook: React.Dispatch<React.SetStateAction<LorebookEntry[]>>;
   updateGlobalLorebook: (entries: LorebookEntry[]) => Promise<void>;
@@ -137,9 +137,9 @@ export interface UnifiedAppContextProps {
 
   // --- Chat Hook ---
   chatBottomRef: React.RefObject<HTMLDivElement | null>;
-  handleSendMessage: (textToSend: string) => Promise<void>;
+  handleSendMessage: (textToSend: string, options?: { isBisonConsecutive?: boolean, skipAI?: boolean }) => Promise<void>;
   handleStartNewSession: (customFirstMessage?: string) => Promise<void>;
-  triggerScroll: (behavior?: "smooth" | "instant") => void;
+  triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
   showSessionManager: boolean;
   setShowSessionManager: (show: boolean) => void;
   showFullHistory: boolean;
@@ -182,17 +182,97 @@ export interface UnifiedAppContextProps {
   createBacktrackBranch: (msg: Message) => Promise<void>;
   createBacktrackFromTimeline: (summary: SummaryCard) => Promise<void>;
   handleAddTimelineSummary: () => Promise<void>;
-  renderDialogueBubble: (text: string) => React.ReactNode;
+  renderDialogueBubble: (text: string, messageIndex?: number) => React.ReactNode;
   saveSessionWithMvu: (session: ChatSession, messageToParse?: string) => Promise<ChatSession>;
   isBisonLocking: boolean;
 }
 
 export const UnifiedAppContext = React.createContext<UnifiedAppContextProps | null>(null);
 
-export const useUnifiedApp = () => {
-  const context = React.useContext(UnifiedAppContext);
-  if (!context) {
-    throw new Error("useUnifiedApp must be used within LegacyAppContextProvider");
+function createStore<T>(initialState: T) {
+  let state = initialState;
+  const listeners = new Set<() => void>();
+
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  };
+
+  const getState = () => state;
+
+  const setState = (nextState: T) => {
+    let hasChanged = false;
+    for (const key in nextState) {
+      if (nextState[key] !== state[key]) {
+        hasChanged = true;
+        break;
+      }
+    }
+    if (hasChanged) {
+      state = nextState;
+      listeners.forEach((l) => l());
+    }
+  };
+
+  function useStore<SelectorOutput>(selector: (state: T) => SelectorOutput): SelectorOutput {
+    return useSyncExternalStore(
+      subscribe,
+      () => selector(state),
+      () => selector(state)
+    );
   }
-  return context;
-};
+
+  return { getState, setState, subscribe, useStore };
+}
+
+export const unifiedAppStore = createStore<UnifiedAppContextProps>({} as any);
+
+function shallowEqual(a: any, b: any): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) {
+    return false;
+  }
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (let i = 0; i < keysA.length; i++) {
+    const key = keysA[i];
+    if (!Object.prototype.hasOwnProperty.call(b, key) || !Object.is(a[key], b[key])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function useUnifiedApp<SelectorOutput = UnifiedAppContextProps>(
+  selector?: (state: UnifiedAppContextProps) => SelectorOutput
+): SelectorOutput {
+  const defaultSelector = React.useCallback((state: UnifiedAppContextProps) => state as unknown as SelectorOutput, []);
+  const activeSelector = selector || defaultSelector;
+
+  const lastStateRef = React.useRef<UnifiedAppContextProps | null>(null);
+  const lastSelectedRef = React.useRef<SelectorOutput | null>(null);
+
+  const getSnapshot = React.useCallback(() => {
+    const currentState = unifiedAppStore.getState();
+    if (currentState === lastStateRef.current && lastSelectedRef.current !== null) {
+      return lastSelectedRef.current;
+    }
+    const nextSelected = activeSelector(currentState);
+    if (lastSelectedRef.current !== null) {
+      if (shallowEqual(lastSelectedRef.current, nextSelected)) {
+        lastStateRef.current = currentState;
+        return lastSelectedRef.current;
+      }
+    }
+    lastStateRef.current = currentState;
+    lastSelectedRef.current = nextSelected;
+    return nextSelected;
+  }, [activeSelector]);
+
+  return useSyncExternalStore(
+    unifiedAppStore.subscribe,
+    getSnapshot,
+    getSnapshot
+  );
+}

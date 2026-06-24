@@ -124,7 +124,48 @@ export default function SettingsTab() {
     showCustomAlert,
     activeCharacter,
     safeAreas,
-  } = useUnifiedApp();
+  } = useUnifiedApp(state => ({
+    settings: state.settings,
+    currentTheme: state.currentTheme,
+    handleThemeChange: state.handleThemeChange,
+    availableModels: state.availableModels,
+    isFetchingModels: state.isFetchingModels,
+    handleFetchModels: state.handleFetchModels,
+    backupPass: state.backupPass,
+    setBackupPass: state.setBackupPass,
+    backupStatus: state.backupStatus,
+    encryptBackup: state.encryptBackup,
+    setEncryptBackup: state.setEncryptBackup,
+    showBackupUI: state.showBackupUI,
+    setShowBackupUI: state.setShowBackupUI,
+    sillyInnerTab: state.sillyInnerTab,
+    setSillyInnerTab: state.setSillyInnerTab,
+    updateSettings: state.updateSettings,
+    switchUserPersona: state.switchUserPersona,
+    addUserPersona: state.addUserPersona,
+    deleteUserPersona: state.deleteUserPersona,
+    handleImportPresetJSON: state.handleImportPresetJSON,
+    handleExportPresetJSON: state.handleExportPresetJSON,
+    handleSaveNewPresetBundle: state.handleSaveNewPresetBundle,
+    handleLoadPresetBundle: state.handleLoadPresetBundle,
+    handleDeletePresetBundle: state.handleDeletePresetBundle,
+    handleDeletePresetBundles: state.handleDeletePresetBundles,
+    handleToggleCustomPrompt: state.handleToggleCustomPrompt,
+    handleUpdateCustomPrompt: state.handleUpdateCustomPrompt,
+    handleAddNewCustomPrompt: state.handleAddNewCustomPrompt,
+    handleDeleteCustomPrompt: state.handleDeleteCustomPrompt,
+    handleExportLocalDataBackup: state.handleExportLocalDataBackup,
+    handleImportLocalDataBackup: state.handleImportLocalDataBackup,
+    handleImportSillyChatHistory: state.handleImportSillyChatHistory,
+    connectionStatus: state.connectionStatus,
+    testApiConnection: state.testApiConnection,
+    setActiveTab: state.setActiveTab,
+    showCustomPrompt: state.showCustomPrompt,
+    showCustomConfirm: state.showCustomConfirm,
+    showCustomAlert: state.showCustomAlert,
+    activeCharacter: state.activeCharacter,
+    safeAreas: state.safeAreas,
+  }));
   const freeCount = Number(localStorage.getItem("mobile_tavern_free_trial_count") || 0);
 
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
@@ -933,15 +974,15 @@ export default function SettingsTab() {
               </CardContent>
             </Card>
 
-            {/* 🧪 实验室前沿功能 (Lab Features) */}
+            {/* 功能 (Features) */}
             <Card className="glass-panel shadow-sm mt-4">
               <CardHeader className="pb-3 border-b border-border/50">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <FlaskConical className="w-4 h-4 text-primary animate-pulse" />
-                  <span>🧪 实验室前沿功能 (Lab Features)</span>
+                  <span>功能</span>
                 </CardTitle>
                 <CardDescription className="text-[11px]">
-                  测试中的前沿交互与渲染特性，可能会根据体验反馈进行优化
+                  前沿交互与渲染特性，部分实验性功能可能会根据体验反馈进行优化
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-4 space-y-4">
@@ -998,8 +1039,9 @@ export default function SettingsTab() {
                 </div>
                 <div className="flex items-center justify-between border-t border-border/50 pt-4">
                   <div className="space-y-0.5">
-                    <label className="text-[13px] font-semibold text-foreground">
-                      AI 回复走向推荐 (AI Reply Suggestions)
+                    <label className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+                      <span>AI 回复走向推荐 (AI Reply Suggestions)</span>
+                      <span className="text-[9px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">实验性</span>
                     </label>
                     <p className="text-[10px] text-muted-foreground">
                       在生成每轮回复尾部附带输出 4 个后续行动选项，用户点击可快速决策或写入。
@@ -1033,36 +1075,6 @@ export default function SettingsTab() {
                         <option value="send">直接发送</option>
                       </select>
                     </div>
-                    <div className="space-y-1 mt-1 pt-2 border-t border-border/20">
-                      <label className="text-[11px] font-semibold text-muted-foreground block">
-                        走向推荐引导提示词 (Suggestions Prompt)
-                      </label>
-                      <Textarea
-                        value={settings.replySuggestionsPrompt ?? ""}
-                        onChange={(e) =>
-                          updateSettings({
-                            ...settings,
-                            replySuggestionsPrompt: e.target.value,
-                          })
-                        }
-                        className="text-xs bg-input/50 min-h-[90px] leading-relaxed"
-                        placeholder="引导回复走向的系统级提示..."
-                      />
-                      <div className="flex justify-end pt-0.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            updateSettings({
-                              ...settings,
-                              replySuggestionsPrompt: DEFAULT_REPLY_SUGGESTIONS_PROMPT,
-                            });
-                          }}
-                          className="text-[10px] text-primary font-semibold hover:underline cursor-pointer"
-                        >
-                          恢复默认建议提示词
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 )}
                 
@@ -1070,6 +1082,7 @@ export default function SettingsTab() {
                   <div className="space-y-0.5">
                     <label className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
                       <span>野牛模式 (Bison Mode)</span>
+                      <span className="text-[9px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">实验性</span>
                       <span className="text-[9px] text-red-500 bg-red-500/10 px-1 py-0.2 rounded font-normal scale-90">Token 消耗增加</span>
                     </label>
                     <p className="text-[10px] text-muted-foreground">
@@ -1087,38 +1100,26 @@ export default function SettingsTab() {
                     className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
                   />
                 </div>
-                {settings.enableBisonMode && (
-                  <div className="space-y-1.5 mt-2 bg-muted/15 p-2.5 rounded-lg border border-border/40">
-                    <label className="text-[11px] font-semibold text-muted-foreground block">
-                      野牛模式连续生成指令 (Bison Mode Prompt)
+
+                <div className="flex items-center justify-between border-t border-border/50 pt-4">
+                  <div className="space-y-0.5">
+                    <label className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+                      <span>多消息排队合并发送 (Multi-Message Queue)</span>
+                      <span className="text-[9px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">插件</span>
                     </label>
-                    <Textarea
-                      value={settings.bisonModePrompt ?? ""}
-                      onChange={(e) =>
-                        updateSettings({
-                          ...settings,
-                          bisonModePrompt: e.target.value,
-                        })
-                      }
-                      className="text-xs bg-input/50 min-h-[60px]"
-                      placeholder="野牛模式触发连续生成时发送给 AI 的指令..."
-                    />
-                    <div className="flex justify-end pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateSettings({
-                            ...settings,
-                            bisonModePrompt: DEFAULT_BISON_MODE_PROMPT,
-                          });
-                        }}
-                        className="text-[10px] text-primary font-semibold hover:underline cursor-pointer"
-                      >
-                        恢复默认野牛提示词
-                      </button>
-                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      开启后，点击发送按钮仅排队消息而不触发 AI 回复；长按发送按钮 (500ms 以上) 会将已排队的消息合并一次性发送并触发 AI 回复。
+                    </p>
                   </div>
-                )}
+                  <Switch
+                    checked={settings.enableMultiMessageQueue || false}
+                    onCheckedChange={(val) =>
+                      updateSettings({ ...settings, enableMultiMessageQueue: val })
+                    }
+                    className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  />
+                </div>
+
               </CardContent>
             </Card>
 

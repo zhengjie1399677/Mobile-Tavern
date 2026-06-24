@@ -1,3 +1,5 @@
+import { ChatSession, UserSettings } from "../types";
+
 export const KernelServices = {
   Database: "database",
   LLM: "llm",
@@ -6,6 +8,8 @@ export const KernelServices = {
   TableMemory: "tableMemory",
   Script: "script",
   AutoSummary: "autoSummary",
+  MultiMessage: "multiMessage",
+  ChatStream: "chatStream",
 } as const;
 
 export const KernelEvents = {
@@ -17,6 +21,53 @@ export const KernelEvents = {
 export type InterruptFn = () => void;
 
 export type Middleware<T> = (context: T, next: () => Promise<void>, interrupt: InterruptFn) => Promise<void> | void;
+
+export interface StreamChunk {
+  content?: string;
+  reasoning_content?: string;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+  };
+  __rescuedContent?: string;
+  choices?: Array<{
+    delta?: {
+      content?: string;
+      reasoning_content?: string;
+    };
+  }>;
+}
+
+export interface StreamParams {
+  baseUrl: string;
+  apiKey: string;
+  chatPath?: string;
+  bypassProxy?: boolean;
+  reqBody: any;
+  signal?: AbortSignal;
+}
+
+export interface IChatStreamService extends IKernelService {
+  streamLlmResponse(params: StreamParams): AsyncGenerator<StreamChunk, void, unknown>;
+}
+
+export interface OutputPipelineContext {
+  kernel?: IKernel;
+  session: ChatSession;
+  responseText: string;
+  reasoningText: string;
+  settings: UserSettings;
+  activeCharacter: any;
+  controller: AbortController;
+  isStillActive: boolean;
+  isBisonConsecutive: boolean;
+  bisonRemainingCount: number;
+  
+  // Outputs from middlewares
+  resultSession?: ChatSession;
+  shouldTriggerBison?: boolean;
+  nextBisonRemainingCount?: number;
+}
 
 export interface IExtension {
   id: string;
@@ -51,6 +102,7 @@ export interface IKernel {
    */
   registerServiceBatch(entries: Array<{ name: string; service: IKernelService; initTimeoutMs?: number }>): Promise<void>;
   getService<T extends IKernelService>(name: string): T;
+  hasService(name: string): boolean;
   destroyService(name: string): Promise<void>;
 
   registerPipeline<T = any>(name: string): IPipeline<T>;
@@ -98,6 +150,10 @@ export interface IDatabaseService<TSession = any> extends IKernelService {
   getAllSessions(): Promise<TSession[]>;
   saveSession(session: TSession): Promise<void>;
   deleteSession(id: string): Promise<void>;
+  createNewSession(character: any, starterMessage?: string, initialSuggestions?: string[]): Promise<TSession>;
+  createEmptyBranch(character: any, title: string): Promise<TSession>;
+  createBacktrackBranch(sourceSession: TSession, title: string, msgId: string): Promise<TSession>;
+  createBacktrackFromTimeline(sourceSession: TSession, title: string, summaryId: string): Promise<TSession>;
 }
 
 export interface ILLMService extends IKernelService {
@@ -112,6 +168,12 @@ export interface ILLMService extends IKernelService {
     },
     signal?: AbortSignal
   ): Promise<Response>;
+  isClientMode(): boolean;
+  sendCatbotRequest(
+    content: string,
+    history: any[],
+    clientContext?: any
+  ): Promise<{ reply: string; expression: string }>;
 }
 
 export interface IPromptService<TCharacter = any, TSession = any, TSettings = any, TLorebook = any> extends IKernelService {
@@ -125,7 +187,29 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
     systemInstruction: string;
     history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
     dynamicInstruction: string;
+    userInput?: string;
   };
+  cleanNameForApi(name: string | undefined, fallback: string): string | undefined;
+  estimateTokens(text: string): number;
+  sanitizeName(name: string): string;
+  getTriggeredLorebookEntries(
+    messages: any[],
+    userInput: string,
+    entries: any[],
+    maxRecursionDepth?: number
+  ): any[];
+  replaceMacros(
+    text: string,
+    params: {
+      char: string;
+      user: string;
+      description: string;
+      personality: string;
+      scenario: string;
+      userPersona?: string;
+      mes_example?: string;
+    }
+  ): string;
 }
 
 export interface ITelemetryService extends IKernelService {
@@ -140,6 +224,11 @@ export interface ITelemetryService extends IKernelService {
     promptTokens: number,
     completionTokens: number
   ): void;
+  reportImmediate(action: string, extraData?: Record<string, any>): Promise<void>;
+  reportColdStartReady(): Promise<void>;
+  reportChatLoadTime(durationMs: number): void;
+  reportDbQueueTimeout(queueDelayMs: number, queueLength: number): void;
+  reportZodValidationError(errorDetail: string, path: string, inputVal: any): void;
 }
 
 export interface ITableMemoryService<TCharacter = any> extends IKernelService {
@@ -164,4 +253,8 @@ export interface IAutoSummaryService<TSession = any, TSettings = any, TCharacter
     force: boolean,
     signal?: AbortSignal
   ): Promise<TSession>;
+}
+
+export interface IMultiMessageService<TSession = any> extends IKernelService {
+  queueUserMessage(session: TSession, text: string): Promise<TSession>;
 }

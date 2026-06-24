@@ -1,24 +1,24 @@
+import { globalKernel } from "../kernel/Kernel";
+
 export type CatbotEvent = "api_error" | "character_imported" | "night_mode" | "idle_timeout" | "lorebook_imported" | "character_created";
 
 type CatbotListener = (event: CatbotEvent) => void;
 
 class CatbotEventBus {
-  private listeners: CatbotListener[] = [];
-
   subscribe(listener: CatbotListener) {
-    this.listeners.push(listener);
-    return () => {
-      this.listeners = this.listeners.filter((l) => l !== listener);
-    };
-  }
-
-  emit(event: CatbotEvent) {
-    this.listeners.forEach((l) => {
+    return globalKernel.subscribe("catbot:event", (message) => {
       try {
-        l(event);
+        listener(message.payload);
       } catch (e) {
         console.error("Failed to execute Catbot listener", e);
       }
+    });
+  }
+
+  emit(event: CatbotEvent) {
+    globalKernel.publish({
+      topic: "catbot:event",
+      payload: event
     });
   }
 }

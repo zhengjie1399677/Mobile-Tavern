@@ -348,6 +348,10 @@ export class Kernel implements IKernel {
     return service as T;
   }
 
+  hasService(name: string): boolean {
+    return this.services.has(name);
+  }
+
   async destroyService(name: string): Promise<void> {
     const service = this.services.get(name);
     if (service) {

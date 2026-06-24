@@ -9,6 +9,15 @@ import { readSSEStream, safeParseSSEData } from "../src/utils/streamReader";
 import { Kernel, setKernelStrictMode } from "../src/kernel/Kernel";
 import { IKernelService } from "../src/kernel/types";
 import { cleanSuggestionsFromText, parseSuggestions } from "../src/hooks/useChat/helpers/index";
+import { MultiMessageService } from "../src/kernel/services/MultiMessageService";
+import { ChatStreamService } from "../src/kernel/services/ChatStreamService";
+import { DatabaseService } from "../src/kernel/services/DatabaseService";
+import {
+  tableMemoryMiddleware,
+  mvuScriptMiddleware,
+  bisonModeMiddleware,
+  autoSummaryMiddleware
+} from "../src/kernel/middlewares/outputMiddlewares";
 
 // PNG verification constants
 const PNG_SIGNATURE_HEADER_1 = 0x89504e47;
@@ -1723,6 +1732,49 @@ function testSuggestionsRobustness() {
   console.log("✔ AI Suggestions robust parsing and FormattedText stripping verified successfully!");
 }
 
+async function testMultiMessageService() {
+  console.log("\n--- Running MultiMessageService Verification ---");
+  const testKernel = new Kernel();
+  
+  let savedSession: any = null;
+  const mockDbService: IKernelService = {
+    name: "database",
+    init() {},
+    async saveSession(session: any) {
+      savedSession = session;
+    }
+  };
+
+  const multiMsgService = new MultiMessageService();
+
+  await testKernel.registerService("database", mockDbService);
+  await testKernel.registerService("multiMessage", multiMsgService);
+
+  const initialSession = {
+    id: "test-sess",
+    characterId: "char-1",
+    title: "Test Session",
+    createdAt: Date.now(),
+    messages: [
+      { id: "msg_1", sender: "assistant", content: "Hello!" }
+    ],
+    summaries: [],
+    variables: {}
+  };
+
+  const updated = await multiMsgService.queueUserMessage(initialSession as any, "  Hello, this is message 1.  ");
+  
+  assert(updated.messages.length === 2, "Should append user message");
+  assert(updated.messages[1].sender === "user", "Sender should be user");
+  assert(updated.messages[1].content === "Hello, this is message 1.", "Content should be trimmed");
+  assert(savedSession !== null, "Session should be saved to database service");
+  assert(savedSession.id === "test-sess", "Saved session ID matches");
+  assert(savedSession.messages[1].content === "Hello, this is message 1.", "Saved session has the user message");
+
+  await testKernel.destroy();
+  console.log("✔ MultiMessageService verified successfully!");
+}
+
 async function run() {
   setKernelStrictMode(false); // 默认在测试流程中采用生产（容错自愈）模式
   console.log("=================================================");
@@ -1748,6 +1800,10 @@ async function run() {
     testBisonModeProbability();
     testPresetAndWorldbookIntegration();
     testSuggestionsRobustness();
+    await testMultiMessageService();
+    await testDatabaseServiceCrud();
+    await testOutputPipeline();
+    await testChatStreamService();
     console.log("\n=================================================");
     console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
     console.log("=================================================");
@@ -1756,6 +1812,178 @@ async function run() {
     console.error(err.stack || err.message);
     process.exit(1);
   }
+}
+
+async function testDatabaseServiceCrud() {
+  console.log("\n--- Running DatabaseService CRUD Verification ---");
+  const testKernel = new Kernel();
+
+  let savedSession: any = null;
+  const mockScriptService: IKernelService = {
+    name: "script",
+    init() {},
+    initializeMvuFromCharacter(char: any) {
+      return { hp: 100 };
+    }
+  };
+
+  const mockDbService = new DatabaseService();
+  mockDbService.saveSession = async (sess: any) => {
+    savedSession = sess;
+  };
+
+  await testKernel.registerService("script", mockScriptService);
+  await testKernel.registerService("database", mockDbService);
+
+  const mockChar = { id: "char-123", name: "银霜", first_mes: "你好" };
+  const session = await mockDbService.createNewSession(mockChar, "你好啊", ["选项一"]);
+
+  assert(session.characterId === "char-123", "Session character ID matches");
+  assert(session.messages.length === 1, "Should have starter message");
+  assert(session.messages[0].content === "你好啊", "Message content matches");
+  assert(session.variables?.hp === 100, "MVU variables initialized");
+  assert(savedSession !== null, "Session saved");
+
+  const backtrackSession = await mockDbService.createBacktrackBranch(session, "新分支", session.messages[0].id);
+  assert(backtrackSession.title === "新分支", "Backtrack title matches");
+  assert(backtrackSession.messages.length === 1, "Backtrack messages count matches");
+
+  session.summaries = [{ id: "sum_1", timeTag: "深夜", location: "旅馆", content: "发生战斗" }];
+  const timelineSession = await mockDbService.createBacktrackFromTimeline(session, "时间流分支", "sum_1");
+  assert(timelineSession.summaries.length === 1, "Timeline session summaries count matches");
+  assert(timelineSession.messages[0].content.includes("发生战斗"), "Timeline message content matches");
+
+  await testKernel.destroy();
+  console.log("✔ DatabaseService CRUD verified successfully!");
+}
+
+async function testOutputPipeline() {
+  console.log("\n--- Running Output Pipeline Verification ---");
+  const testKernel = new Kernel();
+
+  const mockDbService: IKernelService = {
+    name: "database",
+    init() {},
+    async saveSession() {}
+  };
+  const mockTableMemoryService: IKernelService = {
+    name: "tableMemory",
+    init() {},
+    processTableMemory(mem: any, content: string) {
+      return {
+        updatedMemory: [{ id: "sheet_status_and_relation", rows: [["char", "100"]] }],
+        cleanContent: content.replace("<update_table>", ""),
+        hasChanges: true
+      };
+    }
+  };
+  const mockScriptService: IKernelService = {
+    name: "script",
+    init() {},
+    async executeMvuScript(session: any, content: string) {
+      return { ...session, variables: { ...session.variables, scriptRan: true } };
+    }
+  };
+  const mockAutoSummaryService: IKernelService = {
+    name: "autoSummary",
+    init() {},
+    async handleAutoSummaryCheck(session: any) {
+      return { ...session, summaries: [{ id: "sum_auto", content: "自动整理" }] };
+    }
+  };
+
+  await testKernel.registerService("database", mockDbService);
+  await testKernel.registerService("tableMemory", mockTableMemoryService);
+  await testKernel.registerService("script", mockScriptService);
+  await testKernel.registerService("autoSummary", mockAutoSummaryService);
+
+  const outputPipeline = testKernel.registerPipeline("output");
+  outputPipeline.use(tableMemoryMiddleware, 100);
+  outputPipeline.use(mvuScriptMiddleware, 90);
+  outputPipeline.use(bisonModeMiddleware, 80);
+  outputPipeline.use(autoSummaryMiddleware, 70);
+
+  const initialSession = {
+    id: "sess_1",
+    characterId: "char_1",
+    title: "Session 1",
+    createdAt: Date.now(),
+    messages: [{ id: "msg_ai_1", sender: "assistant" as const, content: "你好<update_table>", timestamp: Date.now() }],
+    summaries: [],
+    variables: {},
+    tableMemory: []
+  };
+
+  const outputCtx: any = {
+    kernel: testKernel,
+    session: initialSession,
+    responseText: "你好<update_table>",
+    reasoningText: "",
+    settings: { enableTableMemory: true, enableScriptExecution: true, enableBisonMode: false },
+    activeCharacter: { name: "银霜", personality: "傲娇" },
+    controller: new AbortController(),
+    isStillActive: true,
+    isBisonConsecutive: false,
+    bisonRemainingCount: 0
+  };
+
+  await outputPipeline.execute(outputCtx);
+
+  const result = outputCtx.resultSession;
+  assert(result !== undefined, "Output resultSession must be populated");
+  assert(result.tableMemory[0].rows[0][1] === "100", "Table memory updated by TableMemoryMiddleware");
+  assert(result.messages[0].content === "你好", "Message content cleaned by TableMemoryMiddleware");
+  assert(result.variables.scriptRan === true, "MVU variables updated by MvuScriptMiddleware");
+  assert(result.summaries.length === 1 && result.summaries[0].id === "sum_auto", "AutoSummary ran successfully");
+
+  await testKernel.destroy();
+  console.log("✔ Output Pipeline Middlewares verified successfully!");
+}
+
+async function testChatStreamService() {
+  console.log("\n--- Running ChatStreamService Verification ---");
+  const testKernel = new Kernel();
+
+  const mockLlmService: IKernelService = {
+    name: "llm",
+    init() {},
+    async universalFetch() {
+      const sseContent = 
+        `data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n` +
+        `data: {"choices":[{"delta":{"reasoning_content":"Thinking"}}]}\n\n` +
+        `data: [DONE]\n\n`;
+        
+      return new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(sseContent));
+          controller.close();
+        }
+      }));
+    }
+  };
+
+  const chatStream = new ChatStreamService();
+
+  await testKernel.registerService("llm", mockLlmService);
+  await testKernel.registerService("chatStream", chatStream);
+
+  const generator = chatStream.streamLlmResponse({
+    baseUrl: "http://mock",
+    apiKey: "mock",
+    reqBody: {}
+  });
+
+  const chunks: any[] = [];
+  for await (const chunk of generator) {
+    chunks.push(chunk);
+  }
+
+  assert(chunks.length >= 2, "Should receive SSE chunks");
+  assert(chunks[0].choices[0].delta.content === "Hello", "Content chunk parsed");
+  assert(chunks[1].choices[0].delta.reasoning_content === "Thinking", "Reasoning content chunk parsed");
+
+  await testKernel.destroy();
+  console.log("✔ ChatStreamService verified successfully!");
 }
 
 run();
