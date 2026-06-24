@@ -12,3 +12,10 @@ scratch/
 *.keystore
 *.jks
 *.p12
+
+# Windows reserved device name (accidental redirect artifact in bash)
+nul
+
+# Playwright test artifacts
+test-results/
+playwright-report/

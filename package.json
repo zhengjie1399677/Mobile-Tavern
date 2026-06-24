@@ -16,7 +16,11 @@
     "dev:android": "tauri android dev --host 127.0.0.1",
     "test": "tsx tests/run_all_tests.ts",
     "test:bridge": "node tests/run_bridge_tests.cjs",
-    "test:zod": "node tests/test_zod_compatibility.cjs"
+    "test:zod": "node tests/test_zod_compatibility.cjs",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "@aliyun-sls/web-sts-plugin": "^0.3.9",
@@ -54,15 +58,21 @@
     "vue": "^3.5.35"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
     "@tauri-apps/cli": "^2.11.2",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/express": "^4.17.21",
     "@types/lodash": "^4.17.24",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "happy-dom": "^15.11.7",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "vitest": "^2.1.8"
   }
 }

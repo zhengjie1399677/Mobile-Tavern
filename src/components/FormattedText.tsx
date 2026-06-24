@@ -1,6 +1,7 @@
 import React, { useContext, memo, useState } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { createMessageIframeSrcDoc } from "../utils/tavernHelperBridge";
+import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "./formattedTextUtils";
 
 interface FormattedTextProps {
   text: string;
@@ -8,27 +9,6 @@ interface FormattedTextProps {
   userName?: string;
   className?: string;
   messageIndex?: number;
-}
-
-function parseStyleString(styleStr: string): React.CSSProperties {
-  const styles: Record<string, string> = {};
-  if (!styleStr) return styles;
-
-  styleStr.split(";").forEach((rule) => {
-    const idx = rule.indexOf(":");
-    if (idx !== -1) {
-      const key = rule
-        .slice(0, idx)
-        .trim()
-        .replace(/-([a-z])/g, (g) => g[1].toUpperCase());
-      const val = rule.slice(idx + 1).trim();
-      // Ensure no css expression or javascript protocols in style values
-      if (!/javascript:|expression|behaviour/i.test(val)) {
-        styles[key] = val;
-      }
-    }
-  });
-  return styles as React.CSSProperties;
 }
 
 // Whitelist of allowed HTML tags for aesthetic card renderings
@@ -75,35 +55,6 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   table: new Set(["border", "cellpadding", "cellspacing"]),
   iframe: new Set(["src", "srcdoc", "width", "height", "style", "class", "classname", "sandbox", "id", "name"]),
 };
-
-function resolveExpressionUrl(srcVal: string, activeCharacter: any): string {
-  if (!srcVal || !activeCharacter) return srcVal;
-  
-  if (srcVal.toLowerCase().startsWith("avatar://")) {
-    return activeCharacter.avatar || "";
-  }
-  
-  if (srcVal.toLowerCase().startsWith("expression://")) {
-    const exprName = srcVal.slice("expression://".length).trim().toLowerCase();
-    
-    const ext = activeCharacter.extensions || {};
-    const rawStyle = ext.style || ext.character_style || {};
-    const expressions = activeCharacter.visualSettings?.expressions || rawStyle.expressions || ext.expressions || {};
-    
-    if (Array.isArray(expressions)) {
-      const match = expressions.find((e: any) => e && e.name && e.name.toLowerCase() === exprName);
-      if (match && match.image) return match.image;
-    } else if (expressions && typeof expressions === "object") {
-      const match = Object.entries(expressions).find(([k]) => k.toLowerCase() === exprName);
-      if (match) return match[1] as string;
-    }
-    
-    // Fallback to default avatar
-    return activeCharacter.avatar || "";
-  }
-  
-  return srcVal;
-}
 
 function renderTextNode(textVal: string, enableAsteriskFormatting: boolean): React.ReactNode {
   if (!/(\*\*|\*)/.test(textVal)) {
@@ -293,83 +244,6 @@ function parseSafeHtmlToReact(
     console.error("Failed to parse HTML safely:", err);
     return html;
   }
-}
-
-function convertMarkdownTablesToHtml(text: string): string {
-  if (!text.includes("|")) return text;
-
-  const lines = text.split("\n");
-  const processedLines: string[] = [];
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-    const trimmedLine = line.trim();
-
-    // 检查是否可能是一个表格的开始
-    if (trimmedLine.includes("|") && i + 1 < lines.length) {
-      const nextLine = lines[i + 1].trim();
-      // 分隔行检测：必须包含至少一个 '|' 和 '-'，且不能含有其它非分隔符字符
-      const isSeparator = nextLine.includes("|") && nextLine.includes("-") && /^[|:\-\s]+$/.test(nextLine);
-
-      if (isSeparator) {
-        // 提取单元格工具函数
-        const splitRow = (rowText: string) => {
-          let t = rowText.trim();
-          if (t.startsWith("|")) t = t.slice(1);
-          if (t.endsWith("|")) t = t.slice(0, -1);
-          return t.split("|").map(cell => cell.trim());
-        };
-
-        const headers = splitRow(trimmedLine);
-        const separators = splitRow(nextLine);
-        
-        const alignments = separators.map(s => {
-          const left = s.startsWith(":");
-          const right = s.endsWith(":");
-          if (left && right) return "center";
-          if (right) return "right";
-          return "left";
-        });
-
-        let tableHtml = `<table class="mvu-markdown-table"><thead><tr>`;
-        headers.forEach((h, idx) => {
-          const align = alignments[idx] || "left";
-          tableHtml += `<th style="text-align: ${align}">${h}</th>`;
-        });
-        tableHtml += `</tr></thead><tbody>`;
-
-        i += 2; // 跳过表头和分隔行
-
-        // 读取数据行
-        while (i < lines.length) {
-          const dataLine = lines[i].trim();
-          if (dataLine.includes("|")) {
-            const cells = splitRow(dataLine);
-            tableHtml += `<tr>`;
-            for (let cIdx = 0; cIdx < headers.length; cIdx++) {
-              const cellVal = cells[cIdx] || "";
-              const align = alignments[cIdx] || "left";
-              tableHtml += `<td style="text-align: ${align}">${cellVal}</td>`;
-            }
-            tableHtml += `</tr>`;
-            i++;
-          } else {
-            break;
-          }
-        }
-
-        tableHtml += `</tbody></table>`;
-        processedLines.push(tableHtml);
-        continue;
-      }
-    }
-
-    processedLines.push(line);
-    i++;
-  }
-
-  return processedLines.join("\n");
 }
 
 function preprocessFormattedText(
