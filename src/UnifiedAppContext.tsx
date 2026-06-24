@@ -214,6 +214,14 @@ function createStore<T>(initialState: T) {
     }
   };
 
+  const setRawState = (nextState: T) => {
+    state = nextState;
+  };
+
+  const notifyListeners = () => {
+    listeners.forEach((l) => l());
+  };
+
   function useStore<SelectorOutput>(selector: (state: T) => SelectorOutput): SelectorOutput {
     return useSyncExternalStore(
       subscribe,
@@ -222,7 +230,7 @@ function createStore<T>(initialState: T) {
     );
   }
 
-  return { getState, setState, subscribe, useStore };
+  return { getState, setState, setRawState, notifyListeners, subscribe, useStore };
 }
 
 export const unifiedAppStore = createStore<UnifiedAppContextProps>({} as any);
@@ -244,35 +252,43 @@ function shallowEqual(a: any, b: any): boolean {
   return true;
 }
 
+/**
+ * 消费 UnifiedAppContext 的统一 Hook。
+ *
+ * 实现细节：直接使用 useContext(UnifiedAppContext) 读取数据，通过 useRef + shallowEqual
+ * 对 selector 的输出做浅比较缓存，避免 selector 结果没有变化时触发不必要的重渲。
+ * 这消除了外部 store（unifiedAppStore）与 React Context 之间的同步竞争，
+ * 从根本上解决了 React 19 并发模式下的 "Expected static flag" 断言错误与消息消失 bug。
+ */
 export function useUnifiedApp<SelectorOutput = UnifiedAppContextProps>(
   selector?: (state: UnifiedAppContextProps) => SelectorOutput
 ): SelectorOutput {
-  const defaultSelector = React.useCallback((state: UnifiedAppContextProps) => state as unknown as SelectorOutput, []);
-  const activeSelector = selector || defaultSelector;
+  const context = React.useContext(UnifiedAppContext);
+  if (!context) {
+    throw new Error("[useUnifiedApp] Must be used within LegacyAppContextProvider.");
+  }
 
-  const lastStateRef = React.useRef<UnifiedAppContextProps | null>(null);
+  const lastContextRef = React.useRef<UnifiedAppContextProps | null>(null);
   const lastSelectedRef = React.useRef<SelectorOutput | null>(null);
 
-  const getSnapshot = React.useCallback(() => {
-    const currentState = unifiedAppStore.getState();
-    if (currentState === lastStateRef.current && lastSelectedRef.current !== null) {
-      return lastSelectedRef.current;
-    }
-    const nextSelected = activeSelector(currentState);
-    if (lastSelectedRef.current !== null) {
-      if (shallowEqual(lastSelectedRef.current, nextSelected)) {
-        lastStateRef.current = currentState;
-        return lastSelectedRef.current;
-      }
-    }
-    lastStateRef.current = currentState;
-    lastSelectedRef.current = nextSelected;
-    return nextSelected;
-  }, [activeSelector]);
+  if (!selector) {
+    return context as unknown as SelectorOutput;
+  }
 
-  return useSyncExternalStore(
-    unifiedAppStore.subscribe,
-    getSnapshot,
-    getSnapshot
-  );
+  // 当 context 引用未变时，直接返回上一次缓存的 selector 结果
+  if (context === lastContextRef.current && lastSelectedRef.current !== null) {
+    return lastSelectedRef.current;
+  }
+
+  const nextSelected = selector(context);
+
+  // 当 context 引用变了，但 selector 输出浅比较相等时，依然返回旧的缓存，避免子组件重渲
+  if (lastSelectedRef.current !== null && shallowEqual(lastSelectedRef.current, nextSelected)) {
+    lastContextRef.current = context;
+    return lastSelectedRef.current;
+  }
+
+  lastContextRef.current = context;
+  lastSelectedRef.current = nextSelected;
+  return nextSelected;
 }

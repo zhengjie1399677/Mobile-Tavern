@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { UnifiedAppContext, unifiedAppStore } from "../UnifiedAppContext";
+import { UnifiedAppContext } from "../UnifiedAppContext";
 import { AppProvider, useApp } from "./AppContext";
 import { CharacterProvider, useCharactersState } from "./CharacterContext";
 import { ChatProvider, useChatState } from "./ChatContext";
@@ -165,9 +165,6 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     wrappedHandleImportLocalDataBackup,
     wrappedHandleImportSillyChatHistory,
   ]);
-
-  // Sync to external store
-  unifiedAppStore.setState(appContextValue);
 
   return (
     <UnifiedAppContext.Provider value={appContextValue}>
