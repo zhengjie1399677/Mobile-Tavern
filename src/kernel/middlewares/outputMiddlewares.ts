@@ -1,4 +1,4 @@
-import { Middleware, OutputPipelineContext } from "../types";
+import { Middleware, OutputPipelineContext, KernelServices } from "../types";
 import { globalKernel } from "../Kernel";
 import { calculateBisonModeProbability } from "../../hooks/useChat/helpers";
 import { Message } from "../../types";
@@ -9,7 +9,7 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
 
   if (settings.enableTableMemory && activeCharacter) {
     const kernel = context.kernel || globalKernel;
-    const tableMemoryService = kernel.getService<any>("tableMemory");
+    const tableMemoryService = kernel.getService<any>(KernelServices.TableMemory);
 
     let currentMemory = currentSession.tableMemory || [];
     if (currentMemory.length === 0) {
@@ -72,7 +72,7 @@ export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (con
   if (settings.enableScriptExecution && responseText) {
     try {
       const kernel = context.kernel || globalKernel;
-      const scriptService = kernel.getService<any>("script");
+      const scriptService = kernel.getService<any>(KernelServices.Script);
       currentSession = await scriptService.executeMvuScript(currentSession, responseText);
     } catch (err) {
       console.warn("[MvuScript] Middleware execution error:", err);
@@ -132,13 +132,13 @@ export const autoSummaryMiddleware: Middleware<OutputPipelineContext> = async (c
   if (!shouldTriggerBison) {
     try {
       const kernel = context.kernel || globalKernel;
-      const autoSummaryService = kernel.getService<any>("autoSummary");
+      const autoSummaryService = kernel.getService<any>(KernelServices.AutoSummary);
       const updatedSession = await autoSummaryService.handleAutoSummaryCheck(
         currentSession,
         settings,
         activeCharacter,
         false,
-        controller.signal
+        controller?.signal
       );
       if (updatedSession !== currentSession) {
         currentSession = updatedSession;

@@ -10,6 +10,8 @@ import { Activity } from "lucide-react";
 import { reportColdStartReady } from "./telemetry";
 
 const STORAGE_KEY = "aita_usage_metrics";
+const MAX_HISTORY_DAYS = 90;
+const WRITE_INTERVAL_MS = 30000;
 
 export interface UsageMetrics {
   totalOpens: number;
@@ -22,7 +24,11 @@ export function getUsageTracker(): UsageMetrics {
   const data = localStorage.getItem(STORAGE_KEY);
   if (data) {
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (parsed && Array.isArray(parsed.history)) {
+        trimHistory(parsed);
+      }
+      return parsed;
     } catch (e) {
       console.error("Failed to parse usage metrics", e);
     }
@@ -33,6 +39,14 @@ export function getUsageTracker(): UsageMetrics {
     lastOpenedAt: null,
     history: [],
   };
+}
+
+/** 裁剪 history 数组，仅保留最近 MAX_HISTORY_DAYS 天的数据，防止无限增长 */
+function trimHistory(metrics: UsageMetrics): void {
+  if (!metrics.history || metrics.history.length <= MAX_HISTORY_DAYS) return;
+  metrics.history = metrics.history
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-MAX_HISTORY_DAYS);
 }
 
 export function useUsageTracking() {
@@ -57,15 +71,16 @@ export function useUsageTracking() {
     }
 
     // Save open stats immediately
+    trimHistory(metrics);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(metrics));
 
     let sessionSeconds = 0;
 
-    // Setup interval to increment usage time every 10 seconds (saving I/O)
+    // 降低写入频率至 30 秒，减少同步 I/O 对主线程的影响
     const interval = setInterval(() => {
-      sessionSeconds += 10;
+      sessionSeconds += WRITE_INTERVAL_MS / 1000;
       const currentMetrics = getUsageTracker();
-      currentMetrics.totalUsageSeconds += 10;
+      currentMetrics.totalUsageSeconds += WRITE_INTERVAL_MS / 1000;
 
       const currentTodayStr = new Date().toISOString().split("T")[0];
       let currentTodayRecord = currentMetrics.history.find(
@@ -75,10 +90,11 @@ export function useUsageTracking() {
         currentTodayRecord = { date: currentTodayStr, seconds: 0 };
         currentMetrics.history.push(currentTodayRecord);
       }
-      currentTodayRecord.seconds += 10;
+      currentTodayRecord.seconds += WRITE_INTERVAL_MS / 1000;
 
+      trimHistory(currentMetrics);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(currentMetrics));
-    }, 10000);
+    }, WRITE_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, []);
@@ -89,8 +105,20 @@ export function UsageDisplay() {
 
   useEffect(() => {
     setMetrics(getUsageTracker());
-    const i = setInterval(() => setMetrics(getUsageTracker()), 10000);
-    return () => clearInterval(i);
+    const i = setInterval(() => setMetrics(getUsageTracker()), WRITE_INTERVAL_MS);
+
+    // 页面不可见时暂停轮询，恢复时立即刷新并重启定时器
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        setMetrics(getUsageTracker());
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      clearInterval(i);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
 
   if (!metrics) return null;

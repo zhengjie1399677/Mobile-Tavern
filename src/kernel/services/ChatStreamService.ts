@@ -1,5 +1,6 @@
 import { IChatStreamService, IKernel, StreamChunk, StreamParams } from "../types";
 import { readSSEStream, safeParseSSEData } from "../../utils/streamReader";
+import { API_ENDPOINT } from "../../utils/apiClient";
 
 export class ChatStreamService implements IChatStreamService {
   name = "chatStream";
@@ -15,7 +16,7 @@ export class ChatStreamService implements IChatStreamService {
     const { baseUrl, apiKey, chatPath, bypassProxy, reqBody, signal } = params;
 
     const llmService = this.kernel.getService<any>("llm");
-    const response = await llmService.universalFetch("openai-compat", {
+    const response = await llmService.universalFetch(API_ENDPOINT.ProxyOpenAI, {
       baseUrl,
       apiKey,
       chatPath,

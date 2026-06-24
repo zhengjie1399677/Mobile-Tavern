@@ -14,6 +14,22 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      target: 'es2020',
+      chunkSizeWarningLimit: 800,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // MVU 运行时依赖分离 — 仅在使用 MVU 脚本角色卡时才需要加载
+            'mvu-vendor': ['vue', 'pinia', 'jquery', 'mathjs'],
+            // lodash 全量导入分离，避免污染主 bundle
+            'lodash-vendor': ['lodash'],
+            // React 核心
+            'react-vendor': ['react', 'react-dom'],
+          },
+        },
+      },
+    },
     server: {
       port: 3000,
       strictPort: true,
