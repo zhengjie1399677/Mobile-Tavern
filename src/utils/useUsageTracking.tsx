@@ -8,8 +8,8 @@ import {
 } from "../../components/ui/card";
 import { Activity } from "lucide-react";
 import { reportColdStartReady } from "./telemetry";
+import { getStoredUsageMetrics, saveStoredUsageMetrics } from "./localDB";
 
-const STORAGE_KEY = "aita_usage_metrics";
 const MAX_HISTORY_DAYS = 90;
 const WRITE_INTERVAL_MS = 30000;
 
@@ -20,26 +20,12 @@ export interface UsageMetrics {
   history: { date: string; seconds: number }[];
 }
 
-export function getUsageTracker(): UsageMetrics {
-  const data = localStorage.getItem(STORAGE_KEY);
-  if (data) {
-    try {
-      const parsed = JSON.parse(data);
-      if (parsed && Array.isArray(parsed.history)) {
-        trimHistory(parsed);
-      }
-      return parsed;
-    } catch (e) {
-      console.error("Failed to parse usage metrics", e);
-    }
-  }
-  return {
-    totalOpens: 0,
-    totalUsageSeconds: 0,
-    lastOpenedAt: null,
-    history: [],
-  };
-}
+const DEFAULT_METRICS: UsageMetrics = {
+  totalOpens: 0,
+  totalUsageSeconds: 0,
+  lastOpenedAt: null,
+  history: [],
+};
 
 /** 裁剪 history 数组，仅保留最近 MAX_HISTORY_DAYS 天的数据，防止无限增长 */
 function trimHistory(metrics: UsageMetrics): void {
@@ -58,45 +44,73 @@ export function useUsageTracking() {
       console.warn("Failed to report cold start telemetry:", e);
     }
 
-    // Component mounted (App opened)
-    const metrics = getUsageTracker();
-    metrics.totalOpens += 1;
-    metrics.lastOpenedAt = Date.now();
+    let active = true;
+    let interval: any = null;
 
-    const todayStr = new Date().toISOString().split("T")[0];
-    let todayRecord = metrics.history.find((h) => h.date === todayStr);
-    if (!todayRecord) {
-      todayRecord = { date: todayStr, seconds: 0 };
-      metrics.history.push(todayRecord);
-    }
+    const initAndTrack = async () => {
+      try {
+        const stored = await getStoredUsageMetrics();
+        if (!active) return;
 
-    // Save open stats immediately
-    trimHistory(metrics);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(metrics));
+        const metrics: UsageMetrics = stored
+          ? { ...DEFAULT_METRICS, ...stored }
+          : { ...DEFAULT_METRICS };
 
-    let sessionSeconds = 0;
+        metrics.totalOpens += 1;
+        metrics.lastOpenedAt = Date.now();
 
-    // 降低写入频率至 30 秒，减少同步 I/O 对主线程的影响
-    const interval = setInterval(() => {
-      sessionSeconds += WRITE_INTERVAL_MS / 1000;
-      const currentMetrics = getUsageTracker();
-      currentMetrics.totalUsageSeconds += WRITE_INTERVAL_MS / 1000;
+        const todayStr = new Date().toISOString().split("T")[0];
+        let todayRecord = metrics.history.find((h) => h.date === todayStr);
+        if (!todayRecord) {
+          todayRecord = { date: todayStr, seconds: 0 };
+          metrics.history.push(todayRecord);
+        }
 
-      const currentTodayStr = new Date().toISOString().split("T")[0];
-      let currentTodayRecord = currentMetrics.history.find(
-        (h) => h.date === currentTodayStr,
-      );
-      if (!currentTodayRecord) {
-        currentTodayRecord = { date: currentTodayStr, seconds: 0 };
-        currentMetrics.history.push(currentTodayRecord);
+        trimHistory(metrics);
+        await saveStoredUsageMetrics(metrics);
+
+        // 每 30 秒异步写入一次
+        interval = setInterval(async () => {
+          try {
+            const current = await getStoredUsageMetrics();
+            if (!active) return;
+
+            const currentMetrics: UsageMetrics = current
+              ? { ...DEFAULT_METRICS, ...current }
+              : { ...DEFAULT_METRICS };
+
+            currentMetrics.totalUsageSeconds += WRITE_INTERVAL_MS / 1000;
+
+            const currentTodayStr = new Date().toISOString().split("T")[0];
+            let currentTodayRecord = currentMetrics.history.find(
+              (h) => h.date === currentTodayStr,
+            );
+            if (!currentTodayRecord) {
+              currentTodayRecord = { date: currentTodayStr, seconds: 0 };
+              currentMetrics.history.push(currentTodayRecord);
+            }
+            currentTodayRecord.seconds += WRITE_INTERVAL_MS / 1000;
+
+            trimHistory(currentMetrics);
+            await saveStoredUsageMetrics(currentMetrics);
+          } catch (err) {
+            console.error("Failed to update usage metrics inside interval", err);
+          }
+        }, WRITE_INTERVAL_MS);
+
+      } catch (err) {
+        console.error("Failed to initialize usage tracking", err);
       }
-      currentTodayRecord.seconds += WRITE_INTERVAL_MS / 1000;
+    };
 
-      trimHistory(currentMetrics);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentMetrics));
-    }, WRITE_INTERVAL_MS);
+    initAndTrack();
 
-    return () => clearInterval(interval);
+    return () => {
+      active = false;
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
   }, []);
 }
 
@@ -104,18 +118,32 @@ export function UsageDisplay() {
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
 
   useEffect(() => {
-    setMetrics(getUsageTracker());
-    const i = setInterval(() => setMetrics(getUsageTracker()), WRITE_INTERVAL_MS);
+    let active = true;
+
+    const loadMetrics = async () => {
+      try {
+        const data = await getStoredUsageMetrics();
+        if (!active) return;
+        setMetrics(data || DEFAULT_METRICS);
+      } catch (err) {
+        console.error("Failed to load metrics in UsageDisplay", err);
+      }
+    };
+
+    loadMetrics();
+
+    const i = setInterval(loadMetrics, WRITE_INTERVAL_MS);
 
     // 页面不可见时暂停轮询，恢复时立即刷新并重启定时器
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        setMetrics(getUsageTracker());
+        loadMetrics();
       }
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
+      active = false;
       clearInterval(i);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };

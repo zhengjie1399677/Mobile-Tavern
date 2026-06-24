@@ -1022,8 +1022,9 @@ export default function SettingsTab() {
                 </div>
                 <div className="flex items-center justify-between border-t border-border/50 pt-4">
                   <div className="space-y-0.5">
-                    <label className="text-[13px] font-semibold text-foreground">
-                      环境光感应联动 (Emotion Ambient Glow)
+                    <label className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+                      <span>环境光感应联动 (Emotion Ambient Glow)</span>
+                      <span className="text-[9px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">实验性</span>
                     </label>
                     <p className="text-[10px] text-muted-foreground">
                       自动根据角色当前的情绪和表情，为聊天界面背景渲染出流动交融的色温光晕，大幅度提升沉浸感。

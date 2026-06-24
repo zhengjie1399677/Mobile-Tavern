@@ -11,6 +11,14 @@ dotenv.config();
 const resolvedFilename = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
 const resolvedDirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(resolvedFilename);
 
+function sanitizeSensitiveData(input: string): string {
+  if (!input) return "";
+  return input
+    .replace(/\bsk-[A-Za-z0-9_-]{12,}\b/g, "[MASKED_KEY]")
+    .replace(/\bsk-ant-[A-Za-z0-9_-]{12,}\b/g, "[MASKED_KEY]")
+    .replace(/(Authorization\s*:\s*Bearer\s+)[A-Za-z0-9_.-]+/gi, "$1[MASKED_KEY]");
+}
+
 interface ProxyRequestConfig {
   baseUrl: string;
   routePath: string;
@@ -30,8 +38,7 @@ function prepareProxyRequest({ baseUrl, routePath, apiKey }: ProxyRequestConfig)
   };
   if (apiKey) {
     headers["Authorization"] = `Bearer ${apiKey}`;
-    const cleanKey = apiKey.trim();
-    console.log(`[Proxy Request] API Key loaded, prefix: "${cleanKey.substring(0, 3)}...", length: ${cleanKey.length}`);
+    console.log(`[Proxy Request] API Key loaded into authorization header.`);
   } else {
     console.log(`[Proxy Request] No API Key loaded in proxy header!`);
   }
@@ -70,7 +77,7 @@ async function startServer() {
         routePath: chatPath || "/chat/completions",
         apiKey,
       });
-      console.log(`[Proxy TestConnection] Target URL: ${targetUrl}`);
+      console.log(`[Proxy TestConnection] Target URL: ${sanitizeSensitiveData(targetUrl)}`);
 
       const response = await fetch(targetUrl, {
         method: "POST",
@@ -110,7 +117,7 @@ async function startServer() {
       });
 
       const isStream = reqBody.stream === true;
-      console.log(`[Proxy OpenAI] Target URL: ${targetUrl}, isStream: ${isStream}`);
+      console.log(`[Proxy OpenAI] Target URL: ${sanitizeSensitiveData(targetUrl)}, isStream: ${isStream}`);
 
       const response = await fetch(targetUrl, {
         method: "POST",
@@ -155,11 +162,11 @@ async function startServer() {
         console.log("OpenAI Proxy Chat connection closed by client.");
         return;
       }
-      console.error("OpenAI Proxy Chat Error:", error);
+      console.error("OpenAI Proxy Chat Error:", sanitizeSensitiveData(error.stack || error.message || String(error)));
       if (!res.headersSent) {
         res.status(500).json({
           success: false,
-          error: error.message || "Failed to make proxied request.",
+          error: sanitizeSensitiveData(error.message || "Failed to make proxied request."),
         });
       } else {
         res.end();
@@ -203,10 +210,10 @@ async function startServer() {
       }
       res.json({ success: true, models: modelsArray.map((m: any) => ({ id: m.id || m.name })) });
     } catch (error: any) {
-      console.error("Models Proxy Error:", error);
+      console.error("Models Proxy Error:", sanitizeSensitiveData(error.stack || error.message || String(error)));
       res.status(500).json({
         success: false,
-        error: error.message || "Failed to fetch models.",
+        error: sanitizeSensitiveData(error.message || "Failed to fetch models."),
       });
     }
   });
@@ -308,7 +315,7 @@ async function startServer() {
         }
       }
     } catch (err: any) {
-      console.warn(`[Catbot Proxy] 转发至云端 FC 失败 (${err.message})，降级为本地处理器。`);
+      console.warn(`[Catbot Proxy] 转发至云端 FC 失败 (${sanitizeSensitiveData(err.message)})，降级为本地处理器。`);
     }
 
     // ================== 本地处理器降级兜底逻辑 ==================
@@ -396,8 +403,8 @@ async function startServer() {
 
       res.json(parsed);
     } catch (e: any) {
-      console.error("Catbot server fallback error:", e);
-
+      console.error("Catbot server fallback error:", sanitizeSensitiveData(e.stack || e.message || String(e)));
+      
       const errMsgLower = (e.message || "").toLowerCase();
       if (
         errMsgLower.includes("429") ||
@@ -420,7 +427,7 @@ async function startServer() {
         if (bugKeywords.test(text)) {
           reply = "喵呜……今天帮本喵记 Bug 的次数已经用光了，本喵的小本本都已经写满啦！明天再来告诉本喵关于 Bug 的事情吧喵~ 🐾";
         } else if (techKeywords.test(text)) {
-          reply = "唔……今天解答的技术问题太多啦，本喵的脑瓜转不动了，明天再来问本喵关于设置和配置的事喵~ 💤";
+          reply = "唔……今天解答的技术问题太多啦，本喵的脑瓜转不动了，明天再来问本喵关于设置 and 配置的事喵~ 💤";
         }
         return res.json({
           reply,
@@ -429,7 +436,7 @@ async function startServer() {
       }
 
       res.status(500).json({
-        reply: `喵呜……本喵的本地脑回路好像烧坏了，报错信息：${e.message}喵。`,
+        reply: `喵呜……本喵的本地脑回路好像烧坏了，报错信息：${sanitizeSensitiveData(e.message)}喵。`,
         expression: "sleepy"
       });
     }

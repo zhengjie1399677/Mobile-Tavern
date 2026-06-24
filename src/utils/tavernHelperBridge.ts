@@ -1,16 +1,16 @@
 import React from "react";
-import _ from "lodash";
+import lodashCloneDeep from "lodash/cloneDeep";
+import lodashGet from "lodash/get";
+import lodashSet from "lodash/set";
+import lodashUnset from "lodash/unset";
+import lodashIsEqual from "lodash/isEqual";
 import { CharacterCard, ChatSession, UserSettings } from "../types";
 import { klona } from "klona";
 import { globalKernel } from "../kernel/Kernel";
-import { createPinia, defineStore, getActivePinia, setActivePinia } from "pinia";
 import { compare } from "compare-versions";
 import JSON5 from "json5";
 import { jsonrepair } from "jsonrepair";
 import { registerMvuSchema } from "./mvu_zod";
-import * as Vue from "vue";
-import jQuery from "jquery";
-import * as math from "mathjs";
 
 
 
@@ -263,36 +263,58 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
   return variables;
 }
 
+let libsPromise: Promise<void> | null = null;
+
+export function ensureLibrariesLoaded(): Promise<void> {
+  if (libsPromise) return libsPromise;
+
+  libsPromise = (async () => {
+    console.log("[TavernHelper Bridge] Dynamically loading MVU libraries (lodash, Vue, pinia, jQuery, mathjs)...");
+    const [lodash, Vue, Pinia, jQuery, math] = await Promise.all([
+      import("lodash"),
+      import("vue"),
+      import("pinia"),
+      import("jquery"),
+      import("mathjs"),
+    ]);
+
+    const lodashInstance = lodash.default || lodash;
+    const jQueryInstance = jQuery.default || jQuery;
+
+    if (typeof window !== "undefined") {
+      const parentWin = window as any;
+      parentWin._ = lodashInstance;
+      parentWin.Vue = Vue;
+      parentWin.$ = parentWin.jQuery = jQueryInstance;
+
+      parentWin.TavernHelperMvuLibs = {
+        klona,
+        createPinia: Pinia.createPinia,
+        defineStore: Pinia.defineStore,
+        getActivePinia: Pinia.getActivePinia,
+        setActivePinia: Pinia.setActivePinia,
+        compare,
+        JSON5,
+        jsonrepair,
+        math,
+        pinia: {
+          createPinia: Pinia.createPinia,
+          defineStore: Pinia.defineStore,
+          getActivePinia: Pinia.getActivePinia,
+          setActivePinia: Pinia.setActivePinia,
+        },
+        vue: Vue,
+      };
+    }
+  })();
+
+  return libsPromise;
+}
+
 // Static initialization block executing immediately upon module import
 if (typeof window !== "undefined") {
   const parentWin = window as any;
 
-  // 1. Expose standard libraries
-  parentWin._ = _ ;
-  parentWin.Vue = Vue;
-  parentWin.$ = parentWin.jQuery = jQuery;
-
-
-  // Expose local MVU library dependencies to parent window for offline iframe loading
-  parentWin.TavernHelperMvuLibs = {
-    klona,
-    createPinia,
-    defineStore,
-    getActivePinia,
-    setActivePinia,
-    compare,
-    JSON5,
-    jsonrepair,
-    math,
-    // Expose namespaces for wildcard imports (e.g. import * as pinia from '...')
-    pinia: {
-      createPinia,
-      defineStore,
-      getActivePinia,
-      setActivePinia,
-    },
-    vue: Vue,
-  };
   parentWin.registerMvuSchema = registerMvuSchema;
 
 
@@ -446,7 +468,7 @@ if (typeof window !== "undefined") {
         parse(val: any) {
           if (val === undefined || val === null) {
             if (this._defaultValue !== undefined) {
-              val = typeof this._defaultValue === 'function' ? this._defaultValue() : _.cloneDeep(this._defaultValue);
+              val = typeof this._defaultValue === 'function' ? this._defaultValue() : lodashCloneDeep(this._defaultValue);
             } else {
               if (this._type === 'object') {
                 val = {};
@@ -917,15 +939,15 @@ if (typeof window !== "undefined") {
                 (updatedMsg as any).swipe_id = messageObj.swipe_id;
                 changed = true;
               }
-              if (messageObj.swipes !== undefined && !_.isEqual((updatedMsg as any).swipes, messageObj.swipes)) {
+              if (messageObj.swipes !== undefined && !lodashIsEqual((updatedMsg as any).swipes, messageObj.swipes)) {
                 (updatedMsg as any).swipes = messageObj.swipes;
                 changed = true;
               }
-              if (messageObj.swipes_data !== undefined && !_.isEqual((updatedMsg as any).swipes_data, messageObj.swipes_data)) {
+              if (messageObj.swipes_data !== undefined && !lodashIsEqual((updatedMsg as any).swipes_data, messageObj.swipes_data)) {
                 (updatedMsg as any).swipes_data = messageObj.swipes_data;
                 changed = true;
               }
-              if (messageObj.extra !== undefined && !_.isEqual((updatedMsg as any).extra, messageObj.extra)) {
+              if (messageObj.extra !== undefined && !lodashIsEqual((updatedMsg as any).extra, messageObj.extra)) {
                 (updatedMsg as any).extra = { ...(updatedMsg as any).extra, ...messageObj.extra };
                 changed = true;
               }
@@ -1019,15 +1041,15 @@ if (typeof window !== "undefined") {
                   updated.content = swipeContent;
                 }
               }
-              if (newMsg.swipes !== undefined && !_.isEqual((updated as any).swipes, newMsg.swipes)) {
+              if (newMsg.swipes !== undefined && !lodashIsEqual((updated as any).swipes, newMsg.swipes)) {
                 (updated as any).swipes = newMsg.swipes;
                 localChanged = true;
               }
-              if (newMsg.swipes_data !== undefined && !_.isEqual((updated as any).swipes_data, newMsg.swipes_data)) {
+              if (newMsg.swipes_data !== undefined && !lodashIsEqual((updated as any).swipes_data, newMsg.swipes_data)) {
                 (updated as any).swipes_data = newMsg.swipes_data;
                 localChanged = true;
               }
-              if (newMsg.extra !== undefined && !_.isEqual((updated as any).extra, newMsg.extra)) {
+              if (newMsg.extra !== undefined && !lodashIsEqual((updated as any).extra, newMsg.extra)) {
                 (updated as any).extra = { ...(updated as any).extra, ...newMsg.extra };
                 localChanged = true;
               }
@@ -1285,11 +1307,11 @@ if (typeof window !== "undefined") {
               msg.content = msg.swipes[up.swipe_id];
             }
           }
-          if (up.swipes !== undefined && !_.isEqual(msg.swipes, up.swipes)) {
+          if (up.swipes !== undefined && !lodashIsEqual(msg.swipes, up.swipes)) {
             msg.swipes = up.swipes;
             changed = true;
           }
-          if (up.swipes_data !== undefined && !_.isEqual(msg.swipes_data, up.swipes_data)) {
+          if (up.swipes_data !== undefined && !lodashIsEqual(msg.swipes_data, up.swipes_data)) {
             msg.swipes_data = up.swipes_data;
             changed = true;
           }
@@ -1612,12 +1634,12 @@ if (typeof window !== "undefined") {
     },
     setMvuVariable(mvu_data: any, path: string, new_value: any) {
       const target = mvu_data.stat_data || mvu_data;
-      _.set(target, path, new_value);
+      lodashSet(target, path, new_value);
       return Promise.resolve(true);
     },
     getMvuVariable(mvu_data: any, path: string, options: any) {
       const target = mvu_data.stat_data || mvu_data;
-      const val = _.get(target, path);
+      const val = lodashGet(target, path);
       if (Array.isArray(val) && val.length === 2 && typeof val[1] === 'string') {
         return val[0];
       }
@@ -1632,6 +1654,13 @@ if (typeof window !== "undefined") {
 let lastSessionId: string | null = null;
 
 export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
+  // 仅在启用卡片脚本兼容（TavernHelper 兼容模式）插件时才异步预加载本地重型框架依赖
+  if (params.settings?.enableScriptExecution) {
+    ensureLibrariesLoaded().catch(err => {
+      console.error("[TavernHelper Bridge] Failed to dynamically load MVU libraries:", err);
+    });
+  }
+
   const prevSessionId = lastSessionId;
   bridgeParams = params;
 
@@ -2677,25 +2706,25 @@ function applyMvuCommand(statData: any, command: { type: string; args: any[]; re
   switch (command.type) {
     case 'set': {
       const newValue = command.args.length >= 2 ? command.args[command.args.length - 1] : undefined;
-      const current = _.get(statData, normalizedPath);
+      const current = lodashGet(statData, normalizedPath);
       if (Array.isArray(current) && current.length === 2 && typeof current[1] === 'string') {
         current[0] = newValue;
-        _.set(statData, normalizedPath, current);
+        lodashSet(statData, normalizedPath, current);
       } else {
-        _.set(statData, normalizedPath, newValue);
+        lodashSet(statData, normalizedPath, newValue);
       }
       break;
     }
     case 'add': {
       const delta = command.args.length >= 2 ? Number(command.args[1]) : 0;
-      const current = _.get(statData, normalizedPath);
+      const current = lodashGet(statData, normalizedPath);
       if (Array.isArray(current) && current.length === 2 && typeof current[1] === 'string') {
         const num = Number(current[0]) || 0;
         current[0] = num + delta;
-        _.set(statData, normalizedPath, current);
+        lodashSet(statData, normalizedPath, current);
       } else {
         const num = Number(current) || 0;
-        _.set(statData, normalizedPath, num + delta);
+        lodashSet(statData, normalizedPath, num + delta);
       }
       break;
     }
@@ -2703,9 +2732,9 @@ function applyMvuCommand(statData: any, command: { type: string; args: any[]; re
     case 'remove':
     case 'unset': {
       if (command.args.length === 1) {
-        _.unset(statData, normalizedPath);
+        lodashUnset(statData, normalizedPath);
       } else {
-        const target = _.get(statData, normalizedPath);
+        const target = lodashGet(statData, normalizedPath);
         const keyOrIdx = command.args[1];
         if (Array.isArray(target)) {
           const idx = Number(keyOrIdx);
@@ -2720,13 +2749,13 @@ function applyMvuCommand(statData: any, command: { type: string; args: any[]; re
     }
     case 'assign':
     case 'insert': {
-      const target = _.get(statData, normalizedPath);
+      const target = lodashGet(statData, normalizedPath);
       if (command.args.length === 2) {
         const val = command.args[1];
         if (Array.isArray(target)) {
           target.push(val);
         } else {
-          _.set(statData, normalizedPath, val);
+          lodashSet(statData, normalizedPath, val);
         }
       } else if (command.args.length >= 3) {
         const keyOrIdx = command.args[1];
@@ -2741,7 +2770,7 @@ function applyMvuCommand(statData: any, command: { type: string; args: any[]; re
         } else if (target && typeof target === 'object') {
           target[keyOrIdx] = val;
         } else {
-          _.set(statData, `${normalizedPath}.${keyOrIdx}`, val);
+          lodashSet(statData, `${normalizedPath}.${keyOrIdx}`, val);
         }
       }
       break;
@@ -2759,9 +2788,9 @@ function applyMvuCommand(statData: any, command: { type: string; args: any[]; re
           .replace(/\[(\d+)\]/g, '.$1')
           .replace(/^\.+/, '');
         
-        const val = _.get(statData, fromPath);
-        _.unset(statData, fromPath);
-        _.set(statData, normalizedToPath, val);
+        const val = lodashGet(statData, fromPath);
+        lodashUnset(statData, fromPath);
+        lodashSet(statData, normalizedToPath, val);
       }
       break;
     }
@@ -2770,7 +2799,7 @@ function applyMvuCommand(statData: any, command: { type: string; args: any[]; re
 
 export function parseMvuMessage(message: string, oldData: any): any {
   if (!oldData) return oldData;
-  const newData = _.cloneDeep(oldData);
+  const newData = lodashCloneDeep(oldData);
   const statData = newData.stat_data || newData;
   const commands = extractMvuCommands(message);
   for (const cmd of commands) {

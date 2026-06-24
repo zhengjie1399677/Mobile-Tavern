@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import { saveSession } from "../utils/localDB";
+import { sanitizeCss } from "../utils/security";
 import { initTavernHelperBridge, cleanTavernHelperBridge, createScriptIframeSrcDoc } from "../utils/tavernHelperBridge";
 import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
 import { MemoryTableDrawer } from "../components/MemoryTableDrawer";
@@ -834,7 +835,7 @@ export default function ChatTab() {
   const safeCustomCss = React.useMemo(() => {
     const css = activeCharacter?.visualSettings?.customCss;
     if (!css) return "";
-    return css.replace(/<\/style>/gi, "").replace(/<script/gi, "");
+    return sanitizeCss(css);
   }, [activeCharacter?.visualSettings?.customCss]);
 
   const isOriginalBg = (settings.chatBackgroundBlur ?? 10) === 0 && (settings.chatBackgroundDim ?? 50) === 0;
