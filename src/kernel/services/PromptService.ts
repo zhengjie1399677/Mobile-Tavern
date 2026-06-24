@@ -367,8 +367,11 @@ export class PromptService implements IPromptService {
 
       const modelName = (settings.api?.modelName || "").toLowerCase();
       const isDeepSeek = modelName.includes("deepseek");
-      const reasoningGuidance = isDeepSeek
-        ? "\n\n[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]\n"
+      const enableGuidance = settings.promptConfig?.enableReasoningGuidance !== undefined
+        ? settings.promptConfig.enableReasoningGuidance
+        : isDeepSeek;
+      const reasoningGuidance = enableGuidance
+        ? `\n\n${settings.promptConfig?.reasoningGuidancePrompt || "[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]"}\n`
         : "";
 
       return {
@@ -420,8 +423,11 @@ export class PromptService implements IPromptService {
     const enableCacheOptimization = modelName.includes("deepseek") || modelName.includes("gemini");
 
     const isDeepSeek = modelName.includes("deepseek");
-    const reasoningGuidance = isDeepSeek
-      ? "\n\n[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]\n"
+    const enableGuidance = settings.promptConfig?.enableReasoningGuidance !== undefined
+      ? settings.promptConfig.enableReasoningGuidance
+      : isDeepSeek;
+    const reasoningGuidance = enableGuidance
+      ? `\n\n${settings.promptConfig?.reasoningGuidancePrompt || "[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]"}\n`
       : "";
 
     const processedActiveEntries = enableCacheOptimization

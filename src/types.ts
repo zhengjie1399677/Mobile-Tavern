@@ -154,6 +154,8 @@ export interface PromptConfig {
   customPrompts?: CustomPromptBlock[]; // SillyTavern customizable prompt block list
   useMainPrompt?: boolean;
   mainSystemPrompt?: string;
+  enableReasoningGuidance?: boolean;
+  reasoningGuidancePrompt?: string;
 
   // Custom templates if 'custom' is selected
   systemPrefix: string;

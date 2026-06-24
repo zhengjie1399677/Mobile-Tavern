@@ -72,6 +72,8 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
   postHistoryPrompt: "",
   usePostHistory: true,
   instructTemplate: "default" as const,
+  enableReasoningGuidance: true,
+  reasoningGuidancePrompt: "[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]",
   storyString: `{{system_prompt}}
 
 === 角色性格设定 ===
