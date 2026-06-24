@@ -1,6 +1,10 @@
 import { IPromptService, IKernel } from "../types";
 import { CharacterCard, ChatSession, UserSettings, LorebookEntry, Message } from "../../types";
 import { DEFAULT_REPLY_SUGGESTIONS_PROMPT } from "../../defaults/suggestionsPrompt";
+import {
+  DEFAULT_REASONING_GUIDANCE_PROMPT,
+  DEFAULT_TABLE_MEMORY_PROMPT,
+} from "../../defaults/promptTemplates";
 
 const SAFE_CONTEXT_LIMIT = 12000;
 
@@ -371,7 +375,7 @@ export class PromptService implements IPromptService {
         ? settings.promptConfig.enableReasoningGuidance
         : isDeepSeek;
       const reasoningGuidance = enableGuidance
-        ? `\n\n${settings.promptConfig?.reasoningGuidancePrompt || "[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]"}\n`
+        ? `\n\n${settings.promptConfig?.reasoningGuidancePrompt || DEFAULT_REASONING_GUIDANCE_PROMPT}\n`
         : "";
 
       return {
@@ -427,7 +431,7 @@ export class PromptService implements IPromptService {
       ? settings.promptConfig.enableReasoningGuidance
       : isDeepSeek;
     const reasoningGuidance = enableGuidance
-      ? `\n\n${settings.promptConfig?.reasoningGuidancePrompt || "[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]"}\n`
+      ? `\n\n${settings.promptConfig?.reasoningGuidancePrompt || DEFAULT_REASONING_GUIDANCE_PROMPT}\n`
       : "";
 
     const processedActiveEntries = enableCacheOptimization

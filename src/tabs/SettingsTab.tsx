@@ -1409,6 +1409,175 @@ export default function SettingsTab() {
                             </button>
                           </div>
                         </div>
+
+                        <div className="space-y-1.5 pt-2 border-t border-border/30">
+                          <label className="text-[11px] font-semibold text-foreground">
+                            推理引导指令 (Reasoning Guidance Prompt)
+                          </label>
+                          <Textarea
+                            value={settings.promptConfig?.reasoningGuidancePrompt || ""}
+                            onChange={(e) =>
+                              updateSettings({
+                                ...settings,
+                                promptConfig: {
+                                  ...settings.promptConfig,
+                                  reasoningGuidancePrompt: e.target.value,
+                                },
+                              })
+                            }
+                            className="text-xs bg-input/50 min-h-[100px] leading-relaxed font-sans"
+                            placeholder="输入推理引导指示词..."
+                          />
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateSettings({
+                                  ...settings,
+                                  promptConfig: {
+                                    ...settings.promptConfig,
+                                    reasoningGuidancePrompt: DEFAULT_SETTINGS.promptConfig?.reasoningGuidancePrompt || "",
+                                  }
+                                });
+                              }}
+                              className="text-[10px] text-primary font-bold hover:underline"
+                            >
+                              重置推理指令为系统默认
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5 pt-2 border-t border-border/30">
+                          <label className="text-[11px] font-semibold text-foreground">
+                            表格记忆匹配指令 (Table Memory Prompt)
+                          </label>
+                          <Textarea
+                            value={settings.promptConfig?.tableMemoryPrompt || ""}
+                            onChange={(e) =>
+                              updateSettings({
+                                ...settings,
+                                promptConfig: {
+                                  ...settings.promptConfig,
+                                  tableMemoryPrompt: e.target.value,
+                                },
+                              })
+                            }
+                            className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
+                            placeholder="输入表格记忆指示词..."
+                          />
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateSettings({
+                                  ...settings,
+                                  promptConfig: {
+                                    ...settings.promptConfig,
+                                    tableMemoryPrompt: DEFAULT_SETTINGS.promptConfig?.tableMemoryPrompt || "",
+                                  }
+                                });
+                              }}
+                              className="text-[10px] text-primary font-bold hover:underline"
+                            >
+                              重置表格指令为系统默认
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2.5 pt-2 border-t border-border/30">
+                          <div className="flex justify-between items-center">
+                            <label className="text-[11px] font-semibold text-foreground">
+                              剧情元数据提取正则 (Metadata Extract Regexes)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateSettings({
+                                  ...settings,
+                                  memory: {
+                                    ...settings.memory,
+                                    locationRegex: DEFAULT_SETTINGS.memory.locationRegex,
+                                    timeRegex: DEFAULT_SETTINGS.memory.timeRegex,
+                                    conditionRegex: DEFAULT_SETTINGS.memory.conditionRegex,
+                                    inventoryRegex: DEFAULT_SETTINGS.memory.inventoryRegex,
+                                    bondingRegex: DEFAULT_SETTINGS.memory.bondingRegex,
+                                  }
+                                });
+                              }}
+                              className="text-[10px] text-primary font-bold hover:underline"
+                            >
+                              重置全部正则
+                            </button>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground w-16 shrink-0">地点 (Location)</span>
+                              <Input
+                                value={settings.memory.locationRegex || ""}
+                                onChange={(e) =>
+                                  updateSettings({
+                                    ...settings,
+                                    memory: { ...settings.memory, locationRegex: e.target.value }
+                                  })
+                                }
+                                className="h-8 text-xs font-mono bg-input/50 flex-1"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground w-16 shrink-0">时间 (Time)</span>
+                              <Input
+                                value={settings.memory.timeRegex || ""}
+                                onChange={(e) =>
+                                  updateSettings({
+                                    ...settings,
+                                    memory: { ...settings.memory, timeRegex: e.target.value }
+                                  })
+                                }
+                                className="h-8 text-xs font-mono bg-input/50 flex-1"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground w-16 shrink-0">心境 (Condition)</span>
+                              <Input
+                                value={settings.memory.conditionRegex || ""}
+                                onChange={(e) =>
+                                  updateSettings({
+                                    ...settings,
+                                    memory: { ...settings.memory, conditionRegex: e.target.value }
+                                  })
+                                }
+                                className="h-8 text-xs font-mono bg-input/50 flex-1"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground w-16 shrink-0">物品 (Inventory)</span>
+                              <Input
+                                value={settings.memory.inventoryRegex || ""}
+                                onChange={(e) =>
+                                  updateSettings({
+                                    ...settings,
+                                    memory: { ...settings.memory, inventoryRegex: e.target.value }
+                                  })
+                                }
+                                className="h-8 text-xs font-mono bg-input/50 flex-1"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground w-16 shrink-0">羁绊 (Bonding)</span>
+                              <Input
+                                value={settings.memory.bondingRegex || ""}
+                                onChange={(e) =>
+                                  updateSettings({
+                                    ...settings,
+                                    memory: { ...settings.memory, bondingRegex: e.target.value }
+                                  })
+                                }
+                                className="h-8 text-xs font-mono bg-input/50 flex-1"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>

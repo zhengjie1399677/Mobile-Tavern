@@ -223,10 +223,29 @@ function createStore<T>(initialState: T) {
   };
 
   function useStore<SelectorOutput>(selector: (state: T) => SelectorOutput): SelectorOutput {
+    const lastStateRef = React.useRef<T | undefined>(undefined);
+    const lastResultRef = React.useRef<SelectorOutput | undefined>(undefined);
+    const hasInitRef = React.useRef(false);
+
+    const getSnapshot = React.useCallback(() => {
+      const currentState = state;
+      if (!hasInitRef.current || currentState !== lastStateRef.current) {
+        const nextResult = selector(currentState);
+        if (hasInitRef.current && shallowEqual(nextResult, lastResultRef.current)) {
+          lastStateRef.current = currentState;
+        } else {
+          lastStateRef.current = currentState;
+          lastResultRef.current = nextResult;
+          hasInitRef.current = true;
+        }
+      }
+      return lastResultRef.current as SelectorOutput;
+    }, [selector]);
+
     return useSyncExternalStore(
       subscribe,
-      () => selector(state),
-      () => selector(state)
+      getSnapshot,
+      getSnapshot
     );
   }
 
@@ -263,32 +282,6 @@ function shallowEqual(a: any, b: any): boolean {
 export function useUnifiedApp<SelectorOutput = UnifiedAppContextProps>(
   selector?: (state: UnifiedAppContextProps) => SelectorOutput
 ): SelectorOutput {
-  const context = React.useContext(UnifiedAppContext);
-  if (!context) {
-    throw new Error("[useUnifiedApp] Must be used within LegacyAppContextProvider.");
-  }
-
-  const lastContextRef = React.useRef<UnifiedAppContextProps | null>(null);
-  const lastSelectedRef = React.useRef<SelectorOutput | null>(null);
-
-  if (!selector) {
-    return context as unknown as SelectorOutput;
-  }
-
-  // 当 context 引用未变时，直接返回上一次缓存的 selector 结果
-  if (context === lastContextRef.current && lastSelectedRef.current !== null) {
-    return lastSelectedRef.current;
-  }
-
-  const nextSelected = selector(context);
-
-  // 当 context 引用变了，但 selector 输出浅比较相等时，依然返回旧的缓存，避免子组件重渲
-  if (lastSelectedRef.current !== null && shallowEqual(lastSelectedRef.current, nextSelected)) {
-    lastContextRef.current = context;
-    return lastSelectedRef.current;
-  }
-
-  lastContextRef.current = context;
-  lastSelectedRef.current = nextSelected;
-  return nextSelected;
+  const sel = selector || ((state: UnifiedAppContextProps) => state as unknown as SelectorOutput);
+  return unifiedAppStore.useStore(sel);
 }

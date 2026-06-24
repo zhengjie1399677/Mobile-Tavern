@@ -1661,6 +1661,19 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
     });
   }
 
+  try {
+    const scriptService = globalKernel.getService<any>("script");
+    if (scriptService && typeof scriptService.registerBridge === "function") {
+      scriptService.registerBridge({
+        initializeMvuFromCharacter,
+        parseMvuMessage,
+        notifyVariablesUpdated,
+      });
+    }
+  } catch (e) {
+    // Silent fail if service is not registered in tests
+  }
+
   const prevSessionId = lastSessionId;
   bridgeParams = params;
 

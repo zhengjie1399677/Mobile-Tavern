@@ -1781,6 +1781,147 @@ async function testMultiMessageService() {
   console.log("✔ MultiMessageService verified successfully!");
 }
 
+async function testScriptServiceDecoupling() {
+  console.log("\n--- Running ScriptService Decoupling Verification ---");
+  const { ScriptService } = await import("../src/kernel/services/ScriptService");
+  const testKernel = new Kernel();
+  const scriptService = new ScriptService();
+  await testKernel.registerService("script", scriptService);
+
+  // 1. 验证在没有注入 bridge 的情况下，方法能安全降级（不崩溃）
+  const result1 = await scriptService.executeMvuScript({ id: "sess-1", variables: { stat_data: { hp: 50 } } } as any, "test");
+  assert(result1.variables.stat_data.hp === 50, "Should safely return session without mutating variables");
+
+  const result2 = scriptService.initializeMvuFromCharacter({ name: "银霜" } as any);
+  assert(typeof result2 === "object" && result2 !== null, "Should return empty object");
+
+  // 2. 注入 mock bridge 验证功能正常触发
+  const mockBridge = {
+    executeMvuScript: async (session: any, content: string) => {
+      return { ...session, variables: { stat_data: { hp: 100 } } };
+    },
+    parseMvuMessage: (messageContent: string, currentVariables: any) => {
+      return { stat_data: { hp: 100 } };
+    },
+    initializeMvuFromCharacter: (char: any) => {
+      return { stat_data: { hp: 99 } };
+    },
+    notifyVariablesUpdated: (session: any) => {}
+  };
+
+  scriptService.registerBridge(mockBridge);
+
+  const result3 = await scriptService.executeMvuScript({ id: "sess-1", variables: { stat_data: { hp: 50 } } } as any, "test");
+  assert(result3.variables.stat_data.hp === 100, "Should use injected bridge logic to modify variables");
+
+  const result4 = scriptService.initializeMvuFromCharacter({ name: "银霜" } as any);
+  assert(result4.stat_data.hp === 99, "Should use injected bridge logic to initialize variables");
+
+  await testKernel.destroy();
+  console.log("✔ ScriptService Decoupling verified successfully!");
+}
+
+async function testLocalDBSplitTrack() {
+  console.log("\n--- Running localDB settings Split-Track Storage Verification ---");
+  const localDB = await import("../src/utils/localDB");
+
+  // 1. Mock 内存数据库存储
+  const mockStorage: Record<string, any> = {};
+
+  // Mock IDBObjectStore
+  const mockStore = {
+    get: (key: string) => {
+      const request: any = { result: mockStorage[key] };
+      setTimeout(() => {
+        if (request.onsuccess) request.onsuccess();
+      }, 0);
+      return request;
+    },
+    put: (value: any, key?: string) => {
+      mockStorage[key || value.id] = value;
+      const request: any = { result: key || value.id };
+      setTimeout(() => {
+        if (request.onsuccess) request.onsuccess();
+      }, 0);
+      return request;
+    }
+  };
+
+  // Mock IDBTransaction
+  const mockTransaction = {
+    objectStore: (name: string) => mockStore,
+    oncomplete: null as any,
+    onerror: null as any,
+    error: null
+  };
+
+  // Mock IDBDatabase
+  const mockDb = {
+    transaction: (storeNames: any, mode: any) => mockTransaction
+  };
+
+  // 注入 mock DB 实例到 localDB 中以避免调用真实的 indexedDB.open
+  const originalIndexedDB = (global as any).indexedDB;
+  
+  (global as any).indexedDB = {
+    open: () => {
+      const request: any = {};
+      setTimeout(() => {
+        request.result = mockDb;
+        if (request.onsuccess) request.onsuccess();
+      }, 0);
+      return request;
+    }
+  } as any;
+
+  // 2. 模拟要保存的 settings
+  const testSettings: any = {
+    api: { apiKey: "sk-test-key-abc" },
+    promptConfig: {
+      mainPrompt: "SYSTEM: Hello World",
+      jailbreakPrompt: "JB: Act normal",
+      postHistoryPrompt: "POST: End of history",
+      reasoningGuidancePrompt: "REASON: Think step-by-step",
+      tableMemoryPrompt: "MEM: Keep table",
+    },
+    bisonModePrompt: "BISON: Mode prompt",
+    replySuggestionsPrompt: "SUGGEST: Options",
+    otherOption: "enabled"
+  };
+
+  // 3. 执行保存
+  await localDB.saveStoredSettings(testSettings);
+
+  // 4. 验证分轨后的物理存储结构
+  const rawUserSettings = mockStorage["user_settings"];
+  assert(rawUserSettings !== undefined, "user_settings should be written");
+  assert(rawUserSettings.promptConfig.mainPrompt === "", "mainPrompt in user_settings must be cleared");
+  assert(rawUserSettings.promptConfig.reasoningGuidancePrompt === "", "reasoningGuidancePrompt in user_settings must be cleared");
+  assert(rawUserSettings.bisonModePrompt === "", "bisonModePrompt in user_settings must be cleared");
+  assert(rawUserSettings.otherOption === "enabled", "other fields must remain intact");
+
+  const rawLargePrompts = mockStorage["user_settings_large_prompts"];
+  assert(rawLargePrompts !== undefined, "user_settings_large_prompts should be written");
+  assert(rawLargePrompts.mainPrompt === "SYSTEM: Hello World", "mainPrompt must be stored in large prompts");
+  assert(rawLargePrompts.reasoningGuidancePrompt === "REASON: Think step-by-step", "reasoningGuidancePrompt must be stored in large prompts");
+  assert(rawLargePrompts.bisonModePrompt === "BISON: Mode prompt", "bisonModePrompt must be stored in large prompts");
+
+  // 5. 执行读取
+  const loadedSettings = await localDB.getStoredSettings();
+  assert(loadedSettings !== null, "getStoredSettings should return object");
+  
+  // 6. 验证读取合并后的内容是否与原 settings 一致
+  assert(loadedSettings.promptConfig.mainPrompt === "SYSTEM: Hello World", "Merged mainPrompt matches");
+  assert(loadedSettings.promptConfig.reasoningGuidancePrompt === "REASON: Think step-by-step", "Merged reasoningGuidancePrompt matches");
+  assert(loadedSettings.bisonModePrompt === "BISON: Mode prompt", "Merged bisonModePrompt matches");
+  assert(loadedSettings.otherOption === "enabled", "Merged otherOption matches");
+
+  // 7. 还原 global 状态
+  (global as any).indexedDB = originalIndexedDB;
+
+  console.log("✔ localDB settings Split-Track Storage and Merge verified successfully!");
+}
+
 async function run() {
   setKernelStrictMode(false); // 默认在测试流程中采用生产（容错自愈）模式
   console.log("=================================================");
@@ -1818,6 +1959,8 @@ async function run() {
     await testPromptServiceRedosProtection();
     await testLLMServiceUrlValidation();
     await testAutoSummaryMetadataParsing();
+    await testScriptServiceDecoupling();
+    await testLocalDBSplitTrack();
     console.log("\n=================================================");
     console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
     console.log("=================================================");
@@ -2106,6 +2249,8 @@ function testServerLogDesensitization() {
 
   console.log("✔ Server Log Desensitization Rules verified successfully!");
 }
+
+
 
 run();
 

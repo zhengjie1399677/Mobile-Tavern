@@ -110,6 +110,7 @@ const ChatInputArea = () => {
 
   const [localInput, setLocalInput] = React.useState(userInputMessage);
   const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
+  const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 
   React.useEffect(() => {
     setLocalInput(userInputMessage);
@@ -161,6 +162,9 @@ const ChatInputArea = () => {
       const threshold = Math.min(window.innerHeight * 0.15, 100);
       const isKeyboardNowOpen = window.innerHeight - vvp.height > threshold;
       setIsKeyboardOpen(isKeyboardNowOpen);
+
+      const computedHeight = isKeyboardNowOpen ? Math.max(0, window.innerHeight - vvp.height) : 0;
+      setKeyboardHeight(computedHeight);
 
       if (isKeyboardNowOpen) {
         // 键盘弹起时，立即尝试进行一次定位
@@ -302,7 +306,10 @@ const ChatInputArea = () => {
     <div
       id="chat-input-area-container"
       ref={containerRef}
-      style={{ paddingBottom: `${isKeyboardOpen ? 12 : Math.max(safeAreas?.bottom ?? 0, 12)}px` }}
+      style={{
+        paddingBottom: `${isKeyboardOpen ? 12 : Math.max(safeAreas?.bottom ?? 0, 12)}px`,
+        marginBottom: `${keyboardHeight}px`
+      }}
       className="glass-panel border-t border-border/40 pt-3 px-3 flex flex-col gap-2 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]"
     >
       <div className="flex items-center justify-between px-1">

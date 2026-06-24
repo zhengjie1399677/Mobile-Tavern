@@ -356,23 +356,59 @@ export async function getStoredSettings(): Promise<UserSettings | null> {
         return;
       }
 
-      try {
-        const key = await getOrCreateCryptoKey(db);
-        if (settings.api && settings.api.apiKey) {
-          settings.api.apiKey = await decryptValue(settings.api.apiKey, key);
+      // v6 升级/优化: 并行获取大文本配置并重新拼装以保障向前兼容与零数据丢失
+      const reqLarge = store.get("user_settings_large_prompts");
+      reqLarge.onerror = () => reject(reqLarge.error);
+      reqLarge.onsuccess = async () => {
+        const large = reqLarge.result || {};
+
+        if (settings.promptConfig) {
+          if (large.mainPrompt !== undefined) settings.promptConfig.mainPrompt = large.mainPrompt;
+          if (large.jailbreakPrompt !== undefined) settings.promptConfig.jailbreakPrompt = large.jailbreakPrompt;
+          if (large.postHistoryPrompt !== undefined) settings.promptConfig.postHistoryPrompt = large.postHistoryPrompt;
+          if (large.reasoningGuidancePrompt !== undefined) settings.promptConfig.reasoningGuidancePrompt = large.reasoningGuidancePrompt;
+          if (large.tableMemoryPrompt !== undefined) settings.promptConfig.tableMemoryPrompt = large.tableMemoryPrompt;
+        } else {
+          settings.promptConfig = {
+            mainPrompt: large.mainPrompt || "",
+            jailbreakPrompt: large.jailbreakPrompt || "",
+            postHistoryPrompt: large.postHistoryPrompt || "",
+            reasoningGuidancePrompt: large.reasoningGuidancePrompt || "",
+            tableMemoryPrompt: large.tableMemoryPrompt || "",
+            roleplayMode: true,
+            useJailbreak: true,
+            usePostHistory: true,
+            instructTemplate: "default",
+            systemPrefix: "",
+            systemSuffix: "",
+            userPrefix: "",
+            userSuffix: "",
+            assistantPrefix: "",
+            assistantSuffix: "",
+          };
         }
-        if (settings.savedApiProfiles && Array.isArray(settings.savedApiProfiles)) {
-          for (const profile of settings.savedApiProfiles) {
-            if (profile.apiKey) {
-              profile.apiKey = await decryptValue(profile.apiKey, key);
+
+        if (large.bisonModePrompt !== undefined) settings.bisonModePrompt = large.bisonModePrompt;
+        if (large.replySuggestionsPrompt !== undefined) settings.replySuggestionsPrompt = large.replySuggestionsPrompt;
+
+        try {
+          const key = await getOrCreateCryptoKey(db);
+          if (settings.api && settings.api.apiKey) {
+            settings.api.apiKey = await decryptValue(settings.api.apiKey, key);
+          }
+          if (settings.savedApiProfiles && Array.isArray(settings.savedApiProfiles)) {
+            for (const profile of settings.savedApiProfiles) {
+              if (profile.apiKey) {
+                profile.apiKey = await decryptValue(profile.apiKey, key);
+              }
             }
           }
+        } catch (err) {
+          console.error("[localDB] Failed to decrypt settings API keys:", err);
         }
-      } catch (err) {
-        console.error("[localDB] Failed to decrypt settings API keys:", err);
-      }
 
-      resolve(settings);
+        resolve(settings);
+      };
     };
     request.onerror = () => reject(request.error);
   });
@@ -410,13 +446,41 @@ export async function saveStoredSettings(
       console.error("[localDB] Failed to encrypt settings API keys prior to storage:", err);
     }
 
+    // 分轨存储提取：将长文本大字段提取到独立的 IDB 键下
+    const largePrompts = {
+      mainPrompt: clonedSettings.promptConfig?.mainPrompt || "",
+      jailbreakPrompt: clonedSettings.promptConfig?.jailbreakPrompt || "",
+      postHistoryPrompt: clonedSettings.promptConfig?.postHistoryPrompt || "",
+      reasoningGuidancePrompt: clonedSettings.promptConfig?.reasoningGuidancePrompt || "",
+      tableMemoryPrompt: clonedSettings.promptConfig?.tableMemoryPrompt || "",
+      bisonModePrompt: clonedSettings.bisonModePrompt || "",
+      replySuggestionsPrompt: clonedSettings.replySuggestionsPrompt || "",
+    };
+
+    if (clonedSettings.promptConfig) {
+      clonedSettings.promptConfig = {
+        ...clonedSettings.promptConfig,
+        mainPrompt: "",
+        jailbreakPrompt: "",
+        postHistoryPrompt: "",
+        reasoningGuidancePrompt: "",
+        tableMemoryPrompt: "",
+      };
+    }
+    clonedSettings.bisonModePrompt = "";
+    clonedSettings.replySuggestionsPrompt = "";
+
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("settings", "readwrite");
       const store = transaction.objectStore("settings");
-      const request = store.put(clonedSettings, "user_settings");
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      
+      const reqLarge = store.put(largePrompts, "user_settings_large_prompts");
+      reqLarge.onerror = () => reject(reqLarge.error);
+      reqLarge.onsuccess = () => {
+        const request = store.put(clonedSettings, "user_settings");
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      };
     });
   });
 }

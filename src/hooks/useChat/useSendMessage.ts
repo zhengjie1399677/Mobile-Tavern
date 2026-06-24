@@ -47,10 +47,14 @@ interface SendMessageParams {
  * 不包含任何 UI 状态管理。
  */
 export function useSendMessage(p: SendMessageParams) {
+  const pRef = React.useRef<SendMessageParams>(p);
+  pRef.current = p;
+
   const handleSendMessage = useCallback(async (
     textToSend: string,
     options?: { isBisonConsecutive?: boolean; skipAI?: boolean }
   ) => {
+    const p = pRef.current;
     const isBisonConsecutive = !!options?.isBisonConsecutive;
     const skipAI = !!options?.skipAI;
     let isBisonChainActive = false;
@@ -162,7 +166,7 @@ export function useSendMessage(p: SendMessageParams) {
       const otherCharGlobals = p.characters
         .filter((c) => c.isWorldbookGlobal && c.id !== p.activeCharacter!.id)
         .flatMap((c) => c.lorebookEntries || []);
-      const customWorldbookGlobals = Object.values(p.customWorldbooks || {})
+      const customWorldbookGlobals = (Object.values(p.customWorldbooks || {}) as CustomWorldbook[])
         .filter((wb) => wb.enabled)
         .flatMap((wb) => wb.entries || []);
       const combinedGlobals = [...(p.globalLorebook || []), ...otherCharGlobals, ...customWorldbookGlobals];
@@ -339,9 +343,10 @@ export function useSendMessage(p: SendMessageParams) {
         }
       }
     }
-  }, [p]);
+  }, []);
 
   const handleStopGeneration = useCallback(() => {
+    const p = pRef.current;
     if (p.abortControllerRef.current) {
       p.abortControllerRef.current.abort();
       p.abortControllerRef.current = null;
@@ -350,7 +355,7 @@ export function useSendMessage(p: SendMessageParams) {
     p.setIsSending(false);
     p.bisonRemainingCountRef.current = 0;
     p.setIsBisonLocking(false);
-  }, [p]);
+  }, []);
 
   return { handleSendMessage, handleStopGeneration };
 }

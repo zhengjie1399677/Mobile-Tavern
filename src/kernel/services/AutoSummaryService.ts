@@ -1,6 +1,13 @@
 import { IAutoSummaryService, IKernel, IDatabaseService, ILLMService, KernelServices } from "../types";
 import { ChatSession, UserSettings, CharacterCard, SummaryCard, Message } from "../../types";
 import { FALLBACK_MODEL, API_ENDPOINT, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
+import {
+  DEFAULT_LOCATION_REGEX,
+  DEFAULT_TIME_REGEX,
+  DEFAULT_CONDITION_REGEX,
+  DEFAULT_INVENTORY_REGEX,
+  DEFAULT_BONDING_REGEX,
+} from "../../defaults/promptTemplates";
 
 const generateUniqueId = (prefix: string): string => {
   return prefix + Math.random().toString(36).substring(2, 9);
@@ -155,11 +162,26 @@ export class AutoSummaryService implements IAutoSummaryService {
             contentText = body;
           }
           
-          const locMatch = meta.match(/\[(?:Location|地点):\s*(.*?)\]/i);
-          const timeMatch = meta.match(/\[(?:Time|时间):\s*(.*?)\]/i);
-          const condMatch = meta.match(/\[(?:Condition|状态|心境):\s*(.*?)\]/i);
-          const invMatch = meta.match(/\[(?:Inventory|物品|道具):\s*(.*?)\]/i);
-          const bondMatch = meta.match(/\[(?:Bonding|羁绊|情感):\s*(.*?)\]/i);
+          const locationRegexStr = settings?.memory?.locationRegex || DEFAULT_LOCATION_REGEX;
+          const timeRegexStr = settings?.memory?.timeRegex || DEFAULT_TIME_REGEX;
+          const conditionRegexStr = settings?.memory?.conditionRegex || DEFAULT_CONDITION_REGEX;
+          const inventoryRegexStr = settings?.memory?.inventoryRegex || DEFAULT_INVENTORY_REGEX;
+          const bondingRegexStr = settings?.memory?.bondingRegex || DEFAULT_BONDING_REGEX;
+
+          const safeMatch = (text: string, pattern: string) => {
+            try {
+              return text.match(new RegExp(pattern, "i"));
+            } catch (e) {
+              console.error("[AutoSummary] Invalid regex pattern:", pattern, e);
+              return null;
+            }
+          };
+
+          const locMatch = safeMatch(meta, locationRegexStr);
+          const timeMatch = safeMatch(meta, timeRegexStr);
+          const condMatch = safeMatch(meta, conditionRegexStr);
+          const invMatch = safeMatch(meta, inventoryRegexStr);
+          const bondMatch = safeMatch(meta, bondingRegexStr);
 
           if (locMatch && locMatch[1].trim()) locationStr = locMatch[1].trim();
           if (timeMatch && timeMatch[1].trim()) timeTagStr = timeMatch[1].trim();

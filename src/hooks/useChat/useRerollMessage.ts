@@ -42,7 +42,11 @@ interface RerollMessageParams {
  * 与 useSendMessage 共享 streamHelpers 纯函数，消除代码重复。
  */
 export function useRerollMessage(p: RerollMessageParams) {
+  const pRef = React.useRef<RerollMessageParams>(p);
+  pRef.current = p;
+
   const handleRerollFromMessage = useCallback(async (targetMsg: Message) => {
+    const p = pRef.current;
     p.setReplySuggestions([]);
     if (!targetMsg?.id || p.isSendingRef.current || !p.activeCharacter || !p.activeSession) return;
 
@@ -135,7 +139,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           ...entry,
           content: `[来自世界书: ${c.name}]\n${entry.content}`,
         })));
-      const customWorldbookGlobals = Object.values(p.customWorldbooks || {})
+      const customWorldbookGlobals = (Object.values(p.customWorldbooks || {}) as CustomWorldbook[])
         .filter((wb) => wb.enabled)
         .flatMap((wb) => (wb.entries || []).map((entry) => ({
           ...entry,
@@ -300,9 +304,10 @@ export function useRerollMessage(p: RerollMessageParams) {
         p.setIsSending(false);
       }
     }
-  }, [p]);
+  }, []);
 
   const handleRerollLast = useCallback(async () => {
+    const p = pRef.current;
     if (!p.activeSession || p.activeSession.messages.length === 0) return;
     let lastAiMsg: Message | null = null;
     for (let i = p.activeSession.messages.length - 1; i >= 0; i--) {
@@ -313,7 +318,7 @@ export function useRerollMessage(p: RerollMessageParams) {
     }
     if (!lastAiMsg) { await p.showCustomAlert("对话中尚未存在可供重新生成的智能回复对话！"); return; }
     await handleRerollFromMessage(lastAiMsg);
-  }, [p.activeSession, p.showCustomAlert, handleRerollFromMessage]);
+  }, [handleRerollFromMessage]);
 
   return { handleRerollFromMessage, handleRerollLast };
 }

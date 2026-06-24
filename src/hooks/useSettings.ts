@@ -21,6 +21,15 @@ import { encryptBackupData, decryptBackupData } from "../utils/cardParser";
 import { reportUsage } from "../utils/telemetry";
 
 import { DEFAULT_REPLY_SUGGESTIONS_PROMPT } from "../defaults/suggestionsPrompt";
+import {
+  DEFAULT_REASONING_GUIDANCE_PROMPT,
+  DEFAULT_TABLE_MEMORY_PROMPT,
+  DEFAULT_LOCATION_REGEX,
+  DEFAULT_TIME_REGEX,
+  DEFAULT_CONDITION_REGEX,
+  DEFAULT_INVENTORY_REGEX,
+  DEFAULT_BONDING_REGEX,
+} from "../defaults/promptTemplates";
 export { DEFAULT_REPLY_SUGGESTIONS_PROMPT };
 
 export const DEFAULT_BISON_MODE_PROMPT = `[野牛模式连续输出指令：请继续丰富当前场景，输出该角色的下一步神态、动作与言行。]`;
@@ -73,7 +82,8 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
   usePostHistory: true,
   instructTemplate: "default" as const,
   enableReasoningGuidance: true,
-  reasoningGuidancePrompt: "",
+  reasoningGuidancePrompt: DEFAULT_REASONING_GUIDANCE_PROMPT,
+  tableMemoryPrompt: DEFAULT_TABLE_MEMORY_PROMPT,
   storyString: `{{system_prompt}}
 
 === 角色性格设定 ===
@@ -280,6 +290,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
     summaryLength: 120,
     summarySystemPrompt: "",
     timeTagTemplate: "第{{index}}幕",
+    locationRegex: DEFAULT_LOCATION_REGEX,
+    timeRegex: DEFAULT_TIME_REGEX,
+    conditionRegex: DEFAULT_CONDITION_REGEX,
+    inventoryRegex: DEFAULT_INVENTORY_REGEX,
+    bondingRegex: DEFAULT_BONDING_REGEX,
   },
   promptConfig: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
   userName: "user",
@@ -609,12 +624,19 @@ export const useSettings = () => {
               ...(storedSet.memory || {}),
               summarySystemPrompt: storedSet.memory?.summarySystemPrompt || defaultMemory.summarySystemPrompt,
               timeTagTemplate: storedSet.memory?.timeTagTemplate || DEFAULT_SETTINGS.memory.timeTagTemplate,
+              locationRegex: storedSet.memory?.locationRegex || DEFAULT_SETTINGS.memory.locationRegex,
+              timeRegex: storedSet.memory?.timeRegex || DEFAULT_SETTINGS.memory.timeRegex,
+              conditionRegex: storedSet.memory?.conditionRegex || DEFAULT_SETTINGS.memory.conditionRegex,
+              inventoryRegex: storedSet.memory?.inventoryRegex || DEFAULT_SETTINGS.memory.inventoryRegex,
+              bondingRegex: storedSet.memory?.bondingRegex || DEFAULT_SETTINGS.memory.bondingRegex,
             },
             promptConfig: {
               ...defaultPromptConfig,
               ...(storedSet.promptConfig || {}),
               mainPrompt: storedSet.promptConfig?.mainPrompt || defaultPromptConfig.mainPrompt,
               postHistoryPrompt: storedSet.promptConfig?.postHistoryPrompt || defaultPromptConfig.postHistoryPrompt,
+              reasoningGuidancePrompt: storedSet.promptConfig?.reasoningGuidancePrompt || defaultPromptConfig.reasoningGuidancePrompt,
+              tableMemoryPrompt: storedSet.promptConfig?.tableMemoryPrompt || defaultPromptConfig.tableMemoryPrompt,
               customPrompts: mergedCustomPrompts,
               sectionHeaders: {
                 ...defaultPromptConfig.sectionHeaders,

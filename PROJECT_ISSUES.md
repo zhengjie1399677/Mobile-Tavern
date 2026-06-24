@@ -3,8 +3,8 @@
 > 本文档基于对项目**整体架构、目录结构、核心模块（内核 / Hook / Context / 数据层）、安全防护、构建配置与依赖**的系统性审查整理而成。
 > 审查时已执行 `npx tsc --noEmit` 与 `npm run test`，**两者均 100% 通过**，代码当前处于健康可编译状态。
 >
-> 文档最后更新：2026-06-23（第二轮全量审查后清理已修复项）
-> 对应版本：1.5.7
+> 文档最后更新：2026-06-24（第三轮全量审查后清理已修复项）
+> 对应版本：1.5.8
 
 ---
 
@@ -12,14 +12,14 @@
 
 | 编号 | 严重等级 | 问题 | 当前状态 |
 |------|----------|------|----------|
-| #1 | 🟠 高危 | 系统代码内硬编码行为引导提示词 | 🔵 待修复（部分外部化，已提供 UI 编辑框但代码仍有硬编码默认值） |
-| #2 | 🟡 中等 | 内核服务为"薄壳"，业务逻辑仍在 Hook 层 | 🔵 待修复 |
-| #3 | 🟢 低危 | scripts 目录已删除一次性调试脚本尚未提交 | 🔵 待提交（本地已物理删除，需执行提交） |
-| #4 | 🟡 中等 | `cleanRequestPayload` 过度裁剪 DeepSeek 等兼容平台的 `stream_options` | 🔵 待修复 |
-| #5 | 🟡 中等 | 硬编码 OpenRouter 免费试用 API Key 在两处重复 | 🔵 待修复 |
-| #6 | 🟢 低危 | localStorage 键名 `"siuser-theme"` 前缀含义不明 | 🔵 待修复 |
-| #7 | 🟢 低危 | `useChat` 依赖数组包含冗余 `isSending` 导致回调引用频繁重建 | 🔵 待优化 |
-| #8 | 🟢 低危 | `CharacterContext.loadCharacters` 缺少组件卸载保护 | 🔵 待修复 |
+| #1 | 🟠 高危 | 系统代码内硬编码行为引导提示词 | 🟢 已修复（已外部化为 user_settings 并提供配置界面，使用独立默认常量文件） |
+| #2 | 🟡 中等 | 内核服务为"薄壳"，业务逻辑仍在 Hook 层 | 🟢 已修复（已重构并下沉至 PromptService/LLMService/ChatStreamService，Hook 层已脱耦退化） |
+| #3 | 🟢 低危 | scripts 目录已删除一次性调试脚本尚未提交 | 🟢 已完成（已物理删除并全部提交） |
+| #4 | 🟡 中等 | `cleanRequestPayload` 过度裁剪 DeepSeek 等兼容平台的 `stream_options` | 🟢 已修复（已扩展并验证已知网关白名单，恢复 SSE Token 使用统计） |
+| #5 | 🟡 中等 | 硬编码 OpenRouter 免费试用 API Key 在两处重复 | 🟢 已修复（已统一提取常量多处引用，去重并解耦） |
+| #6 | 🟢 低危 | localStorage 键名 `"siuser-theme"` 前缀含义不明 | 🟢 已修复（已规范统一为新前缀，并完成平滑读取兼容） |
+| #7 | 🟢 低危 | `useChat` 依赖数组包含冗余 `isSending` 导致回调引用频繁重建 | 🟢 已优化（已重构子 Hook 使用 pRef 保持 handleSendMessage 等函数引用绝对稳定，降低重绘开销） |
+| #8 | 🟢 低危 | `CharacterContext.loadCharacters` 缺少组件卸载保护 | 🟢 已修复（已对 CharacterProvider 与 ChatProvider 引入组件挂载状态保护） |
 
 ---
 

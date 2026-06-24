@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { UnifiedAppContext } from "../UnifiedAppContext";
+import { UnifiedAppContext, unifiedAppStore } from "../UnifiedAppContext";
 import { AppProvider, useApp } from "./AppContext";
 import { CharacterProvider, useCharactersState } from "./CharacterContext";
 import { ChatProvider, useChatState } from "./ChatContext";
@@ -165,6 +165,16 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     wrappedHandleImportLocalDataBackup,
     wrappedHandleImportSillyChatHistory,
   ]);
+
+  // 仅在首次渲染且 store 尚未初始化时同步写入，防止下游子组件在初次挂载时由于解构空对象而崩溃
+  if (Object.keys(unifiedAppStore.getState()).length === 0) {
+    unifiedAppStore.setRawState(appContextValue);
+  }
+
+  React.useEffect(() => {
+    // 渲染完成后，调用自带属性级浅比较的 setState 更新外部 store 并通知精确订阅的子组件
+    unifiedAppStore.setState(appContextValue);
+  }, [appContextValue]);
 
   return (
     <UnifiedAppContext.Provider value={appContextValue}>

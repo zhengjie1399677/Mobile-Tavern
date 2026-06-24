@@ -243,6 +243,7 @@ export interface IScriptService<TCharacter = any, TSession = any> extends IKerne
   initializeMvuFromCharacter(character: TCharacter): Record<string, any>;
   parseMvuMessage(messageContent: string, currentVariables: Record<string, any>): Record<string, any>;
   executeMvuScript(session: TSession, messageContent: string): Promise<TSession>;
+  registerBridge(bridge: any): void;
 }
 
 export interface IAutoSummaryService<TSession = any, TSettings = any, TCharacter = any> extends IKernelService {

@@ -1,6 +1,11 @@
 import { IScriptService, IKernel } from "../types";
 import { CharacterCard, ChatSession } from "../../types";
-import { initializeMvuFromCharacter, parseMvuMessage, notifyVariablesUpdated } from "../../utils/tavernHelperBridge";
+
+export interface ITavernHelperBridge {
+  initializeMvuFromCharacter(character: any): Record<string, any>;
+  parseMvuMessage(messageContent: string, currentVariables: Record<string, any>): Record<string, any>;
+  notifyVariablesUpdated(session: any): void;
+}
 
 /**
  * MVU 变量结构防腐清洗函数
@@ -118,9 +123,14 @@ const isDev = (): boolean => {
 export class ScriptService implements IScriptService {
   name = "script";
   private kernel!: IKernel;
+  private bridge: ITavernHelperBridge | null = null;
 
   init(kernel: IKernel): void {
     this.kernel = kernel;
+  }
+
+  registerBridge(bridge: ITavernHelperBridge): void {
+    this.bridge = bridge;
   }
 
   initializeMvuFromCharacter(character: CharacterCard): Record<string, any> {
@@ -131,7 +141,13 @@ export class ScriptService implements IScriptService {
     }
 
     try {
-      const rawVariables = initializeMvuFromCharacter(safeCharacter);
+      if (!this.bridge) {
+        if (isDev()) {
+          console.warn("[ScriptService] initializeMvuFromCharacter: TavernHelperBridge is not registered yet. Falling back.");
+        }
+        return { stat_data: {} };
+      }
+      const rawVariables = this.bridge.initializeMvuFromCharacter(safeCharacter);
       // 防腐隔离：清洗输出，防止脏数据渗透到核心逻辑层
       return cleanMvuVariables(rawVariables);
     } catch (e) {
@@ -151,7 +167,13 @@ export class ScriptService implements IScriptService {
     }
 
     try {
-      const rawParsed = parseMvuMessage(messageContent, safeCurrentVars);
+      if (!this.bridge) {
+        if (isDev()) {
+          console.warn("[ScriptService] parseMvuMessage: TavernHelperBridge is not registered. Returning input variables.");
+        }
+        return safeCurrentVars;
+      }
+      const rawParsed = this.bridge.parseMvuMessage(messageContent, safeCurrentVars);
       // 防腐隔离：清洗输出
       return cleanMvuVariables(rawParsed);
     } catch (e) {
@@ -202,7 +224,12 @@ export class ScriptService implements IScriptService {
       // 防腐隔离：将全局副作用调用包装在 try/catch 中，
       // 并通过 kernel 消息总线发布事件，遵循准则一.4（副作用隔离）
       try {
-        notifyVariablesUpdated(updatedSession);
+        if (this.bridge) {
+          this.bridge.notifyVariablesUpdated(updatedSession);
+        } else {
+          // 如果没有 bridge，直接降级发布事件
+          this.kernel?.publish({ topic: "script:mvuVariablesUpdated", payload: { session: updatedSession } });
+        }
       } catch (notifyErr) {
         if (isDev()) {
           console.warn("[ScriptService] notifyVariablesUpdated failed:", notifyErr);
