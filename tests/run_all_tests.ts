@@ -18,6 +18,12 @@ import {
   bisonModeMiddleware,
   autoSummaryMiddleware
 } from "../src/kernel/middlewares/outputMiddlewares";
+import {
+  testTableMemoryService,
+  testPromptServiceRedosProtection,
+  testLLMServiceUrlValidation,
+  testAutoSummaryMetadataParsing,
+} from "./test_kernel_services_coverage";
 
 // PNG verification constants
 const PNG_SIGNATURE_HEADER_1 = 0x89504e47;
@@ -1807,6 +1813,11 @@ async function run() {
     await testApiKeyEncryption();
     await testCssSanitization();
     testServerLogDesensitization();
+    // 内核服务覆盖补强测试
+    await testTableMemoryService();
+    await testPromptServiceRedosProtection();
+    await testLLMServiceUrlValidation();
+    await testAutoSummaryMetadataParsing();
     console.log("\n=================================================");
     console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
     console.log("=================================================");
