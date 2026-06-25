@@ -19,3 +19,6 @@ nul
 # Playwright test artifacts
 test-results/
 playwright-report/
+
+# Serverless cloud functions
+serverless/
