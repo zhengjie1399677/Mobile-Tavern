@@ -629,21 +629,32 @@ export default function ChatTab() {
     // Scroll to bottom immediately upon mount/active session switch/sub-tab switch
     scrollToBottom();
 
-    const observer = new MutationObserver(() => {
+    const mutationObserver = new MutationObserver(() => {
       if (isAtBottomRef.current) {
         scrollToBottom();
       }
     });
 
-    observer.observe(container, {
+    mutationObserver.observe(container, {
       childList: true,
       subtree: true,
       attributes: true,
       attributeFilter: ["style", "class"],
     });
 
+    // ResizeObserver：监听容器自身高度变化（如键盘弹出、visualViewport 更新导致布局重算）
+    // 首次进入角色卡时，MainLayout 会因 visualViewport.resize 触发 setViewportHeight 更新，
+    // 导致滚动容器的 clientHeight 改变，但 MutationObserver 无法感知，会遗留大片空白。
+    const resizeObserver = new ResizeObserver(() => {
+      if (isAtBottomRef.current) {
+        scrollToBottom();
+      }
+    });
+    resizeObserver.observe(container);
+
     return () => {
-      observer.disconnect();
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
     };
   }, [activeSessionId, chatSubTab]);
 
