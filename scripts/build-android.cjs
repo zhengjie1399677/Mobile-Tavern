@@ -33,8 +33,9 @@ try {
   process.exit(1);
 }
 
-const maxRetries = 3;
 const isCI = process.env.CI === 'true';
+const maxRetries = isCI ? 5 : 3;
+const retryDelayMs = isCI ? 15000 : 5000;
 
 if (isCI) {
   console.log('CI environment detected. Building RELEASE APK...');
@@ -44,39 +45,20 @@ if (isCI) {
 
 for (let i = 0; i < maxRetries; i++) {
   try {
-    console.log('Attempt ' + (i + 1) + ' to build Android APK...');
-    const buildCmd = isCI 
+    console.log(`Attempt ${i + 1}/${maxRetries} to build Android APK...`);
+    const buildCmd = isCI
       ? 'npx tauri android build --apk --target aarch64 --verbose'
       : 'npx tauri android build --apk --debug --target aarch64 --verbose';
     execSync(buildCmd, { stdio: 'inherit' });
     console.log('Build succeeded.');
     process.exit(0);
   } catch (err) {
-    console.error('Build attempt ' + (i + 1) + ' failed. Error details:', err);
-    try {
-      const gradlewTask = isCI ? 'assembleRelease' : 'assembleDebug';
-      console.log(`Running gradlew ${gradlewTask} with detailed logging for diagnosis...`);
-      const gradlewCmd = process.platform === 'win32'
-        ? `cd src-tauri/gen/android && gradlew.bat ${gradlewTask} --stacktrace --info`
-        : `cd src-tauri/gen/android && chmod +x gradlew && ./gradlew ${gradlewTask} --stacktrace --info`;
-      execSync(gradlewCmd, { stdio: 'inherit', env: process.env });
-      console.log('Build succeeded via gradlew directly.');
-      process.exit(0);
-    } catch(err2) {
-      console.error('Direct gradlew build also failed.');
-    }
+    console.error(`Build attempt ${i + 1}/${maxRetries} failed.`);
     if (i === maxRetries - 1) {
       console.error('All build attempts failed.');
       process.exit(1);
     }
-    console.log('Cleaning before retrying...');
-    try {
-      const cleanCmd = process.platform === 'win32'
-        ? 'cd src-tauri/gen/android && gradlew.bat clean'
-        : 'cd src-tauri/gen/android && ./gradlew clean';
-      execSync(cleanCmd, { stdio: 'inherit' });
-    } catch(e) {}
-    console.log('Retrying in 5 seconds...');
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000);
+    console.log(`Retrying in ${retryDelayMs / 1000} seconds...`);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, retryDelayMs);
   }
 }
