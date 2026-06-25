@@ -227,7 +227,7 @@ export default function SettingsTab() {
           <h1 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
             <Settings className="w-5 h-5 text-primary" /> 控制面板
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold select-none ml-2 animate-pulse">
-              v1.5.8
+              v1.5.9
             </span>
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
@@ -1708,7 +1708,7 @@ export default function SettingsTab() {
                 🛠️ 系统报告
               </p>
               <p>
-                当前版本: v1.5.8 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
+                当前版本: v1.5.9 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
               </p>
               <p>
                 设备型号: {deviceModel}

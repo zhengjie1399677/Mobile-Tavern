@@ -2,7 +2,7 @@
   "name": "mobile-tavern",
   "private": true,
   "license": "Apache-2.0",
-  "version": "1.5.8",
+  "version": "1.5.9",
   "type": "module",
   "scripts": {
     "dev": "tsx watch server.ts",

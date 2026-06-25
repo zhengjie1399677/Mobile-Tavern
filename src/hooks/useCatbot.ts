@@ -268,7 +268,7 @@ export function useCatbot() {
         deviceId: getDeviceId(),
         userName: settings?.userName || "未知",
         phoneModel: typeof navigator !== "undefined" ? navigator.userAgent : "Unknown",
-        appVersion: "1.5.8",
+        appVersion: "1.5.9",
         isTauri: apiClient.isClientMode(),
         apiBaseUrl: settings?.api?.baseUrl || "",
         apiModel: settings?.api?.modelName || "",

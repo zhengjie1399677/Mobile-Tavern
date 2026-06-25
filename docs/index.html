@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,39 +10,48 @@
   <!-- Google Fonts: Outfit (For Headings) and Inter (For Body) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <!-- fflate CDN for client-side Tavern card decompression -->
   <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/lib/browser.min.js"></script>
-  
+
   <style>
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #08080c;
     }
+
     .font-outfit {
       font-family: 'Outfit', sans-serif;
     }
+
     /* Ambient glow elements */
     .glow-purple {
       filter: blur(140px);
-      background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(0,0,0,0) 70%);
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
     }
+
     .glow-cyan {
       filter: blur(140px);
-      background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, rgba(0,0,0,0) 70%);
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
     }
+
     /* Custom Scrollbar */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
     }
+
     ::-webkit-scrollbar-track {
       background: rgba(255, 255, 255, 0.02);
     }
+
     ::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.1);
       border-radius: 3px;
     }
+
     ::-webkit-scrollbar-thumb:hover {
       background: rgba(255, 255, 255, 0.2);
     }
@@ -63,6 +73,7 @@
     }
   </script>
 </head>
+
 <body class="text-slate-100 overflow-x-hidden min-h-screen relative selection:bg-brand-purple selection:text-white">
 
   <!-- Ambient Glow Background -->
@@ -74,13 +85,17 @@
   <header class="sticky top-0 z-50 backdrop-blur-md border-b border-white/5 bg-brand-dark/70">
     <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <img src="./app-icon.png" alt="Mobile Tavern Logo" class="w-10 h-10 rounded-xl shadow-lg border border-white/10" onerror="this.src='https://avatars.githubusercontent.com/u/1399677?v=4'">
+        <img src="./app-icon.png" alt="Mobile Tavern Logo" class="w-10 h-10 rounded-xl shadow-lg border border-white/10"
+          onerror="this.src='https://avatars.githubusercontent.com/u/1399677?v=4'">
         <div>
-          <span class="font-outfit text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">Mobile Tavern</span>
-          <span class="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-purple/20 text-brand-purple border border-brand-purple/30">v1.5.8</span>
+          <span
+            class="font-outfit text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">Mobile
+            Tavern</span>
+          <span
+            class="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-purple/20 text-brand-purple border border-brand-purple/30">v1.5.9</span>
         </div>
       </div>
-      
+
       <!-- Nav Links -->
       <nav class="hidden md:flex items-center space-x-8 text-sm text-slate-400 font-medium">
         <a href="#features" class="hover:text-white transition" data-i18n="nav_features">核心特性</a>
@@ -99,11 +114,15 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
       <!-- Intro Left -->
       <div class="lg:col-span-7 space-y-8 text-center lg:text-left">
-        <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full border border-brand-purple/30 bg-brand-purple/10 text-xs font-semibold tracking-wider uppercase text-brand-purple" data-i18n="hero_badge">
+        <div
+          class="inline-flex items-center space-x-2 px-3 py-1 rounded-full border border-brand-purple/30 bg-brand-purple/10 text-xs font-semibold tracking-wider uppercase text-brand-purple"
+          data-i18n="hero_badge">
           🎉 Android 原生体验重磅支持
         </div>
         <h1 class="font-outfit text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight" id="hero-title">
-          专为移动端定制的 <span class="bg-gradient-to-r from-brand-purple via-violet-400 to-brand-cyan bg-clip-text text-transparent">AI 角色扮演</span> 客户端
+          专为移动端定制的 <span
+            class="bg-gradient-to-r from-brand-purple via-violet-400 to-brand-cyan bg-clip-text text-transparent">AI
+            角色扮演</span> 客户端
         </h1>
         <p class="text-slate-400 text-lg sm:text-xl font-normal max-w-2xl mx-auto lg:mx-0" data-i18n="hero_desc">
           打破传统网页版在手机端的使用桎梏。极致的原生手势操作，100% 本地离线隐私，零侵入纯数据驱动，SillyTavern 酒馆角色卡生态无缝接入。
@@ -111,34 +130,47 @@
 
         <!-- CTA Buttons -->
         <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-          <a href="#download" class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-gradient-to-r from-brand-purple to-indigo-600 hover:from-brand-purple hover:to-indigo-500 shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 transition duration-200 text-center flex items-center justify-center space-x-2">
+          <a href="#download"
+            class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-gradient-to-r from-brand-purple to-indigo-600 hover:from-brand-purple hover:to-indigo-500 shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 transition duration-200 text-center flex items-center justify-center space-x-2">
             <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
-              <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.17-1.17c.2-.2.2-.51 0-.71a.498.498 0 0 0-.71 0L14.72 1.56C13.9 1.2 13.01 1 12 1s-1.9.2-2.72.56L8.03.29c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.17 1.17C6.73 3.32 5.5 5.5 5.5 8h13c0-2.5-1.23-4.68-2.97-5.84zM9.5 5c-.41 0-.75-.34-.75-.75s.34-.75.75-.75.75.34.75.75S9.91 5 9.5 5zm5 0c-.41 0-.75-.34-.75-.75s.34-.75.75-.75.75.34.75.75S14.91 5 14.5 5z"/>
+              <path
+                d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.17-1.17c.2-.2.2-.51 0-.71a.498.498 0 0 0-.71 0L14.72 1.56C13.9 1.2 13.01 1 12 1s-1.9.2-2.72.56L8.03.29c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.17 1.17C6.73 3.32 5.5 5.5 5.5 8h13c0-2.5-1.23-4.68-2.97-5.84zM9.5 5c-.41 0-.75-.34-.75-.75s.34-.75.75-.75.75.34.75.75S9.91 5 9.5 5zm5 0c-.41 0-.75-.34-.75-.75s.34-.75.75-.75.75.34.75.75S14.91 5 14.5 5z" />
             </svg>
-            <span data-i18n="hero_btn_dl">下载 Android APK (v1.5.8)</span>
+            <span data-i18n="hero_btn_dl">下载 Android APK (v1.5.9)</span>
           </a>
-          <a href="#guide" class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition duration-200 text-center flex items-center justify-center space-x-2">
+          <a href="#guide"
+            class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition duration-200 text-center flex items-center justify-center space-x-2">
             <span>📖 阅读配置指南</span>
           </a>
         </div>
-        
+
         <!-- Rapid Update Disclaimer -->
         <p class="text-[11px] text-slate-500 font-medium italic mt-2" data-i18n="disclaimer_note">
           * 系统正在飞速更新中，所以页面与截图中的部分 UI 或功能可能与最新版本存在细微出入，请以软件内实际体验为准。
         </p>
 
         <!-- Meta Features -->
-        <div class="flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-6 pt-4 text-xs font-semibold text-slate-500">
+        <div
+          class="flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-6 pt-4 text-xs font-semibold text-slate-500">
           <span class="flex items-center space-x-2">
-            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
             <span data-i18n="meta_free">开源协议 Apache-2.0</span>
           </span>
           <span class="flex items-center space-x-2">
-            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
             <span data-i18n="meta_privacy">100% 本地 IndexedDB 隐私保护</span>
           </span>
           <span class="flex items-center space-x-2">
-            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
             <span data-i18n="meta_offline">完全离线无服务端</span>
           </span>
         </div>
@@ -146,25 +178,36 @@
 
       <!-- Mobile Mockup Right -->
       <div class="lg:col-span-5 flex flex-col items-center justify-center relative pb-12 lg:pb-0">
-        <div class="absolute inset-0 bg-gradient-to-tr from-brand-purple/20 to-brand-cyan/20 rounded-3xl blur-2xl -z-10 pointer-events-none"></div>
+        <div
+          class="absolute inset-0 bg-gradient-to-tr from-brand-purple/20 to-brand-cyan/20 rounded-3xl blur-2xl -z-10 pointer-events-none">
+        </div>
         <!-- Android Container -->
-        <div id="android-container" class="w-[280px] sm:w-[320px] h-[580px] sm:h-[650px] rounded-[36px] border-[8px] border-slate-800 bg-[#0f0f16] shadow-2xl flex flex-col overflow-hidden relative transition-all duration-300">
+        <div id="android-container"
+          class="w-[280px] sm:w-[320px] h-[580px] sm:h-[650px] rounded-[36px] border-[8px] border-slate-800 bg-[#0f0f16] shadow-2xl flex flex-col overflow-hidden relative transition-all duration-300">
           <!-- Android Punch-hole Camera -->
-          <div class="absolute top-3.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-950 rounded-full flex items-center justify-center z-30 ring-1 ring-white/10 shadow-inner">
+          <div
+            class="absolute top-3.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-950 rounded-full flex items-center justify-center z-30 ring-1 ring-white/10 shadow-inner">
             <div class="w-1.5 h-1.5 bg-[#0a1020] rounded-full opacity-80 ring-1 ring-blue-500/20"></div>
           </div>
-          
+
           <!-- Mock Screen Image -->
-          <img id="mock-screenshot" src="./assets/lobby.jpg" class="w-full h-full object-cover select-none pointer-events-none z-10" alt="真机截图预览">
+          <img id="mock-screenshot" src="./assets/lobby.jpg"
+            class="w-full h-full object-cover select-none pointer-events-none z-10" alt="真机截图预览">
         </div>
         <!-- Screenshot Selector Buttons -->
         <div class="mt-6 flex flex-wrap items-center justify-center gap-2 max-w-sm px-4 z-30">
-          <button onclick="setMockScreenshot('lobby', this)" class="px-3 py-1.5 rounded-lg bg-brand-purple text-white text-xs font-bold shadow-md transition active:scale-95 border border-brand-purple/50">角色馆</button>
-          <button onclick="setMockScreenshot('chat', this)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">剧本对白</button>
-          <button onclick="setMockScreenshot('timeline', this)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">故事年表</button>
-          <button onclick="setMockScreenshot('lorebook', this)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">世界设定</button>
-          <button onclick="setMockScreenshot('settings_white', this)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">极简白主题</button>
-          <button onclick="setMockScreenshot('settings_sand', this)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">浅沙色主题</button>
+          <button onclick="setMockScreenshot('lobby', this)"
+            class="px-3 py-1.5 rounded-lg bg-brand-purple text-white text-xs font-bold shadow-md transition active:scale-95 border border-brand-purple/50">角色馆</button>
+          <button onclick="setMockScreenshot('chat', this)"
+            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">剧本对白</button>
+          <button onclick="setMockScreenshot('timeline', this)"
+            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">故事年表</button>
+          <button onclick="setMockScreenshot('lorebook', this)"
+            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">世界设定</button>
+          <button onclick="setMockScreenshot('settings_white', this)"
+            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">极简白主题</button>
+          <button onclick="setMockScreenshot('settings_sand', this)"
+            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">浅沙色主题</button>
         </div>
       </div>
     </div>
@@ -180,68 +223,86 @@
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <!-- Feature 1: Mobile UI -->
-        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+        <div
+          class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
           <div class="space-y-4">
-            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+            <div
+              class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
               📱
             </div>
             <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_mobile_title">极致原生适配</h3>
-            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_mobile_desc">大拇指操作舒适区设计，安全边距适配刘海屏及底部系统栏。前端状态栏无缝变色。</p>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_mobile_desc">
+              大拇指操作舒适区设计，安全边距适配刘海屏及底部系统栏。前端状态栏无缝变色。</p>
           </div>
         </div>
 
         <!-- Feature 2: Privacy -->
-        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+        <div
+          class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
           <div class="space-y-4">
-            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+            <div
+              class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
               🔒
             </div>
             <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_privacy_title">100% 离线隐私</h3>
-            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_privacy_desc">所有数据保存在本机的 IndexedDB 数据库中，不需要后端云服务器保存您的任何对话，保护您的隐私。</p>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_privacy_desc">所有数据保存在本机的 IndexedDB
+              数据库中，不需要后端云服务器保存您的任何对话，保护您的隐私。</p>
           </div>
         </div>
 
         <!-- Feature 3: Parallel Branches -->
-        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+        <div
+          class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
           <div class="space-y-4">
-            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+            <div
+              class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
               🌿
             </div>
             <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_session_title">分支宇宙与平行分支</h3>
-            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_session_desc">创建无限的故事平行分支。支持从任意时间点切出“分支宇宙”，多结局与多结局故事走向随心探索。</p>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_session_desc">
+              创建无限的故事平行分支。支持从任意时间点切出“分支宇宙”，多结局与多结局故事走向随心探索。</p>
           </div>
         </div>
 
         <!-- Feature 4: Lorebooks -->
-        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+        <div
+          class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
           <div class="space-y-4">
-            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+            <div
+              class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
               📖
             </div>
             <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_lore_title">剧情年表与状态追踪</h3>
-            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_lore_desc">自动压缩历史上下文，提炼记忆卡片。支持 Condition 状态、Inventory 道具、Bonding 羁绊多维 RPG 标签。</p>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_lore_desc">自动压缩历史上下文，提炼记忆卡片。支持 Condition
+              状态、Inventory 道具、Bonding 羁绊多维 RPG 标签。</p>
           </div>
         </div>
 
         <!-- Feature 5: Sandbox -->
-        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+        <div
+          class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
           <div class="space-y-4">
-            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+            <div
+              class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
               🚀
             </div>
             <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_sandbox_title">全链路系统运行沙盒</h3>
-            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_sandbox_desc">可视化能量拓扑图与互动模拟小游戏。亲手调试宏替换编译、前缀缓存段切分，体验数据流的跃动。</p>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_sandbox_desc">
+              可视化能量拓扑图与互动模拟小游戏。亲手调试宏替换编译、前缀缓存段切分，体验数据流的跃动。</p>
           </div>
         </div>
 
         <!-- Feature 6: Presets -->
-        <div class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
+        <div
+          class="p-6 rounded-2xl bg-white/2 border border-white/5 hover:border-brand-purple/30 hover:bg-white/5 transition duration-300 group flex flex-col justify-between">
           <div class="space-y-4">
-            <div class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
+            <div
+              class="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center text-brand-purple text-2xl font-bold group-hover:scale-110 transition duration-300">
               🧩
             </div>
             <h3 class="text-lg font-bold text-slate-200" data-i18n="feat_preset_title">颗粒化系统级预设</h3>
-            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_preset_desc">提供底层扮演、Jailbreak破限与Post-History提醒定制，零侵入无主观硬编码，实现纯净兼容。</p>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="feat_preset_desc">
+              提供底层扮演、Jailbreak破限与Post-History提醒定制，零侵入无主观硬编码，实现纯净兼容。</p>
           </div>
         </div>
       </div>
@@ -251,36 +312,46 @@
   <!-- Interactive Parser Showcase -->
   <section id="parser" class="py-24 border-t border-white/5 max-w-7xl mx-auto px-6 relative">
     <div class="text-center max-w-2xl mx-auto mb-16 space-y-4">
-      <h2 class="font-outfit text-3xl sm:text-4xl font-extrabold tracking-tight" data-i18n="parser_header">酒馆角色卡本地解析</h2>
-      <p class="text-slate-400 text-sm sm:text-base" data-i18n="parser_subtitle">我们绝对不上传任何卡片。在浏览器端使用 WebAssembly 级别的解压库快速预览角色卡。</p>
+      <h2 class="font-outfit text-3xl sm:text-4xl font-extrabold tracking-tight" data-i18n="parser_header">酒馆角色卡本地解析
+      </h2>
+      <p class="text-slate-400 text-sm sm:text-base" data-i18n="parser_subtitle">我们绝对不上传任何卡片。在浏览器端使用 WebAssembly
+        级别的解压库快速预览角色卡。</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
       <!-- Upload Drop Zone (Left 5 cols) -->
       <div class="lg:col-span-5 space-y-4">
-        <div id="drop-zone" class="border-2 border-dashed border-white/10 rounded-2xl p-8 bg-white/2 hover:bg-white/5 hover:border-brand-purple/50 transition cursor-pointer text-center relative group flex flex-col items-center justify-center min-h-[260px]">
+        <div id="drop-zone"
+          class="border-2 border-dashed border-white/10 rounded-2xl p-8 bg-white/2 hover:bg-white/5 hover:border-brand-purple/50 transition cursor-pointer text-center relative group flex flex-col items-center justify-center min-h-[260px]">
           <!-- SVG Icon -->
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-slate-500 group-hover:text-brand-purple transition mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          <svg xmlns="http://www.w3.org/2000/svg"
+            class="w-12 h-12 text-slate-500 group-hover:text-brand-purple transition mb-4" fill="none"
+            viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
           </svg>
-          <p class="font-semibold text-sm text-slate-200 group-hover:text-white transition" data-i18n="parser_drop_title">点击或拖放酒馆角色卡至此处</p>
+          <p class="font-semibold text-sm text-slate-200 group-hover:text-white transition"
+            data-i18n="parser_drop_title">点击或拖放酒馆角色卡至此处</p>
           <p class="text-xs text-slate-500 mt-2" data-i18n="parser_drop_sub">支持上传酒馆 .png 角色卡或 .json 格式文件</p>
           <input type="file" id="file-input" class="absolute inset-0 opacity-0 cursor-pointer" accept=".png,.json">
         </div>
-        
+
         <div class="flex justify-between items-center text-xs">
           <span class="text-slate-500" data-i18n="parser_try_label">没有角色卡？试试看演示卡片：</span>
-          <button onclick="loadDemoCard()" class="text-brand-purple hover:underline font-bold" data-i18n="btn_load_sample">加载示例角色卡</button>
+          <button onclick="loadDemoCard()" class="text-brand-purple hover:underline font-bold"
+            data-i18n="btn_load_sample">加载示例角色卡</button>
         </div>
       </div>
 
       <!-- Preview Results (Right 7 cols) -->
       <div class="lg:col-span-7 bg-[#11111b]/80 border border-white/5 rounded-2xl p-6 min-h-[310px] flex flex-col">
-        <h3 class="text-md font-bold text-slate-200 border-b border-white/5 pb-3 mb-4 flex items-center justify-between">
+        <h3
+          class="text-md font-bold text-slate-200 border-b border-white/5 pb-3 mb-4 flex items-center justify-between">
           <span data-i18n="parser_result_title">解析结果预览</span>
-          <span id="parsed-badge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">解析成功</span>
+          <span id="parsed-badge"
+            class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">解析成功</span>
         </h3>
-        
+
         <!-- Empty State -->
         <div id="parser-empty-state" class="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
           <span class="text-3xl mb-2">📥</span>
@@ -290,27 +361,36 @@
         <!-- Render Card Results -->
         <div id="parser-result-data" class="hidden space-y-6">
           <div class="flex items-start space-x-4">
-            <img id="parsed-avatar" class="w-16 h-16 rounded-xl border border-white/10 shadow-lg object-cover" src="" alt="Parsed Avatar">
+            <img id="parsed-avatar" class="w-16 h-16 rounded-xl border border-white/10 shadow-lg object-cover" src=""
+              alt="Parsed Avatar">
             <div class="space-y-1">
               <h4 id="parsed-name" class="text-lg font-bold text-slate-100 font-outfit">莉莉丝</h4>
-              <p class="text-[10px] text-slate-500">版本：<span id="parsed-version">1.0.0</span> · 作者：<span id="parsed-creator">匿名</span></p>
+              <p class="text-[10px] text-slate-500">版本：<span id="parsed-version">1.0.0</span> · 作者：<span
+                  id="parsed-creator">匿名</span></p>
               <div id="parsed-tags" class="flex flex-wrap gap-1 pt-1">
                 <!-- Tags will go here -->
               </div>
             </div>
           </div>
-          
+
           <div class="space-y-3">
             <div class="space-y-1">
-              <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider" data-i18n="col_persona">角色性格描述</span>
-              <p id="parsed-persona" class="text-xs text-slate-300 bg-white/2 border border-white/5 rounded-lg p-3 max-h-24 overflow-y-auto leading-relaxed"></p>
+              <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider"
+                data-i18n="col_persona">角色性格描述</span>
+              <p id="parsed-persona"
+                class="text-xs text-slate-300 bg-white/2 border border-white/5 rounded-lg p-3 max-h-24 overflow-y-auto leading-relaxed">
+              </p>
             </div>
             <div class="space-y-1">
-              <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider" data-i18n="col_greeting">首句问候语</span>
-              <p id="parsed-greeting" class="text-xs text-slate-300 bg-white/2 border border-white/5 rounded-lg p-3 max-h-24 overflow-y-auto leading-relaxed"></p>
+              <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider"
+                data-i18n="col_greeting">首句问候语</span>
+              <p id="parsed-greeting"
+                class="text-xs text-slate-300 bg-white/2 border border-white/5 rounded-lg p-3 max-h-24 overflow-y-auto leading-relaxed">
+              </p>
             </div>
             <div class="space-y-1">
-              <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider" data-i18n="col_lorebook">设定集词条数</span>
+              <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider"
+                data-i18n="col_lorebook">设定集词条数</span>
               <p id="parsed-lore-count" class="text-xs text-slate-300"></p>
             </div>
           </div>
@@ -325,13 +405,18 @@
       <!-- Title -->
       <div class="text-center max-w-2xl mx-auto mb-16 space-y-4">
         <h2 class="font-outfit text-3xl sm:text-4xl font-extrabold tracking-tight">
-          <span class="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">用户游玩与配置指南</span>
+          <span
+            class="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">用户游玩与配置指南</span>
         </h2>
         <p class="text-slate-400 text-sm sm:text-base">从极简上手到深度定制，带你轻松玩转 Mobile-Tavern。</p>
         <div class="pt-2">
-          <a href="./guide.html" target="_blank" class="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold transition">
+          <a href="./guide.html" target="_blank"
+            class="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold transition">
             <span>📄 打开纯净打印/长截图版 (白底)</span>
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
           </a>
         </div>
       </div>
@@ -353,25 +438,30 @@
           <span class="text-2xl">🔰</span>
           <h3 class="text-xl font-bold text-slate-100 font-outfit">第一部分：极简上手指南（新手必看）</h3>
         </div>
-        <p class="text-slate-400 text-sm">本软件是一个纯净的本地 AI 容器，没有内置角色，也不提供免费的 AI 对话。你需要自己准备“大脑（API）”和“灵魂（角色卡）”。跟着下面步骤走，立刻开始聊天！</p>
+        <p class="text-slate-400 text-sm">本软件是一个纯净的本地 AI 容器，没有内置角色，也不提供免费的 AI
+          对话。你需要自己准备“大脑（API）”和“灵魂（角色卡）”。跟着下面步骤走，立刻开始聊天！</p>
 
         <!-- Step 0: Download -->
         <div class="space-y-4">
           <h4 class="text-md font-bold text-teal-400 flex items-center space-x-2">
-            <span class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">0</span>
+            <span
+              class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">0</span>
             <span>第零步：下载与安装软件</span>
           </h4>
           <p class="text-slate-400 text-xs">请根据你的网络环境，选择以下任意一种方式下载或者扫码获取最新版的 APK 安装包：</p>
-          
+
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <!-- DL Item 1 -->
-            <div class="p-5 rounded-2xl bg-white/2 border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition flex flex-col justify-between space-y-4">
+            <div
+              class="p-5 rounded-2xl bg-white/2 border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition flex flex-col justify-between space-y-4">
               <div class="space-y-2">
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">方式一</span>
+                <span
+                  class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">方式一</span>
                 <h5 class="text-sm font-bold text-slate-200">蓝奏云下载 (国内首选)</h5>
                 <p class="text-[11px] text-slate-400">国内首选，速度最快</p>
                 <div class="text-xs text-slate-300">
-                  链接：<a href="https://wwavp.lanzout.com/iyvFp3rsy6ti" target="_blank" class="text-brand-cyan hover:underline font-semibold">点击前往</a><br>
+                  链接：<a href="https://wwavp.lanzout.com/iyvFp3rsy6ti" target="_blank"
+                    class="text-brand-cyan hover:underline font-semibold">点击前往</a><br>
                   提取码：<code class="px-1.5 py-0.5 rounded bg-white/5 text-rose-400 text-[11px] font-mono">cfa3</code>
                 </div>
               </div>
@@ -380,15 +470,19 @@
                 <span class="text-[10px] text-slate-500 mt-2">长按或扫码下载</span>
               </div>
             </div>
-            
+
             <!-- DL Item 2 -->
-            <div class="p-5 rounded-2xl bg-white/2 border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition flex flex-col justify-between space-y-4">
+            <div
+              class="p-5 rounded-2xl bg-white/2 border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition flex flex-col justify-between space-y-4">
               <div class="space-y-2">
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">方式二</span>
+                <span
+                  class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">方式二</span>
                 <h5 class="text-sm font-bold text-slate-200">GitHub 加加速代理</h5>
                 <p class="text-[11px] text-slate-400">国内备用通道</p>
                 <div class="text-xs text-slate-300">
-                  链接：<a href="https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk" target="_blank" class="text-brand-cyan hover:underline font-semibold">加速代理下载</a>
+                  链接：<a
+                    href="https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk"
+                    target="_blank" class="text-brand-cyan hover:underline font-semibold">加速代理下载</a>
                 </div>
               </div>
               <div class="flex flex-col items-center pt-2 border-t border-white/5">
@@ -398,13 +492,17 @@
             </div>
 
             <!-- DL Item 3 -->
-            <div class="p-5 rounded-2xl bg-white/2 border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition flex flex-col justify-between space-y-4">
+            <div
+              class="p-5 rounded-2xl bg-white/2 border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition flex flex-col justify-between space-y-4">
               <div class="space-y-2">
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">方式三</span>
+                <span
+                  class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">方式三</span>
                 <h5 class="text-sm font-bold text-slate-200">GitHub 官方直链</h5>
                 <p class="text-[11px] text-slate-400">需良好网络环境</p>
                 <div class="text-xs text-slate-300">
-                  链接：<a href="https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk" target="_blank" class="text-brand-cyan hover:underline font-semibold">官方直链下载</a>
+                  链接：<a
+                    href="https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk"
+                    target="_blank" class="text-brand-cyan hover:underline font-semibold">官方直链下载</a>
                 </div>
               </div>
               <div class="flex flex-col items-center pt-2 border-t border-white/5">
@@ -418,24 +516,32 @@
         <!-- Step 1: Brain -->
         <div class="space-y-4">
           <h4 class="text-md font-bold text-teal-400 flex items-center space-x-2">
-            <span class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">1</span>
+            <span
+              class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">1</span>
             <span>第一步：配置“大脑”（接入 API）</span>
           </h4>
           <div class="p-5 rounded-2xl bg-white/2 border border-white/5 space-y-3">
-            <div class="flex items-center space-x-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg w-max">
+            <div
+              class="flex items-center space-x-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg w-max">
               <span>💡 推荐：新手推荐使用 DeepSeek（便宜且足够好用）</span>
             </div>
             <ol class="list-decimal pl-5 space-y-2 text-xs sm:text-sm text-slate-300">
-              <li><strong>获取密钥</strong>：前往 <a href="https://platform.deepseek.com/" target="_blank" class="text-brand-cyan hover:underline font-semibold">DeepSeek 开放平台</a> 注册账号，创建一个 API Key（以 <code class="px-1 py-0.5 rounded bg-white/5 text-rose-400 font-mono">sk-</code> 开头的一串字符）。</li>
+              <li><strong>获取密钥</strong>：前往 <a href="https://platform.deepseek.com/" target="_blank"
+                  class="text-brand-cyan hover:underline font-semibold">DeepSeek 开放平台</a> 注册账号，创建一个 API Key（以 <code
+                  class="px-1 py-0.5 rounded bg-white/5 text-rose-400 font-mono">sk-</code> 开头的一串字符）。</li>
               <li><strong>填入软件</strong>：
                 <ul class="list-disc pl-5 mt-1 space-y-1 text-slate-400">
                   <li>打开 APP，点击底部最右侧的 <strong>【系统设置】</strong>。</li>
                   <li>找到 <strong>【接口配置】</strong>，接口类型选择 <strong>【OpenAI 兼容接口】</strong>。</li>
-                  <li><strong>Base URL</strong> 填入：<code class="px-1 py-0.5 rounded bg-white/5 text-rose-400 font-mono">https://api.deepseek.com/v1</code></li>
+                  <li><strong>Base URL</strong> 填入：<code
+                      class="px-1 py-0.5 rounded bg-white/5 text-rose-400 font-mono">https://api.deepseek.com/v1</code>
+                  </li>
                   <li><strong>API Key</strong> 填入你刚才复制的密钥。</li>
                 </ul>
               </li>
-              <li><strong>连接测试</strong>：点击 <strong>【获取模型列表】</strong>，选择 <code class="px-1 py-0.5 rounded bg-white/5 text-brand-purple font-mono">deepseek-chat</code>。然后点击 <strong>【测试连接】</strong>，提示成功即可！</li>
+              <li><strong>连接测试</strong>：点击 <strong>【获取模型列表】</strong>，选择 <code
+                  class="px-1 py-0.5 rounded bg-white/5 text-brand-purple font-mono">deepseek-chat</code>。然后点击
+                <strong>【测试连接】</strong>，提示成功即可！</li>
             </ol>
           </div>
         </div>
@@ -443,15 +549,19 @@
         <!-- Step 2: Soul -->
         <div class="space-y-4">
           <h4 class="text-md font-bold text-teal-400 flex items-center space-x-2">
-            <span class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">2</span>
+            <span
+              class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">2</span>
             <span>第二步：注入“灵魂”（导入角色卡）</span>
           </h4>
           <div class="p-5 rounded-2xl bg-white/2 border border-white/5 space-y-3">
-            <div class="flex items-center space-x-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg w-max">
+            <div
+              class="flex items-center space-x-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg w-max">
               <span>💡 生态兼容：完全兼容 SillyTavern 生态 (V2 Spec)</span>
             </div>
             <ol class="list-decimal pl-5 space-y-2 text-xs sm:text-sm text-slate-300">
-              <li><strong>找卡</strong>：前往 <a href="https://chub.ai" target="_blank" class="text-brand-cyan hover:underline font-semibold">Chub.ai</a> 等网站，下载你喜欢的角色卡（必须是 <strong>.png 图片格式</strong> 或 <strong>.json 文本格式</strong>）。</li>
+              <li><strong>找卡</strong>：前往 <a href="https://chub.ai" target="_blank"
+                  class="text-brand-cyan hover:underline font-semibold">Chub.ai</a> 等网站，下载你喜欢的角色卡（必须是 <strong>.png
+                  图片格式</strong> 或 <strong>.json 文本格式</strong>）。</li>
               <li><strong>导入</strong>：打开 APP，点击底部的 <strong>【角色名录】</strong> -> <strong>【导入角色卡】</strong>，选择你下载的文件。</li>
               <li><strong>开聊</strong>：点击刚导入的角色，进入 <strong>【聊天对话】</strong> 界面，发送你的第一句话吧！</li>
             </ol>
@@ -461,14 +571,16 @@
         <!-- Step 3: Backup -->
         <div class="space-y-4">
           <h4 class="text-md font-bold text-teal-400 flex items-center space-x-2">
-            <span class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">3</span>
+            <span
+              class="w-5 h-5 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs">3</span>
             <span>第三步：数据防丢失</span>
           </h4>
           <div class="p-5 rounded-2xl border border-rose-500/20 bg-rose-500/5 text-slate-300 space-y-2">
             <div class="font-semibold text-rose-400 text-xs sm:text-sm flex items-center space-x-2">
               <span>🚨 数据备份（极其重要）：</span>
             </div>
-            <p class="text-xs sm:text-sm text-slate-400">你的所有聊天记录和角色卡都<strong>物理保存在手机本地</strong>。卸载 APP 或换手机会导致数据彻底清空！请务必在 <strong>【系统设置】->【数据管理】</strong> 中，定期点击 <strong>【导出备份】</strong> 并妥善保存文件。</p>
+            <p class="text-xs sm:text-sm text-slate-400">你的所有聊天记录和角色卡都<strong>物理保存在手机本地</strong>。卸载 APP
+              或换手机会导致数据彻底清空！请务必在 <strong>【系统设置】->【数据管理】</strong> 中，定期点击 <strong>【导出备份】</strong> 并妥善保存文件。</p>
           </div>
         </div>
       </div>
@@ -479,7 +591,7 @@
           <span class="text-2xl">🚀</span>
           <h3 class="text-xl font-bold text-slate-100 font-outfit">第二部分：详细配置指南（进阶玩家参考）</h3>
         </div>
-        
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <!-- Item 1: Tabs -->
           <div class="p-5 rounded-2xl bg-white/2 border border-white/5 space-y-3">
@@ -525,7 +637,8 @@
                 <ol class="list-decimal pl-5 text-[11px] text-slate-400 space-y-1">
                   <li>确保手机与电脑在<strong>同一个局域网 (WiFi)</strong>。</li>
                   <li>Base URL 填入本地局域网监听地址 (如 <code>http://192.168.1.100:11434</code>)。</li>
-                  <li><strong>重要安全限制 (CORS 跨域)</strong>：由于 WebView 同源策略，本地 Ollama 启动时需添加环境变量 <code>OLLAMA_ORIGINS=*</code> 并重启 Ollama。</li>
+                  <li><strong>重要安全限制 (CORS 跨域)</strong>：由于 WebView 同源策略，本地 Ollama 启动时需添加环境变量
+                    <code>OLLAMA_ORIGINS=*</code> 并重启 Ollama。</li>
                 </ol>
               </div>
             </div>
@@ -566,18 +679,23 @@
       </div>
 
       <!-- Action Box -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center bg-[#11111b]/80 border border-white/5 rounded-3xl p-8 max-w-3xl mx-auto shadow-2xl relative overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-tr from-brand-purple/5 to-brand-cyan/5 -z-10 pointer-events-none"></div>
+      <div
+        class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center bg-[#11111b]/80 border border-white/5 rounded-3xl p-8 max-w-3xl mx-auto shadow-2xl relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-tr from-brand-purple/5 to-brand-cyan/5 -z-10 pointer-events-none">
+        </div>
 
         <!-- Left: Button -->
         <div class="flex flex-col items-center justify-center space-y-4 w-full">
           <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider">直接下载 APK 文件</div>
-          <a href="https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk" target="_blank" class="w-full px-6 py-4 rounded-xl font-bold bg-gradient-to-r from-brand-purple to-indigo-600 hover:from-brand-purple hover:to-indigo-500 shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 transition duration-200 flex items-center justify-center space-x-3">
+          <a href="https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk"
+            target="_blank"
+            class="w-full px-6 py-4 rounded-xl font-bold bg-gradient-to-r from-brand-purple to-indigo-600 hover:from-brand-purple hover:to-indigo-500 shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 transition duration-200 flex items-center justify-center space-x-3">
             <svg class="w-6 h-6 fill-current text-white shrink-0" viewBox="0 0 24 24">
-              <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.17-1.17c.2-.2.2-.51 0-.71a.498.498 0 0 0-.71 0L14.72 1.56C13.9 1.2 13.01 1 12 1s-1.9.2-2.72.56L8.03.29c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.17 1.17C6.73 3.32 5.5 5.5 5.5 8h13c0-2.5-1.23-4.68-2.97-5.84zM9.5 5c-.41 0-.75-.34-.75-.75s.34-.75.75-.75.75.34.75.75S9.91 5 9.5 5zm5 0c-.41 0-.75-.34-.75-.75s.34-.75.75-.75.75.34.75.75S14.91 5 14.5 5z"/>
+              <path
+                d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.17-1.17c.2-.2.2-.51 0-.71a.498.498 0 0 0-.71 0L14.72 1.56C13.9 1.2 13.01 1 12 1s-1.9.2-2.72.56L8.03.29c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.17 1.17C6.73 3.32 5.5 5.5 5.5 8h13c0-2.5-1.23-4.68-2.97-5.84zM9.5 5c-.41 0-.75-.34-.75-.75s.34-.75.75-.75.75.34.75.75S9.91 5 9.5 5zm5 0c-.41 0-.75-.34-.75-.75s.34-.75.75-.75.75.34.75.75S14.91 5 14.5 5z" />
             </svg>
             <div class="flex flex-col items-start leading-tight">
-              <span class="text-base text-white font-bold">下载 Android APK (v1.5.8)</span>
+              <span class="text-base text-white font-bold">下载 Android APK (v1.5.9)</span>
               <span class="text-[10px] text-white/70 font-normal mt-0.5">安全无毒 · 满速分流</span>
             </div>
           </a>
@@ -585,10 +703,12 @@
         </div>
 
         <!-- Right: QR Code (Hidden on mobile, visible on desktop) -->
-        <div class="hidden md:flex flex-col items-center justify-center space-y-4 md:border-l md:pl-8 pt-8 md:pt-0 border-white/5">
+        <div
+          class="hidden md:flex flex-col items-center justify-center space-y-4 md:border-l md:pl-8 pt-8 md:pt-0 border-white/5">
           <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider">手机扫码一键下载</div>
           <div class="p-3 bg-white rounded-2xl shadow-lg border border-slate-700">
-            <img id="qr-image" class="w-32 h-32" src="./download-qr.png" alt="QR Code" onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk'">
+            <img id="qr-image" class="w-32 h-32" src="./download-qr.png" alt="QR Code"
+              onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk'">
           </div>
           <p class="text-[10px] text-slate-500 leading-normal max-w-[200px]">使用手机扫码，直接在手机端下载最新版 APK，体验极速原生快感。</p>
         </div>
@@ -620,7 +740,7 @@
       if (img) {
         img.src = `./assets/${key}.jpg`;
       }
-      
+
       // Update button active styles
       if (btn) {
         const buttons = btn.parentElement.querySelectorAll('button');
@@ -673,7 +793,7 @@
 
       const reader = new FileReader();
       if (file.name.endsWith('.json')) {
-        reader.onload = function(e) {
+        reader.onload = function (e) {
           try {
             const data = JSON.parse(e.target.result);
             renderParsedCard(data.data ? data.data : data, null);
@@ -683,14 +803,14 @@
         };
         reader.readAsText(file);
       } else if (file.name.endsWith('.png')) {
-        reader.onload = function(e) {
+        reader.onload = function (e) {
           try {
             const buffer = e.target.result;
             const parsedData = extractPngMetadata(buffer);
-            
+
             // Read image as DataUrl to render as avatar
             const avatarReader = new FileReader();
-            avatarReader.onloadend = function() {
+            avatarReader.onloadend = function () {
               renderParsedCard(parsedData, avatarReader.result);
             };
             avatarReader.readAsDataURL(file);
@@ -721,7 +841,7 @@
         if (offset + 12 + length > arrayBuffer.byteLength) {
           throw new Error("Corrupt PNG file: Chunk data length overflow.");
         }
-        
+
         const chunkType = String.fromCharCode(
           uint8[offset + 4],
           uint8[offset + 5],
@@ -760,7 +880,7 @@
               scan++; // language tag
               while (scan < chunkData.length && chunkData[scan] !== 0) scan++;
               scan++; // translated keyword
-              
+
               const textBytes = chunkData.slice(scan);
               if (compressionFlag === 1) {
                 const decompressed = window.fflate.unzlibSync(textBytes);
@@ -802,7 +922,7 @@
       document.getElementById('parsed-name').textContent = charName;
       document.getElementById('parsed-version').textContent = chara.character_version || chara.version || "1.0.0";
       document.getElementById('parsed-creator').textContent = chara.creator || chara.creator_notes || "匿名";
-      
+
       const descText = chara.description || chara.char_persona || chara.persona || "未提供性格描述。";
       const greetText = chara.first_mes || chara.char_greeting || chara.greeting || "未提供首句问候语。";
       document.getElementById('parsed-persona').textContent = descText;
@@ -852,4 +972,5 @@
     }
   </script>
 </body>
+
 </html>
