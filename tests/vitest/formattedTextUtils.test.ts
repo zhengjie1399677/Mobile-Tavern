@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "../../src/components/formattedTextUtils";
+import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml, escapeHtml } from "../../src/components/formattedTextUtils";
 
 // ============================================================================
 // parseStyleString
@@ -215,5 +215,81 @@ describe("convertMarkdownTablesToHtml", () => {
 
   it("空字符串输入原样返回", () => {
     expect(convertMarkdownTablesToHtml("")).toBe("");
+  });
+
+  // ============================================================================
+  // XSS 防护测试（缺陷 #2 修复验证）
+  // ============================================================================
+
+  it("表头中的 HTML 标签被转义为实体，防止 XSS 注入", () => {
+    const input = `| <script>alert('xss')</script> | 数据 |
+|------|------|
+| 1 | 2 |`;
+    const result = convertMarkdownTablesToHtml(input);
+    // 原始 <script> 标签不得出现在生成的 HTML 中
+    expect(result).not.toContain("<script>alert('xss')</script>");
+    // 应当被转义为实体
+    expect(result).toContain("&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;");
+  });
+
+  it("单元格中的 HTML 标签被转义为实体，防止 XSS 注入", () => {
+    const input = `| 标题 |
+|------|
+| <img src=x onerror=alert(1)> |`;
+    const result = convertMarkdownTablesToHtml(input);
+    // 原始 <img> 标签不得出现在生成的 HTML 中
+    expect(result).not.toContain("<img src=x onerror=alert(1)>");
+    // 应当被转义为实体
+    expect(result).toContain("&lt;img src=x onerror=alert(1)&gt;");
+  });
+
+  it("单元格中的双引号和单引号被转义，防止属性注入", () => {
+    const input = `| 标题 |
+|------|
+| "quoted" 'single' |`;
+    const result = convertMarkdownTablesToHtml(input);
+    expect(result).toContain("&quot;quoted&quot;");
+    expect(result).toContain("&#39;single&#39;");
+  });
+
+  it("单元格中的 & 符号被转义为 &amp;，防止实体注入", () => {
+    const input = `| 标题 |
+|------|
+| A & B |`;
+    const result = convertMarkdownTablesToHtml(input);
+    expect(result).toContain("A &amp; B");
+    expect(result).not.toMatch(/A & B(?<!;)/); // 不应出现未转义的 & 后跟空格
+  });
+});
+
+// ============================================================================
+// escapeHtml
+// ============================================================================
+
+describe("escapeHtml", () => {
+  it("转义 < > & \" ' 五个核心字符", () => {
+    expect(escapeHtml(`<div class="a">'b'</div>`)).toBe("&lt;div class=&quot;a&quot;&gt;&#39;b&#39;&lt;/div&gt;");
+  });
+
+  it("转义 & 符号", () => {
+    expect(escapeHtml("Tom & Jerry")).toBe("Tom &amp; Jerry");
+  });
+
+  it("空字符串和 null/undefined 安全返回空串", () => {
+    expect(escapeHtml("")).toBe("");
+    expect(escapeHtml(null as any)).toBe("");
+    expect(escapeHtml(undefined as any)).toBe("");
+  });
+
+  it("非字符串输入被转换为字符串后转义", () => {
+    expect(escapeHtml(123 as any)).toBe("123");
+  });
+
+  it("多个连续特殊字符全部转义", () => {
+    expect(escapeHtml("<<<>>>")).toBe("&lt;&lt;&lt;&gt;&gt;&gt;");
+  });
+
+  it("无特殊字符的普通文本原样返回", () => {
+    expect(escapeHtml("Hello World 你好世界")).toBe("Hello World 你好世界");
   });
 });

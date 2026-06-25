@@ -49,6 +49,7 @@ export function FloatingCat() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState("");
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [position, setPosition] = useState(() => {
     if (typeof window !== "undefined") {
       return { x: window.innerWidth - 72, y: window.innerHeight * 0.6 };
@@ -84,6 +85,19 @@ export function FloatingCat() {
         clearTimeout(longPressTimer.current);
       }
     };
+  }, []);
+
+  // 键盘弹出时隐藏挂件，避免遮挡输入框（CR-09）
+  useEffect(() => {
+    const vvp = window.visualViewport;
+    if (!vvp) return;
+    const handleResize = () => {
+      const threshold = Math.min(window.innerHeight * 0.15, 100);
+      setIsKeyboardOpen(window.innerHeight - vvp.height > threshold);
+    };
+    vvp.addEventListener("resize", handleResize);
+    handleResize();
+    return () => vvp.removeEventListener("resize", handleResize);
   }, []);
 
   // 异步预加载并处理 4 张大表情图
@@ -294,6 +308,9 @@ export function FloatingCat() {
 
   const activeExpression: CatExpression = (isOpen && (expression === "sleepy" || expression === "sleep")) ? "idle" : expression;
   const currentProcessedSrc = processedImages[activeExpression] || processedImages.idle || "";
+
+  // 键盘弹出且挂件面板未打开时，隐藏挂件避免遮挡输入框（CR-09）
+  if (isKeyboardOpen && !isOpen) return null;
 
   return (
     <>

@@ -32,6 +32,22 @@ export default function MainLayout() {
     return () => vvp.removeEventListener("resize", handleResize);
   }, []);
 
+  // 全局输入框聚焦滚动保障（KB-04/KB-05）：监听 document 的 focusin 事件，
+  // 当任意 input/textarea 获得焦点时，延迟将其滚动到可见区域中央，
+  // 解决页面级输入框在软键盘弹出时被遮挡的问题。
+  React.useEffect(() => {
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+        setTimeout(() => {
+          target.scrollIntoView({ block: "center", behavior: "smooth" });
+        }, 300);
+      }
+    };
+    document.addEventListener("focusin", handleFocusIn);
+    return () => document.removeEventListener("focusin", handleFocusIn);
+  }, []);
+
   const tabs = globalKernel.getExtensions("main:tabs");
   const bottomBarTabs = tabs.filter(t => t.meta?.showInBottomBar);
 
@@ -47,7 +63,7 @@ export default function MainLayout() {
       <SplashScreen isVisible={showSplash} />
       <div
         style={viewportHeight ? { height: `${viewportHeight}px` } : undefined}
-        className={`flex flex-col h-[100dvh] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans ${
+        className={`flex flex-col h-[100dvh] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] ${
         activeTab === "chat" || activeTab === "playground" ? "pt-0" : "pt-[var(--safe-area-top)]"
       }`}>
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}

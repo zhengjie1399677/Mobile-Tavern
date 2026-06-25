@@ -6,6 +6,22 @@
  */
 
 /**
+ * HTML 实体转义
+ *
+ * 将可能引发 XSS 注入的字符（< > & " '）转换为对应的 HTML 实体，
+ * 用于在将动态文本插入 HTML 上下文（如表格单元格）前进行安全清洗。
+ */
+export function escapeHtml(input: string): string {
+  if (input == null) return "";
+  return String(input)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * 解析 CSS 内联样式字符串为对象
  *
  * 安全过滤：自动拦截 `javascript:` / `expression` / `behaviour` 等恶意值。
@@ -113,7 +129,8 @@ export function convertMarkdownTablesToHtml(text: string): string {
         let tableHtml = `<table class="mvu-markdown-table"><thead><tr>`;
         headers.forEach((h, idx) => {
           const align = alignments[idx] || "left";
-          tableHtml += `<th style="text-align: ${align}">${h}</th>`;
+          // 对表头内容进行 HTML 实体转义，防止 XSS 注入
+          tableHtml += `<th style="text-align: ${align}">${escapeHtml(h)}</th>`;
         });
         tableHtml += `</tr></thead><tbody>`;
 
@@ -127,7 +144,8 @@ export function convertMarkdownTablesToHtml(text: string): string {
             for (let cIdx = 0; cIdx < headers.length; cIdx++) {
               const cellVal = cells[cIdx] || "";
               const align = alignments[cIdx] || "left";
-              tableHtml += `<td style="text-align: ${align}">${cellVal}</td>`;
+              // 对单元格内容进行 HTML 实体转义，防止 XSS 注入
+              tableHtml += `<td style="text-align: ${align}">${escapeHtml(cellVal)}</td>`;
             }
             tableHtml += `</tr>`;
             i++;

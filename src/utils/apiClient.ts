@@ -31,36 +31,12 @@ export function cleanRequestPayload(
 ): Record<string, any> | undefined {
   if (!reqBody) return reqBody;
 
-  const urlLower = (baseUrl || "").toLowerCase();
-  const modelLower = (reqBody.model || "").toLowerCase();
   const cleaned = { ...reqBody };
 
-  if (urlLower.includes("openrouter.ai")) {
-    return cleaned;
-  }
-
-  const isDeepSeek = urlLower.includes("deepseek.com") || 
-                     modelLower.includes("deepseek");
-
-  delete cleaned.top_k;
-  delete cleaned.min_p;
-
-  if (!isDeepSeek) {
-    delete cleaned.repetition_penalty;
-  }
-
-  const supportsStreamOptions =
-    urlLower.includes("api.openai.com") ||
-    urlLower.includes("deepseek.com") ||
-    urlLower.includes("dashscope.aliyuncs.com") ||
-    urlLower.includes("siliconflow.cn") ||
-    modelLower.startsWith("deepseek-");
-
-  if (!supportsStreamOptions) {
-    delete cleaned.max_completion_tokens;
-    delete cleaned.stream_options;
-  }
-
+  // 兼容性策略（CR-URLFIX）：默认透传所有参数，信任 OpenAI 兼容中转站会忽略未知字段。
+  // 仅保留 max_completion_tokens 与 max_tokens 的互斥逻辑：
+  // OpenAI 新 API 使用 max_completion_tokens，若同时存在则移除旧的 max_tokens，
+  // 避免部分严格 API 同时收到两者报 400 错误。
   if (cleaned.max_completion_tokens !== undefined) {
     delete cleaned.max_tokens;
   }

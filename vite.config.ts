@@ -19,13 +19,25 @@ export default defineConfig(() => {
       chunkSizeWarningLimit: 800,
       rollupOptions: {
         output: {
-          manualChunks: {
+          // 统一使用函数形式 manualChunks，避免对象与函数形式冲突
+          // 符合 AGENTS.md 准则一第 2 条「物理层数据严格解耦与隔离」
+          manualChunks(id) {
             // MVU 运行时依赖分离 — 仅在使用 MVU 脚本角色卡时才需要加载
-            'mvu-vendor': ['vue', 'pinia', 'jquery', 'mathjs'],
+            if (id.includes('node_modules/vue') || id.includes('node_modules/pinia') || id.includes('node_modules/jquery') || id.includes('node_modules/mathjs')) {
+              return 'mvu-vendor';
+            }
             // lodash 全量导入分离，避免污染主 bundle
-            'lodash-vendor': ['lodash'],
+            if (id.includes('node_modules/lodash')) {
+              return 'lodash-vendor';
+            }
             // React 核心
-            'react-vendor': ['react', 'react-dom'],
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'react-vendor';
+            }
+            // 将内置角色卡图片数据模块分离到独立 chunk
+            if (id.includes('builtInCharactersImages')) {
+              return 'builtin-characters-images';
+            }
           },
         },
       },

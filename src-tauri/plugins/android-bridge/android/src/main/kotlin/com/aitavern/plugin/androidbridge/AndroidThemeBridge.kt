@@ -1,0 +1,457 @@
+package com.aitavern.plugin.androidbridge
+
+import android.app.Activity
+import android.content.ContentValues
+import android.graphics.Color
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.util.Base64
+import android.util.Log
+import android.view.View
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.widget.Toast
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStream
+
+/**
+ * Native bridge injected into the WebView as `window.AndroidThemeBridge`.
+ *
+ * The class is referenced from the frontend through
+ * `(window as any).AndroidThemeBridge` and exposes four synchronous
+ * `@JavascriptInterface` methods. The call contract (method names, argument
+ * order, return types) MUST stay backwards compatible with the existing
+ * frontend code in `src/contexts/AppContext.tsx`, `src/hooks/useCharacters.ts`,
+ * `src/hooks/useSettings.ts` and `src/tabs/GlobalWorldbookTab.tsx`.
+ *
+ * Fixes applied compared to the previous gen/android implementation:
+ *  - CR-01: `saveFile` / `saveFileBase64` now use the `MediaStore.Downloads`
+ *    API on Android 10+ (API 29+), which works under Scoped Storage without
+ *    requiring `WRITE_EXTERNAL_STORAGE`. The legacy
+ *    `Environment.getExternalStoragePublicDirectory()` path is kept only as a
+ *    best-effort fallback for Android 9 and below (minSdk = 24).
+ *  - `saveFile` / `saveFileBase64` now return a String path (or an `error:`
+ *    prefixed message) instead of `void`, matching what the frontend expects.
+ *  - `getSafeAreas` now also reports `left` / `right` insets in addition to
+ *    `top` / `bottom`.
+ */
+class AndroidThemeBridge(
+    private val activity: Activity,
+    private val webView: WebView,
+) {
+
+    companion object {
+        private const val TAG = "TavernThemeBridge"
+
+        /**
+         * Public Download relative path used by the MediaStore. Files written
+         * through this collection appear in the user-visible
+         * `/Download/Mobile Tavern/` folder, which is consistent with the
+         * user-facing messages emitted by the frontend.
+         */
+        private const val DOWNLOAD_RELATIVE_SUBDIR = "Download/Mobile Tavern/"
+    }
+
+    // ---------------------------------------------------------------------
+    // Safe areas
+    // ---------------------------------------------------------------------
+
+    /**
+     * Return the current stable system-bar insets (status bar + navigation
+     * bar) in density-independent pixels as a JSON string of the shape:
+     *
+     *   { "top": <dp>, "bottom": <dp>, "left": <dp>, "right": <dp> }
+     *
+     * The frontend parses this with `JSON.parse` and applies the values to
+     * CSS custom properties. `left` / `right` are added by this version of
+     * the bridge to support landscape / foldable layouts.
+     *
+     * The method is synchronous (called directly from JS), so it must not
+     * perform any long-running or blocking work.
+     */
+    @JavascriptInterface
+    fun getSafeAreas(): String {
+        val json = JSONObject()
+        val density = activity.resources.displayMetrics.density
+        if (density <= 0f) {
+            // Defensive fallback: should never happen on a real device.
+            json.put("top", 0)
+            json.put("bottom", 0)
+            json.put("left", 0)
+            json.put("right", 0)
+            return json.toString()
+        }
+
+        // 1. Status bar height via the official system resource. This is the
+        //    most reliable source on every API level and matches what the
+        //    previous implementation used.
+        val statusResourceId = activity.resources.getIdentifier(
+            "status_bar_height", "dimen", "android"
+        )
+        val topPx = if (statusResourceId > 0) {
+            activity.resources.getDimensionPixelSize(statusResourceId)
+        } else {
+            0
+        }
+
+        // 2. Navigation bar / system gestures insets via WindowInsetsCompat.
+        //    We read from the root view's stable insets to avoid being
+        //    affected by the IME (keyboard) which is handled separately by
+        //    the WebView's adjustResize mode.
+        var bottomPx = 0
+        var leftPx = 0
+        var rightPx = 0
+        var insetsResolved = false
+
+        val rootView = activity.window.decorView.rootView
+        val rawInsets = rootView.rootWindowInsets
+        if (rawInsets != null) {
+            val compatInsets = WindowInsetsCompat.toWindowInsetsCompat(rawInsets, rootView)
+            val systemBars = compatInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout()
+            )
+            bottomPx = systemBars.bottom
+            leftPx = systemBars.left
+            rightPx = systemBars.right
+            insetsResolved = bottomPx != 0 || leftPx != 0 || rightPx != 0
+        }
+
+        // 3. Fallback for the bottom inset on devices where the WindowInsets
+        //    are not yet available (very early in the layout pass). We compute
+        //    the difference between the real and usable display height.
+        if (!insetsResolved) {
+            try {
+                @Suppress("DEPRECATION")
+                val display = activity.windowManager.defaultDisplay
+                @Suppress("DEPRECATION")
+                val realMetrics = android.util.DisplayMetrics()
+                @Suppress("DEPRECATION")
+                display.getRealMetrics(realMetrics)
+                @Suppress("DEPRECATION")
+                val displayMetrics = android.util.DisplayMetrics()
+                @Suppress("DEPRECATION")
+                display.getMetrics(displayMetrics)
+                bottomPx = Math.max(0, realMetrics.heightPixels - displayMetrics.heightPixels)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to compute fallback bottom inset", e)
+            }
+        }
+
+        val topDp = (topPx / density).toInt()
+        val bottomDp = (bottomPx / density).toInt()
+        val leftDp = (leftPx / density).toInt()
+        val rightDp = (rightPx / density).toInt()
+
+        json.put("top", topDp)
+        json.put("bottom", bottomDp)
+        json.put("left", leftDp)
+        json.put("right", rightDp)
+        return json.toString()
+    }
+
+    /**
+     * Push the current safe-area insets into the frontend by dispatching a
+     * `androidSafeAreasChanged` CustomEvent on `window`. Called from the
+     * WebView's `OnApplyWindowInsetsListener` installed by
+     * [AndroidBridgePlugin].
+     */
+    fun dispatchSafeAreasChanged(view: View, insets: android.view.WindowInsets) {
+        val density = activity.resources.displayMetrics.density
+        if (density <= 0f) return
+
+        val compatInsets = WindowInsetsCompat.toWindowInsetsCompat(insets, view)
+        val systemBars = compatInsets.getInsets(
+            WindowInsetsCompat.Type.systemBars() or
+                WindowInsetsCompat.Type.displayCutout()
+        )
+
+        val statusResourceId = activity.resources.getIdentifier(
+            "status_bar_height", "dimen", "android"
+        )
+        val topPx = if (statusResourceId > 0) {
+            activity.resources.getDimensionPixelSize(statusResourceId)
+        } else {
+            systemBars.top
+        }
+
+        val topDp = (topPx / density).toInt()
+        val bottomDp = (systemBars.bottom / density).toInt()
+        val leftDp = (systemBars.left / density).toInt()
+        val rightDp = (systemBars.right / density).toInt()
+
+        Log.d(
+            TAG,
+            "onApplyWindowInsets: topDp=$topDp, bottomDp=$bottomDp, leftDp=$leftDp, rightDp=$rightDp"
+        )
+
+        // The WebView padding is left at zero: the host app already configures
+        // `android:windowSoftInputMode="adjustResize"` and applies its own
+        // CSS safe-area insets, so adding padding here would double-shrink
+        // the layout.
+        view.setPadding(0, 0, 0, 0)
+
+        val js = (
+            "window.dispatchEvent(new CustomEvent('androidSafeAreasChanged', " +
+                "{ detail: { top: $topDp, bottom: $bottomDp, left: $leftDp, right: $rightDp } }));"
+            )
+        webView.post {
+            webView.evaluateJavascript(js, null)
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Status bar styling
+    // ---------------------------------------------------------------------
+
+    /**
+     * Update the system status bar (and navigation bar) background colour and
+     * icon appearance.
+     *
+     * @param isDark when `true` the status bar icons are forced to be light
+     *     (white) so they remain visible on dark backgrounds; when `false` the
+     *     icons are forced to be dark (black).
+     * @param colorHex the desired status bar background colour, e.g.
+     *     `"#1a2040"`. Parsed via [Color.parseColor].
+     */
+    @JavascriptInterface
+    fun setStatusBarStyle(isDark: Boolean, colorHex: String) {
+        activity.runOnUiThread {
+            try {
+                val window = activity.window
+                val color = Color.parseColor(colorHex)
+                window.statusBarColor = color
+                window.navigationBarColor = color
+
+                val decorView = window.decorView
+                val wic = WindowInsetsControllerCompat(window, decorView)
+                // isAppearanceLightStatusBars = true  -> dark icons
+                // isAppearanceLightStatusBars = false -> light icons
+                // The frontend passes isDark = true for dark themes, which
+                // means we want LIGHT (white) icons, i.e. false here.
+                wic.isAppearanceLightStatusBars = !isDark
+                wic.isAppearanceLightNavigationBars = !isDark
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to set status bar style", e)
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // File saving (CR-01: MediaStore API)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Persist a UTF-8 text file (e.g. JSON character card, preset profile or
+     * backup) into the public Download directory.
+     *
+     * @param fileName target file name, e.g. `"Character_ST_Card.json"`.
+     * @param content  raw text content to write.
+     * @return the absolute display path of the saved file (e.g.
+     *     `"Download/Mobile Tavern/Character_ST_Card.json"`) on success, or a
+     *     string prefixed with `"error:"` describing the failure.
+     */
+    @JavascriptInterface
+    fun saveFile(fileName: String, content: String): String {
+        return writeBytesToDownloads(
+            fileName = sanitizeFileName(fileName),
+            bytes = content.toByteArray(Charsets.UTF_8),
+            mimeType = guessMimeType(fileName)
+        )
+    }
+
+    /**
+     * Persist a binary file (e.g. a PNG character card) into the public
+     * Download directory.
+     *
+     * @param fileName   target file name, e.g. `"Character_SillyTavern.png"`.
+     * @param base64Data  base64-encoded payload. A leading `data:...;base64,`
+     *     prefix is tolerated and stripped automatically.
+     * @param mimeType   MIME type for the MediaStore entry, e.g.
+     *     `"image/png"`.
+     * @return the absolute display path of the saved file on success, or a
+     *     string prefixed with `"error:"` describing the failure.
+     */
+    @JavascriptInterface
+    fun saveFileBase64(fileName: String, base64Data: String, mimeType: String): String {
+        val cleanBase64 = if (base64Data.contains(",")) {
+            base64Data.substringAfter(",")
+        } else {
+            base64Data
+        }
+        return try {
+            val bytes = Base64.decode(cleanBase64, Base64.DEFAULT)
+            writeBytesToDownloads(
+                fileName = sanitizeFileName(fileName),
+                bytes = bytes,
+                mimeType = if (mimeType.isBlank()) guessMimeType(fileName) else mimeType
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to decode base64 payload for $fileName", e)
+            "error:Failed to decode base64 payload: ${e.message}"
+        }
+    }
+
+    /**
+     * Shared implementation for [saveFile] / [saveFileBase64].
+     *
+     * On Android 10+ (API 29+) the file is written through
+     * `MediaStore.Downloads`, which is permitted under Scoped Storage
+     * without any storage permission. On Android 9 and below we fall back to
+     * the legacy public Downloads directory; if that fails (e.g. because the
+     * app does not hold `WRITE_EXTERNAL_STORAGE`) we surface a clear error
+     * string to the user.
+     */
+    private fun writeBytesToDownloads(
+        fileName: String,
+        bytes: ByteArray,
+        mimeType: String,
+    ): String {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                saveViaMediaStore(fileName, bytes, mimeType)
+            } else {
+                saveViaLegacyPublicDirectory(fileName, bytes)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save file $fileName", e)
+            "error:${e.message ?: "Unknown save error"}"
+        }
+    }
+
+    /**
+     * Android 10+ (API 29+) implementation using `MediaStore.Downloads`.
+     *
+     * No storage permission is required because the Download collection is
+     * explicitly exempted from the Scoped Storage write restrictions.
+     */
+    private fun saveViaMediaStore(
+        fileName: String,
+        bytes: ByteArray,
+        mimeType: String,
+    ): String {
+        val resolver = activity.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            // RELATIVE_PATH is only available on API 29+; we are already
+            // inside the Build.VERSION.SDK_INT >= Q branch.
+            put(MediaStore.MediaColumns.RELATIVE_PATH, DOWNLOAD_RELATIVE_SUBDIR)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Mark the file as pending so it is not visible to other apps
+                // until we finish writing it.
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+        }
+
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        val uri: Uri = resolver.insert(collection, values)
+            ?: return "error:Failed to create MediaStore entry for $fileName"
+
+        try {
+            resolver.openOutputStream(uri, "w")?.use { os: OutputStream ->
+                os.write(bytes)
+                os.flush()
+            } ?: return "error:Failed to open output stream for $fileName"
+        } catch (e: Exception) {
+            // Best-effort cleanup of the half-written entry so we do not leave
+            // empty files behind in the user's Download folder.
+            runCatching { resolver.delete(uri, null, null) }
+            throw e
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            values.clear()
+            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+        }
+
+        val displayPath = DOWNLOAD_RELATIVE_SUBDIR + fileName
+        notifyUserSaved(displayPath)
+        return displayPath
+    }
+
+    /**
+     * Android 9 and below (API 24-28) fallback using the legacy
+     * `Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS)`.
+     *
+     * This path requires `WRITE_EXTERNAL_STORAGE` on API 23-28, which the host
+     * app does not declare. The call will therefore fail gracefully on those
+     * devices and surface an `error:` message to the user. This is acceptable
+     * because the production target audience is on Android 10+.
+     */
+    private fun saveViaLegacyPublicDirectory(fileName: String, bytes: ByteArray): String {
+        @Suppress("DEPRECATION", "UNUSED_VARIABLE")
+        val deprecated = Environment.getExternalStoragePublicDirectory(
+            Environment.DIRECTORY_DOWNLOADS
+        )
+        val downloadDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            "Mobile Tavern"
+        )
+        if (!downloadDir.exists() && !downloadDir.mkdirs()) {
+            return "error:Failed to create Download/Mobile Tavern directory"
+        }
+        val file = File(downloadDir, fileName)
+        FileOutputStream(file).use { fos ->
+            fos.write(bytes)
+            fos.flush()
+        }
+        val displayPath = "Download/Mobile Tavern/$fileName"
+        notifyUserSaved(displayPath)
+        return displayPath
+    }
+
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
+
+    /**
+     * Strip path separators from [fileName] so a malicious or malformed name
+     * cannot escape the target Download subdirectory.
+     */
+    private fun sanitizeFileName(fileName: String): String {
+        val trimmed = fileName.trim()
+        if (trimmed.isEmpty()) return "export.bin"
+        return trimmed.replace(Regex("[\\\\/]"), "_")
+    }
+
+    /**
+     * Infer a reasonable MIME type from the file extension when the caller does
+     * not provide one (e.g. the text [saveFile] path).
+     */
+    private fun guessMimeType(fileName: String): String {
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "json" -> "application/json"
+            "txt" -> "text/plain"
+            "backup" -> "application/octet-stream"
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            "csv" -> "text/csv"
+            else -> "application/octet-stream"
+        }
+    }
+
+    /**
+     * Show a Toast confirming the save location. Mirrors the previous
+     * implementation's behaviour so users still get the on-device
+     * confirmation in addition to the in-app alert.
+     */
+    private fun notifyUserSaved(displayPath: String) {
+        activity.runOnUiThread {
+            Toast.makeText(
+                activity,
+                "文件已成功保存到手机 /$displayPath",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+}

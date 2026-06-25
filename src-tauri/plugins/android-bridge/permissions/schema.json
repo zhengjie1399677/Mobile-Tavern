@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/plugin-schema.json",
+  "name": "android-bridge",
+  "description": "Injects the AndroidThemeBridge JavascriptInterface into the WebView, providing native safe-area, status-bar and MediaStore-based file-save capabilities for the Mobile Tavern app.",
+  "default_permission": {
+    "permissions": []
+  },
+  "permissions": []
+}

@@ -9,6 +9,11 @@ fn report_telemetry(app_handle: tauri::AppHandle, log: telemetry::TelemetryLog) 
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_http::init())
+    // Register the local android-bridge plugin. On Android this injects the
+    // `window.AndroidThemeBridge` JavascriptInterface into the WebView via
+    // `AndroidBridgePlugin#onWebviewCreated`; on other platforms it is a
+    // no-op so the desktop dev server keeps compiling.
+    .plugin(tauri_plugin_android_bridge::init())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

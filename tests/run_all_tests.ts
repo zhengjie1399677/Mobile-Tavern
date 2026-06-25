@@ -305,72 +305,76 @@ function testApiCleanRequestPayload() {
     repetition_penalty: 1.1,
   };
 
-  // 1. OpenRouter (不应该裁剪任何参数，保持完整透传)
+  // CR-URLFIX：新策略为「默认透传所有参数」，仅保留 max_completion_tokens/max_tokens 互斥逻辑。
+  // 所有域名（含未知第三方中转站）均应保留 top_k / min_p / repetition_penalty / stream_options / max_completion_tokens。
+
+  // 1. OpenRouter（全量透传）
   const openRouterRes = cleanRequestPayload("https://openrouter.ai/api/v1", fullPayload);
   assert(openRouterRes !== undefined, "OpenRouter payload should exist");
   assert(openRouterRes!.top_k === 40, "OpenRouter: keep top_k");
   assert(openRouterRes!.min_p === 0.05, "OpenRouter: keep min_p");
   assert(openRouterRes!.repetition_penalty === 1.1, "OpenRouter: keep repetition_penalty");
   assert(openRouterRes!.max_completion_tokens === 100, "OpenRouter: keep max_completion_tokens");
-  assert(openRouterRes!.max_tokens === 100, "OpenRouter: keep max_tokens for OpenRouter");
+  assert(openRouterRes!.max_tokens === undefined, "OpenRouter: strip max_tokens when max_completion_tokens is present");
   assert(openRouterRes!.stream_options !== undefined, "OpenRouter: keep stream_options");
 
-  // 2. OpenAI Official (只保留 OpenAI 官方标准参数，但 max_tokens 需和 max_completion_tokens 互斥)
+  // 2. OpenAI Official（默认透传策略下保留所有参数）
   const openaiRes = cleanRequestPayload("https://api.openai.com/v1", fullPayload);
   assert(openaiRes !== undefined, "OpenAI payload should exist");
-  assert(openaiRes!.top_k === undefined, "OpenAI: strip top_k");
-  assert(openaiRes!.min_p === undefined, "OpenAI: strip min_p");
-  assert(openaiRes!.repetition_penalty === undefined, "OpenAI: strip repetition_penalty");
+  assert(openaiRes!.top_k === 40, "OpenAI: keep top_k (default passthrough)");
+  assert(openaiRes!.min_p === 0.05, "OpenAI: keep min_p (default passthrough)");
+  assert(openaiRes!.repetition_penalty === 1.1, "OpenAI: keep repetition_penalty (default passthrough)");
   assert(openaiRes!.max_completion_tokens === 100, "OpenAI: keep max_completion_tokens");
-  assert(openaiRes!.max_tokens === undefined, "OpenAI: strip max_tokens to prevent 400 when max_completion_tokens is present");
+  assert(openaiRes!.max_tokens === undefined, "OpenAI: strip max_tokens when max_completion_tokens is present");
   assert(openaiRes!.stream_options !== undefined, "OpenAI: keep stream_options");
   assert(openaiRes!.temperature === 0.7, "OpenAI: keep standard parameters");
 
-  // 3. DeepSeek Official (保留 repetition_penalty，且保留 max_completion_tokens 与 stream_options)
+  // 3. DeepSeek Official（默认透传策略下保留所有参数）
   const deepseekRes = cleanRequestPayload("https://api.deepseek.com/v1", fullPayload);
   assert(deepseekRes !== undefined, "DeepSeek payload should exist");
-  assert(deepseekRes!.top_k === undefined, "DeepSeek: strip top_k");
-  assert(deepseekRes!.min_p === undefined, "DeepSeek: strip min_p");
+  assert(deepseekRes!.top_k === 40, "DeepSeek: keep top_k (default passthrough)");
+  assert(deepseekRes!.min_p === 0.05, "DeepSeek: keep min_p (default passthrough)");
   assert(deepseekRes!.repetition_penalty === 1.1, "DeepSeek: keep repetition_penalty");
   assert(deepseekRes!.max_completion_tokens === 100, "DeepSeek: keep max_completion_tokens");
   assert(deepseekRes!.max_tokens === undefined, "DeepSeek: strip max_tokens when max_completion_tokens is present");
   assert(deepseekRes!.stream_options !== undefined, "DeepSeek: keep stream_options");
 
-  // 4. Gemini / Google (剔除所有非标)
+  // 4. Gemini / Google（默认透传策略下保留所有参数）
   const geminiRes = cleanRequestPayload("https://generativelanguage.googleapis.com/v1beta", fullPayload);
   assert(geminiRes !== undefined, "Gemini payload should exist");
-  assert(geminiRes!.top_k === undefined, "Gemini: strip top_k");
-  assert(geminiRes!.min_p === undefined, "Gemini: strip min_p");
-  assert(geminiRes!.repetition_penalty === undefined, "Gemini: strip repetition_penalty");
-  assert(geminiRes!.max_completion_tokens === undefined, "Gemini: strip max_completion_tokens");
-  assert(geminiRes!.max_tokens === 100, "Gemini: keep max_tokens when max_completion_tokens is stripped");
-  assert(geminiRes!.stream_options === undefined, "Gemini: strip stream_options");
+  assert(geminiRes!.top_k === 40, "Gemini: keep top_k (default passthrough)");
+  assert(geminiRes!.min_p === 0.05, "Gemini: keep min_p (default passthrough)");
+  assert(geminiRes!.repetition_penalty === 1.1, "Gemini: keep repetition_penalty (default passthrough)");
+  assert(geminiRes!.max_completion_tokens === 100, "Gemini: keep max_completion_tokens (default passthrough)");
+  assert(geminiRes!.max_tokens === undefined, "Gemini: strip max_tokens when max_completion_tokens is present");
+  assert(geminiRes!.stream_options !== undefined, "Gemini: keep stream_options (default passthrough)");
 
-  // 5. Default/Other unknown endpoint
+  // 5. 第三方未知中转站（CR-URLFIX 关键修复点：不再裁剪任何参数）
   const otherRes = cleanRequestPayload("https://api.some-thirdparty-中转.top/v1", fullPayload);
   assert(otherRes !== undefined, "Other payload should exist");
-  assert(otherRes!.top_k === undefined, "Other: strip top_k");
-  assert(otherRes!.min_p === undefined, "Other: strip min_p");
-  assert(otherRes!.repetition_penalty === undefined, "Other: strip repetition_penalty");
-  assert(otherRes!.max_completion_tokens === undefined, "Other: strip max_completion_tokens");
-  assert(otherRes!.max_tokens === 100, "Other: keep max_tokens when max_completion_tokens is stripped");
-  assert(otherRes!.stream_options === undefined, "Other: strip stream_options");
+  assert(otherRes!.top_k === 40, "Other: keep top_k (CR-URLFIX default passthrough)");
+  assert(otherRes!.min_p === 0.05, "Other: keep min_p (CR-URLFIX default passthrough)");
+  assert(otherRes!.repetition_penalty === 1.1, "Other: keep repetition_penalty (CR-URLFIX default passthrough)");
+  assert(otherRes!.max_completion_tokens === 100, "Other: keep max_completion_tokens (CR-URLFIX)");
+  assert(otherRes!.max_tokens === undefined, "Other: strip max_tokens when max_completion_tokens is present");
+  assert(otherRes!.stream_options !== undefined, "Other: keep stream_options (CR-URLFIX default passthrough)");
 
-  // 6. Custom proxy + DeepSeek model (应该保留 repetition_penalty 以及根据模型名放行 stream_options/max_completion_tokens)
+  // 6. 自定义代理 + DeepSeek 模型（默认透传，保留所有参数）
   const deepseekModelPayload = { ...fullPayload, model: "deepseek-reasoner" };
   const customProxyDeepseekRes = cleanRequestPayload("https://api.some-thirdparty-中转.top/v1", deepseekModelPayload);
   assert(customProxyDeepseekRes !== undefined, "Custom proxy deepseek payload should exist");
-  assert(customProxyDeepseekRes!.repetition_penalty === 1.1, "Custom Proxy Deepseek: KEEP repetition_penalty based on model name");
-  assert(customProxyDeepseekRes!.max_completion_tokens === 100, "Custom Proxy Deepseek: keep max_completion_tokens based on model name");
+  assert(customProxyDeepseekRes!.repetition_penalty === 1.1, "Custom Proxy Deepseek: keep repetition_penalty");
+  assert(customProxyDeepseekRes!.max_completion_tokens === 100, "Custom Proxy Deepseek: keep max_completion_tokens");
   assert(customProxyDeepseekRes!.max_tokens === undefined, "Custom Proxy Deepseek: strip max_tokens when max_completion_tokens is present");
-  assert(customProxyDeepseekRes!.stream_options !== undefined, "Custom Proxy Deepseek: keep stream_options based on model name");
+  assert(customProxyDeepseekRes!.stream_options !== undefined, "Custom Proxy Deepseek: keep stream_options");
 
-  // 7. Custom proxy + GPT model (应该裁剪 stream_options 等)
+  // 7. 自定义代理 + GPT 模型（CR-URLFIX 关键修复点：不再裁剪 stream_options/max_completion_tokens）
   const gptModelPayload = { ...fullPayload, model: "gpt-4o" };
   const customProxyGptRes = cleanRequestPayload("https://api.some-thirdparty-中转.top/v1", gptModelPayload);
   assert(customProxyGptRes !== undefined, "Custom proxy gpt payload should exist");
-  assert(customProxyGptRes!.stream_options === undefined, "Custom Proxy GPT: strip stream_options to avoid 400");
-  assert(customProxyGptRes!.max_completion_tokens === undefined, "Custom Proxy GPT: strip max_completion_tokens");
+  assert(customProxyGptRes!.stream_options !== undefined, "Custom Proxy GPT: keep stream_options (CR-URLFIX)");
+  assert(customProxyGptRes!.max_completion_tokens === 100, "Custom Proxy GPT: keep max_completion_tokens (CR-URLFIX)");
+  assert(customProxyGptRes!.max_tokens === undefined, "Custom Proxy GPT: strip max_tokens when max_completion_tokens is present");
 
   console.log("✔ API Request Payload Cleaning verified successfully!");
 }

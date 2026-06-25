@@ -90,6 +90,7 @@ dependencies = [
  "sha1",
  "tauri",
  "tauri-build",
+ "tauri-plugin-android-bridge",
  "tauri-plugin-http",
  "tauri-plugin-log",
  "tokio",
@@ -3778,6 +3779,16 @@ dependencies = [
  "serde_json",
  "tauri-utils",
  "walkdir",
+]
+
+[[package]]
+name = "tauri-plugin-android-bridge"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "serde",
+ "tauri",
+ "tauri-build",
 ]
 
 [[package]]

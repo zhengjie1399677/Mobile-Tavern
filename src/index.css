@@ -43,6 +43,8 @@
 
   --safe-area-top: var(--android-safe-area-top, env(safe-area-inset-top, 0px));
   --safe-area-bottom: var(--android-safe-area-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-area-left: var(--android-safe-area-left, env(safe-area-inset-left, 0px));
+  --safe-area-right: var(--android-safe-area-right, env(safe-area-inset-right, 0px));
 }
 
 /* Theme 1: 冰川冷白毛玻璃 (Sleek Glassmorphic Light) */
@@ -305,6 +307,13 @@
   html {
     @apply font-sans overflow-hidden h-full;
   }
+}
+
+/* 防止嵌套滚动容器边界回弹带动外层（CR-10） */
+.overflow-y-auto,
+.overflow-auto,
+.overflow-x-auto {
+  overscroll-behavior: contain;
 }
 
 /* Smooth theme switching transition */

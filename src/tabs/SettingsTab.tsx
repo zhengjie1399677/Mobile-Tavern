@@ -454,13 +454,20 @@ export default function SettingsTab() {
                       list="saved-api-urls"
                       value={settings.api.baseUrl || ""}
                       onBlur={() => {
-                        if (settings.api.baseUrl && !settings.api.savedUrls?.includes(settings.api.baseUrl)) {
-                          const currentUrl = settings.api.baseUrl;
+                        // CR-URLFIX：失焦时 trim 首尾空格，规范化存储，避免多余空格导致请求失败
+                        const trimmedUrl = settings.api.baseUrl?.trim();
+                        if (trimmedUrl && trimmedUrl !== settings.api.baseUrl) {
+                          updateSettings((prev) => ({
+                            ...prev,
+                            api: { ...prev.api, baseUrl: trimmedUrl }
+                          }));
+                        }
+                        if (trimmedUrl && !settings.api.savedUrls?.includes(trimmedUrl)) {
                           updateSettings((prev) => ({
                             ...prev,
                             api: {
                               ...prev.api,
-                              savedUrls: [...(prev.api.savedUrls || []), currentUrl]
+                              savedUrls: [...(prev.api.savedUrls || []), trimmedUrl]
                             }
                           }));
                         }

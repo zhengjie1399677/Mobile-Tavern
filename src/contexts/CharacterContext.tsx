@@ -72,8 +72,11 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const hasInitialized = await getStoredDefaultCharactersInitializedFlag();
 
       if (!hasInitialized) {
-        const { BUILTIN_CHARACTERS } = await import("../utils/builtInCharacters");
-        await bulkSaveCharacters(BUILTIN_CHARACTERS);
+        // 使用异步加载函数获取含图片数据的完整角色卡
+        // 符合 AGENTS.md 准则一第 2 条「物理层数据严格解耦与隔离」
+        const { loadBuiltinCharacters } = await import("../utils/builtInCharacters");
+        const builtinCharacters = await loadBuiltinCharacters();
+        await bulkSaveCharacters(builtinCharacters);
 
         await saveStoredDefaultCharactersInitializedFlag(true);
 

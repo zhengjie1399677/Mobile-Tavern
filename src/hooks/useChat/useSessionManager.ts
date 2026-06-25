@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { ChatSession, CharacterCard, Message, SummaryCard, UserSettings } from "../../types";
 import { IDatabaseService } from "../../kernel/types";
 import { ITelemetryService } from "../../kernel/types";
+import { cleanSuggestionsFromText, parseSuggestions } from "./helpers";
 
 interface SessionManagerParams {
   isSending: boolean;
@@ -45,7 +46,6 @@ export function useSessionManager(p: SessionManagerParams) {
     // 注意：默认问候语由角色卡 first_mes 或用户传入，此处不硬编码剧情逻辑
     if (starterMsg && p.settings.enableReplySuggestions) {
       if (starterMsg.includes("<suggestions>")) {
-        const { cleanSuggestionsFromText, parseSuggestions } = await import("./helpers");
         const cleanedTextObj = cleanSuggestionsFromText(starterMsg);
         if (cleanedTextObj.suggestionsText) {
           initialSuggestions = parseSuggestions(cleanedTextObj.suggestionsText);

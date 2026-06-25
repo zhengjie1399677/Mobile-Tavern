@@ -1,0 +1,32 @@
+//! Tauri plugin that bridges the Mobile Tavern frontend with native Android
+//! capabilities (safe-area insets, status-bar styling and public Download
+//! directory file saving via the MediaStore API).
+//!
+//! The frontend keeps calling `(window as any).AndroidThemeBridge.*` exactly
+//! as before; this plugin simply makes sure that object is injected into the
+//! WebView by the Kotlin side (`AndroidBridgePlugin#onWebviewCreated`) so the
+//! existing call contract is preserved without any frontend change.
+//!
+//! All real work happens on the Kotlin side; the Rust entry point only
+//! registers the plugin so Tauri wires it into the mobile build pipeline.
+
+use tauri::plugin::{Builder, TauriPlugin};
+
+/// Plugin identifier used by Tauri to match the Kotlin `AndroidBridgePlugin`.
+const PLUGIN_NAME: &str = "AndroidBridge";
+
+/// Initialise and return the `android-bridge` Tauri plugin.
+///
+/// The plugin has no Rust-side commands: every capability is exposed
+/// synchronously through the `@JavascriptInterface`-annotated methods on the
+/// Kotlin `AndroidThemeBridge` class, which is attached to the WebView as the
+/// global `window.AndroidThemeBridge` object.
+pub fn init<R: tauri::Runtime>() -> TauriPlugin<R> {
+    Builder::<R>::new(PLUGIN_NAME)
+        .setup(|_app, _api| {
+            // No-op on the Rust side; the Kotlin plugin handles WebView
+            // injection in `AndroidBridgePlugin#onWebviewCreated`.
+            Ok(())
+        })
+        .build()
+}

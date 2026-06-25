@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AndroidManifest fragment for the android-bridge Tauri plugin.
+
+  This manifest is automatically merged into the host application's manifest
+  by the Tauri Android build pipeline, so the host app does not need to be
+  modified manually.
+
+  Key declarations:
+    * android:enableOnBackInvokedCallback="true"
+        Enables the Android 13+ (API 33+) predictive back gesture animation
+        for the OnBackInvokedCallback API. This is required for the app to
+        participate in the system's predictive back navigation UX.
+        (CR-05 fix)
+
+  Note on storage permissions:
+    The plugin writes user-exported files (character cards, presets, backups,
+    world books, PNG cards) to the public Download directory via the
+    MediaStore.Downloads API (Android 10+). MediaStore writes to the Download
+    collection do NOT require WRITE_EXTERNAL_STORAGE permission, so no storage
+    permission is declared here. (CR-01 fix)
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:enableOnBackInvokedCallback="true" />
+
+</manifest>

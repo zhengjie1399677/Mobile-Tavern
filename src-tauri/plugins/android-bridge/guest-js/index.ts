@@ -1,0 +1,65 @@
+/**
+ * Tauri plugin guest-js entry point for `tauri-plugin-android-bridge`.
+ *
+ * NOTE: The Mobile Tavern frontend does NOT import this module. It keeps
+ * calling the native bridge directly through
+ * `(window as any).AndroidThemeBridge.*` so the existing synchronous call
+ * contract (e.g. `bridge.saveFile()` returning a string path) is preserved.
+ *
+ * This module is shipped purely for type-safety and discoverability: it
+ * declares the shape of the injected `window.AndroidThemeBridge` object so
+ * that any future refactoring can opt into a typed accessor without changing
+ * the native side.
+ */
+
+/** Shape of the safe-area insets returned by `getSafeAreas()`. */
+export interface AndroidSafeAreas {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+/**
+ * Typed view of the `window.AndroidThemeBridge` object injected by the
+ * `AndroidBridgePlugin` Kotlin class.
+ *
+ * Every method is synchronous and runs on the WebView's JS thread via
+ * `@JavascriptInterface`.
+ */
+export interface AndroidThemeBridge {
+  /** Returns the current system-bar insets (in dp) as a JSON string. */
+  getSafeAreas(): string;
+  /** Updates the status bar background colour and icon appearance. */
+  setStatusBarStyle(isDark: boolean, colorHex: string): void;
+  /**
+   * Saves a UTF-8 text file to the public Download directory.
+   * @returns the display path of the saved file, or an `error:`-prefixed
+   *   message on failure.
+   */
+  saveFile(fileName: string, content: string): string;
+  /**
+   * Saves a binary file (base64-encoded) to the public Download directory.
+   * @returns the display path of the saved file, or an `error:`-prefixed
+   *   message on failure.
+   */
+  saveFileBase64(fileName: string, base64Data: string, mimeType: string): string;
+}
+
+declare global {
+  interface Window {
+    AndroidThemeBridge?: AndroidThemeBridge;
+  }
+}
+
+/**
+ * Type-safe accessor for the injected bridge. Returns `null` when running
+ * outside of the Android WebView (e.g. desktop dev server).
+ */
+export function getAndroidThemeBridge(): AndroidThemeBridge | null {
+  if (typeof window === "undefined") return null;
+  const bridge = (window as Window).AndroidThemeBridge;
+  return bridge ?? null;
+}
+
+export default getAndroidThemeBridge;

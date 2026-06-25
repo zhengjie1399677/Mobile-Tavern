@@ -1,15 +1,15 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { ssrfGuard } from "./server/security";
 
 dotenv.config();
 
-const resolvedFilename = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
-const resolvedDirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(resolvedFilename);
+// CJS 兼容：esbuild 使用 --format=cjs 打包，__dirname 和 __filename 在 CJS 中可用
+// 移除 import.meta.url 回退逻辑，避免 esbuild CJS 格式下的 "import.meta is not available" 警告
+const resolvedDirname = __dirname;
 
 function sanitizeSensitiveData(input: string): string {
   if (!input) return "";
@@ -29,7 +29,7 @@ function prepareProxyRequest({ baseUrl, routePath, apiKey }: ProxyRequestConfig)
   if (!baseUrl || (typeof baseUrl === "string" && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://"))) {
     throw new Error("Invalid baseUrl protocol. Only http:// and https:// are allowed.");
   }
-  const sanitizedBaseUrl = baseUrl.replace(/\/$/, "");
+  const sanitizedBaseUrl = baseUrl.replace(/\/+$/, "");
   const sanitizedRoute = routePath.startsWith("/") ? routePath : `/${routePath}`;
   const targetUrl = `${sanitizedBaseUrl}${sanitizedRoute}`;
 

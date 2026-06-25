@@ -32,6 +32,10 @@ try {
     'from "../src/types"'
   );
   content = content.replace(
+    /from\s+["']\.\.\/kernel\/Kernel["']/g,
+    'from "../src/kernel/Kernel"'
+  );
+  content = content.replace(
     /from\s+["']\.\/mvu_zod["']/g,
     'from "../src/utils/mvu_zod"'
   );
@@ -40,7 +44,9 @@ try {
   console.log("Generated temp_bridge.ts successfully.");
 
   console.log("Running unit tests...");
-  execSync('npx tsx tests/test_bridge_runner.ts', { stdio: 'inherit' });
+  // Use node to invoke tsx directly for cross-environment compatibility (npx may not be on PATH)
+  const tsxBin = path.join(__dirname, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
+  execSync(`node "${tsxBin}" tests/test_bridge_runner.ts`, { stdio: 'inherit' });
 
 } catch (e) {
   console.error("Test execution failed:", e.message);
