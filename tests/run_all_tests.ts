@@ -1929,6 +1929,7 @@ async function run() {
     await testAutoSummaryMetadataParsing();
     await testScriptServiceDecoupling();
     await testLocalDBSplitTrack();
+    await testKeyManagerDynamicFetch();
     console.log("\n=================================================");
     console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
     console.log("=================================================");
@@ -2218,7 +2219,77 @@ function testServerLogDesensitization() {
   console.log("✔ Server Log Desensitization Rules verified successfully!");
 }
 
+async function testKeyManagerDynamicFetch() {
+  console.log("\n--- Running KeyManager Dynamic Fetch & Decryption Verification ---");
+  const { getValidToken, getTrialKey, decryptAesGcm } = await import("../src/utils/keyManager");
 
+  const aesKeyHex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const originalText = "sk-or-v1-my-mock-openrouter-key-987654";
+  
+  const cryptoNode = await import("crypto");
+  const iv = cryptoNode.randomBytes(12);
+  const cipher = cryptoNode.createCipheriv("aes-256-gcm", Buffer.from(aesKeyHex, "hex"), iv);
+  let ciphertext = cipher.update(originalText, "utf8", "hex");
+  ciphertext += cipher.final("hex");
+  const tag = cipher.getAuthTag().toString("hex");
+
+  const decrypted = await decryptAesGcm(ciphertext, aesKeyHex, iv.toString("hex"), tag);
+  assert(decrypted === originalText, "Web Crypto GCM Decryption matches original plaintext");
+
+  const originalFetch = global.fetch;
+  
+  let issueTokenCalled = false;
+  let getKeyCalled = false;
+  
+  global.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const urlStr = typeof input === "string" ? input : input.toString();
+    
+    if (urlStr.includes("/api/issue-token")) {
+      issueTokenCalled = true;
+      const payload = {
+        deviceId: "test_dev_123",
+        exp: Math.floor(Date.now() / 1000) + 1800
+      };
+      const payloadStr = Buffer.from(JSON.stringify(payload)).toString("base64url");
+      const signature = cryptoNode
+        .createHmac("sha256", "default_local_hmac_sign_key_123456")
+        .update(payloadStr)
+        .digest("base64url");
+      return new Response(JSON.stringify({
+        token: `${payloadStr}.${signature}`,
+        expiresAt: payload.exp * 1000
+      }));
+    }
+    
+    if (urlStr.includes("/api/get-key")) {
+      getKeyCalled = true;
+      const auth = init?.headers ? (init.headers as any)["Authorization"] : "";
+      assert(auth && auth.startsWith("Bearer "), "Should carry Authorization Bearer Token");
+      
+      return new Response(JSON.stringify({
+        ciphertext,
+        iv: iv.toString("hex"),
+        tag
+      }));
+    }
+    
+    return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
+  }) as any;
+
+  try {
+    const token = await getValidToken();
+    assert(token.includes("."), "Token must contain payload and signature separator '.'");
+    assert(issueTokenCalled === true, "issue-token api was invoked");
+
+    const trialKey = await getTrialKey();
+    assert(trialKey === originalText, "getTrialKey decrypted key correctly");
+    assert(getKeyCalled === true, "get-key api was invoked");
+  } finally {
+    global.fetch = originalFetch;
+  }
+
+  console.log("✔ KeyManager Dynamic Fetch & Decryption verified successfully!");
+}
 
 run();
 

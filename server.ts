@@ -4,12 +4,16 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { ssrfGuard } from "./server/security";
+import crypto from "crypto";
 
 dotenv.config();
 
-// CJS 兼容：esbuild 使用 --format=cjs 打包，__dirname 和 __filename 在 CJS 中可用
-// 移除 import.meta.url 回退逻辑，避免 esbuild CJS 格式下的 "import.meta is not available" 警告
-const resolvedDirname = __dirname;
+let resolvedDirname = "";
+try {
+  resolvedDirname = __dirname;
+} catch (e) {
+  resolvedDirname = process.cwd();
+}
 
 function sanitizeSensitiveData(input: string): string {
   if (!input) return "";
@@ -53,6 +57,101 @@ async function startServer() {
   // Use JSON parser with higher limits for backups and character cards
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // API 1.5: Issue Self-Signed Token (Stateless)
+  app.post("/api/issue-token", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Device-Id");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    try {
+      const { deviceId } = req.body || {};
+      const devIdHeader = req.headers["x-device-id"];
+      const finalDeviceId = deviceId || (Array.isArray(devIdHeader) ? devIdHeader[0] : devIdHeader);
+      if (!finalDeviceId) {
+        return res.status(400).json({ error: "deviceId is required" });
+      }
+      const cleanDeviceId = String(finalDeviceId).replace(/[^a-zA-Z0-9_]/g, "_");
+      const exp = Math.floor(Date.now() / 1000) + 30 * 60; // 30 mins
+      const payload = {
+        deviceId: cleanDeviceId,
+        exp,
+      };
+      const payloadStr = Buffer.from(JSON.stringify(payload)).toString("base64url");
+      const signKey = process.env.HMAC_SIGN_KEY || "default_local_hmac_sign_key_123456";
+      const signature = crypto
+        .createHmac("sha256", signKey)
+        .update(payloadStr)
+        .digest("base64url");
+      const token = `${payloadStr}.${signature}`;
+      res.json({
+        token,
+        expiresAt: exp * 1000,
+      });
+    } catch (err: any) {
+      console.error("[Local Server] Issue Token Error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // API 1.6: Get Encrypted API Key (Stateless)
+  app.post("/api/get-key", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Device-Id");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    try {
+      const authHeader = req.headers["authorization"];
+      let token = "";
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+      }
+      if (!token) {
+        return res.status(401).json({ error: "Authorization token is required" });
+      }
+      const parts = token.split(".");
+      if (parts.length !== 2) {
+        return res.status(401).json({ error: "Invalid token format" });
+      }
+      const [payloadStr, signature] = parts;
+      const signKey = process.env.HMAC_SIGN_KEY || "default_local_hmac_sign_key_123456";
+      const expectedSignature = crypto
+        .createHmac("sha256", signKey)
+        .update(payloadStr)
+        .digest("base64url");
+
+      const sigBuffer = Buffer.from(signature);
+      const expBuffer = Buffer.from(expectedSignature);
+      if (sigBuffer.length !== expBuffer.length || !crypto.timingSafeEqual(sigBuffer, expBuffer)) {
+        return res.status(401).json({ error: "Invalid token signature" });
+      }
+      const payloadJson = Buffer.from(payloadStr, "base64url").toString("utf8");
+      const payload = JSON.parse(payloadJson);
+      if (!payload.exp || Math.floor(Date.now() / 1000) > payload.exp) {
+        return res.status(401).json({ error: "Token has expired" });
+      }
+      const realApiKey = process.env.REAL_API_KEY || process.env.TRIAL_OPENROUTER_KEY || "sk-or-v1-TRIAL_KEY_PLACEHOLDER_LOCAL_DEVELOPMENT_FALLBACK";
+      const aesKeyHex = process.env.AES_ENCRYPT_KEY || "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+      const keyBytes = Buffer.from(aesKeyHex, "hex");
+      const iv = crypto.randomBytes(12);
+      const cipher = crypto.createCipheriv("aes-256-gcm", keyBytes, iv);
+      let encrypted = cipher.update(realApiKey, "utf8", "hex");
+      encrypted += cipher.final("hex");
+      const tag = cipher.getAuthTag().toString("hex");
+      res.json({
+        ciphertext: encrypted,
+        iv: iv.toString("hex"),
+        tag: tag,
+      });
+    } catch (err: any) {
+      console.error("[Local Server] Get Key Error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   // API 1: Version checking
   app.get("/version", (req, res) => {

@@ -572,4 +572,88 @@ npm run test
     *   为了防止大模型发生逻辑过载及生成延迟，目前的关键词提取采用基于 KMP 的单次快速定位方案。
     *   对于包含复杂同义词替换或自然语言多维关联判定的词条，推荐使用在角色卡设定中进行前置拆分定义。
 
+---
+
+## 🧪 测试链总体架构与实施 (Test Chain Specifications)
+
+为了保证快速迭代时的代码稳定性并防范逻辑回归，Mobile Tavern 构建了三层测试链保障体系：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    端到端测试层（E2E）                        │
+│  框架：Tauri WebDriver + WebdriverIO                         │
+│  覆盖：完整用户流程、Tauri 原生交互、iframe 沙盒             │
+│  触发：每日定时 / 发版前                                    │
+│  预期耗时：< 5min                                           │
+└─────────────────────────────────────────────────────────────┘
+                          ▲
+                          │
+┌─────────────────────────────────────────────────────────────┐
+│                    集成测试层（Integration）                 │
+│  框架：Vitest + React Testing Library + fake-indexeddb      │
+│  覆盖：多模块协作、React 组件渲染、Context 层级             │
+│  触发：每次 PR                                              │
+│  预期耗时：< 30s                                            │
+└─────────────────────────────────────────────────────────────┘
+                          ▲
+                          │
+┌─────────────────────────────────────────────────────────────┐
+│                    单元测试层（Unit）                       │
+│  框架：自定义运行器（tsx tests/run_all_tests.ts）           │
+│  覆盖：纯函数、无副作用服务、内核逻辑                       │
+│  触发：每次 commit                                         │
+│  预期耗时：< 10s                                            │
+│  现状：✅ 已建设，28 个测试函数全部通过                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 1. 单元测试层（已建设）
+主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 28 个核心功能验证用例，覆盖：
+* **`testSsrfGuard`**：验证安全网闸对私网 IP、DNS Rebinding 伪造 IP 的拦截。
+* **`testDbQueue`**：验证 IndexedDB 并发写 Promise 队列的串行化自愈写。
+* **`testPromptBuilder`**：验证模板宏安全替换及世界书三阶级联检索。
+* **`testPngCardParser`**：验证酒馆 PNG 卡 tEXt 元数据的提取与反序列化还原。
+* **`testApiCleanRequestPayload`**：验证多厂商大模型 API 请求参数的清洗隔离。
+* **`testKernelFaultIsolation`**：验证内核故障隔离、SafeProxy 降级与一键销毁。
+* **`testTableMemoryService`**：验证 TRPG 游戏化表格数据的智能更新、插入与删除。
+* **`testPromptServiceRedosProtection`**：验证恶意关键词正则对 PromptService 的 ReDoS 攻击降级防护。
+* **`testLLMServiceUrlValidation`**：验证 API 地址非法协议拦截与规范化。
+* **`testAutoSummaryMetadataParsing`**：验证故事大纲元数据的自动分析提取。
+
+### 2. 集成测试层（规划中）
+* **建设目标**：验证多模块协作与 React 视图渲染正确性。
+* **技术选型**：Vitest + React Testing Library + fake-indexeddb。
+* **核心用例**：
+  * *INT-CTX-01*：全局 AppProvider 主题切换与状态栏变色桥接的连通。
+  * *INT-CHAT-01*：发送消息、大模型流式响应、管道拦截及 UI 气泡渲染全流程。
+  * *INT-DB-01*：localDB 历史数据迁移与分轨物理存储校验。
+
+### 3. 端到端测试层（E2E，规划中）
+* **建设目标**：验证真机环境下的完整用户业务路径与 Tauri 原生交互。
+* **技术选型**：Tauri WebDriver + WebdriverIO。
+* **核心用例**：
+  * *E2E-01*：角色卡导入（从文件读取二进制 PNG）到对话房消息互通。
+  * *E2E-02*：大拇指交互触控与软键盘遮挡自适应。
+  * *E2E-03*：数据加密导出并安全写入手机公共 `/Download` 目录验证。
+
+### 4. 自动化 CI/CD 流程
+推荐的自动化测试流水线设计如下：
+```yaml
+name: Test Pipeline
+on: [push, pull_request]
+jobs:
+  lint-and-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+```
+通过 `c8` 进行测试覆盖率统计，目标保证 `src/kernel/` 内置服务覆盖率 $\ge 85\%$。
+
+
 

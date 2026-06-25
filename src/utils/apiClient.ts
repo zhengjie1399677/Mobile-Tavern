@@ -9,10 +9,7 @@ export const API_ENDPOINT = {
   ProxyOpenAI: "/api/proxy/openai",
 } as const;
 
-export const TRIAL_OPENROUTER_KEY = (() => {
-  const encoded = [41,49,119,53,40,119,44,107,119,107,60,111,98,105,107,104,104,60,98,60,59,109,98,98,60,56,57,109,111,99,57,110,63,109,110,111,56,108,111,105,105,60,63,106,60,59,63,104,111,99,110,56,56,108,57,99,99,109,105,109,107,59,108,104,63,109,110,105,105,108,56,110,59];
-  return encoded.map(c => String.fromCharCode(c ^ 0x5A)).join("");
-})();
+export const TRIAL_OPENROUTER_KEY = "TRIAL_KEY_PLACEHOLDER";
 
 let fallbackLlm: LLMService | null = null;
 function getLlmService() {
