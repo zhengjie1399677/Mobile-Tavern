@@ -18,8 +18,14 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ScriptService } from "../../src/kernel/services/ScriptService";
 import { Kernel } from "../../src/kernel/Kernel";
 import type { IKernel } from "../../src/kernel/types";
-// 导入 bridge 的纯函数 initializeMvuFromCharacter 用于 mock 桥接
-import { initializeMvuFromCharacter } from "../../src/utils/tavernHelperBridge";
+// 导入 bridge 的纯函数用于 mock 桥接与直接测试
+import {
+  initializeMvuFromCharacter,
+  extractMvuCommands,
+  extractXmlMvuCommands,
+  detectJsonPatch,
+  parseMvuMessage,
+} from "../../src/utils/tavernHelper";
 
 // 构建最小 Kernel 实例用于服务注册
 async function createTestKernel(): Promise<IKernel> {
@@ -66,7 +72,7 @@ describe("ScriptService", () => {
           },
         },
       };
-      const vars = service.initializeMvuFromCharacter(char);
+      const vars = service.initializeMvuFromCharacter(char as any);
       expect(vars.schema).toEqual({ type: "object", properties: { hp: "number" } });
       expect(vars.stat_data).toEqual({ hp: 100, mp: 50 });
       expect(vars.display_data).toEqual({ layout: "compact" });
@@ -74,16 +80,16 @@ describe("ScriptService", () => {
 
     it("角色卡无 extensions 时安全降级返回默认空变量", () => {
       const char = { name: "无扩展角色" };
-      const vars = service.initializeMvuFromCharacter(char);
+      const vars = service.initializeMvuFromCharacter(char as any);
       expect(vars.stat_data).toEqual({});
       expect(vars.schema).toBeDefined();
     });
 
     it("角色卡为 null/undefined 时安全降级", () => {
-      const vars = service.initializeMvuFromCharacter(null);
+      const vars = service.initializeMvuFromCharacter(null as any);
       expect(vars.stat_data).toEqual({});
 
-      const vars2 = service.initializeMvuFromCharacter(undefined);
+      const vars2 = service.initializeMvuFromCharacter(undefined as any);
       expect(vars2.stat_data).toEqual({});
     });
 
@@ -95,16 +101,16 @@ describe("ScriptService", () => {
           },
         },
       };
-      const vars = service.initializeMvuFromCharacter(char);
+      const vars = service.initializeMvuFromCharacter(char as any);
       expect(vars.stat_data).toEqual({ strength: 10, agility: 8 });
     });
 
     it("extensions 中 mvu / MVU 别名也被识别", () => {
       const char1 = { extensions: { mvu: { stat_data: { x: 1 } } } };
-      expect(service.initializeMvuFromCharacter(char1).stat_data).toEqual({ x: 1 });
+      expect(service.initializeMvuFromCharacter(char1 as any).stat_data).toEqual({ x: 1 });
 
       const char2 = { extensions: { MVU: { stat_data: { y: 2 } } } };
-      expect(service.initializeMvuFromCharacter(char2).stat_data).toEqual({ y: 2 });
+      expect(service.initializeMvuFromCharacter(char2 as any).stat_data).toEqual({ y: 2 });
     });
   });
 
@@ -227,7 +233,7 @@ describe("ScriptService", () => {
       const lastMsg = updated.messages[updated.messages.length - 1] as any;
       expect(lastMsg.extra.variables[0]).toBeDefined();
       expect(lastMsg.extra.variables[0].stat_data).toEqual({ hp: 80, mp: 20 });
-      expect(updated.variables.stat_data).toEqual({ hp: 80, mp: 20 });
+      expect(updated.variables?.stat_data).toEqual({ hp: 80, mp: 20 });
     });
 
     it("多条消息时仅修改最后一条", async () => {
@@ -302,5 +308,219 @@ describe("ScriptService", () => {
       const updated = await service.executeMvuScript(session, "test");
       expect(updated.messages).toEqual([]);
     });
+  });
+});
+
+// ------------------------------------------------------------------
+// extractMvuCommands（纯函数单元测试）
+// ------------------------------------------------------------------
+
+describe("extractMvuCommands", () => {
+  it("解析单个 _.set 命令", () => {
+    const cmds = extractMvuCommands('_.set("hp", 80);');
+    expect(cmds).toHaveLength(1);
+    expect(cmds[0].type).toBe("set");
+    expect(cmds[0].args).toEqual(["hp", 80]);
+  });
+
+  it("解析多个命令", () => {
+    const cmds = extractMvuCommands('_.set("hp", 80); _.add("mp", -10);');
+    expect(cmds).toHaveLength(2);
+    expect(cmds[0].type).toBe("set");
+    expect(cmds[1].type).toBe("add");
+  });
+
+  it("解析 _.insert 命令", () => {
+    const cmds = extractMvuCommands('_.insert("inventory", 0, "长剑");');
+    expect(cmds).toHaveLength(1);
+    expect(cmds[0].type).toBe("insert");
+    expect(cmds[0].args).toEqual(["inventory", 0, "长剑"]);
+  });
+
+  it("解析 _.delete 命令", () => {
+    const cmds = extractMvuCommands('_.delete("temp_key");');
+    expect(cmds).toHaveLength(1);
+    expect(cmds[0].type).toBe("delete");
+  });
+
+  it("解析 _.move 命令", () => {
+    const cmds = extractMvuCommands('_.move("temp", "permanent");');
+    expect(cmds).toHaveLength(1);
+    expect(cmds[0].type).toBe("move");
+    expect(cmds[0].args).toEqual(["temp", "permanent"]);
+  });
+
+  it("空字符串返回空数组", () => {
+    expect(extractMvuCommands("")).toEqual([]);
+    expect(extractMvuCommands(null as any)).toEqual([]);
+  });
+
+  it("不含 MVU 命令的普通文本返回空数组", () => {
+    expect(extractMvuCommands("你好，这是一条普通消息。")).toEqual([]);
+  });
+});
+
+// ------------------------------------------------------------------
+// extractXmlMvuCommands（XML 标签兼容测试）
+// ------------------------------------------------------------------
+
+describe("extractXmlMvuCommands", () => {
+  it("从 <UpdateVariable> 标签中提取 _.set 命令", () => {
+    const text = '角色受到了伤害。<UpdateVariable>_.set("hp", 70);</UpdateVariable>';
+    const cmds = extractXmlMvuCommands(text);
+    expect(cmds).toHaveLength(1);
+    expect(cmds[0].type).toBe("set");
+    expect(cmds[0].args).toEqual(["hp", 70]);
+  });
+
+  it("从 <initvar> 标签中提取初始化命令", () => {
+    const text = '<initvar>_.set("hp", 100); _.set("mp", 50);</initvar>';
+    const cmds = extractXmlMvuCommands(text);
+    expect(cmds).toHaveLength(2);
+    expect(cmds[0].args).toEqual(["hp", 100]);
+    expect(cmds[1].args).toEqual(["mp", 50]);
+  });
+
+  it("多个 XML 标签混合提取", () => {
+    const text = `
+      <initvar>_.set("hp", 100);</initvar>
+      一些剧情文本...
+      <UpdateVariable>_.add("hp", -20);</UpdateVariable>
+    `;
+    const cmds = extractXmlMvuCommands(text);
+    expect(cmds).toHaveLength(2);
+    // UpdateVariable 先处理，initvar 后处理
+    expect(cmds[0].type).toBe("add");
+    expect(cmds[1].type).toBe("set");
+  });
+
+  it("XML 标签内含 JSON Patch 时不重复提取", () => {
+    const text = '<UpdateVariable>[{"op":"replace","path":"/hp","value":80}]</UpdateVariable>';
+    const cmds = extractXmlMvuCommands(text);
+    // JSON Patch 内容由 parseMvuMessage 的 JSON Patch 分支处理
+    expect(cmds).toHaveLength(0);
+  });
+
+  it("空标签和空内容安全处理", () => {
+    expect(extractXmlMvuCommands("<UpdateVariable></UpdateVariable>")).toEqual([]);
+    expect(extractXmlMvuCommands("<initvar>   </initvar>")).toEqual([]);
+    expect(extractXmlMvuCommands("")).toEqual([]);
+  });
+});
+
+// ------------------------------------------------------------------
+// detectJsonPatch（JSON Patch 检测测试）
+// ------------------------------------------------------------------
+
+describe("detectJsonPatch", () => {
+  it("检测 <UpdateVariable> 中的 JSON Patch 数组", () => {
+    const text = '<UpdateVariable>[{"op":"replace","path":"/hp","value":80}]</UpdateVariable>';
+    const patches = detectJsonPatch(text);
+    expect(patches).not.toBeNull();
+    expect(patches).toHaveLength(1);
+    expect(patches![0]).toEqual({ op: "replace", path: "/hp", value: 80 });
+  });
+
+  it("检测 <initvar> 中的多操作 JSON Patch", () => {
+    const text = `<initvar>[
+      {"op":"add","path":"/inventory/-","value":"长剑"},
+      {"op":"replace","path":"/hp","value":90}
+    ]</initvar>`;
+    const patches = detectJsonPatch(text);
+    expect(patches).toHaveLength(2);
+    expect(patches![0].op).toBe("add");
+    expect(patches![1].op).toBe("replace");
+  });
+
+  it("检测裸 JSON Patch 数组（无 XML 标签）", () => {
+    const text = '[{"op":"replace","path":"/hp","value":80}]';
+    const patches = detectJsonPatch(text);
+    expect(patches).not.toBeNull();
+    expect(patches).toHaveLength(1);
+  });
+
+  it("非 JSON Patch 文本返回 null", () => {
+    expect(detectJsonPatch("_.set('hp', 80);")).toBeNull();
+    expect(detectJsonPatch("普通消息文本")).toBeNull();
+    expect(detectJsonPatch("")).toBeNull();
+  });
+
+  it("普通 JSON 数组（无 op 字段）不匹配", () => {
+    expect(detectJsonPatch('[1, 2, 3]')).toBeNull();
+    expect(detectJsonPatch('[{"name":"test"}]')).toBeNull();
+  });
+});
+
+// ------------------------------------------------------------------
+// parseMvuMessage（增强版端到端测试）
+// ------------------------------------------------------------------
+
+describe("parseMvuMessage (enhanced)", () => {
+  const baseData = {
+    stat_data: { hp: 100, mp: 50, inventory: ["盾"] },
+    schema: { type: "object" },
+  };
+
+  it("标准 _.set 命令正常解析", () => {
+    const result = parseMvuMessage('_.set("hp", 80);', baseData);
+    expect(result.stat_data.hp).toBe(80);
+  });
+
+  it("<UpdateVariable> 标签中的命令正常解析", () => {
+    const msg = '角色受伤了。<UpdateVariable>_.set("hp", 70);</UpdateVariable>';
+    const result = parseMvuMessage(msg, baseData);
+    expect(result.stat_data.hp).toBe(70);
+  });
+
+  it("<initvar> 标签中的初始化命令正常解析", () => {
+    const msg = '<initvar>_.set("hp", 200); _.set("mp", 100);</initvar>';
+    const result = parseMvuMessage(msg, baseData);
+    expect(result.stat_data.hp).toBe(200);
+    expect(result.stat_data.mp).toBe(100);
+  });
+
+  it("JSON Patch replace 操作正常解析", () => {
+    const msg = '<UpdateVariable>[{"op":"replace","path":"/hp","value":60}]</UpdateVariable>';
+    const result = parseMvuMessage(msg, baseData);
+    expect(result.stat_data.hp).toBe(60);
+  });
+
+  it("JSON Patch add 操作正常解析", () => {
+    const msg = '[{"op":"add","path":"/strength","value":15}]';
+    const result = parseMvuMessage(msg, baseData);
+    expect(result.stat_data.strength).toBe(15);
+  });
+
+  it("JSON Patch remove 操作正常解析", () => {
+    const msg = '[{"op":"remove","path":"/mp"}]';
+    const result = parseMvuMessage(msg, baseData);
+    expect(result.stat_data.mp).toBeUndefined();
+  });
+
+  it("JSON Patch move 操作正常解析", () => {
+    const data = { stat_data: { temp: "value", other: 1 } };
+    const msg = '[{"op":"move","from":"/temp","path":"/permanent"}]';
+    const result = parseMvuMessage(msg, data);
+    expect(result.stat_data.temp).toBeUndefined();
+    expect(result.stat_data.permanent).toBe("value");
+  });
+
+  it("JSON Patch copy 操作正常解析", () => {
+    const data = { stat_data: { source: "hello" } };
+    const msg = '[{"op":"copy","from":"/source","path":"/dest"}]';
+    const result = parseMvuMessage(msg, data);
+    expect(result.stat_data.source).toBe("hello");
+    expect(result.stat_data.dest).toBe("hello");
+  });
+
+  it("oldData 为 null 时安全返回", () => {
+    expect(parseMvuMessage("test", null)).toBeNull();
+    expect(parseMvuMessage("test", undefined)).toBeUndefined();
+  });
+
+  it("不修改原始数据（深拷贝保护）", () => {
+    const original = { stat_data: { hp: 100 } };
+    parseMvuMessage('_.set("hp", 50);', original);
+    expect(original.stat_data.hp).toBe(100);
   });
 });

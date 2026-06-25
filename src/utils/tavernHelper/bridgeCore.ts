@@ -1,0 +1,439 @@
+/**
+ * bridgeCore.ts — TavernHelper Bridge 核心状态与生命周期管理
+ *
+ * 职责：
+ * - 类型定义与模块级可变状态（bridgeParams）
+ * - 基于 Kernel 消息总线的事件发射器（tavernHelperEventEmitter）
+ * - 会话变量初始化、消息 ID 解析等工具函数
+ * - MVU 角色卡扩展字段解析
+ * - 重型 MVU 框架库（lodash/Vue/Pinia/jQuery/mathjs）的懒加载
+ * - Bridge 生命周期：initTavernHelperBridge / cleanTavernHelperBridge / notifyVariablesUpdated
+ *
+ * 此模块为唯一的状态源，tavernHelperMocks / mvuParser / scriptIframe 单向依赖它，
+ * 严禁反向引用，杜绝循环依赖。
+ */
+
+import React from "react";
+import lodashCloneDeep from "lodash/cloneDeep";
+import lodashGet from "lodash/get";
+import lodashSet from "lodash/set";
+import { CharacterCard, ChatSession, UserSettings } from "../../types";
+import { klona } from "klona";
+import { globalKernel } from "../../kernel/Kernel";
+import { compare } from "compare-versions";
+import JSON5 from "json5";
+import { jsonrepair } from "jsonrepair";
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 类型定义
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface TavernHelperBridgeParams {
+  activeCharacter: CharacterCard | null;
+  activeSession: ChatSession | null;
+  setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
+  saveSession: (session: ChatSession) => Promise<void>;
+  setCharacters: React.Dispatch<React.SetStateAction<CharacterCard[]>>;
+  saveCharacter: (character: CharacterCard) => Promise<void>;
+  settings: UserSettings;
+  updateSettings: (settings: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
+  handleSendMessage: (text: string) => Promise<void>;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 模块级可变状态（通过 getter/setter 暴露，规避 isolatedModules 对 export let 的限制）
+// ──────────────────────────────────────────────────────────────────────────────
+
+let bridgeParams: TavernHelperBridgeParams | null = null;
+
+export function getBridgeParams(): TavernHelperBridgeParams | null {
+  return bridgeParams;
+}
+
+export function setBridgeParams(params: TavernHelperBridgeParams | null): void {
+  bridgeParams = params;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 事件发射器（基于 Kernel 消息总线，线程安全）
+// ──────────────────────────────────────────────────────────────────────────────
+
+export const tavernHelperEventEmitter = (() => {
+  const subscriptions = new Map<string, Array<{ cb: any; unsub: () => void }>>();
+
+  const emitter = {
+    on(event: string, cb: any) {
+      const unsub = globalKernel.subscribe(`tavern_helper:${event}`, (msg) => {
+        try {
+          return cb(...msg.payload);
+        } catch (e) {
+          console.error(`[Event Execution Error in ${event}]:`, e);
+        }
+      });
+      if (!subscriptions.has(event)) {
+        subscriptions.set(event, []);
+      }
+      subscriptions.get(event)!.push({ cb, unsub });
+      return emitter;
+    },
+    once(event: string, cb: any) {
+      const wrapper = (...args: any[]) => {
+        emitter.off(event, wrapper);
+        return cb(...args);
+      };
+      return emitter.on(event, wrapper);
+    },
+    off(event: string, cb: any) {
+      const list = subscriptions.get(event);
+      if (list) {
+        const idx = list.findIndex(item => item.cb === cb);
+        if (idx !== -1) {
+          list[idx].unsub();
+          list.splice(idx, 1);
+        }
+      }
+      return emitter;
+    },
+    removeListener(event: string, cb: any) {
+      return emitter.off(event, cb);
+    },
+    emit(event: string, ...args: any[]) {
+      globalKernel.publish({
+        topic: `tavern_helper:${event}`,
+        payload: args
+      });
+      return emitter;
+    },
+    async emitAndWait(event: string, ...args: any[]) {
+      try {
+        await globalKernel.publishParallel({
+          topic: `tavern_helper:${event}`,
+          payload: args
+        });
+      } catch (e) {
+        console.error(`[Event EmitAndWait Error in ${event}]:`, e);
+      }
+      return [];
+    },
+    makeFirst(event: string, cb: any) {
+      const unsub = globalKernel.subscribe(`tavern_helper:${event}`, (msg) => {
+        try {
+          return cb(...msg.payload);
+        } catch (e) {
+          console.error(`[Event Execution Error in ${event}]:`, e);
+        }
+      }, 100); // 较高优先级在最前面执行
+      if (!subscriptions.has(event)) {
+        subscriptions.set(event, []);
+      }
+      subscriptions.get(event)!.push({ cb, unsub });
+      return emitter;
+    },
+    makeLast(event: string, cb: any) {
+      const unsub = globalKernel.subscribe(`tavern_helper:${event}`, (msg) => {
+        try {
+          return cb(...msg.payload);
+        } catch (e) {
+          console.error(`[Event Execution Error in ${event}]:`, e);
+        }
+      }, -100); // 较低优先级在最后面执行
+      if (!subscriptions.has(event)) {
+        subscriptions.set(event, []);
+      }
+      subscriptions.get(event)!.push({ cb, unsub });
+      return emitter;
+    },
+    clear(event: string) {
+      const list = subscriptions.get(event);
+      if (list) {
+        list.forEach(item => item.unsub());
+        subscriptions.delete(event);
+      }
+    },
+    clearAll() {
+      for (const ev of Array.from(subscriptions.keys())) {
+        emitter.clear(ev);
+      }
+    }
+  };
+  return emitter;
+})();
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 工具函数
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** 为指定会话触发 mag_variable_initialized 事件，并将变量同步到开场白消息 */
+export function initializeVariablesForSession(session: any) {
+  if (!session) return;
+  const variables = session.variables || {};
+  if (!variables.stat_data) {
+    variables.stat_data = {};
+  }
+
+  console.log("[TavernHelper Event] Emitting mag_variable_initialized for session:", session.id);
+  tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
+  console.log("[TavernHelper Event] Variables after initialization:", variables);
+
+  session.variables = variables;
+
+  // Sync variables to the first message (greeting) for SillyTavern compatibility
+  if (session.messages && session.messages.length > 0) {
+    const firstMsg = { ...session.messages[0] } as any;
+    const swipeId = firstMsg.swipe_id !== undefined ? firstMsg.swipe_id : 0;
+    const extra = { ...firstMsg.extra };
+    if (!extra.variables) extra.variables = {};
+    extra.variables = {
+      ...extra.variables,
+      [swipeId]: variables,
+    };
+    firstMsg.extra = extra;
+    firstMsg.variables = extra.variables;
+    session.messages = [
+      firstMsg,
+      ...session.messages.slice(1),
+    ];
+    console.log(`[TavernHelper Event] Synced initial variables to first message (swipeId: ${swipeId})`);
+  }
+
+  if (bridgeParams) {
+    bridgeParams.setSessions(prev =>
+      prev.map(s => s.id === session.id ? { ...s, variables, messages: session.messages } : s)
+    );
+    bridgeParams.saveSession(session);
+  }
+}
+
+/** 获取指定消息在指定 swipe_id 下的变量快照 */
+export function getSwipeVariables(m: any): Record<string, any> {
+  const swipeId = m.swipe_id !== undefined ? m.swipe_id : 0;
+  const extraVars = m.extra?.variables;
+  if (extraVars) {
+    if (extraVars[swipeId] !== undefined) {
+      return extraVars[swipeId];
+    }
+    const keys = Object.keys(extraVars);
+    const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
+    if (!isNested) {
+      return extraVars;
+    }
+  }
+  return m.variables || {};
+}
+
+/** 将逻辑消息 ID（含 'latest' / 负数索引）解析为绝对索引 */
+export function resolveMessageId(id: any, messagesLength: number): number {
+  if (messagesLength <= 0) return 0;
+  const numId = Number(id);
+  if (isNaN(numId)) {
+    if (id === 'latest') {
+      return messagesLength - 1;
+    }
+    return messagesLength - 1;
+  }
+  if (numId < 0) {
+    return Math.max(0, messagesLength + numId);
+  }
+  return numId;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MVU 角色卡扩展字段解析
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Initialize MVU variables from character card extensions.
+ * Extracts mvu_settings/schema from character extensions and merges into session variables.
+ */
+export function initializeMvuFromCharacter(character: any): Record<string, any> {
+  if (!character) return { stat_data: {} };
+
+  const ext = character.extensions || {};
+  const variables: Record<string, any> = {
+    stat_data: {},
+    schema: { type: 'object', properties: {} },
+    display_data: {},
+    delta_data: {},
+  };
+
+  // Try to extract MVU settings from various possible extension locations
+  const mvuSettings = ext.mvu_settings ||
+                      ext.mvu ||
+                      ext.MVU ||
+                      null;
+
+  if (mvuSettings) {
+    console.log("[MVU] Found mvu_settings in character extensions:", mvuSettings);
+
+    // If settings contains a schema, use it
+    if (mvuSettings.schema) {
+      variables.schema = mvuSettings.schema;
+    }
+
+    // If settings contains initial stat_data/default values
+    if (mvuSettings.stat_data) {
+      variables.stat_data = { ...mvuSettings.stat_data };
+    } else if (mvuSettings.defaults) {
+      variables.stat_data = { ...mvuSettings.defaults };
+    }
+
+    // Copy display configuration if present
+    if (mvuSettings.display_data) {
+      variables.display_data = { ...mvuSettings.display_data };
+    }
+  }
+
+  // Also check for tavern_helper scripts presence (for UI rendering)
+  if (ext.tavern_helper?.scripts) {
+    console.log(`[MVU] Found ${ext.tavern_helper.scripts.length} tavern_helper scripts`);
+  }
+
+  // Ensure stat_data exists
+  if (!variables.stat_data) {
+    variables.stat_data = {};
+  }
+
+  console.log("[MVU] Initialized variables from character:", variables);
+  return variables;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 重型框架库懒加载（lodash / Vue / Pinia / jQuery / mathjs）
+// ──────────────────────────────────────────────────────────────────────────────
+
+let libsPromise: Promise<void> | null = null;
+
+export function ensureLibrariesLoaded(): Promise<void> {
+  if (libsPromise) return libsPromise;
+
+  libsPromise = (async () => {
+    console.log("[TavernHelper Bridge] Dynamically loading MVU libraries (lodash, Vue, pinia, jQuery, mathjs)...");
+    const [lodash, Vue, Pinia, jQuery, math] = await Promise.all([
+      import("lodash"),
+      import("vue"),
+      import("pinia"),
+      import("jquery"),
+      import("mathjs"),
+    ]);
+
+    const lodashInstance = lodash.default || lodash;
+    const jQueryInstance = jQuery.default || jQuery;
+
+    if (typeof window !== "undefined") {
+      const parentWin = window as any;
+      parentWin._ = lodashInstance;
+      parentWin.Vue = Vue;
+      parentWin.$ = parentWin.jQuery = jQueryInstance;
+
+      parentWin.TavernHelperMvuLibs = {
+        klona,
+        createPinia: Pinia.createPinia,
+        defineStore: Pinia.defineStore,
+        getActivePinia: Pinia.getActivePinia,
+        setActivePinia: Pinia.setActivePinia,
+        compare,
+        JSON5,
+        jsonrepair,
+        math,
+        pinia: {
+          createPinia: Pinia.createPinia,
+          defineStore: Pinia.defineStore,
+          getActivePinia: Pinia.getActivePinia,
+          setActivePinia: Pinia.setActivePinia,
+        },
+        vue: Vue,
+      };
+    }
+  })();
+
+  return libsPromise;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Bridge 生命周期
+// ──────────────────────────────────────────────────────────────────────────────
+
+let lastSessionId: string | null = null;
+
+export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
+  // 仅在启用卡片脚本兼容（TavernHelper 兼容模式）插件时才异步预加载本地重型框架依赖
+  if (params.settings?.enableScriptExecution) {
+    ensureLibrariesLoaded().catch(err => {
+      console.error("[TavernHelper Bridge] Failed to dynamically load MVU libraries:", err);
+    });
+  }
+
+  try {
+    const scriptService = globalKernel.getService<any>("script");
+    if (scriptService && typeof scriptService.registerBridge === "function") {
+      // 注意：此处延迟导入 mvuParser 以避免静态循环依赖
+      import("./mvuParser").then(({ parseMvuMessage }) => {
+        scriptService.registerBridge({
+          initializeMvuFromCharacter,
+          parseMvuMessage,
+          notifyVariablesUpdated,
+        });
+      }).catch(() => {});
+    }
+  } catch (e) {
+    // Silent fail if service is not registered in tests
+  }
+
+  const prevSessionId = lastSessionId;
+  bridgeParams = params;
+
+  if (params.activeSession) {
+    const currentSessionId = params.activeSession.id;
+    lastSessionId = currentSessionId;
+
+    if (prevSessionId && prevSessionId !== currentSessionId) {
+      console.log(`[TavernHelper Bridge] Active session changed from ${prevSessionId} to ${currentSessionId}. Notifying scripts.`);
+      setTimeout(() => {
+        const session = bridgeParams?.activeSession;
+        if (session && session.id === currentSessionId) {
+          const variables = session.variables || {};
+
+          // Emit standard SillyTavern chat changed events
+          tavernHelperEventEmitter.emit('chat_id_changed', currentSessionId);
+          tavernHelperEventEmitter.emit('chat_changed', currentSessionId);
+
+          // Emit variables initialization event for status boards
+          tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
+
+          // Emit message receipt and rendering triggers
+          const lastMsgId = Math.max(0, (session.messages?.length ?? 1) - 1);
+          tavernHelperEventEmitter.emit('message_received', lastMsgId);
+          tavernHelperEventEmitter.emit('character_message_rendered', lastMsgId);
+        }
+      }, 50);
+    }
+  } else {
+    lastSessionId = null;
+  }
+}
+
+export function cleanTavernHelperBridge() {
+  // 清理事件总线：防止切换角色卡/会话时旧脚本注册的事件监听器残留
+  // 遵循 AGENTS.md 准则一.4（副作用隔离）：精确清理，避免级联渲染
+  tavernHelperEventEmitter.clearAll();
+  bridgeParams = null;
+  lastSessionId = null;
+}
+
+/**
+ * Call this after saving a session with updated variables (e.g. after AI reply + MVU parse).
+ * It emits the mag_variable_initialized event so that iframe scripts can refresh their UI.
+ */
+export function notifyVariablesUpdated(session: ChatSession, messageId?: number) {
+  if (!session) return;
+  const variables = session.variables || {};
+  console.log("[TavernHelper Event] notifyVariablesUpdated → emitting mag_variable_initialized + character_message_rendered");
+  // 1. Notify MVU bundle that variables have been initialized/updated.
+  tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
+  // 2. Emit message_received + character_message_rendered so the MVU bundle's
+  //    per-turn UI refresh hook fires on every AI reply (not just the first).
+  //    The MVU bundle listens on CHARACTER_MESSAGE_RENDERED to re-render the status board.
+  const lastMsgId = messageId ?? Math.max(0, (session.messages?.length ?? 1) - 1);
+  tavernHelperEventEmitter.emit('message_received', lastMsgId);
+  tavernHelperEventEmitter.emit('character_message_rendered', lastMsgId);
+}

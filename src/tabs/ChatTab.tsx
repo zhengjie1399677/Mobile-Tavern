@@ -24,7 +24,7 @@ import {
 
 import { saveSession } from "../utils/localDB";
 import { sanitizeCss } from "../utils/security";
-import { initTavernHelperBridge, cleanTavernHelperBridge, createScriptIframeSrcDoc } from "../utils/tavernHelperBridge";
+import { initTavernHelperBridge, cleanTavernHelperBridge, createScriptIframeSrcDoc } from "../utils/tavernHelper";
 import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
 import { MemoryTableDrawer } from "../components/MemoryTableDrawer";
 

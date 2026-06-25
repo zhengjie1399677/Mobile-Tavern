@@ -1,4 +1,4 @@
-import { parseMvuMessage } from "../src/utils/tavernHelperBridge";
+import { parseMvuMessage } from "../src/utils/tavernHelper";
 
 const oldData = {
   stat_data: {

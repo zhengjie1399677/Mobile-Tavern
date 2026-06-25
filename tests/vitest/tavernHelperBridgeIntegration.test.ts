@@ -14,7 +14,7 @@
  *     本测试聚焦 happy-dom 独有的 window 依赖能力。
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 
 // ------------------------------------------------------------------
 // 模块导入前确认 window 就绪（happy-dom 默认提供）
@@ -26,7 +26,7 @@ describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
 
   it("window.z 全局对象存在且可链式调用", async () => {
     // 静态 import 会触发 tavernHelperBridge 的顶层初始化块
-    await import("../../src/utils/tavernHelperBridge");
+    await import("../../src/utils/tavernHelper");
 
     const z = (window as any).z;
     expect(z).toBeDefined();
@@ -36,7 +36,7 @@ describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
   });
 
   it("z.string().parse() 校验字符串", async () => {
-    await import("../../src/utils/tavernHelperBridge");
+    await import("../../src/utils/tavernHelper");
     const z = (window as any).z;
 
     const schema = z.string();
@@ -45,7 +45,7 @@ describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
   });
 
   it("z.number().parse() 校验数字", async () => {
-    await import("../../src/utils/tavernHelperBridge");
+    await import("../../src/utils/tavernHelper");
     const z = (window as any).z;
 
     const schema = z.number();
@@ -54,7 +54,7 @@ describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
   });
 
   it("z.object().parse() 校验并默认填充对象", async () => {
-    await import("../../src/utils/tavernHelperBridge");
+    await import("../../src/utils/tavernHelper");
     const z = (window as any).z;
 
     const schema = z.object({
@@ -72,7 +72,7 @@ describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
   });
 
   it("z.coerce 系列强制类型转换", async () => {
-    await import("../../src/utils/tavernHelperBridge");
+    await import("../../src/utils/tavernHelper");
     const z = (window as any).z;
 
     expect(z.coerce.string().parse(123)).toBe("123");
@@ -82,7 +82,7 @@ describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
   });
 
   it("safeParse 不抛错返回 { success, data/error }", async () => {
-    await import("../../src/utils/tavernHelperBridge");
+    await import("../../src/utils/tavernHelper");
     const z = (window as any).z;
 
     const schema = z.number();
@@ -96,7 +96,7 @@ describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
   });
 
   it("z.union() 支持多 schema 联合校验", async () => {
-    await import("../../src/utils/tavernHelperBridge");
+    await import("../../src/utils/tavernHelper");
     const z = (window as any).z;
 
     const schema = z.union([z.string(), z.number()]);
@@ -112,7 +112,7 @@ describe("TavernHelper Bridge - 脚本预处理 (preprocessScriptContent)", () =
   let preprocessScriptContent: (content: string) => string;
 
   beforeAll(async () => {
-    const mod = await import("../../src/utils/tavernHelperBridge");
+    const mod = await import("../../src/utils/tavernHelper");
     preprocessScriptContent = mod.preprocessScriptContent;
   });
 
@@ -180,7 +180,7 @@ const x = 1;
 
 describe("TavernHelper Bridge - 全局对象契约", () => {
   it("window.TavernHelper 存在且包含核心绑定", async () => {
-    await import("../../src/utils/tavernHelperBridge");
+    await import("../../src/utils/tavernHelper");
     const TH = (window as any).TavernHelper;
     expect(TH).toBeDefined();
     expect(TH._bind).toBeDefined();
@@ -191,7 +191,7 @@ describe("TavernHelper Bridge - 全局对象契约", () => {
   });
 
   it("window.SillyTavern 存在且可获取 extensionSettings", async () => {
-    await import("../../src/utils/tavernHelperBridge");
+    await import("../../src/utils/tavernHelper");
     const ST = (window as any).SillyTavern;
     expect(ST).toBeDefined();
     // 默认返回空对象
@@ -199,7 +199,7 @@ describe("TavernHelper Bridge - 全局对象契约", () => {
   });
 
   it("window.Mvu 存在且暴露 getMvuData / replaceMvuData", async () => {
-    await import("../../src/utils/tavernHelperBridge");
+    await import("../../src/utils/tavernHelper");
     const Mvu = (window as any).Mvu;
     expect(Mvu).toBeDefined();
     expect(typeof Mvu.getMvuData).toBe("function");

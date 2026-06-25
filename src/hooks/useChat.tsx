@@ -20,7 +20,7 @@ import { UserSettings, LorebookEntry, CustomWorldbook, ChatSession } from "../ty
 import { globalKernel } from "../kernel";
 import {
   IDatabaseService, IPromptService, ITelemetryService,
-  IChatStreamService, IMultiMessageService,
+  IChatStreamService, IMultiMessageService, IScriptService,
 } from "../kernel/types";
 
 import { useChatUI } from "./useChat/useChatUI";
@@ -55,6 +55,7 @@ export const useChat = (
   const telemetryService = globalKernel.getService<ITelemetryService>("telemetry");
   const chatStreamService = globalKernel.getService<IChatStreamService>("chatStream");
   const multiMessageService = globalKernel.getService<IMultiMessageService>("multiMessage");
+  const scriptService = globalKernel.getService<IScriptService>("script");
 
   // ── 稳定 Ref 镜像（供异步回调安全读取最新值） ─────────────────────────────────
   const sessionsRef = React.useRef(sessions);
@@ -189,8 +190,17 @@ export const useChat = (
     isBisonLocking: ui.isBisonLocking,
     // 渲染
     renderDialogueBubble,
-    // 兼容接口
-    saveSessionWithMvu: async (s: ChatSession) => {
+    // 兼容接口：保存会话并在有消息内容时触发 MVU 变量重解析
+    saveSessionWithMvu: async (s: ChatSession, messageToParse?: string) => {
+      // 如果传入了消息内容且脚本执行已启用，通过 ScriptService 触发 MVU 变量重解析
+      // 遵循 AGENTS.md 准则一.3（防腐隔离）：解析失败不阻塞保存流程
+      if (messageToParse && scriptService) {
+        try {
+          s = await scriptService.executeMvuScript(s, messageToParse);
+        } catch (err) {
+          console.warn("[saveSessionWithMvu] MVU re-parse failed, saving without variable update:", err);
+        }
+      }
       await databaseService.saveSession(s);
       return s;
     },

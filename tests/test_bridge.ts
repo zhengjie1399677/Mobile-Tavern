@@ -1,4 +1,4 @@
-import { initTavernHelperBridge, cleanTavernHelperBridge } from "../src/utils/tavernHelperBridge";
+import { initTavernHelperBridge, cleanTavernHelperBridge } from "../src/utils/tavernHelper";
 import { ChatSession, CharacterCard, UserSettings } from "../src/types";
 
 function assert(condition: boolean, message: string) {
@@ -62,6 +62,7 @@ async function runTests() {
 
   // Initialize bridge with mock state handlers
   initTavernHelperBridge({
+    activeCharacter: null,
     activeSession: mockSession,
     setSessions: (updater: any) => {
       if (typeof updater === 'function') {
@@ -110,7 +111,7 @@ async function runTests() {
   await new Promise(resolve => setTimeout(resolve, 10));
   assert(sessionSaved !== null, "Session is saved after replaceVariables");
   if (!sessionSaved) throw new Error("sessionSaved is null");
-  const lastMsgExtra = sessionSaved.messages[1].extra;
+  const lastMsgExtra = (sessionSaved as ChatSession).messages[1].extra;
   assert(lastMsgExtra?.variables?.[0]?.stat_data?.health === 80, "replaceVariables with index -1 updates the last message");
 
   // E. Test _setChatMessage with id: -1
@@ -121,7 +122,7 @@ async function runTests() {
   await new Promise(resolve => setTimeout(resolve, 10));
   assert(sessionSaved !== null, "Session is saved after setChatMessage");
   if (!sessionSaved) throw new Error("sessionSaved is null");
-  const lastMsgExtra2 = sessionSaved.messages[1].extra;
+  const lastMsgExtra2 = (sessionSaved as ChatSession).messages[1].extra;
   assert(lastMsgExtra2?.variables?.[0]?.stat_data?.health === 70, "setChatMessage with index -1 updates the last message variables");
 
   // F. Test TavernHelper.setChatMessages with message_id: -1
@@ -134,7 +135,7 @@ async function runTests() {
   ]);
   assert(sessionSaved !== null, "Session is saved after setChatMessages");
   if (!sessionSaved) throw new Error("sessionSaved is null");
-  const lastMsgExtra3 = sessionSaved.messages[1].extra;
+  const lastMsgExtra3 = (sessionSaved as ChatSession).messages[1].extra;
   assert(lastMsgExtra3?.variables?.[0]?.stat_data?.health === 60, "setChatMessages with index -1 updates the last message variables");
 
   console.log("✔ Message ID resolution in variables setters verified successfully!");

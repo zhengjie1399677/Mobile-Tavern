@@ -1,6 +1,6 @@
 import React, { useContext, memo, useState } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
-import { createMessageIframeSrcDoc } from "../utils/tavernHelperBridge";
+import { createMessageIframeSrcDoc } from "../utils/tavernHelper";
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "./formattedTextUtils";
 
 interface FormattedTextProps {

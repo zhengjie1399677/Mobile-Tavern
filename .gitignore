@@ -22,3 +22,6 @@ playwright-report/
 
 # Serverless cloud functions
 serverless/
+
+# Qoder IDE internal files
+.qoder/
