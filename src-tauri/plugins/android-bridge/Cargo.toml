@@ -1,5 +1,6 @@
 [package]
 name = "tauri-plugin-android-bridge"
+links = "tauri-plugin-android-bridge"
 version = "0.1.0"
 description = "Tauri plugin that injects the AndroidThemeBridge JavascriptInterface into the WebView, providing native safe-area, status-bar and file-save (MediaStore) capabilities for the Mobile Tavern app."
 authors = ["Mobile Tavern"]
@@ -19,4 +20,4 @@ serde = "1"
 log = "0.4"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-plugin = { version = "2.6.2", features = ["build"] }

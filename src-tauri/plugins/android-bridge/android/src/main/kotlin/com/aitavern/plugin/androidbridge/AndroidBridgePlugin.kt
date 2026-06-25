@@ -1,6 +1,8 @@
 package com.aitavern.plugin.androidbridge
 
+import android.app.Activity
 import android.webkit.WebView
+import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Plugin
 
 /**
@@ -25,7 +27,8 @@ import app.tauri.plugin.Plugin
  * frontend's synchronous `bridge.saveFile(...)` / `bridge.getSafeAreas()`
  * calls keep working unchanged.
  */
-class AndroidBridgePlugin : Plugin() {
+@TauriPlugin
+class AndroidBridgePlugin(private val activity: Activity) : Plugin(activity) {
 
     /**
      * Cached reference to the bridge instance so we can re-dispatch inset
@@ -33,10 +36,9 @@ class AndroidBridgePlugin : Plugin() {
      */
     private var themeBridge: AndroidThemeBridge? = null
 
-    override fun onWebviewCreated(webView: WebView) {
-        super.onWebviewCreated(webView)
+    override fun load(webView: WebView) {
+        super.load(webView)
 
-        val activity = getActivity()
         val bridge = AndroidThemeBridge(activity, webView)
         themeBridge = bridge
 

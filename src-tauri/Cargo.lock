@@ -3788,7 +3788,7 @@ dependencies = [
  "log",
  "serde",
  "tauri",
- "tauri-build",
+ "tauri-plugin",
 ]
 
 [[package]]
