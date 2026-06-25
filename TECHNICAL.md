@@ -520,7 +520,51 @@ graph TD
 *   `ScriptService` (script)：在独立沙盒内执行角色卡内嵌的扩展变量计算脚本。
 *   `AutoSummaryService` (autoSummary)：检测未总结轮数并异步触发大模型年表大纲生成。
 
+### 6. 数据流向全景图 (Core Message Data Flow)
+
+为了降低未来维护和社区贡献的心智门槛，以下时序图完整展示了一个用户发送的消息，是如何一步步穿过事件总线、Pipeline 管道中间件、MVU 脚本沙盒，最终编译组装为优化后的 Prompt 并被大模型流式响应的：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 用户 (UI 视图层)
+    participant ChatTab as ChatTab / useChat (业务 Hook)
+    participant Kernel as globalKernel (微内核容器)
+    participant Bus as MessageBus (事件总线)
+    participant Pipe as Pipeline (洋葱管道)
+    participant Script as ScriptService (MVU 变量沙盒)
+    participant Prompt as PromptService (预设编译)
+    participant LLM as LLMService / API (通信层)
+
+    User->>ChatTab: 1. 输入消息并点击发送
+    ChatTab->>Kernel: 2. 触发事件广播 publish("chat:message_received", payload)
+    Kernel->>Bus: 3. 消息总线按优先级检索订阅列表
+    Bus->>Pipe: 4. 触发挂载在 input 管道的拦截中间件链
+    activate Pipe
+    note over Pipe: 敏感词过滤、安全合规审查 (可随时通过 interrupt() 阻断)
+    note over Pipe: 世界书 / 设定集级联触发检索与注入
+    Pipe->>Script: 5. 提取角色卡扩展变量，执行 MVU 脚本解析
+    Script-->>Pipe: 6. 返回沙盒变量更新后的状态数据 (State Mutation)
+    Pipe->>Prompt: 7. 请求编译 Prompt (assemblePrompt)
+    Prompt->>Prompt: 8. 执行人设模板宏替换 (lambda 回调防转义符坍塌)
+    Prompt->>Prompt: 9. 稳定前缀与动态片段划分 (DeepSeek/Gemini 前缀缓存优化)
+    Prompt-->>Pipe: 10. 返回最终符合模型厂商规范的 API Payload
+    Pipe->>LLM: 11. 调用通用请求服务 (universalFetch) 发起流式请求
+    deactivate Pipe
+    LLM->>ChatTab: 12. 持续返回 SSE Chunks 字节流
+    activate ChatTab
+    ChatTab->>ChatTab: 13. 零丢包字节切分缓冲区与反转义还原
+    ChatTab-->>User: 14. 逐字平滑渲染聊天气泡 (React 19 并发模式)
+    deactivate ChatTab
+    
+    note over Kernel: 15. 消息完成流式生成后 (后台异步切面)
+    Kernel->>Bus: 16. 广播 publish("chat:session_changed", payload)
+    Bus->>Bus: 17. AutoSummaryService 异步提炼并压缩前情年表大纲
+    Bus->>Bus: 18. TableMemoryService 游戏化角色属性看板数据增量更新
+```
+
 ---
+
 
 ## 🧪 自动化测试套件与覆盖验证 (Comprehensive Test Suite)
 
