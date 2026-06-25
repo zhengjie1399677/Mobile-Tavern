@@ -2,4 +2,9 @@
 # will have compiled files and executables
 /target/
 /gen/schemas
-/gen/android/
+# Android keystore must never be committed (contains signing private key)
+/gen/android/my-release-key.keystore
+# Android build outputs are regenerated each build
+/gen/android/.gradle/
+/gen/android/build/
+/gen/android/app/build/

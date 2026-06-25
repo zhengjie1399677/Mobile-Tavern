@@ -57,9 +57,6 @@ jobs:
           echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
 
-      - name: Initialize Tauri Android project
-        run: npx tauri android init
-
       - name: Generate Tauri Icons
         run: |
           node scripts/decode_icon.cjs
