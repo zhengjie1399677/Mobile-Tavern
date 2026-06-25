@@ -138,6 +138,13 @@ export function useChatUI(params: {
               container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
             } else {
               container.scrollTop = container.scrollHeight;
+              const _unused = container.offsetHeight;
+              requestAnimationFrame(() => {
+                if (container.scrollTop > 0) {
+                  container.scrollTop += 0.5;
+                  container.scrollTop -= 0.5;
+                }
+              });
             }
           } else {
             chatBottomRef.current.scrollIntoView({ behavior });

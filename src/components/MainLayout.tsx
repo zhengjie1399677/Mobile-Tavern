@@ -25,7 +25,7 @@ export default function MainLayout() {
     const vvp = window.visualViewport;
     if (!vvp) return;
     const handleResize = () => {
-      setViewportHeight(vvp.height);
+      setViewportHeight(Math.min(vvp.height, window.innerHeight));
     };
     vvp.addEventListener("resize", handleResize);
     handleResize();
@@ -37,6 +37,9 @@ export default function MainLayout() {
   // 解决页面级输入框在软键盘弹出时被遮挡的问题。
   React.useEffect(() => {
     const handleFocusIn = (e: FocusEvent) => {
+      if (activeTab === "chat" || activeTab === "playground") {
+        return; // 聊天页面与游乐场有专属的视口动态缩放和精确归底避让，无需且严禁全局逻辑插手
+      }
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
         setTimeout(() => {
@@ -46,7 +49,7 @@ export default function MainLayout() {
     };
     document.addEventListener("focusin", handleFocusIn);
     return () => document.removeEventListener("focusin", handleFocusIn);
-  }, []);
+  }, [activeTab]);
 
   const tabs = globalKernel.getExtensions("main:tabs");
   const bottomBarTabs = tabs.filter(t => t.meta?.showInBottomBar);

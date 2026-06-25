@@ -33,8 +33,10 @@ const isSafeRegex = (pattern: string): boolean => {
   return !/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(pattern) && !/(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(pattern);
 };
 let globalSuggestionsClickMode: "send" | "fill" | null = null;
+// 文件级全局基准高度，抗御任何组件的销毁重装，确保基准永不丢失
+let chatTabMaxHeight = window.innerHeight;
 
-const ChatInputArea = () => {
+const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const {
     isSending,
     setIsSending,
@@ -56,6 +58,7 @@ const ChatInputArea = () => {
   } = useUnifiedApp();
   
   React.useEffect(() => {
+    let scrollRafId: number | null = null;
     const handleWindowScroll = () => {
       if (
         window.scrollY !== 0 ||
@@ -63,17 +66,23 @@ const ChatInputArea = () => {
         document.body.scrollTop !== 0 ||
         document.documentElement.scrollTop !== 0
       ) {
-        window.scrollTo(0, 0);
-        document.body.scrollTop = 0;
-        document.documentElement.scrollTop = 0;
+        if (scrollRafId) cancelAnimationFrame(scrollRafId);
+        scrollRafId = requestAnimationFrame(() => {
+          window.scrollTo(0, 0);
+          document.body.scrollTop = 0;
+          document.documentElement.scrollTop = 0;
+        });
       }
     };
     window.addEventListener("scroll", handleWindowScroll, { passive: false });
 
     const resetScroll = () => {
-      window.scrollTo(0, 0);
-      document.body.scrollTop = 0;
-      document.documentElement.scrollTop = 0;
+      if (scrollRafId) cancelAnimationFrame(scrollRafId);
+      scrollRafId = requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+      });
     };
 
     const vvp = window.visualViewport;
@@ -86,6 +95,7 @@ const ChatInputArea = () => {
       if (vvp) {
         vvp.removeEventListener("resize", resetScroll);
       }
+      if (scrollRafId) cancelAnimationFrame(scrollRafId);
     };
   }, []);
   
@@ -109,7 +119,6 @@ const ChatInputArea = () => {
   }, [settings.replySuggestionsClickMode]);
 
   const [localInput, setLocalInput] = React.useState(userInputMessage);
-  const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
 
   React.useEffect(() => {
     setLocalInput(userInputMessage);
@@ -141,64 +150,43 @@ const ChatInputArea = () => {
     }
   }, [localInput, isKeyboardOpen, triggerScroll]);
 
-  // 移动端键盘弹出时，将输入框滚动至可见区域（解决 Android WebView 不自动上移与被输入法遮挡的问题）
   React.useEffect(() => {
-    const vvp = window.visualViewport;
-    if (!vvp) return;
-
     let timeoutId: any = null;
-
-    const scrollInputIntoView = (behavior: "auto" | "smooth" = "auto") => {
+    const scrollInputIntoView = () => {
       const textarea = textareaRef.current;
       if (!textarea) return;
-      // 只在输入框获得焦点时响应（键盘弹出场景）
       if (document.activeElement !== textarea) return;
-      triggerScroll(behavior);
+      triggerScroll("auto");
     };
 
-    const handleViewportResize = () => {
-      // 优化为动态比例阈值，兼容折叠屏、大屏平板及横屏设备（差值大于屏幕高度 of 15% 或 100px 即判定键盘弹出）
-      const threshold = Math.min(window.innerHeight * 0.15, 100);
-      const isKeyboardNowOpen = window.innerHeight - vvp.height > threshold;
-      setIsKeyboardOpen(isKeyboardNowOpen);
+    if (isKeyboardOpen) {
+      scrollInputIntoView();
+      // 等待软键盘展开动画结束、视口高度调整彻底稳定执行二次修正
+      timeoutId = setTimeout(() => {
+        scrollInputIntoView();
+      }, 250);
+    }
 
-      if (isKeyboardNowOpen) {
-        // 键盘弹起时，立即尝试进行一次定位
-        scrollInputIntoView("auto");
-
-        // 并在 250ms 后（等待软键盘展开动画结束、视口高度调整彻底稳定）执行二次修正滚动
-        if (timeoutId) clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          scrollInputIntoView("smooth");
-        }, 250);
-      }
-    };
-
-    vvp.addEventListener("resize", handleViewportResize);
-
-    // 绑定 textarea 的 focus 事件，作为双重保险（部分系统可能先聚焦而 resize 滞后）
+    // 监听聚焦，如果是聚焦，也延迟滚动以防万一
     const textarea = textareaRef.current;
     const handleFocus = () => {
       if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        scrollInputIntoView("smooth");
-      }, 300); // 聚焦后延迟 300ms，等待键盘升起动画
+        scrollInputIntoView();
+      }, 300);
     };
 
     if (textarea) {
       textarea.addEventListener("focus", handleFocus);
     }
 
-    handleViewportResize();
-
     return () => {
-      vvp.removeEventListener("resize", handleViewportResize);
       if (textarea) {
         textarea.removeEventListener("focus", handleFocus);
       }
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [triggerScroll]);
+  }, [isKeyboardOpen, triggerScroll]);
 
   const lastMsgIsUser = React.useMemo(() => {
     if (!activeSession || activeSession.messages.length === 0) return false;
@@ -303,7 +291,7 @@ const ChatInputArea = () => {
       id="chat-input-area-container"
       ref={containerRef}
       style={{
-        paddingBottom: `${isKeyboardOpen ? 12 : Math.max(safeAreas?.bottom ?? 0, 12)}px`
+        paddingBottom: `${isKeyboardOpen ? 4 : Math.max(safeAreas?.bottom ?? 0, 12)}px`
       }}
       className="glass-panel border-t border-border/40 pt-3 px-3 flex flex-col gap-2 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]"
     >
@@ -605,6 +593,37 @@ export default function ChatTab() {
     };
   }, []);
 
+  const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      const vvp = window.visualViewport;
+      // 视口高度使用 Math.min(vvp.height, window.innerHeight) 以消除 Android 偏大偏差
+      const currentHeight = vvp ? Math.min(vvp.height, window.innerHeight) : window.innerHeight;
+      
+      if (currentHeight > chatTabMaxHeight) {
+        chatTabMaxHeight = currentHeight;
+      }
+      const threshold = Math.min(chatTabMaxHeight * 0.15, 100);
+      const isNowOpen = chatTabMaxHeight - currentHeight > threshold;
+      setIsKeyboardOpen(isNowOpen);
+    };
+
+    window.addEventListener("resize", handleResize);
+    const vvp = window.visualViewport;
+    if (vvp) {
+      vvp.addEventListener("resize", handleResize);
+    }
+    handleResize();
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (vvp) {
+        vvp.removeEventListener("resize", handleResize);
+      }
+    };
+  }, []);
+
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const isAtBottomRef = React.useRef<boolean>(true);
 
@@ -622,16 +641,46 @@ export default function ChatTab() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const scrollToBottom = () => {
+    const scrollToBottom = (label: string = "?") => {
+      const before = container.scrollTop;
       container.scrollTop = container.scrollHeight;
+      // 强制触发 reflow，解决 Webkit 滚动渲染与合成图层不同步的 bug
+      const _unused = container.offsetHeight; 
+
+      // 微调 0.5 像素重新激活 Compositor 滚动检测，消除 WebView 合成滞后
+      requestAnimationFrame(() => {
+        if (container.scrollTop > 0) {
+          container.scrollTop += 0.5;
+          container.scrollTop -= 0.5;
+        }
+      });
+      console.log(`[scroll][${label}] scrollH=${container.scrollHeight} clientH=${container.clientHeight} before=${Math.round(before)} after=${Math.round(container.scrollTop)}`);
     };
 
-    // Scroll to bottom immediately upon mount/active session switch/sub-tab switch
-    scrollToBottom();
+    // 初始稳定化标志：在组件挂载后 600ms 内，ResizeObserver 无条件强制归底
+    // 覆盖以下异步布局抖动链：
+    //   1. Android WebView 首次 paint 异步完成（scrollHeight 延迟撑开）
+    //   2. visualViewport.resize 触发 250ms 延迟内的 setIsKeyboardOpen 更新
+    //   3. safeAreas 从 AndroidThemeBridge 异步读取（最快 150ms，导致 paddingBottom 变化）
+    let isInInitialWindow = true;
+    const initialWindowTimer = setTimeout(() => {
+      isInInitialWindow = false;
+    }, 600);
+
+    // 同步调一次（对已稳定布局的场景有效）
+    scrollToBottom("sync");
+    let rafId: number;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    rafId = requestAnimationFrame(() => {
+      scrollToBottom("rAF"); // 等首帧绘制后再试一次
+      timeoutId = setTimeout(() => {
+        scrollToBottom("350ms"); // 350ms 后最终兜底
+      }, 350);
+    });
 
     const mutationObserver = new MutationObserver(() => {
       if (isAtBottomRef.current) {
-        scrollToBottom();
+        scrollToBottom("mutation");
       }
     });
 
@@ -642,17 +691,28 @@ export default function ChatTab() {
       attributeFilter: ["style", "class"],
     });
 
-    // ResizeObserver：监听容器自身高度变化（如键盘弹出、visualViewport 更新导致布局重算）
-    // 首次进入角色卡时，MainLayout 会因 visualViewport.resize 触发 setViewportHeight 更新，
-    // 导致滚动容器的 clientHeight 改变，但 MutationObserver 无法感知，会遗留大片空白。
-    const resizeObserver = new ResizeObserver(() => {
-      if (isAtBottomRef.current) {
-        scrollToBottom();
+    // ResizeObserver：监听容器自身高度变化
+    // 初始化窗口内无条件归底（覆盖 safeAreas/visualViewport 等异步布局抖动）
+    // 初始化窗口结束后，仅在用户处于底部时才自动跟随
+    const resizeObserver = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect?.height ?? -1;
+      console.log(`[scroll][resize] newH=${Math.round(h)} scrollH=${container.scrollHeight} clientH=${container.clientHeight} isInitWin=${isInInitialWindow} isAtBottom=${isAtBottomRef.current}`);
+      if (isInInitialWindow || isAtBottomRef.current) {
+        scrollToBottom("resize-sync");
+        requestAnimationFrame(() => {
+          scrollToBottom("resize-raf");
+          setTimeout(() => {
+            scrollToBottom("resize-timeout");
+          }, 100);
+        });
       }
     });
     resizeObserver.observe(container);
 
     return () => {
+      clearTimeout(initialWindowTimer);
+      cancelAnimationFrame(rafId);
+      clearTimeout(timeoutId);
       mutationObserver.disconnect();
       resizeObserver.disconnect();
     };
@@ -1042,7 +1102,7 @@ export default function ChatTab() {
       {/* 2.5. Character Big Portrait Section (Dynamic Expressions) */}
       {activeCharacter && hasExpressions && activePortraitUrl && (
         <div className="bg-card border-b border-border transition-all duration-300 overflow-hidden flex flex-col items-center relative shrink-0">
-          {!isPortraitCollapsed ? (
+          {!isPortraitCollapsed && !isKeyboardOpen ? (
             <div className="w-full flex flex-col items-center justify-center p-3 relative h-48 animate-fadeIn">
               {/* Glassmorphic background disc */}
               <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent opacity-60 pointer-events-none" />
@@ -1073,12 +1133,16 @@ export default function ChatTab() {
           ) : (
             <div 
               className="w-full flex items-center justify-between px-3 py-1 text-[10px] text-muted-foreground bg-muted/30 hover:bg-muted/50 transition cursor-pointer" 
-              onClick={() => setIsPortraitCollapsed(false)}
+              onClick={() => {
+                if (!isKeyboardOpen) {
+                  setIsPortraitCollapsed(false);
+                }
+              }}
             >
               <span className="font-medium flex items-center gap-1.5">
-                🖼️ 点击展开角色动态情绪立绘
+                {isKeyboardOpen ? "⌨️ 键盘输入中已自动折叠情绪立绘" : "🖼️ 点击展开角色动态情绪立绘"}
               </span>
-              <span className="scale-90 opacity-70">展开立绘 ⬇️</span>
+              <span className="scale-90 opacity-70">{isKeyboardOpen ? "输入中" : "展开立绘 ⬇️"}</span>
             </div>
           )}
         </div>
@@ -1557,7 +1621,7 @@ export default function ChatTab() {
             <div ref={chatBottomRef} />
           </div>
 
-          <ChatInputArea />
+          <ChatInputArea isKeyboardOpen={isKeyboardOpen} />
         </div>
       )}
 
