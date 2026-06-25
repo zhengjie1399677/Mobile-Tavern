@@ -8,6 +8,9 @@ on:
 
 env:
   TZ: Asia/Shanghai
+  NO_PROXY: localhost,127.0.0.1,::1
+  _JAVA_OPTIONS: -Djava.net.preferIPv4Stack=true
+  GRADLE_OPTS: -Djava.net.preferIPv4Stack=true
 
 permissions:
   contents: write
