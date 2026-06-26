@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings, Sparkles, UserCheck, Puzzle, Database } from "lucide-react";
+import { Settings, Sparkles, UserCheck, Puzzle, Database, RefreshCw, Loader2 } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import {
   Card,
@@ -15,6 +15,7 @@ import {
   TabsTrigger,
 } from "../../../components/ui/tabs";
 import PresetForm from "../../components/PresetForm";
+import { performUpdateCheck, showUpdatePrompt } from "../../components/UpdatePrompt";
 
 import { getDeviceModel, getFreeTrialCount, useViewportSize } from "./utils";
 import GeneralConfigSection from "./GeneralConfigSection";
@@ -88,7 +89,36 @@ export default function SettingsTab() {
   }));
 
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
+  const [isCheckingUpdate, setIsCheckingUpdate] = React.useState(false);
   const lastApiRef = React.useRef(JSON.stringify(settings.api));
+
+  // 手动触发更新检查：跳过 6h 冷却期，结果通过 showCustomAlert 或 UpdatePrompt 弹窗反馈
+  const handleCheckUpdate = async () => {
+    if (isCheckingUpdate) return;
+    setIsCheckingUpdate(true);
+    try {
+      // force=true 跳过冷却期，用户主动点击即立即检查
+      const res = await performUpdateCheck(true);
+      if (res === null) {
+        // 理论上 force=true 不会返回 null（除非 UpdateCheckService 未注册），这里兜底
+        showCustomAlert("提示", "UpdateCheckService 未就绪，请稍后再试");
+      } else if (res.hasUpdate && res.downloadUrl) {
+        // 触发 UpdatePrompt 弹窗（避免重复请求 FC 接口）
+        showUpdatePrompt({
+          latestVersion: res.latestVersion,
+          downloadUrl: res.downloadUrl,
+        });
+      } else {
+        // 无更新：显示服务端返回的 message 或默认文案
+        showCustomAlert("已是最新版本", res.message || "当前版本已是最新，无需更新");
+      }
+    } catch (err: any) {
+      console.error("[SettingsTab] Manual check update failed:", err);
+      showCustomAlert("检查失败", `检查更新时出错：${err?.message || "未知错误"}`);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   React.useEffect(() => {
     const apiStr = JSON.stringify(settings.api);
@@ -120,6 +150,25 @@ export default function SettingsTab() {
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold select-none ml-2 animate-pulse">
               v1.5.9
             </span>
+            <button
+              type="button"
+              onClick={handleCheckUpdate}
+              disabled={isCheckingUpdate}
+              aria-label="检查更新"
+              className="ml-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30 font-semibold hover:bg-primary/20 transition-all flex items-center gap-1 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCheckingUpdate ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>检查中</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3 h-3" />
+                  <span>检查更新</span>
+                </>
+              )}
+            </button>
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             系统参数与颗粒化规则调节

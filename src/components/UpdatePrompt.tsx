@@ -1,8 +1,76 @@
 import React, { useEffect, useState } from "react";
 import * as Icons from "lucide-react";
 import { globalKernel } from "../kernel";
-import { IUpdateCheckService } from "../kernel/types";
+import { IUpdateCheckService, UpdateInfo } from "../kernel/types";
 import pkg from "../../package.json";
+
+// === 更新检查策略常量 ===
+// 6 小时冷却期：避免用户频繁冷启动 App 导致重复请求 FC 接口
+const UPDATE_CHECK_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+// 24 小时定时轮询：App 长时间运行时周期性检查新版本
+const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// 冷启动后延迟 2 秒发起首次检查，让主界面先渲染稳定
+const UPDATE_CHECK_STARTUP_DELAY_MS = 2000;
+const LAST_CHECK_KEY = "tavern_last_update_check_at";
+const SHOW_UPDATE_PROMPT_EVENT = "tavern:show-update-prompt";
+
+/**
+ * 执行更新检查。
+ * @param force true 时跳过 6h 冷却期强制检查（手动按钮触发场景）
+ * @returns UpdateInfo；若冷却期内被跳过返回 null
+ */
+export async function performUpdateCheck(force = false): Promise<UpdateInfo | null> {
+  // 冷却期检查：非强制模式下，距上次检查不足 6h 则跳过
+  if (!force) {
+    try {
+      const lastCheckAt = Number(localStorage.getItem(LAST_CHECK_KEY) || 0);
+      const elapsed = Date.now() - lastCheckAt;
+      if (elapsed < UPDATE_CHECK_COOLDOWN_MS) {
+        console.log(
+          `[UpdateCheck] Skip: last check ${Math.floor(elapsed / 60000)}min ago, cooldown 6h`
+        );
+        return null;
+      }
+    } catch {
+      // localStorage 不可用（如隐私模式）时继续执行检查
+    }
+  }
+
+  const updateService = globalKernel.getService<IUpdateCheckService>("updateCheck");
+  if (!updateService) {
+    console.warn("[UpdateCheck] UpdateCheckService not registered in kernel");
+    return null;
+  }
+
+  // pkg.version 自动读取 package.json 中的版本，符合版本同步规范
+  const currentVersion = pkg.version || "1.5.9";
+  const res = await updateService.checkUpdate(currentVersion);
+
+  // 记录检查时间戳（无论是否有更新），用于冷却期判断
+  try {
+    localStorage.setItem(LAST_CHECK_KEY, String(Date.now()));
+  } catch {
+    // ignore localStorage 写入失败
+  }
+
+  return res;
+}
+
+/**
+ * 触发 UpdatePrompt 弹窗显示。
+ * 供外部组件（如 SettingsTab 手动检查按钮）在拿到 UpdateInfo 后调用，
+ * 避免重复发起 HTTP 请求。
+ */
+export function showUpdatePrompt(info: { latestVersion?: string; downloadUrl?: string }): void {
+  window.dispatchEvent(
+    new CustomEvent(SHOW_UPDATE_PROMPT_EVENT, {
+      detail: {
+        latestVersion: info.latestVersion || "1.6.0",
+        downloadUrl: info.downloadUrl || "",
+      },
+    })
+  );
+}
 
 export default function UpdatePrompt() {
   const [show, setShow] = useState(false);
@@ -11,31 +79,48 @@ export default function UpdatePrompt() {
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
-    // 延迟 2 秒在冷启动完毕、主界面渲染稳定后静默发起检测
-    const timer = setTimeout(async () => {
-      // 检查 sessionStorage 避免在此次会话中重复弹窗打扰用户
+    // 内部辅助：执行检查并在检测到新版本时弹出 Modal
+    const performCheckAndShow = async () => {
+      // 本次会话已 dismiss 则不再弹窗打扰用户
       if (sessionStorage.getItem("tavern_update_dismissed") === "true") {
         return;
       }
 
       try {
-        const updateService = globalKernel.getService<IUpdateCheckService>("updateCheck");
-        if (updateService) {
-          // pkg.version 自动读取 package.json 中的版本，符合版本同步规范
-          const currentVersion = pkg.version || "1.5.9";
-          const res = await updateService.checkUpdate(currentVersion);
-          if (res.hasUpdate && res.downloadUrl) {
-            setLatestVersion(res.latestVersion || "1.6.0");
-            setDownloadUrl(res.downloadUrl);
-            setShow(true);
-          }
+        const res = await performUpdateCheck(false);
+        if (res?.hasUpdate && res.downloadUrl) {
+          setLatestVersion(res.latestVersion || "1.6.0");
+          setDownloadUrl(res.downloadUrl);
+          setShow(true);
         }
       } catch (err) {
-        console.warn("[UpdatePrompt] Check update failed", err);
+        console.warn("[UpdatePrompt] Periodic check update failed:", err);
       }
-    }, 2000);
+    };
 
-    return () => clearTimeout(timer);
+    // 1. 冷启动后延迟 2 秒发起首次检查（受 6h 冷却期约束）
+    const timer = setTimeout(performCheckAndShow, UPDATE_CHECK_STARTUP_DELAY_MS);
+
+    // 2. 24 小时定时轮询（App 长时间运行时周期性检查）
+    const interval = setInterval(performCheckAndShow, UPDATE_CHECK_INTERVAL_MS);
+
+    // 3. 监听外部触发弹窗事件（SettingsTab 手动检查后调用 showUpdatePrompt）
+    const onShowUpdatePrompt = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        latestVersion: string;
+        downloadUrl: string;
+      };
+      setLatestVersion(detail.latestVersion);
+      setDownloadUrl(detail.downloadUrl);
+      setShow(true);
+    };
+    window.addEventListener(SHOW_UPDATE_PROMPT_EVENT, onShowUpdatePrompt);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+      window.removeEventListener(SHOW_UPDATE_PROMPT_EVENT, onShowUpdatePrompt);
+    };
   }, []);
 
   const handleDownload = () => {

@@ -105,9 +105,10 @@ export class UpdateCheckService implements IUpdateCheckService {
     );
 
     // 选择目标接口：原生环境直连 FC，浏览器开发环境连本地 server.ts
+    // 注意：oss-get-moblie 是更新检查专用 FC 函数；catbot-gmkodirnhh 是 LLM 代理函数，二者不同
     const origin = typeof window !== "undefined" && window.location ? window.location.origin : "http://127.0.0.1:3000";
     const url = isClient
-      ? "https://catbot-gmkodirnhh.cn-hangzhou.fcapp.run/api/check-update"
+      ? "https://oss-get-moblie-pkyxzkhwob.cn-hangzhou.fcapp.run/api/check-update"
       : `${origin}/api/check-update`;
 
     // 根据是否是 Tauri 环境，决定是否引入 tauri-plugin-http fetch 避开 CORS
