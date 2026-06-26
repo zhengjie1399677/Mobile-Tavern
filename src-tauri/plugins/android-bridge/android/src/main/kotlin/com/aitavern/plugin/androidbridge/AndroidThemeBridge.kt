@@ -243,6 +243,24 @@ class AndroidThemeBridge(
         }
     }
 
+    /**
+     * Open a URL in the system default browser.
+     */
+    @JavascriptInterface
+    fun openUrl(url: String) {
+        activity.runOnUiThread {
+            try {
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                activity.startActivity(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open URL: $url", e)
+                Toast.makeText(activity, "无法打开链接: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     // ---------------------------------------------------------------------
     // File saving (CR-01: MediaStore API)
     // ---------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { LegacyAppContextProvider } from "./contexts/LegacyAppContextProvider";
 import MainLayout from "./components/MainLayout";
-import { initializeKernel } from "./kernel";
+import { initializeKernel, globalKernel } from "./kernel";
 import { SplashScreen } from "./components/SplashScreen";
 
 export {
@@ -16,6 +16,8 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
+    let unlistenClose: (() => void) | null = null;
+
     initializeKernel()
       .then(() => {
         if (active) setKernelReady(true);
@@ -24,8 +26,35 @@ export default function App() {
         console.error("[App] Failed to initialize microkernel:", err);
         if (active) setInitError(err.message || String(err));
       });
+
+    // 监听 Tauri 原生窗口关闭事件，确保内核资源在 App 被强杀前被正确回收
+    // 动态导入避免 Web 开发模式下模块解析失败
+    import("@tauri-apps/api/window")
+      .then(({ getCurrentWindow }) => {
+        if (!active) return;
+        return getCurrentWindow().onCloseRequested(() => {
+          globalKernel.destroy();
+        });
+      })
+      .then((unlisten) => {
+        if (typeof unlisten === "function") unlistenClose = unlisten;
+      })
+      .catch(() => {
+        // 非 Tauri 环境（Web 开发模式），忽略
+      });
+
     return () => {
       active = false;
+      if (unlistenClose) {
+        try {
+          unlistenClose();
+        } catch {
+          // unlisten 失败不应阻塞 cleanup
+        }
+      }
+      // React 组件卸载时（HMR 热更新、路由切换等）清理内核资源
+      // destroy() 是幂等的，重复调用安全（空映射遍历后即返回）
+      globalKernel.destroy();
     };
   }, []);
 

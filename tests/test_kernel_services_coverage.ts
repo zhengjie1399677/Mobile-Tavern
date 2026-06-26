@@ -309,6 +309,10 @@ async function testAutoSummaryMetadataParsing() {
     async getAllSessions() {
       return [mockSession];
     },
+    // P0-2: AutoSummaryService 改用 getSessionById 单条直查，mock 需同步实现
+    async getSessionById(id: string) {
+      return mockSession && mockSession.id === id ? mockSession : null;
+    },
     async saveSession(session: any) {
       mockSession = session;
     },

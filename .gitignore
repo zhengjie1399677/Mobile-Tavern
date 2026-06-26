@@ -25,3 +25,15 @@ serverless/
 
 # Qoder IDE internal files
 .qoder/
+
+# Tauri 临时配置文件
+src-tauri/temp_config.json
+
+# Tauri 插件构建产物（android-bridge）
+src-tauri/plugins/android-bridge/android/.gradle/
+src-tauri/plugins/android-bridge/android/build/
+src-tauri/plugins/android-bridge/android/app/build/
+
+# Windows 便利脚本（非标准 npm 项目惯例）
+npm.bat
+npx.bat

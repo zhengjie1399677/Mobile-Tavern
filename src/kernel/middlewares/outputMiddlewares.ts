@@ -3,11 +3,23 @@ import { globalKernel } from "../Kernel";
 import { calculateBisonModeProbability } from "../../hooks/useChat/helpers";
 import { Message } from "../../types";
 
+// L2 快速通道：表格记忆指令预扫描正则。
+// 匹配 updateRow/insertRow/deleteRow 后紧跟左括号的模式，
+// 用于在响应文本不含任何表格指令时跳过昂贵的 processTableMemory 调用。
+const TABLE_MEMORY_TRIGGER_PATTERN = /(?:updateRow|insertRow|deleteRow)\s*\(/i;
+
+// L2 快速通道：MVU 脚本指令预扫描正则。
+// 匹配标准 MVU 命令（_.set/add/insert/delete/move）或 XML 标签（UpdateVariable/initvar），
+// 用于在响应文本不含任何脚本指令时跳过昂贵的 iframe bridge 通信。
+const MVU_SCRIPT_TRIGGER_PATTERN = /(?:_\.(?:set|add|insert|delete|move)\s*\(|<(?:UpdateVariable|initvar)\b)/i;
+
 export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (context, next) => {
   const { session, responseText, settings, activeCharacter } = context;
   let currentSession = context.resultSession || session;
 
-  if (settings.enableTableMemory && activeCharacter) {
+  // L2 快速通道：功能开启但响应文本不含表格指令时，跳过 processTableMemory 调用。
+  // regex.test 在无匹配时为 O(n) 单次扫描（n=文本长度），远低于 processTableMemory 的完整解析开销。
+  if (settings.enableTableMemory && activeCharacter && TABLE_MEMORY_TRIGGER_PATTERN.test(responseText)) {
     const kernel = context.kernel || globalKernel;
     const tableMemoryService = kernel.getService<any>(KernelServices.TableMemory);
 
@@ -69,7 +81,9 @@ export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (con
   const { responseText, settings } = context;
   let currentSession = context.resultSession || context.session;
 
-  if (settings.enableScriptExecution && responseText) {
+  // L2 快速通道：功能开启但响应文本不含 MVU 指令时，跳过 executeMvuScript 调用。
+  // executeMvuScript 内部会通过 iframe bridge 通信，开销远高于 regex 预扫描。
+  if (settings.enableScriptExecution && responseText && MVU_SCRIPT_TRIGGER_PATTERN.test(responseText)) {
     try {
       const kernel = context.kernel || globalKernel;
       const scriptService = kernel.getService<any>(KernelServices.Script);

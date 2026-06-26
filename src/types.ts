@@ -232,6 +232,7 @@ export interface UserSettings {
   enableReplySuggestions?: boolean; // Enable suggested action options
   replySuggestionsClickMode?: "send" | "fill"; // Default action on suggestion click
   enableBisonMode?: boolean; // Enable Bison Mode
+  enableReasoningContentDisplay?: boolean; // Display reasoning content (thinking chain) in chat bubbles. Default: true
   replySuggestionsPrompt?: string; // Suggestions prompt template
   bisonModePrompt?: string; // Bison Mode prompt template
   enableMultiMessageQueue?: boolean; // Enable Multi-Message Queue and merge sending

@@ -124,9 +124,23 @@ export class ScriptService implements IScriptService {
   name = "script";
   private kernel!: IKernel;
   private bridge: ITavernHelperBridge | null = null;
+  // P1-1/P1-2: 服务级 AbortController
+  private abortController: AbortController | null = null;
 
-  init(kernel: IKernel): void {
+  init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
+    this.abortController = new AbortController();
+    if (signal) {
+      if (signal.aborted) this.abortController.abort();
+      else signal.addEventListener("abort", () => this.abortController?.abort());
+    }
+  }
+
+  // P1-2: 销毁时清理 bridge 引用与 abort 控制器
+  destroy(): void {
+    this.abortController?.abort();
+    this.abortController = null;
+    this.bridge = null;
   }
 
   registerBridge(bridge: ITavernHelperBridge): void {

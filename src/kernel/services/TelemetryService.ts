@@ -6,9 +6,24 @@ let sessionStartTime = Date.now();
 export class TelemetryService implements ITelemetryService {
   name = "telemetry";
   private kernel!: IKernel;
+  // P1-1/P1-2: 服务级 AbortController
+  private abortController: AbortController | null = null;
 
-  init(kernel: IKernel): void {
+  init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
+    // P1-2 (D-1): 重置 sessionStartTime，确保 HMR 后统计正确
+    sessionStartTime = Date.now();
+    this.abortController = new AbortController();
+    if (signal) {
+      if (signal.aborted) this.abortController.abort();
+      else signal.addEventListener("abort", () => this.abortController?.abort());
+    }
+  }
+
+  // P1-2: 销毁时清理 abort 控制器
+  destroy(): void {
+    this.abortController?.abort();
+    this.abortController = null;
   }
 
   generateDeviceId(): string {

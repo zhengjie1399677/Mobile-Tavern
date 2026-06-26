@@ -185,10 +185,9 @@ export function useRerollMessage(p: RerollMessageParams) {
           top_k: p.settings.preset.topK,
           min_p: p.settings.preset.minP,
           max_tokens: p.settings.preset.maxTokens,
-          max_completion_tokens: p.settings.preset.maxTokens,
           presence_penalty: p.settings.preset.presencePenalty ?? 0.0,
           frequency_penalty: p.settings.preset.frequencyPenalty ?? 0.0,
-          repetition_penalty: p.settings.preset.repetitionPenalty,
+          repetition_penalty: p.settings.preset.repetitionPenalty ?? 1.0,
         },
         signal: controller.signal,
       });

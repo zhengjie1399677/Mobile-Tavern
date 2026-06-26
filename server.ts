@@ -23,10 +23,58 @@ function sanitizeSensitiveData(input: string): string {
     .replace(/(Authorization\s*:\s*Bearer\s+)[A-Za-z0-9_.-]+/gi, "$1[MASKED_KEY]");
 }
 
+/**
+ * 按数字逐段比较语义化版本号。
+ * 解决字符串比较导致的 '1.10.0' < '1.6.0' 误判问题。
+ * @returns 负数表示 a < b，0 表示相等，正数表示 a > b
+ */
+function compareVersions(a: string, b: string): number {
+  const parseVersion = (v: string) => v.split('.').map((seg) => {
+    const n = parseInt(seg, 10);
+    return Number.isNaN(n) ? 0 : n;
+  });
+  const partsA = parseVersion(a);
+  const partsB = parseVersion(b);
+  const maxLen = Math.max(partsA.length, partsB.length);
+  for (let i = 0; i < maxLen; i++) {
+    const va = partsA[i] || 0;
+    const vb = partsB[i] || 0;
+    if (va !== vb) return va - vb;
+  }
+  return 0;
+}
+
 interface ProxyRequestConfig {
   baseUrl: string;
   routePath: string;
   apiKey?: string;
+}
+
+/**
+ * 简单的内存速率限制器（基于 IP）。
+ * 用于 /api/check-update 端点的防刷兜底。
+ * 注意：仅适用于单实例开发服务端；生产环境由阿里云 FC 网关层限流。
+ */
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+const updateCheckRateLimitMap = new Map<string, RateLimitEntry>();
+const UPDATE_CHECK_RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 分钟窗口
+const UPDATE_CHECK_RATE_LIMIT_MAX_REQUESTS = 10;     // 每窗口最多 10 次
+
+function checkUpdateRateLimit(ip: string): { allowed: boolean; retryAfterMs: number } {
+  const now = Date.now();
+  const entry = updateCheckRateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    updateCheckRateLimitMap.set(ip, { count: 1, resetAt: now + UPDATE_CHECK_RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, retryAfterMs: 0 };
+  }
+  entry.count += 1;
+  if (entry.count > UPDATE_CHECK_RATE_LIMIT_MAX_REQUESTS) {
+    return { allowed: false, retryAfterMs: entry.resetAt - now };
+  }
+  return { allowed: true, retryAfterMs: 0 };
 }
 
 function prepareProxyRequest({ baseUrl, routePath, apiKey }: ProxyRequestConfig) {
@@ -538,6 +586,79 @@ async function startServer() {
         reply: `喵呜……本喵的本地脑回路好像烧坏了，报错信息：${sanitizeSensitiveData(e.message)}喵。`,
         expression: "sleepy"
       });
+    }
+  });
+
+  // API 6: Check Update & generate 60s expired Aliyun OSS download URL
+  // 注意：客户端不再参与签名计算（移动端密钥可被逆向提取，签名验证形同虚设）。
+  // 防刷与防重放由本端点基于 IP 限流 + 时间戳校验统一负责。
+  app.post("/api/check-update", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+
+    try {
+      const { clientVersion, userCredential, timestamp } = req.body || {};
+      console.log(`[Check Update] Request clientVersion: ${clientVersion}, credential: ${userCredential}`);
+
+      // 1. 必填参数校验（不再要求 encryptedAlgorithm 签名字段）
+      if (!clientVersion || !userCredential || !timestamp) {
+        return res.status(400).json({ success: false, error: "Missing required update parameters" });
+      }
+
+      // 2. 基于 IP 的速率限制（防刷兜底，每分钟 10 次）
+      const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+        || req.socket.remoteAddress
+        || "unknown";
+      const rateLimitResult = checkUpdateRateLimit(clientIp);
+      if (!rateLimitResult.allowed) {
+        const retryAfterSec = Math.ceil(rateLimitResult.retryAfterMs / 1000);
+        res.setHeader("Retry-After", String(retryAfterSec));
+        console.warn(`[Check Update] Rate limit exceeded for IP: ${clientIp}`);
+        return res.status(429).json({
+          success: false,
+          error: `Too many update check requests. Please retry after ${retryAfterSec}s.`,
+        });
+      }
+
+      // 3. 时间戳防重放校验（5 分钟有效期）
+      const timeDiff = Math.abs(Date.now() - Number(timestamp));
+      if (timeDiff > 5 * 60 * 1000) {
+        return res.status(403).json({ success: false, error: "Forbidden: Request timestamp has expired" });
+      }
+
+      // 4. 软件版本校验：按数字逐段比较，避免字符串比较导致 '1.10.0' < '1.6.0' 的误判
+      const latestVersion = "1.6.0";
+      const hasUpdate = compareVersions(clientVersion, latestVersion) < 0;
+
+      if (!hasUpdate) {
+        return res.json({ success: false, message: "当前已是最新版本" });
+      }
+
+      // 5. 模拟阿里云 FC 返回的响应结构 (由 FC 计算好 120s 签名的 downloadUrl)
+      const downloadUrl = `http://${req.headers.host || "127.0.0.1:3000"}/updates/app-release-v1.6.0.apk`;
+
+      res.json({
+        success: true,
+        data: {
+          latestVersion: latestVersion,
+          fileName: "apk/app-release-v1.6.0.apk",
+          fileSize: 15458920,
+          fileSizeMB: "14.74",
+          downloadUrl: downloadUrl,
+          expiresInSeconds: 120,
+          generatedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 120 * 1000).toISOString()
+        },
+        message: "下载链接生成成功，请尽快使用"
+      });
+
+    } catch (err: any) {
+      console.error("[Check Update Error]:", err);
+      res.status(500).json({ success: false, error: err.message });
     }
   });
 

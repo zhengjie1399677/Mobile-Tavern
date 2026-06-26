@@ -1,0 +1,133 @@
+export interface FlowNode {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  icon: string;
+  file: string;
+  fileUrl: string;
+  desc: string;
+  snippet: string;
+}
+
+export const FLOW_NODES: FlowNode[] = [
+  {
+    id: "user_input",
+    name: "用户输入",
+    x: 180,
+    y: 20,
+    width: 140,
+    height: 40,
+    icon: "MessageSquare",
+    file: "src/tabs/ChatTab.tsx",
+    fileUrl: "src/tabs/ChatTab.tsx",
+    desc: "用户在聊天框输入消息，触发发送流程。此时文本还是原始字符串，未进行任何处理。",
+    snippet: `const handleSend = async (text: string) => {\n  const userMsg = { id: uuid(), sender: 'user', content: text };\n  await appendMessage(userMsg);\n  triggerAIResponse(text);\n};`,
+  },
+  {
+    id: "lorebook_scan",
+    name: "世界书扫描",
+    x: 180,
+    y: 90,
+    width: 140,
+    height: 40,
+    icon: "Search",
+    file: "src/utils/promptBuilder.ts",
+    fileUrl: "src/utils/promptBuilder.ts#L40-L60",
+    desc: "系统提取对话历史（最近 N 轮）和当前用户输入，分词匹配世界书（Lorebook）中的 Key。如果命中，提取对应的 Content 并标记准备注入到 Prompt 中。",
+    snippet: `export function scanLorebook(text: string, entries: LorebookEntry[]) {\n  return entries.filter(entry => \n    entry.keys.some(key => text.toLowerCase().includes(key.toLowerCase()))\n  );\n}`,
+  },
+  {
+    id: "card_data",
+    name: "角色卡数据",
+    x: 20,
+    y: 160,
+    width: 130,
+    height: 40,
+    icon: "User",
+    file: "src/utils/cardParser.ts",
+    fileUrl: "src/utils/cardParser.ts",
+    desc: "从底层 IndexedDB 载入的 Tavern V1/V2 角色卡静态人设数据，包括 Description, Personality, Scenario 以及 First Message 等定义。",
+    snippet: `export interface CharacterCard {\n  name: string;\n  description: string;\n  personality: string;\n  scenario: string;\n  system_prompt?: string;\n}`,
+  },
+  {
+    id: "settings_persona",
+    name: "全局预设/用户人设",
+    x: 350,
+    y: 160,
+    width: 130,
+    height: 40,
+    icon: "Settings",
+    file: "src/contexts/AppContext.tsx",
+    fileUrl: "src/contexts/AppContext.tsx",
+    desc: "当前系统设定的全局参数，例如 User Info ({{persona}}), User Name ({{user}}), 扮演注入开关 (useJailbreak), 尾置指令配置等。",
+    snippet: `export interface UserSettings {\n  userName: string;\n  userInfo: string;\n  promptConfig: {\n    mainPrompt: string;\n    jailbreakPrompt: string;\n    useJailbreak: boolean;\n  };\n}`,
+  },
+  {
+    id: "prompt_assembly",
+    name: "Prompt 编译组装",
+    x: 180,
+    y: 230,
+    width: 140,
+    height: 40,
+    icon: "Cpu",
+    file: "src/utils/promptBuilder.ts",
+    fileUrl: "src/utils/promptBuilder.ts#L80-L150",
+    desc: "核心编译器将人设描述、世界书设定、系统预设及聊天历史做宏匹配与拼接。这里处理了 {{char}}、{{user}} 替换，并修复了正则 flags 崩溃及 $ 符号替换坍塌漏洞。",
+    snippet: `// 修复 $ 替换坍塌漏洞与宏匹配：\nconst safeReplace = (str: string, macro: string, val: string) => {\n  return str.replace(new RegExp(macro, 'g'), () => val);\n};`,
+  },
+  {
+    id: "prefix_cache",
+    name: "前缀缓存切分",
+    x: 180,
+    y: 300,
+    width: 140,
+    height: 40,
+    icon: "Layers",
+    file: "src/utils/promptBuilder.ts",
+    fileUrl: "src/utils/promptBuilder.ts",
+    desc: "分流并标记哪些 prompt 段落属于“静态/稳定历史”（利用 API 前缀缓存提升响应速度且降低 Token 计费），哪些属于“动态尾置”（随每轮对话改变，不参与缓存）。",
+    snippet: `// 编译 Payload 输出分流结构：\nreturn {\n  systemInstruction: systemText, // ⚡ 缓存区\n  history: stableHistoryTurns,   // ⚡ 缓存区\n  dynamicInstruction: postText,  // ⚠️ 变动区\n};`,
+  },
+  {
+    id: "sse_stream",
+    name: "SSE 流式连接",
+    x: 180,
+    y: 370,
+    width: 140,
+    height: 40,
+    icon: "Radio",
+    file: "src/hooks/useChat.tsx",
+    fileUrl: "src/hooks/useChat.tsx#L120-L200",
+    desc: "向后端 API 发送 HTTP POST 请求，通过 SSE (text/event-stream) 方式逐字接收流数据。前端流缓冲区 (pbuf) 将流块按 \\n\\n 进行切分，确保网络延时丢包下数据不丢失。",
+    snippet: `// SSE 接收防丢包切分缓冲区：\nwhile ((matchIdx = pbuf.indexOf('\\n\\n')) >= 0) {\n  const chunk = pbuf.slice(0, matchIdx).trim();\n  pbuf = pbuf.slice(matchIdx + 2);\n  processChunk(chunk);\n}`,
+  },
+  {
+    id: "unescape_parse",
+    name: "JSON 反解译",
+    x: 180,
+    y: 440,
+    width: 140,
+    height: 40,
+    icon: "Braces",
+    file: "src/hooks/useChat.tsx",
+    fileUrl: "src/hooks/useChat.tsx",
+    desc: "将 SSE 读出的原始 data 字符串利用 JSON.parse 反序列化为 JS 对象，然后对其内部 delta content 的转义符 (如 \\n 换行) 进行正确反解，规避换行显示为字面 \\n 的 bug。",
+    snippet: `// 安全反序列化与反转义：\ntry {\n  const json = JSON.parse(line.replace(/^data:\\s*/, ''));\n  const delta = json.choices?.[0]?.delta?.content || '';\n  // 经过 React State 自动将 '\\n' 映射为 DOM 换行\n} catch (e) {}`,
+  },
+  {
+    id: "ui_render",
+    name: "UI 气泡渲染",
+    x: 180,
+    y: 510,
+    width: 140,
+    height: 40,
+    icon: "Smartphone",
+    file: "src/components/MainLayout.tsx",
+    fileUrl: "src/components/MainLayout.tsx",
+    desc: "如果是标准文字，执行 Markdown 语法高亮；如果配置了 HTML 渲染，则执行 DOMPurify 净化后注入气泡；如果在手机端，会根据安全区 CSS 及原生状态栏背景实时对齐。",
+    snippet: `<div className="chat-bubble" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>\n  {renderMarkdown(message.content)}\n</div>`,
+  },
+];

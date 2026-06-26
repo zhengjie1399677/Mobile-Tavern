@@ -17,16 +17,34 @@ export interface SSEChunkCallbacks {
   onDone?: () => void;
 }
 
+export interface SSEStreamOptions {
+  /**
+   * PERF-07: Idle timeout in milliseconds.
+   * If no data is received within this period, the stream reader is cancelled
+   * and `readSSEStream` rejects with an idle-timeout error to release resources.
+   * Set to 0 or Infinity to disable. Default: 60000 (60s).
+   */
+  idleTimeoutMs?: number;
+  /**
+   * P1-7: 可选 AbortSignal，用于在消费方提前退出时立即取消底层 reader。
+   * 当 signal.aborted 时，readSSEStream 会立即 reader.cancel() + clearIdleTimer()，
+   * 无需等待下一次 reader.read() 抛错。
+   */
+  signal?: AbortSignal;
+}
+
 /**
  * Reads an SSE response body and calls `callbacks.onData` for each
  * data payload string. Resolves when the stream is fully consumed.
  *
  * @param response  - The fetch Response whose body will be streamed
  * @param callbacks - Handlers for each SSE data payload
+ * @param options   - Optional streaming controls (e.g. idle timeout, abort signal)
  */
 export async function readSSEStream(
   response: Response,
-  callbacks: SSEChunkCallbacks
+  callbacks: SSEChunkCallbacks,
+  options?: SSEStreamOptions
 ): Promise<void> {
   const reader = response.body?.getReader();
   if (!reader) return;
@@ -34,6 +52,49 @@ export async function readSSEStream(
   const decoder = new TextDecoder("utf-8");
   let pbuf = "";
   let streamDone = false;
+
+  // PERF-07: Idle timeout - 若长时间未收到新数据则主动取消 reader，
+  // 防止 LLM 中转代理在 fetch 200 OK 后挂起导致连接永久占用。
+  const idleTimeoutMs = options?.idleTimeoutMs ?? 60_000;
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  let idleTimedOut = false;
+
+  const clearIdleTimer = () => {
+    if (idleTimer !== null) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    }
+  };
+
+  const resetIdleTimer = () => {
+    if (idleTimeoutMs <= 0 || !Number.isFinite(idleTimeoutMs)) return;
+    clearIdleTimer();
+    idleTimer = setTimeout(() => {
+      console.warn(`[streamReader] Idle timeout (${idleTimeoutMs}ms) exceeded, aborting stream`);
+      idleTimedOut = true;
+      reader.cancel().catch((err) => {
+        console.warn("[streamReader] Stream cancel rejected during idle timeout:", err);
+      });
+    }, idleTimeoutMs);
+  };
+
+  // P1-7: 注册 AbortSignal 监听器，消费方提前退出时立即取消 reader
+  const signal = options?.signal;
+  const onSignalAbort = () => {
+    clearIdleTimer();
+    reader.cancel().catch((err) => {
+      console.warn("[streamReader] Stream cancel rejected during signal abort:", err);
+    });
+  };
+  if (signal) {
+    if (signal.aborted) {
+      onSignalAbort();
+    } else {
+      signal.addEventListener("abort", onSignalAbort);
+    }
+  }
+
+  resetIdleTimer();
 
   /**
    * Process all complete SSE event blocks currently in `pbuf`.
@@ -114,6 +175,8 @@ export async function readSSEStream(
       const { value, done: readerDone } = await reader.read();
 
       if (value) {
+        // PERF-07: 收到任意数据即重置 idle timer（包含 SSE 心跳注释）
+        resetIdleTimer();
         pbuf += decoder.decode(value, { stream: true });
       }
 
@@ -133,6 +196,11 @@ export async function readSSEStream(
       }
     }
   } finally {
+    clearIdleTimer();
+    // P1-7: 移除 signal 监听器，避免内存泄漏
+    if (signal) {
+      signal.removeEventListener("abort", onSignalAbort);
+    }
     try {
       // Catch any rejected promises from cancel to avoid Unhandled Promise Rejections
       reader.cancel().catch((err) => {
@@ -142,6 +210,11 @@ export async function readSSEStream(
     } catch {
       // Ignore release lock errors
     }
+  }
+
+  // PERF-07: 若因 idle timeout 主动取消了流，向上层抛出明确错误以便处理
+  if (idleTimedOut) {
+    throw new Error(`SSE stream idle timeout after ${idleTimeoutMs}ms without data`);
   }
 }
 

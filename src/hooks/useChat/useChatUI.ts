@@ -33,6 +33,8 @@ export interface ChatUIState {
   isBisonLocking: boolean;
   setIsBisonLocking: React.Dispatch<React.SetStateAction<boolean>>;
   bisonRemainingCountRef: React.MutableRefObject<number>;
+  // P1-8: Bison 连续推进 setTimeout 的 timer id，供会话切换/卸载/手动停止时清理
+  bisonChainTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
 
   // 流控 refs
   abortControllerRef: React.MutableRefObject<AbortController | null>;
@@ -106,6 +108,8 @@ export function useChatUI(params: {
 
   const [isBisonLocking, setIsBisonLocking] = useState(false);
   const bisonRemainingCountRef = React.useRef<number>(0);
+  // P1-8: Bison 连续推进 setTimeout 的 timer id，供会话切换/卸载/手动停止时清理
+  const bisonChainTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const abortControllerRef = React.useRef<AbortController | null>(null);
   const isSendingRef = React.useRef(false);
@@ -124,6 +128,11 @@ export function useChatUI(params: {
       if (pendingUpdateTimeoutRef.current) {
         clearTimeout(pendingUpdateTimeoutRef.current);
         pendingUpdateTimeoutRef.current = null;
+      }
+      // P1-8: 卸载时清理 Bison 链 timer，避免对已卸载组件 state 进行更新
+      if (bisonChainTimerRef.current) {
+        clearTimeout(bisonChainTimerRef.current);
+        bisonChainTimerRef.current = null;
       }
     };
   }, [setIsSending]);
@@ -166,7 +175,7 @@ export function useChatUI(params: {
     editingMsgContent, setEditingMsgContent,
     msgMenuId, setMsgMenuId,
     isBisonLocking, setIsBisonLocking,
-    bisonRemainingCountRef,
+    bisonRemainingCountRef, bisonChainTimerRef,
     abortControllerRef, isSendingRef, activeRequestIdRef, pendingUpdateTimeoutRef,
     triggerScroll,
   };

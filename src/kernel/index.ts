@@ -8,6 +8,7 @@ import { ScriptService } from "./services/ScriptService";
 import { AutoSummaryService } from "./services/AutoSummaryService";
 import { MultiMessageService } from "./services/MultiMessageService";
 import { ChatStreamService } from "./services/ChatStreamService";
+import { UpdateCheckService } from "./services/UpdateCheckService";
 import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
@@ -27,7 +28,11 @@ import PlaygroundTab from "../tabs/PlaygroundTab";
  * 使用 registerServiceBatch 进行批量注册：
  * - 无需手工维护注册顺序，内核自动根据各服务的 `dependencies` 字段进行拓扑排序。
  * - 新增服务时只需在此数组中追加条目，并在服务类中声明 `dependencies`，不会影响其他服务。
- * - initTimeoutMs 按各服务 IO 特性酌情配置（DatabaseService 需 IndexedDB 初始化，设置较宽超时）。
+ * - initTimeoutMs 按各服务 IO 特性酌情配置（P1-3：所有服务均配置超时，避免 init 挂起导致启动白屏）。
+ *   * DatabaseService 需 IndexedDB 初始化，5s
+ *   * LLMService/AutoSummaryService 涉及网络或重计算，8s
+ *   * ChatStreamService 涉及流式连接，5s
+ *   * 其余纯计算服务，3s
  */
 export async function initializeKernel() {
   await globalKernel.registerServiceBatch([
@@ -39,36 +44,48 @@ export async function initializeKernel() {
     {
       name: KernelServices.LLM,
       service: new LLMService(),
+      initTimeoutMs: 8000,
     },
     {
       name: KernelServices.Prompt,
       service: new PromptService(),
+      initTimeoutMs: 3000,
     },
     {
       name: KernelServices.Telemetry,
       service: new TelemetryService(),
+      initTimeoutMs: 3000,
     },
     {
       name: KernelServices.TableMemory,
       service: new TableMemoryService(),
+      initTimeoutMs: 3000,
     },
     {
       name: KernelServices.Script,
       service: new ScriptService(),
+      initTimeoutMs: 3000,
     },
     {
       name: KernelServices.MultiMessage,
       service: new MultiMessageService(),
+      initTimeoutMs: 3000,
     },
     {
       name: KernelServices.AutoSummary,
       service: new AutoSummaryService(),
+      initTimeoutMs: 8000,
       // AutoSummaryService 依赖 LLM 和 Database，拓扑排序会自动保证它们先被注册
       // 注：依赖声明应在 AutoSummaryService 类的 dependencies 字段中定义
     },
     {
       name: KernelServices.ChatStream,
       service: new ChatStreamService(),
+      initTimeoutMs: 5000,
+    },
+    {
+      name: KernelServices.UpdateCheck,
+      service: new UpdateCheckService(),
     },
   ]);
 

@@ -61,7 +61,6 @@ export const useCharacters = () => {
     );
     if (ok) {
       setIsDbWriting(true);
-      await new Promise((resolve) => setTimeout(resolve, 500));
       try {
         await deleteCharacter(id);
         // Clean sessions associated too
@@ -101,7 +100,6 @@ export const useCharacters = () => {
     } as CharacterCard;
 
     setIsDbWriting(true);
-    await new Promise((resolve) => setTimeout(resolve, 500));
     try {
       const isNew = !characters.some((c) => c.id === fullChar.id);
       await saveCharacter(fullChar);

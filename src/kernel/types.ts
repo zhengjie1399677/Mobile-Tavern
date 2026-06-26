@@ -10,6 +10,7 @@ export const KernelServices = {
   AutoSummary: "autoSummary",
   MultiMessage: "multiMessage",
   ChatStream: "chatStream",
+  UpdateCheck: "updateCheck",
 } as const;
 
 export const KernelEvents = {
@@ -146,14 +147,26 @@ export interface IKernelService {
   destroy?(kernel: IKernel, signal?: AbortSignal): Promise<void> | void;
 }
 
-export interface IDatabaseService<TSession = any> extends IKernelService {
+export interface IDatabaseService<TSession = any, TCharacter = any> extends IKernelService {
   getAllSessions(): Promise<TSession[]>;
+  /**
+   * P0-2 基础设施：按主键单条直查会话，避免 getAllSessions() 全量反序列化。
+   * 用于 AutoSummaryService 等仅需查找当前会话的场景。
+   */
+  getSessionById(id: string): Promise<TSession | null>;
+  // PERF-03: 分页加载 API，避免一次性 getAll() 阻塞主线程
+  getSessionsCount(): Promise<number>;
+  getSessionsPaginated(page: number, pageSize: number): Promise<TSession[]>;
   saveSession(session: TSession): Promise<void>;
   deleteSession(id: string): Promise<void>;
   createNewSession(character: any, starterMessage?: string, initialSuggestions?: string[]): Promise<TSession>;
   createEmptyBranch(character: any, title: string): Promise<TSession>;
   createBacktrackBranch(sourceSession: TSession, title: string, msgId: string): Promise<TSession>;
   createBacktrackFromTimeline(sourceSession: TSession, title: string, summaryId: string): Promise<TSession>;
+  /**
+   * P0-4 / P1-4 基础设施：按主键单条直查角色卡，避免 getAllCharacters() 全量反序列化。
+   */
+  getCharacterById(id: string): Promise<TCharacter | null>;
 }
 
 export interface ILLMService extends IKernelService {
@@ -258,4 +271,15 @@ export interface IAutoSummaryService<TSession = any, TSettings = any, TCharacter
 
 export interface IMultiMessageService<TSession = any> extends IKernelService {
   queueUserMessage(session: TSession, text: string): Promise<TSession>;
+}
+
+export interface UpdateInfo {
+  hasUpdate: boolean;
+  latestVersion?: string;
+  downloadUrl?: string;
+  message?: string;
+}
+
+export interface IUpdateCheckService extends IKernelService {
+  checkUpdate(currentVersion: string, signal?: AbortSignal): Promise<UpdateInfo>;
 }

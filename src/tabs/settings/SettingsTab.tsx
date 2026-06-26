@@ -1,0 +1,269 @@
+import React from "react";
+import { Settings, Sparkles, UserCheck, Puzzle, Database } from "lucide-react";
+import { useUnifiedApp } from "../../UnifiedAppContext";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardDescription,
+} from "../../../components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../../components/ui/tabs";
+import PresetForm from "../../components/PresetForm";
+
+import { getDeviceModel, getFreeTrialCount, useViewportSize } from "./utils";
+import GeneralConfigSection from "./GeneralConfigSection";
+import ThemeConfigSection from "./ThemeConfigSection";
+import PersonaConfigSection from "./PersonaConfigSection";
+import FeaturesSection from "./FeaturesSection";
+import MemoryStorageSection from "./MemoryStorageSection";
+
+export default function SettingsTab() {
+  const isTauri = typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
+  const deviceModel = getDeviceModel();
+  const viewportSize = useViewportSize();
+  const freeCount = getFreeTrialCount();
+
+  const {
+    settings,
+    currentTheme,
+    handleThemeChange,
+    availableModels,
+    isFetchingModels,
+    handleFetchModels,
+    backupPass,
+    setBackupPass,
+    backupStatus,
+    encryptBackup,
+    setEncryptBackup,
+    showBackupUI,
+    setShowBackupUI,
+    updateSettings,
+    switchUserPersona,
+    addUserPersona,
+    deleteUserPersona,
+    connectionStatus,
+    testApiConnection,
+    setActiveTab,
+    showCustomPrompt,
+    showCustomConfirm,
+    showCustomAlert,
+    safeAreas,
+    handleExportLocalDataBackup,
+    handleImportLocalDataBackup,
+    handleImportSillyChatHistory,
+  } = useUnifiedApp(state => ({
+    settings: state.settings,
+    currentTheme: state.currentTheme,
+    handleThemeChange: state.handleThemeChange,
+    availableModels: state.availableModels,
+    isFetchingModels: state.isFetchingModels,
+    handleFetchModels: state.handleFetchModels,
+    backupPass: state.backupPass,
+    setBackupPass: state.setBackupPass,
+    backupStatus: state.backupStatus,
+    encryptBackup: state.encryptBackup,
+    setEncryptBackup: state.setEncryptBackup,
+    showBackupUI: state.showBackupUI,
+    setShowBackupUI: state.setShowBackupUI,
+    updateSettings: state.updateSettings,
+    switchUserPersona: state.switchUserPersona,
+    addUserPersona: state.addUserPersona,
+    deleteUserPersona: state.deleteUserPersona,
+    connectionStatus: state.connectionStatus,
+    testApiConnection: state.testApiConnection,
+    setActiveTab: state.setActiveTab,
+    showCustomPrompt: state.showCustomPrompt,
+    showCustomConfirm: state.showCustomConfirm,
+    showCustomAlert: state.showCustomAlert,
+    safeAreas: state.safeAreas,
+    handleExportLocalDataBackup: state.handleExportLocalDataBackup,
+    handleImportLocalDataBackup: state.handleImportLocalDataBackup,
+    handleImportSillyChatHistory: state.handleImportSillyChatHistory,
+  }));
+
+  const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
+  const lastApiRef = React.useRef(JSON.stringify(settings.api));
+
+  React.useEffect(() => {
+    const apiStr = JSON.stringify(settings.api);
+    if (apiStr !== lastApiRef.current) {
+      lastApiRef.current = apiStr;
+      setSaveState("saving");
+      const timer1 = setTimeout(() => {
+        setSaveState("saved");
+      }, 550);
+      return () => clearTimeout(timer1);
+    }
+  }, [settings.api]);
+
+  React.useEffect(() => {
+    if (saveState === "saved") {
+      const timer2 = setTimeout(() => {
+        setSaveState("idle");
+      }, 2000);
+      return () => clearTimeout(timer2);
+    }
+  }, [saveState]);
+
+  return (
+    <div className="px-4 pb-4 pt-1.5 flex flex-col h-full overflow-hidden">
+      <div className="border-b border-border pb-2 mb-2 shrink-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
+            <Settings className="w-5 h-5 text-primary" /> 控制面板
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold select-none ml-2 animate-pulse">
+              v1.5.9
+            </span>
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            系统参数与颗粒化规则调节
+          </p>
+        </div>
+      </div>
+
+      <Tabs
+        defaultValue="general"
+        className="flex-1 flex flex-col min-h-0 bg-transparent"
+      >
+        <TabsList className="grid grid-cols-4 w-full h-11 p-1 bg-muted/50 rounded-xl">
+          <TabsTrigger
+            value="general"
+            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
+          >
+            <Sparkles className="w-3.5 h-3.5" /> 常规
+          </TabsTrigger>
+          <TabsTrigger
+            value="persona"
+            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
+          >
+            <UserCheck className="w-3.5 h-3.5" /> 角色
+          </TabsTrigger>
+          <TabsTrigger
+            value="presets"
+            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
+          >
+            <Puzzle className="w-3.5 h-3.5" /> 预设
+          </TabsTrigger>
+          <TabsTrigger
+            value="memory"
+            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
+          >
+            <Database className="w-3.5 h-3.5" /> 存储
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="flex-1 overflow-y-auto mt-2 custom-scrollbar pb-10">
+          {/* 1. GENERAL CONFIG (Theme + API + Persona) */}
+          <TabsContent
+            value="general"
+            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
+          >
+            <GeneralConfigSection
+              settings={settings}
+              updateSettings={updateSettings}
+              availableModels={availableModels}
+              isFetchingModels={isFetchingModels}
+              handleFetchModels={handleFetchModels}
+              testApiConnection={testApiConnection}
+              connectionStatus={connectionStatus}
+              showCustomPrompt={showCustomPrompt}
+              showCustomConfirm={showCustomConfirm}
+              saveState={saveState}
+              freeCount={freeCount}
+            />
+
+            <ThemeConfigSection
+              settings={settings}
+              updateSettings={updateSettings}
+              currentTheme={currentTheme}
+              handleThemeChange={handleThemeChange}
+              showCustomAlert={showCustomAlert}
+            />
+
+            {/* 3. DEVELOPER PLAYGROUND */}
+            <Card className="glass-panel shadow-sm border border-dashed border-primary/40">
+              <CardHeader className="pb-3 border-b border-border/50">
+                <CardTitle className="text-sm flex items-center gap-2 text-primary font-bold">
+                  <Sparkles className="w-4 h-4 animate-pulse" />
+                  <span>系统运行沙盒</span>
+                </CardTitle>
+                <CardDescription className="text-[11px]">
+                  实时观测 Prompt 编译原理、SSE 流式解析缓冲区以及世界书扫描流程
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("playground")}
+                  className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 active:scale-95"
+                >
+                  🚀 进入系统运行沙盒 (Sandbox)
+                </button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* PERSONA CONFIG */}
+          <TabsContent
+            value="persona"
+            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
+          >
+            <PersonaConfigSection
+              settings={settings}
+              updateSettings={updateSettings}
+              switchUserPersona={switchUserPersona}
+              addUserPersona={addUserPersona}
+              deleteUserPersona={deleteUserPersona}
+              showCustomAlert={showCustomAlert}
+            />
+
+            <FeaturesSection
+              settings={settings}
+              updateSettings={updateSettings}
+            />
+          </TabsContent>
+
+          {/* 3. PRESETS */}
+          <TabsContent
+            value="presets"
+            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
+          >
+            <PresetForm />
+          </TabsContent>
+
+          {/* 4. MEMORY AND STORAGE CONFIG */}
+          <TabsContent
+            value="memory"
+            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
+          >
+            <MemoryStorageSection
+              settings={settings}
+              updateSettings={updateSettings}
+              backupPass={backupPass}
+              setBackupPass={setBackupPass}
+              backupStatus={backupStatus}
+              encryptBackup={encryptBackup}
+              setEncryptBackup={setEncryptBackup}
+              showBackupUI={showBackupUI}
+              setShowBackupUI={setShowBackupUI}
+              handleExportLocalDataBackup={handleExportLocalDataBackup}
+              handleImportLocalDataBackup={handleImportLocalDataBackup}
+              handleImportSillyChatHistory={handleImportSillyChatHistory}
+              safeAreas={safeAreas}
+              isTauri={isTauri}
+              deviceModel={deviceModel}
+              viewportSize={viewportSize}
+            />
+          </TabsContent>
+        </div>
+      </Tabs>
+
+    </div>
+  );
+}

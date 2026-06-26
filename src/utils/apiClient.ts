@@ -22,24 +22,8 @@ function getLlmService() {
   return fallbackLlm;
 }
 
-export function cleanRequestPayload(
-  baseUrl: string | undefined,
-  reqBody: Record<string, any> | undefined
-): Record<string, any> | undefined {
-  if (!reqBody) return reqBody;
-
-  const cleaned = { ...reqBody };
-
-  // 兼容性策略（CR-URLFIX）：默认透传所有参数，信任 OpenAI 兼容中转站会忽略未知字段。
-  // 仅保留 max_completion_tokens 与 max_tokens 的互斥逻辑：
-  // OpenAI 新 API 使用 max_completion_tokens，若同时存在则移除旧的 max_tokens，
-  // 避免部分严格 API 同时收到两者报 400 错误。
-  if (cleaned.max_completion_tokens !== undefined) {
-    delete cleaned.max_tokens;
-  }
-
-  return cleaned;
-}
+// P0-3: cleanRequestPayload 已下沉到 src/kernel/utils/requestSchema.ts，
+// 实现请求体字段白名单清洗。本文件不再保留重复定义，避免维护漂移。
 
 export const isClientMode = (): boolean => {
   return getLlmService().isClientMode();

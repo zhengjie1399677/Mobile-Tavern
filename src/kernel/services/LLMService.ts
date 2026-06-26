@@ -1,5 +1,6 @@
 import { ILLMService, IKernel } from "../types";
 import { getTrialKey } from "../../utils/keyManager";
+import { cleanRequestPayload, cleanLLMResponse } from "../utils/requestSchema";
 
 declare const IS_MOBILE_NATIVE: boolean;
 
@@ -33,9 +34,25 @@ export const FALLBACK_MODEL = "gpt-3.5-turbo";
 export class LLMService implements ILLMService {
   name = "llm";
   private kernel!: IKernel;
+  // P1-1/P1-2: 服务级 AbortController，用于 destroy 时中止挂起的 fetch
+  private abortController: AbortController | null = null;
 
-  init(kernel: IKernel): void {
+  init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
+    this.abortController = new AbortController();
+    if (signal) {
+      if (signal.aborted) this.abortController.abort();
+      else signal.addEventListener("abort", () => this.abortController?.abort());
+    }
+  }
+
+  // P1-2: 销毁时清理模块级单例与 abort 控制器
+  destroy(): void {
+    this.abortController?.abort();
+    this.abortController = null;
+    // 清理 Tauri fetch 模块级单例，允许 HMR 后重新加载
+    tauriFetchPromise = null;
+    tauriFetch = null;
   }
 
   isClientMode(): boolean {
@@ -68,31 +85,15 @@ export class LLMService implements ILLMService {
     return headers;
   }
 
-  private cleanRequestPayload(
-    baseUrl: string | undefined,
-    reqBody: Record<string, any> | undefined
-  ): Record<string, any> | undefined {
-    if (!reqBody) return reqBody;
-
-    const cleaned = { ...reqBody };
-
-    // 兼容性策略（CR-URLFIX）：默认透传所有参数，信任 OpenAI 兼容中转站会忽略未知字段。
-    // 仅保留 max_completion_tokens 与 max_tokens 的互斥逻辑：
-    // OpenAI 新 API 使用 max_completion_tokens，若同时存在则移除旧的 max_tokens，
-    // 避免部分严格 API 同时收到两者报 400 错误。
-    if (cleaned.max_completion_tokens !== undefined) {
-      delete cleaned.max_tokens;
-    }
-
-    return cleaned;
-  }
+  // P0-3: cleanRequestPayload 已下沉到 src/kernel/utils/requestSchema.ts，
+  // 实现请求体字段白名单清洗，剥离非标参数与原型污染键名。
 
   async universalFetch(
     endpoint: string,
     proxyPayload: any,
     customSignal?: AbortSignal
   ): Promise<Response> {
-    const cleanedReqBody = this.cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, any>);
+    const cleanedReqBody = cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, any>);
     
     let actualApiKey = proxyPayload.apiKey;
     let isTrial = false;
@@ -278,6 +279,27 @@ export class LLMService implements ILLMService {
           body: JSON.stringify(reqBody),
           signal,
         });
+        // P1-9: 对非流式响应做字段白名单清洗，剥离中转站注入的非标字段
+        // （如 extra_data / debug_info / prompt_hash），
+        // 防止脏数据渗透到 sessions 表与消息渲染管线。
+        // 流式响应（stream: true）由 streamReader 逐 chunk 处理，仅提取
+        // choices[].delta.content / reasoning_content，无需清洗。
+        if (reqBody?.stream !== true && openAiRes.ok) {
+          try {
+            const data = await openAiRes.json();
+            const cleaned = cleanLLMResponse(data);
+            return new Response(JSON.stringify(cleaned), {
+              status: openAiRes.status,
+              statusText: openAiRes.statusText,
+              headers: { "Content-Type": "application/json" },
+            });
+          } catch {
+            return new Response(
+              JSON.stringify({ error: "Invalid JSON response from upstream" }),
+              { status: 502, headers: { "Content-Type": "application/json" } }
+            );
+          }
+        }
         return openAiRes;
       }
 

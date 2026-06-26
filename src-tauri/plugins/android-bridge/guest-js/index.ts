@@ -44,6 +44,8 @@ export interface AndroidThemeBridge {
    *   message on failure.
    */
   saveFileBase64(fileName: string, base64Data: string, mimeType: string): string;
+  /** Opens a URL in the system default browser. */
+  openUrl(url: string): void;
 }
 
 declare global {

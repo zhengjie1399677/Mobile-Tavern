@@ -5,9 +5,21 @@ export class MultiMessageService implements IMultiMessageService {
   name = "multiMessage";
   dependencies = ["database"] as const;
   private kernel!: IKernel;
+  // P1-1/P1-2: 服务级 AbortController（纯计算服务，契约一致性）
+  private abortController: AbortController | null = null;
 
-  init(kernel: IKernel): void {
+  init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
+    this.abortController = new AbortController();
+    if (signal) {
+      if (signal.aborted) this.abortController.abort();
+      else signal.addEventListener("abort", () => this.abortController?.abort());
+    }
+  }
+
+  destroy(): void {
+    this.abortController?.abort();
+    this.abortController = null;
   }
 
   async queueUserMessage(session: ChatSession, text: string): Promise<ChatSession> {

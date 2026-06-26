@@ -1,19 +1,46 @@
 import { IDatabaseService, IKernel } from "../types";
 import { ChatSession } from "../../types";
-import { getAllSessions, saveSession, deleteSession } from "../../utils/localDB";
+import { getAllSessions, saveSession, deleteSession, getSessionsCount, getSessionsPaginated, getSessionById, getCharacterById } from "../../utils/localDB";
 
 export class DatabaseService implements IDatabaseService {
   name = "database";
   isCritical = true;
   dependencies = ["script"] as const;
   private kernel!: IKernel;
+  // P1-1/P1-2: 服务级 AbortController
+  private abortController: AbortController | null = null;
 
-  init(kernel: IKernel): void {
+  init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
+    this.abortController = new AbortController();
+    if (signal) {
+      if (signal.aborted) this.abortController.abort();
+      else signal.addEventListener("abort", () => this.abortController?.abort());
+    }
+  }
+
+  // P1-2: 销毁时中止挂起的 IDB 操作（IDB 事务会被 abort）
+  destroy(): void {
+    this.abortController?.abort();
+    this.abortController = null;
   }
 
   async getAllSessions(): Promise<ChatSession[]> {
     return getAllSessions();
+  }
+
+  // P0-2: 单条直查会话，避免全量反序列化
+  async getSessionById(id: string): Promise<ChatSession | null> {
+    return getSessionById(id);
+  }
+
+  // PERF-03: 分页加载 API，封装 localDB 实现
+  async getSessionsCount(): Promise<number> {
+    return getSessionsCount();
+  }
+
+  async getSessionsPaginated(page: number, pageSize: number): Promise<ChatSession[]> {
+    return getSessionsPaginated(page, pageSize);
   }
 
   async saveSession(session: ChatSession): Promise<void> {
@@ -22,6 +49,11 @@ export class DatabaseService implements IDatabaseService {
 
   async deleteSession(id: string): Promise<void> {
     return deleteSession(id);
+  }
+
+  // P0-4 / P1-4: 单条直查角色卡，避免全量反序列化
+  async getCharacterById(id: string): Promise<any | null> {
+    return getCharacterById(id);
   }
 
   async createNewSession(character: any, starterMessage?: string, initialSuggestions?: string[]): Promise<ChatSession> {

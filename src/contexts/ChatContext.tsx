@@ -1,7 +1,11 @@
-import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
+import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from "react";
 import { ChatSession, Message, SummaryCard } from "../types";
-import { getAllSessions, saveSession as dbSaveSession, deleteSession as dbDeleteSession } from "../utils/localDB";
+import { getAllSessions, saveSession as dbSaveSession, deleteSession as dbDeleteSession, getSessionsCount, getSessionsPaginated } from "../utils/localDB";
 import { useApp } from "./AppContext";
+
+// P0-1: 启动时分页加载会话，避免一次性 getAll() 全量反序列化阻塞首屏。
+// 默认每页 50 条（覆盖 95% 用户的会话总数），超出部分由 loadMoreSessions 滚动加载。
+const SESSIONS_PAGE_SIZE = 50;
 
 interface ChatContextType {
   sessions: ChatSession[];
@@ -20,6 +24,9 @@ interface ChatContextType {
   connectionStatus: { testing: boolean; success?: boolean; message?: string };
   setConnectionStatus: (status: any) => void;
   loadSessions: () => Promise<void>;
+  loadMoreSessions: () => Promise<void>;
+  hasMoreSessions: boolean;
+  isLoadingMoreSessions: boolean;
   saveSession: (session: ChatSession) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
 }
@@ -36,7 +43,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<any>({ testing: false });
 
-  const isMountedRef = React.useRef(true);
+  // P0-1: 分页加载状态
+  const [hasMoreSessions, setHasMoreSessions] = useState(false);
+  const [isLoadingMoreSessions, setIsLoadingMoreSessions] = useState(false);
+  const loadedPageRef = useRef(0);
+  const totalCountRef = useRef(0);
+
+  const isMountedRef = useRef(true);
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -51,14 +64,55 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadSessions = async () => {
     try {
-      const stored = await getAllSessions();
+      // P0-1: 启动时仅加载第一页（最近 SESSIONS_PAGE_SIZE 条会话），避免全量反序列化阻塞首屏。
+      const total = await getSessionsCount();
+      const firstPage = await getSessionsPaginated(1, SESSIONS_PAGE_SIZE);
       if (isMountedRef.current) {
-        setSessions(stored || []);
+        setSessions(firstPage || []);
+        loadedPageRef.current = 1;
+        totalCountRef.current = total;
+        setHasMoreSessions(total > (firstPage?.length || 0));
       }
     } catch (e: any) {
       console.error("Failed to load sessions from IndexedDB:", e);
       if (isMountedRef.current) {
         showCustomAlert("加载聊天记录失败: " + e.message);
+      }
+    }
+  };
+
+  const loadMoreSessions = async () => {
+    if (isLoadingMoreSessions || !hasMoreSessions) return;
+    setIsLoadingMoreSessions(true);
+    try {
+      const nextPage = loadedPageRef.current + 1;
+      const more = await getSessionsPaginated(nextPage, SESSIONS_PAGE_SIZE);
+      const moreLength = more?.length || 0;
+      if (isMountedRef.current) {
+        setSessions((prev) => {
+          // 去重合并：用户在加载期间可能已新建会话，避免重复
+          const existing = new Set(prev.map((s) => s.id));
+          const merged = [...prev];
+          for (const s of more || []) {
+            if (!existing.has(s.id)) {
+              merged.push(s);
+              existing.add(s.id);
+            }
+          }
+          return merged;
+        });
+        loadedPageRef.current = nextPage;
+        // 若本页返回少于 pageSize，说明已无更多
+        setHasMoreSessions(moreLength >= SESSIONS_PAGE_SIZE);
+      }
+    } catch (e: any) {
+      console.error("Failed to load more sessions from IndexedDB:", e);
+      if (isMountedRef.current) {
+        showCustomAlert("加载更多聊天记录失败: " + e.message);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoadingMoreSessions(false);
       }
     }
   };
@@ -119,6 +173,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         connectionStatus,
         setConnectionStatus,
         loadSessions,
+        loadMoreSessions,
+        hasMoreSessions,
+        isLoadingMoreSessions,
         saveSession,
         deleteSession,
       }}

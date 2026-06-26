@@ -11,9 +11,22 @@ const SAFE_CONTEXT_LIMIT = 12000;
 export class PromptService implements IPromptService {
   name = "prompt";
   private kernel!: IKernel;
+  // P1-1/P1-2: 服务级 AbortController（纯计算服务，主要用于契约一致性）
+  private abortController: AbortController | null = null;
 
-  init(kernel: IKernel): void {
+  init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
+    this.abortController = new AbortController();
+    if (signal) {
+      if (signal.aborted) this.abortController.abort();
+      else signal.addEventListener("abort", () => this.abortController?.abort());
+    }
+  }
+
+  // P1-2: 销毁时清理 abort 控制器
+  destroy(): void {
+    this.abortController?.abort();
+    this.abortController = null;
   }
 
   cleanNameForApi(name: string | undefined, fallback: string): string | undefined {
@@ -303,12 +316,15 @@ export class PromptService implements IPromptService {
             }
           }
         } else if (msg.sender === "system") {
+          // 纯底层原则：移除硬编码 [系统旁白:] 前缀。
+          // role 保持 "user" 以维持严格 user/assistant 交替（兼容严格要求交替的 API）。
+          // 如需 system role，用户可通过 instruct 模板自定义。
           role = "user";
           let msgContent = msg.content;
           if (settings.enableReplySuggestions && idx === lastUserMsgIdx) {
             msgContent += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
           }
-          content = `[系统旁白: ${msgContent}]`;
+          content = msgContent;
         } else {
           role = "user";
           let msgContent = msg.content;
@@ -424,7 +440,6 @@ export class PromptService implements IPromptService {
     );
 
     const modelName = (settings.api?.modelName || "").toLowerCase();
-    const enableCacheOptimization = modelName.includes("deepseek") || modelName.includes("gemini");
 
     const isDeepSeek = modelName.includes("deepseek");
     const enableGuidance = settings.promptConfig?.enableReasoningGuidance !== undefined
@@ -434,14 +449,9 @@ export class PromptService implements IPromptService {
       ? `\n\n${settings.promptConfig?.reasoningGuidancePrompt || DEFAULT_REASONING_GUIDANCE_PROMPT}\n`
       : "";
 
-    const processedActiveEntries = enableCacheOptimization
-      ? activeEntries.map((e) => {
-        if (e.position === "in_chat" || e.position === "before_last_mes") {
-          return { ...e, position: "after_char_def" as const };
-        }
-        return e;
-      })
-      : activeEntries;
+    // 纯底层原则：lorebook position 完全由用户在角色卡/世界书中显式声明，
+    // 系统不再根据模型名硬编码改写。缓存命中率优化通过 messages 顺序（system 首位）保证。
+    const processedActiveEntries = activeEntries;
 
     const topEntries = processedActiveEntries.filter((e) => e.position === "top");
     const beforeCharEntries = processedActiveEntries.filter(
@@ -739,12 +749,15 @@ ${scenarioBlock}
             }
           }
         } else if (msg.sender === "system") {
+          // 纯底层原则：移除硬编码 [系统旁白:] 前缀。
+          // role 保持 "user" 以维持严格 user/assistant 交替（兼容严格要求交替的 API）。
+          // 如需 system role，用户可通过 instruct 模板自定义。
           role = "user";
           let msgContent = msg.content;
           if (settings.enableReplySuggestions && idx === lastUserMsgIdx) {
             msgContent += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
           }
-          content = `[系统旁白: ${msgContent}]`;
+          content = msgContent;
         } else {
           role = "user";
           let msgContent = msg.content;

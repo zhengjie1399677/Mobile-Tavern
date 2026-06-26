@@ -2,6 +2,35 @@ import { CharacterCard, LorebookEntry } from "../types";
 import { unzlibSync, inflateSync } from "fflate";
 import { compressImage } from "./imageCompressor";
 
+/**
+ * P1-10: 递归清洗角色卡 extensions 字段。
+ * 移除原型污染键名（__proto__ / constructor / prototype），限制嵌套深度，
+ * 防止第三方角色卡导入的脏数据渗透到数据库与运行时内存。
+ *
+ * 实现 AGENTS.md 准则一.3「接口防腐隔离」铁则。
+ */
+function sanitizeExtensions(ext: any, depth = 0): Record<string, any> {
+  if (depth > 5 || !ext || typeof ext !== "object" || Array.isArray(ext)) {
+    return {};
+  }
+  const cleaned: Record<string, any> = {};
+  for (const key of Object.keys(ext)) {
+    // 移除原型污染键名
+    if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
+    const val = ext[key];
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      cleaned[key] = sanitizeExtensions(val, depth + 1);
+    } else if (Array.isArray(val)) {
+      cleaned[key] = val.map((item) =>
+        item && typeof item === "object" ? sanitizeExtensions(item, depth + 1) : item
+      );
+    } else {
+      cleaned[key] = val;
+    }
+  }
+  return cleaned;
+}
+
 // Named constants for PNG offsets and values
 export const PNG_SIGNATURE_HEADER_1 = 0x89504e47;
 export const PNG_SIGNATURE_HEADER_2 = 0x0d0a1a0a;
@@ -247,13 +276,14 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
     post_history_instructions:
       data.post_history_instructions || data.postHistoryInstructions || "",
     alternate_greetings: Array.isArray(data.alternate_greetings)
-      ? data.alternate_greetings
+      ? data.alternate_greetings.map((g: any) => String(g))
       : [],
     creator: data.creator || data.creator_notes || "",
     creator_notes: data.creator_notes || data.creatorNotes || "",
     tags: Array.isArray(data.tags) ? data.tags.map((t: any) => String(t).trim()) : [],
     character_version: data.character_version || data.version || "1.0.0",
-    extensions: data.extensions || {},
+    // P1-10: 对 extensions 做防腐清洗，移除原型污染键名，限制嵌套深度
+    extensions: sanitizeExtensions(data.extensions || {}),
     visualSettings: (() => {
       const ext = data.extensions || {};
       const rawStyle = ext.style || ext.character_style || {};

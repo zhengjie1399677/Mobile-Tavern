@@ -80,6 +80,11 @@ export const useChat = (
       ui.isSendingRef.current = false;
       setIsSending(false);
     }
+    // P1-8: 会话/角色切换时清理 Bison 链 timer，避免堆积与对旧会话 state 进行更新
+    if (ui.bisonChainTimerRef.current) {
+      clearTimeout(ui.bisonChainTimerRef.current);
+      ui.bisonChainTimerRef.current = null;
+    }
   }, [activeCharId, activeSessionId, setIsSending]);
 
   const sessionManager = useSessionManager({
@@ -109,6 +114,7 @@ export const useChat = (
     abortControllerRef: ui.abortControllerRef,
     pendingUpdateTimeoutRef: ui.pendingUpdateTimeoutRef,
     bisonRemainingCountRef: ui.bisonRemainingCountRef,
+    bisonChainTimerRef: ui.bisonChainTimerRef,
     setSessions, setIsSending,
     setIsBisonLocking: ui.setIsBisonLocking,
     setReplySuggestions: ui.setReplySuggestions,

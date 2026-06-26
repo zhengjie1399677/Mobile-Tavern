@@ -46,7 +46,7 @@ export async function decryptAesGcm(
   const subtle = getSubtleCrypto();
   const cryptoKey = await subtle.importKey(
     "raw",
-    keyBytes as any,
+    keyBytes.buffer.slice(keyBytes.byteOffset, keyBytes.byteOffset + keyBytes.byteLength) as any,
     { name: "AES-GCM" } as any,
     false,
     ["decrypt"] as any
@@ -55,11 +55,11 @@ export async function decryptAesGcm(
   const decrypted = await subtle.decrypt(
     {
       name: "AES-GCM",
-      iv: ivBytes as any,
+      iv: ivBytes.buffer.slice(ivBytes.byteOffset, ivBytes.byteOffset + ivBytes.byteLength) as any,
       tagLength: 128,
     } as any,
     cryptoKey,
-    dataToDecrypt as any
+    dataToDecrypt.buffer.slice(dataToDecrypt.byteOffset, dataToDecrypt.byteOffset + dataToDecrypt.byteLength) as any
   );
 
   return new TextDecoder().decode(decrypted);
@@ -87,7 +87,7 @@ export function getFcEndpoint(type: "issue-token" | "get-key"): string {
   if (typeof window === "undefined") {
     return type === "issue-token" ? "/api/issue-token" : "/api/get-key";
   }
-  
+
   const isClient = (): boolean => {
     return (
       window.location.protocol.startsWith("tauri") ||
@@ -99,14 +99,13 @@ export function getFcEndpoint(type: "issue-token" | "get-key"): string {
   };
 
   if (isClient()) {
-    // 部署两个独立 FC 函数后的测试域名（请将此处的域名替换为您在阿里云 FC 实际创建的函数域名）
     if (type === "issue-token") {
       return "https://mobile-ue-token-zcslobjkak.cn-hangzhou.fcapp.run";
     } else {
       return "https://mobile-get-key-uggoeabkfb.cn-hangzhou.fcapp.run";
     }
   }
-  
+
   // 本地开发测试环境，指向本地 Express 服务的对应 API 路由
   return window.location.origin + (type === "issue-token" ? "/api/issue-token" : "/api/get-key");
 }
@@ -114,7 +113,7 @@ export function getFcEndpoint(type: "issue-token" | "get-key"): string {
 async function fetchTokenFromServer(): Promise<TokenCache> {
   const endpoint = getFcEndpoint("issue-token");
   const deviceId = getDeviceId();
-  
+
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -164,6 +163,7 @@ export async function getTrialKey(): Promise<string> {
   try {
     const token = await getValidToken();
     const endpoint = getFcEndpoint("get-key");
+    console.log("[KeyManager] Fetching trial key from:", endpoint);
 
     const res = await fetch(endpoint, {
       method: "POST",
@@ -180,7 +180,9 @@ export async function getTrialKey(): Promise<string> {
     const { ciphertext, iv, tag } = await res.json();
     const aesKey = getAesKey();
     
+    console.log("[KeyManager] Decrypting payload...");
     const decryptedKey = await decryptAesGcm(ciphertext, aesKey, iv, tag);
+    console.log("[KeyManager] Decryption succeeded! Key length:", decryptedKey.length, "Prefix:", decryptedKey.substring(0, 10));
     return decryptedKey;
   } catch (err: any) {
     console.error("[KeyManager] Error getting trial key:", err);

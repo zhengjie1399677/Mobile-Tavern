@@ -28,6 +28,8 @@ interface SendMessageParams {
   abortControllerRef: React.MutableRefObject<AbortController | null>;
   pendingUpdateTimeoutRef: React.MutableRefObject<any>;
   bisonRemainingCountRef: React.MutableRefObject<number>;
+  // P1-8: Bison 连续推进 setTimeout 的 timer id，供会话切换/卸载/手动停止时清理
+  bisonChainTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   setIsSending: (v: boolean) => void;
   setIsBisonLocking: React.Dispatch<React.SetStateAction<boolean>>;
@@ -210,10 +212,9 @@ export function useSendMessage(p: SendMessageParams) {
           top_k: p.settings.preset.topK,
           min_p: p.settings.preset.minP,
           max_tokens: isBisonConsecutive ? 300 : p.settings.preset.maxTokens,
-          max_completion_tokens: isBisonConsecutive ? 300 : p.settings.preset.maxTokens,
           presence_penalty: p.settings.preset.presencePenalty ?? 0.0,
           frequency_penalty: p.settings.preset.frequencyPenalty ?? 0.0,
-          repetition_penalty: p.settings.preset.repetitionPenalty,
+          repetition_penalty: p.settings.preset.repetitionPenalty ?? 1.0,
         },
         signal: controller.signal,
       });
@@ -273,11 +274,19 @@ export function useSendMessage(p: SendMessageParams) {
           p.bisonRemainingCountRef.current = outputCtx.nextBisonRemainingCount ?? 0;
           isBisonChainActive = true;
           p.setIsBisonLocking(true);
-          setTimeout(() => {
+          // P1-8: 先清理可能残留的旧 timer，避免快速触发导致多个 setTimeout 堆积竞态
+          if (p.bisonChainTimerRef.current) {
+            clearTimeout(p.bisonChainTimerRef.current);
+            p.bisonChainTimerRef.current = null;
+          }
+          // P1-8: 保存 timer id 到 ref，供会话切换/卸载/手动停止时清理
+          const timer = setTimeout(() => {
+            p.bisonChainTimerRef.current = null;
             handleSendMessage("", { isBisonConsecutive: true }).catch((err) =>
               console.error("Failed in bison consecutive send:", err)
             );
           }, 500);
+          p.bisonChainTimerRef.current = timer;
         } else {
           p.bisonRemainingCountRef.current = 0;
           p.setIsBisonLocking(false);
@@ -350,6 +359,11 @@ export function useSendMessage(p: SendMessageParams) {
     if (p.abortControllerRef.current) {
       p.abortControllerRef.current.abort();
       p.abortControllerRef.current = null;
+    }
+    // P1-8: 手动停止时清理 Bison 链 timer，避免停止后仍触发下一次连续推进
+    if (p.bisonChainTimerRef.current) {
+      clearTimeout(p.bisonChainTimerRef.current);
+      p.bisonChainTimerRef.current = null;
     }
     p.isSendingRef.current = false;
     p.setIsSending(false);

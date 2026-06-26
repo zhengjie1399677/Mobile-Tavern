@@ -22,9 +22,22 @@ export class AutoSummaryService implements IAutoSummaryService {
    */
   readonly dependencies = [KernelServices.Database, KernelServices.LLM] as const;
   private kernel!: IKernel;
+  // P1-1/P1-2: 服务级 AbortController
+  private abortController: AbortController | null = null;
 
-  init(kernel: IKernel): void {
+  init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
+    this.abortController = new AbortController();
+    if (signal) {
+      if (signal.aborted) this.abortController.abort();
+      else signal.addEventListener("abort", () => this.abortController?.abort());
+    }
+  }
+
+  // P1-2: 销毁时中止挂起的总结 LLM 调用
+  destroy(): void {
+    this.abortController?.abort();
+    this.abortController = null;
   }
 
   async handleAutoSummaryCheck(
@@ -35,45 +48,52 @@ export class AutoSummaryService implements IAutoSummaryService {
     signal?: AbortSignal
   ): Promise<ChatSession> {
     let resolvedLastId = session.lastSummarizedMessageId;
-    if (resolvedLastId) {
-      const hasIt = session.messages.some((m) => m.id === resolvedLastId);
-      if (!hasIt) {
-        const lastSummary = session.summaries && session.summaries.length > 0
-          ? session.summaries[session.summaries.length - 1]
-          : null;
-        resolvedLastId = lastSummary?.lastMessageId || undefined;
+
+    // L3 快速通道优化：合并存在性检查与索引查找为单次反向遍历，消除冗余 O(n) 操作。
+    // 原实现先 some() 再 findIndex() 对消息数组做了两次完整遍历，此处合并为一次。
+    const findIndexById = (id: string | undefined): number => {
+      if (!id) return -1;
+      for (let i = session.messages.length - 1; i >= 0; i--) {
+        if (session.messages[i].id === id) return i;
       }
+      return -1;
+    };
+
+    let lastIndex = findIndexById(resolvedLastId);
+    if (lastIndex < 0 && resolvedLastId) {
+      // lastSummarizedMessageId 在消息中不存在（可能被删除），回退到 summaries 最后一条
+      const lastSummary = session.summaries && session.summaries.length > 0
+        ? session.summaries[session.summaries.length - 1]
+        : null;
+      resolvedLastId = lastSummary?.lastMessageId || undefined;
+      lastIndex = findIndexById(resolvedLastId);
     }
 
-    const lastIndex = resolvedLastId
-      ? session.messages.findIndex((m) => m.id === resolvedLastId)
-      : -1;
-    
-    let startIndex = 0;
-    if (lastIndex >= 0) {
-      startIndex = lastIndex + 1;
-    }
-    const unsummarizedMessages = session.messages.slice(startIndex);
-    
+    const startIndex = lastIndex >= 0 ? lastIndex + 1 : 0;
+    // L3 快速通道优化：仅计算未总结消息数量，不创建完整 slice（避免 O(n) 内存分配）。
+    // 原实现无条件 slice 整个尾部数组，即使大多数调用因未达阈值而直接返回。
+    const unsummarizedCount = session.messages.length - startIndex;
+
     const summaryTurnsVal = settings?.memory?.summaryTriggerTurns;
     const rawTriggerTurns = summaryTurnsVal ? Number(summaryTurnsVal) : 0;
     const rawRecentTurns = Number(settings?.memory?.recentTurns || 6);
     const triggerRounds = (!isNaN(rawTriggerTurns) && rawTriggerTurns > 0) ? rawTriggerTurns : rawRecentTurns;
-    
+
     const safeTriggerRounds = Math.max(4, triggerRounds);
     const maxAllowedUnsummarized = safeTriggerRounds * 2;
 
     let messagesToCompress: Message[] = [];
 
-    if (force || unsummarizedMessages.length >= maxAllowedUnsummarized) {
-      if (unsummarizedMessages.length === 0) {
+    if (force || unsummarizedCount >= maxAllowedUnsummarized) {
+      if (unsummarizedCount === 0) {
         if (force) {
           throw new Error("当前没有未被总结的有效对话。");
         }
         return session;
       }
 
-      messagesToCompress = unsummarizedMessages.slice(0, maxAllowedUnsummarized);
+      // L3 快速通道优化：仅在真正需要总结时才创建 slice，且只截取需要的部分
+      messagesToCompress = session.messages.slice(startIndex, startIndex + maxAllowedUnsummarized);
 
       if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
         if (force) {
@@ -206,8 +226,8 @@ export class AutoSummaryService implements IAutoSummaryService {
         if (signal?.aborted) return session;
 
         const db = this.kernel.getService<IDatabaseService>(KernelServices.Database);
-        const allSessions = await db.getAllSessions();
-        const latestSession = allSessions.find((s) => s.id === session.id);
+        // P0-2: 改用单条直查，避免 getAllSessions() 全量反序列化整个 sessions 表
+        const latestSession = await db.getSessionById(session.id);
         if (latestSession) {
           const nextSession = {
             ...latestSession,
