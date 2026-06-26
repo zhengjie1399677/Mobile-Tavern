@@ -51,6 +51,14 @@ import {
   testFastPathL1PipelineBypass,
   testCleanLLMResponse,
   testWriteQueueKeyCoalescing,
+  testModelCapabilityRegistry,
+  testMemoryStreamParser,
+  testMemoryStorageCrud,
+  testMemoryServiceLifecycle,
+  testMemoryExtractor,
+  testMemoryRecall,
+  testMemoryStateTable,
+  testMemorySummary,
 } from "./suites/index";
 
 async function run() {
@@ -101,6 +109,17 @@ async function run() {
     await testFastPathL1PipelineBypass();
     await testCleanLLMResponse();
     await testWriteQueueKeyCoalescing();
+    // 记忆系统阶段 A 测试（v8 物理分轨 + 服务骨架）
+    await testModelCapabilityRegistry();
+    await testMemoryStreamParser();
+    await testMemoryStorageCrud();
+    await testMemoryServiceLifecycle();
+    // 记忆系统阶段 B 测试（L0/L1/L2 三级降级 + 标签倒排召回 + 时间衰减打分）
+    await testMemoryExtractor();
+    await testMemoryRecall();
+    // 记忆系统阶段 C 测试（状态表 CRUD + 瘦身摘要，砸 5 条正则状态抽离）
+    await testMemoryStateTable();
+    await testMemorySummary();
     console.log("\n=================================================");
     console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
     console.log("=================================================");

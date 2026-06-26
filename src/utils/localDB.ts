@@ -9,9 +9,21 @@ import { reportDbQueueTimeout } from "./telemetry";
 
 const DB_NAME = "MobileTavernLiteDB";
 // v7: 新增 sessions.createdAt 索引，支持按时间倒序分页加载（P0-1）
-const DB_VERSION = 7;
+// v8: 新增 messages 和 memory_dict Store，承载记忆系统物理分轨存储（AGENTS.md 准则一）
+const DB_VERSION = 8;
 
 let dbInstance: IDBDatabase | null = null;
+
+/**
+ * 测试专用：重置模块级 DB 实例缓存与写队列。
+ * 仅供 tests/ 下的测试套件在 mock IDB 前调用，严禁在生产代码中使用。
+ */
+export function __resetDBInstanceForTesting(): void {
+  dbInstance = null;
+  writeQueue = Promise.resolve();
+  activeWriteQueueCount = 0;
+  pendingKeyedWrites.clear();
+}
 
 // Global Promise-based queue to serialize all IndexedDB write operations sequentially.
 // This prevents concurrent write transactions from conflicting or deadlocking, which is critical in WebView environments.
@@ -207,6 +219,29 @@ export function getDB(): Promise<IDBDatabase> {
             settingsStore.delete("custom_worldbooks");
           }
         };
+      }
+
+      // v8 升级 (记忆系统): 创建 messages 和 memory_dict Store
+      // 物理分轨存储原始对话消息与会话级自动学习词典，避免污染 sessions 表
+      // 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第四章
+      if (!db.objectStoreNames.contains("messages")) {
+        const messagesStore = db.createObjectStore("messages", { keyPath: "id" });
+        // 按会话查询消息
+        messagesStore.createIndex("sessionId", "sessionId", { unique: false });
+        // 按时间排序
+        messagesStore.createIndex("createdAt", "createdAt", { unique: false });
+        // 多值索引：按标签倒排召回
+        messagesStore.createIndex("tags", "tags", { unique: false, multiEntry: true });
+        // 复合索引：按会话+时间分页查询
+        messagesStore.createIndex("sessionId_createdAt", ["sessionId", "createdAt"], { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains("memory_dict")) {
+        const dictStore = db.createObjectStore("memory_dict", { keyPath: "id" });
+        // 按会话查询词典
+        dictStore.createIndex("sessionId", "sessionId", { unique: false });
+        // 按实体名查询（跨会话去重场景）
+        dictStore.createIndex("entity", "entity", { unique: false });
       }
     };
   });
@@ -898,6 +933,368 @@ export async function saveStoredUsageMetrics(metrics: any): Promise<void> {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
       transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+    });
+  });
+}
+
+// === Messages Store CRUD (v8 记忆系统物理分轨) ===
+// 存储所有原始对话消息，按 sessionId 隔离，永久保留。
+// 严禁将 messages 数组塞回 sessions 表，避免反序列化延时引发白屏（AGENTS.md 准则一）。
+
+/**
+ * 追加一条消息到 messages Store。
+ * 使用 enqueueWrite 串行化写入，key 合并机制确保同 ID 多次写入只落盘最新版本。
+ */
+export async function appendMessage(message: {
+  id: string;
+  sessionId: string;
+  role: string;
+  content: string;
+  createdAt: number;
+  turnIndex: number;
+  tags?: string[];
+  extractSource?: string;
+  metadata?: Record<string, any>;
+}): Promise<void> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("messages", "readwrite");
+      const store = transaction.objectStore("messages");
+      const record = {
+        id: message.id,
+        sessionId: message.sessionId,
+        role: message.role,
+        content: message.content,
+        createdAt: message.createdAt,
+        turnIndex: message.turnIndex,
+        tags: message.tags || [],
+        extractSource: message.extractSource || "none",
+        metadata: message.metadata,
+      };
+      const request = store.put(record);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
+    });
+  }, `message:${message.id}`);
+}
+
+/**
+ * 按主键单条直查消息。
+ */
+export async function getMessageById(id: string): Promise<any | null> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("messages", "readonly");
+    const store = transaction.objectStore("messages");
+    const request = store.get(id);
+
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+    transaction.onabort = () =>
+      reject(transaction.error || new Error("Transaction aborted"));
+  });
+}
+
+/**
+ * 按会话查询所有消息（按 createdAt 升序）。
+ * 优先使用复合索引 sessionId_createdAt（仅游标范围查询，高效），
+ * 降级时使用 sessionId 单值索引并在内存中按 createdAt 排序。
+ */
+export async function getMessagesBySession(
+  sessionId: string,
+  options?: { limit?: number; offset?: number }
+): Promise<any[]> {
+  const db = await getDB();
+  const limit = options?.limit;
+  const offset = options?.offset || 0;
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("messages", "readonly");
+    const store = transaction.objectStore("messages");
+
+    // 复合索引 [sessionId, createdAt] 可用 → 用 bound 范围查询，天然按 createdAt 升序
+    if (store.indexNames.contains("sessionId_createdAt")) {
+      const index = store.index("sessionId_createdAt");
+      const results: any[] = [];
+      let skipped = 0;
+      let collected = 0;
+
+      const lower = [sessionId, -Infinity];
+      const upper = [sessionId, Infinity];
+      const request = index.openCursor(IDBKeyRange.bound(lower, upper));
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) {
+          resolve(results);
+          return;
+        }
+        if (skipped < offset) {
+          skipped++;
+          cursor.continue();
+          return;
+        }
+        if (limit !== undefined && collected >= limit) {
+          resolve(results);
+          return;
+        }
+        results.push(cursor.value);
+        collected++;
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
+      return;
+    }
+
+    // 降级：使用 sessionId 单值索引 + 内存排序
+    if (store.indexNames.contains("sessionId")) {
+      const index = store.index("sessionId");
+      const request = index.getAll(IDBKeyRange.only(sessionId));
+      request.onsuccess = () => {
+        const all = (request.result || []).sort(
+          (a, b) => a.createdAt - b.createdAt
+        );
+        const sliced =
+          limit !== undefined
+            ? all.slice(offset, offset + limit)
+            : all.slice(offset);
+        resolve(sliced);
+      };
+      request.onerror = () => reject(request.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
+      return;
+    }
+
+    // 极端降级：全表扫描
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const all = (request.result || [])
+        .filter((m) => m.sessionId === sessionId)
+        .sort((a, b) => a.createdAt - b.createdAt);
+      const sliced =
+        limit !== undefined
+          ? all.slice(offset, offset + limit)
+          : all.slice(offset);
+      resolve(sliced);
+    };
+    request.onerror = () => reject(request.error);
+    transaction.onabort = () =>
+      reject(transaction.error || new Error("Transaction aborted"));
+  });
+}
+
+/**
+ * 按标签查询消息（倒排召回）。
+ * 使用 tags 多值索引，返回命中指定标签的消息列表。
+ * @param sessionId 限定会话范围，避免跨会话污染
+ * @param tags      查询标签数组（任一命中即返回）
+ * @param limit     返回条数上限
+ */
+export async function getMessagesByTag(
+  sessionId: string,
+  tags: string[],
+  limit?: number
+): Promise<any[]> {
+  if (!tags || tags.length === 0) return [];
+  const db = await getDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("messages", "readonly");
+    const store = transaction.objectStore("messages");
+
+    if (!store.indexNames.contains("tags")) {
+      // 索引不存在时降级为全表扫描过滤
+      const fallbackReq = store.getAll();
+      fallbackReq.onsuccess = () => {
+        const all = fallbackReq.result || [];
+        const tagSet = new Set(tags);
+        const filtered = all
+          .filter(
+            (m) =>
+              m.sessionId === sessionId &&
+              Array.isArray(m.tags) &&
+              m.tags.some((t) => tagSet.has(t))
+          )
+          .sort((a, b) => b.createdAt - a.createdAt);
+        resolve(limit !== undefined ? filtered.slice(0, limit) : filtered);
+      };
+      fallbackReq.onerror = () => reject(fallbackReq.error);
+      return;
+    }
+
+    const index = store.index("tags");
+    const results: any[] = [];
+    const seenIds = new Set<string>();
+    let pending = tags.length;
+
+    if (pending === 0) {
+      resolve([]);
+      return;
+    }
+
+    for (const tag of tags) {
+      const req = index.getAll(IDBKeyRange.only(tag));
+      req.onsuccess = () => {
+        const hits = req.result || [];
+        for (const msg of hits) {
+          if (
+            msg.sessionId === sessionId &&
+            !seenIds.has(msg.id)
+          ) {
+            seenIds.add(msg.id);
+            results.push(msg);
+          }
+        }
+        pending--;
+        if (pending === 0) {
+          // 按时间倒序
+          results.sort((a, b) => b.createdAt - a.createdAt);
+          resolve(limit !== undefined ? results.slice(0, limit) : results);
+        }
+      };
+      req.onerror = () => reject(req.error);
+    }
+    transaction.onabort = () =>
+      reject(transaction.error || new Error("Transaction aborted"));
+  });
+}
+
+/**
+ * 删除指定会话的所有消息（用于会话删除时级联清理）。
+ */
+export async function deleteMessagesBySession(sessionId: string): Promise<void> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("messages", "readwrite");
+      const store = transaction.objectStore("messages");
+      const index = store.index("sessionId");
+      const request = index.openCursor(IDBKeyRange.only(sessionId));
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) {
+          resolve();
+          return;
+        }
+        cursor.delete();
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
+    });
+  });
+}
+
+// === Memory Dict Store CRUD (v8 记忆系统会话级自动学习词典) ===
+
+/**
+ * 更新或插入词典条目。
+ * 使用复合键 `${sessionId}:${entity}` 保证会话内实体唯一。
+ */
+export async function upsertDictEntry(entry: {
+  id: string;
+  sessionId: string;
+  entity: string;
+  aliases?: string[];
+  type?: string;
+  firstSeenMsgId: string;
+  firstSeenTurn: number;
+  count: number;
+  createdAt: number;
+  updatedAt: number;
+}): Promise<void> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("memory_dict", "readwrite");
+      const store = transaction.objectStore("memory_dict");
+      const record = {
+        id: entry.id,
+        sessionId: entry.sessionId,
+        entity: entry.entity,
+        aliases: entry.aliases || [],
+        type: entry.type || "concept",
+        firstSeenMsgId: entry.firstSeenMsgId,
+        firstSeenTurn: entry.firstSeenTurn,
+        count: entry.count,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
+      };
+      const request = store.put(record);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
+    });
+  }, `dict:${entry.id}`);
+}
+
+/**
+ * 按主键单条直查词典条目。
+ */
+export async function getDictEntryById(id: string): Promise<any | null> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("memory_dict", "readonly");
+    const store = transaction.objectStore("memory_dict");
+    const request = store.get(id);
+
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+    transaction.onabort = () =>
+      reject(transaction.error || new Error("Transaction aborted"));
+  });
+}
+
+/**
+ * 按会话查询所有词典条目。
+ */
+export async function getDictBySession(sessionId: string): Promise<any[]> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("memory_dict", "readonly");
+    const store = transaction.objectStore("memory_dict");
+    const index = store.index("sessionId");
+    const request = index.getAll(IDBKeyRange.only(sessionId));
+
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+    transaction.onabort = () =>
+      reject(transaction.error || new Error("Transaction aborted"));
+  });
+}
+
+/**
+ * 删除指定会话的所有词典条目（用于会话删除时级联清理）。
+ */
+export async function deleteDictBySession(sessionId: string): Promise<void> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("memory_dict", "readwrite");
+      const store = transaction.objectStore("memory_dict");
+      const index = store.index("sessionId");
+      const request = index.openCursor(IDBKeyRange.only(sessionId));
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) {
+          resolve();
+          return;
+        }
+        cursor.delete();
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
     });
   });
 }

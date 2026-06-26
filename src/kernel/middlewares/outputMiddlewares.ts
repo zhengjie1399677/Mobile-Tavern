@@ -21,22 +21,15 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
   // regex.test 在无匹配时为 O(n) 单次扫描（n=文本长度），远低于 processTableMemory 的完整解析开销。
   if (settings.enableTableMemory && activeCharacter && TABLE_MEMORY_TRIGGER_PATTERN.test(responseText)) {
     const kernel = context.kernel || globalKernel;
-    const tableMemoryService = kernel.getService<any>(KernelServices.TableMemory);
+    // 阶段 C 迁移：通过 MemoryService.getStateTable() 访问状态表子模块
+    // （旧 KernelServices.TableMemory 已从 registerServiceBatch 移除并标记 @deprecated）
+    const memoryService = kernel.getService<any>(KernelServices.Memory);
+    const stateTable = memoryService.getStateTable();
 
     let currentMemory = currentSession.tableMemory || [];
     if (currentMemory.length === 0) {
-      currentMemory = [
-        {
-          id: "sheet_status_and_relation",
-          name: "状态与关系",
-          columns: ["角色", "好感度", "亲密度", "当前状态描述"],
-          rows: [
-            [activeCharacter.name || "char", "50", "相识", "初次结识，关系尚显生疏"]
-          ],
-          enable: true,
-          description: "用于记录角色和你（{{user}}）之间的当前好感状态和亲密关系定位"
-        }
-      ];
+      // 阶段 C 迁移：使用 stateTable.initDefaultSheets() 替代中间件内硬编码默认表
+      currentMemory = stateTable.initDefaultSheets(activeCharacter.name || "char");
       currentSession = {
         ...currentSession,
         tableMemory: currentMemory
@@ -44,10 +37,10 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
     }
 
     try {
-      const { updatedMemory, cleanContent, hasChanges } = tableMemoryService.processTableMemory(
+      // 新 API 仅接受 2 个参数（activeCharacter 在旧实现中未实际使用，已移除）
+      const { updatedMemory, cleanContent, hasChanges } = stateTable.processTableMemory(
         currentMemory,
-        responseText,
-        activeCharacter
+        responseText
       );
 
       if (hasChanges || cleanContent !== responseText) {
@@ -69,7 +62,7 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
         };
       }
     } catch (err) {
-      console.warn("[TableMemory] Middleware processing error:", err);
+      console.warn("[MemoryStateTable] Middleware processing error:", err);
     }
   }
 
@@ -146,8 +139,11 @@ export const autoSummaryMiddleware: Middleware<OutputPipelineContext> = async (c
   if (!shouldTriggerBison) {
     try {
       const kernel = context.kernel || globalKernel;
-      const autoSummaryService = kernel.getService<any>(KernelServices.AutoSummary);
-      const updatedSession = await autoSummaryService.handleAutoSummaryCheck(
+      // 阶段 C 迁移：通过 MemoryService.getSummary() 访问摘要子模块
+      // （旧 KernelServices.AutoSummary 已从 registerServiceBatch 移除并标记 @deprecated）
+      const memoryService = kernel.getService<any>(KernelServices.Memory);
+      const summary = memoryService.getSummary();
+      const updatedSession = await summary.checkAndSummarize(
         currentSession,
         settings,
         activeCharacter,
@@ -158,7 +154,7 @@ export const autoSummaryMiddleware: Middleware<OutputPipelineContext> = async (c
         currentSession = updatedSession;
       }
     } catch (err) {
-      console.warn("[AutoSummary] Middleware execution error:", err);
+      console.warn("[MemorySummary] Middleware execution error:", err);
     }
   }
 

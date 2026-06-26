@@ -114,16 +114,30 @@ export async function testOutputPipeline() {
     init() {},
     async saveSession() {}
   };
-  const mockTableMemoryService: IKernelService = {
-    name: "tableMemory",
-    init() {},
-    processTableMemory(mem: any, content: string) {
+  // 阶段 C 迁移：中间件已切换到 KernelServices.Memory.getStateTable() / getSummary() 子模块
+  // 旧 tableMemory / autoSummary 服务已从注册表移除并标记 @deprecated
+  const mockStateTable = {
+    initDefaultSheets(_charName: string) {
+      return [];
+    },
+    processTableMemory(_mem: any, content: string) {
       return {
         updatedMemory: [{ id: "sheet_status_and_relation", rows: [["char", "100"]] }],
         cleanContent: content.replace(/\nupdateRow\s*\([^)]*\)/gi, "").replace(/\n_.set\s*\([^)]*\)/gi, "").trim(),
         hasChanges: true
       };
     }
+  };
+  const mockSummary = {
+    async checkAndSummarize(session: any) {
+      return { ...session, summaries: [{ id: "sum_auto", content: "自动整理" }] };
+    }
+  };
+  const mockMemoryService: IKernelService = {
+    name: "memory",
+    init() {},
+    getStateTable() { return mockStateTable; },
+    getSummary() { return mockSummary; }
   };
   const mockScriptService: IKernelService = {
     name: "script",
@@ -132,18 +146,10 @@ export async function testOutputPipeline() {
       return { ...session, variables: { ...session.variables, scriptRan: true } };
     }
   };
-  const mockAutoSummaryService: IKernelService = {
-    name: "autoSummary",
-    init() {},
-    async handleAutoSummaryCheck(session: any) {
-      return { ...session, summaries: [{ id: "sum_auto", content: "自动整理" }] };
-    }
-  };
 
   await testKernel.registerService("database", mockDbService);
-  await testKernel.registerService("tableMemory", mockTableMemoryService);
+  await testKernel.registerService("memory", mockMemoryService);
   await testKernel.registerService("script", mockScriptService);
-  await testKernel.registerService("autoSummary", mockAutoSummaryService);
 
   const outputPipeline = testKernel.registerPipeline("output");
   outputPipeline.use(tableMemoryMiddleware, 100);

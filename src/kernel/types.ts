@@ -11,6 +11,7 @@ export const KernelServices = {
   MultiMessage: "multiMessage",
   ChatStream: "chatStream",
   UpdateCheck: "updateCheck",
+  Memory: "memory",
 } as const;
 
 export const KernelEvents = {
@@ -283,3 +284,41 @@ export interface UpdateInfo {
 export interface IUpdateCheckService extends IKernelService {
   checkUpdate(currentVersion: string, signal?: AbortSignal): Promise<UpdateInfo>;
 }
+
+/**
+ * 记忆系统服务接口（v8 物理分轨存储 + 分层认知记忆架构）。
+ *
+ * 阶段 A 仅暴露 storage 子模块的 OOP 入口，供未来中间件与上层调用使用。
+ * 阶段 B 装配 extractor（L0 LLM 抽取 + L1 词典匹配）与 recall（标签倒排召回）。
+ * 阶段 C 装配 stateTable（合并自 TableMemoryService）与 summary（瘦身自 AutoSummaryService）。
+ *
+ * 设计契约详见 docs/记忆系统重构_架构设计_2026-06-27.md
+ */
+export interface IMemoryService extends IKernelService {
+  /**
+   * 获取存储层 OOP 入口（messages / memory_dict Store CRUD）。
+   * 供中间件与未来子模块复用。
+   */
+  getStorage(): any;
+  /**
+   * 获取抽取器（L0 LLM 抽取 + L1 词典匹配 + 调度队列）。
+   * 阶段 B 装配，供 output 中间件异步触发抽取。
+   */
+  getExtractor(): any;
+  /**
+   * 获取召回器（标签倒排索引 + 时间衰减打分）。
+   * 阶段 B 装配，供 input 中间件召回相关历史注入 Prompt。
+   */
+  getRecall(): any;
+  /**
+   * 获取状态表子模块（合并自 TableMemoryService）。
+   * 阶段 C 装配，供 output 中间件解析 AI 表格指令并执行 CRUD。
+   */
+  getStateTable(): any;
+  /**
+   * 获取摘要子模块（瘦身自 AutoSummaryService）。
+   * 阶段 C 装配，供 output 中间件触发剧情时间线摘要。
+   */
+  getSummary(): any;
+}
+

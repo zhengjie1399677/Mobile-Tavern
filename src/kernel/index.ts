@@ -3,12 +3,11 @@ import { DatabaseService } from "./services/DatabaseService";
 import { LLMService } from "./services/LLMService";
 import { PromptService } from "./services/PromptService";
 import { TelemetryService } from "./services/TelemetryService";
-import { TableMemoryService } from "./services/TableMemoryService";
 import { ScriptService } from "./services/ScriptService";
-import { AutoSummaryService } from "./services/AutoSummaryService";
 import { MultiMessageService } from "./services/MultiMessageService";
 import { ChatStreamService } from "./services/ChatStreamService";
 import { UpdateCheckService } from "./services/UpdateCheckService";
+import { MemoryService } from "./services/memory";
 import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
@@ -30,9 +29,15 @@ import PlaygroundTab from "../tabs/PlaygroundTab";
  * - 新增服务时只需在此数组中追加条目，并在服务类中声明 `dependencies`，不会影响其他服务。
  * - initTimeoutMs 按各服务 IO 特性酌情配置（P1-3：所有服务均配置超时，避免 init 挂起导致启动白屏）。
  *   * DatabaseService 需 IndexedDB 初始化，5s
- *   * LLMService/AutoSummaryService 涉及网络或重计算，8s
+ *   * LLMService/MemoryService 涉及网络或重计算，8s/5s
  *   * ChatStreamService 涉及流式连接，5s
  *   * 其余纯计算服务，3s
+ *
+ * 阶段 C 迁移说明：
+ *   - TableMemoryService 与 AutoSummaryService 已从注册表移除，逻辑合并到 MemoryService
+ *     的 stateTable 与 summary 子模块。旧文件保留 @deprecated 标记，下个版本周期后删除。
+ *   - KernelServices.TableMemory / KernelServices.AutoSummary 枚举值保留（向后兼容类型引用），
+ *     但不再有服务实例注册到这些 key。
  */
 export async function initializeKernel() {
   await globalKernel.registerServiceBatch([
@@ -57,11 +62,6 @@ export async function initializeKernel() {
       initTimeoutMs: 3000,
     },
     {
-      name: KernelServices.TableMemory,
-      service: new TableMemoryService(),
-      initTimeoutMs: 3000,
-    },
-    {
       name: KernelServices.Script,
       service: new ScriptService(),
       initTimeoutMs: 3000,
@@ -72,13 +72,6 @@ export async function initializeKernel() {
       initTimeoutMs: 3000,
     },
     {
-      name: KernelServices.AutoSummary,
-      service: new AutoSummaryService(),
-      initTimeoutMs: 8000,
-      // AutoSummaryService 依赖 LLM 和 Database，拓扑排序会自动保证它们先被注册
-      // 注：依赖声明应在 AutoSummaryService 类的 dependencies 字段中定义
-    },
-    {
       name: KernelServices.ChatStream,
       service: new ChatStreamService(),
       initTimeoutMs: 5000,
@@ -86,6 +79,14 @@ export async function initializeKernel() {
     {
       name: KernelServices.UpdateCheck,
       service: new UpdateCheckService(),
+    },
+    {
+      name: KernelServices.Memory,
+      service: new MemoryService(),
+      initTimeoutMs: 5000,
+      // MemoryService 依赖 Database 与 LLM（在服务类的 dependencies 字段中声明）
+      // 拓扑排序自动保证 Database/LLM 先完成注册与初始化
+      // 阶段 C 已完成全部 6 子模块装配：storage / extractor / recall / stateTable / summary / parser
     },
   ]);
 

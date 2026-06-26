@@ -68,3 +68,17 @@ export {
   testFastPathL2ContentPrescan,
   testFastPathL1PipelineBypass,
 } from "./fastPath.test";
+
+export {
+  testModelCapabilityRegistry,
+  testMemoryStreamParser,
+  testMemoryStorageCrud,
+  testMemoryServiceLifecycle,
+  testMemoryExtractor,
+  testMemoryRecall,
+} from "./memoryService.test";
+
+export {
+  testMemoryStateTable,
+  testMemorySummary,
+} from "./memoryStageC.test";

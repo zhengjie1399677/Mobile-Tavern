@@ -1,3 +1,18 @@
+/**
+ * @deprecated 阶段 C 已废弃，逻辑合并到 MemoryService.getSummary() 子模块。
+ *
+ * 本文件保留 1 个版本周期用于回归测试与渐进式迁移，新代码请勿引用。
+ * 下个版本周期后将删除。
+ *
+ * 迁移指南：
+ *   - 旧：kernel.getService(KernelServices.AutoSummary).handleAutoSummaryCheck(...)
+ *   - 新：kernel.getService(KernelServices.Memory).getSummary().checkAndSummarize(...)
+ *   - 新实现砍掉 5 条正则状态抽离（location/time/condition/inventory/bonding），
+ *     状态抽离职责已迁移到 MemoryStateTable 子模块。
+ *
+ * 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第十章 + 第十八章 18.3 节
+ */
+
 import { IAutoSummaryService, IKernel, IDatabaseService, ILLMService, KernelServices } from "../types";
 import { ChatSession, UserSettings, CharacterCard, SummaryCard, Message } from "../../types";
 import { FALLBACK_MODEL, API_ENDPOINT, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
