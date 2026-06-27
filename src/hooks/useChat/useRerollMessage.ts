@@ -4,6 +4,7 @@ import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService,
 } from "../../kernel/types";
+import { globalKernel } from "../../kernel";
 import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 import {
   generateUniqueId, buildThrottledUpdater, buildFinalAiMessage,
@@ -104,7 +105,7 @@ export function useRerollMessage(p: RerollMessageParams) {
     p.telemetryService.reportUsage("regenerate_message", { modelName: modelToReport, characterName: p.activeCharacter.name });
 
     const lastUserText = lastMsgNow.content;
-    const updatedSession = { ...p.activeSession, messages: nextMsgs };
+    let updatedSession = { ...p.activeSession, messages: nextMsgs };
     p.setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
     try {
       await p.databaseService.saveSession(updatedSession);
@@ -147,12 +148,35 @@ export function useRerollMessage(p: RerollMessageParams) {
         })));
       const combinedGlobals = [...(p.globalLorebook || []), ...otherCharGlobals, ...customWorldbookGlobals];
 
+      // 1. 异步执行记忆召回
+      let recalledMemories: any[] = [];
+      try {
+        const memoryService = globalKernel.getService<any>("memory");
+        if (memoryService) {
+          const recallTopK = p.settings.memory?.recallTopK ?? 3;
+          recalledMemories = await memoryService.getRecall().recall(
+            updatedSession.id,
+            lastUserText,
+            { topK: recallTopK }
+          );
+        }
+      } catch (err) {
+        console.warn("[useRerollMessage] Memory recall failed:", err);
+      }
+
+      // 将召回的消息快照挂在 session 内存临时变量上供 UI 面板提取
+      updatedSession = {
+        ...updatedSession,
+        lastRecalledMemories: recalledMemories
+      };
+
       const promptPayload = p.promptService.assemblePrompt({
         character: p.activeCharacter!,
         chat: updatedSession,
         userInput: lastUserText,
         settings: p.settings,
         globalLorebook: combinedGlobals,
+        recalledMemories: recalledMemories,
       });
 
       const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };

@@ -429,12 +429,74 @@ export async function saveSession(session: ChatSession): Promise<void> {
   return enqueueWrite(async () => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction("sessions", "readwrite");
-      const store = transaction.objectStore("sessions");
-      const request = store.put(session);
+      // 联合事务：同时写入 sessions 并同步 messages
+      const transaction = db.transaction(["sessions", "messages"], "readwrite");
+      
+      // 1. 物理隔离：sessions 库中剔除 messages 大数组
+      const sessionsStore = transaction.objectStore("sessions");
+      const { messages, ...sessionToSave } = session;
+      const sessionRequest = sessionsStore.put(sessionToSave);
+      
+      // 2. 级联同步消息到 messages Store
+      if (messages && Array.isArray(messages)) {
+        const messagesStore = transaction.objectStore("messages");
+        const msgIdsInSession = new Set(messages.map(m => m.id));
+        
+        // 2.1 清理在前端最新 messages 列表中不存在的旧数据库记录（同步分支回溯/单条消息删除）
+        const sessionIdIndex = messagesStore.index("sessionId");
+        const cursorRequest = sessionIdIndex.openCursor(IDBKeyRange.only(session.id));
+        
+        cursorRequest.onsuccess = () => {
+          const cursor = cursorRequest.result;
+          if (cursor) {
+            const dbMsg = cursor.value;
+            if (!msgIdsInSession.has(dbMsg.id)) {
+              cursor.delete();
+            }
+            cursor.continue();
+          } else {
+            // 2.2 更新或新增消息，继承数据库已存在的 tags 与 extractSource 字段避免覆盖竞态
+            let processedCount = 0;
+            if (messages.length === 0) {
+              resolve();
+              return;
+            }
+            
+            messages.forEach((msg, idx) => {
+              const getReq = messagesStore.get(msg.id);
+              getReq.onsuccess = () => {
+                const existingRecord = getReq.result;
+                const record = {
+                  id: msg.id,
+                  sessionId: session.id,
+                  role: msg.sender === "user" ? "user" as const : "assistant" as const,
+                  content: msg.content,
+                  createdAt: msg.timestamp || Date.now(),
+                  turnIndex: idx,
+                  tags: existingRecord?.tags || (msg as any).tags || [],
+                  extractSource: existingRecord?.extractSource || (msg as any).extractSource || "none",
+                  metadata: (msg as any).metadata || msg.extra || existingRecord?.metadata,
+                };
+                
+                const putRequest = messagesStore.put(record);
+                putRequest.onsuccess = () => {
+                  processedCount++;
+                  if (processedCount === messages.length) {
+                    resolve();
+                  }
+                };
+                putRequest.onerror = () => reject(putRequest.error);
+              };
+              getReq.onerror = () => reject(getReq.error);
+            });
+          }
+        };
+        cursorRequest.onerror = () => reject(cursorRequest.error);
+      } else {
+        sessionRequest.onsuccess = () => resolve();
+        sessionRequest.onerror = () => reject(sessionRequest.error);
+      }
 
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
       transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
     });
   }, `session:${session.id}`);  // P1-11: 同会话多次保存合并为一次落盘

@@ -1,6 +1,7 @@
 import { ILLMService, IKernel } from "../types";
 import { getTrialKey } from "../../utils/keyManager";
 import { cleanRequestPayload, cleanLLMResponse } from "../utils/requestSchema";
+import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
 
 declare const IS_MOBILE_NATIVE: boolean;
 
@@ -93,7 +94,11 @@ export class LLMService implements ILLMService {
     proxyPayload: any,
     customSignal?: AbortSignal
   ): Promise<Response> {
-    const cleanedReqBody = cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, any>);
+    let cleanedReqBody = cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, any>);
+    const modelId = proxyPayload.reqBody?.model || "";
+    if (modelId) {
+      cleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(modelId, cleanedReqBody);
+    }
     
     let actualApiKey = proxyPayload.apiKey;
     let isTrial = false;
@@ -279,6 +284,21 @@ export class LLMService implements ILLMService {
           body: JSON.stringify(reqBody),
           signal,
         });
+
+        // 运行时自愈拦截：遇到 400 等错误时，克隆并判定是否为参数不支持引发，是则自动关闭该模型对应 capability 缓存
+        if (!openAiRes.ok) {
+          try {
+            const clonedRes = openAiRes.clone();
+            const errText = await clonedRes.text();
+            const unsupported = ModelCapabilityRegistry.isUnsupportedParamError(errText);
+            if (unsupported && modelId) {
+              ModelCapabilityRegistry.updateCapabilities(modelId, { [unsupported.param]: false });
+              console.warn(`[LLMService] Auto-healing: Disabled unsupported capability "${unsupported.param}" for model: ${modelId}`);
+            }
+          } catch (e) {
+            console.warn("[LLMService] Failed to analyze api error for self-healing:", e);
+          }
+        }
         // P1-9: 对非流式响应做字段白名单清洗，剥离中转站注入的非标字段
         // （如 extra_data / debug_info / prompt_hash），
         // 防止脏数据渗透到 sessions 表与消息渲染管线。

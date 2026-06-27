@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from "react";
 import { ChatSession, Message, SummaryCard } from "../types";
-import { getAllSessions, saveSession as dbSaveSession, deleteSession as dbDeleteSession, getSessionsCount, getSessionsPaginated } from "../utils/localDB";
+import { getAllSessions, saveSession as dbSaveSession, deleteSession as dbDeleteSession, getSessionsCount, getSessionsPaginated, getMessagesBySession } from "../utils/localDB";
 import { useApp } from "./AppContext";
 
 // P0-1: 启动时分页加载会话，避免一次性 getAll() 全量反序列化阻塞首屏。
@@ -120,6 +120,43 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     loadSessions();
   }, []);
+
+  // 监听活跃会话切换，异步懒加载其对应的 messages 并填充至 React State
+  useEffect(() => {
+    if (!activeSessionId) return;
+    const session = sessions.find((s) => s.id === activeSessionId);
+    if (session && (!session.messages || session.messages.length === 0)) {
+      let isCurrent = true;
+      getMessagesBySession(activeSessionId)
+        .then((msgs) => {
+          if (isCurrent) {
+            setSessions((prev) =>
+              prev.map((s) =>
+                s.id === activeSessionId
+                  ? {
+                      ...s,
+                      messages: msgs.map((m: any) => ({
+                        id: m.id,
+                        sender: m.role === "user" ? "user" : "assistant",
+                        content: m.content,
+                        timestamp: m.createdAt,
+                        extra: m.metadata,
+                      })),
+                    }
+                  : s
+              )
+            );
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to lazy load messages for active session:", err);
+        });
+
+      return () => {
+        isCurrent = false;
+      };
+    }
+  }, [activeSessionId, sessions]);
 
   const saveSession = async (session: ChatSession) => {
     try {

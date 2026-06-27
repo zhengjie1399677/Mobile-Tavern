@@ -96,6 +96,8 @@ export interface ChatSession {
   lastSummarizedMessageId?: string; // Tracks up to which message the summary has covered
   variables?: Record<string, any>; // Chat session local variables
   tableMemory?: TableMemorySheet[]; // Structured memory sheets for stateful RP tracking
+  pinnedMessageIds?: string[]; // IDs of messages explicitly pinned to recall list
+  mutedMessageIds?: string[]; // IDs of messages muted from recall list
 }
 
 export type ApiType = "openai-compat" | "openai" | "anthropic";

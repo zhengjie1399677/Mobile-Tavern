@@ -240,13 +240,14 @@ export class PromptService implements IPromptService {
     userInput: string;
     settings: UserSettings;
     globalLorebook?: LorebookEntry[];
+    recalledMemories?: any[];
   }): {
     systemInstruction: string;
     history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
     dynamicInstruction: string;
     userInput?: string;
   } {
-    const { character, chat, userInput, settings, globalLorebook = [] } = params;
+    const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [] } = params;
 
     const macroParams = {
       char: character.name,
@@ -555,6 +556,18 @@ ${sheetsMarkdown}
       }
     }
 
+    let recalledMemoriesSection = "";
+    if (recalledMemories && recalledMemories.length > 0) {
+      const recallText = recalledMemories
+        .map((m: any) => `[第 ${m.turnIndex} 轮 - ${m.role === 'user' ? '用户' : '角色'}]: ${m.content}`)
+        .join("\n");
+      const systemGuidance = `=== 🧠 历史相关记忆片段 ===
+以下为从历史对话中召回的碎屑片段，仅用作本次生成的细节参考以确保前后情节一致连贯。注意：它们是离散的历史，请勿当成最新的连续对话：
+${recallText}
+==================================`;
+      recalledMemoriesSection = formatSectionText("relevantMemories", "", systemGuidance, true);
+    }
+
     let charSpecificPrompt = "";
     if (character.system_prompt) {
       const specificText = this.replaceMacros(character.system_prompt, macroParams);
@@ -679,6 +692,16 @@ ${scenarioBlock}
       compiledStory = compiledStory.replace(/\{\{tablememory\}\}/gi, () => tableMemorySection);
     } else if (tableMemorySection) {
       compiledStory = compiledStory + `\n\n${tableMemorySection}`;
+    }
+
+    if (compiledStory.toLowerCase().includes("{{relevant_memories}}")) {
+      compiledStory = compiledStory.replace(/\{\{relevant_memories\}\}/gi, () => recalledMemoriesSection);
+    } else if (compiledStory.toLowerCase().includes("{{relevantmemories}}")) {
+      compiledStory = compiledStory.replace(/\{\{relevantmemories\}\}/gi, () => recalledMemoriesSection);
+    } else if (compiledStory.toLowerCase().includes("{{recalled_memories}}")) {
+      compiledStory = compiledStory.replace(/\{\{recalled_memories\}\}/gi, () => recalledMemoriesSection);
+    } else if (recalledMemoriesSection) {
+      compiledStory = compiledStory + `\n\n${recalledMemoriesSection}`;
     }
 
     compiledStory = compiledStory.replace(/\{\{post_history\}\}/gi, "");

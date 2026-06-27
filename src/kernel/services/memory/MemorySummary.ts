@@ -140,12 +140,29 @@ export class MemorySummary {
     const activeSignal = this.mergeSignal(signal);
     if (activeSignal?.aborted) return session;
 
+    // 0. 从隔离存储 messages Store 异步加载本会话所有消息，实现物理脱耦
+    let dbMessagesRecords: any[] = [];
+    if (this.storage && typeof this.storage.getMessagesBySession === 'function') {
+      dbMessagesRecords = await this.storage.getMessagesBySession(session.id);
+    } else {
+      // 降级保护：在测试 Mock 等 storage 未定义对应方法的场景下，退回直接使用内存中 session.messages
+      dbMessagesRecords = session.messages || [];
+    }
+
+    const messages: Message[] = dbMessagesRecords.map((m: any) => ({
+      id: m.id,
+      sender: m.role === 'user' ? 'user' : 'assistant',
+      content: m.content,
+      timestamp: m.createdAt,
+      extra: m.metadata,
+    }));
+
     // 1. 定位上次总结位置
     let resolvedLastId = session.lastSummarizedMessageId;
     const findIndexById = (id: string | undefined): number => {
       if (!id) return -1;
-      for (let i = session.messages.length - 1; i >= 0; i--) {
-        if (session.messages[i].id === id) return i;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].id === id) return i;
       }
       return -1;
     };
@@ -162,7 +179,7 @@ export class MemorySummary {
     }
 
     const startIndex = lastIndex >= 0 ? lastIndex + 1 : 0;
-    const unsummarizedCount = session.messages.length - startIndex;
+    const unsummarizedCount = messages.length - startIndex;
 
     // 2. 计算触发阈值
     const summaryTurnsVal = settings?.memory?.summaryTriggerTurns;
@@ -186,7 +203,7 @@ export class MemorySummary {
     }
 
     // 仅截取需要的部分（避免全量 slice）
-    const messagesToCompress = session.messages.slice(
+    const messagesToCompress = messages.slice(
       startIndex,
       startIndex + maxAllowedUnsummarized
     );

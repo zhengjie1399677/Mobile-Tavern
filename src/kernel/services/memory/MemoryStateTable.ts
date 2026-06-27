@@ -356,8 +356,22 @@ export class MemoryStateTable {
  * @throws 解析失败抛出 SyntaxError
  */
 function parseLooseJson(str: string): Record<string, any> {
-  const formatted = str
-    .replace(/'/g, '"')
-    .replace(/([{,]\s*)([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*:/g, '$1"$2":');
+  // 1. 将单引号包裹的字符串值安全提取：
+  //    将内部原本被转义的单引号 \' 还原为普通单引号 ' (因为外层要变成双引号了)
+  //    将内部的双引号 " 转义为 \"
+  //    最后将外层的包裹单引号替换为双引号，保障嵌套时的解析安全
+  const processedValues = str.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, p1) => {
+    const escaped = p1
+      .replace(/"/g, '\\"')
+      .replace(/\\'/g, "'");
+    return `"${escaped}"`;
+  });
+
+  // 2. 补全未用引号包裹的键名（支持中英文及常用字符键名）
+  const formatted = processedValues.replace(
+    /([{,]\s*)([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*:/g, 
+    '$1"$2":'
+  );
+  
   return JSON.parse(formatted);
 }

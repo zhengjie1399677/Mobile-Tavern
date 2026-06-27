@@ -19,6 +19,7 @@
 import type { MessageRecord, MessageRole, RecalledMessage } from './types';
 import type { MemoryStorage } from './MemoryStorage';
 import { extractByDict } from './MemoryExtractor';
+import { getSessionById } from "../../../utils/localDB";
 
 // ===== 常量 =====
 
@@ -80,8 +81,19 @@ export class MemoryRecall {
     const dict = await this.storage.getDictBySession(sessionId);
     const queryTags = extractByDict(currentMessage, dict);
 
-    if (queryTags.length === 0) {
-      return []; // 无查询标签，不召回
+    // 强力 Pin 状态支持：哪怕没有匹配到任何查询标签，若用户有 Pin 的消息，依然需要召回它们
+    let sessionObj: any = null;
+    try {
+      if (typeof window !== 'undefined' && ((window as any).indexedDB || (window as any).shimIndexedDB)) {
+        sessionObj = await getSessionById(sessionId);
+      }
+    } catch (err) {
+      console.warn("[MemoryRecall] Failed to fetch session for Pin in recall:", err);
+    }
+    const pinnedIds = sessionObj?.pinnedMessageIds || [];
+
+    if (queryTags.length === 0 && pinnedIds.length === 0) {
+      return []; // 无查询标签且无 Pinned 消息，不召回
     }
 
     // 2. 按标签召回
@@ -100,8 +112,6 @@ export class MemoryRecall {
     tags: string[],
     options?: RecallOptions
   ): Promise<RecalledMessage[]> {
-    if (!tags || tags.length === 0) return [];
-
     const topK = Math.max(1, options?.topK ?? DEFAULT_TOP_K);
     const excludeRecentN = Math.max(0, options?.excludeRecentN ?? DEFAULT_EXCLUDE_RECENT_N);
 
@@ -110,7 +120,36 @@ export class MemoryRecall {
 
     // 2. 粗召回：按标签查倒排索引（候选池 = topK × 倍率）
     const candidateLimit = topK * CANDIDATE_MULTIPLIER;
-    const candidates = await this.storage.getMessagesByTag(sessionId, tags, candidateLimit);
+    let candidates = tags.length > 0 
+      ? await this.storage.getMessagesByTag(sessionId, tags, candidateLimit)
+      : [];
+
+    // 2.5 强力 Pin / Mute 机制注入候选池与排除配置
+    let sessionObj2: any = null;
+    try {
+      if (typeof window !== 'undefined' && ((window as any).indexedDB || (window as any).shimIndexedDB)) {
+        sessionObj2 = await getSessionById(sessionId);
+      }
+    } catch (err) {
+      console.warn("[MemoryRecall] Failed to fetch session for Pin/Mute in recallByTags:", err);
+    }
+    const pinnedIds = sessionObj2?.pinnedMessageIds || [];
+    const mutedIds = sessionObj2?.mutedMessageIds || [];
+    const mutedIdSet = new Set(mutedIds);
+
+    if (pinnedIds.length > 0) {
+      // 异步查出被用户强力置顶的 Pin 消息内容
+      const pinnedMsgsPromises = pinnedIds.map(id => this.storage.getMessageById(id));
+      const pinnedMsgs = (await Promise.all(pinnedMsgsPromises)).filter(Boolean);
+      
+      // 合并到候选池并执行去重
+      const candidateIds = new Set(candidates.map(c => c.id));
+      pinnedMsgs.forEach(msg => {
+        if (!candidateIds.has(msg.id)) {
+          candidates.push(msg);
+        }
+      });
+    }
 
     if (candidates.length === 0) return [];
 
@@ -119,8 +158,8 @@ export class MemoryRecall {
     const recentIdSet = new Set(recentIds);
 
     // 4. 打分 + 排除 + 排序
-    const scored = this.scoreCandidates(candidates, tags, currentTurnIndex);
-    const filtered = scored.filter((s) => !recentIdSet.has(s.messageId));
+    const scored = this.scoreCandidates(candidates, tags, currentTurnIndex, pinnedIds);
+    const filtered = scored.filter((s) => !recentIdSet.has(s.messageId) && !mutedIdSet.has(s.messageId));
 
     // 5. 取 top-K
     return filtered.slice(0, topK);
@@ -176,25 +215,31 @@ export class MemoryRecall {
   private scoreCandidates(
     candidates: MessageRecord[],
     queryTags: string[],
-    currentTurnIndex: number
+    currentTurnIndex: number,
+    pinnedIds: string[] = []
   ): RecalledMessage[] {
     const queryTagSet = new Set(queryTags);
 
     const scored: RecalledMessage[] = [];
 
     for (const msg of candidates) {
+      // 强力 Pin 机制打分判定
+      const isPinned = pinnedIds.includes(msg.id);
+
       // 计算命中标签
       const msgTags = msg.tags ?? [];
       const hitTags = msgTags.filter((t) => queryTagSet.has(t));
       const hitCount = hitTags.length;
 
-      // 无命中则跳过（理论上不会发生，因为 getMessagesByTag 已按标签过滤）
-      if (hitCount === 0) continue;
+      // 无匹配且不是 pinned 消息，则跳过
+      if (hitCount === 0 && !isPinned) continue;
 
       // 计算时间衰减
       const ageInTurns = Math.max(0, currentTurnIndex - (msg.turnIndex ?? 0));
       const decayFactor = 1 / (1 + ageInTurns / DECAY_HALF_LIFE_TURNS);
-      const score = hitCount * decayFactor;
+      
+      // 强力 Pin 置顶得分
+      const score = isPinned ? 9999 : (hitCount * decayFactor);
 
       scored.push({
         messageId: msg.id,
