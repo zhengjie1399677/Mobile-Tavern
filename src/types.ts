@@ -130,11 +130,6 @@ export interface MemoryConfig {
   summaryLength: number; // Default e.g. 150 characters
   summarySystemPrompt?: string;
   timeTagTemplate?: string;
-  locationRegex?: string;
-  timeRegex?: string;
-  conditionRegex?: string;
-  inventoryRegex?: string;
-  bondingRegex?: string;
 }
 
 export interface CustomPromptBlock {

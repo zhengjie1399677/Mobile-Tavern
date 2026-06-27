@@ -32,7 +32,14 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   const [editValue, setEditValue] = useState("");
   const [showConfig, setShowConfig] = useState(false);
 
-  const sheets = activeSession.tableMemory || [];
+  // 防御性过滤：剔除数据结构不完整的 sheet（columns/rows 缺失或类型错误），
+  // 避免 .map 调用 undefined 触发 AppErrorBoundary 导致整个应用白屏
+  const rawSheets = activeSession.tableMemory || [];
+  const sheets: TableMemorySheet[] = Array.isArray(rawSheets)
+    ? rawSheets.filter((s): s is TableMemorySheet =>
+        !!s && Array.isArray(s.columns) && Array.isArray(s.rows)
+      )
+    : [];
 
   // Set default active tab if empty
   React.useEffect(() => {
@@ -251,7 +258,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                           onClick={() => toggleSheetEnabled(s.id)}
                           className={`p-1.5 rounded-lg border transition ${
                             s.enable
-                              ? "bg-emerald/10 border-emerald/20 text-emerald"
+                              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
                               : "bg-muted border-border text-muted-foreground opacity-60"
                           }`}
                           title={s.enable ? "注入 prompt" : "已停用注入"}
@@ -315,7 +322,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                           ) : (
                             activeSheet.rows.map((row, rIdx) => (
                               <tr key={rIdx} className="border-b border-border/40 hover:bg-muted/10 last:border-0">
-                                {row.map((val, cIdx) => {
+                                {(Array.isArray(row) ? row : []).map((val, cIdx) => {
                                   const isEditing = editingCell?.sheetId === activeSheet.id && editingCell?.rowIndex === rIdx && editingCell?.colIndex === cIdx;
                                   return (
                                     <td 

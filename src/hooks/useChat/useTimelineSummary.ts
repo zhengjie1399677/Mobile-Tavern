@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { ChatSession, SummaryCard, UserSettings, CharacterCard } from "../../types";
-import { IDatabaseService } from "../../kernel/types";
+import { IDatabaseService, KernelServices } from "../../kernel/types";
 import { globalKernel } from "../../kernel";
 import { generateUniqueId } from "./helpers";
 
@@ -53,10 +53,13 @@ export function useTimelineSummary(params: {
     force: boolean = false,
     signal?: AbortSignal
   ) => {
-    const autoSummaryService = globalKernel.getService<any>("autoSummary");
+    // 阶段 C 迁移：通过 MemoryService.getSummary() 访问摘要子模块
+    // （旧 KernelServices.AutoSummary 已从 registerServiceBatch 移除并标记 @deprecated）
     try {
+      const memoryService = globalKernel.getService<any>(KernelServices.Memory);
+      const summary = memoryService.getSummary();
       setIsSummarizing(true);
-      const updatedSession = await autoSummaryService.handleAutoSummaryCheck(
+      const updatedSession = await summary.checkAndSummarize(
         session, settings, activeCharacter, force, signal
       );
       if (updatedSession !== session) {

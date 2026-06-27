@@ -226,11 +226,15 @@ export class MemoryStateTable {
     let cleanContent = rawContent;
     let hasChanges = false;
 
-    // 深拷贝输入表数组，避免污染调用方数据
+    // 深拷贝输入表数组，避免污染调用方数据。
+    // 空值保护：兼容 session 中可能存在的历史不完整数据（columns/rows 缺失），
+    // 避免深拷贝时访问 undefined 导致中间件抛错。
     const currentMemory: TableMemorySheet[] = tableMemory.map((s) => ({
       ...s,
-      columns: [...s.columns],
-      rows: s.rows.map((r) => [...r]),
+      columns: Array.isArray(s.columns) ? [...s.columns] : [],
+      rows: Array.isArray(s.rows)
+        ? s.rows.map((r) => (Array.isArray(r) ? [...r] : []))
+        : [],
     }));
 
     const matchesToClean: string[] = [];

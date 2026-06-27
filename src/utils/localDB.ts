@@ -441,18 +441,52 @@ export async function saveSession(session: ChatSession): Promise<void> {
 }
 
 export async function deleteSession(id: string): Promise<void> {
+  // P0-2 修复：会话删除时必须级联清理 messages 和 memory_dict Store 的相关数据，
+  // 否则会留下孤儿数据导致存储泄漏和 tags 多值索引膨胀。
+  // 使用单事务跨 Store 删除保证原子性（要么全删要么全不删）。
   return enqueueWrite(async () => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction("sessions", "readwrite");
-      const store = transaction.objectStore("sessions");
-      const request = store.delete(id);
+      // 跨 Store 事务：sessions + messages + memory_dict
+      const transaction = db.transaction(
+        ["sessions", "messages", "memory_dict"],
+        "readwrite"
+      );
+      const sessionsStore = transaction.objectStore("sessions");
+      const messagesStore = transaction.objectStore("messages");
+      const dictStore = transaction.objectStore("memory_dict");
 
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      // 1. 删除会话主记录
+      sessionsStore.delete(id);
+
+      // 2. 删除 messages Store 中该 sessionId 的所有消息（含 tags 索引项）
+      const messagesIndex = messagesStore.index("sessionId");
+      const msgCursorReq = messagesIndex.openCursor(IDBKeyRange.only(id));
+      msgCursorReq.onsuccess = () => {
+        const cursor = msgCursorReq.result;
+        if (!cursor) return;
+        cursor.delete();
+        cursor.continue();
+      };
+      msgCursorReq.onerror = () => reject(msgCursorReq.error);
+
+      // 3. 删除 memory_dict Store 中该 sessionId 的所有词典条目
+      const dictIndex = dictStore.index("sessionId");
+      const dictCursorReq = dictIndex.openCursor(IDBKeyRange.only(id));
+      dictCursorReq.onsuccess = () => {
+        const cursor = dictCursorReq.result;
+        if (!cursor) return;
+        cursor.delete();
+        cursor.continue();
+      };
+      dictCursorReq.onerror = () => reject(dictCursorReq.error);
+
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
     });
-  });
+  }, `session:${id}:cascade`);  // 同会话级联删除合并为一次写入
 }
 
 // === Crypto Helpers for API Key Security ===

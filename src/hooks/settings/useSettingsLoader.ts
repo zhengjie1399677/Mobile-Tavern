@@ -225,11 +225,6 @@ export const useSettingsLoader = ({
               ...(storedSet.memory || {}),
               summarySystemPrompt: storedSet.memory?.summarySystemPrompt || defaultMemory.summarySystemPrompt,
               timeTagTemplate: storedSet.memory?.timeTagTemplate || DEFAULT_SETTINGS.memory.timeTagTemplate,
-              locationRegex: storedSet.memory?.locationRegex || DEFAULT_SETTINGS.memory.locationRegex,
-              timeRegex: storedSet.memory?.timeRegex || DEFAULT_SETTINGS.memory.timeRegex,
-              conditionRegex: storedSet.memory?.conditionRegex || DEFAULT_SETTINGS.memory.conditionRegex,
-              inventoryRegex: storedSet.memory?.inventoryRegex || DEFAULT_SETTINGS.memory.inventoryRegex,
-              bondingRegex: storedSet.memory?.bondingRegex || DEFAULT_SETTINGS.memory.bondingRegex,
             },
             promptConfig: {
               ...defaultPromptConfig,

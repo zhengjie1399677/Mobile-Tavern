@@ -182,15 +182,10 @@
 
 ---
 
-# ℹ️ Android 调试规范 (Android Debugging)
-- **端口与代理限制**：必须绑定 `--host 127.0.0.1` 并反向映射 `3000` 与 `24678` 端口以防白屏与进程冲突。
-- **启动调试命令**：
-  ```powershell
-  $env:ANDROID_HOME = "$env:USERPROFILE\AppData\Local\Android\Sdk"
-  $env:PATH += ";$env:ANDROID_HOME\platform-tools"
-  adb reverse tcp:3000 tcp:3000; adb reverse tcp:24678 tcp:24678
-  npx tauri android dev --host 127.0.0.1
-  ```
+# ℹ️ Android 调试与打包规范 (Android Debugging & Build)
+- **详见**：[Android_调试与打包指南.md](file:///e:/modules/projects/Mobile-Tavern/docs/Android_调试与打包指南.md)
+- 开发热重载调试（`tauri android dev`）与真机测试 APK 打包（含 Trae 沙盒环境绕过流程）的完整命令、一键脚本与故障排查已整合到上述文档。
+- **核心铁则**：热重载调试必须绑定 `--host 127.0.0.1` 并反向映射 `3000`/`24678` 端口；生产打包必须剥离 Node/Express 服务器代码（见准则三）。
 
 ---
 

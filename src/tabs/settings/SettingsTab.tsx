@@ -107,6 +107,7 @@ export default function SettingsTab() {
         showUpdatePrompt({
           latestVersion: res.latestVersion,
           downloadUrl: res.downloadUrl,
+          message: res.message,
         });
       } else {
         // 无更新：显示服务端返回的 message 或默认文案

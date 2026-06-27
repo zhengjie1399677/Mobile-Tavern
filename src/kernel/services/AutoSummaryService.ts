@@ -13,7 +13,7 @@
  * 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第十章 + 第十八章 18.3 节
  */
 
-import { IAutoSummaryService, IKernel, IDatabaseService, ILLMService, KernelServices } from "../types";
+import { IKernel, IDatabaseService, ILLMService, KernelServices } from "../types";
 import { ChatSession, UserSettings, CharacterCard, SummaryCard, Message } from "../../types";
 import { FALLBACK_MODEL, API_ENDPOINT, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 import {
@@ -28,7 +28,8 @@ const generateUniqueId = (prefix: string): string => {
   return prefix + Math.random().toString(36).substring(2, 9);
 };
 
-export class AutoSummaryService implements IAutoSummaryService {
+// @deprecated — 不再 implements IAutoSummaryService（该接口已从 kernel/types.ts 清理）
+export class AutoSummaryService {
   name = "autoSummary";
   /**
    * 条目 6 修复：显式声明服务依赖。
@@ -197,11 +198,14 @@ export class AutoSummaryService implements IAutoSummaryService {
             contentText = body;
           }
           
-          const locationRegexStr = settings?.memory?.locationRegex || DEFAULT_LOCATION_REGEX;
-          const timeRegexStr = settings?.memory?.timeRegex || DEFAULT_TIME_REGEX;
-          const conditionRegexStr = settings?.memory?.conditionRegex || DEFAULT_CONDITION_REGEX;
-          const inventoryRegexStr = settings?.memory?.inventoryRegex || DEFAULT_INVENTORY_REGEX;
-          const bondingRegexStr = settings?.memory?.bondingRegex || DEFAULT_BONDING_REGEX;
+          // 已废弃字段兼容：MemoryConfig 中 locationRegex/timeRegex/conditionRegex/inventoryRegex/bondingRegex
+          // 已在 Phase C 砍掉（状态抽离迁移到 MemoryStateTable），本文件仅保留 @deprecated 版本周期。
+          const mem: any = settings?.memory || {};
+          const locationRegexStr = mem.locationRegex || DEFAULT_LOCATION_REGEX;
+          const timeRegexStr = mem.timeRegex || DEFAULT_TIME_REGEX;
+          const conditionRegexStr = mem.conditionRegex || DEFAULT_CONDITION_REGEX;
+          const inventoryRegexStr = mem.inventoryRegex || DEFAULT_INVENTORY_REGEX;
+          const bondingRegexStr = mem.bondingRegex || DEFAULT_BONDING_REGEX;
 
           const safeMatch = (text: string, pattern: string) => {
             try {

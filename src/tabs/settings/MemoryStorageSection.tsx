@@ -64,44 +64,56 @@ export default function MemoryStorageSection({
       <Card className="bg-card border-border shadow-sm">
         <CardHeader className="pb-3 border-b border-border/50">
           <CardTitle className="text-sm flex items-center gap-2">
-            <Database className="w-4 h-4 text-primary" /> 上下文缓冲系统
+            <Database className="w-4 h-4 text-primary" /> 记忆系统
           </CardTitle>
           <CardDescription className="text-[11px]">
-            设置短期直接传递与中远期大纲提取阈值
+            统一管理短期上下文窗口、叙事记忆（时间轴摘要）与状态记忆（结构化表格）三个互补子模块
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-5 space-y-5 text-xs text-muted-foreground">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="font-semibold text-foreground text-[13px]">
-                  上下文发送轮次 (Recent Turns)
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  直接发送全文保留的对话局数
-                </span>
+            {/* 子模块 1：上下文窗口（短期直接传递） */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary/80 uppercase tracking-wide">
+                <span className="inline-block w-1 h-3 bg-primary/60 rounded-full" />
+                上下文窗口
               </div>
-              <input
-                type="number"
-                min="2"
-                max="100"
-                step="1"
-                value={settings.memory.recentTurns}
-                onChange={(e) =>
-                  updateSettings({
-                    ...settings,
-                    memory: {
-                      ...settings.memory,
-                      recentTurns: parseInt(e.target.value) || 0,
-                    },
-                  })
-                }
-                className="w-16 bg-muted border border-border text-center rounded p-1 text-sm outline-none focus:border-primary"
-              />
+              <div className="flex items-center justify-between pl-2">
+                <div className="flex flex-col">
+                  <span className="font-semibold text-foreground text-[13px]">
+                    上下文发送轮次 (Recent Turns)
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    直接发送全文保留的对话局数
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  min="2"
+                  max="100"
+                  step="1"
+                  value={settings.memory.recentTurns}
+                  onChange={(e) =>
+                    updateSettings({
+                      ...settings,
+                      memory: {
+                        ...settings.memory,
+                        recentTurns: parseInt(e.target.value) || 0,
+                      },
+                    })
+                  }
+                  className="w-16 bg-muted border border-border text-center rounded p-1 text-sm outline-none focus:border-primary"
+                />
+              </div>
             </div>
 
+            {/* 子模块 2：叙事记忆（Auto Summary 时间轴摘要） */}
             <div className="space-y-3 mt-4 pt-4 border-t border-border/50">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-500/80 uppercase tracking-wide">
+                <span className="inline-block w-1 h-3 bg-emerald-500/60 rounded-full" />
+                叙事记忆 · 时间轴摘要
+              </div>
+              <div className="flex items-center justify-between pl-2">
                 <div className="flex flex-col">
                   <span className="font-semibold text-foreground text-[13px] flex items-center gap-2">
                     自动记忆整理 (Auto Summary){" "}
@@ -151,9 +163,13 @@ export default function MemoryStorageSection({
               )}
             </div>
 
-            {/* 3. 表格记忆（记忆档案柜）配置 */}
+            {/* 子模块 3：状态记忆（Table Memory 结构化表格） */}
             <div className="space-y-3 mt-4 pt-4 border-t border-border/50">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-sky-500/80 uppercase tracking-wide">
+                <span className="inline-block w-1 h-3 bg-sky-500/60 rounded-full" />
+                状态记忆 · 结构化表格
+              </div>
+              <div className="flex items-center justify-between pl-2">
                 <div className="flex flex-col">
                   <span className="font-semibold text-foreground text-[13px] flex items-center gap-2">
                     结构化记忆表格 (Table Memory){" "}
@@ -335,101 +351,6 @@ export default function MemoryStorageSection({
                       >
                         重置表格指令为系统默认
                       </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2.5 pt-2 border-t border-border/30">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[11px] font-semibold text-foreground">
-                        剧情元数据提取正则 (Metadata Extract Regexes)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateSettings({
-                            ...settings,
-                            memory: {
-                              ...settings.memory,
-                              locationRegex: DEFAULT_SETTINGS.memory.locationRegex,
-                              timeRegex: DEFAULT_SETTINGS.memory.timeRegex,
-                              conditionRegex: DEFAULT_SETTINGS.memory.conditionRegex,
-                              inventoryRegex: DEFAULT_SETTINGS.memory.inventoryRegex,
-                              bondingRegex: DEFAULT_SETTINGS.memory.bondingRegex,
-                            }
-                          });
-                        }}
-                        className="text-[10px] text-primary font-bold hover:underline"
-                      >
-                        重置全部正则
-                      </button>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground w-16 shrink-0">地点 (Location)</span>
-                        <Input
-                          value={settings.memory.locationRegex || ""}
-                          onChange={(e) =>
-                            updateSettings({
-                              ...settings,
-                              memory: { ...settings.memory, locationRegex: e.target.value }
-                            })
-                          }
-                          className="h-8 text-xs font-mono bg-input/50 flex-1"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground w-16 shrink-0">时间 (Time)</span>
-                        <Input
-                          value={settings.memory.timeRegex || ""}
-                          onChange={(e) =>
-                            updateSettings({
-                              ...settings,
-                              memory: { ...settings.memory, timeRegex: e.target.value }
-                            })
-                          }
-                          className="h-8 text-xs font-mono bg-input/50 flex-1"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground w-16 shrink-0">心境 (Condition)</span>
-                        <Input
-                          value={settings.memory.conditionRegex || ""}
-                          onChange={(e) =>
-                            updateSettings({
-                              ...settings,
-                              memory: { ...settings.memory, conditionRegex: e.target.value }
-                            })
-                          }
-                          className="h-8 text-xs font-mono bg-input/50 flex-1"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground w-16 shrink-0">物品 (Inventory)</span>
-                        <Input
-                          value={settings.memory.inventoryRegex || ""}
-                          onChange={(e) =>
-                            updateSettings({
-                              ...settings,
-                              memory: { ...settings.memory, inventoryRegex: e.target.value }
-                            })
-                          }
-                          className="h-8 text-xs font-mono bg-input/50 flex-1"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground w-16 shrink-0">羁绊 (Bonding)</span>
-                        <Input
-                          value={settings.memory.bondingRegex || ""}
-                          onChange={(e) =>
-                            updateSettings({
-                              ...settings,
-                              memory: { ...settings.memory, bondingRegex: e.target.value }
-                            })
-                          }
-                          className="h-8 text-xs font-mono bg-input/50 flex-1"
-                        />
-                      </div>
                     </div>
                   </div>
                 </AccordionContent>

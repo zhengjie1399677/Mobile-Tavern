@@ -5,9 +5,7 @@ export const KernelServices = {
   LLM: "llm",
   Prompt: "prompt",
   Telemetry: "telemetry",
-  TableMemory: "tableMemory",
   Script: "script",
-  AutoSummary: "autoSummary",
   MultiMessage: "multiMessage",
   ChatStream: "chatStream",
   UpdateCheck: "updateCheck",
@@ -245,29 +243,11 @@ export interface ITelemetryService extends IKernelService {
   reportZodValidationError(errorDetail: string, path: string, inputVal: any): void;
 }
 
-export interface ITableMemoryService<TCharacter = any> extends IKernelService {
-  processTableMemory(
-    tableMemory: any[] | undefined,
-    rawContent: string,
-    activeCharacter?: TCharacter
-  ): { updatedMemory: any[]; cleanContent: string; hasChanges: boolean };
-}
-
 export interface IScriptService<TCharacter = any, TSession = any> extends IKernelService {
   initializeMvuFromCharacter(character: TCharacter): Record<string, any>;
   parseMvuMessage(messageContent: string, currentVariables: Record<string, any>): Record<string, any>;
   executeMvuScript(session: TSession, messageContent: string): Promise<TSession>;
   registerBridge(bridge: any): void;
-}
-
-export interface IAutoSummaryService<TSession = any, TSettings = any, TCharacter = any> extends IKernelService {
-  handleAutoSummaryCheck(
-    session: TSession,
-    settings: TSettings,
-    activeCharacter: TCharacter | null,
-    force: boolean,
-    signal?: AbortSignal
-  ): Promise<TSession>;
 }
 
 export interface IMultiMessageService<TSession = any> extends IKernelService {

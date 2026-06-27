@@ -60,13 +60,15 @@ export async function performUpdateCheck(force = false): Promise<UpdateInfo | nu
  * 触发 UpdatePrompt 弹窗显示。
  * 供外部组件（如 SettingsTab 手动检查按钮）在拿到 UpdateInfo 后调用，
  * 避免重复发起 HTTP 请求。
+ * @param info.message FC 函数返回的更新日志，会在弹窗中展示给用户
  */
-export function showUpdatePrompt(info: { latestVersion?: string; downloadUrl?: string }): void {
+export function showUpdatePrompt(info: { latestVersion?: string; downloadUrl?: string; message?: string }): void {
   window.dispatchEvent(
     new CustomEvent(SHOW_UPDATE_PROMPT_EVENT, {
       detail: {
         latestVersion: info.latestVersion || "1.6.0",
         downloadUrl: info.downloadUrl || "",
+        message: info.message || "",
       },
     })
   );
@@ -76,6 +78,8 @@ export default function UpdatePrompt() {
   const [show, setShow] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
   const [downloadUrl, setDownloadUrl] = useState("");
+  // FC 函数传下来的更新日志，替代原先的固定宣传文案
+  const [updateLog, setUpdateLog] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
@@ -91,6 +95,7 @@ export default function UpdatePrompt() {
         if (res?.hasUpdate && res.downloadUrl) {
           setLatestVersion(res.latestVersion || "1.6.0");
           setDownloadUrl(res.downloadUrl);
+          setUpdateLog(res.message || "");
           setShow(true);
         }
       } catch (err) {
@@ -109,9 +114,11 @@ export default function UpdatePrompt() {
       const detail = (e as CustomEvent).detail as {
         latestVersion: string;
         downloadUrl: string;
+        message: string;
       };
       setLatestVersion(detail.latestVersion);
       setDownloadUrl(detail.downloadUrl);
+      setUpdateLog(detail.message || "");
       setShow(true);
     };
     window.addEventListener(SHOW_UPDATE_PROMPT_EVENT, onShowUpdatePrompt);
@@ -169,20 +176,16 @@ export default function UpdatePrompt() {
           <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-indigo-950 animate-ping" />
         </div>
 
-        {/* 主副标题 */}
-        <div className="space-y-1 z-10">
-          <h2 className="text-xl font-extrabold tracking-tight text-white bg-clip-text">
+        {/* 主标题 + FC 传下来的更新日志 */}
+        <div className="space-y-2 z-10 w-full">
+          <h2 className="text-xl font-extrabold tracking-tight text-white bg-clip-text text-center">
             ✨ 发现新版本 v{latestVersion}
           </h2>
-          <p className="text-xs text-slate-300 leading-relaxed max-w-[280px]">
-            检测到更稳定、流畅的版本已发布。为了获得最佳的使用体验，建议立即获取更新。
-          </p>
-        </div>
-
-        {/* 提示环境信息 */}
-        <div className="w-full py-2.5 px-4 rounded-xl bg-white/5 border border-white/5 text-[11px] text-indigo-200/90 flex items-center justify-center space-x-2 z-10 font-medium">
-          <Icons.Wifi className="w-3.5 h-3.5 text-primary" />
-          <span>推荐在 Wi-Fi 环境下极速升级</span>
+          {updateLog ? (
+            <div className="text-xs text-slate-200 leading-relaxed max-h-[180px] overflow-y-auto scrollbar-thin bg-white/5 border border-white/10 rounded-xl p-3 whitespace-pre-wrap break-words text-left">
+              {updateLog}
+            </div>
+          ) : null}
         </div>
 
         {/* 按钮区域 */}

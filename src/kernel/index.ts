@@ -36,7 +36,7 @@ import PlaygroundTab from "../tabs/PlaygroundTab";
  * 阶段 C 迁移说明：
  *   - TableMemoryService 与 AutoSummaryService 已从注册表移除，逻辑合并到 MemoryService
  *     的 stateTable 与 summary 子模块。旧文件保留 @deprecated 标记，下个版本周期后删除。
- *   - KernelServices.TableMemory / KernelServices.AutoSummary 枚举值保留（向后兼容类型引用），
+ *   - KernelServices.TableMemory / KernelServices.AutoSummary 枚举值已移除（逻辑合并到 MemoryService）。
  *     但不再有服务实例注册到这些 key。
  */
 export async function initializeKernel() {

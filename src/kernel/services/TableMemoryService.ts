@@ -12,10 +12,11 @@
  * 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第九章 + 第十八章 18.3 节
  */
 
-import { ITableMemoryService, IKernel } from "../types";
+import { IKernel } from "../types";
 import { CharacterCard, TableMemorySheet } from "../../types";
 
-export class TableMemoryService implements ITableMemoryService {
+// @deprecated — 不再 implements ITableMemoryService（该接口已从 kernel/types.ts 清理）
+export class TableMemoryService {
   name = "tableMemory";
   private kernel!: IKernel;
   // P1-1/P1-2: 服务级 AbortController（纯计算服务，契约一致性）

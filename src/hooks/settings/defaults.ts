@@ -3,11 +3,6 @@ import { DEFAULT_REPLY_SUGGESTIONS_PROMPT } from "../../defaults/suggestionsProm
 import {
   DEFAULT_REASONING_GUIDANCE_PROMPT,
   DEFAULT_TABLE_MEMORY_PROMPT,
-  DEFAULT_LOCATION_REGEX,
-  DEFAULT_TIME_REGEX,
-  DEFAULT_CONDITION_REGEX,
-  DEFAULT_INVENTORY_REGEX,
-  DEFAULT_BONDING_REGEX,
 } from "../../defaults/promptTemplates";
 
 export { DEFAULT_REPLY_SUGGESTIONS_PROMPT };
@@ -283,11 +278,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
     summaryLength: 120,
     summarySystemPrompt: "",
     timeTagTemplate: "第{{index}}幕",
-    locationRegex: DEFAULT_LOCATION_REGEX,
-    timeRegex: DEFAULT_TIME_REGEX,
-    conditionRegex: DEFAULT_CONDITION_REGEX,
-    inventoryRegex: DEFAULT_INVENTORY_REGEX,
-    bondingRegex: DEFAULT_BONDING_REGEX,
   },
   promptConfig: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
   userName: "user",
