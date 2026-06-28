@@ -26,6 +26,8 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsFunctionCalling: true,
     supportsStream: true,
     supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
   },
   'gemini-': {
     supportsTopK: true,
@@ -35,6 +37,8 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsFunctionCalling: true,
     supportsStream: true,
     supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
   },
   'claude-': {
     // Claude 不支持 top_k 参数
@@ -45,6 +49,8 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsFunctionCalling: true,
     supportsStream: true,
     supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
   },
   'gpt-': {
     supportsTopK: false,
@@ -54,6 +60,8 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsFunctionCalling: true,
     supportsStream: true,
     supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
   },
   'glm-': {
     supportsTopK: true,
@@ -63,13 +71,15 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsFunctionCalling: true,
     supportsStream: true,
     supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
   },
 };
 
 /**
  * 未知模型保守默认值。
  * 原则：只发几乎都支持的参数（temperature/top_p/stream/system），
- *       保守不发 top_k/json_schema/function_calling，避免 400 错误。
+ *       保守不发 top_k/json_schema/function_calling/min_p/repetition_penalty，避免 400 错误。
  */
 const DEFAULT_CAPABILITIES: ModelCapabilities = {
   supportsTopK: false,
@@ -79,6 +89,8 @@ const DEFAULT_CAPABILITIES: ModelCapabilities = {
   supportsFunctionCalling: false,
   supportsStream: true,
   supportsSystemPrompt: true,
+  supportsMinP: false,
+  supportsRepetitionPenalty: false,
 };
 
 /** localStorage 持久化键（运行时学到的能力覆盖） */
@@ -129,6 +141,8 @@ export class ModelCapabilityRegistry {
     if (!caps.supportsTemperature) delete cleaned.temperature;
     if (!caps.supportsJsonSchema) delete cleaned.response_format;
     if (!caps.supportsFunctionCalling) delete cleaned.functions;
+    if (!caps.supportsMinP) delete cleaned.min_p;
+    if (!caps.supportsRepetitionPenalty) delete cleaned.repetition_penalty;
 
     return cleaned;
   }
@@ -175,6 +189,8 @@ export class ModelCapabilityRegistry {
       { param: 'supportsTopP', pattern: /top_p|topP/i },
       { param: 'supportsJsonSchema', pattern: /response_format|json_schema/i },
       { param: 'supportsFunctionCalling', pattern: /function_call|tools\b/i },
+      { param: 'supportsMinP', pattern: /min_p|minP/i },
+      { param: 'supportsRepetitionPenalty', pattern: /repetition_penalty|repetitionPenalty|rep_pen/i },
     ];
 
     for (const { param, pattern } of paramPatterns) {

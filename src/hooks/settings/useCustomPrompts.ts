@@ -53,7 +53,7 @@ export const useCustomPrompts = ({
   ) => {
     const list = settings.promptConfig.customPrompts || [];
     const updated = list.map((item) =>
-      item.id === id ? { ...item, name, role, content } : item,
+      item.id === id ? { ...item, name, role: "system" as const, content } : item,
     );
     updateSettings({
       ...settings,

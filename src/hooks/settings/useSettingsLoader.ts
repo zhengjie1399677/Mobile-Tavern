@@ -198,8 +198,14 @@ export const useSettingsLoader = ({
 
           const defaultPrompts = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts || [];
           const userPrompts = storedSet.promptConfig?.customPrompts || [];
-          const mergedCustomPrompts = [...userPrompts];
-          let customPromptsUpdated = false;
+          let roleUpdated = false;
+          const mergedCustomPrompts = [...userPrompts].map((p: any) => {
+            if (p.role !== "system") {
+              roleUpdated = true;
+              return { ...p, role: "system" as const };
+            }
+            return p;
+          });
 
           for (const dp of defaultPrompts) {
             if (!mergedCustomPrompts.some((up: any) => up.id === dp.id)) {
@@ -207,7 +213,7 @@ export const useSettingsLoader = ({
               customPromptsUpdated = true;
             }
           }
-          if (customPromptsUpdated) {
+          if (customPromptsUpdated || roleUpdated) {
             needSave = true;
           }
 
@@ -218,6 +224,7 @@ export const useSettingsLoader = ({
               chatPath: storedSet.api?.chatPath || DEFAULT_SETTINGS.api.chatPath,
               modelsPath: storedSet.api?.modelsPath || DEFAULT_SETTINGS.api.modelsPath,
               bypassProxy: storedSet.api?.bypassProxy ?? DEFAULT_SETTINGS.api.bypassProxy,
+              sendNames: storedSet.api?.sendNames ?? DEFAULT_SETTINGS.api.sendNames,
             },
             preset: { ...DEFAULT_SETTINGS.preset, ...(storedSet.preset || {}) },
             memory: {

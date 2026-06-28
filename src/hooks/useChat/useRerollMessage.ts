@@ -192,7 +192,9 @@ export function useRerollMessage(p: RerollMessageParams) {
         reqBody: {
           model: finalModel,
           stream: true,
-          stream_options: { include_usage: true },
+          ...(p.settings.api.type !== "anthropic" && {
+            stream_options: { include_usage: true }
+          }),
           messages: [
             {
               role: "system",
@@ -200,7 +202,7 @@ export function useRerollMessage(p: RerollMessageParams) {
             },
             ...promptPayload.history.map((h: any) => {
               const msgObj: any = { role: h.role === "model" ? "assistant" : h.role, content: h.content };
-              if (h.name) msgObj.name = h.name;
+              if (p.settings.api.sendNames && h.name) msgObj.name = h.name;
               return msgObj;
             }),
           ],

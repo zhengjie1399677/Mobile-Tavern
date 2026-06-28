@@ -278,14 +278,15 @@ export class LLMService implements ILLMService {
       }
 
       if (endpoint === "/api/proxy/openai") {
-        const openAiRes = await fetchFn(`${targetBase}${chatRoute}`, {
+        let openAiRes = await fetchFn(`${targetBase}${chatRoute}`, {
           method: "POST",
           headers,
           body: JSON.stringify(reqBody),
           signal,
         });
 
-        // 运行时自愈拦截：遇到 400 等错误时，克隆并判定是否为参数不支持引发，是则自动关闭该模型对应 capability 缓存
+        // 运行时自愈拦截与静默重试：遇到 400 等错误时，克隆并判定是否为参数不支持引发，
+        // 是则自动关闭该模型对应 capability 缓存，清洗参数并自动重试一次，彻底消除报错白屏。
         if (!openAiRes.ok) {
           try {
             const clonedRes = openAiRes.clone();
@@ -293,12 +294,23 @@ export class LLMService implements ILLMService {
             const unsupported = ModelCapabilityRegistry.isUnsupportedParamError(errText);
             if (unsupported && modelId) {
               ModelCapabilityRegistry.updateCapabilities(modelId, { [unsupported.param]: false });
-              console.warn(`[LLMService] Auto-healing: Disabled unsupported capability "${unsupported.param}" for model: ${modelId}`);
+              console.warn(
+                `[LLMService] Auto-healing: Disabled unsupported capability "${unsupported.param}" for model: ${modelId}. Retrying request...`
+              );
+
+              const recleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(modelId, reqBody);
+              openAiRes = await fetchFn(`${targetBase}${chatRoute}`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(recleanedReqBody),
+                signal,
+              });
             }
           } catch (e) {
-            console.warn("[LLMService] Failed to analyze api error for self-healing:", e);
+            console.warn("[LLMService] Failed to analyze api error for self-healing or retry:", e);
           }
         }
+
         // P1-9: 对非流式响应做字段白名单清洗，剥离中转站注入的非标字段
         // （如 extra_data / debug_info / prompt_hash），
         // 防止脏数据渗透到 sessions 表与消息渲染管线。

@@ -416,6 +416,29 @@ export default function GeneralConfigSection({
             />
           </div>
 
+          {/* sendNames Switch */}
+          <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="space-y-0.5">
+              <label className="text-[13px] font-semibold text-foreground">
+                在请求中包含角色名称 (Send Names)
+              </label>
+              <p className="text-[10px] text-muted-foreground max-w-[450px]">
+                在消息中携带 "name" 属性（如 "LinaSchneider"、"user"）。
+                注意：部分第三方中转、Claude 或 Gemini 接口可能不支持此属性并返回 400 错误，如果遇到请求失败请关闭此选项。
+              </p>
+            </div>
+            <Switch
+              checked={settings.api.sendNames || false}
+              onCheckedChange={(checked) =>
+                updateSettings((prev) => ({
+                  ...prev,
+                  api: { ...prev.api, sendNames: checked },
+                }))
+              }
+              className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+            />
+          </div>
+
         </AccordionContent>
       </AccordionItem>
     </Accordion>

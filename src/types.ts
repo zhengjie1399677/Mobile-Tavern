@@ -111,6 +111,7 @@ export interface ApiConfig {
   chatPath?: string;
   modelsPath?: string;
   bypassProxy?: boolean;
+  sendNames?: boolean;
 }
 
 export interface SamplerPreset {

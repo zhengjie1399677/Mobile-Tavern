@@ -193,9 +193,6 @@ export default function PromptsConfigSection({
                     >
                       {p.name}
                     </span>
-                    <span className="text-[8px] font-mono font-semibold px-1.5 py-0.5 border border-border/70 rounded bg-background text-muted-foreground shrink-0">
-                      {p.role.toUpperCase()}
-                    </span>
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -226,41 +223,7 @@ export default function PromptsConfigSection({
                         }
                         className="h-8 text-xs bg-input/50 focus-visible:ring-1"
                       />
-                      <Select
-                        value={p.role}
-                        onValueChange={(v) =>
-                          handleUpdateCustomPrompt(
-                            p.id,
-                            p.name,
-                            v,
-                            p.content,
-                          )
-                        }
-                      >
-                        <SelectTrigger className="w-28 h-8 text-xs bg-input/50 focus:ring-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            value="system"
-                            className="text-xs"
-                          >
-                            SYSTEM
-                          </SelectItem>
-                          <SelectItem
-                            value="user"
-                            className="text-xs"
-                          >
-                            USER
-                          </SelectItem>
-                          <SelectItem
-                            value="assistant"
-                            className="text-xs"
-                          >
-                            ASSIST
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+
                     </div>
                     <Textarea
                       value={p.content}
