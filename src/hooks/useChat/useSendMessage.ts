@@ -271,10 +271,14 @@ export function useSendMessage(p: SendMessageParams) {
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
       if (!latestSession) { console.warn("[useSendMessage] Aborted save, session was deleted:", updatedSession.id); return; }
 
-      const { finalAiMsg } = buildFinalAiMessage({
+      const { finalAiMsg, suggestions } = buildFinalAiMessage({
         aiMsgId, responseText: responseChunks.join(""), reasoningText: reasoningChunks.join(""),
         startTime, tokenUsage, enableReplySuggestions: p.settings.enableReplySuggestions, latestSession,
       });
+
+      if (p.settings.enableReplySuggestions && suggestions.length > 0) {
+        p.setReplySuggestions(suggestions);
+      }
 
       const trueFinalSession = replacePlaceholderMessage(latestSession, finalAiMsg);
       const isStillActive = p.activeSessionIdRef.current === updatedSession.id;

@@ -1,4 +1,4 @@
-import { IPromptService, IKernel } from "../types";
+import { IPromptService, IKernel, KernelServices } from "../types";
 import { CharacterCard, ChatSession, UserSettings, LorebookEntry, Message } from "../../types";
 import { DEFAULT_REPLY_SUGGESTIONS_PROMPT } from "../../defaults/suggestionsPrompt";
 import {
@@ -253,6 +253,7 @@ export class PromptService implements IPromptService {
     history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
     dynamicInstruction: string;
     userInput?: string;
+    messages?: Array<{ role: "system" | "user" | "assistant"; name?: string; content: string }>;
   } {
     const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [] } = params;
 
