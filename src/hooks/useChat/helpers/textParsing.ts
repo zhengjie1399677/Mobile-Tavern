@@ -22,6 +22,12 @@ export function extractThinkContent(
   if (!content) return { content, reasoningContent };
 
   const thinkStart = "<think>";
+
+  // 极致视觉优化：流式传输时，若内容仅为未完整的 <think> 标签前缀（如 <, <t, <th 等），直接以 💭... 占位，防止标签闪烁
+  if (isStreaming && content.length > 0 && thinkStart.startsWith(content)) {
+    return { content: "💭...", reasoningContent };
+  }
+
   const thinkEnd = "</think>";
 
   if (content.includes(thinkStart)) {
@@ -54,6 +60,15 @@ export function cleanSuggestionsFromText(text: string): { content: string; sugge
 
   const startRegex = /<suggestions\s*>/i;
   const startMatch = text.match(startRegex);
+
+  // 极致视觉优化：流式传输时，若文本末尾包含未完整的 <suggestions 标签前缀，提前将其剥离，防止标签短暂闪烁展示给用户
+  if (!startMatch) {
+    const partialTagMatch = text.match(/<s(?:u(?:g(?:g(?:e(?:s(?:t(?:i(?:o(?:n(?:s(?:>)?)?)?)?)?)?)?)?)?)?)?$/i);
+    if (partialTagMatch && partialTagMatch.index !== undefined) {
+      const cleanContent = text.substring(0, partialTagMatch.index).trim();
+      return { content: cleanContent };
+    }
+  }
 
   if (startMatch && startMatch.index !== undefined) {
     const startIdx = startMatch.index;

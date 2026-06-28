@@ -1127,6 +1127,16 @@ export async function getMessagesBySession(
       request.onsuccess = () => {
         const cursor = request.result;
         if (!cursor) {
+          // 按照 turnIndex 升序排序，若 turnIndex 相同或缺失则按 createdAt 排序
+          results.sort((a, b) => {
+            const turnA = a.turnIndex !== undefined ? a.turnIndex : 0;
+            const turnB = b.turnIndex !== undefined ? b.turnIndex : 0;
+            if (turnA !== turnB) return turnA - turnB;
+            return a.createdAt - b.createdAt;
+          });
+          if (descending) {
+            results.reverse();
+          }
           resolve(results);
           return;
         }
@@ -1136,6 +1146,16 @@ export async function getMessagesBySession(
           return;
         }
         if (limit !== undefined && collected >= limit) {
+          // 同样进行排序和翻转
+          results.sort((a, b) => {
+            const turnA = a.turnIndex !== undefined ? a.turnIndex : 0;
+            const turnB = b.turnIndex !== undefined ? b.turnIndex : 0;
+            if (turnA !== turnB) return turnA - turnB;
+            return a.createdAt - b.createdAt;
+          });
+          if (descending) {
+            results.reverse();
+          }
           resolve(results);
           return;
         }
@@ -1154,9 +1174,16 @@ export async function getMessagesBySession(
       const index = store.index("sessionId");
       const request = index.getAll(IDBKeyRange.only(sessionId));
       request.onsuccess = () => {
-        const all = (request.result || []).sort(
-          (a, b) => descending ? b.createdAt - a.createdAt : a.createdAt - b.createdAt
-        );
+        const all = request.result || [];
+        all.sort((a, b) => {
+          const turnA = a.turnIndex !== undefined ? a.turnIndex : 0;
+          const turnB = b.turnIndex !== undefined ? b.turnIndex : 0;
+          if (turnA !== turnB) return turnA - turnB;
+          return a.createdAt - b.createdAt;
+        });
+        if (descending) {
+          all.reverse();
+        }
         const sliced =
           limit !== undefined
             ? all.slice(offset, offset + limit)

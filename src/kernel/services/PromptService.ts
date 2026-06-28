@@ -328,17 +328,10 @@ export class PromptService implements IPromptService {
           // role 保持 "user" 以维持严格 user/assistant 交替（兼容严格要求交替的 API）。
           // 如需 system role，用户可通过 instruct 模板自定义。
           role = "user";
-          let msgContent = msg.content;
-          if (settings.enableReplySuggestions && idx === lastUserMsgIdx) {
-            msgContent += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
-          }
-          content = msgContent;
+          content = msg.content;
         } else {
           role = "user";
           let msgContent = msg.content;
-          if (settings.enableReplySuggestions && idx === lastUserMsgIdx) {
-            msgContent += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
-          }
           if (settings.promptConfig?.instructTemplate !== "default") {
             const prefix = this.replaceMacros(
               settings.promptConfig?.userPrefix || "",
@@ -402,8 +395,13 @@ export class PromptService implements IPromptService {
         ? `\n\n${settings.promptConfig?.reasoningGuidancePrompt || DEFAULT_REASONING_GUIDANCE_PROMPT}\n`
         : "";
 
+      let finalSystem = cleanSystem.trim();
+      if (settings.enableReplySuggestions) {
+        finalSystem += `\n\n${settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT}`;
+      }
+
       return {
-        systemInstruction: (cleanSystem.trim() + reasoningGuidance).trim(),
+        systemInstruction: (finalSystem + reasoningGuidance).trim(),
         dynamicInstruction: "",
         history: chatHistory,
         userInput,
@@ -783,17 +781,10 @@ ${scenarioBlock}
           // role 保持 "user" 以维持严格 user/assistant 交替（兼容严格要求交替的 API）。
           // 如需 system role，用户可通过 instruct 模板自定义。
           role = "user";
-          let msgContent = msg.content;
-          if (settings.enableReplySuggestions && idx === lastUserMsgIdx) {
-            msgContent += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
-          }
-          content = msgContent;
+          content = msg.content;
         } else {
           role = "user";
           let msgContent = msg.content;
-          if (settings.enableReplySuggestions && idx === lastUserMsgIdx) {
-            msgContent += settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT;
-          }
           if (settings.promptConfig?.instructTemplate !== "default") {
             const prefix = this.replaceMacros(
               settings.promptConfig?.userPrefix || "",
@@ -836,8 +827,13 @@ ${scenarioBlock}
       currentTurns--;
     }
 
+    let finalSystem = systemInstruction;
+    if (settings.enableReplySuggestions) {
+      finalSystem += `\n\n${settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT}`;
+    }
+
     return {
-      systemInstruction: (systemInstruction + reasoningGuidance).trim(),
+      systemInstruction: (finalSystem + reasoningGuidance).trim(),
       dynamicInstruction,
       history: chatHistory,
       userInput,
