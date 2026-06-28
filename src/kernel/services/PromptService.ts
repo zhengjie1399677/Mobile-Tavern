@@ -206,6 +206,13 @@ export class PromptService implements IPromptService {
   ): string {
     if (!text) return "";
 
+    // 容错与归一化：防范并自动修正用户或角色卡中常见的宏拼写错误（如 {charr}}、{{charr}}、{char}、{user} 等）
+    const cleanedText = text
+      .replace(/\{+charr?\}+/gi, "{{char}}")
+      .replace(/\{+chara?\}+/gi, "{{char}}")
+      .replace(/\{+user_name\}+/gi, "{{user}}")
+      .replace(/\{+user\}+/gi, "{{user}}");
+
     const macroMap: Record<string, string> = {
       char: params.char,
       chara: params.char,
@@ -228,7 +235,7 @@ export class PromptService implements IPromptService {
       macroMap["example_dialogue"] = params.mes_example;
     }
 
-    return text.replace(/\{\{([a-zA-Z0-9_]+)\}\}/gi, (match, key) => {
+    return cleanedText.replace(/\{\{([a-zA-Z0-9_]+)\}\}/gi, (match, key) => {
       const lowerKey = key.toLowerCase();
       return macroMap[lowerKey] !== undefined ? macroMap[lowerKey] : match;
     });
@@ -387,7 +394,7 @@ export class PromptService implements IPromptService {
       }
 
       const modelName = (settings.api?.modelName || "").toLowerCase();
-      const isDeepSeek = modelName.includes("deepseek");
+      const isDeepSeek = modelName.includes("deepseek") || modelName.includes("r1") || modelName.includes("reasoner");
       const enableGuidance = settings.promptConfig?.enableReasoningGuidance !== undefined
         ? settings.promptConfig.enableReasoningGuidance
         : isDeepSeek;
@@ -442,7 +449,7 @@ export class PromptService implements IPromptService {
 
     const modelName = (settings.api?.modelName || "").toLowerCase();
 
-    const isDeepSeek = modelName.includes("deepseek");
+    const isDeepSeek = modelName.includes("deepseek") || modelName.includes("r1") || modelName.includes("reasoner");
     const enableGuidance = settings.promptConfig?.enableReasoningGuidance !== undefined
       ? settings.promptConfig.enableReasoningGuidance
       : isDeepSeek;

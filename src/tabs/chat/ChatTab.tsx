@@ -5,7 +5,6 @@
 import React from "react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
-import { saveSession } from "../../utils/localDB";
 import CharacterDetailDrawer from "../../components/CharacterDetailDrawer";
 import { MemoryTableDrawer } from "../../components/MemoryTableDrawer";
 
@@ -32,6 +31,7 @@ export default function ChatTab() {
     setCharacters,
     saveCharacter,
     updateSettings,
+    saveSession,
   } = useUnifiedApp();
 
   // a11y Live Announcer + 键盘检测 + bridge effect
@@ -72,8 +72,6 @@ export default function ChatTab() {
   const [copiedReasoningIds, setCopiedReasoningIds] = React.useState<Record<string, boolean>>({});
   const [isPortraitCollapsed, setIsPortraitCollapsed] = React.useState(false);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = React.useState(false);
-  const [visibleExtensions, setVisibleExtensions] = React.useState<string[]>(["condition", "inventory", "bonding"]);
-  const [showExtDropdown, setShowExtDropdown] = React.useState(false);
   const [isTableDrawerOpen, setIsTableDrawerOpen] = React.useState(false);
 
   return (
@@ -85,10 +83,6 @@ export default function ChatTab() {
       )}
       {/* Embedded Header info card */}
       <ChatHeader
-        visibleExtensions={visibleExtensions}
-        setVisibleExtensions={setVisibleExtensions}
-        showExtDropdown={showExtDropdown}
-        setShowExtDropdown={setShowExtDropdown}
         setIsTableDrawerOpen={setIsTableDrawerOpen}
         setIsDetailDrawerOpen={setIsDetailDrawerOpen}
       />
@@ -122,7 +116,7 @@ export default function ChatTab() {
 
       {/* Sub-tab 2: STORY TIMELINE YEARBOOK */}
       {chatSubTab === "timeline" && (
-        <StoryTimelineView visibleExtensions={visibleExtensions} />
+        <StoryTimelineView />
       )}
 
       {/* Hidden script container + A11y Live Region */}

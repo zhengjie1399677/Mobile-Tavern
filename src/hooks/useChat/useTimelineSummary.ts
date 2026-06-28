@@ -13,12 +13,6 @@ export interface TimelineSummaryState {
   setNewSummaryLoc: React.Dispatch<React.SetStateAction<string>>;
   newSummaryContent: string;
   setNewSummaryContent: React.Dispatch<React.SetStateAction<string>>;
-  newSummaryCondition: string;
-  setNewSummaryCondition: React.Dispatch<React.SetStateAction<string>>;
-  newSummaryInventory: string;
-  setNewSummaryInventory: React.Dispatch<React.SetStateAction<string>>;
-  newSummaryBonding: string;
-  setNewSummaryBonding: React.Dispatch<React.SetStateAction<string>>;
   editingSummaryId: string | null;
   setEditingSummaryId: React.Dispatch<React.SetStateAction<string | null>>;
   handleAddTimelineSummary: () => Promise<void>;
@@ -43,9 +37,6 @@ export function useTimelineSummary(params: {
   const [newSummaryTag, setNewSummaryTag] = useState("");
   const [newSummaryLoc, setNewSummaryLoc] = useState("");
   const [newSummaryContent, setNewSummaryContent] = useState("");
-  const [newSummaryCondition, setNewSummaryCondition] = useState("");
-  const [newSummaryInventory, setNewSummaryInventory] = useState("");
-  const [newSummaryBonding, setNewSummaryBonding] = useState("");
   const [editingSummaryId, setEditingSummaryId] = useState<string | null>(null);
 
   const handleAutoSummaryCheck = useCallback(async (
@@ -91,22 +82,18 @@ export function useTimelineSummary(params: {
               timeTag: newSummaryTag.trim(),
               location: newSummaryLoc.trim() || "未知地点",
               content: newSummaryContent.trim(),
-              condition: newSummaryCondition.trim() || undefined,
-              inventory: newSummaryInventory.trim() || undefined,
-              bonding: newSummaryBonding.trim() || undefined,
             }
           : s
       );
     } else {
-      const lastMsgId = activeSession.messages[activeSession.messages.length - 1]?.id;
+      const lastMsgId = activeSession.messages && activeSession.messages.length > 0
+        ? activeSession.messages[activeSession.messages.length - 1]?.id
+        : undefined;
       const newCard: SummaryCard = {
         id: generateUniqueId("summary_"),
         timeTag: newSummaryTag.trim(),
         location: newSummaryLoc.trim() || "未知地点",
         content: newSummaryContent.trim(),
-        condition: newSummaryCondition.trim() || undefined,
-        inventory: newSummaryInventory.trim() || undefined,
-        bonding: newSummaryBonding.trim() || undefined,
         lastMessageId: lastMsgId,
       };
       updatedSummaries = [...(activeSession.summaries || []), newCard];
@@ -132,14 +119,10 @@ export function useTimelineSummary(params: {
     setNewSummaryTag("");
     setNewSummaryLoc("");
     setNewSummaryContent("");
-    setNewSummaryCondition("");
-    setNewSummaryInventory("");
-    setNewSummaryBonding("");
     setEditingSummaryId(null);
     setTimelineModalOpen(false);
   }, [
-    newSummaryTag, newSummaryContent, newSummaryLoc, newSummaryCondition,
-    newSummaryInventory, newSummaryBonding, activeSession, editingSummaryId,
+    newSummaryTag, newSummaryContent, newSummaryLoc, activeSession, editingSummaryId,
     setSessions, databaseService,
   ]);
 
@@ -148,9 +131,6 @@ export function useTimelineSummary(params: {
     newSummaryTag, setNewSummaryTag,
     newSummaryLoc, setNewSummaryLoc,
     newSummaryContent, setNewSummaryContent,
-    newSummaryCondition, setNewSummaryCondition,
-    newSummaryInventory, setNewSummaryInventory,
-    newSummaryBonding, setNewSummaryBonding,
     editingSummaryId, setEditingSummaryId,
     handleAddTimelineSummary,
     handleAutoSummaryCheck,

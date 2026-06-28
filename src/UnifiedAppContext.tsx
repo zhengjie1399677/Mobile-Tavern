@@ -164,12 +164,6 @@ export interface UnifiedAppContextProps {
   setNewSummaryLoc: (loc: string) => void;
   newSummaryContent: string;
   setNewSummaryContent: (content: string) => void;
-  newSummaryCondition: string;
-  setNewSummaryCondition: (cond: string) => void;
-  newSummaryInventory: string;
-  setNewSummaryInventory: (inv: string) => void;
-  newSummaryBonding: string;
-  setNewSummaryBonding: (bond: string) => void;
   editingSummaryId: string | null;
   setEditingSummaryId: (id: string | null) => void;
   handleRerollFromMessage: (targetMsg: Message) => Promise<void>;

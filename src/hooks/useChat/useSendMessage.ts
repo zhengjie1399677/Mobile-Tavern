@@ -68,6 +68,7 @@ export function useSendMessage(p: SendMessageParams) {
     if (!isBisonConsecutive) {
       const hasUnsentUserMessages =
         p.activeSession &&
+        Array.isArray(p.activeSession.messages) &&
         p.activeSession.messages.length > 0 &&
         p.activeSession.messages[p.activeSession.messages.length - 1].sender === "user";
 

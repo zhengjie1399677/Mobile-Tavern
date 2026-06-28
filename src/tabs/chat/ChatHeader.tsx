@@ -8,26 +8,17 @@ import {
   GitFork,
   MessageSquare,
   History,
-  SlidersHorizontal,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { saveSession } from "../../utils/localDB";
 
 interface ChatHeaderProps {
-  visibleExtensions: string[];
-  setVisibleExtensions: React.Dispatch<React.SetStateAction<string[]>>;
-  showExtDropdown: boolean;
-  setShowExtDropdown: React.Dispatch<React.SetStateAction<boolean>>;
   setIsTableDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsDetailDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const ChatHeader = ({
-  visibleExtensions,
-  setVisibleExtensions,
-  showExtDropdown,
-  setShowExtDropdown,
   setIsTableDrawerOpen,
   setIsDetailDrawerOpen,
 }: ChatHeaderProps) => {
@@ -152,73 +143,6 @@ const ChatHeader = ({
             )}
           </button>
         </div>
-
-        {chatSubTab === "timeline" && (
-          <div className="relative">
-            <button
-              onClick={() => setShowExtDropdown(!showExtDropdown)}
-              className={`p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition ${
-                showExtDropdown ? "bg-muted text-foreground" : "bg-card"
-              }`}
-              title="扩展字段过滤"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-            </button>
-
-            {showExtDropdown && (
-              <div className="absolute right-0 top-full mt-1.5 bg-popover border border-border rounded-lg p-2 flex flex-col gap-2 min-w-[90px] shadow-xl z-20 animate-fadeIn text-[10px]">
-                <span className="text-[9px] text-muted-foreground font-bold tracking-wider uppercase px-1 border-b border-border pb-1 mb-0.5">
-                  显示选项
-                </span>
-                <label className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-foreground cursor-pointer hover:bg-muted rounded transition">
-                  <input
-                    type="checkbox"
-                    checked={visibleExtensions.includes("condition")}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setVisibleExtensions([...visibleExtensions, "condition"]);
-                      } else {
-                        setVisibleExtensions(visibleExtensions.filter(x => x !== "condition"));
-                      }
-                    }}
-                    className="rounded border-border bg-input text-primary focus:ring-0 focus:ring-offset-0 w-3 h-3"
-                  />
-                  💓 心境
-                </label>
-                <label className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-foreground cursor-pointer hover:bg-muted rounded transition">
-                  <input
-                    type="checkbox"
-                    checked={visibleExtensions.includes("inventory")}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setVisibleExtensions([...visibleExtensions, "inventory"]);
-                      } else {
-                        setVisibleExtensions(visibleExtensions.filter(x => x !== "inventory"));
-                      }
-                    }}
-                    className="rounded border-border bg-input text-primary focus:ring-0 focus:ring-offset-0 w-3 h-3"
-                  />
-                  🎒 道具
-                </label>
-                <label className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-foreground cursor-pointer hover:bg-muted rounded transition">
-                  <input
-                    type="checkbox"
-                    checked={visibleExtensions.includes("bonding")}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setVisibleExtensions([...visibleExtensions, "bonding"]);
-                      } else {
-                        setVisibleExtensions(visibleExtensions.filter(x => x !== "bonding"));
-                      }
-                    }}
-                    className="rounded border-border bg-input text-primary focus:ring-0 focus:ring-offset-0 w-3 h-3"
-                  />
-                  🔗 羁绊
-                </label>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

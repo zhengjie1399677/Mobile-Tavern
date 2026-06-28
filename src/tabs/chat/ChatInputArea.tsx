@@ -166,7 +166,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   }, [isKeyboardOpen, triggerScroll]);
 
   const lastMsgIsUser = React.useMemo(() => {
-    if (!activeSession || activeSession.messages.length === 0) return false;
+    if (!activeSession || !Array.isArray(activeSession.messages) || activeSession.messages.length === 0) return false;
     return activeSession.messages[activeSession.messages.length - 1].sender === "user";
   }, [activeSession]);
 
@@ -279,6 +279,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             disabled={
               isSending ||
               !activeSession ||
+              !Array.isArray(activeSession.messages) ||
               !activeSession.messages.some((m: any) => m.sender === "assistant")
             }
             className="flex items-center gap-1.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
@@ -318,12 +319,13 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             发包预测: ~
             {Math.ceil(
               (localInput || "").length * 1.5 +
-                (activeSession?.messages
-                  .slice(-settings.memory.recentTurns)
-                  .reduce(
-                    (acc: any, m: any) => acc + (m.content || "").length,
-                    0,
-                  ) || 0) *
+                ((Array.isArray(activeSession?.messages)
+                  ? activeSession.messages.slice(-settings.memory.recentTurns)
+                  : []
+                ).reduce(
+                  (acc: any, m: any) => acc + (m.content || "").length,
+                  0,
+                ) || 0) *
                   1.5 +
                 ((activeCharacter?.description || "").length +
                   (activeCharacter?.personality || "").length +

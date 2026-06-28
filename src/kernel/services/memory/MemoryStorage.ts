@@ -121,7 +121,7 @@ export class MemoryStorage {
    */
   async getMessagesBySession(
     sessionId: string,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number; descending?: boolean }
   ): Promise<MessageRecord[]> {
     this.ensureInitialized();
     return dbGetMessagesBySession(sessionId, options);
@@ -151,9 +151,8 @@ export class MemoryStorage {
   // ===== memory_dict Store CRUD =====
 
   /**
-   * 更新或插入词典条目。
-   * 若条目已存在（按复合键 `${sessionId}:${entity}`），将更新 count 与 updatedAt。
-   * 若为新条目，将插入完整记录。
+   * 更新或插入词典条目（原子更新）。
+   * 委托给 dbUpsertDictEntry 并在 IndexedDB 事务锁内处理读-改-写。
    *
    * @returns true 表示新建，false 表示更新
    */
@@ -166,42 +165,16 @@ export class MemoryStorage {
     }
   ): Promise<boolean> {
     this.ensureInitialized();
-    const id = buildDictId(sessionId, entity);
-    const existing = await dbGetDictEntryById(id);
-    const now = Date.now();
-
-    if (existing) {
-      // 更新：count 自增（除非显式传入），updatedAt 刷新
-      const nextCount = patch.count !== undefined ? patch.count : (existing.count || 0) + 1;
-      await dbUpsertDictEntry({
-        id,
-        sessionId,
-        entity,
-        aliases: patch.aliases ?? existing.aliases ?? [],
-        type: patch.type ?? existing.type ?? 'concept',
-        firstSeenMsgId: existing.firstSeenMsgId,
-        firstSeenTurn: existing.firstSeenTurn,
-        count: nextCount,
-        createdAt: existing.createdAt,
-        updatedAt: now,
-      });
-      return false;
-    }
-
-    // 新建
-    await dbUpsertDictEntry({
-      id,
+    // 配合已恢复的单对象签名进行调用
+    return dbUpsertDictEntry({
       sessionId,
       entity,
-      aliases: patch.aliases ?? [],
-      type: patch.type ?? 'concept',
+      aliases: patch.aliases,
+      type: patch.type,
       firstSeenMsgId: patch.firstSeenMsgId,
       firstSeenTurn: patch.firstSeenTurn,
-      count: patch.count ?? 1,
-      createdAt: now,
-      updatedAt: now,
+      count: patch.count,
     });
-    return true;
   }
 
   /** 按主键单条直查词典条目 */

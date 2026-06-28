@@ -12,12 +12,6 @@ export default function TimelineModal() {
     setNewSummaryLoc,
     newSummaryContent,
     setNewSummaryContent,
-    newSummaryCondition,
-    setNewSummaryCondition,
-    newSummaryInventory,
-    setNewSummaryInventory,
-    newSummaryBonding,
-    setNewSummaryBonding,
     editingSummaryId,
     setEditingSummaryId,
     handleAddTimelineSummary,
@@ -31,9 +25,6 @@ export default function TimelineModal() {
     setNewSummaryTag("");
     setNewSummaryLoc("");
     setNewSummaryContent("");
-    setNewSummaryCondition("");
-    setNewSummaryInventory("");
-    setNewSummaryBonding("");
   };
 
   return (
@@ -96,56 +87,7 @@ export default function TimelineModal() {
             </div>
           </div>
 
-          {/* Game Extensions Divider */}
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-border/60"></div>
-            <span className="flex-shrink mx-2 text-[10px] font-bold text-muted-foreground/85 tracking-widest uppercase">
-              游戏化拓展字段 (可选)
-            </span>
-            <div className="flex-grow border-t border-border/60"></div>
-          </div>
 
-          {/* Bottom: Game Extensions */}
-          <div className="space-y-2.5">
-            <div>
-              <label className="block text-muted-foreground mb-0.5 font-medium">
-                💓 心境/生理状态 (Condition)
-              </label>
-              <input
-                type="text"
-                placeholder="如: 警惕、疲惫、好感微升"
-                value={newSummaryCondition}
-                onChange={(e) => setNewSummaryCondition(e.target.value)}
-                className="w-full bg-input border border-border rounded p-1.5 text-foreground outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-muted-foreground mb-0.5 font-medium">
-                🎒 随身道具变动 (Inventory)
-              </label>
-              <input
-                type="text"
-                placeholder="如: 获得加密文件*1、失去金币*10"
-                value={newSummaryInventory}
-                onChange={(e) => setNewSummaryInventory(e.target.value)}
-                className="w-full bg-input border border-border rounded p-1.5 text-foreground outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-muted-foreground mb-0.5 font-medium">
-                🔗 双方情感羁绊 (Bonding)
-              </label>
-              <input
-                type="text"
-                placeholder="如: 达成合作、关系冷淡、信任度增加"
-                value={newSummaryBonding}
-                onChange={(e) => setNewSummaryBonding(e.target.value)}
-                className="w-full bg-input border border-border rounded p-1.5 text-foreground outline-none"
-              />
-            </div>
-          </div>
 
           <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border/40">
             <button

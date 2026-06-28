@@ -43,12 +43,6 @@ interface AppContextType {
   setNewSummaryLoc?: (val: string) => void;
   newSummaryContent?: string;
   setNewSummaryContent?: (val: string) => void;
-  newSummaryCondition?: string;
-  setNewSummaryCondition?: (val: string) => void;
-  newSummaryInventory?: string;
-  setNewSummaryInventory?: (val: string) => void;
-  newSummaryBonding?: string;
-  setNewSummaryBonding?: (val: string) => void;
   safeAreas: { top: number; bottom: number };
 }
 

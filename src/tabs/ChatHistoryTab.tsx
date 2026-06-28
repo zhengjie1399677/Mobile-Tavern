@@ -21,10 +21,11 @@ export default function ChatHistoryTab() {
     return [...sessions]
       .map((s) => {
         const char = characters.find((c) => c.id === s.characterId);
-        const lastMsg = s.messages && s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
+        const messages = Array.isArray(s.messages) ? s.messages : [];
+        const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
         const lastActiveTime = lastMsg ? (lastMsg.timestamp || s.createdAt) : s.createdAt;
         // 仅做一次 reduce 计算总字符数，并根据阈值格式化为展示串
-        const totalChars = s.messages.reduce((total, msg) => total + (msg.content?.length || 0), 0);
+        const totalChars = messages.reduce((total, msg) => total + (msg.content?.length || 0), 0);
         const totalCharsDisplay = totalChars > 1000
           ? (totalChars / 1000).toFixed(1) + "k"
           : String(totalChars);
@@ -87,7 +88,7 @@ export default function ChatHistoryTab() {
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground truncate opacity-70">
-                    {char?.name || "未知角色"} | {s.messages.length} 回合 | {totalCharsDisplay} 字
+                    {char?.name || "未知角色"} | {s.messages?.length || 0} 回合 | {totalCharsDisplay} 字
                   </p>
                   {lastMsg && (
                     <p className="text-[10px] text-muted-foreground truncate mt-1.5 italic border-t border-border/20 pt-1.5 opacity-80">

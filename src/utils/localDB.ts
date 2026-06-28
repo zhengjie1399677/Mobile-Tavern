@@ -1102,17 +1102,18 @@ export async function getMessageById(id: string): Promise<any | null> {
  */
 export async function getMessagesBySession(
   sessionId: string,
-  options?: { limit?: number; offset?: number }
+  options?: { limit?: number; offset?: number; descending?: boolean }
 ): Promise<any[]> {
   const db = await getDB();
   const limit = options?.limit;
   const offset = options?.offset || 0;
+  const descending = !!options?.descending;
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("messages", "readonly");
     const store = transaction.objectStore("messages");
 
-    // 复合索引 [sessionId, createdAt] 可用 → 用 bound 范围查询，天然按 createdAt 升序
+    // 复合索引 [sessionId, createdAt] 可用 → 用 bound 范围查询
     if (store.indexNames.contains("sessionId_createdAt")) {
       const index = store.index("sessionId_createdAt");
       const results: any[] = [];
@@ -1121,7 +1122,8 @@ export async function getMessagesBySession(
 
       const lower = [sessionId, -Infinity];
       const upper = [sessionId, Infinity];
-      const request = index.openCursor(IDBKeyRange.bound(lower, upper));
+      const direction: IDBCursorDirection = descending ? "prev" : "next";
+      const request = index.openCursor(IDBKeyRange.bound(lower, upper), direction);
       request.onsuccess = () => {
         const cursor = request.result;
         if (!cursor) {
@@ -1153,7 +1155,7 @@ export async function getMessagesBySession(
       const request = index.getAll(IDBKeyRange.only(sessionId));
       request.onsuccess = () => {
         const all = (request.result || []).sort(
-          (a, b) => a.createdAt - b.createdAt
+          (a, b) => descending ? b.createdAt - a.createdAt : a.createdAt - b.createdAt
         );
         const sliced =
           limit !== undefined
@@ -1172,7 +1174,7 @@ export async function getMessagesBySession(
     request.onsuccess = () => {
       const all = (request.result || [])
         .filter((m) => m.sessionId === sessionId)
-        .sort((a, b) => a.createdAt - b.createdAt);
+        .sort((a, b) => descending ? b.createdAt - a.createdAt : a.createdAt - b.createdAt);
       const sliced =
         limit !== undefined
           ? all.slice(offset, offset + limit)
@@ -1294,43 +1296,82 @@ export async function deleteMessagesBySession(sessionId: string): Promise<void> 
  * 更新或插入词典条目。
  * 使用复合键 `${sessionId}:${entity}` 保证会话内实体唯一。
  */
+/**
+ * 更新或插入词典条目（原子操作）。
+ * 使用复合键 `${sessionId}:${entity}` 保证会话内实体唯一。
+ * 将“读取旧数据 -> 判断新建或更新 -> 写入新数据”包裹在单个 enqueueWrite 中串行化执行，
+ * 彻底消除高并发下的 Read-After-Write 脏读与 Count 计数丢失问题。
+ *
+ * 保持单对象参数签名以兼容现有 UI 调用处。
+ *
+ * @returns Promise<boolean> 标识是否为新建实体（true 表示新建，false 表示更新）
+ */
 export async function upsertDictEntry(entry: {
-  id: string;
+  id?: string;
   sessionId: string;
   entity: string;
   aliases?: string[];
   type?: string;
   firstSeenMsgId: string;
   firstSeenTurn: number;
-  count: number;
-  createdAt: number;
-  updatedAt: number;
-}): Promise<void> {
+  count?: number;
+  createdAt?: number;
+  updatedAt?: number;
+}): Promise<boolean> {
+  const id = entry.id || `${entry.sessionId}:${entry.entity}`;
   return enqueueWrite(async () => {
     const db = await getDB();
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<boolean>((resolve, reject) => {
       const transaction = db.transaction("memory_dict", "readwrite");
       const store = transaction.objectStore("memory_dict");
-      const record = {
-        id: entry.id,
-        sessionId: entry.sessionId,
-        entity: entry.entity,
-        aliases: entry.aliases || [],
-        type: entry.type || "concept",
-        firstSeenMsgId: entry.firstSeenMsgId,
-        firstSeenTurn: entry.firstSeenTurn,
-        count: entry.count,
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
-      };
-      const request = store.put(record);
+      const getReq = store.get(id);
 
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        const now = Date.now();
+        let isNew = false;
+        let record: any;
+
+        if (existing) {
+          const nextCount = entry.count !== undefined ? entry.count : (existing.count || 0) + 1;
+          record = {
+            id,
+            sessionId: entry.sessionId,
+            entity: entry.entity,
+            aliases: entry.aliases ?? existing.aliases ?? [],
+            type: entry.type ?? existing.type ?? "concept",
+            firstSeenMsgId: existing.firstSeenMsgId,
+            firstSeenTurn: existing.firstSeenTurn,
+            count: nextCount,
+            createdAt: existing.createdAt,
+            updatedAt: entry.updatedAt ?? now,
+          };
+        } else {
+          isNew = true;
+          record = {
+            id,
+            sessionId: entry.sessionId,
+            entity: entry.entity,
+            aliases: entry.aliases ?? [],
+            type: entry.type ?? "concept",
+            firstSeenMsgId: entry.firstSeenMsgId,
+            firstSeenTurn: entry.firstSeenTurn,
+            count: entry.count ?? 1,
+            createdAt: entry.createdAt ?? now,
+            updatedAt: entry.updatedAt ?? now,
+          };
+        }
+
+        const putRequest = store.put(record);
+        putRequest.onsuccess = () => resolve(isNew);
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+
+      getReq.onerror = () => reject(getReq.error);
       transaction.onabort = () =>
         reject(transaction.error || new Error("Transaction aborted"));
     });
-  }, `dict:${entry.id}`);
+  }, `dict:${id}`);
 }
 
 /**
@@ -1393,5 +1434,47 @@ export async function deleteDictBySession(sessionId: string): Promise<void> {
         reject(transaction.error || new Error("Transaction aborted"));
     });
   });
+}
+
+/**
+ * 原子化地向指定会话追加一条时间轴总结卡片（SummaryCard）。
+ * 该操作完全在 enqueueWrite 队列中串行执行，确保在高频对话并发写入时不会发生“写覆盖”导致的消息丢失。
+ *
+ * @returns Promise<ChatSession> 返回更新后的会话（不含 messages，供写入后由上层重新装配）
+ */
+export async function appendSessionSummary(
+  sessionId: string,
+  newCard: any
+): Promise<ChatSession> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<ChatSession>((resolve, reject) => {
+      const transaction = db.transaction("sessions", "readwrite");
+      const store = transaction.objectStore("sessions");
+      const getReq = store.get(sessionId);
+
+      getReq.onsuccess = () => {
+        const existingSession = getReq.result;
+        if (!existingSession) {
+          reject(new Error(`[localDB] Session ${sessionId} not found for appending summary.`));
+          return;
+        }
+
+        const updatedSession = {
+          ...existingSession,
+          summaries: [...(existingSession.summaries || []), newCard],
+          lastSummarizedMessageId: newCard.lastMessageId,
+        };
+
+        const putReq = store.put(updatedSession);
+        putReq.onsuccess = () => resolve(updatedSession);
+        putReq.onerror = () => reject(putReq.error);
+      };
+
+      getReq.onerror = () => reject(getReq.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
+    });
+  }, `session:${sessionId}`);
 }
 

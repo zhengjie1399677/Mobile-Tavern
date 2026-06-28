@@ -8,7 +8,7 @@
  */
 import React from "react";
 import { ChatSession, UserSettings, CharacterCard } from "../../types";
-import { OutputPipelineContext, IDatabaseService } from "../../kernel/types";
+import { OutputPipelineContext, IDatabaseService, KernelServices } from "../../kernel/types";
 import { globalKernel } from "../../kernel";
 import { buildOutputContext } from "./helpers/streamHelpers";
 
@@ -32,7 +32,7 @@ export async function runOutputPipelineAndSave(params: {
 }): Promise<OutputPipelineContext> {
   const { setSessions, databaseService, triggerScroll, ...ctxParams } = params;
   const outputCtx = buildOutputContext(ctxParams);
-  const { session, settings, isBisonConsecutive } = ctxParams;
+  const { session, settings, isBisonConsecutive, responseText } = ctxParams;
 
   // L1 快速通道：当全部功能关闭、非野牛连续、且无需自动总结时，跳过整个 output pipeline。
   // 旁路条件保守：必须同时满足以下全部条件才命中：
@@ -80,7 +80,67 @@ export async function runOutputPipelineAndSave(params: {
   }
 
   const parsedSession = outputCtx.resultSession || ctxParams.session;
+
+  // 提取并剥离 <memory> 标签（P0 - 激活记忆写入与清洁展示）
+  let cleanAiText = responseText;
+  let memoryContent: string | undefined;
+  
+  const memoryMatch = /<memory>([\s\S]*?)<\/memory>/i.exec(responseText);
+  if (memoryMatch) {
+    memoryContent = memoryMatch[1].trim();
+    cleanAiText = responseText.replace(/<memory>[\s\S]*?<\/memory>/gi, "").trim();
+    
+    // 更新 session 中的最新 AI 消息内容，防止 <memory> 标签被渲染给用户
+    if (parsedSession.messages.length > 0) {
+      const messages = [...parsedSession.messages];
+      const lastMsg = { ...messages[messages.length - 1] };
+      if (lastMsg.sender === "assistant") {
+        lastMsg.content = cleanAiText;
+        messages[messages.length - 1] = lastMsg;
+        parsedSession.messages = messages;
+      }
+    }
+  }
+
   await databaseService.saveSession(parsedSession);
+
+  // 异步后台触发记忆抽取（Fire-and-Forget，不阻塞主对话流）
+  try {
+    const memoryService = globalKernel.getService<any>(KernelServices.Memory);
+    if (memoryService && parsedSession.messages.length > 0) {
+      const messages = parsedSession.messages;
+      const aiMsg = messages[messages.length - 1];
+
+      // 1. 抽取最新 AI 消息（L0 + L1 + L2）
+      if (aiMsg && aiMsg.sender === "assistant") {
+        memoryService.getExtractor().scheduleExtraction({
+          msgId: aiMsg.id,
+          sessionId: parsedSession.id,
+          role: "assistant",
+          message: cleanAiText,
+          turnIndex: messages.length - 1,
+          memoryContent: memoryContent, // 传入提取到的 <memory> 内容
+        });
+      }
+
+      // 2. 抽取最新用户消息（如果不是野牛模式连续输出）
+      if (!isBisonConsecutive && messages.length >= 2) {
+        const userMsg = messages[messages.length - 2];
+        if (userMsg && userMsg.sender === "user") {
+          memoryService.getExtractor().scheduleExtraction({
+            msgId: userMsg.id,
+            sessionId: parsedSession.id,
+            role: "user",
+            message: userMsg.content,
+            turnIndex: messages.length - 2,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[MemoryExtractor] Failed to schedule background extraction:", err);
+  }
+
   setSessions((prev) =>
     prev.map((s) => (s.id === parsedSession.id ? parsedSession : s))
   );

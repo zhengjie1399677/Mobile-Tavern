@@ -177,18 +177,13 @@ export class MemoryRecall {
   ): Promise<number> {
     if (typeof explicit === 'number' && explicit >= 0) return explicit;
 
-    // 查询所有消息，取最后一条的 turnIndex + 1
-    // 注：对于 < 10k 消息的会话，此查询 < 20ms，可接受
-    const allMessages = await this.storage.getMessagesBySession(sessionId);
-    if (allMessages.length === 0) return 0;
-    const last = allMessages[allMessages.length - 1];
+    // 仅查询最新的一条消息（按时间倒序 limit 1），大幅降低查询与序列化开销
+    const lastMessages = await this.storage.getMessagesBySession(sessionId, { limit: 1, descending: true });
+    if (lastMessages.length === 0) return 0;
+    const last = lastMessages[0];
     return (last.turnIndex ?? 0) + 1;
   }
 
-  /**
-   * 获取最近 N 轮消息的 ID 列表。
-   * 通过查询所有消息并取最后 N 条（按 turnIndex 降序）。
-   */
   private async getRecentMessageIds(
     sessionId: string,
     n: number,
@@ -196,11 +191,13 @@ export class MemoryRecall {
   ): Promise<string[]> {
     if (n <= 0) return [];
 
-    const allMessages = await this.storage.getMessagesBySession(sessionId);
-    // 筛选 turnIndex >= currentTurnIndex - n 的消息
+    // 读取最新的若干条消息（取 n * 4 或 20 的较大者），既能覆盖所有最近轮次，又避免拉取全表
+    const limit = Math.max(20, n * 4);
+    const recentMessages = await this.storage.getMessagesBySession(sessionId, { limit, descending: true });
+    
     const threshold = currentTurnIndex - n;
-    return allMessages
-      .filter((m) => m.turnIndex >= threshold)
+    return recentMessages
+      .filter((m) => (m.turnIndex ?? 0) >= threshold)
       .map((m) => m.id);
   }
 

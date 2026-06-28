@@ -342,24 +342,8 @@ export class MemoryStateTable {
   }
 }
 
-// ===== 内部工具函数 =====
-
-/**
- * 宽松 JSON 解析。
- *
- * 兼容场景：
- *   - 单引号字符串 → 双引号
- *   - 未引号键名（含中文） → 双引号包裹
- *
- * @param str 待解析的 JSON 字符串
- * @returns 解析后的对象
- * @throws 解析失败抛出 SyntaxError
- */
 function parseLooseJson(str: string): Record<string, any> {
-  // 1. 将单引号包裹的字符串值安全提取：
-  //    将内部原本被转义的单引号 \' 还原为普通单引号 ' (因为外层要变成双引号了)
-  //    将内部的双引号 " 转义为 \"
-  //    最后将外层的包裹单引号替换为双引号，保障嵌套时的解析安全
+  // 1. 将单引号包裹的字符串值安全提取为双引号，并处理嵌套转义
   const processedValues = str.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, p1) => {
     const escaped = p1
       .replace(/"/g, '\\"')
@@ -367,11 +351,42 @@ function parseLooseJson(str: string): Record<string, any> {
     return `"${escaped}"`;
   });
 
-  // 2. 补全未用引号包裹的键名（支持中英文及常用字符键名）
-  const formatted = processedValues.replace(
-    /([{,]\s*)([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*:/g, 
-    '$1"$2":'
-  );
-  
-  return JSON.parse(formatted);
+  // 2. 使用字符扫描状态机，仅在非字面量字符串区域（inQuote === false）中，
+  //    匹配并包裹未带双引号的键名，避免替换字符串内容中的逗号、冒号结构。
+  let result = "";
+  let inQuote = false;
+  let quoteChar = "";
+
+  for (let i = 0; i < processedValues.length; i++) {
+    const char = processedValues[i];
+
+    // 检查引号，注意避开转义引号 \"
+    if ((char === '"' || char === "'") && processedValues[i - 1] !== '\\') {
+      if (inQuote) {
+        if (char === quoteChar) {
+          inQuote = false;
+        }
+      } else {
+        inQuote = true;
+        quoteChar = char;
+      }
+    }
+
+    // 当不在字符串内时，预扫描当前位置是否是未带引号的键名（支持中英文、数字与下划线）
+    if (!inQuote) {
+      const remaining = processedValues.slice(i);
+      const keyMatch = /^([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*:/.exec(remaining);
+      if (keyMatch) {
+        const keyName = keyMatch[1];
+        result += `"${keyName}":`;
+        // 将 i 推进到冒号位置，下一次循环 i++ 会跨过冒号
+        i += remaining.indexOf(':');
+        continue;
+      }
+    }
+
+    result += char;
+  }
+
+  return JSON.parse(result);
 }

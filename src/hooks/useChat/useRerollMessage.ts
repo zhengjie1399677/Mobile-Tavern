@@ -76,7 +76,7 @@ export function useRerollMessage(p: RerollMessageParams) {
 
     const requestId = ++p.activeRequestIdRef.current;
 
-    const cleanHistory = p.activeSession.messages.filter(
+    const cleanHistory = (p.activeSession.messages || []).filter(
       (m) => !(m.sender === "assistant" && (m.content === "💭..." || !m.content))
     );
     const targetIdx = cleanHistory.findIndex((m) => m.id === targetMsg.id);
@@ -331,7 +331,7 @@ export function useRerollMessage(p: RerollMessageParams) {
 
   const handleRerollLast = useCallback(async () => {
     const p = pRef.current;
-    if (!p.activeSession || p.activeSession.messages.length === 0) return;
+    if (!p.activeSession || !Array.isArray(p.activeSession.messages) || p.activeSession.messages.length === 0) return;
     let lastAiMsg: Message | null = null;
     for (let i = p.activeSession.messages.length - 1; i >= 0; i--) {
       if (p.activeSession.messages[i].sender === "assistant") {

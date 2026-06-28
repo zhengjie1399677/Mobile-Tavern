@@ -139,7 +139,7 @@ const MessageBubble = ({
                 onClick={async (e) => {
                   e.stopPropagation();
                   if (!activeSession) return;
-                  const nextMsgs = activeSession.messages.map(
+                  const nextMsgs = (activeSession.messages || []).map(
                     (m: any) =>
                       m.id === message.id
                         ? { ...m, content: editingMsgContent }

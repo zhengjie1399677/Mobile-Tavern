@@ -14,11 +14,7 @@ import {
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { saveSession } from "../../utils/localDB";
 
-interface StoryTimelineViewProps {
-  visibleExtensions: string[];
-}
-
-const StoryTimelineView = ({ visibleExtensions }: StoryTimelineViewProps) => {
+const StoryTimelineView = () => {
   const {
     sessions,
     activeSessionId,
@@ -30,9 +26,6 @@ const StoryTimelineView = ({ visibleExtensions }: StoryTimelineViewProps) => {
     setNewSummaryTag,
     setNewSummaryLoc,
     setNewSummaryContent,
-    setNewSummaryCondition,
-    setNewSummaryInventory,
-    setNewSummaryBonding,
     setEditingSummaryId,
     createBacktrackFromTimeline,
   } = useUnifiedApp();
@@ -58,9 +51,6 @@ const StoryTimelineView = ({ visibleExtensions }: StoryTimelineViewProps) => {
               activeCharacter?.scenario?.slice(0, 8) || "荒野野营",
             );
             setNewSummaryContent("");
-            setNewSummaryCondition("");
-            setNewSummaryInventory("");
-            setNewSummaryBonding("");
             setTimelineModalOpen(true);
           }}
           className="bg-primary hover:bg-primary text-primary-foreground text-[11px] px-2.5 py-1.5 rounded transition flex items-center gap-1 font-medium shrink-0 whitespace-nowrap"
@@ -99,9 +89,6 @@ const StoryTimelineView = ({ visibleExtensions }: StoryTimelineViewProps) => {
                       setNewSummaryTag(summary.timeTag);
                       setNewSummaryLoc(summary.location);
                       setNewSummaryContent(summary.content);
-                      setNewSummaryCondition(summary.condition || "");
-                      setNewSummaryInventory(summary.inventory || "");
-                      setNewSummaryBonding(summary.bonding || "");
                       setTimelineModalOpen(true);
                     }}
                     className="text-muted-foreground hover:text-foreground p-1"
@@ -141,28 +128,7 @@ const StoryTimelineView = ({ visibleExtensions }: StoryTimelineViewProps) => {
                 </div>
               </div>
 
-              {/* Optional RPG State Badges */}
-              {((summary.condition && visibleExtensions.includes("condition")) ||
-                (summary.inventory && visibleExtensions.includes("inventory")) ||
-                (summary.bonding && visibleExtensions.includes("bonding"))) && (
-                <div className="flex flex-wrap gap-1 mt-0.5">
-                  {summary.condition && visibleExtensions.includes("condition") && (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-medium bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 px-1 py-0.5 rounded-md">
-                      💓 {summary.condition}
-                    </span>
-                  )}
-                  {summary.inventory && visibleExtensions.includes("inventory") && (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-medium bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-400 px-1 py-0.5 rounded-md">
-                      🎒 {summary.inventory}
-                    </span>
-                  )}
-                  {summary.bonding && visibleExtensions.includes("bonding") && (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-medium bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded-md">
-                      🔗 {summary.bonding}
-                    </span>
-                  )}
-                </div>
-              )}
+
             </div>
 
             {/* Summary prose item */}

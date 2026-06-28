@@ -68,7 +68,7 @@ export function useChatUI(params: {
 
   const [replySuggestions, setReplySuggestions] = useState<string[]>([]);
   useEffect(() => {
-    if (activeSession && activeSession.messages.length > 0) {
+    if (activeSession && Array.isArray(activeSession.messages) && activeSession.messages.length > 0) {
       const lastMsg = activeSession.messages[activeSession.messages.length - 1];
       if (lastMsg.sender === "assistant" && lastMsg.extra?.suggestions) {
         setReplySuggestions(lastMsg.extra.suggestions);

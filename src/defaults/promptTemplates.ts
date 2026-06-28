@@ -1,5 +1,5 @@
 export const DEFAULT_REASONING_GUIDANCE_PROMPT =
-  "[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]";
+  "[System Note: AI should perform objective, logical analysis inside <think> tags in a solver perspective (e.g. analyzing user intentions, character traits, and plan next actions), rather than roleplaying, chatting, or generating dialogue prefixes inside <think>.]\n[系统提示：请在 <think> 标签内进行客观、理性的逻辑分析与规划（如分析用户意图、角色人设、设定集触发并规划下一步行动），严禁在 <think> 内部以角色口吻进行扮演、闲聊或撰写心理描写。]";
 
 export const DEFAULT_TABLE_MEMORY_PROMPT = `=== 🎯 长期状态与记忆档案柜 ===
 以下是当前扮演会话中记录的结构化状态与记忆表格。

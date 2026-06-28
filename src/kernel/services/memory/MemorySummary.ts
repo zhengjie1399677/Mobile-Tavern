@@ -40,6 +40,7 @@ import type {
 } from '../../../types';
 import type { MemoryStorage } from './MemoryStorage';
 import { FALLBACK_MODEL, API_ENDPOINT, TRIAL_OPENROUTER_KEY } from '../../../utils/apiClient';
+import { appendSessionSummary } from '../../../utils/localDB';
 
 // ===== 常量 =====
 
@@ -243,20 +244,29 @@ export class MemorySummary {
 
     if (activeSignal?.aborted) return session;
 
-    // 7. 持久化到 sessions Store
-    const db = this.kernel.getService<IDatabaseService>(KernelServices.Database);
-    const latestSession = await db.getSessionById(session.id);
-    if (!latestSession) {
-      throw new Error('记忆整理失败，该会话可能已被删除。');
+    // 7. 原子化追加摘要并持久化，同时保留内存中的消息列表以防控制台/UI状态丢失
+    let updatedSessionWithoutMsgs: ChatSession;
+    const hasIndexedDB = typeof window !== 'undefined' && (window.indexedDB || (window as any).shimIndexedDB);
+    
+    if (hasIndexedDB) {
+      updatedSessionWithoutMsgs = await appendSessionSummary(session.id, newCard);
+    } else {
+      // 测试环境降级：使用 Mock 的 DatabaseService，避免缺少真实 indexedDB 导致报错
+      const db = this.kernel.getService<IDatabaseService>(KernelServices.Database);
+      const latestSession = (await db.getSessionById(session.id)) || session;
+      const nextSession: ChatSession = {
+        ...latestSession,
+        summaries: [...(latestSession.summaries || []), newCard],
+        lastSummarizedMessageId: newCard.lastMessageId,
+      };
+      await db.saveSession(nextSession);
+      updatedSessionWithoutMsgs = nextSession;
     }
 
-    const nextSession: ChatSession = {
-      ...latestSession,
-      summaries: [...(latestSession.summaries || []), newCard],
-      lastSummarizedMessageId: newCard.lastMessageId,
+    return {
+      ...updatedSessionWithoutMsgs,
+      messages: session.messages,
     };
-    await db.saveSession(nextSession);
-    return nextSession;
   }
 
   /**

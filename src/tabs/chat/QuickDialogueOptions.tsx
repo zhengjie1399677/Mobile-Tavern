@@ -101,7 +101,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
             );
           if (ok) {
             const nextMessages =
-              activeSession.messages.filter(
+              (activeSession.messages || []).filter(
                 (m: any) => m.id !== message.id,
               );
             const updated = {
