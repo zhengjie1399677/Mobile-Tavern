@@ -93,15 +93,19 @@ export default function MemoryStorageSection({
                   max="100"
                   step="1"
                   value={settings.memory.recentTurns}
-                  onChange={(e) =>
-                    updateSettings({
-                      ...settings,
-                      memory: {
-                        ...settings.memory,
-                        recentTurns: parseInt(e.target.value) || 0,
-                      },
-                    })
-                  }
+                  onChange={(e) => {
+                    const parsed = parseInt(e.target.value);
+                    // 防止写入 NaN 或 0（会导致发送时 chatHistory 为空仅剩 system 消息）
+                    if (!isNaN(parsed) && parsed >= 1) {
+                      updateSettings({
+                        ...settings,
+                        memory: {
+                          ...settings.memory,
+                          recentTurns: parsed,
+                        },
+                      });
+                    }
+                  }}
                   className="w-16 bg-muted border border-border text-center rounded p-1 text-sm outline-none focus:border-primary"
                 />
               </div>

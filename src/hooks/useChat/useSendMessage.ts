@@ -223,7 +223,7 @@ export function useSendMessage(p: SendMessageParams) {
           ...(p.settings.api.type !== "anthropic" && {
             stream_options: { include_usage: true }
           }),
-          messages: [
+          messages: promptPayload.messages || [
             {
               role: "system",
               content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction].filter(Boolean).join("\n\n"),

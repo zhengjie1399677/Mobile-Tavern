@@ -50,8 +50,8 @@ const DEFAULT_TIME_TAG_TEMPLATE = '第{{index}}幕';
 /** 默认未总结消息触发阈值（与 recentTurns 一致） */
 const DEFAULT_RECENT_TURNS = 6;
 
-/** 触发阈值下限（防止用户配置过低导致频繁摘要） */
-const MIN_TRIGGER_ROUNDS = 4;
+/** 触发阈值下限（允许用户配置到最低一轮一结） */
+const MIN_TRIGGER_ROUNDS = 1;
 
 /** 摘要温度参数（保守，避免发散） */
 const SUMMARY_TEMPERATURE = 0.5;
@@ -185,6 +185,12 @@ export class MemorySummary {
     // 2. 计算触发阈值
     const summaryTurnsVal = settings?.memory?.summaryTriggerTurns;
     const rawTriggerTurns = summaryTurnsVal ? Number(summaryTurnsVal) : 0;
+
+    // 如果未开启自动整理且非强制手动触发，直接返回
+    if (!force && rawTriggerTurns === 0) {
+      return session;
+    }
+
     const rawRecentTurns = Number(settings?.memory?.recentTurns || DEFAULT_RECENT_TURNS);
     const triggerRounds =
       !isNaN(rawTriggerTurns) && rawTriggerTurns > 0 ? rawTriggerTurns : rawRecentTurns;
@@ -285,11 +291,22 @@ export class MemorySummary {
       throw new Error('[MemorySummary] Not initialized. Call init() first.');
     }
 
+    const cleanContent = (text: string): string => {
+      if (!text) return "";
+      return text
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .replace(/<think>[\s\S]*?$/gi, "")
+        .replace(/<memory>[\s\S]*?<\/memory>/gi, "")
+        .replace(/<memory>[\s\S]*?$/gi, "")
+        .replace(/(?:updateRow|insertRow|deleteRow)\s*\(.*?\)/gi, "")
+        .trim();
+    };
+
     const promptInstruction = settings?.memory?.summarySystemPrompt || '';
     const contentConcat = messages
       .map(
         (m) =>
-          `${m.sender === 'user' ? settings?.userName || 'user' : activeCharacter?.name || '角色'}: ${m.content}`
+          `${m.sender === 'user' ? settings?.userName || 'user' : activeCharacter?.name || '角色'}: ${cleanContent(m.content)}`
       )
       .join('\n');
 

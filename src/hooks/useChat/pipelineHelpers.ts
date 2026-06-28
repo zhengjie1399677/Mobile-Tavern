@@ -85,10 +85,12 @@ export async function runOutputPipelineAndSave(params: {
   let cleanAiText = responseText;
   let memoryContent: string | undefined;
   
-  const memoryMatch = /<memory>([\s\S]*?)<\/memory>/i.exec(responseText);
+  console.log("[MemoryDebug] Raw AI Response:", responseText);
+  const memoryMatch = /<(memory|memory_extraction)>([\s\S]*?)<\/\1>/i.exec(responseText);
+  console.log("[MemoryDebug] Memory Match:", memoryMatch);
   if (memoryMatch) {
-    memoryContent = memoryMatch[1].trim();
-    cleanAiText = responseText.replace(/<memory>[\s\S]*?<\/memory>/gi, "").trim();
+    memoryContent = memoryMatch[2].trim();
+    cleanAiText = responseText.replace(/<(memory|memory_extraction)>[\s\S]*?<\/\1>/gi, "").trim();
     
     // 更新 session 中的最新 AI 消息内容，防止 <memory> 标签被渲染给用户
     if (parsedSession.messages.length > 0) {

@@ -412,7 +412,11 @@ const FormattedText = memo(function FormattedText({
   const enableHtml = context.settings.enableHtmlRendering ?? true;
   const enableScriptExecution = !!context.settings.enableScriptExecution;
   const activeCharacter = context.activeCharacter;
-  const enableAsteriskFormatting = !!activeCharacter?.visualSettings?.enableAsteriskFormatting;
+  // 优先取角色卡 visualSettings 中的显式声明（true/false）；
+  // 若角色卡未配置（undefined），则回退到全局 settings.enableAsteriskFormatting。
+  const enableAsteriskFormatting = activeCharacter?.visualSettings?.enableAsteriskFormatting !== undefined
+    ? !!activeCharacter.visualSettings.enableAsteriskFormatting
+    : !!(context.settings.enableAsteriskFormatting);
   const globalRegexScripts = context.settings.globalRegexScripts;
   const presetRegexScripts = context.settings.presetRegexScripts;
 

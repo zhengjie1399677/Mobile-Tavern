@@ -236,7 +236,7 @@ export let MOBILE_TAVERN_BASIC_PRESET_BUNDLE: SavedPresetBundle = {
       },
       {
         id: "prompt_enhanced_reasoning_chain",
-        name: "🧠 [优化] 强化思维链 (剧情与逻辑推演)",
+        name: "[优化] 强化思维链 (剧情与逻辑推演)",
         role: "system",
         content: "[System Note: 你的 <think> 思考过程必须是一个结构化、客观且理性的“思维链 (CoT)”。你作为一个全局叙事编排者和系统状态管理器，而不是角色本身。\\n请在 <think> 内部按顺序执行以下分析步骤：\\n1. 【用户意图分析】：分析用户本次行动的真实意图、情绪倾向，以及当前场景的核心冲突与剧情进度。\\n2. 【设定与规则校验】：检索角色性格设定、当前触发的世界书条目、以及系统规则。判断是否有需要特别遵守或避免的细节冲突。\\n3. 【状态与表格管理】：评估角色当前的心境、好感关系、随身道具。决定本轮是否需要输出状态表修改指令（如 updateRow / insertRow），规划具体的修改参数。\\n4. 【角色行为构思】：基于人设和前文，设计 {{char}} 的神态、动作、心理逻辑和对白。\\n5. 【回复结构规划】：规划本轮回复的起承转合。确保行文符合人设，且绝不代替用户进行任何发言或行为。\\n禁止在 <think> 内部以角色第一人称进行自我沉浸式扮演或撰写小说草稿，保持思考过程的绝对客观与理性。]",
         enabled: false,
@@ -320,4 +320,5 @@ export const DEFAULT_SETTINGS: UserSettings = {
   replySuggestionsPrompt: DEFAULT_REPLY_SUGGESTIONS_PROMPT,
   bisonModePrompt: DEFAULT_BISON_MODE_PROMPT,
   enableMultiMessageQueue: false,
+  enableAsteriskFormatting: false,
 };

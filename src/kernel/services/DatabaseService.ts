@@ -94,11 +94,30 @@ export class DatabaseService implements IDatabaseService {
   async createEmptyBranch(character: any, title: string): Promise<ChatSession> {
     const scriptService = this.kernel.getService<any>("script");
     const mvuVariables = scriptService.initializeMvuFromCharacter(character);
+    
+    // 如果角色卡有开场白，将其作为新分支的初始第一条消息，避免页面完全空白
+    const starterMessage = character?.first_mes || "";
+    const messages = starterMessage
+      ? [
+          {
+            id: "msg_ai_" + Math.random().toString(36).substring(2, 9),
+            sender: "assistant" as const,
+            content: starterMessage.trim(),
+            timestamp: Date.now(),
+            extra: {
+              variables: {
+                0: mvuVariables
+              }
+            }
+          }
+        ]
+      : [];
+
     const newSession: ChatSession = {
       id: "session_branch_" + Math.random().toString(36).substring(2, 9),
       characterId: character.id,
       title,
-      messages: [],
+      messages,
       summaries: [],
       createdAt: Date.now(),
       variables: mvuVariables,

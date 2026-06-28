@@ -200,6 +200,7 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
     history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
     dynamicInstruction: string;
     userInput?: string;
+    messages: Array<{ role: "system" | "user" | "assistant"; name?: string; content: string }>;
   };
   cleanNameForApi(name: string | undefined, fallback: string): string | undefined;
   estimateTokens(text: string): number;

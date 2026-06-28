@@ -426,8 +426,7 @@ export class PromptService implements IPromptService {
     if (activeCustomBlocks.length > 0) {
       const compiledBlocks = activeCustomBlocks
         .map((block) => {
-          const prefix = block.name ? `### ${block.name}\n` : "";
-          return `${prefix}${this.replaceMacros(block.content, macroParams)}`;
+          return this.replaceMacros(block.content, macroParams);
         })
         .join("\n\n");
 
@@ -533,10 +532,17 @@ export class PromptService implements IPromptService {
     }
 
     let tableMemorySection = "";
-    if (settings.enableTableMemory && chat.tableMemory && chat.tableMemory.length > 0) {
-      const activeSheets = chat.tableMemory.filter(s => s.enable);
-      if (activeSheets.length > 0) {
-        const sheetsMarkdown = activeSheets.map(sheet => {
+    if (settings.enableTableMemory) {
+      let activeSheets = chat.tableMemory || [];
+      if (activeSheets.length === 0) {
+        const memoryService = this.kernel.getService<any>(KernelServices.Memory);
+        if (memoryService) {
+          activeSheets = memoryService.getStateTable().initDefaultSheets(character.name || "char");
+        }
+      }
+      const enabledSheets = activeSheets.filter(s => s.enable);
+      if (enabledSheets.length > 0) {
+        const sheetsMarkdown = enabledSheets.map(sheet => {
           const title = `### 表格：${sheet.name}`;
           const desc = sheet.description ? `*用途说明: ${sheet.description}*` : "";
           const header = `| ${sheet.columns.join(" | ")} |`;
@@ -571,6 +577,22 @@ ${sheetsMarkdown}
 ${recallText}
 ==================================`;
       recalledMemoriesSection = formatSectionText("relevantMemories", "", systemGuidance, true);
+    }
+
+    // 🧠 智能记忆提取指示 (心智词典与唤醒舱的数据源)
+    let memoryExtractionSection = "";
+    if (settings.memory) {
+      const instruction = `=== 🧠 认知涌现与记忆提取 (Memory Extraction) ===
+为了帮助系统记录故事发展，请在正文输出完毕后，提取本轮的新实体和事件。
+格式要求：使用 <memory_extraction> 标签包裹一个极简的 JSON 对象。只能包含合法 JSON，不要添加任何多余文字。若无新内容，输出空数组。
+<memory_extraction>
+{
+  "entities": ["新人物/地点/物品/概念名称1", "名称2"],
+  "events": ["本轮发生的关键事件简述1", "简述2"]
+}
+</memory_extraction>
+(注意：entities 和 events 均使用简单的一维字符串数组，不要嵌套复杂的对象！)`;
+      memoryExtractionSection = formatSectionText("memoryExtraction", "", instruction, true);
     }
 
     let charSpecificPrompt = "";
@@ -709,6 +731,10 @@ ${scenarioBlock}
       compiledStory = compiledStory + `\n\n${recalledMemoriesSection}`;
     }
 
+    if (memoryExtractionSection) {
+      compiledStory = compiledStory + `\n\n${memoryExtractionSection}`;
+    }
+
     compiledStory = compiledStory.replace(/\{\{post_history\}\}/gi, "");
 
     const systemInstruction = compiledStory.replace(/\n{3,}/g, "\n\n").trim();
@@ -718,11 +744,14 @@ ${scenarioBlock}
 
     const dynamicInstruction = dynamicSystemExtension.replace(/\n{3,}/g, "\n\n").trim();
 
-    const { recentTurns } = settings.memory;
+    // recentTurns 最低保底为 1，防止用户设为 0 时 while 循环完全跳过，导致 chatHistory 永远为空
+    const rawRecentTurns = typeof settings.memory?.recentTurns === 'number' && !isNaN(settings.memory.recentTurns) ? settings.memory.recentTurns : 6;
+    const recentTurns = Math.max(1, rawRecentTurns);
     const totalRawMessages = chat.messages ? [...chat.messages] : [];
     const validChatMessages = totalRawMessages;
 
     let currentTurns = Math.min(recentTurns, validChatMessages.length);
+    console.log("[MemoryDebug] assemblePrompt input - messages:", chat.messages?.map(m => ({ sender: m.sender, content: m.content.slice(0, 10) })), "recentTurns:", recentTurns, "currentTurns:", currentTurns);
     let activeMessagesToSend: Message[] = [];
     let chatHistory: { role: "user" | "model" | "assistant"; name?: string; content: string }[] = [];
 
@@ -828,15 +857,49 @@ ${scenarioBlock}
     }
 
     let finalSystem = systemInstruction;
-    if (settings.enableReplySuggestions) {
-      finalSystem += `\n\n${settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT}`;
+
+    // 📦 记忆抽取格式协议：始终注入，让 MemoryExtractor 可以持续通过 L0 积累心智词典数据
+    // 注意：与 Auto Summary 解耦——即使未开启 Auto Summary，词典也需要数据才能支撑 recall 功能
+    // 此处只要求 AI 输出结构化标签，不强制 AI 改变正文风格
+    {
+      const memoryProtocol = [
+        `=== 📦 记忆抽取协议 ===`,
+        `在扮演正文末尾追加（不得省略）：`,
+        `<memory_extraction>{"entities":["本轮新出现的人名/地名/物品名"],"events":["本轮新发生的关键事件"]}</memory_extraction>`,
+        `（若本轮无新内容则输出空数组：<memory_extraction>{"entities":[],"events":[]}</memory_extraction>）`,
+      ].join("\n");
+      finalSystem += `\n\n${memoryProtocol}`;
     }
 
+    // 📝 回复走向提示词：独立注入，不与记忆协议混合，避免 AI 混淆输出顺序
+    if (settings.enableReplySuggestions) {
+      finalSystem += `\n\n${settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT}`;
+      // 当同时开启记忆协议时，覆盖 suggestions 提示词中"末尾禁止任何内容"的限制，
+      // 明确告知 AI 在 </suggestions> 后还需追加 <memory_extraction> 标签
+      finalSystem += `\n（注意：在 </suggestions> 标签之后，还需继续追加 <memory_extraction> 标签，这是唯一允许的例外。）`;
+    }
+
+    console.log("[MemoryDebug] assemblePrompt output - history:", chatHistory);
+
+    const finalSystemPrompt = (finalSystem + reasoningGuidance).trim();
+    const finalMessages = [
+      {
+        role: "system",
+        content: [finalSystemPrompt, dynamicInstruction].filter(Boolean).join("\n\n"),
+      },
+      ...chatHistory.map((h) => {
+        const msgObj: any = { role: h.role === "model" ? "assistant" : h.role, content: h.content };
+        if (settings.api.sendNames && h.name) msgObj.name = h.name;
+        return msgObj;
+      }),
+    ];
+
     return {
-      systemInstruction: (finalSystem + reasoningGuidance).trim(),
+      systemInstruction: finalSystemPrompt,
       dynamicInstruction,
       history: chatHistory,
       userInput,
+      messages: finalMessages,
     };
   }
 }

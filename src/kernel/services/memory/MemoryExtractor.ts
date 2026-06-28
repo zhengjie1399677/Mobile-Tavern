@@ -101,65 +101,66 @@ export function validateExtraction(content: string): MemoryExtraction | null {
     return null;
   }
 
-  const entities = validateEntities(parsed.entities);
-  if (entities === null) return null;
+  // 兼容简化版与标准版：支持一维字符串数组与标准对象数组
+  const entities: MemoryExtraction['entities'] = [];
+  if (Array.isArray(parsed.entities)) {
+    if (parsed.entities.length > MAX_ENTITIES_PER_TURN) return null;
+    for (const item of parsed.entities) {
+      if (typeof item === 'string') {
+        const name = item.trim();
+        if (name.length > 0 && name.length <= MAX_ENTITY_NAME_LEN) {
+          entities.push({ name, type: 'concept', first_seen: true });
+        }
+      } else if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+        const name = item.name;
+        if (typeof name !== 'string' || name.length < 1 || name.length > MAX_ENTITY_NAME_LEN) {
+          return null;
+        }
+        const type = item.type;
+        if (typeof type !== 'string' || !VALID_ENTITY_TYPES.has(type)) return null;
+        const first_seen = item.first_seen;
+        if (typeof first_seen !== 'boolean') return null;
+        entities.push({ name, type: type as EntityType, first_seen });
+      } else {
+        return null;
+      }
+    }
+  } else {
+    return null;
+  }
 
-  const events = validateEvents(parsed.events);
-  if (events === null) return null;
+  const events: MemoryExtraction['events'] = [];
+  if (parsed.events !== undefined) {
+    if (!Array.isArray(parsed.events)) return null;
+    if (parsed.events.length > MAX_EVENTS_PER_TURN) return null;
+    for (const item of parsed.events) {
+      if (typeof item === 'string') {
+        const summary = item.trim();
+        if (summary.length > 0 && summary.length <= MAX_EVENT_SUMMARY_LEN) {
+          events.push({ summary, participants: [] });
+        }
+      } else if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+        const summary = item.summary;
+        if (typeof summary !== 'string' || summary.length < 1 || summary.length > MAX_EVENT_SUMMARY_LEN) {
+          return null;
+        }
+        const participants = item.participants;
+        if (participants === undefined) {
+          events.push({ summary, participants: [] });
+          continue;
+        }
+        if (!Array.isArray(participants)) return null;
+        for (const p of participants) {
+          if (typeof p !== 'string') return null;
+        }
+        events.push({ summary, participants });
+      } else {
+        return null;
+      }
+    }
+  }
 
   return { entities, events };
-}
-
-function validateEntities(raw: any): MemoryExtraction['entities'] | null {
-  if (!Array.isArray(raw)) return null;
-  if (raw.length > MAX_ENTITIES_PER_TURN) return null;
-
-  const result: MemoryExtraction['entities'] = [];
-  for (const item of raw) {
-    if (typeof item !== 'object' || item === null || Array.isArray(item)) return null;
-
-    const name = item.name;
-    if (typeof name !== 'string' || name.length < 1 || name.length > MAX_ENTITY_NAME_LEN) {
-      return null;
-    }
-
-    const type = item.type;
-    if (typeof type !== 'string' || !VALID_ENTITY_TYPES.has(type)) return null;
-
-    const first_seen = item.first_seen;
-    if (typeof first_seen !== 'boolean') return null;
-
-    result.push({ name, type: type as EntityType, first_seen });
-  }
-  return result;
-}
-
-function validateEvents(raw: any): MemoryExtraction['events'] | null {
-  if (raw === undefined) return []; // events 可选，缺省为空数组
-  if (!Array.isArray(raw)) return null;
-  if (raw.length > MAX_EVENTS_PER_TURN) return null;
-
-  const result: MemoryExtraction['events'] = [];
-  for (const item of raw) {
-    if (typeof item !== 'object' || item === null || Array.isArray(item)) return null;
-
-    const summary = item.summary;
-    if (typeof summary !== 'string' || summary.length < 1 || summary.length > MAX_EVENT_SUMMARY_LEN) {
-      return null;
-    }
-
-    const participants = item.participants;
-    if (participants === undefined) {
-      result.push({ summary, participants: [] });
-      continue;
-    }
-    if (!Array.isArray(participants)) return null;
-    for (const p of participants) {
-      if (typeof p !== 'string') return null;
-    }
-    result.push({ summary, participants });
-  }
-  return result;
 }
 
 // ===== 纯函数：L1 词典匹配（RegExp 批量匹配，替代 AC 自动机） =====
@@ -344,6 +345,7 @@ export class MemoryExtractor {
    * 最终将消息写入 messages Store。
    */
   private async processExtraction(task: ExtractionTask): Promise<ExtractionResult> {
+    console.log("[MemoryDebug] processExtraction task:", task);
     const signal = this.abortController?.signal;
     let tags: string[];
     let extractSource: ExtractSource;
@@ -352,6 +354,7 @@ export class MemoryExtractor {
     // L0: LLM 抽取
     if (task.memoryContent) {
       const parsed = validateExtraction(task.memoryContent);
+      console.log("[MemoryDebug] validateExtraction result:", parsed);
       if (parsed && parsed.entities.length > 0) {
         tags = parsed.entities.map((e) => e.name);
         extractSource = 'llm';
@@ -371,6 +374,8 @@ export class MemoryExtractor {
       tags = result.tags;
       extractSource = result.source;
     }
+
+    console.log("[MemoryDebug] Extraction finished. tags:", tags, "source:", extractSource);
 
     // 写入 messages Store
     if (signal?.aborted) return { tags, extractSource, extraction };

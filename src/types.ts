@@ -156,7 +156,6 @@ export interface PromptConfig {
   storyString?: string; // SillyTavern STORY STRING context order templates
   customPrompts?: CustomPromptBlock[]; // SillyTavern customizable prompt block list
   useMainPrompt?: boolean;
-  mainSystemPrompt?: string;
   enableReasoningGuidance?: boolean;
   reasoningGuidancePrompt?: string;
 
@@ -234,6 +233,7 @@ export interface UserSettings {
   replySuggestionsPrompt?: string; // Suggestions prompt template
   bisonModePrompt?: string; // Bison Mode prompt template
   enableMultiMessageQueue?: boolean; // Enable Multi-Message Queue and merge sending
+  enableAsteriskFormatting?: boolean; // Global fallback: render *action* text as grey italic (overridden by per-card visualSettings)
 }
 
 export interface RegexScript {

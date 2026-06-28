@@ -199,6 +199,7 @@ export const useSettingsLoader = ({
           const defaultPrompts = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts || [];
           const userPrompts = storedSet.promptConfig?.customPrompts || [];
           let roleUpdated = false;
+          let customPromptsUpdated = false;
           const mergedCustomPrompts = [...userPrompts].map((p: any) => {
             if (p.role !== "system") {
               roleUpdated = true;
@@ -282,6 +283,7 @@ export const useSettingsLoader = ({
             })(),
             bisonModePrompt: storedSet.bisonModePrompt ?? DEFAULT_SETTINGS.bisonModePrompt,
             enableMultiMessageQueue: storedSet.enableMultiMessageQueue ?? DEFAULT_SETTINGS.enableMultiMessageQueue,
+            enableAsteriskFormatting: storedSet.enableAsteriskFormatting ?? DEFAULT_SETTINGS.enableAsteriskFormatting,
           } as any;
 
           if (externalPreset) {

@@ -138,6 +138,7 @@ export default function ChatTab() {
           activeSession={activeSession}
           saveSession={saveSession}
           charName={activeCharacter.name}
+          enableTableMemory={!!settings.enableTableMemory}
         />
       )}
     </div>

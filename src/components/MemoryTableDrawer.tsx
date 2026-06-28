@@ -24,6 +24,7 @@ interface MemoryTableDrawerProps {
   activeSession: ChatSession;
   saveSession: (session: ChatSession) => Promise<void>;
   charName: string;
+  enableTableMemory: boolean;
 }
 
 export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
@@ -31,10 +32,20 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   onClose,
   activeSession,
   saveSession,
-  charName
+  charName,
+  enableTableMemory
 }) => {
   // 大 Tab 面板：'table' | 'dict' | 'recall'
-  const [activeTab, setActiveTab] = useState<'table' | 'dict' | 'recall'>('table');
+  const [activeTab, setActiveTab] = useState<'table' | 'dict' | 'recall'>(
+    enableTableMemory ? 'table' : 'recall'
+  );
+
+  // 当抽屉打开时，根据当前表格配置动态重置默认 Tab
+  React.useEffect(() => {
+    if (isOpen) {
+      setActiveTab(enableTableMemory ? 'table' : 'recall');
+    }
+  }, [isOpen, enableTableMemory]);
   const [activeTableTabId, setActiveTableTabId] = useState<string>("");
   const [editingCell, setEditingCell] = useState<{ sheetId: string; rowIndex: number; colIndex: number } | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -316,8 +327,9 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
         {/* Header Section */}
         <div className="px-4 py-3 border-b border-border/50 flex justify-between items-center bg-muted/30">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold bg-primary/10 text-primary px-2.5 py-1 rounded-full flex items-center gap-1 font-sans">
-              🧠 多维认知记忆中心
+            <span className="text-sm font-bold bg-primary/10 text-primary px-2.5 py-1 rounded-full flex items-center gap-1.5 font-sans">
+              <BrainCircuit className="w-3.5 h-3.5" />
+              多维认知记忆中心
             </span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -340,21 +352,23 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
 
         {/* Tab 栏切换器 */}
         <div className="flex border-b border-border/30 bg-muted/10 px-4 py-2 gap-2 text-xs font-semibold overflow-x-auto scrollbar-none shrink-0">
-          <button
-            onClick={() => { setActiveTab('table'); setShowConfig(false); }}
-            className={`px-3 py-1.5 rounded-lg border transition-all ${
-              activeTab === 'table' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-            }`}
-          >
-            📊 状态沙盒
-          </button>
+          {enableTableMemory && (
+            <button
+              onClick={() => { setActiveTab('table'); setShowConfig(false); }}
+              className={`px-3 py-1.5 rounded-lg border transition-all ${
+                activeTab === 'table' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+              }`}
+            >
+              状态沙盒
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('dict')}
             className={`px-3 py-1.5 rounded-lg border transition-all ${
               activeTab === 'dict' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
             }`}
           >
-            📖 心智词典
+            心智词典
           </button>
           <button
             onClick={() => setActiveTab('recall')}
@@ -362,7 +376,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
               activeTab === 'recall' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
             }`}
           >
-            🧠 记忆唤醒舱
+            记忆唤醒舱
           </button>
         </div>
 

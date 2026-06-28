@@ -182,6 +182,24 @@ export default function FeaturesSection({
             />
           </div>
 
+          <div className="flex items-center justify-between border-t border-border/50 pt-4">
+            <div className="space-y-0.5">
+              <label className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+                <span>星号动作分色渲染 (Asterisk Formatting)</span>
+              </label>
+              <p className="text-[10px] text-muted-foreground">
+                将 *斜体动作描述* 渲染为柔和的灰色斜体，突出对白与旁白的视觉层次。角色卡内的 visualSettings 配置优先于此全局开关。
+              </p>
+            </div>
+            <Switch
+              checked={settings.enableAsteriskFormatting || false}
+              onCheckedChange={(val) =>
+                updateSettings({ ...settings, enableAsteriskFormatting: val })
+              }
+              className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+            />
+          </div>
+
         </CardContent>
       </Card>
 

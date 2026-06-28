@@ -92,6 +92,12 @@ export class AutoSummaryService {
 
     const summaryTurnsVal = settings?.memory?.summaryTriggerTurns;
     const rawTriggerTurns = summaryTurnsVal ? Number(summaryTurnsVal) : 0;
+
+    // 如果未开启自动整理且非强制手动触发，直接返回
+    if (!force && rawTriggerTurns === 0) {
+      return session;
+    }
+
     const rawRecentTurns = Number(settings?.memory?.recentTurns || 6);
     const triggerRounds = (!isNaN(rawTriggerTurns) && rawTriggerTurns > 0) ? rawTriggerTurns : rawRecentTurns;
 
@@ -118,9 +124,20 @@ export class AutoSummaryService {
         return session;
       }
 
+      const cleanContent = (text: string): string => {
+        if (!text) return "";
+        return text
+          .replace(/<think>[\s\S]*?<\/think>/gi, "")
+          .replace(/<think>[\s\S]*?$/gi, "")
+          .replace(/<memory>[\s\S]*?<\/memory>/gi, "")
+          .replace(/<memory>[\s\S]*?$/gi, "")
+          .replace(/(?:updateRow|insertRow|deleteRow)\s*\(.*?\)/gi, "")
+          .trim();
+      };
+
       const promptInstruction = settings?.memory?.summarySystemPrompt || "";
       const contentConcat = messagesToCompress
-        .map((m) => `${m.sender === "user" ? (settings?.userName || "user") : (activeCharacter?.name || "角色")}: ${m.content}`)
+        .map((m) => `${m.sender === "user" ? (settings?.userName || "user") : (activeCharacter?.name || "角色")}: ${cleanContent(m.content)}`)
         .join("\n");
 
       let compiledSummary = "";

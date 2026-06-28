@@ -105,7 +105,7 @@ const ChatHeader = ({
 
       {/* Chat sub tabs switches and settings dropdown */}
       <div className="flex items-center gap-1.5 relative">
-        {settings.enableTableMemory && activeSession && (
+        {activeSession && (
           <button
             onClick={() => setIsTableDrawerOpen(true)}
             className="p-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center gap-1 shrink-0 font-sans text-xs font-bold"

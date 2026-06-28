@@ -50,13 +50,13 @@ export default function CorePromptBlocks({
         <AccordionContent className="p-3 pt-0 border-t border-border/50 bg-background/50 outline-none">
           <div className="pt-3">
             <Textarea
-              value={settings.promptConfig.mainSystemPrompt || ""}
+              value={settings.promptConfig.mainPrompt || ""}
               onChange={(e) =>
                 updateSettings({
                   ...settings,
                   promptConfig: {
                     ...settings.promptConfig,
-                    mainSystemPrompt: e.target.value,
+                    mainPrompt: e.target.value,
                   },
                 })
               }

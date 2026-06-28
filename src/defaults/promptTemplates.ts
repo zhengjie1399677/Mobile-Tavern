@@ -1,5 +1,5 @@
 export const DEFAULT_REASONING_GUIDANCE_PROMPT =
-  `### 🧠 [优化] 强化思维链 (剧情与逻辑推演)
+  `### [优化] 强化思维链 (剧情与逻辑推演)
 [推理与思维链规范 (Reasoning Chain Rules)]
 在 <think> 标签内，你必须立刻切换身份为【冷酷的剧本统筹 (Showrunner)】。
 - 【绝对禁止】：严禁使用角色第一人称（如“我”、“人家”），严禁代入角色的情感（如“我好怕”、“他是不是讨厌我”）。
