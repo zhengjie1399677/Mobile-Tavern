@@ -59,6 +59,7 @@ import {
   testMemoryRecall,
   testMemoryStateTable,
   testMemorySummary,
+  testMemoryE2E,
 } from "./suites/index";
 
 async function run() {
@@ -120,6 +121,8 @@ async function run() {
     // 记忆系统阶段 C 测试（状态表 CRUD + 瘦身摘要，砸 5 条正则状态抽离）
     await testMemoryStateTable();
     await testMemorySummary();
+    // 记忆系统 E2E 测试（真实 IDB 端到端，覆盖 MockStorage 无法验证的物理层契约）
+    await testMemoryE2E();
     console.log("\n=================================================");
     console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
     console.log("=================================================");

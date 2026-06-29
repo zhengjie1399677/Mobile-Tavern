@@ -64,9 +64,9 @@ export class MemoryRecall {
    *
    * 流程：
    *   1. 加载会话词典，用 extractByDict 从当前消息提取查询标签
-   *   2. 无查询标签则返回空数组（不召回）
-   *   3. 按标签查倒排索引获取候选集
-   *   4. 打分 + 排除最近 N 轮 + 取 top-K
+   *   2. 无查询标签且有 Pin → 仅召回 Pin 消息
+   *   3. 无查询标签且无 Pin → E-1 兜底：召回"最近 N 轮外的最新 1 条"
+   *   4. 有查询标签 → 按标签查倒排索引获取候选集 + 打分 + 排除最近 N 轮 + 取 top-K
    *
    * @param sessionId 会话 ID
    * @param currentMessage 当前消息文本
@@ -93,11 +93,76 @@ export class MemoryRecall {
     const pinnedIds = sessionObj?.pinnedMessageIds || [];
 
     if (queryTags.length === 0 && pinnedIds.length === 0) {
-      return []; // 无查询标签且无 Pinned 消息，不召回
+      // E-1 修复：泛指问句召回兜底
+      // 当无查询标签且无 Pin 时，回退召回"最近 excludeRecentN 轮外的最新 1 条"，
+      // 避免用户问"还记得我们昨天聊了什么"时完全无召回。
+      // 兜底消息 score=0（明确标记为兜底，上层可按 score 判断是否使用），
+      // 仍受 Mute 机制约束、仍排除最近 N 轮（避免与 recentTurns 上下文重复）。
+      return this.fallbackRecallRecent(sessionId, options);
     }
 
     // 2. 按标签召回
     return this.recallByTags(sessionId, queryTags, options);
+  }
+
+  /**
+   * 泛指问句兜底召回：返回最近 excludeRecentN 轮外的最新 1 条消息。
+   *
+   * 设计取舍（E-1 修复）：
+   *   - 仅召回 1 条（最小化噪音，避免无关内容污染 Prompt）
+   *   - score=0 明确标记为兜底（上层可按 score 判断是否使用）
+   *   - hitCount=0, hitTags=[]（未命中任何标签）
+   *   - 仍受 Mute 机制约束（过滤 mutedMessageIds）
+   *   - 仍排除最近 N 轮（避免与 recentTurns 上下文重复）
+   *   - 无消息时返回空数组（保持向后兼容）
+   */
+  private async fallbackRecallRecent(
+    sessionId: string,
+    options?: RecallOptions
+  ): Promise<RecalledMessage[]> {
+    const excludeRecentN = Math.max(0, options?.excludeRecentN ?? DEFAULT_EXCLUDE_RECENT_N);
+    const currentTurnIndex = await this.resolveCurrentTurnIndex(sessionId, options?.currentTurnIndex);
+
+    // 加载最近消息（生产环境用 limit + descending 走复合索引高效路径）
+    const limit = Math.max(20, excludeRecentN + 5);
+    const recentMessages = await this.storage.getMessagesBySession(sessionId, {
+      limit,
+      descending: true,
+    });
+
+    if (recentMessages.length === 0) return [];
+
+    // 排除最近 N 轮
+    const threshold = currentTurnIndex - excludeRecentN;
+    const candidates = recentMessages.filter((m) => (m.turnIndex ?? 0) < threshold);
+    if (candidates.length === 0) return [];
+
+    // 按 turnIndex 降序排序后取首条（最新）
+    // 注：不依赖 storage 层 descending，确保 MockStorage 与真实 IDB 行为一致
+    candidates.sort((a, b) => (b.turnIndex ?? 0) - (a.turnIndex ?? 0));
+    const fallbackMsg = candidates[0];
+
+    // 加载 Mute 列表（与 recallByTags 一致的 Mute 过滤）
+    let sessionObj: any = null;
+    try {
+      if (typeof window !== 'undefined' && ((window as any).indexedDB || (window as any).shimIndexedDB)) {
+        sessionObj = await getSessionById(sessionId);
+      }
+    } catch (err) {
+      console.warn("[MemoryRecall] Failed to fetch session for Mute in fallback:", err);
+    }
+    const mutedIds: string[] = sessionObj?.mutedMessageIds || [];
+    if (mutedIds.includes(fallbackMsg.id)) return [];
+
+    return [{
+      messageId: fallbackMsg.id,
+      turnIndex: fallbackMsg.turnIndex ?? 0,
+      role: fallbackMsg.role,
+      content: fallbackMsg.content,
+      hitCount: 0,
+      hitTags: [],
+      score: 0, // 兜底召回，未命中任何标签
+    }];
   }
 
   /**
