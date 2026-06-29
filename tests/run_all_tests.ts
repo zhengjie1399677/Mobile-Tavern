@@ -18,6 +18,8 @@ import {
   testSsrfGuard,
   testDbQueue,
   testPromptBuilder,
+  testPromptRuntime,
+  testPromptServiceIntegration,
   testPngCardParser,
   testApiCleanRequestPayload,
   testSSEStreamWithReasoning,
@@ -70,6 +72,8 @@ async function run() {
     await testSsrfGuard();
     await testDbQueue();
     testPromptBuilder();
+    testPromptRuntime();
+    testPromptServiceIntegration();
     await testPngCardParser();
     runCatbotErrorTests();
     testApiCleanRequestPayload();

@@ -5,6 +5,8 @@ import {
   DEFAULT_REASONING_GUIDANCE_PROMPT,
   DEFAULT_TABLE_MEMORY_PROMPT,
 } from "../../defaults/promptTemplates";
+import { PromptBuilder } from "./prompt/PromptBuilder";
+import { PromptCompiler } from "./prompt/PromptCompiler";
 
 const SAFE_CONTEXT_LIMIT = 12000;
 
@@ -325,9 +327,6 @@ export class PromptService implements IPromptService {
             }
           }
         } else if (msg.sender === "system") {
-          // 纯底层原则：移除硬编码 [系统旁白:] 前缀。
-          // role 保持 "user" 以维持严格 user/assistant 交替（兼容严格要求交替的 API）。
-          // 如需 system role，用户可通过 instruct 模板自定义。
           role = "user";
           content = msg.content;
         } else {
@@ -409,129 +408,152 @@ export class PromptService implements IPromptService {
       };
     }
 
-    const hasCustomPrompts =
-      settings.promptConfig?.customPrompts &&
-      settings.promptConfig.customPrompts.length > 0;
-    const activeCustomBlocks = hasCustomPrompts
-      ? settings.promptConfig.customPrompts!.filter((p) => p.enabled)
-      : [];
+    // Roleplay Mode = True (Default)
+    const builder = new PromptBuilder();
 
+    // ==================================================
+    // ENGINE SECTION
+    // ==================================================
     let mainPromptReplaced = "";
     if (settings.promptConfig?.mainPrompt) {
-      mainPromptReplaced = this.replaceMacros(
-        settings.promptConfig.mainPrompt,
-        macroParams,
-      );
+      mainPromptReplaced = this.replaceMacros(settings.promptConfig.mainPrompt, macroParams);
     }
-
+    const hasCustomPrompts = settings.promptConfig?.customPrompts && settings.promptConfig.customPrompts.length > 0;
+    const activeCustomBlocks = hasCustomPrompts ? settings.promptConfig.customPrompts!.filter((p) => p.enabled) : [];
     if (activeCustomBlocks.length > 0) {
-      const compiledBlocks = activeCustomBlocks
-        .map((block) => {
-          return this.replaceMacros(block.content, macroParams);
-        })
-        .join("\n\n");
-
-      if (mainPromptReplaced) {
-        mainPromptReplaced = `${mainPromptReplaced}\n\n${compiledBlocks}`;
-      } else {
-        mainPromptReplaced = compiledBlocks;
-      }
+      const compiledBlocks = activeCustomBlocks.map((block) => this.replaceMacros(block.content, macroParams)).join("\n\n");
+      mainPromptReplaced = mainPromptReplaced ? `${mainPromptReplaced}\n\n${compiledBlocks}` : compiledBlocks;
     }
 
-    const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
-    const activeEntries = this.getTriggeredLorebookEntries(
-      chat.messages || [],
-      userInput,
-      allEntries,
-    );
+    // CoreRules
+    builder.registerSection({
+      id: "core_rules",
+      type: "engine",
+      order: 1,
+      enabled: !!mainPromptReplaced,
+      compile: () => mainPromptReplaced,
+    });
 
     const modelName = (settings.api?.modelName || "").toLowerCase();
-
     const isDeepSeek = modelName.includes("deepseek") || modelName.includes("r1") || modelName.includes("reasoner");
     const enableGuidance = settings.promptConfig?.enableReasoningGuidance !== undefined
       ? settings.promptConfig.enableReasoningGuidance
       : isDeepSeek;
     const reasoningGuidance = enableGuidance
-      ? `\n\n${settings.promptConfig?.reasoningGuidancePrompt || DEFAULT_REASONING_GUIDANCE_PROMPT}\n`
+      ? (settings.promptConfig?.reasoningGuidancePrompt || DEFAULT_REASONING_GUIDANCE_PROMPT)
       : "";
 
-    // 纯底层原则：lorebook position 完全由用户在角色卡/世界书中显式声明，
-    // 系统不再根据模型名硬编码改写。缓存命中率优化通过 messages 顺序（system 首位）保证。
-    const processedActiveEntries = activeEntries;
+    // Constraints (Reasoning Guidance)
+    builder.registerSection({
+      id: "reasoning_guidance",
+      type: "engine",
+      order: 2,
+      enabled: !!reasoningGuidance,
+      compile: () => reasoningGuidance,
+    });
 
-    const topEntries = processedActiveEntries.filter((e) => e.position === "top");
-    const beforeCharEntries = processedActiveEntries.filter(
-      (e) => e.position === "before_char_def",
-    );
-    const afterCharEntries = processedActiveEntries.filter(
-      (e) => e.position === "after_char_def" || !e.position,
-    );
-    const beforeLastMsgEntries = processedActiveEntries.filter(
-      (e) => e.position === "before_last_mes",
-    );
+    // ==================================================
+    // CHARACTER SECTION
+    // ==================================================
+    // User Persona
+    let userPersonaSection = "";
+    if (settings.userInfo) {
+      userPersonaSection = `=== User Persona ===\n${this.replaceMacros(settings.userInfo, macroParams)}`;
+    }
+    builder.registerSection({
+      id: "user_persona",
+      type: "character",
+      order: 1,
+      enabled: !!userPersonaSection,
+      compile: () => userPersonaSection,
+    });
 
+    // Persona (Description & Personality)
+    const descriptionVal = this.replaceMacros(character.description || "", macroParams);
+    const personalityVal = this.replaceMacros(character.personality || "", macroParams);
+    builder.registerSection({
+      id: "char_persona",
+      type: "character",
+      order: 2,
+      enabled: !!(descriptionVal || personalityVal),
+      compile: () => [
+        descriptionVal ? `=== Character Description ===\n${descriptionVal}` : "",
+        personalityVal ? `=== Character Personality ===\n${personalityVal}` : ""
+      ].filter(Boolean).join("\n\n"),
+    });
+
+    // Scenario
+    const scenarioVal = this.replaceMacros(character.scenario || "", macroParams);
+    builder.registerSection({
+      id: "char_scenario",
+      type: "character",
+      order: 3,
+      enabled: !!scenarioVal,
+      compile: () => `=== Scenario ===\n${scenarioVal}`,
+    });
+
+    // World (Character specific system prompt)
+    let charSpecificPrompt = "";
+    if (character.system_prompt) {
+      charSpecificPrompt = this.replaceMacros(character.system_prompt, macroParams);
+    }
+    builder.registerSection({
+      id: "char_specific_prompt",
+      type: "character",
+      order: 4,
+      enabled: !!charSpecificPrompt,
+      compile: () => charSpecificPrompt,
+    });
+
+    // Lorebook
+    const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
+    const activeEntries = this.getTriggeredLorebookEntries(chat.messages || [], userInput, allEntries);
     const formatEntryContent = (entry: LorebookEntry): string => {
       if (entry.addMemo && entry.comment) {
         return `[设定及备注: ${entry.comment}]\n${entry.content}`;
       }
       return entry.content;
     };
-
     const formatEntryBlock = (entriesBlock: LorebookEntry[]): string => {
       if (entriesBlock.length === 0) return "";
       const sorted = [...entriesBlock].sort((a, b) => {
         const depthA = a.depth !== undefined ? a.depth : 4;
         const depthB = b.depth !== undefined ? b.depth : 4;
-        if (depthB !== depthA) {
-          return depthB - depthA;
-        }
+        if (depthB !== depthA) return depthB - depthA;
         const orderA = a.order !== undefined ? a.order : 100;
         const orderB = b.order !== undefined ? b.order : 100;
         return orderA - orderB;
       });
       return sorted.map((e) => formatEntryContent(e)).join("\n\n");
     };
+    const lorebookText = formatEntryBlock(activeEntries);
+    builder.registerSection({
+      id: "lorebook",
+      type: "character",
+      order: 5,
+      enabled: !!lorebookText,
+      compile: () => `=== Reference Lore ===\n${lorebookText}`,
+    });
 
-    const headers = settings.promptConfig?.sectionHeaders || {};
-
-    const formatSectionText = (key: string, defaultHeader: string, contentText: string, prefixNewline: boolean = false) => {
-      if (!contentText) return "";
-      const headerVal = headers[key];
-      const actualHeader = headerVal === undefined ? defaultHeader : headerVal;
-      if (!actualHeader) {
-        return prefixNewline ? `\n\n${contentText}\n` : `${contentText}\n`;
-      }
-      return prefixNewline
-        ? `\n\n${actualHeader}\n${contentText}\n`
-        : `${actualHeader}\n${contentText}\n`;
-    };
-
-    const topText = formatEntryBlock(topEntries);
-    const topSection = formatSectionText("system", "", topText);
-
-    const beforeCharText = formatEntryBlock(beforeCharEntries);
-    const beforeCharSection = formatSectionText("beforeChar", "", beforeCharText);
-
-    const afterCharText = formatEntryBlock(afterCharEntries);
-    const afterCharSection = formatSectionText("worldInfo", "", afterCharText);
-
-    const beforeLastText = formatEntryBlock(beforeLastMsgEntries);
-    const beforeLastSection = formatSectionText("beforeLast", "", beforeLastText);
-
-    let summarySection = "";
+    // ==================================================
+    // CONTEXT SECTION
+    // ==================================================
+    // Summary
+    let summaryText = "";
     if (chat.summaries && chat.summaries.length > 0) {
-      const summaryText = chat.summaries
+      summaryText = chat.summaries
         .map((s) => `[${s.timeTag} | ${s.location}] ${s.content}`)
         .join("\n");
-      summarySection = formatSectionText("summary", "", summaryText, true);
     }
+    builder.registerSection({
+      id: "summary",
+      type: "context",
+      order: 1,
+      enabled: !!summaryText,
+      compile: () => `=== 剧情时间线摘要 ===\n${summaryText}`,
+    });
 
-    let userPersonaSection = "";
-    if (settings.userInfo) {
-      const personaText = this.replaceMacros(settings.userInfo, macroParams);
-      userPersonaSection = formatSectionText("userPersona", "", personaText, true);
-    }
-
+    // State (Table Memory)
     let tableMemorySection = "";
     if (settings.enableTableMemory) {
       let activeSheets = chat.tableMemory || [];
@@ -552,7 +574,7 @@ export class PromptService implements IPromptService {
           return `${title}\n${desc}\n${header}\n${divider}\n${rows}`;
         }).join("\n\n");
 
-        const systemGuidance = `=== 🎯 长期状态与记忆档案柜 ===
+        tableMemorySection = `=== 🎯 长期状态与记忆档案柜 ===
 以下是当前扮演会话中记录的结构化状态与记忆表格。
 在生成下一轮扮演回复时，请根据聊天发展，在回复内容的【最末尾】输出更新指令伪代码（由你自主决定是否更新，只能包含合法可执行的代码，不要添加多余文字解释），指令格式如下：
 - 若更新已有属性：updateRow("表格名", {"属性名": "要修改的值"}) 或者特定定位 updateRow("表格名", {"查找列名": "查找值"}, {"要修改的列名": "新值"})
@@ -564,26 +586,72 @@ updateRow("好感关系表", {"好感度": "85", "当前关系": "心动"})
 当前数据表格内容如下:
 ${sheetsMarkdown}
 ==================================`;
-        tableMemorySection = formatSectionText("tableMemory", "", systemGuidance, true);
       }
     }
+    builder.registerSection({
+      id: "table_memory",
+      type: "context",
+      order: 2,
+      enabled: !!tableMemorySection,
+      compile: () => tableMemorySection,
+    });
 
+    // Relevant Memory
     let recalledMemoriesSection = "";
     if (recalledMemories && recalledMemories.length > 0) {
       const recallText = recalledMemories
         .map((m: any) => `[第 ${m.turnIndex} 轮 - ${m.role === 'user' ? '用户' : '角色'}]: ${m.content}`)
         .join("\n");
-      const systemGuidance = `=== 🧠 历史相关记忆片段 ===
+      recalledMemoriesSection = `=== 🧠 历史相关记忆片段 ===
 以下为从历史对话中召回的碎屑片段，仅用作本次生成的细节参考以确保前后情节一致连贯。注意：它们是离散的历史，请勿当成最新的连续对话：
 ${recallText}
 ==================================`;
-      recalledMemoriesSection = formatSectionText("relevantMemories", "", systemGuidance, true);
     }
+    builder.registerSection({
+      id: "recalled_memories",
+      type: "context",
+      order: 3,
+      enabled: !!recalledMemoriesSection,
+      compile: () => recalledMemoriesSection,
+    });
 
-    // 🧠 智能记忆提取指示 (心智词典与唤醒舱的数据源)
+    // ==================================================
+    // STYLE SECTION
+    // ==================================================
+    // Dialogue Examples (Few-shot)
+    let mesExampleSection = "";
+    if (character.mes_example) {
+      const mesExampleVal = this.replaceMacros(character.mes_example, macroParams);
+      mesExampleSection = `=== 对话与例句示例 (Dialogue Examples) ===\n${mesExampleVal}`;
+    }
+    builder.registerSection({
+      id: "dialogue_examples",
+      type: "style",
+      order: 1,
+      enabled: !!mesExampleSection,
+      compile: () => mesExampleSection,
+    });
+
+    // ==================================================
+    // OUTPUT SECTION
+    // ==================================================
+    // Jailbreak (Safety)
+    let jailbreakSection = "";
+    if (settings.promptConfig?.useJailbreak && settings.promptConfig?.jailbreakPrompt) {
+      jailbreakSection = this.replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams);
+    }
+    builder.registerSection({
+      id: "jailbreak",
+      type: "output",
+      order: 1,
+      enabled: !!jailbreakSection,
+      compile: () => jailbreakSection,
+    });
+
+    // Memory Extraction (Output Protocol)
     let memoryExtractionSection = "";
     if (settings.memory) {
-      const instruction = `=== 🧠 认知涌现与记忆提取 (Memory Extraction) ===
+      memoryExtractionSection = `=== 📦 记忆抽取协议 ===
 为了帮助系统记录故事发展，请在正文输出完毕后，提取本轮的新实体和事件。
 格式要求：使用 <memory_extraction> 标签包裹一个极简的 JSON 对象。只能包含合法 JSON，不要添加任何多余文字。若无新内容，输出空数组。
 <memory_extraction>
@@ -592,167 +660,60 @@ ${recallText}
   "events": ["本轮发生的关键事件简述1", "简述2"]
 }
 </memory_extraction>
-(注意：entities 和 events 均使用简单的一维字符串数组，不要嵌套复杂的对象！)`;
-      memoryExtractionSection = formatSectionText("memoryExtraction", "", instruction, true);
+(注意：entities 和 events 均使用简单的一维字符串数组，不要嵌套复杂的对象！若本轮无新内容则输出空数组。)`;
     }
+    builder.registerSection({
+      id: "memory_extraction",
+      type: "output",
+      order: 2,
+      enabled: !!memoryExtractionSection,
+      compile: () => memoryExtractionSection,
+    });
 
-    let charSpecificPrompt = "";
-    if (character.system_prompt) {
-      const specificText = this.replaceMacros(character.system_prompt, macroParams);
-      charSpecificPrompt = formatSectionText("charSystem", "", specificText, true);
-    }
-
-    let mesExampleSection = "";
-    if (character.mes_example) {
-      const mesExampleVal = this.replaceMacros(character.mes_example, macroParams);
-      mesExampleSection = formatSectionText("mesExample", "=== 对话与例句示例 (Dialogue Examples) ===", mesExampleVal, true);
-    }
-
-    let jailbreakSection = "";
-    if (
-      settings.promptConfig?.useJailbreak &&
-      settings.promptConfig?.jailbreakPrompt
-    ) {
-      const jailbreakText = this.replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams);
-      jailbreakSection = formatSectionText("jailbreak", "", jailbreakText, true);
-    }
-
-    let postHistoryContent = "";
-    if (
-      settings.promptConfig?.usePostHistory &&
-      settings.promptConfig?.postHistoryPrompt
-    ) {
-      postHistoryContent += this.replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams);
-    }
-
-    if (character.post_history_instructions) {
-      const charPostHistory = this.replaceMacros(character.post_history_instructions, macroParams);
-      if (postHistoryContent) {
-        postHistoryContent += `\n\n${charPostHistory}`;
-      } else {
-        postHistoryContent = charPostHistory;
+    // Suggestions (Output Protocol)
+    let suggestionsSection = "";
+    if (settings.enableReplySuggestions) {
+      suggestionsSection = `${settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT}`;
+      if (settings.memory) {
+        suggestionsSection += `\n（注意：在 </suggestions> 标签之后，还需继续追加 <memory_extraction> 标签，这是唯一允许 of 例外。）`;
       }
     }
+    builder.registerSection({
+      id: "reply_suggestions",
+      type: "output",
+      order: 3,
+      enabled: !!suggestionsSection,
+      compile: () => suggestionsSection,
+    });
 
-    let postHistorySection = "";
-    if (postHistoryContent) {
-      postHistorySection = formatSectionText("postHistory", "", postHistoryContent, true);
+    // Post History Instructions
+    let postHistoryContent = "";
+    if (settings.promptConfig?.usePostHistory && settings.promptConfig?.postHistoryPrompt) {
+      postHistoryContent += this.replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams);
     }
-
-    const personalityBlock = "{{personality}}";
-    const descriptionBlock = "{{description}}";
-    const scenarioBlock = "{{scenario}}";
-
-    let compiledStory =
-      settings.promptConfig?.storyString ||
-      `{{system_prompt}}
-
-${personalityBlock}
-
-${descriptionBlock}
-
-${scenarioBlock}
-
-{{mes_example}}
-
-{{char_system}}`;
-
-    let dynamicSystemExtension = `{{post_history}}`;
-
-    const descriptionVal = this.replaceMacros(
-      character.description || "",
-      macroParams,
-    );
-    const personalityVal = this.replaceMacros(
-      character.personality || "",
-      macroParams,
-    );
-    const scenarioVal = this.replaceMacros(character.scenario || "", macroParams);
-
-    if (topSection) {
-      compiledStory = compiledStory.replace(
-        /\{\{system_prompt\}\}/gi,
-        () => `${topSection}\n{{system_prompt}}`,
-      );
+    if (character.post_history_instructions) {
+      const charPostHistory = this.replaceMacros(character.post_history_instructions, macroParams);
+      postHistoryContent = postHistoryContent ? `${postHistoryContent}\n\n${charPostHistory}` : charPostHistory;
     }
-    if (beforeCharSection) {
-      compiledStory = compiledStory.replace(
-        /\{\{personality\}\}/gi,
-        () => `${beforeCharSection}\n{{personality}}`,
-      );
-    }
+    builder.registerSection({
+      id: "post_history_instructions",
+      type: "output",
+      order: 4,
+      enabled: !!postHistoryContent,
+      compile: () => postHistoryContent,
+    });
 
-    compiledStory = compiledStory
-      .replace(/\{\{system_prompt\}\}/gi, () => mainPromptReplaced + userPersonaSection)
-      .replace(/\{\{personality\}\}/gi, () => personalityVal)
-      .replace(/\{\{description\}\}/gi, () => descriptionVal)
-      .replace(/\{\{char_description\}\}/gi, () => descriptionVal)
-      .replace(/\{\{scenario\}\}/gi, () => scenarioVal)
-      .replace(/\{\{char_scenario\}\}/gi, () => scenarioVal)
-      .replace(/\{\{char_system\}\}/gi, () => charSpecificPrompt)
-      .replace(/\{\{mes_example\}\}/gi, () => mesExampleSection)
-      .replace(/\{\{example_dialogue\}\}/gi, () => mesExampleSection)
-      .replace(/\{\{diags\}\}/gi, () => mesExampleSection);
+    // 3. Compile System Prompt
+    const compiler = new PromptCompiler();
+    const compiledSystemPrompt = compiler.compile(builder.getSections(), {});
 
-    if (compiledStory.toLowerCase().includes("{{summaries}}")) {
-      compiledStory = compiledStory.replace(/\{\{summaries\}\}/gi, () => summarySection);
-    } else if (summarySection) {
-      compiledStory = compiledStory + `\n\n${summarySection}`;
-    }
-
-    if (compiledStory.toLowerCase().includes("{{lorebook_entries}}") || compiledStory.toLowerCase().includes("{{wi}}")) {
-      compiledStory = compiledStory
-        .replace(/\{\{lorebook_entries\}\}/gi, () => afterCharSection)
-        .replace(/\{\{wi\}\}/gi, () => afterCharSection);
-    } else if (afterCharSection) {
-      compiledStory = compiledStory + `\n\n${afterCharSection}`;
-    }
-
-    if (compiledStory.toLowerCase().includes("{{jailbreak}}")) {
-      compiledStory = compiledStory.replace(/\{\{jailbreak\}\}/gi, () => jailbreakSection);
-    } else if (jailbreakSection) {
-      compiledStory = compiledStory + `\n\n${jailbreakSection}`;
-    }
-
-    if (compiledStory.toLowerCase().includes("{{table_memory}}")) {
-      compiledStory = compiledStory.replace(/\{\{table_memory\}\}/gi, () => tableMemorySection);
-    } else if (compiledStory.toLowerCase().includes("{{tablememory}}")) {
-      compiledStory = compiledStory.replace(/\{\{tablememory\}\}/gi, () => tableMemorySection);
-    } else if (tableMemorySection) {
-      compiledStory = compiledStory + `\n\n${tableMemorySection}`;
-    }
-
-    if (compiledStory.toLowerCase().includes("{{relevant_memories}}")) {
-      compiledStory = compiledStory.replace(/\{\{relevant_memories\}\}/gi, () => recalledMemoriesSection);
-    } else if (compiledStory.toLowerCase().includes("{{relevantmemories}}")) {
-      compiledStory = compiledStory.replace(/\{\{relevantmemories\}\}/gi, () => recalledMemoriesSection);
-    } else if (compiledStory.toLowerCase().includes("{{recalled_memories}}")) {
-      compiledStory = compiledStory.replace(/\{\{recalled_memories\}\}/gi, () => recalledMemoriesSection);
-    } else if (recalledMemoriesSection) {
-      compiledStory = compiledStory + `\n\n${recalledMemoriesSection}`;
-    }
-
-    if (memoryExtractionSection) {
-      compiledStory = compiledStory + `\n\n${memoryExtractionSection}`;
-    }
-
-    compiledStory = compiledStory.replace(/\{\{post_history\}\}/gi, "");
-
-    const systemInstruction = compiledStory.replace(/\n{3,}/g, "\n\n").trim();
-
-    dynamicSystemExtension = dynamicSystemExtension
-      .replace(/\{\{post_history\}\}/gi, () => postHistorySection);
-
-    const dynamicInstruction = dynamicSystemExtension.replace(/\n{3,}/g, "\n\n").trim();
-
-    // recentTurns 最低保底为 1，防止用户设为 0 时 while 循环完全跳过，导致 chatHistory 永远为空
+    // 4. Build Chat History (Recent turns)
     const rawRecentTurns = typeof settings.memory?.recentTurns === 'number' && !isNaN(settings.memory.recentTurns) ? settings.memory.recentTurns : 6;
     const recentTurns = Math.max(1, rawRecentTurns);
     const totalRawMessages = chat.messages ? [...chat.messages] : [];
     const validChatMessages = totalRawMessages;
 
     let currentTurns = Math.min(recentTurns, validChatMessages.length);
-    console.log("[MemoryDebug] assemblePrompt input - messages:", chat.messages?.map(m => ({ sender: m.sender, content: m.content.slice(0, 10) })), "recentTurns:", recentTurns, "currentTurns:", currentTurns);
     let activeMessagesToSend: Message[] = [];
     let chatHistory: { role: "user" | "model" | "assistant"; name?: string; content: string }[] = [];
 
@@ -773,15 +734,6 @@ ${scenarioBlock}
         activeMessagesToSend = validChatMessages;
       }
 
-      const lastUserMsgIdx = (() => {
-        for (let i = activeMessagesToSend.length - 1; i >= 0; i--) {
-          if (activeMessagesToSend[i].sender !== "assistant") {
-            return i;
-          }
-        }
-        return -1;
-      })();
-
       const rawHistory = activeMessagesToSend.map((msg, idx) => {
         let role: "user" | "model" | "assistant" = "user";
         let content = msg.content;
@@ -792,14 +744,8 @@ ${scenarioBlock}
         if (msg.sender === "assistant") {
           role = settings.api.type === "openai-compat" ? "assistant" : "model";
           if (settings.promptConfig?.instructTemplate !== "default") {
-            const prefix = this.replaceMacros(
-              settings.promptConfig?.assistantPrefix || "",
-              macroParams,
-            );
-            const suffix = this.replaceMacros(
-              settings.promptConfig?.assistantSuffix || "",
-              macroParams,
-            );
+            const prefix = this.replaceMacros(settings.promptConfig?.assistantPrefix || "", macroParams);
+            const suffix = this.replaceMacros(settings.promptConfig?.assistantSuffix || "", macroParams);
             content = `${prefix}${content}${suffix}`;
           } else {
             if (idx === 0) {
@@ -807,34 +753,21 @@ ${scenarioBlock}
             }
           }
         } else if (msg.sender === "system") {
-          // 纯底层原则：移除硬编码 [系统旁白:] 前缀。
-          // role 保持 "user" 以维持严格 user/assistant 交替（兼容严格要求交替的 API）。
-          // 如需 system role，用户可通过 instruct 模板自定义。
           role = "user";
           content = msg.content;
         } else {
           role = "user";
           let msgContent = msg.content;
           if (settings.promptConfig?.instructTemplate !== "default") {
-            const prefix = this.replaceMacros(
-              settings.promptConfig?.userPrefix || "",
-              macroParams,
-            );
-            const suffix = this.replaceMacros(
-              settings.promptConfig?.userSuffix || "",
-              macroParams,
-            );
+            const prefix = this.replaceMacros(settings.promptConfig?.userPrefix || "", macroParams);
+            const suffix = this.replaceMacros(settings.promptConfig?.userSuffix || "", macroParams);
             content = `${prefix}${msgContent}${suffix}`;
           } else {
             content = msgContent;
           }
         }
 
-        return {
-          role,
-          name,
-          content,
-        };
+        return { role, name, content };
       });
 
       chatHistory = [];
@@ -850,43 +783,17 @@ ${scenarioBlock}
         }
       }
 
-      const totalTokens = this.estimateTokens(systemInstruction) + this.estimateTokens(dynamicInstruction) + chatHistory.reduce((sum, item) => sum + this.estimateTokens(item.content), 0);
+      const totalTokens = this.estimateTokens(compiledSystemPrompt) + chatHistory.reduce((sum, item) => sum + this.estimateTokens(item.content), 0);
       if (totalTokens <= SAFE_CONTEXT_LIMIT) {
         break;
       }
       currentTurns--;
     }
 
-    let finalSystem = systemInstruction;
-
-    // 📦 记忆抽取格式协议：始终注入，让 MemoryExtractor 可以持续通过 L0 积累心智词典数据
-    // 注意：与 Auto Summary 解耦——即使未开启 Auto Summary，词典也需要数据才能支撑 recall 功能
-    // 此处只要求 AI 输出结构化标签，不强制 AI 改变正文风格
-    {
-      const memoryProtocol = [
-        `=== 📦 记忆抽取协议 ===`,
-        `在扮演正文末尾追加（不得省略）：`,
-        `<memory_extraction>{"entities":["本轮新出现的人名/地名/物品名"],"events":["本轮新发生的关键事件"]}</memory_extraction>`,
-        `（若本轮无新内容则输出空数组：<memory_extraction>{"entities":[],"events":[]}</memory_extraction>）`,
-      ].join("\n");
-      finalSystem += `\n\n${memoryProtocol}`;
-    }
-
-    // 📝 回复走向提示词：独立注入，不与记忆协议混合，避免 AI 混淆输出顺序
-    if (settings.enableReplySuggestions) {
-      finalSystem += `\n\n${settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT}`;
-      // 当同时开启记忆协议时，覆盖 suggestions 提示词中"末尾禁止任何内容"的限制，
-      // 明确告知 AI 在 </suggestions> 后还需追加 <memory_extraction> 标签
-      finalSystem += `\n（注意：在 </suggestions> 标签之后，还需继续追加 <memory_extraction> 标签，这是唯一允许的例外。）`;
-    }
-
-    console.log("[MemoryDebug] assemblePrompt output - history:", chatHistory);
-
-    const finalSystemPrompt = (finalSystem + reasoningGuidance).trim();
     const finalMessages = [
       {
         role: "system",
-        content: [finalSystemPrompt, dynamicInstruction].filter(Boolean).join("\n\n"),
+        content: compiledSystemPrompt,
       },
       ...chatHistory.map((h) => {
         const msgObj: any = { role: h.role === "model" ? "assistant" : h.role, content: h.content };
@@ -896,8 +803,8 @@ ${scenarioBlock}
     ];
 
     return {
-      systemInstruction: finalSystemPrompt,
-      dynamicInstruction,
+      systemInstruction: compiledSystemPrompt,
+      dynamicInstruction: "",
       history: chatHistory,
       userInput,
       messages: finalMessages,

@@ -18,6 +18,7 @@ export {
 } from "./database.test";
 
 export { testPromptBuilder, testPromptBuilderSystemMerging } from "./promptBuilder.test";
+export { testPromptRuntime, testPromptServiceIntegration } from "./promptRuntime.test";
 
 export { testPngCardParser } from "./cardParser.test";
 
