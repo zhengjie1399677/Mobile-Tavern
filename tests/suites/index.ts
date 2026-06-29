@@ -83,3 +83,5 @@ export {
   testMemoryStateTable,
   testMemorySummary,
 } from "./memoryStageC.test";
+
+export { testMemoryE2E } from "./memoryE2E.test";

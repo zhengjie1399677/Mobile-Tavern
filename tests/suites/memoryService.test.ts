@@ -1082,12 +1082,12 @@ export async function testMemoryRecall() {
   // === 6.1 recall() 主入口 ===
   console.log("  [6.1] recall()...");
 
-  // 无词典 → 返回空
+  // 无词典 + 无消息 → 返回空（兜底召回也无消息可取）
   const storage1 = createMockStorage();
   const recall1 = new MemoryRecall(storage1 as any);
 
   const empty = await recall1.recall("sess_1", "任意消息");
-  assert(empty.length === 0, "recall with empty dict returns empty");
+  assert(empty.length === 0, "recall with empty dict AND empty messages returns empty");
 
   // 有词典 + 当前消息命中 → 召回
   const storage2 = createMockStorage();
@@ -1297,6 +1297,58 @@ export async function testMemoryRecall() {
   assert(topK2[0].score >= topK2[1].score, "Results should be sorted by score descending");
 
   console.log("  ✔ top-K limit verified");
+
+  // === 6.6 泛指问句兜底召回（E-1 修复） ===
+  console.log("  [6.6] fallback recall for vague queries...");
+
+  const storage6 = createMockStorage();
+  const recall6 = new MemoryRecall(storage6 as any);
+
+  // 预置 10 条消息（turnIndex 0-9），无词典
+  // 无词典 → queryTags 必为空 → 触发兜底召回
+  for (let i = 0; i < 10; i++) {
+    await storage6.appendMessage({
+      id: `fb_${i}`,
+      sessionId: "sess_fb",
+      role: i % 2 === 0 ? "user" : "assistant",
+      content: `历史消息 ${i}`,
+      createdAt: 1000 + i,
+      turnIndex: i,
+      tags: [],
+      extractSource: "none",
+    });
+  }
+
+  // currentTurnIndex=10, excludeRecentN=5 → 排除 turnIndex >= 5 的消息
+  // 兜底应召回 turnIndex=4 的消息（最近 N 轮外的最新 1 条）
+  const fallback = await recall6.recall("sess_fb", "还记得我们之前聊了什么吗？", {
+    currentTurnIndex: 10,
+    excludeRecentN: 5,
+  });
+
+  assert(fallback.length === 1, "兜底召回应返回 1 条消息");
+  assert(fallback[0].turnIndex === 4, "应召回 turnIndex=4 的消息（最近 N 轮外最新）");
+  assert(fallback[0].hitCount === 0, "兜底召回 hitCount 应为 0");
+  assert(Array.isArray(fallback[0].hitTags) && fallback[0].hitTags.length === 0, "兜底召回 hitTags 应为空");
+  assert(fallback[0].score === 0, "兜底召回 score 应为 0（标记为兜底）");
+  assert(fallback[0].content === "历史消息 4", "应召回 turnIndex=4 的内容");
+
+  // excludeRecentN=0 → 不排除，兜底召回最新一条（turnIndex=9）
+  const fallbackNoExclude = await recall6.recall("sess_fb", "任意泛指问句", {
+    currentTurnIndex: 10,
+    excludeRecentN: 0,
+  });
+  assert(fallbackNoExclude.length === 1, "excludeRecentN=0 时仍兜底召回 1 条");
+  assert(fallbackNoExclude[0].turnIndex === 9, "不排除时召回最新一条 (turnIndex=9)");
+
+  // 消息数不足（全部消息都在 excludeRecentN 范围内）→ 返回空
+  const fallbackInsufficient = await recall6.recall("sess_fb", "泛指问句", {
+    currentTurnIndex: 10,
+    excludeRecentN: 20, // 排除所有 turnIndex >= -10 的消息（即全部）
+  });
+  assert(fallbackInsufficient.length === 0, "全部消息在排除范围内时返回空");
+
+  console.log("  ✔ fallback recall for vague queries verified");
 
   console.log("✔ MemoryRecall verified successfully!");
 }

@@ -284,16 +284,22 @@ export class MemoryStateTable {
             });
           } else {
             // updateRow("sheet", {"修改列": "新值"}) — 默认更新第一行
+            // E-4 修复：空表单参数 updateRow 不再"无中生有"插入半空行，
+            // 改为 no-op 静默跳过，与"不存在表名静默降级"的设计契约一致
+            // （避免数据污染，AI 误用 updateRow 不会产生半空行）
             if (sheet.rows.length === 0) {
-              sheet.rows.push(sheet.columns.map(() => ''));
+              console.warn(
+                `[MemoryStateTable] updateRow single-param skipped: sheet "${sheetName}" is empty (no-op to avoid half-empty row pollution)`
+              );
+            } else {
+              Object.entries(p1).forEach(([key, val]) => {
+                const colIdx = sheet.columns.indexOf(key);
+                if (colIdx !== -1) {
+                  sheet.rows[0][colIdx] = String(val);
+                  hasChanges = true;
+                }
+              });
             }
-            Object.entries(p1).forEach(([key, val]) => {
-              const colIdx = sheet.columns.indexOf(key);
-              if (colIdx !== -1) {
-                sheet.rows[0][colIdx] = String(val);
-                hasChanges = true;
-              }
-            });
           }
         } else if (actionType === 'insertrow') {
           // insertRow("sheet", {"col1": "val1"})

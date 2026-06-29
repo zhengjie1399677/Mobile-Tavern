@@ -254,6 +254,37 @@ insertRow("物品", {"物品名": "梅子酒", "数量": "1"})
 
   console.log("  ✔ destroy lifecycle verified");
 
+  // === 7.13 空表 updateRow 单参数 no-op（E-4 修复） ===
+  console.log("  [7.13] empty sheet updateRow single-param no-op...");
+
+  const sheets11 = stateTable.initDefaultSheets("艾莉丝");
+  // 物品表初始为空
+  const inventoryBefore = sheets11.find((s) => s.name === "物品")!;
+  assert(inventoryBefore.rows.length === 0, "物品表初始应为空");
+
+  // 对空表执行 updateRow 单参数：应静默跳过，不插入半空行
+  const result8 = stateTable.processTableMemory(
+    sheets11,
+    `updateRow("物品", {"物品名": "梅子酒", "数量": "1"})`
+  );
+  assert(result8.hasChanges === false, "空表 updateRow 单参数应 no-op (hasChanges=false)");
+  const inventoryAfter = result8.updatedMemory.find((s) => s.name === "物品")!;
+  assert(inventoryAfter.rows.length === 0, "空表 updateRow 单参数不应插入半空行");
+  // 指令残留仍被清理
+  assert(result8.cleanContent === "", "指令残留仍应被清理");
+
+  // 对照：非空表 updateRow 单参数仍正常工作
+  const sheets12 = stateTable.initDefaultSheets("艾莉丝");
+  const result9 = stateTable.processTableMemory(
+    sheets12,
+    `updateRow("关系", {"好感度": "88"})`
+  );
+  assert(result9.hasChanges === true, "非空表 updateRow 单参数应正常生效");
+  const relationAfter = result9.updatedMemory.find((s) => s.name === "关系")!;
+  assert(relationAfter.rows[0][1] === "88", "非空表 updateRow 单参数应更新第一行");
+
+  console.log("  ✔ empty sheet updateRow single-param no-op verified");
+
   console.log("✔ MemoryStateTable verified successfully!");
 }
 
