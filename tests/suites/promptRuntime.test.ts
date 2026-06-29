@@ -4,49 +4,84 @@ import { PromptService } from "../../src/kernel/services/PromptService";
 import { assert } from "./testUtils";
 
 export function testPromptRuntime() {
-  console.log("\n--- Running Prompt Runtime (Builder & Compiler) Verification ---");
+  console.log("\n--- Running Prompt Runtime (Builder & Compiler v2.0) Verification ---");
 
   const builder = new PromptBuilder();
 
   // Test 1: Section Registration
   builder.registerSection({
     id: "rules",
-    type: "engine",
-    order: 2,
+    phase: "Engine",
     enabled: true,
-    compile: () => "Core Rules Content",
+    compile: () => ({
+      id: "rules",
+      phase: "Engine",
+      type: "Instruction",
+      priority: "High",
+      mutable: false,
+      title: "Core Rules",
+      content: "Core Rules Content",
+    }),
   });
 
   builder.registerSection({
     id: "safety",
-    type: "engine",
-    order: 1,
+    phase: "Engine",
     enabled: true,
-    compile: () => "Safety Content",
+    compile: () => ({
+      id: "safety",
+      phase: "Engine",
+      type: "Instruction",
+      priority: "Highest",
+      mutable: false,
+      title: "Safety",
+      content: "Safety Content",
+    }),
   });
 
   builder.registerSection({
     id: "persona",
-    type: "character",
-    order: 1,
+    phase: "Context",
     enabled: true,
-    compile: () => "Character Persona Content",
+    compile: () => ({
+      id: "persona",
+      phase: "Context",
+      type: "Context",
+      priority: "High",
+      mutable: false,
+      title: "Persona",
+      content: "Character Persona Content",
+    }),
   });
 
   builder.registerSection({
     id: "disabled_section",
-    type: "context",
-    order: 1,
+    phase: "Context",
     enabled: false,
-    compile: () => "This should not appear",
+    compile: () => ({
+      id: "disabled_section",
+      phase: "Context",
+      type: "Context",
+      priority: "Normal",
+      mutable: true,
+      title: "Disabled",
+      content: "This should not appear",
+    }),
   });
 
   builder.registerSection({
     id: "output_protocol",
-    type: "output",
-    order: 1,
+    phase: "Protocol",
     enabled: true,
-    compile: () => "Output Protocol Content",
+    compile: () => ({
+      id: "output_protocol",
+      phase: "Protocol",
+      type: "Instruction",
+      priority: "Highest",
+      mutable: false,
+      title: "Output Protocol",
+      content: "Output Protocol Content",
+    }),
   });
 
   const sections = builder.getSections();
@@ -54,29 +89,42 @@ export function testPromptRuntime() {
 
   // Test 2: Compiler Ordering and Headers
   const compiler = new PromptCompiler();
-  const compiled = compiler.compile(sections, {});
+  const context = {
+    settings: {
+      api: { modelName: "deepseek-chat" },
+    },
+    enabledFeatures: {
+      tableMemory: false,
+      replySuggestions: false,
+      memoryRecall: false,
+    },
+  } as any;
 
-  assert(compiled.includes("==================================================\nENGINE\n=================================================="), "Has ENGINE header");
-  assert(compiled.includes("==================================================\nCHARACTER\n=================================================="), "Has CHARACTER header");
-  assert(compiled.includes("==================================================\nOUTPUT PROTOCOL\n=================================================="), "Has OUTPUT PROTOCOL header");
-  assert(!compiled.includes("CONTEXT"), "Should not have CONTEXT header");
-  assert(!compiled.includes("STYLE"), "Should not have STYLE header");
+  const compiled = compiler.compile(sections, context);
 
-  // Check internal ordering
+  // The order must be ENGINE (safety -> rules) -> CONTEXT (persona) -> PROTOCOL (output_protocol)
+  // Check XML tags are rendered correctly with new attributes
+  assert(compiled.includes('<section id="safety" phase="Engine" type="Instruction" priority="Highest" mutable="false" title="Safety">'), "Has safety XML tag");
+  assert(compiled.includes('<section id="rules" phase="Engine" type="Instruction" priority="High" mutable="false" title="Core Rules">'), "Has rules XML tag");
+  assert(compiled.includes('<section id="persona" phase="Context" type="Context" priority="High" mutable="false" title="Persona">'), "Has persona XML tag");
+  assert(compiled.includes('<section id="output_protocol" phase="Protocol" type="Instruction" priority="Highest" mutable="false" title="Output Protocol">'), "Has output_protocol XML tag");
+  assert(!compiled.includes("disabled_section"), "Should not compile disabled section");
+
+  // Check internal ordering: Safety (Highest) should be compiled before Rules (High)
   const safetyIdx = compiled.indexOf("Safety Content");
   const rulesIdx = compiled.indexOf("Core Rules Content");
   const personaIdx = compiled.indexOf("Character Persona Content");
   const outputIdx = compiled.indexOf("Output Protocol Content");
 
-  assert(safetyIdx < rulesIdx, "Safety (order 1) should be compiled before Rules (order 2)");
-  assert(rulesIdx < personaIdx, "Engine sections should be compiled before Character sections");
-  assert(personaIdx < outputIdx, "Character sections should be compiled before Output sections");
+  assert(safetyIdx < rulesIdx, "Safety should be before Rules");
+  assert(rulesIdx < personaIdx, "Engine should be before Context");
+  assert(personaIdx < outputIdx, "Context should be before Protocol");
 
-  console.log("✔ Prompt Runtime Builder & Compiler verified!");
+  console.log("✔ Prompt Runtime Builder & Compiler v2.0 verified!");
 }
 
 export function testPromptServiceIntegration() {
-  console.log("\n--- Running Prompt Service Integration Verification ---");
+  console.log("\n--- Running Prompt Service Integration v2.0 Verification ---");
 
   const service = new PromptService();
   const mockKernel = {
@@ -121,7 +169,7 @@ export function testPromptServiceIntegration() {
       type: "openai-compat",
       baseUrl: "https://api.openai.com",
       apiKey: "key",
-      modelName: "gpt-4",
+      modelName: "deepseek-chat",
     },
     memory: {
       recentTurns: 5,
@@ -145,20 +193,20 @@ export function testPromptServiceIntegration() {
     recalledMemories: []
   });
 
-  console.log("=== DEBUG SYSTEM PROMPT ===\n", result.systemInstruction, "\n===========================");
+  // Verify compiled XML structure
+  assert(result.systemInstruction.includes('<section id="core_rules" phase="Engine" type="Instruction" priority="Highest" mutable="false" title="Core Rules">'), "Contains core_rules XML tag");
+  assert(result.systemInstruction.includes('<section id="char_persona" phase="Context" type="Context" priority="High" mutable="false" title="Character Persona">'), "Contains char_persona XML tag");
+  assert(result.systemInstruction.includes('<section id="summary" phase="Context" type="Context" priority="High" mutable="true" title="Story Timeline Summary">'), "Contains summary XML tag");
+  assert(result.systemInstruction.includes('<section id="jailbreak" phase="Generation" type="Instruction" priority="High" mutable="false" title="Jailbreak">'), "Contains jailbreak XML tag");
 
-  assert(result.systemInstruction.includes("=================================================="), "Should contain category dividers");
-  assert(result.systemInstruction.includes("ENGINE"), "Should contain ENGINE category");
-  assert(result.systemInstruction.includes("CHARACTER"), "Should contain CHARACTER category");
-  assert(result.systemInstruction.includes("CONTEXT"), "Should contain CONTEXT category");
-  assert(result.systemInstruction.includes("OUTPUT PROTOCOL"), "Should contain OUTPUT PROTOCOL category");
-
+  // Verify specific contents are compiled in the right places
   assert(result.systemInstruction.includes("System rules."), "Contains mainPrompt");
   assert(result.systemInstruction.includes("A friendly bartender."), "Contains description");
   assert(result.systemInstruction.includes("Alice met the traveler."), "Contains summaries");
   assert(result.systemInstruction.includes("Jailbreak text."), "Contains jailbreak");
 
+  // Verify that dialogue history is correctly returned
   assert(result.history.length === 2, "Should return 2 history messages");
 
-  console.log("✔ Prompt Service integration with Prompt Runtime verified!");
+  console.log("✔ Prompt Service integration with Prompt Runtime v2.0 verified!");
 }

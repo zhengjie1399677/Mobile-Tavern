@@ -409,10 +409,33 @@ export class PromptService implements IPromptService {
     }
 
     // Roleplay Mode = True (Default)
+    let repetitionDetected = false;
+    if (chat.messages && chat.messages.length >= 4) {
+      const assistantMsgs = chat.messages.filter((m) => m.sender === "assistant");
+      if (assistantMsgs.length >= 2) {
+        const last = assistantMsgs[assistantMsgs.length - 1].content.trim();
+        const prev = assistantMsgs[assistantMsgs.length - 2].content.trim();
+        if (last === prev && last.length > 0) {
+          repetitionDetected = true;
+        }
+      }
+    }
+
+    const context: RuntimeContext = {
+      settings,
+      modelCapabilities: {},
+      enabledFeatures: {
+        tableMemory: !!settings.enableTableMemory,
+        replySuggestions: !!settings.enableReplySuggestions,
+        memoryRecall: recalledMemories && recalledMemories.length > 0,
+      },
+      repetitionDetected,
+    };
+
     const builder = new PromptBuilder();
 
     // ==================================================
-    // ENGINE SECTION
+    // 1. ENGINE Category (Instruction, mutable: false)
     // ==================================================
     let mainPromptReplaced = "";
     if (settings.promptConfig?.mainPrompt) {
@@ -425,13 +448,19 @@ export class PromptService implements IPromptService {
       mainPromptReplaced = mainPromptReplaced ? `${mainPromptReplaced}\n\n${compiledBlocks}` : compiledBlocks;
     }
 
-    // CoreRules
     builder.registerSection({
       id: "core_rules",
-      type: "engine",
-      order: 1,
+      phase: "Engine",
       enabled: !!mainPromptReplaced,
-      compile: () => mainPromptReplaced,
+      compile: () => ({
+        id: "core_rules",
+        phase: "Engine",
+        type: "Instruction",
+        priority: "Highest",
+        mutable: false,
+        title: "Core Rules",
+        content: mainPromptReplaced,
+      }),
     });
 
     const modelName = (settings.api?.modelName || "").toLowerCase();
@@ -443,69 +472,100 @@ export class PromptService implements IPromptService {
       ? (settings.promptConfig?.reasoningGuidancePrompt || DEFAULT_REASONING_GUIDANCE_PROMPT)
       : "";
 
-    // Constraints (Reasoning Guidance)
     builder.registerSection({
       id: "reasoning_guidance",
-      type: "engine",
-      order: 2,
+      phase: "Engine",
       enabled: !!reasoningGuidance,
-      compile: () => reasoningGuidance,
+      compile: () => ({
+        id: "reasoning_guidance",
+        phase: "Engine",
+        type: "Instruction",
+        priority: "High",
+        mutable: false,
+        title: "Reasoning Guidance",
+        content: reasoningGuidance,
+      }),
     });
 
     // ==================================================
-    // CHARACTER SECTION
+    // 2. CONTEXT Category (Context, mixed mutability)
     // ==================================================
-    // User Persona
     let userPersonaSection = "";
     if (settings.userInfo) {
-      userPersonaSection = `=== User Persona ===\n${this.replaceMacros(settings.userInfo, macroParams)}`;
+      userPersonaSection = this.replaceMacros(settings.userInfo, macroParams);
     }
     builder.registerSection({
       id: "user_persona",
-      type: "character",
-      order: 1,
+      phase: "Context",
       enabled: !!userPersonaSection,
-      compile: () => userPersonaSection,
+      compile: () => ({
+        id: "user_persona",
+        phase: "Context",
+        type: "Context",
+        priority: "High",
+        mutable: false,
+        title: "User Persona",
+        content: userPersonaSection,
+      }),
     });
 
-    // Persona (Description & Personality)
     const descriptionVal = this.replaceMacros(character.description || "", macroParams);
     const personalityVal = this.replaceMacros(character.personality || "", macroParams);
+    const charPersonaContent = [
+      descriptionVal ? `=== Character Description ===\n${descriptionVal}` : "",
+      personalityVal ? `=== Character Personality ===\n${personalityVal}` : ""
+    ].filter(Boolean).join("\n\n");
+
     builder.registerSection({
       id: "char_persona",
-      type: "character",
-      order: 2,
-      enabled: !!(descriptionVal || personalityVal),
-      compile: () => [
-        descriptionVal ? `=== Character Description ===\n${descriptionVal}` : "",
-        personalityVal ? `=== Character Personality ===\n${personalityVal}` : ""
-      ].filter(Boolean).join("\n\n"),
+      phase: "Context",
+      enabled: !!charPersonaContent,
+      compile: () => ({
+        id: "char_persona",
+        phase: "Context",
+        type: "Context",
+        priority: "High",
+        mutable: false,
+        title: "Character Persona",
+        content: charPersonaContent,
+      }),
     });
 
-    // Scenario
     const scenarioVal = this.replaceMacros(character.scenario || "", macroParams);
     builder.registerSection({
       id: "char_scenario",
-      type: "character",
-      order: 3,
+      phase: "Context",
       enabled: !!scenarioVal,
-      compile: () => `=== Scenario ===\n${scenarioVal}`,
+      compile: () => ({
+        id: "char_scenario",
+        phase: "Context",
+        type: "Context",
+        priority: "High",
+        mutable: false,
+        title: "Scenario",
+        content: scenarioVal,
+      }),
     });
 
-    // World (Character specific system prompt)
     let charSpecificPrompt = "";
     if (character.system_prompt) {
       charSpecificPrompt = this.replaceMacros(character.system_prompt, macroParams);
     }
     builder.registerSection({
       id: "char_specific_prompt",
-      type: "character",
-      order: 4,
+      phase: "Context",
       enabled: !!charSpecificPrompt,
-      compile: () => charSpecificPrompt,
+      compile: () => ({
+        id: "char_specific_prompt",
+        phase: "Context",
+        type: "Context",
+        priority: "High",
+        mutable: false,
+        title: "Character Specific Prompt",
+        content: charSpecificPrompt,
+      }),
     });
 
-    // Lorebook
     const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
     const activeEntries = this.getTriggeredLorebookEntries(chat.messages || [], userInput, allEntries);
     const formatEntryContent = (entry: LorebookEntry): string => {
@@ -527,18 +587,89 @@ export class PromptService implements IPromptService {
       return sorted.map((e) => formatEntryContent(e)).join("\n\n");
     };
     const lorebookText = formatEntryBlock(activeEntries);
+
     builder.registerSection({
       id: "lorebook",
-      type: "character",
-      order: 5,
+      phase: "Context",
       enabled: !!lorebookText,
-      compile: () => `=== Reference Lore ===\n${lorebookText}`,
+      compile: () => ({
+        id: "lorebook",
+        phase: "Context",
+        type: "Context",
+        priority: "Normal",
+        mutable: true,
+        title: "Reference Lore",
+        content: lorebookText,
+      }),
     });
 
     // ==================================================
-    // CONTEXT SECTION
+    // 3. GENERATION Category (Style/Constraints, mutable: false)
     // ==================================================
-    // Summary
+    let mesExampleSection = "";
+    if (character.mes_example) {
+      mesExampleSection = this.replaceMacros(character.mes_example, macroParams);
+    }
+    builder.registerSection({
+      id: "dialogue_examples",
+      phase: "Generation",
+      enabled: !!mesExampleSection,
+      compile: () => ({
+        id: "dialogue_examples",
+        phase: "Generation",
+        type: "Reference",
+        priority: "Normal",
+        mutable: false,
+        title: "Dialogue Examples",
+        content: mesExampleSection,
+      }),
+    });
+
+    let jailbreakSection = "";
+    if (settings.promptConfig?.useJailbreak && settings.promptConfig?.jailbreakPrompt) {
+      jailbreakSection = this.replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams);
+    }
+    builder.registerSection({
+      id: "jailbreak",
+      phase: "Generation",
+      enabled: !!jailbreakSection,
+      compile: () => ({
+        id: "jailbreak",
+        phase: "Generation",
+        type: "Instruction",
+        priority: "High",
+        mutable: false,
+        title: "Jailbreak",
+        content: jailbreakSection,
+      }),
+    });
+
+    let postHistoryContent = "";
+    if (settings.promptConfig?.usePostHistory && settings.promptConfig?.postHistoryPrompt) {
+      postHistoryContent += this.replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams);
+    }
+    if (character.post_history_instructions) {
+      const charPostHistory = this.replaceMacros(character.post_history_instructions, macroParams);
+      postHistoryContent = postHistoryContent ? `${postHistoryContent}\n\n${charPostHistory}` : charPostHistory;
+    }
+    builder.registerSection({
+      id: "post_history_instructions",
+      phase: "Generation",
+      enabled: !!postHistoryContent,
+      compile: () => ({
+        id: "post_history_instructions",
+        phase: "Generation",
+        type: "Instruction",
+        priority: "Highest",
+        mutable: false,
+        title: "Post History Instructions",
+        content: postHistoryContent,
+      }),
+    });
+
+    // ==================================================
+    // 4. MEMORY Sub-category (under Context Category, mutable: true)
+    // ==================================================
     let summaryText = "";
     if (chat.summaries && chat.summaries.length > 0) {
       summaryText = chat.summaries
@@ -547,13 +678,19 @@ export class PromptService implements IPromptService {
     }
     builder.registerSection({
       id: "summary",
-      type: "context",
-      order: 1,
+      phase: "Context",
       enabled: !!summaryText,
-      compile: () => `=== 剧情时间线摘要 ===\n${summaryText}`,
+      compile: () => ({
+        id: "summary",
+        phase: "Context",
+        type: "Context",
+        priority: "High",
+        mutable: true,
+        title: "Story Timeline Summary",
+        content: summaryText,
+      }),
     });
 
-    // State (Table Memory)
     let tableMemorySection = "";
     if (settings.enableTableMemory) {
       let activeSheets = chat.tableMemory || [];
@@ -565,7 +702,7 @@ export class PromptService implements IPromptService {
       }
       const enabledSheets = activeSheets.filter(s => s.enable);
       if (enabledSheets.length > 0) {
-        const sheetsMarkdown = enabledSheets.map(sheet => {
+        tableMemorySection = enabledSheets.map(sheet => {
           const title = `### 表格：${sheet.name}`;
           const desc = sheet.description ? `*用途说明: ${sheet.description}*` : "";
           const header = `| ${sheet.columns.join(" | ")} |`;
@@ -573,86 +710,50 @@ export class PromptService implements IPromptService {
           const rows = sheet.rows.map(row => `| ${row.join(" | ")} |`).join("\n");
           return `${title}\n${desc}\n${header}\n${divider}\n${rows}`;
         }).join("\n\n");
-
-        tableMemorySection = `=== 🎯 长期状态与记忆档案柜 ===
-以下是当前扮演会话中记录的结构化状态与记忆表格。
-在生成下一轮扮演回复时，请根据聊天发展，在回复内容的【最末尾】输出更新指令伪代码（由你自主决定是否更新，只能包含合法可执行的代码，不要添加多余文字解释），指令格式如下：
-- 若更新已有属性：updateRow("表格名", {"属性名": "要修改的值"}) 或者特定定位 updateRow("表格名", {"查找列名": "查找值"}, {"要修改的列名": "新值"})
-- 若新增属性/记录：insertRow("表格名", {"列1": "值1", "列2": "值2"})
-- 若删除属性/记录：deleteRow("表格名", {"定位列": "值"})
-指令示例（必须单独占行，置于你的回复文本最末尾）：
-updateRow("好感关系表", {"好感度": "85", "当前关系": "心动"})
-
-当前数据表格内容如下:
-${sheetsMarkdown}
-==================================`;
       }
     }
     builder.registerSection({
       id: "table_memory",
-      type: "context",
-      order: 2,
+      phase: "Context",
       enabled: !!tableMemorySection,
-      compile: () => tableMemorySection,
+      compile: () => ({
+        id: "table_memory",
+        phase: "Context",
+        type: "Context",
+        priority: "Normal",
+        mutable: true,
+        title: "Table Memory",
+        content: tableMemorySection,
+      }),
     });
 
-    // Relevant Memory
     let recalledMemoriesSection = "";
     if (recalledMemories && recalledMemories.length > 0) {
-      const recallText = recalledMemories
+      recalledMemoriesSection = recalledMemories
         .map((m: any) => `[第 ${m.turnIndex} 轮 - ${m.role === 'user' ? '用户' : '角色'}]: ${m.content}`)
         .join("\n");
-      recalledMemoriesSection = `=== 🧠 历史相关记忆片段 ===
-以下为从历史对话中召回的碎屑片段，仅用作本次生成的细节参考以确保前后情节一致连贯。注意：它们是离散的历史，请勿当成最新的连续对话：
-${recallText}
-==================================`;
     }
     builder.registerSection({
       id: "recalled_memories",
-      type: "context",
-      order: 3,
+      phase: "Context",
       enabled: !!recalledMemoriesSection,
-      compile: () => recalledMemoriesSection,
+      compile: () => ({
+        id: "recalled_memories",
+        phase: "Context",
+        type: "Context",
+        priority: "Low",
+        mutable: true,
+        title: "Relevant Memories",
+        content: recalledMemoriesSection,
+      }),
     });
 
     // ==================================================
-    // STYLE SECTION
+    // 5. PROTOCOL Category (Structured schemas, mutable: false)
     // ==================================================
-    // Dialogue Examples (Few-shot)
-    let mesExampleSection = "";
-    if (character.mes_example) {
-      const mesExampleVal = this.replaceMacros(character.mes_example, macroParams);
-      mesExampleSection = `=== 对话与例句示例 (Dialogue Examples) ===\n${mesExampleVal}`;
-    }
-    builder.registerSection({
-      id: "dialogue_examples",
-      type: "style",
-      order: 1,
-      enabled: !!mesExampleSection,
-      compile: () => mesExampleSection,
-    });
-
-    // ==================================================
-    // OUTPUT SECTION
-    // ==================================================
-    // Jailbreak (Safety)
-    let jailbreakSection = "";
-    if (settings.promptConfig?.useJailbreak && settings.promptConfig?.jailbreakPrompt) {
-      jailbreakSection = this.replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams);
-    }
-    builder.registerSection({
-      id: "jailbreak",
-      type: "output",
-      order: 1,
-      enabled: !!jailbreakSection,
-      compile: () => jailbreakSection,
-    });
-
-    // Memory Extraction (Output Protocol)
     let memoryExtractionSection = "";
     if (settings.memory) {
-      memoryExtractionSection = `=== 📦 记忆抽取协议 ===
-为了帮助系统记录故事发展，请在正文输出完毕后，提取本轮的新实体和事件。
+      memoryExtractionSection = `为了帮助系统记录故事发展，请在正文输出完毕后，提取本轮的新实体和事件。
 格式要求：使用 <memory_extraction> 标签包裹一个极简的 JSON 对象。只能包含合法 JSON，不要添加任何多余文字。若无新内容，输出空数组。
 <memory_extraction>
 {
@@ -664,50 +765,45 @@ ${recallText}
     }
     builder.registerSection({
       id: "memory_extraction",
-      type: "output",
-      order: 2,
+      phase: "Protocol",
       enabled: !!memoryExtractionSection,
-      compile: () => memoryExtractionSection,
+      compile: () => ({
+        id: "memory_extraction",
+        phase: "Protocol",
+        type: "Instruction",
+        priority: "Normal",
+        mutable: false,
+        title: "Memory Extraction Protocol",
+        content: memoryExtractionSection,
+      }),
     });
 
-    // Suggestions (Output Protocol)
     let suggestionsSection = "";
     if (settings.enableReplySuggestions) {
       suggestionsSection = `${settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT}`;
       if (settings.memory) {
-        suggestionsSection += `\n（注意：在 </suggestions> 标签之后，还需继续追加 <memory_extraction> 标签，这是唯一允许 of 例外。）`;
+        suggestionsSection += `\n（注意：在 </suggestions> 标签之后，还需继续追加 <memory_extraction> 标签，这是唯一允许的例外。）`;
       }
     }
     builder.registerSection({
       id: "reply_suggestions",
-      type: "output",
-      order: 3,
+      phase: "Protocol",
       enabled: !!suggestionsSection,
-      compile: () => suggestionsSection,
-    });
-
-    // Post History Instructions
-    let postHistoryContent = "";
-    if (settings.promptConfig?.usePostHistory && settings.promptConfig?.postHistoryPrompt) {
-      postHistoryContent += this.replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams);
-    }
-    if (character.post_history_instructions) {
-      const charPostHistory = this.replaceMacros(character.post_history_instructions, macroParams);
-      postHistoryContent = postHistoryContent ? `${postHistoryContent}\n\n${charPostHistory}` : charPostHistory;
-    }
-    builder.registerSection({
-      id: "post_history_instructions",
-      type: "output",
-      order: 4,
-      enabled: !!postHistoryContent,
-      compile: () => postHistoryContent,
+      compile: () => ({
+        id: "reply_suggestions",
+        phase: "Protocol",
+        type: "Instruction",
+        priority: "Normal",
+        mutable: false,
+        title: "Reply Suggestions Protocol",
+        content: suggestionsSection,
+      }),
     });
 
     // 3. Compile System Prompt
     const compiler = new PromptCompiler();
-    const compiledSystemPrompt = compiler.compile(builder.getSections(), {});
+    const compiledSystemPrompt = compiler.compile(builder.getSections(), context);
 
-    // 4. Build Chat History (Recent turns)
     const rawRecentTurns = typeof settings.memory?.recentTurns === 'number' && !isNaN(settings.memory.recentTurns) ? settings.memory.recentTurns : 6;
     const recentTurns = Math.max(1, rawRecentTurns);
     const totalRawMessages = chat.messages ? [...chat.messages] : [];

@@ -1,11 +1,34 @@
-export type SectionType = "engine" | "character" | "context" | "style" | "output";
+import { UserSettings } from "../../../types";
+
+export type SectionPhase = "Engine" | "Context" | "Generation" | "Protocol";
+export type SectionType = "Instruction" | "Context" | "Reference";
+export type SectionPriority = "Highest" | "High" | "Normal" | "Low";
+
+export interface RuntimeContext {
+  settings: UserSettings;
+  modelCapabilities: any;
+  enabledFeatures: {
+    tableMemory: boolean;
+    replySuggestions: boolean;
+    memoryRecall: boolean;
+  };
+  repetitionDetected?: boolean;
+}
+
+export interface PromptNode {
+  id: string;
+  phase: SectionPhase;
+  type: SectionType;
+  priority: SectionPriority;
+  mutable: boolean;
+  title: string;
+  content: string;
+  metadata?: Record<string, any>;
+}
 
 export interface PromptSection {
   id: string;
-  type: SectionType;
-  /** 在所属 type 内部的物理排序权重（升序） */
-  order: number;
+  phase: SectionPhase;
   enabled: boolean;
-  /** 动态编译函数，根据模型能力输出最终文本 */
-  compile: (capabilities: any) => string;
+  compile: (context: RuntimeContext) => PromptNode;
 }

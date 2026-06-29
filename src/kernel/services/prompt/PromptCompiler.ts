@@ -1,50 +1,102 @@
-import { PromptSection, SectionType } from "./types";
+import { PromptSection, PromptNode, RuntimeContext, SectionPriority, SectionPhase } from "./types";
+import { PromptRenderer, XMLRenderer, MarkdownRenderer } from "./PromptRenderer";
 
 export class PromptCompiler {
-  private static readonly CATEGORY_ORDER: SectionType[] = [
-    "engine",
-    "character",
-    "context",
-    "style",
-    "output"
+  private static readonly PHASE_ORDER: SectionPhase[] = [
+    "Engine",
+    "Context",
+    "Generation",
+    "Protocol"
   ];
 
-  private static readonly CATEGORY_HEADERS: Record<SectionType, string> = {
-    engine: "==================================================\nENGINE\n==================================================",
-    character: "==================================================\nCHARACTER\n==================================================",
-    context: "==================================================\nCONTEXT\n==================================================",
-    style: "==================================================\nSTYLE\n==================================================",
-    output: "==================================================\nOUTPUT PROTOCOL\n=================================================="
+  private static readonly PRIORITY_WEIGHTS: Record<SectionPriority, number> = {
+    Highest: 4,
+    High: 3,
+    Normal: 2,
+    Low: 1
   };
 
-  compile(sections: PromptSection[], capabilities: any): string {
+  private static readonly SAFE_CONTEXT_LIMIT = 12000;
+
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / 3);
+  }
+
+  compile(sections: PromptSection[], context: RuntimeContext): string {
+    // Phase 1 & 2: Collect & Filter
     const activeSections = sections.filter(s => s.enabled);
-    const compiledBlocks: string[] = [];
+    const nodes: PromptNode[] = [];
 
-    for (const type of PromptCompiler.CATEGORY_ORDER) {
-      const typeSections = activeSections
-        .filter(s => s.type === type)
-        .sort((a, b) => a.order - b.order);
-
-      const sectionTexts: string[] = [];
-      for (const section of typeSections) {
-        try {
-          const text = section.compile(capabilities).trim();
-          if (text) {
-            sectionTexts.push(text);
-          }
-        } catch (err) {
-          console.error(`[PromptCompiler] Error compiling section ${section.id}:`, err);
+    for (const section of activeSections) {
+      try {
+        const node = section.compile(context);
+        if (node && node.content.trim()) {
+          nodes.push(node);
         }
-      }
-
-      if (sectionTexts.length > 0) {
-        const header = PromptCompiler.CATEGORY_HEADERS[type];
-        const content = sectionTexts.join("\n\n");
-        compiledBlocks.push(`${header}\n\n${content}`);
+      } catch (err) {
+        console.error(`[PromptCompiler] Error compiling section ${section.id}:`, err);
       }
     }
 
-    return compiledBlocks.join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
+    // Helper to sort a list of nodes by Phase and then by Priority
+    const sortNodes = (nodesList: PromptNode[]): PromptNode[] => {
+      const sorted: PromptNode[] = [];
+      for (const phase of PromptCompiler.PHASE_ORDER) {
+        const phaseNodes = nodesList.filter(n => n.phase === phase);
+        phaseNodes.sort((a, b) => {
+          const weightA = PromptCompiler.PRIORITY_WEIGHTS[a.priority] || 2;
+          const weightB = PromptCompiler.PRIORITY_WEIGHTS[b.priority] || 2;
+          if (weightB !== weightA) {
+            return weightB - weightA;
+          }
+          return a.id.localeCompare(b.id);
+        });
+        sorted.push(...phaseNodes);
+      }
+      return sorted;
+    };
+
+    // Phase 3: Sort & Pack (Cache-Optimized Layout: Static first, then Dynamic)
+    const staticNodes = nodes.filter(n => !n.mutable);
+    const dynamicNodes = nodes.filter(n => n.mutable);
+
+    const sortedStatic = sortNodes(staticNodes);
+    const sortedDynamic = sortNodes(dynamicNodes);
+
+    const finalNodes = [...sortedStatic, ...sortedDynamic];
+
+    // Phase 4: Render
+    const modelName = (context.settings.api?.modelName || "").toLowerCase();
+    const useMarkdown = modelName.includes("gpt-3.5") || modelName.includes("llama-2");
+    const renderer: PromptRenderer = useMarkdown ? new MarkdownRenderer() : new XMLRenderer();
+
+    let compiledText = renderer.render(finalNodes, context);
+
+    // Token Budget Defense (Trimming)
+    let estimatedTokens = this.estimateTokens(compiledText);
+    if (estimatedTokens > PromptCompiler.SAFE_CONTEXT_LIMIT) {
+      console.warn(`[PromptCompiler] Compiled prompt tokens (${estimatedTokens}) exceeds limit (${PromptCompiler.SAFE_CONTEXT_LIMIT}). Trimming...`);
+      
+      const trimmableNodes = finalNodes.filter(n => n.type !== "Instruction");
+      trimmableNodes.sort((a, b) => {
+        const weightA = PromptCompiler.PRIORITY_WEIGHTS[a.priority] || 2;
+        const weightB = PromptCompiler.PRIORITY_WEIGHTS[b.priority] || 2;
+        return weightA - weightB; // Ascending priority (Low -> Normal -> High)
+      });
+
+      const nodesToKeep = new Set<string>(finalNodes.map(n => n.id));
+
+      for (const nodeToTrim of trimmableNodes) {
+        nodesToKeep.delete(nodeToTrim.id);
+        const filteredNodes = finalNodes.filter(n => nodesToKeep.has(n.id));
+        compiledText = renderer.render(filteredNodes, context);
+        estimatedTokens = this.estimateTokens(compiledText);
+        if (estimatedTokens <= PromptCompiler.SAFE_CONTEXT_LIMIT) {
+          break;
+        }
+      }
+    }
+
+    return compiledText.replace(/\n{3,}/g, "\n\n").trim();
   }
 }

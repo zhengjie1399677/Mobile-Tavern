@@ -26,7 +26,7 @@ export default function CorePromptBlocks({
         <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
           <div className="flex items-center gap-2 flex-1">
             <Switch
-              checked={settings.promptConfig.useMainPrompt}
+              checked={settings.promptConfig.useMainPrompt ?? true}
               onCheckedChange={(checked) =>
                 updateSettings({
                   ...settings,
@@ -39,7 +39,7 @@ export default function CorePromptBlocks({
               className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4"
             />
             <div className="flex flex-col">
-              <span className={`text-xs font-bold truncate ${settings.promptConfig.useMainPrompt ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
+              <span className={`text-xs font-bold truncate ${(settings.promptConfig.useMainPrompt ?? true) ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
                 底层扮演系统指令 (System Prompt)
               </span>
               <span className="text-[9px] font-mono text-muted-foreground">system · 处于上下文最顶部</span>
@@ -72,7 +72,7 @@ export default function CorePromptBlocks({
         <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
           <div className="flex items-center gap-2 flex-1">
             <Switch
-              checked={settings.promptConfig.useJailbreak}
+              checked={settings.promptConfig.useJailbreak ?? true}
               onCheckedChange={(checked) =>
                 updateSettings({
                   ...settings,
@@ -85,7 +85,7 @@ export default function CorePromptBlocks({
               className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4"
             />
             <div className="flex flex-col">
-              <span className={`text-xs font-bold truncate ${settings.promptConfig.useJailbreak ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
+              <span className={`text-xs font-bold truncate ${(settings.promptConfig.useJailbreak ?? true) ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
                 破限提示词 (Jailbreak)
               </span>
               <span className="text-[9px] font-mono text-muted-foreground">system · beforeLast 前注入</span>
@@ -118,7 +118,7 @@ export default function CorePromptBlocks({
         <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
           <div className="flex items-center gap-2 flex-1">
             <Switch
-              checked={settings.promptConfig.usePostHistory}
+              checked={settings.promptConfig.usePostHistory ?? true}
               onCheckedChange={(checked) =>
                 updateSettings({
                   ...settings,
@@ -131,7 +131,7 @@ export default function CorePromptBlocks({
               className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4"
             />
             <div className="flex flex-col">
-              <span className={`text-xs font-bold truncate ${settings.promptConfig.usePostHistory ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
+              <span className={`text-xs font-bold truncate ${(settings.promptConfig.usePostHistory ?? true) ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
                 生成纪律提醒 (Post-History)
               </span>
               <span className="text-[9px] font-mono text-muted-foreground">system · 历史记录末尾压轴</span>
