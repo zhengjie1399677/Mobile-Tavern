@@ -100,7 +100,7 @@ export function buildFinalAiMessage(params: {
   const finalAiMsg: Message = {
     id: aiMsgId,
     sender: "assistant",
-    content: enableReplySuggestions ? parsed.content : cleaned.content,
+    content: cleaned.content,
     timestamp: Date.now(),
     generationTime: (performance.now() - startTime) / 1000,
     tokenCount: tokenUsage.completion,

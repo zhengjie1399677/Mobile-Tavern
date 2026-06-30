@@ -179,6 +179,8 @@ export function useRerollMessage(p: RerollMessageParams) {
         recalledMemories: recalledMemories,
       });
 
+      console.clear();
+      console.log("--- AI 发言重新生成流式开始 ---");
       const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };
       p.setSessions((prev) =>
         prev.map((s) => s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)
@@ -237,6 +239,13 @@ export function useRerollMessage(p: RerollMessageParams) {
         }
         throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
       }
+
+      console.log("=== [RAW AI RESPONSE] ===");
+      if (reasoningChunks.length > 0) {
+        console.log("<think>\n" + reasoningChunks.join("") + "\n</think>");
+      }
+      console.log(responseChunks.join(""));
+      console.log("=========================");
 
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }

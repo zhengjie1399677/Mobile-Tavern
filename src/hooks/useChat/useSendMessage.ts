@@ -207,6 +207,8 @@ export function useSendMessage(p: SendMessageParams) {
       });
 
       // 放置 AI 消息占位符
+      console.clear();
+      console.log("--- AI 发言流式开始 ---");
       const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };
       p.setSessions((prev) =>
         prev.map((s) => s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)
@@ -265,6 +267,13 @@ export function useSendMessage(p: SendMessageParams) {
         }
         throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
       }
+
+      console.log("=== [RAW AI RESPONSE] ===");
+      if (reasoningChunks.length > 0) {
+        console.log("<think>\n" + reasoningChunks.join("") + "\n</think>");
+      }
+      console.log(responseChunks.join(""));
+      console.log("=========================");
 
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }

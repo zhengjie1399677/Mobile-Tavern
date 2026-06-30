@@ -11,6 +11,7 @@ import { ChatSession, UserSettings, CharacterCard } from "../../types";
 import { OutputPipelineContext, IDatabaseService, KernelServices } from "../../kernel/types";
 import { globalKernel } from "../../kernel";
 import { buildOutputContext } from "./helpers/streamHelpers";
+import { cleanSuggestionsFromText } from "./helpers/textParsing";
 
 /**
  * 执行 Output Pipeline 并保存 Session，成功后更新 React sessions 状态。
@@ -81,26 +82,24 @@ export async function runOutputPipelineAndSave(params: {
 
   const parsedSession = outputCtx.resultSession || ctxParams.session;
 
-  // 提取并剥离 <memory> 标签（P0 - 激活记忆写入与清洁展示）
-  let cleanAiText = responseText;
+  // 提取并剥离 <memory> 与 <suggestions> 等所有元数据标签
+  const cleanResult = cleanSuggestionsFromText(responseText);
+  let cleanAiText = cleanResult.content;
   let memoryContent: string | undefined;
   
-  console.log("[MemoryDebug] Raw AI Response:", responseText);
   const memoryMatch = /<(memory|memory_extraction)>([\s\S]*?)<\/\1>/i.exec(responseText);
-  console.log("[MemoryDebug] Memory Match:", memoryMatch);
   if (memoryMatch) {
     memoryContent = memoryMatch[2].trim();
-    cleanAiText = responseText.replace(/<(memory|memory_extraction)>[\s\S]*?<\/\1>/gi, "").trim();
-    
-    // 更新 session 中的最新 AI 消息内容，防止 <memory> 标签被渲染给用户
-    if (parsedSession.messages.length > 0) {
-      const messages = [...parsedSession.messages];
-      const lastMsg = { ...messages[messages.length - 1] };
-      if (lastMsg.sender === "assistant") {
-        lastMsg.content = cleanAiText;
-        messages[messages.length - 1] = lastMsg;
-        parsedSession.messages = messages;
-      }
+  }
+
+  // 始终更新 session 中的最新 AI 消息内容，防止元数据标签污染数据库
+  if (parsedSession.messages.length > 0) {
+    const messages = [...parsedSession.messages];
+    const lastMsg = { ...messages[messages.length - 1] };
+    if (lastMsg.sender === "assistant") {
+      lastMsg.content = cleanAiText;
+      messages[messages.length - 1] = lastMsg;
+      parsedSession.messages = messages;
     }
   }
 

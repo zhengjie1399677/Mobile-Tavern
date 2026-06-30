@@ -345,7 +345,7 @@ export class MemoryExtractor {
    * 最终将消息写入 messages Store。
    */
   private async processExtraction(task: ExtractionTask): Promise<ExtractionResult> {
-    console.log("[MemoryDebug] processExtraction task:", task);
+    // console.log("[MemoryDebug] processExtraction task:", task);
     const signal = this.abortController?.signal;
     let tags: string[];
     let extractSource: ExtractSource;
@@ -354,7 +354,7 @@ export class MemoryExtractor {
     // L0: LLM 抽取
     if (task.memoryContent) {
       const parsed = validateExtraction(task.memoryContent);
-      console.log("[MemoryDebug] validateExtraction result:", parsed);
+      // console.log("[MemoryDebug] validateExtraction result:", parsed);
       if (parsed && parsed.entities.length > 0) {
         tags = parsed.entities.map((e) => e.name);
         extractSource = 'llm';
@@ -375,7 +375,7 @@ export class MemoryExtractor {
       extractSource = result.source;
     }
 
-    console.log("[MemoryDebug] Extraction finished. tags:", tags, "source:", extractSource);
+    // console.log("[MemoryDebug] Extraction finished. tags:", tags, "source:", extractSource);
 
     // 写入 messages Store
     if (signal?.aborted) return { tags, extractSource, extraction };

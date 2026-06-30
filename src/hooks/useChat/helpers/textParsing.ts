@@ -52,39 +52,75 @@ export function extractThinkContent(
   return { content, reasoningContent };
 }
 
-/**
- * 从正文中剥离 <suggestions>...</suggestions> 块，分离出干净正文与建议原始文本。
- */
-export function cleanSuggestionsFromText(text: string): { content: string; suggestionsText?: string } {
+export function cleanAllMetadataFromText(text: string): { content: string; suggestionsText?: string } {
   if (!text) return { content: text };
 
-  const startRegex = /<suggestions\s*>/i;
-  const startMatch = text.match(startRegex);
+  let suggestionsText = "";
+  let cleanContent = text;
 
-  // 极致视觉优化：流式传输时，若文本末尾包含未完整的 <suggestions 标签前缀，提前将其剥离，防止标签短暂闪烁展示给用户
-  if (!startMatch) {
-    const partialTagMatch = text.match(/<s(?:u(?:g(?:g(?:e(?:s(?:t(?:i(?:o(?:n(?:s(?:>)?)?)?)?)?)?)?)?)?)?)?$/i);
-    if (partialTagMatch && partialTagMatch.index !== undefined) {
-      const cleanContent = text.substring(0, partialTagMatch.index).trim();
-      return { content: cleanContent };
+  // 1. 剥离 <memory_extraction> 和 <memory> 标签（包括已闭合和流式未闭合）
+  const memoryTags = ["memory_extraction", "memory"];
+  for (const tag of memoryTags) {
+    const startRegex = new RegExp(`<${tag}\\s*>`, "i");
+    const startMatch = cleanContent.match(startRegex);
+    if (startMatch && startMatch.index !== undefined) {
+      const startIdx = startMatch.index;
+      const endRegex = new RegExp(`</${tag}\\s*>`, "i");
+      const endMatch = cleanContent.match(endRegex);
+      if (endMatch && endMatch.index !== undefined) {
+        cleanContent = cleanContent.substring(0, startIdx).trim() + "\n" + cleanContent.substring(endMatch.index + endMatch[0].length).trim();
+      } else {
+        cleanContent = cleanContent.substring(0, startIdx).trim();
+      }
+    }
+    // 处理末尾不完整的标签（如 <m, <me, <mem 等）
+    for (let i = tag.length; i >= 1; i--) {
+      const partial = `<${tag.substring(0, i)}`;
+      if (cleanContent.endsWith(partial)) {
+        cleanContent = cleanContent.substring(0, cleanContent.length - partial.length).trim();
+        break;
+      }
     }
   }
 
-  if (startMatch && startMatch.index !== undefined) {
+  // 2. 剥离 <suggestions> 标签
+  const startRegex = /<suggestions\s*>/i;
+  const startMatch = cleanContent.match(startRegex);
+
+  if (!startMatch) {
+    // 处理末尾不完整的 <suggestions> 标签
+    const suggestionsTag = "suggestions";
+    for (let i = suggestionsTag.length; i >= 1; i--) {
+      const partial = `<${suggestionsTag.substring(0, i)}`;
+      if (cleanContent.endsWith(partial)) {
+        cleanContent = cleanContent.substring(0, cleanContent.length - partial.length).trim();
+        break;
+      }
+    }
+  } else if (startMatch && startMatch.index !== undefined) {
     const startIdx = startMatch.index;
     const endRegex = /<\/suggestions\s*>/i;
-    const endMatch = text.match(endRegex);
+    const endMatch = cleanContent.match(endRegex);
 
-    const cleanContent = text.substring(0, startIdx).trim();
-    let suggestionsText = "";
     if (endMatch && endMatch.index !== undefined) {
-      suggestionsText = text.substring(startIdx + startMatch[0].length, endMatch.index).trim();
+      suggestionsText = cleanContent.substring(startIdx + startMatch[0].length, endMatch.index).trim();
+      cleanContent = cleanContent.substring(0, startIdx).trim() + "\n" + cleanContent.substring(endMatch.index + endMatch[0].length).trim();
     } else {
-      suggestionsText = text.substring(startIdx + startMatch[0].length).trim();
+      suggestionsText = cleanContent.substring(startIdx + startMatch[0].length).trim();
+      cleanContent = cleanContent.substring(0, startIdx).trim();
     }
-    return { content: cleanContent, suggestionsText };
   }
-  return { content: text };
+
+  // 最后检查如果以单个 "<" 结尾，安全起见也做截断处理，防止闪烁
+  if (cleanContent.endsWith("<")) {
+    cleanContent = cleanContent.substring(0, cleanContent.length - 1).trim();
+  }
+
+  return { content: cleanContent.trim(), suggestionsText };
+}
+
+export function cleanSuggestionsFromText(text: string): { content: string; suggestionsText?: string } {
+  return cleanAllMetadataFromText(text);
 }
 
 /**
