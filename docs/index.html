@@ -55,6 +55,48 @@
     ::-webkit-scrollbar-thumb:hover {
       background: rgba(255, 255, 255, 0.2);
     }
+
+    /* 3D Cyber Showcase Animations */
+    @keyframes float-slow {
+      0%, 100% { transform: translateZ(60px) translateY(0px); }
+      50% { transform: translateZ(60px) translateY(-10px); }
+    }
+    @keyframes float-medium {
+      0%, 100% { transform: translateZ(40px) translateX(30px) translateY(40px); }
+      50% { transform: translateZ(40px) translateX(30px) translateY(30px); }
+    }
+    @keyframes float-fast {
+      0%, 100% { transform: translateZ(20px) translateX(-50px) translateY(-40px); }
+      50% { transform: translateZ(20px) translateX(-50px) translateY(-50px); }
+    }
+    @keyframes scan {
+      0% { top: 0%; }
+      50% { top: 100%; }
+      100% { top: 0%; }
+    }
+    @keyframes grid-move {
+      0% { background-position: 0 0; }
+      100% { background-position: 40px 40px; }
+    }
+
+    .animate-float-1 {
+      animation: float-slow 6s ease-in-out infinite;
+    }
+    .animate-float-2 {
+      animation: float-medium 5s ease-in-out infinite;
+    }
+    .animate-float-3 {
+      animation: float-fast 7s ease-in-out infinite;
+    }
+
+    /* Cyber Grid Background */
+    .cyber-grid {
+      background-size: 40px 40px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      animation: grid-move 8s linear infinite;
+    }
   </style>
   <script>
     tailwind.config = {
@@ -76,6 +118,9 @@
 
 <body class="text-slate-100 overflow-x-hidden min-h-screen relative selection:bg-brand-purple selection:text-white">
 
+  <!-- Full-Screen Interactive Particle Galaxy Background -->
+  <canvas id="bg-particles-canvas" class="fixed inset-0 w-full h-full -z-20 bg-[#040408] pointer-events-none"></canvas>
+
   <!-- Ambient Glow Background -->
   <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] glow-purple -z-10 pointer-events-none"></div>
   <div class="absolute top-[20%] right-[-10%] w-[50%] h-[50%] glow-cyan -z-10 pointer-events-none"></div>
@@ -85,7 +130,7 @@
   <header class="sticky top-0 z-50 backdrop-blur-md border-b border-white/5 bg-brand-dark/70">
     <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <img src="./app-icon.png" alt="Mobile Tavern Logo" class="w-10 h-10 rounded-xl shadow-lg border border-white/10"
+        <img src="./logo.png" alt="Mobile Tavern Logo" class="w-10 h-10 rounded-xl shadow-lg border border-white/10"
           onerror="this.src='https://avatars.githubusercontent.com/u/1399677?v=4'">
         <div>
           <span
@@ -176,38 +221,98 @@
         </div>
       </div>
 
-      <!-- Mobile Mockup Right -->
-      <div class="lg:col-span-5 flex flex-col items-center justify-center relative pb-12 lg:pb-0">
-        <div
-          class="absolute inset-0 bg-gradient-to-tr from-brand-purple/20 to-brand-cyan/20 rounded-3xl blur-2xl -z-10 pointer-events-none">
-        </div>
-        <!-- Android Container -->
-        <div id="android-container"
-          class="w-[280px] sm:w-[320px] h-[580px] sm:h-[650px] rounded-[36px] border-[8px] border-slate-800 bg-[#0f0f16] shadow-2xl flex flex-col overflow-hidden relative transition-all duration-300">
-          <!-- Android Punch-hole Camera -->
-          <div
-            class="absolute top-3.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-950 rounded-full flex items-center justify-center z-30 ring-1 ring-white/10 shadow-inner">
-            <div class="w-1.5 h-1.5 bg-[#0a1020] rounded-full opacity-80 ring-1 ring-blue-500/20"></div>
+      <!-- Mobile Mockup Right -> Changed to 3D Cyber Showcase -->
+      <div class="lg:col-span-5 flex items-center justify-center relative min-h-[460px] sm:min-h-[560px] w-full select-none" style="perspective: 1200px;" id="cyber-showcase-container">
+        <!-- Glowing Background Radial -->
+        <div class="absolute inset-0 bg-gradient-to-tr from-brand-purple/10 to-brand-cyan/10 rounded-3xl blur-3xl -z-10 pointer-events-none"></div>
+        
+        <!-- Cyber Grid Plate -->
+        <div class="absolute w-[95%] h-[95%] cyber-grid rounded-3xl border border-white/5 opacity-80 -z-10 pointer-events-none"></div>
+
+        <!-- 3D Parallax Stage -->
+        <div id="cyber-stage" class="relative w-full h-full flex items-center justify-center transition-transform duration-200 ease-out" style="transform-style: preserve-3d;">
+          
+          <!-- Card 2: Worldbook Database (Back Left) -->
+          <div class="absolute w-[180px] h-[130px] rounded-2xl border border-brand-cyan/25 bg-[#0b0f19]/80 backdrop-blur-md p-3.5 shadow-[0_0_30px_rgba(6,182,212,0.15)] animate-float-3 flex flex-col justify-between" style="transform-style: preserve-3d; left: 6%; top: 12%;">
+            <div class="flex items-center justify-between">
+              <span class="text-[9px] text-brand-cyan font-bold tracking-wider uppercase">📖 Worldbook DB</span>
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan animate-pulse"></span>
+            </div>
+            <div class="space-y-1 my-1.5">
+              <div class="text-[8.5px] font-mono text-slate-400 flex justify-between border-b border-white/5 pb-1">
+                <span>🔑 Key: Forest</span>
+                <span class="text-brand-cyan font-semibold">Triggered</span>
+              </div>
+              <div class="text-[8.5px] font-mono text-slate-400 flex justify-between border-b border-white/5 pb-1">
+                <span>🔑 Key: Magic</span>
+                <span class="text-brand-cyan font-semibold">Active</span>
+              </div>
+            </div>
+            <div class="text-[7.5px] text-slate-500 font-medium">Memory Node Tree Loaded.</div>
           </div>
 
-          <!-- Mock Screen Image -->
-          <img id="mock-screenshot" src="./assets/lobby.jpg"
-            class="w-full h-full object-cover select-none pointer-events-none z-10" alt="真机截图预览">
-        </div>
-        <!-- Screenshot Selector Buttons -->
-        <div class="mt-6 flex flex-wrap items-center justify-center gap-2 max-w-sm px-4 z-30">
-          <button onclick="setMockScreenshot('lobby', this)"
-            class="px-3 py-1.5 rounded-lg bg-brand-purple text-white text-xs font-bold shadow-md transition active:scale-95 border border-brand-purple/50">角色馆</button>
-          <button onclick="setMockScreenshot('chat', this)"
-            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">剧本对白</button>
-          <button onclick="setMockScreenshot('timeline', this)"
-            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">故事年表</button>
-          <button onclick="setMockScreenshot('lorebook', this)"
-            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">世界设定</button>
-          <button onclick="setMockScreenshot('settings_white', this)"
-            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">极简白主题</button>
-          <button onclick="setMockScreenshot('settings_sand', this)"
-            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5">浅沙色主题</button>
+          <!-- Card 3: Sandbox Core (Back Right) -->
+          <div class="absolute w-[200px] h-[150px] rounded-2xl border border-brand-purple/25 bg-black/80 backdrop-blur-md p-3.5 shadow-[0_0_30px_rgba(139,92,246,0.15)] animate-float-2 flex flex-col justify-between font-mono" style="transform-style: preserve-3d; right: 4%; bottom: 18%;">
+            <div class="flex items-center justify-between border-b border-white/5 pb-1.5">
+              <span class="text-[9px] text-brand-purple font-bold">⚙️ SANDBOX KERNEL</span>
+              <span class="text-[8px] text-slate-500">v1.6.0</span>
+            </div>
+            <div class="space-y-1.5 my-1.5 text-[8.5px] text-slate-300">
+              <div class="flex items-center gap-1.5">
+                <span class="text-emerald-500 font-bold">✓</span>
+                <span>Compile Prompt... OK</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-emerald-500 font-bold">✓</span>
+                <span>Inject Memory... OK</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-emerald-500 font-bold">✓</span>
+                <span>Cognitive Boundary... Active</span>
+              </div>
+            </div>
+            <div class="text-[7.5px] text-slate-500">Data Stream Synced.</div>
+          </div>
+
+          <!-- Card 1: AI Core Identity (Front Center) -->
+          <div class="absolute w-[230px] h-[290px] rounded-2xl border border-white/15 bg-white/5 backdrop-blur-lg p-4.5 shadow-[0_20px_50px_rgba(0,0,0,0.4)] hover:border-brand-purple/40 transition-colors duration-300 animate-float-1 flex flex-col justify-between" style="transform-style: preserve-3d; z-index: 10;">
+            <!-- Glowing Header -->
+            <div class="flex items-center justify-between">
+              <span class="text-[9px] text-brand-purple font-bold tracking-widest uppercase">🤖 AI Core Sandbox</span>
+              <span class="px-1.5 py-0.5 rounded-full bg-brand-purple/20 text-brand-purple text-[8px] font-bold border border-brand-purple/30">Active</span>
+            </div>
+
+            <!-- Glowing Holographic AI Orb -->
+            <div class="my-3 relative w-full h-32 rounded-xl overflow-hidden border border-white/10 bg-black/60 flex items-center justify-center">
+              <!-- Grid overlay -->
+              <div class="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:100%_6px] pointer-events-none"></div>
+              
+              <!-- Outer Spinning Ring 1 -->
+              <div class="absolute w-24 h-24 rounded-full border border-dashed border-brand-cyan/40 animate-[spin_12s_linear_infinite]"></div>
+              <!-- Outer Spinning Ring 2 -->
+              <div class="absolute w-20 h-20 rounded-full border border-dashed border-brand-purple/40 animate-[spin_8s_linear_infinite_reverse]"></div>
+              
+              <!-- Core Glowing Orb -->
+              <div class="relative w-12 h-12 rounded-full bg-gradient-to-tr from-brand-purple via-pink-500 to-brand-cyan shadow-[0_0_30px_rgba(139,92,246,0.6)] animate-pulse"></div>
+              
+              <!-- Laser Scanner Line -->
+              <div class="absolute inset-x-0 h-0.5 bg-brand-cyan/60 shadow-[0_0_8px_#06b6d4] animate-[scan_4s_ease-in-out_infinite]"></div>
+            </div>
+
+            <!-- Meta Info -->
+            <div class="space-y-1">
+              <div class="text-[11px] font-bold text-slate-100 tracking-wide">本地私密双轨沙盒</div>
+              <p class="text-[8.5px] text-slate-400 leading-relaxed">“系统已就绪。所有角色设定、世界设定书与对话上下文均在本地安全沙盒中进行完全隔离编译与推理。”</p>
+            </div>
+
+            <!-- Tags -->
+            <div class="flex gap-1.5 mt-1.5">
+              <span class="text-[8px] bg-brand-purple/20 text-brand-purple font-bold px-1.5 py-0.5 rounded-md border border-brand-purple/20">本地优先</span>
+              <span class="text-[8px] bg-brand-cyan/20 text-brand-cyan font-bold px-1.5 py-0.5 rounded-md border border-brand-cyan/20">双轨隔离</span>
+              <span class="text-[8px] bg-emerald-500/20 text-emerald-400 font-bold px-1.5 py-0.5 rounded-md border border-emerald-500/20">无损兼容</span>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -727,36 +832,39 @@
     </div>
   </footer>
 
-  <!-- WebApp Logic Script (Bilingual support, Simulated Chat, Card Parser) -->
+  <!-- WebApp Logic Script -->
   <script>
-    // Initial setup on DOM load
-    window.addEventListener('DOMContentLoaded', () => {
-      // Chinese-only client configuration
-    });
+    // 2. 3D Parallax Cyber Showcase Controller
+    const stage = document.getElementById('cyber-stage');
+    const container = document.getElementById('cyber-showcase-container');
 
-    // 2. Real Screenshot Preview Switcher
-    function setMockScreenshot(key, btn) {
-      const img = document.getElementById('mock-screenshot');
-      if (img) {
-        img.src = `./assets/${key}.jpg`;
-      }
+    if (container && stage) {
+      container.addEventListener('mousemove', (e) => {
+        const rect = container.getBoundingClientRect();
+        const x = e.clientX - rect.left; // x position within the element.
+        const y = e.clientY - rect.top;  // y position within the element.
 
-      // Update button active styles
-      if (btn) {
-        const buttons = btn.parentElement.querySelectorAll('button');
-        buttons.forEach(b => {
-          b.className = "px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold transition active:scale-95 border border-white/5";
-        });
-        btn.className = "px-3 py-1.5 rounded-lg bg-brand-purple text-white text-xs font-bold shadow-md transition active:scale-95 border border-brand-purple/50";
-      }
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        // Calculate rotation angles based on mouse position (max 15 degrees tilt)
+        const rotateX = -(y - centerY) / 12; 
+        const rotateY = (x - centerX) / 12;
+
+        // Apply 3D rotation to the stage
+        stage.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+      });
+
+      container.addEventListener('mouseleave', () => {
+        // Smoothly reset rotation when mouse leaves
+        stage.style.transform = 'rotateX(0deg) rotateY(0deg)';
+      });
     }
-
 
     // 3. Client Side SillyTavern PNG Card Parser
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
 
-    // Drag-and-drop mechanics
     ['dragenter', 'dragover'].forEach(eventName => {
       dropZone.addEventListener(eventName, (e) => {
         e.preventDefault();
@@ -787,7 +895,7 @@
 
     function handleFile(file) {
       if (!window.fflate) {
-        alert("Parser library fflate has not loaded yet. Please check your internet connection.");
+        alert("Parser library fflate has not loaded yet.");
         return;
       }
 
@@ -798,7 +906,7 @@
             const data = JSON.parse(e.target.result);
             renderParsedCard(data.data ? data.data : data, null);
           } catch (err) {
-            alert("Failed to parse JSON card. Invalid schema.");
+            alert("Failed to parse JSON card.");
           }
         };
         reader.readAsText(file);
@@ -969,6 +1077,171 @@
 
     function loadDemoCard() {
       renderParsedCard(sampleTavernCard, null);
+    }
+
+    // 5. Full-Screen Interactive Particle Galaxy
+    const bgCanvas = document.getElementById('bg-particles-canvas');
+    if (bgCanvas) {
+      const ctx = bgCanvas.getContext('2d');
+      let width = bgCanvas.width = window.innerWidth;
+      let height = bgCanvas.height = window.innerHeight;
+
+      const particles = [];
+      const burstParticles = [];
+      const maxParticles = Math.min(120, Math.floor((width * height) / 12000)); // Adaptive particle density
+      
+      const mouse = { x: null, y: null, active: false };
+
+      class Particle {
+        constructor(isBurst = false, x = null, y = null) {
+          this.isBurst = isBurst;
+          this.x = x !== null ? x : Math.random() * width;
+          this.y = y !== null ? y : Math.random() * height;
+          
+          if (isBurst) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 5 + 2;
+            this.vx = Math.cos(angle) * speed;
+            this.vy = Math.sin(angle) * speed;
+            this.radius = Math.random() * 3.5 + 1.5;
+            this.alpha = 1.0;
+            this.decay = Math.random() * 0.02 + 0.015;
+          } else {
+            this.vx = (Math.random() - 0.5) * 0.5;
+            this.vy = (Math.random() - 0.5) * 0.5;
+            this.radius = Math.random() * 2 + 1;
+            this.alpha = Math.random() * 0.6 + 0.2;
+          }
+
+          const colors = [
+            'rgba(6, 182, 212, ',   // Cyan
+            'rgba(139, 92, 246, ',  // Purple
+            'rgba(236, 72, 153, '   // Pink
+          ];
+          this.colorBase = colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        update() {
+          this.x += this.vx;
+          this.y += this.vy;
+
+          if (this.isBurst) {
+            this.vy += 0.04; // Light gravity for explosion effect
+            this.vx *= 0.97; // Drag
+            this.vy *= 0.97;
+            this.alpha -= this.decay;
+          } else {
+            // Screen wrapping for ambient particles
+            if (this.x < 0) this.x = width;
+            if (this.x > width) this.x = 0;
+            if (this.y < 0) this.y = height;
+            if (this.y > height) this.y = 0;
+
+            // Gravitational pull towards mouse
+            if (mouse.active && mouse.x !== null) {
+              const dx = mouse.x - this.x;
+              const dy = mouse.y - this.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < 200) {
+                const force = (200 - dist) / 200;
+                this.vx += (dx / dist) * force * 0.12;
+                this.vy += (dy / dist) * force * 0.12;
+              }
+            }
+
+            // Damping to keep movement smooth and natural
+            this.vx *= 0.96;
+            this.vy *= 0.96;
+          }
+        }
+
+        draw() {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          ctx.fillStyle = this.colorBase + this.alpha + ')';
+          ctx.fill();
+        }
+      }
+
+      // Populate ambient background stars
+      for (let i = 0; i < maxParticles; i++) {
+        particles.push(new Particle(false));
+      }
+
+      // 60fps Animation loop
+      function drawFrame() {
+        ctx.clearRect(0, 0, width, height);
+
+        // 1. Draw and update background particles
+        for (let i = 0; i < particles.length; i++) {
+          particles[i].update();
+          particles[i].draw();
+        }
+
+        // 2. Draw and update click-burst particles
+        for (let i = burstParticles.length - 1; i >= 0; i--) {
+          burstParticles[i].update();
+          if (burstParticles[i].alpha <= 0) {
+            burstParticles.splice(i, 1);
+          } else {
+            burstParticles[i].draw();
+          }
+        }
+
+        // 3. Connect close ambient particles with neon lines
+        ctx.lineWidth = 0.6;
+        for (let i = 0; i < particles.length; i++) {
+          for (let j = i + 1; j < particles.length; j++) {
+            const dx = particles[i].x - particles[j].x;
+            const dy = particles[i].y - particles[j].y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < 110) {
+              const alpha = (110 - dist) / 110 * 0.15;
+              ctx.strokeStyle = `rgba(139, 92, 246, ${alpha})`;
+              ctx.beginPath();
+              ctx.moveTo(particles[i].x, particles[i].y);
+              ctx.lineTo(particles[j].x, particles[j].y);
+              ctx.stroke();
+            }
+          }
+        }
+
+        requestAnimationFrame(drawFrame);
+      }
+
+      drawFrame();
+
+      // Mouse Move Tracking
+      window.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        mouse.active = true;
+      });
+
+      // Mouse Leaves Window
+      window.addEventListener('mouseleave', () => {
+        mouse.active = false;
+      });
+
+      // Mouse Click Particle Burst (Explosion)
+      window.addEventListener('click', (e) => {
+        // Exclude clicks on interactive buttons to avoid visual clutter on controls
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' || e.target.closest('#drop-zone')) {
+          return;
+        }
+        
+        const count = Math.floor(Math.random() * 25) + 30;
+        for (let i = 0; i < count; i++) {
+          burstParticles.push(new Particle(true, e.clientX, e.clientY));
+        }
+      });
+
+      // Handle Window Resize
+      window.addEventListener('resize', () => {
+        width = bgCanvas.width = window.innerWidth;
+        height = bgCanvas.height = window.innerHeight;
+      });
     }
   </script>
 </body>
