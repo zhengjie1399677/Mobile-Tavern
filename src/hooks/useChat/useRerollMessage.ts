@@ -170,6 +170,8 @@ export function useRerollMessage(p: RerollMessageParams) {
         lastRecalledMemories: recalledMemories
       };
 
+      console.log("[Reroll Debug] updatedSession messages:", JSON.stringify(updatedSession.messages.map(m => ({ id: m.id, sender: m.sender, content: m.content }))));
+
       const promptPayload = p.promptService.assemblePrompt({
         character: p.activeCharacter!,
         chat: updatedSession,
