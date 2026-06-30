@@ -23,7 +23,6 @@ import { SamplerPreset, PromptConfig, UserSettings } from "../types";
  */
 
 export {
-  DEFAULT_PRESETS,
   DEFAULT_PROMPT_CONFIG,
   DEFAULT_SETTINGS,
 } from "../hooks/useSettings";

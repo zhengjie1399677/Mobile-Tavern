@@ -44,6 +44,8 @@ const REQUEST_FIELD_WHITELIST = new Set<string>([
   "enableReasoning",
   "reasoning_effort",
   "thinking",
+  "max_thinking_tokens",
+  "thinking_budget",
   // 多模态
   "modalities",
   "audio",

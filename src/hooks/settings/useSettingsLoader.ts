@@ -226,6 +226,7 @@ export const useSettingsLoader = ({
               modelsPath: storedSet.api?.modelsPath || DEFAULT_SETTINGS.api.modelsPath,
               bypassProxy: storedSet.api?.bypassProxy ?? DEFAULT_SETTINGS.api.bypassProxy,
               sendNames: storedSet.api?.sendNames ?? DEFAULT_SETTINGS.api.sendNames,
+              disableReasoning: storedSet.api?.disableReasoning ?? DEFAULT_SETTINGS.api.disableReasoning,
             },
             preset: { ...DEFAULT_SETTINGS.preset, ...(storedSet.preset || {}) },
             memory: {

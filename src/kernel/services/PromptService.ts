@@ -195,6 +195,28 @@ export class PromptService implements IPromptService {
     return budgetedEntries;
   }
 
+  private escapeRegExp(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  private formatDialogueExamplesInCenter(content: string, charName: string): string {
+    if (!content) return "";
+    const cleanCharName = this.escapeRegExp((charName || "").trim());
+    const lines = content.split("\n");
+    return lines.map(line => {
+      const prefixRegex = new RegExp(`^(\\s*(?:\\{\\{char\\}\\}|${cleanCharName}|assistant)(?::|：))\\s*(.*)`, "i");
+      const match = line.match(prefixRegex);
+      if (match) {
+        const prefix = match[1];
+        const text = match[2].trim();
+        if (text && !text.startsWith("<center>") && !text.startsWith("<START>")) {
+          return `${prefix} <center>${text}</center>`;
+        }
+      }
+      return line;
+    }).join("\n");
+  }
+
   replaceMacros(
     text: string,
     params: {
@@ -464,30 +486,6 @@ export class PromptService implements IPromptService {
       }),
     });
 
-    const modelName = (settings.api?.modelName || "").toLowerCase();
-    const isDeepSeek = modelName.includes("deepseek") || modelName.includes("r1") || modelName.includes("reasoner");
-    const enableGuidance = settings.promptConfig?.enableReasoningGuidance !== undefined
-      ? settings.promptConfig.enableReasoningGuidance
-      : isDeepSeek;
-    const reasoningGuidance = enableGuidance
-      ? (settings.promptConfig?.reasoningGuidancePrompt || DEFAULT_REASONING_GUIDANCE_PROMPT)
-      : "";
-
-    builder.registerSection({
-      id: "reasoning_guidance",
-      phase: "Engine",
-      enabled: !!reasoningGuidance,
-      compile: () => ({
-        id: "reasoning_guidance",
-        phase: "Engine",
-        type: "Instruction",
-        priority: "High",
-        mutable: false,
-        title: "Reasoning Guidance",
-        content: reasoningGuidance,
-      }),
-    });
-
     // ==================================================
     // 2. CONTEXT Category (Context, mixed mutability)
     // ==================================================
@@ -609,7 +607,8 @@ export class PromptService implements IPromptService {
     // ==================================================
     let mesExampleSection = "";
     if (character.mes_example) {
-      mesExampleSection = this.replaceMacros(character.mes_example, macroParams);
+      const parsedExample = this.replaceMacros(character.mes_example, macroParams);
+      mesExampleSection = this.formatDialogueExamplesInCenter(parsedExample, character.name);
     }
     builder.registerSection({
       id: "dialogue_examples",
@@ -642,29 +641,6 @@ export class PromptService implements IPromptService {
         mutable: false,
         title: "Jailbreak",
         content: jailbreakSection,
-      }),
-    });
-
-    let postHistoryContent = "";
-    if (settings.promptConfig?.usePostHistory && settings.promptConfig?.postHistoryPrompt) {
-      postHistoryContent += this.replaceMacros(settings.promptConfig.postHistoryPrompt, macroParams);
-    }
-    if (character.post_history_instructions) {
-      const charPostHistory = this.replaceMacros(character.post_history_instructions, macroParams);
-      postHistoryContent = postHistoryContent ? `${postHistoryContent}\n\n${charPostHistory}` : charPostHistory;
-    }
-    builder.registerSection({
-      id: "post_history_instructions",
-      phase: "Generation",
-      enabled: !!postHistoryContent,
-      compile: () => ({
-        id: "post_history_instructions",
-        phase: "Generation",
-        type: "Instruction",
-        priority: "Highest",
-        mutable: false,
-        title: "Post History Instructions",
-        content: postHistoryContent,
       }),
     });
 
@@ -782,9 +758,6 @@ export class PromptService implements IPromptService {
     let suggestionsSection = "";
     if (settings.enableReplySuggestions) {
       suggestionsSection = `${settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT}`;
-      if (settings.memory) {
-        suggestionsSection += `\n（注意：在 </suggestions> 标签之后，还需继续追加 <memory_extraction> 标签，这是唯一允许的例外。）`;
-      }
     }
     builder.registerSection({
       id: "reply_suggestions",
@@ -798,6 +771,40 @@ export class PromptService implements IPromptService {
         mutable: false,
         title: "Reply Suggestions Protocol",
         content: suggestionsSection,
+      }),
+    });
+
+    let outputExampleContent = "";
+    outputExampleContent += "<center>\n用户看见的消息输出到这里。\n</center>\n";
+    if (settings.enableReplySuggestions) {
+      outputExampleContent += "\n<suggestions>\n[\"选项A\", \"选项B\", \"选项C\", \"选项D\"]\n</suggestions>\n";
+    }
+    if (settings.memory) {
+      outputExampleContent += `\n<memory_extraction>
+{
+  "entities": ["新出现的人物、地点、或物品等"],
+  "events": [
+    "任务进展A",
+    "任务进展B",
+    "任务进展C",
+    "任务进展D"
+  ]
+}
+</memory_extraction>\n`;
+    }
+
+    builder.registerSection({
+      id: "output_example",
+      phase: "Generation",
+      enabled: true,
+      compile: () => ({
+        id: "output_example",
+        phase: "Generation",
+        type: "Reference",
+        priority: "High",
+        title: "输出示例",
+        content: `\`\`\`text\n${outputExampleContent.trim()}\n\`\`\``,
+        mutable: false,
       }),
     });
 

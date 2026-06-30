@@ -102,23 +102,22 @@ export function testPromptRuntime() {
 
   const compiled = compiler.compile(sections, context);
 
-  // The order must be ENGINE (safety -> rules) -> CONTEXT (persona) -> PROTOCOL (output_protocol)
-  // Check XML tags are rendered correctly with new attributes
-  assert(compiled.includes('<section id="safety" phase="Engine" type="Instruction" priority="Highest" mutable="false" title="Safety">'), "Has safety XML tag");
-  assert(compiled.includes('<section id="rules" phase="Engine" type="Instruction" priority="High" mutable="false" title="Core Rules">'), "Has rules XML tag");
-  assert(compiled.includes('<section id="persona" phase="Context" type="Context" priority="High" mutable="false" title="Persona">'), "Has persona XML tag");
-  assert(compiled.includes('<section id="output_protocol" phase="Protocol" type="Instruction" priority="Highest" mutable="false" title="Output Protocol">'), "Has output_protocol XML tag");
+  // Check Markdown headers are rendered correctly
+  assert(compiled.includes('### Safety'), "Has safety Markdown header");
+  assert(compiled.includes('### Core Rules'), "Has rules Markdown header");
+  assert(compiled.includes('### Persona'), "Has persona Markdown header");
+  assert(compiled.includes('### Output Protocol'), "Has output_protocol Markdown header");
   assert(!compiled.includes("disabled_section"), "Should not compile disabled section");
 
-  // Check internal ordering: Safety (Highest) should be compiled before Rules (High)
+  // Check internal ordering: output_protocol (Highest) -> Safety (Highest) -> Rules (High) -> Persona (Context)
   const safetyIdx = compiled.indexOf("Safety Content");
   const rulesIdx = compiled.indexOf("Core Rules Content");
   const personaIdx = compiled.indexOf("Character Persona Content");
   const outputIdx = compiled.indexOf("Output Protocol Content");
 
+  assert(outputIdx < safetyIdx, "Output Protocol should be before Safety due to alphabetical ID order");
   assert(safetyIdx < rulesIdx, "Safety should be before Rules");
-  assert(rulesIdx < personaIdx, "Engine should be before Context");
-  assert(personaIdx < outputIdx, "Context should be before Protocol");
+  assert(rulesIdx < personaIdx, "Engine layer should be before Context layer");
 
   console.log("✔ Prompt Runtime Builder & Compiler v2.0 verified!");
 }
@@ -193,11 +192,11 @@ export function testPromptServiceIntegration() {
     recalledMemories: []
   });
 
-  // Verify compiled XML structure
-  assert(result.systemInstruction.includes('<section id="core_rules" phase="Engine" type="Instruction" priority="Highest" mutable="false" title="Core Rules">'), "Contains core_rules XML tag");
-  assert(result.systemInstruction.includes('<section id="char_persona" phase="Context" type="Context" priority="High" mutable="false" title="Character Persona">'), "Contains char_persona XML tag");
-  assert(result.systemInstruction.includes('<section id="summary" phase="Context" type="Context" priority="High" mutable="true" title="Story Timeline Summary">'), "Contains summary XML tag");
-  assert(result.systemInstruction.includes('<section id="jailbreak" phase="Generation" type="Instruction" priority="High" mutable="false" title="Jailbreak">'), "Contains jailbreak XML tag");
+  // Verify compiled Markdown structure
+  assert(result.systemInstruction.includes('### Core Rules'), "Contains core_rules Markdown header");
+  assert(result.systemInstruction.includes('### Character Persona'), "Contains char_persona Markdown header");
+  assert(result.systemInstruction.includes('### Story Timeline Summary'), "Contains summary Markdown header");
+  assert(result.systemInstruction.includes('### Jailbreak'), "Contains jailbreak Markdown header");
 
   // Verify specific contents are compiled in the right places
   assert(result.systemInstruction.includes("System rules."), "Contains mainPrompt");

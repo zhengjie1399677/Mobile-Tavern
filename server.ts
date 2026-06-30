@@ -99,6 +99,7 @@ function prepareProxyRequest({ baseUrl, routePath, apiKey }: ProxyRequestConfig)
 }
 
 async function startServer() {
+  console.log("[Local Server] startServer invoked.");
   const app = express();
   const PORT = 3000;
 
@@ -664,12 +665,15 @@ async function startServer() {
 
   // Vite development middleware vs Static Production files serving
   if (process.env.NODE_ENV !== "production") {
+    console.log("[Local Server] Creating Vite server...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
+    console.log("[Local Server] Vite server created.");
     app.use(vite.middlewares);
   } else {
+    console.log("[Local Server] Production mode: serving static files from dist/");
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
@@ -678,6 +682,7 @@ async function startServer() {
   }
 
   const HOST = process.env.TAURI_DEV_HOST || "0.0.0.0";
+  console.log(`[Local Server] Attempting to listen on ${HOST}:${PORT}...`);
   app.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST}:${PORT}`);
   });

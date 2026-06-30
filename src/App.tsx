@@ -5,7 +5,6 @@ import { initializeKernel, globalKernel } from "./kernel";
 import { SplashScreen } from "./components/SplashScreen";
 
 export {
-  DEFAULT_PRESETS,
   DEFAULT_PROMPT_CONFIG,
   DEFAULT_SETTINGS,
 } from "./contexts/LegacyAppContextProvider";

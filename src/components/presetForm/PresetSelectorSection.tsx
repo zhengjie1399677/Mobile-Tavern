@@ -1,7 +1,6 @@
 import type React from "react";
 import { Plus, Trash2, Download, Upload } from "lucide-react";
 import { Card } from "../../../components/ui/card";
-import { DEFAULT_PRESETS } from "../../App";
 import type { UserSettings } from "../../types";
 
 interface PresetSelectorSectionProps {
@@ -56,8 +55,7 @@ export default function PresetSelectorSection({
             disabled={
               (settings.savedPresets || []).length === 0 ||
               !settings.preset.id ||
-              settings.preset.id === "default" ||
-              Object.keys(DEFAULT_PRESETS).includes(settings.preset.id)
+              settings.preset.id === "preset_mobile_tavern_basic"
             }
             title="删除当前自定义预设"
             className="shrink-0 bg-muted hover:bg-destructive/10 border border-border hover:border-destructive/20 text-muted-foreground hover:text-destructive disabled:opacity-20 disabled:bg-muted/30 disabled:border-transparent p-2 rounded-md transition tap-scale flex items-center justify-center"

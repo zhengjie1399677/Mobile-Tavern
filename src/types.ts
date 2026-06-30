@@ -112,6 +112,7 @@ export interface ApiConfig {
   modelsPath?: string;
   bypassProxy?: boolean;
   sendNames?: boolean;
+  disableReasoning?: boolean;
 }
 
 export interface SamplerPreset {
@@ -150,8 +151,8 @@ export interface PromptConfig {
   mainPrompt: string; // Global Main System Instruction
   jailbreakPrompt: string; // Jailbreak text to reinforce/override filters
   useJailbreak: boolean; // Toggle to turn jailbreak on/off
-  postHistoryPrompt: string; // Injected at the very end of history to coerce format
-  usePostHistory: boolean; // Toggle to turn post-history instructs on/off
+  postHistoryPrompt?: string; // Injected at the very end of history to coerce format
+  usePostHistory?: boolean; // Toggle to turn post-history instructs on/off
   instructTemplate: "default" | "alpaca" | "chatml" | "llama3" | "custom";
   storyString?: string; // SillyTavern STORY STRING context order templates
   customPrompts?: CustomPromptBlock[]; // SillyTavern customizable prompt block list
@@ -181,6 +182,7 @@ export interface ApiProfile {
   chatPath?: string;
   modelsPath?: string;
   bypassProxy?: boolean;
+  disableReasoning?: boolean;
 }
 
 export interface SavedPresetBundle {

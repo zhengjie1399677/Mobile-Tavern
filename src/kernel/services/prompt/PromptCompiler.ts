@@ -22,8 +22,113 @@ export class PromptCompiler {
     return Math.ceil(text.length / 3);
   }
 
+  private renderWithChineseHierarchy(nodes: PromptNode[], renderer: PromptRenderer, context: RuntimeContext): string {
+    const engineNodes: PromptNode[] = [];
+    const contextNodes: PromptNode[] = [];
+    const generationNodes: PromptNode[] = [];
+    const referenceNodes: PromptNode[] = [];
+
+    const getLayer = (node: PromptNode): "Engine" | "Context" | "Generation" | "Reference" => {
+      if (node.type === "Reference" || node.id === "dialogue_examples" || node.id === "output_example") {
+        return "Reference";
+      }
+      if (node.phase === "Engine" || node.phase === "Protocol") {
+        return "Engine";
+      }
+      if (node.phase === "Context") {
+        return "Context";
+      }
+      if (node.phase === "Generation") {
+        return "Generation";
+      }
+      return "Engine";
+    };
+
+    for (const node of nodes) {
+      const layer = getLayer(node);
+      if (layer === "Engine") engineNodes.push(node);
+      else if (layer === "Context") contextNodes.push(node);
+      else if (layer === "Generation") generationNodes.push(node);
+      else if (layer === "Reference") referenceNodes.push(node);
+    }
+
+    const sortLayerNodes = (nodesList: PromptNode[]): PromptNode[] => {
+      const staticNodes = nodesList.filter(n => !n.mutable);
+      const dynamicNodes = nodesList.filter(n => n.mutable);
+      
+      const sortByPriorityAndId = (list: PromptNode[]): PromptNode[] => {
+        return [...list].sort((a, b) => {
+          const weightA = PromptCompiler.PRIORITY_WEIGHTS[a.priority] || 2;
+          const weightB = PromptCompiler.PRIORITY_WEIGHTS[b.priority] || 2;
+          if (weightB !== weightA) {
+            return weightB - weightA;
+          }
+          return a.id.localeCompare(b.id);
+        });
+      };
+      
+      return [...sortByPriorityAndId(staticNodes), ...sortByPriorityAndId(dynamicNodes)];
+    };
+
+    const renderedEngine = renderer.render(sortLayerNodes(engineNodes), context);
+    const renderedContext = renderer.render(sortLayerNodes(contextNodes), context);
+    const renderedGeneration = renderer.render(sortLayerNodes(generationNodes), context);
+    const renderedReference = renderer.render(sortLayerNodes(referenceNodes), context);
+
+    const hierarchyHeader = `# 提示词执行层级规范
+
+本提示词采用固定的四层执行架构。
+
+规则层（Engine）
+最高优先级。
+定义核心规则、行为边界及输出协议。
+后续任何层级均不得覆盖本层。
+
+事实层（Context）
+提供世界观、角色设定、记忆等事实。
+不得修改规则层。
+
+生成层（Generation）
+规定叙事风格、生成方式及写作偏好。
+不得修改规则层或事实层。
+
+参考层（Reference）
+提供示例与 Few-shot。
+仅用于学习表达方式，不构成规则。
+
+优先级：
+
+规则层（Engine）＞
+事实层（Context）＞
+生成层（Generation）＞
+参考层（Reference）
+
+整个回复过程中，必须始终遵循上述层级。`;
+
+    let compiledText = hierarchyHeader + "\n\n";
+
+    const separator = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+
+    if (renderedEngine.trim()) {
+      compiledText += `${separator}\n规则层（Engine）: 最高优先级。定义核心规则、行为边界及输出协议。后续任何层级均不得覆盖本层。\n${separator}\n\n` + renderedEngine + "\n\n";
+    }
+
+    if (renderedContext.trim()) {
+      compiledText += `${separator}\n事实层（Context）: 提供世界观、角色设定、记忆等事实。不得修改规则层。\n${separator}\n\n` + renderedContext + "\n\n";
+    }
+
+    if (renderedGeneration.trim()) {
+      compiledText += `${separator}\n生成层（Generation）: 规定叙事风格、生成方式及写作偏好。不得修改规则层或事实层。\n${separator}\n\n` + renderedGeneration + "\n\n";
+    }
+
+    if (renderedReference.trim()) {
+      compiledText += `${separator}\n参考层（Reference）: 提供示例与 Few-shot。仅用于学习表达方式，不构成规则。\n${separator}\n\n` + renderedReference + "\n\n";
+    }
+
+    return compiledText.trim();
+  }
+
   compile(sections: PromptSection[], context: RuntimeContext): string {
-    // Phase 1 & 2: Collect & Filter
     const activeSections = sections.filter(s => s.enabled);
     const nodes: PromptNode[] = [];
 
@@ -38,58 +143,30 @@ export class PromptCompiler {
       }
     }
 
-    // Helper to sort a list of nodes by Phase and then by Priority
-    const sortNodes = (nodesList: PromptNode[]): PromptNode[] => {
-      const sorted: PromptNode[] = [];
-      for (const phase of PromptCompiler.PHASE_ORDER) {
-        const phaseNodes = nodesList.filter(n => n.phase === phase);
-        phaseNodes.sort((a, b) => {
-          const weightA = PromptCompiler.PRIORITY_WEIGHTS[a.priority] || 2;
-          const weightB = PromptCompiler.PRIORITY_WEIGHTS[b.priority] || 2;
-          if (weightB !== weightA) {
-            return weightB - weightA;
-          }
-          return a.id.localeCompare(b.id);
-        });
-        sorted.push(...phaseNodes);
-      }
-      return sorted;
-    };
-
-    // Phase 3: Sort & Pack (Cache-Optimized Layout: Static first, then Dynamic)
-    const staticNodes = nodes.filter(n => !n.mutable);
-    const dynamicNodes = nodes.filter(n => n.mutable);
-
-    const sortedStatic = sortNodes(staticNodes);
-    const sortedDynamic = sortNodes(dynamicNodes);
-
-    const finalNodes = [...sortedStatic, ...sortedDynamic];
-
-    // Phase 4: Render
     const modelName = (context.settings.api?.modelName || "").toLowerCase();
     const useMarkdown = modelName.includes("gpt-3.5") || modelName.includes("llama-2");
     const renderer: PromptRenderer = useMarkdown ? new MarkdownRenderer() : new XMLRenderer();
 
-    let compiledText = renderer.render(finalNodes, context);
+    let compiledText = this.renderWithChineseHierarchy(nodes, renderer, context);
 
     // Token Budget Defense (Trimming)
     let estimatedTokens = this.estimateTokens(compiledText);
     if (estimatedTokens > PromptCompiler.SAFE_CONTEXT_LIMIT) {
       console.warn(`[PromptCompiler] Compiled prompt tokens (${estimatedTokens}) exceeds limit (${PromptCompiler.SAFE_CONTEXT_LIMIT}). Trimming...`);
       
-      const trimmableNodes = finalNodes.filter(n => n.type !== "Instruction");
+      const trimmableNodes = nodes.filter(n => n.type !== "Instruction");
       trimmableNodes.sort((a, b) => {
         const weightA = PromptCompiler.PRIORITY_WEIGHTS[a.priority] || 2;
         const weightB = PromptCompiler.PRIORITY_WEIGHTS[b.priority] || 2;
         return weightA - weightB; // Ascending priority (Low -> Normal -> High)
       });
 
-      const nodesToKeep = new Set<string>(finalNodes.map(n => n.id));
+      const nodesToKeep = new Set<string>(nodes.map(n => n.id));
 
       for (const nodeToTrim of trimmableNodes) {
         nodesToKeep.delete(nodeToTrim.id);
-        const filteredNodes = finalNodes.filter(n => nodesToKeep.has(n.id));
-        compiledText = renderer.render(filteredNodes, context);
+        const filteredNodes = nodes.filter(n => nodesToKeep.has(n.id));
+        compiledText = this.renderWithChineseHierarchy(filteredNodes, renderer, context);
         estimatedTokens = this.estimateTokens(compiledText);
         if (estimatedTokens <= PromptCompiler.SAFE_CONTEXT_LIMIT) {
           break;

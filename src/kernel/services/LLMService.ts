@@ -95,6 +95,15 @@ export class LLMService implements ILLMService {
     customSignal?: AbortSignal
   ): Promise<Response> {
     let cleanedReqBody = cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, any>);
+    
+    // API 级别关闭推理模式（直接在 Payload 中设置控制参数）
+    if (proxyPayload.disableReasoning && cleanedReqBody) {
+      cleanedReqBody.reasoning_effort = "low";
+      cleanedReqBody.thinking = { type: "disabled" };
+      cleanedReqBody.max_thinking_tokens = 0;
+      cleanedReqBody.thinking_budget = 0;
+    }
+
     const modelId = proxyPayload.reqBody?.model || "";
     if (modelId) {
       cleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(modelId, cleanedReqBody);

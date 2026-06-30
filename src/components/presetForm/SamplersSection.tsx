@@ -1,7 +1,6 @@
 import { Sliders, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../../components/ui/card";
 import { cn } from "../../../lib/utils";
-import { DEFAULT_PRESETS } from "../../App";
 import type { UserSettings } from "../../types";
 
 interface SamplersSectionProps {
@@ -49,34 +48,7 @@ export default function SamplersSection({
       </CardHeader>
       {!isSamplersFolded && (
         <CardContent className="pt-4 space-y-5 overflow-hidden w-full">
-        <div className="space-y-2">
-          <label className="text-[11px] font-bold text-muted-foreground block mb-2">
-            内置模板基座切换
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {Object.values(DEFAULT_PRESETS).map((p) => {
-              const isSelect = settings.preset.id === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() =>
-                    updateSettings({ ...settings, preset: p })
-                  }
-                  className={`py-1.5 px-1 border rounded-lg text-center font-bold text-[10px] transition ${
-                    isSelect
-                      ? "bg-primary/20 border-primary text-primary"
-                      : "bg-muted/40 border-border hover:border-primary/50 text-muted-foreground"
-                  }`}
-                >
-                  {p.name.split(" ")[0]}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="space-y-4 pt-4 border-t border-border/50 text-xs w-full overflow-hidden">
+        <div className="space-y-4 text-xs w-full overflow-hidden">
           <div className="space-y-2 w-full">
             <div className="flex justify-between items-center text-muted-foreground w-full">
               <span className="font-semibold">温度 (Temp)</span>

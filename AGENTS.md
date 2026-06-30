@@ -214,3 +214,9 @@
 ### 4. 彻底解耦与生命周期资源回收
 * **按需声明拓扑依赖**：在类中声明 `readonly dependencies = [KernelServices.Database] as const`，利用拓扑 Kahn 排序进行服务批量自愈装配。
 * **AbortSignal 彻底回收**：在 `init(kernel, signal?)` 和 `destroy(kernel, signal?)` 中，必须将 `signal` 绑定到所有内部的 `fetch`、异步 Promise 或定时器中，确保在内核注销/销毁时资源能被 100% 回收释放，严禁残留挂起异步任务。
+
+---
+
+# 🚨 核心行为准则十一：开发服务安全重启与端口清理准则
+**在启动或重启本地 Express/Vite 开发服务器（如运行 `npm run dev` 或直接启动 `server.ts`）之前，必须首先检测并强行杀死所有占用该端口（默认 3000 端口）的残留进程，以防启动冲突导致挂起或死锁。**
+*   **端口清理操作**：在启动开发服务器前，必须检测端口占用（如 Windows 下使用 `netstat -ano | findstr :3000` 找出 PID 并通过 `taskkill /f /pid <PID>` 强杀；Linux/Mac 下使用 `fuser -k 3000/tcp`），在完成清理后，再行运行拉起新服务的指令。

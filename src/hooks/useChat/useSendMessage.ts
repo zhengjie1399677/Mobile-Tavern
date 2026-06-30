@@ -217,6 +217,7 @@ export function useSendMessage(p: SendMessageParams) {
         apiKey: finalApiKey,
         chatPath: finalChatPath,
         bypassProxy: p.settings.api.bypassProxy,
+        disableReasoning: p.settings.api.disableReasoning,
         reqBody: {
           model: finalModel,
           stream: true,

@@ -1,7 +1,7 @@
 import React, { useCallback } from "react";
 import { UserSettings, SamplerPreset } from "../../types";
 import { saveStoredSavedPresets } from "../../utils/localDB";
-import { DEFAULT_SETTINGS, DEFAULT_PRESETS, DEFAULT_PROMPT_CONFIG } from "./defaults";
+import { DEFAULT_SETTINGS, DEFAULT_PROMPT_CONFIG } from "./defaults";
 
 interface UsePresetBundlesDeps {
   settings: UserSettings;
@@ -363,7 +363,7 @@ export const usePresetBundles = ({
       nextPreset = nextSaved[0].preset;
       nextPromptConfig = nextSaved[0].promptConfig;
     } else {
-      nextPreset = DEFAULT_PRESETS.balanced;
+      nextPreset = DEFAULT_SETTINGS.preset;
       nextPromptConfig = DEFAULT_PROMPT_CONFIG;
     }
 
@@ -399,7 +399,7 @@ export const usePresetBundles = ({
         nextPromptConfig = nextSaved[0].promptConfig;
         nextRegex = nextSaved[0].presetRegexScripts || [];
       } else {
-        nextPreset = DEFAULT_PRESETS.balanced;
+        nextPreset = DEFAULT_SETTINGS.preset;
         nextPromptConfig = DEFAULT_PROMPT_CONFIG;
         nextRegex = [];
       }

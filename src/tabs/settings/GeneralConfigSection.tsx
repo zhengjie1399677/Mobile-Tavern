@@ -104,6 +104,7 @@ export default function GeneralConfigSection({
                             chatPath: target.chatPath,
                             modelsPath: target.modelsPath,
                             bypassProxy: target.bypassProxy,
+                            disableReasoning: target.disableReasoning,
                           },
                         }));
                       }
@@ -152,6 +153,7 @@ export default function GeneralConfigSection({
                         chatPath: settings.api.chatPath,
                         modelsPath: settings.api.modelsPath,
                         bypassProxy: settings.api.bypassProxy,
+                        disableReasoning: settings.api.disableReasoning,
                       };
                       updateSettings((prev) => ({
                         ...prev,
@@ -433,6 +435,28 @@ export default function GeneralConfigSection({
                 updateSettings((prev) => ({
                   ...prev,
                   api: { ...prev.api, sendNames: checked },
+                }))
+              }
+              className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+            />
+          </div>
+
+          {/* disableReasoning Switch */}
+          <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="space-y-0.5">
+              <label className="text-[13px] font-semibold text-foreground">
+                关闭推理模式 (Disable Reasoning)
+              </label>
+              <p className="text-[10px] text-muted-foreground max-w-[450px]">
+                对于支持深度思考推理的模型（如 Claude 3.7 或 DeepSeek R1），开启后将在 API 层面直接关闭或削弱其推理，避免消耗多余的思考 Token。
+              </p>
+            </div>
+            <Switch
+              checked={settings.api.disableReasoning || false}
+              onCheckedChange={(checked) =>
+                updateSettings((prev) => ({
+                  ...prev,
+                  api: { ...prev.api, disableReasoning: checked },
                 }))
               }
               className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"

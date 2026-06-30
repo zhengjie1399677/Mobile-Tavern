@@ -43,6 +43,7 @@ export interface StreamParams {
   apiKey: string;
   chatPath?: string;
   bypassProxy?: boolean;
+  disableReasoning?: boolean;
   reqBody: any;
   signal?: AbortSignal;
 }
@@ -176,6 +177,7 @@ export interface ILLMService extends IKernelService {
       apiKey: string;
       chatPath?: string;
       bypassProxy?: boolean;
+      disableReasoning?: boolean;
       reqBody: any;
     },
     signal?: AbortSignal
