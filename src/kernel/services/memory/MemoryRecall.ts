@@ -84,9 +84,7 @@ export class MemoryRecall {
     // 强力 Pin 状态支持：哪怕没有匹配到任何查询标签，若用户有 Pin 的消息，依然需要召回它们
     let sessionObj: any = null;
     try {
-      if (typeof window !== 'undefined' && ((window as any).indexedDB || (window as any).shimIndexedDB)) {
-        sessionObj = await getSessionById(sessionId);
-      }
+      sessionObj = await getSessionById(sessionId);
     } catch (err) {
       console.warn("[MemoryRecall] Failed to fetch session for Pin in recall:", err);
     }
@@ -145,9 +143,7 @@ export class MemoryRecall {
     // 加载 Mute 列表（与 recallByTags 一致的 Mute 过滤）
     let sessionObj: any = null;
     try {
-      if (typeof window !== 'undefined' && ((window as any).indexedDB || (window as any).shimIndexedDB)) {
-        sessionObj = await getSessionById(sessionId);
-      }
+      sessionObj = await getSessionById(sessionId);
     } catch (err) {
       console.warn("[MemoryRecall] Failed to fetch session for Mute in fallback:", err);
     }
@@ -192,9 +188,7 @@ export class MemoryRecall {
     // 2.5 强力 Pin / Mute 机制注入候选池与排除配置
     let sessionObj2: any = null;
     try {
-      if (typeof window !== 'undefined' && ((window as any).indexedDB || (window as any).shimIndexedDB)) {
-        sessionObj2 = await getSessionById(sessionId);
-      }
+      sessionObj2 = await getSessionById(sessionId);
     } catch (err) {
       console.warn("[MemoryRecall] Failed to fetch session for Pin/Mute in recallByTags:", err);
     }
