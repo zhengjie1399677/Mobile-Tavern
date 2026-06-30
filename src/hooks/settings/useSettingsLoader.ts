@@ -141,43 +141,15 @@ export const useSettingsLoader = ({
             return { prompts: nextPrompts, updated };
           };
 
-          const basicPresetIndex = nextMergedPresets.findIndex(
-            (p: any) => p.id === "bundle_mobile_tavern_basic"
+          // 强制使用最新的内置默认预设包覆盖数据库中的旧默认预设包，确保内容完整（规避 fetch 失败及脏数据残留）
+          nextMergedPresets = (nextMergedPresets || []).filter(
+            (p: any) => p.id !== "bundle_mobile_tavern_basic"
           );
-          if (basicPresetIndex === -1) {
-            nextMergedPresets = [...nextMergedPresets, MOBILE_TAVERN_BASIC_PRESET_BUNDLE];
-            didInject = true;
-          } else {
-            const basicBundle = { ...nextMergedPresets[basicPresetIndex] };
-            let updated = false;
-            if (basicBundle.preset?.name !== "基本预设") {
-              basicBundle.preset = {
-                ...(basicBundle.preset || {}),
-                name: "基本预设",
-              };
-              updated = true;
-            }
-
-            if (
-              basicBundle.promptConfig?.mainPrompt?.includes("叙事共鸣沙盒") ||
-              !basicBundle.promptConfig?.customPrompts?.some((p: any) => p.id === "prompt_reasoning_discipline")
-            ) {
-              basicBundle.preset = {
-                ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset,
-                id: basicBundle.preset?.id || MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset.id,
-                name: "基本预设",
-              };
-              basicBundle.promptConfig = {
-                ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
-              };
-              updated = true;
-            }
-
-            if (updated) {
-              nextMergedPresets[basicPresetIndex] = basicBundle;
-              didInject = true;
-            }
-          }
+          nextMergedPresets = [
+            ...nextMergedPresets,
+            MOBILE_TAVERN_BASIC_PRESET_BUNDLE
+          ];
+          didInject = true;
 
           nextMergedPresets = nextMergedPresets.map((b: any) => {
             const res = fillEmptyCustomPrompts(
