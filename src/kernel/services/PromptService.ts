@@ -7,6 +7,7 @@ import {
 } from "../../defaults/promptTemplates";
 import { PromptBuilder } from "./prompt/PromptBuilder";
 import { PromptCompiler } from "./prompt/PromptCompiler";
+import { RuntimeContext } from "./prompt/types";
 
 const SAFE_CONTEXT_LIMIT = 12000;
 
