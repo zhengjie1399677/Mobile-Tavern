@@ -59,12 +59,12 @@ export const useChat = (
 
   // ── 稳定 Ref 镜像（供异步回调安全读取最新值） ─────────────────────────────────
   const sessionsRef = React.useRef(sessions);
-  useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
+  sessionsRef.current = sessions;
 
   const activeSessionIdRef = React.useRef(activeSessionId);
   const activeCharIdRef    = React.useRef(activeCharId);
-  useEffect(() => { activeSessionIdRef.current = activeSessionId; }, [activeSessionId]);
-  useEffect(() => { activeCharIdRef.current    = activeCharId;    }, [activeCharId]);
+  activeSessionIdRef.current = activeSessionId;
+  activeCharIdRef.current    = activeCharId;
 
   // ── 子 Hook 装配 ──────────────────────────────────────────────────────────────
   const ui = useChatUI({

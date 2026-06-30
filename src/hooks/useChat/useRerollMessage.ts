@@ -49,7 +49,9 @@ export function useRerollMessage(p: RerollMessageParams) {
   const handleRerollFromMessage = useCallback(async (targetMsg: Message) => {
     const p = pRef.current;
     p.setReplySuggestions([]);
-    if (!targetMsg?.id || p.isSendingRef.current || !p.activeCharacter || !p.activeSession) return;
+
+    const currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
+    if (!targetMsg?.id || p.isSendingRef.current || !p.activeCharacter || !currentSession) return;
 
     let finalApiKey = p.settings.api.apiKey;
     let finalBaseUrl = p.settings.api.baseUrl;
@@ -76,7 +78,7 @@ export function useRerollMessage(p: RerollMessageParams) {
 
     const requestId = ++p.activeRequestIdRef.current;
 
-    const cleanHistory = (p.activeSession.messages || []).filter(
+    const cleanHistory = (currentSession.messages || []).filter(
       (m) => !(m.sender === "assistant" && (m.content === "💭..." || !m.content))
     );
     const targetIdx = cleanHistory.findIndex((m) => m.id === targetMsg.id);
@@ -105,7 +107,7 @@ export function useRerollMessage(p: RerollMessageParams) {
     p.telemetryService.reportUsage("regenerate_message", { modelName: modelToReport, characterName: p.activeCharacter.name });
 
     const lastUserText = lastMsgNow.content;
-    let updatedSession = { ...p.activeSession, messages: nextMsgs };
+    let updatedSession = { ...currentSession, messages: nextMsgs };
     p.setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
     try {
       await p.databaseService.saveSession(updatedSession);

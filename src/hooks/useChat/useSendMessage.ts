@@ -130,15 +130,18 @@ export function useSendMessage(p: SendMessageParams) {
       }
     }
 
+    const currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
+    if (!currentSession) return;
+
     p.isSendingRef.current = true;
     p.setIsSending(true);
 
     const requestId = ++p.activeRequestIdRef.current;
-    let updatedSession = p.activeSession!;
+    let updatedSession = currentSession;
 
     if (!isBisonConsecutive && textToSend && textToSend.trim()) {
       try {
-        updatedSession = await p.multiMessageService.queueUserMessage(p.activeSession!, textToSend);
+        updatedSession = await p.multiMessageService.queueUserMessage(currentSession, textToSend);
         p.setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
       } catch (err: any) {
         console.error("Failed to save session user message:", err);
