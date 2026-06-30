@@ -125,6 +125,22 @@ export const useSettingsLoader = ({
             didInject = true;
           }
 
+          const fillEmptyCustomPrompts = (prompts: any[] | undefined, defaults: any[]) => {
+            if (!prompts) return { prompts, updated: false };
+            let updated = false;
+            const nextPrompts = prompts.map((p: any) => {
+              if (!p.content || !p.content.trim()) {
+                const match = defaults.find((d: any) => d.id === p.id);
+                if (match && match.content) {
+                  updated = true;
+                  return { ...p, content: match.content };
+                }
+              }
+              return p;
+            });
+            return { prompts: nextPrompts, updated };
+          };
+
           const basicPresetIndex = nextMergedPresets.findIndex(
             (p: any) => p.id === "bundle_mobile_tavern_basic"
           );
@@ -162,6 +178,24 @@ export const useSettingsLoader = ({
               didInject = true;
             }
           }
+
+          nextMergedPresets = nextMergedPresets.map((b: any) => {
+            const res = fillEmptyCustomPrompts(
+              b.promptConfig?.customPrompts,
+              MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts || []
+            );
+            if (res && res.updated) {
+              didInject = true;
+              return {
+                ...b,
+                promptConfig: {
+                  ...(b.promptConfig || {}),
+                  customPrompts: res.prompts,
+                },
+              };
+            }
+            return b;
+          });
           mergedSavedPresets = nextMergedPresets;
 
           if (didInject) {
@@ -224,11 +258,19 @@ export const useSettingsLoader = ({
           let roleUpdated = false;
           let customPromptsUpdated = false;
           const mergedCustomPrompts = [...userPrompts].map((p: any) => {
-            if (p.role !== "system") {
+            let nextPrompt = { ...p };
+            if (nextPrompt.role !== "system") {
               roleUpdated = true;
-              return { ...p, role: "system" as const };
+              nextPrompt.role = "system" as const;
             }
-            return p;
+            if (!nextPrompt.content || !nextPrompt.content.trim()) {
+              const match = defaultPrompts.find((dp: any) => dp.id === p.id);
+              if (match && match.content) {
+                nextPrompt.content = match.content;
+                customPromptsUpdated = true;
+              }
+            }
+            return nextPrompt;
           });
 
           for (const dp of defaultPrompts) {
