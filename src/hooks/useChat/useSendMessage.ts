@@ -272,8 +272,10 @@ export function useSendMessage(p: SendMessageParams) {
       if (reasoningChunks.length > 0) {
         console.log("<think>\n" + reasoningChunks.join("") + "\n</think>");
       }
-      console.log(responseChunks.join(""));
+      const finalSendText = responseChunks.join("");
+      console.log(finalSendText);
       console.log("=========================");
+      console.debug("[send_message]", finalSendText);
 
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }

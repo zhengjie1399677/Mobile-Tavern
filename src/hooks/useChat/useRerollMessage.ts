@@ -244,8 +244,10 @@ export function useRerollMessage(p: RerollMessageParams) {
       if (reasoningChunks.length > 0) {
         console.log("<think>\n" + reasoningChunks.join("") + "\n</think>");
       }
-      console.log(responseChunks.join(""));
+      const finalRerollText = responseChunks.join("");
+      console.log(finalRerollText);
       console.log("=========================");
+      console.debug("[reroll]", finalRerollText);
 
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
