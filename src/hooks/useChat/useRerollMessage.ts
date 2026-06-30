@@ -353,15 +353,38 @@ export function useRerollMessage(p: RerollMessageParams) {
 
   const handleRerollLast = useCallback(async () => {
     const p = pRef.current;
-    if (!p.activeSession || !Array.isArray(p.activeSession.messages) || p.activeSession.messages.length === 0) return;
+    
+    // Resolve the latest session synchronously from the ref
+    const currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
+    if (!currentSession || !Array.isArray(currentSession.messages) || currentSession.messages.length === 0) return;
+
+    const messages = currentSession.messages;
+    const lastMsg = messages[messages.length - 1];
+
+    // 情况 A：如果最后一条消息是用户发送的消息（例如发送失败、404 未得到回复、或者刚发完没收到回复）
+    // 此时点击“重载”，用户的本意是“让 AI 针对我发的最顶端/最后一句话生成回复”。
+    // 我们直接以最后一条用户消息为目标，触发回复生成。
+    if (lastMsg.sender === "user") {
+      await handleRerollFromMessage(lastMsg);
+      return;
+    }
+
+    // 情况 B：如果最后一条消息是 AI 的回复，寻找最后一条 AI 回复并重新生成它
     let lastAiMsg: Message | null = null;
-    for (let i = p.activeSession.messages.length - 1; i >= 0; i--) {
-      if (p.activeSession.messages[i].sender === "assistant") {
-        lastAiMsg = p.activeSession.messages[i];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].sender === "assistant") {
+        // 规避首条欢迎词（通常在 index 0），首条欢迎词是不允许重发的
+        if (i === 0) continue;
+        lastAiMsg = messages[i];
         break;
       }
     }
-    if (!lastAiMsg) { await p.showCustomAlert("对话中尚未存在可供重新生成的智能回复对话！"); return; }
+
+    if (!lastAiMsg) {
+      await p.showCustomAlert("对话中尚未存在可供重新生成的智能回复对话！");
+      return;
+    }
+
     await handleRerollFromMessage(lastAiMsg);
   }, [handleRerollFromMessage]);
 
