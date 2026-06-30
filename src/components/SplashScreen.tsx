@@ -40,9 +40,9 @@ export function SplashScreen({ isVisible }: SplashScreenProps) {
                 repeat: Infinity,
                 ease: "easeInOut"
               }}
-              className="p-6 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-sm"
+              className="p-5 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-sm"
             >
-              <Sparkles className="w-12 h-12 text-primary" strokeWidth={1.5} />
+              <Sparkles className="w-9 h-9 text-primary" strokeWidth={1.5} />
             </motion.div>
 
             {/* Title */}
