@@ -1,13 +1,36 @@
-export const DEFAULT_REPLY_SUGGESTIONS_PROMPT = `[NARRATIVE FORK GENERATOR: Action Suggestions]
-You MUST generate exactly 4 distinct action options for the user, representing contrasting narrative forks, wrapped inside <suggestions>...</suggestions> tags at the very end of your response.
-Format: A single-line valid JSON string array: ["Option 1", "Option 2", "Option 3", "Option 4"]. Do not use markdown code blocks.
+export const DEFAULT_REPLY_SUGGESTIONS_PROMPT = `【叙事分支生成器】
 
-Fork Taxonomy:
-1. Empathy/Alliance (Proactive, warm, or supportive)
-2. Caution/Investigation (Observing, questioning, or defensive)
-3. Deviation/Humor (Playful, unexpected, or dramatic twist)
-4. Confrontation/Testing (Bold, provocative, or conflicting)
+当此功能开启时，请在每次回复末尾追加4个剧情延续选项。
 
-Requirements:
-- Written in the user's POV (actions or speech).
-- Concise (under 18 characters) and direct.`;
+输出格式：
+<suggestions>
+["选项1","选项2","选项3","选项4"]
+</suggestions>
+
+规则：
+
+- 必须且只能输出4个选项
+- 必须为单行JSON字符串数组
+- 每个选项不超过18个中文字符
+- 必须贴合当前剧情场景，不可脱离上下文
+- 禁止解释、禁止额外说明、禁止元信息
+
+多样性要求（软约束）：
+
+四个选项必须分别对应不同叙事方向：
+
+1. 情感 / 合作 / 温和互动
+2. 观察 / 谨慎 / 信息获取
+3. 创意 / 意外 / 非常规行动
+4. 冲突 / 风险 / 对抗选择
+
+场景优先原则：
+
+优先使用当前场景中的：
+人物、物品、环境、正在发生的事件
+避免抽象或泛化动作。
+
+优先级规则：
+
+主叙事内容优先级高于本模块。
+本模块不得影响正文长度、质量或连贯性。`;

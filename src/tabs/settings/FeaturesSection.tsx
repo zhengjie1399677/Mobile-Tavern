@@ -197,11 +197,11 @@ export default function FeaturesSection({
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <label className="text-[12px] font-bold text-foreground flex items-center gap-1.5">
-                    <span>AI 回复走向推荐 (AI Reply Suggestions)</span>
+                    <span>【叙事分支生成器】 (AI Reply Suggestions)</span>
                     <span className="text-[9px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">实验性</span>
                   </label>
                   <p className="text-[9.5px] text-muted-foreground/85 leading-normal">
-                    在生成每轮回复尾部附带输出 4 个后续行动选项，用户点击可快速决策或写入。
+                    在生成每轮回复尾部附带输出 4 个剧情延续选项，用户点击可快速决策或写入。
                   </p>
                 </div>
                 <Switch

@@ -9,8 +9,10 @@ import {
   saveStoredSavedPresets,
   getCustomWorldbooks,
 } from "../../utils/localDB";
-import {
   DEFAULT_REPLY_SUGGESTIONS_PROMPT,
+  DEFAULT_TABLE_MEMORY_PROMPT,
+  DEFAULT_BISON_MODE_PROMPT,
+  DEFAULT_SUMMARY_SYSTEM_PROMPT,
   DEFAULT_PROMPT_CONFIG,
   DEFAULT_SETTINGS,
   FORMAT_PRESERVATION_BUNDLE,
@@ -91,6 +93,24 @@ export const useSettingsLoader = ({
             needSave = true;
           }
 
+          // Force upgrade current active prompts if they contain any old default prompt patterns
+          const isOldDefaultPrompt =
+            storedSet.promptConfig?.mainPrompt?.includes("[NARRATIVE ENGINE:") ||
+            storedSet.promptConfig?.mainPrompt?.includes("[系统核心任务：") ||
+            storedSet.promptConfig?.mainPrompt?.includes("叙事共鸣沙盒");
+
+          if (isOldDefaultPrompt) {
+            storedSet.promptConfig.mainPrompt = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.mainPrompt;
+            storedSet.promptConfig.jailbreakPrompt = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.jailbreakPrompt;
+            storedSet.promptConfig.storyString = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.storyString;
+            storedSet.promptConfig.customPrompts = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts;
+            delete storedSet.promptConfig.postHistoryPrompt;
+            delete storedSet.promptConfig.usePostHistory;
+            delete storedSet.promptConfig.enableReasoningGuidance;
+            delete storedSet.promptConfig.reasoningGuidancePrompt;
+            needSave = true;
+          }
+
           mergedSavedPresets = mergedSavedPresets.map((b: any) => ({
             ...b,
             presetRegexScripts: b.presetRegexScripts || []
@@ -121,17 +141,19 @@ export const useSettingsLoader = ({
               updated = true;
             }
 
-            const basicPrompts = basicBundle.promptConfig?.customPrompts || [];
-            const hasEnhancedChain = basicPrompts.some((p: any) => p.id === "prompt_enhanced_reasoning_chain");
-            if (!hasEnhancedChain) {
-              const enhancedPrompt = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts?.find(p => p.id === "prompt_enhanced_reasoning_chain");
-              if (enhancedPrompt) {
-                basicBundle.promptConfig = {
-                  ...(basicBundle.promptConfig || {}),
-                  customPrompts: [...basicPrompts, enhancedPrompt]
-                };
-                updated = true;
-              }
+            if (
+              basicBundle.promptConfig?.mainPrompt?.includes("叙事共鸣沙盒") ||
+              !basicBundle.promptConfig?.customPrompts?.some((p: any) => p.id === "prompt_reasoning_discipline")
+            ) {
+              basicBundle.preset = {
+                ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset,
+                id: basicBundle.preset?.id || MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset.id,
+                name: "基本预设",
+              };
+              basicBundle.promptConfig = {
+                ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
+              };
+              updated = true;
             }
 
             if (updated) {
@@ -232,7 +254,14 @@ export const useSettingsLoader = ({
             memory: {
               ...defaultMemory,
               ...(storedSet.memory || {}),
-              summarySystemPrompt: storedSet.memory?.summarySystemPrompt || defaultMemory.summarySystemPrompt,
+              summarySystemPrompt: (() => {
+                const stored = storedSet.memory?.summarySystemPrompt;
+                if (!stored || !stored.includes("【历史剧情归纳系统】")) {
+                  needSave = true;
+                  return DEFAULT_SUMMARY_SYSTEM_PROMPT;
+                }
+                return stored;
+              })(),
               timeTagTemplate: storedSet.memory?.timeTagTemplate || DEFAULT_SETTINGS.memory.timeTagTemplate,
             },
             promptConfig: {
@@ -241,7 +270,14 @@ export const useSettingsLoader = ({
               mainPrompt: storedSet.promptConfig?.mainPrompt || defaultPromptConfig.mainPrompt,
               postHistoryPrompt: storedSet.promptConfig?.postHistoryPrompt || defaultPromptConfig.postHistoryPrompt,
               reasoningGuidancePrompt: storedSet.promptConfig?.reasoningGuidancePrompt || defaultPromptConfig.reasoningGuidancePrompt,
-              tableMemoryPrompt: storedSet.promptConfig?.tableMemoryPrompt || defaultPromptConfig.tableMemoryPrompt,
+              tableMemoryPrompt: (() => {
+                const stored = storedSet.promptConfig?.tableMemoryPrompt;
+                if (!stored || !stored.includes("【状态与结构化记忆引擎】")) {
+                  needSave = true;
+                  return DEFAULT_TABLE_MEMORY_PROMPT;
+                }
+                return stored;
+              })(),
               customPrompts: mergedCustomPrompts,
               sectionHeaders: {
                 ...defaultPromptConfig.sectionHeaders,
@@ -275,14 +311,20 @@ export const useSettingsLoader = ({
             enableBisonMode: storedSet.enableBisonMode ?? DEFAULT_SETTINGS.enableBisonMode,
             replySuggestionsPrompt: (() => {
               const stored = storedSet.replySuggestionsPrompt;
-              // 若旧版提示词不包含示例段落，静默升级为带中文示例的最新版本
-              if (!stored || !stored.includes("Example Output Format")) {
+              if (!stored || !stored.includes("【叙事分支生成器】")) {
                 needSave = true;
                 return DEFAULT_REPLY_SUGGESTIONS_PROMPT;
               }
               return stored;
             })(),
-            bisonModePrompt: storedSet.bisonModePrompt ?? DEFAULT_SETTINGS.bisonModePrompt,
+            bisonModePrompt: (() => {
+              const stored = storedSet.bisonModePrompt;
+              if (!stored || stored.includes("野牛模式连续输出指令：")) {
+                needSave = true;
+                return DEFAULT_BISON_MODE_PROMPT;
+              }
+              return stored;
+            })(),
             enableMultiMessageQueue: storedSet.enableMultiMessageQueue ?? DEFAULT_SETTINGS.enableMultiMessageQueue,
             enableAsteriskFormatting: storedSet.enableAsteriskFormatting ?? DEFAULT_SETTINGS.enableAsteriskFormatting,
           } as any;

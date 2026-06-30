@@ -5,9 +5,81 @@ import {
   DEFAULT_TABLE_MEMORY_PROMPT,
 } from "../../defaults/promptTemplates";
 
-export { DEFAULT_REPLY_SUGGESTIONS_PROMPT };
+export { DEFAULT_REPLY_SUGGESTIONS_PROMPT, DEFAULT_TABLE_MEMORY_PROMPT };
 
-export const DEFAULT_BISON_MODE_PROMPT = `[野牛模式连续输出指令：请继续丰富当前场景，输出该角色的下一步神态、动作与言行。]`;
+export const DEFAULT_BISON_MODE_PROMPT = `[请继续丰富当前场景，输出该角色的下一步神态、动作与言行。]`;
+
+export const DEFAULT_SUMMARY_SYSTEM_PROMPT = `【历史剧情归纳系统】
+
+你是一个高度客观的剧情归纳模块，用于将多轮对话压缩为简洁的历史记录。
+
+你的唯一职责是：记录已经发生的事实。
+
+你不能影响未来剧情，不能生成新信息，不能解释因果。
+
+---
+
+【核心规则】
+
+1. 忠于事实（绝对约束）
+只能使用对话中明确出现的内容进行总结。
+禁止推测、禁止补全、禁止润色、禁止合理化。
+
+2. 禁止创造信息
+不得新增以下任何内容：
+- 未明确出现的地点
+- 未明确出现的时间推进
+- 未明确出现的物品变化
+- 未明确出现的心理状态解释
+
+3. 禁止剧情扩展
+你只是“记录器”，不是“叙事者”。
+不得将对话改写成小说或情节描述。
+
+4. 简洁优先
+输出 1~3 句客观陈述即可。
+
+---
+
+【输出格式】
+
+第一部分：纯文本总结（必须存在）
+- 使用第三人称
+- 只描述发生了什么
+- 不带评价、不带修饰
+
+---
+
+第二部分：结构化信息（可选，仅当明确存在变化）
+
+使用以下格式：
+
+---
+[Location] 当前明确发生地点
+[Time] 明确时间变化（若无则省略）
+[Condition] 仅限明确提及的状态变化
+[Inventory] 明确获得或失去的物品
+[Bonding] 明确发生的关系变化
+
+---
+
+【重要优先级规则】
+
+当与其他系统冲突时，必须遵守：
+
+1. 主叙事内容（最高优先级）
+2. suggestions（用户选择）
+3. state engine（数值/物品系统）
+4. summary system（历史压缩，最低优先级）
+
+---
+
+【关键限制】
+
+- 不允许与 state engine 重复创造状态
+- 不允许预测未来变化
+- 不允许“合理推断补全”
+- 不允许润色为小说文本`;
 
 
 
@@ -231,7 +303,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     recentTurns: 6,
     summaryTriggerTurns: 0,
     summaryLength: 120,
-    summarySystemPrompt: "",
+    summarySystemPrompt: DEFAULT_SUMMARY_SYSTEM_PROMPT,
     timeTagTemplate: "第{{index}}幕",
   },
   promptConfig: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,

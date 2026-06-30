@@ -352,7 +352,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       {settings.enableReplySuggestions && !isSending && replySuggestions && replySuggestions.length > 0 && (
         <div className="flex flex-col gap-1.5 px-1 py-1 border-b border-border/30 animate-fadeIn">
           <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-1">
-            <span className="flex items-center gap-1">✨ AI 推荐下一步走向:</span>
+            <span className="flex items-center gap-1">✨ 叙事分支生成器:</span>
             <button
               onClick={() => {
                 const nextMode = clickMode === "send" ? "fill" : "send";
