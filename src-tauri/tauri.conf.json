@@ -5,7 +5,7 @@
   "identifier": "com.aitavern.app",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:3000",
+    "devUrl": "http://127.0.0.1:3000",
     "beforeDevCommand": "vite --host 127.0.0.1",
     "beforeBuildCommand": "npm run build"
   },
