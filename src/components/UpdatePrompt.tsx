@@ -43,7 +43,7 @@ export async function performUpdateCheck(force = false): Promise<UpdateInfo | nu
   }
 
   // pkg.version 自动读取 package.json 中的版本，符合版本同步规范
-  const currentVersion = pkg.version || "1.5.9";
+  const currentVersion = pkg.version || "1.6.0";
   const res = await updateService.checkUpdate(currentVersion);
 
   // 记录检查时间戳（无论是否有更新），用于冷却期判断
@@ -144,7 +144,7 @@ export default function UpdatePrompt() {
         // 开发浏览器环境降级兜底：新标签页打开
         window.open(downloadUrl, "_blank");
       }
-      
+
       // 弹出提示框，告知用户已唤起安全下载
       setTimeout(() => {
         setIsDownloading(false);
@@ -165,7 +165,7 @@ export default function UpdatePrompt() {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
       <div className="relative w-full max-w-sm rounded-3xl overflow-hidden bg-gradient-to-br from-slate-900/90 via-indigo-950/80 to-violet-950/90 border border-white/10 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col items-center text-center space-y-5">
-        
+
         {/* 顶部绚丽的光晕底色 */}
         <div className="absolute -top-12 -left-12 w-32 h-32 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />

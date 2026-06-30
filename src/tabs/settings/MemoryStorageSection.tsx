@@ -480,7 +480,7 @@ export default function MemoryStorageSection({
           🛠️ 系统报告
         </p>
         <p>
-          当前版本: v1.5.9 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
+          当前版本: v1.6.0 • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
         </p>
         <p>
           设备型号: {deviceModel}

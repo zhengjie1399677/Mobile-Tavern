@@ -210,9 +210,9 @@ async function startServer() {
     try {
       const pkgPath = path.join(resolvedDirname, "package.json");
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-      res.json({ pkgVersion: pkg.version || "1.5.9" });
+      res.json({ pkgVersion: pkg.version || "1.6.0" });
     } catch (e) {
-      res.json({ pkgVersion: "1.5.9" });
+      res.json({ pkgVersion: "1.6.0" });
     }
   });
 
@@ -552,7 +552,7 @@ async function startServer() {
       res.json(parsed);
     } catch (e: any) {
       console.error("Catbot server fallback error:", sanitizeSensitiveData(e.stack || e.message || String(e)));
-      
+
       const errMsgLower = (e.message || "").toLowerCase();
       if (
         errMsgLower.includes("429") ||

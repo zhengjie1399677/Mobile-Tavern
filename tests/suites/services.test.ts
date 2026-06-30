@@ -29,7 +29,7 @@ export async function testMultiMessageService() {
   let savedSession: any = null;
   const mockDbService: IKernelService = {
     name: "database",
-    init() {},
+    init() { },
     async saveSession(session: any) {
       savedSession = session;
     }
@@ -90,7 +90,7 @@ export async function testScriptServiceDecoupling() {
     initializeMvuFromCharacter: (char: any) => {
       return { stat_data: { hp: 99 } };
     },
-    notifyVariablesUpdated: (session: any) => {}
+    notifyVariablesUpdated: (session: any) => { }
   };
 
   scriptService.registerBridge(mockBridge);
@@ -111,8 +111,8 @@ export async function testOutputPipeline() {
 
   const mockDbService: IKernelService = {
     name: "database",
-    init() {},
-    async saveSession() {}
+    init() { },
+    async saveSession() { }
   };
   // 阶段 C 迁移：中间件已切换到 KernelServices.Memory.getStateTable() / getSummary() 子模块
   // 旧 tableMemory / autoSummary 服务已从注册表移除并标记 @deprecated
@@ -135,13 +135,13 @@ export async function testOutputPipeline() {
   };
   const mockMemoryService: IKernelService = {
     name: "memory",
-    init() {},
+    init() { },
     getStateTable() { return mockStateTable; },
     getSummary() { return mockSummary; }
   };
   const mockScriptService: IKernelService = {
     name: "script",
-    init() {},
+    init() { },
     async executeMvuScript(session: any, content: string) {
       return { ...session, variables: { ...session.variables, scriptRan: true } };
     }
@@ -200,7 +200,7 @@ export async function testChatStreamService() {
 
   const mockLlmService: IKernelService = {
     name: "llm",
-    init() {},
+    init() { },
     async universalFetch() {
       const sseContent =
         `data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n` +
@@ -341,11 +341,11 @@ export async function testUpdateCheckService() {
   }) as any;
 
   try {
-    const res = await updateService.checkUpdate("1.5.9");
+    const res = await updateService.checkUpdate("1.6.0");
     assert(res.hasUpdate === true, "Should detect update correctly");
     assert(res.latestVersion === "1.6.0", "Latest version should be set correctly");
     assert(res.downloadUrl === "https://mobile-backup-001.oss-cn-hangzhou.aliyuncs.com/updates/app-release-v1.6.0.apk?Signature=mock", "Download URL matches mock response");
-    assert(fetchParams.body.clientVersion === "1.5.9", "Client version should be sent to the API");
+    assert(fetchParams.body.clientVersion === "1.6.0", "Client version should be sent to the API");
     assert(fetchParams.body.userCredential !== undefined, "User credential should be uploaded");
     assert(fetchParams.body.timestamp !== undefined, "Timestamp should be uploaded");
     // 安全验证：客户端不应再上传签名相关字段（密钥已移除，签名验证机制已废弃）

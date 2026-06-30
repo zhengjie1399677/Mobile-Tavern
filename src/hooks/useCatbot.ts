@@ -268,7 +268,7 @@ export function useCatbot() {
         deviceId: getDeviceId(),
         userName: settings?.userName || "未知",
         phoneModel: typeof navigator !== "undefined" ? navigator.userAgent : "Unknown",
-        appVersion: "1.5.9",
+        appVersion: "1.6.0",
         isTauri: apiClient.isClientMode(),
         apiBaseUrl: settings?.api?.baseUrl || "",
         apiModel: settings?.api?.modelName || "",
@@ -288,7 +288,7 @@ export function useCatbot() {
           apiClient.sendCatbotRequest(content, updatedMsgs, clientContext),
           timeoutPromise,
         ]);
-        
+
         const assistantMsg: CatMessage = {
           id: `assistant-${Date.now()}`,
           role: "assistant",
@@ -298,8 +298,8 @@ export function useCatbot() {
 
         const returnedExpr = (res.expression as CatExpression) || "idle";
         const isQuotaMsg = res.reply && (
-          res.reply.includes("次数已经用光光") || 
-          res.reply.includes("小猫累了") || 
+          res.reply.includes("次数已经用光光") ||
+          res.reply.includes("小猫累了") ||
           res.reply.includes("要去睡觉了") ||
           res.reply.includes("小本本都已经写满") ||
           res.reply.includes("脑瓜转不动了")
@@ -322,7 +322,7 @@ export function useCatbot() {
 
       } catch (err: any) {
         console.error("Catbot cloud response error:", err);
-        
+
         // 异常回退逻辑 (离线/网络故障本地保底)
         let fallbackText = "喵呜，云端判定服务开小差了，要不要检查下网络或者设置喵？";
         if (err && err.message === "TIMEOUT") {
