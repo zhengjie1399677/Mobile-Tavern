@@ -144,12 +144,52 @@ if (isValidPng(SOURCE_LOGO_PATH)) {
   }
 }
 
-if (isValidPng(ICON_PATH)) {
-  const size = fs.statSync(ICON_PATH).size;
-  console.log(`✅ app-icon.png 已存在且为有效 PNG（${(size / 1024).toFixed(1)} KB），跳过生成。`);
-} else {
+if (!isValidPng(ICON_PATH)) {
   console.log('⚠️  app-icon.png 缺失且无法使用 public/logo.png，正在生成 Fallback 图标...');
   const pngBuf = generateFallbackPng();
   fs.writeFileSync(ICON_PATH, pngBuf);
   console.log(`✅ Fallback app-icon.png 已生成（${(pngBuf.length / 1024).toFixed(1)} KB，1024×1024 深色单色）。`);
+}
+
+// 执行 npx tauri icon 生成各种分辨率图标
+const { execSync } = require('child_process');
+console.log('Running npx tauri icon...');
+try {
+  execSync('npx tauri icon', { stdio: 'inherit' });
+  console.log('✅ Tauri icons generated successfully.');
+} catch (err) {
+  console.error('Failed to run npx tauri icon:', err);
+}
+
+// 递归复制目录辅助函数
+function copyDirRecursive(src, dest) {
+  if (!fs.existsSync(src)) return;
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true });
+  }
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+// 自动将生成的 Android 图标同步到原生目录中
+console.log('Syncing generated Android icons to build resource directory...');
+try {
+  const srcIconsDir = path.join(__dirname, '..', 'src-tauri', 'icons', 'android');
+  const destResDir = path.join(__dirname, '..', 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'res');
+  if (fs.existsSync(srcIconsDir)) {
+    copyDirRecursive(srcIconsDir, destResDir);
+    console.log('✅ Icons synced to Android res directory.');
+  } else {
+    console.warn('⚠️ Source android icons directory not found:', srcIconsDir);
+  }
+} catch (err) {
+  console.error('Failed to sync icons to android res:', err);
 }

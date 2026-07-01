@@ -13,7 +13,7 @@
     "lint": "tsc --noEmit",
     "tauri": "tauri",
     "build:android": "node scripts/build-android.cjs",
-    "dev:android": "tauri android dev --host 127.0.0.1",
+    "dev:android": "node scripts/decode_icon.cjs && tauri android dev --host 127.0.0.1",
     "test": "tsx tests/run_all_tests.ts",
     "test:bridge": "node tests/run_bridge_tests.cjs",
     "test:zod": "node tests/test_zod_compatibility.cjs",
