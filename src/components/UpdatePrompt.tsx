@@ -44,7 +44,7 @@ export async function performUpdateCheck(force = false): Promise<UpdateInfo | nu
 
   // pkg.version 自动读取 package.json 中的版本，符合版本同步规范
   const currentVersion = pkg.version || "1.6.0";
-  const res = await updateService.checkUpdate(currentVersion);
+  const res = await updateService.checkUpdate(currentVersion, undefined, force);
 
   // 记录检查时间戳（无论是否有更新），用于冷却期判断
   try {

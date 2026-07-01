@@ -265,7 +265,7 @@ export interface UpdateInfo {
 }
 
 export interface IUpdateCheckService extends IKernelService {
-  checkUpdate(currentVersion: string, signal?: AbortSignal): Promise<UpdateInfo>;
+  checkUpdate(currentVersion: string, signal?: AbortSignal, force?: boolean): Promise<UpdateInfo>;
 }
 
 /**

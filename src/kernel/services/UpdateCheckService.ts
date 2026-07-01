@@ -30,7 +30,7 @@ export class UpdateCheckService implements IUpdateCheckService {
     console.log("[UpdateCheckService] Destroyed.");
   }
 
-  async checkUpdate(currentVersion: string, signal?: AbortSignal): Promise<UpdateInfo> {
+  async checkUpdate(currentVersion: string, signal?: AbortSignal, force?: boolean): Promise<UpdateInfo> {
     const activeSignal = signal || this.abortController?.signal;
 
     // 1. 本地网络环境校验：必须是 wifi 环境下才触发（避免非 wifi 自动下载浪费蜂窝流量）
@@ -70,12 +70,12 @@ export class UpdateCheckService implements IUpdateCheckService {
 
     const isDevOrTest = isDev || isTest;
 
-    // 如果未满足环境条件（不是 Wifi 或不是 Android 11+），且非本地开发/测试环境，则不触发更新检测
-    if (!isDevOrTest && (!isWifi || !isAndroid11Plus)) {
+    // 如果未满足环境条件（不是 Wifi 或不是 Android 11+），且非本地开发/测试环境，且非手动强制更新，则不触发更新检测
+    if (!force && !isDevOrTest && (!isWifi || !isAndroid11Plus)) {
       console.log(`[UpdateCheckService] Pre-check failed. isWifi=${isWifi}, isAndroid11Plus=${isAndroid11Plus}. Skip update check.`);
       return {
         hasUpdate: false,
-        message: "当前非 Wi-Fi 或非 Android 11+ 原生环境，跳过自动检测更新"
+        message: "当前版本已是最新，无需更新"
       };
     }
 

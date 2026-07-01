@@ -114,6 +114,8 @@ export default function GlobalWorldbookTab() {
     handleImportLorebookJSON,
     handleExportLorebookJSON,
     handleToggleCharacterWorldbookGlobal,
+    handleCreateCustomWorldbook,
+    handleDeleteCustomWorldbook,
   } = actions;
 
   // 条目网格共享 props（全局与角色详情视图复用）
@@ -164,6 +166,7 @@ export default function GlobalWorldbookTab() {
         showCustomAlert={showCustomAlert}
         onImportLorebookJSON={handleImportLorebookJSON}
         onExportLorebookJSON={handleExportLorebookJSON}
+        onCreateCustomWorldbook={handleCreateCustomWorldbook}
       />
 
       {/* 动态工作区视图 */}
@@ -253,8 +256,12 @@ export default function GlobalWorldbookTab() {
         /* ==================== 角色名录目录列表 ==================== */
         <CharacterWorldbookList
           characters={characters}
+          customWorldbooks={customWorldbooks}
           onSelectCharacter={handleSelectCharacter}
+          onSelectHost={(id) => setActiveWorldbookHostId(id)}
           onToggleCharacterWorldbookGlobal={handleToggleCharacterWorldbookGlobal}
+          onCreateCustomWorldbook={handleCreateCustomWorldbook}
+          onDeleteCustomWorldbook={handleDeleteCustomWorldbook}
         />
       ) : (
         /* ==================== 单角色 / 自定义设定集详情视图 ==================== */
