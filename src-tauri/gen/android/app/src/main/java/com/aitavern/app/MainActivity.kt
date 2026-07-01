@@ -11,6 +11,9 @@ import androidx.core.view.WindowInsetsCompat
 import android.content.ContentValues
 import android.provider.MediaStore
 import android.os.Environment
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.view.Gravity
 
 class MainActivity : TauriActivity() {
   private var appWebView: WebView? = null
@@ -51,6 +54,39 @@ class MainActivity : TauriActivity() {
       }
 
       windowInsets
+    }
+
+    // Show native splash screen with logo for 1 second, then fade out
+    val rootLayout = findViewById<ViewGroup>(android.R.id.content)
+    if (rootLayout != null) {
+      val splashView = FrameLayout(this).apply {
+        layoutParams = ViewGroup.LayoutParams(
+          ViewGroup.LayoutParams.MATCH_PARENT,
+          ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        setBackgroundColor(android.graphics.Color.parseColor("#0d1726"))
+      }
+      val logoView = ImageView(this).apply {
+        val density = resources.displayMetrics.density
+        val sizePx = (192 * density).toInt()
+        val params = FrameLayout.LayoutParams(sizePx, sizePx).apply {
+          gravity = Gravity.CENTER
+        }
+        layoutParams = params
+        setImageResource(R.mipmap.ic_launcher)
+      }
+      splashView.addView(logoView)
+      rootLayout.addView(splashView)
+
+      splashView.postDelayed({
+        splashView.animate()
+          .alpha(0f)
+          .setDuration(300)
+          .withEndAction {
+            rootLayout.removeView(splashView)
+          }
+          .start()
+      }, 1000)
     }
   }
 

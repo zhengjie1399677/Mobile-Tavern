@@ -1,10 +1,27 @@
 const { execSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
+// Recursive directory copying helper
+function copyDirRecursive(src, dest) {
+  if (!fs.existsSync(src)) return;
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true });
+  }
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
 
 // Override ANDROID_HOME to the correct location on Windows and add platform-tools to PATH
 if (process.platform === 'win32') {
-  const fs = require('fs');
   const userProfile = process.env.USERPROFILE || process.env.HOME || '';
   const possiblePaths = [
     'E:\\modules\\ide\\android-sdk',
@@ -31,6 +48,21 @@ try {
 } catch (err) {
   console.error('Frontend build failed. Stop.');
   process.exit(1);
+}
+
+// Sync generated launcher icons to Android res directory before Tauri build
+console.log('Syncing launcher icons to Android res directory...');
+try {
+  const srcIconsDir = path.join(__dirname, '..', 'src-tauri', 'icons', 'android');
+  const destResDir = path.join(__dirname, '..', 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'res');
+  if (fs.existsSync(srcIconsDir)) {
+    copyDirRecursive(srcIconsDir, destResDir);
+    console.log('✅ Icon sync complete.');
+  } else {
+    console.warn('⚠️ Source icons directory not found, skipping sync:', srcIconsDir);
+  }
+} catch (err) {
+  console.error('Failed to sync icons:', err);
 }
 
 const isCI = process.env.CI === 'true';
