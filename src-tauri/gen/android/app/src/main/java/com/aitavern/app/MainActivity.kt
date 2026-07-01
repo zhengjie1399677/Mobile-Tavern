@@ -17,6 +17,7 @@ import android.view.Gravity
 
 class MainActivity : TauriActivity() {
   private var appWebView: WebView? = null
+  private var splashOverlay: FrameLayout? = null
 
   companion object {
     private const val PREFS_NAME = "AppThemePrefs"
@@ -77,6 +78,7 @@ class MainActivity : TauriActivity() {
       }
       splashView.addView(logoView)
       rootLayout.addView(splashView)
+      this.splashOverlay = splashView
 
       splashView.postDelayed({
         splashView.animate()
@@ -84,6 +86,9 @@ class MainActivity : TauriActivity() {
           .setDuration(300)
           .withEndAction {
             rootLayout.removeView(splashView)
+            if (this.splashOverlay == splashView) {
+              this.splashOverlay = null
+            }
           }
           .start()
       }, 1000)
@@ -93,6 +98,15 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     this.appWebView = webView
+
+    // Set WebView background color to match the theme background and prevent white flashes during load
+    webView.setBackgroundColor(android.graphics.Color.parseColor("#0d1726"))
+
+    // Bring the splash overlay to the front so it remains on top of the newly added WebView
+    splashOverlay?.let {
+      it.bringToFront()
+      it.parent?.requestLayout()
+    }
 
     webView.addJavascriptInterface(ThemeBridgeInterface(), "AndroidThemeBridge")
   }

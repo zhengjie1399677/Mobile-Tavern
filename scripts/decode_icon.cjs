@@ -133,11 +133,22 @@ function generateFallbackPng() {
 
 // ─── 主流程 ──────────────────────────────────────────────────────────────────
 
+const SOURCE_LOGO_PATH = path.join(__dirname, '..', 'public', 'logo.png');
+
+if (isValidPng(SOURCE_LOGO_PATH)) {
+  console.log(`✅ 检测到 public/logo.png 为有效新版 Logo，复制为 app-icon.png 作为打包源...`);
+  try {
+    fs.copyFileSync(SOURCE_LOGO_PATH, ICON_PATH);
+  } catch (err) {
+    console.error('Failed to copy public/logo.png to app-icon.png:', err);
+  }
+}
+
 if (isValidPng(ICON_PATH)) {
   const size = fs.statSync(ICON_PATH).size;
   console.log(`✅ app-icon.png 已存在且为有效 PNG（${(size / 1024).toFixed(1)} KB），跳过生成。`);
 } else {
-  console.log('⚠️  app-icon.png 缺失或为 Git LFS 指针文件，正在生成 Fallback 图标...');
+  console.log('⚠️  app-icon.png 缺失且无法使用 public/logo.png，正在生成 Fallback 图标...');
   const pngBuf = generateFallbackPng();
   fs.writeFileSync(ICON_PATH, pngBuf);
   console.log(`✅ Fallback app-icon.png 已生成（${(pngBuf.length / 1024).toFixed(1)} KB，1024×1024 深色单色）。`);
