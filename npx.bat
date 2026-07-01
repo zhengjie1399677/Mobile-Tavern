@@ -1,13 +1,21 @@
 @echo off
-if exist "D:\nodejs\npx.cmd" (
-  "D:\nodejs\npx.cmd" %*
-) else if exist "D:\nvm4w\nodejs\npx.cmd" (
-  "D:\nvm4w\nodejs\npx.cmd" %*
-) else if exist "C:\Program Files\nodejs\npx.cmd" (
-  "C:\Program Files\nodejs\npx.cmd" %*
-) else if exist "%APPDATA%\npm\npx.cmd" (
-  "%APPDATA%\npm\npx.cmd" %*
-) else (
-  echo Error: npx.cmd not found in common locations.
-  exit /b 1
+if exist "..\..\nodejs\npx.cmd" goto :local_nodejs
+if exist "..\..\nvm4w\nodejs\npx.cmd" goto :nvm_nodejs
+
+for /f "delims=" %%i in ('where npx.cmd') do (
+  if /i not "%%~dpi"=="%~dp0" (
+    "%%i" %*
+    exit /b %ERRORLEVEL%
+  )
 )
+
+echo Error: npx.cmd not found.
+exit /b 1
+
+:local_nodejs
+"..\..\nodejs\npx.cmd" %*
+exit /b %ERRORLEVEL%
+
+:nvm_nodejs
+"..\..\nvm4w\nodejs\npx.cmd" %*
+exit /b %ERRORLEVEL%

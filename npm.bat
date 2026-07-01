@@ -1,13 +1,21 @@
 @echo off
-if exist "D:\nodejs\npm.cmd" (
-  "D:\nodejs\npm.cmd" %*
-) else if exist "D:\nvm4w\nodejs\npm.cmd" (
-  "D:\nvm4w\nodejs\npm.cmd" %*
-) else if exist "C:\Program Files\nodejs\npm.cmd" (
-  "C:\Program Files\nodejs\npm.cmd" %*
-) else if exist "%APPDATA%\npm\npm.cmd" (
-  "%APPDATA%\npm\npm.cmd" %*
-) else (
-  echo Error: npm.cmd not found in common locations.
-  exit /b 1
+if exist "..\..\nodejs\npm.cmd" goto :local_nodejs
+if exist "..\..\nvm4w\nodejs\npm.cmd" goto :nvm_nodejs
+
+for /f "delims=" %%i in ('where npm.cmd') do (
+  if /i not "%%~dpi"=="%~dp0" (
+    "%%i" %*
+    exit /b %ERRORLEVEL%
+  )
 )
+
+echo Error: npm.cmd not found.
+exit /b 1
+
+:local_nodejs
+"..\..\nodejs\npm.cmd" %*
+exit /b %ERRORLEVEL%
+
+:nvm_nodejs
+"..\..\nvm4w\nodejs\npm.cmd" %*
+exit /b %ERRORLEVEL%
