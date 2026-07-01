@@ -16,7 +16,7 @@
         { "url": "https://api.deepseek.com/**" },
         { "url": "https://generativelanguage.googleapis.com/**" },
         { "url": "https://dashscope.aliyuncs.com/**" },
-        { "url": "https://catbot-gmkodirnhh.cn-hangzhou.fcapp.run/**" },
+        { "url": "https://*.cn-hangzhou.fcapp.run/**" },
         { "url": "http://127.0.0.1" },
         { "url": "http://127.0.0.1:**" },
         { "url": "http://localhost" },
