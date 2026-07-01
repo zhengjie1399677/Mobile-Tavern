@@ -174,6 +174,10 @@ export async function getTrialKey(): Promise<string> {
     });
 
     if (!res.ok) {
+      if (res.status === 401) {
+        localStorage.removeItem("mt_auth_token_cache");
+        console.warn("[KeyManager] 401 Unauthorized from key service. Cleared cached auth token.");
+      }
       throw new Error(`Failed to get key ciphertext: ${res.status}`);
     }
 

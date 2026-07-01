@@ -89,7 +89,7 @@ function prepareProxyRequest({ baseUrl, routePath, apiKey }: ProxyRequestConfig)
     "Content-Type": "application/json",
   };
   if (apiKey) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
+    headers["Authorization"] = `Bearer ${apiKey.trim()}`;
     console.log(`[Proxy Request] API Key loaded into authorization header.`);
   } else {
     console.log(`[Proxy Request] No API Key loaded in proxy header!`);
