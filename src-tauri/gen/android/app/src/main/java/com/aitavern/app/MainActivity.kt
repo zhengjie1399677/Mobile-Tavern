@@ -74,7 +74,7 @@ class MainActivity : TauriActivity() {
           gravity = Gravity.CENTER
         }
         layoutParams = params
-        setImageResource(R.mipmap.ic_launcher)
+        setImageResource(R.mipmap.ic_launcher_foreground)
       }
       splashView.addView(logoView)
       rootLayout.addView(splashView)

@@ -135,24 +135,26 @@ function generateFallbackPng() {
 
 const SOURCE_LOGO_PATH = path.join(__dirname, '..', 'public', 'logo.png');
 
+let pythonCmd = 'python3';
+if (process.platform === 'win32') {
+  const venvPython = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
+  pythonCmd = fs.existsSync(venvPython) ? `"${venvPython}"` : 'py';
+} else {
+  const venvPython = path.join(__dirname, '..', '.venv', 'bin', 'python');
+  if (fs.existsSync(venvPython)) {
+    pythonCmd = `"${venvPython}"`;
+  }
+}
+
+let hasPython = false;
 if (isValidPng(SOURCE_LOGO_PATH)) {
-  console.log(`✅ 检测到 public/logo.png 为有效新版 Logo，调用 scripts/process_icon.py 进行缩放与安全区域边距处理...`);
+  console.log(`✅ 检测到 public/logo.png 为有效新版 Logo，调用 scripts/process_icon.py Phase 1 生成大图作为打包源...`);
   try {
     const { execSync } = require('child_process');
-    // 优先检测本地虚拟环境（.venv）中的 Python，从而允许依赖完全安装在 D 盘项目中
-    let pythonCmd = 'python3';
-    if (process.platform === 'win32') {
-      const venvPython = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
-      pythonCmd = fs.existsSync(venvPython) ? `"${venvPython}"` : 'py';
-    } else {
-      const venvPython = path.join(__dirname, '..', '.venv', 'bin', 'python');
-      if (fs.existsSync(venvPython)) {
-        pythonCmd = `"${venvPython}"`;
-      }
-    }
-    execSync(`${pythonCmd} scripts/process_icon.py`, { stdio: 'inherit', shell: true });
+    execSync(`${pythonCmd} scripts/process_icon.py 1`, { stdio: 'inherit', shell: true });
+    hasPython = true;
   } catch (err) {
-    console.warn('⚠️ 调用 Python 处理图标失败，回退到直接复制原始 Logo...', err.message);
+    console.warn('⚠️ 调用 Python 处理图标 Phase 1 失败，回退到直接复制原始 Logo...', err.message);
     try {
       fs.copyFileSync(SOURCE_LOGO_PATH, ICON_PATH);
     } catch (copyErr) {
@@ -176,6 +178,17 @@ try {
   console.log('✅ Tauri icons generated successfully.');
 } catch (err) {
   console.error('Failed to run npx tauri icon:', err);
+}
+
+// 如果 Python 可用，执行 Phase 2 来生成 60% 透明底的 adaptive foreground 图标
+if (hasPython) {
+  console.log('Running scripts/process_icon.py Phase 2 to optimize adaptive foreground icons...');
+  try {
+    execSync(`${pythonCmd} scripts/process_icon.py 2`, { stdio: 'inherit', shell: true });
+    console.log('✅ Adaptive foreground icons optimized successfully.');
+  } catch (err) {
+    console.error('Failed to run process_icon.py Phase 2:', err);
+  }
 }
 
 // 递归复制目录辅助函数，仅拷贝启动图标相关的文件
