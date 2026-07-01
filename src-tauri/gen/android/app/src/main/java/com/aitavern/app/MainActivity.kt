@@ -69,7 +69,7 @@ class MainActivity : TauriActivity() {
       }
       val logoView = ImageView(this).apply {
         val density = resources.displayMetrics.density
-        val sizePx = (192 * density).toInt()
+        val sizePx = (108 * density).toInt()
         val params = FrameLayout.LayoutParams(sizePx, sizePx).apply {
           gravity = Gravity.CENTER
         }

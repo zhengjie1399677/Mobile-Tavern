@@ -136,11 +136,17 @@ function generateFallbackPng() {
 const SOURCE_LOGO_PATH = path.join(__dirname, '..', 'public', 'logo.png');
 
 if (isValidPng(SOURCE_LOGO_PATH)) {
-  console.log(`✅ 检测到 public/logo.png 为有效新版 Logo，复制为 app-icon.png 作为打包源...`);
+  console.log(`✅ 检测到 public/logo.png 为有效新版 Logo，调用 scripts/process_icon.py 进行缩放与安全区域边距处理...`);
   try {
-    fs.copyFileSync(SOURCE_LOGO_PATH, ICON_PATH);
+    const { execSync } = require('child_process');
+    execSync('py scripts/process_icon.py', { stdio: 'inherit', shell: true });
   } catch (err) {
-    console.error('Failed to copy public/logo.png to app-icon.png:', err);
+    console.warn('⚠️ 调用 Python 处理图标失败，回退到直接复制原始 Logo...', err.message);
+    try {
+      fs.copyFileSync(SOURCE_LOGO_PATH, ICON_PATH);
+    } catch (copyErr) {
+      console.error('Failed to copy public/logo.png to app-icon.png:', copyErr);
+    }
   }
 }
 
