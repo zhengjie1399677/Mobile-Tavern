@@ -17,7 +17,7 @@ import android.view.Gravity
 
 class MainActivity : TauriActivity() {
   private var appWebView: WebView? = null
-  private var splashOverlay: FrameLayout? = null
+
 
   companion object {
     private const val PREFS_NAME = "AppThemePrefs"
@@ -57,42 +57,7 @@ class MainActivity : TauriActivity() {
       windowInsets
     }
 
-    // Show native splash screen with logo for 1 second, then fade out
-    val rootLayout = findViewById<ViewGroup>(android.R.id.content)
-    if (rootLayout != null) {
-      val splashView = FrameLayout(this).apply {
-        layoutParams = ViewGroup.LayoutParams(
-          ViewGroup.LayoutParams.MATCH_PARENT,
-          ViewGroup.LayoutParams.MATCH_PARENT
-        )
-        setBackgroundColor(android.graphics.Color.parseColor("#0d1726"))
-      }
-      val logoView = ImageView(this).apply {
-        val density = resources.displayMetrics.density
-        val sizePx = (108 * density).toInt()
-        val params = FrameLayout.LayoutParams(sizePx, sizePx).apply {
-          gravity = Gravity.CENTER
-        }
-        layoutParams = params
-        setImageResource(R.mipmap.ic_launcher_foreground)
-      }
-      splashView.addView(logoView)
-      rootLayout.addView(splashView)
-      this.splashOverlay = splashView
 
-      splashView.postDelayed({
-        splashView.animate()
-          .alpha(0f)
-          .setDuration(300)
-          .withEndAction {
-            rootLayout.removeView(splashView)
-            if (this.splashOverlay == splashView) {
-              this.splashOverlay = null
-            }
-          }
-          .start()
-      }, 1000)
-    }
   }
 
   override fun onWebViewCreate(webView: WebView) {
@@ -102,11 +67,7 @@ class MainActivity : TauriActivity() {
     // Set WebView background color to match the theme background and prevent white flashes during load
     webView.setBackgroundColor(android.graphics.Color.parseColor("#0d1726"))
 
-    // Bring the splash overlay to the front so it remains on top of the newly added WebView
-    splashOverlay?.let {
-      it.bringToFront()
-      it.parent?.requestLayout()
-    }
+
 
     webView.addJavascriptInterface(ThemeBridgeInterface(), "AndroidThemeBridge")
   }

@@ -25,9 +25,16 @@ def main():
     width, height = img.size
     
     # 1. Get the background color from the top-left pixel
-    r, g, b, _ = img.getpixel((0, 0))
-    bg_hex = f"#{r:02x}{g:02x}{b:02x}"
-    print(f"Sampled background color: RGB({r}, {g}, {b}) -> Hex {bg_hex}")
+    pixel = img.getpixel((0, 0))
+    r, g, b = pixel[0], pixel[1], pixel[2]
+    # Check if transparent (alpha < 255)
+    if len(pixel) > 3 and pixel[3] < 255:
+        bg_hex = "#0d1726"
+        r, g, b = 13, 23, 38
+        print(f"Top-left pixel is transparent (alpha={pixel[3]}). Defaulting background color to theme color: {bg_hex}")
+    else:
+        bg_hex = f"#{r:02x}{g:02x}{b:02x}"
+        print(f"Sampled background color: RGB({r}, {g}, {b}) -> Hex {bg_hex}")
     
     # Determine the phase from command line arguments
     phase = 1
@@ -61,27 +68,6 @@ def main():
         final_img.save(app_icon_path, "PNG")
         print(f"Generated full-size app-icon.png at {app_icon_path}")
         
-        # Write the background color to ic_launcher_background.xml files
-        xml_content = f"""<?xml version="1.0" encoding="utf-8"?>
-<resources>
-  <color name="ic_launcher_background">{bg_hex}</color>
-</resources>
-"""
-        
-        paths_to_update = [
-            os.path.join(project_root, 'src-tauri', 'icons', 'android', 'values', 'ic_launcher_background.xml'),
-            os.path.join(project_root, 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'res', 'values', 'ic_launcher_background.xml')
-        ]
-        
-        for p in paths_to_update:
-            try:
-                os.makedirs(os.path.dirname(p), exist_ok=True)
-                with open(p, 'w', encoding='utf-8') as f:
-                    f.write(xml_content)
-                print(f"Updated background color in {p}")
-            except Exception as e:
-                print(f"Failed to update {p}: {e}")
-                
     elif phase == 2:
         # Phase 2: Overwrite only the adaptive foreground icons with a 60% scaled and transparent background logo
         print("[Phase 2] Overwriting adaptive foreground icons with padded transparent version...")
@@ -122,6 +108,27 @@ def main():
                     print(f"Overwrote adaptive foreground icon at {p} ({canvas_size}x{canvas_size}, logo size {target_logo_size}x{target_logo_size})")
                 except Exception as e:
                     print(f"Failed to update {p}: {e}")
+
+    # Write the background color to ic_launcher_background.xml files (Runs in both Phase 1 and 2)
+    xml_content = f"""<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="ic_launcher_background">{bg_hex}</color>
+</resources>
+"""
+    
+    paths_to_update = [
+        os.path.join(project_root, 'src-tauri', 'icons', 'android', 'values', 'ic_launcher_background.xml'),
+        os.path.join(project_root, 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'res', 'values', 'ic_launcher_background.xml')
+    ]
+    
+    for p in paths_to_update:
+        try:
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write(xml_content)
+            print(f"Updated background color in {p}")
+        except Exception as e:
+            print(f"Failed to update {p}: {e}")
 
 if __name__ == '__main__':
     main()
