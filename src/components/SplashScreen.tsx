@@ -1,6 +1,5 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Sparkles } from "lucide-react";
 
 interface SplashScreenProps {
   isVisible: boolean;
@@ -29,20 +28,21 @@ export function SplashScreen({ isVisible }: SplashScreenProps) {
             {/* Logo/Icon Container */}
             <motion.div
               animate={{
-                boxShadow: [
-                  "0px 0px 0px 0px rgba(var(--primary), 0)",
-                  "0px 0px 40px 10px rgba(var(--primary), 0.2)",
-                  "0px 0px 0px 0px rgba(var(--primary), 0)"
+                scale: [1, 1.05, 1],
+                filter: [
+                  "drop-shadow(0 0 0px var(--primary-glow, rgba(99, 102, 241, 0)))",
+                  "drop-shadow(0 0 15px var(--primary-glow, rgba(99, 102, 241, 0.45)))",
+                  "drop-shadow(0 0 0px var(--primary-glow, rgba(99, 102, 241, 0)))"
                 ]
               }}
               transition={{
-                duration: 2,
+                duration: 2.5,
                 repeat: Infinity,
                 ease: "easeInOut"
               }}
-              className="p-5 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-sm"
+              className="flex items-center justify-center"
             >
-              <Sparkles className="w-9 h-9 text-primary" strokeWidth={1.5} />
+              <img src="/logo.png" className="w-24 h-24 object-contain" alt="Logo" />
             </motion.div>
 
             {/* Title */}
