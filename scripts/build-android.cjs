@@ -26,7 +26,7 @@ if (process.platform === 'win32') {
 
 console.log('Ensuring latest frontend is compiled...');
 try {
-  execSync('npm run build', { stdio: 'inherit' });
+  execSync('npm run build', { stdio: 'inherit', shell: true });
 } catch (err) {
   console.error('Frontend build failed. Stop.');
   process.exit(1);
@@ -35,7 +35,7 @@ try {
 // Generate and sync launcher icons
 console.log('Generating and syncing launcher icons...');
 try {
-  execSync('node scripts/decode_icon.cjs', { stdio: 'inherit' });
+  execSync('node scripts/decode_icon.cjs', { stdio: 'inherit', shell: true });
 } catch (err) {
   console.error('Failed to run decode_icon.cjs script:', err.message);
 }
@@ -44,7 +44,7 @@ try {
 console.log('Cleaning Gradle cache to prevent stale resource caching...');
 try {
   const gradlewCmd = process.platform === 'win32' ? 'gradlew.bat clean' : './gradlew clean';
-  execSync(gradlewCmd, { cwd: path.join(__dirname, '..', 'src-tauri', 'gen', 'android'), stdio: 'inherit' });
+  execSync(gradlewCmd, { cwd: path.join(__dirname, '..', 'src-tauri', 'gen', 'android'), stdio: 'inherit', shell: true });
   console.log('✅ Gradle clean completed.');
 } catch (err) {
   console.warn('⚠️ Gradle clean failed, proceeding anyway:', err.message);
@@ -66,7 +66,7 @@ for (let i = 0; i < maxRetries; i++) {
     const buildCmd = isCI
       ? 'npx tauri android build --apk --target aarch64 --verbose'
       : 'npx tauri android build --apk --debug --target aarch64 --verbose';
-    execSync(buildCmd, { stdio: 'inherit' });
+    execSync(buildCmd, { stdio: 'inherit', shell: true });
     console.log('Build succeeded.');
     process.exit(0);
   } catch (err) {

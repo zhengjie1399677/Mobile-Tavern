@@ -155,13 +155,13 @@ if (!isValidPng(ICON_PATH)) {
 const { execSync } = require('child_process');
 console.log('Running npx tauri icon...');
 try {
-  execSync('npx tauri icon', { stdio: 'inherit' });
+  execSync('npx tauri icon', { stdio: 'inherit', shell: true });
   console.log('✅ Tauri icons generated successfully.');
 } catch (err) {
   console.error('Failed to run npx tauri icon:', err);
 }
 
-// 递归复制目录辅助函数
+// 递归复制目录辅助函数，仅拷贝启动图标相关的文件
 function copyDirRecursive(src, dest) {
   if (!fs.existsSync(src)) return;
   if (!fs.existsSync(dest)) {
@@ -174,22 +174,47 @@ function copyDirRecursive(src, dest) {
     if (entry.isDirectory()) {
       copyDirRecursive(srcPath, destPath);
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      if (entry.name.startsWith('ic_launcher')) {
+        fs.copyFileSync(srcPath, destPath);
+      }
     }
   }
 }
 
-// 自动将生成的 Android 图标同步到原生目录中
-console.log('Syncing generated Android icons to build resource directory...');
+// 自动双向同步生成的 Android 图标，确保原生目录和 Git 仓库都拥有最新图标
+console.log('Syncing generated Android icons...');
 try {
   const srcIconsDir = path.join(__dirname, '..', 'src-tauri', 'icons', 'android');
   const destResDir = path.join(__dirname, '..', 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'res');
-  if (fs.existsSync(srcIconsDir)) {
-    copyDirRecursive(srcIconsDir, destResDir);
-    console.log('✅ Icons synced to Android res directory.');
+  
+  if (fs.existsSync(destResDir)) {
+    // 如果原生目录已存在，由于 npx tauri icon 会直接把图标生成到原生目录中，
+    // 我们需要把最新图标从原生目录同步回 src-tauri/icons/android，以便提交到 Git 仓库。
+    console.log('Syncing from Android res back to src-tauri/icons/android...');
+    
+    const subdirs = [
+      'mipmap-anydpi-v26',
+      'mipmap-hdpi',
+      'mipmap-mdpi',
+      'mipmap-xhdpi',
+      'mipmap-xxhdpi',
+      'mipmap-xxxhdpi',
+      'values'
+    ];
+    for (const dir of subdirs) {
+      const srcSub = path.join(destResDir, dir);
+      const destSub = path.join(srcIconsDir, dir);
+      if (fs.existsSync(srcSub)) {
+        copyDirRecursive(srcSub, destSub);
+      }
+    }
+    console.log('✅ Icons synced from Android res back to src-tauri/icons/android.');
+  } else if (fs.existsSync(srcIconsDir)) {
+    // 如果原生目录尚未初始化，在本地打包时 tauri 会在之后初始化它，并自动拷贝 src-tauri/icons/android 里的图标。
+    console.log('Android res directory does not exist yet. Icons generated in src-tauri/icons/android will be copied by Tauri during init.');
   } else {
     console.warn('⚠️ Source android icons directory not found:', srcIconsDir);
   }
 } catch (err) {
-  console.error('Failed to sync icons to android res:', err);
+  console.error('Failed to sync icons:', err);
 }
