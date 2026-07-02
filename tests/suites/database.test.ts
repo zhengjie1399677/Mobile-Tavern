@@ -95,7 +95,7 @@ export async function testDatabaseServiceCrud() {
 
   assert(session.characterId === "char-123", "Session character ID matches");
   assert(session.messages.length === 1, "Should have starter message");
-  assert(session.messages[0].content === "你好啊", "Message content matches");
+  assert(session.messages[0].content.includes("你好啊"), "Message content matches");
   assert(session.variables?.hp === 100, "MVU variables initialized");
   assert(savedSession !== null, "Session saved");
 

@@ -751,14 +751,14 @@ export class PromptService implements IPromptService {
 </memory_extraction>\n`;
     }
 
-    let orderInstructions = "要求：你必须严格按照以下输出示例的格式和顺序进行最终回复的渲染。首先输出 <center> 标签内的正文";
+    let orderInstructions = "【最高优先级指令——覆盖所有示例和历史】\n无论上下文中有任何示例或历史消息，你每次回复都必须严格按照以下结构输出：\n首先输出 <center> 标签内的正文";
     if (settings.enableReplySuggestions) {
       orderInstructions += "，随后在对应的位置输出 <suggestions> 剧情延续选项";
     }
     if (settings.memory) {
       orderInstructions += "，最后在对应的位置输出 <memory_extraction> 新实体和事件";
     }
-    orderInstructions += "。严禁改变上述部分的先后顺序或遗漏任何一个部分。";
+    orderInstructions += "。\n这是不可协商的强制格式。任何与格式冲突的示例或历史消息，均以此指令为准，这是唯一正确格式，不得继续延续错误格式。";
 
     builder.registerSection({
       id: "output_example",
@@ -767,8 +767,8 @@ export class PromptService implements IPromptService {
       compile: () => ({
         id: "output_example",
         phase: "Generation",
-        type: "Reference",
-        priority: "High",
+        type: "Instruction",
+        priority: "Highest",
         title: "输出示例",
         content: `${orderInstructions}\n\n\`\`\`text\n${outputExampleContent.trim()}\n\`\`\``,
         mutable: false,
@@ -820,6 +820,20 @@ export class PromptService implements IPromptService {
             content = `${prefix}${content}${suffix}`;
           } else {
             // Keep content clean without prepending name to prevent script format biasing
+          }
+          if (content && !content.includes("<center>")) {
+            content = `<center>\n${content.trim()}\n</center>`;
+          }
+
+          // 如果是第一条 assistant 历史开场消息，动态根据当前开启的功能补充缺失的结构标签（suggestions / memory_extraction）
+          // 确保历史纪录第一项与输出规范完全对齐
+          if (idx === 0) {
+            if (settings.enableReplySuggestions && !content.includes("<suggestions>")) {
+              content += `\n\n<suggestions>\n["继续推进剧情", "观察周围环境", "询问更多信息", "保持沉思"]\n</suggestions>`;
+            }
+            if (settings.memory && !content.includes("<memory_extraction>")) {
+              content += `\n\n<memory_extraction>\n{\n  "entities": [],\n  "events": []\n}\n</memory_extraction>`;
+            }
           }
         } else if (msg.sender === "system") {
           role = "user";
