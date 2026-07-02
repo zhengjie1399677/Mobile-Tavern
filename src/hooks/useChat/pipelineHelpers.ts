@@ -32,6 +32,14 @@ export async function runOutputPipelineAndSave(params: {
   triggerScroll?: () => void;
 }): Promise<OutputPipelineContext> {
   const { setSessions, databaseService, triggerScroll, ...ctxParams } = params;
+
+  console.log("=== [RAW AI RESPONSE] ===");
+  if (ctxParams.reasoningText) {
+    console.log("<think>\n" + ctxParams.reasoningText + "\n</think>");
+  }
+  console.log(ctxParams.responseText);
+  console.log("=========================");
+
   const outputCtx = buildOutputContext(ctxParams);
   const { session, settings, isBisonConsecutive, responseText } = ctxParams;
 

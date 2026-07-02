@@ -210,7 +210,6 @@ export function useSendMessage(p: SendMessageParams) {
       });
 
       // 放置 AI 消息占位符
-      console.clear();
       console.log("--- AI 发言流式开始 ---");
       const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };
       p.setSessions((prev) =>
