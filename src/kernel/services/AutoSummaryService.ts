@@ -172,6 +172,7 @@ export class AutoSummaryService {
         chatPath: finalChatPath,
         reqBody,
         bypassProxy: settings.api.bypassProxy,
+        forceBasicParams: settings.api.forceBasicParams,
       }, signal);
 
       if (signal?.aborted) return session;

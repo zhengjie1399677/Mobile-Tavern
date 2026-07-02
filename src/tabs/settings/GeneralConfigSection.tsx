@@ -105,6 +105,7 @@ export default function GeneralConfigSection({
                             modelsPath: target.modelsPath,
                             bypassProxy: target.bypassProxy,
                             disableReasoning: target.disableReasoning,
+                            forceBasicParams: target.forceBasicParams,
                           },
                         }));
                       }
@@ -154,6 +155,7 @@ export default function GeneralConfigSection({
                         modelsPath: settings.api.modelsPath,
                         bypassProxy: settings.api.bypassProxy,
                         disableReasoning: settings.api.disableReasoning,
+                        forceBasicParams: settings.api.forceBasicParams,
                       };
                       updateSettings((prev) => ({
                         ...prev,
@@ -396,22 +398,22 @@ export default function GeneralConfigSection({
             )}
           </div>
 
-          {/* bypassProxy Switch */}
+          {/* forceBasicParams Switch */}
           <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="space-y-0.5">
               <label className="text-[13px] font-semibold text-foreground">
-                浏览器直连 API (Bypass CORS Proxy)
+                API 极简降级模式 (Conservative Fallback)
               </label>
               <p className="text-[10px] text-muted-foreground max-w-[450px]">
-                开启后，在电脑浏览器端运行时将绕过本地 Node 代理，直接由浏览器向目标 API 发起请求。若您在电脑上开启了代理工具（如 Clash/v2ray），或者 API 端点支持跨域请求，推荐开启此选项以解决超时或网络不通的问题。
+                开启后，无论使用什么模型，发送请求时都将强制只携带 5 个最基础的参数（model, messages, stream, temperature, top_p）。推荐在第三方中转站 API 报参数错误（HTTP 400）时开启。
               </p>
             </div>
             <Switch
-              checked={settings.api.bypassProxy || false}
+              checked={settings.api.forceBasicParams || false}
               onCheckedChange={(checked) =>
                 updateSettings((prev) => ({
                   ...prev,
-                  api: { ...prev.api, bypassProxy: checked },
+                  api: { ...prev.api, forceBasicParams: checked },
                 }))
               }
               className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"

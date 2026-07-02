@@ -199,23 +199,7 @@ export class PromptService implements IPromptService {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  private formatDialogueExamplesInCenter(content: string, charName: string): string {
-    if (!content) return "";
-    const cleanCharName = this.escapeRegExp((charName || "").trim());
-    const lines = content.split("\n");
-    return lines.map(line => {
-      const prefixRegex = new RegExp(`^(\\s*(?:\\{\\{char\\}\\}|${cleanCharName}|assistant)(?::|：))\\s*(.*)`, "i");
-      const match = line.match(prefixRegex);
-      if (match) {
-        const prefix = match[1];
-        const text = match[2].trim();
-        if (text && !text.startsWith("<center>") && !text.startsWith("<START>")) {
-          return `${prefix} <center>${text}</center>`;
-        }
-      }
-      return line;
-    }).join("\n");
-  }
+
 
   replaceMacros(
     text: string,
@@ -347,9 +331,7 @@ export class PromptService implements IPromptService {
             );
             content = `${prefix}${content}${suffix}`;
           } else {
-            if (idx === 0) {
-              content = `${character.name}: ${content}`;
-            }
+            // Keep content clean without prepending name to prevent script format biasing
           }
         } else if (msg.sender === "system") {
           role = "user";
@@ -607,26 +589,6 @@ export class PromptService implements IPromptService {
     // ==================================================
     // 3. GENERATION Category (Style/Constraints, mutable: false)
     // ==================================================
-    let mesExampleSection = "";
-    if (character.mes_example) {
-      const parsedExample = this.replaceMacros(character.mes_example, macroParams);
-      mesExampleSection = this.formatDialogueExamplesInCenter(parsedExample, character.name);
-    }
-    builder.registerSection({
-      id: "dialogue_examples",
-      phase: "Generation",
-      enabled: !!mesExampleSection,
-      compile: () => ({
-        id: "dialogue_examples",
-        phase: "Generation",
-        type: "Reference",
-        priority: "Normal",
-        mutable: false,
-        title: "Dialogue Examples",
-        content: mesExampleSection,
-      }),
-    });
-
     let jailbreakSection = "";
     if (settings.promptConfig?.useJailbreak && settings.promptConfig?.jailbreakPrompt) {
       jailbreakSection = this.replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams);
@@ -732,14 +694,8 @@ export class PromptService implements IPromptService {
     // ==================================================
     let memoryExtractionSection = "";
     if (settings.memory) {
-      memoryExtractionSection = `为了帮助系统记录故事发展，请在正文输出完毕后，提取本轮的新实体和事件。
-格式要求：使用 <memory_extraction> 标签包裹一个极简的 JSON 对象。只能包含合法 JSON，不要添加任何多余文字。若无新内容，输出空数组。
-<memory_extraction>
-{
-  "entities": ["新人物/地点/物品/概念名称1", "名称2"],
-  "events": ["本轮发生的关键事件简述1", "简述2"]
-}
-</memory_extraction>
+      memoryExtractionSection = `要求根据输出示例，在 <memory_extraction> 标签对应的位置提取本轮的新实体和事件，以帮助系统记录故事发展。
+格式要求：使用 <memory_extraction> 标签包裹一个极简的 JSON 对象，其中只能包含 "entities" 和 "events" 字段。必须是合法 JSON，不要添加任何多余文字。
 (注意：entities 和 events 均使用简单的一维字符串数组，不要嵌套复杂的对象！若本轮无新内容则输出空数组。)`;
     }
     builder.registerSection({
@@ -795,6 +751,15 @@ export class PromptService implements IPromptService {
 </memory_extraction>\n`;
     }
 
+    let orderInstructions = "【最高优先级指令——覆盖所有示例和历史】\n无论上下文中有任何示例或历史消息，你每次回复都必须严格按照以下结构输出：\n首先输出 <center> 标签内的正文";
+    if (settings.enableReplySuggestions) {
+      orderInstructions += "，随后在对应的位置输出 <suggestions> 剧情延续选项";
+    }
+    if (settings.memory) {
+      orderInstructions += "，最后在对应的位置输出 <memory_extraction> 新实体和事件";
+    }
+    orderInstructions += "。\n这是不可协商的强制格式。任何与格式冲突的示例或历史消息，均以此指令为准，这是唯一正确格式，不得继续延续错误格式。";
+
     builder.registerSection({
       id: "output_example",
       phase: "Generation",
@@ -802,10 +767,10 @@ export class PromptService implements IPromptService {
       compile: () => ({
         id: "output_example",
         phase: "Generation",
-        type: "Reference",
-        priority: "High",
+        type: "Instruction",
+        priority: "Highest",
         title: "输出示例",
-        content: `\`\`\`text\n${outputExampleContent.trim()}\n\`\`\``,
+        content: `${orderInstructions}\n\n\`\`\`text\n${outputExampleContent.trim()}\n\`\`\``,
         mutable: false,
       }),
     });
@@ -854,8 +819,20 @@ export class PromptService implements IPromptService {
             const suffix = this.replaceMacros(settings.promptConfig?.assistantSuffix || "", macroParams);
             content = `${prefix}${content}${suffix}`;
           } else {
-            if (idx === 0) {
-              content = `${character.name}: ${content}`;
+            // Keep content clean without prepending name to prevent script format biasing
+          }
+          if (content && !content.includes("<center>")) {
+            content = `<center>\n${content.trim()}\n</center>`;
+          }
+
+          // 如果是第一条 assistant 历史开场消息，动态根据当前开启的功能补充缺失的结构标签（suggestions / memory_extraction）
+          // 确保历史纪录第一项与输出规范完全对齐
+          if (idx === 0) {
+            if (settings.enableReplySuggestions && !content.includes("<suggestions>")) {
+              content += `\n\n<suggestions>\n["继续推进剧情", "观察周围环境", "询问更多信息", "保持沉思"]\n</suggestions>`;
+            }
+            if (settings.memory && !content.includes("<memory_extraction>")) {
+              content += `\n\n<memory_extraction>\n{\n  "entities": [],\n  "events": []\n}\n</memory_extraction>`;
             }
           }
         } else if (msg.sender === "system") {

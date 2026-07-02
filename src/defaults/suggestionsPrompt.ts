@@ -1,6 +1,6 @@
 export const DEFAULT_REPLY_SUGGESTIONS_PROMPT = `【叙事分支生成器】
 
-当此功能开启时，请在每次回复末尾追加4个剧情延续选项。
+要求根据输出示例，在 <suggestions> 标签对应的位置追加4个剧情延续选项。
 
 输出格式：
 <suggestions>

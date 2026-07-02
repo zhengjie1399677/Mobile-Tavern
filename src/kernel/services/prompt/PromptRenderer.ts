@@ -15,7 +15,7 @@ export class XMLRenderer implements PromptRenderer {
         content = `[Notice: Do not copy the following examples verbatim. Imitate the style but write completely original dialogue.]\n${content}`;
       }
 
-      return `### ${title}\n\n${content}`;
+      return `<${node.id}>\n### ${title}\n\n${content}\n</${node.id}>`;
     }).join("\n\n");
   }
 }

@@ -26,11 +26,11 @@ export class PromptCompiler {
     const engineNodes: PromptNode[] = [];
     const contextNodes: PromptNode[] = [];
     const generationNodes: PromptNode[] = [];
-    const referenceNodes: PromptNode[] = [];
+    const outputExampleNodes: PromptNode[] = [];
 
-    const getLayer = (node: PromptNode): "Engine" | "Context" | "Generation" | "Reference" => {
-      if (node.type === "Reference" || node.id === "dialogue_examples" || node.id === "output_example") {
-        return "Reference";
+    const getLayer = (node: PromptNode): "Engine" | "Context" | "Generation" | "OutputExample" => {
+      if (node.id === "output_example") {
+        return "OutputExample";
       }
       if (node.phase === "Engine" || node.phase === "Protocol") {
         return "Engine";
@@ -49,13 +49,13 @@ export class PromptCompiler {
       if (layer === "Engine") engineNodes.push(node);
       else if (layer === "Context") contextNodes.push(node);
       else if (layer === "Generation") generationNodes.push(node);
-      else if (layer === "Reference") referenceNodes.push(node);
+      else if (layer === "OutputExample") outputExampleNodes.push(node);
     }
 
     const sortLayerNodes = (nodesList: PromptNode[]): PromptNode[] => {
       const staticNodes = nodesList.filter(n => !n.mutable);
       const dynamicNodes = nodesList.filter(n => n.mutable);
-      
+
       const sortByPriorityAndId = (list: PromptNode[]): PromptNode[] => {
         return [...list].sort((a, b) => {
           const weightA = PromptCompiler.PRIORITY_WEIGHTS[a.priority] || 2;
@@ -66,14 +66,14 @@ export class PromptCompiler {
           return a.id.localeCompare(b.id);
         });
       };
-      
+
       return [...sortByPriorityAndId(staticNodes), ...sortByPriorityAndId(dynamicNodes)];
     };
 
     const renderedEngine = renderer.render(sortLayerNodes(engineNodes), context);
     const renderedContext = renderer.render(sortLayerNodes(contextNodes), context);
     const renderedGeneration = renderer.render(sortLayerNodes(generationNodes), context);
-    const renderedReference = renderer.render(sortLayerNodes(referenceNodes), context);
+    const renderedOutputExample = renderer.render(sortLayerNodes(outputExampleNodes), context);
 
     const hierarchyHeader = `# 提示词执行层级规范
 
@@ -84,6 +84,10 @@ export class PromptCompiler {
 定义核心规则、行为边界及输出协议。
 后续任何层级均不得覆盖本层。
 
+输出示例层（OutputExample）
+定义AI最终生成的XML和标签嵌套格式。
+你必须严格遵循此格式规范与输出顺序。
+
 事实层（Context）
 提供世界观、角色设定、记忆等事实。
 不得修改规则层。
@@ -92,16 +96,12 @@ export class PromptCompiler {
 规定叙事风格、生成方式及写作偏好。
 不得修改规则层或事实层。
 
-参考层（Reference）
-提供示例与 Few-shot。
-仅用于学习表达方式，不构成规则。
-
 优先级：
 
 规则层（Engine）＞
+输出示例层（OutputExample）＞
 事实层（Context）＞
-生成层（Generation）＞
-参考层（Reference）
+生成层（Generation）
 
 整个回复过程中，必须始终遵循上述层级。`;
 
@@ -113,16 +113,16 @@ export class PromptCompiler {
       compiledText += `${separator}\n规则层（Engine）: 最高优先级。定义核心规则、行为边界及输出协议。后续任何层级均不得覆盖本层。\n${separator}\n\n` + renderedEngine + "\n\n";
     }
 
+    if (renderedOutputExample.trim()) {
+      compiledText += `${separator}\n输出示例层（OutputExample）: 定义AI最终生成的XML和标签嵌套格式。每次回复必须严格遵循以下格式进行输出。\n${separator}\n\n` + renderedOutputExample + "\n\n";
+    }
+
     if (renderedContext.trim()) {
       compiledText += `${separator}\n事实层（Context）: 提供世界观、角色设定、记忆等事实。不得修改规则层。\n${separator}\n\n` + renderedContext + "\n\n";
     }
 
     if (renderedGeneration.trim()) {
       compiledText += `${separator}\n生成层（Generation）: 规定叙事风格、生成方式及写作偏好。不得修改规则层或事实层。\n${separator}\n\n` + renderedGeneration + "\n\n";
-    }
-
-    if (renderedReference.trim()) {
-      compiledText += `${separator}\n参考层（Reference）: 提供示例与 Few-shot。仅用于学习表达方式，不构成规则。\n${separator}\n\n` + renderedReference + "\n\n";
     }
 
     return compiledText.trim();
@@ -153,7 +153,7 @@ export class PromptCompiler {
     let estimatedTokens = this.estimateTokens(compiledText);
     if (estimatedTokens > PromptCompiler.SAFE_CONTEXT_LIMIT) {
       console.warn(`[PromptCompiler] Compiled prompt tokens (${estimatedTokens}) exceeds limit (${PromptCompiler.SAFE_CONTEXT_LIMIT}). Trimming...`);
-      
+
       const trimmableNodes = nodes.filter(n => n.type !== "Instruction");
       trimmableNodes.sort((a, b) => {
         const weightA = PromptCompiler.PRIORITY_WEIGHTS[a.priority] || 2;

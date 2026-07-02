@@ -46,6 +46,7 @@ export const useApiConnection = ({
         apiKey: settings.api.apiKey,
         modelsPath: settings.api.modelsPath,
         bypassProxy: settings.api.bypassProxy,
+        forceBasicParams: settings.api.forceBasicParams,
       });
       const data = await response.json();
       if (data.success && data.models) {
@@ -97,6 +98,7 @@ export const useApiConnection = ({
         modelName: settings.api.modelName,
         chatPath: settings.api.chatPath,
         bypassProxy: settings.api.bypassProxy,
+        forceBasicParams: settings.api.forceBasicParams,
       });
       const data = await response.json();
       if (data.success) {

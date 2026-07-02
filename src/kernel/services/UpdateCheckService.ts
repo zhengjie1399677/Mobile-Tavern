@@ -30,7 +30,7 @@ export class UpdateCheckService implements IUpdateCheckService {
     console.log("[UpdateCheckService] Destroyed.");
   }
 
-  async checkUpdate(currentVersion: string, signal?: AbortSignal): Promise<UpdateInfo> {
+  async checkUpdate(currentVersion: string, signal?: AbortSignal, force?: boolean): Promise<UpdateInfo> {
     const activeSignal = signal || this.abortController?.signal;
 
     // 1. 本地网络环境校验：必须是 wifi 环境下才触发（避免非 wifi 自动下载浪费蜂窝流量）
@@ -70,12 +70,12 @@ export class UpdateCheckService implements IUpdateCheckService {
 
     const isDevOrTest = isDev || isTest;
 
-    // 如果未满足环境条件（不是 Wifi 或不是 Android 11+），且非本地开发/测试环境，则不触发更新检测
-    if (!isDevOrTest && (!isWifi || !isAndroid11Plus)) {
+    // 如果未满足环境条件（不是 Wifi 或不是 Android 11+），且非本地开发/测试环境，且非手动强制更新，则不触发更新检测
+    if (!force && !isDevOrTest && (!isWifi || !isAndroid11Plus)) {
       console.log(`[UpdateCheckService] Pre-check failed. isWifi=${isWifi}, isAndroid11Plus=${isAndroid11Plus}. Skip update check.`);
       return {
         hasUpdate: false,
-        message: "当前非 Wi-Fi 或非 Android 11+ 原生环境，跳过自动检测更新"
+        message: "当前版本已是最新，无需更新"
       };
     }
 
@@ -148,21 +148,35 @@ export class UpdateCheckService implements IUpdateCheckService {
       // 兼容本地模拟 server.ts 的返回，以及真实的阿里云 FC 返回格式
       // 真实阿里云 FC 返回：{ success: true, data: { latestVersion, downloadUrl, fileName, ... } }
       if (resJson.success && resJson.data) {
+        let downloadUrl = resJson.data.downloadUrl || "";
+        if (!isTest && downloadUrl.includes(".aliyuncs.com/")) {
+          const targetVer = resJson.data.latestVersion || resJson.latestVersion || "1.6.1";
+          const cleanVer = targetVer.replace(/^v/, "");
+          downloadUrl = `https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/download/v${cleanVer}/MobileTavern.apk`;
+        }
         return {
           hasUpdate: true,
           // 优先使用服务端返回的 latestVersion，避免客户端硬编码导致版本不同步
           latestVersion: resJson.data.latestVersion || resJson.latestVersion || "",
-          downloadUrl: resJson.data.downloadUrl,
-          message: resJson.message
+          downloadUrl,
+          message: resJson.message,
+          enablePush: resJson.data.enablePush !== false
         };
       }
       
       // 本地模拟降级兼容
+      let downloadUrlFallback = resJson.downloadUrl || "";
+      if (!isTest && downloadUrlFallback.includes(".aliyuncs.com/")) {
+        const targetVer = resJson.latestVersion || "1.6.0";
+        const cleanVer = targetVer.replace(/^v/, "");
+        downloadUrlFallback = `https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/download/v${cleanVer}/MobileTavern.apk`;
+      }
       return {
         hasUpdate: !!resJson.hasUpdate,
         latestVersion: resJson.latestVersion || "1.6.0",
-        downloadUrl: resJson.downloadUrl,
-        message: resJson.message
+        downloadUrl: downloadUrlFallback,
+        message: resJson.message,
+        enablePush: resJson.enablePush !== false
       };
 
     } catch (e: any) {

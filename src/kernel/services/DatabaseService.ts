@@ -61,12 +61,17 @@ export class DatabaseService implements IDatabaseService {
     const mvuVariables = scriptService.initializeMvuFromCharacter(character);
     const id = "session_" + Math.random().toString(36).substring(2, 9);
     
-    const messages = starterMessage
+    let formattedStarter = (starterMessage || "").trim();
+    if (formattedStarter && !formattedStarter.includes("<center>")) {
+      formattedStarter = `<center>\n${formattedStarter}\n</center>`;
+    }
+
+    const messages = formattedStarter
       ? [
           {
             id: "msg_ai_" + Math.random().toString(36).substring(2, 9),
             sender: "assistant" as const,
-            content: starterMessage.trim(),
+            content: formattedStarter,
             timestamp: Date.now(),
             extra: {
               variables: {
@@ -96,13 +101,16 @@ export class DatabaseService implements IDatabaseService {
     const mvuVariables = scriptService.initializeMvuFromCharacter(character);
     
     // 如果角色卡有开场白，将其作为新分支的初始第一条消息，避免页面完全空白
-    const starterMessage = character?.first_mes || "";
+    let starterMessage = (character?.first_mes || "").trim();
+    if (starterMessage && !starterMessage.includes("<center>")) {
+      starterMessage = `<center>\n${starterMessage}\n</center>`;
+    }
     const messages = starterMessage
       ? [
           {
             id: "msg_ai_" + Math.random().toString(36).substring(2, 9),
             sender: "assistant" as const,
-            content: starterMessage.trim(),
+            content: starterMessage,
             timestamp: Date.now(),
             extra: {
               variables: {

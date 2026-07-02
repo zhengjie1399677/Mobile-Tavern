@@ -89,7 +89,7 @@ function prepareProxyRequest({ baseUrl, routePath, apiKey }: ProxyRequestConfig)
     "Content-Type": "application/json",
   };
   if (apiKey) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
+    headers["Authorization"] = `Bearer ${apiKey.trim()}`;
     console.log(`[Proxy Request] API Key loaded into authorization header.`);
   } else {
     console.log(`[Proxy Request] No API Key loaded in proxy header!`);
@@ -210,9 +210,9 @@ async function startServer() {
     try {
       const pkgPath = path.join(resolvedDirname, "package.json");
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-      res.json({ pkgVersion: pkg.version || "1.6.0" });
+      res.json({ pkgVersion: pkg.version || "1.6.1" });
     } catch (e) {
-      res.json({ pkgVersion: "1.6.0" });
+      res.json({ pkgVersion: "1.6.1" });
     }
   });
 
@@ -631,8 +631,8 @@ async function startServer() {
         return res.status(403).json({ success: false, error: "Forbidden: Request timestamp has expired" });
       }
 
-      // 4. 软件版本校验：按数字逐段比较，避免字符串比较导致 '1.10.0' < '1.6.0' 的误判
-      const latestVersion = "1.6.0";
+      // 4. 软件版本校验：按数字逐段比较，避免字符串比较导致 '1.10.0' < '1.6.1' 的误判
+      const latestVersion = "1.6.1";
       const hasUpdate = compareVersions(clientVersion, latestVersion) < 0;
 
       if (!hasUpdate) {
@@ -640,19 +640,20 @@ async function startServer() {
       }
 
       // 5. 模拟阿里云 FC 返回的响应结构 (由 FC 计算好 120s 签名的 downloadUrl)
-      const downloadUrl = `http://${req.headers.host || "127.0.0.1:3000"}/updates/app-release-v1.6.0.apk`;
+      const downloadUrl = `http://${req.headers.host || "127.0.0.1:3000"}/updates/app-release-v1.6.1.apk`;
 
       res.json({
         success: true,
         data: {
           latestVersion: latestVersion,
-          fileName: "apk/app-release-v1.6.0.apk",
+          fileName: "apk/app-release-v1.6.1.apk",
           fileSize: 15458920,
           fileSizeMB: "14.74",
           downloadUrl: downloadUrl,
           expiresInSeconds: 120,
           generatedAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 120 * 1000).toISOString()
+          expiresAt: new Date(Date.now() + 120 * 1000).toISOString(),
+          enablePush: true
         },
         message: "下载链接生成成功，请尽快使用"
       });

@@ -134,13 +134,17 @@ export class TelemetryService implements ITelemetryService {
     totalTokens: number,
     durationMs: number,
     promptTokens: number,
-    completionTokens: number
+    completionTokens: number,
+    characterName?: string,
+    playerName?: string
   ): void {
     this.reportUsage("llm_performance", {
       sessionId,
       modelName,
       totalTokens,
       generationTime: durationMs,
+      characterName,
+      playerName,
       detail: `TTFT: ${ttftMs}ms, Duration: ${durationMs}ms, PromptTokens: ${promptTokens}, CompletionTokens: ${completionTokens}`
     });
   }

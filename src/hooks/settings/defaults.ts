@@ -96,7 +96,7 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
 - 始终保持叙事的时间、空间及因果一致性。
 - 所有生成内容均必须符合本提示词定义的规则。`,
   jailbreakPrompt: `[生成纪律]
-- 始终遵循系统提示词定义的规则层、事实层、生成层及参考层。
+- 始终遵循系统提示词定义的规则层、事实层、生成层及输出示例层。
 - 始终保持角色身份、世界设定、时间线及上下文一致性。
 - 始终以连续叙事方式推进剧情，不输出任何元信息、系统说明或跳脱叙事的内容。
 - 若存在多个提示来源，以优先级更高者为准，不得擅自修改或忽略既定规则。
@@ -434,6 +434,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     bypassProxy: false,
     sendNames: false,
     disableReasoning: false,
+    forceBasicParams: false,
   },
   preset: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset,
   memory: {

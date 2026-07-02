@@ -83,20 +83,44 @@ function getDeviceId(): string {
   return id;
 }
 
+function isClient(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.location.protocol.startsWith("tauri") ||
+    window.location.protocol === "file:" ||
+    window.location.hostname === "tauri.localhost" ||
+    !!(window as any).__TAURI_INTERNALS__ ||
+    !!(window as any).__TAURI_IPC__
+  );
+}
+
+let tauriFetchPromise: Promise<typeof fetch | null> | null = null;
+let tauriFetch: typeof fetch | null = null;
+
+async function getFetchFn(): Promise<typeof fetch> {
+  if (isClient()) {
+    if (tauriFetch) return tauriFetch;
+    if (!tauriFetchPromise) {
+      tauriFetchPromise = import("@tauri-apps/plugin-http")
+        .then((mod) => {
+          tauriFetch = mod.fetch;
+          return mod.fetch;
+        })
+        .catch((err) => {
+          console.warn("[KeyManager] Failed to load Tauri native HTTP plugin, fallback to window.fetch:", err);
+          return fetch;
+        });
+    }
+    const resolved = await tauriFetchPromise;
+    return resolved || fetch;
+  }
+  return fetch;
+}
+
 export function getFcEndpoint(type: "issue-token" | "get-key"): string {
   if (typeof window === "undefined") {
     return type === "issue-token" ? "/api/issue-token" : "/api/get-key";
   }
-
-  const isClient = (): boolean => {
-    return (
-      window.location.protocol.startsWith("tauri") ||
-      window.location.protocol === "file:" ||
-      window.location.hostname === "tauri.localhost" ||
-      !!(window as any).__TAURI_INTERNALS__ ||
-      !!(window as any).__TAURI_IPC__
-    );
-  };
 
   if (isClient()) {
     if (type === "issue-token") {
@@ -113,8 +137,9 @@ export function getFcEndpoint(type: "issue-token" | "get-key"): string {
 async function fetchTokenFromServer(): Promise<TokenCache> {
   const endpoint = getFcEndpoint("issue-token");
   const deviceId = getDeviceId();
+  const fetchFn = await getFetchFn();
 
-  const res = await fetch(endpoint, {
+  const res = await fetchFn(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -163,9 +188,10 @@ export async function getTrialKey(): Promise<string> {
   try {
     const token = await getValidToken();
     const endpoint = getFcEndpoint("get-key");
+    const fetchFn = await getFetchFn();
     console.log("[KeyManager] Fetching trial key from:", endpoint);
 
-    const res = await fetch(endpoint, {
+    const res = await fetchFn(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -174,6 +200,10 @@ export async function getTrialKey(): Promise<string> {
     });
 
     if (!res.ok) {
+      if (res.status === 401) {
+        localStorage.removeItem("mt_auth_token_cache");
+        console.warn("[KeyManager] 401 Unauthorized from key service. Cleared cached auth token.");
+      }
       throw new Error(`Failed to get key ciphertext: ${res.status}`);
     }
 

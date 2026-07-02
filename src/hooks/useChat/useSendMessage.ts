@@ -210,7 +210,6 @@ export function useSendMessage(p: SendMessageParams) {
       });
 
       // 放置 AI 消息占位符
-      console.clear();
       console.log("--- AI 发言流式开始 ---");
       const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };
       p.setSessions((prev) =>
@@ -223,10 +222,11 @@ export function useSendMessage(p: SendMessageParams) {
         chatPath: finalChatPath,
         bypassProxy: p.settings.api.bypassProxy,
         disableReasoning: p.settings.api.disableReasoning,
+        forceBasicParams: p.settings.api.forceBasicParams,
         reqBody: {
           model: finalModel,
           stream: true,
-          ...(p.settings.api.type !== "anthropic" && {
+          ...(p.settings.api.type !== "anthropic" && !p.settings.api.forceBasicParams && {
             stream_options: { include_usage: true }
           }),
           messages: promptPayload.messages || [
@@ -315,6 +315,22 @@ export function useSendMessage(p: SendMessageParams) {
         });
 
         if (isTrialMode) incrementTrialCount();
+
+        try {
+          p.telemetryService.reportLlmPerformance(
+            updatedSession.id,
+            finalModel,
+            ttftMs,
+            tokenUsage.prompt + tokenUsage.completion,
+            performance.now() - startTime,
+            tokenUsage.prompt,
+            tokenUsage.completion,
+            p.activeCharacter!.name,
+            p.settings.userName
+          );
+        } catch (telemetryErr) {
+          console.warn("Failed to report LLM performance telemetry:", telemetryErr);
+        }
 
         if (outputCtx.shouldTriggerBison) {
           p.bisonRemainingCountRef.current = outputCtx.nextBisonRemainingCount ?? 0;

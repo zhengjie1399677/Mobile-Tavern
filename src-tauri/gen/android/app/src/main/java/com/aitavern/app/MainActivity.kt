@@ -11,9 +11,13 @@ import androidx.core.view.WindowInsetsCompat
 import android.content.ContentValues
 import android.provider.MediaStore
 import android.os.Environment
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.view.Gravity
 
 class MainActivity : TauriActivity() {
   private var appWebView: WebView? = null
+
 
   companion object {
     private const val PREFS_NAME = "AppThemePrefs"
@@ -52,11 +56,18 @@ class MainActivity : TauriActivity() {
 
       windowInsets
     }
+
+
   }
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     this.appWebView = webView
+
+    // Set WebView background color to match the theme background and prevent white flashes during load
+    webView.setBackgroundColor(android.graphics.Color.parseColor("#0d1726"))
+
+
 
     webView.addJavascriptInterface(ThemeBridgeInterface(), "AndroidThemeBridge")
   }

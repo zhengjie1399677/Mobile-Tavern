@@ -64,6 +64,7 @@ describe("MemoryTableDrawer", () => {
         activeSession={makeSession()}
         saveSession={saveSession}
         charName="Alice"
+        enableTableMemory={true}
       />
     );
     expect(container.innerHTML).toBe("");
@@ -77,10 +78,11 @@ describe("MemoryTableDrawer", () => {
         activeSession={makeSession()}
         saveSession={saveSession}
         charName="Alice"
+        enableTableMemory={true}
       />
     );
-    // 标题标记（含 emoji 🌟，用正则匹配中文部分）
-    expect(screen.getByText(/记忆档案柜/)).toBeInTheDocument();
+    // 标题标记
+    expect(screen.getByText(/多维认知记忆中心/)).toBeInTheDocument();
     // 表格名称
     expect(screen.getByText("状态与关系")).toBeInTheDocument();
   });
@@ -98,6 +100,7 @@ describe("MemoryTableDrawer", () => {
         activeSession={session}
         saveSession={saveSession}
         charName="Alice"
+        enableTableMemory={true}
       />
     );
     expect(screen.getByText("请先初始化表格记忆功能")).toBeInTheDocument();
@@ -113,6 +116,7 @@ describe("MemoryTableDrawer", () => {
         activeSession={session}
         saveSession={saveSession}
         charName="Alice"
+        enableTableMemory={true}
       />
     );
     expect(screen.getByText("请先初始化表格记忆功能")).toBeInTheDocument();
@@ -130,6 +134,7 @@ describe("MemoryTableDrawer", () => {
         activeSession={makeSession()}
         saveSession={saveSession}
         charName="Alice"
+        enableTableMemory={true}
       />
     );
     expect(screen.getByText("角色")).toBeInTheDocument();
@@ -145,6 +150,7 @@ describe("MemoryTableDrawer", () => {
         activeSession={makeSession()}
         saveSession={saveSession}
         charName="Alice"
+        enableTableMemory={true}
       />
     );
     expect(screen.getByText("Alice")).toBeInTheDocument();
@@ -170,6 +176,7 @@ describe("MemoryTableDrawer", () => {
         activeSession={session}
         saveSession={saveSession}
         charName="Test"
+        enableTableMemory={true}
       />
     );
     expect(screen.getByText("暂无记录数据，点击下方添加按钮新增一行")).toBeInTheDocument();
@@ -187,6 +194,7 @@ describe("MemoryTableDrawer", () => {
         activeSession={makeSession()}
         saveSession={saveSession}
         charName="Alice"
+        enableTableMemory={true}
       />
     );
     // 关闭按钮在 header 中（管理按钮之后），无文本，仅含 X 图标
@@ -213,6 +221,7 @@ describe("MemoryTableDrawer", () => {
         activeSession={session}
         saveSession={saveSession}
         charName="Alice"
+        enableTableMemory={true}
       />
     );
 
@@ -269,6 +278,7 @@ describe("MemoryTableDrawer", () => {
         activeSession={session}
         saveSession={saveSession}
         charName="Test"
+        enableTableMemory={true}
       />
     );
     // 应正常渲染，不崩溃

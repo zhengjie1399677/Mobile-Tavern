@@ -50,9 +50,14 @@ Mobile-Tavern
 │   │       ├── LLMService.ts                 # 大模型数据通信与 SSE 流式读取服务
 │   │       ├── PromptService.ts              # Prompt 组装与宏替换服务
 │   │       ├── TelemetryService.ts           # 使用率上报与崩溃日志本地落盘遥测服务
-│   │       ├── TableMemoryService.ts         # TRPG 表格数据游戏化记忆切面服务
 │   │       ├── ScriptService.ts              # 角色卡扩展字段变量沙盒 MVU 服务
-│   │       └── AutoSummaryService.ts         # 故事大纲自动提炼与年表总结服务
+│   │       └── memory/                       # 下沉的官方统一长期记忆系统服务模块
+│   │           ├── MemoryService.ts          # 记忆服务主控类，挂载 6 大核心子模块
+│   │           ├── MemoryStorage.ts          # 记忆碎片/总结底座数据库持久化子模块
+│   │           ├── MemoryExtractor.ts        # 大模型异步情感、年表、RPG 状态增量提取器
+│   │           ├── MemoryRecall.ts           # 记忆匹配、检索与级联载入中间件子模块
+│   │           ├── MemoryStateTable.ts       # RPG 属性看板增量提取与分析子模块
+│   │           └── MemorySummary.ts          # 故事大纲自动提炼与年表总结子模块
 │   │
 │   └── utils/                                # 底层核心计算工具包
 │       ├── apiClient.ts                      # 跨环境 Fetch 直连/代理自适应包装器
@@ -511,14 +516,13 @@ graph TD
     *   **SafeProxy 双轨行为**：在开发环境下，任何试图读取未就绪/未注册 Proxy 属性的操作都会触发致命开发期断言报错；而在生产环境下，SafeProxy 能安全提供 No-op 降级空操作，支持无限链式调用及 Promise `await` 链式兼容，实现自动故障隔离。
 *   **异步任务超时熔断与一键销毁 (`destroy`)**：当内核被卸载或重置时，执行 `destroy()` 会自动中止底层的活跃任务控制器（`activeControllers`）并触发 `AbortController.abort()`。同时，内核将依照拓扑排序的**逆序**（Top-down Reverse，即先销毁外层服务，后销毁底层服务）依次触发各个服务的销毁钩子，彻底释放资源，防范内存泄漏。
 
-### 5. 官方七大下沉核心微服务职能
+### 5. 官方核心微服务职能
 *   `DatabaseService` (database)：承载 IndexedDB 物理层读写和并发写 Promise 串行事务管道。
 *   `LLMService` (llm)：承载大模型请求、SSE 字符缓冲读取与思维链提取。
 *   `PromptService` (prompt)：负责人设模版编译、宏安全替换及世界书三阶级联检索。
 *   `TelemetryService` (telemetry)：收集 App APM 耗时及崩溃事件并写入落盘队列，计算 STS 后台同步上报。
-*   `TableMemoryService` (tableMemory)：自动匹配解析 TRPG 表格游戏数据。
 *   `ScriptService` (script)：在独立沙盒内执行角色卡内嵌的扩展变量计算脚本。
-*   `AutoSummaryService` (autoSummary)：检测未总结轮数并异步触发大模型年表大纲生成。
+*   `MemoryService` (memory)：统一的长期记忆系统，内含 6 大核心子模块，负责记忆持久化（storage）、大模型异步信息提取（extractor）、记忆检索召回（recall）、RPG 看板数据变动分析（stateTable）与前情概要总结（summary）。
 
 ### 6. 数据流向全景图 (Core Message Data Flow)
 
@@ -559,8 +563,8 @@ sequenceDiagram
     
     note over Kernel: 15. 消息完成流式生成后 (后台异步切面)
     Kernel->>Bus: 16. 广播 publish("chat:session_changed", payload)
-    Bus->>Bus: 17. AutoSummaryService 异步提炼并压缩前情年表大纲
-    Bus->>Bus: 18. TableMemoryService 游戏化角色属性看板数据增量更新
+    Bus->>Bus: 17. MemoryService 异步提炼与压缩前情大纲 (MemorySummary)
+    Bus->>Bus: 18. MemoryService 增量提取并分析 RPG 看板状态 (MemoryStateTable)
 ```
 
 ---

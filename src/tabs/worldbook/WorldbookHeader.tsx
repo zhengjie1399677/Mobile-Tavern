@@ -1,5 +1,5 @@
 import React from "react";
-import { Archive, Book, Upload } from "lucide-react";
+import { Archive, Book, Upload, Plus } from "lucide-react";
 
 export interface WorldbookHeaderProps {
   activeHostId: string;
@@ -8,6 +8,7 @@ export interface WorldbookHeaderProps {
     e: React.ChangeEvent<HTMLInputElement>,
   ) => Promise<void>;
   onExportLorebookJSON: () => Promise<void>;
+  onCreateCustomWorldbook?: () => Promise<void>;
 }
 
 /**
@@ -21,6 +22,7 @@ export default function WorldbookHeader({
   showCustomAlert,
   onImportLorebookJSON,
   onExportLorebookJSON,
+  onCreateCustomWorldbook,
 }: WorldbookHeaderProps) {
   return (
     <div className="border-b border-border/80 pb-3 mb-2 shrink-0 flex items-center justify-between select-none">
@@ -33,6 +35,16 @@ export default function WorldbookHeader({
         </p>
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
+        {activeHostId === "list" && onCreateCustomWorldbook && (
+          <button
+            type="button"
+            onClick={onCreateCustomWorldbook}
+            className="bg-card hover:bg-muted/40 border border-border text-[11px] text-foreground h-7 px-2.5 rounded-lg transition font-bold flex items-center gap-1 shadow-sm active:scale-[0.98]"
+          >
+            <Plus className="w-3 h-3 text-primary" />
+            <span>新建</span>
+          </button>
+        )}
         <label className="cursor-pointer bg-card hover:bg-muted/40 border border-border text-[11px] text-foreground h-7 px-2.5 rounded-lg transition font-bold flex items-center gap-1 shadow-sm active:scale-[0.98]">
           <Upload className="w-3 h-3 text-primary" />
           <span>导入</span>

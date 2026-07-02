@@ -106,7 +106,12 @@ export class LLMService implements ILLMService {
 
     const modelId = proxyPayload.reqBody?.model || "";
     if (modelId) {
-      cleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(modelId, cleanedReqBody);
+      cleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(
+        modelId,
+        cleanedReqBody,
+        proxyPayload.baseUrl,
+        proxyPayload.forceBasicParams
+      );
     }
     
     let actualApiKey = proxyPayload.apiKey;
@@ -182,10 +187,11 @@ export class LLMService implements ILLMService {
             signal,
           });
         } catch (fetchErr: unknown) {
+          const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
           return new Response(
             JSON.stringify({
               success: false,
-              error: "网络请求失败，请检查 Base URL 是否可达及网络连接状态。",
+              error: `网络请求失败，请检查 Base URL 是否可达及网络连接状态。具体错误: ${errMsg}`,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
           );
@@ -205,14 +211,21 @@ export class LLMService implements ILLMService {
             { status: 200, headers: { "Content-Type": "application/json" } }
           );
         } else {
-          let debugBody = "";
+          let errorDetails = "";
           try {
-            debugBody = await res.text();
-          } catch {}
+            const clonedRes = res.clone();
+            const errorJson = await clonedRes.json();
+            errorDetails = errorJson?.error?.message || errorJson?.error || JSON.stringify(errorJson);
+          } catch {
+            try {
+              errorDetails = await res.text();
+            } catch {}
+          }
+          const finalMsg = `HTTP ${res.status}：请求被拒绝。` + (errorDetails ? `中转站返回: ${errorDetails}` : "请检查 API Key 与 Base URL 配置是否正确。");
           return new Response(
             JSON.stringify({
               success: false,
-              error: `HTTP ${res.status}：请求被拒绝，请检查 API Key 与 Base URL 配置是否正确。`,
+              error: finalMsg,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
           );
@@ -228,17 +241,29 @@ export class LLMService implements ILLMService {
             signal,
           });
         } catch (fetchErr: unknown) {
+          const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
           return new Response(
-            JSON.stringify({ success: false, error: "网络请求失败，请检查 Base URL 是否可达。" }),
+            JSON.stringify({ success: false, error: `网络请求失败，请检查 Base URL 是否可达。具体错误: ${errMsg}` }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
 
         if (!res.ok) {
+          let errorDetails = "";
+          try {
+            const clonedRes = res.clone();
+            const errorJson = await clonedRes.json();
+            errorDetails = errorJson?.error?.message || errorJson?.error || JSON.stringify(errorJson);
+          } catch {
+            try {
+              errorDetails = await res.text();
+            } catch {}
+          }
+          const finalMsg = `HTTP ${res.status}：获取模型列表失败。` + (errorDetails ? `中转站返回: ${errorDetails}` : "请检查接口配置。");
           return new Response(
             JSON.stringify({
               success: false,
-              error: `HTTP ${res.status}：获取模型列表失败，请检查接口配置。`,
+              error: finalMsg,
             }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
@@ -307,7 +332,12 @@ export class LLMService implements ILLMService {
                 `[LLMService] Auto-healing: Disabled unsupported capability "${unsupported.param}" for model: ${modelId}. Retrying request...`
               );
 
-              const recleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(modelId, reqBody);
+              const recleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(
+                modelId,
+                reqBody,
+                baseUrl,
+                proxyPayload.forceBasicParams
+              );
               openAiRes = await fetchFn(`${targetBase}${chatRoute}`, {
                 method: "POST",
                 headers,

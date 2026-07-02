@@ -343,6 +343,7 @@ export class MemorySummary {
         chatPath: finalChatPath,
         reqBody,
         bypassProxy: settings.api.bypassProxy,
+        forceBasicParams: settings.api.forceBasicParams,
       },
       signal
     );

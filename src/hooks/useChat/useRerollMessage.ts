@@ -196,10 +196,11 @@ export function useRerollMessage(p: RerollMessageParams) {
         chatPath: finalChatPath,
         bypassProxy: p.settings.api.bypassProxy,
         disableReasoning: p.settings.api.disableReasoning,
+        forceBasicParams: p.settings.api.forceBasicParams,
         reqBody: {
           model: finalModel,
           stream: true,
-          ...(p.settings.api.type !== "anthropic" && {
+          ...(p.settings.api.type !== "anthropic" && !p.settings.api.forceBasicParams && {
             stream_options: { include_usage: true }
           }),
           messages: promptPayload.messages || [
@@ -287,6 +288,22 @@ export function useRerollMessage(p: RerollMessageParams) {
           triggerScroll: () => p.triggerScroll(),
         });
         if (isTrialMode) incrementTrialCount();
+
+        try {
+          p.telemetryService.reportLlmPerformance(
+            updatedSession.id,
+            finalModel,
+            ttftMs,
+            tokenUsage.prompt + tokenUsage.completion,
+            performance.now() - startTime,
+            tokenUsage.prompt,
+            tokenUsage.completion,
+            p.activeCharacter!.name,
+            p.settings.userName
+          );
+        } catch (telemetryErr) {
+          console.warn("Failed to report LLM performance telemetry:", telemetryErr);
+        }
       } else {
         await p.databaseService.saveSession(trueFinalSession);
         console.log("[useRerollMessage] Session switched during reroll, saved silently:", updatedSession.id);
