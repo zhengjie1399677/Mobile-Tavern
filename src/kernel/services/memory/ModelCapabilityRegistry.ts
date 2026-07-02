@@ -204,12 +204,13 @@ export class ModelCapabilityRegistry {
     return caps;
   }
 
-  /**
-   * 清洗 LLM 调用参数（防腐层入口）。
-   * 移除模型不支持的参数，避免 400 错误或参数被静默忽略。
-   */
-  static cleanLLMParams(modelId: string, params: LLMParams, baseUrl?: string): LLMParams {
-    const caps = this.getCapabilities(modelId, baseUrl);
+  static cleanLLMParams(
+    modelId: string,
+    params: LLMParams,
+    baseUrl?: string,
+    forceBasicParams?: boolean
+  ): LLMParams {
+    const caps = forceBasicParams ? { ...DEFAULT_CAPABILITIES } : this.getCapabilities(modelId, baseUrl);
     const cleaned: LLMParams = { ...params };
 
     if (!caps.supportsTopK) delete cleaned.top_k;

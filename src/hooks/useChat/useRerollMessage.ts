@@ -196,10 +196,11 @@ export function useRerollMessage(p: RerollMessageParams) {
         chatPath: finalChatPath,
         bypassProxy: p.settings.api.bypassProxy,
         disableReasoning: p.settings.api.disableReasoning,
+        forceBasicParams: p.settings.api.forceBasicParams,
         reqBody: {
           model: finalModel,
           stream: true,
-          ...(p.settings.api.type !== "anthropic" && {
+          ...(p.settings.api.type !== "anthropic" && !p.settings.api.forceBasicParams && {
             stream_options: { include_usage: true }
           }),
           messages: promptPayload.messages || [

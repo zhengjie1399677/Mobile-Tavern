@@ -434,6 +434,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     bypassProxy: false,
     sendNames: false,
     disableReasoning: false,
+    forceBasicParams: false,
   },
   preset: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset,
   memory: {

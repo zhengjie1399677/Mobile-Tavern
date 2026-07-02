@@ -113,6 +113,7 @@ export interface ApiConfig {
   bypassProxy?: boolean;
   sendNames?: boolean;
   disableReasoning?: boolean;
+  forceBasicParams?: boolean;
 }
 
 export interface SamplerPreset {
@@ -183,6 +184,7 @@ export interface ApiProfile {
   modelsPath?: string;
   bypassProxy?: boolean;
   disableReasoning?: boolean;
+  forceBasicParams?: boolean;
 }
 
 export interface SavedPresetBundle {
