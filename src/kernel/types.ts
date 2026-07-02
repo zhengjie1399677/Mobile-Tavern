@@ -237,7 +237,9 @@ export interface ITelemetryService extends IKernelService {
     totalTokens: number,
     durationMs: number,
     promptTokens: number,
-    completionTokens: number
+    completionTokens: number,
+    characterName?: string,
+    playerName?: string
   ): void;
   reportImmediate(action: string, extraData?: Record<string, any>): Promise<void>;
   reportColdStartReady(): Promise<void>;
@@ -262,6 +264,7 @@ export interface UpdateInfo {
   latestVersion?: string;
   downloadUrl?: string;
   message?: string;
+  enablePush?: boolean;
 }
 
 export interface IUpdateCheckService extends IKernelService {

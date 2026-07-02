@@ -47,7 +47,9 @@ export function reportLlmPerformance(
   totalTokens: number,
   durationMs: number,
   promptTokens: number,
-  completionTokens: number
+  completionTokens: number,
+  characterName?: string,
+  playerName?: string
 ) {
   getTelemetryService().reportLlmPerformance(
     sessionId,
@@ -56,7 +58,9 @@ export function reportLlmPerformance(
     totalTokens,
     durationMs,
     promptTokens,
-    completionTokens
+    completionTokens,
+    characterName,
+    playerName
   );
 }
 

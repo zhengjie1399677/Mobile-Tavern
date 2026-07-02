@@ -2,7 +2,7 @@ use std::fs::{OpenOptions, File};
 use std::io::{Write, BufRead, BufReader};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH, Instant};
 use tauri::Manager;
 use hmac::{Hmac, Mac};
 use sha1::Sha1;
@@ -40,7 +40,7 @@ struct TelemetryPayload {
     __logs__: Vec<TelemetryLog>,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Deserialize, Clone, Debug)]
 struct StsCredentials {
     AccessKeyId: String,
     AccessKeySecret: String,
@@ -135,8 +135,27 @@ fn rewrite_queue_file(path: &PathBuf, remaining_lines: &[String]) -> Result<(), 
     Ok(())
 }
 
+static STS_CACHE: Mutex<Option<(StsCredentials, Instant)>> = Mutex::new(None);
+
+fn invalidate_sts_cache() {
+    if let Ok(mut guard) = STS_CACHE.lock() {
+        *guard = None;
+    }
+}
+
 /// Request STS Credentials from Aliyun FC
 async fn fetch_sts_credentials() -> Result<StsCredentials, String> {
+    {
+        if let Ok(guard) = STS_CACHE.lock() {
+            if let Some((ref creds, fetch_time)) = *guard {
+                // 缓存 50 分钟（3000 秒），提前 10 分钟在 1 小时过期前自动刷新
+                if fetch_time.elapsed().as_secs() < 3000 {
+                    return Ok(creds.clone());
+                }
+            }
+        }
+    }
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -155,6 +174,10 @@ async fn fetch_sts_credentials() -> Result<StsCredentials, String> {
         .await
         .map_err(|e| format!("STS Parse json error: {}", e))?;
         
+    if let Ok(mut guard) = STS_CACHE.lock() {
+        *guard = Some((credentials.clone(), Instant::now()));
+    }
+
     Ok(credentials)
 }
 
@@ -317,6 +340,7 @@ pub async fn start_telemetry_loop(app_handle: tauri::AppHandle) {
             }
             Err(e) => {
                 println!("[Telemetry] Telemetry upload failed (will retry): {}", e);
+                invalidate_sts_cache();
                 current_delay_secs = std::cmp::min(current_delay_secs * 2, max_delay_secs);
                 println!("[Telemetry] Increased backoff retry delay to {}s", current_delay_secs);
             }

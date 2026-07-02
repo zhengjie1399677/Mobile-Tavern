@@ -153,7 +153,8 @@ export class UpdateCheckService implements IUpdateCheckService {
           // 优先使用服务端返回的 latestVersion，避免客户端硬编码导致版本不同步
           latestVersion: resJson.data.latestVersion || resJson.latestVersion || "",
           downloadUrl: resJson.data.downloadUrl,
-          message: resJson.message
+          message: resJson.message,
+          enablePush: resJson.data.enablePush !== false
         };
       }
       
@@ -162,7 +163,8 @@ export class UpdateCheckService implements IUpdateCheckService {
         hasUpdate: !!resJson.hasUpdate,
         latestVersion: resJson.latestVersion || "1.6.0",
         downloadUrl: resJson.downloadUrl,
-        message: resJson.message
+        message: resJson.message,
+        enablePush: resJson.enablePush !== false
       };
 
     } catch (e: any) {

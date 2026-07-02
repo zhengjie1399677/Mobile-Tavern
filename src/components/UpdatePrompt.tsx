@@ -93,6 +93,10 @@ export default function UpdatePrompt() {
       try {
         const res = await performUpdateCheck(false);
         if (res?.hasUpdate && res.downloadUrl) {
+          if (res.enablePush === false) {
+            console.log("[UpdatePrompt] New version detected, but enablePush is false. Skipping auto-prompt.");
+            return;
+          }
           setLatestVersion(res.latestVersion || "1.6.0");
           setDownloadUrl(res.downloadUrl);
           setUpdateLog(res.message || "");

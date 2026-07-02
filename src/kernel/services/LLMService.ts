@@ -106,7 +106,7 @@ export class LLMService implements ILLMService {
 
     const modelId = proxyPayload.reqBody?.model || "";
     if (modelId) {
-      cleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(modelId, cleanedReqBody);
+      cleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(modelId, cleanedReqBody, proxyPayload.baseUrl);
     }
     
     let actualApiKey = proxyPayload.apiKey;
@@ -307,7 +307,7 @@ export class LLMService implements ILLMService {
                 `[LLMService] Auto-healing: Disabled unsupported capability "${unsupported.param}" for model: ${modelId}. Retrying request...`
               );
 
-              const recleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(modelId, reqBody);
+              const recleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(modelId, reqBody, baseUrl);
               openAiRes = await fetchFn(`${targetBase}${chatRoute}`, {
                 method: "POST",
                 headers,

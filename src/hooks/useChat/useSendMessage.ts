@@ -316,6 +316,22 @@ export function useSendMessage(p: SendMessageParams) {
 
         if (isTrialMode) incrementTrialCount();
 
+        try {
+          p.telemetryService.reportLlmPerformance(
+            updatedSession.id,
+            finalModel,
+            ttftMs,
+            tokenUsage.prompt + tokenUsage.completion,
+            performance.now() - startTime,
+            tokenUsage.prompt,
+            tokenUsage.completion,
+            p.activeCharacter!.name,
+            p.settings.userName
+          );
+        } catch (telemetryErr) {
+          console.warn("Failed to report LLM performance telemetry:", telemetryErr);
+        }
+
         if (outputCtx.shouldTriggerBison) {
           p.bisonRemainingCountRef.current = outputCtx.nextBisonRemainingCount ?? 0;
           isBisonChainActive = true;

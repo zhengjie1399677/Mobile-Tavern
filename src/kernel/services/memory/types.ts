@@ -115,6 +115,7 @@ export interface ModelCapabilities {
   supportsSystemPrompt: boolean;
   supportsMinP?: boolean;
   supportsRepetitionPenalty?: boolean;
+  supportsStreamOptions?: boolean;
 }
 
 /** LLM 调用参数（防腐层入口） */
