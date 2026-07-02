@@ -8,6 +8,7 @@ import { MultiMessageService } from "./services/MultiMessageService";
 import { ChatStreamService } from "./services/ChatStreamService";
 import { UpdateCheckService } from "./services/UpdateCheckService";
 import { MemoryService } from "./services/memory";
+import { ImageGenerationService } from "./services/ImageGenerationService";
 import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
@@ -87,6 +88,11 @@ export async function initializeKernel() {
       // MemoryService 依赖 Database 与 LLM（在服务类的 dependencies 字段中声明）
       // 拓扑排序自动保证 Database/LLM 先完成注册与初始化
       // 阶段 C 已完成全部 6 子模块装配：storage / extractor / recall / stateTable / summary / parser
+    },
+    {
+      name: KernelServices.ImageGen,
+      service: new ImageGenerationService(),
+      initTimeoutMs: 3000,
     },
   ]);
 

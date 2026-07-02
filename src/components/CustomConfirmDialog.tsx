@@ -20,7 +20,7 @@ export default function CustomConfirmDialog() {
     <div
       className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300 z-[1000] animate-fadeIn"
     >
-      <div className="glass-panel rounded-2xl max-w-sm w-full p-6 flex flex-col gap-5 shadow-2xl border border-white/10 dark:border-white/5 text-foreground animate-fadeIn">
+      <div className={`glass-panel rounded-2xl w-full p-6 flex flex-col gap-5 shadow-2xl border border-white/10 dark:border-white/5 text-foreground animate-fadeIn ${customDialog.type === "prompt" && customDialog.inputType === "textarea" ? "max-w-lg" : "max-w-sm"}`}>
         <div className="flex flex-col gap-3">
           <h4 className="font-bold text-foreground text-sm tracking-wide">
             {customDialog.title}
@@ -30,18 +30,28 @@ export default function CustomConfirmDialog() {
           </p>
           {customDialog.type === "prompt" && (
             <div className="mt-1">
-              <input
-                type="text"
-                value={localVal}
-                onChange={(e) => setLocalVal(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    customDialog.onConfirmPrompt?.(localVal);
-                  }
-                }}
-                autoFocus
-                className="w-full bg-input text-xs text-foreground border border-border/80 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary/50 focus:bg-background/95 transition-all duration-300 shadow-inner block"
-              />
+              {customDialog.inputType === "textarea" ? (
+                <textarea
+                  value={localVal}
+                  onChange={(e) => setLocalVal(e.target.value)}
+                  autoFocus
+                  rows={10}
+                  className="w-full bg-input text-xs text-foreground border border-border/80 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary/50 focus:bg-background/95 transition-all duration-300 shadow-inner block resize-none leading-relaxed"
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={localVal}
+                  onChange={(e) => setLocalVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      customDialog.onConfirmPrompt?.(localVal);
+                    }
+                  }}
+                  autoFocus
+                  className="w-full bg-input text-xs text-foreground border border-border/80 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary/50 focus:bg-background/95 transition-all duration-300 shadow-inner block"
+                />
+              )}
             </div>
           )}
         </div>

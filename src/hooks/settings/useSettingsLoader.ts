@@ -342,6 +342,10 @@ export const useSettingsLoader = ({
             })(),
             enableMultiMessageQueue: storedSet.enableMultiMessageQueue ?? DEFAULT_SETTINGS.enableMultiMessageQueue,
             enableAsteriskFormatting: storedSet.enableAsteriskFormatting ?? DEFAULT_SETTINGS.enableAsteriskFormatting,
+            imageGenApi: {
+              ...DEFAULT_SETTINGS.imageGenApi,
+              ...(storedSet.imageGenApi || {}),
+            },
           } as any;
 
           if (externalPreset) {

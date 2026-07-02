@@ -29,7 +29,7 @@ export interface UnifiedAppContextProps {
   setCustomDialog: (config: CustomDialogConfig | null) => void;
   showCustomAlert: (message: string, title?: string) => Promise<void>;
   showCustomConfirm: (message: string, title?: string) => Promise<boolean>;
-  showCustomPrompt: (message: string, defaultValue?: string, title?: string) => Promise<string | null>;
+  showCustomPrompt: (message: string, defaultValue?: string, title?: string, inputType?: "text" | "textarea") => Promise<string | null>;
   safeAreas: { top: number; bottom: number };
 
   // --- Character Context ---

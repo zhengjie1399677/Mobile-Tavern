@@ -10,6 +10,7 @@ export const KernelServices = {
   ChatStream: "chatStream",
   UpdateCheck: "updateCheck",
   Memory: "memory",
+  ImageGen: "imageGen",
 } as const;
 
 export const KernelEvents = {
@@ -266,6 +267,10 @@ export interface UpdateInfo {
 
 export interface IUpdateCheckService extends IKernelService {
   checkUpdate(currentVersion: string, signal?: AbortSignal): Promise<UpdateInfo>;
+}
+
+export interface IImageGenerationService extends IKernelService {
+  generateImage(prompt: string, config: any, signal?: AbortSignal): Promise<string>;
 }
 
 /**

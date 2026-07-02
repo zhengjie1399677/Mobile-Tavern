@@ -9,6 +9,7 @@ import {
   RefreshCw,
   GitFork,
   Trash2,
+  Palette,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -28,8 +29,10 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     handleRerollFromMessage,
     createBacktrackBranch,
     showCustomConfirm,
+    showCustomPrompt,
     setSessions,
     activeSession,
+    settings,
   } = useUnifiedApp();
 
   return (
@@ -91,6 +94,151 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
       >
         <GitFork className="w-3 h-3" /> 分支
       </button>
+
+      {settings.imageGenApi?.enabled && !isUser && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setMsgMenuId(null);
+            if (!activeSession) return;
+            const targetMsgId = message.id;
+            
+            // Set loading state
+            const drawSession = {
+              ...activeSession,
+              messages: activeSession.messages.map((m: any) =>
+                m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: true } } : m
+              )
+            };
+            setSessions((prev: any) =>
+              prev.map((s: any) => (s.id === drawSession.id ? drawSession : s)),
+            );
+
+            import("../../kernel").then(async ({ globalKernel, KernelServices }) => {
+              const imageGenService = globalKernel.getService<any>(KernelServices.ImageGen);
+              try {
+                const config = settings.imageGenApi;
+                if (!config || !config.enabled) {
+                  throw new Error("请先在设置中启用生图功能并配置接口参数。");
+                }
+
+                // 1. 调用大模型根据上下文提炼场景 Prompt
+                let finalPrompt = message.content;
+                const template = config.promptGeneratorTemplate || "Based on the following conversation context and current sentence, write a vivid English prompt describing the visual scene, character appearance, action, expression, location, and atmosphere. Focus on concrete visual details. Avoid text, abstract ideas, or dialogue.\nOutput only the raw English prompt, no extra text.\n\nConversation Context:\n{context}\n\nCurrent Sentence to Visualize:\n{message}\n\nDescriptive English Prompt:";
+
+                if (settings.api && settings.api.baseUrl) {
+                  try {
+                    const { universalFetch, API_ENDPOINT } = await import("../../utils/apiClient");
+                    
+                    // 获取最近 5 条对话作为 Context，帮助 LLM 了解上下文
+                    const messageIndex = activeSession.messages.findIndex((m: any) => m.id === message.id);
+                    const recentMessages = activeSession.messages.slice(Math.max(0, messageIndex - 4), messageIndex + 1);
+                    const contextText = recentMessages
+                      .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+                      .join("\n");
+
+                    const llmPrompt = template
+                      .replace("{context}", contextText)
+                      .replace("{message}", message.content);
+
+                    const llmResponse = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
+                      baseUrl: settings.api.baseUrl,
+                      apiKey: settings.api.apiKey || "",
+                      chatPath: settings.api.chatPath,
+                      bypassProxy: settings.api.bypassProxy,
+                      disableReasoning: settings.api.disableReasoning,
+                      reqBody: {
+                        model: settings.api.modelName,
+                        messages: [
+                          {
+                            role: "user",
+                            content: llmPrompt
+                          }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 150
+                      }
+                    });
+
+                    if (llmResponse.ok) {
+                      const llmJson = await llmResponse.json();
+                      const aiSummary = llmJson.choices?.[0]?.message?.content?.trim();
+                      if (aiSummary) {
+                        finalPrompt = aiSummary
+                          .replace(/^["'“`]+|["'”`]+$/g, "") // 移除前后引号
+                          .replace(/^(Prompt|Prompt:|Prompt description:|English Prompt:|Description:)\s*/i, "")
+                          .trim();
+                        console.log("[QuickDialogueOptions] Summarized Prompt:", finalPrompt);
+                      }
+                    } else {
+                      console.warn(`[QuickDialogueOptions] LLM prompt summary failed with status ${llmResponse.status}, falling back to original message`);
+                    }
+                  } catch (e) {
+                    console.warn("[QuickDialogueOptions] Failed to contact LLM for prompt summary, falling back:", e);
+                  }
+                }
+
+                // 2. 根据设置，决定是否弹窗确认/修改提示词
+                if (config.promptEditBeforeGenerate) {
+                  const editedPrompt = await showCustomPrompt(
+                    "生图提示词已生成，您可以在此修改：",
+                    finalPrompt,
+                    "提示词确认",
+                    "textarea"
+                  );
+                  if (editedPrompt === null) {
+                    // 用户取消了生图
+                    const errorSession = {
+                      ...activeSession,
+                      messages: activeSession.messages.map((m: any) =>
+                        m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
+                      )
+                    };
+                    setSessions((prev: any) =>
+                      prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
+                    );
+                    return;
+                  }
+                  finalPrompt = editedPrompt.trim();
+                }
+
+                // 3. 传入提炼后的 finalPrompt 生成图像
+                const imgUrl = await imageGenService.generateImage(finalPrompt, config);
+                
+                const finalSession = {
+                  ...activeSession,
+                  messages: activeSession.messages.map((m: any) =>
+                    m.id === targetMsgId ? { ...m, extra: { ...m.extra, image: imgUrl, isDrawing: false } } : m
+                  )
+                };
+                setSessions((prev: any) =>
+                  prev.map((s: any) => (s.id === finalSession.id ? finalSession : s)),
+                );
+                await saveSession(finalSession);
+              } catch (err: any) {
+                console.error("Image generation failed:", err);
+                alert(`绘图失败: ${err.message || String(err)}`);
+                
+                const errorSession = {
+                  ...activeSession,
+                  messages: activeSession.messages.map((m: any) =>
+                    m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
+                  )
+                };
+                setSessions((prev: any) =>
+                  prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
+                );
+                await saveSession(errorSession);
+              }
+            });
+          }}
+          disabled={isSending}
+          className="text-[11px] text-indigo-400 hover:text-indigo-300 px-2.5 py-1 rounded hover:bg-indigo-500/10 flex items-center gap-1 border border-indigo-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+          title="对当前对白场景进行绘制"
+        >
+          <Palette className="w-3 h-3" /> 生图
+        </button>
+      )}
 
       <button
         onClick={async (e) => {

@@ -236,6 +236,24 @@ export interface UserSettings {
   bisonModePrompt?: string; // Bison Mode prompt template
   enableMultiMessageQueue?: boolean; // Enable Multi-Message Queue and merge sending
   enableAsteriskFormatting?: boolean; // Global fallback: render *action* text as grey italic (overridden by per-card visualSettings)
+  imageGenApi?: ImageGenApiConfig; // 独立的生图 API 配置
+}
+
+export interface ImageGenApiConfig {
+  enabled: boolean;
+  type: "openai-dalle" | "sd-webui" | "novelai";
+  baseUrl: string;
+  apiKey: string;
+  modelName: string;
+  promptPrefix: string;
+  negativePrompt: string;
+  width: number;
+  height: number;
+  steps: number;
+  cfgScale: number;
+  sampler: string;
+  promptGeneratorTemplate?: string; // 生成生图提示词的引导模板
+  promptEditBeforeGenerate?: boolean; // 是否在生图前弹窗编辑提示词
 }
 
 export interface RegexScript {

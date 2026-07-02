@@ -16,6 +16,7 @@ export interface CustomDialogConfig {
   message: string;
   type: "alert" | "confirm" | "prompt";
   defaultValue?: string;
+  inputType?: "text" | "textarea";
   onConfirmPrompt?: (value: string) => void;
   onConfirm?: () => void;
   onCancel?: () => void;
@@ -309,7 +310,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const showCustomPrompt = (message: string, defaultValue: string = "", title: string = "输入") => {
+  const showCustomPrompt = (message: string, defaultValue: string = "", title: string = "输入", inputType: "text" | "textarea" = "text") => {
     return new Promise<string | null>((resolve) => {
       const newDialog: CustomDialogConfig = {
         isOpen: true,
@@ -317,6 +318,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message,
         type: "prompt",
         defaultValue,
+        inputType,
         onConfirmPrompt: (value: string) => {
           setDialogQueue((prev) => prev.slice(1));
           resolve(value);

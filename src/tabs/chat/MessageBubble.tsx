@@ -272,6 +272,49 @@ const MessageBubble = ({
                 )}
               </div>
             )}
+
+            {/* Generated Image & Drawing Loader */}
+            {message.extra?.isDrawing && (
+              <div className="mt-2 p-3 bg-muted/40 border border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-xs text-muted-foreground animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+                <span>AI 正在为您绘制场景中...</span>
+              </div>
+            )}
+
+            {message.extra?.image && (
+              <div className="mt-2 rounded-xl overflow-hidden border border-border/80 bg-muted/30 shadow-md max-w-full group/image relative select-none">
+                <img
+                  src={message.extra.image}
+                  alt="Generated Scene"
+                  className="w-full object-cover max-h-60 cursor-pointer hover:opacity-95 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm("是否保存此生成的图片？")) {
+                      const filename = `draw_${Date.now()}.png`;
+                      if ((window as any).AndroidThemeBridge) {
+                        try {
+                          (window as any).AndroidThemeBridge.saveFile(filename, message.extra.image);
+                          alert(`已成功保存到手机 /Download 文件夹，文件名为: ${filename}`);
+                          return;
+                        } catch (err) {
+                          console.error("AndroidThemeBridge download failed:", err);
+                        }
+                      }
+                      
+                      const link = document.createElement("a");
+                      link.href = message.extra.image;
+                      link.download = filename;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }
+                  }}
+                />
+                <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono pointer-events-none opacity-0 group-hover/image:opacity-100 transition-opacity">
+                  点击保存图片
+                </div>
+              </div>
+            )}
           </div>
         )}
 
