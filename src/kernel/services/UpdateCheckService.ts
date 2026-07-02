@@ -148,21 +148,33 @@ export class UpdateCheckService implements IUpdateCheckService {
       // 兼容本地模拟 server.ts 的返回，以及真实的阿里云 FC 返回格式
       // 真实阿里云 FC 返回：{ success: true, data: { latestVersion, downloadUrl, fileName, ... } }
       if (resJson.success && resJson.data) {
+        let downloadUrl = resJson.data.downloadUrl || "";
+        if (!isTest && downloadUrl.includes(".aliyuncs.com/")) {
+          const targetVer = resJson.data.latestVersion || resJson.latestVersion || "1.6.1";
+          const cleanVer = targetVer.replace(/^v/, "");
+          downloadUrl = `https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/download/v${cleanVer}/MobileTavern.apk`;
+        }
         return {
           hasUpdate: true,
           // 优先使用服务端返回的 latestVersion，避免客户端硬编码导致版本不同步
           latestVersion: resJson.data.latestVersion || resJson.latestVersion || "",
-          downloadUrl: resJson.data.downloadUrl,
+          downloadUrl,
           message: resJson.message,
           enablePush: resJson.data.enablePush !== false
         };
       }
       
       // 本地模拟降级兼容
+      let downloadUrlFallback = resJson.downloadUrl || "";
+      if (!isTest && downloadUrlFallback.includes(".aliyuncs.com/")) {
+        const targetVer = resJson.latestVersion || "1.6.0";
+        const cleanVer = targetVer.replace(/^v/, "");
+        downloadUrlFallback = `https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/download/v${cleanVer}/MobileTavern.apk`;
+      }
       return {
         hasUpdate: !!resJson.hasUpdate,
         latestVersion: resJson.latestVersion || "1.6.0",
-        downloadUrl: resJson.downloadUrl,
+        downloadUrl: downloadUrlFallback,
         message: resJson.message,
         enablePush: resJson.enablePush !== false
       };
