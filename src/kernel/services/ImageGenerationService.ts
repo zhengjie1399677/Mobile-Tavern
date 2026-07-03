@@ -57,7 +57,17 @@ export class ImageGenerationService implements IImageGenerationService {
       fetchFn = resolvedFetch || fetch;
     }
 
-    const apiType = config.type || "openai-dalle";
+    let apiType = config.type || "openai-dalle";
+    if (!config.forceProtocol) {
+      const urlLower = (config.baseUrl || "").toLowerCase();
+      if (urlLower.includes("novelai")) {
+        apiType = "novelai";
+      } else if (urlLower.includes("7860") || urlLower.includes("sdapi") || urlLower.includes("sd-webui")) {
+        apiType = "sd-webui";
+      } else {
+        apiType = "openai-dalle";
+      }
+    }
     let url = "";
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -71,7 +81,8 @@ export class ImageGenerationService implements IImageGenerationService {
       if (!base.endsWith("/v1") && !base.includes("/v1/")) {
         base += "/v1";
       }
-      url = `${base}/images/generations`;
+      const isOpenRouter = base.toLowerCase().includes("openrouter.ai");
+      url = isOpenRouter ? `${base}/images` : `${base}/images/generations`;
 
       if (config.apiKey) {
         headers["Authorization"] = `Bearer ${config.apiKey}`;
@@ -132,10 +143,31 @@ export class ImageGenerationService implements IImageGenerationService {
       throw new Error(`Unsupported API type: ${apiType}`);
     }
 
-    const response = await fetchFn(url, {
+    const isBrowserEnv = typeof window !== "undefined" &&
+                         !(window as any).__TAURI_INTERNALS__ &&
+                         (typeof process === "undefined" || process.env.NODE_ENV !== "test");
+    const isRemoteUrl = url.startsWith("https://") || (url.startsWith("http://") && !url.includes("127.0.0.1") && !url.includes("localhost"));
+
+    let finalUrl = url;
+    let finalHeaders = headers;
+    let finalBody = JSON.stringify(bodyObj);
+
+    if (isBrowserEnv && isRemoteUrl) {
+      finalUrl = "/api/proxy/image-gen";
+      finalHeaders = {
+        "Content-Type": "application/json",
+      };
+      finalBody = JSON.stringify({
+        targetUrl: url,
+        headers,
+        bodyObj,
+      });
+    }
+
+    const response = await fetchFn(finalUrl, {
       method: "POST",
-      headers,
-      body: JSON.stringify(bodyObj),
+      headers: finalHeaders,
+      body: finalBody,
       signal: activeSignal,
     });
 

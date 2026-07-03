@@ -256,6 +256,7 @@ export interface ImageGenApiConfig {
   sampler: string;
   promptGeneratorTemplate?: string; // 生成生图提示词的引导模板
   promptEditBeforeGenerate?: boolean; // 是否在生图前弹窗编辑提示词
+  forceProtocol?: boolean; // 是否强行指定接口协议，默认不开启（即开启自动识别 / openai-dalle 降级）
 }
 
 export interface RegexScript {

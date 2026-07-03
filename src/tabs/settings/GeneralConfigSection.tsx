@@ -519,11 +519,63 @@ export default function GeneralConfigSection({
 
           {settings.imageGenApi?.enabled && (
             <div className="space-y-4 animate-in fade-in duration-300">
+              {/* Force Protocol Switch */}
+              <div className="flex items-center justify-between pb-2 border-b border-border/20">
+                <div className="space-y-0.5">
+                  <label className="text-[12px] font-semibold text-foreground">手动强行指定协议类型</label>
+                  <p className="text-[10px] text-muted-foreground max-w-[450px]">
+                    关闭时，系统会根据 Base URL 自动检测（如检测到 novelai 或 sdwebui 关键字自动套用其格式，其余默认使用 OpenAI 格式）。
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.imageGenApi?.forceProtocol || false}
+                  onCheckedChange={(checked) =>
+                    updateSettings((prev) => ({
+                      ...prev,
+                      imageGenApi: {
+                        ...(prev.imageGenApi || {
+                          enabled: true,
+                          type: "openai-dalle",
+                          baseUrl: "https://api.openai.com/v1",
+                          apiKey: "",
+                          modelName: "dall-e-3",
+                          promptPrefix: "masterpiece, best quality, anime style, ",
+                          negativePrompt: "lowres, bad anatomy, bad hands, text, error",
+                          width: 1024,
+                          height: 1024,
+                          steps: 20,
+                          cfgScale: 7.0,
+                          sampler: "Euler a",
+                          forceProtocol: false,
+                        }),
+                        forceProtocol: checked,
+                      },
+                    }))
+                  }
+                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                />
+              </div>
+
               {/* Type Select */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">生图接口类型</label>
+                <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
+                  <span>生图接口类型</span>
+                  {!settings.imageGenApi?.forceProtocol && (
+                    <span className="text-[9px] text-primary/80 font-bold">🤖 自动识别模式（根据 Base URL 猜测）</span>
+                  )}
+                </label>
                 <Select
-                  value={settings.imageGenApi?.type || "openai-dalle"}
+                  disabled={!settings.imageGenApi?.forceProtocol}
+                  value={
+                    settings.imageGenApi?.forceProtocol
+                      ? (settings.imageGenApi?.type || "openai-dalle")
+                      : (() => {
+                          const urlLower = (settings.imageGenApi?.baseUrl || "").toLowerCase();
+                          if (urlLower.includes("novelai")) return "novelai";
+                          if (urlLower.includes("7860") || urlLower.includes("sdapi") || urlLower.includes("sd-webui")) return "sd-webui";
+                          return "openai-dalle";
+                        })()
+                  }
                   onValueChange={(val: any) =>
                     updateSettings((prev) => ({
                       ...prev,

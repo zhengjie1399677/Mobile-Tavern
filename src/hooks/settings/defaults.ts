@@ -506,5 +506,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
     sampler: "Euler a",
     promptGeneratorTemplate: "根据以下对话上下文和当前句子，提炼并生成一句用于 AI 绘图的英文场景画面描述（Prompt）。\n请详细描述画面中的角色形象、姿势神态、所在的背景地点、画面中的物品细节以及整体色彩氛围，避免文字或抽象概念。\n注意：请直接输出生成的英文 Prompt，不要包含任何前导辞、解释说明或包裹引号。\n\n对话上下文：\n{context}\n\n当前需要绘制的句子：\n{message}\n\n生成的英文 Prompt：",
     promptEditBeforeGenerate: false,
+    forceProtocol: false,
   },
 };

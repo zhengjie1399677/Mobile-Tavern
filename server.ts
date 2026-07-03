@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
-import { ssrfGuard } from "./server/security";
+import { ssrfGuard, validateBaseUrlSecurity } from "./server/security";
 import crypto from "crypto";
 
 dotenv.config();
@@ -102,6 +102,11 @@ async function startServer() {
   console.log("[Local Server] startServer invoked.");
   const app = express();
   const PORT = 3000;
+
+  app.use((req, res, next) => {
+    console.log(`[Express Log] ${req.method} ${req.url}`);
+    next();
+  });
 
   // Use JSON parser with higher limits for backups and character cards
   app.use(express.json({ limit: "50mb" }));
@@ -363,6 +368,56 @@ async function startServer() {
         success: false,
         error: sanitizeSensitiveData(error.message || "Failed to fetch models."),
       });
+    }
+  });
+
+  // API 7: 通用生图代理接口 (仅用于本地浏览器网页调试时规避跨域)
+  app.post("/api/proxy/image-gen", async (req, res) => {
+    try {
+      const { targetUrl, headers = {}, bodyObj = {} } = req.body || {};
+      if (!targetUrl) {
+        return res.status(400).json({ error: "targetUrl is required" });
+      }
+
+      // 安全校验：防范 SSRF
+      try {
+        await validateBaseUrlSecurity(targetUrl);
+      } catch (err: any) {
+        return res.status(400).json({
+          error: `SSRF Guard Blocked Request: ${err.message}`,
+        });
+      }
+
+      console.log(`[Proxy ImageGen] Forwarding request to: ${targetUrl}`);
+
+      const response = await fetch(targetUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(bodyObj),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return res.status(response.status).json({
+          error: `API returned error [${response.status}]: ${errText}`,
+        });
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await response.json();
+        res.json(data);
+      } else {
+        const buffer = await response.arrayBuffer();
+        res.setHeader("Content-Type", contentType);
+        res.send(Buffer.from(buffer));
+      }
+    } catch (e: any) {
+      console.error("[Proxy ImageGen] Error:", e);
+      res.status(500).json({ error: e.message });
     }
   });
 
