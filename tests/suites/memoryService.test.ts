@@ -67,6 +67,17 @@ export async function testModelCapabilityRegistry() {
       "Unknown model defaults to no json_schema (conservative)"
     );
 
+    // 2.5. 知名代理服务商 (newapi, oneapi) 支持验证
+    const newapiCaps = ModelCapabilityRegistry.getCapabilities("gpt-4o", "https://api.newapi.pro/v1");
+    assert(newapiCaps.supportsJsonSchema === true, "newapi standard provider should support json_schema");
+    assert(newapiCaps.supportsFunctionCalling === true, "newapi standard provider should support function calling");
+
+    const oneapiCaps = ModelCapabilityRegistry.getCapabilities("gpt-4o", "https://api.oneapi.com/v1");
+    assert(oneapiCaps.supportsJsonSchema === true, "oneapi standard provider should support json_schema");
+
+    const unknownProxyCaps = ModelCapabilityRegistry.getCapabilities("gpt-4o", "https://api.unknownproxy.com/v1");
+    assert(unknownProxyCaps.supportsJsonSchema === false, "unknown proxy provider should fall back to conservative defaults");
+
     // 3. 参数清洗（防腐层入口）
     const cleaned = ModelCapabilityRegistry.cleanLLMParams("claude-3-opus", {
       top_k: 40,

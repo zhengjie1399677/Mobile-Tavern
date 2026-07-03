@@ -23,22 +23,17 @@ import { globalKernel } from "../../kernel/Kernel";
 import { compare } from "compare-versions";
 import JSON5 from "json5";
 import { jsonrepair } from "jsonrepair";
+import type { CardRuntimeBridgeParams } from "./CardRuntimeAdapter";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 类型定义
 // ──────────────────────────────────────────────────────────────────────────────
 
-export interface TavernHelperBridgeParams {
-  activeCharacter: CharacterCard | null;
-  activeSession: ChatSession | null;
-  setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
-  saveSession: (session: ChatSession) => Promise<void>;
-  setCharacters: React.Dispatch<React.SetStateAction<CharacterCard[]>>;
-  saveCharacter: (character: CharacterCard) => Promise<void>;
-  settings: UserSettings;
-  updateSettings: (settings: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
-  handleSendMessage: (text: string) => Promise<void>;
-}
+/**
+ * TavernHelperBridgeParams 已统一至 CardRuntimeAdapter 模块。
+ * 此处保留为类型别名以维持向后兼容，新代码请使用 CardRuntimeBridgeParams。
+ */
+export type TavernHelperBridgeParams = CardRuntimeBridgeParams;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 模块级可变状态（通过 getter/setter 暴露，规避 isolatedModules 对 export let 的限制）
@@ -171,9 +166,7 @@ export function initializeVariablesForSession(session: any) {
     variables.stat_data = {};
   }
 
-  console.log("[TavernHelper Event] Emitting mag_variable_initialized for session:", session.id);
   tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
-  console.log("[TavernHelper Event] Variables after initialization:", variables);
 
   session.variables = variables;
 
@@ -193,7 +186,6 @@ export function initializeVariablesForSession(session: any) {
       firstMsg,
       ...session.messages.slice(1),
     ];
-    console.log(`[TavernHelper Event] Synced initial variables to first message (swipeId: ${swipeId})`);
   }
 
   if (bridgeParams) {
@@ -263,8 +255,6 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
                       null;
 
   if (mvuSettings) {
-    console.log("[MVU] Found mvu_settings in character extensions:", mvuSettings);
-
     // 若配置中包含 schema 则使用它
     if (mvuSettings.schema) {
       variables.schema = mvuSettings.schema;
@@ -283,17 +273,11 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
     }
   }
 
-  // 检查是否存在 tavern_helper 脚本（用于 UI 渲染）
-  if (ext.tavern_helper?.scripts) {
-    console.log(`[MVU] Found ${ext.tavern_helper.scripts.length} tavern_helper scripts`);
-  }
-
   // 确保 stat_data 字段存在
   if (!variables.stat_data) {
     variables.stat_data = {};
   }
 
-  console.log("[MVU] Initialized variables from character:", variables);
   return variables;
 }
 
@@ -455,7 +439,6 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
     lastSessionId = currentSessionId;
 
     if (prevSessionId && prevSessionId !== currentSessionId) {
-      console.log(`[TavernHelper Bridge] Active session changed from ${prevSessionId} to ${currentSessionId}. Notifying scripts.`);
       setTimeout(() => {
         const session = bridgeParams?.activeSession;
         if (session && session.id === currentSessionId) {
@@ -495,8 +478,7 @@ export function cleanTavernHelperBridge() {
 export function notifyVariablesUpdated(session: ChatSession, messageId?: number) {
   if (!session) return;
   const variables = session.variables || {};
-  console.log("[TavernHelper Event] notifyVariablesUpdated → emitting mag_variable_initialized + character_message_rendered");
-  // 1. 通知 MVU bundle 变量已更新/初始化
+  // 通知 MVU bundle 变量已更新/初始化
   tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
   // 2. 发射 message_received 与 character_message_rendered 事件，确保每轮 AI 回复触发 UI 刷新
   const lastMsgId = messageId ?? Math.max(0, (session.messages?.length ?? 1) - 1);

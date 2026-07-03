@@ -10,18 +10,10 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://api.openai.com/**" },
-        { "url": "https://api.anthropic.com/**" },
-        { "url": "https://openrouter.ai/**" },
-        { "url": "https://api.deepseek.com/**" },
-        { "url": "https://generativelanguage.googleapis.com/**" },
-        { "url": "https://dashscope.aliyuncs.com/**" },
-        { "url": "https://*.cn-hangzhou.fcapp.run/**" },
-        { "url": "http://127.0.0.1" },
-        { "url": "http://127.0.0.1:**" },
-        { "url": "http://localhost" },
-        { "url": "http://localhost:**" }
-      ]
+        { "url": "https://**" },
+        { "url": "http://**" }
+      ],
+      "deny": []
     }
   ]
 }

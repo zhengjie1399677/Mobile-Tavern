@@ -121,7 +121,7 @@ describe("TavernHelper Bridge - 脚本预处理 (preprocessScriptContent)", () =
     // 不匹配 jsdelivr CDN URL 中的 `bundle/+esm` 后缀
     const input = `import "./mvu_bundle";`;
     const result = preprocessScriptContent(input);
-    expect(result).toContain("Local MVU bundle pre-loaded");
+    expect(result).toContain("本地 MVU bundle 已预加载");
     expect(result).not.toContain("./mvu_bundle");
   });
 

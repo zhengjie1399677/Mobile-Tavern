@@ -145,6 +145,9 @@ export class ModelCapabilityRegistry {
     "cloudflare.com",         // Cloudflare Workers AI
     "nebius.ai",              // Nebius GPU
     "lepton.ai",              // Lepton AI
+    "newapi",                 // New API 聚合器
+    "oneapi",                 // One API 聚合器
+    "one-api",                // One-API 聚合器
   ];
 
   /**

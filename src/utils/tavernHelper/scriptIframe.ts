@@ -119,31 +119,43 @@ const MVU_LIB_MAP: Record<string, CdnLibConfig> = {
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 预处理常量：将 CDN import 替换为本地 TavernHelperMvuLibs 查找，并包装为 IIFE
+// 预处理懒求值：首次调用才计算，之后缓存。
+// 避免模块导入时立即处理 ~39KB bundle 内容，
+// 对不使用脚本的纯对话卡无负担。
 // ──────────────────────────────────────────────────────────────────────────────
 
-// 预处理 mvu_zod 脚本：移除其 ES 模块 export 声明并包裹为 IIFE 以隔离作用域
-const processedMvuZod = `(function(){
-  ${mvuZodContent
-    .replace(/export\s*\{\s*s\s*as\s*registerMvuSchema\s*\};?/g, "")
-    .replace(/\/\/#\s*sourceMappingURL=.*/g, "")}
-})();`;
+let _processedMvuZod: string | null = null;
+let _processedMvu: string | null = null;
+let _processedMvuBundle: string | null = null;
 
-// 预处理 mvu 脚本：泛化替换 pinia CDN import 后包裹为 IIFE
-const processedMvu = `(function(){
-  ${replaceEsmImports(mvuContent, { "pinia": { type: "named", libKey: null } })
+/** 预处理 mvu_zod 脚本：移除 ES 模块 export 声明并包裹为 IIFE（懒求值） */
+function getProcessedMvuZod(): string {
+  if (_processedMvuZod !== null) return _processedMvuZod;
+  _processedMvuZod = `(function(){\n  ${mvuZodContent
+    .replace(/export\s*\{\s*s\s*as\s*registerMvuSchema\s*\};?/g, "")
+    .replace(/\/\/#\s*sourceMappingURL=.*/g, "")}\n})();`;
+  return _processedMvuZod;
+}
+
+/** 预处理 mvu 脚本：泛化替换 pinia CDN import 后包裹为 IIFE（懒求值） */
+function getProcessedMvu(): string {
+  if (_processedMvu !== null) return _processedMvu;
+  _processedMvu = `(function(){\n  ${replaceEsmImports(mvuContent, { "pinia": { type: "named", libKey: null } })
     .replace(/\bexport\s*\{\s*(\w+)\s+as\s+defineMvuDataStore\s*\};?/g, (_m, local) =>
       `window.defineMvuDataStore = ${local};`
-    )}
-})();`;
+    )}\n})();`;
+  return _processedMvu;
+}
 
-// 预处理 mvu_bundle 脚本：泛化替换所有 CDN import 后包裹为 IIFE
-const processedMvuBundle = `(function(){
-  ${replaceEsmImports(
+/** 预处理 mvu_bundle 脚本：泛化替换所有 CDN import 后包裹为 IIFE（懒求值） */
+function getProcessedMvuBundle(): string {
+  if (_processedMvuBundle !== null) return _processedMvuBundle;
+  _processedMvuBundle = `(function(){\n  ${replaceEsmImports(
     mvuBundleContent.replace(/\/\/#\s*sourceMappingURL=.*/g, ""),
     MVU_LIB_MAP
-  )}
-})();`;
+  )}\n})();`;
+  return _processedMvuBundle;
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 脚本内容预处理：将角色卡脚本中的 CDN 导入替换为本地查找
@@ -160,7 +172,7 @@ export function preprocessScriptContent(content: string): string {
 
   // 2. 替换 mvu_zod 的具名导入为 window.registerMvuSchema
   processed = processed.replace(
-    /import\s*\{[^}]*registerMvuSchema[^}]*\}\s*from\s*['"][^'"]*mvu_zod(?:\.js)?['"];?/g,
+    /import\s*\{[^}]*registerMvuSchema[^}]*\}\s*from\s*['"][^'"]*mvu_zod[^'"]*['"];?/g,
     `const registerMvuSchema = window.registerMvuSchema;`
   );
 
@@ -200,12 +212,16 @@ export function preprocessScriptContent(content: string): string {
 // ──────────────────────────────────────────────────────────────────────────────
 
 export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string): string {
-  // Debug/Diagnostics to check why imports are not being replaced at runtime
-  const unresolvedImports = processedMvuBundle.match(/import\s*\{[^}]*\}\s*from\s*['"][^'"]+['"]/g);
-  if (unresolvedImports) {
-    console.warn("[TH Bridge Debug] Unresolved imports in processedMvuBundle:", unresolvedImports);
-  } else {
-    console.log("[TH Bridge Debug] processedMvuBundle has no unresolved imports!");
+  const processedMvuZod    = getProcessedMvuZod();
+  const processedMvu        = getProcessedMvu();
+  const processedMvuBundle  = getProcessedMvuBundle();
+
+  // 开发模式下验证是否有未替换的 CDN import 残留
+  if (import.meta.env.DEV) {
+    const unresolvedImports = processedMvuBundle.match(/import\s*\{[^}]*\}\s*from\s*['"][^'"]+['"]/g);
+    if (unresolvedImports) {
+      console.warn("[TH Bridge] 未替换的 CDN import：", unresolvedImports);
+    }
   }
 
   const cleanContent = preprocessScriptContent(
