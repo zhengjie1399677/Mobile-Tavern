@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import * as Icons from "lucide-react";
 import { globalKernel } from "../kernel";
 import { IUpdateCheckService, UpdateInfo } from "../kernel/types";
-import pkg from "../../package.json";
 
 // === 更新检查策略常量 ===
 // 6 小时冷却期：避免用户频繁冷启动 App 导致重复请求 FC 接口
@@ -42,8 +41,8 @@ export async function performUpdateCheck(force = false): Promise<UpdateInfo | nu
     return null;
   }
 
-  // pkg.version 自动读取 package.json 中的版本，符合版本同步规范
-  const currentVersion = pkg.version || "1.6.0";
+  // __APP_VERSION__ 注入 package.json 中的最新版本，符合版本同步规范
+  const currentVersion = __APP_VERSION__;
   const res = await updateService.checkUpdate(currentVersion, undefined, force);
 
   // 记录检查时间戳（无论是否有更新），用于冷却期判断

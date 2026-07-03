@@ -16,7 +16,6 @@ import {
 } from "../../../components/ui/tabs";
 import PresetForm from "../../components/PresetForm";
 import { performUpdateCheck, showUpdatePrompt } from "../../components/UpdatePrompt";
-import pkg from "../../../package.json";
 
 import { getDeviceModel, getFreeTrialCount, useViewportSize } from "./utils";
 import GeneralConfigSection from "./GeneralConfigSection";
@@ -112,7 +111,7 @@ export default function SettingsTab() {
         });
       } else {
         // 无更新：显示服务端返回的 message 或说明当前安装的实际版本已经是最新版
-        showCustomAlert("已是最新版本", res.message || `您当前运行的 v${pkg.version} 已经是最新版本。`);
+        showCustomAlert("已是最新版本", res.message || `您当前运行的 v${__APP_VERSION__} 已经是最新版本。`);
       }
     } catch (err: any) {
       console.error("[SettingsTab] Manual check update failed:", err);
@@ -150,7 +149,7 @@ export default function SettingsTab() {
           <h1 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
             <Settings className="w-5 h-5 text-primary" /> 控制面板
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold select-none ml-2 animate-pulse">
-              v{pkg.version}
+              v{__APP_VERSION__}
             </span>
             <button
               type="button"
