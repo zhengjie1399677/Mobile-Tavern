@@ -17,6 +17,108 @@ import mvuZodContent from "../mvu_zod.js?raw";
 import mvuContent from "../mvu.js?raw";
 
 // ──────────────────────────────────────────────────────────────────────────────
+// 泛化 ESM CDN import 替换器（方案 B）
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * CDN 包配置描述符
+ *
+ * - type "named"     ：对应 `import { X as Y } from '...'` 形式
+ * - type "namespace" ：对应 `import * as Z from '...'` 形式
+ * - libKey            ：TavernHelperMvuLibs 上的属性名；为 null 时直接解构整个对象
+ * - defaultAlias      ：`default as X` 时 default 对应的 libKey 名（如 "JSON5"）
+ */
+interface CdnLibConfig {
+  type: "named" | "namespace";
+  libKey: string | null;
+  defaultAlias?: string;
+}
+
+/**
+ * 通用 ESM CDN import 替换器
+ *
+ * 对 code 中所有符合 jsdelivr CDN URL 格式的 ESM import 语句，
+ * 根据 libMap 动态解析绑定关系并生成等价的 const 赋值语句。
+ * 与具体 minified 变量名完全无关，bundle 重新构建后自动适配。
+ *
+ * 支持的 import 形式：
+ *   - `import { X as localName, Y as localName2 } from 'CDN_URL'`
+ *   - `import * as localName from 'CDN_URL'`
+ *   - `import { default as localName } from 'CDN_URL'`（通过 defaultAlias 映射）
+ */
+function replaceEsmImports(code: string, libMap: Record<string, CdnLibConfig>): string {
+  // 匹配 CDN URL 中的包名（含 scope，如 @scope/pkg）
+  const CDN_PKG_RE = /https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/([^/@][^/]*|@[^/]+\/[^/]+)(?:@[^/]+)?\/\+esm/;
+
+  // 替换 `import * as Z from '...'`（namespace import）
+  code = code.replace(
+    /import\s*\*\s*as\s+(\w+)\s+from\s*['"]([^'"]+)['"]/g,
+    (_match, localName: string, url: string) => {
+      const pkgMatch = url.match(CDN_PKG_RE);
+      if (!pkgMatch) return _match;
+      const pkgName = pkgMatch[1];
+      const cfg = libMap[pkgName];
+      if (!cfg || cfg.type !== "namespace") return _match;
+      const prop = cfg.libKey ?? pkgName;
+      return `const ${localName} = window.parent.TavernHelperMvuLibs.${prop};`;
+    }
+  );
+
+  // 替换 `import { X as Y, ... } from '...'`（named import）
+  code = code.replace(
+    /import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g,
+    (_match, bindingsStr: string, url: string) => {
+      const pkgMatch = url.match(CDN_PKG_RE);
+      if (!pkgMatch) return _match;
+      const pkgName = pkgMatch[1];
+      const cfg = libMap[pkgName];
+      if (!cfg || cfg.type !== "named") return _match;
+
+      // 解析每个绑定 "origName as localName" 或 "name"
+      const bindings = bindingsStr.split(",").map((s) => s.trim()).filter(Boolean);
+      const parts = bindings.map((binding) => {
+        const asMatch = binding.match(/^(\S+)\s+as\s+(\S+)$/);
+        if (asMatch) {
+          const [, origName, localName] = asMatch;
+          // `default as X` 需要映射到 defaultAlias 指定的 key
+          if (origName === "default") {
+            const alias = cfg.defaultAlias ?? pkgName;
+            return `${alias}: ${localName}`;
+          }
+          return `${origName}: ${localName}`;
+        }
+        // 无别名，直接使用原名
+        return binding;
+      });
+
+      // libKey 非 null：该包只暴露单一值（如 klona），直接取属性
+      if (cfg.libKey) {
+        const singleMatch = bindings[0]?.match(/^(?:\S+)\s+as\s+(\S+)$/);
+        const localName = singleMatch?.[1];
+        if (localName) {
+          return `const ${localName} = window.parent.TavernHelperMvuLibs.${cfg.libKey};`;
+        }
+      }
+
+      // 多导出或无 libKey：直接从 TavernHelperMvuLibs 解构
+      return `const { ${parts.join(", ")} } = window.parent.TavernHelperMvuLibs;`;
+    }
+  );
+
+  return code;
+}
+
+// MVU bundle / mvu / mvu_zod 共用的 libMap 配置
+const MVU_LIB_MAP: Record<string, CdnLibConfig> = {
+  "klona":            { type: "named",     libKey: "klona"        },
+  "pinia":            { type: "named",     libKey: null           },
+  "compare-versions": { type: "named",     libKey: null           },
+  "json5":            { type: "named",     libKey: null,  defaultAlias: "JSON5" },
+  "jsonrepair":       { type: "named",     libKey: null           },
+  "mathjs":           { type: "namespace", libKey: "math"         },
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
 // 预处理常量：将 CDN import 替换为本地 TavernHelperMvuLibs 查找，并包装为 IIFE
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -27,44 +129,20 @@ const processedMvuZod = `(function(){
     .replace(/\/\/#\s*sourceMappingURL=.*/g, "")}
 })();`;
 
-// 预处理 mvu 脚本：将 CDN 导入替换为本地 TavernHelperMvuLibs 查找并包裹为 IIFE
+// 预处理 mvu 脚本：泛化替换 pinia CDN import 后包裹为 IIFE
 const processedMvu = `(function(){
-  ${mvuContent
-    .replace(
-      /import\s*\{\s*defineStore\s+as\s+e\s*\}\s*from\s*['"]https:\/\/testingcf\.jsdelivr\.net\/npm\/pinia\/\+esm['"]/g,
-      "const e = window.parent.TavernHelperMvuLibs.defineStore;"
-    )
-    .replace(/\bexport\s*\{\s*d\s*as\s*defineMvuDataStore\s*\};?/g, "window.defineMvuDataStore = d;")}
+  ${replaceEsmImports(mvuContent, { "pinia": { type: "named", libKey: null } })
+    .replace(/\bexport\s*\{\s*(\w+)\s+as\s+defineMvuDataStore\s*\};?/g, (_m, local) =>
+      `window.defineMvuDataStore = ${local};`
+    )}
 })();`;
 
-// 预处理 mvu_bundle 脚本：将 CDN 导入替换为本地 TavernHelperMvuLibs 查找并包裹为 IIFE
+// 预处理 mvu_bundle 脚本：泛化替换所有 CDN import 后包裹为 IIFE
 const processedMvuBundle = `(function(){
-  ${mvuBundleContent
-    .replace(
-      /import\s*\{\s*klona\s+as\s+e\s*\}\s*from\s*['"]https:\/\/testingcf\.jsdelivr\.net\/npm\/klona\/\+esm['"]/g,
-      "const e = window.parent.TavernHelperMvuLibs.klona;"
-    )
-    .replace(
-      /import\s*\{\s*createPinia\s+as\s+t\s*,\s*defineStore\s+as\s+n\s*,\s*getActivePinia\s+as\s+a\s*,\s*setActivePinia\s+as\s+s\s*\}\s*from\s*['"]https:\/\/testingcf\.jsdelivr\.net\/npm\/pinia\/\+esm['"]/g,
-      "const { createPinia: t, defineStore: n, getActivePinia: a, setActivePinia: s } = window.parent.TavernHelperMvuLibs;"
-    )
-    .replace(
-      /import\s*\{\s*compare\s+as\s+r\s*\}\s*from\s*['"]https:\/\/testingcf\.jsdelivr\.net\/npm\/compare-versions\/\+esm['"]/g,
-      "const r = window.parent.TavernHelperMvuLibs.compare;"
-    )
-    .replace(
-      /import\s*\{\s*default\s+as\s+o\s*\}\s*from\s*['"]https:\/\/testingcf\.jsdelivr\.net\/npm\/json5\/\+esm['"]/g,
-      "const o = window.parent.TavernHelperMvuLibs.JSON5;"
-    )
-    .replace(
-      /import\s*\{\s*jsonrepair\s+as\s+i\s*\}\s*from\s*['"]https:\/\/testingcf\.jsdelivr\.net\/npm\/jsonrepair\/\+esm['"]/g,
-      "const i = window.parent.TavernHelperMvuLibs.jsonrepair;"
-    )
-    .replace(
-      /import\s*\*as\s+l\s+from\s*['"]https:\/\/testingcf\.jsdelivr\.net\/npm\/mathjs\/\+esm['"]/g,
-      "const l = window.parent.TavernHelperMvuLibs.math;"
-    )
-    .replace(/\/\/#\s*sourceMappingURL=.*/g, "")}
+  ${replaceEsmImports(
+    mvuBundleContent.replace(/\/\/#\s*sourceMappingURL=.*/g, ""),
+    MVU_LIB_MAP
+  )}
 })();`;
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -74,91 +152,42 @@ const processedMvuBundle = `(function(){
 export function preprocessScriptContent(content: string): string {
   let processed = content;
 
-  // 1. Replace the MVU bundle import
+  // 1. 移除 MVU bundle 的 side-effect import（bundle 已在沙盒中预加载）
   processed = processed.replace(
     /import\s*['"][^'"]*bundle(?:\.js)?['"];?/g,
-    `// Local MVU bundle pre-loaded`
+    `// 本地 MVU bundle 已预加载`
   );
 
-  // 2. Replace the MVU zod import
+  // 2. 替换 mvu_zod 的具名导入为 window.registerMvuSchema
   processed = processed.replace(
     /import\s*\{[^}]*registerMvuSchema[^}]*\}\s*from\s*['"][^'"]*mvu_zod(?:\.js)?['"];?/g,
     `const registerMvuSchema = window.registerMvuSchema;`
   );
 
-  // 2b. Replace the MVU library import (CDN URL variant)
+  // 3. 替换 mvu 框架导入（CDN URL 与相对路径两种形式统一处理）
   processed = processed.replace(
-    /import\s*\{([^}]+)\}\s*from\s*['"]https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/mvu(?:\.js)?\/\+esm['"];?/g,
-    (match, importsStr) => {
-      const parts = importsStr.split(',').map((p: string) => {
+    /import\s*\{([^}]+)\}\s*from\s*['"](?:https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/mvu(?:\.js)?\/\+esm|[^'"]*mvu(?:\.js)?)['"];?/g,
+    (_match, importsStr: string) => {
+      const parts = importsStr.split(",").map((p: string) => {
         const item = p.trim();
-        if (item.includes(' as ')) {
-          const [orig, alias] = item.split(/\s+as\s+/);
-          if (orig === 'default' || orig === 'defineMvuDataStore') {
+        const asMatch = item.match(/^(\S+)\s+as\s+(\S+)$/);
+        if (asMatch) {
+          const [, orig, alias] = asMatch;
+          if (orig === "default" || orig === "defineMvuDataStore") {
             return `defineMvuDataStore: ${alias}`;
           }
           return `${orig}: ${alias}`;
         }
         return item;
       });
-      return `const { ${parts.join(', ')} } = { defineMvuDataStore: window.defineMvuDataStore };`;
+      return `const { ${parts.join(", ")} } = { defineMvuDataStore: window.defineMvuDataStore };`;
     }
   );
 
-  // 2c. Replace the MVU library import (local/relative variant)
-  processed = processed.replace(
-    /import\s*\{([^}]+)\}\s*from\s*['"][^'"]*mvu(?:\.js)?['"];?/g,
-    (match, importsStr) => {
-      const parts = importsStr.split(',').map((p: string) => {
-        const item = p.trim();
-        if (item.includes(' as ')) {
-          const [orig, alias] = item.split(/\s+as\s+/);
-          if (orig === 'default' || orig === 'defineMvuDataStore') {
-            return `defineMvuDataStore: ${alias}`;
-          }
-          return `${orig}: ${alias}`;
-        }
-        return item;
-      });
-      return `const { ${parts.join(', ')} } = { defineMvuDataStore: window.defineMvuDataStore };`;
-    }
-  );
+  // 4. 泛化替换 jsdelivr CDN 上的所有 named / namespace import
+  processed = replaceEsmImports(processed, MVU_LIB_MAP);
 
-  // 3a. Generic replacement for namespace ESM imports (e.g. import * as math from '...')
-  processed = processed.replace(
-    /import\s*\*\s*as\s+(\w+)\s+from\s*['"]https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/([^/]+)\/\+esm['"]/g,
-    (match, alias, pkgName) => {
-      if (pkgName === 'mathjs') {
-        return `const ${alias} = window.parent.TavernHelperMvuLibs.math;`;
-      }
-      return `const ${alias} = window.parent.TavernHelperMvuLibs.${pkgName};`;
-    }
-  );
-
-  // 3b. Generic replacement for jsdelivr npm packages ESM imports (e.g. pinia, klona in other scripts)
-  processed = processed.replace(
-    /import\s*\{([^}]+)\}\s*from\s*['"]https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/([^/]+)\/\+esm['"]/g,
-
-    (match, importsStr, pkgName) => {
-      const parts = importsStr.split(',').map((p: string) => {
-        const item = p.trim();
-        if (item.includes(' as ')) {
-          const [orig, alias] = item.split(/\s+as\s+/);
-          if (pkgName === 'json5' && orig === 'default') {
-            return `JSON5: ${alias}`;
-          }
-          if (pkgName === 'compare-versions' && orig === 'compare') {
-            return `compare: ${alias}`;
-          }
-          return `${orig}: ${alias}`;
-        }
-        return item;
-      });
-      return `const { ${parts.join(', ')} } = window.parent.TavernHelperMvuLibs;`;
-    }
-  );
-
-  // 4. Strip export declarations from synchronous card scripts
+  // 5. 清理 ES 模块 export 声明（卡片脚本运行在同步沙盒中，不支持 export）
   processed = processed.replace(/\bexport\s+(const|let|var|function|class)\b/g, "$1");
   processed = processed.replace(/\bexport\s*\{[^}]*\};?/g, "");
   processed = processed.replace(/\bexport\s+default\b/g, "");

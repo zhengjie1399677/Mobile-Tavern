@@ -26,7 +26,10 @@ export {
   cleanTavernHelperBridge,
   notifyVariablesUpdated,
   initializeMvuFromCharacter,
+  hasCardScripts,
   ensureLibrariesLoaded,
+  ensureCoreLibsLoaded,
+  ensureUiLibsLoaded,
   initializeVariablesForSession,
   getSwipeVariables,
   resolveMessageId,
@@ -47,3 +50,6 @@ export {
   detectJsonPatch,
   parseMvuMessage,
 } from "./mvuParser";
+
+// ── 卡片运行时适配器接口契约 ────────────────────────────────────────────────
+export type { ICardRuntimeAdapter, CardRuntimeBridgeParams } from "./CardRuntimeAdapter";

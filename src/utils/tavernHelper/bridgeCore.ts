@@ -297,43 +297,96 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
   return variables;
 }
 
+/**
+ * 检测角色卡是否包含可执行脚本（tavern_helper 脚本或 MVU 配置）。
+ * 用于按需决定是否激活重型 UI 库（Vue / Pinia / jQuery）加载，
+ * 纯对话卡无脚本时完全跳过，保持主流程轻量。
+ */
+export function hasCardScripts(character: CharacterCard | null): boolean {
+  if (!character) return false;
+  const ext = character.extensions || {};
+  // 存在 tavern_helper 脚本列表且非空
+  if (Array.isArray(ext.tavern_helper?.scripts) && ext.tavern_helper.scripts.length > 0) return true;
+  // 存在 MVU 设定（mvu_settings / mvu / MVU），视为需要脚本运行时
+  if (ext.mvu_settings || ext.mvu || ext.MVU) return true;
+  return false;
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
-// 重型框架库懒加载（lodash / Vue / Pinia / jQuery / mathjs）
+// 分层懒加载：核心库 vs 重型 UI 库
+//
+// 加载策略：
+//   - 核心库（lodash + 轻量工具）：enableScriptExecution=true 时始终加载
+//   - 重型 UI 库（Vue / Pinia / jQuery / mathjs）：仅当角色卡含可执行脚本时加载
+//     （由 hasCardScripts() 检测）
+//
+// 目的：纯对话卡（无 tavern_helper 脚本 / MVU 配置）不应承担 ~400KB 的 UI 框架开销。
 // ──────────────────────────────────────────────────────────────────────────────
 
-let libsPromise: Promise<void> | null = null;
+let coreLibsPromise: Promise<void> | null = null;
+let uiLibsPromise: Promise<void> | null = null;
 
-export function ensureLibrariesLoaded(): Promise<void> {
-  if (libsPromise) return libsPromise;
+/**
+ * 加载核心工具库（lodash + klona 等轻量依赖）。
+ * 只要 enableScriptExecution 开启即调用，与卡片是否有脚本无关。
+ */
+export function ensureCoreLibsLoaded(): Promise<void> {
+  if (coreLibsPromise) return coreLibsPromise;
 
-  libsPromise = (async () => {
-    console.log("[TavernHelper Bridge] Dynamically loading MVU libraries (lodash, Vue, pinia, jQuery, mathjs)...");
-    const [lodash, Vue, Pinia, jQuery, math] = await Promise.all([
-      import("lodash"),
+  coreLibsPromise = (async () => {
+    console.log("[TavernHelper Bridge] 加载核心工具库（lodash）...");
+    const lodash = await import("lodash");
+    const lodashInstance = lodash.default || lodash;
+
+    if (typeof window !== "undefined") {
+      const w = window as any;
+      w._ = lodashInstance;
+      // 挂载轻量工具到 TavernHelperMvuLibs（为 UI 库预留槽位）
+      w.TavernHelperMvuLibs = {
+        ...w.TavernHelperMvuLibs,
+        klona,
+        compare,
+        JSON5,
+        jsonrepair,
+      };
+    }
+  })();
+
+  return coreLibsPromise;
+}
+
+/**
+ * 加载重型 UI 框架库（Vue / Pinia / jQuery / mathjs）。
+ * 仅在角色卡包含可执行脚本（hasCardScripts() = true）时调用。
+ * 幂等：多次调用等价于一次调用。
+ */
+export function ensureUiLibsLoaded(): Promise<void> {
+  if (uiLibsPromise) return uiLibsPromise;
+
+  uiLibsPromise = (async () => {
+    // 确保核心库先就绪
+    await ensureCoreLibsLoaded();
+    console.log("[TavernHelper Bridge] 角色卡含脚本，加载重型 UI 框架库（Vue / Pinia / jQuery / mathjs）...");
+    const [Vue, Pinia, jQuery, math] = await Promise.all([
       import("vue"),
       import("pinia"),
       import("jquery"),
       import("mathjs"),
     ]);
 
-    const lodashInstance = lodash.default || lodash;
     const jQueryInstance = jQuery.default || jQuery;
 
     if (typeof window !== "undefined") {
-      const parentWin = window as any;
-      parentWin._ = lodashInstance;
-      parentWin.Vue = Vue;
-      parentWin.$ = parentWin.jQuery = jQueryInstance;
+      const w = window as any;
+      w.Vue = Vue;
+      w.$ = w.jQuery = jQueryInstance;
 
-      parentWin.TavernHelperMvuLibs = {
-        klona,
+      w.TavernHelperMvuLibs = {
+        ...w.TavernHelperMvuLibs,
         createPinia: Pinia.createPinia,
         defineStore: Pinia.defineStore,
         getActivePinia: Pinia.getActivePinia,
         setActivePinia: Pinia.setActivePinia,
-        compare,
-        JSON5,
-        jsonrepair,
         math,
         pinia: {
           createPinia: Pinia.createPinia,
@@ -346,7 +399,16 @@ export function ensureLibrariesLoaded(): Promise<void> {
     }
   })();
 
-  return libsPromise;
+  return uiLibsPromise;
+}
+
+/**
+ * 向后兼容入口：等价于同时触发核心库 + UI 库的完整加载。
+ * 外部消费者（如 CardRuntimeAdapter）应优先使用细化版本
+ * ensureCoreLibsLoaded() / ensureUiLibsLoaded()。
+ */
+export function ensureLibrariesLoaded(): Promise<void> {
+  return ensureUiLibsLoaded();
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -356,11 +418,17 @@ export function ensureLibrariesLoaded(): Promise<void> {
 let lastSessionId: string | null = null;
 
 export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
-  // 仅在启用卡片脚本兼容（TavernHelper 兼容模式）插件时才异步预加载本地重型框架依赖
   if (params.settings?.enableScriptExecution) {
-    ensureLibrariesLoaded().catch(err => {
-      console.error("[TavernHelper Bridge] Failed to dynamically load MVU libraries:", err);
+    // 核心库（lodash）：只要开启脚本模式就加载
+    ensureCoreLibsLoaded().catch(err => {
+      console.error("[TavernHelper Bridge] 核心库加载失败:", err);
     });
+    // 重型 UI 库（Vue / Pinia / jQuery / mathjs）：仅当角色卡包含可执行脚本时才加载
+    if (hasCardScripts(params.activeCharacter)) {
+      ensureUiLibsLoaded().catch(err => {
+        console.error("[TavernHelper Bridge] UI 框架库加载失败:", err);
+      });
+    }
   }
 
   try {
