@@ -16,6 +16,7 @@ import {
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import TypingIndicator from "./TypingIndicator";
 import QuickDialogueOptions from "./QuickDialogueOptions";
+import CloudLoader from "../../components/CloudLoader";
 
 interface MessageBubbleProps {
   message: any;
@@ -312,7 +313,10 @@ const MessageBubble = ({
                 }}
               >
                 {message.content === "💭..." ? (
-                  <TypingIndicator />
+                  <div className="flex items-center gap-2.5 py-0.5 select-none animate-pulse">
+                    <CloudLoader size={26} />
+                    <span className="text-xs text-muted-foreground/80 font-light">AI 正在斟酌字句...</span>
+                  </div>
                 ) : (
                   renderDialogueBubble(message.content, foldedCount + idx)
                 )}
@@ -321,8 +325,8 @@ const MessageBubble = ({
 
             {/* Generated Image & Drawing Loader */}
             {message.extra?.isDrawing && (
-              <div className="mt-2 p-3 bg-muted/40 border border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-xs text-muted-foreground animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+              <div className="mt-2 p-3 bg-muted/40 border border-dashed border-border rounded-xl flex items-center justify-center gap-2.5 text-xs text-muted-foreground animate-pulse">
+                <CloudLoader size={30} />
                 <span>AI 正在为您绘制场景中...</span>
               </div>
             )}
@@ -366,8 +370,14 @@ const MessageBubble = ({
 
         {/* Bubble timestamp */}
         <div
-          className={`text-[10px] text-muted-foreground font-mono mt-1 ${isUser ? "text-right" : "text-left"} flex gap-2 ${isUser ? "justify-end" : "justify-start"} flex-wrap`}
+          className={`text-[10px] text-muted-foreground font-mono mt-1 ${isUser ? "text-right" : "text-left"} flex items-center gap-2 ${isUser ? "justify-end" : "justify-start"} flex-wrap`}
         >
+          {!isUser && isSending && idx === messagesToRenderLength - 1 && (
+            <span className="flex items-center gap-1 opacity-85 text-primary font-semibold mr-1">
+              <CloudLoader size={12} />
+              <span>斟酌词句中...</span>
+            </span>
+          )}
           {roundNum > 0 && (
             <span className="flex items-center gap-1 opacity-70 text-primary font-medium">
               第 {roundNum} 轮对话
