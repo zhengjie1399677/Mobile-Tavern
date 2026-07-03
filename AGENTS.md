@@ -127,25 +127,32 @@
 
 ---
 
-# 🚨 核心行为准则六：应用发布版本号同步修改与物理位置规范
-**当需要更新或升级客户端 App 的整体发布版本号（例如从 1.6.0 升级到 1.6.0）时，必须严格遵守以下物理路径和字段替换规范，禁止执行耗费 Token 的全盘目录扫描：**
+# 🚨 核心行为准则六：应用发布版本号同步修改与一键命令规范
+**当需要更新或升级客户端 App 的整体发布版本号（例如从 1.6.1 升级到 1.7.0）时，前端及本地服务代码已实现变量化（直接引用 `__APP_VERSION__` / `package.json`）。对于跨语言构建及文档配置文件，必须优先使用内置的一键同步脚本：**
 
-### 1. 核心构建与配置文件（必须保持物理同步）
-*   **Vite 前端主配置**：修改 [package.json](file:///e:/modules/projects/Mobile-Tavern/package.json#L5) 中的 `"version"` 字段。
-*   **Tauri 构建配置**：修改 [tauri.conf.json](file:///e:/modules/projects/Mobile-Tavern/src-tauri/tauri.conf.json#L4) 中的 `"version"` 字段。
-*   **Rust 后端配置**：修改 [Cargo.toml](file:///e:/modules/projects/Mobile-Tavern/src-tauri/Cargo.toml#L3) 中的 `version` 字段。
-*   **Aliyun FC Serverless 配置**：修改 [package.json](file:///e:/modules/projects/Mobile-Tavern/serverless/aliyun-fc-sts/package.json#L3) 中的 `"version"` 字段。
+```bash
+npm run bump-version <new_version>   # 示例：npm run bump-version 1.7.0
+```
 
-### 2. 运行时与服务层版本定义
-*   **本地 Express 服务端 Fallback 版本**：修改 [server.ts](file:///e:/modules/projects/Mobile-Tavern/server.ts#L57-L61) 中两处硬编码的 `"1.6.0"` 版本默认值。
-*   **客户端静态版本文件**：修改 [version](file:///e:/modules/projects/Mobile-Tavern/public/version#L1) 文件中的 `"pkgVersion"` 键值。
+该命令会自动精确更新以下物理文件，**严禁执行耗费 Token 的全盘目录扫描与手动逐文件替换**：
 
-### 3. 说明文档与演示网页
-*   **README 项目徽章**：修改 [README.md](file:///e:/modules/projects/Mobile-Tavern/README.md#L3) 头部的 `badge/version-1.6.0-blue` 徽章标识。
-*   **官方展示/下载网页**：修改 [index.html](file:///e:/modules/projects/Mobile-Tavern/docs/index.html) 中三处涉及版本号的声明（包括 `v1.6.0` 标签与下载 Android APK 按钮上的版本号展示文本）。
+### 1. 核心构建与配置文件（脚本自动同步）
+*   **Vite 前端主配置**：修改 package.json 中的 `"version"` 字段。
+*   **Tauri 构建配置**：修改 src-tauri/tauri.conf.json 中的 `"version"` 字段。
+*   **Rust 后端配置**：修改 src-tauri/Cargo.toml 中的 `version` 字段。
+*   **Aliyun FC Serverless 配置**：修改 serverless/aliyun-fc-sts/package.json 中的 `"version"` 字段。
+
+### 2. 运行时与服务层版本定义（已变量化/自动读取）
+*   **Vite 全局常量**：在 `vite.config.ts` 中注入 `__APP_VERSION__`，读取 `package.json` 的 `version`，前端代码统一使用变量。
+*   **本地 Express 服务端**：`server.ts` 中的端点（如 `/api/check-update`、`/version`）自动从 `package.json` 动态读取。
+*   **客户端静态版本文件**：修改 public/version 文件中的 `"pkgVersion"` 键值（脚本自动同步）。
+
+### 3. 说明文档与演示网页（脚本自动同步）
+*   **README 项目徽章**：修改 README.md 头部的 `badge/version-...` 徽章标识。
+*   **官方展示/下载网页**：修改 docs/index.html 中涉及版本号的声明与下载按钮。
 
 ### 4. 依赖锁定文件（自动同步）
-*   **npm 锁定文件**：修改 [package-lock.json](file:///e:/modules/projects/Mobile-Tavern/package-lock.json#L3-L9) 中的顶层 `"version"` 键值（亦可通过在更新 `package.json` 后执行 `npm install` 自动刷新同步）。
+*   **npm 锁定文件**：修改 package-lock.json 中的顶层 `"version"` 键值。
 
 ---
 

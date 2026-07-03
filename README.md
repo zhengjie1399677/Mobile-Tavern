@@ -1,6 +1,6 @@
 # 📱 Mobile Tavern 
 
-[![Version](https://img.shields.io/badge/version-1.6.1-blue.svg?style=for-the-badge)](https://github.com/zhengjie1399677/Mobile-Tavern)
+[![Version](https://img.shields.io/badge/version-1.6.2-blue.svg?style=for-the-badge)](https://github.com/zhengjie1399677/Mobile-Tavern)
 [![Tauri](https://img.shields.io/badge/Tauri-v2-green.svg?style=for-the-badge&logo=tauri)](https://tauri.app/)
 [![React](https://img.shields.io/badge/React-v19-blue.svg?style=for-the-badge&logo=react)](https://react.dev/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4.svg?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)

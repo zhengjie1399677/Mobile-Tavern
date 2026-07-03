@@ -686,8 +686,14 @@ async function startServer() {
         return res.status(403).json({ success: false, error: "Forbidden: Request timestamp has expired" });
       }
 
-      // 4. 软件版本校验：按数字逐段比较，避免字符串比较导致 '1.10.0' < '1.6.1' 的误判
-      const latestVersion = "1.6.1";
+      // 4. 软件版本校验：从 package.json 动态读取版本号，按数字逐段比较
+      let latestVersion = "1.6.1";
+      try {
+        const pkgPath = path.join(resolvedDirname, "package.json");
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+        if (pkg.version) latestVersion = pkg.version;
+      } catch (e) {}
+
       const hasUpdate = compareVersions(clientVersion, latestVersion) < 0;
 
       if (!hasUpdate) {
@@ -695,13 +701,13 @@ async function startServer() {
       }
 
       // 5. 模拟阿里云 FC 返回的响应结构 (由 FC 计算好 120s 签名的 downloadUrl)
-      const downloadUrl = `http://${req.headers.host || "127.0.0.1:3000"}/updates/app-release-v1.6.1.apk`;
+      const downloadUrl = `http://${req.headers.host || "127.0.0.1:3000"}/updates/app-release-v${latestVersion}.apk`;
 
       res.json({
         success: true,
         data: {
           latestVersion: latestVersion,
-          fileName: "apk/app-release-v1.6.1.apk",
+          fileName: `apk/app-release-v${latestVersion}.apk`,
           fileSize: 15458920,
           fileSizeMB: "14.74",
           downloadUrl: downloadUrl,
