@@ -67,7 +67,7 @@ export default function CorePromptBlocks({
         </AccordionContent>
       </AccordionItem>
 
-      {/* 2. 破限提示词 (Jailbreak) */}
+      {/* 2. 规则提示词 (Jailbreak) */}
       <AccordionItem value="jailbreak-prompt" className="border border-border rounded-lg bg-card overflow-hidden [&[data-state=open]]:border-primary/40 transition-all duration-200">
         <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
           <div className="flex items-center gap-2 flex-1">
@@ -86,7 +86,7 @@ export default function CorePromptBlocks({
             />
             <div className="flex flex-col">
               <span className={`text-xs font-bold truncate ${(settings.promptConfig.useJailbreak ?? true) ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
-                破限提示词 (Jailbreak)
+                规则提示词 (Jailbreak)
               </span>
               <span className="text-[9px] font-mono text-muted-foreground">system · beforeLast 前注入</span>
             </div>
@@ -107,7 +107,7 @@ export default function CorePromptBlocks({
                 })
               }
               className="min-h-[240px] text-sm font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
-              placeholder="输入破限提示词..."
+              placeholder="输入规则提示词..."
             />
           </div>
         </AccordionContent>

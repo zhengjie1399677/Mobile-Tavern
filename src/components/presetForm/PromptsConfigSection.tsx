@@ -76,7 +76,7 @@ export default function PromptsConfigSection({
         </div>
         {!isPromptsFolded && (
           <CardDescription className="text-[11px] mt-1">
-            配置底层扮演指令、破限提示以及颗粒化扩展提示词模组
+            配置底层扮演指令、规则提示以及颗粒化扩展提示词模组
           </CardDescription>
         )}
       </CardHeader>
