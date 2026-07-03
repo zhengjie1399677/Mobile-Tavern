@@ -67,6 +67,34 @@ export default function ChatTab() {
     settings,
   });
 
+  // 背景音乐 (BGM) 自动播放与停止控制
+  React.useEffect(() => {
+    let active = true;
+    let bgmService: any = null;
+
+    import("../../kernel").then(({ globalKernel }) => {
+      if (!active) return;
+      bgmService = globalKernel.getService<any>("bgm");
+      const bgmUrl = activeCharacter?.visualSettings?.bgmUrl;
+      const bgmVolume = activeCharacter?.visualSettings?.bgmVolume ?? 0.5;
+
+      if (bgmService) {
+        if (bgmUrl) {
+          bgmService.play(bgmUrl, bgmVolume);
+        } else {
+          bgmService.stop();
+        }
+      }
+    });
+
+    return () => {
+      active = false;
+      if (bgmService) {
+        bgmService.stop();
+      }
+    };
+  }, [activeCharacter]);
+
   // 本地 UI 状态
   const [expandedReasoningIds, setExpandedReasoningIds] = React.useState<Record<string, boolean>>({});
   const [copiedReasoningIds, setCopiedReasoningIds] = React.useState<Record<string, boolean>>({});

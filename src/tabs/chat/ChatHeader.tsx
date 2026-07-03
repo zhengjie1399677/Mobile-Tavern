@@ -8,6 +8,8 @@ import {
   GitFork,
   MessageSquare,
   History,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -33,6 +35,32 @@ const ChatHeader = ({
     chatSubTab,
     setChatSubTab,
   } = useUnifiedApp();
+
+  const [isMuted, setIsMuted] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    import("../../kernel").then(({ globalKernel }) => {
+      if (!active) return;
+      const bgmService = globalKernel.getService<any>("bgm");
+      if (bgmService) {
+        setIsMuted(bgmService.getMuteState());
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [activeCharacter]);
+
+  const toggleMute = () => {
+    import("../../kernel").then(({ globalKernel }) => {
+      const bgmService = globalKernel.getService<any>("bgm");
+      if (bgmService) {
+        const nextMute = bgmService.toggleMute();
+        setIsMuted(nextMute);
+      }
+    });
+  };
 
   return (
     <div
@@ -105,6 +133,19 @@ const ChatHeader = ({
 
       {/* Chat sub tabs switches and settings dropdown */}
       <div className="flex items-center gap-1.5 relative">
+        {activeCharacter?.visualSettings?.bgmUrl && (
+          <button
+            onClick={toggleMute}
+            className="p-1.5 bg-muted border border-border text-muted-foreground hover:text-foreground rounded-lg transition flex items-center justify-center shrink-0"
+            title={isMuted ? "开启背景音乐" : "静音背景音乐"}
+          >
+            {isMuted ? (
+              <VolumeX className="w-4 h-4 text-rose-500" />
+            ) : (
+              <Volume2 className="w-4 h-4 text-emerald-500 animate-pulse" />
+            )}
+          </button>
+        )}
         {activeSession && (
           <button
             onClick={() => setIsTableDrawerOpen(true)}

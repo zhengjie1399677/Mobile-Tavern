@@ -9,6 +9,7 @@ import { ChatStreamService } from "./services/ChatStreamService";
 import { UpdateCheckService } from "./services/UpdateCheckService";
 import { MemoryService } from "./services/memory";
 import { ImageGenerationService } from "./services/ImageGenerationService";
+import { BgmService } from "./services/BgmService";
 import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
@@ -92,6 +93,11 @@ export async function initializeKernel() {
     {
       name: KernelServices.ImageGen,
       service: new ImageGenerationService(),
+      initTimeoutMs: 3000,
+    },
+    {
+      name: KernelServices.Bgm,
+      service: new BgmService(),
       initTimeoutMs: 3000,
     },
   ]);

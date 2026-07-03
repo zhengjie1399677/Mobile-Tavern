@@ -57,9 +57,35 @@ export class ImageGenerationService implements IImageGenerationService {
       fetchFn = resolvedFetch || fetch;
     }
 
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      timeoutController.abort(new Error("Image generation request timed out after 60 seconds"));
+    }, 60000);
+
+    if (activeSignal) {
+      if (activeSignal.aborted) {
+        timeoutController.abort(activeSignal.reason || new Error("Generation aborted"));
+        clearTimeout(timeoutId);
+      } else {
+        activeSignal.addEventListener("abort", () => {
+          timeoutController.abort(activeSignal.reason || new Error("Generation aborted"));
+        });
+      }
+    }
+
+    let baseUrlClean = config.baseUrl ? config.baseUrl.trim().replace(/\/+$/, "") : "";
+    if (baseUrlClean) {
+      if (baseUrlClean.endsWith("/images/generations")) {
+        baseUrlClean = baseUrlClean.substring(0, baseUrlClean.length - "/images/generations".length);
+      } else if (baseUrlClean.endsWith("/images")) {
+        baseUrlClean = baseUrlClean.substring(0, baseUrlClean.length - "/images".length);
+      }
+      baseUrlClean = baseUrlClean.replace(/\/+$/, "");
+    }
+
     let apiType = config.type || "openai-dalle";
     if (!config.forceProtocol) {
-      const urlLower = (config.baseUrl || "").toLowerCase();
+      const urlLower = baseUrlClean.toLowerCase();
       if (urlLower.includes("novelai")) {
         apiType = "novelai";
       } else if (urlLower.includes("7860") || urlLower.includes("sdapi") || urlLower.includes("sd-webui")) {
@@ -73,8 +99,6 @@ export class ImageGenerationService implements IImageGenerationService {
       "Content-Type": "application/json",
     };
     let bodyObj: any = {};
-
-    const baseUrlClean = config.baseUrl ? config.baseUrl.replace(/\/+$/, "") : "";
 
     if (apiType === "openai-dalle") {
       let base = baseUrlClean || "https://api.openai.com/v1";
@@ -164,12 +188,22 @@ export class ImageGenerationService implements IImageGenerationService {
       });
     }
 
-    const response = await fetchFn(finalUrl, {
-      method: "POST",
-      headers: finalHeaders,
-      body: finalBody,
-      signal: activeSignal,
-    });
+    let response: Response;
+    try {
+      response = await fetchFn(finalUrl, {
+        method: "POST",
+        headers: finalHeaders,
+        body: finalBody,
+        signal: timeoutController.signal,
+      });
+    } catch (err: any) {
+      if (err.name === "AbortError" && timeoutController.signal.aborted) {
+        throw new Error("Image generation request timed out after 60 seconds");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error");

@@ -52,12 +52,12 @@ export function FloatingCat() {
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [position, setPosition] = useState(() => {
     if (typeof window !== "undefined") {
-      return { x: window.innerWidth - 72, y: window.innerHeight * 0.6 };
+      return { x: window.innerWidth - 16, y: window.innerHeight * 0.6 };
     }
     return { x: 300, y: 400 };
   });
   const [isDragging, setIsDragging] = useState(false);
-  const [isTucked, setIsTucked] = useState(false);
+  const [isTucked, setIsTucked] = useState(true);
 
   const handleClose = () => {
     setIsOpen(false);
@@ -120,9 +120,9 @@ export function FloatingCat() {
     });
   }, []);
 
-  // 初始化位置至右侧边缘中部
+  // 初始化位置至右侧边缘中部，且默认折叠收纳进边框
   useEffect(() => {
-    const initialX = window.innerWidth - 72;
+    const initialX = window.innerWidth - 16;
     const initialY = window.innerHeight * 0.6;
     setPosition({ x: initialX, y: initialY });
   }, []);

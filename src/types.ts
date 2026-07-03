@@ -34,6 +34,8 @@ export interface CharacterVisualSettings {
   backgroundBlur?: number;
   expressions?: any;
   enableAsteriskFormatting?: boolean;
+  bgmUrl?: string;
+  bgmVolume?: number;
 }
 
 export interface CharacterCard {

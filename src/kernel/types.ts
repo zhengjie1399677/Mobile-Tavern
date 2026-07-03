@@ -11,6 +11,7 @@ export const KernelServices = {
   UpdateCheck: "updateCheck",
   Memory: "memory",
   ImageGen: "imageGen",
+  Bgm: "bgm",
 } as const;
 
 export const KernelEvents = {
