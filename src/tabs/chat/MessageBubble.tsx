@@ -370,14 +370,8 @@ const MessageBubble = ({
 
         {/* Bubble timestamp */}
         <div
-          className={`text-[10px] text-muted-foreground font-mono mt-1 ${isUser ? "text-right" : "text-left"} flex items-center gap-2 ${isUser ? "justify-end" : "justify-start"} flex-wrap`}
+          className={`text-[10px] text-muted-foreground font-mono mt-1 ${isUser ? "text-right" : "text-left"} flex gap-2 ${isUser ? "justify-end" : "justify-start"} flex-wrap`}
         >
-          {!isUser && isSending && idx === messagesToRenderLength - 1 && (
-            <span className="flex items-center gap-1 opacity-85 text-primary font-semibold mr-1">
-              <CloudLoader size={12} />
-              <span>斟酌词句中...</span>
-            </span>
-          )}
           {roundNum > 0 && (
             <span className="flex items-center gap-1 opacity-70 text-primary font-medium">
               第 {roundNum} 轮对话
