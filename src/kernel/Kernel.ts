@@ -31,9 +31,9 @@ const getKernelStrictMode = (): boolean => {
  */
 const MSG_TIMEOUT_MS = 5000;
 
-const createSafeProxy = (name: string, path = ""): any => {
+const createSafeProxy = (name: string): any => {
   const noop = (..._args: any[]) => {
-    return createSafeProxy(name, path + "()");
+    return createSafeProxy(name);
   };
 
   return new Proxy(noop, {
@@ -61,7 +61,7 @@ const createSafeProxy = (name: string, path = ""): any => {
         }
       }
 
-      return createSafeProxy(name, path + "." + String(prop));
+      return createSafeProxy(name);
     },
   });
 };
@@ -94,6 +94,8 @@ class Pipeline<T> implements IPipeline<T> {
   }
 
   async execute(context: T): Promise<void> {
+    // 快照当前中间件列表，防止执行期间 use()/unuse() 修改数组导致索引错位
+    const middlewares = [...this.middlewares];
     let index = -1;
 
     const dispatch = async (i: number): Promise<void> => {
@@ -103,12 +105,12 @@ class Pipeline<T> implements IPipeline<T> {
       index = i;
 
       // 所有中间件执行完毕
-      if (i === this.middlewares.length) return;
+      if (i === middlewares.length) return;
 
       // 显式受控阻断：尊重中间件的有意拦截语义
       if ((context as any).isInterrupted === true) return;
 
-      const middleware = this.middlewares[i];
+      const middleware = middlewares[i];
       let nextCalled = false;
       const nextWrapper = async (): Promise<void> => {
         nextCalled = true;
@@ -194,7 +196,8 @@ export class Kernel implements IKernel {
 
   async registerService(name: string, service: IKernelService, initTimeoutMs?: number): Promise<void> {
     if (this.services.has(name)) {
-      console.warn(`[Kernel] Service "${name}" is already registered. Overwriting...`);
+      console.warn(`[Kernel] Service "${name}" is already registered. Destroying existing instance before overwriting...`);
+      await this.destroyService(name);
     }
 
     // B-2 修复：在 init() 之前就标记关键服务，确保即使初始化失败也能在 getService时保护
@@ -442,7 +445,8 @@ export class Kernel implements IKernel {
         if (signal.aborted) {
           reject(new Error("aborted"));
         } else {
-          signal.addEventListener("abort", () => reject(new Error("aborted")));
+          // { once: true }：abort 触发后自动移除监听器，防止监听器悬空泄漏
+          signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
         }
       });
 
@@ -463,9 +467,14 @@ export class Kernel implements IKernel {
       } catch (err: any) {
         controller.abort();
         if (err && err.message === "aborted") {
-          // 静默退出，不打印被主动 abort 的日志
+          // 静默退出，且直接中断后续订阅者发布（已发生信号中止）
+          break;
         } else {
           console.error(`[Kernel] Error executing subscriber on topic "${message.topic}":`, err);
+          // 遇到超时异常，立刻熔断中断后续执行，防止 5s 串行累加死锁
+          if (err && err.message && err.message.includes("timed out")) {
+            break;
+          }
         }
       } finally {
         this.activeControllers.delete(controller);
@@ -497,7 +506,8 @@ export class Kernel implements IKernel {
         if (signal.aborted) {
           reject(new Error("aborted"));
         } else {
-          signal.addEventListener("abort", () => reject(new Error("aborted")));
+          // { once: true }：abort 触发后自动移除监听器，防止监听器悬空泄漏
+          signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
         }
       });
 
