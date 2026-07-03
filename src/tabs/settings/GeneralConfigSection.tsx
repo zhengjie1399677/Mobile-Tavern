@@ -561,7 +561,7 @@ export default function GeneralConfigSection({
                 <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
                   <span>生图接口类型</span>
                   {!settings.imageGenApi?.forceProtocol && (
-                    <span className="text-[9px] text-primary/80 font-bold">🤖 自动识别模式（根据 Base URL 猜测）</span>
+                    <span className="text-[9px] text-primary/80 font-bold">自动识别模式（根据 Base URL 猜测）</span>
                   )}
                 </label>
                 <Select
@@ -570,11 +570,11 @@ export default function GeneralConfigSection({
                     settings.imageGenApi?.forceProtocol
                       ? (settings.imageGenApi?.type || "openai-dalle")
                       : (() => {
-                          const urlLower = (settings.imageGenApi?.baseUrl || "").toLowerCase();
-                          if (urlLower.includes("novelai")) return "novelai";
-                          if (urlLower.includes("7860") || urlLower.includes("sdapi") || urlLower.includes("sd-webui")) return "sd-webui";
-                          return "openai-dalle";
-                        })()
+                        const urlLower = (settings.imageGenApi?.baseUrl || "").toLowerCase();
+                        if (urlLower.includes("novelai")) return "novelai";
+                        if (urlLower.includes("7860") || urlLower.includes("sdapi") || urlLower.includes("sd-webui")) return "sd-webui";
+                        return "openai-dalle";
+                      })()
                   }
                   onValueChange={(val: any) =>
                     updateSettings((prev) => ({
@@ -598,13 +598,13 @@ export default function GeneralConfigSection({
                         baseUrl: val === "openai-dalle"
                           ? "https://api.openai.com/v1"
                           : val === "sd-webui"
-                          ? "http://127.0.0.1:7860"
-                          : "https://image.novelai.net",
+                            ? "http://127.0.0.1:7860"
+                            : "https://image.novelai.net",
                         modelName: val === "openai-dalle"
                           ? "dall-e-3"
                           : val === "sd-webui"
-                          ? ""
-                          : "safe-diffusion",
+                            ? ""
+                            : "safe-diffusion",
                       },
                     }))
                   }

@@ -119,7 +119,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
+    textarea.style.height = `${Math.max(42, Math.min(textarea.scrollHeight, 160))}px`;
 
     // 用户在输入长文本换行导致输入框高度改变时，若软键盘处于打开状态且聚焦，通过滚动消息历史确保最新可见，不顶起整个视口
     if (isKeyboardOpen && document.activeElement === textarea) {
@@ -268,9 +268,9 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       id="chat-input-area-container"
       ref={containerRef}
       style={{
-        paddingBottom: `${isKeyboardOpen ? 4 : Math.max(safeAreas?.bottom ?? 0, 12)}px`
+        paddingBottom: `${isKeyboardOpen ? 4 : Math.max(safeAreas?.bottom ?? 0, 10)}px`
       }}
-      className="glass-panel border-t border-border/40 pt-3 px-3 flex flex-col gap-2 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]"
+      className="glass-panel border-t border-border/40 pt-2 px-3 flex flex-col gap-1.5 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]"
     >
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
@@ -388,7 +388,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           </div>
         </div>
       )}
-      <div className="flex items-end gap-2 relative">
+      <div className="flex items-center gap-2 relative">
         <textarea
           ref={textareaRef}
           value={localInput}
@@ -413,7 +413,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           }
           aria-label={`发送给 ${activeCharacter?.name || "角色"} 的消息输入框`}
           rows={2}
-          className={`flex-1 bg-input/70 border border-border/80 rounded-xl py-2.5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[180px] min-h-[48px] transition-[border-color,background-color] duration-300 shadow-inner ${
+          className={`flex-1 bg-input/70 border border-border/80 rounded-xl py-2 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[160px] min-h-[42px] transition-[border-color,background-color] duration-300 shadow-inner ${
             (isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
           }`}
         />
@@ -435,7 +435,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               ? "点击单纯发送消息，长按500ms与之前消息合并发送给AI"
               : "发送消息"
           }
-          className={`p-3.5 rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${
+          className={`w-[42px] h-[42px] rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${
             canSend
               ? "hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 cursor-pointer opacity-100"
               : "opacity-45 cursor-not-allowed bg-muted text-muted-foreground shadow-none"

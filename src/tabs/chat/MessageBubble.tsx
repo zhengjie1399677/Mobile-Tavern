@@ -60,6 +60,43 @@ const MessageBubble = ({
 
   const isUser = message.sender === "user";
 
+  const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
+  const isScrollingOrMoving = React.useRef(false);
+  const hasTriggeredMenuThisTurn = React.useRef(false);
+
+  const startLongPress = React.useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    if ("button" in e && e.button !== 0) return;
+    isScrollingOrMoving.current = false;
+    hasTriggeredMenuThisTurn.current = false;
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+    longPressTimer.current = setTimeout(() => {
+      if (!isScrollingOrMoving.current && editingMsgId !== message.id) {
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          try {
+            navigator.vibrate(35);
+          } catch (_) {}
+        }
+        setMsgMenuId(msgMenuId === message.id ? null : message.id);
+        hasTriggeredMenuThisTurn.current = true;
+      }
+      longPressTimer.current = null;
+    }, 300);
+  }, [editingMsgId, message.id, msgMenuId, setMsgMenuId]);
+
+  const cancelLongPress = React.useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const moveTouch = React.useCallback(() => {
+    isScrollingOrMoving.current = true;
+    cancelLongPress();
+  }, [cancelLongPress]);
+
   return (
     <div
       key={message.id}
@@ -98,13 +135,22 @@ const MessageBubble = ({
 
       {/* Speech Bubble */}
       <div
-        className="max-w-[78%] group relative"
+        className="max-w-[78%] group relative select-none"
+        onTouchStart={startLongPress}
+        onTouchMove={moveTouch}
+        onTouchEnd={cancelLongPress}
+        onMouseDown={startLongPress}
+        onMouseMove={moveTouch}
+        onMouseUp={cancelLongPress}
+        onMouseLeave={cancelLongPress}
         onClick={(e) => {
           e.stopPropagation();
-          if (editingMsgId !== message.id) {
-            setMsgMenuId(
-              msgMenuId === message.id ? null : message.id,
-            );
+          if (hasTriggeredMenuThisTurn.current) {
+            hasTriggeredMenuThisTurn.current = false;
+            return;
+          }
+          if (msgMenuId === message.id) {
+            setMsgMenuId(null);
           }
         }}
       >
