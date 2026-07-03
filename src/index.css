@@ -410,6 +410,201 @@ a,
   padding: 6px 10px !important;
   min-width: 75px !important;
   word-break: break-word !important;
+  box-shadow: 0 20px 40px -15px color-mix(in oklch, var(--primary) 50%, transparent);
+}
+
+/* Sub-animations & breath */
+.pulse-glow {
+  animation: pulse-glow-anim 3s infinite ease-in-out;
+}
+
+@keyframes pulse-glow-anim {
+  0%, 100% {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 2px color-mix(in oklch, var(--primary) 20%, transparent));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 12px color-mix(in oklch, var(--primary) 60%, transparent));
+  }
+}
+
+@theme inline {
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fadeIn: fadeIn 0.4s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  --font-heading: var(--font-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground overflow-hidden h-full;
+    position: fixed;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  html {
+    @apply font-sans overflow-hidden h-full;
+  }
+}
+
+/* 防止嵌套滚动容器边界回弹带动外层（CR-10） */
+.overflow-y-auto,
+.overflow-auto,
+.overflow-x-auto {
+  overscroll-behavior: contain;
+}
+
+/* Smooth theme switching transition */
+.theme-transitioning,
+.theme-transitioning * {
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              fill 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              stroke 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Prevent Android WebView double-tap to zoom on interactive components and improve click latency */
+button,
+a,
+.interactive-element,
+[role="button"],
+.cursor-pointer {
+  touch-action: manipulation;
+}
+
+/* 额外的高级美化工具类 */
+.tap-scale {
+  transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1) !important;
+}
+.tap-scale:active {
+  transform: scale(0.93);
+}
+
+.bubble-ai {
+  border-top-left-radius: 0.2rem !important;
+  border-top-right-radius: 1rem !important;
+  border-bottom-left-radius: 1rem !important;
+  border-bottom-right-radius: 1rem !important;
+}
+
+.bubble-user {
+  border-top-left-radius: 1rem !important;
+  border-top-right-radius: 0.2rem !important;
+  border-bottom-left-radius: 1rem !important;
+  border-bottom-right-radius: 1rem !important;
+  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.22) !important;
+}
+
+/* 毛玻璃高光描边 */
+.glass-border-light {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.glass-border-dark {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* 聊天大图渐变保护蒙层 */
+.chat-bg-mask {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in oklch, var(--background) 40%, transparent) 50%,
+    color-mix(in oklch, var(--background) 90%, transparent) 100%
+  ) !important;
+}
+
+/* 聊天背景肯斯伯恩缓动动画 */
+@keyframes slow-pan-zoom {
+  0% {
+    transform: scale(1) translate(0, 0);
+  }
+  50% {
+    transform: scale(1.12) translate(-2.5%, 1.2%);
+  }
+  100% {
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+.animate-bg-pan-zoom {
+  animation: slow-pan-zoom 24s ease-in-out infinite;
+}
+
+/* 气泡内表格通用美化与防溢出变形规则 */
+.bubble-ai table,
+.bubble-user table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 8px 0 !important;
+  font-size: 11px !important;
+  background: color-mix(in oklch, var(--card) 45%, transparent) !important;
+}
+
+.bubble-ai th, .bubble-ai td,
+.bubble-user th, .bubble-user td {
+  border: 1px solid color-mix(in oklch, var(--border) 50%, transparent) !important;
+  padding: 6px 10px !important;
+  min-width: 75px !important;
+  word-break: break-word !important;
   white-space: pre-wrap !important;
   vertical-align: top !important;
 }
@@ -432,3 +627,97 @@ a,
   white-space: nowrap;
   border: 0;
 }
+
+/* 角色馆卡片滑入级联动画 */
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-card-fade-in {
+  animation: cardFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  animation-delay: calc(var(--card-index) * 0.04s) !important;
+}
+
+/* 具有弹性物理质感的 Spring 回弹按压效果 */
+.spring-press-effect {
+  transition: transform 0.4s cubic-bezier(0.25, 1.4, 0.5, 1), 
+              box-shadow 0.3s ease, 
+              border-color 0.3s ease, 
+              background-color 0.3s ease !important;
+}
+
+.spring-press-effect:active {
+  transform: scale(0.96) translateY(1.5px) !important;
+}
+
+/* 绝对定位的头像高光立体层（兼容不同主题） */
+.avatar-highlight-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem; /* rounded-2xl */
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+              inset 0 1.5px 3px rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 亮色模式高光适配 */
+[data-theme="snow"] .avatar-highlight-overlay,
+[data-theme="sand"] .avatar-highlight-overlay {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+              inset 0 1.5px 3px rgba(255, 255, 255, 0.6) !important;
+}
+
+/* ==========================================
+   Diagonal Slide Fill Checkbox (自适应主题色)
+   ========================================== */
+.checkBox-container {
+  display: block;
+  cursor: pointer;
+  width: 22px; /* 极精致尺寸，跟文本行高完美对齐 */
+  height: 22px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 0 1.5px var(--primary);
+  background-color: transparent;
+  flex-shrink: 0;
+}
+
+.checkBox-container div {
+  width: 44px;
+  height: 44px;
+  background-color: var(--primary);
+  top: -38px;
+  left: -38px;
+  position: absolute;
+  transform: rotateZ(45deg);
+  z-index: 10;
+}
+
+.checkBox-container input[type=checkbox]:checked + div {
+  left: -8px;
+  top: -8px;
+}
+
+.checkBox-container input[type=checkbox] {
+  position: absolute;
+  left: 50px;
+  visibility: hidden;
+}
+
+.checkBox-transition {
+  transition: all 250ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+
+
+

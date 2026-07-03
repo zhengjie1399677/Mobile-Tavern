@@ -167,17 +167,19 @@ export default function ThemeConfigSection({
             <label className="text-[11px] font-semibold text-muted-foreground">
               启用背景慢速呼吸动效 (肯斯伯恩效果)
             </label>
-            <input
-              type="checkbox"
-              checked={settings.enableChatBgAnimation ?? false}
-              onChange={(e) =>
-                updateSettings((prev) => ({
-                  ...prev,
-                  enableChatBgAnimation: e.target.checked,
-                }))
-              }
-              className="w-4 h-4 rounded border-border bg-input text-primary accent-primary cursor-pointer focus:ring-0"
-            />
+            <label className="checkBox-container">
+              <input
+                type="checkbox"
+                checked={settings.enableChatBgAnimation ?? false}
+                onChange={(e) =>
+                  updateSettings((prev) => ({
+                    ...prev,
+                    enableChatBgAnimation: e.target.checked,
+                  }))
+                }
+              />
+              <div className="checkBox-transition" />
+            </label>
           </div>
         </div>
       </CardContent>
