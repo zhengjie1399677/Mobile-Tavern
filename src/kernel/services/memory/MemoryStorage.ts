@@ -1,17 +1,9 @@
 /**
  * MemoryStorage - IndexedDB 读写封装（messages / memory_dict Store）
  *
- * 物理职责：
- *   1. 包装 localDB.ts 中新增的 messages / memory_dict CRUD 函数，提供 OOP 入口
- *   2. 通过 init(signal) 确保 IDB schema 已升级到 v8（getDB 触发 onupgradeneeded）
- *   3. 提供 AbortSignal 绑定点，供内核销毁时中止进行中的异步事务
- *
- * 设计契约：
- *   - 所有写入操作复用 localDB.enqueueWrite 串行化队列与 key 合并机制
- *   - 严禁在 sessions 表中保留 messages 大数组（AGENTS.md 准则一物理分轨铁则）
- *   - 内存中不缓存消息列表，所有查询直击 IndexedDB，避免内存膨胀
- *
- * 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第五章 5.3 节
+ * 核心职责：
+ *   1. 包装 messages 与 memory_dict 存储表的操作入口
+ *   2. 管理与底层 IndexedDB 存储及 AbortSignal 异步事务生命周期
  */
 
 import type { IDatabaseService } from '../../types';

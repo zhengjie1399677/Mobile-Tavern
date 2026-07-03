@@ -1,24 +1,11 @@
 /**
- * MemoryStateTable - 状态表子模块（合并自 TableMemoryService）
+ * MemoryStateTable - 状态表子模块
  *
- * 物理职责：
+ * 核心职责：
  *   1. 解析 AI 输出中的结构化表格指令（updateRow / insertRow / deleteRow）
- *   2. 在内存中执行 CRUD 操作，产出更新后的 TableMemorySheet[]
- *   3. 提供默认表初始化能力（物品 / 关系 / 位置 / 任务等预定义表）
- *   4. 清理 AI 输出文本中的指令残留，避免污染对话展示
- *
- * 设计契约：
- *   - 纯计算服务，无网络 IO，无 IndexedDB 写入（状态表持久化由上层 session.save 负责）
- *   - 宽松 JSON 解析：兼容单引号、未引号键名、中文键名（角色卡场景常见）
- *   - 指令解析失败时静默降级（console.warn），不阻塞主对话流
- *   - 绑定 AbortSignal 仅为契约一致性，纯计算任务通常不实际触发 abort
- *
- * 与旧 TableMemoryService 的差异：
- *   - 新增 initDefaultSheets() / getSheet() / parseAICommand() 公共 API
- *   - 重构为接受 MemoryStorage 引用（为未来状态表持久化扩展预留）
- *   - 代码组织更内聚，便于未来抽离为独立微服务插件
- *
- * 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第九章
+ *   2. 执行内存 CRUD 操作，产出更新后的 TableMemorySheet[]
+ *   3. 提供预定义默认表初始化（关系/物品/位置/任务）
+ *   4. 清理 AI 输出文本中的表格指令残留
  */
 
 import type { TableMemorySheet } from '../../../types';

@@ -1,19 +1,10 @@
 /**
  * MemoryRecall - 记忆召回器（标签倒排索引 + 时间衰减打分）
  *
- * 物理职责：
- *   1. 从当前消息提取查询标签（复用 extractByDict 词典匹配）
- *   2. 按标签查 messages Store 的 tags 多值索引（倒排召回候选集）
- *   3. 候选打分：hitCount × (1 / (1 + ageInTurns / 50))，命中标签越多越新得分越高
- *   4. 排除最近 N 轮（避免与 recentTurns 上下文重复）
- *   5. 取 top-K 返回
- *
- * 设计契约：
- *   - 纯查询，不写入任何数据
- *   - 无异步资源占用（destroy 无需处理）
- *   - < 10k 消息时召回延迟 < 20ms，不阻塞主对话流
- *
- * 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第八章
+ * 核心职责：
+ *   1. 提取查询标签并按倒排索引召回候选消息
+ *   2. 结合匹配标签数、时间衰减与 Pin/Mute 标记计算综合得分
+ *   3. 排除最近 N 轮上下文，返回 Top-K 记忆片段
  */
 
 import type { MessageRecord, MessageRole, RecalledMessage } from './types';

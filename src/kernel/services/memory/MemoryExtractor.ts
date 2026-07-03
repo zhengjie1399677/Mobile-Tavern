@@ -1,19 +1,11 @@
 /**
- * MemoryExtractor - 记忆抽取器（L0 LLM 抽取 + L1 词典匹配 + L2 仅存原文）
+ * MemoryExtractor - 记忆抽取器
  *
- * 物理职责：
- *   1. L0：校验 LLM 在 <memory> 标签内输出的 JSON 抽取结果（手写校验器替代 zod，零依赖）
- *   2. L1：用 RegExp 批量匹配词典实体（替代 aho-corasick，词典 < 2000 条时性能差异 < 10ms）
- *   3. L2：L0/L1 均未命中时仅存原文，tags 为空数组
- *   4. 异步抽取队列：节流（上一轮未完成则跳过）、防堆积（队列 > 3 丢弃最旧）
- *   5. 抽取成功后自动更新 memory_dict Store（新实体入库，已存在实体 count++）
- *
- * 设计契约：
- *   - 零运行时依赖（不引入 zod / aho-corasick，保持移动端 APK 轻量）
- *   - 所有异步任务绑定 AbortSignal，destroy 时彻底回收
- *   - 抽取失败不阻塞主对话流，仅 console.error 记录
- *
- * 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第七章
+ * 核心职责：
+ *   1. L0: 校验 LLM <memory> 标签输出的 JSON 抽取结果
+ *   2. L1: RegExp 批量匹配会话词典实体
+ *   3. L2: 降级存储纯消息原文
+ *   4. 管理异步抽取队列与词典（MemoryDict）同步更新
  */
 
 import type {
@@ -345,7 +337,6 @@ export class MemoryExtractor {
    * 最终将消息写入 messages Store。
    */
   private async processExtraction(task: ExtractionTask): Promise<ExtractionResult> {
-    // console.log("[MemoryDebug] processExtraction task:", task);
     const signal = this.abortController?.signal;
     let tags: string[];
     let extractSource: ExtractSource;
@@ -354,7 +345,6 @@ export class MemoryExtractor {
     // L0: LLM 抽取
     if (task.memoryContent) {
       const parsed = validateExtraction(task.memoryContent);
-      // console.log("[MemoryDebug] validateExtraction result:", parsed);
       if (parsed && parsed.entities.length > 0) {
         tags = parsed.entities.map((e) => e.name);
         extractSource = 'llm';
@@ -374,8 +364,6 @@ export class MemoryExtractor {
       tags = result.tags;
       extractSource = result.source;
     }
-
-    // console.log("[MemoryDebug] Extraction finished. tags:", tags, "source:", extractSource);
 
     // 写入 messages Store
     if (signal?.aborted) return { tags, extractSource, extraction };

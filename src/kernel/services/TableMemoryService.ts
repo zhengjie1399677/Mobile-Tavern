@@ -1,15 +1,5 @@
 /**
- * @deprecated 阶段 C 已废弃，逻辑合并到 MemoryService.getStateTable() 子模块。
- *
- * 本文件保留 1 个版本周期用于回归测试与渐进式迁移，新代码请勿引用。
- * 下个版本周期后将删除。
- *
- * 迁移指南：
- *   - 旧：kernel.getService(KernelServices.TableMemory).processTableMemory(...)
- *   - 新：kernel.getService(KernelServices.Memory).getStateTable().processTableMemory(...)
- *   - 新增能力：initDefaultSheets() / getSheet() / parseAICommand()
- *
- * 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第九章 + 第十八章 18.3 节
+ * @deprecated 逻辑已合并到 MemoryService.getStateTable()，本文件暂存作为向后兼容入口。
  */
 
 import { IKernel } from "../types";

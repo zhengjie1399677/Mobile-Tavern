@@ -1,28 +1,10 @@
 /**
- * MemorySummary - 剧情摘要子模块（瘦身自 AutoSummaryService）
+ * MemorySummary - 剧情摘要子模块
  *
- * 物理职责：
+ * 核心职责：
  *   1. 监测会话未总结消息数，达到阈值时触发 LLM 摘要
- *   2. 生成剧情时间线摘要卡片（SummaryCard），追加到 session.summaries
- *   3. 持久化到 sessions Store（通过 IDatabaseService.saveSession）
- *
- * 设计契约：
- *   - 只做剧情时间线摘要，砍掉 5 条正则状态抽离（location/time/condition/inventory/bonding）
- *     原因：正则方案强依赖 LLM 输出格式，天然脆弱；状态抽离职责已迁移到 MemoryStateTable
- *   - SummaryCard 的 location 字段保留为兜底值（activeCharacter.scenario 前 8 字符），
- *     仅为向后兼容旧 UI 读取，不再从 LLM 输出中正则抽取
- *   - condition / inventory / bonding 字段不再生成（undefined）
- *   - 复用主对话模型（零额外配置），免 Key 模式自动降级跳过摘要
- *   - AbortSignal 全链路绑定，destroy 时中止进行中的 LLM 调用
- *
- * 与旧 AutoSummaryService 的差异：
- *   - 砍掉 lastIndexOf("---") 元数据分割逻辑
- *   - 砍掉 5 条 safeMatch 正则抽离
- *   - 砍掉 DEFAULT_LOCATION_REGEX 等 5 个正则模板导入
- *   - 新增 generateSummary() 公共 API（供中间件直接调用，绕过触发检测）
- *   - 代码组织更内聚，便于未来抽离为独立微服务插件
- *
- * 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第十章
+ *   2. 生成剧情时间线摘要卡片（SummaryCard）
+ *   3. 将摘要持久化保存至存储后端
  */
 
 import { KernelServices } from '../../types';

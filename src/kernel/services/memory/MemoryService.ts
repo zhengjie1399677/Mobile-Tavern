@@ -1,26 +1,9 @@
 /**
  * MemoryService - 记忆系统主服务入口
  *
- * 阶段 A 职责（已完成）：
- *   1. 实现 IKernelService 契约，纳入内核服务注册体系
- *   2. 持有 MemoryStorage 子模块实例，对外暴露 OOP 入口
- *   3. 绑定 AbortSignal，确保内核销毁时所有子模块资源被回收
- *
- * 阶段 B 职责（已完成）：
- *   4. 装配 MemoryExtractor（L0 LLM 抽取 + L1 词典匹配 + 调度队列）
- *   5. 装配 MemoryRecall（倒排召回 + 时间衰减打分 + top-K）
- *   6. 对外暴露 getExtractor() / getRecall() 访问器，供中间件调用
- *
- * 阶段 C 职责（本轮装配）：
- *   7. 装配 MemoryStateTable（合并自 TableMemoryService）
- *   8. 装配 MemorySummary（瘦身自 AutoSummaryService，砍掉 5 条正则状态抽离）
- *   9. 对外暴露 getStateTable() / getSummary() 访问器
- *
- * 依赖声明：
- *   - Database: 通过 IDatabaseService 触发 IDB schema 升级 + 提供存储后端
- *   - LLM: 阶段 B 抽取子模块 + 阶段 C 摘要子模块复用主对话模型（零额外配置）
- *
- * 详见 docs/记忆系统重构_架构设计_2026-06-27.md 第五章 5.2 节
+ * 核心职责：
+ *   1. 实现 IKernelService 契约，管理记忆系统生命周期与 AbortSignal 资源回收
+ *   2. 整合并向中间件暴露子模块：MemoryStorage / Extractor / Recall / StateTable / Summary
  */
 
 import { KernelServices, type IKernel, type IMemoryService, type IDatabaseService } from '../../types';
