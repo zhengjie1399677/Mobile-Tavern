@@ -22,9 +22,6 @@ function getLlmService() {
   return fallbackLlm;
 }
 
-// P0-3: cleanRequestPayload 已下沉到 src/kernel/utils/requestSchema.ts，
-// 实现请求体字段白名单清洗。本文件不再保留重复定义，避免维护漂移。
-
 export const isClientMode = (): boolean => {
   return getLlmService().isClientMode();
 };

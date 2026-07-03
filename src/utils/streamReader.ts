@@ -19,16 +19,12 @@ export interface SSEChunkCallbacks {
 
 export interface SSEStreamOptions {
   /**
-   * PERF-07: Idle timeout in milliseconds.
-   * If no data is received within this period, the stream reader is cancelled
-   * and `readSSEStream` rejects with an idle-timeout error to release resources.
-   * Set to 0 or Infinity to disable. Default: 60000 (60s).
+   * 空闲超时时间（毫秒）。无数据时取消 reader 释放资源。
+   * 设置为 0 或 Infinity 禁用。默认: 60000 (60s)。
    */
   idleTimeoutMs?: number;
   /**
-   * P1-7: 可选 AbortSignal，用于在消费方提前退出时立即取消底层 reader。
-   * 当 signal.aborted 时，readSSEStream 会立即 reader.cancel() + clearIdleTimer()，
-   * 无需等待下一次 reader.read() 抛错。
+   * 可选 AbortSignal，用于在消费方提前退出时立即取消底层 reader。
    */
   signal?: AbortSignal;
 }
@@ -53,8 +49,7 @@ export async function readSSEStream(
   let pbuf = "";
   let streamDone = false;
 
-  // PERF-07: Idle timeout - 若长时间未收到新数据则主动取消 reader，
-  // 防止 LLM 中转代理在 fetch 200 OK 后挂起导致连接永久占用。
+  // Idle timeout - 若长时间未收到新数据则主动取消 reader，防止挂起。
   const idleTimeoutMs = options?.idleTimeoutMs ?? 60_000;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let idleTimedOut = false;
@@ -78,7 +73,7 @@ export async function readSSEStream(
     }, idleTimeoutMs);
   };
 
-  // P1-7: 注册 AbortSignal 监听器，消费方提前退出时立即取消 reader
+  // 注册 AbortSignal 监听器，消费方提前退出时立即取消 reader
   const signal = options?.signal;
   const onSignalAbort = () => {
     clearIdleTimer();
@@ -197,7 +192,7 @@ export async function readSSEStream(
     }
   } finally {
     clearIdleTimer();
-    // P1-7: 移除 signal 监听器，避免内存泄漏
+    // 移除 signal 监听器，避免内存泄漏
     if (signal) {
       signal.removeEventListener("abort", onSignalAbort);
     }
@@ -212,7 +207,7 @@ export async function readSSEStream(
     }
   }
 
-  // PERF-07: 若因 idle timeout 主动取消了流，向上层抛出明确错误以便处理
+  // 若因 idle timeout 主动取消了流，向上层抛出明确错误以便处理
   if (idleTimedOut) {
     throw new Error(`SSE stream idle timeout after ${idleTimeoutMs}ms without data`);
   }

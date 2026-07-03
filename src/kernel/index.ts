@@ -26,20 +26,10 @@ import SettingsTab from "../tabs/SettingsTab";
 import PlaygroundTab from "../tabs/PlaygroundTab";
 
 /**
- * 使用 registerServiceBatch 进行批量注册：
- * - 无需手工维护注册顺序，内核自动根据各服务的 `dependencies` 字段进行拓扑排序。
- * - 新增服务时只需在此数组中追加条目，并在服务类中声明 `dependencies`，不会影响其他服务。
- * - initTimeoutMs 按各服务 IO 特性酌情配置（P1-3：所有服务均配置超时，避免 init 挂起导致启动白屏）。
- *   * DatabaseService 需 IndexedDB 初始化，5s
- *   * LLMService/MemoryService 涉及网络或重计算，8s/5s
- *   * ChatStreamService 涉及流式连接，5s
- *   * 其余纯计算服务，3s
- *
- * 阶段 C 迁移说明：
- *   - TableMemoryService 与 AutoSummaryService 已从注册表移除，逻辑合并到 MemoryService
- *     的 stateTable 与 summary 子模块。旧文件保留 @deprecated 标记，下个版本周期后删除。
- *   - KernelServices.TableMemory / KernelServices.AutoSummary 枚举值已移除（逻辑合并到 MemoryService）。
- *     但不再有服务实例注册到这些 key。
+ * 初始化内核服务与扩展点注册：
+ * - 使用 registerServiceBatch 自动按 `dependencies` 进行拓扑排序并批量注册服务。
+ * - 配置各服务 initTimeoutMs 避免初始化阻塞。
+ * - 装配 output 管道默认中间件及核心扩展 Tab 页面。
  */
 export async function initializeKernel() {
   await globalKernel.registerServiceBatch([

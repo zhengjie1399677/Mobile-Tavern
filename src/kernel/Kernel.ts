@@ -38,10 +38,7 @@ const createSafeProxy = (name: string, path = ""): any => {
 
   return new Proxy(noop, {
     get(_target, prop) {
-      // ─── 条目 3 修复：Symbol 属性短路 ─────────────────────────────────────
-      // console.log / util.inspect / 深拷贝库等工具会探测 Symbol.toStringTag、
-      // Symbol.iterator 等内置 Symbol 属性。若不拦截，会绕过 typeof === "string"
-      // 检查并继续返回新 SafeProxy，引发无限递归导致调用栈溢出。
+      // Symbol 属性短路保护：工具探测 Symbol 属性时拦截，避免无限递归导致调用栈溢出
       if (typeof prop === "symbol") return undefined;
       if (prop === "then") {
         // 让 Promise await 链可以正常 resolve 结束，防止 SafeProxy 在 await 时永久挂起
@@ -125,16 +122,10 @@ class Pipeline<T> implements IPipeline<T> {
       try {
         await middleware.fn(context, nextWrapper, interruptWrapper);
 
-        // ─── B-3 修复核心 ──────────────────────────────────────────────────────
-        // 旧逻辑：生产环境在中间件遗忘调用 next() 时，自动 dispatch 下一个中间件。
-        // 风险：无法区分"有意阻断"（权限校验拒绝）和"意外遗忘"（Bug）。
-        // 在有权限/安全拦截器的场景下，自动穿透会直接击穿安全边界。
-        //
-        // 新逻辑：三态严格语义。
+        // 三态严格语义：
         //   - 调用 next()           → 继续执行后续中间件（正常流转）
         //   - isInterrupted = true  → 有意阻断，管道在此终止（权限拒绝、内容过滤等）
-        //   - 两者均未执行          → Bug，任何环境均记录错误，不主动穿透边界
-        // ──────────────────────────────────────────────────────────────────────
+        //   - 两者均未执行          → 记录错误，不主动穿透安全边界
         if (!nextCalled && (context as any).isInterrupted !== true) {
           if (getKernelStrictMode()) {
             throw new Error(
@@ -179,9 +170,8 @@ export class Kernel implements IKernel {
   private extensions = new Map<string, IExtension[]>();
 
   /**
-   * B-2 修复：记录所有声明了 isCritical=true 的服务名称。
-   * 在 init() 之前即记录，保证即使服务初始化失败后 getService 也能识别其关键性。
-   * 对关键服务的 getService 失败，在任何环境均抛出致命错误而非静默降级。
+   * 记录所有声明了 isCritical=true 的关键服务名称。
+   * 即使服务初始化失败，对关键服务的访问直接抛出致命错误，防止静默降级掩盖异常。
    */
   private criticalServiceNames = new Set<string>();
   private activeControllers = new Set<AbortController>();
@@ -251,11 +241,7 @@ export class Kernel implements IKernel {
   }
 
   /**
-   * B-1 修复：批量注册服务，自动进行拓扑排序以保证依赖关系的注册顺序。
-   *
-   * 解决的问题：随着服务/插件数量增长到 30-100 个，手工维护注册顺序极易出错且不可持续。
-   * 各服务通过 `IKernelService.dependencies` 声明其所依赖的服务名称，
-   * 本方法使用 Kahn 算法自动排序，并在检测到循环依赖时立即抛出明确错误。
+   * 批量注册服务，使用 Kahn 算法根据 dependencies 进行拓扑排序，按正确的依赖顺序初始化服务。
    */
   async registerServiceBatch(
     entries: Array<{ name: string; service: IKernelService; initTimeoutMs?: number }>
@@ -327,11 +313,7 @@ export class Kernel implements IKernel {
   getService<T extends IKernelService>(name: string): T {
     const service = this.services.get(name);
     if (!service) {
-      // ─── B-2 修复：关键服务不允许静默降级 ────────────────────────────────
-      // 对 isCritical=true 的服务，使用 SafeProxy 会导致错误在调用链下游出现，
-      // 届时错误堆栈只有 "Cannot read properties of undefined"，完全失去溯源能力。
-      // 关键服务缺失在任何环境均属于系统级故障，必须立即暴露。
-      // ─────────────────────────────────────────────────────────────────────
+      // 关键服务（isCritical=true）缺失在任何环境均属于致命错误，必须立即暴露。
       if (this.criticalServiceNames.has(name)) {
         throw new Error(
           `[Kernel] FATAL: Critical service "${name}" is not available. ` +
@@ -578,11 +560,7 @@ export class Kernel implements IKernel {
     }
     this.activeControllers.clear();
 
-    // 条目 2 修复：逆序销毁。
-    // 注册顺序是「自底向上」（基础服务 Database 先注册，业务服务 AutoSummary 后注册），
-    // 销毁必须「自顶向下」：先销毁上层业务服务，最后销毁底层基础服务。
-    // 确保上层服务的 destroy() 钩子在执行时（如写入最终状态到 DB）仍能安全调用底层服务，
-    // 而不会因底层服务已被移除而触发 FATAL 错误或拿到 SafeProxy。
+    // 逆序销毁：从上层业务服务到底层基础服务自顶向下销毁，确保销毁钩子可安全访问底层服务。
     const serviceNames = Array.from(this.services.keys()).reverse();
     for (const name of serviceNames) {
       await this.destroyService(name);
@@ -598,9 +576,7 @@ export class Kernel implements IKernel {
 
 /**
  * 工厂函数：创建一个全新的、独立的 Kernel 实例。
- *
- * B-5 修复（轻量版）：提供可测试性入口。
- * 单元测试可为每个用例通过 createKernel() 创建干净的实例，避免全局状态在测试间互相污染。
+ * 供单元测试或测试环境隔离使用，避免全局状态共享污染。
  */
 export function createKernel(): Kernel {
   return new Kernel();

@@ -280,13 +280,8 @@ export interface IImageGenerationService extends IKernelService {
 }
 
 /**
- * 记忆系统服务接口（v8 物理分轨存储 + 分层认知记忆架构）。
- *
- * 阶段 A 仅暴露 storage 子模块的 OOP 入口，供未来中间件与上层调用使用。
- * 阶段 B 装配 extractor（L0 LLM 抽取 + L1 词典匹配）与 recall（标签倒排召回）。
- * 阶段 C 装配 stateTable（合并自 TableMemoryService）与 summary（瘦身自 AutoSummaryService）。
- *
- * 设计契约详见 docs/记忆系统重构_架构设计_2026-06-27.md
+ * 记忆系统服务接口（物理分轨存储 + 分层认知记忆架构）。
+ * 整合底层存储 (Storage)、实体/事件抽取 (Extractor)、标签召回 (Recall)、状态表 (StateTable) 及剧情摘要 (Summary)。
  */
 export interface IMemoryService extends IKernelService {
   /**

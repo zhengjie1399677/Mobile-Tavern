@@ -139,8 +139,7 @@ export const autoSummaryMiddleware: Middleware<OutputPipelineContext> = async (c
   if (!shouldTriggerBison) {
     try {
       const kernel = context.kernel || globalKernel;
-      // 阶段 C 迁移：通过 MemoryService.getSummary() 访问摘要子模块
-      // （旧 KernelServices.AutoSummary 已从 registerServiceBatch 移除并标记 @deprecated）
+      // 通过 MemoryService.getSummary() 触发摘要检查
       const memoryService = kernel.getService<any>(KernelServices.Memory);
       const summary = memoryService.getSummary();
       const updatedSession = await summary.checkAndSummarize(

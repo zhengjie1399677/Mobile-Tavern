@@ -3,11 +3,9 @@ import { unzlibSync, inflateSync } from "fflate";
 import { compressImage } from "./imageCompressor";
 
 /**
- * P1-10: 递归清洗角色卡 extensions 字段。
+ * 递归清洗角色卡 extensions 字段。
  * 移除原型污染键名（__proto__ / constructor / prototype），限制嵌套深度，
  * 防止第三方角色卡导入的脏数据渗透到数据库与运行时内存。
- *
- * 实现 AGENTS.md 准则一.3「接口防腐隔离」铁则。
  */
 function sanitizeExtensions(ext: any, depth = 0): Record<string, any> {
   if (depth > 5 || !ext || typeof ext !== "object" || Array.isArray(ext)) {
@@ -622,7 +620,7 @@ export async function encryptBackupData(
   const cryptoKey = await crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt,
+      salt: salt as BufferSource,
       iterations: 100000,
       hash: "SHA-256",
     },
@@ -634,7 +632,7 @@ export async function encryptBackupData(
 
   const dataBuf = encoder.encode(dataStr);
   const encryptedBuffer = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: iv as BufferSource },
     cryptoKey,
     dataBuf,
   );
@@ -682,7 +680,7 @@ export async function decryptBackupData(
     const cryptoKey = await crypto.subtle.deriveKey(
       {
         name: "PBKDF2",
-        salt,
+        salt: salt as BufferSource,
         iterations: 100000,
         hash: "SHA-256",
       },
@@ -694,9 +692,9 @@ export async function decryptBackupData(
 
     try {
       const decryptedBuffer = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv },
+        { name: "AES-GCM", iv: iv as BufferSource },
         cryptoKey,
-        encryptedBytes,
+        encryptedBytes as BufferSource,
       );
       return decoder.decode(decryptedBuffer);
     } catch (e) {
@@ -730,9 +728,9 @@ export async function decryptBackupData(
 
   try {
     const decryptedBuffer = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv },
+      { name: "AES-GCM", iv: iv as BufferSource },
       cryptoKey,
-      encryptedBytes,
+      encryptedBytes as BufferSource,
     );
     return decoder.decode(decryptedBuffer);
   } catch (e) {

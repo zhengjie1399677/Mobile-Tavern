@@ -30,14 +30,10 @@ export function __resetDBInstanceForTesting(): void {
 let writeQueue: Promise<any> = Promise.resolve();
 let activeWriteQueueCount = 0;
 
-// P1-11: 写队列深度上限安全网。
-// 正常情况下由于 key 合并机制，队列深度不会无限增长；此阈值作为最后防线，
-// 一旦触发即上报遥测告警，便于诊断异常堆积场景（如循环 bug 触发海量写入）。
+// 写队列深度上限安全网：正常情况下由于 key 合并机制队列不会无限增长；阈值上报遥测告警用于诊断异常堆积。
 const MAX_WRITE_QUEUE_DEPTH = 100;
 
-// P1-11: 按 key 合并的待执行写槽位。
-// 当多个写操作针对同一 key（如同一 session.id 的多次 saveSession）排队时，
-// 仅保留最新 operation，共享同一 Promise，从而将每 key 队列深度收敛为 1。
+// 按 key 合并待执行写槽位：当多个写操作针对同一 key 排队时，仅保留最新 operation 并共享同一 Promise。
 interface CoalescedSlot<T> {
   operation: () => Promise<T>;
   pendingPromise: Promise<T> | null;
@@ -50,8 +46,7 @@ const pendingKeyedWrites = new Map<string, CoalescedSlot<any>>();
 const WRITE_OPERATION_TIMEOUT_MS = 15000;
 
 function enqueueWrite<T>(operation: () => Promise<T>, key?: string): Promise<T> {
-  // P1-11: key 合并 —— 若同一 key 的写操作已在队列中等待，则用最新 operation 替换旧的，
-  // 并返回共享 Promise。这样同一 session/character 的多次保存只会实际落盘一次（最新数据）。
+  // key 合并：若同一 key 的写操作已在队列中等待，用最新 operation 替换旧的并返回共享 Promise
   if (key) {
     const existing = pendingKeyedWrites.get(key);
     if (existing) {
@@ -63,7 +58,7 @@ function enqueueWrite<T>(operation: () => Promise<T>, key?: string): Promise<T> 
   const enqueueTime = Date.now();
   activeWriteQueueCount++;
 
-  // P1-11: 深度上限安全网 —— 超过阈值时上报遥测，但仍然入队（保证数据完整性，不丢弃）。
+  // 深度上限安全网 —— 超过阈值时上报遥测，但仍然入队保证数据完整性
   if (activeWriteQueueCount >= MAX_WRITE_QUEUE_DEPTH) {
     console.error(
       `[localDB] Write queue depth ${activeWriteQueueCount} exceeded safety threshold ${MAX_WRITE_QUEUE_DEPTH}. This indicates abnormal write accumulation.`
@@ -77,7 +72,7 @@ function enqueueWrite<T>(operation: () => Promise<T>, key?: string): Promise<T> 
     }, 0);
   }
 
-  // P1-11: 用可变 slot 包裹 operation，使得后续同 key 写入能替换 operation。
+  // 用可变 slot 包裹 operation，使得后续同 key 写入能替换 operation
   const slot: CoalescedSlot<T> = { operation, pendingPromise: null };
   if (key) {
     pendingKeyedWrites.set(key, slot);
@@ -97,8 +92,7 @@ function enqueueWrite<T>(operation: () => Promise<T>, key?: string): Promise<T> 
       }, 0);
     }
 
-    // P1-11: 执行前从 pendingKeyedWrites 移除本 key，使执行期间的新的同 key 写入可入队。
-    // 读取 slot 中最新的 operation（可能已被合并替换为更新版本）。
+    // 执行前从 pendingKeyedWrites 移除本 key，使执行期间新的同 key 写入可入队
     if (key) pendingKeyedWrites.delete(key);
     const latestOperation = slot.operation;
 
@@ -177,8 +171,7 @@ export function getDB(): Promise<IDBDatabase> {
         sessionStore.createIndex("characterId", "characterId", { unique: false });
       }
 
-      // v7 升级 (P0-1): 创建 sessions.createdAt 索引，支持按时间倒序分页加载，
-      // 避免启动时 getAll() 全量反序列化阻塞首屏。
+      // 创建 sessions.createdAt 索引，支持按时间倒序分页加载，避免启动全量反序列化
       // 向前兼容：ChatSession.createdAt 是必需字段，所有现存记录均含此值。
       if (!sessionStore.indexNames.contains("createdAt")) {
         sessionStore.createIndex("createdAt", "createdAt", { unique: false });
@@ -264,9 +257,7 @@ export async function getAllCharacters(): Promise<CharacterCard[]> {
 }
 
 /**
- * P0-4 / P1-4 基础设施：按主键单条直查角色卡。
- * 使用 store.get(id) 走主键索引，毫秒级返回，避免 getAll() 全量反序列化。
- * 用于角色详情页、聊天页加载等"仅需一个角色"的场景。
+ * 按主键单条直查角色卡。走主键索引毫秒级返回，避免 getAll() 全量反序列化。
  */
 export async function getCharacterById(
   id: string
@@ -331,9 +322,7 @@ export async function getAllSessions(): Promise<ChatSession[]> {
 }
 
 /**
- * P0-2 基础设施：按主键单条直查会话。
- * 使用 store.get(id) 走主键索引，毫秒级返回，避免 getAllSessions() 全量反序列化。
- * 用于 AutoSummaryService 等仅需查找当前会话最新版本的场景。
+ * 按主键单条直查会话。走主键索引毫秒级返回，避免 getAllSessions() 全量反序列化。
  */
 export async function getSessionById(
   id: string
@@ -352,8 +341,7 @@ export async function getSessionById(
 }
 
 /**
- * PERF-03: 仅获取会话总数（IDB count 不反序列化对象）。
- * 用于分页计算总页数，避免 getAll() 一次性反序列化整个 sessions 表。
+ * 仅获取会话总数（IDB count 不反序列化对象），用于分页计算。
  */
 export async function getSessionsCount(): Promise<number> {
   const db = await getDB();
@@ -369,12 +357,8 @@ export async function getSessionsCount(): Promise<number> {
 }
 
 /**
- * PERF-03 / P0-1: 分页加载会话列表（按 createdAt 倒序）。
- * 使用 createdAt 索引的 openCursor(prev) 跳过前 (page-1)*pageSize 条，
- * 仅反序列化当前页所需条目，显著减少初始加载时间与内存占用。
- *
- * @param page     页码，从 1 开始（小于 1 自动校正为 1）
- * @param pageSize 每页条数（小于 1 自动校正为 20）
+ * 分页加载会话列表（按 createdAt 倒序）。
+ * 使用 createdAt 索引跳过 offset，仅反序列化当前页条目。
  */
 export async function getSessionsPaginated(
   page: number,
@@ -503,9 +487,7 @@ export async function saveSession(session: ChatSession): Promise<void> {
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  // P0-2 修复：会话删除时必须级联清理 messages 和 memory_dict Store 的相关数据，
-  // 否则会留下孤儿数据导致存储泄漏和 tags 多值索引膨胀。
-  // 使用单事务跨 Store 删除保证原子性（要么全删要么全不删）。
+  // 会话删除时级联清理 messages 和 memory_dict Store 的相关数据，使用单事务保证原子性
   return enqueueWrite(async () => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
