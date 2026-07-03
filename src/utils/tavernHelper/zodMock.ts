@@ -54,7 +54,7 @@ export function createZodProxy(): any {
             if (this._type === 'object') {
               val = {};
             } else if (this._type === 'union') {
-              // Do not intercept, let it flow to the union checking logic so sub-schemas can test undefined/null
+              // 不做拦截，流转至联合类型校验逻辑，以便子 schema 能够测试 undefined/null
             } else {
               if (this._isOptional || this._isNullable) return val;
               if (this._type === 'string' || this._type === 'coerce_string') return "";
@@ -240,8 +240,8 @@ export function createZodProxy(): any {
       string() { return createSchema('coerce_string'); },
       boolean() { return createSchema('coerce_boolean'); },
     },
-    // prettifyError: Format Zod validation errors into human-readable strings.
-    // Critical for mvu_zod.js which calls n.z.prettifyError(error) for error display.
+    // prettifyError：将 Zod 校验错误格式化为可读字符串
+    // mvu_zod.js 关键接口，用于展示属性校验错误信息
     prettifyError(error: any) {
       if (!error) return 'Unknown validation error';
       if (error.issues && Array.isArray(error.issues)) {

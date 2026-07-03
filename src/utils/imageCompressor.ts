@@ -1,6 +1,6 @@
 /**
- * Helper to compress and resize images client-side before saving them to IndexedDB.
- * Prevents UI lags and database bloat.
+ * 客户端图片压缩与调整尺寸辅助函数。
+ * 在保存到 IndexedDB 前压缩图片，防止界面卡顿和数据库膨胀。
  */
 export function compressImage(
   file: File | string,
@@ -16,7 +16,7 @@ export function compressImage(
       let width = img.width;
       let height = img.height;
 
-      // Calculate new dimensions keeping aspect ratio
+      // 保持长宽比计算新尺寸
       if (width > maxWidth || height > maxHeight) {
         const ratio = Math.min(maxWidth / width, maxHeight / height);
         width = Math.round(width * ratio);
@@ -33,13 +33,13 @@ export function compressImage(
         return;
       }
 
-      // Draw and scale the image
+      // 绘制并缩放图像
       ctx.drawImage(img, 0, 0, width, height);
 
-      // Export as base64 string
+      // 导出为 base64 字符串
       const dataUrl = canvas.toDataURL(outputType, quality);
 
-      // Cleanup DOM/VRAM references to prevent memory leaks
+      // 清理 DOM/显存引用以防止内存泄漏
       canvas.width = 0;
       canvas.height = 0;
       img.onload = null;

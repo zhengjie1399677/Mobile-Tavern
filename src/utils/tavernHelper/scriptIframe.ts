@@ -20,14 +20,14 @@ import mvuContent from "../mvu.js?raw";
 // 预处理常量：将 CDN import 替换为本地 TavernHelperMvuLibs 查找，并包装为 IIFE
 // ──────────────────────────────────────────────────────────────────────────────
 
-// Pre-process mvu_zod script by stripping its ES module export statement and wrapping in an IIFE to isolate scope
+// 预处理 mvu_zod 脚本：移除其 ES 模块 export 声明并包裹为 IIFE 以隔离作用域
 const processedMvuZod = `(function(){
   ${mvuZodContent
     .replace(/export\s*\{\s*s\s*as\s*registerMvuSchema\s*\};?/g, "")
     .replace(/\/\/#\s*sourceMappingURL=.*/g, "")}
 })();`;
 
-// Pre-process mvu script by replacing CDN imports with local TavernHelperMvuLibs lookups and wrapping in an IIFE
+// 预处理 mvu 脚本：将 CDN 导入替换为本地 TavernHelperMvuLibs 查找并包裹为 IIFE
 const processedMvu = `(function(){
   ${mvuContent
     .replace(
@@ -37,7 +37,7 @@ const processedMvu = `(function(){
     .replace(/\bexport\s*\{\s*d\s*as\s*defineMvuDataStore\s*\};?/g, "window.defineMvuDataStore = d;")}
 })();`;
 
-// Pre-process mvu_bundle script by replacing CDN imports with local TavernHelperMvuLibs lookups and wrapping in an IIFE
+// 预处理 mvu_bundle 脚本：将 CDN 导入替换为本地 TavernHelperMvuLibs 查找并包裹为 IIFE
 const processedMvuBundle = `(function(){
   ${mvuBundleContent
     .replace(

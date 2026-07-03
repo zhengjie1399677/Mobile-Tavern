@@ -177,7 +177,7 @@ export function initializeVariablesForSession(session: any) {
 
   session.variables = variables;
 
-  // Sync variables to the first message (greeting) for SillyTavern compatibility
+  // 将变量同步到首条消息（开场白）以保持与酒馆格式兼容
   if (session.messages && session.messages.length > 0) {
     const firstMsg = { ...session.messages[0] } as any;
     const swipeId = firstMsg.swipe_id !== undefined ? firstMsg.swipe_id : 0;
@@ -242,8 +242,8 @@ export function resolveMessageId(id: any, messagesLength: number): number {
 // ──────────────────────────────────────────────────────────────────────────────
 
 /**
- * Initialize MVU variables from character card extensions.
- * Extracts mvu_settings/schema from character extensions and merges into session variables.
+ * 从角色卡扩展配置中初始化 MVU 变量。
+ * 提取角色扩展字段中的 mvu_settings/schema 并合并至会话变量。
  */
 export function initializeMvuFromCharacter(character: any): Record<string, any> {
   if (!character) return { stat_data: {} };
@@ -256,7 +256,7 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
     delta_data: {},
   };
 
-  // Try to extract MVU settings from various possible extension locations
+  // 尝试从不同的扩展位置提取 MVU 配置
   const mvuSettings = ext.mvu_settings ||
                       ext.mvu ||
                       ext.MVU ||
@@ -265,30 +265,30 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
   if (mvuSettings) {
     console.log("[MVU] Found mvu_settings in character extensions:", mvuSettings);
 
-    // If settings contains a schema, use it
+    // 若配置中包含 schema 则使用它
     if (mvuSettings.schema) {
       variables.schema = mvuSettings.schema;
     }
 
-    // If settings contains initial stat_data/default values
+    // 若配置中包含初始 stat_data / 默认值
     if (mvuSettings.stat_data) {
       variables.stat_data = { ...mvuSettings.stat_data };
     } else if (mvuSettings.defaults) {
       variables.stat_data = { ...mvuSettings.defaults };
     }
 
-    // Copy display configuration if present
+    // 复制显示配置（若存在）
     if (mvuSettings.display_data) {
       variables.display_data = { ...mvuSettings.display_data };
     }
   }
 
-  // Also check for tavern_helper scripts presence (for UI rendering)
+  // 检查是否存在 tavern_helper 脚本（用于 UI 渲染）
   if (ext.tavern_helper?.scripts) {
     console.log(`[MVU] Found ${ext.tavern_helper.scripts.length} tavern_helper scripts`);
   }
 
-  // Ensure stat_data exists
+  // 确保 stat_data 字段存在
   if (!variables.stat_data) {
     variables.stat_data = {};
   }
@@ -376,7 +376,7 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
       }).catch(() => {});
     }
   } catch (e) {
-    // Silent fail if service is not registered in tests
+    // 测试环境下服务若未注册则静默跳过
   }
 
   const prevSessionId = lastSessionId;
@@ -393,14 +393,14 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
         if (session && session.id === currentSessionId) {
           const variables = session.variables || {};
 
-          // Emit standard SillyTavern chat changed events
+          // 触发标准酒馆会话变更事件
           tavernHelperEventEmitter.emit('chat_id_changed', currentSessionId);
           tavernHelperEventEmitter.emit('chat_changed', currentSessionId);
 
-          // Emit variables initialization event for status boards
+          // 触发状态面板变量初始化事件
           tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
 
-          // Emit message receipt and rendering triggers
+          // 触发消息接收与渲染事件
           const lastMsgId = Math.max(0, (session.messages?.length ?? 1) - 1);
           tavernHelperEventEmitter.emit('message_received', lastMsgId);
           tavernHelperEventEmitter.emit('character_message_rendered', lastMsgId);
@@ -421,18 +421,16 @@ export function cleanTavernHelperBridge() {
 }
 
 /**
- * Call this after saving a session with updated variables (e.g. after AI reply + MVU parse).
- * It emits the mag_variable_initialized event so that iframe scripts can refresh their UI.
+ * 保存包含更新变量的会话后调用（如 AI 回复 + MVU 命令解析后）。
+ * 发射 mag_variable_initialized 与渲染事件，通知沙盒 iframe 刷新 UI。
  */
 export function notifyVariablesUpdated(session: ChatSession, messageId?: number) {
   if (!session) return;
   const variables = session.variables || {};
   console.log("[TavernHelper Event] notifyVariablesUpdated → emitting mag_variable_initialized + character_message_rendered");
-  // 1. Notify MVU bundle that variables have been initialized/updated.
+  // 1. 通知 MVU bundle 变量已更新/初始化
   tavernHelperEventEmitter.emit('mag_variable_initialized', variables, 0);
-  // 2. Emit message_received + character_message_rendered so the MVU bundle's
-  //    per-turn UI refresh hook fires on every AI reply (not just the first).
-  //    The MVU bundle listens on CHARACTER_MESSAGE_RENDERED to re-render the status board.
+  // 2. 发射 message_received 与 character_message_rendered 事件，确保每轮 AI 回复触发 UI 刷新
   const lastMsgId = messageId ?? Math.max(0, (session.messages?.length ?? 1) - 1);
   tavernHelperEventEmitter.emit('message_received', lastMsgId);
   tavernHelperEventEmitter.emit('character_message_rendered', lastMsgId);

@@ -29,12 +29,12 @@ function sanitizeExtensions(ext: any, depth = 0): Record<string, any> {
   return cleaned;
 }
 
-// Named constants for PNG offsets and values
+// PNG 头部偏移量与特征值命名常量
 export const PNG_SIGNATURE_HEADER_1 = 0x89504e47;
 export const PNG_SIGNATURE_HEADER_2 = 0x0d0a1a0a;
-export const PNG_IHDR_END_OFFSET = 33; // PNG signature (8) + IHDR length (4) + type (4) + IHDR data (13) + IHDR CRC (4)
+export const PNG_IHDR_END_OFFSET = 33; // PNG 签名 (8) + IHDR 长度 (4) + 类型 (4) + IHDR 数据 (13) + IHDR CRC (4)
 
-// CRC table for PNG chunk writing
+// PNG Chunk 写入用 CRC32 查找表
 const crcTable: number[] = (() => {
   const table: number[] = [];
   let c: number;
@@ -57,7 +57,7 @@ function crc32(buf: Uint8Array): number {
 }
 
 /**
- * Parses SillyTavern PNG or JSON card format.
+ * 解析 SillyTavern PNG 或 JSON 格式的角色卡文件
  */
 export async function parseCharacterFile(
   file: File,
@@ -74,19 +74,19 @@ export async function parseCharacterFile(
     const parsed = parsePngMetadata(buffer);
     const cardData = extractSillyTavernFields(parsed);
 
-    // Convert current file to base64 to preserve avatar (compress to 400x400 PNG to prevent DB bloating)
+    // 将当前文件转为 base64 保存头像（压缩为 400x400 PNG 防止数据库膨胀）
     const base64Avatar = await compressImage(file, 400, 400, 0.8, "image/png");
 
     cardData.avatar = base64Avatar;
     return cardData;
   } else {
     throw new Error(
-      "unsupported file format. Please upload .png or .json files.",
+      "不支持的文件格式，请上传 .png 或 .json 角色卡文件。",
     );
   }
 }
 /**
- * Parses the "chara" tEXt metadata chunk of a PNG file.
+ * 解析 PNG 文件中的 "chara" tEXt / iTXt / zTXt 元数据 Chunk
  */
 function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
   if (arrayBuffer.byteLength < PNG_IHDR_END_OFFSET) {
@@ -225,7 +225,7 @@ function parsePngMetadata(arrayBuffer: ArrayBuffer): any {
 }
 
 /**
- * Extracts and maps SillyTavern V1 / V2 / V3 fields to our unified design.
+ * 提取并映射 SillyTavern V1 / V2 / V3 字段到统一的角色卡数据结构
  */
 function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
   const data = raw.data ? raw.data : raw;
@@ -313,7 +313,7 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
 }
 
 /**
- * Helper to map standard SillyTavern World Info/Lorebook fields to unified LorebookEntry interface.
+ * 将酒馆标准 World Info/Lorebook 字段映射为统一的 LorebookEntry 接口格式
  */
 export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
   const entryKeys: string[] = Array.isArray(entry.keys)
@@ -418,7 +418,7 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
 }
 
 /**
- * Injects character metadata (as SillyTavern JSON payload) into a PNG array buffer.
+ * 将角色卡元数据（SillyTavern JSON 载荷）注入到 PNG 格式字节流中
  */
 export function injectPngMetadata(
   pngBuffer: ArrayBuffer,
@@ -559,8 +559,8 @@ export function injectPngMetadata(
 }
 
 /**
- * Native, lightweight client-side password encryption/decryption using XOR and SHA-256 password digests.
- * Solves the .backup.zip requirement natively and reliably without heavy browser JSZip/AES bundling dependencies.
+ * 原生轻量级客户端备份加解密工具，采用 PBKDF2 与 AES-GCM 256 位密钥算法。
+ * 无需外部 heavy JSZip/AES 依赖即可稳定、无阻塞实现 .backup 数据保存与恢复。
  */
 const byteToHex: string[] = [];
 for (let i = 0; i < 256; i++) {

@@ -25,8 +25,8 @@ export function __resetDBInstanceForTesting(): void {
   pendingKeyedWrites.clear();
 }
 
-// Global Promise-based queue to serialize all IndexedDB write operations sequentially.
-// This prevents concurrent write transactions from conflicting or deadlocking, which is critical in WebView environments.
+// 全局基于 Promise 的队列，顺序串行化所有 IndexedDB 写入操作。
+// 防止并发写入事务冲突或死锁，这在 WebView 原生环境中至关重要。
 let writeQueue: Promise<any> = Promise.resolve();
 let activeWriteQueueCount = 0;
 
@@ -114,7 +114,7 @@ function enqueueWrite<T>(operation: () => Promise<T>, key?: string): Promise<T> 
   };
 
   const result = writeQueue.then(queuedOperation);
-  // Chain the next task, catching any errors to ensure subsequent queue operations still run.
+  // 链接下一个任务，捕获所有异常确保后续队列操作正常运行
   writeQueue = result.then(
     () => {},
     () => {}

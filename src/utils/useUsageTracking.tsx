@@ -37,7 +37,7 @@ function trimHistory(metrics: UsageMetrics): void {
 
 export function useUsageTracking() {
   useEffect(() => {
-    // Report app ready telemetry
+    // 上报应用就绪遥测
     try {
       reportColdStartReady();
     } catch (e) {
