@@ -51,7 +51,7 @@ export default function GeneralConfigSection({
   return (
     <Accordion type="single" collapsible className="w-full">
       <AccordionItem value="api-config" className="glass-panel shadow-sm rounded-xl overflow-hidden">
-        <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30 transition">
+        <AccordionTrigger className="px-3.5 py-2.5 hover:no-underline hover:bg-muted/30 transition">
           <div className="flex items-center gap-2">
             <KeySquare className="w-4 h-4 text-primary" />
             <div className="flex flex-col items-start gap-1">
@@ -74,9 +74,9 @@ export default function GeneralConfigSection({
             </div>
           </div>
         </AccordionTrigger>
-        <AccordionContent className="p-4 pt-2 border-t border-border/50 space-y-4">
+        <AccordionContent className="p-3 pt-1 border-t border-border/50 space-y-3">
           {/* API 通道配置档案选择与切换 */}
-          <div className="space-y-2 pb-3.5 mb-1.5 border-b border-border/40">
+          <div className="space-y-1.5 pb-2.5 mb-1 border-b border-border/30">
             <label className="text-[11px] font-semibold text-muted-foreground block">
               选择 API 配置通道 / 凭证档案
             </label>
@@ -400,12 +400,12 @@ export default function GeneralConfigSection({
           </div>
 
           {/* forceBasicParams Switch */}
-          <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="space-y-0.5">
-              <label className="text-[13px] font-semibold text-foreground">
+              <label className="text-[12.5px] font-semibold text-foreground">
                 API 极简降级模式 (Conservative Fallback)
               </label>
-              <p className="text-[10px] text-muted-foreground max-w-[450px]">
+              <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
                 开启后，无论使用什么模型，发送请求时都将强制只携带 5 个最基础的参数（model, messages, stream, temperature, top_p）。推荐在第三方中转站 API 报参数错误（HTTP 400）时开启。
               </p>
             </div>
@@ -422,12 +422,12 @@ export default function GeneralConfigSection({
           </div>
 
           {/* sendNames Switch */}
-          <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="space-y-0.5">
-              <label className="text-[13px] font-semibold text-foreground">
+              <label className="text-[12.5px] font-semibold text-foreground">
                 在请求中包含角色名称 (Send Names)
               </label>
-              <p className="text-[10px] text-muted-foreground max-w-[450px]">
+              <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
                 在消息中携带 "name" 属性（如 "LinaSchneider"、"user"）。
                 注意：部分第三方中转、Claude 或 Gemini 接口可能不支持此属性并返回 400 错误，如果遇到请求失败请关闭此选项。
               </p>
@@ -445,12 +445,12 @@ export default function GeneralConfigSection({
           </div>
 
           {/* disableReasoning Switch */}
-          <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="space-y-0.5">
-              <label className="text-[13px] font-semibold text-foreground">
+              <label className="text-[12.5px] font-semibold text-foreground">
                 关闭推理模式 (Disable Reasoning)
               </label>
-              <p className="text-[10px] text-muted-foreground max-w-[450px]">
+              <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
                 对于支持深度思考推理的模型（如 Claude 3.7 或 DeepSeek R1），开启后将在 API 层面直接关闭或削弱其推理，避免消耗多余的思考 Token。
               </p>
             </div>
@@ -469,8 +469,8 @@ export default function GeneralConfigSection({
         </AccordionContent>
       </AccordionItem>
 
-      <AccordionItem value="image-gen-api" className="glass-panel shadow-sm rounded-xl overflow-hidden mt-3">
-        <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30 transition">
+      <AccordionItem value="image-gen-api" className="glass-panel shadow-sm rounded-xl overflow-hidden mt-2">
+        <AccordionTrigger className="px-3.5 py-2.5 hover:no-underline hover:bg-muted/30 transition">
           <div className="flex items-center gap-2">
             <Palette className="w-4 h-4 text-primary" />
             <div className="flex flex-col items-start gap-1">
@@ -481,7 +481,7 @@ export default function GeneralConfigSection({
             </div>
           </div>
         </AccordionTrigger>
-        <AccordionContent className="p-4 pt-2 border-t border-border/50 space-y-4">
+        <AccordionContent className="p-3 pt-1 border-t border-border/50 space-y-3">
           {/* Enabled Switch */}
           <div className="flex items-center justify-between pb-3 border-b border-border/40">
             <div className="space-y-0.5">

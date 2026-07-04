@@ -28,12 +28,12 @@ export default function ThemeConfigSection({
 }: ThemeConfigSectionProps) {
   return (
     <Card className="glass-panel shadow-sm">
-      <CardHeader className="pb-1 pt-3.5 px-4">
-        <CardTitle className="text-[12.5px] flex items-center gap-2 font-bold text-foreground">
+      <CardHeader className="pb-1 pt-2.5 px-3">
+        <CardTitle className="text-[12px] flex items-center gap-2 font-bold text-foreground">
           <span>阅读主题与色彩基调</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-1 px-4 pb-4">
+      <CardContent className="pt-1 px-3 pb-3">
         <Select
           value={currentTheme}
           onValueChange={(val: any) => handleThemeChange(val)}
@@ -68,7 +68,7 @@ export default function ThemeConfigSection({
         </Select>
 
         {/* 聊天字体大小调节 */}
-        <div className="mt-3.5 pt-3.5 border-t border-border/30 space-y-1.5">
+        <div className="mt-2.5 pt-2.5 border-t border-border/30 space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground block">
             聊天字体大小调节
           </label>
@@ -106,7 +106,7 @@ export default function ThemeConfigSection({
         </div>
 
         {/* 聊天行距调节 */}
-        <div className="mt-3 space-y-1.5">
+        <div className="mt-2 space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground block">
             聊天行距调节
           </label>
@@ -143,7 +143,7 @@ export default function ThemeConfigSection({
           </div>
         </div>
 
-        <div className="mt-3.5 pt-3.5 border-t border-border/30 space-y-1.5">
+        <div className="mt-2.5 pt-2.5 border-t border-border/30 space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground block">
             全局默认聊天背景图片 (当角色未设置专属背景时生效)
           </label>
@@ -161,20 +161,20 @@ export default function ThemeConfigSection({
                   accept="image/*"
                   className="hidden"
                   onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      if (file.size > 5 * 1024 * 1024) {
-                        showCustomAlert("⚠️ 上传失败：背景图片大小不能超过 5MB！");
-                        return;
-                      }
-                      compressImage(file, 1080, 1920, 0.75, "image/jpeg")
-                        .then((base64) => {
-                          updateSettings({ ...settings, globalChatBg: base64 });
-                        })
-                        .catch((err) => {
-                          showCustomAlert("⚠️ 图片压缩失败：" + err.message);
-                        });
-                    }
+                     const file = e.target.files?.[0];
+                     if (file) {
+                       if (file.size > 5 * 1024 * 1024) {
+                         showCustomAlert("⚠️ 上传失败：背景图片大小不能超过 5MB！");
+                         return;
+                       }
+                       compressImage(file, 1080, 1920, 0.75, "image/jpeg")
+                         .then((base64) => {
+                           updateSettings({ ...settings, globalChatBg: base64 });
+                         })
+                         .catch((err) => {
+                           showCustomAlert("⚠️ 图片压缩失败：" + err.message);
+                         });
+                     }
                   }}
                 />
               </label>
@@ -192,9 +192,9 @@ export default function ThemeConfigSection({
         </div>
 
         {/* 背景参数自定义选项与动效控制 */}
-        <div className="mt-3.5 pt-3.5 border-t border-border/30 space-y-3.5">
+        <div className="mt-2.5 pt-2.5 border-t border-border/30 space-y-2.5">
           {/* 变暗与模糊融合度调节（合并为单一选项，三档调节） */}
-          <div className="space-y-2">
+          <div className="space-y-1">
             <label className="text-[11px] font-semibold text-muted-foreground block">
               聊天背景融合效果
             </label>

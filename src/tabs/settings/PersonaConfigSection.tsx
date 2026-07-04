@@ -36,15 +36,15 @@ export default function PersonaConfigSection({
 }: PersonaConfigSectionProps) {
   return (
     <Card className="glass-panel shadow-sm">
-      <CardHeader className="pb-3 border-b border-border/50">
-        <CardTitle className="text-sm flex items-center gap-2">
+      <CardHeader className="pb-2.5 border-b border-border/50 px-3 pt-3">
+        <CardTitle className="text-xs flex items-center gap-2 font-bold text-foreground">
           <UserCheck className="w-4 h-4 text-primary" /> 角色信息
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-4 space-y-4">
+      <CardContent className="pt-3 px-3 pb-3 space-y-3">
         {/* 活跃人设管理栏 */}
-        <div className="space-y-1.5 pb-3 border-b border-border/40 mb-3 animate-in fade-in duration-300">
-          <label className="text-[11px] font-bold text-muted-foreground flex justify-between">
+        <div className="space-y-1 pb-2 border-b border-border/30 mb-2 animate-in fade-in duration-300">
+          <label className="text-[10px] font-bold text-muted-foreground flex justify-between">
             <span>当前活跃玩家设定 (User Persona)</span>
           </label>
           <div className="flex gap-2">
@@ -98,7 +98,7 @@ export default function PersonaConfigSection({
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground">
             玩家名称 (用于系统推断及占位符代称)
           </label>
@@ -112,7 +112,7 @@ export default function PersonaConfigSection({
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground">
             玩家自定义头像 (支持 base64)
           </label>
@@ -167,7 +167,7 @@ export default function PersonaConfigSection({
             )}
           </div>
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground">
             玩家信息 (Persona: 世界观背景/外貌描述等)
           </label>
@@ -176,7 +176,7 @@ export default function PersonaConfigSection({
             onChange={(e) =>
               updateSettings({ ...settings, userInfo: e.target.value })
             }
-            className="text-sm bg-input/50 min-h-[160px]"
+            className="text-sm bg-input/50 min-h-[140px]"
             placeholder="例如: 身高180cm, 穿着黑色的风衣, 眼神冷漠..."
           />
         </div>

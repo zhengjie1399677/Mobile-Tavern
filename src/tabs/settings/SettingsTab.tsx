@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings, Sparkles, UserCheck, Puzzle, Database, RefreshCw, Loader2 } from "lucide-react";
+import { Settings, Sparkles, UserCheck, Puzzle, Database, RefreshCw, Loader2, KeySquare } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import {
   Card,
@@ -143,12 +143,12 @@ export default function SettingsTab() {
   }, [saveState]);
 
   return (
-    <div className="px-4 pb-4 pt-1.5 flex flex-col h-full overflow-hidden">
-      <div className="border-b border-border pb-2 mb-2 shrink-0 flex items-center justify-between">
+    <div className="px-2.5 pb-2.5 pt-1 flex flex-col h-full overflow-hidden">
+      <div className="border-b border-border pb-1.5 mb-1.5 shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
-            <Settings className="w-5 h-5 text-primary" /> 控制面板
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold select-none ml-2 animate-pulse">
+          <h1 className="text-lg font-bold flex items-center gap-2 text-foreground tracking-tight">
+            <Settings className="w-4.5 h-4.5 text-primary" /> 控制面板
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold select-none ml-2 animate-pulse">
               v{__APP_VERSION__}
             </span>
             <button
@@ -156,63 +156,63 @@ export default function SettingsTab() {
               onClick={handleCheckUpdate}
               disabled={isCheckingUpdate}
               aria-label="检查更新"
-              className="ml-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30 font-semibold hover:bg-primary/20 transition-all flex items-center gap-1 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="ml-1 text-[9px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30 font-semibold hover:bg-primary/20 transition-all flex items-center gap-1 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isCheckingUpdate ? (
                 <>
-                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <Loader2 className="w-2.5 h-2.5 animate-spin" />
                   <span>检查中</span>
                 </>
               ) : (
                 <>
-                  <RefreshCw className="w-3 h-3" />
+                  <RefreshCw className="w-2.5 h-2.5" />
                   <span>检查更新</span>
                 </>
               )}
             </button>
           </h1>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-[10px] text-muted-foreground mt-0.5">
             系统参数与颗粒化规则调节
           </p>
         </div>
       </div>
 
       <Tabs
-        defaultValue="general"
+        defaultValue="api"
         className="flex-1 flex flex-col min-h-0 bg-transparent"
       >
-        <TabsList className="grid grid-cols-4 w-full h-11 p-1 bg-muted/50 rounded-xl">
+        <TabsList className="grid grid-cols-4 w-full h-9.5 p-0.5 bg-muted/40 rounded-lg">
           <TabsTrigger
-            value="general"
-            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
+            value="api"
+            className="text-[10.5px] font-bold flex items-center justify-center gap-1 whitespace-nowrap h-8 rounded-md py-1"
           >
-            <Sparkles className="w-3.5 h-3.5" /> 常规
+            <KeySquare className="w-3.5 h-3.5" /> 连接
+          </TabsTrigger>
+          <TabsTrigger
+            value="features"
+            className="text-[10.5px] font-bold flex items-center justify-center gap-1 whitespace-nowrap h-8 rounded-md py-1"
+          >
+            <Puzzle className="w-3.5 h-3.5" /> 功能
           </TabsTrigger>
           <TabsTrigger
             value="persona"
-            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
+            className="text-[10.5px] font-bold flex items-center justify-center gap-1 whitespace-nowrap h-8 rounded-md py-1"
           >
-            <UserCheck className="w-3.5 h-3.5" /> 角色
+            <UserCheck className="w-3.5 h-3.5" /> 人设
           </TabsTrigger>
           <TabsTrigger
-            value="presets"
-            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
-          >
-            <Puzzle className="w-3.5 h-3.5" /> 预设
-          </TabsTrigger>
-          <TabsTrigger
-            value="memory"
-            className="text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap h-full rounded-lg"
+            value="storage"
+            className="text-[10.5px] font-bold flex items-center justify-center gap-1 whitespace-nowrap h-8 rounded-md py-1"
           >
             <Database className="w-3.5 h-3.5" /> 存储
           </TabsTrigger>
         </TabsList>
 
-        <div className="flex-1 overflow-y-auto mt-2 custom-scrollbar pb-10">
-          {/* 1. GENERAL CONFIG (Theme + API + Persona) */}
+        <div className="flex-1 overflow-y-auto mt-2 custom-scrollbar pb-6">
+          {/* 1. API CONFIG & PRESETS */}
           <TabsContent
-            value="general"
-            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
+            value="api"
+            className="space-y-2 m-0 data-[state=inactive]:hidden outline-none"
           >
             <GeneralConfigSection
               settings={settings}
@@ -228,30 +228,24 @@ export default function SettingsTab() {
               freeCount={freeCount}
             />
 
-            <ThemeConfigSection
-              settings={settings}
-              updateSettings={updateSettings}
-              currentTheme={currentTheme}
-              handleThemeChange={handleThemeChange}
-              showCustomAlert={showCustomAlert}
-            />
+            <PresetForm />
 
             {/* 3. DEVELOPER PLAYGROUND */}
-            <Card className="glass-panel shadow-sm border border-dashed border-primary/40">
-              <CardHeader className="pb-3 border-b border-border/50">
-                <CardTitle className="text-sm flex items-center gap-2 text-primary font-bold">
-                  <Sparkles className="w-4 h-4 animate-pulse" />
+            <Card className="glass-panel shadow-sm border border-dashed border-primary/30">
+              <CardHeader className="pb-2 pt-3 px-3 border-b border-border/40">
+                <CardTitle className="text-xs flex items-center gap-2 text-primary font-bold">
+                  <Sparkles className="w-3.5 h-3.5 animate-pulse" />
                   <span>系统运行沙盒</span>
                 </CardTitle>
-                <CardDescription className="text-[11px]">
+                <CardDescription className="text-[10px]">
                   实时观测 Prompt 编译原理、SSE 流式解析缓冲区以及世界书扫描流程
                 </CardDescription>
               </CardHeader>
-              <CardContent className="pt-4">
+              <CardContent className="pt-3 px-3 pb-3">
                 <button
                   type="button"
                   onClick={() => setActiveTab("playground")}
-                  className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 active:scale-95"
+                  className="w-full py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 active:scale-95"
                 >
                   🚀 进入系统运行沙盒 (Sandbox)
                 </button>
@@ -259,17 +253,16 @@ export default function SettingsTab() {
             </Card>
           </TabsContent>
 
-          {/* PERSONA CONFIG */}
+          {/* 2. THEMES & APPLICATION FEATURES */}
           <TabsContent
-            value="persona"
-            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
+            value="features"
+            className="space-y-2 m-0 data-[state=inactive]:hidden outline-none"
           >
-            <PersonaConfigSection
+            <ThemeConfigSection
               settings={settings}
               updateSettings={updateSettings}
-              switchUserPersona={switchUserPersona}
-              addUserPersona={addUserPersona}
-              deleteUserPersona={deleteUserPersona}
+              currentTheme={currentTheme}
+              handleThemeChange={handleThemeChange}
               showCustomAlert={showCustomAlert}
             />
 
@@ -279,18 +272,25 @@ export default function SettingsTab() {
             />
           </TabsContent>
 
-          {/* 3. PRESETS */}
+          {/* 3. PERSONA CONFIG */}
           <TabsContent
-            value="presets"
-            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
+            value="persona"
+            className="space-y-2 m-0 data-[state=inactive]:hidden outline-none"
           >
-            <PresetForm />
+            <PersonaConfigSection
+              settings={settings}
+              updateSettings={updateSettings}
+              switchUserPersona={switchUserPersona}
+              addUserPersona={addUserPersona}
+              deleteUserPersona={deleteUserPersona}
+              showCustomAlert={showCustomAlert}
+            />
           </TabsContent>
 
           {/* 4. MEMORY AND STORAGE CONFIG */}
           <TabsContent
-            value="memory"
-            className="space-y-2.5 m-0 data-[state=inactive]:hidden outline-none"
+            value="storage"
+            className="space-y-2 m-0 data-[state=inactive]:hidden outline-none"
           >
             <MemoryStorageSection
               settings={settings}
@@ -317,3 +317,4 @@ export default function SettingsTab() {
     </div>
   );
 }
+

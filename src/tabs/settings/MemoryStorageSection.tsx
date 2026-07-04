@@ -62,28 +62,28 @@ export default function MemoryStorageSection({
   return (
     <>
       <Card className="bg-card border-border shadow-sm">
-        <CardHeader className="pb-3 border-b border-border/50">
-          <CardTitle className="text-sm flex items-center gap-2">
+        <CardHeader className="pb-2.5 border-b border-border/50 px-3 pt-3">
+          <CardTitle className="text-xs flex items-center gap-2 font-bold text-foreground">
             <Database className="w-4 h-4 text-primary" /> 记忆系统
           </CardTitle>
-          <CardDescription className="text-[11px]">
+          <CardDescription className="text-[10px] mt-0.5">
             统一管理短期上下文窗口、叙事记忆（时间轴摘要）与状态记忆（结构化表格）三个互补子模块
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-5 space-y-5 text-xs text-muted-foreground">
-          <div className="space-y-4">
+        <CardContent className="pt-3.5 px-3 pb-3 space-y-3.5 text-xs text-muted-foreground">
+          <div className="space-y-3">
             {/* 子模块 1：上下文窗口（短期直接传递） */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary/80 uppercase tracking-wide">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-primary/80 uppercase tracking-wide">
                 <span className="inline-block w-1 h-3 bg-primary/60 rounded-full" />
                 上下文窗口
               </div>
-              <div className="flex items-center justify-between pl-2">
+              <div className="flex items-center justify-between pl-1">
                 <div className="flex flex-col">
-                  <span className="font-semibold text-foreground text-[13px]">
+                  <span className="font-semibold text-foreground text-[12.5px]">
                     上下文发送轮次 (Recent Turns)
                   </span>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-[9.5px] text-muted-foreground">
                     直接发送全文保留的对话局数
                   </span>
                 </div>
@@ -95,7 +95,6 @@ export default function MemoryStorageSection({
                   value={settings.memory.recentTurns}
                   onChange={(e) => {
                     const parsed = parseInt(e.target.value);
-                    // 防止写入 NaN 或 0（会导致发送时 chatHistory 为空仅剩 system 消息）
                     if (!isNaN(parsed) && parsed >= 1) {
                       updateSettings({
                         ...settings,
@@ -112,14 +111,14 @@ export default function MemoryStorageSection({
             </div>
 
             {/* 子模块 2：叙事记忆（Auto Summary 时间轴摘要） */}
-            <div className="space-y-3 mt-4 pt-4 border-t border-border/50">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-500/80 uppercase tracking-wide">
+            <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-border/40">
+              <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-500/80 uppercase tracking-wide">
                 <span className="inline-block w-1 h-3 bg-emerald-500/60 rounded-full" />
                 叙事记忆 · 时间轴摘要
               </div>
-              <div className="flex items-center justify-between pl-2">
+              <div className="flex items-center justify-between pl-1">
                 <div className="flex flex-col">
-                  <span className="font-semibold text-foreground text-[13px] flex items-center gap-2">
+                  <span className="font-semibold text-foreground text-[12.5px] flex items-center gap-2">
                     自动记忆整理 (Auto Summary){" "}
                     <Switch
                       checked={settings.memory.summaryTriggerTurns !== 0}
@@ -135,14 +134,14 @@ export default function MemoryStorageSection({
                       className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
                     />
                   </span>
-                  <span className="text-[10px] text-muted-foreground mt-0.5">
+                  <span className="text-[9.5px] text-muted-foreground mt-0.5">
                     定期梳理记忆，否则默认与上方发送轮数同步整理
                   </span>
                 </div>
               </div>
               {settings.memory.summaryTriggerTurns !== 0 && (
                 <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border">
-                  <span className="text-[11px] text-muted-foreground font-semibold">
+                  <span className="text-[10px] text-muted-foreground font-semibold">
                     触发轮次 (满多少轮执行一次梳理)
                   </span>
                   <input
@@ -168,14 +167,14 @@ export default function MemoryStorageSection({
             </div>
 
             {/* 子模块 3：状态记忆（Table Memory 结构化表格） */}
-            <div className="space-y-3 mt-4 pt-4 border-t border-border/50">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-sky-500/80 uppercase tracking-wide">
+            <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-border/40">
+              <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-sky-500/80 uppercase tracking-wide">
                 <span className="inline-block w-1 h-3 bg-sky-500/60 rounded-full" />
                 状态记忆 · 结构化表格
               </div>
-              <div className="flex items-center justify-between pl-2">
+              <div className="flex items-center justify-between pl-1">
                 <div className="flex flex-col">
-                  <span className="font-semibold text-foreground text-[13px] flex items-center gap-2">
+                  <span className="font-semibold text-foreground text-[12.5px] flex items-center gap-2">
                     结构化记忆表格 (Table Memory){" "}
                     <Switch
                       checked={!!settings.enableTableMemory}
@@ -188,14 +187,14 @@ export default function MemoryStorageSection({
                       className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
                     />
                   </span>
-                  <span className="text-[10px] text-muted-foreground mt-0.5">
+                  <span className="text-[9.5px] text-muted-foreground mt-0.5">
                     将好感、人物关系等属性以表格形式整理并静默喂给 AI 记忆
                   </span>
                 </div>
               </div>
               {settings.enableTableMemory && (
                 <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border">
-                  <span className="text-[11px] text-muted-foreground font-semibold">
+                  <span className="text-[10px] text-muted-foreground font-semibold">
                     AI 表格检查更新频率 (每几轮对话让 AI 检查并修改数据)
                   </span>
                   <select
@@ -206,7 +205,7 @@ export default function MemoryStorageSection({
                         tableMemoryCheckFrequency: parseInt(e.target.value) || 1,
                       })
                     }
-                    className="bg-muted border border-border rounded px-1.5 py-1 text-xs outline-none focus:border-primary font-bold text-foreground"
+                    className="bg-muted border border-border rounded px-1.5 py-0.5 text-xs outline-none focus:border-primary font-bold text-foreground"
                   >
                     <option value="1">每 1 轮 (最实时)</option>
                     <option value="3">每 3 轮 (推荐)</option>
@@ -216,15 +215,15 @@ export default function MemoryStorageSection({
               )}
             </div>
 
-            <Accordion type="single" collapsible className="w-full mt-4 border-t border-border/50 pt-4">
+            <Accordion type="single" collapsible className="w-full mt-2.5 border-t border-border/30 pt-2.5">
               <AccordionItem value="advanced-templates" className="border-none">
-                <AccordionTrigger className="py-2 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
+                <AccordionTrigger className="py-1.5 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
                   <span className="text-[11px] font-semibold text-foreground">
                     高级整理模板与指令 (Advanced Templates & Prompts)
                   </span>
                 </AccordionTrigger>
-                <AccordionContent className="pt-3 pb-0 space-y-4">
-                  <div className="space-y-1.5">
+                <AccordionContent className="pt-2 pb-0 space-y-3">
+                  <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-foreground">
                       时间轴幕数命名模板 (Time Tag Template)
                     </label>
@@ -247,7 +246,7 @@ export default function MemoryStorageSection({
                     </p>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-foreground">
                       自动记忆归纳指导指令 (Summary System Prompt)
                     </label>
@@ -262,7 +261,7 @@ export default function MemoryStorageSection({
                           },
                         })
                       }
-                      className="text-xs bg-input/50 min-h-[180px] leading-relaxed font-sans"
+                      className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
                       placeholder="输入总结大纲指示词..."
                     />
                     <div className="flex justify-end">
@@ -277,14 +276,14 @@ export default function MemoryStorageSection({
                             }
                           });
                         }}
-                        className="text-[10px] text-primary font-bold hover:underline"
+                        className="text-[9px] text-primary font-bold hover:underline"
                       >
                         重置总结指令为系统默认
                       </button>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 pt-2 border-t border-border/30">
+                  <div className="space-y-1 pt-2 border-t border-border/30">
                     <label className="text-[11px] font-semibold text-foreground">
                       推理引导指令 (Reasoning Guidance Prompt)
                     </label>
@@ -299,7 +298,7 @@ export default function MemoryStorageSection({
                           },
                         })
                       }
-                      className="text-xs bg-input/50 min-h-[160px] leading-relaxed font-sans"
+                      className="text-xs bg-input/50 min-h-[130px] leading-relaxed font-sans"
                       placeholder="输入推理引导指示词..."
                     />
                     <div className="flex justify-end">
@@ -314,14 +313,14 @@ export default function MemoryStorageSection({
                             }
                           });
                         }}
-                        className="text-[10px] text-primary font-bold hover:underline"
+                        className="text-[9px] text-primary font-bold hover:underline"
                       >
                         重置推理指令为系统默认
                       </button>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 pt-2 border-t border-border/30">
+                  <div className="space-y-1 pt-2 border-t border-border/30">
                     <label className="text-[11px] font-semibold text-foreground">
                       表格记忆匹配指令 (Table Memory Prompt)
                     </label>
@@ -336,7 +335,7 @@ export default function MemoryStorageSection({
                           },
                         })
                       }
-                      className="text-xs bg-input/50 min-h-[180px] leading-relaxed font-sans"
+                      className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
                       placeholder="输入表格记忆指示词..."
                     />
                     <div className="flex justify-end">
@@ -351,7 +350,7 @@ export default function MemoryStorageSection({
                             }
                           });
                         }}
-                        className="text-[10px] text-primary font-bold hover:underline"
+                        className="text-[9px] text-primary font-bold hover:underline"
                       >
                         重置表格指令为系统默认
                       </button>
@@ -364,29 +363,29 @@ export default function MemoryStorageSection({
         </CardContent>
       </Card>
 
-      <Card className="bg-card border-border shadow-sm">
+      <Card className="bg-card border-border shadow-sm mt-2">
         <CardHeader
-          className="py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+          className="py-2.5 px-3 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border/40"
           onClick={() => setShowBackupUI(!showBackupUI)}
         >
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2 text-foreground">
+            <CardTitle className="text-xs flex items-center gap-2 font-bold text-foreground">
               <Lock className="w-4 h-4 text-emerald-500" />{" "}
               离线数据全库备份/还原
             </CardTitle>
-            <span className="text-muted-foreground text-xs">
+            <span className="text-muted-foreground text-[10px]">
               {showBackupUI ? "收起" : "展开"}
             </span>
           </div>
         </CardHeader>
         {showBackupUI && (
-          <CardContent className="pt-4 space-y-4 bg-muted/10 border-t border-border/50 animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="flex items-center justify-between border-b border-border/50 pb-3">
+          <CardContent className="pt-3 px-3 pb-3 space-y-3 bg-muted/10 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center justify-between border-b border-border/20 pb-2.5">
               <div className="flex flex-col">
                 <span className="text-sm font-semibold flex items-center gap-2 text-destructive">
                   加密导出保护 (XOR强加密)
                 </span>
-                <span className="text-[10px] text-muted-foreground mt-1">
+                <span className="text-[9px] text-muted-foreground mt-0.5">
                   推荐开启以防配置文件侧链泄露
                 </span>
               </div>
@@ -398,7 +397,7 @@ export default function MemoryStorageSection({
             </div>
 
             {encryptBackup && (
-              <div className="space-y-1.5 animate-in fade-in duration-300">
+              <div className="space-y-1 animate-in fade-in duration-300">
                 <label className="text-[11px] font-semibold text-foreground">
                   离线全文件核心密钥
                 </label>
@@ -444,16 +443,16 @@ export default function MemoryStorageSection({
         )}
       </Card>
 
-      <Card className="bg-card border-border shadow-sm mt-4">
-        <CardHeader className="pb-3 border-b border-border/50">
-          <CardTitle className="text-sm flex items-center gap-2">
+      <Card className="bg-card border-border shadow-sm mt-2">
+        <CardHeader className="pb-2.5 border-b border-border/50 px-3 pt-3">
+          <CardTitle className="text-xs flex items-center gap-2 font-bold text-foreground">
             <MessageSquare className="w-4 h-4 text-primary" /> 导入酒馆单会话聊天记录
           </CardTitle>
-          <CardDescription className="text-[11px]">
+          <CardDescription className="text-[10px] mt-0.5">
             导入 SillyTavern 单个角色的聊天记录 (.json/.jsonl) 格式文件
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-4 space-y-4">
+        <CardContent className="pt-3 px-3 pb-3 space-y-3">
           <p className="text-[11px] text-muted-foreground leading-relaxed">
             系统将解析对话记录并与本地角色卡进行绑定。如果本地未导入对应的角色卡，会提示先导入角色卡。
             <br />
@@ -475,7 +474,7 @@ export default function MemoryStorageSection({
 
       <UsageDisplay />
 
-      <div className="mt-8 text-center space-y-1 pb-4 opacity-55 select-text font-mono text-[9px] text-muted-foreground/80">
+      <div className="mt-6 text-center space-y-1 pb-4 opacity-55 select-text font-mono text-[9px] text-muted-foreground/80">
         <p className="font-bold text-[10px] text-muted-foreground mb-1 select-none">
           🛠️ 系统报告
         </p>
