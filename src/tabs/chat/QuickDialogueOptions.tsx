@@ -33,6 +33,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     setSessions,
     activeSession,
     settings,
+    activeCharacter,
   } = useUnifiedApp();
 
   return (
@@ -124,7 +125,29 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
 
                 // 1. 调用大模型根据上下文提炼场景 Prompt
                 let finalPrompt = message.content;
-                const template = config.promptGeneratorTemplate || "Based on the following conversation context and current sentence, write a vivid English prompt describing the visual scene, character appearance, action, expression, location, and atmosphere. Focus on concrete visual details. Avoid text, abstract ideas, or dialogue.\nOutput only the raw English prompt, no extra text.\n\nConversation Context:\n{context}\n\nCurrent Sentence to Visualize:\n{message}\n\nDescriptive English Prompt:";
+                let template = config.promptGeneratorTemplate || "Based on the following character appearance features, conversation context, and current sentence, write a vivid English prompt describing the visual scene, character appearance (strictly following the appearance features), action, expression, location, and atmosphere. Focus on concrete visual details. Avoid text, abstract ideas, or dialogue.\nOutput only the raw English prompt, no extra text.\n\n### Appearance Features\n{appearance}\n\n### Conversation Context\n{context}\n\nCurrent Sentence to Visualize:\n{message}\n\nDescriptive English Prompt:";
+
+                // Ensure compatibility with old user templates that might not have {appearance} placeholder.
+                if (!template.includes("{appearance}")) {
+                  if (template.includes("Conversation Context:\n{context}")) {
+                    template = template.replace(
+                      "Conversation Context:\n{context}",
+                      "### Appearance Features\n{appearance}\n\n### Conversation Context\n{context}"
+                    );
+                  } else if (template.includes("对话上下文：\n{context}")) {
+                    template = template.replace(
+                      "对话上下文：\n{context}",
+                      "### 外观特征\n{appearance}\n\n### 对话上下文\n{context}"
+                    );
+                  } else if (template.includes("{context}")) {
+                    template = template.replace(
+                      "{context}",
+                      "### 外观特征\n{appearance}\n\n### 对话上下文\n{context}"
+                    );
+                  } else {
+                    template = `### Appearance Features\n{appearance}\n\n${template}`;
+                  }
+                }
 
                 if (settings.api && settings.api.baseUrl) {
                   try {
@@ -137,7 +160,17 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                       .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
                       .join("\n");
 
+                    // 准备并清洗人物外观特征描述文本
+                    const charName = activeCharacter?.name || "Assistant";
+                    const userName = settings.userName || "User";
+                    const rawAppearance = activeCharacter?.description || "";
+                    const appearanceText = rawAppearance
+                      .replace(/\{\{char\}\}/gi, charName)
+                      .replace(/\{\{user\}\}/gi, userName)
+                      .trim() || "No character appearance described.";
+
                     const llmPrompt = template
+                      .replace("{appearance}", appearanceText)
                       .replace("{context}", contextText)
                       .replace("{message}", message.content);
 

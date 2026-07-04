@@ -1039,7 +1039,7 @@ export default function GeneralConfigSection({
                         placeholder="基于对话总结画面 Prompt 的模板"
                       />
                       <p className="text-[9px] text-muted-foreground leading-tight">
-                        系统会使用聊天配置的 LLM 运行此引导提示词。内置占位符 <code>{'{message}'}</code> 将自动替换为当前的消息内容。
+                        系统会使用聊天配置的 LLM 运行此引导提示词。内置占位符 <code>{'{appearance}'}</code>（外观特征）、<code>{'{context}'}</code>（对话上下文）、<code>{'{message}'}</code>（当前对白）将自动替换。
                       </p>
                     </div>
                   </AccordionContent>
