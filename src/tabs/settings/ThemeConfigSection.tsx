@@ -28,15 +28,12 @@ export default function ThemeConfigSection({
 }: ThemeConfigSectionProps) {
   return (
     <Card className="glass-panel shadow-sm">
-      <CardHeader className="pb-3 border-b border-border/50">
-        <CardTitle className="text-sm flex items-center gap-2">
+      <CardHeader className="pb-1 pt-3.5 px-4">
+        <CardTitle className="text-[12.5px] flex items-center gap-2 font-bold text-foreground">
           <span>阅读主题与色彩基调</span>
         </CardTitle>
-        <CardDescription className="text-[11px]">
-          切换界面的高对比度和情绪感官
-        </CardDescription>
       </CardHeader>
-      <CardContent className="pt-4">
+      <CardContent className="pt-1 px-4 pb-4">
         <Select
           value={currentTheme}
           onValueChange={(val: any) => handleThemeChange(val)}
@@ -71,7 +68,7 @@ export default function ThemeConfigSection({
         </Select>
 
         {/* 聊天字体大小调节 */}
-        <div className="mt-4 pt-4 border-t border-border/50 space-y-2">
+        <div className="mt-3.5 pt-3.5 border-t border-border/30 space-y-1.5">
           <label className="text-[11px] font-semibold text-muted-foreground block">
             聊天字体大小调节
           </label>
@@ -95,16 +92,6 @@ export default function ThemeConfigSection({
               <button
                 type="button"
                 onClick={() => {
-                  updateSettings((prev) => ({ ...prev, chatFontSize: 14 }));
-                }}
-                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary px-2.5 h-8 rounded-md flex items-center justify-center text-[10px] transition tap-scale font-semibold"
-                title="恢复默认"
-              >
-                默认 (14)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
                   const currentSize = settings.chatFontSize ?? 14;
                   const newSize = Math.min(24, currentSize + 1);
                   updateSettings((prev) => ({ ...prev, chatFontSize: newSize }));
@@ -118,7 +105,45 @@ export default function ThemeConfigSection({
           </div>
         </div>
 
-        <div className="mt-4 pt-4 border-t border-border/50 space-y-2">
+        {/* 聊天行距调节 */}
+        <div className="mt-3 space-y-1.5">
+          <label className="text-[11px] font-semibold text-muted-foreground block">
+            聊天行距调节
+          </label>
+          <div className="flex items-center justify-between bg-muted/20 border border-border/40 rounded-lg p-2">
+            <span className="text-xs text-muted-foreground pl-1 select-none font-semibold">
+              当前行距: <span className="text-primary font-bold">{(settings.chatLineHeight ?? 1.5).toFixed(1)}</span>
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const currentLH = settings.chatLineHeight ?? 1.5;
+                  const newLH = Number(Math.max(1.0, currentLH - 0.1).toFixed(1));
+                  updateSettings((prev) => ({ ...prev, chatLineHeight: newLH }));
+                }}
+                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-8 h-8 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
+                title="减小行距"
+              >
+                L-
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentLH = settings.chatLineHeight ?? 1.5;
+                  const newLH = Number(Math.min(2.5, currentLH + 0.1).toFixed(1));
+                  updateSettings((prev) => ({ ...prev, chatLineHeight: newLH }));
+                }}
+                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-8 h-8 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
+                title="增大行距"
+              >
+                L+
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3.5 pt-3.5 border-t border-border/30 space-y-1.5">
           <label className="text-[11px] font-semibold text-muted-foreground block">
             全局默认聊天背景图片 (当角色未设置专属背景时生效)
           </label>
@@ -167,7 +192,7 @@ export default function ThemeConfigSection({
         </div>
 
         {/* 背景参数自定义选项与动效控制 */}
-        <div className="mt-4 pt-4 border-t border-border/50 space-y-4.5">
+        <div className="mt-3.5 pt-3.5 border-t border-border/30 space-y-3.5">
           {/* 变暗与模糊融合度调节（合并为单一选项，三档调节） */}
           <div className="space-y-2">
             <label className="text-[11px] font-semibold text-muted-foreground block">

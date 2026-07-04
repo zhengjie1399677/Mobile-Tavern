@@ -262,7 +262,7 @@ export default function MemoryStorageSection({
                           },
                         })
                       }
-                      className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
+                      className="text-xs bg-input/50 min-h-[180px] leading-relaxed font-sans"
                       placeholder="输入总结大纲指示词..."
                     />
                     <div className="flex justify-end">
@@ -299,7 +299,7 @@ export default function MemoryStorageSection({
                           },
                         })
                       }
-                      className="text-xs bg-input/50 min-h-[100px] leading-relaxed font-sans"
+                      className="text-xs bg-input/50 min-h-[160px] leading-relaxed font-sans"
                       placeholder="输入推理引导指示词..."
                     />
                     <div className="flex justify-end">
@@ -336,7 +336,7 @@ export default function MemoryStorageSection({
                           },
                         })
                       }
-                      className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
+                      className="text-xs bg-input/50 min-h-[180px] leading-relaxed font-sans"
                       placeholder="输入表格记忆指示词..."
                     />
                     <div className="flex justify-end">

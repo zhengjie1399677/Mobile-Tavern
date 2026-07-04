@@ -344,6 +344,7 @@ export const useSettingsLoader = ({
             enableMultiMessageQueue: storedSet.enableMultiMessageQueue ?? DEFAULT_SETTINGS.enableMultiMessageQueue,
             enableAsteriskFormatting: storedSet.enableAsteriskFormatting ?? DEFAULT_SETTINGS.enableAsteriskFormatting,
             chatFontSize: storedSet.chatFontSize ?? DEFAULT_SETTINGS.chatFontSize,
+            chatLineHeight: storedSet.chatLineHeight ?? DEFAULT_SETTINGS.chatLineHeight,
             imageGenApi: {
               ...DEFAULT_SETTINGS.imageGenApi,
               ...(storedSet.imageGenApi || {}),

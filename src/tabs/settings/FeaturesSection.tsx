@@ -8,6 +8,14 @@ import {
 } from "../../../components/ui/card";
 import { Switch } from "../../../components/ui/switch";
 import { Input } from "../../../components/ui/input";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "../../../components/ui/accordion";
+import { Textarea } from "../../../components/ui/textarea";
+import { DEFAULT_SETTINGS } from "../../hooks/useSettings";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
 
 export type FeaturesSectionProps = Pick<UnifiedAppContextProps, "settings" | "updateSettings">;
@@ -178,6 +186,44 @@ export default function FeaturesSection({
                   className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
                 />
               </div>
+
+              {settings.enableBisonMode && (
+                <div className="mt-2 bg-muted/15 p-2.5 rounded-lg border border-border/40 space-y-2 animate-in fade-in duration-300">
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="bison-prompt-accordion" className="border-none">
+                      <AccordionTrigger className="py-1 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
+                        <span className="text-[11px] font-semibold text-muted-foreground">
+                          自定义野牛提示词指令 (Bison Mode Prompt)
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-2 pb-0 space-y-2">
+                        <Textarea
+                          value={settings.bisonModePrompt || ""}
+                          onChange={(e) =>
+                            updateSettings({ ...settings, bisonModePrompt: e.target.value })
+                          }
+                          className="text-xs bg-input/50 min-h-[120px] leading-relaxed font-sans"
+                          placeholder="输入野牛模式指示词..."
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateSettings({
+                                ...settings,
+                                bisonModePrompt: DEFAULT_SETTINGS.bisonModePrompt || "",
+                              });
+                            }}
+                            className="text-[10px] text-primary font-bold hover:underline"
+                          >
+                            重置为系统默认
+                          </button>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </div>
+              )}
             </div>
           </div>
 
@@ -213,8 +259,8 @@ export default function FeaturesSection({
                 />
               </div>
               {settings.enableReplySuggestions && (
-                <div className="space-y-2 mt-2 bg-muted/15 p-2.5 rounded-lg border border-border/40">
-                  <div className="flex justify-between items-center">
+                <div className="space-y-2 mt-2 bg-muted/15 p-2.5 rounded-lg border border-border/40 animate-in fade-in duration-300">
+                  <div className="flex justify-between items-center pb-2 border-b border-border/20">
                     <span className="text-[11px] text-muted-foreground font-semibold">
                       推荐选项默认点击行为
                     </span>
@@ -232,6 +278,41 @@ export default function FeaturesSection({
                       <option value="send">直接发送</option>
                     </select>
                   </div>
+
+                  {/* Collapsible Suggestions Prompt */}
+                  <Accordion type="single" collapsible className="w-full pt-1">
+                    <AccordionItem value="suggestions-prompt-accordion" className="border-none">
+                      <AccordionTrigger className="py-1 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
+                        <span className="text-[11px] font-semibold text-muted-foreground">
+                          自定义分支生成引导指令 (Reply Suggestions Prompt)
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-2 pb-0 space-y-2">
+                        <Textarea
+                          value={settings.replySuggestionsPrompt || ""}
+                          onChange={(e) =>
+                            updateSettings({ ...settings, replySuggestionsPrompt: e.target.value })
+                          }
+                          className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
+                          placeholder="输入剧情分支生成指示词..."
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateSettings({
+                                ...settings,
+                                replySuggestionsPrompt: DEFAULT_SETTINGS.replySuggestionsPrompt || "",
+                              });
+                            }}
+                            className="text-[10px] text-primary font-bold hover:underline"
+                          >
+                            重置为系统默认
+                          </button>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                 </div>
               )}
             </div>

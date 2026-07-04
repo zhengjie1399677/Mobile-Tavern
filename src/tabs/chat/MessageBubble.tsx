@@ -172,6 +172,7 @@ const MessageBubble = ({
               className="w-full text-sm bg-muted border border-border rounded-lg p-2.5 text-foreground outline-none leading-relaxed resize-y font-light mb-2 focus:border-primary/50"
               style={{
                 fontSize: settings.chatFontSize ? `${settings.chatFontSize}px` : undefined,
+                lineHeight: settings.chatLineHeight ? `${settings.chatLineHeight}` : undefined,
               }}
               rows={Math.max(
                 3,
@@ -314,6 +315,7 @@ const MessageBubble = ({
                     ? activeCharacter?.visualSettings?.userBubbleTextColor || undefined
                     : activeCharacter?.visualSettings?.bubbleTextColor || undefined,
                   fontSize: settings.chatFontSize ? `${settings.chatFontSize}px` : undefined,
+                  lineHeight: settings.chatLineHeight ? `${settings.chatLineHeight}` : undefined,
                 }}
               >
                 {message.content === "💭..." ? (

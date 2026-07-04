@@ -14,6 +14,7 @@ import {
 } from "../../../components/ui/select";
 import { Switch } from "../../../components/ui/switch";
 import { Input } from "../../../components/ui/input";
+import { Textarea } from "../../../components/ui/textarea";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
 
 type SaveState = "idle" | "saving" | "saved";
@@ -791,76 +792,6 @@ export default function GeneralConfigSection({
                 </div>
               </div>
 
-              {/* Prompt Prefix */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">默认提示词前缀</label>
-                <Input
-                  type="text"
-                  className="font-mono text-xs h-9 bg-input/50"
-                  value={settings.imageGenApi?.promptPrefix || ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    updateSettings((prev) => ({
-                      ...prev,
-                      imageGenApi: {
-                        ...(prev.imageGenApi || {
-                          enabled: true,
-                          type: "openai-dalle",
-                          baseUrl: "",
-                          apiKey: "",
-                          modelName: "",
-                          promptPrefix: "",
-                          negativePrompt: "",
-                          width: 512,
-                          height: 512,
-                          steps: 20,
-                          cfgScale: 7.0,
-                          sampler: "",
-                        }),
-                        promptPrefix: val,
-                      },
-                    }));
-                  }}
-                  placeholder="例如: masterpiece, best quality, "
-                />
-              </div>
-
-              {/* Negative Prompt (SD & NovelAI only) */}
-              {(settings.imageGenApi?.type === "sd-webui" || settings.imageGenApi?.type === "novelai") && (
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground">反向提示词 (Negative Prompt)</label>
-                  <Input
-                    type="text"
-                    className="font-mono text-xs h-9 bg-input/50"
-                    value={settings.imageGenApi?.negativePrompt || ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      updateSettings((prev) => ({
-                        ...prev,
-                        imageGenApi: {
-                          ...(prev.imageGenApi || {
-                            enabled: true,
-                            type: "openai-dalle",
-                            baseUrl: "",
-                            apiKey: "",
-                            modelName: "",
-                            promptPrefix: "",
-                            negativePrompt: "",
-                            width: 512,
-                            height: 512,
-                            steps: 20,
-                            cfgScale: 7.0,
-                            sampler: "",
-                          }),
-                          negativePrompt: val,
-                        },
-                      }));
-                    }}
-                    placeholder="低画质，坏手..."
-                  />
-                </div>
-              )}
-
               {/* Steps, CFG & Sampler */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
@@ -998,42 +929,122 @@ export default function GeneralConfigSection({
                 />
               </div>
 
-              {/* Prompt Generator Template */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">场景描述总结模板 (Prompt Generator Template)</label>
-                <textarea
-                  className="font-mono text-xs w-full p-2 bg-input/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary min-h-[80px]"
-                  value={settings.imageGenApi?.promptGeneratorTemplate || ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    updateSettings((prev) => ({
-                      ...prev,
-                      imageGenApi: {
-                        ...(prev.imageGenApi || {
-                          enabled: true,
-                          type: "openai-dalle",
-                          baseUrl: "",
-                          apiKey: "",
-                          modelName: "",
-                          promptPrefix: "",
-                          negativePrompt: "",
-                          width: 512,
-                          height: 512,
-                          steps: 20,
-                          cfgScale: 7.0,
-                          sampler: "",
-                          promptGeneratorTemplate: "",
-                        }),
-                        promptGeneratorTemplate: val,
-                      },
-                    }));
-                  }}
-                  placeholder="基于对话总结画面 Prompt 的模板"
-                />
-                <p className="text-[9px] text-muted-foreground leading-tight">
-                  系统会使用聊天配置的 LLM 运行此引导提示词。内置占位符 <code>{'{message}'}</code> 将自动替换为当前的消息内容。
-                </p>
-              </div>
+              {/* Nested Collapsible Prompts Accordion */}
+              <Accordion type="single" collapsible className="w-full border-t border-border/40 pt-2 mt-2">
+                <AccordionItem value="image-prompts-settings" className="border-none">
+                  <AccordionTrigger className="py-2 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
+                    <span className="text-[11px] font-semibold text-foreground">
+                      高级提示词模板与前缀 (Advanced Prompts & Templates)
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-3 pb-0 space-y-4">
+                    {/* Prompt Prefix */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-muted-foreground">默认提示词前缀</label>
+                      <Textarea
+                        className="font-mono text-xs min-h-[120px] bg-input/50 leading-relaxed"
+                        value={settings.imageGenApi?.promptPrefix || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateSettings((prev) => ({
+                            ...prev,
+                            imageGenApi: {
+                              ...(prev.imageGenApi || {
+                                enabled: true,
+                                type: "openai-dalle",
+                                baseUrl: "",
+                                apiKey: "",
+                                modelName: "",
+                                promptPrefix: "",
+                                negativePrompt: "",
+                                width: 512,
+                                height: 512,
+                                steps: 20,
+                                cfgScale: 7.0,
+                                sampler: "",
+                              }),
+                              promptPrefix: val,
+                            },
+                          }));
+                        }}
+                        placeholder="例如: masterpiece, best quality, "
+                      />
+                    </div>
+
+                    {/* Negative Prompt (SD & NovelAI only) */}
+                    {(settings.imageGenApi?.type === "sd-webui" || settings.imageGenApi?.type === "novelai") && (
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-muted-foreground">反向提示词 (Negative Prompt)</label>
+                        <Textarea
+                          className="font-mono text-xs min-h-[120px] bg-input/50 leading-relaxed"
+                          value={settings.imageGenApi?.negativePrompt || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateSettings((prev) => ({
+                              ...prev,
+                              imageGenApi: {
+                                ...(prev.imageGenApi || {
+                                  enabled: true,
+                                  type: "openai-dalle",
+                                  baseUrl: "",
+                                  apiKey: "",
+                                  modelName: "",
+                                  promptPrefix: "",
+                                  negativePrompt: "",
+                                  width: 512,
+                                  height: 512,
+                                  steps: 20,
+                                  cfgScale: 7.0,
+                                  sampler: "",
+                                }),
+                                negativePrompt: val,
+                              },
+                            }));
+                          }}
+                          placeholder="低画质，坏手..."
+                        />
+                      </div>
+                    )}
+
+                    {/* Prompt Generator Template */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-muted-foreground">场景描述总结模板 (Prompt Generator Template)</label>
+                      <Textarea
+                        className="font-mono text-xs min-h-[160px] bg-input/50 leading-relaxed"
+                        value={settings.imageGenApi?.promptGeneratorTemplate || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateSettings((prev) => ({
+                            ...prev,
+                            imageGenApi: {
+                              ...(prev.imageGenApi || {
+                                enabled: true,
+                                type: "openai-dalle",
+                                baseUrl: "",
+                                apiKey: "",
+                                modelName: "",
+                                promptPrefix: "",
+                                negativePrompt: "",
+                                width: 512,
+                                height: 512,
+                                steps: 20,
+                                cfgScale: 7.0,
+                                sampler: "",
+                                promptGeneratorTemplate: "",
+                              }),
+                              promptGeneratorTemplate: val,
+                            },
+                          }));
+                        }}
+                        placeholder="基于对话总结画面 Prompt 的模板"
+                      />
+                      <p className="text-[9px] text-muted-foreground leading-tight">
+                        系统会使用聊天配置的 LLM 运行此引导提示词。内置占位符 <code>{'{message}'}</code> 将自动替换为当前的消息内容。
+                      </p>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
           )}
         </AccordionContent>

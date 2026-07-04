@@ -242,6 +242,7 @@ export interface UserSettings {
   enableAsteriskFormatting?: boolean; // Global fallback: render *action* text as grey italic (overridden by per-card visualSettings)
   imageGenApi?: ImageGenApiConfig; // 独立的生图 API 配置
   chatFontSize?: number; // Chat bubble font size in px
+  chatLineHeight?: number; // Chat bubble line height (multiplier)
 }
 
 export interface ImageGenApiConfig {
