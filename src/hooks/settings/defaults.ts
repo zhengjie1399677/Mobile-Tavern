@@ -491,6 +491,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   bisonModePrompt: DEFAULT_BISON_MODE_PROMPT,
   enableMultiMessageQueue: false,
   enableAsteriskFormatting: false,
+  chatFontSize: 14,
   imageGenApi: {
     enabled: false,
     type: "openai-dalle",

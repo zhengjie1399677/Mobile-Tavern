@@ -241,6 +241,7 @@ export interface UserSettings {
   enableMultiMessageQueue?: boolean; // Enable Multi-Message Queue and merge sending
   enableAsteriskFormatting?: boolean; // Global fallback: render *action* text as grey italic (overridden by per-card visualSettings)
   imageGenApi?: ImageGenApiConfig; // 独立的生图 API 配置
+  chatFontSize?: number; // Chat bubble font size in px
 }
 
 export interface ImageGenApiConfig {

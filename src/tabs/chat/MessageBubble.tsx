@@ -170,6 +170,9 @@ const MessageBubble = ({
                 setEditingMsgContent(e.target.value)
               }
               className="w-full text-sm bg-muted border border-border rounded-lg p-2.5 text-foreground outline-none leading-relaxed resize-y font-light mb-2 focus:border-primary/50"
+              style={{
+                fontSize: settings.chatFontSize ? `${settings.chatFontSize}px` : undefined,
+              }}
               rows={Math.max(
                 3,
                 editingMsgContent.split("\n").length,
@@ -310,6 +313,7 @@ const MessageBubble = ({
                   color: isUser
                     ? activeCharacter?.visualSettings?.userBubbleTextColor || undefined
                     : activeCharacter?.visualSettings?.bubbleTextColor || undefined,
+                  fontSize: settings.chatFontSize ? `${settings.chatFontSize}px` : undefined,
                 }}
               >
                 {message.content === "💭..." ? (

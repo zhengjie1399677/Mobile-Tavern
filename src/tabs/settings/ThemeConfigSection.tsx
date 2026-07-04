@@ -70,6 +70,54 @@ export default function ThemeConfigSection({
           </SelectContent>
         </Select>
 
+        {/* 聊天字体大小调节 */}
+        <div className="mt-4 pt-4 border-t border-border/50 space-y-2">
+          <label className="text-[11px] font-semibold text-muted-foreground block">
+            聊天字体大小调节
+          </label>
+          <div className="flex items-center justify-between bg-muted/20 border border-border/40 rounded-lg p-2">
+            <span className="text-xs text-muted-foreground pl-1 select-none font-semibold">
+              当前字号: <span className="text-primary font-bold">{settings.chatFontSize ?? 14}px</span>
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const currentSize = settings.chatFontSize ?? 14;
+                  const newSize = Math.max(12, currentSize - 1);
+                  updateSettings((prev) => ({ ...prev, chatFontSize: newSize }));
+                }}
+                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-8 h-8 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
+                title="减小字号"
+              >
+                A-
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updateSettings((prev) => ({ ...prev, chatFontSize: 14 }));
+                }}
+                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary px-2.5 h-8 rounded-md flex items-center justify-center text-[10px] transition tap-scale font-semibold"
+                title="恢复默认"
+              >
+                默认 (14)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentSize = settings.chatFontSize ?? 14;
+                  const newSize = Math.min(24, currentSize + 1);
+                  updateSettings((prev) => ({ ...prev, chatFontSize: newSize }));
+                }}
+                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-8 h-8 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
+                title="增大字号"
+              >
+                A+
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="mt-4 pt-4 border-t border-border/50 space-y-2">
           <label className="text-[11px] font-semibold text-muted-foreground block">
             全局默认聊天背景图片 (当角色未设置专属背景时生效)
