@@ -188,8 +188,14 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                             content: llmPrompt
                           }
                         ],
-                        temperature: 0.7,
-                        max_tokens: 150
+                        temperature: settings.preset?.temperature,
+                        top_p: settings.preset?.topP,
+                        top_k: settings.preset?.topK,
+                        min_p: settings.preset?.minP,
+                        max_tokens: 150,
+                        presence_penalty: settings.preset?.presencePenalty ?? 0.0,
+                        frequency_penalty: settings.preset?.frequencyPenalty ?? 0.0,
+                        repetition_penalty: settings.preset?.repetitionPenalty ?? 1.0,
                       }
                     });
 
