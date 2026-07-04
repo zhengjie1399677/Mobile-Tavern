@@ -51,7 +51,7 @@ export default function WorldbookHeader({
           <input
             type="file"
             onChange={onImportLorebookJSON}
-            accept=".json"
+            accept=".json,.txt,.bin,application/json,text/plain"
             className="hidden"
           />
         </label>

@@ -12,6 +12,7 @@ import {
   Palette,
   Volume2,
   VolumeX,
+  MoreHorizontal,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -39,6 +40,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
   } = useUnifiedApp();
 
   const [isSpeakingThis, setIsSpeakingThis] = React.useState(false);
+  const [showMore, setShowMore] = React.useState(false);
 
   React.useEffect(() => {
     let active = true;
@@ -65,6 +67,17 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
       clearInterval(timer);
     };
   }, [message.id]);
+
+  React.useEffect(() => {
+    if (!showMore) return;
+    const handleGlobalClick = () => {
+      setShowMore(false);
+    };
+    window.addEventListener("click", handleGlobalClick);
+    return () => {
+      window.removeEventListener("click", handleGlobalClick);
+    };
+  }, [showMore]);
 
   return (
     <div
@@ -98,33 +111,6 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
         <Edit2 className="w-3 h-3" /> 编辑
       </button>
 
-      {message.id !== activeSession?.messages[0]?.id && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setMsgMenuId(null);
-            handleRerollFromMessage(message);
-          }}
-          disabled={isSending}
-          className="text-[11px] text-primary hover:text-primary/80 px-2.5 py-1 rounded hover:bg-primary/10 flex items-center gap-1 border border-primary/20 disabled:opacity-40 disabled:cursor-not-allowed"
-          title="从该对白开始重新生成后续回答"
-        >
-          <RefreshCw className="w-3 h-3" /> 重发
-        </button>
-      )}
-
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setMsgMenuId(null);
-          createBacktrackBranch(message);
-        }}
-        disabled={isSending}
-        className="text-[11px] text-primary hover:text-primary/80 px-2.5 py-1 rounded hover:bg-primary/10 flex items-center gap-1 border border-primary/20 disabled:opacity-40 disabled:cursor-not-allowed"
-        title="从此处创立平行宇宙分支记录"
-      >
-        <GitFork className="w-3 h-3" /> 分支
-      </button>
 
       {settings.imageGenApi?.enabled && !isUser && (
         <button
@@ -352,34 +338,86 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
       )}
 
       <button
-        onClick={async (e) => {
+        type="button"
+        onClick={(e) => {
           e.stopPropagation();
-          const ok =
-            await showCustomConfirm(
-              "确定删除该单条对白台词吗？",
-            );
-          if (ok) {
-            const nextMessages =
-              (activeSession.messages || []).filter(
-                (m: any) => m.id !== message.id,
-              );
-            const updated = {
-              ...activeSession,
-              messages: nextMessages,
-            };
-            setSessions((prev: any) =>
-              prev.map((s: any) =>
-                s.id === updated.id ? updated : s,
-              ),
-            );
-            await saveSession(updated);
-            setMsgMenuId(null);
-          }
+          setShowMore(!showMore);
         }}
-        disabled={isSending}
-        className="text-[11px] text-red-500/80 hover:text-red-400 px-2 py-1 rounded active:scale-[0.98] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+        className={`text-[11px] px-2.5 py-1 rounded flex items-center gap-1 border active:scale-[0.98] transition-all relative ${
+          showMore
+            ? "text-primary border-primary bg-primary/10"
+            : "text-muted-foreground hover:text-foreground border-border/30 hover:bg-muted/10"
+        }`}
+        title="更多选项"
       >
-        <Trash2 className="w-3 h-3" />
+        <MoreHorizontal className="w-3 h-3" /> 更多
+
+        {showMore && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="absolute bottom-full mb-1.5 right-0 bg-popover border border-border shadow-2xl rounded-lg py-1 px-1 min-w-[90px] flex flex-col gap-0.5 z-20 animate-in fade-in slide-in-from-bottom-1.5 duration-100"
+          >
+            {/* 重发 (Reroll) */}
+            {message.id !== activeSession?.messages[0]?.id && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMore(false);
+                  setMsgMenuId(null);
+                  handleRerollFromMessage(message);
+                }}
+                disabled={isSending}
+                className="w-full text-[11px] text-left text-primary hover:bg-primary/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
+              >
+                <RefreshCw className="w-3 h-3" /> 重发
+              </button>
+            )}
+
+            {/* 分支 (Branch) */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMore(false);
+                setMsgMenuId(null);
+                createBacktrackBranch(message);
+              }}
+              disabled={isSending}
+              className="w-full text-[11px] text-left text-primary hover:bg-primary/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
+            >
+              <GitFork className="w-3 h-3" /> 分支
+            </button>
+
+            {/* 删除 (Delete) */}
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                setShowMore(false);
+                const ok = await showCustomConfirm("确定删除该单条对白台词吗？");
+                if (ok) {
+                  const nextMessages = (activeSession.messages || []).filter(
+                    (m: any) => m.id !== message.id,
+                  );
+                  const updated = {
+                    ...activeSession,
+                    messages: nextMessages,
+                  };
+                  setSessions((prev: any) =>
+                    prev.map((s: any) => (s.id === updated.id ? updated : s)),
+                  );
+                  await saveSession(updated);
+                  setMsgMenuId(null);
+                }
+              }}
+              disabled={isSending}
+              className="w-full text-[11px] text-left text-red-500 hover:bg-red-500/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
+            >
+              <Trash2 className="w-3 h-3" /> 删除
+            </button>
+          </div>
+        )}
       </button>
     </div>
   );

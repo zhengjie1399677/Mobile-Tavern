@@ -65,23 +65,36 @@ export async function parseCharacterFile(
   if (file.size > 10 * 1024 * 1024) {
     throw new Error("文件大小超过 10MB 限制，导入终止。");
   }
-  if (file.type === "application/json" || file.name.endsWith(".json")) {
-    const text = await file.text();
-    const parsed = JSON.parse(text);
-    return extractSillyTavernFields(parsed);
-  } else if (file.type === "image/png" || file.name.endsWith(".png")) {
+
+  // 优先尝试读取文件文本判定是否为 JSON
+  let text = "";
+  try {
+    text = await file.text();
+  } catch (err) {}
+
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return extractSillyTavernFields(parsed);
+    } catch (e) {
+      console.warn("文件看起来像 JSON 但解析失败，退回到图片解析。", e);
+    }
+  }
+
+  // 如果不满足 JSON 特征，或者 JSON 解析失败，则作为 PNG 卡片尝试解析
+  try {
     const buffer = await file.arrayBuffer();
     const parsed = parsePngMetadata(buffer);
     const cardData = extractSillyTavernFields(parsed);
 
     // 将当前文件转为 base64 保存头像（压缩为 400x400 PNG 防止数据库膨胀）
     const base64Avatar = await compressImage(file, 400, 400, 0.8, "image/png");
-
     cardData.avatar = base64Avatar;
     return cardData;
-  } else {
+  } catch (pngErr: any) {
     throw new Error(
-      "不支持的文件格式，请上传 .png 或 .json 角色卡文件。",
+      "解析失败：未能将文件解析为有效的 JSON 角色卡或 SillyTavern PNG 图片卡元数据。"
     );
   }
 }

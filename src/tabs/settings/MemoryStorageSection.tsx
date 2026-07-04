@@ -428,7 +428,7 @@ export default function MemoryStorageSection({
                 <input
                   type="file"
                   onChange={handleImportLocalDataBackup}
-                  accept=".backup,.json"
+                  accept=".backup,.json,.jsonl,.txt,.bin,application/json,text/plain"
                   className="hidden"
                 />
               </label>
@@ -464,7 +464,7 @@ export default function MemoryStorageSection({
               <input
                 type="file"
                 onChange={handleImportSillyChatHistory}
-                accept=".json,.jsonl"
+                accept=".json,.jsonl,.txt,.bin,application/json,text/plain"
                 className="hidden"
               />
             </label>

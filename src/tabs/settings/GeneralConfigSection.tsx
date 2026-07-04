@@ -70,7 +70,7 @@ export default function GeneralConfigSection({
       setTestSpeaking(true);
       const { globalKernel } = await import("../../kernel");
       const ttsService = globalKernel.getService<any>("tts");
-      await ttsService.speak("Hello, welcome to Mobile Tavern. This is a voice test speaking.", settings.ttsConfig);
+      await ttsService.speak("你好，欢迎来到移动酒馆。这是一段语音测试朗读。", settings.ttsConfig);
     } catch (e: any) {
       console.warn("TTS test failed:", e);
     } finally {
@@ -83,7 +83,7 @@ export default function GeneralConfigSection({
       const { globalKernel } = await import("../../kernel");
       const ttsService = globalKernel.getService<any>("tts");
       ttsService.stop();
-    } catch (e) {}
+    } catch (e) { }
     setTestSpeaking(false);
   };
 
@@ -1300,11 +1300,21 @@ export default function GeneralConfigSection({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="default" className="text-xs font-semibold">系统默认音色</SelectItem>
-                      {voices.map((v) => (
-                        <SelectItem key={v.name} value={v.name} className="text-xs font-semibold">
-                          🗣️ {v.name} ({v.lang})
-                        </SelectItem>
-                      ))}
+                      {voices
+                        .filter((v) => {
+                          const lang = v.lang.toLowerCase();
+                          return (
+                            lang.includes("zh") ||
+                            lang.includes("cmn") ||
+                            lang.includes("yue") ||
+                            lang.includes("chinese")
+                          );
+                        })
+                        .map((v) => (
+                          <SelectItem key={v.name} value={v.name} className="text-xs font-semibold">
+                            🗣️ {v.name} ({v.lang})
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>

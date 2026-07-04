@@ -67,7 +67,7 @@ export default function CharactersTab() {
             <input
               type="file"
               onChange={handleImportCardFile}
-              accept=".png,.json"
+              accept=".png,.webp,.json,.txt,.bin,image/png,image/webp,application/json"
               className="hidden"
             />
           </label>

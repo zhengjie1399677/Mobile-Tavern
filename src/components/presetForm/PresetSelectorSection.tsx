@@ -70,7 +70,7 @@ export default function PresetSelectorSection({
             <input
               type="file"
               onChange={handleImportPresetJSON}
-              accept=".json"
+              accept=".json,.txt,.bin,application/json,text/plain"
               className="hidden"
             />
           </label>
