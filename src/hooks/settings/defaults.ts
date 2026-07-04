@@ -510,4 +510,16 @@ export const DEFAULT_SETTINGS: UserSettings = {
     promptEditBeforeGenerate: false,
     forceProtocol: false,
   },
+  ttsConfig: {
+    enabled: false,
+    provider: "speech-synthesis",
+    volume: 0.5,
+    rate: 1.0,
+    pitch: 1.0,
+    voiceName: "",
+    openaiApiKey: "",
+    openaiBaseUrl: "https://api.openai.com/v1",
+    openaiModel: "tts-1",
+    openaiVoice: "alloy",
+  },
 };

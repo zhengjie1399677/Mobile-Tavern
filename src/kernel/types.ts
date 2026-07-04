@@ -12,6 +12,7 @@ export const KernelServices = {
   Memory: "memory",
   ImageGen: "imageGen",
   Bgm: "bgm",
+  Tts: "tts",
 } as const;
 
 export const KernelEvents = {
@@ -309,5 +310,15 @@ export interface IMemoryService extends IKernelService {
    * 阶段 C 装配，供 output 中间件触发剧情时间线摘要。
    */
   getSummary(): any;
+}
+
+export interface ITtsService extends IKernelService {
+  speak(text: string, config: any, signal?: AbortSignal): Promise<void>;
+  stop(): void;
+  pause(): void;
+  resume(): void;
+  isSpeaking(): boolean;
+  getSpeakingMessageId(): string | null;
+  setSpeakingMessageId(id: string | null): void;
 }
 

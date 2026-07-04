@@ -10,6 +10,8 @@ import {
   GitFork,
   Trash2,
   Palette,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -35,6 +37,34 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     settings,
     activeCharacter,
   } = useUnifiedApp();
+
+  const [isSpeakingThis, setIsSpeakingThis] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    let timer: any = null;
+
+    const checkSpeaking = () => {
+      import("../../kernel").then(({ globalKernel }) => {
+        const ttsService = globalKernel.getService<any>("tts");
+        if (ttsService) {
+          const speakingId = ttsService.getSpeakingMessageId();
+          const speaking = ttsService.isSpeaking() && speakingId === message.id;
+          if (active) {
+            setIsSpeakingThis(speaking);
+          }
+        }
+      });
+    };
+
+    checkSpeaking();
+    timer = setInterval(checkSpeaking, 500);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [message.id]);
 
   return (
     <div
@@ -276,6 +306,48 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
           title="对当前对白场景进行绘制"
         >
           <Palette className="w-3 h-3" /> 生图
+        </button>
+      )}
+
+      {settings.ttsConfig?.enabled && (
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            const { globalKernel } = await import("../../kernel");
+            const ttsService = globalKernel.getService<any>("tts");
+            if (!ttsService) return;
+
+            if (isSpeakingThis) {
+              ttsService.stop();
+              setIsSpeakingThis(false);
+            } else {
+              setIsSpeakingThis(true);
+              ttsService.speak(message.content, {
+                ...settings.ttsConfig,
+                messageId: message.id
+              }).catch(() => {
+                setIsSpeakingThis(false);
+              }).finally(() => {
+                setIsSpeakingThis(false);
+              });
+            }
+          }}
+          className={`text-[11px] px-2.5 py-1 rounded flex items-center gap-1 border disabled:opacity-40 disabled:cursor-not-allowed ${
+            isSpeakingThis
+              ? "text-rose-400 hover:text-rose-300 border-rose-500/20 hover:bg-rose-500/10"
+              : "text-emerald-400 hover:text-emerald-300 border-emerald-500/20 hover:bg-emerald-500/10"
+          }`}
+          title={isSpeakingThis ? "停止语音朗读" : "语音朗读当前对白"}
+        >
+          {isSpeakingThis ? (
+            <>
+              <VolumeX className="w-3 h-3" /> 停止
+            </>
+          ) : (
+            <>
+              <Volume2 className="w-3 h-3" /> 朗读
+            </>
+          )}
         </button>
       )}
 

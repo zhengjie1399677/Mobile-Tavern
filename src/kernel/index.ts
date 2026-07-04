@@ -10,6 +10,7 @@ import { UpdateCheckService } from "./services/UpdateCheckService";
 import { MemoryService } from "./services/memory";
 import { ImageGenerationService } from "./services/ImageGenerationService";
 import { BgmService } from "./services/BgmService";
+import { TtsService } from "./services/TtsService";
 import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
@@ -88,6 +89,11 @@ export async function initializeKernel() {
     {
       name: KernelServices.Bgm,
       service: new BgmService(),
+      initTimeoutMs: 3000,
+    },
+    {
+      name: KernelServices.Tts,
+      service: new TtsService(),
       initTimeoutMs: 3000,
     },
   ]);

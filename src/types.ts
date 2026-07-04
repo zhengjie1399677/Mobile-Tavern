@@ -243,6 +243,7 @@ export interface UserSettings {
   imageGenApi?: ImageGenApiConfig; // 独立的生图 API 配置
   chatFontSize?: number; // Chat bubble font size in px
   chatLineHeight?: number; // Chat bubble line height (multiplier)
+  ttsConfig?: TtsConfig; // TTS 朗读配置
 }
 
 export interface ImageGenApiConfig {
@@ -261,6 +262,19 @@ export interface ImageGenApiConfig {
   promptGeneratorTemplate?: string; // 生成生图提示词的引导模板
   promptEditBeforeGenerate?: boolean; // 是否在生图前弹窗编辑提示词
   forceProtocol?: boolean; // 是否强行指定接口协议，默认不开启（即开启自动识别 / openai-dalle 降级）
+}
+
+export interface TtsConfig {
+  enabled: boolean;
+  provider: "speech-synthesis" | "openai";
+  volume: number; // 0 到 1 之间
+  rate: number;   // 语速 0.1 到 10 之间
+  pitch: number;  // 音高 0 到 2 之间
+  voiceName?: string; // Web Speech API 声音名称
+  openaiApiKey?: string;
+  openaiBaseUrl?: string;
+  openaiModel?: string; // tts-1, tts-1-hd 等
+  openaiVoice?: string; // alloy, echo, fable, onyx, nova, shimmer
 }
 
 export interface RegexScript {
