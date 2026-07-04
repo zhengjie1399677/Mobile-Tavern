@@ -17,6 +17,7 @@ import {
   Tag
 } from "lucide-react";
 import { getDictBySession, upsertDictEntry } from "../utils/localDB";
+import { MvuVariablesTabContent } from "./MvuVariablesTabContent";
 
 interface MemoryTableDrawerProps {
   isOpen: boolean;
@@ -35,8 +36,8 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   charName,
   enableTableMemory
 }) => {
-  // 大 Tab 面板：'table' | 'dict' | 'recall'
-  const [activeTab, setActiveTab] = useState<'table' | 'dict' | 'recall'>(
+  // 大 Tab 面板：'table' | 'dict' | 'recall' | 'mvu'
+  const [activeTab, setActiveTab] = useState<'table' | 'dict' | 'recall' | 'mvu'>(
     enableTableMemory ? 'table' : 'recall'
   );
 
@@ -377,6 +378,14 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             }`}
           >
             记忆唤醒舱
+          </button>
+          <button
+            onClick={() => setActiveTab('mvu')}
+            className={`px-3 py-1.5 rounded-lg border transition-all ${
+              activeTab === 'mvu' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+            }`}
+          >
+            角色变量
           </button>
         </div>
 
@@ -777,6 +786,20 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                 </div>
               )}
             </div>
+          )}
+
+          {/* TAB 4: 🏮 角色变量 */}
+          {activeTab === 'mvu' && (
+            <MvuVariablesTabContent
+              variables={activeSession.variables || {}}
+              onSave={async (newVars) => {
+                const nextSession = {
+                  ...activeSession,
+                  variables: newVars
+                };
+                await saveSession(nextSession);
+              }}
+            />
           )}
 
         </div>

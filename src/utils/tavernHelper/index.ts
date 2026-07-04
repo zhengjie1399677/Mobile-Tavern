@@ -49,6 +49,8 @@ export {
   extractXmlMvuCommands,
   detectJsonPatch,
   parseMvuMessage,
+  parseNestedYaml,
+  deepMerge,
 } from "./mvuParser";
 
 // ── 卡片运行时适配器接口契约 ────────────────────────────────────────────────

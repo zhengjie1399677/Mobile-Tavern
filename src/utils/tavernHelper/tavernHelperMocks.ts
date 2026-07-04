@@ -28,6 +28,7 @@ import {
   getBridgeParams,
   tavernHelperEventEmitter,
   initializeVariablesForSession,
+  initializeMvuFromCharacter,
   getSwipeVariables,
   resolveMessageId,
   notifyVariablesUpdated,
@@ -240,7 +241,17 @@ if (typeof window !== "undefined") {
       setTimeout(() => {
         const params = getBridgeParams();
         if (params && params.activeSession) {
-          initializeVariablesForSession(params.activeSession);
+          const session = params.activeSession;
+          // 自愈逻辑：若会话变量由于加载竞态为空，自动在首次就绪时从角色卡配置中抽取初始化
+          const isEmpty = !session.variables || !session.variables.stat_data || Object.keys(session.variables.stat_data).length === 0;
+          if (isEmpty && params.activeCharacter) {
+            const mvuVars = initializeMvuFromCharacter(params.activeCharacter);
+            if (mvuVars && mvuVars.stat_data) {
+              session.variables = mvuVars;
+              console.log("[TavernHelper Bridge] Auto-repaired empty session variables from character card.");
+            }
+          }
+          initializeVariablesForSession(session);
         }
       }, 100);
     },
@@ -282,9 +293,14 @@ if (typeof window !== "undefined") {
     },
     _getAllVariables() {
       const params = getBridgeParams();
-      if (!params) return {};
+      if (!params) {
+        console.log("[TavernHelper Bridge] _getAllVariables: no bridge params");
+        return {};
+      }
       const { activeCharacter, settings, activeSession } = params;
-      return { ...(settings?.variables || {}), ...(activeCharacter?.variables || {}), ...(activeSession?.variables || {}) };
+      const res = { ...(settings?.variables || {}), ...(activeCharacter?.variables || {}), ...(activeSession?.variables || {}) };
+      console.log("[TavernHelper Bridge] _getAllVariables returned:", JSON.stringify(res));
+      return res;
     },
     _replaceVariables(variables: Record<string, any>, opt: any = { type: "chat" }) {
       console.log("[TavernHelper Bridge] _replaceVariables called with opt:", JSON.stringify(opt), "variables:", JSON.stringify(variables));
@@ -759,5 +775,17 @@ if (typeof window !== "undefined") {
       return val;
     },
     getRecordFromMvuData(mvu_data: any, _category: string) { return mvu_data.stat_data || mvu_data; },
+  };
+  // ──────────────────────────────────────────────────────────────────────────
+  // 11. 在父页面 window 上全局暴露 getAllVariables / getVariables
+  //     消息气泡 iframe 内的状态栏脚本会调用：
+  //       findGetAllVariables(window.parent)  →  window.parent.getAllVariables
+  //     必须在这里把函数挂到父页面根 window 上，否则永远找不到。
+  // ──────────────────────────────────────────────────────────────────────────
+  (parentWin as any).getAllVariables = function() {
+    return bindObj._getAllVariables();
+  };
+  (parentWin as any).getVariables = function(options?: any) {
+    return bindObj._getVariables(options);
   };
 }

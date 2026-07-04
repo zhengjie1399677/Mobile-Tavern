@@ -1,5 +1,7 @@
 import { IScriptService, IKernel } from "../types";
 import { CharacterCard, ChatSession } from "../../types";
+import { parseMvuMessage as parseMvuMessageDirect } from "../../utils/tavernHelper/mvuParser";
+
 
 export interface ITavernHelperBridge {
   initializeMvuFromCharacter(character: any): Record<string, any>;
@@ -155,13 +157,12 @@ export class ScriptService implements IScriptService {
     }
 
     try {
-      if (!this.bridge) {
-        if (isDev()) {
-          console.warn("[ScriptService] initializeMvuFromCharacter: TavernHelperBridge is not registered yet. Falling back.");
-        }
-        return { stat_data: {} };
+      let rawVariables: any;
+      if (this.bridge) {
+        rawVariables = this.bridge.initializeMvuFromCharacter(safeCharacter);
+      } else {
+        rawVariables = localInitializeMvuFromCharacter(safeCharacter);
       }
-      const rawVariables = this.bridge.initializeMvuFromCharacter(safeCharacter);
       // 防腐隔离：清洗输出，防止脏数据渗透到核心逻辑层
       return cleanMvuVariables(rawVariables);
     } catch (e) {
@@ -181,13 +182,12 @@ export class ScriptService implements IScriptService {
     }
 
     try {
-      if (!this.bridge) {
-        if (isDev()) {
-          console.warn("[ScriptService] parseMvuMessage: TavernHelperBridge is not registered. Returning input variables.");
-        }
-        return safeCurrentVars;
+      let rawParsed: any;
+      if (this.bridge) {
+        rawParsed = this.bridge.parseMvuMessage(messageContent, safeCurrentVars);
+      } else {
+        rawParsed = parseMvuMessageDirect(messageContent, safeCurrentVars);
       }
-      const rawParsed = this.bridge.parseMvuMessage(messageContent, safeCurrentVars);
       // 防腐隔离：清洗输出
       return cleanMvuVariables(rawParsed);
     } catch (e) {
@@ -197,6 +197,7 @@ export class ScriptService implements IScriptService {
       return safeCurrentVars;
     }
   }
+
 
   async executeMvuScript(session: ChatSession, messageContent: string): Promise<ChatSession> {
     // 防腐隔离：清洗输入会话
@@ -261,8 +262,56 @@ export class ScriptService implements IScriptService {
       if (isDev()) {
         console.warn("[ScriptService] Failed to parse MVU message:", e);
       }
-      // 安全兜底：返回原始会话，不抛错
       return session;
     }
   }
 }
+
+function localInitializeMvuFromCharacter(character: any): Record<string, any> {
+  if (!character) return { stat_data: {} };
+
+  const ext = character.extensions || {};
+  const variables: Record<string, any> = {
+    stat_data: {},
+    schema: { type: 'object', properties: {} },
+    display_data: {},
+    delta_data: {},
+  };
+
+  const mvuSettings = ext.mvu_settings ||
+                      ext.mvu ||
+                      ext.MVU ||
+                      null;
+
+  if (mvuSettings) {
+    if (mvuSettings.schema) {
+      variables.schema = mvuSettings.schema;
+    }
+    if (mvuSettings.stat_data) {
+      variables.stat_data = { ...mvuSettings.stat_data };
+    } else if (mvuSettings.defaults) {
+      variables.stat_data = { ...mvuSettings.defaults };
+    }
+    if (mvuSettings.display_data) {
+      variables.display_data = { ...mvuSettings.display_data };
+    }
+  }
+
+  if (!variables.stat_data) {
+    variables.stat_data = {};
+  }
+
+  if (character.first_mes) {
+    try {
+      const parsedVars = parseMvuMessageDirect(character.first_mes, variables);
+      if (parsedVars && parsedVars.stat_data) {
+        variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
+      }
+    } catch (e) {
+      console.warn("[localInitializeMvuFromCharacter] Failed to parse first_mes initvars:", e);
+    }
+  }
+
+  return variables;
+}
+

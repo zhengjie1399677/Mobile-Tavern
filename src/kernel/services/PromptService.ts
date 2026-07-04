@@ -668,6 +668,28 @@ export class PromptService implements IPromptService {
       }),
     });
 
+    // ==================================================
+    // 4b. MVU Variables Section (under Context Category, mutable: true)
+    // ==================================================
+    let mvuVariablesSection = "";
+    if (settings.enableScriptExecution && chat.variables) {
+      mvuVariablesSection = this.formatMvuVariablesForPrompt(chat.variables);
+    }
+    builder.registerSection({
+      id: "mvu_variables",
+      phase: "Context",
+      enabled: !!mvuVariablesSection,
+      compile: () => ({
+        id: "mvu_variables",
+        phase: "Context",
+        type: "Context",
+        priority: "High",
+        mutable: true,
+        title: "Variables State",
+        content: mvuVariablesSection,
+      }),
+    });
+
     let recalledMemoriesSection = "";
     if (recalledMemories && recalledMemories.length > 0) {
       recalledMemoriesSection = recalledMemories
@@ -892,5 +914,63 @@ export class PromptService implements IPromptService {
       userInput,
       messages: finalMessages,
     };
+  }
+
+  private formatMvuVariablesForPrompt(variables: any): string {
+    if (!variables || typeof variables !== "object") return "";
+    const statData = variables.stat_data || variables;
+    if (!statData || typeof statData !== "object" || Object.keys(statData).length === 0) return "";
+
+    let hasReadOnly = false;
+
+    // Helper to deep clone and filter out keys starting with "$"
+    const filterHiddenKeys = (obj: any): any => {
+      if (!obj || typeof obj !== "object") return obj;
+      if (Array.isArray(obj)) {
+        return obj.map(filterHiddenKeys);
+      }
+      const clean: Record<string, any> = {};
+      for (const key of Object.keys(obj)) {
+        if (key.startsWith("$")) continue; // Skip hidden variables!
+        if (key.startsWith("_")) hasReadOnly = true;
+        clean[key] = filterHiddenKeys(obj[key]);
+      }
+      return clean;
+    };
+
+    const cleanData = filterHiddenKeys(statData);
+    if (Object.keys(cleanData).length === 0) return "";
+
+    // Helper to format as nested YAML string
+    const toYaml = (obj: any, depth = 0): string => {
+      const indent = "  ".repeat(depth);
+      if (!obj || typeof obj !== "object") {
+        return String(obj);
+      }
+      if (Array.isArray(obj)) {
+        return "\n" + obj.map(item => `${indent}- ${toYaml(item, depth + 1)}`).join("\n");
+      }
+      const lines: string[] = [];
+      for (const key of Object.keys(obj)) {
+        const val = obj[key];
+        if (val && typeof val === "object") {
+          lines.push(`${indent}${key}:${toYaml(val, depth + 1)}`);
+        } else {
+          lines.push(`${indent}${key}: ${toYaml(val, depth + 1)}`);
+        }
+      }
+      return "\n" + lines.join("\n");
+    };
+
+    let result = `### 角色变量状态 (SillyTavern MVU)
+可以在回复中输出 <UpdateVariable> _.set("变量名", 值); </UpdateVariable> 格式的 XML 代码来更新变量数值。
+\`\`\`yaml${toYaml(cleanData)}
+\`\`\``;
+
+    if (hasReadOnly) {
+      result += `\n重要指示：任何以下划线“_”开头的变量均为只读变量（由本地脚本维护计算），你必须仅读取它们，绝对不要在你的回复中通过 <UpdateVariable> 去尝试修改/写入它们！`;
+    }
+
+    return result;
   }
 }

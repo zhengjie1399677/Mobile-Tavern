@@ -58,10 +58,17 @@ export class DatabaseService implements IDatabaseService {
 
   async createNewSession(character: any, starterMessage?: string, initialSuggestions?: string[]): Promise<ChatSession> {
     const scriptService = this.kernel.getService<any>("script");
-    const mvuVariables = scriptService.initializeMvuFromCharacter(character);
-    const id = "session_" + Math.random().toString(36).substring(2, 9);
+    let mvuVariables = scriptService.initializeMvuFromCharacter(character);
     
+    const id = "session_" + Math.random().toString(36).substring(2, 9);
     let formattedStarter = (starterMessage || "").trim();
+    if (formattedStarter) {
+      try {
+        mvuVariables = scriptService.parseMvuMessage(formattedStarter, mvuVariables);
+      } catch (err) {
+        console.warn("[DatabaseService] Failed to parse starterMessage variables:", err);
+      }
+    }
     if (formattedStarter && !formattedStarter.includes("<center>")) {
       formattedStarter = `<center>\n${formattedStarter}\n</center>`;
     }
@@ -98,10 +105,17 @@ export class DatabaseService implements IDatabaseService {
 
   async createEmptyBranch(character: any, title: string): Promise<ChatSession> {
     const scriptService = this.kernel.getService<any>("script");
-    const mvuVariables = scriptService.initializeMvuFromCharacter(character);
+    let mvuVariables = scriptService.initializeMvuFromCharacter(character);
     
     // 如果角色卡有开场白，将其作为新分支的初始第一条消息，避免页面完全空白
     let starterMessage = (character?.first_mes || "").trim();
+    if (starterMessage) {
+      try {
+        mvuVariables = scriptService.parseMvuMessage(starterMessage, mvuVariables);
+      } catch (err) {
+        console.warn("[DatabaseService] Failed to parse branch starterMessage variables:", err);
+      }
+    }
     if (starterMessage && !starterMessage.includes("<center>")) {
       starterMessage = `<center>\n${starterMessage}\n</center>`;
     }

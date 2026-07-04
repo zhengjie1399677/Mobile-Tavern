@@ -450,12 +450,87 @@ function applyJsonPatchOperations(statData: any, patches: any[]): void {
 // ──────────────────────────────────────────────────────────────────────────────
 
 /**
+ * 极简的嵌套缩进式 YAML 解析器。
+ * 支持解析多层级缩进对象、一维数组，以及基础的数据类型（布尔值、数字、字符串）。
+ */
+export function parseNestedYaml(str: string): Record<string, any> {
+  const root: Record<string, any> = {};
+  const stack: { indent: number; obj: Record<string, any> }[] = [{ indent: -1, obj: root }];
+  
+  const lines = str.split(/\r?\n/);
+  for (const line of lines) {
+    // 忽略空行和注释
+    if (!line.trim() || line.trim().startsWith("#")) continue;
+    
+    // 计算缩进层级（前导空格数）
+    const indent = line.length - line.trimStart().length;
+    const trimmed = line.trim();
+    const colonIdx = trimmed.indexOf(":");
+    if (colonIdx === -1) continue;
+    
+    const key = trimmed.slice(0, colonIdx).trim().replace(/^["']|["']$/g, "");
+    let val: any = trimmed.slice(colonIdx + 1).trim();
+    
+    // 解析基础类型
+    if (val !== "") {
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      } else if (val === "true") {
+        val = true;
+      } else if (val === "false") {
+        val = false;
+      } else if (val === "null" || val === "~") {
+        val = null;
+      } else if (/^-?\d+(\.\d+)?$/.test(val)) {
+        val = Number(val);
+      }
+    }
+    
+    // 根据缩进层级在栈中寻找父级容器
+    while (stack.length > 1 && stack[stack.length - 1].indent >= indent) {
+      stack.pop();
+    }
+    
+    const parent = stack[stack.length - 1].obj;
+    if (val === "") {
+      const child = {};
+      parent[key] = child;
+      stack.push({ indent, obj: child });
+    } else {
+      parent[key] = val;
+    }
+  }
+  return root;
+}
+
+/**
+ * 递归的深度对象合并方法。
+ */
+export function deepMerge(target: any, source: any): any {
+  if (!target || !source || typeof target !== "object" || typeof source !== "object") {
+    return target;
+  }
+  for (const key of Object.keys(source)) {
+    if (source[key] && typeof source[key] === "object" && !Array.isArray(source[key])) {
+      if (!target[key] || typeof target[key] !== "object") {
+        target[key] = {};
+      }
+      deepMerge(target[key], source[key]);
+    } else {
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
+
+/**
  * 解析 MVU 消息并返回更新后的变量快照（深拷贝，不污染原始输入）
  *
  * 处理顺序：
  * 1. JSON Patch (RFC 6902) 格式 — 最高优先级
- * 2. 标准 MVU 命令（_.set/add/insert/delete/move）
+ * 2. 标准 MVU 命令（_.set/add/delete/remove/unset/assign/insert/move 格式）
  * 3. XML 标签内的 MVU 命令（<UpdateVariable> / <initvar> 兼容）
+ * 4. XML 标签中的 YAML 内容并合并到 statData
  */
 export function parseMvuMessage(message: string, oldData: any): any {
   if (!oldData) return oldData;
@@ -469,7 +544,7 @@ export function parseMvuMessage(message: string, oldData: any): any {
     return newData;
   }
 
-  // 2. 提取标准 MVU 命令（_.set/add/insert/delete/move 格式）
+  // 2. 提取标准 MVU 命令（_.set/add/delete/remove/unset/assign/insert/move 格式）
   const commands = extractMvuCommands(message);
   for (const cmd of commands) {
     applyMvuCommand(statData, cmd);
@@ -479,6 +554,27 @@ export function parseMvuMessage(message: string, oldData: any): any {
   const xmlCommands = extractXmlMvuCommands(message);
   for (const cmd of xmlCommands) {
     applyMvuCommand(statData, cmd);
+  }
+
+  // 4. 提取 XML 标签中的 YAML 内容并合并到 statData
+  const tagRegex = /<(?:UpdateVariable|initvar)\b[^>]*>([\s\S]*?)<\/(?:UpdateVariable|initvar)>/gi;
+  let m;
+  while ((m = tagRegex.exec(message)) !== null) {
+    const inner = m[1].trim();
+    // 排除 JSON Patch（以 [ 开头）与标准 MVU 命令（包含 _.）
+    if (inner && !inner.startsWith("[") && !inner.includes("_.")) {
+      try {
+        const parsedYaml = parseNestedYaml(inner);
+        if (parsedYaml && typeof parsedYaml === "object" && Object.keys(parsedYaml).length > 0) {
+          const source = (parsedYaml.stat_data && typeof parsedYaml.stat_data === "object")
+            ? parsedYaml.stat_data
+            : parsedYaml;
+          deepMerge(statData, source);
+        }
+      } catch (err) {
+        console.warn("[parseMvuMessage] Failed to parse XML YAML content:", err);
+      }
+    }
   }
 
   return newData;

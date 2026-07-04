@@ -53,7 +53,7 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   td: new Set(["colspan", "rowspan"]),
   th: new Set(["colspan", "rowspan"]),
   table: new Set(["border", "cellpadding", "cellspacing"]),
-  iframe: new Set(["src", "srcdoc", "width", "height", "style", "class", "classname", "sandbox", "id", "name"]),
+  iframe: new Set(["src", "srcdoc", "width", "height", "style", "class", "classname", "sandbox", "id", "name", "allowtransparency"]),
 };
 
 function renderTextNode(textVal: string, enableAsteriskFormatting: boolean): React.ReactNode {
@@ -92,7 +92,8 @@ function domToReact(
   enableAsteriskFormatting: boolean,
   enableScriptExecution: boolean,
   activeCharacter: any,
-  messageIndex?: number
+  messageIndex?: number,
+  libsReady?: boolean
 ): React.ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
     return renderTextNode(node.nodeValue || "", enableAsteriskFormatting);
@@ -171,7 +172,15 @@ function domToReact(
 
         // Apply bridge injection if it's a raw un-injected iframe
         if (enableScriptExecution && !resolvedSrcdoc.includes("window.__TH_MESSAGE_ID")) {
-          resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex);
+          if (libsReady) {
+            resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex);
+          } else {
+            resolvedSrcdoc = `<html><body style="background:transparent;color:#a8a29e;font-family:sans-serif;font-size:11px;margin:0;padding:4px;display:flex;align-items:center;gap:6px;">
+              <span style="width:8px;height:8px;border:1.5px solid #a8a29e;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span>
+              正在载入脚本依赖...
+              <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+            </body></html>`;
+          }
         }
         
         // Diagnostic: log the srcdoc length and whether it was processed by createMessageIframeSrcDoc
@@ -193,7 +202,7 @@ function domToReact(
 
   // Force strict sandboxing for iframe tags
   if (tagName === "iframe") {
-    props.sandbox = "allow-scripts allow-modals";
+    props.sandbox = "allow-scripts allow-same-origin allow-modals";
     if (!props.id && messageIndex !== undefined) {
       props.id = `TH-msg-iframe-${messageIndex}`;
       props.name = `TH-msg-iframe-${messageIndex}`;
@@ -201,6 +210,21 @@ function domToReact(
     // Force React to destroy and recreate the iframe element when the character or message context changes
     const charId = activeCharacter?.id || "default-char";
     props.key = `iframe-${charId}-${messageIndex !== undefined ? messageIndex : "temp"}-${index}`;
+    
+    // Force transparent background on message iframes to match theme
+    props.style = {
+      ...(props.style || {}),
+      background: "transparent",
+    };
+    
+    // Normalize minHeight from 400px to 40px to support collapsed state
+    if (props.style && (props.style.minHeight === "400px" || props.style.minHeight === 400)) {
+      props.style.minHeight = "40px";
+    }
+
+    // Set transparency attributes for compatibility with older WebKit/WebView engines
+    props.allowtransparency = "true";
+    props.allowTransparency = "true";
   }
 
   const children = Array.from(element.childNodes).map((child, i) => 
@@ -229,7 +253,8 @@ function parseSafeHtmlToReact(
   enableAsteriskFormatting: boolean,
   enableScriptExecution: boolean,
   activeCharacter: any,
-  messageIndex?: number
+  messageIndex?: number,
+  libsReady?: boolean
 ): React.ReactNode {
   try {
     const parser = new DOMParser();
@@ -238,7 +263,7 @@ function parseSafeHtmlToReact(
     if (!container) return html;
 
     return Array.from(container.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady)
     );
   } catch (err) {
     console.error("Failed to parse HTML safely:", err);
@@ -347,18 +372,40 @@ function preprocessFormattedText(
     }
   }
 
-  // 3. Wrap ```html ... ``` blocks in sandboxed iframes
+  // 3. Wrap code blocks in sandboxed iframes
+  //    匹配两种格式：
+  //    a) ```html ... ``` - 显式 HTML 代码块
+  //    b) ``` ... ```      - 普通代码块，但内容以 HTML 标签（< 开头）时也作为 HTML 渲染
+  //    角色卡正则的 replaceString 通常产出的是格式 b（SillyTavern 兼容格式）
   if (enableScriptExecution) {
-    const codeBlockRegex = /```html\s*([\s\S]*?)\s*```/gi;
-    processed = processed.replace(codeBlockRegex, (match, htmlContent) => {
-      // Compile into standard message iframe wrapper
+    // 先处理显式 ```html 块
+    const htmlCodeBlockRegex = /```html\s*([\s\S]*?)\s*```/gi;
+    processed = processed.replace(htmlCodeBlockRegex, (_match, htmlContent) => {
       const compiledSrcdoc = createMessageIframeSrcDoc(htmlContent, messageIndex);
       const escapedHtml = compiledSrcdoc
         .replace(/&/g, "&amp;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
       const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 400px; border: none; display: block;" class="w-full mvu-message-iframe"></iframe>`;
+      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent;" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+    });
+
+    // 再处理普通 ``` 块，但仅当内容以 HTML 标签开头时才转为 iframe
+    const plainCodeBlockRegex = /```\s*([\s\S]*?)\s*```/g;
+    processed = processed.replace(plainCodeBlockRegex, (_match, codeContent) => {
+      const trimmedContent = codeContent.trim();
+      // 内容以 < 开头（HTML 标签），当作 HTML 渲染
+      if (trimmedContent.startsWith("<")) {
+        const compiledSrcdoc = createMessageIframeSrcDoc(trimmedContent, messageIndex);
+        const escapedHtml = compiledSrcdoc
+          .replace(/&/g, "&amp;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+        const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
+        return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent;" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+      }
+      // 非 HTML 内容：保持原始代码块渲染
+      return _match;
     });
   }
 
@@ -412,6 +459,28 @@ const FormattedText = memo(function FormattedText({
   const enableHtml = context.settings.enableHtmlRendering ?? true;
   const enableScriptExecution = !!context.settings.enableScriptExecution;
   const activeCharacter = context.activeCharacter;
+
+  const [libsReady, setLibsReady] = useState(false);
+
+  React.useEffect(() => {
+    if (!enableScriptExecution) {
+      setLibsReady(true);
+      return;
+    }
+    let isMounted = true;
+    const checkLibs = () => {
+      const w = window as any;
+      if (w.TavernHelperMvuLibs?.defineStore && w._) {
+        if (isMounted) setLibsReady(true);
+      } else {
+        setTimeout(checkLibs, 50);
+      }
+    };
+    checkLibs();
+    return () => {
+      isMounted = false;
+    };
+  }, [enableScriptExecution]);
   // 优先取角色卡 visualSettings 中的显式声明（true/false）；
   // 若角色卡未配置（undefined），则回退到全局 settings.enableAsteriskFormatting。
   const enableAsteriskFormatting = activeCharacter?.visualSettings?.enableAsteriskFormatting !== undefined
@@ -438,7 +507,7 @@ const FormattedText = memo(function FormattedText({
   if (hasHtml) {
     renderedContent = (
       <span className={`block whitespace-pre-wrap leading-relaxed ${className}`}>
-        {parseSafeHtmlToReact(processed, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex)}
+        {parseSafeHtmlToReact(processed, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady)}
       </span>
     );
   } else {

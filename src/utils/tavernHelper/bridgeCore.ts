@@ -24,6 +24,7 @@ import { compare } from "compare-versions";
 import JSON5 from "json5";
 import { jsonrepair } from "jsonrepair";
 import type { CardRuntimeBridgeParams } from "./CardRuntimeAdapter";
+import { parseMvuMessage } from "./mvuParser";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 类型定义
@@ -278,6 +279,19 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
     variables.stat_data = {};
   }
 
+  // 额外初始化：从开场白 first_mes 的 <initvar> 标签中提取变量声明
+  if (character.first_mes) {
+    try {
+      const parsedVars = parseMvuMessage(character.first_mes, variables);
+      if (parsedVars && parsedVars.stat_data) {
+        variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
+      }
+    } catch (e) {
+      console.warn("[initializeMvuFromCharacter] Failed to parse first_mes initvars:", e);
+    }
+  }
+
+  console.log("[TavernHelper Bridge] initializeMvuFromCharacter initialized variables:", JSON.stringify(variables));
   return variables;
 }
 

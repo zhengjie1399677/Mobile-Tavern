@@ -16,12 +16,43 @@ const HiddenScriptLayer = ({
   activeCharacter,
   announcement,
 }: HiddenScriptLayerProps) => {
+  const [libsReady, setLibsReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const checkLibs = () => {
+      const w = window as any;
+      const hasScripts = activeCharacter && (
+        (Array.isArray(activeCharacter.extensions?.tavern_helper?.scripts) && 
+         activeCharacter.extensions.tavern_helper.scripts.length > 0) ||
+        activeCharacter.extensions?.mvu_settings ||
+        activeCharacter.extensions?.mvu ||
+        activeCharacter.extensions?.MVU
+      );
+
+      if (!hasScripts) {
+        if (isMounted) setLibsReady(true);
+        return;
+      }
+
+      if (w.TavernHelperMvuLibs?.defineStore && w._) {
+        if (isMounted) setLibsReady(true);
+      } else {
+        setTimeout(checkLibs, 50);
+      }
+    };
+    checkLibs();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeCharacter]);
+
   return (
     <>
       {/* Hidden background script runtimes for TavernHelper compatibility */}
       {/* MVU compatibility: #tavern_helper container with data-script-id elements */}
       <div id="tavern_helper" style={{ display: "none" }} aria-hidden="true">
-        {settings.enableScriptExecution &&
+        {libsReady && settings.enableScriptExecution &&
           activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
             if (script.enabled && script.content) {
               return (
@@ -35,7 +66,7 @@ const HiddenScriptLayer = ({
             return null;
           })}
       </div>
-      {settings.enableScriptExecution &&
+      {libsReady && settings.enableScriptExecution &&
         activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
           if (script.enabled && script.content) {
             const srcDoc = createScriptIframeSrcDoc(script.content, script.id);

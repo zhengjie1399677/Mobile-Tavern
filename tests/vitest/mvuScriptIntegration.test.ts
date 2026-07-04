@@ -25,6 +25,8 @@ import {
   extractXmlMvuCommands,
   detectJsonPatch,
   parseMvuMessage,
+  parseNestedYaml,
+  deepMerge,
 } from "../../src/utils/tavernHelper";
 
 // 构建最小 Kernel 实例用于服务注册
@@ -522,5 +524,83 @@ describe("parseMvuMessage (enhanced)", () => {
     const original = { stat_data: { hp: 100 } };
     parseMvuMessage('_.set("hp", 50);', original);
     expect(original.stat_data.hp).toBe(100);
+  });
+});
+
+describe("parseNestedYaml & deepMerge & XML YAML fallbacks", () => {
+  it("parseNestedYaml 应该正确解析缩进式 YAML", () => {
+    const yamlStr = `
+stat_data:
+  好感度: 80
+  _依存度: 0
+  角色名册:
+    萧曦月:
+      好感度: 95
+      _关系: 师徒
+    叶书篱:
+      好感度: 60
+`;
+    const parsed = parseNestedYaml(yamlStr);
+    expect(parsed.stat_data.好感度).toBe(80);
+    expect(parsed.stat_data._依存度).toBe(0);
+    expect(parsed.stat_data.角色名册.萧曦月.好感度).toBe(95);
+    expect(parsed.stat_data.角色名册.萧曦月._关系).toBe("师徒");
+    expect(parsed.stat_data.角色名册.叶书篱.好感度).toBe(60);
+  });
+
+  it("deepMerge 应该正确深度合并对象", () => {
+    const target = {
+      hp: 100,
+      sub: {
+        x: 1,
+        y: 2,
+      }
+    };
+    const source = {
+      mp: 50,
+      sub: {
+        y: 20,
+        z: 3,
+      }
+    };
+    const result = deepMerge(target, source);
+    expect(result.hp).toBe(100);
+    expect(result.mp).toBe(50);
+    expect(result.sub.x).toBe(1);
+    expect(result.sub.y).toBe(20);
+    expect(result.sub.z).toBe(3);
+  });
+
+  it("parseMvuMessage 应该正确解析消息中的 XML 嵌套 YAML", () => {
+    const msg = `<initvar>
+好感度: 80
+_依存度: 10
+sub:
+  val: true
+</initvar>`;
+    const oldData = {
+      stat_data: {
+        好感度: 50,
+        other: "keep"
+      }
+    };
+    const result = parseMvuMessage(msg, oldData);
+    expect(result.stat_data.好感度).toBe(80);
+    expect(result.stat_data._依存度).toBe(10);
+    expect(result.stat_data.other).toBe("keep");
+    expect(result.stat_data.sub.val).toBe(true);
+  });
+
+  it("initializeMvuFromCharacter 应该在 extensions 无配置时 fallback 解析 first_mes 中的 initvar", () => {
+    const char = {
+      name: "叶家",
+      first_mes: `<initvar>
+好感度: 85
+_依存度: 15
+</initvar>`
+    };
+    const result = initializeMvuFromCharacter(char as any);
+    expect(result.stat_data.好感度).toBe(85);
+    expect(result.stat_data._依存度).toBe(15);
   });
 });
