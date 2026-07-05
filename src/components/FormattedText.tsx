@@ -184,14 +184,16 @@ function domToReact(
         }
         
         // Diagnostic: log the srcdoc length and whether it was processed by createMessageIframeSrcDoc
-        const hasThBridgeInject = resolvedSrcdoc.includes('TavernHelper');
-        const hasJQueryShim = resolvedSrcdoc.includes('makeResult') || resolvedSrcdoc.includes('realJQ');
-        console.log('[FormattedText] srcdoc set on iframe:', {
-          len: resolvedSrcdoc.length,
-          hasThBridgeInject,
-          hasJQueryShim,
-          preview: resolvedSrcdoc.substring(0, 120),
-        });
+        if (import.meta.env.DEV) {
+          const hasThBridgeInject = resolvedSrcdoc.includes('TavernHelper');
+          const hasJQueryShim = resolvedSrcdoc.includes('makeResult') || resolvedSrcdoc.includes('realJQ');
+          console.log('[FormattedText] srcdoc set on iframe:', {
+            len: resolvedSrcdoc.length,
+            hasThBridgeInject,
+            hasJQueryShim,
+            preview: resolvedSrcdoc.substring(0, 120),
+          });
+        }
         
         props.srcDoc = resolvedSrcdoc;
       } else {
@@ -202,7 +204,8 @@ function domToReact(
 
   // Force strict sandboxing for iframe tags
   if (tagName === "iframe") {
-    props.sandbox = "allow-scripts allow-same-origin allow-modals";
+    // allow-popups: 支持卡片内 target="_blank" 链接；allow-popups-to-escape-sandbox: 弹窗回归父级安全上下文
+    props.sandbox = "allow-scripts allow-same-origin allow-modals allow-popups allow-popups-to-escape-sandbox";
     if (!props.id && messageIndex !== undefined) {
       props.id = `TH-msg-iframe-${messageIndex}`;
       props.name = `TH-msg-iframe-${messageIndex}`;
@@ -210,12 +213,15 @@ function domToReact(
     // Force React to destroy and recreate the iframe element when the character or message context changes
     const charId = activeCharacter?.id || "default-char";
     props.key = `iframe-${charId}-${messageIndex !== undefined ? messageIndex : "temp"}-${index}`;
-    
-    // Force transparent background and GPU acceleration on message iframes
+
+    // Force transparent background, full width, no border and GPU acceleration on message iframes
     props.style = {
       ...(props.style || {}),
       background: "transparent",
       backgroundColor: "transparent",
+      border: "none",
+      width: "100%",
+      maxWidth: "100%",
       willChange: "transform",
       transform: "translate3d(0, 0, 0)",
     };

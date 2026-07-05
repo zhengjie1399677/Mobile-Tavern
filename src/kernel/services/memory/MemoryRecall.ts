@@ -68,6 +68,8 @@ export class MemoryRecall {
     currentMessage: string,
     options?: RecallOptions
   ): Promise<RecalledMessage[]> {
+    const isDev = import.meta.env?.DEV ?? false;
+
     // 1. 提取查询标签
     const dict = await this.storage.getDictBySession(sessionId);
     const queryTags = extractByDict(currentMessage, dict);
@@ -81,17 +83,32 @@ export class MemoryRecall {
     }
     const pinnedIds = sessionObj?.pinnedMessageIds || [];
 
+    if (isDev) {
+      console.log("[MemoryRecall] recall 入口:", {
+        sessionId,
+        messageLen: currentMessage?.length ?? 0,
+        dictSize: dict.length,
+        queryTags,
+        pinnedIds: pinnedIds.length,
+        topK: options?.topK,
+      });
+    }
+
     if (queryTags.length === 0 && pinnedIds.length === 0) {
       // E-1 修复：泛指问句召回兜底
-      // 当无查询标签且无 Pin 时，回退召回"最近 excludeRecentN 轮外的最新 1 条"，
-      // 避免用户问"还记得我们昨天聊了什么"时完全无召回。
-      // 兜底消息 score=0（明确标记为兜底，上层可按 score 判断是否使用），
-      // 仍受 Mute 机制约束、仍排除最近 N 轮（避免与 recentTurns 上下文重复）。
-      return this.fallbackRecallRecent(sessionId, options);
+      const fallbackResult = await this.fallbackRecallRecent(sessionId, options);
+      if (isDev) {
+        console.log("[MemoryRecall] 走兜底路径，结果:", fallbackResult.length, "条");
+      }
+      return fallbackResult;
     }
 
     // 2. 按标签召回
-    return this.recallByTags(sessionId, queryTags, options);
+    const tagResult = await this.recallByTags(sessionId, queryTags, options);
+    if (isDev) {
+      console.log("[MemoryRecall] 走标签召回，结果:", tagResult.length, "条，tags:", queryTags);
+    }
+    return tagResult;
   }
 
   /**
@@ -109,11 +126,16 @@ export class MemoryRecall {
     sessionId: string,
     options?: RecallOptions
   ): Promise<RecalledMessage[]> {
-    const excludeRecentN = Math.max(0, options?.excludeRecentN ?? DEFAULT_EXCLUDE_RECENT_N);
+    const rawExcludeN = Math.max(0, options?.excludeRecentN ?? DEFAULT_EXCLUDE_RECENT_N);
     const currentTurnIndex = await this.resolveCurrentTurnIndex(sessionId, options?.currentTurnIndex);
 
+    // 自适应排除：小会话时降低 excludeRecentN，避免新会话前 N 轮完全无召回。
+    // 策略：至少保留 1 条候选可用，排除数不超过 currentTurnIndex - 1。
+    // 例：currentTurnIndex=3 → excludeRecentN=min(5, 2)=2，排除最近 2 轮，保留 1 条。
+    const excludeRecentN = Math.min(rawExcludeN, Math.max(0, currentTurnIndex - 1));
+
     // 加载最近消息（生产环境用 limit + descending 走复合索引高效路径）
-    const limit = Math.max(20, excludeRecentN + 5);
+    const limit = Math.max(20, rawExcludeN + 5);
     const recentMessages = await this.storage.getMessagesBySession(sessionId, {
       limit,
       descending: true,

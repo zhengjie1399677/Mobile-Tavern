@@ -4,26 +4,25 @@
  * 此文件为唯一的公共入口，将各子模块的公共 API 统一 re-export。
  * 外部消费者通过 `from "../utils/tavernHelper"` 或 `from "../../src/utils/tavernHelper"` 导入。
  *
- * 模块依赖拓扑（单向，无循环）：
+ * 模块依赖拓扑（经 grep 验证，单向无静态循环）：
  *
- *   bridgeCore ──→ tavernHelperMocks ──→ zodMock
- *        │               │
- *        │               └──→ mvuParser
- *        │
- *        └──→ scriptIframe（独立，?raw 导入）
+ *   tavernHelperMocks ──→ bridgeCore ──→ mvuParser
+ *        │                   │
+ *        ├──→ zodMock        └──→ kernel/Kernel（事件总线 + registerBridge）
+ *        └──→ mvuParser
  *
- * 注意：tavernHelperMocks 的顶层 IIFE 在模块加载时立即注册 window.* 全局 Mock，
- * 此副作用通过下方的 import 语句自动触发。
+ *   scriptIframe ──→ esmReplacer + scriptPreprocessor（独立，?raw 导入）
+ *
+ * 注意：tavernHelperMocks 的全局 Mock 注册已改为显式调用 initTavernHelperMocks()，
+ * 由 initTavernHelperBridge() 在初始化时触发，不再通过副作用导入隐式执行。
  */
-
-// 触发 window 全局 Mock 注册（副作用导入）
-import "./tavernHelperMocks";
 
 // ── 状态与生命周期 ──────────────────────────────────────────────────────────
 export type { TavernHelperBridgeParams } from "./bridgeCore";
 export {
   initTavernHelperBridge,
   cleanTavernHelperBridge,
+  getBridgeInterface,
   notifyVariablesUpdated,
   initializeMvuFromCharacter,
   hasCardScripts,
@@ -36,9 +35,12 @@ export {
   getBridgeParams,
 } from "./bridgeCore";
 
+// ── 全局 Mock 初始化 ────────────────────────────────────────────────────────
+export { initTavernHelperMocks } from "./tavernHelperMocks";
+
 // ── Iframe 工厂与脚本预处理 ─────────────────────────────────────────────────
+export { preprocessScriptContent } from "./scriptPreprocessor";
 export {
-  preprocessScriptContent,
   createScriptIframeSrcDoc,
   createMessageIframeSrcDoc,
 } from "./scriptIframe";

@@ -1,8 +1,8 @@
 /**
  * TavernHelper Bridge 集成测试
  *
- * 因 tavernHelperBridge.ts 在模块加载时通过静态初始化块（if typeof window !== "undefined"）
- * 注入大量全局 Mock（window.$、window.z、window.TavernHelper、window.SillyTavern 等），
+ * tavernHelperMocks.ts 通过显式调用 initTavernHelperMocks() 注册全局 Mock
+ * （window.$、window.z、window.TavernHelper、window.SillyTavern 等），
  * 本测试在 happy-dom 环境（提供完整 window/document）下验证：
  *
  * 1. MVU 脚本预处理 (preprocessScriptContent)：CDN import 替换为本地查找
@@ -21,11 +21,15 @@ import { describe, it, expect, beforeAll } from "vitest";
 // ------------------------------------------------------------------
 
 describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
-  // window.z 在 tavernHelperBridge 模块加载时由静态初始化块创建
-  // happy-dom 下 window 存在，模块 import 会触发初始化
+  // window.z 由 initTavernHelperMocks() 显式注册
+  // happy-dom 下 window 存在，调用 initTavernHelperMocks() 触发初始化
+
+  beforeAll(async () => {
+    const { initTavernHelperMocks } = await import("../../src/utils/tavernHelper");
+    initTavernHelperMocks();
+  });
 
   it("window.z 全局对象存在且可链式调用", async () => {
-    // 静态 import 会触发 tavernHelperBridge 的顶层初始化块
     await import("../../src/utils/tavernHelper");
 
     const z = (window as any).z;
@@ -179,6 +183,11 @@ const x = 1;
 });
 
 describe("TavernHelper Bridge - 全局对象契约", () => {
+  beforeAll(async () => {
+    const { initTavernHelperMocks } = await import("../../src/utils/tavernHelper");
+    initTavernHelperMocks();
+  });
+
   it("window.TavernHelper 存在且包含核心绑定", async () => {
     await import("../../src/utils/tavernHelper");
     const TH = (window as any).TavernHelper;

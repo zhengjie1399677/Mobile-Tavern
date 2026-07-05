@@ -4,6 +4,7 @@
 import React from "react";
 
 import { createScriptIframeSrcDoc } from "../../utils/tavernHelper";
+import { globalKernel } from "../../kernel/Kernel";
 
 interface HiddenScriptLayerProps {
   settings: any;
@@ -23,7 +24,7 @@ const HiddenScriptLayer = ({
     const checkLibs = () => {
       const w = window as any;
       const hasScripts = activeCharacter && (
-        (Array.isArray(activeCharacter.extensions?.tavern_helper?.scripts) && 
+        (Array.isArray(activeCharacter.extensions?.tavern_helper?.scripts) &&
          activeCharacter.extensions.tavern_helper.scripts.length > 0) ||
         activeCharacter.extensions?.mvu_settings ||
         activeCharacter.extensions?.mvu ||
@@ -46,6 +47,40 @@ const HiddenScriptLayer = ({
       isMounted = false;
     };
   }, [activeCharacter]);
+
+  // ── iframe 生命周期清理协议 ──────────────────────────────────────────────────
+  // 遵循 AGENTS.md 准则十.4（彻底回收）：
+  // 监听 kernel 消息总线的 script:destroyed / script:bridgeCleaned 事件，
+  // 主动从 DOM 中移除所有 TH-script-- 前缀的 iframe 元素，释放 browsing context
+  // 与挂起的异步任务，防止 ScriptService 销毁或 bridge 清理后 iframe 残留导致的资源泄漏。
+  React.useEffect(() => {
+    const cleanupIframes = () => {
+      try {
+        const iframes = document.querySelectorAll('iframe[id^="TH-script--"]');
+        iframes.forEach((iframe) => {
+          const el = iframe as HTMLIFrameElement;
+          // 先重置 src 以终止 iframe 内的脚本执行与网络请求
+          try { el.src = "about:blank"; } catch {}
+          // 再从 DOM 移除以释放 browsing context
+          el.remove();
+        });
+      } catch {
+        // 静默降级，避免清理流程影响主渲染
+      }
+    };
+
+    const unsubDestroyed = globalKernel.subscribe("script:destroyed", () => {
+      cleanupIframes();
+    });
+    const unsubBridgeCleaned = globalKernel.subscribe("script:bridgeCleaned", () => {
+      cleanupIframes();
+    });
+
+    return () => {
+      unsubDestroyed();
+      unsubBridgeCleaned();
+    };
+  }, []);
 
   return (
     <>

@@ -456,7 +456,9 @@ export async function saveSession(session: ChatSession): Promise<void> {
                   role: msg.sender === "user" ? "user" as const : "assistant" as const,
                   content: msg.content,
                   createdAt: msg.timestamp || Date.now(),
-                  turnIndex: idx,
+                  // 保留已有 turnIndex（由 MemoryExtractor 写入），避免消息删除后 turnIndex 错乱；
+                  // 仅对新消息使用数组下标作为初始值
+                  turnIndex: existingRecord?.turnIndex ?? idx,
                   tags: existingRecord?.tags || (msg as any).tags || [],
                   extractSource: existingRecord?.extractSource || (msg as any).extractSource || "none",
                   metadata: (msg as any).metadata || msg.extra || existingRecord?.metadata,

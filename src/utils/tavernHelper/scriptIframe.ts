@@ -1,213 +1,18 @@
 /**
- * scriptIframe.ts — MVU 脚本预处理与 Iframe 沙盒工厂
+ * scriptIframe.ts — Iframe 沙盒 HTML 工厂
  *
  * 职责：
- * - 对 MVU 框架脚本（mvu.js / mvu_zod.js / mvu_bundle.js）做 CDN 替换，生成离线可执行 IIFE
- * - preprocessScriptContent：对用户角色卡脚本中的 ESM CDN 导入做本地化替换
  * - createScriptIframeSrcDoc：构建完整的 MVU 脚本执行沙盒 HTML（含库注入、预定义桥接函数）
  * - createMessageIframeSrcDoc：为消息内嵌 HTML 构建安全沙盒（含 jQuery shim、高度自适应）
  *
- * 此模块依赖 Vite 的 ?raw 语法读取脚本文件内容，仅在 Vite 构建环境下可用。
- * Node.js 测试环境不应直接 import 此模块。
+ * ESM CDN 替换逻辑已拆至 esmReplacer.ts；
+ * 脚本预处理与懒求值缓存已拆至 scriptPreprocessor.ts。
+ * 遵循 AGENTS.md 准则一.6（单文件职责边界拆分）。
  */
 
-// Vite ?raw 语法：将脚本文件内容作为字符串导入
-import mvuBundleContent from "../mvu_bundle.js?raw";
-import mvuZodContent from "../mvu_zod.js?raw";
-import mvuContent from "../mvu.js?raw";
+import { getProcessedMvuZod, getProcessedMvu, getProcessedMvuBundle, preprocessScriptContent } from "./scriptPreprocessor";
 
-// ──────────────────────────────────────────────────────────────────────────────
-// 泛化 ESM CDN import 替换器（方案 B）
-// ──────────────────────────────────────────────────────────────────────────────
-
-/**
- * CDN 包配置描述符
- *
- * - type "named"     ：对应 `import { X as Y } from '...'` 形式
- * - type "namespace" ：对应 `import * as Z from '...'` 形式
- * - libKey            ：TavernHelperMvuLibs 上的属性名；为 null 时直接解构整个对象
- * - defaultAlias      ：`default as X` 时 default 对应的 libKey 名（如 "JSON5"）
- */
-interface CdnLibConfig {
-  type: "named" | "namespace";
-  libKey: string | null;
-  defaultAlias?: string;
-}
-
-/**
- * 通用 ESM CDN import 替换器
- *
- * 对 code 中所有符合 jsdelivr CDN URL 格式的 ESM import 语句，
- * 根据 libMap 动态解析绑定关系并生成等价的 const 赋值语句。
- * 与具体 minified 变量名完全无关，bundle 重新构建后自动适配。
- *
- * 支持的 import 形式：
- *   - `import { X as localName, Y as localName2 } from 'CDN_URL'`
- *   - `import * as localName from 'CDN_URL'`
- *   - `import { default as localName } from 'CDN_URL'`（通过 defaultAlias 映射）
- */
-function replaceEsmImports(code: string, libMap: Record<string, CdnLibConfig>): string {
-  // 匹配 CDN URL 中的包名（含 scope，如 @scope/pkg）
-  const CDN_PKG_RE = /https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/([^/@][^/]*|@[^/]+\/[^/]+)(?:@[^/]+)?\/\+esm/;
-
-  // 替换 `import * as Z from '...'`（namespace import）
-  code = code.replace(
-    /import\s*\*\s*as\s+(\w+)\s+from\s*['"]([^'"]+)['"]/g,
-    (_match, localName: string, url: string) => {
-      const pkgMatch = url.match(CDN_PKG_RE);
-      if (!pkgMatch) return _match;
-      const pkgName = pkgMatch[1];
-      const cfg = libMap[pkgName];
-      if (!cfg || cfg.type !== "namespace") return _match;
-      const prop = cfg.libKey ?? pkgName;
-      return `const ${localName} = window.parent.TavernHelperMvuLibs.${prop};`;
-    }
-  );
-
-  // 替换 `import { X as Y, ... } from '...'`（named import）
-  code = code.replace(
-    /import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g,
-    (_match, bindingsStr: string, url: string) => {
-      const pkgMatch = url.match(CDN_PKG_RE);
-      if (!pkgMatch) return _match;
-      const pkgName = pkgMatch[1];
-      const cfg = libMap[pkgName];
-      if (!cfg || cfg.type !== "named") return _match;
-
-      // 解析每个绑定 "origName as localName" 或 "name"
-      const bindings = bindingsStr.split(",").map((s) => s.trim()).filter(Boolean);
-      const parts = bindings.map((binding) => {
-        const asMatch = binding.match(/^(\S+)\s+as\s+(\S+)$/);
-        if (asMatch) {
-          const [, origName, localName] = asMatch;
-          // `default as X` 需要映射到 defaultAlias 指定的 key
-          if (origName === "default") {
-            const alias = cfg.defaultAlias ?? pkgName;
-            return `${alias}: ${localName}`;
-          }
-          return `${origName}: ${localName}`;
-        }
-        // 无别名，直接使用原名
-        return binding;
-      });
-
-      // libKey 非 null：该包只暴露单一值（如 klona），直接取属性
-      if (cfg.libKey) {
-        const singleMatch = bindings[0]?.match(/^(?:\S+)\s+as\s+(\S+)$/);
-        const localName = singleMatch?.[1];
-        if (localName) {
-          return `const ${localName} = window.parent.TavernHelperMvuLibs.${cfg.libKey};`;
-        }
-      }
-
-      // 多导出或无 libKey：直接从 TavernHelperMvuLibs 解构
-      return `const { ${parts.join(", ")} } = window.parent.TavernHelperMvuLibs;`;
-    }
-  );
-
-  return code;
-}
-
-// MVU bundle / mvu / mvu_zod 共用的 libMap 配置
-const MVU_LIB_MAP: Record<string, CdnLibConfig> = {
-  "klona":            { type: "named",     libKey: "klona"        },
-  "pinia":            { type: "named",     libKey: null           },
-  "compare-versions": { type: "named",     libKey: null           },
-  "json5":            { type: "named",     libKey: null,  defaultAlias: "JSON5" },
-  "jsonrepair":       { type: "named",     libKey: null           },
-  "mathjs":           { type: "namespace", libKey: "math"         },
-};
-
-// ──────────────────────────────────────────────────────────────────────────────
-// 预处理懒求值：首次调用才计算，之后缓存。
-// 避免模块导入时立即处理 ~39KB bundle 内容，
-// 对不使用脚本的纯对话卡无负担。
-// ──────────────────────────────────────────────────────────────────────────────
-
-let _processedMvuZod: string | null = null;
-let _processedMvu: string | null = null;
-let _processedMvuBundle: string | null = null;
-
-/** 预处理 mvu_zod 脚本：移除 ES 模块 export 声明并包裹为 IIFE（懒求值） */
-function getProcessedMvuZod(): string {
-  if (_processedMvuZod !== null) return _processedMvuZod;
-  _processedMvuZod = `(function(){\n  ${mvuZodContent
-    .replace(/export\s*\{\s*s\s*as\s*registerMvuSchema\s*\};?/g, "")
-    .replace(/\/\/#\s*sourceMappingURL=.*/g, "")}\n})();`;
-  return _processedMvuZod;
-}
-
-/** 预处理 mvu 脚本：泛化替换 pinia CDN import 后包裹为 IIFE（懒求值） */
-function getProcessedMvu(): string {
-  if (_processedMvu !== null) return _processedMvu;
-  _processedMvu = `(function(){\n  ${replaceEsmImports(mvuContent, { "pinia": { type: "named", libKey: null } })
-    .replace(/\bexport\s*\{\s*(\w+)\s+as\s+defineMvuDataStore\s*\};?/g, (_m, local) =>
-      `window.defineMvuDataStore = ${local};`
-    )}\n})();`;
-  return _processedMvu;
-}
-
-/** 预处理 mvu_bundle 脚本：泛化替换所有 CDN import 后包裹为 IIFE（懒求值） */
-function getProcessedMvuBundle(): string {
-  if (_processedMvuBundle !== null) return _processedMvuBundle;
-  _processedMvuBundle = `(function(){\n  ${replaceEsmImports(
-    mvuBundleContent.replace(/\/\/#\s*sourceMappingURL=.*/g, ""),
-    MVU_LIB_MAP
-  )}\n})();`;
-  return _processedMvuBundle;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// 脚本内容预处理：将角色卡脚本中的 CDN 导入替换为本地查找
-// ──────────────────────────────────────────────────────────────────────────────
-
-export function preprocessScriptContent(content: string): string {
-  let processed = content;
-
-  // 1. 移除 MVU bundle 的 side-effect import（bundle 已在沙盒中预加载）
-  processed = processed.replace(
-    /import\s*['"][^'"]*bundle(?:\.js)?['"];?/g,
-    `// 本地 MVU bundle 已预加载`
-  );
-
-  // 2. 替换 mvu_zod 的具名导入为 window.registerMvuSchema
-  processed = processed.replace(
-    /import\s*\{[^}]*registerMvuSchema[^}]*\}\s*from\s*['"][^'"]*mvu_zod[^'"]*['"];?/g,
-    `const registerMvuSchema = window.registerMvuSchema;`
-  );
-
-  // 3. 替换 mvu 框架导入（CDN URL 与相对路径两种形式统一处理）
-  processed = processed.replace(
-    /import\s*\{([^}]+)\}\s*from\s*['"](?:https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/mvu(?:\.js)?\/\+esm|[^'"]*mvu(?:\.js)?)['"];?/g,
-    (_match, importsStr: string) => {
-      const parts = importsStr.split(",").map((p: string) => {
-        const item = p.trim();
-        const asMatch = item.match(/^(\S+)\s+as\s+(\S+)$/);
-        if (asMatch) {
-          const [, orig, alias] = asMatch;
-          if (orig === "default" || orig === "defineMvuDataStore") {
-            return `defineMvuDataStore: ${alias}`;
-          }
-          return `${orig}: ${alias}`;
-        }
-        return item;
-      });
-      return `const { ${parts.join(", ")} } = { defineMvuDataStore: window.defineMvuDataStore };`;
-    }
-  );
-
-  // 4. 泛化替换 jsdelivr CDN 上的所有 named / namespace import
-  processed = replaceEsmImports(processed, MVU_LIB_MAP);
-
-  // 5. 清理 ES 模块 export 声明（卡片脚本运行在同步沙盒中，不支持 export）
-  processed = processed.replace(/\bexport\s+(const|let|var|function|class)\b/g, "$1");
-  processed = processed.replace(/\bexport\s*\{[^}]*\};?/g, "");
-  processed = processed.replace(/\bexport\s+default\b/g, "");
-
-  return processed;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────             ─────────────────────────────────────────────────────────
 // 脚本执行沙盒 Iframe HTML 生成
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -240,6 +45,10 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   window.onunhandledrejection = function(event) {
     console.error("[TH Iframe Unhandled Rejection]:", event.reason);
   };
+  // Debug 日志仅在开发模式输出，生产环境静默（error 始终保留）
+  var __TH_DEBUG = ${import.meta.env.DEV ? 'true' : 'false'};
+  var __thLog = __TH_DEBUG ? console.log.bind(console) : function(){};
+  var __thWarn = __TH_DEBUG ? console.warn.bind(console) : function(){};
   // ─── Step 1: inherit libraries from parent window (NO external CDN requests) ───
   // This avoids network slowdowns/errors when developer proxy blocks CDN domains.
   window._ = window.parent._;
@@ -248,7 +57,7 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   // This is critical for MVU bundle's listenPreferenceState which uses $('#tavern_helper')
   // to find script elements - those elements exist in the parent window, not the iframe.
   var parentDollar = window.parent.$ || window.parent.jQuery;
-  console.log('[TH Bridge Debug] Step 1 - parent.$ available:', !!parentDollar);
+  __thLog('[TH Bridge Debug] Step 1 - parent.$ available:', !!parentDollar);
   if (parentDollar) {
     // Create a wrapper that always searches in parent document
     window.$ = window.jQuery = function(selector, context) {
@@ -267,23 +76,23 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
         window.$[key] = parentDollar[key];
       }
     }
-    console.log('[TH Bridge Debug] Step 1 - jQuery wrapper created');
+    __thLog('[TH Bridge Debug] Step 1 - jQuery wrapper created');
     // Test jQuery wrapper
     try {
       var testResult = window.$('#tavern_helper');
-      console.log('[TH Bridge Debug] Step 1 - jQuery test #tavern_helper found:', testResult.length, 'elements');
+      __thLog('[TH Bridge Debug] Step 1 - jQuery test #tavern_helper found:', testResult.length, 'elements');
       if (testResult.length > 0) {
-        console.log('[TH Bridge Debug] Step 1 - First element tag:', testResult[0].tagName);
+        __thLog('[TH Bridge Debug] Step 1 - First element tag:', testResult[0].tagName);
       }
       // Also test direct parent $ call
       var directResult = parentDollar('#tavern_helper', window.parent.document);
-      console.log('[TH Bridge Debug] Step 1 - Direct parent.$ test found:', directResult.length, 'elements');
+      __thLog('[TH Bridge Debug] Step 1 - Direct parent.$ test found:', directResult.length, 'elements');
     } catch(e) {
       console.error('[TH Bridge Debug] Step 1 - jQuery test failed:', e);
     }
   } else {
     window.$ = window.jQuery = null;
-    console.warn('[TH Bridge Debug] Step 1 - parent.$ not available!');
+    __thWarn('[TH Bridge Debug] Step 1 - parent.$ not available!');
   }
   // Expose global TavernHelper mock APIs immediately to prevent ReferenceErrors in Step 1.5
   window.z = window.parent.z || null;
@@ -304,10 +113,10 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   // NOTE: TH._bind keys have underscore prefix (e.g. _getScriptId), but MVU bundle calls them without underscore.
   (function() {
     var TH = window.parent.TavernHelper;
-    console.log('[TH Bridge Debug] Step 1 - TavernHelper available:', !!TH);
-    console.log('[TH Bridge Debug] Step 1 - TH._bind available:', !!(TH && TH._bind));
+    __thLog('[TH Bridge Debug] Step 1 - TavernHelper available:', !!TH);
+    __thLog('[TH Bridge Debug] Step 1 - TH._bind available:', !!(TH && TH._bind));
     if (!TH || !TH._bind) {
-      console.warn('[TH Bridge Debug] Step 1 - TH._bind not available, MVU functions will not be pre-defined');
+      __thWarn('[TH Bridge Debug] Step 1 - TH._bind not available, MVU functions will not be pre-defined');
       return;
     }
     var bind = TH._bind;
@@ -382,10 +191,10 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
         }
       })(name, funcMap[name]);
     }
-    console.log('[TH Bridge Debug] Step 1 - Defined', definedCount, 'MVU functions');
-    console.log('[TH Bridge Debug] Step 1 - getScriptId available:', typeof window.getScriptId === 'function');
+    __thLog('[TH Bridge Debug] Step 1 - Defined', definedCount, 'MVU functions');
+    __thLog('[TH Bridge Debug] Step 1 - getScriptId available:', typeof window.getScriptId === 'function');
     if (typeof window.getScriptId === 'function') {
-      console.log('[TH Bridge Debug] Step 1 - getScriptId() returns:', window.getScriptId());
+      __thLog('[TH Bridge Debug] Step 1 - getScriptId() returns:', window.getScriptId());
     }
   })();
 
@@ -598,6 +407,9 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
   const scriptInjects = `
 <script>
   window.__TH_MESSAGE_ID = ${messageIndex !== undefined ? messageIndex : 'undefined'};
+  var __TH_DEBUG = ${import.meta.env.DEV ? 'true' : 'false'};
+  var __thLog = __TH_DEBUG ? console.log.bind(console) : function(){};
+  var __thWarn = __TH_DEBUG ? console.warn.bind(console) : function(){};
 </script>
 <script>
   // ─── Inherit libraries from parent window (NO external CDN requests) ───
@@ -634,7 +446,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     }
 
     if (realJQ) {
-      console.info('[TH Message Iframe Debug] Successfully resolved real jQuery from parent/sibling.');
+      __thLog('[TH Message Iframe Debug] Successfully resolved real jQuery from parent/sibling.');
       // Bind real jQuery to this iframe's document so selectors search here
       window.$ = window.jQuery = function(selector, context) {
         if (typeof selector === 'function') {
@@ -656,7 +468,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       window.$.fn = realJQ.fn;
       window.$.event = realJQ.event;
     } else {
-      console.warn('[TH Message Iframe Debug] Falling back to lightweight vanilla jQuery shim.');
+      __thWarn('[TH Message Iframe Debug] Falling back to lightweight vanilla jQuery shim.');
       // Lightweight fallback: vanilla querySelector-based shim
       var makeResult = function(elements) {
         var arr = Array.prototype.slice.call(elements || []);
@@ -834,6 +646,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
   // adjust_iframe_height.js implementation
   (function () {
     var scheduled = false;
+    var heightInitialized = false;
     function measureAndPost() {
       scheduled = false;
       try {
@@ -847,6 +660,11 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
           // 仅当高度发生真实改变时，才执行 DOM 写入，防范过度重排
           if (currentHeight !== newHeightStr) {
             window.frameElement.style.height = newHeightStr;
+          }
+          // 高度自适应首次成功后，锁定 overflow:hidden 防止出现滚动条
+          if (!heightInitialized) {
+            body.style.overflow = 'hidden';
+            heightInitialized = true;
           }
         }
       } catch (e) {}
@@ -862,7 +680,20 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       }
     }
     window.addEventListener('load', throttledMeasure);
-    
+
+    // 兜底：若 1.5s 后高度仍为 0 或极小（ResizeObserver 失败/图片懒加载未完成），恢复 overflow:auto 防止内容被静默裁剪
+    setTimeout(function() {
+      try {
+        if (window.frameElement && !heightInitialized) {
+          var h = parseInt(window.frameElement.style.height, 10) || 0;
+          if (h < 10 && document.body) {
+            document.body.style.overflow = 'auto';
+            document.documentElement.style.overflow = 'auto';
+          }
+        }
+      } catch(e) {}
+    }, 1500);
+
     // 优先使用 ResizeObserver 监听 DOM 物理尺寸变化（能完美同步 CSS 过渡/折叠动画每一帧的高度）
     if (typeof ResizeObserver === 'function') {
       var resizeObserver = new ResizeObserver(throttledMeasure);
@@ -871,6 +702,10 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
           resizeObserver.observe(document.body);
           throttledMeasure();
         }
+      });
+      // 遵循 AGENTS.md 准则十.4（彻底回收）：iframe 卸载时断开 observer，防止内存泄漏
+      window.addEventListener('pagehide', function() {
+        try { resizeObserver.disconnect(); } catch(e) {}
       });
     } else {
       // 降级使用 MutationObserver
@@ -881,69 +716,90 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
           throttledMeasure();
         }
       });
+      // 遵循 AGENTS.md 准则十.4（彻底回收）：iframe 卸载时断开 observer，防止内存泄漏
+      window.addEventListener('pagehide', function() {
+        try { observer.disconnect(); } catch(e) {}
+      });
     }
   })();
 </script>
 <script>
   // ─── Theme / CSS variables synchronization from parent to iframe ───
   (function() {
+    var syncTimer = null;
     function syncTheme() {
       try {
         if (!window.parent) return;
-        var parentDoc = window.parent.document;
-        if (!parentDoc) return;
-        
-        // 1. 同步深色/浅色模式类名
-        var isDark = parentDoc.documentElement.classList.contains('dark');
-        if (isDark) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
-        
-        // 2. 同步父级 CSS 主题自定义变量到沙盒文档中
-        var parentStyles = window.parent.getComputedStyle(parentDoc.documentElement);
-        var variables = [
-          '--background', '--foreground', '--card', '--card-foreground',
-          '--popover', '--popover-foreground', '--primary', '--primary-foreground',
-          '--secondary', '--secondary-foreground', '--muted', '--muted-foreground',
-          '--accent', '--accent-foreground', '--destructive', '--destructive-foreground',
-          '--border', '--input', '--ring'
+        var pDoc = window.parent.document;
+        if (!pDoc) return;
+        // 1. 同步父级 documentElement 全部类名（覆盖 dark + Snow/Sand/Ocean 等主题切换类）
+        document.documentElement.className = pDoc.documentElement.className;
+        // 2. 同步 CSS 变量（扩展：圆角、字体、语义色、chart 色板）
+        var ps = window.parent.getComputedStyle(pDoc.documentElement);
+        var vars = [
+          '--background','--foreground','--card','--card-foreground','--popover','--popover-foreground',
+          '--primary','--primary-foreground','--secondary','--secondary-foreground','--muted','--muted-foreground',
+          '--accent','--accent-foreground','--destructive','--destructive-foreground','--border','--input','--ring',
+          '--radius','--radius-sm','--radius-md','--radius-lg','--radius-xl',
+          '--font-sans','--font-mono','--font-serif','--success','--warning','--info',
+          '--sidebar','--sidebar-foreground','--chart-1','--chart-2','--chart-3','--chart-4','--chart-5'
         ];
-        variables.forEach(function(v) {
-          var val = parentStyles.getPropertyValue(v);
-          if (val) {
-            document.documentElement.style.setProperty(v, val);
-          }
+        vars.forEach(function(v) {
+          var val = ps.getPropertyValue(v);
+          if (val) document.documentElement.style.setProperty(v, val);
         });
+        // 3. 同步字体族、字号、颜色到 body，避免 iframe 回退系统默认字体
+        if (ps.fontFamily) document.body.style.fontFamily = ps.fontFamily;
+        if (ps.fontSize) document.body.style.fontSize = ps.fontSize;
+        if (ps.color) document.body.style.color = ps.color;
       } catch (e) {
         console.warn('[TavernHelper Theme Sync] Failed:', e);
       }
     }
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      syncTheme();
-    } else {
-      document.addEventListener('DOMContentLoaded', syncTheme);
+    function throttledSync() {
+      if (syncTimer) clearTimeout(syncTimer);
+      syncTimer = setTimeout(syncTheme, 80);
     }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') syncTheme();
+    else document.addEventListener('DOMContentLoaded', syncTheme);
     window.addEventListener('load', syncTheme);
+    // 监听父级 documentElement 的 class/style 变化，主题切换时实时同步
+    try {
+      var obs = new MutationObserver(throttledSync);
+      obs.observe(window.parent.document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] });
+      if (window.parent.document.head) {
+        obs.observe(window.parent.document.head, { childList: true, subtree: true });
+      }
+      // 遵循 AGENTS.md 准则十.4（彻底回收）：
+      // 此 observer 持有父窗口 document 引用，必须在 iframe 卸载时显式 disconnect，
+      // 否则会阻止 iframe 的 browsing context 被 GC 回收，造成内存泄漏。
+      window.addEventListener('pagehide', function() {
+        try { obs.disconnect(); } catch(e) {}
+      });
+    } catch(e) {
+      console.warn('[TavernHelper Theme Sync] Observer setup failed:', e);
+    }
   })();
 </script>
 <style>
   *, *::before, *::after { box-sizing: border-box; }
-  html, body {
+  html {
     margin: 0 !important;
     padding: 0 !important;
-    overflow: hidden !important;
     max-width: 100% !important;
-    background: var(--card, #1a1a1a) !important;
-    background-color: var(--card, #1a1a1a) !important;
+  }
+  body {
+    margin: 0 !important;
+    max-width: 100% !important;
+    background: transparent !important;
+    background-color: transparent !important;
   }
 </style>
   `;
 
   if (hasHtmlTag) {
     let wrapped = processedHtml;
-    
+
     // Force inline transparency style on any body tag inside wrapped content
     wrapped = wrapped.replace(/<body\b([^>]*)>/gi, (match, bodyAttrs) => {
       if (/style\s*=\s*['"]/i.test(bodyAttrs)) {
@@ -953,12 +809,15 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       }
     });
 
+    // 仅当卡片未声明 viewport 时补充，避免移动端 vw/vh 单位失真与字体异常缩放
+    const needsViewport = !/name\s*=\s*['"]viewport['"]/i.test(wrapped);
+    const headInjects = `${needsViewport ? '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />' : ''}${scriptInjects}`;
     if (/<head>/i.test(wrapped)) {
-      wrapped = wrapped.replace(/<head>/i, `<head>${scriptInjects}`);
+      wrapped = wrapped.replace(/<head>/i, `<head>${headInjects}`);
     } else if (/<html>/i.test(wrapped)) {
-      wrapped = wrapped.replace(/<html>/i, `<html><head>${scriptInjects}</head>`);
+      wrapped = wrapped.replace(/<html>/i, `<html><head>${headInjects}</head>`);
     } else {
-      wrapped = `${scriptInjects}${wrapped}`;
+      wrapped = `${headInjects}${wrapped}`;
     }
     if (!wrapped.trim().toLowerCase().startsWith("<!doctype")) {
       wrapped = `<!DOCTYPE html>\n${wrapped}`;

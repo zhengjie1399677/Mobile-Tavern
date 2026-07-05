@@ -813,20 +813,26 @@ a,
   }
 }/* Ensure all MVU message iframes are transparent at the host CSS level */
 .mvu-message-iframe,
-iframe[class*="mvu-message-iframe"] {
+iframe[class*="mvu-message-iframe"],
+iframe[id^="TH-msg-iframe-"] {
   background-color: transparent !important;
   background: transparent !important;
   border: none !important;
   border-width: 0px !important;
   outline: none !important;
   box-shadow: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  display: block !important;
   will-change: transform;
   transform: translate3d(0, 0, 0);
 }
 
 /* 绕开 Chromium GPU 复合缺陷：对含有状态栏沙盒的消息气泡禁用 backdrop-filter 模糊，改用更高不透明底色防漏白 */
 .bubble-ai:has(.mvu-message-iframe),
-.bubble-user:has(.mvu-message-iframe) {
+.bubble-user:has(.mvu-message-iframe),
+.bubble-ai:has(iframe[id^="TH-msg-iframe-"]),
+.bubble-user:has(iframe[id^="TH-msg-iframe-"]) {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   background: color-mix(in oklch, var(--card) 90%, transparent) !important;

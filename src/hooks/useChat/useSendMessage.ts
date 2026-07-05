@@ -189,6 +189,13 @@ export function useSendMessage(p: SendMessageParams) {
             isBisonConsecutive ? "" : textToSend,
             { topK: recallTopK }
           );
+          if (import.meta.env?.DEV) {
+            console.log("[useSendMessage] 记忆召回完成:", recalledMemories.length, "条，topK:", recallTopK);
+          }
+        } else {
+          if (import.meta.env?.DEV) {
+            console.warn("[useSendMessage] memoryService 未注册，跳过召回");
+          }
         }
       } catch (err) {
         console.warn("[useSendMessage] Memory recall failed:", err);

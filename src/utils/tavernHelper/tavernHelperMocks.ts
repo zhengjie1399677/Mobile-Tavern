@@ -10,13 +10,14 @@
  * - SillyTavern 全局命名空间 Mock（含 getContext()）
  * - Mvu 全局框架 Mock（Model-View-Update 变量框架）
  *
- * 此模块通过顶层 IIFE 在加载时立即注册所有 window.* 全局 Mock，
- * 与原 tavernHelperBridge.ts 的静态初始化块行为完全一致。
+ * 初始化方式：通过显式调用 initTavernHelperMocks() 注册所有 window.* 全局 Mock，
+ * 由 initTavernHelperBridge() 在初始化时触发。
+ * 遵循 AGENTS.md 准则一.4（副作用隔离）：不再通过顶层 IIFE 隐式执行。
  *
  * 依赖关系（单向）：
- *   bridgeCore → tavernHelperMocks
- *   zodMock    → tavernHelperMocks
- *   mvuParser  → tavernHelperMocks
+ *   tavernHelperMocks → bridgeCore
+ *   tavernHelperMocks → zodMock
+ *   tavernHelperMocks → mvuParser
  */
 
 import lodashCloneDeep from "lodash/cloneDeep";
@@ -37,9 +38,14 @@ import { createZodProxy } from "./zodMock";
 import { parseMvuMessage } from "./mvuParser";
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 顶层 IIFE：在模块加载时立即注册所有 window.* 全局 Mock
+// 显式初始化函数：注册所有 window.* 全局 Mock
+// 由 initTavernHelperBridge() 在初始化时触发，遵循 AGENTS.md 准则一.4（副作用隔离）
 // ──────────────────────────────────────────────────────────────────────────────
-if (typeof window !== "undefined") {
+let _mocksInitialized = false;
+
+export function initTavernHelperMocks(): void {
+  if (_mocksInitialized || typeof window === "undefined") return;
+  _mocksInitialized = true;
   const parentWin = window as any;
 
   parentWin.registerMvuSchema = registerMvuSchema;

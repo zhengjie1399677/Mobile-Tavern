@@ -3,9 +3,10 @@
 
 import React from "react";
 
-import { initTavernHelperBridge, cleanTavernHelperBridge } from "../../utils/tavernHelper";
+import { initTavernHelperBridge, cleanTavernHelperBridge, getBridgeInterface } from "../../utils/tavernHelper";
 import { saveSession } from "../../utils/localDB";
 import { chatTabState } from "./utils";
+import { globalKernel } from "../../kernel/Kernel";
 
 interface UseChatAccessibilityDeps {
   activeCharacter: any;
@@ -67,6 +68,17 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
         updateSettings,
         handleSendMessage,
       });
+      // 应用层显式装配 ScriptService bridge 接口（遵循 AGENTS.md 准则一.1）：
+      // utils 层不再反向调用 kernel.getService("script").registerBridge，
+      // 由本应用层在 initTavernHelperBridge 完成后通过 getBridgeInterface() 取得接口并装配。
+      try {
+        const scriptService = globalKernel.getService<any>("script");
+        if (scriptService && typeof scriptService.registerBridge === "function") {
+          scriptService.registerBridge(getBridgeInterface());
+        }
+      } catch {
+        // 测试环境下 ScriptService 可能未注册，静默跳过
+      }
     } else {
       cleanTavernHelperBridge();
     }

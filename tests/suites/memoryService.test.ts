@@ -1352,12 +1352,23 @@ export async function testMemoryRecall() {
   assert(fallbackNoExclude.length === 1, "excludeRecentN=0 时仍兜底召回 1 条");
   assert(fallbackNoExclude[0].turnIndex === 9, "不排除时召回最新一条 (turnIndex=9)");
 
-  // 消息数不足（全部消息都在 excludeRecentN 范围内）→ 返回空
-  const fallbackInsufficient = await recall6.recall("sess_fb", "泛指问句", {
+  // 自适应排除：excludeRecentN=20 远超 currentTurnIndex=10，
+  // 自适应降为 min(20, 10-1)=9，保留 turnIndex=0 的消息作为兜底
+  const fallbackAdaptive = await recall6.recall("sess_fb", "泛指问句", {
     currentTurnIndex: 10,
-    excludeRecentN: 20, // 排除所有 turnIndex >= -10 的消息（即全部）
+    excludeRecentN: 20,
   });
-  assert(fallbackInsufficient.length === 0, "全部消息在排除范围内时返回空");
+  assert(fallbackAdaptive.length === 1, "自适应排除后应保留 1 条最旧消息");
+  assert(fallbackAdaptive[0].turnIndex === 0, "自适应排除后召回 turnIndex=0 的消息");
+
+  // 新会话冷启动：currentTurnIndex=3, excludeRecentN=5 → 自适应降为 min(5, 2)=2
+  // 排除 turnIndex >= 1 的消息，保留 turnIndex=0
+  const fallbackColdStart = await recall6.recall("sess_fb", "泛指问句", {
+    currentTurnIndex: 3,
+    excludeRecentN: 5,
+  });
+  assert(fallbackColdStart.length === 1, "新会话冷启动应自适应召回 1 条");
+  assert(fallbackColdStart[0].turnIndex === 0, "冷启动召回 turnIndex=0 的消息");
 
   console.log("  ✔ fallback recall for vague queries verified");
 

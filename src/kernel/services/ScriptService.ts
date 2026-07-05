@@ -139,7 +139,15 @@ export class ScriptService implements IScriptService {
   }
 
   // P1-2: 销毁时清理 bridge 引用与 abort 控制器
+  // 遵循 AGENTS.md 准则十.4（彻底回收）：
+  // 通过 kernel 消息总线广播 script:destroyed 事件，通知下游组件（HiddenScriptLayer 等）
+  // 主动回收 iframe DOM 与挂起的异步任务，防止资源残留。
   destroy(): void {
+    try {
+      this.kernel?.publish({ topic: "script:destroyed", payload: { reason: "service-destroy" } }).catch(() => {});
+    } catch {
+      // kernel 已注销时静默降级
+    }
     this.abortController?.abort();
     this.abortController = null;
     this.bridge = null;

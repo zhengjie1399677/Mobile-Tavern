@@ -25,6 +25,10 @@ import JSON5 from "json5";
 import { jsonrepair } from "jsonrepair";
 import type { CardRuntimeBridgeParams } from "./CardRuntimeAdapter";
 import { parseMvuMessage } from "./mvuParser";
+// 注意：tavernHelperMocks 反向依赖 bridgeCore，此处静态导入会形成 ESM 循环。
+// 由于 initTavernHelperMocks 仅在运行时被调用（非模块求值期），
+// 且 tavernHelperMocks 已移除顶层 IIFE 副作用，ESM live bindings 可安全处理此循环。
+import { initTavernHelperMocks } from "./tavernHelperMocks";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 类型定义
@@ -416,6 +420,10 @@ export function ensureLibrariesLoaded(): Promise<void> {
 let lastSessionId: string | null = null;
 
 export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
+  // 显式触发 window.* 全局 Mock 注册（替代原 tavernHelperMocks 顶层 IIFE）
+  // 遵循 AGENTS.md 准则一.4（副作用隔离）
+  initTavernHelperMocks();
+
   if (params.settings?.enableScriptExecution) {
     // 核心库（lodash）：只要开启脚本模式就加载
     ensureCoreLibsLoaded().catch(err => {
@@ -429,21 +437,10 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
     }
   }
 
-  try {
-    const scriptService = globalKernel.getService<any>("script");
-    if (scriptService && typeof scriptService.registerBridge === "function") {
-      // 注意：此处延迟导入 mvuParser 以避免静态循环依赖
-      import("./mvuParser").then(({ parseMvuMessage }) => {
-        scriptService.registerBridge({
-          initializeMvuFromCharacter,
-          parseMvuMessage,
-          notifyVariablesUpdated,
-        });
-      }).catch(() => {});
-    }
-  } catch (e) {
-    // 测试环境下服务若未注册则静默跳过
-  }
+  // 注意：原 registerBridge 调用已上移至应用层（useChatAccessibility.ts），
+  // 遵循 AGENTS.md 准则一.1（极致微服务与解耦）：
+  // utils 层不应反向调用 kernel.getService("script").registerBridge，
+  // 由应用层在调用 initTavernHelperBridge 之后显式装配 bridge 接口。
 
   const prevSessionId = lastSessionId;
   bridgeParams = params;
@@ -483,6 +480,32 @@ export function cleanTavernHelperBridge() {
   tavernHelperEventEmitter.clearAll();
   bridgeParams = null;
   lastSessionId = null;
+
+  // 通知下游组件（HiddenScriptLayer 等）主动回收 iframe DOM
+  // 遵循 AGENTS.md 准则十.4（彻底回收）：bridge 清理时广播事件，
+  // 让 iframe 容器及时释放 browsing context 与挂起异步任务
+  try {
+    globalKernel.publish({ topic: "script:bridgeCleaned", payload: { reason: "bridge-cleanup" } }).catch(() => {});
+  } catch {
+    // kernel 未初始化或已注销时静默降级
+  }
+}
+
+/**
+ * 返回 ScriptService 所需的 bridge 接口契约。
+ *
+ * 遵循 AGENTS.md 准则一.1（极致微服务与解耦）：
+ * utils 层不再反向调用 kernel.getService("script").registerBridge，
+ * 改由应用层（useChatAccessibility.ts）通过此函数获取接口对象后显式装配。
+ *
+ * @returns ITavernHelperBridge 契约对象
+ */
+export function getBridgeInterface() {
+  return {
+    initializeMvuFromCharacter,
+    parseMvuMessage,
+    notifyVariablesUpdated,
+  };
 }
 
 /**
