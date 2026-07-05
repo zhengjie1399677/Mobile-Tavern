@@ -862,14 +862,26 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       }
     }
     window.addEventListener('load', throttledMeasure);
-    // 移除 window 的 resize 监听器，因为父级修改 iframe 物理高度会触发 iframe 内部的 resize，导致无限死循环
-    var observer = new MutationObserver(throttledMeasure);
-    document.addEventListener('DOMContentLoaded', function() {
-      if (document.body) {
-        observer.observe(document.body, { childList: true, subtree: true, attributes: true });
-        throttledMeasure();
-      }
-    });
+    
+    // 优先使用 ResizeObserver 监听 DOM 物理尺寸变化（能完美同步 CSS 过渡/折叠动画每一帧的高度）
+    if (typeof ResizeObserver === 'function') {
+      var resizeObserver = new ResizeObserver(throttledMeasure);
+      document.addEventListener('DOMContentLoaded', function() {
+        if (document.body) {
+          resizeObserver.observe(document.body);
+          throttledMeasure();
+        }
+      });
+    } else {
+      // 降级使用 MutationObserver
+      var observer = new MutationObserver(throttledMeasure);
+      document.addEventListener('DOMContentLoaded', function() {
+        if (document.body) {
+          observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+          throttledMeasure();
+        }
+      });
+    }
   })();
 </script>
 <script>

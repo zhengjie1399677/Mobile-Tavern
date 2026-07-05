@@ -211,10 +211,13 @@ function domToReact(
     const charId = activeCharacter?.id || "default-char";
     props.key = `iframe-${charId}-${messageIndex !== undefined ? messageIndex : "temp"}-${index}`;
     
-    // Force transparent background on message iframes to match theme
+    // Force transparent background and GPU acceleration on message iframes
     props.style = {
       ...(props.style || {}),
       background: "transparent",
+      backgroundColor: "transparent",
+      willChange: "transform",
+      transform: "translate3d(0, 0, 0)",
     };
     
     // Normalize minHeight from 400px to 40px to support collapsed state
@@ -224,7 +227,6 @@ function domToReact(
 
     // Set transparency attributes for compatibility with older WebKit/WebView engines
     props.allowtransparency = "true";
-    props.allowTransparency = "true";
   }
 
   const children = Array.from(element.childNodes).map((child, i) => 
@@ -395,7 +397,7 @@ function preprocessFormattedText(
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
       const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent;" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
     });
 
     // 再处理普通 ``` 块，但仅当内容以 HTML 标签开头时才转为 iframe
@@ -410,7 +412,7 @@ function preprocessFormattedText(
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
         const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-        return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent;" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+        return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
       }
       // 非 HTML 内容：保持原始代码块渲染
       return _match;
