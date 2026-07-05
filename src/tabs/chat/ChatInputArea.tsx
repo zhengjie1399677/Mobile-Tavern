@@ -8,6 +8,7 @@ import {
   Brain,
   RefreshCw,
   Cpu,
+  Square,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -24,6 +25,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     showCustomConfirm,
     handleAutoSummaryCheck,
     handleSendMessage,
+    handleStopGeneration,
     safeAreas,
     userInputMessage,
     setUserInputMessage,
@@ -417,32 +419,41 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             (isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
           }`}
         />
-        <button
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerCancel}
-          onPointerLeave={handlePointerCancel}
-          disabled={isSending || !canSend}
-          aria-label={
-            isSending
-              ? "正在发送消息..."
-              : settings.enableMultiMessageQueue
+        {isSending ? (
+          <button
+            onClick={() => handleStopGeneration()}
+            aria-label="中止对话"
+            title="中止对话"
+            className="w-[42px] h-[42px] rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 cursor-pointer"
+          >
+            <Square className="w-4 h-4 fill-current" aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+            onPointerLeave={handlePointerCancel}
+            disabled={!canSend}
+            aria-label={
+              settings.enableMultiMessageQueue
                 ? "发送消息（长按合并发送）"
                 : "发送消息"
-          }
-          title={
-            settings.enableMultiMessageQueue
-              ? "点击单纯发送消息，长按500ms与之前消息合并发送给AI"
-              : "发送消息"
-          }
-          className={`w-[42px] h-[42px] rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${
-            canSend
-              ? "hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 cursor-pointer opacity-100"
-              : "opacity-45 cursor-not-allowed bg-muted text-muted-foreground shadow-none"
-          }`}
-        >
-          <Send className={`w-4 h-4 transition-transform duration-300 ${canSend ? "scale-110" : ""}`} aria-hidden="true" />
-        </button>
+            }
+            title={
+              settings.enableMultiMessageQueue
+                ? "点击单纯发送消息，长按500ms与之前消息合并发送给AI"
+                : "发送消息"
+            }
+            className={`w-[42px] h-[42px] rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${
+              canSend
+                ? "hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 cursor-pointer opacity-100"
+                : "opacity-45 cursor-not-allowed bg-muted text-muted-foreground shadow-none"
+            }`}
+          >
+            <Send className={`w-4 h-4 transition-transform duration-300 ${canSend ? "scale-110" : ""}`} aria-hidden="true" />
+          </button>
+        )}
       </div>
     </div>
   );
