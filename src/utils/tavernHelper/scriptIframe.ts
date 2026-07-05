@@ -935,8 +935,8 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     padding: 0 !important;
     overflow: hidden !important;
     max-width: 100% !important;
-    background: transparent !important;
-    background-color: transparent !important;
+    background: var(--card, #1a1a1a) !important;
+    background-color: var(--card, #1a1a1a) !important;
   }
 </style>
   `;

@@ -816,6 +816,10 @@ a,
 iframe[class*="mvu-message-iframe"] {
   background-color: transparent !important;
   background: transparent !important;
+  border: none !important;
+  border-width: 0px !important;
+  outline: none !important;
+  box-shadow: none !important;
   will-change: transform;
   transform: translate3d(0, 0, 0);
 }
