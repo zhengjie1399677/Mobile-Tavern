@@ -238,6 +238,41 @@ if (typeof window !== "undefined") {
     _reloadIframe: () => {},
     _onIframeReady(iframeId: string) {
       console.log(`[TavernHelper Bridge] Iframe ${iframeId} is ready.`);
+      try {
+        const iframe = document.getElementById(iframeId) as HTMLIFrameElement;
+        if (iframe) {
+          iframe.style.backgroundColor = "transparent";
+          iframe.style.background = "transparent";
+          iframe.setAttribute("allowtransparency", "true");
+          
+          const applyTransparency = () => {
+            try {
+              if (iframe.contentDocument) {
+                const doc = iframe.contentDocument;
+                if (doc.body) {
+                  doc.body.style.backgroundColor = "transparent";
+                  doc.body.style.background = "transparent";
+                  doc.body.style.setProperty("background", "transparent", "important");
+                  doc.body.style.setProperty("background-color", "transparent", "important");
+                }
+                if (doc.documentElement) {
+                  doc.documentElement.style.backgroundColor = "transparent";
+                  doc.documentElement.style.background = "transparent";
+                  doc.documentElement.style.setProperty("background", "transparent", "important");
+                  doc.documentElement.style.setProperty("background-color", "transparent", "important");
+                }
+              }
+            } catch (innerErr) {
+              console.warn("[TavernHelper Bridge] Failed to apply inner transparency style:", innerErr);
+            }
+          };
+
+          applyTransparency();
+          iframe.addEventListener("load", applyTransparency);
+        }
+      } catch (e) {
+        console.warn("[TavernHelper Bridge] Failed to force transparency on iframe DOM:", e);
+      }
       setTimeout(() => {
         const params = getBridgeParams();
         if (params && params.activeSession) {

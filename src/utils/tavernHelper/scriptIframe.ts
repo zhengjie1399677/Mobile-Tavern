@@ -593,7 +593,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     }
   );
 
-  const hasHtmlTag = /<html/i.test(processedHtml);
+  const hasHtmlTag = /<html|<head|<body/i.test(processedHtml);
 
   const scriptInjects = `
 <script>
@@ -842,7 +842,12 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
         var height = body.scrollHeight;
         if (!Number.isFinite(height) || height <= 0) return;
         if (window.frameElement) {
-          window.frameElement.style.height = height + 'px';
+          var currentHeight = window.frameElement.style.height;
+          var newHeightStr = height + 'px';
+          // 仅当高度发生真实改变时，才执行 DOM 写入，防范过度重排
+          if (currentHeight !== newHeightStr) {
+            window.frameElement.style.height = newHeightStr;
+          }
         }
       } catch (e) {}
     }
@@ -857,7 +862,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       }
     }
     window.addEventListener('load', throttledMeasure);
-    window.addEventListener('resize', throttledMeasure);
+    // 移除 window 的 resize 监听器，因为父级修改 iframe 物理高度会触发 iframe 内部的 resize，导致无限死循环
     var observer = new MutationObserver(throttledMeasure);
     document.addEventListener('DOMContentLoaded', function() {
       if (document.body) {
@@ -866,7 +871,51 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       }
     });
   })();
-<\/script>
+</script>
+<script>
+  // ─── Theme / CSS variables synchronization from parent to iframe ───
+  (function() {
+    function syncTheme() {
+      try {
+        if (!window.parent) return;
+        var parentDoc = window.parent.document;
+        if (!parentDoc) return;
+        
+        // 1. 同步深色/浅色模式类名
+        var isDark = parentDoc.documentElement.classList.contains('dark');
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+        
+        // 2. 同步父级 CSS 主题自定义变量到沙盒文档中
+        var parentStyles = window.parent.getComputedStyle(parentDoc.documentElement);
+        var variables = [
+          '--background', '--foreground', '--card', '--card-foreground',
+          '--popover', '--popover-foreground', '--primary', '--primary-foreground',
+          '--secondary', '--secondary-foreground', '--muted', '--muted-foreground',
+          '--accent', '--accent-foreground', '--destructive', '--destructive-foreground',
+          '--border', '--input', '--ring'
+        ];
+        variables.forEach(function(v) {
+          var val = parentStyles.getPropertyValue(v);
+          if (val) {
+            document.documentElement.style.setProperty(v, val);
+          }
+        });
+      } catch (e) {
+        console.warn('[TavernHelper Theme Sync] Failed:', e);
+      }
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      syncTheme();
+    } else {
+      document.addEventListener('DOMContentLoaded', syncTheme);
+    }
+    window.addEventListener('load', syncTheme);
+  })();
+</script>
 <style>
   *, *::before, *::after { box-sizing: border-box; }
   html, body {
@@ -875,12 +924,23 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     overflow: hidden !important;
     max-width: 100% !important;
     background: transparent !important;
+    background-color: transparent !important;
   }
-<\/style>
+</style>
   `;
 
   if (hasHtmlTag) {
     let wrapped = processedHtml;
+    
+    // Force inline transparency style on any body tag inside wrapped content
+    wrapped = wrapped.replace(/<body\b([^>]*)>/gi, (match, bodyAttrs) => {
+      if (/style\s*=\s*['"]/i.test(bodyAttrs)) {
+        return `<body style="background:transparent !important;background-color:transparent !important;" ${bodyAttrs.replace(/style\s*=\s*(['"])/i, "style-orig=$1")}>`;
+      } else {
+        return `<body style="background:transparent !important;background-color:transparent !important;" ${bodyAttrs}>`;
+      }
+    });
+
     if (/<head>/i.test(wrapped)) {
       wrapped = wrapped.replace(/<head>/i, `<head>${scriptInjects}`);
     } else if (/<html>/i.test(wrapped)) {
@@ -888,16 +948,19 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     } else {
       wrapped = `${scriptInjects}${wrapped}`;
     }
+    if (!wrapped.trim().toLowerCase().startsWith("<!doctype")) {
+      wrapped = `<!DOCTYPE html>\n${wrapped}`;
+    }
     return wrapped;
   } else {
     return `<!DOCTYPE html>
-<html>
+<html style="background: transparent !important; background-color: transparent !important;">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   ${scriptInjects}
 </head>
-<body>
+<body style="background: transparent !important; background-color: transparent !important;">
   ${processedHtml}
 </body>
 </html>`;

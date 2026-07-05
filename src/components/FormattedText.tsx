@@ -283,10 +283,18 @@ function preprocessFormattedText(
 ): string {
   if (!text) return "";
 
-  // 00. 剥离渲染层中的 <suggestions>...</suggestions> 标签块（兼容未闭合的流式生成状态）
+  // 00. 剥离渲染层中的 <suggestions>、<UpdateVariable> 和 <initvar> 标签块（兼容未闭合的流式生成状态）
+  let textToProcess = text;
+  
+  // 剥离 suggestions
   const suggestionsRegex = /<suggestions\s*>[\s\S]*?<\/suggestions\s*>/gi;
-  let textToProcess = text.replace(suggestionsRegex, "");
+  textToProcess = textToProcess.replace(suggestionsRegex, "");
   textToProcess = textToProcess.replace(/<suggestions\s*>[\s\S]*$/gi, "");
+  
+  // 剥离 MVU 数据块（闭合与未闭合状态）
+  const mvuTagsRegex = /<(UpdateVariable|initvar)\b[^>]*>[\s\S]*?<\/\1>/gi;
+  textToProcess = textToProcess.replace(mvuTagsRegex, "");
+  textToProcess = textToProcess.replace(/<(UpdateVariable|initvar)\b[^>]*>[\s\S]*$/gi, "");
 
   // 0. Convert Markdown tables to HTML tables first
   const tableConvertedText = convertMarkdownTablesToHtml(textToProcess);

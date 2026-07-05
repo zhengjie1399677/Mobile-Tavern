@@ -811,8 +811,9 @@ a,
     cy: 60;
     r: 15;
   }
+}/* Ensure all MVU message iframes are transparent at the host CSS level */
+.mvu-message-iframe,
+iframe[class*="mvu-message-iframe"] {
+  background-color: transparent !important;
+  background: transparent !important;
 }
-
-
-
-
