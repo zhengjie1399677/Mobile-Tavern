@@ -1,5 +1,6 @@
 import { PromptSection, PromptNode, RuntimeContext, SectionPriority, SectionPhase } from "./types";
 import { PromptRenderer, XMLRenderer, MarkdownRenderer } from "./PromptRenderer";
+import { ModelCapabilityRegistry } from "../memory/ModelCapabilityRegistry";
 
 export class PromptCompiler {
   private static readonly PHASE_ORDER: SectionPhase[] = [
@@ -15,8 +16,6 @@ export class PromptCompiler {
     Normal: 2,
     Low: 1
   };
-
-  private static readonly SAFE_CONTEXT_LIMIT = 12000;
 
   private estimateTokens(text: string): number {
     return Math.ceil(text.length / 3);
@@ -144,15 +143,22 @@ export class PromptCompiler {
     }
 
     const modelName = (context.settings.api?.modelName || "").toLowerCase();
-    const useMarkdown = modelName.includes("gpt-3.5") || modelName.includes("llama-2");
-    const renderer: PromptRenderer = useMarkdown ? new MarkdownRenderer() : new XMLRenderer();
+    const caps = ModelCapabilityRegistry.getCapabilities(modelName, context.settings.api?.baseUrl);
+    
+    // 渲染格式优先级：用户自定义配置 -> 模型推荐配置 -> xml 兜底
+    const renderingFormat = context.settings.promptConfig?.renderingFormat || "auto";
+    const format = renderingFormat === "auto" ? (caps.preferredFormat || "xml") : renderingFormat;
+    const renderer: PromptRenderer = format === "markdown" ? new MarkdownRenderer() : new XMLRenderer();
 
     let compiledText = this.renderWithChineseHierarchy(nodes, renderer, context);
 
+    // 上下文上限优先级：用户自定义配置 -> 模型推荐上限 -> 200000 兜底
+    const safeLimit = context.settings.api?.contextLimit || caps.contextWindow || 200000;
+
     // Token Budget Defense (Trimming)
     let estimatedTokens = this.estimateTokens(compiledText);
-    if (estimatedTokens > PromptCompiler.SAFE_CONTEXT_LIMIT) {
-      console.warn(`[PromptCompiler] Compiled prompt tokens (${estimatedTokens}) exceeds limit (${PromptCompiler.SAFE_CONTEXT_LIMIT}). Trimming...`);
+    if (estimatedTokens > safeLimit) {
+      console.warn(`[PromptCompiler] Compiled prompt tokens (${estimatedTokens}) exceeds limit (${safeLimit}). Trimming...`);
 
       const trimmableNodes = nodes.filter(n => n.type !== "Instruction");
       trimmableNodes.sort((a, b) => {
@@ -168,7 +174,7 @@ export class PromptCompiler {
         const filteredNodes = nodes.filter(n => nodesToKeep.has(n.id));
         compiledText = this.renderWithChineseHierarchy(filteredNodes, renderer, context);
         estimatedTokens = this.estimateTokens(compiledText);
-        if (estimatedTokens <= PromptCompiler.SAFE_CONTEXT_LIMIT) {
+        if (estimatedTokens <= safeLimit) {
           break;
         }
       }

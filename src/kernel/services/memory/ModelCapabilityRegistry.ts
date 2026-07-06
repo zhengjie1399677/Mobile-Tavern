@@ -29,6 +29,8 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsMinP: false,
     supportsRepetitionPenalty: false,
     supportsStreamOptions: false,
+    contextWindow: 1000000,
+    preferredFormat: 'xml',
   },
   'gemini-': {
     supportsTopK: true,
@@ -41,6 +43,8 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsMinP: false,
     supportsRepetitionPenalty: false,
     supportsStreamOptions: false,
+    contextWindow: 1000000,
+    preferredFormat: 'xml',
   },
   'claude-': {
     // Claude 不支持 top_k 参数
@@ -54,6 +58,8 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsMinP: false,
     supportsRepetitionPenalty: false,
     supportsStreamOptions: false,
+    contextWindow: 1000000,
+    preferredFormat: 'xml',
   },
   'gpt-': {
     supportsTopK: false,
@@ -66,6 +72,8 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsMinP: false,
     supportsRepetitionPenalty: false,
     supportsStreamOptions: true,
+    contextWindow: 1000000,
+    preferredFormat: 'xml',
   },
   'glm-': {
     supportsTopK: true,
@@ -78,6 +86,8 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsMinP: false,
     supportsRepetitionPenalty: false,
     supportsStreamOptions: false,
+    contextWindow: 1000000,
+    preferredFormat: 'xml',
   },
 };
 
@@ -97,6 +107,8 @@ const DEFAULT_CAPABILITIES: ModelCapabilities = {
   supportsMinP: false,
   supportsRepetitionPenalty: false,
   supportsStreamOptions: false,
+  contextWindow: 200000,
+  preferredFormat: 'markdown',
 };
 
 /** localStorage 持久化键（运行时学到的能力覆盖） */

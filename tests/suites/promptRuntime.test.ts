@@ -119,6 +119,36 @@ export function testPromptRuntime() {
   assert(safetyIdx < rulesIdx, "Safety should be before Rules");
   assert(rulesIdx < personaIdx, "Engine layer should be before Context layer");
 
+  // Test 3: Rendering Format Override
+  const mdContext = {
+    settings: {
+      api: { modelName: "deepseek-chat" },
+      promptConfig: { renderingFormat: "markdown" }
+    }
+  } as any;
+  const compiledMd = compiler.compile(sections, mdContext);
+  assert(!compiledMd.includes("<rules>"), "Should not contain XML tags in Markdown renderingFormat");
+  assert(compiledMd.includes("### Core Rules"), "Should contain Markdown headers");
+
+  const xmlContext = {
+    settings: {
+      api: { modelName: "gpt-3.5-turbo" },
+      promptConfig: { renderingFormat: "xml" }
+    }
+  } as any;
+  const compiledXml = compiler.compile(sections, xmlContext);
+  assert(compiledXml.includes("<rules>"), "Should contain XML tags when renderingFormat is overridden to xml");
+
+  // Test 4: Dynamic contextLimit Trimming
+  const smallLimitContext = {
+    settings: {
+      api: { modelName: "deepseek-chat", contextLimit: 50 },
+    }
+  } as any;
+  const compiledSmall = compiler.compile(sections, smallLimitContext);
+  assert(!compiledSmall.includes("Character Persona Content"), "Persona should be trimmed due to contextLimit");
+  assert(compiledSmall.includes("Safety Content"), "Highest priority safety should still be present");
+
   console.log("✔ Prompt Runtime Builder & Compiler v2.0 verified!");
 }
 

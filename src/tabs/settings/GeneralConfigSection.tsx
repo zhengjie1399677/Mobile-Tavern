@@ -440,6 +440,53 @@ export default function GeneralConfigSection({
             )}
           </div>
 
+          {/* contextLimit Input */}
+          <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+            <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
+              <span>最大上下文限制 (Tokens)</span>
+              <span className="text-[9px] text-muted-foreground/80">留空则自动匹配大模型默认容量限制</span>
+            </label>
+            <Input
+              type="number"
+              value={settings.api.contextLimit ?? ""}
+              onChange={(e) => {
+                const val = e.target.value ? parseInt(e.target.value) : undefined;
+                updateSettings((prev) => ({
+                  ...prev,
+                  api: { ...prev.api, contextLimit: val },
+                }));
+              }}
+              className="h-9 text-xs font-mono bg-input/50"
+              placeholder="例如 1000000 (1M)"
+            />
+          </div>
+
+          {/* renderingFormat Select */}
+          <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+            <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
+              <span>提示词渲染格式</span>
+              <span className="text-[9px] text-muted-foreground/80">定义系统/设定集的排版结构</span>
+            </label>
+            <Select
+              value={settings.promptConfig?.renderingFormat || "auto"}
+              onValueChange={(val: 'auto' | 'xml' | 'markdown') =>
+                updateSettings((prev) => ({
+                  ...prev,
+                  promptConfig: { ...prev.promptConfig, renderingFormat: val },
+                }))
+              }
+            >
+              <SelectTrigger className="w-full text-xs h-9 bg-input/50">
+                <SelectValue placeholder="自动选择" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto" className="text-xs">自动选择 (Auto)</SelectItem>
+                <SelectItem value="xml" className="text-xs">XML 标签格式 (XML)</SelectItem>
+                <SelectItem value="markdown" className="text-xs">Markdown 文本格式 (Markdown)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* forceBasicParams Switch */}
           <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="space-y-0.5">

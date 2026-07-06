@@ -8,8 +8,7 @@ import {
 import { PromptBuilder } from "./prompt/PromptBuilder";
 import { PromptCompiler } from "./prompt/PromptCompiler";
 import { RuntimeContext } from "./prompt/types";
-
-const SAFE_CONTEXT_LIMIT = 12000;
+import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
 
 export class PromptService implements IPromptService {
   name = "prompt";
@@ -813,6 +812,10 @@ export class PromptService implements IPromptService {
     let activeMessagesToSend: Message[] = [];
     let chatHistory: { role: "user" | "model" | "assistant"; name?: string; content: string }[] = [];
 
+    const activeModelName = (settings.api?.modelName || "").toLowerCase();
+    const caps = ModelCapabilityRegistry.getCapabilities(activeModelName, settings.api?.baseUrl);
+    const safeLimit = settings.api?.contextLimit || caps.contextWindow || 200000;
+
     while (currentTurns > 0) {
       const firstMsg = validChatMessages[0];
       const isFirstMsgGreeting = firstMsg && firstMsg.sender === "assistant";
@@ -892,7 +895,7 @@ export class PromptService implements IPromptService {
       }
 
       const totalTokens = this.estimateTokens(compiledSystemPrompt) + chatHistory.reduce((sum, item) => sum + this.estimateTokens(item.content), 0);
-      if (totalTokens <= SAFE_CONTEXT_LIMIT) {
+      if (totalTokens <= safeLimit) {
         break;
       }
       currentTurns--;

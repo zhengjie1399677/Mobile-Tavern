@@ -116,6 +116,8 @@ export interface ModelCapabilities {
   supportsMinP?: boolean;
   supportsRepetitionPenalty?: boolean;
   supportsStreamOptions?: boolean;
+  contextWindow?: number;
+  preferredFormat?: 'xml' | 'markdown';
 }
 
 /** LLM 调用参数（防腐层入口） */

@@ -116,6 +116,7 @@ export interface ApiConfig {
   sendNames?: boolean;
   disableReasoning?: boolean;
   forceBasicParams?: boolean;
+  contextLimit?: number;
 }
 
 export interface SamplerPreset {
@@ -174,6 +175,7 @@ export interface PromptConfig {
 
   sectionHeaders?: Record<string, string>;
   tableMemoryPrompt?: string;
+  renderingFormat?: 'auto' | 'xml' | 'markdown';
 }
 
 export interface ApiProfile {
