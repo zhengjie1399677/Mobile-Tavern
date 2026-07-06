@@ -63,8 +63,16 @@ export function getProcessedMvuBundle(): string {
  * 对脚本源码中的 for, while, do-while 循环进行分析。
  * 如果检测到执行总耗时超过 1000ms，抛出 Error 中断，防止锁死事件循环。
  */
+function getStringHash(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 export function injectLoopProtection(code: string): string {
-  const randPrefix = Math.random().toString(36).substring(2, 9);
+  const randPrefix = getStringHash(code);
   let loopCounter = 0;
 
   const helperCode = `

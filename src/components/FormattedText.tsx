@@ -3,6 +3,41 @@ import { useUnifiedApp } from "../UnifiedAppContext";
 import { createMessageIframeSrcDoc, initTavernHelperMocks } from "../utils/tavernHelper";
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "./formattedTextUtils";
 
+const SafeIframe = React.memo((props: any) => {
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
+  const { srcDoc, ...rest } = props;
+  const lastSrcDocRef = React.useRef("");
+
+  if (import.meta.env.DEV) {
+    console.log('[SafeIframe] render, srcDoc length:', srcDoc?.length);
+  }
+
+  React.useEffect(() => {
+    if (iframeRef.current) {
+      if (lastSrcDocRef.current !== srcDoc) {
+        if (import.meta.env.DEV) {
+          let diffIdx = -1;
+          const maxLen = Math.max(lastSrcDocRef.current.length, srcDoc?.length || 0);
+          for (let i = 0; i < maxLen; i++) {
+            if (lastSrcDocRef.current[i] !== srcDoc[i]) {
+              diffIdx = i;
+              break;
+            }
+          }
+          console.log('[SafeIframe] srcDoc changed! Diff index:', diffIdx);
+          console.log('Prev segment:', lastSrcDocRef.current.substring(Math.max(0, diffIdx - 30), diffIdx + 50));
+          console.log('New segment:', srcDoc?.substring(Math.max(0, diffIdx - 30), diffIdx + 50));
+        }
+        iframeRef.current.srcdoc = srcDoc;
+        lastSrcDocRef.current = srcDoc;
+      }
+    }
+  }, [srcDoc]);
+
+  return <iframe ref={iframeRef} {...rest} />;
+});
+SafeIframe.displayName = "SafeIframe";
+
 interface FormattedTextProps {
   text: string;
   charName: string;
@@ -47,13 +82,13 @@ const ALLOWED_TAGS = new Set([
 
 // Whitelist of safe tag attributes
 const ALLOWED_ATTRS: Record<string, Set<string>> = {
-  global: new Set(["class", "classname", "style", "title"]),
+  global: new Set(["class", "classname", "style", "title", "id"]),
   a: new Set(["href", "target", "rel"]),
   img: new Set(["src", "alt", "width", "height"]),
   td: new Set(["colspan", "rowspan"]),
   th: new Set(["colspan", "rowspan"]),
   table: new Set(["border", "cellpadding", "cellspacing"]),
-  iframe: new Set(["src", "srcdoc", "width", "height", "style", "class", "classname", "sandbox", "id", "name", "allowtransparency"]),
+  iframe: new Set(["src", "srcdoc", "width", "height", "style", "class", "classname", "sandbox", "id", "name", "allowtransparency", "frameborder", "marginwidth", "marginheight"]),
 };
 
 function parseMarkdownToReact(
@@ -215,7 +250,7 @@ function domToReact(
 
     if (name.startsWith("on")) continue;
 
-    const isGlobal = ALLOWED_ATTRS.global.has(name);
+    const isGlobal = ALLOWED_ATTRS.global.has(name) || name.startsWith("data-");
     const isTagSpecific = ALLOWED_ATTRS[tagName]?.has(name);
 
     if (isGlobal || isTagSpecific) {
@@ -308,8 +343,11 @@ function domToReact(
       props.style.minHeight = "40px";
     }
 
-    // Set transparency attributes for compatibility with older WebKit/WebView engines
+    // Set transparency and borderless attributes for compatibility with older WebKit/WebView engines
     props.allowtransparency = "true";
+    props.frameBorder = "0";
+    props.marginWidth = "0";
+    props.marginHeight = "0";
   }
 
   const children = Array.from(element.childNodes).map((child, i) => 
@@ -317,7 +355,7 @@ function domToReact(
   );
   
   const reactElement = React.createElement(
-    tagName,
+    tagName === "iframe" ? SafeIframe : tagName,
     props,
     children.length > 0 ? children : null,
   );
@@ -488,7 +526,7 @@ function preprocessFormattedText(
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
       const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform, height; transform: translate3d(0, 0, 0); transition: height 0.15s ease-out;" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
     });
 
     // 再处理普通 ``` 块，但仅当内容以 HTML 标签开头时才转为 iframe
@@ -503,7 +541,7 @@ function preprocessFormattedText(
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
         const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-        return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform, height; transform: translate3d(0, 0, 0); transition: height 0.15s ease-out;" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+        return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
       }
       // 非 HTML 内容：保持原始代码块渲染
       return _match;
@@ -548,12 +586,15 @@ const FormattedText = memo(function FormattedText({
   if (!text) return null;
 
   const [isExpanded, setIsExpanded] = useState(false);
-  const MAX_SAFE_LENGTH = 15000;
+  const MAX_SAFE_LENGTH = 50000;
   const isTooLong = text.length > MAX_SAFE_LENGTH;
-  const shouldTruncate = isTooLong && !isExpanded;
+  
+  // 核心优化：如果是 HTML/Iframe 交互式挂件消息，绝对不能执行截断折叠，否则会切断代码导致语法损坏和面板崩溃
+  const isWidget = /```html\b|<iframe\b|<StatusPlaceHolder/i.test(text);
+  const shouldTruncate = isTooLong && !isExpanded && !isWidget;
 
   const displayText = shouldTruncate
-    ? text.substring(0, 12000) + `\n\n*... [ 此处已自动折叠超长内容，当前共 ${text.length} 字 ] ...*`
+    ? text.substring(0, 45000) + `\n\n*... [ 此处已自动折叠超长内容，当前共 ${text.length} 字 ] ...*`
     : text;
 
   const context = useUnifiedApp();
@@ -669,7 +710,7 @@ const FormattedText = memo(function FormattedText({
 
   return (
     <LocalErrorBoundary fallback={fallbackMarkup}>
-      {isTooLong ? element : renderedContent}
+      {shouldTruncate || (isTooLong && !isWidget && isExpanded) ? element : renderedContent}
     </LocalErrorBoundary>
   );
 });

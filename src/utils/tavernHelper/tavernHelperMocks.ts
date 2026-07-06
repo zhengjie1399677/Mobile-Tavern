@@ -320,7 +320,7 @@ export function initTavernHelperMocks(): void {
       return (getBridgeParams()?.activeSession?.messages?.length || 1) - 1;
     },
     _getVariables(opt: any = { type: "chat" }) {
-      console.log("[TavernHelper Bridge] _getVariables called with:", JSON.stringify(opt));
+      // console.log("[TavernHelper Bridge] _getVariables called with:", JSON.stringify(opt));
       const params = getBridgeParams();
       if (!params) return {};
       const { activeCharacter, settings, activeSession } = params;
@@ -341,7 +341,7 @@ export function initTavernHelperMocks(): void {
           }
           const resolvedVars = msg.extra.variables[swipeId];
           if (resolvedVars && !resolvedVars.stat_data) { resolvedVars.stat_data = {}; }
-          console.log("[TavernHelper Bridge] _getVariables resolved msgId:", msgId, "swipeId:", swipeId, "variables:", JSON.stringify(resolvedVars));
+          // console.log("[TavernHelper Bridge] _getVariables resolved msgId:", msgId, "swipeId:", swipeId, "variables:", JSON.stringify(resolvedVars));
           return resolvedVars;
         }
         return {};
@@ -356,11 +356,11 @@ export function initTavernHelperMocks(): void {
       }
       const { activeCharacter, settings, activeSession } = params;
       const res = { ...(settings?.variables || {}), ...(activeCharacter?.variables || {}), ...(activeSession?.variables || {}) };
-      console.log("[TavernHelper Bridge] _getAllVariables returned:", JSON.stringify(res));
+      // console.log("[TavernHelper Bridge] _getAllVariables returned:", JSON.stringify(res));
       return res;
     },
     _replaceVariables(variables: Record<string, any>, opt: any = { type: "chat" }) {
-      console.log("[TavernHelper Bridge] _replaceVariables called with opt:", JSON.stringify(opt));
+      // console.log("[TavernHelper Bridge] _replaceVariables called with opt:", JSON.stringify(opt));
       const params = getBridgeParams();
       if (!params) return;
       const { activeCharacter, settings, activeSession, setCharacters, saveCharacter, updateSettings, setSessions, saveSession } = params;

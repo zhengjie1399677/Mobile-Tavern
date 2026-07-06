@@ -510,7 +510,14 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
         arr.on = function(evt, sel, fn) {
           if (typeof sel === 'function') { fn = sel; sel = null; }
           arr.forEach(function(el) {
-            if (sel) { el.addEventListener(evt, function(e) { if (e.target.matches && e.target.matches(sel)) fn.call(e.target, e); }); }
+            if (sel) {
+              el.addEventListener(evt, function(e) {
+                var matchedEl = e.target.closest && e.target.closest(sel);
+                if (matchedEl && el.contains(matchedEl)) {
+                  fn.call(matchedEl, e);
+                }
+              });
+            }
             else { el.addEventListener(evt, fn); }
           });
           return arr;
@@ -524,10 +531,107 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
         arr.removeClass = function(c) { arr.forEach(function(el) { el.classList.remove.apply(el.classList, c.split(' ')); }); return arr; };
         arr.toggleClass = function(c, s) { arr.forEach(function(el) { el.classList.toggle(c, s); }); return arr; };
         arr.hasClass = function(c) { return arr.length > 0 && arr[0].classList.contains(c); };
+        arr.is = function(sel) {
+          if (!sel) return false;
+          if (typeof sel === 'string') {
+            if (sel === ':visible') {
+              return arr.some(function(el) {
+                return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+              });
+            }
+            if (sel === ':hidden') {
+              return arr.some(function(el) {
+                return !(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+              });
+            }
+            return arr.some(function(el) { return el.matches && el.matches(sel); });
+          }
+          if (sel instanceof Node) {
+            return arr.some(function(el) { return el === sel; });
+          }
+          return false;
+        };
+        arr.filter = function(sel) {
+          if (typeof sel === 'string') {
+            if (sel === ':visible') {
+              return makeResult(arr.filter(function(el) {
+                return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+              }));
+            }
+            if (sel === ':hidden') {
+              return makeResult(arr.filter(function(el) {
+                return !(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+              }));
+            }
+            return makeResult(arr.filter(function(el) { return el.matches && el.matches(sel); }));
+          }
+          if (typeof sel === 'function') {
+            return makeResult(arr.filter(function(el, i) { return sel.call(el, i, el); }));
+          }
+          return arr;
+        };
         arr.attr = function(k, v) { if (v === undefined) return arr[0] && arr[0].getAttribute(k); arr.forEach(function(el) { el.setAttribute(k, v); }); return arr; };
         arr.val = function(v) { if (v === undefined) return arr[0] && arr[0].value; arr.forEach(function(el) { el.value = v; }); return arr; };
         arr.text = function(v) { if (v === undefined) return arr[0] && arr[0].textContent; arr.forEach(function(el) { el.textContent = v; }); return arr; };
         arr.html = function(v) { if (v === undefined) return arr[0] && arr[0].innerHTML; arr.forEach(function(el) { el.innerHTML = v; }); return arr; };
+        arr.fadeIn = function(speed, callback) {
+          if (typeof speed === 'function') { callback = speed; speed = 400; }
+          var duration = typeof speed === 'number' ? speed : (speed === 'fast' ? 200 : 400);
+          arr.forEach(function(el) {
+            el.style.display = '';
+            el.style.transition = 'opacity ' + duration + 'ms ease';
+            el.style.opacity = '0';
+            el.offsetHeight; // Force reflow
+            el.style.opacity = '1';
+            if (callback) { setTimeout(function() { callback.call(el); }, duration); }
+          });
+          return arr;
+        };
+        arr.fadeOut = function(speed, callback) {
+          if (typeof speed === 'function') { callback = speed; speed = 400; }
+          var duration = typeof speed === 'number' ? speed : (speed === 'fast' ? 200 : 400);
+          arr.forEach(function(el) {
+            el.style.transition = 'opacity ' + duration + 'ms ease';
+            el.style.opacity = '0';
+            setTimeout(function() {
+              el.style.display = 'none';
+              if (callback) callback.call(el);
+            }, duration);
+          });
+          return arr;
+        };
+        arr.fadeToggle = function(speed, callback) {
+          arr.forEach(function(el) {
+            var isHidden = el.style.display === 'none' || !(el.offsetWidth || el.offsetHeight);
+            if (isHidden) { makeResult([el]).fadeIn(speed, callback); }
+            else { makeResult([el]).fadeOut(speed, callback); }
+          });
+          return arr;
+        };
+        arr.slideDown = function(speed, callback) {
+          if (typeof speed === 'function') { callback = speed; speed = 400; }
+          arr.forEach(function(el) {
+            el.style.display = '';
+            if (callback) callback.call(el);
+          });
+          return arr;
+        };
+        arr.slideUp = function(speed, callback) {
+          if (typeof speed === 'function') { callback = speed; speed = 400; }
+          arr.forEach(function(el) {
+            el.style.display = 'none';
+            if (callback) callback.call(el);
+          });
+          return arr;
+        };
+        arr.slideToggle = function(speed, callback) {
+          arr.forEach(function(el) {
+            var isHidden = el.style.display === 'none' || !(el.offsetWidth || el.offsetHeight);
+            if (isHidden) { makeResult([el]).slideDown(speed, callback); }
+            else { makeResult([el]).slideUp(speed, callback); }
+          });
+          return arr;
+        };
         arr.find = function(sel) { var found = []; arr.forEach(function(el) { found = found.concat(Array.prototype.slice.call(el.querySelectorAll(sel))); }); return makeResult(found); };
         arr.parent = function() { return makeResult(arr.map(function(el) { return el.parentElement; }).filter(Boolean)); };
         arr.children = function(sel) { var found = []; arr.forEach(function(el) { var ch = Array.prototype.slice.call(el.children); if (sel) ch = ch.filter(function(c) { return c.matches && c.matches(sel); }); found = found.concat(ch); }); return makeResult(found); };
@@ -785,7 +889,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
         if (!Number.isFinite(height) || height <= 0) return;
         if (window.frameElement) {
           var currentHeight = window.frameElement.style.height;
-          var newHeightStr = height + 'px';
+          var newHeightStr = (height + 2) + 'px';
           // 仅当高度发生真实改变时，才执行 DOM 写入，防范过度重排
           if (currentHeight !== newHeightStr) {
             window.frameElement.style.height = newHeightStr;
@@ -922,6 +1026,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
   }
   body {
     margin: 0 !important;
+    padding: 0 !important;
     max-width: 100% !important;
     background: transparent !important;
     background-color: transparent !important;
@@ -932,6 +1037,19 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
 
   if (hasHtmlTag) {
     let wrapped = processedHtml;
+
+    // Force inline transparency style on any html tag inside wrapped content to bypass WebView restrictions
+    if (/<html\b/i.test(wrapped)) {
+      wrapped = wrapped.replace(/<html\b([^>]*)>/gi, (match, htmlAttrs) => {
+        if (/style\s*=\s*['"]/i.test(htmlAttrs)) {
+          return `<html style="background:transparent !important;background-color:transparent !important;" ${htmlAttrs.replace(/style\s*=\s*(['"])/i, "style-orig=$1")}>`;
+        } else {
+          return `<html style="background:transparent !important;background-color:transparent !important;" ${htmlAttrs}>`;
+        }
+      });
+    } else {
+      wrapped = `<html style="background:transparent !important;background-color:transparent !important;">${wrapped}</html>`;
+    }
 
     // Force inline transparency style on any body tag inside wrapped content
     wrapped = wrapped.replace(/<body\b([^>]*)>/gi, (match, bodyAttrs) => {

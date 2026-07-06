@@ -472,6 +472,18 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
   bridgeParams = params;
 
   if (params.activeSession) {
+    const session = params.activeSession;
+    // 自愈与实时自动修复：防止异步加载竞态下 session 变量初始为空且 iframe 已经 Ready 无法再次触发自愈
+    const isEmpty = !session.variables || !session.variables.stat_data || Object.keys(session.variables.stat_data).length === 0;
+    if (isEmpty && params.activeCharacter) {
+      const mvuVars = initializeMvuFromCharacter(params.activeCharacter);
+      if (mvuVars && mvuVars.stat_data && Object.keys(mvuVars.stat_data).length > 0) {
+        session.variables = mvuVars;
+        console.log("[TavernHelper Bridge] Auto-repaired empty session variables during bridge initialization.");
+        initializeVariablesForSession(session);
+      }
+    }
+
     const currentSessionId = params.activeSession.id;
     lastSessionId = currentSessionId;
 
