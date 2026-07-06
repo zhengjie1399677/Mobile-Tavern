@@ -115,12 +115,12 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
 
       {settings.imageGenApi?.enabled && !isUser && (
         <button
-          onClick={(e) => {
+          onClick={async (e) => {
             e.stopPropagation();
             setMsgMenuId(null);
             if (!activeSession) return;
             const targetMsgId = message.id;
-            
+
             // Set loading state
             const drawSession = {
               ...activeSession,
@@ -133,160 +133,151 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
             );
 
             const { KernelServices } = await import("../../kernel");
-              const imageGenService = getKernelService<any>(KernelServices.ImageGen);
-              try {
-                const config = settings.imageGenApi;
-                if (!config || !config.enabled) {
-                  throw new Error("请先在设置中启用生图功能并配置接口参数。");
-                }
-
-                // 1. 调用大模型根据上下文提炼场景 Prompt
-                let finalPrompt = message.content;
-                let template = config.promptGeneratorTemplate || "Based on the following character appearance features, conversation context, and current sentence, write a vivid English prompt describing the visual scene, character appearance (strictly following the appearance features), action, expression, location, and atmosphere. Focus on concrete visual details. Avoid text, abstract ideas, or dialogue.\nOutput only the raw English prompt, no extra text.\n\n### Appearance Features\n{appearance}\n\n### Conversation Context\n{context}\n\nCurrent Sentence to Visualize:\n{message}\n\nDescriptive English Prompt:";
-
-                // Ensure compatibility with old user templates that might not have {appearance} placeholder.
-                if (!template.includes("{appearance}")) {
-                  if (template.includes("Conversation Context:\n{context}")) {
-                    template = template.replace(
-                      "Conversation Context:\n{context}",
-                      "### Appearance Features\n{appearance}\n\n### Conversation Context\n{context}"
-                    );
-                  } else if (template.includes("对话上下文：\n{context}")) {
-                    template = template.replace(
-                      "对话上下文：\n{context}",
-                      "### 外观特征\n{appearance}\n\n### 对话上下文\n{context}"
-                    );
-                  } else if (template.includes("{context}")) {
-                    template = template.replace(
-                      "{context}",
-                      "### 外观特征\n{appearance}\n\n### 对话上下文\n{context}"
-                    );
-                  } else {
-                    template = `### Appearance Features\n{appearance}\n\n${template}`;
-                  }
-                }
-
-                if (settings.api && settings.api.baseUrl) {
-                  try {
-                    const { universalFetch, API_ENDPOINT } = await import("../../utils/apiClient");
-                    
-                    // 获取最近 5 条对话作为 Context，帮助 LLM 了解上下文
-                    const messageIndex = activeSession.messages.findIndex((m: any) => m.id === message.id);
-                    const recentMessages = activeSession.messages.slice(Math.max(0, messageIndex - 4), messageIndex + 1);
-                    const contextText = recentMessages
-                      .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-                      .join("\n");
-
-                    // 准备并清洗人物外观特征描述文本
-                    const charName = activeCharacter?.name || "Assistant";
-                    const userName = settings.userName || "User";
-                    const rawAppearance = activeCharacter?.description || "";
-                    const appearanceText = rawAppearance
-                      .replace(/\{\{char\}\}/gi, charName)
-                      .replace(/\{\{user\}\}/gi, userName)
-                      .trim() || "No character appearance described.";
-
-                    const llmPrompt = template
-                      .replace("{appearance}", appearanceText)
-                      .replace("{context}", contextText)
-                      .replace("{message}", message.content);
-
-                    const llmResponse = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
-                      baseUrl: settings.api.baseUrl,
-                      apiKey: settings.api.apiKey || "",
-                      chatPath: settings.api.chatPath,
-                      bypassProxy: settings.api.bypassProxy,
-                      disableReasoning: settings.api.disableReasoning,
-                      reqBody: {
-                        model: settings.api.modelName,
-                        messages: [
-                          {
-                            role: "user",
-                            content: llmPrompt
-                          }
-                        ],
-                        temperature: settings.preset?.temperature,
-                        top_p: settings.preset?.topP,
-                        top_k: settings.preset?.topK,
-                        min_p: settings.preset?.minP,
-                        max_tokens: 150,
-                        presence_penalty: settings.preset?.presencePenalty ?? 0.0,
-                        frequency_penalty: settings.preset?.frequencyPenalty ?? 0.0,
-                        repetition_penalty: settings.preset?.repetitionPenalty ?? 1.0,
-                      }
-                    });
-
-                    if (llmResponse.ok) {
-                      const llmJson = await llmResponse.json();
-                      const aiSummary = llmJson.choices?.[0]?.message?.content?.trim();
-                      if (aiSummary) {
-                        finalPrompt = aiSummary
-                          .replace(/^["'“`]+|["'”`]+$/g, "") // 移除前后引号
-                          .replace(/^(Prompt|Prompt:|Prompt description:|English Prompt:|Description:)\s*/i, "")
-                          .trim();
-                        console.log("[QuickDialogueOptions] Summarized Prompt:", finalPrompt);
-                      }
-                    } else {
-                      console.warn(`[QuickDialogueOptions] LLM prompt summary failed with status ${llmResponse.status}, falling back to original message`);
-                    }
-                  } catch (e) {
-                    console.warn("[QuickDialogueOptions] Failed to contact LLM for prompt summary, falling back:", e);
-                  }
-                }
-
-                // 2. 根据设置，决定是否弹窗确认/修改提示词
-                if (config.promptEditBeforeGenerate) {
-                  const editedPrompt = await showCustomPrompt(
-                    "生图提示词已生成，您可以在此修改：",
-                    finalPrompt,
-                    "提示词确认",
-                    "textarea"
-                  );
-                  if (editedPrompt === null) {
-                    // 用户取消了生图
-                    const errorSession = {
-                      ...activeSession,
-                      messages: activeSession.messages.map((m: any) =>
-                        m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
-                      )
-                    };
-                    setSessions((prev: any) =>
-                      prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
-                    );
-                    return;
-                  }
-                  finalPrompt = editedPrompt.trim();
-                }
-
-                // 3. 传入提炼后的 finalPrompt 生成图像
-                const imgUrl = await imageGenService.generateImage(finalPrompt, config);
-                
-                const finalSession = {
-                  ...activeSession,
-                  messages: activeSession.messages.map((m: any) =>
-                    m.id === targetMsgId ? { ...m, extra: { ...m.extra, image: imgUrl, isDrawing: false } } : m
-                  )
-                };
-                setSessions((prev: any) =>
-                  prev.map((s: any) => (s.id === finalSession.id ? finalSession : s)),
-                );
-                await saveSession(finalSession);
-              } catch (err: any) {
-                console.error("Image generation failed:", err);
-                showCustomAlert(`绘图失败: ${err.message || String(err)}`, "生图失败");
-                
-                const errorSession = {
-                  ...activeSession,
-                  messages: activeSession.messages.map((m: any) =>
-                    m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
-                  )
-                };
-                setSessions((prev: any) =>
-                  prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
-                );
-                await saveSession(errorSession);
+            const imageGenService = getKernelService<any>(KernelServices.ImageGen);
+            try {
+              const config = settings.imageGenApi;
+              if (!config || !config.enabled) {
+                throw new Error("请先在设置中启用生图功能并配置接口参数。");
               }
-            });
+
+              // 1. 调用大模型根据上下文提炼场景 Prompt
+              let finalPrompt = message.content;
+              let template = config.promptGeneratorTemplate || "Based on the following character appearance features, conversation context, and current sentence, write a vivid English prompt describing the visual scene, character appearance (strictly following the appearance features), action, expression, location, and atmosphere. Focus on concrete visual details. Avoid text, abstract ideas, or dialogue.\nOutput only the raw English prompt, no extra text.\n\n### Appearance Features\n{appearance}\n\n### Conversation Context\n{context}\n\nCurrent Sentence to Visualize:\n{message}\n\nDescriptive English Prompt:";
+
+              // Ensure compatibility with old user templates that might not have {appearance} placeholder.
+              if (!template.includes("{appearance}")) {
+                if (template.includes("Conversation Context:\n{context}")) {
+                  template = template.replace(
+                    "Conversation Context:\n{context}",
+                    "### Appearance Features\n{appearance}\n\n### Conversation Context\n{context}"
+                  );
+                } else if (template.includes("对话上下文：\n{context}")) {
+                  template = template.replace(
+                    "对话上下文：\n{context}",
+                    "### 外观特征\n{appearance}\n\n### 对话上下文\n{context}"
+                  );
+                } else if (template.includes("{context}")) {
+                  template = template.replace(
+                    "{context}",
+                    "### 外观特征\n{appearance}\n\n### 对话上下文\n{context}"
+                  );
+                } else {
+                  template = `### Appearance Features\n{appearance}\n\n${template}`;
+                }
+              }
+
+              if (settings.api && settings.api.baseUrl) {
+                try {
+                  const { universalFetch, API_ENDPOINT } = await import("../../utils/apiClient");
+
+                  // 获取最近 5 条对话作为 Context，帮助 LLM 了解上下文
+                  const messageIndex = activeSession.messages.findIndex((m: any) => m.id === message.id);
+                  const recentMessages = activeSession.messages.slice(Math.max(0, messageIndex - 4), messageIndex + 1);
+                  const contextText = recentMessages
+                    .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+                    .join("\n");
+
+                  // 准备并清洗人物外观特征描述文本
+                  const charName = activeCharacter?.name || "Assistant";
+                  const userName = settings.userName || "User";
+                  const rawAppearance = activeCharacter?.description || "";
+                  const appearanceText = rawAppearance
+                    .replace(/\{\{char\}\}/gi, charName)
+                    .replace(/\{\{user\}\}/gi, userName)
+                    .trim() || "No character appearance described.";
+
+                  const llmPrompt = template
+                    .replace("{appearance}", appearanceText)
+                    .replace("{context}", contextText)
+                    .replace("{message}", message.content);
+
+                  const llmResponse = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
+                    baseUrl: settings.api.baseUrl,
+                    apiKey: settings.api.apiKey || "",
+                    chatPath: settings.api.chatPath,
+                    bypassProxy: settings.api.bypassProxy,
+                    disableReasoning: settings.api.disableReasoning,
+                    reqBody: {
+                      model: settings.api.modelName,
+                      messages: [{ role: "user", content: llmPrompt }],
+                      temperature: settings.preset?.temperature,
+                      top_p: settings.preset?.topP,
+                      top_k: settings.preset?.topK,
+                      min_p: settings.preset?.minP,
+                      max_tokens: 150,
+                      presence_penalty: settings.preset?.presencePenalty ?? 0.0,
+                      frequency_penalty: settings.preset?.frequencyPenalty ?? 0.0,
+                      repetition_penalty: settings.preset?.repetitionPenalty ?? 1.0,
+                    }
+                  });
+
+                  if (llmResponse.ok) {
+                    const llmJson = await llmResponse.json();
+                    const aiSummary = llmJson.choices?.[0]?.message?.content?.trim();
+                    if (aiSummary) {
+                      finalPrompt = aiSummary
+                        .replace(/^["'"`]+|["'"`]+$/g, "")
+                        .replace(/^(Prompt|Prompt:|Prompt description:|English Prompt:|Description:)\s*/i, "")
+                        .trim();
+                      console.log("[QuickDialogueOptions] Summarized Prompt:", finalPrompt);
+                    }
+                  } else {
+                    console.warn(`[QuickDialogueOptions] LLM prompt summary failed with status ${llmResponse.status}, falling back to original message`);
+                  }
+                } catch (e) {
+                  console.warn("[QuickDialogueOptions] Failed to contact LLM for prompt summary, falling back:", e);
+                }
+              }
+
+              // 2. 根据设置，决定是否弹窗确认/修改提示词
+              if (config.promptEditBeforeGenerate) {
+                const editedPrompt = await showCustomPrompt(
+                  "生图提示词已生成，您可以在此修改：",
+                  finalPrompt,
+                  "提示词确认",
+                  "textarea"
+                );
+                if (editedPrompt === null) {
+                  const errorSession = {
+                    ...activeSession,
+                    messages: activeSession.messages.map((m: any) =>
+                      m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
+                    )
+                  };
+                  setSessions((prev: any) =>
+                    prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
+                  );
+                  return;
+                }
+                finalPrompt = editedPrompt.trim();
+              }
+
+              // 3. 传入提炼后的 finalPrompt 生成图像
+              const imgUrl = await imageGenService.generateImage(finalPrompt, config);
+              const finalSession = {
+                ...activeSession,
+                messages: activeSession.messages.map((m: any) =>
+                  m.id === targetMsgId ? { ...m, extra: { ...m.extra, image: imgUrl, isDrawing: false } } : m
+                )
+              };
+              setSessions((prev: any) =>
+                prev.map((s: any) => (s.id === finalSession.id ? finalSession : s)),
+              );
+              await saveSession(finalSession);
+            } catch (err: any) {
+              console.error("Image generation failed:", err);
+              showCustomAlert(`绘图失败: ${err.message || String(err)}`, "生图失败");
+              const errorSession = {
+                ...activeSession,
+                messages: activeSession.messages.map((m: any) =>
+                  m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
+                )
+              };
+              setSessions((prev: any) =>
+                prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
+              );
+              await saveSession(errorSession);
+            }
           }}
           disabled={isSending}
           className="text-[11px] text-indigo-400 hover:text-indigo-300 px-2.5 py-1 rounded hover:bg-indigo-500/10 flex items-center gap-1 border border-indigo-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
