@@ -24,7 +24,8 @@
     "noEmit": true
   },
   "include": [
-    "src"
+    "src",
+    "tests/vitest"
   ],
   "exclude": [
     "node_modules",

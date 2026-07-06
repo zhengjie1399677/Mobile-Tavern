@@ -280,6 +280,8 @@ export interface TtsConfig {
   openaiBaseUrl?: string;
   openaiModel?: string; // tts-1, tts-1-hd 等
   openaiVoice?: string; // alloy, echo, fable, onyx, nova, shimmer
+  readMode?: "all" | "dialogue_only";
+  playMode?: "auto" | "manual";
 }
 
 export interface RegexScript {

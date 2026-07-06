@@ -7,6 +7,7 @@ import { initTavernHelperBridge, cleanTavernHelperBridge, getBridgeInterface } f
 import { saveSession } from "../../utils/localDB";
 import { chatTabState } from "./utils";
 import { globalKernel } from "../../kernel/Kernel";
+import { filterAsteriskActions } from "../../components/formattedTextUtils";
 
 interface UseChatAccessibilityDeps {
   activeCharacter: any;
@@ -129,6 +130,71 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
       }
     };
   }, []);
+
+  // 语音自动朗读逻辑
+  const lastSpokenMsgIdRef = React.useRef<string | null>(null);
+  const lastSessionIdRef = React.useRef<string | null>(null);
+
+  // 1. 切换会话时重置或初始化 lastSpokenMsgId，防止刚切进来误读历史消息
+  React.useEffect(() => {
+    if (activeSession?.id) {
+      if (activeSession.id !== lastSessionIdRef.current) {
+        lastSessionIdRef.current = activeSession.id;
+        const messages = activeSession.messages;
+        if (messages && messages.length > 0) {
+          lastSpokenMsgIdRef.current = messages[messages.length - 1].id;
+        } else {
+          lastSpokenMsgIdRef.current = null;
+        }
+      }
+    } else {
+      lastSessionIdRef.current = null;
+      lastSpokenMsgIdRef.current = null;
+    }
+  }, [activeSession?.id, activeSession?.messages]);
+
+  // 2. 监听消息接收完成并触发朗读
+  React.useEffect(() => {
+    // 仅在 TTS 开启且设为自动朗读且不处于发送中状态时触发
+    if (!settings.ttsConfig?.enabled || settings.ttsConfig.playMode === "manual" || isSending) {
+      return;
+    }
+
+    const messages = activeSession?.messages;
+    if (!messages || messages.length === 0) return;
+
+    const lastMsg = messages[messages.length - 1];
+    
+    // 只自动朗读 assistant (对方) 的消息
+    if (lastMsg.sender !== "assistant") return;
+
+    // 防止重复朗读
+    if (lastSpokenMsgIdRef.current === lastMsg.id) return;
+
+    try {
+      const ttsService = globalKernel.getService<any>("tts");
+      if (ttsService) {
+        lastSpokenMsgIdRef.current = lastMsg.id;
+
+        let textToSpeak = lastMsg.content;
+        if (settings.ttsConfig?.readMode === "dialogue_only") {
+          const filtered = filterAsteriskActions(lastMsg.content);
+          if (filtered.trim().length > 0) {
+            textToSpeak = filtered;
+          }
+        }
+
+        ttsService.speak(textToSpeak, {
+          ...settings.ttsConfig,
+          messageId: lastMsg.id,
+        }).catch((err: any) => {
+          console.error("[TTS AutoPlay] Speak failed:", err);
+        });
+      }
+    } catch (e) {
+      console.warn("[TTS AutoPlay] ttsService not found or failed:", e);
+    }
+  }, [activeSession?.messages, isSending, settings.ttsConfig]);
 
   return {
     announcement,

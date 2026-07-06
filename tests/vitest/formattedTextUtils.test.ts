@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml, escapeHtml } from "../../src/components/formattedTextUtils";
+import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml, escapeHtml, filterAsteriskActions } from "../../src/components/formattedTextUtils";
 
 // ============================================================================
 // parseStyleString
@@ -293,3 +293,45 @@ describe("escapeHtml", () => {
     expect(escapeHtml("Hello World 你好世界")).toBe("Hello World 你好世界");
   });
 });
+
+// ============================================================================
+// filterAsteriskActions
+// ============================================================================
+
+describe("filterAsteriskActions", () => {
+  it("应过滤掉被单星号包裹的动作旁白，仅保留对白文本", () => {
+    const input = "你好！*递过去一杯水* 喝点吧。";
+    expect(filterAsteriskActions(input)).toBe("你好！ 喝点吧。");
+  });
+
+  it("应完全过滤掉整条仅含动作的消息", () => {
+    const input = "*笑了笑，摸摸头*";
+    expect(filterAsteriskActions(input)).toBe("");
+  });
+
+  it("当动作段落内嵌套粗体时，应能正确剔除整个动作段落", () => {
+    const input = "*悄悄凑到你的**耳朵**旁说* 你真好看。";
+    expect(filterAsteriskActions(input)).toBe("你真好看。");
+  });
+
+  it("不应误过滤非单星号包裹的双星号粗体对白", () => {
+    const input = "这**不是**动作，这是**粗体**对白。";
+    expect(filterAsteriskActions(input)).toBe("这**不是**动作，这是**粗体**对白。");
+  });
+
+  it("应正确处理多个动作与多段对白的混合场景", () => {
+    const input = "*动作一* 对白一 *动作二* 对白二 *动作三*";
+    expect(filterAsteriskActions(input)).toBe("对白一 对白二");
+  });
+
+  it("遇到未闭合的孤立单星号时应作为普通字符保留", () => {
+    const input = "我*今天**很开心。";
+    expect(filterAsteriskActions(input)).toBe("我*今天**很开心。");
+  });
+
+  it("空文本输入安全返回空串", () => {
+    expect(filterAsteriskActions("")).toBe("");
+    expect(filterAsteriskActions(null as any)).toBe("");
+  });
+});
+

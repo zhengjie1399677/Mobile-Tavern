@@ -56,34 +56,110 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   iframe: new Set(["src", "srcdoc", "width", "height", "style", "class", "classname", "sandbox", "id", "name", "allowtransparency"]),
 };
 
+function parseMarkdownToReact(
+  str: string,
+  enableAsteriskFormatting: boolean,
+  keyPrefix: string = "md"
+): React.ReactNode[] {
+  if (!str) return [];
+
+  const result: React.ReactNode[] = [];
+  let i = 0;
+  let childKeyIndex = 0;
+
+  while (i < str.length) {
+    const nextBold = str.indexOf("**", i);
+    const nextItalic = str.indexOf("*", i);
+
+    if (nextBold === -1 && nextItalic === -1) {
+      result.push(str.slice(i));
+      break;
+    }
+
+    // 决定是双星号粗体还是单星号斜体先开始
+    let isBold = false;
+    let startIdx = -1;
+
+    if (nextBold !== -1 && (nextItalic === -1 || nextBold <= nextItalic)) {
+      isBold = true;
+      startIdx = nextBold;
+    } else {
+      isBold = false;
+      startIdx = nextItalic;
+    }
+
+    // 将标记前的内容加入结果
+    if (startIdx > i) {
+      result.push(str.slice(i, startIdx));
+    }
+
+    if (isBold) {
+      const closeIdx = str.indexOf("**", startIdx + 2);
+      if (closeIdx !== -1) {
+        const innerText = str.slice(startIdx + 2, closeIdx);
+        const children = parseMarkdownToReact(innerText, enableAsteriskFormatting, `${keyPrefix}-b-${childKeyIndex}`);
+        result.push(
+          <strong key={`${keyPrefix}-bold-${childKeyIndex++}`} className="font-bold text-[inherit]">
+            {children}
+          </strong>
+        );
+        i = closeIdx + 2;
+      } else {
+        // 未闭合，退化为普通文本
+        result.push("**");
+        i = startIdx + 2;
+      }
+    } else {
+      // 寻找配对的单星号
+      let closeIdx = -1;
+      let searchStart = startIdx + 1;
+      while (true) {
+        const found = str.indexOf("*", searchStart);
+        if (found === -1) break;
+
+        const prevIsStar = found > 0 && str[found - 1] === "*";
+        const nextIsStar = found + 1 < str.length && str[found + 1] === "*";
+
+        if (!prevIsStar && !nextIsStar) {
+          closeIdx = found;
+          break;
+        }
+        // 如果是双星号的一部分，跳过双星号
+        searchStart = found + (nextIsStar ? 2 : 1);
+      }
+
+      if (closeIdx !== -1) {
+        const innerText = str.slice(startIdx + 1, closeIdx);
+        const children = parseMarkdownToReact(innerText, enableAsteriskFormatting, `${keyPrefix}-i-${childKeyIndex}`);
+        result.push(
+          <span
+            key={`${keyPrefix}-italic-${childKeyIndex++}`}
+            className={
+              enableAsteriskFormatting
+                ? "text-muted-foreground/80 italic font-light text-[13px] leading-relaxed mx-0.5"
+                : "italic text-[inherit] mx-0.5"
+            }
+          >
+            {children}
+          </span>
+        );
+        i = closeIdx + 1;
+      } else {
+        // 未闭合，退化为普通文本
+        result.push("*");
+        i = startIdx + 1;
+      }
+    }
+  }
+
+  return result;
+}
+
 function renderTextNode(textVal: string, enableAsteriskFormatting: boolean): React.ReactNode {
   if (!/(\*\*|\*)/.test(textVal)) {
     return textVal;
   }
-  const parts = textVal.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
-  return parts.map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={index} className="font-bold text-[inherit]">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    } else if (part.startsWith("*") && part.endsWith("*")) {
-      return (
-        <span
-          key={index}
-          className={
-            enableAsteriskFormatting
-              ? "text-muted-foreground/85 italic font-light text-[13px] leading-relaxed mx-0.5"
-              : "italic text-[inherit] mx-0.5"
-          }
-        >
-          {part.slice(1, -1)}
-        </span>
-      );
-    }
-    return part;
-  });
+  return parseMarkdownToReact(textVal, enableAsteriskFormatting, "html-node");
 }
 
 function domToReact(
@@ -534,36 +610,9 @@ const FormattedText = memo(function FormattedText({
     );
   } else {
     // Fast-path Markdown parsing for pure text messages
-    const parts = processed.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
     renderedContent = (
       <span className={`whitespace-pre-wrap leading-relaxed ${className}`}>
-        {parts.map((part, index) => {
-          if (part.startsWith("**") && part.endsWith("**")) {
-            return (
-              <strong key={index} className="font-bold text-[inherit]">
-                {part.slice(2, -2)}
-              </strong>
-            );
-          } else if (part.startsWith("*") && part.endsWith("*")) {
-            return (
-              <span
-                key={index}
-                className={
-                  enableAsteriskFormatting
-                    ? "text-muted-foreground/80 italic font-light text-[13px] leading-relaxed mx-0.5"
-                    : "italic text-[inherit] mx-0.5"
-                }
-              >
-                {part.slice(1, -1)}
-              </span>
-            );
-          }
-          return (
-            <span key={index} className="text-[inherit] font-normal">
-              {part}
-            </span>
-          );
-        })}
+        {parseMarkdownToReact(processed, enableAsteriskFormatting, "text-node")}
       </span>
     );
   }

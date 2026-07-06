@@ -17,6 +17,7 @@ import {
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { saveSession } from "../../utils/localDB";
+import { filterAsteriskActions } from "../../components/formattedTextUtils";
 
 interface QuickDialogueOptionsProps {
   message: any;
@@ -299,7 +300,14 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               setIsSpeakingThis(false);
             } else {
               setIsSpeakingThis(true);
-              ttsService.speak(message.content, {
+              let textToSpeak = message.content;
+              if (settings.ttsConfig?.readMode === "dialogue_only") {
+                const filtered = filterAsteriskActions(message.content);
+                if (filtered.trim().length > 0) {
+                  textToSpeak = filtered;
+                }
+              }
+              ttsService.speak(textToSpeak, {
                 ...settings.ttsConfig,
                 messageId: message.id
               }).catch(() => {

@@ -113,7 +113,7 @@ describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
 describe("TavernHelper Bridge - 脚本预处理 (preprocessScriptContent)", () => {
   // preprocessScriptContent 是 MVU iframe 注入前的文本转换，
   // 负责将 CDN import 替换为本地 TavernHelperMvuLibs 查找
-  let preprocessScriptContent: (content: string) => string;
+  let preprocessScriptContent: (content: string, enableLoopProtection?: boolean) => string;
 
   beforeAll(async () => {
     const mod = await import("../../src/utils/tavernHelper");
@@ -155,7 +155,7 @@ describe("TavernHelper Bridge - 脚本预处理 (preprocessScriptContent)", () =
 
   it("非 CDN 的普通 import 原样保留", () => {
     const input = `import { something } from "./local-module";`;
-    const result = preprocessScriptContent(input);
+    const result = preprocessScriptContent(input, false);
     expect(result).toBe(input);
   });
 
@@ -167,7 +167,7 @@ import { registerMvuSchema } from "./mvu_zod";
 import { helper } from "./helpers";
 const x = 1;
 `;
-    const result = preprocessScriptContent(input);
+    const result = preprocessScriptContent(input, false);
     // mvu named import 被替换
     expect(result).not.toContain("jsdelivr.net/npm/mvu/");
     // math namespace import 被替换

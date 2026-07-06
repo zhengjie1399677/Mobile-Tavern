@@ -144,6 +144,40 @@ export const useChat = (
 
   const { renderDialogueBubble } = useDialogueBubble({ activeCharacter, settings });
 
+  // 缺陷修复：当会话中仅有一条开场白（未开始实质对话）时，若开场白内容与角色卡最新配置不一致，自动对其进行更新同步
+  useEffect(() => {
+    if (
+      activeSession &&
+      activeCharacter &&
+      activeSession.messages &&
+      activeSession.messages.length === 1
+    ) {
+      const firstMsg = activeSession.messages[0];
+      if (firstMsg.sender === "assistant") {
+        const expectedGreeting = activeCharacter.first_mes || "";
+        if (firstMsg.content !== expectedGreeting) {
+          console.log("[useChat] Autodetected unstarted session with stale greeting. Syncing greeting...");
+          const updatedMsg = {
+            ...firstMsg,
+            content: expectedGreeting,
+            timestamp: Date.now(),
+          };
+          const updatedSession = {
+            ...activeSession,
+            messages: [updatedMsg],
+          };
+          databaseService.saveSession(updatedSession).then(() => {
+            setSessions((prev) =>
+              prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+            );
+          }).catch((err) => {
+            console.error("Failed to sync stale greeting session:", err);
+          });
+        }
+      }
+    }
+  }, [activeSession, activeCharacter, databaseService, setSessions]);
+
   // ── 返回值聚合（保持与原 chatHookValue 完全相同的接口形状） ─────────────────────
   return useMemo(() => ({
     // 发送/停止

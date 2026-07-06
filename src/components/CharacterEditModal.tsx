@@ -445,6 +445,42 @@ export default function CharacterEditModal() {
 
             <div>
               <label className="block text-muted-foreground mb-1">
+                星号动作分色渲染 (角色级覆写)
+              </label>
+              <select
+                value={
+                  editingChar.visualSettings?.enableAsteriskFormatting === undefined
+                    ? "inherit"
+                    : editingChar.visualSettings.enableAsteriskFormatting
+                    ? "true"
+                    : "false"
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const updatedVisualSettings = {
+                    ...(editingChar.visualSettings || {}),
+                  };
+                  if (val === "inherit") {
+                    delete updatedVisualSettings.enableAsteriskFormatting;
+                  } else {
+                    updatedVisualSettings.enableAsteriskFormatting = val === "true";
+                  }
+                  setEditingChar({
+                    ...editingChar,
+                    visualSettings: updatedVisualSettings,
+                  });
+                }}
+                className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs"
+              >
+                <option value="inherit">跟随全局设置</option>
+                <option value="true">强制启用</option>
+                <option value="false">强制禁用</option>
+              </select>
+            </div>
+
+
+            <div>
+              <label className="block text-muted-foreground mb-1">
                 人设描述 (Description/Persona)
               </label>
               <textarea

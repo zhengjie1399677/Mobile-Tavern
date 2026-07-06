@@ -486,6 +486,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
     openaiBaseUrl: "https://api.openai.com/v1",
     openaiModel: "tts-1",
     openaiVoice: "alloy",
+    readMode: "all",
+    playMode: "auto",
   },
   asrConfig: {
     enabled: false,

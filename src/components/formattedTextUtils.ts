@@ -166,3 +166,54 @@ export function convertMarkdownTablesToHtml(text: string): string {
 
   return processedLines.join("\n");
 }
+
+/**
+ * 过滤掉被单星号 * 包裹的动作/旁白内容，仅保留非星号包裹的对白文本
+ */
+export function filterAsteriskActions(text: string): string {
+  if (!text) return "";
+  let result = "";
+  let i = 0;
+  while (i < text.length) {
+    const nextItalic = text.indexOf("*", i);
+    if (nextItalic === -1) {
+      result += text.slice(i);
+      break;
+    }
+
+    // 将单星号前的内容加到结果中
+    if (nextItalic > i) {
+      result += text.slice(i, nextItalic);
+    }
+
+    // 寻找配对的单星号
+    let closeIdx = -1;
+    let searchStart = nextItalic + 1;
+    while (true) {
+      const found = text.indexOf("*", searchStart);
+      if (found === -1) break;
+
+      const prevIsStar = found > 0 && text[found - 1] === "*";
+      const nextIsStar = found + 1 < text.length && text[found + 1] === "*";
+
+      if (!prevIsStar && !nextIsStar) {
+        closeIdx = found;
+        break;
+      }
+      // 如果是双星号的一部分，跳过双星号
+      searchStart = found + (nextIsStar ? 2 : 1);
+    }
+
+    if (closeIdx !== -1) {
+      // 成功配对！因为是 dialogue_only，我们丢弃 [nextItalic, closeIdx] 的内容
+      i = closeIdx + 1;
+    } else {
+      // 未配对的单星号，当做普通文本处理
+      result += "*";
+      i = nextItalic + 1;
+    }
+  }
+  // 清理多余的空格，避免 TTS 停顿怪异
+  return result.replace(/\s+/g, " ").trim();
+}
+

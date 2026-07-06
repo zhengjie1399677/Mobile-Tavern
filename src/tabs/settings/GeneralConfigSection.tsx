@@ -1178,6 +1178,79 @@ export default function GeneralConfigSection({
 
           {settings.ttsConfig?.enabled && (
             <div className="space-y-4 animate-in fade-in duration-300">
+              {/* Play Mode & Read Mode */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-muted-foreground">朗读触发方式</label>
+                  <Select
+                    value={settings.ttsConfig?.playMode || "auto"}
+                    onValueChange={(val: "auto" | "manual") => {
+                      updateSettings((prev) => ({
+                        ...prev,
+                        ttsConfig: {
+                          ...(prev.ttsConfig || {
+                            enabled: true,
+                            provider: "speech-synthesis",
+                            volume: 0.5,
+                            rate: 1.0,
+                            pitch: 1.0,
+                            voiceName: "",
+                            openaiApiKey: "",
+                            openaiBaseUrl: "https://api.openai.com/v1",
+                            openaiModel: "tts-1",
+                            openaiVoice: "alloy",
+                          }),
+                          playMode: val,
+                        },
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-semibold">
+                      <SelectValue placeholder="触发方式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto" className="text-xs font-semibold">自动朗读 (默认)</SelectItem>
+                      <SelectItem value="manual" className="text-xs font-semibold">手动朗读 (仅按需)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-muted-foreground">朗读内容范围</label>
+                  <Select
+                    value={settings.ttsConfig?.readMode || "all"}
+                    onValueChange={(val: "all" | "dialogue_only") => {
+                      updateSettings((prev) => ({
+                        ...prev,
+                        ttsConfig: {
+                          ...(prev.ttsConfig || {
+                            enabled: true,
+                            provider: "speech-synthesis",
+                            volume: 0.5,
+                            rate: 1.0,
+                            pitch: 1.0,
+                            voiceName: "",
+                            openaiApiKey: "",
+                            openaiBaseUrl: "https://api.openai.com/v1",
+                            openaiModel: "tts-1",
+                            openaiVoice: "alloy",
+                          }),
+                          readMode: val,
+                        },
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-semibold">
+                      <SelectValue placeholder="内容范围" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" className="text-xs font-semibold">朗读全文 (含动作)</SelectItem>
+                      <SelectItem value="dialogue_only" className="text-xs font-semibold">仅朗读对白 (过滤动作)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               {/* Provider Selection */}
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-muted-foreground">语音引擎 (Provider)</label>

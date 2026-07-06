@@ -67,10 +67,25 @@ const MessageBubble = ({
   const isScrollingOrMoving = React.useRef(false);
   const hasTriggeredMenuThisTurn = React.useRef(false);
 
+  // 记录滑动位置的 Refs
+  const touchStartXRef = React.useRef<number>(0);
+  const touchStartYRef = React.useRef<number>(0);
+  const touchEndXRef = React.useRef<number>(0);
+  const touchEndYRef = React.useRef<number>(0);
+
   const startLongPress = React.useCallback((e: React.TouchEvent | React.MouseEvent) => {
     if ("button" in e && e.button !== 0) return;
     isScrollingOrMoving.current = false;
     hasTriggeredMenuThisTurn.current = false;
+
+    // 记录初始触摸坐标
+    if ("touches" in e && e.touches[0]) {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+      touchEndXRef.current = e.touches[0].clientX;
+      touchEndYRef.current = e.touches[0].clientY;
+    }
+
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
     }
@@ -95,10 +110,38 @@ const MessageBubble = ({
     }
   }, []);
 
-  const moveTouch = React.useCallback(() => {
+  const moveTouch = React.useCallback((e: React.TouchEvent | React.MouseEvent) => {
     isScrollingOrMoving.current = true;
     cancelLongPress();
+
+    // 更新当前触摸坐标
+    if ("touches" in e && e.touches[0]) {
+      touchEndXRef.current = e.touches[0].clientX;
+      touchEndYRef.current = e.touches[0].clientY;
+    }
   }, [cancelLongPress]);
+
+  const endTouch = React.useCallback(() => {
+    cancelLongPress();
+
+    const diffX = touchStartXRef.current - touchEndXRef.current;
+    const diffY = Math.abs(touchStartYRef.current - touchEndYRef.current);
+
+    // 水平向左滑动触发菜单：位移超过 60px，且垂直偏离小于 35px
+    if (diffX > 60 && diffY < 35 && editingMsgId !== message.id) {
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate(35);
+        } catch (_) {}
+      }
+      setMsgMenuId(message.id);
+      hasTriggeredMenuThisTurn.current = true;
+    }
+    // 水平向右滑动：预留给其它未来功能，目前静默记录日志
+    else if (diffX < -60 && diffY < 35) {
+      console.log("[Swipe Action] Swipe Right gesture detected (reserved for future use)");
+    }
+  }, [cancelLongPress, editingMsgId, message.id, setMsgMenuId]);
 
   return (
     <div
@@ -141,10 +184,10 @@ const MessageBubble = ({
         className="max-w-[78%] group relative select-none"
         onTouchStart={startLongPress}
         onTouchMove={moveTouch}
-        onTouchEnd={cancelLongPress}
+        onTouchEnd={endTouch}
         onMouseDown={startLongPress}
         onMouseMove={moveTouch}
-        onMouseUp={cancelLongPress}
+        onMouseUp={endTouch}
         onMouseLeave={cancelLongPress}
         onClick={(e) => {
           e.stopPropagation();

@@ -7,6 +7,22 @@
 
 ---
 
+## [1.6.3] - 2026-07-06
+
+### 新增
+- 语音交互生态：新增 TTS 语音合成（支持 Web SpeechSynthesis 和 OpenAI TTS）与 ASR 语音识别（支持 Web Speech API 和 OpenAI Whisper），实现完全浸入式语音对白扮演。
+- AI 绘图生图组件：新增 DALL-E-3 绘图支持，配合外观与上下文，支持后台自动生成高内聚的英文画质绘图 Prompt。
+- 自适应上下文引擎：移除了硬编码的 12k 上限。增加已知主流模型特性表（Gemini 2M, Claude/GPT/DeepSeek 1M）并解耦渲染器，支持用户在设置中自定义上下文上限与强制 XML / Markdown 输出格式。
+- 野牛连连看回复模式（Bison Mode）：支持基于触发概率计算的自动多消息队列连续生成，深度丰富场景细节。
+- RPG 看板与状态表引擎：支持角色卡内嵌 UpdateVariable/initvar 表格状态控制，规范化 updateRow/insertRow 数据库行为，删除了低效矛盾的优先级提示词。
+
+### 优化与修复
+- 思维链（CoT）防污染：对 `DEFAULT_REASONING_GUIDANCE_PROMPT` 进行 100% 中文汉化规训，加入视角隔离（严禁在 think 内以第一人称扮演）与剧本草稿阻断限制，防止思维链污染正文。
+- 移除了冗余的时空领航格式维持预设（`FORMAT_PRESERVATION_BUNDLE`），并在设置加载层加入数据库自动清除机制，平滑老用户版本迁移。
+- 一键版本号同步：将应用发布版本号同步更新至 `1.6.3`，覆盖 package 描述、Tauri 构建、Rust 后端及文档说明。
+
+---
+
 ## [1.6.0] - 2026-06-26
 
 ### 新增
