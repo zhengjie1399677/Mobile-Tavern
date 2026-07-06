@@ -1,6 +1,6 @@
 import React, { useContext, memo, useState } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
-import { createMessageIframeSrcDoc } from "../utils/tavernHelper";
+import { createMessageIframeSrcDoc, initTavernHelperMocks } from "../utils/tavernHelper";
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "./formattedTextUtils";
 
 interface FormattedTextProps {
@@ -420,9 +420,14 @@ function preprocessFormattedText(
   }
   
   // 角色局部正则
-  if (activeCharacter?.extensions?.regex_scripts && Array.isArray(activeCharacter.extensions.regex_scripts)) {
-    for (const script of activeCharacter.extensions.regex_scripts) {
-      if (!script.disabled) {
+  const rawCharScripts = activeCharacter?.extensions?.regex_scripts;
+  const charRegexScripts = Array.isArray(rawCharScripts)
+    ? rawCharScripts
+    : (rawCharScripts && typeof rawCharScripts === "object" ? Object.values(rawCharScripts) : []);
+
+  if (charRegexScripts.length > 0) {
+    for (const script of charRegexScripts) {
+      if (script && !script.disabled) {
         const exists = mergedScripts.some(
           (s) => s.id === script.id || (s.scriptName === script.scriptName && s.findRegex === script.findRegex)
         );
@@ -483,7 +488,7 @@ function preprocessFormattedText(
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
       const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform, height; transform: translate3d(0, 0, 0); transition: height 0.15s ease-out;" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
     });
 
     // 再处理普通 ``` 块，但仅当内容以 HTML 标签开头时才转为 iframe
@@ -498,7 +503,7 @@ function preprocessFormattedText(
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
         const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-        return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+        return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform, height; transform: translate3d(0, 0, 0); transition: height 0.15s ease-out;" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
       }
       // 非 HTML 内容：保持原始代码块渲染
       return _match;
@@ -556,6 +561,11 @@ const FormattedText = memo(function FormattedText({
   const enableScriptExecution = !!context.settings.enableScriptExecution;
   const enableLoopProtection = context.settings.enableLoopProtection !== false;
   const activeCharacter = context.activeCharacter;
+
+  if (enableScriptExecution) {
+    // 关键：在渲染时立即触发全局 Mock 注册，防止 iframe 比 useEffect 提前加载导致 window.parent.TavernHelper 缺失而退出
+    initTavernHelperMocks();
+  }
 
   const [libsReady, setLibsReady] = useState(false);
 

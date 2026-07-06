@@ -243,6 +243,15 @@ export function initTavernHelperMocks(): void {
     _registerMacroLike: () => {},
     _reloadIframe: () => {},
     _onIframeReady(iframeId: string) {
+      // 防暴去重：一个 iframe 已经响应就绪后，无需重复执行 100ms 后的变量初始化通知，防止反噬死循环
+      if ((window as any).__readyIframeSet?.has(iframeId)) {
+        return;
+      }
+      if (!(window as any).__readyIframeSet) {
+        (window as any).__readyIframeSet = new Set<string>();
+      }
+      (window as any).__readyIframeSet.add(iframeId);
+
       console.log(`[TavernHelper Bridge] Iframe ${iframeId} is ready.`);
       try {
         const iframe = document.getElementById(iframeId) as HTMLIFrameElement;
@@ -292,7 +301,14 @@ export function initTavernHelperMocks(): void {
               console.log("[TavernHelper Bridge] Auto-repaired empty session variables from character card.");
             }
           }
+          // 【修复】：不管变量先前是否为空，在任何 iframe/状态栏就绪时都必须向下游广播初始化变量，
+          // 否则新挂载的 iframe 会因未收到 mag_variable_initialized 广播而呈现 '--' 空白状态。
           initializeVariablesForSession(session);
+
+          // 同步触发消息渲染，以唤醒状态面板更新在场角色及服装状态
+          const lastMsgId = Math.max(0, (session.messages?.length ?? 1) - 1);
+          tavernHelperEventEmitter.emit('message_received', lastMsgId);
+          tavernHelperEventEmitter.emit('character_message_rendered', lastMsgId);
         }
       }, 100);
     },
@@ -344,29 +360,50 @@ export function initTavernHelperMocks(): void {
       return res;
     },
     _replaceVariables(variables: Record<string, any>, opt: any = { type: "chat" }) {
-      console.log("[TavernHelper Bridge] _replaceVariables called with opt:", JSON.stringify(opt), "variables:", JSON.stringify(variables));
+      console.log("[TavernHelper Bridge] _replaceVariables called with opt:", JSON.stringify(opt));
       const params = getBridgeParams();
       if (!params) return;
       const { activeCharacter, settings, activeSession, setCharacters, saveCharacter, updateSettings, setSessions, saveSession } = params;
       if (opt.type === "character" && activeCharacter) {
         setCharacters((prev) => {
           let updatedChar: any = null;
-          const next = prev.map((c) => { if (c.id === activeCharacter.id) { updatedChar = { ...c, variables }; return updatedChar; } return c; });
+          let changed = false;
+          const next = prev.map((c) => {
+            if (c.id === activeCharacter.id) {
+              if (lodashIsEqual(c.variables, variables)) {
+                return c;
+              }
+              changed = true;
+              updatedChar = { ...c, variables };
+              return updatedChar;
+            }
+            return c;
+          });
+          if (!changed) return prev;
           if (updatedChar) { setTimeout(() => { saveCharacter(updatedChar); }, 0); }
           return next;
         });
       } else if (opt.type === "global") {
-        updateSettings((prev: any) => ({ ...prev, variables }));
+        updateSettings((prev: any) => {
+          if (lodashIsEqual(prev?.variables, variables)) return prev;
+          return { ...prev, variables };
+        });
       } else if (opt.type === "message" && opt.message_id !== undefined && activeSession) {
         setSessions((prev) => {
           const activeS = prev.find(s => s.id === activeSession.id);
           if (!activeS) return prev;
           const targetMsgId = resolveMessageId(opt.message_id, activeS.messages.length);
           let sessionVarsUpdated = false;
+          let messageVarsChanged = false;
           const updatedMessages = activeS.messages.map((m, idx) => {
             if (idx === targetMsgId) {
               const msg = m as any;
               const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
+              const existingSwipeVars = msg.extra?.variables?.[swipeId];
+              if (lodashIsEqual(existingSwipeVars, variables)) {
+                return m;
+              }
+              messageVarsChanged = true;
               const extra = { ...msg.extra };
               if (!extra.variables) extra.variables = {};
               extra.variables = { ...extra.variables, [swipeId]: variables };
@@ -375,6 +412,7 @@ export function initTavernHelperMocks(): void {
             }
             return m;
           });
+          if (!messageVarsChanged) return prev;
           const updatedSession = { ...activeS, messages: updatedMessages, variables: sessionVarsUpdated ? variables : activeS.variables };
           setTimeout(() => { saveSession(updatedSession); notifyVariablesUpdated(updatedSession); }, 0);
           return prev.map((s) => (s.id === updatedSession.id ? updatedSession : s));
@@ -383,6 +421,9 @@ export function initTavernHelperMocks(): void {
         setSessions((prev) => {
           const activeS = prev.find(s => s.id === activeSession.id);
           if (!activeS) return prev;
+          if (lodashIsEqual(activeS.variables, variables)) {
+            return prev;
+          }
           const updated = { ...activeS, variables };
           setTimeout(() => { saveSession(updated); notifyVariablesUpdated(updated); }, 0);
           return prev.map((s) => (s.id === updated.id ? updated : s));

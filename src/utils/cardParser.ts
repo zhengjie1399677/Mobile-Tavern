@@ -26,6 +26,12 @@ function sanitizeExtensions(ext: any, depth = 0): Record<string, any> {
       cleaned[key] = val;
     }
   }
+
+  // 规范化 regex_scripts：防腐处理 SillyTavern 导出为 Object 格式 ({ "0": {...}, "1": {...} }) 的局部正则脚本
+  if (cleaned.regex_scripts && typeof cleaned.regex_scripts === "object" && !Array.isArray(cleaned.regex_scripts)) {
+    cleaned.regex_scripts = Object.values(cleaned.regex_scripts);
+  }
+
   return cleaned;
 }
 

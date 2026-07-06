@@ -63,6 +63,15 @@ export const tavernHelperEventEmitter = (() => {
 
   const emitter = {
     on(event: string, cb: any) {
+      if (typeof cb !== "function") return emitter;
+      if (!subscriptions.has(event)) {
+        subscriptions.set(event, []);
+      }
+      const list = subscriptions.get(event)!;
+      // 仅做引用防重：完全相同的 cb 引用不重复注册，但允许不同闭包实例（MVU 框架需要此能力）
+      if (list.some((item) => item.cb === cb)) {
+        return emitter;
+      }
       const unsub = globalKernel.subscribe(`tavern_helper:${event}`, (msg) => {
         try {
           return cb(...msg.payload);
@@ -70,10 +79,7 @@ export const tavernHelperEventEmitter = (() => {
           console.error(`[Event Execution Error in ${event}]:`, e);
         }
       });
-      if (!subscriptions.has(event)) {
-        subscriptions.set(event, []);
-      }
-      subscriptions.get(event)!.push({ cb, unsub });
+      list.push({ cb, unsub });
       return emitter;
     },
     once(event: string, cb: any) {
@@ -295,6 +301,26 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
     }
   }
 
+  // 额外初始化：从 Worldbook/Lorebook 的 [initvar] 词条或含有 YAML/JSON 声明的条目中提取初始变量
+  const lorebookEntries = character.character_book?.entries || character.extensions?.world?.entries || [];
+  if (Array.isArray(lorebookEntries)) {
+    for (const entry of lorebookEntries) {
+      if (!entry || !entry.content) continue;
+      const comment = (entry.comment || "").toLowerCase();
+      const content = entry.content;
+      if (comment.includes("initvar") || comment.includes("stat_data") || content.includes("<initvar>") || content.includes("stat_data:")) {
+        try {
+          const parsedVars = parseMvuMessage(content, variables);
+          if (parsedVars && parsedVars.stat_data && Object.keys(parsedVars.stat_data).length > 0) {
+            variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
+          }
+        } catch (e) {
+          console.warn("[initializeMvuFromCharacter] Failed to parse lorebook initvars:", e);
+        }
+      }
+    }
+  }
+
   console.log("[TavernHelper Bridge] initializeMvuFromCharacter initialized variables:", JSON.stringify(variables));
   return variables;
 }
@@ -476,19 +502,9 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
 
 export function cleanTavernHelperBridge() {
   // 清理事件总线：防止切换角色卡/会话时旧脚本注册的事件监听器残留
-  // 遵循 AGENTS.md 准则一.4（副作用隔离）：精确清理，避免级联渲染
   tavernHelperEventEmitter.clearAll();
   bridgeParams = null;
   lastSessionId = null;
-
-  // 通知下游组件（HiddenScriptLayer 等）主动回收 iframe DOM
-  // 遵循 AGENTS.md 准则十.4（彻底回收）：bridge 清理时广播事件，
-  // 让 iframe 容器及时释放 browsing context 与挂起异步任务
-  try {
-    globalKernel.publish({ topic: "script:bridgeCleaned", payload: { reason: "bridge-cleanup" } }).catch(() => {});
-  } catch {
-    // kernel 未初始化或已注销时静默降级
-  }
 }
 
 /**

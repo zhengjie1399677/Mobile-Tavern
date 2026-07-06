@@ -344,47 +344,60 @@ export function extractXmlMvuCommands(text: string): { type: string; args: any[]
  */
 export function detectJsonPatch(text: string): any[] | null {
   if (!text) return null;
-  // 从 XML 标签中提取内容
   const patches: any[] = [];
-  const tagRegex = /<(?:UpdateVariable|initvar)\b[^>]*>([\s\S]*?)<\/(?:UpdateVariable|initvar)>/gi;
-  let m;
-  while ((m = tagRegex.exec(text)) !== null) {
-    const inner = m[1].trim();
-    if (inner.startsWith('[')) {
+
+  const tryParsePatch = (str: string) => {
+    const trimmed = str.trim();
+    if (!trimmed) return;
+    try {
+      const parsed = JSON5.parse(trimmed);
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.op) {
+        patches.push(...parsed);
+      }
+    } catch {
       try {
-        const parsed = JSON5.parse(inner);
+        const parsed = JSON.parse(trimmed);
         if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.op) {
           patches.push(...parsed);
         }
-      } catch {
-        try {
-          const parsed = JSON.parse(inner);
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.op) {
-            patches.push(...parsed);
-          }
-        } catch {}
-      }
+      } catch {}
     }
+  };
+
+  // 1. 优先尝试从 <JSONPatch>...</JSONPatch> 标签中提取
+  const jsonPatchTagRegex = /<JSONPatch\b[^>]*>([\s\S]*?)<\/JSONPatch>/gi;
+  let jpMatch;
+  while ((jpMatch = jsonPatchTagRegex.exec(text)) !== null) {
+    tryParsePatch(jpMatch[1]);
   }
-  // 也检测裸 JSON Patch 数组（不在 XML 标签内）
+
+  // 2. 从 <UpdateVariable> 或 <initvar> 标签中提取（处理包含 <Analysis> 或裸 JSON 数组的情况）
   if (patches.length === 0) {
-    const bareMatch = text.match(/\[\s*\{\s*"op"\s*:/);
-    if (bareMatch) {
-      try {
-        const parsed = JSON5.parse(text.trim());
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.op) {
-          patches.push(...parsed);
+    const tagRegex = /<(?:UpdateVariable|initvar)\b[^>]*>([\s\S]*?)<\/(?:UpdateVariable|initvar)>/gi;
+    let m;
+    while ((m = tagRegex.exec(text)) !== null) {
+      const inner = m[1].trim();
+      if (inner.includes("<JSONPatch>")) continue;
+
+      if (inner.startsWith("[")) {
+        tryParsePatch(inner);
+      } else {
+        const arrayMatch = inner.match(/\[\s*\{\s*["']op["']\s*:[\s\S]*?\]/);
+        if (arrayMatch) {
+          tryParsePatch(arrayMatch[0]);
         }
-      } catch {
-        try {
-          const parsed = JSON.parse(text.trim());
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.op) {
-            patches.push(...parsed);
-          }
-        } catch {}
       }
     }
   }
+
+  // 3. 检测裸 JSON Patch 数组（不在 XML 标签内）
+  if (patches.length === 0) {
+    const bareMatch = text.match(/\[\s*\{\s*["']op["']\s*:[\s\S]*?\]/);
+    if (bareMatch) {
+      tryParsePatch(bareMatch[0]);
+    }
+  }
+
   return patches.length > 0 ? patches : null;
 }
 

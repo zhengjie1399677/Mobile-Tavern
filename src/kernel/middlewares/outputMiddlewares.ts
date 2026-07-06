@@ -10,7 +10,7 @@ const TABLE_MEMORY_TRIGGER_PATTERN = /(?:updateRow|insertRow|deleteRow)\s*\(/i;
 // L2 快速通道：MVU 脚本指令预扫描正则。
 // 匹配标准 MVU 命令（_.set/add/insert/delete/move）或 XML 标签（UpdateVariable/initvar），
 // 用于在响应文本不含任何脚本指令时跳过昂贵的 iframe bridge 通信。
-const MVU_SCRIPT_TRIGGER_PATTERN = /(?:_\.(?:set|add|insert|delete|move)\s*\(|<(?:UpdateVariable|initvar)\b)/i;
+const MVU_SCRIPT_TRIGGER_PATTERN = /(?:_\.(?:set|add|insert|delete|move)\s*\(|<(?:UpdateVariable|initvar|JSONPatch)\b|\[\s*\{\s*["']op["']\s*:)/i;
 
 export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (context, next) => {
   const { session, responseText, settings, activeCharacter } = context;

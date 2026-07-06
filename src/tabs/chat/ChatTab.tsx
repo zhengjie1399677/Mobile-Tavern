@@ -69,11 +69,11 @@ export default function ChatTab() {
   });
 
   // 背景音乐 (BGM) 自动播放与停止控制
+  const bgmUrl = activeCharacter?.visualSettings?.bgmUrl;
+  const bgmVolume = activeCharacter?.visualSettings?.bgmVolume ?? 0.5;
+
   React.useEffect(() => {
     const bgmService = getKernelService<any>("bgm");
-    const bgmUrl = activeCharacter?.visualSettings?.bgmUrl;
-    const bgmVolume = activeCharacter?.visualSettings?.bgmVolume ?? 0.5;
-
     if (bgmService) {
       if (bgmUrl) {
         bgmService.play(bgmUrl, bgmVolume);
@@ -81,13 +81,17 @@ export default function ChatTab() {
         bgmService.stop();
       }
     }
+  }, [bgmUrl, bgmVolume, getKernelService]);
 
+  // 仅在 ChatTab 完全卸载时停止 BGM
+  React.useEffect(() => {
     return () => {
+      const bgmService = getKernelService<any>("bgm");
       if (bgmService) {
         bgmService.stop();
       }
     };
-  }, [activeCharacter, getKernelService]);
+  }, [getKernelService]);
 
   // 本地 UI 状态
   const [expandedReasoningIds, setExpandedReasoningIds] = React.useState<Record<string, boolean>>({});

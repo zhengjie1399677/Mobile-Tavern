@@ -257,65 +257,80 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
     window.__TH_IFRAME_ID = iframeId;
     window.name = iframeId;
 
-    var _ = window.parent._;
-    var TavernHelper = window.parent.TavernHelper;
-    if (!_) {
-      console.error("[TH Iframe] Parent lodash (_) is not loaded!");
-      return;
-    }
-    if (!TavernHelper) {
-      console.error("[TH Iframe] Parent TavernHelper is not loaded!");
-      return;
-    }
-
-    // Direct assignment to prevent lodash deep-merging our Zod Proxy and special objects
-    window.z = window.parent.z;
-    window.YAML = window.parent.YAML;
-    window.showdown = window.parent.showdown;
-    window.toastr = window.parent.toastr;
-    window.EjsTemplate = window.parent.EjsTemplate;
-    window.TavernHelper = TavernHelper;
-    window.tavern_events = window.parent.tavern_events;
-    window.appendInexistentScriptButtons = window.parent.appendInexistentScriptButtons;
-    window.getScriptButtons = window.parent.getScriptButtons;
-    window.replaceScriptButtons = window.parent.replaceScriptButtons;
-    window.getButtonEvent = window.parent.getButtonEvent;
-
-    // Merge TavernHelper methods onto window (strip leading underscore from _bind keys)
-    try {
-      var result = _(window);
-      result = result.merge(_.omit(TavernHelper, '_bind'));
-      result = result.merge.apply(result,
-        Object.entries(TavernHelper._bind || {}).map(function(entry) {
-          var key = entry[0], value = entry[1];
-          var cleanKey = key.replace('_', '');
-          if (typeof window[cleanKey] === 'function') {
-            var obj = {};
-            obj[cleanKey] = window[cleanKey];
-            return obj;
+    // Dynamic getters to resolve parent libraries on demand
+    var parentLibs = ['_', 'lodash', 'z', 'YAML', 'showdown', 'toastr', 'EjsTemplate', 'TavernHelper', 'tavern_events', 'appendInexistentScriptButtons', 'getScriptButtons', 'replaceScriptButtons', 'getButtonEvent'];
+    parentLibs.forEach(function(p) {
+      Object.defineProperty(window, p, {
+        get: function() {
+          var val = window.parent[p === 'lodash' ? '_' : p];
+          if (p === 'TavernHelper' && val) {
+            return new Proxy(val, {
+              get: function(target, prop) {
+                if (typeof window[prop] === 'function') {
+                  return window[prop];
+                }
+                if (prop === 'getContext') {
+                  return function() {
+                    var parentContext = target.getContext();
+                    return new Proxy(parentContext, {
+                      get: function(ctxTarget, ctxProp) {
+                        if (ctxProp === 'writeExtensionField') {
+                          return window._th_impl && window._th_impl.writeExtensionField;
+                        }
+                        return ctxTarget[ctxProp];
+                      }
+                    });
+                  };
+                }
+                var val2 = target[prop];
+                if (typeof val2 === 'function') {
+                  return val2.bind(target);
+                }
+                return val2;
+              }
+            });
           }
-          var obj = {};
-          obj[cleanKey] = typeof value === 'function' ? value.bind(window) : value;
-          return obj;
-        })
-      );
-      result.value();
-    } catch(mergeErr) {
-      console.warn("[TH Iframe] Merge error:", mergeErr);
-    }
+          return val;
+        },
+        configurable: true
+      });
+    });
 
-    // Intercept event emitter bindings on iframe window to track listeners locally for cleanup
+    var keys = [
+      'getScriptId', 'getCurrentMessageId', 'getVariables', 'getAllVariables',
+      'replaceVariables', 'getSetting', 'setSetting', 'getChatSession',
+      'getChatHistory', 'setChatMessage', 'addChatMessage', 'sendSystemMessage',
+      'getCharacterBook', 'addCharacterBookEntry', 'updateCharacterBookEntry',
+      'getCharacterExpressions', 'addCharacterExpression', 'updateCharacterExpression',
+      'getMvuSchema', 'registerMvuSchema', 'getMvuVariables', 'updateMvuVariables',
+      'waitGlobalInitialized'
+    ];
+    keys.forEach(function(ck) {
+      Object.defineProperty(window, ck, {
+        get: function() {
+          var parentTH = window.parent.TavernHelper;
+          var bind = parentTH && parentTH._bind;
+          var bk = '_' + ck;
+          if (!bind || typeof bind[bk] !== 'function') {
+            return function() { return {}; };
+          }
+          return function() {
+            var args = Array.prototype.slice.call(arguments);
+            return bind[bk].apply(bind, args);
+          };
+        },
+        configurable: true
+      });
+    });
+
+    // Intercept event emitter bindings on iframe window to track listeners locally for cleanup and auto-forwarding
     var localRegisteredEvents = [];
 
-    var originalEventOn = window.eventOn;
     window.eventOn = function(event, cb) {
-      localRegisteredEvents.push({ event: event, cb: cb });
-      if (typeof originalEventOn === 'function') {
-        originalEventOn(event, cb);
-      }
+      localRegisteredEvents.push({ type: 'on', event: event, cb: cb, bound: false });
+      flushEvents();
     };
 
-    var originalEventOnce = window.eventOnce;
     window.eventOnce = function(event, cb) {
       var wrapper = function() {
         localRegisteredEvents = localRegisteredEvents.filter(function(item) {
@@ -323,34 +338,59 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
         });
         cb.apply(this, arguments);
       };
-      localRegisteredEvents.push({ event: event, cb: wrapper });
-      if (typeof originalEventOnce === 'function') {
-        originalEventOnce(event, wrapper);
-      }
+      localRegisteredEvents.push({ type: 'once', event: event, cb: wrapper, bound: false });
+      flushEvents();
     };
 
-    var originalEventRemoveListener = window.eventRemoveListener;
     window.eventRemoveListener = function(event, cb) {
       localRegisteredEvents = localRegisteredEvents.filter(function(item) {
         return !(item.event === event && item.cb === cb);
       });
-      if (typeof originalEventRemoveListener === 'function') {
-        originalEventRemoveListener(event, cb);
+      var parentTH = window.parent.TavernHelper;
+      var bind = parentTH && parentTH._bind;
+      if (bind && typeof bind._eventRemoveListener === 'function') {
+        try { bind._eventRemoveListener(event, cb); } catch(e) {}
       }
     };
 
     window.eventClearAll = function() {
+      var parentTH = window.parent.TavernHelper;
+      var bind = parentTH && parentTH._bind;
       localRegisteredEvents.forEach(function(item) {
-        if (typeof originalEventRemoveListener === 'function') {
-          originalEventRemoveListener(item.event, item.cb);
+        if (item.bound && bind && typeof bind._eventRemoveListener === 'function') {
+          try { bind._eventRemoveListener(item.event, item.cb); } catch(e) {}
         }
       });
       localRegisteredEvents = [];
     };
 
+    function flushEvents() {
+      try {
+        var parentTH = window.parent.TavernHelper;
+        var bind = parentTH && parentTH._bind;
+        if (!bind) return;
+        localRegisteredEvents.forEach(function(item) {
+          if (item.bound) return;
+          if (item.type === 'on' && typeof bind._eventOn === 'function') {
+            bind._eventOn(item.event, item.cb);
+            item.bound = true;
+          } else if (item.type === 'once' && typeof bind._eventOnce === 'function') {
+            bind._eventOnce(item.event, item.cb);
+            item.bound = true;
+          }
+        });
+      } catch (err) {
+        console.warn("[TH Iframe] Event flush error:", err);
+      }
+    }
+
+    // Periodically poll to flush queued events once parent is fully initialized
+    var flushInterval = setInterval(flushEvents, 100);
+
 
 
     window.addEventListener('pagehide', function() {
+      clearInterval(flushInterval);
       if (typeof window.eventClearAll === 'function') {
         window.eventClearAll();
       }
@@ -410,9 +450,6 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
   var __thWarn = __TH_DEBUG ? console.warn.bind(console) : function(){};
 </script>
 <script>
-  // ─── Inherit libraries from parent window (NO external CDN requests) ───
-  window._ = window.parent._;
-  window.Vue = window.parent.Vue || null;
   // ─── jQuery shim for message iframe ───
   // The parent window's $ is a minimal stub (no DOM selector support).
   // Message iframes need a real jQuery-compatible selector so that inline
@@ -478,6 +515,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
           });
           return arr;
         };
+        arr.off = function() { return arr; };
         arr.click = function(fn) { return fn ? arr.on('click', fn) : (arr[0] && arr[0].click(), arr); };
         arr.show = function() { arr.forEach(function(el) { el.style.display = ''; }); return arr; };
         arr.hide = function() { arr.forEach(function(el) { el.style.display = 'none'; }); return arr; };
@@ -529,75 +567,162 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
 <script>
   // ─── TavernHelper predefine for message iframe ───
   (function() {
-    var _ = window.parent._;
-    var TavernHelper = window.parent.TavernHelper;
-    if (!_) return;
-    if (!TavernHelper) return;
-
-    window.z = window.parent.z;
-    window.YAML = window.parent.YAML;
-    window.showdown = window.parent.showdown;
-    window.toastr = window.parent.toastr;
-    window.EjsTemplate = window.parent.EjsTemplate;
-    window.TavernHelper = new Proxy(TavernHelper, {
-      get: function(target, prop) {
-        if (typeof window[prop] === 'function') {
-          return window[prop];
-        }
-        if (prop === 'getContext') {
-          return function() {
-            var parentContext = target.getContext();
-            return new Proxy(parentContext, {
-              get: function(ctxTarget, ctxProp) {
-                if (ctxProp === 'writeExtensionField') {
-                  return window._th_impl && window._th_impl.writeExtensionField;
+    // Dynamic getters to resolve parent libraries on demand (including Vue)
+    var parentLibs = ['_', 'lodash', 'z', 'YAML', 'showdown', 'toastr', 'EjsTemplate', 'TavernHelper', 'tavern_events', 'appendInexistentScriptButtons', 'getScriptButtons', 'replaceScriptButtons', 'getButtonEvent', 'Vue'];
+    parentLibs.forEach(function(p) {
+      Object.defineProperty(window, p, {
+        get: function() {
+          var val = window.parent[p === 'lodash' ? '_' : p];
+          if (p === 'TavernHelper' && val) {
+            return new Proxy(val, {
+              get: function(target, prop) {
+                if (typeof window[prop] === 'function') {
+                  return window[prop];
                 }
-                return ctxTarget[ctxProp];
+                if (prop === 'getContext') {
+                  return function() {
+                    var parentContext = target.getContext();
+                    return new Proxy(parentContext, {
+                      get: function(ctxTarget, ctxProp) {
+                        if (ctxProp === 'writeExtensionField') {
+                          return window._th_impl && window._th_impl.writeExtensionField;
+                        }
+                        return ctxTarget[ctxProp];
+                      }
+                    });
+                  };
+                }
+                var val2 = target[prop];
+                if (typeof val2 === 'function') {
+                  return val2.bind(target);
+                }
+                return val2;
               }
             });
-          };
-        }
-        var val = target[prop];
-        if (typeof val === 'function') {
-          return val.bind(target);
-        }
-        return val;
-      }
-    });
-    window.tavern_events = window.parent.tavern_events;
-    window.appendInexistentScriptButtons = window.parent.appendInexistentScriptButtons;
-    window.getScriptButtons = window.parent.getScriptButtons;
-    window.replaceScriptButtons = window.parent.replaceScriptButtons;
-    window.getButtonEvent = window.parent.getButtonEvent;
-
-    try {
-      var result = _(window);
-      result = result.merge(_.omit(TavernHelper, '_bind'));
-      result = result.merge.apply(result,
-        Object.entries(TavernHelper._bind || {}).map(function(entry) {
-          var key = entry[0], value = entry[1];
-          var cleanKey = key.replace('_', '');
-          if (typeof window[cleanKey] === 'function') {
-            var obj = {};
-            obj[cleanKey] = window[cleanKey];
-            return obj;
           }
-          var obj = {};
-          obj[cleanKey] = typeof value === 'function' ? value.bind(window) : value;
-          return obj;
-        })
-      );
-      result.value();
-    } catch(e) {}
+          return val;
+        },
+        configurable: true
+      });
+    });
+
+    var keys = [
+      'getScriptId', 'getCurrentMessageId', 'getVariables', 'getAllVariables',
+      'replaceVariables', 'getSetting', 'setSetting', 'getChatSession',
+      'getChatHistory', 'setChatMessage', 'addChatMessage', 'sendSystemMessage',
+      'getCharacterBook', 'addCharacterBookEntry', 'updateCharacterBookEntry',
+      'getCharacterExpressions', 'addCharacterExpression', 'updateCharacterExpression',
+      'getMvuSchema', 'registerMvuSchema', 'getMvuVariables', 'updateMvuVariables',
+      'waitGlobalInitialized'
+    ];
+    keys.forEach(function(ck) {
+      Object.defineProperty(window, ck, {
+        get: function() {
+          var parentTH = window.parent.TavernHelper;
+          var bind = parentTH && parentTH._bind;
+          var bk = '_' + ck;
+          if (!bind || typeof bind[bk] !== 'function') {
+            return function() { return {}; };
+          }
+          return function() {
+            var args = Array.prototype.slice.call(arguments);
+            if (ck === 'getCurrentMessageId' && args.length === 0) {
+              args.push(window.__TH_MESSAGE_ID);
+            } else if (ck === 'getVariables' || ck === 'replaceVariables') {
+              if (window.__TH_MESSAGE_ID !== undefined) {
+                if (args.length === 0) {
+                  args.push({ type: 'message', message_id: window.__TH_MESSAGE_ID });
+                } else if (args[0] && (args[0].type === 'chat' || args[0].type === 'message' || args[0].type === undefined)) {
+                  args[0].type = 'message';
+                  if (args[0].message_id === undefined) {
+                    args[0].message_id = window.__TH_MESSAGE_ID;
+                  }
+                }
+              }
+            } else if (ck === 'setChatMessage' && args.length > 0 && (args[0] === undefined || args[0] === null || isNaN(Number(args[0])))) {
+              args[0] = window.__TH_MESSAGE_ID;
+            }
+            return bind[bk].apply(bind, args);
+          };
+        },
+        configurable: true
+      });
+    });
+
+    // Intercept event emitter bindings on iframe window to track listeners locally for cleanup and auto-forwarding
+    var localRegisteredEvents = [];
+
+    window.eventOn = function(event, cb) {
+      localRegisteredEvents.push({ type: 'on', event: event, cb: cb, bound: false });
+      flushEvents();
+    };
+
+    window.eventOnce = function(event, cb) {
+      var wrapper = function() {
+        localRegisteredEvents = localRegisteredEvents.filter(function(item) {
+          return item.cb !== wrapper;
+        });
+        cb.apply(this, arguments);
+      };
+      localRegisteredEvents.push({ type: 'once', event: event, cb: wrapper, bound: false });
+      flushEvents();
+    };
+
+    window.eventRemoveListener = function(event, cb) {
+      localRegisteredEvents = localRegisteredEvents.filter(function(item) {
+        return !(item.event === event && item.cb === cb);
+      });
+      var parentTH = window.parent.TavernHelper;
+      var bind = parentTH && parentTH._bind;
+      if (bind && typeof bind._eventRemoveListener === 'function') {
+        try { bind._eventRemoveListener(event, cb); } catch(e) {}
+      }
+    };
+
+    window.eventClearAll = function() {
+      var parentTH = window.parent.TavernHelper;
+      var bind = parentTH && parentTH._bind;
+      localRegisteredEvents.forEach(function(item) {
+        if (item.bound && bind && typeof bind._eventRemoveListener === 'function') {
+          try { bind._eventRemoveListener(item.event, item.cb); } catch(e) {}
+        }
+      });
+      localRegisteredEvents = [];
+    };
+
+    function flushEvents() {
+      try {
+        var parentTH = window.parent.TavernHelper;
+        var bind = parentTH && parentTH._bind;
+        if (!bind) return;
+        localRegisteredEvents.forEach(function(item) {
+          if (item.bound) return;
+          if (item.type === 'on' && typeof bind._eventOn === 'function') {
+            bind._eventOn(item.event, item.cb);
+            item.bound = true;
+          } else if (item.type === 'once' && typeof bind._eventOnce === 'function') {
+            bind._eventOnce(item.event, item.cb);
+            item.bound = true;
+          }
+        });
+      } catch (err) {
+        console.warn("[TH Message Iframe] Event flush error:", err);
+      }
+    }
+
+    // Periodically poll to flush queued events once parent is fully initialized
+    var flushInterval = setInterval(flushEvents, 100);
 
     Object.defineProperty(window, 'SillyTavern', {
       get: function() {
         var SillyTavern = window.parent.SillyTavern;
+        if (!SillyTavern) return undefined;
         return new Proxy(SillyTavern, {
           get: function(target, prop) {
             if (prop === 'getContext') {
               return function() {
                 var parentContext = target.getContext();
+                if (!parentContext) return undefined;
                 return new Proxy(parentContext, {
                   get: function(ctxTarget, ctxProp) {
                     if (ctxProp === 'writeExtensionField') {
@@ -611,20 +736,26 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
             if (prop === 'writeExtensionField') {
               return window._th_impl && window._th_impl.writeExtensionField;
             }
-            return target[prop];
+            var val = target[prop];
+            return typeof val === 'function' ? val.bind(target) : val;
           }
         });
       },
       configurable: true
     });
 
-    if (_.has(window.parent, 'Mvu')) {
-      Object.defineProperty(window, 'Mvu', {
-        get: function() { return window.parent.Mvu; },
-        set: function() {},
-        configurable: true,
-      });
-    }
+    Object.defineProperty(window, 'Mvu', {
+      get: function() { return window.parent.Mvu; },
+      set: function() {},
+      configurable: true,
+    });
+
+    window.addEventListener('pagehide', function() {
+      clearInterval(flushInterval);
+      if (typeof window.eventClearAll === 'function') {
+        window.eventClearAll();
+      }
+    });
 
     function notifyReady() {
       setTimeout(function() {
@@ -785,12 +916,16 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     margin: 0 !important;
     padding: 0 !important;
     max-width: 100% !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    overflow-x: hidden !important;
   }
   body {
     margin: 0 !important;
     max-width: 100% !important;
     background: transparent !important;
     background-color: transparent !important;
+    overflow-x: hidden !important;
   }
 </style>
   `;

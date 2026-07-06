@@ -52,46 +52,63 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     }
   }, [isSending, activeCharacter?.name]);
 
-  // Keep the bridge params in sync with latest React state on every relevant change.
-  // We do NOT call cleanTavernHelperBridge() inside the cleanup because that would
-  // destroy the bridge (and all iframe event listeners) on every activeSession update.
-  // The bridge is only torn down when the ChatTab itself unmounts.
+  // ── Bridge 参数同步：每次渲染时将最新 params 同步给 bridge，
+  // 确保 getBridgeParams() 始终读到最新的 activeSession / activeCharacter，
+  // 同时通过 ID 比对避免每次发消息都触发 mag_variable_initialized 广播。
+  const activeCharId = activeCharacter?.id;
+  const activeSessionId = activeSession?.id;
+
+  const prevCharIdRef = React.useRef(activeCharId);
+  const prevSessionIdRef = React.useRef(activeSessionId);
+
+  // 每次渲染都把最新 params 写入 bridge（不触发重初始化，仅更新引用）
+  // 注意：此处使用 useEffect 而非渲染体副作用，避免并发模式下的竞争条件。
   React.useEffect(() => {
-    if (settings.enableScriptExecution) {
-      initTavernHelperBridge({
-        activeCharacter,
-        activeSession,
-        setSessions,
-        saveSession,
-        setCharacters,
-        saveCharacter,
-        settings,
-        updateSettings,
-        handleSendMessage,
-      });
-      // 应用层显式装配 ScriptService bridge 接口（遵循 AGENTS.md 准则一.1）：
-      // utils 层不再反向调用 kernel.getService("script").registerBridge，
-      // 由本应用层在 initTavernHelperBridge 完成后通过 getBridgeInterface() 取得接口并装配。
-      try {
-        const scriptService = globalKernel.getService<any>("script");
-        if (scriptService && typeof scriptService.registerBridge === "function") {
-          scriptService.registerBridge(getBridgeInterface());
-        }
-      } catch {
-        // 测试环境下 ScriptService 可能未注册，静默跳过
-      }
-    } else {
+    if (!settings.enableScriptExecution) return;
+
+    // 当角色 ID 或会话 ID 发生真实切换时，先清理旧的 bridge 事件监听器，
+    // 防止上一个角色/会话注册的回调留在事件总线上导致每次广播触发多份重复回调。
+    if (prevCharIdRef.current !== activeCharId || prevSessionIdRef.current !== activeSessionId) {
+      prevCharIdRef.current = activeCharId;
+      prevSessionIdRef.current = activeSessionId;
       cleanTavernHelperBridge();
     }
+
+    initTavernHelperBridge({
+      activeCharacter,
+      activeSession,
+      setSessions,
+      saveSession,
+      setCharacters,
+      saveCharacter,
+      settings,
+      updateSettings,
+      handleSendMessage,
+    });
+    try {
+      const scriptService = globalKernel.getService<any>("script");
+      if (scriptService && typeof scriptService.registerBridge === "function") {
+        scriptService.registerBridge(getBridgeInterface());
+      }
+    } catch {
+      // 测试环境下 ScriptService 可能未注册，静默跳过
+    }
   }, [
+    activeCharId,
+    activeSessionId,
+    // 保留对 session 的引用依赖，以便会话内容更新时 bridge 能拿到最新数据
     activeCharacter,
     activeSession,
-    setSessions,
-    setCharacters,
     settings,
-    updateSettings,
-    handleSendMessage,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
+
+  // 仅在脚本关闭时清理 bridge
+  React.useEffect(() => {
+    if (!settings.enableScriptExecution) {
+      cleanTavernHelperBridge();
+    }
+  }, [settings.enableScriptExecution]);
 
   // Only clean up the bridge when the ChatTab unmounts entirely.
   React.useEffect(() => {
