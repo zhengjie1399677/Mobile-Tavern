@@ -613,7 +613,10 @@ export class PromptService implements IPromptService {
     // ==================================================
     let summaryText = "";
     if (chat.summaries && chat.summaries.length > 0) {
-      summaryText = chat.summaries
+      // 仅保留最新的最多 5 条总结卡片，防止长线对话发包体积雪崩
+      const limit = 5;
+      const recentSummaries = chat.summaries.slice(-limit);
+      summaryText = recentSummaries
         .map((s) => `[${s.timeTag} | ${s.location}] ${s.content}`)
         .join("\n");
     }

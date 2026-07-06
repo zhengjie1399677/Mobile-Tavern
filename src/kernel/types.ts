@@ -13,6 +13,7 @@ export const KernelServices = {
   ImageGen: "imageGen",
   Bgm: "bgm",
   Tts: "tts",
+  Asr: "asr",
 } as const;
 
 export const KernelEvents = {
@@ -321,4 +322,26 @@ export interface ITtsService extends IKernelService {
   getSpeakingMessageId(): string | null;
   setSpeakingMessageId(id: string | null): void;
 }
+
+export interface AsrConfig {
+  enabled: boolean;
+  provider: "web-speech" | "openai";
+  language: string;
+  openaiApiKey?: string;
+  openaiBaseUrl?: string;
+  openaiModel?: string;
+}
+
+export interface IAsrService extends IKernelService {
+  isListening(): boolean;
+  startListening(
+    config: AsrConfig,
+    onResult: (text: string, isFinal: boolean) => void,
+    onError: (err: any) => void,
+    onEnd?: () => void
+  ): Promise<void>;
+  stopListening(): void;
+  cancelListening(): void;
+}
+
 

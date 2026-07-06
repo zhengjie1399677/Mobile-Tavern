@@ -9,11 +9,17 @@ import {
   RefreshCw,
   Cpu,
   Square,
+  Sliders,
+  Mic,
+  MicOff,
+  Loader2,
 } from "lucide-react";
 import { UnifiedAppContext } from "../../UnifiedAppContext";
 import { chatTabState } from "./utils";
+import { globalKernel } from "../../kernel";
 
 const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
+  const [showQuickActions, setShowQuickActions] = React.useState(false);
   const context = React.useContext(UnifiedAppContext);
   if (!context) return null;
   const {
@@ -24,7 +30,9 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     activeCharacter,
     handleRerollLast,
     showCustomConfirm,
+    showCustomAlert,
     handleAutoSummaryCheck,
+
     handleSendMessage,
     handleStopGeneration,
     safeAreas,
@@ -100,6 +108,75 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   }, [settings.replySuggestionsClickMode]);
 
   const [localInput, setLocalInput] = React.useState(userInputMessage);
+
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [isTranscribing, setIsTranscribing] = React.useState(false);
+
+  const handleToggleAsr = async () => {
+    try {
+      const asrService = globalKernel.getService<any>("asr");
+      if (isRecording) {
+        setIsRecording(false);
+        if (settings.asrConfig?.provider === "openai") {
+          setIsTranscribing(true);
+        }
+        asrService.stopListening();
+      } else {
+        setIsRecording(true);
+        setIsTranscribing(false);
+        let initialText = localInput;
+
+        await asrService.startListening(
+          settings.asrConfig || {
+            enabled: true,
+            provider: "web-speech",
+            language: "zh-CN",
+          },
+          (text: string, isFinal: boolean) => {
+            if (settings.asrConfig?.provider === "web-speech") {
+              const newText = initialText ? `${initialText} ${text}` : text;
+              setLocalInput(newText);
+              setUserInputMessage(newText);
+              if (isFinal) {
+                initialText = newText;
+              }
+            } else {
+              const newText = localInput ? `${localInput} ${text}` : text;
+              setLocalInput(newText);
+              setUserInputMessage(newText);
+            }
+          },
+          (err: any) => {
+            console.error("ASR Error:", err);
+            setIsRecording(false);
+            setIsTranscribing(false);
+            
+            const errMsg = err.message || String(err);
+            if (errMsg.includes("not-allowed") || errMsg.includes("Permission denied") || errMsg.includes("NotAllowedError") || errMsg.includes("permission denied")) {
+              showCustomAlert(
+                "🎙️ 麦克风权限已被拒绝！\n\n请在您的手机系统设置或浏览器设置中，为本应用开启麦克风录音权限，然后重试。",
+                "权限错误"
+              );
+            } else if (errMsg.includes("no-speech")) {
+              showCustomAlert("🎙️ 未检测到您的声音，请说话大声一点，或者检查您的麦克风。", "未检测到语音");
+            } else if (errMsg.includes("audio-capture")) {
+              showCustomAlert("🎙️ 未找到麦克风设备，请确保您的设备录音硬件正常工作。", "设备错误");
+            } else {
+              showCustomAlert(`🎙️ 语音输入失败: ${errMsg}`, "识别错误");
+            }
+          },
+          () => {
+            setIsRecording(false);
+            setIsTranscribing(false);
+          }
+        );
+      }
+    } catch (e) {
+      console.error("ASR Toggle Error:", e);
+      setIsRecording(false);
+      setIsTranscribing(false);
+    }
+  };
 
   React.useEffect(() => {
     setLocalInput(userInputMessage);
@@ -276,83 +353,85 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       }}
       className="glass-panel border-t border-border/40 pt-2 px-3 flex flex-col gap-1.5 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]"
     >
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => handleRerollLast()}
-            disabled={
-              isSending ||
-              !activeSession ||
-              !Array.isArray(activeSession.messages) ||
-              !activeSession.messages.some((m: any) => m.sender === "assistant")
-            }
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
-            title="消除整条故事分支的最后一条AI回复并进行重新生成"
-          >
-            <RefreshCw
-              className={`w-3.5 h-3.5 ${isSending ? "animate-spin" : ""}`}
-            />
-            <span className="text-[10px] font-medium">重载上一段剧情</span>
-          </button>
-          <button
-            onClick={async () => {
-              if (!activeSession) return;
-              const ok = await showCustomConfirm(
-                "是否启动智能AI卡片压缩？这会将更早的历史对话转化为单条时间轴年表，腾出内存空间，保持语调连贯。",
-              );
-              if (ok) {
-                setIsSending(true);
-                await handleAutoSummaryCheck(activeSession, true);
-                setIsSending(false);
+      {showQuickActions && (
+        <div className="flex items-center justify-between px-2 py-1.5 bg-muted/30 rounded-lg border border-border/20 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => handleRerollLast()}
+              disabled={
+                isSending ||
+                !activeSession ||
+                !Array.isArray(activeSession.messages) ||
+                !activeSession.messages.some((m: any) => m.sender === "assistant")
               }
-            }}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors"
-            title="呼叫智能记忆压缩年表"
-          >
-            <Brain className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-medium">整理潜意识碎片</span>
-          </button>
-        </div>
+              className="flex items-center gap-1.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
+              title="消除整条故事分支的最后一条AI回复并进行重新生成"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isSending ? "animate-spin" : ""}`}
+              />
+              <span className="text-[10px] font-medium">重载上一段剧情</span>
+            </button>
+            <button
+              onClick={async () => {
+                if (!activeSession) return;
+                const ok = await showCustomConfirm(
+                  "是否启动智能AI卡片压缩？这会将更早的历史对话转化为单条时间轴年表，腾出内存空间，保持语调连贯。",
+                );
+                if (ok) {
+                  setIsSending(true);
+                  await handleAutoSummaryCheck(activeSession, true);
+                  setIsSending(false);
+                }
+              }}
+              className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors"
+              title="呼叫智能记忆压缩年表"
+            >
+              <Brain className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-medium">整理潜意识碎片</span>
+            </button>
+          </div>
 
-        <div
-          aria-hidden="true"
-          className="flex items-center gap-1.5 text-muted-foreground font-mono text-[9px] opacity-70"
-        >
-          <Cpu className="w-3 h-3" />
-          <span>
-            发包预测: ~
-            {Math.ceil(
-              (localInput || "").length * 1.5 +
-                ((Array.isArray(activeSession?.messages)
-                  ? activeSession.messages.slice(-settings.memory.recentTurns)
-                  : []
-                ).reduce(
-                  (acc: any, m: any) => acc + (m.content || "").length,
-                  0,
-                ) || 0) *
-                  1.5 +
-                ((activeCharacter?.description || "").length +
-                  (activeCharacter?.personality || "").length +
-                  (activeCharacter?.scenario || "").length +
-                  (activeCharacter?.system_prompt || "").length) *
-                  1.5 +
-                (settings.promptConfig?.customPrompts || [])
-                  .filter((p: any) => p.enabled)
-                  .reduce(
-                    (acc: any, p: any) => acc + (p.content || "").length,
+          <div
+            aria-hidden="true"
+            className="flex items-center gap-1.5 text-muted-foreground font-mono text-[9px] opacity-75"
+          >
+            <Cpu className="w-3 h-3" />
+            <span>
+              预测: ~
+              {Math.ceil(
+                (localInput || "").length * 1.5 +
+                  ((Array.isArray(activeSession?.messages)
+                    ? activeSession.messages.slice(-settings.memory.recentTurns)
+                    : []
+                  ).reduce(
+                    (acc: any, m: any) => acc + (m.content || "").length,
+                    0,
+                  ) || 0) *
+                    1.5 +
+                  ((activeCharacter?.description || "").length +
+                    (activeCharacter?.personality || "").length +
+                    (activeCharacter?.scenario || "").length +
+                    (activeCharacter?.system_prompt || "").length) *
+                    1.5 +
+                  (settings.promptConfig?.customPrompts || [])
+                    .filter((p: any) => p.enabled)
+                    .reduce(
+                      (acc: any, p: any) => acc + (p.content || "").length,
+                      0,
+                    ) *
+                    1.5 +
+                  (activeSession?.summaries || []).reduce(
+                    (acc: any, s: any) => acc + (s.content || "").length,
                     0,
                   ) *
-                  1.5 +
-                (activeSession?.summaries || []).reduce(
-                  (acc: any, s: any) => acc + (s.content || "").length,
-                  0,
-                ) *
-                  1.5,
-            )}{" "}
-            tok
-          </span>
+                    1.5,
+              )}{" "}
+              tok
+            </span>
+          </div>
         </div>
-      </div>
+      )}
       {settings.enableReplySuggestions && !isSending && replySuggestions && replySuggestions.length > 0 && (
         <div className="flex flex-col gap-1.5 px-1 py-1 border-b border-border/30 animate-fadeIn">
           <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-1">
@@ -393,6 +472,15 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         </div>
       )}
       <div className="flex items-center gap-2 relative">
+        <button
+          onClick={() => setShowQuickActions(prev => !prev)}
+          className={`p-2.5 rounded-xl border hover:bg-muted text-muted-foreground transition-all duration-200 shrink-0 ${
+            showQuickActions ? "text-primary bg-primary/10 border-primary/20" : "bg-input/30 border-border/80"
+          }`}
+          title="切换显示发包预测与快捷工具"
+        >
+          <Sliders className="w-4 h-4" />
+        </button>
         <textarea
           ref={textareaRef}
           value={localInput}
@@ -413,7 +501,11 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           placeholder={
             isBisonLocking
               ? `${activeCharacter?.name || "角色"} 正在继续发言...`
-              : `发送一条对白至 ${activeCharacter?.name} 启程...`
+              : isRecording
+                ? "正在倾听语音输入，请说话..."
+                : isTranscribing
+                  ? "正在转译语音为文字..."
+                  : `发送一条对白至 ${activeCharacter?.name} 启程...`
           }
           aria-label={`发送给 ${activeCharacter?.name || "角色"} 的消息输入框`}
           rows={2}
@@ -421,6 +513,29 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             (isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
           }`}
         />
+        {settings.asrConfig?.enabled && (
+          <button
+            type="button"
+            onClick={handleToggleAsr}
+            disabled={isSending || isBisonLocking}
+            className={`w-[42px] h-[42px] rounded-xl border transition-all duration-300 shrink-0 flex items-center justify-center ${
+              isRecording
+                ? "bg-red-500/20 border-red-500/40 text-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]"
+                : isTranscribing
+                  ? "bg-amber-500/20 border-amber-500/40 text-amber-500"
+                  : "bg-input/30 border-border/80 text-muted-foreground hover:bg-muted"
+            } ${(isSending || isBisonLocking) ? "opacity-45 cursor-not-allowed" : "active:scale-95"}`}
+            title={isRecording ? "停止录音" : isTranscribing ? "正在识别中..." : "语音输入"}
+          >
+            {isTranscribing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : isRecording ? (
+              <Mic className="w-4 h-4 animate-bounce" />
+            ) : (
+              <Mic className="w-4 h-4 opacity-70" />
+            )}
+          </button>
+        )}
         {isSending ? (
           <button
             onClick={() => handleStopGeneration()}

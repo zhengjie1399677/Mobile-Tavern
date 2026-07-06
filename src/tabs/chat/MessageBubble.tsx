@@ -57,6 +57,8 @@ const MessageBubble = ({
     saveSessionWithMvu,
     setSessions,
     activeSession,
+    showCustomAlert,
+    showCustomConfirm,
   } = useUnifiedApp();
 
   const isUser = message.sender === "user";
@@ -346,28 +348,46 @@ const MessageBubble = ({
                   src={message.extra.image}
                   alt="Generated Scene"
                   className="w-full object-cover max-h-60 cursor-pointer hover:opacity-95 transition-opacity"
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
-                    if (window.confirm("是否保存此生成的图片？")) {
-                      const filename = `draw_${Date.now()}.png`;
-                      if ((window as any).AndroidThemeBridge) {
-                        try {
-                          (window as any).AndroidThemeBridge.saveFile(filename, message.extra.image);
-                          alert(`已成功保存到手机 /Download 文件夹，文件名为: ${filename}`);
-                          return;
-                        } catch (err) {
-                          console.error("AndroidThemeBridge download failed:", err);
+                    const ok = await showCustomConfirm("是否保存此生成的图片？");
+                    if (!ok) return;
+
+                    const filename = `draw_${Date.now()}.png`;
+                    if ((window as any).AndroidThemeBridge) {
+                      try {
+                        let path = null;
+                        const isDataUrl = message.extra.image.startsWith("data:");
+                        if (isDataUrl && typeof (window as any).AndroidThemeBridge.saveFileBase64 === "function") {
+                          const commaIdx = message.extra.image.indexOf(",");
+                          const mimeType = message.extra.image.slice(5, commaIdx).split(";")[0] || "image/png";
+                          const base64Data = message.extra.image.slice(commaIdx + 1);
+                          path = (window as any).AndroidThemeBridge.saveFileBase64(filename, base64Data, mimeType);
+                        } else if (typeof (window as any).AndroidThemeBridge.saveFile === "function") {
+                          path = (window as any).AndroidThemeBridge.saveFile(filename, message.extra.image);
                         }
+
+                        if (path && !path.startsWith("error:")) {
+                          await showCustomAlert(`📂 图片保存成功！\n文件已保存至手机 /Download 文件夹下，绝对路径为：\n${path}`, "保存成功");
+                        } else {
+                          await showCustomAlert(`❌ 图片保存失败：${path || "未知错误"}`, "保存失败");
+                        }
+                        return;
+                      } catch (err: any) {
+                        console.error("AndroidThemeBridge download failed:", err);
+                        await showCustomAlert(`❌ 保存出错: ${err.message || String(err)}`, "保存失败");
                       }
-                      
-                      const link = document.createElement("a");
-                      link.href = message.extra.image;
-                      link.download = filename;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
                     }
+
+                    const link = document.createElement("a");
+                    link.href = message.extra.image;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    await showCustomAlert(`图片已成功导出！\n文件已触发浏览器或客户端下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${filename}`, "导出成功");
                   }}
+
                 />
                 <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono pointer-events-none opacity-0 group-hover/image:opacity-100 transition-opacity">
                   点击保存图片

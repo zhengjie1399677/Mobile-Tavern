@@ -10,6 +10,7 @@ import {
   History,
   Volume2,
   VolumeX,
+  Brain,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -149,10 +150,10 @@ const ChatHeader = ({
         {activeSession && (
           <button
             onClick={() => setIsTableDrawerOpen(true)}
-            className="p-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center gap-1 shrink-0 font-sans text-xs font-bold"
+            className="p-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center justify-center shrink-0"
             title="记忆档案柜"
           >
-            <span>🌟 记忆柜</span>
+            <Brain className="w-4 h-4" />
           </button>
         )}
         <div className="flex shrink-0 flex-row bg-muted p-0.5 rounded-lg border border-border">

@@ -11,6 +11,7 @@ import { MemoryService } from "./services/memory";
 import { ImageGenerationService } from "./services/ImageGenerationService";
 import { BgmService } from "./services/BgmService";
 import { TtsService } from "./services/TtsService";
+import { AsrService } from "./services/AsrService";
 import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
@@ -94,6 +95,11 @@ export async function initializeKernel() {
     {
       name: KernelServices.Tts,
       service: new TtsService(),
+      initTimeoutMs: 3000,
+    },
+    {
+      name: KernelServices.Asr,
+      service: new AsrService(),
       initTimeoutMs: 3000,
     },
   ]);

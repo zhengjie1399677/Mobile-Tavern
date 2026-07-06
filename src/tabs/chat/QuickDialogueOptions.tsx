@@ -33,7 +33,9 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     createBacktrackBranch,
     showCustomConfirm,
     showCustomPrompt,
+    showCustomAlert,
     setSessions,
+
     activeSession,
     settings,
     activeCharacter,
@@ -272,7 +274,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                 await saveSession(finalSession);
               } catch (err: any) {
                 console.error("Image generation failed:", err);
-                alert(`绘图失败: ${err.message || String(err)}`);
+                showCustomAlert(`绘图失败: ${err.message || String(err)}`, "生图失败");
                 
                 const errorSession = {
                   ...activeSession,

@@ -245,6 +245,7 @@ export interface UserSettings {
   chatFontSize?: number; // Chat bubble font size in px
   chatLineHeight?: number; // Chat bubble line height (multiplier)
   ttsConfig?: TtsConfig; // TTS 朗读配置
+  asrConfig?: AsrConfig; // ASR 语音输入配置
 }
 
 export interface ImageGenApiConfig {
@@ -304,6 +305,15 @@ export interface CustomWorldbook {
   name: string;
   entries: LorebookEntry[];
   enabled: boolean;
+}
+
+export interface AsrConfig {
+  enabled: boolean;
+  provider: "web-speech" | "openai";
+  language: string;
+  openaiApiKey?: string;
+  openaiBaseUrl?: string;
+  openaiModel?: string;
 }
 
 

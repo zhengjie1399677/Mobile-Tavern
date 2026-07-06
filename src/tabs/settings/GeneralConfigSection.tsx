@@ -17,6 +17,8 @@ import { Switch } from "../../../components/ui/switch";
 import { Input } from "../../../components/ui/input";
 import { Textarea } from "../../../components/ui/textarea";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
+import AsrConfigSection from "./AsrConfigSection";
+
 
 type SaveState = "idle" | "saving" | "saved";
 
@@ -1479,6 +1481,9 @@ export default function GeneralConfigSection({
           )}
         </AccordionContent>
       </AccordionItem>
+
+      <AsrConfigSection settings={settings} updateSettings={updateSettings} />
     </Accordion>
   );
 }
+
