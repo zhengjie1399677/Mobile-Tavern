@@ -137,6 +137,7 @@ export interface MemoryConfig {
   summaryLength: number; // Default e.g. 150 characters
   summarySystemPrompt?: string;
   timeTagTemplate?: string;
+  enableAutoSummary?: boolean;
 }
 
 export interface CustomPromptBlock {

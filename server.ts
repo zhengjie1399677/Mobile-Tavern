@@ -257,7 +257,7 @@ async function startServer() {
   // API 3: OpenAI API Proxy (CORS Bypass for mobile/iframe compatibility)
   app.post("/api/proxy/openai", ssrfGuard, async (req, res) => {
     const controller = new AbortController();
-    req.on("close", () => {
+    res.on("close", () => {
       controller.abort();
     });
 
@@ -269,13 +269,38 @@ async function startServer() {
         apiKey,
       });
 
-      const isStream = reqBody.stream === true;
+       const isStream = reqBody.stream === true;
       console.log(`[Proxy OpenAI] Target URL: ${sanitizeSensitiveData(targetUrl)}, isStream: ${isStream}`);
+
+      // 外部接口防腐隔离清洗：严格过滤出 OpenAI / DeepSeek 官方标准参数，剔除 top_k, min_p, repetition_penalty 等非标参数，防范网关丢弃或卡死
+      const openAiStandardKeys = [
+        "model",
+        "messages",
+        "stream",
+        "stream_options",
+        "temperature",
+        "top_p",
+        "max_tokens",
+        "presence_penalty",
+        "frequency_penalty",
+        "response_format",
+        "stop",
+        "tools",
+        "tool_choice",
+        "logprobs",
+        "top_logprobs"
+      ];
+      const cleanedReqBody: Record<string, any> = {};
+      for (const key of openAiStandardKeys) {
+        if (reqBody[key] !== undefined) {
+          cleanedReqBody[key] = reqBody[key];
+        }
+      }
 
       const response = await fetch(targetUrl, {
         method: "POST",
         headers,
-        body: JSON.stringify(reqBody),
+        body: JSON.stringify(cleanedReqBody),
         signal: controller.signal,
       });
 
@@ -296,6 +321,10 @@ async function startServer() {
           const reader = response.body.getReader();
           try {
             while (true) {
+              if (controller.signal.aborted || res.destroyed) {
+                await reader.cancel();
+                break;
+              }
               const { done, value } = await reader.read();
               if (done) break;
               res.write(value);

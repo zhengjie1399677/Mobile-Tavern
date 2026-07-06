@@ -36,8 +36,8 @@ export const DEFAULT_SUMMARY_SYSTEM_PROMPT = `【历史剧情归纳系统】
 你只是“记录器”，不是“叙事者”。
 不得将对话改写成小说或情节描述。
 
-4. 简洁优先
-输出 1~3 句客观陈述即可。
+4. 全面归纳
+请逐轮梳理并详尽归纳本段对话里发生的每一项事件、双方的重要对白关键点以及环境与物品的所有细节变化，全面呈现这段对话里的所有事实，禁止大幅省略和过滤。
 
 ---
 
@@ -443,6 +443,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     summaryLength: 120,
     summarySystemPrompt: DEFAULT_SUMMARY_SYSTEM_PROMPT,
     timeTagTemplate: "第{{index}}幕",
+    enableAutoSummary: true,
   },
   promptConfig: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
   userName: "user",

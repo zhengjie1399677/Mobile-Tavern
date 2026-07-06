@@ -132,7 +132,6 @@ export function useSendMessage(p: SendMessageParams) {
 
     const currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
     if (!currentSession) return;
-
     p.isSendingRef.current = true;
     p.setIsSending(true);
 

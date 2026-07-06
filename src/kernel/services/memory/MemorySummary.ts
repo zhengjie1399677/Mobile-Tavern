@@ -123,6 +123,12 @@ export class MemorySummary {
     const activeSignal = this.mergeSignal(signal);
     if (activeSignal?.aborted) return session;
 
+    // 若未启用自动整理且非强制，直接返回
+    const isEnabled = settings.memory?.enableAutoSummary !== false;
+    if (!force && !isEnabled) {
+      return session;
+    }
+
     // 0. 从隔离存储 messages Store 异步加载本会话所有消息，实现物理脱耦
     let dbMessagesRecords: any[] = [];
     if (this.storage && typeof this.storage.getMessagesBySession === 'function') {
@@ -167,11 +173,6 @@ export class MemorySummary {
     // 2. 计算触发阈值
     const summaryTurnsVal = settings?.memory?.summaryTriggerTurns;
     const rawTriggerTurns = summaryTurnsVal ? Number(summaryTurnsVal) : 0;
-
-    // 如果未开启自动整理且非强制手动触发，直接返回
-    if (!force && rawTriggerTurns === 0) {
-      return session;
-    }
 
     const rawRecentTurns = Number(settings?.memory?.recentTurns || DEFAULT_RECENT_TURNS);
     const triggerRounds =

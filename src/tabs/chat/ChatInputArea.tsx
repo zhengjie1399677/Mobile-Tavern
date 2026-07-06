@@ -10,11 +10,12 @@ import {
   Cpu,
   Square,
 } from "lucide-react";
-
-import { useUnifiedApp } from "../../UnifiedAppContext";
+import { UnifiedAppContext } from "../../UnifiedAppContext";
 import { chatTabState } from "./utils";
 
 const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
+  const context = React.useContext(UnifiedAppContext);
+  if (!context) return null;
   const {
     isSending,
     setIsSending,
@@ -34,7 +35,8 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     updateSettings,
     isBisonLocking,
     triggerScroll,
-  } = useUnifiedApp();
+  } = context;
+
 
   React.useEffect(() => {
     let scrollRafId: number | null = null;

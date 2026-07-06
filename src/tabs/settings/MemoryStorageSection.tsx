@@ -121,13 +121,13 @@ export default function MemoryStorageSection({
                   <span className="font-semibold text-foreground text-[12.5px] flex items-center gap-2">
                     自动记忆整理 (Auto Summary){" "}
                     <Switch
-                      checked={settings.memory.summaryTriggerTurns !== 0}
+                      checked={settings.memory.enableAutoSummary !== false}
                       onCheckedChange={(val) =>
                         updateSettings({
                           ...settings,
                           memory: {
                             ...settings.memory,
-                            summaryTriggerTurns: val ? 10 : 0,
+                            enableAutoSummary: val,
                           },
                         })
                       }
@@ -135,18 +135,18 @@ export default function MemoryStorageSection({
                     />
                   </span>
                   <span className="text-[9.5px] text-muted-foreground mt-0.5">
-                    定期梳理记忆，否则默认与上方发送轮数同步整理
+                    定期梳理记忆，触发轮数设为 0 时默认与上方发送轮数同步整理
                   </span>
                 </div>
               </div>
-              {settings.memory.summaryTriggerTurns !== 0 && (
+              {settings.memory.enableAutoSummary !== false && (
                 <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border">
                   <span className="text-[10px] text-muted-foreground font-semibold">
-                    触发轮次 (满多少轮执行一次梳理)
+                    触发轮次 (满多少轮执行一次梳理，输入 0 代表与上方发送轮数同步)
                   </span>
                   <input
                     type="number"
-                    min="2"
+                    min="0"
                     max="100"
                     step="1"
                     value={settings.memory.summaryTriggerTurns}
@@ -156,11 +156,11 @@ export default function MemoryStorageSection({
                         memory: {
                           ...settings.memory,
                           summaryTriggerTurns:
-                            parseInt(e.target.value) || 2,
+                            parseInt(e.target.value) || 0,
                         },
                       })
                     }
-                    className="w-16 bg-muted border border-border text-center rounded p-1 text-sm outline-none focus:border-primary"
+                    className="w-16 bg-muted border border-border text-center rounded p-1 text-sm outline-none focus:border-primary font-mono"
                   />
                 </div>
               )}
@@ -261,7 +261,7 @@ export default function MemoryStorageSection({
                           },
                         })
                       }
-                      className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
+                      className="text-xs bg-input/50 min-h-[260px] leading-relaxed font-mono"
                       placeholder="输入总结大纲指示词..."
                     />
                     <div className="flex justify-end">
@@ -298,7 +298,7 @@ export default function MemoryStorageSection({
                           },
                         })
                       }
-                      className="text-xs bg-input/50 min-h-[130px] leading-relaxed font-sans"
+                      className="text-xs bg-input/50 min-h-[260px] leading-relaxed font-mono"
                       placeholder="输入推理引导指示词..."
                     />
                     <div className="flex justify-end">
@@ -335,7 +335,7 @@ export default function MemoryStorageSection({
                           },
                         })
                       }
-                      className="text-xs bg-input/50 min-h-[140px] leading-relaxed font-sans"
+                      className="text-xs bg-input/50 min-h-[260px] leading-relaxed font-mono"
                       placeholder="输入表格记忆指示词..."
                     />
                     <div className="flex justify-end">

@@ -50,11 +50,22 @@ export class ChatStreamService implements IChatStreamService {
     let streamError: any = null;
     // P1-7: 用于在 generator 提前退出时主动取消后台 readSSEStream
     const streamAbortController = new AbortController();
+    
+    const handleAbortAction = () => {
+      streamAbortController.abort();
+      streamError = new DOMException("The user aborted a request.", "AbortError");
+      isFinished = true;
+      if (resolveNext) {
+        resolveNext();
+        resolveNext = null;
+      }
+    };
+
     // 若外部 signal 已 aborted，立即同步取消
     if (signal?.aborted) {
-      streamAbortController.abort();
+      handleAbortAction();
     } else if (signal) {
-      signal.addEventListener("abort", () => streamAbortController.abort());
+      signal.addEventListener("abort", handleAbortAction);
     }
 
     readSSEStream(response, {

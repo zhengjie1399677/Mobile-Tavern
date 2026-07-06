@@ -99,7 +99,6 @@ export function useRerollMessage(p: RerollMessageParams) {
 
     const lastMsgNow = nextMsgs[nextMsgs.length - 1];
     if (lastMsgNow.sender !== "user") { await p.showCustomAlert("重新生成回复之前，需要前置有一条用户消息作为驱动对白！"); return; }
-
     p.isSendingRef.current = true;
     p.setIsSending(true);
 
