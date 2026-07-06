@@ -35,6 +35,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     showCustomPrompt,
     showCustomAlert,
     setSessions,
+    getKernelService,
 
     activeSession,
     settings,
@@ -49,16 +50,14 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     let timer: any = null;
 
     const checkSpeaking = () => {
-      import("../../kernel").then(({ globalKernel }) => {
-        const ttsService = globalKernel.getService<any>("tts");
-        if (ttsService) {
+      const ttsService = getKernelService<any>("tts");
+      if (ttsService) {
           const speakingId = ttsService.getSpeakingMessageId();
           const speaking = ttsService.isSpeaking() && speakingId === message.id;
           if (active) {
             setIsSpeakingThis(speaking);
           }
         }
-      });
     };
 
     checkSpeaking();
@@ -133,8 +132,8 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               prev.map((s: any) => (s.id === drawSession.id ? drawSession : s)),
             );
 
-            import("../../kernel").then(async ({ globalKernel, KernelServices }) => {
-              const imageGenService = globalKernel.getService<any>(KernelServices.ImageGen);
+            const { KernelServices } = await import("../../kernel");
+              const imageGenService = getKernelService<any>(KernelServices.ImageGen);
               try {
                 const config = settings.imageGenApi;
                 if (!config || !config.enabled) {
@@ -301,8 +300,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
         <button
           onClick={async (e) => {
             e.stopPropagation();
-            const { globalKernel } = await import("../../kernel");
-            const ttsService = globalKernel.getService<any>("tts");
+            const ttsService = getKernelService<any>("tts");
             if (!ttsService) return;
 
             if (isSpeakingThis) {

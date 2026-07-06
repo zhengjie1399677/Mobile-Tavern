@@ -308,6 +308,7 @@ export const useSettingsLoader = ({
             globalChatBg: storedSet.globalChatBg || DEFAULT_SETTINGS.globalChatBg,
             enableHtmlRendering: storedSet.enableHtmlRendering ?? DEFAULT_SETTINGS.enableHtmlRendering,
             enableScriptExecution: storedSet.enableScriptExecution ?? DEFAULT_SETTINGS.enableScriptExecution,
+            enableLoopProtection: storedSet.enableLoopProtection ?? DEFAULT_SETTINGS.enableLoopProtection,
             savedPresets: mergedSavedPresets,
             expressionTriggers: storedSet.expressionTriggers || DEFAULT_SETTINGS.expressionTriggers,
             hasInjectedFormatPreset: true,

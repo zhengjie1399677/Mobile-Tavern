@@ -14,6 +14,7 @@ import {
   ThemeType,
   CustomDialogConfig,
 } from "./contexts/AppContext";
+import type { IKernelService } from "./kernel/types";
 
 export interface UnifiedAppContextProps {
   // --- App State ---
@@ -179,6 +180,12 @@ export interface UnifiedAppContextProps {
   renderDialogueBubble: (text: string, messageIndex?: number) => React.ReactNode;
   saveSessionWithMvu: (session: ChatSession, messageToParse?: string) => Promise<ChatSession>;
   isBisonLocking: boolean;
+
+  /**
+   * 通过内核统一获取已注册服务，代替组件内直接 import { globalKernel }。
+   * 内部代理到 globalKernel.getService，封装了依赖来源。
+   */
+  getKernelService: <T extends IKernelService>(name: string) => T;
 }
 
 export const UnifiedAppContext = React.createContext<UnifiedAppContextProps | null>(null);

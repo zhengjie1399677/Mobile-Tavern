@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { UnifiedAppContext } from "../../UnifiedAppContext";
 import { chatTabState } from "./utils";
-import { globalKernel } from "../../kernel";
 
 const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [showQuickActions, setShowQuickActions] = React.useState(false);
@@ -43,6 +42,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     updateSettings,
     isBisonLocking,
     triggerScroll,
+    getKernelService,
   } = context;
 
 
@@ -114,7 +114,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
 
   const handleToggleAsr = async () => {
     try {
-      const asrService = globalKernel.getService<any>("asr");
+    const asrService = getKernelService<any>("asr");
       if (isRecording) {
         setIsRecording(false);
         if (settings.asrConfig?.provider === "openai") {

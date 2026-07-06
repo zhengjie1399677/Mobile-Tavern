@@ -35,32 +35,24 @@ const ChatHeader = ({
     settings,
     chatSubTab,
     setChatSubTab,
+    getKernelService,
   } = useUnifiedApp();
 
   const [isMuted, setIsMuted] = React.useState(false);
 
   React.useEffect(() => {
-    let active = true;
-    import("../../kernel").then(({ globalKernel }) => {
-      if (!active) return;
-      const bgmService = globalKernel.getService<any>("bgm");
-      if (bgmService) {
-        setIsMuted(bgmService.getMuteState());
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [activeCharacter]);
+    const bgmService = getKernelService<any>("bgm");
+    if (bgmService) {
+      setIsMuted(bgmService.getMuteState());
+    }
+  }, [activeCharacter, getKernelService]);
 
   const toggleMute = () => {
-    import("../../kernel").then(({ globalKernel }) => {
-      const bgmService = globalKernel.getService<any>("bgm");
-      if (bgmService) {
-        const nextMute = bgmService.toggleMute();
-        setIsMuted(nextMute);
-      }
-    });
+    const bgmService = getKernelService<any>("bgm");
+    if (bgmService) {
+      const nextMute = bgmService.toggleMute();
+      setIsMuted(nextMute);
+    }
   };
 
   return (

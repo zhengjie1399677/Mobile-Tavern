@@ -20,7 +20,7 @@ import { UserSettings, LorebookEntry, CustomWorldbook, ChatSession } from "../ty
 import { globalKernel } from "../kernel";
 import {
   IDatabaseService, IPromptService, ITelemetryService,
-  IChatStreamService, IMultiMessageService, IScriptService,
+  IChatStreamService, IMultiMessageService, IScriptService, IMemoryService,
 } from "../kernel/types";
 
 import { useChatUI } from "./useChat/useChatUI";
@@ -56,6 +56,9 @@ export const useChat = (
   const chatStreamService = globalKernel.getService<IChatStreamService>("chatStream");
   const multiMessageService = globalKernel.getService<IMultiMessageService>("multiMessage");
   const scriptService = globalKernel.getService<IScriptService>("script");
+  const memoryService = globalKernel.hasService("memory")
+    ? globalKernel.getService<IMemoryService>("memory")
+    : undefined;
 
   // ── 稳定 Ref 镜像（供异步回调安全读取最新值） ─────────────────────────────────
   const sessionsRef = React.useRef(sessions);
@@ -120,6 +123,7 @@ export const useChat = (
     setReplySuggestions: ui.setReplySuggestions,
     triggerScroll: ui.triggerScroll,
     databaseService, promptService, telemetryService, chatStreamService, multiMessageService,
+    memoryService,
     showCustomAlert, draftsRef: ui.draftsRef,
   });
 

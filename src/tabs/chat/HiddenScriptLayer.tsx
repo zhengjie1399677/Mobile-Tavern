@@ -104,7 +104,7 @@ const HiddenScriptLayer = ({
       {libsReady && settings.enableScriptExecution &&
         activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
           if (script.enabled && script.content) {
-            const srcDoc = createScriptIframeSrcDoc(script.content, script.id);
+            const srcDoc = createScriptIframeSrcDoc(script.content, script.id, settings.enableLoopProtection !== false);
             return (
               <iframe
                 key={script.id}

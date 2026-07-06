@@ -57,10 +57,135 @@ export function getProcessedMvuBundle(): string {
 // 脚本内容预处理：将角色卡脚本中的 CDN 导入替换为本地查找
 // ──────────────────────────────────────────────────────────────────────────────
 
-export function preprocessScriptContent(content: string): string {
+/**
+ * 循环看门狗拦截注入器 (Loop Protection)
+ *
+ * 对脚本源码中的 for, while, do-while 循环进行分析。
+ * 如果检测到执行总耗时超过 1000ms，抛出 Error 中断，防止锁死事件循环。
+ */
+export function injectLoopProtection(code: string): string {
+  const randPrefix = Math.random().toString(36).substring(2, 9);
+  let loopCounter = 0;
+
+  const helperCode = `
+    if (typeof window !== 'undefined' && !window.__check_loop) {
+      window.__loop_guards = {};
+      window.__check_loop = function(id) {
+        if (!window.__loop_guards[id]) {
+          window.__loop_guards[id] = Date.now();
+        } else if (Date.now() - window.__loop_guards[id] > 1000) {
+          throw new Error("[Infinite Loop Protection] Loop execution exceeded 1000ms timeout. Terminated.");
+        }
+      };
+      window.__reset_loop = function(id) {
+        if (window.__loop_guards) {
+          delete window.__loop_guards[id];
+        }
+      };
+    }
+  `;
+
+  // 掩码屏蔽注释与字符串字面量，防止误匹配
+  const literals: string[] = [];
+  let masked = code
+    // 屏蔽块注释
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => {
+      literals.push(m);
+      return `__LITERAL_${literals.length - 1}__`;
+    })
+    // 屏蔽行注释
+    .replace(/\/\/[^\n]*/g, (m) => {
+      literals.push(m);
+      return `__LITERAL_${literals.length - 1}__`;
+    })
+    // 屏蔽字符串 (支持单双引号及多行模板字符串)
+    .replace(/(["'`])(?:\\.|[^\\])*?\1/g, (m) => {
+      literals.push(m);
+      return `__LITERAL_${literals.length - 1}__`;
+    });
+
+  // 开始扫描并匹配 for/while ( ... ) {
+  const loopRegex = /\b(for|while)\b/g;
+  let match;
+  let result = "";
+  let lastIndex = 0;
+
+  while ((match = loopRegex.exec(masked)) !== null) {
+    const loopType = match[1];
+    const startIndex = match.index;
+
+    // 关键字后面必须是 '(' 括号
+    const remainder = masked.substring(startIndex + loopType.length);
+    const trimStartSpace = remainder.match(/^\s*/);
+    const spaceOffset = trimStartSpace ? trimStartSpace[0].length : 0;
+    const nextCharIndex = startIndex + loopType.length + spaceOffset;
+
+    if (masked[nextCharIndex] !== "(") {
+      continue;
+    }
+
+    // 匹配括号对
+    let parenCount = 1;
+    let endParenIndex = -1;
+    for (let j = nextCharIndex + 1; j < masked.length; j++) {
+      if (masked[j] === "(") parenCount++;
+      else if (masked[j] === ")") {
+        parenCount--;
+        if (parenCount === 0) {
+          endParenIndex = j;
+          break;
+        }
+      }
+    }
+
+    if (endParenIndex === -1) continue;
+
+    // 括号后必须跟有 '{' 大括号
+    const afterParen = masked.substring(endParenIndex + 1);
+    const trimStartBraceSpace = afterParen.match(/^\s*/);
+    const braceSpaceOffset = trimStartBraceSpace ? trimStartBraceSpace[0].length : 0;
+    const nextBraceIndex = endParenIndex + 1 + braceSpaceOffset;
+
+    if (masked[nextBraceIndex] !== "{") {
+      continue;
+    }
+
+    // 找到匹配的 '{'
+    loopCounter++;
+    const loopId = `L_${randPrefix}_${loopCounter}`;
+
+    result += masked.substring(lastIndex, startIndex);
+    result += `window.__reset_loop("${loopId}");\n`;
+    result += masked.substring(startIndex, nextBraceIndex + 1);
+    result += `\n  window.__check_loop("${loopId}");`;
+
+    lastIndex = nextBraceIndex + 1;
+    loopRegex.lastIndex = lastIndex;
+  }
+
+  result += masked.substring(lastIndex);
+
+  // 加固 'do {' 循环
+  result = result.replace(/\bdo\s*\{/g, () => {
+    loopCounter++;
+    const loopId = `L_${randPrefix}_do_${loopCounter}`;
+    return `window.__reset_loop("${loopId}");\ndo {\n  window.__check_loop("${loopId}");`;
+  });
+
+  // 还原注释与字符串
+  for (let r = literals.length - 1; r >= 0; r--) {
+    const rawVal = literals[r];
+    const marker = `__LITERAL_${r}__`;
+    result = result.split(marker).join(rawVal);
+  }
+
+  return helperCode + "\n" + result;
+}
+
+export function preprocessScriptContent(content: string, enableLoopProtection = true): string {
   let processed = content;
 
-  // 1. 移除 MVU bundle 的 side-effect import（bundle 已在沙盒中预加载）
+  // 1. 移除 MVU bundle 的 side-effect import
   processed = processed.replace(
     /import\s*['"][^'"]*bundle(?:\.js)?['"];?/g,
     `// 本地 MVU bundle 已预加载`
@@ -72,7 +197,7 @@ export function preprocessScriptContent(content: string): string {
     `const registerMvuSchema = window.registerMvuSchema;`
   );
 
-  // 3. 替换 mvu 框架导入（CDN URL 与相对路径两种形式统一处理）
+  // 3. 替换 mvu 框架导入
   processed = processed.replace(
     /import\s*\{([^}]+)\}\s*from\s*['"](?:https?:\/\/(?:testingcf\.)?jsdelivr\.net\/npm\/mvu(?:\.js)?\/\+esm|[^'"]*mvu(?:\.js)?)['"];?/g,
     (_match, importsStr: string) => {
@@ -95,10 +220,15 @@ export function preprocessScriptContent(content: string): string {
   // 4. 泛化替换 jsdelivr CDN 上的所有 named / namespace import
   processed = replaceEsmImports(processed, MVU_LIB_MAP);
 
-  // 5. 清理 ES 模块 export 声明（卡片脚本运行在同步沙盒中，不支持 export）
+  // 5. 清理 ES 模块 export 声明
   processed = processed.replace(/\bexport\s+(const|let|var|function|class)\b/g, "$1");
   processed = processed.replace(/\bexport\s*\{[^}]*\};?/g, "");
   processed = processed.replace(/\bexport\s+default\b/g, "");
+
+  // 6. 自动织入循环安全看门狗（若开启）
+  if (enableLoopProtection) {
+    processed = injectLoopProtection(processed);
+  }
 
   return processed;
 }

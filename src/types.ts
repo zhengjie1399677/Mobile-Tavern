@@ -219,6 +219,7 @@ export interface UserSettings {
   expressionTriggers?: Record<string, string>;
   hasInjectedFormatPreset?: boolean; // Track if the format preservation preset has been injected
   enableScriptExecution?: boolean; // Toggle to execute custom interactive iframe scripts
+  enableLoopProtection?: boolean; // Protect main thread from infinite script loops
   variables?: Record<string, any>; // Persistent global variables for TavernHelper compatibility
   extensionSettings?: Record<string, any>; // Persistent settings for SillyTavern extensions compatibility
   hasInitializedDefaultCharacters?: boolean; // Track if the built-in characters have been initialized

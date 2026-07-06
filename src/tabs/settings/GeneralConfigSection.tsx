@@ -33,6 +33,7 @@ export interface GeneralConfigSectionProps
     | "connectionStatus"
     | "showCustomPrompt"
     | "showCustomConfirm"
+    | "getKernelService"
   > {
   saveState: SaveState;
   freeCount: number;
@@ -48,6 +49,7 @@ export default function GeneralConfigSection({
   connectionStatus,
   showCustomPrompt,
   showCustomConfirm,
+  getKernelService,
   saveState,
   freeCount,
 }: GeneralConfigSectionProps) {
@@ -70,8 +72,7 @@ export default function GeneralConfigSection({
   const handlePlayTest = async () => {
     try {
       setTestSpeaking(true);
-      const { globalKernel } = await import("../../kernel");
-      const ttsService = globalKernel.getService<any>("tts");
+      const ttsService = getKernelService<any>("tts");
       await ttsService.speak("你好，欢迎来到移动酒馆。这是一段语音测试朗读。", settings.ttsConfig);
     } catch (e: any) {
       console.warn("TTS test failed:", e);
@@ -82,8 +83,7 @@ export default function GeneralConfigSection({
 
   const handleStopTest = async () => {
     try {
-      const { globalKernel } = await import("../../kernel");
-      const ttsService = globalKernel.getService<any>("tts");
+      const ttsService = getKernelService<any>("tts");
       ttsService.stop();
     } catch (e) { }
     setTestSpeaking(false);

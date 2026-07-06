@@ -58,6 +58,7 @@ export default function SettingsTab() {
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
     handleImportSillyChatHistory,
+    getKernelService,
   } = useUnifiedApp(state => ({
     settings: state.settings,
     currentTheme: state.currentTheme,
@@ -86,6 +87,7 @@ export default function SettingsTab() {
     handleExportLocalDataBackup: state.handleExportLocalDataBackup,
     handleImportLocalDataBackup: state.handleImportLocalDataBackup,
     handleImportSillyChatHistory: state.handleImportSillyChatHistory,
+    getKernelService: state.getKernelService,
   }));
 
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
@@ -224,6 +226,7 @@ export default function SettingsTab() {
               connectionStatus={connectionStatus}
               showCustomPrompt={showCustomPrompt}
               showCustomConfirm={showCustomConfirm}
+              getKernelService={getKernelService}
               saveState={saveState}
               freeCount={freeCount}
             />

@@ -16,7 +16,7 @@ import { getProcessedMvuZod, getProcessedMvu, getProcessedMvuBundle, preprocessS
 // 脚本执行沙盒 Iframe HTML 生成
 // ──────────────────────────────────────────────────────────────────────────────
 
-export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string): string {
+export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string, enableLoopProtection = true): string {
   const processedMvuZod    = getProcessedMvuZod();
   const processedMvu        = getProcessedMvu();
   const processedMvuBundle  = getProcessedMvuBundle();
@@ -25,12 +25,13 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   if (import.meta.env.DEV) {
     const unresolvedImports = processedMvuBundle.match(/import\s*\{[^}]*\}\s*from\s*['"][^'"]+['"]/g);
     if (unresolvedImports) {
-      console.warn("[TH Bridge] 未替换的 CDN import：", unresolvedImports);
+      console.log("[TH Bridge] 未替换的 CDN import：", unresolvedImports);
     }
   }
 
   const cleanContent = preprocessScriptContent(
-    scriptContent.replace(/^\s*```[^\n]*\n([\s\S]*?)\n```\s*$/i, "$1")
+    scriptContent.replace(/^\s*```[^\n]*\n([\s\S]*?)\n```\s*$/i, "$1"),
+    enableLoopProtection
   );
 
 
@@ -388,17 +389,14 @@ ${cleanContent}
 // 消息内嵌 HTML 沙盒生成（含 jQuery shim、高度自适应）
 // ──────────────────────────────────────────────────────────────────────────────
 
-export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: number): string {
+export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: number, enableLoopProtection = true): string {
   let processedHtml = htmlContent;
 
   // Preprocess any script tags in the HTML content to replace CDN imports with local TavernHelperMvuLibs lookups
   processedHtml = processedHtml.replace(
     /<script([^>]*)>([\s\S]*?)<\/script>/gi,
     (match, attrs, scriptBody) => {
-      if (/type\s*=\s*['"]module['"]/i.test(attrs) || /import\s+/.test(scriptBody)) {
-        return `<script${attrs}>${preprocessScriptContent(scriptBody)}</script>`;
-      }
-      return match;
+      return `<script${attrs}>${preprocessScriptContent(scriptBody, enableLoopProtection)}</script>`;
     }
   );
 

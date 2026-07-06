@@ -8,6 +8,7 @@ import { useCharacters } from "../hooks/useCharacters";
 import { useChat } from "../hooks/useChat";
 import { useUsageTracking } from "../utils/useUsageTracking";
 import { SamplerPreset, PromptConfig, UserSettings } from "../types";
+import { globalKernel } from "../kernel/Kernel";
 
 /**
  * ⚠️ 命名说明：此文件名中的 "Legacy" 具有历史误导性，实际上这是应用的核心 Provider 组装层。
@@ -151,6 +152,9 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     handleExportLocalDataBackup: wrappedHandleExportLocalDataBackup,
     handleImportLocalDataBackup: wrappedHandleImportLocalDataBackup,
     handleImportSillyChatHistory: wrappedHandleImportSillyChatHistory,
+
+    // 封装内核服务访问，代替组件内直接 import globalKernel
+    getKernelService: globalKernel.getService.bind(globalKernel),
   }), [
     appState,
     charState,

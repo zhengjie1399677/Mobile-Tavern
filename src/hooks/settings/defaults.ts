@@ -462,6 +462,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   globalChatBg: "",
   enableHtmlRendering: true,
   enableScriptExecution: false,
+  enableLoopProtection: true,
   expressionTriggers: {
     joy: "笑了|微笑|开心|😊|smile|joy|happy",
     happy: "笑了|微笑|开心|😊|smile|joy|happy",

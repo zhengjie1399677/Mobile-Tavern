@@ -1,5 +1,4 @@
 import { Middleware, OutputPipelineContext, KernelServices } from "../types";
-import { globalKernel } from "../Kernel";
 import { calculateBisonModeProbability } from "../../hooks/useChat/helpers";
 import { Message } from "../../types";
 
@@ -20,9 +19,14 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
   // L2 快速通道：功能开启但响应文本不含表格指令时，跳过 processTableMemory 调用。
   // regex.test 在无匹配时为 O(n) 单次扫描（n=文本长度），远低于 processTableMemory 的完整解析开销。
   if (settings.enableTableMemory && activeCharacter && TABLE_MEMORY_TRIGGER_PATTERN.test(responseText)) {
-    const kernel = context.kernel || globalKernel;
+    const kernel = context.kernel;
+    if (!kernel) {
+      console.warn("[tableMemoryMiddleware] kernel not injected in OutputPipelineContext, skipping.");
+      context.resultSession = currentSession;
+      await next();
+      return;
+    }
     // 阶段 C 迁移：通过 MemoryService.getStateTable() 访问状态表子模块
-    // （旧 KernelServices.TableMemory 已从 registerServiceBatch 移除并标记 @deprecated）
     const memoryService = kernel.getService<any>(KernelServices.Memory);
     const stateTable = memoryService.getStateTable();
 
@@ -77,8 +81,14 @@ export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (con
   // L2 快速通道：功能开启但响应文本不含 MVU 指令时，跳过 executeMvuScript 调用。
   // executeMvuScript 内部会通过 iframe bridge 通信，开销远高于 regex 预扫描。
   if (settings.enableScriptExecution && responseText && MVU_SCRIPT_TRIGGER_PATTERN.test(responseText)) {
+    const kernel = context.kernel;
+    if (!kernel) {
+      console.warn("[mvuScriptMiddleware] kernel not injected in OutputPipelineContext, skipping.");
+      context.resultSession = currentSession;
+      await next();
+      return;
+    }
     try {
-      const kernel = context.kernel || globalKernel;
       const scriptService = kernel.getService<any>(KernelServices.Script);
       currentSession = await scriptService.executeMvuScript(currentSession, responseText);
     } catch (err) {
@@ -137,8 +147,14 @@ export const autoSummaryMiddleware: Middleware<OutputPipelineContext> = async (c
   let currentSession = context.resultSession || context.session;
 
   if (!shouldTriggerBison) {
+    const kernel = context.kernel;
+    if (!kernel) {
+      console.warn("[autoSummaryMiddleware] kernel not injected in OutputPipelineContext, skipping.");
+      context.resultSession = currentSession;
+      await next();
+      return;
+    }
     try {
-      const kernel = context.kernel || globalKernel;
       // 通过 MemoryService.getSummary() 触发摘要检查
       const memoryService = kernel.getService<any>(KernelServices.Memory);
       const summary = memoryService.getSummary();

@@ -85,6 +85,26 @@ export default function FeaturesSection({
                 />
               </div>
 
+              {settings.enableScriptExecution && (
+                <div className="flex items-center justify-between pl-4 border-l-2 border-primary/30 mt-1 animate-in slide-in-from-top-1 duration-200">
+                  <div className="space-y-0">
+                    <label className="text-[11px] font-bold text-foreground">
+                      开启脚本循环安全监视器 (Loop Protection)
+                    </label>
+                    <p className="text-[9px] text-muted-foreground/80 leading-normal">
+                      自动为卡片脚本中的循环体（for/while）织入时间监视器，防止劣质或死循环脚本锁死 WebView 导致界面卡死。单次循环执行上限 1000ms。
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.enableLoopProtection !== false}
+                    onCheckedChange={(val) =>
+                      updateSettings({ ...settings, enableLoopProtection: val })
+                    }
+                    className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  />
+                </div>
+              )}
+
               {/* 环境光感应联动 */}
               <div className="flex items-center justify-between">
                 <div className="space-y-0">

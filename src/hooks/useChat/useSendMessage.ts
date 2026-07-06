@@ -4,7 +4,6 @@ import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService, IMultiMessageService,
 } from "../../kernel/types";
-import { globalKernel } from "../../kernel";
 import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 import {
   generateUniqueId, buildThrottledUpdater, buildFinalAiMessage,
@@ -41,6 +40,11 @@ interface SendMessageParams {
   telemetryService: ITelemetryService;
   chatStreamService: IChatStreamService;
   multiMessageService: IMultiMessageService;
+  /**
+   * 记忆服务实例，由外部注入以解耦对 globalKernel 单例的直接依赖。
+   * 若为 undefined 则跳过记忆召回。
+   */
+  memoryService?: any;
   showCustomAlert: (msg: string) => void | Promise<void>;
   draftsRef: React.MutableRefObject<Record<string, string>>;
 }
@@ -180,7 +184,7 @@ export function useSendMessage(p: SendMessageParams) {
       // 1. 异步执行记忆召回
       let recalledMemories: any[] = [];
       try {
-        const memoryService = globalKernel.getService<any>("memory");
+        const memoryService = p.memoryService;
         if (memoryService) {
           const recallTopK = p.settings.memory?.recallTopK ?? 3;
           recalledMemories = await memoryService.getRecall().recall(
@@ -193,7 +197,7 @@ export function useSendMessage(p: SendMessageParams) {
           }
         } else {
           if (import.meta.env?.DEV) {
-            console.warn("[useSendMessage] memoryService 未注册，跳过召回");
+            console.warn("[useSendMessage] memoryService 未注入，跳过召回");
           }
         }
       } catch (err) {

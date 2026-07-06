@@ -93,7 +93,8 @@ function domToReact(
   enableScriptExecution: boolean,
   activeCharacter: any,
   messageIndex?: number,
-  libsReady?: boolean
+  libsReady?: boolean,
+  enableLoopProtection?: boolean
 ): React.ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
     return renderTextNode(node.nodeValue || "", enableAsteriskFormatting);
@@ -124,7 +125,7 @@ function domToReact(
       return null;
     }
     return Array.from(element.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection)
     );
   }
 
@@ -173,7 +174,7 @@ function domToReact(
         // Apply bridge injection if it's a raw un-injected iframe
         if (enableScriptExecution && !resolvedSrcdoc.includes("window.__TH_MESSAGE_ID")) {
           if (libsReady) {
-            resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex);
+            resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex, enableLoopProtection !== false);
           } else {
             resolvedSrcdoc = `<html><body style="background:transparent;color:#a8a29e;font-family:sans-serif;font-size:11px;margin:0;padding:4px;display:flex;align-items:center;gap:6px;">
               <span style="width:8px;height:8px;border:1.5px solid #a8a29e;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span>
@@ -236,7 +237,7 @@ function domToReact(
   }
 
   const children = Array.from(element.childNodes).map((child, i) => 
-    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex)
+    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection)
   );
   
   const reactElement = React.createElement(
@@ -262,7 +263,8 @@ function parseSafeHtmlToReact(
   enableScriptExecution: boolean,
   activeCharacter: any,
   messageIndex?: number,
-  libsReady?: boolean
+  libsReady?: boolean,
+  enableLoopProtection?: boolean
 ): React.ReactNode {
   try {
     const parser = new DOMParser();
@@ -271,7 +273,7 @@ function parseSafeHtmlToReact(
     if (!container) return html;
 
     return Array.from(container.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection)
     );
   } catch (err) {
     console.error("Failed to parse HTML safely:", err);
@@ -287,7 +289,8 @@ function preprocessFormattedText(
   enableScriptExecution: boolean,
   globalRegexScripts?: any[],
   presetRegexScripts?: any[],
-  messageIndex?: number
+  messageIndex?: number,
+  enableLoopProtection?: boolean
 ): string {
   if (!text) return "";
 
@@ -394,10 +397,11 @@ function preprocessFormattedText(
   //    b) ``` ... ```      - 普通代码块，但内容以 HTML 标签（< 开头）时也作为 HTML 渲染
   //    角色卡正则的 replaceString 通常产出的是格式 b（SillyTavern 兼容格式）
   if (enableScriptExecution) {
+    const loopGuard = enableLoopProtection !== false;
     // 先处理显式 ```html 块
     const htmlCodeBlockRegex = /```html\s*([\s\S]*?)\s*```/gi;
     processed = processed.replace(htmlCodeBlockRegex, (_match, htmlContent) => {
-      const compiledSrcdoc = createMessageIframeSrcDoc(htmlContent, messageIndex);
+      const compiledSrcdoc = createMessageIframeSrcDoc(htmlContent, messageIndex, loopGuard);
       const escapedHtml = compiledSrcdoc
         .replace(/&/g, "&amp;")
         .replace(/"/g, "&quot;")
@@ -412,7 +416,7 @@ function preprocessFormattedText(
       const trimmedContent = codeContent.trim();
       // 内容以 < 开头（HTML 标签），当作 HTML 渲染
       if (trimmedContent.startsWith("<")) {
-        const compiledSrcdoc = createMessageIframeSrcDoc(trimmedContent, messageIndex);
+        const compiledSrcdoc = createMessageIframeSrcDoc(trimmedContent, messageIndex, loopGuard);
         const escapedHtml = compiledSrcdoc
           .replace(/&/g, "&amp;")
           .replace(/"/g, "&quot;")
@@ -474,6 +478,7 @@ const FormattedText = memo(function FormattedText({
   const context = useUnifiedApp();
   const enableHtml = context.settings.enableHtmlRendering ?? true;
   const enableScriptExecution = !!context.settings.enableScriptExecution;
+  const enableLoopProtection = context.settings.enableLoopProtection !== false;
   const activeCharacter = context.activeCharacter;
 
   const [libsReady, setLibsReady] = useState(false);
@@ -513,7 +518,8 @@ const FormattedText = memo(function FormattedText({
     enableScriptExecution,
     globalRegexScripts,
     presetRegexScripts,
-    messageIndex
+    messageIndex,
+    enableLoopProtection
   );
 
   // Quick detection: if text contains tags and html rendering is active, use DOM parser
@@ -523,7 +529,7 @@ const FormattedText = memo(function FormattedText({
   if (hasHtml) {
     renderedContent = (
       <span className={`block whitespace-pre-wrap leading-relaxed ${className}`}>
-        {parseSafeHtmlToReact(processed, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady)}
+        {parseSafeHtmlToReact(processed, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection)}
       </span>
     );
   } else {

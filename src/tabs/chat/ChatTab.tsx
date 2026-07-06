@@ -32,6 +32,7 @@ export default function ChatTab() {
     saveCharacter,
     updateSettings,
     saveSession,
+    getKernelService,
   } = useUnifiedApp();
 
   // a11y Live Announcer + 键盘检测 + bridge effect
@@ -69,31 +70,24 @@ export default function ChatTab() {
 
   // 背景音乐 (BGM) 自动播放与停止控制
   React.useEffect(() => {
-    let active = true;
-    let bgmService: any = null;
+    const bgmService = getKernelService<any>("bgm");
+    const bgmUrl = activeCharacter?.visualSettings?.bgmUrl;
+    const bgmVolume = activeCharacter?.visualSettings?.bgmVolume ?? 0.5;
 
-    import("../../kernel").then(({ globalKernel }) => {
-      if (!active) return;
-      bgmService = globalKernel.getService<any>("bgm");
-      const bgmUrl = activeCharacter?.visualSettings?.bgmUrl;
-      const bgmVolume = activeCharacter?.visualSettings?.bgmVolume ?? 0.5;
-
-      if (bgmService) {
-        if (bgmUrl) {
-          bgmService.play(bgmUrl, bgmVolume);
-        } else {
-          bgmService.stop();
-        }
+    if (bgmService) {
+      if (bgmUrl) {
+        bgmService.play(bgmUrl, bgmVolume);
+      } else {
+        bgmService.stop();
       }
-    });
+    }
 
     return () => {
-      active = false;
       if (bgmService) {
         bgmService.stop();
       }
     };
-  }, [activeCharacter]);
+  }, [activeCharacter, getKernelService]);
 
   // 本地 UI 状态
   const [expandedReasoningIds, setExpandedReasoningIds] = React.useState<Record<string, boolean>>({});
