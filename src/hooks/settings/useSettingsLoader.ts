@@ -16,9 +16,7 @@ import {
   DEFAULT_SUMMARY_SYSTEM_PROMPT,
   DEFAULT_PROMPT_CONFIG,
   DEFAULT_SETTINGS,
-  FORMAT_PRESERVATION_BUNDLE,
   MOBILE_TAVERN_BASIC_PRESET_BUNDLE,
-  setFormatPreservationBundle,
   setMobileTavernBasicPresetBundle,
 } from "./defaults";
 import { cleanLorebookEntry } from "./mergeUtils";
@@ -74,15 +72,7 @@ export const useSettingsLoader = ({
               }
             });
           }
-          if (externalPreset?.formatPreservationBundle) {
-            setFormatPreservationBundle({
-              ...FORMAT_PRESERVATION_BUNDLE,
-              promptConfig: {
-                ...FORMAT_PRESERVATION_BUNDLE.promptConfig,
-                ...externalPreset.formatPreservationBundle.promptConfig,
-              }
-            });
-          }
+
           // Backward compatibility: retrieve from storedSet if saved_presets_bundle key doesn't exist yet
           let mergedSavedPresets = storedSavedPresets || [];
           let needSave = false;
@@ -395,15 +385,7 @@ export const useSettingsLoader = ({
               };
               initialSet.savedPresets = [MOBILE_TAVERN_BASIC_PRESET_BUNDLE];
             }
-            if (externalPreset.formatPreservationBundle) {
-              setFormatPreservationBundle({
-                ...FORMAT_PRESERVATION_BUNDLE,
-                promptConfig: {
-                  ...FORMAT_PRESERVATION_BUNDLE.promptConfig,
-                  ...externalPreset.formatPreservationBundle.promptConfig,
-                }
-              });
-            }
+
           }
           setSettings(initialSet);
 
