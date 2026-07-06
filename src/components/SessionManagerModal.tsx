@@ -47,6 +47,10 @@ export default function SessionManagerModal() {
             .map((s) => {
               const lastMsg = s.messages && s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
               const lastActiveTime = lastMsg ? (lastMsg.timestamp || s.createdAt) : s.createdAt;
+              const msgs = Array.isArray(s.messages) ? s.messages : [];
+              const userMsgCount = msgs.filter((m) => m.sender === "user").length;
+              const turnCount = userMsgCount > 0 ? userMsgCount : (msgs.length > 1 ? Math.floor(msgs.length / 2) : (msgs.length > 0 ? 1 : 0));
+
               return (
                 <div
                   key={s.id}
@@ -71,7 +75,7 @@ export default function SessionManagerModal() {
                       </h4>
                       <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
                         {new Date(lastActiveTime).toLocaleString()} |{" "}
-                        {s.messages.length} 回合 | {(s.summaries || []).length} 片段
+                        {turnCount} 回合 | {(s.summaries || []).length} 片段
                       </p>
                       {lastMsg && (
                         <p className="text-[10.5px] text-muted-foreground truncate mt-1.5 border-t border-border/20 pt-1.5 italic opacity-85">

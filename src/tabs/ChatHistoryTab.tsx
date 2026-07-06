@@ -51,7 +51,11 @@ export default function ChatHistoryTab() {
         const totalCharsDisplay = totalChars > 1000
           ? (totalChars / 1000).toFixed(1) + "k"
           : String(totalChars);
-        return { s, char, lastMsg, lastActiveTime, totalCharsDisplay, rawTotalChars: totalChars };
+        // 回合数计算：按用户发送消息数量统计，兜底为消息对数量，避免直接输出消息条数导致显示为实际回合数的双倍
+        const userMsgCount = messages.filter((m) => m.sender === "user").length;
+        const turnCount = userMsgCount > 0 ? userMsgCount : (messages.length > 1 ? Math.floor(messages.length / 2) : (messages.length > 0 ? 1 : 0));
+
+        return { s, char, lastMsg, lastActiveTime, totalCharsDisplay, rawTotalChars: totalChars, turnCount };
       })
       .sort((a, b) => b.lastActiveTime - a.lastActiveTime);
   }, [sessions, characters]);
@@ -175,7 +179,7 @@ export default function ChatHistoryTab() {
       ) : viewMode === "timeline" ? (
         /* 模式一：原按时间线倒序平铺 */
         <div className="space-y-2.5">
-          {enrichedSessions.map(({ s, char, lastMsg, lastActiveTime, totalCharsDisplay }) => {
+          {enrichedSessions.map(({ s, char, lastMsg, lastActiveTime, totalCharsDisplay, turnCount }) => {
             return (
               <div
                 key={s.id}
@@ -210,7 +214,7 @@ export default function ChatHistoryTab() {
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground truncate opacity-70">
-                    {char?.name || "未知角色"} | {s.messages?.length || 0} 回合 | {totalCharsDisplay} 字
+                    {char?.name || "未知角色"} | {turnCount} 回合 | {totalCharsDisplay} 字
                   </p>
                   {lastMsg && (
                     <p className="text-[10px] text-muted-foreground truncate mt-1.5 italic border-t border-border/20 pt-1.5 opacity-80">
@@ -300,7 +304,7 @@ export default function ChatHistoryTab() {
                 {/* 归纳展开后的分支子列表 */}
                 {isExpanded && (
                   <div className="p-2 pt-1 space-y-2 border-t border-border/40 bg-card/30">
-                    {group.sessions.map(({ s, char, lastMsg, lastActiveTime, totalCharsDisplay }) => (
+                    {group.sessions.map(({ s, char, lastMsg, lastActiveTime, totalCharsDisplay, turnCount }) => (
                       <div
                         key={s.id}
                         className="p-2.5 rounded-lg border border-border/50 bg-background/50 hover:bg-primary/5 hover:border-primary/40 transition flex items-center justify-between gap-2 cursor-pointer"
@@ -321,7 +325,7 @@ export default function ChatHistoryTab() {
                             </span>
                           </div>
                           <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground opacity-80">
-                            <span>{s.messages?.length || 0} 回合</span>
+                            <span>{turnCount} 回合</span>
                             <span>·</span>
                             <span>{totalCharsDisplay} 字</span>
                           </div>
