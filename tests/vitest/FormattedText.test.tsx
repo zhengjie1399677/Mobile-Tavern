@@ -114,4 +114,18 @@ describe("FormattedText component", () => {
     expect(boldEl?.textContent).toBe("eyes");
     expect(boldEl).toHaveClass("font-bold");
   });
+
+  it("should render complex nested italic and bold ending with *** correctly", () => {
+    mockContext.settings.enableAsteriskFormatting = true;
+    const { container } = render(
+      <FormattedText text='*He nods, **"Yes, I will."***' charName="Bot" />
+    );
+    const italicEl = container.querySelector(".italic");
+    expect(italicEl).toBeInTheDocument();
+    expect(italicEl).toHaveClass("text-muted-foreground/80");
+
+    const boldEl = container.querySelector("strong");
+    expect(boldEl).toBeInTheDocument();
+    expect(boldEl?.textContent).toBe('"Yes, I will."');
+  });
 });

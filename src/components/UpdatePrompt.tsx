@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import * as Icons from "lucide-react";
+import { DownloadCloud, Loader2, ArrowUpCircle, X } from "lucide-react";
 import { globalKernel } from "../kernel";
 import { IUpdateCheckService, UpdateInfo } from "../kernel/types";
 
@@ -175,7 +175,7 @@ export default function UpdatePrompt() {
 
         {/* 跃动感的更新图标 */}
         <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)] animate-bounce">
-          <Icons.DownloadCloud className="w-8 h-8" />
+          <DownloadCloud className="w-8 h-8" />
           <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-indigo-950 animate-ping" />
         </div>
 
@@ -200,12 +200,12 @@ export default function UpdatePrompt() {
           >
             {isDownloading ? (
               <>
-                <Icons.Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
                 <span>正在唤起安全下载通道...</span>
               </>
             ) : (
               <>
-                <Icons.ArrowUpCircle className="w-4 h-4" />
+                <ArrowUpCircle className="w-4 h-4" />
                 <span>立即下载更新</span>
               </>
             )}
@@ -227,7 +227,7 @@ export default function UpdatePrompt() {
           className="absolute top-4 right-4 text-slate-500 hover:text-white transition"
           aria-label="关闭更新提示"
         >
-          <Icons.X className="w-4 h-4" />
+          <X className="w-4 h-4" />
         </button>
       </div>
     </div>

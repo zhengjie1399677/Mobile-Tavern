@@ -156,19 +156,20 @@ function parseMarkdownToReact(
       // 寻找配对的单星号
       let closeIdx = -1;
       let searchStart = startIdx + 1;
-      while (true) {
+      while (searchStart < str.length) {
         const found = str.indexOf("*", searchStart);
         if (found === -1) break;
 
-        const prevIsStar = found > 0 && str[found - 1] === "*";
-        const nextIsStar = found + 1 < str.length && str[found + 1] === "*";
+        let len = 0;
+        while (found + len < str.length && str[found + len] === "*") {
+          len++;
+        }
 
-        if (!prevIsStar && !nextIsStar) {
-          closeIdx = found;
+        if (len % 2 === 1) {
+          closeIdx = found + len - 1;
           break;
         }
-        // 如果是双星号的一部分，跳过双星号
-        searchStart = found + (nextIsStar ? 2 : 1);
+        searchStart = found + len;
       }
 
       if (closeIdx !== -1) {

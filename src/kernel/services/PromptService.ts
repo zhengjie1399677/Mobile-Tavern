@@ -386,6 +386,10 @@ export class PromptService implements IPromptService {
       if (character.system_prompt) {
         cleanSystem += `${this.replaceMacros(character.system_prompt, macroParams)}\n\n`;
       }
+      const diagsVal = this.replaceMacros(character.mes_example || "", macroParams);
+      if (diagsVal) {
+        cleanSystem += `=== Dialogue Examples ===\n${diagsVal}\n\n`;
+      }
       if (settings.userInfo) {
         cleanSystem += `=== User Persona ===\n${this.replaceMacros(settings.userInfo, macroParams)}\n\n`;
       }
@@ -591,6 +595,22 @@ export class PromptService implements IPromptService {
         mutable: true,
         title: "Reference Lore",
         content: lorebookText,
+      }),
+    });
+
+    const diagsVal = this.replaceMacros(character.mes_example || "", macroParams);
+    builder.registerSection({
+      id: "dialogue_examples",
+      phase: "Context",
+      enabled: !!diagsVal,
+      compile: () => ({
+        id: "dialogue_examples",
+        phase: "Context",
+        type: "Reference",
+        priority: "Normal",
+        mutable: true,
+        title: "Dialogue Examples",
+        content: diagsVal,
       }),
     });
 

@@ -329,6 +329,16 @@ describe("filterAsteriskActions", () => {
     expect(filterAsteriskActions(input)).toBe("我*今天**很开心。");
   });
 
+  it("当动作段落以 *** 结尾时，应能正确剔除整个动作段落", () => {
+    const input = '*He nods, **"Yes, I will."***';
+    expect(filterAsteriskActions(input)).toBe("");
+  });
+
+  it("当包含多个混合以 *** 结尾的动作时，应能正确保留其他非动作对白", () => {
+    const input = '他说：**"你好！"** *悄悄凑到你的**耳朵**旁*** “你今天真好看。”';
+    expect(filterAsteriskActions(input)).toBe('他说：**"你好！"** “你今天真好看。”');
+  });
+
   it("空文本输入安全返回空串", () => {
     expect(filterAsteriskActions("")).toBe("");
     expect(filterAsteriskActions(null as any)).toBe("");

@@ -120,21 +120,9 @@ export const BUILTIN_CHARACTERS: CharacterCard[] = [
   }
 ];
 
-/**
- * 异步加载内置角色卡（含图片数据）
- *
- * 通过动态 import 将图片数据模块分离到独立 chunk，
- * 符合 AGENTS.md 准则一第 2 条「物理层数据严格解耦与隔离」。
- *
- * - BUILTIN_CHARACTERS 仍然导出（向后兼容），但 avatar 字段为空
- * - 调用此函数可获取包含完整图片数据的角色卡数组
- *
- * @returns 包含完整图片数据的内置角色卡数组
- */
 export async function loadBuiltinCharacters(): Promise<CharacterCard[]> {
-  const { BUILTIN_CHARACTER_IMAGES } = await import("./builtInCharactersImages");
   return BUILTIN_CHARACTERS.map((card) => ({
     ...card,
-    avatar: BUILTIN_CHARACTER_IMAGES[card.name] || card.avatar || "",
+    avatar: `/avatars/builtin/${card.id}.png`,
   }));
 }

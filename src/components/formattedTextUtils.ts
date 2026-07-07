@@ -175,45 +175,46 @@ export function filterAsteriskActions(text: string): string {
   let result = "";
   let i = 0;
   while (i < text.length) {
-    const nextItalic = text.indexOf("*", i);
-    if (nextItalic === -1) {
+    const nextAsterisk = text.indexOf("*", i);
+    if (nextAsterisk === -1) {
       result += text.slice(i);
       break;
     }
 
-    // 将单星号前的内容加到结果中
-    if (nextItalic > i) {
-      result += text.slice(i, nextItalic);
+    if (nextAsterisk > i) {
+      result += text.slice(i, nextAsterisk);
     }
 
-    // 寻找配对的单星号
-    let closeIdx = -1;
-    let searchStart = nextItalic + 1;
-    while (true) {
-      const found = text.indexOf("*", searchStart);
-      if (found === -1) break;
-
-      const prevIsStar = found > 0 && text[found - 1] === "*";
-      const nextIsStar = found + 1 < text.length && text[found + 1] === "*";
-
-      if (!prevIsStar && !nextIsStar) {
-        closeIdx = found;
-        break;
-      }
-      // 如果是双星号的一部分，跳过双星号
-      searchStart = found + (nextIsStar ? 2 : 1);
-    }
-
-    if (closeIdx !== -1) {
-      // 成功配对！因为是 dialogue_only，我们丢弃 [nextItalic, closeIdx] 的内容
-      i = closeIdx + 1;
+    if (nextAsterisk + 1 < text.length && text[nextAsterisk + 1] === "*") {
+      result += "**";
+      i = nextAsterisk + 2;
     } else {
-      // 未配对的单星号，当做普通文本处理
-      result += "*";
-      i = nextItalic + 1;
+      let closeIdx = -1;
+      let searchStart = nextAsterisk + 1;
+      while (searchStart < text.length) {
+        const found = text.indexOf("*", searchStart);
+        if (found === -1) break;
+
+        let len = 0;
+        while (found + len < text.length && text[found + len] === "*") {
+          len++;
+        }
+
+        if (len % 2 === 1) {
+          closeIdx = found + len - 1;
+          break;
+        }
+        searchStart = found + len;
+      }
+
+      if (closeIdx !== -1) {
+        i = closeIdx + 1;
+      } else {
+        result += "*";
+        i = nextAsterisk + 1;
+      }
     }
   }
-  // 清理多余的空格，避免 TTS 停顿怪异
   return result.replace(/\s+/g, " ").trim();
 }
 

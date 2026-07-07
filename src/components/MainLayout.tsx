@@ -1,8 +1,15 @@
 import React, { useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { SplashScreen } from "./SplashScreen";
-import * as Icons from "lucide-react";
+import { VenetianMask, MessageSquare, Book, Settings, HelpCircle } from "lucide-react";
 import { globalKernel } from "../kernel";
+
+const ICON_MAP: Record<string, React.ComponentType<any>> = {
+  VenetianMask,
+  MessageSquare,
+  Book,
+  Settings,
+};
 
 import CharacterEditModal from "./CharacterEditModal";
 import TimelineModal from "./TimelineModal";
@@ -79,7 +86,7 @@ export default function MainLayout() {
             className="absolute left-4 right-4 h-16 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
           >
             {bottomBarTabs.map(tab => {
-              const IconComp = (Icons as any)[tab.meta?.icon] || Icons.HelpCircle;
+              const IconComp = (tab.meta?.icon && ICON_MAP[tab.meta.icon]) || HelpCircle;
               const selected = isActive(tab);
               return (
                 <button
