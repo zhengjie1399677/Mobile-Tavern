@@ -423,17 +423,69 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
       document.addEventListener('DOMContentLoaded', notifyReady);
     }
   })();
-</script>
-</head>
+<\/script>
+<\/head>
 <body>
+<script>
+// ─── Step 3.5: Wrap window.defineMvuDataStore (set by mvu.js) to sync initial Pinia state back ───
+// mvu.js sets window.defineMvuDataStore in Step 1.5. The card script calls it to create a Pinia
+// store whose setup function runs schema.parse(getVariables()). With Fix X2 (zodMock), parse({})
+// now returns correct defaults. This wrapper intercepts the call AFTER Pinia initializes the store
+// and writes the resulting stat_data back into the parent's session.variables so that:
+// 1. Future getVariables() calls return the correct defaults (needed for AI reply delta ops)
+// 2. mag_variable_initialized events carry meaningful data
+(function() {
+  if (typeof window.defineMvuDataStore !== 'function') return;
+  var __origDefineMvu = window.defineMvuDataStore;
+  window.defineMvuDataStore = function(storeId, setupFn) {
+    var storeFactory = __origDefineMvu(storeId, setupFn);
+    try {
+      // Call the store factory to trigger Pinia setup (runs schema.parse(getVariables()))
+      var store = typeof storeFactory === 'function' ? storeFactory() : storeFactory;
+      if (store) {
+        // Extract state: try common patterns (store.data.value, store.$state, store itself)
+        var rawData = null;
+        if (store.data && store.data.value !== undefined) {
+          rawData = store.data.value;
+        } else if (store.$state) {
+          rawData = store.$state;
+        } else if (store.data) {
+          rawData = store.data;
+        }
+        if (rawData && typeof rawData === 'object') {
+          var TH = window.parent && window.parent.TavernHelper;
+          var bind = TH && TH._bind;
+          if (bind && typeof bind._getVariables === 'function' && typeof bind._replaceVariables === 'function') {
+            var currentVars = bind._getVariables({ type: 'chat' }) || {};
+            var currentStatData = currentVars.stat_data || {};
+            var initStatData = rawData.stat_data || rawData;
+            // Merge strategy: existing session values take priority (preserve saves), fill missing with schema defaults
+            var mergedStatData = Object.assign({}, initStatData, currentStatData);
+            var hasNewKeys = Object.keys(mergedStatData).length > Object.keys(currentStatData).length;
+            if (hasNewKeys) {
+              var mergedVars = Object.assign({}, currentVars, { stat_data: mergedStatData });
+              bind._replaceVariables(mergedVars, { type: 'chat' });
+              console.log('[TH Bridge Step 3.5] defineMvuDataStore "' + storeId + '" synced ' + Object.keys(mergedStatData).length + ' keys to session.variables');
+            }
+          }
+        }
+      }
+    } catch(syncErr) {
+      console.warn('[TH Bridge Step 3.5] defineMvuDataStore sync error for "' + storeId + '":', syncErr);
+    }
+    return storeFactory;
+  };
+})();
+<\/script>
 <script>
 // ─── Step 4: Card script (synchronous, so listeners are registered before DOMContentLoaded) ───
 ${cleanContent}
-</script>
-</body>
-</html>`;
+<\/script>
+<\/body>
+<\/html>`;
 
 }
+
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 消息内嵌 HTML 沙盒生成（含 jQuery shim、高度自适应）

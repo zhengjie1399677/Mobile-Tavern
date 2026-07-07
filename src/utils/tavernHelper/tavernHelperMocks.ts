@@ -318,13 +318,16 @@ export function initTavernHelperMocks(): void {
           try {
             return fn.apply(this, args);
           } catch (err) {
-            console.error("[TavernHelper Bridge] Error caught inside errorCatched:", err);
-            throw err;
+            // 【修复差异3】与 SillyTavern 原生行为一致：静默吞掉错误，仅做日志输出
+            // 原先 throw err 会在 zod 解析警告时中断整个变量初始化链条
+            console.warn("[TavernHelper Bridge] Error caught inside errorCatched (silenced):", err);
+            return undefined;
           }
         };
       }
       return fn;
     },
+
     _getIframeName: () => "TH-message-iframe",
     _getScriptId: () => "script_default",
     _getCurrentMessageId(callerMsgId?: number) {
@@ -353,7 +356,10 @@ export function initTavernHelperMocks(): void {
         if (msg) {
           const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
           
-          // 从当前消息开始往前扫描，寻找最近的一个包含非空变量的消息
+          // 【修复 X3】从当前消息开始往前扫描，寻找最近的一个包含有效变量的消息。
+          // 原先要求 stat_data 非空才算有效，但初始化时可能 stat_data 为 {}（由静态提取失败导致），
+          // 改为：只要 extra.variables[swipeId] 存在（即使 stat_data 是空对象）就视为有效记录，
+          // 由 zod schema.parse() 负责补齐默认值。
           for (let i = msgId; i >= 0; i--) {
             const m = messages[i] as any;
             if (!m) continue;
@@ -361,7 +367,7 @@ export function initTavernHelperMocks(): void {
               ? opt.swipe_id
               : (m.swipe_id !== undefined ? m.swipe_id : 0);
             const vars = m.extra?.variables?.[currentSwipeId];
-            if (vars && Object.keys(vars).length > 0 && vars.stat_data && Object.keys(vars.stat_data).length > 0) {
+            if (vars && typeof vars === 'object') {
               const resolvedVars = lodashCloneDeep(vars);
               return resolvedVars;
             }
@@ -871,6 +877,7 @@ export function initTavernHelperMocks(): void {
     },
   };
 
+
   // ──────────────────────────────────────────────────────────────────────────
   // 10. Mvu (Model-View-Update) 全局框架 Mock
   // ──────────────────────────────────────────────────────────────────────────
@@ -880,6 +887,7 @@ export function initTavernHelperMocks(): void {
       COMMAND_PARSED: 'mag_command_parsed', VARIABLE_UPDATE_ENDED: 'mag_variable_update_ended',
       BEFORE_MESSAGE_UPDATE: 'mag_before_message_update',
     },
+
     getMvuData(options: any = { type: "chat" }) {
       const vars = parentWin.TavernHelper.getVariables(options) || {};
       if (vars.stat_data && vars.schema) return vars;
