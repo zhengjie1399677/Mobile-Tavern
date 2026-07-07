@@ -29,6 +29,7 @@ export default function PresetForm() {
     showCustomConfirm,
     showCustomAlert,
     activeCharacter,
+    saveCharacter,
   } = useUnifiedApp();
 
   const {
@@ -72,6 +73,7 @@ export default function PresetForm() {
     showCustomConfirm,
     showCustomAlert,
     activeCharacter,
+    saveCharacter,
   });
 
   return (

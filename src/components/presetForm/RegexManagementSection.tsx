@@ -28,8 +28,8 @@ interface RegexManagementSectionProps {
   setEditingRegex: (value: any) => void;
   isRegexModalOpen: boolean;
   setIsRegexModalOpen: (value: boolean | ((prev: boolean) => boolean)) => void;
-  toggleRegexDisabled: (id: string, disabled: boolean, scope: "global" | "preset") => void;
-  deleteRegex: (id: string, name: string, scope: "global" | "preset") => Promise<void>;
+  toggleRegexDisabled: (id: string, disabled: boolean, scope: "global" | "preset" | "character") => void;
+  deleteRegex: (id: string, name: string, scope: "global" | "preset" | "character") => Promise<void>;
   saveRegex: (reg: any) => void;
 }
 
@@ -384,54 +384,103 @@ export default function RegexManagementSection({
             )}
           </div>
 
-          {/* 轨3. 角色局部正则（只读展示） */}
+          {/* 轨3. 角色局部正则（可编辑展示） */}
           <div className="space-y-3 pt-3 border-t border-border/40">
-            <div className="space-y-0.5">
-              <span className="block text-[11px] font-bold text-primary">
-                🎭 活跃角色专属局部正则 (Character Local Regex)
-              </span>
-              <span className="text-[9.5px] text-muted-foreground block">
-                仅当活跃角色 [{activeCharacter?.name || "未选择"}] 开启时生效，保存在角色卡 extensions 中 (只读展示)
-              </span>
+            <div className="flex justify-between items-center flex-wrap gap-2">
+              <div className="space-y-0.5">
+                <span className="block text-[11px] font-bold text-primary">
+                  🎭 活跃角色专属局部正则 (Character Local Regex)
+                </span>
+                <span className="text-[9.5px] text-muted-foreground block">
+                  仅当活跃角色 [{activeCharacter?.name || "未选择"}] 开启时生效，直接保存修改至角色卡中
+                </span>
+              </div>
+              {activeCharacter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingRegex({
+                      id: "reg_" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+                      scriptName: "",
+                      findRegex: "",
+                      replaceString: "",
+                      disabled: false,
+                      placement: [2],
+                      runOnEdit: true,
+                      markdownOnly: false,
+                      promptOnly: false,
+                      scope: "character",
+                    });
+                    setIsRegexModalOpen(true);
+                  }}
+                  className="text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 border border-primary/25 rounded-md flex items-center gap-1 transition tap-scale"
+                >
+                  <Plus className="w-2.5 h-2.5" /> 新建角色
+                </button>
+              )}
             </div>
 
             {(!activeCharacter || !activeCharacter.extensions?.regex_scripts || activeCharacter.extensions.regex_scripts.length === 0) ? (
               <div className="border border-dashed border-border/50 rounded-xl p-4 text-center text-muted-foreground flex flex-col items-center justify-center gap-1.5">
                 <span className="text-[10px] font-light text-muted-foreground/60 leading-relaxed">
-                  当前角色暂无专属局部正则。可导出角色卡 JSON 手动修改 extensions.regex_scripts 声明。
+                  当前角色暂无专属局部正则。可点击上方按钮手动新建角色专属过滤。
                 </span>
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1 opacity-75">
-                {activeCharacter.extensions.regex_scripts.map((r: any) => (
-                  <div
-                    key={r.id || r.scriptName}
-                    className={`border border-border/30 rounded-lg p-2 bg-muted/5 flex items-center justify-between gap-3 ${
-                      r.disabled ? "opacity-50" : ""
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-semibold truncate ${r.disabled ? "text-muted-foreground line-through" : "text-foreground"}`}>
-                          {r.scriptName}
-                        </span>
-                        <span className="text-[8px] font-semibold px-1 py-0.2 border border-border/80 rounded bg-background text-muted-foreground">
-                          {r.placement?.includes(1) && r.placement?.includes(2)
-                            ? "双向"
-                            : r.placement?.includes(1)
-                            ? "输入"
-                            : "输出"}
-                        </span>
+              <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                {activeCharacter.extensions.regex_scripts.map((r: any) => {
+                  const targetId = r.id || r.scriptName;
+                  return (
+                    <div
+                      key={targetId}
+                      className={`border border-border/30 rounded-lg p-2 bg-muted/5 flex items-center justify-between gap-3 transition ${
+                        r.disabled ? "opacity-60" : ""
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-semibold truncate ${r.disabled ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                            {r.scriptName}
+                          </span>
+                          <span className="text-[8px] font-semibold px-1 py-0.2 border border-border/80 rounded bg-background text-muted-foreground">
+                            {r.placement?.includes(1) && r.placement?.includes(2)
+                              ? "双向"
+                              : r.placement?.includes(1)
+                              ? "输入"
+                              : "输出"}
+                          </span>
+                        </div>
+                        <div className="text-[9px] text-muted-foreground font-mono truncate mt-0.5">
+                          {r.findRegex} ➔ {r.replaceString === "" ? "(删除)" : r.replaceString}
+                        </div>
                       </div>
-                      <div className="text-[9px] text-muted-foreground font-mono truncate mt-0.5">
-                        {r.findRegex} ➔ {r.replaceString === "" ? "(删除)" : r.replaceString}
+                      <div className="flex items-center gap-2 shrink-0 scale-90">
+                        <Switch
+                          checked={!r.disabled}
+                          onCheckedChange={(checked) => toggleRegexDisabled(targetId, !checked, "character")}
+                          className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingRegex({ ...r, scope: "character", id: targetId });
+                            setIsRegexModalOpen(true);
+                          }}
+                          className="text-[9px] text-muted-foreground hover:text-primary transition font-semibold px-1.5 py-0.5 rounded hover:bg-muted"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteRegex(targetId, r.scriptName, "character")}
+                          className="text-[9px] text-rose-500 hover:text-rose-700 transition font-semibold px-1.5 py-0.5 rounded hover:bg-rose-950/20"
+                        >
+                          删除
+                        </button>
                       </div>
                     </div>
-                    <div className="text-[9px] text-muted-foreground shrink-0 select-none">
-                      {r.disabled ? "已禁用" : "已启用"}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

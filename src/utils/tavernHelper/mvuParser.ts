@@ -593,10 +593,13 @@ export function parseMvuMessage(message: string, oldData: any): any {
   return newData;
 }
 
-/**
- * 应用角色卡局部正则脚本对文本进行预处理，用于解析由正则动态注入的 MVU 标签。
- */
-export function applyCharacterRegexScripts(text: string, character: any): string {
+export function applyCharacterRegexScripts(
+  text: string, 
+  character: any, 
+  isAiMessage?: boolean,
+  charName?: string,
+  userName?: string
+): string {
   if (!text || !character) return text;
   
   const ext = character.extensions || {};
@@ -607,32 +610,76 @@ export function applyCharacterRegexScripts(text: string, character: any): string
     
   let processed = text;
   
+  const finalCharName = charName || character.name || "";
+  const finalUserName = userName || "user";
+  
+  console.log(`[applyCharacterRegexScripts] processing character: ${character.name}, text length: ${text.length}, scripts count: ${charRegexScripts.length}, isAiMessage: ${isAiMessage}`);
+  
   for (const script of charRegexScripts) {
     if (!script || script.disabled || script.promptOnly) continue;
     
     const placement = script.placement;
-    const isAllowedPlacement =
-      Array.isArray(placement) &&
-      (placement.includes(2) || placement.includes(1));
+    let isAllowedPlacement = true;
+    if (placement !== undefined && placement !== null) {
+      if (Array.isArray(placement)) {
+        if (placement.length > 0) {
+          const targetPlacement = isAiMessage === true ? 2 : (isAiMessage === false ? 1 : null);
+          if (targetPlacement !== null) {
+            if (!placement.includes(targetPlacement)) {
+              isAllowedPlacement = false;
+            }
+          } else {
+            if (!placement.includes(1) && !placement.includes(2)) {
+              isAllowedPlacement = false;
+            }
+          }
+        }
+      } else if (typeof placement === "number") {
+        const targetPlacement = isAiMessage === true ? 2 : (isAiMessage === false ? 1 : null);
+        if (targetPlacement !== null) {
+          if (placement !== targetPlacement) {
+            isAllowedPlacement = false;
+          }
+        } else {
+          if (placement !== 1 && placement !== 2) {
+            isAllowedPlacement = false;
+          }
+        }
+      }
+    }
     if (!isAllowedPlacement) {
       continue;
     }
     
-    const findRegex = script.findRegex;
+    let findRegexStr = script.findRegex;
     const replaceString = script.replaceString || "";
-    if (!findRegex) continue;
+    if (!findRegexStr) continue;
     
+    // 关键功能实现：支持 SillyTavern 标准的 "Substitute (raw)" 宏替换功能。
+    findRegexStr = findRegexStr
+      .replace(/\{\{char\}\}/gi, finalCharName)
+      .replace(/<BOT>/gi, finalCharName)
+      .replace(/\{\{user\}\}/gi, finalUserName)
+      .replace(/<USER>/gi, finalUserName);
+      
     try {
       let regex: RegExp;
-      const match = findRegex.match(/^\/(.*)\/([gimsuy]*)$/);
+      const match = findRegexStr.match(/^\/(.*)\/([gimsuy]*)$/);
       if (match) {
         regex = new RegExp(match[1], match[2]);
       } else {
-        regex = new RegExp(findRegex, "gi");
+        regex = new RegExp(findRegexStr, "gi");
       }
+      
+      const beforeLen = processed.length;
       processed = processed.replace(regex, replaceString);
+      const afterLen = processed.length;
+      
+      if (beforeLen !== afterLen) {
+        console.log(`[applyCharacterRegexScripts] script: "${script.scriptName}", replaced! beforeLen: ${beforeLen}, afterLen: ${afterLen}`);
+      }
     } catch (err) {
-      console.warn("[applyCharacterRegexScripts] Failed to apply regex:", findRegex, err);
+      console.warn("[applyCharacterRegexScripts] Failed to apply regex:", findRegexStr, err);
     }
   }
   

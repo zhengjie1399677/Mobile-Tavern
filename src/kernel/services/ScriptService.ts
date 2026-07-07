@@ -218,9 +218,16 @@ export class ScriptService implements IScriptService {
       
       const dbService = this.kernel.getService<any>("database");
       const character = await dbService.getCharacterById(safeSession.characterId);
+      
+      let isAi = true;
+      if (safeSession.messages && safeSession.messages.length > 0) {
+        const lastMsg = safeSession.messages[safeSession.messages.length - 1];
+        isAi = lastMsg?.sender === "assistant";
+      }
+      
       let processedContent = messageContent;
       if (character) {
-        processedContent = applyCharacterRegexScripts(messageContent, character);
+        processedContent = applyCharacterRegexScripts(messageContent, character, isAi);
       }
       
       const parsedVariables = this.parseMvuMessage(processedContent, safeSession.variables || {});

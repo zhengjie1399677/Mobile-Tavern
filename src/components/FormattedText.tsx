@@ -424,19 +424,6 @@ function preprocessFormattedText(
     textToProcess += "\n<StatusPlaceHolderImpl/>";
   }
   
-  // 剥离 suggestions
-  const suggestionsRegex = /<suggestions\s*>[\s\S]*?<\/suggestions\s*>/gi;
-  textToProcess = textToProcess.replace(suggestionsRegex, "");
-  textToProcess = textToProcess.replace(/<suggestions\s*>[\s\S]*$/gi, "");
-  
-  // 剥离 MVU 数据块（闭合与未闭合状态）
-  const mvuTagsRegex = /<(UpdateVariable|initvar)\b[^>]*>[\s\S]*?<\/\1>/gi;
-  textToProcess = textToProcess.replace(mvuTagsRegex, "");
-  textToProcess = textToProcess.replace(/<(UpdateVariable|initvar)\b[^>]*>[\s\S]*$/gi, "");
-
-  // 清理孤立残留的开闭标签本身，防止 DOM 结构紊乱导致 React 渲染崩溃及展示污染
-  textToProcess = textToProcess.replace(/<\/?(?:UpdateVariable|initvar|JSONPatch|Analysis|suggestions|center)\b[^>]*>/gi, "");
-
   // 0. Convert Markdown tables to HTML tables first
   const tableConvertedText = convertMarkdownTablesToHtml(textToProcess);
 
@@ -464,7 +451,7 @@ function preprocessFormattedText(
     for (const script of presetRegexScripts) {
       if (!script.disabled) {
         const exists = mergedScripts.some(
-          (s) => s.id === script.id || (s.scriptName === script.scriptName && s.findRegex === script.findRegex)
+          (s) => (script.id && s.id && s.id === script.id) || (s.scriptName === script.scriptName && s.findRegex === script.findRegex)
         );
         if (!exists) {
           mergedScripts.push(script);
@@ -487,7 +474,7 @@ function preprocessFormattedText(
     for (const script of charRegexScripts) {
       if (script && !script.disabled) {
         const exists = mergedScripts.some(
-          (s) => s.id === script.id || (s.scriptName === script.scriptName && s.findRegex === script.findRegex)
+          (s) => (script.id && s.id && s.id === script.id) || (s.scriptName === script.scriptName && s.findRegex === script.findRegex)
         );
         if (!exists) {
           mergedScripts.push(script);
@@ -511,32 +498,71 @@ function preprocessFormattedText(
     if (script.promptOnly) continue;
 
     const placement = script.placement;
-    const isAllowedPlacement =
-      Array.isArray(placement) &&
-      (placement.includes(2) || placement.includes(1));
+    let isAllowedPlacement = true;
+    if (placement !== undefined && placement !== null) {
+      if (Array.isArray(placement)) {
+        if (placement.length > 0) {
+          const targetPlacement = isAiMessage === true ? 2 : (isAiMessage === false ? 1 : null);
+          if (targetPlacement !== null) {
+            if (!placement.includes(targetPlacement)) {
+              isAllowedPlacement = false;
+            }
+          } else {
+            if (!placement.includes(1) && !placement.includes(2)) {
+              isAllowedPlacement = false;
+            }
+          }
+        }
+      } else if (typeof placement === "number") {
+        const targetPlacement = isAiMessage === true ? 2 : (isAiMessage === false ? 1 : null);
+        if (targetPlacement !== null) {
+          if (placement !== targetPlacement) {
+            isAllowedPlacement = false;
+          }
+        } else {
+          if (placement !== 1 && placement !== 2) {
+            isAllowedPlacement = false;
+          }
+        }
+      }
+    }
     if (!isAllowedPlacement) {
       continue;
     }
 
-    const findRegex = script.findRegex;
+    let findRegexStr = script.findRegex;
     const replaceString = script.replaceString || "";
-    if (!findRegex) continue;
+    if (!findRegexStr) continue;
+
+    // 关键功能实现：支持 SillyTavern 标准的 "Substitute (raw)" 宏替换功能。
+    // 在编译正则表达式之前，必须将 findRegex 字符串中的宏占位符（如 {{char}} 或 {{user}}）替换为真实的名称。
+    // 否则当文本中已经替换为真实姓名后，正则表达式将由于寻找 literal 的 "{{char}}" 字符串而匹配失败。
+    findRegexStr = findRegexStr
+      .replace(/\{\{char\}\}/gi, charName)
+      .replace(/<BOT>/gi, charName)
+      .replace(/\{\{user\}\}/gi, userName)
+      .replace(/<USER>/gi, userName);
 
     try {
       let regex: RegExp;
-      const match = findRegex.match(/^\/(.*)\/([gimsuy]*)$/);
+      const match = findRegexStr.match(/^\/(.*)\/([gimsuy]*)$/);
       if (match) {
         regex = new RegExp(match[1], match[2]);
       } else {
-        regex = new RegExp(findRegex, "gi");
+        regex = new RegExp(findRegexStr, "gi");
       }
       const beforeLen = processed.length;
       processed = processed.replace(regex, replaceString);
       if (import.meta.env.DEV) {
-        console.log(`[RegexScript] Applied: "${script.scriptName || script.id}", beforeLen: ${beforeLen}, afterLen: ${processed.length}`);
+        const tempRegex = new RegExp(regex.source, regex.flags.replace('g', ''));
+        const hasMatch = tempRegex.test(processed);
+        console.log(`[RegexScript] Applied: "${script.scriptName || script.id}", beforeLen: ${beforeLen}, afterLen: ${processed.length}, hasMatch: ${hasMatch}`);
+        if (script.scriptName?.includes("变量更新") || script.scriptName?.includes("完整变量表") || beforeLen !== processed.length) {
+          console.log(`[RegexScript DEBUG] scriptName: "${script.scriptName}", regexSource: "${regex.source}", flags: "${regex.flags}", text contains <UpdateVariable>: ${processed.includes("<UpdateVariable>") || processed.includes("UpdateVariable")}, text length: ${processed.length}, text sample:`, processed.substring(0, 500));
+        }
       }
     } catch (err) {
-      console.warn("Failed to apply regex script:", findRegex, err);
+      console.warn("Failed to apply regex script:", findRegexStr, err);
     }
   }
 
@@ -577,6 +603,20 @@ function preprocessFormattedText(
       return _match;
     });
   }
+
+  // 4. 最终清洗：剥离所有未匹配或残留的 <suggestions>、<UpdateVariable> 和 <initvar> 标签块，防止其泄漏至渲染层展示为原始文本
+  // 剥离 suggestions
+  const suggestionsRegex = /<suggestions\s*>[\s\S]*?<\/suggestions\s*>/gi;
+  processed = processed.replace(suggestionsRegex, "");
+  processed = processed.replace(/<suggestions\s*>[\s\S]*$/gi, "");
+  
+  // 剥离 MVU 数据块（闭合与未闭合状态）
+  const mvuTagsRegex = /<(UpdateVariable|initvar)\b[^>]*>[\s\S]*?<\/\1>/gi;
+  processed = processed.replace(mvuTagsRegex, "");
+  processed = processed.replace(/<(UpdateVariable|initvar)\b[^>]*>[\s\S]*$/gi, "");
+
+  // 清理孤立残留的开闭标签本身，防止 DOM 结构紊乱导致 React 渲染崩溃及展示污染
+  processed = processed.replace(/<\/?(?:UpdateVariable|initvar|JSONPatch|Analysis|suggestions|center)\b[^>]*>/gi, "");
 
   return processed;
 }

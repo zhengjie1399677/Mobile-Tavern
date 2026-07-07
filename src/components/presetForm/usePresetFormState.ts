@@ -7,6 +7,7 @@ export interface UsePresetFormStateParams {
   showCustomConfirm: (message: string, title?: string) => Promise<boolean>;
   showCustomAlert: (message: string, title?: string) => Promise<void>;
   activeCharacter: CharacterCard | null;
+  saveCharacter: (character: CharacterCard) => Promise<void>;
 }
 
 /**
@@ -20,6 +21,7 @@ export function usePresetFormState({
   showCustomConfirm,
   showCustomAlert,
   activeCharacter,
+  saveCharacter,
 }: UsePresetFormStateParams) {
   const activeBundleId = (settings.savedPresets || []).find(
     (b) => b.preset.id === settings.preset.id
@@ -93,7 +95,24 @@ export function usePresetFormState({
   const [editingRegex, setEditingRegex] = useState<any>(null);
   const [isRegexModalOpen, setIsRegexModalOpen] = useState(false);
 
-  const toggleRegexDisabled = (id: string, disabled: boolean, scope: "global" | "preset") => {
+  const toggleRegexDisabled = async (id: string, disabled: boolean, scope: "global" | "preset" | "character") => {
+    if (scope === "character") {
+      if (!activeCharacter) return;
+      const rawScripts = activeCharacter.extensions?.regex_scripts || [];
+      const scripts = Array.isArray(rawScripts)
+        ? rawScripts
+        : (rawScripts && typeof rawScripts === "object" ? Object.values(rawScripts) : []);
+      const updatedScripts = scripts.map((r: any) => (r.id === id || r.scriptName === id ? { ...r, disabled } : r));
+      const updatedChar = {
+        ...activeCharacter,
+        extensions: {
+          ...activeCharacter.extensions,
+          regex_scripts: updatedScripts,
+        },
+      };
+      await saveCharacter(updatedChar);
+      return;
+    }
     updateSettings((prev) => {
       const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
       const list = (prev as any)[field] || [];
@@ -104,10 +123,28 @@ export function usePresetFormState({
     });
   };
 
-  const deleteRegex = async (id: string, name: string, scope: "global" | "preset") => {
-    const scopeName = scope === "global" ? "全局" : "预设专属";
+  const deleteRegex = async (id: string, name: string, scope: "global" | "preset" | "character") => {
+    const scopeName = scope === "global" ? "全局" : (scope === "preset" ? "预设专属" : "角色专属");
     const ok = await showCustomConfirm(`确定要删除${scopeName}正则脚本【${name}】吗？`);
     if (!ok) return;
+
+    if (scope === "character") {
+      if (!activeCharacter) return;
+      const rawScripts = activeCharacter.extensions?.regex_scripts || [];
+      const scripts = Array.isArray(rawScripts)
+        ? rawScripts
+        : (rawScripts && typeof rawScripts === "object" ? Object.values(rawScripts) : []);
+      const updatedScripts = scripts.filter((r: any) => r.id !== id && r.scriptName !== id);
+      const updatedChar = {
+        ...activeCharacter,
+        extensions: {
+          ...activeCharacter.extensions,
+          regex_scripts: updatedScripts,
+        },
+      };
+      await saveCharacter(updatedChar);
+      return;
+    }
     updateSettings((prev) => {
       const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
       const list = (prev as any)[field] || [];
@@ -118,12 +155,37 @@ export function usePresetFormState({
     });
   };
 
-  const saveRegex = (reg: any) => {
+  const saveRegex = async (reg: any) => {
     if (!reg.scriptName || !reg.scriptName.trim() || !reg.findRegex || !reg.findRegex.trim()) {
       showCustomAlert("脚本名称和正则表达式匹配串不能为空！");
       return;
     }
     const scope = reg.scope || "global";
+    if (scope === "character") {
+      if (!activeCharacter) return;
+      const rawScripts = activeCharacter.extensions?.regex_scripts || [];
+      const scripts = Array.isArray(rawScripts)
+        ? rawScripts
+        : (rawScripts && typeof rawScripts === "object" ? Object.values(rawScripts) : []);
+      const exists = scripts.some((r: any) => r.id === reg.id || (r.scriptName && r.scriptName === reg.id));
+      let nextList;
+      if (exists) {
+        nextList = scripts.map((r: any) => (r.id === reg.id || r.scriptName === reg.id ? reg : r));
+      } else {
+        nextList = [...scripts, reg];
+      }
+      const updatedChar = {
+        ...activeCharacter,
+        extensions: {
+          ...activeCharacter.extensions,
+          regex_scripts: nextList,
+        },
+      };
+      await saveCharacter(updatedChar);
+      setIsRegexModalOpen(false);
+      setEditingRegex(null);
+      return;
+    }
     updateSettings((prev) => {
       const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
       const list = (prev as any)[field] || [];

@@ -162,7 +162,8 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
       'isToolCallingSupported': '_isToolCallingSupported',
       'registerFunctionTool': '_registerFunctionTool',
       'unregisterFunctionTool': '_unregisterFunctionTool',
-      'fetch': '_fetch'
+      'fetch': '_fetch',
+      'errorCatched': '_errorCatched'
     };
     var definedCount = 0;
     for (var name in funcMap) {
@@ -303,7 +304,7 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
       'getCharacterBook', 'addCharacterBookEntry', 'updateCharacterBookEntry',
       'getCharacterExpressions', 'addCharacterExpression', 'updateCharacterExpression',
       'getMvuSchema', 'registerMvuSchema', 'getMvuVariables', 'updateMvuVariables',
-      'waitGlobalInitialized'
+      'waitGlobalInitialized', 'errorCatched'
     ];
     keys.forEach(function(ck) {
       Object.defineProperty(window, ck, {
@@ -717,7 +718,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       'getCharacterBook', 'addCharacterBookEntry', 'updateCharacterBookEntry',
       'getCharacterExpressions', 'addCharacterExpression', 'updateCharacterExpression',
       'getMvuSchema', 'registerMvuSchema', 'getMvuVariables', 'updateMvuVariables',
-      'waitGlobalInitialized'
+      'waitGlobalInitialized', 'errorCatched'
     ];
     keys.forEach(function(ck) {
       Object.defineProperty(window, ck, {
