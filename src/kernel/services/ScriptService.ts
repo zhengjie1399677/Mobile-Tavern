@@ -216,8 +216,11 @@ export class ScriptService implements IScriptService {
         console.log("[ScriptService] Parsing message...");
       }
       
-      const dbService = this.kernel.getService<any>("database");
-      const character = await dbService.getCharacterById(safeSession.characterId);
+      let character: any = null;
+      if (this.kernel.hasService("database")) {
+        const dbService = this.kernel.getService<any>("database");
+        character = await dbService.getCharacterById(safeSession.characterId);
+      }
       
       let isAi = true;
       if (safeSession.messages && safeSession.messages.length > 0) {

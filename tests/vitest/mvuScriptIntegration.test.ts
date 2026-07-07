@@ -32,6 +32,12 @@ import {
 // 构建最小 Kernel 实例用于服务注册
 async function createTestKernel(): Promise<IKernel> {
   const kernel = new Kernel();
+  const mockDb = {
+    name: "database",
+    init: () => {},
+    getCharacterById: async () => null,
+  };
+  await kernel.registerService("database", mockDb as any);
   return kernel as any as IKernel;
 }
 
