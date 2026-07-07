@@ -6,11 +6,8 @@ import React from "react";
 import {
   ArrowLeft,
   GitFork,
-  MessageSquare,
-  History,
   Volume2,
   VolumeX,
-  Brain,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -158,24 +155,22 @@ const ChatHeader = ({
           <div className="relative shrink-0" ref={menuRef}>
             <button
               onClick={() => setShowMemoryMenu(!showMemoryMenu)}
-              className="p-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center justify-center gap-1 shrink-0"
+              className="p-1.5 px-2.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center justify-center shrink-0"
               title="多维记忆中心"
             >
-              <Brain className="w-4 h-4" />
-              <span className="text-[10px] font-bold px-0.5">记忆</span>
+              <span className="text-[11px] font-bold">记忆</span>
             </button>
             
             {showMemoryMenu && (
-              <div className="absolute right-0 top-full mt-1.5 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-xl p-1 shadow-2xl z-50 min-w-[125px] flex flex-col gap-0.5 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute right-0 top-full mt-1.5 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-xl p-1 shadow-2xl z-50 min-w-[100px] flex flex-col gap-0.5 animate-in fade-in slide-in-from-top-2 duration-200">
                 {settings.memory?.enableAutoSummary !== false && (
                   <button
                     onClick={() => {
                       setShowMemoryMenu(false);
                       openTableDrawer('timeline');
                     }}
-                    className="w-full text-[11px] text-left hover:bg-primary/10 px-2.5 py-1.5 rounded-lg flex items-center gap-2 font-semibold transition"
+                    className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
                   >
-                    <History className="w-3.5 h-3.5 text-primary" />
                     故事年表
                   </button>
                 )}
@@ -185,9 +180,8 @@ const ChatHeader = ({
                       setShowMemoryMenu(false);
                       openTableDrawer('table');
                     }}
-                    className="w-full text-[11px] text-left hover:bg-primary/10 px-2.5 py-1.5 rounded-lg flex items-center gap-2 font-semibold transition"
+                    className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
                   >
-                    <Brain className="w-3.5 h-3.5 text-primary" />
                     状态沙盒
                   </button>
                 )}
@@ -196,9 +190,8 @@ const ChatHeader = ({
                     setShowMemoryMenu(false);
                     openTableDrawer('dict');
                   }}
-                  className="w-full text-[11px] text-left hover:bg-primary/10 px-2.5 py-1.5 rounded-lg flex items-center gap-2 font-semibold transition"
+                  className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
                 >
-                  <Brain className="w-3.5 h-3.5 text-violet-500" />
                   认知中心
                 </button>
               </div>
