@@ -190,11 +190,11 @@ function parseMarkdownToReact(
   return result;
 }
 
-function renderTextNode(textVal: string, enableAsteriskFormatting: boolean): React.ReactNode {
+function renderTextNode(textVal: string, enableAsteriskFormatting: boolean, index: number): React.ReactNode {
   if (!/(\*\*|\*)/.test(textVal)) {
     return textVal;
   }
-  return parseMarkdownToReact(textVal, enableAsteriskFormatting, "html-node");
+  return parseMarkdownToReact(textVal, enableAsteriskFormatting, `html-node-${index}`);
 }
 
 function domToReact(
@@ -208,7 +208,7 @@ function domToReact(
   enableLoopProtection?: boolean
 ): React.ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
-    return renderTextNode(node.nodeValue || "", enableAsteriskFormatting);
+    return renderTextNode(node.nodeValue || "", enableAsteriskFormatting, index);
   }
 
   if (node.nodeType !== Node.ELEMENT_NODE) {
@@ -357,7 +357,7 @@ function domToReact(
   const reactElement = React.createElement(
     tagName === "iframe" ? SafeIframe : tagName,
     props,
-    children.length > 0 ? children : null,
+    tagName === "iframe" ? null : (children.length > 0 ? children : null),
   );
 
   if (tagName === "table") {
@@ -404,12 +404,25 @@ function preprocessFormattedText(
   globalRegexScripts?: any[],
   presetRegexScripts?: any[],
   messageIndex?: number,
-  enableLoopProtection?: boolean
+  enableLoopProtection?: boolean,
+  isAiMessage?: boolean
 ): string {
   if (!text) return "";
 
   // 00. 剥离渲染层中的 <suggestions>、<UpdateVariable> 和 <initvar> 标签块（兼容未闭合的流式生成状态）
   let textToProcess = text;
+
+  // 00a. 自动注入状态栏占位符：如果当前是 AI 的消息且角色包含 MVU/TavernHelper 脚本，但文本中未包含占位符时自动追加，以使正则能够替换并显示状态栏
+  const hasThScripts = (() => {
+    const ext = activeCharacter?.extensions || {};
+    return (
+      (Array.isArray(ext.tavern_helper?.scripts) && ext.tavern_helper.scripts.length > 0) ||
+      !!(ext.mvu_settings || ext.mvu || ext.MVU)
+    );
+  })();
+  if (enableScriptExecution && hasThScripts && isAiMessage && !/StatusPlaceHolderImpl/i.test(textToProcess)) {
+    textToProcess += "\n<StatusPlaceHolderImpl/>";
+  }
   
   // 剥离 suggestions
   const suggestionsRegex = /<suggestions\s*>[\s\S]*?<\/suggestions\s*>/gi;
@@ -420,6 +433,9 @@ function preprocessFormattedText(
   const mvuTagsRegex = /<(UpdateVariable|initvar)\b[^>]*>[\s\S]*?<\/\1>/gi;
   textToProcess = textToProcess.replace(mvuTagsRegex, "");
   textToProcess = textToProcess.replace(/<(UpdateVariable|initvar)\b[^>]*>[\s\S]*$/gi, "");
+
+  // 清理孤立残留的开闭标签本身，防止 DOM 结构紊乱导致 React 渲染崩溃及展示污染
+  textToProcess = textToProcess.replace(/<\/?(?:UpdateVariable|initvar|JSONPatch|Analysis|suggestions|center)\b[^>]*>/gi, "");
 
   // 0. Convert Markdown tables to HTML tables first
   const tableConvertedText = convertMarkdownTablesToHtml(textToProcess);
@@ -463,6 +479,10 @@ function preprocessFormattedText(
     ? rawCharScripts
     : (rawCharScripts && typeof rawCharScripts === "object" ? Object.values(rawCharScripts) : []);
 
+  if (import.meta.env.DEV) {
+    console.log("[charRegexScripts Raw] for activeCharacter:", activeCharacter?.name, charRegexScripts);
+  }
+
   if (charRegexScripts.length > 0) {
     for (const script of charRegexScripts) {
       if (script && !script.disabled) {
@@ -477,24 +497,30 @@ function preprocessFormattedText(
   }
 
   // 依次执行过滤清洗
+  if (import.meta.env.DEV) {
+    console.log("[RegexScripts List] for messageIndex:", messageIndex, mergedScripts.map(s => ({
+      name: s.scriptName || s.id,
+      findRegex: s.findRegex,
+      replaceString: s.replaceString ? s.replaceString.substring(0, 60) + "..." : "",
+      disabled: s.disabled,
+      placement: s.placement
+    })));
+  }
+
   for (const script of mergedScripts) {
     if (script.promptOnly) continue;
 
     const placement = script.placement;
-    if (Array.isArray(placement) && !placement.includes(2)) {
+    const isAllowedPlacement =
+      Array.isArray(placement) &&
+      (placement.includes(2) || placement.includes(1));
+    if (!isAllowedPlacement) {
       continue;
     }
 
     const findRegex = script.findRegex;
     const replaceString = script.replaceString || "";
     if (!findRegex) continue;
-
-    // ReDoS pattern protection: block patterns with nested/repeated quantifiers
-    const trimmed = findRegex.trim();
-    if (/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(trimmed) || /(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(trimmed)) {
-      console.warn("Potential ReDoS pattern skipped in FormattedText regex script:", trimmed);
-      continue;
-    }
 
     try {
       let regex: RegExp;
@@ -504,7 +530,11 @@ function preprocessFormattedText(
       } else {
         regex = new RegExp(findRegex, "gi");
       }
+      const beforeLen = processed.length;
       processed = processed.replace(regex, replaceString);
+      if (import.meta.env.DEV) {
+        console.log(`[RegexScript] Applied: "${script.scriptName || script.id}", beforeLen: ${beforeLen}, afterLen: ${processed.length}`);
+      }
     } catch (err) {
       console.warn("Failed to apply regex script:", findRegex, err);
     }
@@ -637,6 +667,14 @@ const FormattedText = memo(function FormattedText({
   const globalRegexScripts = context.settings.globalRegexScripts;
   const presetRegexScripts = context.settings.presetRegexScripts;
 
+  const isAiMessage = (() => {
+    if (messageIndex === undefined) return false;
+    const session = context.activeSession;
+    if (!session || !session.messages) return false;
+    const msg = session.messages[messageIndex];
+    return msg ? msg.sender === "assistant" : false;
+  })();
+
   const processed = preprocessFormattedText(
     displayText,
     charName,
@@ -646,7 +684,8 @@ const FormattedText = memo(function FormattedText({
     globalRegexScripts,
     presetRegexScripts,
     messageIndex,
-    enableLoopProtection
+    enableLoopProtection,
+    isAiMessage
   );
 
   // Quick detection: if text contains tags and html rendering is active, use DOM parser

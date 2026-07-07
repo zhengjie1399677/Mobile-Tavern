@@ -58,14 +58,21 @@ export function cleanAllMetadataFromText(text: string): { content: string; sugge
   let suggestionsText = "";
   let cleanContent = text;
 
-  // 1. 剥离 <memory_extraction> 和 <memory> 标签（包括已闭合和流式未闭合）
-  const memoryTags = ["memory_extraction", "memory"];
-  for (const tag of memoryTags) {
-    const startRegex = new RegExp(`<${tag}\\s*>`, "i");
+  // 1. 剥离各类元数据与脚本标签（包括已闭合和流式未闭合，支持包含属性标签）
+  const metadataTags = [
+    "memory_extraction",
+    "memory",
+    "UpdateVariable",
+    "initvar",
+    "JSONPatch",
+    "Analysis"
+  ];
+  for (const tag of metadataTags) {
+    const startRegex = new RegExp(`<${tag}(?:\\s+[^>]*)?>`, "i");
     const startMatch = cleanContent.match(startRegex);
     if (startMatch && startMatch.index !== undefined) {
       const startIdx = startMatch.index;
-      const endRegex = new RegExp(`</${tag}\\s*>`, "i");
+      const endRegex = new RegExp(`</${tag}(?:\\s+[^>]*)?>`, "i");
       const endMatch = cleanContent.match(endRegex);
       if (endMatch && endMatch.index !== undefined) {
         cleanContent = cleanContent.substring(0, startIdx).trim() + "\n" + cleanContent.substring(endMatch.index + endMatch[0].length).trim();
@@ -73,7 +80,7 @@ export function cleanAllMetadataFromText(text: string): { content: string; sugge
         cleanContent = cleanContent.substring(0, startIdx).trim();
       }
     }
-    // 处理末尾不完整的标签（如 <m, <me, <mem 等）
+    // 处理末尾不完整的标签（如 <m, <me, <Update 等）
     for (let i = tag.length; i >= 1; i--) {
       const partial = `<${tag.substring(0, i)}`;
       if (cleanContent.endsWith(partial)) {
@@ -84,7 +91,7 @@ export function cleanAllMetadataFromText(text: string): { content: string; sugge
   }
 
   // 2. 剥离 <suggestions> 标签
-  const startRegex = /<suggestions\s*>/i;
+  const startRegex = /<suggestions(?:\s+[^>]*)?>/i;
   const startMatch = cleanContent.match(startRegex);
 
   if (!startMatch) {
@@ -99,7 +106,7 @@ export function cleanAllMetadataFromText(text: string): { content: string; sugge
     }
   } else if (startMatch && startMatch.index !== undefined) {
     const startIdx = startMatch.index;
-    const endRegex = /<\/suggestions\s*>/i;
+    const endRegex = /<\/suggestions(?:\s+[^>]*)?>/i;
     const endMatch = cleanContent.match(endRegex);
 
     if (endMatch && endMatch.index !== undefined) {
@@ -110,6 +117,17 @@ export function cleanAllMetadataFromText(text: string): { content: string; sugge
       cleanContent = cleanContent.substring(0, startIdx).trim();
     }
   }
+
+  // 3. 清理所有孤立的、残留的开闭标签
+  for (const tag of [...metadataTags, "suggestions"]) {
+    const closingRegex = new RegExp(`</${tag}(?:\\s+[^>]*)?>`, "gi");
+    cleanContent = cleanContent.replace(closingRegex, "");
+    const openingRegex = new RegExp(`<${tag}(?:\\s+[^>]*)?>`, "gi");
+    cleanContent = cleanContent.replace(openingRegex, "");
+  }
+
+  // 4. 清理 center 标签本身，保留其内部的正文
+  cleanContent = cleanContent.replace(/<\/?center(?:\s+[^>]*)?>/gi, "");
 
   // 最后检查如果以单个 "<" 结尾，安全起见也做截断处理，防止闪烁
   if (cleanContent.endsWith("<")) {

@@ -41,6 +41,7 @@ export async function runOutputPipelineAndSave(params: {
   console.log("=========================");
 
   const outputCtx = buildOutputContext(ctxParams);
+  outputCtx.kernel = globalKernel;
   const { session, settings, isBisonConsecutive, responseText } = ctxParams;
 
   // L1 快速通道：当全部功能关闭、非野牛连续、且无需自动总结时，跳过整个 output pipeline。

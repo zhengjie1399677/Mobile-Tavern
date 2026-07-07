@@ -202,6 +202,36 @@ export function useSessionManager(p: SessionManagerParams) {
     }
   }, [p]);
 
+  // 自动清理空会话：当活跃会话切换时，非活跃且用户发言轮数为0的会话将被自动从数据库和状态中清理
+  React.useEffect(() => {
+    const activeId = p.activeSessionId;
+    if (!activeId) return;
+
+    const emptySessions = p.sessions.filter((s) => {
+      if (s.id === activeId) return false;
+      const userMsgCount = (s.messages || []).filter((m) => m.sender === "user").length;
+      return userMsgCount === 0;
+    });
+
+    if (emptySessions.length === 0) return;
+
+    const cleanup = async () => {
+      try {
+        for (const s of emptySessions) {
+          await p.deleteSession(s.id);
+        }
+        const emptyIds = new Set(emptySessions.map((s) => s.id));
+        p.setSessions((prev) => prev.filter((s) => !emptyIds.has(s.id)));
+        console.log(`[SessionManager] Automatically cleaned up ${emptySessions.length} empty sessions.`);
+      } catch (err) {
+        console.warn("[SessionManager] Failed to auto cleanup empty sessions:", err);
+      }
+    };
+
+    const timer = setTimeout(cleanup, 500);
+    return () => clearTimeout(timer);
+  }, [p.activeSessionId, p.sessions, p.deleteSession, p.setSessions]);
+
   return {
     handleStartNewSession,
     selectCharacter,
