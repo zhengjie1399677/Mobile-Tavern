@@ -1,6 +1,6 @@
 import { IScriptService, IKernel } from "../types";
 import { CharacterCard, ChatSession } from "../../types";
-import { parseMvuMessage as parseMvuMessageDirect } from "../../utils/tavernHelper/mvuParser";
+import { parseMvuMessage as parseMvuMessageDirect, applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
 
 
 export interface ITavernHelperBridge {
@@ -215,7 +215,15 @@ export class ScriptService implements IScriptService {
       if (isDev()) {
         console.log("[ScriptService] Parsing message...");
       }
-      const parsedVariables = this.parseMvuMessage(messageContent, safeSession.variables || {});
+      
+      const dbService = this.kernel.getService<any>("database");
+      const character = await dbService.getCharacterById(safeSession.characterId);
+      let processedContent = messageContent;
+      if (character) {
+        processedContent = applyCharacterRegexScripts(messageContent, character);
+      }
+      
+      const parsedVariables = this.parseMvuMessage(processedContent, safeSession.variables || {});
 
       let updatedMessages = safeSession.messages;
       if (updatedMessages.length > 0) {
@@ -311,7 +319,8 @@ function localInitializeMvuFromCharacter(character: any): Record<string, any> {
 
   if (character.first_mes) {
     try {
-      const parsedVars = parseMvuMessageDirect(character.first_mes, variables);
+      const processedGreeting = applyCharacterRegexScripts(character.first_mes, character);
+      const parsedVars = parseMvuMessageDirect(processedGreeting, variables);
       if (parsedVars && parsedVars.stat_data) {
         variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
       }

@@ -47,13 +47,26 @@ export default function ChatHistoryTab() {
         const messages = Array.isArray(s.messages) ? s.messages : [];
         const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
         const lastActiveTime = lastMsg ? (lastMsg.timestamp || s.createdAt) : s.createdAt;
-        const totalChars = messages.reduce((total, msg) => total + (msg.content?.length || 0), 0);
+        
+        // 优先使用实际 messages 的长度计算，否则回退到 session 上持久化的缓存数据，解决懒加载状态下显示为 0 回合 0 字的 Bug
+        const isLoaded = Array.isArray(s.messages);
+        
+        const totalChars = isLoaded
+          ? messages.reduce((total, msg) => total + (msg.content?.length || 0), 0)
+          : (s.charCount ?? 0);
+          
         const totalCharsDisplay = totalChars > 1000
           ? (totalChars / 1000).toFixed(1) + "k"
           : String(totalChars);
-        // 回合数计算：按用户发送消息数量统计，兜底为消息对数量，避免直接输出消息条数导致显示为实际回合数的双倍
-        const userMsgCount = messages.filter((m) => m.sender === "user").length;
-        const turnCount = userMsgCount > 0 ? userMsgCount : (messages.length > 1 ? Math.floor(messages.length / 2) : (messages.length > 0 ? 1 : 0));
+          
+        // 回合数计算：优先实际计算，兜底为缓存数
+        let turnCount = 0;
+        if (isLoaded) {
+          const userMsgCount = messages.filter((m) => m.sender === "user").length;
+          turnCount = userMsgCount > 0 ? userMsgCount : (messages.length > 1 ? Math.floor(messages.length / 2) : (messages.length > 0 ? 1 : 0));
+        } else {
+          turnCount = s.turnCount ?? 0;
+        }
 
         return { s, char, lastMsg, lastActiveTime, totalCharsDisplay, rawTotalChars: totalChars, turnCount };
       })

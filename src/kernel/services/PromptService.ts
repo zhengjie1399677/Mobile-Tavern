@@ -684,7 +684,7 @@ export class PromptService implements IPromptService {
     // ==================================================
     let mvuVariablesSection = "";
     if (settings.enableScriptExecution && this.hasCardScripts(character) && chat.variables) {
-      mvuVariablesSection = this.formatMvuVariablesForPrompt(chat.variables);
+      mvuVariablesSection = this.formatMvuVariablesForPrompt(chat.variables, character);
     }
     builder.registerSection({
       id: "mvu_variables",
@@ -931,7 +931,7 @@ export class PromptService implements IPromptService {
     };
   }
 
-  private formatMvuVariablesForPrompt(variables: any): string {
+  private formatMvuVariablesForPrompt(variables: any, character?: CharacterCard): string {
     if (!variables || typeof variables !== "object") return "";
     const statData = variables.stat_data || variables;
     if (!statData || typeof statData !== "object" || Object.keys(statData).length === 0) return "";
@@ -977,10 +977,20 @@ export class PromptService implements IPromptService {
       return "\n" + lines.join("\n");
     };
 
-    let result = `### 角色变量状态 (SillyTavern MVU)
-可以在回复中输出 <UpdateVariable> _.set("变量名", 值); </UpdateVariable> 格式的 XML 代码来更新变量数值。
-\`\`\`yaml${toYaml(cleanData)}
-\`\`\``;
+    // 从角色卡扩展字段读取外部提示模板（遵循准则二：纯数据驱动与零硬编码）
+    const mvuSettings = character?.extensions?.mvu_settings ||
+                        character?.extensions?.mvu ||
+                        character?.extensions?.MVU;
+    const promptTemplate = mvuSettings?.prompt_template;
+
+    let result = "";
+    if (promptTemplate && typeof promptTemplate === "string") {
+      // 使用角色卡定义的外部模板，支持 {{variables}} 占位符
+      result = promptTemplate.replace(/\{\{variables\}\}/g, `\`\`\`yaml${toYaml(cleanData)}\n\`\`\``);
+    } else {
+      // 无外部模板时，仅输出变量状态（遵循准则二：不注入格式引导）
+      result = `### 角色变量状态\n\`\`\`yaml${toYaml(cleanData)}\n\`\`\``;
+    }
 
     if (hasReadOnly) {
       result += `\n重要指示：任何以下划线“_”开头的变量均为只读变量（由本地脚本维护计算），你必须仅读取它们，绝对不要在你的回复中通过 <UpdateVariable> 去尝试修改/写入它们！`;

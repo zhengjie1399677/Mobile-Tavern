@@ -1,6 +1,7 @@
 import { IDatabaseService, IKernel } from "../types";
 import { ChatSession } from "../../types";
 import { getAllSessions, saveSession, deleteSession, getSessionsCount, getSessionsPaginated, getSessionById, getCharacterById } from "../../utils/localDB";
+import { applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
 
 export class DatabaseService implements IDatabaseService {
   name = "database";
@@ -64,7 +65,8 @@ export class DatabaseService implements IDatabaseService {
     let formattedStarter = (starterMessage || "").trim();
     if (formattedStarter) {
       try {
-        mvuVariables = scriptService.parseMvuMessage(formattedStarter, mvuVariables);
+        const processedStarter = applyCharacterRegexScripts(formattedStarter, character);
+        mvuVariables = scriptService.parseMvuMessage(processedStarter, mvuVariables);
       } catch (err) {
         console.warn("[DatabaseService] Failed to parse starterMessage variables:", err);
       }
@@ -111,7 +113,8 @@ export class DatabaseService implements IDatabaseService {
     let starterMessage = (character?.first_mes || "").trim();
     if (starterMessage) {
       try {
-        mvuVariables = scriptService.parseMvuMessage(starterMessage, mvuVariables);
+        const processedStarter = applyCharacterRegexScripts(starterMessage, character);
+        mvuVariables = scriptService.parseMvuMessage(processedStarter, mvuVariables);
       } catch (err) {
         console.warn("[DatabaseService] Failed to parse branch starterMessage variables:", err);
       }

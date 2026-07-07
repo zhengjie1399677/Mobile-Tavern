@@ -24,7 +24,7 @@ import { compare } from "compare-versions";
 import JSON5 from "json5";
 import { jsonrepair } from "jsonrepair";
 import type { CardRuntimeBridgeParams } from "./CardRuntimeAdapter";
-import { parseMvuMessage } from "./mvuParser";
+import { parseMvuMessage, applyCharacterRegexScripts } from "./mvuParser";
 // 注意：tavernHelperMocks 反向依赖 bridgeCore，此处静态导入会形成 ESM 循环。
 // 由于 initTavernHelperMocks 仅在运行时被调用（非模块求值期），
 // 且 tavernHelperMocks 已移除顶层 IIFE 副作用，ESM live bindings 可安全处理此循环。
@@ -266,7 +266,7 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
                       null;
 
   if (mvuSettings) {
-    // 若配置中包含 schema 则使用它
+    // 若配置中包含 schema 则使用 it
     if (mvuSettings.schema) {
       variables.schema = mvuSettings.schema;
     }
@@ -292,7 +292,9 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
   // 额外初始化：从开场白 first_mes 的 <initvar> 标签中提取变量声明
   if (character.first_mes) {
     try {
-      const parsedVars = parseMvuMessage(character.first_mes, variables);
+      // 关键修复：应用角色卡局部正则脚本预处理，使通过正则注入的变量标签能够被正确提取
+      const processedGreeting = applyCharacterRegexScripts(character.first_mes, character);
+      const parsedVars = parseMvuMessage(processedGreeting, variables);
       if (parsedVars && parsedVars.stat_data) {
         variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
       }

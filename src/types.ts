@@ -100,6 +100,8 @@ export interface ChatSession {
   tableMemory?: TableMemorySheet[]; // Structured memory sheets for stateful RP tracking
   pinnedMessageIds?: string[]; // IDs of messages explicitly pinned to recall list
   mutedMessageIds?: string[]; // IDs of messages muted from recall list
+  turnCount?: number; // Cached count of turns (computed from user messages)
+  charCount?: number; // Cached count of total characters in messages
 }
 
 export type ApiType = "openai-compat" | "openai" | "anthropic";

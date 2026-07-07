@@ -79,19 +79,19 @@ export async function testFastPathL3AutoSummaryIndex() {
   const triggerTurns = 0;
   const recentTurns = 6;
   const triggerRounds = (!isNaN(triggerTurns) && triggerTurns > 0) ? triggerTurns : recentTurns;
-  const maxAllowed = Math.max(4, triggerRounds) * 2;
+  const maxAllowed = Math.max(1, triggerRounds) * 2;
   assert(maxAllowed === 12, "Should be 12 (6 * 2) when recentTurns=6");
 
   const triggerTurnsB = 8;
   const triggerRoundsB = (!isNaN(triggerTurnsB) && triggerTurnsB > 0) ? triggerTurnsB : recentTurns;
-  const maxAllowedB = Math.max(4, triggerRoundsB) * 2;
+  const maxAllowedB = Math.max(1, triggerRoundsB) * 2;
   assert(maxAllowedB === 16, "Should be 16 (8 * 2) when triggerTurns=8");
 
-  // 场景 5：triggerTurns=3（低于最小值 4）应被 clamp 到 4
+  // 场景 5：triggerTurns=3 应返回 6（因为不再 clamp 到 4，允许用户自定义发送轮次，下限为 1）
   const triggerTurnsC = 3;
   const triggerRoundsC = (!isNaN(triggerTurnsC) && triggerTurnsC > 0) ? triggerTurnsC : recentTurns;
-  const maxAllowedC = Math.max(4, triggerRoundsC) * 2;
-  assert(maxAllowedC === 8, "Should be 8 (4 * 2) when triggerTurns=3 clamped to 4");
+  const maxAllowedC = Math.max(1, triggerRoundsC) * 2;
+  assert(maxAllowedC === 6, "Should be 6 (3 * 2) when triggerTurns=3");
 
   console.log("✔ Fast Path L3: AutoSummary Index Cache verified successfully!");
 }
@@ -217,12 +217,12 @@ export async function testFastPathL1PipelineBypass() {
   const isBisonConsecutive5 = true;
   assert(isBisonConsecutive5 === true, "Bison consecutive should prevent bypass");
 
-  // 测试 6：triggerTurns 低于最小值 4 时应被 clamp
-  const triggerTurns6 = 3;
+  // 测试 6：triggerTurns 允许低至最小值 1 轮
+  const triggerTurns6 = 1;
   const recentTurns6 = 6;
   const triggerRounds6 = (!isNaN(triggerTurns6) && triggerTurns6 > 0) ? triggerTurns6 : recentTurns6;
-  const maxAllowed6 = Math.max(4, triggerRounds6) * 2;
-  assert(maxAllowed6 === 8, "Should be 8 when triggerTurns=3 clamped to 4");
+  const maxAllowed6 = Math.max(1, triggerRounds6) * 2;
+  assert(maxAllowed6 === 2, "Should be 2 when triggerTurns=1");
 
   console.log("✔ Fast Path L1: Pipeline Bypass verified successfully!");
 }

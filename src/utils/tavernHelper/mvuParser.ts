@@ -592,3 +592,49 @@ export function parseMvuMessage(message: string, oldData: any): any {
 
   return newData;
 }
+
+/**
+ * 应用角色卡局部正则脚本对文本进行预处理，用于解析由正则动态注入的 MVU 标签。
+ */
+export function applyCharacterRegexScripts(text: string, character: any): string {
+  if (!text || !character) return text;
+  
+  const ext = character.extensions || {};
+  const rawCharScripts = ext.regex_scripts;
+  const charRegexScripts = Array.isArray(rawCharScripts)
+    ? rawCharScripts
+    : (rawCharScripts && typeof rawCharScripts === "object" ? Object.values(rawCharScripts) : []);
+    
+  let processed = text;
+  
+  for (const script of charRegexScripts) {
+    if (!script || script.disabled || script.promptOnly) continue;
+    
+    const placement = script.placement;
+    const isAllowedPlacement =
+      Array.isArray(placement) &&
+      (placement.includes(2) || placement.includes(1));
+    if (!isAllowedPlacement) {
+      continue;
+    }
+    
+    const findRegex = script.findRegex;
+    const replaceString = script.replaceString || "";
+    if (!findRegex) continue;
+    
+    try {
+      let regex: RegExp;
+      const match = findRegex.match(/^\/(.*)\/([gimsuy]*)$/);
+      if (match) {
+        regex = new RegExp(match[1], match[2]);
+      } else {
+        regex = new RegExp(findRegex, "gi");
+      }
+      processed = processed.replace(regex, replaceString);
+    } catch (err) {
+      console.warn("[applyCharacterRegexScripts] Failed to apply regex:", findRegex, err);
+    }
+  }
+  
+  return processed;
+}

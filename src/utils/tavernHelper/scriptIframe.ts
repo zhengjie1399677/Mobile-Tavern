@@ -883,9 +883,12 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     function measureAndPost() {
       scheduled = false;
       try {
-        var body = document.body;
-        if (!body) return;
-        var height = body.scrollHeight;
+        var container = document.getElementById('th-iframe-wrapper') || document.body;
+        if (!container) return;
+        
+        var isWrapper = container.id === 'th-iframe-wrapper';
+        var height = isWrapper ? container.offsetHeight : container.scrollHeight;
+        
         if (!Number.isFinite(height) || height <= 0) return;
         if (window.frameElement) {
           var currentHeight = window.frameElement.style.height;
@@ -895,8 +898,8 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
             window.frameElement.style.height = newHeightStr;
           }
           // 高度自适应首次成功后，锁定 overflow:hidden 防止出现滚动条
-          if (!heightInitialized) {
-            body.style.overflow = 'hidden';
+          if (!heightInitialized && document.body) {
+            document.body.style.overflow = 'hidden';
             heightInitialized = true;
           }
         }
@@ -931,8 +934,9 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     if (typeof ResizeObserver === 'function') {
       var resizeObserver = new ResizeObserver(throttledMeasure);
       document.addEventListener('DOMContentLoaded', function() {
-        if (document.body) {
-          resizeObserver.observe(document.body);
+        var el = document.getElementById('th-iframe-wrapper') || document.body;
+        if (el) {
+          resizeObserver.observe(el);
           throttledMeasure();
         }
       });
@@ -944,8 +948,9 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       // 降级使用 MutationObserver
       var observer = new MutationObserver(throttledMeasure);
       document.addEventListener('DOMContentLoaded', function() {
-        if (document.body) {
-          observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+        var el = document.getElementById('th-iframe-wrapper') || document.body;
+        if (el) {
+          observer.observe(el, { childList: true, subtree: true, attributes: true });
           throttledMeasure();
         }
       });
@@ -1051,14 +1056,22 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       wrapped = `<html style="background:transparent !important;background-color:transparent !important;">${wrapped}</html>`;
     }
 
-    // Force inline transparency style on any body tag inside wrapped content
+    // Force inline transparency style on any body tag inside wrapped content, and inject our wrapper container to prevent infinite resize loop
     wrapped = wrapped.replace(/<body\b([^>]*)>/gi, (match, bodyAttrs) => {
+      let bodyTag = "";
       if (/style\s*=\s*['"]/i.test(bodyAttrs)) {
-        return `<body style="background:transparent !important;background-color:transparent !important;" ${bodyAttrs.replace(/style\s*=\s*(['"])/i, "style-orig=$1")}>`;
+        bodyTag = `<body style="background:transparent !important;background-color:transparent !important;" ${bodyAttrs.replace(/style\s*=\s*(['"])/i, "style-orig=$1")}>`;
       } else {
-        return `<body style="background:transparent !important;background-color:transparent !important;" ${bodyAttrs}>`;
+        bodyTag = `<body style="background:transparent !important;background-color:transparent !important;" ${bodyAttrs}>`;
       }
+      return `${bodyTag}\n<div id="th-iframe-wrapper" style="overflow: hidden; display: flow-root; width: 100%;">`;
     });
+
+    // Close the wrapper div container just before the closing body tag
+    const closeBodyIdx = wrapped.lastIndexOf("</body>");
+    if (closeBodyIdx !== -1) {
+      wrapped = wrapped.substring(0, closeBodyIdx) + "</div>" + wrapped.substring(closeBodyIdx);
+    }
 
     // 仅当卡片未声明 viewport 时补充，避免移动端 vw/vh 单位失真与字体异常缩放
     const needsViewport = !/name\s*=\s*['"]viewport['"]/i.test(wrapped);
@@ -1083,7 +1096,9 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
   ${scriptInjects}
 </head>
 <body style="background: transparent !important; background-color: transparent !important;">
-  ${processedHtml}
+  <div id="th-iframe-wrapper" style="overflow: hidden; display: flow-root; width: 100%;">
+    ${processedHtml}
+  </div>
 </body>
 </html>`;
   }

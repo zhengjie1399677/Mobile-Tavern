@@ -90,7 +90,7 @@ export class AutoSummaryService {
     const rawRecentTurns = Number(settings?.memory?.recentTurns || 6);
     const triggerRounds = (!isNaN(rawTriggerTurns) && rawTriggerTurns > 0) ? rawTriggerTurns : rawRecentTurns;
 
-    const safeTriggerRounds = Math.max(4, triggerRounds);
+    const safeTriggerRounds = Math.max(1, triggerRounds);
     const maxAllowedUnsummarized = safeTriggerRounds * 2;
 
     let messagesToCompress: Message[] = [];

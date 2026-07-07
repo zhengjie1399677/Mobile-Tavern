@@ -7,10 +7,38 @@ import { Message } from "../../types";
 // 用于在响应文本不含任何表格指令时跳过昂贵的 processTableMemory 调用。
 const TABLE_MEMORY_TRIGGER_PATTERN = /(?:updateRow|insertRow|deleteRow)\s*\(/i;
 
-// L2 快速通道：MVU 脚本指令预扫描正则。
-// 匹配标准 MVU 命令（_.set/add/insert/delete/move）或 XML 标签（UpdateVariable/initvar），
-// 用于在响应文本不含任何脚本指令时跳过昂贵的 iframe bridge 通信。
-const MVU_SCRIPT_TRIGGER_PATTERN = /(?:_\.(?:set|add|insert|delete|move)\s*\(|<(?:UpdateVariable|initvar|JSONPatch)\b|\[\s*\{\s*["']op["']\s*:)/i;
+/**
+ * 从角色卡扩展字段中编译外部 MVU 触发正则（遵循准则二：纯数据驱动与零硬编码）。
+ * 角色卡可在 extensions.mvu_settings.trigger_patterns 中定义字符串数组，
+ * 每个元素为一个正则表达式源码（如 "_.set\\\\(" 或 "<UpdateVariable"）。
+ * 编译后合并为一个 OR 正则；若未定义则返回 null，表示不做预扫描过滤。
+ */
+function buildExternalMvuTriggerRegex(character: any): RegExp | null {
+  const mvuSettings = character?.extensions?.mvu_settings ||
+                      character?.extensions?.mvu ||
+                      character?.extensions?.MVU;
+  const patterns = mvuSettings?.trigger_patterns;
+  if (!Array.isArray(patterns) || patterns.length === 0) return null;
+
+  const validSources: string[] = [];
+  for (const p of patterns) {
+    if (typeof p === "string" && p.trim()) {
+      try {
+        // 验证正则合法性
+        new RegExp(p);
+        validSources.push(p);
+      } catch {
+        console.warn("[MVU] Invalid external trigger pattern skipped:", p);
+      }
+    }
+  }
+  if (validSources.length === 0) return null;
+  try {
+    return new RegExp(validSources.join("|"), "i");
+  } catch {
+    return null;
+  }
+}
 
 export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (context, next) => {
   const { session, responseText, settings, activeCharacter } = context;
@@ -75,24 +103,29 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
 };
 
 export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (context, next) => {
-  const { responseText, settings } = context;
+  const { responseText, settings, activeCharacter } = context;
   let currentSession = context.resultSession || context.session;
 
-  // L2 快速通道：功能开启但响应文本不含 MVU 指令时，跳过 executeMvuScript 调用。
-  // executeMvuScript 内部会通过 iframe bridge 通信，开销远高于 regex 预扫描。
-  if (settings.enableScriptExecution && responseText && MVU_SCRIPT_TRIGGER_PATTERN.test(responseText)) {
-    const kernel = context.kernel;
-    if (!kernel) {
-      console.warn("[mvuScriptMiddleware] kernel not injected in OutputPipelineContext, skipping.");
-      context.resultSession = currentSession;
-      await next();
-      return;
-    }
-    try {
-      const scriptService = kernel.getService<any>(KernelServices.Script);
-      currentSession = await scriptService.executeMvuScript(currentSession, responseText);
-    } catch (err) {
-      console.warn("[MvuScript] Middleware execution error:", err);
+  // L2 快速通道：功能开启时，优先使用角色卡定义的外部正则进行预扫描。
+  // 若未定义外部正则，则直接执行（不做预扫描过滤），确保外部正则能独立工作。
+  if (settings.enableScriptExecution && responseText) {
+    const externalRegex = buildExternalMvuTriggerRegex(activeCharacter);
+    const shouldExecute = externalRegex ? externalRegex.test(responseText) : true;
+
+    if (shouldExecute) {
+      const kernel = context.kernel;
+      if (!kernel) {
+        console.warn("[mvuScriptMiddleware] kernel not injected in OutputPipelineContext, skipping.");
+        context.resultSession = currentSession;
+        await next();
+        return;
+      }
+      try {
+        const scriptService = kernel.getService<any>(KernelServices.Script);
+        currentSession = await scriptService.executeMvuScript(currentSession, responseText);
+      } catch (err) {
+        console.warn("[MvuScript] Middleware execution error:", err);
+      }
     }
   }
 

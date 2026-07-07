@@ -65,7 +65,7 @@ export async function runOutputPipelineAndSave(params: {
     const triggerTurns = Number(settings?.memory?.summaryTriggerTurns || 0);
     const recentTurns = Number(settings?.memory?.recentTurns || 6);
     const triggerRounds = (!isNaN(triggerTurns) && triggerTurns > 0) ? triggerTurns : recentTurns;
-    const maxAllowedUnsummarized = Math.max(4, triggerRounds) * 2;
+    const maxAllowedUnsummarized = Math.max(1, triggerRounds) * 2;
 
     let lastSummaryIdx = -1;
     if (session.lastSummarizedMessageId) {

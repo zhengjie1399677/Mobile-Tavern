@@ -416,9 +416,21 @@ export async function saveSession(session: ChatSession): Promise<void> {
       // 联合事务：同时写入 sessions 并同步 messages
       const transaction = db.transaction(["sessions", "messages"], "readwrite");
       
-      // 1. 物理隔离：sessions 库中剔除 messages 大数组
+      // 1. 物理隔离：sessions 库中剔除 messages 大数组，同时计算并缓存字数与回合数，供前台懒加载分页与自动清理逻辑直接读取，避免视觉 Bug
       const sessionsStore = transaction.objectStore("sessions");
       const { messages, ...sessionToSave } = session;
+      
+      if (messages && Array.isArray(messages)) {
+        const userMsgCount = messages.filter(m => m.sender === "user").length;
+        const computedTurnCount = userMsgCount > 0 
+          ? userMsgCount 
+          : (messages.length > 1 ? Math.floor(messages.length / 2) : (messages.length > 0 ? 1 : 0));
+        const computedCharCount = messages.reduce((total, msg) => total + (msg.content?.length || 0), 0);
+        
+        sessionToSave.turnCount = computedTurnCount;
+        sessionToSave.charCount = computedCharCount;
+      }
+      
       const sessionRequest = sessionsStore.put(sessionToSave);
       
       // 2. 级联同步消息到 messages Store
