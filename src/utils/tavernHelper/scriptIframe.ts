@@ -304,7 +304,16 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
       'getCharacterBook', 'addCharacterBookEntry', 'updateCharacterBookEntry',
       'getCharacterExpressions', 'addCharacterExpression', 'updateCharacterExpression',
       'getMvuSchema', 'registerMvuSchema', 'getMvuVariables', 'updateMvuVariables',
-      'waitGlobalInitialized', 'errorCatched'
+      'waitGlobalInitialized', 'errorCatched',
+      'updateVariablesWith', 'insertOrAssignVariables', 'deleteVariable',
+      'getCurrentChatId', 'saveChat', 'saveSettingsDebounced', 'callGenericPopup',
+      'getTavernHelperVersion', 'getScriptButtons', 'replaceScriptButtons',
+      'appendInexistentScriptButtons', 'getButtonEvent', 'showHelpPopup',
+      'setChatMessages', 'getChatMessages', 'getLastMessageId', 'getCharLorebooks',
+      'getCharWorldbookNames', 'getCurrentCharPrimaryLorebook', 'getLorebookEntries',
+      'getLorebookSettings', 'setLorebookSettings', 'setExtraAnalysisStates',
+      'normalizeBaseURL', 'generate', 'generateRaw', 'isToolCallingSupported',
+      'registerFunctionTool', 'unregisterFunctionTool', 'fetch'
     ];
     keys.forEach(function(ck) {
       Object.defineProperty(window, ck, {
@@ -718,7 +727,16 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       'getCharacterBook', 'addCharacterBookEntry', 'updateCharacterBookEntry',
       'getCharacterExpressions', 'addCharacterExpression', 'updateCharacterExpression',
       'getMvuSchema', 'registerMvuSchema', 'getMvuVariables', 'updateMvuVariables',
-      'waitGlobalInitialized', 'errorCatched'
+      'waitGlobalInitialized', 'errorCatched',
+      'updateVariablesWith', 'insertOrAssignVariables', 'deleteVariable',
+      'getCurrentChatId', 'saveChat', 'saveSettingsDebounced', 'callGenericPopup',
+      'getTavernHelperVersion', 'getScriptButtons', 'replaceScriptButtons',
+      'appendInexistentScriptButtons', 'getButtonEvent', 'showHelpPopup',
+      'setChatMessages', 'getChatMessages', 'getLastMessageId', 'getCharLorebooks',
+      'getCharWorldbookNames', 'getCurrentCharPrimaryLorebook', 'getLorebookEntries',
+      'getLorebookSettings', 'setLorebookSettings', 'setExtraAnalysisStates',
+      'normalizeBaseURL', 'generate', 'generateRaw', 'isToolCallingSupported',
+      'registerFunctionTool', 'unregisterFunctionTool', 'fetch'
     ];
     keys.forEach(function(ck) {
       Object.defineProperty(window, ck, {

@@ -25,8 +25,6 @@ const SafeIframe = React.memo((props: any) => {
             }
           }
           console.log('[SafeIframe] srcDoc changed! Diff index:', diffIdx);
-          console.log('Prev segment:', lastSrcDocRef.current.substring(Math.max(0, diffIdx - 30), diffIdx + 50));
-          console.log('New segment:', srcDoc?.substring(Math.max(0, diffIdx - 30), diffIdx + 50));
         }
         iframeRef.current.srcdoc = srcDoc;
         lastSrcDocRef.current = srcDoc;
@@ -35,6 +33,9 @@ const SafeIframe = React.memo((props: any) => {
   }, [srcDoc]);
 
   return <iframe ref={iframeRef} {...rest} />;
+}, (prevProps, nextProps) => {
+  // 仅在 srcDoc 物理改变时允许 SafeIframe 重绘，防止 React 属性更新（如 style 重建）引发 iframe DOM 重新协调与重载
+  return prevProps.srcDoc === nextProps.srcDoc;
 });
 SafeIframe.displayName = "SafeIframe";
 

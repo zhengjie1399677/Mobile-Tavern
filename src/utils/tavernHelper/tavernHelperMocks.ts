@@ -312,7 +312,19 @@ export function initTavernHelperMocks(): void {
         }
       }, 100);
     },
-    _errorCatched: () => {},
+    _errorCatched(fn: any) {
+      if (typeof fn === "function") {
+        return function(this: any, ...args: any[]) {
+          try {
+            return fn.apply(this, args);
+          } catch (err) {
+            console.error("[TavernHelper Bridge] Error caught inside errorCatched:", err);
+            throw err;
+          }
+        };
+      }
+      return fn;
+    },
     _getIframeName: () => "TH-message-iframe",
     _getScriptId: () => "script_default",
     _getCurrentMessageId(callerMsgId?: number) {
