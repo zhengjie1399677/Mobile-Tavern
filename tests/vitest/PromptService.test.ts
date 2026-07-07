@@ -25,9 +25,10 @@ describe("PromptService prompt compilation", () => {
     const chat: ChatSession = {
       id: "test-chat",
       characterId: "test-char",
+      title: "Test Chat",
       messages: [],
+      summaries: [],
       createdAt: Date.now(),
-      updatedAt: Date.now(),
     };
 
     const settings: UserSettings = {
@@ -114,9 +115,10 @@ describe("PromptService prompt compilation", () => {
     const chat: ChatSession = {
       id: "test-chat",
       characterId: "test-char",
+      title: "Test Chat",
       messages: [],
+      summaries: [],
       createdAt: Date.now(),
-      updatedAt: Date.now(),
     };
 
     const settings: UserSettings = {
