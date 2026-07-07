@@ -18,7 +18,17 @@ export class PromptCompiler {
   };
 
   private estimateTokens(text: string): number {
-    return Math.ceil(text.length / 3);
+    if (!text) return 0;
+    let asciiCount = 0;
+    let nonAsciiCount = 0;
+    for (let i = 0; i < text.length; i++) {
+      if (text.charCodeAt(i) <= 127) {
+        asciiCount++;
+      } else {
+        nonAsciiCount++;
+      }
+    }
+    return Math.ceil(asciiCount * 0.25 + nonAsciiCount * 2.0);
   }
 
   private renderWithChineseHierarchy(nodes: PromptNode[], renderer: PromptRenderer, context: RuntimeContext): string {

@@ -51,7 +51,8 @@ export class PromptService implements IPromptService {
         nonAsciiCount++;
       }
     }
-    return Math.ceil(asciiCount * 0.25 + nonAsciiCount * 1.0);
+    // 针对中文等非 ASCII 字符使用更安全的 2.0 倍率估算，防止高频中文对话时分词器膨胀越界
+    return Math.ceil(asciiCount * 0.25 + nonAsciiCount * 2.0);
   }
 
   sanitizeName(name: string): string {
@@ -60,6 +61,14 @@ export class PromptService implements IPromptService {
     sanitized = sanitized.replace(/^[^a-zA-Z0-9_-]+/, "");
     sanitized = sanitized.slice(0, 64);
     return /^[a-zA-Z0-9_-]+$/.test(sanitized) ? sanitized : "";
+  }
+
+  hasCardScripts(character: CharacterCard | null): boolean {
+    if (!character) return false;
+    const ext = character.extensions || {};
+    if (Array.isArray(ext.tavern_helper?.scripts) && ext.tavern_helper.scripts.length > 0) return true;
+    if (ext.mvu_settings || ext.mvu || ext.MVU) return true;
+    return false;
   }
 
   getTriggeredLorebookEntries(
@@ -674,7 +683,7 @@ export class PromptService implements IPromptService {
     // 4b. MVU Variables Section (under Context Category, mutable: true)
     // ==================================================
     let mvuVariablesSection = "";
-    if (settings.enableScriptExecution && chat.variables) {
+    if (settings.enableScriptExecution && this.hasCardScripts(character) && chat.variables) {
       mvuVariablesSection = this.formatMvuVariablesForPrompt(chat.variables);
     }
     builder.registerSection({

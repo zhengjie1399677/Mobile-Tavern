@@ -407,6 +407,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
     summarySystemPrompt: DEFAULT_SUMMARY_SYSTEM_PROMPT,
     timeTagTemplate: "第{{index}}幕",
     enableAutoSummary: true,
+    enableRecall: true,
+    recallTopK: 3,
   },
   promptConfig: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
   userName: "user",

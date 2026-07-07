@@ -329,20 +329,39 @@ export function initTavernHelperMocks(): void {
       if (opt.type === "message" && opt.message_id !== undefined) {
         const messages = activeSession?.messages || [];
         const msgId = resolveMessageId(opt.message_id, messages.length);
+        
+        // 如果是最新的一条消息，直接返回当前会话的全局最新变量，以保持多轮对话间的最新状态一致
+        if (msgId === messages.length - 1 && activeSession?.variables) {
+          const resolvedVars = lodashCloneDeep(activeSession.variables);
+          if (!resolvedVars.stat_data) resolvedVars.stat_data = {};
+          return resolvedVars;
+        }
+
         const msg = messages[msgId] as any;
         if (msg) {
           const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
-          if (!msg.extra) msg.extra = {};
-          if (!msg.extra.variables) msg.extra.variables = {};
-          if (!msg.extra.variables[swipeId]) msg.extra.variables[swipeId] = {};
-          if (msgId === 0 && Object.keys(msg.extra.variables[swipeId]).length === 0 && activeSession?.variables) {
-            msg.extra.variables[swipeId] = { ...activeSession.variables };
-            console.log("[TavernHelper Bridge] _getVariables Fallback triggered for msgId 0. Copying session vars:", JSON.stringify(activeSession.variables));
+          
+          // 从当前消息开始往前扫描，寻找最近的一个包含非空变量的消息
+          for (let i = msgId; i >= 0; i--) {
+            const m = messages[i] as any;
+            if (!m) continue;
+            const currentSwipeId = (i === msgId && opt.swipe_id !== undefined)
+              ? opt.swipe_id
+              : (m.swipe_id !== undefined ? m.swipe_id : 0);
+            const vars = m.extra?.variables?.[currentSwipeId];
+            if (vars && Object.keys(vars).length > 0 && vars.stat_data && Object.keys(vars.stat_data).length > 0) {
+              const resolvedVars = lodashCloneDeep(vars);
+              return resolvedVars;
+            }
           }
-          const resolvedVars = msg.extra.variables[swipeId];
-          if (resolvedVars && !resolvedVars.stat_data) { resolvedVars.stat_data = {}; }
-          // console.log("[TavernHelper Bridge] _getVariables resolved msgId:", msgId, "swipeId:", swipeId, "variables:", JSON.stringify(resolvedVars));
-          return resolvedVars;
+          
+          // 兜底：如果往前扫描没找到任何包含有效变量的历史消息，使用当前会话变量作为兜底
+          if (activeSession?.variables) {
+            const resolvedVars = lodashCloneDeep(activeSession.variables);
+            if (!resolvedVars.stat_data) resolvedVars.stat_data = {};
+            return resolvedVars;
+          }
+          return { stat_data: {} };
         }
         return {};
       }
@@ -424,7 +443,25 @@ export function initTavernHelperMocks(): void {
           if (lodashIsEqual(activeS.variables, variables)) {
             return prev;
           }
-          const updated = { ...activeS, variables };
+          
+          // 同时将全局变量更新同步到最新一条消息的 extra.variables 中，以保持历史及新轮次快照一致性
+          let updatedMessages = activeS.messages;
+          if (updatedMessages.length > 0) {
+            const lastIdx = updatedMessages.length - 1;
+            const lastMsg = { ...updatedMessages[lastIdx] } as any;
+            const swipeId = lastMsg.swipe_id !== undefined ? lastMsg.swipe_id : 0;
+            const extra = { ...lastMsg.extra };
+            if (!extra.variables) extra.variables = {};
+            extra.variables = { ...extra.variables, [swipeId]: variables };
+            lastMsg.extra = extra;
+            lastMsg.variables = extra.variables;
+            updatedMessages = [
+              ...updatedMessages.slice(0, -1),
+              lastMsg
+            ];
+          }
+
+          const updated = { ...activeS, variables, messages: updatedMessages };
           setTimeout(() => { saveSession(updated); notifyVariablesUpdated(updated); }, 0);
           return prev.map((s) => (s.id === updated.id ? updated : s));
         });

@@ -153,7 +153,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       let recalledMemories: any[] = [];
       try {
         const memoryService = globalKernel.getService<any>("memory");
-        if (memoryService) {
+        if (memoryService && p.settings.memory?.enableRecall !== false) {
           const recallTopK = p.settings.memory?.recallTopK ?? 3;
           recalledMemories = await memoryService.getRecall().recall(
             updatedSession.id,

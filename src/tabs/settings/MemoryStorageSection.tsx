@@ -110,6 +110,64 @@ export default function MemoryStorageSection({
               </div>
             </div>
 
+            {/* 子模块 1.5：长线记忆召回 */}
+            <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-border/40">
+              <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-violet-500/80 uppercase tracking-wide">
+                <span className="inline-block w-1 h-3 bg-violet-500/60 rounded-full" />
+                长线记忆召回
+              </div>
+              <div className="flex items-center justify-between pl-1">
+                <div className="flex flex-col">
+                  <span className="font-semibold text-foreground text-[12.5px] flex items-center gap-2">
+                    开启长线记忆召回 (Memory Recall){" "}
+                    <Switch
+                      checked={settings.memory.enableRecall !== false}
+                      onCheckedChange={(val) =>
+                        updateSettings({
+                          ...settings,
+                          memory: {
+                            ...settings.memory,
+                            enableRecall: val,
+                          },
+                        })
+                      }
+                      className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                    />
+                  </span>
+                  <span className="text-[9.5px] text-muted-foreground mt-0.5">
+                    从历史消息库中自动检索并注入最相似的记忆片段
+                  </span>
+                </div>
+              </div>
+              {settings.memory.enableRecall !== false && (
+                <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border">
+                  <span className="text-[10px] text-muted-foreground font-semibold">
+                    记忆召回条数 (Recall Top K)
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value={settings.memory.recallTopK ?? 3}
+                    onChange={(e) => {
+                      const parsed = parseInt(e.target.value);
+                      if (!isNaN(parsed) && parsed >= 1) {
+                        updateSettings({
+                          ...settings,
+                          memory: {
+                            ...settings.memory,
+                            recallTopK: parsed,
+                          },
+                        });
+                      }
+                    }}
+                    className="w-16 bg-muted border border-border text-center rounded p-1 text-sm outline-none focus:border-primary font-mono"
+                  />
+                </div>
+              )}
+            </div>
+
             {/* 子模块 2：叙事记忆（Auto Summary 时间轴摘要） */}
             <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-border/40">
               <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-500/80 uppercase tracking-wide">

@@ -185,7 +185,7 @@ export function useSendMessage(p: SendMessageParams) {
       let recalledMemories: any[] = [];
       try {
         const memoryService = p.memoryService;
-        if (memoryService) {
+        if (memoryService && p.settings.memory?.enableRecall !== false) {
           const recallTopK = p.settings.memory?.recallTopK ?? 3;
           recalledMemories = await memoryService.getRecall().recall(
             updatedSession.id,

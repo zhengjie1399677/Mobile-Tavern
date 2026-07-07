@@ -425,6 +425,23 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                     (acc: any, s: any) => acc + (s.content || "").length,
                     0,
                   ) *
+                    1.5 +
+                  (settings.memory?.enableRecall !== false && activeSession?.lastRecalledMemories || []).reduce(
+                    (acc: any, m: any) => acc + (m.content || "").length,
+                    0,
+                  ) *
+                    1.5 +
+                  (settings.enableScriptExecution &&
+                  (() => {
+                    const ext = activeCharacter?.extensions || {};
+                    return (
+                      (Array.isArray(ext.tavern_helper?.scripts) && ext.tavern_helper.scripts.length > 0) ||
+                      !!(ext.mvu_settings || ext.mvu || ext.MVU)
+                    );
+                  })() &&
+                  activeSession?.variables
+                    ? JSON.stringify(activeSession.variables).length
+                    : 0) *
                     1.5,
               )}{" "}
               tok

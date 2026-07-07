@@ -139,6 +139,8 @@ export interface MemoryConfig {
   summarySystemPrompt?: string;
   timeTagTemplate?: string;
   enableAutoSummary?: boolean;
+  enableRecall?: boolean;
+  recallTopK?: number;
 }
 
 export interface CustomPromptBlock {
