@@ -34,8 +34,15 @@ const SafeIframe = React.memo((props: any) => {
 
   return <iframe ref={iframeRef} {...rest} />;
 }, (prevProps, nextProps) => {
-  // 仅在 srcDoc 物理改变时允许 SafeIframe 重绘，防止 React 属性更新（如 style 重建）引发 iframe DOM 重新协调与重载
-  return prevProps.srcDoc === nextProps.srcDoc;
+  const wasLoading = prevProps.srcDoc && prevProps.srcDoc.includes("正在载入脚本依赖");
+  const isLoading = nextProps.srcDoc && nextProps.srcDoc.includes("正在载入脚本依赖");
+  
+  if (wasLoading && !isLoading) {
+    return false; // Transition from loading to ready: allow re-render
+  }
+  
+  // For any subsequent renders, do NOT re-render the same iframe to keep it alive
+  return true;
 });
 SafeIframe.displayName = "SafeIframe";
 
@@ -206,7 +213,8 @@ function domToReact(
   activeCharacter: any,
   messageIndex?: number,
   libsReady?: boolean,
-  enableLoopProtection?: boolean
+  enableLoopProtection?: boolean,
+  swipeId?: number
 ): React.ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
     return renderTextNode(node.nodeValue || "", enableAsteriskFormatting, index);
@@ -237,7 +245,7 @@ function domToReact(
       return null;
     }
     return Array.from(element.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId)
     );
   }
 
@@ -323,9 +331,10 @@ function domToReact(
       props.id = `TH-msg-iframe-${messageIndex}`;
       props.name = `TH-msg-iframe-${messageIndex}`;
     }
-    // Force React to destroy and recreate the iframe element when the character or message context changes
+    // Force React to destroy and recreate the iframe element when the character, message or swipe changes
     const charId = activeCharacter?.id || "default-char";
-    props.key = `iframe-${charId}-${messageIndex !== undefined ? messageIndex : "temp"}-${index}`;
+    const sId = swipeId !== undefined ? swipeId : 0;
+    props.key = `iframe-${charId}-${messageIndex !== undefined ? messageIndex : "temp"}-${sId}-${index}`;
 
     // Force transparent background, full width, no border and GPU acceleration on message iframes
     props.style = {
@@ -352,7 +361,7 @@ function domToReact(
   }
 
   const children = Array.from(element.childNodes).map((child, i) => 
-    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection)
+    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId)
   );
   
   const reactElement = React.createElement(
@@ -379,7 +388,8 @@ function parseSafeHtmlToReact(
   activeCharacter: any,
   messageIndex?: number,
   libsReady?: boolean,
-  enableLoopProtection?: boolean
+  enableLoopProtection?: boolean,
+  swipeId?: number
 ): React.ReactNode {
   try {
     const parser = new DOMParser();
@@ -388,7 +398,7 @@ function parseSafeHtmlToReact(
     if (!container) return html;
 
     return Array.from(container.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId)
     );
   } catch (err) {
     console.error("Failed to parse HTML safely:", err);
@@ -732,11 +742,19 @@ const FormattedText = memo(function FormattedText({
   // Quick detection: if text contains tags and html rendering is active, use DOM parser
   const hasHtml = enableHtml && /<[a-z/][\s\S]*?>/i.test(processed);
 
+  const swipeId = (() => {
+    if (messageIndex === undefined) return 0;
+    const session = context.activeSession;
+    if (!session || !session.messages) return 0;
+    const msg = session.messages[messageIndex] as any;
+    return msg ? (msg.swipe_id ?? 0) : 0;
+  })();
+
   let renderedContent: React.ReactNode;
   if (hasHtml) {
     renderedContent = (
       <span className={`block whitespace-pre-wrap leading-relaxed ${className}`}>
-        {parseSafeHtmlToReact(processed, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection)}
+        {parseSafeHtmlToReact(processed, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId)}
       </span>
     );
   } else {
