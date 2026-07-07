@@ -70,6 +70,19 @@ export class TtsService implements ITtsService {
       throw new Error("Speech aborted before request started");
     }
 
+    // 清洗文本：移除朗读时可能被读出来的 Markdown 符号和引号，避免 TTS 读出“星号”或“引号”
+    const cleanedText = (text || "")
+      .replace(/\*\*+/g, "") // 移除粗体星号
+      .replace(/\*/g, "")    // 移除单星号
+      .replace(/_+/g, "")    // 移除斜体下划线
+      .replace(/["“”'‘’`«»]/g, " ") // 将引号替换为空格以防朗读停顿问题
+      .replace(/\s+/g, " ")  // 合并空格
+      .trim();
+
+    if (!cleanedText) {
+      return; // 没有有效文本，安全退出
+    }
+
     this.isSpeakingState = true;
     this.speakingMessageId = config.messageId || null;
     const provider = config.provider || "speech-synthesis";
@@ -80,7 +93,7 @@ export class TtsService implements ITtsService {
         throw new Error("Browser SpeechSynthesis is not supported in this environment");
       }
 
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(cleanedText);
       this.activeUtterance = utterance;
       utterance.volume = config.volume ?? 0.5;
       utterance.rate = config.rate ?? 1.0;
@@ -160,7 +173,7 @@ export class TtsService implements ITtsService {
       let finalHeaders = headers;
       let finalBody = JSON.stringify({
         model: config.openaiModel || "tts-1",
-        input: text,
+        input: cleanedText,
         voice: config.openaiVoice || "alloy",
         response_format: "mp3"
       });
@@ -175,7 +188,7 @@ export class TtsService implements ITtsService {
           headers,
           bodyObj: {
             model: config.openaiModel || "tts-1",
-            input: text,
+            input: cleanedText,
             voice: config.openaiVoice || "alloy",
             response_format: "mp3"
           }

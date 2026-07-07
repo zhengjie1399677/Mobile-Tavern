@@ -25,6 +25,7 @@ export default function ChatTab() {
     activeSessionId,
     isSending,
     chatSubTab,
+    setChatSubTab,
     activeCharacter,
     activeSession,
     handleSendMessage,
@@ -34,6 +35,12 @@ export default function ChatTab() {
     saveSession,
     getKernelService,
   } = useUnifiedApp();
+
+  React.useEffect(() => {
+    if (settings.memory?.enableAutoSummary === false && chatSubTab === "timeline") {
+      setChatSubTab("dialogue");
+    }
+  }, [settings.memory?.enableAutoSummary, chatSubTab, setChatSubTab]);
 
   // a11y Live Announcer + 键盘检测 + bridge effect
   const { announcement, isKeyboardOpen } = useChatAccessibility({
@@ -99,6 +106,12 @@ export default function ChatTab() {
   const [isPortraitCollapsed, setIsPortraitCollapsed] = React.useState(false);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = React.useState(false);
   const [isTableDrawerOpen, setIsTableDrawerOpen] = React.useState(false);
+  const [tableDrawerTab, setTableDrawerTab] = React.useState<'timeline' | 'table' | 'dict' | 'recall' | 'mvu'>('timeline');
+
+  const openTableDrawer = (tab: 'timeline' | 'table' | 'dict' | 'recall' | 'mvu') => {
+    setTableDrawerTab(tab);
+    setIsTableDrawerOpen(true);
+  };
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background overflow-hidden">
@@ -109,7 +122,7 @@ export default function ChatTab() {
       )}
       {/* Embedded Header info card */}
       <ChatHeader
-        setIsTableDrawerOpen={setIsTableDrawerOpen}
+        openTableDrawer={openTableDrawer}
         setIsDetailDrawerOpen={setIsDetailDrawerOpen}
       />
 
@@ -124,26 +137,19 @@ export default function ChatTab() {
         isKeyboardOpen={isKeyboardOpen}
       />
 
-      {/* Sub-tab 1: DIALOGUE HISTORY */}
-      {chatSubTab === "dialogue" && (
-        <DialogueHistoryView
-          scrollContainerRef={scrollContainerRef}
-          handleScroll={handleScroll}
-          glowColors={glowColors}
-          isOriginalBg={isOriginalBg}
-          activePortraitUrl={activePortraitUrl}
-          isKeyboardOpen={isKeyboardOpen}
-          expandedReasoningIds={expandedReasoningIds}
-          setExpandedReasoningIds={setExpandedReasoningIds}
-          copiedReasoningIds={copiedReasoningIds}
-          setCopiedReasoningIds={setCopiedReasoningIds}
-        />
-      )}
-
-      {/* Sub-tab 2: STORY TIMELINE YEARBOOK */}
-      {chatSubTab === "timeline" && (
-        <StoryTimelineView />
-      )}
+      {/* DIALOGUE HISTORY */}
+      <DialogueHistoryView
+        scrollContainerRef={scrollContainerRef}
+        handleScroll={handleScroll}
+        glowColors={glowColors}
+        isOriginalBg={isOriginalBg}
+        activePortraitUrl={activePortraitUrl}
+        isKeyboardOpen={isKeyboardOpen}
+        expandedReasoningIds={expandedReasoningIds}
+        setExpandedReasoningIds={setExpandedReasoningIds}
+        copiedReasoningIds={copiedReasoningIds}
+        setCopiedReasoningIds={setCopiedReasoningIds}
+      />
 
       {/* Hidden script container + A11y Live Region */}
       <HiddenScriptLayer
@@ -165,6 +171,8 @@ export default function ChatTab() {
           saveSession={saveSession}
           charName={activeCharacter.name}
           enableTableMemory={!!settings.enableTableMemory}
+          enableAutoSummary={settings.memory?.enableAutoSummary !== false}
+          initialTab={tableDrawerTab}
         />
       )}
     </div>

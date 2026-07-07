@@ -14,10 +14,12 @@ import {
   VolumeX,
   BookOpen,
   BrainCircuit,
-  Tag
+  Tag,
+  History
 } from "lucide-react";
 import { getDictBySession, upsertDictEntry } from "../utils/localDB";
 import { MvuVariablesTabContent } from "./MvuVariablesTabContent";
+import StoryTimelineView from "../tabs/chat/StoryTimelineView";
 
 interface MemoryTableDrawerProps {
   isOpen: boolean;
@@ -26,6 +28,8 @@ interface MemoryTableDrawerProps {
   saveSession: (session: ChatSession) => Promise<void>;
   charName: string;
   enableTableMemory: boolean;
+  enableAutoSummary: boolean;
+  initialTab?: 'timeline' | 'table' | 'dict' | 'recall' | 'mvu';
 }
 
 export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
@@ -34,19 +38,25 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   activeSession,
   saveSession,
   charName,
-  enableTableMemory
+  enableTableMemory,
+  enableAutoSummary,
+  initialTab
 }) => {
-  // 大 Tab 面板：'table' | 'dict' | 'recall' | 'mvu'
-  const [activeTab, setActiveTab] = useState<'table' | 'dict' | 'recall' | 'mvu'>(
-    enableTableMemory ? 'table' : 'recall'
+  // 大 Tab 面板：'timeline' | 'table' | 'dict' | 'recall' | 'mvu'
+  const [activeTab, setActiveTab] = useState<'timeline' | 'table' | 'dict' | 'recall' | 'mvu'>(
+    enableAutoSummary ? 'timeline' : (enableTableMemory ? 'table' : 'recall')
   );
 
-  // 当抽屉打开时，根据当前表格配置动态重置默认 Tab
+  // 当抽屉打开时，根据当前配置或传入初始 Tab 动态重置 Tab
   React.useEffect(() => {
     if (isOpen) {
-      setActiveTab(enableTableMemory ? 'table' : 'recall');
+      if (initialTab) {
+        setActiveTab(initialTab);
+      } else {
+        setActiveTab(enableAutoSummary ? 'timeline' : (enableTableMemory ? 'table' : 'recall'));
+      }
     }
-  }, [isOpen, enableTableMemory]);
+  }, [isOpen, initialTab, enableTableMemory, enableAutoSummary]);
   const [activeTableTabId, setActiveTableTabId] = useState<string>("");
   const [editingCell, setEditingCell] = useState<{ sheetId: string; rowIndex: number; colIndex: number } | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -353,6 +363,16 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
 
         {/* Tab 栏切换器 */}
         <div className="flex border-b border-border/30 bg-muted/10 px-4 py-2 gap-2 text-xs font-semibold overflow-x-auto scrollbar-none shrink-0">
+          {enableAutoSummary && (
+            <button
+              onClick={() => { setActiveTab('timeline'); setShowConfig(false); }}
+              className={`px-3 py-1.5 rounded-lg border transition-all ${
+                activeTab === 'timeline' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+              }`}
+            >
+              故事年表
+            </button>
+          )}
           {enableTableMemory && (
             <button
               onClick={() => { setActiveTab('table'); setShowConfig(false); }}
@@ -390,8 +410,13 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
         </div>
 
         {/* Inner Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className={`flex-1 min-h-0 ${activeTab === 'timeline' ? '' : 'overflow-y-auto p-4 space-y-4'}`}>
           
+          {/* TAB 0: ⏱️ 故事年表 */}
+          {activeTab === 'timeline' && (
+            <StoryTimelineView />
+          )}
+
           {/* TAB 1: 📊 状态沙盒 */}
           {activeTab === 'table' && (
             <>
