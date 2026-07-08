@@ -83,7 +83,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
 
   return (
     <div
-      className={`absolute top-full mt-1.5 bg-popover text-popover-foreground border border-border rounded-lg p-1.5 flex items-center gap-1 shadow-2xl z-10 ${
+      className={`absolute top-full mt-1.5 bg-popover text-popover-foreground border border-border rounded-lg p-1.5 flex items-center gap-1 shadow-2xl z-10 animate-in fade-in slide-in-from-top-2 duration-200 ${
         isUser ? "right-0" : "left-0"
       }`}
     >
