@@ -353,6 +353,7 @@ export default function CharacterDetailDrawer({
 
                     <div className="bg-muted/40 rounded-2xl p-3 border border-border/20 text-sm max-h-80 overflow-y-auto no-scrollbar font-sans">
                       <FormattedText
+                        key={`greeting-${activeGreetingIdx}`}
                         text={currentText || "（暂无开场白设定）"}
                         charName={character.name}
                         userName={userName}

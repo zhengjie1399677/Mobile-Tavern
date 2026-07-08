@@ -37,3 +37,6 @@ src-tauri/plugins/android-bridge/android/app/build/
 # Windows 便利脚本（非标准 npm 项目惯例）
 npm.bat
 npx.bat
+
+# 测试用角色卡（不上传 GitHub）
+test-cards/

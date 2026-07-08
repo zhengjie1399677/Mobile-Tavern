@@ -436,17 +436,17 @@ export function ensureUiLibsLoaded(): Promise<void> {
     await ensureCoreLibsLoaded();
     console.log("[TavernHelper Bridge] 核心库就绪，开始动态 import UI 库");
     try {
-      const [Vue, Pinia, jQuery, math] = await Promise.all([
+      // mathjs (~600KB) 延迟加载，不阻塞 libsReady
+      // 大多数角色卡不使用 mathjs，加载它会显著增加等待时间
+      const [Vue, Pinia, jQuery] = await Promise.all([
         import("vue"),
         import("pinia"),
         import("jquery"),
-        import("mathjs"),
       ]);
-      console.log("[TavernHelper Bridge] UI 库动态 import 全部成功", {
+      console.log("[TavernHelper Bridge] UI 库动态 import 成功（不含 mathjs）", {
         hasVue: !!Vue,
         hasPinia: !!Pinia,
         hasJQuery: !!jQuery,
-        hasMath: !!math,
       });
 
       const jQueryInstance = jQuery.default || jQuery;
@@ -462,7 +462,6 @@ export function ensureUiLibsLoaded(): Promise<void> {
           defineStore: Pinia.defineStore,
           getActivePinia: Pinia.getActivePinia,
           setActivePinia: Pinia.setActivePinia,
-          math,
           pinia: {
             createPinia: Pinia.createPinia,
             defineStore: Pinia.defineStore,
@@ -474,6 +473,18 @@ export function ensureUiLibsLoaded(): Promise<void> {
         console.log("[TavernHelper Bridge] UI 库挂载到 window 完成", {
           hasDefineStore: !!w.TavernHelperMvuLibs?.defineStore,
           hasJQuery: !!w.jQuery,
+        });
+
+        // mathjs 后台异步加载，不阻塞 ensureUiLibsLoaded 的完成
+        // 加载完成后挂载到 window.TavernHelperMvuLibs.math
+        import("mathjs").then(math => {
+          w.TavernHelperMvuLibs = {
+            ...w.TavernHelperMvuLibs,
+            math,
+          };
+          console.log("[TavernHelper Bridge] mathjs 延迟加载完成");
+        }).catch(err => {
+          console.warn("[TavernHelper Bridge] mathjs 延迟加载失败（不影响核心功能）:", err);
         });
       }
     } catch (err) {
