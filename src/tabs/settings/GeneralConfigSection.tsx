@@ -124,6 +124,7 @@ export default function GeneralConfigSection({
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Select
+                  aria-label="API 预设配置方案"
                   value={settings.currentApiProfileId || "temp"}
                   onValueChange={(val) => {
                     if (val === "temp") {
@@ -345,6 +346,7 @@ export default function GeneralConfigSection({
             <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
               <span>API 密钥 (API Key)</span>
               <button
+                aria-label="测试 API 连接"
                 onClick={testApiConnection}
                 className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-bold"
               >
@@ -399,6 +401,7 @@ export default function GeneralConfigSection({
             </label>
             {availableModels.length > 0 ? (
               <Select
+                aria-label="模型名称"
                 value={settings.api.modelName || ""}
                 onValueChange={(val) =>
                   updateSettings((prev) => ({
@@ -468,6 +471,7 @@ export default function GeneralConfigSection({
               <span className="text-[9px] text-muted-foreground/80">定义系统/设定集的排版结构</span>
             </label>
             <Select
+              aria-label="排版结构格式"
               value={settings.promptConfig?.renderingFormat || "auto"}
               onValueChange={(val: 'auto' | 'xml' | 'markdown') =>
                 updateSettings((prev) => ({
@@ -498,6 +502,7 @@ export default function GeneralConfigSection({
               </p>
             </div>
             <Switch
+              aria-label="强制基础参数"
               checked={settings.api.forceBasicParams || false}
               onCheckedChange={(checked) =>
                 updateSettings((prev) => ({
@@ -521,6 +526,7 @@ export default function GeneralConfigSection({
               </p>
             </div>
             <Switch
+              aria-label="发送角色名称"
               checked={settings.api.sendNames || false}
               onCheckedChange={(checked) =>
                 updateSettings((prev) => ({
@@ -543,6 +549,7 @@ export default function GeneralConfigSection({
               </p>
             </div>
             <Switch
+              aria-label="强制关闭思维链"
               checked={settings.api.disableReasoning || false}
               onCheckedChange={(checked) =>
                 updateSettings((prev) => ({
@@ -579,6 +586,7 @@ export default function GeneralConfigSection({
               </p>
             </div>
             <Switch
+              aria-label="启用图像生成"
               checked={settings.imageGenApi?.enabled || false}
               onCheckedChange={(checked) =>
                 updateSettings((prev) => ({
@@ -617,6 +625,7 @@ export default function GeneralConfigSection({
                   </p>
                 </div>
                 <Switch
+                  aria-label="强制图像生成协议"
                   checked={settings.imageGenApi?.forceProtocol || false}
                   onCheckedChange={(checked) =>
                     updateSettings((prev) => ({
@@ -654,6 +663,7 @@ export default function GeneralConfigSection({
                   )}
                 </label>
                 <Select
+                  aria-label="图像生成格式"
                   disabled={!settings.imageGenApi?.forceProtocol}
                   value={
                     settings.imageGenApi?.forceProtocol
@@ -698,7 +708,7 @@ export default function GeneralConfigSection({
                     }))
                   }
                 >
-                  <SelectTrigger className="w-full h-9 text-xs bg-input/40 border border-border">
+                  <SelectTrigger aria-label="语音引擎" className="w-full h-9 text-xs bg-input/40 border border-border">
                     <SelectValue placeholder="选择接口类型" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover text-popover-foreground border border-border shadow-lg">
@@ -988,6 +998,7 @@ export default function GeneralConfigSection({
                   </p>
                 </div>
                 <Switch
+                  aria-label="图像生成前编辑提示词"
                   checked={settings.imageGenApi?.promptEditBeforeGenerate || false}
                   onCheckedChange={(checked) =>
                     updateSettings((prev) => ({
@@ -1152,6 +1163,7 @@ export default function GeneralConfigSection({
               <div className="text-[10px] text-muted-foreground mt-0.5">启用后支持在消息菜单中朗读文本</div>
             </div>
             <Switch
+              aria-label="启用 TTS 朗读"
               checked={settings.ttsConfig?.enabled || false}
               onCheckedChange={(checked) => {
                 updateSettings((prev) => ({
@@ -1183,6 +1195,7 @@ export default function GeneralConfigSection({
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-muted-foreground">朗读触发方式</label>
                   <Select
+                    aria-label="朗读触发方式"
                     value={settings.ttsConfig?.playMode || "auto"}
                     onValueChange={(val: "auto" | "manual") => {
                       updateSettings((prev) => ({
@@ -1205,7 +1218,7 @@ export default function GeneralConfigSection({
                       }));
                     }}
                   >
-                    <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-semibold">
+                    <SelectTrigger aria-label="排版结构格式" className="w-full text-xs h-9 bg-input/50 font-semibold">
                       <SelectValue placeholder="触发方式" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1218,6 +1231,7 @@ export default function GeneralConfigSection({
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-muted-foreground">朗读内容范围</label>
                   <Select
+                    aria-label="朗读内容范围"
                     value={settings.ttsConfig?.readMode || "all"}
                     onValueChange={(val: "all" | "dialogue_only") => {
                       updateSettings((prev) => ({
@@ -1255,6 +1269,7 @@ export default function GeneralConfigSection({
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-muted-foreground">语音引擎 (Provider)</label>
                 <Select
+                  aria-label="语音引擎"
                   value={settings.ttsConfig?.provider || "speech-synthesis"}
                   onValueChange={(val: "speech-synthesis" | "openai") => {
                     updateSettings((prev) => ({
@@ -1395,6 +1410,7 @@ export default function GeneralConfigSection({
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-muted-foreground">选择本地音色 (Local Voice)</label>
                   <Select
+                    aria-label="选择本地音色"
                     value={settings.ttsConfig?.voiceName || "default"}
                     onValueChange={(val) => {
                       updateSettings((prev) => ({
@@ -1537,6 +1553,7 @@ export default function GeneralConfigSection({
                     <div className="space-y-1">
                       <label className="text-[10px] font-semibold text-muted-foreground block">声音角色 (Voice)</label>
                       <Select
+                        aria-label="声音角色"
                         value={settings.ttsConfig?.openaiVoice || "alloy"}
                         onValueChange={(val) => {
                           updateSettings((prev) => ({

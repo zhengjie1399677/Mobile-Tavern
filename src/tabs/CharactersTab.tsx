@@ -203,7 +203,7 @@ export default function CharactersTab() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-bold text-foreground truncate">{actionMenuChar.name}</h3>
+                <p className="text-sm font-bold text-foreground truncate">{actionMenuChar.name}</p>
                 <p className="text-[10px] text-muted-foreground truncate mt-0.5">选择你对该角色的操作</p>
               </div>
             </div>

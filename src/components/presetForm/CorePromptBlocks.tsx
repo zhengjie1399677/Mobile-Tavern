@@ -26,6 +26,7 @@ export default function CorePromptBlocks({
         <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
           <div className="flex items-center gap-2 flex-1">
             <Switch
+              aria-label="启用底层扮演系统指令"
               checked={settings.promptConfig.useMainPrompt ?? true}
               onCheckedChange={(checked) =>
                 updateSettings({
@@ -45,7 +46,7 @@ export default function CorePromptBlocks({
               <span className="text-[9px] font-mono text-muted-foreground">system · 处于上下文最顶部</span>
             </div>
           </div>
-          <AccordionTrigger className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
+          <AccordionTrigger aria-label="展开或折叠底层扮演指令编辑区" className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
         </div>
         <AccordionContent className="p-3 pt-0 border-t border-border/50 bg-background/50 outline-none">
           <div className="pt-3">
@@ -72,6 +73,7 @@ export default function CorePromptBlocks({
         <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
           <div className="flex items-center gap-2 flex-1">
             <Switch
+              aria-label="启用规则提示词"
               checked={settings.promptConfig.useJailbreak ?? true}
               onCheckedChange={(checked) =>
                 updateSettings({
@@ -91,7 +93,7 @@ export default function CorePromptBlocks({
               <span className="text-[9px] font-mono text-muted-foreground">system · beforeLast 前注入</span>
             </div>
           </div>
-          <AccordionTrigger className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
+          <AccordionTrigger aria-label="展开或折叠规则提示词编辑区" className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
         </div>
         <AccordionContent className="p-3 pt-0 border-t border-border/50 bg-background/50 outline-none">
           <div className="pt-3">

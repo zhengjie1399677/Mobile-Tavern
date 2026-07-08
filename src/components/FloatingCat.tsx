@@ -453,7 +453,7 @@ export function FloatingCat() {
                   )}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm text-[#dbfcff]">雪团助手</h3>
+                  <p className="font-semibold text-sm text-[#dbfcff]">雪团助手</p>
                   <p className="text-[10px] text-[#849495] flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#39ff14] animate-pulse" />
                     本地系统已就绪

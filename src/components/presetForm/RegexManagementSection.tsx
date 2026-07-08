@@ -210,6 +210,7 @@ export default function RegexManagementSection({
 
                     <div className="flex items-center gap-2 shrink-0 scale-90">
                       <Switch
+                        aria-label={`启用全局正则规则 ${r.scriptName}`}
                         checked={!r.disabled}
                         onCheckedChange={(checked) => toggleRegexDisabled(r.id, !checked, "global")}
                         className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
@@ -356,6 +357,7 @@ export default function RegexManagementSection({
 
                     <div className="flex items-center gap-2 shrink-0 scale-90">
                       <Switch
+                        aria-label={`启用预设正则规则 ${r.scriptName}`}
                         checked={!r.disabled}
                         onCheckedChange={(checked) => toggleRegexDisabled(r.id, !checked, "preset")}
                         className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
@@ -456,6 +458,7 @@ export default function RegexManagementSection({
                       </div>
                       <div className="flex items-center gap-2 shrink-0 scale-90">
                         <Switch
+                          aria-label={`启用角色正则规则 ${r.scriptName}`}
                           checked={!r.disabled}
                           onCheckedChange={(checked) => toggleRegexDisabled(targetId, !checked, "character")}
                           className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
@@ -493,9 +496,9 @@ export default function RegexManagementSection({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-background border border-border rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
             <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-foreground">
+              <p className="text-sm font-bold text-foreground">
                 {editingRegex?.id?.startsWith("reg_") ? "新建正则脚本" : "编辑正则脚本"}
-              </h3>
+              </p>
               <button
                 onClick={() => {
                   setIsRegexModalOpen(false);

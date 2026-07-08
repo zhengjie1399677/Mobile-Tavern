@@ -28,6 +28,7 @@ export default function PresetSelectorSection({
       <div className="flex flex-col gap-2">
         <div className="flex gap-2 relative">
           <select
+            aria-label="当前预设方案"
             className="flex-1 bg-muted/40 border border-border text-xs text-foreground rounded-md px-3 font-semibold h-9 outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
             value={activeBundleId}
             onChange={(e) => handleLoadPresetBundle(e.target.value)}
@@ -42,6 +43,7 @@ export default function PresetSelectorSection({
             ))}
           </select>
           <button
+            aria-label="另存为新预设副本"
             onClick={handleSaveNewPresetBundle}
             title="另存为新预设副本"
             className="shrink-0 bg-primary/10 border border-primary/20 hover:border-primary/30 text-primary p-2 rounded-md transition tap-scale flex items-center justify-center"
@@ -49,6 +51,7 @@ export default function PresetSelectorSection({
             <Plus className="w-4 h-4" />
           </button>
           <button
+            aria-label="删除当前自定义预设"
             onClick={() =>
               handleDeletePresetBundle(settings.preset.id)
             }

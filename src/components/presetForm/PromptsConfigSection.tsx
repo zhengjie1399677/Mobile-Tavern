@@ -177,6 +177,7 @@ export default function PromptsConfigSection({
                       />
                     )}
                     <Switch
+                      aria-label={`启用提示词模组 ${p.name}`}
                       checked={p.enabled}
                       onCheckedChange={(checked) =>
                         handleToggleCustomPrompt(p.id, checked)
@@ -197,6 +198,7 @@ export default function PromptsConfigSection({
 
                   <div className="flex items-center gap-1.5">
                     <button
+                      aria-label={`删除提示词模组 ${p.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteCustomPrompt(p.id);
@@ -205,7 +207,10 @@ export default function PromptsConfigSection({
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                    <AccordionTrigger className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
+                    <AccordionTrigger
+                      aria-label={`展开或折叠模组 ${p.name} 详情`}
+                      className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground"
+                    />
                   </div>
                 </div>
                 <AccordionContent className="p-3 pt-0 border-t border-border/50 bg-background/50 outline-none">

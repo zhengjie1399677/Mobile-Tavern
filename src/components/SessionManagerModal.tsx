@@ -24,9 +24,9 @@ export default function SessionManagerModal() {
     >
       <div className="bg-card border border-border rounded-xl max-w-sm w-full p-5 shadow-2xl text-foreground flex flex-col h-[60vh] max-h-[500px]">
         <div className="flex justify-between items-center mb-4 shrink-0">
-          <h3 className="font-bold text-lg flex items-center gap-2">
+          <p className="font-bold text-lg flex items-center gap-2">
             <GitFork className="w-5 h-5 text-primary" /> 对话分支管理
-          </h3>
+          </p>
           <button
             onClick={() => setShowSessionManager(false)}
             className="text-muted-foreground hover:text-foreground"
@@ -70,9 +70,9 @@ export default function SessionManagerModal() {
                 >
                   <div className="flex justify-between items-start">
                     <div className="min-w-0 pr-2 pb-1 flex-1">
-                      <h4 className="font-bold text-sm truncate">
+                      <p className="font-bold text-sm truncate">
                         {s.title || "主剧情线"}
-                      </h4>
+                      </p>
                       <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
                         {new Date(lastActiveTime).toLocaleString()} |{" "}
                         {turnCount} 回合 | {(s.summaries || []).length} 片段

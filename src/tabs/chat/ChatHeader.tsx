@@ -74,6 +74,7 @@ const ChatHeader = ({
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <button
+          aria-label="返回角色列表"
           onClick={() => setActiveTab("characters")}
           className="text-muted-foreground hover:text-foreground"
         >
@@ -103,6 +104,7 @@ const ChatHeader = ({
                 {activeCharacter?.name}
               </h2>
               <button
+                aria-label="分支管理"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowSessionManager(true);
@@ -140,6 +142,7 @@ const ChatHeader = ({
       <div className="flex items-center gap-1.5 relative">
         {activeCharacter?.visualSettings?.bgmUrl && (
           <button
+            aria-label="切换背景音乐静音状态"
             onClick={toggleMute}
             className="p-1.5 bg-muted border border-border text-muted-foreground hover:text-foreground rounded-lg transition flex items-center justify-center shrink-0"
             title={isMuted ? "开启背景音乐" : "静音背景音乐"}

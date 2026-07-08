@@ -38,7 +38,7 @@ export default function ThemeConfigSection({
           value={currentTheme}
           onValueChange={(val: any) => handleThemeChange(val)}
         >
-          <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-medium">
+          <SelectTrigger aria-label="阅读主题与色彩基调" className="w-full text-xs h-9 bg-input/50 font-medium">
             <SelectValue placeholder="选择主题">
               {currentTheme === "snow"
                 ? "极简纯白"

@@ -490,6 +490,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       )}
       <div className="flex items-center gap-2 relative">
         <button
+          aria-label="切换快捷工具栏"
           onClick={() => setShowQuickActions(prev => !prev)}
           className={`p-2.5 rounded-xl border hover:bg-muted text-muted-foreground transition-all duration-200 shrink-0 ${
             showQuickActions ? "text-primary bg-primary/10 border-primary/20" : "bg-input/30 border-border/80"
@@ -533,6 +534,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         {settings.asrConfig?.enabled && (
           <button
             type="button"
+            aria-label={isRecording ? "停止录音" : isTranscribing ? "正在识别语音" : "语音输入"}
             onClick={handleToggleAsr}
             disabled={isSending || isBisonLocking}
             className={`w-[42px] h-[42px] rounded-xl border transition-all duration-300 shrink-0 flex items-center justify-center ${

@@ -34,9 +34,9 @@ const StoryTimelineView = () => {
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 min-h-0">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-bold text-foreground">
+          <p className="text-sm font-bold text-foreground">
             故事历史卡片轴 (Memory Timeline)
-          </h3>
+          </p>
           <p className="text-[11px] text-muted-foreground">
             这些卡片将作为辅助长期记忆状态，拼写入系统 Prompt 中。
           </p>

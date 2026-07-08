@@ -58,6 +58,7 @@ export default function FeaturesSection({
                   </p>
                 </div>
                 <Switch
+                  aria-label="开启富文本 HTML 渲染"
                   checked={settings.enableHtmlRendering || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableHtmlRendering: val })
@@ -77,6 +78,7 @@ export default function FeaturesSection({
                   </p>
                 </div>
                 <Switch
+                  aria-label="开启卡片 JavaScript 脚本执行"
                   checked={settings.enableScriptExecution || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableScriptExecution: val })
@@ -96,6 +98,7 @@ export default function FeaturesSection({
                     </p>
                   </div>
                   <Switch
+                    aria-label="开启脚本循环安全监视器"
                     checked={settings.enableLoopProtection !== false}
                     onCheckedChange={(val) =>
                       updateSettings({ ...settings, enableLoopProtection: val })
@@ -117,6 +120,7 @@ export default function FeaturesSection({
                   </p>
                 </div>
                 <Switch
+                  aria-label="环境光感应联动"
                   checked={settings.enableEmotionAmbientGlow || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableEmotionAmbientGlow: val })
@@ -136,6 +140,7 @@ export default function FeaturesSection({
                   </p>
                 </div>
                 <Switch
+                  aria-label="思维链显示"
                   checked={settings.enableReasoningContentDisplay !== false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableReasoningContentDisplay: val })
@@ -156,6 +161,7 @@ export default function FeaturesSection({
                   </p>
                 </div>
                 <Switch
+                  aria-label="多消息排队合并发送"
                   checked={settings.enableMultiMessageQueue || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableMultiMessageQueue: val })
@@ -175,6 +181,7 @@ export default function FeaturesSection({
                   </p>
                 </div>
                 <Switch
+                  aria-label="星号动作分色渲染"
                   checked={settings.enableAsteriskFormatting || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableAsteriskFormatting: val })
@@ -199,6 +206,7 @@ export default function FeaturesSection({
                   </p>
                 </div>
                 <Switch
+                  aria-label="野牛模式"
                   checked={settings.enableBisonMode || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableBisonMode: val })
@@ -271,6 +279,7 @@ export default function FeaturesSection({
                   </p>
                 </div>
                 <Switch
+                  aria-label="叙事分支生成器"
                   checked={settings.enableReplySuggestions || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableReplySuggestions: val })
@@ -285,6 +294,7 @@ export default function FeaturesSection({
                       推荐选项默认点击行为
                     </span>
                     <select
+                      aria-label="推荐选项默认点击行为"
                       value={settings.replySuggestionsClickMode || "fill"}
                       onChange={(e) =>
                         updateSettings({

@@ -53,6 +53,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
             </p>
           </div>
           <Switch
+            aria-label="开启语音输入"
             checked={asrConfig.enabled}
             onCheckedChange={(checked) => updateAsr({ enabled: checked })}
             className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
@@ -70,7 +71,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
                 value={asrConfig.provider}
                 onValueChange={(val: "web-speech" | "openai") => updateAsr({ provider: val })}
               >
-                <SelectTrigger className="w-full h-9 text-xs bg-input/40 border border-border">
+                <SelectTrigger aria-label="语音识别服务提供商" className="w-full h-9 text-xs bg-input/40 border border-border">
                   <SelectValue placeholder="选择接口类型" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground border border-border shadow-lg">

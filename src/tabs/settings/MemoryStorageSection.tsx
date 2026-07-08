@@ -123,6 +123,7 @@ export default function MemoryStorageSection({
                   <span className="font-semibold text-foreground text-[12.5px] flex items-center gap-2">
                     开启长线记忆召回 (Memory Recall){" "}
                     <Switch
+                      aria-label="开启长线记忆召回"
                       checked={settings.memory.enableRecall !== false}
                       onCheckedChange={(val) =>
                         updateSettings({
@@ -181,6 +182,7 @@ export default function MemoryStorageSection({
                   <span className="font-semibold text-foreground text-[12.5px] flex items-center gap-2">
                     自动记忆整理 (Auto Summary){" "}
                     <Switch
+                      aria-label="自动记忆整理"
                       checked={settings.memory.enableAutoSummary !== false}
                       onCheckedChange={(val) =>
                         updateSettings({
@@ -237,6 +239,7 @@ export default function MemoryStorageSection({
                   <span className="font-semibold text-foreground text-[12.5px] flex items-center gap-2">
                     结构化记忆表格 (Table Memory){" "}
                     <Switch
+                      aria-label="结构化记忆表格"
                       checked={!!settings.enableTableMemory}
                       onCheckedChange={(val) =>
                         updateSettings({
@@ -258,6 +261,7 @@ export default function MemoryStorageSection({
                     AI 表格检查更新频率 (每几轮对话让 AI 检查并修改数据)
                   </span>
                   <select
+                    aria-label="AI 表格检查更新频率"
                     value={settings.tableMemoryCheckFrequency || 1}
                     onChange={(e) =>
                       updateSettings({
@@ -450,6 +454,7 @@ export default function MemoryStorageSection({
                 </span>
               </div>
               <Switch
+                aria-label="加密导出保护"
                 checked={encryptBackup}
                 onCheckedChange={setEncryptBackup}
                 className="data-[state=checked]:bg-destructive"

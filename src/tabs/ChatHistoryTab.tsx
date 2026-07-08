@@ -214,9 +214,9 @@ export default function ChatHistoryTab() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex justify-between items-start">
-                    <h4 className="font-bold text-sm truncate text-foreground">
+                    <p className="font-bold text-sm truncate text-foreground">
                       {s.title || "主剧情线"}
-                    </h4>
+                    </p>
                     <span className="text-[9px] text-muted-foreground whitespace-nowrap pt-0.5">
                       {new Date(lastActiveTime).toLocaleString(undefined, {
                         month: "2-digit",
@@ -287,9 +287,9 @@ export default function ChatHistoryTab() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-sm text-foreground truncate">
+                        <p className="font-bold text-sm text-foreground truncate">
                           {group.characterName}
-                        </h3>
+                        </p>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium shrink-0">
                           {group.sessions.length} 个对话
                         </span>
@@ -325,9 +325,9 @@ export default function ChatHistoryTab() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <h4 className="font-semibold text-xs text-foreground truncate">
+                            <p className="font-semibold text-xs text-foreground truncate">
                               {s.title || "主剧情线"}
-                            </h4>
+                            </p>
                             <span className="text-[9px] text-muted-foreground shrink-0 font-mono">
                               {new Date(lastActiveTime).toLocaleString(undefined, {
                                 month: "2-digit",

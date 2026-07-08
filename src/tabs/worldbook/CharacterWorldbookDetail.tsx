@@ -102,9 +102,9 @@ export default function CharacterWorldbookDetail({
       {editingId === "new_inline_temp_creator" && (
         <div className="bg-card p-4 rounded-xl border border-primary/40 text-xs animate-fadeIn space-y-3 shadow-md">
           <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
-            <h3 className="font-bold text-primary flex items-center gap-1">
+            <p className="font-bold text-primary flex items-center gap-1">
               {creatorTitle}
-            </h3>
+            </p>
             <button
               onClick={onCancelCreator}
               className="text-muted-foreground hover:text-foreground"

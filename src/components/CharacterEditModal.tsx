@@ -268,11 +268,11 @@ export default function CharacterEditModal() {
       <div className="bg-background border-t sm:border border-border max-h-[92%] sm:max-h-[85%] w-full sm:max-w-3xl overflow-y-auto rounded-t-2xl sm:rounded-2xl flex flex-col shadow-2xl">
         {/* Modal sticky titles */}
         <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10">
-          <h3 className="font-bold text-foreground text-sm">
+          <p className="font-bold text-foreground text-sm">
             {String(editingChar.id || "").startsWith("char_ST_")
               ? "编辑 SillyTavern 兼容卡片库"
               : "重新打造 AI 灵魂容器设定"}
-          </h3>
+          </p>
           <button
             onClick={() => {
               setCharModalOpen(false);
