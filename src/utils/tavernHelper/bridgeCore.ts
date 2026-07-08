@@ -293,7 +293,7 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
   if (character.first_mes) {
     try {
       // 关键修复：应用角色卡局部正则脚本预处理，使通过正则注入的变量标签能够被正确提取
-      const processedGreeting = applyCharacterRegexScripts(character.first_mes, character);
+      const processedGreeting = applyCharacterRegexScripts(character.first_mes, character, undefined, undefined, undefined, "store");
       const parsedVars = parseMvuMessage(processedGreeting, variables);
       if (parsedVars && parsedVars.stat_data) {
         variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
@@ -340,6 +340,40 @@ export function hasCardScripts(character: CharacterCard | null): boolean {
   // 存在 MVU 设定（mvu_settings / mvu / MVU），视为需要脚本运行时
   if (ext.mvu_settings || ext.mvu || ext.MVU) return true;
   return false;
+}
+
+/**
+ * 检测角色卡的开场白（first_mes / alternate_greetings）是否包含 <iframe> 标签。
+ * 用于补全 hasCardScripts 的盲区：部分角色卡仅有 regex_scripts 而无 tavern_helper.scripts，
+ * 但其 first_mes 内嵌 <iframe srcdoc="..."> 需要由 FormattedText 渲染为消息 iframe。
+ * 消息 iframe 的桥接注入（createMessageIframeSrcDoc）依赖 libsReady=true，
+ * 若 UI 库未加载，iframe 会永久显示"正在载入脚本依赖..."占位符。
+ */
+function messageContainsIframe(character: any): boolean {
+  if (!character) return false;
+  const messages = [
+    character.first_mes,
+    ...(Array.isArray(character.alternate_greetings) ? character.alternate_greetings : [])
+  ].filter((m): m is string => typeof m === "string" && m.length > 0);
+  return messages.some(m => /<iframe[\s>]/i.test(m));
+}
+
+/**
+ * 检测角色卡的开场白（first_mes / alternate_greetings）是否包含 HTML 代码块。
+ * 许多 SillyTavern 角色卡以 ```html ... ``` 或 ``` ... ``` 包裹完整 HTML 页面
+ * （含 <script>、<style>、<!DOCTYPE html>），在 SillyTavern 中直接渲染于主文档，
+ * 在 Mobile-Tavern 中需由 FormattedText 转为消息 iframe 执行。
+ * 此检测补全 hasCardScripts + messageContainsIframe 的盲区：
+ * 卡片既无 tavern_helper.scripts 也无 <iframe> 标签，但含需沙盒执行的 HTML 页面。
+ */
+function messageContainsHtmlCodeBlock(character: any): boolean {
+  if (!character) return false;
+  const messages = [
+    character.first_mes,
+    ...(Array.isArray(character.alternate_greetings) ? character.alternate_greetings : [])
+  ].filter((m): m is string => typeof m === "string" && m.length > 0);
+  // 匹配 ```html 代码块，或内容以 < 开头的普通代码块（FormattedText 会将其转为 iframe）
+  return messages.some(m => /```html\b/i.test(m) || /```\s*<[\s\S]*?```/i.test(m));
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -391,41 +425,60 @@ export function ensureCoreLibsLoaded(): Promise<void> {
  * 幂等：多次调用等价于一次调用。
  */
 export function ensureUiLibsLoaded(): Promise<void> {
-  if (uiLibsPromise) return uiLibsPromise;
+  if (uiLibsPromise) {
+    console.log("[TavernHelper Bridge] ensureUiLibsLoaded 已有进行中的 promise，复用");
+    return uiLibsPromise;
+  }
 
+  console.log("[TavernHelper Bridge] ensureUiLibsLoaded 首次调用，开始加载 UI 库");
   uiLibsPromise = (async () => {
     // 确保核心库先就绪
     await ensureCoreLibsLoaded();
-    console.log("[TavernHelper Bridge] 角色卡含脚本，加载重型 UI 框架库（Vue / Pinia / jQuery / mathjs）...");
-    const [Vue, Pinia, jQuery, math] = await Promise.all([
-      import("vue"),
-      import("pinia"),
-      import("jquery"),
-      import("mathjs"),
-    ]);
+    console.log("[TavernHelper Bridge] 核心库就绪，开始动态 import UI 库");
+    try {
+      const [Vue, Pinia, jQuery, math] = await Promise.all([
+        import("vue"),
+        import("pinia"),
+        import("jquery"),
+        import("mathjs"),
+      ]);
+      console.log("[TavernHelper Bridge] UI 库动态 import 全部成功", {
+        hasVue: !!Vue,
+        hasPinia: !!Pinia,
+        hasJQuery: !!jQuery,
+        hasMath: !!math,
+      });
 
-    const jQueryInstance = jQuery.default || jQuery;
+      const jQueryInstance = jQuery.default || jQuery;
 
-    if (typeof window !== "undefined") {
-      const w = window as any;
-      w.Vue = Vue;
-      w.$ = w.jQuery = jQueryInstance;
+      if (typeof window !== "undefined") {
+        const w = window as any;
+        w.Vue = Vue;
+        w.$ = w.jQuery = jQueryInstance;
 
-      w.TavernHelperMvuLibs = {
-        ...w.TavernHelperMvuLibs,
-        createPinia: Pinia.createPinia,
-        defineStore: Pinia.defineStore,
-        getActivePinia: Pinia.getActivePinia,
-        setActivePinia: Pinia.setActivePinia,
-        math,
-        pinia: {
+        w.TavernHelperMvuLibs = {
+          ...w.TavernHelperMvuLibs,
           createPinia: Pinia.createPinia,
           defineStore: Pinia.defineStore,
           getActivePinia: Pinia.getActivePinia,
           setActivePinia: Pinia.setActivePinia,
-        },
-        vue: Vue,
-      };
+          math,
+          pinia: {
+            createPinia: Pinia.createPinia,
+            defineStore: Pinia.defineStore,
+            getActivePinia: Pinia.getActivePinia,
+            setActivePinia: Pinia.setActivePinia,
+          },
+          vue: Vue,
+        };
+        console.log("[TavernHelper Bridge] UI 库挂载到 window 完成", {
+          hasDefineStore: !!w.TavernHelperMvuLibs?.defineStore,
+          hasJQuery: !!w.jQuery,
+        });
+      }
+    } catch (err) {
+      console.error("[TavernHelper Bridge] UI 库动态 import 失败:", err);
+      throw err;
     }
   })();
 
@@ -452,18 +505,61 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
   // 遵循 AGENTS.md 准则一.4（副作用隔离）
   initTavernHelperMocks();
 
-  if (params.settings?.enableScriptExecution) {
+  // 【诊断日志】入口检查
+  const charName = params.activeCharacter?.name || "(unknown)";
+  const enableScript = !!params.settings?.enableScriptExecution;
+  const hasScripts = hasCardScripts(params.activeCharacter);
+  const hasIframe = messageContainsIframe(params.activeCharacter);
+  const hasHtmlBlock = messageContainsHtmlCodeBlock(params.activeCharacter);
+  const shouldLoadUiLibs = enableScript && (hasScripts || hasIframe || hasHtmlBlock);
+  console.log("[TavernHelper Bridge] initTavernHelperBridge 诊断:", {
+    charName,
+    enableScriptExecution: enableScript,
+    hasCardScripts: hasScripts,
+    messageContainsIframe: hasIframe,
+    messageContainsHtmlCodeBlock: hasHtmlBlock,
+    willLoadUiLibs: shouldLoadUiLibs,
+  });
+
+  if (enableScript) {
     // 核心库（lodash）：只要开启脚本模式就加载
     ensureCoreLibsLoaded().catch(err => {
       console.error("[TavernHelper Bridge] 核心库加载失败:", err);
     });
-    // 重型 UI 库（Vue / Pinia / jQuery / mathjs）：仅当角色卡包含可执行脚本时才加载
-    if (hasCardScripts(params.activeCharacter)) {
-      ensureUiLibsLoaded().catch(err => {
+    // 重型 UI 库（Vue / Pinia / jQuery / mathjs）加载条件：
+    // 1. 角色卡包含 tavern_helper 脚本或 MVU 设定（原有逻辑）
+    // 2. 角色卡的 first_mes / alternate_greetings 包含 <iframe> 标签
+    // 3. 角色卡的 first_mes / alternate_greetings 包含 HTML 代码块（```html 或 ``` <）
+    //    因为 FormattedText 渲染消息 iframe 时需要 createMessageIframeSrcDoc 注入
+    //    jQuery shim 与桥接代码，而 libsReady=false 会导致 iframe 显示
+    //    "正在载入脚本依赖..." 占位符而非实际内容。
+    if (shouldLoadUiLibs) {
+      const reason = hasScripts ? "hasCardScripts" : (hasIframe ? "messageContainsIframe" : "messageContainsHtmlCodeBlock");
+      console.log("[TavernHelper Bridge] 触发 UI 库加载，原因:", reason);
+      ensureUiLibsLoaded().then(() => {
+        console.log("[TavernHelper Bridge] UI 库加载完成，验证:", {
+          hasDefineStore: !!(window as any).TavernHelperMvuLibs?.defineStore,
+          hasLodash: !!(window as any)._,
+          hasJQuery: !!(window as any).jQuery,
+        });
+      }).catch(err => {
         console.error("[TavernHelper Bridge] UI 框架库加载失败:", err);
       });
+    } else {
+      console.warn("[TavernHelper Bridge] 未触发 UI 库加载（hasCardScripts=false、messageContainsIframe=false、messageContainsHtmlCodeBlock=false）");
     }
+  } else {
+    console.warn("[TavernHelper Bridge] enableScriptExecution=false，跳过所有库加载");
   }
+  // 以下追踪 FormattedText 的 libsReady 检测（5秒后采样）
+  setTimeout(() => {
+    const w = window as any;
+    console.log("[TavernHelper Bridge] 5秒后 libsReady 采样:", {
+      hasDefineStore: !!w.TavernHelperMvuLibs?.defineStore,
+      hasLodash: !!w._,
+      libsReadyShouldBe: !!(w.TavernHelperMvuLibs?.defineStore && w._),
+    });
+  }, 5000);
 
   // 注意：原 registerBridge 调用已上移至应用层（useChatAccessibility.ts），
   // 遵循 AGENTS.md 准则一.1（极致微服务与解耦）：

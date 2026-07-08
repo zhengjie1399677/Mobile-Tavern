@@ -4,44 +4,22 @@ import { createMessageIframeSrcDoc, initTavernHelperMocks } from "../utils/taver
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "./formattedTextUtils";
 
 const SafeIframe = React.memo((props: any) => {
-  const iframeRef = React.useRef<HTMLIFrameElement>(null);
   const { srcDoc, ...rest } = props;
-  const lastSrcDocRef = React.useRef("");
 
   if (import.meta.env.DEV) {
     console.log('[SafeIframe] render, srcDoc length:', srcDoc?.length);
   }
 
-  React.useEffect(() => {
-    if (iframeRef.current) {
-      if (lastSrcDocRef.current !== srcDoc) {
-        if (import.meta.env.DEV) {
-          let diffIdx = -1;
-          const maxLen = Math.max(lastSrcDocRef.current.length, srcDoc?.length || 0);
-          for (let i = 0; i < maxLen; i++) {
-            if (lastSrcDocRef.current[i] !== srcDoc[i]) {
-              diffIdx = i;
-              break;
-            }
-          }
-          console.log('[SafeIframe] srcDoc changed! Diff index:', diffIdx);
-        }
-        iframeRef.current.srcdoc = srcDoc;
-        lastSrcDocRef.current = srcDoc;
-      }
-    }
-  }, [srcDoc]);
-
-  return <iframe ref={iframeRef} {...rest} />;
+  return <iframe srcDoc={srcDoc} {...rest} />;
 }, (prevProps, nextProps) => {
-  const wasLoading = prevProps.srcDoc && prevProps.srcDoc.includes("正在载入脚本依赖");
-  const isLoading = nextProps.srcDoc && nextProps.srcDoc.includes("正在载入脚本依赖");
-  
-  if (wasLoading && !isLoading) {
-    return false; // Transition from loading to ready: allow re-render
+  // srcDoc 变化时必须允许重新渲染，否则 iframe.srcdoc 不会更新，切换分支时会白屏。
+  // 其他 props 变化时也允许重新渲染（如 style、className 等）。
+  // 但为了保持 iframe 存活（避免脚本重新执行），我们仅在 srcDoc 真正变化时才触发重渲染。
+  // 注意：style/className 等属性的变化通过 DOM 直接修改不会影响 iframe 内容。
+  if (prevProps.srcDoc !== nextProps.srcDoc) {
+    return false;
   }
-  
-  // For any subsequent renders, do NOT re-render the same iframe to keep it alive
+  // srcDoc 未变化时跳过渲染，保持 iframe 存活，避免不必要的脚本重新执行
   return true;
 });
 SafeIframe.displayName = "SafeIframe";
@@ -52,6 +30,12 @@ interface FormattedTextProps {
   userName?: string;
   className?: string;
   messageIndex?: number;
+  /**
+   * 可选的角色卡覆盖。当 FormattedText 用于 CharacterDetailDrawer 等预览场景时，
+   * 传入正在查看的角色卡，确保角色卡自身的 regex_scripts 被正确应用。
+   * 未传入时回退到 context.activeCharacter（当前活动对话角色卡）。
+   */
+  character?: any;
 }
 
 // Whitelist of allowed HTML tags for aesthetic card renderings
@@ -296,7 +280,9 @@ function domToReact(
         if (enableScriptExecution && !resolvedSrcdoc.includes("window.__TH_MESSAGE_ID")) {
           if (libsReady) {
             resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex, enableLoopProtection !== false);
+            console.log("[FormattedText] iframe 走 createMessageIframeSrcDoc 路径", { messageIndex, len: resolvedSrcdoc.length });
           } else {
+            console.warn("[FormattedText] iframe 走占位符路径（libsReady=false）", { messageIndex });
             resolvedSrcdoc = `<html><body style="background:transparent;color:#a8a29e;font-family:sans-serif;font-size:11px;margin:0;padding:4px;display:flex;align-items:center;gap:6px;">
               <span style="width:8px;height:8px;border:1.5px solid #a8a29e;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span>
               正在载入脚本依赖...
@@ -332,10 +318,17 @@ function domToReact(
       props.id = `TH-msg-iframe-${messageIndex}`;
       props.name = `TH-msg-iframe-${messageIndex}`;
     }
-    // Force React to destroy and recreate the iframe element when the character, message or swipe changes
+    // Force React to destroy and recreate the iframe element when content changes
+    // 使用 srcDoc 内容哈希作为 key 的一部分，确保内容变化时 iframe 被销毁重建，
+    // 避免 WebView 中仅更新 srcdoc 属性导致的白屏/不刷新问题。
     const charId = activeCharacter?.id || "default-char";
     const sId = swipeId !== undefined ? swipeId : 0;
-    props.key = `iframe-${charId}-${messageIndex !== undefined ? messageIndex : "temp"}-${sId}-${index}`;
+    const srcDocForHash = typeof props.srcDoc === "string" ? props.srcDoc : "";
+    let contentHash = 0;
+    for (let hi = 0; hi < Math.min(srcDocForHash.length, 2000); hi++) {
+      contentHash = ((contentHash << 5) - contentHash + srcDocForHash.charCodeAt(hi)) | 0;
+    }
+    props.key = `iframe-${charId}-${messageIndex !== undefined ? messageIndex : "temp"}-${sId}-${index}-${contentHash}`;
 
     // Force transparent background, full width, no border and GPU acceleration on message iframes
     props.style = {
@@ -343,19 +336,22 @@ function domToReact(
       background: "transparent",
       backgroundColor: "transparent",
       border: "none",
+      outline: "none",
       width: "100%",
       maxWidth: "100%",
+      // 强制 block 布局并清零 margin，消除 inline iframe 的 baseline gap 白边
+      display: "block",
+      margin: "0",
       willChange: "transform",
       transform: "translate3d(0, 0, 0)",
+      // 强制 minHeight 为 0，避免空白内容时显示白色占位框
+      minHeight: "0",
+      height: "auto",
     };
-    
-    // Normalize minHeight from 400px to 40px to support collapsed state
-    if (props.style && (props.style.minHeight === "400px" || props.style.minHeight === 400)) {
-      props.style.minHeight = "40px";
-    }
 
     // Set transparency and borderless attributes for compatibility with older WebKit/WebView engines
-    props.allowtransparency = "true";
+    // 注意：React 中必须使用驼峰式命名，否则属性不会被正确设置到 DOM 上
+    props.allowTransparency = "true";
     props.frameBorder = "0";
     props.marginWidth = "0";
     props.marginHeight = "0";
@@ -507,7 +503,7 @@ function preprocessFormattedText(
   }
 
   for (const script of mergedScripts) {
-    if (script.promptOnly) continue;
+    if (!script || script.disabled || script.promptOnly) continue;
 
     const placement = script.placement;
     let isAllowedPlacement = true;
@@ -585,16 +581,19 @@ function preprocessFormattedText(
   //    角色卡正则的 replaceString 通常产出的是格式 b（SillyTavern 兼容格式）
   if (enableScriptExecution) {
     const loopGuard = enableLoopProtection !== false;
+    // 辅助函数：剥离角色卡常见的 <Gui> 包装标签，防止其出现在 <!DOCTYPE html> 之前导致 HTML 解析器进入 quirks 模式
+    const stripGuiWrapper = (html: string) => html.replace(/^\s*<Gui>\s*/i, "").replace(/\s*<\/Gui>\s*$/i, "");
     // 先处理显式 ```html 块
     const htmlCodeBlockRegex = /```html\s*([\s\S]*?)\s*```/gi;
     processed = processed.replace(htmlCodeBlockRegex, (_match, htmlContent) => {
-      const compiledSrcdoc = createMessageIframeSrcDoc(htmlContent, messageIndex, loopGuard);
+      const cleanedHtml = stripGuiWrapper(htmlContent);
+      const compiledSrcdoc = createMessageIframeSrcDoc(cleanedHtml, messageIndex, loopGuard);
       const escapedHtml = compiledSrcdoc
         .replace(/&/g, "&amp;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
       const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+      return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
     });
 
     // 再处理普通 ``` 块，但仅当内容以 HTML 标签开头时才转为 iframe
@@ -603,13 +602,14 @@ function preprocessFormattedText(
       const trimmedContent = codeContent.trim();
       // 内容以 < 开头（HTML 标签），当作 HTML 渲染
       if (trimmedContent.startsWith("<")) {
-        const compiledSrcdoc = createMessageIframeSrcDoc(trimmedContent, messageIndex, loopGuard);
+        const cleanedHtml = stripGuiWrapper(trimmedContent);
+        const compiledSrcdoc = createMessageIframeSrcDoc(cleanedHtml, messageIndex, loopGuard);
         const escapedHtml = compiledSrcdoc
           .replace(/&/g, "&amp;")
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
         const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-        return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 40px; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+        return `<iframe id="${iframeId}" name="${iframeId}" srcdoc="${escapedHtml}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
       }
       // 非 HTML 内容：保持原始代码块渲染
       return _match;
@@ -664,13 +664,14 @@ const FormattedText = memo(function FormattedText({
   userName = "user",
   className = "",
   messageIndex,
+  character,
 }: FormattedTextProps) {
   if (!text) return null;
 
   const [isExpanded, setIsExpanded] = useState(false);
   const MAX_SAFE_LENGTH = 50000;
   const isTooLong = text.length > MAX_SAFE_LENGTH;
-  
+
   // 核心优化：如果是 HTML/Iframe 交互式挂件消息，绝对不能执行截断折叠，否则会切断代码导致语法损坏和面板崩溃
   const isWidget = /```html\b|<iframe\b|<StatusPlaceHolder/i.test(text);
   const shouldTruncate = isTooLong && !isExpanded && !isWidget;
@@ -683,7 +684,8 @@ const FormattedText = memo(function FormattedText({
   const enableHtml = context.settings.enableHtmlRendering ?? true;
   const enableScriptExecution = !!context.settings.enableScriptExecution;
   const enableLoopProtection = context.settings.enableLoopProtection !== false;
-  const activeCharacter = context.activeCharacter;
+  // 优先使用传入的 character prop（预览场景），回退到 context.activeCharacter（对话场景）
+  const activeCharacter = character ?? context.activeCharacter;
 
   if (enableScriptExecution) {
     // 关键：在渲染时立即触发全局 Mock 注册，防止 iframe 比 useEffect 提前加载导致 window.parent.TavernHelper 缺失而退出
@@ -698,10 +700,23 @@ const FormattedText = memo(function FormattedText({
       return;
     }
     let isMounted = true;
+    let checkCount = 0;
     const checkLibs = () => {
       const w = window as any;
-      if (w.TavernHelperMvuLibs?.defineStore && w._) {
+      checkCount++;
+      const hasDefineStore = !!w.TavernHelperMvuLibs?.defineStore;
+      const hasLodash = !!w._;
+      // 前 3 次与第 20 次、第 60 次打印诊断（避免日志爆炸）
+      if (checkCount === 1 || checkCount === 3 || checkCount === 20 || checkCount === 60) {
+        console.log("[FormattedText] libsReady 检测 #" + checkCount, {
+          hasDefineStore,
+          hasLodash,
+          libsReady: hasDefineStore && hasLodash,
+        });
+      }
+      if (hasDefineStore && hasLodash) {
         if (isMounted) setLibsReady(true);
+        console.log("[FormattedText] libsReady=true，停止轮询");
       } else {
         setTimeout(checkLibs, 50);
       }
@@ -720,6 +735,9 @@ const FormattedText = memo(function FormattedText({
   const presetRegexScripts = context.settings.presetRegexScripts;
 
   const isAiMessage = (() => {
+    // Drawer 预览场景：传入了 character prop 且无 messageIndex，说明在预览角色卡开场白，
+    // 开场白属于 AI 消息，需要追加 <StatusPlaceHolderImpl/> 以便正则替换生成状态栏 UI
+    if (character && messageIndex === undefined) return true;
     if (messageIndex === undefined) return false;
     const session = context.activeSession;
     if (!session || !session.messages) return false;

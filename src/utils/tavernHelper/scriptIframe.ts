@@ -502,6 +502,19 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     }
   );
 
+  // 从父窗口读取 --card 背景色，硬编码到 iframe 中。
+  // 比使用 var(--card) 更可靠，避免 CSS 变量同步延迟导致的初始白屏/白边。
+  let cardBgColor = "transparent";
+  try {
+    if (typeof window !== "undefined" && window.document) {
+      const rootStyle = window.getComputedStyle(document.documentElement);
+      const cardVal = rootStyle.getPropertyValue("--card").trim();
+      if (cardVal) {
+        cardBgColor = cardVal;
+      }
+    }
+  } catch (e) {}
+
   const hasHtmlTag = /<html|<head|<body/i.test(processedHtml);
 
   const scriptInjects = `
@@ -707,6 +720,50 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
         arr.append = function(html) { arr.forEach(function(el) { if (typeof html === 'string') el.insertAdjacentHTML('beforeend', html); else el.appendChild(html instanceof Node ? html : (html[0] || html)); }); return arr; };
         arr.prepend = function(html) { arr.forEach(function(el) { if (typeof html === 'string') el.insertAdjacentHTML('afterbegin', html); else el.insertBefore(html instanceof Node ? html : (html[0] || html), el.firstChild); }); return arr; };
         arr.remove = function() { arr.forEach(function(el) { el.parentNode && el.parentNode.removeChild(el); }); return arr; };
+        // jQuery .load(url, [data], [complete]) - 通过 AJAX 加载内容并插入到匹配元素
+        // 用于角色卡状态栏模板：$('body').load('状态栏/index.html')
+        arr.load = function(url, data, complete) {
+          if (typeof data === 'function') { complete = data; data = null; }
+          var urlStr = String(url || '');
+          // 支持 "url #selector" 语法，只提取匹配 selector 的部分
+          var selector = null;
+          var spaceIdx = urlStr.indexOf(' ');
+          if (spaceIdx > 0) {
+            selector = urlStr.slice(spaceIdx + 1).trim();
+            urlStr = urlStr.slice(0, spaceIdx).trim();
+          }
+          arr.forEach(function(el) {
+            fetch(urlStr)
+              .then(function(res) { return res.text(); })
+              .then(function(htmlText) {
+                if (selector) {
+                  // 解析返回的 HTML，只提取匹配 selector 的元素内容
+                  var tmp = document.createElement('div');
+                  tmp.innerHTML = htmlText;
+                  var found = tmp.querySelector(selector);
+                  el.innerHTML = found ? found.innerHTML : '';
+                } else {
+                  el.innerHTML = htmlText;
+                }
+                // 执行加载内容中的 <script> 标签
+                var scripts = el.querySelectorAll('script');
+                scripts.forEach(function(oldScript) {
+                  var newScript = document.createElement('script');
+                  for (var i = 0; i < oldScript.attributes.length; i++) {
+                    newScript.setAttribute(oldScript.attributes[i].name, oldScript.attributes[i].value);
+                  }
+                  newScript.textContent = oldScript.textContent;
+                  oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+                if (complete) { complete.call(el, null, 'success'); }
+              })
+              .catch(function(err) {
+                __thWarn('[TH Message Iframe] .load() failed for', urlStr, err);
+                if (complete) { complete.call(el, err, 'error'); }
+              });
+          });
+          return arr;
+        };
         arr.length = elements ? elements.length : 0;
         return arr;
       };
@@ -819,6 +876,24 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
             }
             return bind[bk].apply(bind, args);
           };
+        },
+        configurable: true
+      });
+    });
+
+    // ─── SillyTavern 命令全局函数代理 ───
+    // 角色卡脚本常以裸函数形式调用 triggerSlash（如 typeof triggerSlash === 'function'），
+    // 但 triggerSlash 实际挂在 window.parent.TavernHelper 上。
+    // 此处将其暴露为 iframe 顶层全局，使卡片脚本无需显式引用 TavernHelper 即可调用。
+    var slashCommands = ['triggerSlash', 'triggerSlashWithResult', 'substitudeMacros'];
+    slashCommands.forEach(function(fn) {
+      Object.defineProperty(window, fn, {
+        get: function() {
+          var parentTH = window.parent.TavernHelper;
+          if (parentTH && typeof parentTH[fn] === 'function') {
+            return parentTH[fn].bind(parentTH);
+          }
+          return undefined;
         },
         configurable: true
       });
@@ -958,12 +1033,21 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
         if (!container) return;
         
         var isWrapper = container.id === 'th-iframe-wrapper';
-        var height = isWrapper ? container.offsetHeight : container.scrollHeight;
+        var height;
+        // 优先使用 getBoundingClientRect 获取精确小数高度，避免 offsetHeight 取整造成的误差
+        if (isWrapper && typeof container.getBoundingClientRect === 'function') {
+          var rect = container.getBoundingClientRect();
+          height = rect.height;
+        } else {
+          height = isWrapper ? container.offsetHeight : container.scrollHeight;
+        }
         
         if (!Number.isFinite(height) || height <= 0) return;
         if (window.frameElement) {
           var currentHeight = window.frameElement.style.height;
-          var newHeightStr = (height + 2) + 'px';
+          // 使用 Math.ceil 向上取整，确保内容完全容纳，不留底部裁剪线
+          // 移除了之前的 +1px 余量，因为 getBoundingClientRect 已包含完整高度
+          var newHeightStr = Math.ceil(height) + 'px';
           // 仅当高度发生真实改变时，才执行 DOM 写入，防范过度重排
           if (currentHeight !== newHeightStr) {
             window.frameElement.style.height = newHeightStr;
@@ -1057,6 +1141,13 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
           var val = ps.getPropertyValue(v);
           if (val) document.documentElement.style.setProperty(v, val);
         });
+        // 2.5 直接设置 html 背景色（内联样式优先级最高，确保覆盖角色卡自定义样式）
+        //    这比依赖 CSS 变量更可靠，避免 WebView 中 var() 计算延迟导致的白边
+        var cardColor = ps.getPropertyValue('--card').trim();
+        if (cardColor) {
+          document.documentElement.style.background = cardColor;
+          document.documentElement.style.backgroundColor = cardColor;
+        }
         // 3. 同步字体族、字号、颜色到 body，避免 iframe 回退系统默认字体
         if (ps.fontFamily) document.body.style.fontFamily = ps.fontFamily;
         if (ps.fontSize) document.body.style.fontSize = ps.fontSize;
@@ -1096,17 +1187,30 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     margin: 0 !important;
     padding: 0 !important;
     max-width: 100% !important;
-    background: transparent !important;
-    background-color: transparent !important;
+    width: 100% !important;
+    background: var(--card, transparent) !important;
+    background-color: var(--card, transparent) !important;
     overflow-x: hidden !important;
+    overflow-y: hidden !important;
   }
   body {
     margin: 0 !important;
     padding: 0 !important;
     max-width: 100% !important;
+    width: 100% !important;
     background: transparent !important;
     background-color: transparent !important;
     overflow-x: hidden !important;
+    overflow-y: hidden !important;
+  }
+  #th-iframe-wrapper {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    background: transparent !important;
+    background-color: transparent !important;
   }
 </style>
   `;
@@ -1114,17 +1218,21 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
   if (hasHtmlTag) {
     let wrapped = processedHtml;
 
-    // Force inline transparency style on any html tag inside wrapped content to bypass WebView restrictions
+    // 直接使用硬编码的背景色（从父窗口读取的 --card 值），
+    // 比 var(--card) 更可靠，避免 CSS 变量同步延迟导致的初始白边。
+    const htmlBgStyle = `background:${cardBgColor} !important;background-color:${cardBgColor} !important;`;
+
+    // Force inline background style on any html tag inside wrapped content to bypass WebView restrictions
     if (/<html\b/i.test(wrapped)) {
       wrapped = wrapped.replace(/<html\b([^>]*)>/gi, (match, htmlAttrs) => {
         if (/style\s*=\s*['"]/i.test(htmlAttrs)) {
-          return `<html style="background:transparent !important;background-color:transparent !important;" ${htmlAttrs.replace(/style\s*=\s*(['"])/i, "style-orig=$1")}>`;
+          return `<html style="${htmlBgStyle}" ${htmlAttrs.replace(/style\s*=\s*(['"])/i, "style-orig=$1")}>`;
         } else {
-          return `<html style="background:transparent !important;background-color:transparent !important;" ${htmlAttrs}>`;
+          return `<html style="${htmlBgStyle}" ${htmlAttrs}>`;
         }
       });
     } else {
-      wrapped = `<html style="background:transparent !important;background-color:transparent !important;">${wrapped}</html>`;
+      wrapped = `<html style="${htmlBgStyle}">${wrapped}</html>`;
     }
 
     // Force inline transparency style on any body tag inside wrapped content, and inject our wrapper container to prevent infinite resize loop
@@ -1141,7 +1249,16 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     // Close the wrapper div container just before the closing body tag
     const closeBodyIdx = wrapped.lastIndexOf("</body>");
     if (closeBodyIdx !== -1) {
-      wrapped = wrapped.substring(0, closeBodyIdx) + "</div>" + wrapped.substring(closeBodyIdx);
+      // 在 </body> 之前注入 CSS reset 覆盖，确保能覆盖角色卡在 <head> 中定义的 body padding/margin
+      // （同优先级 !important 规则，后定义的生效；放在 </body> 前保证是最后定义的）
+      // 注意：只清零 html/body/#th-iframe-wrapper 的 margin/padding，不使用 * 通配符，
+      // 避免破坏角色卡内部元素的设计样式（如 .mvu-wrapper { margin: 10px 0 } 是设计意图）
+      const cssResetOverride = `<style id="th-css-reset-override">
+html{margin:0 !important;padding:0 !important;max-width:100% !important;width:100% !important;background:${cardBgColor} !important;background-color:${cardBgColor} !important;overflow-x:hidden !important;overflow-y:hidden !important;}
+body{margin:0 !important;padding:0 !important;max-width:100% !important;width:100% !important;background:transparent !important;background-color:transparent !important;overflow-x:hidden !important;overflow-y:hidden !important;}
+#th-iframe-wrapper{margin:0 !important;padding:0 !important;width:100% !important;max-width:100% !important;overflow:hidden !important;background:transparent !important;background-color:transparent !important;}
+</style>`;
+      wrapped = wrapped.substring(0, closeBodyIdx) + "</div>" + cssResetOverride + wrapped.substring(closeBodyIdx);
     }
 
     // 仅当卡片未声明 viewport 时补充，避免移动端 vw/vh 单位失真与字体异常缩放
@@ -1160,7 +1277,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
     return wrapped;
   } else {
     return `<!DOCTYPE html>
-<html style="background: transparent !important; background-color: transparent !important;">
+<html style="background: ${cardBgColor} !important; background-color: ${cardBgColor} !important;">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />

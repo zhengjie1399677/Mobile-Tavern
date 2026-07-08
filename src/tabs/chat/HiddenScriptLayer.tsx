@@ -3,7 +3,8 @@
 
 import React from "react";
 
-import { createScriptIframeSrcDoc } from "../../utils/tavernHelper";
+import { createScriptIframeSrcDoc, notifyVariablesUpdated, hasCardScripts } from "../../utils/tavernHelper";
+import { globalKernel } from "../../kernel/Kernel";
 
 interface HiddenScriptLayerProps {
   settings: any;
@@ -60,15 +61,9 @@ const HiddenScriptLayer = ({
     let isMounted = true;
     const checkLibs = () => {
       const w = window as any;
-      const hasScripts = activeCharacter && (
-        (Array.isArray(activeCharacter.extensions?.tavern_helper?.scripts) &&
-         activeCharacter.extensions.tavern_helper.scripts.length > 0) ||
-        activeCharacter.extensions?.mvu_settings ||
-        activeCharacter.extensions?.mvu ||
-        activeCharacter.extensions?.MVU
-      );
-
-      if (!hasScripts) {
+      // P2 修复：统一使用 hasCardScripts 检测角色卡是否含可执行脚本/MVU 配置，
+      // 避免与 bridgeCore 的检测逻辑产生分叉。
+      if (!hasCardScripts(activeCharacter)) {
         if (isMounted) setLibsReady(true);
         return;
       }
@@ -86,12 +81,49 @@ const HiddenScriptLayer = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCharacter?.id]);
 
+  // P0-B 修复：订阅 script:mvuVariablesUpdated 降级事件
+  // 当 ScriptService 的 bridge 未就绪或 notifyVariablesUpdated 抛错时，
+  // 会通过 kernel 消息总线广播 script:mvuVariablesUpdated 作为降级通道。
+  // 此处订阅并转发为 tavern_helper:mag_variable_initialized 等 iframe 可识别的事件，
+  // 确保 bridge 缺失时变量更新通知仍能到达 iframe 内的 MVU 脚本。
+  React.useEffect(() => {
+    const unsub = globalKernel.subscribe("script:mvuVariablesUpdated", (msg) => {
+      const { session } = msg.payload || {};
+      if (session) {
+        try {
+          notifyVariablesUpdated(session);
+        } catch (e) {
+          console.warn("[HiddenScriptLayer] Failed to forward script:mvuVariablesUpdated:", e);
+        }
+      }
+    });
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  // P1-A 修复：订阅 script:destroyed 事件
+  // ScriptService 销毁时广播此事件，通知本组件主动停止渲染 iframe，
+  // 防止 ScriptService 已注销但 iframe 仍在运行导致的事件总线空转与资源泄漏。
+  // 遵循 AGENTS.md 准则十.4（彻底回收）。
+  const [scriptDestroyed, setScriptDestroyed] = React.useState(false);
+  React.useEffect(() => {
+    const unsub = globalKernel.subscribe("script:destroyed", () => {
+      setScriptDestroyed(true);
+    });
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  const canRenderScripts = libsReady && settings.enableScriptExecution && !scriptDestroyed;
+
   return (
     <>
       {/* Hidden background script runtimes for TavernHelper compatibility */}
       {/* MVU compatibility: #tavern_helper container with data-script-id elements */}
       <div id="tavern_helper" style={{ display: "none" }} aria-hidden="true">
-        {libsReady && settings.enableScriptExecution &&
+        {canRenderScripts &&
           activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
             if (script.enabled && script.content) {
               return (
@@ -105,7 +137,7 @@ const HiddenScriptLayer = ({
             return null;
           })}
       </div>
-      {libsReady && settings.enableScriptExecution &&
+      {canRenderScripts &&
         activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
           if (script.enabled && script.content) {
             return (

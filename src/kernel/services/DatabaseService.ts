@@ -65,7 +65,7 @@ export class DatabaseService implements IDatabaseService {
     let formattedStarter = (starterMessage || "").trim();
     if (formattedStarter) {
       try {
-        const processedStarter = applyCharacterRegexScripts(formattedStarter, character);
+        const processedStarter = applyCharacterRegexScripts(formattedStarter, character, undefined, undefined, undefined, "store");
         mvuVariables = scriptService.parseMvuMessage(processedStarter, mvuVariables);
       } catch (err) {
         console.warn("[DatabaseService] Failed to parse starterMessage variables:", err);
@@ -113,7 +113,7 @@ export class DatabaseService implements IDatabaseService {
     let starterMessage = (character?.first_mes || "").trim();
     if (starterMessage) {
       try {
-        const processedStarter = applyCharacterRegexScripts(starterMessage, character);
+        const processedStarter = applyCharacterRegexScripts(starterMessage, character, undefined, undefined, undefined, "store");
         mvuVariables = scriptService.parseMvuMessage(processedStarter, mvuVariables);
       } catch (err) {
         console.warn("[DatabaseService] Failed to parse branch starterMessage variables:", err);

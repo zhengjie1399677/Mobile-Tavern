@@ -9,6 +9,7 @@ import { PromptBuilder } from "./prompt/PromptBuilder";
 import { PromptCompiler } from "./prompt/PromptCompiler";
 import { RuntimeContext } from "./prompt/types";
 import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
+import { applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
 
 export class PromptService implements IPromptService {
   name = "prompt";
@@ -219,6 +220,7 @@ export class PromptService implements IPromptService {
       scenario: string;
       userPersona?: string;
       mes_example?: string;
+      variables?: any;
     }
   ): string {
     if (!text) return "";
@@ -252,7 +254,21 @@ export class PromptService implements IPromptService {
       macroMap["example_dialogue"] = params.mes_example;
     }
 
-    return cleanedText.replace(/\{\{([a-zA-Z0-9_]+)\}\}/gi, (match, key) => {
+    // 先处理带参数的 MVU 变量宏 {{format_message_variable::stat_data}}
+    // 这是酒馆助手宏，将指定路径的变量以 YAML 格式注入文本
+    let result = cleanedText;
+    if (params.variables) {
+      result = result.replace(/\{\{format_message_variable::([^}]+)\}\}/gi, (_match, varPath) => {
+        const trimmedPath = varPath.trim();
+        const data = trimmedPath === "stat_data"
+          ? params.variables
+          : (params.variables[trimmedPath] || {});
+        return this.formatVariablesAsYaml(data);
+      });
+    }
+
+    // 再处理普通宏 {{char}}、{{user}} 等
+    return result.replace(/\{\{([a-zA-Z0-9_]+)\}\}/gi, (match, key) => {
       const lowerKey = key.toLowerCase();
       return macroMap[lowerKey] !== undefined ? macroMap[lowerKey] : match;
     });
@@ -322,6 +338,11 @@ export class PromptService implements IPromptService {
       const rawHistory = activeMessagesToSend.map((msg, idx) => {
         let role: "user" | "model" | "assistant" = "user";
         let content = msg.content;
+        // 发送给 AI 时应用 promptOnly 正则清理（如隐藏 <StatusPlaceHolderImpl/> 和 <UpdateVariable> 块）
+        if (character?.extensions?.regex_scripts) {
+          const isAi = msg.sender === "assistant";
+          content = applyCharacterRegexScripts(content, character, isAi, character.name, settings.userName, "prompt");
+        }
         const name = msg.sender === "assistant"
           ? this.cleanNameForApi(character.name, "char")
           : (msg.sender === "user" ? this.cleanNameForApi(settings.userName, "user") : undefined);
@@ -563,11 +584,18 @@ export class PromptService implements IPromptService {
 
     const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
     const activeEntries = this.getTriggeredLorebookEntries(chat.messages || [], userInput, allEntries);
+    // 检测是否有世界书条目使用了 {{format_message_variable::}} 宏，
+    // 若有则由宏替换负责注入变量，避免与 mvu_variables section 重复注入
+    const hasVariableListEntry = activeEntries.some(e =>
+      e.content && /\{\{format_message_variable::/i.test(e.content)
+    );
     const formatEntryContent = (entry: LorebookEntry): string => {
+      // 世界书条目内容需经过宏替换，支持 {{char}}、{{user}}、{{format_message_variable::stat_data}} 等
+      const content = this.replaceMacros(entry.content, { ...macroParams, variables: chat.variables });
       if (entry.addMemo && entry.comment) {
-        return `[设定及备注: ${entry.comment}]\n${entry.content}`;
+        return `[设定及备注: ${entry.comment}]\n${content}`;
       }
-      return entry.content;
+      return content;
     };
     const formatEntryBlock = (entriesBlock: LorebookEntry[]): string => {
       if (entriesBlock.length === 0) return "";
@@ -701,9 +729,10 @@ export class PromptService implements IPromptService {
 
     // ==================================================
     // 4b. MVU Variables Section (under Context Category, mutable: true)
+    // 若世界书条目已通过 {{format_message_variable::stat_data}} 宏注入变量，则跳过此 section 避免重复
     // ==================================================
     let mvuVariablesSection = "";
-    if (settings.enableScriptExecution && this.hasCardScripts(character) && chat.variables) {
+    if (settings.enableScriptExecution && this.hasCardScripts(character) && chat.variables && !hasVariableListEntry) {
       mvuVariablesSection = this.formatMvuVariablesForPrompt(chat.variables, character);
     }
     builder.registerSection({
@@ -865,6 +894,11 @@ export class PromptService implements IPromptService {
       const rawHistory = activeMessagesToSend.map((msg, idx) => {
         let role: "user" | "model" | "assistant" = "user";
         let content = msg.content;
+        // 发送给 AI 时应用 promptOnly 正则清理（如隐藏 <StatusPlaceHolderImpl/> 和 <UpdateVariable> 块）
+        if (character?.extensions?.regex_scripts) {
+          const isAi = msg.sender === "assistant";
+          content = applyCharacterRegexScripts(content, character, isAi, character.name, settings.userName, "prompt");
+        }
         const name = msg.sender === "assistant"
           ? this.cleanNameForApi(character.name, "char")
           : (msg.sender === "user" ? this.cleanNameForApi(settings.userName, "user") : undefined);
@@ -951,14 +985,12 @@ export class PromptService implements IPromptService {
     };
   }
 
-  private formatMvuVariablesForPrompt(variables: any, character?: CharacterCard): string {
+  /** 将变量对象格式化为 YAML 字符串（过滤 $ 前缀的隐藏变量） */
+  private formatVariablesAsYaml(variables: any): string {
     if (!variables || typeof variables !== "object") return "";
     const statData = variables.stat_data || variables;
     if (!statData || typeof statData !== "object" || Object.keys(statData).length === 0) return "";
 
-    let hasReadOnly = false;
-
-    // Helper to deep clone and filter out keys starting with "$"
     const filterHiddenKeys = (obj: any): any => {
       if (!obj || typeof obj !== "object") return obj;
       if (Array.isArray(obj)) {
@@ -966,8 +998,7 @@ export class PromptService implements IPromptService {
       }
       const clean: Record<string, any> = {};
       for (const key of Object.keys(obj)) {
-        if (key.startsWith("$")) continue; // Skip hidden variables!
-        if (key.startsWith("_")) hasReadOnly = true;
+        if (key.startsWith("$")) continue; // 过滤 $ 前缀的隐藏变量
         clean[key] = filterHiddenKeys(obj[key]);
       }
       return clean;
@@ -976,9 +1007,9 @@ export class PromptService implements IPromptService {
     const cleanData = filterHiddenKeys(statData);
     if (Object.keys(cleanData).length === 0) return "";
 
-    // Helper to format as nested YAML string
     const toYaml = (obj: any, depth = 0): string => {
       const indent = "  ".repeat(depth);
+      if (obj === null || obj === undefined) return "null";
       if (!obj || typeof obj !== "object") {
         return String(obj);
       }
@@ -997,6 +1028,29 @@ export class PromptService implements IPromptService {
       return "\n" + lines.join("\n");
     };
 
+    return toYaml(cleanData).trim();
+  }
+
+  private formatMvuVariablesForPrompt(variables: any, character?: CharacterCard): string {
+    if (!variables || typeof variables !== "object") return "";
+
+    // 检测只读变量（_ 前缀）
+    let hasReadOnly = false;
+    const statData = variables.stat_data || variables;
+    if (!statData || typeof statData !== "object" || Object.keys(statData).length === 0) return "";
+
+    const checkReadOnly = (obj: any) => {
+      if (!obj || typeof obj !== "object") return;
+      for (const key of Object.keys(obj)) {
+        if (key.startsWith("_")) { hasReadOnly = true; break; }
+        if (obj[key] && typeof obj[key] === "object") checkReadOnly(obj[key]);
+      }
+    };
+    checkReadOnly(statData);
+
+    const yamlContent = this.formatVariablesAsYaml(variables);
+    if (!yamlContent) return "";
+
     // 从角色卡扩展字段读取外部提示模板（遵循准则二：纯数据驱动与零硬编码）
     const mvuSettings = character?.extensions?.mvu_settings ||
                         character?.extensions?.mvu ||
@@ -1006,10 +1060,10 @@ export class PromptService implements IPromptService {
     let result = "";
     if (promptTemplate && typeof promptTemplate === "string") {
       // 使用角色卡定义的外部模板，支持 {{variables}} 占位符
-      result = promptTemplate.replace(/\{\{variables\}\}/g, `\`\`\`yaml${toYaml(cleanData)}\n\`\`\``);
+      result = promptTemplate.replace(/\{\{variables\}\}/g, `\`\`\`yaml\n${yamlContent}\n\`\`\``);
     } else {
       // 无外部模板时，仅输出变量状态（遵循准则二：不注入格式引导）
-      result = `### 角色变量状态\n\`\`\`yaml${toYaml(cleanData)}\n\`\`\``;
+      result = `### 角色变量状态\n\`\`\`yaml\n${yamlContent}\n\`\`\``;
     }
 
     if (hasReadOnly) {

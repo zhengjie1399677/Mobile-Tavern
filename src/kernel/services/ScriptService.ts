@@ -48,6 +48,12 @@ function cleanMvuVariables(raw: Record<string, any> | null | undefined): Record<
     cleaned.delta_data = raw.delta_data;
   }
 
+  // P1-B 修复：initialized_lorebooks 是 Mvu.getMvuData 显式读取的合法字段
+  // （见 tavernHelperMocks.ts 的 Mvu.getMvuData 实现），白名单需保留以避免静默丢失。
+  if (raw.initialized_lorebooks && typeof raw.initialized_lorebooks === "object" && !Array.isArray(raw.initialized_lorebooks)) {
+    cleaned.initialized_lorebooks = raw.initialized_lorebooks;
+  }
+
   return cleaned;
 }
 
@@ -230,7 +236,7 @@ export class ScriptService implements IScriptService {
       
       let processedContent = messageContent;
       if (character) {
-        processedContent = applyCharacterRegexScripts(messageContent, character, isAi);
+        processedContent = applyCharacterRegexScripts(messageContent, character, isAi, undefined, undefined, "store");
       }
       
       const parsedVariables = this.parseMvuMessage(processedContent, safeSession.variables || {});
@@ -329,13 +335,35 @@ function localInitializeMvuFromCharacter(character: any): Record<string, any> {
 
   if (character.first_mes) {
     try {
-      const processedGreeting = applyCharacterRegexScripts(character.first_mes, character);
+      const processedGreeting = applyCharacterRegexScripts(character.first_mes, character, undefined, undefined, undefined, "store");
       const parsedVars = parseMvuMessageDirect(processedGreeting, variables);
       if (parsedVars && parsedVars.stat_data) {
         variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
       }
     } catch (e) {
       console.warn("[localInitializeMvuFromCharacter] Failed to parse first_mes initvars:", e);
+    }
+  }
+
+  // P0-A 修复：解析 Worldbook/Lorebook 中的 [initvar] 词条
+  // 与 bridgeCore.initializeMvuFromCharacter 保持逻辑一致，
+  // 防止会话创建时 bridge 未注册导致 lorebook 初始变量丢失。
+  const lorebookEntries = character.character_book?.entries || character.extensions?.world?.entries || [];
+  if (Array.isArray(lorebookEntries)) {
+    for (const entry of lorebookEntries) {
+      if (!entry || !entry.content) continue;
+      const comment = (entry.comment || "").toLowerCase();
+      const content = entry.content;
+      if (comment.includes("initvar") || comment.includes("stat_data") || content.includes("<initvar>") || content.includes("stat_data:")) {
+        try {
+          const parsedVars = parseMvuMessageDirect(content, variables);
+          if (parsedVars && parsedVars.stat_data && Object.keys(parsedVars.stat_data).length > 0) {
+            variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
+          }
+        } catch (e) {
+          console.warn("[localInitializeMvuFromCharacter] Failed to parse lorebook initvars:", e);
+        }
+      }
     }
   }
 

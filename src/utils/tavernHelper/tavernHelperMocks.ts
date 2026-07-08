@@ -788,8 +788,18 @@ export function initTavernHelperMocks(): void {
     getLastMessageId() { const msgs = getBridgeParams()?.activeSession?.messages || []; return msgs.length > 0 ? msgs.length - 1 : 0; },
     triggerSlash(command: string) {
       console.log("[TavernHelper Bridge triggerSlash]", command);
-      if (command.startsWith("/send ") || command.startsWith("/say ")) {
-        getBridgeParams()?.handleSendMessage(command.slice(6).trim());
+      // 支持 SillyTavern 的 | 命令链式语法（如 /send payload|/trigger）
+      // 逐条解析并执行，/trigger 等无对应实现的命令安全忽略
+      const commands = String(command || "").split("|").map(c => c.trim()).filter(Boolean);
+      for (const cmd of commands) {
+        if (cmd.startsWith("/send ") || cmd.startsWith("/say ")) {
+          getBridgeParams()?.handleSendMessage(cmd.slice(6).trim());
+        } else if (cmd === "/trigger" || cmd === "/continue") {
+          // /trigger 和 /continue 由 handleSendMessage 的自然流程触发（发送后自动生成），此处无需额外动作
+          console.log("[TavernHelper Bridge triggerSlash] 命令已由 send 流程隐式触发:", cmd);
+        } else {
+          console.log("[TavernHelper Bridge triggerSlash] 未实现的命令已忽略:", cmd);
+        }
       }
       return "";
     },

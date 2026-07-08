@@ -216,6 +216,7 @@ export default function CharacterDetailDrawer({
                     text={character.personality || "暂无特别性格设定..."}
                     charName={character.name}
                     userName={userName}
+                    character={character}
                   />
                 </div>
               </div>
@@ -231,6 +232,7 @@ export default function CharacterDetailDrawer({
                     text={character.description || "暂无背景故事说明..."}
                     charName={character.name}
                     userName={userName}
+                    character={character}
                   />
                 </div>
               </div>
@@ -259,6 +261,7 @@ export default function CharacterDetailDrawer({
                       text={character.scenario}
                       charName={character.name}
                       userName={userName}
+                      character={character}
                     />
                   </div>
                 </div>
@@ -353,6 +356,7 @@ export default function CharacterDetailDrawer({
                         text={currentText || "（暂无开场白设定）"}
                         charName={character.name}
                         userName={userName}
+                        character={character}
                       />
                     </div>
                   </div>
@@ -380,6 +384,7 @@ export default function CharacterDetailDrawer({
                       text={character.mes_example}
                       charName={character.name}
                       userName={userName}
+                      character={character}
                     />
                   </div>
                 </div>
