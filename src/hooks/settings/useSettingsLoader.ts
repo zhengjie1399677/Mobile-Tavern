@@ -119,7 +119,12 @@ export const useSettingsLoader = ({
             if (!prompts) return { prompts, updated: false };
             let updated = false;
             const nextPrompts = prompts.map((p: any) => {
-              if (!p.content || !p.content.trim()) {
+              const isOldReasoningDiscipline =
+                p.id === "prompt_reasoning_discipline" &&
+                p.content &&
+                (p.content.includes("思考用于分析") || p.content.includes("【思考阶段允许】") || p.content.includes("若模型存在内部分析"));
+
+              if (!p.content || !p.content.trim() || isOldReasoningDiscipline) {
                 const match = defaults.find((d: any) => d.id === p.id);
                 if (match && match.content) {
                   updated = true;
@@ -225,8 +230,14 @@ export const useSettingsLoader = ({
               roleUpdated = true;
               nextPrompt.role = "system" as const;
             }
-            if (!nextPrompt.content || !nextPrompt.content.trim()) {
-              const match = defaultPrompts.find((dp: any) => dp.id === p.id);
+
+            const match = defaultPrompts.find((dp: any) => dp.id === p.id);
+            const isOldReasoningDiscipline =
+              p.id === "prompt_reasoning_discipline" &&
+              p.content &&
+              (p.content.includes("思考用于分析") || p.content.includes("【思考阶段允许】") || p.content.includes("若模型存在内部分析"));
+
+            if (!nextPrompt.content || !nextPrompt.content.trim() || isOldReasoningDiscipline) {
               if (match && match.content) {
                 nextPrompt.content = match.content;
                 customPromptsUpdated = true;
