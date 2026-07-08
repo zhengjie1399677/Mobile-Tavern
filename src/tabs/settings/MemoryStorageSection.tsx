@@ -35,6 +35,7 @@ export interface MemoryStorageSectionProps
     | "handleImportLocalDataBackup"
     | "handleImportSillyChatHistory"
     | "safeAreas"
+    | "showCustomAlert"
   > {
   isTauri: boolean;
   deviceModel: string;
@@ -55,6 +56,7 @@ export default function MemoryStorageSection({
   handleImportLocalDataBackup,
   handleImportSillyChatHistory,
   safeAreas,
+  showCustomAlert,
   isTauri,
   deviceModel,
   viewportSize,
@@ -533,8 +535,36 @@ export default function MemoryStorageSection({
       <UsageDisplay />
 
       <div className="mt-6 text-center space-y-1 pb-4 opacity-55 select-text font-mono text-[9px] text-muted-foreground/80">
-        <p className="font-bold text-[10px] text-muted-foreground mb-1 select-none">
+        <p className="font-bold text-[10px] text-muted-foreground mb-1 select-none flex items-center justify-center gap-1">
           🛠️ 系统报告
+          <button
+            onClick={() => {
+              const reportText = [
+                `当前版本: v${__APP_VERSION__}`,
+                `运行平台: ${isTauri ? "Tauri Android 客户端" : "Web 网页端"}`,
+                `设备型号: ${deviceModel}`,
+                typeof window !== "undefined" ? `视口尺寸: ${viewportSize.w}x${viewportSize.h} (视觉: ${Math.round(viewportSize.vW)}x${Math.round(viewportSize.vH)})` : null,
+                safeAreas ? `安全区域: 顶部 ${safeAreas.top}dp | 底部 ${safeAreas.bottom}dp` : null
+              ].filter(Boolean).join("\n");
+
+              if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(reportText);
+              } else {
+                const textarea = document.createElement("textarea");
+                textarea.value = reportText;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                  document.execCommand("copy");
+                } catch (_) {}
+                document.body.removeChild(textarea);
+              }
+              showCustomAlert("系统报告已成功复制到剪贴板！", "复制成功");
+            }}
+            className="text-[9px] text-primary hover:underline font-normal cursor-pointer select-none px-1.5 py-0.5 border border-primary/20 rounded bg-primary/5 hover:bg-primary/10 ml-1.5 active:scale-95 transition-all"
+          >
+            复制报告
+          </button>
         </p>
         <p>
           当前版本: v{__APP_VERSION__} • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}

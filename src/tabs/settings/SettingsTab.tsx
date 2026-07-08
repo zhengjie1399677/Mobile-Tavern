@@ -309,6 +309,7 @@ export default function SettingsTab() {
               handleImportLocalDataBackup={handleImportLocalDataBackup}
               handleImportSillyChatHistory={handleImportSillyChatHistory}
               safeAreas={safeAreas}
+              showCustomAlert={showCustomAlert}
               isTauri={isTauri}
               deviceModel={deviceModel}
               viewportSize={viewportSize}
