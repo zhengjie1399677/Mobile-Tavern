@@ -1,16 +1,43 @@
 import React, { useCallback } from "react";
 import { UserSettings, LorebookEntry } from "../../types";
+import { globalKernel } from "../../kernel/Kernel";
 import {
-  saveStoredSettings,
-  saveGlobalLorebook as dbSaveGlobalLorebook,
-  bulkSaveCharacters,
-  bulkSaveSessions,
-  saveSession,
-  getAllSessions,
-  getMessagesBySession,
-} from "../../utils/localDB";
+  ISettingsService,
+  IWorldbookService,
+  ICharacterService,
+  IDatabaseService,
+  IMemoryService,
+} from "../../kernel/types";
 import { encryptBackupData, decryptBackupData } from "../../utils/cardParser";
 import { DEFAULT_SETTINGS } from "./defaults";
+
+/**
+ * 微内核插件式架构：备份恢复跨 store 批量操作统一走内核服务插件。
+ * 业务层不再直接触碰 localDB，遵循 AGENTS.md 准则一与准则八。
+ * - settings → SettingsService
+ * - globalLorebook → WorldbookService
+ * - characters 批量 → CharacterService
+ * - sessions 批量/单条 → DatabaseService
+ * - messages 读取 → MemoryService.getStorage()
+ */
+function getSettingsService(): ISettingsService {
+  return globalKernel.getService<ISettingsService>("settings");
+}
+function getWorldbookService(): IWorldbookService {
+  return globalKernel.getService<IWorldbookService>("worldbook");
+}
+function getCharacterService(): ICharacterService {
+  return globalKernel.getService<ICharacterService>("character");
+}
+function getDatabaseService(): IDatabaseService {
+  return globalKernel.getService<IDatabaseService>("database");
+}
+function getMessagesBySession(
+  sessionId: string,
+  options?: { limit?: number; offset?: number; descending?: boolean }
+): Promise<any[]> {
+  return globalKernel.getService<IMemoryService>("memory").getStorage().getMessagesBySession(sessionId, options);
+}
 
 interface UseBackupRestoreDeps {
   settings: UserSettings;
@@ -78,7 +105,7 @@ export const useBackupRestore = ({
           };
 
       // 从数据库获取包含完整消息的会话数据，防止前端分页/懒加载导致的消息遗漏
-      const dbSessions = await getAllSessions();
+      const dbSessions = await getDatabaseService().getAllSessions();
       const completeSessions = await Promise.all(
         dbSessions.map(async (s) => {
           const msgs = await getMessagesBySession(s.id);
@@ -262,11 +289,11 @@ export const useBackupRestore = ({
           };
         }
 
-        await bulkSaveCharacters(validatedCharacters);
-        await bulkSaveSessions(validatedSessions);
-        if (mergedSettings) await saveStoredSettings(mergedSettings);
+        await getCharacterService().bulkSaveCharacters(validatedCharacters);
+        await getDatabaseService().bulkSaveSessions(validatedSessions);
+        if (mergedSettings) await getSettingsService().saveStoredSettings(mergedSettings);
         if (parsed.globalLorebook)
-          await dbSaveGlobalLorebook(parsed.globalLorebook);
+          await getWorldbookService().saveGlobalLorebook(parsed.globalLorebook);
 
         setCharacters(validatedCharacters);
         setSessions(validatedSessions);
@@ -446,7 +473,7 @@ export const useBackupRestore = ({
       );
 
       if (ok) {
-        await saveSession(newSession);
+        await getDatabaseService().saveSession(newSession);
         setSessions((prev) => [...prev, newSession]);
         setBackupStatus("聊天记录导入完成！");
         await showCustomAlert(
@@ -486,7 +513,7 @@ export const useBackupRestore = ({
       };
 
       // 从数据库加载完整消息的会话，确保备份完整
-      const dbSessions = await getAllSessions();
+      const dbSessions = await getDatabaseService().getAllSessions();
       const completeSessions = await Promise.all(
         dbSessions.map(async (s) => {
           const msgs = await getMessagesBySession(s.id);

@@ -82,7 +82,7 @@ describe("MemoryTableDrawer", () => {
       />
     );
     // 标题标记
-    expect(screen.getByText(/多维认知记忆中心/)).toBeInTheDocument();
+    expect(screen.getByText(/记忆与状态中心/)).toBeInTheDocument();
     // 表格名称
     expect(screen.getByText("状态与关系")).toBeInTheDocument();
   });

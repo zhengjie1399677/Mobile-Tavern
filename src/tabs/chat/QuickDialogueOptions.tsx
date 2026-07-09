@@ -17,8 +17,16 @@ import {
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
-import { saveSession } from "../../utils/localDB";
+import { globalKernel } from "../../kernel/Kernel";
+import { IDatabaseService } from "../../kernel/types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
+
+/**
+ * 微内核插件式架构：会话持久化统一走 DatabaseService。
+ */
+function saveSession(session: any): Promise<void> {
+  return globalKernel.getService<IDatabaseService>("database").saveSession(session);
+}
 
 interface QuickDialogueOptionsProps {
   message: any;

@@ -1,12 +1,24 @@
 import type * as React from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { UserSettings, LorebookEntry, CustomWorldbook } from "../../types";
+import { globalKernel } from "../../kernel/Kernel";
 import {
-  saveStoredSettings,
-  saveGlobalLorebook as dbSaveGlobalLorebook,
-  saveCustomWorldbooks,
-} from "../../utils/localDB";
+  ISettingsService,
+  IWorldbookService,
+} from "../../kernel/types";
 import { getNestedDelta, deepMerge, cleanLorebookEntry } from "./mergeUtils";
+
+/**
+ * 微内核插件式架构：settings / worldbook 持久化统一走内核服务插件。
+ * 业务层不再直接触碰 localDB，遵循 AGENTS.md 准则一与准则八。
+ */
+function getSettingsService(): ISettingsService {
+  return globalKernel.getService<ISettingsService>("settings");
+}
+
+function getWorldbookService(): IWorldbookService {
+  return globalKernel.getService<IWorldbookService>("worldbook");
+}
 
 interface UseSettingsPersistenceDeps {
   settings: UserSettings;
@@ -57,7 +69,7 @@ export const useSettingsPersistence = ({
     try {
       const cleanData = { ...data };
       delete cleanData.savedPresets; // Exclude preset arrays to prevent database bloat and I/O lag
-      await saveStoredSettings(cleanData);
+      await getSettingsService().saveStoredSettings(cleanData);
     } catch (err) {
       console.error("Failed to save settings:", err);
     } finally {
@@ -149,7 +161,7 @@ export const useSettingsPersistence = ({
     const cleaned = entries.map(cleanLorebookEntry);
     setGlobalLorebook(cleaned);
     try {
-      await dbSaveGlobalLorebook(cleaned);
+      await getWorldbookService().saveGlobalLorebook(cleaned);
     } catch (err) {
       console.error("Failed to save global lorebook:", err);
       showCustomAlert("保存全局世界书失败");
@@ -161,7 +173,7 @@ export const useSettingsPersistence = ({
   ) => {
     setCustomWorldbooks((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      saveCustomWorldbooks(next).catch((err) => {
+      getWorldbookService().saveCustomWorldbooks(next).catch((err) => {
         console.error("Failed to save custom worldbooks:", err);
       });
       return next;

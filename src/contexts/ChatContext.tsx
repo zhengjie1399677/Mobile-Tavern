@@ -1,7 +1,23 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from "react";
 import { ChatSession, Message, SummaryCard } from "../types";
-import { getAllSessions, saveSession as dbSaveSession, deleteSession as dbDeleteSession, getSessionsCount, getSessionsPaginated, getMessagesBySession } from "../utils/localDB";
+import { globalKernel } from "../kernel/Kernel";
+import { IDatabaseService, IMemoryService } from "../kernel/types";
 import { useApp } from "./AppContext";
+
+/**
+ * 微内核插件式架构：会话 CRUD 走 DatabaseService，消息读取走 MemoryService。
+ * 业务层不再直接触碰 localDB，遵循 AGENTS.md 准则一与准则八。
+ */
+function getDatabaseService(): IDatabaseService {
+  return globalKernel.getService<IDatabaseService>("database");
+}
+
+function getMessagesBySession(
+  sessionId: string,
+  options?: { limit?: number; offset?: number; descending?: boolean }
+): Promise<any[]> {
+  return globalKernel.getService<IMemoryService>("memory").getStorage().getMessagesBySession(sessionId, options);
+}
 
 // P0-1: 启动时分页加载会话，避免一次性 getAll() 全量反序列化阻塞首屏。
 // 默认每页 50 条（覆盖 95% 用户的会话总数），超出部分由 loadMoreSessions 滚动加载。
@@ -64,9 +80,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadSessions = async () => {
     try {
+      const db = getDatabaseService();
       // P0-1: 启动时仅加载第一页（最近 SESSIONS_PAGE_SIZE 条会话），避免全量反序列化阻塞首屏。
-      const total = await getSessionsCount();
-      const firstPage = await getSessionsPaginated(1, SESSIONS_PAGE_SIZE);
+      const total = await db.getSessionsCount();
+      const firstPage = await db.getSessionsPaginated(1, SESSIONS_PAGE_SIZE);
       if (isMountedRef.current) {
         setSessions(firstPage || []);
         loadedPageRef.current = 1;
@@ -86,7 +103,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoadingMoreSessions(true);
     try {
       const nextPage = loadedPageRef.current + 1;
-      const more = await getSessionsPaginated(nextPage, SESSIONS_PAGE_SIZE);
+      const more = await getDatabaseService().getSessionsPaginated(nextPage, SESSIONS_PAGE_SIZE);
       const moreLength = more?.length || 0;
       if (isMountedRef.current) {
         setSessions((prev) => {
@@ -160,7 +177,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const saveSession = async (session: ChatSession) => {
     try {
-      await dbSaveSession(session);
+      await getDatabaseService().saveSession(session);
       setSessions((prev) => {
         const idx = prev.findIndex((s) => s.id === session.id);
         if (idx >= 0) {
@@ -179,7 +196,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteSession = async (id: string) => {
     try {
-      await dbDeleteSession(id);
+      await getDatabaseService().deleteSession(id);
       setSessions((prev) => prev.filter((s) => s.id !== id));
       if (activeSessionId === id) {
         setActiveSessionId(null);

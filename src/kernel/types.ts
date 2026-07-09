@@ -14,6 +14,10 @@ export const KernelServices = {
   Bgm: "bgm",
   Tts: "tts",
   Asr: "asr",
+  Character: "character",
+  Worldbook: "worldbook",
+  Settings: "settings",
+  Preset: "preset",
 } as const;
 
 export const KernelEvents = {
@@ -164,6 +168,11 @@ export interface IDatabaseService<TSession = any, TCharacter = any> extends IKer
   getSessionsPaginated(page: number, pageSize: number): Promise<TSession[]>;
   saveSession(session: TSession): Promise<void>;
   deleteSession(id: string): Promise<void>;
+  /**
+   * 批量写入会话（备份恢复 / 跨设备同步场景）。
+   * 跨 sessions+messages Store 事务，用于一次性导入完整对话历史。
+   */
+  bulkSaveSessions(sessionsList: TSession[]): Promise<void>;
   createNewSession(character: any, starterMessage?: string, initialSuggestions?: string[]): Promise<TSession>;
   createEmptyBranch(character: any, title: string): Promise<TSession>;
   createBacktrackBranch(sourceSession: TSession, title: string, msgId: string): Promise<TSession>;
@@ -342,6 +351,32 @@ export interface IAsrService extends IKernelService {
   ): Promise<void>;
   stopListening(): void;
   cancelListening(): void;
+}
+
+export interface ICharacterService extends IKernelService {
+  getAllCharacters(): Promise<any[]>;
+  saveCharacter(character: any): Promise<void>;
+  deleteCharacter(id: string): Promise<void>;
+  bulkSaveCharacters(charactersList: any[]): Promise<void>;
+  getStoredDefaultCharactersInitializedFlag(): Promise<boolean>;
+  saveStoredDefaultCharactersInitializedFlag(initialized: boolean): Promise<void>;
+}
+
+export interface IWorldbookService extends IKernelService {
+  getGlobalLorebook(): Promise<any[]>;
+  saveGlobalLorebook(entries: any[]): Promise<void>;
+  getCustomWorldbooks(): Promise<Record<string, any>>;
+  saveCustomWorldbooks(worldbooks: Record<string, any>): Promise<void>;
+}
+
+export interface ISettingsService extends IKernelService {
+  getStoredSettings(): Promise<UserSettings | null>;
+  saveStoredSettings(settings: UserSettings): Promise<void>;
+}
+
+export interface IPresetService extends IKernelService {
+  getStoredSavedPresets(): Promise<any[] | null>;
+  saveStoredSavedPresets(presets: any[]): Promise<void>;
 }
 
 
