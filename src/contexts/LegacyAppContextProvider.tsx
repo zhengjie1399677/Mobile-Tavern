@@ -108,6 +108,14 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     );
   }, [settingsHook, charState.characters, chatState.setSessions]);
 
+  // Wrap silent daily backup to inject characters and sessions
+  const wrappedHandleSilentDailyBackup = React.useCallback(async () => {
+    return settingsHook.handleSilentDailyBackup(
+      charState.characters,
+      chatState.sessions
+    );
+  }, [settingsHook, charState.characters, chatState.sessions]);
+
   // Sort characters by their last active conversation time (latest message timestamp across all sessions) descending.
   const sortedCharacters = React.useMemo(() => {
     const getCharLastActiveTime = (charId: string) => {
@@ -152,6 +160,7 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     handleExportLocalDataBackup: wrappedHandleExportLocalDataBackup,
     handleImportLocalDataBackup: wrappedHandleImportLocalDataBackup,
     handleImportSillyChatHistory: wrappedHandleImportSillyChatHistory,
+    handleSilentDailyBackup: wrappedHandleSilentDailyBackup,
 
     // 封装内核服务访问，代替组件内直接 import globalKernel
     getKernelService: globalKernel.getService.bind(globalKernel),
@@ -167,6 +176,7 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     wrappedHandleExportLocalDataBackup,
     wrappedHandleImportLocalDataBackup,
     wrappedHandleImportSillyChatHistory,
+    wrappedHandleSilentDailyBackup,
   ]);
 
   // 仅在首次渲染且 store 尚未初始化时同步写入，防止下游子组件在初次挂载时由于解构空对象而崩溃
@@ -178,6 +188,29 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     // 渲染完成后，调用自带属性级浅比较的 setState 更新外部 store 并通知精确订阅的子组件
     unifiedAppStore.setState(appContextValue);
   }, [appContextValue]);
+
+  // 每日后台自动备份定时器，在应用就绪 5 秒后静默检测并执行
+  React.useEffect(() => {
+    if (!settingsHook.isReady || !charState.isDBReady) return;
+
+    const timer = setTimeout(() => {
+      console.log("[AutoBackup] App state is ready. Triggering daily backup check...");
+      settingsHook.handleSilentDailyBackup(
+        charState.characters,
+        chatState.sessions
+      ).catch((err) => {
+        console.error("[AutoBackup] Background daily backup scheduler failed:", err);
+      });
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [
+    settingsHook.isReady,
+    charState.isDBReady,
+    charState.characters,
+    chatState.sessions,
+    settingsHook.handleSilentDailyBackup
+  ]);
 
   return (
     <UnifiedAppContext.Provider value={appContextValue}>

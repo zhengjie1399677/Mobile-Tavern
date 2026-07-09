@@ -117,6 +117,7 @@ export const useSettings = () => {
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
     handleImportSillyChatHistory,
+    handleSilentDailyBackup,
   } = useBackupRestore({
     settings,
     globalLorebook,
@@ -179,6 +180,7 @@ export const useSettings = () => {
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
     handleImportSillyChatHistory,
+    handleSilentDailyBackup,
     customWorldbooks,
     updateCustomWorldbooks,
   };

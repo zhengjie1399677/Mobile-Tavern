@@ -253,6 +253,7 @@ export interface UserSettings {
   chatLineHeight?: number; // Chat bubble line height (multiplier)
   ttsConfig?: TtsConfig; // TTS 朗读配置
   asrConfig?: AsrConfig; // ASR 语音输入配置
+  lastBackupTime?: number; // 上次成功执行每日自动备份的时间戳
 }
 
 export interface ImageGenApiConfig {

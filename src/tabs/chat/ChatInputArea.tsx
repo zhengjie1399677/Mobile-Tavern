@@ -5,7 +5,6 @@
 import React from "react";
 import {
   Send,
-  Brain,
   RefreshCw,
   Cpu,
   Square,
@@ -28,9 +27,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     settings,
     activeCharacter,
     handleRerollLast,
-    showCustomConfirm,
     showCustomAlert,
-    handleAutoSummaryCheck,
 
     handleSendMessage,
     handleStopGeneration,
@@ -114,7 +111,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
 
   const handleToggleAsr = async () => {
     try {
-    const asrService = getKernelService<any>("asr");
+      const asrService = getKernelService<any>("asr");
       if (isRecording) {
         setIsRecording(false);
         if (settings.asrConfig?.provider === "openai") {
@@ -150,7 +147,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             console.error("ASR Error:", err);
             setIsRecording(false);
             setIsTranscribing(false);
-            
+
             const errMsg = err.message || String(err);
             if (errMsg.includes("not-allowed") || errMsg.includes("Permission denied") || errMsg.includes("NotAllowedError") || errMsg.includes("permission denied")) {
               showCustomAlert(
@@ -372,24 +369,6 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               />
               <span className="text-[10px] font-medium">重载上一段剧情</span>
             </button>
-            <button
-              onClick={async () => {
-                if (!activeSession) return;
-                const ok = await showCustomConfirm(
-                  "是否启动智能AI卡片压缩？这会将更早的历史对话转化为单条时间轴年表，腾出内存空间，保持语调连贯。",
-                );
-                if (ok) {
-                  setIsSending(true);
-                  await handleAutoSummaryCheck(activeSession, true);
-                  setIsSending(false);
-                }
-              }}
-              className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors"
-              title="呼叫智能记忆压缩年表"
-            >
-              <Brain className="w-3.5 h-3.5" />
-              <span className="text-[10px] font-medium">整理潜意识碎片</span>
-            </button>
           </div>
 
           <div
@@ -401,37 +380,37 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               预测: ~
               {Math.ceil(
                 (localInput || "").length * 1.5 +
-                  ((Array.isArray(activeSession?.messages)
-                    ? activeSession.messages.slice(-settings.memory.recentTurns)
-                    : []
-                  ).reduce(
-                    (acc: any, m: any) => acc + (m.content || "").length,
-                    0,
-                  ) || 0) *
-                    1.5 +
-                  ((activeCharacter?.description || "").length +
-                    (activeCharacter?.personality || "").length +
-                    (activeCharacter?.scenario || "").length +
-                    (activeCharacter?.system_prompt || "").length) *
-                    1.5 +
-                  (settings.promptConfig?.customPrompts || [])
-                    .filter((p: any) => p.enabled)
-                    .reduce(
-                      (acc: any, p: any) => acc + (p.content || "").length,
-                      0,
-                    ) *
-                    1.5 +
-                  (activeSession?.summaries || []).reduce(
-                    (acc: any, s: any) => acc + (s.content || "").length,
+                ((Array.isArray(activeSession?.messages)
+                  ? activeSession.messages.slice(-settings.memory.recentTurns)
+                  : []
+                ).reduce(
+                  (acc: any, m: any) => acc + (m.content || "").length,
+                  0,
+                ) || 0) *
+                1.5 +
+                ((activeCharacter?.description || "").length +
+                  (activeCharacter?.personality || "").length +
+                  (activeCharacter?.scenario || "").length +
+                  (activeCharacter?.system_prompt || "").length) *
+                1.5 +
+                (settings.promptConfig?.customPrompts || [])
+                  .filter((p: any) => p.enabled)
+                  .reduce(
+                    (acc: any, p: any) => acc + (p.content || "").length,
                     0,
                   ) *
-                    1.5 +
-                  (settings.memory?.enableRecall !== false && activeSession?.lastRecalledMemories || []).reduce(
-                    (acc: any, m: any) => acc + (m.content || "").length,
-                    0,
-                  ) *
-                    1.5 +
-                  (settings.enableScriptExecution &&
+                1.5 +
+                (activeSession?.summaries || []).reduce(
+                  (acc: any, s: any) => acc + (s.content || "").length,
+                  0,
+                ) *
+                1.5 +
+                (settings.memory?.enableRecall !== false && activeSession?.lastRecalledMemories || []).reduce(
+                  (acc: any, m: any) => acc + (m.content || "").length,
+                  0,
+                ) *
+                1.5 +
+                (settings.enableScriptExecution &&
                   (() => {
                     const ext = activeCharacter?.extensions || {};
                     return (
@@ -440,9 +419,9 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                     );
                   })() &&
                   activeSession?.variables
-                    ? JSON.stringify(activeSession.variables).length
-                    : 0) *
-                    1.5,
+                  ? JSON.stringify(activeSession.variables).length
+                  : 0) *
+                1.5,
               )}{" "}
               tok
             </span>
@@ -492,9 +471,8 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         <button
           aria-label="切换快捷工具栏"
           onClick={() => setShowQuickActions(prev => !prev)}
-          className={`p-2.5 rounded-xl border hover:bg-muted text-muted-foreground transition-all duration-200 shrink-0 ${
-            showQuickActions ? "text-primary bg-primary/10 border-primary/20" : "bg-input/30 border-border/80"
-          }`}
+          className={`p-2.5 rounded-xl border hover:bg-muted text-muted-foreground transition-all duration-200 shrink-0 ${showQuickActions ? "text-primary bg-primary/10 border-primary/20" : "bg-input/30 border-border/80"
+            }`}
           title="切换显示发包预测与快捷工具"
         >
           <Sliders className="w-4 h-4" />
@@ -527,9 +505,8 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           }
           aria-label={`发送给 ${activeCharacter?.name || "角色"} 的消息输入框`}
           rows={2}
-          className={`flex-1 bg-input/70 border border-border/80 rounded-xl py-2 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[160px] min-h-[42px] transition-[border-color,background-color] duration-300 shadow-inner ${
-            (isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
-          }`}
+          className={`flex-1 bg-input/70 border border-border/80 rounded-xl py-2 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[160px] min-h-[42px] transition-[border-color,background-color] duration-300 shadow-inner ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
+            }`}
         />
         {settings.asrConfig?.enabled && (
           <button
@@ -537,13 +514,12 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             aria-label={isRecording ? "停止录音" : isTranscribing ? "正在识别语音" : "语音输入"}
             onClick={handleToggleAsr}
             disabled={isSending || isBisonLocking}
-            className={`w-[42px] h-[42px] rounded-xl border transition-all duration-300 shrink-0 flex items-center justify-center ${
-              isRecording
+            className={`w-[42px] h-[42px] rounded-xl border transition-all duration-300 shrink-0 flex items-center justify-center ${isRecording
                 ? "bg-red-500/20 border-red-500/40 text-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]"
                 : isTranscribing
                   ? "bg-amber-500/20 border-amber-500/40 text-amber-500"
                   : "bg-input/30 border-border/80 text-muted-foreground hover:bg-muted"
-            } ${(isSending || isBisonLocking) ? "opacity-45 cursor-not-allowed" : "active:scale-95"}`}
+              } ${(isSending || isBisonLocking) ? "opacity-45 cursor-not-allowed" : "active:scale-95"}`}
             title={isRecording ? "停止录音" : isTranscribing ? "正在识别中..." : "语音输入"}
           >
             {isTranscribing ? (
@@ -581,11 +557,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                 ? "点击单纯发送消息，长按500ms与之前消息合并发送给AI"
                 : "发送消息"
             }
-            className={`w-[42px] h-[42px] rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${
-              canSend
+            className={`w-[42px] h-[42px] rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${canSend
                 ? "hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 cursor-pointer opacity-100"
                 : "opacity-45 cursor-not-allowed bg-muted text-muted-foreground shadow-none"
-            }`}
+              }`}
           >
             <Send className={`w-4 h-4 transition-transform duration-300 ${canSend ? "scale-110" : ""}`} aria-hidden="true" />
           </button>

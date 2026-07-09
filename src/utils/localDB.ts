@@ -959,15 +959,45 @@ export async function bulkSaveSessions(sessionsList: ChatSession[]): Promise<voi
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       if (sessionsList.length === 0) return resolve();
-      const transaction = db.transaction("sessions", "readwrite");
-      const store = transaction.objectStore("sessions");
+      const transaction = db.transaction(["sessions", "messages"], "readwrite");
+      const sessionsStore = transaction.objectStore("sessions");
+      const messagesStore = transaction.objectStore("messages");
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
 
       for (const session of sessionsList) {
-        store.put(session);
+        const { messages, ...sessionToSave } = session;
+        if (messages && Array.isArray(messages)) {
+          const userMsgCount = messages.filter(m => m.sender === "user").length;
+          const computedTurnCount = userMsgCount > 0 
+            ? userMsgCount 
+            : (messages.length > 1 ? Math.floor(messages.length / 2) : (messages.length > 0 ? 1 : 0));
+          const computedCharCount = messages.reduce((total, msg) => total + (msg.content?.length || 0), 0);
+          
+          sessionToSave.turnCount = computedTurnCount;
+          sessionToSave.charCount = computedCharCount;
+        }
+
+        sessionsStore.put(sessionToSave);
+
+        if (messages && Array.isArray(messages)) {
+          messages.forEach((msg, idx) => {
+            const record = {
+              id: msg.id,
+              sessionId: session.id,
+              role: msg.sender === "user" ? "user" as const : "assistant" as const,
+              content: msg.content,
+              createdAt: msg.timestamp || Date.now(),
+              turnIndex: (msg as any).turnIndex !== undefined ? (msg as any).turnIndex : idx,
+              tags: (msg as any).tags || [],
+              extractSource: (msg as any).extractSource || "none",
+              metadata: (msg as any).metadata || msg.extra,
+            };
+            messagesStore.put(record);
+          });
+        }
       }
     });
   });

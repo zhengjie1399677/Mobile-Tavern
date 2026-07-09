@@ -6,6 +6,8 @@ import {
   bulkSaveCharacters,
   bulkSaveSessions,
   saveSession,
+  getAllSessions,
+  getMessagesBySession,
 } from "../../utils/localDB";
 import { encryptBackupData, decryptBackupData } from "../../utils/cardParser";
 import { DEFAULT_SETTINGS } from "./defaults";
@@ -34,6 +36,7 @@ interface UseBackupRestoreReturn {
     characters: any[],
     setSessions: React.Dispatch<React.SetStateAction<any[]>>
   ) => Promise<void>;
+  handleSilentDailyBackup: (characters: any[], sessions: any[]) => Promise<boolean>;
 }
 
 /**
@@ -55,7 +58,7 @@ export const useBackupRestore = ({
   showCustomAlert,
   showCustomConfirm,
 }: UseBackupRestoreDeps): UseBackupRestoreReturn => {
-  const handleExportLocalDataBackup = useCallback(async (characters: any[], sessions: any[]) => {
+  const handleExportLocalDataBackup = useCallback(async (characters: any[], partialSessions: any[]) => {
     if (encryptBackup && !backupPass.trim()) {
       await showCustomAlert("开启了加密，请预设一个强度适宜的数据保护密码。");
       return;
@@ -74,11 +77,29 @@ export const useBackupRestore = ({
             },
           };
 
+      // 从数据库获取包含完整消息的会话数据，防止前端分页/懒加载导致的消息遗漏
+      const dbSessions = await getAllSessions();
+      const completeSessions = await Promise.all(
+        dbSessions.map(async (s) => {
+          const msgs = await getMessagesBySession(s.id);
+          return {
+            ...s,
+            messages: msgs.map((m: any) => ({
+              id: m.id,
+              sender: m.role === "user" ? "user" : "assistant",
+              content: m.content,
+              timestamp: m.createdAt,
+              extra: m.metadata,
+            })),
+          };
+        })
+      );
+
       const payloadObj = {
         magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
         version: 1,
         characters,
-        sessions,
+        sessions: completeSessions,
         settings: exportedSettings,
         globalLorebook,
         backupDate: new Date().toISOString(),
@@ -440,9 +461,95 @@ export const useBackupRestore = ({
     }
   }, [showCustomAlert, showCustomConfirm, setBackupStatus]);
 
+  const handleSilentDailyBackup = useCallback(async (characters: any[], partialSessions: any[]) => {
+    const lastBackup = settings.lastBackupTime || 0;
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+
+    // 如果未满 24 小时，静默跳过
+    if (Date.now() - lastBackup <= ONE_DAY) {
+      return false;
+    }
+
+    try {
+      console.log("[AutoBackup] Performing silent daily background backup...");
+      
+      // 数据脱敏，抹除 API Key
+      const exportedSettings = {
+        ...settings,
+        api: {
+          ...settings.api,
+          apiKey: "",
+        },
+        savedApiProfiles: settings.savedApiProfiles
+          ? settings.savedApiProfiles.map(p => ({ ...p, apiKey: "" }))
+          : [],
+      };
+
+      // 从数据库加载完整消息的会话，确保备份完整
+      const dbSessions = await getAllSessions();
+      const completeSessions = await Promise.all(
+        dbSessions.map(async (s) => {
+          const msgs = await getMessagesBySession(s.id);
+          return {
+            ...s,
+            messages: msgs.map((m: any) => ({
+              id: m.id,
+              sender: m.role === "user" ? "user" : "assistant",
+              content: m.content,
+              timestamp: m.createdAt,
+              extra: m.metadata,
+            })),
+          };
+        })
+      );
+
+      const payloadObj = {
+        magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
+        version: 1,
+        characters,
+        sessions: completeSessions,
+        settings: exportedSettings,
+        globalLorebook,
+        backupDate: new Date().toISOString(),
+        isEncrypted: false,
+      };
+
+      const jsonStr = JSON.stringify(payloadObj);
+      const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const fileName = `autobackup_${todayStr}.json`;
+
+      // 真机写入逻辑
+      if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
+        const path = (window as any).AndroidThemeBridge.saveFile(fileName, jsonStr);
+        if (path && !path.startsWith("error:")) {
+          console.log("[AutoBackup] Silent daily backup saved successfully to: ", path);
+          setSettings((prev) => ({
+            ...prev,
+            lastBackupTime: Date.now(),
+          }));
+          return true;
+        } else {
+          console.error("[AutoBackup] Silent daily backup failed: ", path);
+        }
+      } else {
+        // 电脑浏览器开发模式：仅更新时间戳，避免弹窗下载打扰开发者
+        console.log("[AutoBackup] Web environment detected. Skipping file save, updated lastBackupTime timestamp.");
+        setSettings((prev) => ({
+          ...prev,
+          lastBackupTime: Date.now(),
+        }));
+        return true;
+      }
+    } catch (err) {
+      console.error("[AutoBackup] Error during silent daily background backup:", err);
+    }
+    return false;
+  }, [settings, globalLorebook, setSettings]);
+
   return {
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
     handleImportSillyChatHistory,
+    handleSilentDailyBackup,
   };
 };

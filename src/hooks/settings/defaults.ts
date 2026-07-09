@@ -487,5 +487,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
     openaiBaseUrl: "https://api.openai.com/v1",
     openaiModel: "whisper-1",
   },
+  lastBackupTime: 0,
 };
 

@@ -144,7 +144,7 @@ const StoryTimelineView = () => {
             <Clock className="w-8 h-8 stroke-[1.2] mx-auto mb-1.5 opacity-60" />
             <p className="text-xs">目前尚未归档任何宏观发展大纲</p>
             <p className="text-[10px] leading-normal px-4 mt-1 opacity-70">
-              当聊天内容变长时，可通过下方 “智能记忆压缩”
+              当聊天内容变长时，可通过上方 “记忆” 菜单中的 “整理潜意识碎片”
               自主浓缩，或手工录入您对当前关系演变的阶段性理解记录。
             </p>
           </div>

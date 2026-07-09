@@ -13,6 +13,7 @@ import {
   Volume2,
   VolumeX,
   MoreHorizontal,
+  Brain,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -27,6 +28,7 @@ interface QuickDialogueOptionsProps {
 const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) => {
   const {
     isSending,
+    setIsSending,
     setMsgMenuId,
     setEditingMsgId,
     setEditingMsgContent,
@@ -37,6 +39,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     showCustomAlert,
     setSessions,
     getKernelService,
+    handleAutoSummaryCheck,
 
     activeSession,
     settings,
@@ -415,6 +418,30 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
             >
               <Trash2 className="w-3 h-3" /> 删除
             </button>
+
+            {/* 整理潜意识 (Organize Subconscious) */}
+            {activeSession && (
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setShowMore(false);
+                  const ok = await showCustomConfirm(
+                    "是否启动智能AI卡片压缩？这会将更早的历史对话转化为单条时间轴年表，腾出内存空间，保持语调连贯。",
+                  );
+                  if (ok) {
+                    setIsSending(true);
+                    await handleAutoSummaryCheck(activeSession, true);
+                    setIsSending(false);
+                    setMsgMenuId(null);
+                  }
+                }}
+                disabled={isSending}
+                className="w-full text-[11px] text-left text-primary hover:bg-primary/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
+              >
+                <Brain className="w-3 h-3" /> 小总结
+              </button>
+            )}
           </div>
         )}
       </button>

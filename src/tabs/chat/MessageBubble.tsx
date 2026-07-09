@@ -12,9 +12,15 @@ import {
   Copy,
   ChevronDown,
   MoreHorizontal,
+  Edit2,
+  Palette,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import { filterAsteriskActions } from "../../components/formattedTextUtils";
+import { saveSession } from "../../utils/localDB";
 import TypingIndicator from "./TypingIndicator";
 import QuickDialogueOptions from "./QuickDialogueOptions";
 import CloudLoader from "../../components/CloudLoader";
@@ -30,6 +36,8 @@ interface MessageBubbleProps {
   copiedReasoningIds: Record<string, boolean>;
   setCopiedReasoningIds: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   messagesToRenderLength: number;
+  swipedMsgId: string | null;
+  setSwipedMsgId: (id: string | null) => void;
 }
 
 const MessageBubble = ({
@@ -43,6 +51,8 @@ const MessageBubble = ({
   copiedReasoningIds,
   setCopiedReasoningIds,
   messagesToRenderLength,
+  swipedMsgId,
+  setSwipedMsgId,
 }: MessageBubbleProps): React.JSX.Element => {
   const {
     activeCharacter,
@@ -60,23 +70,107 @@ const MessageBubble = ({
     activeSession,
     showCustomAlert,
     showCustomConfirm,
+    getKernelService,
+    showCustomPrompt,
   } = useUnifiedApp();
 
   const isUser = message.sender === "user";
 
+  // --- 修复1：所有 Refs 必须先于任何 useEffect 声明 ---
   const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
   const isScrollingOrMoving = React.useRef(false);
   const hasTriggeredMenuThisTurn = React.useRef(false);
-
-  const [dragOffset, setDragOffset] = React.useState(0);
-  const [isDragging, setIsDragging] = React.useState(false);
   const hasVibratedRef = React.useRef(false);
-
-  // 记录滑动位置的 Refs
+  const isDraggingRef = React.useRef(false);
   const touchStartXRef = React.useRef<number>(0);
   const touchStartYRef = React.useRef<number>(0);
   const touchEndXRef = React.useRef<number>(0);
   const touchEndYRef = React.useRef<number>(0);
+  const bubbleRef = React.useRef<HTMLDivElement>(null);
+  const bubbleTextRef = React.useRef<HTMLDivElement>(null);
+  const swipeMenuRef = React.useRef<HTMLDivElement>(null);
+  const dragOffsetRef = React.useRef(0);
+
+  const isOpen = swipedMsgId === message.id;
+  const [dragOffset, setDragOffset] = React.useState(0);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [isSpeakingThis, setIsSpeakingThis] = React.useState(false);
+
+  const dragDirection = isUser ? 1 : -1;
+  const SWIPE_MENU_WIDTH = 46;
+
+  // 侧滑面板中三个按钮的相关可用性
+  const showDraw = settings?.imageGenApi?.enabled && !isUser;
+  const showTts = settings?.ttsConfig?.enabled;
+  const buttonsCount = 1 + (showDraw ? 1 : 0) + (showTts ? 1 : 0);
+  const swipeMenuHeight = buttonsCount * 32 + (buttonsCount - 1) * 6;
+
+  // --- 修复4/5：提取共享 DOM 归位工具，显式写入 display，杜绝单帧裸奔 ---
+  const forceResetDomStyles = React.useCallback((targetOffset: number) => {
+    if (bubbleTextRef.current) {
+      bubbleTextRef.current.style.transform = targetOffset > 0
+        ? `translateX(${-targetOffset * dragDirection}px)`
+        : '';
+      bubbleTextRef.current.style.transition = '';
+    }
+    if (swipeMenuRef.current) {
+      swipeMenuRef.current.style.display = targetOffset > 0 ? 'flex' : 'none';
+      swipeMenuRef.current.style.opacity = '';
+      swipeMenuRef.current.style.transform = '';
+      swipeMenuRef.current.style.transition = '';
+      swipeMenuRef.current.style.pointerEvents = '';
+    }
+  }, [dragDirection]);
+
+  // 当其他消息被滑动展开或选中关闭时，自动将本条消息重置并收回（修复1：Refs 已先行声明）
+  React.useEffect(() => {
+    if (!isOpen) {
+      setDragOffset(0);
+      dragOffsetRef.current = 0;
+      forceResetDomStyles(0);
+    }
+  }, [isOpen, forceResetDomStyles]);
+
+  // 轮询检测 TTS 状态
+  React.useEffect(() => {
+    let active = true;
+    let timer: any = null;
+
+    const checkSpeaking = () => {
+      const ttsService = getKernelService<any>("tts");
+      if (ttsService) {
+        const speakingId = ttsService.getSpeakingMessageId();
+        const speaking = ttsService.isSpeaking() && speakingId === message.id;
+        if (active) {
+          setIsSpeakingThis(speaking);
+        }
+      }
+    };
+
+    checkSpeaking();
+    timer = setInterval(checkSpeaking, 500);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [message.id, getKernelService]);
+
+  // 点击外部自动收起侧滑菜单
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (bubbleRef.current && bubbleRef.current.contains(e.target as Node)) {
+        return;
+      }
+      setSwipedMsgId(null);
+      setDragOffset(0);
+    };
+    window.addEventListener("click", handleGlobalClick);
+    return () => {
+      window.removeEventListener("click", handleGlobalClick);
+    };
+  }, [isOpen, setSwipedMsgId]);
 
   const startLongPress = React.useCallback((e: React.TouchEvent | React.MouseEvent) => {
     if ("button" in e && e.button !== 0) return;
@@ -98,7 +192,8 @@ const MessageBubble = ({
     touchStartYRef.current = clientY;
     touchEndXRef.current = clientX;
     touchEndYRef.current = clientY;
-    setIsDragging(true);
+    isDraggingRef.current = true;
+    setIsDragging(true); // 仍需触发 CSS transition 切换，但后续可进一步优化
 
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
@@ -142,20 +237,55 @@ const MessageBubble = ({
     touchEndYRef.current = clientY;
 
     if (touchStartXRef.current !== 0) {
-      const diffX = touchStartXRef.current - clientX;
+      const rawDiffX = touchStartXRef.current - clientX;
+      const diffX = rawDiffX * dragDirection;
       const diffY = Math.abs(touchStartYRef.current - clientY);
 
-      // 横向滑动主导时触发位移，防纵向页面滚动抖动
-      if (diffX > 0 && diffY < 30) {
-        let offset = diffX;
-        // 阈值后添加弹性阻尼系数
-        if (offset > 60) {
-          offset = 60 + (offset - 60) * 0.4;
+      // 修复3：垂直滚动超阈值时，如果已经有 DOM 残留（拖了一小段又往上滑），立即清理
+      if (diffY > 35) {
+        if (dragOffsetRef.current > 0 && !isOpen) {
+          dragOffsetRef.current = 0;
+          if (bubbleTextRef.current) {
+            bubbleTextRef.current.style.transform = '';
+            bubbleTextRef.current.style.transition = '';
+          }
+          if (swipeMenuRef.current) {
+            swipeMenuRef.current.style.display = 'none';
+            swipeMenuRef.current.style.opacity = '';
+            swipeMenuRef.current.style.transform = '';
+            swipeMenuRef.current.style.transition = '';
+            swipeMenuRef.current.style.pointerEvents = '';
+          }
         }
-        setDragOffset(offset);
+        return;
+      }
 
-        // 越过 60px 阈值瞬间震动反馈一次
-        if (offset >= 60 && !hasVibratedRef.current) {
+      // 往中心滑动（展开菜单）
+      if (diffX > 0 && diffY < 30) {
+        let offset = isOpen ? SWIPE_MENU_WIDTH + diffX : diffX;
+        if (offset < 0) offset = 0;
+
+        // 阻尼系数
+        if (offset > SWIPE_MENU_WIDTH) {
+          offset = SWIPE_MENU_WIDTH + (offset - SWIPE_MENU_WIDTH) * 0.4;
+        }
+
+        // 性能优化：直接操作 DOM 节点 style，避免 React 120Hz State 频繁更新卡顿
+        if (bubbleTextRef.current) {
+          bubbleTextRef.current.style.transform = `translateX(${-offset * dragDirection}px)`;
+          bubbleTextRef.current.style.transition = 'none';
+        }
+        if (swipeMenuRef.current) {
+          swipeMenuRef.current.style.display = 'flex';
+          swipeMenuRef.current.style.opacity = String(Math.min(1, offset / SWIPE_MENU_WIDTH));
+          swipeMenuRef.current.style.transform = `scale(${0.9 + (Math.min(SWIPE_MENU_WIDTH, offset) / SWIPE_MENU_WIDTH) * 0.1})`;
+          swipeMenuRef.current.style.transition = 'none';
+          swipeMenuRef.current.style.pointerEvents = 'auto';
+        }
+        dragOffsetRef.current = offset;
+
+        // 震动反馈
+        if (offset >= SWIPE_MENU_WIDTH && !hasVibratedRef.current) {
           hasVibratedRef.current = true;
           if (typeof navigator !== "undefined" && navigator.vibrate) {
             try {
@@ -163,40 +293,79 @@ const MessageBubble = ({
             } catch (_) {}
           }
         }
-      } else {
-        setDragOffset(0);
+      }
+      // 往边缘滑动（收起菜单）
+      else if (diffX < 0 && diffY < 30) {
+        let offset = isOpen ? SWIPE_MENU_WIDTH + diffX : 0;
+        if (offset < 0) offset = 0;
+
+        if (bubbleTextRef.current) {
+          bubbleTextRef.current.style.transform = offset > 0 ? `translateX(${-offset * dragDirection}px)` : '';
+          bubbleTextRef.current.style.transition = 'none';
+        }
+        if (swipeMenuRef.current) {
+          swipeMenuRef.current.style.display = offset > 0 ? 'flex' : 'none';
+          swipeMenuRef.current.style.opacity = String(Math.min(1, offset / SWIPE_MENU_WIDTH));
+          swipeMenuRef.current.style.transform = `scale(${0.9 + (Math.min(SWIPE_MENU_WIDTH, offset) / SWIPE_MENU_WIDTH) * 0.1})`;
+          swipeMenuRef.current.style.transition = 'none';
+          swipeMenuRef.current.style.pointerEvents = offset > 0 ? 'auto' : 'none';
+        }
+        dragOffsetRef.current = offset;
       }
     }
-  }, [cancelLongPress]);
+  }, [cancelLongPress, isOpen, dragDirection]);
 
   const endTouch = React.useCallback(() => {
     cancelLongPress();
+    isDraggingRef.current = false;
     setIsDragging(false);
 
-    const diffX = touchStartXRef.current - touchEndXRef.current;
+    const rawDiffX = touchStartXRef.current - touchEndXRef.current;
+    const diffX = rawDiffX * dragDirection;
     const diffY = Math.abs(touchStartYRef.current - touchEndYRef.current);
 
-    // 水平向左滑动触发菜单：位移超过 60px，且垂直偏离小于 35px
-    if (diffX > 60 && diffY < 35 && editingMsgId !== message.id) {
-      if (!hasVibratedRef.current && typeof navigator !== "undefined" && navigator.vibrate) {
-        try {
-          navigator.vibrate(35);
-        } catch (_) {}
+    let finalSwipedOpen = isOpen;
+    let finalOffset = isOpen ? SWIPE_MENU_WIDTH : 0;
+
+    if (diffY < 35 && editingMsgId !== message.id) {
+      if (isOpen) {
+        if (diffX < -25) {
+          finalSwipedOpen = false;
+          finalOffset = 0;
+        }
+      } else {
+        if (diffX > 30) {
+          finalSwipedOpen = true;
+          finalOffset = SWIPE_MENU_WIDTH;
+        }
       }
-      setMsgMenuId(message.id);
-      hasTriggeredMenuThisTurn.current = true;
-    }
-    // 水平向右滑动：预留给其它未来功能，目前静默记录日志
-    else if (diffX < -60 && diffY < 35) {
-      console.log("[Swipe Action] Swipe Right gesture detected (reserved for future use)");
     }
 
-    setDragOffset(0);
+    // 提交最终状态，并用 forceResetDomStyles 显式写入最终 display，杜绝单帧裸奔闪烁
+    setSwipedMsgId(finalSwipedOpen ? message.id : null);
+    setDragOffset(finalOffset);
+    dragOffsetRef.current = finalOffset;
+    forceResetDomStyles(finalOffset);
+
     touchStartXRef.current = 0;
-  }, [cancelLongPress, editingMsgId, message.id, setMsgMenuId]);
+  }, [cancelLongPress, editingMsgId, isOpen, message.id, dragDirection, setSwipedMsgId, forceResetDomStyles]);
+
+  // 修复2：独立的 cancelTouch，不依赖旧坐标，直接强制归位到当前 isOpen 状态
+  const cancelTouch = React.useCallback(() => {
+    cancelLongPress();
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    // 不读取 diffX/diffY 旧坐标，直接维持 isOpen 当前语义状态，只清理 DOM 残留
+    const stableOffset = isOpen ? SWIPE_MENU_WIDTH : 0;
+    setDragOffset(stableOffset);
+    dragOffsetRef.current = stableOffset;
+    forceResetDomStyles(stableOffset);
+    touchStartXRef.current = 0;
+  }, [cancelLongPress, isOpen, forceResetDomStyles]);
 
   return (
     <div
+      ref={bubbleRef}
       key={message.id}
       role="article"
       aria-label={`${isUser ? "我说" : (activeCharacter?.name || "角色") + "说"}：${message.content}`}
@@ -211,7 +380,7 @@ const MessageBubble = ({
         }`}
       >
         {isUser ? (
-          settings.userAvatar ? (
+          settings?.userAvatar ? (
             <img
               src={settings.userAvatar}
               alt=""
@@ -233,16 +402,25 @@ const MessageBubble = ({
 
       {/* Speech Bubble */}
       <div
-        className="max-w-[78%] group relative select-none"
+        className="max-w-[78%] group relative select-none w-full"
+        style={{
+          minHeight: (isOpen || dragOffset > 0) ? `${swipeMenuHeight}px` : undefined,
+        }}
         onTouchStart={startLongPress}
         onTouchMove={moveTouch}
         onTouchEnd={endTouch}
+        onTouchCancel={cancelTouch}
         onMouseDown={startLongPress}
         onMouseMove={moveTouch}
         onMouseUp={endTouch}
         onMouseLeave={endTouch}
         onClick={(e) => {
           e.stopPropagation();
+          if (isOpen) {
+            setSwipedMsgId(null);
+            setDragOffset(0);
+            return;
+          }
           if (hasTriggeredMenuThisTurn.current) {
             hasTriggeredMenuThisTurn.current = false;
             return;
@@ -252,25 +430,244 @@ const MessageBubble = ({
           }
         }}
       >
-        {/* 滑动指示器 (Swipe Indicator) */}
-        {editingMsgId !== message.id && dragOffset > 0 && (
+        {/* 侧滑操作菜单 (Swipe Actions Menu) */}
+        {editingMsgId !== message.id && (
           <div
-            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-0"
+            ref={swipeMenuRef}
+            className={`absolute ${isUser ? "right-0" : "left-0"} top-0 bottom-0 flex flex-col items-center justify-center gap-1.5 z-0 pr-1`}
             style={{
-              opacity: Math.min(1, dragOffset / 60),
-              transform: `translateY(-50%) scale(${dragOffset >= 60 ? 1.15 : 0.85 + (dragOffset / 60) * 0.15})`,
-              transition: isDragging ? "none" : "transform 0.2s ease, opacity 0.2s ease",
+              width: `${SWIPE_MENU_WIDTH}px`,
+              opacity: isOpen || dragOffset > 0 ? Math.min(1, dragOffset / SWIPE_MENU_WIDTH) : 0,
+              transform: `scale(${0.9 + (Math.min(SWIPE_MENU_WIDTH, dragOffset) / SWIPE_MENU_WIDTH) * 0.1})`,
+              transition: isDragging ? "none" : "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease",
+              pointerEvents: isOpen || dragOffset > 0 ? "auto" : "none",
+              display: isOpen || dragOffset > 0 ? "flex" : "none",
             }}
           >
-            <div
-              className={`w-7.5 h-7.5 rounded-full flex items-center justify-center border shadow-sm transition-colors ${
-                dragOffset >= 60
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-muted text-muted-foreground border-border"
-              }`}
+            {/* 编辑 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingMsgId(message.id);
+                setEditingMsgContent(message.content);
+                setSwipedMsgId(null);
+                setDragOffset(0);
+              }}
+              disabled={isSending}
+              className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow active:scale-90 transition-transform disabled:opacity-40"
+              title="编辑"
             >
-              <MoreHorizontal className="w-4 h-4" />
-            </div>
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+
+            {/* 生图 */}
+            {showDraw && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setSwipedMsgId(null);
+                  setDragOffset(0);
+                  
+                  if (!activeSession) return;
+                  const targetMsgId = message.id;
+
+                  // Set loading state
+                  const drawSession = {
+                    ...activeSession,
+                    messages: activeSession.messages.map((m: any) =>
+                      m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: true } } : m
+                    )
+                  };
+                  setSessions((prev: any) =>
+                    prev.map((s: any) => (s.id === drawSession.id ? drawSession : s)),
+                  );
+
+                  try {
+                    const config = settings.imageGenApi;
+                    if (!config || !config.enabled) {
+                      throw new Error("请先在设置中启用生图功能并配置接口参数。");
+                    }
+
+                    let finalPrompt = message.content;
+                    let template = config.promptGeneratorTemplate || "Based on the following character appearance features, conversation context, and current sentence, write a vivid English prompt describing the visual scene, character appearance (strictly following the appearance features), action, expression, location, and atmosphere. Focus on concrete visual details. Avoid text, abstract ideas, or dialogue.\nOutput only the raw English prompt, no extra text.\n\n### Appearance Features\n{appearance}\n\n### Conversation Context\n{context}\n\nCurrent Sentence to Visualize:\n{message}\n\nDescriptive English Prompt:";
+
+                    if (!template.includes("{appearance}")) {
+                      if (template.includes("Conversation Context:\n{context}")) {
+                        template = template.replace(
+                          "Conversation Context:\n{context}",
+                          "### Appearance Features\n{appearance}\n\n### Conversation Context\n{context}"
+                        );
+                      } else if (template.includes("对话上下文：\n{context}")) {
+                        template = template.replace(
+                          "对话上下文：\n{context}",
+                          "### 外观特征\n{appearance}\n\n### 对话上下文\n{context}"
+                        );
+                      } else if (template.includes("{context}")) {
+                        template = template.replace(
+                          "{context}",
+                          "### 外观特征\n{appearance}\n\n### 对话上下文\n{context}"
+                        );
+                      } else {
+                        template = `### Appearance Features\n{appearance}\n\n${template}`;
+                      }
+                    }
+
+                    if (settings.api && settings.api.baseUrl) {
+                      try {
+                        const { universalFetch, API_ENDPOINT } = await import("../../utils/apiClient");
+                        const messageIndex = activeSession.messages.findIndex((m: any) => m.id === message.id);
+                        const recentMessages = activeSession.messages.slice(Math.max(0, messageIndex - 4), messageIndex + 1);
+                        const contextText = recentMessages
+                          .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+                          .join("\n");
+
+                        const charName = activeCharacter?.name || "Assistant";
+                        const userName = settings.userName || "User";
+                        const rawAppearance = activeCharacter?.description || "";
+                        const appearanceText = rawAppearance
+                          .replace(/\{\{char\}\}/gi, charName)
+                          .replace(/\{\{user\}\}/gi, userName)
+                          .trim() || "No character appearance described.";
+
+                        const llmPrompt = template
+                          .replace("{appearance}", appearanceText)
+                          .replace("{context}", contextText)
+                          .replace("{message}", message.content);
+
+                        const llmResponse = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
+                          baseUrl: settings.api.baseUrl,
+                          apiKey: settings.api.apiKey || "",
+                          chatPath: settings.api.chatPath,
+                          bypassProxy: settings.api.bypassProxy,
+                          disableReasoning: settings.api.disableReasoning,
+                          reqBody: {
+                            model: settings.api.modelName,
+                            messages: [{ role: "user", content: llmPrompt }],
+                            temperature: settings.preset?.temperature,
+                            top_p: settings.preset?.topP,
+                            top_k: settings.preset?.topK,
+                            min_p: settings.preset?.minP,
+                            max_tokens: 150,
+                            presence_penalty: settings.preset?.presencePenalty ?? 0.0,
+                            frequency_penalty: settings.preset?.frequencyPenalty ?? 0.0,
+                            repetition_penalty: settings.preset?.repetitionPenalty ?? 1.0,
+                          }
+                        });
+
+                        if (llmResponse.ok) {
+                          const llmJson = await llmResponse.json();
+                          const aiSummary = llmJson.choices?.[0]?.message?.content?.trim();
+                          if (aiSummary) {
+                            finalPrompt = aiSummary
+                              .replace(/^["'"`]+|["'"`]+$/g, "")
+                              .replace(/^(Prompt|Prompt:|Prompt description:|English Prompt:|Description:)\s*/i, "")
+                              .trim();
+                            console.log("[MessageBubble] Summarized Prompt:", finalPrompt);
+                          }
+                        }
+                      } catch (e) {
+                        console.warn("[MessageBubble] Failed to contact LLM for prompt summary, falling back:", e);
+                      }
+                    }
+
+                    if (config.promptEditBeforeGenerate) {
+                      const editedPrompt = await showCustomPrompt(
+                        "生图提示词已生成，您可以在此修改：",
+                        finalPrompt,
+                        "提示词确认",
+                        "textarea"
+                      );
+                      if (editedPrompt === null) {
+                        const errorSession = {
+                          ...activeSession,
+                          messages: activeSession.messages.map((m: any) =>
+                            m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
+                          )
+                        };
+                        setSessions((prev: any) =>
+                          prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
+                        );
+                        return;
+                      }
+                      finalPrompt = editedPrompt.trim();
+                    }
+
+                    const { KernelServices } = await import("../../kernel");
+                    const imageGenService = getKernelService<any>(KernelServices.ImageGen);
+                    const imgUrl = await imageGenService.generateImage(finalPrompt, config);
+                    const finalSession = {
+                      ...activeSession,
+                      messages: activeSession.messages.map((m: any) =>
+                        m.id === targetMsgId ? { ...m, extra: { ...m.extra, image: imgUrl, isDrawing: false } } : m
+                      )
+                    };
+                    setSessions((prev: any) =>
+                      prev.map((s: any) => (s.id === finalSession.id ? finalSession : s)),
+                    );
+                    await saveSession(finalSession);
+                  } catch (err: any) {
+                    console.error("Image generation failed:", err);
+                    showCustomAlert(`绘图失败: ${err.message || String(err)}`, "生图失败");
+                    const errorSession = {
+                      ...activeSession,
+                      messages: activeSession.messages.map((m: any) =>
+                        m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
+                      )
+                    };
+                    setSessions((prev: any) =>
+                      prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
+                    );
+                    await saveSession(errorSession);
+                  }
+                }}
+                disabled={isSending}
+                className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow active:scale-90 transition-transform disabled:opacity-40"
+                title="生图"
+              >
+                <Palette className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* 朗读 */}
+            {showTts && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setSwipedMsgId(null);
+                  setDragOffset(0);
+                  const ttsService = getKernelService<any>("tts");
+                  if (!ttsService) return;
+
+                  if (isSpeakingThis) {
+                    ttsService.stop();
+                    setIsSpeakingThis(false);
+                  } else {
+                    setIsSpeakingThis(true);
+                    let textToSpeak = message.content;
+                    if (settings.ttsConfig?.readMode === "dialogue_only") {
+                      const filtered = filterAsteriskActions(message.content);
+                      if (filtered.trim().length > 0) {
+                        textToSpeak = filtered;
+                      }
+                    }
+                    ttsService.speak(textToSpeak, {
+                      ...settings.ttsConfig,
+                      messageId: message.id
+                    }).catch(() => {
+                      setIsSpeakingThis(false);
+                    }).finally(() => {
+                      setIsSpeakingThis(false);
+                    });
+                  }
+                }}
+                className={`w-8 h-8 rounded-full flex items-center justify-center shadow active:scale-90 transition-transform ${
+                  isSpeakingThis ? "bg-rose-600 text-white" : "bg-emerald-600 text-white"
+                }`}
+                title={isSpeakingThis ? "停止" : "朗读"}
+              >
+                {isSpeakingThis ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              </button>
+            )}
           </div>
         )}
 
@@ -290,8 +687,8 @@ const MessageBubble = ({
               }
               className="w-full text-sm bg-muted border border-border rounded-lg p-2.5 text-foreground outline-none leading-relaxed resize-y font-light mb-2 focus:border-primary/50"
               style={{
-                fontSize: settings.chatFontSize ? `${settings.chatFontSize}px` : undefined,
-                lineHeight: settings.chatLineHeight ? `${settings.chatLineHeight}` : undefined,
+                fontSize: settings?.chatFontSize ? `${settings.chatFontSize}px` : undefined,
+                lineHeight: settings?.chatLineHeight ? `${settings.chatLineHeight}` : undefined,
               }}
               rows={Math.max(
                 3,
@@ -346,10 +743,11 @@ const MessageBubble = ({
           </div>
         ) : (
           <div
+            ref={bubbleTextRef}
             className="w-full relative z-10"
             style={{
-              transform: dragOffset > 0 ? `translateX(-${dragOffset}px)` : undefined,
-              transition: isDragging ? "none" : "transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1)",
+              transform: dragOffset > 0 ? `translateX(${-dragOffset * dragDirection}px)` : undefined,
+              transition: isDragging ? "none" : "transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
             }}
           >
             <div className="space-y-1 max-w-full">
@@ -441,11 +839,11 @@ const MessageBubble = ({
                     color: isUser
                       ? activeCharacter?.visualSettings?.userBubbleTextColor || undefined
                       : activeCharacter?.visualSettings?.bubbleTextColor || undefined,
-                    fontSize: settings.chatFontSize ? `${settings.chatFontSize}px` : undefined,
-                    lineHeight: settings.chatLineHeight ? `${settings.chatLineHeight}` : undefined,
+                    fontSize: settings?.chatFontSize ? `${settings.chatFontSize}px` : undefined,
+                    lineHeight: settings?.chatLineHeight ? `${settings.chatLineHeight}` : undefined,
                   }}
                 >
-                  {message.content === "💭..." ? (
+                  {(message.content === "💭..." || (isSending && idx === messagesToRenderLength - 1 && !message.content?.trim())) ? (
                     <div className="flex items-center gap-2.5 py-0.5 select-none animate-pulse">
                       <CloudLoader size={26} />
                       <span className="text-xs text-muted-foreground/80 font-light">AI 正在斟酌字句...</span>

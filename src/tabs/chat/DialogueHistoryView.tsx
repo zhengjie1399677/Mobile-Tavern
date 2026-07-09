@@ -51,6 +51,8 @@ const DialogueHistoryView = ({
     chatBottomRef,
   } = useUnifiedApp();
 
+  const [swipedMsgId, setSwipedMsgId] = React.useState<string | null>(null);
+
   // 过滤隐藏的野牛静默消息
   const messagesToRender = (activeSession?.messages || []).filter((m: any) => !m.extra?.isBisonSilent);
   let foldedCount = 0;
@@ -133,7 +135,7 @@ const DialogueHistoryView = ({
         aria-label="聊天消息记录"
         aria-live="polite"
         aria-relevant="additions"
-        className="p-3.5 space-y-4 flex-1 overflow-y-auto custom-scrollbar relative z-10"
+        className="p-3.5 space-y-4 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative z-10"
         onClick={() => {
           if (msgMenuId) setMsgMenuId(null);
         }}
@@ -184,6 +186,8 @@ const DialogueHistoryView = ({
                 copiedReasoningIds={copiedReasoningIds}
                 setCopiedReasoningIds={setCopiedReasoningIds}
                 messagesToRenderLength={visibleMessages.length}
+                swipedMsgId={swipedMsgId}
+                setSwipedMsgId={setSwipedMsgId}
               />
             </React.Fragment>
           );

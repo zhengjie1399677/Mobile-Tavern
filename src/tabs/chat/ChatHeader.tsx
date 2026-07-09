@@ -197,6 +197,7 @@ const ChatHeader = ({
                 >
                   认知中心
                 </button>
+
               </div>
             )}
           </div>
