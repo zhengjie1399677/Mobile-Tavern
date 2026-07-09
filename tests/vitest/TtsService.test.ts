@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { TtsService } from "../../src/kernel/services/TtsService";
 
 describe("TtsService tests", () => {
@@ -7,58 +7,20 @@ describe("TtsService tests", () => {
   beforeEach(() => {
     service = new TtsService();
     vi.restoreAllMocks();
+    vi.useFakeTimers();
 
-    // Mock SpeechSynthesis in global window
-    const mockSpeechSynthesis = {
-      speak: vi.fn((utterance) => {
-        // Simulate end event asynchronously
-        setTimeout(() => {
-          if (utterance.onend) {
-            utterance.onend({} as any);
-          }
-          const event = new Event("end");
-          utterance.dispatchEvent(event);
-        }, 10);
-      }),
-      cancel: vi.fn(),
-      pause: vi.fn(),
-      resume: vi.fn(),
-      speaking: false,
-      getVoices: vi.fn().mockReturnValue([
-        { name: "VoiceA", lang: "zh-CN" },
-        { name: "VoiceB", lang: "en-US" }
-      ])
-    };
-
-    const mockUtterance = function(this: any, text: string) {
-      this.text = text;
-      this.volume = 1;
-      this.rate = 1;
-      this.pitch = 1;
-      this.listeners = {} as Record<string, Function[]>;
-      this.addEventListener = (event: string, callback: Function) => {
-        this.listeners[event] = this.listeners[event] || [];
-        this.listeners[event].push(callback);
-      };
-      this.removeEventListener = (event: string, callback: Function) => {
-        if (this.listeners[event]) {
-          this.listeners[event] = this.listeners[event].filter((cb: any) => cb !== callback);
-        }
-      };
-      this.dispatchEvent = (event: Event) => {
-        if (this.listeners[event.type]) {
-          this.listeners[event.type].forEach((cb: any) => cb(event));
-        }
-      };
-    };
-
+    // Mock Android native TTS bridge (replaces the old SpeechSynthesis mock)
     global.window = {
-      speechSynthesis: mockSpeechSynthesis,
+      AndroidThemeBridge: {
+        speakNative: vi.fn().mockReturnValue(true),
+        stopNative: vi.fn(),
+        // 默认返回 false，speak 测试会按需覆盖
+        isSpeakingNative: vi.fn().mockReturnValue(false),
+      },
     } as any;
-    global.SpeechSynthesisUtterance = mockUtterance as any;
 
-    // Mock HTMLAudioElement / Audio
-    const mockAudio = function(this: any, url: string) {
+    // Mock HTMLAudioElement / Audio (used by OpenAI provider path)
+    const mockAudio = function (this: any, url: string) {
       this.src = url;
       this.volume = 1;
       this.playbackRate = 1;
@@ -73,7 +35,6 @@ describe("TtsService tests", () => {
         }
       };
       this.play = vi.fn().mockImplementation(() => {
-        // Simulate audio ending
         setTimeout(() => {
           if (this.listeners["ended"]) {
             this.listeners["ended"].forEach((cb: any) => cb());
@@ -91,31 +52,61 @@ describe("TtsService tests", () => {
     } as any;
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("should initialize and destroy successfully", async () => {
     await service.init({} as any);
     expect(service.name).toBe("tts");
     await service.destroy({} as any);
   });
 
-  it("should successfully read aloud via browser SpeechSynthesis", async () => {
+  it("should successfully read aloud via Android native TTS bridge", async () => {
     await service.init({} as any);
+
+    // 第一次 isSpeakingNative 返回 true（开始播放），之后返回 false（结束）
+    let pollCount = 0;
+    (global.window as any).AndroidThemeBridge.isSpeakingNative = vi.fn(() => {
+      pollCount++;
+      return pollCount === 1;
+    });
+
     const speakPromise = service.speak("Hello test", {
       provider: "speech-synthesis",
       volume: 0.8,
       rate: 1.2,
       pitch: 0.9,
-      voiceName: "VoiceB",
       messageId: "test-msg-1"
     });
 
+    // 推进到第一次轮询：isSpeakingNative 返回 true，标记开始播放
+    await vi.advanceTimersByTimeAsync(100);
     expect(service.isSpeaking()).toBe(true);
     expect(service.getSpeakingMessageId()).toBe("test-msg-1");
+
+    // 推进到第二次轮询：isSpeakingNative 返回 false，触发 resolve
+    await vi.advanceTimersByTimeAsync(100);
 
     await speakPromise;
 
     expect(service.isSpeaking()).toBe(false);
     expect(service.getSpeakingMessageId()).toBeNull();
-    expect(window.speechSynthesis.speak).toHaveBeenCalled();
+    expect((window as any).AndroidThemeBridge.speakNative).toHaveBeenCalledWith("Hello test", 1.2, 0.9);
+  });
+
+  it("should throw when Android native TTS bridge is not available", async () => {
+    await service.init({} as any);
+
+    // 移除桥，模拟非安卓环境
+    delete (global.window as any).AndroidThemeBridge;
+
+    await expect(
+      service.speak("Hello", {
+        provider: "speech-synthesis",
+        messageId: "test-no-bridge"
+      })
+    ).rejects.toThrow(/Android native TTS bridge is not available/);
   });
 
   it("should successfully call OpenAI API and play audio element", async () => {
@@ -126,6 +117,7 @@ describe("TtsService tests", () => {
     });
     global.fetch = fetchSpy;
 
+    // OpenAI 路径不依赖 __TAURI_INTERNALS__
     await service.init({} as any);
     const speakPromise = service.speak("Hello OpenAI", {
       provider: "openai",
@@ -140,6 +132,9 @@ describe("TtsService tests", () => {
 
     expect(service.isSpeaking()).toBe(true);
     expect(service.getSpeakingMessageId()).toBe("test-msg-2");
+
+    // 推进 setTimeout(10ms) 触发 audio "ended" 事件
+    await vi.advanceTimersByTimeAsync(20);
 
     await speakPromise;
 
@@ -165,10 +160,14 @@ describe("TtsService tests", () => {
 
   it("should stop speaking and clear speakingMessageId upon cancel", async () => {
     await service.init({} as any);
-    
-    // Trigger infinite/long speech mock (stub end simulation to happen only when cancelled)
-    window.speechSynthesis.speak = vi.fn(); // Suppress auto end
-    
+
+    // 一直返回 true，避免 setInterval 自动触发完成
+    (global.window as any).AndroidThemeBridge.isSpeakingNative = vi.fn().mockReturnValue(true);
+    // stopNative 调用后，同步让 isSpeakingNative 返回 false（模拟真实 Android 行为）
+    (global.window as any).AndroidThemeBridge.stopNative = vi.fn(() => {
+      (global.window as any).AndroidThemeBridge.isSpeakingNative = vi.fn().mockReturnValue(false);
+    });
+
     service.speak("Long text", {
       provider: "speech-synthesis",
       messageId: "long-msg"
@@ -181,6 +180,6 @@ describe("TtsService tests", () => {
 
     expect(service.isSpeaking()).toBe(false);
     expect(service.getSpeakingMessageId()).toBeNull();
-    expect(window.speechSynthesis.cancel).toHaveBeenCalled();
+    expect((window as any).AndroidThemeBridge.stopNative).toHaveBeenCalled();
   });
 });

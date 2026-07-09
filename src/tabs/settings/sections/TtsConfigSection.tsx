@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Volume2, Play, Square } from "lucide-react";
 import {
   AccordionItem,
@@ -24,21 +24,7 @@ export default function TtsConfigSection({
   updateSettings,
   getKernelService,
 }: TtsConfigSectionProps) {
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [testSpeaking, setTestSpeaking] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      const updateVoices = () => {
-        setVoices(window.speechSynthesis.getVoices());
-      };
-      updateVoices();
-      window.speechSynthesis.onvoiceschanged = updateVoices;
-      return () => {
-        window.speechSynthesis.onvoiceschanged = null;
-      };
-    }
-  }, []);
 
   const handlePlayTest = async () => {
     try {
@@ -208,7 +194,7 @@ export default function TtsConfigSection({
                   <SelectValue placeholder="选择语音引擎" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="speech-synthesis" className="text-xs font-semibold">浏览器本地语音合成 (SpeechSynthesis)</SelectItem>
+                  <SelectItem value="speech-synthesis" className="text-xs font-semibold">系统原生 TTS (本地语音合成)</SelectItem>
                   <SelectItem value="openai" className="text-xs font-semibold">OpenAI TTS 接口 (在线高清语音)</SelectItem>
                 </SelectContent>
               </Select>
@@ -319,54 +305,10 @@ export default function TtsConfigSection({
 
             {/* Provider Specific Settings */}
             {settings.ttsConfig?.provider === "speech-synthesis" ? (
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">选择本地音色 (Local Voice)</label>
-                <Select
-                  aria-label="选择本地音色"
-                  value={settings.ttsConfig?.voiceName || "default"}
-                  onValueChange={(val) => {
-                    updateSettings((prev) => ({
-                      ...prev,
-                      ttsConfig: {
-                        ...(prev.ttsConfig || {
-                          enabled: true,
-                          provider: "speech-synthesis",
-                          volume: 0.5,
-                          rate: 1.0,
-                          pitch: 1.0,
-                          voiceName: "",
-                          openaiApiKey: "",
-                          openaiBaseUrl: "https://api.openai.com/v1",
-                          openaiModel: "tts-1",
-                          openaiVoice: "alloy",
-                        }),
-                        voiceName: val === "default" ? "" : val,
-                      },
-                    }));
-                  }}
-                >
-                  <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-semibold">
-                    <SelectValue placeholder="系统默认音色" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default" className="text-xs font-semibold">系统默认音色</SelectItem>
-                    {voices
-                      .filter((v) => {
-                        const lang = v.lang.toLowerCase();
-                        return (
-                          lang.includes("zh") ||
-                          lang.includes("cmn") ||
-                          lang.includes("yue") ||
-                          lang.includes("chinese")
-                        );
-                      })
-                      .map((v) => (
-                        <SelectItem key={v.name} value={v.name} className="text-xs font-semibold">
-                          🗣️ {v.name} ({v.lang})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+              <div className="p-3 bg-muted/30 border border-border/40 rounded-lg">
+                <div className="text-[11px] text-muted-foreground">
+                  移动端使用系统原生 TTS 引擎，音色由系统设置决定。
+                </div>
               </div>
             ) : (
               <div className="space-y-3 p-3 bg-muted/30 border border-border/40 rounded-lg">

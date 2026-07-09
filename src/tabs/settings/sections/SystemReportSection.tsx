@@ -80,10 +80,12 @@ export default function SystemReportSection({
     }
 
     // 3. Audio & Speech engines
-    log(`\n[SPEECH] Checking local Speech Synthesis and Recognition engines...`);
-    const hasTTS = typeof window !== "undefined" && !!window.speechSynthesis;
+    log(`\n[SPEECH] Checking native TTS bridge and Speech Recognition engines...`);
+    const hasTTS = typeof window !== "undefined" &&
+      !!(window as any).AndroidThemeBridge &&
+      typeof (window as any).AndroidThemeBridge.speakNative === "function";
     const hasASR = typeof window !== "undefined" && (!!(window as any).SpeechRecognition || !!(window as any).webkitSpeechRecognition);
-    log(`[SPEECH] TTS (SpeechSynthesis): ${hasTTS ? "SUPPORTED (OK)" : "UNSUPPORTED (ERROR)"}`);
+    log(`[SPEECH] TTS (Android Native Bridge): ${hasTTS ? "SUPPORTED (OK)" : "UNSUPPORTED (ERROR: native bridge missing)"}`);
     log(`[SPEECH] ASR (SpeechRecognition): ${hasASR ? "SUPPORTED (OK)" : "UNSUPPORTED (WARNING: WebSpeech recognition unavailable)"}`);
 
     // 4. Kernel Services
