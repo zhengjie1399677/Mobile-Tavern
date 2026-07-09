@@ -85,3 +85,10 @@ export {
 } from "./memoryStageC.test";
 
 export { testMemoryE2E } from "./memoryE2E.test";
+
+export {
+  testCharacterService,
+  testWorldbookService,
+  testSettingsService,
+  testPresetService,
+} from "./businessServices.test";

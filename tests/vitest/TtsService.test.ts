@@ -182,4 +182,139 @@ describe("TtsService tests", () => {
     expect(service.getSpeakingMessageId()).toBeNull();
     expect((window as any).AndroidThemeBridge.stopNative).toHaveBeenCalled();
   });
+
+  // ----- 文本清洗 -----
+
+  it("should return early when text is empty or only markdown symbols", async () => {
+    await service.init({} as any);
+    await service.speak("*** ___ \"\"", {
+      provider: "speech-synthesis",
+      messageId: "empty-text"
+    });
+    // speakNative 不应被调用
+    expect((window as any).AndroidThemeBridge.speakNative).not.toHaveBeenCalled();
+    // 状态不应被设置为 speaking
+    expect(service.isSpeaking()).toBe(false);
+    expect(service.getSpeakingMessageId()).toBeNull();
+  });
+
+  // ----- AbortSignal 处理 -----
+
+  it("should throw immediately when AbortSignal is already aborted", async () => {
+    await service.init({} as any);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      service.speak("Hello", { provider: "speech-synthesis" }, controller.signal)
+    ).rejects.toThrow("Speech aborted before request started");
+    expect((window as any).AndroidThemeBridge.speakNative).not.toHaveBeenCalled();
+  });
+
+  // ----- 原生 TTS 错误路径 -----
+
+  it("should throw when speakNative returns false", async () => {
+    await service.init({} as any);
+    (window as any).AndroidThemeBridge.speakNative = vi.fn().mockReturnValue(false);
+    await expect(
+      service.speak("Hello", { provider: "speech-synthesis", messageId: "fail-init" })
+    ).rejects.toThrow("Failed to initialize Android Native TTS");
+    expect(service.isSpeaking()).toBe(false);
+    expect(service.getSpeakingMessageId()).toBeNull();
+  });
+
+  it("should resolve via silence timeout when TTS never starts speaking", async () => {
+    await service.init({} as any);
+    // isSpeakingNative 一直返回 false，模拟 TTS 引擎未启动
+    (window as any).AndroidThemeBridge.isSpeakingNative = vi.fn().mockReturnValue(false);
+
+    const speakPromise = service.speak("Hello", {
+      provider: "speech-synthesis",
+      messageId: "silent-timeout"
+    });
+
+    // 推进 31 次 setInterval（3100ms）触发 silenceTicks > 30 超时退出
+    await vi.advanceTimersByTimeAsync(3100);
+
+    await speakPromise;
+
+    expect(service.isSpeaking()).toBe(false);
+    expect(service.getSpeakingMessageId()).toBeNull();
+  });
+
+  // ----- OpenAI 错误路径 -----
+
+  it("should propagate network error from OpenAI fetch", async () => {
+    const fetchSpy = vi.fn().mockRejectedValue(new Error("Network failure"));
+    global.fetch = fetchSpy;
+    await service.init({} as any);
+
+    await expect(
+      service.speak("Hello", {
+        provider: "openai",
+        openaiApiKey: "k",
+        openaiBaseUrl: "https://api.openai.com/v1",
+        messageId: "net-err"
+      })
+    ).rejects.toThrow("Network failure");
+    expect(service.isSpeaking()).toBe(false);
+    expect(service.getSpeakingMessageId()).toBeNull();
+  });
+
+  it("should throw when OpenAI returns non-ok response", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () => "Unauthorized",
+    });
+    global.fetch = fetchSpy;
+    await service.init({} as any);
+
+    await expect(
+      service.speak("Hello", {
+        provider: "openai",
+        openaiApiKey: "bad-key",
+        openaiBaseUrl: "https://api.openai.com/v1",
+        messageId: "http-err"
+      })
+    ).rejects.toThrow("OpenAI TTS request failed with status 401");
+    expect(service.isSpeaking()).toBe(false);
+    expect(service.getSpeakingMessageId()).toBeNull();
+  });
+
+  // ----- pause / resume -----
+
+  it("pause() should pause current audio when OpenAI audio is playing", async () => {
+    await service.init({} as any);
+    const fakeAudio: any = { pause: vi.fn(), play: vi.fn() };
+    (service as any).currentAudio = fakeAudio;
+
+    service.pause();
+
+    expect(fakeAudio.pause).toHaveBeenCalled();
+    // 不应调用 stopNative（因为有 currentAudio）
+    expect((window as any).AndroidThemeBridge.stopNative).not.toHaveBeenCalled();
+  });
+
+  it("pause() should call stopNative when no current audio (native TTS path)", async () => {
+    await service.init({} as any);
+    // currentAudio 为 null
+    service.pause();
+    expect((window as any).AndroidThemeBridge.stopNative).toHaveBeenCalled();
+  });
+
+  it("resume() should play current audio when set", async () => {
+    await service.init({} as any);
+    const fakeAudio: any = { pause: vi.fn(), play: vi.fn().mockResolvedValue(undefined) };
+    (service as any).currentAudio = fakeAudio;
+
+    service.resume();
+
+    expect(fakeAudio.play).toHaveBeenCalled();
+  });
+
+  it("resume() should be a no-op when no current audio (native TTS path)", async () => {
+    await service.init({} as any);
+    // currentAudio 为 null，原生 TTS 已被 stop 无法恢复
+    expect(() => service.resume()).not.toThrow();
+  });
 });

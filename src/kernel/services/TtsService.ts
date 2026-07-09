@@ -104,6 +104,7 @@ export class TtsService implements ITtsService {
       const success = bridge.speakNative(cleanedText, rate, pitch);
       if (!success) {
         this.isSpeakingState = false;
+        this.speakingMessageId = null;
         throw new Error("Failed to initialize Android Native TTS");
       }
 
@@ -227,6 +228,7 @@ export class TtsService implements ITtsService {
         });
       } catch (err: any) {
         this.isSpeakingState = false;
+        this.speakingMessageId = null;
         if (activeSignal) {
           activeSignal.removeEventListener("abort", onAbort);
         }
@@ -235,6 +237,7 @@ export class TtsService implements ITtsService {
 
       if (!response.ok) {
         this.isSpeakingState = false;
+        this.speakingMessageId = null;
         if (activeSignal) {
           activeSignal.removeEventListener("abort", onAbort);
         }
