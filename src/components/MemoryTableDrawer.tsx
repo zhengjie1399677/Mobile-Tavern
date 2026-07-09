@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { ChatSession, TableMemorySheet } from "../types";
-import { 
-  X, 
-  Plus, 
-  Trash2, 
-  Check, 
-  HelpCircle, 
-  Edit3, 
+import {
+  X,
+  Plus,
+  Trash2,
+  Check,
+  HelpCircle,
+  Edit3,
   RefreshCw,
   Eye,
   EyeOff,
@@ -15,7 +15,8 @@ import {
   BookOpen,
   BrainCircuit,
   Tag,
-  History
+  History,
+  Info
 } from "lucide-react";
 import { getDictBySession, upsertDictEntry } from "../utils/localDB";
 import { MvuVariablesTabContent } from "./MvuVariablesTabContent";
@@ -62,18 +63,20 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   const [editValue, setEditValue] = useState("");
   const [showConfig, setShowConfig] = useState(false);
 
-  // 心智词典专属 state
+  // 记忆词典专属 state
   const [dictEntries, setDictEntries] = useState<any[]>([]);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editAliasesText, setEditAliasesText] = useState("");
   const [isLoadingDict, setIsLoadingDict] = useState(false);
+  // 详情展开状态 (记录展开的 Entry.id)
+  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null);
 
   // 防御性过滤状态表
   const rawSheets = activeSession.tableMemory || [];
   const sheets: TableMemorySheet[] = Array.isArray(rawSheets)
     ? rawSheets.filter((s): s is TableMemorySheet =>
-        !!s && Array.isArray(s.columns) && Array.isArray(s.rows)
-      )
+      !!s && Array.isArray(s.columns) && Array.isArray(s.rows)
+    )
     : [];
 
   // 默认选中第一个状态表 Tab
@@ -334,25 +337,25 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px] transition-all duration-300">
       <div className="w-full max-w-lg bg-background/85 border-t border-border/80 rounded-t-2xl shadow-2xl overflow-hidden flex flex-col h-[75vh] backdrop-blur-xl env-bottom">
-        
+
         {/* Header Section */}
         <div className="px-4 py-3 border-b border-border/50 flex justify-between items-center bg-muted/30">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold bg-primary/10 text-primary px-2.5 py-1 rounded-full flex items-center gap-1.5 font-sans">
               <BrainCircuit className="w-3.5 h-3.5" />
-              多维认知记忆中心
+              记忆与状态中心
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             {activeTab === 'table' && (
-              <button 
+              <button
                 onClick={() => setShowConfig(!showConfig)}
                 className={`p-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition ${showConfig ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted border-border hover:bg-muted/80 text-muted-foreground'}`}
               >
                 ⚙️ 管理
               </button>
             )}
-            <button 
+            <button
               onClick={onClose}
               className="p-1.5 rounded-full hover:bg-muted border border-border/40 text-muted-foreground transition"
             >
@@ -366,9 +369,8 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
           {enableAutoSummary && (
             <button
               onClick={() => { setActiveTab('timeline'); setShowConfig(false); }}
-              className={`px-3 py-1.5 rounded-lg border transition-all ${
-                activeTab === 'timeline' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-              }`}
+              className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'timeline' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+                }`}
             >
               故事年表
             </button>
@@ -376,34 +378,30 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
           {enableTableMemory && (
             <button
               onClick={() => { setActiveTab('table'); setShowConfig(false); }}
-              className={`px-3 py-1.5 rounded-lg border transition-all ${
-                activeTab === 'table' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-              }`}
+              className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'table' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+                }`}
             >
-              状态沙盒
+              状态数据
             </button>
           )}
           <button
             onClick={() => setActiveTab('dict')}
-            className={`px-3 py-1.5 rounded-lg border transition-all ${
-              activeTab === 'dict' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-            }`}
+            className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'dict' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+              }`}
           >
-            心智词典
+            记忆词典
           </button>
           <button
             onClick={() => setActiveTab('recall')}
-            className={`px-3 py-1.5 rounded-lg border transition-all ${
-              activeTab === 'recall' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-            }`}
+            className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'recall' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+              }`}
           >
-            记忆唤醒舱
+            唤醒记忆
           </button>
           <button
             onClick={() => setActiveTab('mvu')}
-            className={`px-3 py-1.5 rounded-lg border transition-all ${
-              activeTab === 'mvu' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-            }`}
+            className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'mvu' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+              }`}
           >
             角色变量
           </button>
@@ -411,7 +409,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
 
         {/* Inner Content Area */}
         <div className={`flex-1 min-h-0 ${activeTab === 'timeline' ? '' : 'overflow-y-auto p-4 space-y-4'}`}>
-          
+
           {/* TAB 0: ⏱️ 故事年表 */}
           {activeTab === 'timeline' && (
             <StoryTimelineView />
@@ -430,11 +428,10 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                         setActiveTableTabId(s.id);
                         setEditingCell(null);
                       }}
-                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                        activeTableTabId === s.id
-                          ? "bg-primary/10 border-primary/25 text-primary"
-                          : "bg-card border-border/75 text-muted-foreground hover:bg-muted/50"
-                      }`}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${activeTableTabId === s.id
+                        ? "bg-primary/10 border-primary/25 text-primary"
+                        : "bg-card border-border/75 text-muted-foreground hover:bg-muted/50"
+                        }`}
                     >
                       {s.name}
                     </button>
@@ -484,11 +481,10 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               onClick={() => toggleSheetEnabled(s.id)}
-                              className={`p-1.5 rounded-lg border transition ${
-                                s.enable
-                                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
-                                  : "bg-muted border-border text-muted-foreground opacity-60"
-                              }`}
+                              className={`p-1.5 rounded-lg border transition ${s.enable
+                                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                                : "bg-muted border-border text-muted-foreground opacity-60"
+                                }`}
                               title={s.enable ? "注入 prompt" : "已停用注入"}
                             >
                               {s.enable ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -528,8 +524,8 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                             <thead>
                               <tr className="bg-muted/50 border-b border-border/60">
                                 {activeSheet.columns.map((col, idx) => (
-                                  <th 
-                                    key={idx} 
+                                  <th
+                                    key={idx}
                                     className="px-3 py-2.5 font-bold text-muted-foreground font-sans tracking-wide shrink-0 min-w-[90px] max-w-[160px]"
                                   >
                                     <span className="block truncate max-w-[140px]" title={col}>
@@ -553,8 +549,8 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                                     {(Array.isArray(row) ? row : []).map((val, cIdx) => {
                                       const isEditing = editingCell?.sheetId === activeSheet.id && editingCell?.rowIndex === rIdx && editingCell?.colIndex === cIdx;
                                       return (
-                                        <td 
-                                          key={cIdx} 
+                                        <td
+                                          key={cIdx}
                                           className="px-3 py-2 text-foreground font-medium relative align-middle group min-w-[90px] max-w-[160px]"
                                         >
                                           {isEditing ? (
@@ -567,7 +563,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                                                 autoFocus
                                                 className="w-full text-xs bg-background border border-primary px-1.5 py-0.5 rounded shadow-sm focus:outline-none focus:ring-1 focus:ring-primary/20"
                                               />
-                                              <button 
+                                              <button
                                                 onMouseDown={(e) => {
                                                   e.preventDefault();
                                                   saveEditing();
@@ -578,7 +574,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                                               </button>
                                             </div>
                                           ) : (
-                                            <div 
+                                            <div
                                               onClick={() => startEditing(activeSheet.id, rIdx, cIdx, val)}
                                               className="cursor-pointer hover:bg-muted/30 px-1 py-1 rounded transition min-h-[1.5rem] flex items-start justify-between gap-1"
                                             >
@@ -621,16 +617,16 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             </>
           )}
 
-          {/* TAB 2: 📖 心智词典 */}
+          {/* TAB 2: 📖 记忆词典 */}
           {activeTab === 'dict' && (
             <div className="space-y-4">
               <div className="text-[11px] font-medium bg-muted/40 text-muted-foreground border border-border/40 rounded-lg p-2.5 leading-relaxed">
-                💡 这里是 AI 在对话中**自动学习与涌现**的认知概念。AC 自动机将利用这些概念及其别名，在输入时自动匹配查询标签，从而精准唤醒您的历史记忆。
+                💡 这里是 AI 在对话中**自动学习并提取**的记忆关键词（人物、地点、物品等）。系统会自动匹配这些词及别名，在对话时检索关联的历史消息，从而精准唤醒 AI 的历史记忆。
               </div>
 
               {isLoadingDict ? (
                 <div className="py-12 text-center text-xs text-muted-foreground font-medium flex items-center justify-center gap-2">
-                  <RefreshCw className="w-4 h-4 animate-spin" /> 加载心智词典中...
+                  <RefreshCw className="w-4 h-4 animate-spin" /> 加载记忆词典中...
                 </div>
               ) : dictEntries.length === 0 ? (
                 <div className="border border-dashed border-border/80 rounded-xl p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
@@ -657,7 +653,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                                 {getEntityTypeLabel(entry.type)}
                               </span>
                             </div>
-                            
+
                             {/* Display Aliases */}
                             {!isEditing && (
                               <div className="flex items-center gap-1 mt-1.5 flex-wrap">
@@ -676,17 +672,47 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                           </div>
 
                           {!isEditing && (
-                            <button
-                              onClick={() => {
-                                setEditingEntryId(entry.id);
-                                setEditAliasesText((entry.aliases || []).join(", "));
-                              }}
-                              className="p-1 rounded text-muted-foreground hover:bg-muted transition shrink-0"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => {
+                                  setExpandedEntryId(expandedEntryId === entry.id ? null : entry.id);
+                                }}
+                                className={`p-1 rounded transition ${expandedEntryId === entry.id ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:bg-muted'}`}
+                                title="查看详情"
+                              >
+                                <Info className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingEntryId(entry.id);
+                                  setEditAliasesText((entry.aliases || []).join(", "));
+                                }}
+                                className="p-1 rounded text-muted-foreground hover:bg-muted transition"
+                                title="编辑别名"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           )}
                         </div>
+
+                        {/* 详情展示区域 */}
+                        {expandedEntryId === entry.id && (
+                          <div className="text-[10px] space-y-1.5 bg-muted/20 border border-border/30 rounded-xl p-2.5 font-medium text-muted-foreground leading-relaxed animate-in fade-in slide-in-from-top-1 duration-150">
+                            <div className="flex justify-between">
+                              <span>首次出现轮次:</span>
+                              <span className="font-semibold text-foreground">第 {entry.firstSeenTurn + 1} 轮对话</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>创建时间:</span>
+                              <span className="font-semibold text-foreground">{new Date(entry.createdAt).toLocaleString("zh-CN")}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>最近更新时间:</span>
+                              <span className="font-semibold text-foreground">{new Date(entry.updatedAt).toLocaleString("zh-CN")}</span>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Edit Aliases Expand Input */}
                         {isEditing && (
@@ -719,11 +745,11 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             </div>
           )}
 
-          {/* TAB 3: 🧠 记忆唤醒舱 */}
+          {/* TAB 3: 唤醒记忆 */}
           {activeTab === 'recall' && (
             <div className="space-y-4">
               <div className="text-[11px] font-medium bg-muted/40 text-muted-foreground border border-border/40 rounded-lg p-2.5 leading-relaxed">
-                💡 这里是**最近一次发送消息中被 AI 成功唤醒的历史发言**。在此进行标记可以强力修正 AI 的心智细节。
+                💡 这里展示的是**最近一次发送消息时被 AI 成功唤醒的关联历史记忆**。你可以在此对其进行置顶（使其成为永久记忆）或屏蔽（使其被 AI 忽略），以此来微调 AI 掌握的背景细节。
               </div>
 
               {lastRecalled.length === 0 ? (
@@ -739,48 +765,44 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                     const isMuted = (activeSession.mutedMessageIds || []).includes(msg.messageId);
 
                     return (
-                      <div 
-                        key={msg.messageId} 
-                        className={`border rounded-xl p-3 flex flex-col gap-2 transition ${
-                          isPinned 
-                            ? "bg-primary/5 border-primary/45 shadow-sm" 
-                            : isMuted 
-                            ? "bg-muted/30 border-border/40 opacity-40" 
+                      <div
+                        key={msg.messageId}
+                        className={`border rounded-xl p-3 flex flex-col gap-2 transition ${isPinned
+                          ? "bg-primary/5 border-primary/45 shadow-sm"
+                          : isMuted
+                            ? "bg-muted/30 border-border/40 opacity-40"
                             : "bg-card/40 border-border/50"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 border border-border/50 bg-muted rounded text-muted-foreground">
                               轮次 {msg.turnIndex + 1}
                             </span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                              msg.role === 'user' ? 'bg-primary/10 text-primary' : 'bg-card text-muted-foreground border border-border'
-                            }`}>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${msg.role === 'user' ? 'bg-primary/10 text-primary' : 'bg-card text-muted-foreground border border-border'
+                              }`}>
                               {msg.role === 'user' ? '用户' : '角色'}
                             </span>
                           </div>
-                          
+
                           {/* Row Actions: Pin or Mute */}
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               onClick={() => handleTogglePin(msg.messageId)}
-                              className={`p-1 rounded border transition ${
-                                isPinned 
-                                  ? "bg-primary border-primary text-primary-foreground" 
-                                  : "hover:bg-muted border-border/60 text-muted-foreground"
-                              }`}
+                              className={`p-1 rounded border transition ${isPinned
+                                ? "bg-primary border-primary text-primary-foreground"
+                                : "hover:bg-muted border-border/60 text-muted-foreground"
+                                }`}
                               title={isPinned ? "取消 Pin 固定" : "强行 Pin 固定"}
                             >
                               <Pin className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => handleToggleMute(msg.messageId)}
-                              className={`p-1 rounded border transition ${
-                                isMuted 
-                                  ? "bg-destructive border-destructive text-destructive-foreground" 
-                                  : "hover:bg-muted border-border/60 text-muted-foreground"
-                              }`}
+                              className={`p-1 rounded border transition ${isMuted
+                                ? "bg-destructive border-destructive text-destructive-foreground"
+                                : "hover:bg-muted border-border/60 text-muted-foreground"
+                                }`}
                               title={isMuted ? "取消 Mute 屏蔽" : "强行 Mute 屏蔽"}
                             >
                               <VolumeX className="w-3 h-3" />
