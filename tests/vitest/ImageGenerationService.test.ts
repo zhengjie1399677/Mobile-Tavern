@@ -161,4 +161,23 @@ describe("ImageGenerationService tests", () => {
       service.generateImage("cute dog", mockConfig, controller.signal)
     ).rejects.toThrow("Generation aborted before request started");
   });
+
+  it("should fail and throw '未配置api' when config is not provided, not enabled, or lacks baseUrl", async () => {
+    await service.init({} as any);
+
+    // Scenario 1: config is null/undefined
+    await expect(
+      service.generateImage("cute dog", null as any)
+    ).rejects.toThrow("未配置api");
+
+    // Scenario 2: config is disabled
+    await expect(
+      service.generateImage("cute dog", { enabled: false, baseUrl: "http://example.com" } as any)
+    ).rejects.toThrow("未配置api");
+
+    // Scenario 3: config has no baseUrl or empty baseUrl
+    await expect(
+      service.generateImage("cute dog", { enabled: true, baseUrl: "  " } as any)
+    ).rejects.toThrow("未配置api");
+  });
 });

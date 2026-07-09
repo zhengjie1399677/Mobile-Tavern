@@ -106,7 +106,7 @@ export interface UnifiedAppContextProps {
   handleExportLocalDataBackup: () => Promise<void>;
   handleImportLocalDataBackup: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleImportSillyChatHistory: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
-  handleSilentDailyBackup: (characters: any[], sessions: any[]) => Promise<boolean>;
+  handleSilentDailyBackup: (characters: any[]) => Promise<boolean>;
   customWorldbooks: Record<string, CustomWorldbook>;
   updateCustomWorldbooks: (
     updater: Record<string, CustomWorldbook> | ((prev: Record<string, CustomWorldbook>) => Record<string, CustomWorldbook>)

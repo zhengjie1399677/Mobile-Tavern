@@ -197,7 +197,6 @@ npm run bump-version <new_version>   # 示例：npm run bump-version 1.7.0
 ---
 
 # ℹ️ 特有例外说明 (Project Exceptions)
-- **硬编码 OpenRouter API Key**：`apiClient.ts` 中的 `TRIAL_OPENROUTER_KEY` 为无余额的免费试用 Key，不涉及资产泄露，无需报告为安全高危漏洞。
 - **野牛模式与AI回复走向**：由于当前底层机制需要，允许违反准则二。野牛判定和回复走向建议等功能由于其原生度要求，确需在此处硬编码，无需强行重构为外部配置。
 
 ---

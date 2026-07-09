@@ -45,6 +45,10 @@ export class ImageGenerationService implements IImageGenerationService {
   }
 
   async generateImage(prompt: string, config: ImageGenApiConfig, signal?: AbortSignal): Promise<string> {
+    if (!config || !config.enabled || !config.baseUrl?.trim()) {
+      throw new Error("未配置api");
+    }
+
     const activeSignal = signal || this.abortController?.signal;
 
     if (activeSignal?.aborted) {

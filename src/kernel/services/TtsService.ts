@@ -48,8 +48,16 @@ export class TtsService implements ITtsService {
   }
 
   isSpeaking(): boolean {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      return window.speechSynthesis.speaking || this.isSpeakingState;
+    if (typeof window !== "undefined") {
+      const bridge = (window as any).AndroidThemeBridge;
+      if (bridge && typeof bridge.isSpeakingNative === "function") {
+        try {
+          return bridge.isSpeakingNative() || this.isSpeakingState;
+        } catch {}
+      }
+      if (window.speechSynthesis) {
+        return window.speechSynthesis.speaking || this.isSpeakingState;
+      }
     }
     return this.isSpeakingState;
   }
@@ -88,6 +96,70 @@ export class TtsService implements ITtsService {
     const provider = config.provider || "speech-synthesis";
 
     if (provider === "speech-synthesis") {
+      const bridge = typeof window !== "undefined" ? (window as any).AndroidThemeBridge : null;
+      if (bridge && typeof bridge.speakNative === "function") {
+        const rate = config.rate ?? 1.0;
+        const pitch = config.pitch ?? 1.0;
+        const success = bridge.speakNative(cleanedText, rate, pitch);
+        if (!success) {
+          this.isSpeakingState = false;
+          throw new Error("Failed to initialize Android Native TTS");
+        }
+
+        await new Promise<void>((resolve) => {
+          let intervalId: any = null;
+          const onAbort = () => {
+            if (bridge && typeof bridge.stopNative === "function") {
+              try {
+                bridge.stopNative();
+              } catch {}
+            }
+            cleanup();
+            resolve();
+          };
+
+          const cleanup = () => {
+            this.isSpeakingState = false;
+            this.speakingMessageId = null;
+            this.onStopCallback = null;
+            if (intervalId) clearInterval(intervalId);
+            activeSignal?.removeEventListener("abort", onAbort);
+          };
+
+          this.onStopCallback = onAbort;
+          if (activeSignal) {
+            activeSignal.addEventListener("abort", onAbort);
+          }
+
+          let hasStartedSpeaking = false;
+          let silenceTicks = 0;
+          intervalId = setInterval(() => {
+            if (activeSignal?.aborted) {
+              cleanup();
+              resolve();
+              return;
+            }
+            const speaking = bridge.isSpeakingNative();
+            if (speaking) {
+              hasStartedSpeaking = true;
+              silenceTicks = 0;
+            } else {
+              if (hasStartedSpeaking) {
+                cleanup();
+                resolve();
+              } else {
+                silenceTicks++;
+                if (silenceTicks > 30) {
+                  cleanup();
+                  resolve();
+                }
+              }
+            }
+          }, 100);
+        });
+        return;
+      }
+
       if (typeof window === "undefined" || !window.speechSynthesis) {
         this.isSpeakingState = false;
         throw new Error("Browser SpeechSynthesis is not supported in this environment");
@@ -288,6 +360,16 @@ export class TtsService implements ITtsService {
     this.isSpeakingState = false;
     this.speakingMessageId = null;
     
+    // 中止安卓原生 TTS 朗读
+    if (typeof window !== "undefined") {
+      const bridge = (window as any).AndroidThemeBridge;
+      if (bridge && typeof bridge.stopNative === "function") {
+        try {
+          bridge.stopNative();
+        } catch {}
+      }
+    }
+
     // 中止 Web Speech API 朗读
     if (typeof window !== "undefined" && window.speechSynthesis) {
       try {
@@ -315,16 +397,30 @@ export class TtsService implements ITtsService {
   pause(): void {
     if (this.currentAudio) {
       this.currentAudio.pause();
-    } else if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.pause();
+    } else if (typeof window !== "undefined") {
+      const bridge = (window as any).AndroidThemeBridge;
+      if (bridge && typeof bridge.stopNative === "function") {
+        try {
+          bridge.stopNative();
+        } catch {}
+      } else if (window.speechSynthesis) {
+        window.speechSynthesis.pause();
+      }
     }
   }
 
   resume(): void {
     if (this.currentAudio) {
       this.currentAudio.play().catch(() => {});
-    } else if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.resume();
+    } else if (typeof window !== "undefined") {
+      const bridge = (window as any).AndroidThemeBridge;
+      if (bridge && typeof bridge.stopNative === "function") {
+        // Android 原生 TTS 暂停时已被 stop，无法从断点恢复
+        return;
+      }
+      if (window.speechSynthesis) {
+        window.speechSynthesis.resume();
+      }
     }
   }
 }

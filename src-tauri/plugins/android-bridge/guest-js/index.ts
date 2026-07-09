@@ -46,6 +46,12 @@ export interface AndroidThemeBridge {
   saveFileBase64(fileName: string, base64Data: string, mimeType: string): string;
   /** Opens a URL in the system default browser. */
   openUrl(url: string): void;
+  /** Plays native Android TTS speech synthesis. */
+  speakNative(text: string, rate: number, pitch: number): boolean;
+  /** Stops any ongoing native Android TTS speech. */
+  stopNative(): void;
+  /** Checks if native Android TTS is currently speaking. */
+  isSpeakingNative(): boolean;
 }
 
 declare global {

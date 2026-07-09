@@ -20,7 +20,7 @@ import {
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
-import { saveSession } from "../../utils/localDB";
+import { handleGenerateImageForMessage } from "./imageGenerationHandler";
 import TypingIndicator from "./TypingIndicator";
 import QuickDialogueOptions from "./QuickDialogueOptions";
 import CloudLoader from "../../components/CloudLoader";
@@ -131,30 +131,39 @@ const MessageBubble = ({
     }
   }, [isOpen, forceResetDomStyles]);
 
-  // 轮询检测 TTS 状态
+  // 轮询检测 TTS 状态：仅当本条消息正在朗读时才启动轮询，检测到停止后自动清理
+  // 同一时刻最多只有 1 个定时器在运行，避免消息多时 N 个定时器同时轮询
   React.useEffect(() => {
     let active = true;
     let timer: any = null;
 
     const checkSpeaking = () => {
       const ttsService = getKernelService<any>("tts");
-      if (ttsService) {
-        const speakingId = ttsService.getSpeakingMessageId();
-        const speaking = ttsService.isSpeaking() && speakingId === message.id;
-        if (active) {
-          setIsSpeakingThis(speaking);
+      if (!ttsService || !active) return;
+      const speakingId = ttsService.getSpeakingMessageId();
+      const speaking = ttsService.isSpeaking() && speakingId === message.id;
+      if (active) {
+        setIsSpeakingThis(speaking);
+        if (!speaking && timer) {
+          clearInterval(timer);
+          timer = null;
         }
       }
     };
 
+    // 挂载时同步一次状态（恢复朗读指示）
     checkSpeaking();
-    timer = setInterval(checkSpeaking, 500);
+
+    // 仅当本条消息正在朗读时才启动轮询
+    if (isSpeakingThis) {
+      timer = setInterval(checkSpeaking, 1000);
+    }
 
     return () => {
       active = false;
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
     };
-  }, [message.id, getKernelService]);
+  }, [message.id, getKernelService, isSpeakingThis]);
 
   // 点击外部自动收起侧滑菜单
   React.useEffect(() => {
@@ -468,157 +477,16 @@ const MessageBubble = ({
                   setSwipedMsgId(null);
                   setDragOffset(0);
                   
-                  if (!activeSession) return;
-                  const targetMsgId = message.id;
-
-                  // Set loading state
-                  const drawSession = {
-                    ...activeSession,
-                    messages: activeSession.messages.map((m: any) =>
-                      m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: true } } : m
-                    )
-                  };
-                  setSessions((prev: any) =>
-                    prev.map((s: any) => (s.id === drawSession.id ? drawSession : s)),
-                  );
-
-                  try {
-                    const config = settings.imageGenApi;
-                    if (!config || !config.enabled) {
-                      throw new Error("请先在设置中启用生图功能并配置接口参数。");
-                    }
-
-                    let finalPrompt = message.content;
-                    let template = config.promptGeneratorTemplate || "Based on the following character appearance features, conversation context, and current sentence, write a vivid English prompt describing the visual scene, character appearance (strictly following the appearance features), action, expression, location, and atmosphere. Focus on concrete visual details. Avoid text, abstract ideas, or dialogue.\nOutput only the raw English prompt, no extra text.\n\n### Appearance Features\n{appearance}\n\n### Conversation Context\n{context}\n\nCurrent Sentence to Visualize:\n{message}\n\nDescriptive English Prompt:";
-
-                    if (!template.includes("{appearance}")) {
-                      if (template.includes("Conversation Context:\n{context}")) {
-                        template = template.replace(
-                          "Conversation Context:\n{context}",
-                          "### Appearance Features\n{appearance}\n\n### Conversation Context\n{context}"
-                        );
-                      } else if (template.includes("对话上下文：\n{context}")) {
-                        template = template.replace(
-                          "对话上下文：\n{context}",
-                          "### 外观特征\n{appearance}\n\n### 对话上下文\n{context}"
-                        );
-                      } else if (template.includes("{context}")) {
-                        template = template.replace(
-                          "{context}",
-                          "### 外观特征\n{appearance}\n\n### 对话上下文\n{context}"
-                        );
-                      } else {
-                        template = `### Appearance Features\n{appearance}\n\n${template}`;
-                      }
-                    }
-
-                    if (settings.api && settings.api.baseUrl) {
-                      try {
-                        const { universalFetch, API_ENDPOINT } = await import("../../utils/apiClient");
-                        const messageIndex = activeSession.messages.findIndex((m: any) => m.id === message.id);
-                        const recentMessages = activeSession.messages.slice(Math.max(0, messageIndex - 4), messageIndex + 1);
-                        const contextText = recentMessages
-                          .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-                          .join("\n");
-
-                        const charName = activeCharacter?.name || "Assistant";
-                        const userName = settings.userName || "User";
-                        const rawAppearance = activeCharacter?.description || "";
-                        const appearanceText = rawAppearance
-                          .replace(/\{\{char\}\}/gi, charName)
-                          .replace(/\{\{user\}\}/gi, userName)
-                          .trim() || "No character appearance described.";
-
-                        const llmPrompt = template
-                          .replace("{appearance}", appearanceText)
-                          .replace("{context}", contextText)
-                          .replace("{message}", message.content);
-
-                        const llmResponse = await universalFetch(API_ENDPOINT.ProxyOpenAI, {
-                          baseUrl: settings.api.baseUrl,
-                          apiKey: settings.api.apiKey || "",
-                          chatPath: settings.api.chatPath,
-                          bypassProxy: settings.api.bypassProxy,
-                          disableReasoning: settings.api.disableReasoning,
-                          reqBody: {
-                            model: settings.api.modelName,
-                            messages: [{ role: "user", content: llmPrompt }],
-                            temperature: settings.preset?.temperature,
-                            top_p: settings.preset?.topP,
-                            top_k: settings.preset?.topK,
-                            min_p: settings.preset?.minP,
-                            max_tokens: 150,
-                            presence_penalty: settings.preset?.presencePenalty ?? 0.0,
-                            frequency_penalty: settings.preset?.frequencyPenalty ?? 0.0,
-                            repetition_penalty: settings.preset?.repetitionPenalty ?? 1.0,
-                          }
-                        });
-
-                        if (llmResponse.ok) {
-                          const llmJson = await llmResponse.json();
-                          const aiSummary = llmJson.choices?.[0]?.message?.content?.trim();
-                          if (aiSummary) {
-                            finalPrompt = aiSummary
-                              .replace(/^["'"`]+|["'"`]+$/g, "")
-                              .replace(/^(Prompt|Prompt:|Prompt description:|English Prompt:|Description:)\s*/i, "")
-                              .trim();
-                            console.log("[MessageBubble] Summarized Prompt:", finalPrompt);
-                          }
-                        }
-                      } catch (e) {
-                        console.warn("[MessageBubble] Failed to contact LLM for prompt summary, falling back:", e);
-                      }
-                    }
-
-                    if (config.promptEditBeforeGenerate) {
-                      const editedPrompt = await showCustomPrompt(
-                        "生图提示词已生成，您可以在此修改：",
-                        finalPrompt,
-                        "提示词确认",
-                        "textarea"
-                      );
-                      if (editedPrompt === null) {
-                        const errorSession = {
-                          ...activeSession,
-                          messages: activeSession.messages.map((m: any) =>
-                            m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
-                          )
-                        };
-                        setSessions((prev: any) =>
-                          prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
-                        );
-                        return;
-                      }
-                      finalPrompt = editedPrompt.trim();
-                    }
-
-                    const { KernelServices } = await import("../../kernel");
-                    const imageGenService = getKernelService<any>(KernelServices.ImageGen);
-                    const imgUrl = await imageGenService.generateImage(finalPrompt, config);
-                    const finalSession = {
-                      ...activeSession,
-                      messages: activeSession.messages.map((m: any) =>
-                        m.id === targetMsgId ? { ...m, extra: { ...m.extra, image: imgUrl, isDrawing: false } } : m
-                      )
-                    };
-                    setSessions((prev: any) =>
-                      prev.map((s: any) => (s.id === finalSession.id ? finalSession : s)),
-                    );
-                    await saveSession(finalSession);
-                  } catch (err: any) {
-                    console.error("Image generation failed:", err);
-                    showCustomAlert(`绘图失败: ${err.message || String(err)}`, "生图失败");
-                    const errorSession = {
-                      ...activeSession,
-                      messages: activeSession.messages.map((m: any) =>
-                        m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
-                      )
-                    };
-                    setSessions((prev: any) =>
-                      prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
-                    );
-                    await saveSession(errorSession);
-                  }
+                  await handleGenerateImageForMessage({
+                    message,
+                    activeSession,
+                    settings,
+                    activeCharacter,
+                    setSessions,
+                    showCustomAlert,
+                    showCustomPrompt,
+                    getKernelService,
+                  });
                 }}
                 disabled={isSending}
                 className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow active:scale-90 transition-transform disabled:opacity-40"
@@ -653,8 +521,6 @@ const MessageBubble = ({
                     ttsService.speak(textToSpeak, {
                       ...settings.ttsConfig,
                       messageId: message.id
-                    }).catch(() => {
-                      setIsSpeakingThis(false);
                     }).finally(() => {
                       setIsSpeakingThis(false);
                     });

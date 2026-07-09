@@ -25,7 +25,7 @@ interface UseBackupRestoreDeps {
 }
 
 interface UseBackupRestoreReturn {
-  handleExportLocalDataBackup: (characters: any[], sessions: any[]) => Promise<void>;
+  handleExportLocalDataBackup: (characters: any[]) => Promise<void>;
   handleImportLocalDataBackup: (
     e: React.ChangeEvent<HTMLInputElement>,
     setCharacters: React.Dispatch<React.SetStateAction<any[]>>,
@@ -36,7 +36,7 @@ interface UseBackupRestoreReturn {
     characters: any[],
     setSessions: React.Dispatch<React.SetStateAction<any[]>>
   ) => Promise<void>;
-  handleSilentDailyBackup: (characters: any[], sessions: any[]) => Promise<boolean>;
+  handleSilentDailyBackup: (characters: any[]) => Promise<boolean>;
 }
 
 /**
@@ -58,7 +58,7 @@ export const useBackupRestore = ({
   showCustomAlert,
   showCustomConfirm,
 }: UseBackupRestoreDeps): UseBackupRestoreReturn => {
-  const handleExportLocalDataBackup = useCallback(async (characters: any[], partialSessions: any[]) => {
+  const handleExportLocalDataBackup = useCallback(async (characters: any[]) => {
     if (encryptBackup && !backupPass.trim()) {
       await showCustomAlert("开启了加密，请预设一个强度适宜的数据保护密码。");
       return;
@@ -461,7 +461,7 @@ export const useBackupRestore = ({
     }
   }, [showCustomAlert, showCustomConfirm, setBackupStatus]);
 
-  const handleSilentDailyBackup = useCallback(async (characters: any[], partialSessions: any[]) => {
+  const handleSilentDailyBackup = useCallback(async (characters: any[]) => {
     const lastBackup = settings.lastBackupTime || 0;
     const ONE_DAY = 24 * 60 * 60 * 1000;
 

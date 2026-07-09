@@ -1,12 +1,15 @@
 package com.aitavern.plugin.androidbridge
 
 import android.app.Activity
+import android.app.Application
 import android.content.ContentValues
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.speech.tts.TextToSpeech
 import android.util.Base64
 import android.util.Log
 import android.view.View
@@ -19,6 +22,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
+import java.util.Locale
 
 /**
  * Native bridge injected into the WebView as `window.AndroidThemeBridge`.
@@ -44,7 +48,105 @@ import java.io.OutputStream
 class AndroidThemeBridge(
     private val activity: Activity,
     private val webView: WebView,
-) {
+) : TextToSpeech.OnInitListener {
+
+    private var tts: TextToSpeech? = null
+    private var ttsInitialized = false
+
+    init {
+        // Initialize TTS on the main thread
+        activity.runOnUiThread {
+            try {
+                tts = TextToSpeech(activity, this)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to instantiate TextToSpeech", e)
+            }
+        }
+
+        // Register activity lifecycle callback to shutdown TTS and avoid memory leaks
+        activity.application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityDestroyed(act: Activity) {
+                if (act === activity) {
+                    activity.runOnUiThread {
+                        try {
+                            tts?.shutdown()
+                            tts = null
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to shutdown TextToSpeech", e)
+                        }
+                    }
+                    activity.application.unregisterActivityLifecycleCallbacks(this)
+                }
+            }
+
+            override fun onActivityCreated(act: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityStarted(act: Activity) {}
+            override fun onActivityResumed(act: Activity) {}
+            override fun onActivityPaused(act: Activity) {}
+            override fun onActivityStopped(act: Activity) {}
+            override fun onActivitySaveInstanceState(act: Activity, outState: Bundle) {}
+        })
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            ttsInitialized = true
+            activity.runOnUiThread {
+                try {
+                    val result = tts?.setLanguage(Locale.CHINESE)
+                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        Log.w(TAG, "Chinese language is not supported or missing data in system TTS, falling back to default")
+                        tts?.language = Locale.getDefault()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to set TTS language on init", e)
+                }
+            }
+        } else {
+            Log.e(TAG, "TextToSpeech initialization failed with status: $status")
+        }
+    }
+
+    @JavascriptInterface
+    fun speakNative(text: String, rate: Float, pitch: Float): Boolean {
+        val currentTts = tts
+        if (currentTts == null || !ttsInitialized) {
+            Log.w(TAG, "TTS not initialized yet")
+            return false
+        }
+        activity.runOnUiThread {
+            try {
+                currentTts.stop()
+                currentTts.setSpeechRate(rate)
+                currentTts.setPitch(pitch)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    currentTts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tavern_tts_utterance")
+                } else {
+                    @Suppress("DEPRECATION")
+                    currentTts.speak(text, TextToSpeech.QUEUE_FLUSH, null)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error playing native TTS", e)
+            }
+        }
+        return true
+    }
+
+    @JavascriptInterface
+    fun stopNative() {
+        activity.runOnUiThread {
+            try {
+                tts?.stop()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping native TTS", e)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun isSpeakingNative(): Boolean {
+        return tts?.isSpeaking ?: false
+    }
 
     companion object {
         private const val TAG = "TavernThemeBridge"

@@ -82,13 +82,12 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     );
   }, [chatHook, charactersHook, chatState.sessions, chatState.setSessions, chatState.deleteSession]);
 
-  // Wrap backup exports to inject current characters and sessions states
+  // Wrap backup exports to inject current characters state
   const wrappedHandleExportLocalDataBackup = React.useCallback(async () => {
     return settingsHook.handleExportLocalDataBackup(
-      charState.characters,
-      chatState.sessions
+      charState.characters
     );
-  }, [settingsHook, charState.characters, chatState.sessions]);
+  }, [settingsHook, charState.characters]);
 
   // Wrap backup imports to inject state dispatch actions
   const wrappedHandleImportLocalDataBackup = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,13 +107,12 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     );
   }, [settingsHook, charState.characters, chatState.setSessions]);
 
-  // Wrap silent daily backup to inject characters and sessions
+  // Wrap silent daily backup to inject characters state
   const wrappedHandleSilentDailyBackup = React.useCallback(async () => {
     return settingsHook.handleSilentDailyBackup(
-      charState.characters,
-      chatState.sessions
+      charState.characters
     );
-  }, [settingsHook, charState.characters, chatState.sessions]);
+  }, [settingsHook, charState.characters]);
 
   // Sort characters by their last active conversation time (latest message timestamp across all sessions) descending.
   const sortedCharacters = React.useMemo(() => {
@@ -189,15 +187,21 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     unifiedAppStore.setState(appContextValue);
   }, [appContextValue]);
 
+  // 使用 ref 存储最新的备份函数与角色数据，避免它们作为定时器依赖导致频繁重置
+  const silentDailyBackupRef = React.useRef(settingsHook.handleSilentDailyBackup);
+  silentDailyBackupRef.current = settingsHook.handleSilentDailyBackup;
+  const backupCharactersRef = React.useRef(charState.characters);
+  backupCharactersRef.current = charState.characters;
+
   // 每日后台自动备份定时器，在应用就绪 5 秒后静默检测并执行
+  // 依赖数组仅保留就绪标志，避免活跃聊天时 sessions/characters 变化不断重置 5 秒定时器
   React.useEffect(() => {
     if (!settingsHook.isReady || !charState.isDBReady) return;
 
     const timer = setTimeout(() => {
       console.log("[AutoBackup] App state is ready. Triggering daily backup check...");
-      settingsHook.handleSilentDailyBackup(
-        charState.characters,
-        chatState.sessions
+      silentDailyBackupRef.current(
+        backupCharactersRef.current
       ).catch((err) => {
         console.error("[AutoBackup] Background daily backup scheduler failed:", err);
       });
@@ -207,9 +211,6 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
   }, [
     settingsHook.isReady,
     charState.isDBReady,
-    charState.characters,
-    chatState.sessions,
-    settingsHook.handleSilentDailyBackup
   ]);
 
   return (

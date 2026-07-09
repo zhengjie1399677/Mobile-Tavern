@@ -549,7 +549,13 @@ export default function MemoryStorageSection({
                 `运行平台: ${isTauri ? "Tauri Android 客户端" : "Web 网页端"}`,
                 `设备型号: ${deviceModel}`,
                 typeof window !== "undefined" ? `视口尺寸: ${viewportSize.w}x${viewportSize.h} (视觉: ${Math.round(viewportSize.vW)}x${Math.round(viewportSize.vH)})` : null,
-                safeAreas ? `安全区域: 顶部 ${safeAreas.top}dp | 底部 ${safeAreas.bottom}dp` : null
+                safeAreas ? `安全区域: 顶部 ${safeAreas.top}dp | 底部 ${safeAreas.bottom}dp` : null,
+                `安卓桥接: ${typeof window !== "undefined" && (window as any).AndroidThemeBridge ? "已注入 (Success)" : "未注入/不支持 (None)"}`,
+                `UA 信息: ${typeof navigator !== "undefined" ? navigator.userAgent : "N/A"}`,
+                `TTS 配置: ${settings.ttsConfig?.enabled ? `开启 (${settings.ttsConfig.provider || "speech-synthesis"})` : "关闭"}`,
+                `ASR 配置: ${settings.asrConfig?.enabled ? `开启 (${settings.asrConfig.provider || "web-speech"})` : "关闭"}`,
+                `生图配置: ${settings.imageGenApi?.enabled ? `开启 (${settings.imageGenApi.type || "openai-dalle"})` : "关闭"}`,
+                `主 API 接口: ${settings.api?.baseUrl ? `已配 (Base: ${settings.api.baseUrl.replace(/^(https?:\/\/[^\/]+).*$/, "$1")}...)` : "未配置"}`
               ].filter(Boolean).join("\n");
 
               if (navigator.clipboard?.writeText) {
