@@ -40,3 +40,7 @@ npx.bat
 
 # 测试用角色卡（不上传 GitHub）
 test-cards/
+
+# 全局忽略所有层级的 Gradle 缓存和编译生成物
+**/.gradle/
+**/build/
