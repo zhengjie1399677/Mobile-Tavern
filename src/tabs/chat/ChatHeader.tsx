@@ -11,7 +11,15 @@ import {
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
-import { saveSession } from "../../utils/localDB";
+import { globalKernel } from "../../kernel/Kernel";
+import { IDatabaseService } from "../../kernel/types";
+
+/**
+ * 微内核插件式架构：会话持久化统一走 DatabaseService。
+ */
+function saveSession(session: any): Promise<void> {
+  return globalKernel.getService<IDatabaseService>("database").saveSession(session);
+}
 
 interface ChatHeaderProps {
   openTableDrawer: (tab: 'timeline' | 'table' | 'dict' | 'recall' | 'mvu') => void;
@@ -159,7 +167,7 @@ const ChatHeader = ({
             <button
               onClick={() => setShowMemoryMenu(!showMemoryMenu)}
               className="p-1.5 px-2.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center justify-center shrink-0"
-              title="多维记忆中心"
+              title="记忆与状态中心"
             >
               <span className="text-[11px] font-bold">记忆</span>
             </button>
@@ -185,7 +193,7 @@ const ChatHeader = ({
                     }}
                     className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
                   >
-                    状态沙盒
+                    状态数据
                   </button>
                 )}
                 <button
@@ -195,7 +203,7 @@ const ChatHeader = ({
                   }}
                   className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
                 >
-                  认知中心
+                  记忆词典
                 </button>
 
               </div>

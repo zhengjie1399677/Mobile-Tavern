@@ -19,7 +19,6 @@ export class TtsService implements ITtsService {
 
   private abortController: AbortController | null = null;
   private currentAudio: HTMLAudioElement | null = null;
-  private activeUtterance: SpeechSynthesisUtterance | null = null;
   private isSpeakingState = false;
   private onStopCallback: (() => void) | null = null;
   private speakingMessageId: string | null = null;
@@ -54,9 +53,6 @@ export class TtsService implements ITtsService {
         try {
           return bridge.isSpeakingNative() || this.isSpeakingState;
         } catch {}
-      }
-      if (window.speechSynthesis) {
-        return window.speechSynthesis.speaking || this.isSpeakingState;
       }
     }
     return this.isSpeakingState;
@@ -96,104 +92,30 @@ export class TtsService implements ITtsService {
     const provider = config.provider || "speech-synthesis";
 
     if (provider === "speech-synthesis") {
+      // 移动端：强制走 Android 原生 TextToSpeech，不再回退 Web Speech API
       const bridge = typeof window !== "undefined" ? (window as any).AndroidThemeBridge : null;
-      if (bridge && typeof bridge.speakNative === "function") {
-        const rate = config.rate ?? 1.0;
-        const pitch = config.pitch ?? 1.0;
-        const success = bridge.speakNative(cleanedText, rate, pitch);
-        if (!success) {
-          this.isSpeakingState = false;
-          throw new Error("Failed to initialize Android Native TTS");
-        }
-
-        await new Promise<void>((resolve) => {
-          let intervalId: any = null;
-          const onAbort = () => {
-            if (bridge && typeof bridge.stopNative === "function") {
-              try {
-                bridge.stopNative();
-              } catch {}
-            }
-            cleanup();
-            resolve();
-          };
-
-          const cleanup = () => {
-            this.isSpeakingState = false;
-            this.speakingMessageId = null;
-            this.onStopCallback = null;
-            if (intervalId) clearInterval(intervalId);
-            activeSignal?.removeEventListener("abort", onAbort);
-          };
-
-          this.onStopCallback = onAbort;
-          if (activeSignal) {
-            activeSignal.addEventListener("abort", onAbort);
-          }
-
-          let hasStartedSpeaking = false;
-          let silenceTicks = 0;
-          intervalId = setInterval(() => {
-            if (activeSignal?.aborted) {
-              cleanup();
-              resolve();
-              return;
-            }
-            const speaking = bridge.isSpeakingNative();
-            if (speaking) {
-              hasStartedSpeaking = true;
-              silenceTicks = 0;
-            } else {
-              if (hasStartedSpeaking) {
-                cleanup();
-                resolve();
-              } else {
-                silenceTicks++;
-                if (silenceTicks > 30) {
-                  cleanup();
-                  resolve();
-                }
-              }
-            }
-          }, 100);
-        });
-        return;
-      }
-
-      if (typeof window === "undefined" || !window.speechSynthesis) {
+      if (!bridge || typeof bridge.speakNative !== "function") {
         this.isSpeakingState = false;
-        throw new Error("Browser SpeechSynthesis is not supported in this environment");
+        throw new Error("Android native TTS bridge is not available. Web Speech API fallback has been removed in favor of native TTS.");
       }
 
-      const utterance = new SpeechSynthesisUtterance(cleanedText);
-      this.activeUtterance = utterance;
-      utterance.volume = config.volume ?? 0.5;
-      utterance.rate = config.rate ?? 1.0;
-      utterance.pitch = config.pitch ?? 1.0;
-
-      if (config.voiceName) {
-        const voices = window.speechSynthesis.getVoices();
-        const voice = voices.find(v => v.name === config.voiceName);
-        if (voice) {
-          utterance.voice = voice;
-        }
+      const rate = config.rate ?? 1.0;
+      const pitch = config.pitch ?? 1.0;
+      const success = bridge.speakNative(cleanedText, rate, pitch);
+      if (!success) {
+        this.isSpeakingState = false;
+        this.speakingMessageId = null;
+        throw new Error("Failed to initialize Android Native TTS");
       }
 
-      await new Promise<void>((resolve, reject) => {
-        const onEnd = () => {
-          cleanup();
-          resolve();
-        };
-        const onError = (e: any) => {
-          cleanup();
-          if (e.error === "interrupted" || e.error === "canceled") {
-            resolve();
-          } else {
-            reject(new Error(`SpeechSynthesis error: ${e.error}`));
-          }
-        };
+      await new Promise<void>((resolve) => {
+        let intervalId: any = null;
         const onAbort = () => {
-          window.speechSynthesis.cancel();
+          if (bridge && typeof bridge.stopNative === "function") {
+            try {
+              bridge.stopNative();
+            } catch {}
+          }
           cleanup();
           resolve();
         };
@@ -201,23 +123,43 @@ export class TtsService implements ITtsService {
         const cleanup = () => {
           this.isSpeakingState = false;
           this.speakingMessageId = null;
-          this.activeUtterance = null;
           this.onStopCallback = null;
-          utterance.removeEventListener("end", onEnd);
-          utterance.removeEventListener("error", onError);
+          if (intervalId) clearInterval(intervalId);
           activeSignal?.removeEventListener("abort", onAbort);
         };
 
         this.onStopCallback = onAbort;
-
-        utterance.addEventListener("end", onEnd);
-        utterance.addEventListener("error", onError);
         if (activeSignal) {
           activeSignal.addEventListener("abort", onAbort);
         }
 
-        window.speechSynthesis.speak(utterance);
+        let hasStartedSpeaking = false;
+        let silenceTicks = 0;
+        intervalId = setInterval(() => {
+          if (activeSignal?.aborted) {
+            cleanup();
+            resolve();
+            return;
+          }
+          const speaking = bridge.isSpeakingNative();
+          if (speaking) {
+            hasStartedSpeaking = true;
+            silenceTicks = 0;
+          } else {
+            if (hasStartedSpeaking) {
+              cleanup();
+              resolve();
+            } else {
+              silenceTicks++;
+              if (silenceTicks > 30) {
+                cleanup();
+                resolve();
+              }
+            }
+          }
+        }, 100);
       });
+      return;
 
     } else if (provider === "openai") {
       let fetchFn = tauriFetch || fetch;
@@ -286,6 +228,7 @@ export class TtsService implements ITtsService {
         });
       } catch (err: any) {
         this.isSpeakingState = false;
+        this.speakingMessageId = null;
         if (activeSignal) {
           activeSignal.removeEventListener("abort", onAbort);
         }
@@ -294,6 +237,7 @@ export class TtsService implements ITtsService {
 
       if (!response.ok) {
         this.isSpeakingState = false;
+        this.speakingMessageId = null;
         if (activeSignal) {
           activeSignal.removeEventListener("abort", onAbort);
         }
@@ -359,7 +303,7 @@ export class TtsService implements ITtsService {
   stop(): void {
     this.isSpeakingState = false;
     this.speakingMessageId = null;
-    
+
     // 中止安卓原生 TTS 朗读
     if (typeof window !== "undefined") {
       const bridge = (window as any).AndroidThemeBridge;
@@ -369,14 +313,6 @@ export class TtsService implements ITtsService {
         } catch {}
       }
     }
-
-    // 中止 Web Speech API 朗读
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      try {
-        window.speechSynthesis.cancel();
-      } catch {}
-    }
-    this.activeUtterance = null;
 
     // 中止 HTML5 Audio 播放
     if (this.currentAudio) {
@@ -403,8 +339,6 @@ export class TtsService implements ITtsService {
         try {
           bridge.stopNative();
         } catch {}
-      } else if (window.speechSynthesis) {
-        window.speechSynthesis.pause();
       }
     }
   }
@@ -412,15 +346,7 @@ export class TtsService implements ITtsService {
   resume(): void {
     if (this.currentAudio) {
       this.currentAudio.play().catch(() => {});
-    } else if (typeof window !== "undefined") {
-      const bridge = (window as any).AndroidThemeBridge;
-      if (bridge && typeof bridge.stopNative === "function") {
-        // Android 原生 TTS 暂停时已被 stop，无法从断点恢复
-        return;
-      }
-      if (window.speechSynthesis) {
-        window.speechSynthesis.resume();
-      }
     }
+    // Android 原生 TTS 暂停时已被 stop，无法从断点恢复
   }
 }

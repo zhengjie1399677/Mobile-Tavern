@@ -313,11 +313,11 @@ export default function SettingsTab() {
               isTauri={isTauri}
               deviceModel={deviceModel}
               viewportSize={viewportSize}
+              getKernelService={getKernelService}
             />
           </TabsContent>
         </div>
       </Tabs>
-
     </div>
   );
 }

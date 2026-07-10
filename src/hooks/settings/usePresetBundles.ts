@@ -1,7 +1,16 @@
 import React, { useCallback } from "react";
 import { UserSettings, SamplerPreset } from "../../types";
-import { saveStoredSavedPresets } from "../../utils/localDB";
+import { globalKernel } from "../../kernel/Kernel";
+import { IPresetService } from "../../kernel/types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT_CONFIG } from "./defaults";
+
+/**
+ * 微内核插件式架构：预设包持久化统一走 PresetService。
+ * 业务层不再直接触碰 localDB，遵循 AGENTS.md 准则一与准则八。
+ */
+function saveStoredSavedPresets(presets: any[]): Promise<void> {
+  return globalKernel.getService<IPresetService>("preset").saveStoredSavedPresets(presets);
+}
 
 interface UsePresetBundlesDeps {
   settings: UserSettings;

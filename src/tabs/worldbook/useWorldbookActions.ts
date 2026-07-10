@@ -1,11 +1,24 @@
 import React from "react";
-import { saveCharacter, saveGlobalLorebook } from "../../utils/localDB";
+import { globalKernel } from "../../kernel/Kernel";
+import { ICharacterService, IWorldbookService } from "../../kernel/types";
 import {
   LorebookEntry,
   CharacterCard,
   CustomWorldbook,
 } from "../../types";
 import { mapSillyTavernLorebookEntry } from "../../utils/cardParser";
+
+/**
+ * 微内核插件式架构：业务持久化操作统一走内核服务插件，不再直接触碰 localDB。
+ * 遵循 AGENTS.md 准则一「极致微服务与解耦」与准则八「AI 协作物理隔离开发铁律」。
+ */
+function saveCharacter(character: CharacterCard): Promise<void> {
+  return globalKernel.getService<ICharacterService>("character").saveCharacter(character);
+}
+
+function saveGlobalLorebook(entries: LorebookEntry[]): Promise<void> {
+  return globalKernel.getService<IWorldbookService>("worldbook").saveGlobalLorebook(entries);
+}
 
 /**
  * 内联编辑表单的状态类型。

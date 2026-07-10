@@ -12,6 +12,10 @@ import { ImageGenerationService } from "./services/ImageGenerationService";
 import { BgmService } from "./services/BgmService";
 import { TtsService } from "./services/TtsService";
 import { AsrService } from "./services/AsrService";
+import { CharacterService } from "./services/CharacterService";
+import { WorldbookService } from "./services/WorldbookService";
+import { SettingsService } from "./services/SettingsService";
+import { PresetService } from "./services/PresetService";
 import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
@@ -100,6 +104,26 @@ export async function initializeKernel() {
     {
       name: KernelServices.Asr,
       service: new AsrService(),
+      initTimeoutMs: 3000,
+    },
+    {
+      name: KernelServices.Character,
+      service: new CharacterService(),
+      initTimeoutMs: 3000,
+    },
+    {
+      name: KernelServices.Worldbook,
+      service: new WorldbookService(),
+      initTimeoutMs: 3000,
+    },
+    {
+      name: KernelServices.Settings,
+      service: new SettingsService(),
+      initTimeoutMs: 3000,
+    },
+    {
+      name: KernelServices.Preset,
+      service: new PresetService(),
       initTimeoutMs: 3000,
     },
   ]);

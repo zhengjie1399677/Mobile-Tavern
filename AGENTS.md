@@ -198,6 +198,8 @@ npm run bump-version <new_version>   # 示例：npm run bump-version 1.7.0
 
 # ℹ️ 特有例外说明 (Project Exceptions)
 - **野牛模式与AI回复走向**：由于当前底层机制需要，允许违反准则二。野牛判定和回复走向建议等功能由于其原生度要求，确需在此处硬编码，无需强行重构为外部配置。
+- **useRerollMessage 事务流程豁免**：[useRerollMessage.ts](file:///e:/modules/projects/Mobile-Tavern/src/hooks/useChat/useRerollMessage.ts) 含 19 个 await 的事务流程（删除→生成→回滚），属于"复杂业务流程"而非"上帝 Hook"，不强制拆分以避免破坏事务原子性。
+- **详细索引**：完整的特有例外清单与未来代办事项（含 useSendMessage 拆分评估、动态插件装载演进等），详见 [docs/PROJECT_EXCEPTIONS_AND_TODO.md](file:///e:/modules/projects/Mobile-Tavern/docs/PROJECT_EXCEPTIONS_AND_TODO.md)。
 
 ---
 

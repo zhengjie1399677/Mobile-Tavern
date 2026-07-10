@@ -1,0 +1,95 @@
+# 项目特有例外与代办事项
+
+> **本文件整合了 Mobile Tavern 项目的特有例外说明（允许违反准则的豁免场景）与未来代办事项。**
+> AGENTS.md 的「特有例外说明」章节引用本文件作为详细索引。
+> 遵循 AGENTS.md 准则五：全中文表述，技术名词保留英文。
+
+---
+
+## 一、特有例外说明（Project Exceptions）
+
+### 1. 野牛模式与 AI 回复走向（违反准则二）
+
+**例外原因**：由于当前底层机制需要，野牛判定和回复走向建议等功能由于其原生度要求，确需在系统代码中硬编码，无需强行重构为外部配置。
+
+**豁免范围**：允许违反准则二「纯底层兼容运行底座原则」中关于"严禁硬编码特定行为引导逻辑"的禁令。
+
+### 2. useRerollMessage.ts 事务流程（不属于上帝 Hook）
+
+**例外原因**：[useRerollMessage.ts](file:///e:/modules/projects/Mobile-Tavern/src/hooks/useChat/useRerollMessage.ts)（367 行）含 19 个 await，看似复杂但本质是**完整的事务流程**，不是"代码坏味道"。
+
+**事务结构**：
+```
+删除旧消息 → 重新生成 → 失败回滚
+```
+
+**强制拆分的危害**：
+1. 事务原子性被破坏：三段式流程中任一步暴露中间状态，UI 会显示半删除/半生成状态
+2. AbortController 时序竞争：跨 hook 共享 ref 可能 abort 错误的请求
+3. 不可逆数据丢失：失败回滚路径拆分后可能无法恢复用户原消息
+
+**豁免范围**：**不强制拆分**该 Hook 以满足 AGENTS.md 准则一第 6 条「单文件行数硬上限 1000 行」或上帝 Hook 拆分要求。该文件 367 行远低于 1000 行硬上限，且其复杂度源于业务事务本身，非代码组织问题。
+
+**识别准则**：判断一个 Hook 是否为"上帝 Hook"应基于以下维度：
+- 是否混合多个**不相关**职责（而非同一事务的多个步骤）
+- 是否超出单文件 1000 行硬上限
+- 是否存在可独立抽离的纯函数逻辑
+
+---
+
+## 二、代办事项（按风险/难度排序）
+
+### 代办 1：useSendMessage.ts 拆分（需人工 QA 配合）
+
+**文件**：[useSendMessage.ts](file:///e:/modules/projects/Mobile-Tavern/src/hooks/useChat/useSendMessage.ts)（408 行）
+
+**量化指标**：`useEffect:0 useState:0 useCallback:3 useRef:1 await:12 try:5`
+
+**影响**：聊天主路径核心（发送消息 / 流式回调 / 中止生成）
+
+**可能问题**：
+1. 12 个 await 链串联流式回调，拆分后回调顺序错乱会导致消息截断
+2. AbortController 生命周期跨多个异步步骤，拆分后可能提前 abort 或泄漏
+3. 3 个 useCallback 间有隐式依赖（通过 ref 共享），拆分后 ref 时机可能错位
+4. 错误恢复路径（5 个 try）拆分后异常冒泡可能改变
+
+**推进前置条件**：
+- 必须有人工 QA 配合：启动 dev server → 真机点击聊天发消息 → 验证流式生成 / 中止 / 错误恢复
+- AbortController 必须留在一个 hook 内，不能跨 hook 拆分
+- 每次只拆一个职责，拆完立即跑 lint + test + 人工验证
+
+### 代办 2：动态插件装载机制（长期演进目标）
+
+**当前状态**：17 个服务在 `initializeKernel()` 中静态注册，已足够支撑当前规模。
+
+**演进需求**：要真正演进到 AGENTS.md 准则一描述的"50+ 高阶功能插件"超级混合移动端底座，需要：
+- 动态 `loadPlugin(pluginId)` / `unloadPlugin(pluginId)` 能力
+- 插件依赖声明与运行时解析
+- 插件沙盒隔离（防止插件崩溃污染主进程）
+
+**优先级**：低（当前静态注册足够）
+
+### 代办 3：测试覆盖度提升
+
+**当前覆盖**：vitest 135 个测试，覆盖内核机制 / 记忆系统 E2E / ScriptService / PromptService / DatabaseService CRUD / FormattedText 渲染。
+
+**缺失的覆盖**：
+- useCharacters / useCatbot 等 Hook 的单元测试（当前仅靠集成测试覆盖）
+- useSendMessage / useRerollMessage 的流式回调和 AbortController 行为测试
+- 跨组件数据流的契约测试
+
+**优先级**：中（补齐 Hook 层单元测试可降低未来拆分的回归风险）
+
+---
+
+## 三、版本与变更记录
+
+| 日期 | 变更内容 |
+|---|---|
+| 2026-07-10 | 微内核数据层 100% 对齐（17 服务 / 11 处 localDB 直连收口）；useCharacters / useCatbot 上帝 Hook 拆分完成；useRerollMessage 列入特有例外；useSendMessage 列入代办 |
+
+---
+
+**引用关系**：
+- 本文件被 [AGENTS.md](file:///e:/modules/projects/Mobile-Tavern/AGENTS.md) 「特有例外说明」章节引用
+- 本文件被 AGENTS.md 准则一第 6 条「单文件行数硬上限」间接引用（useRerollMessage 豁免）

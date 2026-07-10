@@ -1,6 +1,6 @@
 import { IDatabaseService, IKernel } from "../types";
 import { ChatSession } from "../../types";
-import { getAllSessions, saveSession, deleteSession, getSessionsCount, getSessionsPaginated, getSessionById, getCharacterById } from "../../utils/localDB";
+import { getAllSessions, saveSession, deleteSession, getSessionsCount, getSessionsPaginated, getSessionById, getCharacterById, bulkSaveSessions as dbBulkSaveSessions } from "../../utils/localDB";
 import { applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
 
 export class DatabaseService implements IDatabaseService {
@@ -50,6 +50,11 @@ export class DatabaseService implements IDatabaseService {
 
   async deleteSession(id: string): Promise<void> {
     return deleteSession(id);
+  }
+
+  // 批量写入会话（备份恢复 / 跨设备同步场景），跨 sessions+messages Store 事务
+  async bulkSaveSessions(sessionsList: ChatSession[]): Promise<void> {
+    return dbBulkSaveSessions(sessionsList);
   }
 
   // P0-4 / P1-4: 单条直查角色卡，避免全量反序列化
