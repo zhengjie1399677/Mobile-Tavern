@@ -53,6 +53,10 @@ export function useRerollMessage(p: RerollMessageParams) {
     const currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
     if (!targetMsg?.id || p.isSendingRef.current || !p.activeCharacter || !currentSession) return;
 
+    // 立即锁定发送状态（防止异步弹窗与后续重复点击导致竞争）
+    p.isSendingRef.current = true;
+    p.setIsSending(true);
+
     let finalApiKey = p.settings.api.apiKey;
     let finalBaseUrl = p.settings.api.baseUrl;
     let finalModel = p.settings.api.modelName || FALLBACK_MODEL;
@@ -62,6 +66,8 @@ export function useRerollMessage(p: RerollMessageParams) {
     if (!p.settings.api.apiKey || !p.settings.api.apiKey.trim()) {
       if (getTrialCount() >= 10) {
         await p.showCustomAlert("💡 您的 10 次公共免 Key 体验次数已用完，请前往\"设置 -> API配置\"中填写您自己的 API Key。");
+        p.isSendingRef.current = false;
+        p.setIsSending(false);
         return;
       }
       isTrialMode = true;
@@ -72,6 +78,8 @@ export function useRerollMessage(p: RerollMessageParams) {
     } else {
       if (!p.settings.api.modelName) {
         await p.showCustomAlert("重发失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
+        p.isSendingRef.current = false;
+        p.setIsSending(false);
         return;
       }
     }
@@ -82,11 +90,19 @@ export function useRerollMessage(p: RerollMessageParams) {
       (m) => !(m.sender === "assistant" && (m.content === "💭..." || !m.content))
     );
     const targetIdx = cleanHistory.findIndex((m) => m.id === targetMsg.id);
-    if (targetIdx === -1) return;
+    if (targetIdx === -1) {
+      p.isSendingRef.current = false;
+      p.setIsSending(false);
+      return;
+    }
 
     if (targetIdx < cleanHistory.length - 1) {
       const ok = await p.showCustomConfirm("从该条对白开始重新生成，将会抹除整条分支此后的所有对话。确认继续吗？");
-      if (!ok) return;
+      if (!ok) {
+        p.isSendingRef.current = false;
+        p.setIsSending(false);
+        return;
+      }
     }
 
     const nextMsgsIdx = targetMsg.sender === "user" ? targetIdx + 1 : targetIdx;
@@ -95,12 +111,20 @@ export function useRerollMessage(p: RerollMessageParams) {
     while (nextMsgs.length > 0 && (nextMsgs[nextMsgs.length - 1].sender === "system" || nextMsgs[nextMsgs.length - 1].sender === "assistant")) {
       nextMsgs.pop();
     }
-    if (nextMsgs.length === 0) { await p.showCustomAlert("无可用的历史对话上下文来进行重新生成！"); return; }
+    if (nextMsgs.length === 0) {
+      await p.showCustomAlert("无可用的历史对话上下文来进行重新生成！");
+      p.isSendingRef.current = false;
+      p.setIsSending(false);
+      return;
+    }
 
     const lastMsgNow = nextMsgs[nextMsgs.length - 1];
-    if (lastMsgNow.sender !== "user") { await p.showCustomAlert("重新生成回复之前，需要前置有一条用户消息作为驱动对白！"); return; }
-    p.isSendingRef.current = true;
-    p.setIsSending(true);
+    if (lastMsgNow.sender !== "user") {
+      await p.showCustomAlert("重新生成回复之前，需要前置有一条用户消息作为驱动对白！");
+      p.isSendingRef.current = false;
+      p.setIsSending(false);
+      return;
+    }
 
     const modelToReport = p.settings.api.apiKey ? (p.settings.api.modelName || FALLBACK_MODEL) : "openrouter/free";
     p.telemetryService.reportUsage("regenerate_message", { modelName: modelToReport, characterName: p.activeCharacter.name });
