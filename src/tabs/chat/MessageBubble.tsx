@@ -90,6 +90,7 @@ const MessageBubble = ({
   const bubbleTextRef = React.useRef<HTMLDivElement>(null);
   const swipeMenuRef = React.useRef<HTMLDivElement>(null);
   const dragOffsetRef = React.useRef(0);
+  const swipeLockedRef = React.useRef<'none' | 'swipe' | 'scroll'>('none');
 
   const isOpen = swipedMsgId === message.id;
   const [dragOffset, setDragOffset] = React.useState(0);
@@ -186,6 +187,7 @@ const MessageBubble = ({
     isScrollingOrMoving.current = false;
     hasTriggeredMenuThisTurn.current = false;
     hasVibratedRef.current = false;
+    swipeLockedRef.current = 'none';
 
     // 记录初始触摸坐标
     let clientX = 0;
@@ -249,6 +251,26 @@ const MessageBubble = ({
       const rawDiffX = touchStartXRef.current - clientX;
       const diffX = rawDiffX * dragDirection;
       const diffY = Math.abs(touchStartYRef.current - clientY);
+      const absDiffX = Math.abs(rawDiffX);
+
+      // 手势识别方向锁逻辑
+      if (swipeLockedRef.current === 'none') {
+        if (diffY > 8 && diffY > absDiffX) {
+          swipeLockedRef.current = 'scroll';
+        } else if (absDiffX > 8 && absDiffX > diffY) {
+          swipeLockedRef.current = 'swipe';
+        }
+      }
+
+      // 如果已经锁定为滚动，直接退出
+      if (swipeLockedRef.current === 'scroll') {
+        return;
+      }
+
+      // 如果尚未决定，不处理滑动效果
+      if (swipeLockedRef.current === 'none') {
+        return;
+      }
 
       // 修复3：垂直滚动超阈值时，如果已经有 DOM 残留（拖了一小段又往上滑），立即清理
       if (diffY > 35) {
@@ -329,6 +351,14 @@ const MessageBubble = ({
     isDraggingRef.current = false;
     setIsDragging(false);
 
+    const isLockedToScroll = swipeLockedRef.current === 'scroll';
+    swipeLockedRef.current = 'none';
+
+    if (isLockedToScroll) {
+      touchStartXRef.current = 0;
+      return;
+    }
+
     const rawDiffX = touchStartXRef.current - touchEndXRef.current;
     const diffX = rawDiffX * dragDirection;
     const diffY = Math.abs(touchStartYRef.current - touchEndYRef.current);
@@ -359,11 +389,12 @@ const MessageBubble = ({
     touchStartXRef.current = 0;
   }, [cancelLongPress, editingMsgId, isOpen, message.id, dragDirection, setSwipedMsgId, forceResetDomStyles]);
 
-  // 修复2：独立的 cancelTouch，不依赖旧坐标，直接强制归位到当前 isOpen 状态
+  // 修复2：独立的 cancelTouch，不依赖旧坐标，直接维持 isOpen 当前语义状态，只清理 DOM 残留
   const cancelTouch = React.useCallback(() => {
     cancelLongPress();
     isDraggingRef.current = false;
     setIsDragging(false);
+    swipeLockedRef.current = 'none';
     // 不读取 diffX/diffY 旧坐标，直接维持 isOpen 当前语义状态，只清理 DOM 残留
     const stableOffset = isOpen ? SWIPE_MENU_WIDTH : 0;
     setDragOffset(stableOffset);
@@ -411,7 +442,7 @@ const MessageBubble = ({
 
       {/* Speech Bubble */}
       <div
-        className="max-w-[78%] group relative select-none w-full"
+        className="max-w-[78%] group relative select-none w-full touch-pan-y"
         style={{
           minHeight: (isOpen || dragOffset > 0) ? `${swipeMenuHeight}px` : undefined,
         }}
