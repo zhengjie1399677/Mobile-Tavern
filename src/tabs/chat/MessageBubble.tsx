@@ -716,9 +716,8 @@ const MessageBubble = ({
                 </div>
               )}
 
-              {/* 主对白内容气泡：当仅有思维链且正文还在准备时，或者在非生成状态下正文彻底为空且存在思考过程时，暂不显示空气泡 */}
-              {!(message.content === "💭..." && message.reasoningContent) &&
-               !(!isSending && !message.content?.trim() && message.reasoningContent) && (
+              {/* 主对白内容气泡：仅在思维链且正文还在准备时，暂不显示空气泡 */}
+              {!(message.content === "💭..." && message.reasoningContent) && (
                 <div
                   className={`px-3.5 py-2.5 shadow-sm text-sm border font-light tracking-wide transition-all cursor-pointer relative overflow-hidden ${
                     isUser
