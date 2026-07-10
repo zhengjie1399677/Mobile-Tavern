@@ -44,7 +44,7 @@ export function extractThinkContent(
     } else {
       const extractedReasoning = content.substring(startIdx + thinkStart.length).trim();
       return {
-        content: isStreaming ? "💭..." : "",
+        content: isStreaming ? "💭..." : extractedReasoning, // 非流式且未闭合时，将提取到的内容作为 content 兜底，防止显示为空
         reasoningContent: extractedReasoning || reasoningContent
       };
     }

@@ -72,6 +72,12 @@ export class ChatStreamService implements IChatStreamService {
       onData: (dataStr) => {
         const parsed = safeParseSSEData(dataStr);
         if (parsed) {
+          if (parsed.error) {
+            const errMsg = typeof parsed.error === "string"
+              ? parsed.error
+              : ((parsed.error as any).message || JSON.stringify(parsed.error));
+            throw new Error(`[API Error] ${errMsg}`);
+          }
           queue.push(parsed as StreamChunk);
           if (resolveNext) {
             resolveNext();

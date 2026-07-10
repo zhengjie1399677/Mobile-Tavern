@@ -108,18 +108,18 @@ export function useRerollMessage(p: RerollMessageParams) {
     const nextMsgsIdx = targetMsg.sender === "user" ? targetIdx + 1 : targetIdx;
     const nextMsgs = cleanHistory.slice(0, nextMsgsIdx);
 
-    while (nextMsgs.length > 0 && (nextMsgs[nextMsgs.length - 1].sender === "system" || nextMsgs[nextMsgs.length - 1].sender === "assistant")) {
-      nextMsgs.pop();
-    }
-    if (nextMsgs.length === 0) {
-      await p.showCustomAlert("无可用的历史对话上下文来进行重新生成！");
-      p.isSendingRef.current = false;
-      p.setIsSending(false);
-      return;
+    // 寻找最近的一条用户消息作为驱动对白，但不删除夹在中间的系统或助手消息（如野牛模式的静默指令）
+    let lastUserText = "";
+    let lastUserIdx = -1;
+    for (let i = nextMsgs.length - 1; i >= 0; i--) {
+      if (nextMsgs[i].sender === "user") {
+        lastUserText = nextMsgs[i].content;
+        lastUserIdx = i;
+        break;
+      }
     }
 
-    const lastMsgNow = nextMsgs[nextMsgs.length - 1];
-    if (lastMsgNow.sender !== "user") {
+    if (lastUserIdx === -1) {
       await p.showCustomAlert("重新生成回复之前，需要前置有一条用户消息作为驱动对白！");
       p.isSendingRef.current = false;
       p.setIsSending(false);
@@ -129,7 +129,6 @@ export function useRerollMessage(p: RerollMessageParams) {
     const modelToReport = p.settings.api.apiKey ? (p.settings.api.modelName || FALLBACK_MODEL) : "openrouter/free";
     p.telemetryService.reportUsage("regenerate_message", { modelName: modelToReport, characterName: p.activeCharacter.name });
 
-    const lastUserText = lastMsgNow.content;
     let updatedSession = { ...currentSession, messages: nextMsgs };
     p.setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
     try {
@@ -250,11 +249,23 @@ export function useRerollMessage(p: RerollMessageParams) {
       });
 
       for await (const chunk of stream) {
+        if (chunk.error) {
+          const errMsg = typeof chunk.error === "string"
+            ? chunk.error
+            : ((chunk.error as any).message || JSON.stringify(chunk.error));
+          throw new Error(`[API Error] ${errMsg}`);
+        }
         if (chunk.__rescuedContent) {
           responseChunks.push(chunk.__rescuedContent);
         } else {
           const reasoning = chunk.choices?.[0]?.delta?.reasoning_content;
-          const delta = chunk.choices?.[0]?.delta?.content;
+          const delta = chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.message?.content || chunk.choices?.[0]?.text;
+          const finishReason = chunk.choices?.[0]?.finish_reason;
+
+          if (finishReason && finishReason === "content_filter") {
+            throw new Error("内容被服务商的安全过滤（Content Filter）拦截，生成终止。");
+          }
+
           if (reasoning && !delta) {
             reasoningChunks.push(reasoning);
           } else if (delta) {
@@ -399,33 +410,33 @@ export function useRerollMessage(p: RerollMessageParams) {
     if (!currentSession || !Array.isArray(currentSession.messages) || currentSession.messages.length === 0) return;
 
     const messages = currentSession.messages;
-    const lastMsg = messages[messages.length - 1];
 
-    // 情况 A：如果最后一条消息是用户发送的消息（例如发送失败、404 未得到回复、或者刚发完没收到回复）
-    // 此时点击“重载”，用户的本意是“让 AI 针对我发的最顶端/最后一句话生成回复”。
-    // 我们直接以最后一条用户消息为目标，触发回复生成。
-    if (lastMsg.sender === "user") {
-      await handleRerollFromMessage(lastMsg);
-      return;
-    }
+    // 寻找最后一条用户消息和最后一条 AI 回复（规避 index 0 的欢迎词）
+    let lastUserIdx = -1;
+    let lastAiIdx = -1;
 
-    // 情况 B：如果最后一条消息是 AI 的回复，寻找最后一条 AI 回复并重新生成它
-    let lastAiMsg: Message | null = null;
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].sender === "assistant") {
-        // 规避首条欢迎词（通常在 index 0），首条欢迎词是不允许重发的
-        if (i === 0) continue;
-        lastAiMsg = messages[i];
-        break;
+      if (messages[i].sender === "user" && lastUserIdx === -1) {
+        lastUserIdx = i;
+      }
+      if (messages[i].sender === "assistant" && lastAiIdx === -1) {
+        if (i === 0) continue; // 规避首条欢迎词
+        lastAiIdx = i;
       }
     }
 
-    if (!lastAiMsg) {
-      await p.showCustomAlert("对话中尚未存在可供重新生成的智能回复对话！");
+    if (lastUserIdx === -1 && lastAiIdx === -1) {
+      await p.showCustomAlert("对话中尚未存在可供重新生成的对白！");
       return;
     }
 
-    await handleRerollFromMessage(lastAiMsg);
+    // 决策：如果最后的用户消息在最后的 AI 回复之后（说明最后一条用户消息发送后失败了、被中断了，或者尚未得到回复）
+    // 此时应当针对最后一条用户消息重新生成回复。
+    if (lastUserIdx > lastAiIdx) {
+      await handleRerollFromMessage(messages[lastUserIdx]);
+    } else {
+      await handleRerollFromMessage(messages[lastAiIdx]);
+    }
   }, [handleRerollFromMessage]);
 
   return { handleRerollFromMessage, handleRerollLast };

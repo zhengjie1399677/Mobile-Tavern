@@ -134,7 +134,7 @@ export class LLMService implements ILLMService {
 
     let signal: AbortSignal | undefined = customSignal;
     if ((AbortSignal as any).timeout) {
-      const timeoutSignal = AbortSignal.timeout(120_000);
+      const timeoutSignal = AbortSignal.timeout(300_000); // 放宽至 300 秒（5分钟），防止生成长文本时超时掐断
       if (customSignal) {
         if ((AbortSignal as any).any) {
           signal = (AbortSignal as any).any([customSignal, timeoutSignal]);

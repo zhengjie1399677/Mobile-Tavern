@@ -263,11 +263,23 @@ export function useSendMessage(p: SendMessageParams) {
       });
 
       for await (const chunk of stream) {
+        if (chunk.error) {
+          const errMsg = typeof chunk.error === "string"
+            ? chunk.error
+            : ((chunk.error as any).message || JSON.stringify(chunk.error));
+          throw new Error(`[API Error] ${errMsg}`);
+        }
         if (chunk.__rescuedContent) {
           responseChunks.push(chunk.__rescuedContent);
         } else {
           const reasoning = chunk.choices?.[0]?.delta?.reasoning_content;
-          const delta = chunk.choices?.[0]?.delta?.content;
+          const delta = chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.message?.content || chunk.choices?.[0]?.text;
+          const finishReason = chunk.choices?.[0]?.finish_reason;
+
+          if (finishReason && finishReason === "content_filter") {
+            throw new Error("内容被服务商的安全过滤（Content Filter）拦截，生成终止。");
+          }
+
           if (reasoning && !delta) {
             reasoningChunks.push(reasoning);
           } else if (delta) {
