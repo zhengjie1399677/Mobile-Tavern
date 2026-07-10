@@ -7,6 +7,7 @@ import {
   AlertCircle,
   ChevronUp,
   Brain,
+  ArrowDown,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -16,6 +17,8 @@ import MessageBubble from "./MessageBubble";
 interface DialogueHistoryViewProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   handleScroll: () => void;
+  showScrollButton: boolean;
+  scrollToBottom: () => void;
   glowColors: { light1: string; light2: string };
   isOriginalBg: boolean;
   activePortraitUrl: string;
@@ -29,6 +32,8 @@ interface DialogueHistoryViewProps {
 const DialogueHistoryView = ({
   scrollContainerRef,
   handleScroll,
+  showScrollButton,
+  scrollToBottom,
   glowColors,
   isOriginalBg,
   activePortraitUrl,
@@ -223,6 +228,18 @@ const DialogueHistoryView = ({
 
         <div ref={chatBottomRef} />
       </div>
+
+      {/* Floating Scroll to Bottom button */}
+      {showScrollButton && (
+        <button
+          onClick={scrollToBottom}
+          aria-label="回到底部"
+          title="回到底部"
+          className="absolute bottom-24 right-4 p-2.5 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 active:scale-95 transition-all z-20 flex items-center justify-center border border-primary/20 cursor-pointer animate-in fade-in zoom-in duration-200"
+        >
+          <ArrowDown className="w-4.5 h-4.5" />
+        </button>
+      )}
 
       <ChatInputArea isKeyboardOpen={isKeyboardOpen} />
     </div>

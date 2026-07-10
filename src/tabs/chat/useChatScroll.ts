@@ -14,6 +14,7 @@ export function useChatScroll(deps: UseChatScrollDeps) {
 
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const isAtBottomRef = React.useRef<boolean>(true);
+  const [showScrollButton, setShowScrollButton] = React.useState(false);
 
   const handleScroll = () => {
     const container = scrollContainerRef.current;
@@ -22,7 +23,22 @@ export function useChatScroll(deps: UseChatScrollDeps) {
     // If the user is within 60px of the bottom, consider them "at the bottom"
     const atBottom = scrollHeight - scrollTop - clientHeight < 60;
     isAtBottomRef.current = atBottom;
+
+    // Show scroll button if scrolled up by more than 300px
+    const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+    setShowScrollButton(distanceToBottom > 300);
   };
+
+  const scrollToBottom = React.useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
+    isAtBottomRef.current = true;
+    setShowScrollButton(false);
+  }, []);
 
   // Auto-scroll logic utilizing MutationObserver to track any DOM/style updates
   React.useEffect(() => {
@@ -110,5 +126,7 @@ export function useChatScroll(deps: UseChatScrollDeps) {
     scrollContainerRef,
     handleScroll,
     isAtBottomRef,
+    showScrollButton,
+    scrollToBottom,
   };
 }

@@ -201,8 +201,8 @@ export default function ThemeConfigSection({
             <div className="grid grid-cols-3 gap-2">
               {[
                 { label: "清晰 (原图)", blur: 0, dim: 0, key: "clear" },
-                { label: "适中 (融合)", blur: 0, dim: 45, key: "medium" },
-                { label: "深色 (磨砂)", blur: 20, dim: 80, key: "dark" },
+                { label: "适中 (融合)", blur: 4, dim: 40, key: "medium" },
+                { label: "深色 (磨砂)", blur: 12, dim: 75, key: "dark" },
               ].map((opt) => {
                 const currentDim = settings.chatBackgroundDim ?? 50;
                 const active =

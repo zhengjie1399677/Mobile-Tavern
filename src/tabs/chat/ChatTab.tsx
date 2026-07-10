@@ -56,7 +56,7 @@ export default function ChatTab() {
   });
 
   // 滚动引擎 Hook（MutationObserver / ResizeObserver / 归底逻辑）
-  const { scrollContainerRef, handleScroll } = useChatScroll({
+  const { scrollContainerRef, handleScroll, showScrollButton, scrollToBottom } = useChatScroll({
     activeSessionId,
     chatSubTab,
   });
@@ -141,6 +141,8 @@ export default function ChatTab() {
       <DialogueHistoryView
         scrollContainerRef={scrollContainerRef}
         handleScroll={handleScroll}
+        showScrollButton={showScrollButton}
+        scrollToBottom={scrollToBottom}
         glowColors={glowColors}
         isOriginalBg={isOriginalBg}
         activePortraitUrl={activePortraitUrl}
