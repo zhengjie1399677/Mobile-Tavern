@@ -741,6 +741,15 @@ function createMockStorage() {
       messages.set(msg.id, { ...msg });
     },
 
+    async updateMessageExtraction(id: string, tags: string[], extractSource: string, metadata?: Record<string, any>): Promise<void> {
+      const existing = messages.get(id);
+      if (existing) {
+        existing.tags = tags;
+        existing.extractSource = extractSource;
+        if (metadata) existing.metadata = { ...(existing.metadata || {}), ...metadata };
+      }
+    },
+
     async getMessageById(id: string): Promise<any | null> {
       return messages.get(id) ?? null;
     },
@@ -950,6 +959,15 @@ export async function testMemoryExtractor() {
 
   // L0 成功：memoryContent 合法 JSON
   const storage1 = createMockStorage();
+  // 预置消息（模拟 appendSessionMessage 先写入，MemoryExtractor 再更新抽取字段的真实流程）
+  await storage1.appendMessage({
+    id: "msg_l0_ok",
+    sessionId: "sess_1",
+    role: "assistant",
+    content: "老张递来梅子酒",
+    createdAt: Date.now(),
+    turnIndex: 5,
+  });
   const extractor1 = new MemoryExtractor(storage1 as any);
   extractor1.init();
 
@@ -1044,6 +1062,17 @@ export async function testMemoryExtractor() {
   console.log("  [5.4] scheduleExtraction queue...");
 
   const storage3 = createMockStorage();
+  // 预置消息（模拟 appendSessionMessage 先写入，scheduleExtraction 再更新抽取字段）
+  for (let i = 0; i < 5; i++) {
+    await storage3.appendMessage({
+      id: `msg_q_${i}`,
+      sessionId: "sess_q",
+      role: "assistant",
+      content: `消息 ${i}`,
+      createdAt: Date.now() + i,
+      turnIndex: i,
+    });
+  }
   const extractor3 = new MemoryExtractor(storage3 as any);
   extractor3.init();
 

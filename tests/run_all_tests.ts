@@ -70,6 +70,10 @@ import {
   testWorldbookService,
   testSettingsService,
   testPresetService,
+  testTurnIndexBasicAppend,
+  testTurnIndexDeleteMiddleThenAppend,
+  testTurnIndexDeleteAllThenAppend,
+  testTurnIndexMultipleAppends,
 } from "./suites/index";
 
 async function run() {
@@ -142,6 +146,11 @@ async function run() {
     { name: "testWorldbookService", fn: testWorldbookService },
     { name: "testSettingsService", fn: testSettingsService },
     { name: "testPresetService", fn: testPresetService },
+    // turnIndex 一致性测试（验证删除中间消息后追加新消息不重复）
+    { name: "testTurnIndexBasicAppend", fn: testTurnIndexBasicAppend },
+    { name: "testTurnIndexDeleteMiddleThenAppend", fn: testTurnIndexDeleteMiddleThenAppend },
+    { name: "testTurnIndexDeleteAllThenAppend", fn: testTurnIndexDeleteAllThenAppend },
+    { name: "testTurnIndexMultipleAppends", fn: testTurnIndexMultipleAppends },
   ];
 
   let passed = 0;

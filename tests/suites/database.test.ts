@@ -86,6 +86,8 @@ export async function testDatabaseServiceCrud() {
   mockDbService.saveSession = async (sess: any) => {
     savedSession = sess;
   };
+  // Mock syncSessionMessages 防止触发 getDB() 缓存 dbInstance，污染后续测试
+  mockDbService.syncSessionMessages = async () => {};
 
   await testKernel.registerService("script", mockScriptService);
   await testKernel.registerService("database", mockDbService);
@@ -115,6 +117,8 @@ export async function testDatabaseServiceCrud() {
 export async function testLocalDBSplitTrack() {
   console.log("\n--- Running localDB settings Split-Track Storage Verification ---");
   const localDB = await import("../../src/utils/localDB");
+  // 清除可能由前序测试缓存的 dbInstance，确保本测试的 mock indexedDB 能生效
+  localDB.__resetDBInstanceForTesting();
 
   // 1. Mock 内存数据库存储
   const mockStorage: Record<string, any> = {};

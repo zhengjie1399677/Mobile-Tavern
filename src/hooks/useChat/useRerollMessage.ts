@@ -133,6 +133,13 @@ export function useRerollMessage(p: RerollMessageParams) {
     p.setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
     try {
       await p.databaseService.saveSession(updatedSession);
+      // saveSession 不再做孤儿清理，需显式删除被 reroll 移除的旧消息
+      const removedMsgs = cleanHistory.slice(nextMsgsIdx);
+      for (const msg of removedMsgs) {
+        await p.databaseService.deleteMessageById(msg.id).catch((e) =>
+          console.error("[useRerollMessage] Failed to delete old message:", e)
+        );
+      }
     } catch (err: any) {
       console.error("Failed to save session for reroll:", err);
       p.isSendingRef.current = false;
@@ -340,6 +347,10 @@ export function useRerollMessage(p: RerollMessageParams) {
         }
       } else {
         await p.databaseService.saveSession(trueFinalSession);
+        // saveSession 只存元数据，AI 消息需显式写入 messages Store
+        await p.databaseService
+          .appendSessionMessage(trueFinalSession.id, trueFinalSession.messages[trueFinalSession.messages.length - 1], trueFinalSession.messages.length - 1)
+          .catch((e) => console.error("[useRerollMessage] Failed to save AI message on session switch:", e));
         console.log("[useRerollMessage] Session switched during reroll, saved silently:", updatedSession.id);
       }
     } catch (e: any) {
@@ -360,6 +371,10 @@ export function useRerollMessage(p: RerollMessageParams) {
             await runOutputPipelineAndSave({ session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
           } else {
             await p.databaseService.saveSession(trueFinalSession);
+            // saveSession 只存元数据，AI 消息需显式写入 messages Store
+            await p.databaseService
+              .appendSessionMessage(trueFinalSession.id, finishedAiMsg, trueFinalSession.messages.length - 1)
+              .catch((e) => console.error("[useRerollMessage] Failed to save AI message on abort:", e));
           }
         } else if (latestSession) {
           const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
@@ -379,6 +394,10 @@ export function useRerollMessage(p: RerollMessageParams) {
             await runOutputPipelineAndSave({ session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
           } else {
             await p.databaseService.saveSession(trueFinalSession);
+            // saveSession 只存元数据，AI 消息需显式写入 messages Store
+            await p.databaseService
+              .appendSessionMessage(trueFinalSession.id, finishedAiMsg, trueFinalSession.messages.length - 1)
+              .catch((e) => console.error("[useRerollMessage] Failed to save AI message on error:", e));
           }
         } else {
           const errorMsg = { id: generateUniqueId("msg_err_"), sender: "system" as const, content: `【连接错误】重新生成失败。请检查端口或API秘钥状态。详细错误: ${e.message}`, timestamp: Date.now() };
@@ -387,6 +406,10 @@ export function useRerollMessage(p: RerollMessageParams) {
             const finalSession = { ...latestSession, messages: finalMessages };
             if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === finalSession.id ? finalSession : s)));
             await p.databaseService.saveSession(finalSession).catch((err) => console.error("Failed to save error message:", err));
+            // saveSession 只存元数据，错误消息需显式写入 messages Store
+            await p.databaseService
+              .appendSessionMessage(finalSession.id, errorMsg, finalSession.messages.length - 1)
+              .catch((e) => console.error("[useRerollMessage] Failed to save error message to messages Store:", e));
           }
         }
         if (isStillActive) p.triggerScroll();

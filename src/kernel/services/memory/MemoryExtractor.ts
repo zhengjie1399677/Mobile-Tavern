@@ -338,6 +338,7 @@ export class MemoryExtractor {
    */
   private async processExtraction(task: ExtractionTask): Promise<ExtractionResult> {
     const signal = this.abortController?.signal;
+    const isDev = import.meta.env?.DEV ?? false;
     let tags: string[];
     let extractSource: ExtractSource;
     let extraction: MemoryExtraction | undefined;
@@ -349,9 +350,6 @@ export class MemoryExtractor {
         tags = parsed.entities.map((e) => e.name);
         extractSource = 'llm';
         extraction = parsed;
-        // 更新 memory_dict Store
-        if (signal?.aborted) return { tags, extractSource, extraction };
-        await this.updateDictFromExtraction(task, parsed);
       } else {
         // L0 失败，降级到 L1
         const result = await this.tryDictMatch(task);
@@ -365,22 +363,42 @@ export class MemoryExtractor {
       extractSource = result.source;
     }
 
-    // 写入 messages Store
+    if (isDev) {
+      console.log("[MemoryExtractor] processExtraction 结果:", {
+        msgId: task.msgId,
+        sessionId: task.sessionId,
+        tags,
+        extractSource,
+        hasExtraction: !!extraction,
+      });
+    }
+
+    // 优先写入 messages Store 的 tags 字段（召回倒排索引依赖此字段）。
+    // 必须先于 updateDictFromExtraction 执行：若 signal 在两步之间中断，
+    // 至少保证消息 tags 已落库，召回仍可正常工作；词典仅影响查询标签提取，属辅助链路。
+    // 使用 merge 更新而非全量覆写，保留 appendSessionMessage 写入的 content / createdAt / turnIndex
     if (signal?.aborted) return { tags, extractSource, extraction };
 
-    await this.storage.appendMessage({
-      id: task.msgId,
-      sessionId: task.sessionId,
-      role: task.role,
-      content: task.message,
-      createdAt: Date.now(),
-      turnIndex: task.turnIndex,
-      tags,
-      extractSource,
-      metadata: extraction
-        ? { modelUsed: undefined }
-        : undefined,
-    });
+    try {
+      await this.storage.updateMessageExtraction(
+        task.msgId,
+        tags,
+        extractSource,
+        extraction ? { modelUsed: undefined } : undefined,
+      );
+    } catch (e) {
+      console.error("[MemoryExtractor] updateMessageExtraction failed:", task.msgId, e);
+    }
+
+    // 辅助链路：更新 memory_dict Store（仅 L0 抽取出的新实体）。
+    // 失败不阻塞主流程，下次抽取仍可重建词典。
+    if (extraction && !signal?.aborted) {
+      try {
+        await this.updateDictFromExtraction(task, extraction);
+      } catch (e) {
+        console.error("[MemoryExtractor] updateDictFromExtraction failed:", task.msgId, e);
+      }
+    }
 
     return { tags, extractSource, extraction };
   }

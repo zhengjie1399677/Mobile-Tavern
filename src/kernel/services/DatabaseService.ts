@@ -1,6 +1,18 @@
 import { IDatabaseService, IKernel } from "../types";
 import { ChatSession } from "../../types";
-import { getAllSessions, saveSession, deleteSession, getSessionsCount, getSessionsPaginated, getSessionById, getCharacterById, bulkSaveSessions as dbBulkSaveSessions } from "../../utils/localDB";
+import {
+  getAllSessions,
+  saveSession,
+  deleteSession,
+  getSessionsCount,
+  getSessionsPaginated,
+  getSessionById,
+  getCharacterById,
+  bulkSaveSessions as dbBulkSaveSessions,
+  appendMessage as dbAppendMessage,
+  deleteMessageById as dbDeleteMessageById,
+  syncSessionMessages as dbSyncSessionMessages,
+} from "../../utils/localDB";
 import { applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
 
 export class DatabaseService implements IDatabaseService {
@@ -46,6 +58,33 @@ export class DatabaseService implements IDatabaseService {
 
   async saveSession(session: ChatSession): Promise<void> {
     return saveSession(session);
+  }
+
+  /**
+   * 单条消息写入 messages Store。
+   * 将内存 Message 格式转换为 DB MessageRecord 格式后调用 appendMessage。
+   * turnIndex 未提供时使用 Date.now() 作为占位，MemoryExtractor 后续会更新。
+   */
+  async appendSessionMessage(sessionId: string, message: any, turnIndex?: number): Promise<void> {
+    await dbAppendMessage({
+      id: message.id,
+      sessionId,
+      role: message.sender === "user" ? "user" : "assistant",
+      content: message.content,
+      createdAt: message.timestamp || Date.now(),
+      turnIndex: turnIndex ?? 0,
+      tags: (message as any).tags || [],
+      extractSource: (message as any).extractSource || "none",
+      metadata: (message as any).metadata || message.extra,
+    });
+  }
+
+  async deleteMessageById(id: string): Promise<void> {
+    return dbDeleteMessageById(id);
+  }
+
+  async syncSessionMessages(sessionId: string, messages: any[]): Promise<void> {
+    return dbSyncSessionMessages(sessionId, messages);
   }
 
   async deleteSession(id: string): Promise<void> {
@@ -107,6 +146,10 @@ export class DatabaseService implements IDatabaseService {
       variables: mvuVariables,
     };
     await this.saveSession(newSession);
+    // saveSession 只存元数据，初始消息需显式同步到 messages Store
+    if (newSession.messages && newSession.messages.length > 0) {
+      await this.syncSessionMessages(newSession.id, newSession.messages);
+    }
     return newSession;
   }
 
@@ -153,6 +196,10 @@ export class DatabaseService implements IDatabaseService {
       variables: mvuVariables,
     };
     await this.saveSession(newSession);
+    // saveSession 只存元数据，初始消息需显式同步到 messages Store
+    if (newSession.messages && newSession.messages.length > 0) {
+      await this.syncSessionMessages(newSession.id, newSession.messages);
+    }
     return newSession;
   }
 
@@ -183,6 +230,10 @@ export class DatabaseService implements IDatabaseService {
       tableMemory: sourceSession.tableMemory ? sourceSession.tableMemory.map(s => ({ ...s })) : undefined,
     };
     await this.saveSession(newSession);
+    // saveSession 只存元数据，初始消息需显式同步到 messages Store
+    if (newSession.messages && newSession.messages.length > 0) {
+      await this.syncSessionMessages(newSession.id, newSession.messages);
+    }
     return newSession;
   }
 
@@ -213,6 +264,10 @@ export class DatabaseService implements IDatabaseService {
       lastSummarizedMessageId: undefined,
     };
     await this.saveSession(newSession);
+    // saveSession 只存元数据，初始消息需显式同步到 messages Store
+    if (newSession.messages && newSession.messages.length > 0) {
+      await this.syncSessionMessages(newSession.id, newSession.messages);
+    }
     return newSession;
   }
 }

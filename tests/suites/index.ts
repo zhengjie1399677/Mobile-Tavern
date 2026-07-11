@@ -92,3 +92,10 @@ export {
   testSettingsService,
   testPresetService,
 } from "./businessServices.test";
+
+export {
+  testTurnIndexBasicAppend,
+  testTurnIndexDeleteMiddleThenAppend,
+  testTurnIndexDeleteAllThenAppend,
+  testTurnIndexMultipleAppends,
+} from "./turnIndexConsistency.test";

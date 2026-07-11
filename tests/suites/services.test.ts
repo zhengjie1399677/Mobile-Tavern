@@ -32,7 +32,8 @@ export async function testMultiMessageService() {
     init() { },
     async saveSession(session: any) {
       savedSession = session;
-    }
+    },
+    async appendSessionMessage() { },
   };
 
   const multiMsgService = new MultiMessageService();

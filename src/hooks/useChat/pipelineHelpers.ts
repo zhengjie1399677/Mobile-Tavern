@@ -114,6 +114,19 @@ export async function runOutputPipelineAndSave(params: {
 
   await databaseService.saveSession(parsedSession);
 
+  // saveSession 只存会话元数据，AI 消息需显式写入 messages Store
+  // 在 MemoryExtractor 之前执行，确保消息已入库供其 merge 更新
+  if (parsedSession.messages.length > 0) {
+    const lastMsg = parsedSession.messages[parsedSession.messages.length - 1];
+    if (lastMsg && lastMsg.sender === "assistant") {
+      await databaseService.appendSessionMessage(
+        parsedSession.id,
+        lastMsg,
+        parsedSession.messages.length - 1,
+      );
+    }
+  }
+
   // 异步后台触发记忆抽取（Fire-and-Forget，不阻塞主对话流）
   try {
     const memoryService = globalKernel.getService<any>(KernelServices.Memory);

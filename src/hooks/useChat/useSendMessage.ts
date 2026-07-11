@@ -377,6 +377,12 @@ export function useSendMessage(p: SendMessageParams) {
         }
       } else {
         await p.databaseService.saveSession(trueFinalSession);
+        // saveSession 只存元数据，会话切换场景需显式写入 AI 消息
+        const switchedAiMsg = trueFinalSession.messages[trueFinalSession.messages.length - 1];
+        if (switchedAiMsg && switchedAiMsg.sender === "assistant") {
+          await p.databaseService.appendSessionMessage(trueFinalSession.id, switchedAiMsg, trueFinalSession.messages.length - 1)
+            .catch((e) => console.error("[useSendMessage] Failed to save AI message after session switch:", e));
+        }
         console.log("[useSendMessage] Session switched during generation, saved silently:", updatedSession.id);
       }
     } catch (err: any) {
@@ -400,6 +406,9 @@ export function useSendMessage(p: SendMessageParams) {
             await runOutputPipelineAndSave({ session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
           } else {
             await p.databaseService.saveSession(trueFinalSession);
+            // saveSession 只存元数据，abort 场景需显式写入 AI 消息
+            await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, trueFinalSession.messages.length - 1)
+              .catch((e) => console.error("[useSendMessage] Failed to save AI message on abort:", e));
           }
         } else if (latestSession) {
           const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
@@ -416,6 +425,9 @@ export function useSendMessage(p: SendMessageParams) {
             await runOutputPipelineAndSave({ session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
           } else {
             await p.databaseService.saveSession(trueFinalSession);
+            // saveSession 只存元数据，error 场景需显式写入 AI 消息
+            await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, trueFinalSession.messages.length - 1)
+              .catch((e) => console.error("[useSendMessage] Failed to save AI message on error:", e));
           }
         } else if (latestSession) {
           const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };

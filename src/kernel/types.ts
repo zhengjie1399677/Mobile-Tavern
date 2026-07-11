@@ -167,6 +167,20 @@ export interface IDatabaseService<TSession = any, TCharacter = any> extends IKer
   getSessionsCount(): Promise<number>;
   getSessionsPaginated(page: number, pageSize: number): Promise<TSession[]>;
   saveSession(session: TSession): Promise<void>;
+  /**
+   * 单条消息写入 messages Store（用于发送/重投场景的精准单条持久化）。
+   * saveSession 只存会话元数据，新消息必须通过本方法显式写入。
+   */
+  appendSessionMessage(sessionId: string, message: any, turnIndex?: number): Promise<void>;
+  /**
+   * 按主键删除单条消息（用于重投/编辑场景删除旧消息）。
+   */
+  deleteMessageById(id: string): Promise<void>;
+  /**
+   * 批量同步会话消息（用于分支创建/备份恢复等全量写入场景）。
+   * 仅 PUT upsert，不做孤儿清理。
+   */
+  syncSessionMessages(sessionId: string, messages: any[]): Promise<void>;
   deleteSession(id: string): Promise<void>;
   /**
    * 批量写入会话（备份恢复 / 跨设备同步场景）。

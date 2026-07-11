@@ -186,15 +186,21 @@ export class MemoryRecall {
     tags: string[],
     options?: RecallOptions
   ): Promise<RecalledMessage[]> {
+    const isDev = import.meta.env?.DEV ?? false;
     const topK = Math.max(1, options?.topK ?? DEFAULT_TOP_K);
-    const excludeRecentN = Math.max(0, options?.excludeRecentN ?? DEFAULT_EXCLUDE_RECENT_N);
+    const rawExcludeN = Math.max(0, options?.excludeRecentN ?? DEFAULT_EXCLUDE_RECENT_N);
 
     // 1. 获取当前轮次（用于计算 ageInTurns 与排除最近 N 轮）
     const currentTurnIndex = await this.resolveCurrentTurnIndex(sessionId, options?.currentTurnIndex);
 
+    // 自适应排除：小会话时降低 excludeRecentN，避免所有候选被排除导致召回为空。
+    // 与 fallbackRecallRecent 保持一致策略：排除数不超过 currentTurnIndex - 1。
+    // 例：currentTurnIndex=3 → excludeRecentN=min(5, 2)=2，保留至少 1 条候选可用。
+    const excludeRecentN = Math.min(rawExcludeN, Math.max(0, currentTurnIndex - 1));
+
     // 2. 粗召回：按标签查倒排索引（候选池 = topK × 倍率）
     const candidateLimit = topK * CANDIDATE_MULTIPLIER;
-    let candidates = tags.length > 0 
+    let candidates = tags.length > 0
       ? await this.storage.getMessagesByTag(sessionId, tags, candidateLimit)
       : [];
 
@@ -213,13 +219,26 @@ export class MemoryRecall {
       // 异步查出被用户强力置顶的 Pin 消息内容
       const pinnedMsgsPromises = pinnedIds.map(id => this.storage.getMessageById(id));
       const pinnedMsgs = (await Promise.all(pinnedMsgsPromises)).filter(Boolean);
-      
+
       // 合并到候选池并执行去重
       const candidateIds = new Set(candidates.map(c => c.id));
       pinnedMsgs.forEach(msg => {
         if (!candidateIds.has(msg.id)) {
           candidates.push(msg);
         }
+      });
+    }
+
+    if (isDev) {
+      console.log("[MemoryRecall] recallByTags 中间态:", {
+        sessionId,
+        tags,
+        currentTurnIndex,
+        rawExcludeN,
+        excludeRecentN,
+        candidateCount: candidates.length,
+        pinnedCount: pinnedIds.length,
+        mutedCount: mutedIds.length,
       });
     }
 
@@ -232,6 +251,15 @@ export class MemoryRecall {
     // 4. 打分 + 排除 + 排序
     const scored = this.scoreCandidates(candidates, tags, currentTurnIndex, pinnedIds);
     const filtered = scored.filter((s) => !recentIdSet.has(s.messageId) && !mutedIdSet.has(s.messageId));
+
+    if (isDev) {
+      console.log("[MemoryRecall] recallByTags 打分过滤:", {
+        scoredCount: scored.length,
+        filteredCount: filtered.length,
+        recentExcludedCount: scored.length - scored.filter((s) => !recentIdSet.has(s.messageId)).length,
+        topK,
+      });
+    }
 
     // 5. 取 top-K
     return filtered.slice(0, topK);

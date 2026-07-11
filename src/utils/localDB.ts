@@ -409,92 +409,41 @@ export async function getSessionsPaginated(
   });
 }
 
+/**
+ * 保存会话元数据到 sessions Store。
+ *
+ * **职责边界（2026-07-11 重构）**：
+ *   - 只写入 sessions Store（会话元数据），不触碰 messages Store。
+ *   - 从 messages 计算 turnCount / charCount 缓存字段，供前台懒加载分页使用。
+ *   - 不再做消息全量同步（旧实现的 N 次 GET+PUT 已废弃，消除"多存"问题）。
+ *   - 不再做孤儿清理（旧实现的 cursor.delete 已废弃，消除"遗漏"风险）。
+ *
+ * 新消息的持久化由调用方通过 appendSessionMessage / appendMessage 单条写入。
+ * 消息删除由调用方通过 deleteMessageById 显式删除。
+ * 批量同步（备份恢复/分支创建）使用 syncSessionMessages。
+ */
 export async function saveSession(session: ChatSession): Promise<void> {
   return enqueueWrite(async () => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      // 联合事务：同时写入 sessions 并同步 messages
-      const transaction = db.transaction(["sessions", "messages"], "readwrite");
-      
-      // 1. 物理隔离：sessions 库中剔除 messages 大数组，同时计算并缓存字数与回合数，供前台懒加载分页与自动清理逻辑直接读取，避免视觉 Bug
+      const transaction = db.transaction("sessions", "readwrite");
       const sessionsStore = transaction.objectStore("sessions");
+
+      // 物理隔离：sessions 库中剔除 messages 大数组，只存元数据
       const { messages, ...sessionToSave } = session;
-      
+
+      // 从内存 messages 计算缓存字段（供前台懒加载分页与自动清理逻辑直接读取）
       if (messages && Array.isArray(messages)) {
         const userMsgCount = messages.filter(m => m.sender === "user").length;
-        const computedTurnCount = userMsgCount > 0 
-          ? userMsgCount 
+        sessionToSave.turnCount = userMsgCount > 0
+          ? userMsgCount
           : (messages.length > 1 ? Math.floor(messages.length / 2) : (messages.length > 0 ? 1 : 0));
-        const computedCharCount = messages.reduce((total, msg) => total + (msg.content?.length || 0), 0);
-        
-        sessionToSave.turnCount = computedTurnCount;
-        sessionToSave.charCount = computedCharCount;
-      }
-      
-      const sessionRequest = sessionsStore.put(sessionToSave);
-      
-      // 2. 级联同步消息到 messages Store
-      if (messages && Array.isArray(messages)) {
-        const messagesStore = transaction.objectStore("messages");
-        const msgIdsInSession = new Set(messages.map(m => m.id));
-        
-        // 2.1 清理在前端最新 messages 列表中不存在的旧数据库记录（同步分支回溯/单条消息删除）
-        const sessionIdIndex = messagesStore.index("sessionId");
-        const cursorRequest = sessionIdIndex.openCursor(IDBKeyRange.only(session.id));
-        
-        cursorRequest.onsuccess = () => {
-          const cursor = cursorRequest.result;
-          if (cursor) {
-            const dbMsg = cursor.value;
-            if (!msgIdsInSession.has(dbMsg.id)) {
-              cursor.delete();
-            }
-            cursor.continue();
-          } else {
-            // 2.2 更新或新增消息，继承数据库已存在的 tags 与 extractSource 字段避免覆盖竞态
-            let processedCount = 0;
-            if (messages.length === 0) {
-              resolve();
-              return;
-            }
-            
-            messages.forEach((msg, idx) => {
-              const getReq = messagesStore.get(msg.id);
-              getReq.onsuccess = () => {
-                const existingRecord = getReq.result;
-                const record = {
-                  id: msg.id,
-                  sessionId: session.id,
-                  role: msg.sender === "user" ? "user" as const : "assistant" as const,
-                  content: msg.content,
-                  createdAt: msg.timestamp || Date.now(),
-                  // 保留已有 turnIndex（由 MemoryExtractor 写入），避免消息删除后 turnIndex 错乱；
-                  // 仅对新消息使用数组下标作为初始值
-                  turnIndex: existingRecord?.turnIndex ?? idx,
-                  tags: existingRecord?.tags || (msg as any).tags || [],
-                  extractSource: existingRecord?.extractSource || (msg as any).extractSource || "none",
-                  metadata: (msg as any).metadata || msg.extra || existingRecord?.metadata,
-                };
-                
-                const putRequest = messagesStore.put(record);
-                putRequest.onsuccess = () => {
-                  processedCount++;
-                  if (processedCount === messages.length) {
-                    resolve();
-                  }
-                };
-                putRequest.onerror = () => reject(putRequest.error);
-              };
-              getReq.onerror = () => reject(getReq.error);
-            });
-          }
-        };
-        cursorRequest.onerror = () => reject(cursorRequest.error);
-      } else {
-        sessionRequest.onsuccess = () => resolve();
-        sessionRequest.onerror = () => reject(sessionRequest.error);
+        sessionToSave.charCount = messages.reduce((total, msg) => total + (msg.content?.length || 0), 0);
       }
 
+      const request = sessionsStore.put(sessionToSave);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
       transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
     });
   }, `session:${session.id}`);  // P1-11: 同会话多次保存合并为一次落盘
@@ -1105,6 +1054,47 @@ export async function appendMessage(message: {
 }
 
 /**
+ * 按 ID 合并更新消息的抽取字段（tags / extractSource / metadata）。
+ * 使用 GET+PUT 合并，保留 content / createdAt / role / turnIndex 等已有字段。
+ * 供 MemoryExtractor 在消息已由 appendSessionMessage 写入后更新抽取结果。
+ */
+export async function updateMessageExtraction(
+  id: string,
+  tags: string[],
+  extractSource: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("messages", "readwrite");
+      const store = transaction.objectStore("messages");
+      const getReq = store.get(id);
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        if (!existing) {
+          // 消息尚未入库（appendSessionMessage 未完成或失败），跳过更新
+          resolve();
+          return;
+        }
+        const updated = {
+          ...existing,
+          tags,
+          extractSource,
+          metadata: metadata !== undefined ? metadata : existing.metadata,
+        };
+        const putReq = store.put(updated);
+        putReq.onsuccess = () => resolve();
+        putReq.onerror = () => reject(putReq.error);
+      };
+      getReq.onerror = () => reject(getReq.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
+    });
+  }, `message:${id}:extract`);
+}
+
+/**
  * 按主键单条直查消息。
  */
 export async function getMessageById(id: string): Promise<any | null> {
@@ -1341,6 +1331,69 @@ export async function deleteMessagesBySession(sessionId: string): Promise<void> 
         reject(transaction.error || new Error("Transaction aborted"));
     });
   });
+}
+
+/**
+ * 按主键删除单条消息（用于重投/编辑场景显式删除旧消息）。
+ */
+export async function deleteMessageById(id: string): Promise<void> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("messages", "readwrite");
+      const store = transaction.objectStore("messages");
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
+    });
+  }, `message:${id}:delete`);
+}
+
+/**
+ * 批量同步会话消息（用于分支创建/备份恢复等需要全量写入的场景）。
+ *
+ * 与旧 saveSession 的消息同步逻辑不同：
+ *   - 仅 PUT（upsert），不做 GET+PUT，避免 N 次读放大
+ *   - 不做孤儿清理，调用方需自行决定是否需要 prune
+ *   - 新消息 turnIndex 基于数组下标，MemoryExtractor 后续会更新
+ *
+ * @param sessionId 目标会话 ID
+ * @param messages  Message[]（内存格式，sender/timestamp/extra）
+ */
+export async function syncSessionMessages(
+  sessionId: string,
+  messages: Array<{ id: string; sender: string; content: string; timestamp?: number; extra?: Record<string, any> }>
+): Promise<void> {
+  if (!messages || messages.length === 0) return;
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("messages", "readwrite");
+      const store = transaction.objectStore("messages");
+
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
+
+      messages.forEach((msg, idx) => {
+        const record = {
+          id: msg.id,
+          sessionId,
+          role: msg.sender === "user" ? "user" : "assistant",
+          content: msg.content,
+          createdAt: msg.timestamp || Date.now(),
+          turnIndex: idx,
+          tags: [],
+          extractSource: "none",
+          metadata: (msg as any).metadata || msg.extra,
+        };
+        store.put(record);
+      });
+    });
+  }, `session:${sessionId}:sync`);
 }
 
 // === Memory Dict Store CRUD (v8 记忆系统会话级自动学习词典) ===

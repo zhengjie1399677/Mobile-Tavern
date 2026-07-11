@@ -9,13 +9,14 @@
 import type { IDatabaseService } from '../../types';
 import {
   appendMessage as dbAppendMessage,
+  updateMessageExtraction as dbUpdateMessageExtraction,
   getMessageById as dbGetMessageById,
   getMessagesBySession as dbGetMessagesBySession,
   getMessagesByTag as dbGetMessagesByTag,
   deleteMessagesBySession as dbDeleteMessagesBySession,
   upsertDictEntry as dbUpsertDictEntry,
   getDictEntryById as dbGetDictEntryById,
-  getDictBySession as dbGetDictBySession,
+  getDictBySession as dbGetBySession,
   deleteDictBySession as dbDeleteDictBySession,
   getDB,
 } from '../../../utils/localDB';
@@ -101,6 +102,20 @@ export class MemoryStorage {
     });
   }
 
+  /**
+   * 按 ID 合并更新消息的抽取字段（tags / extractSource / metadata）。
+   * 保留 content / createdAt / role / turnIndex 等已有字段，避免覆盖竞态。
+   */
+  async updateMessageExtraction(
+    id: string,
+    tags: string[],
+    extractSource: string,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    this.ensureInitialized();
+    await dbUpdateMessageExtraction(id, tags, extractSource, metadata);
+  }
+
   /** 按主键单条直查消息 */
   async getMessageById(id: string): Promise<MessageRecord | null> {
     this.ensureInitialized();
@@ -178,7 +193,7 @@ export class MemoryStorage {
   /** 按会话查询所有词典条目 */
   async getDictBySession(sessionId: string): Promise<MemoryDictEntry[]> {
     this.ensureInitialized();
-    return dbGetDictBySession(sessionId);
+    return dbGetBySession(sessionId);
   }
 
   /**
