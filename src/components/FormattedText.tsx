@@ -3,19 +3,41 @@ import { useUnifiedApp } from "../UnifiedAppContext";
 import { createMessageIframeSrcDoc, initTavernHelperMocks } from "../utils/tavernHelper";
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "./formattedTextUtils";
 
+// ─── Srcdoc Store ─────────────────────────────────────────────────────────────
+// Android WebView 的 DOMParser 在解析超长 HTML attribute 值时，遇到 attribute
+// 内的 `<` 字符会提前终止属性解析，导致 iframe 的 srcdoc 被截断或丢失（PC
+// Chrome 可以容忍此行为，Android WebView 不行）。
+// 解决方案：将 srcdoc 内容存入模块级 Map，iframe 只携带短 ID；domToReact
+// 从 Map 中取出完整 srcdoc 赋值，彻底绕开 DOMParser 对属性值大小的限制。
+const _srcdocStore = new Map<string, string>();
+
 const SafeIframe = React.memo((props: any) => {
   const { srcDoc, ...rest } = props;
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
-  if (import.meta.env.DEV) {
-    console.log('[SafeIframe] render, srcDoc length:', srcDoc?.length);
-  }
+  // 关键修复：Android WebView 对超长 srcdoc attribute（50KB+）有硬性截断限制，
+  // 通过 React prop（setAttribute）设置时会静默失败导致 iframe 白屏。
+  // 改用 useLayoutEffect 直接赋值 DOM property（element.srcdoc = ...），
+  // DOM property 赋值无大小限制，在所有 Android WebView 版本上均可靠工作。
+  React.useLayoutEffect(() => {
+    if (iframeRef.current && srcDoc !== undefined && srcDoc !== null) {
+      try {
+        if (iframeRef.current.srcdoc !== srcDoc) {
+          if (import.meta.env.DEV) {
+            console.log('[SafeIframe] setting srcdoc via DOM property, length:', srcDoc.length);
+          }
+          iframeRef.current.srcdoc = srcDoc;
+        }
+      } catch (e) {
+        console.error('[SafeIframe] srcdoc DOM property assignment failed:', e);
+      }
+    }
+  }, [srcDoc]);
 
-  return <iframe srcDoc={srcDoc} {...rest} />;
+  // 不通过 React prop 传递 srcDoc，由 useLayoutEffect 直接写入 DOM property
+  return <iframe ref={iframeRef} {...rest} />;
 }, (prevProps, nextProps) => {
-  // srcDoc 变化时必须允许重新渲染，否则 iframe.srcdoc 不会更新，切换分支时会白屏。
-  // 其他 props 变化时也允许重新渲染（如 style、className 等）。
-  // 但为了保持 iframe 存活（避免脚本重新执行），我们仅在 srcDoc 真正变化时才触发重渲染。
-  // 注意：style/className 等属性的变化通过 DOM 直接修改不会影响 iframe 内容。
+  // srcDoc 变化时必须允许重新渲染，否则 useLayoutEffect 不会触发，切换分支时会白屏。
   if (prevProps.srcDoc !== nextProps.srcDoc) {
     return false;
   }
@@ -260,10 +282,44 @@ function domToReact(
         if (/^(https?:\/\/|data:|blob:|\/|expression:\/\/|avatar:\/\/)/i.test(val)) {
           props.src = resolveExpressionUrl(val, activeCharacter);
         }
+      } else if (name === "data-th-srcdoc-id" && tagName === "iframe") {
+        // 新策略：从模块级 _srcdocStore 中取出完整 srcdoc，完全绕开 DOMParser
+        // 对超长 attribute 值的截断限制（Android WebView 对含 < 的属性值处理有 bug）
+        const stored = _srcdocStore.get(val);
+        if (stored) {
+          let resolvedSrcdoc = stored;
+          // 若 srcdoc 未注入 TavernHelper bridge（非我们生成的，来自角色卡正则），
+          // 则在此注入，使 iframe 内脚本能访问 window.parent.TavernHelper。
+          if (enableScriptExecution && !resolvedSrcdoc.includes("window.__TH_MESSAGE_ID")) {
+            if (libsReady) {
+              try {
+                resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex, enableLoopProtection !== false);
+                if (import.meta.env.DEV) {
+                  console.log('[FormattedText] bridge injected for card srcdoc, len:', resolvedSrcdoc.length);
+                }
+              } catch (e) {
+                console.error('[FormattedText] createMessageIframeSrcDoc failed:', e);
+              }
+            } else {
+              // libsReady=false：显示加载占位符
+              resolvedSrcdoc = `<html><body style="background:transparent;color:#a8a29e;font-family:sans-serif;font-size:11px;margin:0;padding:4px;display:flex;align-items:center;gap:6px;">
+              <span style="width:8px;height:8px;border:1.5px solid #a8a29e;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span>
+              正在载入脚本依赖...
+              <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+            </body></html>`;
+            }
+          }
+          props.srcDoc = resolvedSrcdoc;
+          if (import.meta.env.DEV) {
+            console.log('[FormattedText] srcdoc retrieved from store, id:', val, 'len:', resolvedSrcdoc.length);
+          } else {
+            console.error('[FormattedText][PROD] srcdoc-id found:', val.slice(0, 40), 'len:', resolvedSrcdoc.length, 'hasMsg:', resolvedSrcdoc.includes('__TH_MESSAGE_ID'));
+          }
+        } else {
+          console.error('[FormattedText] srcdoc store MISS for id:', val);
+        }
       } else if ((name === "srcdoc" || name === "data-srcdoc") && tagName === "iframe") {
-        // 使用 data-srcdoc 代替 srcdoc，避免 DOMParser 在解析超长 srcdoc 属性值时
-        // 因遇到 </script> 等序列而截断属性值，导致 iframe 内容不完整。
-        // 同时保留对原始 srcdoc 的兼容（角色卡直接包含 <iframe srcdoc="..."> 的情况）。
+        // 兼容：角色卡直接输出 <iframe srcdoc="..."> 的老格式
         // Resolve expression:// and avatar:// inside iframe srcdoc HTML content
         let resolvedSrcdoc = val;
         if (activeCharacter?.avatar) {
@@ -273,7 +329,6 @@ function domToReact(
         const exprMatches = resolvedSrcdoc.match(/expression:\/\/([a-zA-Z0-9_-]+)/gi);
         if (exprMatches && activeCharacter) {
           exprMatches.forEach((match) => {
-            const exprName = match.slice("expression://".length).toLowerCase();
             const resolvedUrl = resolveExpressionUrl(match, activeCharacter);
             resolvedSrcdoc = resolvedSrcdoc.replace(match, resolvedUrl);
           });
@@ -283,27 +338,13 @@ function domToReact(
         if (enableScriptExecution && !resolvedSrcdoc.includes("window.__TH_MESSAGE_ID")) {
           if (libsReady) {
             resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex, enableLoopProtection !== false);
-            console.log("[FormattedText] iframe 走 createMessageIframeSrcDoc 路径", { messageIndex, len: resolvedSrcdoc.length });
           } else {
-            console.warn("[FormattedText] iframe 走占位符路径（libsReady=false）", { messageIndex });
             resolvedSrcdoc = `<html><body style="background:transparent;color:#a8a29e;font-family:sans-serif;font-size:11px;margin:0;padding:4px;display:flex;align-items:center;gap:6px;">
               <span style="width:8px;height:8px;border:1.5px solid #a8a29e;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span>
               正在载入脚本依赖...
               <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
             </body></html>`;
           }
-        }
-        
-        // Diagnostic: log the srcdoc length and whether it was processed by createMessageIframeSrcDoc
-        if (import.meta.env.DEV) {
-          const hasThBridgeInject = resolvedSrcdoc.includes('TavernHelper');
-          const hasJQueryShim = resolvedSrcdoc.includes('makeResult') || resolvedSrcdoc.includes('realJQ');
-          console.log('[FormattedText] srcdoc set on iframe:', {
-            len: resolvedSrcdoc.length,
-            hasThBridgeInject,
-            hasJQueryShim,
-            preview: resolvedSrcdoc.substring(0, 120),
-          });
         }
         
         props.srcDoc = resolvedSrcdoc;
@@ -316,6 +357,10 @@ function domToReact(
   // Force strict sandboxing for iframe tags
   if (tagName === "iframe") {
     // allow-popups: 支持卡片内 target="_blank" 链接；allow-popups-to-escape-sandbox: 弹窗回归父级安全上下文
+    // 关键修复：Android WebView 中，srcdoc iframe 若无 sandbox（含 allow-same-origin），
+    // 会被赋予 opaque origin，导致 window.parent.* 访问被跨域策略阻止，
+    // MVU 框架（Vue/Pinia）无法继承父窗口库而初始化失败，最终只渲染静态文本。
+    // 必须在所有平台统一设置 allow-same-origin，使 iframe 继承父文档的 origin。
     props.sandbox = "allow-scripts allow-same-origin allow-modals allow-popups allow-popups-to-escape-sandbox";
     if (!props.id && messageIndex !== undefined) {
       props.id = `TH-msg-iframe-${messageIndex}`;
@@ -381,6 +426,43 @@ function domToReact(
   return reactElement;
 }
 
+// 在 DOMParser 解析前，将 srcdoc/data-srcdoc 属性内容提取到 _srcdocStore，
+// 替换为短 ID（data-th-srcdoc-id），防止 Android WebView 的 DOMParser 遇到
+// attribute 值中的 `<` 字符时提前终止属性解析，导致卡片内容泄漏到外层 DOM。
+// 这覆盖了两种来源：
+//   1. 我们的 preprocessFormattedText 已经生成 data-th-srcdoc-id（不受影响）
+//   2. 角色卡正则直接输出 <iframe srcdoc="RAW_HTML">（需要此处预处理）
+function extractSrcdocAttrs(html: string): string {
+  let extractCount = 0;
+  const result = html.replace(
+    /\b((?:data-)?srcdoc)\s*=\s*("([^"]*)"|'([^']*)')/gi,
+    (_match, _attrName, _quotedVal, doubleContent, singleContent) => {
+      const rawContent = doubleContent !== undefined ? doubleContent : (singleContent ?? "");
+      // 解码 HTML 实体，还原原始 srcdoc 内容
+      const decoded = rawContent
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+      const storeKey = `th-srcdoc-card-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      _srcdocStore.set(storeKey, decoded);
+      extractCount++;
+      if (import.meta.env.DEV) {
+        console.log('[parseSafeHtml] extracted srcdoc to store, key:', storeKey, 'len:', decoded.length);
+      } else {
+        console.error('[parseSafeHtml][PROD] extracted srcdoc, key:', storeKey.slice(0, 40), 'len:', decoded.length, 'hasHtml:', decoded.includes('<html'));
+      }
+      return `data-th-srcdoc-id="${storeKey}"`;
+    }
+  );
+  if (extractCount === 0 && html.includes('srcdoc')) {
+    // srcdoc 出现了但正则没有匹配上，输出诊断信息
+    console.error('[parseSafeHtml][PROD] srcdoc present but regex MISSED. html snippet:', html.slice(0, 300));
+  }
+  return result;
+}
+
 function parseSafeHtmlToReact(
   html: string, 
   enableAsteriskFormatting: boolean,
@@ -393,7 +475,10 @@ function parseSafeHtmlToReact(
 ): React.ReactNode {
   try {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
+    // 关键：先把所有 srcdoc 属性提取到 Map，再传给 DOMParser
+    // 防止 Android WebView 对含 < 的超长属性值的错误解析
+    const safeHtml = extractSrcdocAttrs(html);
+    const doc = parser.parseFromString(`<div>${safeHtml}</div>`, "text/html");
     const container = doc.body.firstChild;
     if (!container) return html;
 
@@ -591,12 +676,12 @@ function preprocessFormattedText(
     processed = processed.replace(htmlCodeBlockRegex, (_match, htmlContent) => {
       const cleanedHtml = stripGuiWrapper(htmlContent);
       const compiledSrcdoc = createMessageIframeSrcDoc(cleanedHtml, messageIndex, loopGuard);
-      const escapedHtml = compiledSrcdoc
-        .replace(/&/g, "&amp;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
       const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-      return `<iframe id="${iframeId}" name="${iframeId}" data-srcdoc="${escapedHtml}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+      // 关键：用 store 策略替代 data-srcdoc 属性，彻底绕开 Android WebView
+      // DOMParser 对含 < 字符的超长 attribute 值的截断 bug。
+      const storeKey = `th-srcdoc-${iframeId}-${Date.now()}`;
+      _srcdocStore.set(storeKey, compiledSrcdoc);
+      return `<iframe id="${iframeId}" name="${iframeId}" data-th-srcdoc-id="${storeKey}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
     });
 
     // 再处理普通 ``` 块，但仅当内容以 HTML 标签开头时才转为 iframe
@@ -607,12 +692,10 @@ function preprocessFormattedText(
       if (trimmedContent.startsWith("<")) {
         const cleanedHtml = stripGuiWrapper(trimmedContent);
         const compiledSrcdoc = createMessageIframeSrcDoc(cleanedHtml, messageIndex, loopGuard);
-        const escapedHtml = compiledSrcdoc
-          .replace(/&/g, "&amp;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#39;");
         const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-        return `<iframe id="${iframeId}" name="${iframeId}" data-srcdoc="${escapedHtml}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+        const storeKey = `th-srcdoc-${iframeId}-${Date.now()}`;
+        _srcdocStore.set(storeKey, compiledSrcdoc);
+        return `<iframe id="${iframeId}" name="${iframeId}" data-th-srcdoc-id="${storeKey}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
       }
       // 非 HTML 内容：保持原始代码块渲染
       return _match;

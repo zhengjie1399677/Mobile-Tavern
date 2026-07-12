@@ -20,7 +20,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; media-src 'self' data: blob: https:; object-src 'none'; frame-src 'self' blob: data:; worker-src 'self' blob:; base-uri 'self'"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; media-src 'self' data: blob: https:; object-src 'none'; frame-src 'self' blob: data:; worker-src 'self' blob:; base-uri 'self'",
+      "dangerousDisableAssetCspModification": true
     }
   },
   "bundle": {

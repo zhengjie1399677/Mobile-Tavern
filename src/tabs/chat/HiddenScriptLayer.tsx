@@ -29,6 +29,10 @@ const ScriptIframeItem = React.memo(
         name={script.name || "unnamed"}
         srcDoc={srcDoc}
         style={{ display: "none" }}
+        // 关键修复：Android WebView 中，srcdoc iframe 若无 sandbox（含 allow-same-origin），
+        // 会被赋予 opaque origin，导致 window.parent.* 访问被跨域策略阻止，
+        // 脚本内库继承（window.parent._、window.parent.TavernHelper 等）会失败。
+        // 必须统一设置 allow-same-origin，使 iframe 继承父文档的 origin。
         // eslint-disable-next-line react/no-unknown-property
         sandbox="allow-scripts allow-same-origin"
       />
