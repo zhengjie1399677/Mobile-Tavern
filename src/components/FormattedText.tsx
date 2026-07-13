@@ -58,6 +58,7 @@ interface FormattedTextProps {
    * 未传入时回退到 context.activeCharacter（当前活动对话角色卡）。
    */
   character?: any;
+  isStreaming?: boolean;
 }
 
 // Whitelist of allowed HTML tags for aesthetic card renderings
@@ -456,7 +457,8 @@ function extractSrcdocAttrs(html: string): string {
       return `data-th-srcdoc-id="${storeKey}"`;
     }
   );
-  if (extractCount === 0 && html.includes('srcdoc')) {
+  // 关键修复：用 /\b(?:data-)?srcdoc\b/ 精确匹配属性名，避免 data-th-srcdoc-id 触发 includes("srcdoc") 误诊
+  if (extractCount === 0 && /\b(?:data-)?srcdoc\b/i.test(html)) {
     // srcdoc 出现了但正则没有匹配上，输出诊断信息
     console.error('[parseSafeHtml][PROD] srcdoc present but regex MISSED. html snippet:', html.slice(0, 300));
   }
@@ -501,7 +503,8 @@ function preprocessFormattedText(
   presetRegexScripts?: any[],
   messageIndex?: number,
   enableLoopProtection?: boolean,
-  isAiMessage?: boolean
+  isAiMessage?: boolean,
+  isStreamingLastMsg?: boolean
 ): string {
   if (!text) return "";
 
@@ -671,35 +674,75 @@ function preprocessFormattedText(
     const loopGuard = enableLoopProtection !== false;
     // 辅助函数：剥离角色卡常见的 <Gui> 包装标签，防止其出现在 <!DOCTYPE html> 之前导致 HTML 解析器进入 quirks 模式
     const stripGuiWrapper = (html: string) => html.replace(/^\s*<Gui>\s*/i, "").replace(/\s*<\/Gui>\s*$/i, "");
-    // 先处理显式 ```html 块
-    const htmlCodeBlockRegex = /```html\s*([\s\S]*?)\s*```/gi;
-    processed = processed.replace(htmlCodeBlockRegex, (_match, htmlContent) => {
-      const cleanedHtml = stripGuiWrapper(htmlContent);
-      const compiledSrcdoc = createMessageIframeSrcDoc(cleanedHtml, messageIndex, loopGuard);
-      const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
-      // 关键：用 store 策略替代 data-srcdoc 属性，彻底绕开 Android WebView
-      // DOMParser 对含 < 字符的超长 attribute 值的截断 bug。
-      const storeKey = `th-srcdoc-${iframeId}-${Date.now()}`;
-      _srcdocStore.set(storeKey, compiledSrcdoc);
-      return `<iframe id="${iframeId}" name="${iframeId}" data-th-srcdoc-id="${storeKey}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
-    });
 
-    // 再处理普通 ``` 块，但仅当内容以 HTML 标签开头时才转为 iframe
-    const plainCodeBlockRegex = /```\s*([\s\S]*?)\s*```/g;
-    processed = processed.replace(plainCodeBlockRegex, (_match, codeContent) => {
-      const trimmedContent = codeContent.trim();
-      // 内容以 < 开头（HTML 标签），当作 HTML 渲染
-      if (trimmedContent.startsWith("<")) {
-        const cleanedHtml = stripGuiWrapper(trimmedContent);
+    // 降级策略：流式生成中，如果是最后一条 AI 消息（isStreamingLastMsg===true），
+    // 暂不渲染真实的 Iframe 编译和挂载，避免高频重载和数据不同步。
+    console.log(`[FT-DIAG-GUARD] enableScript=${enableScriptExecution}, isStreamLast=${isStreamingLastMsg}, msgIdx=${messageIndex}`);
+    // 关键修复：为同一条消息内的多个 iframe 代码块生成唯一 ID
+    // 旧实现所有 iframe 共享 `TH-msg-iframe-${messageIndex}`，导致：
+    //   1. DOM id 冲突（getElementById 只返回第一个）
+    //   2. 第二个及之后的 iframe 的 bridge 通信失败（postMessage target 命中第一个）
+    //   3. 表现为"第二句话/第二个挂件前端丢失"
+    // 现在使用递增子序号 `TH-msg-iframe-${messageIndex}-${subIdx}` 确保唯一
+    const baseMsgId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
+    let iframeSubIdx = 0;
+    const nextIframeId = () => `${baseMsgId}-${iframeSubIdx++}`;
+
+    if (isStreamingLastMsg) {
+      const getLoadingPlaceholder = (iframeId: string) => {
+        return `<div id="${iframeId}-placeholder" class="mvu-loading-placeholder" style="padding:12px;border:1px dashed rgba(168,162,158,0.3);border-radius:8px;color:#a8a29e;font-size:12px;display:flex;align-items:center;gap:8px;margin:8px 0;font-family:sans-serif;background:transparent;">
+          <span style="width:12px;height:12px;border:2px solid #a8a29e;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;display:inline-block;"></span>
+          正在生成交互界面...
+          <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+        </div>`;
+      };
+
+      // 先处理显式 ```html 块
+      const htmlCodeBlockRegex = /```html\s*([\s\S]*?)\s*```/gi;
+      processed = processed.replace(htmlCodeBlockRegex, () => {
+        return getLoadingPlaceholder(nextIframeId());
+      });
+
+      // 再处理普通 ``` 块，且以 < 开头
+      const plainCodeBlockRegex = /```\s*([\s\S]*?)\s*```/g;
+      processed = processed.replace(plainCodeBlockRegex, (_match, codeContent) => {
+        const trimmedContent = codeContent.trim();
+        if (trimmedContent.startsWith("<")) {
+          return getLoadingPlaceholder(nextIframeId());
+        }
+        return _match;
+      });
+    } else {
+      // 先处理显式 ```html 块
+      const htmlCodeBlockRegex = /```html\s*([\s\S]*?)\s*```/gi;
+      processed = processed.replace(htmlCodeBlockRegex, (_match, htmlContent) => {
+        const cleanedHtml = stripGuiWrapper(htmlContent);
         const compiledSrcdoc = createMessageIframeSrcDoc(cleanedHtml, messageIndex, loopGuard);
-        const iframeId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
+        const iframeId = nextIframeId();
+        // 关键：用 store 策略替代 data-srcdoc 属性，彻底绕开 Android WebView
+        // DOMParser 对含 < 字符的超长 attribute 值的截断 bug。
         const storeKey = `th-srcdoc-${iframeId}-${Date.now()}`;
         _srcdocStore.set(storeKey, compiledSrcdoc);
         return `<iframe id="${iframeId}" name="${iframeId}" data-th-srcdoc-id="${storeKey}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
-      }
-      // 非 HTML 内容：保持原始代码块渲染
-      return _match;
-    });
+      });
+
+      // 再处理普通 ``` 块，但仅当内容以 HTML 标签开头时才转为 iframe
+      const plainCodeBlockRegex = /```\s*([\s\S]*?)\s*```/g;
+      processed = processed.replace(plainCodeBlockRegex, (_match, codeContent) => {
+        const trimmedContent = codeContent.trim();
+        // 内容以 < 开头（HTML 标签），当作 HTML 渲染
+        if (trimmedContent.startsWith("<")) {
+          const cleanedHtml = stripGuiWrapper(trimmedContent);
+          const compiledSrcdoc = createMessageIframeSrcDoc(cleanedHtml, messageIndex, loopGuard);
+          const iframeId = nextIframeId();
+          const storeKey = `th-srcdoc-${iframeId}-${Date.now()}`;
+          _srcdocStore.set(storeKey, compiledSrcdoc);
+          return `<iframe id="${iframeId}" name="${iframeId}" data-th-srcdoc-id="${storeKey}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
+        }
+        // 非 HTML 内容：保持原始代码块渲染
+        return _match;
+      });
+    }
   }
 
   // 4. 最终清洗：剥离所有未匹配或残留的 <suggestions>、<UpdateVariable> 和 <initvar> 标签块，防止其泄漏至渲染层展示为原始文本
@@ -751,6 +794,7 @@ const FormattedText = memo(function FormattedText({
   className = "",
   messageIndex,
   character,
+  isStreaming,
 }: FormattedTextProps) {
   if (!text) return null;
 
@@ -819,6 +863,30 @@ const FormattedText = memo(function FormattedText({
     : !!(context.settings.enableAsteriskFormatting);
   const globalRegexScripts = context.settings.globalRegexScripts;
   const presetRegexScripts = context.settings.presetRegexScripts;
+  const { isSending, activeSession } = context;
+  const isSendingSync = !!(
+    isSending ||
+    (typeof window !== "undefined" && (window as any).TavernHelperIsSending)
+  );
+
+  const isStreamingLastMsg = isStreaming !== undefined
+    ? isStreaming
+    : !!(
+        isSendingSync &&
+        activeSession &&
+        messageIndex !== undefined &&
+        messageIndex === activeSession.messages.length - 1
+      );
+
+  // ▼ 关键诊断日志：追踪流式降级门控的每一个条件
+  if (enableScriptExecution && messageIndex !== undefined && text.length > 10) {
+    const hasCodeBlock = /```/.test(text);
+    if (hasCodeBlock || isStreamingLastMsg) {
+      console.log(
+        `[FT-DIAG] msgIdx=${messageIndex}, isSending=${isSending}, sessLen=${activeSession?.messages?.length}, isStreamLast=${isStreamingLastMsg}, hasCodeBlock=${hasCodeBlock}, textLen=${text.length}`
+      );
+    }
+  }
 
   const isAiMessage = (() => {
     // Drawer 预览场景：传入了 character prop 且无 messageIndex，说明在预览角色卡开场白，
@@ -841,7 +909,8 @@ const FormattedText = memo(function FormattedText({
     presetRegexScripts,
     messageIndex,
     enableLoopProtection,
-    isAiMessage
+    isAiMessage,
+    isStreamingLastMsg
   );
 
   // Quick detection: if text contains tags and html rendering is active, use DOM parser

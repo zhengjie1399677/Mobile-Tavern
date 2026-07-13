@@ -76,6 +76,23 @@ const MessageBubble = ({
 
   const isUser = message.sender === "user";
 
+  // 关键修复：使用 window.TavernHelperStreamingMessageId 精确判断当前消息是否正在流式生成
+  // 替代旧的 isSending && idx === messagesToRenderLength - 1 判断，解决两个核心 bug：
+  //   1. isSending React state 异步更新延迟 → 流式开始瞬间误判为非流式 → iframe 抢跑
+  //   2. Bison 模式 500ms 间隔内 isSending 仍为 true，已完成的第一条消息被误判为流式 → iframe 被替换为 loading placeholder（第二句话丢失）
+  // streamingMessageId 在 useSendMessage/useRerollMessage 中同步设置（添加占位符之前）和清除（流式结束/异常/finally）
+  const isStreamingThisMsg = (() => {
+    if (!isSending) return false;
+    if (typeof window === "undefined") return idx === messagesToRenderLength - 1;
+    const streamingId = (window as any).TavernHelperStreamingMessageId;
+    // streamingMessageId 精确命中当前消息 → 流式中
+    if (typeof streamingId === "string" && streamingId) {
+      return streamingId === message.id;
+    }
+    // streamingMessageId 未设置（理论不应发生，但兜底）→ 回退到旧的末位判断
+    return idx === messagesToRenderLength - 1;
+  })();
+
   // --- 修复1：所有 Refs 必须先于任何 useEffect 声明 ---
   const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
   const isScrollingOrMoving = React.useRef(false);
@@ -660,11 +677,11 @@ const MessageBubble = ({
                     }}
                     className="bg-muted/40 hover:bg-muted/60 border-border/30 text-muted-foreground cursor-pointer flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-semibold select-none transition-all active:scale-95 w-fit"
                   >
-                    <Brain className={`w-3.5 h-3.5 ${isSending && idx === messagesToRenderLength - 1 ? "animate-pulse text-primary" : "opacity-75"}`} />
+                    <Brain className={`w-3.5 h-3.5 ${isStreamingThisMsg ? "animate-pulse text-primary" : "opacity-75"}`} />
                     <span>
                       {expandedReasoningIds[message.id]
                         ? "收起思考过程"
-                        : isSending && idx === messagesToRenderLength - 1
+                        : isStreamingThisMsg
                         ? "AI 正在思考中 (点击查看)..."
                         : "查看思考过程"}
                     </span>
@@ -684,7 +701,7 @@ const MessageBubble = ({
                     <div className="mt-1.5 relative">
                       <div className="p-3 pr-8 rounded-xl glass-panel border border-border/20 text-muted-foreground font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-[200px] overflow-y-auto custom-scrollbar animate-in fade-in duration-300">
                         {message.reasoningContent}
-                        {isSending && idx === messagesToRenderLength - 1 && (
+                        {isStreamingThisMsg && (
                           <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-primary/70 animate-pulse" />
                         )}
                       </div>
@@ -739,7 +756,7 @@ const MessageBubble = ({
                     lineHeight: settings?.chatLineHeight ? `${settings.chatLineHeight}` : undefined,
                   }}
                 >
-                  {(message.content === "💭..." || (isSending && idx === messagesToRenderLength - 1 && !message.content?.trim())) ? (
+                  {(message.content === "💭..." || (isStreamingThisMsg && !message.content?.trim())) ? (
                     <div className="flex items-center gap-2.5 py-0.5 select-none animate-pulse">
                       <CloudLoader size={26} />
                       <span className="text-xs text-muted-foreground/80 font-light">AI 正在斟酌字句...</span>
@@ -747,7 +764,11 @@ const MessageBubble = ({
                   ) : !message.content?.trim() ? (
                     <span className="text-xs text-muted-foreground/60 italic select-none">*(未生成任何内容)*</span>
                   ) : (
-                    renderDialogueBubble(message.content, foldedCount + idx)
+                    renderDialogueBubble(
+                      message.content,
+                      foldedCount + idx,
+                      isStreamingThisMsg
+                    )
                   )}
                 </div>
               )}

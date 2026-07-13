@@ -221,7 +221,22 @@ export function initTavernHelperMocks(): void {
   // 7. 核心绑定对象 bindObj：TavernHelper._bind 的全部方法实现
   // ──────────────────────────────────────────────────────────────────────────
   const bindObj = {
-    _eventOn(event: string, cb: any) { tavernHelperEventEmitter.on(event, cb); },
+    _eventOn(event: string, cb: any) {
+      tavernHelperEventEmitter.on(event, cb);
+      // 就绪即重放机制：当 iframe 内部订阅变量初始化事件时，立刻异步补发当前的最新变量以规避时序竞态
+      if (event === 'mag_variable_initialized') {
+        const vars = bindObj._getVariables({ type: 'chat' });
+        if (vars && Object.keys(vars).length > 0) {
+          setTimeout(() => {
+            try {
+              cb(vars, 0);
+            } catch (err) {
+              console.warn("[TavernHelper Bridge] Error during initial event replay:", err);
+            }
+          }, 0);
+        }
+      }
+    },
     _eventOnButton: () => {},
     _eventMakeLast: () => {},
     _eventMakeFirst: () => {},

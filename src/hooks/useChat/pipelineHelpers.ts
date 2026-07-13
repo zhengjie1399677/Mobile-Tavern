@@ -12,6 +12,7 @@ import { OutputPipelineContext, IDatabaseService, KernelServices } from "../../k
 import { globalKernel } from "../../kernel";
 import { buildOutputContext } from "./helpers/streamHelpers";
 import { cleanSuggestionsFromText } from "./helpers/textParsing";
+import { notifyVariablesUpdated } from "../../utils/tavernHelper";
 
 /**
  * 执行 Output Pipeline 并保存 Session，成功后更新 React sessions 状态。
@@ -167,6 +168,11 @@ export async function runOutputPipelineAndSave(params: {
   setSessions((prev) =>
     prev.map((s) => (s.id === parsedSession.id ? parsedSession : s))
   );
+  try {
+    notifyVariablesUpdated(parsedSession);
+  } catch (e) {
+    console.warn("[pipelineHelpers] Failed to notifyVariablesUpdated:", e);
+  }
   if (triggerScroll) triggerScroll();
   return outputCtx;
 }

@@ -81,7 +81,27 @@ export function useSendMessage(p: SendMessageParams) {
         !hasUnsentUserMessages
       ) return;
 
-      if (p.isSending || p.isSendingRef.current || !p.activeCharacter || !p.activeSession) return;
+      // 互斥锁检查 + 兜底自愈
+      // isSendingRef 可能因 finally 块的 requestId !== activeRequestIdRef 检查而残留 true
+      // （场景：流式被新请求取代后，旧请求的 finally 不重置 isSendingRef；新请求又异常退出且同样不重置）
+      // 利用 streamingMessageId 作为"是否有活跃流式"的可靠标志：若已为 null 说明无活跃流式，强制重置互斥锁
+      if (p.isSending || p.isSendingRef.current) {
+        const streamingId = typeof window !== "undefined" ? (window as any).TavernHelperStreamingMessageId : null;
+        if (p.isSendingRef.current && !streamingId) {
+          console.warn("[useSendMessage] 检测到 isSendingRef 残留但无活跃流式，强制重置互斥锁");
+          p.isSendingRef.current = false;
+          p.setIsSending(false);
+          if (typeof window !== "undefined") {
+            (window as any).TavernHelperIsSending = false;
+          }
+          // 重置后继续往下执行
+        } else {
+          // 有活跃流式（streamingId 非空）或 isSending React state 仍为 true，拒绝并发
+          return;
+        }
+      }
+
+      if (!p.activeCharacter || !p.activeSession) return;
 
       const modelToReport = p.settings.api.apiKey
         ? (p.settings.api.modelName || FALLBACK_MODEL)
@@ -138,9 +158,23 @@ export function useSendMessage(p: SendMessageParams) {
     if (!currentSession) return;
     p.isSendingRef.current = true;
     p.setIsSending(true);
+    if (typeof window !== "undefined") {
+      (window as any).TavernHelperIsSending = true;
+    }
 
     const requestId = ++p.activeRequestIdRef.current;
     let updatedSession = currentSession;
+
+    // 关键修复：流式消息 ID 精确标记
+    // 解决 isSending React state 异步更新延迟导致的 iframe 抢跑问题：
+    //   1. 流式开始瞬间 isSending 可能还是 false → FormattedText 误判为非流式 → 直接渲染 iframe（抢跑）
+    //   2. Bison 模式 500ms 间隔内 isSending 仍为 true，已完成的第一条消息被误判为流式 → iframe 被替换为 loading placeholder（丢失）
+    // 通过 window 全局同步标记当前正在生成的消息 ID，MessageBubble 可精确判断哪条消息正在流式。
+    const __streamingMsgIdGuard = (v: string | null) => {
+      if (typeof window !== "undefined") {
+        (window as any).TavernHelperStreamingMessageId = v;
+      }
+    };
 
     if (!isBisonConsecutive && textToSend && textToSend.trim()) {
       try {
@@ -150,6 +184,9 @@ export function useSendMessage(p: SendMessageParams) {
         console.error("Failed to save session user message:", err);
         p.isSendingRef.current = false;
         p.setIsSending(false);
+        if (typeof window !== "undefined") {
+          (window as any).TavernHelperIsSending = false;
+        }
         return;
       }
       p.triggerScroll("smooth");
@@ -221,6 +258,9 @@ export function useSendMessage(p: SendMessageParams) {
 
       // 放置 AI 消息占位符
       console.log("--- AI 发言流式开始 ---");
+      // 关键：在添加占位符之前同步设置 streamingMessageId，
+      // 确保 MessageBubble 首次渲染占位符时 isStreaming 就能精确命中（避免 iframe 抢跑）
+      __streamingMsgIdGuard(aiMsgId);
       const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };
       p.setSessions((prev) =>
         prev.map((s) => s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)
@@ -304,9 +344,29 @@ export function useSendMessage(p: SendMessageParams) {
 
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
+      // 流式正常完成：清除 streamingMessageId，触发 FormattedText 从 loading placeholder 切换到真实 iframe 渲染
+      __streamingMsgIdGuard(null);
 
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
       if (!latestSession) { console.warn("[useSendMessage] Aborted save, session was deleted:", updatedSession.id); return; }
+
+      // 关键修复：流式"正常完成"但 AI 返回空内容（API 返回空响应/网络中断未 throw 等场景）
+      // 旧逻辑：buildFinalAiMessage 生成 content 为空的消息 → UI 显示"*(未生成任何内容)*"但无报错弹窗
+      // 新逻辑：检测空响应，显示报错弹窗 + 删除占位符，让用户明确知道发送失败
+      const rawResponseText = responseChunks.join("");
+      const rawReasoningText = reasoningChunks.join("");
+      if (!rawResponseText.trim() && !rawReasoningText.trim()) {
+        console.warn("[useSendMessage] 流式正常结束但 AI 返回空内容，判定为发送失败");
+        const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
+        // 删除占位符，避免 UI 残留空消息
+        const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
+        if (isStillActive) {
+          p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+          p.showCustomAlert("发送失败：AI 未返回任何内容，请检查 API 配置、网络连接或模型是否可用。");
+        }
+        await p.databaseService.saveSession(nextSession).catch((e) => console.error("[useSendMessage] Failed to save after empty response:", e));
+        return;
+      }
 
       const { finalAiMsg, suggestions } = buildFinalAiMessage({
         aiMsgId, responseText: responseChunks.join(""), reasoningText: reasoningChunks.join(""),
@@ -389,9 +449,23 @@ export function useSendMessage(p: SendMessageParams) {
       const responseText = responseChunks.join("");
       p.bisonRemainingCountRef.current = 0;
       p.setIsBisonLocking(false);
-      if (requestId !== p.activeRequestIdRef.current) return;
+      if (requestId !== p.activeRequestIdRef.current) {
+        // 当前请求已被新请求取代，清理旧占位符（仅当占位符未被替换为真实内容时）
+        // 避免 UI 残留"💭..."或空消息导致"发送后无反馈/未生成"假象
+        const latestSessionForCleanup = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
+        if (latestSessionForCleanup) {
+          const placeholderMsg = latestSessionForCleanup.messages.find((m) => m.id === aiMsgId);
+          if (placeholderMsg && (placeholderMsg.content === "💭..." || !placeholderMsg.content?.trim())) {
+            const nextSession = { ...latestSessionForCleanup, messages: latestSessionForCleanup.messages.filter((m) => m.id !== aiMsgId) };
+            p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+          }
+        }
+        return;
+      }
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
+      // 异常/中断分支：同样清除 streamingMessageId，避免残留导致 FormattedText 卡在 loading placeholder
+      __streamingMsgIdGuard(null);
 
       const isManualAbort = err.name === "AbortError" || err.message?.includes("aborted") || controller.signal.aborted;
       const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
@@ -438,6 +512,8 @@ export function useSendMessage(p: SendMessageParams) {
     } finally {
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
+      // finally 兜底：确保 streamingMessageId 被清除，避免任何未捕获路径残留导致 FormattedText 卡死在 loading placeholder
+      __streamingMsgIdGuard(null);
       if (p.abortControllerRef.current === controller) p.abortControllerRef.current = null;
       if (requestId === p.activeRequestIdRef.current) {
         const isBisonScheduled = p.settings.enableBisonMode && (p.bisonRemainingCountRef.current > 0 || isBisonChainActive);
@@ -445,6 +521,9 @@ export function useSendMessage(p: SendMessageParams) {
           p.isSendingRef.current = false;
           p.setIsSending(false);
           p.setIsBisonLocking(false);
+          if (typeof window !== "undefined") {
+            (window as any).TavernHelperIsSending = false;
+          }
         }
       }
     }
@@ -463,6 +542,9 @@ export function useSendMessage(p: SendMessageParams) {
     }
     p.isSendingRef.current = false;
     p.setIsSending(false);
+    if (typeof window !== "undefined") {
+      (window as any).TavernHelperIsSending = false;
+    }
     p.bisonRemainingCountRef.current = 0;
     p.setIsBisonLocking(false);
   }, []);

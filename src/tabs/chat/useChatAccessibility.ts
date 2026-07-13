@@ -3,7 +3,9 @@
 
 import React from "react";
 
-import { initTavernHelperBridge, cleanTavernHelperBridge, getBridgeInterface } from "../../utils/tavernHelper";
+import { initTavernHelperBridge, cleanTavernHelperBridge, getBridgeInterface, getBridgeParams, notifyVariablesUpdated } from "../../utils/tavernHelper";
+import lodashCloneDeep from "lodash/cloneDeep";
+import lodashIsEqual from "lodash/isEqual";
 import { chatTabState } from "./utils";
 import { globalKernel } from "../../kernel/Kernel";
 import { IDatabaseService } from "../../kernel/types";
@@ -40,6 +42,18 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     handleSendMessage,
     isSending,
   } = deps;
+
+  // Render-phase sync: 强行在渲染阶段将最新的会话与配置同步给 bridge params。
+  // 这能确保在任何子组件（如 FormattedText）挂载、iframe 加载及 _onIframeReady() 触发时，
+  // 它们都能够直接、同步且无时序滞后地通过 getBridgeParams() 拿到最新的 activeSession。
+  if (settings.enableScriptExecution) {
+    const params = getBridgeParams();
+    if (params) {
+      params.activeCharacter = activeCharacter;
+      params.activeSession = activeSession;
+      params.settings = settings;
+    }
+  }
 
   // a11y Live Announcer state and effect
   const [announcement, setAnnouncement] = React.useState("");
@@ -103,12 +117,27 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   }, [
     activeCharId,
     activeSessionId,
-    // 保留对 session 的引用依赖，以便会话内容更新时 bridge 能拿到最新数据
-    activeCharacter,
-    activeSession,
-    settings,
+    settings.enableScriptExecution,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
+
+  // 轻量引用同步 effect：仅在 session/character 引用变化时同步给 bridge 状态，不执行重初始化，避免 60ms 高频开销
+  const prevVarsRef = React.useRef<any>(null);
+  React.useEffect(() => {
+    if (!settings.enableScriptExecution) return;
+    const params = getBridgeParams();
+    if (params) {
+      params.activeCharacter = activeCharacter;
+      params.activeSession = activeSession;
+      params.settings = settings;
+
+      // 仅更新内存引用比对，不进行事件广播，避免在 React 渲染过程中因竞态引发未自愈的空变量覆盖
+      const currentVars = activeSession?.variables;
+      if (currentVars && !lodashIsEqual(prevVarsRef.current, currentVars)) {
+        prevVarsRef.current = lodashCloneDeep(currentVars);
+      }
+    }
+  }, [activeCharacter, activeSession, settings]);
 
   // 仅在脚本关闭时清理 bridge
   React.useEffect(() => {

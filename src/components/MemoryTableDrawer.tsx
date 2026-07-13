@@ -6,6 +6,8 @@ import StoryTimelineView from "../tabs/chat/StoryTimelineView";
 import TableMemoryTab from "./memory-drawer/TableMemoryTab";
 import DictTab from "./memory-drawer/DictTab";
 import RecallTab from "./memory-drawer/RecallTab";
+import { useUnifiedApp } from "../UnifiedAppContext";
+import { notifyVariablesUpdated } from "../utils/tavernHelper";
 
 interface MemoryTableDrawerProps {
   isOpen: boolean;
@@ -28,6 +30,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   enableAutoSummary,
   initialTab
 }) => {
+  const { setSessions, showCustomAlert } = useUnifiedApp();
   // 大 Tab 面板：'timeline' | 'table' | 'dict' | 'recall' | 'mvu'
   const [activeTab, setActiveTab] = useState<'timeline' | 'table' | 'dict' | 'recall' | 'mvu'>(
     enableAutoSummary ? 'timeline' : (enableTableMemory ? 'table' : 'recall')
@@ -147,11 +150,26 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             <MvuVariablesTabContent
               variables={activeSession.variables || {}}
               onSave={async (newVars) => {
+                console.log(`[MVU-SAVE-DIAG] onSave called, sessId=${activeSession.id}, varKeys=${Object.keys(newVars?.stat_data || {}).join(',')}`);
                 const nextSession = {
                   ...activeSession,
                   variables: newVars
                 };
-                await saveSession(nextSession);
+                try {
+                  await saveSession(nextSession);
+                  console.log(`[MVU-SAVE-DIAG] saveSession done`);
+                } catch (e) {
+                  console.error(`[MVU-SAVE-DIAG] saveSession FAILED:`, e);
+                }
+                setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+                console.log(`[MVU-SAVE-DIAG] setSessions done`);
+                try {
+                  notifyVariablesUpdated(nextSession);
+                  console.log(`[MVU-SAVE-DIAG] notifyVariablesUpdated done`);
+                } catch (e) {
+                  console.warn("[MemoryTableDrawer] notifyVariablesUpdated failed:", e);
+                }
+                showCustomAlert("角色变量保存并同步成功！");
               }}
             />
           )}

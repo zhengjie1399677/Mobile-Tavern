@@ -178,7 +178,7 @@ export interface UnifiedAppContextProps {
   createBacktrackBranch: (msg: Message) => Promise<void>;
   createBacktrackFromTimeline: (summary: SummaryCard) => Promise<void>;
   handleAddTimelineSummary: () => Promise<void>;
-  renderDialogueBubble: (text: string, messageIndex?: number) => React.ReactNode;
+  renderDialogueBubble: (text: string, messageIndex?: number, isStreaming?: boolean) => React.ReactNode;
   saveSessionWithMvu: (session: ChatSession, messageToParse?: string) => Promise<ChatSession>;
   isBisonLocking: boolean;
 
