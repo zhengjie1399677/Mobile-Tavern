@@ -19,13 +19,34 @@ interface ScriptIframeItemProps {
 
 const ScriptIframeItem = React.memo(
   ({ script, enableLoopProtection }: ScriptIframeItemProps) => {
+    const iframeId = `TH-script--${script.name || "unnamed"}--${script.id}`;
+
     const srcDoc = React.useMemo(() => {
       return createScriptIframeSrcDoc(script.content, script.id, enableLoopProtection);
     }, [script.content, script.id, enableLoopProtection]);
 
+    // 强制清理：组件卸载时主动将 iframe 导航到 about:blank，
+    // 这会触发 iframe 内部的 beforeunload/pagehide 事件，
+    // 确保 setInterval、MutationObserver、ResizeObserver 等全部被销毁。
+    // Android WebView 在 React 直接移除 DOM 时可能不触发 pagehide，
+    // 此清理机制作为兜底防线，防止已移除 iframe 的定时器与观察器泄露。
+    React.useEffect(() => {
+      return () => {
+        const iframe = document.getElementById(iframeId) as HTMLIFrameElement | null;
+        if (iframe) {
+          try {
+            // 强制导航到 blank 页面，触发浏览上下文销毁
+            iframe.src = "about:blank";
+          } catch {
+            // 跨域限制下静默降级
+          }
+        }
+      };
+    }, [iframeId]);
+
     return (
       <iframe
-        id={`TH-script--${script.name || "unnamed"}--${script.id}`}
+        id={iframeId}
         name={script.name || "unnamed"}
         srcDoc={srcDoc}
         style={{ display: "none" }}

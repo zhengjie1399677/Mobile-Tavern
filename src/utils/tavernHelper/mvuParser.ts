@@ -391,6 +391,10 @@ export function detectJsonPatch(text: string): any[] | null {
   }
 
   // 3. 检测裸 JSON Patch 数组（不在 XML 标签内）
+  // 使用宽松正则做候选匹配（含 "op" 键的 JSON 数组），候选者由 tryParsePatch
+  // 进一步校验（JSON5.parse → parsed[0]?.op），假阳性由 applyJsonPatchOperations
+  // 在 switch 各分支内安全处理（无 path 则 break）。不再提前 return，确保
+  // 步骤 2/3/4 的标准 MVU 命令与 XML 标签命令不会因假阳性被丢弃。
   if (patches.length === 0) {
     const bareMatch = text.match(/\[\s*\{\s*["']op["']\s*:[\s\S]*?\]/);
     if (bareMatch) {
@@ -551,10 +555,11 @@ export function parseMvuMessage(message: string, oldData: any): any {
   const statData = newData.stat_data || newData;
 
   // 1. 尝试 JSON Patch (RFC 6902) 格式
+  // 注意：不提前 return！某些 AI 回复可能同时包含 JSON Patch 与标准 MVU 命令
+  // （_.set / _.add 等）或 XML 标签命令。提前 return 会导致后两类命令被静默丢弃。
   const jsonPatches = detectJsonPatch(message);
   if (jsonPatches) {
     applyJsonPatchOperations(statData, jsonPatches);
-    return newData;
   }
 
   // 2. 提取标准 MVU 命令（_.set/add/delete/remove/unset/assign/insert/move 格式）

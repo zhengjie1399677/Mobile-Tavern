@@ -397,14 +397,15 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
     // Periodically poll to flush queued events once parent is fully initialized
     var flushInterval = setInterval(flushEvents, 100);
 
-
-
-    window.addEventListener('pagehide', function() {
+    // Android WebView 中 pagehide 可能不触发，同时注册 beforeunload 兜底清理
+    var __cleanupInterval = function() {
       clearInterval(flushInterval);
       if (typeof window.eventClearAll === 'function') {
         window.eventClearAll();
       }
-    });
+    };
+    window.addEventListener('pagehide', __cleanupInterval);
+    window.addEventListener('beforeunload', __cleanupInterval);
 
     // ─── Step 3: notify bridge that iframe is ready ───
     // We use DOMContentLoaded (fires synchronously after all inline scripts run)
@@ -1000,12 +1001,14 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       configurable: true,
     });
 
-    window.addEventListener('pagehide', function() {
+    var __cleanupMsgInterval = function() {
       clearInterval(flushInterval);
       if (typeof window.eventClearAll === 'function') {
         window.eventClearAll();
       }
-    });
+    };
+    window.addEventListener('pagehide', __cleanupMsgInterval);
+    window.addEventListener('beforeunload', __cleanupMsgInterval);
 
     function notifyReady() {
       setTimeout(function() {
@@ -1096,9 +1099,11 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
         }
       });
       // 遵循 AGENTS.md 准则十.4（彻底回收）：iframe 卸载时断开 observer，防止内存泄漏
-      window.addEventListener('pagehide', function() {
+      var __cleanupResize = function() {
         try { resizeObserver.disconnect(); } catch(e) {}
-      });
+      };
+      window.addEventListener('pagehide', __cleanupResize);
+      window.addEventListener('beforeunload', __cleanupResize);
     } else {
       // 降级使用 MutationObserver
       var observer = new MutationObserver(throttledMeasure);
@@ -1110,9 +1115,11 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
         }
       });
       // 遵循 AGENTS.md 准则十.4（彻底回收）：iframe 卸载时断开 observer，防止内存泄漏
-      window.addEventListener('pagehide', function() {
+      var __cleanupMutation = function() {
         try { observer.disconnect(); } catch(e) {}
-      });
+      };
+      window.addEventListener('pagehide', __cleanupMutation);
+      window.addEventListener('beforeunload', __cleanupMutation);
     }
   })();
 </script>
@@ -1173,9 +1180,11 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
       // 遵循 AGENTS.md 准则十.4（彻底回收）：
       // 此 observer 持有父窗口 document 引用，必须在 iframe 卸载时显式 disconnect，
       // 否则会阻止 iframe 的 browsing context 被 GC 回收，造成内存泄漏。
-      window.addEventListener('pagehide', function() {
+      var __cleanupThemeObs = function() {
         try { obs.disconnect(); } catch(e) {}
-      });
+      };
+      window.addEventListener('pagehide', __cleanupThemeObs);
+      window.addEventListener('beforeunload', __cleanupThemeObs);
     } catch(e) {
       console.warn('[TavernHelper Theme Sync] Observer setup failed:', e);
     }

@@ -82,14 +82,19 @@ const MessageBubble = ({
   //   2. Bison 模式 500ms 间隔内 isSending 仍为 true，已完成的第一条消息被误判为流式 → iframe 被替换为 loading placeholder（第二句话丢失）
   // streamingMessageId 在 useSendMessage/useRerollMessage 中同步设置（添加占位符之前）和清除（流式结束/异常/finally）
   const isStreamingThisMsg = (() => {
-    if (!isSending) return false;
     if (typeof window === "undefined") return idx === messagesToRenderLength - 1;
     const streamingId = (window as any).TavernHelperStreamingMessageId;
     // streamingMessageId 精确命中当前消息 → 流式中
+    // 必须优先检查全局标志（在 isSending 之前），因为：
+    // __streamingMsgIdGuard 在 useSendMessage 中是同步赋值（早于 setSessions），
+    // 而 isSending 是 React 状态异步更新，首帧可能仍为 false。
+    // 若先判断 isSending → return false，全局标志的抢跑防护完全被架空。
     if (typeof streamingId === "string" && streamingId) {
       return streamingId === message.id;
     }
-    // streamingMessageId 未设置（理论不应发生，但兜底）→ 回退到旧的末位判断
+    // 全局标志未设置时，若不在发送中则肯定非流式
+    if (!isSending) return false;
+    // 全局标志未设置但仍在发送中 → 兜底：末位消息即流式消息
     return idx === messagesToRenderLength - 1;
   })();
 

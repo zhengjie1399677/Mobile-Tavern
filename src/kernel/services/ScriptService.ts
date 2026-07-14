@@ -268,26 +268,11 @@ export class ScriptService implements IScriptService {
         messages: updatedMessages,
       };
 
-      // 防腐隔离：将全局副作用调用包装在 try/catch 中，
-      // 并通过 kernel 消息总线发布事件，遵循准则一.4（副作用隔离）
-      try {
-        if (this.bridge) {
-          this.bridge.notifyVariablesUpdated(updatedSession);
-        } else {
-          // 如果没有 bridge，直接降级发布事件
-          this.kernel?.publish({ topic: "script:mvuVariablesUpdated", payload: { session: updatedSession } });
-        }
-      } catch (notifyErr) {
-        if (isDev()) {
-          console.warn("[ScriptService] notifyVariablesUpdated failed:", notifyErr);
-        }
-        // 降级：通过 kernel 消息总线发布事件
-        try {
-          this.kernel?.publish({ topic: "script:mvuVariablesUpdated", payload: { session: updatedSession } });
-        } catch {
-          // 静默降级，不影响主流程
-        }
-      }
+      // notifyVariablesUpdated 统一由 pipelineHelpers.ts 在 pipeline 执行完毕后
+      // 调用一次（含 mag_variable_initialized / message_received / character_message_rendered），
+      // 此处不再重复触发，防止同一个 AI 回复产生 6 次事件通知风暴导致 WebView CPU 尖峰闪退。
+      // 若 bridge 不可用（直接调用 executeMvuScript 的路径），
+      // 降级通过 HiddenScriptLayer 订阅的 script:mvuVariablesUpdated 事件通知 iframe。
 
       return updatedSession;
     } catch (e) {
