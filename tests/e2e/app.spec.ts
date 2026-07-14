@@ -51,15 +51,15 @@ test.describe("Tab 切换", () => {
 });
 
 test.describe("设置面板", () => {
-  test("设置面板渲染且常规标签页可见", async ({ page }) => {
+  test("设置面板渲染且连接标签页可见", async ({ page }) => {
     await page.goto("/", { timeout: 60_000 });
     await expect(page.getByRole("tab", { name: "设置" })).toBeVisible({ timeout: 30_000 });
     await page.getByRole("tab", { name: "设置" }).click();
 
-    // 常规子标签被选中
-    const generalTab = page.getByRole("tab", { name: "常规" });
-    await expect(generalTab).toBeVisible({ timeout: 10_000 });
-    await expect(generalTab).toHaveAttribute("aria-selected", "true");
+    // 连接子标签被选中（defaultValue="api" → 标签名"连接"）
+    const apiTab = page.getByRole("tab", { name: "连接" });
+    await expect(apiTab).toBeVisible({ timeout: 10_000 });
+    await expect(apiTab).toHaveAttribute("aria-selected", "true");
 
     // 验证设置面板有内容（heading 存在）
     await expect(page.getByRole("heading", { name: /控制面板/ })).toBeVisible({ timeout: 5_000 });
