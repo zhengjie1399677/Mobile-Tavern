@@ -106,27 +106,46 @@ export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (con
   const { responseText, settings, activeCharacter } = context;
   let currentSession = context.resultSession || context.session;
 
-  // L2 快速通道：功能开启时，优先使用角色卡定义的外部正则进行预扫描。
-  // 若未定义外部正则，则直接执行（不做预扫描过滤），确保外部正则能独立工作。
-  if (settings.enableScriptExecution && responseText) {
-    const externalRegex = buildExternalMvuTriggerRegex(activeCharacter);
-    const shouldExecute = externalRegex ? externalRegex.test(responseText) : true;
+  // 功能关闭或空响应时跳过
+  if (!settings.enableScriptExecution || !responseText) {
+    context.resultSession = currentSession;
+    await next();
+    return;
+  }
 
-    if (shouldExecute) {
-      const kernel = context.kernel;
-      if (!kernel) {
-        console.warn("[mvuScriptMiddleware] kernel not injected in OutputPipelineContext, skipping.");
-        context.resultSession = currentSession;
-        await next();
-        return;
-      }
-      try {
-        const scriptService = kernel.getService<any>(KernelServices.Script);
-        currentSession = await scriptService.executeMvuScript(currentSession, responseText);
-      } catch (err) {
-        console.warn("[MvuScript] Middleware execution error:", err);
-      }
-    }
+  const kernel = context.kernel;
+  if (!kernel) {
+    console.warn("[mvuScriptMiddleware] kernel not injected in OutputPipelineContext, skipping.");
+    context.resultSession = currentSession;
+    await next();
+    return;
+  }
+
+  // 内容预扫描：若响应文本不含任何 MVU 命令模式，跳过解析以节省数据库查询
+  const HAS_MVU_CONTENT = /(?:<UpdateVariable\b|<initvar\b|_\.(?:set|add|delete|remove|unset|assign|insert|move)\s*\()/i;
+  if (!HAS_MVU_CONTENT.test(responseText)) {
+    // 快速路径：无 MVU 命令，跳过解析
+    context.resultSession = currentSession;
+    await next();
+    return;
+  }
+
+  // L2 快速通道：角色卡定义的 trigger_patterns 仅作为性能提示，
+  // 用于在响应文本明显不含 MVU 内容时跳过解析。但若外部正则不匹配，
+  // 仍需执行解析——trigger_patterns 是优化而非门控，错误定义不应导致数据丢失。
+  const externalRegex = buildExternalMvuTriggerRegex(activeCharacter);
+  if (externalRegex && !externalRegex.test(responseText)) {
+    console.warn(
+      "[mvuScriptMiddleware] External trigger_patterns did not match, but MVU parsing will proceed as fallback.",
+      "Card:", activeCharacter?.name
+    );
+  }
+
+  try {
+    const scriptService = kernel.getService<any>(KernelServices.Script);
+    currentSession = await scriptService.executeMvuScript(currentSession, responseText);
+  } catch (err) {
+    console.warn("[MvuScript] Middleware execution error:", err);
   }
 
   context.resultSession = currentSession;
