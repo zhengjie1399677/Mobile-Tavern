@@ -63,23 +63,28 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
 
     const checkSpeaking = () => {
       const ttsService = getKernelService<any>("tts");
-      if (ttsService) {
-          const speakingId = ttsService.getSpeakingMessageId();
-          const speaking = ttsService.isSpeaking() && speakingId === message.id;
-          if (active) {
-            setIsSpeakingThis(speaking);
-          }
+      if (!ttsService || !active) return;
+      const speakingId = ttsService.getSpeakingMessageId();
+      const speaking = ttsService.isSpeaking() && speakingId === message.id;
+      if (active) {
+        setIsSpeakingThis(speaking);
+        if (!speaking && timer) {
+          clearInterval(timer);
+          timer = null;
         }
+      }
     };
 
     checkSpeaking();
-    timer = setInterval(checkSpeaking, 500);
+    if (isSpeakingThis) {
+      timer = setInterval(checkSpeaking, 1000);
+    }
 
     return () => {
       active = false;
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
     };
-  }, [message.id]);
+  }, [message.id, getKernelService, isSpeakingThis]);
 
   React.useEffect(() => {
     if (!showMore) return;
