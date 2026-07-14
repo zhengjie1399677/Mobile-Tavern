@@ -76,15 +76,13 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     };
 
     checkSpeaking();
-    if (isSpeakingThis) {
-      timer = setInterval(checkSpeaking, 1000);
-    }
+    timer = setInterval(checkSpeaking, 1000);
 
     return () => {
       active = false;
       if (timer) clearInterval(timer);
     };
-  }, [message.id, getKernelService, isSpeakingThis]);
+  }, [message.id]);
 
   React.useEffect(() => {
     if (!showMore) return;
