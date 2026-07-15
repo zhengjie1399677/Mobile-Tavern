@@ -12,6 +12,9 @@ export class TableMemoryService {
   // P1-1/P1-2: 服务级 AbortController（纯计算服务，契约一致性）
   private abortController: AbortController | null = null;
 
+  /**
+   * 初始化状态表内存服务
+   */
   init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
     this.abortController = new AbortController();
@@ -21,11 +24,18 @@ export class TableMemoryService {
     }
   }
 
+  /**
+   * 销毁状态表内存服务
+   */
   destroy(): void {
     this.abortController?.abort();
     this.abortController = null;
   }
 
+  /**
+   * 解析并处理 AI 回复中的状态表更新指令（updateRow, insertRow, deleteRow）
+   * 提取指令并更新表格数据，同时清理文本中的指令残留以交付干净的回复给 UI
+   */
   processTableMemory(
     tableMemory: TableMemorySheet[] = [],
     rawContent: string,
@@ -39,8 +49,8 @@ export class TableMemoryService {
       rows: s.rows.map(r => [...r])
     }));
 
-    // Regular expression to scan memory update actions: e.g. updateRow("sheet", {...})
-    // matches updateRow, insertRow, deleteRow (case-insensitive)
+    // 正则表达式用于扫描内存状态表的更新指令：例如 updateRow("sheet", {...})
+    // 匹配 updateRow、insertRow、deleteRow (不区分大小写)
     const actionRegex = /(updateRow|insertRow|deleteRow)\s*\(\s*(['"`])(.*?)\2\s*,\s*(\{[\s\S]*?\})(?:\s*,\s*(\{[\s\S]*?\}))?\s*\)/gi;
 
     let match;
@@ -56,7 +66,7 @@ export class TableMemoryService {
       matchesToClean.push(fullMatch);
 
       try {
-        // Relaxed JSON parsing: replace single quotes and unquoted keys
+        // 宽松的 JSON 解析：支持单引号以及无引号的中文/英文键名解析
         const parseJsonObj = (str: string) => {
           const formatted = str
             .replace(/'/g, '"')
@@ -73,7 +83,7 @@ export class TableMemoryService {
 
           if (actionType === "updaterow") {
             if (p2) {
-              // updateRow("sheet", {"定位列": "值"}, {"修改列": "新值"})
+              // 双参数模式：updateRow("sheet", {"定位列": "值"}, {"修改列": "新值"})
               sheet.rows = sheet.rows.map(row => {
                 const matchesFilter = Object.entries(p1).every(([filterKey, filterVal]) => {
                   const colIdx = sheet.columns.indexOf(filterKey);
@@ -93,7 +103,7 @@ export class TableMemoryService {
                 return row;
               });
             } else {
-              // updateRow("sheet", {"修改列": "新值"}) (default updates first row)
+              // 单参数模式：updateRow("sheet", {"修改列": "新值"}) (默认更新第一行)
               if (sheet.rows.length === 0) {
                 sheet.rows.push(sheet.columns.map(() => ""));
               }
@@ -106,14 +116,14 @@ export class TableMemoryService {
               });
             }
           } else if (actionType === "insertrow") {
-            // insertRow("sheet", {"col1": "val1"})
+            // 插入行模式：insertRow("sheet", {"列名": "数值"})
             const newRow = sheet.columns.map(col => {
               return p1[col] !== undefined ? String(p1[col]) : "";
             });
             sheet.rows.push(newRow);
             hasChanges = true;
           } else if (actionType === "deleterow") {
-            // deleteRow("sheet", {"col1": "val1"})
+            // 删除行模式：deleteRow("sheet", {"定位列": "值"})
             const prevLen = sheet.rows.length;
             sheet.rows = sheet.rows.filter(row => {
               const matchesFilter = Object.entries(p1).every(([filterKey, filterVal]) => {
@@ -128,7 +138,7 @@ export class TableMemoryService {
           }
         }
       } catch (e) {
-        console.warn(`[TableMemory] Action parse failed: ${actionType} on ${sheetName}:`, e);
+        console.warn(`[TableMemory] 指令解析失败: ${actionType} 在表 ${sheetName} 上:`, e);
       }
     }
 
