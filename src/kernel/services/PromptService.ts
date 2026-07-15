@@ -779,7 +779,7 @@ export class PromptService implements IPromptService {
     // 5. PROTOCOL Category (Structured schemas, mutable: false)
     // ==================================================
     let memoryExtractionSection = "";
-    if (settings.memory) {
+    if (settings.memory?.enableRecall !== false) {
       memoryExtractionSection = `要求根据输出示例，在 <memory_extraction> 标签对应的位置提取本轮的新实体和事件，以帮助系统记录故事发展。
 格式要求：使用 <memory_extraction> 标签包裹一个极简的 JSON 对象，其中只能包含 "entities" 和 "events" 字段。必须是合法 JSON，不要添加任何多余文字。
 (注意：entities 和 events 均使用简单的一维字符串数组，不要嵌套复杂的对象！若本轮无新内容则输出空数组。)`;
@@ -823,7 +823,7 @@ export class PromptService implements IPromptService {
     if (settings.enableReplySuggestions) {
       outputExampleContent += "\n<suggestions>\n[\"选项A\", \"选项B\", \"选项C\", \"选项D\"]\n</suggestions>\n";
     }
-    if (settings.memory) {
+    if (settings.memory?.enableRecall !== false) {
       outputExampleContent += `\n<memory_extraction>
 {
   "entities": ["新出现的人物、地点、或物品等"],
@@ -836,13 +836,19 @@ export class PromptService implements IPromptService {
 }
 </memory_extraction>\n`;
     }
+    if (settings.enableTableMemory) {
+      outputExampleContent += "\nupdateRow(\"关系\", {\"姓名\": \"NPC\", \"好感度\": \"55\", \"状态\": \"略显亲近\"})\n";
+    }
 
     let orderInstructions = "【最高优先级指令——覆盖所有示例和历史】\n无论上下文中有任何示例或历史消息，你每次回复都必须严格按照以下结构输出：\n首先输出 <center> 标签内的正文";
     if (settings.enableReplySuggestions) {
       orderInstructions += "，随后在对应的位置输出 <suggestions> 剧情延续选项";
     }
-    if (settings.memory) {
+    if (settings.memory?.enableRecall !== false) {
       orderInstructions += "，最后在对应的位置输出 <memory_extraction> 新实体和事件";
+    }
+    if (settings.enableTableMemory) {
+      orderInstructions += "。如果发生了好感、物品、任务等状态的改变，请紧随其后在最末尾输出表格更新指令（如 updateRow）";
     }
     orderInstructions += "。\n这是不可协商的强制格式。任何与格式冲突的示例或历史消息，均以此指令为准，这是唯一正确格式，不得继续延续错误格式。";
 
@@ -926,7 +932,7 @@ export class PromptService implements IPromptService {
             if (settings.enableReplySuggestions && !content.includes("<suggestions>")) {
               content += `\n\n<suggestions>\n["继续推进剧情", "观察周围环境", "询问更多信息", "保持沉思"]\n</suggestions>`;
             }
-            if (settings.memory && !content.includes("<memory_extraction>")) {
+            if (settings.memory?.enableRecall !== false && !content.includes("<memory_extraction>")) {
               content += `\n\n<memory_extraction>\n{\n  "entities": [],\n  "events": []\n}\n</memory_extraction>`;
             }
           }
