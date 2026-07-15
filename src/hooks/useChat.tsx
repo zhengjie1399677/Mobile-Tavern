@@ -178,6 +178,32 @@ export const useChat = (
     }
   }, [activeSession, activeCharacter, databaseService, setSessions]);
 
+  // 自动初始化表格：当开启状态表功能且会话中表格数据为空时，自动在本地进行初始化并保存
+  useEffect(() => {
+    if (
+      settings.enableTableMemory &&
+      activeSession &&
+      activeCharacter &&
+      (!activeSession.tableMemory || activeSession.tableMemory.length === 0)
+    ) {
+      if (memoryService) {
+        console.log("[useChat] Autodetected empty tableMemory with enableTableMemory active. Initializing default sheets...");
+        const defaultSheets = memoryService.getStateTable().initDefaultSheets(activeCharacter.name || "NPC");
+        const updatedSession = {
+          ...activeSession,
+          tableMemory: defaultSheets,
+        };
+        databaseService.saveSession(updatedSession).then(() => {
+          setSessions((prev) =>
+            prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+          );
+        }).catch((err) => {
+          console.error("Failed to automatically initialize default sheets:", err);
+        });
+      }
+    }
+  }, [activeSession, activeCharacter, settings.enableTableMemory, databaseService, memoryService, setSessions]);
+
   // ── 返回值聚合（保持与原 chatHookValue 完全相同的接口形状） ─────────────────────
   return useMemo(() => ({
     // 发送/停止

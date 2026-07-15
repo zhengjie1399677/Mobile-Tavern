@@ -702,7 +702,7 @@ export class PromptService implements IPromptService {
       }
       const enabledSheets = activeSheets.filter(s => s.enable);
       if (enabledSheets.length > 0) {
-        tableMemorySection = enabledSheets.map(sheet => {
+        const sheetsMarkdown = enabledSheets.map(sheet => {
           const title = `### 表格：${sheet.name}`;
           const desc = sheet.description ? `*用途说明: ${sheet.description}*` : "";
           const header = `| ${sheet.columns.join(" | ")} |`;
@@ -710,6 +710,10 @@ export class PromptService implements IPromptService {
           const rows = sheet.rows.map(row => `| ${row.join(" | ")} |`).join("\n");
           return `${title}\n${desc}\n${header}\n${divider}\n${rows}`;
         }).join("\n\n");
+
+        // 获取 tableMemoryPrompt 模板配置，替换其中的 {{sheets_markdown}} 占位符
+        const rawPrompt = settings.promptConfig?.tableMemoryPrompt || DEFAULT_TABLE_MEMORY_PROMPT;
+        tableMemorySection = rawPrompt.replace(/\{\{sheets_markdown\}\}/g, sheetsMarkdown);
       }
     }
     builder.registerSection({
