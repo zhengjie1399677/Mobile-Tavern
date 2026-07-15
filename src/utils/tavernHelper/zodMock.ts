@@ -117,33 +117,37 @@ export function createZodProxy(): any {
                 ? this._defaultValue()
                 : lodashCloneDeep(this._defaultValue);
           } else {
-            if (this._type === "object") {
-              val = {};
-            } else if (this._type === "union") {
-              // 不做拦截，流转至联合类型校验逻辑，以便子 schema 能够测试 undefined/null
-            } else {
-              if (this._isOptional || this._isNullable) return val;
-              if (this._type === "string" || this._type === "coerce_string")
-                return "";
-              if (this._type === "number" || this._type === "coerce_number")
-                return 0;
-              if (this._type === "boolean" || this._type === "coerce_boolean")
-                return false;
-              if (this._type === "array") return [];
-              if (
-                this._type === "enum" &&
-                Array.isArray(this._shape) &&
-                this._shape.length > 0
-              ) {
-                return this._shape[0];
+            if ((val === undefined && this._isOptional) || (val === null && this._isNullable)) {
+              return val;
+            }
+            const skipEarlyReturnTypes = ["optional", "nullable", "lazy", "preprocess", "tuple", "discriminatedUnion", "coerce_date", "union"];
+            if (!skipEarlyReturnTypes.includes(this._type)) {
+              if (this._type === "object") {
+                val = {};
+              } else {
+                if (this._isOptional || this._isNullable) return val;
+                if (this._type === "string" || this._type === "coerce_string")
+                  return "";
+                if (this._type === "number" || this._type === "coerce_number")
+                  return 0;
+                if (this._type === "boolean" || this._type === "coerce_boolean")
+                  return false;
+                if (this._type === "array") return [];
+                if (
+                  this._type === "enum" &&
+                  Array.isArray(this._shape) &&
+                  this._shape.length > 0
+                ) {
+                  return this._shape[0];
+                }
+                if (
+                  this._type === "record" ||
+                  this._type === "partialRecord" ||
+                  this._type === "map"
+                )
+                  return {};
+                return undefined;
               }
-              if (
-                this._type === "record" ||
-                this._type === "partialRecord" ||
-                this._type === "map"
-              )
-                return {};
-              return undefined;
             }
           }
         }
@@ -172,7 +176,7 @@ export function createZodProxy(): any {
           if (val === "false") return false;
           return Boolean(val);
         }
-        if (this._type === "object") {
+        if (this._type === "object" || this._type === "looseObject") {
           if (!val || typeof val !== "object") throw new Error("Expected object");
           const res: any = { ...val };
           if (this._shape) {
@@ -251,6 +255,104 @@ export function createZodProxy(): any {
           }
           return val;
         }
+        if (this._type === "array" && !this._isMvuTuple) {
+          if (val === undefined || val === null) {
+            return this._defaultValue !== undefined
+              ? (typeof this._defaultValue === "function" ? this._defaultValue() : lodashCloneDeep(this._defaultValue))
+              : [];
+          }
+          if (!Array.isArray(val)) throw new Error("Expected array");
+          if (this._shape && typeof this._shape.parse === "function") {
+            return val.map((item: any) => this._shape.parse(item));
+          }
+          return val;
+        }
+        if (this._type === "enum") {
+          if (val === undefined || val === null) {
+            if (this._defaultValue !== undefined) {
+              return typeof this._defaultValue === "function" ? this._defaultValue() : lodashCloneDeep(this._defaultValue);
+            }
+            return Array.isArray(this._shape) && this._shape.length > 0 ? this._shape[0] : val;
+          }
+          if (Array.isArray(this._shape)) {
+            if (!this._shape.includes(val)) {
+              throw new Error(`Expected one of ${this._shape.join(", ")}, got ${val}`);
+            }
+          }
+          return val;
+        }
+        if (this._type === "lazy" && Array.isArray(this._shape) && typeof this._shape[0] === "function") {
+          const actualSchema = this._shape[0]();
+          return actualSchema.parse(val);
+        }
+        if (this._type === "tuple" && Array.isArray(this._shape) && Array.isArray(this._shape[0])) {
+          const schemas = this._shape[0];
+          if (val === undefined || val === null) {
+            return schemas.map((s: any) => s.parse(undefined));
+          }
+          if (!Array.isArray(val)) throw new Error("Expected array for tuple");
+          return schemas.map((s: any, idx: number) => s.parse(val[idx]));
+        }
+        if (this._type === "preprocess" && Array.isArray(this._shape) && this._shape.length === 2) {
+          const preprocessFn = this._shape[0];
+          const subSchema = this._shape[1];
+          const preprocessedVal = typeof preprocessFn === "function" ? preprocessFn(val) : val;
+          return subSchema.parse(preprocessedVal);
+        }
+        if (this._type === "optional" && Array.isArray(this._shape) && this._shape.length === 1) {
+          const subSchema = this._shape[0];
+          if (val === undefined) {
+            if (subSchema._defaultValue !== undefined) {
+              return subSchema.parse(val);
+            }
+            return undefined;
+          }
+          return subSchema.parse(val);
+        }
+        if (this._type === "nullable" && Array.isArray(this._shape) && this._shape.length === 1) {
+          const subSchema = this._shape[0];
+          if (val === null) return null;
+          return subSchema.parse(val);
+        }
+        if (this._type === "discriminatedUnion" && Array.isArray(this._shape) && this._shape.length === 2) {
+          const discriminator = this._shape[0];
+          const unionSchemas = this._shape[1];
+          if (val && typeof val === "object" && discriminator in val) {
+            const discriminatorValue = val[discriminator];
+            for (const sub of unionSchemas) {
+              if (sub.shape && sub.shape[discriminator] && typeof sub.shape[discriminator].parse === "function") {
+                try {
+                  const check = sub.shape[discriminator].parse(discriminatorValue);
+                  if (check === discriminatorValue) {
+                    return sub.parse(val);
+                  }
+                } catch {}
+              }
+            }
+          }
+          if (Array.isArray(unionSchemas)) {
+            for (const sub of unionSchemas) {
+              try {
+                return sub.parse(val);
+              } catch {}
+            }
+          }
+          throw new Error("Discriminated union did not match any schemas");
+        }
+        if (this._type === "coerce_date") {
+          if (val === undefined || val === null) {
+            if (this._defaultValue !== undefined) {
+              return typeof this._defaultValue === "function" ? this._defaultValue() : lodashCloneDeep(this._defaultValue);
+            }
+            return new Date(0);
+          }
+          const date = new Date(val);
+          if (isNaN(date.getTime())) throw new Error("Expected date coercion");
+          return date;
+        }
+        if (this._type.startsWith("coerce_")) {
+          return val;
+        }
         return val;
       },
       safeParse(val: any) {
@@ -303,6 +405,9 @@ export function createZodProxy(): any {
           return target[prop];
         }
         if (typeof prop === "string") {
+          if (prop.startsWith("_")) {
+            return undefined;
+          }
           const mockFunc = function () {
             return schemaProxy;
           };
@@ -364,7 +469,7 @@ export function createZodProxy(): any {
     custom(fn: any) {
       return createSchema("custom", fn);
     },
-    coerce: {
+    coerce: new Proxy({
       number() {
         return createSchema("coerce_number");
       },
@@ -374,7 +479,17 @@ export function createZodProxy(): any {
       boolean() {
         return createSchema("coerce_boolean");
       },
-    },
+      date() {
+        return createSchema("coerce_date");
+      }
+    }, {
+      get(target: any, prop: string) {
+        if (prop in target) return target[prop];
+        return function() {
+          return createSchema("coerce_" + prop);
+        };
+      }
+    }),
     // prettifyError：将 Zod 校验错误格式化为可读字符串
     // mvu_zod.js 关键接口，用于展示属性校验错误信息
     prettifyError(error: any) {
@@ -400,6 +515,9 @@ export function createZodProxy(): any {
       }
       if (prop in target) return target[prop];
       if (typeof prop === "string") {
+        if (prop.startsWith("_")) {
+          return undefined;
+        }
         const mockFunc = function (...args: any[]) {
           return createSchema(prop, args);
         };

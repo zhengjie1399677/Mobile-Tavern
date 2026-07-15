@@ -14,10 +14,19 @@ const parentWin = {
 // Paste Mock Zod factory function directly from tavernHelperBridge.ts
 const createZodProxy = () => {
   const createSchema = (type, shapeOrDef) => {
+    // 【修复 X2】识别 MVU 元组类型，抢先设置 _mvuTuple 标志和默认值
+    const isTuple = type === "array" && (
+      Array.isArray(shapeOrDef) &&
+      shapeOrDef.length === 2 &&
+      typeof shapeOrDef[1] === "string" &&
+      shapeOrDef[1].length > 0
+    );
+
     const schema = {
       _type: type,
       _shape: shapeOrDef,
-      _defaultValue: undefined,
+      _defaultValue: isTuple ? shapeOrDef : undefined,
+      _isMvuTuple: isTuple,
       _isOptional: false,
       _isNullable: false,
       
@@ -38,28 +47,70 @@ const createZodProxy = () => {
         return this;
       },
       or(otherSchema) {
-        return createSchema('union', [this, otherSchema]);
+        return createSchema("union", [this, otherSchema]);
       },
       parse(val) {
+        // 【修复 X2】MVU 元组类型特殊处理
+        if (this._isMvuTuple) {
+          const tupleDefault = this._shape; // [defaultVal, label]
+          const label = tupleDefault[1];
+
+          // 输入为 null/undefined → 返回初始默认值
+          if (val === undefined || val === null) {
+            return _.cloneDeep(tupleDefault);
+          }
+          // 输入已经是完整元组 [v, l] → 直接保留（优先使用已存值）
+          if (
+            Array.isArray(val) &&
+            val.length === 2 &&
+            typeof val[1] === "string"
+          ) {
+            return _.cloneDeep(val);
+          }
+          // 输入是原始值（数字/字符串/布尔）→ 包裹成 [val, label]
+          if (
+            typeof val === "number" ||
+            typeof val === "string" ||
+            typeof val === "boolean"
+          ) {
+            return [val, label];
+          }
+          // 输入是空对象（schema.parse({}) 时，字段在 input 中不存在） → 用默认值
+          if (
+            val &&
+            typeof val === "object" &&
+            !Array.isArray(val) &&
+            Object.keys(val).length === 0
+          ) {
+            return _.cloneDeep(tupleDefault);
+          }
+          // 其他情况（非预期输入）→ 安全兜底返回默认元组
+          return _.cloneDeep(tupleDefault);
+        }
+
         if (val === undefined || val === null) {
           if (this._defaultValue !== undefined) {
             val = typeof this._defaultValue === 'function' ? this._defaultValue() : _.cloneDeep(this._defaultValue);
           } else {
-            if (this._type === 'object') {
-              val = {};
-            } else if (this._type === 'union') {
-              // Do not intercept, let it flow to the union checking logic so sub-schemas can test undefined/null
-            } else {
-              if (this._isOptional || this._isNullable) return val;
-              if (this._type === 'string' || this._type === 'coerce_string') return "";
-              if (this._type === 'number' || this._type === 'coerce_number') return 0;
-              if (this._type === 'boolean' || this._type === 'coerce_boolean') return false;
-              if (this._type === 'array') return [];
-              if (this._type === 'enum' && Array.isArray(this._shape) && this._shape.length > 0) {
-                return this._shape[0];
+            if ((val === undefined && this._isOptional) || (val === null && this._isNullable)) {
+              return val;
+            }
+            const skipEarlyReturnTypes = ["optional", "nullable", "lazy", "preprocess", "tuple", "discriminatedUnion", "coerce_date", "union"];
+            if (!skipEarlyReturnTypes.includes(this._type)) {
+              if (this._type === 'object') {
+                val = {};
+              } else {
+                if (this._isOptional || this._isNullable) return val;
+                if (this._type === 'string' || this._type === 'coerce_string') return "";
+                if (this._type === 'number' || this._type === 'coerce_number') return 0;
+                if (this._type === 'boolean' || this._type === 'coerce_boolean') return false;
+                if (this._type === 'array') return [];
+                if (this._type === 'enum' && Array.isArray(this._shape) && this._shape.length > 0) {
+                  return this._shape[0];
+                }
+                if (this._type === 'record' || this._type === 'partialRecord' || this._type === 'map') return {};
+                return undefined;
               }
-              if (this._type === 'record' || this._type === 'partialRecord' || this._type === 'map') return {};
-              return undefined;
             }
           }
         }
@@ -88,7 +139,7 @@ const createZodProxy = () => {
           if (val === 'false') return false;
           return Boolean(val);
         }
-        if (this._type === 'object') {
+        if (this._type === "object" || this._type === "looseObject") {
           if (!val || typeof val !== 'object') throw new Error("Expected object");
           const res = { ...val };
           if (this._shape) {
@@ -153,6 +204,104 @@ const createZodProxy = () => {
           }
           return val;
         }
+        if (this._type === "array" && !this._isMvuTuple) {
+          if (val === undefined || val === null) {
+            return this._defaultValue !== undefined
+              ? (typeof this._defaultValue === "function" ? this._defaultValue() : _.cloneDeep(this._defaultValue))
+              : [];
+          }
+          if (!Array.isArray(val)) throw new Error("Expected array");
+          if (this._shape && typeof this._shape.parse === "function") {
+            return val.map((item) => this._shape.parse(item));
+          }
+          return val;
+        }
+        if (this._type === "enum") {
+          if (val === undefined || val === null) {
+            if (this._defaultValue !== undefined) {
+              return typeof this._defaultValue === "function" ? this._defaultValue() : _.cloneDeep(this._defaultValue);
+            }
+            return Array.isArray(this._shape) && this._shape.length > 0 ? this._shape[0] : val;
+          }
+          if (Array.isArray(this._shape)) {
+            if (!this._shape.includes(val)) {
+              throw new Error(`Expected one of ${this._shape.join(", ")}, got ${val}`);
+            }
+          }
+          return val;
+        }
+        if (this._type === "lazy" && Array.isArray(this._shape) && typeof this._shape[0] === "function") {
+          const actualSchema = this._shape[0]();
+          return actualSchema.parse(val);
+        }
+        if (this._type === "tuple" && Array.isArray(this._shape) && Array.isArray(this._shape[0])) {
+          const schemas = this._shape[0];
+          if (val === undefined || val === null) {
+            return schemas.map((s) => s.parse(undefined));
+          }
+          if (!Array.isArray(val)) throw new Error("Expected array for tuple");
+          return schemas.map((s, idx) => s.parse(val[idx]));
+        }
+        if (this._type === "preprocess" && Array.isArray(this._shape) && this._shape.length === 2) {
+          const preprocessFn = this._shape[0];
+          const subSchema = this._shape[1];
+          const preprocessedVal = typeof preprocessFn === "function" ? preprocessFn(val) : val;
+          return subSchema.parse(preprocessedVal);
+        }
+        if (this._type === "optional" && Array.isArray(this._shape) && this._shape.length === 1) {
+          const subSchema = this._shape[0];
+          if (val === undefined) {
+            if (subSchema._defaultValue !== undefined) {
+              return subSchema.parse(val);
+            }
+            return undefined;
+          }
+          return subSchema.parse(val);
+        }
+        if (this._type === "nullable" && Array.isArray(this._shape) && this._shape.length === 1) {
+          const subSchema = this._shape[0];
+          if (val === null) return null;
+          return subSchema.parse(val);
+        }
+        if (this._type === "discriminatedUnion" && Array.isArray(this._shape) && this._shape.length === 2) {
+          const discriminator = this._shape[0];
+          const unionSchemas = this._shape[1];
+          if (val && typeof val === "object" && discriminator in val) {
+            const discriminatorValue = val[discriminator];
+            for (const sub of unionSchemas) {
+              if (sub.shape && sub.shape[discriminator] && typeof sub.shape[discriminator].parse === "function") {
+                try {
+                  const check = sub.shape[discriminator].parse(discriminatorValue);
+                  if (check === discriminatorValue) {
+                    return sub.parse(val);
+                  }
+                } catch {}
+              }
+            }
+          }
+          if (Array.isArray(unionSchemas)) {
+            for (const sub of unionSchemas) {
+              try {
+                return sub.parse(val);
+              } catch {}
+            }
+          }
+          throw new Error("Discriminated union did not match any schemas");
+        }
+        if (this._type === "coerce_date") {
+          if (val === undefined || val === null) {
+            if (this._defaultValue !== undefined) {
+              return typeof this._defaultValue === "function" ? this._defaultValue() : _.cloneDeep(this._defaultValue);
+            }
+            return new Date(0);
+          }
+          const date = new Date(val);
+          if (isNaN(date.getTime())) throw new Error("Expected date coercion");
+          return date;
+        }
+        if (this._type.startsWith("coerce_")) {
+          return val;
+        }
         return val;
       },
       safeParse(val) {
@@ -201,6 +350,9 @@ const createZodProxy = () => {
           return target[prop];
         }
         if (typeof prop === 'string') {
+          if (prop.startsWith("_")) {
+            return undefined;
+          }
           const mockFunc = function() {
             return schemaProxy;
           };
@@ -215,6 +367,7 @@ const createZodProxy = () => {
 
   const zodProxy = {
     object(shape) { return createSchema('object', shape); },
+    looseObject(shape) { return createSchema('looseObject', shape); },
     union(schemas) { return createSchema('union', schemas); },
     enum(values) { return createSchema('enum', values); },
     string() { return createSchema('string'); },
@@ -229,11 +382,27 @@ const createZodProxy = () => {
     intersection(a, b) { return createSchema('intersection', [a, b]); },
     literal(val) { return createSchema('literal', val); },
     custom(fn) { return createSchema('custom', fn); },
-    coerce: {
-      number() { return createSchema('coerce_number'); },
-      string() { return createSchema('coerce_string'); },
-      boolean() { return createSchema('coerce_boolean'); },
-    }
+    coerce: new Proxy({
+      number() {
+        return createSchema("coerce_number");
+      },
+      string() {
+        return createSchema("coerce_string");
+      },
+      boolean() {
+        return createSchema("coerce_boolean");
+      },
+      date() {
+        return createSchema("coerce_date");
+      }
+    }, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        return function() {
+          return createSchema("coerce_" + prop);
+        };
+      }
+    }),
   };
   
   let proxyInstance;
@@ -244,6 +413,9 @@ const createZodProxy = () => {
       }
       if (prop in target) return target[prop];
       if (typeof prop === 'string') {
+        if (prop.startsWith("_")) {
+          return undefined;
+        }
         const mockFunc = function(...args) {
           return createSchema(prop, args);
         };
@@ -323,5 +495,74 @@ assert.deepStrictEqual(parsedNested, {
   }
 }, "nested default values are recursively populated");
 console.log("✔ Test 6: nested default value recursion passed!");
+
+// Test 7: Standard Array Parsing
+const arraySchema = z.array(z.object({
+  name: z.string().default("item-name"),
+  val: z.coerce.number().default(1)
+}));
+assert.deepStrictEqual(arraySchema.parse([{}, { name: "custom" }]), [
+  { name: "item-name", val: 1 },
+  { name: "custom", val: 1 }
+], "array schemas parse and default all sub-items");
+console.log("✔ Test 7: standard array sub-item parsing passed!");
+
+// Test 8: Enum Verification
+const enumSchema = z.enum(["A", "B", "C"]).default("A");
+assert.strictEqual(enumSchema.parse(undefined), "A", "enum schema fallback to default");
+assert.strictEqual(enumSchema.parse("B"), "B", "enum schema parses valid value");
+assert.throws(() => enumSchema.parse("D"), /Expected one of/, "enum schema throws on invalid value");
+console.log("✔ Test 8: enum parsing and validation passed!");
+
+// Test 9: Lazy Parsing (Recursion)
+const lazySchema = z.lazy(() => z.object({
+  value: z.string().default("lazy-default"),
+  child: z.lazy(() => lazySchema).optional()
+}));
+assert.deepStrictEqual(lazySchema.parse({ child: {} }), {
+  value: "lazy-default",
+  child: {
+    value: "lazy-default",
+    child: undefined
+  }
+}, "lazy schemas parse recursively");
+console.log("✔ Test 9: lazy schema recursion passed!");
+
+// Test 10: Coerce Date & Proxy Fallback
+const dateSchema = z.coerce.date().default(() => new Date(1000));
+assert.deepStrictEqual(dateSchema.parse(undefined), new Date(1000), "coerce date defaults correctly");
+assert.deepStrictEqual(dateSchema.parse(2000), new Date(2000), "coerce date coercing number passed");
+// Proxy fallback for coerce (e.g. z.coerce.bigint)
+const bigintSchema = z.coerce.bigint();
+assert.strictEqual(bigintSchema._type, "coerce_bigint", "Proxy dynamic coerce method created correctly");
+console.log("✔ Test 10: coerce date and proxy fallback passed!");
+
+// Test 11: Preprocess Parsing
+const preprocessSchema = z.preprocess((val) => val === "hello" ? "world" : val, z.string());
+assert.strictEqual(preprocessSchema.parse("hello"), "world", "preprocess applies transform function");
+assert.strictEqual(preprocessSchema.parse("test"), "test", "preprocess passes other values");
+console.log("✔ Test 11: preprocess schema parsing passed!");
+
+// Test 12: Standalone Wrapper functions
+const optionalSchema = z.optional(z.string().default("opt"));
+assert.strictEqual(optionalSchema.parse(undefined), "opt", "standalone optional default parses");
+const nullableSchema = z.nullable(z.string().default("null-default"));
+assert.strictEqual(nullableSchema.parse(null), null, "standalone nullable parses null");
+console.log("✔ Test 12: standalone optional/nullable wrappers passed!");
+
+// Test 13: Discriminated Union
+const unionSchemaA = z.object({ type: z.literal("A"), valA: z.string().default("default-A") });
+const unionSchemaB = z.object({ type: z.literal("B"), valB: z.coerce.number().default(100) });
+const discUnion = z.discriminatedUnion("type", [unionSchemaA, unionSchemaB]);
+assert.deepStrictEqual(discUnion.parse({ type: "A" }), { type: "A", valA: "default-A" }, "discriminated union parses schema A");
+assert.deepStrictEqual(discUnion.parse({ type: "B" }), { type: "B", valB: 100 }, "discriminated union parses schema B");
+console.log("✔ Test 13: discriminated union parsing passed!");
+
+// Test 14: looseObject parsing
+const looseSchema = z.looseObject({
+  name: z.string().default("loose-name")
+});
+assert.deepStrictEqual(looseSchema.parse({}), { name: "loose-name" }, "looseObject parses shape and populates defaults");
+console.log("✔ Test 14: looseObject parsing passed!");
 
 console.log("\n🎉 ALL COMPATIBILITY TESTS PASSED!");

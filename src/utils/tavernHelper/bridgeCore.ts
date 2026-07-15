@@ -260,10 +260,22 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
   };
 
   // 尝试从不同的扩展位置提取 MVU 配置
-  const mvuSettings = ext.mvu_settings ||
-                      ext.mvu ||
-                      ext.MVU ||
-                      null;
+  let mvuSettings = ext.mvu_settings ||
+                    ext.mvu ||
+                    ext.MVU ||
+                    null;
+
+  if (typeof mvuSettings === "string") {
+    try {
+      mvuSettings = JSON5.parse(mvuSettings);
+    } catch {
+      try {
+        mvuSettings = JSON.parse(mvuSettings);
+      } catch {
+        mvuSettings = null;
+      }
+    }
+  }
 
   if (mvuSettings) {
     // 若配置中包含 schema 则使用 it

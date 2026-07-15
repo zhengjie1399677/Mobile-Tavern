@@ -1,6 +1,7 @@
 import { IScriptService, IKernel } from "../types";
 import { CharacterCard, ChatSession } from "../../types";
 import { parseMvuMessage as parseMvuMessageDirect, applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
+import JSON5 from "json5";
 
 
 export interface ITavernHelperBridge {
@@ -295,10 +296,22 @@ function localInitializeMvuFromCharacter(character: any): Record<string, any> {
     delta_data: {},
   };
 
-  const mvuSettings = ext.mvu_settings ||
-                      ext.mvu ||
-                      ext.MVU ||
-                      null;
+  let mvuSettings = ext.mvu_settings ||
+                    ext.mvu ||
+                    ext.MVU ||
+                    null;
+
+  if (typeof mvuSettings === "string") {
+    try {
+      mvuSettings = JSON5.parse(mvuSettings);
+    } catch {
+      try {
+        mvuSettings = JSON.parse(mvuSettings);
+      } catch {
+        mvuSettings = null;
+      }
+    }
+  }
 
   if (mvuSettings) {
     if (mvuSettings.schema) {
