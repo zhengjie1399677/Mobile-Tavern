@@ -1,6 +1,0 @@
-﻿
-07-12 22:44:51.024  1059  1059 I BufferQueueProducer: [com.aitavern.app.debug/com.aitavern.app.MainActivity#185681](thi
-s:0xb400007530a688f8,id:-1,api:0,p:-1,c:1059) queueBuffer: fps=1.35 dur=1477.61 max=1445.14 min=32.47
-07-12 22:44:51.993  1671  2702 D OplusAppListInterceptManager: shouldFilterTask::packageName = com.aitavern.app.debug
-
-
