@@ -12,6 +12,7 @@ import {
   Mic,
   MicOff,
   Loader2,
+  Play,
 } from "lucide-react";
 import { UnifiedAppContext } from "../../UnifiedAppContext";
 import { chatTabState } from "./utils";
@@ -368,6 +369,15 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                 className={`w-3.5 h-3.5 ${isSending ? "animate-spin" : ""}`}
               />
               <span className="text-[10px] font-medium">重载上一段剧情</span>
+            </button>
+            <button
+              onClick={() => handleSendMessage("继续")}
+              disabled={isSending || !activeSession}
+              className="flex items-center gap-1.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
+              title="替用户发送“继续”以继续当前剧情"
+            >
+              <Play className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-medium">继续</span>
             </button>
           </div>
 
