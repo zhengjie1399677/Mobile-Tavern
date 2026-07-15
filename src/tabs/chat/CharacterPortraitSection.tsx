@@ -4,16 +4,30 @@
 import React from "react";
 import { ChevronUp } from "lucide-react";
 
+/**
+ * 角色情绪立绘组件的属性定义
+ */
 interface CharacterPortraitSectionProps {
+  /** 当前活跃的角色卡数据 */
   activeCharacter: any;
+  /** 是否拥有可用的表情立绘集合 */
   hasExpressions: boolean;
+  /** 当前应渲染的表情立绘图片 URL */
   activePortraitUrl: string;
+  /** 当前识别到的情绪名称 */
   currentEmotionName: string;
+  /** 是否收起立绘折叠状态 */
   isPortraitCollapsed: boolean;
+  /** 设置收起状态的回调函数 */
   setIsPortraitCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
+  /** 移动端系统键盘是否已弹起 */
   isKeyboardOpen: boolean;
 }
 
+/**
+ * 角色情绪大立绘展示组件
+ * 支持玻璃光盘背景、当前情绪徽章指示，以及移动端输入法弹起时的自动折叠自愈与手动折叠控制
+ */
 const CharacterPortraitSection = ({
   activeCharacter,
   hasExpressions,
@@ -31,10 +45,10 @@ const CharacterPortraitSection = ({
     <div className="bg-card border-b border-border transition-all duration-300 overflow-hidden flex flex-col items-center relative shrink-0">
       {!isPortraitCollapsed && !isKeyboardOpen ? (
         <div className="w-full flex flex-col items-center justify-center p-3 relative h-48 animate-fadeIn">
-          {/* Glassmorphic background disc */}
+          {/* 玻璃光泽感的磨砂背景光盘效果 */}
           <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent opacity-60 pointer-events-none" />
           <div className="w-40 h-40 rounded-2xl overflow-hidden border border-border bg-muted/30 shadow-lg relative flex items-center justify-center">
-            {/* Render the active portrait with a smooth transition */}
+            {/* 渲染带有平滑淡入动画的当前表情立绘 */}
             <img
               key={activePortraitUrl}
               src={activePortraitUrl}
@@ -42,13 +56,13 @@ const CharacterPortraitSection = ({
               className="w-full h-full object-cover animate-fadeIn mask-feather-bottom"
             />
 
-            {/* Emotion Badge indicator */}
+            {/* 表情徽章指示器 */}
             <div className="absolute bottom-2 right-2 bg-background/80 backdrop-blur-sm border border-border text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-sm">
               {currentEmotionName}
             </div>
           </div>
 
-          {/* Fold button */}
+          {/* 折叠收起按钮 */}
           <button
             onClick={() => setIsPortraitCollapsed(true)}
             className="absolute top-2 right-3 text-muted-foreground hover:text-foreground p-1 transition"
