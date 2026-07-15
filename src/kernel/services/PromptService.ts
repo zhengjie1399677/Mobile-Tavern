@@ -11,12 +11,19 @@ import { RuntimeContext } from "./prompt/types";
 import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
 import { applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
 
+/**
+ * 提示词编译与组装服务
+ * 负责根据当前会话状态、设定集、记忆等，动态拼装成发送给 LLM 的系统提示词和消息历史
+ */
 export class PromptService implements IPromptService {
   name = "prompt";
   private kernel!: IKernel;
   // P1-1/P1-2: 服务级 AbortController（纯计算服务，主要用于契约一致性）
   private abortController: AbortController | null = null;
 
+  /**
+   * 初始化服务
+   */
   init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
     this.abortController = new AbortController();
@@ -26,12 +33,17 @@ export class PromptService implements IPromptService {
     }
   }
 
-  // P1-2: 销毁时清理 abort 控制器
+  /**
+   * 销毁服务，清理 abort 控制器并中止挂起任务
+   */
   destroy(): void {
     this.abortController?.abort();
     this.abortController = null;
   }
 
+  /**
+   * 清洗名称以适配 API 的角色命名限制（只允许数字、字母、下划线及横杠，最大长度 64）
+   */
   cleanNameForApi(name: string | undefined, fallback: string): string | undefined {
     if (!name) return undefined;
     let cleaned = name.replace(/[^a-zA-Z0-9_-]/g, "");
@@ -361,7 +373,7 @@ export class PromptService implements IPromptService {
             );
             content = `${prefix}${content}${suffix}`;
           } else {
-            // Keep content clean without prepending name to prevent script format biasing
+            // 保持内容整洁，不在前面加名字以防止脚本格式偏置
           }
         } else if (msg.sender === "system") {
           role = "user";
@@ -449,7 +461,7 @@ export class PromptService implements IPromptService {
       };
     }
 
-    // Roleplay Mode = True (Default)
+    // 角色扮演模式 = True（默认）
     let repetitionDetected = false;
     if (chat.messages && chat.messages.length >= 4) {
       const assistantMsgs = chat.messages.filter((m) => m.sender === "assistant");
@@ -476,7 +488,7 @@ export class PromptService implements IPromptService {
     const builder = new PromptBuilder();
 
     // ==================================================
-    // 1. ENGINE Category (Instruction, mutable: false)
+    // 1. ENGINE 规则层（核心指令，固定不可变）
     // ==================================================
     let mainPromptReplaced = "";
     if (settings.promptConfig?.mainPrompt) {
@@ -505,7 +517,7 @@ export class PromptService implements IPromptService {
     });
 
     // ==================================================
-    // 2. CONTEXT Category (Context, mixed mutability)
+    // 2. CONTEXT 事实上下文层（背景设定与参考事实，混合可变性）
     // ==================================================
     let userPersonaSection = "";
     if (settings.userInfo) {
@@ -644,7 +656,7 @@ export class PromptService implements IPromptService {
     });
 
     // ==================================================
-    // 3. GENERATION Category (Style/Constraints, mutable: false)
+    // 3. GENERATION 生成偏好层（叙事风格与写作约束，固定不可变）
     // ==================================================
     let jailbreakSection = "";
     if (settings.promptConfig?.useJailbreak && settings.promptConfig?.jailbreakPrompt) {
@@ -666,7 +678,7 @@ export class PromptService implements IPromptService {
     });
 
     // ==================================================
-    // 4. MEMORY Sub-category (under Context Category, mutable: true)
+    // 4. MEMORY 记忆子层（归属于 CONTEXT 事实层，动态可变）
     // ==================================================
     let summaryText = "";
     if (chat.summaries && chat.summaries.length > 0) {
@@ -733,7 +745,7 @@ export class PromptService implements IPromptService {
     });
 
     // ==================================================
-    // 4b. MVU Variables Section (under Context Category, mutable: true)
+    // 4b. MVU 角色变量状态段（归属于 CONTEXT 事实层，动态可变）
     // 若世界书条目已通过 {{format_message_variable::stat_data}} 宏注入变量，则跳过此 section 避免重复
     // ==================================================
     let mvuVariablesSection = "";
@@ -777,7 +789,7 @@ export class PromptService implements IPromptService {
     });
 
     // ==================================================
-    // 5. PROTOCOL Category (Structured schemas, mutable: false)
+    // 5. PROTOCOL 输出协议层（结构化 XML/JSON 约束协议，固定不可变）
     // ==================================================
     let memoryExtractionSection = "";
     if (settings.memory?.enableRecall !== false) {
@@ -868,7 +880,7 @@ export class PromptService implements IPromptService {
       }),
     });
 
-    // 3. Compile System Prompt
+    // 3. 编译组装 System Prompt
     const compiler = new PromptCompiler();
     const compiledSystemPrompt = compiler.compile(builder.getSections(), context);
 
@@ -921,7 +933,7 @@ export class PromptService implements IPromptService {
             const suffix = this.replaceMacros(settings.promptConfig?.assistantSuffix || "", macroParams);
             content = `${prefix}${content}${suffix}`;
           } else {
-            // Keep content clean without prepending name to prevent script format biasing
+            // 保持内容整洁，不在前面加名字以防止脚本格式偏置
           }
           if (content && !content.includes("<center>")) {
             content = `<center>\n${content.trim()}\n</center>`;
