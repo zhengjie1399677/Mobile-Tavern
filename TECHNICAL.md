@@ -41,7 +41,7 @@ Mobile-Tavern
 │   │   ├── GlobalWorldbookTab.tsx            # 全局知识库条目创建、编辑与原子写库面板
 │   │   └── SettingsTab.tsx                   # 备份管理、采样参数调节及大模型接入设置
 │   │
-│   ├── kernel/                               # 微内核切面底座 (包含 IOC 容器、双轨 Pipeline 及 7 大官方核心服务)
+│   ├── kernel/                               # 微内核切面底座 (包含 IOC 容器、双轨 Pipeline 及 17 大官方核心服务)
 │   │   ├── Kernel.ts                         # 核心 Kernel 容器类实现 (包含 globalKernel 单例)
 │   │   ├── types.ts                          # 全局微内核契约接口规范 (IKernel, IKernelService 等)
 │   │   ├── index.ts                          # 统一对外导出入口与内核冷启动装配函数 (initializeKernel)
@@ -51,6 +51,17 @@ Mobile-Tavern
 │   │       ├── PromptService.ts              # Prompt 组装与宏替换服务
 │   │       ├── TelemetryService.ts           # 使用率上报与崩溃日志本地落盘遥测服务
 │   │       ├── ScriptService.ts              # 角色卡扩展字段变量沙盒 MVU 服务
+│   │       ├── AsrService.ts                 # 语音录制与识别（ASR）服务
+│   │       ├── WorldbookService.ts           # 全局及自定义世界书与设定集服务
+│   │       ├── PresetService.ts              # 采样与大模型预设参数管理服务
+│   │       ├── SettingsService.ts            # 用户全局配置参数自动同步及持久化服务
+│   │       ├── CharacterService.ts           # 角色卡数据库 CRUD 操作服务
+│   │       ├── BgmService.ts                 # 背景音乐控制与音频调度服务
+│   │       ├── TtsService.ts                 # 文本转语音 (TTS) 服务
+│   │       ├── ChatStreamService.ts          # 管理 SSE 字节切分、流式输出传输事务服务
+│   │       ├── MultiMessageService.ts        # 消息并发/多宇宙分支会话分发服务
+│   │       ├── UpdateCheckService.ts         # 客户端热更新与版本状态校验服务
+│   │       ├── ImageGenerationService.ts     # AI 绘图代理与生成接口管理服务
 │   │       └── memory/                       # 下沉的官方统一长期记忆系统服务模块
 │   │           ├── MemoryService.ts          # 记忆服务主控类，挂载 6 大核心子模块
 │   │           ├── MemoryStorage.ts          # 记忆碎片/总结底座数据库持久化子模块
@@ -522,6 +533,17 @@ graph TD
 *   `PromptService` (prompt)：负责人设模版编译、宏安全替换及世界书三阶级联检索。
 *   `TelemetryService` (telemetry)：收集 App APM 耗时及崩溃事件并写入落盘队列，计算 STS 后台同步上报。
 *   `ScriptService` (script)：在独立沙盒内执行角色卡内嵌的扩展变量计算脚本。
+*   `AsrService` (asr)：处理用户麦克风语音录制与识别。兼容原生 Web Speech API 以及远程 OpenAI Whisper 接口，集成完整的 Web/Tauri 双层直连与 Abort 控制器资源释放机制。
+*   `WorldbookService` (worldbook)：世界书与设定集管理，封装全局和自定义世界书读写，提供独立的服务级生命周期资源回收（AbortController）。
+*   `PresetService` (preset)：采样与大模型预设参数管理，维护不同模型的预设模板包。
+*   `SettingsService` (settings)：用户全局配置参数自动同步及持久化，采用防抖策略降低 IndexedDB 并发 IO 压力。
+*   `CharacterService` (character)：角色卡数据库 CRUD 操作，统一封装角色属性解析与卡片元信息提取。
+*   `BgmService` (bgm)：背景音乐控制与音频调度服务。
+*   `TtsService` (tts)：文本转语音 (TTS) 服务，支持多通道语音合成。
+*   `ChatStreamService` (chatStream)：管理 SSE 字节切分、流式输出传输事务，保障流式接收健壮性。
+*   `MultiMessageService` (multiMessage)：消息并发/多宇宙分支会话分发机制，支持多分支对话平行克隆与管理。
+*   `UpdateCheckService` (updateCheck)：提供客户端热更新与版本状态校验服务，基于 IP 限流和时间戳防重放校验。
+*   `ImageGenerationService` (imageGen)：AI 绘图代理与生成接口管理，集成前端自适应跨域代理与 SSRF 防御机制。
 *   `MemoryService` (memory)：统一的长期记忆系统，内含 6 大核心子模块，负责记忆持久化（storage）、大模型异步信息提取（extractor）、记忆检索召回（recall）、RPG 看板数据变动分析（stateTable）与前情概要总结（summary）。
 
 ### 6. 数据流向全景图 (Core Message Data Flow)
@@ -572,25 +594,99 @@ sequenceDiagram
 
 ## 🧪 自动化测试套件与覆盖验证 (Comprehensive Test Suite)
 
-为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，包含了 **16 项核心功能验证用例**。
+为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，包含了 **57 项核心功能验证用例**。
 
-### 1. 自动化功能测试一览 (The 16 Test Cases)
-1.  **`testSsrfGuard` (SSRF 防御校验)**：验证 `validateBaseUrlSecurity` 能否成功阻断 IPv4/IPv6 回环地址、内网网段、八进制/十六进制伪造 IP 等越界穿透，同时放行正常的公网 API 域名。
-2.  **`testDbQueue` (并发写冲突与事务序列化)**：并发触发多个数据库写事务，校验 Promise 队列是否能够完美按顺序串行写入，并且在其中一个事务崩溃时，后续写入能否自愈恢复并继续安全保存。
-3.  **`testPromptBuilder` (宏替换防坍塌与世界书触发)**：验证 `replaceMacros` 处理带 `$` 符号特型字符和 `{{char}}` / `{{user}}` 占位符时是否会引起模板坍塌；验证根据历史消息关键词检索世界书词条的逻辑。
-4.  **`testPngCardParser` (PNG 酒馆角色卡物理级解压还原)**：提取假想 PNG 文件流，解析 `tEXt` 结构块并对 Zlib 数据解压还原成标准 CharacterCard 实体，进行字段双向匹配测试。
-5.  **`testApiCleanRequestPayload` (各模型厂商参数差异化清洗)**：模拟全厂商参数（OpenRouter、OpenAI 官方、DeepSeek 官方、Gemini 等），校验 apiClient 中 `cleanRequestPayload` 的提取行为（剔除会导致 400 Bad Request 的非标参数，保留专有参数）。
-6.  **`testSSEStreamWithReasoning` (SSE 思维链提取)**：模拟包含 `reasoning_content` 的大模型 SSE 流式输出包，校验 `readSSEStream` 缓冲区切分器是否能够精准拦截思维链数据并正常拼装主文本。
-7.  **`testPromptBuilderSystemMerging` (System 旁白消息智能归并)**：验证当会话消息历史中存在中途插入的 System 指令时，算法能将其封装为“系统旁白”格式并与相邻的 User 消息合并，以确保满足绝大多数大模型 API 严格的 User/Assistant 交替契约。
-8.  **`testKernelFaultIsolation` (微内核故障隔离与 SafeProxy)**：验证正常初始化、致命核心服务引发的内核级熔断、非关键服务异常时 SafeProxy 自动接管、SafeProxy 链式属性/方法调用以及 `await` Promise 的兼容性。
-9.  **`testKernelPipeline` (洋葱中间件洋葱排序与阻断拦截)**：验证管道中挂载的多个中间件能够依照 `priority` 升序/降序形成正确的执行环，并且在 blocker 遗漏 next 时能终止执行。
-10. **`testKernelPipelineHardening` (洋葱管道健壮性防灾)**：验证 SafeProxy 诊断环境下的 console 警告，中间件动态注销，以及异常崩溃时管道的物理阻断防护（防静默绕过安全防线）。
-11. **`testKernelHardeningP0ToP3` (严格开发期断言检测)**：临时拉起 `strictMode`，验证 P0 级消息订阅注销、P1 级未完全就绪时 getService 的 FATAL 报错、P1 级中间件漏调 next() 时强抛致命异常、P2 级 SafeProxy 属性读取断言拦截以及 P3 级一键一键 destroy() 内存清理。
-12. **`testKernelKernelV2Fixes` (内核 V2 回归防范)**：校验 Kahn 拓扑排序在 registerServiceBatch 中的顺序分配、循环依赖检测、B-2 关键缺失致命强抛、B-4 消息总线订阅优先级、publishParallel Concurrency 并行流速及事件隔离。
-13. **`testKernelV3Fixes` (内核 V3 健壮性修复)**：验证 destroy() 触发时的逆序释放（防悬挂资源未解绑）、SafeProxy 对 JS 内置 Symbol 属性读取拦截（防止控制台日志产生无限递归循环死锁）、注销后清空 Map 中空 key 的机制。
-14. **`testKernelV4AbortAndInterrupt` (内核 V4 超时取消与熔断)**：验证中间件使用第三个参数 `interrupt()` 阻断管道、服务异步初始化在 50ms 超时熔断后触发 `AbortSignal` 退出、内核 destroy 时一键 Abort 正在挂起的活跃分发事件。
-15. **`testKernelExtensionRegistry` (SPI 扩展插件注册表机制)**：验证内核扩展插槽机制，校验优先级节点插拔、节点动态替换更新、以及内核销毁时整体插槽重置。
-16. **`runCatbotErrorTests` (Catbot 异常流降级)**：模拟客服助理小猫遇到阿里云 FC 接口 429 频次受限、欠费、网关超时等情况时的本地正则关键词降级处理器，确保交互不卡死。
+### 1. 自动化功能测试一览 (The 57 Test Cases)
+
+这些测试用例按职责域被高度聚合并物理隔离到 `tests/suites/` 下的各个测试模块中：
+
+#### 🔒 网络安全与防网闸 (Security & SSRF Guard)
+*   **`testSsrfGuard`**：验证安全网闸对私网 IP（如 `127.0.0.1`、内网段、`169.254.169.254` 等）、DNS Rebinding 伪造 IP、八/十六进制伪装 IP 的拦截，并确认放行正常的公网 API 域名。
+
+#### 💾 数据库并发与物理分轨 (Database & Storage)
+*   **`testDbQueue`**：验证 IndexedDB 并发写 Promise 队列的串行化写入与异常自愈。
+*   **`testDatabaseServiceCrud`**：验证 Database 服务底座的对象仓增删改查基本物理契约。
+*   **`testLocalDBSplitTrack`**：验证 Settings 个人配置与大字段（Preset/Worldbook）分轨存储逻辑。
+*   **`testWriteQueueTimeout`**：测试并发写入管道中的事务超时挂载释放。
+*   **`testWriteQueueKeyCoalescing`**：校验高频对同一 Key 写入时的防抖合并（Coalescing）机制。
+
+#### 📝 Prompt 编译与上下文缓存 (Prompt Builder & Runtime)
+*   **`testPromptBuilder`**：验证模板宏安全替换（lambda 回调防转义符坍塌）及世界书三阶级联检索逻辑。
+*   **`testPromptBuilderSystemMerging`**：验证会话历史中多条 System 旁白消息与相邻 User 消息的安全交替归并。
+*   **`testPromptRuntime`**：测试编译期与运行期合并后 Prompt 的最终形态与规范性。
+*   **`testPromptServiceIntegration`**：验证 PromptService 注册与微内核冷启动后的状态连通性。
+
+#### 🎴 角色卡解析与还原 (PNG Card Decoder)
+*   **`testPngCardParser`**：从物理级还原 PNG 图像文件，读取并检索 `tEXt` 中的 `chara` 标记，对其 Zlib 压缩字节块解压反序列化还原成标准的 `CharacterCard` 结构。
+
+#### 📞 API 厂商清洗与流解析 (API request & SSE Stream)
+*   **`testApiCleanRequestPayload`**：模拟多厂商大模型 API 参数差异化，校验 `cleanRequestPayload` 强制过滤非标参数以防 400 报错的能力。
+*   **`testSSEStreamWithReasoning`**：校验 SSE 流式输出缓冲区切分，测试能精准拦截 DeepSeek R1 等思维链 `reasoning_content` 数据并安全拼接主文本。
+*   **`testCleanLLMResponse`**：验证对模型返回正文尾部杂质（如残留未闭合的代码块标记、空白行）的清洗过滤。
+
+#### ⚙️ 微内核底座与 Pipeline 拦截 (Modular Kernel & Pipeline)
+*   **`testKernelFaultIsolation`**：验证致命核心服务引发的内核级熔断、非关键服务异常时 SafeProxy 自动接管与链式 No-op 调用。
+*   **`testKernelPipeline`**：验证 input/output 管道中中间件依照优先级 `priority` 链式流转以及被中间件漏调 `next` 时的内核强熔断报错。
+*   **`testKernelPipelineHardening`**：测试开发严格模式（strictMode）与生产容错模式下管道防灾校验。
+*   **`testKernelHardeningP0ToP3`**：全面测试注销订阅、可选服务降级、JS 内置 Symbol 属性读取拦截、内存清理。
+
+#### 🌀 版本修复、生命周期与插件机制 (Lifecycle & SPI)
+*   **`testKernelKernelV2Fixes`**：验证 Kahn 拓扑依赖排序分配、环形依赖拦截、事件发布 Concurrency 控制。
+*   **`testKernelV3Fixes`**：测试内核卸载时注销空 Key 以及防 Symbol 探测死锁。
+*   **`testKernelV4AbortAndInterrupt`**：测试可选中间件 `interrupt()` 彻底熔断管道以及超时 Abort 取消挂起操作。
+*   **`testKernelExtensionRegistry`**：测试主界面 Tab 等 SPI 扩展插件的动态插拔、优先级排布与卸载重置。
+*   **`testKernelDestroyIdempotency`**：验证 Kernel 一键 destroy() 销毁时的幂等性与逆序资源安全解绑。
+
+#### 🎲 交互性、概率与辅助算法 (Algorithms & Interactions)
+*   **`testBisonModeProbability`**：测试野牛判定（Bison Mode）在百分比概率触发下的数理概率分布。
+*   **`testPresetAndWorldbookIntegration`**：验证采样参数预设与世界书级联检索合并后的效果。
+*   **`testSuggestionsRobustness`**：验证对话后续引导句（Reply Suggestions）推荐算法的极端情况健壮性。
+
+#### 📻 业务微服务底座 (Kernel Services Core)
+*   **`testMultiMessageService`**：测试会话分支树（平行宇宙会话复制）以及分支物理删除后状态更新。
+*   **`testScriptServiceDecoupling`**：验证角色卡内嵌 JS 沙盒计算脚本 of the physical sandbox and prevention of variable pollution.
+*   **`testOutputPipeline`**：验证文本输出后处理中间件链条（状态表、沙盒、年表、野牛判定）的正确拼接顺序。
+*   **`testChatStreamService`**：测试 SSE 字符接收管理器的状态重置与 Abort 释放。
+*   **`testKeyManagerDynamicFetch`**：验证多设备标识下临时 STS Token 签发与 AES 密钥动态读取校验。
+*   **`testUpdateCheckService`**：校验热更新版本的语义化版本号比对以及 Aliyun OSS 签名链接的有效期防刷。
+
+#### 🎨 视图渲染与日志脱敏 (Rendering & Desensitization)
+*   **`testCssSanitization`**：测试对 Markdown 样式及 HTML 标签的注入防护与安全清理。
+*   **`testServerLogDesensitization`**：验证 Express 控制台及落盘日志中大模型 API Key（sk-...）的安全脱敏抹除。
+*   **`testApiKeyEncryption`**：校验客户端敏感 API Key 在本地 IndexedDB 存储时的 AES-GCM 高强度加密。
+
+#### 🏎️ 极速直连旁路测试 (Fast Path Bypass)
+*   **`testFastPathL3AutoSummaryIndex`** / **`testFastPathL2ContentPrescan`** / **`testFastPathL1PipelineBypass`**：验证 L1-L3 级极速发送通道，在纯文本无变量、无世界书命中、无需年表更新时，智能绕过繁冗的 Pipeline 和中间件栈，直连 API 的零延迟发信。
+
+#### 🧠 长期记忆金字塔系统 (Memory System v8)
+*   **`testModelCapabilityRegistry`**：验证长期记忆的模型适配性校验。
+*   **`testMemoryStreamParser`**：验证大模型情感与 RPG 属性块的反序列化分段解析。
+*   **`testMemoryStorageCrud`**：验证记忆碎片与总结卡在分轨 Store 中的增删改查。
+*   **`testMemoryServiceLifecycle`**：测试长期记忆服务在内核启动/销毁时的资源装配与销毁。
+*   **`testMemoryExtractor`**：测试大模型提取情感标签、年表大纲与 RPG 变量变动。
+*   **`testMemoryRecall`**：测试标签倒排（Inverted Index）检索召回、世界设定级联与时间衰减评分。
+*   **`testMemoryStateTable`**：测试 RPG 状态看板数据的更新与增量物理落库。
+*   **`testMemorySummary`**：验证会话剧情总结大纲压缩机制及首创的零侵入 brackets 标签提取降级。
+*   **`testMemoryE2E`**：运行真实 IndexedDB 物理层，进行端到端的长期记忆全链路存取与重构仿真。
+
+#### 🏢 业务管理服务组件 (Business Services)
+*   **`testCharacterService`**：验证角色卡管理服务的独立封装与 IDB CRUD 操作。
+*   **`testWorldbookService`**：验证全局/局部世界设定集的读写，测试服务级的生命周期资源回收（AbortController）。
+*   **`testSettingsService`**：测试全局 Settings 的合并逻辑与防抖存入。
+*   **`testPresetService`**：验证大模型预设预装配与自适应版本升级。
+
+#### 📈 对话轮次一致性 (Turn Index Consistency)
+*   **`testTurnIndexBasicAppend`**：验证正常发送消息时消息索引的顺序递增与索引完整性。
+*   **`testTurnIndexDeleteMiddleThenAppend`**：测试在多宇宙分支中途删除某条消息后，后续追加新消息能基于剩余历史建立正确的 turnIndex 序列，防范时序混乱。
+*   **`testTurnIndexDeleteAllThenAppend`**：测试清空历史后追加首条消息的时序就绪。
+*   **`testTurnIndexMultipleAppends`**：并发多次追加消息时的时序序列物理安全检查。
+
+#### 🐱 小猫客服异常异常与补强测试 (Catbot & Hardening)
+*   **`runCatbotErrorTests`**：模拟小猫客服连上云端 FC 遭遇 429 限流或欠费时的本地正则关键词降级处理器，确保不崩溃。
+*   **`testTableMemoryService`**：验证旧 TableMemoryService 功能兼容测试。
+*   **`testPromptServiceRedosProtection`**：测试 Prompt 模板正则引擎对恶意超长字符攻击的 ReDoS 防护（非递归超时降级）。
+*   **`testLLMServiceUrlValidation`**：校验非合法 HTTP/HTTPS API 协议地址的自愈与纠偏行为。
+*   **`testAutoSummaryMetadataParsing`**：测试元数据提取的防御性兜底。
 
 ### 2. 测试运行指引 (Testing Guide)
 在本地开发环境下，你可以通过运行以下指令一键执行所有的单元测试：
@@ -651,22 +747,27 @@ npm run test
 │  覆盖：纯函数、无副作用服务、内核逻辑                       │
 │  触发：每次 commit                                         │
 │  预期耗时：< 10s                                            │
-│  现状：✅ 已建设，28 个测试函数全部通过                     │
+│  现状：✅ 已建设，57 个测试函数全部通过                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### 1. 单元测试层（已建设）
-主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 28 个核心功能验证用例，覆盖：
-* **`testSsrfGuard`**：验证安全网闸对私网 IP、DNS Rebinding 伪造 IP 的拦截。
-* **`testDbQueue`**：验证 IndexedDB 并发写 Promise 队列的串行化自愈写。
-* **`testPromptBuilder`**：验证模板宏安全替换及世界书三阶级联检索。
-* **`testPngCardParser`**：验证酒馆 PNG 卡 tEXt 元数据的提取与反序列化还原。
-* **`testApiCleanRequestPayload`**：验证多厂商大模型 API 请求参数的清洗隔离。
-* **`testKernelFaultIsolation`**：验证内核故障隔离、SafeProxy 降级与一键销毁。
-* **`testTableMemoryService`**：验证 TRPG 游戏化表格数据的智能更新、插入与删除。
-* **`testPromptServiceRedosProtection`**：验证恶意关键词正则对 PromptService 的 ReDoS 攻击降级防护。
-* **`testLLMServiceUrlValidation`**：验证 API 地址非法协议拦截与规范化。
-* **`testAutoSummaryMetadataParsing`**：验证故事大纲元数据的自动分析提取。
+主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 57 个核心功能验证用例，主要覆盖：
+* **网络安全与防网闸**：`testSsrfGuard`（防私网 IP、回环及 DNS 重绑定穿透拦截）。
+* **数据库分轨与事务防抖**：`testDbQueue`、`testDatabaseServiceCrud`、`testLocalDBSplitTrack`（并发写 Promise 管道与配置大字段拆分合并）。
+* **Prompt 编译及前缀缓存**：`testPromptBuilder`、`testPromptBuilderSystemMerging`、`testPromptRuntime`（宏安全替换、多 System 消息智能交替合并）。
+* **角色卡 PNG 二进制解码**：`testPngCardParser`（本地沙盒 tEXt 结构块解析与 Zlib 解密还原）。
+* **API 请求参数清洗与思维链**：`testApiCleanRequestPayload`、`testSSEStreamWithReasoning`（去除模型非标参数、流式接收中提取 DeepSeek R1 思维链与主正文）。
+* **微内核生命周期与容错机制**：`testKernelFaultIsolation`、`testKernelPipeline`、`testKernelHardeningP0ToP3`（服务拓扑加载、SafeProxy 降级、洋葱管道拦截、开发模式严格断言）。
+* **故障隔离、插件与一键注销**：`testKernelKernelV2Fixes`、`testKernelV3Fixes`、`testKernelV4AbortAndInterrupt`、`testKernelDestroyIdempotency`、`testKernelExtensionRegistry`（Kahn 算法解耦、SPI 插件插拔、一键 destroy 逆序销毁与超时熔断）。
+* **概率判定与策略引导**：`testBisonModeProbability`、`testSuggestionsRobustness`（野牛概率数理分布与对话引导句健壮性验证）。
+* **核心业务服务物理隔离**：`testMultiMessageService`、`testScriptServiceDecoupling`、`testUpdateCheckService`（分支剧情平行宇宙克隆、MVU 独立沙盒变量计算、版本更新包基于 IP 的限流防刷）。
+* **日志脱敏与敏感防护**：`testCssSanitization`、`testServerLogDesensitization`、`testApiKeyEncryption`（XSS 防护、日志中 API 密钥脱敏、本地 IndexedDB 加密防窃取）。
+* **极速直连旁路拦截**：`testFastPathL1-L3`（文本无变化时智能绕过洋葱管道直接投递大模型，降为零额外开销）。
+* **长期记忆金字塔系统**：`testMemoryExtractor`、`testMemoryRecall`、`testMemoryStateTable`、`testMemorySummary`、`testMemoryE2E`（大模型增量情感年表提取、标签倒排召回算法、时间衰减打分计算、看板状态持久化、零侵入 brackets 总结兜底、真实 IndexedDB 全链路端到端重构）。
+* **高阶业务服务生命周期**：`testCharacterService`、`testWorldbookService`、`testSettingsService`、`testPresetService`（解耦后的独立微服务 CRUD 契约与 Abort 释放）。
+* **turnIndex 时序一致性**：`testTurnIndexConsistency`（分支对话中途删除并追加消息时的 turnIndex 顺序稳定性测试）。
+* **客服小猫异常降级**：`runCatbotErrorTests`（云端 FC 限流、欠费等异常网络下的本地正则规则器健壮处理）。
 
 ### 2. 集成测试层（规划中）
 * **建设目标**：验证多模块协作与 React 视图渲染正确性。
