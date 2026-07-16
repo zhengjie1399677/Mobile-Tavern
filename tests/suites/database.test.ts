@@ -80,7 +80,7 @@ export async function testDatabaseServiceCrud() {
     initializeMvuFromCharacter(char: any) {
       return { hp: 100 };
     }
-  };
+  } as any;
 
   const mockDbService = new DatabaseService();
   mockDbService.saveSession = async (sess: any) => {
@@ -202,7 +202,7 @@ export async function testLocalDBSplitTrack() {
   assert(rawLargePrompts.bisonModePrompt === "BISON: Mode prompt", "bisonModePrompt must be stored in large prompts");
 
   // 5. 执行读取
-  const loadedSettings = await localDB.getStoredSettings();
+  const loadedSettings = await localDB.getStoredSettings() as any;
   assert(loadedSettings !== null, "getStoredSettings should return object");
 
   // 6. 验证读取合并后的内容是否与原 settings 一致

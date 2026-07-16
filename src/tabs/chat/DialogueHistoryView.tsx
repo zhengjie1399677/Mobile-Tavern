@@ -8,6 +8,7 @@ import {
   ChevronUp,
   Brain,
   ArrowDown,
+  Loader2,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -54,15 +55,31 @@ const DialogueHistoryView = ({
     isSending,
     isSummarizing,
     chatBottomRef,
+    // TODO-4: 消息分页懒加载
+    hasMoreMessages,
+    isLoadingMoreMessages,
+    loadMoreMessages,
   } = useUnifiedApp();
 
   const [swipedMsgId, setSwipedMsgId] = React.useState<string | null>(null);
 
   // 过滤隐藏的野牛静默消息
   const messagesToRender = (activeSession?.messages || []).filter((m: any) => !m.extra?.isBisonSilent);
+
+  // TODO-3: 历史消息截断与总结归档。
+  // 当 session.lastSummarizedMessageId 存在时，将其之前的消息视为已归档（已生成 SummaryCard），
+  // 默认从渲染流中折叠，用户可通过"查看故事年表"按钮在时间轴抽屉中检索。
+  // 若未设置 lastSummarizedMessageId，退回原 20 条折叠逻辑。
   let foldedCount = 0;
   let visibleMessages = messagesToRender;
-  if (!showFullHistory && messagesToRender.length > 20) {
+  const lastSummarizedId = activeSession?.lastSummarizedMessageId;
+  if (!showFullHistory && lastSummarizedId) {
+    const archiveIndex = messagesToRender.findIndex((m: any) => m.id === lastSummarizedId);
+    if (archiveIndex >= 0 && archiveIndex + 1 < messagesToRender.length) {
+      foldedCount = archiveIndex + 1;
+      visibleMessages = messagesToRender.slice(foldedCount);
+    }
+  } else if (!showFullHistory && messagesToRender.length > 20) {
     const foldIndex = messagesToRender.length - 20;
     foldedCount = foldIndex;
     visibleMessages = messagesToRender.slice(foldIndex);
@@ -152,9 +169,37 @@ const DialogueHistoryView = ({
               aria-label={`展开更早的 ${foldedCount} 条历史对话`}
               className="bg-muted hover:bg-muted/80 border border-border text-[10px] px-4 py-1.5 rounded-full text-muted-foreground shadow-sm flex items-center gap-1.5 transition"
             >
-              <ChevronUp className="w-3 h-3" aria-hidden="true" /> 点击展开更早的{" "}
-              {foldedCount} 条历史对话 (节约内存渲染)
+              <ChevronUp className="w-3 h-3" aria-hidden="true" />
+              {lastSummarizedId
+                ? `已归档 ${foldedCount} 条至故事年表，点击展开`
+                : `点击展开更早的 ${foldedCount} 条历史对话 (节约内存渲染)`}
             </button>
+          </div>
+        )}
+        {/* TODO-4: 分页加载更多历史消息指示器。
+            1. isLoadingMoreMessages=true：显示加载中旋转图标
+            2. hasMoreMessages=true 且未在加载：显示可点击的"加载更早消息"按钮（备用入口，正常情况下由顶部滚动自动触发）
+            3. 两者皆否：不渲染 */}
+        {(isLoadingMoreMessages || hasMoreMessages) && (
+          <div className="flex justify-center mb-2">
+            {isLoadingMoreMessages ? (
+              <div
+                className="text-[10px] px-4 py-1.5 rounded-full text-muted-foreground bg-muted/60 border border-border flex items-center gap-1.5"
+                aria-live="polite"
+                aria-label="正在加载更早的历史消息"
+              >
+                <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+                正在加载更早的消息...
+              </div>
+            ) : (
+              <button
+                onClick={() => loadMoreMessages()}
+                aria-label="加载更早的历史消息"
+                className="bg-muted hover:bg-muted/80 border border-border text-[10px] px-4 py-1.5 rounded-full text-muted-foreground shadow-sm flex items-center gap-1.5 transition"
+              >
+                <ChevronUp className="w-3 h-3" aria-hidden="true" /> 加载更早的消息
+              </button>
+            )}
           </div>
         )}
         {visibleMessages.map((message: any, idx: number) => {

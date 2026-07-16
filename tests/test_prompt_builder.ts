@@ -59,6 +59,7 @@ function testLorebookTriggers() {
       id: "lore_simple",
       keys: ["sword", "blade"],
       content: "A legendary sword forged in fire.",
+      constant: false,
       enabled: true,
       scanDepth: 10,
     },
@@ -66,6 +67,7 @@ function testLorebookTriggers() {
       id: "lore_regex",
       keys: ["/dragon[s]?/i"],
       content: "Dragons are mythical flying beasts.",
+      constant: false,
       enabled: true,
       useRegex: true,
       scanDepth: 10,
@@ -76,6 +78,7 @@ function testLorebookTriggers() {
       secondary_keys: ["spell", "wand"],
       selectiveLogic: "AND_ANY",
       content: "Wizards use spells and wands to cast magic.",
+      constant: false,
       enabled: true,
       scanDepth: 10,
     },
@@ -85,6 +88,7 @@ function testLorebookTriggers() {
       secondary_keys: ["broken"],
       selectiveLogic: "NOT_ANY",
       content: "This shield is unbreakable.",
+      constant: false,
       enabled: true,
       scanDepth: 10,
     },
@@ -92,16 +96,17 @@ function testLorebookTriggers() {
       id: "lore_depth_limit",
       keys: ["potion"],
       content: "Potions heal wounds.",
+      constant: false,
       enabled: true,
       scanDepth: 2, // only scans last 2 messages (+ user input)
     },
   ];
 
   const messages: Message[] = [
-    { id: "m1", sender: "user", content: "We found a potion in the dungeon." }, // 4 messages ago
-    { id: "m2", sender: "assistant", content: "A wizard approached us." },
-    { id: "m3", sender: "user", content: "He cast a spell." },
-    { id: "m4", sender: "assistant", content: "It matched his dragon shield." },
+    { id: "m1", sender: "user", content: "We found a potion in the dungeon.", timestamp: Date.now() }, // 4 messages ago
+    { id: "m2", sender: "assistant", content: "A wizard approached us.", timestamp: Date.now() },
+    { id: "m3", sender: "user", content: "He cast a spell.", timestamp: Date.now() },
+    { id: "m4", sender: "assistant", content: "It matched his dragon shield.", timestamp: Date.now() },
   ];
 
   // Test Case 1: User input "I swing my sword at the dragons."
@@ -146,6 +151,7 @@ function testCacheHoistingAndContextTruncation() {
         id: "l1",
         keys: ["secret"],
         content: "Lorebook secret entry content.",
+        constant: false,
         enabled: true,
         position: "in_chat",
         depth: 1,
@@ -154,6 +160,7 @@ function testCacheHoistingAndContextTruncation() {
         id: "l2",
         keys: ["whisper"],
         content: "Lorebook whisper entry content.",
+        constant: false,
         enabled: true,
         position: "before_last_mes",
       }
@@ -166,8 +173,8 @@ function testCacheHoistingAndContextTruncation() {
     title: "Chat 1",
     createdAt: Date.now(),
     messages: [
-      { id: "m1", sender: "assistant", content: "Greeting from Alice!" },
-      { id: "m2", sender: "user", content: "Tell me the secret of whisper." },
+      { id: "m1", sender: "assistant", content: "Greeting from Alice!", timestamp: Date.now() },
+      { id: "m2", sender: "user", content: "Tell me the secret of whisper.", timestamp: Date.now() },
     ],
     summaries: [],
   };
@@ -277,13 +284,13 @@ function testCacheHoistingAndContextTruncation() {
     title: "Large Chat",
     createdAt: Date.now(),
     messages: [
-      { id: "m1", sender: "assistant", content: "Greeting from Alice!" }, // Keep greeting
-      { id: "m2", sender: "user", content: "Message 2" },
-      { id: "m3", sender: "assistant", content: "Message 3" },
-      { id: "m4", sender: "user", content: "Message 4" },
+      { id: "m1", sender: "assistant", content: "Greeting from Alice!", timestamp: Date.now() }, // Keep greeting
+      { id: "m2", sender: "user", content: "Message 2", timestamp: Date.now() },
+      { id: "m3", sender: "assistant", content: "Message 3", timestamp: Date.now() },
+      { id: "m4", sender: "user", content: "Message 4", timestamp: Date.now() },
       // extremely large message that will trigger token limit truncation
-      { id: "m5", sender: "assistant", content: "A".repeat(60000) },
-      { id: "m6", sender: "user", content: "Message 6" },
+      { id: "m5", sender: "assistant", content: "A".repeat(60000), timestamp: Date.now() },
+      { id: "m6", sender: "user", content: "Message 6", timestamp: Date.now() },
     ],
     summaries: [],
   };

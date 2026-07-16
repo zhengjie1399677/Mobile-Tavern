@@ -1,4 +1,5 @@
-import { DEFAULT_SETTINGS, UserSettings } from "../src/hooks/useSettings";
+import { DEFAULT_SETTINGS } from "../src/hooks/useSettings";
+import type { UserSettings } from "../src/types";
 
 console.log("=================================================");
 console.log("🧪 STARTING SETTINGS ROBUSTNESS & KEY STABILITY TESTS");

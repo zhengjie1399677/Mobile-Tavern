@@ -75,6 +75,9 @@ import {
   testTurnIndexDeleteMiddleThenAppend,
   testTurnIndexDeleteAllThenAppend,
   testTurnIndexMultipleAppends,
+  testMessageRoleMapping,
+  testPaginationBoundaries,
+  testAutoSummaryTriggerConditions,
 } from "./suites/index";
 
 async function run() {
@@ -153,6 +156,10 @@ async function run() {
     { name: "testTurnIndexDeleteMiddleThenAppend", fn: testTurnIndexDeleteMiddleThenAppend },
     { name: "testTurnIndexDeleteAllThenAppend", fn: testTurnIndexDeleteAllThenAppend },
     { name: "testTurnIndexMultipleAppends", fn: testTurnIndexMultipleAppends },
+    // 分页懒加载与总结归档测试（角色映射 / 分页边界 / 自动总结触发条件）
+    { name: "testMessageRoleMapping", fn: testMessageRoleMapping },
+    { name: "testPaginationBoundaries", fn: testPaginationBoundaries },
+    { name: "testAutoSummaryTriggerConditions", fn: testAutoSummaryTriggerConditions },
   ];
 
   let passed = 0;

@@ -20,6 +20,7 @@ import lodashSet from "lodash/set";
 import { CharacterCard, ChatSession, UserSettings } from "../../types";
 import { klona } from "klona";
 import { globalKernel } from "../../kernel/Kernel";
+import type { IKernel } from "../../kernel/types";
 import { compare } from "compare-versions";
 import JSON5 from "json5";
 import { jsonrepair } from "jsonrepair";
@@ -58,7 +59,24 @@ export function setBridgeParams(params: TavernHelperBridgeParams | null): void {
 // 事件发射器（基于 Kernel 消息总线，线程安全）
 // ──────────────────────────────────────────────────────────────────────────────
 
-export const tavernHelperEventEmitter = (() => {
+/** 事件发射器接口定义 */
+export interface ITavernHelperEventEmitter {
+  on(event: string, cb: any): ITavernHelperEventEmitter;
+  once(event: string, cb: any): ITavernHelperEventEmitter;
+  off(event: string, cb: any): ITavernHelperEventEmitter;
+  removeListener(event: string, cb: any): ITavernHelperEventEmitter;
+  emit(event: string, ...args: any[]): ITavernHelperEventEmitter;
+  emitAndWait(event: string, ...args: any[]): Promise<any[]>;
+  makeFirst(event: string, cb: any): ITavernHelperEventEmitter;
+  makeLast(event: string, cb: any): ITavernHelperEventEmitter;
+  clear(event: string): void;
+  clearAll(): void;
+}
+
+// TODO-2: 工厂函数接收可选 kernel 参数，默认回退 globalKernel 单例。
+// 如此测试环境可传入隔离的 Mock 实例，实现物理隔离测试。
+export function createTavernHelperEventEmitter(kernel?: IKernel): ITavernHelperEventEmitter {
+  const k = kernel || globalKernel;
   const subscriptions = new Map<string, Array<{ cb: any; unsub: () => void }>>();
 
   const emitter = {
@@ -72,7 +90,7 @@ export const tavernHelperEventEmitter = (() => {
       if (list.some((item) => item.cb === cb)) {
         return emitter;
       }
-      const unsub = globalKernel.subscribe(`tavern_helper:${event}`, (msg) => {
+      const unsub = k.subscribe(`tavern_helper:${event}`, (msg) => {
         try {
           return cb(...msg.payload);
         } catch (e) {
@@ -104,7 +122,7 @@ export const tavernHelperEventEmitter = (() => {
       return emitter.off(event, cb);
     },
     emit(event: string, ...args: any[]) {
-      globalKernel.publish({
+      k.publish({
         topic: `tavern_helper:${event}`,
         payload: args
       });
@@ -112,7 +130,7 @@ export const tavernHelperEventEmitter = (() => {
     },
     async emitAndWait(event: string, ...args: any[]) {
       try {
-        await globalKernel.publishParallel({
+        await k.publishParallel({
           topic: `tavern_helper:${event}`,
           payload: args
         });
@@ -122,7 +140,7 @@ export const tavernHelperEventEmitter = (() => {
       return [];
     },
     makeFirst(event: string, cb: any) {
-      const unsub = globalKernel.subscribe(`tavern_helper:${event}`, (msg) => {
+      const unsub = k.subscribe(`tavern_helper:${event}`, (msg) => {
         try {
           return cb(...msg.payload);
         } catch (e) {
@@ -136,7 +154,7 @@ export const tavernHelperEventEmitter = (() => {
       return emitter;
     },
     makeLast(event: string, cb: any) {
-      const unsub = globalKernel.subscribe(`tavern_helper:${event}`, (msg) => {
+      const unsub = k.subscribe(`tavern_helper:${event}`, (msg) => {
         try {
           return cb(...msg.payload);
         } catch (e) {
@@ -163,7 +181,10 @@ export const tavernHelperEventEmitter = (() => {
     }
   };
   return emitter;
-})();
+}
+
+// 默认导出：使用 globalKernel 创建的实例，保持向后兼容
+export const tavernHelperEventEmitter = createTavernHelperEventEmitter();
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 工具函数

@@ -34,7 +34,7 @@ export async function testMultiMessageService() {
       savedSession = session;
     },
     async appendSessionMessage() { },
-  };
+  } as any;
 
   const multiMsgService = new MultiMessageService();
 
@@ -114,7 +114,7 @@ export async function testOutputPipeline() {
     name: "database",
     init() { },
     async saveSession() { }
-  };
+  } as any;
   // 阶段 C 迁移：中间件已切换到 KernelServices.Memory.getStateTable() / getSummary() 子模块
   // 旧 tableMemory / autoSummary 服务已从注册表移除并标记 @deprecated
   const mockStateTable = {
@@ -139,14 +139,14 @@ export async function testOutputPipeline() {
     init() { },
     getStateTable() { return mockStateTable; },
     getSummary() { return mockSummary; }
-  };
+  } as any;
   const mockScriptService: IKernelService = {
     name: "script",
     init() { },
     async executeMvuScript(session: any, content: string) {
       return { ...session, variables: { ...session.variables, scriptRan: true } };
     }
-  };
+  } as any;
 
   await testKernel.registerService("database", mockDbService);
   await testKernel.registerService("memory", mockMemoryService);
@@ -215,7 +215,7 @@ export async function testChatStreamService() {
         }
       }));
     }
-  };
+  } as any;
 
   const chatStream = new ChatStreamService();
 
@@ -301,11 +301,11 @@ export async function testKeyManagerDynamicFetch() {
   try {
     const token = await getValidToken();
     assert(token.includes("."), "Token must contain payload and signature separator '.'");
-    assert(issueTokenCalled === true, "issue-token api was invoked");
+    assert((issueTokenCalled as boolean) === true, "issue-token api was invoked");
 
     const trialKey = await getTrialKey();
     assert(trialKey === originalText, "getTrialKey decrypted key correctly");
-    assert(getKeyCalled === true, "get-key api was invoked");
+    assert((getKeyCalled as boolean) === true, "get-key api was invoked");
   } finally {
     global.fetch = originalFetch;
   }

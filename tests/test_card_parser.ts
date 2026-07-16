@@ -154,6 +154,7 @@ async function testCardRoundtrip() {
         id: "l1",
         keys: ["sword"],
         content: "Sword details.",
+        constant: false,
         enabled: true,
       }
     ],

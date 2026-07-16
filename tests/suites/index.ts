@@ -101,3 +101,9 @@ export {
   testTurnIndexDeleteAllThenAppend,
   testTurnIndexMultipleAppends,
 } from "./turnIndexConsistency.test";
+
+export {
+  testMessageRoleMapping,
+  testPaginationBoundaries,
+  testAutoSummaryTriggerConditions,
+} from "./paginationAndArchival.test";

@@ -931,7 +931,7 @@ export async function testMemoryExtractor() {
     { entity: "老张", aliases: ["张老板", "酒馆老板"], type: "character" as const },
     { entity: "梅子酒", aliases: [], type: "item" as const },
     { entity: "老张三", aliases: [], type: "character" as const },
-  ];
+  ] as any[];
 
   // 空词典
   assert(extractByDict("任意消息", []).length === 0, "Empty dict returns empty");
@@ -949,7 +949,7 @@ export async function testMemoryExtractor() {
   assert(hits2.includes("老张"), "Alias '张老板' should map to '老张'");
 
   // 大小写不敏感
-  const dictEn = [{ entity: "Alice", aliases: [], type: "character" as const }];
+  const dictEn = [{ entity: "Alice", aliases: [], type: "character" as const }] as any[];
   const hits3 = extractByDict("alice went to the tavern", dictEn);
   assert(hits3.includes("Alice"), "Case-insensitive match");
 

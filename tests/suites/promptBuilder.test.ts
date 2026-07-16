@@ -44,6 +44,7 @@ export function testPromptBuilder() {
       id: "l_keyword",
       keys: ["magic", "spell"],
       content: "Spellcasting details",
+      constant: false,
       enabled: true,
       scanDepth: 5,
     },

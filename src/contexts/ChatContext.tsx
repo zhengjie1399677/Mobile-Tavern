@@ -8,6 +8,10 @@ import { useApp } from "./AppContext";
 // 默认每页 50 条（覆盖 95% 用户的会话总数），超出部分由 loadMoreSessions 滚动加载。
 const SESSIONS_PAGE_SIZE = 50;
 
+// TODO-4: 单会话消息分页懒加载页大小。
+// 首次进入聊天室仅加载最新 50 条消息，用户滚动到顶部时通过 loadMoreMessages 异步追加更早的历史。
+const MESSAGES_PAGE_SIZE = 50;
+
 interface ChatContextType {
   sessions: ChatSession[];
   setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
@@ -30,6 +34,10 @@ interface ChatContextType {
   isLoadingMoreSessions: boolean;
   saveSession: (session: ChatSession) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
+  // TODO-4: 消息分页懒加载
+  hasMoreMessages: boolean;
+  isLoadingMoreMessages: boolean;
+  loadMoreMessages: () => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -52,6 +60,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoadingMoreSessions, setIsLoadingMoreSessions] = useState(false);
   const loadedPageRef = useRef(0);
   const totalCountRef = useRef(0);
+
+  // TODO-4: 消息分页懒加载状态
+  // hasMoreMessages / isLoadingMoreMessages 仅针对当前活跃会话；
+  // 每个会话的累计已加载条数与是否还有更多历史缓存在 messagePagingRef 中，避免切换会话时重置。
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
+  const messagePagingRef = useRef<Record<string, { offset: number; hasMore: boolean }>>({});
+
+  // sessions 快照 ref：供 useEffect 在不依赖 sessions 数组的前提下读取最新值
+  const sessionsRef = useRef<ChatSession[]>([]);
+  sessionsRef.current = sessions;
 
   const isMountedRef = useRef(true);
   useEffect(() => {
@@ -126,14 +145,34 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // 监听活跃会话切换，异步懒加载其对应的 messages 并填充至 React State
+  // TODO-4: 首次加载仅请求最新 MESSAGES_PAGE_SIZE 条消息，避免长会话全量反序列化阻塞首屏。
   useEffect(() => {
     if (!activeSessionId) return;
-    const session = sessions.find((s) => s.id === activeSessionId);
-    if (session && (!session.messages || session.messages.length === 0)) {
+    // 切换会话时，先从缓存恢复该会话的分页指示器状态
+    const cached = messagePagingRef.current[activeSessionId];
+    if (cached) {
+      setHasMoreMessages(cached.hasMore);
+    } else {
+      setHasMoreMessages(false);
+    }
+
+    const session = sessionsRef.current.find((s) => s.id === activeSessionId);
+    // 仅在会话尚无内存消息且分页缓存也未建立时执行首次分页加载；
+    // 已加载过（含切回）的会话沿用其已有 messages，避免重复请求与视觉跳动。
+    const alreadyPaged = !!cached;
+    if (session && (!session.messages || session.messages.length === 0) && !alreadyPaged) {
       let isCurrent = true;
-      memoryService.getStorage().getMessagesBySession(activeSessionId)
+      // descending: true → 取最新 N 条（内部最终 reverse 为升序返回）
+      memoryService.getStorage().getMessagesBySession(activeSessionId, {
+        limit: MESSAGES_PAGE_SIZE,
+        descending: true,
+      })
         .then((msgs) => {
-          if (isCurrent) {
+          if (isCurrent && isMountedRef.current) {
+            const loaded = msgs.length;
+            const hasMore = loaded >= MESSAGES_PAGE_SIZE;
+            messagePagingRef.current[activeSessionId] = { offset: loaded, hasMore };
+            setHasMoreMessages(hasMore);
             setSessions((prev) =>
               prev.map((s) =>
                 s.id === activeSessionId
@@ -141,7 +180,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                       ...s,
                       messages: msgs.map((m: any) => ({
                         id: m.id,
-                        sender: m.role === "user" ? "user" : "assistant",
+                        sender: m.role === "user" ? "user" : m.role === "system" ? "system" : "assistant",
                         content: m.content,
                         timestamp: m.createdAt,
                         extra: m.metadata,
@@ -160,7 +199,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isCurrent = false;
       };
     }
-  }, [activeSessionId, sessions]);
+  }, [activeSessionId, memoryService]);
 
   const saveSession = async (session: ChatSession) => {
     try {
@@ -181,12 +220,69 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // TODO-4: 加载更多历史消息。
+  // 基于当前会话已加载的 offset，请求下一页（更早的）消息，并 prepend 到 messages 数组前部。
+  // 调用方需在加载完成后自行调整滚动位置以保持视觉锚点（见 useChatScroll / DialogueHistoryView）。
+  const loadMoreMessages = async () => {
+    if (!activeSessionId || isLoadingMoreMessages || !hasMoreMessages) return;
+    const cached = messagePagingRef.current[activeSessionId];
+    if (!cached) return; // 尚未进行首次分页加载，忽略
+    setIsLoadingMoreMessages(true);
+    try {
+      const olderMsgs = await memoryService
+        .getStorage()
+        .getMessagesBySession(activeSessionId, {
+          limit: MESSAGES_PAGE_SIZE,
+          offset: cached.offset,
+          descending: true,
+        });
+      if (!isMountedRef.current) return;
+      const loadedCount = olderMsgs.length;
+      const newHasMore = loadedCount >= MESSAGES_PAGE_SIZE;
+      const newOffset = cached.offset + loadedCount;
+      messagePagingRef.current[activeSessionId] = { offset: newOffset, hasMore: newHasMore };
+      setHasMoreMessages(newHasMore);
+      if (loadedCount > 0) {
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== activeSessionId) return s;
+            const mapped = olderMsgs.map((m: any) => ({
+              id: m.id,
+              sender: m.role === "user" ? "user" : m.role === "system" ? "system" : "assistant",
+              content: m.content,
+              timestamp: m.createdAt,
+              extra: m.metadata,
+            }));
+            // descending: true 时返回的批次内部已按时间升序排列（函数末尾 reverse 过），
+            // 因此直接 prepend 到已有 messages 之前即可保持整体时间升序。
+            return {
+              ...s,
+              messages: [...mapped, ...(s.messages || [])],
+            };
+          })
+        );
+      }
+    } catch (e: any) {
+      console.error("Failed to load more messages for active session:", e);
+      if (isMountedRef.current) {
+        showCustomAlert("加载更早的消息失败: " + e.message);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoadingMoreMessages(false);
+      }
+    }
+  };
+
   const deleteSession = async (id: string) => {
     try {
       await dbService.deleteSession(id);
+      // TODO-4: 清理被删除会话的分页缓存，避免内存泄漏与幽灵状态
+      delete messagePagingRef.current[id];
       setSessions((prev) => prev.filter((s) => s.id !== id));
       if (activeSessionId === id) {
         setActiveSessionId(null);
+        setHasMoreMessages(false);
       }
     } catch (e: any) {
       console.error("Failed to delete session from IndexedDB:", e);
@@ -219,6 +315,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoadingMoreSessions,
         saveSession,
         deleteSession,
+        // TODO-4: 消息分页懒加载
+        hasMoreMessages,
+        isLoadingMoreMessages,
+        loadMoreMessages,
       }}
     >
       {children}

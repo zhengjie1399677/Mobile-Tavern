@@ -205,6 +205,33 @@ export const useChat = (
     }
   }, [activeSession, activeCharacter, settings.enableTableMemory, databaseService, memoryService, setSessions]);
 
+  // TODO-3: 历史消息截断与总结归档。
+  // 当活跃会话内存消息数超过 ARCHIVE_THRESHOLD（200 条）且开启自动总结时，
+  // 自动触发 handleAutoSummaryCheck 将旧消息归纳为 SummaryCard 归档至故事年表。
+  // 总结完成后，lastSummarizedMessageId 更新，DialogueHistoryView 据此折叠已归档消息。
+  const ARCHIVE_THRESHOLD = 200;
+  const ARCHIVE_RETRIGGER_INCREMENT = 50; // 总结成功后，消息数再增长 50 条才允许再次触发
+  const lastAutoSummaryRef = React.useRef<{ sessionId: string; messageCount: number } | null>(null);
+  useEffect(() => {
+    if (!activeSession || !activeSession.messages) return;
+    // 仅在自动总结开启时触发
+    if (settings.memory?.enableAutoSummary === false) return;
+    // 仅在消息数超过阈值时触发
+    if (activeSession.messages.length < ARCHIVE_THRESHOLD) return;
+    // 防止对同一会话重复触发：仅在上次触发后消息数增长超过增量阈值时才再次触发
+    const last = lastAutoSummaryRef.current;
+    if (last && last.sessionId === activeSession.id) {
+      if (activeSession.messages.length < last.messageCount + ARCHIVE_RETRIGGER_INCREMENT) return;
+    }
+    lastAutoSummaryRef.current = { sessionId: activeSession.id, messageCount: activeSession.messages.length };
+    console.log(`[useChat] Message count ${activeSession.messages.length} >= ${ARCHIVE_THRESHOLD}, triggering auto summary archival...`);
+    timelineSummary.handleAutoSummaryCheck(activeSession).catch((err) => {
+      console.warn("[useChat] Auto summary archival failed:", err);
+      // 失败后重置 ref，允许下次重试
+      lastAutoSummaryRef.current = null;
+    });
+  }, [activeSession, settings.memory?.enableAutoSummary, timelineSummary]);
+
   // ── 返回值聚合（保持与原 chatHookValue 完全相同的接口形状） ─────────────────────
   return useMemo(() => ({
     // 发送/停止

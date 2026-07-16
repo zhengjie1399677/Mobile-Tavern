@@ -38,6 +38,10 @@ Mobile-Tavern
 │   ├── tabs/                                 # 主界面导航四大板块对应的核心面板
 │   │   ├── CharactersTab.tsx                 # 模糊搜索、角色分类过滤器与图片拖拽监听
 │   │   ├── ChatTab.tsx                       # 对话气泡、多分支 Swipe 手势切换底栏
+│   │   ├── chat/                             # 聊天面板子模块
+│   │   │   ├── DialogueHistoryView.tsx       # 消息流渲染、已归档消息折叠与加载更多指示器
+│   │   │   ├── useChatScroll.ts             # 滚动引擎（MutationObserver/ResizeObserver 归底 + 顶部触发分页加载）
+│   │   │   └── MessageBubble.tsx            # 单条消息气泡（思维链 + 主对白 + 时间戳）
 │   │   ├── GlobalWorldbookTab.tsx            # 全局知识库条目创建、编辑与原子写库面板
 │   │   └── SettingsTab.tsx                   # 备份管理、采样参数调节及大模型接入设置
 │   │
@@ -71,12 +75,17 @@ Mobile-Tavern
 │   │           └── MemorySummary.ts          # 故事大纲自动提炼与年表总结子模块
 │   │
 │   └── utils/                                # 底层核心计算工具包
-│       ├── apiClient.ts                      # 跨环境 Fetch 直连/代理自适应包装器
+│       ├── apiClient.ts                      # 跨环境 Fetch 直连/代理自适应包装器（支持 kernel 注入解耦）
 │       ├── cardParser.ts                     # 二进制 PNG 酒馆卡解码、备份 AES 加密
 │       ├── promptBuilder.ts                  # 前缀缓存 Prompt 重排、世界书 3 阶级联检索
 │       ├── security.ts                       # SSRF 私网 IP 过滤、DNS 防重绑定安全网闸
 │       ├── localDB.ts                        # IndexedDB 对象仓声明与并发写 Promise 管道
-│       └── telemetry.ts                      # 前端遥测桥接，自适应降级 console 并调用 Rust 命令
+│       ├── telemetry.ts                      # 前端遥测桥接，自适应降级 console 并调用 Rust 命令（支持 kernel 注入解耦）
+│       ├── catbotEventBus.ts                 # 客服助理雪团事件总线（支持 kernel 注入解耦与工厂函数）
+│       └── tavernHelper/                     # TavernHelper Bridge 模块
+│           ├── bridgeCore.ts                 # Bridge 核心状态与事件发射器（支持 kernel 注入解耦与工厂函数）
+│           ├── mvuParser.ts                  # MVU 角色卡扩展字段与正则脚本解析
+│           └── scriptIframe.ts               # MVU 沙盒脚本执行器
 ```
 
 ---
@@ -144,6 +153,26 @@ Mobile Tavern 利用 React 19 的 Concurrent Mode，通过分片更新机制，
     2.  **游戏化拓展（可选）**：**心境状态** (Condition)、**道具变动** (Inventory)、**双方情感** (Bonding)。用于辅助记录角色的好感度、装备包、生理/心理状态。
 *   **零 Token 消耗的本地正则提取**：
     系统通过在默认总结提示词末尾规定结构化输出界限，AI 总结出正文后，输出 `---` 分割线并列出各项中英文 brackets 标签。前端加载时直接利用正则表达式进行分流切割（把标签剥离正文，使总结本身保持干净），并将其持久化于 IndexedDB。如果标签缺失或为空，系统会智能降级隐藏相应徽章，完美实现对非 RPG 角色卡的向下兼容。
+
+---
+
+### 6. 长会话消息分页懒加载与总结归档 (Paginated Lazy Loading & Summary Archival)
+为解决长会话（几千条消息）场景下 IndexedDB 全量读取延迟与 DOM 节点过载问题，Mobile Tavern 实现了**三层递进式消息流瘦身机制**：
+
+#### 第一层：前端分页懒加载
+* **实现位置**: [ChatContext.tsx](src/contexts/ChatContext.tsx) 与 [useChatScroll.ts](src/tabs/chat/useChatScroll.ts)
+* **核心机制**: 利用 `localDB.ts` 已内置的 `limit` / `offset` / `descending` 参数，首次进入聊天室仅加载最新 `MESSAGES_PAGE_SIZE = 50` 条消息。用户滚动到顶部时，`useChatScroll` 的 `handleScroll` 检测 `scrollTop < 80px` 且 `hasMoreMessages` 为真时自动触发 `loadMoreMessages()`，加 500ms 防抖。
+* **滚动位置锚点保持**: 加载前通过 `pendingScrollPreserveRef` 记录 `scrollHeight`，加载完成后补偿 `scrollTop += delta`（新增历史高度），使用户视觉锚点不动。期间 MutationObserver / ResizeObserver 跳过自动归底，避免跳动。
+* **分页状态隔离**: `messagePagingRef` 按 `sessionId` 维度缓存已加载 offset 与 hasMore 标志，切换会话时不重置，切回时恢复分页进度。
+
+#### 第二层：历史消息截断与总结归档
+* **实现位置**: [useChat.tsx](src/hooks/useChat.tsx) 与 [DialogueHistoryView.tsx](src/tabs/chat/DialogueHistoryView.tsx)
+* **自动触发**: 当活跃会话内存消息数超过 `ARCHIVE_THRESHOLD = 200` 且开启自动总结时，自动调用 `handleAutoSummaryCheck` 将旧消息归纳为 `SummaryCard` 归档至故事年表。使用 `lastAutoSummarySessionIdRef` 防止对同一会话重复触发。
+* **渲染折叠**: `DialogueHistoryView` 基于 `session.lastSummarizedMessageId` 计算已归档消息数，将其之前的消息从渲染流中折叠，显示"已归档 N 条至故事年表，点击展开"提示。若未设置则退回原 20 条折叠逻辑。
+
+#### 第三层：纯 TS 工具类的 globalKernel 解耦
+* **实现位置**: [telemetry.ts](src/utils/telemetry.ts)、[apiClient.ts](src/utils/apiClient.ts)、[catbotEventBus.ts](src/utils/catbotEventBus.ts)、[bridgeCore.ts](src/utils/tavernHelper/bridgeCore.ts)
+* **核心机制**: 将四个纯 TS 工具类对 `globalKernel` 单例的直接依赖重构为可选参数注入：所有 `getTelemetryService()` / `getLlmService()` / `CatbotEventBus` 构造函数 / `createTavernHelperEventEmitter()` 均接收 `kernel?: IKernel`，默认回退 `globalKernel`。如此测试环境可传入隔离的 Mock 实例，实现物理隔离测试。
 
 ---
 
@@ -594,7 +623,9 @@ sequenceDiagram
 
 ## 🧪 自动化测试套件与覆盖验证 (Comprehensive Test Suite)
 
-为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，包含了 **60 项核心功能验证用例**。
+为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，包含了 **64 项核心功能验证用例**。
+
+此外，`tsconfig.json` 的 `include` 已扩展至 `tests/` 目录（排除 `.cjs` / `.js`），使 `npm run lint` (`tsc --noEmit`) 能够同时捕获源码与测试代码的类型错误，确保 CI/CD 拦截时自动发现测试用例的类型失效。
 
 ### 1. 自动化功能测试一览 (The 60 Test Cases)
 

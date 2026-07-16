@@ -75,15 +75,15 @@ deleteRow("任务", {"任务名": "旧任务"})
   const actions = stateTable.parseAICommand(rawContent);
   assert(actions.length === 3, "Should parse 3 actions");
 
-  assert(actions[0].type === "updaterow", "First action type = updateRow");
+  assert((actions[0].type as string) === "updaterow", "First action type = updateRow");
   assert(actions[0].sheetName === "关系", "First action sheet = '关系'");
   assert(actions[0].param1["角色"] === "艾莉丝", "First action param1 correct");
   assert(actions[0].param2?.["好感度"] === "60", "First action param2 correct");
 
-  assert(actions[1].type === "insertrow", "Second action type = insertRow");
+  assert((actions[1].type as string) === "insertrow", "Second action type = insertRow");
   assert(actions[1].param2 === undefined, "insertRow has no param2");
 
-  assert(actions[2].type === "deleterow", "Third action type = deleteRow");
+  assert((actions[2].type as string) === "deleterow", "Third action type = deleteRow");
 
   // 空内容
   assert(stateTable.parseAICommand("").length === 0, "Empty content returns empty");

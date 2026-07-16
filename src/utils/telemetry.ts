@@ -1,10 +1,14 @@
 import { globalKernel } from "../kernel/Kernel";
+import type { IKernel } from "../kernel/types";
 import { TelemetryService } from "../kernel/services/TelemetryService";
 
 let fallbackTelemetry: TelemetryService | null = null;
-function getTelemetryService() {
-  if (globalKernel && globalKernel.hasService("telemetry")) {
-    return globalKernel.getService<any>("telemetry");
+// TODO-2: 接收可选 kernel 参数，默认回退 globalKernel 单例。
+// 如此测试环境可传入隔离的 Mock 实例，实现物理隔离测试。
+function getTelemetryService(kernel?: IKernel) {
+  const k = kernel || globalKernel;
+  if (k && k.hasService("telemetry")) {
+    return k.getService<any>("telemetry");
   }
   if (!fallbackTelemetry) {
     fallbackTelemetry = new TelemetryService();
@@ -12,32 +16,32 @@ function getTelemetryService() {
   return fallbackTelemetry;
 }
 
-export function generateDeviceId(): string {
-  return getTelemetryService().generateDeviceId();
+export function generateDeviceId(kernel?: IKernel): string {
+  return getTelemetryService(kernel).generateDeviceId();
 }
 
-export function getDeviceId(): string {
-  return getTelemetryService().getDeviceId();
+export function getDeviceId(kernel?: IKernel): string {
+  return getTelemetryService(kernel).getDeviceId();
 }
 
-export function getDeviceInfo() {
-  return getTelemetryService().getDeviceInfo();
+export function getDeviceInfo(kernel?: IKernel) {
+  return getTelemetryService(kernel).getDeviceInfo();
 }
 
-export function incrementUsageCount() {
-  getTelemetryService().incrementUsageCount();
+export function incrementUsageCount(kernel?: IKernel) {
+  getTelemetryService(kernel).incrementUsageCount();
 }
 
-export function reportUsage(action: string = "app_launch", extraData: Record<string, any> = {}) {
-  getTelemetryService().reportUsage(action, extraData);
+export function reportUsage(action: string = "app_launch", extraData: Record<string, any> = {}, kernel?: IKernel) {
+  getTelemetryService(kernel).reportUsage(action, extraData);
 }
 
-export async function reportColdStartReady() {
-  await getTelemetryService().reportColdStartReady();
+export async function reportColdStartReady(kernel?: IKernel) {
+  await getTelemetryService(kernel).reportColdStartReady();
 }
 
-export function reportChatLoadTime(durationMs: number) {
-  getTelemetryService().reportChatLoadTime(durationMs);
+export function reportChatLoadTime(durationMs: number, kernel?: IKernel) {
+  getTelemetryService(kernel).reportChatLoadTime(durationMs);
 }
 
 export function reportLlmPerformance(
@@ -49,9 +53,10 @@ export function reportLlmPerformance(
   promptTokens: number,
   completionTokens: number,
   characterName?: string,
-  playerName?: string
+  playerName?: string,
+  kernel?: IKernel
 ) {
-  getTelemetryService().reportLlmPerformance(
+  getTelemetryService(kernel).reportLlmPerformance(
     sessionId,
     modelName,
     ttftMs,
@@ -64,16 +69,16 @@ export function reportLlmPerformance(
   );
 }
 
-export function reportDbQueueTimeout(queueDelayMs: number, queueLength: number) {
-  getTelemetryService().reportDbQueueTimeout(queueDelayMs, queueLength);
+export function reportDbQueueTimeout(queueDelayMs: number, queueLength: number, kernel?: IKernel) {
+  getTelemetryService(kernel).reportDbQueueTimeout(queueDelayMs, queueLength);
 }
 
-export function reportZodValidationError(errorDetail: string, path: string, inputVal: any) {
-  getTelemetryService().reportZodValidationError(errorDetail, path, inputVal);
+export function reportZodValidationError(errorDetail: string, path: string, inputVal: any, kernel?: IKernel) {
+  getTelemetryService(kernel).reportZodValidationError(errorDetail, path, inputVal);
 }
 
-export async function reportImmediate(action: string, extraData: Record<string, any> = {}) {
-  await getTelemetryService().reportImmediate(action, extraData);
+export async function reportImmediate(action: string, extraData: Record<string, any> = {}, kernel?: IKernel) {
+  await getTelemetryService(kernel).reportImmediate(action, extraData);
 }
 
 (() => {

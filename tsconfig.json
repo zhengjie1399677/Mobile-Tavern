@@ -25,11 +25,13 @@
   },
   "include": [
     "src",
-    "tests/vitest"
+    "tests"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "src-tauri"
+    "src-tauri",
+    "tests/**/*.cjs",
+    "tests/**/*.js"
   ]
 }

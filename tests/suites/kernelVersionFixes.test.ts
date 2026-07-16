@@ -73,7 +73,7 @@ export async function testKernelKernelV2Fixes() {
     k.subscribe("parallel-err", async () => { throw new Error("subscriber1 crash"); });
     k.subscribe("parallel-err", async () => { sub2Ran = true; });
     await k.publishParallel({ topic: "parallel-err", payload: null }); // 不应抛出
-    assert(sub2Ran === true, "B-4: Parallel message routing isolates individual failures, other subscribers still run");
+    assert((sub2Ran as boolean) === true, "B-4: Parallel message routing isolates individual failures, other subscribers still run");
     console.log("  ✔ B-4: publishParallel fault isolation verified");
   }
 
@@ -327,8 +327,8 @@ export async function testKernelV4AbortAndInterrupt() {
       errorThrown = true;
       assert(e.message.includes("timed out"), "Should throw timeout error");
     }
-    assert(errorThrown === true, "Should have thrown timeout error");
-    assert(isAborted === true, "AbortSignal should be triggered on timeout");
+    assert((errorThrown as boolean) === true, "Should have thrown timeout error");
+    assert((isAborted as boolean) === true, "AbortSignal should be triggered on timeout");
     console.log("  ✔ V4: Service init AbortSignal cancel verified");
   }
 
@@ -404,8 +404,8 @@ export async function testKernelV4AbortAndInterrupt() {
     // 调用销毁
     await k.destroy();
 
-    assert(isInitAborted === true, "Init task should be aborted immediately upon destroy()");
-    assert(isSubAborted === true, "Subscriber task should be aborted immediately upon destroy()");
+    assert((isInitAborted as boolean) === true, "Init task should be aborted immediately upon destroy()");
+    assert((isSubAborted as boolean) === true, "Subscriber task should be aborted immediately upon destroy()");
 
     // 此时 pRegister 和 pPublish 应该都已经 resolve/reject 完成，不应继续悬空挂起
     try {

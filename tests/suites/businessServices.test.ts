@@ -147,7 +147,7 @@ export async function testSettingsService() {
     },
   } as any;
   await service.saveStoredSettings(settings);
-  const saved = await service.getStoredSettings();
+  const saved = await service.getStoredSettings() as any;
   assert(saved !== null, "Settings should be saved (not null)");
   assert(saved.apiBaseUrl === "https://api.test.com/v1", "apiBaseUrl matches");
   assert(saved.apiKey === "sk-test-123", "apiKey matches");

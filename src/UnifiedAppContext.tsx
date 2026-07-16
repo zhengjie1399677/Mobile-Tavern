@@ -64,6 +64,10 @@ export interface UnifiedAppContextProps {
   loadSessions: () => Promise<void>;
   saveSession: (session: ChatSession) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
+  // TODO-4: 消息分页懒加载
+  hasMoreMessages: boolean;
+  isLoadingMoreMessages: boolean;
+  loadMoreMessages: () => Promise<void>;
 
   // --- Settings Hook ---
   settings: UserSettings;

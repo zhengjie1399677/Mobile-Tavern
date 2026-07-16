@@ -39,7 +39,7 @@ export async function testKernelFaultIsolation() {
     }
   };
   await testKernel.registerService("mock-async", mockAsyncService);
-  assert(asyncInitRun === true, "Async init resolves correctly before registration completes");
+  assert((asyncInitRun as boolean) === true, "Async init resolves correctly before registration completes");
 
   // 3. 测试非致命初始化崩溃的服务隔离
   const badService: IKernelService = {
@@ -83,7 +83,7 @@ export async function testKernelFaultIsolation() {
   };
   await testKernel.registerService("mock-destroy", mockDestroyService);
   await testKernel.destroyService("mock-destroy");
-  assert(destroyRun === true, "Destroy hook executed successfully");
+  assert((destroyRun as boolean) === true, "Destroy hook executed successfully");
   // 销毁后再次获取，应退化为 Safe Proxy
   const nullService = testKernel.getService<any>("mock-destroy");
   assert(nullService.name === "mock-destroy", "Destroyed service fallbacks to safe proxy");
@@ -307,7 +307,7 @@ export async function testKernelPipelineHardening() {
     // B-3 修复：异常后管道在此终止，后续中间件不应执行
     assert(errorCtx.logs.includes("err-start"), "Error middleware ran before crash");
     assert(!errorCtx.logs.includes("should-not-run-after-crash"), "Pipeline halted at crash point, subsequent middleware did not run (B-3 fix)");
-    assert(errorLogged === true, "Pipeline logged the exception correctly");
+    assert((errorLogged as boolean) === true, "Pipeline logged the exception correctly");
   } finally {
     console.error = originalError;
   }
@@ -339,7 +339,7 @@ export async function testKernelPipelineHardening() {
     // B-3 修复：遗忘 next() 后记录错误但不穿透，后续中间件不执行
     assert(hangCtx.logs.includes("forget-next"), "Middleware ran before forgetting next()");
     assert(!hangCtx.logs.includes("should-not-run-without-next"), "Pipeline halted after forget-next, no bypass (B-3 fix)");
-    assert(forgotNextErrorLogged === true, "Pipeline logged forget-next error");
+    assert((forgotNextErrorLogged as boolean) === true, "Pipeline logged forget-next error");
   } finally {
     console.error = originalError2;
   }
@@ -432,9 +432,9 @@ export async function testKernelHardeningP0ToP3() {
       assert(err.message.includes("Init crash simulated!"), "Correct error thrown from init");
     }
     // 验证原子性：init 报错时，不可暴露实例在 services 容器中
-    assert(serviceInitialized === true, "Init function was run");
+    assert((serviceInitialized as boolean) === true, "Init function was run");
     // B-2 修复后：init 过程中关键服务 getService 调用应抛出 FATAL（不是 SafeProxy）
-    assert(initPhaseGetServiceThrew === true, "During init of critical service, getService(self) throws FATAL not SafeProxy (B-2 fix)");
+    assert((initPhaseGetServiceThrew as boolean) === true, "During init of critical service, getService(self) throws FATAL not SafeProxy (B-2 fix)");
 
     // 注册失败后，services 容器中不能存在该实例
     // B-2 修复后：关键服务注册失败后 getService 直接抛出 FATAL（而非返回 SafeProxy DevError）
