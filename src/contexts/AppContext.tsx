@@ -25,7 +25,7 @@ export type TabType =
   | "global-worldbook"
   | "playground";
 
-export type ThemeType = "snow" | "sand" | "ocean" | "obsidian";
+export type ThemeType = "snow" | "sand" | "ocean" | "obsidian" | (string & {});
 
 export interface CustomDialogConfig {
   isOpen: boolean;
@@ -226,7 +226,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     document.documentElement.setAttribute("data-theme", currentTheme);
-    const isDark = currentTheme === "ocean" || currentTheme === "obsidian";
+    // isDark 判定：内置主题用字面量；自定义主题（custom_* 前缀）从 localStorage 读取由
+    // ThemeConfigSection 在应用主题前写入的 isDark 标记，避免 AppProvider 反向依赖 settings.customThemes
+    let isDark: boolean;
+    if (typeof currentTheme === "string" && currentTheme.startsWith("custom_")) {
+      isDark = localStorage.getItem("mobile_tavern_custom_is_dark") === "true";
+    } else {
+      isDark = currentTheme === "ocean" || currentTheme === "obsidian";
+    }
     if (isDark) {
       document.documentElement.classList.add("dark");
       document.documentElement.style.colorScheme = "dark";
@@ -243,6 +250,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       color = "#1a2040"; // approximates oklch(0.15 0.03 260)
     } else if (currentTheme === "obsidian") {
       color = "#0d0f17"; // obsidian background
+    } else if (typeof currentTheme === "string" && currentTheme.startsWith("custom_")) {
+      // 自定义主题：根据 isDark 复用相近内置主题的状态栏色作为兜底
+      // 真实背景由注入的 CSS 变量控制，此处仅用于原生状态栏配色对齐
+      color = isDark ? "#0d0f17" : "#f5f0e8";
     }
 
     // Synchronize meta color-scheme

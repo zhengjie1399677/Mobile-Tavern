@@ -82,6 +82,30 @@
 * **关键设计决策**：列结构变更的行对齐采用"按列名匹配"而非"按列索引对齐"，理由：用户重命名列时通常希望丢弃旧数据（语义已变），而新增列希望补空，按名匹配自然满足这两点。UI 明确提示此契约。
 * **验证结果**：`npm run lint` 通过；`npm run test` 65/65 全部通过。零跨文件改动，零类型扩展（`TableMemorySheet` 类型未变）。
 
+### 9. 主题包导入导出 [难度：低-中]
+
+* **问题描述**：CSS 变量体系与 `sanitizeCss` 已预留，但用户无法导入/导出/分享自定义主题。
+* **修复方案**：按 AGENTS.md 准则八新建隔离沙盒 [themePackage.ts](file:///e:/modules/projects/Mobile-Tavern/src/utils/themePackage.ts) 实现核心逻辑：
+  - 定义 `.tavern-theme.json` 包格式 `CustomThemePackage`：`schemaVersion/name/version/description/isDark/variables/customCss`
+  - CSS 变量白名单 `ALLOWED_CSS_VARS`：放行 23 个标准 UI 变量（background/foreground/primary/card/border/radius/dialogue-color 等），显式禁止 `--safe-area-*` 与 `--android-safe-area-*` 避免破坏移动端避让
+  - `validateThemePackage()` 多层校验：schemaVersion、name 长度、变量白名单、值内容安全（禁 `</style>`/`<script>`）
+  - `parseThemePackage()` / `serializeThemePackage()` 反/序列化，导出时移除运行时字段（id/importedAt）保持包文件纯净
+  - `generateThemeId()` 基于 name 的 FNV-1a 短哈希，同名包幂等去重
+  - `applyThemePackage()` / `removeThemePackageStyle()` 通过 `<style id="tavern-custom-theme-xxx">` 标签注入到 document.head，CSS 选择器 `[data-theme="custom_xxx"]` 命中变量覆盖
+  - customCss 经 `sanitizeCss` 二次过滤（拦 `@import`/`url()`/`expression()`/`position:fixed`/`<script>`）
+* **接入路径**：
+  - [types.ts](file:///e:/modules/projects/Mobile-Tavern/src/types.ts) 顶部 `import type { CustomThemePackage }` 并扩展 `UserSettings.customThemes?` 字段
+  - [defaults.ts](file:///e:/modules/projects/Mobile-Tavern/src/hooks/settings/defaults.ts) 添加 `customThemes: []` 默认值
+  - [useSettingsLoader.ts](file:///e:/modules/projects/Mobile-Tavern/src/hooks/settings/useSettingsLoader.ts) 合并 `customThemes` 字段
+  - [localDB.ts](file:///e:/modules/projects/Mobile-Tavern/src/utils/localDB.ts) `cloneSettings` 深拷贝 customThemes 数组与 variables 对象，避免 React 状态与持久化共享引用
+  - [AppContext.tsx](file:///e:/modules/projects/Mobile-Tavern/src/contexts/AppContext.tsx) `ThemeType` 扩展为字面量联合 + `(string & {})` 保留补全同时允许任意 custom_id；isDark 判定对 `custom_*` 前缀从 `localStorage.mobile_tavern_custom_is_dark` 读取，避免 AppProvider 反向依赖 settings.customThemes
+  - [ThemeConfigSection.tsx](file:///e:/modules/projects/Mobile-Tavern/src/tabs/settings/ThemeConfigSection.tsx) 主题下拉扩展自定义主题选项（含暗色/亮色标记）；新增"主题包管理"区域：导入按钮（`<input type="file" accept=".json">`）、已导入列表（应用/导出/删除三按钮）
+* **关键设计决策**：
+  - **isDark 通过 localStorage 传递**：AppProvider 在外层无法访问 settings，ThemeConfigSection 在应用 custom 主题前写入 `localStorage.mobile_tavern_custom_is_dark`，AppProvider 的 useEffect 读取此标记判定 isDark。这避免 AppProvider 反向依赖 settings.customThemes，保持架构清晰
+  - **同 id 主题覆盖**：导入同名包（id 相同）覆盖旧版本，幂等去重而非追加
+  - **CSS 选择器策略**：所有 customThemes 在挂载时通过 useEffect 全量注入 `<style>` 标签，切换主题只需切换 `data-theme` 属性，CSS 选择器自动命中，避免运行时重注入闪烁
+* **验证结果**：`npm run lint` 通过；`npm run test` 65/65 全部通过。
+
 ---
 
 ## 🚀 未来待办事项 (Future Action Items)
@@ -90,16 +114,20 @@
 >
 > 以下待办按实现难度从低到高排序，前项为后项基础。
 
-### 1. 主题包导入导出 [难度：低-中]
+### 1. 主题包在线编辑器 [难度：中]
 
-* **目标**：兑现 CSS 变量与 `sanitizeCss` 预留，让用户能完全自定义主题（导入/导出/分享）。
+* **目标**：在已落地的"导入/导出/列表管理"基础上，提供内置的可视化主题编辑器，让用户无需手写 JSON 即可调色与预览。
+* **依赖**：待办已修复 #9（主题包导入导出）。
 * **现状基础**：
-  - [index.css](file:///e:/modules/projects/Mobile-Tavern/src/index.css) 已有完整 CSS 变量体系（background/foreground/primary/card 等）+ 4 套内置主题（snow/sand/ocean/obsidian）。
-  - [security.ts](file:///e:/modules/projects/Mobile-Tavern/src/utils/security.ts) 已有 `sanitizeCss`（拦截 `@import`/`url()`/`<script>`/`expression()`/`position:fixed`）。
-  - [ThemeConfigSection.tsx](file:///e:/modules/projects/Mobile-Tavern/src/tabs/settings/ThemeConfigSection.tsx) 主题选择 UI 已存在。
-* **缺口**：缺 `.tavern-theme.json` 包格式、文件导入导出、变量名白名单校验（必须排除 `--safe-area-*`）。
-* **产出**：主题包导入导出 + 列表管理 UI + schema 校验。
-* **预估**：3-5 天。主要工作量在 UI 和校验逻辑。
+  - [themePackage.ts](file:///e:/modules/projects/Mobile-Tavern/src/utils/themePackage.ts) 已实现包格式 + 校验 + 序列化 + CSS 注入
+  - [ThemeConfigSection.tsx](file:///e:/modules/projects/Mobile-Tavern/src/tabs/settings/ThemeConfigSection.tsx) 已有主题包列表与应用入口
+* **缺口**：
+  - 可视化调色器（每个白名单 CSS 变量一个颜色选择器）
+  - 实时预览（编辑时即时注入 `<style>` 预览效果）
+  - "另存为主题包"按钮（从当前调色状态生成 CustomThemePackage）
+  - customCss 编辑器（textarea + sanitize 实时校验）
+* **产出**：主题编辑器 UI（颜色选择器 + 实时预览 + 另存为 + customCss 编辑器）。
+* **预估**：3-5 天。主要工作量在 UI 与实时预览性能。
 
 ### 4. 叙事记忆用户控制 [难度：中]
 
@@ -172,6 +200,7 @@
 
 | 日期 | 变动内容 |
 |---|---|
+| 2026-07-17 | 落地主题包导入导出（原 TODO #1）：新建 `src/utils/themePackage.ts` 沙盒实现 `.tavern-theme.json` 包格式 + CSS 变量白名单（23 个标准变量，禁 `--safe-area-*`）+ 多层校验 + 序列化 + `<style>` 标签注入。接入 types/defaults/useSettingsLoader/localDB cloneSettings/AppContext ThemeType 扩展（字面量联合 + `(string & {})`）/ThemeConfigSection UI（导入按钮 + 已导入列表 + 应用/导出/删除三按钮）。isDark 通过 localStorage 传递避免 AppProvider 反向依赖 settings。65/65 测试全通过。TODO #1 更新为"主题包在线编辑器"（可视化调色器 + 实时预览）。 |
 | 2026-07-17 | 落地状态记忆查看与编辑层 + 表结构编辑（合并原 #1+#6 列结构部分）：核查发现 `TableMemoryTab.tsx` 早已实现查看/单元格编辑/行级增删/表启停，原 #1 缺口分析系误判；本次补全删除行/重置表/删除表二次确认 + 新建/删除/编辑表结构（表名/描述/列名）+ 列结构变更按列名匹配保留旧数据。同时核查 `PromptService.ts` 确认 LLM 动态读取 sheet 结构注入 Prompt，表结构变更无需改后端。单文件改动，65/65 测试全通过。TODO #6 调整为"状态记忆 Schema 高阶层（字段类型/默认值/模板持久化）"。 |
 | 2026-07-17 | 产品方向校准：放弃通用第三方插件生态（移动端合规与范式壁垒），转向"用户可编程底座"模式。新增 9 项待办，按实现难度从低到高排序：状态记忆查看层/编辑层、主题包导入导出、叙事记忆用户控制、字典记忆查询视图、状态记忆 Schema 层、脚本片段管理 UI、规则触发系统、数据派生计算。 |
 | 2026-07-16 | 落地全部代办事项：#4 消息分页懒加载、#5 tsconfig 检查范围扩宽至 tests 并修复 11 个测试文件类型错误、#6 纯 TS 工具类 globalKernel 解耦（4 文件改为可选 kernel 参数 + 工厂函数）、#7 历史消息截断与总结归档（200 条阈值自动触发 + lastSummarizedMessageId 折叠渲染）。全部通过 lint 与 61/61 测试。 |

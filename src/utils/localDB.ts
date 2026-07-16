@@ -726,6 +726,12 @@ export async function saveStoredSettings(
       savedApiProfiles: settings.savedApiProfiles
         ? settings.savedApiProfiles.map(profile => ({ ...profile }))
         : settings.savedApiProfiles,
+      customThemes: settings.customThemes
+        ? settings.customThemes.map(theme => ({
+            ...theme,
+            variables: { ...theme.variables },
+          }))
+        : settings.customThemes,
     };
 
     // DATA-04: 加密过程错误处理。失败时清空对应 apiKey 字段以防止明文落库，

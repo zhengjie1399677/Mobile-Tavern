@@ -448,6 +448,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   enableAsteriskFormatting: false,
   chatFontSize: 14,
   chatLineHeight: 1.5,
+  customThemes: [],
   imageGenApi: {
     enabled: false,
     type: "openai-dalle",

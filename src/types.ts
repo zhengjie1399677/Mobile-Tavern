@@ -1,3 +1,5 @@
+import type { CustomThemePackage } from "./utils/themePackage";
+
 export interface LorebookEntry {
   id: string;
   keys: string[]; // Trigger keywords
@@ -254,6 +256,7 @@ export interface UserSettings {
   ttsConfig?: TtsConfig; // TTS 朗读配置
   asrConfig?: AsrConfig; // ASR 语音输入配置
   lastBackupTime?: number; // 上次成功执行每日自动备份的时间戳
+  customThemes?: CustomThemePackage[]; // 已导入的自定义主题包列表（.tavern-theme.json）
 }
 
 export interface ImageGenApiConfig {
