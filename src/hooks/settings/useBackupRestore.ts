@@ -11,6 +11,22 @@ import {
 import { encryptBackupData, decryptBackupData } from "../../utils/cardParser";
 import { DEFAULT_SETTINGS } from "./defaults";
 
+/**
+ * 原生 Android WebView 注入的桥接对象形状（仅声明本 Hook 实际使用的方法）。
+ * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
+ */
+interface AndroidThemeBridge {
+  saveFile(fileName: string, content: string): string;
+}
+
+/**
+ * 扩展 Window 以访问原生注入的 AndroidThemeBridge。
+ * 字段可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface WindowWithAndroidBridge extends Window {
+  AndroidThemeBridge?: AndroidThemeBridge;
+}
+
 interface UseBackupRestoreDeps {
   settings: UserSettings;
   globalLorebook: LorebookEntry[];
@@ -121,8 +137,9 @@ export const useBackupRestore = ({
       const fileName = `mobile_tavern_backup_${new Date().toISOString().slice(0, 10)}${encryptBackup ? ".backup" : ".json"}`;
 
       // If running in Android app via bridge
-      if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
-        const path = (window as any).AndroidThemeBridge.saveFile(fileName, outputData);
+      const exportBridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
+      if (exportBridge && typeof exportBridge.saveFile === "function") {
+        const path = exportBridge.saveFile(fileName, outputData);
         if (path && !path.startsWith("error:")) {
           setBackupStatus("备份文件保存成功！");
           await showCustomAlert(`📂 数据备份导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}${encryptBackup ? "" : "\n\n⚠️ 注意：为了您的秘钥安全，明文备份已自动抹除 API Key 配置。"}`, "导出成功");
@@ -525,8 +542,9 @@ export const useBackupRestore = ({
       const fileName = `autobackup_${todayStr}.json`;
 
       // 真机写入逻辑
-      if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
-        const path = (window as any).AndroidThemeBridge.saveFile(fileName, jsonStr);
+      const silentBridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
+      if (silentBridge && typeof silentBridge.saveFile === "function") {
+        const path = silentBridge.saveFile(fileName, jsonStr);
         if (path && !path.startsWith("error:")) {
           console.log("[AutoBackup] Silent daily backup saved successfully to: ", path);
           setSettings((prev) => ({

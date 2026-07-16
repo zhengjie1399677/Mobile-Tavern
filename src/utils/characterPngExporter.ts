@@ -10,6 +10,22 @@ import { injectPngMetadata } from "./cardParser";
  */
 
 /**
+ * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。
+ * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
+ */
+interface AndroidThemeBridge {
+  saveFileBase64?: (fileName: string, base64Data: string, mimeType: string) => string;
+}
+
+/**
+ * 扩展 Window 以访问原生注入的 AndroidThemeBridge。
+ * 字段可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface WindowWithAndroidBridge extends Window {
+  AndroidThemeBridge?: AndroidThemeBridge;
+}
+
+/**
  * 生成包含角色卡元数据的 PNG Blob。
  * - 若角色含 avatar：绘制头像
  * - 若头像加载失败或无 avatar：绘制渐变背景 + 角色名文字
@@ -119,12 +135,12 @@ export function saveBlobViaBridgeOrDownload(
   onError: (msg: string) => void
 ): void {
   // 原生桥接路径：转 base64 后调用 AndroidThemeBridge.saveFileBase64
-  if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFileBase64 === "function") {
+  if ((window as WindowWithAndroidBridge).AndroidThemeBridge && typeof (window as WindowWithAndroidBridge).AndroidThemeBridge?.saveFileBase64 === "function") {
     const reader = new FileReader();
     reader.readAsDataURL(blob);
     reader.onloadend = () => {
       const base64data = (reader.result as string).split(",")[1];
-      const path = (window as any).AndroidThemeBridge.saveFileBase64(fileName, base64data, mimeType);
+      const path = (window as WindowWithAndroidBridge).AndroidThemeBridge!.saveFileBase64!(fileName, base64data, mimeType);
       if (path && !path.startsWith("error:")) {
         onSuccess(path);
       } else {

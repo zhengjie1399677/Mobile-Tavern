@@ -1,5 +1,5 @@
 import { IDatabaseService, IKernel } from "../types";
-import { ChatSession } from "../../types";
+import { ChatSession, Message } from "../../types";
 import {
   getAllSessions,
   saveSession,
@@ -14,6 +14,16 @@ import {
   syncSessionMessages as dbSyncSessionMessages,
 } from "../../utils/localDB";
 import { applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
+
+/**
+ * 内存 Message 在持久化到 messages Store 时可能携带的记忆系统额外字段。
+ * 与 localDB.ts 中的 PersistedMessage 保持一致，确保类型契约不逃逸。
+ */
+type PersistedMessage = Message & {
+  tags?: string[];
+  extractSource?: string;
+  metadata?: Record<string, unknown>;
+};
 
 export class DatabaseService implements IDatabaseService {
   name = "database";
@@ -65,7 +75,7 @@ export class DatabaseService implements IDatabaseService {
    * 将内存 Message 格式转换为 DB MessageRecord 格式后调用 appendMessage。
    * turnIndex 未提供时使用 Date.now() 作为占位，MemoryExtractor 后续会更新。
    */
-  async appendSessionMessage(sessionId: string, message: any, turnIndex?: number): Promise<void> {
+  async appendSessionMessage(sessionId: string, message: PersistedMessage, turnIndex?: number): Promise<void> {
     await dbAppendMessage({
       id: message.id,
       sessionId,
@@ -73,9 +83,9 @@ export class DatabaseService implements IDatabaseService {
       content: message.content,
       createdAt: message.timestamp || Date.now(),
       turnIndex: turnIndex ?? 0,
-      tags: (message as any).tags || [],
-      extractSource: (message as any).extractSource || "none",
-      metadata: (message as any).metadata || message.extra,
+      tags: message.tags || [],
+      extractSource: message.extractSource || "none",
+      metadata: message.metadata || message.extra,
     });
   }
 

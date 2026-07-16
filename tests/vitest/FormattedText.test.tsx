@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import FormattedText from "../../src/components/FormattedText";
+import type { CharacterCard } from "../../src/types";
 
 const mockSettings = {
   enableHtmlRendering: true,
@@ -13,9 +14,12 @@ const mockSettings = {
   presetRegexScripts: [],
 };
 
-const mockContext = {
+const mockContext: {
+  settings: typeof mockSettings;
+  activeCharacter: Partial<CharacterCard> | null;
+} = {
   settings: mockSettings,
-  activeCharacter: null as any,
+  activeCharacter: null,
 };
 
 vi.mock("../../src/UnifiedAppContext", () => ({

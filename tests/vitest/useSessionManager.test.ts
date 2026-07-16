@@ -4,10 +4,16 @@
  * 覆盖新建会话、角色切换、创建/删除分支、回溯分支、空会话自动清理
  * 使用 renderHook + Mock 依赖验证关键业务路径
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useSessionManager } from "../../src/hooks/useChat/useSessionManager";
-import type { ChatSession, CharacterCard, UserSettings, Message } from "../../src/types";
+import type { ChatSession, CharacterCard, UserSettings, Message, SummaryCard } from "../../src/types";
+import type { IDatabaseService, ITelemetryService } from "../../src/kernel/types";
+
+// 测试专用：IDatabaseService 的 Mock 变体，暴露 vi.fn() 的 .mock 属性用于断言调用参数
+type MockDatabaseService = IDatabaseService & {
+  createNewSession: Mock;
+};
 
 // ─── 测试夹具工厂 ──────────────────────────────────────────────────────────────
 function createMockCharacter(overrides?: Partial<CharacterCard>): CharacterCard {
@@ -19,7 +25,7 @@ function createMockCharacter(overrides?: Partial<CharacterCard>): CharacterCard 
     description: "",
     personality: "",
     ...overrides,
-  } as any;
+  } as unknown as CharacterCard;
 }
 
 function createMockSession(overrides?: Partial<ChatSession>): ChatSession {
@@ -34,7 +40,7 @@ function createMockSession(overrides?: Partial<ChatSession>): ChatSession {
     createdAt: 1000,
     turnCount: 1,
     ...overrides,
-  } as any;
+  } as unknown as ChatSession;
 }
 
 function createMockParams(overrides?: Partial<any>) {
@@ -63,7 +69,7 @@ function createMockParams(overrides?: Partial<any>) {
     activeSessionId: "session-1",
     sessions: [session],
     characters: [character],
-    settings: { enableReplySuggestions: false } as any,
+    settings: { enableReplySuggestions: false } as unknown as UserSettings,
     setSessions,
     setActiveCharId,
     setActiveSessionId,
@@ -77,10 +83,10 @@ function createMockParams(overrides?: Partial<any>) {
       createEmptyBranch: vi.fn().mockResolvedValue(createMockSession({ id: "branch-session" })),
       createBacktrackBranch: vi.fn().mockResolvedValue(createMockSession({ id: "backtrack-session" })),
       createBacktrackFromTimeline: vi.fn().mockResolvedValue(createMockSession({ id: "timeline-session" })),
-    } as any,
+    } as unknown as MockDatabaseService,
     telemetryService: {
       reportUsage: vi.fn(),
-    } as any,
+    } as unknown as ITelemetryService,
     triggerScroll,
     showCustomAlert,
     showCustomConfirm,
@@ -131,7 +137,7 @@ describe("useSessionManager", () => {
 
     it("启用回复建议时附加默认 suggestions", async () => {
       const params = createMockParams({
-        settings: { enableReplySuggestions: true } as any,
+        settings: { enableReplySuggestions: true } as unknown as UserSettings,
       });
       const { result } = renderHook(() => useSessionManager(params));
       await act(async () => {
@@ -144,7 +150,7 @@ describe("useSessionManager", () => {
 
     it("首条消息已含 suggestions 标签时不重复附加", async () => {
       const params = createMockParams({
-        settings: { enableReplySuggestions: true } as any,
+        settings: { enableReplySuggestions: true } as unknown as UserSettings,
         activeCharacter: createMockCharacter({ first_mes: '你好<suggestions>["嗨"]</suggestions>' }),
       });
       const { result } = renderHook(() => useSessionManager(params));
@@ -370,7 +376,7 @@ describe("useSessionManager", () => {
       const params = createMockParams({ activeSession: null });
       const { result } = renderHook(() => useSessionManager(params));
       await act(async () => {
-        await result.current.createBacktrackFromTimeline({ id: "summary-1", timeTag: "第一幕" } as any);
+        await result.current.createBacktrackFromTimeline({ id: "summary-1", timeTag: "第一幕" } as unknown as SummaryCard);
       });
       expect(params.databaseService.createBacktrackFromTimeline).not.toHaveBeenCalled();
     });
@@ -378,7 +384,7 @@ describe("useSessionManager", () => {
     it("正常创建时间线分支", async () => {
       const params = createMockParams();
       const { result } = renderHook(() => useSessionManager(params));
-      const summary = { id: "summary-1", timeTag: "第一幕" } as any;
+      const summary = { id: "summary-1", timeTag: "第一幕" } as unknown as SummaryCard;
       await act(async () => {
         await result.current.createBacktrackFromTimeline(summary);
       });

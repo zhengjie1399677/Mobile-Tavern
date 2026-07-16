@@ -258,7 +258,7 @@ function createStore<T>(initialState: T) {
   return { getState, setState, setRawState, notifyListeners, subscribe, useStore };
 }
 
-export const unifiedAppStore = createStore<UnifiedAppContextProps>({} as any);
+export const unifiedAppStore = createStore<UnifiedAppContextProps>({} as UnifiedAppContextProps);
 
 function shallowEqual(a: any, b: any): boolean {
   if (Object.is(a, b)) return true;

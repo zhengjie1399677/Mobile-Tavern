@@ -80,7 +80,7 @@ export async function testDatabaseServiceCrud() {
     initializeMvuFromCharacter(char: any) {
       return { hp: 100 };
     }
-  } as any;
+  } as unknown as IKernelService;
 
   const mockDbService = new DatabaseService();
   mockDbService.saveSession = async (sess: any) => {
@@ -145,8 +145,8 @@ export async function testLocalDBSplitTrack() {
   // Mock IDBTransaction
   const mockTransaction = {
     objectStore: (name: string) => mockStore,
-    oncomplete: null as any,
-    onerror: null as any,
+    oncomplete: null as ((ev: Event) => void) | null,
+    onerror: null as ((ev: Event) => void) | null,
     error: null
   };
 
@@ -156,9 +156,9 @@ export async function testLocalDBSplitTrack() {
   };
 
   // 注入 mock DB 实例到 localDB 中以避免调用真实的 indexedDB.open
-  const originalIndexedDB = (global as any).indexedDB;
+  const originalIndexedDB = (global as unknown as { indexedDB: IDBFactory }).indexedDB;
 
-  (global as any).indexedDB = {
+  (global as unknown as { indexedDB: IDBFactory }).indexedDB = {
     open: () => {
       const request: any = {};
       setTimeout(() => {
@@ -167,7 +167,7 @@ export async function testLocalDBSplitTrack() {
       }, 0);
       return request;
     }
-  } as any;
+  } as unknown as IDBFactory;
 
   // 2. 模拟要保存的 settings
   const testSettings: any = {
@@ -202,7 +202,11 @@ export async function testLocalDBSplitTrack() {
   assert(rawLargePrompts.bisonModePrompt === "BISON: Mode prompt", "bisonModePrompt must be stored in large prompts");
 
   // 5. 执行读取
-  const loadedSettings = await localDB.getStoredSettings() as any;
+  const loadedSettings = await localDB.getStoredSettings() as unknown as {
+    promptConfig: { mainPrompt: string; reasoningGuidancePrompt: string };
+    bisonModePrompt: string;
+    otherOption: string;
+  };
   assert(loadedSettings !== null, "getStoredSettings should return object");
 
   // 6. 验证读取合并后的内容是否与原 settings 一致
@@ -212,7 +216,7 @@ export async function testLocalDBSplitTrack() {
   assert(loadedSettings.otherOption === "enabled", "Merged otherOption matches");
 
   // 7. 还原 global 状态
-  (global as any).indexedDB = originalIndexedDB;
+  (global as unknown as { indexedDB: IDBFactory }).indexedDB = originalIndexedDB;
 
   console.log("✔ localDB settings Split-Track Storage and Merge verified successfully!");
 }

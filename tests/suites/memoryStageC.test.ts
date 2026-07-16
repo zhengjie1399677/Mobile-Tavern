@@ -10,6 +10,9 @@
  */
 
 import { assert } from "./testUtils";
+import type { MemoryStorage } from "../../src/kernel/services/memory/MemoryStorage";
+import type { IKernel } from "../../src/kernel/types";
+import type { ChatSession, UserSettings, CharacterCard, Message, SummaryCard } from "../../src/types";
 
 // ===== 测试 7：MemoryStateTable =====
 
@@ -20,7 +23,7 @@ export async function testMemoryStateTable() {
   );
 
   // 用 MockStorage 占位（MemoryStateTable 仅持有引用，目前不实际调用）
-  const mockStorage = {} as any;
+  const mockStorage = {} as unknown as MemoryStorage;
   const stateTable = new MemoryStateTable(mockStorage);
   stateTable.init();
 
@@ -334,11 +337,11 @@ export async function testMemorySummary() {
       if (name === "database") return mockDb;
       throw new Error(`Unknown service: ${name}`);
     },
-  };
+  } as unknown as IKernel;
 
   /** 构造测试用 session */
-  function buildSession(msgCount: number, opts?: { lastSummarizedId?: string; summaryCount?: number }) {
-    const messages = [];
+  function buildSession(msgCount: number, opts?: { lastSummarizedId?: string; summaryCount?: number }): ChatSession {
+    const messages: Message[] = [];
     for (let i = 0; i < msgCount; i++) {
       messages.push({
         id: `msg_${i}`,
@@ -347,7 +350,7 @@ export async function testMemorySummary() {
         timestamp: 1000 + i,
       });
     }
-    const summaries = [];
+    const summaries: SummaryCard[] = [];
     for (let i = 0; i < (opts?.summaryCount ?? 0); i++) {
       summaries.push({
         id: `summary_${i}`,
@@ -359,6 +362,9 @@ export async function testMemorySummary() {
     }
     return {
       id: "sess_test",
+      characterId: "test_character",
+      title: "Test Session",
+      createdAt: 0,
       messages,
       summaries,
       lastSummarizedMessageId: opts?.lastSummarizedId,
@@ -366,9 +372,10 @@ export async function testMemorySummary() {
   }
 
   /** 构造测试用 settings */
-  function buildSettings(opts?: { apiKey?: string; triggerTurns?: number }) {
+  function buildSettings(opts?: { apiKey?: string; triggerTurns?: number }): UserSettings {
     return {
       api: {
+        type: "openai-compat",
         apiKey: opts?.apiKey ?? "test-key",
         baseUrl: "https://api.test.com",
         modelName: "test-model",
@@ -377,32 +384,59 @@ export async function testMemorySummary() {
       memory: {
         recentTurns: 6,
         summaryTriggerTurns: opts?.triggerTurns ?? 5,
+        summaryLength: 150,
         summarySystemPrompt: "请总结这段对话",
         timeTagTemplate: "第{{index}}幕",
+      },
+      preset: {
+        id: "test_preset",
+        name: "Test Preset",
+        temperature: 0.7,
+        topP: 0.9,
+        topK: 40,
+        repetitionPenalty: 1.1,
+        maxTokens: 1000,
+      },
+      promptConfig: {
+        mainPrompt: "",
+        jailbreakPrompt: "",
+        useJailbreak: false,
+        instructTemplate: "default",
+        systemPrefix: "",
+        systemSuffix: "",
+        userPrefix: "",
+        userSuffix: "",
+        assistantPrefix: "",
+        assistantSuffix: "",
       },
       userName: "玩家",
     };
   }
 
   /** 构造测试用 character */
-  const testCharacter = {
+  const testCharacter: CharacterCard = {
+    id: "char_test",
     name: "艾莉丝",
+    description: "",
+    personality: "",
     scenario: "王都旅馆的深夜",
+    first_mes: "",
+    mes_example: "",
   };
 
   // === 8.1 未达阈值不触发 ===
   console.log("  [8.1] below threshold - no trigger...");
 
-  const storage1 = {} as any;
+  const storage1 = {} as unknown as MemoryStorage;
   const summary1 = new MemorySummary(storage1);
-  summary1.init(mockKernel as any);
+  summary1.init(mockKernel);
 
   // triggerTurns=5 → maxAllowedUnsummarized=10；只有 5 条消息未总结 → 不触发
   const session1 = buildSession(5);
   const result1 = await summary1.checkAndSummarize(
-    session1 as any,
-    buildSettings() as any,
-    testCharacter as any,
+    session1,
+    buildSettings(),
+    testCharacter,
     false
   );
   assert(result1 === session1, "Below threshold should return original session");
@@ -413,9 +447,9 @@ export async function testMemorySummary() {
   // === 8.2 达阈值触发 ===
   console.log("  [8.2] reach threshold - trigger summary...");
 
-  const storage2 = {} as any;
+  const storage2 = {} as unknown as MemoryStorage;
   const summary2 = new MemorySummary(storage2);
-  summary2.init(mockKernel as any);
+  summary2.init(mockKernel);
 
   // triggerTurns=5 → maxAllowedUnsummarized=10；12 条消息未总结 → 触发
   const session2 = buildSession(12);
@@ -424,9 +458,9 @@ export async function testMemorySummary() {
   llmCallCount = 0;
 
   const result2 = await summary2.checkAndSummarize(
-    session2 as any,
-    buildSettings() as any,
-    testCharacter as any,
+    session2,
+    buildSettings(),
+    testCharacter,
     false
   );
   assert(result2 !== session2, "Triggered should return new session");
@@ -455,16 +489,16 @@ export async function testMemorySummary() {
   // === 8.3 免 Key 模式静默跳过 ===
   console.log("  [8.3] no-key mode - silent skip...");
 
-  const storage3 = {} as any;
+  const storage3 = {} as unknown as MemoryStorage;
   const summary3 = new MemorySummary(storage3);
-  summary3.init(mockKernel as any);
+  summary3.init(mockKernel);
 
   const session3 = buildSession(12);
   llmCallCount = 0;
   const result3 = await summary3.checkAndSummarize(
-    session3 as any,
-    buildSettings({ apiKey: "" }) as any,
-    testCharacter as any,
+    session3,
+    buildSettings({ apiKey: "" }),
+    testCharacter,
     false
   );
   assert(result3 === session3, "No-key mode should return original session");
@@ -475,17 +509,17 @@ export async function testMemorySummary() {
   // === 8.4 force=true + 免 Key 模式抛错 ===
   console.log("  [8.4] force=true + no-key mode - throw error...");
 
-  const storage4 = {} as any;
+  const storage4 = {} as unknown as MemoryStorage;
   const summary4 = new MemorySummary(storage4);
-  summary4.init(mockKernel as any);
+  summary4.init(mockKernel);
 
   const session4 = buildSession(5);
   let errorThrown: Error | null = null;
   try {
     await summary4.checkAndSummarize(
-      session4 as any,
-      buildSettings({ apiKey: "" }) as any,
-      testCharacter as any,
+      session4,
+      buildSettings({ apiKey: "" }),
+      testCharacter,
       true
     );
   } catch (e) {
@@ -502,18 +536,18 @@ export async function testMemorySummary() {
   // === 8.5 force=true + 无未总结消息抛错 ===
   console.log("  [8.5] force=true + no unsummarized - throw error...");
 
-  const storage5 = {} as any;
+  const storage5 = {} as unknown as MemoryStorage;
   const summary5 = new MemorySummary(storage5);
-  summary5.init(mockKernel as any);
+  summary5.init(mockKernel);
 
   // 所有消息都已总结（lastSummarizedMessageId 指向最后一条）
   const session5 = buildSession(5, { lastSummarizedId: "msg_4" });
   errorThrown = null;
   try {
     await summary5.checkAndSummarize(
-      session5 as any,
-      buildSettings() as any,
-      testCharacter as any,
+      session5,
+      buildSettings(),
+      testCharacter,
       true
     );
   } catch (e) {
@@ -530,9 +564,9 @@ export async function testMemorySummary() {
   // === 8.6 AbortSignal 触发返回原 session ===
   console.log("  [8.6] abort signal - return original session...");
 
-  const storage6 = {} as any;
+  const storage6 = {} as unknown as MemoryStorage;
   const summary6 = new MemorySummary(storage6);
-  summary6.init(mockKernel as any);
+  summary6.init(mockKernel);
 
   const session6 = buildSession(12);
   const ac = new AbortController();
@@ -540,9 +574,9 @@ export async function testMemorySummary() {
 
   llmCallCount = 0;
   const result6 = await summary6.checkAndSummarize(
-    session6 as any,
-    buildSettings() as any,
-    testCharacter as any,
+    session6,
+    buildSettings(),
+    testCharacter,
     false,
     ac.signal
   );
@@ -554,9 +588,9 @@ export async function testMemorySummary() {
   // === 8.7 LLM 调用失败抛错 ===
   console.log("  [8.7] LLM failure - throw error...");
 
-  const storage7 = {} as any;
+  const storage7 = {} as unknown as MemoryStorage;
   const summary7 = new MemorySummary(storage7);
-  summary7.init(mockKernel as any);
+  summary7.init(mockKernel);
 
   const session7 = buildSession(12);
   mockDb.sessions.set("sess_test", { ...session7 });
@@ -566,9 +600,9 @@ export async function testMemorySummary() {
   errorThrown = null;
   try {
     await summary7.checkAndSummarize(
-      session7 as any,
-      buildSettings() as any,
-      testCharacter as any,
+      session7,
+      buildSettings(),
+      testCharacter,
       false
     );
   } catch (e) {
@@ -588,9 +622,9 @@ export async function testMemorySummary() {
   // === 8.8 timeTag 模板渲染（多幕场景）===
   console.log("  [8.8] timeTag template with multiple summaries...");
 
-  const storage8 = {} as any;
+  const storage8 = {} as unknown as MemoryStorage;
   const summary8 = new MemorySummary(storage8);
-  summary8.init(mockKernel as any);
+  summary8.init(mockKernel);
 
   // 已有 2 条摘要，新摘要应为"第3幕"
   const session8 = buildSession(15, { summaryCount: 2, lastSummarizedId: "msg_4" });
@@ -599,9 +633,9 @@ export async function testMemorySummary() {
   llmCallCount = 0;
 
   const result8 = await summary8.checkAndSummarize(
-    session8 as any,
-    buildSettings() as any,
-    testCharacter as any,
+    session8,
+    buildSettings(),
+    testCharacter,
     false
   );
   assert(llmCallCount === 1, "LLM should be called");
@@ -613,9 +647,9 @@ export async function testMemorySummary() {
   // === 8.9 自定义 timeTag 模板 ===
   console.log("  [8.9] custom timeTag template...");
 
-  const storage9 = {} as any;
+  const storage9 = {} as unknown as MemoryStorage;
   const summary9 = new MemorySummary(storage9);
-  summary9.init(mockKernel as any);
+  summary9.init(mockKernel);
 
   const session9 = buildSession(12);
   mockDb.sessions.set("sess_test", { ...session9 });
@@ -623,12 +657,12 @@ export async function testMemorySummary() {
   llmCallCount = 0;
 
   const customSettings = buildSettings();
-  (customSettings.memory as any).timeTagTemplate = "Chapter {{index}}";
+  customSettings.memory.timeTagTemplate = "Chapter {{index}}";
 
   const result9 = await summary9.checkAndSummarize(
-    session9 as any,
-    customSettings as any,
-    testCharacter as any,
+    session9,
+    customSettings,
+    testCharacter,
     false
   );
   assert(result9.summaries[0].timeTag === "Chapter 1", "Custom timeTag template should render");
@@ -638,18 +672,18 @@ export async function testMemorySummary() {
   // === 8.10 destroy 生命周期 ===
   console.log("  [8.10] destroy lifecycle...");
 
-  const storage10 = {} as any;
+  const storage10 = {} as unknown as MemoryStorage;
   const summary10 = new MemorySummary(storage10);
-  summary10.init(mockKernel as any);
+  summary10.init(mockKernel);
   summary10.destroy();
 
   // destroy 后调用 checkAndSummarize 应被 abortSignal 拦截
   const session10 = buildSession(12);
   llmCallCount = 0;
   const result10 = await summary10.checkAndSummarize(
-    session10 as any,
-    buildSettings() as any,
-    testCharacter as any,
+    session10,
+    buildSettings(),
+    testCharacter,
     false
   );
   assert(result10 === session10, "After destroy should return original session");

@@ -255,7 +255,7 @@ export class ModelCapabilityRegistry {
     const next: ModelCapabilities = { ...current };
     for (const [key, value] of Object.entries(patch)) {
       if (value === false) {
-        (next as any)[key] = false;
+        (next as unknown as Record<string, unknown>)[key] = false;
       }
     }
 

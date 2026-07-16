@@ -10,6 +10,22 @@ import {
 } from "../utils/characterPngExporter";
 
 /**
+ * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。
+ * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
+ */
+interface AndroidThemeBridge {
+  saveFile?: (fileName: string, content: string) => string;
+}
+
+/**
+ * 扩展 Window 以访问原生注入的 AndroidThemeBridge。
+ * 字段可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface WindowWithAndroidBridge extends Window {
+  AndroidThemeBridge?: AndroidThemeBridge;
+}
+
+/**
  * 角色卡导入/导出业务 Hook
  *
  * 从 useCharacters.ts 抽离的导入导出逻辑，保持职责单一。
@@ -220,8 +236,8 @@ export const useCharacterImportExport = () => {
     const content = JSON.stringify(char, null, 2);
 
     // 原生桥接路径：Android WebView 下走 AndroidThemeBridge.saveFile
-    if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
-      const path = (window as any).AndroidThemeBridge.saveFile(fileName, content);
+    if ((window as WindowWithAndroidBridge).AndroidThemeBridge && typeof (window as WindowWithAndroidBridge).AndroidThemeBridge?.saveFile === "function") {
+      const path = (window as WindowWithAndroidBridge).AndroidThemeBridge!.saveFile!(fileName, content);
       if (path && !path.startsWith("error:")) {
         showCustomAlert(`📂 JSON 角色卡 [${char.name}] 导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`);
       } else {

@@ -354,7 +354,7 @@ export const useSettingsLoader = ({
               ...DEFAULT_SETTINGS.imageGenApi,
               ...(storedSet.imageGenApi || {}),
             },
-          } as any;
+          } as UserSettings;
 
           if (externalPreset) {
             needSave = true;

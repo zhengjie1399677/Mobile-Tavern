@@ -17,7 +17,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ScriptService } from "../../src/kernel/services/ScriptService";
 import { Kernel } from "../../src/kernel/Kernel";
-import type { IKernel } from "../../src/kernel/types";
+import type { IKernel, IKernelService } from "../../src/kernel/types";
+import type { CharacterCard, Message } from "../../src/types";
 // 导入 bridge 的纯函数用于 mock 桥接与直接测试
 import {
   initializeMvuFromCharacter,
@@ -37,8 +38,8 @@ async function createTestKernel(): Promise<IKernel> {
     init: () => {},
     getCharacterById: async () => null,
   };
-  await kernel.registerService("database", mockDb as any);
-  return kernel as any as IKernel;
+  await kernel.registerService("database", mockDb as unknown as IKernelService);
+  return kernel as unknown as IKernel;
 }
 
 describe("ScriptService", () => {
@@ -80,7 +81,7 @@ describe("ScriptService", () => {
           },
         },
       };
-      const vars = service.initializeMvuFromCharacter(char as any);
+      const vars = service.initializeMvuFromCharacter(char as unknown as CharacterCard);
       expect(vars.schema).toEqual({ type: "object", properties: { hp: "number" } });
       expect(vars.stat_data).toEqual({ hp: 100, mp: 50 });
       expect(vars.display_data).toEqual({ layout: "compact" });
@@ -88,16 +89,16 @@ describe("ScriptService", () => {
 
     it("角色卡无 extensions 时安全降级返回默认空变量", () => {
       const char = { name: "无扩展角色" };
-      const vars = service.initializeMvuFromCharacter(char as any);
+      const vars = service.initializeMvuFromCharacter(char as unknown as CharacterCard);
       expect(vars.stat_data).toEqual({});
       expect(vars.schema).toBeDefined();
     });
 
     it("角色卡为 null/undefined 时安全降级", () => {
-      const vars = service.initializeMvuFromCharacter(null as any);
+      const vars = service.initializeMvuFromCharacter(null as unknown as CharacterCard);
       expect(vars.stat_data).toEqual({});
 
-      const vars2 = service.initializeMvuFromCharacter(undefined as any);
+      const vars2 = service.initializeMvuFromCharacter(undefined as unknown as CharacterCard);
       expect(vars2.stat_data).toEqual({});
     });
 
@@ -109,16 +110,16 @@ describe("ScriptService", () => {
           },
         },
       };
-      const vars = service.initializeMvuFromCharacter(char as any);
+      const vars = service.initializeMvuFromCharacter(char as unknown as CharacterCard);
       expect(vars.stat_data).toEqual({ strength: 10, agility: 8 });
     });
 
     it("extensions 中 mvu / MVU 别名也被识别", () => {
       const char1 = { extensions: { mvu: { stat_data: { x: 1 } } } };
-      expect(service.initializeMvuFromCharacter(char1 as any).stat_data).toEqual({ x: 1 });
+      expect(service.initializeMvuFromCharacter(char1 as unknown as CharacterCard).stat_data).toEqual({ x: 1 });
 
       const char2 = { extensions: { MVU: { stat_data: { y: 2 } } } };
-      expect(service.initializeMvuFromCharacter(char2 as any).stat_data).toEqual({ y: 2 });
+      expect(service.initializeMvuFromCharacter(char2 as unknown as CharacterCard).stat_data).toEqual({ y: 2 });
     });
   });
 
@@ -238,7 +239,7 @@ describe("ScriptService", () => {
 
       const updated = await service.executeMvuScript(session, "hp=80 mp=20");
 
-      const lastMsg = updated.messages[updated.messages.length - 1] as any;
+      const lastMsg = updated.messages[updated.messages.length - 1] as Message;
       expect(lastMsg.extra.variables[0]).toBeDefined();
       expect(lastMsg.extra.variables[0].stat_data).toEqual({ hp: 80, mp: 20 });
       expect(updated.variables?.stat_data).toEqual({ hp: 80, mp: 20 });
@@ -270,11 +271,11 @@ describe("ScriptService", () => {
       const updated = await service.executeMvuScript(session, "updated");
 
       // 前三条消息的 extra.variables 应保持原样
-      const m2 = updated.messages[1] as any;
+      const m2 = updated.messages[1] as Message;
       expect(m2.extra.variables).toEqual({});
 
       // 最后一条消息的 extra.variables[0] 被更新
-      const m4 = updated.messages[3] as any;
+      const m4 = updated.messages[3] as Message;
       expect(m4.extra.variables[0].stat_data).toEqual({ x: 1 });
     });
 
@@ -360,7 +361,7 @@ describe("extractMvuCommands", () => {
 
   it("空字符串返回空数组", () => {
     expect(extractMvuCommands("")).toEqual([]);
-    expect(extractMvuCommands(null as any)).toEqual([]);
+    expect(extractMvuCommands(null as unknown as string)).toEqual([]);
   });
 
   it("不含 MVU 命令的普通文本返回空数组", () => {
@@ -605,7 +606,7 @@ sub:
 _依存度: 15
 </initvar>`
     };
-    const result = initializeMvuFromCharacter(char as any);
+    const result = initializeMvuFromCharacter(char as unknown as CharacterCard);
     expect(result.stat_data.好感度).toBe(85);
     expect(result.stat_data._依存度).toBe(15);
   });

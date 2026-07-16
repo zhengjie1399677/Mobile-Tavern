@@ -183,7 +183,7 @@ export function createZodProxy(): any {
             for (const [key, subSchema] of Object.entries(this._shape)) {
               // 【修复 X2】当输入对象中缺少某字段（undefined）时，子 schema.parse(undefined)
               // 会为该字段生成其类型对应的默认值（MVU元组则返回 [defaultVal, label]）
-              res[key] = (subSchema as any).parse(val[key]);
+              res[key] = (subSchema as { parse: (val: unknown) => unknown }).parse(val[key]);
             }
           }
           return res;

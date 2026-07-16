@@ -76,6 +76,11 @@ export function showUpdatePrompt(info: { latestVersion?: string; downloadUrl?: s
   );
 }
 
+/** 原生 Android 桥接对象（仅声明本文件用到的 openUrl 子集）。 */
+interface WindowWithAndroidBridge extends Window {
+  AndroidThemeBridge?: { openUrl: (url: string) => void };
+}
+
 export default function UpdatePrompt() {
   const kernel = useKernel();
   const [show, setShow] = useState(false);
@@ -143,7 +148,7 @@ export default function UpdatePrompt() {
 
     // 延迟 1 秒后开始跳转，以便让用户看到 Premium 的反馈微动画
     setTimeout(() => {
-      const bridge = (window as any).AndroidThemeBridge;
+      const bridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
       if (bridge && typeof bridge.openUrl === "function") {
         // 原生 Android 桥接：吊起外部默认浏览器进行稳定下载与安装包触发
         bridge.openUrl(downloadUrl);

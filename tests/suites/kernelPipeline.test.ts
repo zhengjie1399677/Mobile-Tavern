@@ -21,7 +21,7 @@ export async function testKernelFaultIsolation() {
   const mockService: IKernelService = {
     name: "mock-normal",
     init(kernel) {
-      (this as any).initialized = true;
+      (this as unknown as { initialized: boolean }).initialized = true;
     }
   };
   await testKernel.registerService("mock-normal", mockService);
@@ -200,7 +200,7 @@ export async function testKernelPipeline() {
   // 阻断者：不调用 next()
   interceptPipeline.use(async (ctx, next) => {
     ctx.logs.push("blocker");
-    (ctx as any).isInterrupted = true;
+    (ctx as unknown as { isInterrupted: boolean }).isInterrupted = true;
     // 不调用 next()
   }, 10);
 
@@ -500,12 +500,12 @@ export async function testKernelHardeningP0ToP3() {
 
     // 5. 验证一键销毁 destroy() (P3)
     const okService: IKernelService = {
-      name: "ok-service",
-      init(kernel) {},
-      destroy(kernel) {
-        (this as any).destroyed = true;
-      }
-    };
+    name: "ok-service",
+    init(kernel) {},
+    destroy(kernel) {
+      (this as unknown as { destroyed: boolean }).destroyed = true;
+    }
+  };
     await testKernel.registerService("ok-service", okService);
 
      // 注册一堆 pipelines 和 subscribers

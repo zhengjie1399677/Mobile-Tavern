@@ -27,17 +27,50 @@ const mockSession: ChatSession = {
   ],
   createdAt: 1000,
   turnCount: 1,
-} as any;
+  summaries: [],
+};
 
 const mockSettings: UserSettings = {
-  api: { baseUrl: "", apiKey: "", chatPath: "", modelName: "" },
-} as any;
+  userName: "Tester",
+  api: { type: "openai-compat", baseUrl: "", apiKey: "", chatPath: "", modelName: "" },
+  preset: {
+    id: "test-preset",
+    name: "测试预设",
+    temperature: 0.7,
+    topP: 0.9,
+    topK: 40,
+    repetitionPenalty: 1.0,
+    maxTokens: 1000,
+  },
+  memory: {
+    recentTurns: 6,
+    summaryTriggerTurns: 0,
+    summaryLength: 150,
+  },
+  promptConfig: {
+    mainPrompt: "",
+    jailbreakPrompt: "",
+    useJailbreak: false,
+    instructTemplate: "default",
+    systemPrefix: "",
+    systemSuffix: "",
+    userPrefix: "",
+    userSuffix: "",
+    assistantPrefix: "",
+    assistantSuffix: "",
+  },
+};
 
 const mockCharacter: CharacterCard = {
   id: "char-1",
   name: "测试角色",
   avatar: "",
-} as any;
+  description: "",
+  personality: "",
+  scenario: "",
+  first_mes: "",
+  mes_example: "",
+};
 
 describe("generateUniqueId", () => {
   it("带前缀生成唯一 ID", () => {
@@ -126,7 +159,7 @@ describe("buildFinalAiMessage", () => {
       messages: mockSession.messages.map((m) =>
         m.id === "ai-msg-1" ? { ...m, extra: { image: "url.png" } } : m
       ),
-    } as any;
+    };
 
     const { finalAiMsg } = buildFinalAiMessage({
       aiMsgId: "ai-msg-1",
@@ -163,7 +196,7 @@ describe("replacePlaceholderMessage", () => {
       sender: "assistant",
       content: "最终回复",
       timestamp: Date.now(),
-    } as any;
+    };
 
     const result = replacePlaceholderMessage(mockSession, finalMsg);
     const target = result.messages.find((m) => m.id === "ai-msg-1");
@@ -176,7 +209,7 @@ describe("replacePlaceholderMessage", () => {
       sender: "assistant",
       content: "新消息",
       timestamp: Date.now(),
-    } as any;
+    };
 
     const result = replacePlaceholderMessage(mockSession, finalMsg);
     expect(result.messages).toHaveLength(3);
@@ -189,7 +222,7 @@ describe("replacePlaceholderMessage", () => {
       sender: "assistant",
       content: "修改后",
       timestamp: Date.now(),
-    } as any;
+    };
 
     const original = mockSession.messages.find((m) => m.id === "ai-msg-1");
     replacePlaceholderMessage(mockSession, finalMsg);

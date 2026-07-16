@@ -1,10 +1,18 @@
 import { IKernel, IKernelService, IImageGenerationService } from "../types";
 import { ImageGenApiConfig } from "../../types";
 
+/**
+ * Tauri 运行时注入到 window 的内部桥接对象。
+ * 仅用于检测当前是否处于 Tauri 容器环境（区分浏览器 / Tauri / Node 测试环境）。
+ */
+interface WindowWithTauriInternals extends Window {
+  __TAURI_INTERNALS__?: unknown;
+}
+
 let tauriFetch: typeof fetch | null = null;
 let tauriFetchPromise: Promise<typeof fetch | null> | null = null;
 
-if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
+if (typeof window !== "undefined" && (window as WindowWithTauriInternals).__TAURI_INTERNALS__) {
   tauriFetchPromise = import("@tauri-apps/plugin-http")
     .then((mod) => {
       tauriFetch = mod.fetch;
@@ -172,7 +180,7 @@ export class ImageGenerationService implements IImageGenerationService {
     }
 
     const isBrowserEnv = typeof window !== "undefined" &&
-                         !(window as any).__TAURI_INTERNALS__ &&
+                         !(window as WindowWithTauriInternals).__TAURI_INTERNALS__ &&
                          (typeof process === "undefined" || process.env.NODE_ENV !== "test");
     const isRemoteUrl = url.startsWith("https://") || (url.startsWith("http://") && !url.includes("127.0.0.1") && !url.includes("localhost"));
 
@@ -239,7 +247,9 @@ export class ImageGenerationService implements IImageGenerationService {
       const chunkSize = 8192;
       for (let i = 0; i < len; i += chunkSize) {
         const chunk = bytes.subarray(i, i + chunkSize);
-        binary += String.fromCharCode.apply(null, chunk as any);
+        // String.fromCharCode.apply 的第二参数期望 number[]；Uint8Array 在运行时
+        // 可被 apply 视为数组对象，此处仅做类型层适配，不改变运行时行为。
+        binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
       }
       const base64 = btoa(binary);
       return `data:image/png;base64,${base64}`;

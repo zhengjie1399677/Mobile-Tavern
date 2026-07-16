@@ -397,7 +397,7 @@ export default function FlowchartPanel({ actions, onJumpToSse }: FlowchartPanelP
                       <button
                         key={theme.id}
                         onClick={() => {
-                          setSimulatedAndroidTheme(theme.id as any);
+                          setSimulatedAndroidTheme(theme.id as "snow" | "sand" | "ocean");
                           setSimulatedStatusHex(theme.hex);
                         }}
                         className={`py-1 px-1.5 rounded text-[10px] border text-center font-semibold transition ${

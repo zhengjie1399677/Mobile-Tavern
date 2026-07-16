@@ -25,9 +25,14 @@ import PersonaConfigSection from "./PersonaConfigSection";
 import FeaturesSection from "./FeaturesSection";
 import MemoryStorageSection from "./MemoryStorageSection";
 
+/** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
+interface TauriWindow extends Window {
+  __TAURI_INTERNALS__?: unknown;
+}
+
 export default function SettingsTab() {
   const kernel = useKernel();
-  const isTauri = typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
+  const isTauri = typeof window !== "undefined" && !!(window as TauriWindow).__TAURI_INTERNALS__;
   const deviceModel = getDeviceModel();
   const viewportSize = useViewportSize();
   const freeCount = getFreeTrialCount();

@@ -20,6 +20,20 @@
  */
 
 import { assert } from "./testUtils";
+import type { MemoryStorage } from "../../src/kernel/services/memory/MemoryStorage";
+import type { MemoryDictEntry } from "../../src/kernel/services/memory/types";
+
+/** 扩展 globalThis 以访问浏览器 API（localStorage / indexedDB / IDBKeyRange） */
+type GlobalWithWebAPIs = typeof globalThis & {
+  localStorage?: Storage;
+  indexedDB?: IDBFactory;
+  IDBKeyRange?: typeof IDBKeyRange;
+};
+
+const globalWithWebAPIs = globalThis as unknown as GlobalWithWebAPIs;
+
+/** IDB 事件处理函数占位类型 */
+type MockIDBEventHandler = ((ev: Event) => void) | null;
 
 // ===== 测试 1：ModelCapabilityRegistry =====
 
@@ -31,8 +45,8 @@ export async function testModelCapabilityRegistry() {
 
   // Mock localStorage（Node 环境无原生 localStorage）
   const memStore: Record<string, string> = {};
-  const originalLocalStorage = (global as any).localStorage;
-  (global as any).localStorage = {
+  const originalLocalStorage = globalWithWebAPIs.localStorage;
+  globalWithWebAPIs.localStorage = {
     getItem: (k: string) => memStore[k] ?? null,
     setItem: (k: string, v: string) => {
       memStore[k] = v;
@@ -40,7 +54,7 @@ export async function testModelCapabilityRegistry() {
     removeItem: (k: string) => {
       delete memStore[k];
     },
-  };
+  } as unknown as Storage;
 
   try {
     ModelCapabilityRegistry.resetRuntimeCacheForTesting();
@@ -128,7 +142,7 @@ export async function testModelCapabilityRegistry() {
     console.log("✔ ModelCapabilityRegistry verified successfully!");
   } finally {
     ModelCapabilityRegistry.resetRuntimeCacheForTesting();
-    (global as any).localStorage = originalLocalStorage;
+    globalWithWebAPIs.localStorage = originalLocalStorage;
   }
 }
 
@@ -435,7 +449,7 @@ function buildInMemoryIDB() {
           };
           return store;
         },
-        onabort: null as any,
+        onabort: null as MockIDBEventHandler,
         get error() {
           return null;
         },
@@ -446,9 +460,9 @@ function buildInMemoryIDB() {
 
   const dbRequest: any = {
     result: dbObj,
-    onupgradeneeded: null as any,
-    onsuccess: null as any,
-    onerror: null as any,
+    onupgradeneeded: null as MockIDBEventHandler,
+    onsuccess: null as MockIDBEventHandler,
+    onerror: null as MockIDBEventHandler,
     // upgrade transaction：onupgradeneeded 期间 localDB 通过 request.transaction.objectStore(name)
     // 访问已创建的 store（如 v6 迁移读写 settings/lorebooks/worldbooks）
     get transaction() {
@@ -475,20 +489,20 @@ export async function testMemoryStorageCrud() {
 
   // 1. 装配内存版 IDB mock + IDBKeyRange mock
   const { dbRequest, stores } = buildInMemoryIDB();
-  const originalIndexedDB = (global as any).indexedDB;
-  const originalIDBKeyRange = (global as any).IDBKeyRange;
+  const originalIndexedDB = globalWithWebAPIs.indexedDB;
+  const originalIDBKeyRange = globalWithWebAPIs.IDBKeyRange;
 
-  (global as any).indexedDB = {
+  globalWithWebAPIs.indexedDB = {
     open: () => dbRequest,
-  } as any;
+  } as unknown as IDBFactory;
 
   // IDBKeyRange mock：返回带标记的对象，供 mock 索引层识别范围查询
-  (global as any).IDBKeyRange = {
+  globalWithWebAPIs.IDBKeyRange = {
     only: (value: any) => ({ only: value }),
     bound: (lower: any, upper: any) => ({ lower, upper }),
     lowerBound: (lower: any) => ({ lower }),
     upperBound: (upper: any) => ({ upper }),
-  } as any;
+  } as unknown as typeof IDBKeyRange;
 
   // 重置 localDB 模块级缓存，确保使用本次 mock
   localDB.__resetDBInstanceForTesting();
@@ -638,8 +652,8 @@ export async function testMemoryStorageCrud() {
 
     console.log("✔ MemoryStorage CRUD verified successfully!");
   } finally {
-    (global as any).indexedDB = originalIndexedDB;
-    (global as any).IDBKeyRange = originalIDBKeyRange;
+    globalWithWebAPIs.indexedDB = originalIndexedDB;
+    globalWithWebAPIs.IDBKeyRange = originalIDBKeyRange;
     localDB.__resetDBInstanceForTesting();
   }
 }
@@ -655,18 +669,18 @@ export async function testMemoryServiceLifecycle() {
 
   // 装配内存版 IDB mock + IDBKeyRange mock
   const { dbRequest } = buildInMemoryIDB();
-  const originalIndexedDB = (global as any).indexedDB;
-  const originalIDBKeyRange = (global as any).IDBKeyRange;
+  const originalIndexedDB = globalWithWebAPIs.indexedDB;
+  const originalIDBKeyRange = globalWithWebAPIs.IDBKeyRange;
 
-  (global as any).indexedDB = {
+  globalWithWebAPIs.indexedDB = {
     open: () => dbRequest,
-  } as any;
-  (global as any).IDBKeyRange = {
+  } as unknown as IDBFactory;
+  globalWithWebAPIs.IDBKeyRange = {
     only: (value: any) => ({ only: value }),
     bound: (lower: any, upper: any) => ({ lower, upper }),
     lowerBound: (lower: any) => ({ lower }),
     upperBound: (upper: any) => ({ upper }),
-  } as any;
+  } as unknown as typeof IDBKeyRange;
 
   localDB.__resetDBInstanceForTesting();
 
@@ -723,8 +737,8 @@ export async function testMemoryServiceLifecycle() {
 
     console.log("✔ MemoryService Lifecycle verified successfully!");
   } finally {
-    (global as any).indexedDB = originalIndexedDB;
-    (global as any).IDBKeyRange = originalIDBKeyRange;
+    globalWithWebAPIs.indexedDB = originalIndexedDB;
+    globalWithWebAPIs.IDBKeyRange = originalIDBKeyRange;
     localDB.__resetDBInstanceForTesting();
   }
 }
@@ -931,7 +945,7 @@ export async function testMemoryExtractor() {
     { entity: "老张", aliases: ["张老板", "酒馆老板"], type: "character" as const },
     { entity: "梅子酒", aliases: [], type: "item" as const },
     { entity: "老张三", aliases: [], type: "character" as const },
-  ] as any[];
+  ] as unknown as MemoryDictEntry[];
 
   // 空词典
   assert(extractByDict("任意消息", []).length === 0, "Empty dict returns empty");
@@ -949,7 +963,7 @@ export async function testMemoryExtractor() {
   assert(hits2.includes("老张"), "Alias '张老板' should map to '老张'");
 
   // 大小写不敏感
-  const dictEn = [{ entity: "Alice", aliases: [], type: "character" as const }] as any[];
+  const dictEn = [{ entity: "Alice", aliases: [], type: "character" as const }] as unknown as MemoryDictEntry[];
   const hits3 = extractByDict("alice went to the tavern", dictEn);
   assert(hits3.includes("Alice"), "Case-insensitive match");
 
@@ -974,7 +988,7 @@ export async function testMemoryExtractor() {
     createdAt: Date.now(),
     turnIndex: 5,
   });
-  const extractor1 = new MemoryExtractor(storage1 as any);
+  const extractor1 = new MemoryExtractor(storage1 as unknown as MemoryStorage);
   extractor1.init();
 
   const result1 = await extractor1.extract({
@@ -1017,7 +1031,7 @@ export async function testMemoryExtractor() {
     firstSeenTurn: 0,
     aliases: [],
   });
-  const extractor2 = new MemoryExtractor(storage2 as any);
+  const extractor2 = new MemoryExtractor(storage2 as unknown as MemoryStorage);
   extractor2.init();
 
   const result2 = await extractor2.extract({
@@ -1079,7 +1093,7 @@ export async function testMemoryExtractor() {
       turnIndex: i,
     });
   }
-  const extractor3 = new MemoryExtractor(storage3 as any);
+  const extractor3 = new MemoryExtractor(storage3 as unknown as MemoryStorage);
   extractor3.init();
 
   // 调度 5 个任务（队列上限 3，应丢弃最旧 2 个）
@@ -1130,7 +1144,7 @@ export async function testMemoryRecall() {
 
   // 无词典 + 无消息 → 返回空（兜底召回也无消息可取）
   const storage1 = createMockStorage();
-  const recall1 = new MemoryRecall(storage1 as any);
+  const recall1 = new MemoryRecall(storage1 as unknown as MemoryStorage);
 
   const empty = await recall1.recall("sess_1", "任意消息");
   assert(empty.length === 0, "recall with empty dict AND empty messages returns empty");
@@ -1174,7 +1188,7 @@ export async function testMemoryRecall() {
     extractSource: "dict",
   });
 
-  const recall2 = new MemoryRecall(storage2 as any);
+  const recall2 = new MemoryRecall(storage2 as unknown as MemoryStorage);
   const results = await recall2.recall("sess_2", "老张今天在吗？", {
     currentTurnIndex: 20,
     excludeRecentN: 0, // 不排除，确保能召回
@@ -1217,7 +1231,7 @@ export async function testMemoryRecall() {
   console.log("  [6.3] scoring formula...");
 
   const storage3 = createMockStorage();
-  const recall3 = new MemoryRecall(storage3 as any);
+  const recall3 = new MemoryRecall(storage3 as unknown as MemoryStorage);
 
   // 两条消息：一条命中 2 标签 + 较旧，一条命中 1 标签 + 较新
   await storage3.appendMessage({
@@ -1274,7 +1288,7 @@ export async function testMemoryRecall() {
   console.log("  [6.4] exclude recent N turns...");
 
   const storage4 = createMockStorage();
-  const recall4 = new MemoryRecall(storage4 as any);
+  const recall4 = new MemoryRecall(storage4 as unknown as MemoryStorage);
 
   // 3 条消息，turnIndex 分别为 8, 9, 10
   for (let i = 0; i < 3; i++) {
@@ -1316,7 +1330,7 @@ export async function testMemoryRecall() {
   console.log("  [6.5] top-K limit...");
 
   const storage5 = createMockStorage();
-  const recall5 = new MemoryRecall(storage5 as any);
+  const recall5 = new MemoryRecall(storage5 as unknown as MemoryStorage);
 
   // 5 条消息
   for (let i = 0; i < 5; i++) {
@@ -1348,7 +1362,7 @@ export async function testMemoryRecall() {
   console.log("  [6.6] fallback recall for vague queries...");
 
   const storage6 = createMockStorage();
-  const recall6 = new MemoryRecall(storage6 as any);
+  const recall6 = new MemoryRecall(storage6 as unknown as MemoryStorage);
 
   // 预置 10 条消息（turnIndex 0-9），无词典
   // 无词典 → queryTags 必为空 → 触发兜底召回

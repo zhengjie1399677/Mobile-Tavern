@@ -86,9 +86,10 @@ export function cleanRequestPayload(
   }
 
   // 防御：剥离可能的原型污染键名
-  delete (cleaned as any).__proto__;
-  delete (cleaned as any).constructor;
-  delete (cleaned as any).prototype;
+  const dangerousKeys: readonly string[] = ["__proto__", "constructor", "prototype"];
+  for (const key of dangerousKeys) {
+    delete cleaned[key];
+  }
 
   return cleaned;
 }
@@ -127,10 +128,12 @@ const RESPONSE_MESSAGE_WHITELIST = new Set<string>([
  * 注意：本函数仅清洗非流式响应（type === "openai-compat" 的非流式分支）。
  * 流式响应由 streamReader 逐 chunk 处理，仅提取 choices[].delta.content / reasoning_content。
  */
+type CleanLLMResponseReturn<T> = T extends null | undefined ? T : Record<string, any>;
+
 export function cleanLLMResponse<T extends Record<string, any> | null | undefined>(
   resp: T
-): T extends null | undefined ? T : Record<string, any> {
-  if (!resp) return resp as any;
+): CleanLLMResponseReturn<T> {
+  if (!resp) return resp as CleanLLMResponseReturn<T>;
 
   const cleaned: Record<string, any> = {};
   for (const key of Object.keys(resp)) {
@@ -166,5 +169,5 @@ export function cleanLLMResponse<T extends Record<string, any> | null | undefine
     });
   }
 
-  return cleaned as any;
+  return cleaned as CleanLLMResponseReturn<T>;
 }

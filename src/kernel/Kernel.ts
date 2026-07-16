@@ -149,7 +149,8 @@ class Pipeline<T> implements IPipeline<T> {
       if (i === middlewares.length) return;
 
       // 显式受控阻断：尊重中间件的有意拦截语义
-      if ((context as any).isInterrupted === true) return;
+      // 注：T 无类型约束，isInterrupted 为 Pipeline 运行时注入的阻断标记字段
+      if ((context as { isInterrupted?: boolean }).isInterrupted === true) return;
 
       const middleware = middlewares[i];
       let nextCalled = false;
@@ -159,7 +160,7 @@ class Pipeline<T> implements IPipeline<T> {
       };
 
       const interruptWrapper = () => {
-        (context as any).isInterrupted = true;
+        (context as { isInterrupted?: boolean }).isInterrupted = true;
       };
 
       try {
@@ -169,7 +170,7 @@ class Pipeline<T> implements IPipeline<T> {
         //   - 调用 next()           → 继续执行后续中间件（正常流转）
         //   - isInterrupted = true  → 有意阻断，管道在此终止（权限拒绝、内容过滤等）
         //   - 两者均未执行          → 记录错误，不主动穿透安全边界
-        if (!nextCalled && (context as any).isInterrupted !== true) {
+        if (!nextCalled && (context as { isInterrupted?: boolean }).isInterrupted !== true) {
           if (getKernelStrictMode()) {
             throw new Error(
               `[Pipeline DevError] Middleware "${middleware.fn.name || "anonymous"}" (index ${i}) ` +
@@ -262,7 +263,7 @@ export class Kernel implements IKernel {
     this.activeControllers.add(controller);
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    let initPromise: Promise<void> = new Promise<void>(resolve => resolve(service.init(this, controller.signal) as any));
+    let initPromise: Promise<void> = new Promise<void>(resolve => resolve(service.init(this, controller.signal)));
 
     // 如果指定了初始化超时时间，则采用 Promise.race 赛跑实现强制超时中止机制
     if (initTimeoutMs && initTimeoutMs > 0) {
@@ -414,7 +415,7 @@ export class Kernel implements IKernel {
         const DESTROY_TIMEOUT_MS = 5000;
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-        const destroyPromise = new Promise<void>(resolve => resolve(service.destroy!(this, controller.signal) as any));
+        const destroyPromise = new Promise<void>(resolve => resolve(service.destroy!(this, controller.signal)));
         const timeoutPromise = new Promise<never>((_, reject) => {
           timeoutId = setTimeout(() => {
             controller.abort(); // 超时后强行中止销毁生命周期内的等待挂起操作
@@ -544,7 +545,7 @@ export class Kernel implements IKernel {
         await Promise.race([
           new Promise<void>((resolve, reject) => {
             try {
-              resolve(handler(message, signal) as any);
+              resolve(handler(message, signal));
             } catch (e) {
               reject(e);
             }
@@ -608,7 +609,7 @@ export class Kernel implements IKernel {
       return Promise.race([
         new Promise<void>((resolve, reject) => {
           try {
-            resolve(handler(message, signal) as any);
+            resolve(handler(message, signal));
           } catch (e) {
             reject(e);
           }

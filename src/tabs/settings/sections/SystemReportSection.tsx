@@ -3,6 +3,50 @@ import { getDB } from "../../../utils/localDB";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import type { ViewportSize } from "../utils";
 
+/**
+ * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。
+ * 字段全部可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface AndroidThemeBridge {
+  getSafeAreas?: () => string;
+  setStatusBarStyle?: (isDark: boolean, color: string) => void;
+  saveFile?: (fileName: string, content: string) => string;
+  saveFileBase64?: (fileName: string, base64Data: string, mimeType: string) => string;
+  openUrl?: (url: string) => void;
+  speakNative?: (text: string) => void;
+  stopNative?: () => void;
+  isSpeakingNative?: () => boolean;
+  // 允许通过 Object.getOwnPropertyNames 枚举方法名
+  [key: string]: unknown;
+}
+
+/**
+ * 扩展 Window 以访问原生注入的 AndroidThemeBridge 与 WebSpeech API。
+ */
+interface WindowWithAndroidBridge extends Window {
+  AndroidThemeBridge?: AndroidThemeBridge;
+  SpeechRecognition?: unknown;
+  webkitSpeechRecognition?: unknown;
+}
+
+/**
+ * 网络信息 API 的最小子集类型（NetworkInformation 在部分 WebView 中不可用）。
+ */
+interface NetworkInformationLike {
+  effectiveType?: string;
+  downlink?: number;
+  rtt?: number;
+}
+
+/**
+ * 扩展 Navigator 以访问非标准的网络信息 API（带浏览器前缀）。
+ */
+interface NavigatorWithConnection extends Navigator {
+  connection?: NetworkInformationLike;
+  mozConnection?: NetworkInformationLike;
+  webkitConnection?: NetworkInformationLike;
+}
+
 export interface SystemReportSectionProps extends Pick<UnifiedAppContextProps,
   | "settings" | "safeAreas" | "showCustomAlert" | "getKernelService"
 > {
@@ -96,7 +140,7 @@ export default function SystemReportSection({
     // 2. Native Bridge + 关键方法逐个检查（定位"某原生功能失效"问题）
     const bridgeStart = Date.now();
     log(`\n[2. BRIDGE] Native Webview bridge verification...`);
-    const w = window as any;
+    const w = window as WindowWithAndroidBridge;
     if (w.AndroidThemeBridge) {
       log(`[2. BRIDGE] OK: AndroidThemeBridge detected.`);
       const methods = Object.getOwnPropertyNames(w.AndroidThemeBridge).filter((p: string) => typeof w.AndroidThemeBridge[p] === 'function');
@@ -223,7 +267,7 @@ export default function SystemReportSection({
 
     // 网络状态
     const online = typeof navigator !== "undefined" ? navigator.onLine : true;
-    const conn = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    const conn = (navigator as NavigatorWithConnection).connection || (navigator as NavigatorWithConnection).mozConnection || (navigator as NavigatorWithConnection).webkitConnection;
     log(`[5. ENV] Online: ${online ? "YES" : "NO (offline)"}`);
     if (conn) {
       log(`[5. ENV] Connection: type=${conn.effectiveType || "unknown"}, downlink=${conn.downlink || "unknown"}Mbps, rtt=${conn.rtt || "unknown"}ms`);
@@ -318,7 +362,7 @@ export default function SystemReportSection({
               `设备型号: ${deviceModel}`,
               typeof window !== "undefined" ? `视口尺寸: ${viewportSize.w}x${viewportSize.h} (视觉: ${Math.round(viewportSize.vW)}x${Math.round(viewportSize.vH)})` : null,
               safeAreas ? `安全区域: 顶部 ${safeAreas.top}dp | 底部 ${safeAreas.bottom}dp` : null,
-              `安卓桥接: ${typeof window !== "undefined" && (window as any).AndroidThemeBridge ? "已注入 (Success)" : "未注入/不支持 (None)"}`,
+              `安卓桥接: ${typeof window !== "undefined" && (window as WindowWithAndroidBridge).AndroidThemeBridge ? "已注入 (Success)" : "未注入/不支持 (None)"}`,
               `UA 信息: ${typeof navigator !== "undefined" ? navigator.userAgent : "N/A"}`,
               `TTS 配置: ${settings.ttsConfig?.enabled ? `开启 (${settings.ttsConfig.provider || "speech-synthesis"})` : "关闭"}`,
               `ASR 配置: ${settings.asrConfig?.enabled ? `开启 (${settings.asrConfig.provider || "web-speech"})` : "关闭"}`,

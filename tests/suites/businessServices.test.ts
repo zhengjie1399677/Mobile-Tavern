@@ -15,6 +15,8 @@
 
 import 'fake-indexeddb/auto';
 import { assert } from "./testUtils";
+import type { IKernel } from "../../src/kernel/types";
+import type { CharacterCard, LorebookEntry, CustomWorldbook, UserSettings } from "../../src/types";
 
 export async function testCharacterService() {
   console.log("\n--- Running CharacterService Verification ---");
@@ -23,7 +25,7 @@ export async function testCharacterService() {
 
   const { CharacterService } = await import("../../src/kernel/services/CharacterService");
   const service = new CharacterService();
-  service.init({} as any);
+  service.init({} as unknown as IKernel);
 
   // 1. 初始读取应为空数组
   const initial = await service.getAllCharacters();
@@ -35,7 +37,7 @@ export async function testCharacterService() {
     name: "测试角色",
     description: "测试描述",
     version: "1.0",
-  } as any;
+  } as unknown as CharacterCard;
   await service.saveCharacter(card);
   const afterSave = await service.getAllCharacters();
   assert(afterSave.length === 1, "Should have 1 character after save");
@@ -46,7 +48,7 @@ export async function testCharacterService() {
   const bulkCards = [
     { id: "char_test_1", name: "更新后的名字", version: "1.0" }, // 同 id 更新
     { id: "char_bulk_2", name: "批量2", version: "1.0" }, // 新增
-  ] as any;
+  ] as unknown as CharacterCard[];
   await service.bulkSaveCharacters(bulkCards);
   const afterBulk = await service.getAllCharacters();
   assert(afterBulk.length === 2, "bulkSave should result in 2 items (1 updated + 1 new)");
@@ -79,7 +81,7 @@ export async function testWorldbookService() {
 
   const { WorldbookService } = await import("../../src/kernel/services/WorldbookService");
   const service = new WorldbookService();
-  service.init({} as any);
+  service.init({} as unknown as IKernel);
 
   // 1. 全局世界书初始应为空数组
   const initialGlobal = await service.getGlobalLorebook();
@@ -89,7 +91,7 @@ export async function testWorldbookService() {
   const entries = [
     { id: "lore_1", keys: ["酒馆"], content: "酒馆入口", enabled: true },
     { id: "lore_2", keys: ["老张"], content: "老张是老板", enabled: true },
-  ] as any;
+  ] as unknown as LorebookEntry[];
   await service.saveGlobalLorebook(entries);
   const afterSave = await service.getGlobalLorebook();
   assert(afterSave.length === 2, "Should have 2 lorebook entries");
@@ -104,7 +106,7 @@ export async function testWorldbookService() {
   const customWorldbooks = {
     wb_1: { name: "世界书A", lorebook: [] },
     wb_2: { name: "世界书B", lorebook: [] },
-  } as any;
+  } as unknown as Record<string, CustomWorldbook>;
   await service.saveCustomWorldbooks(customWorldbooks);
   const afterCustomSave = await service.getCustomWorldbooks();
   assert(Object.keys(afterCustomSave).length === 2, "Should have 2 custom worldbooks");
@@ -122,7 +124,7 @@ export async function testSettingsService() {
 
   const { SettingsService } = await import("../../src/kernel/services/SettingsService");
   const service = new SettingsService();
-  service.init({} as any);
+  service.init({} as unknown as IKernel);
 
   // 1. 初始读取应为 null
   const initial = await service.getStoredSettings();
@@ -145,9 +147,13 @@ export async function testSettingsService() {
       openaiModel: "tts-1",
       openaiVoice: "alloy",
     },
-  } as any;
+  } as unknown as UserSettings;
   await service.saveStoredSettings(settings);
-  const saved = await service.getStoredSettings() as any;
+  const saved = await service.getStoredSettings() as unknown as {
+    apiBaseUrl: string;
+    apiKey: string;
+    ttsConfig: { provider: string; volume: number };
+  };
   assert(saved !== null, "Settings should be saved (not null)");
   assert(saved.apiBaseUrl === "https://api.test.com/v1", "apiBaseUrl matches");
   assert(saved.apiKey === "sk-test-123", "apiKey matches");
@@ -165,7 +171,7 @@ export async function testPresetService() {
 
   const { PresetService } = await import("../../src/kernel/services/PresetService");
   const service = new PresetService();
-  service.init({} as any);
+  service.init({} as unknown as IKernel);
 
   // 1. 初始读取应为 null
   const initial = await service.getStoredSavedPresets();

@@ -11,7 +11,17 @@
  */
 
 import { Kernel } from "../../src/kernel/Kernel";
-import { IKernelService } from "../../src/kernel/types";
+import {
+  IKernelService,
+  IDatabaseService,
+  IMemoryService,
+  IScriptService,
+  ILLMService,
+  OutputPipelineContext,
+  StreamChunk
+} from "../../src/kernel/types";
+import type { ITavernHelperBridge } from "../../src/kernel/services/ScriptService";
+import type { ChatSession, CharacterCard, UserSettings } from "../../src/types";
 import { MultiMessageService } from "../../src/kernel/services/MultiMessageService";
 import { ChatStreamService } from "../../src/kernel/services/ChatStreamService";
 import {
@@ -22,19 +32,34 @@ import {
 } from "../../src/kernel/middlewares/outputMiddlewares";
 import { assert } from "./testUtils";
 
+/** 更新检查接口请求体结构（覆盖测试断言访问的字段） */
+interface CheckUpdateRequestBody {
+  clientVersion?: string;
+  userCredential?: string;
+  timestamp?: number;
+  encryptedAlgorithm?: string;
+  signature?: string;
+}
+
+/** 更新检查 fetch 调用捕获的参数结构 */
+interface CheckUpdateFetchParams {
+  url: string;
+  body: CheckUpdateRequestBody;
+}
+
 export async function testMultiMessageService() {
   console.log("\n--- Running MultiMessageService Verification ---");
   const testKernel = new Kernel();
 
-  let savedSession: any = null;
-  const mockDbService: IKernelService = {
+  let savedSession: ChatSession | null = null;
+  const mockDbService: IKernelService & Partial<Pick<IDatabaseService, "saveSession" | "appendSessionMessage">> = {
     name: "database",
     init() { },
-    async saveSession(session: any) {
+    async saveSession(session: ChatSession) {
       savedSession = session;
     },
     async appendSessionMessage() { },
-  } as any;
+  };
 
   const multiMsgService = new MultiMessageService();
 
@@ -53,14 +78,14 @@ export async function testMultiMessageService() {
     variables: {}
   };
 
-  const updated = await multiMsgService.queueUserMessage(initialSession as any, "  Hello, this is message 1.  ");
+  const updated = await multiMsgService.queueUserMessage(initialSession as ChatSession, "  Hello, this is message 1.  ");
 
   assert(updated.messages.length === 2, "Should append user message");
   assert(updated.messages[1].sender === "user", "Sender should be user");
   assert(updated.messages[1].content === "Hello, this is message 1.", "Content should be trimmed");
   assert(savedSession !== null, "Session should be saved to database service");
-  assert(savedSession.id === "test-sess", "Saved session ID matches");
-  assert(savedSession.messages[1].content === "Hello, this is message 1.", "Saved session has the user message");
+  assert(savedSession!.id === "test-sess", "Saved session ID matches");
+  assert(savedSession!.messages[1].content === "Hello, this is message 1.", "Saved session has the user message");
 
   await testKernel.destroy();
   console.log("✔ MultiMessageService verified successfully!");
@@ -74,32 +99,35 @@ export async function testScriptServiceDecoupling() {
   await testKernel.registerService("script", scriptService);
 
   // 1. 验证在没有注入 bridge 的情况下，方法能安全降级（不崩溃）
-  const result1 = await scriptService.executeMvuScript({ id: "sess-1", variables: { stat_data: { hp: 50 } } } as any, "test");
+  const result1 = await scriptService.executeMvuScript({ id: "sess-1", variables: { stat_data: { hp: 50 } } } as unknown as ChatSession, "test");
   assert(result1.variables.stat_data.hp === 50, "Should safely return session without mutating variables");
 
-  const result2 = scriptService.initializeMvuFromCharacter({ name: "银霜" } as any);
+  const result2 = scriptService.initializeMvuFromCharacter({ name: "银霜" } as CharacterCard);
   assert(typeof result2 === "object" && result2 !== null, "Should return empty object");
 
   // 2. 注入 mock bridge 验证功能正常触发
-  const mockBridge = {
-    executeMvuScript: async (session: any, content: string) => {
+  // 使用 ITavernHelperBridge 接口约束 mockBridge，避免 any 注解
+  const mockBridge: ITavernHelperBridge & {
+    executeMvuScript(session: ChatSession, content: string): Promise<ChatSession>;
+  } = {
+    executeMvuScript: async (session, _content) => {
       return { ...session, variables: { stat_data: { hp: 100 } } };
     },
-    parseMvuMessage: (messageContent: string, currentVariables: any) => {
+    parseMvuMessage: (_messageContent, _currentVariables) => {
       return { stat_data: { hp: 100 } };
     },
-    initializeMvuFromCharacter: (char: any) => {
+    initializeMvuFromCharacter: (_char) => {
       return { stat_data: { hp: 99 } };
     },
-    notifyVariablesUpdated: (session: any) => { }
+    notifyVariablesUpdated: (_session) => { }
   };
 
   scriptService.registerBridge(mockBridge);
 
-  const result3 = await scriptService.executeMvuScript({ id: "sess-1", variables: { stat_data: { hp: 50 } } } as any, "test");
+  const result3 = await scriptService.executeMvuScript({ id: "sess-1", variables: { stat_data: { hp: 50 } } } as unknown as ChatSession, "test");
   assert(result3.variables.stat_data.hp === 100, "Should use injected bridge logic to modify variables");
 
-  const result4 = scriptService.initializeMvuFromCharacter({ name: "银霜" } as any);
+  const result4 = scriptService.initializeMvuFromCharacter({ name: "银霜" } as CharacterCard);
   assert(result4.stat_data.hp === 99, "Should use injected bridge logic to initialize variables");
 
   await testKernel.destroy();
@@ -110,18 +138,18 @@ export async function testOutputPipeline() {
   console.log("\n--- Running Output Pipeline Verification ---");
   const testKernel = new Kernel();
 
-  const mockDbService: IKernelService = {
+  const mockDbService: IKernelService & Partial<Pick<IDatabaseService, "saveSession">> = {
     name: "database",
     init() { },
     async saveSession() { }
-  } as any;
+  };
   // 阶段 C 迁移：中间件已切换到 KernelServices.Memory.getStateTable() / getSummary() 子模块
   // 旧 tableMemory / autoSummary 服务已从注册表移除并标记 @deprecated
   const mockStateTable = {
     initDefaultSheets(_charName: string) {
       return [];
     },
-    processTableMemory(_mem: any, content: string) {
+    processTableMemory(_mem: unknown, content: string) {
       return {
         updatedMemory: [{ id: "sheet_status_and_relation", rows: [["char", "100"]] }],
         cleanContent: content.replace(/\nupdateRow\s*\([^)]*\)/gi, "").replace(/\n_.set\s*\([^)]*\)/gi, "").trim(),
@@ -130,23 +158,23 @@ export async function testOutputPipeline() {
     }
   };
   const mockSummary = {
-    async checkAndSummarize(session: any) {
+    async checkAndSummarize(session: ChatSession) {
       return { ...session, summaries: [{ id: "sum_auto", content: "自动整理" }] };
     }
   };
-  const mockMemoryService: IKernelService = {
+  const mockMemoryService: IKernelService & Partial<IMemoryService> = {
     name: "memory",
     init() { },
     getStateTable() { return mockStateTable; },
     getSummary() { return mockSummary; }
-  } as any;
-  const mockScriptService: IKernelService = {
+  };
+  const mockScriptService: IKernelService & Partial<Pick<IScriptService, "executeMvuScript">> = {
     name: "script",
     init() { },
-    async executeMvuScript(session: any, content: string) {
+    async executeMvuScript(session: ChatSession, _content: string) {
       return { ...session, variables: { ...session.variables, scriptRan: true } };
     }
-  } as any;
+  };
 
   await testKernel.registerService("database", mockDbService);
   await testKernel.registerService("memory", mockMemoryService);
@@ -169,12 +197,13 @@ export async function testOutputPipeline() {
     tableMemory: []
   };
 
-  const outputCtx: any = {
+  const outputCtx: OutputPipelineContext = {
     kernel: testKernel,
     session: initialSession,
     responseText: '你好\nupdateRow("好感关系表", {"好感度": "100"})\n_.set("scriptRan", true)',
     reasoningText: "",
-    settings: { enableTableMemory: true, enableScriptExecution: true, enableBisonMode: false },
+    // UserSettings 字段较多，测试仅断言 enable* 三个开关；其余字段以 as unknown as UserSettings 兜底
+    settings: { enableTableMemory: true, enableScriptExecution: true, enableBisonMode: false } as unknown as UserSettings,
     activeCharacter: { name: "银霜", personality: "傲娇" },
     controller: new AbortController(),
     isStillActive: true,
@@ -186,10 +215,10 @@ export async function testOutputPipeline() {
 
   const result = outputCtx.resultSession;
   assert(result !== undefined, "Output resultSession must be populated");
-  assert(result.tableMemory[0].rows[0][1] === "100", "Table memory updated by TableMemoryMiddleware");
-  assert(result.messages[0].content === "你好", "Message content cleaned by TableMemoryMiddleware");
-  assert(result.variables.scriptRan === true, "MVU variables updated by MvuScriptMiddleware");
-  assert(result.summaries.length === 1 && result.summaries[0].id === "sum_auto", "AutoSummary ran successfully");
+  assert(result!.tableMemory[0].rows[0][1] === "100", "Table memory updated by TableMemoryMiddleware");
+  assert(result!.messages[0].content === "你好", "Message content cleaned by TableMemoryMiddleware");
+  assert(result!.variables.scriptRan === true, "MVU variables updated by MvuScriptMiddleware");
+  assert(result!.summaries.length === 1 && result!.summaries[0].id === "sum_auto", "AutoSummary ran successfully");
 
   await testKernel.destroy();
   console.log("✔ Output Pipeline Middlewares verified successfully!");
@@ -199,7 +228,7 @@ export async function testChatStreamService() {
   console.log("\n--- Running ChatStreamService Verification ---");
   const testKernel = new Kernel();
 
-  const mockLlmService: IKernelService = {
+  const mockLlmService: IKernelService & Partial<Pick<ILLMService, "universalFetch">> = {
     name: "llm",
     init() { },
     async universalFetch() {
@@ -215,7 +244,7 @@ export async function testChatStreamService() {
         }
       }));
     }
-  } as any;
+  };
 
   const chatStream = new ChatStreamService();
 
@@ -228,14 +257,14 @@ export async function testChatStreamService() {
     reqBody: {}
   });
 
-  const chunks: any[] = [];
+  const chunks: StreamChunk[] = [];
   for await (const chunk of generator) {
     chunks.push(chunk);
   }
 
   assert(chunks.length >= 2, "Should receive SSE chunks");
-  assert(chunks[0].choices[0].delta.content === "Hello", "Content chunk parsed");
-  assert(chunks[1].choices[0].delta.reasoning_content === "Thinking", "Reasoning content chunk parsed");
+  assert(chunks[0].choices![0].delta!.content === "Hello", "Content chunk parsed");
+  assert(chunks[1].choices![0].delta!.reasoning_content === "Thinking", "Reasoning content chunk parsed");
 
   await testKernel.destroy();
   console.log("✔ ChatStreamService verified successfully!");
@@ -285,7 +314,7 @@ export async function testKeyManagerDynamicFetch() {
 
     if (urlStr.includes("/api/get-key")) {
       getKeyCalled = true;
-      const auth = init?.headers ? (init.headers as any)["Authorization"] : "";
+      const auth = init?.headers ? (init.headers as Record<string, string>)["Authorization"] : "";
       assert(auth && auth.startsWith("Bearer "), "Should carry Authorization Bearer Token");
 
       return new Response(JSON.stringify({
@@ -296,7 +325,7 @@ export async function testKeyManagerDynamicFetch() {
     }
 
     return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
-  }) as any;
+  }) as typeof fetch;
 
   try {
     const token = await getValidToken();
@@ -323,7 +352,7 @@ export async function testUpdateCheckService() {
   await testKernel.registerService("updateCheck", updateService);
 
   const originalFetch = global.fetch;
-  let fetchParams: any = null;
+  let fetchParams: CheckUpdateFetchParams | null = null;
 
   global.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const urlStr = typeof input === "string" ? input : input.toString();
@@ -339,19 +368,19 @@ export async function testUpdateCheckService() {
         downloadUrl: "https://mobile-backup-001.oss-cn-hangzhou.aliyuncs.com/updates/app-release-v1.6.0.apk?Signature=mock"
       }
     }));
-  }) as any;
+  }) as typeof fetch;
 
   try {
     const res = await updateService.checkUpdate("1.6.0");
     assert(res.hasUpdate === true, "Should detect update correctly");
     assert(res.latestVersion === "1.6.0", "Latest version should be set correctly");
     assert(res.downloadUrl === "https://mobile-backup-001.oss-cn-hangzhou.aliyuncs.com/updates/app-release-v1.6.0.apk?Signature=mock", "Download URL matches mock response");
-    assert(fetchParams.body.clientVersion === "1.6.0", "Client version should be sent to the API");
-    assert(fetchParams.body.userCredential !== undefined, "User credential should be uploaded");
-    assert(fetchParams.body.timestamp !== undefined, "Timestamp should be uploaded");
+    assert(fetchParams!.body.clientVersion === "1.6.0", "Client version should be sent to the API");
+    assert(fetchParams!.body.userCredential !== undefined, "User credential should be uploaded");
+    assert(fetchParams!.body.timestamp !== undefined, "Timestamp should be uploaded");
     // 安全验证：客户端不应再上传签名相关字段（密钥已移除，签名验证机制已废弃）
-    assert(fetchParams.body.encryptedAlgorithm === undefined, "encryptedAlgorithm field must NOT be uploaded (security fix: client no longer holds HMAC secret)");
-    assert(fetchParams.body.signature === undefined, "signature field must NOT be uploaded (client does not participate in signing)");
+    assert(fetchParams!.body.encryptedAlgorithm === undefined, "encryptedAlgorithm field must NOT be uploaded (security fix: client no longer holds HMAC secret)");
+    assert(fetchParams!.body.signature === undefined, "signature field must NOT be uploaded (client does not participate in signing)");
   } finally {
     global.fetch = originalFetch;
     await testKernel.destroy();

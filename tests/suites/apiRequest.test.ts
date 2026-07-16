@@ -11,6 +11,38 @@ import { cleanRequestPayload, cleanLLMResponse } from "../../src/kernel/utils/re
 import { readSSEStream, safeParseSSEData } from "../../src/utils/streamReader";
 import { assert } from "./testUtils";
 
+/**
+ * SSE 流式响应 chunk 的最小可用结构（仅本测试需要读取的字段）。
+ */
+interface SseStreamChunk {
+  choices?: Array<{
+    delta?: {
+      content?: string;
+      reasoning_content?: string;
+    };
+  }>;
+}
+
+/**
+ * cleanLLMResponse 返回的非空载体（顶层白名单字段 + choices[].message）。
+ */
+interface CleanedLLMResponse {
+  id?: string;
+  object?: string;
+  model?: string;
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  choices?: Array<{
+    index?: number;
+    message?: {
+      role?: string;
+      content?: string;
+      reasoning_content?: string;
+      [key: string]: unknown;
+    };
+  }>;
+  [key: string]: unknown;
+}
+
 export function testApiCleanRequestPayload() {
   console.log("\n--- Running API Request Payload Cleaning Verification ---");
 
@@ -134,13 +166,13 @@ export async function testSSEStreamWithReasoning() {
       const parsed = safeParseSSEData(dataStr);
       if (!parsed) return;
 
-      const reasoning = (parsed as any).choices?.[0]?.delta?.reasoning_content;
+      const reasoning = (parsed as SseStreamChunk).choices?.[0]?.delta?.reasoning_content;
       if (reasoning) {
         reasoningText += reasoning;
         return;
       }
 
-      const delta = (parsed as any).choices?.[0]?.delta?.content;
+      const delta = (parsed as SseStreamChunk).choices?.[0]?.delta?.content;
       if (delta) {
         responseText += delta;
       }
@@ -187,7 +219,7 @@ export async function testCleanLLMResponse() {
     __request_id: "req-abc",
   };
 
-  const cleaned = cleanLLMResponse(mockResponse) as any;
+  const cleaned = cleanLLMResponse(mockResponse) as CleanedLLMResponse;
 
   // 顶层标准字段应保留
   assert(cleaned.id === "chatcmpl-abc123", "Standard top-level field 'id' should be preserved");
@@ -216,7 +248,7 @@ export async function testCleanLLMResponse() {
 
   // 场景 3：缺少 choices 的响应不应崩溃
   const noChoices = { id: "test", model: "gpt-4" };
-  const cleanedNoChoices = cleanLLMResponse(noChoices) as any;
+  const cleanedNoChoices = cleanLLMResponse(noChoices) as CleanedLLMResponse;
   assert(cleanedNoChoices.id === "test", "Response without choices should not crash");
   assert(!cleanedNoChoices.choices, "choices should be absent if not in original");
 

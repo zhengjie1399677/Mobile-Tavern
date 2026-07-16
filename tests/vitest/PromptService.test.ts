@@ -78,8 +78,14 @@ describe("PromptService prompt compilation", () => {
         jailbreakPrompt: "Stay in character.",
         instructTemplate: "default",
         storyString: "",
+        systemPrefix: "",
+        systemSuffix: "",
+        userPrefix: "",
+        userSuffix: "",
+        assistantPrefix: "",
+        assistantSuffix: "",
       },
-    } as any;
+    };
 
     const result = promptService.assemblePrompt({
       character,
@@ -168,8 +174,14 @@ describe("PromptService prompt compilation", () => {
         jailbreakPrompt: "Stay in character.",
         instructTemplate: "default",
         storyString: "",
+        systemPrefix: "",
+        systemSuffix: "",
+        userPrefix: "",
+        userSuffix: "",
+        assistantPrefix: "",
+        assistantSuffix: "",
       },
-    } as any;
+    };
 
     const result = promptService.assemblePrompt({
       character,

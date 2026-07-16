@@ -121,7 +121,7 @@ function cleanSessionForMvu(session: ChatSession): ChatSession {
 const isDev = (): boolean => {
   try {
     return Boolean(
-      (import.meta as any).env?.DEV ||
+      (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV ||
         (typeof window !== "undefined" && window.location?.hostname === "localhost")
     );
   } catch {
@@ -244,7 +244,7 @@ export class ScriptService implements IScriptService {
 
       let updatedMessages = safeSession.messages;
       if (updatedMessages.length > 0) {
-        const lastMsg = { ...updatedMessages[updatedMessages.length - 1] } as any;
+        const lastMsg = { ...updatedMessages[updatedMessages.length - 1] };
         const swipeId = lastMsg.swipe_id !== undefined ? lastMsg.swipe_id : 0;
         const extra = { ...lastMsg.extra };
         if (!extra.variables) extra.variables = {};

@@ -7,7 +7,7 @@
  */
 
 import { replaceMacros, getTriggeredLorebookEntries, assemblePromptContext } from "../../src/utils/promptBuilder";
-import { LorebookEntry, Message } from "../../src/types";
+import { LorebookEntry, Message, UserSettings, CharacterCard, ChatSession } from "../../src/types";
 import { assert } from "./testUtils";
 
 export function testPromptBuilder() {
@@ -65,33 +65,40 @@ export function testPromptBuilder() {
 export function testPromptBuilderSystemMerging() {
   console.log("\n--- Running Prompt Builder System Merging Verification ---");
   // 模拟 settings
-  const mockSettings = {
+  const mockSettings: UserSettings = {
     userName: "Bob",
     userInfo: "Traveler",
     api: { type: "openai-compat", baseUrl: "", apiKey: "", modelName: "" },
-    preset: { temperature: 0.7, topP: 0.9, topK: 40, repetitionPenalty: 1.1, maxTokens: 100 },
+    preset: { id: "test-preset", name: "测试预设", temperature: 0.7, topP: 0.9, topK: 40, repetitionPenalty: 1.1, maxTokens: 100 },
     memory: { recentTurns: 10, summaryTriggerTurns: 0, summaryLength: 150 },
-    promptConfig: { roleplayMode: true, mainPrompt: "You are Alice.", instructTemplate: "default" }
-  } as any;
+    promptConfig: { roleplayMode: true, mainPrompt: "You are Alice.", jailbreakPrompt: "", useJailbreak: false, instructTemplate: "default", systemPrefix: "", systemSuffix: "", userPrefix: "", userSuffix: "", assistantPrefix: "", assistantSuffix: "" }
+  };
 
   // 模拟角色卡
-  const mockChar = {
+  const mockChar: CharacterCard = {
+    id: "char-alice",
     name: "Alice",
     description: "AI",
     personality: "Optimistic",
     scenario: "Cozy tavern",
     first_mes: "Hello",
-  } as any;
+    mes_example: "",
+  };
 
   // 模拟包含中途 System 消息的 Chat
-  const mockChat = {
+  const mockChat: ChatSession = {
+    id: "chat-1",
+    characterId: "char-alice",
+    title: "测试对话",
+    createdAt: Date.now(),
     messages: [
-      { id: "m1", sender: "user", content: "Hi" },
-      { id: "m2", sender: "system", content: "Suddenly, the weather turned cold." },
-      { id: "m3", sender: "system", content: "A monster appears." },
-      { id: "m4", sender: "assistant", content: "Oh no!" },
-    ]
-  } as any;
+      { id: "m1", sender: "user", content: "Hi", timestamp: Date.now() },
+      { id: "m2", sender: "system", content: "Suddenly, the weather turned cold.", timestamp: Date.now() },
+      { id: "m3", sender: "system", content: "A monster appears.", timestamp: Date.now() },
+      { id: "m4", sender: "assistant", content: "Oh no!", timestamp: Date.now() },
+    ],
+    summaries: [],
+  };
 
   const result = assemblePromptContext({
     character: mockChar,

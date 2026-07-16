@@ -9,6 +9,18 @@ import {
 import { mapSillyTavernLorebookEntry } from "../../utils/cardParser";
 
 /**
+ * Android WebView 注入的原生桥接对象（仅导出文件用到的子集方法）。
+ * 由原生层通过 @JavascriptInterface 挂载到 window.AndroidThemeBridge。
+ */
+interface AndroidThemeBridge {
+  saveFile?: (fileName: string, content: string) => string;
+}
+
+interface WindowWithAndroidBridge extends Window {
+  AndroidThemeBridge?: AndroidThemeBridge;
+}
+
+/**
  * 内联编辑表单的状态类型。
  * 在 LorebookEntry 基础上扩展了 isGlobal / targetOwnerId 两个用于切换宿主的辅助字段。
  */
@@ -618,10 +630,10 @@ export function useWorldbookActions(params: UseWorldbookActionsParams) {
 
     // 在 Android 环境通过原生桥接保存
     if (
-      (window as any).AndroidThemeBridge &&
-      typeof (window as any).AndroidThemeBridge.saveFile === "function"
+      (window as WindowWithAndroidBridge).AndroidThemeBridge &&
+      typeof (window as WindowWithAndroidBridge).AndroidThemeBridge?.saveFile === "function"
     ) {
-      const path = (window as any).AndroidThemeBridge.saveFile(
+      const path = (window as WindowWithAndroidBridge).AndroidThemeBridge!.saveFile!(
         fileName,
         content,
       );

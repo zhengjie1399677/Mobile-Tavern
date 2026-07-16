@@ -299,7 +299,7 @@ export default function FeaturesSection({
                       onChange={(e) =>
                         updateSettings({
                           ...settings,
-                          replySuggestionsClickMode: e.target.value as any,
+                          replySuggestionsClickMode: e.target.value as "send" | "fill",
                         })
                       }
                       className="bg-muted border border-border rounded px-1 py-0.5 text-xs outline-none focus:border-primary font-bold text-foreground"

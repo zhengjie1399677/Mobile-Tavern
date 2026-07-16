@@ -15,6 +15,7 @@
 
 import 'fake-indexeddb/auto';
 import { assert } from "./testUtils";
+import type { IDatabaseService } from "../../src/kernel/types";
 
 export async function testMemoryE2E() {
   console.log("\n--- Running Memory E2E (fake-indexeddb) Verification ---");
@@ -186,7 +187,7 @@ export async function testMemoryE2E() {
   __resetDBInstanceForTesting();
 
   const { MemoryStorage } = await import("../../src/kernel/services/memory/MemoryStorage");
-  const mockDbService = {} as any; // MemoryStorage 仅持有引用，不实际调用
+  const mockDbService = {} as unknown as IDatabaseService; // MemoryStorage 仅持有引用，不实际调用
   const storage = new MemoryStorage(mockDbService);
   await storage.init();
 

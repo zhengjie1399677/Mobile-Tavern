@@ -1,11 +1,64 @@
 import { IKernel, IKernelService, IAsrService, AsrConfig } from "../types";
 
+/** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
+interface TauriWindow extends Window {
+  __TAURI_INTERNALS__?: unknown;
+}
+
+/** Web Speech API 最小类型声明（lib.dom 暂未内置）。 */
+interface SpeechRecognitionAlternative {
+  readonly transcript: string;
+  readonly confidence: number;
+}
+
+interface SpeechRecognitionResult {
+  readonly isFinal: boolean;
+  readonly length: number;
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  readonly resultIndex: number;
+  readonly results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  readonly error: string;
+  readonly message: string;
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionLike;
+}
+
+interface WindowSpeechRecognition extends Window {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+}
+
 // tauriFetch 用于在 Tauri 移动端/桌面端环境下发起跨域请求
 let tauriFetch: typeof fetch | null = null;
 let tauriFetchPromise: Promise<typeof fetch | null> | null = null;
 
 // 如果当前处于 Web 视图环境中，且检测到 Tauri 环境，则动态导入 Tauri HTTP 插件中的 fetch
-if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
+if (typeof window !== "undefined" && (window as TauriWindow).__TAURI_INTERNALS__) {
   tauriFetchPromise = import("@tauri-apps/plugin-http")
     .then((mod) => {
       tauriFetch = mod.fetch;
@@ -92,7 +145,7 @@ export class AsrService implements IAsrService {
     // 模式 1: 使用浏览器原生 Web Speech API
     if (config.provider === "web-speech") {
       const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        (window as WindowSpeechRecognition).SpeechRecognition || (window as WindowSpeechRecognition).webkitSpeechRecognition;
 
       if (!SpeechRecognition) {
         this.isListeningState = false;
@@ -313,7 +366,7 @@ export class AsrService implements IAsrService {
     }
 
     const isBrowserEnv = typeof window !== "undefined" &&
-                         !(window as any).__TAURI_INTERNALS__ &&
+                         !(window as TauriWindow).__TAURI_INTERNALS__ &&
                          (typeof process === "undefined" || process.env.NODE_ENV !== "test");
     const isRemoteUrl = url.startsWith("https://") || (url.startsWith("http://") && !url.includes("127.0.0.1") && !url.includes("localhost"));
 

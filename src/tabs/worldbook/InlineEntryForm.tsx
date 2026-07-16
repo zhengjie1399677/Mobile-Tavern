@@ -1,6 +1,7 @@
 import React from "react";
 import { Save } from "lucide-react";
 import type { EditFormState } from "./useWorldbookActions";
+import type { LorebookEntry } from "../../types";
 
 export interface InlineEntryFormProps {
   id: string;
@@ -73,7 +74,7 @@ export default function InlineEntryForm({
             onChange={(e) =>
               setEditForm((prev) => ({
                 ...prev,
-                keys: e.target.value as any,
+                keys: e.target.value as unknown as string[],
               }))
             }
             className="w-full bg-input border border-border rounded-lg p-2 text-foreground outline-none focus:border-primary font-medium transition"
@@ -157,7 +158,7 @@ export default function InlineEntryForm({
               onChange={(e) =>
                 setEditForm((prev) => ({
                   ...prev,
-                  position: e.target.value as any,
+                  position: e.target.value as LorebookEntry["position"],
                 }))
               }
               className="w-full bg-input border border-border rounded-lg p-1.5 text-foreground text-xs"

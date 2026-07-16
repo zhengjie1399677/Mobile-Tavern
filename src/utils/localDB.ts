@@ -4,8 +4,18 @@ import {
   UserSettings,
   LorebookEntry,
   CustomWorldbook,
+  Message,
 } from "../types";
 import { reportDbQueueTimeout } from "./telemetry";
+
+// 内存 Message 在持久化到 messages Store 时可能携带的额外字段。
+// 这些字段由记忆系统写入，但未纳入 Message 接口契约，故在此显式声明以避免类型逃逸。
+type PersistedMessage = Message & {
+  turnIndex?: number;
+  tags?: string[];
+  extractSource?: string;
+  metadata?: Record<string, any>;
+};
 
 const DB_NAME = "MobileTavernLiteDB";
 // v7: 新增 sessions.createdAt 索引，支持按时间倒序分页加载（P0-1）
@@ -933,16 +943,17 @@ export async function bulkSaveSessions(sessionsList: ChatSession[]): Promise<voi
 
         if (messages && Array.isArray(messages)) {
           messages.forEach((msg, idx) => {
+            const persisted = msg as PersistedMessage;
             const record = {
               id: msg.id,
               sessionId: session.id,
               role: msg.sender === "user" ? "user" as const : "assistant" as const,
               content: msg.content,
               createdAt: msg.timestamp || Date.now(),
-              turnIndex: (msg as any).turnIndex !== undefined ? (msg as any).turnIndex : idx,
-              tags: (msg as any).tags || [],
-              extractSource: (msg as any).extractSource || "none",
-              metadata: (msg as any).metadata || msg.extra,
+              turnIndex: persisted.turnIndex !== undefined ? persisted.turnIndex : idx,
+              tags: persisted.tags || [],
+              extractSource: persisted.extractSource || "none",
+              metadata: persisted.metadata || msg.extra,
             };
             messagesStore.put(record);
           });
@@ -1364,7 +1375,7 @@ export async function deleteMessageById(id: string): Promise<void> {
  */
 export async function syncSessionMessages(
   sessionId: string,
-  messages: Array<{ id: string; sender: string; content: string; timestamp?: number; extra?: Record<string, any> }>
+  messages: Array<{ id: string; sender: string; content: string; timestamp?: number; extra?: Record<string, any>; metadata?: Record<string, any> }>
 ): Promise<void> {
   if (!messages || messages.length === 0) return;
   return enqueueWrite(async () => {
@@ -1388,7 +1399,7 @@ export async function syncSessionMessages(
           turnIndex: idx,
           tags: [],
           extractSource: "none",
-          metadata: (msg as any).metadata || msg.extra,
+          metadata: msg.metadata || msg.extra,
         };
         store.put(record);
       });

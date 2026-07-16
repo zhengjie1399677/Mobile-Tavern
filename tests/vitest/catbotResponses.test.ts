@@ -87,7 +87,7 @@ describe("catbotResponses 缓存读写", () => {
   });
 
   it("setResponsesCache 可设置为 null 并降级", () => {
-    setResponsesCache(null as any);
+    setResponsesCache(null);
     expect(getResponsesCache()).toBeNull();
   });
 

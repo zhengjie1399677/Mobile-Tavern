@@ -148,7 +148,7 @@ try {
   const updateSettings_v2 = createUpdateSettings(mockSettings);
   updateSettings_v2(null); // Should fallback gracefully to prev
   updateSettings_v2(undefined); // Should fallback gracefully to prev
-  updateSettings_v2({} as any); // Partial empty object should not wipe nested properties
+  updateSettings_v2({}); // Partial empty object should not wipe nested properties
   
   if (!mockSettings.api || !mockSettings.preset || !mockSettings.memory || !mockSettings.promptConfig) {
     throw new Error("Wiped out nested settings objects on empty updates!");

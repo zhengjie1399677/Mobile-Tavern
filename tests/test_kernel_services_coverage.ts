@@ -185,11 +185,11 @@ async function testPromptServiceRedosProtection() {
     const triggered = service.getTriggeredLorebookEntries(
       messages,
       "我们来讨论 aaaa 魔法",
-      dangerousEntries as any
+      dangerousEntries
     );
 
     // 危险正则应降级为字符串包含匹配，不抛错
-    const safeTriggered = triggered.find((e: any) => e.id === "redos-safe");
+    const safeTriggered = triggered.find((e: { id: string }) => e.id === "redos-safe");
     assert(safeTriggered !== undefined, "安全关键词应正常触发");
 
     console.log("  ✔ ReDoS 危险正则降级处理验证通过");
@@ -212,9 +212,9 @@ async function testPromptServiceRedosProtection() {
     const triggered = service.getTriggeredLorebookEntries(
       [{ id: "m1", sender: "user", content: "你好世界", timestamp: Date.now() }] as Message[],
       "你好世界",
-      normalRegexEntries as any
+      normalRegexEntries
     );
-    assert(triggered.some((e: any) => e.id === "regex-normal"), "正常正则应触发匹配");
+    assert(triggered.some((e: { id: string }) => e.id === "regex-normal"), "正常正则应触发匹配");
     console.log("  ✔ 正常正则匹配验证通过");
   }
 
@@ -233,7 +233,7 @@ async function testLLMServiceUrlValidation() {
   await testKernel.registerService("llm", service);
 
   // validateBaseUrl 是私有方法，通过反射访问
-  const validateBaseUrl = (service as any).validateBaseUrl.bind(service);
+  const validateBaseUrl = (service as unknown as { validateBaseUrl: (url: string | undefined) => string }).validateBaseUrl.bind(service);
 
   // 3.1 合法 URL 应通过校验
   {
@@ -327,13 +327,13 @@ async function testAutoSummaryMetadataParsing() {
     createdAt: Date.now(),
     messages: Array.from({ length: 10 }, (_, i) => ({
       id: `msg_${i}`,
-      sender: i % 2 === 0 ? "user" : "assistant",
+      sender: (i % 2 === 0 ? "user" : "assistant") as "user" | "assistant",
       content: `消息 ${i}`,
       timestamp: Date.now(),
     })),
     summaries: [],
     variables: {},
-  } as any;
+  };
 
   const autoSummaryService = new AutoSummaryService();
 
@@ -342,18 +342,40 @@ async function testAutoSummaryMetadataParsing() {
   await testKernel.registerService("autoSummary", autoSummaryService);
 
   const mockSettings: UserSettings = {
+    userName: "Tester",
     api: {
       type: "openai-compat",
       baseUrl: "https://api.openai.com/v1",
       apiKey: "sk-test-key",
       modelName: "gpt-4",
     },
+    preset: {
+      id: "test-preset",
+      name: "测试预设",
+      temperature: 0.7,
+      topP: 0.9,
+      topK: 40,
+      repetitionPenalty: 1.0,
+      maxTokens: 1000,
+    },
     memory: {
       recentTurns: 6,
       summaryTriggerTurns: 4,
       summaryLength: 150,
     },
-  } as any;
+    promptConfig: {
+      mainPrompt: "",
+      jailbreakPrompt: "",
+      useJailbreak: false,
+      instructTemplate: "default",
+      systemPrefix: "",
+      systemSuffix: "",
+      userPrefix: "",
+      userSuffix: "",
+      assistantPrefix: "",
+      assistantSuffix: "",
+    },
+  };
 
   const mockCharacter: CharacterCard = {
     id: "char-1",
@@ -361,7 +383,9 @@ async function testAutoSummaryMetadataParsing() {
     description: "剑士",
     personality: "坚毅",
     scenario: "旅馆大厅的夜晚",
-  } as any;
+    first_mes: "",
+    mes_example: "",
+  };
 
   // 触发自动总结
   const result = await autoSummaryService.handleAutoSummaryCheck(

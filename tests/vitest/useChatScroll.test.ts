@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useChatScroll } from "../../src/tabs/chat/useChatScroll";
 
+/**
+ * 可变 ref 类型，绕过 React.RefObject 的 readonly 限制以注入 mock 容器。
+ */
+type MutableRefObject<T> = { current: T };
+
 describe("useChatScroll hook tests", () => {
   it("should initialize correctly", () => {
     const { result } = renderHook(() =>
@@ -26,7 +31,7 @@ describe("useChatScroll hook tests", () => {
       clientHeight: 500,
       scrollTo: vi.fn(),
     };
-    (result.current.scrollContainerRef as any).current = mockContainer;
+    (result.current.scrollContainerRef as unknown as MutableRefObject<HTMLDivElement | null>).current = mockContainer as unknown as HTMLDivElement;
 
     // Trigger handleScroll
     act(() => {
@@ -49,7 +54,7 @@ describe("useChatScroll hook tests", () => {
       clientHeight: 500,
       scrollTo: vi.fn(),
     };
-    (result.current.scrollContainerRef as any).current = mockContainer;
+    (result.current.scrollContainerRef as unknown as MutableRefObject<HTMLDivElement | null>).current = mockContainer as unknown as HTMLDivElement;
 
     act(() => {
       result.current.handleScroll();
@@ -72,7 +77,7 @@ describe("useChatScroll hook tests", () => {
       clientHeight: 500,
       scrollTo: scrollToMock,
     };
-    (result.current.scrollContainerRef as any).current = mockContainer;
+    (result.current.scrollContainerRef as unknown as MutableRefObject<HTMLDivElement | null>).current = mockContainer as unknown as HTMLDivElement;
 
     // Set scroll button to true first
     act(() => {

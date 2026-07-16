@@ -115,7 +115,7 @@ export function usePresetFormState({
     }
     updateSettings((prev) => {
       const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
-      const list = (prev as any)[field] || [];
+      const list = prev[field] || [];
       return {
         ...prev,
         [field]: list.map((r: any) => (r.id === id ? { ...r, disabled } : r)),
@@ -147,7 +147,7 @@ export function usePresetFormState({
     }
     updateSettings((prev) => {
       const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
-      const list = (prev as any)[field] || [];
+      const list = prev[field] || [];
       return {
         ...prev,
         [field]: list.filter((r: any) => r.id !== id),
@@ -188,7 +188,7 @@ export function usePresetFormState({
     }
     updateSettings((prev) => {
       const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
-      const list = (prev as any)[field] || [];
+      const list = prev[field] || [];
       const exists = list.some((r: any) => r.id === reg.id);
       let nextList;
       if (exists) {

@@ -13,6 +13,20 @@ import {
 } from "./helpers";
 import { runOutputPipelineAndSave } from "./pipelineHelpers";
 
+/**
+ * Tavern 全局辅助 window 字段类型收口。
+ * 这些字段被 FormattedText.tsx / MessageBubble.tsx / useSendMessage.ts 等多处
+ * 跨 iframe / 原生桥接边界共享读取，本文件内通过本地接口
+ * 替代类型逃逸写法，避免类型丢失。
+ * 字段标记为可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface WindowWithTavernHelpers extends Window {
+  /** 当前流式输出的 messageId，供 FormattedText / MessageBubble 判断渲染态 */
+  TavernHelperStreamingMessageId?: string | null;
+  /** 全局发送互斥标志，供 iframe / 原生桥接侧读取 */
+  TavernHelperIsSending?: boolean;
+}
+
 interface RerollMessageParams {
   settings: UserSettings;
   globalLorebook: LorebookEntry[];
@@ -56,13 +70,13 @@ export function useRerollMessage(p: RerollMessageParams) {
     // 互斥锁检查 + 兜底自愈（与 useSendMessage 一致）
     // isSendingRef 可能因 finally 块的 requestId !== activeRequestIdRef 检查而残留 true
     if (p.isSendingRef.current) {
-      const streamingId = typeof window !== "undefined" ? (window as any).TavernHelperStreamingMessageId : null;
+      const streamingId = typeof window !== "undefined" ? (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId : null;
       if (!streamingId) {
         console.warn("[useRerollMessage] 检测到 isSendingRef 残留但无活跃流式，强制重置互斥锁");
         p.isSendingRef.current = false;
         p.setIsSending(false);
         if (typeof window !== "undefined") {
-          (window as any).TavernHelperIsSending = false;
+          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
         }
       } else {
         return;
@@ -75,7 +89,7 @@ export function useRerollMessage(p: RerollMessageParams) {
     p.isSendingRef.current = true;
     p.setIsSending(true);
     if (typeof window !== "undefined") {
-      (window as any).TavernHelperIsSending = true;
+      (window as WindowWithTavernHelpers).TavernHelperIsSending = true;
     }
 
     let finalApiKey = p.settings.api.apiKey;
@@ -90,7 +104,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         p.isSendingRef.current = false;
         p.setIsSending(false);
         if (typeof window !== "undefined") {
-          (window as any).TavernHelperIsSending = false;
+          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
         }
         return;
       }
@@ -105,7 +119,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         p.isSendingRef.current = false;
         p.setIsSending(false);
         if (typeof window !== "undefined") {
-          (window as any).TavernHelperIsSending = false;
+          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
         }
         return;
       }
@@ -121,7 +135,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       p.isSendingRef.current = false;
       p.setIsSending(false);
       if (typeof window !== "undefined") {
-        (window as any).TavernHelperIsSending = false;
+        (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
       }
       return;
     }
@@ -132,7 +146,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         p.isSendingRef.current = false;
         p.setIsSending(false);
         if (typeof window !== "undefined") {
-          (window as any).TavernHelperIsSending = false;
+          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
         }
         return;
       }
@@ -157,7 +171,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       p.isSendingRef.current = false;
       p.setIsSending(false);
       if (typeof window !== "undefined") {
-        (window as any).TavernHelperIsSending = false;
+        (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
       }
       return;
     }
@@ -181,7 +195,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       p.isSendingRef.current = false;
       p.setIsSending(false);
       if (typeof window !== "undefined") {
-        (window as any).TavernHelperIsSending = false;
+        (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
       }
       return;
     }
@@ -255,7 +269,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       console.log("--- AI 发言重新生成流式开始 ---");
       // 关键修复：同步设置 streamingMessageId，与 useSendMessage 保持一致，避免 iframe 抢跑
       if (typeof window !== "undefined") {
-        (window as any).TavernHelperStreamingMessageId = aiMsgId;
+        (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = aiMsgId;
       }
       const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };
       p.setSessions((prev) =>
@@ -302,7 +316,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         if (chunk.error) {
           const errMsg = typeof chunk.error === "string"
             ? chunk.error
-            : ((chunk.error as any).message || JSON.stringify(chunk.error));
+            : ((chunk.error as { message?: string }).message || JSON.stringify(chunk.error));
           throw new Error(`[API Error] ${errMsg}`);
         }
         if (chunk.__rescuedContent) {
@@ -342,7 +356,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
       // 流式正常完成：清除 streamingMessageId
       if (typeof window !== "undefined") {
-        (window as any).TavernHelperStreamingMessageId = null;
+        (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = null;
       }
 
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
@@ -434,7 +448,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
       // 异常/中断分支：清除 streamingMessageId
       if (typeof window !== "undefined") {
-        (window as any).TavernHelperStreamingMessageId = null;
+        (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = null;
       }
       const isManualAbort = e.name === "AbortError" || e.message?.includes("aborted") || controller.signal.aborted;
       const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
@@ -497,14 +511,14 @@ export function useRerollMessage(p: RerollMessageParams) {
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
       // finally 兜底：确保 streamingMessageId 被清除，避免任何未捕获路径残留导致 FormattedText 卡死
       if (typeof window !== "undefined") {
-        (window as any).TavernHelperStreamingMessageId = null;
+        (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = null;
       }
       if (p.abortControllerRef.current === controller) p.abortControllerRef.current = null;
       if (requestId === p.activeRequestIdRef.current) {
         p.isSendingRef.current = false;
         p.setIsSending(false);
         if (typeof window !== "undefined") {
-          (window as any).TavernHelperIsSending = false;
+          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
         }
       }
     }

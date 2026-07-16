@@ -40,7 +40,7 @@ function makeSession(overrides?: Partial<ChatSession>): ChatSession {
       },
     ],
     ...overrides,
-  } as any as ChatSession;
+  } as unknown as ChatSession;
 }
 
 describe("MemoryTableDrawer", () => {

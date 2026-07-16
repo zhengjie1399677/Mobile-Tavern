@@ -6,6 +6,24 @@ import { IKernel, IKernelService, IUpdateCheckService, UpdateInfo } from "../typ
 // 现架构：客户端只发送 clientVersion + userCredential + timestamp，
 // 防刷与防重放由服务端基于 IP 限流 + 时间戳校验统一负责。
 
+// Network Information API 类型扩展（部分浏览器使用厂商前缀）
+interface NetworkConnectionLike {
+  type?: string;
+  effectiveType?: string;
+}
+
+interface NavigatorNetworkInformation extends Navigator {
+  connection?: NetworkConnectionLike;
+  mozConnection?: NetworkConnectionLike;
+  webkitConnection?: NetworkConnectionLike;
+}
+
+// Tauri 原生运行时注入的全局对象
+interface WindowTauriInternals extends Window {
+  __TAURI_INTERNALS__?: unknown;
+  __TAURI_IPC__?: unknown;
+}
+
 export class UpdateCheckService implements IUpdateCheckService {
   name = "updateCheck";
   isCritical = false;
@@ -36,7 +54,7 @@ export class UpdateCheckService implements IUpdateCheckService {
     // 1. 本地网络环境校验：必须是 wifi 环境下才触发（避免非 wifi 自动下载浪费蜂窝流量）
     let network = "unknown";
     if (typeof navigator !== "undefined") {
-      const conn = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      const conn = (navigator as NavigatorNetworkInformation).connection || (navigator as NavigatorNetworkInformation).mozConnection || (navigator as NavigatorNetworkInformation).webkitConnection;
       if (conn) {
         network = conn.type || (conn.effectiveType ? conn.effectiveType : "unknown");
       } else if (navigator.onLine) {
@@ -100,8 +118,8 @@ export class UpdateCheckService implements IUpdateCheckService {
       window.location.protocol.startsWith("tauri") ||
       window.location.protocol === "file:" ||
       window.location.hostname === "tauri.localhost" ||
-      !!(window as any).__TAURI_INTERNALS__ ||
-      !!(window as any).__TAURI_IPC__
+      !!(window as WindowTauriInternals).__TAURI_INTERNALS__ ||
+      !!(window as WindowTauriInternals).__TAURI_IPC__
     );
 
     // 选择目标接口：原生环境直连 FC，浏览器开发环境连本地 server.ts

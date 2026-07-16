@@ -5,16 +5,39 @@ import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
 
 declare const IS_MOBILE_NATIVE: boolean;
 
+/** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts 对齐）。 */
+interface TauriWindow extends Window {
+  __TAURI_INTERNALS__?: unknown;
+  __TAURI_IPC__?: unknown;
+}
+
+/**
+ * AbortSignal 静态方法扩展声明：
+ * - timeout: ES2022 标准，TS ES2022 lib 已内置类型。
+ * - any: ES2024 提案，ES2022 lib 未提供类型，以可选静态方法形式补全。
+ */
+interface AbortSignalStaticExtensions {
+  timeout?(ms: number): AbortSignal;
+  any?(signals: AbortSignal[]): AbortSignal;
+}
+
+/** 模型列表条目的最小结构契约，用于在 unknown 对象上做 id/name 字段探测。 */
+interface ModelLike {
+  id?: unknown;
+  name?: unknown;
+}
+
 let tauriFetch: typeof fetch | null = null;
 let tauriFetchPromise: Promise<typeof fetch | null> | null = null;
 
 if (typeof window !== "undefined") {
+  const tauriWindow = window as TauriWindow;
   const isTauri =
     window.location.protocol.startsWith("tauri") ||
     window.location.protocol === "file:" ||
     window.location.hostname === "tauri.localhost" ||
-    !!(window as any).__TAURI_INTERNALS__ ||
-    !!(window as any).__TAURI_IPC__;
+    !!tauriWindow.__TAURI_INTERNALS__ ||
+    !!tauriWindow.__TAURI_IPC__;
 
   if (isTauri) {
     tauriFetchPromise = import("@tauri-apps/plugin-http")
@@ -58,12 +81,13 @@ export class LLMService implements ILLMService {
 
   isClientMode(): boolean {
     if (typeof window === "undefined") return false;
+    const tauriWindow = window as TauriWindow;
     return (
       window.location.protocol.startsWith("tauri") ||
       window.location.protocol === "file:" ||
       window.location.hostname === "tauri.localhost" ||
-      !!(window as any).__TAURI_INTERNALS__ ||
-      !!(window as any).__TAURI_IPC__
+      !!tauriWindow.__TAURI_INTERNALS__ ||
+      !!tauriWindow.__TAURI_IPC__
     );
   }
 
@@ -133,11 +157,13 @@ export class LLMService implements ILLMService {
     const isTauri = this.isClientMode();
 
     let signal: AbortSignal | undefined = customSignal;
-    if ((AbortSignal as any).timeout) {
-      const timeoutSignal = AbortSignal.timeout(300_000); // 放宽至 300 秒（5分钟），防止生成长文本时超时掐断
+    // AbortSignal.timeout/any 在 ES2022 lib 中部分缺失类型，使用局部扩展接口访问静态方法。
+    const AbortSignalCtor = AbortSignal as unknown as AbortSignalStaticExtensions;
+    if (AbortSignalCtor.timeout) {
+      const timeoutSignal = AbortSignalCtor.timeout(300_000); // 放宽至 300 秒（5分钟），防止生成长文本时超时掐断
       if (customSignal) {
-        if ((AbortSignal as any).any) {
-          signal = (AbortSignal as any).any([customSignal, timeoutSignal]);
+        if (AbortSignalCtor.any) {
+          signal = AbortSignalCtor.any([customSignal, timeoutSignal]);
         }
       } else {
         signal = timeoutSignal;
@@ -290,10 +316,10 @@ export class LLMService implements ILLMService {
             modelsArray = obj.models;
           } else {
             modelsArray = Object.values(obj).filter(
-              (v): v is any =>
+              (v): v is ModelLike =>
                 typeof v === "object" &&
                 v !== null &&
-                (typeof (v as any).id === "string" || typeof (v as any).name === "string")
+                (typeof (v as ModelLike).id === "string" || typeof (v as ModelLike).name === "string")
             );
           }
         }

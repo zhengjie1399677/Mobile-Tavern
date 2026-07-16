@@ -11,8 +11,11 @@ export interface RecallTabProps {
   saveSession: (session: ChatSession) => Promise<void>;
 }
 
+/** 扩展 ChatSession 以包含记忆系统运行时写入的回调记忆字段。 */
+type ChatSessionWithRecall = ChatSession & { lastRecalledMemories?: unknown[] };
+
 function RecallTab({ activeSession, saveSession }: RecallTabProps) {
-  const lastRecalled = (activeSession as any).lastRecalledMemories || [];
+  const lastRecalled = (activeSession as ChatSessionWithRecall).lastRecalledMemories || [];
 
   // Pin (钉子) 逻辑交互
   const handleTogglePin = async (messageId: string) => {

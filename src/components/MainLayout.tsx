@@ -3,6 +3,7 @@ import { useUnifiedApp } from "../UnifiedAppContext";
 import { SplashScreen } from "./SplashScreen";
 import { VenetianMask, MessageSquare, Book, Settings, HelpCircle } from "lucide-react";
 import { useKernel } from "../contexts/KernelContext";
+import type { TabType } from "../contexts/AppContext";
 
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
   VenetianMask,
@@ -92,7 +93,7 @@ export default function MainLayout() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id as TabType)}
                   role="tab"
                   aria-selected={selected}
                   aria-label={`页签，${tab.meta?.name}${selected ? "，当前选中" : ""}`}

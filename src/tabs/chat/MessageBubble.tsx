@@ -25,6 +25,29 @@ import TypingIndicator from "./TypingIndicator";
 import QuickDialogueOptions from "./QuickDialogueOptions";
 import CloudLoader from "../../components/CloudLoader";
 
+/**
+ * Tavern 全局辅助 window 字段类型收口。
+ * 这些字段被本文件跨 iframe / 原生桥接边界读取，
+ * 本地接口替代类型逃逸写法，避免类型丢失。
+ * 字段标记为可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface WindowWithTavernHelpers extends Window {
+  /** 当前流式输出的 messageId，供 MessageBubble 判断渲染态 */
+  TavernHelperStreamingMessageId?: string | null;
+  /** 由 AndroidBridgePlugin 注入的原生桥接对象（仅声明本文件用到的子集） */
+  AndroidThemeBridge?: AndroidThemeBridge;
+}
+
+/**
+ * `window.AndroidThemeBridge` 的最小子集类型，仅声明本文件实际调用的方法。
+ * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
+ * 所有方法同步执行于 WebView JS 线程，返回值为保存路径或 `error:` 前缀错误信息。
+ */
+interface AndroidThemeBridge {
+  saveFile(fileName: string, content: string): string;
+  saveFileBase64(fileName: string, base64Data: string, mimeType: string): string;
+}
+
 interface MessageBubbleProps {
   message: any;
   idx: number;
@@ -83,7 +106,7 @@ const MessageBubble = ({
   // streamingMessageId 在 useSendMessage/useRerollMessage 中同步设置（添加占位符之前）和清除（流式结束/异常/finally）
   const isStreamingThisMsg = (() => {
     if (typeof window === "undefined") return idx === messagesToRenderLength - 1;
-    const streamingId = (window as any).TavernHelperStreamingMessageId;
+    const streamingId = (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId;
     // streamingMessageId 精确命中当前消息 → 流式中
     // 必须优先检查全局标志（在 isSending 之前），因为：
     // __streamingMsgIdGuard 在 useSendMessage 中是同步赋值（早于 setSessions），
@@ -798,17 +821,17 @@ const MessageBubble = ({
                       if (!ok) return;
 
                       const filename = `draw_${Date.now()}.png`;
-                      if ((window as any).AndroidThemeBridge) {
+                      if ((window as WindowWithTavernHelpers).AndroidThemeBridge) {
                         try {
                           let path = null;
                           const isDataUrl = message.extra.image.startsWith("data:");
-                          if (isDataUrl && typeof (window as any).AndroidThemeBridge.saveFileBase64 === "function") {
+                          if (isDataUrl && typeof (window as WindowWithTavernHelpers).AndroidThemeBridge?.saveFileBase64 === "function") {
                             const commaIdx = message.extra.image.indexOf(",");
                             const mimeType = message.extra.image.slice(5, commaIdx).split(";")[0] || "image/png";
                             const base64Data = message.extra.image.slice(commaIdx + 1);
-                            path = (window as any).AndroidThemeBridge.saveFileBase64(filename, base64Data, mimeType);
-                          } else if (typeof (window as any).AndroidThemeBridge.saveFile === "function") {
-                            path = (window as any).AndroidThemeBridge.saveFile(filename, message.extra.image);
+                            path = (window as WindowWithTavernHelpers).AndroidThemeBridge!.saveFileBase64(filename, base64Data, mimeType);
+                          } else if (typeof (window as WindowWithTavernHelpers).AndroidThemeBridge?.saveFile === "function") {
+                            path = (window as WindowWithTavernHelpers).AndroidThemeBridge!.saveFile(filename, message.extra.image);
                           }
 
                           if (path && !path.startsWith("error:")) {

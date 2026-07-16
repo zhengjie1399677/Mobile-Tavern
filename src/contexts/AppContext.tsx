@@ -1,5 +1,22 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 
+/**
+ * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。
+ * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
+ */
+interface AndroidThemeBridge {
+  getSafeAreas?: () => string;
+  setStatusBarStyle?: (isDark: boolean, color: string) => void;
+}
+
+/**
+ * 扩展 Window 以访问原生注入的 AndroidThemeBridge。
+ * 字段可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface WindowWithAndroidBridge extends Window {
+  AndroidThemeBridge?: AndroidThemeBridge;
+}
+
 export type TabType =
   | "characters"
   | "chat"
@@ -116,7 +133,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const [currentTheme, setCurrentTheme] = useState<ThemeType>(() => {
-    return (localStorage.getItem("mobile_tavern_theme") || localStorage.getItem("siuser-theme") as any) || "ocean";
+    return (localStorage.getItem("mobile_tavern_theme") || localStorage.getItem("siuser-theme") || "ocean") as ThemeType;
   });
   const isInitialRender = useRef(true);
 
@@ -151,7 +168,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const tryFetchSafeAreas = () => {
-      const bridge = (window as any).AndroidThemeBridge;
+      const bridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
       if (bridge && typeof bridge.getSafeAreas === "function") {
         try {
           const res = JSON.parse(bridge.getSafeAreas());
@@ -249,7 +266,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Toggle Android native status bar icon color and background.
     // Cold-start initialization is handled by Kotlin reading SharedPreferences in onCreate().
     // This call updates the live status bar when the user switches themes at runtime.
-    const bridge = (window as any).AndroidThemeBridge;
+    const bridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
     if (bridge && typeof bridge.setStatusBarStyle === "function") {
       try {
         bridge.setStatusBarStyle(isDark, color);

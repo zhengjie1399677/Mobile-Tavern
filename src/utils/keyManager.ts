@@ -14,6 +14,11 @@ function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
+/** Node.js global 环境下 crypto 的最小类型声明 */
+interface NodeGlobalWithCrypto {
+  crypto?: { subtle?: SubtleCrypto };
+}
+
 const getSubtleCrypto = (): SubtleCrypto => {
   if (typeof window !== "undefined" && window.crypto && window.crypto.subtle) {
     return window.crypto.subtle;
@@ -21,8 +26,9 @@ const getSubtleCrypto = (): SubtleCrypto => {
   if (typeof globalThis !== "undefined" && globalThis.crypto && globalThis.crypto.subtle) {
     return globalThis.crypto.subtle;
   }
-  if (typeof global !== "undefined" && (global as any).crypto && (global as any).crypto.subtle) {
-    return (global as any).crypto.subtle;
+  const g = (typeof global !== "undefined" ? (global as NodeGlobalWithCrypto) : null);
+  if (g && g.crypto && g.crypto.subtle) {
+    return g.crypto.subtle;
   }
   throw new Error("Web Crypto API (subtle) is not supported in this environment.");
 };
@@ -43,23 +49,27 @@ export async function decryptAesGcm(
   dataToDecrypt.set(cipherBytes, 0);
   dataToDecrypt.set(tagBytes, cipherBytes.length);
 
+  // 辅助：从 Uint8Array 视图提取干净的 ArrayBuffer 副本（Web Crypto API 要求 BufferSource）
+  const copyBuffer = (view: Uint8Array): ArrayBuffer =>
+    view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
+
   const subtle = getSubtleCrypto();
   const cryptoKey = await subtle.importKey(
     "raw",
-    keyBytes.buffer.slice(keyBytes.byteOffset, keyBytes.byteOffset + keyBytes.byteLength) as any,
-    { name: "AES-GCM" } as any,
+    copyBuffer(keyBytes),
+    { name: "AES-GCM" },
     false,
-    ["decrypt"] as any
+    ["decrypt" as KeyUsage]
   );
 
   const decrypted = await subtle.decrypt(
     {
       name: "AES-GCM",
-      iv: ivBytes.buffer.slice(ivBytes.byteOffset, ivBytes.byteOffset + ivBytes.byteLength) as any,
+      iv: copyBuffer(ivBytes),
       tagLength: 128,
-    } as any,
+    } as AesGcmParams,
     cryptoKey,
-    dataToDecrypt.buffer.slice(dataToDecrypt.byteOffset, dataToDecrypt.byteOffset + dataToDecrypt.byteLength) as any
+    copyBuffer(dataToDecrypt)
   );
 
   return new TextDecoder().decode(decrypted);
@@ -83,14 +93,21 @@ function getDeviceId(): string {
   return id;
 }
 
+/** Tauri WebView 注入的内部接口声明 */
+interface TauriWindow extends Window {
+  __TAURI_INTERNALS__?: unknown;
+  __TAURI_IPC__?: unknown;
+}
+
 function isClient(): boolean {
   if (typeof window === "undefined") return false;
+  const w = window as TauriWindow;
   return (
     window.location.protocol.startsWith("tauri") ||
     window.location.protocol === "file:" ||
     window.location.hostname === "tauri.localhost" ||
-    !!(window as any).__TAURI_INTERNALS__ ||
-    !!(window as any).__TAURI_IPC__
+    !!w.__TAURI_INTERNALS__ ||
+    !!w.__TAURI_IPC__
   );
 }
 

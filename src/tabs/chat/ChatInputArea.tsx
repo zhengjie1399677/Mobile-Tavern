@@ -17,6 +17,12 @@ import {
 import { UnifiedAppContext } from "../../UnifiedAppContext";
 import { chatTabState } from "./utils";
 
+/**
+ * 用于在事件 currentTarget 上标记 _touched 状态，
+ * 以区分 touchstart 与 mousedown 事件，避免移动端重复触发。
+ */
+type TouchTrackedElement = Element & { _touched?: boolean };
+
 const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [showQuickActions, setShowQuickActions] = React.useState(false);
   const context = React.useContext(UnifiedAppContext);
@@ -321,10 +327,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       e.preventDefault();
     }
     if (e.type === "touchstart") {
-      (e.currentTarget as any)._touched = true;
+      (e.currentTarget as TouchTrackedElement)._touched = true;
     } else if (e.type === "mousedown") {
-      if ((e.currentTarget as any)._touched) {
-        (e.currentTarget as any)._touched = false;
+      if ((e.currentTarget as TouchTrackedElement)._touched) {
+        (e.currentTarget as TouchTrackedElement)._touched = false;
         return;
       }
     }

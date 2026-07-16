@@ -12,6 +12,12 @@ interface HiddenScriptLayerProps {
   announcement: string;
 }
 
+/** iframe / 原生桥接侧动态挂载到 window 的脚本库引用。 */
+interface WindowWithScriptLibs extends Window {
+  TavernHelperMvuLibs?: { defineStore?: unknown };
+  _?: unknown;
+}
+
 interface ScriptIframeItemProps {
   script: any;
   enableLoopProtection: boolean;
@@ -86,7 +92,7 @@ const HiddenScriptLayer = ({
   React.useEffect(() => {
     let isMounted = true;
     const checkLibs = () => {
-      const w = window as any;
+      const w = window as WindowWithScriptLibs;
       // P2 修复：统一使用 hasCardScripts 检测角色卡是否含可执行脚本/MVU 配置，
       // 避免与 bridgeCore 的检测逻辑产生分叉。
       if (!hasCardScripts(activeCharacter)) {

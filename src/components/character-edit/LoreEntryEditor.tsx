@@ -49,7 +49,7 @@ export default function LoreEntryEditor({
             onChange={(e) =>
               setEditingLoreEntry({
                 ...editingLoreEntry,
-                keys: e.target.value as any,
+                keys: e.target.value as unknown as string[],
               })
             }
             className="w-full bg-input border border-border rounded p-1.5 text-foreground text-xs font-semibold outline-none focus:border-primary"
@@ -143,7 +143,7 @@ export default function LoreEntryEditor({
             onChange={(e) =>
               setEditingLoreEntry({
                 ...editingLoreEntry,
-                position: e.target.value as any,
+                position: e.target.value as LorebookEntry["position"],
               })
             }
             className="w-full bg-input border border-border rounded p-1 text-foreground"

@@ -17,7 +17,7 @@ import React from "react";
 import lodashCloneDeep from "lodash/cloneDeep";
 import lodashGet from "lodash/get";
 import lodashSet from "lodash/set";
-import { CharacterCard, ChatSession, UserSettings } from "../../types";
+import { CharacterCard, ChatSession, Message, UserSettings } from "../../types";
 import { klona } from "klona";
 import { globalKernel } from "../../kernel/Kernel";
 import type { IKernel } from "../../kernel/types";
@@ -40,6 +40,25 @@ import { initTavernHelperMocks } from "./tavernHelperMocks";
  * 此处保留为类型别名以维持向后兼容，新代码请使用 CardRuntimeBridgeParams。
  */
 export type TavernHelperBridgeParams = CardRuntimeBridgeParams;
+
+/**
+ * TavernHelper 注入到 window 的全局辅助字段类型收口。
+ * 这些字段由本模块在运行时按需挂载，供 iframe 内脚本通过 window.parent.* 访问。
+ * 字段标记为可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface WindowWithTavernHelperLibs extends Window {
+  /** lodash 实例，核心库加载后挂载 */
+  _?: unknown;
+  /** Vue 运行时（仅角色卡含脚本时挂载） */
+  Vue?: unknown;
+  /** jQuery/$ 简写（仅角色卡含脚本时挂载） */
+  $?: unknown;
+  jQuery?: unknown;
+  /** TavernHelper MVU 框架库集合（含 klona/compare/JSON5/Vue/Pinia/math 等） */
+  TavernHelperMvuLibs?: Record<string, unknown>;
+  /** 流式输出标记（由 useChatStreaming 写入） */
+  TavernHelperIsSending?: boolean;
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 模块级可变状态（通过 getter/setter 暴露，规避 isolatedModules 对 export let 的限制）
@@ -204,7 +223,7 @@ export function initializeVariablesForSession(session: any) {
 
   // 将变量同步到首条消息（开场白）以保持与酒馆格式兼容
   if (session.messages && session.messages.length > 0) {
-    const firstMsg = { ...session.messages[0] } as any;
+    const firstMsg = { ...session.messages[0] } as Message;
     const swipeId = firstMsg.swipe_id !== undefined ? firstMsg.swipe_id : 0;
     const extra = { ...firstMsg.extra };
     if (!extra.variables) extra.variables = {};
@@ -436,7 +455,7 @@ export function ensureCoreLibsLoaded(): Promise<void> {
     const lodashInstance = lodash.default || lodash;
 
     if (typeof window !== "undefined") {
-      const w = window as any;
+      const w = window as unknown as WindowWithTavernHelperLibs;
       w._ = lodashInstance;
       // 挂载轻量工具到 TavernHelperMvuLibs（为 UI 库预留槽位）
       w.TavernHelperMvuLibs = {
@@ -485,7 +504,7 @@ export function ensureUiLibsLoaded(): Promise<void> {
       const jQueryInstance = jQuery.default || jQuery;
 
       if (typeof window !== "undefined") {
-        const w = window as any;
+        const w = window as unknown as WindowWithTavernHelperLibs;
         w.Vue = Vue;
         w.$ = w.jQuery = jQueryInstance;
 
@@ -582,9 +601,9 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
       console.log("[TavernHelper Bridge] 触发 UI 库加载，原因:", reason);
       ensureUiLibsLoaded().then(() => {
         console.log("[TavernHelper Bridge] UI 库加载完成，验证:", {
-          hasDefineStore: !!(window as any).TavernHelperMvuLibs?.defineStore,
-          hasLodash: !!(window as any)._,
-          hasJQuery: !!(window as any).jQuery,
+          hasDefineStore: !!(window as unknown as WindowWithTavernHelperLibs).TavernHelperMvuLibs?.defineStore,
+          hasLodash: !!(window as unknown as WindowWithTavernHelperLibs)._,
+          hasJQuery: !!(window as unknown as WindowWithTavernHelperLibs).jQuery,
         });
       }).catch(err => {
         console.error("[TavernHelper Bridge] UI 框架库加载失败:", err);
@@ -597,7 +616,7 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
   }
   // 以下追踪 FormattedText 的 libsReady 检测（5秒后采样）
   setTimeout(() => {
-    const w = window as any;
+    const w = window as unknown as WindowWithTavernHelperLibs;
     console.log("[TavernHelper Bridge] 5秒后 libsReady 采样:", {
       hasDefineStore: !!w.TavernHelperMvuLibs?.defineStore,
       hasLodash: !!w._,

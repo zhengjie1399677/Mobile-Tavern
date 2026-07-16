@@ -3,6 +3,7 @@ import { ChatSession, UserSettings, CharacterCard, LorebookEntry, CustomWorldboo
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService, IMultiMessageService,
+  StreamChunk,
 } from "../../kernel/types";
 import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 import {
@@ -12,6 +13,20 @@ import {
 } from "./helpers";
 import { extractThinkContent } from "./helpers";
 import { runOutputPipelineAndSave } from "./pipelineHelpers";
+
+/**
+ * Tavern 全局辅助 window 字段类型收口。
+ * 这些字段被 FormattedText.tsx / MessageBubble.tsx / useRerollMessage.ts 等多处
+ * 跨 iframe / 原生桥接边界共享读取，本文件内通过本地接口
+ * 替代类型逃逸写法，避免类型丢失。
+ * 字段标记为可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface WindowWithTavernHelpers extends Window {
+  /** 当前流式输出的 messageId，供 FormattedText / MessageBubble 判断渲染态 */
+  TavernHelperStreamingMessageId?: string | null;
+  /** 全局发送互斥标志，供 iframe / 原生桥接侧读取 */
+  TavernHelperIsSending?: boolean;
+}
 
 interface SendMessageParams {
   settings: UserSettings;
@@ -86,13 +101,13 @@ export function useSendMessage(p: SendMessageParams) {
       // （场景：流式被新请求取代后，旧请求的 finally 不重置 isSendingRef；新请求又异常退出且同样不重置）
       // 利用 streamingMessageId 作为"是否有活跃流式"的可靠标志：若已为 null 说明无活跃流式，强制重置互斥锁
       if (p.isSending || p.isSendingRef.current) {
-        const streamingId = typeof window !== "undefined" ? (window as any).TavernHelperStreamingMessageId : null;
+        const streamingId = typeof window !== "undefined" ? (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId : null;
         if (p.isSendingRef.current && !streamingId) {
           console.warn("[useSendMessage] 检测到 isSendingRef 残留但无活跃流式，强制重置互斥锁");
           p.isSendingRef.current = false;
           p.setIsSending(false);
           if (typeof window !== "undefined") {
-            (window as any).TavernHelperIsSending = false;
+            (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
           }
           // 重置后继续往下执行
         } else {
@@ -159,7 +174,7 @@ export function useSendMessage(p: SendMessageParams) {
     p.isSendingRef.current = true;
     p.setIsSending(true);
     if (typeof window !== "undefined") {
-      (window as any).TavernHelperIsSending = true;
+      (window as WindowWithTavernHelpers).TavernHelperIsSending = true;
     }
 
     const requestId = ++p.activeRequestIdRef.current;
@@ -172,7 +187,7 @@ export function useSendMessage(p: SendMessageParams) {
     // 通过 window 全局同步标记当前正在生成的消息 ID，MessageBubble 可精确判断哪条消息正在流式。
     const __streamingMsgIdGuard = (v: string | null) => {
       if (typeof window !== "undefined") {
-        (window as any).TavernHelperStreamingMessageId = v;
+        (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = v;
       }
     };
 
@@ -185,7 +200,7 @@ export function useSendMessage(p: SendMessageParams) {
         p.isSendingRef.current = false;
         p.setIsSending(false);
         if (typeof window !== "undefined") {
-          (window as any).TavernHelperIsSending = false;
+          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
         }
         return;
       }
@@ -303,10 +318,12 @@ export function useSendMessage(p: SendMessageParams) {
       });
 
       for await (const chunk of stream) {
-        if (chunk.error) {
-          const errMsg = typeof chunk.error === "string"
-            ? chunk.error
-            : ((chunk.error as any).message || JSON.stringify(chunk.error));
+        // StreamChunk 类型未声明 error 字段，但服务商错误响应可能携带，故局部扩展类型
+        const chunkError = (chunk as StreamChunk & { error?: string | { message?: string } }).error;
+        if (chunkError) {
+          const errMsg = typeof chunkError === "string"
+            ? chunkError
+            : (chunkError.message || JSON.stringify(chunkError));
           throw new Error(`[API Error] ${errMsg}`);
         }
         if (chunk.__rescuedContent) {
@@ -522,7 +539,7 @@ export function useSendMessage(p: SendMessageParams) {
           p.setIsSending(false);
           p.setIsBisonLocking(false);
           if (typeof window !== "undefined") {
-            (window as any).TavernHelperIsSending = false;
+            (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
           }
         }
       }
@@ -543,7 +560,7 @@ export function useSendMessage(p: SendMessageParams) {
     p.isSendingRef.current = false;
     p.setIsSending(false);
     if (typeof window !== "undefined") {
-      (window as any).TavernHelperIsSending = false;
+      (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
     }
     p.bisonRemainingCountRef.current = 0;
     p.setIsBisonLocking(false);

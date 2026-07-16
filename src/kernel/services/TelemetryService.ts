@@ -1,6 +1,11 @@
 import { ITelemetryService, IKernel } from "../types";
 import { invoke } from '@tauri-apps/api/core';
 
+/** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、TtsService.ts 对齐）。 */
+interface TauriWindow extends Window {
+  __TAURI_INTERNALS__?: unknown;
+}
+
 let sessionStartTime = Date.now();
 
 /**
@@ -110,7 +115,7 @@ export class TelemetryService implements ITelemetryService {
    * 向 Rust 后端传输遥测日志，由后端异步上传 SLS 遥测集群
    */
   private async sendTelemetryToRust(log: any) {
-    const isTauri = typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
+    const isTauri = typeof window !== "undefined" && !!(window as TauriWindow).__TAURI_INTERNALS__;
     if (isTauri) {
       try {
         await invoke('report_telemetry', { log });

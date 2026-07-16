@@ -43,8 +43,8 @@ if (typeof window !== "undefined" && !("IntersectionObserver" in window)) {
       return [];
     }
   }
-  (window as any).IntersectionObserver = MockIntersectionObserver;
-  (globalThis as any).IntersectionObserver = MockIntersectionObserver;
+  (window as unknown as { IntersectionObserver: typeof MockIntersectionObserver }).IntersectionObserver = MockIntersectionObserver;
+  (globalThis as unknown as { IntersectionObserver: typeof MockIntersectionObserver }).IntersectionObserver = MockIntersectionObserver;
 }
 
 // ResizeObserver polyfill（部分布局组件可能依赖）
@@ -54,8 +54,8 @@ if (typeof window !== "undefined" && !("ResizeObserver" in window)) {
     unobserve() {}
     disconnect() {}
   }
-  (window as any).ResizeObserver = MockResizeObserver;
-  (globalThis as any).ResizeObserver = MockResizeObserver;
+  (window as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver = MockResizeObserver;
+  (globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver = MockResizeObserver;
 }
 
 // 抑制 tavernHelperBridge 在测试中产生的诊断日志噪声

@@ -3,6 +3,22 @@ import { useUnifiedApp } from "../UnifiedAppContext";
 import { createMessageIframeSrcDoc, initTavernHelperMocks } from "../utils/tavernHelper";
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "./formattedTextUtils";
 
+/**
+ * TavernHelper 注入到 window 的全局辅助字段类型收口。
+ * 这些字段由 bridgeCore 在运行时按需挂载，本文件通过 window.* 读取以检测库就绪状态。
+ * 字段标记为可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface WindowWithTavernHelperLibs extends Window {
+  /** lodash 实例，核心库加载后挂载 */
+  _?: unknown;
+  /** jQuery 实例（仅角色卡含脚本时挂载） */
+  jQuery?: unknown;
+  /** TavernHelper MVU 框架库集合（含 defineStore 等方法） */
+  TavernHelperMvuLibs?: Record<string, unknown>;
+  /** 流式输出标记（由 useChatStreaming 写入） */
+  TavernHelperIsSending?: boolean;
+}
+
 // ─── Srcdoc Store ─────────────────────────────────────────────────────────────
 // Android WebView 的 DOMParser 在解析超长 HTML attribute 值时，遇到 attribute
 // 内的 `<` 字符会提前终止属性解析，导致 iframe 的 srcdoc 被截断或丢失（PC
@@ -832,7 +848,7 @@ const FormattedText = memo(function FormattedText({
     let isMounted = true;
     let checkCount = 0;
     const checkLibs = () => {
-      const w = window as any;
+      const w = window as unknown as WindowWithTavernHelperLibs;
       checkCount++;
       const hasDefineStore = !!w.TavernHelperMvuLibs?.defineStore;
       const hasLodash = !!w._;
@@ -866,7 +882,7 @@ const FormattedText = memo(function FormattedText({
   const { isSending, activeSession } = context;
   const isSendingSync = !!(
     isSending ||
-    (typeof window !== "undefined" && (window as any).TavernHelperIsSending)
+    (typeof window !== "undefined" && (window as unknown as WindowWithTavernHelperLibs).TavernHelperIsSending)
   );
 
   const isStreamingLastMsg = isStreaming !== undefined
@@ -920,7 +936,7 @@ const FormattedText = memo(function FormattedText({
     if (messageIndex === undefined) return 0;
     const session = context.activeSession;
     if (!session || !session.messages) return 0;
-    const msg = session.messages[messageIndex] as any;
+    const msg = session.messages[messageIndex];
     return msg ? (msg.swipe_id ?? 0) : 0;
   })();
 

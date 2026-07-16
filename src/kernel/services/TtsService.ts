@@ -1,9 +1,33 @@
 import { IKernel, IKernelService, ITtsService } from "../types";
 
+/** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
+interface TauriWindow extends Window {
+  __TAURI_INTERNALS__?: unknown;
+}
+
+/**
+ * Android 原生注入 WebView 的桥接对象类型
+ * （与 src-tauri/plugins/android-bridge/guest-js/index.ts 中 AndroidThemeBridge 接口对齐）。
+ */
+interface AndroidThemeBridge {
+  getSafeAreas(): string;
+  setStatusBarStyle(isDark: boolean, colorHex: string): void;
+  saveFile(fileName: string, content: string): string;
+  saveFileBase64(fileName: string, base64Data: string, mimeType: string): string;
+  openUrl(url: string): void;
+  speakNative(text: string, rate: number, pitch: number): boolean;
+  stopNative(): void;
+  isSpeakingNative(): boolean;
+}
+
+interface WindowAndroidBridge extends Window {
+  AndroidThemeBridge?: AndroidThemeBridge;
+}
+
 let tauriFetch: typeof fetch | null = null;
 let tauriFetchPromise: Promise<typeof fetch | null> | null = null;
 
-if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
+if (typeof window !== "undefined" && (window as TauriWindow).__TAURI_INTERNALS__) {
   tauriFetchPromise = import("@tauri-apps/plugin-http")
     .then((mod) => {
       tauriFetch = mod.fetch;
@@ -48,7 +72,7 @@ export class TtsService implements ITtsService {
 
   isSpeaking(): boolean {
     if (typeof window !== "undefined") {
-      const bridge = (window as any).AndroidThemeBridge;
+      const bridge = (window as WindowAndroidBridge).AndroidThemeBridge;
       if (bridge && typeof bridge.isSpeakingNative === "function") {
         try {
           return bridge.isSpeakingNative() || this.isSpeakingState;
@@ -93,7 +117,7 @@ export class TtsService implements ITtsService {
 
     if (provider === "speech-synthesis") {
       // 移动端：强制走 Android 原生 TextToSpeech，不再回退 Web Speech API
-      const bridge = typeof window !== "undefined" ? (window as any).AndroidThemeBridge : null;
+      const bridge = typeof window !== "undefined" ? (window as WindowAndroidBridge).AndroidThemeBridge : null;
       if (!bridge || typeof bridge.speakNative !== "function") {
         this.isSpeakingState = false;
         throw new Error("Android native TTS bridge is not available. Web Speech API fallback has been removed in favor of native TTS.");
@@ -179,7 +203,7 @@ export class TtsService implements ITtsService {
       }
 
       const isBrowserEnv = typeof window !== "undefined" &&
-                           !(window as any).__TAURI_INTERNALS__ &&
+                           !(window as TauriWindow).__TAURI_INTERNALS__ &&
                            (typeof process === "undefined" || process.env.NODE_ENV !== "test");
       const isRemoteUrl = url.startsWith("https://") || (url.startsWith("http://") && !url.includes("127.0.0.1") && !url.includes("localhost"));
 
@@ -306,7 +330,7 @@ export class TtsService implements ITtsService {
 
     // 中止安卓原生 TTS 朗读
     if (typeof window !== "undefined") {
-      const bridge = (window as any).AndroidThemeBridge;
+      const bridge = (window as WindowAndroidBridge).AndroidThemeBridge;
       if (bridge && typeof bridge.stopNative === "function") {
         try {
           bridge.stopNative();
@@ -334,7 +358,7 @@ export class TtsService implements ITtsService {
     if (this.currentAudio) {
       this.currentAudio.pause();
     } else if (typeof window !== "undefined") {
-      const bridge = (window as any).AndroidThemeBridge;
+      const bridge = (window as WindowAndroidBridge).AndroidThemeBridge;
       if (bridge && typeof bridge.stopNative === "function") {
         try {
           bridge.stopNative();

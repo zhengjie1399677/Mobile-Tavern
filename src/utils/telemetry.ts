@@ -81,8 +81,13 @@ export async function reportImmediate(action: string, extraData: Record<string, 
   await getTelemetryService(kernel).reportImmediate(action, extraData);
 }
 
+/** 暴露到 window 供 iframe 沙盒内 zod 校验失败上报的回调类型收口。 */
+interface WindowWithTelemetryCallback extends Window {
+  reportZodValidationError?: typeof reportZodValidationError;
+}
+
 (() => {
   if (typeof window !== "undefined") {
-    (window as any).reportZodValidationError = reportZodValidationError;
+    (window as WindowWithTelemetryCallback).reportZodValidationError = reportZodValidationError;
   }
 })();

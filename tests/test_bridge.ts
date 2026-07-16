@@ -1,6 +1,25 @@
 import { initTavernHelperBridge, cleanTavernHelperBridge } from "../src/utils/tavernHelper";
 import { ChatSession, CharacterCard, UserSettings } from "../src/types";
 
+/**
+ * 测试专用 Mock 类型定义。
+ * 这些类型仅在本测试文件内用于替代 `as any`，确保类型安全的同时保持运行时行为不变。
+ */
+interface TavernHelperBind {
+  _getVariables: (params: { type: string; message_id: number | string }) => { stat_data: Record<string, unknown> };
+  _replaceVariables: (vars: Record<string, unknown>, params: { type: string; message_id: number | string }) => void;
+  _setChatMessage: (id: number, value: { variables: Record<string, unknown> }) => void;
+}
+
+interface TavernHelperGlobal {
+  _bind: TavernHelperBind;
+  setChatMessages: (messages: Array<{ message_id: number; variables: Record<string, unknown> }>) => void;
+}
+
+interface GlobalWithTavernHelper {
+  TavernHelper: TavernHelperGlobal;
+}
+
 function assert(condition: boolean, message: string) {
   if (!condition) {
     throw new Error(`Assertion failed: ${message}`);
@@ -41,7 +60,7 @@ async function runTests() {
             0: { stat_data: { health: 100, name: "Traveler" } }
           }
         }
-      } as any,
+      },
       {
         id: "msg_2",
         sender: "user",
@@ -52,7 +71,7 @@ async function runTests() {
             0: { stat_data: { health: 90, name: "Traveler" } }
           }
         }
-      } as any,
+      },
     ],
     summaries: [],
     variables: { stat_data: { health: 90, name: "Traveler" } }
@@ -80,7 +99,7 @@ async function runTests() {
   });
 
   // Access the parent window Mock properties exposed by the module
-  const globalWin = globalThis as any;
+  const globalWin = globalThis as unknown as GlobalWithTavernHelper;
   const TavernHelper = globalWin.TavernHelper;
   assert(!!TavernHelper, "TavernHelper exists on global window");
   

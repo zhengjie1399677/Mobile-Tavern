@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ImageGenerationService } from "../../src/kernel/services/ImageGenerationService";
 import { ImageGenApiConfig } from "../../src/types";
+import type { IKernel } from "../../src/kernel/types";
 
 describe("ImageGenerationService tests", () => {
   let service: ImageGenerationService;
@@ -11,9 +12,9 @@ describe("ImageGenerationService tests", () => {
   });
 
   it("should initialize and destroy successfully", async () => {
-    await service.init({} as any);
+    await service.init({} as unknown as IKernel);
     expect(service.name).toBe("imageGen");
-    await service.destroy({} as any);
+    await service.destroy({} as unknown as IKernel);
   });
 
   it("should successfully call DALL-E endpoint and return base64", async () => {
@@ -163,21 +164,21 @@ describe("ImageGenerationService tests", () => {
   });
 
   it("should fail and throw '未配置api' when config is not provided, not enabled, or lacks baseUrl", async () => {
-    await service.init({} as any);
+    await service.init({} as unknown as IKernel);
 
     // Scenario 1: config is null/undefined
     await expect(
-      service.generateImage("cute dog", null as any)
+      service.generateImage("cute dog", null as unknown as ImageGenApiConfig)
     ).rejects.toThrow("未配置api");
 
     // Scenario 2: config is disabled
     await expect(
-      service.generateImage("cute dog", { enabled: false, baseUrl: "http://example.com" } as any)
+      service.generateImage("cute dog", { enabled: false, baseUrl: "http://example.com" } as unknown as ImageGenApiConfig)
     ).rejects.toThrow("未配置api");
 
     // Scenario 3: config has no baseUrl or empty baseUrl
     await expect(
-      service.generateImage("cute dog", { enabled: true, baseUrl: "  " } as any)
+      service.generateImage("cute dog", { enabled: true, baseUrl: "  " } as unknown as ImageGenApiConfig)
     ).rejects.toThrow("未配置api");
   });
 });

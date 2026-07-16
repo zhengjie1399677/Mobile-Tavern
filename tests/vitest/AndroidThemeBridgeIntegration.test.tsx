@@ -1,11 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { saveBlobViaBridgeOrDownload } from "../../src/utils/characterPngExporter";
 
+/**
+ * 测试专用 Mock 类型定义。
+ * 这些类型仅在本测试文件内用于替代 `as any`，确保类型安全的同时保持运行时行为不变。
+ */
+interface MockAndroidThemeBridge {
+  saveFileBase64: ReturnType<typeof vi.fn>;
+}
+
+interface WindowWithAndroidBridge extends Window {
+  AndroidThemeBridge?: MockAndroidThemeBridge;
+}
+
 describe("AndroidThemeBridge Frontend Integration Tests", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     // Clean window object
-    delete (window as any).AndroidThemeBridge;
+    delete (window as unknown as WindowWithAndroidBridge).AndroidThemeBridge;
   });
 
   // ------------------------------------------------------------------
@@ -14,7 +26,7 @@ describe("AndroidThemeBridge Frontend Integration Tests", () => {
 
   it("saveBlobViaBridgeOrDownload should call AndroidThemeBridge.saveFileBase64 when bridge is present and call onSuccess", async () => {
     const saveFileBase64Mock = vi.fn().mockReturnValue("Download/Mobile Tavern/test_char.png");
-    (window as any).AndroidThemeBridge = {
+    (window as unknown as WindowWithAndroidBridge).AndroidThemeBridge = {
       saveFileBase64: saveFileBase64Mock,
     };
 
@@ -51,7 +63,7 @@ describe("AndroidThemeBridge Frontend Integration Tests", () => {
 
   it("saveBlobViaBridgeOrDownload should call onError when AndroidThemeBridge returns an error string", async () => {
     const saveFileBase64Mock = vi.fn().mockReturnValue("error:Permission denied or write failed");
-    (window as any).AndroidThemeBridge = {
+    (window as unknown as WindowWithAndroidBridge).AndroidThemeBridge = {
       saveFileBase64: saveFileBase64Mock,
     };
 
@@ -92,7 +104,7 @@ describe("AndroidThemeBridge Frontend Integration Tests", () => {
       el.click = clickSpy;
       return el;
     });
-    const removeSpy = vi.spyOn(document.body, "removeChild").mockImplementation(() => ({} as any));
+    const removeSpy = vi.spyOn(document.body, "removeChild").mockImplementation(() => ({} as Node));
 
     const blob = new Blob(["mock-image-data"], { type: "image/png" });
     const onSuccess = vi.fn();

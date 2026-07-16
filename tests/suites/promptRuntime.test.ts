@@ -2,6 +2,9 @@ import { PromptBuilder } from "../../src/kernel/services/prompt/PromptBuilder";
 import { PromptCompiler } from "../../src/kernel/services/prompt/PromptCompiler";
 import { PromptService } from "../../src/kernel/services/PromptService";
 import { assert } from "./testUtils";
+import type { RuntimeContext } from "../../src/kernel/services/prompt/types";
+import type { IKernel } from "../../src/kernel/types";
+import type { CharacterCard, ChatSession, UserSettings } from "../../src/types";
 
 export function testPromptRuntime() {
   console.log("\n--- Running Prompt Runtime (Builder & Compiler v2.0) Verification ---");
@@ -98,7 +101,7 @@ export function testPromptRuntime() {
       replySuggestions: false,
       memoryRecall: false,
     },
-  } as any;
+  } as unknown as RuntimeContext;
 
   const compiled = compiler.compile(sections, context);
 
@@ -125,7 +128,7 @@ export function testPromptRuntime() {
       api: { modelName: "deepseek-chat" },
       promptConfig: { renderingFormat: "markdown" }
     }
-  } as any;
+  } as unknown as RuntimeContext;
   const compiledMd = compiler.compile(sections, mdContext);
   assert(!compiledMd.includes("<rules>"), "Should not contain XML tags in Markdown renderingFormat");
   assert(compiledMd.includes("### Core Rules"), "Should contain Markdown headers");
@@ -135,7 +138,7 @@ export function testPromptRuntime() {
       api: { modelName: "gpt-3.5-turbo" },
       promptConfig: { renderingFormat: "xml" }
     }
-  } as any;
+  } as unknown as RuntimeContext;
   const compiledXml = compiler.compile(sections, xmlContext);
   assert(compiledXml.includes("<rules>"), "Should contain XML tags when renderingFormat is overridden to xml");
 
@@ -144,7 +147,7 @@ export function testPromptRuntime() {
     settings: {
       api: { modelName: "deepseek-chat", contextLimit: 50 },
     }
-  } as any;
+  } as unknown as RuntimeContext;
   const compiledSmall = compiler.compile(sections, smallLimitContext);
   assert(!compiledSmall.includes("Character Persona Content"), "Persona should be trimmed due to contextLimit");
   assert(compiledSmall.includes("Safety Content"), "Highest priority safety should still be present");
@@ -167,7 +170,7 @@ export function testPromptServiceIntegration() {
       }
       return null;
     }
-  } as any;
+  } as unknown as IKernel;
 
   service.init(mockKernel);
 
@@ -178,7 +181,7 @@ export function testPromptServiceIntegration() {
     scenario: "Bartending",
     system_prompt: "Talk like a bartender.",
     mes_example: "Hello, what can I get you?",
-  } as any;
+  } as unknown as CharacterCard;
 
   const chat = {
     messages: [
@@ -189,7 +192,7 @@ export function testPromptServiceIntegration() {
       { timeTag: "Day 1", location: "Tavern", content: "Alice met the traveler." }
     ],
     tableMemory: []
-  } as any;
+  } as unknown as ChatSession;
 
   const settings = {
     userName: "Bob",
@@ -211,7 +214,7 @@ export function testPromptServiceIntegration() {
     },
     enableTableMemory: false,
     enableReplySuggestions: false,
-  } as any;
+  } as unknown as UserSettings;
 
   const result = service.assemblePrompt({
     character,

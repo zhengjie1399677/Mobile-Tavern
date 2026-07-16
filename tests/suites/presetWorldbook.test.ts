@@ -7,18 +7,19 @@
  */
 
 import { assemblePromptContext } from "../../src/utils/promptBuilder";
-import { LorebookEntry } from "../../src/types";
+import { LorebookEntry, UserSettings, CharacterCard, ChatSession, CustomWorldbook } from "../../src/types";
 import { assert } from "./testUtils";
 
 export function testPresetAndWorldbookIntegration() {
   console.log("\n--- Running Preset & Custom Worldbook Integration Verification ---");
 
   // 1. 模拟开启了预设的 Settings
-  const mockSettings = {
+  const mockSettings: UserSettings = {
     userName: "Bob",
     userInfo: "Traveler",
     api: { type: "openai-compat", baseUrl: "", apiKey: "", modelName: "" },
     preset: {
+      id: "test-preset",
       name: "测试预设",
       temperature: 0.8,
       topP: 0.85,
@@ -29,7 +30,7 @@ export function testPresetAndWorldbookIntegration() {
     memory: {
       recentTurns: 6,
       summaryTriggerTurns: 0,
-      enabled: true,
+      summaryLength: 150,
     },
     promptConfig: {
       mainPrompt: "系统设定：你是一个忠诚的骑士。",
@@ -47,7 +48,7 @@ export function testPresetAndWorldbookIntegration() {
       assistantSuffix: "",
       customPrompts: [],
     }
-  } as any;
+  };
 
   // 2. 模拟自定义世界书词条
   const customWorldbookEntry: LorebookEntry = {
@@ -65,14 +66,14 @@ export function testPresetAndWorldbookIntegration() {
   };
 
   // 在 useChat.tsx 中，我们实际上获取了已启用的 customWorldbooks 词条合并：
-  const customWorldbooks = {
+  const customWorldbooks: Record<string, CustomWorldbook> = {
     "custom-1": {
       id: "custom-1",
       name: "魔幻世界设定",
       entries: [customWorldbookEntry],
       enabled: true,
     }
-  } as any;
+  };
 
   const customWorldbookGlobals = Object.values(customWorldbooks || {})
     .filter((wb: any) => wb.enabled)
@@ -83,19 +84,27 @@ export function testPresetAndWorldbookIntegration() {
   ];
 
   // 3. 模拟角色卡
-  const mockChar = {
+  const mockChar: CharacterCard = {
+    id: "char-alsace",
     name: "阿尔萨斯",
     description: "骑士领主",
     personality: "坚毅",
+    scenario: "",
     first_mes: "为了正义！",
-  } as any;
+    mes_example: "",
+  };
 
   // 4. 模拟对话历史，用户的最后一句输入触发了世界书关键词
-  const mockChat = {
+  const mockChat: ChatSession = {
+    id: "chat-1",
+    characterId: "char-alsace",
+    title: "测试对话",
+    createdAt: Date.now(),
     messages: [
-      { id: "msg_1", sender: "assistant", content: "前方有亡灵天灾！" },
-    ]
-  } as any;
+      { id: "msg_1", sender: "assistant", content: "前方有亡灵天灾！", timestamp: Date.now() },
+    ],
+    summaries: [],
+  };
 
   const userInput = "不用怕，看我使用圣光魔法！";
 

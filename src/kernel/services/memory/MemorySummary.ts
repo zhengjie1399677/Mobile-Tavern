@@ -24,6 +24,11 @@ import type { MemoryStorage } from './MemoryStorage';
 import { FALLBACK_MODEL, API_ENDPOINT, TRIAL_OPENROUTER_KEY } from '../../../utils/apiClient';
 import { appendSessionSummary } from '../../../utils/localDB';
 
+/** 测试环境可能挂载的 IndexedDB shim 类型收口。 */
+interface WindowWithShimIndexedDB extends Window {
+  shimIndexedDB?: unknown;
+}
+
 // ===== 常量 =====
 
 /** 默认时间标签模板 */
@@ -235,7 +240,7 @@ export class MemorySummary {
 
     // 7. 原子化追加摘要并持久化，同时保留内存中的消息列表以防控制台/UI状态丢失
     let updatedSessionWithoutMsgs: ChatSession;
-    const hasIndexedDB = typeof window !== 'undefined' && (window.indexedDB || (window as any).shimIndexedDB);
+    const hasIndexedDB = typeof window !== 'undefined' && (window.indexedDB || (window as WindowWithShimIndexedDB).shimIndexedDB);
     
     if (hasIndexedDB) {
       updatedSessionWithoutMsgs = await appendSessionSummary(session.id, newCard);

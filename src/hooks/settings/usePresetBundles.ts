@@ -9,6 +9,22 @@ import { DEFAULT_SETTINGS, DEFAULT_PROMPT_CONFIG } from "./defaults";
  * 业务层不再直接触碰 localDB，遵循 AGENTS.md 准则一与准则八。
  */
 
+/**
+ * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。
+ * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
+ */
+interface AndroidThemeBridge {
+  saveFile?: (fileName: string, content: string) => string;
+}
+
+/**
+ * 扩展 Window 以访问原生注入的 AndroidThemeBridge。
+ * 字段可选，反映"运行时动态挂载到 window"的真实语义。
+ */
+interface WindowWithAndroidBridge extends Window {
+  AndroidThemeBridge?: AndroidThemeBridge;
+}
+
 
 interface UsePresetBundlesDeps {
   settings: UserSettings;
@@ -284,8 +300,8 @@ export const usePresetBundles = ({
     const fileName = `SillyTavern_${settings.preset.name.replace(/\s+/g, "_")}_profile.json`;
 
     // If running in Android app via bridge
-    if ((window as any).AndroidThemeBridge && typeof (window as any).AndroidThemeBridge.saveFile === "function") {
-      const path = (window as any).AndroidThemeBridge.saveFile(fileName, content);
+    if ((window as WindowWithAndroidBridge).AndroidThemeBridge && typeof (window as WindowWithAndroidBridge).AndroidThemeBridge?.saveFile === "function") {
+      const path = (window as WindowWithAndroidBridge).AndroidThemeBridge!.saveFile!(fileName, content);
       if (path && !path.startsWith("error:")) {
         showCustomAlert(`📂 预设配置导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`);
       } else {

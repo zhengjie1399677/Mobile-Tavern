@@ -277,12 +277,12 @@ describe("escapeHtml", () => {
 
   it("空字符串和 null/undefined 安全返回空串", () => {
     expect(escapeHtml("")).toBe("");
-    expect(escapeHtml(null as any)).toBe("");
-    expect(escapeHtml(undefined as any)).toBe("");
+    expect(escapeHtml(null as unknown as string)).toBe("");
+    expect(escapeHtml(undefined as unknown as string)).toBe("");
   });
 
   it("非字符串输入被转换为字符串后转义", () => {
-    expect(escapeHtml(123 as any)).toBe("123");
+    expect(escapeHtml(123 as unknown as string)).toBe("123");
   });
 
   it("多个连续特殊字符全部转义", () => {
@@ -341,7 +341,7 @@ describe("filterAsteriskActions", () => {
 
   it("空文本输入安全返回空串", () => {
     expect(filterAsteriskActions("")).toBe("");
-    expect(filterAsteriskActions(null as any)).toBe("");
+    expect(filterAsteriskActions(null as unknown as string)).toBe("");
   });
 });
 
