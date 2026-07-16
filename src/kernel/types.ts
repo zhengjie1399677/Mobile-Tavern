@@ -148,10 +148,15 @@ export interface IKernelService {
   isCritical?: boolean;
   /**
    * 声明本服务所依赖的其他服务名称列表。
-   * 用于 `registerServiceBatch` 进行自动拓扑排序，确保注册顺序正确。
-   * 无需手动维护注册顺序。
+   * 属于必选依赖：既未在当前批次也未在内核中注册时，批量注册会直接失败。
+   * 用于 `registerServiceBatch` 自动拓扑排序，确保注册顺序正确。
    */
   dependencies?: readonly string[];
+  /**
+   * 可选依赖缺失时不会阻止服务启动，也不参与当前批次的拓扑排序。
+   * 服务必须通过 `kernel.hasService()` 显式判断后再使用此类依赖。
+   */
+  optionalDependencies?: readonly string[];
   init(kernel: IKernel, signal?: AbortSignal): Promise<void> | void;
   destroy?(kernel: IKernel, signal?: AbortSignal): Promise<void> | void;
 }

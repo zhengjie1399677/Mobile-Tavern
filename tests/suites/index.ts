@@ -43,6 +43,8 @@ export {
   testKernelDestroyIdempotency,
 } from "./kernelVersionFixes.test";
 
+export { testKernelLifecycleAndDependencies } from "./kernelLifecycle.test";
+
 export { testBisonModeProbability } from "./bisonMode.test";
 
 export { testPresetAndWorldbookIntegration } from "./presetWorldbook.test";

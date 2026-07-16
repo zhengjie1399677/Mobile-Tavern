@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { LegacyAppContextProvider } from "./contexts/LegacyAppContextProvider";
 import MainLayout from "./components/MainLayout";
-import { initializeKernel, globalKernel } from "./kernel";
+import { initializeKernel, destroyKernel, globalKernel } from "./kernel";
 import { SplashScreen } from "./components/SplashScreen";
+import { registerMainTabExtensions } from "./composition/registerMainTabExtensions";
 
 export {
   DEFAULT_PROMPT_CONFIG,
@@ -19,7 +20,10 @@ export default function App() {
 
     initializeKernel()
       .then(() => {
-        if (active) setKernelReady(true);
+        if (active) {
+          registerMainTabExtensions(globalKernel);
+          setKernelReady(true);
+        }
       })
       .catch((err: any) => {
         console.error("[App] Failed to initialize microkernel:", err);
@@ -32,7 +36,7 @@ export default function App() {
       .then(({ getCurrentWindow }) => {
         if (!active) return;
         return getCurrentWindow().onCloseRequested(() => {
-          globalKernel.destroy();
+          void destroyKernel();
         });
       })
       .then((unlisten) => {
@@ -53,7 +57,7 @@ export default function App() {
       }
       // React 组件卸载时（HMR 热更新、路由切换等）清理内核资源
       // destroy() 是幂等的，重复调用安全（空映射遍历后即返回）
-      globalKernel.destroy();
+      void destroyKernel();
     };
   }, []);
 

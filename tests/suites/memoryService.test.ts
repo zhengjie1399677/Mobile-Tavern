@@ -673,16 +673,22 @@ export async function testMemoryServiceLifecycle() {
   try {
     const kernel = new Kernel();
 
-    // Mock DatabaseService（仅需 name 字段）
-    const mockDbService: any = { name: KernelServices.Database };
-
-    // Mock LLMService
-    const mockLlmService: any = { name: KernelServices.LLM };
+    // 依赖夹具必须是可注册的最小服务，不能依赖 registerService 失败后的 SafeProxy。
+    const mockDbService: any = {
+      name: KernelServices.Database,
+      init() {},
+    };
+    const mockLlmService: any = {
+      name: KernelServices.LLM,
+      init() {},
+    };
 
     const memoryService = new MemoryService();
 
     await kernel.registerService(KernelServices.Database, mockDbService);
     await kernel.registerService(KernelServices.LLM, mockLlmService);
+    assert(kernel.getService(KernelServices.Database) === mockDbService, "Database dependency should be registered before MemoryService");
+    assert(kernel.getService(KernelServices.LLM) === mockLlmService, "LLM dependency should be registered before MemoryService");
     await kernel.registerService(KernelServices.Memory, memoryService);
 
     // 验证服务已注册

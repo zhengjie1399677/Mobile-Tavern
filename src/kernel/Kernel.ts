@@ -318,11 +318,10 @@ export class Kernel implements IKernel {
     for (const { name, service } of entries) {
       for (const dep of service.dependencies ?? []) {
         if (!nameSet.has(dep)) {
-          // 依赖的服务并不在当前批量入参中。如果是已经在 kernel 中注册的，可以直接跳过拓扑排序
           if (!this.services.has(dep)) {
-            console.warn(
-              `[Kernel] Service "${name}" declares dependency "${dep}" which is neither ` +
-              `in this batch nor already registered in the kernel.`
+            throw new Error(
+              `[Kernel] Missing required dependency "${dep}" for service "${name}". ` +
+              `Add it to this batch, register it before this batch, or declare it in optionalDependencies.`
             );
           }
           continue;
