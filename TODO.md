@@ -32,10 +32,16 @@
 * **当前隐患**：为了简便，部分非 React 的纯 TS 工具类（如 `telemetry.ts`、`apiClient.ts`、`catbotEventBus.ts` 和 `bridgeCore.ts`）直接 import 并使用了 `globalKernel` 单例。这在进行微服务级单元测试隔离时，会导致被测试的工具类被迫与全局单例绑定，无法通过 Mock 内核来进行完全解耦测试。
 * **优化方向**：对这些纯 TS 工具类的方法签名实施重构，改为接收可选参数 `kernel?: IKernel = globalKernel`。如此一来，既能向后兼容当前的单例调用模式，又能让测试环境在调用时传入隔离的 Mock 实例，实现物理隔离测试。
 
+### 4. 长会话超多消息渲染与性能优化 [优先级：高]
+* **当前隐患**：会话加载时直接通过 `getMessagesBySession(activeSessionId)` 一次性获取所有历史消息并渲染。当单会话积累几千条消息时，会导致 IndexedDB 读取延迟明显，前端挂载过多的 DOM 节点导致滑动卡顿，且大模型上下文 Token 消耗过大。
+* **优化方向**：
+  1. **前端分页/分段懒加载**：利用 `localDB.ts` 已内置的 `limit`、`offset` 及 `descending` 参数，限制首次进入聊天室仅加载最新 50 条消息。用户滚动到顶部时，异步加载并头部追加更多历史消息。
+  2. **历史消息截断与总结归档**：当活跃会话消息数超过阈值（如 200 条）时，自动触发 `MemorySummary` 生成故事年表并归档。聊天流中仅渲染活跃段落，历史记录归入“故事年表”抽屉，配合 `MemoryRecall` 检索服务按需唤醒长线记忆，实现 DOM 树减重与 LLM Token 成本缩减。
+
 ---
 
 ## ✍️ 变更记录
 
 | 日期 | 变动内容 |
 |---|---|
-| 2026-07-16 | 创建 `TODO.md`。记录类型安全隐患，将 `test_kernel_services_coverage.ts` 中涉及 `TableMemorySheet` 缺失字段、`sender` 字面量推导、Mock 服务多余属性报错等 3 项类型校验问题修复并归档；列出扩宽 `tsconfig` 校验范围的代办；新增解耦非 React 纯 TS 工具类中的 `globalKernel` 依赖代办。 |
+| 2026-07-16 | 创建 `TODO.md` 并更新。添加类型修复记录；新增 `tsconfig` 范围扩宽、非 React 纯 TS 类解耦、以及长会话超多消息分页/归档优化等 3 项未来代办。 |
