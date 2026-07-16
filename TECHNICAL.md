@@ -594,9 +594,9 @@ sequenceDiagram
 
 ## 🧪 自动化测试套件与覆盖验证 (Comprehensive Test Suite)
 
-为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，包含了 **57 项核心功能验证用例**。
+为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，包含了 **60 项核心功能验证用例**。
 
-### 1. 自动化功能测试一览 (The 57 Test Cases)
+### 1. 自动化功能测试一览 (The 60 Test Cases)
 
 这些测试用例按职责域被高度聚合并物理隔离到 `tests/suites/` 下的各个测试模块中：
 
@@ -747,12 +747,12 @@ npm run test
 │  覆盖：纯函数、无副作用服务、内核逻辑                       │
 │  触发：每次 commit                                         │
 │  预期耗时：< 10s                                            │
-│  现状：✅ 已建设，57 个测试函数全部通过                     │
+│  现状：✅ 已建设，60 个测试函数全部通过                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### 1. 单元测试层（已建设）
-主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 57 个核心功能验证用例，主要覆盖：
+主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 60 个核心功能验证用例，主要覆盖：
 * **网络安全与防网闸**：`testSsrfGuard`（防私网 IP、回环及 DNS 重绑定穿透拦截）。
 * **数据库分轨与事务防抖**：`testDbQueue`、`testDatabaseServiceCrud`、`testLocalDBSplitTrack`（并发写 Promise 管道与配置大字段拆分合并）。
 * **Prompt 编译及前缀缓存**：`testPromptBuilder`、`testPromptBuilderSystemMerging`、`testPromptRuntime`（宏安全替换、多 System 消息智能交替合并）。

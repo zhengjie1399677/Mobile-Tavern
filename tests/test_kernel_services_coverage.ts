@@ -16,7 +16,7 @@ import { LLMService } from "../src/kernel/services/LLMService";
 import { AutoSummaryService } from "../src/kernel/services/AutoSummaryService";
 import { Kernel } from "../src/kernel/Kernel";
 import { IKernelService } from "../src/kernel/types";
-import { TableMemorySheet, CharacterCard, ChatSession, UserSettings } from "../src/types";
+import { TableMemorySheet, CharacterCard, ChatSession, UserSettings, Message } from "../src/types";
 
 // 注：ScriptService 测试因依赖 tavernHelperBridge（操作 window 对象）在 Node 环境下无法加载，
 // 已记录为测试覆盖空白，需在浏览器环境或 E2E 测试中补充覆盖。
@@ -40,12 +40,14 @@ async function testTableMemoryService() {
   // 构造初始表格：状态与关系表
   const initialMemory: TableMemorySheet[] = [
     {
+      id: "status_rel",
       name: "状态与关系",
       columns: ["角色", "好感度", "当前状态描述"],
       rows: [
         ["银霜", "50", "初次结识"],
         ["莉莉丝", "30", "警惕"],
       ],
+      enable: true,
     },
   ];
 
@@ -163,7 +165,7 @@ async function testPromptServiceRedosProtection() {
   ];
 
   // 模拟消息历史
-  const messages = [
+  const messages: Message[] = [
     { id: "m1", sender: "user", content: "我们来讨论 aaaa 魔法", timestamp: Date.now() },
   ];
 
@@ -208,7 +210,7 @@ async function testPromptServiceRedosProtection() {
       },
     ];
     const triggered = service.getTriggeredLorebookEntries(
-      [{ id: "m1", sender: "user", content: "你好世界", timestamp: Date.now() }],
+      [{ id: "m1", sender: "user", content: "你好世界", timestamp: Date.now() }] as Message[],
       "你好世界",
       normalRegexEntries as any
     );
@@ -292,7 +294,7 @@ async function testAutoSummaryMetadataParsing() {
   const mockSummaryContent = "银霜在旅馆中与旅人交谈，气氛逐渐缓和。\n---\n[Location: 旅馆大厅]\n[Time: 深夜]\n[Condition: 放松]\n[Inventory: 长剑]\n[Bonding: 好感+5]";
 
   let capturedReqBody: any = null;
-  const mockLlmService: IKernelService = {
+  const mockLlmService: any = {
     name: "llm",
     init() {},
     async universalFetch(endpoint: string, options: any) {
@@ -303,7 +305,7 @@ async function testAutoSummaryMetadataParsing() {
     },
   };
 
-  const mockDbService: IKernelService = {
+  const mockDbService: any = {
     name: "database",
     init() {},
     async getAllSessions() {
