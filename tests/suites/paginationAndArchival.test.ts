@@ -1,10 +1,11 @@
 /**
  * 分页懒加载与总结归档测试套件
  *
- * 覆盖以下三个核心逻辑：
+ * 覆盖以下四个核心逻辑：
  * 1. 消息角色映射（user/assistant/system 三路映射正确性）
  * 2. 分页懒加载边界条件（空会话、不足一页、恰好一页、多页 offset 累计）
  * 3. 自动总结归档触发条件（阈值判断、失败重试、增量再触发）
+ * 4. appendSessionMessage 字段映射（sender→role, timestamp→createdAt, 持久化字段持久性与兜底）
  */
 
 import { assert } from "./testUtils";
@@ -180,4 +181,90 @@ export function testAutoSummaryTriggerConditions() {
   );
 
   console.log("✓ Auto summary trigger conditions verified (threshold/disabled/increment/retry/cross-session)");
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 测试目标 4：appendSessionMessage 字段映射（从 DatabaseService.ts 提取的纯逻辑）
+// 验证 sender→role、timestamp→createdAt 映射，以及 tags/extractSource/metadata 持久化与兜底
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** 与 DatabaseService.ts appendSessionMessage 中一致的持久化字段映射逻辑 */
+function buildPersistedRecord(
+  sessionId: string,
+  message: { id: string; sender: string; content: string; timestamp?: number; extra?: Record<string, unknown>; tags?: string[]; extractSource?: string; metadata?: Record<string, unknown> },
+  turnIndex?: number
+): { id: string; sessionId: string; role: string; content: string; createdAt: number; turnIndex: number; tags: string[]; extractSource: string; metadata: Record<string, unknown> | undefined } {
+  return {
+    id: message.id,
+    sessionId,
+    role: message.sender === "user" ? "user" : "assistant",
+    content: message.content,
+    createdAt: message.timestamp || Date.now(),
+    turnIndex: turnIndex ?? 0,
+    tags: message.tags || [],
+    extractSource: message.extractSource || "none",
+    metadata: message.metadata || message.extra,
+  };
+}
+
+export async function testAppendSessionMessageFieldMapping() {
+  console.log("\n--- Running appendSessionMessage Field Mapping Verification ---");
+
+  // 4.1 sender → role 映射
+  const userMsg = buildPersistedRecord("s1", { id: "m1", sender: "user", content: "hi", timestamp: 1000 });
+  assert(userMsg.role === "user", "sender 'user' → role 'user'");
+
+  const assistantMsg = buildPersistedRecord("s1", { id: "m2", sender: "assistant", content: "hello", timestamp: 2000 });
+  assert(assistantMsg.role === "assistant", "sender 'assistant' → role 'assistant'");
+
+  const systemMsg = buildPersistedRecord("s1", { id: "m3", sender: "system", content: "[system]", timestamp: 3000 });
+  assert(systemMsg.role === "assistant", "sender 'system' → role 'assistant' (DatabaseService 层不区分 system)");
+
+  // 4.2 timestamp → createdAt 映射与兜底
+  assert(userMsg.createdAt === 1000, "timestamp 映射到 createdAt");
+  const noTimestampMsg = buildPersistedRecord("s1", { id: "m4", sender: "user", content: "no-ts" });
+  assert(noTimestampMsg.createdAt > 0, "timestamp 缺失时 createdAt 回退 Date.now()");
+
+  // 4.3 tags 持久化与默认值
+  const withTags = buildPersistedRecord("s1", { id: "m5", sender: "assistant", content: "c", timestamp: 100, tags: ["老张", "玉佩"] });
+  assert(withTags.tags.length === 2 && withTags.tags[0] === "老张", "tags 正确持久化");
+  const noTags = buildPersistedRecord("s1", { id: "m6", sender: "assistant", content: "c", timestamp: 100 });
+  assert(noTags.tags.length === 0, "tags 缺失时兜底为空数组");
+
+  // 4.4 extractSource 持久化与默认值
+  const withSource = buildPersistedRecord("s1", { id: "m7", sender: "assistant", content: "c", timestamp: 100, extractSource: "llm" });
+  assert(withSource.extractSource === "llm", "extractSource 正确持久化");
+  const noSource = buildPersistedRecord("s1", { id: "m8", sender: "assistant", content: "c", timestamp: 100 });
+  assert(noSource.extractSource === "none", "extractSource 缺失时兜底为 'none'");
+
+  // 4.5 metadata 持久化与 extra 兜底
+  const withMetadata = buildPersistedRecord("s1", { id: "m9", sender: "assistant", content: "c", timestamp: 100, metadata: { key: "val" } });
+  assert(withMetadata.metadata?.key === "val", "metadata 正确持久化");
+
+  const withExtraOnly = buildPersistedRecord("s1", { id: "m10", sender: "assistant", content: "c", timestamp: 100, extra: { fallback: true } });
+  assert(withExtraOnly.metadata?.fallback === true, "metadata 缺失时兜底到 extra 字段");
+
+  const noMetadataNoExtra = buildPersistedRecord("s1", { id: "m11", sender: "assistant", content: "c", timestamp: 100 });
+  assert(noMetadataNoExtra.metadata === undefined, "metadata 和 extra 均缺失时为 undefined");
+
+  // 4.6 turnIndex 传参与默认值
+  const withTurnIndex = buildPersistedRecord("s1", { id: "m12", sender: "user", content: "c", timestamp: 100 }, 42);
+  assert(withTurnIndex.turnIndex === 42, "turnIndex 显式传参");
+  const noTurnIndex = buildPersistedRecord("s1", { id: "m13", sender: "user", content: "c", timestamp: 100 });
+  assert(noTurnIndex.turnIndex === 0, "turnIndex 缺失时兜底为 0");
+
+  // 4.7 综合场景：包含所有持久化字段的消息
+  const fullMsg = buildPersistedRecord("s1", {
+    id: "m14", sender: "assistant", content: "复杂消息", timestamp: 9999,
+    tags: ["战斗", "夜晚"], extractSource: "hybrid",
+    metadata: { emotion: "angry", location: "旅馆" },
+  }, 7);
+  assert(fullMsg.role === "assistant", "综合：role 正确");
+  assert(fullMsg.createdAt === 9999, "综合：createdAt 正确");
+  assert(fullMsg.turnIndex === 7, "综合：turnIndex 正确");
+  assert(fullMsg.tags.length === 2, "综合：tags 正确");
+  assert(fullMsg.extractSource === "hybrid", "综合：extractSource 正确");
+  assert(fullMsg.metadata?.emotion === "angry", "综合：metadata 正确");
+
+  console.log("✓ appendSessionMessage field mapping verified (role/createdAt/tags/extractSource/metadata/turnIndex)");
 }

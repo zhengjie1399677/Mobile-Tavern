@@ -36,6 +36,64 @@ import {
 } from "./bridgeCore";
 import { createZodProxy } from "./zodMock";
 import { parseMvuMessage } from "./mvuParser";
+import type { Message } from "../../types";
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 本地类型声明：仅本文件内部使用，不污染全局 Window 类型
+// 遵循 AGENTS.md 准则一.3 防腐层约束，沿用 keyManager.ts / LLMService.ts 的 TauriWindow 模式
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** jQuery Mock 的可调用签名 */
+type jQueryLike = (el: unknown) => { on: (event?: string, cb?: (...args: unknown[]) => void) => void };
+
+/** toastr Mock 的最小契约 */
+interface ToastrMock {
+  info: (msg: string) => void;
+  warning: (msg: string) => void;
+  success: (msg: string) => void;
+  error: (msg: string) => void;
+}
+
+/** TavernHelper 对象在本文件内部被读取的方法子集（外部 iframe 调用的方法不在此约束内） */
+interface TavernHelperLike {
+  getVariables: (options?: unknown) => Record<string, unknown> | undefined;
+  replaceVariables: (variables: Record<string, unknown>, options?: unknown) => void;
+  // 索引签名：允许 TavernHelper Mock 字面量携带 _th_impl / _bind 等额外属性而不触发多余属性检查
+  [key: string]: unknown;
+}
+
+/**
+ * TavernHelper 桥接所需的 Window 全局 Mock 字段。
+ * 全部声明为可选，因 initTavernHelperMocks() 采用惰性初始化（X = X || default）。
+ */
+interface TavernHelperWindow extends Window {
+  registerMvuSchema?: typeof registerMvuSchema;
+  tavern_events?: Record<string, string>;
+  $?: jQueryLike;
+  jQuery?: jQueryLike;
+  YAML?: { parse: (s: string) => unknown; stringify: (o: unknown) => string };
+  z?: ReturnType<typeof createZodProxy>;
+  toastr?: ToastrMock;
+  showdown?: { Converter: () => { makeHtml: (text: string) => string } };
+  appendInexistentScriptButtons?: () => void;
+  getScriptButtons?: () => unknown[];
+  replaceScriptButtons?: () => void;
+  getButtonEvent?: (name: string) => string;
+  TavernHelper?: TavernHelperLike;
+  SillyTavern?: unknown;
+  Mvu?: unknown;
+  getAllVariables?: () => unknown;
+  getVariables?: (options?: unknown) => unknown;
+  __readyIframeSet?: Set<string>;
+}
+
+/**
+ * SillyTavern 兼容消息格式。
+ * Message 类型已含 swipe_id / swipes / extra / variables，此处仅补充 swipes_data。
+ */
+type SillyTavernMessage = Message & {
+  swipes_data?: string[];
+};
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 显式初始化函数：注册所有 window.* 全局 Mock
@@ -46,7 +104,7 @@ let _mocksInitialized = false;
 export function initTavernHelperMocks(): void {
   if (_mocksInitialized || typeof window === "undefined") return;
   _mocksInitialized = true;
-  const parentWin = window as any;
+  const parentWin = window as unknown as TavernHelperWindow;
 
   parentWin.registerMvuSchema = registerMvuSchema;
 
@@ -259,13 +317,13 @@ export function initTavernHelperMocks(): void {
     _reloadIframe: () => {},
     _onIframeReady(iframeId: string) {
       // 防暴去重：一个 iframe 已经响应就绪后，无需重复执行 100ms 后的变量初始化通知，防止反噬死循环
-      if ((window as any).__readyIframeSet?.has(iframeId)) {
+      if (parentWin.__readyIframeSet?.has(iframeId)) {
         return;
       }
-      if (!(window as any).__readyIframeSet) {
-        (window as any).__readyIframeSet = new Set<string>();
+      if (!parentWin.__readyIframeSet) {
+        parentWin.__readyIframeSet = new Set<string>();
       }
-      (window as any).__readyIframeSet.add(iframeId);
+      parentWin.__readyIframeSet.add(iframeId);
 
       console.log(`[TavernHelper Bridge] Iframe ${iframeId} is ready.`);
       try {
@@ -367,16 +425,16 @@ export function initTavernHelperMocks(): void {
           return resolvedVars;
         }
 
-        const msg = messages[msgId] as any;
+        const msg = messages[msgId];
         if (msg) {
           const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
-          
+
           // 【修复 X3】从当前消息开始往前扫描，寻找最近的一个包含有效变量的消息。
           // 原先要求 stat_data 非空才算有效，但初始化时可能 stat_data 为 {}（由静态提取失败导致），
           // 改为：只要 extra.variables[swipeId] 存在（即使 stat_data 是空对象）就视为有效记录，
           // 由 zod schema.parse() 负责补齐默认值。
           for (let i = msgId; i >= 0; i--) {
-            const m = messages[i] as any;
+            const m = messages[i];
             if (!m) continue;
             const currentSwipeId = (i === msgId && opt.swipe_id !== undefined)
               ? opt.swipe_id
@@ -449,7 +507,7 @@ export function initTavernHelperMocks(): void {
           let messageVarsChanged = false;
           const updatedMessages = activeS.messages.map((m, idx) => {
             if (idx === targetMsgId) {
-              const msg = m as any;
+              const msg = m;
               const swipeId = opt.swipe_id !== undefined ? opt.swipe_id : (msg.swipe_id !== undefined ? msg.swipe_id : 0);
               const existingSwipeVars = msg.extra?.variables?.[swipeId];
               if (lodashIsEqual(existingSwipeVars, variables)) {
@@ -481,7 +539,7 @@ export function initTavernHelperMocks(): void {
           let updatedMessages = activeS.messages;
           if (updatedMessages.length > 0) {
             const lastIdx = updatedMessages.length - 1;
-            const lastMsg = { ...updatedMessages[lastIdx] } as any;
+            const lastMsg: SillyTavernMessage = { ...updatedMessages[lastIdx] };
             const swipeId = lastMsg.swipe_id !== undefined ? lastMsg.swipe_id : 0;
             const extra = { ...lastMsg.extra };
             if (!extra.variables) extra.variables = {};
@@ -532,7 +590,7 @@ export function initTavernHelperMocks(): void {
         let newSessionVars = { ...activeS.variables };
         const updatedMessages = activeS.messages.map((m, idx) => {
           if (idx === targetMsgId) {
-            let updatedMsg = { ...m };
+            let updatedMsg: SillyTavernMessage = { ...m };
             let textChanged = false;
             let targetContent = updatedMsg.content;
             if (typeof messageObj === "string") { targetContent = messageObj; textChanged = true; }
@@ -542,28 +600,28 @@ export function initTavernHelperMocks(): void {
             }
             if (textChanged && updatedMsg.content !== targetContent) { updatedMsg.content = targetContent; changed = true; }
             if (messageObj && typeof messageObj === "object") {
-              if (messageObj.swipe_id !== undefined && (updatedMsg as any).swipe_id !== messageObj.swipe_id) { (updatedMsg as any).swipe_id = messageObj.swipe_id; changed = true; }
-              if (messageObj.swipes !== undefined && !lodashIsEqual((updatedMsg as any).swipes, messageObj.swipes)) { (updatedMsg as any).swipes = messageObj.swipes; changed = true; }
-              if (messageObj.swipes_data !== undefined && !lodashIsEqual((updatedMsg as any).swipes_data, messageObj.swipes_data)) { (updatedMsg as any).swipes_data = messageObj.swipes_data; changed = true; }
-              if (messageObj.extra !== undefined && !lodashIsEqual((updatedMsg as any).extra, messageObj.extra)) { (updatedMsg as any).extra = { ...(updatedMsg as any).extra, ...messageObj.extra }; changed = true; }
+              if (messageObj.swipe_id !== undefined && updatedMsg.swipe_id !== messageObj.swipe_id) { updatedMsg.swipe_id = messageObj.swipe_id; changed = true; }
+              if (messageObj.swipes !== undefined && !lodashIsEqual(updatedMsg.swipes, messageObj.swipes)) { updatedMsg.swipes = messageObj.swipes; changed = true; }
+              if (messageObj.swipes_data !== undefined && !lodashIsEqual(updatedMsg.swipes_data, messageObj.swipes_data)) { updatedMsg.swipes_data = messageObj.swipes_data; changed = true; }
+              if (messageObj.extra !== undefined && !lodashIsEqual(updatedMsg.extra, messageObj.extra)) { updatedMsg.extra = { ...updatedMsg.extra, ...messageObj.extra }; changed = true; }
               if (messageObj.variables !== undefined) {
-                if (!(updatedMsg as any).extra) (updatedMsg as any).extra = {};
-                if (!(updatedMsg as any).extra.variables) (updatedMsg as any).extra.variables = {};
+                if (!updatedMsg.extra) updatedMsg.extra = {};
+                if (!updatedMsg.extra.variables) updatedMsg.extra.variables = {};
                 const keys = Object.keys(messageObj.variables);
                 const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
                 if (isNested) {
-                  (updatedMsg as any).extra.variables = { ...(updatedMsg as any).extra.variables, ...messageObj.variables };
+                  updatedMsg.extra.variables = { ...updatedMsg.extra.variables, ...messageObj.variables };
                 } else {
-                  const swipeId = (updatedMsg as any).swipe_id !== undefined ? (updatedMsg as any).swipe_id : 0;
-                  const existingSwipeVars = (updatedMsg as any).extra.variables[swipeId] || {};
-                  (updatedMsg as any).extra.variables = { ...(updatedMsg as any).extra.variables, [swipeId]: { ...existingSwipeVars, ...messageObj.variables } };
+                  const swipeId = updatedMsg.swipe_id !== undefined ? updatedMsg.swipe_id : 0;
+                  const existingSwipeVars = updatedMsg.extra.variables[swipeId] || {};
+                  updatedMsg.extra.variables = { ...updatedMsg.extra.variables, [swipeId]: { ...existingSwipeVars, ...messageObj.variables } };
                 }
                 changed = true;
               }
             }
             if (idx === activeS.messages.length - 1) {
-              const swipeId = (updatedMsg as any).swipe_id !== undefined ? (updatedMsg as any).swipe_id : 0;
-              newSessionVars = (updatedMsg as any).extra?.variables?.[swipeId] || {};
+              const swipeId = updatedMsg.swipe_id !== undefined ? updatedMsg.swipe_id : 0;
+              newSessionVars = updatedMsg.extra?.variables?.[swipeId] || {};
               sessionVarsUpdated = true;
             }
             return updatedMsg;
@@ -591,16 +649,16 @@ export function initTavernHelperMocks(): void {
         let sessionVarsUpdated = false;
         let newSessionVars = { ...activeS.variables };
         const updatedMessages = activeS.messages.map((m, idx) => {
-          const newMsg = messagesList[idx] as any;
+          const newMsg = messagesList[idx];
           if (newMsg) {
-            let updated = { ...m };
+            let updated: SillyTavernMessage = { ...m };
             let localChanged = false;
             const content = typeof newMsg === "string" ? newMsg : (newMsg.mes !== undefined ? newMsg.mes : (newMsg.content !== undefined ? newMsg.content : (newMsg.message !== undefined ? newMsg.message : undefined)));
             console.log(`[TavernHelper Bridge] msg ${idx} content resolution: newMsgContent:`, content, "existingContent:", updated.content);
             if (content !== undefined && updated.content !== content) { updated.content = content; localChanged = true; }
             if (typeof newMsg === "object") {
-              if (newMsg.swipe_id !== undefined && (updated as any).swipe_id !== newMsg.swipe_id) {
-                (updated as any).swipe_id = newMsg.swipe_id; localChanged = true;
+              if (newMsg.swipe_id !== undefined && updated.swipe_id !== newMsg.swipe_id) {
+                updated.swipe_id = newMsg.swipe_id; localChanged = true;
                 let swipeContent: string | undefined = undefined;
                 if (idx === 0 && activeCharacter) {
                   const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
@@ -610,20 +668,20 @@ export function initTavernHelperMocks(): void {
                 }
                 if (swipeContent !== undefined && updated.content !== swipeContent) updated.content = swipeContent;
               }
-              if (newMsg.swipes !== undefined && !lodashIsEqual((updated as any).swipes, newMsg.swipes)) { (updated as any).swipes = newMsg.swipes; localChanged = true; }
-              if (newMsg.swipes_data !== undefined && !lodashIsEqual((updated as any).swipes_data, newMsg.swipes_data)) { (updated as any).swipes_data = newMsg.swipes_data; localChanged = true; }
-              if (newMsg.extra !== undefined && !lodashIsEqual((updated as any).extra, newMsg.extra)) { (updated as any).extra = { ...(updated as any).extra, ...newMsg.extra }; localChanged = true; }
+              if (newMsg.swipes !== undefined && !lodashIsEqual(updated.swipes, newMsg.swipes)) { updated.swipes = newMsg.swipes; localChanged = true; }
+              if (newMsg.swipes_data !== undefined && !lodashIsEqual(updated.swipes_data, newMsg.swipes_data)) { updated.swipes_data = newMsg.swipes_data; localChanged = true; }
+              if (newMsg.extra !== undefined && !lodashIsEqual(updated.extra, newMsg.extra)) { updated.extra = { ...updated.extra, ...newMsg.extra }; localChanged = true; }
               if (newMsg.variables !== undefined) {
-                if (!(updated as any).extra) (updated as any).extra = {};
-                if (!(updated as any).extra.variables) (updated as any).extra.variables = {};
+                if (!updated.extra) updated.extra = {};
+                if (!updated.extra.variables) updated.extra.variables = {};
                 const keys = Object.keys(newMsg.variables);
                 const isNested = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
                 if (isNested) {
-                  (updated as any).extra.variables = { ...(updated as any).extra.variables, ...newMsg.variables };
+                  updated.extra.variables = { ...updated.extra.variables, ...newMsg.variables };
                 } else {
-                  const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
-                  const existingSwipeVars = (updated as any).extra.variables[swipeId] || {};
-                  (updated as any).extra.variables = { ...(updated as any).extra.variables, [swipeId]: { ...existingSwipeVars, ...newMsg.variables } };
+                  const swipeId = updated.swipe_id !== undefined ? updated.swipe_id : 0;
+                  const existingSwipeVars = updated.extra.variables[swipeId] || {};
+                  updated.extra.variables = { ...updated.extra.variables, [swipeId]: { ...existingSwipeVars, ...newMsg.variables } };
                 }
                 localChanged = true;
               }
@@ -631,8 +689,8 @@ export function initTavernHelperMocks(): void {
             if (localChanged) {
               changed = true;
               if (idx === activeS.messages.length - 1) {
-                const swipeId = (updated as any).swipe_id !== undefined ? (updated as any).swipe_id : 0;
-                newSessionVars = (updated as any).extra?.variables?.[swipeId] || {};
+                const swipeId = updated.swipe_id !== undefined ? updated.swipe_id : 0;
+                newSessionVars = updated.extra?.variables?.[swipeId] || {};
                 sessionVarsUpdated = true;
               }
               return updated;
@@ -658,15 +716,15 @@ export function initTavernHelperMocks(): void {
           id: idx, name: m.sender === "user" ? settings.userName : (activeCharacter?.name || "AI"),
           mes: m.content, message: m.content, role: m.sender, send_date: m.timestamp,
           is_user: m.sender === "user", is_system: m.sender === "system",
-          swipe_id: (m as any).swipe_id !== undefined ? (m as any).swipe_id : 0,
-          swipes: (m as any).swipes || [m.content], extra: (m as any).extra || {},
+          swipe_id: m.swipe_id !== undefined ? m.swipe_id : 0,
+          swipes: m.swipes || [m.content], extra: m.extra || {},
           variables: getSwipeVariables(m),
         };
         if (idx === 0 && activeCharacter) {
           const allGreetings = [activeCharacter.first_mes, ...(activeCharacter.alternate_greetings || [])];
           msgObj.swipes = allGreetings;
           const currentIdx = allGreetings.indexOf(m.content);
-          msgObj.swipe_id = (m as any).swipe_id !== undefined ? (m as any).swipe_id : (currentIdx !== -1 ? currentIdx : 0);
+          msgObj.swipe_id = m.swipe_id !== undefined ? m.swipe_id : (currentIdx !== -1 ? currentIdx : 0);
         }
         return msgObj;
       });
@@ -752,7 +810,7 @@ export function initTavernHelperMocks(): void {
       let changed = false;
       updates.forEach((up) => {
         const targetId = resolveMessageId(up.message_id, session.messages.length);
-        const msg = session.messages[targetId] as any;
+        const msg: SillyTavernMessage | undefined = session.messages[targetId];
         if (msg) {
           const newContent = up.message !== undefined ? up.message : (up.mes !== undefined ? up.mes : (up.content !== undefined ? up.content : undefined));
           if (newContent !== undefined && msg.content !== newContent) { msg.content = newContent; changed = true; }
@@ -914,13 +972,13 @@ export function initTavernHelperMocks(): void {
     },
 
     getMvuData(options: any = { type: "chat" }) {
-      const vars = parentWin.TavernHelper.getVariables(options) || {};
+      const vars = parentWin.TavernHelper?.getVariables(options) || {};
       if (vars.stat_data && vars.schema) return vars;
       return { initialized_lorebooks: vars.initialized_lorebooks || {}, stat_data: vars.stat_data || vars,
         schema: vars.schema || { type: 'object', properties: {} }, display_data: vars.display_data || {}, delta_data: vars.delta_data || {} };
     },
     replaceMvuData(mvu_data: any, options: any = { type: "chat" }) {
-      return Promise.resolve(parentWin.TavernHelper.replaceVariables(mvu_data, options));
+      return Promise.resolve(parentWin.TavernHelper?.replaceVariables(mvu_data, options));
     },
     parseMessage(message: string, old_data: any) { return Promise.resolve(parseMvuMessage(message, old_data)); },
     isDuringExtraAnalysis: () => false,
@@ -946,10 +1004,10 @@ export function initTavernHelperMocks(): void {
   //       findGetAllVariables(window.parent)  →  window.parent.getAllVariables
   //     必须在这里把函数挂到父页面根 window 上，否则永远找不到。
   // ──────────────────────────────────────────────────────────────────────────
-  (parentWin as any).getAllVariables = function() {
+  parentWin.getAllVariables = function() {
     return bindObj._getAllVariables();
   };
-  (parentWin as any).getVariables = function(options?: any) {
+  parentWin.getVariables = function(options?: unknown) {
     return bindObj._getVariables(options);
   };
 }

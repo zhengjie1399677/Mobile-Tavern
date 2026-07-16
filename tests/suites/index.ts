@@ -106,4 +106,5 @@ export {
   testMessageRoleMapping,
   testPaginationBoundaries,
   testAutoSummaryTriggerConditions,
+  testAppendSessionMessageFieldMapping,
 } from "./paginationAndArchival.test";

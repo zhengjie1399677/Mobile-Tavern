@@ -78,6 +78,7 @@ import {
   testMessageRoleMapping,
   testPaginationBoundaries,
   testAutoSummaryTriggerConditions,
+  testAppendSessionMessageFieldMapping,
 } from "./suites/index";
 
 async function run() {
@@ -160,6 +161,7 @@ async function run() {
     { name: "testMessageRoleMapping", fn: testMessageRoleMapping },
     { name: "testPaginationBoundaries", fn: testPaginationBoundaries },
     { name: "testAutoSummaryTriggerConditions", fn: testAutoSummaryTriggerConditions },
+    { name: "testAppendSessionMessageFieldMapping", fn: testAppendSessionMessageFieldMapping },
   ];
 
   let passed = 0;
