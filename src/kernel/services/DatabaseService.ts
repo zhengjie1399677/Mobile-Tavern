@@ -20,6 +20,7 @@ import { applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
  * 与 localDB.ts 中的 PersistedMessage 保持一致，确保类型契约不逃逸。
  */
 type PersistedMessage = Message & {
+  turnIndex?: number;
   tags?: string[];
   extractSource?: string;
   metadata?: Record<string, unknown>;

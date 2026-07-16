@@ -728,6 +728,24 @@ npm run test
 
 ---
 
+## 🛡️ 类型安全治理与 `as any` 精确化 (Type Safety & `as any` Minimization)
+
+为消除 `as any` 类型逃逸导致的重构盲区、运行时 `null`/`undefined` 崩溃与 IDE 智能提示失效，项目全面采用精确类型替代 `as any`，当前残留 69 处（87.1% 已清除），其中 65 处位于 SillyTavern 兼容 Mock（无类型定义，保留合理）。
+
+### 1. 类型安全策略
+
+* **`as unknown as T` 双重断言**：用于 mock 对象需绕过多余属性检查的场景（如 `{} as unknown as IKernel`），强制经过 `unknown` 中转，比 `as any` 更安全。
+* **本地 `Window` 扩展接口**：各文件按需定义 `TauriWindow extends Window`、`WindowWithAndroidBridge extends Window` 等接口，仅声明本文件实际访问的原生桥接字段，不污染全局 `Window` 类型。
+* **`PersistedMessage` 交叉类型**：`Message & { turnIndex?, tags?, extractSource?, metadata? }`，收口记忆系统持久化字段，`localDB.ts` 与 `DatabaseService.ts` 共享一致定义。
+* **Web Crypto API 精确类型**：`keyManager.ts` 中 `importKey` / `decrypt` 参数使用 `as ArrayBuffer` / `as AesGcmParams` / `KeyUsage` 精确类型，非 `as any`。
+
+### 2. 保留 `as any` 的场景
+
+* **SillyTavern 兼容 Mock**（[tavernHelperMocks.ts](src/utils/tavernHelper/tavernHelperMocks.ts)，65 处）：jQuery / YAML / toastr / showdown / SillyTavern 插件 API 无 TypeScript 类型定义，精确化需为整个插件系统建模，保留合理。
+* **JSDoc 注释中的文字提及**（4 处）：描述替代 `as any` 的目的，非实际类型断言。
+
+---
+
 ## 🧭 常见问题排查与技术约束 (Troubleshooting & Technical Constraints)
 
 *   **API 跨域错误 (CORS Blocked)**: 

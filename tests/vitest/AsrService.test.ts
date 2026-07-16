@@ -157,7 +157,7 @@ describe("AsrService tests", () => {
 
     // 模拟识别结果
     const instance = mockRecognition.mock.results[0].value as MockSpeechRecognitionInstance;
-    instance.onresult?.({
+    instance.onresult!({
       resultIndex: 0,
       results: [{ isFinal: true, 0: { transcript: "你好世界" } }],
     });
@@ -182,7 +182,7 @@ describe("AsrService tests", () => {
     );
 
     const instance = mockRecognition.mock.results[0].value as MockSpeechRecognitionInstance;
-    instance.onerror?.({ error: "network" });
+    instance.onerror!({ error: "network" });
     expect(onError).toHaveBeenCalledWith(expect.any(Error));
     expect(onEnd).toHaveBeenCalled();
   });

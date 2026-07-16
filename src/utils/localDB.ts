@@ -14,7 +14,7 @@ type PersistedMessage = Message & {
   turnIndex?: number;
   tags?: string[];
   extractSource?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 };
 
 const DB_NAME = "MobileTavernLiteDB";

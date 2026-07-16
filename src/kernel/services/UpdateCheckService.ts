@@ -19,7 +19,7 @@ interface NavigatorNetworkInformation extends Navigator {
 }
 
 // Tauri 原生运行时注入的全局对象
-interface WindowTauriInternals extends Window {
+interface TauriWindow extends Window {
   __TAURI_INTERNALS__?: unknown;
   __TAURI_IPC__?: unknown;
 }
@@ -118,8 +118,8 @@ export class UpdateCheckService implements IUpdateCheckService {
       window.location.protocol.startsWith("tauri") ||
       window.location.protocol === "file:" ||
       window.location.hostname === "tauri.localhost" ||
-      !!(window as WindowTauriInternals).__TAURI_INTERNALS__ ||
-      !!(window as WindowTauriInternals).__TAURI_IPC__
+      !!(window as TauriWindow).__TAURI_INTERNALS__ ||
+      !!(window as TauriWindow).__TAURI_IPC__
     );
 
     // 选择目标接口：原生环境直连 FC，浏览器开发环境连本地 server.ts
