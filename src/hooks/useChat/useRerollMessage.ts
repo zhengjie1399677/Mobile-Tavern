@@ -4,7 +4,7 @@ import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService,
 } from "../../kernel/types";
-import { globalKernel } from "../../kernel";
+import { useKernel } from "../../contexts/KernelContext";
 import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 import {
   generateUniqueId, buildThrottledUpdater, buildFinalAiMessage,
@@ -43,6 +43,7 @@ interface RerollMessageParams {
  * 与 useSendMessage 共享 streamHelpers 纯函数，消除代码重复。
  */
 export function useRerollMessage(p: RerollMessageParams) {
+  const kernel = useKernel();
   const pRef = React.useRef<RerollMessageParams>(p);
   pRef.current = p;
 
@@ -220,7 +221,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       // 1. 异步执行记忆召回
       let recalledMemories: any[] = [];
       try {
-        const memoryService = globalKernel.getService<any>("memory");
+        const memoryService = kernel.getService<any>("memory");
         if (memoryService && p.settings.memory?.enableRecall !== false) {
           const recallTopK = p.settings.memory?.recallTopK ?? 3;
           recalledMemories = await memoryService.getRecall().recall(

@@ -28,9 +28,9 @@
 * **优化方向**：将根目录的 `tests` 纳入 TypeScript 静态类型检查的范围，确保在 CI/CD 或本地 commit 拦截时能自动捕获测试用例的类型失效。
 * **技术难点**：需要确保 `tests/` 中的 Node 相关 API（如 `process.argv` 等）与前端 Tauri `dom` 编译环境的配置在同一 `tsconfig` 下不冲突；或者在 `tests/` 下建立独立的 `tsconfig.json` 单独做类型校验。
 
-### 2. 对 Mock 服务实施类型安全的安全代理 (Safe Mock Proxy) [优先级：低]
-* **当前隐患**：为了避免补齐庞大的 `IDatabaseService` 空方法，我们目前使用 `any` 类型定义 Mock 服务。这消除了 TS 报错，但失去了编译期的类型安全防护。
-* **优化方向**：设计一个通用的 `createMockService<T>` 工具函数，利用 `Proxy` 在运行时拦截未实现的属性，并在开发期提供部分类型提示支持。
+### 3. 解耦纯 TS 工具类的 `globalKernel` 直接依赖 [优先级：低]
+* **当前隐患**：为了简便，部分非 React 的纯 TS 工具类（如 `telemetry.ts`、`apiClient.ts`、`catbotEventBus.ts` 和 `bridgeCore.ts`）直接 import 并使用了 `globalKernel` 单例。这在进行微服务级单元测试隔离时，会导致被测试的工具类被迫与全局单例绑定，无法通过 Mock 内核来进行完全解耦测试。
+* **优化方向**：对这些纯 TS 工具类的方法签名实施重构，改为接收可选参数 `kernel?: IKernel = globalKernel`。如此一来，既能向后兼容当前的单例调用模式，又能让测试环境在调用时传入隔离的 Mock 实例，实现物理隔离测试。
 
 ---
 
@@ -38,4 +38,4 @@
 
 | 日期 | 变动内容 |
 |---|---|
-| 2026-07-16 | 创建 `TODO.md`。记录类型安全隐患，将 `test_kernel_services_coverage.ts` 中涉及 `TableMemorySheet` 缺失字段、`sender` 字面量推导、Mock 服务多余属性报错等 3 项类型校验问题修复并归档；列出扩宽 `tsconfig` 校验范围的代办。 |
+| 2026-07-16 | 创建 `TODO.md`。记录类型安全隐患，将 `test_kernel_services_coverage.ts` 中涉及 `TableMemorySheet` 缺失字段、`sender` 字面量推导、Mock 服务多余属性报错等 3 项类型校验问题修复并归档；列出扩宽 `tsconfig` 校验范围的代办；新增解耦非 React 纯 TS 工具类中的 `globalKernel` 依赖代办。 |

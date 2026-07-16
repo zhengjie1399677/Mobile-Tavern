@@ -4,6 +4,7 @@ import MainLayout from "./components/MainLayout";
 import { initializeKernel, destroyKernel, globalKernel } from "./kernel";
 import { SplashScreen } from "./components/SplashScreen";
 import { registerMainTabExtensions } from "./composition/registerMainTabExtensions";
+import { KernelProvider } from "./contexts/KernelContext";
 
 export {
   DEFAULT_PROMPT_CONFIG,
@@ -88,8 +89,10 @@ export default function App() {
   }
 
   return (
-    <LegacyAppContextProvider>
-      <MainLayout />
-    </LegacyAppContextProvider>
+    <KernelProvider kernel={globalKernel}>
+      <LegacyAppContextProvider>
+        <MainLayout />
+      </LegacyAppContextProvider>
+    </KernelProvider>
   );
 }

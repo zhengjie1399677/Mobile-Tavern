@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import { UserSettings, LorebookEntry } from "../../types";
-import { globalKernel } from "../../kernel/Kernel";
+import { useKernel } from "../../contexts/KernelContext";
 import {
   ISettingsService,
   IWorldbookService,
@@ -10,34 +10,6 @@ import {
 } from "../../kernel/types";
 import { encryptBackupData, decryptBackupData } from "../../utils/cardParser";
 import { DEFAULT_SETTINGS } from "./defaults";
-
-/**
- * 微内核插件式架构：备份恢复跨 store 批量操作统一走内核服务插件。
- * 业务层不再直接触碰 localDB，遵循 AGENTS.md 准则一与准则八。
- * - settings → SettingsService
- * - globalLorebook → WorldbookService
- * - characters 批量 → CharacterService
- * - sessions 批量/单条 → DatabaseService
- * - messages 读取 → MemoryService.getStorage()
- */
-function getSettingsService(): ISettingsService {
-  return globalKernel.getService<ISettingsService>("settings");
-}
-function getWorldbookService(): IWorldbookService {
-  return globalKernel.getService<IWorldbookService>("worldbook");
-}
-function getCharacterService(): ICharacterService {
-  return globalKernel.getService<ICharacterService>("character");
-}
-function getDatabaseService(): IDatabaseService {
-  return globalKernel.getService<IDatabaseService>("database");
-}
-function getMessagesBySession(
-  sessionId: string,
-  options?: { limit?: number; offset?: number; descending?: boolean }
-): Promise<any[]> {
-  return globalKernel.getService<IMemoryService>("memory").getStorage().getMessagesBySession(sessionId, options);
-}
 
 interface UseBackupRestoreDeps {
   settings: UserSettings;
@@ -85,6 +57,13 @@ export const useBackupRestore = ({
   showCustomAlert,
   showCustomConfirm,
 }: UseBackupRestoreDeps): UseBackupRestoreReturn => {
+  const kernel = useKernel();
+  const settingsService = kernel.getService<ISettingsService>("settings");
+  const worldbookService = kernel.getService<IWorldbookService>("worldbook");
+  const characterService = kernel.getService<ICharacterService>("character");
+  const databaseService = kernel.getService<IDatabaseService>("database");
+  const memoryService = kernel.getService<IMemoryService>("memory");
+
   const handleExportLocalDataBackup = useCallback(async (characters: any[]) => {
     if (encryptBackup && !backupPass.trim()) {
       await showCustomAlert("开启了加密，请预设一个强度适宜的数据保护密码。");
@@ -105,10 +84,10 @@ export const useBackupRestore = ({
           };
 
       // 从数据库获取包含完整消息的会话数据，防止前端分页/懒加载导致的消息遗漏
-      const dbSessions = await getDatabaseService().getAllSessions();
+      const dbSessions = await databaseService.getAllSessions();
       const completeSessions = await Promise.all(
         dbSessions.map(async (s) => {
-          const msgs = await getMessagesBySession(s.id);
+          const msgs = await memoryService.getStorage().getMessagesBySession(s.id);
           return {
             ...s,
             messages: msgs.map((m: any) => ({
@@ -172,7 +151,7 @@ export const useBackupRestore = ({
     } catch (err: any) {
       setBackupStatus(`备份崩溃: ${err.message}`);
     }
-  }, [encryptBackup, backupPass, showCustomAlert, setBackupStatus, settings, globalLorebook]);
+  }, [encryptBackup, backupPass, showCustomAlert, setBackupStatus, settings, globalLorebook, databaseService, memoryService]);
 
   const handleImportLocalDataBackup = useCallback(async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -289,11 +268,11 @@ export const useBackupRestore = ({
           };
         }
 
-        await getCharacterService().bulkSaveCharacters(validatedCharacters);
-        await getDatabaseService().bulkSaveSessions(validatedSessions);
-        if (mergedSettings) await getSettingsService().saveStoredSettings(mergedSettings);
+        await characterService.bulkSaveCharacters(validatedCharacters);
+        await databaseService.bulkSaveSessions(validatedSessions);
+        if (mergedSettings) await settingsService.saveStoredSettings(mergedSettings);
         if (parsed.globalLorebook)
-          await getWorldbookService().saveGlobalLorebook(parsed.globalLorebook);
+          await worldbookService.saveGlobalLorebook(parsed.globalLorebook);
 
         setCharacters(validatedCharacters);
         setSessions(validatedSessions);
@@ -313,7 +292,7 @@ export const useBackupRestore = ({
     } finally {
       e.target.value = "";
     }
-  }, [backupPass, showCustomAlert, showCustomConfirm, setBackupStatus, setSettings, setGlobalLorebook]);
+  }, [backupPass, showCustomAlert, showCustomConfirm, setBackupStatus, setSettings, setGlobalLorebook, characterService, databaseService, settingsService, worldbookService]);
 
   const handleImportSillyChatHistory = useCallback(async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -473,7 +452,7 @@ export const useBackupRestore = ({
       );
 
       if (ok) {
-        await getDatabaseService().saveSession(newSession);
+        await databaseService.saveSession(newSession);
         setSessions((prev) => [...prev, newSession]);
         setBackupStatus("聊天记录导入完成！");
         await showCustomAlert(
@@ -486,7 +465,7 @@ export const useBackupRestore = ({
     } finally {
       e.target.value = "";
     }
-  }, [showCustomAlert, showCustomConfirm, setBackupStatus]);
+  }, [showCustomAlert, showCustomConfirm, setBackupStatus, databaseService]);
 
   const handleSilentDailyBackup = useCallback(async (characters: any[]) => {
     const lastBackup = settings.lastBackupTime || 0;
@@ -513,10 +492,10 @@ export const useBackupRestore = ({
       };
 
       // 从数据库加载完整消息的会话，确保备份完整
-      const dbSessions = await getDatabaseService().getAllSessions();
+      const dbSessions = await databaseService.getAllSessions();
       const completeSessions = await Promise.all(
         dbSessions.map(async (s) => {
-          const msgs = await getMessagesBySession(s.id);
+          const msgs = await memoryService.getStorage().getMessagesBySession(s.id);
           return {
             ...s,
             messages: msgs.map((m: any) => ({
@@ -571,7 +550,7 @@ export const useBackupRestore = ({
       console.error("[AutoBackup] Error during silent daily background backup:", err);
     }
     return false;
-  }, [settings, globalLorebook, setSettings]);
+  }, [settings, globalLorebook, setSettings, databaseService, memoryService]);
 
   return {
     handleExportLocalDataBackup,

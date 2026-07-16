@@ -12,17 +12,13 @@ import {
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
-import { globalKernel } from "../../kernel/Kernel";
+import { useKernel } from "../../contexts/KernelContext";
 import { IDatabaseService } from "../../kernel/types";
 
-/**
- * 微内核插件式架构：会话持久化统一走 DatabaseService。
- */
-function saveSession(session: any): Promise<void> {
-  return globalKernel.getService<IDatabaseService>("database").saveSession(session);
-}
-
 const StoryTimelineView = () => {
+  const kernel = useKernel();
+  const databaseService = kernel.getService<IDatabaseService>("database");
+  const saveSession = (session: any) => databaseService.saveSession(session);
   const {
     sessions,
     activeSessionId,

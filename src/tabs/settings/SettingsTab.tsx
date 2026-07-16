@@ -16,6 +16,7 @@ import {
 } from "../../../components/ui/tabs";
 import PresetForm from "../../components/PresetForm";
 import { performUpdateCheck, showUpdatePrompt } from "../../components/UpdatePrompt";
+import { useKernel } from "../../contexts/KernelContext";
 
 import { getDeviceModel, getFreeTrialCount, useViewportSize } from "./utils";
 import GeneralConfigSection from "./GeneralConfigSection";
@@ -25,6 +26,7 @@ import FeaturesSection from "./FeaturesSection";
 import MemoryStorageSection from "./MemoryStorageSection";
 
 export default function SettingsTab() {
+  const kernel = useKernel();
   const isTauri = typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
   const deviceModel = getDeviceModel();
   const viewportSize = useViewportSize();
@@ -100,7 +102,7 @@ export default function SettingsTab() {
     setIsCheckingUpdate(true);
     try {
       // force=true 跳过冷却期，用户主动点击即立即检查
-      const res = await performUpdateCheck(true);
+      const res = await performUpdateCheck(true, kernel);
       if (res === null) {
         // 理论上 force=true 不会返回 null（除非 UpdateCheckService 未注册），这里兜底
         showCustomAlert("提示", "UpdateCheckService 未就绪，请稍后再试");

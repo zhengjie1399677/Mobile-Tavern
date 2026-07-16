@@ -17,7 +17,7 @@ import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
 import { UserSettings, LorebookEntry, CustomWorldbook, ChatSession } from "../types";
-import { globalKernel } from "../kernel";
+import { useKernel } from "../contexts/KernelContext";
 import {
   IDatabaseService, IPromptService, ITelemetryService,
   IChatStreamService, IMultiMessageService, IScriptService, IMemoryService,
@@ -39,6 +39,7 @@ export const useChat = (
   chatBottomRef: React.RefObject<HTMLDivElement | null>,
   customWorldbooks: Record<string, CustomWorldbook>
 ) => {
+  const kernel = useKernel();
   const { showCustomAlert, showCustomConfirm, showCustomPrompt, setActiveTab } = useApp();
   const { characters, activeCharId, setActiveCharId, activeCharacter } = useCharactersState();
   const {
@@ -50,14 +51,14 @@ export const useChat = (
   } = useChatState();
 
   // ── 微服务注入 ────────────────────────────────────────────────────────────────
-  const databaseService  = globalKernel.getService<IDatabaseService>("database");
-  const promptService    = globalKernel.getService<IPromptService>("prompt");
-  const telemetryService = globalKernel.getService<ITelemetryService>("telemetry");
-  const chatStreamService = globalKernel.getService<IChatStreamService>("chatStream");
-  const multiMessageService = globalKernel.getService<IMultiMessageService>("multiMessage");
-  const scriptService = globalKernel.getService<IScriptService>("script");
-  const memoryService = globalKernel.hasService("memory")
-    ? globalKernel.getService<IMemoryService>("memory")
+  const databaseService  = kernel.getService<IDatabaseService>("database");
+  const promptService    = kernel.getService<IPromptService>("prompt");
+  const telemetryService = kernel.getService<ITelemetryService>("telemetry");
+  const chatStreamService = kernel.getService<IChatStreamService>("chatStream");
+  const multiMessageService = kernel.getService<IMultiMessageService>("multiMessage");
+  const scriptService = kernel.getService<IScriptService>("script");
+  const memoryService = kernel.hasService("memory")
+    ? kernel.getService<IMemoryService>("memory")
     : undefined;
 
   // ── 稳定 Ref 镜像（供异步回调安全读取最新值） ─────────────────────────────────

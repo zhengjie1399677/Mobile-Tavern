@@ -1,24 +1,12 @@
 import type * as React from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { UserSettings, LorebookEntry, CustomWorldbook } from "../../types";
-import { globalKernel } from "../../kernel/Kernel";
+import { useKernel } from "../../contexts/KernelContext";
 import {
   ISettingsService,
   IWorldbookService,
 } from "../../kernel/types";
 import { getNestedDelta, deepMerge, cleanLorebookEntry } from "./mergeUtils";
-
-/**
- * 微内核插件式架构：settings / worldbook 持久化统一走内核服务插件。
- * 业务层不再直接触碰 localDB，遵循 AGENTS.md 准则一与准则八。
- */
-function getSettingsService(): ISettingsService {
-  return globalKernel.getService<ISettingsService>("settings");
-}
-
-function getWorldbookService(): IWorldbookService {
-  return globalKernel.getService<IWorldbookService>("worldbook");
-}
 
 interface UseSettingsPersistenceDeps {
   settings: UserSettings;
@@ -59,6 +47,10 @@ export const useSettingsPersistence = ({
   isReady,
   showCustomAlert,
 }: UseSettingsPersistenceDeps): UseSettingsPersistenceReturn => {
+  const kernel = useKernel();
+  const settingsService = kernel.getService<ISettingsService>("settings");
+  const worldbookService = kernel.getService<IWorldbookService>("worldbook");
+
   // Debounced settings save to prevent locking IndexedDB on sliders
   const saveTimeoutRef = useRef<any>(null);
   const isWritingRef = useRef<boolean>(false);
@@ -69,7 +61,7 @@ export const useSettingsPersistence = ({
     try {
       const cleanData = { ...data };
       delete cleanData.savedPresets; // Exclude preset arrays to prevent database bloat and I/O lag
-      await getSettingsService().saveStoredSettings(cleanData);
+      await settingsService.saveStoredSettings(cleanData);
     } catch (err) {
       console.error("Failed to save settings:", err);
     } finally {
@@ -161,24 +153,24 @@ export const useSettingsPersistence = ({
     const cleaned = entries.map(cleanLorebookEntry);
     setGlobalLorebook(cleaned);
     try {
-      await getWorldbookService().saveGlobalLorebook(cleaned);
+      await worldbookService.saveGlobalLorebook(cleaned);
     } catch (err) {
       console.error("Failed to save global lorebook:", err);
       showCustomAlert("保存全局世界书失败");
     }
-  }, [showCustomAlert, setGlobalLorebook]);
+  }, [showCustomAlert, setGlobalLorebook, worldbookService]);
 
   const updateCustomWorldbooks = useCallback(async (
     updater: Record<string, CustomWorldbook> | ((prev: Record<string, CustomWorldbook>) => Record<string, CustomWorldbook>)
   ) => {
     setCustomWorldbooks((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      getWorldbookService().saveCustomWorldbooks(next).catch((err) => {
+      worldbookService.saveCustomWorldbooks(next).catch((err) => {
         console.error("Failed to save custom worldbooks:", err);
       });
       return next;
     });
-  }, [setCustomWorldbooks]);
+  }, [setCustomWorldbooks, worldbookService]);
 
   return { performSave, updateSettings, updateGlobalLorebook, updateCustomWorldbooks };
 };

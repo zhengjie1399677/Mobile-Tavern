@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { DownloadCloud, Loader2, ArrowUpCircle, X } from "lucide-react";
-import { globalKernel } from "../kernel";
+import { IKernel, globalKernel } from "../kernel";
+import { useKernel } from "../contexts/KernelContext";
 import { IUpdateCheckService, UpdateInfo } from "../kernel/types";
 
 // === 更新检查策略常量 ===
@@ -16,9 +17,10 @@ const SHOW_UPDATE_PROMPT_EVENT = "tavern:show-update-prompt";
 /**
  * 执行更新检查。
  * @param force true 时跳过 6h 冷却期强制检查（手动按钮触发场景）
+ * @param kernel 传入的内核实例，用于解耦
  * @returns UpdateInfo；若冷却期内被跳过返回 null
  */
-export async function performUpdateCheck(force = false): Promise<UpdateInfo | null> {
+export async function performUpdateCheck(force = false, kernel?: IKernel): Promise<UpdateInfo | null> {
   // 冷却期检查：非强制模式下，距上次检查不足 6h 则跳过
   if (!force) {
     try {
@@ -35,7 +37,8 @@ export async function performUpdateCheck(force = false): Promise<UpdateInfo | nu
     }
   }
 
-  const updateService = globalKernel.getService<IUpdateCheckService>("updateCheck");
+  const k = kernel || globalKernel;
+  const updateService = k.getService<IUpdateCheckService>("updateCheck");
   if (!updateService) {
     console.warn("[UpdateCheck] UpdateCheckService not registered in kernel");
     return null;
@@ -74,10 +77,11 @@ export function showUpdatePrompt(info: { latestVersion?: string; downloadUrl?: s
 }
 
 export default function UpdatePrompt() {
+  const kernel = useKernel();
   const [show, setShow] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
   const [downloadUrl, setDownloadUrl] = useState("");
-  // FC 函数传下来的更新日志，替代原先的固定宣传文案
+  // FC 函数传下来的更新日志，替代原先 the fixed window text
   const [updateLog, setUpdateLog] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -90,7 +94,7 @@ export default function UpdatePrompt() {
       }
 
       try {
-        const res = await performUpdateCheck(false);
+        const res = await performUpdateCheck(false, kernel);
         if (res?.hasUpdate && res.downloadUrl) {
           if (res.enablePush === false) {
             console.log("[UpdatePrompt] New version detected, but enablePush is false. Skipping auto-prompt.");

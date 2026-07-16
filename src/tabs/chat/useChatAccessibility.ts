@@ -7,16 +7,9 @@ import { initTavernHelperBridge, cleanTavernHelperBridge, getBridgeInterface, ge
 import lodashCloneDeep from "lodash/cloneDeep";
 import lodashIsEqual from "lodash/isEqual";
 import { chatTabState } from "./utils";
-import { globalKernel } from "../../kernel/Kernel";
+import { useKernel } from "../../contexts/KernelContext";
 import { IDatabaseService } from "../../kernel/types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
-
-/**
- * 微内核插件式架构：会话持久化统一走 DatabaseService。
- */
-function saveSession(session: any): Promise<void> {
-  return globalKernel.getService<IDatabaseService>("database").saveSession(session);
-}
 
 interface UseChatAccessibilityDeps {
   activeCharacter: any;
@@ -31,6 +24,12 @@ interface UseChatAccessibilityDeps {
 }
 
 export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
+  const kernel = useKernel();
+  const databaseService = kernel.getService<IDatabaseService>("database");
+  const saveSession = (session: any): Promise<void> => {
+    return databaseService.saveSession(session);
+  };
+
   const {
     activeCharacter,
     settings,
@@ -107,7 +106,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
       handleSendMessage,
     });
     try {
-      const scriptService = globalKernel.getService<any>("script");
+      const scriptService = kernel.getService<any>("script");
       if (scriptService && typeof scriptService.registerBridge === "function") {
         scriptService.registerBridge(getBridgeInterface());
       }
@@ -225,7 +224,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     if (lastSpokenMsgIdRef.current === lastMsg.id) return;
 
     try {
-      const ttsService = globalKernel.getService<any>("tts");
+      const ttsService = kernel.getService<any>("tts");
       if (ttsService) {
         lastSpokenMsgIdRef.current = lastMsg.id;
 

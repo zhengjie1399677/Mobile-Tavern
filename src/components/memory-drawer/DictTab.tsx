@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ChatSession } from "../../types";
-import { globalKernel } from "../../kernel/Kernel";
+import { useKernel } from "../../contexts/KernelContext";
 import { IMemoryService } from "../../kernel/types";
 import {
   RefreshCw,
@@ -14,15 +14,9 @@ export interface DictTabProps {
   activeSession: ChatSession;
 }
 
-/**
- * 微内核插件式架构：记忆词典读取与更新统一走 MemoryService.getStorage()。
- * 遵循 AGENTS.md 准则一与准则八，业务层不再直接触碰 localDB。
- */
-function getMemoryStorage() {
-  return globalKernel.getService<IMemoryService>("memory").getStorage();
-}
-
 function DictTab({ activeSession }: DictTabProps) {
+  const kernel = useKernel();
+  const getMemoryStorage = () => kernel.getService<IMemoryService>("memory").getStorage();
   // 记忆词典专属 state
   const [dictEntries, setDictEntries] = useState<any[]>([]);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);

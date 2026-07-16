@@ -1,5 +1,5 @@
 import React from "react";
-import { globalKernel } from "../../kernel/Kernel";
+import { useKernel } from "../../contexts/KernelContext";
 import { ICharacterService, IWorldbookService } from "../../kernel/types";
 import {
   LorebookEntry,
@@ -7,18 +7,6 @@ import {
   CustomWorldbook,
 } from "../../types";
 import { mapSillyTavernLorebookEntry } from "../../utils/cardParser";
-
-/**
- * 微内核插件式架构：业务持久化操作统一走内核服务插件，不再直接触碰 localDB。
- * 遵循 AGENTS.md 准则一「极致微服务与解耦」与准则八「AI 协作物理隔离开发铁律」。
- */
-function saveCharacter(character: CharacterCard): Promise<void> {
-  return globalKernel.getService<ICharacterService>("character").saveCharacter(character);
-}
-
-function saveGlobalLorebook(entries: LorebookEntry[]): Promise<void> {
-  return globalKernel.getService<IWorldbookService>("worldbook").saveGlobalLorebook(entries);
-}
 
 /**
  * 内联编辑表单的状态类型。
@@ -65,6 +53,18 @@ export interface UseWorldbookActionsParams {
  * 接收必要的依赖（context 数据 + 局部 state setter）作为参数，保持纯函数式数据流动。
  */
 export function useWorldbookActions(params: UseWorldbookActionsParams) {
+  const kernel = useKernel();
+  const characterService = kernel.getService<ICharacterService>("character");
+  const worldbookService = kernel.getService<IWorldbookService>("worldbook");
+
+  const saveCharacter = (character: CharacterCard): Promise<void> => {
+    return characterService.saveCharacter(character);
+  };
+
+  const saveGlobalLorebook = (entries: LorebookEntry[]): Promise<void> => {
+    return worldbookService.saveGlobalLorebook(entries);
+  };
+
   const {
     characters,
     setCharacters,

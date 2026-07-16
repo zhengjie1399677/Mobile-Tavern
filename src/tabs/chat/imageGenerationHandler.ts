@@ -1,15 +1,4 @@
-// 消息级生图处理逻辑，从 MessageBubble.tsx 抽离以保持单文件行数可控
-// 负责：LLM 提示词生成 → 用户确认 → 调用生图服务 → 更新会话消息
-
-import { globalKernel } from "../../kernel/Kernel";
 import { IDatabaseService } from "../../kernel/types";
-
-/**
- * 微内核插件式架构：会话持久化统一走 DatabaseService，业务层不再直接触碰 localDB。
- */
-function saveSession(session: any): Promise<void> {
-  return globalKernel.getService<IDatabaseService>("database").saveSession(session);
-}
 
 export interface ImageGenerationHandlerParams {
   message: any;
@@ -105,6 +94,8 @@ export async function handleGenerateImageForMessage({
   setSessions((prev: any[]) =>
     prev.map((s: any) => (s.id === drawSession.id ? drawSession : s)),
   );
+
+  const databaseService = getKernelService("database") as IDatabaseService;
 
   try {
     const config = settings.imageGenApi;
@@ -221,7 +212,7 @@ export async function handleGenerateImageForMessage({
     setSessions((prev: any[]) =>
       prev.map((s: any) => (s.id === finalSession.id ? finalSession : s)),
     );
-    await saveSession(finalSession);
+    await databaseService.saveSession(finalSession);
   } catch (err: any) {
     console.error("Image generation failed:", err);
     showCustomAlert(`绘图失败: ${err.message || String(err)}`, "生图失败");
@@ -229,6 +220,6 @@ export async function handleGenerateImageForMessage({
     setSessions((prev: any[]) =>
       prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
     );
-    await saveSession(errorSession);
+    await databaseService.saveSession(errorSession);
   }
 }

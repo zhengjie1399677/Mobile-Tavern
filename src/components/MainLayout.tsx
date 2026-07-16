@@ -2,7 +2,7 @@ import React, { useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { SplashScreen } from "./SplashScreen";
 import { VenetianMask, MessageSquare, Book, Settings, HelpCircle } from "lucide-react";
-import { globalKernel } from "../kernel";
+import { useKernel } from "../contexts/KernelContext";
 
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
   VenetianMask,
@@ -20,6 +20,7 @@ import { FloatingCat } from "./FloatingCat";
 import UpdatePrompt from "./UpdatePrompt";
 
 export default function MainLayout() {
+  const kernel = useKernel();
   const {
     activeTab,
     setActiveTab,
@@ -59,7 +60,7 @@ export default function MainLayout() {
     return () => document.removeEventListener("focusin", handleFocusIn);
   }, [activeTab]);
 
-  const tabs = globalKernel.getExtensions("main:tabs");
+  const tabs = kernel.getExtensions("main:tabs");
   const bottomBarTabs = tabs.filter(t => t.meta?.showInBottomBar);
 
   const isActive = (tab: any) => {

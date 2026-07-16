@@ -4,7 +4,7 @@
 import React from "react";
 
 import { createScriptIframeSrcDoc, notifyVariablesUpdated, hasCardScripts } from "../../utils/tavernHelper";
-import { globalKernel } from "../../kernel/Kernel";
+import { useKernel } from "../../contexts/KernelContext";
 
 interface HiddenScriptLayerProps {
   settings: any;
@@ -53,7 +53,7 @@ const ScriptIframeItem = React.memo(
         // 关键修复：Android WebView 中，srcdoc iframe 若无 sandbox（含 allow-same-origin），
         // 会被赋予 opaque origin，导致 window.parent.* 访问被跨域策略阻止，
         // 脚本内库继承（window.parent._、window.parent.TavernHelper 等）会失败。
-        // 必须统一设置 allow-same-origin，使 iframe 继承父文档的 origin。
+        // 必须统一设置 allow-same-origin，使 iframe 继承父文档 of origin。
         // eslint-disable-next-line react/no-unknown-property
         sandbox="allow-scripts allow-same-origin"
       />
@@ -75,6 +75,7 @@ const HiddenScriptLayer = ({
   activeCharacter,
   announcement,
 }: HiddenScriptLayerProps) => {
+  const kernel = useKernel();
   const [libsReady, setLibsReady] = React.useState(false);
 
   // 检测库是否就绪。依赖 activeCharacter 以便在角色切换时重新检查。
@@ -112,7 +113,7 @@ const HiddenScriptLayer = ({
   // 此处订阅并转发为 tavern_helper:mag_variable_initialized 等 iframe 可识别的事件，
   // 确保 bridge 缺失时变量更新通知仍能到达 iframe 内的 MVU 脚本。
   React.useEffect(() => {
-    const unsub = globalKernel.subscribe("script:mvuVariablesUpdated", (msg) => {
+    const unsub = kernel.subscribe("script:mvuVariablesUpdated", (msg) => {
       const { session } = msg.payload || {};
       if (session) {
         try {
@@ -125,7 +126,7 @@ const HiddenScriptLayer = ({
     return () => {
       unsub();
     };
-  }, []);
+  }, [kernel]);
 
   // P1-A 修复：订阅 script:destroyed 事件
   // ScriptService 销毁时广播此事件，通知本组件主动停止渲染 iframe，
@@ -133,13 +134,13 @@ const HiddenScriptLayer = ({
   // 遵循 AGENTS.md 准则十.4（彻底回收）。
   const [scriptDestroyed, setScriptDestroyed] = React.useState(false);
   React.useEffect(() => {
-    const unsub = globalKernel.subscribe("script:destroyed", () => {
+    const unsub = kernel.subscribe("script:destroyed", () => {
       setScriptDestroyed(true);
     });
     return () => {
       unsub();
     };
-  }, []);
+  }, [kernel]);
 
   const canRenderScripts = libsReady && settings.enableScriptExecution && !scriptDestroyed;
 

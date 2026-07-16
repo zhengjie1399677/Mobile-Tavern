@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import { UserSettings, SamplerPreset } from "../../types";
-import { globalKernel } from "../../kernel/Kernel";
+import { useKernel } from "../../contexts/KernelContext";
 import { IPresetService } from "../../kernel/types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT_CONFIG } from "./defaults";
 
@@ -8,9 +8,7 @@ import { DEFAULT_SETTINGS, DEFAULT_PROMPT_CONFIG } from "./defaults";
  * 微内核插件式架构：预设包持久化统一走 PresetService。
  * 业务层不再直接触碰 localDB，遵循 AGENTS.md 准则一与准则八。
  */
-function saveStoredSavedPresets(presets: any[]): Promise<void> {
-  return globalKernel.getService<IPresetService>("preset").saveStoredSavedPresets(presets);
-}
+
 
 interface UsePresetBundlesDeps {
   settings: UserSettings;
@@ -46,6 +44,9 @@ export const usePresetBundles = ({
   showCustomPrompt,
   showCustomConfirm,
 }: UsePresetBundlesDeps): UsePresetBundlesReturn => {
+  const kernel = useKernel();
+  const presetService = kernel.getService<IPresetService>("preset");
+
   const handleImportPresetJSON = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -332,9 +333,9 @@ export const usePresetBundles = ({
       savedPresets: nextSaved,
     };
     updateSettings(nextSettings);
-    await saveStoredSavedPresets(nextSaved);
+    await presetService.saveStoredSavedPresets(nextSaved);
     await showCustomAlert(`成功保存新预设：${name}`);
-  }, [settings, showCustomPrompt, updateSettings, showCustomAlert]);
+  }, [settings, showCustomPrompt, updateSettings, showCustomAlert, presetService]);
 
   const handleLoadPresetBundle = useCallback((bundleId: string) => {
     const bundle = (settings.savedPresets || []).find((b) => b.id === bundleId);
@@ -382,8 +383,8 @@ export const usePresetBundles = ({
       promptConfig: nextPromptConfig,
       savedPresets: nextSaved,
     });
-    await saveStoredSavedPresets(nextSaved);
-  }, [settings, showCustomConfirm, updateSettings]);
+    await presetService.saveStoredSavedPresets(nextSaved);
+  }, [settings, showCustomConfirm, updateSettings, presetService]);
 
   const handleDeletePresetBundles = useCallback(async (bundleIds: string[]) => {
     if (!bundleIds || bundleIds.length === 0) return;
@@ -421,9 +422,9 @@ export const usePresetBundles = ({
       presetRegexScripts: nextRegex,
       savedPresets: nextSaved,
     });
-    await saveStoredSavedPresets(nextSaved);
+    await presetService.saveStoredSavedPresets(nextSaved);
     await showCustomAlert("🎉 批量删除成功！");
-  }, [settings, showCustomConfirm, updateSettings, showCustomAlert]);
+  }, [settings, showCustomConfirm, updateSettings, showCustomAlert, presetService]);
 
   return {
     handleImportPresetJSON,

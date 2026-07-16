@@ -1,28 +1,12 @@
 import type * as React from "react";
 import { useEffect } from "react";
 import { UserSettings, LorebookEntry, CustomWorldbook } from "../../types";
-import { globalKernel } from "../../kernel/Kernel";
+import { useKernel } from "../../contexts/KernelContext";
 import {
   ISettingsService,
   IPresetService,
   IWorldbookService,
 } from "../../kernel/types";
-
-/**
- * 微内核插件式架构：settings / preset / worldbook 持久化统一走内核服务插件。
- * 业务层不再直接触碰 localDB，遵循 AGENTS.md 准则一与准则八。
- */
-function getSettingsService(): ISettingsService {
-  return globalKernel.getService<ISettingsService>("settings");
-}
-
-function getPresetService(): IPresetService {
-  return globalKernel.getService<IPresetService>("preset");
-}
-
-function getWorldbookService(): IWorldbookService {
-  return globalKernel.getService<IWorldbookService>("worldbook");
-}
 import {
   DEFAULT_REPLY_SUGGESTIONS_PROMPT,
   DEFAULT_TABLE_MEMORY_PROMPT,
@@ -54,14 +38,19 @@ export const useSettingsLoader = ({
   setCustomWorldbooks,
   setIsReady,
 }: UseSettingsLoaderDeps) => {
+  const kernel = useKernel();
+  const settingsService = kernel.getService<ISettingsService>("settings");
+  const presetService = kernel.getService<IPresetService>("preset");
+  const worldbookService = kernel.getService<IWorldbookService>("worldbook");
+
   // Load Settings and Lorebook from local DB
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        let storedSet = await getSettingsService().getStoredSettings();
-        const storedSavedPresets = await getPresetService().getStoredSavedPresets();
-        const storedLores = await getWorldbookService().getGlobalLorebook();
-        const storedWorldbooks = await getWorldbookService().getCustomWorldbooks();
+        let storedSet = await settingsService.getStoredSettings();
+        const storedSavedPresets = await presetService.getStoredSavedPresets();
+        const storedLores = await worldbookService.getGlobalLorebook();
+        const storedWorldbooks = await worldbookService.getCustomWorldbooks();
 
         // 💡 核心安全策略：如果检测到数据库中没有主提示词数据（首次运行或被清空），则从外部静态 JSON 文件异步拉取初始化
         let externalPreset: any = null;
@@ -374,12 +363,12 @@ export const useSettingsLoader = ({
           setSettings(mergedSet);
 
           if (needSavePresets) {
-            await getPresetService().saveStoredSavedPresets(mergedSavedPresets);
+            await presetService.saveStoredSavedPresets(mergedSavedPresets);
           }
           if (needSave) {
             const cleanSet = { ...mergedSet };
             delete cleanSet.savedPresets;
-            await getSettingsService().saveStoredSettings(cleanSet);
+            await settingsService.saveStoredSettings(cleanSet);
           }
         } else {
           // 全新安装/首次运行（storedSet 为空），默认把初始化的预设组合包写入数据库并持久化设置
@@ -415,10 +404,10 @@ export const useSettingsLoader = ({
           setSettings(initialSet);
 
           try {
-            await getPresetService().saveStoredSavedPresets(initialSet.savedPresets || []);
+            await presetService.saveStoredSavedPresets(initialSet.savedPresets || []);
             const cleanSet = { ...initialSet };
             delete cleanSet.savedPresets;
-            await getSettingsService().saveStoredSettings(cleanSet);
+            await settingsService.saveStoredSettings(cleanSet);
           } catch (e) {
             console.error("Failed to initialize saved presets for new user:", e);
           }

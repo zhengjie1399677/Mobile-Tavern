@@ -1,17 +1,9 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
 import { CharacterCard } from "../types";
-import { globalKernel } from "../kernel/Kernel";
+import { useKernel } from "./KernelContext";
 import { ICharacterService } from "../kernel/types";
 import { useApp } from "./AppContext";
 import { reportUsage } from "../utils/telemetry";
-
-/**
- * 获取角色业务服务插件（微内核插件式架构）。
- * 在调用点而非模块加载期取服务，避免服务未注册时的初始化时序问题。
- */
-function getCharacterService(): ICharacterService {
-  return globalKernel.getService<ICharacterService>("character");
-}
 
 interface CharacterContextType {
   characters: CharacterCard[];
@@ -29,6 +21,8 @@ interface CharacterContextType {
 const CharacterContext = createContext<CharacterContextType | undefined>(undefined);
 
 export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const kernel = useKernel();
+  const characterService = kernel.getService<ICharacterService>("character");
   const { showCustomAlert } = useApp();
   const [characters, setCharacters] = useState<CharacterCard[]>([]);
   const [activeCharId, setActiveCharId] = useState<string | null>(null);
@@ -46,8 +40,6 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     () => characters.find((c) => c.id === activeCharId) || null,
     [characters, activeCharId]
   );
-
-
 
   const cleanCharacter = (char: CharacterCard): CharacterCard => {
     if (!char) return char;
@@ -69,7 +61,6 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const loadCharacters = async () => {
     try {
-      const characterService = getCharacterService();
       let stored = await characterService.getAllCharacters();
 
       const hasInitialized = await characterService.getStoredDefaultCharactersInitializedFlag();
@@ -106,7 +97,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const saveCharacter = async (char: CharacterCard) => {
     try {
       const cleaned = cleanCharacter(char);
-      await getCharacterService().saveCharacter(cleaned);
+      await characterService.saveCharacter(cleaned);
       setCharacters((prev) => {
         const idx = prev.findIndex((c) => c.id === cleaned.id);
         if (idx >= 0) {
@@ -125,7 +116,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteCharacter = async (id: string) => {
     try {
-      await getCharacterService().deleteCharacter(id);
+      await characterService.deleteCharacter(id);
       setCharacters((prev) => prev.filter((c) => c.id !== id));
       if (activeCharId === id) {
         setActiveCharId(null);

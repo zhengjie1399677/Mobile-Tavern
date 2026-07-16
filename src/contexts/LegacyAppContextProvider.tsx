@@ -8,7 +8,7 @@ import { useCharacters } from "../hooks/useCharacters";
 import { useChat } from "../hooks/useChat";
 import { useUsageTracking } from "../utils/useUsageTracking";
 import { SamplerPreset, PromptConfig, UserSettings } from "../types";
-import { globalKernel } from "../kernel/Kernel";
+import { useKernel } from "./KernelContext";
 
 /**
  * ⚠️ 命名说明：此文件名中的 "Legacy" 具有历史误导性，实际上这是应用的核心 Provider 组装层。
@@ -16,7 +16,7 @@ import { globalKernel } from "../kernel/Kernel";
  * 职责：
  * 1. 嵌套挂载所有分离的 Context Provider（AppProvider / CharacterProvider / ChatProvider）
  * 2. 在内层 Inner 组件中调用所有业务 Hook（useSettings / useCharacters / useChat）
- * 3. 将来自多个 context 和 hook 的状态合并为统一的 AppContext 值，供全局消费
+ * 3. 将来自多个 context 和 hook 的状态合并为统一 the AppContext 值，供全局消费
  * 4. 通过 useMemo 对 characters 按最近聊天时间排序，避免在下游组件重复计算
  *
  * 如需重命名，建议改为 AppContextAssembler.tsx 或 UnifiedAppProvider.tsx。
@@ -43,6 +43,8 @@ export const LegacyAppContextProvider: React.FC<{ children: React.ReactNode }> =
 };
 
 function LegacyAppContextProviderInner({ children }: { children: React.ReactNode }) {
+  const kernel = useKernel();
+
   // Usage telemetry tracking hook
   useUsageTracking();
 
@@ -161,7 +163,7 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     handleSilentDailyBackup: wrappedHandleSilentDailyBackup,
 
     // 封装内核服务访问，代替组件内直接 import globalKernel
-    getKernelService: globalKernel.getService.bind(globalKernel),
+    getKernelService: kernel.getService.bind(kernel),
   }), [
     appState,
     charState,
@@ -175,6 +177,7 @@ function LegacyAppContextProviderInner({ children }: { children: React.ReactNode
     wrappedHandleImportLocalDataBackup,
     wrappedHandleImportSillyChatHistory,
     wrappedHandleSilentDailyBackup,
+    kernel,
   ]);
 
   // 仅在首次渲染且 store 尚未初始化时同步写入，防止下游子组件在初次挂载时由于解构空对象而崩溃

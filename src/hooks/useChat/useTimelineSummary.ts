@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { ChatSession, SummaryCard, UserSettings, CharacterCard } from "../../types";
 import { IDatabaseService, KernelServices } from "../../kernel/types";
-import { globalKernel } from "../../kernel";
+import { useKernel } from "../../contexts/KernelContext";
 import { generateUniqueId } from "./helpers";
 
 export interface TimelineSummaryState {
@@ -31,6 +31,7 @@ export function useTimelineSummary(params: {
   databaseService: IDatabaseService;
   showCustomAlert: (msg: string) => Promise<void>;
 }): TimelineSummaryState {
+  const kernel = useKernel();
   const { activeSession, settings, activeCharacter, setSessions, setIsSummarizing, databaseService, showCustomAlert } = params;
 
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
@@ -47,7 +48,7 @@ export function useTimelineSummary(params: {
     // 阶段 C 迁移：通过 MemoryService.getSummary() 访问摘要子模块
     // （旧 KernelServices.AutoSummary 已从 registerServiceBatch 移除并标记 @deprecated）
     try {
-      const memoryService = globalKernel.getService<any>(KernelServices.Memory);
+      const memoryService = kernel.getService<any>(KernelServices.Memory);
       const summary = memoryService.getSummary();
       setIsSummarizing(true);
       const updatedSession = await summary.checkAndSummarize(
