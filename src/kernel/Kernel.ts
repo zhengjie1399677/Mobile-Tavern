@@ -1,11 +1,20 @@
 import { IKernel, IKernelService, IPipeline, Middleware, IExtension, IMessage } from "./types";
 
+// 全局严格模式开关，默认为 true
 let strictMode = true;
 
+/**
+ * 设置内核严格模式开关
+ * @param val 开关值
+ */
 export const setKernelStrictMode = (val: boolean) => {
   strictMode = val;
 };
 
+/**
+ * 判断当前是否处于开发环境
+ * 优先读取 process.env.NODE_ENV 或 import.meta.env.PROD
+ */
 const isDev = (): boolean => {
   try {
     if (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "production") {
@@ -16,9 +25,13 @@ const isDev = (): boolean => {
       return false;
     }
   } catch (e) {}
-  return true; // 默认开发模式
+  return true; // 默认开发环境
 };
 
+/**
+ * 获取内核是否当前应执行严格的模式校验
+ * 只有在开发环境且 strictMode 为 true 时才生效
+ */
 const getKernelStrictMode = (): boolean => {
   return strictMode && isDev();
 };
@@ -31,6 +44,11 @@ const getKernelStrictMode = (): boolean => {
  */
 const MSG_TIMEOUT_MS = 5000;
 
+/**
+ * 创建安全无操作的 Fallback 代理对象 (SafeProxy)
+ * 当调用的非关键服务未注册或初始化失败时，返回此代理，防止前台页面级组件在尝试链式调用时直接白屏崩溃。
+ * @param name 服务的名称
+ */
 const createSafeProxy = (name: string): any => {
   const noop = (..._args: any[]) => {
     return createSafeProxy(name);
@@ -38,7 +56,7 @@ const createSafeProxy = (name: string): any => {
 
   return new Proxy(noop, {
     get(_target, prop) {
-      // Symbol 属性短路保护：工具探测 Symbol 属性时拦截，避免无限递归导致调用栈溢出
+      // Symbol 属性短路保护：工具/框架探测 Symbol 属性时拦截，避免无限递归导致调用栈溢出
       if (typeof prop === "symbol") return undefined;
       if (prop === "then") {
         // 让 Promise await 链可以正常 resolve 结束，防止 SafeProxy 在 await 时永久挂起
@@ -49,11 +67,13 @@ const createSafeProxy = (name: string): any => {
 
       if (typeof prop === "string" && prop !== "then" && prop !== "name" && prop !== "init") {
         if (getKernelStrictMode()) {
+          // 开发严格模式下直接抛错，确保开发者在开发阶段尽早发现服务依赖缺失
           throw new Error(
             `[Kernel DevError] Service "${name}" is not registered or failed to initialize. ` +
             `Denying property access "${prop}" on SafeProxy in development mode.`
           );
         } else if (isDev()) {
+          // 开发非严格模式下输出警告日志
           console.warn(
             `[Kernel DevWarning] Accessing property "${prop}" on SafeProxy of service "${name}". ` +
             `Please ensure this service is correctly registered.`
@@ -66,11 +86,22 @@ const createSafeProxy = (name: string): any => {
   });
 };
 
-// ─── Pipeline ────────────────────────────────────────────────────────────────
+// ─── Pipeline (管道流中间件机制) ────────────────────────────────────────────────
 
+/**
+ * 管道机制实现类
+ * 类似于 Koa 的洋葱模型，支持优先级调度，主要用于处理文本输入、输出清洗及配置生命周期过滤
+ */
 class Pipeline<T> implements IPipeline<T> {
+  // 内部维护的中间件列表，包含中间件函数和优先级
   private middlewares: Array<{ fn: Middleware<T>; priority: number }> = [];
 
+  /**
+   * 注册中间件
+   * @param middleware 中间件函数
+   * @param priority 优先级（数值越大越先执行，默认为 0）
+   * @returns 注销该中间件的函数
+   */
   use(middleware: Middleware<T>, priority = 0): () => void {
     const entry = { fn: middleware, priority };
     this.middlewares.push(entry);
@@ -81,11 +112,17 @@ class Pipeline<T> implements IPipeline<T> {
     };
   }
 
+  /**
+   * 注销指定的中间件
+   * @param middleware 需要注销的中间件函数
+   */
   unuse(middleware: Middleware<T>): void {
     this.middlewares = this.middlewares.filter(m => m.fn !== middleware);
   }
 
-  /** C-2 修复：返回当前已注册的中间件快照，用于调试与运行时可观测性 */
+  /**
+   * 返回当前已注册的中间件列表快照（用于调试与运行时可观测性）
+   */
   list(): ReadonlyArray<{ name: string; priority: number }> {
     return this.middlewares.map(m => ({
       name: m.fn.name || "(anonymous)",
@@ -93,6 +130,10 @@ class Pipeline<T> implements IPipeline<T> {
     }));
   }
 
+  /**
+   * 异步依次执行所有中间件（洋葱模型）
+   * @param context 执行上下文
+   */
   async execute(context: T): Promise<void> {
     // 快照当前中间件列表，防止执行期间 use()/unuse() 修改数组导致索引错位
     const middlewares = [...this.middlewares];
@@ -124,7 +165,7 @@ class Pipeline<T> implements IPipeline<T> {
       try {
         await middleware.fn(context, nextWrapper, interruptWrapper);
 
-        // 三态严格语义：
+        // 三态严格语义校验：
         //   - 调用 next()           → 继续执行后续中间件（正常流转）
         //   - isInterrupted = true  → 有意阻断，管道在此终止（权限拒绝、内容过滤等）
         //   - 两者均未执行          → 记录错误，不主动穿透安全边界
@@ -137,7 +178,7 @@ class Pipeline<T> implements IPipeline<T> {
             );
           } else {
             // 生产环境：记录错误但绝不自动穿透。
-            // 若该中间件是有意阻断，穿透将导致安全漏洞；若是遗忘，亦应被修复而非掩盖。
+            // 若该中间件是有意阻断，自动穿透将导致安全漏洞；若是遗忘，亦应被修复而非掩盖。
             console.error(
               `[Pipeline Error] Middleware "${middleware.fn.name || "anonymous"}" (index ${i}) ` +
               `finished without calling next() or interrupt(). ` +
@@ -151,7 +192,7 @@ class Pipeline<T> implements IPipeline<T> {
           // 开发环境直接抛出，不遮掩任何错误
           throw err;
         } else {
-          // 生产环境：记录错误并终止管道，不自动跳过出错的中间件
+          // 生产环境：记录错误并终止管道，不自动跳过出错的中间件以保全运行边界
           console.error(
             `[Pipeline Error] Middleware "${middleware.fn.name || "anonymous"}" (index ${i}) ` +
             `threw an exception. Pipeline halted. Error:`,
@@ -165,17 +206,22 @@ class Pipeline<T> implements IPipeline<T> {
   }
 }
 
-// ─── Kernel ──────────────────────────────────────────────────────────────────
+// ─── Kernel (内核主容器) ──────────────────────────────────────────────────────
 
+/**
+ * 内核系统主实现类
+ * 负责集中化生命周期、IoC 服务注入、三态管道拦截、消息总线分发以及扩展插件插槽管理。
+ */
 export class Kernel implements IKernel {
-  private services = new Map<string, IKernelService>();
-  private extensions = new Map<string, IExtension[]>();
+  private services = new Map<string, IKernelService>(); // 已成功初始化注册的服务映射表
+  private extensions = new Map<string, IExtension[]>(); // 扩展插槽映射表
 
   /**
    * 记录所有声明了 isCritical=true 的关键服务名称。
-   * 即使服务初始化失败，对关键服务的访问直接抛出致命错误，防止静默降级掩盖异常。
+   * 对关键服务的访问如果缺失直接抛出致命错误，防止静默降级掩盖系统缺陷。
    */
   private criticalServiceNames = new Set<string>();
+  // 维护当前活跃的 AbortController 集合，便于在 Kernel 销毁时统一强行中止全部异步/网络/存储挂起任务
   private activeControllers = new Set<AbortController>();
 
   /** 消息总线订阅者路由表：topic -> [{ handler, priority }] */
@@ -186,21 +232,28 @@ export class Kernel implements IKernel {
       priority: number;
     }>
   >();
-  private pipelines = new Map<string, IPipeline<any>>();
+  private pipelines = new Map<string, IPipeline<any>>(); // 命名拦截管道表
 
   constructor() {
+    // 初始化注册系统内置的三大核心拦截管道
     this.registerPipeline("input");
     this.registerPipeline("output");
     this.registerPipeline("settings");
   }
 
+  /**
+   * 单个服务注册与初始化
+   * @param name 服务名标识
+   * @param service 服务实例
+   * @param initTimeoutMs 初始化超时阈值（毫秒）
+   */
   async registerService(name: string, service: IKernelService, initTimeoutMs?: number): Promise<void> {
     if (this.services.has(name)) {
       console.warn(`[Kernel] Service "${name}" is already registered. Destroying existing instance before overwriting...`);
       await this.destroyService(name);
     }
 
-    // B-2 修复：在 init() 之前就标记关键服务，确保即使初始化失败也能在 getService时保护
+    // 在 init() 之前就标记关键服务，确保即使初始化失败或超时，在 getService 时也能受到致命错误拦截保护
     if (service.isCritical) {
       this.criticalServiceNames.add(name);
     }
@@ -211,10 +264,11 @@ export class Kernel implements IKernel {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     let initPromise: Promise<void> = new Promise<void>(resolve => resolve(service.init(this, controller.signal) as any));
 
+    // 如果指定了初始化超时时间，则采用 Promise.race 赛跑实现强制超时中止机制
     if (initTimeoutMs && initTimeoutMs > 0) {
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {
-          controller.abort(); // 真正的中止！触发 abort 信号以停止底层的 IndexedDB 或网络挂起
+          controller.abort(); // 真正的中止！触发 abort 信号停止底层 IndexedDB 打开锁死或网络挂起
           reject(new Error(
             `[Kernel] Service "${name}" init() timed out after ${initTimeoutMs}ms. ` +
             `Check for unresolved IO operations (IndexedDB, network) in this service's init().`
@@ -231,10 +285,11 @@ export class Kernel implements IKernel {
       console.log(`[Kernel] Service registered and initialized successfully: ${name}`);
     } catch (err: any) {
       if (timeoutId) clearTimeout(timeoutId);
-      controller.abort(); // 如果发生异常，也发出 abort 信号以中止挂起的任务
+      controller.abort(); // 若初始化异常，立刻触发 abort 中止内部已经拉起但未释放的临时状态
       console.error(`[Kernel] FAILED to initialize service "${name}":`, err);
       this.services.delete(name);
       const isTimeout = err.message && err.message.includes("timed out");
+      // 关键服务失败或任何初始化超时均视为致命异常，直接向上抛出，并防止前台应用挂死
       if (service.isCritical || isTimeout) {
         throw new Error(`[Kernel] Fatal: ${isTimeout ? "Timeout" : "Critical"} service "${name}" failed to initialize: ${err.message || err}`);
       }
@@ -244,14 +299,15 @@ export class Kernel implements IKernel {
   }
 
   /**
-   * 批量注册服务，使用 Kahn 算法根据 dependencies 进行拓扑排序，按正确的依赖顺序初始化服务。
+   * 批量注册服务
+   * 使用 Kahn 拓扑排序算法，根据服务的 dependencies 关系算出正确的依赖拓扑链，按依赖顺序安全初始化所有服务。
    */
   async registerServiceBatch(
     entries: Array<{ name: string; service: IKernelService; initTimeoutMs?: number }>
   ): Promise<void> {
     const nameSet = new Set(entries.map(e => e.name));
     const inDegree = new Map<string, number>();
-    // graph: dep → dependents（dep 必须先于 dependent 注册）
+    // graph: dep → dependents (节点 dep 必须先于 dependent 注册初始化)
     const graph = new Map<string, string[]>();
 
     for (const { name } of entries) {
@@ -262,7 +318,7 @@ export class Kernel implements IKernel {
     for (const { name, service } of entries) {
       for (const dep of service.dependencies ?? []) {
         if (!nameSet.has(dep)) {
-          // 依赖的服务已在 kernel 中注册，无需再排序
+          // 依赖的服务并不在当前批量入参中。如果是已经在 kernel 中注册的，可以直接跳过拓扑排序
           if (!this.services.has(dep)) {
             console.warn(
               `[Kernel] Service "${name}" declares dependency "${dep}" which is neither ` +
@@ -276,7 +332,7 @@ export class Kernel implements IKernel {
       }
     }
 
-    // Kahn 算法：从入度为 0 的节点开始 BFS
+    // Kahn 算法：找出所有入度为 0 的节点加入队列开始 BFS 排序
     const queue: string[] = [];
     for (const [name, degree] of inDegree) {
       if (degree === 0) queue.push(name);
@@ -295,7 +351,7 @@ export class Kernel implements IKernel {
       }
     }
 
-    // 循环依赖检测：若拓扑排序结果数量少于输入，说明存在环
+    // 循环依赖检测：若拓扑排序产出的节点数少于输入，说明存在闭环依赖
     if (sorted.length !== entries.length) {
       const cycleNodes = entries
         .map(e => e.name)
@@ -307,16 +363,20 @@ export class Kernel implements IKernel {
       );
     }
 
-    // 按拓扑序依次注册
+    // 按计算出来的安全拓扑顺序依次串行注册并初始化
     for (const { name, service, initTimeoutMs } of sorted) {
       await this.registerService(name, service, initTimeoutMs);
     }
   }
 
+  /**
+   * 检索并获取指定名称的服务实例
+   * @param name 服务名标识
+   */
   getService<T extends IKernelService>(name: string): T {
     const service = this.services.get(name);
     if (!service) {
-      // 关键服务（isCritical=true）缺失在任何环境均属于致命错误，必须立即暴露。
+      // 关键服务（isCritical=true）如果不存在，在任何环境均属于致命错误，必须立即暴露。
       if (this.criticalServiceNames.has(name)) {
         throw new Error(
           `[Kernel] FATAL: Critical service "${name}" is not available. ` +
@@ -324,6 +384,7 @@ export class Kernel implements IKernel {
           `Ensure "${name}" is registered and successfully initialized before use.`
         );
       }
+      // 非关键服务缺失时，返回一个无操作的 Fallback 降级安全代理，防止页面级组件在调用可选服务时崩溃
       console.warn(
         `[Kernel] Service "${name}" is not registered or failed to initialize. ` +
         `Returning safe no-op fallback proxy.`
@@ -333,10 +394,18 @@ export class Kernel implements IKernel {
     return service as T;
   }
 
+  /**
+   * 检查服务是否已成功注册并加载
+   * @param name 服务名标识
+   */
   hasService(name: string): boolean {
     return this.services.has(name);
   }
 
+  /**
+   * 销毁指定名称的服务并将其移除
+   * @param name 服务名标识
+   */
   async destroyService(name: string): Promise<void> {
     const service = this.services.get(name);
     if (service) {
@@ -349,7 +418,7 @@ export class Kernel implements IKernel {
         const destroyPromise = new Promise<void>(resolve => resolve(service.destroy!(this, controller.signal) as any));
         const timeoutPromise = new Promise<never>((_, reject) => {
           timeoutId = setTimeout(() => {
-            controller.abort(); // 超时触发真正的 Abort 信号中止销毁时的挂起操作
+            controller.abort(); // 超时后强行中止销毁生命周期内的等待挂起操作
             reject(new Error(`[Kernel] Service "${name}" destroy() timed out after ${DESTROY_TIMEOUT_MS}ms.`));
           }, DESTROY_TIMEOUT_MS);
         });
@@ -370,6 +439,9 @@ export class Kernel implements IKernel {
     }
   }
 
+  /**
+   * 显式注册一个新命名过滤管道
+   */
   registerPipeline<T = any>(name: string): IPipeline<T> {
     if (this.pipelines.has(name)) {
       console.warn(`[Kernel] Pipeline "${name}" is already registered. Returning existing instance.`);
@@ -381,6 +453,9 @@ export class Kernel implements IKernel {
     return pipeline;
   }
 
+  /**
+   * 获取指定的过滤管道
+   */
   getPipeline<T = any>(name: string): IPipeline<T> {
     let pipeline = this.pipelines.get(name);
     if (!pipeline) {
@@ -390,6 +465,13 @@ export class Kernel implements IKernel {
     return pipeline as IPipeline<T>;
   }
 
+  /**
+   * 订阅消息总线事件
+   * @param topic 主题名称
+   * @param handler 接收消息的处理程序
+   * @param priority 优先级（数值越高，串行发布时越优先接收）
+   * @returns 注销订阅的快捷函数
+   */
   subscribe(
     topic: string,
     handler: (message: IMessage, signal?: AbortSignal) => void | Promise<void>,
@@ -407,6 +489,11 @@ export class Kernel implements IKernel {
     };
   }
 
+  /**
+   * 注销消息订阅
+   * @param topic 主题名称
+   * @param handler 原订阅的处理函数
+   */
   unsubscribe(
     topic: string,
     handler: (message: IMessage, signal?: AbortSignal) => void | Promise<void>
@@ -422,6 +509,10 @@ export class Kernel implements IKernel {
     }
   }
 
+  /**
+   * 串行发布消息（由订阅者高优先级向低优先级依次处理，遇到超时或主动中止时进行熔断）
+   * @param message 消息体
+   */
   async publish(message: IMessage): Promise<void> {
     const list = this.subscribers.get(message.topic);
     if (!list) return;
@@ -471,7 +562,7 @@ export class Kernel implements IKernel {
           break;
         } else {
           console.error(`[Kernel] Error executing subscriber on topic "${message.topic}":`, err);
-          // 遇到超时异常，立刻熔断中断后续执行，防止 5s 串行累加死锁
+          // 遇到任何订阅者处理超时异常，立刻进行熔断中止后续执行，防止 5s 串行累加死锁
           if (err && err.message && err.message.includes("timed out")) {
             break;
           }
@@ -482,6 +573,10 @@ export class Kernel implements IKernel {
     }
   }
 
+  /**
+   * 并行发布消息（所有订阅者同时独立运行，互不干扰，单个处理超时独立熔断）
+   * @param message 消息体
+   */
   async publishParallel(message: IMessage): Promise<void> {
     const list = this.subscribers.get(message.topic);
     if (!list) return;
@@ -542,6 +637,9 @@ export class Kernel implements IKernel {
     }
   }
 
+  /**
+   * 注册扩展插件插槽组件
+   */
   registerExtension(extension: IExtension): void {
     const point = extension.targetPoint;
     if (!this.extensions.has(point)) {
@@ -550,17 +648,24 @@ export class Kernel implements IKernel {
     const list = this.extensions.get(point)!;
     const filtered = list.filter(ext => ext.id !== extension.id);
     filtered.push(extension);
+    // 优先级降序排列，数值高者排在链条前端
     filtered.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
     this.extensions.set(point, filtered);
   }
 
+  /**
+   * 获取指定插槽下的所有扩展插件列表
+   */
   getExtensions(point: string): IExtension[] {
     return this.extensions.get(point) ?? [];
   }
 
+  /**
+   * 销毁整个内核系统，逆序释放所有管道、消息队列和 IoC 服务
+   */
   async destroy(): Promise<void> {
     console.log("[Kernel] Destroying all core pipelines, hooks, and services...");
-    // 强制关停所有当前活跃的异步任务控制器
+    // 强行中止所有当前尚未结束的并发异步/定时/网络/数据库操作
     for (const controller of this.activeControllers) {
       try {
         controller.abort();
@@ -570,7 +675,9 @@ export class Kernel implements IKernel {
     }
     this.activeControllers.clear();
 
-    // 逆序销毁：从上层业务服务到底层基础服务自顶向下销毁，确保销毁钩子可安全访问底层服务。
+    // 逆序销毁逻辑：采用先进后出，自顶向下销毁。
+    // 即后加载的业务上层服务先被销毁，最基础的服务（如 DatabaseService 等）最后销毁。
+    // 确保销毁生命周期钩子内仍能安全调用底层服务进行数据落盘等操作。
     const serviceNames = Array.from(this.services.keys()).reverse();
     for (const name of serviceNames) {
       await this.destroyService(name);
@@ -592,4 +699,5 @@ export function createKernel(): Kernel {
   return new Kernel();
 }
 
+// 导出全局唯一的单例 Kernel
 export const globalKernel = new Kernel();

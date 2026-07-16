@@ -1,6 +1,7 @@
 import React, { useRef } from "react";
 import { ArrowRight, User, BookOpen } from "lucide-react";
 import { CharacterCard, CustomWorldbook } from "../../types";
+import { getAvatarGradientClass } from "../../utils/avatarUtils";
 
 export interface CharacterWorldbookListProps {
   characters: CharacterCard[];
@@ -156,7 +157,7 @@ export default function CharacterWorldbookList({
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
                   <div
                     className={`w-10 h-10 rounded-full overflow-hidden border flex items-center justify-center shrink-0 ${
-                      isGlobal ? "border-primary/40" : "border-border/50"
+                      char.avatar ? (isGlobal ? "border-primary/40 bg-muted" : "border-border/50 bg-muted") : getAvatarGradientClass(char.name)
                     }`}
                   >
                     {char.avatar ? (
@@ -167,9 +168,9 @@ export default function CharacterWorldbookList({
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <User
-                        className={`w-5 h-5 ${isGlobal ? "text-primary" : "text-foreground/70"}`}
-                      />
+                      <span className="text-sm font-bold">
+                        {char.name[0]}
+                      </span>
                     )}
                   </div>
 

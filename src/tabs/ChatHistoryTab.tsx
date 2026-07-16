@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { Trash2, MessageSquare, Clock, Users, ChevronDown, ChevronRight } from "lucide-react";
+import { getAvatarGradientClass } from "../utils/avatarUtils";
 
 type ViewMode = "timeline" | "character";
 
@@ -199,7 +200,9 @@ export default function ChatHistoryTab() {
                 className="glass-panel rounded-xl p-3 flex items-center gap-3 cursor-pointer hover:border-primary/50 transition shadow-sm"
                 onClick={() => openSession(s.characterId, s.id)}
               >
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-muted border border-border/80 shrink-0">
+                <div className={`w-10 h-10 rounded-full overflow-hidden border border-border/80 shrink-0 flex items-center justify-center ${
+                  char?.avatar ? "bg-muted" : getAvatarGradientClass(char?.name || "?")
+                }`}>
                   {char?.avatar ? (
                     <img
                       src={char.avatar}
@@ -207,7 +210,7 @@ export default function ChatHistoryTab() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <span className="flex items-center justify-center h-full text-sm font-bold text-primary">
+                    <span className="text-sm font-bold">
                       {char?.name?.[0] || "?"}
                     </span>
                   )}
@@ -272,7 +275,9 @@ export default function ChatHistoryTab() {
                   onClick={() => toggleExpand(group.characterId)}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-9 h-9 rounded-full overflow-hidden bg-muted border border-border/80 shrink-0">
+                    <div className={`w-9 h-9 rounded-full overflow-hidden border border-border/80 shrink-0 flex items-center justify-center ${
+                      group.avatar ? "bg-muted" : getAvatarGradientClass(group.characterName)
+                    }`}>
                       {group.avatar ? (
                         <img
                           src={group.avatar}
@@ -280,7 +285,7 @@ export default function ChatHistoryTab() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="flex items-center justify-center h-full text-sm font-bold text-primary">
+                        <span className="text-sm font-bold">
                           {group.characterName?.[0] || "?"}
                         </span>
                       )}

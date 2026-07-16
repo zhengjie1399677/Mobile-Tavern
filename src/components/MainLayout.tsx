@@ -95,12 +95,16 @@ export default function MainLayout() {
                   role="tab"
                   aria-selected={selected}
                   aria-label={`页签，${tab.meta?.name}${selected ? "，当前选中" : ""}`}
-                  className={`relative flex flex-col items-center justify-center flex-1 h-full tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                  className={`relative flex flex-col items-center justify-center flex-1 h-[80%] my-auto mx-1 rounded-xl tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                     selected
-                      ? "text-primary scale-110 font-semibold"
+                      ? "text-primary scale-105 font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
+                  {/* 胶囊背景平移动效 */}
+                  <div className={`absolute inset-0 rounded-xl bg-primary/8 transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] -z-10 ${
+                    selected ? "scale-100 opacity-100" : "scale-75 opacity-0 pointer-events-none"
+                  }`} />
                   <IconComp className="w-5 h-5 mb-0.5" aria-hidden="true" />
                   <span className="text-[10px]">{tab.meta?.name}</span>
                   {selected && (

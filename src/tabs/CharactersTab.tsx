@@ -14,6 +14,7 @@ import {
   Book,
   MoreHorizontal,
 } from "lucide-react";
+import { getAvatarGradientClass } from "../utils/avatarUtils";
 
 export default function CharactersTab() {
   const {
@@ -103,7 +104,9 @@ export default function CharactersTab() {
             >
               {/* Character Avatar Grid */}
               <div 
-                className="w-16 h-20 rounded-2xl overflow-hidden bg-muted/30 border border-border/40 flex items-center justify-center text-muted-foreground relative shrink-0"
+                className={`w-16 h-20 rounded-2xl overflow-hidden border border-border/40 flex items-center justify-center relative shrink-0 ${
+                  char.avatar ? "bg-muted/30" : getAvatarGradientClass(char.name)
+                }`}
               >
                 {char.avatar ? (
                   <img
@@ -112,7 +115,7 @@ export default function CharactersTab() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="text-2xl font-serif text-primary font-bold">
+                  <span className="text-2xl font-serif font-bold">
                     {char.name[0]}
                   </span>
                 )}
@@ -195,11 +198,13 @@ export default function CharactersTab() {
 
             {/* 角色基本信息预览 */}
             <div className="px-5 pb-4 border-b border-border/40 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted flex items-center justify-center shrink-0 border border-border">
+              <div className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-border ${
+                actionMenuChar.avatar ? "bg-muted" : getAvatarGradientClass(actionMenuChar.name)
+              }`}>
                 {actionMenuChar.avatar ? (
                   <img src={actionMenuChar.avatar} alt={actionMenuChar.name} className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-xl font-bold text-primary">{actionMenuChar.name[0]}</span>
+                  <span className="text-xl font-bold">{actionMenuChar.name[0]}</span>
                 )}
               </div>
               <div className="min-w-0 flex-1">
