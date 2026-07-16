@@ -8,7 +8,8 @@ import {
   Edit3,
   RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
+  X,
 } from "lucide-react";
 
 export interface TableMemoryTabProps {
@@ -17,11 +18,21 @@ export interface TableMemoryTabProps {
   charName: string;
 }
 
+/** 新建表/编辑表时的中间态结构。id 为 "new" 表示新建，否则为正在编辑的 sheet id。 */
+interface SheetDraft {
+  id: string;
+  name: string;
+  description: string;
+  columns: string[];
+}
+
 function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTabProps) {
   const [activeTableTabId, setActiveTableTabId] = useState<string>("");
   const [editingCell, setEditingCell] = useState<{ sheetId: string; rowIndex: number; colIndex: number } | null>(null);
   const [editValue, setEditValue] = useState("");
   const [showConfig, setShowConfig] = useState(false);
+  /** 管理面板的表结构编辑器状态：null 时不显示编辑面板，非 null 时进入编辑视图 */
+  const [sheetDraft, setSheetDraft] = useState<SheetDraft | null>(null);
 
   // 防御性过滤状态表
   const rawSheets = activeSession.tableMemory || [];
@@ -49,6 +60,10 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     await saveSession(nextSession);
   };
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // 行级操作
+  // ──────────────────────────────────────────────────────────────────────────
+
   // 添加行
   const handleAddRow = async (sheetId: string) => {
     const nextSheets = sheets.map(s => {
@@ -63,8 +78,9 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     await updateSheets(nextSheets);
   };
 
-  // 删除行
+  // 删除行（带二次确认，防止误删 LLM 关键字段）
   const handleDeleteRow = async (sheetId: string, rowIndex: number) => {
+    if (!window.confirm("确认删除此行数据？此操作不可撤销。")) return;
     const nextSheets = sheets.map(s => {
       if (s.id === sheetId) {
         return {
@@ -129,8 +145,9 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     await updateSheets(nextSheets);
   };
 
-  // 重置默认状态表
+  // 重置默认表（带二次确认，覆盖现有数据）
   const handleResetToDefault = async () => {
+    if (!window.confirm("将清空当前所有状态表数据并重置为默认 4 张表（关系/物品/位置/任务），此操作不可撤销，是否继续？")) return;
     const defaultSheets: TableMemorySheet[] = [
       {
         id: "sheet_relation",
@@ -171,12 +188,155 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     }
   };
 
+  // 删除整张表（带二次确认）
+  const handleDeleteSheet = async (sheetId: string, sheetName: string) => {
+    if (!window.confirm(`确认删除表格「${sheetName}」及其所有数据？此操作不可撤销。`)) return;
+    const nextSheets = sheets.filter(s => s.id !== sheetId);
+    await updateSheets(nextSheets);
+    // 如果删除的是当前激活的 tab，切到第一张表
+    if (activeTableTabId === sheetId) {
+      setActiveTableTabId(nextSheets[0]?.id ?? "");
+    }
+  };
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 表结构编辑（新建/编辑表）——对应 TODO #1+#6 的表结构编辑能力
+  // 关键：LLM 通过 PromptService.ts 动态读取 sheet.name/columns/rows 注入 Prompt，
+  //       故此处表结构变更无需修改任何后端逻辑，LLM 会自动感知新结构。
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // 进入"新建表"模式
+  const startCreateSheet = () => {
+    setSheetDraft({
+      id: "new",
+      name: "",
+      description: "",
+      columns: ["列1"]
+    });
+  };
+
+  // 进入"编辑现有表"模式
+  const startEditSheet = (sheet: TableMemorySheet) => {
+    setSheetDraft({
+      id: sheet.id,
+      name: sheet.name,
+      description: sheet.description ?? "",
+      columns: [...sheet.columns]
+    });
+  };
+
+  // 草稿列名变更
+  const updateDraftColumn = (idx: number, value: string) => {
+    if (!sheetDraft) return;
+    const nextCols = [...sheetDraft.columns];
+    nextCols[idx] = value;
+    setSheetDraft({ ...sheetDraft, columns: nextCols });
+  };
+
+  // 草稿新增列
+  const addDraftColumn = () => {
+    if (!sheetDraft) return;
+    setSheetDraft({
+      ...sheetDraft,
+      columns: [...sheetDraft.columns, `列${sheetDraft.columns.length + 1}`]
+    });
+  };
+
+  // 草稿删除列（至少保留一列）
+  const removeDraftColumn = (idx: number) => {
+    if (!sheetDraft) return;
+    if (sheetDraft.columns.length <= 1) {
+      window.alert("至少需要保留一列");
+      return;
+    }
+    setSheetDraft({
+      ...sheetDraft,
+      columns: sheetDraft.columns.filter((_, i) => i !== idx)
+    });
+  };
+
+  // 保存草稿（新建或更新）
+  const saveDraft = async () => {
+    if (!sheetDraft) return;
+    const trimmedName = sheetDraft.name.trim();
+    if (!trimmedName) {
+      window.alert("表名不能为空");
+      return;
+    }
+    const trimmedCols = sheetDraft.columns.map(c => c.trim()).filter(c => c);
+    if (trimmedCols.length === 0) {
+      window.alert("至少需要一列");
+      return;
+    }
+
+    if (sheetDraft.id === "new") {
+      // 新建表：检查表名冲突
+      if (sheets.some(s => s.name === trimmedName)) {
+        window.alert(`已存在名为「${trimmedName}」的表，请更换表名`);
+        return;
+      }
+      const newSheet: TableMemorySheet = {
+        id: `sheet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: trimmedName,
+        columns: trimmedCols,
+        rows: [],
+        enable: true,
+        description: sheetDraft.description.trim() || undefined
+      };
+      const nextSheets = [...sheets, newSheet];
+      await updateSheets(nextSheets);
+      setActiveTableTabId(newSheet.id);
+    } else {
+      // 编辑现有表：检查表名冲突（排除自身）
+      if (sheets.some(s => s.id !== sheetDraft.id && s.name === trimmedName)) {
+        window.alert(`已存在名为「${trimmedName}」的表，请更换表名`);
+        return;
+      }
+      const nextSheets = sheets.map(s => {
+        if (s.id === sheetDraft.id) {
+          // 列结构变更时的行数据对齐策略：
+          // 按列名匹配保留旧值（同名列继承数据），新增列或无匹配列补空字符串。
+          // 这样：重命名列会丢失旧数据（符合"按名匹配"契约），新增列补空，删除列自然丢弃。
+          const oldColumns = s.columns;
+          const newColumns = trimmedCols;
+          const newRows = s.rows.map(oldRow => {
+            return newColumns.map(colName => {
+              const oldIdx = oldColumns.indexOf(colName);
+              return oldIdx !== -1 && oldRow[oldIdx] !== undefined ? oldRow[oldIdx] : "";
+            });
+          });
+          return {
+            ...s,
+            name: trimmedName,
+            columns: newColumns,
+            rows: newRows,
+            description: sheetDraft.description.trim() || undefined
+          };
+        }
+        return s;
+      });
+      await updateSheets(nextSheets);
+    }
+    setSheetDraft(null);
+  };
+
+  const cancelDraft = () => {
+    setSheetDraft(null);
+  };
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 渲染
+  // ──────────────────────────────────────────────────────────────────────────
+
   return (
     <>
       {/* 管理按钮：从原 Header 迁移至此，控制内部 showConfig 状态 */}
       <div className="flex justify-end">
         <button
-          onClick={() => setShowConfig(!showConfig)}
+          onClick={() => {
+            setShowConfig(!showConfig);
+            setSheetDraft(null);
+          }}
           className={`p-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition ${showConfig ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted border-border hover:bg-muted/80 text-muted-foreground'}`}
         >
           ⚙️ 管理
@@ -206,60 +366,186 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
       {showConfig ? (
         /* CONFIG MODE (MANAGEMENT) */
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-bold font-mono text-muted-foreground">状态表格管理面板</span>
-            <button
-              onClick={handleResetToDefault}
-              className="text-xs font-bold text-destructive bg-destructive/10 border border-destructive/20 hover:bg-destructive/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition"
-            >
-              <RefreshCw className="w-3 h-3" /> 重置默认表
-            </button>
-          </div>
-
-          {sheets.length === 0 ? (
-            <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-              <HelpCircle className="w-8 h-8 opacity-40" />
-              <span className="text-xs font-bold">暂无结构化表格</span>
+        sheetDraft ? (
+          /* ─── 表结构编辑面板（新建/编辑共用） ─── */
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold font-mono text-muted-foreground">
+                {sheetDraft.id === "new" ? "新建表" : "编辑表结构"}
+              </span>
               <button
-                onClick={handleResetToDefault}
-                className="mt-2 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-1.5 rounded-lg transition"
+                onClick={cancelDraft}
+                className="p-1 rounded text-muted-foreground hover:bg-muted"
+                title="取消"
               >
-                初始化默认表格
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {sheets.map(s => (
-                <div key={s.id} className="border border-border/80 bg-card/60 rounded-xl p-3 flex items-center justify-between gap-3 shadow-sm">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-foreground truncate">{s.name}</span>
-                      <span className="text-[9px] font-mono px-1 py-0.5 border border-border/50 rounded bg-muted text-muted-foreground">
-                        {s.columns.length}列 · {s.rows.length}行
-                      </span>
-                    </div>
-                    {s.description && (
-                      <p className="text-[10px] text-muted-foreground truncate mt-1">{s.description}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => toggleSheetEnabled(s.id)}
-                      className={`p-1.5 rounded-lg border transition ${s.enable
-                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
-                        : "bg-muted border-border text-muted-foreground opacity-60"
-                        }`}
-                      title={s.enable ? "注入 prompt" : "已停用注入"}
-                    >
-                      {s.enable ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
+
+            {/* 表名 */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-muted-foreground block">表名 *</label>
+              <input
+                value={sheetDraft.name}
+                onChange={e => setSheetDraft({ ...sheetDraft, name: e.target.value })}
+                placeholder="如：心情、技能、装备"
+                className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/30"
+                autoFocus
+              />
+            </div>
+
+            {/* 描述 */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-muted-foreground block">用途说明（可选）</label>
+              <input
+                value={sheetDraft.description}
+                onChange={e => setSheetDraft({ ...sheetDraft, description: e.target.value })}
+                placeholder="如：记录角色当前的心情与情绪变化"
+                className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/30"
+              />
+            </div>
+
+            {/* 列定义 */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-muted-foreground block">列定义 *</label>
+              {sheetDraft.columns.map((col, idx) => (
+                <div key={idx} className="flex items-center gap-1.5">
+                  <input
+                    value={col}
+                    onChange={e => updateDraftColumn(idx, e.target.value)}
+                    placeholder={`列 ${idx + 1}`}
+                    className="flex-1 text-xs bg-background border border-border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/30"
+                  />
+                  <button
+                    onClick={() => removeDraftColumn(idx)}
+                    className="p-2 rounded-lg text-destructive hover:bg-destructive/10 border border-destructive/20 transition"
+                    title="删除此列"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ))}
+              <button
+                onClick={addDraftColumn}
+                className="text-xs font-bold text-primary bg-primary/10 border border-primary/25 hover:bg-primary/20 px-3 py-2 rounded-lg flex items-center gap-1.5 transition w-full justify-center"
+              >
+                <Plus className="w-4 h-4" /> 新增列
+              </button>
             </div>
-          )}
-        </div>
+
+            {/* 编辑现有表时的数据对齐提示 */}
+            {sheetDraft.id !== "new" && (
+              <div className="text-[10px] text-muted-foreground bg-muted/30 border border-border/40 rounded-lg p-2 leading-relaxed">
+                💡 提示：编辑列结构时，系统按列名匹配保留原有行数据。重命名列会丢失该列旧数据，新增列补空字符串。
+              </div>
+            )}
+
+            {/* 保存 / 取消 */}
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={saveDraft}
+                className="flex-1 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition"
+              >
+                <Check className="w-4 h-4" /> 保存
+              </button>
+              <button
+                onClick={cancelDraft}
+                className="flex-1 text-xs font-bold bg-muted hover:bg-muted/80 text-muted-foreground border border-border px-3 py-2.5 rounded-lg transition"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ─── 默认管理视图 ─── */
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold font-mono text-muted-foreground">状态表格管理面板</span>
+              <button
+                onClick={handleResetToDefault}
+                className="text-xs font-bold text-destructive bg-destructive/10 border border-destructive/20 hover:bg-destructive/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition"
+              >
+                <RefreshCw className="w-3 h-3" /> 重置默认表
+              </button>
+            </div>
+
+            {/* 新建自定义表按钮 */}
+            <button
+              onClick={startCreateSheet}
+              className="w-full text-xs font-bold text-primary bg-primary/10 border border-primary/25 border-dashed hover:bg-primary/20 px-3 py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition"
+            >
+              <Plus className="w-4 h-4" /> 新建自定义表
+            </button>
+
+            {sheets.length === 0 ? (
+              <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                <HelpCircle className="w-8 h-8 opacity-40" />
+                <span className="text-xs font-bold">暂无结构化表格</span>
+                <button
+                  onClick={handleResetToDefault}
+                  className="mt-2 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-1.5 rounded-lg transition"
+                >
+                  初始化默认表格
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {sheets.map(s => (
+                  <div key={s.id} className="border border-border/80 bg-card/60 rounded-xl p-3 flex items-start justify-between gap-3 shadow-sm">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-foreground truncate">{s.name}</span>
+                        <span className="text-[9px] font-mono px-1 py-0.5 border border-border/50 rounded bg-muted text-muted-foreground">
+                          {s.columns.length}列 · {s.rows.length}行
+                        </span>
+                      </div>
+                      {s.description && (
+                        <p className="text-[10px] text-muted-foreground truncate mt-1">{s.description}</p>
+                      )}
+                      {/* 列名预览（最多 5 列） */}
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {s.columns.slice(0, 5).map((col, idx) => (
+                          <span key={idx} className="text-[9px] px-1.5 py-0.5 bg-muted/40 border border-border/40 rounded text-muted-foreground">
+                            {col}
+                          </span>
+                        ))}
+                        {s.columns.length > 5 && (
+                          <span className="text-[9px] px-1.5 py-0.5 text-muted-foreground">+{s.columns.length - 5}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => startEditSheet(s)}
+                        className="p-1.5 rounded-lg border border-border bg-muted hover:bg-primary/10 hover:text-primary hover:border-primary/20 text-muted-foreground transition"
+                        title="编辑表结构"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => toggleSheetEnabled(s.id)}
+                        className={`p-1.5 rounded-lg border transition ${s.enable
+                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                          : "bg-muted border-border text-muted-foreground opacity-60"
+                          }`}
+                        title={s.enable ? "已启用注入到 Prompt" : "已停用注入"}
+                      >
+                        {s.enable ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSheet(s.id, s.name)}
+                        className="p-1.5 rounded-lg border border-destructive/20 bg-destructive/10 hover:bg-destructive/20 text-destructive transition"
+                        title="删除整张表"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
       ) : (
         /* ACTIVE TABLE SHEET RENDER */
         <>
@@ -354,6 +640,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                               <button
                                 onClick={() => handleDeleteRow(activeSheet.id, rIdx)}
                                 className="p-1 rounded text-destructive hover:bg-destructive/10 transition shrink-0 inline-flex items-center justify-center"
+                                title="删除此行"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
