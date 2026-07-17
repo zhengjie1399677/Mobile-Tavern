@@ -40,8 +40,16 @@ Mobile-Tavern
 │   │   ├── AppContext.tsx                    # 全局应用设置、备份、导入导出状态管理
 │   │   └── ChatContext.tsx                   # 聊天会话生命周期与消息流状态管理
 │   │
-│   ├── locales/                               # 多语言翻译资源
-│   │   └── translations.ts                   # 6 语言静态翻译词典 (zh-CN/zh-TW/en/ja/ru/es)
+│   ├── locales/                               # 多语言翻译资源（按语言独立文件）
+│   │   ├── index.ts                          # 聚合导出 TRANSLATIONS 对象
+│   │   ├── zh-CN.ts                          # 简体中文 (708 keys)
+│   │   ├── zh-TW.ts                          # 繁体中文
+│   │   ├── en.ts                             # 英语
+│   │   ├── ja.ts                             # 日语
+│   │   ├── ru.ts                             # 俄语
+│   │   ├── es.ts                             # 西班牙语
+│   │   ├── ko.ts                             # 韩语
+│   │   └── pt-BR.ts                          # 葡萄牙语（巴西）
 │   │
 │   ├── tabs/                                 # 主界面导航四大板块对应的核心面板
 │   │   ├── CharactersTab.tsx                 # 模糊搜索、角色分类过滤器与图片拖拽监听
@@ -105,7 +113,7 @@ Mobile-Tavern
 Mobile Tavern 采用轻量级自定义 i18n 方案，不依赖第三方库。核心由两部分组成：
 
 - **`LanguageContext.tsx`**：React Context Provider，提供 `useTranslation()` 钩子，返回 `{ t, language, changeLanguage }`。内置三级回退链：当前语言 → 英文 → 简体中文 → 原始 key。
-- **`translations.ts`**：静态翻译词典，以 `Record<语言, Record<key, 翻译>>` 结构存储。
+- **`locales/*.ts`**：每种语言一个独立文件，以 `export default { ... } as const` 导出翻译词典。`index.ts` 聚合为 `TRANSLATIONS` 对象。
 
 ### 支持语言
 

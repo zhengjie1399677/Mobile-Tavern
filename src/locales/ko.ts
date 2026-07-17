@@ -1,737 +1,769 @@
-﻿export default {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export default {
+  "control_panel.title": "제어판",
+  "control_panel.subtitle": "시스템 파라미터 및 세부 규칙 조정",
+  "control_panel.check_update": "업데이트 확인",
+  "control_panel.checking": "확인 중",
+
+  "tabs.connection": "연결",
+  "tabs.features": "기능",
+  "tabs.persona": "페르소나",
+  "tabs.storage": "저장소",
+
+  "sandbox.title": "시스템 샌드박스",
+  "sandbox.desc": "Prompt 컴파일 원리, SSE 스트림 파싱 버퍼 및 세계 설정 스캔 흐름 실시간 관찰",
+  "sandbox.button": "🚀 시스템 샌드박스 진입 (Sandbox)",
+
+  "lang.section_title": "다국어 설정",
+  "lang.select_label": "앱 언어",
+  "lang.select_desc": "인터페이스 언어 전환. 첫 실행 시 시스템 기본 언어로 자동 식별됩니다.",
+
+  "features.section_title": "기능 설정",
+  "features.cat_rendering": "UI 렌더링 및 인터랙션",
+
+  "features.html_rendering": "리치 텍스트 HTML 렌더링",
+  "features.html_rendering_desc": "캐릭터 카드에서 HTML/CSS 태그로 대화 버블 스타일을 제어합니다. 비활성화 시 순수 텍스트로 렌더링합니다.",
+
+  "features.js_execution": "카드 JS 스크립트 실행",
+  "features.js_execution_desc": "캐릭터 카드가 커스텀 JS 스크립트를 실행하여 동적 상태 패널을 표시합니다. 알 수 없는 스크립트 실행은 보안 위험이 있습니다.",
+
+  "features.loop_protection": "스크립트 루프 안전 감시기",
+  "features.loop_protection_desc": "카드 스크립트의 무한 루프에 시간 감시기를 자동으로 삽입하여 UI가 멈추는 것을 방지합니다. 단일 루프 상한 1000ms.",
+
+  "features.ambient_glow": "앰비언트 글로우 연동",
+  "features.ambient_glow_experimental": "실험적",
+  "features.ambient_glow_desc": "캐릭터의 현재 감정과 표정에 따라 채팅 배경에 흐르는 빛을 렌더링하여 몰입감을 높입니다.",
+
+  "features.reasoning_display": "사고 과정 표시",
+  "features.reasoning_display_desc": "AI 응답의 추론 과정을 표시하거나 숨깁니다. 비활성화 시 사고 카드만 숨기며 모델 생성에는 영향이 없습니다.",
+
+  "features.message_queue": "멀티 메시지 큐 전송",
+  "features.message_queue_plugin": "플러그인",
+  "features.message_queue_desc": "활성화 시 클릭은 큐에만 추가되고, 길게 누르기(500ms+)로 큐를 병합 전송하여 AI 응답을 트리거합니다.",
+
+  "features.asterisk_formatting": "별표 액션 색상 렌더링",
+  "features.asterisk_formatting_desc": "이탤릭 별표 액션 설명을 회색으로 렌더링합니다. 캐릭터 카드 내 독립 설정이 우선합니다.",
+
+  "features.bison_mode": "들소 모드",
+  "features.bison_mode_token_warning": "Token 소비 증가",
+  "features.bison_mode_desc": "활성화 시 AI가 감정 확률에 따라 입력창을 잠그고 연속 2~3회 출력합니다(1회 최대 100 Token).",
+  "features.bison_mode_warning": "⚠️ 활성화 시 연속 API 요청이 발생하여 Token 소비가 크게 증가할 수 있습니다.",
+  "features.bison_mode_prompt_title": "들소 모드 커스텀 프롬프트 명령",
+  "features.reset_default": "시스템 기본값으로 초기화",
+
+  "features.reply_suggestions": "내러티브 분기 생성기",
+  "features.reply_suggestions_desc": "응답 생성 시 후속 스토리 분기 옵션을 함께 표시하며, 클릭으로 빠르게 입력하거나 전송할 수 있습니다.",
+  "features.click_mode": "기본 클릭 동작",
+  "features.click_mode_fill": "입력창에 채우기",
+  "features.click_mode_send": "바로 전송",
+  "features.suggestions_prompt_title": "분기 생성 가이드 명령",
+  "features.expression_dict_title": "감정 매칭 정규식 사전",
+  "features.expression_dict_desc": "캐릭터에 triggers가 설정되지 않은 경우, 시스템이 이 정규식 사전으로 표정 변화를 매칭합니다(비워서 비활성화 가능).",
+  "features.reset_dict": "사전 초기화",
+
+  "report.title": "시스템 리포트",
+  "report.copy": "리포트 복사",
+  "report.check_start": "자가 진단 시작",
+  "report.checking": "진단 중...",
+
+  "theme.section_title": "읽기 테마 및 색조",
+  "theme.placeholder": "테마 선택",
+  "theme.snow": "미니멀 퓨어 화이트",
+  "theme.sand": "라이트 샌드",
+  "theme.ocean": "형광 심해",
+  "theme.obsidian": "흑요석 다크",
+  "theme.custom_theme": "커스텀 테마",
+  "theme.custom_header": "가져온 커스텀 테마",
+  "theme.dark": "다크",
+  "theme.light": "라이트",
+  "theme.management": "테마 팩 관리",
+  "theme.new": "새 테마",
+  "theme.import": "테마 팩 가져오기",
+  "theme.no_custom_desc": "커스텀 테마 팩을 아직 가져오지 않았습니다. .tavern-theme.json 파일을 가져와 테마 선택을 확장하고 CSS 변수와 스타일을 완전히 커스터마이징할 수 있습니다.",
+  "theme.font_size": "채팅 글꼴 크기 조절",
+  "theme.font_size_current": "현재 글꼴 크기",
+  "theme.line_height": "채팅 줄 간격 조절",
+  "theme.line_height_current": "현재 줄 간격",
+  "theme.bg_image": "글로벌 기본 채팅 배경 이미지 (캐릭터별 배경 미설정 시 적용)",
+  "theme.bg_image_enabled": "✨ 커스텀 배경 이미지 활성화됨",
+  "theme.bg_image_disabled": "미설정 (기본 테마 배경 사용)",
+  "theme.upload": "업로드",
+  "theme.clear": "삭제",
+  "theme.bg_effect": "채팅 배경 블렌드 효과",
+  "theme.effect_clear": "선명 (원본)",
+  "theme.effect_medium": "중간 (블렌드)",
+  "theme.effect_dark": "어둡게 (프로스트)",
+  "theme.bg_animation": "배경 느린 호흡 애니메이션 활성화 (Ken Burns 효과)",
+
+  "nav.characters": "캐릭터",
+  "nav.chat-history": "기록",
+  "nav.global-worldbook": "세계 설정",
+  "nav.settings": "설정",
+
+  "api.title": "API 서비스 엔드포인트 설정",
+  "api.subtitle": "대규모 언어 모델 인터페이스 주소 및 인증 정보 구성",
+  "api.saving": "자동 저장 중...",
+  "api.saved": "수정 사항이 자동 저장되었습니다",
+  "api.select_profile": "API 설정 채널 / 인증 프로필 선택",
+  "api.temp_profile": "💡 임시 디버그 설정",
+  "api.save_profile": "현재 설정을 채널로 저장",
+  "api.rename": "✏️ 이름 변경",
+  "api.delete": "🗑️ 이 채널 삭제",
+  "api.base_url": "인터페이스 프록시 주소 (Base URL)",
+  "api.base_url_tip": "팁: 여러 API 이력 주소 자동 기록 지원",
+  "api.clear_history": "기록 삭제",
+  "api.api_key": "API 키 (API Key)",
+  "api.test_conn": "⚡ 연결 테스트",
+  "api.fetch_models": "모델 목록 가져오기",
+  "api.fetching_models": "가져오는 중...",
+  "api.free_tier": "💡 공개 무료 체험 채널 사용 중 ({count}/10회). API Key를 비우면 이 채널이 자동 활성화됩니다.",
+  "api.exclusive_tier": "커스텀 API 키가 설정되어 있으며, 귀하의 전용 채널을 우선 사용합니다.",
+  "api.model_id": "선택 모델 식별자 (Model ID)",
+  "api.select_model_placeholder": "가져온 모델 선택",
+  "api.context_limit": "최대 컨텍스트 제한 (Tokens)",
+  "api.context_limit_tip": "비워두면 대형 모델의 기본 용량 제한에 자동 일치",
+  "api.prompt_format": "프롬프트 렌더링 형식",
+  "api.prompt_format_tip": "시스템/설정 데이터의 레이아웃 구조 정의",
+  "api.format_auto": "자동 선택 (Auto)",
+  "api.format_xml": "XML 태그 형식 (XML)",
+  "api.format_markdown": "Markdown 텍스트 형식 (Markdown)",
+  "api.fallback_title": "API 최소 폴백 모드 (Conservative Fallback)",
+  "api.fallback_desc": "활성화 시 어떤 모델을 사용하든 요청 시 가장 기본적인 5개 파라미터(model, messages, stream, temperature, top_p)만 강제 전송합니다. 서드파티 중계 API에서 파라미터 오류(HTTP 400)가 발생할 때 활성화하는 것을 권장합니다.",
+  "api.send_names_title": "요청에 캐릭터 이름 포함 (Send Names)",
+  "api.send_names_desc": "메시지에 \"name\" 속성을 포함합니다(예: \"LinaSchneider\", \"user\"). 일부 서드파티 중계, Claude 또는 Gemini 인터페이스는 이 속성을 지원하지 않아 400 오류를 반환할 수 있습니다. 요청 실패 시 이 옵션을 비활성화하세요.",
+  "api.disable_reasoning_title": "추론 모드 비활성화 (Disable Reasoning)",
+  "api.disable_reasoning_desc": "심층 추론을 지원하는 모델(예: Claude 3.7 또는 DeepSeek R1)의 경우, 활성화 시 API 레벨에서 추론을 비활성화하거나 약화시켜 불필요한 추론 Token 소비를 방지합니다.",
+
+  "image_gen.title": "AI 이미지 생성 서비스 엔드포인트 설정",
+  "image_gen.subtitle": "Stable Diffusion, NovelAI 또는 DALL-E 인터페이스 구성",
+  "image_gen.enable": "이미지 생성 확장 기능 활성화",
+  "image_gen.enable_desc": "활성화 시 AI 메시지 퀵 메뉴에서 대사에 대한 장면 그리기를 실행할 수 있습니다.",
+  "image_gen.force_protocol": "프로토콜 유형 수동 강제 지정",
+  "image_gen.force_protocol_desc": "비활성화 시 Base URL을 기반으로 자동 감지합니다(novelai 또는 sdwebui 키워드가 감지되면 해당 형식을, 그 외에는 기본 OpenAI 형식을 사용).",
+  "image_gen.protocol_title": "이미지 생성 인터페이스 유형",
+  "image_gen.auto_detect": "자동 식별 모드 (Base URL 기반 추측)",
+  "image_gen.base_url": "이미지 생성 인터페이스 Base URL",
+  "image_gen.api_key": "API Key / Access Token",
+  "image_gen.api_key_placeholder": "인터페이스 키 또는 Token 입력",
+  "image_gen.model": "모델 이름 (Model)",
+  "image_gen.model_placeholder": "예: dall-e-3 또는 custom-model",
+  "image_gen.width": "이미지 너비 (Width)",
+  "image_gen.height": "이미지 높이 (Height)",
+  "image_gen.steps": "스텝 수 (Steps)",
+  "image_gen.cfg": "CFG Scale",
+  "image_gen.sampler": "샘플러 (Sampler)",
+  "image_gen.sampler_placeholder": "예: Euler a",
+  "image_gen.edit_before_gen": "생성 전 프롬프트 확인/수정 팝업",
+  "image_gen.edit_before_gen_desc": "활성화 시 대형 모델이 프롬프트를 요약한 후 입력창이 팝업되어 수동으로 Prompt를 수정한 후 이미지 생성을 시작할 수 있습니다.",
+  "image_gen.advanced_prompts": "고급 프롬프트 템플릿 및 접두사 (Advanced Prompts & Templates)",
+  "image_gen.prompt_prefix": "기본 프롬프트 접두사",
+  "image_gen.negative_prompt": "네거티브 프롬프트 (Negative Prompt)",
+  "image_gen.prompt_template": "장면 설명 요약 템플릿 (Prompt Generator Template)",
+  "image_gen.prompt_template_desc": "시스템은 채팅 설정의 LLM을 사용해 이 가이드 프롬프트를 실행합니다. 내장 플레이스홀더 {appearance}(외형 특징), {context}(대화 컨텍스트), {message}(현재 대사)는 자동으로 치환됩니다.",
+
+  "tts.title": "음성 읽기 설정 (TTS)",
+  "tts.enable": "TTS 음성 읽기 활성화",
+  "tts.enable_desc": "활성화 시 메시지 메뉴에서 텍스트 읽기를 지원합니다",
+  "tts.trigger": "읽기 트리거 방식",
+  "tts.trigger_auto": "자동 읽기 (기본)",
+  "tts.trigger_manual": "수동 읽기 (요청 시에만)",
+  "tts.range": "읽기 내용 범위",
+  "tts.range_all": "전체 읽기 (액션 포함)",
+  "tts.range_dialogue": "대사만 읽기 (액션 필터링)",
+  "tts.engine": "음성 엔진 (Provider)",
+  "tts.engine_system": "시스템 기본 TTS (로컬 음성 합성)",
+  "tts.engine_openai": "OpenAI TTS 인터페이스 (온라인 고음질)",
+  "tts.volume": "볼륨",
+  "tts.rate": "말하기 속도",
+  "tts.pitch": "음높이",
+  "tts.system_desc": "모바일은 시스템 기본 TTS 엔진을 사용하며, 음색은 시스템 설정에 따라 결정됩니다.",
+  "tts.voice": "음성 캐릭터 (Voice)",
+  "tts.test_play": "테스트 발음",
+  "tts.test_stop": "테스트 중지",
+
+  "asr.title": "음성 입력 (ASR) 설정",
+  "asr.subtitle": "마이크 입력 및 음성-텍스트 변환 활성화 (브라우저 기본 또는 OpenAI Whisper)",
+  "asr.enable": "음성 입력 활성화",
+  "asr.enable_desc": "활성화 시 채팅 입력창 왼쪽에 마이크 아이콘이 표시되어 녹음 후 자동으로 텍스트로 변환할 수 있습니다.",
+  "asr.engine": "음성 인식 서비스 제공자 (Provider)",
+  "asr.engine_system": "브라우저 기본 Web Speech API (Key 불필요 / 실시간 스트리밍)",
+  "asr.engine_whisper": "OpenAI Whisper API (고정확도)",
+  "asr.lang": "인식 언어 (Language)",
+  "asr.lang_placeholder": "예: zh-CN, en-US, ja-JP",
+  "asr.lang_desc": "브라우저 기본 인식 시 올바른 언어 식별자를 입력해야 합니다. Whisper는 비워두면 자동 감지합니다.",
+
+  "persona.title": "캐릭터 정보",
+  "persona.active": "현재 활성 플레이어 설정 (User Persona)",
+  "persona.select_placeholder": "플레이어 설정 선택",
+  "persona.unnamed": "이름 없는 인물",
+  "persona.create": "새로 만들기",
+  "persona.delete": "삭제",
+  "persona.name": "플레이어 이름 (시스템 추론 및 플레이스홀더 대체용)",
+  "persona.name_placeholder": "알 수 없는 탐험가",
+  "persona.avatar": "플레이어 커스텀 아바타 (base64 지원)",
+  "persona.avatar_placeholder": "data:image/png;base64,... 또는 비워두기",
+  "persona.upload": "업로드",
+  "persona.clear": "삭제",
+  "persona.desc": "플레이어 정보 (Persona: 세계관 배경/외형 설명 등)",
+  "persona.desc_placeholder": "예: 키 180cm, 검은 코트를 입고, 차가운 눈빛...",
+
+  "memory_sys.title": "메모리 시스템",
+  "memory_sys.subtitle": "단기 컨텍스트 창, 서사 메모리(타임라인 요약), 상태 메모리(구조화 테이블) 세 가지 보완 모듈을 통합 관리",
+  "memory_sys.recent_turns_title": "컨텍스트 창",
+  "memory_sys.recent_turns": "컨텍스트 전송 턴 수 (Recent Turns)",
+  "memory_sys.recent_turns_desc": "전문을 그대로 유지하여 전송할 대화 턴 수",
+  "memory_sys.recall_title": "장기 메모리 리콜",
+  "memory_sys.recall_enable": "장기 메모리 리콜 활성화 (Memory Recall)",
+  "memory_sys.recall_desc": "과거 메시지 저장소에서 가장 유사한 메모리 조각을 자동으로 검색하여 주입",
+  "memory_sys.recall_top_k": "메모리 리콜 개수 (Recall Top K)",
+  "memory_sys.summary_title": "서사 메모리 · 타임라인 요약",
+  "memory_sys.summary_enable": "자동 메모리 정리 (Auto Summary)",
+  "memory_sys.summary_desc": "정기적으로 메모리를 정리합니다. 트리거 턴 수를 0으로 설정하면 위 전송 턴 수와 동기화하여 정리합니다.",
+  "memory_sys.summary_trigger": "트리거 턴 수 (몇 턴마다 정리할지, 0은 위 전송 턴 수와 동기화)",
+  "memory_sys.table_title": "상태 메모리 · 구조화 테이블",
+  "memory_sys.table_enable": "구조화 메모리 테이블 (Table Memory)",
+  "memory_sys.table_desc": "호감도, 인물 관계 등의 속성을 테이블 형식으로 정리하여 조용히 AI 메모리에 피드",
+  "memory_sys.table_freq": "AI 테이블 체크 업데이트 빈도 (몇 턴마다 AI가 데이터를 확인하고 수정할지)",
+  "memory_sys.table_freq_1": "매 1턴 (가장 실시간)",
+  "memory_sys.table_freq_3": "매 3턴 (권장)",
+  "memory_sys.table_freq_5": "매 5턴 (Token 절약)",
+  "memory_sys.advanced_title": "고급 정리 템플릿 및 명령 (Advanced Templates & Prompts)",
+  "memory_sys.time_tag": "타임라인 막 이름 템플릿 (Time Tag Template)",
+  "memory_sys.time_tag_desc": "{{index}}를 현재 스토리 회차의 치환 마커로 사용합니다",
+  "memory_sys.summary_prompt": "자동 메모리 요약 가이드 명령 (Summary System Prompt)",
+  "memory_sys.reset_summary": "요약 명령을 시스템 기본값으로 초기화",
+  "memory_sys.reasoning_prompt": "추론 가이드 명령 (Reasoning Guidance Prompt)",
+  "memory_sys.reset_reasoning": "추론 명령을 시스템 기본값으로 초기화",
+  "memory_sys.table_prompt": "테이블 메모리 매칭 명령 (Table Memory Prompt)",
+  "memory_sys.reset_table": "테이블 명령을 시스템 기본값으로 초기화",
+
+  "backup.title": "데이터 백업 및 마이그레이션",
+  "backup.subtitle": "모든 설정, 캐릭터 카드 및 대화 기록을 내보내거나 백업에서 시스템을 복원할 수 있습니다.",
+  "backup.export_btn": "백업 파일 내보내기 (.json)",
+  "backup.import_btn": "백업 가져와 복원",
+  "backup.pass_title": "독립 데이터 암호화 비밀번호",
+  "backup.pass_tip": "설정을 권장합니다. 설정하면 가져오기/내보내기 시 데이터가 강력 암호화되어 유출을 방지합니다.",
+  "backup.encrypt_switch": "이번 백업 데이터 강제 암호화",
+  "backup.status_idle": "활성 백업 작업 없음",
+
+  "chat_import.title": "선술집 단일 세션 채팅 기록 가져오기",
+  "chat_import.subtitle": "SillyTavern 단일 캐릭터의 채팅 기록 (.json/.jsonl) 형식 파일 가져오기",
+  "chat_import.upload_btn": "채팅 파일 선택 후 가져오기",
+
+  "telemetrics.title": "사용 통계 (Telemetrics)",
+  "telemetrics.subtitle": "기본 실행 정보 (추후 데이터 추적 및 패키징 요구 지원)",
+  "telemetrics.total_opens": "누적 실행 횟수",
+  "telemetrics.total_runtime": "누적 실행 시간",
+  "telemetrics.times": "{count}회",
+  "telemetrics.minutes": "{count}분",
+
+  "samplers.title": "온도 및 샘플링 파라미터",
+  "samplers.subtitle": "모델 생성 시 무작위성, 페널티 및 최대 길이 등 샘플링 파라미터 조정",
+  "samplers.temp": "온도 (Temp)",
+  "samplers.top_p": "핵 샘플링 (Top P)",
+  "samplers.rep_penalty": "반복 페널티 (Rep Penalty)",
+  "samplers.max_tokens": "길이 상한 (Max Tokens)",
+
+  "preset_selector.active_preset": "현재 프리셋: {name}",
+  "preset_selector.import": "설정 가져오기",
+  "preset_selector.export": "설정 내보내기",
+  "preset_selector.save_copy": "새 프리셋 사본으로 저장",
+  "preset_selector.delete_custom": "현재 커스텀 프리셋 삭제",
+
+  "prompts.title": "프리셋 프롬프트 설정",
+  "prompts.subtitle": "기본 역할극 명령, 규칙 프롬프트 및 세부 확장 프롬프트 모듈 구성",
+  "prompts.st_compat_desc": "환경 호환 ST 태그 주입: {{char}}, {{user}} 등 규칙 동적 매칭 매크로 처리.",
+  "prompts.confirm_delete": "삭제 확인",
+  "prompts.cancel": "취소",
+  "prompts.batch_delete": "일괄 삭제",
+  "prompts.create_module": "새 모듈 만들기",
+  "prompts.no_modules": "연결된 규칙 컴포넌트 없음",
+  "prompts.system_prompt": "기본 역할극 시스템 명령 (System Prompt)",
+  "prompts.system_prompt_tip": "system · 컨텍스트 최상단에 위치",
+  "prompts.system_prompt_placeholder": "기본 역할극 시스템 명령 입력...",
+  "prompts.jailbreak": "규칙 프롬프트 (Jailbreak)",
+  "prompts.jailbreak_tip": "system · beforeLast 전에 주입",
+  "prompts.jailbreak_placeholder": "규칙 프롬프트 입력...",
+
+  "regex.title": "정규식 필터 스크립트 관리",
+  "regex.subtitle": "글로벌 및 프리셋 전용 정규식 필터 규칙을 구성하여 전송 또는 표시 전에 텍스트를 정화합니다.",
+  "regex.global": "🌌 글로벌 정규식 스크립트 (Global Regex)",
+  "regex.global_tip": "모든 캐릭터와 프리셋에 적용되며 글로벌 설정에 저장됩니다.",
+  "regex.preset": "📋 프리셋 전용 정규식 (Preset Regex)",
+  "regex.preset_tip": "현재 프리셋 [{name}] 활성화 시에만 적용되며 프리셋과 함께 저장 및 내보내기됩니다.",
+  "regex.char": "🎭 활성 캐릭터 전용 로컬 정규식 (Character Local Regex)",
+  "regex.char_tip": "활성 캐릭터 [{name}] 활성화 시에만 적용되며 수정 사항이 캐릭터 카드에 직접 저장됩니다.",
+  "regex.create_global": "글로벌 새로 만들기",
+  "regex.create_preset": "프리셋 새로 만들기",
+  "regex.create_char": "캐릭터 새로 만들기",
+  "regex.no_global": "글로벌 정규식 스크립트가 없습니다. <think> 태그 필터를 수동으로 생성할 수 있습니다.",
+  "regex.no_preset": "프리셋 전용 정규식 스크립트가 없습니다. 프리셋 가져오기 시 자동으로 파싱됩니다.",
+  "regex.no_char": "현재 캐릭터에 전용 로컬 정규식이 없습니다. 위 버튼을 클릭하여 캐릭터 전용 필터를 수동으로 생성할 수 있습니다.",
+  "regex.placement_both": "양방향",
+  "regex.placement_input": "입력",
+  "regex.placement_output": "출력",
+  "regex.edit": "편집",
+  "regex.delete": "삭제",
+  "regex.modal_new": "새 정규식 스크립트 만들기",
+  "regex.modal_edit": "정규식 스크립트 편집",
+  "regex.modal_close": "닫기",
+  "regex.modal_name": "스크립트 이름",
+  "regex.modal_name_placeholder": "예: 사고 과정 숨기기",
+  "regex.modal_find": "매칭 정규식 (/pattern/flags 형식 지원)",
+  "regex.modal_find_placeholder": "예: /<think>[\\s\\S]*?<\\/think>/gi",
+  "regex.modal_replace": "치환 텍스트 ($1, $2 플레이스홀더 사용 가능)",
+  "regex.modal_replace_placeholder": "예: (비워두면 매칭 내용 직접 삭제)",
+  "regex.modal_placement": "작용 단계 (Placement)",
+  "regex.modal_placement_input": "입력 단계 (전송 차단)",
+  "regex.modal_placement_output": "출력 단계 (렌더링 차단)",
+  "regex.modal_save": "저장",
+
+  "preset_form.none": "없음",
+  "preset_form.scope_global": "글로벌",
+  "preset_form.scope_preset": "프리셋 전용",
+  "preset_form.scope_char": "캐릭터 전용",
+  "preset_form.confirm_delete_regex": "{scope} 정규식 스크립트【{name}】을(를) 삭제하시겠습니까?",
+  "preset_form.regex_empty_error": "스크립트 이름과 정규식 매칭 문자열은 비워둘 수 없습니다!",
+  "preset_form.confirm_batch_delete_prompts": "선택한 {count}개의 프롬프트 모듈을 일괄 삭제하시겠습니까?",
+  "preset_form.confirm_batch_delete_global_regex": "선택한 {count}개의 글로벌 정규식 스크립트를 일괄 삭제하시겠습니까?",
+  "preset_form.confirm_batch_delete_preset_regex": "선택한 {count}개의 프리셋 전용 정규식 스크립트를 일괄 삭제하시겠습니까?",
+
+  "worldbook.title": "세계 설정집",
+  "worldbook.subtitle": "전용 호스트 격리 / 글로벌 상시 공유",
+  "worldbook.new": "새로 만들기",
+  "worldbook.import": "가져오기",
+  "worldbook.export": "내보내기",
+  "worldbook.export_alert": "먼저 메모리 회로(글로벌 또는 캐릭터)에 진입한 후 내보내기하세요.",
+  "worldbook.list_header": "👤 캐릭터 전용 설정집 (Character Bound Worldbooks)",
+  "worldbook.list_count": "총 {count}개 설정집",
+  "worldbook.custom_tip": "🔒 독립 설정집 (길게 눌러 삭제)",
+  "worldbook.no_characters": "📭 유효한 캐릭터 호스트를 찾을 수 없습니다. 「호스트 설정」패널에서 캐릭터 카드를 생성하면 해당 전용 세계 설정 회로가 해제됩니다!",
+  "worldbook.char_tip_global": "🌎 설정집이【글로벌 공유】로 설정됨",
+  "worldbook.char_tip_local": "🔒 설정집이 해당【캐릭터 전용】으로 제한됨",
+  "worldbook.switch_global": "🌎 글로벌",
+  "worldbook.switch_local": "👤 전용",
+
+  "history.title": "대화 기록 (History)",
+  "history.sort_by_time": "시간순",
+  "history.sort_by_char": "캐릭터별",
+  "history.empty": "대화 기록이 없습니다",
+  "history.empty_tip": "캐릭터관에서 캐릭터를 선택해 채팅을 시작하세요!",
+  "history.main_timeline": "메인 스토리",
+  "history.turns_chars": "{turnCount}턴 | {charCount}자",
+  "history.turns": "{count}턴",
+  "history.chars": "{count}자",
+  "history.me": "나",
+  "history.delete": "대화 삭제",
+  "history.sessions_count": "{count}개 대화",
+  "history.recent_active": "최근 활동: {time}",
+  "history.total_chars": "총 {count}자",
+  "history.unassigned_char": "미지정 캐릭터",
+  "history.removed_char": "삭제된 캐릭터",
+
+  "scanner.title": "휴대폰 로컬 캐릭터 카드 검색 및 가져오기",
+  "scanner.close": "닫기",
+  "scanner.scan_failed": "스캔 실패: ",
+  "scanner.import_success": "가져오기 성공: \"{name}\" 캐릭터 카드가 성공적으로 로드되었습니다!",
+  "scanner.import_failed": "파일 가져오기 실패: ",
+  "scanner.mock_env": "브라우저 샌드박스 시뮬레이션 환경",
+  "scanner.mock_env_tip": "현재 Web 개발 디버그 모드에서 실행 중입니다. 인터랙션 UI와 가져오기 로직을 검증하기 위해 아래 버튼을 클릭하여 테스트 카드 검색을 시뮬레이션할 수 있습니다.",
+  "scanner.mock_scanning": "시뮬레이션 스캔 중...",
+  "scanner.mock_btn": "휴대폰 저장소 스캔 시뮬레이션 (Scan Files)",
+  "scanner.permission_title": "외부 저장소 접근 권한 필요",
+  "scanner.permission_desc": "App이 외부 저장소(예: Downloads 디렉터리)를 읽어 캐릭터 카드를 검색하려면 권한이 필요합니다. 언제든지 닫거나 휴대폰 설정에서 이 권한을 철회할 수 있습니다.",
+  "scanner.permission_btn": "권한 부여 및 로컬 카드 스캔",
+  "scanner.scanning": "저장 매체 검색 중...",
+  "scanner.scan_btn": "Download 및 Pictures 디렉터리 즉시 스캔",
+  "scanner.search_placeholder": "스캔된 로컬 카드 파일 검색...",
+  "scanner.scan_waiting": "휴대폰 공용 디렉터리에서 카드 검색 중입니다. 잠시만 기다려주세요...",
+  "scanner.no_results": "스캔 결과 없음",
+  "scanner.no_match": "검색 키워드와 일치하는 파일이 없습니다.",
+  "scanner.no_results_tip": "위 스캔 버튼을 클릭하여 휴대폰에 저장된 .json 캐릭터 팩 또는 선술집 PNG 이미지 카드를 검색하세요.",
+  "scanner.file_meta": "크기: {size} | 수정 시간: {date}",
+  "scanner.importing": "가져오는 중",
+  "scanner.import": "가져오기",
+
+  "quick_dialogue.copy": "복사",
+  "quick_dialogue.edit": "편집",
+  "quick_dialogue.img_gen_not_enabled": "먼저 설정에서 이미지 생성 기능을 활성화하고 인터페이스 파라미터를 구성하세요.",
+  "quick_dialogue.edit_prompt_message": "이미지 생성 프롬프트가 생성되었습니다. 여기서 수정할 수 있습니다:",
+  "quick_dialogue.prompt_confirm_title": "프롬프트 확인",
+  "quick_dialogue.img_gen_failed": "이미지 생성 실패",
+  "quick_dialogue.img_gen_failed_msg": "이미지 생성 실패: {error}",
+  "quick_dialogue.img_gen": "이미지 생성",
+  "quick_dialogue.img_gen_title": "현재 대사 장면 그리기",
+  "quick_dialogue.tts_stop": "중지",
+  "quick_dialogue.tts_read": "읽기",
+  "quick_dialogue.tts_stop_title": "음성 읽기 중지",
+  "quick_dialogue.tts_read_title": "현재 대사 음성 읽기",
+  "quick_dialogue.more": "더보기",
+  "quick_dialogue.more_title": "더 많은 옵션",
+  "quick_dialogue.reroll": "재전송",
+  "quick_dialogue.branch": "브랜치",
+  "quick_dialogue.confirm_delete_msg": "이 대사를 삭제하시겠습니까?",
+  "quick_dialogue.delete": "삭제",
+  "quick_dialogue.confirm_summarize": "스마트 AI 카드 압축을 시작하시겠습니까? 이전 대화 기록을 단일 타임라인 연표로 변환하여 메모리 공간을 확보하고 어조의 일관성을 유지합니다.",
+  "quick_dialogue.summarize": "요약",
+
+  "message_bubble.user_said": "내가 말함",
+  "message_bubble.char_said": "말함",
+  "message_bubble.role": "캐릭터",
+  "message_bubble.me_avatar": "나",
+  "message_bubble.ai_fallback": "AI",
+  "message_bubble.swipe_edit": "편집",
+  "message_bubble.swipe_draw": "이미지 생성",
+  "message_bubble.swipe_tts_stop": "중지",
+  "message_bubble.swipe_tts_read": "읽기",
+  "message_bubble.edit_save": "저장",
+  "message_bubble.edit_cancel": "취소",
+  "message_bubble.reasoning_collapse": "사고 과정 접기",
+  "message_bubble.reasoning_thinking": "AI가 생각 중입니다 (클릭하여 보기)...",
+  "message_bubble.reasoning_view": "사고 과정 보기",
+  "message_bubble.reasoning_chars": "{length}자",
+  "message_bubble.copy_reasoning": "사고 과정 내용 복사",
+  "message_bubble.ai_composing": "AI가 문장을 다듬는 중...",
+  "message_bubble.no_content": "*(생성된 내용 없음)*",
+  "message_bubble.drawing_scene": "AI가 장면을 그리는 중...",
+  "message_bubble.confirm_save_image": "생성된 이미지를 저장하시겠습니까?",
+  "message_bubble.image_save_success": "저장 성공",
+  "message_bubble.image_save_success_msg": "📂 이미지 저장 성공!\n파일이 휴대폰 /Download 폴더에 저장되었습니다...",
+  "message_bubble.image_save_failed": "저장 실패",
+  "message_bubble.image_save_failed_msg": "❌ 이미지 저장 실패: {error}",
+  "message_bubble.save_error": "저장 오류",
+  "message_bubble.export_success": "내보내기 성공",
+  "message_bubble.click_to_save": "클릭하여 이미지 저장",
+  "message_bubble.round_label": "제 {roundNum}턴 대화",
+
+  "chat_input.reroll_last": "이전 스토리 다시 불러오기",
+  "chat_input.continue": "계속",
+  "chat_input.suggestions_label": "✨ 내러티브 분기 생성기:",
+  "chat_input.click_mode": "클릭 동작: {mode}",
+  "chat_input.click_mode_send": "바로 전송",
+  "chat_input.click_mode_fill": "입력창에 채우기",
+  "chat_input.placeholder_bison": "{name}님이 계속 말하는 중...",
+  "chat_input.placeholder_recording": "음성 입력 수신 중입니다. 말씀해 주세요...",
+  "chat_input.placeholder_transcribing": "음성을 텍스트로 변환 중...",
+  "chat_input.placeholder_default": "{name}에게 대사를 보내 여정을 시작하세요...",
+  "chat_input.aria_label": "{name}에게 보내는 메시지 입력창",
+  "chat_input.stop": "대화 중단",
+  "chat_input.asr_stop": "녹음 중지",
+  "chat_input.asr_recognizing": "음성 인식 중",
+  "chat_input.asr_mic": "음성 입력",
+  "chat_input.asr_transcribing": "인식 중...",
+  "chat_input.send_title": "메시지 전송 (길게 눌러 병합 전송)",
+  "chat_input.send": "메시지 전송",
+  "chat_input.send_long_press": "클릭은 단순 메시지 전송, 500ms 길게 누르면 이전 메시지와 병합하여 AI에 전송",
+  "chat_input.asr_permission_denied": "권한 오류",
+  "chat_input.asr_permission_msg": "마이크 권한이 거부되었습니다. 시스템 설정에서 마이크 접근을 허용해 주세요.",
+  "chat_input.asr_no_speech": "음성 감지 안 됨",
+  "chat_input.asr_no_speech_msg": "음성 입력이 감지되지 않았습니다. 다시 시도해 주세요.",
+  "chat_input.asr_device_error": "장치 오류",
+  "chat_input.asr_device_error_msg": "오디오 장치 오류 발생: {error}",
+  "chat_input.asr_error": "인식 오류",
+  "chat_input.asr_error_msg": "음성 인식 중 알 수 없는 오류 발생: {error}",
+  "chat_input.token_prediction": "예측:",
+
+  "chat_header.back_aria": "캐릭터 목록으로 돌아가기",
+  "chat_header.view_char_detail": "캐릭터 카드 상세 보기",
+  "chat_header.branch_management": "브랜치 관리",
+  "chat_header.rename_prompt": "현재 브랜치 제목 수정 (IndexedDB에서 브랜치 구분):",
+  "chat_header.click_to_edit": "(클릭하여 수정)",
+  "chat_header.bgm_unmute": "배경 음악 켜기",
+  "chat_header.bgm_mute": "배경 음악 음소거",
+  "chat_header.memory_center": "메모리 및 상태 센터",
+  "chat_header.memory": "메모리",
+  "chat_header.timeline": "스토리 연표",
+  "chat_header.table": "상태 데이터",
+  "chat_header.dict": "메모리 사전",
+
+  "char_detail.greeting_updated": "오프닝이 성공적으로 업데이트되었습니다!",
+  "char_detail.greeting_error": "오프닝 설정 오류: {error}",
+  "char_detail.unknown_creator": "시스템 프리셋 / 알 수 없는 제작자",
+  "char_detail.tab_persona": "페르소나 프로필",
+  "char_detail.tab_dialogue": "대화 대본",
+  "char_detail.tab_lore": "세계 설정 ({count})",
+  "char_detail.section_personality": "성격 특징 (Personality)",
+  "char_detail.no_personality": "특별한 성격 설정 없음...",
+  "char_detail.section_description": "외형 특징 및 배경 설명 (Description)",
+  "char_detail.no_description": "배경 스토리 설명 없음...",
+  "char_detail.section_creator_notes": "제작자 특별 메모 (Creator Notes)",
+  "char_detail.section_scenario": "배경 시나리오 및 무대 설정 (Scenario)",
+  "char_detail.section_examples": "대화 참고 예시 (Dialogue Examples)",
+  "char_detail.greeting_selector_title": "오프닝 스토리 장면 선택 ({count}개 선택 가능)",
+  "char_detail.default_greeting": "기본 오프닝 장면",
+  "char_detail.greeting_branch": "오프닝 분기 {idx}",
+  "char_detail.default_greeting_badge": "기본 스토리 시작",
+  "char_detail.alternate_greeting_badge": "대체 장면 분기 {idx}",
+  "char_detail.copy": "복사",
+  "char_detail.copy_text": "전체 텍스트 복사",
+  "char_detail.set_primary_greeting": "메인 시작으로 설정",
+  "char_detail.set_primary_greeting_title": "이 오프닝 대사를 메인 장면 첫 문장으로 영구 설정",
+  "char_detail.no_greeting": "(오프닝 설정 없음)",
+  "char_detail.lore_search_placeholder": "키워드, 트리거 워드 또는 설정 설명 검색...",
+  "char_detail.clear_search": "삭제",
+  "char_detail.badge_constant": "상시 활성",
+  "char_detail.badge_disabled": "비활성화됨",
+  "char_detail.lore_empty": "이 캐릭터 카드에는 내장 세계 설정 단어 항목이 없습니다.",
+  "char_detail.lore_no_match": "이 키워드와 일치하는 설정 단어 항목을 찾을 수 없습니다.",
+  "char_detail.priority": "우선순위:",
+  "char_detail.probability": "확률:",
+  "char_detail.depth": "깊이:",
+  "char_detail.position": "위치:",
+
+  "characters_tab.subtitle": "모바일을 위한 경량 역할극 프론트엔드",
+  "characters_tab.scan_title": "휴대폰 로컬 카드 스캔",
+  "characters_tab.import_title": "SillyTavern 캐릭터 카드 가져오기",
+  "characters_tab.create_title": "새 캐릭터 카드 수동 생성",
+  "characters_tab.more_title": "더 많은 작업",
+  "characters_tab.no_description": "정보 설명 없음...",
+  "characters_tab.branch_count": "{count} 브랜치",
+  "characters_tab.empty_title": "로컬 데이터베이스가 비어 있습니다",
+  "characters_tab.empty_desc": "기존의 SillyTavern 호환 PNG 캐릭터 카드를 업로드하거나 오른쪽 상단 버튼을 클릭하여 새 세계를 수동으로 생성하세요.",
+  "characters_tab.action_subtitle": "이 캐릭터에 대한 작업 선택",
+  "characters_tab.view_profile": "페르소나 프로필 보기",
+  "characters_tab.edit_character": "캐릭터 페르소나 편집",
+  "characters_tab.go_worldbook": "세계 설정 서브모듈 진입",
+  "characters_tab.confirm_export_json": "JSON 캐릭터 카드를 내보내시겠습니까?",
+  "characters_tab.export_json": "JSON 파일로 내보내기",
+  "characters_tab.export_png": "SillyTavern PNG 캐릭터 카드로 내보내기",
+  "characters_tab.delete_char": "이 캐릭터 카드 삭제",
+
+  "session_manager.title": "대화 브랜치 관리",
+  "session_manager.busy_switch_warning": "현재 생성 중인 대화가 있습니다. 생성 완료 또는 수동 중단 후 브랜치를 전환해 주세요.",
+  "session_manager.default_branch_name": "메인 스토리",
+  "session_manager.user_label": "나",
+  "session_manager.turn_summary_format": "{turnCount}턴 | {summaryCount}개 요약",
+  "session_manager.busy_delete_warning": "현재 생성 중인 대화가 있습니다. 생성 완료 또는 수동 중단 후 브랜치를 삭제해 주세요.",
+  "session_manager.delete_branch": "이 브랜치 삭제",
+  "session_manager.busy_create_warning": "현재 생성 중인 대화가 있습니다. 생성 완료 또는 수동 중단 후 새 브랜치를 생성해 주세요.",
+  "session_manager.new_branch": "새 빈 브랜치 만들기",
+
+  "dialog.cancel": "취소",
+  "dialog.confirm": "확인",
+  "dialog.alert_default_title": "알림",
+  "dialog.confirm_default_title": "확인",
+  "dialog.prompt_default_title": "입력",
+
+  "recall_tab.info": "💡 여기에는 **가장 최근 메시지 전송 시 AI가 성공적으로 깨어난 연관 과거 메모리**가 표시됩니다. 이는 이번 추론에서 AI에 장기 메모리 참조로 컨텍스트 주입되었습니다(의미 유사도 검색 Similarity Threshold > 0.7 기준).",
+  "recall_tab.empty_title": "이번 턴에 깨어난 관련 메모리 없음",
+  "recall_tab.empty_desc": "현재 주제가 사전 엔티티 또는 과거 메모리 요약 조각과 매칭되지 않았음을 의미합니다. 「메모리 사전」에서 새로운 핵심 엔티티 단어를 수동으로 추가하거나, 더 긴 대화 서사 축적 후 AI가 자동으로 요약할 때까지 기다릴 수 있습니다.",
+  "recall_tab.turn_label": "턴 {turn}",
+  "recall_tab.role_user": "사용자",
+  "recall_tab.role_char": "캐릭터",
+  "recall_tab.unpin": "Pin 고정 해제",
+  "recall_tab.pin": "강제 Pin 고정",
+  "recall_tab.unmute": "Mute 차단 해제",
+  "recall_tab.mute": "강제 Mute 차단",
+  "recall_tab.hit_tags": "적중 태그:",
+
+  "dict_tab.type_all": "전체",
+  "dict_tab.type_character": "인물",
+  "dict_tab.type_location": "장소",
+  "dict_tab.type_item": "아이템",
+  "dict_tab.type_organization": "조직",
+  "dict_tab.type_concept": "개념",
+  "dict_tab.entity_name_required": "엔티티 이름은 비워둘 수 없습니다!",
+  "dict_tab.duplicate_entity": "이미 「{name}」이라는 엔티티 단어가 존재합니다. 중복 추가하지 마세요.",
+  "dict_tab.confirm_delete_entry": "메모리 단어 「{entity}」을(를) 물리적으로 삭제하시겠습니까?\n이 작업은 취소할 수 없으며 향후 장기 메모리 리콜 정확도에 영향을 미칠 수 있습니다.",
+  "dict_tab.info": "메모리 사전은 장기 회상을 위한 메타데이터 설명 캐시입니다. 인물, 장소 또는 핵심 개념을 정의할 때마다 AI는 이를 단서로 삼아 후속 대화에서 의미적으로 유사한 메모리를 자동 검색하여 보상 주입합니다.",
+  "dict_tab.search_placeholder": "엔티티 이름 또는 별칭 검색...",
+  "dict_tab.close_form": "새 항목 폼 닫기",
+  "dict_tab.add_entry": "단어 수동 추가",
+  "dict_tab.form_name_label": "엔티티 이름 *",
+  "dict_tab.form_name_placeholder": "예: 백발의 예언자 에드가",
+  "dict_tab.form_aliases_label": "별칭 (쉼표로 구분된 키워드)",
+  "dict_tab.form_aliases_placeholder": "에드가, 예언자, 늙은 에드",
+  "dict_tab.form_type_label": "엔티티 유형 *",
+  "dict_tab.cancel": "취소",
+  "dict_tab.saving": "저장 중",
+  "dict_tab.confirm_save": "저장 확인",
+  "dict_tab.loading": "메모리 사전 로딩 중...",
+  "dict_tab.empty_title": "📭 메모리 사전이 아직 구축되지 않았습니다",
+  "dict_tab.empty_desc": "인물, 장소 또는 중요한 아이템 등 핵심 개념 엔티티를 추가하세요. AI는 후속 대화에서 정의된 메모리 키를 자동으로 검색하여 스토리 일관성을 유지합니다.",
+  "dict_tab.start_adding": "✨ 첫 메모리 엔티티 추가 시작",
+  "dict_tab.edit_entry": "메모리 단어 「{entity}」 편집",
+  "dict_tab.no_match": "일치하는 단어 없음",
+  "dict_tab.no_match_tip_filter": "필터 조건을 변경하거나 검색어를 지워보세요.",
+  "dict_tab.no_match_tip_empty": "캐릭터와의 대화가 늘어나면 AI가 자동으로 가치 있는 명사 엔티티를 추출합니다.",
+  "dict_tab.mention_count": "{count}회 언급",
+  "dict_tab.aliases_label": "별칭:",
+  "dict_tab.no_aliases": "별칭 없음",
+  "dict_tab.view_detail": "상세 보기",
+  "dict_tab.edit_aliases": "별칭 편집",
+  "dict_tab.delete_entry_title": "단어 물리적 삭제",
+  "dict_tab.detail_first_seen": "첫 등장 턴:",
+  "dict_tab.detail_manual": "수동 생성",
+  "dict_tab.detail_turn": "제 {turn}턴 대화",
+  "dict_tab.detail_created": "생성 시간:",
+  "dict_tab.detail_updated": "최근 업데이트 시간:",
+  "dict_tab.edit_placeholder": "쉼표 또는 공백으로 별칭 구분, 예: 문파 수령, 대사형",
+  "dict_tab.save": "저장",
+  "dict_tab.new_entry_title": "새 메모리 단어 추가",
+  "dict_tab.export_dict": "사전 내보내기",
+  "dict_tab.export_dict_title": "현재 세션 사전 내보내기",
+
+  "table_memory.confirm_delete_row": "이 행의 데이터를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+  "table_memory.confirm_reset": "현재 모든 상태 테이블 데이터를 지우고 기본 4개 테이블(관계, 아이템, 위치, 퀘스트)로 초기화합니다. 이 작업은 취소할 수 없습니다. 계속하시겠습니까?",
+  "table_memory.confirm_delete_sheet": "테이블 「{name}」 및 모든 데이터를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+  "table_memory.min_one_column": "최소 한 열은 유지해야 합니다",
+  "table_memory.name_required": "테이블 이름은 비워둘 수 없습니다",
+  "table_memory.columns_required": "최소 한 열이 필요합니다",
+  "table_memory.duplicate_name": "이미 「{name}」이라는 테이블이 존재합니다. 테이블 이름을 변경해 주세요.",
+  "table_memory.manage": "⚙️ 관리",
+  "table_memory.new_table": "새 테이블 만들기",
+  "table_memory.edit_table": "테이블 구조 편집",
+  "table_memory.cancel": "취소",
+  "table_memory.form_name_label": "테이블 이름 *",
+  "table_memory.form_name_placeholder": "예: 호감 관계",
+  "table_memory.form_columns_label": "필드 열 이름 (쉼표 구분, 첫 번째는 기본 키)",
+  "table_memory.form_columns_placeholder": "이름, 호감도, 관계 소개",
+  "table_memory.column_edit_tip": "현재 열 이름 편집으로만 구조를 조정할 수 있습니다. 기존 데이터는 삭제되지 않습니다.",
+  "table_memory.save": "저장",
+  "table_memory.reset_default": "기본 테이블 초기화",
+  "table_memory.new_custom": "새 커스텀 테이블 만들기",
+  "table_memory.empty": "구조화된 테이블 없음",
+  "table_memory.init_defaults": "기본 테이블 초기화",
+  "table_memory.enabled": "Prompt 주입 활성화됨",
+  "table_memory.disabled": "주입 비활성화됨",
+  "table_memory.delete_table": "테이블 전체 삭제",
+  "table_memory.init_required": "먼저 테이블 메모리 기능을 초기화해 주세요",
+  "table_memory.one_click_init": "원클릭 초기화",
+  "table_memory.no_rows": "레코드 데이터가 없습니다. 아래 추가 버튼을 클릭하여 새 행을 추가하세요",
+  "table_memory.empty_cell": "빈칸",
+  "table_memory.delete_row": "이 행 삭제",
+  "table_memory.add_row": "새 행 추가",
+
+  "memory_drawer.title": "메모리 및 상태 센터",
+  "memory_drawer.tab_timeline": "스토리 연표",
+  "memory_drawer.tab_table": "상태 데이터",
+  "memory_drawer.tab_dict": "메모리 사전",
+  "memory_drawer.tab_recall": "깨어난 메모리",
+  "memory_drawer.tab_mvu": "캐릭터 변수",
+  "memory_drawer.mvu_save_success": "캐릭터 변수 저장 및 동기화 성공!",
+
+  "app.kernel_init_failed_title": "🚨 코어 엔진 콜드 스타트 실패",
+  "app.kernel_init_failed_desc": "중요한 치명적 서비스(예: 로컬 데이터베이스) 초기화에 오류가 발생했습니다. 시스템이 무음 읽기/쓰기로 인한 데이터 손상을 방지하기 위해 회로 차단되었습니다.",
+  "app.kernel_retry_button": "🔄 콜드 스타트 재시도",
+
+  "chat.load_sessions_failed": "채팅 기록 로드 실패: {error}",
+  "chat.load_more_sessions_failed": "더 많은 채팅 기록 로드 실패: {error}",
+  "chat.save_session_failed": "채팅 기록 저장 실패: {error}",
+  "chat.load_more_messages_failed": "더 이전 메시지 로드 실패: {error}",
+  "chat.delete_session_failed": "채팅 기록 삭제 실패: {error}",
+
+  "splash.tagline": "당신의 영혼 교향록을 열어보세요",
+  "db.writing_overlay": "데이터베이스 쓰기 중",
+
+  "update.new_version_title": "✨ 새 버전 v{version} 발견",
+  "update.downloading": "안전 다운로드 채널 호출 중...",
+  "update.download_now": "지금 업데이트 다운로드",
+  "update.later": "나중에 업데이트",
+  "update.close_aria": "업데이트 알림 닫기",
+
+  "settings.update_service_not_ready": "UpdateCheckService가 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.",
+  "settings.already_latest": "이미 최신 버전입니다",
+  "settings.already_latest_message": "현재 실행 중인 v{version}이(가) 최신 버전입니다.",
+  "settings.check_failed": "확인 실패",
+  "settings.check_failed_message": "업데이트 확인 중 오류 발생: {error}",
+
+  "character_editor.modal_title_edit": "SillyTavern 호환 카드 라이브러리 편집",
+  "character_editor.modal_title_create": "AI 영혼 컨테이너 설정 재구성",
+  "character_editor.tab_detail": "1. 캐릭터 성격 및 기본 항목",
+  "character_editor.tab_lore": "2. 전용 캐릭터 세계 설정 바인딩 ({count})",
+  "character_editor.cancel_button": "수정 포기",
+  "character_editor.save_button": "수정 저장",
+  "character_editor.confirm_delete": "이 캐릭터 카드를 삭제하시겠습니까? 모든 파생 채팅 기록과 세계 설정이 정리됩니다.",
+  "character_editor.name_required": "캐릭터 이름을 입력해 주세요",
+  "character_editor.save_failed": "캐릭터 저장 실패: {error}",
+  "character_editor.lore_content_required": "세계 설정 단어 항목 서술 내용은 비워둘 수 없습니다",
+  "character_editor.lore_save_failed": "설정 저장 실패: {error}",
+
+  "char_detail_tab.label_name": "캐릭터 이름 *",
+  "char_detail_tab.placeholder_name": "예: 엘리아",
+  "char_detail_tab.label_avatar": "이미지 디자인 URL (base64 또는 온라인 이미지 지원)",
+  "char_detail_tab.placeholder_avatar": "data:image/png;base64,... 또는 http://...",
+  "char_detail_tab.upload": "업로드",
+  "char_detail_tab.avatar_too_large": "⚠️ 업로드 실패: 아바타 이미지 크기가 5MB를 초과할 수 없습니다!",
+  "char_detail_tab.compress_failed": "⚠️ 이미지 압축 실패: {error}",
+  "char_detail_tab.label_bg": "전용 채팅 배경 이미지 (base64 또는 온라인 이미지 지원, 우선 렌더링)",
+  "char_detail_tab.placeholder_bg": "미설정 (글로벌 배경 또는 기본 테마 배경 사용)",
+  "char_detail_tab.bg_too_large": "⚠️ 업로드 실패: 배경 이미지 크기가 5MB를 초과할 수 없습니다!",
+  "char_detail_tab.clear": "삭제",
+  "char_detail_tab.label_asterisk": "별표 액션 색상 렌더링 (캐릭터 레벨 오버라이드)",
+  "char_detail_tab.asterisk_inherit": "글로벌 설정 따르기",
+  "char_detail_tab.asterisk_enable": "강제 활성화",
+  "char_detail_tab.asterisk_disable": "강제 비활성화",
+  "char_detail_tab.label_description": "페르소나 설명 (Description/Persona)",
+  "char_detail_tab.placeholder_description": "캐릭터의 상세 설명, 성격 또는 배경 설정...",
+  "char_detail_tab.label_personality": "성격 키워드 상세화 (Personality Description)",
+  "char_detail_tab.placeholder_personality": "캐릭터의 핵심 성격 특징",
+  "char_detail_tab.label_scenario": "현재 시나리오 스토리 장면 설정 (Scenario Context)",
+  "char_detail_tab.placeholder_scenario": "현재 스토리 장면 및 환경 설정",
+  "char_detail_tab.label_first_mes": "오프닝 인사말 * (First message/Greeting)",
+  "char_detail_tab.placeholder_first_mes": "캐릭터의 첫 등장 대사",
+  "char_detail_tab.label_mes_example": "대화 예시 패턴 모음 (Dialogue Examples)",
+  "char_detail_tab.placeholder_mes_example": "<user>: 당신은 누구인가요?\n<char>: 저는...",
+  "char_detail_tab.label_system_prompt": "커스텀 시스템 프롬프트 제약 (System Instruction constraint Override)",
+  "char_detail_tab.placeholder_system_prompt": "선택적 시스템 레벨 프롬프트 오버라이드 규약",
+
+  "lore_editor.label_comment": "제목 또는 메모 *",
+  "lore_editor.placeholder_comment": "예: 계약 마력, 은밀한 성소",
+  "lore_editor.label_keys": "감지 키워드 (쉼표 구분)",
+  "lore_editor.placeholder_keys": "마력, 계약",
+  "lore_editor.label_content": "설정집 구체적 서술 내용 *",
+  "lore_editor.placeholder_content": "구체적인 메모리 사실 단락 설명...",
+  "lore_editor.checkbox_regex": "정규식",
+  "lore_editor.checkbox_memo": "제목 메모 포함",
+  "lore_editor.checkbox_constant": "상시",
+  "lore_editor.checkbox_disabled": "이 단어 비활성화",
+  "lore_editor.label_position": "위치 (Position)",
+  "lore_editor.position_after_char": "📌 캐릭터 정의 후",
+  "lore_editor.position_before_char": "📌 캐릭터 정의 전",
+  "lore_editor.position_top": "📌 페이지 상단",
+  "lore_editor.position_before_last": "💬 최신 메시지 위",
+  "lore_editor.position_in_chat": "💬 기록 회고 중 (깊이별)",
+  "lore_editor.label_depth": "깊이 (Depth)",
+  "lore_editor.label_order": "가중치 (Order)",
+  "lore_editor.label_probability": "확률 (%)",
+  "lore_editor.cancel": "취소",
+  "lore_editor.save": "이 전용 단어 저장",
+
+  "lorebook_tab.upgrade_title": "설정 단어 편집이 전면 업그레이드되었습니다",
+  "lorebook_tab.upgrade_desc": "시스템이 강력한 「인라인(In-place) 편집」을 지원하여 현재 페이지를 떠나지 않고도 캐릭터 전용 단어를 수정할 수 있습니다. 하단 바 「세계 설정」 독립 콘솔로 이동하여 매칭 전략 선택, 동적 깊이 및 가중치 등 더 많은 고급 기능을 사용하는 것을 권장합니다.",
+  "lorebook_tab.goto_worldbook": "🌐 클릭하여 하단 바 『세계 설정』· 독립 다차원 콘솔로 이동 ➡",
+  "lorebook_tab.new_entry": "➕ 이 호스트에 전용 설정 항목 수동 추가 (Inline Creator)",
+  "lorebook_tab.new_entry_card_title": "✨ 이 캐릭터에 전용 단어 빠르게 추가",
+  "lorebook_tab.entry_list_title": "이 캐릭터 부속 전용 지식 단어 ({count}개 항목)",
+  "lorebook_tab.unnamed_entry": "이름 없는 설정 단어",
+  "lorebook_tab.badge_constant": "상시",
+  "lorebook_tab.badge_disabled": "비활성화됨",
+  "lorebook_tab.trigger_word_count": "({count}개 트리거 워드)",
+  "lorebook_tab.meta_keys": "트리거 워드:",
+  "lorebook_tab.meta_position": "위치:",
+  "lorebook_tab.meta_depth_weight": "깊이 / 가중치:",
+  "lorebook_tab.meta_probability_regex": "확률 / 정규식:",
+  "lorebook_tab.none": "(없음)",
+  "lorebook_tab.position_after": "📌 캐릭터 후",
+  "lorebook_tab.position_before": "📌 캐릭터 전",
+  "lorebook_tab.position_top": "📌 상단",
+  "lorebook_tab.label_content": "설정 서술 내용 (Prompt):",
+  "lorebook_tab.label_memo": "⭐ 제목 메모 포함",
+  "lorebook_tab.edit_inline": "이 단어 편집 (Inline)",
+  "lorebook_tab.confirm_delete": "이 전용 단어 항목을 지우시겠습니까?",
+  "lorebook_tab.delete": "지우기",
+  "lorebook_tab.empty_state": "이 호스트 카드에는 아직 독립된 전용 설정이 편성되지 않았습니다. 위 버튼을 클릭하여 추가하거나 하단 「세계 설정 공용 채널」을 사용하세요.",
+
+  "regex.char_no_active": "선택 안 됨",
+
+  "backup.collapse": "접기",
+  "backup.expand": "펼치기",
+  "backup.pass_placeholder": "반드시 기억하세요. 그렇지 않으면 복구할 수 없습니다...",
+
+  "chat_import.description": "시스템이 대화 기록을 파싱하여 로컬 캐릭터 카드와 바인딩합니다. 로컬에 해당 캐릭터 카드가 가져와지지 않은 경우 먼저 캐릭터 카드를 가져오라는 메시지가 표시됩니다.",
+  "chat_import.tip_label": "팁:",
+  "chat_import.help_text": "가져오기 후 시스템은 API 빈도 폭증을 방지하기 위해 과거 메시지의 자동 요약 기능을 기본적으로 비활성화합니다.",
+
+  "tts.test_text": "안녕하세요, 모바일 선술집에 오신 것을 환영합니다. 이것은 음성 테스트 읽기입니다.",
+
+  "nav.chat": "채팅",
+  "nav.playground": "샌드박스",
 } as const;

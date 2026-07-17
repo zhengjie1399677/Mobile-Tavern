@@ -1,710 +1,736 @@
-﻿export default {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export default {
+  "control_panel.title": "Painel",
+  "control_panel.subtitle": "Parâmetros do sistema e regras granulares",
+  "control_panel.check_update": "Verificar atualização",
+  "control_panel.checking": "Verificando",
+  
+  "tabs.connection": "Conexão",
+  "tabs.features": "Funções",
+  "tabs.persona": "Persona",
+  "tabs.storage": "Armazenamento",
+  
+  "sandbox.title": "Sandbox do Sistema",
+  "sandbox.desc": "Observe em tempo real a compilação de Prompt, buffer de parsing SSE e fluxo de escaneamento do Mundolivro",
+  "sandbox.button": "🚀 Entrar no Sandbox do Sistema",
+  
+  "lang.section_title": "Configurações de Idioma",
+  "lang.select_label": "Idioma do App",
+  "lang.select_desc": "Altera o idioma da interface. Detectado automaticamente na primeira execução.",
+  
+  "features.section_title": "Configurações de Funções",
+  "features.cat_rendering": "Renderização e Interação da UI",
+  
+  "features.html_rendering": "Renderização HTML Rich Text",
+  "features.html_rendering_desc": "Permite que cartas de personagem usem tags HTML/CSS nos balões de diálogo. Desative para texto puro.",
+  
+  "features.js_execution": "Execução de Script JS da Carta",
+  "features.js_execution_desc": "Permite que cartas executem scripts JS personalizados para painéis dinâmicos. Executar scripts desconhecidos envolve riscos.",
+  
+  "features.loop_protection": "Monitor de Segurança de Loop",
+  "features.loop_protection_desc": "Insere automaticamente um watchdog de tempo em loops infinitos nos scripts, evitando travamentos. Limite de 1000ms por ciclo.",
+  
+  "features.ambient_glow": "Brilho Ambiente Reativo",
+  "features.ambient_glow_experimental": "Experimental",
+  "features.ambient_glow_desc": "Renderiza um brilho fluido no fundo do chat baseado na emoção e expressão atuais do personagem.",
+  
+  "features.reasoning_display": "Exibição de Cadeia de Pensamento",
+  "features.reasoning_display_desc": "Mostra ou oculta o processo de raciocínio nas respostas da AI. Ocultar apenas esconde o card, sem afetar a geração.",
+  
+  "features.message_queue": "Fila de Mensagens e Envio Combinado",
+  "features.message_queue_plugin": "Plugin",
+  "features.message_queue_desc": "Ao ativar, clicar em enviar apenas enfileira. Pressionar longamente (500ms+) envia tudo combinado e dispara a resposta da AI.",
+  
+  "features.asterisk_formatting": "Coloração de Ações com Asteriscos",
+  "features.asterisk_formatting_desc": "Renderiza descrições de ação em itálico com asteriscos em cinza. Configuração individual da carta tem prioridade.",
+  
+  "features.bison_mode": "Modo Bisonte",
+  "features.bison_mode_token_warning": "Aumento no consumo de Token",
+  "features.bison_mode_desc": "Ao ativar, a AI travará o input com base em probabilidade emocional e gerará de 2 a 3 respostas consecutivas (limite de 100 Tokens por vez).",
+  "features.bison_mode_warning": "⚠️ Ativar isso gera requisições API consecutivas, podendo aumentar significativamente o consumo de Token.",
+  "features.bison_mode_prompt_title": "Instrução Personalizada do Modo Bisonte",
+  "features.reset_default": "Redefinir para o Padrão",
+  
+  "features.reply_suggestions": "Gerador de Ramificações Narrativas",
+  "features.reply_suggestions_desc": "Gera opções de continuação da trama junto com a resposta. Clique para preencher ou enviar rapidamente.",
+  "features.click_mode": "Comportamento Padrão de Clique",
+  "features.click_mode_fill": "Preencher input",
+  "features.click_mode_send": "Enviar direto",
+  "features.suggestions_prompt_title": "Instrução de Geração de Ramificações",
+  "features.expression_dict_title": "Dicionário Regex de Emoções",
+  "features.expression_dict_desc": "Quando o personagem não tem triggers configurados, o sistema usa este dicionário regex para combinar mudanças de expressão (pode ser limpo para desativar).",
+  "features.reset_dict": "Redefinir Dicionário",
+  
+  "report.title": "Relatório do Sistema",
+  "report.copy": "Copiar relatório",
+  "report.check_start": "Iniciar autoteste",
+  "report.checking": "Autotestando...",
+  
+  "theme.section_title": "Tema de Leitura e Tom de Cor",
+  "theme.placeholder": "Selecionar tema",
+  "theme.snow": "Branco Puro Minimalista",
+  "theme.sand": "Areia Crepuscular",
+  "theme.ocean": "Oceano Fluorescente",
+  "theme.obsidian": "Obsidiana Escura",
+  "theme.custom_theme": "Tema Personalizado",
+  "theme.custom_header": "Temas Personalizados Importados",
+  "theme.dark": "Escuro",
+  "theme.light": "Claro",
+  "theme.management": "Gerenciar Temas",
+  "theme.new": "Novo Tema",
+  "theme.import": "Importar Pacote de Tema",
+  "theme.no_custom_desc": "Nenhum tema personalizado importado ainda. Importe um arquivo .tavern-theme.json para expandir as opções, com suporte a variáveis CSS e estilos totalmente customizáveis.",
+  "theme.font_size": "Ajuste do Tamanho da Fonte do Chat",
+  "theme.font_size_current": "Tamanho atual",
+  "theme.line_height": "Ajuste do Espaçamento entre Linhas",
+  "theme.line_height_current": "Espaçamento atual",
+  "theme.bg_image": "Imagem de Fundo Padrão Global do Chat (usada quando o personagem não tem fundo exclusivo)",
+  "theme.bg_image_enabled": "✨ Imagem de fundo personalizada ativada",
+  "theme.bg_image_disabled": "Não definida (usando cor de fundo padrão do tema)",
+  "theme.upload": "Enviar",
+  "theme.clear": "Limpar",
+  "theme.bg_effect": "Efeito de Fusão do Fundo do Chat",
+  "theme.effect_clear": "Nítido (Original)",
+  "theme.effect_medium": "Médio (Mesclado)",
+  "theme.effect_dark": "Escuro (Fosco)",
+  "theme.bg_animation": "Ativar animação de respiração lenta do fundo (Efeito Ken Burns)",
+  
+  "nav.characters": "Personagens",
+  "nav.chat-history": "Histórico",
+  "nav.global-worldbook": "Mundolivro",
+  "nav.settings": "Config.",
+  
+  "api.title": "Configuração do Endpoint da API",
+  "api.subtitle": "Configure o endereço da interface do LLM e as credenciais de autorização",
+  "api.saving": "Salvando automaticamente...",
+  "api.saved": "Alterações salvas automaticamente",
+  "api.select_profile": "Selecionar Perfil de API / Arquivo de Credenciais",
+  "api.temp_profile": "💡 Perfil de Depuração Temporário",
+  "api.save_profile": "Salvar Configuração Atual como Perfil",
+  "api.rename": "✏️ Renomear",
+  "api.delete": "🗑️ Excluir este Perfil",
+  "api.base_url": "Endereço do Proxy da API (Base URL)",
+  "api.base_url_tip": "Dica: suporta registro automático de histórico de múltiplas URLs comuns",
+  "api.clear_history": "Limpar Histórico",
+  "api.api_key": "Chave da API (API Key)",
+  "api.test_conn": "⚡ Teste de Conectividade",
+  "api.fetch_models": "Buscar Lista de Modelos",
+  "api.fetching_models": "Buscando...",
+  "api.free_tier": "💡 Usando canal público gratuito sem chave ({count}/10 usos). Ativado automaticamente quando a API Key está vazia.",
+  "api.exclusive_tier": "Chave de API personalizada configurada. Seu canal exclusivo está em uso.",
+  "api.model_id": "Identificador do Modelo Selecionado (Model ID)",
+  "api.select_model_placeholder": "Selecione um modelo obtido",
+  "api.context_limit": "Limite Máximo de Contexto (Tokens)",
+  "api.context_limit_tip": "Deixe em branco para usar o limite padrão do modelo",
+  "api.prompt_format": "Formato de Renderização do Prompt",
+  "api.prompt_format_tip": "Define a estrutura de layout do sistema/conjunto de configurações",
+  "api.format_auto": "Seleção Automática (Auto)",
+  "api.format_xml": "Formato de Tag XML (XML)",
+  "api.format_markdown": "Formato de Texto Markdown (Markdown)",
+  "api.fallback_title": "Modo de Fallback Conservador da API",
+  "api.fallback_desc": "Quando ativado, independentemente do modelo, apenas 5 parâmetros básicos serão enviados (model, messages, stream, temperature, top_p). Recomendado quando APIs de proxy de terceiros retornam erro de parâmetro (HTTP 400).",
+  "api.send_names_title": "Incluir Nomes dos Personagens na Requisição (Send Names)",
+  "api.send_names_desc": "Inclui o atributo \"name\" nas mensagens (ex.: \"LinaSchneider\", \"user\"). Atenção: alguns proxies de terceiros, Claude ou Gemini podem não suportar este atributo e retornar erro 400. Desative se houver falhas.",
+  "api.disable_reasoning_title": "Desativar Modo de Raciocínio (Disable Reasoning)",
+  "api.disable_reasoning_desc": "Para modelos com raciocínio profundo (como Claude 3.7 ou DeepSeek R1), ativar esta opção desativa ou reduz o raciocínio no nível da API, evitando consumo extra de Tokens de pensamento.",
+  "image_gen.title": "Configuração do Endpoint de Geração de Imagens AI",
+  "image_gen.subtitle": "Configure a interface do Stable Diffusion, NovelAI ou DALL-E",
+  "image_gen.enable": "Ativar Extensão de Geração de Imagens",
+  "image_gen.enable_desc": "Ao ativar, é possível gerar cenas a partir dos diálogos no menu rápido das mensagens da AI.",
+  "image_gen.force_protocol": "Forçar Tipo de Protocolo Manualmente",
+  "image_gen.force_protocol_desc": "Quando desativado, o sistema detecta automaticamente com base na Base URL (ex.: detecta palavras-chave como novelai ou sdwebui e aplica o formato correspondente; os demais usam o formato OpenAI).",
+  "image_gen.protocol_title": "Tipo de Interface de Geração",
+  "image_gen.auto_detect": "Modo de Detecção Automática (baseado na Base URL)",
+  "image_gen.base_url": "Base URL da Geração de Imagens",
+  "image_gen.api_key": "API Key / Access Token",
+  "image_gen.api_key_placeholder": "Insira a chave da API ou Token",
+  "image_gen.model": "Nome do Modelo (Model)",
+  "image_gen.model_placeholder": "Ex.: dall-e-3 ou custom-model",
+  "image_gen.width": "Largura da Imagem (Width)",
+  "image_gen.height": "Altura da Imagem (Height)",
+  "image_gen.steps": "Passos (Steps)",
+  "image_gen.cfg": "CFG Scale",
+  "image_gen.sampler": "Amostrador (Sampler)",
+  "image_gen.sampler_placeholder": "Ex.: Euler a",
+  "image_gen.edit_before_gen": "Confirmar/Editar Prompt Antes da Geração",
+  "image_gen.edit_before_gen_desc": "Ao ativar, após o LLM resumir o prompt, uma caixa de diálogo aparecerá para editar manualmente o Prompt antes de gerar a imagem.",
+  "image_gen.advanced_prompts": "Templates Avançados de Prompt e Prefixos (Advanced Prompts & Templates)",
+  "image_gen.prompt_prefix": "Prefixo Padrão do Prompt",
+  "image_gen.negative_prompt": "Prompt Negativo (Negative Prompt)",
+  "image_gen.prompt_template": "Template de Resumo de Descrição de Cena (Prompt Generator Template)",
+  "image_gen.prompt_template_desc": "O sistema usará o LLM configurado no chat para executar este prompt guia. Placeholders internos como {appearance} (características visuais), {context} (contexto da conversa), {message} (diálogo atual) serão substituídos automaticamente.",
+  "tts.title": "Configuração de Leitura por Voz (TTS)",
+  "tts.enable": "Ativar Leitura por Voz TTS",
+  "tts.enable_desc": "Ao ativar, é possível ouvir o texto das mensagens no menu de opções.",
+  "tts.trigger": "Modo de Disparo da Leitura",
+  "tts.trigger_auto": "Leitura Automática (Padrão)",
+  "tts.trigger_manual": "Leitura Manual (Sob Demanda)",
+  "tts.range": "Escopo do Conteúdo de Leitura",
+  "tts.range_all": "Ler Texto Completo (Inclui Ações)",
+  "tts.range_dialogue": "Ler Apenas Diálogos (Filtra Ações)",
+  "tts.engine": "Motor de Voz (Provider)",
+  "tts.engine_system": "TTS Nativo do Sistema (Síntese de Voz Local)",
+  "tts.engine_openai": "API OpenAI TTS (Voz HD Online)",
+  "tts.volume": "Volume",
+  "tts.rate": "Velocidade",
+  "tts.pitch": "Tom",
+  "tts.system_desc": "No mobile, usa o motor TTS nativo do sistema. O timbre é determinado pelas configurações do sistema.",
+  "tts.voice": "Personagem de Voz (Voice)",
+  "tts.test_play": "Testar Pronúncia",
+  "tts.test_stop": "Parar Teste",
+  "asr.title": "Configuração de Entrada por Voz (ASR)",
+  "asr.subtitle": "Ative a entrada por microfone e conversão de fala em texto (Web Speech API nativa ou OpenAI Whisper)",
+  "asr.enable": "Ativar Entrada por Voz",
+  "asr.enable_desc": "Ao ativar, um ícone de microfone aparecerá à esquerda do input do chat, permitindo gravar e converter automaticamente em texto.",
+  "asr.engine": "Provedor de Reconhecimento de Voz (Provider)",
+  "asr.engine_system": "Web Speech API Nativa (Sem Chave / Streaming em Tempo Real)",
+  "asr.engine_whisper": "API OpenAI Whisper (Alta Precisão)",
+  "asr.lang": "Idioma de Reconhecimento (Language)",
+  "asr.lang_placeholder": "Ex.: pt-BR, en-US, ja-JP",
+  "asr.lang_desc": "Para reconhecimento nativo do navegador, insira o código de idioma correto. Whisper pode detectar automaticamente se deixado em branco.",
+  "persona.title": "Informações da Persona",
+  "persona.active": "Configuração Atual do Jogador (User Persona)",
+  "persona.select_placeholder": "Selecionar configuração do jogador",
+  "persona.unnamed": "Personagem sem Nome",
+  "persona.create": "Criar",
+  "persona.delete": "Excluir",
+  "persona.name": "Nome do Jogador (para inferência do sistema e placeholders)",
+  "persona.name_placeholder": "Explorador Desconhecido",
+  "persona.avatar": "Avatar Personalizado do Jogador (suporta base64)",
+  "persona.avatar_placeholder": "data:image/png;base64,... ou vazio",
+  "persona.upload": "Enviar",
+  "persona.clear": "Limpar",
+  "persona.desc": "Informações do Jogador (Persona: background do mundo, descrição de aparência, etc.)",
+  "persona.desc_placeholder": "Ex.: 1,80m de altura, vestindo sobretudo preto, olhar frio...",
+  "memory_sys.title": "Sistema de Memória",
+  "memory_sys.subtitle": "Gerencie de forma unificada três submódulos complementares: janela de contexto de curto prazo, memória narrativa (resumo cronológico) e memória de estado (tabela estruturada)",
+  "memory_sys.recent_turns_title": "Janela de Contexto",
+  "memory_sys.recent_turns": "Turnos de Contexto Enviados (Recent Turns)",
+  "memory_sys.recent_turns_desc": "Número de turnos de conversa enviados integralmente com texto completo",
+  "memory_sys.recall_title": "Recuperação de Memória de Longo Prazo",
+  "memory_sys.recall_enable": "Ativar Recuperação de Memória Longa (Memory Recall)",
+  "memory_sys.recall_desc": "Recupera e injeta automaticamente os trechos de memória mais similares do histórico de mensagens",
+  "memory_sys.recall_top_k": "Quantidade de Memórias Recuperadas (Recall Top K)",
+  "memory_sys.summary_title": "Memória Narrativa · Resumo Cronológico",
+  "memory_sys.summary_enable": "Organização Automática de Memória (Auto Summary)",
+  "memory_sys.summary_desc": "Organiza a memória periodicamente. Quando os turnos de disparo são 0, sincroniza com o número de turnos de envio acima.",
+  "memory_sys.summary_trigger": "Turnos de Disparo (a cada quantos turnos organizar; 0 = sincronizar com os turnos de envio acima)",
+  "memory_sys.table_title": "Memória de Estado · Tabela Estruturada",
+  "memory_sys.table_enable": "Tabela de Memória Estruturada (Table Memory)",
+  "memory_sys.table_desc": "Organiza atributos como afeição, relações entre personagens, etc. em formato de tabela e alimenta silenciosamente a memória da AI",
+  "memory_sys.table_freq": "Frequência de Verificação da Tabela pela AI (a cada quantos turnos a AI verifica e modifica os dados)",
+  "memory_sys.table_freq_1": "A cada 1 turno (Mais em tempo real)",
+  "memory_sys.table_freq_3": "A cada 3 turnos (Recomendado)",
+  "memory_sys.table_freq_5": "A cada 5 turnos (Economiza Token)",
+  "memory_sys.advanced_title": "Templates e Instruções Avançadas de Organização (Advanced Templates & Prompts)",
+  "memory_sys.time_tag": "Template de Nomeação de Atos na Linha do Tempo (Time Tag Template)",
+  "memory_sys.time_tag_desc": "Use {{index}} como marcador de substituição do número da cena atual",
+  "memory_sys.summary_prompt": "Instrução de Resumo Automático de Memória (Summary System Prompt)",
+  "memory_sys.reset_summary": "Redefinir instrução de resumo para o padrão",
+  "memory_sys.reasoning_prompt": "Instrução de Orientação de Raciocínio (Reasoning Guidance Prompt)",
+  "memory_sys.reset_reasoning": "Redefinir instrução de raciocínio para o padrão",
+  "memory_sys.table_prompt": "Instrução de Correspondência da Tabela de Memória (Table Memory Prompt)",
+  "memory_sys.reset_table": "Redefinir instrução da tabela para o padrão",
+  "backup.title": "Backup e Migração de Dados",
+  "backup.subtitle": "Exporte todas as configurações, cartas de personagem e histórico de conversas, ou restaure o sistema a partir de um backup",
+  "backup.export_btn": "Exportar Arquivo de Backup (.json)",
+  "backup.import_btn": "Importar e Restaurar Backup",
+  "backup.pass_title": "Senha de Criptografia de Dados Independente",
+  "backup.pass_tip": "Recomendado. Se configurada, os dados serão fortemente criptografados durante a exportação/importação.",
+  "backup.encrypt_switch": "Forçar Criptografia dos Dados deste Backup",
+  "backup.status_idle": "Nenhuma tarefa de backup ativa",
+  "chat_import.title": "Importar Histórico de Chat Individual da Taverna",
+  "chat_import.subtitle": "Importe arquivos de histórico de chat de um personagem do SillyTavern (.json/.jsonl)",
+  "chat_import.upload_btn": "Selecionar Arquivo de Chat e Importar",
+  
+  "telemetrics.title": "Estatísticas de Uso (Telemetrics)",
+  "telemetrics.subtitle": "Informações básicas de execução (para rastreamento futuro de dados)",
+  "telemetrics.total_opens": "Total de Aberturas",
+  "telemetrics.total_runtime": "Tempo Total de Execução",
+  "telemetrics.times": "{count} vez(es)",
+  "telemetrics.minutes": "{count} minuto(s)",
+  
+  "samplers.title": "Parâmetros de Temperatura e Amostragem",
+  "samplers.subtitle": "Ajuste a aleatoriedade, penalidades e comprimento máximo da geração do modelo",
+  "samplers.temp": "Temperatura (Temp)",
+  "samplers.top_p": "Amostragem de Núcleo (Top P)",
+  "samplers.rep_penalty": "Penalidade de Repetição (Rep Penalty)",
+  "samplers.max_tokens": "Limite de Comprimento (Max Tokens)",
+  
+  "preset_selector.active_preset": "Preset Atual: {name}",
+  "preset_selector.import": "Importar Config.",
+  "preset_selector.export": "Exportar Config.",
+  "preset_selector.save_copy": "Salvar como Novo Preset",
+  "preset_selector.delete_custom": "Excluir Preset Personalizado Atual",
+  
+  "prompts.title": "Configuração de Prompts Predefinidos",
+  "prompts.subtitle": "Configure instruções de atuação de baixo nível, regras de prompt e módulos de extensão granular",
+  "prompts.st_compat_desc": "Injeta tags de compatibilidade ST: processamento dinâmico de macros como {{char}}, {{user}}.",
+  "prompts.confirm_delete": "Confirmar Exclusão",
+  "prompts.cancel": "Cancelar",
+  "prompts.batch_delete": "Excluir em Lote",
+  "prompts.create_module": "Criar Módulo",
+  "prompts.no_modules": "Nenhum componente de regra anexado",
+  "prompts.system_prompt": "Instrução de Atuação de Baixo Nível (System Prompt)",
+  "prompts.system_prompt_tip": "system · Posicionado no topo do contexto",
+  "prompts.system_prompt_placeholder": "Insira a instrução de sistema de roleplay de baixo nível...",
+  "prompts.jailbreak": "Prompt de Regras (Jailbreak)",
+  "prompts.jailbreak_tip": "system · Injetado antes do beforeLast",
+  "prompts.jailbreak_placeholder": "Insira o prompt de regras...",
+  
+  "regex.title": "Gerenciamento de Scripts de Filtro Regex",
+  "regex.subtitle": "Configure regras de filtro de expressão regular globais e específicas do preset para sanitizar o texto antes do envio ou exibição",
+  "regex.global": "🌌 Script Regex Global (Global Regex)",
+  "regex.global_tip": "Aplica-se a todos os personagens e presets, salvo nas configurações globais",
+  "regex.preset": "📋 Regex Exclusivo do Preset (Preset Regex)",
+  "regex.preset_tip": "Ativo apenas quando o preset atual [{name}] estiver ativo, salvo e exportado junto com o preset",
+  "regex.char": "🎭 Regex Local Exclusivo do Personagem Ativo (Character Local Regex)",
+  "regex.char_tip": "Ativo apenas quando o personagem [{name}] estiver ativo, salvo diretamente na carta do personagem",
+  "regex.create_global": "Criar Global",
+  "regex.create_preset": "Criar Preset",
+  "regex.create_char": "Criar Personagem",
+  "regex.no_global": "Nenhum script regex global. Crie manualmente para filtrar tags como <think>.",
+  "regex.no_preset": "Nenhum script regex exclusivo do preset. Serão analisados e importados automaticamente ao importar um preset.",
+  "regex.no_char": "O personagem atual não tem regex local exclusivo. Clique no botão acima para criar manualmente um filtro exclusivo.",
+  "regex.placement_both": "Bidirecional",
+  "regex.placement_input": "Entrada",
+  "regex.placement_output": "Saída",
+  "regex.edit": "Editar",
+  "regex.delete": "Excluir",
+  "regex.modal_new": "Novo Script Regex",
+  "regex.modal_edit": "Editar Script Regex",
+  "regex.modal_close": "Fechar",
+  "regex.modal_name": "Nome do Script",
+  "regex.modal_name_placeholder": "Ex.: Ocultar Cadeia de Pensamento",
+  "regex.modal_find": "Expressão Regular de Correspondência (suporta formato /pattern/flags)",
+  "regex.modal_find_placeholder": "Ex.: /<think>[\\s\\S]*?<\\/think>/gi",
+  "regex.modal_replace": "Texto de Substituição (pode usar placeholders $1, $2)",
+  "regex.modal_replace_placeholder": "Ex.: (deixe em branco para excluir o conteúdo correspondente)",
+  "regex.modal_placement": "Estágio de Ação (Placement)",
+  "regex.modal_placement_input": "Estágio de Entrada (Interceptar Envio)",
+  "regex.modal_placement_output": "Estágio de Saída (Interceptar Renderização)",
+  "regex.modal_save": "Salvar",
+  
+  "preset_form.none": "Nenhum",
+  "preset_form.scope_global": "Global",
+  "preset_form.scope_preset": "Exclusivo do Preset",
+  "preset_form.scope_char": "Exclusivo do Personagem",
+  "preset_form.confirm_delete_regex": "Tem certeza de que deseja excluir o script regex {scope}【{name}】?",
+  "preset_form.regex_empty_error": "O nome do script e a expressão regular não podem estar vazios!",
+  "preset_form.confirm_batch_delete_prompts": "Tem certeza de que deseja excluir em lote os {count} módulos de prompt selecionados?",
+  "preset_form.confirm_batch_delete_global_regex": "Tem certeza de que deseja excluir em lote os {count} scripts regex globais selecionados?",
+  "preset_form.confirm_batch_delete_preset_regex": "Tem certeza de que deseja excluir em lote os {count} scripts regex exclusivos do preset selecionados?",
+  
+  "worldbook.title": "Livro de Configurações do Mundo",
+  "worldbook.subtitle": "Isolamento Exclusivo por Hospedeiro / Compartilhamento Global Permanente",
+  "worldbook.new": "Novo",
+  "worldbook.import": "Importar",
+  "worldbook.export": "Exportar",
+  "worldbook.export_alert": "Por favor, primeiro clique para entrar em um circuito de memória (Global ou Personagem) antes de exportar.",
+  "worldbook.list_header": "👤 Conjuntos Exclusivos de Personagem (Character Bound Worldbooks)",
+  "worldbook.list_count": "Total de {count} conjunto(s)",
+  "worldbook.custom_tip": "🔒 Conjunto Independente (Pressione Longamente para Excluir)",
+  "worldbook.no_characters": "📭 Nenhum hospedeiro de personagem válido encontrado. Vá ao painel 'Configuração de Hospedeiro' para criar uma carta e desbloquear o circuito exclusivo do Mundolivro!",
+  "worldbook.char_tip_global": "🌎 Conjunto definido como【Compartilhamento Global】",
+  "worldbook.char_tip_local": "🔒 Conjunto limitado a este【Personagem Exclusivo】",
+  "worldbook.switch_global": "🌎 Global",
+  "worldbook.switch_local": "👤 Exclusivo",
+  
+  "history.title": "Histórico de Conversas (History)",
+  "history.sort_by_time": "Por Tempo",
+  "history.sort_by_char": "Por Personagem",
+  "history.empty": "Nenhum registro de conversa",
+  "history.empty_tip": "Vá para a galeria de personagens e escolha um para começar a conversar!",
+  "history.main_timeline": "Linha do Tempo Principal",
+  "history.turns_chars": "{turnCount} turnos | {charCount} caracteres",
+  "history.turns": "{count} turnos",
+  "history.chars": "{count} caracteres",
+  "history.me": "Eu",
+  "history.delete": "Excluir Conversa",
+  "history.sessions_count": "{count} conversa(s)",
+  "history.recent_active": "Atividade recente: {time}",
+  "history.total_chars": "Total de {count} caracteres",
+  "history.unassigned_char": "Personagem Não Atribuído",
+  "history.removed_char": "Personagem Removido",
+  
+  "scanner.title": "Buscar e Importar Cartas de Personagem Locais",
+  "scanner.close": "Fechar",
+  "scanner.scan_failed": "Falha na busca: ",
+  "scanner.import_success": "Importação bem-sucedida: carta \"{name}\" carregada!",
+  "scanner.import_failed": "Falha na importação do arquivo: ",
+  "scanner.mock_env": "Ambiente Simulado de Sandbox do Navegador",
+  "scanner.mock_env_tip": "Executando em modo de desenvolvimento Web. Para verificar a interface e a lógica de importação, clique no botão abaixo para simular a busca de cartas de teste.",
+  "scanner.mock_scanning": "Simulando busca...",
+  "scanner.mock_btn": "Simular Busca no Armazenamento (Scan Files)",
+  "scanner.permission_title": "Permissão de Acesso ao Armazenamento Externo Necessária",
+  "scanner.permission_desc": "O App precisa ler seu armazenamento externo (como a pasta Downloads) para buscar cartas de personagem armazenadas lá. Você pode fechar ou revogar esta permissão nas configurações do dispositivo a qualquer momento.",
+  "scanner.permission_btn": "Autorizar e Buscar Cartas Locais",
+  "scanner.scanning": "Buscando no armazenamento...",
+  "scanner.scan_btn": "Buscar Agora nas Pastas Download e Pictures",
+  "scanner.search_placeholder": "Pesquisar arquivos de cartas locais encontrados...",
+  "scanner.scan_waiting": "Buscando cartas nos diretórios públicos do dispositivo, aguarde...",
+  "scanner.no_results": "Nenhum resultado da busca",
+  "scanner.no_match": "Nenhum arquivo corresponde à palavra-chave de pesquisa.",
+  "scanner.no_results_tip": "Clique no botão de busca acima para localizar arquivos .json de pacote de personagem ou cartas PNG da Taverna no seu dispositivo.",
+  "scanner.file_meta": "Tamanho: {size} | Modificado: {date}",
+  "scanner.importing": "Importando",
+  "scanner.import": "Importar",
+  "quick_dialogue.copy": "Copiar",
+  "quick_dialogue.edit": "Editar",
+  "quick_dialogue.img_gen_not_enabled": "Ative a função de geração de imagens nas configurações e configure os parâmetros da API primeiro.",
+  "quick_dialogue.edit_prompt_message": "O prompt de geração de imagem foi gerado. Você pode modificá-lo aqui:",
+  "quick_dialogue.prompt_confirm_title": "Confirmação do Prompt",
+  "quick_dialogue.img_gen_failed": "Falha na Geração de Imagem",
+  "quick_dialogue.img_gen_failed_msg": "Falha ao gerar imagem: {error}",
+  "quick_dialogue.img_gen": "Gerar Imagem",
+  "quick_dialogue.img_gen_title": "Gerar cena a partir do diálogo atual",
+  "quick_dialogue.tts_stop": "Parar",
+  "quick_dialogue.tts_read": "Ler",
+  "quick_dialogue.tts_stop_title": "Parar leitura por voz",
+  "quick_dialogue.tts_read_title": "Ler diálogo atual por voz",
+  "quick_dialogue.more": "Mais",
+  "quick_dialogue.more_title": "Mais Opções",
+  "quick_dialogue.reroll": "Reenviar",
+  "quick_dialogue.branch": "Ramificação",
+  "quick_dialogue.confirm_delete_msg": "Tem certeza de que deseja excluir esta fala?",
+  "quick_dialogue.delete": "Excluir",
+  "quick_dialogue.confirm_summarize": "Iniciar compressão inteligente da carta pela AI? Isso converterá o histórico de conversas mais antigo em uma única entrada na linha do tempo, liberando memória e mantendo a coerência do tom.",
+  "quick_dialogue.summarize": "Resumir",
+  "message_bubble.user_said": "Eu disse",
+  "message_bubble.char_said": "disse",
+  "message_bubble.role": "Personagem",
+  "message_bubble.me_avatar": "Eu",
+  "message_bubble.ai_fallback": "AI",
+  "message_bubble.swipe_edit": "Editar",
+  "message_bubble.swipe_draw": "Gerar Imagem",
+  "message_bubble.swipe_tts_stop": "Parar",
+  "message_bubble.swipe_tts_read": "Ler",
+  "message_bubble.edit_save": "Salvar",
+  "message_bubble.edit_cancel": "Cancelar",
+  "message_bubble.reasoning_collapse": "Recolher Raciocínio",
+  "message_bubble.reasoning_thinking": "AI está pensando (clique para ver)...",
+  "message_bubble.reasoning_view": "Ver Raciocínio",
+  "message_bubble.reasoning_chars": "{length} caracteres",
+  "message_bubble.copy_reasoning": "Copiar Cadeia de Pensamento",
+  "message_bubble.ai_composing": "AI está elaborando a resposta...",
+  "message_bubble.no_content": "*(Nenhum conteúdo gerado)*",
+  "message_bubble.drawing_scene": "AI está desenhando a cena para você...",
+  "message_bubble.confirm_save_image": "Deseja salvar esta imagem gerada?",
+  "message_bubble.image_save_success": "Salvo com Sucesso",
+  "message_bubble.image_save_success_msg": "📂 Imagem salva com sucesso!\nArquivo salvo na pasta /Download do dispositivo...",
+  "message_bubble.image_save_failed": "Falha ao Salvar",
+  "message_bubble.image_save_failed_msg": "❌ Falha ao salvar imagem: {error}",
+  "message_bubble.save_error": "Erro ao Salvar",
+  "message_bubble.export_success": "Exportado com Sucesso",
+  "message_bubble.click_to_save": "Clique para salvar a imagem",
+  "message_bubble.round_label": "Turno {roundNum}",
+  "chat_input.reroll_last": "Recarregar Cena Anterior",
+  "chat_input.continue": "Continuar",
+  "chat_input.suggestions_label": "✨ Gerador de Ramificações Narrativas:",
+  "chat_input.click_mode": "Comportamento: {mode}",
+  "chat_input.click_mode_send": "Enviar direto",
+  "chat_input.click_mode_fill": "Preencher input",
+  "chat_input.placeholder_bison": "{name} continua falando...",
+  "chat_input.placeholder_recording": "Ouvindo entrada de voz, por favor fale...",
+  "chat_input.placeholder_transcribing": "Transcrevendo voz para texto...",
+  "chat_input.placeholder_default": "Envie uma fala para {name} começar...",
+  "chat_input.aria_label": "Caixa de mensagem para enviar a {name}",
+  "chat_input.stop": "Interromper Diálogo",
+  "chat_input.asr_stop": "Parar Gravação",
+  "chat_input.asr_recognizing": "Reconhecendo Voz",
+  "chat_input.asr_mic": "Entrada de Voz",
+  "chat_input.asr_transcribing": "Reconhecendo...",
+  "chat_input.send_title": "Enviar mensagem (Pressione Longamente para Combinar)",
+  "chat_input.send": "Enviar msg",
+  "chat_input.send_long_press": "Clique para enviar. Pressione por 500ms para combinar com mensagens anteriores.",
+  "chat_input.asr_permission_denied": "Erro de Permissão",
+  "chat_input.asr_permission_msg": "Permissão de microfone negada. Permita o acesso ao microfone nas configurações do sistema.",
+  "chat_input.asr_no_speech": "Nenhuma Voz Detectada",
+  "chat_input.asr_no_speech_msg": "Nenhuma entrada de voz detectada. Tente novamente.",
+  "chat_input.asr_device_error": "Erro de Dispositivo",
+  "chat_input.asr_device_error_msg": "Erro no dispositivo de áudio: {error}",
+  "chat_input.asr_error": "Erro de Reconhecimento",
+  "chat_input.asr_error_msg": "Erro desconhecido no reconhecimento de voz: {error}",
+  "chat_input.token_prediction": "Previsto:",
+  "chat_header.back_aria": "Voltar à Lista de Personagens",
+  "chat_header.view_char_detail": "Ver Detalhes da Carta",
+  "chat_header.branch_management": "Gerenciar Ramificações",
+  "chat_header.rename_prompt": "Modifique o título da ramificação atual (diferenciado no IndexedDB):",
+  "chat_header.click_to_edit": "(Clique para Editar)",
+  "chat_header.bgm_unmute": "Ativar Música de Fundo",
+  "chat_header.bgm_mute": "Silenciar Música de Fundo",
+  "chat_header.memory_center": "Central de Memória e Estado",
+  "chat_header.memory": "Memória",
+  "chat_header.timeline": "Linha do Tempo",
+  "chat_header.table": "Dados de Estado",
+  "chat_header.dict": "Dicionário de Memória",
+  "char_detail.greeting_updated": "Saudação inicial atualizada com sucesso!",
+  "char_detail.greeting_error": "Erro ao definir saudação: {error}",
+  "char_detail.unknown_creator": "Predefinição do Sistema / Criador Desconhecido",
+  "char_detail.tab_persona": "Perfil da Persona",
+  "char_detail.tab_dialogue": "Roteiro de Diálogo",
+  "char_detail.tab_lore": "Configurações do Mundo ({count})",
+  "char_detail.section_personality": "Traços de Personalidade (Personality)",
+  "char_detail.no_personality": "Nenhum traço de personalidade especial definido...",
+  "char_detail.section_description": "Aparência e Descrição Biográfica (Description)",
+  "char_detail.no_description": "Nenhuma história de fundo disponível...",
+  "char_detail.section_creator_notes": "Notas Especiais do Criador (Creator Notes)",
+  "char_detail.section_scenario": "Cenário de Fundo e Palco da Cena (Scenario)",
+  "char_detail.section_examples": "Exemplos de Diálogo de Referência (Dialogue Examples)",
+  "char_detail.greeting_selector_title": "Selecionar Cena de Abertura ({count} opções disponíveis)",
+  "char_detail.default_greeting": "Cena de Abertura Padrão",
+  "char_detail.greeting_branch": "Ramificação de Abertura {idx}",
+  "char_detail.default_greeting_badge": "Início de Trama Padrão",
+  "char_detail.alternate_greeting_badge": "Ramificação de Cena Alternativa {idx}",
+  "char_detail.copy": "Copiar",
+  "char_detail.copy_text": "Copiar Texto Completo",
+  "char_detail.set_primary_greeting": "Definir como Abertura Principal",
+  "char_detail.set_primary_greeting_title": "Definir permanentemente esta saudação como a cena principal",
+  "char_detail.no_greeting": "(Nenhuma saudação inicial definida)",
+  "char_detail.lore_search_placeholder": "Pesquisar palavra-chave, gatilho ou descrição...",
+  "char_detail.clear_search": "Limpar",
+  "char_detail.badge_constant": "Sempre Ativo",
+  "char_detail.badge_disabled": "Desativado",
+  "char_detail.lore_empty": "Esta carta de personagem não contém nenhuma entrada de configuração de mundo incorporada.",
+  "char_detail.lore_no_match": "Nenhuma entrada de configuração corresponde a esta palavra-chave.",
+  "char_detail.priority": "Prioridade:",
+  "char_detail.probability": "Probabilidade:",
+  "char_detail.depth": "Profundidade:",
+  "char_detail.position": "Posição:",
+  "characters_tab.subtitle": "Frontend de RPG Leve Otimizado para Dispositivos Móveis",
+  "characters_tab.scan_title": "Buscar Cartas Locais no Dispositivo",
+  "characters_tab.import_title": "Importar Carta do SillyTavern",
+  "characters_tab.create_title": "Criar Nova Carta Manualmente",
+  "characters_tab.more_title": "Mais Opções",
+  "characters_tab.no_description": "Nenhuma descrição disponível...",
+  "characters_tab.branch_count": "{count} ramificação(ões)",
+  "characters_tab.empty_title": "Banco de Dados Local Vazio",
+  "characters_tab.empty_desc": "Envie uma carta PNG compatível com SillyTavern ou clique no botão superior direito para criar um novo mundo manualmente.",
+  "characters_tab.action_subtitle": "Escolha uma ação para este personagem",
+  "characters_tab.view_profile": "Ver Perfil da Persona",
+  "characters_tab.edit_character": "Editar Persona do Personagem",
+  "characters_tab.go_worldbook": "Acessar Submódulo Mundolivro",
+  "characters_tab.confirm_export_json": "Tem certeza de que deseja exportar a carta como JSON?",
+  "characters_tab.export_json": "Exportar como Arquivo JSON",
+  "characters_tab.export_png": "Exportar como Carta PNG SillyTavern",
+  "characters_tab.delete_char": "Excluir Esta Carta",
+  "session_manager.title": "Gerenciamento de Ramificações de Diálogo",
+  "session_manager.busy_switch_warning": "Há um diálogo sendo gerado no momento. Aguarde a conclusão ou pare manualmente antes de alternar a ramificação.",
+  "session_manager.default_branch_name": "Linha do Tempo Principal",
+  "session_manager.user_label": "Eu",
+  "session_manager.turn_summary_format": "{turnCount} turnos | {summaryCount} trecho(s)",
+  "session_manager.busy_delete_warning": "Há um diálogo sendo gerado no momento. Aguarde a conclusão ou pare manualmente antes de excluir a ramificação.",
+  "session_manager.delete_branch": "Excluir Esta Ramificação",
+  "session_manager.busy_create_warning": "Há um diálogo sendo gerado no momento. Aguarde a conclusão ou pare manualmente antes de criar uma nova ramificação.",
+  "session_manager.new_branch": "Nova Ramificação em Branco",
+  "dialog.cancel": "Cancelar",
+  "dialog.confirm": "Confirmar",
+  "dialog.alert_default_title": "Aviso",
+  "dialog.confirm_default_title": "Confirmação",
+  "dialog.prompt_default_title": "Entrada",
+  "recall_tab.info": "💡 Aqui são exibidas as **memórias históricas relacionadas que foram ativadas com sucesso pela AI na última mensagem enviada**. Elas foram injetadas no contexto desta inferência como referência de memória de longo prazo (baseada em Similaridade Semântica > 0.7).",
+  "recall_tab.empty_title": "Nenhuma Memória Relevante Ativada Neste Turno",
+  "recall_tab.empty_desc": "Isso significa que o tópico atual não correspondeu a entidades do dicionário ou trechos de resumo de memória histórica. Você pode adicionar manualmente novas entidades-chave no 'Dicionário de Memória' ou aguardar o acúmulo narrativo para que a AI gere resumos automáticos.",
+  "recall_tab.turn_label": "Turno {turn}",
+  "recall_tab.role_user": "Usuário",
+  "recall_tab.role_char": "Personagem",
+  "recall_tab.unpin": "Remover Fixação",
+  "recall_tab.pin": "Fixar Forçadamente",
+  "recall_tab.unmute": "Remover Bloqueio",
+  "recall_tab.mute": "Bloquear Forçadamente",
+  "recall_tab.hit_tags": "Tags Acionadas:",
+  "dict_tab.type_all": "Todos",
+  "dict_tab.type_character": "Personagem",
+  "dict_tab.type_location": "Local",
+  "dict_tab.type_item": "Item",
+  "dict_tab.type_organization": "Organização",
+  "dict_tab.type_concept": "Conceito",
+  "dict_tab.entity_name_required": "O nome da entidade não pode estar vazio!",
+  "dict_tab.duplicate_entity": "Já existe uma entidade chamada「{name}」. Não adicione duplicatas.",
+  "dict_tab.confirm_delete_entry": "Confirmar exclusão física da entrada de memória「{entity}」?\nEsta operação é irreversível e pode afetar a precisão da recuperação de memória de longo prazo.",
+  "dict_tab.info": "O Dicionário de Memória é um cache de descrição de metadados para recordação de longo prazo. Sempre que você define uma pessoa, local ou conceito-chave, a AI o usará como pista para recuperar automaticamente memórias semanticamente similares em conversas futuras.",
+  "dict_tab.search_placeholder": "Pesquisar nome de entidade ou alias...",
+  "dict_tab.close_form": "Fechar Formulário",
+  "dict_tab.add_entry": "Adicionar Entrada",
+  "dict_tab.form_name_label": "Nome da Entidade *",
+  "dict_tab.form_name_placeholder": "Ex.: Profeta de Cabelo Branco Edgar",
+  "dict_tab.form_aliases_label": "Alias (separados por vírgula)",
+  "dict_tab.form_aliases_placeholder": "Edgar, Profeta, Velho Ed",
+  "dict_tab.form_type_label": "Tipo de Entidade *",
+  "dict_tab.cancel": "Cancelar",
+  "dict_tab.saving": "Salvando",
+  "dict_tab.confirm_save": "Confirmar",
+  "dict_tab.loading": "Carregando Dicionário de Memória...",
+  "dict_tab.empty_title": "📭 Dicionário de Memória Não Criado",
+  "dict_tab.empty_desc": "Adicione entidades conceituais-chave como personagens, locais ou itens importantes. A AI buscará automaticamente as chaves de memória definidas em conversas futuras para manter a coerência narrativa.",
+  "dict_tab.start_adding": "✨ Comece Adicionando a Primeira Entidade",
+  "dict_tab.edit_entry": "Editar Entrada de Memória「{entity}」",
+  "dict_tab.no_match": "Nenhuma Entrada Correspondente",
+  "dict_tab.no_match_tip_filter": "Tente alterar os critérios de filtro ou limpar a pesquisa.",
+  "dict_tab.no_match_tip_empty": "Conforme suas conversas com o personagem aumentam, a AI extrairá automaticamente entidades nominais valiosas.",
+  "dict_tab.mention_count": "Mencionado {count} vez(es)",
+  "dict_tab.aliases_label": "Alias:",
+  "dict_tab.no_aliases": "Sem alias",
+  "dict_tab.view_detail": "Ver Detalhes",
+  "dict_tab.edit_aliases": "Editar Alias",
+  "dict_tab.delete_entry_title": "Excluir Entrada Permanentemente",
+  "dict_tab.detail_first_seen": "Primeira Aparição no Turno:",
+  "dict_tab.detail_manual": "Criação Manual",
+  "dict_tab.detail_turn": "Turno {turn}",
+  "dict_tab.detail_created": "Data de Criação:",
+  "dict_tab.detail_updated": "Última Atualização:",
+  "dict_tab.edit_placeholder": "Separe os aliases por vírgula ou espaço, ex.: Líder da Seita, Irmão Mais Velho",
+  "dict_tab.save": "Salvar",
+  "dict_tab.new_entry_title": "Nova Entrada de Memória",
+  "dict_tab.export_dict": "Exportar Dicionário",
+  "dict_tab.export_dict_title": "Exportar Dicionário da Sessão Atual",
+  "table_memory.confirm_delete_row": "Tem certeza de que deseja excluir esta linha? Esta operação é irreversível.",
+  "table_memory.confirm_reset": "Isso limpará todos os dados atuais da tabela de estado e redefinirá para as 4 tabelas padrão (Relações, Itens, Locais, Missões). Esta operação é irreversível. Continuar?",
+  "table_memory.confirm_delete_sheet": "Tem certeza de que deseja excluir a tabela「{name}」e todos os seus dados? Esta operação é irreversível.",
+  "table_memory.min_one_column": "É necessário pelo menos uma coluna",
+  "table_memory.name_required": "O nome da tabela não pode estar vazio",
+  "table_memory.columns_required": "É necessário pelo menos uma coluna",
+  "table_memory.duplicate_name": "Já existe uma tabela chamada「{name}」. Altere o nome.",
+  "table_memory.manage": "⚙️ Gerenciar",
+  "table_memory.new_table": "Nova Tabela",
+  "table_memory.edit_table": "Editar Estrutura",
+  "table_memory.cancel": "Cancelar",
+  "table_memory.form_name_label": "Nome da Tabela *",
+  "table_memory.form_name_placeholder": "Ex.: Relações de Afeição",
+  "table_memory.form_columns_label": "Nomes das Colunas (separados por vírgula, a primeira é a chave primária)",
+  "table_memory.form_columns_placeholder": "Nome, Afeição, Resumo da Relação",
+  "table_memory.column_edit_tip": "Atualmente, só é possível ajustar a estrutura editando os nomes das colunas. Os dados existentes não serão apagados.",
+  "table_memory.save": "Salvar",
+  "table_memory.reset_default": "Redefinir Padrão",
+  "table_memory.new_custom": "Nova Tabela Personalizada",
+  "table_memory.empty": "Nenhuma Tabela Estruturada",
+  "table_memory.init_defaults": "Inicializar Tabelas Padrão",
+  "table_memory.enabled": "Injeção no Prompt Ativada",
+  "table_memory.disabled": "Injeção Desativada",
+  "table_memory.delete_table": "Excluir Tabela Inteira",
+  "table_memory.init_required": "Inicialize a função de tabela de memória primeiro",
+  "table_memory.one_click_init": "Inicializar com Um Clique",
+  "table_memory.no_rows": "Nenhum registro. Clique no botão abaixo para adicionar uma nova linha.",
+  "table_memory.empty_cell": "Vazio",
+  "table_memory.delete_row": "Excluir Esta Linha",
+  "table_memory.add_row": "Adicionar Nova Linha",
+  "memory_drawer.title": "Central de Memória e Estado",
+  "memory_drawer.tab_timeline": "Linha do Tempo",
+  "memory_drawer.tab_table": "Dados de Estado",
+  "memory_drawer.tab_dict": "Dicionário",
+  "memory_drawer.tab_recall": "Memórias Ativadas",
+  "memory_drawer.tab_mvu": "Variáveis do Personagem",
+  "memory_drawer.mvu_save_success": "Variáveis do personagem salvas e sincronizadas com sucesso!",
+  "app.kernel_init_failed_title": "🚨 Falha na Inicialização do Motor Principal",
+  "app.kernel_init_failed_desc": "Erro na inicialização de serviços críticos (como o banco de dados local). O sistema foi interrompido para evitar corrupção silenciosa de dados.",
+  "app.kernel_retry_button": "🔄 Tentar Inicialização Novamente",
+  "chat.load_sessions_failed": "Falha ao carregar histórico de conversas: {error}",
+  "chat.load_more_sessions_failed": "Falha ao carregar mais conversas: {error}",
+  "chat.save_session_failed": "Falha ao salvar conversa: {error}",
+  "chat.load_more_messages_failed": "Falha ao carregar mensagens anteriores: {error}",
+  "chat.delete_session_failed": "Falha ao excluir conversa: {error}",
+  "splash.tagline": "Abra sua Sinfonia de Almas",
+  "db.writing_overlay": "Gravando no Banco de Dados",
+  "update.new_version_title": "✨ Nova Versão Encontrada v{version}",
+  "update.downloading": "Iniciando canal seguro de download...",
+  "update.download_now": "Baixar Atualização Agora",
+  "update.later": "Atualizar Depois",
+  "update.close_aria": "Fechar Aviso de Atualização",
+  "settings.update_service_not_ready": "UpdateCheckService não está pronto. Tente novamente mais tarde.",
+  "settings.already_latest": "Já Está na Versão Mais Recente",
+  "settings.already_latest_message": "Você está executando a v{version}, que já é a versão mais recente.",
+  "settings.check_failed": "Falha na Verificação",
+  "settings.check_failed_message": "Erro ao verificar atualização: {error}",
+  "character_editor.modal_title_edit": "Editar Carta Compatível com SillyTavern",
+  "character_editor.modal_title_create": "Recriar Recipiente de Alma da AI",
+  "character_editor.tab_detail": "1. Personalidade e Itens Básicos",
+  "character_editor.tab_lore": "2. Vincular Mundolivro Exclusivo ({count})",
+  "character_editor.cancel_button": "Descartar Alterações",
+  "character_editor.save_button": "Salvar Alterações",
+  "character_editor.confirm_delete": "Tem certeza de que deseja excluir esta carta? Todos os históricos de conversa e mundolivros derivados também serão removidos.",
+  "character_editor.name_required": "Por favor, insira o nome do personagem",
+  "character_editor.save_failed": "Falha ao salvar personagem: {error}",
+  "character_editor.lore_content_required": "O conteúdo da entrada do mundolivro não pode estar vazio",
+  "character_editor.lore_save_failed": "Falha ao salvar configuração: {error}",
+  "char_detail_tab.label_name": "Nome do Personagem *",
+  "char_detail_tab.placeholder_name": "Ex.: Alia",
+  "char_detail_tab.label_avatar": "URL do Avatar (suporta base64 ou imagem online)",
+  "char_detail_tab.placeholder_avatar": "data:image/png;base64,... ou http://...",
+  "char_detail_tab.upload": "Enviar",
+  "char_detail_tab.avatar_too_large": "⚠️ Falha no envio: o avatar não pode exceder 5MB!",
+  "char_detail_tab.compress_failed": "⚠️ Falha na compressão da imagem: {error}",
+  "char_detail_tab.label_bg": "Imagem de Fundo Exclusiva do Chat (suporta base64 ou imagem online, prioridade de renderização)",
+  "char_detail_tab.placeholder_bg": "Não definida (usará o fundo global ou cor padrão do tema)",
+  "char_detail_tab.bg_too_large": "⚠️ Falha no envio: a imagem de fundo não pode exceder 5MB!",
+  "char_detail_tab.clear": "Limpar",
+  "char_detail_tab.label_asterisk": "Coloração de Ações com Asteriscos (Substituição no Nível do Personagem)",
+  "char_detail_tab.asterisk_inherit": "Seguir Configuração Global",
+  "char_detail_tab.asterisk_enable": "Forçar Ativação",
+  "char_detail_tab.asterisk_disable": "Forçar Desativação",
+  "char_detail_tab.label_description": "Descrição da Persona (Description/Persona)",
+  "char_detail_tab.placeholder_description": "Descrição detalhada do personagem, personalidade ou história de fundo...",
+  "char_detail_tab.label_personality": "Refinamento de Traços de Personalidade (Personality Description)",
+  "char_detail_tab.placeholder_personality": "Traços essenciais de personalidade do personagem",
+  "char_detail_tab.label_scenario": "Cenário Atual da Trama (Scenario Context)",
+  "char_detail_tab.placeholder_scenario": "O cenário atual da história e a configuração do ambiente",
+  "char_detail_tab.label_first_mes": "Saudação Inicial * (First message/Greeting)",
+  "char_detail_tab.placeholder_first_mes": "A primeira fala do personagem ao aparecer",
+  "char_detail_tab.label_mes_example": "Exemplos de Diálogo (Dialogue Examples)",
+  "char_detail_tab.placeholder_mes_example": "<user>: Quem é você?\n<char>: Eu sou...",
+  "char_detail_tab.label_system_prompt": "Substituição de Restrição de Instrução do Sistema (System Instruction Constraint Override)",
+  "char_detail_tab.placeholder_system_prompt": "Convenção opcional de substituição de prompt no nível do sistema",
+  "lore_editor.label_comment": "Título ou Observação *",
+  "lore_editor.placeholder_comment": "Ex.: Magia do Contrato, Santuário Secreto",
+  "lore_editor.label_keys": "Palavras-Chave de Detecção (separadas por vírgula)",
+  "lore_editor.placeholder_keys": "Magia, Contrato",
+  "lore_editor.label_content": "Conteúdo Narrativo Específico da Configuração *",
+  "lore_editor.placeholder_content": "Descreva os fatos de memória específicos...",
+  "lore_editor.checkbox_regex": "Regex",
+  "lore_editor.checkbox_memo": "Memo com Título",
+  "lore_editor.checkbox_constant": "Sempre Ativo",
+  "lore_editor.checkbox_disabled": "Desativar Esta Entrada",
+  "lore_editor.label_position": "Posição (Position)",
+  "lore_editor.position_after_char": "📌 Após Definição do Personagem",
+  "lore_editor.position_before_char": "📌 Antes da Definição do Personagem",
+  "lore_editor.position_top": "📌 Topo da Página",
+  "lore_editor.position_before_last": "💬 Acima da Última Mensagem",
+  "lore_editor.position_in_chat": "💬 No Histórico Retrospectivo (Por Profundidade)",
+  "lore_editor.label_depth": "Profundidade (Depth)",
+  "lore_editor.label_order": "Peso (Order)",
+  "lore_editor.label_probability": "Probabilidade (%)",
+  "lore_editor.cancel": "Cancelar",
+  "lore_editor.save": "Salvar Esta Entrada",
+  "lorebook_tab.upgrade_title": "Edição de Entradas de Configuração Totalmente Atualizada",
+  "lorebook_tab.upgrade_desc": "O sistema agora suporta poderosa 'Edição In-place', permitindo modificar entradas exclusivas do personagem sem sair da página atual. Recomenda-se ir ao console independente 'Mundolivro' na barra inferior para usar funções avançadas como seleção de estratégia de correspondência, profundidade e peso dinâmicos, etc.",
+  "lorebook_tab.goto_worldbook": "🌐 Clique para Ir Direto ao『Mundolivro』· Console Multidimensional Independente ➡",
+  "lorebook_tab.new_entry": "➕ Adicionar Manualmente uma Entrada Exclusiva para Este Hospedeiro (Inline Creator)",
+  "lorebook_tab.new_entry_card_title": "✨ Criar Rapidamente uma Entrada Exclusiva para Este Personagem",
+  "lorebook_tab.entry_list_title": "Entradas de Conhecimento Exclusivas Deste Personagem ({count} itens)",
+  "lorebook_tab.unnamed_entry": "Entrada de Configuração Sem Nome",
+  "lorebook_tab.badge_constant": "Sempre Ativo",
+  "lorebook_tab.badge_disabled": "Desativado",
+  "lorebook_tab.trigger_word_count": "({count} palavra(s)-chave)",
+  "lorebook_tab.meta_keys": "Gatilhos:",
+  "lorebook_tab.meta_position": "Posição:",
+  "lorebook_tab.meta_depth_weight": "Profundidade / Peso:",
+  "lorebook_tab.meta_probability_regex": "Probabilidade / Regex:",
+  "lorebook_tab.none": "(Nenhum)",
+  "lorebook_tab.position_after": "📌 Após Personagem",
+  "lorebook_tab.position_before": "📌 Antes do Personagem",
+  "lorebook_tab.position_top": "📌 Topo",
+  "lorebook_tab.label_content": "Conteúdo Narrativo da Configuração (Prompt):",
+  "lorebook_tab.label_memo": "⭐ Memo com Título",
+  "lorebook_tab.edit_inline": "Editar Esta Entrada (Inline)",
+  "lorebook_tab.confirm_delete": "Tem certeza de que deseja apagar esta entrada exclusiva?",
+  "lorebook_tab.delete": "Apagar",
+  "lorebook_tab.empty_state": "Este hospedeiro ainda não tem entradas exclusivas. Clique no botão acima para adicionar ou use o 'Canal Público do Mundolivro' na parte inferior.",
+  "regex.char_no_active": "Não Selecionado",
+  "backup.collapse": "Recolher",
+  "backup.expand": "Expandir",
+  "backup.pass_placeholder": "Lembre-se bem, ou não conseguirá restaurar...",
+  "chat_import.description": "O sistema analisará o histórico de conversas e o vinculará à carta de personagem local. Se a carta correspondente não tiver sido importada localmente, será solicitado que a importe primeiro.",
+  "chat_import.tip_label": "Dica:",
+  "chat_import.help_text": "Após a importação, o sistema desativa por padrão o resumo automático dessas mensagens históricas para evitar avalanche de consumo da API.",
+  "tts.test_text": "Olá, bem-vindo à Taverna Móvel. Este é um teste de leitura por voz.",
+  "nav.chat": "Chat",
+  "nav.playground": "Sandbox",
 } as const;
