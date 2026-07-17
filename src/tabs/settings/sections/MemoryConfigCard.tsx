@@ -1,4 +1,5 @@
 import { Database } from "lucide-react";
+import { useTranslation } from "../../../contexts/LanguageContext";
 import {
   Card,
   CardHeader,
@@ -24,14 +25,15 @@ export default function MemoryConfigCard({
   settings,
   updateSettings,
 }: MemoryConfigCardProps) {
+  const { t } = useTranslation();
   return (
     <Card className="bg-card border-border shadow-sm">
       <CardHeader className="pb-2.5 border-b border-border/50 px-3 pt-3">
         <CardTitle className="text-xs flex items-center gap-2 font-bold text-foreground">
-          <Database className="w-4 h-4 text-primary" /> 记忆系统
+          <Database className="w-4 h-4 text-primary" /> {t("memory_sys.title")}
         </CardTitle>
         <CardDescription className="text-[10px] mt-0.5">
-          统一管理短期上下文窗口、叙事记忆（时间轴摘要）与状态记忆（结构化表格）三个互补子模块
+          {t("memory_sys.subtitle")}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-3.5 px-3 pb-3 space-y-3.5 text-xs text-muted-foreground">
@@ -40,15 +42,15 @@ export default function MemoryConfigCard({
           <div className="space-y-1.5">
             <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-primary/80 uppercase tracking-wide">
               <span className="inline-block w-1 h-3 bg-primary/60 rounded-full" />
-              上下文窗口
+              {t("memory_sys.recent_turns_title")}
             </div>
             <div className="flex items-center justify-between pl-1">
               <div className="flex flex-col">
                 <span className="font-semibold text-foreground text-[12.5px]">
-                  上下文发送轮次 (Recent Turns)
+                  {t("memory_sys.recent_turns")}
                 </span>
                 <span className="text-[9.5px] text-muted-foreground">
-                  直接发送全文保留的对话局数
+                  {t("memory_sys.recent_turns_desc")}
                 </span>
               </div>
               <input
@@ -78,14 +80,14 @@ export default function MemoryConfigCard({
           <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-border/40">
             <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-violet-500/80 uppercase tracking-wide">
               <span className="inline-block w-1 h-3 bg-violet-500/60 rounded-full" />
-              长线记忆召回
+              {t("memory_sys.recall_title")}
             </div>
             <div className="flex items-center justify-between pl-1">
               <div className="flex flex-col">
                 <span className="font-semibold text-foreground text-[12.5px] flex items-center gap-2">
-                  开启长线记忆召回 (Memory Recall){" "}
+                  {t("memory_sys.recall_enable")}{" "}
                   <Switch
-                    aria-label="开启长线记忆召回"
+                    aria-label={t("memory_sys.recall_enable")}
                     checked={settings.memory.enableRecall !== false}
                     onCheckedChange={(val) =>
                       updateSettings({
@@ -100,14 +102,14 @@ export default function MemoryConfigCard({
                   />
                 </span>
                 <span className="text-[9.5px] text-muted-foreground mt-0.5">
-                  从历史消息库中自动检索并注入最相似的记忆片段
+                  {t("memory_sys.recall_desc")}
                 </span>
               </div>
             </div>
             {settings.memory.enableRecall !== false && (
               <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border">
                 <span className="text-[10px] text-muted-foreground font-semibold">
-                  记忆召回条数 (Recall Top K)
+                  {t("memory_sys.recall_top_k")}
                 </span>
                 <input
                   type="number"
@@ -137,14 +139,14 @@ export default function MemoryConfigCard({
           <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-border/40">
             <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-500/80 uppercase tracking-wide">
               <span className="inline-block w-1 h-3 bg-emerald-500/60 rounded-full" />
-              叙事记忆 · 时间轴摘要
+              {t("memory_sys.summary_title")}
             </div>
             <div className="flex items-center justify-between pl-1">
               <div className="flex flex-col">
                 <span className="font-semibold text-foreground text-[12.5px] flex items-center gap-2">
-                  自动记忆整理 (Auto Summary){" "}
+                  {t("memory_sys.summary_enable")}{" "}
                   <Switch
-                    aria-label="自动记忆整理"
+                    aria-label={t("memory_sys.summary_enable")}
                     checked={settings.memory.enableAutoSummary !== false}
                     onCheckedChange={(val) =>
                       updateSettings({
@@ -159,14 +161,14 @@ export default function MemoryConfigCard({
                   />
                 </span>
                 <span className="text-[9.5px] text-muted-foreground mt-0.5">
-                  定期梳理记忆，触发轮数设为 0 时默认与上方发送轮数同步整理
+                  {t("memory_sys.summary_desc")}
                 </span>
               </div>
             </div>
             {settings.memory.enableAutoSummary !== false && (
               <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border">
                 <span className="text-[10px] text-muted-foreground font-semibold">
-                  触发轮次 (满多少轮执行一次梳理，输入 0 代表与上方发送轮数同步)
+                  {t("memory_sys.summary_trigger")}
                 </span>
                 <input
                   type="number"
@@ -194,14 +196,14 @@ export default function MemoryConfigCard({
           <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-border/40">
             <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-sky-500/80 uppercase tracking-wide">
               <span className="inline-block w-1 h-3 bg-sky-500/60 rounded-full" />
-              状态记忆 · 结构化表格
+              {t("memory_sys.table_title")}
             </div>
             <div className="flex items-center justify-between pl-1">
               <div className="flex flex-col">
                 <span className="font-semibold text-foreground text-[12.5px] flex items-center gap-2">
-                  结构化记忆表格 (Table Memory){" "}
+                  {t("memory_sys.table_enable")}{" "}
                   <Switch
-                    aria-label="结构化记忆表格"
+                    aria-label={t("memory_sys.table_enable")}
                     checked={!!settings.enableTableMemory}
                     onCheckedChange={(val) =>
                       updateSettings({
@@ -213,17 +215,17 @@ export default function MemoryConfigCard({
                   />
                 </span>
                 <span className="text-[9.5px] text-muted-foreground mt-0.5">
-                  将好感、人物关系等属性以表格形式整理并静默喂给 AI 记忆
+                  {t("memory_sys.table_desc")}
                 </span>
               </div>
             </div>
             {settings.enableTableMemory && (
               <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border">
                 <span className="text-[10px] text-muted-foreground font-semibold">
-                  AI 表格检查更新频率 (每几轮对话让 AI 检查并修改数据)
+                  {t("memory_sys.table_freq")}
                 </span>
                 <select
-                  aria-label="AI 表格检查更新频率"
+                  aria-label={t("memory_sys.table_freq")}
                   value={settings.tableMemoryCheckFrequency || 1}
                   onChange={(e) =>
                     updateSettings({
@@ -233,9 +235,9 @@ export default function MemoryConfigCard({
                   }
                   className="bg-muted border border-border rounded px-1.5 py-0.5 text-xs outline-none focus:border-primary font-bold text-foreground"
                 >
-                  <option value="1">每 1 轮 (最实时)</option>
-                  <option value="3">每 3 轮 (推荐)</option>
-                  <option value="5">每 5 轮 (省 token)</option>
+                  <option value="1">{t("memory_sys.table_freq_1")}</option>
+                  <option value="3">{t("memory_sys.table_freq_3")}</option>
+                  <option value="5">{t("memory_sys.table_freq_5")}</option>
                 </select>
               </div>
             )}
@@ -245,13 +247,13 @@ export default function MemoryConfigCard({
             <AccordionItem value="advanced-templates" className="border-none">
               <AccordionTrigger className="py-1.5 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
                 <span className="text-[11px] font-semibold text-foreground">
-                  高级整理模板与指令 (Advanced Templates & Prompts)
+                  {t("memory_sys.advanced_title")}
                 </span>
               </AccordionTrigger>
               <AccordionContent className="pt-2 pb-0 space-y-3">
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-foreground">
-                    时间轴幕数命名模板 (Time Tag Template)
+                    {t("memory_sys.time_tag")}
                   </label>
                   <Input
                     value={settings.memory.timeTagTemplate || ""}
@@ -265,16 +267,16 @@ export default function MemoryConfigCard({
                       })
                     }
                     className="h-9 text-xs bg-input/50"
-                    placeholder="第{{index}}幕"
+                    placeholder="e.g. Chapter {{index}}"
                   />
                   <p className="text-[9px] text-muted-foreground">
-                    使用 <code className="text-primary bg-primary/10 px-1 rounded">{"{{index}}"}</code> 作为当前剧情序号的替换标记
+                    {t("memory_sys.time_tag_desc")}
                   </p>
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-foreground">
-                    自动记忆归纳指导指令 (Summary System Prompt)
+                    {t("memory_sys.summary_prompt")}
                   </label>
                   <Textarea
                     value={settings.memory.summarySystemPrompt || ""}
@@ -288,7 +290,7 @@ export default function MemoryConfigCard({
                       })
                     }
                     className="text-xs bg-input/50 min-h-[260px] leading-relaxed font-mono"
-                    placeholder="输入总结大纲指示词..."
+                    placeholder="Summary instructions..."
                   />
                   <div className="flex justify-end">
                     <button
@@ -304,14 +306,14 @@ export default function MemoryConfigCard({
                       }}
                       className="text-[9px] text-primary font-bold hover:underline"
                     >
-                      重置总结指令为系统默认
+                      {t("memory_sys.reset_summary")}
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-1 pt-2 border-t border-border/30">
                   <label className="text-[11px] font-semibold text-foreground">
-                    推理引导指令 (Reasoning Guidance Prompt)
+                    {t("memory_sys.reasoning_prompt")}
                   </label>
                   <Textarea
                     value={settings.promptConfig?.reasoningGuidancePrompt || ""}
@@ -325,7 +327,7 @@ export default function MemoryConfigCard({
                       })
                     }
                     className="text-xs bg-input/50 min-h-[260px] leading-relaxed font-mono"
-                    placeholder="输入推理引导指示词..."
+                    placeholder="Reasoning instructions..."
                   />
                   <div className="flex justify-end">
                     <button
@@ -341,14 +343,14 @@ export default function MemoryConfigCard({
                       }}
                       className="text-[9px] text-primary font-bold hover:underline"
                     >
-                      重置推理指令为系统默认
+                      {t("memory_sys.reset_reasoning")}
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-1 pt-2 border-t border-border/30">
                   <label className="text-[11px] font-semibold text-foreground">
-                    表格记忆匹配指令 (Table Memory Prompt)
+                    {t("memory_sys.table_prompt")}
                   </label>
                   <Textarea
                     value={settings.promptConfig?.tableMemoryPrompt || ""}
@@ -362,7 +364,7 @@ export default function MemoryConfigCard({
                       })
                     }
                     className="text-xs bg-input/50 min-h-[260px] leading-relaxed font-mono"
-                    placeholder="输入表格记忆指示词..."
+                    placeholder="Table instructions..."
                   />
                   <div className="flex justify-end">
                     <button
@@ -378,7 +380,7 @@ export default function MemoryConfigCard({
                       }}
                       className="text-[9px] text-primary font-bold hover:underline"
                     >
-                      重置表格指令为系统默认
+                      {t("memory_sys.reset_table")}
                     </button>
                   </div>
                 </div>

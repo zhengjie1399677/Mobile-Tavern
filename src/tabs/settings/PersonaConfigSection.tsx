@@ -1,4 +1,5 @@
 import { Plus, Trash2, UserCheck } from "lucide-react";
+import { useTranslation } from "../../contexts/LanguageContext";
 import {
   Card,
   CardHeader,
@@ -34,18 +35,19 @@ export default function PersonaConfigSection({
   deleteUserPersona,
   showCustomAlert,
 }: PersonaConfigSectionProps) {
+  const { t } = useTranslation();
   return (
     <Card className="glass-panel shadow-sm">
       <CardHeader className="pb-2.5 border-b border-border/50 px-3 pt-3">
         <CardTitle className="text-xs flex items-center gap-2 font-bold text-foreground">
-          <UserCheck className="w-4 h-4 text-primary" /> 角色信息
+          <UserCheck className="w-4 h-4 text-primary" /> {t("persona.title")}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-3 px-3 pb-3 space-y-3">
         {/* 活跃人设管理栏 */}
         <div className="space-y-1 pb-2 border-b border-border/30 mb-2 animate-in fade-in duration-300">
           <label className="text-[10px] font-bold text-muted-foreground flex justify-between">
-            <span>当前活跃玩家设定 (User Persona)</span>
+            <span>{t("persona.active")}</span>
           </label>
           <div className="flex gap-2">
             <div
@@ -56,9 +58,9 @@ export default function PersonaConfigSection({
                 value={settings.activePersonaId || "default-persona"}
                 onValueChange={(val) => switchUserPersona(val)}
               >
-                <SelectTrigger aria-label="当前活跃玩家设定" className="w-full text-xs h-9 bg-input/50 font-semibold">
-                  <SelectValue placeholder="选择玩家设定">
-                    👤 {settings.userPersonas?.find(p => p.id === (settings.activePersonaId || "default-persona"))?.name || "选择玩家设定"}
+                <SelectTrigger aria-label={t("persona.active")} className="w-full text-xs h-9 bg-input/50 font-semibold">
+                  <SelectValue placeholder={t("persona.select_placeholder")}>
+                    👤 {settings.userPersonas?.find(p => p.id === (settings.activePersonaId || "default-persona"))?.name || t("persona.select_placeholder")}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -68,7 +70,7 @@ export default function PersonaConfigSection({
                       value={pers.id}
                       className="text-xs font-semibold"
                     >
-                      👤 {pers.name || "未命名人物"}
+                      👤 {pers.name || t("persona.unnamed")}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -79,10 +81,10 @@ export default function PersonaConfigSection({
               type="button"
               onClick={addUserPersona}
               className="h-9 px-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 active:scale-95 shrink-0"
-              title="新建人设"
+              title={t("persona.create")}
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>新建</span>
+              <span>{t("persona.create")}</span>
             </button>
 
             <button
@@ -90,17 +92,17 @@ export default function PersonaConfigSection({
               onClick={() => deleteUserPersona(settings.activePersonaId || "")}
               disabled={(settings.userPersonas || []).length <= 1}
               className="h-9 px-3 bg-rose-950/15 border border-rose-900/35 hover:bg-rose-950/35 text-red-400 disabled:opacity-40 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 active:scale-95 shrink-0"
-              title="删除当前人设"
+              title={t("persona.delete")}
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>删除</span>
+              <span>{t("persona.delete")}</span>
             </button>
           </div>
         </div>
 
         <div className="space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground">
-            玩家名称 (用于系统推断及占位符代称)
+            {t("persona.name")}
           </label>
           <Input
             value={settings.userName}
@@ -108,13 +110,13 @@ export default function PersonaConfigSection({
               updateSettings({ ...settings, userName: e.target.value })
             }
             className="h-9 text-xs bg-input/50"
-            placeholder="未知探客"
+            placeholder={t("persona.name_placeholder")}
           />
         </div>
 
         <div className="space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground">
-            玩家自定义头像 (支持 base64)
+            {t("persona.avatar")}
           </label>
           <div className="flex gap-2">
             <div className="w-9 h-9 rounded-full bg-muted border border-border flex-shrink-0 overflow-hidden flex items-center justify-center">
@@ -130,10 +132,10 @@ export default function PersonaConfigSection({
                 updateSettings({ ...settings, userAvatar: e.target.value })
               }
               className="h-9 text-xs bg-input/50 flex-1 truncate"
-              placeholder="data:image/png;base64,... 或空"
+              placeholder={t("persona.avatar_placeholder")}
             />
             <label className="bg-muted text-muted-foreground text-xs px-3 rounded flex items-center justify-center cursor-pointer border border-border select-none shrink-0">
-              上传
+              {t("persona.upload")}
               <input
                 type="file"
                 accept="image/*"
@@ -142,7 +144,7 @@ export default function PersonaConfigSection({
                   const file = e.target.files?.[0];
                   if (file) {
                     if (file.size > 5 * 1024 * 1024) {
-                      showCustomAlert("⚠️ 上传失败：头像图片大小不能超过 5MB！");
+                      showCustomAlert("⚠️ Upload failed: Image size cannot exceed 5MB!");
                       return;
                     }
                     compressImage(file, 400, 400, 0.8, "image/png")
@@ -150,7 +152,7 @@ export default function PersonaConfigSection({
                         updateSettings({ ...settings, userAvatar: base64 });
                       })
                       .catch((err) => {
-                        showCustomAlert("⚠️ 图片压缩失败：" + err.message);
+                        showCustomAlert("⚠️ Compression failed: " + err.message);
                       });
                   }
                 }}
@@ -162,14 +164,14 @@ export default function PersonaConfigSection({
                 onClick={() => updateSettings({ ...settings, userAvatar: "" })}
                 className="bg-rose-950/20 text-red-400 px-3 rounded border border-rose-900/35 hover:bg-rose-950/45 text-xs transition shrink-0"
               >
-                清除
+                {t("persona.clear")}
               </button>
             )}
           </div>
         </div>
         <div className="space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground">
-            玩家信息 (Persona: 世界观背景/外貌描述等)
+            {t("persona.desc")}
           </label>
           <Textarea
             value={settings.userInfo || ""}
@@ -177,7 +179,7 @@ export default function PersonaConfigSection({
               updateSettings({ ...settings, userInfo: e.target.value })
             }
             className="text-sm bg-input/50 min-h-[140px]"
-            placeholder="例如: 身高180cm, 穿着黑色的风衣, 眼神冷漠..."
+            placeholder={t("persona.desc_placeholder")}
           />
         </div>
       </CardContent>

@@ -1,4 +1,5 @@
 import { Palette } from "lucide-react";
+import { useTranslation } from "../../../contexts/LanguageContext";
 import {
   Accordion,
   AccordionItem,
@@ -24,15 +25,16 @@ export default function ImageGenConfigSection({
   settings,
   updateSettings,
 }: ImageGenConfigSectionProps) {
+  const { t } = useTranslation();
   return (
     <AccordionItem value="image-gen-api" className="glass-panel shadow-sm rounded-xl overflow-hidden mt-2">
       <AccordionTrigger className="px-3.5 py-2.5 hover:no-underline hover:bg-muted/30 transition">
         <div className="flex items-center gap-2">
           <Palette className="w-4 h-4 text-primary" />
           <div className="flex flex-col items-start gap-1">
-            <span className="text-sm font-semibold">AI 生图服务端点配置</span>
+            <span className="text-sm font-semibold">{t("image_gen.title")}</span>
             <span className="text-[10px] text-muted-foreground font-normal flex items-center gap-1.5">
-              配置 Stable Diffusion、NovelAI 或 DALL-E 接口
+              {t("image_gen.subtitle")}
             </span>
           </div>
         </div>
@@ -41,13 +43,13 @@ export default function ImageGenConfigSection({
         {/* Enabled Switch */}
         <div className="flex items-center justify-between pb-3 border-b border-border/40">
           <div className="space-y-0.5">
-            <label className="text-[13px] font-semibold text-foreground">开启生图拓展功能</label>
+            <label className="text-[13px] font-semibold text-foreground">{t("image_gen.enable")}</label>
             <p className="text-[10px] text-muted-foreground max-w-[450px]">
-              开启后，可在 AI 消息快捷菜单中对对白执行场景绘制。
+              {t("image_gen.enable_desc")}
             </p>
           </div>
           <Switch
-            aria-label="启用图像生成"
+            aria-label={t("image_gen.enable")}
             checked={settings.imageGenApi?.enabled || false}
             onCheckedChange={(checked) =>
               updateSettings((prev) => ({
@@ -80,13 +82,13 @@ export default function ImageGenConfigSection({
             {/* Force Protocol Switch */}
             <div className="flex items-center justify-between pb-2 border-b border-border/20">
               <div className="space-y-0.5">
-                <label className="text-[12px] font-semibold text-foreground">手动强行指定协议类型</label>
+                <label className="text-[12px] font-semibold text-foreground">{t("image_gen.force_protocol")}</label>
                 <p className="text-[10px] text-muted-foreground max-w-[450px]">
-                  关闭时，系统会根据 Base URL 自动检测（如检测到 novelai 或 sdwebui 关键字自动套用其格式，其余默认使用 OpenAI 格式）。
+                  {t("image_gen.force_protocol_desc")}
                 </p>
               </div>
               <Switch
-                aria-label="强制图像生成协议"
+                aria-label={t("image_gen.force_protocol")}
                 checked={settings.imageGenApi?.forceProtocol || false}
                 onCheckedChange={(checked) =>
                   updateSettings((prev) => ({
@@ -118,13 +120,13 @@ export default function ImageGenConfigSection({
             {/* Type Select */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
-                <span>生图接口类型</span>
+                <span>{t("image_gen.protocol_title")}</span>
                 {!settings.imageGenApi?.forceProtocol && (
-                  <span className="text-[9px] text-primary/80 font-bold">自动识别模式（根据 Base URL 猜测）</span>
+                  <span className="text-[9px] text-primary/80 font-bold">{t("image_gen.auto_detect")}</span>
                 )}
               </label>
               <Select
-                aria-label="图像生成格式"
+                aria-label={t("image_gen.protocol_title")}
                 disabled={!settings.imageGenApi?.forceProtocol}
                 value={
                   settings.imageGenApi?.forceProtocol
@@ -169,8 +171,8 @@ export default function ImageGenConfigSection({
                   }))
                 }
               >
-                <SelectTrigger aria-label="语音引擎" className="w-full h-9 text-xs bg-input/40 border border-border">
-                  <SelectValue placeholder="选择接口类型" />
+                <SelectTrigger aria-label={t("image_gen.protocol_title")} className="w-full h-9 text-xs bg-input/40 border border-border">
+                  <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground border border-border shadow-lg">
                   <SelectItem value="openai-dalle" className="text-xs">OpenAI DALL-E (DALL-E 3)</SelectItem>
@@ -182,7 +184,7 @@ export default function ImageGenConfigSection({
 
             {/* Base URL */}
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">生图接口 Base URL</label>
+              <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.base_url")}</label>
               <Input
                 type="text"
                 className="font-mono text-xs h-9 bg-input/50"
@@ -217,7 +219,7 @@ export default function ImageGenConfigSection({
 
             {/* API Key */}
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">API Key / Access Token</label>
+              <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.api_key")}</label>
               <Input
                 type="password"
                 className="font-mono text-xs h-9 bg-input/50"
@@ -246,13 +248,13 @@ export default function ImageGenConfigSection({
                     },
                   }));
                 }}
-                placeholder="填写接口密钥或 Token"
+                placeholder={t("image_gen.api_key_placeholder")}
               />
             </div>
 
             {/* Model Name */}
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">模型名称 (Model)</label>
+              <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.model")}</label>
               <Input
                 type="text"
                 className="font-mono text-xs h-9 bg-input/50"
@@ -281,14 +283,14 @@ export default function ImageGenConfigSection({
                     },
                   }));
                 }}
-                placeholder="如 dall-e-3 或 custom-model"
+                placeholder={t("image_gen.model_placeholder")}
               />
             </div>
 
             {/* Width & Height */}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">图片宽度 (Width)</label>
+                <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.width")}</label>
                 <Input
                   type="number"
                   className="font-mono text-xs h-9 bg-input/50"
@@ -319,7 +321,7 @@ export default function ImageGenConfigSection({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">图片高度 (Height)</label>
+                <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.height")}</label>
                 <Input
                   type="number"
                   className="font-mono text-xs h-9 bg-input/50"
@@ -354,7 +356,7 @@ export default function ImageGenConfigSection({
             {/* Steps, CFG & Sampler */}
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">步数 (Steps)</label>
+                <label className="text-[10px] font-semibold text-muted-foreground">{t("image_gen.steps")}</label>
                 <Input
                   type="number"
                   className="font-mono text-xs h-9 bg-input/50"
@@ -385,7 +387,7 @@ export default function ImageGenConfigSection({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">CFG Scale</label>
+                <label className="text-[10px] font-semibold text-muted-foreground">{t("image_gen.cfg")}</label>
                 <Input
                   type="number"
                   step="0.1"
@@ -417,7 +419,7 @@ export default function ImageGenConfigSection({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">采样器 (Sampler)</label>
+                <label className="text-[10px] font-semibold text-muted-foreground">{t("image_gen.sampler")}</label>
                 <Input
                   type="text"
                   className="font-mono text-xs h-9 bg-input/50"
@@ -445,7 +447,7 @@ export default function ImageGenConfigSection({
                       },
                     }));
                   }}
-                  placeholder="如 Euler a"
+                  placeholder={t("image_gen.sampler_placeholder")}
                 />
               </div>
             </div>
@@ -453,13 +455,13 @@ export default function ImageGenConfigSection({
             {/* Prompt Edit Before Generate Switch */}
             <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-1 animate-in fade-in slide-in-from-top-2 duration-300">
               <div className="space-y-0.5">
-                <label className="text-[12px] font-semibold text-foreground">生图前弹窗确认/修改提示词</label>
+                <label className="text-[12px] font-semibold text-foreground">{t("image_gen.edit_before_gen")}</label>
                 <p className="text-[10px] text-muted-foreground max-w-[450px]">
-                  开启后，大模型总结完提示词会弹出输入框，允许您手动修改 Prompt 后再发起生图。
+                  {t("image_gen.edit_before_gen_desc")}
                 </p>
               </div>
               <Switch
-                aria-label="图像生成前编辑提示词"
+                aria-label={t("image_gen.edit_before_gen")}
                 checked={settings.imageGenApi?.promptEditBeforeGenerate || false}
                 onCheckedChange={(checked) =>
                   updateSettings((prev) => ({
@@ -494,13 +496,13 @@ export default function ImageGenConfigSection({
               <AccordionItem value="image-prompts-settings" className="border-none">
                 <AccordionTrigger className="py-2 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
                   <span className="text-[11px] font-semibold text-foreground">
-                    高级提示词模板与前缀 (Advanced Prompts & Templates)
+                    {t("image_gen.advanced_prompts")}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="pt-3 pb-0 space-y-4">
                   {/* Prompt Prefix */}
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-muted-foreground">默认提示词前缀</label>
+                    <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.prompt_prefix")}</label>
                     <Textarea
                       className="font-mono text-xs min-h-[120px] bg-input/50 leading-relaxed"
                       value={settings.imageGenApi?.promptPrefix || ""}
@@ -527,14 +529,14 @@ export default function ImageGenConfigSection({
                           },
                         }));
                       }}
-                      placeholder="例如: masterpiece, best quality, "
+                      placeholder="e.g. masterpiece, best quality, "
                     />
                   </div>
 
                   {/* Negative Prompt (SD & NovelAI only) */}
                   {(settings.imageGenApi?.type === "sd-webui" || settings.imageGenApi?.type === "novelai") && (
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-muted-foreground">反向提示词 (Negative Prompt)</label>
+                      <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.negative_prompt")}</label>
                       <Textarea
                         className="font-mono text-xs min-h-[120px] bg-input/50 leading-relaxed"
                         value={settings.imageGenApi?.negativePrompt || ""}
@@ -561,14 +563,14 @@ export default function ImageGenConfigSection({
                             },
                           }));
                         }}
-                        placeholder="低画质，坏手..."
+                        placeholder="lowres, bad hands..."
                       />
                     </div>
                   )}
 
                   {/* Prompt Generator Template */}
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-muted-foreground">场景描述总结模板 (Prompt Generator Template)</label>
+                    <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.prompt_template")}</label>
                     <Textarea
                       className="font-mono text-xs min-h-[160px] bg-input/50 leading-relaxed"
                       value={settings.imageGenApi?.promptGeneratorTemplate || ""}
@@ -596,10 +598,10 @@ export default function ImageGenConfigSection({
                           },
                         }));
                       }}
-                      placeholder="基于对话总结画面 Prompt 的模板"
+                      placeholder="Prompt template for LLM summarization"
                     />
                     <p className="text-[9px] text-muted-foreground leading-tight">
-                      系统会使用聊天配置的 LLM 运行此引导提示词。内置占位符 <code>{'{appearance}'}</code>（外观特征）、<code>{'{context}'}</code>（对话上下文）、<code>{'{message}'}</code>（当前对白）将自动替换。
+                      {t("image_gen.prompt_template_desc")}
                     </p>
                   </div>
                 </AccordionContent>

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from "react";
+import { useTranslation } from "../../contexts/LanguageContext";
 import {
   Card,
   CardHeader,
@@ -37,6 +38,7 @@ export default function ThemeConfigSection({
   handleThemeChange,
   showCustomAlert,
 }: ThemeConfigSectionProps) {
+  const { t } = useTranslation();
   const customThemes = settings.customThemes ?? [];
 
   const [editorOpen, setEditorOpen] = useState(false);
@@ -174,7 +176,7 @@ export default function ThemeConfigSection({
     <Card className="glass-panel shadow-sm">
       <CardHeader className="pb-1 pt-2.5 px-3">
         <CardTitle className="text-[12px] flex items-center gap-2 font-bold text-foreground">
-          <span>阅读主题与色彩基调</span>
+          <span>{t("theme.section_title")}</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-1 px-3 pb-3">
@@ -182,38 +184,38 @@ export default function ThemeConfigSection({
           value={currentTheme}
           onValueChange={(val: any) => handleThemeChange(val)}
         >
-          <SelectTrigger aria-label="阅读主题与色彩基调" className="w-full text-xs h-9 bg-input/50 font-medium">
-            <SelectValue placeholder="选择主题">
+          <SelectTrigger aria-label={t("theme.section_title")} className="w-full text-xs h-9 bg-input/50 font-medium">
+            <SelectValue placeholder={t("theme.placeholder")}>
               {currentTheme === "snow"
-                ? "极简纯白"
+                ? t("theme.snow")
                 : currentTheme === "sand"
-                  ? "浅沙暮色"
+                  ? t("theme.sand")
                   : currentTheme === "ocean"
-                    ? "荧光深海"
+                    ? t("theme.ocean")
                     : currentTheme === "obsidian"
-                      ? "黑曜石暗黑"
+                      ? t("theme.obsidian")
                       : isCustomThemeId(String(currentTheme))
-                        ? (customThemes.find(t => t.id === currentTheme)?.name ?? "自定义主题")
-                        : "选择主题"}
+                        ? (customThemes.find(t => t.id === currentTheme)?.name ?? t("theme.custom_theme"))
+                        : t("theme.placeholder")}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="snow" label="极简纯白" className="text-xs">
-              极简纯白
+            <SelectItem value="snow" label={t("theme.snow")} className="text-xs">
+              {t("theme.snow")}
             </SelectItem>
-            <SelectItem value="sand" label="浅沙暮色" className="text-xs">
-              浅沙暮色
+            <SelectItem value="sand" label={t("theme.sand")} className="text-xs">
+              {t("theme.sand")}
             </SelectItem>
-            <SelectItem value="ocean" label="荧光深海" className="text-xs">
-              荧光深海
+            <SelectItem value="ocean" label={t("theme.ocean")} className="text-xs">
+              {t("theme.ocean")}
             </SelectItem>
-            <SelectItem value="obsidian" label="黑曜石暗黑" className="text-xs">
-              黑曜石暗黑
+            <SelectItem value="obsidian" label={t("theme.obsidian")} className="text-xs">
+              {t("theme.obsidian")}
             </SelectItem>
             {customThemes.length > 0 && (
               <>
                 <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                  已导入的自定义主题
+                  {t("theme.custom_header")}
                 </div>
                 {customThemes.map(theme => (
                   <SelectItem
@@ -223,7 +225,7 @@ export default function ThemeConfigSection({
                     className="text-xs"
                   >
                     {theme.name}
-                    {theme.isDark ? " · 暗色" : " · 亮色"}
+                    {theme.isDark ? ` · ${t("theme.dark")}` : ` · ${t("theme.light")}`}
                   </SelectItem>
                 ))}
               </>
@@ -235,7 +237,7 @@ export default function ThemeConfigSection({
         <div className="mt-2.5 pt-2.5 border-t border-border/30 space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-[11px] font-semibold text-muted-foreground block">
-              主题包管理
+              {t("theme.management")}
             </label>
             <div className="flex items-center gap-1.5">
               <button
@@ -248,11 +250,11 @@ export default function ThemeConfigSection({
                 className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] px-2.5 py-1.5 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold gap-1 animate-pulse"
               >
                 <Plus className="w-3 h-3" />
-                新建主题
+                {t("theme.new")}
               </button>
               <label className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] px-2.5 py-1.5 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold gap-1">
                 <Upload className="w-3 h-3" />
-                导入主题包
+                {t("theme.import")}
                 <input
                   type="file"
                   accept=".json,application/json"
@@ -265,7 +267,7 @@ export default function ThemeConfigSection({
 
           {customThemes.length === 0 ? (
             <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
-              尚未导入自定义主题包。导入 <code className="font-mono bg-muted/40 px-1 rounded">.tavern-theme.json</code> 文件以扩展主题选择，支持完全自定义 CSS 变量与样式。
+              {t("theme.no_custom_desc")}
             </p>
           ) : (
             <div className="space-y-1.5">
@@ -289,7 +291,7 @@ export default function ThemeConfigSection({
                           ? "bg-slate-700/50 text-slate-200"
                           : "bg-amber-100/60 text-amber-800"
                           }`}>
-                          {theme.isDark ? "暗色" : "亮色"}
+                          {theme.isDark ? t("theme.dark") : t("theme.light")}
                         </span>
                       </div>
                       {theme.description && (
@@ -348,11 +350,11 @@ export default function ThemeConfigSection({
         {/* 聊天字体大小调节 */}
         <div className="mt-2.5 pt-2.5 border-t border-border/30 space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground block">
-            聊天字体大小调节
+            {t("theme.font_size")}
           </label>
           <div className="flex items-center justify-between bg-muted/20 border border-border/40 rounded-lg p-2">
             <span className="text-xs text-muted-foreground pl-1 select-none font-semibold">
-              当前字号: <span className="text-primary font-bold">{settings.chatFontSize ?? 14}px</span>
+              {t("theme.font_size_current")}: <span className="text-primary font-bold">{settings.chatFontSize ?? 14}px</span>
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
               <button
@@ -386,11 +388,11 @@ export default function ThemeConfigSection({
         {/* 聊天行距调节 */}
         <div className="mt-2 space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground block">
-            聊天行距调节
+            {t("theme.line_height")}
           </label>
           <div className="flex items-center justify-between bg-muted/20 border border-border/40 rounded-lg p-2">
             <span className="text-xs text-muted-foreground pl-1 select-none font-semibold">
-              当前行距: <span className="text-primary font-bold">{(settings.chatLineHeight ?? 1.5).toFixed(1)}</span>
+              {t("theme.line_height_current")}: <span className="text-primary font-bold">{(settings.chatLineHeight ?? 1.5).toFixed(1)}</span>
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
               <button
@@ -423,17 +425,17 @@ export default function ThemeConfigSection({
 
         <div className="mt-2.5 pt-2.5 border-t border-border/30 space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground block">
-            全局默认聊天背景图片 (当角色未设置专属背景时生效)
+            {t("theme.bg_image")}
           </label>
           <div className="flex items-center justify-between bg-muted/20 border border-border/40 rounded-lg p-2">
             <span className="text-xs text-muted-foreground truncate max-w-[200px] pl-1 select-none">
               {settings.globalChatBg
-                ? "✨ 已启用自定义背景图片"
-                : "未设置（使用默认主题底色）"}
+                ? t("theme.bg_image_enabled")
+                : t("theme.bg_image_disabled")}
             </span>
             <div className="flex gap-2 shrink-0">
               <label className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs px-3 py-1.5 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold">
-                上传
+                {t("theme.upload")}
                 <input
                   type="file"
                   accept="image/*"
@@ -462,7 +464,7 @@ export default function ThemeConfigSection({
                   onClick={() => updateSettings({ ...settings, globalChatBg: "" })}
                   className="bg-muted hover:bg-destructive/10 border border-border hover:border-destructive/20 text-muted-foreground hover:text-destructive px-3 py-1.5 rounded-md text-xs transition tap-scale font-semibold"
                 >
-                  清除
+                  {t("theme.clear")}
                 </button>
               )}
             </div>
@@ -474,13 +476,13 @@ export default function ThemeConfigSection({
           {/* 变暗与模糊融合度调节（合并为单一选项，三档调节） */}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-muted-foreground block">
-              聊天背景融合效果
+              {t("theme.bg_effect")}
             </label>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { label: "清晰 (原图)", blur: 0, dim: 0, key: "clear" },
-                { label: "适中 (融合)", blur: 4, dim: 40, key: "medium" },
-                { label: "深色 (磨砂)", blur: 12, dim: 75, key: "dark" },
+                { label: t("theme.effect_clear"), blur: 0, dim: 0, key: "clear" },
+                { label: t("theme.effect_medium"), blur: 4, dim: 40, key: "medium" },
+                { label: t("theme.effect_dark"), blur: 12, dim: 75, key: "dark" },
               ].map((opt) => {
                 const currentDim = settings.chatBackgroundDim ?? 50;
                 const active =
@@ -516,7 +518,7 @@ export default function ThemeConfigSection({
           {/* 慢速位移动画开关 */}
           <div className="flex items-center justify-between pt-1">
             <label className="text-[11px] font-semibold text-muted-foreground">
-              启用背景慢速呼吸动效 (肯斯伯恩效果)
+              {t("theme.bg_animation")}
             </label>
             <label className="checkBox-container">
               <input

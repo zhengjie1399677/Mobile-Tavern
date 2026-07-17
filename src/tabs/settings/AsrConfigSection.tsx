@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Switch } from "../../../components/ui/switch";
 import { Input } from "../../../components/ui/input";
 import type { UserSettings } from "../../types";
+import { useTranslation } from "../../contexts/LanguageContext";
 
 export interface AsrConfigSectionProps {
   settings: UserSettings;
@@ -11,6 +12,7 @@ export interface AsrConfigSectionProps {
 }
 
 export default function AsrConfigSection({ settings, updateSettings }: AsrConfigSectionProps) {
+  const { t } = useTranslation();
   const asrConfig = settings.asrConfig || {
     enabled: false,
     provider: "web-speech",
@@ -36,9 +38,9 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
         <div className="flex items-center gap-2">
           <Mic className="w-4 h-4 text-primary" />
           <div className="flex flex-col items-start gap-1">
-            <span className="text-sm font-semibold">语音输入 (ASR) 配置</span>
+            <span className="text-sm font-semibold">{t("asr.title")}</span>
             <span className="text-[10px] text-muted-foreground font-normal">
-              开启麦克风输入与语音转文字（浏览器原生或 OpenAI Whisper）
+              {t("asr.subtitle")}
             </span>
           </div>
         </div>
@@ -47,13 +49,13 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
         {/* Enable Switch */}
         <div className="flex items-center justify-between pb-3 border-b border-border/40">
           <div className="space-y-0.5">
-            <label className="text-[13px] font-semibold text-foreground">开启语音输入</label>
+            <label className="text-[13px] font-semibold text-foreground">{t("asr.enable")}</label>
             <p className="text-[10px] text-muted-foreground max-w-[450px]">
-              开启后，聊天输入框左侧将显示麦克风图标，允许录音并自动转为文字。
+              {t("asr.enable_desc")}
             </p>
           </div>
           <Switch
-            aria-label="开启语音输入"
+            aria-label={t("asr.enable")}
             checked={asrConfig.enabled}
             onCheckedChange={(checked) => updateAsr({ enabled: checked })}
             className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
@@ -65,21 +67,21 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
             {/* Provider Selection */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-muted-foreground block">
-                语音识别服务提供商 (Provider)
+                {t("asr.engine")}
               </label>
               <Select
                 value={asrConfig.provider}
                 onValueChange={(val: "web-speech" | "openai") => updateAsr({ provider: val })}
               >
-                <SelectTrigger aria-label="语音识别服务提供商" className="w-full h-9 text-xs bg-input/40 border border-border">
-                  <SelectValue placeholder="选择接口类型" />
+                <SelectTrigger aria-label={t("asr.engine")} className="w-full h-9 text-xs bg-input/40 border border-border">
+                  <SelectValue placeholder="Select Provider" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground border border-border shadow-lg">
                   <SelectItem value="web-speech" className="text-xs">
-                    浏览器原生 Web Speech API (免 Key/实时流式)
+                    {t("asr.engine_system")}
                   </SelectItem>
                   <SelectItem value="openai" className="text-xs">
-                    OpenAI Whisper API (高准确率)
+                    {t("asr.engine_whisper")}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -87,16 +89,16 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
 
             {/* Language Field */}
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">识别语言 (Language)</label>
+              <label className="text-[11px] font-semibold text-muted-foreground">{t("asr.lang")}</label>
               <Input
                 type="text"
                 className="font-mono text-xs h-9 bg-input/50"
                 value={asrConfig.language}
                 onChange={(e) => updateAsr({ language: e.target.value })}
-                placeholder="如 zh-CN, en-US, ja-JP"
+                placeholder={t("asr.lang_placeholder")}
               />
               <p className="text-[9px] text-muted-foreground/70">
-                浏览器原生识别时必须输入正确的语言标识，Whisper 可留空自动检测。
+                {t("asr.lang_desc")}
               </p>
             </div>
 
@@ -131,7 +133,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
 
                 {/* Whisper Model Name */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground">模型名称 (Model)</label>
+                  <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.model")}</label>
                   <Input
                     type="text"
                     className="font-mono text-xs h-9 bg-input/50"

@@ -1,4 +1,5 @@
 import { KeySquare } from "lucide-react";
+import { useTranslation } from "../../../contexts/LanguageContext";
 import {
   AccordionItem,
   AccordionTrigger,
@@ -46,6 +47,7 @@ export default function ApiConfigSection({
   saveState,
   freeCount,
 }: ApiConfigSectionProps) {
+  const { t } = useTranslation();
   return (
     <AccordionItem value="api-config" className="glass-panel shadow-sm rounded-xl overflow-hidden">
       <AccordionTrigger className="px-3.5 py-2.5 hover:no-underline hover:bg-muted/30 transition">
@@ -53,21 +55,21 @@ export default function ApiConfigSection({
           <KeySquare className="w-4 h-4 text-primary" />
           <div className="flex flex-col items-start gap-1">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold">API 服务端点配置</span>
+              <span className="text-sm font-semibold">{t("api.title")}</span>
               {saveState === "saving" && (
                 <span className="text-[10px] text-sky-500 flex items-center gap-1 font-semibold animate-pulse">
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping" />
-                  正在自动保存...
+                  {t("api.saving")}
                 </span>
               )}
               {saveState === "saved" && (
                 <span className="text-[10px] text-emerald-500 flex items-center gap-1 font-semibold animate-in fade-in duration-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  修改已自动保存
+                  {t("api.saved")}
                 </span>
               )}
             </div>
-            <span className="text-[10px] text-muted-foreground font-normal">配置大语言模型接口地址与授权凭证</span>
+            <span className="text-[10px] text-muted-foreground font-normal">{t("api.subtitle")}</span>
           </div>
         </div>
       </AccordionTrigger>
@@ -75,12 +77,12 @@ export default function ApiConfigSection({
         {/* API 通道配置档案选择与切换 */}
         <div className="space-y-1.5 pb-2.5 mb-1 border-b border-border/30">
           <label className="text-[11px] font-semibold text-muted-foreground block">
-            选择 API 配置通道 / 凭证档案
+            {t("api.select_profile")}
           </label>
           <div className="flex flex-col gap-2">
             <div className="flex gap-2">
               <Select
-                aria-label="API 预设配置方案"
+                aria-label={t("api.select_profile")}
                 value={settings.currentApiProfileId || "temp"}
                 onValueChange={(val) => {
                   if (val === "temp") {
@@ -112,19 +114,19 @@ export default function ApiConfigSection({
                 }}
               >
                 <SelectTrigger className="h-9 bg-input/50 text-xs flex-1 truncate">
-                  <SelectValue placeholder="选择通道...">
+                  <SelectValue placeholder={t("api.select_profile")}>
                     {(() => {
-                      if (!settings.currentApiProfileId) return "💡 临时调试配置";
+                      if (!settings.currentApiProfileId) return t("api.temp_profile");
                       const currentProf = (settings.savedApiProfiles || []).find(
                         (p) => p.id === settings.currentApiProfileId
                       );
-                      return currentProf ? `🔌 ${currentProf.name}` : "💡 临时调试配置";
+                      return currentProf ? `🔌 ${currentProf.name}` : t("api.temp_profile");
                     })()}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="temp" className="text-xs">
-                    💡 临时调试配置
+                    {t("api.temp_profile")}
                   </SelectItem>
                   {(settings.savedApiProfiles || []).map((prof) => (
                     <SelectItem key={prof.id} value={prof.id} className="text-xs font-mono">
@@ -138,7 +140,7 @@ export default function ApiConfigSection({
                 type="button"
                 onClick={async () => {
                   const name = await showCustomPrompt(
-                    "请输入新 API 通道的别名（例如：DeepSeek官方、硅基流动）:",
+                    "Enter profile name / 请输入新 API 通道的别名:",
                     ""
                   );
                   if (name && name.trim()) {
@@ -165,7 +167,7 @@ export default function ApiConfigSection({
                 }}
                 className="h-9 px-3 bg-primary/10 border border-primary/25 text-primary text-xs font-medium rounded-md hover:bg-primary/20 transition shrink-0 tap-scale"
               >
-                另存当前配置为通道
+                {t("api.save_profile")}
               </button>
             </div>
 
@@ -178,7 +180,7 @@ export default function ApiConfigSection({
                     const currentProf = (settings.savedApiProfiles || []).find((p) => p.id === activeId);
                     if (!currentProf) return;
                     const newName = await showCustomPrompt(
-                      "重命名通道别名:",
+                      "Rename profile / 重命名通道别名:",
                       currentProf.name
                     );
                     if (newName && newName.trim()) {
@@ -192,7 +194,7 @@ export default function ApiConfigSection({
                   }}
                   className="text-[10px] text-muted-foreground hover:text-primary transition flex items-center gap-1 font-medium"
                 >
-                  ✏️ 重命名
+                  {t("api.rename")}
                 </button>
                 <button
                   type="button"
@@ -201,7 +203,7 @@ export default function ApiConfigSection({
                     const currentProf = (settings.savedApiProfiles || []).find((p) => p.id === activeId);
                     if (!currentProf) return;
                     const ok = await showCustomConfirm(
-                      `确定要删除通道【${currentProf.name}】吗？这不会影响当前已输入的连接配置。`
+                      `Are you sure you want to delete profile【${currentProf.name}】? / 确定要删除通道吗？`
                     );
                     if (ok) {
                       updateSettings((prev) => ({
@@ -213,7 +215,7 @@ export default function ApiConfigSection({
                   }}
                   className="text-[10px] text-rose-500 hover:text-rose-700 transition flex items-center gap-1 font-medium"
                 >
-                  🗑️ 删除此通道
+                  {t("api.delete")}
                 </button>
               </div>
             )}
@@ -222,8 +224,8 @@ export default function ApiConfigSection({
 
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
           <label className="text-[11px] font-semibold text-muted-foreground flex justify-between items-center">
-            <span>接口代理地址 (Base URL)</span>
-            <span className="text-[9px] text-primary/70">提示：支持多组常用 API 历史地址自动记录</span>
+            <span>{t("api.base_url")}</span>
+            <span className="text-[9px] text-primary/70">{t("api.base_url_tip")}</span>
           </label>
           <Input
             list="saved-api-urls"
@@ -292,7 +294,7 @@ export default function ApiConfigSection({
                 onClick={() => updateSettings((prev) => ({ ...prev, api: { ...prev.api, savedUrls: [] } }))}
                 className="text-[9px] bg-destructive/10 hover:bg-destructive/20 text-destructive px-1.5 py-0.5 rounded border border-destructive/20 ml-auto"
               >
-                清空记录
+                {t("api.clear_history")}
               </button>
             )}
           </div>
@@ -300,13 +302,13 @@ export default function ApiConfigSection({
 
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
           <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
-            <span>API 密钥 (API Key)</span>
+            <span>{t("api.api_key")}</span>
             <button
-              aria-label="测试 API 连接"
+              aria-label={t("api.test_conn")}
               onClick={testApiConnection}
               className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-bold"
             >
-              ⚡ 连通性测试
+              {t("api.test_conn")}
             </button>
           </label>
           <div className="flex gap-2">
@@ -332,16 +334,16 @@ export default function ApiConfigSection({
               disabled={isFetchingModels}
               className="h-9 px-3 bg-primary text-primary-foreground text-xs font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
             >
-              {isFetchingModels ? "获取中..." : "拉取模型列表"}
+              {isFetchingModels ? t("api.fetching_models") : t("api.fetch_models")}
             </button>
           </div>
           {!settings.api.apiKey || !settings.api.apiKey.trim() ? (
             <p key="free-tier-warning" className="text-[10px] text-primary/80 flex items-center gap-1 font-medium bg-primary/5 px-2 py-1 rounded-md border border-primary/10">
-              💡 处于公共免 Key 体验渠道（已使用 {freeCount}/10 次）。清空 API Key 时自动启用此渠道。
+              {t("api.free_tier", { count: String(freeCount) })}
             </p>
           ) : (
             <p key="custom-key-info" className="text-[10px] text-muted-foreground">
-              已配置自定义 API 密钥，优先使用您的专属渠道。
+              {t("api.exclusive_tier")}
             </p>
           )}
           {connectionStatus?.message && (
@@ -353,11 +355,11 @@ export default function ApiConfigSection({
 
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
           <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
-            <span>所选模型标识 (Model ID)</span>
+            <span>{t("api.model_id")}</span>
           </label>
           {availableModels.length > 0 ? (
             <Select
-              aria-label="模型名称"
+              aria-label={t("api.model_id")}
               value={settings.api.modelName || ""}
               onValueChange={(val) =>
                 updateSettings((prev) => ({
@@ -368,7 +370,7 @@ export default function ApiConfigSection({
               }
             >
               <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-mono">
-                <SelectValue placeholder="选择已获取的模型" />
+                <SelectValue placeholder={t("api.select_model_placeholder")} />
               </SelectTrigger>
               <SelectContent className="max-h-[300px]">
                 {availableModels.map((m) => (
@@ -402,8 +404,8 @@ export default function ApiConfigSection({
         {/* contextLimit Input */}
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
           <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
-            <span>最大上下文限制 (Tokens)</span>
-            <span className="text-[9px] text-muted-foreground/80">留空则自动匹配大模型默认容量限制</span>
+            <span>{t("api.context_limit")}</span>
+            <span className="text-[9px] text-muted-foreground/80">{t("api.context_limit_tip")}</span>
           </label>
           <Input
             type="number"
@@ -416,18 +418,18 @@ export default function ApiConfigSection({
               }));
             }}
             className="h-9 text-xs font-mono bg-input/50"
-            placeholder="例如 1000000 (1M)"
+            placeholder="e.g. 100000 (100k)"
           />
         </div>
 
         {/* renderingFormat Select */}
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
           <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
-            <span>提示词渲染格式</span>
-            <span className="text-[9px] text-muted-foreground/80">定义系统/设定集的排版结构</span>
+            <span>{t("api.prompt_format")}</span>
+            <span className="text-[9px] text-muted-foreground/80">{t("api.prompt_format_tip")}</span>
           </label>
           <Select
-            aria-label="排版结构格式"
+            aria-label={t("api.prompt_format")}
             value={settings.promptConfig?.renderingFormat || "auto"}
             onValueChange={(val: 'auto' | 'xml' | 'markdown') =>
               updateSettings((prev) => ({
@@ -437,12 +439,12 @@ export default function ApiConfigSection({
             }
           >
             <SelectTrigger className="w-full text-xs h-9 bg-input/50">
-              <SelectValue placeholder="自动选择" />
+              <SelectValue placeholder={t("api.format_auto")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="auto" className="text-xs">自动选择 (Auto)</SelectItem>
-              <SelectItem value="xml" className="text-xs">XML 标签格式 (XML)</SelectItem>
-              <SelectItem value="markdown" className="text-xs">Markdown 文本格式 (Markdown)</SelectItem>
+              <SelectItem value="auto" className="text-xs">{t("api.format_auto")}</SelectItem>
+              <SelectItem value="xml" className="text-xs">{t("api.format_xml")}</SelectItem>
+              <SelectItem value="markdown" className="text-xs">{t("api.format_markdown")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -451,14 +453,14 @@ export default function ApiConfigSection({
         <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="space-y-0.5">
             <label className="text-[12.5px] font-semibold text-foreground">
-              API 极简降级模式 (Conservative Fallback)
+              {t("api.fallback_title")}
             </label>
             <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
-              开启后，无论使用什么模型，发送请求时都将强制只携带 5 个最基础的参数（model, messages, stream, temperature, top_p）。推荐在第三方中转站 API 报参数错误（HTTP 400）时开启。
+              {t("api.fallback_desc")}
             </p>
           </div>
           <Switch
-            aria-label="强制基础参数"
+            aria-label={t("api.fallback_title")}
             checked={settings.api.forceBasicParams || false}
             onCheckedChange={(checked) =>
               updateSettings((prev) => ({
@@ -474,15 +476,14 @@ export default function ApiConfigSection({
         <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="space-y-0.5">
             <label className="text-[12.5px] font-semibold text-foreground">
-              在请求中包含角色名称 (Send Names)
+              {t("api.send_names_title")}
             </label>
             <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
-              在消息中携带 "name" 属性（如 "LinaSchneider"、"user"）。
-              注意：部分第三方中转、Claude 或 Gemini 接口可能不支持此属性并返回 400 错误，如果遇到请求失败请关闭此选项。
+              {t("api.send_names_desc")}
             </p>
           </div>
           <Switch
-            aria-label="发送角色名称"
+            aria-label={t("api.send_names_title")}
             checked={settings.api.sendNames || false}
             onCheckedChange={(checked) =>
               updateSettings((prev) => ({
@@ -498,14 +499,14 @@ export default function ApiConfigSection({
         <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="space-y-0.5">
             <label className="text-[12.5px] font-semibold text-foreground">
-              关闭推理模式 (Disable Reasoning)
+              {t("api.disable_reasoning_title")}
             </label>
             <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
-              对于支持深度思考推理的模型（如 Claude 3.7 或 DeepSeek R1），开启后将在 API 层面直接关闭或削弱其推理，避免消耗多余的思考 Token。
+              {t("api.disable_reasoning_desc")}
             </p>
           </div>
           <Switch
-            aria-label="强制关闭思维链"
+            aria-label={t("api.disable_reasoning_title")}
             checked={settings.api.disableReasoning || false}
             onCheckedChange={(checked) =>
               updateSettings((prev) => ({

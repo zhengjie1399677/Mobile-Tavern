@@ -4,6 +4,7 @@ import { SplashScreen } from "./SplashScreen";
 import { VenetianMask, MessageSquare, Book, Settings, HelpCircle } from "lucide-react";
 import { useKernel } from "../contexts/KernelContext";
 import type { TabType } from "../contexts/AppContext";
+import { useTranslation } from "../contexts/LanguageContext";
 
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
   VenetianMask,
@@ -28,6 +29,7 @@ export default function MainLayout() {
     showSplash,
     safeAreas,
   } = useUnifiedApp();
+  const { t } = useTranslation();
 
   const [viewportHeight, setViewportHeight] = React.useState<number | null>(null);
 
@@ -90,13 +92,14 @@ export default function MainLayout() {
             {bottomBarTabs.map(tab => {
               const IconComp = (tab.meta?.icon && ICON_MAP[tab.meta.icon]) || HelpCircle;
               const selected = isActive(tab);
+              const localizedName = t("nav." + tab.id);
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as TabType)}
                   role="tab"
                   aria-selected={selected}
-                  aria-label={`页签，${tab.meta?.name}${selected ? "，当前选中" : ""}`}
+                  aria-label={`${localizedName}${selected ? " (selected)" : ""}`}
                   className={`relative flex flex-col items-center justify-center flex-1 h-[80%] my-auto mx-1 rounded-xl tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                     selected
                       ? "text-primary scale-105 font-semibold"
@@ -108,7 +111,7 @@ export default function MainLayout() {
                     selected ? "scale-100 opacity-100" : "scale-75 opacity-0 pointer-events-none"
                   }`} />
                   <IconComp className="w-5 h-5 mb-0.5" aria-hidden="true" />
-                  <span className="text-[10px]">{tab.meta?.name}</span>
+                  <span className="text-[10px]">{localizedName}</span>
                   {selected && (
                     <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
                   )}
