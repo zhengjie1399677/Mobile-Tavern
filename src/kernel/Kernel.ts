@@ -44,6 +44,9 @@ const getKernelStrictMode = (): boolean => {
  */
 const MSG_TIMEOUT_MS = 5000;
 
+// 记录已发出缺失告警的服务名，避免刷屏
+const warnedServices = new Set<string>();
+
 /**
  * 创建安全无操作的 Fallback 代理对象 (SafeProxy)
  * 当调用的非关键服务未注册或初始化失败时，返回此代理，防止前台页面级组件在尝试链式调用时直接白屏崩溃。
@@ -72,12 +75,19 @@ const createSafeProxy = (name: string): any => {
             `[Kernel DevError] Service "${name}" is not registered or failed to initialize. ` +
             `Denying property access "${prop}" on SafeProxy in development mode.`
           );
-        } else if (isDev()) {
-          // 开发非严格模式下输出警告日志
-          console.warn(
-            `[Kernel DevWarning] Accessing property "${prop}" on SafeProxy of service "${name}". ` +
-            `Please ensure this service is correctly registered.`
-          );
+        } else {
+          // 开发/生产告警，只打印一次
+          if (!warnedServices.has(name)) {
+            warnedServices.add(name);
+            console.warn(`[Kernel] Missing service: ${name}`);
+          }
+          if (isDev()) {
+            // 开发非严格模式下输出警告日志
+            console.warn(
+              `[Kernel DevWarning] Accessing property "${prop}" on SafeProxy of service "${name}". ` +
+              `Please ensure this service is correctly registered.`
+            );
+          }
         }
       }
 
@@ -215,6 +225,7 @@ class Pipeline<T> implements IPipeline<T> {
  */
 export class Kernel implements IKernel {
   private services = new Map<string, IKernelService>(); // 已成功初始化注册的服务映射表
+  private serviceMetadata = new Map<string, { state: string; initTime?: number }>(); // 服务元数据（状态、初始化耗时等）
   private extensions = new Map<string, IExtension[]>(); // 扩展插槽映射表
 
   /**
@@ -259,6 +270,9 @@ export class Kernel implements IKernel {
       this.criticalServiceNames.add(name);
     }
 
+    this.serviceMetadata.set(name, { state: "initializing" });
+    const startTime = Date.now();
+
     const controller = new AbortController();
     this.activeControllers.add(controller);
 
@@ -283,12 +297,15 @@ export class Kernel implements IKernel {
       await initPromise;
       if (timeoutId) clearTimeout(timeoutId);
       this.services.set(name, service);
+      const initTime = Date.now() - startTime;
+      this.serviceMetadata.set(name, { state: "ready", initTime });
       console.log(`[Kernel] Service registered and initialized successfully: ${name}`);
     } catch (err: any) {
       if (timeoutId) clearTimeout(timeoutId);
       controller.abort(); // 若初始化异常，立刻触发 abort 中止内部已经拉起但未释放的临时状态
       console.error(`[Kernel] FAILED to initialize service "${name}":`, err);
       this.services.delete(name);
+      this.serviceMetadata.set(name, { state: "failed" });
       const isTimeout = err.message && err.message.includes("timed out");
       // 关键服务失败或任何初始化超时均视为致命异常，直接向上抛出，并防止前台应用挂死
       if (service.isCritical || isTimeout) {
@@ -435,6 +452,7 @@ export class Kernel implements IKernel {
         }
       }
       this.services.delete(name);
+      this.serviceMetadata.set(name, { state: "destroyed" });
       console.log(`[Kernel] Service destroyed and removed: ${name}`);
     }
   }
@@ -661,6 +679,67 @@ export class Kernel implements IKernel {
   }
 
   /**
+   * 检查并输出内核运行时详细数据结构（服务状态、拦截管道及扩展插槽）
+   */
+  inspect(): {
+    services: Array<{
+      name: string;
+      state: string;
+      initTime?: number;
+    }>;
+    pipelines: Array<{
+      name: string;
+      middlewares: ReadonlyArray<{ name: string; priority: number }>;
+    }>;
+    extensions: Array<{
+      point: string;
+      extensions: Array<{
+        id: string;
+        priority: number;
+        componentName: string;
+      }>;
+    }>;
+  } {
+    const services = Array.from(this.serviceMetadata.entries()).map(([name, meta]) => ({
+      name,
+      state: meta.state,
+      initTime: meta.initTime,
+    }));
+
+    const pipelines = Array.from(this.pipelines.entries()).map(([name, pipeline]) => ({
+      name,
+      middlewares: pipeline.list(),
+    }));
+
+    const extensions = Array.from(this.extensions.entries()).map(([point, list]) => ({
+      point,
+      extensions: list.map(ext => {
+        let componentName = "unknown";
+        if (ext.component) {
+          if (typeof ext.component === "function") {
+            componentName = ext.component.name || "anonymous";
+          } else if (typeof ext.component === "object") {
+            componentName = ext.component.name || ext.component.constructor?.name || "object";
+          } else {
+            componentName = String(ext.component);
+          }
+        }
+        return {
+          id: ext.id,
+          priority: ext.priority ?? 0,
+          componentName,
+        };
+      }),
+    }));
+
+    return {
+      services,
+      pipelines,
+      extensions,
+    };
+  }
+
+  /**
    * 销毁整个内核系统，逆序释放所有管道、消息队列和 IoC 服务
    */
   async destroy(): Promise<void> {
@@ -683,6 +762,7 @@ export class Kernel implements IKernel {
       await this.destroyService(name);
     }
     this.services.clear();
+    this.serviceMetadata.clear();
     this.criticalServiceNames.clear();
     this.subscribers.clear();
     this.pipelines.clear();

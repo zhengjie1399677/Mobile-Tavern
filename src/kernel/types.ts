@@ -140,6 +140,25 @@ export interface IKernel {
   publishParallel(message: IMessage): Promise<void>;
 
   destroy(): Promise<void>;
+  inspect(): {
+    services: Array<{
+      name: string;
+      state: string;
+      initTime?: number;
+    }>;
+    pipelines: Array<{
+      name: string;
+      middlewares: ReadonlyArray<{ name: string; priority: number }>;
+    }>;
+    extensions: Array<{
+      point: string;
+      extensions: Array<{
+        id: string;
+        priority: number;
+        componentName: string;
+      }>;
+    }>;
+  };
 }
 
 export interface IKernelService {

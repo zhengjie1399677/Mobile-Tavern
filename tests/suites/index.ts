@@ -41,6 +41,7 @@ export {
   testKernelV4AbortAndInterrupt,
   testKernelExtensionRegistry,
   testKernelDestroyIdempotency,
+  testKernelInspect,
 } from "./kernelVersionFixes.test";
 
 export { testKernelLifecycleAndDependencies } from "./kernelLifecycle.test";

@@ -211,6 +211,36 @@ export async function testKernelV3Fixes() {
     console.log("  ✔ 条目3: SafeProxy Symbol interception verified");
   }
 
+  // ─── SafeProxy 增加开发/生产告警 ──────────────────────────────────
+  {
+    const k = new Kernel();
+    // 强制把 strictMode 设为 false，以防在开发模式下直接抛错
+    setKernelStrictMode(false);
+
+    const originalWarn = console.warn;
+    const warnedMsgs: string[] = [];
+    console.warn = (...args: any[]) => {
+      warnedMsgs.push(args[0]);
+      originalWarn(...args);
+    };
+
+    try {
+      const proxy = k.getService<any>("nonexistent-service-for-warn-test");
+      // 访问属性触发 get
+      const val1 = proxy.someProperty;
+      const val2 = proxy.anotherProperty;
+      
+      // 应该有 `[Kernel] Missing service: nonexistent-service-for-warn-test` 告警
+      const missingServiceWarns = warnedMsgs.filter(msg => 
+        typeof msg === "string" && msg.includes("[Kernel] Missing service: nonexistent-service-for-warn-test")
+      );
+      assert(missingServiceWarns.length === 1, `SafeProxy should warn about missing service exactly once, but got ${missingServiceWarns.length} times.`);
+    } finally {
+      console.warn = originalWarn;
+    }
+    console.log("  ✔ SafeProxy development/production warning verified");
+  }
+
   // ─── 条目 4：unsubscribe 空 key 清理 ──────────────────────────────────
   {
     const k = new Kernel();
@@ -524,4 +554,56 @@ export async function testKernelDestroyIdempotency() {
   assert(destroyCallCount === 1, "destroy() should not call service destroy hook again on second call");
 
   console.log("✔ Kernel.destroy() Idempotency verified successfully!");
+}
+
+/**
+ * 增加 Runtime Inspector 验证 (kernel.inspect)
+ */
+export async function testKernelInspect() {
+  console.log("\n--- Running Kernel Runtime Inspector Verification ---");
+  const { Kernel } = await import("../../src/kernel/Kernel");
+
+  const testKernel = new Kernel();
+
+  // 验证初始状态下的 inspect()
+  const initialInspect = testKernel.inspect();
+  assert(Array.isArray(initialInspect.services), "initialInspect.services must be an array");
+  assert(initialInspect.pipelines.length === 3, "initialInspect should have default registered pipelines: input, output, settings");
+  assert(initialInspect.extensions.length === 0, "initialInspect.extensions should be empty initially");
+
+  // 注册一个测试服务并初始化
+  const mockService: any = {
+    name: "inspectMockSvc",
+    isCritical: false,
+    init: async () => {
+      await new Promise(r => setTimeout(r, 10)); // 故意延迟 10ms
+    }
+  };
+
+  await testKernel.registerService("inspectMockSvc", mockService);
+
+  const inspectAfterRegister = testKernel.inspect();
+  const targetSvc = inspectAfterRegister.services.find(s => s.name === "inspectMockSvc");
+  assert(targetSvc !== undefined, "Registered service must exist in inspector output");
+  assert(targetSvc!.state === "ready", "Service state should be ready");
+  assert(typeof targetSvc!.initTime === "number" && targetSvc!.initTime >= 10, `Service initTime should be >= 10ms, but got ${targetSvc!.initTime}`);
+
+  // 注册扩展点
+  const component = { name: "TestComponent" };
+  testKernel.registerExtension({
+    id: "ext-inspect-1",
+    targetPoint: "point-inspect",
+    priority: 10,
+    component,
+  });
+
+  const inspectAfterExtension = testKernel.inspect();
+  const targetPoint = inspectAfterExtension.extensions.find(e => e.point === "point-inspect");
+  assert(targetPoint !== undefined, "Registered target point must exist in inspector output");
+  assert(targetPoint!.extensions.length === 1, "Registered point must contain 1 extension");
+  assert(targetPoint!.extensions[0].id === "ext-inspect-1", "Extension ID must be correct");
+  assert(targetPoint!.extensions[0].componentName === "TestComponent", "Component name must be correct");
+
+  await testKernel.destroy();
+  console.log("✔ Kernel Runtime Inspector verified successfully!");
 }
