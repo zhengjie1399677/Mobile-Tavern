@@ -1,11 +1,13 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
+import { useTranslation } from "../contexts/LanguageContext";
 import { Trash2, MessageSquare, Clock, Users, ChevronDown, ChevronRight } from "lucide-react";
 import { getAvatarGradientClass } from "../utils/avatarUtils";
 
 type ViewMode = "timeline" | "character";
 
 export default function ChatHistoryTab() {
+  const { t } = useTranslation();
   const {
     characters,
     sessions,
@@ -95,7 +97,7 @@ export default function ChatHistoryTab() {
       if (!existing) {
         map.set(charId, {
           characterId: charId,
-          characterName: item.char?.name || (charId === "unknown" ? "未指定角色" : "已移除角色"),
+          characterName: item.char?.name || (charId === "unknown" ? t("history.unassigned_char") : t("history.removed_char")),
           avatar: item.char?.avatar,
           sessions: [item],
           latestActiveTime: item.lastActiveTime,
@@ -153,7 +155,7 @@ export default function ChatHistoryTab() {
       {/* 头部标题与模式切换器 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border">
         <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-1.5">
-          历史对话 (History)
+          {t("history.title")}
         </h1>
 
         {/* 顶部 segmented 控制组 */}
@@ -167,7 +169,7 @@ export default function ChatHistoryTab() {
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            时间排序
+            {t("history.sort_by_time")}
           </button>
 
           <button
@@ -179,7 +181,7 @@ export default function ChatHistoryTab() {
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            角色归纳
+            {t("history.sort_by_char")}
           </button>
         </div>
       </div>
@@ -187,8 +189,8 @@ export default function ChatHistoryTab() {
       {sessions.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-10 text-center text-muted-foreground">
           <MessageSquare className="w-10 h-10 mb-2 opacity-50" />
-          <p className="text-sm">暂无任何对话记录</p>
-          <p className="text-[11px] mt-1">去角色馆选择一个角色开始聊天吧！</p>
+          <p className="text-sm">{t("history.empty")}</p>
+          <p className="text-[11px] mt-1">{t("history.empty_tip")}</p>
         </div>
       ) : viewMode === "timeline" ? (
         /* 模式一：原按时间线倒序平铺 */
@@ -218,7 +220,7 @@ export default function ChatHistoryTab() {
                 <div className="min-w-0 flex-1">
                   <div className="flex justify-between items-start">
                     <p className="font-bold text-sm truncate text-foreground">
-                      {s.title || "主剧情线"}
+                      {s.title || t("history.main_timeline")}
                     </p>
                     <span className="text-[9px] text-muted-foreground whitespace-nowrap pt-0.5">
                       {new Date(lastActiveTime).toLocaleString(undefined, {
@@ -230,12 +232,12 @@ export default function ChatHistoryTab() {
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground truncate opacity-70">
-                    {char?.name || "未知角色"} | {turnCount} 回合 | {totalCharsDisplay} 字
+                    {char?.name || t("history.removed_char")} | {t("history.turns_chars", { turnCount, charCount: totalCharsDisplay })}
                   </p>
                   {lastMsg && (
                     <p className="text-[10px] text-muted-foreground truncate mt-1.5 italic border-t border-border/20 pt-1.5 opacity-80">
                       <span className="font-semibold text-primary mr-1">
-                        {lastMsg.sender === "user" ? "我" : (char?.name || "AI")}:
+                        {lastMsg.sender === "user" ? t("history.me") : (char?.name || "AI")}:
                       </span>
                       {lastMsg.content}
                     </p>
@@ -243,7 +245,7 @@ export default function ChatHistoryTab() {
                 </div>
                 <button
                   className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive p-2 rounded shrink-0 transition"
-                  title="删除对话"
+                  title={t("history.delete")}
                   onClick={(e) => {
                     e.stopPropagation();
                     deleteBranch(s.id);
@@ -296,16 +298,18 @@ export default function ChatHistoryTab() {
                           {group.characterName}
                         </p>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium shrink-0">
-                          {group.sessions.length} 个对话
+                          {t("history.sessions_count", { count: group.sessions.length })}
                         </span>
                       </div>
                       <p className="text-[10.5px] text-muted-foreground truncate opacity-75 mt-0.5">
-                        最近活动: {new Date(group.latestActiveTime).toLocaleString(undefined, {
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })} · 共计 {totalCharsDisplay} 字
+                        {t("history.recent_active", {
+                          time: new Date(group.latestActiveTime).toLocaleString(undefined, {
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        })} · {t("history.total_chars", { count: totalCharsDisplay })}
                       </p>
                     </div>
                   </div>
@@ -331,7 +335,7 @@ export default function ChatHistoryTab() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
                             <p className="font-semibold text-xs text-foreground truncate">
-                              {s.title || "主剧情线"}
+                              {s.title || t("history.main_timeline")}
                             </p>
                             <span className="text-[9px] text-muted-foreground shrink-0 font-mono">
                               {new Date(lastActiveTime).toLocaleString(undefined, {
@@ -343,14 +347,14 @@ export default function ChatHistoryTab() {
                             </span>
                           </div>
                           <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground opacity-80">
-                            <span>{turnCount} 回合</span>
+                            <span>{t("history.turns", { count: turnCount })}</span>
                             <span>·</span>
-                            <span>{totalCharsDisplay} 字</span>
+                            <span>{t("history.chars", { count: totalCharsDisplay })}</span>
                           </div>
                           {lastMsg && (
                             <p className="text-[10px] text-muted-foreground truncate mt-1 italic border-t border-border/10 pt-1 opacity-75">
                               <span className="font-medium text-primary">
-                                {lastMsg.sender === "user" ? "我" : (char?.name || "AI")}:
+                                {lastMsg.sender === "user" ? t("history.me") : (char?.name || "AI")}:
                               </span>{" "}
                               {lastMsg.content}
                             </p>
@@ -359,7 +363,7 @@ export default function ChatHistoryTab() {
 
                         <button
                           className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive p-1.5 rounded shrink-0 transition"
-                          title="删除对话"
+                          title={t("history.delete")}
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteBranch(s.id);

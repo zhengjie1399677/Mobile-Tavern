@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import { ArrowRight, User, BookOpen } from "lucide-react";
+import { useTranslation } from "../../contexts/LanguageContext";
 import { CharacterCard, CustomWorldbook } from "../../types";
 import { getAvatarGradientClass } from "../../utils/avatarUtils";
 
@@ -28,6 +29,7 @@ export default function CharacterWorldbookList({
   onToggleCharacterWorldbookGlobal,
   onDeleteCustomWorldbook,
 }: CharacterWorldbookListProps) {
+  const { t } = useTranslation();
   const customList = Object.values(customWorldbooks || {});
 
   // 长按自定义 hook
@@ -72,10 +74,10 @@ export default function CharacterWorldbookList({
       <div className="flex items-center justify-between px-1 border-b border-border/40 pb-2.5">
         <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
           <User className="w-3.5 h-3.5 text-foreground/70" />
-          👤 角色专属设定集 (Character Bound Worldbooks)
+          {t("worldbook.list_header")}
         </span>
         <span className="bg-muted/20 text-foreground/80 border border-border/50 px-2 py-0.5 rounded text-[10px] font-mono font-semibold">
-          共 {characters.length + customList.length} 个设定集
+          {t("worldbook.list_count", { count: String(characters.length + customList.length) })}
         </span>
       </div>
 
@@ -118,7 +120,7 @@ export default function CharacterWorldbookList({
                     {wb.name}
                   </p>
                   <p className="text-[10px] text-muted-foreground font-light mt-0.5">
-                    🔒 独立设定集 (长按删除)
+                    {t("worldbook.custom_tip")}
                   </p>
                 </div>
               </div>
@@ -138,7 +140,7 @@ export default function CharacterWorldbookList({
         {/* 角色卡片 */}
         {characters.length === 0 && customList.length === 0 ? (
           <div className="text-center py-12 px-4 border border-dashed border-border/80 rounded-2xl bg-muted/5 text-xs text-muted-foreground">
-            📭 暂未检索到有效的角色宿体。请到「宿体配置」面板创建一个角色卡，即可解锁对应的专属世界书回路！
+            {t("worldbook.no_characters")}
           </div>
         ) : (
           characters.map((char) => {
@@ -182,8 +184,8 @@ export default function CharacterWorldbookList({
                     </p>
                     <p className="text-[10px] text-muted-foreground font-light mt-0.5">
                       {isGlobal
-                        ? "🌎 设定集已设为【全局共享】"
-                        : "🔒 设定集仅限该【角色专属】"}
+                        ? t("worldbook.char_tip_global")
+                        : t("worldbook.char_tip_local")}
                     </p>
                   </div>
                 </div>
@@ -195,7 +197,7 @@ export default function CharacterWorldbookList({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span className="text-[10px] text-muted-foreground font-semibold">
-                      {isGlobal ? "🌎 全局" : "👤 专属"}
+                      {isGlobal ? t("worldbook.switch_global") : t("worldbook.switch_local")}
                     </span>
                     <button
                       type="button"

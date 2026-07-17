@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { FolderSearch, X, Search, FileJson, Image, Loader2, ShieldAlert, CheckCircle } from "lucide-react";
+import { useTranslation } from "../contexts/LanguageContext";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { parseCharacterFile } from "../utils/cardParser";
@@ -44,6 +45,7 @@ interface LocalCardScannerProps {
 }
 
 export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerProps) {
+  const { t } = useTranslation();
   const { showCustomAlert } = useApp();
   const { saveCharacter } = useCharactersState();
 
@@ -99,7 +101,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
         files.sort((a, b) => b.lastModified - a.lastModified);
         setScannedFiles(files);
       } catch (err: any) {
-        showCustomAlert("扫描失败: " + err.message);
+        showCustomAlert(t("scanner.scan_failed") + err.message);
       } finally {
         setIsScanning(false);
       }
@@ -202,12 +204,12 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
 
       await saveCharacter(importedChar);
       catbotEventBus.emit("character_imported");
-      showCustomAlert(`导入成功: "${importedChar.name}" 角色卡已成功加载！`);
+      showCustomAlert(t("scanner.import_success", { name: importedChar.name }));
       
       // 导入成功后，从本地扫描列表中剔除该文件
       setScannedFiles((prev) => prev.filter((f) => f.path !== file.path));
     } catch (err: any) {
-      showCustomAlert("文件导入失败: " + err.message);
+      showCustomAlert(t("scanner.import_failed") + err.message);
     } finally {
       setImportingPath(null);
     }
@@ -239,12 +241,12 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
         <div className="flex items-center justify-between border-b border-border p-3.5 shrink-0">
           <h4 className="font-bold text-foreground flex items-center gap-2 text-sm">
             <FolderSearch className="w-4.5 h-4.5 text-primary" />
-            <span>检索并导入手机本地角色卡</span>
+            <span>{t("scanner.title")}</span>
           </h4>
           <button
             type="button"
             onClick={onClose}
-            aria-label="关闭"
+            aria-label={t("scanner.close")}
             className="text-muted-foreground hover:text-foreground hover:bg-muted/40 p-1 rounded-lg transition active:scale-95"
           >
             <X className="w-4.5 h-4.5" />
@@ -258,10 +260,10 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
             <div className="bg-primary/5 border border-primary/20 p-2.5 rounded-xl space-y-1.5 leading-relaxed text-muted-foreground">
               <div className="flex items-center gap-1.5 font-bold text-primary">
                 <CheckCircle className="w-3.5 h-3.5" />
-                <span>浏览器沙盒模拟环境</span>
+                <span>{t("scanner.mock_env")}</span>
               </div>
               <p className="text-[10px]">
-                当前运行在 Web 开发调试模式下。为了验证交互界面与导入逻辑，您可以点击下方按钮模拟检索出测试卡片。
+                {t("scanner.mock_env_tip")}
               </p>
               <button
                 type="button"
@@ -272,10 +274,10 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                 {isScanning ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>正在模拟扫描...</span>
+                    <span>{t("scanner.mock_scanning")}</span>
                   </>
                 ) : (
-                  <span>模拟扫描手机存储 (Scan Files)</span>
+                  <span>{t("scanner.mock_btn")}</span>
                 )}
               </button>
             </div>
@@ -284,17 +286,17 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
             <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-xl space-y-2">
               <div className="flex items-center gap-2 font-bold text-destructive">
                 <ShieldAlert className="w-4 h-4" />
-                <span>需要外部存储访问权限</span>
+                <span>{t("scanner.permission_title")}</span>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                App 需要读取您的外部存储（如 Downloads 目录）以检索存放在那里的角色卡。您可以随时关闭或在手机设置中撤销此权限。
+                {t("scanner.permission_desc")}
               </p>
               <button
                 type="button"
                 onClick={handleRequestPermission}
                 className="w-full py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition active:scale-[0.98]"
               >
-                授权并扫描本地卡片
+                {t("scanner.permission_btn")}
               </button>
             </div>
           ) : (
@@ -308,12 +310,12 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
               {isScanning ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>检索存储介质中...</span>
+                  <span>{t("scanner.scanning")}</span>
                 </>
               ) : (
                 <>
                   <FolderSearch className="w-3.5 h-3.5" />
-                  <span>立即扫描 Download & Pictures 目录</span>
+                  <span>{t("scanner.scan_btn")}</span>
                 </>
               )}
             </button>
@@ -325,7 +327,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
               <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground/70" />
               <input
                 type="text"
-                placeholder="搜索已扫描出的本地卡片文件..."
+                placeholder={t("scanner.search_placeholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-2.5 py-1.5 bg-input border border-border rounded-lg text-[11px] text-foreground outline-none focus:border-primary transition"
@@ -339,16 +341,16 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
           {isScanning ? (
             <div className="h-full flex flex-col items-center justify-center space-y-2 text-muted-foreground py-16">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <p className="text-[11px] font-medium animate-pulse">正在手机公共目录搜索卡片，请稍候...</p>
+              <p className="text-[11px] font-medium animate-pulse">{t("scanner.scan_waiting")}</p>
             </div>
           ) : filteredFiles.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center space-y-1.5 text-muted-foreground text-center py-16 leading-relaxed">
               <FolderSearch className="w-10 h-10 text-muted-foreground/30 stroke-[1.2]" />
-              <p className="font-bold text-[11px]">暂无扫描结果</p>
+              <p className="font-bold text-[11px]">{t("scanner.no_results")}</p>
               <p className="text-[10px] text-muted-foreground/80 max-w-xs">
                 {scannedFiles.length > 0
-                  ? "没有符合搜索关键字的文件。"
-                  : "点击上方扫描按钮，检索您存放在手机中的 .json 角色包或酒馆 PNG 图片卡。"}
+                  ? t("scanner.no_match")
+                  : t("scanner.no_results_tip")}
               </p>
             </div>
           ) : (
@@ -378,7 +380,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                           {file.path}
                         </p>
                         <p className="text-[8.5px] text-muted-foreground/75 leading-none mt-1">
-                          大小: {formatSize(file.size)} | 修改时间: {new Date(file.lastModified).toLocaleDateString()}
+                          {t("scanner.file_meta", { size: formatSize(file.size), date: new Date(file.lastModified).toLocaleDateString() })}
                         </p>
                       </div>
                     </div>
@@ -392,10 +394,10 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                       {isImporting ? (
                         <>
                           <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                          <span>导入中</span>
+                          <span>{t("scanner.importing")}</span>
                         </>
                       ) : (
-                        <span>导入</span>
+                        <span>{t("scanner.import")}</span>
                       )}
                     </button>
                   </div>
