@@ -60,6 +60,11 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
     "features.expression_dict_title": "情绪匹配正则词典",
     "features.expression_dict_desc": "当角色未配置 triggers 时，系统使用此正则词典匹配表情变化（可清空关闭）。",
     "features.reset_dict": "重置词典",
+    
+    "report.title": "系统报告",
+    "report.copy": "复制报告",
+    "report.check_start": "开始自检",
+    "report.checking": "自检中...",
   },
   "zh-TW": {
     "control_panel.title": "控制面板",
@@ -122,6 +127,11 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
     "features.expression_dict_title": "情緒匹配正則詞典",
     "features.expression_dict_desc": "當角色未配置 triggers 時，系統使用此正則詞典匹配表情變化（可清空關閉）。",
     "features.reset_dict": "重置詞典",
+    
+    "report.title": "系統報告",
+    "report.copy": "複製報告",
+    "report.check_start": "開始自檢",
+    "report.checking": "自檢中...",
   },
   "en": {
     "control_panel.title": "Control Panel",
@@ -184,6 +194,11 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
     "features.expression_dict_title": "Emotion Matching Regex Dictionary",
     "features.expression_dict_desc": "Fallback regex to match expressions when card has no triggers (clear to disable).",
     "features.reset_dict": "Reset Dictionary",
+    
+    "report.title": "System Report",
+    "report.copy": "Copy Report",
+    "report.check_start": "Run Diagnostic",
+    "report.checking": "Running...",
   },
   "ja": {
     "control_panel.title": "コントロールパネル",
@@ -246,6 +261,11 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
     "features.expression_dict_title": "感情判定正規表現辞書",
     "features.expression_dict_desc": "キャラに triggers がない場合、この正規表现で表情変化を判定します（空にして無効化可）。",
     "features.reset_dict": "辞書リセット",
+    
+    "report.title": "システム報告",
+    "report.copy": "レポートコピー",
+    "report.check_start": "自己診断開始",
+    "report.checking": "診断中...",
   },
   "ru": {
     "control_panel.title": "Панель управления",
@@ -308,6 +328,11 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
     "features.expression_dict_title": "Словарь регулярных выражений эмоций",
     "features.expression_dict_desc": "Резервные регулярные выражения для мимики при отсутствии триггеров у карты (очистите для отключения).",
     "features.reset_dict": "Сбросить словарь",
+    
+    "report.title": "Системный отчет",
+    "report.copy": "Копировать отчет",
+    "report.check_start": "Запустить диагностику",
+    "report.checking": "Диагностика...",
   },
   "es": {
     "control_panel.title": "Panel de Control",
@@ -370,5 +395,10 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
     "features.expression_dict_title": "Diccionario de Regex de Emoción",
     "features.expression_dict_desc": "Regex de respaldo para expresiones si la carta no tiene triggers (vaciar para desactivar).",
     "features.reset_dict": "Restablecer Diccionario",
+    
+    "report.title": "Reporte del Sistema",
+    "report.copy": "Copiar Reporte",
+    "report.check_start": "Iniciar Autodiagnóstico",
+    "report.checking": "Analizando...",
   }
 };

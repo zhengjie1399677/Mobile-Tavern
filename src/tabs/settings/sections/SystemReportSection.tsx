@@ -2,6 +2,7 @@ import { useState } from "react";
 import { getDB } from "../../../utils/localDB";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import type { ViewportSize } from "../utils";
+import { useTranslation } from "../../../contexts/LanguageContext";
 
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。
@@ -64,6 +65,7 @@ export default function SystemReportSection({
   deviceModel,
   viewportSize,
 }: SystemReportSectionProps) {
+  const { t } = useTranslation();
   const [diagnoseLog, setDiagnoseLog] = useState<string>("");
   const [isChecking, setIsChecking] = useState(false);
 
@@ -353,26 +355,26 @@ export default function SystemReportSection({
   return (
     <div className="mt-6 text-center space-y-1 pb-4 select-text font-mono text-[9px] text-muted-foreground/80">
       <p className="font-bold text-[10px] text-muted-foreground mb-1 select-none flex items-center justify-center gap-1">
-        🛠️ 系统报告
+        🛠️ {t("report.title")}
         <button
           onClick={() => {
             const reportText = [
-              `当前版本: v${__APP_VERSION__}`,
-              `运行平台: ${isTauri ? "Tauri Android 客户端" : "Web 网页端"}`,
-              `设备型号: ${deviceModel}`,
-              typeof window !== "undefined" ? `视口尺寸: ${viewportSize.w}x${viewportSize.h} (视觉: ${Math.round(viewportSize.vW)}x${Math.round(viewportSize.vH)})` : null,
-              safeAreas ? `安全区域: 顶部 ${safeAreas.top}dp | 底部 ${safeAreas.bottom}dp` : null,
-              `安卓桥接: ${typeof window !== "undefined" && (window as WindowWithAndroidBridge).AndroidThemeBridge ? "已注入 (Success)" : "未注入/不支持 (None)"}`,
-              `UA 信息: ${typeof navigator !== "undefined" ? navigator.userAgent : "N/A"}`,
-              `TTS 配置: ${settings.ttsConfig?.enabled ? `开启 (${settings.ttsConfig.provider || "speech-synthesis"})` : "关闭"}`,
-              `ASR 配置: ${settings.asrConfig?.enabled ? `开启 (${settings.asrConfig.provider || "web-speech"})` : "关闭"}`,
-              `生图配置: ${settings.imageGenApi?.enabled ? `开启 (${settings.imageGenApi.type || "openai-dalle"})` : "关闭"}`,
-              `主 API 接口: ${settings.api?.baseUrl ? `已配 (Base: ${settings.api.baseUrl.replace(/^(https?:\/\/[^\/]+).*$/, "$1")}...)` : "未配置"}`
+              `${t("report.version")}: v${__APP_VERSION__}`,
+              `${t("report.platform")}: ${isTauri ? t("report.android_client") : t("report.web_client")}`,
+              `${t("report.device")}: ${deviceModel}`,
+              typeof window !== "undefined" ? `${t("report.viewport")}: ${viewportSize.w}x${viewportSize.h} (visual: ${Math.round(viewportSize.vW)}x${Math.round(viewportSize.vH)})` : null,
+              safeAreas ? `${t("report.safe_area")}: ${safeAreas.top}dp | ${safeAreas.bottom}dp` : null,
+              `${t("report.android_bridge")}: ${typeof window !== "undefined" && (window as WindowWithAndroidBridge).AndroidThemeBridge ? t("report.success") : t("report.none")}`,
+              `${t("report.ua")}: ${typeof navigator !== "undefined" ? navigator.userAgent : "N/A"}`,
+              `${t("report.tts")}: ${settings.ttsConfig?.enabled ? `${t("report.enabled")} (${settings.ttsConfig.provider || "speech-synthesis"})` : t("report.disabled")}`,
+              `${t("report.asr")}: ${settings.asrConfig?.enabled ? `${t("report.enabled")} (${settings.asrConfig.provider || "web-speech"})` : t("report.disabled")}`,
+              `${t("report.image_gen")}: ${settings.imageGenApi?.enabled ? `${t("report.enabled")} (${settings.imageGenApi.type || "openai-dalle"})` : t("report.disabled")}`,
+              `${t("report.api_endpoint")}: ${settings.api?.baseUrl ? `${t("report.configured")} (Base: ${settings.api.baseUrl.replace(/^(https?:\/\/[^\/]+).*$/, "$1")}...)` : t("report.not_configured")}`
             ].filter(Boolean).join("\n");
 
             let copyText = reportText;
             if (diagnoseLog) {
-              copyText += `\n\n=================================\n🛠️ 系统自检诊断日志 (DEBUGLOG)\n=================================\n${diagnoseLog}`;
+              copyText += `\n\n=================================\n🛠️ ${t("report.title")} DEBUGLOG\n=================================\n${diagnoseLog}`;
             }
 
             if (navigator.clipboard?.writeText) {
@@ -387,58 +389,58 @@ export default function SystemReportSection({
               } catch (_) {}
               document.body.removeChild(textarea);
             }
-            showCustomAlert(diagnoseLog ? "系统报告及自检日志已成功复制到剪贴板！" : "系统报告已成功复制到剪贴板！", "复制成功");
+            showCustomAlert(diagnoseLog ? t("report.copied_all") : t("report.copied_basic"), t("report.copy_success"));
           }}
           className="text-[9px] text-primary hover:underline font-normal cursor-pointer select-none px-1.5 py-0.5 border border-primary/20 rounded bg-primary/5 hover:bg-primary/10 ml-1.5 active:scale-95 transition-all"
         >
-          复制报告
+          {t("report.copy")}
         </button>
         <button
           onClick={runSelfCheck}
           disabled={isChecking}
           className="text-[9px] text-emerald-500 hover:underline font-normal cursor-pointer select-none px-1.5 py-0.5 border border-emerald-500/20 rounded bg-emerald-500/5 hover:bg-emerald-500/10 ml-1 active:scale-95 transition-all disabled:opacity-55"
         >
-          {isChecking ? "自检中..." : "开始自检"}
+          {isChecking ? t("report.checking") : t("report.check_start")}
         </button>
       </p>
       <p className="opacity-55">
-        当前版本: v{__APP_VERSION__} • 运行平台: {isTauri ? "Tauri Android 客户端" : "Web 网页端"}
+        {t("report.version")}: v{__APP_VERSION__} • {t("report.platform")}: {isTauri ? t("report.android_client") : t("report.web_client")}
       </p>
       <p className="opacity-55">
-        设备型号: {deviceModel}
+        {t("report.device")}: {deviceModel}
       </p>
       {typeof window !== "undefined" && (
         <p className="opacity-55">
-          视口尺寸: {viewportSize.w}x{viewportSize.h} (视觉: {Math.round(viewportSize.vW)}x${Math.round(viewportSize.vH)})
+          {t("report.viewport")}: {viewportSize.w}x{viewportSize.h} (visual: {Math.round(viewportSize.vW)}x{Math.round(viewportSize.vH)})
         </p>
       )}
       {safeAreas && (
         <p className="opacity-55">
-          安全区域: 顶部 {safeAreas.top}dp | 底部 {safeAreas.bottom}dp
+          {t("report.safe_area")}: {safeAreas.top}dp | {safeAreas.bottom}dp
         </p>
       )}
 
       {diagnoseLog && (
         <div className="mt-3 text-left p-2.5 bg-zinc-950/90 border border-zinc-800 rounded-lg text-zinc-300 font-sans tracking-wide overflow-x-auto max-w-full shadow-inner leading-relaxed">
           <div className="flex justify-between items-center border-b border-zinc-800 pb-1 mb-1.5 text-[8px] font-bold text-zinc-500 select-none">
-            <span>🛠️ 系统自检诊断日志 (DEBUGLOG)</span>
+            <span>🛠️ {t("report.title")} DEBUGLOG</span>
             <div className="flex gap-2">
               <button
                 onClick={() => {
                   if (navigator.clipboard?.writeText) {
                     navigator.clipboard.writeText(diagnoseLog);
                   }
-                  showCustomAlert("自检日志已成功复制到剪贴板！", "复制成功");
+                  showCustomAlert(t("report.copied_log"), t("report.copy_success"));
                 }}
                 className="text-primary hover:underline text-[8px]"
               >
-                [复制日志]
+                [{t("report.copy")}]
               </button>
               <button
                 onClick={() => setDiagnoseLog("")}
                 className="text-zinc-500 hover:text-zinc-400 text-[8px]"
               >
-                [清除]
+                [clear]
               </button>
             </div>
           </div>

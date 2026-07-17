@@ -57,38 +57,25 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  // 简易的点链键解析器 (e.g. "features.html_rendering") 与插值查找
+  // 直接键解析器 (e.g. "features.html_rendering") 与插值查找
   const t = (key: string, variables?: Record<string, string>): string => {
-    const keys = key.split(".");
-    
     // 1. 尝试从当前选择的语言提取
-    let currentDict: any = TRANSLATIONS[language];
+    const currentDict = TRANSLATIONS[language];
     let result = key;
     
-    for (const k of keys) {
-      if (currentDict && typeof currentDict === "object" && k in currentDict) {
-        currentDict = currentDict[k];
-      } else {
-        currentDict = undefined;
-        break;
-      }
-    }
-    
-    if (typeof currentDict === "string") {
-      result = currentDict;
+    if (currentDict && currentDict[key] !== undefined) {
+      result = currentDict[key];
     } else {
-      // 2. 降级：尝试从简体中文获取
-      let fallbackDict: any = TRANSLATIONS["zh-CN"];
-      for (const k of keys) {
-        if (fallbackDict && typeof fallbackDict === "object" && k in fallbackDict) {
-          fallbackDict = fallbackDict[k];
-        } else {
-          fallbackDict = undefined;
-          break;
+      // 2. 降级：尝试从英文 (en) 获取
+      const fallbackDictEn = TRANSLATIONS["en"];
+      if (fallbackDictEn && fallbackDictEn[key] !== undefined) {
+        result = fallbackDictEn[key];
+      } else {
+        // 3. 最终降级：尝试从简体中文 (zh-CN) 获取
+        const fallbackDictZh = TRANSLATIONS["zh-CN"];
+        if (fallbackDictZh && fallbackDictZh[key] !== undefined) {
+          result = fallbackDictZh[key];
         }
-      }
-      if (typeof fallbackDict === "string") {
-        result = fallbackDict;
       }
     }
 
