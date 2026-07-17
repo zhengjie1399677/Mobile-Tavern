@@ -106,6 +106,43 @@
   - **CSS 选择器策略**：所有 customThemes 在挂载时通过 useEffect 全量注入 `<style>` 标签，切换主题只需切换 `data-theme` 属性，CSS 选择器自动命中，避免运行时重注入闪烁
 * **验证结果**：`npm run lint` 通过；`npm run test` 65/65 全部通过。
 
+### 11. 叙事记忆用户控制（时间轴摘要管理）
+* **问题描述**：原代办中计划开发「叙事记忆用户控制」（让用户查看、手动编辑、删除、手动触发总结时间轴数据），但经核查，此系列功能及对应交互界面事实上早已开发完整。
+* **现状核实**：
+  - **时间轴与卡片管理 UI**：[StoryTimelineView.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/chat/StoryTimelineView.tsx) 已完全实现时间轴的可见化查看，并具备“手工补充”、“编辑该条记忆年表”和“删除该条记忆年表”三大核心管理操作。
+  - **手动整理入口**：[QuickDialogueOptions.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/chat/QuickDialogueOptions.tsx) 中的“整理潜意识”选项允许用户手动触发大模型总结并归档。
+  - **核心逻辑与写回**：[useTimelineSummary.ts](file:///d:/projects/Mobile-Tavern/src/hooks/useChat/useTimelineSummary.ts) 完全接管了自动检测、手动编辑与落库保存逻辑。
+* **处理方案**：已从“未来待办事项”中移出，标记为已落地。
+
+### 12. 主题包在线编辑器
+* **问题描述**：在已落地的主题包导入导出基础上，用户缺少内置的可视化调色与实时预览编辑器，需手动修改或编写 JSON 包文件。
+* **修复方案**：
+  - 新建了核心编辑器组件 [ThemeEditorModal.tsx](file:///d:/projects/Mobile-Tavern/src/components/ThemeEditorModal.tsx)，支持主题名称、版本号、描述等基本元数据编辑与 `isDark` 属性切换。
+  - 颜色变量分组：将 CSS 白名单变量划分为基础配色、主色与强调、卡片与对话、状态配置四个区域。对每个变量双向绑定 `<input type="color">` 颜色选择器与 `<input type="text">` 文本编辑框。
+  - 引入了实时注入预览机制：每次调色时，自动将当前修改编译为 `custom_theme_preview` 主题样式注入 head 并修改全局 data-theme，使整站 UI 立即响应修改。
+  - 集成了 `customCss` 在线编辑器，包含实时的 `sanitizeCss` 安全过滤以防注入攻击。
+  - 对接了 [ThemeConfigSection.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/settings/ThemeConfigSection.tsx)，新增“新建主题”和“编辑主题”按钮，并完善了保存（同名校验、幂等 ID 覆盖、样式替换）与取消（还原原始主题ID、清理预览样式）的状态清理。
+* **涉及文件**：
+  - [src/components/ThemeEditorModal.tsx](file:///d:/projects/Mobile-Tavern/src/components/ThemeEditorModal.tsx)
+  - [src/tabs/settings/ThemeConfigSection.tsx](file:///d:/projects/Mobile-Tavern/src/tabs/settings/ThemeConfigSection.tsx)
+* **验证结果**：`npm run lint` 类型检查通过；`npm run test` 66/66 全部测试通过。
+
+### 13. 字典记忆查询视图
+* **问题描述**：自动学习的词典记忆存在黑盒性质，用户侧缺少查询、筛选与手动删改功能。
+* **修复方案**：
+  - 扩展底层数据接口：在 [localDB.ts](file:///d:/projects/Mobile-Tavern/src/utils/localDB.ts) 新增 `deleteDictEntryById(id)` 物理删除方法，并在 [MemoryStorage.ts](file:///d:/projects/Mobile-Tavern/src/kernel/services/memory/MemoryStorage.ts) 暴露透传。
+  - 重构了 [DictTab.tsx](file:///d:/projects/Mobile-Tavern/src/components/memory-drawer/DictTab.tsx) 组件：
+    - 检索过滤：新增搜索框，支持不区分大小写模糊检索实体名称与别名内容。
+    - 类型过滤：新增分类 Tab 过滤器（全部、人物、地点、物品、组织、概念），可快速划分并展示不同类型的词条。
+    - 手动新增：增加了新增词条的表单容器，允许用户在 UI 上手动定义名词类型与别名列表并写入 IndexedDB，首创轮次标记为“手动创建”。
+    - 手动删除：为词条卡片新增删除图标，配合 `window.confirm` 进行二次确认以进行数据物理移除。
+    - 批量导出：支持一键将当前会话下的记忆词典序列化为格式干净的 JSON 纯净包并提供浏览器下载。
+* **涉及文件**：
+  - [src/utils/localDB.ts](file:///d:/projects/Mobile-Tavern/src/utils/localDB.ts)
+  - [src/kernel/services/memory/MemoryStorage.ts](file:///d:/projects/Mobile-Tavern/src/kernel/services/memory/MemoryStorage.ts)
+  - [src/components/memory-drawer/DictTab.tsx](file:///d:/projects/Mobile-Tavern/src/components/memory-drawer/DictTab.tsx)
+* **验证结果**：`npm run lint` 通过；`npm run test` 66/66 全部通过。
+
 ---
 
 ## 🚀 未来待办事项 (Future Action Items)
@@ -114,48 +151,13 @@
 >
 > 以下待办按实现难度从低到高排序，前项为后项基础。
 
-### 1. 主题包在线编辑器 [难度：中]
-
-* **目标**：在已落地的"导入/导出/列表管理"基础上，提供内置的可视化主题编辑器，让用户无需手写 JSON 即可调色与预览。
-* **依赖**：待办已修复 #9（主题包导入导出）。
-* **现状基础**：
-  - [themePackage.ts](file:///e:/modules/projects/Mobile-Tavern/src/utils/themePackage.ts) 已实现包格式 + 校验 + 序列化 + CSS 注入
-  - [ThemeConfigSection.tsx](file:///e:/modules/projects/Mobile-Tavern/src/tabs/settings/ThemeConfigSection.tsx) 已有主题包列表与应用入口
-* **缺口**：
-  - 可视化调色器（每个白名单 CSS 变量一个颜色选择器）
-  - 实时预览（编辑时即时注入 `<style>` 预览效果）
-  - "另存为主题包"按钮（从当前调色状态生成 CustomThemePackage）
-  - customCss 编辑器（textarea + sanitize 实时校验）
-* **产出**：主题编辑器 UI（颜色选择器 + 实时预览 + 另存为 + customCss 编辑器）。
-* **预估**：3-5 天。主要工作量在 UI 与实时预览性能。
-
-### 4. 叙事记忆用户控制 [难度：中]
-
-* **目标**：把叙事记忆（时间轴摘要）从"自动生成黑盒"开放为用户可控——查看、手动编辑、删除、手动触发总结。
-* **现状基础**：
-  - `MemorySummary` 服务已实现自动摘要生成（[testMemorySummary](file:///e:/modules/projects/Mobile-Tavern/tests/suites/memorySummary.test.ts) 已验证）。
-  - `ChatSession.summaries` 字段已存储摘要数据。
-* **缺口**：缺用户侧查看/编辑 UI；缺手动触发总结的入口；缺单条摘要编辑写回路径。
-* **产出**：叙事记忆管理 UI（时间轴视图、单条编辑、手动触发总结、删除）。
-* **预估**：3-5 天。已有数据，缺 UI 和写回路径。
-
-### 5. 字典记忆查询视图 [难度：中]
-
-* **目标**：把字典记忆（`memory_dict` Store）开放为用户可查询的结构化数据视图。
-* **现状基础**：
-  - `memory_dict` Store 已实现，L0/L1/L2 三级降级抽取已落地（[testMemoryExtractor](file:///e:/modules/projects/Mobile-Tavern/tests/suites/memoryExtractor.test.ts) 已验证）。
-  - 标签倒排索引已实现（[testMemoryRecall](file:///e:/modules/projects/Mobile-Tavern/tests/suites/memoryRecall.test.ts)）。
-* **缺口**：缺用户侧查询 UI；缺按标签/时间/会话维度过滤；缺手动编辑条目能力。
-* **产出**：字典记忆查询 UI（按标签/时间过滤、条目编辑、批量导出）。
-* **预估**：3-5 天。已有数据，缺查询 UI。
-
-### 6. 状态记忆 Schema 高阶层（字段类型/默认值/模板持久化） [难度：中-高]
+### 1. 状态记忆 Schema 高阶层（字段类型/默认值/模板持久化） [难度：中-高]
 
 * **目标**：在已落地的"用户可编辑表名/列名"基础上，进一步引入字段类型约束（number/date/enum）、默认值、Schema 模板持久化与跨会话复用——把"用户可重定义结构"从一次性编辑升级为可携带的 Schema 资产。
-* **依赖**：待办 #1（已落地，见已修复 #8）。
+* **依赖**：待办已修复 #8。
 * **现状基础**：
-  - 用户已可在 [TableMemoryTab.tsx](file:///e:/modules/projects/Mobile-Tavern/src/components/memory-drawer/TableMemoryTab.tsx) 管理面板新建/删除/重命名表与列，列结构变更按列名匹配保留旧数据。
-  - LLM 通过 [PromptService.ts](file:///e:/modules/projects/Mobile-Tavern/src/kernel/services/PromptService.ts) 动态读取 sheet 结构注入 Prompt，已感知用户自定义 Schema。
+  - 用户已可在 [TableMemoryTab.tsx](file:///d:/projects/Mobile-Tavern/src/components/memory-drawer/TableMemoryTab.tsx) 管理面板新建/删除/重命名表与列，列结构变更按列名匹配保留旧数据。
+  - LLM 通过 [PromptService.ts](file:///d:/projects/Mobile-Tavern/src/kernel/services/PromptService.ts) 动态读取 sheet 结构注入 Prompt，已感知用户自定义 Schema。
   - 所有列当前均为 string 类型，无类型约束；表结构仅存于会话内，无跨会话模板。
 * **缺口**：
   - 字段类型系统（number/date/enum/text）与 UI 类型选择器
@@ -165,7 +167,7 @@
 * **产出**：字段类型选择 UI + 默认值配置 + Schema 包导入导出 + 类型约束的 LLM 提示词增强。
 * **预估**：5-7 天。涉及 LLM 提示词同步与数据迁移，需谨慎设计。
 
-### 7. 脚本片段管理 UI [难度：高]
+### 2. 脚本片段管理 UI [难度：高]
 
 * **目标**：把 TavernHelper iframe 桥接能力从"角色卡嵌脚本"扩展为"用户自管理的脚本库"——启用/禁用/编辑/分享。
 * **现状基础**：
@@ -176,23 +178,36 @@
 * **产出**：用户脚本库管理 UI（列表/编辑/启停/导入导出）。
 * **预估**：1-2 周。UI 复杂度高，需配合 iframe 生命周期管理。
 
-### 8. 规则触发系统 [难度：高]
+### 3. 规则触发系统 [难度：高]
 
 * **目标**：用户定义"当状态 X 满足条件 Y 时执行 Z"的自动化规则，类似 Notion automation。
-* **依赖**：待办 #1、#2、#6（状态记忆层）落地。
+* **依赖**：未来待办 #1（Schema 层）与 待办已修复 #8。
 * **现状基础**：内核 Pipeline + EventBus 已实现，可作为规则执行器底座。
-* **缺口**：缺规则 DSL 设计；缺条件求值器；缺动作执行器（发消息/改状态/触发世界书/调用 LLM）；缺规则管理 UI。
+* **缺口**：缺规则 DSL 设计；缺条件求值器；缺动作执行器（发消息/改状态/触发世界书/调用 LLM）；缺规则管理 UI.
 * **产出**：规则触发引擎（条件 DSL + 求值器 + 动作执行器）+ 规则管理 UI。
 * **预估**：1-2 周。需设计安全的规则 DSL，防止用户写出死循环或资源耗尽规则。
 
-### 9. 数据派生计算 [难度：最高]
+### 4. 数据派生计算 [难度：最高]
 
 * **目标**：基于状态字段做衍生计算（类似 Notion formula），例如"好感度 = 互动次数 × 0.1 + 关键事件 × 10"。
-* **依赖**：待办 #6（Schema 层）落地。
+* **依赖**：未来待办 #1（Schema 层）落地。
 * **现状基础**：无，需新建公式解析器。
 * **缺口**：缺公式 DSL 解析器；缺安全求值沙盒（防止用户公式访问全局对象）；缺公式字段类型推导；缺公式编辑 UI。
 * **产出**：公式字段系统（DSL 解析器 + 安全求值器 + 编辑器 UI）。
 * **预估**：2 周以上。需设计安全的表达式沙盒，防止注入攻击。
+
+### 5. AbortSignal 协作式中断缺陷与底层资源泄露治理 [难度：中-高]
+
+* **目标**：解决 `AbortSignal` 仅作为协作式而非抢占式中断的局限性，治理内核与底层服务中由于超时/中止未正确传导至底层实现而导致的潜在资源泄漏问题。
+* **现状基础**：
+  - 内核提供了 `AbortController` 并在超时或销毁时进行 `abort()` 触发。
+  - `DatabaseService` 等服务接收了 `AbortSignal` 但并未将其透传至底层的 IndexedDB 事务或写队列中。
+* **缺口**：
+  - `localDB` 等底层的 IndexedDB 操作缺少对 `AbortSignal` 的监听，当 `enqueueWrite` 触发 15 秒超时时，未能调用对应 IDB 事务的 `transaction.abort()` 进行真正取消，可能导致死锁与资源挂起。
+  - 正则表达式匹配及 MVU 脚本解析过程缺乏分步的 `signal.aborted` 检查，在面对复杂或恶意脚本时无法安全退出。
+  - Tauri 原生桥接等操作中，需要确保 `AbortSignal` 的状态正确同步至 Rust 后端以取消后台线程或网络请求。
+* **产出**：底层事务与网络请求的中断传导机制（IndexedDB 事务主动 `abort`、复杂处理循环插入 `aborted` 检查点、原生桥接取消透传）。
+* **预估**：3-5 天。
 
 ---
 
@@ -200,6 +215,8 @@
 
 | 日期 | 变动内容 |
 |---|---|
+| 2026-07-17 | 落地字典记忆查询视图（原待办 #1）：在 `localDB.ts` 新建 `deleteDictEntryById(id)` 单条物理删除接口并由 `MemoryStorage` 包装暴露。重构了 `DictTab.tsx` 面板：支持检索词实时模糊匹配（entity/aliases）、实体类型分类 Tag 过滤器（人物/地点/物品等）、表单式手动新增词条、`window.confirm` 单条物理删除以及批量导出 JSON 纯净包下载。`npm run lint` 及 66/66 项测试全绿。未来待办重新编号。 |
+| 2026-07-17 | 落地主题包在线编辑器（原待办 #1）：新建了 `ThemeEditorModal.tsx` 主题编辑弹窗，提供基本信息、圆角设置、分组颜色变量双向绑定调节与 customCss 安全过滤编辑。整合实时注入预览逻辑，使改动立刻应用在整站预览中。修改并对接 `ThemeConfigSection.tsx` 添加了“新建主题”和“编辑主题”按钮并健全了状态清理。`npm run lint` 及 66/66 项测试全绿。未来待办重新编号。 |
 | 2026-07-17 | 落地主题包导入导出（原 TODO #1）：新建 `src/utils/themePackage.ts` 沙盒实现 `.tavern-theme.json` 包格式 + CSS 变量白名单（23 个标准变量，禁 `--safe-area-*`）+ 多层校验 + 序列化 + `<style>` 标签注入。接入 types/defaults/useSettingsLoader/localDB cloneSettings/AppContext ThemeType 扩展（字面量联合 + `(string & {})`）/ThemeConfigSection UI（导入按钮 + 已导入列表 + 应用/导出/删除三按钮）。isDark 通过 localStorage 传递避免 AppProvider 反向依赖 settings。65/65 测试全通过。TODO #1 更新为"主题包在线编辑器"（可视化调色器 + 实时预览）。 |
 | 2026-07-17 | 落地状态记忆查看与编辑层 + 表结构编辑（合并原 #1+#6 列结构部分）：核查发现 `TableMemoryTab.tsx` 早已实现查看/单元格编辑/行级增删/表启停，原 #1 缺口分析系误判；本次补全删除行/重置表/删除表二次确认 + 新建/删除/编辑表结构（表名/描述/列名）+ 列结构变更按列名匹配保留旧数据。同时核查 `PromptService.ts` 确认 LLM 动态读取 sheet 结构注入 Prompt，表结构变更无需改后端。单文件改动，65/65 测试全通过。TODO #6 调整为"状态记忆 Schema 高阶层（字段类型/默认值/模板持久化）"。 |
 | 2026-07-17 | 产品方向校准：放弃通用第三方插件生态（移动端合规与范式壁垒），转向"用户可编程底座"模式。新增 9 项待办，按实现难度从低到高排序：状态记忆查看层/编辑层、主题包导入导出、叙事记忆用户控制、字典记忆查询视图、状态记忆 Schema 层、脚本片段管理 UI、规则触发系统、数据派生计算。 |

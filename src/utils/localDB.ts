@@ -1560,6 +1560,24 @@ export async function deleteDictBySession(sessionId: string): Promise<void> {
 }
 
 /**
+ * 按主键物理删除单条词典条目。
+ */
+export async function deleteDictEntryById(id: string): Promise<void> {
+  return enqueueWrite(async () => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("memory_dict", "readwrite");
+      const store = transaction.objectStore("memory_dict");
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      transaction.onabort = () =>
+        reject(transaction.error || new Error("Transaction aborted"));
+    });
+  }, `dict:${id}:delete`);
+}
+
+/**
  * 原子化地向指定会话追加一条时间轴总结卡片（SummaryCard）。
  * 该操作完全在 enqueueWrite 队列中串行执行，确保在高频对话并发写入时不会发生“写覆盖”导致的消息丢失。
  *

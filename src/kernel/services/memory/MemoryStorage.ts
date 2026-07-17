@@ -18,6 +18,7 @@ import {
   getDictEntryById as dbGetDictEntryById,
   getDictBySession as dbGetBySession,
   deleteDictBySession as dbDeleteDictBySession,
+  deleteDictEntryById as dbDeleteDictEntryById,
   getDB,
 } from '../../../utils/localDB';
 import type { MessageRecord, MemoryDictEntry } from './types';
@@ -202,6 +203,14 @@ export class MemoryStorage {
   async deleteDictBySession(sessionId: string): Promise<void> {
     this.ensureInitialized();
     await dbDeleteDictBySession(sessionId);
+  }
+
+  /**
+   * 删除指定主键的单个词典条目。
+   */
+  async deleteDictEntry(id: string): Promise<void> {
+    this.ensureInitialized();
+    await dbDeleteDictEntryById(id);
   }
 
   // ===== 内部方法 =====

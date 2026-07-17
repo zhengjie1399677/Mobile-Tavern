@@ -1,4 +1,4 @@
-import { useEffect, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import {
   Card,
   CardHeader,
@@ -15,7 +15,7 @@ import {
 } from "../../../components/ui/select";
 import { compressImage } from "../../utils/imageCompressor";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
-import { Upload, Download, Trash2, Check } from "lucide-react";
+import { Upload, Download, Trash2, Check, Plus, Edit } from "lucide-react";
 import {
   applyThemePackage,
   removeThemePackageStyle,
@@ -24,6 +24,7 @@ import {
   isCustomThemeId,
   type CustomThemePackage,
 } from "../../utils/themePackage";
+import ThemeEditorModal from "../../components/ThemeEditorModal";
 
 export type ThemeConfigSectionProps = Pick<UnifiedAppContextProps,
   "settings" | "updateSettings" | "currentTheme" | "handleThemeChange" | "showCustomAlert"
@@ -37,6 +38,42 @@ export default function ThemeConfigSection({
   showCustomAlert,
 }: ThemeConfigSectionProps) {
   const customThemes = settings.customThemes ?? [];
+
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingTheme, setEditingTheme] = useState<CustomThemePackage | null>(null);
+  const [originalThemeId, setOriginalThemeId] = useState<string>("");
+
+  const handleSaveEditedTheme = async (updatedTheme: CustomThemePackage) => {
+    if (!updatedTheme.id) return;
+
+    const oldId = editingTheme?.id;
+    let nextThemes = [...customThemes];
+
+    if (oldId) {
+      const idx = nextThemes.findIndex(t => t.id === oldId);
+      if (idx >= 0) {
+        if (oldId !== updatedTheme.id) {
+          removeThemePackageStyle(oldId);
+        }
+        nextThemes[idx] = updatedTheme;
+      } else {
+        nextThemes.push(updatedTheme);
+      }
+    } else {
+      nextThemes.push(updatedTheme);
+    }
+
+    updateSettings({ ...settings, customThemes: nextThemes });
+    applyThemePackage(updatedTheme);
+
+    localStorage.setItem("mobile_tavern_custom_is_dark", String(updatedTheme.isDark));
+    handleThemeChange(updatedTheme.id);
+
+    setEditorOpen(false);
+    setEditingTheme(null);
+
+    await showCustomAlert(`主题「${updatedTheme.name}」已成功保存！`, "保存成功");
+  };
 
   // 挂载时与 customThemes 变化时，把所有自定义主题 CSS 注入 document.head
   // 这样切换主题时只需切换 data-theme 属性，CSS 选择器自动命中
@@ -200,16 +237,30 @@ export default function ThemeConfigSection({
             <label className="text-[11px] font-semibold text-muted-foreground block">
               主题包管理
             </label>
-            <label className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] px-2.5 py-1.5 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold gap-1">
-              <Upload className="w-3 h-3" />
-              导入主题包
-              <input
-                type="file"
-                accept=".json,application/json"
-                className="hidden"
-                onChange={handleImportTheme}
-              />
-            </label>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setOriginalThemeId(String(currentTheme));
+                  setEditingTheme(null);
+                  setEditorOpen(true);
+                }}
+                className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] px-2.5 py-1.5 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold gap-1 animate-pulse"
+              >
+                <Plus className="w-3 h-3" />
+                新建主题
+              </button>
+              <label className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] px-2.5 py-1.5 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold gap-1">
+                <Upload className="w-3 h-3" />
+                导入主题包
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={handleImportTheme}
+                />
+              </label>
+            </div>
           </div>
 
           {customThemes.length === 0 ? (
@@ -246,6 +297,18 @@ export default function ThemeConfigSection({
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOriginalThemeId(String(currentTheme));
+                          setEditingTheme(theme);
+                          setEditorOpen(true);
+                        }}
+                        className="p-1.5 rounded-md border border-border bg-muted hover:bg-primary/10 hover:text-primary hover:border-primary/20 text-muted-foreground transition"
+                        title="编辑此主题"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleApplyTheme(theme)}
@@ -470,6 +533,21 @@ export default function ThemeConfigSection({
             </label>
           </div>
         </div>
+
+        {/* 主题在线编辑器模态弹窗 */}
+        <ThemeEditorModal
+          isOpen={editorOpen}
+          onClose={() => {
+            setEditorOpen(false);
+            setEditingTheme(null);
+          }}
+          themeToEdit={editingTheme}
+          customThemes={customThemes}
+          onSave={handleSaveEditedTheme}
+          handleThemeChange={handleThemeChange}
+          originalThemeId={originalThemeId}
+          showCustomAlert={showCustomAlert}
+        />
       </CardContent>
     </Card>
   );
