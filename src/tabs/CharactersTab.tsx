@@ -1,6 +1,7 @@
 import React, { useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
+import LocalCardScanner from "../components/LocalCardScanner";
 import { CharacterCard } from "../types";
 import {
   Bot,
@@ -13,6 +14,7 @@ import {
   RefreshCw,
   Book,
   MoreHorizontal,
+  FolderSearch,
 } from "lucide-react";
 import { getAvatarGradientClass } from "../utils/avatarUtils";
 
@@ -48,6 +50,7 @@ export default function CharactersTab() {
   }));
   const [selectedDetailChar, setSelectedDetailChar] = React.useState<CharacterCard | null>(null);
   const [actionMenuChar, setActionMenuChar] = React.useState<CharacterCard | null>(null);
+  const [scannerOpen, setScannerOpen] = React.useState(false);
   return (
     <div className="px-4 pb-4 pt-1.5 space-y-4 relative min-h-screen">
       <div className="flex items-center justify-between border-b border-border pb-3 pt-1">
@@ -63,7 +66,14 @@ export default function CharactersTab() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="cursor-pointer bg-card active:scale-[0.98] text-muted-foreground p-2 rounded-lg border border-border transition flex items-center justify-center title='导入SillyTavern角色卡'">
+          <button
+            onClick={() => setScannerOpen(true)}
+            className="bg-card active:scale-[0.98] text-muted-foreground p-2 rounded-lg border border-border transition flex items-center justify-center"
+            title="扫描手机本地卡片"
+          >
+            <FolderSearch className="w-4 h-4" />
+          </button>
+          <label className="cursor-pointer bg-card active:scale-[0.98] text-muted-foreground p-2 rounded-lg border border-border transition flex items-center justify-center" title="导入SillyTavern角色卡">
             <FileUp className="w-4 h-4" />
             <input
               type="file"
@@ -288,6 +298,11 @@ export default function CharactersTab() {
           </div>
         </div>
       )}
+
+      <LocalCardScanner
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+      />
     </div>
   );
 }

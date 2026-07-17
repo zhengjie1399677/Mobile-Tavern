@@ -24,6 +24,7 @@ import ThemeConfigSection from "./ThemeConfigSection";
 import PersonaConfigSection from "./PersonaConfigSection";
 import FeaturesSection from "./FeaturesSection";
 import MemoryStorageSection from "./MemoryStorageSection";
+import { useTranslation } from "../../contexts/LanguageContext";
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
 interface TauriWindow extends Window {
@@ -31,6 +32,7 @@ interface TauriWindow extends Window {
 }
 
 export default function SettingsTab() {
+  const { t } = useTranslation();
   const kernel = useKernel();
   const isTauri = typeof window !== "undefined" && !!(window as TauriWindow).__TAURI_INTERNALS__;
   const deviceModel = getDeviceModel();
@@ -156,7 +158,7 @@ export default function SettingsTab() {
       <div className="border-b border-border pb-1.5 mb-1.5 shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold flex items-center gap-2 text-foreground tracking-tight">
-            <Settings className="w-4.5 h-4.5 text-primary" /> 控制面板
+            <Settings className="w-4.5 h-4.5 text-primary" /> {t("control_panel.title")}
             <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold select-none ml-2 animate-pulse">
               v{__APP_VERSION__}
             </span>
@@ -170,18 +172,18 @@ export default function SettingsTab() {
               {isCheckingUpdate ? (
                 <>
                   <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                  <span>检查中</span>
+                  <span>{t("control_panel.checking")}</span>
                 </>
               ) : (
                 <>
                   <RefreshCw className="w-2.5 h-2.5" />
-                  <span>检查更新</span>
+                  <span>{t("control_panel.check_update")}</span>
                 </>
               )}
             </button>
           </h1>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            系统参数与颗粒化规则调节
+            {t("control_panel.subtitle")}
           </p>
         </div>
       </div>
@@ -195,25 +197,25 @@ export default function SettingsTab() {
             value="api"
             className="text-[10.5px] font-bold flex items-center justify-center gap-1 whitespace-nowrap h-8 rounded-md py-1"
           >
-            <KeySquare className="w-3.5 h-3.5" /> 连接
+            <KeySquare className="w-3.5 h-3.5" /> {t("tabs.connection")}
           </TabsTrigger>
           <TabsTrigger
             value="features"
             className="text-[10.5px] font-bold flex items-center justify-center gap-1 whitespace-nowrap h-8 rounded-md py-1"
           >
-            <Puzzle className="w-3.5 h-3.5" /> 功能
+            <Puzzle className="w-3.5 h-3.5" /> {t("tabs.features")}
           </TabsTrigger>
           <TabsTrigger
             value="persona"
             className="text-[10.5px] font-bold flex items-center justify-center gap-1 whitespace-nowrap h-8 rounded-md py-1"
           >
-            <UserCheck className="w-3.5 h-3.5" /> 人设
+            <UserCheck className="w-3.5 h-3.5" /> {t("tabs.persona")}
           </TabsTrigger>
           <TabsTrigger
             value="storage"
             className="text-[10.5px] font-bold flex items-center justify-center gap-1 whitespace-nowrap h-8 rounded-md py-1"
           >
-            <Database className="w-3.5 h-3.5" /> 存储
+            <Database className="w-3.5 h-3.5" /> {t("tabs.storage")}
           </TabsTrigger>
         </TabsList>
 
@@ -245,10 +247,10 @@ export default function SettingsTab() {
               <CardHeader className="pb-2 pt-3 px-3 border-b border-border/40">
                 <CardTitle className="text-xs flex items-center gap-2 text-primary font-bold">
                   <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                  <span>系统运行沙盒</span>
+                  <span>{t("sandbox.title")}</span>
                 </CardTitle>
                 <CardDescription className="text-[10px]">
-                  实时观测 Prompt 编译原理、SSE 流式解析缓冲区以及世界书扫描流程
+                  {t("sandbox.desc")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-3 px-3 pb-3">
@@ -257,7 +259,7 @@ export default function SettingsTab() {
                   onClick={() => setActiveTab("playground")}
                   className="w-full py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 active:scale-95"
                 >
-                  🚀 进入系统运行沙盒 (Sandbox)
+                  {t("sandbox.button")}
                 </button>
               </CardContent>
             </Card>

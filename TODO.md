@@ -215,6 +215,8 @@
 
 | 日期 | 变动内容 |
 |---|---|
+| 2026-07-17 | 落地安卓全局角色卡检索与一键导入（可选功能）：在 `AndroidThemeBridge.kt` 增加了 `hasStoragePermission`、`requestStoragePermission`、`scanGlobalCards`（递归扫描 Downloads, Documents, Pictures 等并返回 JSON 串）和 `readLocalFile`（读取本地文本或将 PNG 转 base64 串返回）。在 `index.ts` 补齐类型声明。新建 `LocalCardScanner.tsx` 组件，在 CharactersTab 面板挂载扫描触发按钮，实现了权限获取轮询、按修改时间排序、文件名模糊搜索过滤和卡片解包保存，并支持 Web 开发环境下的模拟测试。类型检查与 66/66 测试全绿。 |
+| 2026-07-17 | 落地多语言国际化框架与中文文案精简首期：新建 `translations.ts` 本地化字典（支持 zh-CN, zh-TW, en, ja, ru, es 6语）及 `LanguageContext.tsx` 上下文。在 App 级包裹 Provider 并实现了系统首航语言自动识别探测、localStorage 状态同步。精简并重构了 `SettingsTab.tsx` 和 `FeaturesSection.tsx`，对开关项和文本描述去除中文冗余内容，并针对俄语/西班牙语长字符溢出进行了 Flex 自动折行防爆布局审计适配。`npm run lint` 及 66/66 单元测试全绿。 |
 | 2026-07-17 | 落地字典记忆查询视图（原待办 #1）：在 `localDB.ts` 新建 `deleteDictEntryById(id)` 单条物理删除接口并由 `MemoryStorage` 包装暴露。重构了 `DictTab.tsx` 面板：支持检索词实时模糊匹配（entity/aliases）、实体类型分类 Tag 过滤器（人物/地点/物品等）、表单式手动新增词条、`window.confirm` 单条物理删除以及批量导出 JSON 纯净包下载。`npm run lint` 及 66/66 项测试全绿。未来待办重新编号。 |
 | 2026-07-17 | 落地主题包在线编辑器（原待办 #1）：新建了 `ThemeEditorModal.tsx` 主题编辑弹窗，提供基本信息、圆角设置、分组颜色变量双向绑定调节与 customCss 安全过滤编辑。整合实时注入预览逻辑，使改动立刻应用在整站预览中。修改并对接 `ThemeConfigSection.tsx` 添加了“新建主题”和“编辑主题”按钮并健全了状态清理。`npm run lint` 及 66/66 项测试全绿。未来待办重新编号。 |
 | 2026-07-17 | 落地主题包导入导出（原 TODO #1）：新建 `src/utils/themePackage.ts` 沙盒实现 `.tavern-theme.json` 包格式 + CSS 变量白名单（23 个标准变量，禁 `--safe-area-*`）+ 多层校验 + 序列化 + `<style>` 标签注入。接入 types/defaults/useSettingsLoader/localDB cloneSettings/AppContext ThemeType 扩展（字面量联合 + `(string & {})`）/ThemeConfigSection UI（导入按钮 + 已导入列表 + 应用/导出/删除三按钮）。isDark 通过 localStorage 传递避免 AppProvider 反向依赖 settings。65/65 测试全通过。TODO #1 更新为"主题包在线编辑器"（可视化调色器 + 实时预览）。 |

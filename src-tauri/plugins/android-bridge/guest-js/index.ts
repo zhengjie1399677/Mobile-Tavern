@@ -52,6 +52,14 @@ export interface AndroidThemeBridge {
   stopNative(): void;
   /** Checks if native Android TTS is currently speaking. */
   isSpeakingNative(): boolean;
+  /** Checks if external storage read permission is granted. */
+  hasStoragePermission(): boolean;
+  /** Requests external storage read permission from the system. */
+  requestStoragePermission(): void;
+  /** Scans popular directories for .json and .png character cards, returning a JSON array string. */
+  scanGlobalCards(): string;
+  /** Reads the content of a local file by path (returning base64 data url for PNGs). */
+  readLocalFile(path: string): string;
 }
 
 declare global {

@@ -574,4 +574,84 @@ class AndroidThemeBridge(
             ).show()
         }
     }
+
+    // ---------------------------------------------------------------------
+    // Global Character Card Scanner & Reader
+    // ---------------------------------------------------------------------
+
+    @JavascriptInterface
+    fun hasStoragePermission(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val res = activity.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+            return res == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        return true
+    }
+
+    @JavascriptInterface
+    fun requestStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            activity.requestPermissions(
+                arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
+                1002
+            )
+        }
+    }
+
+    @JavascriptInterface
+    fun scanGlobalCards(): String {
+        val result = org.json.JSONArray()
+        val dirs = listOf(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+        )
+
+        for (dir in dirs) {
+            if (dir.exists() && dir.isDirectory) {
+                scanDir(dir, result, 0)
+            }
+        }
+        return result.toString()
+    }
+
+    private fun scanDir(dir: File, array: org.json.JSONArray, depth: Int) {
+        if (depth > 4) return // Limit recursion depth
+        val files = dir.listFiles() ?: return
+        for (file in files) {
+            if (file.isDirectory) {
+                if (!file.name.startsWith(".") && file.name != "Android" && file.name != "LOST.DIR") {
+                    scanDir(file, array, depth + 1)
+                }
+            } else {
+                val name = file.name.lowercase(Locale.ROOT)
+                if (name.endsWith(".json") || name.endsWith(".png")) {
+                    val obj = JSONObject()
+                    obj.put("name", file.name)
+                    obj.put("path", file.absolutePath)
+                    obj.put("size", file.length())
+                    obj.put("lastModified", file.lastModified())
+                    array.put(obj)
+                }
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun readLocalFile(path: String): String {
+        return try {
+            val file = File(path)
+            if (!file.exists()) return "error:File not found"
+            val bytes = file.readBytes()
+            if (path.endsWith(".png", ignoreCase = true)) {
+                val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                "data:image/png;base64,$base64"
+            } else {
+                String(bytes, Charsets.UTF_8)
+            }
+        } catch (e: Exception) {
+            "error:${e.message}"
+        }
+    }
 }
+

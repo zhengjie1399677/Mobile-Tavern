@@ -1,4 +1,4 @@
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, Globe } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -17,6 +17,7 @@ import {
 import { Textarea } from "../../../components/ui/textarea";
 import { DEFAULT_SETTINGS } from "../../hooks/useSettings";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
+import { useTranslation } from "../../contexts/LanguageContext";
 
 export type FeaturesSectionProps = Pick<UnifiedAppContextProps, "settings" | "updateSettings">;
 
@@ -24,15 +25,57 @@ export default function FeaturesSection({
   settings,
   updateSettings,
 }: FeaturesSectionProps) {
+  const { language, changeLanguage, t } = useTranslation();
+
   return (
     <>
-      {/* 功能 (Features) */}
+      {/* 1. 多语言设置 (Language Settings) */}
+      <Card className="glass-panel shadow-sm">
+        <CardContent className="p-3 space-y-3">
+          <div className="flex items-center gap-2 pb-1.5 border-b border-border/50 mb-1.5 select-none">
+            <Globe className="w-4 h-4 text-primary" />
+            <span className="text-[13.5px] font-black text-foreground tracking-wide">
+              {t("lang.section_title")}
+            </span>
+          </div>
+
+          <div className="space-y-3 pl-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="space-y-0.5 max-w-lg">
+                <label className="text-[11px] font-bold text-foreground">
+                  {t("lang.select_label")}
+                </label>
+                <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                  {t("lang.select_desc")}
+                </p>
+              </div>
+              <select
+                aria-label={t("lang.select_label")}
+                value={language}
+                onChange={(e) => changeLanguage(e.target.value)}
+                className="bg-muted border border-border rounded-lg px-2.5 py-1 text-xs outline-none focus:border-primary font-bold text-foreground sm:w-48 shrink-0"
+              >
+                <option value="zh-CN">简体中文 (Simplified Chinese)</option>
+                <option value="zh-TW">繁體中文 (Traditional Chinese)</option>
+                <option value="en">English</option>
+                <option value="ja">日本語 (Japanese)</option>
+                <option value="ru">Русский (Russian)</option>
+                <option value="es">Español (Spanish)</option>
+              </select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 2. 功能设置 (Features) */}
       <Card className="glass-panel shadow-sm mt-2">
         <CardContent className="p-3 space-y-3">
           {/* 父标题：功能设置 (紧凑布局) */}
-          <div className="flex items-center gap-2 pb-1.5 border-b border-border/50 mb-1.5">
+          <div className="flex items-center gap-2 pb-1.5 border-b border-border/50 mb-1.5 select-none">
             <FlaskConical className="w-4 h-4 text-primary" />
-            <span className="text-[13.5px] font-black text-foreground tracking-wide">功能设置</span>
+            <span className="text-[13.5px] font-black text-foreground tracking-wide">
+              {t("features.section_title")}
+            </span>
           </div>
 
           {/* 子分类 1：界面渲染与交互特性 */}
@@ -41,177 +84,186 @@ export default function FeaturesSection({
             <div className="flex items-center gap-1.5 pb-1 border-b border-border/60 mt-0.5 mb-2 select-none">
               <span className="w-1.2 h-3 bg-primary rounded-full" />
               <span className="text-[11.5px] font-black text-foreground tracking-wide">
-                界面渲染与交互特性
+                {t("features.cat_rendering")}
               </span>
             </div>
 
-            {/* 子分类下功能 (带缩进展现从属层级，紧凑排版) */}
-            <div className="space-y-3 pl-1">
+            {/* 子分类下功能 (带缩进展现从属层级，并进行 Flex 折行与 Switch 防挤压适配) */}
+            <div className="space-y-3.5 pl-1">
+              
               {/* 开启富文本 HTML 渲染 */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-0">
+              <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div className="space-y-0.5 min-w-0 flex-1">
                   <label className="text-[11px] font-bold text-foreground">
-                    开启富文本 HTML 渲染
+                    {t("features.html_rendering")}
                   </label>
-                  <p className="text-[9px] text-muted-foreground/80 leading-normal">
-                    允许角色卡通过 HTML/CSS 标签控制输出文本的独立样式，可能会影响部分对话气泡的排版。
+                  <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                    {t("features.html_rendering_desc")}
                   </p>
                 </div>
                 <Switch
-                  aria-label="开启富文本 HTML 渲染"
+                  aria-label={t("features.html_rendering")}
                   checked={settings.enableHtmlRendering || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableHtmlRendering: val })
                   }
-                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
                 />
               </div>
 
               {/* 开启卡片 JavaScript 脚本执行 */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-0">
+              <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div className="space-y-0.5 min-w-0 flex-1">
                   <label className="text-[11px] font-bold text-foreground">
-                    开启卡片 JavaScript 脚本执行（TavernHelper 兼容模式）
+                    {t("features.js_execution")}
                   </label>
-                  <p className="text-[9px] text-muted-foreground/80 leading-normal">
-                    允许角色卡通过 Iframe 与内置的 TavernHelper 接口交互执行自定义 JS 脚本，用于动态状态卡展示。运行未知来源脚本具有一定安全风险。
+                  <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                    {t("features.js_execution_desc")}
                   </p>
                 </div>
                 <Switch
-                  aria-label="开启卡片 JavaScript 脚本执行"
+                  aria-label={t("features.js_execution")}
                   checked={settings.enableScriptExecution || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableScriptExecution: val })
                   }
-                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
                 />
               </div>
 
               {settings.enableScriptExecution && (
-                <div className="flex items-center justify-between pl-4 border-l-2 border-primary/30 mt-1 animate-in slide-in-from-top-1 duration-200">
-                  <div className="space-y-0">
+                <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap pl-4 border-l-2 border-primary/30 mt-1 animate-in slide-in-from-top-1 duration-200">
+                  <div className="space-y-0.5 min-w-0 flex-1">
                     <label className="text-[11px] font-bold text-foreground">
-                      开启脚本循环安全监视器 (Loop Protection)
+                      {t("features.loop_protection")}
                     </label>
-                    <p className="text-[9px] text-muted-foreground/80 leading-normal">
-                      自动为卡片脚本中的循环体（for/while）织入时间监视器，防止劣质或死循环脚本锁死 WebView 导致界面卡死。单次循环执行上限 1000ms。
+                    <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                      {t("features.loop_protection_desc")}
                     </p>
                   </div>
                   <Switch
-                    aria-label="开启脚本循环安全监视器"
+                    aria-label={t("features.loop_protection")}
                     checked={settings.enableLoopProtection !== false}
                     onCheckedChange={(val) =>
                       updateSettings({ ...settings, enableLoopProtection: val })
                     }
-                    className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                    className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
                   />
                 </div>
               )}
 
               {/* 环境光感应联动 */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-0">
-                  <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-                    <span>环境光感应联动 (Emotion Ambient Glow)</span>
-                    <span className="text-[8.5px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">实验性</span>
+              <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div className="space-y-0.5 min-w-0 flex-1">
+                  <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5 flex-wrap">
+                    <span>{t("features.ambient_glow")}</span>
+                    <span className="text-[8.5px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">
+                      {t("features.ambient_glow_experimental")}
+                    </span>
                   </label>
-                  <p className="text-[9px] text-muted-foreground/80 leading-normal">
-                    自动根据角色当前的情绪和表情，为聊天界面背景渲染出流动交融的色温光晕，大幅度提升沉浸感。
+                  <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                    {t("features.ambient_glow_desc")}
                   </p>
                 </div>
                 <Switch
-                  aria-label="环境光感应联动"
+                  aria-label={t("features.ambient_glow")}
                   checked={settings.enableEmotionAmbientGlow || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableEmotionAmbientGlow: val })
                   }
-                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
                 />
               </div>
 
               {/* 思维链显示 */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-0">
+              <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div className="space-y-0.5 min-w-0 flex-1">
                   <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-                    <span>思维链显示 (Reasoning Content Display)</span>
+                    <span>{t("features.reasoning_display")}</span>
                   </label>
-                  <p className="text-[9px] text-muted-foreground/80 leading-normal">
-                    显示或隐藏 AI 回复中的思考过程（思维链 / reasoning_content）。关闭后不再渲染思考卡片，但模型仍可能生成思维链内容。
+                  <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                    {t("features.reasoning_display_desc")}
                   </p>
                 </div>
                 <Switch
-                  aria-label="思维链显示"
+                  aria-label={t("features.reasoning_display")}
                   checked={settings.enableReasoningContentDisplay !== false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableReasoningContentDisplay: val })
                   }
-                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
                 />
               </div>
 
               {/* 多消息排队合并发送 */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-0">
-                  <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-                    <span>多消息排队合并发送 (Multi-Message Queue)</span>
-                    <span className="text-[8.5px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">插件</span>
+              <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div className="space-y-0.5 min-w-0 flex-1">
+                  <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5 flex-wrap">
+                    <span>{t("features.message_queue")}</span>
+                    <span className="text-[8.5px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">
+                      {t("features.message_queue_plugin")}
+                    </span>
                   </label>
-                  <p className="text-[9px] text-muted-foreground/80 leading-normal">
-                    开启后，点击发送按钮仅排队消息而不触发 AI 回复；长按发送按钮 (500ms 以上) 会将已排队的消息合并一次性发送并触发 AI 回复。
+                  <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                    {t("features.message_queue_desc")}
                   </p>
                 </div>
                 <Switch
-                  aria-label="多消息排队合并发送"
+                  aria-label={t("features.message_queue")}
                   checked={settings.enableMultiMessageQueue || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableMultiMessageQueue: val })
                   }
-                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
                 />
               </div>
 
               {/* 星号动作分色渲染 */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-0">
+              <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div className="space-y-0.5 min-w-0 flex-1">
                   <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-                    <span>星号动作分色渲染 (Asterisk Formatting)</span>
+                    <span>{t("features.asterisk_formatting")}</span>
                   </label>
-                  <p className="text-[9px] text-muted-foreground/80 leading-normal">
-                    将 *斜体动作描述* 渲染为柔和的灰色斜体，突出对白与旁白的视觉层次。角色卡内的 visualSettings 配置优先于此全局开关。
+                  <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                    {t("features.asterisk_formatting_desc")}
                   </p>
                 </div>
                 <Switch
-                  aria-label="星号动作分色渲染"
+                  aria-label={t("features.asterisk_formatting")}
                   checked={settings.enableAsteriskFormatting || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableAsteriskFormatting: val })
                   }
-                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
                 />
               </div>
 
               {/* 野牛模式 */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-0">
-                  <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-                    <span>野牛模式 (Bison Mode)</span>
-                    <span className="text-[8.5px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">实验性</span>
-                    <span className="text-[8.5px] text-red-500 bg-red-500/10 px-1 py-0.2 rounded font-normal scale-90">Token 消耗增加</span>
+              <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div className="space-y-0.5 min-w-0 flex-1">
+                  <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5 flex-wrap">
+                    <span>{t("features.bison_mode")}</span>
+                    <span className="text-[8.5px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">
+                      {t("features.ambient_glow_experimental")}
+                    </span>
+                    <span className="text-[8.5px] text-red-500 bg-red-500/10 px-1 py-0.2 rounded font-normal scale-90">
+                      {t("features.bison_mode_token_warning")}
+                    </span>
                   </label>
-                  <p className="text-[9px] text-muted-foreground/80 leading-normal">
-                    开启后，AI 将根据自身性格与当前情绪，有概率锁定输入框并连续输出 2-3 次内容。连续输出时，单次生成最大限制为 100 Token。
+                  <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                    {t("features.bison_mode_desc")}
                   </p>
-                  <p className="text-[9px] text-red-400 font-medium leading-normal">
-                    ⚠️ 开启后将产生连续 API 请求，可能会显著增加 Token 消耗。
+                  <p className="text-[9px] text-red-400 font-medium leading-relaxed overflow-wrap break-word">
+                    {t("features.bison_mode_warning")}
                   </p>
                 </div>
                 <Switch
-                  aria-label="野牛模式"
+                  aria-label={t("features.bison_mode")}
                   checked={settings.enableBisonMode || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableBisonMode: val })
                   }
-                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
                 />
               </div>
 
@@ -221,7 +273,7 @@ export default function FeaturesSection({
                     <AccordionItem value="bison-prompt-accordion" className="border-none">
                       <AccordionTrigger className="py-0.5 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
                         <span className="text-[10px] font-semibold text-muted-foreground">
-                          自定义野牛提示词指令 (Bison Mode Prompt)
+                          {t("features.bison_mode_prompt_title")}
                         </span>
                       </AccordionTrigger>
                       <AccordionContent className="pt-1.5 pb-0 space-y-1.5">
@@ -231,7 +283,7 @@ export default function FeaturesSection({
                             updateSettings({ ...settings, bisonModePrompt: e.target.value })
                           }
                           className="text-xs bg-input/50 min-h-[100px] leading-relaxed font-sans"
-                          placeholder="输入野牛模式指示词..."
+                          placeholder="..."
                         />
                         <div className="flex justify-end">
                           <button
@@ -244,7 +296,7 @@ export default function FeaturesSection({
                             }}
                             className="text-[9px] text-primary font-bold hover:underline"
                           >
-                            重置为系统默认
+                            {t("features.reset_default")}
                           </button>
                         </div>
                       </AccordionContent>
@@ -265,36 +317,40 @@ export default function FeaturesSection({
               </span>
             </div>
 
-            {/* 子分类下功能 (带缩进展现从属层级，紧凑排版) */}
-            <div className="space-y-3 pl-1">
+            {/* 子分类下功能 (带缩进展现从属层级，并进行 Flex 折行与 Switch 防挤压适配) */}
+            <div className="space-y-3.5 pl-1">
+              
               {/* AI 回复走向推荐 */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-0">
-                  <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-                    <span>【叙事分支生成器】 (AI Reply Suggestions)</span>
-                    <span className="text-[8.5px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">实验性</span>
+              <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div className="space-y-0.5 min-w-0 flex-1">
+                  <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5 flex-wrap">
+                    <span>{t("features.reply_suggestions")}</span>
+                    <span className="text-[8.5px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">
+                      {t("features.ambient_glow_experimental")}
+                    </span>
                   </label>
-                  <p className="text-[9px] text-muted-foreground/80 leading-normal">
-                    在生成每轮回复尾部附带输出 4 个剧情延续选项，用户点击可快速决策或写入。
+                  <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                    {t("features.reply_suggestions_desc")}
                   </p>
                 </div>
                 <Switch
-                  aria-label="叙事分支生成器"
+                  aria-label={t("features.reply_suggestions")}
                   checked={settings.enableReplySuggestions || false}
                   onCheckedChange={(val) =>
                     updateSettings({ ...settings, enableReplySuggestions: val })
                   }
-                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
                 />
               </div>
+
               {settings.enableReplySuggestions && (
-                <div className="space-y-1.5 mt-1.5 bg-muted/15 p-2 rounded-lg border border-border/30 animate-in fade-in duration-300">
-                  <div className="flex justify-between items-center pb-1.5 border-b border-border/20">
+                <div className="space-y-2 mt-1.5 bg-muted/15 p-2 rounded-lg border border-border/30 animate-in fade-in duration-300">
+                  <div className="flex justify-between items-center pb-1.5 border-b border-border/20 gap-2 flex-wrap">
                     <span className="text-[10px] text-muted-foreground font-semibold">
-                      推荐选项默认点击行为
+                      {t("features.click_mode")}
                     </span>
                     <select
-                      aria-label="推荐选项默认点击行为"
+                      aria-label={t("features.click_mode")}
                       value={settings.replySuggestionsClickMode || "fill"}
                       onChange={(e) =>
                         updateSettings({
@@ -302,10 +358,10 @@ export default function FeaturesSection({
                           replySuggestionsClickMode: e.target.value as "send" | "fill",
                         })
                       }
-                      className="bg-muted border border-border rounded px-1 py-0.5 text-xs outline-none focus:border-primary font-bold text-foreground"
+                      className="bg-muted border border-border rounded px-1.5 py-0.5 text-xs outline-none focus:border-primary font-bold text-foreground"
                     >
-                      <option value="fill">填入输入框</option>
-                      <option value="send">直接发送</option>
+                      <option value="fill">{t("features.click_mode_fill")}</option>
+                      <option value="send">{t("features.click_mode_send")}</option>
                     </select>
                   </div>
 
@@ -314,7 +370,7 @@ export default function FeaturesSection({
                     <AccordionItem value="suggestions-prompt-accordion" className="border-none">
                       <AccordionTrigger className="py-0.5 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
                         <span className="text-[10px] font-semibold text-muted-foreground">
-                          自定义分支生成引导指令 (Reply Suggestions Prompt)
+                          {t("features.suggestions_prompt_title")}
                         </span>
                       </AccordionTrigger>
                       <AccordionContent className="pt-1.5 pb-0 space-y-1.5">
@@ -324,7 +380,7 @@ export default function FeaturesSection({
                             updateSettings({ ...settings, replySuggestionsPrompt: e.target.value })
                           }
                           className="text-xs bg-input/50 min-h-[110px] leading-relaxed font-sans"
-                          placeholder="输入剧情分支生成指示词..."
+                          placeholder="..."
                         />
                         <div className="flex justify-end">
                           <button
@@ -337,7 +393,7 @@ export default function FeaturesSection({
                             }}
                             className="text-[9px] text-primary font-bold hover:underline"
                           >
-                            重置为系统默认
+                            {t("features.reset_default")}
                           </button>
                         </div>
                       </AccordionContent>
@@ -350,10 +406,11 @@ export default function FeaturesSection({
         </CardContent>
       </Card>
 
+      {/* 3. 全局表情情绪匹配正则词典 */}
       <Card className="glass-panel shadow-sm mt-2">
         <CardHeader className="pb-2 pt-2.5 px-3 border-b border-border/40">
-          <CardTitle className="text-xs flex items-center justify-between font-bold text-foreground">
-            <span>全局表情情绪匹配正则词典</span>
+          <CardTitle className="text-xs flex items-center justify-between font-bold text-foreground gap-2 flex-wrap">
+            <span>{t("features.expression_dict_title")}</span>
             <button
               type="button"
               onClick={() => {
@@ -376,11 +433,11 @@ export default function FeaturesSection({
               }}
               className="text-[9px] text-primary font-bold hover:underline"
             >
-              重置词典
+              {t("features.reset_dict")}
             </button>
           </CardTitle>
-          <CardDescription className="text-[10px] mt-0.5">
-            当导入的角色卡未配置具体的 triggers 规则时，系统将使用本正则表达式规则进行情绪表情切换匹配检测（可编辑或清空以关闭检测）
+          <CardDescription className="text-[10px] mt-0.5 leading-relaxed overflow-wrap break-word">
+            {t("features.expression_dict_desc")}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2 px-3 pb-3 space-y-2 text-xs">
@@ -397,8 +454,10 @@ export default function FeaturesSection({
             { k: "blush", n: "羞涩 (Blush)" },
             { k: "shy", n: "害羞 (Shy)" },
           ].map((item) => (
-            <div key={item.k} className="flex items-center gap-2">
-              <span className="font-semibold text-muted-foreground w-20 shrink-0 text-[10.5px]">{item.n}</span>
+            <div key={item.k} className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <span className="font-semibold text-muted-foreground w-20 shrink-0 text-[10.5px]">
+                {item.n}
+              </span>
               <Input
                 value={settings.expressionTriggers?.[item.k] ?? ""}
                 onChange={(e) => {
@@ -411,8 +470,8 @@ export default function FeaturesSection({
                     expressionTriggers: nextTriggers,
                   });
                 }}
-                className="h-8 text-xs font-mono bg-input/50 flex-1"
-                placeholder="表达式正则匹配串..."
+                className="h-8 text-xs font-mono bg-input/50 flex-1 min-w-[120px]"
+                placeholder="..."
               />
             </div>
           ))}
