@@ -215,6 +215,7 @@
 
 | 日期 | 变动内容 |
 |---|---|
+| 2026-07-17 | 补强 Kernel 并发快照防护（防御性，零行为变更）：`publish` / `publishParallel`（Kernel.ts）入口对订阅者列表 `[...subscribers.get(topic)]` 快照，避免 for...of / Promise.allSettled 期间并发 subscribe（push+sort）/ unsubscribe 影响迭代稳定性；`destroy()` 对 `activeControllers` 快照后遍历，避免各 handler finally 块并发 delete 导致 Set 迭代器跳过未访问项。新增 `kernelConcurrency.test.ts` 2 项测试（publish 迭代期间 subscribe 不污染本轮 / destroy 多活跃 controller 全量 abort）。`tsc` + 75/75 测试全绿。 |
 | 2026-07-17 | 修复 Kernel bootstrap 部分成功后失败的半初始化状态泄露：`registerServiceBatch`（Kernel.ts）串行循环外包 try/catch，关键服务 / 超时失败时逆序 `destroyService` 已注册项（方案 A）；`KernelLifecycle.initialize()` catch 中调 `kernel.destroy()` 兜底全量清理 services / pipelines / criticalServiceNames（方案 B），化解"destroy() 被 idle 短路跳过"的二级缺陷。新增 `testBootstrapRollbackOnCriticalFailure` 3 场景测试（批量回滚 / 兜底清理 / 二次 initialize 无残留）。`tsc` + 73/73 测试全绿。 |
 | 2026-07-17 | **i18n 国际化全面升级**：扩展至 8 语言全量覆盖 731 key（新增韩语 ko、巴西葡萄牙语 pt-BR，以中文为源逐条翻译）。全量清除约 30 组件 300+ 处硬编码中文，消除 `t("nav.settings")==="设置"` 反模式。翻译文件从单体 5,200 行拆分为 8 独立语言文件 + `index.ts` 聚合。新建 `scripts/check-i18n.ts` 键一致性检查脚本（`npm run check:i18n`）。新增 50 个 i18n 单元测试覆盖词典完整性、回退链、插值、编码兼容性。补全遗漏的 `nav.chat`/`nav.playground` 与 24 个 `report.*` key。更新 TECHNICAL.md/README.md 技术文档。`tsc` + 50/50 测试全绿。 |
 | 2026-07-17 | 落地多语言国际化框架与中文文案精简首期：新建 `translations.ts` 本地化字典（支持 zh-CN, zh-TW, en, ja, ru, es 6语）及 `LanguageContext.tsx` 上下文。在 App 级包裹 Provider 并实现了系统首航语言自动识别探测、localStorage 状态同步。精简并重构了 `SettingsTab.tsx` 和 `FeaturesSection.tsx`，对开关项和文本描述去除中文冗余内容，并针对俄语/西班牙语长字符溢出进行了 Flex 自动折行防爆布局审计适配。`npm run lint` 及 66/66 单元测试全绿。 |

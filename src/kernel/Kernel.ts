@@ -553,8 +553,10 @@ export class Kernel implements IKernel {
    * @param message 消息体
    */
   async publish(message: IMessage): Promise<void> {
-    const list = this.subscribers.get(message.topic);
-    if (!list) return;
+    // 入口快照订阅者列表：for...of 期间存在 await，期间 subscribe（push+sort）/unsubscribe（filter 换新数组）
+    // 可能并发修改原数组或触发 sort 影响迭代稳定性。快照后本轮发布语义固化为发布时刻的订阅者集合。
+    const list = [...(this.subscribers.get(message.topic) ?? [])];
+    if (list.length === 0) return;
     for (const { handler } of list) {
       const controller = new AbortController();
       this.activeControllers.add(controller);
@@ -617,8 +619,9 @@ export class Kernel implements IKernel {
    * @param message 消息体
    */
   async publishParallel(message: IMessage): Promise<void> {
-    const list = this.subscribers.get(message.topic);
-    if (!list) return;
+    // 入口快照订阅者列表：与 publish 同理，避免 Promise.allSettled 期间并发 subscribe/unsubscribe 影响
+    const list = [...(this.subscribers.get(message.topic) ?? [])];
+    if (list.length === 0) return;
 
     const withTimeout = ({ handler }: { handler: Function }): Promise<void> => {
       const controller = new AbortController();
@@ -765,8 +768,11 @@ export class Kernel implements IKernel {
    */
   async destroy(): Promise<void> {
     console.log("[Kernel] Destroying all core pipelines, hooks, and services...");
-    // 强行中止所有当前尚未结束的并发异步/定时/网络/数据库操作
-    for (const controller of this.activeControllers) {
+    // 强行中止所有当前尚未结束的并发异步/定时/网络/数据库操作。
+    // 快照后遍历：各 controller 被 abort 后其 finally 块会并发 activeControllers.delete(controller)，
+    // 直接遍历 Set 期间被 delete 可能导致迭代器跳过未访问项，漏 abort 个别 controller。
+    const controllers = [...this.activeControllers];
+    for (const controller of controllers) {
       try {
         controller.abort();
       } catch (err) {

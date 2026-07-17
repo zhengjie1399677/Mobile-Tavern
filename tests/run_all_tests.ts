@@ -93,6 +93,8 @@ import {
   testAbortSignalWriteQueueRecovery,
   testMvuParserAbortedCheckpoints,
   testMemoryStreamParserAbort,
+  testPublishSnapshotDuringConcurrentSubscribe,
+  testDestroyWithMultipleActiveControllers,
 } from "./suites/index";
 
 /**
@@ -186,6 +188,9 @@ async function run() {
     { name: "testKernelLifecycleAndDependencies", fn: testKernelLifecycleAndDependencies },
     // bootstrap 部分成功后失败的回滚机制测试（方案 A 批量回滚 + 方案 B 兜底全量清理）
     { name: "testBootstrapRollbackOnCriticalFailure", fn: testBootstrapRollbackOnCriticalFailure },
+    // Kernel 并发快照防护测试（publish 订阅者列表快照 + destroy activeControllers 快照）
+    { name: "testPublishSnapshotDuringConcurrentSubscribe", fn: testPublishSnapshotDuringConcurrentSubscribe },
+    { name: "testDestroyWithMultipleActiveControllers", fn: testDestroyWithMultipleActiveControllers },
     { name: "testFastPathL3AutoSummaryIndex", fn: testFastPathL3AutoSummaryIndex },
     { name: "testFastPathL2ContentPrescan", fn: testFastPathL2ContentPrescan },
     { name: "testFastPathL1PipelineBypass", fn: testFastPathL1PipelineBypass },

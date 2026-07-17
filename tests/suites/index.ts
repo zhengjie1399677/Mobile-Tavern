@@ -117,3 +117,8 @@ export {
   testMvuParserAbortedCheckpoints,
   testMemoryStreamParserAbort,
 } from "./abortSignalConduction.test";
+
+export {
+  testPublishSnapshotDuringConcurrentSubscribe,
+  testDestroyWithMultipleActiveControllers,
+} from "./kernelConcurrency.test";
