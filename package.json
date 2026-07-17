@@ -20,7 +20,8 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:install": "playwright install chromium"
+    "test:e2e:install": "playwright install chromium",
+    "check:i18n": "tsx scripts/check-i18n.ts"
   },
   "dependencies": {
     "@aliyun-sls/web-sts-plugin": "^0.3.9",
