@@ -8,8 +8,15 @@
  *   - 用数组+循环包裹每个测试函数，统一 await（对同步函数也安全）
  *   - 失败时不立即退出，跑完所有测试后汇总报告
  *   - 报告格式："X/Y passed, failed at: testNth"
+ *
+ * 多语言/组件测试归纳（2026-07-17）：
+ *   - tests/vitest/** 下的 vitest 用例（含 i18n 50 项、组件渲染、服务集成共 327 项）
+ *     通过 runVitestSuite() 子进程桥接纳入主流程，避免双测试系统割裂。
+ *   - vitest 拥有独立 happy-dom 环境与 React Testing Library，子进程隔离避免污染自定义 runner。
  */
 
+import { spawn } from "child_process";
+import path from "path";
 import { setKernelStrictMode } from "../src/kernel/Kernel";
 import { runCatbotErrorTests } from "./test_catbot_error_handling";
 import {
@@ -80,7 +87,52 @@ import {
   testPaginationBoundaries,
   testAutoSummaryTriggerConditions,
   testAppendSessionMessageFieldMapping,
+  testAbortSignalPreAbortedLocalDB,
+  testAbortSignalMidOperationLocalDB,
+  testAbortSignalWriteQueueRecovery,
+  testMvuParserAbortedCheckpoints,
+  testMemoryStreamParserAbort,
 } from "./suites/index";
+
+/**
+ * 桥接 vitest 套件到主测试流程。
+ *
+ * tests/vitest/** 下的用例依赖 vitest 运行时（describe/it/expect）、happy-dom 环境
+ * 与 React Testing Library，无法直接以普通函数形式并入自定义 runner。
+ * 通过子进程调用本地 vitest 二进制执行 `vitest run`，以退出码判定成败：
+ *   - 0：通过；非 0：失败并抛出，由主循环捕获计入失败汇总。
+ *
+ * 跨平台注意：Windows 下 node_modules/.bin/vitest 为 .cmd 批处理，需 shell:true；
+ * Unix 下为带 shebang 的软链，可直接 exec。stdio:inherit 使 vitest 输出实时透传。
+ */
+async function runVitestSuite(): Promise<void> {
+  console.log("\n--- Running Vitest Suite (tests/vitest/**, 含 i18n 多语言 50 项) ---");
+  const isWin = process.platform === "win32";
+  const bin = path.join(
+    process.cwd(),
+    "node_modules",
+    ".bin",
+    isWin ? "vitest.cmd" : "vitest"
+  );
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(bin, ["run"], {
+      stdio: "inherit",
+      cwd: process.cwd(),
+      shell: isWin,
+    });
+    child.on("close", (code) => {
+      if (code === 0) {
+        console.log("✓ Vitest suite passed");
+        resolve();
+      } else {
+        reject(new Error(`Vitest suite failed with exit code ${code}`));
+      }
+    });
+    child.on("error", (err) =>
+      reject(new Error(`Failed to spawn vitest: ${err.message}`))
+    );
+  });
+}
 
 async function run() {
   setKernelStrictMode(false); // 默认在测试流程中采用生产（容错自愈）模式
@@ -164,6 +216,14 @@ async function run() {
     { name: "testPaginationBoundaries", fn: testPaginationBoundaries },
     { name: "testAutoSummaryTriggerConditions", fn: testAutoSummaryTriggerConditions },
     { name: "testAppendSessionMessageFieldMapping", fn: testAppendSessionMessageFieldMapping },
+    // AbortSignal 协作式中断传导测试（TODO #5：IDB 事务主动 abort + MVU/流式解析器检查点）
+    { name: "testAbortSignalPreAbortedLocalDB", fn: testAbortSignalPreAbortedLocalDB },
+    { name: "testAbortSignalMidOperationLocalDB", fn: testAbortSignalMidOperationLocalDB },
+    { name: "testAbortSignalWriteQueueRecovery", fn: testAbortSignalWriteQueueRecovery },
+    { name: "testMvuParserAbortedCheckpoints", fn: testMvuParserAbortedCheckpoints },
+    { name: "testMemoryStreamParserAbort", fn: testMemoryStreamParserAbort },
+    // vitest 套件桥接（i18n 多语言 50 项 + 组件渲染 + 服务集成，共 327 项）
+    { name: "testVitestSuite", fn: runVitestSuite },
   ];
 
   let passed = 0;

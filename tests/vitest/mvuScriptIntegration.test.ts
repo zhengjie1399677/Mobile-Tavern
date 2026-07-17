@@ -147,7 +147,7 @@ describe("ScriptService", () => {
       service.registerBridge(mockBridge);
 
       const result = service.parseMvuMessage("hp=100 mp=30", { stat_data: {} });
-      expect(mockBridge.parseMvuMessage).toHaveBeenCalledWith("hp=100 mp=30", { stat_data: {} });
+      expect(mockBridge.parseMvuMessage).toHaveBeenCalledWith("hp=100 mp=30", { stat_data: {} }, undefined);
       expect(result.stat_data).toEqual({ hp: 100, mp: 30 });
     });
 

@@ -12,6 +12,7 @@
  * 关键设计：
  *   1. findSafeDisplayEnd() 避免在 buffer 末尾截断可能的开标签前缀（如 "<memo"）
  *   2. 用户看到的对话流完全不包含 <memory> 标签内容，体验无感
+ *   3. onChunk 接收可选 AbortSignal，循环顶部插入 aborted 检查点（TODO #5）
  */
 
 import type { StreamParserOutput } from './types';
@@ -31,13 +32,15 @@ export class MemoryStreamParser {
 
   /**
    * 处理一个流式 chunk。
+   * @param chunk SSE 流式增量文本
+   * @param signal 可选取消信号；若已 abort，循环顶部抛出 AbortError 终止解析
    * @returns displayText 应展示给用户的文本（已剥离 <memory> 标签）
    *          memoryContent 完整的 <memory> 内容（仅在标签闭合时返回）
    *
    * 实现说明：单次 chunk 可能包含 text + <memory>...</memory> + text 的完整序列，
    * 因此需要在状态转换后循环处理剩余 buffer，直到需要更多数据（找不到完整标签）时才返回。
    */
-  onChunk(chunk: string): StreamParserOutput {
+  onChunk(chunk: string, signal?: AbortSignal): StreamParserOutput {
     if (!chunk) return { displayText: '' };
     this.buffer += chunk;
 
@@ -46,6 +49,17 @@ export class MemoryStreamParser {
 
     // 循环处理状态转换，直到需要更多数据或 buffer 耗尽
     while (this.buffer) {
+      // 协作式中断检查点：外部 signal abort 时立即抛出，避免在恶意超长 buffer 上无限循环
+      if (signal?.aborted) {
+        const err = typeof DOMException !== "undefined"
+          ? new DOMException("MemoryStreamParser aborted", "AbortError")
+          : (() => {
+              const e = new Error("MemoryStreamParser aborted");
+              (e as { name?: string }).name = "AbortError";
+              return e;
+            })();
+        throw err;
+      }
       if (!this.inMemoryTag) {
         const result = this.processOutside();
         displayText += result.displayText;

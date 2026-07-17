@@ -10,11 +10,18 @@
  * - 空字段/缺失 tableMemory 的兜底（准则五向前兼容）
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { MemoryTableDrawer } from "../../src/components/MemoryTableDrawer";
+import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import type { ChatSession, TableMemorySheet } from "../../src/types";
+
+// i18n 迁移后 MemoryTableDrawer 内部调用 useTranslation()，必须包裹 LanguageProvider。
+// 统一通过 renderWithI18n 渲染，避免每个用例重复手写 wrapper。
+const renderWithI18n = (ui: ReactElement) =>
+  render(ui, { wrapper: ({ children }) => <LanguageProvider>{children}</LanguageProvider> });
 
 // 构建含活跃表格数据的测试会话
 function makeSession(overrides?: Partial<ChatSession>): ChatSession {
@@ -50,6 +57,18 @@ describe("MemoryTableDrawer", () => {
   beforeEach(() => {
     onClose = vi.fn();
     saveSession = vi.fn().mockResolvedValue(undefined);
+    // LanguageProvider 默认走 navigator.language 检测，happy-dom 下为 en。
+    // 测试断言基于中文文案，强制 localStorage 返回 zh-CN 以匹配断言。
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn((key: string) => (key === "mobile_tavern_language" ? "zh-CN" : null)),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   // ------------------------------------------------------------------
@@ -57,7 +76,7 @@ describe("MemoryTableDrawer", () => {
   // ------------------------------------------------------------------
 
   it("isOpen=false 时返回 null（不渲染任何 DOM）", () => {
-    const { container } = render(
+    const { container } = renderWithI18n(
       <MemoryTableDrawer
         isOpen={false}
         onClose={onClose}
@@ -71,7 +90,7 @@ describe("MemoryTableDrawer", () => {
   });
 
   it("isOpen=true 时渲染抽屉面板", () => {
-    render(
+    renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
         onClose={onClose}
@@ -93,7 +112,7 @@ describe("MemoryTableDrawer", () => {
 
   it("tableMemory 缺失时显示初始化提示", () => {
     const session = makeSession({ tableMemory: undefined });
-    render(
+    renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
         onClose={onClose}
@@ -109,7 +128,7 @@ describe("MemoryTableDrawer", () => {
 
   it("tableMemory 为空数组时显示初始化提示", () => {
     const session = makeSession({ tableMemory: [] });
-    render(
+    renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
         onClose={onClose}
@@ -127,7 +146,7 @@ describe("MemoryTableDrawer", () => {
   // ------------------------------------------------------------------
 
   it("有数据时渲染表头列名", () => {
-    render(
+    renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
         onClose={onClose}
@@ -143,7 +162,7 @@ describe("MemoryTableDrawer", () => {
   });
 
   it("有数据时渲染数据行", () => {
-    render(
+    renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
         onClose={onClose}
@@ -169,7 +188,7 @@ describe("MemoryTableDrawer", () => {
       description: "无数据",
     };
     const session = makeSession({ tableMemory: [emptySheet] });
-    render(
+    renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
         onClose={onClose}
@@ -187,7 +206,7 @@ describe("MemoryTableDrawer", () => {
   // ------------------------------------------------------------------
 
   it("点击关闭按钮触发 onClose", () => {
-    render(
+    renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
         onClose={onClose}
@@ -214,7 +233,7 @@ describe("MemoryTableDrawer", () => {
     const session = makeSession();
     saveSession.mockResolvedValue(undefined);
 
-    render(
+    renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
         onClose={onClose}
@@ -271,7 +290,7 @@ describe("MemoryTableDrawer", () => {
       description: "",
     };
     const session = makeSession({ tableMemory: [partialRowSheet] });
-    render(
+    renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
         onClose={onClose}

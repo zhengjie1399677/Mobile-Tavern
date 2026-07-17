@@ -45,7 +45,7 @@ const MAX_WRITE_QUEUE_DEPTH = 100;
 
 // 按 key 合并待执行写槽位：当多个写操作针对同一 key 排队时，仅保留最新 operation 并共享同一 Promise。
 interface CoalescedSlot<T> {
-  operation: () => Promise<T>;
+  operation: (ctx: WriteContext) => Promise<T>;
   pendingPromise: Promise<T> | null;
 }
 const pendingKeyedWrites = new Map<string, CoalescedSlot<any>>();
@@ -55,7 +55,65 @@ const pendingKeyedWrites = new Map<string, CoalescedSlot<any>>();
 // 同时防止事务挂起导致写队列永久阻塞（P0-2 修复）。
 const WRITE_OPERATION_TIMEOUT_MS = 15000;
 
-function enqueueWrite<T>(operation: () => Promise<T>, key?: string): Promise<T> {
+/**
+ * 写操作取消上下文（AbortSignal 协作式中断传导）。
+ *
+ * 设计目的：解决 AbortSignal 仅作协作式中断、未透传至底层 IDB 事务的缺陷。
+ * 当外部 signal 触发 abort 或写队列超时时，由 enqueueWrite 调用 registerAbort
+ * 注册的句柄主动执行 transaction.abort()，真正释放底层 IDB 资源，避免事务挂起与死锁。
+ *
+ * 职责边界：
+ *   - signal：外部取消信号（通常来自服务级 AbortController，如 DatabaseService.destroy）
+ *   - registerAbort：operation 在创建 IDB 事务后注册 abort 句柄，供超时/取消时回调
+ *   - aborted：是否已主动取消（超时或 signal abort）；为 true 时 onabort 不重复 reject
+ */
+export interface WriteContext {
+  readonly signal?: AbortSignal;
+  registerAbort(fn: () => void): void;
+  readonly aborted: boolean;
+}
+
+/** 构造标准的 AbortError，兼容缺失 DOMException 的环境 */
+function createAbortError(message = "The operation was aborted"): DOMException {
+  if (typeof DOMException !== "undefined") {
+    return new DOMException(message, "AbortError");
+  }
+  // 兜底：极少数无 DOMException 的环境退化为普通 Error
+  const err = new Error(message);
+  (err as { name?: string }).name = "AbortError";
+  return err as unknown as DOMException;
+}
+
+/**
+ * 绑定 IDB 事务的主动 abort 句柄与非主动 abort 的 reject 行为。
+ *
+ * - 注册 abort 句柄到 ctx：当超时或外部 signal abort 时，由 enqueueWrite 回调
+ *   `transaction.abort()` 真正释放底层 IDB 资源（核心修复：避免事务挂起死锁）。
+ * - 设置 onabort：仅当非主动 abort（如 QuotaExceededError）时 reject；
+ *   主动 abort（ctx.aborted）时由 race 的 timeout/signal 分支决定最终错误，
+ *   避免重复 reject 与错误信息覆盖。
+ *
+ * 调用方在创建事务后立即调用本函数，替代原本手写的 `transaction.onabort = ...`。
+ */
+function bindTransactionAbort(
+  ctx: WriteContext,
+  transaction: IDBTransaction,
+  reject: (e: unknown) => void
+): void {
+  ctx.registerAbort(() => {
+    try { transaction.abort(); } catch { /* 事务可能已自行结束，忽略二次 abort */ }
+  });
+  transaction.onabort = () => {
+    if (ctx.aborted) return; // 主动 abort：由 race 的 timeout/signal 分支决定最终错误
+    reject(transaction.error || new Error("Transaction aborted"));
+  };
+}
+
+function enqueueWrite<T>(
+  operation: (ctx: WriteContext) => Promise<T>,
+  key?: string,
+  externalSignal?: AbortSignal
+): Promise<T> {
   // key 合并：若同一 key 的写操作已在队列中等待，用最新 operation 替换旧的并返回共享 Promise
   if (key) {
     const existing = pendingKeyedWrites.get(key);
@@ -106,20 +164,56 @@ function enqueueWrite<T>(operation: () => Promise<T>, key?: string): Promise<T> 
     if (key) pendingKeyedWrites.delete(key);
     const latestOperation = slot.operation;
 
+    // ── AbortSignal 协作式中断传导（TODO #5）──────────────────────────
+    // 1) 进入执行前 signal 已 abort：立即拒绝，避免无谓创建 IDB 事务
+    if (externalSignal?.aborted) {
+      throw createAbortError();
+    }
+
+    let abortFn: (() => void) | null = null;
+    let abortedState = false;
+    const ctx: WriteContext = {
+      signal: externalSignal,
+      get aborted() { return abortedState; },
+      registerAbort(fn) { abortFn = fn; },
+    };
+
+    // signal abort 监听：触发时主动 abort 底层事务并 reject
+    let signalReject!: (e: unknown) => void;
+    const signalAbortPromise = new Promise<never>((_, reject) => {
+      signalReject = reject;
+    });
+    const onAbort = () => {
+      abortedState = true;
+      if (abortFn) {
+        try { abortFn(); } catch { /* 事务可能已自行结束，忽略 */ }
+      }
+      signalReject(createAbortError());
+    };
+    if (externalSignal) {
+      externalSignal.addEventListener("abort", onAbort);
+    }
+
     // 事务级超时保护：防止单个 IDB 事务挂起导致整个写队列永久阻塞。
-    // 超时后 reject，由 writeQueue 链的错误吞咽器（下方 then 的第二个回调）捕获，
-    // 确保后续写操作不会被阻塞。
+    // 超时后主动调用 transaction.abort() 释放底层资源（核心修复），再 reject。
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => {
+        abortedState = true;
+        if (abortFn) {
+          try { abortFn(); } catch { /* 事务可能已自行结束，忽略 */ }
+        }
         reject(new Error(`[localDB] Write operation timed out after ${WRITE_OPERATION_TIMEOUT_MS}ms`));
       }, WRITE_OPERATION_TIMEOUT_MS);
     });
 
     try {
-      return await Promise.race([latestOperation(), timeoutPromise]);
+      // 三路 race：operation 成功 / 超时 / signal abort
+      // 主动 abort 时 operation 的 onabort 不重复 reject（由 ctx.aborted 短路）
+      return await Promise.race([latestOperation(ctx), timeoutPromise, signalAbortPromise]);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
+      if (externalSignal) externalSignal.removeEventListener("abort", onAbort);
     }
   };
 
@@ -285,8 +379,8 @@ export async function getCharacterById(
   });
 }
 
-export async function saveCharacter(character: CharacterCard): Promise<void> {
-  return enqueueWrite(async () => {
+export async function saveCharacter(character: CharacterCard, signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("characters", "readwrite");
@@ -295,13 +389,13 @@ export async function saveCharacter(character: CharacterCard): Promise<void> {
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `character:${character.id}`);  // P1-11: 同角色卡多次保存合并为一次落盘
+  }, `character:${character.id}`, signal);  // P1-11: 同角色卡多次保存合并为一次落盘
 }
 
-export async function deleteCharacter(id: string): Promise<void> {
-  return enqueueWrite(async () => {
+export async function deleteCharacter(id: string, signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("characters", "readwrite");
@@ -310,9 +404,9 @@ export async function deleteCharacter(id: string): Promise<void> {
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  });
+  }, undefined, signal);
 }
 
 // === Sessions CRUD ===
@@ -432,8 +526,8 @@ export async function getSessionsPaginated(
  * 消息删除由调用方通过 deleteMessageById 显式删除。
  * 批量同步（备份恢复/分支创建）使用 syncSessionMessages。
  */
-export async function saveSession(session: ChatSession): Promise<void> {
-  return enqueueWrite(async () => {
+export async function saveSession(session: ChatSession, signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("sessions", "readwrite");
@@ -454,14 +548,14 @@ export async function saveSession(session: ChatSession): Promise<void> {
       const request = sessionsStore.put(sessionToSave);
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `session:${session.id}`);  // P1-11: 同会话多次保存合并为一次落盘
+  }, `session:${session.id}`, signal);  // P1-11: 同会话多次保存合并为一次落盘
 }
 
-export async function deleteSession(id: string): Promise<void> {
+export async function deleteSession(id: string, signal?: AbortSignal): Promise<void> {
   // 会话删除时级联清理 messages 和 memory_dict Store 的相关数据，使用单事务保证原子性
-  return enqueueWrite(async () => {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       // 跨 Store 事务：sessions + messages + memory_dict
@@ -500,10 +594,9 @@ export async function deleteSession(id: string): Promise<void> {
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () =>
-        reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `session:${id}:cascade`);  // 同会话级联删除合并为一次写入
+  }, `session:${id}:cascade`, signal);  // 同会话级联删除合并为一次写入
 }
 
 // === Crypto Helpers for API Key Security ===
@@ -714,8 +807,9 @@ export async function getStoredSettings(): Promise<UserSettings | null> {
 
 export async function saveStoredSettings(
   settings: UserSettings,
+  signal?: AbortSignal,
 ): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     
     // Perform shallow clone of root settings and shallow clone of API configurations
@@ -810,9 +904,9 @@ export async function saveStoredSettings(
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
       };
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  }, "settings:user_settings");  // P1-11: 单一 settings 记录多次保存合并为一次落盘
+  }, "settings:user_settings", signal);  // P1-11: 单一 settings 记录多次保存合并为一次落盘
 }
 
 export async function getStoredSavedPresets(): Promise<any[] | null> {
@@ -827,8 +921,8 @@ export async function getStoredSavedPresets(): Promise<any[] | null> {
   });
 }
 
-export async function saveStoredSavedPresets(presets: any[]): Promise<void> {
-  return enqueueWrite(async () => {
+export async function saveStoredSavedPresets(presets: any[], signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("settings", "readwrite");
@@ -837,9 +931,9 @@ export async function saveStoredSavedPresets(presets: any[]): Promise<void> {
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  });
+  }, undefined, signal);
 }
 
 
@@ -855,8 +949,8 @@ export async function getStoredDefaultCharactersInitializedFlag(): Promise<boole
   });
 }
 
-export async function saveStoredDefaultCharactersInitializedFlag(initialized: boolean): Promise<void> {
-  return enqueueWrite(async () => {
+export async function saveStoredDefaultCharactersInitializedFlag(initialized: boolean, signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("settings", "readwrite");
@@ -865,9 +959,9 @@ export async function saveStoredDefaultCharactersInitializedFlag(initialized: bo
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  });
+  }, undefined, signal);
 }
 
 
@@ -885,8 +979,9 @@ export async function getGlobalLorebook(): Promise<LorebookEntry[]> {
 
 export async function saveGlobalLorebook(
   entries: LorebookEntry[],
+  signal?: AbortSignal,
 ): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("lorebooks", "readwrite");
@@ -895,13 +990,13 @@ export async function saveGlobalLorebook(
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  });
+  }, undefined, signal);
 }
 
-export async function bulkSaveCharacters(charactersList: CharacterCard[]): Promise<void> {
-  return enqueueWrite(async () => {
+export async function bulkSaveCharacters(charactersList: CharacterCard[], signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       if (charactersList.length === 0) return resolve();
@@ -910,17 +1005,17 @@ export async function bulkSaveCharacters(charactersList: CharacterCard[]): Promi
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
 
       for (const char of charactersList) {
         store.put(char);
       }
     });
-  });
+  }, undefined, signal);
 }
 
-export async function bulkSaveSessions(sessionsList: ChatSession[]): Promise<void> {
-  return enqueueWrite(async () => {
+export async function bulkSaveSessions(sessionsList: ChatSession[], signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       if (sessionsList.length === 0) return resolve();
@@ -930,7 +1025,7 @@ export async function bulkSaveSessions(sessionsList: ChatSession[]): Promise<voi
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
 
       for (const session of sessionsList) {
         const { messages, ...sessionToSave } = session;
@@ -966,7 +1061,7 @@ export async function bulkSaveSessions(sessionsList: ChatSession[]): Promise<voi
         }
       }
     });
-  });
+  }, undefined, signal);
 }
 
 export async function getCustomWorldbooks(): Promise<Record<string, CustomWorldbook>> {
@@ -983,8 +1078,9 @@ export async function getCustomWorldbooks(): Promise<Record<string, CustomWorldb
 
 export async function saveCustomWorldbooks(
   worldbooks: Record<string, CustomWorldbook>,
+  signal?: AbortSignal,
 ): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("worldbooks", "readwrite");
@@ -993,9 +1089,9 @@ export async function saveCustomWorldbooks(
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  });
+  }, undefined, signal);
 }
 
 export async function getStoredUsageMetrics(): Promise<any | null> {
@@ -1010,8 +1106,8 @@ export async function getStoredUsageMetrics(): Promise<any | null> {
   });
 }
 
-export async function saveStoredUsageMetrics(metrics: any): Promise<void> {
-  return enqueueWrite(async () => {
+export async function saveStoredUsageMetrics(metrics: any, signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("settings", "readwrite");
@@ -1020,9 +1116,9 @@ export async function saveStoredUsageMetrics(metrics: any): Promise<void> {
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  });
+  }, undefined, signal);
 }
 
 // === Messages Store CRUD (v8 记忆系统物理分轨) ===
@@ -1043,8 +1139,8 @@ export async function appendMessage(message: {
   tags?: string[];
   extractSource?: string;
   metadata?: Record<string, any>;
-}): Promise<void> {
-  return enqueueWrite(async () => {
+}, signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("messages", "readwrite");
@@ -1064,10 +1160,9 @@ export async function appendMessage(message: {
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () =>
-        reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `message:${message.id}`);
+  }, `message:${message.id}`, signal);
 }
 
 /**
@@ -1079,9 +1174,10 @@ export async function updateMessageExtraction(
   id: string,
   tags: string[],
   extractSource: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>,
+  signal?: AbortSignal
 ): Promise<void> {
-  return enqueueWrite(async () => {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("messages", "readwrite");
@@ -1105,10 +1201,9 @@ export async function updateMessageExtraction(
         putReq.onerror = () => reject(putReq.error);
       };
       getReq.onerror = () => reject(getReq.error);
-      transaction.onabort = () =>
-        reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `message:${id}:extract`);
+  }, `message:${id}:extract`, signal);
 }
 
 /**
@@ -1326,8 +1421,8 @@ export async function getMessagesByTag(
 /**
  * 删除指定会话的所有消息（用于会话删除时级联清理）。
  */
-export async function deleteMessagesBySession(sessionId: string): Promise<void> {
-  return enqueueWrite(async () => {
+export async function deleteMessagesBySession(sessionId: string, signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("messages", "readwrite");
@@ -1344,17 +1439,16 @@ export async function deleteMessagesBySession(sessionId: string): Promise<void> 
         cursor.continue();
       };
       request.onerror = () => reject(request.error);
-      transaction.onabort = () =>
-        reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  });
+  }, undefined, signal);
 }
 
 /**
  * 按主键删除单条消息（用于重投/编辑场景显式删除旧消息）。
  */
-export async function deleteMessageById(id: string): Promise<void> {
-  return enqueueWrite(async () => {
+export async function deleteMessageById(id: string, signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("messages", "readwrite");
@@ -1362,10 +1456,9 @@ export async function deleteMessageById(id: string): Promise<void> {
       const request = store.delete(id);
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () =>
-        reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `message:${id}:delete`);
+  }, `message:${id}:delete`, signal);
 }
 
 /**
@@ -1381,10 +1474,11 @@ export async function deleteMessageById(id: string): Promise<void> {
  */
 export async function syncSessionMessages(
   sessionId: string,
-  messages: Array<{ id: string; sender: string; content: string; timestamp?: number; extra?: Record<string, any>; metadata?: Record<string, any> }>
+  messages: Array<{ id: string; sender: string; content: string; timestamp?: number; extra?: Record<string, any>; metadata?: Record<string, any> }>,
+  signal?: AbortSignal
 ): Promise<void> {
   if (!messages || messages.length === 0) return;
-  return enqueueWrite(async () => {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("messages", "readwrite");
@@ -1392,8 +1486,7 @@ export async function syncSessionMessages(
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () =>
-        reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
 
       messages.forEach((msg, idx) => {
         const record = {
@@ -1410,7 +1503,7 @@ export async function syncSessionMessages(
         store.put(record);
       });
     });
-  }, `session:${sessionId}:sync`);
+  }, `session:${sessionId}:sync`, signal);
 }
 
 // === Memory Dict Store CRUD (v8 记忆系统会话级自动学习词典) ===
@@ -1440,9 +1533,9 @@ export async function upsertDictEntry(entry: {
   count?: number;
   createdAt?: number;
   updatedAt?: number;
-}): Promise<boolean> {
+}, signal?: AbortSignal): Promise<boolean> {
   const id = entry.id || `${entry.sessionId}:${entry.entity}`;
-  return enqueueWrite(async () => {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<boolean>((resolve, reject) => {
       const transaction = db.transaction("memory_dict", "readwrite");
@@ -1491,10 +1584,9 @@ export async function upsertDictEntry(entry: {
       };
 
       getReq.onerror = () => reject(getReq.error);
-      transaction.onabort = () =>
-        reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `dict:${id}`);
+  }, `dict:${id}`, signal);
 }
 
 /**
@@ -1535,8 +1627,8 @@ export async function getDictBySession(sessionId: string): Promise<any[]> {
 /**
  * 删除指定会话的所有词典条目（用于会话删除时级联清理）。
  */
-export async function deleteDictBySession(sessionId: string): Promise<void> {
-  return enqueueWrite(async () => {
+export async function deleteDictBySession(sessionId: string, signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("memory_dict", "readwrite");
@@ -1553,17 +1645,16 @@ export async function deleteDictBySession(sessionId: string): Promise<void> {
         cursor.continue();
       };
       request.onerror = () => reject(request.error);
-      transaction.onabort = () =>
-        reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  });
+  }, undefined, signal);
 }
 
 /**
  * 按主键物理删除单条词典条目。
  */
-export async function deleteDictEntryById(id: string): Promise<void> {
-  return enqueueWrite(async () => {
+export async function deleteDictEntryById(id: string, signal?: AbortSignal): Promise<void> {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("memory_dict", "readwrite");
@@ -1571,10 +1662,9 @@ export async function deleteDictEntryById(id: string): Promise<void> {
       const request = store.delete(id);
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-      transaction.onabort = () =>
-        reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `dict:${id}:delete`);
+  }, `dict:${id}:delete`, signal);
 }
 
 /**
@@ -1585,9 +1675,10 @@ export async function deleteDictEntryById(id: string): Promise<void> {
  */
 export async function appendSessionSummary(
   sessionId: string,
-  newCard: any
+  newCard: any,
+  signal?: AbortSignal
 ): Promise<ChatSession> {
-  return enqueueWrite(async () => {
+  return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<ChatSession>((resolve, reject) => {
       const transaction = db.transaction("sessions", "readwrite");
@@ -1613,9 +1704,8 @@ export async function appendSessionSummary(
       };
 
       getReq.onerror = () => reject(getReq.error);
-      transaction.onabort = () =>
-        reject(transaction.error || new Error("Transaction aborted"));
+      bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `session:${sessionId}`);
+  }, `session:${sessionId}`, signal);
 }
 

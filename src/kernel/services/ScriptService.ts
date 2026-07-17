@@ -6,7 +6,7 @@ import JSON5 from "json5";
 
 export interface ITavernHelperBridge {
   initializeMvuFromCharacter(character: any): Record<string, any>;
-  parseMvuMessage(messageContent: string, currentVariables: Record<string, any>): Record<string, any>;
+  parseMvuMessage(messageContent: string, currentVariables: Record<string, any>, signal?: AbortSignal): Record<string, any>;
   notifyVariablesUpdated(session: any): void;
 }
 
@@ -188,7 +188,7 @@ export class ScriptService implements IScriptService {
     }
   }
 
-  parseMvuMessage(messageContent: string, currentVariables: Record<string, any>): Record<string, any> {
+  parseMvuMessage(messageContent: string, currentVariables: Record<string, any>, signal?: AbortSignal): Record<string, any> {
     // 防腐隔离：清洗输入变量
     const safeCurrentVars = cleanMvuVariables(currentVariables);
 
@@ -199,9 +199,9 @@ export class ScriptService implements IScriptService {
     try {
       let rawParsed: any;
       if (this.bridge) {
-        rawParsed = this.bridge.parseMvuMessage(messageContent, safeCurrentVars);
+        rawParsed = this.bridge.parseMvuMessage(messageContent, safeCurrentVars, signal);
       } else {
-        rawParsed = parseMvuMessageDirect(messageContent, safeCurrentVars);
+        rawParsed = parseMvuMessageDirect(messageContent, safeCurrentVars, signal);
       }
       // 防腐隔离：清洗输出
       return cleanMvuVariables(rawParsed);

@@ -67,8 +67,8 @@ export class DatabaseService implements IDatabaseService {
     return getSessionsPaginated(page, pageSize);
   }
 
-  async saveSession(session: ChatSession): Promise<void> {
-    return saveSession(session);
+  async saveSession(session: ChatSession, signal?: AbortSignal): Promise<void> {
+    return saveSession(session, signal ?? this.abortController?.signal);
   }
 
   /**
@@ -76,7 +76,7 @@ export class DatabaseService implements IDatabaseService {
    * 将内存 Message 格式转换为 DB MessageRecord 格式后调用 appendMessage。
    * turnIndex 未提供时使用 Date.now() 作为占位，MemoryExtractor 后续会更新。
    */
-  async appendSessionMessage(sessionId: string, message: PersistedMessage, turnIndex?: number): Promise<void> {
+  async appendSessionMessage(sessionId: string, message: PersistedMessage, turnIndex?: number, signal?: AbortSignal): Promise<void> {
     await dbAppendMessage({
       id: message.id,
       sessionId,
@@ -87,24 +87,24 @@ export class DatabaseService implements IDatabaseService {
       tags: message.tags || [],
       extractSource: message.extractSource || "none",
       metadata: message.metadata || message.extra,
-    });
+    }, signal ?? this.abortController?.signal);
   }
 
-  async deleteMessageById(id: string): Promise<void> {
-    return dbDeleteMessageById(id);
+  async deleteMessageById(id: string, signal?: AbortSignal): Promise<void> {
+    return dbDeleteMessageById(id, signal ?? this.abortController?.signal);
   }
 
-  async syncSessionMessages(sessionId: string, messages: any[]): Promise<void> {
-    return dbSyncSessionMessages(sessionId, messages);
+  async syncSessionMessages(sessionId: string, messages: any[], signal?: AbortSignal): Promise<void> {
+    return dbSyncSessionMessages(sessionId, messages, signal ?? this.abortController?.signal);
   }
 
-  async deleteSession(id: string): Promise<void> {
-    return deleteSession(id);
+  async deleteSession(id: string, signal?: AbortSignal): Promise<void> {
+    return deleteSession(id, signal ?? this.abortController?.signal);
   }
 
   // 批量写入会话（备份恢复 / 跨设备同步场景），跨 sessions+messages Store 事务
-  async bulkSaveSessions(sessionsList: ChatSession[]): Promise<void> {
-    return dbBulkSaveSessions(sessionsList);
+  async bulkSaveSessions(sessionsList: ChatSession[], signal?: AbortSignal): Promise<void> {
+    return dbBulkSaveSessions(sessionsList, signal ?? this.abortController?.signal);
   }
 
   // P0-4 / P1-4: 单条直查角色卡，避免全量反序列化

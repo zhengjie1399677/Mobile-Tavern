@@ -20,6 +20,33 @@ import lodashUnset from "lodash/unset";
 import JSON5 from "json5";
 
 // ──────────────────────────────────────────────────────────────────────────────
+// AbortSignal 协作式中断检查点（TODO #5）
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 构造标准的 AbortError，兼容缺失 DOMException 的环境。
+ * 与 localDB.ts 中的 createAbortError 保持行为一致以统一错误识别。
+ */
+function createAbortError(message = "MVU parsing was aborted"): DOMException {
+  if (typeof DOMException !== "undefined") {
+    return new DOMException(message, "AbortError");
+  }
+  const err = new Error(message);
+  (err as { name?: string }).name = "AbortError";
+  return err as unknown as DOMException;
+}
+
+/**
+ * 在循环顶部调用的协作式中断检查点。
+ * 若 signal 已 abort，立即抛出 AbortError 终止后续解析；否则空操作。
+ *
+ * 设计为内联轻量检查，避免对热路径造成显著开销。
+ */
+function checkAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw createAbortError();
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // 命令提取
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -30,12 +57,13 @@ import JSON5 from "json5";
  *   _.set("hp", 80); // 角色受伤
  *   _.add("gold", -50); // 消费金币
  */
-export function extractMvuCommands(text: string): { type: string; args: any[]; reason?: string }[] {
+export function extractMvuCommands(text: string, signal?: AbortSignal): { type: string; args: any[]; reason?: string }[] {
   const results: { type: string; args: any[]; reason?: string }[] = [];
   if (!text) return results;
 
   let i = 0;
   while (i < text.length) {
+    checkAborted(signal);
     const match = text.substring(i).match(/_\.(set|add|delete|remove|unset|assign|insert|move)\(/);
     if (!match || match.index === undefined) break;
 
@@ -303,7 +331,7 @@ function applyMvuCommand(statData: any, command: { type: string; args: any[]; re
  * 遵循 AGENTS.md 准则一.3（外部接口防腐隔离）：
  * 对外部卡片格式进行清洗后再进入核心解析管道。
  */
-export function extractXmlMvuCommands(text: string): { type: string; args: any[]; reason?: string }[] {
+export function extractXmlMvuCommands(text: string, signal?: AbortSignal): { type: string; args: any[]; reason?: string }[] {
   const results: { type: string; args: any[]; reason?: string }[] = [];
   if (!text) return results;
 
@@ -311,15 +339,17 @@ export function extractXmlMvuCommands(text: string): { type: string; args: any[]
   const uvRegex = /<UpdateVariable\b[^>]*>([\s\S]*?)<\/UpdateVariable>/gi;
   let m;
   while ((m = uvRegex.exec(text)) !== null) {
+    checkAborted(signal);
     const inner = m[1].trim();
     if (inner) {
-      results.push(...extractMvuCommands(inner));
+      results.push(...extractMvuCommands(inner, signal));
     }
   }
 
   // 匹配 <initvar>...</initvar> 中的初始化命令
   const ivRegex = /<initvar\b[^>]*>([\s\S]*?)<\/initvar>/gi;
   while ((m = ivRegex.exec(text)) !== null) {
+    checkAborted(signal);
     const inner = m[1].trim();
     if (inner) {
       // initvar 内容可能是 _.set() 命令 或 JSON Patch 数组
@@ -327,7 +357,7 @@ export function extractXmlMvuCommands(text: string): { type: string; args: any[]
         // JSON Patch 格式，交由 parseMvuMessage 的 JSON Patch 分支处理
         // 这里不重复解析，避免双重执行
       } else {
-        results.push(...extractMvuCommands(inner));
+        results.push(...extractMvuCommands(inner, signal));
       }
     }
   }
@@ -342,7 +372,7 @@ export function extractXmlMvuCommands(text: string): { type: string; args: any[]
 /**
  * 检测文本中是否包含 JSON Patch 格式（RFC 6902）的变量更新指令
  */
-export function detectJsonPatch(text: string): any[] | null {
+export function detectJsonPatch(text: string, signal?: AbortSignal): any[] | null {
   if (!text) return null;
   const patches: any[] = [];
 
@@ -368,6 +398,7 @@ export function detectJsonPatch(text: string): any[] | null {
   const jsonPatchTagRegex = /<JSONPatch\b[^>]*>([\s\S]*?)<\/JSONPatch>/gi;
   let jpMatch;
   while ((jpMatch = jsonPatchTagRegex.exec(text)) !== null) {
+    checkAborted(signal);
     tryParsePatch(jpMatch[1]);
   }
 
@@ -376,6 +407,7 @@ export function detectJsonPatch(text: string): any[] | null {
     const tagRegex = /<(?:UpdateVariable|initvar)\b[^>]*>([\s\S]*?)<\/(?:UpdateVariable|initvar)>/gi;
     let m;
     while ((m = tagRegex.exec(text)) !== null) {
+      checkAborted(signal);
       const inner = m[1].trim();
       if (inner.includes("<JSONPatch>")) continue;
 
@@ -549,7 +581,7 @@ export function deepMerge(target: any, source: any): any {
  * 3. XML 标签内的 MVU 命令（<UpdateVariable> / <initvar> 兼容）
  * 4. XML 标签中的 YAML 内容并合并到 statData
  */
-export function parseMvuMessage(message: string, oldData: any): any {
+export function parseMvuMessage(message: string, oldData: any, signal?: AbortSignal): any {
   if (!oldData) return oldData;
   const newData = lodashCloneDeep(oldData);
   const statData = newData.stat_data || newData;
@@ -557,20 +589,22 @@ export function parseMvuMessage(message: string, oldData: any): any {
   // 1. 尝试 JSON Patch (RFC 6902) 格式
   // 注意：不提前 return！某些 AI 回复可能同时包含 JSON Patch 与标准 MVU 命令
   // （_.set / _.add 等）或 XML 标签命令。提前 return 会导致后两类命令被静默丢弃。
-  const jsonPatches = detectJsonPatch(message);
+  const jsonPatches = detectJsonPatch(message, signal);
   if (jsonPatches) {
     applyJsonPatchOperations(statData, jsonPatches);
   }
 
   // 2. 提取标准 MVU 命令（_.set/add/delete/remove/unset/assign/insert/move 格式）
-  const commands = extractMvuCommands(message);
+  const commands = extractMvuCommands(message, signal);
   for (const cmd of commands) {
+    checkAborted(signal);
     applyMvuCommand(statData, cmd);
   }
 
   // 3. 提取 XML 标签内的 MVU 命令（<UpdateVariable> / <initvar> 兼容）
-  const xmlCommands = extractXmlMvuCommands(message);
+  const xmlCommands = extractXmlMvuCommands(message, signal);
   for (const cmd of xmlCommands) {
+    checkAborted(signal);
     applyMvuCommand(statData, cmd);
   }
 
@@ -578,6 +612,7 @@ export function parseMvuMessage(message: string, oldData: any): any {
   const tagRegex = /<(?:UpdateVariable|initvar)\b[^>]*>([\s\S]*?)<\/(?:UpdateVariable|initvar)>/gi;
   let m;
   while ((m = tagRegex.exec(message)) !== null) {
+    checkAborted(signal);
     const inner = m[1].trim();
     // 排除 JSON Patch（以 [ 开头）与标准 MVU 命令（包含 _.）
     if (inner && !inner.startsWith("[") && !inner.includes("_.")) {
@@ -604,7 +639,8 @@ export function applyCharacterRegexScripts(
   isAiMessage?: boolean,
   charName?: string,
   userName?: string,
-  mode?: "render" | "prompt" | "store"
+  mode?: "render" | "prompt" | "store",
+  signal?: AbortSignal
 ): string {
   if (!text || !character) return text;
 
@@ -623,6 +659,7 @@ export function applyCharacterRegexScripts(
 
   for (const script of charRegexScripts) {
     if (!script || script.disabled) continue;
+    checkAborted(signal);
     // 按 mode 区分 markdownOnly / promptOnly 脚本的应用时机：
     // - render: 渲染时应用 markdownOnly + 无标记脚本，跳过 promptOnly
     // - prompt: 发送给AI时应用 promptOnly + 无标记脚本，跳过 markdownOnly

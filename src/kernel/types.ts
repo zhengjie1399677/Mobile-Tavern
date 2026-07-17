@@ -190,27 +190,27 @@ export interface IDatabaseService<TSession = any, TCharacter = any> extends IKer
   // PERF-03: 分页加载 API，避免一次性 getAll() 阻塞主线程
   getSessionsCount(): Promise<number>;
   getSessionsPaginated(page: number, pageSize: number): Promise<TSession[]>;
-  saveSession(session: TSession): Promise<void>;
+  saveSession(session: TSession, signal?: AbortSignal): Promise<void>;
   /**
    * 单条消息写入 messages Store（用于发送/重投场景的精准单条持久化）。
    * saveSession 只存会话元数据，新消息必须通过本方法显式写入。
    */
-  appendSessionMessage(sessionId: string, message: any, turnIndex?: number): Promise<void>;
+  appendSessionMessage(sessionId: string, message: any, turnIndex?: number, signal?: AbortSignal): Promise<void>;
   /**
    * 按主键删除单条消息（用于重投/编辑场景删除旧消息）。
    */
-  deleteMessageById(id: string): Promise<void>;
+  deleteMessageById(id: string, signal?: AbortSignal): Promise<void>;
   /**
    * 批量同步会话消息（用于分支创建/备份恢复等全量写入场景）。
    * 仅 PUT upsert，不做孤儿清理。
    */
-  syncSessionMessages(sessionId: string, messages: any[]): Promise<void>;
-  deleteSession(id: string): Promise<void>;
+  syncSessionMessages(sessionId: string, messages: any[], signal?: AbortSignal): Promise<void>;
+  deleteSession(id: string, signal?: AbortSignal): Promise<void>;
   /**
    * 批量写入会话（备份恢复 / 跨设备同步场景）。
    * 跨 sessions+messages Store 事务，用于一次性导入完整对话历史。
    */
-  bulkSaveSessions(sessionsList: TSession[]): Promise<void>;
+  bulkSaveSessions(sessionsList: TSession[], signal?: AbortSignal): Promise<void>;
   createNewSession(character: any, starterMessage?: string, initialSuggestions?: string[]): Promise<TSession>;
   createEmptyBranch(character: any, title: string): Promise<TSession>;
   createBacktrackBranch(sourceSession: TSession, title: string, msgId: string): Promise<TSession>;
@@ -303,7 +303,7 @@ export interface ITelemetryService extends IKernelService {
 
 export interface IScriptService<TCharacter = any, TSession = any> extends IKernelService {
   initializeMvuFromCharacter(character: TCharacter): Record<string, any>;
-  parseMvuMessage(messageContent: string, currentVariables: Record<string, any>): Record<string, any>;
+  parseMvuMessage(messageContent: string, currentVariables: Record<string, any>, signal?: AbortSignal): Record<string, any>;
   executeMvuScript(session: TSession, messageContent: string): Promise<TSession>;
   registerBridge(bridge: any): void;
 }

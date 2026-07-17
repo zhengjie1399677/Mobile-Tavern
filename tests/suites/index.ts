@@ -109,3 +109,11 @@ export {
   testAutoSummaryTriggerConditions,
   testAppendSessionMessageFieldMapping,
 } from "./paginationAndArchival.test";
+
+export {
+  testAbortSignalPreAbortedLocalDB,
+  testAbortSignalMidOperationLocalDB,
+  testAbortSignalWriteQueueRecovery,
+  testMvuParserAbortedCheckpoints,
+  testMemoryStreamParserAbort,
+} from "./abortSignalConduction.test";
