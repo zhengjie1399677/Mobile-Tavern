@@ -6,7 +6,7 @@ import { SplashScreen } from "./components/SplashScreen";
 import { registerMainTabExtensions } from "./composition/registerMainTabExtensions";
 import { KernelProvider } from "./contexts/KernelContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
-import { TRANSLATIONS } from "./locales/translations";
+import { TRANSLATIONS } from "./locales/index";
 
 export {
   DEFAULT_PROMPT_CONFIG,

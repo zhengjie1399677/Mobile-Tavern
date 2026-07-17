@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { TRANSLATIONS } from "../locales/translations";
+import { TRANSLATIONS } from "../locales/index";
 
 export interface LanguageContextProps {
   language: string;
@@ -9,7 +9,7 @@ export interface LanguageContextProps {
 
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined);
 
-const SUPPORTED_LANGUAGES = ["zh-CN", "zh-TW", "en", "ja", "ru", "es"];
+const SUPPORTED_LANGUAGES = ["zh-CN", "zh-TW", "en", "ja", "ru", "es", "ko", "pt-BR"];
 
 const getSystemDefaultLanguage = (): string => {
   if (typeof window === "undefined") return "en";
@@ -30,6 +30,12 @@ const getSystemDefaultLanguage = (): string => {
   }
   if (lowerLang.startsWith("es")) {
     return "es";
+  }
+  if (lowerLang.startsWith("ko")) {
+    return "ko";
+  }
+  if (lowerLang.startsWith("pt")) {
+    return "pt-BR";
   }
   return "en";
 };

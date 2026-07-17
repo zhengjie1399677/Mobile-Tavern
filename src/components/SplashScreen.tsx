@@ -1,6 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { TRANSLATIONS } from "../locales/translations";
+import { TRANSLATIONS } from "../locales/index";
 
 interface SplashScreenProps {
   isVisible: boolean;

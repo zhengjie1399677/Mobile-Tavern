@@ -1,0 +1,707 @@
+﻿control_panel.title|||Control Panel
+control_panel.subtitle|||Adjust system settings and granular pipeline rules
+control_panel.check_update|||Updates
+control_panel.checking|||Checking
+tabs.connection|||Connect
+tabs.features|||Features
+tabs.persona|||Persona
+tabs.storage|||Storage
+sandbox.title|||Developer Sandbox
+sandbox.desc|||Inspect prompt compilation, SSE buffer parsing, and worldbook scanning
+sandbox.button|||馃殌 Enter Developer Sandbox
+lang.section_title|||Language Settings
+lang.select_label|||App Language
+lang.select_desc|||Switch interface language. Automatically set to your system default on first startup.
+features.section_title|||Application Features
+features.cat_rendering|||UI Rendering & Interaction
+features.html_rendering|||Rich Text HTML Rendering
+features.html_rendering_desc|||Allow character cards to style dialogue bubbles using HTML/CSS tags. Fallback to plain text if disabled.
+features.js_execution|||Card JS Script Execution
+features.js_execution_desc|||Allow character cards to run custom JS in sandbox to show dynamic status panels. Execution carries security risks.
+features.loop_protection|||Script Loop Protection
+features.loop_protection_desc|||Inject watchdog timers into script loops to prevent WebView locks. Execution limit: 1000ms.
+features.ambient_glow|||Emotion Ambient Glow
+features.ambient_glow_experimental|||Beta
+features.ambient_glow_desc|||Render flow glows in chat background matching the character's expression and emotion to raise immersion.
+features.reasoning_display|||Reasoning Display
+features.reasoning_display_desc|||Show or hide thinking chain (reasoning_content). Hiding it doesn't affect model generation.
+features.message_queue|||Multi-Message Queue
+features.message_queue_plugin|||Plugin
+features.message_queue_desc|||Clicking Send queues message without reply; Long-pressing (500ms+) merges queued messages and triggers reply.
+features.asterisk_formatting|||Asterisk Formatting
+features.asterisk_formatting_desc|||Render *action description* in soft italic grey. Character visual settings override this.
+features.bison_mode|||Bison Mode
+features.bison_mode_token_warning|||High Token Cost
+features.bison_mode_desc|||Let AI queue and output 2-3 consecutive replies based on emotion (each capped at 100 tokens).
+features.bison_mode_warning|||鈿狅笍 This generates consecutive API requests and can significantly increase token consumption.
+features.bison_mode_prompt_title|||Bison Mode Prompt Template
+features.reset_default|||Reset to Default
+features.reply_suggestions|||AI Reply Suggestions
+features.reply_suggestions_desc|||Generate subsequent story branch options. Click to fill or send.
+features.click_mode|||Default Click Action
+features.click_mode_fill|||Fill Input Box
+features.click_mode_send|||Send Directly
+features.suggestions_prompt_title|||Suggestions Prompt Template
+features.expression_dict_title|||Emotion Matching Regex Dictionary
+features.expression_dict_desc|||Fallback regex to match expressions when card has no triggers (clear to disable).
+features.reset_dict|||Reset Dictionary
+report.title|||System Report
+report.copy|||Copy Report
+report.check_start|||Run Diagnostic
+report.checking|||Running...
+theme.section_title|||Theme & Color Scheme
+theme.placeholder|||Select Theme
+theme.snow|||Minimalist White
+theme.sand|||Warm Sand
+theme.ocean|||Deep Ocean
+theme.obsidian|||Obsidian Black
+theme.custom_theme|||Custom Theme
+theme.custom_header|||Imported Themes
+theme.dark|||Dark
+theme.light|||Light
+theme.management|||Theme Management
+theme.new|||New Theme
+theme.import|||Import Theme
+theme.no_custom_desc|||No custom themes imported. Import a .tavern-theme.json file to customize CSS variables and styles.
+theme.font_size|||Font Size
+theme.font_size_current|||Font Size
+theme.line_height|||Line Spacing
+theme.line_height_current|||Line Height
+theme.bg_image|||Default Chat Background (Active when character background is not set)
+theme.bg_image_enabled|||鉁?Custom background image enabled
+theme.bg_image_disabled|||Not set (use default theme background)
+theme.upload|||Upload
+theme.clear|||Clear
+theme.bg_effect|||Chat Background Blend
+theme.effect_clear|||Clear (Original)
+theme.effect_medium|||Medium (Blend)
+theme.effect_dark|||Dark (Frosted)
+theme.bg_animation|||Enable Ken Burns Effect (Slow Motion)
+nav.characters|||Characters
+nav.chat-history|||Chats
+nav.global-worldbook|||Worldbook
+nav.settings|||Settings
+api.title|||API Endpoint Configuration
+api.subtitle|||Configure LLM service endpoint URL and authorization credentials
+api.saving|||Autosaving...
+api.saved|||Changes autosaved
+api.select_profile|||Select API Profile / Credentials File
+api.temp_profile|||馃挕 Temporary Debug Profile
+api.save_profile|||Save Current Settings as Profile
+api.rename|||鉁忥笍 Rename
+api.delete|||馃棏锔?Delete Profile
+api.base_url|||Base URL
+api.base_url_tip|||Supports auto-saving multiple API histories
+api.clear_history|||Clear History
+api.api_key|||API Key
+api.test_conn|||鈿?Test Connection
+api.fetch_models|||Fetch Models
+api.fetching_models|||Fetching...
+api.free_tier|||馃挕 Free tier channel active (used {count}/10 times). Active when API Key is blank.
+api.exclusive_tier|||Custom API Key configured, using exclusive channel.
+api.model_id|||Model ID
+api.select_model_placeholder|||Select fetched model
+api.context_limit|||Max Context Limit (Tokens)
+api.context_limit_tip|||Leave blank to match model default capacity
+api.prompt_format|||Prompt Layout Format
+api.prompt_format_tip|||Defines structure of system prompts and lorebooks
+api.format_auto|||Auto Select
+api.format_xml|||XML Tags
+api.format_markdown|||Markdown Text
+api.fallback_title|||Conservative Fallback (Minimal Parameters)
+api.fallback_desc|||Forces sending only 5 basic parameters (model, messages, stream, temperature, top_p) regardless of model type. Turn on if API throws HTTP 400.
+api.send_names_title|||Send Character Names
+api.send_names_desc|||Include 'name' attribute in request messages (e.g. 'user', character name). Disable if Claude/Gemini errors with HTTP 400.
+api.disable_reasoning_title|||Disable Reasoning (Deep Thinking)
+api.disable_reasoning_desc|||Forces disabling reasoning on API level to save thinking tokens for reasoning models (e.g. Claude 3.7 / DeepSeek R1).
+image_gen.title|||AI Image Gen Configuration
+image_gen.subtitle|||Configure Stable Diffusion, NovelAI, or DALL-E endpoints
+image_gen.enable|||Enable Image Gen
+image_gen.enable_desc|||Enables drawing scenes from dialogue in message quick menus.
+image_gen.force_protocol|||Force Specific Protocol
+image_gen.force_protocol_desc|||When off, auto-detects from Base URL (applies NovelAI/SD-WebUI formats accordingly, defaults to OpenAI DALL-E).
+image_gen.protocol_title|||Image Gen Protocol Type
+image_gen.auto_detect|||Auto Detect Mode (Guesses from URL)
+image_gen.base_url|||Image Gen Base URL
+image_gen.api_key|||API Key / Access Token
+image_gen.api_key_placeholder|||Enter key or access token
+image_gen.model|||Model
+image_gen.model_placeholder|||e.g., dall-e-3 or custom-model
+image_gen.width|||Width
+image_gen.height|||Height
+image_gen.steps|||Steps
+image_gen.cfg|||CFG Scale
+image_gen.sampler|||Sampler
+image_gen.sampler_placeholder|||e.g. Euler a
+image_gen.edit_before_gen|||Edit prompt before generating
+image_gen.edit_before_gen_desc|||Displays prompt input box before sending request to modify the generated tags.
+image_gen.advanced_prompts|||Advanced Prompts & Templates
+image_gen.prompt_prefix|||Default Prompt Prefix
+image_gen.negative_prompt|||Negative Prompt
+image_gen.prompt_template|||Prompt Generator Template
+image_gen.prompt_template_desc|||Guided instructions for summarization LLM. Placeholders {appearance}, {context}, {message} will be replaced.
+tts.title|||Text-to-Speech (TTS)
+tts.enable|||Enable TTS Speech
+tts.enable_desc|||Enables reading message logs aloud in quick actions
+tts.trigger|||Trigger Mode
+tts.trigger_auto|||Auto Read (Default)
+tts.trigger_manual|||Manual Read (On demand)
+tts.range|||Content Range
+tts.range_all|||Read Full Text (with actions)
+tts.range_dialogue|||Read Dialogue Only (no actions)
+tts.engine|||Speech Engine (Provider)
+tts.engine_system|||System Native TTS (Local Synthesis)
+tts.engine_openai|||OpenAI TTS API (Online High Quality)
+tts.volume|||Volume
+tts.rate|||Rate (Speed)
+tts.pitch|||Pitch
+tts.system_desc|||Mobile clients use system native TTS engine; voice is determined by system settings.
+tts.voice|||Voice Role
+tts.test_play|||Test Voice
+tts.test_stop|||Stop Test
+asr.title|||Speech Recognition (ASR)
+asr.subtitle|||Enable microphone input and audio-to-text (WebSpeech or OpenAI Whisper)
+asr.enable|||Enable Speech Input
+asr.enable_desc|||Displays mic button next to chat input area to record and transcribe audio.
+asr.engine|||Speech Recognition Provider
+asr.engine_system|||System Native Web Speech API (Free / Live Streaming)
+asr.engine_whisper|||OpenAI Whisper API (High Accuracy)
+asr.lang|||Language
+asr.lang_placeholder|||e.g. en-US, zh-CN, ja-JP
+asr.lang_desc|||Language identifier required for Web Speech; Whisper can automatically detect if blank.
+persona.title|||User Persona
+persona.active|||Active User Persona
+persona.select_placeholder|||Select persona...
+persona.unnamed|||Unnamed Character
+persona.create|||Create
+persona.delete|||Delete
+persona.name|||Player Name (used for LLM replacements)
+persona.name_placeholder|||Unknown Traveler
+persona.avatar|||Player Custom Avatar (Base64)
+persona.avatar_placeholder|||data:image/png;base64,... or blank
+persona.upload|||Upload
+persona.clear|||Clear
+persona.desc|||Player Background (Persona description)
+persona.desc_placeholder|||e.g., Height 180cm, wearing black trench coat, calm gaze...
+memory_sys.title|||Memory System
+memory_sys.subtitle|||Co-manage short-term window, narrative timeline summaries, and structural table memories
+memory_sys.recent_turns_title|||Context Window
+memory_sys.recent_turns|||Context Recent Turns
+memory_sys.recent_turns_desc|||Number of dialog rounds directly kept in prompt context
+memory_sys.recall_title|||Long-term Recall
+memory_sys.recall_enable|||Enable Memory Recall
+memory_sys.recall_desc|||Automatically queries vector storage for similar past events
+memory_sys.recall_top_k|||Recall Top K Counts
+memory_sys.summary_title|||Narrative Memory (Auto Summary)
+memory_sys.summary_enable|||Enable Auto Summary
+memory_sys.summary_desc|||Triggers periodic background summarization (0 matches context turns)
+memory_sys.summary_trigger|||Trigger Turns (Rounds between summaries, 0 matches context turns)
+memory_sys.table_title|||Status Memory (Table Memory)
+memory_sys.table_enable|||Enable Table Memory
+memory_sys.table_desc|||Saves affection and character relationships as structural markdown tables
+memory_sys.table_freq|||AI Table Update Frequency (Rounds between updates)
+memory_sys.table_freq_1|||Every 1 round (Most real-time)
+memory_sys.table_freq_3|||Every 3 rounds (Recommended)
+memory_sys.table_freq_5|||Every 5 rounds (Token saver)
+memory_sys.advanced_title|||Advanced Templates & Prompts
+memory_sys.time_tag|||Time Tag Template
+memory_sys.time_tag_desc|||Use {{index}} as placeholder for summary stage numbering
+memory_sys.summary_prompt|||Summary System Prompt
+memory_sys.reset_summary|||Reset Summary Prompt to default
+memory_sys.reasoning_prompt|||Reasoning Guidance Prompt
+memory_sys.reset_reasoning|||Reset Reasoning Prompt to default
+memory_sys.table_prompt|||Table Memory Prompt
+memory_sys.reset_table|||Reset Table Prompt to default
+backup.title|||Backup & Migrate
+backup.subtitle|||Export configurations, cards, and logs, or restore from database backups
+backup.export_btn|||Export JSON Backup
+backup.import_btn|||Import & Restore
+backup.pass_title|||Independent Encryption Password
+backup.pass_tip|||Highly recommended. Data is strongly encrypted to prevent leaks
+backup.encrypt_switch|||Force Encrypt this backup data
+backup.status_idle|||No active backup/restore task
+chat_import.title|||Import Chat History
+chat_import.subtitle|||Import SillyTavern single character chat logs (.json/.jsonl) formatted file
+chat_import.upload_btn|||Select Chat File and Import
+telemetrics.title|||Usage Statistics (Telemetrics)
+telemetrics.subtitle|||Basic execution logs (for bundle telemetry tracking)
+telemetrics.total_opens|||Total Launches
+telemetrics.total_runtime|||Total Run Time
+telemetrics.times|||{count} times
+telemetrics.minutes|||{count} mins
+samplers.title|||Temperature & Sampling Parameters
+samplers.subtitle|||Adjust randomness, penalties, and max token limits for model generation
+samplers.temp|||Temperature (Temp)
+samplers.top_p|||Nucleus Sampling (Top P)
+samplers.rep_penalty|||Repetition Penalty
+samplers.max_tokens|||Max Tokens
+preset_selector.active_preset|||Active Preset: {name}
+preset_selector.import|||Import Config
+preset_selector.export|||Export Config
+preset_selector.save_copy|||Save Copy
+preset_selector.delete_custom|||Delete Custom Preset
+prompts.title|||Preset Prompts Configuration
+prompts.subtitle|||Configure base system prompts, jailbreaks, and custom modules
+prompts.st_compat_desc|||Supports ST macros: {{char}}, {{user}} are replaced dynamically.
+prompts.confirm_delete|||Confirm Delete
+prompts.cancel|||Cancel
+prompts.batch_delete|||Batch Delete
+prompts.create_module|||New Module
+prompts.no_modules|||No modules active
+prompts.system_prompt|||System Prompt
+prompts.system_prompt_tip|||system 路 placed at the top of context
+prompts.system_prompt_placeholder|||Enter roleplay instructions here...
+prompts.jailbreak|||Jailbreak Prompt
+prompts.jailbreak_tip|||system 路 injected before last message
+prompts.jailbreak_placeholder|||Enter jailbreak rules here...
+regex.title|||Regex Filters
+regex.subtitle|||Configure regex scripts to sanitize input/output messages before display
+regex.global|||馃寣 Global Regex
+regex.global_tip|||Applies to all characters and presets, saved globally
+regex.preset|||馃搵 Preset Regex
+regex.preset_tip|||Active only when preset [{name}] is enabled, exports with preset
+regex.char|||馃幁 Character Local Regex
+regex.char_tip|||Active only when [{name}] is loaded, saved to character card
+regex.create_global|||New Global
+regex.create_preset|||New Preset
+regex.create_char|||New Character
+regex.no_global|||No global regex rules. Click to add a filter for <think> tags.
+regex.no_preset|||No preset regex rules. Loaded automatically on preset import.
+regex.no_char|||No local regex rules for this character. Click to create one.
+regex.placement_both|||Both
+regex.placement_input|||Input
+regex.placement_output|||Output
+regex.edit|||Edit
+regex.delete|||Delete
+regex.modal_new|||New Regex Script
+regex.modal_edit|||Edit Regex Script
+regex.modal_close|||Close
+regex.modal_name|||Script Name
+regex.modal_name_placeholder|||e.g. Hide thinking process
+regex.modal_find|||Match regex pattern (supports /pattern/flags)
+regex.modal_find_placeholder|||e.g. /<think>[\\s\\S]*?<\\/think>/gi
+regex.modal_replace|||Replace string (supports $1, $2)
+regex.modal_replace_placeholder|||e.g. (Leave blank to remove matches)
+regex.modal_placement|||Placement
+regex.modal_placement_input|||Input Phase (Before send)
+regex.modal_placement_output|||Output Phase (Before display)
+regex.modal_save|||Save
+preset_form.none|||None
+preset_form.scope_global|||Global
+preset_form.scope_preset|||Preset
+preset_form.scope_char|||Character
+preset_form.confirm_delete_regex|||Are you sure you want to delete the {scope} regex script '{name}'?
+preset_form.regex_empty_error|||Script name and regex pattern cannot be empty!
+preset_form.confirm_batch_delete_prompts|||Are you sure you want to batch delete the selected {count} prompt modules?
+preset_form.confirm_batch_delete_global_regex|||Are you sure you want to batch delete the selected {count} global regex scripts?
+preset_form.confirm_batch_delete_preset_regex|||Are you sure you want to batch delete the selected {count} preset regex scripts?
+worldbook.title|||Worldbooks
+worldbook.subtitle|||Dedicated Character Bounds / Global Shares
+worldbook.new|||New
+worldbook.import|||Import
+worldbook.export|||Export
+worldbook.export_alert|||Please select a worldbook (global or character) first before exporting.
+worldbook.list_header|||馃懁 Character Bound Worldbooks
+worldbook.list_count|||{count} books total
+worldbook.custom_tip|||馃敀 Independent Worldbook (Long press to delete)
+worldbook.no_characters|||馃摥 No character cards found. Create a character card in the Settings tab to unlock character-bound worldbooks!
+worldbook.char_tip_global|||馃寧 Worldbook configured as [Global Shared]
+worldbook.char_tip_local|||馃敀 Worldbook configured as [Character Bound]
+worldbook.switch_global|||馃寧 Global
+worldbook.switch_local|||馃懁 Bound
+history.title|||History
+history.sort_by_time|||Timeline
+history.sort_by_char|||By Character
+history.empty|||No chat history found
+history.empty_tip|||Choose a character to start chatting!
+history.main_timeline|||Main Timeline
+history.turns_chars|||{turnCount} turns | {charCount} chars
+history.turns|||{count} turns
+history.chars|||{count} chars
+history.me|||Me
+history.delete|||Delete chat
+history.sessions_count|||{count} chats
+history.recent_active|||Last active: {time}
+history.total_chars|||{count} chars total
+history.unassigned_char|||Unassigned Character
+history.removed_char|||Removed Character
+scanner.title|||Scan and Import Local Character Cards
+scanner.close|||Close
+scanner.scan_failed|||Scan failed: 
+scanner.import_success|||Imported successfully: \"{name}\" card has been loaded!
+scanner.import_failed|||File import failed: 
+scanner.mock_env|||Browser Sandbox Environment
+scanner.mock_env_tip|||Currently running in web development mode. To test interface interactions and card parsing, you can click the button below to load simulated character cards.
+scanner.mock_scanning|||Simulating scan...
+scanner.mock_btn|||Scan Mock Storage (Scan Files)
+scanner.permission_title|||Storage Access Permission Required
+scanner.permission_desc|||The application needs access to your external storage (such as the Downloads directory) to find character cards. You can toggle or revoke this permission in device settings at any time.
+scanner.permission_btn|||Authorize and Scan Storage
+scanner.scanning|||Retrieving storage media...
+scanner.scan_btn|||Scan Download & Pictures Directories
+scanner.search_placeholder|||Search scanned local files...
+scanner.scan_waiting|||Scanning public directories on device, please wait...
+scanner.no_results|||No results found
+scanner.no_match|||No files matched your search query.
+scanner.no_results_tip|||Click the scan button above to locate .json character packages or Tavern PNG card files on your device.
+scanner.file_meta|||Size: {size} | Modified: {date}
+scanner.importing|||Importing
+scanner.import|||Import
+quick_dialogue.copy|||Copy
+quick_dialogue.edit|||Edit
+quick_dialogue.img_gen_not_enabled|||Please enable image generation in settings first and configure the API parameters.
+quick_dialogue.edit_prompt_message|||The image prompt has been generated. You can modify it here:
+quick_dialogue.prompt_confirm_title|||Prompt Confirmation
+quick_dialogue.img_gen_failed|||Image Generation Failed
+quick_dialogue.img_gen_failed_msg|||Drawing failed: {error}
+quick_dialogue.img_gen|||Generate Image
+quick_dialogue.img_gen_title|||Generate an illustration for the current dialogue scene
+quick_dialogue.tts_stop|||Stop
+quick_dialogue.tts_read|||Read Aloud
+quick_dialogue.tts_stop_title|||Stop TTS
+quick_dialogue.tts_read_title|||TTS read current dialogue
+quick_dialogue.more|||More
+quick_dialogue.more_title|||More Options
+quick_dialogue.reroll|||Reroll
+quick_dialogue.branch|||Branch
+quick_dialogue.confirm_delete_msg|||Confirm deleting this single dialogue line?
+quick_dialogue.delete|||Delete
+quick_dialogue.confirm_summarize|||Start smart AI card compression? This will convert earlier chat history into a single timeline chronicle, freeing memory while maintaining narrative coherence.
+quick_dialogue.summarize|||Summarize
+message_bubble.user_said|||I said
+message_bubble.char_said|||said
+message_bubble.role|||Character
+message_bubble.me_avatar|||Me
+message_bubble.ai_fallback|||AI
+message_bubble.swipe_edit|||Edit
+message_bubble.swipe_draw|||Generate Image
+message_bubble.swipe_tts_stop|||Stop
+message_bubble.swipe_tts_read|||Read Aloud
+message_bubble.edit_save|||Save
+message_bubble.edit_cancel|||Cancel
+message_bubble.reasoning_collapse|||Collapse reasoning
+message_bubble.reasoning_thinking|||AI is thinking (tap to view)...
+message_bubble.reasoning_view|||View reasoning
+message_bubble.reasoning_chars|||{length} chars
+message_bubble.copy_reasoning|||Copy reasoning content
+message_bubble.ai_composing|||AI is composing...
+message_bubble.no_content|||*(No content generated)*
+message_bubble.drawing_scene|||AI is drawing the scene...
+message_bubble.confirm_save_image|||Save this generated image?
+message_bubble.image_save_success|||Saved successfully
+message_bubble.image_save_success_msg|||馃搨 Image saved successfully!\nFile saved to /Download folder...
+message_bubble.image_save_failed|||Save failed
+message_bubble.image_save_failed_msg|||鉂?Image save failed: {error}
+message_bubble.save_error|||Save error
+message_bubble.export_success|||Export successful
+message_bubble.click_to_save|||Tap to save image
+message_bubble.round_label|||Round {roundNum}
+chat_input.reroll_last|||Reload last storyline
+chat_input.continue|||Continue
+chat_input.suggestions_label|||鉁?Narrative branch generator:
+chat_input.click_mode|||Click behavior: {mode}
+chat_input.click_mode_send|||Send directly
+chat_input.click_mode_fill|||Fill input box
+chat_input.placeholder_bison|||{name} is continuing to speak...
+chat_input.placeholder_recording|||Listening for voice input, please speak...
+chat_input.placeholder_transcribing|||Transcribing speech to text...
+chat_input.placeholder_default|||Send a message to {name} to begin...
+chat_input.aria_label|||Message input for {name}
+chat_input.stop|||Stop generation
+chat_input.asr_stop|||Stop recording
+chat_input.asr_recognizing|||Recognizing speech
+chat_input.asr_mic|||Voice input
+chat_input.asr_transcribing|||Transcribing...
+chat_input.send_title|||Send message (long press to merge)
+chat_input.send|||Send message
+chat_input.send_long_press|||Tap to send, long press 500ms to merge with previous message
+chat_input.asr_permission_denied|||Permission error
+chat_input.asr_permission_msg|||Microphone permission denied. Please allow microphone access in system settings.
+chat_input.asr_no_speech|||No speech detected
+chat_input.asr_no_speech_msg|||No speech input detected, please try again.
+chat_input.asr_device_error|||Device error
+chat_input.asr_device_error_msg|||Audio device error: {error}
+chat_input.asr_error|||Recognition error
+chat_input.asr_error_msg|||Speech recognition unknown error: {error}
+chat_input.token_prediction|||Prediction:
+chat_header.back_aria|||Back to character list
+chat_header.view_char_detail|||View character card details
+chat_header.branch_management|||Branch management
+chat_header.rename_prompt|||Edit current branch title for IndexedDB branch distinction:
+chat_header.click_to_edit|||(Tap to edit)
+chat_header.bgm_unmute|||Unmute BGM
+chat_header.bgm_mute|||Mute BGM
+chat_header.memory_center|||Memory & Status Center
+chat_header.memory|||Memory
+chat_header.timeline|||Timeline
+chat_header.table|||Status Data
+chat_header.dict|||Memory Dictionary
+char_detail.greeting_updated|||Greeting updated successfully!
+char_detail.greeting_error|||Failed to set greeting: {error}
+char_detail.unknown_creator|||System preset / Unknown creator
+char_detail.tab_persona|||Persona
+char_detail.tab_dialogue|||Dialogue Script
+char_detail.tab_lore|||World Lore ({count})
+char_detail.section_personality|||Personality Traits (Personality)
+char_detail.no_personality|||No specific personality set...
+char_detail.section_description|||Appearance & Background (Description)
+char_detail.no_description|||No background story...
+char_detail.section_creator_notes|||Creator Notes
+char_detail.section_scenario|||Scenario & Stage Setting (Scenario)
+char_detail.section_examples|||Dialogue Examples
+char_detail.greeting_selector_title|||Select greeting scene ({count} available)
+char_detail.default_greeting|||Default greeting
+char_detail.greeting_branch|||Greeting branch {idx}
+char_detail.default_greeting_badge|||Default storyline opening
+char_detail.alternate_greeting_badge|||Alternate scene branch {idx}
+char_detail.copy|||Copy
+char_detail.copy_text|||Copy full text
+char_detail.set_primary_greeting|||Set as primary greeting
+char_detail.set_primary_greeting_title|||Permanently set this greeting as the main opening line
+char_detail.no_greeting|||(No greeting set)
+char_detail.lore_search_placeholder|||Search keywords, triggers, or lore description...
+char_detail.clear_search|||Clear
+char_detail.badge_constant|||Constant
+char_detail.badge_disabled|||Disabled
+char_detail.lore_empty|||This character card has no embedded world lore entries.
+char_detail.lore_no_match|||No lore entries matching this keyword found.
+char_detail.priority|||Priority:
+char_detail.probability|||Probability:
+char_detail.depth|||Depth:
+char_detail.position|||Position:
+characters_tab.subtitle|||Lightweight mobile role-playing frontend
+characters_tab.scan_title|||Scan local character cards
+characters_tab.import_title|||Import SillyTavern character card
+characters_tab.create_title|||Create new character card
+characters_tab.more_title|||More actions
+characters_tab.no_description|||No description available...
+characters_tab.branch_count|||{count} branches
+characters_tab.empty_title|||Local database is empty
+characters_tab.empty_desc|||Upload existing SillyTavern-compatible PNG character cards or tap the top-right button to create a new world manually.
+characters_tab.action_subtitle|||Choose an action for this character
+characters_tab.view_profile|||View profile
+characters_tab.edit_character|||Edit character
+characters_tab.go_worldbook|||Go to Worldbook
+characters_tab.confirm_export_json|||Confirm export JSON character card?
+characters_tab.export_json|||Export as JSON
+characters_tab.export_png|||Export as SillyTavern PNG card
+characters_tab.delete_char|||Delete this character
+session_manager.title|||Session branch management
+session_manager.busy_switch_warning|||A generation is in progress. Please wait for it to finish or manually stop it before switching branches.
+session_manager.default_branch_name|||Main storyline
+session_manager.user_label|||Me
+session_manager.turn_summary_format|||{turnCount} turns | {summaryCount} summaries
+session_manager.busy_delete_warning|||A generation is in progress. Please wait for it to finish or manually stop it before deleting the branch.
+session_manager.delete_branch|||Delete branch
+session_manager.busy_create_warning|||A generation is in progress. Please wait for it to finish or manually stop it before creating a branch.
+session_manager.new_branch|||New blank branch
+dialog.cancel|||Cancel
+dialog.confirm|||OK
+dialog.alert_default_title|||Notice
+dialog.confirm_default_title|||Confirm
+dialog.prompt_default_title|||Input
+recall_tab.info|||馃挕 This shows the **contextual memories successfully retrieved by AI during the last message**. These were injected as long-term memory references based on semantic similarity search (Similarity Threshold > 0.7).
+recall_tab.empty_title|||No memories retrieved this round
+recall_tab.empty_desc|||This means the current topic didn't match any dictionary entities or historical memory summaries. You can manually add new key entity entries in the Memory Dictionary, or wait for AI to auto-summarize after more dialogue accumulation.
+recall_tab.turn_label|||Turn {turn}
+recall_tab.role_user|||User
+recall_tab.role_char|||Character
+recall_tab.unpin|||Unpin
+recall_tab.pin|||Force Pin
+recall_tab.unmute|||Unmute
+recall_tab.mute|||Force Mute
+recall_tab.hit_tags|||Hit tags:
+dict_tab.type_all|||All
+dict_tab.type_character|||Character
+dict_tab.type_location|||Location
+dict_tab.type_item|||Item
+dict_tab.type_organization|||Organization
+dict_tab.type_concept|||Concept
+dict_tab.entity_name_required|||Entity name cannot be empty!
+dict_tab.duplicate_entity|||An entity named \"{name}\" already exists. Please do not add duplicates.
+dict_tab.confirm_delete_entry|||Confirm physical deletion of memory entry \"{entity}\"?\nThis operation is irreversible and may affect future long-term memory recall accuracy.
+dict_tab.info|||The Memory Dictionary is a metadata cache for long-term recall. Whenever you define a character, location, or key concept, AI will use it as a clue to automatically retrieve semantically similar memories for compensatory injection in subsequent conversations.
+dict_tab.search_placeholder|||Search entity name or alias...
+dict_tab.close_form|||Close new entry form
+dict_tab.add_entry|||Add entry manually
+dict_tab.form_name_label|||Entity Name *
+dict_tab.form_name_placeholder|||e.g. Edgar the White-Haired Prophet
+dict_tab.form_aliases_label|||Aliases (comma separated keywords)
+dict_tab.form_aliases_placeholder|||Edgar, Prophet, Old Ed
+dict_tab.form_type_label|||Entity Type *
+dict_tab.cancel|||Cancel
+dict_tab.saving|||Saving
+dict_tab.confirm_save|||Confirm Save
+dict_tab.loading|||Loading memory dictionary...
+dict_tab.empty_title|||馃摥 Memory dictionary not yet established
+dict_tab.empty_desc|||Add key concept entities such as characters, locations, or important items. AI will automatically search defined memory keys in subsequent conversations to maintain narrative consistency.
+dict_tab.start_adding|||鉁?Start adding your first memory entity
+dict_tab.edit_entry|||Edit memory entry \"{entity}\"
+dict_tab.no_match|||No matching entries
+dict_tab.no_match_tip_filter|||Try changing filter conditions or clearing the search term.
+dict_tab.no_match_tip_empty|||As your dialogue with the character grows, AI will automatically extract valuable noun entities for you.
+dict_tab.mention_count|||Mentioned {count} times
+dict_tab.aliases_label|||Aliases:
+dict_tab.no_aliases|||No aliases
+dict_tab.view_detail|||View details
+dict_tab.edit_aliases|||Edit aliases
+dict_tab.delete_entry_title|||Delete entry
+dict_tab.detail_first_seen|||First seen at turn:
+dict_tab.detail_manual|||Manually created
+dict_tab.detail_turn|||Turn {turn}
+dict_tab.detail_created|||Created:
+dict_tab.detail_updated|||Last updated:
+dict_tab.edit_placeholder|||Comma or space separated aliases, e.g.: Sect Leader, Senior Brother
+dict_tab.save|||Save
+dict_tab.new_entry_title|||New memory entry
+dict_tab.export_dict|||Export dictionary
+dict_tab.export_dict_title|||Export current session dictionary
+table_memory.confirm_delete_row|||Confirm deleting this row? This operation is irreversible.
+table_memory.confirm_reset|||This will clear all current table data and reset to the default 4 tables (Relations, Items, Locations, Quests). This operation is irreversible. Continue?
+table_memory.confirm_delete_sheet|||Confirm deleting table \"{name}\" and all its data? This operation is irreversible.
+table_memory.min_one_column|||At least one column required
+table_memory.name_required|||Table name cannot be empty
+table_memory.columns_required|||At least one column required
+table_memory.duplicate_name|||A table named \"{name}\" already exists. Please use a different name.
+table_memory.manage|||鈿欙笍 Manage
+table_memory.new_table|||New table
+table_memory.edit_table|||Edit table structure
+table_memory.cancel|||Cancel
+table_memory.form_name_label|||Table Name *
+table_memory.form_name_placeholder|||e.g. Affinity Relations
+table_memory.form_columns_label|||Column names (comma separated, first is primary key)
+table_memory.form_columns_placeholder|||Name, Affinity, Relationship
+table_memory.column_edit_tip|||Currently, you can only adjust structure by editing column names. Existing data will not be cleared.
+table_memory.save|||Save
+table_memory.reset_default|||Reset default tables
+table_memory.new_custom|||New custom table
+table_memory.empty|||No structured tables
+table_memory.init_defaults|||Initialize default tables
+table_memory.enabled|||Enabled for Prompt injection
+table_memory.disabled|||Disabled for injection
+table_memory.delete_table|||Delete entire table
+table_memory.init_required|||Please initialize table memory first
+table_memory.one_click_init|||One-click init
+table_memory.no_rows|||No records yet. Tap the add button below to insert a new row.
+table_memory.empty_cell|||Empty
+table_memory.delete_row|||Delete this row
+table_memory.add_row|||Add new row
+memory_drawer.title|||Memory & Status Center
+memory_drawer.tab_timeline|||Timeline
+memory_drawer.tab_table|||Status Data
+memory_drawer.tab_dict|||Memory Dictionary
+memory_drawer.tab_recall|||Recalled Memories
+memory_drawer.tab_mvu|||Character Variables
+memory_drawer.mvu_save_success|||Character variables saved and synced successfully!
+app.kernel_init_failed_title|||馃毃 Core engine cold start failed
+app.kernel_init_failed_desc|||Critical fatal services (such as local database) initialization error. The system has been fused and blocked to prevent silent read/write data corruption.
+app.kernel_retry_button|||馃攧 Retry cold start
+chat.load_sessions_failed|||Failed to load chat sessions: {error}
+chat.load_more_sessions_failed|||Failed to load more chat sessions: {error}
+chat.save_session_failed|||Failed to save chat session: {error}
+chat.load_more_messages_failed|||Failed to load earlier messages: {error}
+chat.delete_session_failed|||Failed to delete chat session: {error}
+splash.tagline|||Begin your soul symphony
+db.writing_overlay|||Writing to database
+update.new_version_title|||鉁?New version v{version} found
+update.downloading|||Initiating secure download channel...
+update.download_now|||Download now
+update.later|||Later
+update.close_aria|||Close update notice
+settings.update_service_not_ready|||UpdateCheckService not ready, please try again later
+settings.already_latest|||Already up to date
+settings.already_latest_message|||Your current v{version} is already the latest version.
+settings.check_failed|||Check failed
+settings.check_failed_message|||Error checking for updates: {error}
+character_editor.modal_title_edit|||Edit SillyTavern-compatible card library
+character_editor.modal_title_create|||Rebuild AI soul container settings
+character_editor.tab_detail|||1. Character personality & basics
+character_editor.tab_lore|||2. Bind character-specific worldbook ({count})
+character_editor.cancel_button|||Discard changes
+character_editor.save_button|||Save changes
+character_editor.confirm_delete|||Confirm deleting this character card? All derived chat records and worldbooks will be cleaned up.
+character_editor.name_required|||Please enter character name
+character_editor.save_failed|||Failed to save character: {error}
+character_editor.lore_content_required|||Worldbook entry content cannot be empty
+character_editor.lore_save_failed|||Failed to save lore: {error}
+char_detail_tab.label_name|||Character Name *
+char_detail_tab.placeholder_name|||e.g. Aria
+char_detail_tab.label_avatar|||Avatar URL (supports base64 or online image)
+char_detail_tab.placeholder_avatar|||data:image/png;base64,... or http://...
+char_detail_tab.upload|||Upload
+char_detail_tab.avatar_too_large|||鈿狅笍 Upload failed: Avatar image size cannot exceed 5MB!
+char_detail_tab.compress_failed|||鈿狅笍 Image compression failed: {error}
+char_detail_tab.label_bg|||Custom chat background image (supports base64 or online image, rendered with priority)
+char_detail_tab.placeholder_bg|||Not set (will use global background or default theme color)
+char_detail_tab.bg_too_large|||鈿狅笍 Upload failed: Background image size cannot exceed 5MB!
+char_detail_tab.clear|||Clear
+char_detail_tab.label_asterisk|||Asterisk action color rendering (character-level override)
+char_detail_tab.asterisk_inherit|||Follow global setting
+char_detail_tab.asterisk_enable|||Force enable
+char_detail_tab.asterisk_disable|||Force disable
+char_detail_tab.label_description|||Character Description (Description/Persona)
+char_detail_tab.placeholder_description|||Detailed description, personality or background settings...
+char_detail_tab.label_personality|||Personality Refinement (Personality Description)
+char_detail_tab.placeholder_personality|||Core personality traits of the character
+char_detail_tab.label_scenario|||Current Scenario Context
+char_detail_tab.placeholder_scenario|||Current story scene and environment settings
+char_detail_tab.label_first_mes|||First Message / Greeting *
+char_detail_tab.placeholder_first_mes|||The character's opening line
+char_detail_tab.label_mes_example|||Dialogue Examples
+char_detail_tab.placeholder_mes_example|||<user>: Who are you?\n<char>: I am...
+char_detail_tab.label_system_prompt|||Custom System Prompt Override
+char_detail_tab.placeholder_system_prompt|||Optional system-level prompt override conventions
+lore_editor.label_comment|||Title or Comment *
+lore_editor.placeholder_comment|||e.g. Contract Magic, Hidden Sanctuary
+lore_editor.label_keys|||Trigger Keywords (comma separated)
+lore_editor.placeholder_keys|||Magic, Contract
+lore_editor.label_content|||Lore Entry Content *
+lore_editor.placeholder_content|||Describe the specific memory facts...
+lore_editor.checkbox_regex|||Regex
+lore_editor.checkbox_memo|||With memo
+lore_editor.checkbox_constant|||Constant
+lore_editor.checkbox_disabled|||Disable this entry
+lore_editor.label_position|||Position
+lore_editor.position_after_char|||馃搶 After character definition
+lore_editor.position_before_char|||馃搶 Before character definition
+lore_editor.position_top|||馃搶 Top of page
+lore_editor.position_before_last|||馃挰 Before latest message
+lore_editor.position_in_chat|||馃挰 In history (by depth)
+lore_editor.label_depth|||Depth
+lore_editor.label_order|||Order
+lore_editor.label_probability|||Probability (%)
+lore_editor.cancel|||Cancel
+lore_editor.save|||Save this lore entry
+lorebook_tab.upgrade_title|||Lore entry editing has been fully upgraded
+lorebook_tab.upgrade_desc|||The system now supports powerful In-place Editing, allowing you to modify character-specific lore entries without leaving the current page. We recommend going to the bottom tab \"Worldbook\" independent console for more advanced features such as matching strategy selection, dynamic depth and weight, etc.
+lorebook_tab.new_entry|||鉃?Manually add a custom lore entry for this character (Inline Creator)
+lorebook_tab.new_entry_card_title|||鉁?Quickly create a custom lore entry for this character
+lorebook_tab.entry_list_title|||Character-specific lore entries ({count} items)
+lorebook_tab.unnamed_entry|||Unnamed lore entry
+lorebook_tab.badge_constant|||Constant
+lorebook_tab.badge_disabled|||Disabled
+lorebook_tab.trigger_word_count|||({count} trigger words)
+lorebook_tab.meta_keys|||Trigger words:
+lorebook_tab.meta_position|||Position:
+lorebook_tab.meta_depth_weight|||Depth / Order:
+lorebook_tab.meta_probability_regex|||Probability / Regex:
+lorebook_tab.none|||(None)
+lorebook_tab.position_after|||馃搶 After character
+lorebook_tab.position_before|||馃搶 Before character
+lorebook_tab.position_top|||馃搶 Top
+lorebook_tab.label_content|||Lore content (Prompt):
+lorebook_tab.label_memo|||猸?With memo
+lorebook_tab.edit_inline|||Edit this entry (Inline)
+lorebook_tab.confirm_delete|||Confirm erasing this lore entry?
+lorebook_tab.delete|||Erase
+lorebook_tab.empty_state|||This character card has not yet independently compiled any custom lore entries. Please tap the button above to add, or use the bottom \"Public Worldbook\" channel.
+regex.char_no_active|||Not selected
+backup.collapse|||Collapse
+backup.expand|||Expand
+backup.pass_placeholder|||Remember it well, otherwise it cannot be recovered...
+chat_import.description|||The system will parse the chat log and bind it with the local character card. If the corresponding character card has not been imported locally, you will be prompted to import it first.
+chat_import.tip_label|||Tip:
+chat_import.help_text|||After import, the system disables auto-summarization for these historical sentences by default to avoid API bandwidth avalanche.
+tts.test_text|||Hello, welcome to the Mobile Tavern. This is a test TTS reading.
+nav.chat|||Chat
+nav.playground|||Sandbox

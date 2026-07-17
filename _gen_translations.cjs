@@ -1,726 +1,1472 @@
-// Script to generate missing translations for ja, ru, es
+// This script generates the ko and pt-BR translation sections
+// and inserts them into translations.ts
+
 const fs = require('fs');
 
-// Translation mappings for all zh-CN keys that are missing from ja/ru/es
-// Each zh-CN key maps to { ja, ru, es }
-const T = {
-  // ========== API ==========
-  "api.title": { ja: "API サービスエンドポイント設定", ru: "Настройка API эндпоинтов", es: "Configuración de API" },
-  "api.subtitle": { ja: "大規模言語モデルのAPIアドレスと認証情報を設定", ru: "Настройка адреса API и учётных данных для LLM", es: "Configurar dirección API y credenciales del modelo de lenguaje" },
-  "api.saving": { ja: "自動保存中...", ru: "Автосохранение...", es: "Guardando..." },
-  "api.saved": { ja: "変更は自動保存されました", ru: "Изменения сохранены", es: "Cambios guardados" },
-  "api.select_profile": { ja: "API設定プロファイルを選択", ru: "Выберите профиль API", es: "Seleccionar perfil de API" },
-  "api.temp_profile": { ja: "💡 一時デバッグ設定", ru: "💡 Временная отладка", es: "💡 Configuración temporal" },
-  "api.save_profile": { ja: "現在の設定をプロファイルとして保存", ru: "Сохранить как профиль", es: "Guardar como perfil" },
-  "api.rename": { ja: "✏️ 名前変更", ru: "✏️ Переименовать", es: "✏️ Renombrar" },
-  "api.delete": { ja: "🗑️ このプロファイルを削除", ru: "🗑️ Удалить профиль", es: "🗑️ Eliminar perfil" },
-  "api.base_url": { ja: "APIプロキシアドレス (Base URL)", ru: "Прокси-адрес API (Base URL)", es: "URL base del proxy API" },
-  "api.base_url_tip": { ja: "ヒント：複数のAPI履歴URLを自動記録できます", ru: "Подсказка: поддерживается автосохранение истории URL", es: "Sugerencia: se guarda automáticamente el historial de URLs" },
-  "api.clear_history": { ja: "履歴をクリア", ru: "Очистить историю", es: "Limpiar historial" },
-  "api.api_key": { ja: "APIキー (API Key)", ru: "Ключ API (API Key)", es: "Clave API" },
-  "api.test_conn": { ja: "⚡ 接続テスト", ru: "⚡ Проверка связи", es: "⚡ Probar conexión" },
-  "api.fetch_models": { ja: "モデル一覧を取得", ru: "Получить список моделей", es: "Obtener modelos" },
-  "api.fetching_models": { ja: "取得中...", ru: "Получение...", es: "Obteniendo..." },
-  "api.free_tier": { ja: "💡 無料体験モード（{count}/10回使用済み）。APIキーを空にすると自動でこのモードになります。", ru: "💡 Бесплатный режим (использовано {count}/10). Очистите ключ API для автоактивации.", es: "💡 Modo gratuito ({count}/10 usos). Vacíe la clave API para activarlo." },
-  "api.exclusive_tier": { ja: "カスタムAPIキーが設定されています。専用チャンネルを優先使用します。", ru: "Настроен персональный ключ API. Используется ваш выделенный канал.", es: "Clave API personalizada configurada. Usando su canal exclusivo." },
-  "api.model_id": { ja: "選択モデル識別子 (Model ID)", ru: "Идентификатор модели (Model ID)", es: "ID del modelo seleccionado" },
-  "api.select_model_placeholder": { ja: "取得済みモデルを選択", ru: "Выберите полученную модель", es: "Seleccionar modelo obtenido" },
-  "api.context_limit": { ja: "最大コンテキスト制限 (Tokens)", ru: "Лимит контекста (Tokens)", es: "Límite de contexto máximo (Tokens)" },
-  "api.context_limit_tip": { ja: "空欄の場合はモデルのデフォルト制限を自動適用", ru: "Оставьте пустым для автоопределения лимита модели", es: "Vacío = límite por defecto del modelo" },
-  "api.prompt_format": { ja: "プロンプト描画フォーマット", ru: "Формат отрисовки промпта", es: "Formato de renderizado de prompt" },
-  "api.prompt_format_tip": { ja: "システム/設定集のレイアウト構造を定義", ru: "Определяет структуру компоновки системы/лоров", es: "Define la estructura de formato del sistema/lore" },
-  "api.format_auto": { ja: "自動選択 (Auto)", ru: "Авто (Auto)", es: "Automático (Auto)" },
-  "api.format_xml": { ja: "XMLタグ形式 (XML)", ru: "Формат XML", es: "Formato XML" },
-  "api.format_markdown": { ja: "Markdownテキスト形式 (Markdown)", ru: "Формат Markdown", es: "Formato Markdown" },
-  "api.fallback_title": { ja: "API最小限フォールバックモード (Conservative Fallback)", ru: "Минимальный режим API (Conservative Fallback)", es: "Modo mínimo conservador (Fallback)" },
-  "api.fallback_desc": { ja: "有効にすると、モデルに関わらずリクエスト時に5つの基本パラメータ（model, messages, stream, temperature, top_p）のみを送信します。サードパーティ中継APIでパラメータエラー（HTTP 400）が発生する場合に推奨。", ru: "При включении отправляются только 5 базовых параметров (model, messages, stream, temperature, top_p). Рекомендуется при ошибках HTTP 400 на сторонних прокси.", es: "Al activar, solo se envían 5 parámetros básicos (model, messages, stream, temperature, top_p). Recomendado para errores HTTP 400 en proxies de terceros." },
-  "api.send_names_title": { ja: "リクエストにキャラクター名を含める (Send Names)", ru: "Отправлять имена персонажей (Send Names)", es: "Incluir nombres en solicitud (Send Names)" },
-  "api.send_names_desc": { ja: "メッセージに \\\"name\\\" 属性（例: \\\"LinaSchneider\\\"、\\\"user\\\"）を付与します。注意：一部のサードパーティ中継、Claude、Gemini APIでは非対応で400エラーが返る場合があります。", ru: "Добавляет атрибут \\\"name\\\" в сообщения. Внимание: некоторые API (Claude, Gemini) могут возвращать ошибку 400.", es: "Añade atributo \\\"name\\\" a los mensajes. Atención: algunas APIs (Claude, Gemini) pueden devolver error 400." },
-  "api.disable_reasoning_title": { ja: "推論モードを無効化 (Disable Reasoning)", ru: "Отключить режим рассуждений (Disable Reasoning)", es: "Desactivar modo de razonamiento" },
-  "api.disable_reasoning_desc": { ja: "深層思考推論をサポートするモデル（Claude 3.7, DeepSeek R1等）に対して、APIレベルで推論を無効化または抑制し、余分な思考トークンの消費を防ぎます。", ru: "Отключает режим рассуждений на уровне API для моделей с глубоким мышлением (Claude 3.7, DeepSeek R1), экономя токены.", es: "Desactiva el razonamiento a nivel API para modelos con pensamiento profundo (Claude 3.7, DeepSeek R1), ahorrando tokens." },
+// Read the extracted English keys
+const enKeys = JSON.parse(fs.readFileSync('_en_keys.json', 'utf8'));
 
-  // ========== IMAGE_GEN ==========
-  "image_gen.title": { ja: "AI画像生成サービス設定", ru: "Настройка генерации изображений AI", es: "Configuración de generación de imágenes" },
-  "image_gen.subtitle": { ja: "Stable Diffusion、NovelAI、DALL-Eのインターフェースを設定", ru: "Настройка Stable Diffusion, NovelAI или DALL-E", es: "Configurar Stable Diffusion, NovelAI o DALL-E" },
-  "image_gen.enable": { ja: "画像生成機能を有効化", ru: "Включить генерацию изображений", es: "Activar generación de imágenes" },
-  "image_gen.enable_desc": { ja: "有効にすると、AIメッセージのクイックメニューから対白のシーン描画が可能になります。", ru: "При включении в меню сообщений появится опция отрисовки сцены.", es: "Al activar, podrá generar escenas desde el menú de mensajes." },
-  "image_gen.force_protocol": { ja: "プロトコルタイプを手動指定", ru: "Принудительно указать тип протокола", es: "Forzar tipo de protocolo manualmente" },
-  "image_gen.force_protocol_desc": { ja: "無効時はBase URLから自動検出（novelai/sdwebuiキーワードで自動判別、その他はOpenAI形式）。", ru: "При выключении определяется автоматически по Base URL (novelai/sdwebui → свой формат, остальное → OpenAI).", es: "Desactivado: se detecta automáticamente por Base URL (novelai/sdwebui → formato propio, resto → OpenAI)." },
-  "image_gen.protocol_title": { ja: "画像生成インターフェースタイプ", ru: "Тип интерфейса генерации", es: "Tipo de interfaz de generación" },
-  "image_gen.auto_detect": { ja: "自動認識モード（Base URLから推測）", ru: "Автоопределение (по Base URL)", es: "Detección automática (por Base URL)" },
-  "image_gen.base_url": { ja: "画像生成API Base URL", ru: "Base URL для генерации", es: "URL base de generación" },
-  "image_gen.api_key": { ja: "APIキー / アクセストークン", ru: "Ключ API / Токен доступа", es: "Clave API / Token de acceso" },
-  "image_gen.api_key_placeholder": { ja: "APIキーまたはトークンを入力", ru: "Введите ключ или токен", es: "Ingrese clave o token" },
-  "image_gen.model": { ja: "モデル名 (Model)", ru: "Название модели (Model)", es: "Nombre del modelo" },
-  "image_gen.model_placeholder": { ja: "例: dall-e-3 または custom-model", ru: "Напр. dall-e-3 или custom-model", es: "Ej: dall-e-3 o custom-model" },
-  "image_gen.width": { ja: "画像幅 (Width)", ru: "Ширина (Width)", es: "Ancho de imagen" },
-  "image_gen.height": { ja: "画像高さ (Height)", ru: "Высота (Height)", es: "Alto de imagen" },
-  "image_gen.steps": { ja: "ステップ数 (Steps)", ru: "Шаги (Steps)", es: "Pasos (Steps)" },
-  "image_gen.cfg": { ja: "CFG Scale", ru: "CFG Scale", es: "CFG Scale" },
-  "image_gen.sampler": { ja: "サンプラー (Sampler)", ru: "Сэмплер (Sampler)", es: "Muestreador (Sampler)" },
-  "image_gen.sampler_placeholder": { ja: "例: Euler a", ru: "Напр. Euler a", es: "Ej: Euler a" },
-  "image_gen.edit_before_gen": { ja: "生成前にプロンプト確認/編集", ru: "Подтверждать/редактировать промпт перед генерацией", es: "Confirmar/editar prompt antes de generar" },
-  "image_gen.edit_before_gen_desc": { ja: "有効にすると、LLMがプロンプトを生成した後に入力ボックスが表示され、手動でPromptを修正してから生成を開始できます。", ru: "При включении после генерации промпта моделью появится окно для ручного редактирования перед отправкой.", es: "Al activar, tras la generación del prompt por el LLM, aparecerá un cuadro para editar manualmente antes de generar." },
-  "image_gen.advanced_prompts": { ja: "高度なプロンプトテンプレートとプレフィックス (Advanced Prompts & Templates)", ru: "Расширенные шаблоны промптов (Advanced Prompts & Templates)", es: "Plantillas avanzadas de prompts" },
-  "image_gen.prompt_prefix": { ja: "デフォルトプロンプトプレフィックス", ru: "Префикс промпта по умолчанию", es: "Prefijo de prompt por defecto" },
-  "image_gen.negative_prompt": { ja: "ネガティブプロンプト (Negative Prompt)", ru: "Негативный промпт (Negative Prompt)", es: "Prompt negativo" },
-  "image_gen.prompt_template": { ja: "シーン説明要約テンプレート (Prompt Generator Template)", ru: "Шаблон генератора промпта сцены", es: "Plantilla generadora de prompt de escena" },
-  "image_gen.prompt_template_desc": { ja: "システムはチャット設定のLLMを使用してこのガイドプロンプトを実行します。組み込みプレースホルダー {appearance}（外見特徴）、{context}（会話コンテキスト）、{message}（現在の対白）が自動置換されます。", ru: "Система использует LLM чата для выполнения этого промпта. Плейсхолдеры {appearance}, {context}, {message} подставляются автоматически.", es: "El sistema usa el LLM del chat para ejecutar este prompt. Los placeholders {appearance}, {context}, {message} se sustituyen automáticamente." },
+// Read the original translations file
+const content = fs.readFileSync('src/locales/translations.ts', 'utf8');
 
-  // ========== TTS ==========
-  "tts.title": { ja: "音声読み上げ設定 (TTS)", ru: "Настройки озвучки (TTS)", es: "Configuración de voz (TTS)" },
-  "tts.enable": { ja: "TTS音声読み上げを有効化", ru: "Включить озвучку TTS", es: "Activar lectura por voz TTS" },
-  "tts.enable_desc": { ja: "有効にすると、メッセージメニューからテキスト読み上げが可能になります", ru: "При включении можно озвучивать текст из меню сообщений", es: "Permite leer texto en voz alta desde el menú de mensajes" },
-  "tts.trigger": { ja: "読み上げトリガー方式", ru: "Способ запуска озвучки", es: "Modo de activación de lectura" },
-  "tts.trigger_auto": { ja: "自動読み上げ（デフォルト）", ru: "Автоматически (по умолчанию)", es: "Automático (por defecto)" },
-  "tts.trigger_manual": { ja: "手動読み上げ（オンデマンドのみ）", ru: "Вручную (только по запросу)", es: "Manual (solo bajo demanda)" },
-  "tts.range": { ja: "読み上げ内容の範囲", ru: "Область озвучивания", es: "Alcance de lectura" },
-  "tts.range_all": { ja: "全文読み上げ（アクション含む）", ru: "Весь текст (включая действия)", es: "Todo el texto (incluye acciones)" },
-  "tts.range_dialogue": { ja: "対白のみ読み上げ（アクション除外）", ru: "Только диалоги (без действий)", es: "Solo diálogos (sin acciones)" },
-  "tts.engine": { ja: "音声エンジン (Provider)", ru: "Движок озвучки (Provider)", es: "Motor de voz (Provider)" },
-  "tts.engine_system": { ja: "システムネイティブTTS（ローカル音声合成）", ru: "Системный TTS (локальный синтез)", es: "TTS nativo del sistema" },
-  "tts.engine_openai": { ja: "OpenAI TTS API（オンライン高品質音声）", ru: "OpenAI TTS (облачный HD-звук)", es: "OpenAI TTS (voz HD en línea)" },
-  "tts.volume": { ja: "音量", ru: "Громкость", es: "Volumen" },
-  "tts.rate": { ja: "話速", ru: "Скорость речи", es: "Velocidad" },
-  "tts.pitch": { ja: "音高", ru: "Высота тона", es: "Tono" },
-  "tts.system_desc": { ja: "モバイルではシステムネイティブTTSエンジンを使用し、音声はシステム設定によって決まります。", ru: "На мобильных используется системный TTS, голос определяется настройками системы.", es: "En móvil se usa el TTS nativo del sistema, la voz depende de la configuración del sistema." },
-  "tts.test_text": { ja: "こんにちは、モバイル酒場へようこそ。これは音声テスト読み上げです。", ru: "Здравствуйте, добро пожаловать в Мобильную Таверну. Это тестовая озвучка.", es: "Hola, bienvenido a la Taberna Móvil. Esta es una prueba de lectura por voz." },
-  "tts.voice": { ja: "音声キャラクター (Voice)", ru: "Голос (Voice)", es: "Voz" },
-  "tts.test_play": { ja: "テスト再生", ru: "Тест воспроизведения", es: "Probar reproducción" },
-  "tts.test_stop": { ja: "テスト停止", ru: "Остановить тест", es: "Detener prueba" },
+// ============================================================
+// Korean translations (ko)
+// ============================================================
+const ko = {};
+ko["control_panel.title"] = "제어판";
+ko["control_panel.subtitle"] = "시스템 설정 및 세부 파이프라인 규칙 조정";
+ko["control_panel.check_update"] = "업데이트";
+ko["control_panel.checking"] = "확인 중";
+ko["tabs.connection"] = "연결";
+ko["tabs.features"] = "기능";
+ko["tabs.persona"] = "페르소나";
+ko["tabs.storage"] = "저장소";
+ko["sandbox.title"] = "개발자 샌드박스";
+ko["sandbox.desc"] = "프롬프트 컴파일, SSE 버퍼 파싱 및 세계서 스캔 검사";
+ko["sandbox.button"] = "🚀 개발자 샌드박스 입장";
+ko["lang.section_title"] = "언어 설정";
+ko["lang.select_label"] = "앱 언어";
+ko["lang.select_desc"] = "인터페이스 언어를 전환합니다. 최초 실행 시 시스템 기본 언어로 자동 설정됩니다.";
+ko["features.section_title"] = "애플리케이션 기능";
+ko["features.cat_rendering"] = "UI 렌더링 및 상호작용";
+ko["features.html_rendering"] = "리치 텍스트 HTML 렌더링";
+ko["features.html_rendering_desc"] = "캐릭터 카드가 HTML/CSS 태그를 사용하여 대화 버블 스타일을 지정할 수 있도록 허용합니다. 비활성화 시 일반 텍스트로 대체됩니다.";
+ko["features.js_execution"] = "카드 JS 스크립트 실행";
+ko["features.js_execution_desc"] = "캐릭터 카드가 샌드박스 내에서 사용자 정의 JS를 실행하여 동적 상태 패널을 표시할 수 있도록 허용합니다. 실행에는 보안 위험이 따릅니다.";
+ko["features.loop_protection"] = "스크립트 루프 보호";
+ko["features.loop_protection_desc"] = "스크립트 루프에 감시 타이머를 주입하여 WebView 잠금을 방지합니다. 실행 제한: 1000ms.";
+ko["features.ambient_glow"] = "감정 앰비언트 글로우";
+ko["features.ambient_glow_experimental"] = "베타";
+ko["features.ambient_glow_desc"] = "캐릭터의 표정과 감정에 맞춰 채팅 배경에 유동적인 글로우를 렌더링하여 몰입감을 높입니다.";
+ko["features.reasoning_display"] = "추론 표시";
+ko["features.reasoning_display_desc"] = "사고 체인(reasoning_content)을 표시하거나 숨깁니다. 숨겨도 모델 생성에는 영향을 주지 않습니다.";
+ko["features.message_queue"] = "다중 메시지 큐";
+ko["features.message_queue_plugin"] = "플러그인";
+ko["features.message_queue_desc"] = "보내기 클릭 시 답장 없이 메시지를 큐에 쌓습니다. 길게 누르기(500ms+) 시 큐의 메시지를 병합하여 답장을 트리거합니다.";
+ko["features.asterisk_formatting"] = "별표 서식";
+ko["features.asterisk_formatting_desc"] = "*동작 설명*을 부드러운 이탤릭 회색으로 렌더링합니다. 캐릭터 비주얼 설정이 우선합니다.";
+ko["features.bison_mode"] = "바이슨 모드";
+ko["features.bison_mode_token_warning"] = "높은 토큰 비용";
+ko["features.bison_mode_desc"] = "AI가 감정에 따라 2~3개의 연속 답장을 큐에 쌓아 출력합니다(각 답장 최대 100 토큰).";
+ko["features.bison_mode_warning"] = "⚠️ 연속 API 요청이 발생하여 토큰 소비가 크게 증가할 수 있습니다.";
+ko["features.bison_mode_prompt_title"] = "바이슨 모드 프롬프트 템플릿";
+ko["features.reset_default"] = "기본값으로 초기화";
+ko["features.reply_suggestions"] = "AI 답장 제안";
+ko["features.reply_suggestions_desc"] = "후속 스토리 분기 옵션을 생성합니다. 클릭하여 채우거나 전송합니다.";
+ko["features.click_mode"] = "기본 클릭 동작";
+ko["features.click_mode_fill"] = "입력창 채우기";
+ko["features.click_mode_send"] = "직접 전송";
+ko["features.suggestions_prompt_title"] = "제안 프롬프트 템플릿";
+ko["features.expression_dict_title"] = "감정 매칭 정규식 사전";
+ko["features.expression_dict_desc"] = "카드에 트리거가 없을 때 감정을 매칭하기 위한 대체 정규식입니다(비활성화하려면 지우세요).";
+ko["features.reset_dict"] = "사전 초기화";
+ko["report.title"] = "시스템 보고서";
+ko["report.copy"] = "보고서 복사";
+ko["report.check_start"] = "진단 실행";
+ko["report.checking"] = "실행 중...";
+ko["theme.section_title"] = "테마 및 색상 구성";
+ko["theme.placeholder"] = "테마 선택";
+ko["theme.snow"] = "미니멀 화이트";
+ko["theme.sand"] = "웜 샌드";
+ko["theme.ocean"] = "딥 오션";
+ko["theme.obsidian"] = "옵시디언 블랙";
+ko["theme.custom_theme"] = "사용자 정의 테마";
+ko["theme.custom_header"] = "가져온 테마";
+ko["theme.dark"] = "다크";
+ko["theme.light"] = "라이트";
+ko["theme.management"] = "테마 관리";
+ko["theme.new"] = "새 테마";
+ko["theme.import"] = "테마 가져오기";
+ko["theme.no_custom_desc"] = "가져온 사용자 정의 테마가 없습니다. .tavern-theme.json 파일을 가져와 CSS 변수와 스타일을 사용자 정의하세요.";
+ko["theme.font_size"] = "글꼴 크기";
+ko["theme.font_size_current"] = "글꼴 크기";
+ko["theme.line_height"] = "줄 간격";
+ko["theme.line_height_current"] = "줄 높이";
+ko["theme.bg_image"] = "기본 채팅 배경 (캐릭터 배경이 설정되지 않았을 때 활성화)";
+ko["theme.bg_image_enabled"] = "✨ 사용자 정의 배경 이미지 활성화됨";
+ko["theme.bg_image_disabled"] = "설정되지 않음 (기본 테마 배경 사용)";
+ko["theme.upload"] = "업로드";
+ko["theme.clear"] = "지우기";
+ko["theme.bg_effect"] = "채팅 배경 혼합";
+ko["theme.effect_clear"] = "선명 (원본)";
+ko["theme.effect_medium"] = "중간 (혼합)";
+ko["theme.effect_dark"] = "어둡게 (반투명)";
+ko["theme.bg_animation"] = "Ken Burns 효과 활성화 (슬로우 모션)";
+ko["nav.characters"] = "캐릭터";
+ko["nav.chat-history"] = "채팅";
+ko["nav.global-worldbook"] = "세계서";
+ko["nav.settings"] = "설정";
+ko["api.title"] = "API 엔드포인트 구성";
+ko["api.subtitle"] = "LLM 서비스 엔드포인트 URL 및 인증 자격 증명 구성";
+ko["api.saving"] = "자동 저장 중...";
+ko["api.saved"] = "변경 사항 자동 저장됨";
+ko["api.select_profile"] = "API 프로필 / 자격 증명 파일 선택";
+ko["api.temp_profile"] = "💡 임시 디버그 프로필";
+ko["api.save_profile"] = "현재 설정을 프로필로 저장";
+ko["api.rename"] = "✏️ 이름 변경";
+ko["api.delete"] = "🗑️ 프로필 삭제";
+ko["api.base_url"] = "기본 URL";
+ko["api.base_url_tip"] = "여러 API 기록 자동 저장 지원";
+ko["api.clear_history"] = "기록 지우기";
+ko["api.api_key"] = "API 키";
+ko["api.test_conn"] = "⚡ 연결 테스트";
+ko["api.fetch_models"] = "모델 가져오기";
+ko["api.fetching_models"] = "가져오는 중...";
+ko["api.free_tier"] = "💡 무료 티어 채널 활성 ({count}/10회 사용). API 키가 비어 있을 때 활성화됩니다.";
+ko["api.exclusive_tier"] = "사용자 정의 API 키 구성됨, 전용 채널 사용 중.";
+ko["api.model_id"] = "모델 ID";
+ko["api.select_model_placeholder"] = "가져온 모델 선택";
+ko["api.context_limit"] = "최대 컨텍스트 제한 (토큰)";
+ko["api.context_limit_tip"] = "비워 두면 모델 기본 용량과 일치시킵니다";
+ko["api.prompt_format"] = "프롬프트 레이아웃 형식";
+ko["api.prompt_format_tip"] = "시스템 프롬프트와 세계서의 구조를 정의합니다";
+ko["api.format_auto"] = "자동 선택";
+ko["api.format_xml"] = "XML 태그";
+ko["api.format_markdown"] = "Markdown 텍스트";
+ko["api.fallback_title"] = "보수적 폴백 (최소 매개변수)";
+ko["api.fallback_desc"] = "모델 유형에 관계없이 5개의 기본 매개변수(model, messages, stream, temperature, top_p)만 강제 전송합니다. API가 HTTP 400을 반환할 때 켜세요.";
+ko["api.send_names_title"] = "캐릭터 이름 전송";
+ko["api.send_names_desc"] = "요청 메시지에 'name' 속성을 포함합니다(예: 'user', 캐릭터 이름). Claude/Gemini에서 HTTP 400 오류 발생 시 비활성화하세요.";
+ko["api.disable_reasoning_title"] = "추론 비활성화 (딥 씽킹)";
+ko["api.disable_reasoning_desc"] = "추론 모델(예: Claude 3.7 / DeepSeek R1)의 사고 토큰을 절약하기 위해 API 레벨에서 추론을 강제 비활성화합니다.";
+ko["image_gen.title"] = "AI 이미지 생성 구성";
+ko["image_gen.subtitle"] = "Stable Diffusion, NovelAI 또는 DALL-E 엔드포인트 구성";
+ko["image_gen.enable"] = "이미지 생성 활성화";
+ko["image_gen.enable_desc"] = "메시지 빠른 메뉴에서 대화 장면 그리기를 활성화합니다.";
+ko["image_gen.force_protocol"] = "특정 프로토콜 강제";
+ko["image_gen.force_protocol_desc"] = "꺼져 있으면 기본 URL에서 자동 감지합니다(NovelAI/SD-WebUI 형식을 적용, 기본값은 OpenAI DALL-E).";
+ko["image_gen.protocol_title"] = "이미지 생성 프로토콜 유형";
+ko["image_gen.auto_detect"] = "자동 감지 모드 (URL에서 추측)";
+ko["image_gen.base_url"] = "이미지 생성 기본 URL";
+ko["image_gen.api_key"] = "API 키 / 액세스 토큰";
+ko["image_gen.api_key_placeholder"] = "키 또는 액세스 토큰 입력";
+ko["image_gen.model"] = "모델";
+ko["image_gen.model_placeholder"] = "예: dall-e-3 또는 custom-model";
+ko["image_gen.width"] = "너비";
+ko["image_gen.height"] = "높이";
+ko["image_gen.steps"] = "스텝";
+ko["image_gen.cfg"] = "CFG 스케일";
+ko["image_gen.sampler"] = "샘플러";
+ko["image_gen.sampler_placeholder"] = "예: Euler a";
+ko["image_gen.edit_before_gen"] = "생성 전 프롬프트 편집";
+ko["image_gen.edit_before_gen_desc"] = "요청 전송 전에 생성된 태그를 수정할 수 있는 프롬프트 입력창을 표시합니다.";
+ko["image_gen.advanced_prompts"] = "고급 프롬프트 및 템플릿";
+ko["image_gen.prompt_prefix"] = "기본 프롬프트 접두사";
+ko["image_gen.negative_prompt"] = "네거티브 프롬프트";
+ko["image_gen.prompt_template"] = "프롬프트 생성기 템플릿";
+ko["image_gen.prompt_template_desc"] = "요약 LLM을 위한 가이드 지침. 플레이스홀더 {appearance}, {context}, {message}가 대체됩니다.";
+ko["tts.title"] = "텍스트 음성 변환 (TTS)";
+ko["tts.enable"] = "TTS 음성 활성화";
+ko["tts.enable_desc"] = "빠른 동작에서 메시지 로그를 소리 내어 읽을 수 있도록 활성화합니다";
+ko["tts.trigger"] = "트리거 모드";
+ko["tts.trigger_auto"] = "자동 읽기 (기본값)";
+ko["tts.trigger_manual"] = "수동 읽기 (요청 시)";
+ko["tts.range"] = "콘텐츠 범위";
+ko["tts.range_all"] = "전체 텍스트 읽기 (동작 포함)";
+ko["tts.range_dialogue"] = "대화만 읽기 (동작 제외)";
+ko["tts.engine"] = "음성 엔진 (제공자)";
+ko["tts.engine_system"] = "시스템 네이티브 TTS (로컬 합성)";
+ko["tts.engine_openai"] = "OpenAI TTS API (온라인 고품질)";
+ko["tts.volume"] = "볼륨";
+ko["tts.rate"] = "속도";
+ko["tts.pitch"] = "피치";
+ko["tts.system_desc"] = "모바일 클라이언트는 시스템 네이티브 TTS 엔진을 사용합니다. 음성은 시스템 설정에 따라 결정됩니다.";
+ko["tts.voice"] = "음성 역할";
+ko["tts.test_play"] = "음성 테스트";
+ko["tts.test_stop"] = "테스트 중지";
+ko["asr.title"] = "음성 인식 (ASR)";
+ko["asr.subtitle"] = "마이크 입력 및 음성-텍스트 변환 활성화 (WebSpeech 또는 OpenAI Whisper)";
+ko["asr.enable"] = "음성 입력 활성화";
+ko["asr.enable_desc"] = "채팅 입력 영역 옆에 마이크 버튼을 표시하여 오디오를 녹음하고 텍스트로 변환합니다.";
+ko["asr.engine"] = "음성 인식 제공자";
+ko["asr.engine_system"] = "시스템 네이티브 Web Speech API (무료 / 실시간 스트리밍)";
+ko["asr.engine_whisper"] = "OpenAI Whisper API (고정밀)";
+ko["asr.lang"] = "언어";
+ko["asr.lang_placeholder"] = "예: en-US, zh-CN, ja-JP";
+ko["asr.lang_desc"] = "Web Speech에 필요한 언어 식별자. Whisper는 비어 있으면 자동 감지할 수 있습니다.";
+ko["persona.title"] = "사용자 페르소나";
+ko["persona.active"] = "활성 사용자 페르소나";
+ko["persona.select_placeholder"] = "페르소나 선택...";
+ko["persona.unnamed"] = "이름 없는 캐릭터";
+ko["persona.create"] = "생성";
+ko["persona.delete"] = "삭제";
+ko["persona.name"] = "플레이어 이름 (LLM 대체용)";
+ko["persona.name_placeholder"] = "알 수 없는 여행자";
+ko["persona.avatar"] = "플레이어 사용자 정의 아바타 (Base64)";
+ko["persona.avatar_placeholder"] = "data:image/png;base64,... 또는 비워 둠";
+ko["persona.upload"] = "업로드";
+ko["persona.clear"] = "지우기";
+ko["persona.desc"] = "플레이어 배경 (페르소나 설명)";
+ko["persona.desc_placeholder"] = "예: 키 180cm, 검은 트렌치코트 착용, 차분한 시선...";
+ko["memory_sys.title"] = "메모리 시스템";
+ko["memory_sys.subtitle"] = "단기 창, 내러티브 타임라인 요약 및 구조적 테이블 메모리 공동 관리";
+ko["memory_sys.recent_turns_title"] = "컨텍스트 창";
+ko["memory_sys.recent_turns"] = "컨텍스트 최근 턴";
+ko["memory_sys.recent_turns_desc"] = "프롬프트 컨텍스트에 직접 유지되는 대화 라운드 수";
+ko["memory_sys.recall_title"] = "장기 회상";
+ko["memory_sys.recall_enable"] = "메모리 회상 활성화";
+ko["memory_sys.recall_desc"] = "유사한 과거 이벤트에 대해 벡터 저장소를 자동으로 쿼리합니다";
+ko["memory_sys.recall_top_k"] = "회상 Top K 개수";
+ko["memory_sys.summary_title"] = "내러티브 메모리 (자동 요약)";
+ko["memory_sys.summary_enable"] = "자동 요약 활성화";
+ko["memory_sys.summary_desc"] = "정기적인 백그라운드 요약을 트리거합니다 (0은 컨텍스트 턴과 일치)";
+ko["memory_sys.summary_trigger"] = "트리거 턴 (요약 간 라운드, 0은 컨텍스트 턴과 일치)";
+ko["memory_sys.table_title"] = "상태 메모리 (테이블 메모리)";
+ko["memory_sys.table_enable"] = "테이블 메모리 활성화";
+ko["memory_sys.table_desc"] = "호감도와 캐릭터 관계를 구조적 마크다운 테이블로 저장합니다";
+ko["memory_sys.table_freq"] = "AI 테이블 업데이트 빈도 (업데이트 간 라운드)";
+ko["memory_sys.table_freq_1"] = "1라운드마다 (가장 실시간)";
+ko["memory_sys.table_freq_3"] = "3라운드마다 (권장)";
+ko["memory_sys.table_freq_5"] = "5라운드마다 (토큰 절약)";
+ko["memory_sys.advanced_title"] = "고급 템플릿 및 프롬프트";
+ko["memory_sys.time_tag"] = "시간 태그 템플릿";
+ko["memory_sys.time_tag_desc"] = "{{index}}를 요약 단계 번호의 플레이스홀더로 사용하세요";
+ko["memory_sys.summary_prompt"] = "요약 시스템 프롬프트";
+ko["memory_sys.reset_summary"] = "요약 프롬프트를 기본값으로 초기화";
+ko["memory_sys.reasoning_prompt"] = "추론 가이드 프롬프트";
+ko["memory_sys.reset_reasoning"] = "추론 프롬프트를 기본값으로 초기화";
+ko["memory_sys.table_prompt"] = "테이블 메모리 프롬프트";
+ko["memory_sys.reset_table"] = "테이블 프롬프트를 기본값으로 초기화";
+ko["backup.title"] = "백업 및 마이그레이션";
+ko["backup.subtitle"] = "구성, 카드 및 로그 내보내기 또는 데이터베이스 백업에서 복원";
+ko["backup.export_btn"] = "JSON 백업 내보내기";
+ko["backup.import_btn"] = "가져오기 및 복원";
+ko["backup.pass_title"] = "독립 암호화 비밀번호";
+ko["backup.pass_tip"] = "강력히 권장합니다. 데이터가 강력하게 암호화되어 유출을 방지합니다";
+ko["backup.encrypt_switch"] = "이 백업 데이터 강제 암호화";
+ko["backup.status_idle"] = "활성 백업/복원 작업 없음";
+ko["chat_import.title"] = "채팅 기록 가져오기";
+ko["chat_import.subtitle"] = "SillyTavern 단일 캐릭터 채팅 로그(.json/.jsonl) 형식 파일 가져오기";
+ko["chat_import.upload_btn"] = "채팅 파일 선택 및 가져오기";
+ko["telemetrics.title"] = "사용 통계 (텔레메트릭스)";
+ko["telemetrics.subtitle"] = "기본 실행 로그 (번들 원격 측정 추적용)";
+ko["telemetrics.total_opens"] = "총 실행 횟수";
+ko["telemetrics.total_runtime"] = "총 실행 시간";
+ko["telemetrics.times"] = "{count}회";
+ko["telemetrics.minutes"] = "{count}분";
+ko["samplers.title"] = "온도 및 샘플링 매개변수";
+ko["samplers.subtitle"] = "모델 생성을 위한 무작위성, 페널티 및 최대 토큰 제한 조정";
+ko["samplers.temp"] = "온도 (Temp)";
+ko["samplers.top_p"] = "핵 샘플링 (Top P)";
+ko["samplers.rep_penalty"] = "반복 페널티";
+ko["samplers.max_tokens"] = "최대 토큰";
+ko["preset_selector.active_preset"] = "활성 프리셋: {name}";
+ko["preset_selector.import"] = "구성 가져오기";
+ko["preset_selector.export"] = "구성 내보내기";
+ko["preset_selector.save_copy"] = "사본 저장";
+ko["preset_selector.delete_custom"] = "사용자 정의 프리셋 삭제";
+ko["prompts.title"] = "프리셋 프롬프트 구성";
+ko["prompts.subtitle"] = "기본 시스템 프롬프트, 탈옥 및 사용자 정의 모듈 구성";
+ko["prompts.st_compat_desc"] = "ST 매크로 지원: {{char}}, {{user}}가 동적으로 대체됩니다.";
+ko["prompts.confirm_delete"] = "삭제 확인";
+ko["prompts.cancel"] = "취소";
+ko["prompts.batch_delete"] = "일괄 삭제";
+ko["prompts.create_module"] = "새 모듈";
+ko["prompts.no_modules"] = "활성 모듈 없음";
+ko["prompts.system_prompt"] = "시스템 프롬프트";
+ko["prompts.system_prompt_tip"] = "system · 컨텍스트 상단에 배치됨";
+ko["prompts.system_prompt_placeholder"] = "여기에 역할극 지침을 입력하세요...";
+ko["prompts.jailbreak"] = "탈옥 프롬프트";
+ko["prompts.jailbreak_tip"] = "system · 마지막 메시지 전에 주입됨";
+ko["prompts.jailbreak_placeholder"] = "여기에 탈옥 규칙을 입력하세요...";
+ko["regex.title"] = "정규식 필터";
+ko["regex.subtitle"] = "표시 전에 입력/출력 메시지를 정리하는 정규식 스크립트 구성";
+ko["regex.global"] = "🌌 전역 정규식";
+ko["regex.global_tip"] = "모든 캐릭터와 프리셋에 적용되며 전역적으로 저장됩니다";
+ko["regex.preset"] = "📋 프리셋 정규식";
+ko["regex.preset_tip"] = "프리셋 [{name}]이 활성화된 경우에만 활성화되며 프리셋과 함께 내보내집니다";
+ko["regex.char"] = "🎭 캐릭터 로컬 정규식";
+ko["regex.char_tip"] = "[{name}]이 로드된 경우에만 활성화되며 캐릭터 카드에 저장됩니다";
+ko["regex.create_global"] = "새 전역";
+ko["regex.create_preset"] = "새 프리셋";
+ko["regex.create_char"] = "새 캐릭터";
+ko["regex.no_global"] = "전역 정규식 규칙이 없습니다. <think> 태그에 대한 필터를 추가하려면 클릭하세요.";
+ko["regex.no_preset"] = "프리셋 정규식 규칙이 없습니다. 프리셋 가져오기 시 자동으로 로드됩니다.";
+ko["regex.no_char"] = "이 캐릭터에 대한 로컬 정규식 규칙이 없습니다. 새로 만들려면 클릭하세요.";
+ko["regex.placement_both"] = "양쪽";
+ko["regex.placement_input"] = "입력";
+ko["regex.placement_output"] = "출력";
+ko["regex.edit"] = "편집";
+ko["regex.delete"] = "삭제";
+ko["regex.modal_new"] = "새 정규식 스크립트";
+ko["regex.modal_edit"] = "정규식 스크립트 편집";
+ko["regex.modal_close"] = "닫기";
+ko["regex.modal_name"] = "스크립트 이름";
+ko["regex.modal_name_placeholder"] = "예: 사고 과정 숨기기";
+ko["regex.modal_find"] = "정규식 패턴 매칭 (/pattern/flags 지원)";
+ko["regex.modal_find_placeholder"] = "예: /<think>[\\s\\S]*?<\\/think>/gi";
+ko["regex.modal_replace"] = "대체 문자열 ($1, $2 지원)";
+ko["regex.modal_replace_placeholder"] = "예: (일치 항목을 제거하려면 비워 둠)";
+ko["regex.modal_placement"] = "배치";
+ko["regex.modal_placement_input"] = "입력 단계 (전송 전)";
+ko["regex.modal_placement_output"] = "출력 단계 (표시 전)";
+ko["regex.modal_save"] = "저장";
+ko["preset_form.none"] = "없음";
+ko["preset_form.scope_global"] = "전역";
+ko["preset_form.scope_preset"] = "프리셋";
+ko["preset_form.scope_char"] = "캐릭터";
+ko["preset_form.confirm_delete_regex"] = "{scope} 정규식 스크립트 '{name}'을(를) 삭제하시겠습니까?";
+ko["preset_form.regex_empty_error"] = "스크립트 이름과 정규식 패턴은 비워 둘 수 없습니다!";
+ko["preset_form.confirm_batch_delete_prompts"] = "선택한 {count}개의 프롬프트 모듈을 일괄 삭제하시겠습니까?";
+ko["preset_form.confirm_batch_delete_global_regex"] = "선택한 {count}개의 전역 정규식 스크립트를 일괄 삭제하시겠습니까?";
+ko["preset_form.confirm_batch_delete_preset_regex"] = "선택한 {count}개의 프리셋 정규식 스크립트를 일괄 삭제하시겠습니까?";
+ko["worldbook.title"] = "세계서";
+ko["worldbook.subtitle"] = "전용 캐릭터 바운드 / 전역 공유";
+ko["worldbook.new"] = "새로 만들기";
+ko["worldbook.import"] = "가져오기";
+ko["worldbook.export"] = "내보내기";
+ko["worldbook.export_alert"] = "내보내기 전에 먼저 세계서(전역 또는 캐릭터)를 선택하세요.";
+ko["worldbook.list_header"] = "👤 캐릭터 바운드 세계서";
+ko["worldbook.list_count"] = "총 {count}권";
+ko["worldbook.custom_tip"] = "🔒 독립 세계서 (길게 눌러 삭제)";
+ko["worldbook.no_characters"] = "📭 캐릭터 카드를 찾을 수 없습니다. 설정 탭에서 캐릭터 카드를 만들면 캐릭터 바운드 세계서를 잠금 해제할 수 있습니다!";
+ko["worldbook.char_tip_global"] = "🌎 세계서가 [전역 공유]로 구성됨";
+ko["worldbook.char_tip_local"] = "🔒 세계서가 [캐릭터 바운드]로 구성됨";
+ko["worldbook.switch_global"] = "🌎 전역";
+ko["worldbook.switch_local"] = "👤 바운드";
+ko["history.title"] = "기록";
+ko["history.sort_by_time"] = "타임라인";
+ko["history.sort_by_char"] = "캐릭터별";
+ko["history.empty"] = "채팅 기록을 찾을 수 없음";
+ko["history.empty_tip"] = "캐릭터를 선택하여 채팅을 시작하세요!";
+ko["history.main_timeline"] = "메인 타임라인";
+ko["history.turns_chars"] = "{turnCount}턴 | {charCount}캐릭터";
+ko["history.turns"] = "{count}턴";
+ko["history.chars"] = "{count}캐릭터";
+ko["history.me"] = "나";
+ko["history.delete"] = "채팅 삭제";
+ko["history.sessions_count"] = "{count}개 채팅";
+ko["history.recent_active"] = "마지막 활동: {time}";
+ko["history.total_chars"] = "총 {count}캐릭터";
+ko["history.unassigned_char"] = "할당되지 않은 캐릭터";
+ko["history.removed_char"] = "삭제된 캐릭터";
+ko["scanner.title"] = "로컬 캐릭터 카드 스캔 및 가져오기";
+ko["scanner.close"] = "닫기";
+ko["scanner.scan_failed"] = "스캔 실패: ";
+ko["scanner.import_success"] = "성공적으로 가져옴: \"{name}\" 카드가 로드되었습니다!";
+ko["scanner.import_failed"] = "파일 가져오기 실패: ";
+ko["scanner.mock_env"] = "브라우저 샌드박스 환경";
+ko["scanner.mock_env_tip"] = "현재 웹 개발 모드에서 실행 중입니다. 인터페이스 상호작용과 카드 파싱을 테스트하려면 아래 버튼을 클릭하여 시뮬레이션된 캐릭터 카드를 로드할 수 있습니다.";
+ko["scanner.mock_scanning"] = "스캔 시뮬레이션 중...";
+ko["scanner.mock_btn"] = "모의 저장소 스캔 (파일 스캔)";
+ko["scanner.permission_title"] = "저장소 접근 권한 필요";
+ko["scanner.permission_desc"] = "애플리케이션이 캐릭터 카드를 찾으려면 외부 저장소(예: 다운로드 디렉토리)에 접근해야 합니다. 기기 설정에서 언제든지 이 권한을 전환하거나 취소할 수 있습니다.";
+ko["scanner.permission_btn"] = "권한 부여 및 저장소 스캔";
+ko["scanner.scanning"] = "저장소 미디어 검색 중...";
+ko["scanner.scan_btn"] = "다운로드 및 사진 디렉토리 스캔";
+ko["scanner.search_placeholder"] = "스캔된 로컬 파일 검색...";
+ko["scanner.scan_waiting"] = "기기에서 공용 디렉토리를 스캔 중입니다. 잠시만 기다려 주세요...";
+ko["scanner.no_results"] = "결과를 찾을 수 없음";
+ko["scanner.no_match"] = "검색어와 일치하는 파일이 없습니다.";
+ko["scanner.no_results_tip"] = "위의 스캔 버튼을 클릭하여 기기에서 .json 캐릭터 패키지 또는 Tavern PNG 카드 파일을 찾으세요.";
+ko["scanner.file_meta"] = "크기: {size} | 수정일: {date}";
+ko["scanner.importing"] = "가져오는 중";
+ko["scanner.import"] = "가져오기";
+ko["quick_dialogue.copy"] = "복사";
+ko["quick_dialogue.edit"] = "편집";
+ko["quick_dialogue.img_gen_not_enabled"] = "먼저 설정에서 이미지 생성을 활성화하고 API 매개변수를 구성하세요.";
+ko["quick_dialogue.edit_prompt_message"] = "이미지 프롬프트가 생성되었습니다. 여기서 수정할 수 있습니다:";
+ko["quick_dialogue.prompt_confirm_title"] = "프롬프트 확인";
+ko["quick_dialogue.img_gen_failed"] = "이미지 생성 실패";
+ko["quick_dialogue.img_gen_failed_msg"] = "그리기 실패: {error}";
+ko["quick_dialogue.img_gen"] = "이미지 생성";
+ko["quick_dialogue.img_gen_title"] = "현재 대화 장면에 대한 일러스트레이션 생성";
+ko["quick_dialogue.tts_stop"] = "중지";
+ko["quick_dialogue.tts_read"] = "소리 내어 읽기";
+ko["quick_dialogue.tts_stop_title"] = "TTS 중지";
+ko["quick_dialogue.tts_read_title"] = "현재 대화 TTS 읽기";
+ko["quick_dialogue.more"] = "더 보기";
+ko["quick_dialogue.more_title"] = "더 많은 옵션";
+ko["quick_dialogue.reroll"] = "다시 굴리기";
+ko["quick_dialogue.branch"] = "분기";
+ko["quick_dialogue.confirm_delete_msg"] = "이 단일 대화 줄을 삭제하시겠습니까?";
+ko["quick_dialogue.delete"] = "삭제";
+ko["quick_dialogue.confirm_summarize"] = "스마트 AI 카드 압축을 시작하시겠습니까? 이전 채팅 기록을 단일 타임라인 연대기로 변환하여 메모리를 확보하면서 내러티브 일관성을 유지합니다.";
+ko["quick_dialogue.summarize"] = "요약";
+ko["message_bubble.user_said"] = "내가 말함";
+ko["message_bubble.char_said"] = "말함";
+ko["message_bubble.role"] = "캐릭터";
+ko["message_bubble.me_avatar"] = "나";
+ko["message_bubble.ai_fallback"] = "AI";
+ko["message_bubble.swipe_edit"] = "편집";
+ko["message_bubble.swipe_draw"] = "이미지 생성";
+ko["message_bubble.swipe_tts_stop"] = "중지";
+ko["message_bubble.swipe_tts_read"] = "소리 내어 읽기";
+ko["message_bubble.edit_save"] = "저장";
+ko["message_bubble.edit_cancel"] = "취소";
+ko["message_bubble.reasoning_collapse"] = "추론 접기";
+ko["message_bubble.reasoning_thinking"] = "AI가 생각 중입니다 (탭하여 보기)...";
+ko["message_bubble.reasoning_view"] = "추론 보기";
+ko["message_bubble.reasoning_chars"] = "{length}자";
+ko["message_bubble.copy_reasoning"] = "추론 내용 복사";
+ko["message_bubble.ai_composing"] = "AI가 작성 중입니다...";
+ko["message_bubble.no_content"] = "*(생성된 내용 없음)*";
+ko["message_bubble.drawing_scene"] = "AI가 장면을 그리고 있습니다...";
+ko["message_bubble.confirm_save_image"] = "생성된 이미지를 저장하시겠습니까?";
+ko["message_bubble.image_save_success"] = "저장 성공";
+ko["message_bubble.image_save_success_msg"] = "📂 이미지가 성공적으로 저장되었습니다!\n파일이 /Download 폴더에 저장되었습니다...";
+ko["message_bubble.image_save_failed"] = "저장 실패";
+ko["message_bubble.image_save_failed_msg"] = "❌ 이미지 저장 실패: {error}";
+ko["message_bubble.save_error"] = "저장 오류";
+ko["message_bubble.export_success"] = "내보내기 성공";
+ko["message_bubble.click_to_save"] = "탭하여 이미지 저장";
+ko["message_bubble.round_label"] = "{roundNum}라운드";
+ko["chat_input.reroll_last"] = "마지막 스토리 다시 불러오기";
+ko["chat_input.continue"] = "계속";
+ko["chat_input.suggestions_label"] = "✨ 내러티브 분기 생성기:";
+ko["chat_input.click_mode"] = "클릭 동작: {mode}";
+ko["chat_input.click_mode_send"] = "직접 전송";
+ko["chat_input.click_mode_fill"] = "입력창 채우기";
+ko["chat_input.placeholder_bison"] = "{name}이(가) 계속 말하고 있습니다...";
+ko["chat_input.placeholder_recording"] = "음성 입력을 듣는 중입니다. 말씀해 주세요...";
+ko["chat_input.placeholder_transcribing"] = "음성을 텍스트로 변환 중...";
+ko["chat_input.placeholder_default"] = "{name}에게 메시지를 보내 시작하세요...";
+ko["chat_input.aria_label"] = "{name}에 대한 메시지 입력";
+ko["chat_input.stop"] = "생성 중지";
+ko["chat_input.asr_stop"] = "녹음 중지";
+ko["chat_input.asr_recognizing"] = "음성 인식 중";
+ko["chat_input.asr_mic"] = "음성 입력";
+ko["chat_input.asr_transcribing"] = "변환 중...";
+ko["chat_input.send_title"] = "메시지 보내기 (길게 눌러 병합)";
+ko["chat_input.send"] = "메시지 보내기";
+ko["chat_input.send_long_press"] = "탭하여 보내기, 500ms 길게 누르면 이전 메시지와 병합";
+ko["chat_input.asr_permission_denied"] = "권한 오류";
+ko["chat_input.asr_permission_msg"] = "마이크 권한이 거부되었습니다. 시스템 설정에서 마이크 접근을 허용해 주세요.";
+ko["chat_input.asr_no_speech"] = "음성이 감지되지 않음";
+ko["chat_input.asr_no_speech_msg"] = "음성 입력이 감지되지 않았습니다. 다시 시도해 주세요.";
+ko["chat_input.asr_device_error"] = "장치 오류";
+ko["chat_input.asr_device_error_msg"] = "오디오 장치 오류: {error}";
+ko["chat_input.asr_error"] = "인식 오류";
+ko["chat_input.asr_error_msg"] = "음성 인식 알 수 없는 오류: {error}";
+ko["chat_input.token_prediction"] = "예측:";
+ko["chat_header.back_aria"] = "캐릭터 목록으로 돌아가기";
+ko["chat_header.view_char_detail"] = "캐릭터 카드 세부 정보 보기";
+ko["chat_header.branch_management"] = "분기 관리";
+ko["chat_header.rename_prompt"] = "IndexedDB 분기 구분을 위한 현재 분기 제목 편집:";
+ko["chat_header.click_to_edit"] = "(탭하여 편집)";
+ko["chat_header.bgm_unmute"] = "BGM 음소거 해제";
+ko["chat_header.bgm_mute"] = "BGM 음소거";
+ko["chat_header.memory_center"] = "메모리 및 상태 센터";
+ko["chat_header.memory"] = "메모리";
+ko["chat_header.timeline"] = "타임라인";
+ko["chat_header.table"] = "상태 데이터";
+ko["chat_header.dict"] = "메모리 사전";
+ko["char_detail.greeting_updated"] = "인사말이 성공적으로 업데이트되었습니다!";
+ko["char_detail.greeting_error"] = "인사말 설정 실패: {error}";
+ko["char_detail.unknown_creator"] = "시스템 프리셋 / 알 수 없는 제작자";
+ko["char_detail.tab_persona"] = "페르소나";
+ko["char_detail.tab_dialogue"] = "대화 스크립트";
+ko["char_detail.tab_lore"] = "세계 로어 ({count})";
+ko["char_detail.section_personality"] = "성격 특성 (Personality)";
+ko["char_detail.no_personality"] = "특정 성격이 설정되지 않았습니다...";
+ko["char_detail.section_description"] = "외모 및 배경 (Description)";
+ko["char_detail.no_description"] = "배경 스토리가 없습니다...";
+ko["char_detail.section_creator_notes"] = "제작자 노트";
+ko["char_detail.section_scenario"] = "시나리오 및 무대 설정 (Scenario)";
+ko["char_detail.section_examples"] = "대화 예시";
+ko["char_detail.greeting_selector_title"] = "인사말 장면 선택 ({count}개 가능)";
+ko["char_detail.default_greeting"] = "기본 인사말";
+ko["char_detail.greeting_branch"] = "인사말 분기 {idx}";
+ko["char_detail.default_greeting_badge"] = "기본 스토리 오프닝";
+ko["char_detail.alternate_greeting_badge"] = "대체 장면 분기 {idx}";
+ko["char_detail.copy"] = "복사";
+ko["char_detail.copy_text"] = "전체 텍스트 복사";
+ko["char_detail.set_primary_greeting"] = "주 인사말로 설정";
+ko["char_detail.set_primary_greeting_title"] = "이 인사말을 메인 오프닝 대사로 영구 설정";
+ko["char_detail.no_greeting"] = "(인사말이 설정되지 않음)";
+ko["char_detail.lore_search_placeholder"] = "키워드, 트리거 또는 로어 설명 검색...";
+ko["char_detail.clear_search"] = "지우기";
+ko["char_detail.badge_constant"] = "상시";
+ko["char_detail.badge_disabled"] = "비활성화";
+ko["char_detail.lore_empty"] = "이 캐릭터 카드에는 내장된 세계 로어 항목이 없습니다.";
+ko["char_detail.lore_no_match"] = "이 키워드와 일치하는 로어 항목을 찾을 수 없습니다.";
+ko["char_detail.priority"] = "우선순위:";
+ko["char_detail.probability"] = "확률:";
+ko["char_detail.depth"] = "깊이:";
+ko["char_detail.position"] = "위치:";
+ko["characters_tab.subtitle"] = "경량 모바일 롤플레잉 프론트엔드";
+ko["characters_tab.scan_title"] = "로컬 캐릭터 카드 스캔";
+ko["characters_tab.import_title"] = "SillyTavern 캐릭터 카드 가져오기";
+ko["characters_tab.create_title"] = "새 캐릭터 카드 만들기";
+ko["characters_tab.more_title"] = "더 많은 작업";
+ko["characters_tab.no_description"] = "설명이 없습니다...";
+ko["characters_tab.branch_count"] = "{count}개 분기";
+ko["characters_tab.empty_title"] = "로컬 데이터베이스가 비어 있음";
+ko["characters_tab.empty_desc"] = "기존 SillyTavern 호환 PNG 캐릭터 카드를 업로드하거나 오른쪽 상단 버튼을 탭하여 새 세계를 수동으로 만드세요.";
+ko["characters_tab.action_subtitle"] = "이 캐릭터에 대한 작업 선택";
+ko["characters_tab.view_profile"] = "프로필 보기";
+ko["characters_tab.edit_character"] = "캐릭터 편집";
+ko["characters_tab.go_worldbook"] = "세계서로 이동";
+ko["characters_tab.confirm_export_json"] = "JSON 캐릭터 카드 내보내기를 확인하시겠습니까?";
+ko["characters_tab.export_json"] = "JSON으로 내보내기";
+ko["characters_tab.export_png"] = "SillyTavern PNG 카드로 내보내기";
+ko["characters_tab.delete_char"] = "이 캐릭터 삭제";
+ko["session_manager.title"] = "세션 분기 관리";
+ko["session_manager.busy_switch_warning"] = "생성이 진행 중입니다. 분기를 전환하기 전에 완료될 때까지 기다리거나 수동으로 중지해 주세요.";
+ko["session_manager.default_branch_name"] = "메인 스토리라인";
+ko["session_manager.user_label"] = "나";
+ko["session_manager.turn_summary_format"] = "{turnCount}턴 | {summaryCount}요약";
+ko["session_manager.busy_delete_warning"] = "생성이 진행 중입니다. 분기를 삭제하기 전에 완료될 때까지 기다리거나 수동으로 중지해 주세요.";
+ko["session_manager.delete_branch"] = "분기 삭제";
+ko["session_manager.busy_create_warning"] = "생성이 진행 중입니다. 분기를 만들기 전에 완료될 때까지 기다리거나 수동으로 중지해 주세요.";
+ko["session_manager.new_branch"] = "새 빈 분기";
+ko["dialog.cancel"] = "취소";
+ko["dialog.confirm"] = "확인";
+ko["dialog.alert_default_title"] = "알림";
+ko["dialog.confirm_default_title"] = "확인";
+ko["dialog.prompt_default_title"] = "입력";
+ko["recall_tab.info"] = "💡 마지막 메시지 중에 **AI가 성공적으로 검색한 컨텍스트 메모리**를 보여줍니다. 이는 의미적 유사도 검색(유사도 임계값 > 0.7)을 기반으로 장기 메모리 참조로 주입되었습니다.";
+ko["recall_tab.empty_title"] = "이번 라운드에서 검색된 메모리 없음";
+ko["recall_tab.empty_desc"] = "현재 주제가 사전 엔티티나 과거 메모리 요약과 일치하지 않음을 의미합니다. 메모리 사전에 새 키 엔티티 항목을 수동으로 추가하거나, 더 많은 대화가 축적된 후 AI가 자동 요약할 때까지 기다리세요.";
+ko["recall_tab.turn_label"] = "{turn}턴";
+ko["recall_tab.role_user"] = "사용자";
+ko["recall_tab.role_char"] = "캐릭터";
+ko["recall_tab.unpin"] = "고정 해제";
+ko["recall_tab.pin"] = "강제 고정";
+ko["recall_tab.unmute"] = "음소거 해제";
+ko["recall_tab.mute"] = "강제 음소거";
+ko["recall_tab.hit_tags"] = "히트 태그:";
+ko["dict_tab.type_all"] = "전체";
+ko["dict_tab.type_character"] = "캐릭터";
+ko["dict_tab.type_location"] = "장소";
+ko["dict_tab.type_item"] = "아이템";
+ko["dict_tab.type_organization"] = "조직";
+ko["dict_tab.type_concept"] = "개념";
+ko["dict_tab.entity_name_required"] = "엔티티 이름은 비워 둘 수 없습니다!";
+ko["dict_tab.duplicate_entity"] = "\"{name}\" 이름의 엔티티가 이미 존재합니다. 중복 추가하지 마세요.";
+ko["dict_tab.confirm_delete_entry"] = "메모리 항목 \"{entity}\"의 물리적 삭제를 확인하시겠습니까?\n이 작업은 되돌릴 수 없으며 향후 장기 메모리 회상 정확도에 영향을 줄 수 있습니다.";
+ko["dict_tab.info"] = "메모리 사전은 장기 회상을 위한 메타데이터 캐시입니다. 캐릭터, 장소 또는 주요 개념을 정의할 때마다 AI는 이를 단서로 사용하여 의미적으로 유사한 메모리를 자동으로 검색하고 후속 대화에서 보상적 주입을 수행합니다.";
+ko["dict_tab.search_placeholder"] = "엔티티 이름 또는 별칭 검색...";
+ko["dict_tab.close_form"] = "새 항목 양식 닫기";
+ko["dict_tab.add_entry"] = "수동으로 항목 추가";
+ko["dict_tab.form_name_label"] = "엔티티 이름 *";
+ko["dict_tab.form_name_placeholder"] = "예: 백발의 예언자 에드거";
+ko["dict_tab.form_aliases_label"] = "별칭 (쉼표로 구분된 키워드)";
+ko["dict_tab.form_aliases_placeholder"] = "에드거, 예언자, 늙은 에드";
+ko["dict_tab.form_type_label"] = "엔티티 유형 *";
+ko["dict_tab.cancel"] = "취소";
+ko["dict_tab.saving"] = "저장 중";
+ko["dict_tab.confirm_save"] = "저장 확인";
+ko["dict_tab.loading"] = "메모리 사전 로드 중...";
+ko["dict_tab.empty_title"] = "📭 메모리 사전이 아직 구축되지 않음";
+ko["dict_tab.empty_desc"] = "캐릭터, 장소 또는 중요한 아이템과 같은 주요 개념 엔티티를 추가하세요. AI는 후속 대화에서 정의된 메모리 키를 자동으로 검색하여 내러티브 일관성을 유지합니다.";
+ko["dict_tab.start_adding"] = "✨ 첫 메모리 엔티티 추가 시작";
+ko["dict_tab.edit_entry"] = "메모리 항목 \"{entity}\" 편집";
+ko["dict_tab.no_match"] = "일치하는 항목 없음";
+ko["dict_tab.no_match_tip_filter"] = "필터 조건을 변경하거나 검색어를 지워 보세요.";
+ko["dict_tab.no_match_tip_empty"] = "캐릭터와의 대화가 늘어나면 AI가 자동으로 가치 있는 명사 엔티티를 추출합니다.";
+ko["dict_tab.mention_count"] = "{count}회 언급됨";
+ko["dict_tab.aliases_label"] = "별칭:";
+ko["dict_tab.no_aliases"] = "별칭 없음";
+ko["dict_tab.view_detail"] = "세부 정보 보기";
+ko["dict_tab.edit_aliases"] = "별칭 편집";
+ko["dict_tab.delete_entry_title"] = "항목 삭제";
+ko["dict_tab.detail_first_seen"] = "처음 나타난 턴:";
+ko["dict_tab.detail_manual"] = "수동 생성됨";
+ko["dict_tab.detail_turn"] = "{turn}턴";
+ko["dict_tab.detail_created"] = "생성일:";
+ko["dict_tab.detail_updated"] = "마지막 업데이트:";
+ko["dict_tab.edit_placeholder"] = "쉼표 또는 공백으로 구분된 별칭, 예: 문파주, 대사형";
+ko["dict_tab.save"] = "저장";
+ko["dict_tab.new_entry_title"] = "새 메모리 항목";
+ko["dict_tab.export_dict"] = "사전 내보내기";
+ko["dict_tab.export_dict_title"] = "현재 세션 사전 내보내기";
+ko["table_memory.confirm_delete_row"] = "이 행을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.";
+ko["table_memory.confirm_reset"] = "모든 현재 테이블 데이터를 지우고 기본 4개 테이블(관계, 아이템, 장소, 퀘스트)로 초기화합니다. 이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?";
+ko["table_memory.confirm_delete_sheet"] = "테이블 \"{name}\"과 모든 데이터를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.";
+ko["table_memory.min_one_column"] = "최소 하나의 열이 필요합니다";
+ko["table_memory.name_required"] = "테이블 이름은 비워 둘 수 없습니다";
+ko["table_memory.columns_required"] = "최소 하나의 열이 필요합니다";
+ko["table_memory.duplicate_name"] = "\"{name}\" 이름의 테이블이 이미 존재합니다. 다른 이름을 사용하세요.";
+ko["table_memory.manage"] = "⚙️ 관리";
+ko["table_memory.new_table"] = "새 테이블";
+ko["table_memory.edit_table"] = "테이블 구조 편집";
+ko["table_memory.cancel"] = "취소";
+ko["table_memory.form_name_label"] = "테이블 이름 *";
+ko["table_memory.form_name_placeholder"] = "예: 호감도 관계";
+ko["table_memory.form_columns_label"] = "열 이름 (쉼표로 구분, 첫 번째가 기본 키)";
+ko["table_memory.form_columns_placeholder"] = "이름, 호감도, 관계";
+ko["table_memory.column_edit_tip"] = "현재 열 이름을 편집하여 구조를 조정할 수만 있습니다. 기존 데이터는 지워지지 않습니다.";
+ko["table_memory.save"] = "저장";
+ko["table_memory.reset_default"] = "기본 테이블 초기화";
+ko["table_memory.new_custom"] = "새 사용자 정의 테이블";
+ko["table_memory.empty"] = "구조화된 테이블 없음";
+ko["table_memory.init_defaults"] = "기본 테이블 초기화";
+ko["table_memory.enabled"] = "프롬프트 주입 활성화됨";
+ko["table_memory.disabled"] = "주입 비활성화됨";
+ko["table_memory.delete_table"] = "전체 테이블 삭제";
+ko["table_memory.init_required"] = "먼저 테이블 메모리를 초기화하세요";
+ko["table_memory.one_click_init"] = "원클릭 초기화";
+ko["table_memory.no_rows"] = "아직 레코드가 없습니다. 아래 추가 버튼을 탭하여 새 행을 삽입하세요.";
+ko["table_memory.empty_cell"] = "비어 있음";
+ko["table_memory.delete_row"] = "이 행 삭제";
+ko["table_memory.add_row"] = "새 행 추가";
+ko["memory_drawer.title"] = "메모리 및 상태 센터";
+ko["memory_drawer.tab_timeline"] = "타임라인";
+ko["memory_drawer.tab_table"] = "상태 데이터";
+ko["memory_drawer.tab_dict"] = "메모리 사전";
+ko["memory_drawer.tab_recall"] = "회상된 메모리";
+ko["memory_drawer.tab_mvu"] = "캐릭터 변수";
+ko["memory_drawer.mvu_save_success"] = "캐릭터 변수가 저장되고 동기화되었습니다!";
+ko["app.kernel_init_failed_title"] = "🚨 코어 엔진 콜드 스타트 실패";
+ko["app.kernel_init_failed_desc"] = "중요한 필수 서비스(예: 로컬 데이터베이스) 초기화 오류입니다. 묵시적 읽기/쓰기 데이터 손상을 방지하기 위해 시스템이 차단되었습니다.";
+ko["app.kernel_retry_button"] = "🔄 콜드 스타트 재시도";
+ko["chat.load_sessions_failed"] = "채팅 세션 로드 실패: {error}";
+ko["chat.load_more_sessions_failed"] = "더 많은 채팅 세션 로드 실패: {error}";
+ko["chat.save_session_failed"] = "채팅 세션 저장 실패: {error}";
+ko["chat.load_more_messages_failed"] = "이전 메시지 로드 실패: {error}";
+ko["chat.delete_session_failed"] = "채팅 세션 삭제 실패: {error}";
+ko["splash.tagline"] = "당신의 영혼의 교향곡을 시작하세요";
+ko["db.writing_overlay"] = "데이터베이스에 쓰는 중";
+ko["update.new_version_title"] = "✨ 새 버전 v{version} 발견됨";
+ko["update.downloading"] = "보안 다운로드 채널 초기화 중...";
+ko["update.download_now"] = "지금 다운로드";
+ko["update.later"] = "나중에";
+ko["update.close_aria"] = "업데이트 알림 닫기";
+ko["settings.update_service_not_ready"] = "UpdateCheckService가 준비되지 않았습니다. 나중에 다시 시도해 주세요";
+ko["settings.already_latest"] = "이미 최신 상태";
+ko["settings.already_latest_message"] = "현재 v{version}이(가) 이미 최신 버전입니다.";
+ko["settings.check_failed"] = "확인 실패";
+ko["settings.check_failed_message"] = "업데이트 확인 중 오류: {error}";
+ko["character_editor.modal_title_edit"] = "SillyTavern 호환 카드 라이브러리 편집";
+ko["character_editor.modal_title_create"] = "AI 소울 컨테이너 설정 재구축";
+ko["character_editor.tab_detail"] = "1. 캐릭터 성격 및 기본 정보";
+ko["character_editor.tab_lore"] = "2. 캐릭터별 세계서 바인딩 ({count})";
+ko["character_editor.cancel_button"] = "변경 사항 취소";
+ko["character_editor.save_button"] = "변경 사항 저장";
+ko["character_editor.confirm_delete"] = "이 캐릭터 카드를 삭제하시겠습니까? 모든 파생 채팅 기록과 세계서가 정리됩니다.";
+ko["character_editor.name_required"] = "캐릭터 이름을 입력하세요";
+ko["character_editor.save_failed"] = "캐릭터 저장 실패: {error}";
+ko["character_editor.lore_content_required"] = "세계서 항목 내용은 비워 둘 수 없습니다";
+ko["character_editor.lore_save_failed"] = "로어 저장 실패: {error}";
+ko["char_detail_tab.label_name"] = "캐릭터 이름 *";
+ko["char_detail_tab.placeholder_name"] = "예: Aria";
+ko["char_detail_tab.label_avatar"] = "아바타 URL (base64 또는 온라인 이미지 지원)";
+ko["char_detail_tab.placeholder_avatar"] = "data:image/png;base64,... 또는 http://...";
+ko["char_detail_tab.upload"] = "업로드";
+ko["char_detail_tab.avatar_too_large"] = "⚠️ 업로드 실패: 아바타 이미지 크기가 5MB를 초과할 수 없습니다!";
+ko["char_detail_tab.compress_failed"] = "⚠️ 이미지 압축 실패: {error}";
+ko["char_detail_tab.label_bg"] = "사용자 정의 채팅 배경 이미지 (base64 또는 온라인 이미지 지원, 우선 렌더링됨)";
+ko["char_detail_tab.placeholder_bg"] = "설정되지 않음 (전역 배경 또는 기본 테마 색상 사용)";
+ko["char_detail_tab.bg_too_large"] = "⚠️ 업로드 실패: 배경 이미지 크기가 5MB를 초과할 수 없습니다!";
+ko["char_detail_tab.clear"] = "지우기";
+ko["char_detail_tab.label_asterisk"] = "별표 동작 색상 렌더링 (캐릭터 레벨 재정의)";
+ko["char_detail_tab.asterisk_inherit"] = "전역 설정 따르기";
+ko["char_detail_tab.asterisk_enable"] = "강제 활성화";
+ko["char_detail_tab.asterisk_disable"] = "강제 비활성화";
+ko["char_detail_tab.label_description"] = "캐릭터 설명 (Description/Persona)";
+ko["char_detail_tab.placeholder_description"] = "상세 설명, 성격 또는 배경 설정...";
+ko["char_detail_tab.label_personality"] = "성격 세부 설정 (Personality Description)";
+ko["char_detail_tab.placeholder_personality"] = "캐릭터의 핵심 성격 특성";
+ko["char_detail_tab.label_scenario"] = "현재 시나리오 컨텍스트";
+ko["char_detail_tab.placeholder_scenario"] = "현재 스토리 장면 및 환경 설정";
+ko["char_detail_tab.label_first_mes"] = "첫 메시지 / 인사말 *";
+ko["char_detail_tab.placeholder_first_mes"] = "캐릭터의 시작 대사";
+ko["char_detail_tab.label_mes_example"] = "대화 예시";
+ko["char_detail_tab.placeholder_mes_example"] = "<user>: 누구세요?\\n<char>: 저는...";
+ko["char_detail_tab.label_system_prompt"] = "사용자 정의 시스템 프롬프트 재정의";
+ko["char_detail_tab.placeholder_system_prompt"] = "선택적 시스템 레벨 프롬프트 재정의 규칙";
+ko["lore_editor.label_comment"] = "제목 또는 코멘트 *";
+ko["lore_editor.placeholder_comment"] = "예: 계약 마법, 숨겨진 성역";
+ko["lore_editor.label_keys"] = "트리거 키워드 (쉼표로 구분)";
+ko["lore_editor.placeholder_keys"] = "마법, 계약";
+ko["lore_editor.label_content"] = "로어 항목 내용 *";
+ko["lore_editor.placeholder_content"] = "구체적인 메모리 사실을 설명하세요...";
+ko["lore_editor.checkbox_regex"] = "정규식";
+ko["lore_editor.checkbox_memo"] = "메모 포함";
+ko["lore_editor.checkbox_constant"] = "상시";
+ko["lore_editor.checkbox_disabled"] = "이 항목 비활성화";
+ko["lore_editor.label_position"] = "위치";
+ko["lore_editor.position_after_char"] = "📌 캐릭터 정의 뒤";
+ko["lore_editor.position_before_char"] = "📌 캐릭터 정의 앞";
+ko["lore_editor.position_top"] = "📌 페이지 상단";
+ko["lore_editor.position_before_last"] = "💬 최신 메시지 앞";
+ko["lore_editor.position_in_chat"] = "💬 기록 내 (깊이별)";
+ko["lore_editor.label_depth"] = "깊이";
+ko["lore_editor.label_order"] = "순서";
+ko["lore_editor.label_probability"] = "확률 (%)";
+ko["lore_editor.cancel"] = "취소";
+ko["lore_editor.save"] = "이 로어 항목 저장";
+ko["lorebook_tab.upgrade_title"] = "로어 항목 편집이 완전히 업그레이드됨";
+ko["lorebook_tab.upgrade_desc"] = "이제 강력한 인플레이스 편집을 지원하여 현재 페이지를 떠나지 않고 캐릭터별 로어 항목을 수정할 수 있습니다. 매칭 전략 선택, 동적 깊이 및 가중치 등 더 고급 기능은 하단 탭 \"세계서\" 독립 콘솔로 이동하는 것을 권장합니다.";
+ko["lorebook_tab.goto_worldbook"] = "🌐 하단 탭 '세계서' · 독립 다차원 콘솔로 바로 이동하려면 클릭 ➡";
+ko["lorebook_tab.new_entry"] = "➕ 이 캐릭터에 대한 사용자 정의 로어 항목 수동 추가 (인라인 생성기)";
+ko["lorebook_tab.new_entry_card_title"] = "✨ 이 캐릭터에 대한 사용자 정의 로어 항목 빠르게 생성";
+ko["lorebook_tab.entry_list_title"] = "캐릭터별 로어 항목 ({count}개)";
+ko["lorebook_tab.unnamed_entry"] = "이름 없는 로어 항목";
+ko["lorebook_tab.badge_constant"] = "상시";
+ko["lorebook_tab.badge_disabled"] = "비활성화";
+ko["lorebook_tab.trigger_word_count"] = "({count}개 트리거 단어)";
+ko["lorebook_tab.meta_keys"] = "트리거 단어:";
+ko["lorebook_tab.meta_position"] = "위치:";
+ko["lorebook_tab.meta_depth_weight"] = "깊이 / 순서:";
+ko["lorebook_tab.meta_probability_regex"] = "확률 / 정규식:";
+ko["lorebook_tab.none"] = "(없음)";
+ko["lorebook_tab.position_after"] = "📌 캐릭터 뒤";
+ko["lorebook_tab.position_before"] = "📌 캐릭터 앞";
+ko["lorebook_tab.position_top"] = "📌 상단";
+ko["lorebook_tab.label_content"] = "로어 내용 (프롬프트):";
+ko["lorebook_tab.label_memo"] = "⭐ 메모 포함";
+ko["lorebook_tab.edit_inline"] = "이 항목 편집 (인라인)";
+ko["lorebook_tab.confirm_delete"] = "이 로어 항목을 삭제하시겠습니까?";
+ko["lorebook_tab.delete"] = "삭제";
+ko["lorebook_tab.empty_state"] = "이 캐릭터 카드는 아직 독립적으로 사용자 정의 로어 항목을 컴파일하지 않았습니다. 위 버튼을 탭하여 추가하거나 하단 \"공용 세계서\" 채널을 사용하세요.";
+ko["regex.char_no_active"] = "선택되지 않음";
+ko["backup.collapse"] = "접기";
+ko["backup.expand"] = "펼치기";
+ko["backup.pass_placeholder"] = "잘 기억하세요. 그렇지 않으면 복구할 수 없습니다...";
+ko["chat_import.description"] = "시스템이 채팅 로그를 구문 분석하고 로컬 캐릭터 카드와 바인딩합니다. 해당 캐릭터 카드가 로컬에 가져오기되지 않은 경우 먼저 가져오라는 메시지가 표시됩니다.";
+ko["chat_import.tip_label"] = "팁:";
+ko["chat_import.help_text"] = "가져오기 후 시스템은 API 대역폭 폭주를 방지하기 위해 기본적으로 이러한 과거 문장에 대한 자동 요약을 비활성화합니다.";
+ko["tts.test_text"] = "안녕하세요, 모바일 태번에 오신 것을 환영합니다. 이것은 TTS 읽기 테스트입니다.";
+ko["nav.chat"] = "채팅";
+ko["nav.playground"] = "샌드박스";
 
-  // ========== ASR ==========
-  "asr.title": { ja: "音声入力 (ASR) 設定", ru: "Настройка голосового ввода (ASR)", es: "Configuración de entrada de voz (ASR)" },
-  "asr.subtitle": { ja: "マイク入力と音声テキスト変換を有効化（ブラウザネイティブまたはOpenAI Whisper）", ru: "Включение микрофона и распознавания речи (браузерное или OpenAI Whisper)", es: "Activar micrófono y voz a texto (nativo del navegador o OpenAI Whisper)" },
-  "asr.enable": { ja: "音声入力を有効化", ru: "Включить голосовой ввод", es: "Activar entrada de voz" },
-  "asr.enable_desc": { ja: "有効にすると、チャット入力欄の左側にマイクアイコンが表示され、録音して自動テキスト変換できます。", ru: "При включении слева от поля ввода появится значок микрофона для записи и распознавания.", es: "Al activar, aparecerá un icono de micrófono a la izquierda del campo de entrada para grabar y transcribir." },
-  "asr.engine": { ja: "音声認識サービスプロバイダー (Provider)", ru: "Провайдер распознавания речи (Provider)", es: "Proveedor de reconocimiento de voz" },
-  "asr.engine_system": { ja: "ブラウザネイティブ Web Speech API（キー不要/リアルタイムストリーミング）", ru: "Браузерный Web Speech API (без ключа, потоковый)", es: "Web Speech API nativo (sin clave, streaming)" },
-  "asr.engine_whisper": { ja: "OpenAI Whisper API（高精度）", ru: "OpenAI Whisper API (высокая точность)", es: "OpenAI Whisper API (alta precisión)" },
-  "asr.lang": { ja: "認識言語 (Language)", ru: "Язык распознавания (Language)", es: "Idioma de reconocimiento" },
-  "asr.lang_placeholder": { ja: "例: zh-CN, en-US, ja-JP", ru: "Напр. zh-CN, en-US, ja-JP", es: "Ej: zh-CN, en-US, ja-JP" },
-  "asr.lang_desc": { ja: "ブラウザネイティブ認識では正しい言語識別子が必要です。Whisperは空欄で自動検出可能です。", ru: "Для браузерного распознавания нужен правильный код языка. Whisper может определить автоматически.", es: "El reconocimiento nativo requiere el código de idioma correcto. Whisper puede detectarlo automáticamente." },
+// ============================================================
+// Brazilian Portuguese translations (pt-BR)
+// ============================================================
+const ptBR = {};
+ptBR["control_panel.title"] = "Painel de Controle";
+ptBR["control_panel.subtitle"] = "Ajustar configurações do sistema e regras granulares do pipeline";
+ptBR["control_panel.check_update"] = "Atualizações";
+ptBR["control_panel.checking"] = "Verificando";
+ptBR["tabs.connection"] = "Conexão";
+ptBR["tabs.features"] = "Funcionalidades";
+ptBR["tabs.persona"] = "Persona";
+ptBR["tabs.storage"] = "Armazenamento";
+ptBR["sandbox.title"] = "Sandbox do Desenvolvedor";
+ptBR["sandbox.desc"] = "Inspecionar compilação de prompts, análise de buffer SSE e varredura de worldbook";
+ptBR["sandbox.button"] = "🚀 Entrar no Sandbox do Desenvolvedor";
+ptBR["lang.section_title"] = "Configurações de Idioma";
+ptBR["lang.select_label"] = "Idioma do App";
+ptBR["lang.select_desc"] = "Alterar o idioma da interface. Configurado automaticamente para o padrão do sistema na primeira inicialização.";
+ptBR["features.section_title"] = "Funcionalidades do Aplicativo";
+ptBR["features.cat_rendering"] = "Renderização e Interação da UI";
+ptBR["features.html_rendering"] = "Renderização de Texto Rico HTML";
+ptBR["features.html_rendering_desc"] = "Permitir que cartas de personagem estilizem balões de diálogo usando tags HTML/CSS. Recurso a texto simples se desativado.";
+ptBR["features.js_execution"] = "Execução de Script JS da Carta";
+ptBR["features.js_execution_desc"] = "Permitir que cartas de personagem executem JS personalizado em sandbox para mostrar painéis de status dinâmicos. A execução traz riscos de segurança.";
+ptBR["features.loop_protection"] = "Proteção de Loop de Script";
+ptBR["features.loop_protection_desc"] = "Injetar temporizadores de watchdog em loops de script para evitar travamentos do WebView. Limite de execução: 1000ms.";
+ptBR["features.ambient_glow"] = "Brilho Ambiente de Emoção";
+ptBR["features.ambient_glow_experimental"] = "Beta";
+ptBR["features.ambient_glow_desc"] = "Renderizar brilhos fluidos no fundo do chat combinando com a expressão e emoção do personagem para aumentar a imersão.";
+ptBR["features.reasoning_display"] = "Exibição de Raciocínio";
+ptBR["features.reasoning_display_desc"] = "Mostrar ou ocultar a cadeia de pensamento (reasoning_content). Ocultá-la não afeta a geração do modelo.";
+ptBR["features.message_queue"] = "Fila de Múltiplas Mensagens";
+ptBR["features.message_queue_plugin"] = "Plugin";
+ptBR["features.message_queue_desc"] = "Clicar em Enviar coloca a mensagem na fila sem resposta; Pressionar longamente (500ms+) mescla as mensagens da fila e dispara a resposta.";
+ptBR["features.asterisk_formatting"] = "Formatação de Asteriscos";
+ptBR["features.asterisk_formatting_desc"] = "Renderizar *descrição de ação* em itálico cinza suave. As configurações visuais do personagem substituem isto.";
+ptBR["features.bison_mode"] = "Modo Bisão";
+ptBR["features.bison_mode_token_warning"] = "Alto Custo de Tokens";
+ptBR["features.bison_mode_desc"] = "Permitir que a IA enfileire e produza 2-3 respostas consecutivas baseadas na emoção (cada uma limitada a 100 tokens).";
+ptBR["features.bison_mode_warning"] = "⚠️ Isto gera requisições API consecutivas e pode aumentar significativamente o consumo de tokens.";
+ptBR["features.bison_mode_prompt_title"] = "Template de Prompt do Modo Bisão";
+ptBR["features.reset_default"] = "Redefinir para Padrão";
+ptBR["features.reply_suggestions"] = "Sugestões de Resposta da IA";
+ptBR["features.reply_suggestions_desc"] = "Gerar opções de ramificação da história subsequente. Clique para preencher ou enviar.";
+ptBR["features.click_mode"] = "Ação Padrão de Clique";
+ptBR["features.click_mode_fill"] = "Preencher Caixa de Entrada";
+ptBR["features.click_mode_send"] = "Enviar Diretamente";
+ptBR["features.suggestions_prompt_title"] = "Template de Prompt de Sugestões";
+ptBR["features.expression_dict_title"] = "Dicionário Regex de Correspondência de Emoção";
+ptBR["features.expression_dict_desc"] = "Regex de fallback para corresponder expressões quando a carta não tem gatilhos (limpe para desativar).";
+ptBR["features.reset_dict"] = "Redefinir Dicionário";
+ptBR["report.title"] = "Relatório do Sistema";
+ptBR["report.copy"] = "Copiar Relatório";
+ptBR["report.check_start"] = "Executar Diagnóstico";
+ptBR["report.checking"] = "Executando...";
+ptBR["theme.section_title"] = "Tema e Esquema de Cores";
+ptBR["theme.placeholder"] = "Selecionar Tema";
+ptBR["theme.snow"] = "Branco Minimalista";
+ptBR["theme.sand"] = "Areia Quente";
+ptBR["theme.ocean"] = "Oceano Profundo";
+ptBR["theme.obsidian"] = "Preto Obsidiana";
+ptBR["theme.custom_theme"] = "Tema Personalizado";
+ptBR["theme.custom_header"] = "Temas Importados";
+ptBR["theme.dark"] = "Escuro";
+ptBR["theme.light"] = "Claro";
+ptBR["theme.management"] = "Gerenciamento de Temas";
+ptBR["theme.new"] = "Novo Tema";
+ptBR["theme.import"] = "Importar Tema";
+ptBR["theme.no_custom_desc"] = "Nenhum tema personalizado importado. Importe um arquivo .tavern-theme.json para personalizar variáveis CSS e estilos.";
+ptBR["theme.font_size"] = "Tamanho da Fonte";
+ptBR["theme.font_size_current"] = "Tamanho da Fonte";
+ptBR["theme.line_height"] = "Espaçamento entre Linhas";
+ptBR["theme.line_height_current"] = "Altura da Linha";
+ptBR["theme.bg_image"] = "Fundo de Chat Padrão (Ativo quando o fundo do personagem não está definido)";
+ptBR["theme.bg_image_enabled"] = "✨ Imagem de fundo personalizada ativada";
+ptBR["theme.bg_image_disabled"] = "Não definido (usar fundo do tema padrão)";
+ptBR["theme.upload"] = "Upload";
+ptBR["theme.clear"] = "Limpar";
+ptBR["theme.bg_effect"] = "Mesclagem do Fundo do Chat";
+ptBR["theme.effect_clear"] = "Limpo (Original)";
+ptBR["theme.effect_medium"] = "Médio (Mesclado)";
+ptBR["theme.effect_dark"] = "Escuro (Fosco)";
+ptBR["theme.bg_animation"] = "Ativar Efeito Ken Burns (Câmera Lenta)";
+ptBR["nav.characters"] = "Personagens";
+ptBR["nav.chat-history"] = "Conversas";
+ptBR["nav.global-worldbook"] = "Livro do Mundo";
+ptBR["nav.settings"] = "Configurações";
+ptBR["api.title"] = "Configuração do Endpoint da API";
+ptBR["api.subtitle"] = "Configurar URL do endpoint do serviço LLM e credenciais de autorização";
+ptBR["api.saving"] = "Salvando automaticamente...";
+ptBR["api.saved"] = "Alterações salvas automaticamente";
+ptBR["api.select_profile"] = "Selecionar Perfil de API / Arquivo de Credenciais";
+ptBR["api.temp_profile"] = "💡 Perfil de Depuração Temporário";
+ptBR["api.save_profile"] = "Salvar Configurações Atuais como Perfil";
+ptBR["api.rename"] = "✏️ Renomear";
+ptBR["api.delete"] = "🗑️ Excluir Perfil";
+ptBR["api.base_url"] = "URL Base";
+ptBR["api.base_url_tip"] = "Suporta salvamento automático de múltiplos históricos de API";
+ptBR["api.clear_history"] = "Limpar Histórico";
+ptBR["api.api_key"] = "Chave da API";
+ptBR["api.test_conn"] = "⚡ Testar Conexão";
+ptBR["api.fetch_models"] = "Buscar Modelos";
+ptBR["api.fetching_models"] = "Buscando...";
+ptBR["api.free_tier"] = "💡 Canal de nível gratuito ativo (usado {count}/10 vezes). Ativo quando a Chave API está em branco.";
+ptBR["api.exclusive_tier"] = "Chave API personalizada configurada, usando canal exclusivo.";
+ptBR["api.model_id"] = "ID do Modelo";
+ptBR["api.select_model_placeholder"] = "Selecionar modelo buscado";
+ptBR["api.context_limit"] = "Limite Máximo de Contexto (Tokens)";
+ptBR["api.context_limit_tip"] = "Deixe em branco para corresponder à capacidade padrão do modelo";
+ptBR["api.prompt_format"] = "Formato de Layout do Prompt";
+ptBR["api.prompt_format_tip"] = "Define a estrutura dos prompts do sistema e livros do mundo";
+ptBR["api.format_auto"] = "Seleção Automática";
+ptBR["api.format_xml"] = "Tags XML";
+ptBR["api.format_markdown"] = "Texto Markdown";
+ptBR["api.fallback_title"] = "Fallback Conservador (Parâmetros Mínimos)";
+ptBR["api.fallback_desc"] = "Força o envio de apenas 5 parâmetros básicos (model, messages, stream, temperature, top_p) independentemente do tipo de modelo. Ative se a API retornar HTTP 400.";
+ptBR["api.send_names_title"] = "Enviar Nomes dos Personagens";
+ptBR["api.send_names_desc"] = "Incluir atributo 'name' nas mensagens de requisição (ex: 'user', nome do personagem). Desative se Claude/Gemini apresentar erro HTTP 400.";
+ptBR["api.disable_reasoning_title"] = "Desativar Raciocínio (Pensamento Profundo)";
+ptBR["api.disable_reasoning_desc"] = "Força a desativação do raciocínio no nível da API para economizar tokens de pensamento em modelos de raciocínio (ex: Claude 3.7 / DeepSeek R1).";
+ptBR["image_gen.title"] = "Configuração de Geração de Imagem IA";
+ptBR["image_gen.subtitle"] = "Configurar endpoints do Stable Diffusion, NovelAI ou DALL-E";
+ptBR["image_gen.enable"] = "Ativar Geração de Imagem";
+ptBR["image_gen.enable_desc"] = "Ativa o desenho de cenas do diálogo nos menus rápidos de mensagem.";
+ptBR["image_gen.force_protocol"] = "Forçar Protocolo Específico";
+ptBR["image_gen.force_protocol_desc"] = "Quando desligado, detecta automaticamente pela URL Base (aplica formatos NovelAI/SD-WebUI conforme apropriado, padrão OpenAI DALL-E).";
+ptBR["image_gen.protocol_title"] = "Tipo de Protocolo de Geração de Imagem";
+ptBR["image_gen.auto_detect"] = "Modo de Detecção Automática (Deduz pela URL)";
+ptBR["image_gen.base_url"] = "URL Base da Geração de Imagem";
+ptBR["image_gen.api_key"] = "Chave API / Token de Acesso";
+ptBR["image_gen.api_key_placeholder"] = "Digite a chave ou token de acesso";
+ptBR["image_gen.model"] = "Modelo";
+ptBR["image_gen.model_placeholder"] = "ex: dall-e-3 ou modelo-personalizado";
+ptBR["image_gen.width"] = "Largura";
+ptBR["image_gen.height"] = "Altura";
+ptBR["image_gen.steps"] = "Passos";
+ptBR["image_gen.cfg"] = "Escala CFG";
+ptBR["image_gen.sampler"] = "Amostrador";
+ptBR["image_gen.sampler_placeholder"] = "ex: Euler a";
+ptBR["image_gen.edit_before_gen"] = "Editar prompt antes de gerar";
+ptBR["image_gen.edit_before_gen_desc"] = "Exibe a caixa de entrada do prompt antes de enviar a requisição para modificar as tags geradas.";
+ptBR["image_gen.advanced_prompts"] = "Prompts e Templates Avançados";
+ptBR["image_gen.prompt_prefix"] = "Prefixo Padrão do Prompt";
+ptBR["image_gen.negative_prompt"] = "Prompt Negativo";
+ptBR["image_gen.prompt_template"] = "Template do Gerador de Prompt";
+ptBR["image_gen.prompt_template_desc"] = "Instruções guiadas para o LLM de sumarização. Os placeholders {appearance}, {context}, {message} serão substituídos.";
+ptBR["tts.title"] = "Texto-para-Fala (TTS)";
+ptBR["tts.enable"] = "Ativar Fala TTS";
+ptBR["tts.enable_desc"] = "Ativa a leitura em voz alta dos registros de mensagens nas ações rápidas";
+ptBR["tts.trigger"] = "Modo de Acionamento";
+ptBR["tts.trigger_auto"] = "Leitura Automática (Padrão)";
+ptBR["tts.trigger_manual"] = "Leitura Manual (Sob demanda)";
+ptBR["tts.range"] = "Faixa de Conteúdo";
+ptBR["tts.range_all"] = "Ler Texto Completo (com ações)";
+ptBR["tts.range_dialogue"] = "Ler Apenas Diálogo (sem ações)";
+ptBR["tts.engine"] = "Motor de Fala (Provedor)";
+ptBR["tts.engine_system"] = "TTS Nativo do Sistema (Síntese Local)";
+ptBR["tts.engine_openai"] = "API TTS da OpenAI (Online de Alta Qualidade)";
+ptBR["tts.volume"] = "Volume";
+ptBR["tts.rate"] = "Taxa (Velocidade)";
+ptBR["tts.pitch"] = "Tom";
+ptBR["tts.system_desc"] = "Clientes móveis usam o motor TTS nativo do sistema; a voz é determinada pelas configurações do sistema.";
+ptBR["tts.voice"] = "Papel da Voz";
+ptBR["tts.test_play"] = "Testar Voz";
+ptBR["tts.test_stop"] = "Parar Teste";
+ptBR["asr.title"] = "Reconhecimento de Fala (ASR)";
+ptBR["asr.subtitle"] = "Ativar entrada de microfone e conversão de áudio em texto (WebSpeech ou OpenAI Whisper)";
+ptBR["asr.enable"] = "Ativar Entrada de Voz";
+ptBR["asr.enable_desc"] = "Exibe o botão de microfone ao lado da área de entrada do chat para gravar e transcrever áudio.";
+ptBR["asr.engine"] = "Provedor de Reconhecimento de Fala";
+ptBR["asr.engine_system"] = "API Web Speech Nativa do Sistema (Gratuito / Transmissão ao Vivo)";
+ptBR["asr.engine_whisper"] = "API OpenAI Whisper (Alta Precisão)";
+ptBR["asr.lang"] = "Idioma";
+ptBR["asr.lang_placeholder"] = "ex: en-US, zh-CN, ja-JP";
+ptBR["asr.lang_desc"] = "Identificador de idioma necessário para Web Speech; o Whisper pode detectar automaticamente se estiver em branco.";
+ptBR["persona.title"] = "Persona do Usuário";
+ptBR["persona.active"] = "Persona Ativa do Usuário";
+ptBR["persona.select_placeholder"] = "Selecionar persona...";
+ptBR["persona.unnamed"] = "Personagem sem Nome";
+ptBR["persona.create"] = "Criar";
+ptBR["persona.delete"] = "Excluir";
+ptBR["persona.name"] = "Nome do Jogador (usado para substituições no LLM)";
+ptBR["persona.name_placeholder"] = "Viajante Desconhecido";
+ptBR["persona.avatar"] = "Avatar Personalizado do Jogador (Base64)";
+ptBR["persona.avatar_placeholder"] = "data:image/png;base64,... ou em branco";
+ptBR["persona.upload"] = "Upload";
+ptBR["persona.clear"] = "Limpar";
+ptBR["persona.desc"] = "Histórico do Jogador (Descrição da Persona)";
+ptBR["persona.desc_placeholder"] = "ex: Altura 180cm, vestindo sobretudo preto, olhar calmo...";
+ptBR["memory_sys.title"] = "Sistema de Memória";
+ptBR["memory_sys.subtitle"] = "Co-gerenciar janela de curto prazo, resumos da linha do tempo narrativa e memórias de tabela estruturadas";
+ptBR["memory_sys.recent_turns_title"] = "Janela de Contexto";
+ptBR["memory_sys.recent_turns"] = "Turnos Recentes no Contexto";
+ptBR["memory_sys.recent_turns_desc"] = "Número de rodadas de diálogo mantidas diretamente no contexto do prompt";
+ptBR["memory_sys.recall_title"] = "Recordação de Longo Prazo";
+ptBR["memory_sys.recall_enable"] = "Ativar Recordação de Memória";
+ptBR["memory_sys.recall_desc"] = "Consulta automaticamente o armazenamento vetorial por eventos passados semelhantes";
+ptBR["memory_sys.recall_top_k"] = "Quantidade Top K de Recordação";
+ptBR["memory_sys.summary_title"] = "Memória Narrativa (Resumo Automático)";
+ptBR["memory_sys.summary_enable"] = "Ativar Resumo Automático";
+ptBR["memory_sys.summary_desc"] = "Dispara sumarização periódica em segundo plano (0 corresponde aos turnos de contexto)";
+ptBR["memory_sys.summary_trigger"] = "Turnos de Acionamento (Rodadas entre resumos, 0 corresponde aos turnos de contexto)";
+ptBR["memory_sys.table_title"] = "Memória de Status (Memória de Tabela)";
+ptBR["memory_sys.table_enable"] = "Ativar Memória de Tabela";
+ptBR["memory_sys.table_desc"] = "Salva afeição e relacionamentos dos personagens como tabelas markdown estruturadas";
+ptBR["memory_sys.table_freq"] = "Frequência de Atualização da Tabela pela IA (Rodadas entre atualizações)";
+ptBR["memory_sys.table_freq_1"] = "A cada 1 rodada (Mais em tempo real)";
+ptBR["memory_sys.table_freq_3"] = "A cada 3 rodadas (Recomendado)";
+ptBR["memory_sys.table_freq_5"] = "A cada 5 rodadas (Economia de tokens)";
+ptBR["memory_sys.advanced_title"] = "Templates e Prompts Avançados";
+ptBR["memory_sys.time_tag"] = "Template de Tag de Tempo";
+ptBR["memory_sys.time_tag_desc"] = "Use {{index}} como placeholder para a numeração do estágio do resumo";
+ptBR["memory_sys.summary_prompt"] = "Prompt do Sistema de Resumo";
+ptBR["memory_sys.reset_summary"] = "Redefinir Prompt de Resumo para o padrão";
+ptBR["memory_sys.reasoning_prompt"] = "Prompt de Orientação de Raciocínio";
+ptBR["memory_sys.reset_reasoning"] = "Redefinir Prompt de Raciocínio para o padrão";
+ptBR["memory_sys.table_prompt"] = "Prompt de Memória de Tabela";
+ptBR["memory_sys.reset_table"] = "Redefinir Prompt de Tabela para o padrão";
+ptBR["backup.title"] = "Backup e Migração";
+ptBR["backup.subtitle"] = "Exportar configurações, cartas e registros, ou restaurar de backups do banco de dados";
+ptBR["backup.export_btn"] = "Exportar Backup JSON";
+ptBR["backup.import_btn"] = "Importar e Restaurar";
+ptBR["backup.pass_title"] = "Senha de Criptografia Independente";
+ptBR["backup.pass_tip"] = "Altamente recomendado. Os dados são fortemente criptografados para evitar vazamentos";
+ptBR["backup.encrypt_switch"] = "Forçar criptografia destes dados de backup";
+ptBR["backup.status_idle"] = "Nenhuma tarefa de backup/restauração ativa";
+ptBR["chat_import.title"] = "Importar Histórico de Conversa";
+ptBR["chat_import.subtitle"] = "Importar arquivo de registro de conversa de personagem único do SillyTavern (.json/.jsonl)";
+ptBR["chat_import.upload_btn"] = "Selecionar Arquivo de Conversa e Importar";
+ptBR["telemetrics.title"] = "Estatísticas de Uso (Telemétricas)";
+ptBR["telemetrics.subtitle"] = "Registros básicos de execução (para rastreamento de telemetria do pacote)";
+ptBR["telemetrics.total_opens"] = "Total de Inicializações";
+ptBR["telemetrics.total_runtime"] = "Tempo Total de Execução";
+ptBR["telemetrics.times"] = "{count} vezes";
+ptBR["telemetrics.minutes"] = "{count} min";
+ptBR["samplers.title"] = "Parâmetros de Temperatura e Amostragem";
+ptBR["samplers.subtitle"] = "Ajustar aleatoriedade, penalidades e limites máximos de tokens para geração do modelo";
+ptBR["samplers.temp"] = "Temperatura (Temp)";
+ptBR["samplers.top_p"] = "Amostragem de Núcleo (Top P)";
+ptBR["samplers.rep_penalty"] = "Penalidade de Repetição";
+ptBR["samplers.max_tokens"] = "Tokens Máximos";
+ptBR["preset_selector.active_preset"] = "Predefinição Ativa: {name}";
+ptBR["preset_selector.import"] = "Importar Configuração";
+ptBR["preset_selector.export"] = "Exportar Configuração";
+ptBR["preset_selector.save_copy"] = "Salvar Cópia";
+ptBR["preset_selector.delete_custom"] = "Excluir Predefinição Personalizada";
+ptBR["prompts.title"] = "Configuração de Prompts Predefinidos";
+ptBR["prompts.subtitle"] = "Configurar prompts base do sistema, jailbreaks e módulos personalizados";
+ptBR["prompts.st_compat_desc"] = "Suporta macros ST: {{char}}, {{user}} são substituídos dinamicamente.";
+ptBR["prompts.confirm_delete"] = "Confirmar Exclusão";
+ptBR["prompts.cancel"] = "Cancelar";
+ptBR["prompts.batch_delete"] = "Exclusão em Lote";
+ptBR["prompts.create_module"] = "Novo Módulo";
+ptBR["prompts.no_modules"] = "Nenhum módulo ativo";
+ptBR["prompts.system_prompt"] = "Prompt do Sistema";
+ptBR["prompts.system_prompt_tip"] = "system · colocado no topo do contexto";
+ptBR["prompts.system_prompt_placeholder"] = "Digite as instruções de roleplay aqui...";
+ptBR["prompts.jailbreak"] = "Prompt de Jailbreak";
+ptBR["prompts.jailbreak_tip"] = "system · injetado antes da última mensagem";
+ptBR["prompts.jailbreak_placeholder"] = "Digite as regras de jailbreak aqui...";
+ptBR["regex.title"] = "Filtros Regex";
+ptBR["regex.subtitle"] = "Configurar scripts regex para sanitizar mensagens de entrada/saída antes da exibição";
+ptBR["regex.global"] = "🌌 Regex Global";
+ptBR["regex.global_tip"] = "Aplica-se a todos os personagens e predefinições, salvo globalmente";
+ptBR["regex.preset"] = "📋 Regex da Predefinição";
+ptBR["regex.preset_tip"] = "Ativo apenas quando a predefinição [{name}] está ativada, exportado com a predefinição";
+ptBR["regex.char"] = "🎭 Regex Local do Personagem";
+ptBR["regex.char_tip"] = "Ativo apenas quando [{name}] está carregado, salvo na carta do personagem";
+ptBR["regex.create_global"] = "Novo Global";
+ptBR["regex.create_preset"] = "Nova Predefinição";
+ptBR["regex.create_char"] = "Novo Personagem";
+ptBR["regex.no_global"] = "Nenhuma regra regex global. Clique para adicionar um filtro para tags <think>.";
+ptBR["regex.no_preset"] = "Nenhuma regra regex de predefinição. Carregado automaticamente na importação da predefinição.";
+ptBR["regex.no_char"] = "Nenhuma regra regex local para este personagem. Clique para criar uma.";
+ptBR["regex.placement_both"] = "Ambos";
+ptBR["regex.placement_input"] = "Entrada";
+ptBR["regex.placement_output"] = "Saída";
+ptBR["regex.edit"] = "Editar";
+ptBR["regex.delete"] = "Excluir";
+ptBR["regex.modal_new"] = "Novo Script Regex";
+ptBR["regex.modal_edit"] = "Editar Script Regex";
+ptBR["regex.modal_close"] = "Fechar";
+ptBR["regex.modal_name"] = "Nome do Script";
+ptBR["regex.modal_name_placeholder"] = "ex: Ocultar processo de pensamento";
+ptBR["regex.modal_find"] = "Corresponder padrão regex (suporta /pattern/flags)";
+ptBR["regex.modal_find_placeholder"] = "ex: /<think>[\\s\\S]*?<\\/think>/gi";
+ptBR["regex.modal_replace"] = "Substituir string (suporta $1, $2)";
+ptBR["regex.modal_replace_placeholder"] = "ex: (Deixe em branco para remover correspondências)";
+ptBR["regex.modal_placement"] = "Posicionamento";
+ptBR["regex.modal_placement_input"] = "Fase de Entrada (Antes do envio)";
+ptBR["regex.modal_placement_output"] = "Fase de Saída (Antes da exibição)";
+ptBR["regex.modal_save"] = "Salvar";
+ptBR["preset_form.none"] = "Nenhum";
+ptBR["preset_form.scope_global"] = "Global";
+ptBR["preset_form.scope_preset"] = "Predefinição";
+ptBR["preset_form.scope_char"] = "Personagem";
+ptBR["preset_form.confirm_delete_regex"] = "Tem certeza de que deseja excluir o script regex {scope} '{name}'?";
+ptBR["preset_form.regex_empty_error"] = "O nome do script e o padrão regex não podem estar vazios!";
+ptBR["preset_form.confirm_batch_delete_prompts"] = "Tem certeza de que deseja excluir em lote os {count} módulos de prompt selecionados?";
+ptBR["preset_form.confirm_batch_delete_global_regex"] = "Tem certeza de que deseja excluir em lote os {count} scripts regex globais selecionados?";
+ptBR["preset_form.confirm_batch_delete_preset_regex"] = "Tem certeza de que deseja excluir em lote os {count} scripts regex de predefinição selecionados?";
+ptBR["worldbook.title"] = "Livros do Mundo";
+ptBR["worldbook.subtitle"] = "Vinculados ao Personagem / Compartilhados Globalmente";
+ptBR["worldbook.new"] = "Novo";
+ptBR["worldbook.import"] = "Importar";
+ptBR["worldbook.export"] = "Exportar";
+ptBR["worldbook.export_alert"] = "Por favor, selecione um livro do mundo (global ou de personagem) antes de exportar.";
+ptBR["worldbook.list_header"] = "👤 Livros do Mundo Vinculados ao Personagem";
+ptBR["worldbook.list_count"] = "{count} livros no total";
+ptBR["worldbook.custom_tip"] = "🔒 Livro do Mundo Independente (Pressione longamente para excluir)";
+ptBR["worldbook.no_characters"] = "📭 Nenhuma carta de personagem encontrada. Crie uma carta de personagem na aba Configurações para desbloquear livros do mundo vinculados!";
+ptBR["worldbook.char_tip_global"] = "🌎 Livro do Mundo configurado como [Compartilhado Globalmente]";
+ptBR["worldbook.char_tip_local"] = "🔒 Livro do Mundo configurado como [Vinculado ao Personagem]";
+ptBR["worldbook.switch_global"] = "🌎 Global";
+ptBR["worldbook.switch_local"] = "👤 Vinculado";
+ptBR["history.title"] = "Histórico";
+ptBR["history.sort_by_time"] = "Linha do Tempo";
+ptBR["history.sort_by_char"] = "Por Personagem";
+ptBR["history.empty"] = "Nenhum histórico de conversa encontrado";
+ptBR["history.empty_tip"] = "Escolha um personagem para começar a conversar!";
+ptBR["history.main_timeline"] = "Linha do Tempo Principal";
+ptBR["history.turns_chars"] = "{turnCount} turnos | {charCount} personagens";
+ptBR["history.turns"] = "{count} turnos";
+ptBR["history.chars"] = "{count} personagens";
+ptBR["history.me"] = "Eu";
+ptBR["history.delete"] = "Excluir conversa";
+ptBR["history.sessions_count"] = "{count} conversas";
+ptBR["history.recent_active"] = "Última atividade: {time}";
+ptBR["history.total_chars"] = "{count} personagens no total";
+ptBR["history.unassigned_char"] = "Personagem Não Atribuído";
+ptBR["history.removed_char"] = "Personagem Removido";
+ptBR["scanner.title"] = "Escanear e Importar Cartas de Personagem Locais";
+ptBR["scanner.close"] = "Fechar";
+ptBR["scanner.scan_failed"] = "Falha no escaneamento: ";
+ptBR["scanner.import_success"] = "Importado com sucesso: a carta \"{name}\" foi carregada!";
+ptBR["scanner.import_failed"] = "Falha na importação do arquivo: ";
+ptBR["scanner.mock_env"] = "Ambiente Sandbox do Navegador";
+ptBR["scanner.mock_env_tip"] = "Atualmente executando no modo de desenvolvimento web. Para testar interações da interface e análise de cartas, você pode clicar no botão abaixo para carregar cartas de personagem simuladas.";
+ptBR["scanner.mock_scanning"] = "Simulando escaneamento...";
+ptBR["scanner.mock_btn"] = "Escanear Armazenamento Simulado (Escanear Arquivos)";
+ptBR["scanner.permission_title"] = "Permissão de Acesso ao Armazenamento Necessária";
+ptBR["scanner.permission_desc"] = "O aplicativo precisa de acesso ao seu armazenamento externo (como o diretório Downloads) para encontrar cartas de personagem. Você pode alternar ou revogar esta permissão nas configurações do dispositivo a qualquer momento.";
+ptBR["scanner.permission_btn"] = "Autorizar e Escanear Armazenamento";
+ptBR["scanner.scanning"] = "Recuperando mídia do armazenamento...";
+ptBR["scanner.scan_btn"] = "Escanear Diretórios de Download e Imagens";
+ptBR["scanner.search_placeholder"] = "Pesquisar arquivos locais escaneados...";
+ptBR["scanner.scan_waiting"] = "Escaneando diretórios públicos no dispositivo, por favor aguarde...";
+ptBR["scanner.no_results"] = "Nenhum resultado encontrado";
+ptBR["scanner.no_match"] = "Nenhum arquivo correspondeu à sua consulta de pesquisa.";
+ptBR["scanner.no_results_tip"] = "Clique no botão de escaneamento acima para localizar pacotes de personagem .json ou arquivos de carta PNG do Tavern no seu dispositivo.";
+ptBR["scanner.file_meta"] = "Tamanho: {size} | Modificado: {date}";
+ptBR["scanner.importing"] = "Importando";
+ptBR["scanner.import"] = "Importar";
+ptBR["quick_dialogue.copy"] = "Copiar";
+ptBR["quick_dialogue.edit"] = "Editar";
+ptBR["quick_dialogue.img_gen_not_enabled"] = "Por favor, ative a geração de imagem nas configurações primeiro e configure os parâmetros da API.";
+ptBR["quick_dialogue.edit_prompt_message"] = "O prompt de imagem foi gerado. Você pode modificá-lo aqui:";
+ptBR["quick_dialogue.prompt_confirm_title"] = "Confirmação do Prompt";
+ptBR["quick_dialogue.img_gen_failed"] = "Falha na Geração de Imagem";
+ptBR["quick_dialogue.img_gen_failed_msg"] = "Falha ao desenhar: {error}";
+ptBR["quick_dialogue.img_gen"] = "Gerar Imagem";
+ptBR["quick_dialogue.img_gen_title"] = "Gerar uma ilustração para a cena atual do diálogo";
+ptBR["quick_dialogue.tts_stop"] = "Parar";
+ptBR["quick_dialogue.tts_read"] = "Ler em Voz Alta";
+ptBR["quick_dialogue.tts_stop_title"] = "Parar TTS";
+ptBR["quick_dialogue.tts_read_title"] = "TTS ler diálogo atual";
+ptBR["quick_dialogue.more"] = "Mais";
+ptBR["quick_dialogue.more_title"] = "Mais Opções";
+ptBR["quick_dialogue.reroll"] = "Rolar Novamente";
+ptBR["quick_dialogue.branch"] = "Ramificar";
+ptBR["quick_dialogue.confirm_delete_msg"] = "Confirmar exclusão desta única linha de diálogo?";
+ptBR["quick_dialogue.delete"] = "Excluir";
+ptBR["quick_dialogue.confirm_summarize"] = "Iniciar compressão inteligente da carta pela IA? Isto converterá o histórico de conversa anterior em uma única crônica da linha do tempo, liberando memória enquanto mantém a coerência narrativa.";
+ptBR["quick_dialogue.summarize"] = "Resumir";
+ptBR["message_bubble.user_said"] = "Eu disse";
+ptBR["message_bubble.char_said"] = "disse";
+ptBR["message_bubble.role"] = "Personagem";
+ptBR["message_bubble.me_avatar"] = "Eu";
+ptBR["message_bubble.ai_fallback"] = "IA";
+ptBR["message_bubble.swipe_edit"] = "Editar";
+ptBR["message_bubble.swipe_draw"] = "Gerar Imagem";
+ptBR["message_bubble.swipe_tts_stop"] = "Parar";
+ptBR["message_bubble.swipe_tts_read"] = "Ler em Voz Alta";
+ptBR["message_bubble.edit_save"] = "Salvar";
+ptBR["message_bubble.edit_cancel"] = "Cancelar";
+ptBR["message_bubble.reasoning_collapse"] = "Recolher raciocínio";
+ptBR["message_bubble.reasoning_thinking"] = "IA está pensando (toque para ver)...";
+ptBR["message_bubble.reasoning_view"] = "Ver raciocínio";
+ptBR["message_bubble.reasoning_chars"] = "{length} caracteres";
+ptBR["message_bubble.copy_reasoning"] = "Copiar conteúdo do raciocínio";
+ptBR["message_bubble.ai_composing"] = "IA está compondo...";
+ptBR["message_bubble.no_content"] = "*(Nenhum conteúdo gerado)*";
+ptBR["message_bubble.drawing_scene"] = "IA está desenhando a cena...";
+ptBR["message_bubble.confirm_save_image"] = "Salvar esta imagem gerada?";
+ptBR["message_bubble.image_save_success"] = "Salvo com sucesso";
+ptBR["message_bubble.image_save_success_msg"] = "📂 Imagem salva com sucesso!\nArquivo salvo na pasta /Download...";
+ptBR["message_bubble.image_save_failed"] = "Falha ao salvar";
+ptBR["message_bubble.image_save_failed_msg"] = "❌ Falha ao salvar imagem: {error}";
+ptBR["message_bubble.save_error"] = "Erro ao salvar";
+ptBR["message_bubble.export_success"] = "Exportação bem-sucedida";
+ptBR["message_bubble.click_to_save"] = "Toque para salvar imagem";
+ptBR["message_bubble.round_label"] = "Rodada {roundNum}";
+ptBR["chat_input.reroll_last"] = "Recarregar última história";
+ptBR["chat_input.continue"] = "Continuar";
+ptBR["chat_input.suggestions_label"] = "✨ Gerador de ramificações narrativas:";
+ptBR["chat_input.click_mode"] = "Comportamento do clique: {mode}";
+ptBR["chat_input.click_mode_send"] = "Enviar diretamente";
+ptBR["chat_input.click_mode_fill"] = "Preencher caixa de entrada";
+ptBR["chat_input.placeholder_bison"] = "{name} continua falando...";
+ptBR["chat_input.placeholder_recording"] = "Ouvindo entrada de voz, por favor fale...";
+ptBR["chat_input.placeholder_transcribing"] = "Transcrevendo fala para texto...";
+ptBR["chat_input.placeholder_default"] = "Envie uma mensagem para {name} para começar...";
+ptBR["chat_input.aria_label"] = "Entrada de mensagem para {name}";
+ptBR["chat_input.stop"] = "Parar geração";
+ptBR["chat_input.asr_stop"] = "Parar gravação";
+ptBR["chat_input.asr_recognizing"] = "Reconhecendo fala";
+ptBR["chat_input.asr_mic"] = "Entrada de voz";
+ptBR["chat_input.asr_transcribing"] = "Transcrevendo...";
+ptBR["chat_input.send_title"] = "Enviar mensagem (pressione longamente para mesclar)";
+ptBR["chat_input.send"] = "Enviar mensagem";
+ptBR["chat_input.send_long_press"] = "Toque para enviar, pressione longamente 500ms para mesclar com a mensagem anterior";
+ptBR["chat_input.asr_permission_denied"] = "Erro de permissão";
+ptBR["chat_input.asr_permission_msg"] = "Permissão do microfone negada. Por favor, permita o acesso ao microfone nas configurações do sistema.";
+ptBR["chat_input.asr_no_speech"] = "Nenhuma fala detectada";
+ptBR["chat_input.asr_no_speech_msg"] = "Nenhuma entrada de fala detectada, por favor tente novamente.";
+ptBR["chat_input.asr_device_error"] = "Erro do dispositivo";
+ptBR["chat_input.asr_device_error_msg"] = "Erro do dispositivo de áudio: {error}";
+ptBR["chat_input.asr_error"] = "Erro de reconhecimento";
+ptBR["chat_input.asr_error_msg"] = "Erro desconhecido de reconhecimento de fala: {error}";
+ptBR["chat_input.token_prediction"] = "Predição:";
+ptBR["chat_header.back_aria"] = "Voltar para lista de personagens";
+ptBR["chat_header.view_char_detail"] = "Ver detalhes da carta do personagem";
+ptBR["chat_header.branch_management"] = "Gerenciamento de ramificações";
+ptBR["chat_header.rename_prompt"] = "Editar título da ramificação atual para distinção no IndexedDB:";
+ptBR["chat_header.click_to_edit"] = "(Toque para editar)";
+ptBR["chat_header.bgm_unmute"] = "Ativar som da BGM";
+ptBR["chat_header.bgm_mute"] = "Silenciar BGM";
+ptBR["chat_header.memory_center"] = "Central de Memória e Status";
+ptBR["chat_header.memory"] = "Memória";
+ptBR["chat_header.timeline"] = "Linha do Tempo";
+ptBR["chat_header.table"] = "Dados de Status";
+ptBR["chat_header.dict"] = "Dicionário de Memória";
+ptBR["char_detail.greeting_updated"] = "Saudação atualizada com sucesso!";
+ptBR["char_detail.greeting_error"] = "Falha ao definir saudação: {error}";
+ptBR["char_detail.unknown_creator"] = "Predefinição do sistema / Criador desconhecido";
+ptBR["char_detail.tab_persona"] = "Persona";
+ptBR["char_detail.tab_dialogue"] = "Roteiro de Diálogo";
+ptBR["char_detail.tab_lore"] = "Conhecimento do Mundo ({count})";
+ptBR["char_detail.section_personality"] = "Traços de Personalidade (Personality)";
+ptBR["char_detail.no_personality"] = "Nenhuma personalidade específica definida...";
+ptBR["char_detail.section_description"] = "Aparência e Histórico (Description)";
+ptBR["char_detail.no_description"] = "Nenhuma história de fundo...";
+ptBR["char_detail.section_creator_notes"] = "Notas do Criador";
+ptBR["char_detail.section_scenario"] = "Cenário e Configuração de Palco (Scenario)";
+ptBR["char_detail.section_examples"] = "Exemplos de Diálogo";
+ptBR["char_detail.greeting_selector_title"] = "Selecionar cena de saudação ({count} disponíveis)";
+ptBR["char_detail.default_greeting"] = "Saudação padrão";
+ptBR["char_detail.greeting_branch"] = "Ramificação de saudação {idx}";
+ptBR["char_detail.default_greeting_badge"] = "Abertura da história padrão";
+ptBR["char_detail.alternate_greeting_badge"] = "Ramificação de cena alternativa {idx}";
+ptBR["char_detail.copy"] = "Copiar";
+ptBR["char_detail.copy_text"] = "Copiar texto completo";
+ptBR["char_detail.set_primary_greeting"] = "Definir como saudação principal";
+ptBR["char_detail.set_primary_greeting_title"] = "Definir permanentemente esta saudação como a linha de abertura principal";
+ptBR["char_detail.no_greeting"] = "(Nenhuma saudação definida)";
+ptBR["char_detail.lore_search_placeholder"] = "Pesquisar palavras-chave, gatilhos ou descrição de conhecimento...";
+ptBR["char_detail.clear_search"] = "Limpar";
+ptBR["char_detail.badge_constant"] = "Constante";
+ptBR["char_detail.badge_disabled"] = "Desativado";
+ptBR["char_detail.lore_empty"] = "Esta carta de personagem não possui entradas de conhecimento do mundo incorporadas.";
+ptBR["char_detail.lore_no_match"] = "Nenhuma entrada de conhecimento correspondente a esta palavra-chave encontrada.";
+ptBR["char_detail.priority"] = "Prioridade:";
+ptBR["char_detail.probability"] = "Probabilidade:";
+ptBR["char_detail.depth"] = "Profundidade:";
+ptBR["char_detail.position"] = "Posição:";
+ptBR["characters_tab.subtitle"] = "Frontend leve de RPG para dispositivos móveis";
+ptBR["characters_tab.scan_title"] = "Escanear cartas de personagem locais";
+ptBR["characters_tab.import_title"] = "Importar carta de personagem do SillyTavern";
+ptBR["characters_tab.create_title"] = "Criar nova carta de personagem";
+ptBR["characters_tab.more_title"] = "Mais ações";
+ptBR["characters_tab.no_description"] = "Nenhuma descrição disponível...";
+ptBR["characters_tab.branch_count"] = "{count} ramificações";
+ptBR["characters_tab.empty_title"] = "Banco de dados local está vazio";
+ptBR["characters_tab.empty_desc"] = "Faça upload de cartas de personagem PNG compatíveis com o SillyTavern existentes ou toque no botão superior direito para criar um novo mundo manualmente.";
+ptBR["characters_tab.action_subtitle"] = "Escolha uma ação para este personagem";
+ptBR["characters_tab.view_profile"] = "Ver perfil";
+ptBR["characters_tab.edit_character"] = "Editar personagem";
+ptBR["characters_tab.go_worldbook"] = "Ir para o Livro do Mundo";
+ptBR["characters_tab.confirm_export_json"] = "Confirmar exportação da carta de personagem JSON?";
+ptBR["characters_tab.export_json"] = "Exportar como JSON";
+ptBR["characters_tab.export_png"] = "Exportar como carta PNG do SillyTavern";
+ptBR["characters_tab.delete_char"] = "Excluir este personagem";
+ptBR["session_manager.title"] = "Gerenciamento de ramificações de sessão";
+ptBR["session_manager.busy_switch_warning"] = "Uma geração está em andamento. Por favor, aguarde a conclusão ou pare manualmente antes de alternar as ramificações.";
+ptBR["session_manager.default_branch_name"] = "História principal";
+ptBR["session_manager.user_label"] = "Eu";
+ptBR["session_manager.turn_summary_format"] = "{turnCount} turnos | {summaryCount} resumos";
+ptBR["session_manager.busy_delete_warning"] = "Uma geração está em andamento. Por favor, aguarde a conclusão ou pare manualmente antes de excluir a ramificação.";
+ptBR["session_manager.delete_branch"] = "Excluir ramificação";
+ptBR["session_manager.busy_create_warning"] = "Uma geração está em andamento. Por favor, aguarde a conclusão ou pare manualmente antes de criar uma ramificação.";
+ptBR["session_manager.new_branch"] = "Nova ramificação em branco";
+ptBR["dialog.cancel"] = "Cancelar";
+ptBR["dialog.confirm"] = "OK";
+ptBR["dialog.alert_default_title"] = "Aviso";
+ptBR["dialog.confirm_default_title"] = "Confirmar";
+ptBR["dialog.prompt_default_title"] = "Entrada";
+ptBR["recall_tab.info"] = "💡 Isto mostra as **memórias contextuais recuperadas com sucesso pela IA durante a última mensagem**. Estas foram injetadas como referências de memória de longo prazo com base na pesquisa de similaridade semântica (Limiar de Similaridade > 0,7).";
+ptBR["recall_tab.empty_title"] = "Nenhuma memória recuperada nesta rodada";
+ptBR["recall_tab.empty_desc"] = "Isto significa que o tópico atual não correspondeu a nenhuma entidade do dicionário ou resumos de memória histórica. Você pode adicionar manualmente novas entradas de entidade-chave no Dicionário de Memória, ou aguardar a sumarização automática da IA após mais acúmulo de diálogo.";
+ptBR["recall_tab.turn_label"] = "Turno {turn}";
+ptBR["recall_tab.role_user"] = "Usuário";
+ptBR["recall_tab.role_char"] = "Personagem";
+ptBR["recall_tab.unpin"] = "Desafixar";
+ptBR["recall_tab.pin"] = "Fixar Forçadamente";
+ptBR["recall_tab.unmute"] = "Reativar Som";
+ptBR["recall_tab.mute"] = "Silenciar Forçadamente";
+ptBR["recall_tab.hit_tags"] = "Tags correspondentes:";
+ptBR["dict_tab.type_all"] = "Todos";
+ptBR["dict_tab.type_character"] = "Personagem";
+ptBR["dict_tab.type_location"] = "Local";
+ptBR["dict_tab.type_item"] = "Item";
+ptBR["dict_tab.type_organization"] = "Organização";
+ptBR["dict_tab.type_concept"] = "Conceito";
+ptBR["dict_tab.entity_name_required"] = "O nome da entidade não pode estar vazio!";
+ptBR["dict_tab.duplicate_entity"] = "Já existe uma entidade com o nome \"{name}\". Por favor, não adicione duplicatas.";
+ptBR["dict_tab.confirm_delete_entry"] = "Confirmar exclusão física da entrada de memória \"{entity}\"?\nEsta operação é irreversível e pode afetar a precisão futura da recordação de memória de longo prazo.";
+ptBR["dict_tab.info"] = "O Dicionário de Memória é um cache de metadados para recordação de longo prazo. Sempre que você define um personagem, local ou conceito-chave, a IA o usará como pista para recuperar automaticamente memórias semanticamente semelhantes para injeção compensatória em conversas subsequentes.";
+ptBR["dict_tab.search_placeholder"] = "Pesquisar nome da entidade ou alias...";
+ptBR["dict_tab.close_form"] = "Fechar formulário de nova entrada";
+ptBR["dict_tab.add_entry"] = "Adicionar entrada manualmente";
+ptBR["dict_tab.form_name_label"] = "Nome da Entidade *";
+ptBR["dict_tab.form_name_placeholder"] = "ex: Edgar, o Profeta de Cabelos Brancos";
+ptBR["dict_tab.form_aliases_label"] = "Alias (palavras-chave separadas por vírgula)";
+ptBR["dict_tab.form_aliases_placeholder"] = "Edgar, Profeta, Velho Ed";
+ptBR["dict_tab.form_type_label"] = "Tipo de Entidade *";
+ptBR["dict_tab.cancel"] = "Cancelar";
+ptBR["dict_tab.saving"] = "Salvando";
+ptBR["dict_tab.confirm_save"] = "Confirmar Salvamento";
+ptBR["dict_tab.loading"] = "Carregando dicionário de memória...";
+ptBR["dict_tab.empty_title"] = "📭 Dicionário de memória ainda não estabelecido";
+ptBR["dict_tab.empty_desc"] = "Adicione entidades de conceito-chave como personagens, locais ou itens importantes. A IA pesquisará automaticamente as chaves de memória definidas em conversas subsequentes para manter a consistência narrativa.";
+ptBR["dict_tab.start_adding"] = "✨ Comece a adicionar sua primeira entidade de memória";
+ptBR["dict_tab.edit_entry"] = "Editar entrada de memória \"{entity}\"";
+ptBR["dict_tab.no_match"] = "Nenhuma entrada correspondente";
+ptBR["dict_tab.no_match_tip_filter"] = "Tente alterar as condições do filtro ou limpar o termo de pesquisa.";
+ptBR["dict_tab.no_match_tip_empty"] = "À medida que seu diálogo com o personagem cresce, a IA extrairá automaticamente entidades nominais valiosas para você.";
+ptBR["dict_tab.mention_count"] = "Mencionado {count} vezes";
+ptBR["dict_tab.aliases_label"] = "Alias:";
+ptBR["dict_tab.no_aliases"] = "Sem alias";
+ptBR["dict_tab.view_detail"] = "Ver detalhes";
+ptBR["dict_tab.edit_aliases"] = "Editar alias";
+ptBR["dict_tab.delete_entry_title"] = "Excluir entrada";
+ptBR["dict_tab.detail_first_seen"] = "Visto pela primeira vez no turno:";
+ptBR["dict_tab.detail_manual"] = "Criado manualmente";
+ptBR["dict_tab.detail_turn"] = "Turno {turn}";
+ptBR["dict_tab.detail_created"] = "Criado:";
+ptBR["dict_tab.detail_updated"] = "Última atualização:";
+ptBR["dict_tab.edit_placeholder"] = "Alias separados por vírgula ou espaço, ex: Líder da Seita, Irmão Sênior";
+ptBR["dict_tab.save"] = "Salvar";
+ptBR["dict_tab.new_entry_title"] = "Nova entrada de memória";
+ptBR["dict_tab.export_dict"] = "Exportar dicionário";
+ptBR["dict_tab.export_dict_title"] = "Exportar dicionário da sessão atual";
+ptBR["table_memory.confirm_delete_row"] = "Confirmar exclusão desta linha? Esta operação é irreversível.";
+ptBR["table_memory.confirm_reset"] = "Isto limpará todos os dados atuais da tabela e redefinirá para as 4 tabelas padrão (Relações, Itens, Locais, Missões). Esta operação é irreversível. Continuar?";
+ptBR["table_memory.confirm_delete_sheet"] = "Confirmar exclusão da tabela \"{name}\" e todos os seus dados? Esta operação é irreversível.";
+ptBR["table_memory.min_one_column"] = "Pelo menos uma coluna é necessária";
+ptBR["table_memory.name_required"] = "O nome da tabela não pode estar vazio";
+ptBR["table_memory.columns_required"] = "Pelo menos uma coluna é necessária";
+ptBR["table_memory.duplicate_name"] = "Já existe uma tabela com o nome \"{name}\". Por favor, use um nome diferente.";
+ptBR["table_memory.manage"] = "⚙️ Gerenciar";
+ptBR["table_memory.new_table"] = "Nova tabela";
+ptBR["table_memory.edit_table"] = "Editar estrutura da tabela";
+ptBR["table_memory.cancel"] = "Cancelar";
+ptBR["table_memory.form_name_label"] = "Nome da Tabela *";
+ptBR["table_memory.form_name_placeholder"] = "ex: Relações de Afinidade";
+ptBR["table_memory.form_columns_label"] = "Nomes das colunas (separados por vírgula, a primeira é a chave primária)";
+ptBR["table_memory.form_columns_placeholder"] = "Nome, Afinidade, Relacionamento";
+ptBR["table_memory.column_edit_tip"] = "Atualmente, você só pode ajustar a estrutura editando os nomes das colunas. Os dados existentes não serão apagados.";
+ptBR["table_memory.save"] = "Salvar";
+ptBR["table_memory.reset_default"] = "Redefinir tabelas padrão";
+ptBR["table_memory.new_custom"] = "Nova tabela personalizada";
+ptBR["table_memory.empty"] = "Nenhuma tabela estruturada";
+ptBR["table_memory.init_defaults"] = "Inicializar tabelas padrão";
+ptBR["table_memory.enabled"] = "Ativado para injeção no Prompt";
+ptBR["table_memory.disabled"] = "Desativado para injeção";
+ptBR["table_memory.delete_table"] = "Excluir tabela inteira";
+ptBR["table_memory.init_required"] = "Por favor, inicialize a memória de tabela primeiro";
+ptBR["table_memory.one_click_init"] = "Inicialização com um clique";
+ptBR["table_memory.no_rows"] = "Nenhum registro ainda. Toque no botão adicionar abaixo para inserir uma nova linha.";
+ptBR["table_memory.empty_cell"] = "Vazio";
+ptBR["table_memory.delete_row"] = "Excluir esta linha";
+ptBR["table_memory.add_row"] = "Adicionar nova linha";
+ptBR["memory_drawer.title"] = "Central de Memória e Status";
+ptBR["memory_drawer.tab_timeline"] = "Linha do Tempo";
+ptBR["memory_drawer.tab_table"] = "Dados de Status";
+ptBR["memory_drawer.tab_dict"] = "Dicionário de Memória";
+ptBR["memory_drawer.tab_recall"] = "Memórias Recordadas";
+ptBR["memory_drawer.tab_mvu"] = "Variáveis do Personagem";
+ptBR["memory_drawer.mvu_save_success"] = "Variáveis do personagem salvas e sincronizadas com sucesso!";
+ptBR["app.kernel_init_failed_title"] = "🚨 Falha na inicialização a frio do núcleo do motor";
+ptBR["app.kernel_init_failed_desc"] = "Erro de inicialização de serviços críticos (como o banco de dados local). O sistema foi fundido e bloqueado para evitar corrupção silenciosa de dados de leitura/gravação.";
+ptBR["app.kernel_retry_button"] = "🔄 Tentar inicialização a frio novamente";
+ptBR["chat.load_sessions_failed"] = "Falha ao carregar sessões de conversa: {error}";
+ptBR["chat.load_more_sessions_failed"] = "Falha ao carregar mais sessões de conversa: {error}";
+ptBR["chat.save_session_failed"] = "Falha ao salvar sessão de conversa: {error}";
+ptBR["chat.load_more_messages_failed"] = "Falha ao carregar mensagens anteriores: {error}";
+ptBR["chat.delete_session_failed"] = "Falha ao excluir sessão de conversa: {error}";
+ptBR["splash.tagline"] = "Comece sua sinfonia da alma";
+ptBR["db.writing_overlay"] = "Escrevendo no banco de dados";
+ptBR["update.new_version_title"] = "✨ Nova versão v{version} encontrada";
+ptBR["update.downloading"] = "Iniciando canal de download seguro...";
+ptBR["update.download_now"] = "Baixar agora";
+ptBR["update.later"] = "Depois";
+ptBR["update.close_aria"] = "Fechar aviso de atualização";
+ptBR["settings.update_service_not_ready"] = "UpdateCheckService não está pronto, por favor tente novamente mais tarde";
+ptBR["settings.already_latest"] = "Já está atualizado";
+ptBR["settings.already_latest_message"] = "Seu v{version} atual já é a versão mais recente.";
+ptBR["settings.check_failed"] = "Falha na verificação";
+ptBR["settings.check_failed_message"] = "Erro ao verificar atualizações: {error}";
+ptBR["character_editor.modal_title_edit"] = "Editar biblioteca de cartas compatível com SillyTavern";
+ptBR["character_editor.modal_title_create"] = "Reconstruir configurações do contêiner de alma da IA";
+ptBR["character_editor.tab_detail"] = "1. Personalidade e informações básicas do personagem";
+ptBR["character_editor.tab_lore"] = "2. Vincular livro do mundo específico do personagem ({count})";
+ptBR["character_editor.cancel_button"] = "Descartar alterações";
+ptBR["character_editor.save_button"] = "Salvar alterações";
+ptBR["character_editor.confirm_delete"] = "Confirmar exclusão desta carta de personagem? Todos os registros de conversa e livros do mundo derivados serão limpos.";
+ptBR["character_editor.name_required"] = "Por favor, insira o nome do personagem";
+ptBR["character_editor.save_failed"] = "Falha ao salvar personagem: {error}";
+ptBR["character_editor.lore_content_required"] = "O conteúdo da entrada do livro do mundo não pode estar vazio";
+ptBR["character_editor.lore_save_failed"] = "Falha ao salvar conhecimento: {error}";
+ptBR["char_detail_tab.label_name"] = "Nome do Personagem *";
+ptBR["char_detail_tab.placeholder_name"] = "ex: Aria";
+ptBR["char_detail_tab.label_avatar"] = "URL do Avatar (suporta base64 ou imagem online)";
+ptBR["char_detail_tab.placeholder_avatar"] = "data:image/png;base64,... ou http://...";
+ptBR["char_detail_tab.upload"] = "Upload";
+ptBR["char_detail_tab.avatar_too_large"] = "⚠️ Falha no upload: O tamanho da imagem do avatar não pode exceder 5MB!";
+ptBR["char_detail_tab.compress_failed"] = "⚠️ Falha na compressão da imagem: {error}";
+ptBR["char_detail_tab.label_bg"] = "Imagem de fundo personalizada do chat (suporta base64 ou imagem online, renderizada com prioridade)";
+ptBR["char_detail_tab.placeholder_bg"] = "Não definido (usará o fundo global ou a cor do tema padrão)";
+ptBR["char_detail_tab.bg_too_large"] = "⚠️ Falha no upload: O tamanho da imagem de fundo não pode exceder 5MB!";
+ptBR["char_detail_tab.clear"] = "Limpar";
+ptBR["char_detail_tab.label_asterisk"] = "Renderização de cor da ação com asterisco (substituição no nível do personagem)";
+ptBR["char_detail_tab.asterisk_inherit"] = "Seguir configuração global";
+ptBR["char_detail_tab.asterisk_enable"] = "Forçar ativação";
+ptBR["char_detail_tab.asterisk_disable"] = "Forçar desativação";
+ptBR["char_detail_tab.label_description"] = "Descrição do Personagem (Description/Persona)";
+ptBR["char_detail_tab.placeholder_description"] = "Descrição detalhada, personalidade ou configurações de fundo...";
+ptBR["char_detail_tab.label_personality"] = "Refinamento de Personalidade (Personality Description)";
+ptBR["char_detail_tab.placeholder_personality"] = "Traços principais de personalidade do personagem";
+ptBR["char_detail_tab.label_scenario"] = "Contexto do Cenário Atual";
+ptBR["char_detail_tab.placeholder_scenario"] = "Cena atual da história e configurações do ambiente";
+ptBR["char_detail_tab.label_first_mes"] = "Primeira Mensagem / Saudação *";
+ptBR["char_detail_tab.placeholder_first_mes"] = "A frase de abertura do personagem";
+ptBR["char_detail_tab.label_mes_example"] = "Exemplos de Diálogo";
+ptBR["char_detail_tab.placeholder_mes_example"] = "<user>: Quem é você?\\n<char>: Eu sou...";
+ptBR["char_detail_tab.label_system_prompt"] = "Substituição Personalizada do Prompt do Sistema";
+ptBR["char_detail_tab.placeholder_system_prompt"] = "Convenções opcionais de substituição de prompt no nível do sistema";
+ptBR["lore_editor.label_comment"] = "Título ou Comentário *";
+ptBR["lore_editor.placeholder_comment"] = "ex: Magia de Contrato, Santuário Oculto";
+ptBR["lore_editor.label_keys"] = "Palavras-chave de Gatilho (separadas por vírgula)";
+ptBR["lore_editor.placeholder_keys"] = "Magia, Contrato";
+ptBR["lore_editor.label_content"] = "Conteúdo da Entrada de Conhecimento *";
+ptBR["lore_editor.placeholder_content"] = "Descreva os fatos específicos da memória...";
+ptBR["lore_editor.checkbox_regex"] = "Regex";
+ptBR["lore_editor.checkbox_memo"] = "Com lembrete";
+ptBR["lore_editor.checkbox_constant"] = "Constante";
+ptBR["lore_editor.checkbox_disabled"] = "Desativar esta entrada";
+ptBR["lore_editor.label_position"] = "Posição";
+ptBR["lore_editor.position_after_char"] = "📌 Após a definição do personagem";
+ptBR["lore_editor.position_before_char"] = "📌 Antes da definição do personagem";
+ptBR["lore_editor.position_top"] = "📌 Topo da página";
+ptBR["lore_editor.position_before_last"] = "💬 Antes da última mensagem";
+ptBR["lore_editor.position_in_chat"] = "💬 No histórico (por profundidade)";
+ptBR["lore_editor.label_depth"] = "Profundidade";
+ptBR["lore_editor.label_order"] = "Ordem";
+ptBR["lore_editor.label_probability"] = "Probabilidade (%)";
+ptBR["lore_editor.cancel"] = "Cancelar";
+ptBR["lore_editor.save"] = "Salvar esta entrada de conhecimento";
+ptBR["lorebook_tab.upgrade_title"] = "A edição de entradas de conhecimento foi totalmente atualizada";
+ptBR["lorebook_tab.upgrade_desc"] = "O sistema agora suporta Edição In-loco poderosa, permitindo modificar entradas de conhecimento específicas do personagem sem sair da página atual. Recomendamos ir para o console independente \"Livro do Mundo\" na aba inferior para recursos mais avançados, como seleção de estratégia de correspondência, profundidade e peso dinâmicos, etc.";
+ptBR["lorebook_tab.goto_worldbook"] = "🌐 Clique para ir diretamente para a aba inferior 'Livro do Mundo' · Console Multidimensional Independente ➡";
+ptBR["lorebook_tab.new_entry"] = "➕ Adicionar manualmente uma entrada de conhecimento personalizada para este personagem (Criador In-loco)";
+ptBR["lorebook_tab.new_entry_card_title"] = "✨ Criar rapidamente uma entrada de conhecimento personalizada para este personagem";
+ptBR["lorebook_tab.entry_list_title"] = "Entradas de conhecimento específicas do personagem ({count} itens)";
+ptBR["lorebook_tab.unnamed_entry"] = "Entrada de conhecimento sem nome";
+ptBR["lorebook_tab.badge_constant"] = "Constante";
+ptBR["lorebook_tab.badge_disabled"] = "Desativado";
+ptBR["lorebook_tab.trigger_word_count"] = "({count} palavras de gatilho)";
+ptBR["lorebook_tab.meta_keys"] = "Palavras de gatilho:";
+ptBR["lorebook_tab.meta_position"] = "Posição:";
+ptBR["lorebook_tab.meta_depth_weight"] = "Profundidade / Ordem:";
+ptBR["lorebook_tab.meta_probability_regex"] = "Probabilidade / Regex:";
+ptBR["lorebook_tab.none"] = "(Nenhum)";
+ptBR["lorebook_tab.position_after"] = "📌 Após o personagem";
+ptBR["lorebook_tab.position_before"] = "📌 Antes do personagem";
+ptBR["lorebook_tab.position_top"] = "📌 Topo";
+ptBR["lorebook_tab.label_content"] = "Conteúdo do conhecimento (Prompt):";
+ptBR["lorebook_tab.label_memo"] = "⭐ Com lembrete";
+ptBR["lorebook_tab.edit_inline"] = "Editar esta entrada (In-loco)";
+ptBR["lorebook_tab.confirm_delete"] = "Confirmar exclusão desta entrada de conhecimento?";
+ptBR["lorebook_tab.delete"] = "Apagar";
+ptBR["lorebook_tab.empty_state"] = "Esta carta de personagem ainda não compilou independentemente nenhuma entrada de conhecimento personalizada. Toque no botão acima para adicionar, ou use o canal \"Livro do Mundo Público\" inferior.";
+ptBR["regex.char_no_active"] = "Não selecionado";
+ptBR["backup.collapse"] = "Recolher";
+ptBR["backup.expand"] = "Expandir";
+ptBR["backup.pass_placeholder"] = "Lembre-se bem, caso contrário não poderá ser recuperado...";
+ptBR["chat_import.description"] = "O sistema analisará o registro de conversa e o vinculará com a carta de personagem local. Se a carta de personagem correspondente não tiver sido importada localmente, você será solicitado a importá-la primeiro.";
+ptBR["chat_import.tip_label"] = "Dica:";
+ptBR["chat_import.help_text"] = "Após a importação, o sistema desativa a sumarização automática para estas frases históricas por padrão para evitar avalanche de largura de banda da API.";
+ptBR["tts.test_text"] = "Olá, bem-vindo à Taverna Móvel. Esta é uma leitura de teste TTS.";
+ptBR["nav.chat"] = "Chat";
+ptBR["nav.playground"] = "Sandbox";
 
-  // ========== PERSONA ==========
-  "persona.title": { ja: "プレイヤー情報", ru: "Информация о персоне", es: "Información del jugador" },
-  "persona.active": { ja: "現在アクティブなプレイヤー設定 (User Persona)", ru: "Активная персона (User Persona)", es: "Persona activa del jugador" },
-  "persona.select_placeholder": { ja: "プレイヤー設定を選択", ru: "Выберите персону", es: "Seleccionar persona" },
-  "persona.unnamed": { ja: "名称未設定", ru: "Безымянный персонаж", es: "Personaje sin nombre" },
-  "persona.create": { ja: "新規作成", ru: "Создать", es: "Crear" },
-  "persona.delete": { ja: "削除", ru: "Удалить", es: "Eliminar" },
-  "persona.name": { ja: "プレイヤー名（システム推論・プレースホルダー用）", ru: "Имя игрока (для системы и плейсхолдеров)", es: "Nombre del jugador (para inferencia y placeholders)" },
-  "persona.name_placeholder": { ja: "未知の探客", ru: "Неизвестный гость", es: "Visitante desconocido" },
-  "persona.avatar": { ja: "プレイヤーカスタムアバター（base64対応）", ru: "Пользовательский аватар (base64)", es: "Avatar personalizado (base64)" },
-  "persona.avatar_placeholder": { ja: "data:image/png;base64,... または空", ru: "data:image/png;base64,... или пусто", es: "data:image/png;base64,... o vacío" },
-  "persona.upload": { ja: "アップロード", ru: "Загрузить", es: "Subir" },
-  "persona.clear": { ja: "クリア", ru: "Очистить", es: "Limpiar" },
-  "persona.desc": { ja: "プレイヤー情報 (Persona: 世界観背景・外見説明など)", ru: "Описание персоны (внешность, предыстория и т.д.)", es: "Descripción del jugador (trasfondo, apariencia, etc.)" },
-  "persona.desc_placeholder": { ja: "例: 身長180cm、黒いトレンチコートを着用、冷たい目つき...", ru: "Напр.: рост 180 см, в чёрном плаще, холодный взгляд...", es: "Ej: 180cm de altura, gabardina negra, mirada fría..." },
-
-  // ========== MEMORY_SYS ==========
-  "memory_sys.title": { ja: "記憶システム", ru: "Система памяти", es: "Sistema de memoria" },
-  "memory_sys.subtitle": { ja: "短期コンテキストウィンドウ、物語記憶（タイムライン要約）、状態記憶（構造化テーブル）の3つの補完モジュールを統合管理", ru: "Единое управление тремя модулями: контекстное окно, сюжетная память (хронология) и память состояний (таблицы)", es: "Gestión unificada de tres módulos: ventana de contexto, memoria narrativa (línea de tiempo) y memoria de estado (tablas)" },
-  "memory_sys.recent_turns_title": { ja: "コンテキストウィンドウ", ru: "Окно контекста", es: "Ventana de contexto" },
-  "memory_sys.recent_turns": { ja: "コンテキスト送信ターン数 (Recent Turns)", ru: "Отправляемые реплики (Recent Turns)", es: "Turnos recientes enviados" },
-  "memory_sys.recent_turns_desc": { ja: "全文を保持して直接送信する会話ターン数", ru: "Количество реплик диалога, отправляемых полностью", es: "Número de turnos de diálogo enviados completos" },
-  "memory_sys.recall_title": { ja: "長期記憶リコール", ru: "Извлечение долгосрочной памяти", es: "Recuperación de memoria a largo plazo" },
-  "memory_sys.recall_enable": { ja: "長期記憶リコールを有効化 (Memory Recall)", ru: "Включить извлечение памяти (Memory Recall)", es: "Activar recuperación de memoria" },
-  "memory_sys.recall_desc": { ja: "履歴メッセージから最も類似した記憶断片を自動検索して注入", ru: "Автоматический поиск и вставка наиболее похожих фрагментов памяти из истории", es: "Busca e inyecta automáticamente los fragmentos de memoria más similares del historial" },
-  "memory_sys.recall_top_k": { ja: "記憶リコール件数 (Recall Top K)", ru: "Количество извлекаемых записей (Recall Top K)", es: "Cantidad de recuerdos recuperados (Top K)" },
-  "memory_sys.summary_title": { ja: "物語記憶 · タイムライン要約", ru: "Сюжетная память · Хронология", es: "Memoria narrativa · Línea de tiempo" },
-  "memory_sys.summary_enable": { ja: "自動記憶整理 (Auto Summary)", ru: "Автосуммирование памяти (Auto Summary)", es: "Resumen automático de memoria" },
-  "memory_sys.summary_desc": { ja: "定期的に記憶を整理します。トリガーターン数を0にすると、上の送信ターン数と同期して整理します。", ru: "Периодическая организация памяти. При 0 синхронизируется с количеством отправляемых реплик.", es: "Organiza la memoria periódicamente. Con 0 se sincroniza con los turnos de envío." },
-  "memory_sys.summary_trigger": { ja: "トリガーターン数（何ターンごとに整理するか。0で上記送信ターン数と同期）", ru: "Триггерный интервал (0 = синхронизация с отправляемыми репликами)", es: "Intervalo de activación (0 = sincronizado con turnos de envío)" },
-  "memory_sys.table_title": { ja: "状態記憶 · 構造化テーブル", ru: "Память состояний · Структурированные таблицы", es: "Memoria de estado · Tablas estructuradas" },
-  "memory_sys.table_enable": { ja: "構造化記憶テーブル (Table Memory)", ru: "Табличная память (Table Memory)", es: "Memoria en tabla" },
-  "memory_sys.table_desc": { ja: "好感度や人間関係などの属性をテーブル形式で整理し、AIの記憶に静かに供給", ru: "Атрибуты (симпатия, отношения и т.д.) организуются в таблицы и тихо подаются в память AI", es: "Atributos como afinidad y relaciones se organizan en tablas y se alimentan silenciosamente a la memoria de la IA" },
-  "memory_sys.table_freq": { ja: "AIテーブルチェック更新頻度（何ターンごとにAIがデータを確認・修正するか）", ru: "Частота проверки таблиц AI (каждые N реплик)", es: "Frecuencia de revisión de tabla por IA (cada N turnos)" },
-  "memory_sys.table_freq_1": { ja: "毎1ターン（最もリアルタイム）", ru: "Каждый ход (макс. частота)", es: "Cada turno (máxima frecuencia)" },
-  "memory_sys.table_freq_3": { ja: "毎3ターン（推奨）", ru: "Каждые 3 хода (рекомендуется)", es: "Cada 3 turnos (recomendado)" },
-  "memory_sys.table_freq_5": { ja: "毎5ターン（トークン節約）", ru: "Каждые 5 ходов (экономия токенов)", es: "Cada 5 turnos (ahorro de tokens)" },
-  "memory_sys.advanced_title": { ja: "高度な整理テンプレートと指示 (Advanced Templates & Prompts)", ru: "Расширенные шаблоны и промпты (Advanced Templates & Prompts)", es: "Plantillas avanzadas y prompts" },
-  "memory_sys.time_tag": { ja: "タイムライン幕数命名テンプレート (Time Tag Template)", ru: "Шаблон названий глав хронологии (Time Tag Template)", es: "Plantilla de etiquetas de tiempo" },
-  "memory_sys.time_tag_desc": { ja: "{{index}} を現在のストーリー番号の置換マーカーとして使用", ru: "Используйте {{index}} как маркер подстановки номера сюжета", es: "Use {{index}} como marcador de sustitución del número de trama" },
-  "memory_sys.summary_prompt": { ja: "自動記憶要約ガイド指示 (Summary System Prompt)", ru: "Системный промпт для автосуммирования (Summary System Prompt)", es: "Prompt del sistema para resumen automático" },
-  "memory_sys.reset_summary": { ja: "要約指示をシステムデフォルトにリセット", ru: "Сбросить промпт суммирования до стандартного", es: "Restablecer prompt de resumen al predeterminado" },
-  "memory_sys.reasoning_prompt": { ja: "推論ガイド指示 (Reasoning Guidance Prompt)", ru: "Промпт направления рассуждений (Reasoning Guidance Prompt)", es: "Prompt de guía de razonamiento" },
-  "memory_sys.reset_reasoning": { ja: "推論指示をシステムデフォルトにリセット", ru: "Сбросить промпт рассуждений до стандартного", es: "Restablecer prompt de razonamiento al predeterminado" },
-  "memory_sys.table_prompt": { ja: "テーブル記憶マッチング指示 (Table Memory Prompt)", ru: "Промпт табличной памяти (Table Memory Prompt)", es: "Prompt de memoria de tabla" },
-  "memory_sys.reset_table": { ja: "テーブル指示をシステムデフォルトにリセット", ru: "Сбросить промпт таблиц до стандартного", es: "Restablecer prompt de tabla al predeterminado" },
-
-  // ========== BACKUP ==========
-  "backup.title": { ja: "データバックアップと移行", ru: "Резервное копирование и миграция", es: "Copia de seguridad y migración" },
-  "backup.subtitle": { ja: "全設定、キャラクターカード、会話履歴のエクスポート、またはバックアップからの復元をサポート", ru: "Экспорт всех настроек, карт персонажей и истории чатов или восстановление из резервной копии", es: "Exportar toda la configuración, cartas e historial, o restaurar desde copia de seguridad" },
-  "backup.export_btn": { ja: "バックアップファイルをエクスポート (.json)", ru: "Экспорт резервной копии (.json)", es: "Exportar copia de seguridad (.json)" },
-  "backup.import_btn": { ja: "バックアップをインポートして復元", ru: "Импорт и восстановление", es: "Importar y restaurar" },
-  "backup.pass_title": { ja: "独立データ暗号化パスワード", ru: "Пароль шифрования данных", es: "Contraseña de cifrado de datos" },
-  "backup.pass_tip": { ja: "設定推奨。設定すると、インポート/エクスポート時にデータが強力に暗号化され漏洩を防止します。", ru: "Рекомендуется. При установке данные шифруются при импорте/экспорте для защиты от утечек.", es: "Recomendado. Si se configura, los datos se cifrarán fuertemente al importar/exportar." },
-  "backup.encrypt_switch": { ja: "今回のバックアップデータを強制暗号化", ru: "Принудительно шифровать эту резервную копию", es: "Forzar cifrado de esta copia de seguridad" },
-  "backup.status_idle": { ja: "アクティブなバックアップタスクはありません", ru: "Нет активных задач резервного копирования", es: "Sin tareas de copia de seguridad activas" },
-
-  // ========== CHAT_IMPORT ==========
-  "chat_import.title": { ja: "酒場の単一会話チャット履歴をインポート", ru: "Импорт истории чата таверны", es: "Importar historial de chat de la taberna" },
-  "chat_import.subtitle": { ja: "SillyTavernの単一キャラクターチャット履歴ファイル (.json/.jsonl) をインポート", ru: "Импорт файла истории чата SillyTavern (.json/.jsonl) для одного персонажа", es: "Importar archivo de historial de chat de SillyTavern (.json/.jsonl)" },
-  "chat_import.upload_btn": { ja: "チャットファイルを選択してインポート", ru: "Выбрать файл чата и импортировать", es: "Seleccionar archivo de chat e importar" },
-  "chat_import.description": { ja: "システムが会話記録を解析し、ローカルキャラクターカードと紐付けます。対応するキャラクターカードがローカルにインポートされていない場合、先にインポートするよう促されます。", ru: "Система разберёт записи диалога и свяжет их с локальной картой персонажа. Если карта отсутствует, будет предложено сначала импортировать её.", es: "El sistema analizará los registros de diálogo y los vinculará con la carta local. Si la carta no existe, se le pedirá que la importe primero." },
-  "chat_import.tip_label": { ja: "ヒント：", ru: "Подсказка:", es: "Sugerencia:" },
-  "chat_import.help_text": { ja: "インポート後、システムはデフォルトでこれらの履歴メッセージの自動要約機能を無効にし、API帯域の雪崩を防ぎます。", ru: "После импорта автосуммирование этих исторических сообщений отключается по умолчанию во избежание лавины запросов к API.", es: "Después de importar, el resumen automático de estos mensajes históricos se desactiva por defecto para evitar avalancha de solicitudes API." },
-
-  // ========== TELEMETRICS ==========
-  "telemetrics.title": { ja: "使用統計 (Telemetrics)", ru: "Статистика использования (Telemetrics)", es: "Estadísticas de uso (Telemetría)" },
-  "telemetrics.subtitle": { ja: "基本動作情報（後続のデータ追跡・パッケージング要件用）", ru: "Базовая информация о работе (для отслеживания данных и упаковки)", es: "Información básica de funcionamiento (para seguimiento de datos y empaquetado)" },
-  "telemetrics.total_opens": { ja: "累計起動回数", ru: "Всего открытий", es: "Total de aperturas" },
-  "telemetrics.total_runtime": { ja: "累計実行時間", ru: "Общее время работы", es: "Tiempo total de ejecución" },
-  "telemetrics.times": { ja: "{count} 回", ru: "{count} раз(а)", es: "{count} veces" },
-  "telemetrics.minutes": { ja: "{count} 分", ru: "{count} мин.", es: "{count} minutos" },
-
-  // ========== SAMPLERS ==========
-  "samplers.title": { ja: "温度とサンプリングパラメータ", ru: "Температура и параметры сэмплирования", es: "Temperatura y parámetros de muestreo" },
-  "samplers.subtitle": { ja: "モデル生成時のランダム性、ペナルティ、最大長などのサンプリングパラメータを調整", ru: "Настройка случайности, штрафов и максимальной длины генерации модели", es: "Ajustar aleatoriedad, penalizaciones y longitud máxima de generación del modelo" },
-  "samplers.temp": { ja: "温度 (Temp)", ru: "Температура (Temp)", es: "Temperatura (Temp)" },
-  "samplers.top_p": { ja: "核サンプリング (Top P)", ru: "Ядерный сэмплинг (Top P)", es: "Muestreo nuclear (Top P)" },
-  "samplers.rep_penalty": { ja: "繰り返しペナルティ (Rep Penalty)", ru: "Штраф повторов (Rep Penalty)", es: "Penalización de repetición" },
-  "samplers.max_tokens": { ja: "最大長制限 (Max Tokens)", ru: "Макс. длина (Max Tokens)", es: "Longitud máxima (Max Tokens)" },
-
-  // ========== PRESET_SELECTOR ==========
-  "preset_selector.active_preset": { ja: "現在のプリセット: {name}", ru: "Текущий пресет: {name}", es: "Preset actual: {name}" },
-  "preset_selector.import": { ja: "設定をインポート", ru: "Импорт настроек", es: "Importar configuración" },
-  "preset_selector.export": { ja: "設定をエクスポート", ru: "Экспорт настроек", es: "Exportar configuración" },
-  "preset_selector.save_copy": { ja: "新規プリセットとして複製保存", ru: "Сохранить как новый пресет", es: "Guardar como nuevo preset" },
-  "preset_selector.delete_custom": { ja: "現在のカスタムプリセットを削除", ru: "Удалить текущий пользовательский пресет", es: "Eliminar preset personalizado actual" },
-
-  // ========== PROMPTS ==========
-  "prompts.title": { ja: "プリセットプロンプト設定", ru: "Настройка пресетов промптов", es: "Configuración de prompts predefinidos" },
-  "prompts.subtitle": { ja: "基盤ロールプレイ指示、ルールプロンプト、および細分化された拡張プロンプトモジュールを設定", ru: "Настройка базовых инструкций ролевой игры, правил и модульных расширений промптов", es: "Configurar instrucciones base de rol, reglas y módulos de prompts extensibles" },
-  "prompts.st_compat_desc": { ja: "環境互換STタグ注入：{{char}}, {{user}} などのルール動的マッチングマクロ処理。", ru: "Внедрение совместимых ST-тегов: динамическая обработка макросов {{char}}, {{user}} и др.", es: "Inyección de etiquetas ST compatibles: procesamiento dinámico de macros {{char}}, {{user}}, etc." },
-  "prompts.confirm_delete": { ja: "削除確認", ru: "Подтвердить удаление", es: "Confirmar eliminación" },
-  "prompts.cancel": { ja: "キャンセル", ru: "Отмена", es: "Cancelar" },
-  "prompts.batch_delete": { ja: "一括削除", ru: "Массовое удаление", es: "Eliminar en lote" },
-  "prompts.create_module": { ja: "モジュール新規作成", ru: "Создать модуль", es: "Crear módulo" },
-  "prompts.no_modules": { ja: "ルールコンポーネントなし", ru: "Нет компонентов правил", es: "Sin componentes de reglas" },
-  "prompts.system_prompt": { ja: "基盤ロールプレイシステム指示 (System Prompt)", ru: "Системный промпт ролевой игры (System Prompt)", es: "Instrucción del sistema de rol base" },
-  "prompts.system_prompt_tip": { ja: "system · コンテキスト最上部に配置", ru: "system · размещается в самом верху контекста", es: "system · ubicado en la parte superior del contexto" },
-  "prompts.system_prompt_placeholder": { ja: "基盤ロールプレイシステム指示を入力...", ru: "Введите системный промпт ролевой игры...", es: "Ingrese la instrucción del sistema de rol..." },
-  "prompts.jailbreak": { ja: "ルールプロンプト (Jailbreak)", ru: "Промпт правил (Jailbreak)", es: "Prompt de reglas (Jailbreak)" },
-  "prompts.jailbreak_tip": { ja: "system · beforeLastの前に注入", ru: "system · вставляется перед beforeLast", es: "system · inyectado antes de beforeLast" },
-  "prompts.jailbreak_placeholder": { ja: "ルールプロンプトを入力...", ru: "Введите промпт правил...", es: "Ingrese el prompt de reglas..." },
-
-  // ========== REGEX ==========
-  "regex.title": { ja: "正規表現フィルタスクリプト管理", ru: "Управление скриптами Regex-фильтрации", es: "Gestión de scripts de filtro regex" },
-  "regex.subtitle": { ja: "グローバルおよびプリセット専用の正規表現フィルタルールを設定し、送信前や表示前にテキストを浄化", ru: "Настройка глобальных и пресетных правил фильтрации regex для очистки текста перед отправкой или показом", es: "Configurar reglas de filtro regex globales y por preset para limpiar texto antes de enviar o mostrar" },
-  "regex.global": { ja: "🌌 グローバル正規表現スクリプト (Global Regex)", ru: "🌌 Глобальные скрипты Regex", es: "🌌 Scripts regex globales" },
-  "regex.global_tip": { ja: "すべてのキャラクターとプリセットに適用され、グローバル設定に保存", ru: "Применяется ко всем персонажам и пресетам, сохраняется в глобальных настройках", es: "Se aplica a todos los personajes y presets, guardado en configuración global" },
-  "regex.preset": { ja: "📋 プリセット専用正規表現 (Preset Regex)", ru: "📋 Regex пресета (Preset Regex)", es: "📋 Regex del preset" },
-  "regex.preset_tip": { ja: "現在のプリセット [{name}] がアクティブな時のみ有効。プリセットと共に保存・エクスポートされます。", ru: "Активен только при включённом пресете [{name}]. Сохраняется и экспортируется вместе с пресетом.", es: "Solo activo cuando el preset [{name}] está activo. Se guarda y exporta con el preset." },
-  "regex.char": { ja: "🎭 アクティブキャラクター専用ローカル正規表現 (Character Local Regex)", ru: "🎭 Локальный Regex персонажа (Character Local Regex)", es: "🎭 Regex local del personaje activo" },
-  "regex.char_tip": { ja: "アクティブキャラクター [{name}] が有効な時のみ適用。変更は直接キャラクターカードに保存されます。", ru: "Применяется только когда активен персонаж [{name}]. Изменения сохраняются прямо в карту персонажа.", es: "Solo se aplica cuando el personaje [{name}] está activo. Los cambios se guardan directamente en la carta." },
-  "regex.char_no_active": { ja: "未選択", ru: "Не выбрано", es: "No seleccionado" },
-  "regex.create_global": { ja: "グローバル新規作成", ru: "Создать глобальный", es: "Crear global" },
-  "regex.create_preset": { ja: "プリセット新規作成", ru: "Создать для пресета", es: "Crear para preset" },
-  "regex.create_char": { ja: "キャラクター新規作成", ru: "Создать для персонажа", es: "Crear para personaje" },
-  "regex.no_global": { ja: "グローバル正規表現スクリプトはまだありません。<think> タグのフィルタを手動で新規作成できます。", ru: "Глобальные скрипты regex отсутствуют. Можно вручную создать фильтр тегов <think>.", es: "No hay scripts regex globales. Puede crear manualmente un filtro para etiquetas <think>." },
-  "regex.no_preset": { ja: "プリセット専用正規表現スクリプトはまだありません。プリセットインポート時に自動解析されます。", ru: "Скрипты regex пресета отсутствуют. Автоматически разбираются при импорте пресета.", es: "No hay scripts regex para este preset. Se analizan automáticamente al importar un preset." },
-  "regex.no_char": { ja: "現在のキャラクターに専用ローカル正規表現はありません。上部ボタンから手動でキャラクター専用フィルタを作成できます。", ru: "У текущего персонажа нет локальных regex. Можно создать вручную кнопкой выше.", es: "El personaje actual no tiene regex locales. Puede crear uno manualmente con el botón superior." },
-  "regex.placement_both": { ja: "双方向", ru: "Оба направления", es: "Bidireccional" },
-  "regex.placement_input": { ja: "入力", ru: "Ввод", es: "Entrada" },
-  "regex.placement_output": { ja: "出力", ru: "Вывод", es: "Salida" },
-  "regex.edit": { ja: "編集", ru: "Редактировать", es: "Editar" },
-  "regex.delete": { ja: "削除", ru: "Удалить", es: "Eliminar" },
-  "regex.modal_new": { ja: "正規表現スクリプト新規作成", ru: "Новый скрипт Regex", es: "Nuevo script regex" },
-  "regex.modal_edit": { ja: "正規表現スクリプト編集", ru: "Редактировать скрипт Regex", es: "Editar script regex" },
-  "regex.modal_close": { ja: "閉じる", ru: "Закрыть", es: "Cerrar" },
-  "regex.modal_name": { ja: "スクリプト名", ru: "Название скрипта", es: "Nombre del script" },
-  "regex.modal_name_placeholder": { ja: "例：思考チェーン非表示", ru: "Напр.: Скрыть цепочку мыслей", es: "Ej: Ocultar cadena de pensamiento" },
-  "regex.modal_find": { ja: "マッチ正規表現 (/pattern/flags 形式対応)", ru: "Regex сопоставления (формат /pattern/flags)", es: "Regex de coincidencia (formato /pattern/flags)" },
-  "regex.modal_find_placeholder": { ja: "例：/<think>[\\\\s\\\\S]*?<\\\\/think>/gi", ru: "Напр.: /<think>[\\\\s\\\\S]*?<\\\\/think>/gi", es: "Ej: /<think>[\\\\s\\\\S]*?<\\\\/think>/gi" },
-  "regex.modal_replace": { ja: "置換テキスト ($1, $2 プレースホルダー使用可)", ru: "Текст замены (можно использовать $1, $2)", es: "Texto de reemplazo (se pueden usar $1, $2)" },
-  "regex.modal_replace_placeholder": { ja: "例：（空欄でマッチ内容を直接削除）", ru: "Напр.: (пусто = удалить совпадение)", es: "Ej: (vacío = eliminar coincidencia)" },
-  "regex.modal_placement": { ja: "作用段階 (Placement)", ru: "Этап применения (Placement)", es: "Fase de aplicación (Placement)" },
-  "regex.modal_placement_input": { ja: "入力段階（送信をインターセプト）", ru: "Этап ввода (перехват отправки)", es: "Fase de entrada (interceptar envío)" },
-  "regex.modal_placement_output": { ja: "出力段階（レンダリングをインターセプト）", ru: "Этап вывода (перехват рендеринга)", es: "Fase de salida (interceptar renderizado)" },
-  "regex.modal_save": { ja: "保存", ru: "Сохранить", es: "Guardar" },
-
-  // ========== PRESET_FORM ==========
-  "preset_form.none": { ja: "なし", ru: "Нет", es: "Ninguno" },
-  "preset_form.scope_global": { ja: "グローバル", ru: "Глобальный", es: "Global" },
-  "preset_form.scope_preset": { ja: "プリセット専用", ru: "Пресетный", es: "Del preset" },
-  "preset_form.scope_char": { ja: "キャラクター専用", ru: "Персонажный", es: "Del personaje" },
-  "preset_form.confirm_delete_regex": { ja: "{scope}正規表現スクリプト【{name}】を削除してもよろしいですか？", ru: "Удалить {scope} Regex-скрипт [{name}]?", es: "¿Eliminar el script regex {scope} [{name}]?" },
-  "preset_form.regex_empty_error": { ja: "スクリプト名と正規表現マッチ文字列は空にできません！", ru: "Название скрипта и строка regex не могут быть пустыми!", es: "¡El nombre del script y la regex no pueden estar vacíos!" },
-  "preset_form.confirm_batch_delete_prompts": { ja: "選択した {count} 個のプロンプトモジュールを一括削除してもよろしいですか？", ru: "Удалить выбранные модули промптов ({count} шт.)?", es: "¿Eliminar los {count} módulos de prompt seleccionados en lote?" },
-  "preset_form.confirm_batch_delete_global_regex": { ja: "選択した {count} 個のグローバル正規表現スクリプトを一括削除してもよろしいですか？", ru: "Удалить выбранные глобальные скрипты Regex ({count} шт.)?", es: "¿Eliminar los {count} scripts regex globales seleccionados?" },
-  "preset_form.confirm_batch_delete_preset_regex": { ja: "選択した {count} 個のプリセット専用正規表現スクリプトを一括削除してもよろしいですか？", ru: "Удалить выбранные пресетные скрипты Regex ({count} шт.)?", es: "¿Eliminar los {count} scripts regex del preset seleccionados?" },
-
-  // ========== WORLDBOOK ==========
-  "worldbook.title": { ja: "世界設定集", ru: "Книга миров (Worldbook)", es: "Libro de mundos" },
-  "worldbook.subtitle": { ja: "専用ホスト隔離 / グローバル常駐共有", ru: "Изоляция по хосту / Глобальное общее", es: "Aislamiento por host / Compartido global" },
-  "worldbook.new": { ja: "新規作成", ru: "Создать", es: "Nuevo" },
-  "worldbook.import": { ja: "インポート", ru: "Импорт", es: "Importar" },
-  "worldbook.export": { ja: "エクスポート", ru: "Экспорт", es: "Exportar" },
-  "worldbook.export_alert": { ja: "先に記憶回路（グローバルまたはキャラクター）をクリックしてからエクスポートしてください。", ru: "Сначала выберите контур памяти (глобальный или персонажа) для экспорта.", es: "Primero seleccione un circuito de memoria (global o de personaje) para exportar." },
-  "worldbook.list_header": { ja: "👤 キャラクター専用設定集 (Character Bound Worldbooks)", ru: "👤 Привязанные к персонажу книги миров", es: "👤 Libros de mundo vinculados al personaje" },
-  "worldbook.list_count": { ja: "全 {count} 個の設定集", ru: "Всего {count} книг", es: "{count} libros en total" },
-  "worldbook.custom_tip": { ja: "🔒 独立設定集（長押しで削除）", ru: "🔒 Независимая книга (долгое нажатие — удалить)", es: "🔒 Libro independiente (pulsación larga para eliminar)" },
-  "worldbook.no_characters": { ja: "📭 有効なキャラクターホストが見つかりません。「ホスト設定」パネルでキャラクターカードを作成すると、対応する専用世界書回路がアンロックされます！", ru: "📭 Действующие хосты персонажей не найдены. Создайте карту персонажа в панели «Хосты», чтобы разблокировать контур книги миров!", es: "📭 No se encontraron hosts de personaje válidos. ¡Cree una carta en el panel «Hosts» para desbloquear el circuito de libro de mundos!" },
-  "worldbook.char_tip_global": { ja: "🌎 設定集は【グローバル共有】に設定されています", ru: "🌎 Книга настроена как [Глобальная]", es: "🌎 Libro configurado como [Global compartido]" },
-  "worldbook.char_tip_local": { ja: "🔒 設定集はこの【キャラクター専用】に限定されています", ru: "🔒 Книга ограничена [Этим персонажем]", es: "🔒 Libro limitado a [Este personaje]" },
-  "worldbook.switch_global": { ja: "🌎 グローバル", ru: "🌎 Глобально", es: "🌎 Global" },
-  "worldbook.switch_local": { ja: "👤 専用", ru: "👤 Локально", es: "👤 Local" },
-
-  // ========== HISTORY ==========
-  "history.title": { ja: "会話履歴 (History)", ru: "История диалогов (History)", es: "Historial de diálogos" },
-  "history.sort_by_time": { ja: "時間順", ru: "По времени", es: "Por tiempo" },
-  "history.sort_by_char": { ja: "キャラクター別", ru: "По персонажам", es: "Por personaje" },
-  "history.empty": { ja: "会話記録はまだありません", ru: "Нет записей диалогов", es: "Sin registros de diálogo" },
-  "history.empty_tip": { ja: "キャラクター館からキャラクターを選んでチャットを始めましょう！", ru: "Выберите персонажа в галерее и начните общение!", es: "¡Elija un personaje en la galería y comience a chatear!" },
-  "history.main_timeline": { ja: "メインストーリーライン", ru: "Основная сюжетная линия", es: "Línea principal de historia" },
-  "history.turns_chars": { ja: "{turnCount} ターン | {charCount} 文字", ru: "{turnCount} реплик | {charCount} симв.", es: "{turnCount} turnos | {charCount} caracteres" },
-  "history.turns": { ja: "{count} ターン", ru: "{count} реплик", es: "{count} turnos" },
-  "history.chars": { ja: "{count} 文字", ru: "{count} симв.", es: "{count} caracteres" },
-  "history.me": { ja: "自分", ru: "Я", es: "Yo" },
-  "history.delete": { ja: "会話を削除", ru: "Удалить диалог", es: "Eliminar diálogo" },
-  "history.sessions_count": { ja: "{count} 個の会話", ru: "{count} диалогов", es: "{count} diálogos" },
-  "history.recent_active": { ja: "最近のアクティビティ: {time}", ru: "Последняя активность: {time}", es: "Actividad reciente: {time}" },
-  "history.total_chars": { ja: "合計 {count} 文字", ru: "Всего {count} симв.", es: "Total {count} caracteres" },
-  "history.unassigned_char": { ja: "未指定キャラクター", ru: "Персонаж не указан", es: "Personaje no asignado" },
-  "history.removed_char": { ja: "削除済みキャラクター", ru: "Удалённый персонаж", es: "Personaje eliminado" },
-
-  // ========== SCANNER ==========
-  "scanner.title": { ja: "スマホ内のローカルキャラクターカードを検索・インポート", ru: "Поиск и импорт локальных карт персонажей", es: "Buscar e importar cartas de personaje locales" },
-  "scanner.close": { ja: "閉じる", ru: "Закрыть", es: "Cerrar" },
-  "scanner.scan_failed": { ja: "スキャン失敗: ", ru: "Ошибка сканирования: ", es: "Error de escaneo: " },
-  "scanner.import_success": { ja: "インポート成功: \\\"{name}\\\" キャラクターカードが正常に読み込まれました！", ru: "Импорт успешен: карта \\\"{name}\\\" загружена!", es: "Importación exitosa: ¡la carta \\\"{name}\\\" se ha cargado!" },
-  "scanner.import_failed": { ja: "ファイルインポート失敗: ", ru: "Ошибка импорта файла: ", es: "Error al importar archivo: " },
-  "scanner.mock_env": { ja: "ブラウザサンドボックスシミュレーション環境", ru: "Среда симуляции браузера", es: "Entorno de simulación de navegador" },
-  "scanner.mock_env_tip": { ja: "現在Web開発デバッグモードで実行中です。インターフェースとインポートロジックを検証するため、下のボタンでテストカードのシミュレーション検索が可能です。", ru: "Работа в режиме веб-отладки. Нажмите кнопку ниже для симуляции поиска тестовых карт.", es: "Ejecutándose en modo de depuración web. Haga clic abajo para simular la búsqueda de cartas de prueba." },
-  "scanner.mock_scanning": { ja: "スキャンシミュレーション中...", ru: "Симуляция сканирования...", es: "Simulando escaneo..." },
-  "scanner.mock_btn": { ja: "スマホストレージスキャンをシミュレート (Scan Files)", ru: "Симулировать сканирование (Scan Files)", es: "Simular escaneo de almacenamiento" },
-  "scanner.permission_title": { ja: "外部ストレージアクセス権限が必要です", ru: "Требуется доступ к внешнему хранилищу", es: "Se requiere acceso al almacenamiento externo" },
-  "scanner.permission_desc": { ja: "アプリが外部ストレージ（Downloadsフォルダなど）を読み取り、そこに保存されたキャラクターカードを検索するための権限が必要です。この権限はいつでも端末設定から取り消せます。", ru: "Приложению нужен доступ к внешнему хранилищу (папка Downloads) для поиска карт. Разрешение можно отозвать в настройках.", es: "La app necesita acceso al almacenamiento externo (carpeta Downloads) para buscar cartas. Puede revocar este permiso en ajustes del dispositivo." },
-  "scanner.permission_btn": { ja: "権限を許可してローカルカードをスキャン", ru: "Разрешить и сканировать карты", es: "Autorizar y escanear cartas locales" },
-  "scanner.scanning": { ja: "ストレージメディアを検索中...", ru: "Поиск на носителе...", es: "Buscando en el almacenamiento..." },
-  "scanner.scan_btn": { ja: "Download & Pictures ディレクトリを今すぐスキャン", ru: "Сканировать папки Download и Pictures", es: "Escanear directorios Download y Pictures" },
-  "scanner.search_placeholder": { ja: "スキャン済みのローカルカードファイルを検索...", ru: "Поиск среди найденных карт...", es: "Buscar entre las cartas locales escaneadas..." },
-  "scanner.scan_waiting": { ja: "スマホの公開ディレクトリでカードを検索中です。お待ちください...", ru: "Идёт поиск карт в общих папках телефона, подождите...", es: "Buscando cartas en directorios públicos del teléfono, espere..." },
-  "scanner.no_results": { ja: "スキャン結果はまだありません", ru: "Результатов сканирования пока нет", es: "Sin resultados de escaneo aún" },
-  "scanner.no_match": { ja: "検索キーワードに一致するファイルはありません。", ru: "Нет файлов, соответствующих поисковому запросу.", es: "No hay archivos que coincidan con la búsqueda." },
-  "scanner.no_results_tip": { ja: "上部のスキャンボタンをクリックして、スマホ内の .json キャラクターパックや酒場PNG画像カードを検索します。", ru: "Нажмите кнопку сканирования выше для поиска .json паков или PNG-карт таверны на телефоне.", es: "Haga clic en el botón de escaneo para buscar paquetes .json o cartas PNG de taberna en su teléfono." },
-  "scanner.file_meta": { ja: "サイズ: {size} | 更新日時: {date}", ru: "Размер: {size} | Изменён: {date}", es: "Tamaño: {size} | Modificado: {date}" },
-  "scanner.importing": { ja: "インポート中", ru: "Импорт...", es: "Importando" },
-  "scanner.import": { ja: "インポート", ru: "Импорт", es: "Importar" },
-
-  // ========== QUICK_DIALOGUE ==========
-  "quick_dialogue.copy": { ja: "コピー", ru: "Копировать", es: "Copiar" },
-  "quick_dialogue.edit": { ja: "編集", ru: "Редактировать", es: "Editar" },
-  "quick_dialogue.img_gen_not_enabled": { ja: "先に設定で画像生成機能を有効化し、インターフェースパラメータを設定してください。", ru: "Сначала включите генерацию изображений в настройках и настройте параметры.", es: "Primero active la generación de imágenes en ajustes y configure los parámetros." },
-  "quick_dialogue.edit_prompt_message": { ja: "画像生成プロンプトが生成されました。ここで修正できます：", ru: "Промпт для генерации создан. Вы можете изменить его здесь:", es: "Prompt de generación creado. Puede modificarlo aquí:" },
-  "quick_dialogue.prompt_confirm_title": { ja: "プロンプト確認", ru: "Подтверждение промпта", es: "Confirmación de prompt" },
-  "quick_dialogue.img_gen_failed": { ja: "画像生成失敗", ru: "Ошибка генерации", es: "Error de generación" },
-  "quick_dialogue.img_gen_failed_msg": { ja: "描画失敗: {error}", ru: "Ошибка генерации: {error}", es: "Error de dibujo: {error}" },
-  "quick_dialogue.img_gen": { ja: "画像生成", ru: "Генерация", es: "Generar imagen" },
-  "quick_dialogue.img_gen_title": { ja: "現在の対白シーンを描画", ru: "Отрисовать сцену текущего диалога", es: "Dibujar la escena del diálogo actual" },
-  "quick_dialogue.tts_stop": { ja: "停止", ru: "Стоп", es: "Detener" },
-  "quick_dialogue.tts_read": { ja: "読み上げ", ru: "Озвучить", es: "Leer en voz alta" },
-  "quick_dialogue.tts_stop_title": { ja: "音声読み上げを停止", ru: "Остановить озвучку", es: "Detener lectura por voz" },
-  "quick_dialogue.tts_read_title": { ja: "現在の対白を音声読み上げ", ru: "Озвучить текущий диалог", es: "Leer el diálogo actual en voz alta" },
-  "quick_dialogue.more": { ja: "もっと見る", ru: "Ещё", es: "Más" },
-  "quick_dialogue.more_title": { ja: "その他のオプション", ru: "Другие опции", es: "Más opciones" },
-  "quick_dialogue.reroll": { ja: "再生成", ru: "Перегенерировать", es: "Regenerar" },
-  "quick_dialogue.branch": { ja: "分岐", ru: "Ветка", es: "Rama" },
-  "quick_dialogue.confirm_delete_msg": { ja: "この単一の対白セリフを削除してもよろしいですか？", ru: "Удалить эту реплику диалога?", es: "¿Eliminar esta línea de diálogo?" },
-  "quick_dialogue.delete": { ja: "削除", ru: "Удалить", es: "Eliminar" },
-  "quick_dialogue.confirm_summarize": { ja: "スマートAIカード圧縮を開始しますか？これにより、より古い会話履歴が単一のタイムライン年表に変換され、メモリ領域が解放されて口調の一貫性が保たれます。", ru: "Запустить сжатие AI? Ранние диалоги будут преобразованы в хронологию, освобождая память и сохраняя связность тона.", es: "¿Iniciar compresión inteligente de IA? Los diálogos anteriores se convertirán en una cronología, liberando memoria y manteniendo coherencia de tono." },
-  "quick_dialogue.summarize": { ja: "小要約", ru: "Микро-саммари", es: "Micro-resumen" },
-
-  // ========== MESSAGE_BUBBLE ==========
-  "message_bubble.user_said": { ja: "自分の発言", ru: "Я сказал(а)", es: "Yo dije" },
-  "message_bubble.char_said": { ja: "の発言", ru: "сказал(а)", es: "dijo" },
-  "message_bubble.role": { ja: "キャラクター", ru: "Роль", es: "Rol" },
-  "message_bubble.me_avatar": { ja: "自分", ru: "Я", es: "Yo" },
-  "message_bubble.ai_fallback": { ja: "AI", ru: "AI", es: "IA" },
-  "message_bubble.swipe_edit": { ja: "編集", ru: "Правка", es: "Editar" },
-  "message_bubble.swipe_draw": { ja: "画像生成", ru: "Генерация", es: "Dibujar" },
-  "message_bubble.swipe_tts_stop": { ja: "停止", ru: "Стоп", es: "Detener" },
-  "message_bubble.swipe_tts_read": { ja: "読み上げ", ru: "Озвучить", es: "Leer" },
-  "message_bubble.edit_save": { ja: "保存", ru: "Сохранить", es: "Guardar" },
-  "message_bubble.edit_cancel": { ja: "キャンセル", ru: "Отмена", es: "Cancelar" },
-  "message_bubble.reasoning_collapse": { ja: "思考プロセスを折りたたむ", ru: "Свернуть рассуждения", es: "Colapsar razonamiento" },
-  "message_bubble.reasoning_thinking": { ja: "AI 思考中 (クリックで表示)...", ru: "AI размышляет (нажмите для просмотра)...", es: "IA pensando (clic para ver)..." },
-  "message_bubble.reasoning_view": { ja: "思考プロセスを表示", ru: "Показать рассуждения", es: "Ver razonamiento" },
-  "message_bubble.reasoning_chars": { ja: "{length}文字", ru: "{length} симв.", es: "{length} caracteres" },
-  "message_bubble.ai_composing": { ja: "AI が文章を検討中...", ru: "AI обдумывает ответ...", es: "IA componiendo respuesta..." },
-  "message_bubble.no_content": { ja: "*（コンテンツは生成されませんでした）*", ru: "*(Содержимое не создано)*", es: "*(No se generó contenido)*" },
-  "message_bubble.drawing_scene": { ja: "AI がシーンを描画中...", ru: "AI рисует сцену...", es: "IA dibujando la escena..." },
-  "message_bubble.confirm_save_image": { ja: "この生成画像を保存しますか？", ru: "Сохранить это изображение?", es: "¿Guardar esta imagen generada?" },
-  "message_bubble.image_save_success": { ja: "保存成功", ru: "Сохранено", es: "Guardado con éxito" },
-  "message_bubble.image_save_success_msg": { ja: "📂 画像保存成功！\\nファイルはスマホの /Download フォルダに保存されました...", ru: "📂 Изображение сохранено!\\nФайл находится в папке /Download...", es: "📂 ¡Imagen guardada!\\nArchivo guardado en la carpeta /Download..." },
-  "message_bubble.image_save_failed": { ja: "保存失敗", ru: "Ошибка сохранения", es: "Error al guardar" },
-  "message_bubble.image_save_failed_msg": { ja: "❌ 画像保存失敗：{error}", ru: "❌ Ошибка сохранения: {error}", es: "❌ Error al guardar imagen: {error}" },
-  "message_bubble.save_error": { ja: "保存エラー", ru: "Ошибка сохранения", es: "Error de guardado" },
-  "message_bubble.export_success": { ja: "エクスポート成功", ru: "Экспорт успешен", es: "Exportación exitosa" },
-  "message_bubble.click_to_save": { ja: "クリックして画像を保存", ru: "Нажмите для сохранения", es: "Clic para guardar imagen" },
-  "message_bubble.round_label": { ja: "第 {roundNum} ラウンド", ru: "Раунд {roundNum}", es: "Ronda {roundNum}" },
-  "message_bubble.copy_reasoning": { ja: "思考チェーン内容をコピー", ru: "Копировать цепочку рассуждений", es: "Copiar cadena de razonamiento" },
-
-  // ========== CHAT_INPUT ==========
-  "chat_input.reroll_last": { ja: "前のストーリーをリロード", ru: "Перезагрузить прошлый сюжет", es: "Recargar trama anterior" },
-  "chat_input.continue": { ja: "続行", ru: "Продолжить", es: "Continuar" },
-  "chat_input.suggestions_label": { ja: "✨ ストーリー分岐ジェネレーター:", ru: "✨ Генератор сюжетных веток:", es: "✨ Generador de ramas narrativas:" },
-  "chat_input.click_mode": { ja: "クリック動作: {mode}", ru: "Действие клика: {mode}", es: "Acción al clic: {mode}" },
-  "chat_input.click_mode_send": { ja: "直接送信", ru: "Отправить сразу", es: "Enviar directamente" },
-  "chat_input.click_mode_fill": { ja: "入力欄に挿入", ru: "Вставить в поле", es: "Rellenar entrada" },
-  "chat_input.placeholder_bison": { ja: "{name} が発言を続けています...", ru: "{name} продолжает говорить...", es: "{name} sigue hablando..." },
-  "chat_input.placeholder_recording": { ja: "音声入力を聞き取っています。話してください...", ru: "Слушаю голосовой ввод, говорите...", es: "Escuchando entrada de voz, hable..." },
-  "chat_input.placeholder_transcribing": { ja: "音声をテキストに変換中...", ru: "Расшифровка речи в текст...", es: "Transcribiendo voz a texto..." },
-  "chat_input.placeholder_default": { ja: "{name} への対白を送信して旅を始めましょう...", ru: "Отправьте реплику {name}, чтобы начать...", es: "Envíe un mensaje a {name} para comenzar..." },
-  "chat_input.aria_label": { ja: "{name} へのメッセージ入力欄", ru: "Поле ввода сообщения для {name}", es: "Campo de entrada de mensaje para {name}" },
-  "chat_input.stop": { ja: "会話を中止", ru: "Остановить диалог", es: "Detener conversación" },
-  "chat_input.asr_stop": { ja: "録音停止", ru: "Остановить запись", es: "Detener grabación" },
-  "chat_input.asr_recognizing": { ja: "音声認識中", ru: "Распознавание речи", es: "Reconociendo voz" },
-  "chat_input.asr_mic": { ja: "音声入力", ru: "Голосовой ввод", es: "Entrada de voz" },
-  "chat_input.asr_transcribing": { ja: "認識中...", ru: "Распознавание...", es: "Transcribiendo..." },
-  "chat_input.send_title": { ja: "メッセージを送信（長押しで結合送信）", ru: "Отправить (долгое нажатие — объединить)", es: "Enviar mensaje (pulsación larga para unir)" },
-  "chat_input.send": { ja: "メッセージを送信", ru: "Отправить", es: "Enviar mensaje" },
-  "chat_input.send_long_press": { ja: "タップで単純送信、500ms長押しで前のメッセージと結合してAIに送信", ru: "Нажмите для отправки, удерживайте 500мс для объединения с предыдущим и отправки AI", es: "Toque para enviar, mantenga 500ms para unir con el mensaje anterior y enviar a la IA" },
-  "chat_input.asr_permission_denied": { ja: "権限エラー", ru: "Ошибка доступа", es: "Error de permiso" },
-  "chat_input.asr_permission_msg": { ja: "マイク権限が拒否されました。システム設定でマイクアクセスを許可してください。", ru: "Доступ к микрофону отклонён. Разрешите доступ в настройках системы.", es: "Permiso de micrófono denegado. Permita el acceso al micrófono en ajustes del sistema." },
-  "chat_input.asr_no_speech": { ja: "音声が検出されませんでした", ru: "Речь не обнаружена", es: "No se detectó voz" },
-  "chat_input.asr_no_speech_msg": { ja: "音声入力が検出されませんでした。再試行してください。", ru: "Голосовой ввод не обнаружен. Попробуйте снова.", es: "No se detectó entrada de voz. Intente de nuevo." },
-  "chat_input.asr_device_error": { ja: "デバイスエラー", ru: "Ошибка устройства", es: "Error de dispositivo" },
-  "chat_input.asr_device_error_msg": { ja: "オーディオデバイスエラー：{error}", ru: "Ошибка аудиоустройства: {error}", es: "Error del dispositivo de audio: {error}" },
-  "chat_input.asr_error": { ja: "認識エラー", ru: "Ошибка распознавания", es: "Error de reconocimiento" },
-  "chat_input.asr_error_msg": { ja: "音声認識で不明なエラーが発生しました：{error}", ru: "Неизвестная ошибка распознавания речи: {error}", es: "Error desconocido de reconocimiento de voz: {error}" },
-  "chat_input.token_prediction": { ja: "予測:", ru: "Прогноз:", es: "Predicción:" },
-
-  // ========== CHAT_HEADER ==========
-  "chat_header.back_aria": { ja: "キャラクター一覧に戻る", ru: "Вернуться к списку персонажей", es: "Volver a la lista de personajes" },
-  "chat_header.view_char_detail": { ja: "キャラクターカード詳細を表示", ru: "Просмотр карты персонажа", es: "Ver detalles de la carta" },
-  "chat_header.branch_management": { ja: "分岐管理", ru: "Управление ветками", es: "Gestión de ramas" },
-  "chat_header.rename_prompt": { ja: "現在のブランチラインタイトルを変更（IndexedDBでブランチ区別）:", ru: "Изменить название ветки (различается в IndexedDB):", es: "Cambiar título de la rama actual (diferenciado en IndexedDB):" },
-  "chat_header.click_to_edit": { ja: "（クリックで編集）", ru: "(нажмите для редактирования)", es: "(clic para editar)" },
-  "chat_header.bgm_unmute": { ja: "BGMを有効化", ru: "Включить фоновую музыку", es: "Activar música de fondo" },
-  "chat_header.bgm_mute": { ja: "BGMをミュート", ru: "Выключить фоновую музыку", es: "Silenciar música de fondo" },
-  "chat_header.memory_center": { ja: "記憶と状態センター", ru: "Центр памяти и состояний", es: "Centro de memoria y estado" },
-  "chat_header.memory": { ja: "記憶", ru: "Память", es: "Memoria" },
-  "chat_header.timeline": { ja: "ストーリー年表", ru: "Хронология", es: "Línea de tiempo" },
-  "chat_header.table": { ja: "状態データ", ru: "Данные состояний", es: "Datos de estado" },
-  "chat_header.dict": { ja: "記憶辞書", ru: "Словарь памяти", es: "Diccionario de memoria" },
-
-  // ========== CHAR_DETAIL ==========
-  "char_detail.greeting_updated": { ja: "挨拶文が更新されました！", ru: "Приветствие обновлено!", es: "¡Saludo actualizado!" },
-  "char_detail.greeting_error": { ja: "挨拶文設定エラー: {error}", ru: "Ошибка установки приветствия: {error}", es: "Error al configurar saludo: {error}" },
-  "char_detail.unknown_creator": { ja: "システムプリセット / 作者不明", ru: "Системный пресет / Автор неизвестен", es: "Predeterminado del sistema / Creador desconocido" },
-  "char_detail.tab_persona": { ja: "キャラクター設定", ru: "Профиль персонажа", es: "Perfil del personaje" },
-  "char_detail.tab_dialogue": { ja: "会話台本", ru: "Сценарий диалога", es: "Guion de diálogo" },
-  "char_detail.tab_lore": { ja: "世界設定 ({count})", ru: "Лорбук ({count})", es: "Libro de mundo ({count})" },
-  "char_detail.section_personality": { ja: "性格特性 (Personality)", ru: "Черты характера (Personality)", es: "Rasgos de personalidad" },
-  "char_detail.no_personality": { ja: "特別な性格設定はまだありません...", ru: "Особые черты характера не заданы...", es: "Sin rasgos de personalidad definidos..." },
-  "char_detail.section_description": { ja: "外見特徴と経歴説明 (Description)", ru: "Внешность и биография (Description)", es: "Apariencia y biografía" },
-  "char_detail.no_description": { ja: "背景ストーリーの説明はまだありません...", ru: "Описание предыстории отсутствует...", es: "Sin descripción de trasfondo..." },
-  "char_detail.section_creator_notes": { ja: "クリエイター特別メモ (Creator Notes)", ru: "Заметки создателя (Creator Notes)", es: "Notas del creador" },
-  "char_detail.section_scenario": { ja: "背景脚本と舞台設定 (Scenario)", ru: "Сценарий и обстановка (Scenario)", es: "Escenario y contexto" },
-  "char_detail.section_examples": { ja: "会話参考例 (Dialogue Examples)", ru: "Примеры диалогов (Dialogue Examples)", es: "Ejemplos de diálogo" },
-  "char_detail.greeting_selector_title": { ja: "開始ストーリーシーンを選択 ({count} 件選択可能)", ru: "Выберите начальную сцену ({count} вариантов)", es: "Seleccionar escena inicial ({count} opciones)" },
-  "char_detail.default_greeting": { ja: "デフォルト開始シーン", ru: "Сцена по умолчанию", es: "Escena inicial por defecto" },
-  "char_detail.greeting_branch": { ja: "開始分岐 {idx}", ru: "Ветка приветствия {idx}", es: "Rama de saludo {idx}" },
-  "char_detail.default_greeting_badge": { ja: "デフォルトストーリー開始", ru: "Начало сюжета по умолчанию", es: "Inicio de trama por defecto" },
-  "char_detail.alternate_greeting_badge": { ja: "代替シーン分岐 {idx}", ru: "Альтернативная ветка {idx}", es: "Rama alternativa {idx}" },
-  "char_detail.copy": { ja: "コピー", ru: "Копировать", es: "Copiar" },
-  "char_detail.copy_text": { ja: "テキスト全体をコピー", ru: "Скопировать весь текст", es: "Copiar todo el texto" },
-  "char_detail.set_primary_greeting": { ja: "メイン開始に設定", ru: "Сделать основным началом", es: "Establecer como inicio principal" },
-  "char_detail.set_primary_greeting_title": { ja: "この挨拶文をメインシーンの冒頭として恒久的に設定", ru: "Навсегда установить это приветствие как первую фразу основной сцены", es: "Establecer permanentemente este saludo como primera frase de la escena principal" },
-  "char_detail.no_greeting": { ja: "（挨拶文設定なし）", ru: "(Приветствие не задано)", es: "(Sin saludo configurado)" },
-  "char_detail.lore_search_placeholder": { ja: "キーワード、トリガーワード、または設定説明を検索...", ru: "Поиск ключевых слов, триггеров или описаний...", es: "Buscar palabras clave, triggers o descripciones..." },
-  "char_detail.clear_search": { ja: "クリア", ru: "Очистить", es: "Limpiar" },
-  "char_detail.badge_constant": { ja: "常駐表示", ru: "Постоянный", es: "Siempre activo" },
-  "char_detail.badge_disabled": { ja: "無効", ru: "Отключено", es: "Desactivado" },
-  "char_detail.lore_empty": { ja: "このキャラクターカードにはビルトインの世界設定書エントリが埋め込まれていません。", ru: "В эту карту персонажа не встроено ни одной записи лорбука.", es: "Esta carta no tiene entradas de libro de mundo integradas." },
-  "char_detail.lore_no_match": { ja: "このキーワードに一致する設定エントリは見つかりませんでした。", ru: "Записей лорбука, соответствующих этому ключевому слову, не найдено.", es: "No se encontraron entradas de lore que coincidan con esta palabra clave." },
-  "char_detail.priority": { ja: "優先度:", ru: "Приоритет:", es: "Prioridad:" },
-  "char_detail.probability": { ja: "確率:", ru: "Вероятность:", es: "Probabilidad:" },
-  "char_detail.depth": { ja: "深度:", ru: "Глубина:", es: "Profundidad:" },
-  "char_detail.position": { ja: "位置:", ru: "Позиция:", es: "Posición:" },
-  "char_detail.no_desc_fallback": { ja: "特別な性格設定はまだ必要ありません...", ru: "Особые черты характера пока не требуются...", es: "Sin rasgos de personalidad especiales por ahora..." },
-
-  // ========== CHARACTERS_TAB ==========
-  "characters_tab.subtitle": { ja: "モバイル向け軽量ロールプレイフロントエンド", ru: "Лёгкий фронтенд для ролевых игр на мобильных", es: "Frontend ligero de rol para móviles" },
-  "characters_tab.scan_title": { ja: "スマホ内のローカルカードをスキャン", ru: "Сканировать локальные карты", es: "Escanear cartas locales del teléfono" },
-  "characters_tab.import_title": { ja: "SillyTavernキャラクターカードをインポート", ru: "Импорт карты SillyTavern", es: "Importar carta de SillyTavern" },
-  "characters_tab.create_title": { ja: "手動で新規キャラクターカードを作成", ru: "Создать новую карту вручную", es: "Crear nueva carta manualmente" },
-  "characters_tab.more_title": { ja: "その他の操作", ru: "Другие действия", es: "Más acciones" },
-  "characters_tab.no_description": { ja: "情報説明はまだありません...", ru: "Описание отсутствует...", es: "Sin descripción..." },
-  "characters_tab.branch_count": { ja: "{count} 分岐", ru: "{count} веток", es: "{count} ramas" },
-  "characters_tab.empty_title": { ja: "ローカルデータベースは空です", ru: "Локальная база данных пуста", es: "La base de datos local está vacía" },
-  "characters_tab.empty_desc": { ja: "既存のSillyTavern互換PNGキャラクターカードをアップロードするか、右上のボタンをクリックして手動で新しい世界を作成してください。", ru: "Загрузите PNG-карту SillyTavern или нажмите кнопку вверху справа, чтобы создать новый мир вручную.", es: "Suba una carta PNG compatible con SillyTavern o haga clic en el botón superior derecho para crear un nuevo mundo manualmente." },
-  "characters_tab.action_subtitle": { ja: "このキャラクターに対する操作を選択", ru: "Выберите действие для этого персонажа", es: "Seleccione una acción para este personaje" },
-  "characters_tab.view_profile": { ja: "キャラクター設定を表示", ru: "Просмотр профиля", es: "Ver perfil del personaje" },
-  "characters_tab.edit_character": { ja: "キャラクター設定を編集", ru: "Редактировать персонажа", es: "Editar personaje" },
-  "characters_tab.go_worldbook": { ja: "世界書サブモジュールへ", ru: "Перейти к лорбуку", es: "Ir al submódulo de libro de mundo" },
-  "characters_tab.confirm_export_json": { ja: "JSONキャラクターカードをエクスポートしますか？", ru: "Экспортировать JSON-карту персонажа?", es: "¿Exportar carta de personaje en JSON?" },
-  "characters_tab.export_json": { ja: "JSONファイルとしてエクスポート", ru: "Экспорт в JSON", es: "Exportar como archivo JSON" },
-  "characters_tab.export_png": { ja: "SillyTavern PNGキャラクターカードとしてエクスポート", ru: "Экспорт как PNG-карта SillyTavern", es: "Exportar como carta PNG de SillyTavern" },
-  "characters_tab.delete_char": { ja: "このキャラクターカードを削除", ru: "Удалить эту карту", es: "Eliminar esta carta de personaje" },
-
-  // ========== SESSION_MANAGER ==========
-  "session_manager.title": { ja: "会話分岐管理", ru: "Управление ветками диалога", es: "Gestión de ramas de diálogo" },
-  "session_manager.busy_switch_warning": { ja: "現在生成中の会話があります。生成が完了するか手動で停止してから分岐を切り替えてください。", ru: "Идёт генерация диалога. Дождитесь завершения или остановите вручную перед сменой ветки.", es: "Hay una conversación en generación. Espere a que termine o deténgala manualmente antes de cambiar de rama." },
-  "session_manager.default_branch_name": { ja: "メインストーリーライン", ru: "Основная сюжетная линия", es: "Línea principal de historia" },
-  "session_manager.user_label": { ja: "自分", ru: "Я", es: "Yo" },
-  "session_manager.turn_summary_format": { ja: "{turnCount} ターン | {summaryCount} 断片", ru: "{turnCount} реплик | {summaryCount} фрагментов", es: "{turnCount} turnos | {summaryCount} fragmentos" },
-  "session_manager.busy_delete_warning": { ja: "現在生成中の会話があります。生成が完了するか手動で停止してから分岐を削除してください。", ru: "Идёт генерация диалога. Дождитесь завершения или остановите вручную перед удалением ветки.", es: "Hay una conversación en generación. Espere o deténgala antes de eliminar la rama." },
-  "session_manager.delete_branch": { ja: "この分岐を削除", ru: "Удалить эту ветку", es: "Eliminar esta rama" },
-  "session_manager.busy_create_warning": { ja: "現在生成中の会話があります。生成が完了するか手動で停止してから新しい分岐を作成してください。", ru: "Идёт генерация диалога. Дождитесь завершения или остановите вручную перед созданием новой ветки.", es: "Hay una conversación en generación. Espere o deténgala antes de crear una nueva rama." },
-  "session_manager.new_branch": { ja: "新規空白分岐を作成", ru: "Создать новую пустую ветку", es: "Crear nueva rama vacía" },
-
-  // ========== DIALOG ==========
-  "dialog.cancel": { ja: "キャンセル", ru: "Отмена", es: "Cancelar" },
-  "dialog.confirm": { ja: "確認", ru: "Подтвердить", es: "Confirmar" },
-
-  // ========== RECALL_TAB ==========
-  "recall_tab.info": { ja: "💡 ここに表示されているのは、**直近のメッセージ送信時にAIが正常に呼び起こした関連履歴記憶**です。これらは今回の推論でコンテキストとしてAIに注入され、長期記憶の参照として使用されました（意味的類似度検索 Similarity Threshold > 0.7）。", ru: "💡 Здесь показаны **связанные исторические воспоминания, успешно активированные AI при последней отправке сообщения**. Они были введены в контекст как долгосрочная память (поиск по семантическому сходству, порог > 0.7).", es: "💡 Aquí se muestran los **recuerdos históricos relacionados que la IA activó exitosamente al enviar el último mensaje**. Se inyectaron en el contexto como memoria a largo plazo (búsqueda por similitud semántica, umbral > 0.7)." },
-  "recall_tab.empty_title": { ja: "このラウンドでは関連記憶は呼び起こされませんでした", ru: "В этом раунде воспоминания не активированы", es: "No se activaron recuerdos en esta ronda" },
-  "recall_tab.empty_desc": { ja: "これは現在のトピックが辞書エンティティや履歴記憶要約断片と一致しなかったことを意味します。「記憶辞書」で新しいキーエンティティを手動で追加するか、より長い会話の蓄積後にAIが自動的に要約するのを待つことができます。", ru: "Текущая тема не совпала с сущностями словаря или фрагментами памяти. Добавьте сущности в «Словарь памяти» или дождитесь автосуммирования AI после накопления диалогов.", es: "El tema actual no coincidió con entidades del diccionario o fragmentos de memoria. Añada entidades en «Diccionario de memoria» o espere al resumen automático de la IA tras acumular más diálogos." },
-  "recall_tab.turn_label": { ja: "ターン {turn}", ru: "Реплика {turn}", es: "Turno {turn}" },
-  "recall_tab.role_user": { ja: "ユーザー", ru: "Пользователь", es: "Usuario" },
-  "recall_tab.role_char": { ja: "キャラクター", ru: "Персонаж", es: "Personaje" },
-  "recall_tab.unpin": { ja: "Pin固定を解除", ru: "Открепить", es: "Desfijar" },
-  "recall_tab.pin": { ja: "強制Pin固定", ru: "Закрепить", es: "Fijar" },
-  "recall_tab.unmute": { ja: "Muteブロックを解除", ru: "Снять блокировку", es: "Desbloquear" },
-  "recall_tab.mute": { ja: "強制Muteブロック", ru: "Заблокировать", es: "Bloquear" },
-  "recall_tab.hit_tags": { ja: "ヒットタグ:", ru: "Совпавшие теги:", es: "Etiquetas coincidentes:" },
-
-  // ========== DICT_TAB ==========
-  "dict_tab.type_all": { ja: "すべて", ru: "Все", es: "Todos" },
-  "dict_tab.type_character": { ja: "人物", ru: "Персонаж", es: "Personaje" },
-  "dict_tab.type_location": { ja: "場所", ru: "Место", es: "Lugar" },
-  "dict_tab.type_item": { ja: "アイテム", ru: "Предмет", es: "Objeto" },
-  "dict_tab.type_organization": { ja: "組織", ru: "Организация", es: "Organización" },
-  "dict_tab.type_concept": { ja: "概念", ru: "Концепт", es: "Concepto" },
-  "dict_tab.entity_name_required": { ja: "エンティティ名は必須です！", ru: "Имя сущности обязательно!", es: "¡El nombre de la entidad es obligatorio!" },
-  "dict_tab.duplicate_entity": { ja: "「{name}」という名前のエンティティは既に存在します。重複して追加しないでください。", ru: "Сущность с именем «{name}» уже существует. Не добавляйте дубликаты.", es: "Ya existe una entidad llamada «{name}». No la duplique." },
-  "dict_tab.confirm_delete_entry": { ja: "記憶エントリ「{entity}」を物理削除してもよろしいですか？\\nこの操作は元に戻せず、後続の長期記憶リコール精度に影響する可能性があります。", ru: "Физически удалить запись памяти «{entity}»?\\nЭто необратимо и может повлиять на точность извлечения долгосрочной памяти.", es: "¿Eliminar físicamente la entrada de memoria «{entity}»?\\nEsta acción es irreversible y puede afectar la precisión de la recuperación de memoria a largo plazo." },
-  "dict_tab.info": { ja: "記憶辞書は長期リコールのためのメタデータ記述キャッシュです。人物、場所、または重要な概念を定義するたびに、AIはそれを手がかりとして後続の会話で意味的に類似した記憶を自動検索して補償注入します。", ru: "Словарь памяти — это кэш метаданных для долгосрочного извлечения. Определяя персонажа, место или концепт, вы даёте AI зацепки для автоматического поиска и вставки семантически похожих воспоминаний.", es: "El diccionario de memoria es una caché de metadatos para recuperación a largo plazo. Al definir un personaje, lugar o concepto, le da a la IA pistas para buscar e inyectar automáticamente recuerdos semánticamente similares." },
-  "dict_tab.search_placeholder": { ja: "エンティティ名または別名を検索...", ru: "Поиск имени сущности или псевдонима...", es: "Buscar nombre de entidad o alias..." },
-  "dict_tab.close_form": { ja: "新規追加フォームを閉じる", ru: "Закрыть форму добавления", es: "Cerrar formulario de nueva entrada" },
-  "dict_tab.add_entry": { ja: "手動でエントリを追加", ru: "Добавить запись вручную", es: "Añadir entrada manualmente" },
-  "dict_tab.form_name_label": { ja: "エンティティ名 *", ru: "Имя сущности *", es: "Nombre de la entidad *" },
-  "dict_tab.form_name_placeholder": { ja: "例: 白髪の預言者エドガー", ru: "Напр.: Седой пророк Эдгар", es: "Ej: Edgar el profeta canoso" },
-  "dict_tab.form_aliases_label": { ja: "別名（カンマ区切りキーワード）", ru: "Псевдонимы (через запятую)", es: "Alias (separados por coma)" },
-  "dict_tab.form_aliases_placeholder": { ja: "エドガー, 預言者, 老エド", ru: "Эдгар, Пророк, Старый Эд", es: "Edgar, Profeta, Viejo Ed" },
-  "dict_tab.form_type_label": { ja: "エンティティタイプ *", ru: "Тип сущности *", es: "Tipo de entidad *" },
-  "dict_tab.form_description_label": { ja: "具体的な記憶説明 (Description)", ru: "Описание памяти (Description)", es: "Descripción de la memoria" },
-  "dict_tab.form_description_placeholder": { ja: "重要な事実/特徴/ストーリー関連を説明...", ru: "Опишите ключевые факты / черты / сюжетные связи...", es: "Describa hechos clave / rasgos / conexiones de la trama..." },
-  "dict_tab.cancel": { ja: "キャンセル", ru: "Отмена", es: "Cancelar" },
-  "dict_tab.saving": { ja: "保存中", ru: "Сохранение", es: "Guardando" },
-  "dict_tab.confirm_save": { ja: "保存確認", ru: "Подтвердить сохранение", es: "Confirmar guardado" },
-  "dict_tab.loading": { ja: "記憶辞書を読み込み中...", ru: "Загрузка словаря памяти...", es: "Cargando diccionario de memoria..." },
-  "dict_tab.empty_title": { ja: "📭 記憶辞書はまだ構築されていません", ru: "📭 Словарь памяти ещё не создан", es: "📭 Diccionario de memoria aún no creado" },
-  "dict_tab.empty_desc": { ja: "人物、場所、重要なアイテムなどの重要な概念エンティティを追加します。AIは後続の会話で定義された記憶キーを自動検索し、ストーリーの一貫性を維持します。", ru: "Добавьте ключевые сущности: персонажей, места, предметы. AI будет автоматически искать заданные ключи памяти для поддержания связности сюжета.", es: "Añada entidades conceptuales clave: personajes, lugares, objetos. La IA buscará automáticamente las claves de memoria definidas para mantener la coherencia de la trama." },
-  "dict_tab.start_adding": { ja: "✨ 最初の記憶エンティティを追加", ru: "✨ Добавить первую сущность памяти", es: "✨ Añadir primera entidad de memoria" },
-  "dict_tab.edit_entry": { ja: "記憶エントリ「{entity}」を編集", ru: "Редактировать запись «{entity}»", es: "Editar entrada de memoria «{entity}»" },
-  "dict_tab.no_match": { ja: "一致するエントリはありません", ru: "Совпадений не найдено", es: "Sin entradas coincidentes" },
-  "dict_tab.no_match_tip_filter": { ja: "フィルタ条件を変更するか、検索ワードをクリアしてみてください。", ru: "Попробуйте изменить фильтр или очистить поисковый запрос.", es: "Intente cambiar el filtro o limpiar el término de búsqueda." },
-  "dict_tab.no_match_tip_empty": { ja: "キャラクターとの会話が増えるにつれて、AIが自動的に価値ある名詞エンティティを抽出します。", ru: "По мере накопления диалогов AI будет автоматически извлекать ценные именованные сущности.", es: "A medida que aumenten los diálogos, la IA extraerá automáticamente entidades nominales valiosas." },
-  "dict_tab.mention_count": { ja: "言及 {count} 回", ru: "Упомянуто {count} раз(а)", es: "Mencionado {count} veces" },
-  "dict_tab.aliases_label": { ja: "別名:", ru: "Псевдонимы:", es: "Alias:" },
-  "dict_tab.no_aliases": { ja: "別名なし", ru: "Нет псевдонимов", es: "Sin alias" },
-  "dict_tab.view_detail": { ja: "詳細を見る", ru: "Подробнее", es: "Ver detalles" },
-  "dict_tab.edit_aliases": { ja: "別名を編集", ru: "Редактировать псевдонимы", es: "Editar alias" },
-  "dict_tab.delete_entry_title": { ja: "エントリを物理削除", ru: "Физическое удаление записи", es: "Eliminación física de entrada" },
-  "dict_tab.detail_first_seen": { ja: "初登場ターン:", ru: "Первое появление:", es: "Primera aparición:" },
-  "dict_tab.detail_manual": { ja: "手動作成", ru: "Создано вручную", es: "Creado manualmente" },
-  "dict_tab.detail_turn": { ja: "第 {turn} ターン", ru: "Реплика {turn}", es: "Turno {turn}" },
-  "dict_tab.detail_created": { ja: "作成日時:", ru: "Создано:", es: "Creado:" },
-  "dict_tab.detail_updated": { ja: "最終更新日時:", ru: "Обновлено:", es: "Actualizado:" },
-  "dict_tab.edit_placeholder": { ja: "カンマまたはスペースで別名を区切る（例: 門派の首領, 大師兄）", ru: "Псевдонимы через запятую или пробел, напр.: Глава секты, Старший брат", es: "Alias separados por coma o espacio, ej: Líder de la secta, Hermano mayor" },
-  "dict_tab.save": { ja: "保存", ru: "Сохранить", es: "Guardar" },
-  "dict_tab.new_entry_title": { ja: "新規記憶エントリ", ru: "Новая запись памяти", es: "Nueva entrada de memoria" },
-  "dict_tab.export_dict": { ja: "辞書をエクスポート", ru: "Экспорт словаря", es: "Exportar diccionario" },
-  "dict_tab.export_dict_title": { ja: "現在のセッション辞書をエクスポート", ru: "Экспорт словаря текущей сессии", es: "Exportar diccionario de sesión actual" },
-
-  // ========== TABLE_MEMORY ==========
-  "table_memory.confirm_delete_row": { ja: "この行のデータを削除してもよろしいですか？この操作は元に戻せません。", ru: "Удалить эту строку? Действие необратимо.", es: "¿Eliminar esta fila? Esta acción es irreversible." },
-  "table_memory.confirm_reset": { ja: "現在のすべての状態テーブルデータをクリアし、デフォルトの4テーブル（関係、アイテム、場所、クエスト）にリセットします。この操作は元に戻せません。続行しますか？", ru: "Очистить все таблицы состояний и сбросить до 4 стандартных (Отношения, Предметы, Места, Квесты)? Это необратимо.", es: "¿Limpiar todas las tablas de estado y restablecer a las 4 predeterminadas (Relaciones, Objetos, Lugares, Misiones)? Esto es irreversible." },
-  "table_memory.confirm_delete_sheet": { ja: "テーブル「{name}」とそのすべてのデータを削除してもよろしいですか？この操作は元に戻せません。", ru: "Удалить таблицу «{name}» со всеми данными? Это необратимо.", es: "¿Eliminar la tabla «{name}» y todos sus datos? Esta acción es irreversible." },
-  "table_memory.min_one_column": { ja: "少なくとも1列は必要です", ru: "Минимум одна колонка обязательна", es: "Se requiere al menos una columna" },
-  "table_memory.name_required": { ja: "テーブル名は必須です", ru: "Имя таблицы обязательно", es: "El nombre de la tabla es obligatorio" },
-  "table_memory.columns_required": { ja: "少なくとも1列は必要です", ru: "Требуется хотя бы одна колонка", es: "Se requiere al menos una columna" },
-  "table_memory.duplicate_name": { ja: "「{name}」という名前のテーブルは既に存在します。名前を変更してください。", ru: "Таблица с именем «{name}» уже существует. Измените название.", es: "Ya existe una tabla llamada «{name}». Cambie el nombre." },
-  "table_memory.manage": { ja: "⚙️ 管理", ru: "⚙️ Управление", es: "⚙️ Gestionar" },
-  "table_memory.new_table": { ja: "新規テーブル", ru: "Новая таблица", es: "Nueva tabla" },
-  "table_memory.edit_table": { ja: "テーブル構造を編集", ru: "Редактировать структуру", es: "Editar estructura de tabla" },
-  "table_memory.cancel": { ja: "キャンセル", ru: "Отмена", es: "Cancelar" },
-  "table_memory.form_name_label": { ja: "テーブル名 *", ru: "Название таблицы *", es: "Nombre de la tabla *" },
-  "table_memory.form_name_placeholder": { ja: "例: 好感関係", ru: "Напр.: Отношения", es: "Ej: Relaciones de afinidad" },
-  "table_memory.form_columns_label": { ja: "フィールド列名（カンマ区切り、最初の列が主キー）", ru: "Названия колонок (через запятую, первая — ключ)", es: "Nombres de columna (separados por coma, la primera es clave primaria)" },
-  "table_memory.form_columns_placeholder": { ja: "名前, 好感度, 関係概要", ru: "Имя, Симпатия, Описание отношений", es: "Nombre, Afinidad, Resumen de relación" },
-  "table_memory.column_edit_tip": { ja: "現在は列名の編集のみで構造を調整できます。既存データは消去されません。", ru: "Сейчас можно только редактировать названия колонок. Существующие данные не будут удалены.", es: "Actualmente solo se pueden editar los nombres de columna. Los datos existentes no se eliminarán." },
-  "table_memory.save": { ja: "保存", ru: "Сохранить", es: "Guardar" },
-  "table_memory.reset_default": { ja: "デフォルトテーブルにリセット", ru: "Сбросить до стандартных", es: "Restablecer tablas predeterminadas" },
-  "table_memory.new_custom": { ja: "新規カスタムテーブル", ru: "Новая пользовательская таблица", es: "Nueva tabla personalizada" },
-  "table_memory.empty": { ja: "構造化テーブルはまだありません", ru: "Структурированных таблиц пока нет", es: "Sin tablas estructuradas aún" },
-  "table_memory.init_defaults": { ja: "デフォルトテーブルを初期化", ru: "Инициализировать стандартные таблицы", es: "Inicializar tablas predeterminadas" },
-  "table_memory.enabled": { ja: "プロンプトへの注入を有効化", ru: "Вставка в промпт включена", es: "Inyección en prompt activada" },
-  "table_memory.disabled": { ja: "注入を無効化", ru: "Вставка отключена", es: "Inyección desactivada" },
-  "table_memory.delete_table": { ja: "テーブル全体を削除", ru: "Удалить всю таблицу", es: "Eliminar tabla completa" },
-  "table_memory.init_required": { ja: "先にテーブル記憶機能を初期化してください", ru: "Сначала инициализируйте табличную память", es: "Primero inicialice la función de memoria de tabla" },
-  "table_memory.one_click_init": { ja: "ワンクリック初期化", ru: "Инициализация в один клик", es: "Inicializar con un clic" },
-  "table_memory.no_rows": { ja: "記録データはまだありません。下の追加ボタンをクリックして新しい行を追加してください", ru: "Нет записей. Нажмите кнопку добавления ниже, чтобы создать строку.", es: "Sin registros. Haga clic en el botón de abajo para añadir una nueva fila." },
-  "table_memory.empty_cell": { ja: "空", ru: "Пусто", es: "Vacío" },
-  "table_memory.delete_row": { ja: "この行を削除", ru: "Удалить строку", es: "Eliminar esta fila" },
-  "table_memory.add_row": { ja: "新しい行を追加", ru: "Добавить строку", es: "Añadir nueva fila" },
-
-  // ========== MEMORY_DRAWER ==========
-  "memory_drawer.title": { ja: "記憶と状態センター", ru: "Центр памяти и состояний", es: "Centro de memoria y estado" },
-  "memory_drawer.tab_timeline": { ja: "ストーリー年表", ru: "Хронология", es: "Línea de tiempo" },
-  "memory_drawer.tab_table": { ja: "状態データ", ru: "Данные состояний", es: "Datos de estado" },
-  "memory_drawer.tab_dict": { ja: "記憶辞書", ru: "Словарь памяти", es: "Diccionario de memoria" },
-  "memory_drawer.tab_recall": { ja: "記憶喚起", ru: "Извлечение памяти", es: "Recuperar recuerdos" },
-  "memory_drawer.tab_mvu": { ja: "キャラクター変数", ru: "Переменные персонажа", es: "Variables del personaje" },
-  "memory_drawer.mvu_save_success": { ja: "キャラクター変数が保存され同期されました！", ru: "Переменные персонажа сохранены и синхронизированы!", es: "¡Variables del personaje guardadas y sincronizadas!" },
-
-  // ========== APP ==========
-  "app.kernel_init_failed_title": { ja: "🚨 コアエンジンのコールドスタートに失敗しました", ru: "🚨 Ошибка холодного запуска ядра", es: "🚨 Error en el arranque en frío del núcleo" },
-  "app.kernel_init_failed_desc": { ja: "重要なサービス（ローカルデータベースなど）の初期化でエラーが発生しました。システムはサイレントな読み書きによるデータ破損を防ぐため、サーキットブレーカーでブロックされました。", ru: "Критическая ошибка инициализации служб (например, локальной БД). Система заблокирована для предотвращения повреждения данных.", es: "Error crítico al inicializar servicios esenciales (como la base de datos local). El sistema se ha bloqueado para evitar corrupción de datos." },
-  "app.kernel_retry_button": { ja: "🔄 コールドスタートを再試行", ru: "🔄 Повторить холодный запуск", es: "🔄 Reintentar arranque en frío" },
-
-  // ========== DIALOG (app-wide) ==========
-  "dialog.alert_default_title": { ja: "ヒント", ru: "Внимание", es: "Aviso" },
-  "dialog.confirm_default_title": { ja: "確認", ru: "Подтверждение", es: "Confirmación" },
-  "dialog.prompt_default_title": { ja: "入力", ru: "Ввод", es: "Entrada" },
-
-  // ========== CHAT ==========
-  "chat.load_sessions_failed": { ja: "チャット履歴の読み込みに失敗しました: {error}", ru: "Ошибка загрузки истории чата: {error}", es: "Error al cargar el historial de chat: {error}" },
-  "chat.load_more_sessions_failed": { ja: "さらなるチャット履歴の読み込みに失敗しました: {error}", ru: "Ошибка загрузки дополнительных чатов: {error}", es: "Error al cargar más historiales de chat: {error}" },
-  "chat.save_session_failed": { ja: "チャット履歴の保存に失敗しました: {error}", ru: "Ошибка сохранения чата: {error}", es: "Error al guardar el historial de chat: {error}" },
-  "chat.load_more_messages_failed": { ja: "以前のメッセージの読み込みに失敗しました: {error}", ru: "Ошибка загрузки ранних сообщений: {error}", es: "Error al cargar mensajes anteriores: {error}" },
-  "chat.delete_session_failed": { ja: "チャット履歴の削除に失敗しました: {error}", ru: "Ошибка удаления чата: {error}", es: "Error al eliminar el historial de chat: {error}" },
-
-  // ========== SPLASH ==========
-  "splash.tagline": { ja: "あなたの魂の交響録を開く", ru: "Открой свою симфонию душ", es: "Abre tu sinfonía de almas" },
-
-  // ========== DB ==========
-  "db.writing_overlay": { ja: "データベースに書き込み中", ru: "Запись в базу данных", es: "Escribiendo en la base de datos" },
-
-  // ========== UPDATE ==========
-  "update.new_version_title": { ja: "✨ 新バージョン v{version} を発見", ru: "✨ Доступна новая версия v{version}", es: "✨ Nueva versión v{version} disponible" },
-  "update.downloading": { ja: "安全なダウンロードチャンネルを起動中...", ru: "Запуск безопасного канала загрузки...", es: "Iniciando canal de descarga seguro..." },
-  "update.download_now": { ja: "今すぐダウンロード", ru: "Скачать сейчас", es: "Descargar ahora" },
-  "update.later": { ja: "後で更新", ru: "Позже", es: "Más tarde" },
-  "update.close_aria": { ja: "更新通知を閉じる", ru: "Закрыть уведомление", es: "Cerrar notificación de actualización" },
-
-  // ========== SETTINGS ==========
-  "settings.update_service_not_ready": { ja: "UpdateCheckService の準備ができていません。後でもう一度お試しください。", ru: "Служба UpdateCheckService не готова. Попробуйте позже.", es: "UpdateCheckService no está listo. Intente más tarde." },
-  "settings.already_latest": { ja: "既に最新バージョンです", ru: "Уже последняя версия", es: "Ya está en la última versión" },
-  "settings.already_latest_message": { ja: "現在実行中の v{version} は既に最新バージョンです。", ru: "Текущая версия v{version} является последней.", es: "La versión actual v{version} ya es la más reciente." },
-  "settings.check_failed": { ja: "確認に失敗しました", ru: "Ошибка проверки", es: "Error de comprobación" },
-  "settings.check_failed_message": { ja: "更新確認中にエラーが発生しました：{error}", ru: "Ошибка при проверке обновлений: {error}", es: "Error al comprobar actualizaciones: {error}" },
-
-  // ========== CHARACTER_EDITOR ==========
-  "character_editor.modal_title_edit": { ja: "SillyTavern互換カードライブラリを編集", ru: "Редактировать библиотеку карт SillyTavern", es: "Editar biblioteca de cartas compatible con SillyTavern" },
-  "character_editor.modal_title_create": { ja: "AIソウルコンテナ設定を再構築", ru: "Создать новый контейнер души AI", es: "Crear nuevo contenedor de alma de IA" },
-  "character_editor.tab_detail": { ja: "1. 性格と基本項目を設定", ru: "1. Характер и основные поля", es: "1. Personalidad y campos básicos" },
-  "character_editor.tab_lore": { ja: "2. 専用キャラクター世界書をバインド ({count})", ru: "2. Привязать лорбук персонажа ({count})", es: "2. Vincular libro de mundo del personaje ({count})" },
-  "character_editor.cancel_button": { ja: "変更を破棄", ru: "Отменить изменения", es: "Descartar cambios" },
-  "character_editor.save_button": { ja: "変更を保存", ru: "Сохранить изменения", es: "Guardar cambios" },
-  "character_editor.confirm_delete": { ja: "このキャラクターカードを削除してもよろしいですか？関連するすべての会話履歴と世界書もクリアされます。", ru: "Удалить эту карту персонажа? Все связанные диалоги и лорбуки также будут удалены.", es: "¿Eliminar esta carta de personaje? Todos los diálogos y libros de mundo asociados también se eliminarán." },
-  "character_editor.name_required": { ja: "キャラクター名を入力してください", ru: "Введите имя персонажа", es: "Ingrese el nombre del personaje" },
-  "character_editor.save_failed": { ja: "キャラクターの保存に失敗しました: {error}", ru: "Ошибка сохранения персонажа: {error}", es: "Error al guardar el personaje: {error}" },
-  "character_editor.lore_content_required": { ja: "世界書エントリの説明内容は必須です", ru: "Содержимое записи лорбука обязательно", es: "El contenido de la entrada del libro de mundo es obligatorio" },
-  "character_editor.lore_save_failed": { ja: "設定の保存に失敗しました: {error}", ru: "Ошибка сохранения настроек: {error}", es: "Error al guardar la configuración: {error}" },
-
-  // ========== CHAR_DETAIL_TAB ==========
-  "char_detail_tab.label_name": { ja: "キャラクター名 *", ru: "Имя персонажа *", es: "Nombre del personaje *" },
-  "char_detail_tab.placeholder_name": { ja: "例: エリア", ru: "Напр.: Элия", es: "Ej: Elia" },
-  "char_detail_tab.label_avatar": { ja: "アバターデザイン URL（base64またはオンライン画像対応）", ru: "URL аватара (base64 или онлайн-изображение)", es: "URL del avatar (base64 o imagen en línea)" },
-  "char_detail_tab.placeholder_avatar": { ja: "data:image/png;base64,... または http://...", ru: "data:image/png;base64,... или http://...", es: "data:image/png;base64,... o http://..." },
-  "char_detail_tab.upload": { ja: "アップロード", ru: "Загрузить", es: "Subir" },
-  "char_detail_tab.avatar_too_large": { ja: "⚠️ アップロード失敗：アバター画像サイズは5MBを超えてはいけません！", ru: "⚠️ Ошибка: размер аватара не должен превышать 5 МБ!", es: "⚠️ Error: ¡el tamaño del avatar no debe superar los 5 MB!" },
-  "char_detail_tab.compress_failed": { ja: "⚠️ 画像圧縮失敗：{error}", ru: "⚠️ Ошибка сжатия: {error}", es: "⚠️ Error de compresión de imagen: {error}" },
-  "char_detail_tab.label_bg": { ja: "専用チャット背景画像（base64またはオンライン画像対応、優先レンダリング）", ru: "Фоновое изображение чата (base64 или URL, приоритетный рендеринг)", es: "Imagen de fondo de chat exclusiva (base64 o URL, renderizado prioritario)" },
-  "char_detail_tab.placeholder_bg": { ja: "未設定（グローバル背景またはデフォルトテーマ色を使用）", ru: "Не задано (используется глобальный фон или цвет темы)", es: "No configurado (se usa el fondo global o el color de tema predeterminado)" },
-  "char_detail_tab.bg_too_large": { ja: "⚠️ アップロード失敗：背景画像サイズは5MBを超えてはいけません！", ru: "⚠️ Ошибка: размер фона не должен превышать 5 МБ!", es: "⚠️ Error: ¡el tamaño del fondo no debe superar los 5 MB!" },
-  "char_detail_tab.clear": { ja: "クリア", ru: "Очистить", es: "Limpiar" },
-  "char_detail_tab.label_asterisk": { ja: "アスタリスク動作の色分けレンダリング（キャラクターレベル上書き）", ru: "Подсветка действий в звёздочках (переопределение на уровне персонажа)", es: "Formato de asteriscos (anulación a nivel de personaje)" },
-  "char_detail_tab.asterisk_inherit": { ja: "グローバル設定に従う", ru: "Следовать глобальным настройкам", es: "Seguir configuración global" },
-  "char_detail_tab.asterisk_enable": { ja: "強制有効", ru: "Принудительно включить", es: "Forzar activación" },
-  "char_detail_tab.asterisk_disable": { ja: "強制無効", ru: "Принудительно отключить", es: "Forzar desactivación" },
-  "char_detail_tab.label_description": { ja: "キャラクター説明 (Description/Persona)", ru: "Описание персонажа (Description/Persona)", es: "Descripción del personaje" },
-  "char_detail_tab.placeholder_description": { ja: "キャラクターの詳細な説明、性格、または背景設定...", ru: "Подробное описание, характер или предыстория персонажа...", es: "Descripción detallada, personalidad o trasfondo del personaje..." },
-  "char_detail_tab.label_personality": { ja: "性格ワード詳細 (Personality Description)", ru: "Черты характера (Personality Description)", es: "Descripción de personalidad" },
-  "char_detail_tab.placeholder_personality": { ja: "キャラクターのコアな性格特性", ru: "Ключевые черты характера персонажа", es: "Rasgos centrales de personalidad del personaje" },
-  "char_detail_tab.label_scenario": { ja: "現在の脚本ストーリーシーン設定 (Scenario Context)", ru: "Контекст сценария (Scenario Context)", es: "Contexto del escenario actual" },
-  "char_detail_tab.placeholder_scenario": { ja: "現在のストーリーシーンと環境設定", ru: "Текущая сцена и обстановка", es: "Escena actual y configuración del entorno" },
-  "char_detail_tab.label_first_mes": { ja: "開始挨拶 * (First message/Greeting)", ru: "Первое сообщение/Приветствие *", es: "Primer mensaje / Saludo *" },
-  "char_detail_tab.placeholder_first_mes": { ja: "キャラクター登場時の最初の言葉", ru: "Первая фраза персонажа при появлении", es: "Primera frase del personaje al aparecer" },
-  "char_detail_tab.label_mes_example": { ja: "対白例文セット (Dialogue Examples)", ru: "Примеры диалогов (Dialogue Examples)", es: "Ejemplos de diálogo" },
-  "char_detail_tab.placeholder_mes_example": { ja: "<user>: あなたは誰？\\n<char>: 私は...", ru: "<user>: Кто ты?\\n<char>: Я...", es: "<user>: ¿Quién eres?\\n<char>: Soy..." },
-  "char_detail_tab.label_system_prompt": { ja: "カスタムシステムプロンプト制約 (System Instruction constraint Override)", ru: "Переопределение системного промпта (System Instruction Override)", es: "Anulación de instrucción del sistema" },
-  "char_detail_tab.placeholder_system_prompt": { ja: "オプションのシステムレベルプロンプト上書き規約", ru: "Необязательное переопределение системного промпта", es: "Anulación opcional de la instrucción del sistema" },
-
-  // ========== LORE_EDITOR ==========
-  "lore_editor.label_comment": { ja: "タイトルまたは備考 *", ru: "Заголовок или примечание *", es: "Título o nota *" },
-  "lore_editor.placeholder_comment": { ja: "例: 契約魔力, 隠された聖域", ru: "Напр.: Магия контракта, Тайное святилище", es: "Ej: Magia de contrato, Santuario oculto" },
-  "lore_editor.label_keys": { ja: "検出キーワード（カンマ区切り）", ru: "Ключевые слова (через запятую)", es: "Palabras clave de detección (separadas por coma)" },
-  "lore_editor.placeholder_keys": { ja: "魔力, 契約", ru: "Магия, Контракт", es: "Magia, Contrato" },
-  "lore_editor.label_content": { ja: "設定集の具体的な説明内容 *", ru: "Содержимое записи лора *", es: "Contenido de la entrada de lore *" },
-  "lore_editor.placeholder_content": { ja: "具体的な記憶事実の段落を説明...", ru: "Опишите конкретные факты памяти...", es: "Describa los hechos concretos de la memoria..." },
-  "lore_editor.checkbox_regex": { ja: "正規表現", ru: "Regex", es: "Regex" },
-  "lore_editor.checkbox_memo": { ja: "タイトルメモ付き", ru: "С заголовком", es: "Con memo de título" },
-  "lore_editor.checkbox_constant": { ja: "常駐", ru: "Постоянный", es: "Siempre activo" },
-  "lore_editor.checkbox_disabled": { ja: "このエントリを無効化", ru: "Отключить запись", es: "Desactivar esta entrada" },
-  "lore_editor.label_position": { ja: "位置 (Position)", ru: "Позиция (Position)", es: "Posición" },
-  "lore_editor.position_after_char": { ja: "📌キャラクター定義の後", ru: "📌После определения персонажа", es: "📌Después de la definición del personaje" },
-  "lore_editor.position_before_char": { ja: "📌キャラクター定義の前", ru: "📌Перед определением персонажа", es: "📌Antes de la definición del personaje" },
-  "lore_editor.position_top": { ja: "📌ページ上部", ru: "📌Вверху страницы", es: "📌Parte superior de la página" },
-  "lore_editor.position_before_last": { ja: "💬最新メッセージの上", ru: "💬Перед последним сообщением", es: "💬Antes del último mensaje" },
-  "lore_editor.position_in_chat": { ja: "💬履歴遡及中（深度順）", ru: "💬В ретроспективе (по глубине)", es: "💬En retrospectiva histórica (por profundidad)" },
-  "lore_editor.label_depth": { ja: "深度 (Depth)", ru: "Глубина (Depth)", es: "Profundidad" },
-  "lore_editor.label_order": { ja: "重み (Order)", ru: "Вес (Order)", es: "Peso (Order)" },
-  "lore_editor.label_probability": { ja: "確率 (%)", ru: "Вероятность (%)", es: "Probabilidad (%)" },
-  "lore_editor.cancel": { ja: "キャンセル", ru: "Отмена", es: "Cancelar" },
-  "lore_editor.save": { ja: "このエントリを保存", ru: "Сохранить запись", es: "Guardar esta entrada" },
-
-  // ========== LOREBOOK_TAB ==========
-  "lorebook_tab.upgrade_title": { ja: "設定エントリ編集が全面的にアップグレードされました", ru: "Редактирование записей лорбука полностью обновлено", es: "La edición de entradas de lore se ha actualizado completamente" },
-  "lorebook_tab.upgrade_desc": { ja: "システムは強力な「インライン同位(In-place)編集」をサポートし、現在のページを離れることなくキャラクター専用エントリを変更できます。下部の「世界書」独立コンソールで、マッチング戦略の選択や動的な深度・重みなどの高度な機能を使用することをお勧めします。", ru: "Система поддерживает мощное «встроенное редактирование» без ухода со страницы. Рекомендуется использовать консоль «Лорбук» в нижней панели для расширенных функций.", es: "El sistema ahora admite edición «en línea» sin salir de la página actual. Se recomienda usar la consola independiente «Libro de mundo» en la barra inferior para funciones avanzadas." },
-  "lorebook_tab.goto_worldbook": { ja: "🌐 クリックで下部『世界書』· 独立多次元コンソールへ ➡", ru: "🌐 Перейти к консоли «Лорбук» внизу ➡", es: "🌐 Ir a la consola independiente «Libro de mundo» ➡" },
-  "lorebook_tab.new_entry": { ja: "➕ このホストに専用設定を手動で追加 (Inline Creator)", ru: "➕ Добавить запись лора для этого хоста вручную", es: "➕ Añadir manualmente una entrada de lore para este host" },
-  "lorebook_tab.new_entry_card_title": { ja: "✨ このキャラクターに専用エントリをすばやく追加", ru: "✨ Быстро добавить запись лора для этого персонажа", es: "✨ Añadir rápidamente una entrada de lore para este personaje" },
-  "lorebook_tab.entry_list_title": { ja: "このキャラクターの専用知識エントリ ({count} 項目)", ru: "Записи лора этого персонажа ({count} шт.)", es: "Entradas de conocimiento del personaje ({count} elementos)" },
-  "lorebook_tab.unnamed_entry": { ja: "名称未設定のエントリ", ru: "Безымянная запись", es: "Entrada sin nombre" },
-  "lorebook_tab.badge_constant": { ja: "常駐", ru: "Постоянный", es: "Siempre activo" },
-  "lorebook_tab.badge_disabled": { ja: "無効", ru: "Отключено", es: "Desactivado" },
-  "lorebook_tab.trigger_word_count": { ja: "（{count}個のトリガーワード）", ru: "({count} триггерных слов)", es: "({count} palabras trigger)" },
-  "lorebook_tab.meta_keys": { ja: "トリガーワード:", ru: "Триггеры:", es: "Palabras trigger:" },
-  "lorebook_tab.meta_position": { ja: "位置:", ru: "Позиция:", es: "Posición:" },
-  "lorebook_tab.meta_depth_weight": { ja: "深度 / 重み:", ru: "Глубина / Вес:", es: "Profundidad / Peso:" },
-  "lorebook_tab.meta_probability_regex": { ja: "確率 / 正規表現:", ru: "Вероятность / Regex:", es: "Probabilidad / Regex:" },
-  "lorebook_tab.none": { ja: "（なし）", ru: "(нет)", es: "(ninguno)" },
-  "lorebook_tab.position_after": { ja: "📌キャラクターの後", ru: "📌После персонажа", es: "📌Después del personaje" },
-  "lorebook_tab.position_before": { ja: "📌キャラクターの前", ru: "📌Перед персонажем", es: "📌Antes del personaje" },
-  "lorebook_tab.position_top": { ja: "📌上部", ru: "📌Вверху", es: "📌Arriba" },
-  "lorebook_tab.label_content": { ja: "設定説明内容 (Prompt):", ru: "Содержимое лора (Prompt):", es: "Contenido de lore (Prompt):" },
-  "lorebook_tab.label_memo": { ja: "⭐ タイトルメモ付き", ru: "⭐ С заголовком", es: "⭐ Con memo de título" },
-  "lorebook_tab.edit_inline": { ja: "このエントリを編集 (Inline)", ru: "Редактировать (встроенно)", es: "Editar esta entrada (en línea)" },
-  "lorebook_tab.confirm_delete": { ja: "この専用エントリを消去してもよろしいですか？", ru: "Удалить эту запись лора?", es: "¿Eliminar esta entrada de lore?" },
-  "lorebook_tab.delete": { ja: "消去", ru: "Удалить", es: "Eliminar" },
-  "lorebook_tab.empty_state": { ja: "このホストカードにはまだ独立した専用設定が作成されていません。上部のボタンをクリックして追加するか、下部の「世界書パブリックチャンネル」を使用してください。", ru: "Для этой карты ещё не создано ни одной записи лора. Нажмите кнопку выше для добавления или используйте «Публичный канал лорбука» внизу.", es: "Esta carta aún no tiene entradas de lore independientes. Haga clic en el botón superior para añadir o use el «Canal público de libro de mundo» en la parte inferior." },
-};
-
-// Build the translations for each language
-function buildSection(lang) {
-  let lines = [];
-  // Read existing keys to get the ones that already exist (they should be preserved)
-  // Actually the script will just output the missing entries
-  const keys = Object.keys(T);
-  for (const key of keys) {
-    const val = T[key][lang];
-    if (val) {
-      lines.push(`    "${key}": ${JSON.stringify(val)},`);
+// Build output sections
+function buildSection(langObj) {
+  const lines = [];
+  for (const entry of enKeys) {
+    const translation = langObj[entry.key];
+    if (translation !== undefined) {
+      lines.push(`    "${entry.key}": "${translation}",`);
+    } else {
+      console.error('MISSING translation for:', entry.key, 'in', Object.keys(langObj).length > 0 ? 'lang' : 'unknown');
+      lines.push(`    "${entry.key}": "${entry.value}",`);
     }
   }
-  return lines;
+  return lines.join('\n');
 }
 
-module.exports = { T, buildSection };
+// Read original file
+const original = fs.readFileSync('src/locales/translations.ts', 'utf8');
+
+// Find the location to insert (after es section, before final "};")
+const insertPoint = original.lastIndexOf('  }\n};');
+if (insertPoint === -1) {
+  console.error('Could not find insertion point');
+  process.exit(1);
+}
+
+const koSection = '  "ko": {\n' + buildSection(ko) + '\n  },\n';
+const ptBRSection = '  "pt-BR": {\n' + buildSection(ptBR) + '\n  }\n';
+
+const newContent = original.substring(0, insertPoint + 4) + 
+  koSection + ptBRSection + '};\n';
+
+fs.writeFileSync('src/locales/translations.ts', newContent, 'utf8');
+console.log('Successfully added ko and pt-BR sections!');
+console.log('Total ko entries:', Object.keys(ko).length);
+console.log('Total pt-BR entries:', Object.keys(ptBR).length);

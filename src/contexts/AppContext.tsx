@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
-import { TRANSLATIONS } from "../locales/translations";
+import { TRANSLATIONS } from "../locales/index";
 
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。

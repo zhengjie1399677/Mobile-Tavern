@@ -3,7 +3,7 @@ import { ChatSession, Message, SummaryCard } from "../types";
 import { useKernel } from "./KernelContext";
 import { IDatabaseService, IMemoryService } from "../kernel/types";
 import { useApp } from "./AppContext";
-import { TRANSLATIONS } from "../locales/translations";
+import { TRANSLATIONS } from "../locales/index";
 
 // P0-1: 启动时分页加载会话，避免一次性 getAll() 全量反序列化阻塞首屏。
 // 默认每页 50 条（覆盖 95% 用户的会话总数），超出部分由 loadMoreSessions 滚动加载。

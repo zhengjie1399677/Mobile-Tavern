@@ -8,10 +8,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import React from "react";
 import { renderHook, act } from "@testing-library/react";
 import { LanguageProvider, useTranslation } from "../../src/contexts/LanguageContext";
-import { TRANSLATIONS } from "../../src/locales/translations";
+import { TRANSLATIONS } from "../../src/locales/index";
 
 // ─── 助手 ──────────────────────────────────────────────────────────────────────
-const SUPPORTED = ["zh-CN", "zh-TW", "en", "ja", "ru", "es"] as const;
+const SUPPORTED = ["zh-CN", "zh-TW", "en", "ja", "ru", "es", "ko", "pt-BR"] as const;
 
 /** 从 TRANSLATIONS 中提取某语言的所有 key */
 const keysOf = (lang: string): string[] => Object.keys(TRANSLATIONS[lang] || {}).sort();
@@ -31,13 +31,13 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 // ─── 词典完整性 ────────────────────────────────────────────────────────────────
 describe("TRANSLATIONS 词典完整性", () => {
 
-  it("包含全部 6 种受支持语言", () => {
+  it("包含全部 8 种受支持语言", () => {
     for (const lang of SUPPORTED) {
       expect(TRANSLATIONS[lang]).toBeDefined();
     }
   });
 
-  it("所有 6 种语言的 key 集合完全一致", () => {
+  it("所有 8 种语言的 key 集合完全一致", () => {
     for (const lang of SUPPORTED.slice(1)) {
       expect(keysOf(lang)).toEqual(zhKeys);
     }
@@ -169,9 +169,13 @@ describe("系统语言检测", () => {
     ["es", "es"],
     ["es-ES", "es"],
     ["es-MX", "es"],
+    ["ko", "ko"],
+    ["ko-KR", "ko"],
+    ["pt", "pt-BR"],
+    ["pt-BR", "pt-BR"],
+    ["pt-PT", "pt-BR"],
     ["fr", "en"],
     ["fr-FR", "en"],
-    ["ko", "en"],
     ["de", "en"],
   ];
 
