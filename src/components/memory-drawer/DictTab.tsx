@@ -22,12 +22,12 @@ export interface DictTabProps {
 }
 
 const ENTITY_TYPES = [
-  { value: "all", label: "dict_tab.type_all" },
-  { value: "character", label: "dict_tab.type_character" },
-  { value: "location", label: "dict_tab.type_location" },
-  { value: "item", label: "dict_tab.type_item" },
-  { value: "organization", label: "dict_tab.type_organization" },
-  { value: "concept", label: "dict_tab.type_concept" },
+  { value: "all", labelKey: "dict_tab.type_all" },
+  { value: "character", labelKey: "dict_tab.type_character" },
+  { value: "location", labelKey: "dict_tab.type_location" },
+  { value: "item", labelKey: "dict_tab.type_item" },
+  { value: "organization", labelKey: "dict_tab.type_organization" },
+  { value: "concept", labelKey: "dict_tab.type_concept" },
 ];
 
 function DictTab({ activeSession }: DictTabProps) {
@@ -381,7 +381,7 @@ function DictTab({ activeSession }: DictTabProps) {
                   : "bg-muted/40 border-border/45 text-muted-foreground hover:bg-muted/65"
               }`}
             >
-              <span>{t(type.label)}</span>
+              <span>{t(type.labelKey)}</span>
               <span className={`px-1 rounded-full text-[9px] ${
                 active ? "bg-primary/30 text-primary" : "bg-muted/80 text-muted-foreground/70"
               }`}>
