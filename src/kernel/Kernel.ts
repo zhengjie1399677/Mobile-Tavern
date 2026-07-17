@@ -380,9 +380,30 @@ export class Kernel implements IKernel {
       );
     }
 
-    // 按计算出来的安全拓扑顺序依次串行注册并初始化
-    for (const { name, service, initTimeoutMs } of sorted) {
-      await this.registerService(name, service, initTimeoutMs);
+    // 按计算出来的安全拓扑顺序依次串行注册并初始化。
+    // 若中途失败（关键服务异常或超时），逆序销毁本次批量中已成功注册的服务，
+    // 防止 Kernel 残留半初始化状态导致后续 initialize 二次注册冲突或资源泄露。
+    const registered: string[] = [];
+    try {
+      for (const { name, service, initTimeoutMs } of sorted) {
+        await this.registerService(name, service, initTimeoutMs);
+        // registerService 对非关键/非超时失败会静默标记 "failed" 且不抛出，
+        // 此时 services 中不含该项；仅记录实际进入 services 的成功项用于回滚。
+        if (this.services.has(name)) {
+          registered.push(name);
+        }
+      }
+    } catch (err) {
+      // 逆序销毁已成功注册的服务（后注册的先销毁，符合 destroy 时的逆序原则）
+      for (let i = registered.length - 1; i >= 0; i--) {
+        try {
+          await this.destroyService(registered[i]);
+        } catch (cleanupErr) {
+          // 清理失败不应掩盖原始错误，仅记录
+          console.error(`[Kernel] Cleanup of "${registered[i]}" during batch rollback failed:`, cleanupErr);
+        }
+      }
+      throw err;
     }
   }
 

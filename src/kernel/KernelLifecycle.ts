@@ -42,6 +42,17 @@ export function createKernelLifecycleController(
           state = "ready";
         } catch (error) {
           state = "idle";
+          // 兜底全量清理：防止 bootstrap 部分成功后残留半初始化状态。
+          // registerServiceBatch 内部已对批量注册中途失败做逆序回滚，
+          // 此处覆盖 bootstrap 中其他步骤（如 registerDefaultPipelines）
+          // 或未来新增 bootstrap 阶段失败时的清理需求。
+          // 清理后 services/pipelines/criticalServiceNames 等全部清空，
+          // 亦化解了 "destroy() 被 idle 短路跳过" 的二级缺陷。
+          try {
+            await kernel.destroy();
+          } catch (cleanupErr) {
+            console.error("[KernelLifecycle] Cleanup after bootstrap failure failed:", cleanupErr);
+          }
           throw error;
         }
       });

@@ -61,6 +61,7 @@ import {
   testKernelDestroyIdempotency,
   testKernelInspect,
   testKernelLifecycleAndDependencies,
+  testBootstrapRollbackOnCriticalFailure,
   testFastPathL3AutoSummaryIndex,
   testFastPathL2ContentPrescan,
   testFastPathL1PipelineBypass,
@@ -183,6 +184,8 @@ async function run() {
     { name: "testKernelDestroyIdempotency", fn: testKernelDestroyIdempotency },
     { name: "testKernelInspect", fn: testKernelInspect },
     { name: "testKernelLifecycleAndDependencies", fn: testKernelLifecycleAndDependencies },
+    // bootstrap 部分成功后失败的回滚机制测试（方案 A 批量回滚 + 方案 B 兜底全量清理）
+    { name: "testBootstrapRollbackOnCriticalFailure", fn: testBootstrapRollbackOnCriticalFailure },
     { name: "testFastPathL3AutoSummaryIndex", fn: testFastPathL3AutoSummaryIndex },
     { name: "testFastPathL2ContentPrescan", fn: testFastPathL2ContentPrescan },
     { name: "testFastPathL1PipelineBypass", fn: testFastPathL1PipelineBypass },

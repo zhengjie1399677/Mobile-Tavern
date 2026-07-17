@@ -44,7 +44,7 @@ export {
   testKernelInspect,
 } from "./kernelVersionFixes.test";
 
-export { testKernelLifecycleAndDependencies } from "./kernelLifecycle.test";
+export { testKernelLifecycleAndDependencies, testBootstrapRollbackOnCriticalFailure } from "./kernelLifecycle.test";
 
 export { testBisonModeProbability } from "./bisonMode.test";
 
