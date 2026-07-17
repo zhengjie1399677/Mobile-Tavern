@@ -6,6 +6,7 @@ import {
 } from "../../../components/ui/accordion";
 import { Switch } from "../../../components/ui/switch";
 import { Textarea } from "../../../components/ui/textarea";
+import { useTranslation } from "../../contexts/LanguageContext";
 import type { UserSettings } from "../../types";
 
 interface CorePromptBlocksProps {
@@ -18,6 +19,7 @@ export default function CorePromptBlocks({
   settings,
   updateSettings,
 }: CorePromptBlocksProps) {
+  const { t } = useTranslation();
   return (
     <Accordion type="multiple" className="space-y-2">
 
@@ -26,7 +28,7 @@ export default function CorePromptBlocks({
         <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
           <div className="flex items-center gap-2 flex-1">
             <Switch
-              aria-label="启用底层扮演系统指令"
+              aria-label={t("prompts.system_prompt")}
               checked={settings.promptConfig.useMainPrompt ?? true}
               onCheckedChange={(checked) =>
                 updateSettings({
@@ -41,9 +43,9 @@ export default function CorePromptBlocks({
             />
             <div className="flex flex-col">
               <span className={`text-xs font-bold truncate ${(settings.promptConfig.useMainPrompt ?? true) ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
-                底层扮演系统指令 (System Prompt)
+                {t("prompts.system_prompt")}
               </span>
-              <span className="text-[9px] font-mono text-muted-foreground">system · 处于上下文最顶部</span>
+              <span className="text-[9px] font-mono text-muted-foreground">{t("prompts.system_prompt_tip")}</span>
             </div>
           </div>
           <AccordionTrigger aria-label="展开或折叠底层扮演指令编辑区" className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
@@ -62,7 +64,7 @@ export default function CorePromptBlocks({
                 })
               }
               className="min-h-[240px] text-sm font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
-              placeholder="输入底层角色扮演系统指令..."
+              placeholder={t("prompts.system_prompt_placeholder")}
             />
           </div>
         </AccordionContent>
@@ -73,7 +75,7 @@ export default function CorePromptBlocks({
         <div className="flex items-center justify-between p-2.5 gap-2 pr-4 bg-muted/20">
           <div className="flex items-center gap-2 flex-1">
             <Switch
-              aria-label="启用规则提示词"
+              aria-label={t("prompts.jailbreak")}
               checked={settings.promptConfig.useJailbreak ?? true}
               onCheckedChange={(checked) =>
                 updateSettings({
@@ -88,9 +90,9 @@ export default function CorePromptBlocks({
             />
             <div className="flex flex-col">
               <span className={`text-xs font-bold truncate ${(settings.promptConfig.useJailbreak ?? true) ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
-                规则提示词 (Jailbreak)
+                {t("prompts.jailbreak")}
               </span>
-              <span className="text-[9px] font-mono text-muted-foreground">system · beforeLast 前注入</span>
+              <span className="text-[9px] font-mono text-muted-foreground">{t("prompts.jailbreak_tip")}</span>
             </div>
           </div>
           <AccordionTrigger aria-label="展开或折叠规则提示词编辑区" className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground" />
@@ -109,7 +111,7 @@ export default function CorePromptBlocks({
                 })
               }
               className="min-h-[240px] text-sm font-sans leading-relaxed resize-y bg-input/50 focus-visible:ring-primary/40 text-foreground shadow-inner"
-              placeholder="输入规则提示词..."
+              placeholder={t("prompts.jailbreak_placeholder")}
             />
           </div>
         </AccordionContent>

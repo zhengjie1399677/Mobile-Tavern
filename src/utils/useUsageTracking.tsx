@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "../contexts/LanguageContext";
 import {
   Card,
   CardHeader,
@@ -115,6 +116,7 @@ export function useUsageTracking() {
 }
 
 export function UsageDisplay() {
+  const { t } = useTranslation();
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
 
   useEffect(() => {
@@ -155,28 +157,27 @@ export function UsageDisplay() {
     <Card className="bg-card border-border shadow-sm mt-4">
       <CardHeader className="pb-3 border-b border-border/50">
         <CardTitle className="text-sm flex items-center gap-2">
-          <Activity className="w-4 h-4 text-emerald-500" /> 使用统计
-          (Telemetrics)
+          <Activity className="w-4 h-4 text-emerald-500" /> {t("telemetrics.title")}
         </CardTitle>
         <CardDescription className="text-[11px]">
-          基础运行信息（便于后续数据追踪打包需求）
+          {t("telemetrics.subtitle")}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-4 flex flex-col gap-3">
         <div className="flex items-center justify-between bg-muted/30 p-2 rounded border border-border">
           <span className="text-xs font-semibold text-foreground">
-            累计打开次数
+            {t("telemetrics.total_opens")}
           </span>
           <span className="text-xs text-muted-foreground font-mono">
-            {metrics.totalOpens} 次
+            {t("telemetrics.times", { count: String(metrics.totalOpens) })}
           </span>
         </div>
         <div className="flex items-center justify-between bg-muted/30 p-2 rounded border border-border">
           <span className="text-xs font-semibold text-foreground">
-            累计运行时间
+            {t("telemetrics.total_runtime")}
           </span>
           <span className="text-xs text-muted-foreground font-mono">
-            {Math.floor(metrics.totalUsageSeconds / 60)} 分钟
+            {t("telemetrics.minutes", { count: String(Math.floor(metrics.totalUsageSeconds / 60)) })}
           </span>
         </div>
       </CardContent>

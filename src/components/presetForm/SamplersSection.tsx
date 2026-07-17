@@ -1,5 +1,6 @@
 import { Sliders, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../../components/ui/card";
+import { useTranslation } from "../../contexts/LanguageContext";
 import { cn } from "../../../lib/utils";
 import type { UserSettings } from "../../types";
 
@@ -17,6 +18,7 @@ export default function SamplersSection({
   isSamplersFolded,
   handleToggleSamplersFold,
 }: SamplersSectionProps) {
+  const { t } = useTranslation();
   return (
     <Card className={cn("glass-panel shadow-sm transition-all duration-300", isSamplersFolded ? "py-1.5 gap-0" : "")}>
       <CardHeader
@@ -25,7 +27,7 @@ export default function SamplersSection({
       >
         <div className="flex items-center justify-between">
           <CardTitle className="text-xs flex items-center gap-2 shrink-0 font-bold text-foreground">
-            <Sliders className="w-4 h-4 text-primary" /> 温度与采样参数
+            <Sliders className="w-4 h-4 text-primary" /> {t("samplers.title")}
           </CardTitle>
           <div className="flex items-center gap-2 overflow-hidden">
             {isSamplersFolded && (
@@ -42,7 +44,7 @@ export default function SamplersSection({
         </div>
         {!isSamplersFolded && (
           <CardDescription className="text-[10px] mt-0.5">
-            调节模型生成时的随机性、惩罚与最大长度等采样参数
+            {t("samplers.subtitle")}
           </CardDescription>
         )}
       </CardHeader>
@@ -51,7 +53,7 @@ export default function SamplersSection({
           <div className="space-y-3 text-xs w-full overflow-hidden">
             <div className="space-y-1.5 w-full">
               <div className="flex justify-between items-center text-muted-foreground w-full">
-                <span className="font-semibold text-[11px]">温度 (Temp)</span>
+                <span className="font-semibold text-[11px]">{t("samplers.temp")}</span>
                 <span className="font-mono w-12 text-right">
                   {settings.preset.temperature}
                 </span>
@@ -77,7 +79,7 @@ export default function SamplersSection({
             </div>
             <div className="space-y-1.5 w-full">
               <div className="flex justify-between items-center text-muted-foreground w-full">
-                <span className="font-semibold text-[11px]">核采样 (Top P)</span>
+                <span className="font-semibold text-[11px]">{t("samplers.top_p")}</span>
                 <span className="font-mono w-12 text-right">
                   {settings.preset.topP}
                 </span>
@@ -104,7 +106,7 @@ export default function SamplersSection({
             <div className="space-y-1.5 w-full">
               <div className="flex justify-between items-center text-muted-foreground w-full">
                 <span className="font-semibold text-[11px]">
-                  重复惩罚 (Rep Penalty)
+                  {t("samplers.rep_penalty")}
                 </span>
                 <span className="font-mono w-12 text-right">
                   {settings.preset.repetitionPenalty}
@@ -132,7 +134,7 @@ export default function SamplersSection({
             <div className="space-y-1.5 w-full">
               <div className="flex justify-between items-center text-muted-foreground w-full">
                 <span className="font-semibold text-[11px]">
-                  长度上限 (Max Tokens)
+                  {t("samplers.max_tokens")}
                 </span>
                 <span className="font-mono w-16 text-right">
                   {settings.preset.maxTokens}

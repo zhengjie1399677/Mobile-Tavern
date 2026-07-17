@@ -1,5 +1,6 @@
 import { Sparkles, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../../components/ui/card";
+import { useTranslation } from "../../contexts/LanguageContext";
 import { Switch } from "../../../components/ui/switch";
 import { Checkbox } from "../../../components/ui/checkbox";
 import { Input } from "../../../components/ui/input";
@@ -60,6 +61,7 @@ export default function RegexManagementSection({
   deleteRegex,
   saveRegex,
 }: RegexManagementSectionProps) {
+  const { t } = useTranslation();
   return (
     <>
       <Card className={cn("glass-panel shadow-sm transition-all duration-300", isRegexFolded ? "py-2 gap-0" : "")}>
@@ -69,7 +71,7 @@ export default function RegexManagementSection({
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2 shrink-0">
-              <Sparkles className="w-4 h-4 text-primary" /> 正则过滤脚本管理
+              <Sparkles className="w-4 h-4 text-primary" /> {t("regex.title")}
             </CardTitle>
             <div className="flex items-center gap-2 overflow-hidden">
               {isRegexFolded && (
@@ -86,7 +88,7 @@ export default function RegexManagementSection({
           </div>
           {!isRegexFolded && (
             <CardDescription className="text-[11px] mt-1">
-              配置全局和预设专属正则表达式过滤规则，在发送或展示前对文本进行净化
+              {t("regex.subtitle")}
             </CardDescription>
           )}
         </CardHeader>
@@ -97,22 +99,22 @@ export default function RegexManagementSection({
             <div className="flex justify-between items-center flex-wrap gap-2">
               <div className="space-y-0.5">
                 <span className="block text-[11px] font-bold text-primary">
-                  🌌 全局正则脚本 (Global Regex)
+                  {t("regex.global")}
                 </span>
                 <span className="text-[9.5px] text-muted-foreground block">
-                  对所有角色和所有预设生效，保存在全局设置中
+                  {t("regex.global_tip")}
                 </span>
               </div>
               <div className="flex gap-2">
                 {isBatchDeletingGlobalRegex ? (
-                  <>
+                   <>
                     <button
                       type="button"
                       onClick={handleBatchDeleteGlobalRegex}
                       disabled={selectedGlobalRegexIds.length === 0}
                       className="text-[10px] font-bold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 border border-rose-500/20 flex items-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed tap-scale"
                     >
-                      <Trash2 className="w-3 h-3" /> 确认删除 ({selectedGlobalRegexIds.length})
+                      <Trash2 className="w-3 h-3" /> {t("prompts.confirm_delete")} ({selectedGlobalRegexIds.length})
                     </button>
                     <button
                       type="button"
@@ -122,7 +124,7 @@ export default function RegexManagementSection({
                       }}
                       className="text-[10px] font-bold text-muted-foreground bg-muted hover:bg-muted/80 px-2 py-1 border border-border flex items-center gap-1 transition tap-scale"
                     >
-                      取消
+                      {t("prompts.cancel")}
                     </button>
                   </>
                 ) : (
@@ -133,7 +135,7 @@ export default function RegexManagementSection({
                         onClick={() => setIsBatchDeletingGlobalRegex(true)}
                         className="text-[10px] font-bold text-muted-foreground hover:text-destructive bg-muted/40 hover:bg-destructive/10 px-2 py-1 border border-border hover:border-destructive/20 flex items-center gap-1 transition tap-scale"
                       >
-                        批量删除
+                        {t("prompts.batch_delete")}
                       </button>
                     )}
                     <button
@@ -155,7 +157,7 @@ export default function RegexManagementSection({
                       }}
                       className="text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 border border-primary/25 rounded-md flex items-center gap-1 transition tap-scale"
                     >
-                      <Plus className="w-2.5 h-2.5" /> 新建全局
+                      <Plus className="w-2.5 h-2.5" /> {t("regex.create_global")}
                     </button>
                   </>
                 )}
@@ -165,7 +167,7 @@ export default function RegexManagementSection({
             {(!settings.globalRegexScripts || settings.globalRegexScripts.length === 0) ? (
               <div className="border border-dashed border-border/50 rounded-xl p-4 text-center text-muted-foreground flex flex-col items-center justify-center gap-1.5">
                 <span className="text-[10px] font-light text-muted-foreground/60 leading-relaxed">
-                  暂无全局正则脚本，可手动新建过滤 {"<think>"} 标签。
+                  {t("regex.no_global")}
                 </span>
               </div>
             ) : (
@@ -197,10 +199,10 @@ export default function RegexManagementSection({
                         </span>
                         <span className="text-[8px] font-semibold px-1 py-0.2 border border-border/80 rounded bg-background text-muted-foreground">
                           {r.placement?.includes(1) && r.placement?.includes(2)
-                            ? "双向"
+                            ? t("regex.placement_both")
                             : r.placement?.includes(1)
-                            ? "输入"
-                            : "输出"}
+                            ? t("regex.placement_input")
+                            : t("regex.placement_output")}
                         </span>
                       </div>
                       <div className="text-[9px] text-muted-foreground font-mono truncate mt-0.5">
@@ -223,14 +225,14 @@ export default function RegexManagementSection({
                         }}
                         className="text-[9px] text-muted-foreground hover:text-primary transition font-semibold px-1.5 py-0.5 rounded hover:bg-muted"
                       >
-                        编辑
+                        {t("regex.edit")}
                       </button>
                       <button
                         type="button"
                         onClick={() => deleteRegex(r.id, r.scriptName, "global")}
                         className="text-[9px] text-rose-500 hover:text-rose-700 transition font-semibold px-1.5 py-0.5 rounded hover:bg-rose-950/20"
                       >
-                        删除
+                        {t("regex.delete")}
                       </button>
                     </div>
                   </div>
@@ -244,10 +246,10 @@ export default function RegexManagementSection({
             <div className="flex justify-between items-center flex-wrap gap-2">
               <div className="space-y-0.5">
                 <span className="block text-[11px] font-bold text-primary">
-                  📋 预设专属正则 (Preset Regex)
+                  {t("regex.preset")}
                 </span>
                 <span className="text-[9.5px] text-muted-foreground block">
-                  仅在当前预设 [{settings.preset.name}] 激活时生效，随预设一同保存导出
+                  {t("regex.preset_tip", { name: settings.preset.name })}
                 </span>
               </div>
               <div className="flex gap-2">
@@ -259,7 +261,7 @@ export default function RegexManagementSection({
                       disabled={selectedPresetRegexIds.length === 0}
                       className="text-[10px] font-bold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 border border-rose-500/20 flex items-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed tap-scale"
                     >
-                      <Trash2 className="w-3 h-3" /> 确认删除 ({selectedPresetRegexIds.length})
+                      <Trash2 className="w-3 h-3" /> {t("prompts.confirm_delete")} ({selectedPresetRegexIds.length})
                     </button>
                     <button
                       type="button"
@@ -269,7 +271,7 @@ export default function RegexManagementSection({
                       }}
                       className="text-[10px] font-bold text-muted-foreground bg-muted hover:bg-muted/80 px-2 py-1 border border-border flex items-center gap-1 transition tap-scale"
                     >
-                      取消
+                      {t("prompts.cancel")}
                     </button>
                   </>
                 ) : (
@@ -280,7 +282,7 @@ export default function RegexManagementSection({
                         onClick={() => setIsBatchDeletingPresetRegex(true)}
                         className="text-[10px] font-bold text-muted-foreground hover:text-destructive bg-muted/40 hover:bg-destructive/10 px-2 py-1 border border-border hover:border-destructive/20 flex items-center gap-1 transition tap-scale"
                       >
-                        批量删除
+                        {t("prompts.batch_delete")}
                       </button>
                     )}
                     <button
@@ -302,7 +304,7 @@ export default function RegexManagementSection({
                       }}
                       className="text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 border border-primary/25 rounded-md flex items-center gap-1 transition tap-scale"
                     >
-                      <Plus className="w-2.5 h-2.5" /> 新建预设
+                      <Plus className="w-2.5 h-2.5" /> {t("regex.create_preset")}
                     </button>
                   </>
                 )}
@@ -312,7 +314,7 @@ export default function RegexManagementSection({
             {(!settings.presetRegexScripts || settings.presetRegexScripts.length === 0) ? (
               <div className="border border-dashed border-border/50 rounded-xl p-4 text-center text-muted-foreground flex flex-col items-center justify-center gap-1.5">
                 <span className="text-[10px] font-light text-muted-foreground/60 leading-relaxed">
-                  暂无预设专属正则脚本，导入预设时会自动解析导入。
+                  {t("regex.no_preset")}
                 </span>
               </div>
             ) : (
@@ -344,10 +346,10 @@ export default function RegexManagementSection({
                         </span>
                         <span className="text-[8px] font-semibold px-1 py-0.2 border border-border/80 rounded bg-background text-muted-foreground">
                           {r.placement?.includes(1) && r.placement?.includes(2)
-                            ? "双向"
+                            ? t("regex.placement_both")
                             : r.placement?.includes(1)
-                            ? "输入"
-                            : "输出"}
+                            ? t("regex.placement_input")
+                            : t("regex.placement_output")}
                         </span>
                       </div>
                       <div className="text-[9px] text-muted-foreground font-mono truncate mt-0.5">
@@ -370,14 +372,14 @@ export default function RegexManagementSection({
                         }}
                         className="text-[9px] text-muted-foreground hover:text-primary transition font-semibold px-1.5 py-0.5 rounded hover:bg-muted"
                       >
-                        编辑
+                        {t("regex.edit")}
                       </button>
                       <button
                         type="button"
                         onClick={() => deleteRegex(r.id, r.scriptName, "preset")}
                         className="text-[9px] text-rose-500 hover:text-rose-700 transition font-semibold px-1.5 py-0.5 rounded hover:bg-rose-950/20"
                       >
-                        删除
+                        {t("regex.delete")}
                       </button>
                     </div>
                   </div>
@@ -391,10 +393,10 @@ export default function RegexManagementSection({
             <div className="flex justify-between items-center flex-wrap gap-2">
               <div className="space-y-0.5">
                 <span className="block text-[11px] font-bold text-primary">
-                  🎭 活跃角色专属局部正则 (Character Local Regex)
+                  {t("regex.char")}
                 </span>
                 <span className="text-[9.5px] text-muted-foreground block">
-                  仅当活跃角色 [{activeCharacter?.name || "未选择"}] 开启时生效，直接保存修改至角色卡中
+                  {t("regex.char_tip", { name: activeCharacter?.name || (t("nav.settings") === "设置" ? "未选择" : "None") })}
                 </span>
               </div>
               {activeCharacter && (
@@ -417,7 +419,7 @@ export default function RegexManagementSection({
                   }}
                   className="text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 border border-primary/25 rounded-md flex items-center gap-1 transition tap-scale"
                 >
-                  <Plus className="w-2.5 h-2.5" /> 新建角色
+                  <Plus className="w-2.5 h-2.5" /> {t("regex.create_char")}
                 </button>
               )}
             </div>
@@ -425,7 +427,7 @@ export default function RegexManagementSection({
             {(!activeCharacter || !activeCharacter.extensions?.regex_scripts || activeCharacter.extensions.regex_scripts.length === 0) ? (
               <div className="border border-dashed border-border/50 rounded-xl p-4 text-center text-muted-foreground flex flex-col items-center justify-center gap-1.5">
                 <span className="text-[10px] font-light text-muted-foreground/60 leading-relaxed">
-                  当前角色暂无专属局部正则。可点击上方按钮手动新建角色专属过滤。
+                  {t("regex.no_char")}
                 </span>
               </div>
             ) : (
@@ -446,10 +448,10 @@ export default function RegexManagementSection({
                           </span>
                           <span className="text-[8px] font-semibold px-1 py-0.2 border border-border/80 rounded bg-background text-muted-foreground">
                             {r.placement?.includes(1) && r.placement?.includes(2)
-                              ? "双向"
+                              ? t("regex.placement_both")
                               : r.placement?.includes(1)
-                              ? "输入"
-                              : "输出"}
+                              ? t("regex.placement_input")
+                              : t("regex.placement_output")}
                           </span>
                         </div>
                         <div className="text-[9px] text-muted-foreground font-mono truncate mt-0.5">
@@ -471,14 +473,14 @@ export default function RegexManagementSection({
                           }}
                           className="text-[9px] text-muted-foreground hover:text-primary transition font-semibold px-1.5 py-0.5 rounded hover:bg-muted"
                         >
-                          编辑
+                          {t("regex.edit")}
                         </button>
                         <button
                           type="button"
                           onClick={() => deleteRegex(targetId, r.scriptName, "character")}
                           className="text-[9px] text-rose-500 hover:text-rose-700 transition font-semibold px-1.5 py-0.5 rounded hover:bg-rose-950/20"
                         >
-                          删除
+                          {t("regex.delete")}
                         </button>
                       </div>
                     </div>
@@ -497,7 +499,7 @@ export default function RegexManagementSection({
           <div className="bg-background border border-border rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
             <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
               <p className="text-sm font-bold text-foreground">
-                {editingRegex?.id?.startsWith("reg_") ? "新建正则脚本" : "编辑正则脚本"}
+                {editingRegex?.id?.startsWith("reg_") ? t("regex.modal_new") : t("regex.modal_edit")}
               </p>
               <button
                 onClick={() => {
@@ -506,45 +508,45 @@ export default function RegexManagementSection({
                 }}
                 className="text-xs text-muted-foreground hover:text-foreground transition font-semibold"
               >
-                关闭
+                {t("regex.modal_close")}
               </button>
             </div>
             <div className="p-4 space-y-4 overflow-y-auto max-h-[70vh]">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground block">脚本名称</label>
+                <label className="text-[11px] font-bold text-muted-foreground block">{t("regex.modal_name")}</label>
                 <Input
                   value={editingRegex?.scriptName || ""}
                   onChange={(e) =>
                     setEditingRegex((prev: any) => ({ ...prev, scriptName: e.target.value }))
                   }
-                  placeholder="例如：隐藏思维链"
+                  placeholder={t("regex.modal_name_placeholder")}
                   className="h-9 text-xs bg-input/50"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground block">匹配正则表达式 (支持 /pattern/flags 格式)</label>
+                <label className="text-[11px] font-bold text-muted-foreground block">{t("regex.modal_find")}</label>
                 <Input
                   value={editingRegex?.findRegex || ""}
                   onChange={(e) =>
                     setEditingRegex((prev: any) => ({ ...prev, findRegex: e.target.value }))
                   }
-                  placeholder="例如：/<think>[\s\S]*?<\/think>/gi"
+                  placeholder={t("regex.modal_find_placeholder")}
                   className="h-9 text-xs font-mono bg-input/50"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground block">替换文本 (可以使用 $1, $2 占位符)</label>
+                <label className="text-[11px] font-bold text-muted-foreground block">{t("regex.modal_replace")}</label>
                 <Input
                   value={editingRegex?.replaceString || ""}
                   onChange={(e) =>
                     setEditingRegex((prev: any) => ({ ...prev, replaceString: e.target.value }))
                   }
-                  placeholder="例如：（留空代表直接删除匹配内容）"
+                  placeholder={t("regex.modal_replace_placeholder")}
                   className="h-9 text-xs bg-input/50"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground block">作用阶段 (Placement)</label>
+                <label className="text-[11px] font-bold text-muted-foreground block">{t("regex.modal_placement")}</label>
                 <div className="flex gap-4">
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
                     <Checkbox
@@ -560,7 +562,7 @@ export default function RegexManagementSection({
                         setEditingRegex((prev: any) => ({ ...prev, placement: next }));
                       }}
                     />
-                    输入阶段 (拦截发送)
+                    {t("regex.modal_placement_input")}
                   </label>
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
                     <Checkbox
@@ -576,7 +578,7 @@ export default function RegexManagementSection({
                         setEditingRegex((prev: any) => ({ ...prev, placement: next }));
                       }}
                     />
-                    输出阶段 (渲染渲染)
+                    {t("regex.modal_placement_output")}
                   </label>
                 </div>
               </div>
@@ -589,13 +591,13 @@ export default function RegexManagementSection({
                 }}
                 className="px-3 py-1.5 text-xs font-medium border border-border bg-background hover:bg-muted rounded-md transition"
               >
-                取消
+                {t("prompts.cancel")}
               </button>
               <button
                 onClick={() => saveRegex(editingRegex)}
                 className="px-4 py-1.5 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition"
               >
-                保存
+                {t("regex.modal_save")}
               </button>
             </div>
           </div>

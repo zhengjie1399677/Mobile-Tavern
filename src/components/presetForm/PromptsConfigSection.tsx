@@ -1,5 +1,6 @@
 import { Brain, ChevronDown, ChevronUp, AlertCircle, HelpCircle, Plus, Trash2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../../components/ui/card";
+import { useTranslation } from "../../contexts/LanguageContext";
 import {
   Accordion,
   AccordionItem,
@@ -51,6 +52,7 @@ export default function PromptsConfigSection({
   setIsBatchDeletingPrompts,
   handleBatchDeletePrompts,
 }: PromptsConfigSectionProps) {
+  const { t } = useTranslation();
   return (
     <Card className={cn("glass-panel shadow-sm transition-all duration-300", isPromptsFolded ? "py-2 gap-0" : "")}>
       <CardHeader
@@ -59,7 +61,7 @@ export default function PromptsConfigSection({
       >
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2 shrink-0">
-            <Brain className="w-4 h-4 text-primary" /> 预设提示词配置
+            <Brain className="w-4 h-4 text-primary" /> {t("prompts.title")}
           </CardTitle>
           <div className="flex items-center gap-2 overflow-hidden">
             {isPromptsFolded && (
@@ -76,7 +78,7 @@ export default function PromptsConfigSection({
         </div>
         {!isPromptsFolded && (
           <CardDescription className="text-[11px] mt-1">
-            配置底层扮演指令、规则提示以及颗粒化扩展提示词模组
+            {t("prompts.subtitle")}
           </CardDescription>
         )}
       </CardHeader>
@@ -85,11 +87,7 @@ export default function PromptsConfigSection({
         <div className="bg-muted/50 p-3 rounded-lg border border-border/50 text-[11px] text-muted-foreground flex items-start gap-2">
           <AlertCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            注入环境兼容 ST 标签：
-            <code className="text-primary bg-primary/10 px-1 rounded">
-              {"{{char}}"}, {"{{user}}"}
-            </code>{" "}
-            等规则动态匹配宏处理。
+            {t("prompts.st_compat_desc")}
           </p>
         </div>
 
@@ -110,7 +108,7 @@ export default function PromptsConfigSection({
                   disabled={selectedPromptIds.length === 0}
                   className="text-xs font-bold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 rounded border border-rose-500/20 flex items-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed tap-scale"
                 >
-                  <Trash2 className="w-3.5 h-3.5" /> 确认删除 ({selectedPromptIds.length})
+                  <Trash2 className="w-3.5 h-3.5" /> {t("prompts.confirm_delete")} ({selectedPromptIds.length})
                 </button>
                 <button
                   type="button"
@@ -120,7 +118,7 @@ export default function PromptsConfigSection({
                   }}
                   className="text-xs font-bold text-muted-foreground bg-muted hover:bg-muted/80 px-2 py-1 rounded border border-border flex items-center gap-1 transition tap-scale"
                 >
-                  取消
+                  {t("prompts.cancel")}
                 </button>
               </>
             ) : (
@@ -131,14 +129,14 @@ export default function PromptsConfigSection({
                     onClick={() => setIsBatchDeletingPrompts(true)}
                     className="text-xs font-bold text-muted-foreground hover:text-destructive bg-muted/40 hover:bg-destructive/10 px-2 py-1 rounded border border-border hover:border-destructive/20 flex items-center gap-1 transition tap-scale"
                   >
-                    批量删除
+                    {t("prompts.batch_delete")}
                   </button>
                 )}
                 <button
                   onClick={handleAddNewCustomPrompt}
                   className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded border border-primary/20 flex items-center gap-1 transition tap-scale"
                 >
-                  <Plus className="w-3 h-3" /> 新建模组
+                  <Plus className="w-3 h-3" /> {t("prompts.create_module")}
                 </button>
               </>
             )}
@@ -150,7 +148,7 @@ export default function PromptsConfigSection({
           <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
             <HelpCircle className="w-6 h-6 opacity-50" />
             <span className="text-xs font-semibold">
-              无挂规则组件
+              {t("prompts.no_modules")}
             </span>
           </div>
         ) : (

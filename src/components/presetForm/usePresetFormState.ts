@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "../../contexts/LanguageContext";
 import type { UserSettings, CharacterCard } from "../../types";
 
 export interface UsePresetFormStateParams {
@@ -23,6 +24,7 @@ export function usePresetFormState({
   activeCharacter,
   saveCharacter,
 }: UsePresetFormStateParams) {
+  const { t } = useTranslation();
   const activeBundleId = (settings.savedPresets || []).find(
     (b) => b.preset.id === settings.preset.id
   )?.id || "";
@@ -85,7 +87,7 @@ export function usePresetFormState({
     jailbreakOn ? "Jb" : null,
     postHistoryOn ? "Post" : null,
     reasoningOn ? "Reason" : null
-  ].filter(Boolean).join("+") || "无";
+  ].filter(Boolean).join("+") || t("preset_form.none");
 
   const activeGlobalRegex = (settings.globalRegexScripts || []).filter((r: any) => !r.disabled).length;
   const activePresetRegex = (settings.presetRegexScripts || []).filter((r: any) => !r.disabled).length;
@@ -124,8 +126,8 @@ export function usePresetFormState({
   };
 
   const deleteRegex = async (id: string, name: string, scope: "global" | "preset" | "character") => {
-    const scopeName = scope === "global" ? "全局" : (scope === "preset" ? "预设专属" : "角色专属");
-    const ok = await showCustomConfirm(`确定要删除${scopeName}正则脚本【${name}】吗？`);
+    const scopeName = scope === "global" ? t("preset_form.scope_global") : (scope === "preset" ? t("preset_form.scope_preset") : t("preset_form.scope_char"));
+    const ok = await showCustomConfirm(t("preset_form.confirm_delete_regex", { scope: scopeName, name }));
     if (!ok) return;
 
     if (scope === "character") {
@@ -157,7 +159,7 @@ export function usePresetFormState({
 
   const saveRegex = async (reg: any) => {
     if (!reg.scriptName || !reg.scriptName.trim() || !reg.findRegex || !reg.findRegex.trim()) {
-      showCustomAlert("脚本名称和正则表达式匹配串不能为空！");
+      showCustomAlert(t("preset_form.regex_empty_error"));
       return;
     }
     const scope = reg.scope || "global";
@@ -208,7 +210,7 @@ export function usePresetFormState({
   // 批量删除处理逻辑
   const handleBatchDeletePrompts = async () => {
     if (selectedPromptIds.length === 0) return;
-    const ok = await showCustomConfirm(`确定要批量删除选中的 ${selectedPromptIds.length} 个提示词模组吗？`);
+    const ok = await showCustomConfirm(t("preset_form.confirm_batch_delete_prompts", { count: String(selectedPromptIds.length) }));
     if (!ok) return;
     updateSettings((prev: any) => ({
       ...prev,
@@ -225,7 +227,7 @@ export function usePresetFormState({
 
   const handleBatchDeleteGlobalRegex = async () => {
     if (selectedGlobalRegexIds.length === 0) return;
-    const ok = await showCustomConfirm(`确定要批量删除选中的 ${selectedGlobalRegexIds.length} 个全局正则脚本吗？`);
+    const ok = await showCustomConfirm(t("preset_form.confirm_batch_delete_global_regex", { count: String(selectedGlobalRegexIds.length) }));
     if (!ok) return;
     updateSettings((prev: any) => ({
       ...prev,
@@ -239,7 +241,7 @@ export function usePresetFormState({
 
   const handleBatchDeletePresetRegex = async () => {
     if (selectedPresetRegexIds.length === 0) return;
-    const ok = await showCustomConfirm(`确定要批量删除选中的 ${selectedPresetRegexIds.length} 个预设专属正则脚本吗？`);
+    const ok = await showCustomConfirm(t("preset_form.confirm_batch_delete_preset_regex", { count: String(selectedPresetRegexIds.length) }));
     if (!ok) return;
     updateSettings((prev: any) => ({
       ...prev,
