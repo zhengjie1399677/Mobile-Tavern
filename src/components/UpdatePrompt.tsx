@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { DownloadCloud, Loader2, ArrowUpCircle, X } from "lucide-react";
 import { IKernel, globalKernel } from "../kernel";
 import { useKernel } from "../contexts/KernelContext";
+import { useTranslation } from "../contexts/LanguageContext";
 import { IUpdateCheckService, UpdateInfo } from "../kernel/types";
 
 // === 更新检查策略常量 ===
@@ -82,6 +83,7 @@ interface WindowWithAndroidBridge extends Window {
 }
 
 export default function UpdatePrompt() {
+  const { t } = useTranslation();
   const kernel = useKernel();
   const [show, setShow] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
@@ -191,7 +193,7 @@ export default function UpdatePrompt() {
         {/* 主标题 + FC 传下来的更新日志 */}
         <div className="space-y-2 z-10 w-full">
           <h2 className="text-xl font-extrabold tracking-tight text-white bg-clip-text text-center">
-            ✨ 发现新版本 v{latestVersion}
+            {t("update.new_version_title", { version: latestVersion })}
           </h2>
           {updateLog ? (
             <div className="text-xs text-slate-200 leading-relaxed max-h-[180px] overflow-y-auto scrollbar-thin bg-white/5 border border-white/10 rounded-xl p-3 whitespace-pre-wrap break-words text-left">
@@ -210,12 +212,12 @@ export default function UpdatePrompt() {
             {isDownloading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>正在唤起安全下载通道...</span>
+                <span>{t("update.downloading")}</span>
               </>
             ) : (
               <>
                 <ArrowUpCircle className="w-4 h-4" />
-                <span>立即下载更新</span>
+                <span>{t("update.download_now")}</span>
               </>
             )}
           </button>
@@ -225,7 +227,7 @@ export default function UpdatePrompt() {
             disabled={isDownloading}
             className="w-full py-2.5 text-[11px] text-slate-400 hover:text-white font-medium hover:underline transition"
           >
-            稍后更新
+            {t("update.later")}
           </button>
         </div>
 
@@ -234,7 +236,7 @@ export default function UpdatePrompt() {
           onClick={handleDismiss}
           disabled={isDownloading}
           className="absolute top-4 right-4 text-slate-500 hover:text-white transition"
-          aria-label="关闭更新提示"
+          aria-label={t("update.close_aria")}
         >
           <X className="w-4 h-4" />
         </button>

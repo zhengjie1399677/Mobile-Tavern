@@ -15,6 +15,7 @@ import {
   Play,
 } from "lucide-react";
 import { UnifiedAppContext } from "../../UnifiedAppContext";
+import { useTranslation } from "../../contexts/LanguageContext";
 import { chatTabState } from "./utils";
 
 /**
@@ -27,6 +28,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [showQuickActions, setShowQuickActions] = React.useState(false);
   const context = React.useContext(UnifiedAppContext);
   if (!context) return null;
+  const { t } = useTranslation();
   const {
     isSending,
     setIsSending,
@@ -158,15 +160,15 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             const errMsg = err.message || String(err);
             if (errMsg.includes("not-allowed") || errMsg.includes("Permission denied") || errMsg.includes("NotAllowedError") || errMsg.includes("permission denied")) {
               showCustomAlert(
-                "🎙️ 麦克风权限已被拒绝！\n\n请在您的手机系统设置或浏览器设置中，为本应用开启麦克风录音权限，然后重试。",
-                "权限错误"
+                t("chat_input.asr_permission_msg"),
+                t("chat_input.asr_permission_denied")
               );
             } else if (errMsg.includes("no-speech")) {
-              showCustomAlert("🎙️ 未检测到您的声音，请说话大声一点，或者检查您的麦克风。", "未检测到语音");
+              showCustomAlert(t("chat_input.asr_no_speech_msg"), t("chat_input.asr_no_speech"));
             } else if (errMsg.includes("audio-capture")) {
-              showCustomAlert("🎙️ 未找到麦克风设备，请确保您的设备录音硬件正常工作。", "设备错误");
+              showCustomAlert(t("chat_input.asr_device_error_msg", { error: errMsg }), t("chat_input.asr_device_error"));
             } else {
-              showCustomAlert(`🎙️ 语音输入失败: ${errMsg}`, "识别错误");
+              showCustomAlert(t("chat_input.asr_error_msg", { error: errMsg }), t("chat_input.asr_error"));
             }
           },
           () => {
@@ -374,16 +376,16 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               <RefreshCw
                 className={`w-3.5 h-3.5 ${isSending ? "animate-spin" : ""}`}
               />
-              <span className="text-[10px] font-medium">重载上一段剧情</span>
+              <span className="text-[10px] font-medium">{t("chat_input.reroll_last")}</span>
             </button>
             <button
-              onClick={() => handleSendMessage("继续")}
+              onClick={() => handleSendMessage(t("chat_input.continue"))}
               disabled={isSending || !activeSession}
               className="flex items-center gap-1.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
-              title="替用户发送“继续”以继续当前剧情"
+              title={`替用户发送"继续"以继续当前剧情`}
             >
               <Play className="w-3.5 h-3.5" />
-              <span className="text-[10px] font-medium">继续</span>
+              <span className="text-[10px] font-medium">{t("chat_input.continue")}</span>
             </button>
           </div>
 
@@ -393,7 +395,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           >
             <Cpu className="w-3 h-3" />
             <span>
-              预测: ~
+              {t("chat_input.token_prediction")} ~
               {Math.ceil(
                 (localInput || "").length * 1.5 +
                 ((Array.isArray(activeSession?.messages)
@@ -447,7 +449,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       {settings.enableReplySuggestions && !isSending && replySuggestions && replySuggestions.length > 0 && (
         <div className="flex flex-col gap-1.5 px-1 py-1 border-b border-border/30 animate-fadeIn">
           <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-1">
-            <span className="flex items-center gap-1">✨ 叙事分支生成器:</span>
+            <span className="flex items-center gap-1">{t("chat_input.suggestions_label")}</span>
             <button
               onClick={() => {
                 const nextMode = clickMode === "send" ? "fill" : "send";
@@ -462,7 +464,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               }}
               className="px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-[9px] font-semibold flex items-center gap-1 border border-border transition active:scale-95"
             >
-              点击行为: {clickMode === "send" ? "直接发送" : "填入框内"}
+              {t("chat_input.click_mode", { mode: clickMode === "send" ? t("chat_input.click_mode_send") : t("chat_input.click_mode_fill") })}
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2.5 py-1.5 px-0.5">
@@ -512,14 +514,14 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           enterKeyHint="send"
           placeholder={
             isBisonLocking
-              ? `${activeCharacter?.name || "角色"} 正在继续发言...`
+              ? t("chat_input.placeholder_bison", { name: activeCharacter?.name || "角色" })
               : isRecording
-                ? "正在倾听语音输入，请说话..."
+                ? t("chat_input.placeholder_recording")
                 : isTranscribing
-                  ? "正在转译语音为文字..."
-                  : `发送一条对白至 ${activeCharacter?.name} 启程...`
+                  ? t("chat_input.placeholder_transcribing")
+                  : t("chat_input.placeholder_default", { name: activeCharacter?.name || "" })
           }
-          aria-label={`发送给 ${activeCharacter?.name || "角色"} 的消息输入框`}
+          aria-label={t("chat_input.aria_label", { name: activeCharacter?.name || "角色" })}
           rows={2}
           className={`flex-1 bg-input/70 border border-border/80 rounded-xl py-2 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[160px] min-h-[42px] transition-[border-color,background-color] duration-300 shadow-inner ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
             }`}
@@ -527,7 +529,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         {settings.asrConfig?.enabled && (
           <button
             type="button"
-            aria-label={isRecording ? "停止录音" : isTranscribing ? "正在识别语音" : "语音输入"}
+            aria-label={isRecording ? t("chat_input.asr_stop") : isTranscribing ? t("chat_input.asr_recognizing") : t("chat_input.asr_mic")}
             onClick={handleToggleAsr}
             disabled={isSending || isBisonLocking}
             className={`w-[42px] h-[42px] rounded-xl border transition-all duration-300 shrink-0 flex items-center justify-center ${isRecording
@@ -536,7 +538,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                   ? "bg-amber-500/20 border-amber-500/40 text-amber-500"
                   : "bg-input/30 border-border/80 text-muted-foreground hover:bg-muted"
               } ${(isSending || isBisonLocking) ? "opacity-45 cursor-not-allowed" : "active:scale-95"}`}
-            title={isRecording ? "停止录音" : isTranscribing ? "正在识别中..." : "语音输入"}
+            title={isRecording ? t("chat_input.asr_stop") : isTranscribing ? t("chat_input.asr_transcribing") : t("chat_input.asr_mic")}
           >
             {isTranscribing ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -550,8 +552,8 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         {isSending ? (
           <button
             onClick={() => handleStopGeneration()}
-            aria-label="中止对话"
-            title="中止对话"
+            aria-label={t("chat_input.stop")}
+            title={t("chat_input.stop")}
             className="w-[42px] h-[42px] rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 cursor-pointer"
           >
             <Square className="w-4 h-4 fill-current" aria-hidden="true" />
@@ -565,13 +567,13 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             disabled={!canSend}
             aria-label={
               settings.enableMultiMessageQueue
-                ? "发送消息（长按合并发送）"
-                : "发送消息"
+                ? t("chat_input.send_title")
+                : t("chat_input.send")
             }
             title={
               settings.enableMultiMessageQueue
-                ? "点击单纯发送消息，长按500ms与之前消息合并发送给AI"
-                : "发送消息"
+                ? t("chat_input.send_long_press")
+                : t("chat_input.send")
             }
             className={`w-[42px] h-[42px] rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${canSend
                 ? "hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 cursor-pointer opacity-100"

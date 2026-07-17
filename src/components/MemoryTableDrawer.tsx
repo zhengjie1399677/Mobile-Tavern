@@ -7,6 +7,7 @@ import TableMemoryTab from "./memory-drawer/TableMemoryTab";
 import DictTab from "./memory-drawer/DictTab";
 import RecallTab from "./memory-drawer/RecallTab";
 import { useUnifiedApp } from "../UnifiedAppContext";
+import { useTranslation } from "../contexts/LanguageContext";
 import { notifyVariablesUpdated } from "../utils/tavernHelper";
 
 interface MemoryTableDrawerProps {
@@ -31,6 +32,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   initialTab
 }) => {
   const { setSessions, showCustomAlert } = useUnifiedApp();
+  const { t } = useTranslation();
   // 大 Tab 面板：'timeline' | 'table' | 'dict' | 'recall' | 'mvu'
   const [activeTab, setActiveTab] = useState<'timeline' | 'table' | 'dict' | 'recall' | 'mvu'>(
     enableAutoSummary ? 'timeline' : (enableTableMemory ? 'table' : 'recall')
@@ -58,7 +60,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold bg-primary/10 text-primary px-2.5 py-1 rounded-full flex items-center gap-1.5 font-sans">
               <BrainCircuit className="w-3.5 h-3.5" />
-              记忆与状态中心
+              {t("memory_drawer.title")}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -80,7 +82,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
               className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'timeline' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
                 }`}
             >
-              故事年表
+              {t("memory_drawer.tab_timeline")}
             </button>
           )}
           {enableTableMemory && (
@@ -89,7 +91,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
               className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'table' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
                 }`}
             >
-              状态数据
+              {t("memory_drawer.tab_table")}
             </button>
           )}
           <button
@@ -97,21 +99,21 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'dict' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
               }`}
           >
-            记忆词典
+            {t("memory_drawer.tab_dict")}
           </button>
           <button
             onClick={() => setActiveTab('recall')}
             className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'recall' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
               }`}
           >
-            唤醒记忆
+            {t("memory_drawer.tab_recall")}
           </button>
           <button
             onClick={() => setActiveTab('mvu')}
             className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'mvu' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
               }`}
           >
-            角色变量
+            {t("memory_drawer.tab_mvu")}
           </button>
         </div>
 
@@ -169,7 +171,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                 } catch (e) {
                   console.warn("[MemoryTableDrawer] notifyVariablesUpdated failed:", e);
                 }
-                showCustomAlert("角色变量保存并同步成功！");
+                showCustomAlert(t("memory_drawer.mvu_save_success"));
               }}
             />
           )}

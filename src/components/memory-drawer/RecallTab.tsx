@@ -5,6 +5,7 @@ import {
   VolumeX,
   Tag
 } from "lucide-react";
+import { useTranslation } from "../../contexts/LanguageContext";
 
 export interface RecallTabProps {
   activeSession: ChatSession;
@@ -15,6 +16,7 @@ export interface RecallTabProps {
 type ChatSessionWithRecall = ChatSession & { lastRecalledMemories?: unknown[] };
 
 function RecallTab({ activeSession, saveSession }: RecallTabProps) {
+  const { t } = useTranslation();
   const lastRecalled = (activeSession as ChatSessionWithRecall).lastRecalledMemories || [];
 
   // Pin (钉子) 逻辑交互
@@ -64,14 +66,14 @@ function RecallTab({ activeSession, saveSession }: RecallTabProps) {
   return (
     <div className="space-y-4">
       <div className="text-[11px] font-medium bg-muted/40 text-muted-foreground border border-border/40 rounded-lg p-2.5 leading-relaxed">
-        💡 这里展示的是**最近一次发送消息时被 AI 成功唤醒的关联历史记忆**。你可以在此对其进行置顶（使其成为永久记忆）或屏蔽（使其被 AI 忽略），以此来微调 AI 掌握的背景细节。
+        {t("recall_tab.info")}
       </div>
 
       {lastRecalled.length === 0 ? (
         <div className="border border-dashed border-border/80 rounded-xl p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
           <BrainCircuit className="w-8 h-8 opacity-30 animate-pulse" />
-          <span className="text-xs font-bold">本轮未唤醒相关记忆</span>
-          <p className="text-[10px] max-w-xs text-muted-foreground mt-1">这意味着当前的话题没有匹配上词典实体，或者数据库中尚无足够关联的历史细节。</p>
+          <span className="text-xs font-bold">{t("recall_tab.empty_title")}</span>
+          <p className="text-[10px] max-w-xs text-muted-foreground mt-1">{t("recall_tab.empty_desc")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -92,11 +94,11 @@ function RecallTab({ activeSession, saveSession }: RecallTabProps) {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 border border-border/50 bg-muted rounded text-muted-foreground">
-                      轮次 {msg.turnIndex + 1}
+                      {t("recall_tab.turn_label", { turn: msg.turnIndex + 1 })}
                     </span>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${msg.role === 'user' ? 'bg-primary/10 text-primary' : 'bg-card text-muted-foreground border border-border'
                       }`}>
-                      {msg.role === 'user' ? '用户' : '角色'}
+                      {msg.role === 'user' ? t("recall_tab.role_user") : t("recall_tab.role_char")}
                     </span>
                   </div>
 
@@ -108,7 +110,7 @@ function RecallTab({ activeSession, saveSession }: RecallTabProps) {
                         ? "bg-primary border-primary text-primary-foreground"
                         : "hover:bg-muted border-border/60 text-muted-foreground"
                         }`}
-                      title={isPinned ? "取消 Pin 固定" : "强行 Pin 固定"}
+                      title={isPinned ? t("recall_tab.unpin") : t("recall_tab.pin")}
                     >
                       <Pin className="w-3 h-3" />
                     </button>
@@ -118,7 +120,7 @@ function RecallTab({ activeSession, saveSession }: RecallTabProps) {
                         ? "bg-destructive border-destructive text-destructive-foreground"
                         : "hover:bg-muted border-border/60 text-muted-foreground"
                         }`}
-                      title={isMuted ? "取消 Mute 屏蔽" : "强行 Mute 屏蔽"}
+                      title={isMuted ? t("recall_tab.unmute") : t("recall_tab.mute")}
                     >
                       <VolumeX className="w-3 h-3" />
                     </button>
@@ -134,7 +136,7 @@ function RecallTab({ activeSession, saveSession }: RecallTabProps) {
                 {Array.isArray(msg.hitTags) && msg.hitTags.length > 0 && (
                   <div className="flex items-center gap-1 mt-1 pl-1 flex-wrap">
                     <Tag className="w-2.5 h-2.5 text-muted-foreground/60 shrink-0" />
-                    <span className="text-[9px] text-muted-foreground shrink-0">命中标签:</span>
+                    <span className="text-[9px] text-muted-foreground shrink-0">{t("recall_tab.hit_tags")}</span>
                     {msg.hitTags.map((tag: string, idx: number) => (
                       <span key={idx} className="text-[8px] font-bold bg-primary/5 border border-primary/10 text-primary px-1 py-0.2 rounded">
                         {tag}

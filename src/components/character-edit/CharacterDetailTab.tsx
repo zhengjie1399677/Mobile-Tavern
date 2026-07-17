@@ -1,5 +1,6 @@
 import { CharacterCard } from "../../types";
 import { compressImage } from "../../utils/imageCompressor";
+import { useTranslation } from "../../contexts/LanguageContext";
 
 export interface CharacterDetailTabProps {
   editingChar: Partial<CharacterCard>;
@@ -12,15 +13,16 @@ export default function CharacterDetailTab({
   setEditingChar,
   showCustomAlert,
 }: CharacterDetailTabProps) {
+  const { t } = useTranslation();
   return (
     <div className="p-4 space-y-3.5 text-xs">
       <div>
         <label className="block text-muted-foreground mb-1 font-bold">
-          角色名称 *
+          {t("char_detail_tab.label_name")}
         </label>
         <input
           type="text"
-          placeholder="如: 艾莉娅"
+          placeholder={t("char_detail_tab.placeholder_name")}
           value={editingChar.name || ""}
           onChange={(e) =>
             setEditingChar({ ...editingChar, name: e.target.value })
@@ -31,12 +33,12 @@ export default function CharacterDetailTab({
 
       <div>
         <label className="block text-muted-foreground mb-1">
-          形象设计 URL (支持 base64 或者在线图片)
+          {t("char_detail_tab.label_avatar")}
         </label>
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="data:image/png;base64,... 或 http://..."
+            placeholder={t("char_detail_tab.placeholder_avatar")}
             value={editingChar.avatar || ""}
             onChange={(e) =>
               setEditingChar({
@@ -47,7 +49,7 @@ export default function CharacterDetailTab({
             className="flex-1 bg-input border border-border rounded p-2 text-foreground outline-none text-xs truncate"
           />
           <label className="bg-muted text-muted-foreground px-3 rounded flex items-center justify-center cursor-pointer border border-border">
-            上传
+            {t("char_detail_tab.upload")}
             <input
               type="file"
               accept="image/*"
@@ -56,7 +58,7 @@ export default function CharacterDetailTab({
                 const file = e.target.files?.[0];
                 if (file) {
                   if (file.size > 5 * 1024 * 1024) {
-                    showCustomAlert("⚠️ 上传失败：头像图片大小不能超过 5MB！");
+                    showCustomAlert(t("char_detail_tab.avatar_too_large"));
                     return;
                   }
                   compressImage(file, 400, 400, 0.8, "image/png")
@@ -67,7 +69,7 @@ export default function CharacterDetailTab({
                       });
                     })
                     .catch((err) => {
-                      showCustomAlert("⚠️ 图片压缩失败：" + err.message);
+                      showCustomAlert(t("char_detail_tab.compress_failed", { error: err.message }));
                     });
                 };
               }}
@@ -78,12 +80,12 @@ export default function CharacterDetailTab({
 
       <div>
         <label className="block text-muted-foreground mb-1">
-          专属聊天背景图片 (支持 base64 或在线图片，优先渲染)
+          {t("char_detail_tab.label_bg")}
         </label>
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="未设置（将使用全局背景或默认主题底色）"
+            placeholder={t("char_detail_tab.placeholder_bg")}
             value={editingChar.visualSettings?.backgroundImageUrl || ""}
             onChange={(e) =>
               setEditingChar({
@@ -97,7 +99,7 @@ export default function CharacterDetailTab({
             className="flex-1 bg-input border border-border rounded p-2 text-foreground outline-none text-xs truncate"
           />
           <label className="bg-muted text-muted-foreground px-3 rounded flex items-center justify-center cursor-pointer border border-border shrink-0 select-none">
-            上传
+            {t("char_detail_tab.upload")}
             <input
               type="file"
               accept="image/*"
@@ -106,7 +108,7 @@ export default function CharacterDetailTab({
                 const file = e.target.files?.[0];
                 if (file) {
                   if (file.size > 5 * 1024 * 1024) {
-                    showCustomAlert("⚠️ 上传失败：背景图片大小不能超过 5MB！");
+                    showCustomAlert(t("char_detail_tab.bg_too_large"));
                     return;
                   }
                   compressImage(file, 1080, 1920, 0.75, "image/jpeg")
@@ -120,7 +122,7 @@ export default function CharacterDetailTab({
                       });
                     })
                     .catch((err) => {
-                      showCustomAlert("⚠️ 图片压缩失败：" + err.message);
+                      showCustomAlert(t("char_detail_tab.compress_failed", { error: err.message }));
                     });
                 }
               }}
@@ -140,7 +142,7 @@ export default function CharacterDetailTab({
               }
               className="bg-rose-950/20 text-red-400 px-3 rounded border border-rose-900/35 hover:bg-rose-950/45 transition shrink-0"
             >
-              清除
+              {t("char_detail_tab.clear")}
             </button>
           )}
         </div>
@@ -148,7 +150,7 @@ export default function CharacterDetailTab({
 
       <div>
         <label className="block text-muted-foreground mb-1">
-          星号动作分色渲染 (角色级覆写)
+          {t("char_detail_tab.label_asterisk")}
         </label>
         <select
           value={
@@ -175,19 +177,19 @@ export default function CharacterDetailTab({
           }}
           className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs"
         >
-          <option value="inherit">跟随全局设置</option>
-          <option value="true">强制启用</option>
-          <option value="false">强制禁用</option>
+          <option value="inherit">{t("char_detail_tab.asterisk_inherit")}</option>
+          <option value="true">{t("char_detail_tab.asterisk_enable")}</option>
+          <option value="false">{t("char_detail_tab.asterisk_disable")}</option>
         </select>
       </div>
 
 
       <div>
         <label className="block text-muted-foreground mb-1">
-          人设描述 (Description/Persona)
+          {t("char_detail_tab.label_description")}
         </label>
         <textarea
-          placeholder="角色的详细描述、性格或背景设定..."
+          placeholder={t("char_detail_tab.placeholder_description")}
           rows={12}
           value={editingChar.description || ""}
           onChange={(e) =>
@@ -202,11 +204,11 @@ export default function CharacterDetailTab({
 
       <div>
         <label className="block text-muted-foreground mb-1">
-          性格词条细化 (Personality Description)
+          {t("char_detail_tab.label_personality")}
         </label>
         <input
           type="text"
-          placeholder="角色的核心性格特征"
+          placeholder={t("char_detail_tab.placeholder_personality")}
           value={editingChar.personality || ""}
           onChange={(e) =>
             setEditingChar({
@@ -220,11 +222,11 @@ export default function CharacterDetailTab({
 
       <div>
         <label className="block text-muted-foreground mb-1">
-          当前剧本故事场景设定 (Scenario Context)
+          {t("char_detail_tab.label_scenario")}
         </label>
         <input
           type="text"
-          placeholder="当前的故事场景 and 环境设定"
+          placeholder={t("char_detail_tab.placeholder_scenario")}
           value={editingChar.scenario || ""}
           onChange={(e) =>
             setEditingChar({
@@ -238,10 +240,10 @@ export default function CharacterDetailTab({
 
       <div>
         <label className="block text-muted-foreground mb-1">
-          开场问候语 * (First message/Greeting)
+          {t("char_detail_tab.label_first_mes")}
         </label>
         <textarea
-          placeholder="角色出场的第一句话"
+          placeholder={t("char_detail_tab.placeholder_first_mes")}
           rows={12}
           value={editingChar.first_mes || ""}
           onChange={(e) =>
@@ -256,10 +258,10 @@ export default function CharacterDetailTab({
 
       <div>
         <label className="block text-muted-foreground mb-1">
-          对白例句款式组 (Dialogue Examples)
+          {t("char_detail_tab.label_mes_example")}
         </label>
         <textarea
-          placeholder="<user>: 你是谁？\n<char>: 我是..."
+          placeholder={t("char_detail_tab.placeholder_mes_example")}
           rows={10}
           value={editingChar.mes_example || ""}
           onChange={(e) =>
@@ -274,11 +276,11 @@ export default function CharacterDetailTab({
 
       <div>
         <label className="block text-muted-foreground mb-1">
-          自定义系统提示约束 (System Instruction constraint Override)
+          {t("char_detail_tab.label_system_prompt")}
         </label>
         <input
           type="text"
-          placeholder="可选的系统级别提示词覆盖约定"
+          placeholder={t("char_detail_tab.placeholder_system_prompt")}
           value={editingChar.system_prompt || ""}
           onChange={(e) =>
             setEditingChar({

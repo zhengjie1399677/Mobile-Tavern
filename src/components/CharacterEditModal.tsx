@@ -1,10 +1,12 @@
 import React from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
+import { useTranslation } from "../contexts/LanguageContext";
 import { X } from "lucide-react";
 import CharacterDetailTab from "./character-edit/CharacterDetailTab";
 import LorebookTab from "./character-edit/LorebookTab";
 
 export default function CharacterEditModal() {
+  const { t } = useTranslation();
   const {
     charModalOpen,
     setCharModalOpen,
@@ -33,8 +35,8 @@ export default function CharacterEditModal() {
         <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10">
           <p className="font-bold text-foreground text-sm">
             {String(editingChar.id || "").startsWith("char_ST_")
-              ? "编辑 SillyTavern 兼容卡片库"
-              : "重新打造 AI 灵魂容器设定"}
+              ? t("character_editor.modal_title_edit")
+              : t("character_editor.modal_title_create")}
           </p>
           <button
             onClick={() => {
@@ -57,7 +59,7 @@ export default function CharacterEditModal() {
                 : "text-muted-foreground"
             }`}
           >
-            1. 设子性格与基本项
+            {t("character_editor.tab_detail")}
           </button>
           <button
             onClick={() => setActiveLoreTab("lore")}
@@ -67,7 +69,7 @@ export default function CharacterEditModal() {
                 : "text-muted-foreground"
             }`}
           >
-            2. 绑定专属角色世界书 ({editingChar.lorebookEntries?.length || 0})
+            {t("character_editor.tab_lore", { count: String(editingChar.lorebookEntries?.length || 0) })}
           </button>
         </div>
 
@@ -108,13 +110,13 @@ export default function CharacterEditModal() {
             }}
             className="bg-muted text-muted-foreground hover:text-foreground px-4 py-2 rounded-lg text-xs font-semibold"
           >
-            放弃修改
+            {t("character_editor.cancel_button")}
           </button>
           <button
             onClick={handleSaveCharacter}
             className="bg-primary hover:bg-primary text-primary-foreground px-5 py-2 rounded-lg text-xs font-bold"
           >
-            保存修改
+            {t("character_editor.save_button")}
           </button>
         </div>
       </div>

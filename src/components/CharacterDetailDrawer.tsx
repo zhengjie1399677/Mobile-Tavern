@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
+import { useTranslation } from "../contexts/LanguageContext";
 import { CharacterCard, LorebookEntry } from "../types";
 import FormattedText from "./FormattedText";
 import {
@@ -36,6 +37,8 @@ export default function CharacterDetailDrawer({
     safeAreas,
   } = useUnifiedApp();
 
+  const { t } = useTranslation();
+
   const userName = settings?.userName || "user";
 
   const [activeTab, setActiveTab] = useState<"persona" | "dialogue" | "lore">("persona");
@@ -62,9 +65,9 @@ export default function CharacterDetailDrawer({
       setCharacters((prev: CharacterCard[]) =>
         prev.map((c) => (c.id === updatedChar.id ? updatedChar : c))
       );
-      showCustomAlert(`开场白已更新成功！`);
+      showCustomAlert(t("char_detail.greeting_updated"));
     } catch (e: any) {
-      showCustomAlert(`设置开场白出错: ${e.message}`);
+      showCustomAlert(t("char_detail.greeting_error", { error: e.message }));
     }
   };
 
@@ -140,7 +143,7 @@ export default function CharacterDetailDrawer({
               </h2>
               <p className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1 font-light">
                 <User className="w-3 h-3 flex-shrink-0" />
-                {character.creator ? `创作者: @${character.creator}` : "系统预置 / 未知创作者"}
+                {character.creator ? `创作者: @${character.creator}` : t("char_detail.unknown_creator")}
               </p>
 
               {/* Tags Horizontal Scroll */}
@@ -172,7 +175,7 @@ export default function CharacterDetailDrawer({
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            人设档案
+            {t("char_detail.tab_persona")}
           </button>
           <button
             onClick={() => setActiveTab("dialogue")}
@@ -183,7 +186,7 @@ export default function CharacterDetailDrawer({
             }`}
           >
             <MessageSquare className="w-4 h-4" />
-            对话剧本
+            {t("char_detail.tab_dialogue")}
           </button>
           <button
             onClick={() => setActiveTab("lore")}
@@ -194,7 +197,7 @@ export default function CharacterDetailDrawer({
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            世界设定 ({loreEntries.length})
+            {t("char_detail.tab_lore", { count: String(loreEntries.length) })}
           </button>
         </div>
 
@@ -209,11 +212,11 @@ export default function CharacterDetailDrawer({
               <div className="bg-card border border-border/50 rounded-2xl p-4 space-y-2 shadow-sm">
                 <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-primary" />
-                  性格特征 (Personality)
+                  {t("char_detail.section_personality")}
                 </h3>
                 <div className="text-sm text-foreground bg-muted/30 rounded-xl p-3 border border-border/20">
                   <FormattedText
-                    text={character.personality || "暂无特别性格设定..."}
+                    text={character.personality || t("char_detail.no_personality")}
                     charName={character.name}
                     userName={userName}
                     character={character}
@@ -225,11 +228,11 @@ export default function CharacterDetailDrawer({
               <div className="bg-card border border-border/50 rounded-2xl p-4 space-y-2 shadow-sm">
                 <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                   <User className="w-3.5 h-3.5 text-primary" />
-                  外貌特征与生平描述 (Description)
+                  {t("char_detail.section_description")}
                 </h3>
                 <div className="text-sm text-foreground bg-muted/30 rounded-xl p-3 border border-border/20 max-h-64 overflow-y-auto no-scrollbar">
                   <FormattedText
-                    text={character.description || "暂无背景故事说明..."}
+                    text={character.description || t("char_detail.no_description")}
                     charName={character.name}
                     userName={userName}
                     character={character}
@@ -277,7 +280,7 @@ export default function CharacterDetailDrawer({
               {(character.alternate_greetings && character.alternate_greetings.length > 0) && (
                 <div className="space-y-1.5">
                   <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    选择开场剧情场景 ({character.alternate_greetings.length + 1} 条可选)
+                    {t("char_detail.greeting_selector_title", { count: String(character.alternate_greetings.length + 1) })}
                   </h4>
                   <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
                     {/* Default Option */}
@@ -289,7 +292,7 @@ export default function CharacterDetailDrawer({
                           : "bg-card text-muted-foreground border-border/50 hover:bg-muted"
                       }`}
                     >
-                      默认开场场景
+                      {t("char_detail.default_greeting")}
                     </button>
                     {/* Alternate Options */}
                     {character.alternate_greetings.map((_, idx) => (
@@ -302,7 +305,7 @@ export default function CharacterDetailDrawer({
                             : "bg-card text-muted-foreground border-border/50 hover:bg-muted"
                         }`}
                       >
-                        开场分支 {idx + 1}
+                        {t("char_detail.greeting_branch", { idx: String(idx + 1) })}
                       </button>
                     ))}
                   </div>
@@ -322,7 +325,7 @@ export default function CharacterDetailDrawer({
                   <div className="bg-card border border-border/50 rounded-2xl p-4 space-y-4 shadow-sm relative overflow-hidden">
                     <div className="flex justify-between items-center border-b border-border/40 pb-2">
                       <span className="text-[11px] bg-primary/10 text-primary px-2 py-0.5 rounded font-medium">
-                        {activeGreetingIdx === -1 ? "默认剧情开端" : `备选场景分支 ${activeGreetingIdx + 1}`}
+                        {activeGreetingIdx === -1 ? t("char_detail.default_greeting_badge") : t("char_detail.alternate_greeting_badge", { idx: activeGreetingIdx + 1 })}
                       </span>
 
                       <div className="flex items-center gap-1.5">
@@ -330,7 +333,7 @@ export default function CharacterDetailDrawer({
                         <button
                           onClick={() => handleCopy(currentText, "greeting")}
                           className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition"
-                          title="复制整段文本"
+                          title={t("char_detail.copy_text")}
                         >
                           {copiedText === "greeting" ? (
                             <Check className="w-3.5 h-3.5 text-green-500" />
@@ -343,9 +346,9 @@ export default function CharacterDetailDrawer({
                           <button
                             onClick={() => handleSetPrimaryGreeting(currentText)}
                             className="bg-primary/15 text-primary text-[10px] px-2 py-1 rounded hover:bg-primary hover:text-primary-foreground font-bold transition-all active:scale-[0.97]"
-                            title="将此条开场白永久设为主场景首句"
+                            title={t("char_detail.set_primary_greeting_title")}
                           >
-                            设为主开端
+                            {t("char_detail.set_primary_greeting")}
                           </button>
                         )}
                       </div>
@@ -354,7 +357,7 @@ export default function CharacterDetailDrawer({
                     <div className="bg-muted/40 rounded-2xl p-3 border border-border/20 text-sm max-h-80 overflow-y-auto no-scrollbar font-sans">
                       <FormattedText
                         key={`greeting-${activeGreetingIdx}`}
-                        text={currentText || "（暂无开场白设定）"}
+                        text={currentText || t("char_detail.no_greeting")}
                         charName={character.name}
                         userName={userName}
                         character={character}
@@ -368,7 +371,7 @@ export default function CharacterDetailDrawer({
               {character.mes_example && (
                 <div className="bg-card border border-border/50 rounded-2xl p-4 space-y-2 shadow-sm">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-                    <span>对话参考范例 (Dialogue Examples)</span>
+                    <span>{t("char_detail.section_examples")}</span>
                     <button
                       onClick={() => handleCopy(character.mes_example || "", "examples")}
                       className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition"
@@ -402,7 +405,7 @@ export default function CharacterDetailDrawer({
                 <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="搜索关键词、触发词或设定描述..."
+                  placeholder={t("char_detail.lore_search_placeholder")}
                   value={loreSearch}
                   onChange={(e) => setLoreSearch(e.target.value)}
                   className="w-full text-xs pl-9 pr-4 py-2 bg-muted/40 border border-border/50 rounded-xl outline-none focus:border-primary/50 transition"
@@ -412,7 +415,7 @@ export default function CharacterDetailDrawer({
                     onClick={() => setLoreSearch("")}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
                   >
-                    清除
+                    {t("char_detail.clear_search")}
                   </button>
                 )}
               </div>
@@ -446,12 +449,12 @@ export default function CharacterDetailDrawer({
                             ))}
                             {entry.constant && (
                               <span className="bg-green-500/10 text-green-600 text-[10px] px-1.5 py-0.5 rounded font-medium border border-green-500/10">
-                                常驻常亮
+                                {t("char_detail.badge_constant")}
                               </span>
                             )}
                             {!entry.enabled && (
                               <span className="bg-muted text-muted-foreground text-[10px] px-1.5 py-0.5 rounded font-medium border border-border">
-                                已停用
+                                {t("char_detail.badge_disabled")}
                               </span>
                             )}
                           </div>
@@ -475,16 +478,16 @@ export default function CharacterDetailDrawer({
                           {/* Technical placement info badges */}
                           <div className="flex flex-wrap gap-1.5 text-[10px] text-muted-foreground bg-muted/40 p-2 rounded-lg font-mono">
                             <span className="bg-muted/80 px-1.5 py-0.5 rounded">
-                              优先级: {entry.order || 100}
+                              {t("char_detail.priority")} {entry.order || 100}
                             </span>
                             <span className="bg-muted/80 px-1.5 py-0.5 rounded">
-                              概率: {entry.probability || 100}%
+                              {t("char_detail.probability")} {entry.probability || 100}%
                             </span>
                             <span className="bg-muted/80 px-1.5 py-0.5 rounded">
-                              深度: {entry.depth || 4}
+                              {t("char_detail.depth")} {entry.depth || 4}
                             </span>
                             <span className="bg-muted/80 px-1.5 py-0.5 rounded">
-                              位置: {entry.position || "after_char_def"}
+                              {t("char_detail.position")} {entry.position || "after_char_def"}
                             </span>
                           </div>
 
@@ -501,8 +504,8 @@ export default function CharacterDetailDrawer({
                 {filteredLore.length === 0 && (
                   <div className="text-center py-8 text-xs text-muted-foreground border border-dashed border-border rounded-xl">
                     {loreEntries.length === 0
-                      ? "该角色卡未嵌入任何内置世界设定书词条。"
-                      : "未搜索到匹配此关键词的设定词条。"}
+                      ? t("char_detail.lore_empty")
+                      : t("char_detail.lore_no_match")}
                   </div>
                 )}
               </div>

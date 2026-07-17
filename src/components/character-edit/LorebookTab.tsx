@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { CharacterCard, LorebookEntry } from "../../types";
+import { useTranslation } from "../../contexts/LanguageContext";
 import LoreEntryEditor from "./LoreEntryEditor";
 
 export interface LorebookTabProps {
@@ -40,16 +41,17 @@ export default function LorebookTab({
   setCharModalOpen,
   setActiveTab,
 }: LorebookTabProps) {
+  const { t } = useTranslation();
   return (
     <div className="p-4 space-y-4 text-xs animate-fadeIn">
       {/* Visual upgrade Callout Banner */}
       <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 space-y-1.5 shadow-sm text-foreground">
         <div className="flex items-center gap-1.5 font-bold text-primary text-xs">
           <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" />
-          设定词条编辑现已全面升级
+          {t("lorebook_tab.upgrade_title")}
         </div>
         <p className="text-[10px] text-muted-foreground leading-relaxed font-light">
-          系统现已支持强大的「内联同位(In-place)编辑」。您除了可以在这里直接进行在位内联修改，也可以点击下方链接直接跳转底部的独立「世界书」选项卡进行统一多维筛选及全局对调。
+          {t("lorebook_tab.upgrade_desc")}
         </p>
         <button
           onClick={() => {
@@ -61,7 +63,7 @@ export default function LorebookTab({
           type="button"
           className="text-[10.5px] text-primary hover:underline font-bold flex items-center gap-1 mt-1 font-mono transition"
         >
-          🌐 点击直接转至底栏『世界书』· 独立多维控制台 ➡
+          {t("lorebook_tab.goto_worldbook")}
         </button>
       </div>
 
@@ -90,7 +92,7 @@ export default function LorebookTab({
           type="button"
           className="w-full py-2 bg-muted/20 border border-dashed border-border hover:border-primary text-muted-foreground hover:text-primary rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition"
         >
-          ➕ 手工为此宿体增设一条专属设定 (Inline Creator)
+          {t("lorebook_tab.new_entry")}
         </button>
       )}
 
@@ -100,7 +102,7 @@ export default function LorebookTab({
           <div className="bg-card p-3 rounded-lg border border-primary/40 space-y-3 shadow animate-fadeIn">
             <div className="flex items-center justify-between border-b border-border/60 pb-1 text-xs">
               <span className="font-bold text-primary">
-                ✨ 为此角色快速增建专属词条
+                {t("lorebook_tab.new_entry_card_title")}
               </span>
               <button
                 onClick={() => setEditingLoreEntry(null)}
@@ -121,8 +123,7 @@ export default function LorebookTab({
       <div className="space-y-2.5">
         <div className="flex items-center justify-between text-xs text-muted-foreground border-b border-border/40 pb-1">
           <span className="font-bold text-foreground flex items-center gap-1.5">
-            <Book className="w-3.5 h-3.5" /> 本角色附属专属知识词条
-            ({editingChar.lorebookEntries?.length || 0} 项)
+            <Book className="w-3.5 h-3.5" /> {t("lorebook_tab.entry_list_title", { count: String(editingChar.lorebookEntries?.length || 0) })}
           </span>
         </div>
 
@@ -138,7 +139,7 @@ export default function LorebookTab({
               : typeof entry.keys === "string" && entry.keys
                 ? entry.keys
                 : "") ||
-            "未命名设定词条";
+            t("lorebook_tab.unnamed_entry");
 
           return (
             <div
@@ -175,12 +176,12 @@ export default function LorebookTab({
                   <div className="flex items-center gap-1 shrink-0 scale-90">
                     {entry.constant && (
                       <span className="bg-emerald-950/25 text-emerald-400 border border-emerald-900/15 px-1 py-0.2 rounded text-[9px]">
-                        常驻
+                        {t("lorebook_tab.badge_constant")}
                       </span>
                     )}
                     {entry.disabled && (
                       <span className="bg-rose-950/25 text-rose-400 border border-rose-900/15 px-1 py-0.2 rounded text-[9px]">
-                        已禁用
+                        {t("lorebook_tab.badge_disabled")}
                       </span>
                     )}
                   </div>
@@ -189,7 +190,7 @@ export default function LorebookTab({
                 <div className="flex items-center gap-2 text-muted-foreground shrink-0 text-[10px]">
                   {entry.keys &&
                     entry.keys.length > 0 &&
-                    `(${entry.keys.length}个触发词)`}
+                    t("lorebook_tab.trigger_word_count", { count: String(entry.keys.length) })}
                   {isExpanded ? (
                     <ChevronUp className="w-3.5 h-3.5" />
                   ) : (
@@ -207,31 +208,31 @@ export default function LorebookTab({
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-muted/20 p-2 rounded text-[10px] text-muted-foreground font-mono">
                         <div>
                           <span className="text-muted-foreground/75">
-                            触发词:{" "}
+                            {t("lorebook_tab.meta_keys")}{" "}
                           </span>
                           <span className="text-foreground font-semibold">
                             {Array.isArray(entry.keys) && entry.keys.length > 0
                               ? entry.keys.join(", ")
                               : typeof entry.keys === "string" && (entry.keys as string).trim()
                                 ? entry.keys
-                                : "(无)"}
+                                : t("lorebook_tab.none")}
                           </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground/75">
-                            位置:{" "}
+                            {t("lorebook_tab.meta_position")}{" "}
                           </span>
                           <span className="text-foreground font-semibold">
                             {entry.position === "after_char_def"
-                              ? "📌角色后"
+                              ? t("lorebook_tab.position_after")
                               : entry.position === "before_char_def"
-                                ? "📌角色前"
-                                : "📌顶部"}
+                                ? t("lorebook_tab.position_before")
+                                : t("lorebook_tab.position_top")}
                           </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground/75">
-                            深度 / 权重:{" "}
+                            {t("lorebook_tab.meta_depth_weight")}{" "}
                           </span>
                           <span className="text-foreground font-semibold">
                             {entry.depth !== undefined ? entry.depth : 4}{" "}
@@ -240,7 +241,7 @@ export default function LorebookTab({
                         </div>
                         <div>
                           <span className="text-muted-foreground/75">
-                            概率 / 正则:{" "}
+                            {t("lorebook_tab.meta_probability_regex")}{" "}
                           </span>
                           <span className="text-foreground font-semibold">
                             {entry.probability !== undefined
@@ -254,7 +255,7 @@ export default function LorebookTab({
                       {/* Content description view */}
                       <div className="space-y-1">
                         <span className="block text-[10px] text-muted-foreground font-medium">
-                          设定叙述内容 (Prompt):
+                          {t("lorebook_tab.label_content")}
                         </span>
                         <p
                           className={`font-light leading-relaxed whitespace-pre-wrap rounded-lg bg-muted/40 p-2 border border-border/30 text-[11px] ${
@@ -270,7 +271,7 @@ export default function LorebookTab({
                       {/* Bottom actions row */}
                       <div className="flex items-center justify-between pt-1 border-t border-border/30">
                         <span className="text-[10px] text-muted-foreground">
-                          {entry.addMemo ? "⭐ 带标题备忘" : ""}
+                          {entry.addMemo ? t("lorebook_tab.label_memo") : ""}
                         </span>
                         <div className="flex items-center gap-1.5">
                           <button
@@ -284,13 +285,13 @@ export default function LorebookTab({
                             type="button"
                             className="text-[11px] bg-primary/15 hover:bg-primary hover:text-primary-foreground text-primary border border-primary/25 px-2.5 py-1 rounded-md flex items-center gap-1 font-semibold transition"
                           >
-                            <Edit2 className="w-3 h-3" /> 编辑此词 (Inline)
+                            <Edit2 className="w-3 h-3" /> {t("lorebook_tab.edit_inline")}
                           </button>
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
                               const ok = await showCustomConfirm(
-                                "确定要擦除该条专属词条吗？"
+                                t("lorebook_tab.confirm_delete")
                               );
                               if (ok) {
                                 const next = (
@@ -305,7 +306,7 @@ export default function LorebookTab({
                             type="button"
                             className="text-[11px] bg-rose-950/20 hover:bg-rose-950/45 text-red-400 border border-thin border-rose-900/35 px-2.5 py-1 rounded-md flex items-center gap-1 transition"
                           >
-                            <Trash2 className="w-3 h-3" /> 擦除
+                            <Trash2 className="w-3 h-3" /> {t("lorebook_tab.delete")}
                           </button>
                         </div>
                       </div>
@@ -328,7 +329,7 @@ export default function LorebookTab({
         {(!editingChar.lorebookEntries ||
           editingChar.lorebookEntries.length === 0) && (
           <div className="text-center py-8 text-muted-foreground border border-dashed border-border/80 rounded-xl bg-muted/5 italic">
-            本宿体卡尚未独立编制任何专属设定。请点击上方按钮进行增设，或使用底部「世界书公立频道」。
+            {t("lorebook_tab.empty_state")}
           </div>
         )}
       </div>

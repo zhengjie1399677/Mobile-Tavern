@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import { TRANSLATIONS } from "../locales/translations";
 
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。
@@ -302,7 +303,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearTimeout(timer);
   }, []);
 
-  const showCustomAlert = (message: string, title: string = "提示") => {
+  const showCustomAlert = (message: string, title: string = TRANSLATIONS["zh-CN"]["dialog.alert_default_title"]) => {
     return new Promise<void>((resolve) => {
       const newDialog: CustomDialogConfig = {
         isOpen: true,
@@ -318,7 +319,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const showCustomConfirm = (message: string, title: string = "确认") => {
+  const showCustomConfirm = (message: string, title: string = TRANSLATIONS["zh-CN"]["dialog.confirm_default_title"]) => {
     return new Promise<boolean>((resolve) => {
       const newDialog: CustomDialogConfig = {
         isOpen: true,
@@ -338,7 +339,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const showCustomPrompt = (message: string, defaultValue: string = "", title: string = "输入", inputType: "text" | "textarea" = "text") => {
+  const showCustomPrompt = (message: string, defaultValue: string = "", title: string = TRANSLATIONS["zh-CN"]["dialog.prompt_default_title"], inputType: "text" | "textarea" = "text") => {
     return new Promise<string | null>((resolve) => {
       const newDialog: CustomDialogConfig = {
         isOpen: true,

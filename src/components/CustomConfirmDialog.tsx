@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
+import { useTranslation } from "../contexts/LanguageContext";
 
 export default function CustomConfirmDialog() {
   const {
     customDialog,
   } = useUnifiedApp();
+
+  const { t } = useTranslation();
 
   const [localVal, setLocalVal] = useState("");
 
@@ -62,7 +65,7 @@ export default function CustomConfirmDialog() {
               onClick={() => customDialog.onCancel?.()}
               className="bg-muted/50 tap-scale text-muted-foreground px-4 py-2 rounded-xl text-xs font-semibold border border-border/60 hover:bg-muted transition-all duration-300"
             >
-              取消
+              {t("dialog.cancel")}
             </button>
           )}
           <button
@@ -75,7 +78,7 @@ export default function CustomConfirmDialog() {
             }}
             className="bg-primary tap-scale text-primary-foreground hover:bg-primary/95 px-5 py-2 rounded-xl text-xs font-bold transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-primary/20"
           >
-            确定
+            {t("dialog.confirm")}
           </button>
         </div>
       </div>

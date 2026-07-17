@@ -3,6 +3,7 @@ import { ChatSession, Message, SummaryCard } from "../types";
 import { useKernel } from "./KernelContext";
 import { IDatabaseService, IMemoryService } from "../kernel/types";
 import { useApp } from "./AppContext";
+import { TRANSLATIONS } from "../locales/translations";
 
 // P0-1: 启动时分页加载会话，避免一次性 getAll() 全量反序列化阻塞首屏。
 // 默认每页 50 条（覆盖 95% 用户的会话总数），超出部分由 loadMoreSessions 滚动加载。
@@ -11,6 +12,12 @@ const SESSIONS_PAGE_SIZE = 50;
 // TODO-4: 单会话消息分页懒加载页大小。
 // 首次进入聊天室仅加载最新 50 条消息，用户滚动到顶部时通过 loadMoreMessages 异步追加更早的历史。
 const MESSAGES_PAGE_SIZE = 50;
+
+/** 简易翻译辅助：直接从 translations 查找 key 并替换 {error} 占位符。ChatProvider 位于 LanguageProvider 上方，无法使用 useTranslation hook。 */
+function tChat(key: string, errorMessage: string): string {
+  const template = TRANSLATIONS["zh-CN"][key] || key;
+  return template.replace("{error}", errorMessage);
+}
 
 interface ChatContextType {
   sessions: ChatSession[];
@@ -265,7 +272,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e: any) {
       console.error("Failed to load more messages for active session:", e);
       if (isMountedRef.current) {
-        showCustomAlert("加载更早的消息失败: " + e.message);
+        showCustomAlert(tChat("chat.load_more_messages_failed", e.message));
       }
     } finally {
       if (isMountedRef.current) {

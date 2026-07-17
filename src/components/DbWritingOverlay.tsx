@@ -1,6 +1,8 @@
 import { useUnifiedApp } from "../UnifiedAppContext";
+import { useTranslation } from "../contexts/LanguageContext";
 
 export default function DbWritingOverlay() {
+  const { t } = useTranslation();
   const { isDbWriting } = useUnifiedApp();
 
   if (!isDbWriting) return null;
@@ -11,7 +13,7 @@ export default function DbWritingOverlay() {
         <div className="w-8 h-8 border-2 border-[var(--accent-color)]/30 border-t-[var(--accent-color)] rounded-full animate-spin" />
         <div className="space-y-1">
           <p className="text-xs font-bold text-foreground">
-            正在写入数据库
+            {t("db.writing_overlay")}
           </p>
           <p className="text-[10px] text-muted-foreground font-mono">
             IndexedDB Transactions

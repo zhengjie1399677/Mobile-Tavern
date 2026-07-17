@@ -35,6 +35,14 @@ Mobile-Tavern
 │   │   ├── useCatbot.ts                      # 客服助理雪团事件总线与大模型请求钩子
 │   │   └── useSettings.ts                    # 用户配置参数防抖落库、多预设套件管理
 │   │
+│   ├── contexts/                              # React Context 全局状态提供者
+│   │   ├── LanguageContext.tsx               # 多语言 i18n Provider 与 useTranslation 钩子
+│   │   ├── AppContext.tsx                    # 全局应用设置、备份、导入导出状态管理
+│   │   └── ChatContext.tsx                   # 聊天会话生命周期与消息流状态管理
+│   │
+│   ├── locales/                               # 多语言翻译资源
+│   │   └── translations.ts                   # 6 语言静态翻译词典 (zh-CN/zh-TW/en/ja/ru/es)
+│   │
 │   ├── tabs/                                 # 主界面导航四大板块对应的核心面板
 │   │   ├── CharactersTab.tsx                 # 模糊搜索、角色分类过滤器与图片拖拽监听
 │   │   ├── ChatTab.tsx                       # 对话气泡、多分支 Swipe 手势切换底栏
@@ -87,6 +95,43 @@ Mobile-Tavern
 │           ├── mvuParser.ts                  # MVU 角色卡扩展字段与正则脚本解析
 │           └── scriptIframe.ts               # MVU 沙盒脚本执行器
 ```
+
+---
+
+## 🌐 多语言国际化 (i18n Internationalization)
+
+### 架构概述
+
+Mobile Tavern 采用轻量级自定义 i18n 方案，不依赖第三方库。核心由两部分组成：
+
+- **`LanguageContext.tsx`**：React Context Provider，提供 `useTranslation()` 钩子，返回 `{ t, language, changeLanguage }`。内置三级回退链：当前语言 → 英文 → 简体中文 → 原始 key。
+- **`translations.ts`**：静态翻译词典，以 `Record<语言, Record<key, 翻译>>` 结构存储。
+
+### 支持语言
+
+| 语言 | 代码 | 完整度 |
+|------|------|--------|
+| 简体中文 | zh-CN | 100% (~710 keys) |
+| 繁体中文 | zh-TW | 100% |
+| 英语 | en | 100% |
+| 日语 | ja | 100% |
+| 俄语 | ru | 100% |
+| 西班牙语 | es | 100% |
+
+### 使用方式
+
+```tsx
+import { useTranslation } from "../../contexts/LanguageContext";
+
+function MyComponent() {
+  const { t, language } = useTranslation();
+  return <span>{t("key.path")}</span>;
+}
+```
+
+支持变量插值：`t("telemetrics.times", { count: 5 })` → `"5 次"` / `"5 times"`。
+
+语言选择持久化至 `localStorage`（key: `mobile_tavern_language`）。首次启动时根据 `navigator.language` 自动检测。
 
 ---
 

@@ -112,7 +112,7 @@ export default function SettingsTab() {
       const res = await performUpdateCheck(true, kernel);
       if (res === null) {
         // 理论上 force=true 不会返回 null（除非 UpdateCheckService 未注册），这里兜底
-        showCustomAlert("提示", "UpdateCheckService 未就绪，请稍后再试");
+        showCustomAlert(t("dialog.alert_default_title"), t("settings.update_service_not_ready"));
       } else if (res.hasUpdate && res.downloadUrl) {
         // 触发 UpdatePrompt 弹窗（避免重复请求 FC 接口）
         showUpdatePrompt({
@@ -122,11 +122,11 @@ export default function SettingsTab() {
         });
       } else {
         // 无更新：显示服务端返回的 message 或说明当前安装的实际版本已经是最新版
-        showCustomAlert("已是最新版本", res.message || `您当前运行的 v${__APP_VERSION__} 已经是最新版本。`);
+        showCustomAlert(t("settings.already_latest"), res.message || t("settings.already_latest_message", { version: __APP_VERSION__ }));
       }
     } catch (err: any) {
       console.error("[SettingsTab] Manual check update failed:", err);
-      showCustomAlert("检查失败", `检查更新时出错：${err?.message || "未知错误"}`);
+      showCustomAlert(t("settings.check_failed"), t("settings.check_failed_message", { error: err?.message || "未知错误" }));
     } finally {
       setIsCheckingUpdate(false);
     }
@@ -166,7 +166,7 @@ export default function SettingsTab() {
               type="button"
               onClick={handleCheckUpdate}
               disabled={isCheckingUpdate}
-              aria-label="检查更新"
+              aria-label={t("control_panel.check_update")}
               className="ml-1 text-[9px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30 font-semibold hover:bg-primary/20 transition-all flex items-center gap-1 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isCheckingUpdate ? (

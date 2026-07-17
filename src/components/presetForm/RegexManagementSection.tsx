@@ -396,7 +396,7 @@ export default function RegexManagementSection({
                   {t("regex.char")}
                 </span>
                 <span className="text-[9.5px] text-muted-foreground block">
-                  {t("regex.char_tip", { name: activeCharacter?.name || (t("nav.settings") === "设置" ? "未选择" : "None") })}
+                  {t("regex.char_tip", { name: activeCharacter?.name || t("regex.char_no_active") })}
                 </span>
               </div>
               {activeCharacter && (

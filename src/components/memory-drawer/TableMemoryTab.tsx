@@ -1,5 +1,6 @@
 import { useState, useEffect, type KeyboardEvent } from "react";
 import { ChatSession, TableMemorySheet } from "../../types";
+import { useTranslation } from "../../contexts/LanguageContext";
 import {
   Plus,
   Trash2,
@@ -27,6 +28,7 @@ interface SheetDraft {
 }
 
 function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTabProps) {
+  const { t } = useTranslation();
   const [activeTableTabId, setActiveTableTabId] = useState<string>("");
   const [editingCell, setEditingCell] = useState<{ sheetId: string; rowIndex: number; colIndex: number } | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -80,7 +82,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
   // 删除行（带二次确认，防止误删 LLM 关键字段）
   const handleDeleteRow = async (sheetId: string, rowIndex: number) => {
-    if (!window.confirm("确认删除此行数据？此操作不可撤销。")) return;
+    if (!window.confirm(t("table_memory.confirm_delete_row"))) return;
     const nextSheets = sheets.map(s => {
       if (s.id === sheetId) {
         return {
@@ -147,7 +149,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
   // 重置默认表（带二次确认，覆盖现有数据）
   const handleResetToDefault = async () => {
-    if (!window.confirm("将清空当前所有状态表数据并重置为默认 4 张表（关系/物品/位置/任务），此操作不可撤销，是否继续？")) return;
+    if (!window.confirm(t("table_memory.confirm_reset"))) return;
     const defaultSheets: TableMemorySheet[] = [
       {
         id: "sheet_relation",
@@ -190,7 +192,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
   // 删除整张表（带二次确认）
   const handleDeleteSheet = async (sheetId: string, sheetName: string) => {
-    if (!window.confirm(`确认删除表格「${sheetName}」及其所有数据？此操作不可撤销。`)) return;
+    if (!window.confirm(t("table_memory.confirm_delete_sheet", { name: sheetName }))) return;
     const nextSheets = sheets.filter(s => s.id !== sheetId);
     await updateSheets(nextSheets);
     // 如果删除的是当前激活的 tab，切到第一张表
@@ -246,7 +248,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
   const removeDraftColumn = (idx: number) => {
     if (!sheetDraft) return;
     if (sheetDraft.columns.length <= 1) {
-      window.alert("至少需要保留一列");
+      window.alert(t("table_memory.min_one_column"));
       return;
     }
     setSheetDraft({
@@ -260,19 +262,19 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     if (!sheetDraft) return;
     const trimmedName = sheetDraft.name.trim();
     if (!trimmedName) {
-      window.alert("表名不能为空");
+      window.alert(t("table_memory.name_required"));
       return;
     }
     const trimmedCols = sheetDraft.columns.map(c => c.trim()).filter(c => c);
     if (trimmedCols.length === 0) {
-      window.alert("至少需要一列");
+      window.alert(t("table_memory.columns_required"));
       return;
     }
 
     if (sheetDraft.id === "new") {
       // 新建表：检查表名冲突
       if (sheets.some(s => s.name === trimmedName)) {
-        window.alert(`已存在名为「${trimmedName}」的表，请更换表名`);
+        window.alert(t("table_memory.duplicate_name", { name: trimmedName }));
         return;
       }
       const newSheet: TableMemorySheet = {
@@ -289,7 +291,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     } else {
       // 编辑现有表：检查表名冲突（排除自身）
       if (sheets.some(s => s.id !== sheetDraft.id && s.name === trimmedName)) {
-        window.alert(`已存在名为「${trimmedName}」的表，请更换表名`);
+        window.alert(t("table_memory.duplicate_name", { name: trimmedName }));
         return;
       }
       const nextSheets = sheets.map(s => {
@@ -339,7 +341,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
           }}
           className={`p-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition ${showConfig ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted border-border hover:bg-muted/80 text-muted-foreground'}`}
         >
-          ⚙️ 管理
+          {t("table_memory.manage")}
         </button>
       </div>
 
@@ -371,12 +373,12 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-xs font-bold font-mono text-muted-foreground">
-                {sheetDraft.id === "new" ? "新建表" : "编辑表结构"}
+                {sheetDraft.id === "new" ? t("table_memory.new_table") : t("table_memory.edit_table")}
               </span>
               <button
                 onClick={cancelDraft}
                 className="p-1 rounded text-muted-foreground hover:bg-muted"
-                title="取消"
+                title={t("table_memory.cancel")}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -384,11 +386,11 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
             {/* 表名 */}
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground block">表名 *</label>
+              <label className="text-[11px] font-semibold text-muted-foreground block">{t("table_memory.form_name_label")}</label>
               <input
                 value={sheetDraft.name}
                 onChange={e => setSheetDraft({ ...sheetDraft, name: e.target.value })}
-                placeholder="如：心情、技能、装备"
+                placeholder={t("table_memory.form_name_placeholder")}
                 className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/30"
                 autoFocus
               />
@@ -407,7 +409,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
             {/* 列定义 */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-muted-foreground block">列定义 *</label>
+              <label className="text-[11px] font-semibold text-muted-foreground block">{t("table_memory.form_columns_label")}</label>
               {sheetDraft.columns.map((col, idx) => (
                 <div key={idx} className="flex items-center gap-1.5">
                   <input
@@ -436,7 +438,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
             {/* 编辑现有表时的数据对齐提示 */}
             {sheetDraft.id !== "new" && (
               <div className="text-[10px] text-muted-foreground bg-muted/30 border border-border/40 rounded-lg p-2 leading-relaxed">
-                💡 提示：编辑列结构时，系统按列名匹配保留原有行数据。重命名列会丢失该列旧数据，新增列补空字符串。
+                💡 {t("table_memory.column_edit_tip")}
               </div>
             )}
 
@@ -446,13 +448,13 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                 onClick={saveDraft}
                 className="flex-1 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition"
               >
-                <Check className="w-4 h-4" /> 保存
+                <Check className="w-4 h-4" /> {t("table_memory.save")}
               </button>
               <button
                 onClick={cancelDraft}
                 className="flex-1 text-xs font-bold bg-muted hover:bg-muted/80 text-muted-foreground border border-border px-3 py-2.5 rounded-lg transition"
               >
-                取消
+                {t("table_memory.cancel")}
               </button>
             </div>
           </div>
@@ -465,7 +467,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                 onClick={handleResetToDefault}
                 className="text-xs font-bold text-destructive bg-destructive/10 border border-destructive/20 hover:bg-destructive/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition"
               >
-                <RefreshCw className="w-3 h-3" /> 重置默认表
+                <RefreshCw className="w-3 h-3" /> {t("table_memory.reset_default")}
               </button>
             </div>
 
@@ -474,18 +476,18 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
               onClick={startCreateSheet}
               className="w-full text-xs font-bold text-primary bg-primary/10 border border-primary/25 border-dashed hover:bg-primary/20 px-3 py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition"
             >
-              <Plus className="w-4 h-4" /> 新建自定义表
+              <Plus className="w-4 h-4" /> {t("table_memory.new_custom")}
             </button>
 
             {sheets.length === 0 ? (
               <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
                 <HelpCircle className="w-8 h-8 opacity-40" />
-                <span className="text-xs font-bold">暂无结构化表格</span>
+                <span className="text-xs font-bold">{t("table_memory.empty")}</span>
                 <button
                   onClick={handleResetToDefault}
                   className="mt-2 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-1.5 rounded-lg transition"
                 >
-                  初始化默认表格
+                  {t("table_memory.init_defaults")}
                 </button>
               </div>
             ) : (
@@ -528,14 +530,14 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                           ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
                           : "bg-muted border-border text-muted-foreground opacity-60"
                           }`}
-                        title={s.enable ? "已启用注入到 Prompt" : "已停用注入"}
+                        title={s.enable ? t("table_memory.enabled") : t("table_memory.disabled")}
                       >
                         {s.enable ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                       </button>
                       <button
                         onClick={() => handleDeleteSheet(s.id, s.name)}
                         className="p-1.5 rounded-lg border border-destructive/20 bg-destructive/10 hover:bg-destructive/20 text-destructive transition"
-                        title="删除整张表"
+                        title={t("table_memory.delete_table")}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -552,12 +554,12 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
           {!activeSheet ? (
             <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
               <HelpCircle className="w-8 h-8 opacity-40" />
-              <span className="text-xs font-bold">请先初始化表格记忆功能</span>
+              <span className="text-xs font-bold">{t("table_memory.init_required")}</span>
               <button
                 onClick={handleResetToDefault}
                 className="mt-2 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-1.5 rounded-lg transition"
               >
-                一键初始化
+                {t("table_memory.one_click_init")}
               </button>
             </div>
           ) : (
@@ -591,7 +593,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                       {activeSheet.rows.length === 0 ? (
                         <tr>
                           <td colSpan={activeSheet.columns.length + 1} className="px-3 py-6 text-center text-muted-foreground opacity-60">
-                            暂无记录数据，点击下方添加按钮新增一行
+                            {t("table_memory.no_rows")}
                           </td>
                         </tr>
                       ) : (
@@ -629,7 +631,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                                       onClick={() => startEditing(activeSheet.id, rIdx, cIdx, val)}
                                       className="cursor-pointer hover:bg-muted/30 px-1 py-1 rounded transition min-h-[1.5rem] flex items-start justify-between gap-1"
                                     >
-                                      <span className="break-all whitespace-pre-wrap text-[11px] leading-relaxed block flex-1" title={val}>{val || <span className="text-muted-foreground/30 font-light italic">空</span>}</span>
+                                      <span className="break-all whitespace-pre-wrap text-[11px] leading-relaxed block flex-1" title={val}>{val || <span className="text-muted-foreground/30 font-light italic">{t("table_memory.empty_cell")}</span>}</span>
                                       <Edit3 className="w-3 h-3 opacity-30 text-muted-foreground shrink-0 mt-0.5 group-hover:opacity-60 transition-opacity" />
                                     </div>
                                   )}
@@ -640,7 +642,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                               <button
                                 onClick={() => handleDeleteRow(activeSheet.id, rIdx)}
                                 className="p-1 rounded text-destructive hover:bg-destructive/10 transition shrink-0 inline-flex items-center justify-center"
-                                title="删除此行"
+                                title={t("table_memory.delete_row")}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -659,7 +661,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                   onClick={() => handleAddRow(activeSheet.id)}
                   className="text-xs font-bold text-primary bg-primary/10 border border-primary/25 hover:bg-primary/20 px-3 py-2 rounded-xl flex items-center gap-1.5 transition shadow-sm"
                 >
-                  <Plus className="w-4 h-4" /> 添加新行
+                  <Plus className="w-4 h-4" /> {t("table_memory.add_row")}
                 </button>
               </div>
             </div>

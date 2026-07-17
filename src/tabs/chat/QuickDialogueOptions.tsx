@@ -18,6 +18,7 @@ import {
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
+import { useTranslation } from "../../contexts/LanguageContext";
 import { IDatabaseService } from "../../kernel/types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
 
@@ -30,6 +31,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
   const kernel = useKernel();
   const databaseService = kernel.getService<IDatabaseService>("database");
   const saveSession = (session: any) => databaseService.saveSession(session);
+  const { t } = useTranslation();
   const {
     isSending,
     setIsSending,
@@ -107,7 +109,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
         }}
         className="text-[11px] text-muted-foreground hover:text-foreground px-2.5 py-1 rounded active:scale-[0.98] flex items-center gap-1"
       >
-        <Copy className="w-3 h-3" /> 复制
+        <Copy className="w-3 h-3" /> {t("quick_dialogue.copy")}
       </button>
 
       <button
@@ -120,7 +122,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
         disabled={isSending}
         className="text-[11px] text-muted-foreground hover:text-foreground px-2.5 py-1 rounded active:scale-[0.98] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        <Edit2 className="w-3 h-3" /> 编辑
+        <Edit2 className="w-3 h-3" /> {t("quick_dialogue.edit")}
       </button>
 
 
@@ -148,7 +150,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
             try {
               const config = settings.imageGenApi;
               if (!config || !config.enabled) {
-                throw new Error("请先在设置中启用生图功能并配置接口参数。");
+                throw new Error(t("quick_dialogue.img_gen_not_enabled"));
               }
 
               // 1. 调用大模型根据上下文提炼场景 Prompt
@@ -243,9 +245,9 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               // 2. 根据设置，决定是否弹窗确认/修改提示词
               if (config.promptEditBeforeGenerate) {
                 const editedPrompt = await showCustomPrompt(
-                  "生图提示词已生成，您可以在此修改：",
+                  t("quick_dialogue.edit_prompt_message"),
                   finalPrompt,
-                  "提示词确认",
+                  t("quick_dialogue.prompt_confirm_title"),
                   "textarea"
                 );
                 if (editedPrompt === null) {
@@ -277,7 +279,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               await saveSession(finalSession);
             } catch (err: any) {
               console.error("Image generation failed:", err);
-              showCustomAlert(`绘图失败: ${err.message || String(err)}`, "生图失败");
+              showCustomAlert(t("quick_dialogue.img_gen_failed_msg", { error: err.message || String(err) }), t("quick_dialogue.img_gen_failed"));
               const errorSession = {
                 ...activeSession,
                 messages: activeSession.messages.map((m: any) =>
@@ -292,9 +294,9 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
           }}
           disabled={isSending}
           className="text-[11px] text-indigo-400 hover:text-indigo-300 px-2.5 py-1 rounded hover:bg-indigo-500/10 flex items-center gap-1 border border-indigo-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
-          title="对当前对白场景进行绘制"
+          title={t("quick_dialogue.img_gen_title")}
         >
-          <Palette className="w-3 h-3" /> 生图
+          <Palette className="w-3 h-3" /> {t("quick_dialogue.img_gen")}
         </button>
       )}
 
@@ -332,15 +334,15 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               ? "text-rose-400 hover:text-rose-300 border-rose-500/20 hover:bg-rose-500/10"
               : "text-emerald-400 hover:text-emerald-300 border-emerald-500/20 hover:bg-emerald-500/10"
           }`}
-          title={isSpeakingThis ? "停止语音朗读" : "语音朗读当前对白"}
+          title={isSpeakingThis ? t("quick_dialogue.tts_stop_title") : t("quick_dialogue.tts_read_title")}
         >
           {isSpeakingThis ? (
             <>
-              <VolumeX className="w-3 h-3" /> 停止
+              <VolumeX className="w-3 h-3" /> {t("quick_dialogue.tts_stop")}
             </>
           ) : (
             <>
-              <Volume2 className="w-3 h-3" /> 朗读
+              <Volume2 className="w-3 h-3" /> {t("quick_dialogue.tts_read")}
             </>
           )}
         </button>
@@ -357,9 +359,9 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
             ? "text-primary border-primary bg-primary/10"
             : "text-muted-foreground hover:text-foreground border-border/30 hover:bg-muted/10"
         }`}
-        title="更多选项"
+        title={t("quick_dialogue.more_title")}
       >
-        <MoreHorizontal className="w-3 h-3" /> 更多
+        <MoreHorizontal className="w-3 h-3" /> {t("quick_dialogue.more")}
 
         {showMore && (
           <div
@@ -379,7 +381,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                 disabled={isSending}
                 className="w-full text-[11px] text-left text-primary hover:bg-primary/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
               >
-                <RefreshCw className="w-3 h-3" /> 重发
+                <RefreshCw className="w-3 h-3" /> {t("quick_dialogue.reroll")}
               </button>
             )}
 
@@ -395,7 +397,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               disabled={isSending}
               className="w-full text-[11px] text-left text-primary hover:bg-primary/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
             >
-              <GitFork className="w-3 h-3" /> 分支
+              <GitFork className="w-3 h-3" /> {t("quick_dialogue.branch")}
             </button>
 
             {/* 删除 (Delete) */}
@@ -404,7 +406,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               onClick={async (e) => {
                 e.stopPropagation();
                 setShowMore(false);
-                const ok = await showCustomConfirm("确定删除该单条对白台词吗？");
+                const ok = await showCustomConfirm(t("quick_dialogue.confirm_delete_msg"));
                 if (ok) {
                   const nextMessages = (activeSession.messages || []).filter(
                     (m: any) => m.id !== message.id,
@@ -423,7 +425,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               disabled={isSending}
               className="w-full text-[11px] text-left text-red-500 hover:bg-red-500/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
             >
-              <Trash2 className="w-3 h-3" /> 删除
+              <Trash2 className="w-3 h-3" /> {t("quick_dialogue.delete")}
             </button>
 
             {/* 整理潜意识 (Organize Subconscious) */}
@@ -434,7 +436,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                   e.stopPropagation();
                   setShowMore(false);
                   const ok = await showCustomConfirm(
-                    "是否启动智能AI卡片压缩？这会将更早的历史对话转化为单条时间轴年表，腾出内存空间，保持语调连贯。",
+                    t("quick_dialogue.confirm_summarize"),
                   );
                   if (ok) {
                     setIsSending(true);
@@ -446,7 +448,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                 disabled={isSending}
                 className="w-full text-[11px] text-left text-primary hover:bg-primary/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
               >
-                <Brain className="w-3 h-3" /> 小总结
+                <Brain className="w-3 h-3" /> {t("quick_dialogue.summarize")}
               </button>
             )}
           </div>

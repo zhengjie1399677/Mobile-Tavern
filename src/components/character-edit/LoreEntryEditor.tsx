@@ -1,4 +1,5 @@
 import { LorebookEntry } from "../../types";
+import { useTranslation } from "../../contexts/LanguageContext";
 
 export interface LoreEntryEditorProps {
   editingLoreEntry: Partial<LorebookEntry> | null;
@@ -11,17 +12,18 @@ export default function LoreEntryEditor({
   setEditingLoreEntry,
   handleSaveLoreEntry,
 }: LoreEntryEditorProps) {
+  const { t } = useTranslation();
   if (!editingLoreEntry) return null;
   return (
     <div className="space-y-3 text-xs bg-muted/20 p-3 rounded-lg border border-border">
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="block text-[10px] text-muted-foreground mb-1 font-bold">
-            标题或备注 *
+            {t("lore_editor.label_comment")}
           </label>
           <input
             type="text"
-            placeholder="例如: 契约魔力, 隐秘圣所"
+            placeholder={t("lore_editor.placeholder_comment")}
             value={editingLoreEntry.comment || ""}
             onChange={(e) =>
               setEditingLoreEntry({
@@ -34,11 +36,11 @@ export default function LoreEntryEditor({
         </div>
         <div>
           <label className="block text-[10px] text-muted-foreground mb-1 font-bold">
-            检测关键词 (逗号隔离)
+            {t("lore_editor.label_keys")}
           </label>
           <input
             type="text"
-            placeholder="魔力, 契约"
+            placeholder={t("lore_editor.placeholder_keys")}
             value={
               editingLoreEntry.keys
                 ? Array.isArray(editingLoreEntry.keys)
@@ -58,10 +60,10 @@ export default function LoreEntryEditor({
       </div>
       <div>
         <label className="block text-[10px] text-muted-foreground mb-1 font-bold">
-          设定集具体叙述内容 *
+          {t("lore_editor.label_content")}
         </label>
         <textarea
-          placeholder="描述具体的记忆事实段落..."
+          placeholder={t("lore_editor.placeholder_content")}
           rows={6}
           value={editingLoreEntry.content || ""}
           onChange={(e) =>
@@ -87,7 +89,7 @@ export default function LoreEntryEditor({
             }
             className="accent-primary"
           />
-          <span>正则</span>
+          <span>{t("lore_editor.checkbox_regex")}</span>
         </label>
         <label className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer select-none">
           <input
@@ -101,7 +103,7 @@ export default function LoreEntryEditor({
             }
             className="accent-primary"
           />
-          <span>带标题备忘</span>
+          <span>{t("lore_editor.checkbox_memo")}</span>
         </label>
         <label className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer select-none">
           <input
@@ -115,7 +117,7 @@ export default function LoreEntryEditor({
             }
             className="accent-primary"
           />
-          <span>常驻</span>
+          <span>{t("lore_editor.checkbox_constant")}</span>
         </label>
         <label className="flex items-center gap-1 text-[10px] text-rose-400 cursor-pointer select-none">
           <input
@@ -129,14 +131,14 @@ export default function LoreEntryEditor({
             }
             className="accent-primary"
           />
-          <span className="font-semibold">禁用本词</span>
+          <span className="font-semibold">{t("lore_editor.checkbox_disabled")}</span>
         </label>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
         <div>
           <label className="block text-muted-foreground mb-0.5">
-            位置 (Position)
+            {t("lore_editor.label_position")}
           </label>
           <select
             value={editingLoreEntry.position || "after_char_def"}
@@ -148,16 +150,16 @@ export default function LoreEntryEditor({
             }
             className="w-full bg-input border border-border rounded p-1 text-foreground"
           >
-            <option value="after_char_def">📌角色定义后</option>
-            <option value="before_char_def">📌角色定义前</option>
-            <option value="top">📌页面顶部</option>
-            <option value="before_last_mes">💬最新消息上</option>
-            <option value="in_chat">💬历史回溯中(按深度)</option>
+            <option value="after_char_def">{t("lore_editor.position_after_char")}</option>
+            <option value="before_char_def">{t("lore_editor.position_before_char")}</option>
+            <option value="top">{t("lore_editor.position_top")}</option>
+            <option value="before_last_mes">{t("lore_editor.position_before_last")}</option>
+            <option value="in_chat">{t("lore_editor.position_in_chat")}</option>
           </select>
         </div>
         <div>
           <label className="block text-muted-foreground mb-0.5">
-            深度 (Depth)
+            {t("lore_editor.label_depth")}
           </label>
           <input
             type="number"
@@ -177,7 +179,7 @@ export default function LoreEntryEditor({
         </div>
         <div>
           <label className="block text-muted-foreground mb-0.5">
-            权重 (Order)
+            {t("lore_editor.label_order")}
           </label>
           <input
             type="number"
@@ -197,7 +199,7 @@ export default function LoreEntryEditor({
         </div>
         <div>
           <label className="block text-muted-foreground mb-0.5">
-            概率 (%)
+            {t("lore_editor.label_probability")}
           </label>
           <input
             type="number"
@@ -223,7 +225,7 @@ export default function LoreEntryEditor({
           type="button"
           className="bg-muted px-3 py-1 text-muted-foreground hover:text-foreground rounded text-[11px] font-semibold transition"
         >
-          取消
+          {t("lore_editor.cancel")}
         </button>
         <button
           onClick={handleSaveLoreEntry}
@@ -231,7 +233,7 @@ export default function LoreEntryEditor({
           type="button"
           className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-3.5 py-1 rounded text-[11px] transition shadow-sm"
         >
-          保存此专属词
+          {t("lore_editor.save")}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { TRANSLATIONS } from "../locales/translations";
 
 interface SplashScreenProps {
   isVisible: boolean;
@@ -67,7 +68,7 @@ export function SplashScreen({ isVisible }: SplashScreenProps) {
                 transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
                 className="text-xs tracking-widest text-muted-foreground pt-1"
               >
-                开启你的灵魂交响录
+                {TRANSLATIONS["zh-CN"]["splash.tagline"]}
               </motion.p>
             </div>
           </motion.div>

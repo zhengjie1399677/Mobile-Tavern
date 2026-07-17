@@ -6,6 +6,7 @@ import { SplashScreen } from "./components/SplashScreen";
 import { registerMainTabExtensions } from "./composition/registerMainTabExtensions";
 import { KernelProvider } from "./contexts/KernelContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { TRANSLATIONS } from "./locales/translations";
 
 export {
   DEFAULT_PROMPT_CONFIG,
@@ -67,9 +68,9 @@ export default function App() {
     return (
       <div className="fixed inset-0 bg-background flex flex-col items-center justify-center p-6 text-center text-foreground">
         <div className="bg-destructive/10 border border-destructive/20 p-6 rounded-2xl max-w-md space-y-4 shadow-2xl">
-          <h2 className="text-lg font-bold text-destructive">🚨 核心引擎冷启动失败</h2>
+          <h2 className="text-lg font-bold text-destructive">{TRANSLATIONS["zh-CN"]["app.kernel_init_failed_title"]}</h2>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            关键致命服务（如本地数据库）初始化发生错误，系统已熔断阻断以防静默读写导致数据损坏。
+            {TRANSLATIONS["zh-CN"]["app.kernel_init_failed_desc"]}
           </p>
           <pre className="text-[10px] font-mono bg-muted p-3 rounded border border-border text-left overflow-x-auto text-rose-400">
             {initError}
@@ -78,7 +79,7 @@ export default function App() {
             onClick={() => window.location.reload()}
             className="w-full bg-primary text-primary-foreground font-bold py-2 rounded-lg text-xs hover:bg-primary/90 transition active:scale-95 shadow"
           >
-            🔄 重新尝试冷启动
+            {TRANSLATIONS["zh-CN"]["app.kernel_retry_button"]}
           </button>
         </div>
       </div>

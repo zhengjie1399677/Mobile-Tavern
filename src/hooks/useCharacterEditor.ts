@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { useApp } from "../contexts/AppContext";
+import { useTranslation } from "../contexts/LanguageContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { CharacterCard, LorebookEntry } from "../types";
 import { catbotEventBus } from "../utils/catbotEventBus";
@@ -17,6 +18,7 @@ import { catbotEventBus } from "../utils/catbotEventBus";
  */
 export const useCharacterEditor = () => {
   const { showCustomAlert, showCustomConfirm } = useApp();
+  const { t } = useTranslation();
   const {
     characters,
     setCharacters,
@@ -134,7 +136,7 @@ export const useCharacterEditor = () => {
       setEditingChar(null);
     } catch (err: any) {
       console.error("Failed to save character to IndexedDB:", err);
-      showCustomAlert("保存角色失败: " + err.message);
+      showCustomAlert(t("character_editor.save_failed", { error: err.message }));
     } finally {
       setIsDbWriting(false);
     }
@@ -261,7 +263,7 @@ export const useCharacterEditor = () => {
       setEditingActiveCharLoreEntry(null);
     } catch (err: any) {
       console.error("Failed to save character lore to IndexedDB:", err);
-      showCustomAlert("保存设定失败: " + err.message);
+      showCustomAlert(t("character_editor.lore_save_failed", { error: err.message }));
     }
   }, [editingActiveCharLoreEntry, showCustomAlert, setCharacters, saveCharacter]);
 

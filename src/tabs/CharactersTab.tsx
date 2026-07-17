@@ -1,5 +1,6 @@
 import React, { useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
+import { useTranslation } from "../contexts/LanguageContext";
 import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
 import LocalCardScanner from "../components/LocalCardScanner";
 import { CharacterCard } from "../types";
@@ -48,6 +49,7 @@ export default function CharactersTab() {
     setActiveTab: state.setActiveTab,
     setActiveWorldbookHostId: state.setActiveWorldbookHostId,
   }));
+  const { t } = useTranslation();
   const [selectedDetailChar, setSelectedDetailChar] = React.useState<CharacterCard | null>(null);
   const [actionMenuChar, setActionMenuChar] = React.useState<CharacterCard | null>(null);
   const [scannerOpen, setScannerOpen] = React.useState(false);
@@ -62,18 +64,18 @@ export default function CharactersTab() {
             </span>
           </h1>
           <p className="text-xs text-muted-foreground font-light mt-0.5">
-            面向移动端的轻量角色扮演前端
+            {t("characters_tab.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setScannerOpen(true)}
             className="bg-card active:scale-[0.98] text-muted-foreground p-2 rounded-lg border border-border transition flex items-center justify-center"
-            title="扫描手机本地卡片"
+            title={t("characters_tab.scan_title")}
           >
             <FolderSearch className="w-4 h-4" />
           </button>
-          <label className="cursor-pointer bg-card active:scale-[0.98] text-muted-foreground p-2 rounded-lg border border-border transition flex items-center justify-center" title="导入SillyTavern角色卡">
+          <label className="cursor-pointer bg-card active:scale-[0.98] text-muted-foreground p-2 rounded-lg border border-border transition flex items-center justify-center" title={t("characters_tab.import_title")}>
             <FileUp className="w-4 h-4" />
             <input
               type="file"
@@ -85,7 +87,7 @@ export default function CharactersTab() {
           <button
             onClick={handleAddNewCharacter}
             className="bg-primary hover:bg-primary text-primary-foreground p-2 rounded-lg transition-all font-medium flex items-center justify-center"
-            title="手动创造新角色卡"
+            title={t("characters_tab.create_title")}
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -146,20 +148,20 @@ export default function CharactersTab() {
                       <button
                         onClick={() => setActionMenuChar(char)}
                         className="text-muted-foreground hover:text-primary p-1 bg-muted/40 rounded-lg hover:bg-muted transition active:scale-95 flex items-center justify-center"
-                        title="更多操作"
+                        title={t("characters_tab.more_title")}
                       >
                         <MoreHorizontal className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground line-clamp-2 mt-1.5 leading-relaxed font-light">
-                    {char.description || char.personality || "暂无信息说明..."}
+                    {char.description || char.personality || t("characters_tab.no_description")}
                   </p>
                 </div>
 
                 <div className="flex items-center justify-between gap-1.5 pt-1.5">
                   <span className="text-[10px] bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1 font-medium select-none">
-                    <RefreshCw className="w-2.5 h-2.5" /> {charSessList.length} 分支
+                    <RefreshCw className="w-2.5 h-2.5" /> {t("characters_tab.branch_count", { count: String(charSessList.length) })}
                   </span>
                 </div>
               </div>
@@ -171,10 +173,9 @@ export default function CharactersTab() {
         {characters.length === 0 && (
           <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl flex flex-col items-center justify-center">
             <Bot className="w-10 h-10 stroke-[1.2] mb-2 text-muted-foreground" />
-            <p className="text-sm">本地数据库空空如也</p>
+            <p className="text-sm">{t("characters_tab.empty_title")}</p>
             <p className="text-[11px] text-muted-foreground mt-1 max-w-xs leading-relaxed">
-              上传现有的 SillyTavern 兼容 PNG
-              写实角色卡或点击右上角按钮手工创造一个新世界。
+              {t("characters_tab.empty_desc")}
             </p>
           </div>
         )}
@@ -219,7 +220,7 @@ export default function CharactersTab() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-foreground truncate">{actionMenuChar.name}</p>
-                <p className="text-[10px] text-muted-foreground truncate mt-0.5">选择你对该角色的操作</p>
+                <p className="text-[10px] text-muted-foreground truncate mt-0.5">{t("characters_tab.action_subtitle")}</p>
               </div>
             </div>
 
@@ -233,7 +234,7 @@ export default function CharactersTab() {
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted active:bg-muted/70 rounded-xl transition text-left"
               >
                 <Bot className="w-4 h-4 text-muted-foreground" />
-                <span>查看人设档案</span>
+                <span>{t("characters_tab.view_profile")}</span>
               </button>
 
               <button
@@ -244,7 +245,7 @@ export default function CharactersTab() {
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted active:bg-muted/70 rounded-xl transition text-left"
               >
                 <Edit2 className="w-4 h-4 text-muted-foreground" />
-                <span>编辑角色人设</span>
+                <span>{t("characters_tab.edit_character")}</span>
               </button>
 
               <button
@@ -256,19 +257,19 @@ export default function CharactersTab() {
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted active:bg-muted/70 rounded-xl transition text-left"
               >
                 <Book className="w-4 h-4 text-muted-foreground" />
-                <span>进入世界书子模块</span>
+                <span>{t("characters_tab.go_worldbook")}</span>
               </button>
 
               <button
                 onClick={async () => {
                   setActionMenuChar(null);
-                  const ok = await showCustomConfirm("确定导出 JSON 角色卡？");
+                  const ok = await showCustomConfirm(t("characters_tab.confirm_export_json"));
                   if (ok) handleExportCharacterJSON(actionMenuChar);
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted active:bg-muted/70 rounded-xl transition text-left"
               >
                 <FileText className="w-4 h-4 text-muted-foreground" />
-                <span>导出为 JSON 文件</span>
+                <span>{t("characters_tab.export_json")}</span>
               </button>
 
               <button
@@ -279,7 +280,7 @@ export default function CharactersTab() {
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted active:bg-muted/70 rounded-xl transition text-left"
               >
                 <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                <span>导出为 SillyTavern PNG 角色卡</span>
+                <span>{t("characters_tab.export_png")}</span>
               </button>
 
               <div className="h-px bg-border/40 my-1" />
@@ -292,7 +293,7 @@ export default function CharactersTab() {
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-rose-500/10 active:bg-rose-500/20 rounded-xl transition font-medium text-left"
               >
                 <Trash2 className="w-4 h-4 text-red-500" />
-                <span>删除该角色卡</span>
+                <span>{t("characters_tab.delete_char")}</span>
               </button>
             </div>
           </div>

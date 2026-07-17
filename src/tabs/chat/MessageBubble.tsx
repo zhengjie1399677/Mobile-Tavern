@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import { useTranslation } from "../../contexts/LanguageContext";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
 import { handleGenerateImageForMessage } from "./imageGenerationHandler";
 import TypingIndicator from "./TypingIndicator";
@@ -96,6 +97,8 @@ const MessageBubble = ({
     getKernelService,
     showCustomPrompt,
   } = useUnifiedApp();
+
+  const { t } = useTranslation();
 
   const isUser = message.sender === "user";
 
@@ -453,7 +456,7 @@ const MessageBubble = ({
       ref={bubbleRef}
       key={message.id}
       role="article"
-      aria-label={`${isUser ? "我说" : (activeCharacter?.name || "角色") + "说"}：${message.content}`}
+      aria-label={`${isUser ? t("message_bubble.user_said") : (activeCharacter?.name || t("message_bubble.role")) + t("message_bubble.char_said")}：${message.content}`}
       className={`flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}
     >
       <div
@@ -472,7 +475,7 @@ const MessageBubble = ({
               className="w-full h-full object-cover"
             />
           ) : (
-            "我"
+            t("message_bubble.me_avatar")
           )
         ) : (activePortraitUrl || activeCharacter?.avatar) ? (
           <img
@@ -481,7 +484,7 @@ const MessageBubble = ({
             className="w-full h-full object-cover animate-fadeIn"
           />
         ) : (
-          activeCharacter?.name?.[0] || "AI"
+          activeCharacter?.name?.[0] || t("message_bubble.ai_fallback")
         )}
       </div>
 
@@ -540,7 +543,7 @@ const MessageBubble = ({
               }}
               disabled={isSending}
               className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow active:scale-90 transition-transform disabled:opacity-40"
-              title="编辑"
+              title={t("message_bubble.swipe_edit")}
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
@@ -566,7 +569,7 @@ const MessageBubble = ({
                 }}
                 disabled={isSending}
                 className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow active:scale-90 transition-transform disabled:opacity-40"
-                title="生图"
+                title={t("message_bubble.swipe_draw")}
               >
                 <Palette className="w-3.5 h-3.5" />
               </button>
@@ -605,7 +608,7 @@ const MessageBubble = ({
                 className={`w-8 h-8 rounded-full flex items-center justify-center shadow active:scale-90 transition-transform ${
                   isSpeakingThis ? "bg-rose-600 text-white" : "bg-emerald-600 text-white"
                 }`}
-                title={isSpeakingThis ? "停止" : "朗读"}
+                title={isSpeakingThis ? t("message_bubble.swipe_tts_stop") : t("message_bubble.swipe_tts_read")}
               >
                 {isSpeakingThis ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
               </button>
@@ -669,7 +672,7 @@ const MessageBubble = ({
                 disabled={isSending}
                 className="bg-emerald-600 hover:bg-emerald-500 text-foreground px-2.5 py-1 rounded text-[10.5px] font-bold flex items-center gap-1 shadow disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Check className="w-3.5 h-3.5" /> 保存
+                <Check className="w-3.5 h-3.5" /> {t("message_bubble.edit_save")}
               </button>
               <button
                 onClick={(e) => {
@@ -679,7 +682,7 @@ const MessageBubble = ({
                 disabled={isSending}
                 className="bg-muted active:scale-[0.98] text-muted-foreground px-2.5 py-1 rounded text-[10.5px] font-bold flex items-center gap-1 border border-border shadow disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <X className="w-3.5 h-3.5" /> 取消
+                <X className="w-3.5 h-3.5" /> {t("message_bubble.edit_cancel")}
               </button>
             </div>
           </div>
@@ -708,14 +711,14 @@ const MessageBubble = ({
                     <Brain className={`w-3.5 h-3.5 ${isStreamingThisMsg ? "animate-pulse text-primary" : "opacity-75"}`} />
                     <span>
                       {expandedReasoningIds[message.id]
-                        ? "收起思考过程"
+                        ? t("message_bubble.reasoning_collapse")
                         : isStreamingThisMsg
-                        ? "AI 正在思考中 (点击查看)..."
-                        : "查看思考过程"}
+                        ? t("message_bubble.reasoning_thinking")
+                        : t("message_bubble.reasoning_view")}
                     </span>
                     {!isSending && message.reasoningContent && (
                       <span className="text-muted-foreground/60 font-normal">
-                        · {message.reasoningContent.length}字
+                        · {t("message_bubble.reasoning_chars", { length: String(message.reasoningContent.length) })}
                       </span>
                     )}
                     <ChevronDown
@@ -747,7 +750,7 @@ const MessageBubble = ({
                             }, 1500);
                           }}
                           className="absolute top-1.5 right-1.5 p-1 rounded-md hover:bg-muted/80 text-muted-foreground/60 hover:text-foreground transition-colors"
-                          title="复制思维链内容"
+                          title={t("message_bubble.copy_reasoning")}
                         >
                           {copiedReasoningIds[message.id] ? (
                             <Check className="w-3 h-3 text-emerald-500" />
@@ -787,10 +790,10 @@ const MessageBubble = ({
                   {(message.content === "💭..." || (isStreamingThisMsg && !message.content?.trim())) ? (
                     <div className="flex items-center gap-2.5 py-0.5 select-none animate-pulse">
                       <CloudLoader size={26} />
-                      <span className="text-xs text-muted-foreground/80 font-light">AI 正在斟酌字句...</span>
+                      <span className="text-xs text-muted-foreground/80 font-light">{t("message_bubble.ai_composing")}</span>
                     </div>
                   ) : !message.content?.trim() ? (
-                    <span className="text-xs text-muted-foreground/60 italic select-none">*(未生成任何内容)*</span>
+                    <span className="text-xs text-muted-foreground/60 italic select-none">{t("message_bubble.no_content")}</span>
                   ) : (
                     renderDialogueBubble(
                       message.content,
@@ -805,7 +808,7 @@ const MessageBubble = ({
               {message.extra?.isDrawing && (
                 <div className="mt-2 p-3 bg-muted/40 border border-dashed border-border rounded-xl flex items-center justify-center gap-2.5 text-xs text-muted-foreground animate-pulse">
                   <CloudLoader size={30} />
-                  <span>AI 正在为您绘制场景中...</span>
+                  <span>{t("message_bubble.drawing_scene")}</span>
                 </div>
               )}
 
@@ -817,7 +820,7 @@ const MessageBubble = ({
                     className="w-full object-cover max-h-60 cursor-pointer hover:opacity-95 transition-opacity"
                     onClick={async (e) => {
                       e.stopPropagation();
-                      const ok = await showCustomConfirm("是否保存此生成的图片？");
+                      const ok = await showCustomConfirm(t("message_bubble.confirm_save_image"));
                       if (!ok) return;
 
                       const filename = `draw_${Date.now()}.png`;
@@ -835,14 +838,14 @@ const MessageBubble = ({
                           }
 
                           if (path && !path.startsWith("error:")) {
-                            await showCustomAlert(`📂 图片保存成功！\n文件已保存至手机 /Download 文件夹下，绝对路径为：\n${path}`, "保存成功");
+                            await showCustomAlert(t("message_bubble.image_save_success_msg"), t("message_bubble.image_save_success"));
                           } else {
-                            await showCustomAlert(`❌ 图片保存失败：${path || "未知错误"}`, "保存失败");
+                            await showCustomAlert(t("message_bubble.image_save_failed_msg", { error: path || "未知错误" }), t("message_bubble.image_save_failed"));
                           }
                           return;
                         } catch (err: any) {
                           console.error("AndroidThemeBridge download failed:", err);
-                          await showCustomAlert(`❌ 保存出错: ${err.message || String(err)}`, "保存失败");
+                          await showCustomAlert(`❌ ${t("message_bubble.save_error")}: ${err.message || String(err)}`, t("message_bubble.image_save_failed"));
                         }
                       }
 
@@ -852,11 +855,11 @@ const MessageBubble = ({
                       document.body.appendChild(link);
                       link.click();
                       document.body.removeChild(link);
-                      await showCustomAlert(`图片已成功导出！\n文件已触发浏览器或客户端下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${filename}`, "导出成功");
+                      await showCustomAlert(`图片已成功导出！\n文件已触发浏览器或客户端下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${filename}`, t("message_bubble.export_success"));
                     }}
                   />
                   <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono pointer-events-none opacity-0 group-hover/image:opacity-100 transition-opacity">
-                    点击保存图片
+                    {t("message_bubble.click_to_save")}
                   </div>
                 </div>
               )}
@@ -868,7 +871,7 @@ const MessageBubble = ({
             >
               {roundNum > 0 && (
                 <span className="flex items-center gap-1 opacity-70 text-primary font-medium">
-                  第 {roundNum} 轮对话
+                  {t("message_bubble.round_label", { roundNum: String(roundNum) })}
                 </span>
               )}
               <span className={roundNum > 0 ? "border-l border-border pl-2" : ""}>

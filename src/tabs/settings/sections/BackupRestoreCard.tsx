@@ -39,9 +39,7 @@ export default function BackupRestoreCard({
             {t("backup.title")}
           </CardTitle>
           <span className="text-muted-foreground text-[10px]">
-            {showBackupUI 
-              ? (t("nav.settings") === "设置" ? "收起" : "Collapse") 
-              : (t("nav.settings") === "设置" ? "展开" : "Expand")}
+            {showBackupUI ? t("backup.collapse") : t("backup.expand")}
           </span>
         </div>
       </CardHeader>
@@ -76,7 +74,7 @@ export default function BackupRestoreCard({
                 autoCorrect="off"
                 value={backupPass}
                 onChange={(e) => setBackupPass(e.target.value)}
-                placeholder={t("nav.settings") === "设置" ? "务必牢记，否则无法恢复..." : "Must remember, otherwise cannot restore..."}
+                placeholder={t("backup.pass_placeholder")}
                 className="h-9 placeholder:text-muted-foreground/50 bg-background border-destructive/30 focus-visible:ring-destructive/40 text-xs font-mono"
               />
             </div>

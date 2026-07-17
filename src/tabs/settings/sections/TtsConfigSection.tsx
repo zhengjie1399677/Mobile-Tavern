@@ -32,9 +32,7 @@ export default function TtsConfigSection({
     try {
       setTestSpeaking(true);
       const ttsService = getKernelService<any>("tts");
-      const testText = t("nav.settings") === "设置" 
-        ? "你好，欢迎来到移动酒馆。这是一段语音测试朗读。" 
-        : "Hello, welcome to Mobile Tavern. This is a voice test reading.";
+      const testText = t("tts.test_text");
       await ttsService.speak(testText, settings.ttsConfig);
     } catch (e: any) {
       console.warn("TTS test failed:", e);

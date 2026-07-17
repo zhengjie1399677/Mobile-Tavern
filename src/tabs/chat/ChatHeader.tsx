@@ -12,6 +12,7 @@ import {
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
+import { useTranslation } from "../../contexts/LanguageContext";
 import { IDatabaseService } from "../../kernel/types";
 
 interface ChatHeaderProps {
@@ -26,6 +27,7 @@ const ChatHeader = ({
   const kernel = useKernel();
   const databaseService = kernel.getService<IDatabaseService>("database");
   const saveSession = (session: any) => databaseService.saveSession(session);
+  const { t } = useTranslation();
   const {
     activeCharacter,
     activeSession,
@@ -78,7 +80,7 @@ const ChatHeader = ({
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <button
-          aria-label="返回角色列表"
+          aria-label={t("chat_header.back_aria")}
           onClick={() => setActiveTab("characters")}
           className="text-muted-foreground hover:text-foreground"
         >
@@ -87,7 +89,7 @@ const ChatHeader = ({
         <div
           onClick={() => setIsDetailDrawerOpen(true)}
           className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-85 active:scale-98 transition-all"
-          title="查看角色卡详情"
+          title={t("chat_header.view_char_detail")}
         >
           <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted border border-border/80 flex items-center justify-center flex-shrink-0">
             {activeCharacter?.avatar ? (
@@ -108,13 +110,13 @@ const ChatHeader = ({
                 {activeCharacter?.name}
               </h2>
               <button
-                aria-label="分支管理"
+                aria-label={t("chat_header.branch_management")}
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowSessionManager(true);
                 }}
                 className="text-primary hover:bg-primary/10 p-0.5 rounded transition"
-                title="分支管理"
+                title={t("chat_header.branch_management")}
               >
                 <GitFork className="w-3 h-3" />
               </button>
@@ -124,7 +126,7 @@ const ChatHeader = ({
               onClick={async (e) => {
                 e.stopPropagation();
                 const nextTitle = await showCustomPrompt(
-                  "修改当前分支线标题已在IndexedDB进行分支区分:",
+                  t("chat_header.rename_prompt"),
                   activeSession?.title || "",
                 );
                 if (nextTitle && activeSession) {
@@ -136,7 +138,7 @@ const ChatHeader = ({
                 }
               }}
             >
-              {activeSession?.title || "主剧情线"} (点击修改)
+              {activeSession?.title || t("session_manager.default_branch_name")} {t("chat_header.click_to_edit")}
             </p>
           </div>
         </div>
@@ -149,7 +151,7 @@ const ChatHeader = ({
             aria-label="切换背景音乐静音状态"
             onClick={toggleMute}
             className="p-1.5 bg-muted border border-border text-muted-foreground hover:text-foreground rounded-lg transition flex items-center justify-center shrink-0"
-            title={isMuted ? "开启背景音乐" : "静音背景音乐"}
+            title={isMuted ? t("chat_header.bgm_unmute") : t("chat_header.bgm_mute")}
           >
             {isMuted ? (
               <VolumeX className="w-4 h-4 text-rose-500" />
@@ -163,9 +165,9 @@ const ChatHeader = ({
             <button
               onClick={() => setShowMemoryMenu(!showMemoryMenu)}
               className="p-1.5 px-2.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center justify-center shrink-0"
-              title="记忆与状态中心"
+              title={t("chat_header.memory_center")}
             >
-              <span className="text-[11px] font-bold">记忆</span>
+              <span className="text-[11px] font-bold">{t("chat_header.memory")}</span>
             </button>
             
             {showMemoryMenu && (
@@ -178,7 +180,7 @@ const ChatHeader = ({
                     }}
                     className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
                   >
-                    故事年表
+                    {t("chat_header.timeline")}
                   </button>
                 )}
                 {settings.enableTableMemory && (
@@ -189,7 +191,7 @@ const ChatHeader = ({
                     }}
                     className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
                   >
-                    状态数据
+                    {t("chat_header.table")}
                   </button>
                 )}
                 <button
@@ -199,7 +201,7 @@ const ChatHeader = ({
                   }}
                   className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
                 >
-                  记忆词典
+                  {t("chat_header.dict")}
                 </button>
 
               </div>

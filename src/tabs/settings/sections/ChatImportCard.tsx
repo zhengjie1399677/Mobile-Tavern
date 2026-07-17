@@ -27,14 +27,10 @@ export default function ChatImportCard({
       </CardHeader>
       <CardContent className="pt-3 px-3 pb-3 space-y-3">
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          {t("nav.settings") === "设置" 
-            ? "系统将解析对话记录并与本地角色卡进行绑定。如果本地未导入对应的角色卡，会提示先导入角色卡。" 
-            : "The system will parse and bind chat logs to local character cards. If the corresponding character card is not found locally, you will be prompted to import the card first."}
+          {t("chat_import.description")}
           <br />
-          <span className="text-primary font-medium">{t("nav.settings") === "设置" ? "提示：" : "Tip: "}</span>
-          {t("nav.settings") === "设置" 
-            ? "导入后系统默认关闭这些历史句子的自动总结功能，以避免 API 频宽雪崩。" 
-            : "After importing, auto-summarization for these historical messages is disabled by default to avoid API token consumption spikes."}
+          <span className="text-primary font-medium">{t("chat_import.tip_label")}</span>
+          {t("chat_import.help_text")}
         </p>
         <div className="flex font-bold text-xs">
           <label className="w-full bg-background hover:bg-muted border border-border shadow-sm text-foreground py-2 rounded-md transition flex justify-center items-center gap-1.5 cursor-pointer">

@@ -1,5 +1,6 @@
 import React, { useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
+import { useTranslation } from "../contexts/LanguageContext";
 import { GitFork, X, Trash2, Plus } from "lucide-react";
 
 export default function SessionManagerModal() {
@@ -16,6 +17,8 @@ export default function SessionManagerModal() {
     showCustomAlert,
   } = useUnifiedApp();
 
+  const { t } = useTranslation();
+
   if (!showSessionManager || !activeCharacter) return null;
 
   return (
@@ -25,7 +28,7 @@ export default function SessionManagerModal() {
       <div className="bg-card border border-border rounded-xl max-w-sm w-full p-5 shadow-2xl text-foreground flex flex-col h-[60vh] max-h-[500px]">
         <div className="flex justify-between items-center mb-4 shrink-0">
           <p className="font-bold text-lg flex items-center gap-2">
-            <GitFork className="w-5 h-5 text-primary" /> 对话分支管理
+            <GitFork className="w-5 h-5 text-primary" /> {t("session_manager.title")}
           </p>
           <button
             onClick={() => setShowSessionManager(false)}
@@ -61,7 +64,7 @@ export default function SessionManagerModal() {
                   }`}
                   onClick={() => {
                     if (isSending) {
-                      showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再切换分支。");
+                      showCustomAlert(t("session_manager.busy_switch_warning"));
                       return;
                     }
                     setActiveSessionId(s.id);
@@ -71,16 +74,16 @@ export default function SessionManagerModal() {
                   <div className="flex justify-between items-start">
                     <div className="min-w-0 pr-2 pb-1 flex-1">
                       <p className="font-bold text-sm truncate">
-                        {s.title || "主剧情线"}
+                        {s.title || t("session_manager.default_branch_name")}
                       </p>
                       <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
                         {new Date(lastActiveTime).toLocaleString()} |{" "}
-                        {turnCount} 回合 | {(s.summaries || []).length} 片段
+                        {t("session_manager.turn_summary_format", { turnCount: String(turnCount), summaryCount: String((s.summaries || []).length) })}
                       </p>
                       {lastMsg && (
                         <p className="text-[10.5px] text-muted-foreground truncate mt-1.5 border-t border-border/20 pt-1.5 italic opacity-85">
                           <span className="font-semibold text-primary">
-                            {lastMsg.sender === "user" ? "我" : (activeCharacter.name || "AI")}:
+                            {lastMsg.sender === "user" ? t("session_manager.user_label") : (activeCharacter.name || "AI")}:
                           </span>{" "}
                           {lastMsg.content}
                         </p>
@@ -90,13 +93,13 @@ export default function SessionManagerModal() {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (isSending) {
-                          showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再删除分支。");
+                          showCustomAlert(t("session_manager.busy_delete_warning"));
                           return;
                         }
                         deleteBranch(s.id);
                       }}
                       className="text-destructive p-1.5 rounded hover:bg-destructive/10 shrink-0 transition"
-                      title="删除该分支"
+                      title={t("session_manager.delete_branch")}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -108,14 +111,14 @@ export default function SessionManagerModal() {
         <button
           onClick={() => {
             if (isSending) {
-              showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再新建分支。");
+              showCustomAlert(t("session_manager.busy_create_warning"));
               return;
             }
             createNewBranch();
           }}
           className="shrink-0 w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 flex justify-center items-center gap-2 mt-2"
         >
-          <Plus className="w-4 h-4" /> 新建空白分支
+          <Plus className="w-4 h-4" /> {t("session_manager.new_branch")}
         </button>
       </div>
     </div>
