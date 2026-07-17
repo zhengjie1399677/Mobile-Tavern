@@ -13,9 +13,10 @@ const SESSIONS_PAGE_SIZE = 50;
 // 首次进入聊天室仅加载最新 50 条消息，用户滚动到顶部时通过 loadMoreMessages 异步追加更早的历史。
 const MESSAGES_PAGE_SIZE = 50;
 
-/** 简易翻译辅助：直接从 translations 查找 key 并替换 {error} 占位符。ChatProvider 位于 LanguageProvider 上方，无法使用 useTranslation hook。 */
+/** ChatProvider 在 LanguageProvider 上层，无法使用 useTranslation hook。此处直接从 TRANSLATIONS 读取当前语言的翻译。 */
 function tChat(key: string, errorMessage: string): string {
-  const template = TRANSLATIONS["zh-CN"][key] || key;
+  const lang = (typeof window !== "undefined" && localStorage.getItem("mobile_tavern_language")) || "zh-CN";
+  const template = (TRANSLATIONS[lang]?.[key]) || TRANSLATIONS["zh-CN"]?.[key] || key;
   return template.replace("{error}", errorMessage);
 }
 
@@ -106,7 +107,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e: any) {
       console.error("Failed to load sessions from IndexedDB:", e);
       if (isMountedRef.current) {
-        showCustomAlert("加载聊天记录失败: " + e.message);
+        showCustomAlert(tChat("chat.load_sessions_failed", e.message));
       }
     }
   };
@@ -138,7 +139,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e: any) {
       console.error("Failed to load more sessions from IndexedDB:", e);
       if (isMountedRef.current) {
-        showCustomAlert("加载更多聊天记录失败: " + e.message);
+        showCustomAlert(tChat("chat.load_more_sessions_failed", e.message));
       }
     } finally {
       if (isMountedRef.current) {
@@ -222,7 +223,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } catch (e: any) {
       console.error("Failed to save session to IndexedDB:", e);
-      showCustomAlert("保存聊天记录失败: " + e.message);
+      showCustomAlert(tChat("chat.save_session_failed", e.message));
       throw e;
     }
   };
@@ -293,7 +294,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (e: any) {
       console.error("Failed to delete session from IndexedDB:", e);
-      showCustomAlert("删除聊天记录失败: " + e.message);
+      showCustomAlert(tChat("chat.delete_session_failed", e.message));
       throw e;
     }
   };

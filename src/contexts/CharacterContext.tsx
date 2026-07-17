@@ -4,6 +4,14 @@ import { useKernel } from "./KernelContext";
 import { ICharacterService } from "../kernel/types";
 import { useApp } from "./AppContext";
 import { reportUsage } from "../utils/telemetry";
+import { TRANSLATIONS } from "../locales/index";
+
+/** CharacterProvider 在 LanguageProvider 上方，无法使用 useTranslation hook。直接从 TRANSLATIONS 读当前语言翻译。 */
+function tChar(key: string, errorMessage: string): string {
+  const lang = (typeof window !== "undefined" && localStorage.getItem("mobile_tavern_language")) || "zh-CN";
+  const template = (TRANSLATIONS[lang]?.[key]) || TRANSLATIONS["zh-CN"]?.[key] || key;
+  return template.replace("{error}", errorMessage);
+}
 
 interface CharacterContextType {
   characters: CharacterCard[];
@@ -85,7 +93,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (e: any) {
       console.error("Failed to load characters from IndexedDB:", e);
       if (isMountedRef.current) {
-        showCustomAlert("加载本地角色库失败: " + e.message);
+        showCustomAlert(tChar("chat.load_characters_failed", e.message));
       }
     }
   };
@@ -109,7 +117,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
     } catch (e: any) {
       console.error("Failed to save character to IndexedDB:", e);
-      showCustomAlert("保存角色失败: " + e.message);
+      showCustomAlert(tChar("chat.save_character_failed", e.message));
       throw e;
     }
   };
@@ -123,7 +131,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     } catch (e: any) {
       console.error("Failed to delete character from IndexedDB:", e);
-      showCustomAlert("删除角色失败: " + e.message);
+      showCustomAlert(tChar("chat.delete_character_failed", e.message));
       throw e;
     }
   };

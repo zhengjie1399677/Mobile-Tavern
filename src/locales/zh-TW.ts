@@ -1,4 +1,4 @@
-﻿export default {
+export default {
   "control_panel.title": "控制面板",
   "control_panel.subtitle": "系統參數與顆粒化規則調節",
   "control_panel.check_update": "檢查更新",
@@ -651,6 +651,9 @@
   "chat.save_session_failed": "保存聊天記錄失敗: {error}",
   "chat.load_more_messages_failed": "加載更早的消息失敗: {error}",
   "chat.delete_session_failed": "刪除聊天記錄失敗: {error}",
+  "chat.load_characters_failed": "載入本地角色庫失敗: {error}",
+  "chat.save_character_failed": "保存角色失敗: {error}",
+  "chat.delete_character_failed": "刪除角色失敗: {error}",
   "splash.tagline": "開啟你的靈魂交響錄",
   "db.writing_overlay": "正在寫入數據庫",
   "update.new_version_title": "✨ 發現新版本 v{version}",

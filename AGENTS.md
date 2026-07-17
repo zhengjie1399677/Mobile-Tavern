@@ -83,4 +83,9 @@
 
 # ℹ️ 特有例外说明
 * **详细索引**：[PROJECT_EXCEPTIONS_AND_TODO.md](docs/PROJECT_EXCEPTIONS_AND_TODO.md)
-* 包含“野牛模式与AI回复走向”的硬编码豁免，以及 `useRerollMessage` 事务流程豁免。
+* 包含"野牛模式与AI回复走向"的硬编码豁免，以及 `useRerollMessage` 事务流程豁免。
+
+# ℹ️ 变更记录与文档维护
+* 不再维护独立的 `CHANGELOG.md`。每次功能落地或重大修复完成后，直接在 [TODO.md](TODO.md) 底部的 `✍️ 变更记录` 表格追加一行，格式为 `| 日期 | 变动内容简述 |`。
+* 变动内容应包含：涉及的核心文件、关键决策、测试结果（全绿/通过数）。
+* 旧的待办事项行保留不删，标记为"已落地"即可。

@@ -672,6 +672,9 @@ export default {
   "chat.save_session_failed": "채팅 기록 저장 실패: {error}",
   "chat.load_more_messages_failed": "더 이전 메시지 로드 실패: {error}",
   "chat.delete_session_failed": "채팅 기록 삭제 실패: {error}",
+  "chat.load_characters_failed": "캐릭터 라이브러리 로딩 실패: {error}",
+  "chat.save_character_failed": "캐릭터 저장 실패: {error}",
+  "chat.delete_character_failed": "캐릭터 삭제 실패: {error}",
 
   "splash.tagline": "당신의 영혼 교향록을 열어보세요",
   "db.writing_overlay": "데이터베이스 쓰기 중",
