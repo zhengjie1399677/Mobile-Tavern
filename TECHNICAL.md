@@ -65,6 +65,10 @@ Mobile-Tavern
 │   │   ├── Kernel.ts                         # 核心 Kernel 容器类实现 (包含 globalKernel 单例)
 │   │   ├── types.ts                          # 全局微内核契约接口规范 (IKernel, IKernelService 等)
 │   │   ├── index.ts                          # 统一对外导出入口与内核冷启动装配函数 (initializeKernel)
+│   │   ├── schemas/                          # Kernel 运行时 zod schema 校验层（L2 Phase B 已落地）
+│   │   │   ├── p0Services.ts                 # 5 个 P0 服务完整 schema + IKernelService 基础结构 + P1 服务名清单
+│   │   │   ├── messages.ts                   # IMessage 顶层 schema + 2 静态 topic payload schema + 动态 topic 黑名单
+│   │   │   └── index.ts                      # validateService/validateMessage/validateServiceRetrieval 纯函数 + SAFE_PROXY_SYMBOL
 │   │   └── services/                         # 下沉的官方核心微服务实现
 │   │       ├── DatabaseService.ts            # 数据库物理 CRUD 服务 [isCritical: 致命]
 │   │       ├── LLMService.ts                 # 大模型数据通信与 SSE 流式读取服务
@@ -103,6 +107,104 @@ Mobile-Tavern
 │           ├── mvuParser.ts                  # MVU 角色卡扩展字段与正则脚本解析
 │           └── scriptIframe.ts               # MVU 沙盒脚本执行器
 ```
+
+---
+
+## 🗺️ 项目全景架构图 (Project Architecture Overview)
+
+Mobile Tavern 采用物理隔离架构，移动端 App、Tauri 原生容器、云端后端、第三方 LLM API 四层独立部署，通过明确的边界契约通信。由于单张 mermaid 图节点过多会被压缩到无法阅读（mermaid 固有限制），以下拆分为两张聚焦小图：
+
+### 图 A：端到端物理隔离总览
+
+下图展示四大物理隔离层之间的数据通道，每层内部细节见图 B 与下方各专章：
+
+```mermaid
+graph TB
+    MobileApp["📱 移动端 App<br/>(React + Kernel + IndexedDB)"]
+    Tauri["🦀 Tauri 原生容器<br/>(src-tauri/)"]
+    Cloud["☁️ 云端后端<br/>(cloud/)"]
+    STS["⚡ aliyun-fc-sts<br/>STS 凭证签发"]
+    External["🌐 第三方 LLM API<br/>DeepSeek / Gemini / OpenAI"]
+    SLS[("阿里云 SLS<br/>遥测日志仓库")]
+
+    MobileApp -->|"Tauri IPC"| Tauri
+    MobileApp -->|"fetch HTTPS"| Cloud
+    MobileApp -->|"SSE / API"| External
+    Tauri -->|"遥测批量上报"| SLS
+    Tauri -.->|"获取 STS"| STS
+    STS -.->|"临时凭证"| Tauri
+
+    style MobileApp fill:#f0f8ff,stroke:#007acc,stroke-width:2px
+    style Tauri fill:#fff4e6,stroke:#ff8c00,stroke-width:2px
+    style Cloud fill:#ffe6e6,stroke:#cd5c5c,stroke-width:2px
+    style External fill:#e6ffe6,stroke:#228b22,stroke-width:2px
+    style STS fill:#f9e6ff,stroke:#8e44ad,stroke-width:2px
+    style SLS fill:#fff8dc,stroke:#daa520,stroke-width:2px
+```
+
+### 图 B：移动端 App 内部架构
+
+下图聚焦移动端 App 内部的三层结构：React 视图层、Kernel 微内核切面底座（含 zod schema 校验层）、IndexedDB 本地存储：
+
+```mermaid
+graph TB
+    subgraph ReactLayer["⚛️ React 前端视图层 (src/)"]
+        UI["Components / Tabs"]
+        Hooks["Custom Hooks"]
+        Contexts["Global Contexts"]
+        Utils["Utils 工具包"]
+        UI <--> Hooks
+        Hooks <--> Contexts
+        Hooks <--> Utils
+    end
+
+    subgraph KernelLayer["🧩 微内核切面底座 (src/kernel/)"]
+        Entry["initializeKernel"]
+        Schemas["schemas/ zod 校验层"]
+        Pipeline["Pipeline 洋葱管道"]
+        Bus["MessageBus 事件总线"]
+        Services["17 大核心服务"]
+        Entry --> Pipeline
+        Entry --> Bus
+        Entry --> Services
+        Schemas -.->|"Phase C 接入"| Services
+        Schemas -.->|"Phase C 接入"| Bus
+        Pipeline <--> Services
+        Bus <--> Services
+    end
+
+    subgraph StorageLayer["💾 本地持久化"]
+        DB[("IndexedDB<br/>MobileTavernLiteDB")]
+    end
+
+    ReactLayer <-->|"getService / publish"| KernelLayer
+    Services <-->|"CRUD"| DB
+
+    style ReactLayer fill:#fafafa,stroke:#666,stroke-width:1px
+    style KernelLayer fill:#f5f5ff,stroke:#6a5acd,stroke-width:2px
+    style StorageLayer fill:#fff8dc,stroke:#daa520,stroke-width:2px
+```
+
+### 关键物理隔离边界（遵循 AGENTS.md 准则）
+
+| 边界 | 隔离方式 | 数据通道 |
+|------|----------|----------|
+| React 前端 ↔ Kernel 微内核 | kernel 实例注入 / `getService` / `publish` | 同进程函数调用 |
+| 移动端 ↔ Tauri Rust 后端 | Tauri IPC `invoke` | 序列化消息 + Blob 文件路径 |
+| 移动端 ↔ 云端后端 | HTTPS REST API | `cloud/` 目录代码物理隔离，不打入 APK |
+| 移动端 ↔ 第三方 LLM | `apiClient` 自适应（原生直连 / Express 代理） | SSE 流式 HTTP |
+| Tauri Rust ↔ 阿里云 SLS | STS 临时凭证 + HMAC-SHA1 签名 | HTTPS 批量上报 |
+| Tauri Rust ↔ Serverless STS | HTTPS 调用 aliyun-fc-sts | 长期 AK 签发短期 STS |
+
+### 核心数据流摘要
+
+1. **聊天主链路**：UI → `useChat` → `kernel.publish("chat:message_received")` → Pipeline 洋葱管道（敏感词 / 世界书 / MVU 脚本）→ `PromptService.assemblePrompt` → `LLMService.universalFetch` → SSE 字节流 → `ChatStreamService` 零丢包切分 → React 19 并发渲染。
+2. **持久化链路**：Services → `DatabaseService` → IndexedDB 三 Store（messages / memory_dict / sessions）+ 业务对象仓库（characters / dictionaries 等）。
+3. **遥测链路**：前端事件 → Tauri IPC → `telemetry_queue.jsonl` 本地落盘 → Rust 后台线程批量取 STS + HMAC 签名 → SLS 仓库。
+4. **云端账号链路**：移动端 fetch HTTPS → `cloud/` 后端 axum 路由 → PostgreSQL（users / identities / refresh_tokens）+ Redis 会话。
+5. **热更新链路**：`UpdateCheckService` 周期校验 → `cloud/` 后端 `update_channels` / `update_assets` → 增量包下载与版本回滚。
+
+> 📌 各子系统的详细内部架构与时序图见下方对应章节：[🏗️ 模块架构与状态管理](#️-模块架构与状态管理-system-architecture)、[🧬 Tavern 角色卡解码机制](#-tavern-角色卡解码机制-tavern-png-card-binary-decoder)、[🛡️ Kernel zod 运行时校验层](#️-kernel-zod-运行时校验层-l2-schema-validation)。
 
 ---
 
@@ -238,25 +340,25 @@ Mobile Tavern 的底层由前端 React 视图层、Tauri 原生桥接层、Expre
 
 ```mermaid
 graph TB
-    subgraph Frontend [React 前端应用层]
-        UI[Tabs / Components] <--> Hooks[Custom Hooks: useChat / useCharacters / useSettings]
-        Hooks <--> Contexts[Global Contexts: App / Character / Chat]
+    subgraph Frontend ["React 前端应用层"]
+        UI["Tabs / Components"] <--> Hooks["Custom Hooks: useChat / useCharacters / useSettings"]
+        Hooks <--> Contexts["Global Contexts: App / Character / Chat"]
     end
 
-    subgraph Storage [本地数据持久化]
-        Hooks <--> DB[(IndexedDB: MobileTavernLiteDB)]
+    subgraph Storage ["本地数据持久化"]
+        Hooks <--> DB[("IndexedDB: MobileTavernLiteDB")]
     end
 
-    subgraph Client [运行容器适配]
-        UI --> API_Client[apiClient.ts]
+    subgraph Client ["运行容器适配"]
+        UI --> API_Client["apiClient.ts"]
     end
 
-    subgraph Network [网络与服务层]
-        API_Client -->|原生客户端直连| Remote_LLM[第三方 AI 大模型 API]
-        API_Client -->|网页浏览器代理| Express_Proxy[Express 本地代理服务]
+    subgraph Network ["网络与服务层"]
+        API_Client -->|"原生客户端直连"| Remote_LLM["第三方 AI 大模型 API"]
+        API_Client -->|"网页浏览器代理"| Express_Proxy["Express 本地代理服务"]
         Express_Proxy --> Remote_LLM
     end
-    
+
     style Frontend fill:#f0f8ff,stroke:#007acc,stroke-width:2px
     style Storage fill:#fff8dc,stroke:#daa520,stroke-width:2px
     style Client fill:#e6ffe6,stroke:#228b22,stroke-width:2px
@@ -561,27 +663,27 @@ erDiagram
 
 ```mermaid
 graph TD
-    Kernel[IKernel 核心容器]
-    
-    subgraph MessageBus [MessageBus 消息总线]
-        Sub1[订阅者 1: priority 100]
-        Sub2[订阅者 2: priority 10]
-        Kernel -->|publish / publishParallel| MessageBus
+    Kernel["IKernel 核心容器"]
+
+    subgraph MessageBus ["MessageBus 消息总线"]
+        Sub1["订阅者 1 (priority 100)"]
+        Sub2["订阅者 2 (priority 10)"]
+        Kernel -->|"publish / publishParallel"| MessageBus
         MessageBus --> Sub1
         MessageBus --> Sub2
     end
-    
-    subgraph Pipelines [Pipelines 洋葱管道轴]
-        P_Input[input 管道]
-        P_Output[output 管道]
-        Kernel -->|getPipeline| Pipelines
-        P_Input -->|Middleware 1| P_Input_2[Middleware 2]
+
+    subgraph Pipelines ["Pipelines 洋葱管道轴"]
+        P_Input["input 管道"]
+        P_Output["output 管道"]
+        Kernel -->|"getPipeline"| Pipelines
+        P_Input -->|"Middleware 1"| P_Input_2["Middleware 2"]
     end
-    
-    subgraph Services [IOC 容器与微服务]
-        S_DB[DatabaseService]
-        S_LLM[LLMService]
-        Kernel -->|getService| Services
+
+    subgraph Services ["IOC 容器与微服务"]
+        S_DB["DatabaseService"]
+        S_LLM["LLMService"]
+        Kernel -->|"getService"| Services
     end
 ```
 
@@ -612,7 +714,23 @@ graph TD
     *   **SafeProxy 双轨行为**：在开发环境下，任何试图读取未就绪/未注册 Proxy 属性的操作都会触发致命开发期断言报错；而在生产环境下，SafeProxy 能安全提供 No-op 降级空操作，支持无限链式调用及 Promise `await` 链式兼容，实现自动故障隔离。
 *   **异步任务超时熔断与一键销毁 (`destroy`)**：当内核被卸载或重置时，执行 `destroy()` 会自动中止底层的活跃任务控制器（`activeControllers`）并触发 `AbortController.abort()`。同时，内核将依照拓扑排序的**逆序**（Top-down Reverse，即先销毁外层服务，后销毁底层服务）依次触发各个服务的销毁钩子，彻底释放资源，防范内存泄漏。
 
-### 5. 官方核心微服务职能
+### 5. P0/P1 服务分级与 zod 运行时 schema 校验层
+
+为了在运行时为内核三大入口（`registerService` / `publish` / `getService`）提供契约级防御，内核在 `src/kernel/schemas/` 下引入了基于 [zod v3](https://github.com/colinhacks/zod) 的运行时 schema 校验层（L2 Phase B 已落地）。该层采用 **P0/P1 分级策略**，在保障关键数据流入边界的同时避免对全部 17 个服务做冗余校验：
+
+*   **P0 服务（数据流入边界，5 个）**：`ChatStreamService` / `ScriptService` / `DatabaseService` / `MemoryService` / `LLMService`。这些服务直接接触 SSE 字节流、用户脚本执行结果、IndexedDB 物理持久化与大模型通信，是契约违例后果最严重的边界。P0 服务在 `p0Services.ts` 中各拥有一份完整 schema，校验其声明的所有方法存在且类型为 `function`（如 `DatabaseService` 的 15 个方法 / `MemoryService` 的 5 个方法）。
+*   **P1 服务（其余 12 个）**：仅校验 `IKernelService` 基础结构（`name` 字段非空字符串 + `init` / `destroy` 为 function），降低运行时开销。
+*   **未知服务名**：保守默认按 P1 基础结构校验，避免自定义服务名漏校验。
+
+校验入口在 [schemas/index.ts](src/kernel/schemas/index.ts) 中以 **三个纯函数** 形式提供，不耦合 Kernel 内部状态、不抛错，返回 `{ success: true } | { success: false, error, summary }` result 对象，由调用方按 `validationMode` 决定 throw / warn / skip：
+
+*   `validateService(name, service)` — `registerService` 入口用，P0 走完整 schema / P1 走基础结构。
+*   `validateMessage(message)` — `publish` 入口用，先校验顶层 `IMessage` 结构，再按 topic 分流：动态 topic（`tavern_helper:*` 前缀，由用户脚本决定 payload 形状，符合 SillyTavern 兼容契约）跳过 payload 校验；静态 topic（`script:destroyed` / `catbot:event`）额外用 payload schema 校验；未登记 topic 仅做顶层校验。
+*   `validateServiceRetrieval(name, service)` — `getService` 入口用，识别 `SAFE_PROXY_SYMBOL` 契约标记后直接通过（已知是 `Kernel.createSafeProxy` 产出的降级对象，假装有方法但缺真实实现，P0 schema 必然失败，必须显式 skip）；真实服务走与 `validateService` 相同的分级校验。
+
+> **Phase B 现状**：schema 层已定义并经 10 项单元断言验证（`tests/suites/kernelSchemaValidation.test.ts`），**未接入 Kernel.ts 运行时**（纯加性零行为变更）。Phase C 待用户决策是否将三个纯函数接入 Kernel 三大入口并升级 `strictMode` 为三态（strict / warn / off）。完整设计详见下方 [🛡️ Kernel zod 运行时校验层 (L2 Schema Validation)](#️-kernel-zod-运行时校验层-l2-schema-validation) 章节。
+
+### 6. 官方核心微服务职能
 *   `DatabaseService` (database)：承载 IndexedDB 物理层读写和并发写 Promise 串行事务管道。
 *   `LLMService` (llm)：承载大模型请求、SSE 字符缓冲读取与思维链提取。
 *   `PromptService` (prompt)：负责人设模版编译、宏安全替换及世界书三阶级联检索。
@@ -631,7 +749,7 @@ graph TD
 *   `ImageGenerationService` (imageGen)：AI 绘图代理与生成接口管理，集成前端自适应跨域代理与 SSRF 防御机制。
 *   `MemoryService` (memory)：统一的长期记忆系统，内含 6 大核心子模块，负责记忆持久化（storage）、大模型异步信息提取（extractor）、记忆检索召回（recall）、RPG 看板数据变动分析（stateTable）与前情概要总结（summary）。
 
-### 6. 数据流向全景图 (Core Message Data Flow)
+### 7. 数据流向全景图 (Core Message Data Flow)
 
 为了降低未来维护和社区贡献的心智门槛，以下时序图完整展示了一个用户发送的消息，是如何一步步穿过事件总线、Pipeline 管道中间件、MVU 脚本沙盒，最终编译组装为优化后的 Prompt 并被大模型流式响应的：
 
@@ -679,11 +797,11 @@ sequenceDiagram
 
 ## 🧪 自动化测试套件与覆盖验证 (Comprehensive Test Suite)
 
-为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，包含了 **64 项核心功能验证用例**。
+为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，包含了 **76 项核心功能验证用例**（含 vitest 子进程桥接的 327 项 i18n / 组件渲染 / 服务集成测试）。
 
 此外，`tsconfig.json` 的 `include` 已扩展至 `tests/` 目录（排除 `.cjs` / `.js`），使 `npm run lint` (`tsc --noEmit`) 能够同时捕获源码与测试代码的类型错误，确保 CI/CD 拦截时自动发现测试用例的类型失效。
 
-### 1. 自动化功能测试一览 (The 60 Test Cases)
+### 1. 自动化功能测试一览 (The 76 Test Cases)
 
 这些测试用例按职责域被高度聚合并物理隔离到 `tests/suites/` 下的各个测试模块中：
 
@@ -784,6 +902,66 @@ npm run test
 
 ---
 
+## 🛡️ Kernel zod 运行时校验层 (L2 Schema Validation)
+
+TypeScript 编译期类型检查无法拦截运行时形状漂移：`IMessage.payload: any` 让 publish/subscribe 消息无任何运行时校验，17 个 `IXxxService` 接口契约只靠编译期检查，但 `getService<T>()` 调用方常以 `getService<any>("database")` 形式绕过类型约束。为补齐运行时类型安全，项目引入 zod v3 并设计了 **L2 三边界校验层**。
+
+### 1. P0 / P1 服务分级标准
+
+按"数据流入边界"将 17 个核心服务分为两级：
+
+| 级别 | 标准 | 服务清单 | 校验强度 |
+|---|---|---|---|
+| **P0** | LLM 不可信数据第一道关 / 持久化边界 / 外部 API 边界 | ChatStream、Script、Database（15 方法）、Memory、LLM | 完整 schema 校验所有声明方法存在且为 function |
+| **P1** | 内部协调型服务 / 配置管理型服务 | Prompt、Settings、Preset、Character、Worldbook、Telemetry、UpdateCheck、ImageGen、Tts、Asr、Bgm、MultiMessage | 仅校验 `IKernelService` 基础结构（name/init/destroy） |
+
+设计原则：**schema 仅校验"接口声明的方法在实现中存在且是 function"，不校验"实现不能有额外方法"**。容忍 `LLMService.buildHeaders` / `PromptService.escapeRegExp` 等内部辅助方法，避免 schema 与实现细节强耦合。
+
+### 2. 三大纯函数校验工具
+
+[schemas/index.ts](src/kernel/schemas/index.ts) 导出三个不耦合 Kernel 内部状态、不抛错的纯函数，返回 `{success, error?, summary?}` result 对象，由调用方（Phase C 接入 Kernel.ts）按 `validationMode` 三态决定 throw / warn / skip：
+
+| 函数 | 入口 | 分级策略 |
+|---|---|---|
+| `validateService(name, service)` | registerService | P0 走完整 schema，P1 及未知名走基础结构 |
+| `validateMessage(message)` | publish | 顶层结构校验 → 动态 topic 跳过 payload → 静态 topic 额外 payload schema → 未登记静态 topic 仅顶层校验 |
+| `validateServiceRetrieval(name, service)` | getService | 检测 `SAFE_PROXY_SYMBOL` 标记 → 跳过 P0；否则走与 registerService 相同的分级校验 |
+
+### 3. SAFE_PROXY_SYMBOL 契约标记
+
+非关键服务缺失时 Kernel.createSafeProxy 返回的 SafeProxy 假装有方法（每个方法返回 no-op），但缺真实方法实现，P0 schema 会失败。为此定义 `SAFE_PROXY_SYMBOL = Symbol("kernel.safeProxy")` 作为契约标记：
+
+- **Phase B**：`validateServiceRetrieval` 检测 `SAFE_PROXY_SYMBOL in obj` 直接返回 success
+- **Phase C（待落地）**：`Kernel.createSafeProxy` 在产出 Proxy 时打上此标记
+
+用 Symbol 而非字符串 key，避免与业务字段冲突；Symbol 属性不会被 Proxy `get` trap 拦截到不存在路径，兼容现有的 SafeProxy 实现。
+
+### 4. 动态 topic 黑名单
+
+SillyTavern 兼容契约（AGENTS.md 准则二）要求 `tavern_helper:${event}` 这类由用户脚本决定的动态 topic 不能被强加 schema。`DYNAMIC_TOPIC_PREFIXES = ["tavern_helper:"]` 显式 skip payload 校验，仅保留顶层结构校验。当前登记的静态 topic 只有 2 个：
+
+| Topic | Payload Schema | 来源 |
+|---|---|---|
+| `script:destroyed` | `{ reason: string }` | ScriptService 销毁通知 |
+| `catbot:event` | `z.unknown()`（兜底） | catbotEventBus 事件总线 |
+
+### 5. 设计原则与边界
+
+* **纯函数 + result 对象**：不抛错、不耦合 Kernel 内部状态，由 Phase C 调用方决定如何处理失败
+* **不替换 `zodMock.ts`**：[zodMock.ts](src/utils/tavernHelper/zodMock.ts)（511 行）是 SillyTavern 沙箱内用的伪 zod，真 zod 仅用于 Kernel 内部校验，两者物理隔离
+* **不接入 `strictMode`**：Phase B 不修改 Kernel.ts 运行时行为，strictMode 三态升级（strict / warn / off）属 Phase C 范围
+* **可逆**：删除 `src/kernel/schemas/` 目录 + 测试文件即可完全回退
+
+### 6. 实施进度
+
+| 阶段 | 状态 | 产出 |
+|---|---|---|
+| **Phase A** 探测 | ✅ 已完成 | [docs/agents/zod-l2-probe-report.md](docs/agents/zod-l2-probe-report.md) — 17 服务接口 vs 实现方法差异表、2 静态 topic 确认、动态 topic 黑名单确认 |
+| **Phase B** schema 定义 | ✅ 已完成 | `schemas/p0Services.ts`（134 行）+ `schemas/messages.ts`（56 行）+ `schemas/index.ts`（166 行）+ 10 项单元测试（76/76 全绿） |
+| **Phase C** Kernel 改造 | ⏳ 待用户决策 | strictMode 三态升级 + registerService/publish/getService 三边界接入 + SafeProxy 加标记 + 8 项集成测试 |
+
+---
+
 ## 🛡️ 类型安全治理与 `as any` 精确化 (Type Safety & `as any` Minimization)
 
 为消除 `as any` 类型逃逸导致的重构盲区、运行时 `null`/`undefined` 崩溃与 IDE 智能提示失效，项目全面采用精确类型替代 `as any`，当前残留 69 处（87.1% 已清除），其中 65 处位于 SillyTavern 兼容 Mock（无类型定义，保留合理）。
@@ -851,13 +1029,13 @@ npm run test
 │  框架：自定义运行器（tsx tests/run_all_tests.ts）           │
 │  覆盖：纯函数、无副作用服务、内核逻辑                       │
 │  触发：每次 commit                                         │
-│  预期耗时：< 10s                                            │
-│  现状：✅ 已建设，60 个测试函数全部通过                     │
+│  预期耗时：< 10s                                           │
+│  现状：✅ 已建设，76 个测试函数全部通过                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### 1. 单元测试层（已建设）
-主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 60 个核心功能验证用例，主要覆盖：
+主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 76 个核心功能验证用例，主要覆盖：
 * **网络安全与防网闸**：`testSsrfGuard`（防私网 IP、回环及 DNS 重绑定穿透拦截）。
 * **数据库分轨与事务防抖**：`testDbQueue`、`testDatabaseServiceCrud`、`testLocalDBSplitTrack`（并发写 Promise 管道与配置大字段拆分合并）。
 * **Prompt 编译及前缀缓存**：`testPromptBuilder`、`testPromptBuilderSystemMerging`、`testPromptRuntime`（宏安全替换、多 System 消息智能交替合并）。
@@ -873,6 +1051,7 @@ npm run test
 * **高阶业务服务生命周期**：`testCharacterService`、`testWorldbookService`、`testSettingsService`、`testPresetService`（解耦后的独立微服务 CRUD 契约与 Abort 释放）。
 * **turnIndex 时序一致性**：`testTurnIndexConsistency`（分支对话中途删除并追加消息时的 turnIndex 顺序稳定性测试）。
 * **客服小猫异常降级**：`runCatbotErrorTests`（云端 FC 限流、欠费等异常网络下的本地正则规则器健壮处理）。
+* **Kernel zod L2 schema 校验**：`testKernelSchemaValidation`（10 项主断言 + 2 项边界：P0 服务完整 schema 通过/失败、P1 基础结构通过/失败、静态 topic payload 通过/失败、动态 topic `tavern_helper:*` 跳过 payload 校验、缺顶层字段失败、SafeProxy 标记跳过 P0 校验含交叉验证、真实 P0 服务通过、null/undefined 输入不抛错）。
 
 ### 2. 集成测试层（规划中）
 * **建设目标**：验证多模块协作与 React 视图渲染正确性。

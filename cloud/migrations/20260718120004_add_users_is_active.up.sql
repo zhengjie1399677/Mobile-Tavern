@@ -8,3 +8,6 @@ ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
 -- 部分索引：仅索引停用账号，活跃账号不占索引空间（管理后台/定期清理用）
 CREATE INDEX idx_users_is_active ON users(is_active) WHERE is_active = FALSE;
+
+-- ========== 中文备注（PostgreSQL COMMENT ON 语法） ==========
+COMMENT ON COLUMN users.is_active IS '账号是否活跃（默认 TRUE；FALSE 表示停用，登录/刷新将被拒绝，软删除替代硬删除；部分索引 idx_users_is_active 加速停用账号查询）';

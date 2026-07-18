@@ -26,3 +26,12 @@ CREATE INDEX idx_identities_user_id ON identities(user_id);
 ALTER TABLE identities
     ADD CONSTRAINT chk_identities_provider
     CHECK (provider IN ('email', 'google'));
+
+-- ========== 中文备注（PostgreSQL COMMENT ON 语法） ==========
+COMMENT ON TABLE identities IS '身份关联表 —— 一个用户可绑定多个身份（邮箱/Google 等），支持多方式登录与第三方 OAuth 绑定';
+COMMENT ON COLUMN identities.id IS '身份记录唯一标识（UUID，数据库自动生成）';
+COMMENT ON COLUMN identities.user_id IS '关联的用户 ID（外键 users.id，删 user 时级联删除 ON DELETE CASCADE）';
+COMMENT ON COLUMN identities.provider IS '身份提供方（email / google，CHECK 约束 chk_identities_provider 限制取值）';
+COMMENT ON COLUMN identities.provider_user_id IS '提供方内的用户唯一 ID（email 时为邮箱地址；google 时为 Google sub claim，永不复用）';
+COMMENT ON COLUMN identities.metadata IS 'OAuth 返回的原始信息（头像、locale 等，JSONB 格式存储）';
+COMMENT ON COLUMN identities.created_at IS '身份绑定时间';
