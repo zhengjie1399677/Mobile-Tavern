@@ -64,7 +64,15 @@ const DialogueHistoryView = ({
   const [swipedMsgId, setSwipedMsgId] = React.useState<string | null>(null);
 
   // 过滤隐藏的野牛静默消息
-  const messagesToRender = (activeSession?.messages || []).filter((m: any) => !m.extra?.isBisonSilent);
+  const rawMessages = (activeSession?.messages || []).filter((m: any) => !m.extra?.isBisonSilent);
+
+  // 性能优化：流式期间 activeSession.messages 每 60ms 触发一次 setSessions，
+  // 若直接驱动 visibleMessages.map 渲染会阻塞用户滚动等高优先级交互。
+  // useDeferredValue 让 React 把"消息列表变化"降级为低优先级更新，
+  // 高优先级更新（滚动、点击、输入）能立即响应，流式文本延迟到下次空闲帧合并提交。
+  // 注意：isStreamingThisMsg 判断走 window.TavernHelperStreamingMessageId（同步读取），
+  // 不依赖此处的 deferred 值，流式渲染判断逻辑不受影响。
+  const messagesToRender = React.useDeferredValue(rawMessages);
 
   // TODO-3: 历史消息截断与总结归档。
   // 当 session.lastSummarizedMessageId 存在时，将其之前的消息视为已归档（已生成 SummaryCard），
