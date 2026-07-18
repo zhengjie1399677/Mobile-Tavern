@@ -20,12 +20,6 @@ export const KernelServices = {
   Preset: "preset",
 } as const;
 
-export const KernelEvents = {
-  MessageReceived: "chat:message_received",
-  SessionChanged: "chat:session_changed",
-  SettingsUpdated: "system:settings_updated",
-} as const;
-
 export type InterruptFn = () => void;
 
 export type Middleware<T> = (context: T, next: () => Promise<void>, interrupt: InterruptFn) => Promise<void> | void;
@@ -326,6 +320,20 @@ export interface IUpdateCheckService extends IKernelService {
 
 export interface IImageGenerationService extends IKernelService {
   generateImage(prompt: string, config: any, signal?: AbortSignal): Promise<string>;
+}
+
+/**
+ * 背景音乐服务接口。
+ * 对应 BgmService 实现，负责 BGM 播放控制与状态查询。
+ */
+export interface IBgmService extends IKernelService {
+  play(url: string, volume?: number): void;
+  stop(): void;
+  mute(): void;
+  unmute(): void;
+  toggleMute(): boolean;
+  getCurrentUrl(): string;
+  getMuteState(): boolean;
 }
 
 /**

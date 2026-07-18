@@ -95,6 +95,7 @@ import {
   testMemoryStreamParserAbort,
   testPublishSnapshotDuringConcurrentSubscribe,
   testDestroyWithMultipleActiveControllers,
+  testKernelSchemaValidation,
 } from "./suites/index";
 
 /**
@@ -230,6 +231,8 @@ async function run() {
     { name: "testAbortSignalWriteQueueRecovery", fn: testAbortSignalWriteQueueRecovery },
     { name: "testMvuParserAbortedCheckpoints", fn: testMvuParserAbortedCheckpoints },
     { name: "testMemoryStreamParserAbort", fn: testMemoryStreamParserAbort },
+    // Kernel zod L2 Phase B：schema 单元测试（validateService / validateMessage / validateServiceRetrieval）
+    { name: "testKernelSchemaValidation", fn: testKernelSchemaValidation },
     // vitest 套件桥接（i18n 多语言 50 项 + 组件渲染 + 服务集成，共 327 项）
     { name: "testVitestSuite", fn: runVitestSuite },
   ];

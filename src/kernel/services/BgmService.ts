@@ -1,6 +1,6 @@
-import { IKernel, IKernelService } from "../types";
+import { IBgmService, IKernel } from "../types";
 
-export class BgmService implements IKernelService {
+export class BgmService implements IBgmService {
   name = "bgm";
   isCritical = false;
   dependencies = [] as const;
