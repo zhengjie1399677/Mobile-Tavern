@@ -1,0 +1,8 @@
+# SQLx 迁移脚本目录
+#
+# 用法：
+#   sqlx migrate add -r create_users_table
+#   sqlx migrate run --database-url $DATABASE_URL
+#
+# 命名规范：YYYYMMDDHHMMSS_<snake_case_name>.sql
+# 所有迁移必须可回滚（带 -r 参数生成 .up.sql / .down.sql 配对）。

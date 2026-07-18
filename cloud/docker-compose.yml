@@ -1,0 +1,70 @@
+# Mobile Tavern 云端后端本地开发栈
+#
+# 用法：
+#   docker compose up -d          # 启动 PG + Redis + 后端
+#   docker compose up -d postgres redis  # 仅启动依赖（便于本地 cargo run 调试）
+#   docker compose logs -f cloud  # 查看后端日志
+#   docker compose down -v        # 停止并清除数据卷
+#
+# 生产部署：复制本文件为 docker-compose.prod.yml，移除 port 映射、改用环境变量注入凭证。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tavern-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tavern}
+      POSTGRES_USER: ${POSTGRES_USER:-tavern}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tavern_dev}
+      # 启用 pgvector 扩展（语义召回，P3 社区分享阶段使用）
+      # 需在初始化脚本中 CREATE EXTENSION IF NOT EXISTS vector;
+    ports:
+      - "5432:5432"
+    volumes:
+      - tavern_pg_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tavern} -d ${POSTGRES_DB:-tavern}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: tavern-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - tavern_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  cloud:
+    build:
+      context: ..
+      dockerfile: cloud/Dockerfile
+    container_name: tavern-cloud
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-tavern}:${POSTGRES_PASSWORD:-tavern_dev}@postgres:5432/${POSTGRES_DB:-tavern}
+      REDIS_URL: redis://redis:6379
+      PORT: 8080
+      RUST_LOG: ${RUST_LOG:-info}
+      # Google OAuth 校验（P1 阶段填充）
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      JWT_SECRET: ${JWT_SECRET:-dev_secret_change_me_in_production}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  tavern_pg_data:
+  tavern_redis_data:

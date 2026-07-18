@@ -1,0 +1,13 @@
+[package]
+name = "shared"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Mobile Tavern 前后端共享类型（ts-rs 自动导出 TypeScript 定义）"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { version = "1", features = ["v4", "serde"] }
+ts-rs = { version = "10", features = ["chrono-impl", "uuid-impl", "no-serde-warnings"] }

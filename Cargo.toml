@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = ["src-tauri", "cloud", "shared"]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.77.2"
+
+# 共享依赖版本集中管理。
+# 注意：src-tauri 保持自身 Cargo.toml 的依赖声明不变（最小侵入），
+# 此处仅供 cloud 与 shared 两个新 crate 通过 `dep.workspace = true` 引用。
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+# workspace 级 release profile（cloud/Cargo.toml 不再声明 [profile.release]，
+# 否则会触发 "profiles for the non root package will be ignored" 警告）。
+# src-tauri 自身的 debug/release 行为不受影响（profile 仅对启用 LTO 的 cloud 二进制有效）。
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true

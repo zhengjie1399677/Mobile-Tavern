@@ -18,6 +18,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@cloud-types/*": [
+        "./shared/bindings/*"
       ]
     },
     "allowImportingTsExtensions": true,

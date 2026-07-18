@@ -1,0 +1,50 @@
+[package]
+name = "mobile-tavern-cloud"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2"
+license = "Apache-2.0"
+description = "Mobile Tavern 云端后端服务（账号体系 / 云端推理 / 社区分享 / 遥测 / 热更新）"
+
+[dependencies]
+# Web 框架与异步运行时
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "compression-gzip"] }
+
+# 日志与可观测性
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# 数据库
+sqlx = { version = "0.8", default-features = false, features = [
+  "runtime-tokio-rustls",
+  "postgres",
+  "uuid",
+  "chrono",
+  "json",
+  "macros",
+  "migrate",
+] }
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+
+# 序列化与数据类型
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { workspace = true }
+
+# 账号与认证
+jsonwebtoken = "9"
+argon2 = "0.5"
+
+# HTTP 客户端（Google ID Token 校验、LLM 网关转发）
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# 配置与错误处理
+dotenvy = "0.15"
+thiserror = "1"
+anyhow = "1"
+
+# 前后端共享类型
+shared = { path = "../shared" }

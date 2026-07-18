@@ -1,0 +1,14 @@
+# Docker 构建忽略列表，避免将无关文件拷入镜像上下文
+target/
+**/target/
+**/*.rs.bk
+*.log
+.env
+.env.local
+.env.*.local
+.git
+.gitignore
+README.md
+*.md
+Dockerfile
+docker-compose*.yml
