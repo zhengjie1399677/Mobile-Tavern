@@ -16,6 +16,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
+mod account;
 mod config;
 mod db;
 mod error;
@@ -88,12 +89,13 @@ async fn main() -> anyhow::Result<()> {
             .allow_credentials(true)
     };
 
-    // TODO: P1.2 在此装配 account 模块路由
-    // TODO: P1.4 在此装配 telemetry 模块路由
+    // account 模块路由（P1.2）
+    // telemetry 模块路由待 P1.4 装配
 
     let app = Router::new()
         .route("/health", get(health::health_check))
         .route("/health/deep", get(health::deep_health_check))
+        .merge(account::router())
         .layer(cors_layer)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
