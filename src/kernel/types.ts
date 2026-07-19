@@ -1,5 +1,3 @@
-import { ChatSession, UserSettings } from "../types";
-
 export const KernelServices = {
   Database: "database",
   LLM: "llm",
@@ -55,23 +53,8 @@ export interface IChatStreamService extends IKernelService {
   streamLlmResponse(params: StreamParams): AsyncGenerator<StreamChunk, void, unknown>;
 }
 
-export interface OutputPipelineContext {
-  kernel?: IKernel;
-  session: ChatSession;
-  responseText: string;
-  reasoningText: string;
-  settings: UserSettings;
-  activeCharacter: any;
-  controller: AbortController;
-  isStillActive: boolean;
-  isBisonConsecutive: boolean;
-  bisonRemainingCount: number;
-  
-  // Outputs from middlewares
-  resultSession?: ChatSession;
-  shouldTriggerBison?: boolean;
-  nextBisonRemainingCount?: number;
-}
+// 注：OutputPipelineContext 已上移到 src/services/pipeline/types.ts，
+// kernel 仅保留 IPipeline<T> 泛型契约，不再反向依赖上层业务实体类型。
 
 export interface IExtension {
   id: string;
@@ -233,7 +216,7 @@ export interface ILLMService extends IKernelService {
   sendCatbotRequest(
     content: string,
     history: any[],
-    clientContext?: any
+    clientContext?: unknown
   ): Promise<{ reply: string; expression: string }>;
 }
 
@@ -257,9 +240,9 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
   getTriggeredLorebookEntries(
     messages: any[],
     userInput: string,
-    entries: any[],
+    entries: TLorebook[],
     maxRecursionDepth?: number
-  ): any[];
+  ): TLorebook[];
   replaceMacros(
     text: string,
     params: {
@@ -339,33 +322,44 @@ export interface IBgmService extends IKernelService {
 /**
  * 记忆系统服务接口（物理分轨存储 + 分层认知记忆架构）。
  * 整合底层存储 (Storage)、实体/事件抽取 (Extractor)、标签召回 (Recall)、状态表 (StateTable) 及剧情摘要 (Summary)。
+ *
+ * 泛型参数说明（默认 any 保持向后兼容，与 IDatabaseService / IPromptService 范式对齐）：
+ * 实现类应绑定具体子模块类型，例如：
+ *   `class MemoryService implements IMemoryService<MemoryStorage, MemoryExtractor, ...>`
+ * 消费方可通过类型别名（如 MemoryServiceTyped）一次性获取具体类型，避免重复书写 5 个泛型参数。
  */
-export interface IMemoryService extends IKernelService {
+export interface IMemoryService<
+  TStorage = any,
+  TExtractor = any,
+  TRecall = any,
+  TStateTable = any,
+  TSummary = any
+> extends IKernelService {
   /**
    * 获取存储层 OOP 入口（messages / memory_dict Store CRUD）。
    * 供中间件与未来子模块复用。
    */
-  getStorage(): any;
+  getStorage(): TStorage;
   /**
    * 获取抽取器（L0 LLM 抽取 + L1 词典匹配 + 调度队列）。
    * 阶段 B 装配，供 output 中间件异步触发抽取。
    */
-  getExtractor(): any;
+  getExtractor(): TExtractor;
   /**
    * 获取召回器（标签倒排索引 + 时间衰减打分）。
    * 阶段 B 装配，供 input 中间件召回相关历史注入 Prompt。
    */
-  getRecall(): any;
+  getRecall(): TRecall;
   /**
    * 获取状态表子模块（合并自 TableMemoryService）。
    * 阶段 C 装配，供 output 中间件解析 AI 表格指令并执行 CRUD。
    */
-  getStateTable(): any;
+  getStateTable(): TStateTable;
   /**
    * 获取摘要子模块（瘦身自 AutoSummaryService）。
    * 阶段 C 装配，供 output 中间件触发剧情时间线摘要。
    */
-  getSummary(): any;
+  getSummary(): TSummary;
 }
 
 export interface ITtsService extends IKernelService {
@@ -392,7 +386,7 @@ export interface IAsrService extends IKernelService {
   startListening(
     config: AsrConfig,
     onResult: (text: string, isFinal: boolean) => void,
-    onError: (err: any) => void,
+    onError: (err: unknown) => void,
     onEnd?: () => void
   ): Promise<void>;
   stopListening(): void;
@@ -415,9 +409,9 @@ export interface IWorldbookService extends IKernelService {
   saveCustomWorldbooks(worldbooks: Record<string, any>): Promise<void>;
 }
 
-export interface ISettingsService extends IKernelService {
-  getStoredSettings(): Promise<UserSettings | null>;
-  saveStoredSettings(settings: UserSettings): Promise<void>;
+export interface ISettingsService<TSettings = any> extends IKernelService {
+  getStoredSettings(): Promise<TSettings | null>;
+  saveStoredSettings(settings: TSettings): Promise<void>;
 }
 
 export interface IPresetService extends IKernelService {

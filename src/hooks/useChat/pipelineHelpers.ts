@@ -8,7 +8,8 @@
  */
 import React from "react";
 import { ChatSession, UserSettings, CharacterCard } from "../../types";
-import { OutputPipelineContext, IDatabaseService, KernelServices } from "../../kernel/types";
+import { IDatabaseService, KernelServices } from "../../kernel/types";
+import type { OutputPipelineContext } from "../../services/pipeline";
 import { globalKernel } from "../../kernel";
 import { buildOutputContext } from "./helpers/streamHelpers";
 import { cleanSuggestionsFromText } from "./helpers/textParsing";

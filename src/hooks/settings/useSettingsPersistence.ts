@@ -48,7 +48,7 @@ export const useSettingsPersistence = ({
   showCustomAlert,
 }: UseSettingsPersistenceDeps): UseSettingsPersistenceReturn => {
   const kernel = useKernel();
-  const settingsService = kernel.getService<ISettingsService>("settings");
+  const settingsService = kernel.getService<ISettingsService<UserSettings>>("settings");
   const worldbookService = kernel.getService<IWorldbookService>("worldbook");
 
   // Debounced settings save to prevent locking IndexedDB on sliders

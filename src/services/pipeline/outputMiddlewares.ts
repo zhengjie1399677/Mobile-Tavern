@@ -1,4 +1,5 @@
-import { Middleware, OutputPipelineContext, KernelServices } from "../types";
+import { Middleware, KernelServices, IMemoryService, IScriptService } from "../../kernel/types";
+import type { OutputPipelineContext } from "./types";
 import { calculateBisonModeProbability } from "../../hooks/useChat/helpers";
 import { Message } from "../../types";
 
@@ -55,7 +56,7 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
       return;
     }
     // 阶段 C 迁移：通过 MemoryService.getStateTable() 访问状态表子模块
-    const memoryService = kernel.getService<any>(KernelServices.Memory);
+    const memoryService = kernel.getService<IMemoryService>(KernelServices.Memory);
     const stateTable = memoryService.getStateTable();
 
     let currentMemory = currentSession.tableMemory || [];
@@ -142,7 +143,7 @@ export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (con
   }
 
   try {
-    const scriptService = kernel.getService<any>(KernelServices.Script);
+    const scriptService = kernel.getService<IScriptService>(KernelServices.Script);
     currentSession = await scriptService.executeMvuScript(currentSession, responseText);
   } catch (err) {
     console.warn("[MvuScript] Middleware execution error:", err);
@@ -208,7 +209,7 @@ export const autoSummaryMiddleware: Middleware<OutputPipelineContext> = async (c
     }
     try {
       // 通过 MemoryService.getSummary() 触发摘要检查
-      const memoryService = kernel.getService<any>(KernelServices.Memory);
+      const memoryService = kernel.getService<IMemoryService>(KernelServices.Memory);
       const summary = memoryService.getSummary();
       const updatedSession = await summary.checkAndSummarize(
         currentSession,

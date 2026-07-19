@@ -13,7 +13,13 @@ import { MemoryRecall } from './MemoryRecall';
 import { MemoryStateTable } from './MemoryStateTable';
 import { MemorySummary } from './MemorySummary';
 
-export class MemoryService implements IMemoryService {
+export class MemoryService implements IMemoryService<
+  MemoryStorage,
+  MemoryExtractor,
+  MemoryRecall,
+  MemoryStateTable,
+  MemorySummary
+> {
   readonly name = KernelServices.Memory;
   readonly dependencies = [KernelServices.Database, KernelServices.LLM] as const;
 

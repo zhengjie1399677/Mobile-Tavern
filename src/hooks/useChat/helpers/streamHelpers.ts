@@ -7,7 +7,7 @@
  */
 import React from "react";
 import { Message, ChatSession, UserSettings, CharacterCard } from "../../../types";
-import { OutputPipelineContext } from "../../../kernel/types";
+import type { OutputPipelineContext } from "../../../services/pipeline";
 import { extractThinkContent, cleanSuggestionsFromText } from "./textParsing";
 import { parseSuggestions } from "./suggestions";
 

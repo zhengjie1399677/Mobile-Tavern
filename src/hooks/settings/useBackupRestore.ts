@@ -6,8 +6,8 @@ import {
   IWorldbookService,
   ICharacterService,
   IDatabaseService,
-  IMemoryService,
 } from "../../kernel/types";
+import type { MemoryServiceTyped } from "../../kernel/services/memory";
 import { encryptBackupData, decryptBackupData } from "../../utils/cardParser";
 import { DEFAULT_SETTINGS } from "./defaults";
 
@@ -74,11 +74,11 @@ export const useBackupRestore = ({
   showCustomConfirm,
 }: UseBackupRestoreDeps): UseBackupRestoreReturn => {
   const kernel = useKernel();
-  const settingsService = kernel.getService<ISettingsService>("settings");
+  const settingsService = kernel.getService<ISettingsService<UserSettings>>("settings");
   const worldbookService = kernel.getService<IWorldbookService>("worldbook");
   const characterService = kernel.getService<ICharacterService>("character");
   const databaseService = kernel.getService<IDatabaseService>("database");
-  const memoryService = kernel.getService<IMemoryService>("memory");
+  const memoryService = kernel.getService<MemoryServiceTyped>("memory");
 
   const handleExportLocalDataBackup = useCallback(async (characters: any[]) => {
     if (encryptBackup && !backupPass.trim()) {

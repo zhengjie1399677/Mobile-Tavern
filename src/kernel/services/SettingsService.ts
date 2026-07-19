@@ -1,4 +1,4 @@
-import { IKernelService, IKernel } from "../types";
+import { IKernel, ISettingsService } from "../types";
 import { UserSettings } from "../../types";
 import {
   getStoredSettings as dbGetStoredSettings,
@@ -21,7 +21,7 @@ import {
  * settings Store 中，但它们属于独立的业务域（预设包 / 世界书），
  * 分别由 PresetService 与 WorldbookService 独立封装，遵循准则一「物理层数据严格解耦与隔离」。
  */
-export class SettingsService implements IKernelService {
+export class SettingsService implements ISettingsService<UserSettings> {
   name = "settings";
   isCritical = false;
   // 依赖 DatabaseService 先完成 IDB schema 就绪（getDB 触发 onupgradeneeded）

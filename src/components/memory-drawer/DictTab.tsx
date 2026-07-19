@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ChatSession } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
-import { IMemoryService } from "../../kernel/types";
+import type { MemoryServiceTyped } from "../../kernel/services/memory";
 import { useTranslation } from "../../contexts/LanguageContext";
 import {
   RefreshCw,
@@ -33,7 +33,7 @@ const ENTITY_TYPES = [
 function DictTab({ activeSession }: DictTabProps) {
   const { t } = useTranslation();
   const kernel = useKernel();
-  const getMemoryStorage = () => kernel.getService<IMemoryService>("memory").getStorage();
+  const getMemoryStorage = () => kernel.getService<MemoryServiceTyped>("memory").getStorage();
   
   // 核心数据状态
   const [dictEntries, setDictEntries] = useState<any[]>([]);

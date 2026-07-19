@@ -20,8 +20,9 @@ import { UserSettings, LorebookEntry, CustomWorldbook, ChatSession } from "../ty
 import { useKernel } from "../contexts/KernelContext";
 import {
   IDatabaseService, IPromptService, ITelemetryService,
-  IChatStreamService, IMultiMessageService, IScriptService, IMemoryService,
+  IChatStreamService, IMultiMessageService, IScriptService,
 } from "../kernel/types";
+import type { MemoryServiceTyped } from "../kernel/services/memory";
 
 import { useChatUI } from "./useChat/useChatUI";
 import { useSessionManager } from "./useChat/useSessionManager";
@@ -58,7 +59,7 @@ export const useChat = (
   const multiMessageService = kernel.getService<IMultiMessageService>("multiMessage");
   const scriptService = kernel.getService<IScriptService>("script");
   const memoryService = kernel.hasService("memory")
-    ? kernel.getService<IMemoryService>("memory")
+    ? kernel.getService<MemoryServiceTyped>("memory")
     : undefined;
 
   // ── 稳定 Ref 镜像（供异步回调安全读取最新值） ─────────────────────────────────

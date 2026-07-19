@@ -1,4 +1,5 @@
 import { IKernel, IKernelService, IPipeline, Middleware, IExtension, IMessage } from "./types";
+import { SAFE_PROXY_SYMBOL } from "./schemas";
 
 // 全局严格模式开关，默认为 true
 let strictMode = true;
@@ -47,6 +48,10 @@ const MSG_TIMEOUT_MS = 5000;
 // 记录已发出缺失告警的服务名，避免刷屏
 const warnedServices = new Set<string>();
 
+// 按服务名缓存 SafeProxy 实例，保证同一缺失服务多次 getService 返回同一引用，
+// 避免调用方基于 === 的引用比较/缓存判断失效。
+const safeProxyCache = new Map<string, any>();
+
 /**
  * 创建安全无操作的 Fallback 代理对象 (SafeProxy)
  * 当调用的非关键服务未注册或初始化失败时，返回此代理，防止前台页面级组件在尝试链式调用时直接白屏崩溃。
@@ -58,6 +63,13 @@ const createSafeProxy = (name: string): any => {
   };
 
   return new Proxy(noop, {
+    // has trap：向 schemas/index.ts 的 isSafeProxy 契约检测（SAFE_PROXY_SYMBOL in service）
+    // 暴露标记，使 validateServiceRetrieval 能识别本代理并跳过 P0 schema 校验（Phase C 接入点）。
+    // 注意：in 运算符走 has trap 而非 get trap，因此 get 中的 Symbol 短路不影响此检测。
+    has(target, prop) {
+      if (prop === SAFE_PROXY_SYMBOL) return true;
+      return prop in target;
+    },
     get(_target, prop) {
       // Symbol 属性短路保护：工具/框架探测 Symbol 属性时拦截，避免无限递归导致调用栈溢出
       if (typeof prop === "symbol") return undefined;
@@ -277,7 +289,8 @@ export class Kernel implements IKernel {
     this.activeControllers.add(controller);
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    let initPromise: Promise<void> = new Promise<void>(resolve => resolve(service.init(this, controller.signal)));
+    // Promise.resolve().then 包装：init 同步抛错与异步 rejection 统一转为 rejected Promise，进入同一 catch 路径
+    let initPromise: Promise<void> = Promise.resolve().then(() => service.init(this, controller.signal));
 
     // 如果指定了初始化超时时间，则采用 Promise.race 赛跑实现强制超时中止机制
     if (initTimeoutMs && initTimeoutMs > 0) {
@@ -299,7 +312,7 @@ export class Kernel implements IKernel {
       this.services.set(name, service);
       const initTime = Date.now() - startTime;
       this.serviceMetadata.set(name, { state: "ready", initTime });
-      console.log(`[Kernel] Service registered and initialized successfully: ${name}`);
+      if (isDev()) console.log(`[Kernel] Service registered and initialized successfully: ${name}`);
     } catch (err: any) {
       if (timeoutId) clearTimeout(timeoutId);
       controller.abort(); // 若初始化异常，立刻触发 abort 中止内部已经拉起但未释放的临时状态
@@ -427,7 +440,13 @@ export class Kernel implements IKernel {
         `[Kernel] Service "${name}" is not registered or failed to initialize. ` +
         `Returning safe no-op fallback proxy.`
       );
-      return createSafeProxy(name) as unknown as T;
+      // 走缓存保证同名服务返回同一 SafeProxy 引用（warnedServices 仅去重日志，此处去重对象）
+      let proxy = safeProxyCache.get(name);
+      if (!proxy) {
+        proxy = createSafeProxy(name);
+        safeProxyCache.set(name, proxy);
+      }
+      return proxy as unknown as T;
     }
     return service as T;
   }
@@ -453,7 +472,7 @@ export class Kernel implements IKernel {
         const DESTROY_TIMEOUT_MS = 5000;
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-        const destroyPromise = new Promise<void>(resolve => resolve(service.destroy!(this, controller.signal)));
+        const destroyPromise: Promise<void> = Promise.resolve().then(() => service.destroy!(this, controller.signal));
         const timeoutPromise = new Promise<never>((_, reject) => {
           timeoutId = setTimeout(() => {
             controller.abort(); // 超时后强行中止销毁生命周期内的等待挂起操作
@@ -474,7 +493,7 @@ export class Kernel implements IKernel {
       }
       this.services.delete(name);
       this.serviceMetadata.set(name, { state: "destroyed" });
-      console.log(`[Kernel] Service destroyed and removed: ${name}`);
+      if (isDev()) console.log(`[Kernel] Service destroyed and removed: ${name}`);
     }
   }
 
@@ -488,7 +507,7 @@ export class Kernel implements IKernel {
     }
     const pipeline = new Pipeline<T>();
     this.pipelines.set(name, pipeline);
-    console.log(`[Kernel] Pipeline registered: ${name}`);
+    if (isDev()) console.log(`[Kernel] Pipeline registered: ${name}`);
     return pipeline;
   }
 
@@ -767,7 +786,7 @@ export class Kernel implements IKernel {
    * 销毁整个内核系统，逆序释放所有管道、消息队列和 IoC 服务
    */
   async destroy(): Promise<void> {
-    console.log("[Kernel] Destroying all core pipelines, hooks, and services...");
+    if (isDev()) console.log("[Kernel] Destroying all core pipelines, hooks, and services...");
     // 强行中止所有当前尚未结束的并发异步/定时/网络/数据库操作。
     // 快照后遍历：各 controller 被 abort 后其 finally 块会并发 activeControllers.delete(controller)，
     // 直接遍历 Set 期间被 delete 可能导致迭代器跳过未访问项，漏 abort 个别 controller。
@@ -794,7 +813,7 @@ export class Kernel implements IKernel {
     this.subscribers.clear();
     this.pipelines.clear();
     this.extensions.clear();
-    console.log("[Kernel] Kernel base destroyed successfully.");
+    if (isDev()) console.log("[Kernel] Kernel base destroyed successfully.");
   }
 }
 
