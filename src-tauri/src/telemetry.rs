@@ -41,13 +41,14 @@ struct TelemetryPayload {
 }
 
 #[derive(serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "PascalCase")]
 struct StsCredentials {
-    AccessKeyId: String,
-    AccessKeySecret: String,
-    SecurityToken: String,
-    SlsEndpoint: String,
-    SlsProject: String,
-    SlsLogstore: String,
+    access_key_id: String,
+    access_key_secret: String,
+    security_token: String,
+    sls_endpoint: String,
+    sls_project: String,
+    sls_logstore: String,
 }
 
 /// Get the queue file path in the app data directory
@@ -219,11 +220,11 @@ async fn send_payload_to_sls(credentials: &StsCredentials, logs: &[TelemetryLog]
     // Canonicalized SLS Headers (Sorted alphabetically)
     let canonicalized_headers = format!(
         "x-acs-security-token:{}\nx-log-apiversion:0.6.0\nx-log-bodyrawsize:{}\nx-log-signaturemethod:hmac-sha1",
-        credentials.SecurityToken, body_len
+        credentials.security_token, body_len
     );
     
     // Canonicalized Resource
-    let canonicalized_resource = format!("/logstores/{}", credentials.SlsLogstore);
+    let canonicalized_resource = format!("/logstores/{}", credentials.sls_logstore);
     
     // Construct StringToSign
     let string_to_sign = format!(
@@ -232,14 +233,14 @@ async fn send_payload_to_sls(credentials: &StsCredentials, logs: &[TelemetryLog]
     );
     
     // Compute HMAC-SHA1
-    let mut mac = HmacSha1::new_from_slice(credentials.AccessKeySecret.as_bytes())
+    let mut mac = HmacSha1::new_from_slice(credentials.access_key_secret.as_bytes())
         .map_err(|e| format!("HMAC key init error: {}", e))?;
     mac.update(string_to_sign.as_bytes());
     let sig_bytes = mac.finalize().into_bytes();
     let signature = base64::prelude::BASE64_STANDARD.encode(sig_bytes);
     
-    let sls_endpoint = credentials.SlsEndpoint.trim_start_matches("http://").trim_start_matches("https://");
-    let url = format!("https://{}.{}/logstores/{}", credentials.SlsProject, sls_endpoint, credentials.SlsLogstore);
+    let sls_endpoint = credentials.sls_endpoint.trim_start_matches("http://").trim_start_matches("https://");
+    let url = format!("https://{}.{}/logstores/{}", credentials.sls_project, sls_endpoint, credentials.sls_logstore);
     
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -250,11 +251,11 @@ async fn send_payload_to_sls(credentials: &StsCredentials, logs: &[TelemetryLog]
         .header("Content-Type", "application/json")
         .header("Content-MD5", &md5_str)
         .header("Date", &date_str)
-        .header("x-acs-security-token", &credentials.SecurityToken)
+        .header("x-acs-security-token", &credentials.security_token)
         .header("x-log-apiversion", "0.6.0")
         .header("x-log-bodyrawsize", body_len.to_string())
         .header("x-log-signaturemethod", "hmac-sha1")
-        .header("Authorization", format!("LOG {}:{}", credentials.AccessKeyId, signature))
+        .header("Authorization", format!("LOG {}:{}", credentials.access_key_id, signature))
         .body(body_str)
         .send()
         .await
