@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { Suspense, useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { SplashScreen } from "./SplashScreen";
 import { VenetianMask, MessageSquare, Book, Settings, HelpCircle } from "lucide-react";
@@ -138,9 +138,17 @@ export default function MainLayout() {
             if (activeTab !== tab.id) return null;
             const Comp = tab.component;
             if (tab.id === "playground") {
-              return <Comp key={tab.id} onBack={() => setActiveTab("settings")} />;
+              return (
+                <Suspense key={tab.id} fallback={<SplashScreen isVisible={true} />}>
+                  <Comp onBack={() => setActiveTab("settings")} />
+                </Suspense>
+              );
             }
-            return <Comp key={tab.id} />;
+            return (
+              <Suspense key={tab.id} fallback={<SplashScreen isVisible={true} />}>
+                <Comp />
+              </Suspense>
+            );
           })}
         </div>
 

@@ -389,13 +389,63 @@ export async function replaceSessionBranch(
 
       try {
         sessionsStore.put(toSessionStorageRecord(session));
-        for (const messageId of new Set(removedMessageIds)) {
-          messagesStore.delete(messageId);
-        }
         const firstTurnIndex = session.messages.length - newMessages.length;
-        newMessages.forEach((message, index) => {
-          messagesStore.put(toMessageRecord(session.id, message, firstTurnIndex + index));
-        });
+        const removedIds = new Set(removedMessageIds);
+        const sessionIndex = messagesStore.index("sessionId");
+        let branchStartTurnIndex = firstTurnIndex;
+
+        const sweepOldBranch = () => {
+          const cursorRequest = sessionIndex.openCursor(IDBKeyRange.only(session.id));
+          cursorRequest.onerror = () => reject(cursorRequest.error);
+          cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result;
+            if (cursor) {
+              const record = cursor.value;
+              const recordTurnIndex = Number.isInteger(record.turnIndex)
+                ? record.turnIndex
+                : null;
+
+              // removedIds 兼容缺少 turnIndex 的旧记录；turnIndex 边界则是权威的
+              // 分支覆盖规则，可一并清除未进入调用方 ID 列表的孤儿/重复回复。
+              if (
+                removedIds.has(record.id) ||
+                (recordTurnIndex !== null && recordTurnIndex >= branchStartTurnIndex)
+              ) {
+                cursor.delete();
+              }
+              cursor.continue();
+              return;
+            }
+
+            // 必须等旧尾部分支游标清理完成后再写入，避免新消息被同一游标误删。
+            newMessages.forEach((message, index) => {
+              messagesStore.put(toMessageRecord(session.id, message, branchStartTurnIndex + index));
+            });
+          };
+        };
+
+        // 若旧版本已经产生重复回复，内存数组长度推导出的 firstTurnIndex 会偏大。
+        // 先读取调用方明确要求移除的记录，以其最早 turnIndex 校准真实分支起点。
+        let pendingBoundaryReads = removedIds.size;
+        if (pendingBoundaryReads === 0) {
+          sweepOldBranch();
+        } else {
+          removedIds.forEach((messageId) => {
+            const boundaryRequest = messagesStore.get(messageId);
+            boundaryRequest.onerror = () => reject(boundaryRequest.error);
+            boundaryRequest.onsuccess = () => {
+              const record = boundaryRequest.result;
+              if (
+                record?.sessionId === session.id &&
+                Number.isInteger(record.turnIndex)
+              ) {
+                branchStartTurnIndex = Math.min(branchStartTurnIndex, record.turnIndex);
+              }
+              pendingBoundaryReads--;
+              if (pendingBoundaryReads === 0) sweepOldBranch();
+            };
+          });
+        }
       } catch (error) {
         try { transaction.abort(); } catch { /* 事务可能已自动终止 */ }
         reject(error);

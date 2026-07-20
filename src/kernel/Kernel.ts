@@ -1,8 +1,9 @@
-import { IKernel, IKernelService, IPipeline, Middleware, IExtension, IMessage } from "./types";
-import { SAFE_PROXY_SYMBOL, validateMessage } from "./schemas";
+import { IKernel, IKernelService, IPipeline, Middleware, IExtension, IMessage, type KernelValidationMode } from "./types";
+import { SAFE_PROXY_SYMBOL, validateMessage, validateService, validateServiceRetrieval, type ValidationResult } from "./schemas";
 
 // 全局严格模式开关，默认为 true
 let strictMode = true;
+let serviceValidationMode: KernelValidationMode = "warn";
 
 /**
  * 设置内核严格模式开关
@@ -10,6 +11,14 @@ let strictMode = true;
  */
 export const setKernelStrictMode = (val: boolean) => {
   strictMode = val;
+};
+
+/**
+ * 设置服务注册与获取的运行时契约校验策略。
+ * 默认 warn：记录错误但不改变既有服务生命周期语义；strict 供 CI 或开发环境阻断错误实现。
+ */
+export const setKernelServiceValidationMode = (mode: KernelValidationMode): void => {
+  serviceValidationMode = mode;
 };
 
 /**
@@ -37,6 +46,13 @@ const getKernelStrictMode = (): boolean => {
   return strictMode && isDev();
 };
 
+const describeValidationFailure = (result: ValidationResult): string => {
+  if (result.success !== false) return "";
+  return `${result.summary}: ${result.error.issues
+    .map((issue) => `${issue.path.join(".") || "<root>"} ${issue.message}`)
+    .join("; ")}`;
+};
+
 /**
  * 消息处理器单次执行超时阈值（毫秒）。
  * 防止劣质插件的异步死锁或网络挂起拖垮消息总线核心分发流程。
@@ -47,6 +63,7 @@ const MSG_TIMEOUT_MS = 5000;
 
 // 记录已发出缺失告警的服务名，避免刷屏
 const warnedServices = new Set<string>();
+const warnedServiceValidation = new Set<string>();
 
 // 按服务名缓存 SafeProxy 实例，保证同一缺失服务多次 getService 返回同一引用，
 // 避免调用方基于 === 的引用比较/缓存判断失效。
@@ -272,6 +289,7 @@ export class Kernel implements IKernel {
    * @param initTimeoutMs 初始化超时阈值（毫秒）
    */
   async registerService(name: string, service: IKernelService, initTimeoutMs?: number): Promise<void> {
+    this.validateServiceAtRegistration(name, service);
     if (this.services.has(name)) {
       console.warn(`[Kernel] Service "${name}" is already registered. Destroying existing instance before overwriting...`);
       await this.destroyService(name);
@@ -448,7 +466,36 @@ export class Kernel implements IKernel {
       }
       return proxy as unknown as T;
     }
+    this.validateServiceAtRetrieval(name, service);
     return service as T;
+  }
+
+  /** 服务注册入口的 schema 防腐层。warn 模式保持既有兼容行为，strict 用于阻断错误实现。 */
+  private validateServiceAtRegistration(name: string, service: unknown): void {
+    this.handleServiceValidation("registration", name, validateService(name, service));
+  }
+
+  /** 服务获取入口的 schema 防腐层；SafeProxy 会由 validateServiceRetrieval 自动降级放行。 */
+  private validateServiceAtRetrieval(name: string, service: unknown): void {
+    this.handleServiceValidation("retrieval", name, validateServiceRetrieval(name, service));
+  }
+
+  private handleServiceValidation(
+    operation: "registration" | "retrieval",
+    name: string,
+    result: ValidationResult
+  ): void {
+    if (serviceValidationMode === "off" || result.success) return;
+    const detail = describeValidationFailure(result);
+    const message = `[Kernel ServiceValidation] ${operation} rejected for "${name}": ${detail}`;
+    if (serviceValidationMode === "strict") {
+      throw new Error(message);
+    }
+    const warningKey = `${operation}:${name}:${detail}`;
+    if (!warnedServiceValidation.has(warningKey)) {
+      warnedServiceValidation.add(warningKey);
+      console.error(`${message}; continuing because validation mode is warn.`);
+    }
   }
 
   /**

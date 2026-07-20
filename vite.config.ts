@@ -24,9 +24,13 @@ export default defineConfig(() => {
           // 统一使用函数形式 manualChunks，避免对象与函数形式冲突
           // 符合 AGENTS.md 准则一第 2 条「物理层数据严格解耦与隔离」
           manualChunks(id) {
-            // MVU 运行时依赖分离 — 仅在使用 MVU 脚本角色卡时才需要加载
-            if (id.includes('node_modules/vue') || id.includes('node_modules/pinia') || id.includes('node_modules/jquery') || id.includes('node_modules/mathjs')) {
-              return 'mvu-vendor';
+            // MVU 运行时依赖仅在脚本角色卡启用后才动态加载。
+            // mathjs 体积远大于 Vue/Pinia/jQuery，必须独立切分，避免任何一个 MVU 功能下载整组依赖。
+            if (id.includes('node_modules/mathjs')) {
+              return 'math-vendor';
+            }
+            if (id.includes('node_modules/vue') || id.includes('node_modules/pinia') || id.includes('node_modules/jquery')) {
+              return 'mvu-ui-vendor';
             }
             // lodash 全量导入分离，避免污染主 bundle
             if (id.includes('node_modules/lodash')) {

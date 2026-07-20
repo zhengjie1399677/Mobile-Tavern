@@ -6,10 +6,10 @@
  *   2. 返回 result 对象（{success, error?}），由调用方决定如何处理
  *   3. SAFE_PROXY_SYMBOL 是 Kernel.createSafeProxy 与本模块的契约标记
  *
- * Phase C 集成方式（待用户决策后实施）：
- *   - registerService: 调用 validateService，按 validationMode 决定 throw/warn/skip
- *   - publish: 调用 validateMessage，按 validationMode 决定 throw/warn/skip
- *   - getService: 调用 validateServiceRetrieval，按 validationMode 决定 warn/skip
+ * 当前集成方式：
+ *   - registerService: 调用 validateService，按 validationMode 决定 strict/warn/off
+ *   - publish: 调用 validateMessage，按既有严格模式决定 throw/drop
+ *   - getService: 调用 validateServiceRetrieval，SafeProxy 自动跳过 P0 schema
  *
  * 维护约定：types.ts 中 IXxxService 接口变更时，对应 schema 必须同步修改（见 p0Services.ts）。
  */

@@ -1,10 +1,13 @@
+import { lazy } from "react";
 import type { IKernel } from "../kernel/types";
-import CharactersTab from "../tabs/CharactersTab";
-import ChatHistoryTab from "../tabs/ChatHistoryTab";
-import ChatTab from "../tabs/ChatTab";
-import GlobalWorldbookTab from "../tabs/GlobalWorldbookTab";
-import SettingsTab from "../tabs/SettingsTab";
-import PlaygroundTab from "../tabs/PlaygroundTab";
+
+// 主 Tab 均为独立业务域。仅在用户首次进入时下载，避免低频设置、世界书和调试沙盒阻塞首屏。
+const CharactersTab = lazy(() => import("../tabs/CharactersTab"));
+const ChatHistoryTab = lazy(() => import("../tabs/ChatHistoryTab"));
+const ChatTab = lazy(() => import("../tabs/ChatTab"));
+const GlobalWorldbookTab = lazy(() => import("../tabs/GlobalWorldbookTab"));
+const SettingsTab = lazy(() => import("../tabs/SettingsTab"));
+const PlaygroundTab = lazy(() => import("../tabs/PlaygroundTab"));
 
 /** 应用层组合根：将 React 页面注册到主界面 Tab 扩展点。 */
 export function registerMainTabExtensions(kernel: IKernel): void {

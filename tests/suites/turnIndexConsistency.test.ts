@@ -275,6 +275,17 @@ export async function testRerollBranchAtomicReplace() {
   await saveSession(originalSession);
   await syncSessionMessages(sessionId, originalMessages);
 
+  // 模拟折叠边界或旧版本异常留下的孤儿回复：它与待覆盖分支拥有相同
+  // turnIndex，但不在调用方根据当前 UI 快照计算出的 removedMessageIds 中。
+  await appendMessage({
+    id: "reroll_orphan_assistant",
+    sessionId,
+    role: "assistant",
+    content: "不应残留的重复回复",
+    createdAt: Date.now() + 9,
+    turnIndex: 3,
+  });
+
   const replacement = {
     id: "reroll_new_assistant",
     sender: "assistant" as const,
@@ -283,7 +294,19 @@ export async function testRerollBranchAtomicReplace() {
   };
   const finalSession = {
     ...originalSession,
-    messages: [...originalMessages.slice(0, 3), replacement],
+    // 将孤儿副本也放入内存快照，模拟旧 APK 双回复导致数组长度比真实分支多 1。
+    // replaceSessionBranch 必须从 removedMessageIds 对应记录校准到 turnIndex=3，
+    // 不能采用数组长度推导出的错误边界 4。
+    messages: [
+      ...originalMessages.slice(0, 3),
+      {
+        id: "reroll_orphan_assistant",
+        sender: "assistant" as const,
+        content: "不应残留的重复回复",
+        timestamp: Date.now() + 9,
+      },
+      replacement,
+    ],
   };
   await replaceSessionBranch(
     finalSession,
@@ -297,6 +320,10 @@ export async function testRerollBranchAtomicReplace() {
   assert(
     originalMessages.slice(3).every((message) => !savedMessages.some((saved) => saved.id === message.id)),
     "原子替换后旧分支消息必须全部删除"
+  );
+  assert(
+    !savedMessages.some((message) => message.id === "reroll_orphan_assistant"),
+    "分支起点之后未列入 removedMessageIds 的孤儿回复也必须删除"
   );
   assert(savedMessages.some((message) => message.id === replacement.id), "新回复必须与删除操作同事务写入");
 

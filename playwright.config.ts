@@ -38,6 +38,12 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // 以 Android 常用窄屏尺寸验证触控布局与 Safe Area 相关 DOM 契约。
+      // 该项目不替代真机验证，但能在 CI 中稳定防止移动端首屏与导航回归。
+      name: "mobile-chromium",
+      use: { ...devices["Pixel 5"] },
+    },
   ],
   webServer: {
     command: "npx tsx server.ts",

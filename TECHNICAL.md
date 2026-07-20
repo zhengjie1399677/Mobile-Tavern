@@ -48,7 +48,8 @@ Mobile-Tavern
 │   ├── contexts/                              # React Context 全局状态提供者
 │   │   ├── LanguageContext.tsx               # 多语言 i18n Provider 与 useTranslation 钩子
 │   │   ├── AppContext.tsx                    # 全局应用设置、备份、导入导出状态管理
-│   │   └── ChatContext.tsx                   # 聊天会话生命周期与消息流状态管理
+│   │   ├── ChatContext.tsx                   # 聊天会话生命周期与消息流状态管理
+│   │   └── chatMessageHydration.ts           # 最新优先存储页到界面时间正序的纯适配器
 │   │
 │   ├── locales/                               # 多语言翻译资源（按语言独立文件）
 │   │   ├── index.ts                          # 聚合导出 TRANSLATIONS 对象
@@ -213,8 +214,8 @@ graph TB
 ### 核心数据流摘要
 
 1. **聊天主链路**：UI → `useChat` → `kernel.publish("chat:message_received")` → Pipeline 洋葱管道（敏感词 / 世界书 / MVU 脚本）→ `PromptService.assemblePrompt` → `LLMService.universalFetch` → SSE 字节流 → `ChatStreamService` 零丢包切分 → React 19 并发渲染。
-2. **持久化链路**：Services → `DatabaseService` → IndexedDB 三 Store（messages / memory_dict / sessions）+ 业务对象仓库（characters / dictionaries 等）。
-3. **重发链路**：UI 同步事务锁 → 截断内存工作副本 → Prompt 与流式生成 → `replaceSessionBranch` 在 sessions/messages 两个 Store 内一次提交；纯失败或 Abort 恢复原会话，不产生中间态。
+2. **持久化链路**：Services → `DatabaseService` → IndexedDB 三 Store（messages / memory_dict / sessions）+ 业务对象仓库（characters / dictionaries 等）；重启回载以最新优先读取分页，再由 `chatMessageHydration` 转换成界面时间正序。
+3. **重发链路**：UI 同步事务锁 → 截断内存工作副本 → Prompt 与流式生成 → `replaceSessionBranch` 按分支起点 `turnIndex` 清理旧尾部，并在 sessions/messages 两个 Store 内一次提交新尾部；纯失败或 Abort 恢复原会话，不产生中间态。
 4. **遥测链路**：前端事件 → Tauri IPC → `telemetry_queue.jsonl` 本地落盘 → Rust 后台线程批量取 STS + HMAC 签名 → SLS 仓库。
 5. **云端账号链路**：移动端 fetch HTTPS → `cloud/` 后端 axum 路由 → PostgreSQL（users / identities / refresh_tokens）+ Redis 会话。
 6. **热更新链路**：`UpdateCheckService` 周期校验 → `cloud/` 后端 `update_channels` / `update_assets` → 增量包下载与版本回滚。
@@ -333,8 +334,8 @@ Mobile Tavern 利用 React 19 的 Concurrent Mode，通过分片更新机制，
 为解决长会话（几千条消息）场景下 IndexedDB 全量读取延迟与 DOM 节点过载问题，Mobile Tavern 实现了**三层递进式消息流瘦身机制**：
 
 #### 第一层：前端分页懒加载
-* **实现位置**: [ChatContext.tsx](src/contexts/ChatContext.tsx) 与 [useChatScroll.ts](src/tabs/chat/useChatScroll.ts)
-* **核心机制**: 利用 `localDB.ts` 已内置的 `limit` / `offset` / `descending` 参数，首次进入聊天室仅加载最新 `MESSAGES_PAGE_SIZE = 50` 条消息。用户滚动到顶部时，`useChatScroll` 的 `handleScroll` 检测 `scrollTop < 80px` 且 `hasMoreMessages` 为真时自动触发 `loadMoreMessages()`，加 500ms 防抖。
+* **实现位置**: [ChatContext.tsx](src/contexts/ChatContext.tsx)、[chatMessageHydration.ts](src/contexts/chatMessageHydration.ts)、[indexedDbMemoryStore.ts](src/infrastructure/storage/indexedDbMemoryStore.ts) 与 [useChatScroll.ts](src/tabs/chat/useChatScroll.ts)
+* **核心机制**: 利用消息存储适配器的 `limit` / `offset` / `descending` 参数，首次进入聊天室仅加载最新 `MESSAGES_PAGE_SIZE = 50` 条消息。`descending: true` 只承担 IndexedDB 从尾部高效定位分页的职责，返回的最新优先批次必须经 `hydrateNewestFirstMessagePage` 转换为界面时间正序；更早分页也先转换后 prepend，禁止存储查询方向泄漏为展示顺序。用户滚动到顶部时，`useChatScroll` 的 `handleScroll` 检测 `scrollTop < 80px` 且 `hasMoreMessages` 为真时自动触发 `loadMoreMessages()`，加 500ms 防抖。
 * **滚动位置锚点保持**: 加载前通过 `pendingScrollPreserveRef` 记录 `scrollHeight`，加载完成后补偿 `scrollTop += delta`（新增历史高度），使用户视觉锚点不动。期间 MutationObserver / ResizeObserver 跳过自动归底，避免跳动。
 * **分页状态隔离**: `messagePagingRef` 按 `sessionId` 维度缓存已加载 offset 与 hasMore 标志，切换会话时不重置，切回时恢复分页进度。
 
@@ -838,7 +839,7 @@ sequenceDiagram
 *   **`testLocalDBSplitTrack`**：验证 Settings 个人配置与大字段（Preset/Worldbook）分轨存储逻辑。
 *   **`testWriteQueueTimeout`**：测试并发写入管道中的事务超时挂载释放。
 *   **`testWriteQueueKeyCoalescing`**：校验高频对同一 Key 写入时的防抖合并（Coalescing）机制。
-*   **`testRerollBranchAtomicReplace`**：在真实 IndexedDB 仿真中验证重发分支跨 Store 原子替换，并确认预中止事务不提交任何变化。
+*   **`testRerollBranchAtomicReplace`**：在真实 IndexedDB 仿真中验证重发分支跨 Store 原子替换，确认按 `turnIndex` 分支起点清除未列入删除 ID 的孤儿旧回复，并确认预中止事务不提交任何变化。
 
 #### 📝 Prompt 编译与上下文缓存 (Prompt Builder & Runtime)
 *   **`testPromptBuilder`**：验证模板宏安全替换（lambda 回调防转义符坍塌）及世界书三阶级联检索逻辑。
@@ -911,7 +912,7 @@ sequenceDiagram
 *   **`testTurnIndexDeleteMiddleThenAppend`**：测试在多宇宙分支中途删除某条消息后，后续追加新消息能基于剩余历史建立正确的 turnIndex 序列，防范时序混乱。
 *   **`testTurnIndexDeleteAllThenAppend`**：测试清空历史后追加首条消息的时序就绪。
 *   **`testTurnIndexMultipleAppends`**：并发多次追加消息时的时序序列物理安全检查。
-*   **`useRerollMessage` Vitest 专项**：模拟十轮长会话下快速连续触发重发，确认只有一个事务进入召回与提示词准备阶段。
+*   **`useRerollMessage` Vitest 专项**：模拟“欢迎词＋十轮对话”的 21 条折叠边界，既验证快速连续触发只有一个事务进入召回与提示词准备阶段，也验证完整成功重发后旧回复被覆盖且只保留一条新回复。
 
 #### 🐱 小猫客服异常异常与补强测试 (Catbot & Hardening)
 *   **`runCatbotErrorTests`**：模拟小猫客服连上云端 FC 遭遇 429 限流或欠费时的本地正则关键词降级处理器，确保不崩溃。
@@ -1063,7 +1064,7 @@ SillyTavern 兼容契约（AGENTS.md 准则二）要求 `tavern_helper:${event}`
 ```
 
 ### 1. 单元测试层（已建设）
-主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 76 个核心功能验证用例，主要覆盖：
+主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 78 个核心功能验证用例，并联动 329 项 Vitest 断言，主要覆盖：
 * **网络安全与防网闸**：`testSsrfGuard`（防私网 IP、回环及 DNS 重绑定穿透拦截）。
 * **数据库分轨与事务防抖**：`testDbQueue`、`testDatabaseServiceCrud`、`testLocalDBSplitTrack`（并发写 Promise 管道与配置大字段拆分合并）。
 * **Prompt 编译及前缀缓存**：`testPromptBuilder`、`testPromptBuilderSystemMerging`、`testPromptRuntime`（宏安全替换、多 System 消息智能交替合并）。
@@ -1115,6 +1116,5 @@ jobs:
       - run: npm test
 ```
 通过 `c8` 进行测试覆盖率统计，目标保证 `src/kernel/` 内置服务覆盖率 $\ge 85\%$。
-
 
 

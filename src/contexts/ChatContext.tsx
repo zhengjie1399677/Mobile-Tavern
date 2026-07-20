@@ -5,6 +5,7 @@ import { IDatabaseService } from "../kernel/types";
 import type { MemoryServiceTyped } from "../kernel/services/memory";
 import { useApp } from "./AppContext";
 import { TRANSLATIONS } from "../locales/index";
+import { hydrateNewestFirstMessagePage } from "./chatMessageHydration";
 
 // P0-1: 启动时分页加载会话，避免一次性 getAll() 全量反序列化阻塞首屏。
 // 默认每页 50 条（覆盖 95% 用户的会话总数），超出部分由 loadMoreSessions 滚动加载。
@@ -171,7 +172,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const alreadyPaged = !!cached;
     if (session && (!session.messages || session.messages.length === 0) && !alreadyPaged) {
       let isCurrent = true;
-      // descending: true → 取最新 N 条（内部最终 reverse 为升序返回）
+      // descending: true 仅用于高效取最新 N 条；返回批次仍是“最新优先”，
+      // 必须在 Context 适配层转换为界面需要的时间正序。
       memoryService.getStorage().getMessagesBySession(activeSessionId, {
         limit: MESSAGES_PAGE_SIZE,
         descending: true,
@@ -187,13 +189,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 s.id === activeSessionId
                   ? {
                       ...s,
-                      messages: msgs.map((m: any) => ({
-                        id: m.id,
-                        sender: m.role === "user" ? "user" : m.role === "system" ? "system" : "assistant",
-                        content: m.content,
-                        timestamp: m.createdAt,
-                        extra: m.metadata,
-                      })),
+                      messages: hydrateNewestFirstMessagePage(msgs),
                     }
                   : s
               )
@@ -255,15 +251,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSessions((prev) =>
           prev.map((s) => {
             if (s.id !== activeSessionId) return s;
-            const mapped = olderMsgs.map((m: any) => ({
-              id: m.id,
-              sender: m.role === "user" ? "user" : m.role === "system" ? "system" : "assistant",
-              content: m.content,
-              timestamp: m.createdAt,
-              extra: m.metadata,
-            }));
-            // descending: true 时返回的批次内部已按时间升序排列（函数末尾 reverse 过），
-            // 因此直接 prepend 到已有 messages 之前即可保持整体时间升序。
+            const mapped = hydrateNewestFirstMessagePage(olderMsgs);
+            // 每一页先转换为时间正序，再 prepend 到现有最新页之前。
             return {
               ...s,
               messages: [...mapped, ...(s.messages || [])],

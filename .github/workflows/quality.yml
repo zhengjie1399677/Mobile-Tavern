@@ -1,0 +1,63 @@
+name: Quality Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "codex/**"
+
+permissions:
+  contents: read
+
+env:
+  # 避免代理环境下访问境外浏览器镜像导致 CI 安装卡死。
+  PLAYWRIGHT_DOWNLOAD_HOST: https://npmmirror.com/mirrors/playwright
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: 类型、单元、构建与受控浏览器回归
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装锁定依赖
+        run: npm ci
+
+      - name: 类型检查
+        run: npm run lint
+
+      - name: 单元与集成测试
+        run: npm test
+
+      - name: 生产构建
+        run: npm run build
+
+      - name: 安装本地 Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: 受控浏览器回归
+        run: npm run test:e2e
+
+      - name: 上传失败轨迹
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

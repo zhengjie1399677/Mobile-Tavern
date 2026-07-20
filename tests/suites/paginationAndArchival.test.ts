@@ -9,6 +9,7 @@
  */
 
 import { assert } from "./testUtils";
+import { hydrateNewestFirstMessagePage } from "../../src/contexts/chatMessageHydration";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 测试目标 1：消息角色映射（从 ChatContext.tsx 提取的纯逻辑）
@@ -58,6 +59,27 @@ function computePaginationState(
 
 export function testPaginationBoundaries() {
   console.log("--- Running Pagination Boundaries Verification ---");
+
+  // IndexedDB 为定位最新页返回倒序记录，重启回载必须恢复为时间正序。
+  const newestFirst = Array.from({ length: 10 }, (_, index) => ({
+    id: `m${9 - index}`,
+    role: (9 - index) % 2 === 0 ? "user" : "assistant",
+    content: `消息 ${9 - index}`,
+    createdAt: 1000 + (9 - index),
+  }));
+  const hydrated = hydrateNewestFirstMessagePage(newestFirst);
+  assert(hydrated[0].id === "m0", "重启回载首条应保持为最早消息 m0");
+  assert(hydrated[9].id === "m9", "重启回载末条应保持为最新消息 m9");
+  assert(newestFirst[0].id === "m9", "回载转换不得原地修改存储层结果");
+
+  // 两页分别转为正序后，旧页 prepend 应形成连续的全局正序。
+  const latestPage = hydrateNewestFirstMessagePage(newestFirst.slice(0, 5));
+  const olderPage = hydrateNewestFirstMessagePage(newestFirst.slice(5));
+  const mergedIds = [...olderPage, ...latestPage].map((message) => message.id);
+  assert(
+    JSON.stringify(mergedIds) === JSON.stringify(Array.from({ length: 10 }, (_, index) => `m${index}`)),
+    "加载更早消息后应保持完整时间正序"
+  );
 
   // 场景 1：空会话（0 条消息）
   const empty = computePaginationState(0, 0);

@@ -20,6 +20,9 @@ export const KernelServices = {
 
 export type InterruptFn = () => void;
 
+/** Kernel 运行时契约校验的处置策略。 */
+export type KernelValidationMode = "strict" | "warn" | "off";
+
 export type Middleware<T> = (context: T, next: () => Promise<void>, interrupt: InterruptFn) => Promise<void> | void;
 
 export interface StreamChunk {

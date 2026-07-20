@@ -21,7 +21,11 @@ import {
   type ValidationResult,
 } from "../../src/kernel/schemas";
 import { assert } from "./testUtils";
-import { Kernel, setKernelStrictMode } from "../../src/kernel/Kernel";
+import {
+  Kernel,
+  setKernelServiceValidationMode,
+  setKernelStrictMode,
+} from "../../src/kernel/Kernel";
 
 /**
  * 校验失败的窄化类型，便于直接访问 error / summary 字段。
@@ -97,6 +101,39 @@ export async function testKernelSchemaValidation() {
       errStr.includes("streamLlmResponse"),
       "用例2: 错误信息应包含缺失方法名 streamLlmResponse"
     );
+  }
+
+  // === Phase C 集成：服务注册/获取按 strict/warn/off 三态运行 ===
+  {
+    const kernel = new Kernel();
+    const incompleteP0 = { name: "chatStream", init() {} };
+
+    setKernelServiceValidationMode("strict");
+    let registrationError: Error | null = null;
+    try {
+      await kernel.registerService("chatStream", incompleteP0);
+    } catch (error) {
+      registrationError = error as Error;
+    }
+    assert(registrationError !== null, "集成3: strict 模式必须拒绝不完整 P0 服务注册");
+    assert(!kernel.hasService("chatStream"), "集成3: 被拒绝服务不得进入容器");
+
+    setKernelServiceValidationMode("warn");
+    const originalError = console.error;
+    let warned = false;
+    console.error = (...args: unknown[]) => {
+      warned ||= args.join(" ").includes("Kernel ServiceValidation");
+    };
+    try {
+      await kernel.registerService("chatStream", incompleteP0);
+      assert(kernel.hasService("chatStream"), "集成4: warn 模式保持既有注册兼容行为");
+      kernel.getService("chatStream");
+      assert(warned, "集成4: warn 模式应记录注册或获取契约告警");
+    } finally {
+      console.error = originalError;
+      setKernelServiceValidationMode("warn");
+      await kernel.destroy();
+    }
   }
 
   // === 用例 3：validateService P1 合法（仅基础结构）→ success ===
