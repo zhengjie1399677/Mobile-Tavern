@@ -10,6 +10,7 @@ import type {
 const MAX_BLOCKS = 200;
 const MAX_NAME_LENGTH = 120;
 const MAX_TEMPLATE_LENGTH = 100_000;
+const MAX_COMPATIBILITY_JSON_LENGTH = 1_000_000;
 const ROLES: PromptMessageRole[] = ["system", "user", "assistant"];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -38,7 +39,15 @@ export function parsePromptComposition(input: string | unknown): PromptCompositi
     ids.add(parsed.id);
     return parsed;
   });
-  return { id, name, version: 1, blocks };
+  return {
+    id,
+    name,
+    version: 1,
+    blocks,
+    compatibility: value.compatibility === undefined
+      ? undefined
+      : parseCompositionCompatibility(value.compatibility),
+  };
 }
 
 export function serializePromptComposition(composition: PromptComposition): string {
@@ -64,7 +73,55 @@ function parseBlock(value: unknown, index: number): PromptBlock {
     placement: parsePlacement(value.placement),
     condition: value.condition === undefined ? undefined : parseCondition(value.condition),
     tokenPolicy: parseTokenPolicy(value.tokenPolicy),
+    compatibility: value.compatibility === undefined
+      ? undefined
+      : parseBlockCompatibility(value.compatibility),
   };
+}
+
+function parseCompositionCompatibility(value: unknown): PromptComposition["compatibility"] {
+  if (!isRecord(value)) throw new Error("PROMPT_COMPOSITION_INVALID_COMPATIBILITY");
+  return {
+    source: readString(value.source, "PROMPT_COMPOSITION_INVALID_COMPATIBILITY", MAX_NAME_LENGTH),
+    sourceVersion: value.sourceVersion === undefined
+      ? undefined
+      : readString(value.sourceVersion, "PROMPT_COMPOSITION_INVALID_COMPATIBILITY", MAX_NAME_LENGTH),
+    originalName: value.originalName === undefined
+      ? undefined
+      : readString(value.originalName, "PROMPT_COMPOSITION_INVALID_COMPATIBILITY", MAX_NAME_LENGTH),
+    preservedRootFields: value.preservedRootFields === undefined
+      ? undefined
+      : cloneOpaqueRecord(value.preservedRootFields),
+  };
+}
+
+function parseBlockCompatibility(value: unknown): PromptBlock["compatibility"] {
+  if (!isRecord(value)) throw new Error("PROMPT_COMPOSITION_INVALID_COMPATIBILITY");
+  return {
+    source: readString(value.source, "PROMPT_COMPOSITION_INVALID_COMPATIBILITY", MAX_NAME_LENGTH),
+    originalIdentifier: value.originalIdentifier === undefined
+      ? undefined
+      : readString(value.originalIdentifier, "PROMPT_COMPOSITION_INVALID_COMPATIBILITY", MAX_NAME_LENGTH),
+    originalFields: value.originalFields === undefined
+      ? undefined
+      : cloneOpaqueRecord(value.originalFields),
+  };
+}
+
+function cloneOpaqueRecord(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) throw new Error("PROMPT_COMPOSITION_INVALID_COMPATIBILITY");
+  try {
+    const serialized = JSON.stringify(value);
+    if (serialized.length > MAX_COMPATIBILITY_JSON_LENGTH) {
+      throw new Error("PROMPT_COMPOSITION_COMPATIBILITY_TOO_LARGE");
+    }
+    const cloned: unknown = JSON.parse(serialized);
+    if (!isRecord(cloned)) throw new Error("PROMPT_COMPOSITION_INVALID_COMPATIBILITY");
+    return cloned;
+  } catch (error) {
+    if (error instanceof Error && error.message === "PROMPT_COMPOSITION_COMPATIBILITY_TOO_LARGE") throw error;
+    throw new Error("PROMPT_COMPOSITION_INVALID_COMPATIBILITY");
+  }
 }
 
 function parseSource(value: unknown): PromptBlockSource {

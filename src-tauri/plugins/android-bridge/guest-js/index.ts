@@ -34,6 +34,8 @@ export interface AndroidThemeBridge {
   setStatusBarStyle(isDark: boolean, colorHex: string): void;
   /** Locks the Activity to sensor landscape or returns control to the system. */
   setScreenOrientation(mode: "landscape" | "auto"): boolean;
+  /** Opens the Android system share sheet with text content. */
+  shareText(title: string, text: string, mimeType: string): boolean;
   /**
    * Saves a UTF-8 text file to the public Download directory.
    * @returns the display path of the saved file, or an `error:`-prefixed

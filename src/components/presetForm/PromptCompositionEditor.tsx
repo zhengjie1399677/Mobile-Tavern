@@ -19,11 +19,13 @@ import { useTranslation } from "../../contexts/LanguageContext";
 import PromptBlockEditorDialog from "./PromptBlockEditorDialog";
 import PromptBlockQuickEditor from "./PromptBlockQuickEditor";
 import PromptCompositionPreviewDialog from "./PromptCompositionPreviewDialog";
+import PromptCompositionTransferToolbar from "./PromptCompositionTransferToolbar";
 import PromptCompositionWorkbench from "./PromptCompositionWorkbench";
 import type { PromptWorkbenchView } from "./PromptCompositionWorkbench";
 import type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 import { useWidePromptWorkbench } from "./useWidePromptWorkbench";
 import { useAndroidOrientationControl } from "./useAndroidOrientationControl";
+import { usePromptCompositionHistory } from "./usePromptCompositionHistory";
 
 export type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 
@@ -53,12 +55,14 @@ export default function PromptCompositionEditor({
   const historyBlocks = composition.blocks.filter((block) => block.source.type === "chat_history");
   const freeMode = settings.promptConfig.usePromptComposition === true;
 
-  const updateComposition = (next: PromptComposition) => {
+  const persistComposition = (next: PromptComposition) => {
     updateSettings((previous) => ({
       ...previous,
       promptConfig: { ...previous.promptConfig, composition: next },
     }));
   };
+  const compositionHistory = usePromptCompositionHistory(composition, persistComposition);
+  const updateComposition = compositionHistory.commit;
 
   const setMode = (enabled: boolean) => {
     updateSettings((previous) => ({
@@ -75,7 +79,7 @@ export default function PromptCompositionEditor({
     updateComposition({
       ...composition,
       blocks: composition.blocks.map((block) => block.id === id ? { ...block, ...patch } : block),
-    });
+    }, `block:${id}`);
   };
 
   const addBlock = (sourceType: "template" | "chat_history") => {
@@ -202,10 +206,22 @@ export default function PromptCompositionEditor({
                 {t("prompt_composer.no_hidden_prompt")}
               </div>
 
+              <PromptCompositionTransferToolbar
+                composition={composition}
+                canUndo={compositionHistory.canUndo}
+                canRedo={compositionHistory.canRedo}
+                onUndo={compositionHistory.undo}
+                onRedo={compositionHistory.redo}
+                onImport={(imported) => {
+                  updateComposition(imported);
+                  setEditingBlockId(undefined);
+                }}
+              />
+
               <div className="flex gap-2">
                 <input
                   value={composition.name}
-                  onChange={(event) => updateComposition({ ...composition, name: event.target.value })}
+                  onChange={(event) => updateComposition({ ...composition, name: event.target.value }, "composition-name")}
                   aria-label={t("prompt_composer.composition_name")}
                   className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary"
                 />

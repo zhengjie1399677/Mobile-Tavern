@@ -12,6 +12,8 @@
 
 Android `MainActivity` 已声明 `orientation|screenSize` 等 `configChanges`，旋转不会重建 WebView；当前 Prompt 编辑状态与已选区块可以继续保留。新增或调整方向桥接后，应至少执行一次下方 Gradle 调试构建并在真机验证锁定、左右横屏切换和恢复自动旋转。
 
+Prompt JSON 模板导出会优先调用 `AndroidThemeBridge.saveFile` 写入公共下载目录，分享则调用 `AndroidThemeBridge.shareText` 打开系统分享面板。两项能力都按桥接方法存在性检测；真机回归需同时确认保存结果路径、分享取消以及超大内容改用文件导出的提示。
+
 ---
 
 ## SDK 路径说明

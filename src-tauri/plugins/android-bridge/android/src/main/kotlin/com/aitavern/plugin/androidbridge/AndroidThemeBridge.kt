@@ -374,6 +374,25 @@ class AndroidThemeBridge(
         return true
     }
 
+    /** Open the Android system share sheet with plain or JSON text content. */
+    @JavascriptInterface
+    fun shareText(title: String, text: String, mimeType: String): Boolean {
+        if (text.isBlank()) return false
+        activity.runOnUiThread {
+            try {
+                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = mimeType.ifBlank { "text/plain" }
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, title)
+                    putExtra(android.content.Intent.EXTRA_TEXT, text)
+                }
+                activity.startActivity(android.content.Intent.createChooser(intent, title))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to share text", e)
+            }
+        }
+        return true
+    }
+
     /**
      * Open a URL in the system default browser.
      */

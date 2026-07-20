@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PromptCompositionEditor from "../../src/components/presetForm/PromptCompositionEditor";
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
@@ -8,7 +8,9 @@ import type { UserSettings } from "../../src/types";
 
 interface WindowWithOrientationBridge extends Window {
   AndroidThemeBridge?: {
-    setScreenOrientation: (mode: "landscape" | "auto") => boolean;
+    setScreenOrientation?: (mode: "landscape" | "auto") => boolean;
+    saveFile?: (fileName: string, content: string) => string;
+    shareText?: (title: string, text: string, mimeType: string) => boolean;
   };
 }
 
@@ -171,6 +173,68 @@ describe("PromptCompositionEditor", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
     expect(screen.queryByRole("button", { name: "进入横屏工作台" })).not.toBeInTheDocument();
+  });
+
+  it("删除与排序等自由编辑可以撤销并重做", () => {
+    render(<LanguageProvider><Harness /></LanguageProvider>);
+
+    expect(screen.getByRole("button", { name: "撤销" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "删除区块" }));
+    expect(screen.queryByText("唯一消息")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "撤销" }));
+    expect(screen.getByText("唯一消息")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "重做" }));
+    expect(screen.queryByText("唯一消息")).not.toBeInTheDocument();
+  });
+
+  it("可通过 Android 原生桥接保存和分享模板，并复制同一份 JSON", async () => {
+    const saveFile = vi.fn().mockReturnValue("Download/Mobile Tavern/editor-test.prompt-composition.json");
+    const shareText = vi.fn().mockReturnValue(true);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    (window as unknown as WindowWithOrientationBridge).AndroidThemeBridge = { saveFile, shareText };
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    render(<LanguageProvider><Harness /></LanguageProvider>);
+
+    fireEvent.click(screen.getByRole("button", { name: "导出 JSON" }));
+    expect(saveFile).toHaveBeenCalledOnce();
+    expect(saveFile.mock.calls[0][0]).toBe("编辑器测试.prompt-composition.json");
+
+    fireEvent.click(screen.getByRole("button", { name: "复制 JSON" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+
+    fireEvent.click(screen.getByRole("button", { name: "分享 JSON" }));
+    expect(shareText).toHaveBeenCalledOnce();
+    expect(shareText.mock.calls[0][1]).toBe(writeText.mock.calls[0][0]);
+  });
+
+  it("导入 JSON 会替换当前编排，并可立即撤销恢复", async () => {
+    const imported = JSON.stringify({
+      id: "imported-composition",
+      name: "导入模板",
+      version: 1,
+      blocks: [{
+        id: "imported-block",
+        name: "导入消息",
+        enabled: true,
+        role: "user",
+        source: { type: "template" },
+        template: "导入内容",
+        order: 100,
+        placement: { type: "ordered" },
+      }],
+    });
+    const file = { size: imported.length, text: vi.fn().mockResolvedValue(imported) };
+    render(<LanguageProvider><Harness /></LanguageProvider>);
+
+    fireEvent.change(screen.getByLabelText("选择 Prompt 编排 JSON 文件"), {
+      target: { files: [file] },
+    });
+    await waitFor(() => expect(screen.getByTestId("composition-state")).toHaveTextContent("导入消息"));
+
+    fireEvent.click(screen.getByRole("button", { name: "撤销" }));
+    expect(screen.getByTestId("composition-state")).toHaveTextContent("唯一消息");
   });
 });
 
