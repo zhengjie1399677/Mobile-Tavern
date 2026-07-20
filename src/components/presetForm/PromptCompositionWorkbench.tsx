@@ -1,4 +1,4 @@
-import { Eye, GitBranch } from "lucide-react";
+import { Bug, Eye, GitBranch } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Dialog,
@@ -12,8 +12,9 @@ import type { PromptComposition } from "../../domain/prompt-composition";
 import PromptCompositionGraph from "./PromptCompositionGraph";
 import { PromptCompositionPreviewContent } from "./PromptCompositionPreviewDialog";
 import type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
+import PromptCompositionDebugPanel from "./PromptCompositionDebugPanel";
 
-export type PromptWorkbenchView = "graph" | "preview";
+export type PromptWorkbenchView = "graph" | "preview" | "debug";
 
 interface PromptCompositionWorkbenchProps {
   composition: PromptComposition;
@@ -31,12 +32,15 @@ export default function PromptCompositionWorkbench(props: PromptCompositionWorkb
   const { t } = useTranslation();
   const panel = (
     <section role="region" aria-label={t("prompt_composer.workbench_title")} className="overflow-hidden rounded-xl border border-primary/20 bg-background/75">
-      <div className="grid grid-cols-2 border-b border-border bg-muted/30 p-1" role="group" aria-label={t("prompt_composer.workbench_view")}>
+      <div className="grid grid-cols-3 border-b border-border bg-muted/30 p-1" role="group" aria-label={t("prompt_composer.workbench_view")}>
         <ViewButton active={props.view === "graph"} onClick={() => props.onViewChange("graph")} icon={<GitBranch className="h-3.5 w-3.5" />}>
           {t("prompt_composer.graph")}
         </ViewButton>
         <ViewButton active={props.view === "preview"} onClick={() => props.onViewChange("preview")} icon={<Eye className="h-3.5 w-3.5" />}>
           {t("prompt_composer.final_preview")}
+        </ViewButton>
+        <ViewButton active={props.view === "debug"} onClick={() => props.onViewChange("debug")} icon={<Bug className="h-3.5 w-3.5" />}>
+          {t("prompt_composer.debug")}
         </ViewButton>
       </div>
       {props.view === "graph" ? (
@@ -48,8 +52,10 @@ export default function PromptCompositionWorkbench(props: PromptCompositionWorkb
             onSelectBlock={props.onSelectBlock}
           />
         </div>
-      ) : (
+      ) : props.view === "preview" ? (
         <PromptCompositionPreviewContent preview={props.preview} scrollClassName="max-h-[66dvh]" />
+      ) : (
+        <PromptCompositionDebugPanel preview={props.preview} />
       )}
     </section>
   );

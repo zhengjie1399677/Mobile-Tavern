@@ -29,6 +29,12 @@ export interface PromptBlockTokenPolicy {
   overflow: "keep" | "drop";
 }
 
+export interface PromptCompositionTokenBudget {
+  enabled: boolean;
+  mode: "model" | "custom";
+  maxTokens?: number;
+}
+
 export interface PromptBlockCompatibilityMetadata {
   /** 外部格式标识仅作为不透明元数据；领域层不解释其语义。 */
   source: string;
@@ -63,7 +69,19 @@ export interface PromptComposition {
   name: string;
   version: 1;
   blocks: PromptBlock[];
+  tokenBudget?: PromptCompositionTokenBudget;
   compatibility?: PromptCompositionCompatibilityMetadata;
+}
+
+export type PromptCompositionTemplateSource = "user" | "external";
+
+export interface PromptCompositionTemplateRecord {
+  id: string;
+  name: string;
+  source: PromptCompositionTemplateSource;
+  createdAt: number;
+  updatedAt: number;
+  composition: PromptComposition;
 }
 
 export interface PromptCompositionRuntimeData {
@@ -81,9 +99,36 @@ export interface PromptCompositionDiagnostic {
   detail?: string;
 }
 
+export interface PromptCompositionTrace {
+  blockId: string;
+  blockName: string;
+  sourceType: PromptBlockSource["type"];
+  dataKeys: string[];
+  resolvedDataKeys: string[];
+  missingDataKeys: string[];
+  messageIndexes: number[];
+  renderedCharacters: number;
+  estimatedTokens: number;
+  dropped: boolean;
+}
+
+export interface PromptCompositionBudgetReport {
+  limit: number;
+  used: number;
+  originalUsed: number;
+  droppedBlockIds: string[];
+}
+
+export interface PromptCompositionCompileOptions {
+  tokenBudget?: number;
+  estimateTokens?: (text: string) => number;
+}
+
 export interface CompiledPromptComposition {
   messages: PromptMessage[];
   diagnostics: PromptCompositionDiagnostic[];
+  traces: PromptCompositionTrace[];
+  budget?: PromptCompositionBudgetReport;
 }
 
 export interface CompatibilityReport {

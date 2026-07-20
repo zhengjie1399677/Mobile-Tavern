@@ -22,6 +22,8 @@ export default function PresetForm() {
   const {
     settings,
     updateSettings,
+    settingsSaveState,
+    settingsLastSavedAt,
     handleImportPresetJSON,
     handleExportPresetJSON,
     handleSaveNewPresetBundle,
@@ -43,6 +45,8 @@ export default function PresetForm() {
   } = useUnifiedApp((state) => ({
     settings: state.settings,
     updateSettings: state.updateSettings,
+    settingsSaveState: state.settingsSaveState,
+    settingsLastSavedAt: state.settingsLastSavedAt,
     handleImportPresetJSON: state.handleImportPresetJSON,
     handleExportPresetJSON: state.handleExportPresetJSON,
     handleSaveNewPresetBundle: state.handleSaveNewPresetBundle,
@@ -130,6 +134,8 @@ export default function PresetForm() {
     return {
       messages,
       diagnostics: result.diagnostics || [],
+      traces: result.traces || [],
+      budget: result.budget,
       estimatedTokens: messages.reduce((total, message) => total + promptService.estimateTokens(message.content), 0),
       contextAvailable: true,
     };
@@ -170,6 +176,8 @@ export default function PresetForm() {
         settings={settings}
         updateSettings={updateSettings}
         promptCompositionPreview={promptCompositionPreview}
+        settingsSaveState={settingsSaveState}
+        settingsLastSavedAt={settingsLastSavedAt}
         handleToggleCustomPrompt={handleToggleCustomPrompt}
         handleUpdateCustomPrompt={handleUpdateCustomPrompt}
         handleAddNewCustomPrompt={handleAddNewCustomPrompt}

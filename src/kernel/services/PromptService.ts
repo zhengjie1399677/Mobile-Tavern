@@ -21,6 +21,10 @@ import {
   getTableMemoryColumnDefinitions,
 } from "../../domain/memory/tableMemorySchema";
 import { compilePromptComposition } from "../../domain/prompt-composition";
+import type {
+  PromptCompositionBudgetReport,
+  PromptCompositionTrace,
+} from "../../domain/prompt-composition";
 import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
 
 /**
@@ -137,6 +141,8 @@ export class PromptService implements IPromptService {
       blockId?: string;
       detail?: string;
     }>;
+    traces?: PromptCompositionTrace[];
+    budget?: PromptCompositionBudgetReport;
   } {
     const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [] } = params;
 
@@ -187,7 +193,22 @@ export class PromptService implements IPromptService {
           );
         },
       });
-      const compiled = compilePromptComposition(composition, runtime);
+      const budgetConfig = composition.tokenBudget;
+      const modelCapabilities = ModelCapabilityRegistry.getCapabilities(
+        settings.api?.modelName || "",
+        settings.api?.baseUrl,
+      );
+      const contextLimit = settings.api?.contextLimit || modelCapabilities.contextWindow || 200000;
+      const modelPromptBudget = Math.max(1, contextLimit - Math.max(0, settings.preset?.maxTokens || 0));
+      const tokenBudget = budgetConfig?.enabled === false
+        ? undefined
+        : budgetConfig?.mode === "custom"
+          ? budgetConfig.maxTokens
+          : modelPromptBudget;
+      const compiled = compilePromptComposition(composition, runtime, {
+        tokenBudget,
+        estimateTokens: (text) => this.estimateTokens(text),
+      });
       compiled.diagnostics.forEach((diagnostic) => {
         console.warn(`[PromptComposition:${diagnostic.code}] ${diagnostic.message}`);
       });
@@ -209,6 +230,8 @@ export class PromptService implements IPromptService {
         userInput,
         messages: compiled.messages,
         diagnostics: compiled.diagnostics,
+        traces: compiled.traces,
+        budget: compiled.budget,
       };
     }
 

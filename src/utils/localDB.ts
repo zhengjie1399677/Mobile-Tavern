@@ -553,6 +553,9 @@ export async function getStoredSettings(): Promise<UserSettings | null> {
 
         if (large.bisonModePrompt !== undefined) settings.bisonModePrompt = large.bisonModePrompt;
         if (large.replySuggestionsPrompt !== undefined) settings.replySuggestionsPrompt = large.replySuggestionsPrompt;
+        if (large.promptCompositionTemplates !== undefined) {
+          settings.promptCompositionTemplates = large.promptCompositionTemplates;
+        }
 
         try {
           const key = await getOrCreateCryptoKey(db);
@@ -649,6 +652,7 @@ export async function saveStoredSettings(
       reasoningGuidancePrompt: clonedSettings.promptConfig?.reasoningGuidancePrompt || "",
       tableMemoryPrompt: clonedSettings.promptConfig?.tableMemoryPrompt || "",
       promptComposition: clonedSettings.promptConfig?.composition,
+      promptCompositionTemplates: clonedSettings.promptCompositionTemplates || [],
       bisonModePrompt: clonedSettings.bisonModePrompt || "",
       replySuggestionsPrompt: clonedSettings.replySuggestionsPrompt || "",
     };
@@ -666,6 +670,7 @@ export async function saveStoredSettings(
     }
     clonedSettings.bisonModePrompt = "";
     clonedSettings.replySuggestionsPrompt = "";
+    clonedSettings.promptCompositionTemplates = [];
 
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("settings", "readwrite");

@@ -7,6 +7,8 @@ import {
   exportSillyTavernComposition,
   importSillyTavernPreset,
 } from "../../infrastructure/compat/sillytavern";
+import { createPromptCompositionTemplateRecord } from "../../domain/prompt-composition";
+import type { PromptCompositionTemplateRecord } from "../../domain/prompt-composition";
 
 /**
  * 微内核插件式架构：预设包持久化统一走 PresetService。
@@ -203,6 +205,7 @@ export const usePresetBundles = ({
         let importedComposition = settings.promptConfig.composition;
         let usePromptComposition = settings.promptConfig.usePromptComposition;
         let compatibilityWarningCount = 0;
+        let importedTemplateRecord: PromptCompositionTemplateRecord | undefined;
 
         if (hasAnyPromptFieldsInJSON) {
           finalMainPrompt = mainPrompt;
@@ -214,6 +217,7 @@ export const usePresetBundles = ({
           finalCustomPrompts = importedCustomPrompts;
           const importResult = importSillyTavernPreset(data);
           importedComposition = importResult.composition;
+          importedTemplateRecord = createPromptCompositionTemplateRecord(importResult.composition, "external");
           usePromptComposition = true;
           compatibilityWarningCount = importResult.report.warnings.length;
         }
@@ -242,6 +246,9 @@ export const usePresetBundles = ({
           ...settings,
           preset: importedPreset,
           presetRegexScripts: importedRegexScripts,
+          promptCompositionTemplates: importedTemplateRecord
+            ? [...(settings.promptCompositionTemplates || []), importedTemplateRecord]
+            : settings.promptCompositionTemplates,
           promptConfig: {
             ...settings.promptConfig,
             mainPrompt: finalMainPrompt,

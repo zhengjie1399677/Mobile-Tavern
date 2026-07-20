@@ -1,5 +1,5 @@
 import type { CustomThemePackage } from "./utils/themePackage";
-import type { PromptComposition } from "./domain/prompt-composition";
+import type { PromptComposition, PromptCompositionTemplateRecord } from "./domain/prompt-composition";
 
 export interface LorebookEntry {
   id: string;
@@ -221,6 +221,7 @@ export interface UserSettings {
   preset: SamplerPreset;
   memory: MemoryConfig;
   promptConfig: PromptConfig; // SillyTavern formatting controls
+  promptCompositionTemplates?: PromptCompositionTemplateRecord[];
   userName: string;
   userInfo?: string;
   userAvatar?: string;

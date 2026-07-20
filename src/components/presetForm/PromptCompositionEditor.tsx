@@ -1,20 +1,30 @@
 import {
   ArrowDown,
   ArrowUp,
+  AlertTriangle,
+  CheckCircle2,
+  CloudAlert,
   Eye,
   GitBranch,
   GripVertical,
   History,
+  LoaderCircle,
   MessageSquarePlus,
   RotateCw,
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import type { PromptBlock, PromptComposition } from "../../domain/prompt-composition";
-import { createBasicPromptComposition } from "../../domain/prompt-composition";
+import type { PromptCompositionTemplateRecord } from "../../domain/prompt-composition";
+import {
+  createBasicPromptComposition,
+  createPromptCompositionTemplateRecord,
+  validatePromptComposition,
+} from "../../domain/prompt-composition";
 import type { UserSettings } from "../../types";
+import type { SettingsSaveState } from "../../hooks/settings/useSettingsPersistence";
 import { useTranslation } from "../../contexts/LanguageContext";
 import PromptBlockEditorDialog from "./PromptBlockEditorDialog";
 import PromptBlockQuickEditor from "./PromptBlockQuickEditor";
@@ -26,6 +36,9 @@ import type { PromptCompositionPreviewData } from "./promptCompositionEditorType
 import { useWidePromptWorkbench } from "./useWidePromptWorkbench";
 import { useAndroidOrientationControl } from "./useAndroidOrientationControl";
 import { usePromptCompositionHistory } from "./usePromptCompositionHistory";
+import PromptCompositionBudgetSettings from "./PromptCompositionBudgetSettings";
+import { PROMPT_DATA_SOURCE_KEYS } from "./promptDataSources";
+import PromptCompositionTemplateManager from "./PromptCompositionTemplateManager";
 
 export type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 
@@ -33,12 +46,16 @@ interface PromptCompositionEditorProps {
   settings: UserSettings;
   updateSettings: (updater: UserSettings | ((previous: UserSettings) => UserSettings)) => void;
   preview?: PromptCompositionPreviewData;
+  saveState?: SettingsSaveState;
+  lastSavedAt?: number;
 }
 
 export default function PromptCompositionEditor({
   settings,
   updateSettings,
   preview,
+  saveState = "idle",
+  lastSavedAt,
 }: PromptCompositionEditorProps) {
   const { t } = useTranslation();
   const composition = settings.promptConfig.composition ?? createBasicPromptComposition();
@@ -48,12 +65,18 @@ export default function PromptCompositionEditor({
   const [workbenchView, setWorkbenchView] = useState<PromptWorkbenchView>("graph");
   const [fullEditorOpen, setFullEditorOpen] = useState(false);
   const [dragTargetId, setDragTargetId] = useState<string>();
+  const [draggingId, setDraggingId] = useState<string>();
+  const [dragAnnouncement, setDragAnnouncement] = useState("");
   const isWideWorkbench = useWidePromptWorkbench();
   const orientationControl = useAndroidOrientationControl();
   const dragRef = useRef<{ sourceId: string; targetId: string }>();
   const editingBlock = composition.blocks.find((block) => block.id === editingBlockId);
   const historyBlocks = composition.blocks.filter((block) => block.source.type === "chat_history");
   const freeMode = settings.promptConfig.usePromptComposition === true;
+  const validationDiagnostics = useMemo(
+    () => validatePromptComposition(composition, { availableDataKeys: PROMPT_DATA_SOURCE_KEYS }),
+    [composition]
+  );
 
   const persistComposition = (next: PromptComposition) => {
     updateSettings((previous) => ({
@@ -72,6 +95,27 @@ export default function PromptCompositionEditor({
         usePromptComposition: enabled,
         composition: previous.promptConfig.composition ?? createBasicPromptComposition(),
       },
+    }));
+  };
+
+  const saveTemplate = (value: PromptComposition, source: "user" | "external" = "user") => {
+    const record = createPromptCompositionTemplateRecord(value, source);
+    updateSettings((previous) => ({
+      ...previous,
+      promptCompositionTemplates: [...(previous.promptCompositionTemplates || []), record],
+    }));
+  };
+
+  const loadTemplate = (template: PromptCompositionTemplateRecord) => {
+    updateComposition(structuredClone(template.composition));
+    setEditingBlockId(undefined);
+  };
+
+  const deleteTemplate = (template: PromptCompositionTemplateRecord) => {
+    if (!window.confirm(t("prompt_composer.confirm_delete_template", { name: template.name }))) return;
+    updateSettings((previous) => ({
+      ...previous,
+      promptCompositionTemplates: (previous.promptCompositionTemplates || []).filter((item) => item.id !== template.id),
     }));
   };
 
@@ -151,6 +195,9 @@ export default function PromptCompositionEditor({
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     dragRef.current = { sourceId: blockId, targetId: blockId };
+    setDraggingId(blockId);
+    const source = composition.blocks.find((block) => block.id === blockId);
+    setDragAnnouncement(t("prompt_composer.drag_started", { name: source?.name ?? blockId }));
     setDragTargetId(blockId);
   };
 
@@ -161,12 +208,19 @@ export default function PromptCompositionEditor({
     if (!targetId) return;
     dragRef.current.targetId = targetId;
     setDragTargetId(targetId);
+    const targetBlock = composition.blocks.find((block) => block.id === targetId);
+    if (targetBlock) setDragAnnouncement(t("prompt_composer.drag_over", { name: targetBlock.name }));
   };
 
   const handleDragEnd = () => {
-    if (dragRef.current) reorder(dragRef.current.sourceId, dragRef.current.targetId);
+    if (dragRef.current) {
+      const targetBlock = composition.blocks.find((block) => block.id === dragRef.current?.targetId);
+      reorder(dragRef.current.sourceId, dragRef.current.targetId);
+      if (targetBlock) setDragAnnouncement(t("prompt_composer.drag_completed", { name: targetBlock.name }));
+    }
     dragRef.current = undefined;
     setDragTargetId(undefined);
+    setDraggingId(undefined);
   };
 
   const compatibilityCount = composition.blocks.filter((block) => block.compatibility).length +
@@ -206,6 +260,8 @@ export default function PromptCompositionEditor({
                 {t("prompt_composer.no_hidden_prompt")}
               </div>
 
+              <SaveStatus state={saveState} lastSavedAt={lastSavedAt} t={t} />
+
               <PromptCompositionTransferToolbar
                 composition={composition}
                 canUndo={compositionHistory.canUndo}
@@ -214,8 +270,18 @@ export default function PromptCompositionEditor({
                 onRedo={compositionHistory.redo}
                 onImport={(imported) => {
                   updateComposition(imported);
+                  saveTemplate(imported, imported.compatibility?.source === "sillytavern" ? "external" : "user");
                   setEditingBlockId(undefined);
                 }}
+              />
+
+              <PromptCompositionTemplateManager
+                composition={composition}
+                templates={settings.promptCompositionTemplates || []}
+                onSave={() => saveTemplate(composition)}
+                onLoad={loadTemplate}
+                onDelete={deleteTemplate}
+                onLoadBasic={() => updateComposition(createBasicPromptComposition())}
               />
 
               <div className="flex gap-2">
@@ -251,17 +317,44 @@ export default function PromptCompositionEditor({
                 </div>
               )}
 
+              <PromptCompositionBudgetSettings
+                composition={composition}
+                preview={preview}
+                onChange={(next) => updateComposition(next, "token-budget")}
+              />
+
+              {validationDiagnostics.length > 0 && (
+                <section className="space-y-1.5 rounded-xl border border-destructive/30 bg-destructive/5 p-3" aria-live="polite">
+                  <div className="flex items-center gap-2 text-xs font-bold text-destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    {t("prompt_composer.validation_title", { count: String(validationDiagnostics.length) })}
+                  </div>
+                  {validationDiagnostics.map((diagnostic, index) => (
+                    <button
+                      type="button"
+                      key={`${diagnostic.code}-${diagnostic.blockId ?? "root"}-${index}`}
+                      onClick={() => diagnostic.blockId && setEditingBlockId(diagnostic.blockId)}
+                      className="block w-full rounded-md px-1 py-0.5 text-left text-[10px] leading-relaxed text-destructive/90 hover:bg-destructive/10"
+                    >
+                      <code className="mr-1 font-bold">{diagnostic.code}</code>{diagnostic.message}
+                    </button>
+                  ))}
+                </section>
+              )}
+
               {composition.blocks.length === 0 ? (
             <div className="rounded-xl border border-dashed border-destructive/35 bg-destructive/5 p-5 text-center text-xs text-destructive">
               {t("prompt_composer.empty_send_warning")}
             </div>
               ) : (
             <div className="space-y-2">
-              {composition.blocks.map((block, index) => (
+              {composition.blocks.map((block, index) => {
+                const blockDiagnosticCount = validationDiagnostics.filter((diagnostic) => diagnostic.blockId === block.id).length;
+                return (
                 <article
-                  key={block.id}
+                  key={`${block.id}-${index}`}
                   data-prompt-block-id={block.id}
-                  className={`flex items-stretch overflow-hidden rounded-xl border bg-background transition ${dragTargetId === block.id ? "border-primary ring-2 ring-primary/15" : "border-border"} ${block.enabled ? "" : "opacity-55"}`}
+                  className={`relative flex items-stretch overflow-hidden rounded-xl border bg-background transition duration-150 ${dragTargetId === block.id && draggingId !== block.id ? "border-primary ring-2 ring-primary/20 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary" : blockDiagnosticCount > 0 ? "border-destructive/60" : "border-border"} ${draggingId === block.id ? "scale-[0.985] opacity-65 shadow-lg" : block.enabled ? "" : "opacity-55"}`}
                 >
                   <button
                     type="button"
@@ -291,6 +384,7 @@ export default function PromptCompositionEditor({
                       <span className="rounded bg-muted px-1.5 py-0.5">{describePlacement(block, composition, t)}</span>
                       {(block.condition || block.tokenPolicy) && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">{t("prompt_composer.advanced_active")}</span>}
                       {block.compatibility && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-700 dark:text-sky-300">{block.compatibility.source}</span>}
+                      {blockDiagnosticCount > 0 && <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-bold text-destructive">{t("prompt_composer.validation_badge", { count: String(blockDiagnosticCount) })}</span>}
                     </div>
                   </button>
 
@@ -300,9 +394,12 @@ export default function PromptCompositionEditor({
                     <button type="button" onClick={() => deleteBlock(block.id)} aria-label={t("prompt_composer.delete_block")} className="flex flex-1 items-center justify-center text-destructive"><Trash2 className="h-3 w-3" /></button>
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
               )}
+
+              <p className="sr-only" role="status" aria-live="assertive">{dragAnnouncement}</p>
 
               <div className="grid grid-cols-3 gap-2">
                 <ToolbarButton onClick={() => addBlock("template")} icon={<MessageSquarePlus className="h-4 w-4" />}>{t("prompt_composer.add_message")}</ToolbarButton>
@@ -365,6 +462,34 @@ export default function PromptCompositionEditor({
         />
       )}
     </section>
+  );
+}
+
+function SaveStatus({
+  state,
+  lastSavedAt,
+  t,
+}: {
+  state: SettingsSaveState;
+  lastSavedAt?: number;
+  t: (key: string, params?: Record<string, string>) => string;
+}) {
+  const isBusy = state === "pending" || state === "saving";
+  const isError = state === "error";
+  const Icon = isError ? CloudAlert : isBusy ? LoaderCircle : CheckCircle2;
+  const label = state === "pending"
+    ? t("prompt_composer.save_pending")
+    : state === "saving"
+      ? t("prompt_composer.save_saving")
+      : state === "error"
+        ? t("prompt_composer.save_error")
+        : state === "saved" && lastSavedAt
+          ? t("prompt_composer.save_saved_at", { time: new Date(lastSavedAt).toLocaleTimeString() })
+          : t("prompt_composer.save_ready");
+  return (
+    <div role="status" aria-live="polite" className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[10px] ${isError ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border bg-background/70 text-muted-foreground"}`}>
+      <Icon className={`h-3.5 w-3.5 ${isBusy ? "animate-spin text-primary" : ""}`} />{label}
+    </div>
   );
 }
 

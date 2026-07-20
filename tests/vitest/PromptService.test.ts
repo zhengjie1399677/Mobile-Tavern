@@ -96,6 +96,70 @@ describe("PromptService prompt compilation", () => {
     expect(missingCompositionResult.messages).toEqual([]);
   });
 
+  it("applies the configured Prompt token budget before returning the final send payload", () => {
+    const promptService = new PromptService();
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.usePromptComposition = true;
+    settings.promptConfig.composition = {
+      id: "runtime-budget",
+      name: "发送前预算",
+      version: 1,
+      tokenBudget: { enabled: true, mode: "custom", maxTokens: 2 },
+      blocks: [
+        {
+          id: "keep",
+          name: "保留",
+          enabled: true,
+          role: "system",
+          source: { type: "template" },
+          template: "KEEP",
+          order: 100,
+          placement: { type: "ordered" },
+          tokenPolicy: { priority: 100, overflow: "keep" },
+        },
+        {
+          id: "drop",
+          name: "可裁剪",
+          enabled: true,
+          role: "system",
+          source: { type: "template" },
+          template: "12345678",
+          order: 200,
+          placement: { type: "ordered" },
+          tokenPolicy: { priority: 1, overflow: "drop" },
+        },
+      ],
+    };
+    const character = {
+      id: "budget-char",
+      name: "Budget",
+      description: "",
+      personality: "",
+      scenario: "",
+      first_mes: "",
+      mes_example: "",
+      creator: "",
+      creator_notes: "",
+      tags: [],
+      character_version: "1",
+      extensions: {},
+      lorebookEntries: [],
+    } as CharacterCard;
+    const chat = {
+      id: "budget-chat",
+      characterId: character.id,
+      title: "Budget",
+      createdAt: Date.now(),
+      summaries: [],
+      messages: [],
+    } as ChatSession;
+
+    const result = promptService.assemblePrompt({ character, chat, userInput: "", settings });
+
+    expect(result.messages).toEqual([{ role: "system", content: "KEEP" }]);
+    expect(result.budget).toMatchObject({ limit: 2, used: 1, droppedBlockIds: ["drop"] });
+  });
+
   it("should compile dialogue_examples into system instruction in roleplayMode: true", () => {
     const promptService = new PromptService();
     const character: CharacterCard = {

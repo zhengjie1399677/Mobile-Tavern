@@ -17,11 +17,14 @@ import CorePromptBlocks from "./CorePromptBlocks";
 import type { UserSettings } from "../../types";
 import PromptCompositionEditor from "./PromptCompositionEditor";
 import type { PromptCompositionPreviewData } from "./PromptCompositionEditor";
+import type { SettingsSaveState } from "../../hooks/settings/useSettingsPersistence";
 
 interface PromptsConfigSectionProps {
   settings: UserSettings;
   updateSettings: (newSet: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
   promptCompositionPreview?: PromptCompositionPreviewData;
+  settingsSaveState: SettingsSaveState;
+  settingsLastSavedAt?: number;
   handleToggleCustomPrompt: (id: string, enabled: boolean) => void;
   handleUpdateCustomPrompt: (id: string, name: string, role: any, content: string) => void;
   handleAddNewCustomPrompt: () => void;
@@ -42,6 +45,8 @@ export default function PromptsConfigSection({
   settings,
   updateSettings,
   promptCompositionPreview,
+  settingsSaveState,
+  settingsLastSavedAt,
   handleToggleCustomPrompt,
   handleUpdateCustomPrompt,
   handleAddNewCustomPrompt,
@@ -99,6 +104,8 @@ export default function PromptsConfigSection({
           settings={settings}
           updateSettings={updateSettings}
           preview={promptCompositionPreview}
+          saveState={settingsSaveState}
+          lastSavedAt={settingsLastSavedAt}
         />
 
         {!settings.promptConfig.usePromptComposition && (

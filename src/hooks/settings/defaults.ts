@@ -402,6 +402,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     recallTopK: 3,
   },
   promptConfig: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
+  promptCompositionTemplates: [],
   userName: "user",
   userInfo: "",
   userAvatar: "",

@@ -44,10 +44,27 @@ export function parsePromptComposition(input: string | unknown): PromptCompositi
     name,
     version: 1,
     blocks,
+    tokenBudget: value.tokenBudget === undefined
+      ? undefined
+      : parseCompositionTokenBudget(value.tokenBudget),
     compatibility: value.compatibility === undefined
       ? undefined
       : parseCompositionCompatibility(value.compatibility),
   };
+}
+
+function parseCompositionTokenBudget(value: unknown): PromptComposition["tokenBudget"] {
+  if (!isRecord(value) || typeof value.enabled !== "boolean" ||
+    (value.mode !== "model" && value.mode !== "custom")) {
+    throw new Error("PROMPT_COMPOSITION_INVALID_TOKEN_BUDGET");
+  }
+  const maxTokens = value.maxTokens === undefined
+    ? undefined
+    : Math.max(1, Math.floor(readFiniteNumber(value.maxTokens, 1)));
+  if (value.mode === "custom" && maxTokens === undefined) {
+    throw new Error("PROMPT_COMPOSITION_INVALID_TOKEN_BUDGET");
+  }
+  return { enabled: value.enabled, mode: value.mode, maxTokens };
 }
 
 export function serializePromptComposition(composition: PromptComposition): string {

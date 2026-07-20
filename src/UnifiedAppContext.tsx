@@ -16,6 +16,7 @@ import {
 } from "./contexts/AppContext";
 import type { IKernelService } from "./kernel/types";
 import type { RecalledMessage } from "./kernel/services/memory/types";
+import type { SettingsSaveState } from "./hooks/settings/useSettingsPersistence";
 
 export interface UnifiedAppContextProps {
   // --- App State ---
@@ -74,6 +75,8 @@ export interface UnifiedAppContextProps {
   settings: UserSettings;
   setSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
   updateSettings: (newSet: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
+  settingsSaveState: SettingsSaveState;
+  settingsLastSavedAt?: number;
   globalLorebook: LorebookEntry[];
   setGlobalLorebook: React.Dispatch<React.SetStateAction<LorebookEntry[]>>;
   updateGlobalLorebook: (entries: LorebookEntry[]) => Promise<void>;

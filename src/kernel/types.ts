@@ -1,3 +1,8 @@
+import type {
+  PromptCompositionBudgetReport,
+  PromptCompositionTrace,
+} from "../domain/prompt-composition";
+
 export const KernelServices = {
   Database: "database",
   LLM: "llm",
@@ -260,6 +265,8 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
       blockId?: string;
       detail?: string;
     }>;
+    traces?: PromptCompositionTrace[];
+    budget?: PromptCompositionBudgetReport;
   };
   cleanNameForApi(name: string | undefined, fallback: string): string | undefined;
   estimateTokens(text: string): number;

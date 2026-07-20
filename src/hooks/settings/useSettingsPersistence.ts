@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UserSettings, LorebookEntry, CustomWorldbook } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import {
@@ -28,7 +28,11 @@ interface UseSettingsPersistenceReturn {
       | Record<string, CustomWorldbook>
       | ((prev: Record<string, CustomWorldbook>) => Record<string, CustomWorldbook>)
   ) => Promise<void>;
+  settingsSaveState: SettingsSaveState;
+  settingsLastSavedAt?: number;
 }
+
+export type SettingsSaveState = "idle" | "pending" | "saving" | "saved" | "error";
 
 /**
  * 设置持久化子 Hook。
@@ -55,24 +59,40 @@ export const useSettingsPersistence = ({
   const saveTimeoutRef = useRef<any>(null);
   const isWritingRef = useRef<boolean>(false);
   const pendingSettingsRef = useRef<UserSettings | null>(null);
+  const latestSettingsRef = useRef(settings);
+  const performSaveRef = useRef<(data: UserSettings) => Promise<void>>(async () => undefined);
+  const [settingsSaveState, setSettingsSaveState] = useState<SettingsSaveState>("idle");
+  const [settingsLastSavedAt, setSettingsLastSavedAt] = useState<number>();
+  const settingsSaveStateRef = useRef<SettingsSaveState>("idle");
+  settingsSaveStateRef.current = settingsSaveState;
 
-  const performSave = async (data: UserSettings) => {
+  const performSave = useCallback(async (data: UserSettings) => {
+    if (isWritingRef.current) {
+      pendingSettingsRef.current = data;
+      setSettingsSaveState("pending");
+      return;
+    }
     isWritingRef.current = true;
+    setSettingsSaveState("saving");
     try {
       const cleanData = { ...data };
       delete cleanData.savedPresets; // Exclude preset arrays to prevent database bloat and I/O lag
       await settingsService.saveStoredSettings(cleanData);
+      setSettingsLastSavedAt(Date.now());
+      setSettingsSaveState(pendingSettingsRef.current ? "pending" : "saved");
     } catch (err) {
       console.error("Failed to save settings:", err);
+      setSettingsSaveState("error");
     } finally {
       isWritingRef.current = false;
       if (pendingSettingsRef.current) {
         const nextToSave = pendingSettingsRef.current;
         pendingSettingsRef.current = null;
-        performSave(nextToSave);
+        void performSaveRef.current(nextToSave);
       }
     }
-  };
+  }, [settingsService]);
+  performSaveRef.current = performSave;
 
   const updateSettings = useCallback((updater: UserSettings | ((prev: UserSettings) => UserSettings)) => {
     setSettings((prev) => {
@@ -127,27 +147,58 @@ export const useSettingsPersistence = ({
 
   // Debounced settings save to prevent locking IndexedDB on sliders
   useEffect(() => {
+    latestSettingsRef.current = settings;
     if (!isReady) return;
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
+    pendingSettingsRef.current = settings;
+    setSettingsSaveState("pending");
     saveTimeoutRef.current = setTimeout(() => {
+      const nextToSave = pendingSettingsRef.current ?? settings;
+      pendingSettingsRef.current = null;
       if (isWritingRef.current) {
-        pendingSettingsRef.current = settings;
+        pendingSettingsRef.current = nextToSave;
       } else {
-        performSave(settings);
+        void performSaveRef.current(nextToSave);
       }
     }, 400);
   }, [settings, isReady]);
 
-  // Cleanup save timeout on unmount
+  // 页面隐藏时立即发起最后一次写入；浏览器真正离开且仍未落盘时显示原生确认。
   useEffect(() => {
+    const flushPending = () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+      if (isReady && (settingsSaveStateRef.current === "pending" || settingsSaveStateRef.current === "error")) {
+        const nextToSave = pendingSettingsRef.current ?? latestSettingsRef.current;
+        pendingSettingsRef.current = null;
+        void performSaveRef.current(nextToSave);
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushPending();
+    };
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (settingsSaveStateRef.current !== "pending" && settingsSaveStateRef.current !== "saving" && settingsSaveStateRef.current !== "error") return;
+      flushPending();
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("pagehide", flushPending);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
+      window.removeEventListener("pagehide", flushPending);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, []);
+  }, [isReady]);
 
   const updateGlobalLorebook = useCallback(async (entries: LorebookEntry[]) => {
     const cleaned = entries.map(cleanLorebookEntry);
@@ -172,5 +223,12 @@ export const useSettingsPersistence = ({
     });
   }, [setCustomWorldbooks, worldbookService]);
 
-  return { performSave, updateSettings, updateGlobalLorebook, updateCustomWorldbooks };
+  return {
+    performSave,
+    updateSettings,
+    updateGlobalLorebook,
+    updateCustomWorldbooks,
+    settingsSaveState,
+    settingsLastSavedAt,
+  };
 };

@@ -65,7 +65,13 @@ export const useSettings = () => {
   });
 
   // 2. 持久化 / 防抖保存 / 世界书写入
-  const { updateSettings, updateGlobalLorebook, updateCustomWorldbooks } = useSettingsPersistence({
+  const {
+    updateSettings,
+    updateGlobalLorebook,
+    updateCustomWorldbooks,
+    settingsSaveState,
+    settingsLastSavedAt,
+  } = useSettingsPersistence({
     settings,
     setSettings,
     setGlobalLorebook,
@@ -146,6 +152,8 @@ export const useSettings = () => {
     settings,
     setSettings,
     updateSettings,
+    settingsSaveState,
+    settingsLastSavedAt,
     globalLorebook,
     setGlobalLorebook,
     updateGlobalLorebook,

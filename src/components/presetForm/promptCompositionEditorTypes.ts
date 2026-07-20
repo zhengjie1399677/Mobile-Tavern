@@ -1,5 +1,7 @@
 import type {
+  PromptCompositionBudgetReport,
   PromptCompositionDiagnostic,
+  PromptCompositionTrace,
   PromptMessage,
 } from "../../domain/prompt-composition";
 
@@ -8,4 +10,6 @@ export interface PromptCompositionPreviewData {
   diagnostics: PromptCompositionDiagnostic[];
   estimatedTokens: number;
   contextAvailable: boolean;
+  traces?: PromptCompositionTrace[];
+  budget?: PromptCompositionBudgetReport;
 }
