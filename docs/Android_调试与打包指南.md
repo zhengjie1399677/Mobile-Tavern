@@ -6,6 +6,14 @@
 
 ---
 
+## Prompt 横屏工作台原生入口
+
+自由 Prompt 模式在 Android 原生包内显示“进入横屏工作台”按钮。该入口通过 `window.AndroidThemeBridge.setScreenOrientation("landscape")` 锁定为传感器横屏，切换后按钮变为“恢复自动旋转”，并以 `setScreenOrientation("auto")` 把方向控制权交还给系统。前端按桥接方法是否存在进行能力检测，因此浏览器与其他平台不会显示该按钮。
+
+Android `MainActivity` 已声明 `orientation|screenSize` 等 `configChanges`，旋转不会重建 WebView；当前 Prompt 编辑状态与已选区块可以继续保留。新增或调整方向桥接后，应至少执行一次下方 Gradle 调试构建并在真机验证锁定、左右横屏切换和恢复自动旋转。
+
+---
+
 ## SDK 路径说明
 
 本项目 Android SDK 优先使用 `E:\modules\ide\android-sdk`（若存在），否则回退到默认路径 `$env:USERPROFILE\AppData\Local\Android\Sdk`。下文命令中两种写法等价，按实际环境选择。

@@ -1,6 +1,6 @@
 //! Tauri plugin that bridges the Mobile Tavern frontend with native Android
-//! capabilities (safe-area insets, status-bar styling and public Download
-//! directory file saving via the MediaStore API).
+//! capabilities (safe-area insets, status-bar styling, screen orientation and
+//! public Download directory file saving via the MediaStore API).
 //!
 //! The frontend keeps calling `(window as any).AndroidThemeBridge.*` exactly
 //! as before; this plugin simply makes sure that object is injected into the
