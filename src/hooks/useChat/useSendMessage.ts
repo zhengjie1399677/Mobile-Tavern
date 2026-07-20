@@ -3,7 +3,7 @@ import { ChatSession, UserSettings, CharacterCard, LorebookEntry, CustomWorldboo
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService, IMultiMessageService,
-  StreamChunk,
+  StreamChunk, IKernel,
 } from "../../kernel/types";
 import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 import {
@@ -13,6 +13,7 @@ import {
 } from "./helpers";
 import { extractThinkContent } from "./helpers";
 import { runOutputPipelineAndSave } from "./pipelineHelpers";
+import type { RecalledMessage } from "../../kernel/services/memory/types";
 
 /**
  * Tavern 全局辅助 window 字段类型收口。
@@ -29,6 +30,7 @@ interface WindowWithTavernHelpers extends Window {
 }
 
 interface SendMessageParams {
+  kernel: IKernel;
   settings: UserSettings;
   globalLorebook: LorebookEntry[];
   customWorldbooks: Record<string, CustomWorldbook>;
@@ -49,6 +51,7 @@ interface SendMessageParams {
   setIsSending: (v: boolean) => void;
   setIsBisonLocking: React.Dispatch<React.SetStateAction<boolean>>;
   setReplySuggestions: React.Dispatch<React.SetStateAction<string[]>>;
+  publishRecalledMemories: (sessionId: string, items: RecalledMessage[]) => void;
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
   databaseService: IDatabaseService;
   promptService: IPromptService;
@@ -96,24 +99,10 @@ export function useSendMessage(p: SendMessageParams) {
         !hasUnsentUserMessages
       ) return;
 
-      // 互斥锁检查 + 兜底自愈
-      // isSendingRef 可能因 finally 块的 requestId !== activeRequestIdRef 检查而残留 true
-      // （场景：流式被新请求取代后，旧请求的 finally 不重置 isSendingRef；新请求又异常退出且同样不重置）
-      // 利用 streamingMessageId 作为"是否有活跃流式"的可靠标志：若已为 null 说明无活跃流式，强制重置互斥锁
+      // isSendingRef 是发送与重发共享的同步事务锁；React state 仅负责 UI 展示。
+      // streamingMessageId 只覆盖流式阶段，不能用于推断提示词构建或持久化阶段是否空闲。
       if (p.isSending || p.isSendingRef.current) {
-        const streamingId = typeof window !== "undefined" ? (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId : null;
-        if (p.isSendingRef.current && !streamingId) {
-          console.warn("[useSendMessage] 检测到 isSendingRef 残留但无活跃流式，强制重置互斥锁");
-          p.isSendingRef.current = false;
-          p.setIsSending(false);
-          if (typeof window !== "undefined") {
-            (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-          }
-          // 重置后继续往下执行
-        } else {
-          // 有活跃流式（streamingId 非空）或 isSending React state 仍为 true，拒绝并发
-          return;
-        }
+        return;
       }
 
       if (!p.activeCharacter || !p.activeSession) return;
@@ -256,11 +245,8 @@ export function useSendMessage(p: SendMessageParams) {
         console.warn("[useSendMessage] Memory recall failed:", err);
       }
 
-      // 将召回的消息快照挂在 session 内存临时变量上供 UI 面板提取
-      updatedSession = {
-        ...updatedSession,
-        lastRecalledMemories: recalledMemories
-      };
+      // 召回快照属于聊天运行时状态，不得附加到 ChatSession 或进入持久化。
+      p.publishRecalledMemories(updatedSession.id, recalledMemories);
 
       const promptPayload = p.promptService.assemblePrompt({
         character: p.activeCharacter!,
@@ -399,6 +385,7 @@ export function useSendMessage(p: SendMessageParams) {
 
       if (isStillActive) {
         const outputCtx = await runOutputPipelineAndSave({
+          kernel: p.kernel,
           session: trueFinalSession,
           responseText: extractThinkContent(responseChunks.join("").trim(), reasoningChunks.join("").trim(), false).content,
           reasoningText: extractThinkContent(responseChunks.join("").trim(), reasoningChunks.join("").trim(), false).reasoningContent || "",
@@ -494,7 +481,7 @@ export function useSendMessage(p: SendMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: parsed.content, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
           } else {
             await p.databaseService.saveSession(trueFinalSession);
             // saveSession 只存元数据，abort 场景需显式写入 AI 消息
@@ -513,7 +500,7 @@ export function useSendMessage(p: SendMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + "\n\n*(连接中断，仅保留部分生成内容)*", timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
           } else {
             await p.databaseService.saveSession(trueFinalSession);
             // saveSession 只存元数据，error 场景需显式写入 AI 消息

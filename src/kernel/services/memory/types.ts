@@ -5,6 +5,9 @@
  * 对外公共契约由 src/kernel/types.ts 的 IMemoryService 接口承担。
  */
 
+/** 记忆领域持久化端口的 Kernel 注册令牌，由端口所有方定义。 */
+export const MEMORY_PERSISTENCE_SERVICE = "memoryPersistence";
+
 /** 消息角色 */
 export type MessageRole = 'user' | 'assistant' | 'system';
 
@@ -67,6 +70,47 @@ export interface MemoryDictEntry {
   createdAt: number;
   /** 最后更新时间戳 */
   updatedAt: number;
+}
+
+/**
+ * 记忆领域持久化端口。
+ *
+ * 该契约由记忆领域定义，IndexedDB 等物理存储只能在基础设施层实现，
+ * 防止业务子模块直接依赖 localDB 或把记忆专用 CRUD 反向塞入通用数据库底座。
+ */
+export interface MemoryPersistencePort {
+  appendMessage(message: MessageRecord, signal?: AbortSignal): Promise<void>;
+  updateMessageExtraction(
+    id: string,
+    tags: string[],
+    extractSource: string,
+    metadata?: Record<string, any>,
+    signal?: AbortSignal
+  ): Promise<void>;
+  getMessageById(id: string): Promise<MessageRecord | null>;
+  getMessagesBySession(
+    sessionId: string,
+    options?: { limit?: number; offset?: number; descending?: boolean }
+  ): Promise<MessageRecord[]>;
+  getMessagesByTag(
+    sessionId: string,
+    tags: string[],
+    limit?: number
+  ): Promise<MessageRecord[]>;
+  deleteMessagesBySession(sessionId: string, signal?: AbortSignal): Promise<void>;
+  upsertDictEntry(entry: {
+    sessionId: string;
+    entity: string;
+    aliases?: string[];
+    type?: EntityType;
+    firstSeenMsgId: string;
+    firstSeenTurn: number;
+    count?: number;
+  }, signal?: AbortSignal): Promise<boolean>;
+  getDictEntryById(id: string): Promise<MemoryDictEntry | null>;
+  getDictBySession(sessionId: string): Promise<MemoryDictEntry[]>;
+  deleteDictBySession(sessionId: string, signal?: AbortSignal): Promise<void>;
+  deleteDictEntryById(id: string, signal?: AbortSignal): Promise<void>;
 }
 
 /** LLM 抽取结果（L0 阶段产出） */

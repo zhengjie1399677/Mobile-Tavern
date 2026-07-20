@@ -15,7 +15,18 @@ export default function SessionManagerModal() {
     createNewBranch,
     isSending,
     showCustomAlert,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    showSessionManager: state.showSessionManager,
+    setShowSessionManager: state.setShowSessionManager,
+    activeCharacter: state.activeCharacter,
+    sessions: state.sessions,
+    activeSession: state.activeSession,
+    setActiveSessionId: state.setActiveSessionId,
+    deleteBranch: state.deleteBranch,
+    createNewBranch: state.createNewBranch,
+    isSending: state.isSending,
+    showCustomAlert: state.showCustomAlert,
+  }));
 
   const { t } = useTranslation();
 

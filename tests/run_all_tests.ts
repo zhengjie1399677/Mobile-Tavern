@@ -84,6 +84,7 @@ import {
   testTurnIndexDeleteMiddleThenAppend,
   testTurnIndexDeleteAllThenAppend,
   testTurnIndexMultipleAppends,
+  testRerollBranchAtomicReplace,
   testMessageRoleMapping,
   testPaginationBoundaries,
   testAutoSummaryTriggerConditions,
@@ -96,6 +97,7 @@ import {
   testPublishSnapshotDuringConcurrentSubscribe,
   testDestroyWithMultipleActiveControllers,
   testKernelSchemaValidation,
+  testArchitectureBoundaries,
 } from "./suites/index";
 
 /**
@@ -220,6 +222,7 @@ async function run() {
     { name: "testTurnIndexDeleteMiddleThenAppend", fn: testTurnIndexDeleteMiddleThenAppend },
     { name: "testTurnIndexDeleteAllThenAppend", fn: testTurnIndexDeleteAllThenAppend },
     { name: "testTurnIndexMultipleAppends", fn: testTurnIndexMultipleAppends },
+    { name: "testRerollBranchAtomicReplace", fn: testRerollBranchAtomicReplace },
     // 分页懒加载与总结归档测试（角色映射 / 分页边界 / 自动总结触发条件）
     { name: "testMessageRoleMapping", fn: testMessageRoleMapping },
     { name: "testPaginationBoundaries", fn: testPaginationBoundaries },
@@ -233,6 +236,7 @@ async function run() {
     { name: "testMemoryStreamParserAbort", fn: testMemoryStreamParserAbort },
     // Kernel zod L2 Phase B：schema 单元测试（validateService / validateMessage / validateServiceRetrieval）
     { name: "testKernelSchemaValidation", fn: testKernelSchemaValidation },
+    { name: "testArchitectureBoundaries", fn: testArchitectureBoundaries },
     // vitest 套件桥接（i18n 多语言 50 项 + 组件渲染 + 服务集成，共 327 项）
     { name: "testVitestSuite", fn: runVitestSuite },
   ];

@@ -17,6 +17,8 @@ import { CharacterService } from "../services/CharacterService";
 import { WorldbookService } from "../services/WorldbookService";
 import { SettingsService } from "../services/SettingsService";
 import { PresetService } from "../services/PresetService";
+import { IndexedDbMemoryPersistenceService } from "../../infrastructure/storage/IndexedDbMemoryPersistenceService";
+import { MEMORY_PERSISTENCE_SERVICE } from "../services/memory/types";
 
 /** 注册运行内核所需的官方服务；不包含 UI 或 React 依赖。 */
 export async function registerCoreServices(kernel: IKernel): Promise<void> {
@@ -29,6 +31,11 @@ export async function registerCoreServices(kernel: IKernel): Promise<void> {
     { name: KernelServices.MultiMessage, service: new MultiMessageService(), initTimeoutMs: 3000 },
     { name: KernelServices.ChatStream, service: new ChatStreamService(), initTimeoutMs: 5000 },
     { name: KernelServices.UpdateCheck, service: new UpdateCheckService() },
+    {
+      name: MEMORY_PERSISTENCE_SERVICE,
+      service: new IndexedDbMemoryPersistenceService(),
+      initTimeoutMs: 5000,
+    },
     { name: KernelServices.Memory, service: new MemoryService(), initTimeoutMs: 5000 },
     { name: KernelServices.ImageGen, service: new ImageGenerationService(), initTimeoutMs: 3000 },
     { name: KernelServices.Bgm, service: new BgmService(), initTimeoutMs: 3000 },

@@ -1,6 +1,6 @@
 // 建议词弹窗 banner（消息操作菜单：复制/编辑/重发/分支/删除）
 // 从原 ChatTab.tsx L1523-1615 抽离
-// 内部调用 useUnifiedApp() 获取上下文
+// 通过 selector 订阅所需上下文字段
 
 import React from "react";
 import {
@@ -50,7 +50,24 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     activeSession,
     settings,
     activeCharacter,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    isSending: state.isSending,
+    setIsSending: state.setIsSending,
+    setMsgMenuId: state.setMsgMenuId,
+    setEditingMsgId: state.setEditingMsgId,
+    setEditingMsgContent: state.setEditingMsgContent,
+    handleRerollFromMessage: state.handleRerollFromMessage,
+    createBacktrackBranch: state.createBacktrackBranch,
+    showCustomConfirm: state.showCustomConfirm,
+    showCustomPrompt: state.showCustomPrompt,
+    showCustomAlert: state.showCustomAlert,
+    setSessions: state.setSessions,
+    getKernelService: state.getKernelService,
+    handleAutoSummaryCheck: state.handleAutoSummaryCheck,
+    activeSession: state.activeSession,
+    settings: state.settings,
+    activeCharacter: state.activeCharacter,
+  }));
 
   const [isSpeakingThis, setIsSpeakingThis] = React.useState(false);
   const [showMore, setShowMore] = React.useState(false);

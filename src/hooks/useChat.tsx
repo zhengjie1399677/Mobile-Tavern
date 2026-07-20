@@ -12,7 +12,7 @@
  *  对话气泡渲染                  → useChat/useDialogueBubble.tsx
  *  共享流式纯函数                 → useChat/helpers/streamHelpers.ts
  */
-import React, { useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
@@ -23,6 +23,7 @@ import {
   IChatStreamService, IMultiMessageService, IScriptService,
 } from "../kernel/types";
 import type { MemoryServiceTyped } from "../kernel/services/memory";
+import type { RecalledMessage } from "../kernel/services/memory/types";
 
 import { useChatUI } from "./useChat/useChatUI";
 import { useSessionManager } from "./useChat/useSessionManager";
@@ -61,6 +62,15 @@ export const useChat = (
   const memoryService = kernel.hasService("memory")
     ? kernel.getService<MemoryServiceTyped>("memory")
     : undefined;
+  const [recallSnapshot, setRecallSnapshot] = useState<{
+    sessionId: string | null;
+    items: RecalledMessage[];
+  }>({ sessionId: null, items: [] });
+
+  // 召回结果属于当前聊天运行时快照，不写入 ChatSession；切换会话时立即清空防止串话。
+  useEffect(() => {
+    setRecallSnapshot({ sessionId: activeSessionId, items: [] });
+  }, [activeSessionId]);
 
   // ── 稳定 Ref 镜像（供异步回调安全读取最新值） ─────────────────────────────────
   const sessionsRef = React.useRef(sessions);
@@ -70,6 +80,14 @@ export const useChat = (
   const activeCharIdRef    = React.useRef(activeCharId);
   activeSessionIdRef.current = activeSessionId;
   activeCharIdRef.current    = activeCharId;
+
+  const publishRecalledMemories = useCallback((sessionId: string, items: RecalledMessage[]) => {
+    if (activeSessionIdRef.current !== sessionId) return;
+    setRecallSnapshot({ sessionId, items });
+  }, []);
+  const lastRecalledMemories = recallSnapshot.sessionId === activeSessionId
+    ? recallSnapshot.items
+    : [];
 
   // ── 子 Hook 装配 ──────────────────────────────────────────────────────────────
   const ui = useChatUI({
@@ -111,6 +129,7 @@ export const useChat = (
   });
 
   const sendMessage = useSendMessage({
+    kernel,
     settings, globalLorebook, customWorldbooks, characters,
     activeCharacter, activeSession, isSending,
     isSendingRef: ui.isSendingRef,
@@ -126,10 +145,12 @@ export const useChat = (
     triggerScroll: ui.triggerScroll,
     databaseService, promptService, telemetryService, chatStreamService, multiMessageService,
     memoryService,
+    publishRecalledMemories,
     showCustomAlert, draftsRef: ui.draftsRef,
   });
 
   const rerollMessage = useRerollMessage({
+    kernel,
     settings, globalLorebook, customWorldbooks, characters,
     activeCharacter, activeSession,
     isSendingRef: ui.isSendingRef,
@@ -141,6 +162,7 @@ export const useChat = (
     setReplySuggestions: ui.setReplySuggestions,
     triggerScroll: ui.triggerScroll,
     databaseService, promptService, telemetryService, chatStreamService,
+    publishRecalledMemories,
     showCustomAlert, showCustomConfirm,
   });
 
@@ -281,6 +303,7 @@ export const useChat = (
     msgMenuId: ui.msgMenuId,
     setMsgMenuId: ui.setMsgMenuId,
     isBisonLocking: ui.isBisonLocking,
+    lastRecalledMemories,
     // 渲染
     renderDialogueBubble,
     // 兼容接口：保存会话并在有消息内容时触发 MVU 变量重解析
@@ -310,6 +333,7 @@ export const useChat = (
     ui.triggerScroll, ui.showSessionManager, ui.showFullHistory,
     ui.chatSubTab, ui.userInputMessage, ui.replySuggestions,
     ui.editingMsgId, ui.editingMsgContent, ui.msgMenuId, ui.isBisonLocking,
+    lastRecalledMemories,
     renderDialogueBubble, databaseService,
   ]);
 };

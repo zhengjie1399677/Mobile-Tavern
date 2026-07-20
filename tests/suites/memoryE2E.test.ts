@@ -15,7 +15,7 @@
 
 import 'fake-indexeddb/auto';
 import { assert } from "./testUtils";
-import type { IDatabaseService } from "../../src/kernel/types";
+import type { IKernel } from "../../src/kernel/types";
 
 export async function testMemoryE2E() {
   console.log("\n--- Running Memory E2E (fake-indexeddb) Verification ---");
@@ -23,13 +23,15 @@ export async function testMemoryE2E() {
   const {
     __resetDBInstanceForTesting,
     getDB,
+  } = await import("../../src/utils/localDB");
+  const {
     appendMessage,
     getMessageById,
     getMessagesByTag,
     getMessagesBySession,
     upsertDictEntry,
     getDictBySession,
-  } = await import("../../src/utils/localDB");
+  } = await import("../../src/infrastructure/storage/indexedDbMemoryStore");
 
   // === E2E.1 schema 升级验证 ===
   console.log("  [E2E.1] schema upgrade...");
@@ -187,8 +189,12 @@ export async function testMemoryE2E() {
   __resetDBInstanceForTesting();
 
   const { MemoryStorage } = await import("../../src/kernel/services/memory/MemoryStorage");
-  const mockDbService = {} as unknown as IDatabaseService; // MemoryStorage 仅持有引用，不实际调用
-  const storage = new MemoryStorage(mockDbService);
+  const { IndexedDbMemoryPersistenceService } = await import(
+    "../../src/infrastructure/storage/IndexedDbMemoryPersistenceService"
+  );
+  const persistence = new IndexedDbMemoryPersistenceService();
+  await persistence.init({} as IKernel);
+  const storage = new MemoryStorage(persistence);
   await storage.init();
 
   // 写入消息
@@ -228,7 +234,7 @@ export async function testMemoryE2E() {
   __resetDBInstanceForTesting();
 
   const { MemoryRecall } = await import("../../src/kernel/services/memory/MemoryRecall");
-  const storage2 = new MemoryStorage(mockDbService);
+  const storage2 = new MemoryStorage(persistence);
   await storage2.init();
 
   // 准备词典

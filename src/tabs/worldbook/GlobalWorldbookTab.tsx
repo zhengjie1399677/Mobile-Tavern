@@ -35,7 +35,19 @@ export default function GlobalWorldbookTab() {
     setActiveWorldbookHostId,
     customWorldbooks = {},
     updateCustomWorldbooks,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    characters: state.characters,
+    setCharacters: state.setCharacters,
+    showCustomAlert: state.showCustomAlert,
+    showCustomConfirm: state.showCustomConfirm,
+    showCustomPrompt: state.showCustomPrompt,
+    globalLorebook: state.globalLorebook,
+    setGlobalLorebook: state.setGlobalLorebook,
+    activeWorldbookHostId: state.activeWorldbookHostId,
+    setActiveWorldbookHostId: state.setActiveWorldbookHostId,
+    customWorldbooks: state.customWorldbooks,
+    updateCustomWorldbooks: state.updateCustomWorldbooks,
+  }));
 
   // 当前选中的宿主 ID： "list" / "global" / 具体角色卡 ID / 自定义设定集 ID
   const activeHostId = activeWorldbookHostId || "list";

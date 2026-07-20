@@ -1,6 +1,6 @@
 // Sub-tab 2 故事时间线年鉴
 // 从原 ChatTab.tsx L1659-1808 抽离
-// 内部调用 useUnifiedApp() 获取上下文，接收 visibleExtensions 作为 prop
+// 通过 selector 订阅所需上下文字段，接收 visibleExtensions 作为 prop
 
 import React from "react";
 import {
@@ -32,7 +32,20 @@ const StoryTimelineView = () => {
     setNewSummaryContent,
     setEditingSummaryId,
     createBacktrackFromTimeline,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    sessions: state.sessions,
+    activeSessionId: state.activeSessionId,
+    activeCharacter: state.activeCharacter,
+    activeSession: state.activeSession,
+    setSessions: state.setSessions,
+    showCustomConfirm: state.showCustomConfirm,
+    setTimelineModalOpen: state.setTimelineModalOpen,
+    setNewSummaryTag: state.setNewSummaryTag,
+    setNewSummaryLoc: state.setNewSummaryLoc,
+    setNewSummaryContent: state.setNewSummaryContent,
+    setEditingSummaryId: state.setEditingSummaryId,
+    createBacktrackFromTimeline: state.createBacktrackFromTimeline,
+  }));
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 min-h-0">

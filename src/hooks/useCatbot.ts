@@ -37,7 +37,10 @@ export type { CatExpression, CatMessage };
  */
 export function useCatbot() {
   const [state, setState] = useState(globalState);
-  const context = useUnifiedApp();
+  const context = useUnifiedApp((appState) => ({
+    settings: appState.settings,
+    activeSession: appState.activeSession,
+  }));
   const settings = context?.settings;
   const activeSession = context?.activeSession;
 

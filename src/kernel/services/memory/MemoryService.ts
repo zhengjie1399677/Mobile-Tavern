@@ -6,7 +6,14 @@
  *   2. 整合并向中间件暴露子模块：MemoryStorage / Extractor / Recall / StateTable / Summary
  */
 
-import { KernelServices, type IKernel, type IMemoryService, type IDatabaseService } from '../../types';
+import {
+  KernelServices,
+  type IKernel,
+  type IKernelService,
+  type IMemoryService,
+  type IDatabaseService,
+} from '../../types';
+import { MEMORY_PERSISTENCE_SERVICE, type MemoryPersistencePort } from './types';
 import { MemoryStorage } from './MemoryStorage';
 import { MemoryExtractor } from './MemoryExtractor';
 import { MemoryRecall } from './MemoryRecall';
@@ -21,7 +28,11 @@ export class MemoryService implements IMemoryService<
   MemorySummary
 > {
   readonly name = KernelServices.Memory;
-  readonly dependencies = [KernelServices.Database, KernelServices.LLM] as const;
+  readonly dependencies = [
+    KernelServices.Database,
+    KernelServices.LLM,
+    MEMORY_PERSISTENCE_SERVICE,
+  ] as const;
 
   /** 存储层子模块 */
   private storage: MemoryStorage | null = null;
@@ -43,11 +54,14 @@ export class MemoryService implements IMemoryService<
       else signal.addEventListener('abort', () => this.abortController?.abort());
     }
 
-    // 1. 获取 DatabaseService 引用（用于 MemoryStorage 装配）
+    // 1. 获取会话数据库与记忆物理存储端口；领域服务不直接依赖 localDB。
     const dbService = kernel.getService<IDatabaseService>(KernelServices.Database);
+    const persistence = kernel.getService<MemoryPersistencePort & IKernelService>(
+      MEMORY_PERSISTENCE_SERVICE
+    );
 
-    // 2. 初始化存储层（触发 IDB v8 schema 升级 + 装配 AbortSignal）
-    this.storage = new MemoryStorage(dbService);
+    // 2. 初始化领域存储门面（物理 schema 已由适配器服务初始化）
+    this.storage = new MemoryStorage(persistence);
     await this.storage.init(this.abortController.signal);
 
     // 3. 装配抽取器（L0 LLM 抽取 + L1 词典匹配 + 调度队列）
@@ -55,7 +69,7 @@ export class MemoryService implements IMemoryService<
     this.extractor.init(this.abortController.signal);
 
     // 4. 装配召回器（标签倒排索引 + 时间衰减打分）
-    this.recall = new MemoryRecall(this.storage);
+    this.recall = new MemoryRecall(this.storage, dbService);
 
     // 5. 装配状态表子模块（合并自 TableMemoryService）
     this.stateTable = new MemoryStateTable(this.storage);

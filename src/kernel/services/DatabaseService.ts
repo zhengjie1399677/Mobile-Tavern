@@ -1,18 +1,24 @@
 import { IDatabaseService, IKernel } from "../types";
 import { ChatSession, Message } from "../../types";
 import {
-  getAllSessions,
   saveSession,
   deleteSession,
-  getSessionsCount,
-  getSessionsPaginated,
-  getSessionById,
   getCharacterById,
   bulkSaveSessions as dbBulkSaveSessions,
-  appendMessage as dbAppendMessage,
-  deleteMessageById as dbDeleteMessageById,
-  syncSessionMessages as dbSyncSessionMessages,
 } from "../../utils/localDB";
+import {
+  getAllSessions,
+  getSessionById,
+  getSessionsCount,
+  getSessionsPaginated,
+} from "../../infrastructure/storage/indexedDbSessionQueries";
+import {
+  appendMessage as dbAppendMessage,
+  appendSessionSummary as dbAppendSessionSummary,
+  deleteMessageById as dbDeleteMessageById,
+  replaceSessionBranch as dbReplaceSessionBranch,
+  syncSessionMessages as dbSyncSessionMessages,
+} from "../../infrastructure/storage/indexedDbMemoryStore";
 import { applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
 
 /**
@@ -71,6 +77,18 @@ export class DatabaseService implements IDatabaseService {
     return saveSession(session, signal ?? this.abortController?.signal);
   }
 
+  async appendSessionSummary(
+    sessionId: string,
+    summary: ChatSession["summaries"][number],
+    signal?: AbortSignal
+  ): Promise<ChatSession> {
+    return dbAppendSessionSummary(
+      sessionId,
+      summary,
+      signal ?? this.abortController?.signal
+    );
+  }
+
   /**
    * 单条消息写入 messages Store。
    * 将内存 Message 格式转换为 DB MessageRecord 格式后调用 appendMessage。
@@ -92,6 +110,20 @@ export class DatabaseService implements IDatabaseService {
 
   async deleteMessageById(id: string, signal?: AbortSignal): Promise<void> {
     return dbDeleteMessageById(id, signal ?? this.abortController?.signal);
+  }
+
+  async replaceSessionBranch(
+    session: ChatSession,
+    removedMessageIds: string[],
+    newMessages: Message[],
+    signal?: AbortSignal
+  ): Promise<void> {
+    return dbReplaceSessionBranch(
+      session,
+      removedMessageIds,
+      newMessages,
+      signal ?? this.abortController?.signal
+    );
   }
 
   async syncSessionMessages(sessionId: string, messages: any[], signal?: AbortSignal): Promise<void> {

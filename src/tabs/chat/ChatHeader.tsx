@@ -1,6 +1,6 @@
 // Header info card + 子 Tab 切换栏
 // 从原 ChatTab.tsx L924-1101 抽离
-// 内部调用 useUnifiedApp() 获取上下文，接收本地状态作为 props
+// 通过 selector 订阅所需上下文字段，接收本地状态作为 props
 
 import React from "react";
 import {
@@ -39,7 +39,18 @@ const ChatHeader = ({
     chatSubTab,
     setChatSubTab,
     getKernelService,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    activeCharacter: state.activeCharacter,
+    activeSession: state.activeSession,
+    setShowSessionManager: state.setShowSessionManager,
+    setActiveTab: state.setActiveTab,
+    showCustomPrompt: state.showCustomPrompt,
+    setSessions: state.setSessions,
+    settings: state.settings,
+    chatSubTab: state.chatSubTab,
+    setChatSubTab: state.setChatSubTab,
+    getKernelService: state.getKernelService,
+  }));
 
   const [isMuted, setIsMuted] = React.useState(false);
   const [showMemoryMenu, setShowMemoryMenu] = React.useState(false);

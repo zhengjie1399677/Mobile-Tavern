@@ -1,6 +1,6 @@
 // 输入区子组件（含建议词、长按、键盘联动）
 // 从原 ChatTab.tsx L39-470 抽离
-// 内部调用 useUnifiedApp() 获取上下文，接收 isKeyboardOpen 作为 prop
+// 通过 useUnifiedApp 选择器读取所需状态，接收 isKeyboardOpen 作为 prop
 
 import React from "react";
 import {
@@ -14,7 +14,7 @@ import {
   Loader2,
   Play,
 } from "lucide-react";
-import { UnifiedAppContext } from "../../UnifiedAppContext";
+import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { chatTabState } from "./utils";
 
@@ -26,8 +26,6 @@ type TouchTrackedElement = Element & { _touched?: boolean };
 
 const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [showQuickActions, setShowQuickActions] = React.useState(false);
-  const context = React.useContext(UnifiedAppContext);
-  if (!context) return null;
   const { t } = useTranslation();
   const {
     isSending,
@@ -47,9 +45,30 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     setReplySuggestions,
     updateSettings,
     isBisonLocking,
+    lastRecalledMemories,
     triggerScroll,
     getKernelService,
-  } = context;
+  } = useUnifiedApp((state) => ({
+    isSending: state.isSending,
+    setIsSending: state.setIsSending,
+    activeSession: state.activeSession,
+    settings: state.settings,
+    activeCharacter: state.activeCharacter,
+    handleRerollLast: state.handleRerollLast,
+    showCustomAlert: state.showCustomAlert,
+    handleSendMessage: state.handleSendMessage,
+    handleStopGeneration: state.handleStopGeneration,
+    safeAreas: state.safeAreas,
+    userInputMessage: state.userInputMessage,
+    setUserInputMessage: state.setUserInputMessage,
+    replySuggestions: state.replySuggestions,
+    setReplySuggestions: state.setReplySuggestions,
+    updateSettings: state.updateSettings,
+    isBisonLocking: state.isBisonLocking,
+    lastRecalledMemories: state.lastRecalledMemories,
+    triggerScroll: state.triggerScroll,
+    getKernelService: state.getKernelService,
+  }));
 
 
   React.useEffect(() => {
@@ -423,7 +442,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                   0,
                 ) *
                 1.5 +
-                (settings.memory?.enableRecall !== false && activeSession?.lastRecalledMemories || []).reduce(
+                (settings.memory?.enableRecall !== false && lastRecalledMemories || []).reduce(
                   (acc: any, m: any) => acc + (m.content || "").length,
                   0,
                 ) *

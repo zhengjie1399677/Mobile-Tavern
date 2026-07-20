@@ -30,7 +30,23 @@ export default function PresetForm() {
     showCustomAlert,
     activeCharacter,
     saveCharacter,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    settings: state.settings,
+    updateSettings: state.updateSettings,
+    handleImportPresetJSON: state.handleImportPresetJSON,
+    handleExportPresetJSON: state.handleExportPresetJSON,
+    handleSaveNewPresetBundle: state.handleSaveNewPresetBundle,
+    handleLoadPresetBundle: state.handleLoadPresetBundle,
+    handleDeletePresetBundle: state.handleDeletePresetBundle,
+    handleToggleCustomPrompt: state.handleToggleCustomPrompt,
+    handleUpdateCustomPrompt: state.handleUpdateCustomPrompt,
+    handleAddNewCustomPrompt: state.handleAddNewCustomPrompt,
+    handleDeleteCustomPrompt: state.handleDeleteCustomPrompt,
+    showCustomConfirm: state.showCustomConfirm,
+    showCustomAlert: state.showCustomAlert,
+    activeCharacter: state.activeCharacter,
+    saveCharacter: state.saveCharacter,
+  }));
 
   const {
     activeBundleId,

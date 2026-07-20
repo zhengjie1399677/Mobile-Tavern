@@ -1,6 +1,6 @@
 // 单条消息气泡（思维链 + 主对白 + 时间戳）
 // 从原 ChatTab.tsx L1275-1618 抽离
-// 内部调用 useUnifiedApp() 获取上下文，接收消息相关数据与本地状态作为 props
+// 通过 selector 订阅所需上下文字段，接收消息相关数据与本地状态作为 props
 
 import React from "react";
 import {
@@ -96,7 +96,25 @@ const MessageBubble = ({
     showCustomConfirm,
     getKernelService,
     showCustomPrompt,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    activeCharacter: state.activeCharacter,
+    settings: state.settings,
+    isSending: state.isSending,
+    editingMsgId: state.editingMsgId,
+    setEditingMsgId: state.setEditingMsgId,
+    editingMsgContent: state.editingMsgContent,
+    setEditingMsgContent: state.setEditingMsgContent,
+    msgMenuId: state.msgMenuId,
+    setMsgMenuId: state.setMsgMenuId,
+    renderDialogueBubble: state.renderDialogueBubble,
+    saveSessionWithMvu: state.saveSessionWithMvu,
+    setSessions: state.setSessions,
+    activeSession: state.activeSession,
+    showCustomAlert: state.showCustomAlert,
+    showCustomConfirm: state.showCustomConfirm,
+    getKernelService: state.getKernelService,
+    showCustomPrompt: state.showCustomPrompt,
+  }));
 
   const { t } = useTranslation();
 

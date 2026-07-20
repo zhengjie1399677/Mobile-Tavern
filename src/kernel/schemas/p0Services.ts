@@ -63,6 +63,7 @@ export const DatabaseServiceSchema = KernelServiceBaseSchema.extend({
   saveSession: fnSchema,
   appendSessionMessage: fnSchema,
   deleteMessageById: fnSchema,
+  replaceSessionBranch: fnSchema,
   syncSessionMessages: fnSchema,
   deleteSession: fnSchema,
   bulkSaveSessions: fnSchema,

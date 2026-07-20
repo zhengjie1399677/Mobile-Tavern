@@ -328,6 +328,17 @@ export async function testMemorySummary() {
     async saveSession(session: any) {
       this.sessions.set(session.id, { ...session });
     },
+    async appendSessionSummary(sessionId: string, summary: SummaryCard) {
+      const current = this.sessions.get(sessionId);
+      if (!current) throw new Error(`Session not found: ${sessionId}`);
+      const next = {
+        ...current,
+        summaries: [...(current.summaries || []), summary],
+        lastSummarizedMessageId: summary.lastMessageId,
+      };
+      this.sessions.set(sessionId, next);
+      return next;
+    },
   };
 
   /** Mock Kernel */

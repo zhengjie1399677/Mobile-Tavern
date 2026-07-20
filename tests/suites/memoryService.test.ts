@@ -486,6 +486,9 @@ export async function testMemoryStorageCrud() {
   const localDB = await import("../../src/utils/localDB");
   const { MemoryStorage } = await import("../../src/kernel/services/memory/MemoryStorage");
   const { buildDictId } = await import("../../src/kernel/services/memory/types");
+  const { IndexedDbMemoryPersistenceService } = await import(
+    "../../src/infrastructure/storage/IndexedDbMemoryPersistenceService"
+  );
 
   // 1. 装配内存版 IDB mock + IDBKeyRange mock
   const { dbRequest, stores } = buildInMemoryIDB();
@@ -509,8 +512,9 @@ export async function testMemoryStorageCrud() {
 
   try {
     // 2. 初始化 MemoryStorage（触发 schema 升级）
-    const mockDbService: any = { name: "database" };
-    const storage = new MemoryStorage(mockDbService);
+    const persistence = new IndexedDbMemoryPersistenceService();
+    await persistence.init({} as any);
+    const storage = new MemoryStorage(persistence);
     await storage.init();
 
     // 验证 Store 与索引已创建
@@ -665,6 +669,12 @@ export async function testMemoryServiceLifecycle() {
   const { Kernel } = await import("../../src/kernel/Kernel");
   const { MemoryService } = await import("../../src/kernel/services/memory/MemoryService");
   const { KernelServices } = await import("../../src/kernel/types");
+  const {
+    IndexedDbMemoryPersistenceService,
+  } = await import("../../src/infrastructure/storage/IndexedDbMemoryPersistenceService");
+  const { MEMORY_PERSISTENCE_SERVICE } = await import(
+    "../../src/kernel/services/memory/types"
+  );
   const localDB = await import("../../src/utils/localDB");
 
   // 装配内存版 IDB mock + IDBKeyRange mock
@@ -701,6 +711,10 @@ export async function testMemoryServiceLifecycle() {
 
     await kernel.registerService(KernelServices.Database, mockDbService);
     await kernel.registerService(KernelServices.LLM, mockLlmService);
+    await kernel.registerService(
+      MEMORY_PERSISTENCE_SERVICE,
+      new IndexedDbMemoryPersistenceService()
+    );
     assert(kernel.getService(KernelServices.Database) === mockDbService, "Database dependency should be registered before MemoryService");
     assert(kernel.getService(KernelServices.LLM) === mockLlmService, "LLM dependency should be registered before MemoryService");
     await kernel.registerService(KernelServices.Memory, memoryService);

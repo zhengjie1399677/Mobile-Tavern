@@ -24,7 +24,24 @@ export default function CharacterEditModal() {
     handleSaveLoreEntry,
     setActiveTab,
     safeAreas,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    charModalOpen: state.charModalOpen,
+    setCharModalOpen: state.setCharModalOpen,
+    editingChar: state.editingChar,
+    setEditingChar: state.setEditingChar,
+    activeLoreTab: state.activeLoreTab,
+    setActiveLoreTab: state.setActiveLoreTab,
+    editingLoreEntry: state.editingLoreEntry,
+    setEditingLoreEntry: state.setEditingLoreEntry,
+    expandedLoreIds: state.expandedLoreIds,
+    setExpandedLoreIds: state.setExpandedLoreIds,
+    showCustomConfirm: state.showCustomConfirm,
+    showCustomAlert: state.showCustomAlert,
+    handleSaveCharacter: state.handleSaveCharacter,
+    handleSaveLoreEntry: state.handleSaveLoreEntry,
+    setActiveTab: state.setActiveTab,
+    safeAreas: state.safeAreas,
+  }));
 
   if (!charModalOpen || !editingChar) return null;
 

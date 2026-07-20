@@ -1,5 +1,5 @@
 import { IKernel, IKernelService, IPipeline, Middleware, IExtension, IMessage } from "./types";
-import { SAFE_PROXY_SYMBOL } from "./schemas";
+import { SAFE_PROXY_SYMBOL, validateMessage } from "./schemas";
 
 // 全局严格模式开关，默认为 true
 let strictMode = true;
@@ -512,13 +512,16 @@ export class Kernel implements IKernel {
   }
 
   /**
-   * 获取指定的过滤管道
+   * 获取已显式注册的过滤管道。
+   * 未知名称通常意味着插件漏注册或调用方拼写错误，禁止在读取操作中隐式修改 Kernel 拓扑。
    */
   getPipeline<T = any>(name: string): IPipeline<T> {
-    let pipeline = this.pipelines.get(name);
+    const pipeline = this.pipelines.get(name);
     if (!pipeline) {
-      console.warn(`[Kernel] Pipeline "${name}" not found. Auto-registering a new pipeline.`);
-      pipeline = this.registerPipeline<T>(name);
+      throw new Error(
+        `[Kernel] Pipeline "${name}" is not registered. ` +
+        `Call registerPipeline("${name}") during bootstrap or plugin activation before reading it.`
+      );
     }
     return pipeline as IPipeline<T>;
   }
@@ -572,6 +575,7 @@ export class Kernel implements IKernel {
    * @param message 消息体
    */
   async publish(message: IMessage): Promise<void> {
+    if (!this.validatePublishedMessage(message)) return;
     // 入口快照订阅者列表：for...of 期间存在 await，期间 subscribe（push+sort）/unsubscribe（filter 换新数组）
     // 可能并发修改原数组或触发 sort 影响迭代稳定性。快照后本轮发布语义固化为发布时刻的订阅者集合。
     const list = [...(this.subscribers.get(message.topic) ?? [])];
@@ -638,6 +642,7 @@ export class Kernel implements IKernel {
    * @param message 消息体
    */
   async publishParallel(message: IMessage): Promise<void> {
+    if (!this.validatePublishedMessage(message)) return;
     // 入口快照订阅者列表：与 publish 同理，避免 Promise.allSettled 期间并发 subscribe/unsubscribe 影响
     const list = [...(this.subscribers.get(message.topic) ?? [])];
     if (list.length === 0) return;
@@ -696,6 +701,21 @@ export class Kernel implements IKernel {
         console.error(`[Kernel] Error executing parallel subscriber on topic "${message.topic}":`, result.reason);
       }
     }
+  }
+
+  /** 外部消息进入总线前的统一防腐校验。 */
+  private validatePublishedMessage(message: unknown): message is IMessage {
+    const result = validateMessage(message);
+    if (result.success === true) return true;
+
+    const detail = `${result.summary}: ${result.error.issues
+      .map((issue) => `${issue.path.join(".") || "<root>"} ${issue.message}`)
+      .join("; ")}`;
+    if (getKernelStrictMode()) {
+      throw new Error(`[Kernel MessageValidation] ${detail}`);
+    }
+    console.error(`[Kernel MessageValidation] Dropped invalid message. ${detail}`);
+    return false;
   }
 
   /**

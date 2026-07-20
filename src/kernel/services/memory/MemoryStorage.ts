@@ -6,34 +6,23 @@
  *   2. 管理与底层 IndexedDB 存储及 AbortSignal 异步事务生命周期
  */
 
-import type { IDatabaseService } from '../../types';
-import {
-  appendMessage as dbAppendMessage,
-  updateMessageExtraction as dbUpdateMessageExtraction,
-  getMessageById as dbGetMessageById,
-  getMessagesBySession as dbGetMessagesBySession,
-  getMessagesByTag as dbGetMessagesByTag,
-  deleteMessagesBySession as dbDeleteMessagesBySession,
-  upsertDictEntry as dbUpsertDictEntry,
-  getDictEntryById as dbGetDictEntryById,
-  getDictBySession as dbGetBySession,
-  deleteDictBySession as dbDeleteDictBySession,
-  deleteDictEntryById as dbDeleteDictEntryById,
-  getDB,
-} from '../../../utils/localDB';
-import type { MessageRecord, MemoryDictEntry } from './types';
+import type {
+  MemoryPersistencePort,
+  MessageRecord,
+  MemoryDictEntry,
+} from './types';
 import { buildDictId } from './types';
 
 export class MemoryStorage {
-  /** 持有 DatabaseService 引用，用于未来扩展（如跨 Store 事务协调） */
-  private dbService: IDatabaseService;
+  /** 记忆领域持久化端口；物理实现由组合根注入。 */
+  private persistence: MemoryPersistencePort;
   /** 服务级 AbortController，destroy 时中止进行中的异步任务 */
   private abortController: AbortController | null = null;
   /** 是否已初始化 */
   private initialized = false;
 
-  constructor(dbService: IDatabaseService) {
-    this.dbService = dbService;
+  constructor(persistence: MemoryPersistencePort) {
+    this.persistence = persistence;
   }
 
   /**
@@ -48,9 +37,6 @@ export class MemoryStorage {
       if (signal.aborted) this.abortController.abort();
       else signal.addEventListener('abort', () => this.abortController?.abort());
     }
-
-    // 触发 IDB 打开/升级，确保 messages 与 memory_dict Store 已就绪
-    await getDB();
 
     this.initialized = true;
   }
@@ -90,7 +76,7 @@ export class MemoryStorage {
    */
   async appendMessage(message: MessageRecord): Promise<void> {
     this.ensureInitialized();
-    await dbAppendMessage({
+    await this.persistence.appendMessage({
       id: message.id,
       sessionId: message.sessionId,
       role: message.role,
@@ -100,7 +86,7 @@ export class MemoryStorage {
       tags: message.tags,
       extractSource: message.extractSource,
       metadata: message.metadata,
-    });
+    }, this.getActiveSignal());
   }
 
   /**
@@ -114,13 +100,19 @@ export class MemoryStorage {
     metadata?: Record<string, any>
   ): Promise<void> {
     this.ensureInitialized();
-    await dbUpdateMessageExtraction(id, tags, extractSource, metadata);
+    await this.persistence.updateMessageExtraction(
+      id,
+      tags,
+      extractSource,
+      metadata,
+      this.getActiveSignal()
+    );
   }
 
   /** 按主键单条直查消息 */
   async getMessageById(id: string): Promise<MessageRecord | null> {
     this.ensureInitialized();
-    return dbGetMessageById(id);
+    return this.persistence.getMessageById(id);
   }
 
   /**
@@ -132,7 +124,7 @@ export class MemoryStorage {
     options?: { limit?: number; offset?: number; descending?: boolean }
   ): Promise<MessageRecord[]> {
     this.ensureInitialized();
-    return dbGetMessagesBySession(sessionId, options);
+    return this.persistence.getMessagesBySession(sessionId, options);
   }
 
   /**
@@ -145,7 +137,7 @@ export class MemoryStorage {
     limit?: number
   ): Promise<MessageRecord[]> {
     this.ensureInitialized();
-    return dbGetMessagesByTag(sessionId, tags, limit);
+    return this.persistence.getMessagesByTag(sessionId, tags, limit);
   }
 
   /**
@@ -153,7 +145,7 @@ export class MemoryStorage {
    */
   async deleteMessagesBySession(sessionId: string): Promise<void> {
     this.ensureInitialized();
-    await dbDeleteMessagesBySession(sessionId);
+    await this.persistence.deleteMessagesBySession(sessionId, this.getActiveSignal());
   }
 
   // ===== memory_dict Store CRUD =====
@@ -174,7 +166,7 @@ export class MemoryStorage {
   ): Promise<boolean> {
     this.ensureInitialized();
     // 配合已恢复的单对象签名进行调用
-    return dbUpsertDictEntry({
+    return this.persistence.upsertDictEntry({
       sessionId,
       entity,
       aliases: patch.aliases,
@@ -182,19 +174,19 @@ export class MemoryStorage {
       firstSeenMsgId: patch.firstSeenMsgId,
       firstSeenTurn: patch.firstSeenTurn,
       count: patch.count,
-    });
+    }, this.getActiveSignal());
   }
 
   /** 按主键单条直查词典条目 */
   async getDictEntryById(id: string): Promise<MemoryDictEntry | null> {
     this.ensureInitialized();
-    return dbGetDictEntryById(id);
+    return this.persistence.getDictEntryById(id);
   }
 
   /** 按会话查询所有词典条目 */
   async getDictBySession(sessionId: string): Promise<MemoryDictEntry[]> {
     this.ensureInitialized();
-    return dbGetBySession(sessionId);
+    return this.persistence.getDictBySession(sessionId);
   }
 
   /**
@@ -202,7 +194,7 @@ export class MemoryStorage {
    */
   async deleteDictBySession(sessionId: string): Promise<void> {
     this.ensureInitialized();
-    await dbDeleteDictBySession(sessionId);
+    await this.persistence.deleteDictBySession(sessionId, this.getActiveSignal());
   }
 
   /**
@@ -210,7 +202,7 @@ export class MemoryStorage {
    */
   async deleteDictEntry(id: string): Promise<void> {
     this.ensureInitialized();
-    await dbDeleteDictEntryById(id);
+    await this.persistence.deleteDictEntryById(id, this.getActiveSignal());
   }
 
   // ===== 内部方法 =====

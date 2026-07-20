@@ -35,7 +35,13 @@ export default function CharacterDetailDrawer({
     showCustomAlert,
     settings,
     safeAreas,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    saveCharacter: state.saveCharacter,
+    setCharacters: state.setCharacters,
+    showCustomAlert: state.showCustomAlert,
+    settings: state.settings,
+    safeAreas: state.safeAreas,
+  }));
 
   const { t } = useTranslation();
 

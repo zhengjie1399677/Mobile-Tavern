@@ -17,7 +17,16 @@ export default function ChatHistoryTab() {
     setChatSubTab,
     deleteBranch,
     triggerScroll,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    characters: state.characters,
+    sessions: state.sessions,
+    setActiveCharId: state.setActiveCharId,
+    setActiveSessionId: state.setActiveSessionId,
+    setActiveTab: state.setActiveTab,
+    setChatSubTab: state.setChatSubTab,
+    deleteBranch: state.deleteBranch,
+    triggerScroll: state.triggerScroll,
+  }));
 
   // 1. 视图模式状态（按时间平铺 / 按角色卡归纳），支持 localStorage 持久化记住用户选择
   const [viewMode, setViewMode] = useState<ViewMode>(() => {

@@ -1,6 +1,6 @@
 // 组合根组件：编排上述子组件
 // 从原 ChatTab.tsx 主组件 L491-1868 抽离
-// 调用 useUnifiedApp() 获取上下文，调用三个 Hook 获取派生状态，管理本地 UI 状态
+// 通过 selector 订阅所需上下文字段，调用三个 Hook 获取派生状态，管理本地 UI 状态
 
 import React from "react";
 
@@ -38,7 +38,26 @@ export default function ChatTab() {
     hasMoreMessages,
     isLoadingMoreMessages,
     loadMoreMessages,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    sessions: state.sessions,
+    setSessions: state.setSessions,
+    settings: state.settings,
+    activeSessionId: state.activeSessionId,
+    isSending: state.isSending,
+    chatSubTab: state.chatSubTab,
+    setChatSubTab: state.setChatSubTab,
+    activeCharacter: state.activeCharacter,
+    activeSession: state.activeSession,
+    handleSendMessage: state.handleSendMessage,
+    setCharacters: state.setCharacters,
+    saveCharacter: state.saveCharacter,
+    updateSettings: state.updateSettings,
+    saveSession: state.saveSession,
+    getKernelService: state.getKernelService,
+    hasMoreMessages: state.hasMoreMessages,
+    isLoadingMoreMessages: state.isLoadingMoreMessages,
+    loadMoreMessages: state.loadMoreMessages,
+  }));
 
   React.useEffect(() => {
     if (settings.memory?.enableAutoSummary === false && chatSubTab === "timeline") {

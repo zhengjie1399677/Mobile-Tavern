@@ -157,7 +157,7 @@ export interface IKernelService {
   destroy?(kernel: IKernel, signal?: AbortSignal): Promise<void> | void;
 }
 
-export interface IDatabaseService<TSession = any, TCharacter = any> extends IKernelService {
+export interface IDatabaseService<TSession = any, TCharacter = any, TSummary = any> extends IKernelService {
   getAllSessions(): Promise<TSession[]>;
   /**
    * P0-2 基础设施：按主键单条直查会话，避免 getAllSessions() 全量反序列化。
@@ -169,6 +169,15 @@ export interface IDatabaseService<TSession = any, TCharacter = any> extends IKer
   getSessionsPaginated(page: number, pageSize: number): Promise<TSession[]>;
   saveSession(session: TSession, signal?: AbortSignal): Promise<void>;
   /**
+   * 在 sessions Store 内原子追加摘要并推进最后总结位置。
+   * 这是会话聚合能力，不暴露记忆词典、召回等业务专用存储细节。
+   */
+  appendSessionSummary(
+    sessionId: string,
+    summary: TSummary,
+    signal?: AbortSignal
+  ): Promise<TSession>;
+  /**
    * 单条消息写入 messages Store（用于发送/重投场景的精准单条持久化）。
    * saveSession 只存会话元数据，新消息必须通过本方法显式写入。
    */
@@ -177,6 +186,13 @@ export interface IDatabaseService<TSession = any, TCharacter = any> extends IKer
    * 按主键删除单条消息（用于重投/编辑场景删除旧消息）。
    */
   deleteMessageById(id: string, signal?: AbortSignal): Promise<void>;
+  /** 原子替换重发分支：会话元数据、旧消息删除和新消息写入同事务提交。 */
+  replaceSessionBranch(
+    session: TSession,
+    removedMessageIds: string[],
+    newMessages: any[],
+    signal?: AbortSignal
+  ): Promise<void>;
   /**
    * 批量同步会话消息（用于分支创建/备份恢复等全量写入场景）。
    * 仅 PUT upsert，不做孤儿清理。

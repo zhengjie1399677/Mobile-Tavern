@@ -28,7 +28,12 @@ export default function MainLayout() {
     setActiveTab,
     showSplash,
     safeAreas,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    activeTab: state.activeTab,
+    setActiveTab: state.setActiveTab,
+    showSplash: state.showSplash,
+    safeAreas: state.safeAreas,
+  }));
   const { t } = useTranslation();
 
   const [viewportHeight, setViewportHeight] = React.useState<number | null>(null);

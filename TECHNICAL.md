@@ -32,8 +32,18 @@ Mobile-Tavern
 │   │
 │   ├── hooks/                                # 高级自定义 React 状态钩子
 │   │   ├── useChat.tsx                       # SSE 字节切分、故事摘要与 APM 耗时监听
+│   │   ├── useChat/useRerollMessage.ts       # 重发事务锁、召回与原子分支替换编排
 │   │   ├── useCatbot.ts                      # 客服助理雪团事件总线与大模型请求钩子
 │   │   └── useSettings.ts                    # 用户配置参数防抖落库、多预设套件管理
+│   │
+│   ├── domain/                               # 不依赖 React 与物理存储的纯业务规则
+│   │   └── chat/bisonProbability.ts          # 野牛模式概率计算领域函数
+│   │
+│   ├── infrastructure/storage/               # IndexedDB 物理基础设施适配器
+│   │   ├── IndexedDbMemoryPersistenceService.ts # 长期记忆持久化端口实现
+│   │   ├── indexedDbMemoryStore.ts           # 记忆 Store 与会话分支原子事务
+│   │   ├── indexedDbSessionQueries.ts        # 会话只读查询与分页
+│   │   └── sessionRecord.ts                  # 会话元数据纯净记录映射
 │   │
 │   ├── contexts/                              # React Context 全局状态提供者
 │   │   ├── LanguageContext.tsx               # 多语言 i18n Provider 与 useTranslation 钩子
@@ -73,6 +83,8 @@ Mobile-Tavern
 │   │       ├── DatabaseService.ts            # 数据库物理 CRUD 服务 [isCritical: 致命]
 │   │       ├── LLMService.ts                 # 大模型数据通信与 SSE 流式读取服务
 │   │       ├── PromptService.ts              # Prompt 组装与宏替换服务
+│   │       ├── prompt/LorebookResolver.ts     # 世界书触发与级联解析
+│   │       ├── prompt/PromptMacroFormatter.ts # 宏与 MVU 变量格式化
 │   │       ├── TelemetryService.ts           # 使用率上报与崩溃日志本地落盘遥测服务
 │   │       ├── ScriptService.ts              # 角色卡扩展字段变量沙盒 MVU 服务
 │   │       ├── AsrService.ts                 # 语音录制与识别（ASR）服务
@@ -88,6 +100,7 @@ Mobile-Tavern
 │   │       ├── ImageGenerationService.ts     # AI 绘图代理与生成接口管理服务
 │   │       └── memory/                       # 下沉的官方统一长期记忆系统服务模块
 │   │           ├── MemoryService.ts          # 记忆服务主控类，挂载 6 大核心子模块
+│   │           ├── types.ts                  # 记忆持久化端口及领域服务令牌
 │   │           ├── MemoryStorage.ts          # 记忆碎片/总结底座数据库持久化子模块
 │   │           ├── MemoryExtractor.ts        # 大模型异步情感、年表、RPG 状态增量提取器
 │   │           ├── MemoryRecall.ts           # 记忆匹配、检索与级联载入中间件子模块
@@ -167,8 +180,8 @@ graph TB
         Entry --> Pipeline
         Entry --> Bus
         Entry --> Services
-        Schemas -.->|"Phase C 接入"| Services
-        Schemas -.->|"Phase C 接入"| Bus
+        Schemas -.->|"服务契约校验"| Services
+        Schemas -.->|"消息边界校验"| Bus
         Pipeline <--> Services
         Bus <--> Services
     end
@@ -178,7 +191,7 @@ graph TB
     end
 
     ReactLayer <-->|"getService / publish"| KernelLayer
-    Services <-->|"CRUD"| DB
+    Services <-->|"领域端口 / DatabaseService"| DB
 
     style ReactLayer fill:#fafafa,stroke:#666,stroke-width:1px
     style KernelLayer fill:#f5f5ff,stroke:#6a5acd,stroke-width:2px
@@ -190,6 +203,7 @@ graph TB
 | 边界 | 隔离方式 | 数据通道 |
 |------|----------|----------|
 | React 前端 ↔ Kernel 微内核 | kernel 实例注入 / `getService` / `publish` | 同进程函数调用 |
+| 记忆领域 ↔ IndexedDB | `MemoryPersistencePort` / `IndexedDbMemoryPersistenceService` | 端口—适配器调用，领域层不导入基础设施 |
 | 移动端 ↔ Tauri Rust 后端 | Tauri IPC `invoke` | 序列化消息 + Blob 文件路径 |
 | 移动端 ↔ 云端后端 | HTTPS REST API | `cloud/` 目录代码物理隔离，不打入 APK |
 | 移动端 ↔ 第三方 LLM | `apiClient` 自适应（原生直连 / Express 代理） | SSE 流式 HTTP |
@@ -200,9 +214,10 @@ graph TB
 
 1. **聊天主链路**：UI → `useChat` → `kernel.publish("chat:message_received")` → Pipeline 洋葱管道（敏感词 / 世界书 / MVU 脚本）→ `PromptService.assemblePrompt` → `LLMService.universalFetch` → SSE 字节流 → `ChatStreamService` 零丢包切分 → React 19 并发渲染。
 2. **持久化链路**：Services → `DatabaseService` → IndexedDB 三 Store（messages / memory_dict / sessions）+ 业务对象仓库（characters / dictionaries 等）。
-3. **遥测链路**：前端事件 → Tauri IPC → `telemetry_queue.jsonl` 本地落盘 → Rust 后台线程批量取 STS + HMAC 签名 → SLS 仓库。
-4. **云端账号链路**：移动端 fetch HTTPS → `cloud/` 后端 axum 路由 → PostgreSQL（users / identities / refresh_tokens）+ Redis 会话。
-5. **热更新链路**：`UpdateCheckService` 周期校验 → `cloud/` 后端 `update_channels` / `update_assets` → 增量包下载与版本回滚。
+3. **重发链路**：UI 同步事务锁 → 截断内存工作副本 → Prompt 与流式生成 → `replaceSessionBranch` 在 sessions/messages 两个 Store 内一次提交；纯失败或 Abort 恢复原会话，不产生中间态。
+4. **遥测链路**：前端事件 → Tauri IPC → `telemetry_queue.jsonl` 本地落盘 → Rust 后台线程批量取 STS + HMAC 签名 → SLS 仓库。
+5. **云端账号链路**：移动端 fetch HTTPS → `cloud/` 后端 axum 路由 → PostgreSQL（users / identities / refresh_tokens）+ Redis 会话。
+6. **热更新链路**：`UpdateCheckService` 周期校验 → `cloud/` 后端 `update_channels` / `update_assets` → 增量包下载与版本回滚。
 
 > 📌 各子系统的详细内部架构与时序图见下方对应章节：[🏗️ 模块架构与状态管理](#️-模块架构与状态管理-system-architecture)、[🧬 Tavern 角色卡解码机制](#-tavern-角色卡解码机制-tavern-png-card-binary-decoder)、[🛡️ Kernel zod 运行时校验层](#️-kernel-zod-运行时校验层-l2-schema-validation)。
 
@@ -369,6 +384,9 @@ graph TB
 应用使用 React 19 框架作为底层渲染基石。核心逻辑完全依托于 React 自定义 hooks 以及 Provider 架构进行解耦管理：
 *   **AppContext**: 
     负责应用全局交互，如全局 Tab 的路由切换、数据库加载指示、连通性状态监测以及全局主题的管理。
+    视图组件必须通过 `useUnifiedApp(selector)` 只订阅实际使用的字段；无参数全量订阅已清除并由架构测试阻止回归。
+*   **KernelContext**:
+    仅接受启动层显式传入的 `IKernel`，缺少 `KernelProvider` 时立即抛错，不再静默回退到 `globalKernel` 单例。
 *   **CharactersTab**: 
     维护本地导入的角色卡列表。在用户对卡片进行增删改查时，直接通过自定义 Hook [useCharacters.ts](src/hooks/useCharacters.ts) 进行 IndexedDB 存储库的原子操作，并同步分发至 UI 进行反应式视图更新。
 *   **ChatTab**: 
@@ -496,6 +514,10 @@ erDiagram
     启动事务时，严禁作用于全局，只向事务声明具体的 object store 范围（例如单一 of `sessions`）。
 *   **Readwrite Segregation**: 
     仅在进行物理保存时开启 `readwrite` 权限。所有的只读查询（如聊天界面滚动加载历史）使用 `readonly` 模式，确保浏览器能同时并行执行多个查询。
+*   **Atomic Branch Replacement**:
+    重发完成后由 `replaceSessionBranch` 在同一个 `readwrite` 事务中更新会话元数据、删除旧分支消息并写入新消息。事务错误或 `AbortSignal` 中止会整体回滚，避免 sessions/messages 跨 Store 半提交。
+*   **Clean Session Record**:
+    `sessionRecord.ts` 统一把运行时 `ChatSession` 映射为不含 `messages` 的持久化元数据，防止消息正文重复写入 sessions Store。
 
 ---
 
@@ -688,7 +710,7 @@ graph TD
 ```
 
 ### 1. 核心契约与容器设计 (`IKernel`)
-系统核心容器 `Kernel` 遵循依赖注入（DI）和控制反转（IOC）原则，通过 `globalKernel` 单例向应用暴露全局服务治理能力。其定义位于 [types.ts](src/kernel/types.ts)，核心接口定义如下：
+系统核心容器 `Kernel` 遵循依赖注入（DI）和控制反转（IOC）原则。启动层持有 `globalKernel` 并通过 `KernelProvider` 显式注入应用树，业务 Hook 和管道辅助函数继续接收当前 `IKernel`，不再从模块内部回流读取全局单例。其定义位于 [types.ts](src/kernel/types.ts)，核心接口定义如下：
 *   **服务注册与获取**：通过 `registerService` 和 `getService` 提供解耦访问。
 *   **消息发布与订阅**：提供基于优先级排序的发布-订阅模式消息总线。
 *   **管道注册**：基于洋葱模型（Onion Model）的切面拦截管道治理。
@@ -698,12 +720,14 @@ graph TD
 *   **中间件执行模型**：每个中间件接收三个参数 `(context, next, interrupt)`。
 *   **受控拦截阻断 (`interrupt()`)**：如果中间件希望安全熔断（例如发现输入违规），可直接调用第三个参数 `interrupt()`，系统会自动将其 `isInterrupted` 状态置为 `true` 并中断后续中间件的执行。
 *   **开发态严格模式 (`strictMode`)**：为了防范开发者漏调 `next()` 或 `interrupt()` 导致管道挂死，内核在开发模式下如果发现管道既未调用 `next()` 延续、又未调用 `interrupt()` 声明拦截，会直接抛出致命 `Error`，生产环境下则优雅中断并记录错误日志。
+*   **显式注册**：`getPipeline(name)` 只读取已注册管道；未知名称立即抛错。自定义管道必须在 bootstrap 或扩展激活阶段调用 `registerPipeline(name)`，避免拼写错误静默生成孤立管道。
 
 ### 3. 高能消息总线 (`MessageBus`)
 消息总线负责不同切面服务之间的异步解耦通信，具备出色的抗灾设计：
 *   **优先级排序订阅**：订阅者可以通过优先级（`priority`）声明消息消费的顺序，数值越高越先执行。
 *   **并行分发与故障隔离 (`publishParallel`)**：支持使用 `Promise.all` 并行触发多个订阅者。如果其中一个订阅者崩溃，消息总线能物理隔离该异常，确保其他订阅者依然能收到通知并正常工作。
 *   **超时熔断保障**：当单个订阅者在执行异步任务时发生严重挂死，总线拥有超时强熔断逻辑，限制单次消费任务无休止锁死线程。
+*   **消息入口校验**：`publish` 与 `publishParallel` 先执行 zod 顶层契约校验；严格模式抛错，非严格模式记录并丢弃非法消息，防止脏 payload 进入订阅者链。
 
 ### 4. 架构健壮性与自愈防护设计
 为了在移动端 WebView 进程资源极其受限的环境下达到 100% 运行健壮性，内核集成了如下防灾手段：
@@ -728,12 +752,12 @@ graph TD
 *   `validateMessage(message)` — `publish` 入口用，先校验顶层 `IMessage` 结构，再按 topic 分流：动态 topic（`tavern_helper:*` 前缀，由用户脚本决定 payload 形状，符合 SillyTavern 兼容契约）跳过 payload 校验；静态 topic（`script:destroyed` / `catbot:event`）额外用 payload schema 校验；未登记 topic 仅做顶层校验。
 *   `validateServiceRetrieval(name, service)` — `getService` 入口用，识别 `SAFE_PROXY_SYMBOL` 契约标记后直接通过（已知是 `Kernel.createSafeProxy` 产出的降级对象，假装有方法但缺真实实现，P0 schema 必然失败，必须显式 skip）；真实服务走与 `validateService` 相同的分级校验。
 
-> **Phase B 现状**：schema 层已定义并经 10 项单元断言验证（`tests/suites/kernelSchemaValidation.test.ts`），**未接入 Kernel.ts 运行时**（纯加性零行为变更）。Phase C 待用户决策是否将三个纯函数接入 Kernel 三大入口并升级 `strictMode` 为三态（strict / warn / off）。完整设计详见下方 [🛡️ Kernel zod 运行时校验层 (L2 Schema Validation)](#️-kernel-zod-运行时校验层-l2-schema-validation) 章节。
+> **当前进度**：schema 定义与单元断言已完成，消息边界已接入 `publish` / `publishParallel`。服务注册与获取边界仍维持现有容器校验方式，尚未升级为三态 `validationMode`；因此不能把这一阶段表述为完整 Phase C。完整设计详见下方 [🛡️ Kernel zod 运行时校验层 (L2 Schema Validation)](#️-kernel-zod-运行时校验层-l2-schema-validation) 章节。
 
 ### 6. 官方核心微服务职能
-*   `DatabaseService` (database)：承载 IndexedDB 物理层读写和并发写 Promise 串行事务管道。
+*   `DatabaseService` (database)：承载通用 IndexedDB 物理层读写、并发写 Promise 串行事务管道及跨 Store 会话分支原子替换，不包含召回、摘要等业务规则。
 *   `LLMService` (llm)：承载大模型请求、SSE 字符缓冲读取与思维链提取。
-*   `PromptService` (prompt)：负责人设模版编译、宏安全替换及世界书三阶级联检索。
+*   `PromptService` (prompt)：负责人设模版编译与流程编排；宏/MVU 格式化由 `PromptMacroFormatter` 承担，世界书三阶级联检索由 `LorebookResolver` 承担。
 *   `TelemetryService` (telemetry)：收集 App APM 耗时及崩溃事件并写入落盘队列，计算 STS 后台同步上报。
 *   `ScriptService` (script)：在独立沙盒内执行角色卡内嵌的扩展变量计算脚本。
 *   `AsrService` (asr)：处理用户麦克风语音录制与识别。兼容原生 Web Speech API 以及远程 OpenAI Whisper 接口，集成完整的 Web/Tauri 双层直连与 Abort 控制器资源释放机制。
@@ -747,7 +771,7 @@ graph TD
 *   `MultiMessageService` (multiMessage)：消息并发/多宇宙分支会话分发机制，支持多分支对话平行克隆与管理。
 *   `UpdateCheckService` (updateCheck)：提供客户端热更新与版本状态校验服务，基于 IP 限流和时间戳防重放校验。
 *   `ImageGenerationService` (imageGen)：AI 绘图代理与生成接口管理，集成前端自适应跨域代理与 SSRF 防御机制。
-*   `MemoryService` (memory)：统一的长期记忆系统，内含 6 大核心子模块，负责记忆持久化（storage）、大模型异步信息提取（extractor）、记忆检索召回（recall）、RPG 看板数据变动分析（stateTable）与前情概要总结（summary）。
+*   `MemoryService` (memory)：统一的长期记忆系统，内含 6 大核心子模块，负责记忆持久化（storage）、大模型异步信息提取（extractor）、记忆检索召回（recall）、RPG 看板数据变动分析（stateTable）与前情概要总结（summary）。领域层只依赖 `MemoryPersistencePort`，具体 IndexedDB 实现由 bootstrap 注入；召回快照保存在 `useChat` 组合层并按 sessionId 隔离，不写入 `ChatSession`。
 
 ### 7. 数据流向全景图 (Core Message Data Flow)
 
@@ -797,11 +821,11 @@ sequenceDiagram
 
 ## 🧪 自动化测试套件与覆盖验证 (Comprehensive Test Suite)
 
-为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，包含了 **76 项核心功能验证用例**（含 vitest 子进程桥接的 327 项 i18n / 组件渲染 / 服务集成测试）。
+为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，当前包含 **78 组核心功能验证套件**（含 Vitest 子进程桥接的 328 项 i18n / 组件渲染 / 服务集成断言）。
 
 此外，`tsconfig.json` 的 `include` 已扩展至 `tests/` 目录（排除 `.cjs` / `.js`），使 `npm run lint` (`tsc --noEmit`) 能够同时捕获源码与测试代码的类型错误，确保 CI/CD 拦截时自动发现测试用例的类型失效。
 
-### 1. 自动化功能测试一览 (The 76 Test Cases)
+### 1. 自动化功能测试一览 (The 78 Test Suites)
 
 这些测试用例按职责域被高度聚合并物理隔离到 `tests/suites/` 下的各个测试模块中：
 
@@ -814,6 +838,7 @@ sequenceDiagram
 *   **`testLocalDBSplitTrack`**：验证 Settings 个人配置与大字段（Preset/Worldbook）分轨存储逻辑。
 *   **`testWriteQueueTimeout`**：测试并发写入管道中的事务超时挂载释放。
 *   **`testWriteQueueKeyCoalescing`**：校验高频对同一 Key 写入时的防抖合并（Coalescing）机制。
+*   **`testRerollBranchAtomicReplace`**：在真实 IndexedDB 仿真中验证重发分支跨 Store 原子替换，并确认预中止事务不提交任何变化。
 
 #### 📝 Prompt 编译与上下文缓存 (Prompt Builder & Runtime)
 *   **`testPromptBuilder`**：验证模板宏安全替换（lambda 回调防转义符坍塌）及世界书三阶级联检索逻辑。
@@ -834,6 +859,7 @@ sequenceDiagram
 *   **`testKernelPipeline`**：验证 input/output 管道中中间件依照优先级 `priority` 链式流转以及被中间件漏调 `next` 时的内核强熔断报错。
 *   **`testKernelPipelineHardening`**：测试开发严格模式（strictMode）与生产容错模式下管道防灾校验。
 *   **`testKernelHardeningP0ToP3`**：全面测试注销订阅、可选服务降级、JS 内置 Symbol 属性读取拦截、内存清理。
+*   **`testArchitectureBoundaries`**：静态扫描依赖方向、Context selector、瞬态召回隔离与核心文件行数，阻止业务代码污染底座。
 
 #### 🌀 版本修复、生命周期与插件机制 (Lifecycle & SPI)
 *   **`testKernelKernelV2Fixes`**：验证 Kahn 拓扑依赖排序分配、环形依赖拦截、事件发布 Concurrency 控制。
@@ -885,6 +911,7 @@ sequenceDiagram
 *   **`testTurnIndexDeleteMiddleThenAppend`**：测试在多宇宙分支中途删除某条消息后，后续追加新消息能基于剩余历史建立正确的 turnIndex 序列，防范时序混乱。
 *   **`testTurnIndexDeleteAllThenAppend`**：测试清空历史后追加首条消息的时序就绪。
 *   **`testTurnIndexMultipleAppends`**：并发多次追加消息时的时序序列物理安全检查。
+*   **`useRerollMessage` Vitest 专项**：模拟十轮长会话下快速连续触发重发，确认只有一个事务进入召回与提示词准备阶段。
 
 #### 🐱 小猫客服异常异常与补强测试 (Catbot & Hardening)
 *   **`runCatbotErrorTests`**：模拟小猫客服连上云端 FC 遭遇 429 限流或欠费时的本地正则关键词降级处理器，确保不崩溃。
@@ -912,14 +939,14 @@ TypeScript 编译期类型检查无法拦截运行时形状漂移：`IMessage.pa
 
 | 级别 | 标准 | 服务清单 | 校验强度 |
 |---|---|---|---|
-| **P0** | LLM 不可信数据第一道关 / 持久化边界 / 外部 API 边界 | ChatStream、Script、Database（15 方法）、Memory、LLM | 完整 schema 校验所有声明方法存在且为 function |
+| **P0** | LLM 不可信数据第一道关 / 持久化边界 / 外部 API 边界 | ChatStream、Script、Database、Memory、LLM | 完整 schema 校验所有声明方法存在且为 function |
 | **P1** | 内部协调型服务 / 配置管理型服务 | Prompt、Settings、Preset、Character、Worldbook、Telemetry、UpdateCheck、ImageGen、Tts、Asr、Bgm、MultiMessage | 仅校验 `IKernelService` 基础结构（name/init/destroy） |
 
 设计原则：**schema 仅校验"接口声明的方法在实现中存在且是 function"，不校验"实现不能有额外方法"**。容忍 `LLMService.buildHeaders` / `PromptService.escapeRegExp` 等内部辅助方法，避免 schema 与实现细节强耦合。
 
 ### 2. 三大纯函数校验工具
 
-[schemas/index.ts](src/kernel/schemas/index.ts) 导出三个不耦合 Kernel 内部状态、不抛错的纯函数，返回 `{success, error?, summary?}` result 对象，由调用方（Phase C 接入 Kernel.ts）按 `validationMode` 三态决定 throw / warn / skip：
+[schemas/index.ts](src/kernel/schemas/index.ts) 导出三个不耦合 Kernel 内部状态、不抛错的纯函数，返回 `{success, error?, summary?}` result 对象。当前消息校验由 Kernel 依据既有严格模式决定抛错或记录后丢弃；服务校验仍作为后续增强入口：
 
 | 函数 | 入口 | 分级策略 |
 |---|---|---|
@@ -931,8 +958,8 @@ TypeScript 编译期类型检查无法拦截运行时形状漂移：`IMessage.pa
 
 非关键服务缺失时 Kernel.createSafeProxy 返回的 SafeProxy 假装有方法（每个方法返回 no-op），但缺真实方法实现，P0 schema 会失败。为此定义 `SAFE_PROXY_SYMBOL = Symbol("kernel.safeProxy")` 作为契约标记：
 
-- **Phase B**：`validateServiceRetrieval` 检测 `SAFE_PROXY_SYMBOL in obj` 直接返回 success
-- **Phase C（待落地）**：`Kernel.createSafeProxy` 在产出 Proxy 时打上此标记
+- `validateServiceRetrieval` 检测 `SAFE_PROXY_SYMBOL in obj` 直接返回 success
+- `Kernel.createSafeProxy` 已在产出 Proxy 时写入此标记
 
 用 Symbol 而非字符串 key，避免与业务字段冲突；Symbol 属性不会被 Proxy `get` trap 拦截到不存在路径，兼容现有的 SafeProxy 实现。
 
@@ -947,18 +974,19 @@ SillyTavern 兼容契约（AGENTS.md 准则二）要求 `tavern_helper:${event}`
 
 ### 5. 设计原则与边界
 
-* **纯函数 + result 对象**：不抛错、不耦合 Kernel 内部状态，由 Phase C 调用方决定如何处理失败
+* **纯函数 + result 对象**：不抛错、不耦合 Kernel 内部状态，由各入口决定如何处理失败
 * **不替换 `zodMock.ts`**：[zodMock.ts](src/utils/tavernHelper/zodMock.ts)（511 行）是 SillyTavern 沙箱内用的伪 zod，真 zod 仅用于 Kernel 内部校验，两者物理隔离
-* **不接入 `strictMode`**：Phase B 不修改 Kernel.ts 运行时行为，strictMode 三态升级（strict / warn / off）属 Phase C 范围
-* **可逆**：删除 `src/kernel/schemas/` 目录 + 测试文件即可完全回退
+* **渐进接入**：消息发布边界已经启用；服务注册/获取边界及三态 `validationMode` 仍未落地
+* **兼容优先**：动态 SillyTavern topic 只校验顶层结构，不约束业务 payload
 
 ### 6. 实施进度
 
 | 阶段 | 状态 | 产出 |
 |---|---|---|
 | **Phase A** 探测 | ✅ 已完成 | [docs/agents/zod-l2-probe-report.md](docs/agents/zod-l2-probe-report.md) — 17 服务接口 vs 实现方法差异表、2 静态 topic 确认、动态 topic 黑名单确认 |
-| **Phase B** schema 定义 | ✅ 已完成 | `schemas/p0Services.ts`（134 行）+ `schemas/messages.ts`（56 行）+ `schemas/index.ts`（166 行）+ 10 项单元测试（76/76 全绿） |
-| **Phase C** Kernel 改造 | ⏳ 待用户决策 | strictMode 三态升级 + registerService/publish/getService 三边界接入 + SafeProxy 加标记 + 8 项集成测试 |
+| **Phase B** schema 定义 | ✅ 已完成 | P0/P1 服务 schema、消息 schema、动态 topic 降级规则及单元测试 |
+| **Phase C-1** 消息边界 | ✅ 已完成 | `publish` / `publishParallel` 运行时校验，SafeProxy 契约标记 |
+| **Phase C-2** 服务边界 | ⏳ 待后续 | 三态 `validationMode` 与 registerService/getService 接入 |
 
 ---
 

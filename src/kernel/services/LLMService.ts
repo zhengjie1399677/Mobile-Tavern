@@ -412,8 +412,16 @@ export class LLMService implements ILLMService {
   async sendCatbotRequest(
     content: string,
     history: any[],
-    clientContext?: any
+    clientContext?: unknown
   ): Promise<{ reply: string; expression: string }> {
+    const normalizedClientContext =
+      clientContext && typeof clientContext === "object"
+        ? (clientContext as Record<string, unknown>)
+        : {};
+    const deviceId =
+      typeof normalizedClientContext.deviceId === "string"
+        ? normalizedClientContext.deviceId
+        : "";
     const isTauri = this.isClientMode();
     let fetchFn = tauriFetch || fetch;
     if (!tauriFetch && tauriFetchPromise) {
@@ -429,14 +437,14 @@ export class LLMService implements ILLMService {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "X-Device-Id": clientContext?.deviceId || ""
+        "X-Device-Id": deviceId
       },
       body: JSON.stringify({ 
         content, 
         history, 
         clientContext: {
-          ...clientContext,
-          device_id: clientContext?.deviceId
+          ...normalizedClientContext,
+          device_id: deviceId
         } 
       }),
     });

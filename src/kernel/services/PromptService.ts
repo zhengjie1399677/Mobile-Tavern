@@ -10,6 +10,12 @@ import { PromptCompiler } from "./prompt/PromptCompiler";
 import { RuntimeContext } from "./prompt/types";
 import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
 import { applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
+import { resolveTriggeredLorebookEntries } from "./prompt/LorebookResolver";
+import {
+  formatMvuVariablesForPrompt,
+  replacePromptMacros,
+  type PromptMacroParams,
+} from "./prompt/PromptMacroFormatter";
 
 /**
  * 提示词编译与组装服务
@@ -90,200 +96,19 @@ export class PromptService implements IPromptService {
     entries: LorebookEntry[],
     maxRecursionDepth: number = 3
   ): LorebookEntry[] {
-    if (!entries || entries.length === 0) return [];
-    const activeEntries: LorebookEntry[] = [];
-    const activeIds = new Set<string>();
-
-    let recursionTextAppend = "";
-    let currentPass = 0;
-    let newTriggeredInLastPass = true;
-
-    const scanTextCache = new Map<number, string>();
-    const getScanText = (depth: number): string => {
-      let baseText = "";
-      if (scanTextCache.has(depth)) {
-        baseText = scanTextCache.get(depth)!;
-      } else {
-        const scanMessages = messages ? messages.slice(-depth) : [];
-        baseText = userInput + "\n" + scanMessages.map((m) => m.content).join("\n");
-        if (baseText.length > 8000) {
-          baseText = baseText.slice(-8000);
-        }
-        scanTextCache.set(depth, baseText);
-      }
-      return recursionTextAppend ? `${baseText}\n${recursionTextAppend}` : baseText;
-    };
-
-    const checkMatch = (key: string, isRegex: boolean, isCaseSensitive: boolean, scanText: string): boolean => {
-      const trimmed = key.trim();
-      if (!trimmed) return false;
-      if (isRegex) {
-        if (/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(trimmed) || /(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(trimmed)) {
-          console.warn("Potential ReDoS pattern skipped in regex key matching:", trimmed);
-          return isCaseSensitive
-            ? scanText.includes(trimmed)
-            : scanText.toLowerCase().includes(trimmed.toLowerCase());
-        }
-        try {
-          let pattern = trimmed;
-          let flags = isCaseSensitive ? "" : "i";
-          const regexMatch = trimmed.match(/^\/(.+)\/([dgimsuy]*)$/i);
-          if (regexMatch) {
-            pattern = regexMatch[1];
-            const rawFlags = regexMatch[2];
-            flags = isCaseSensitive
-              ? rawFlags.replace(/i/g, "")
-              : (rawFlags.toLowerCase().includes("i") ? rawFlags : rawFlags + "i");
-          }
-          return new RegExp(pattern, flags).test(scanText);
-        } catch {
-          return isCaseSensitive ? scanText.includes(trimmed) : scanText.toLowerCase().includes(trimmed.toLowerCase());
-        }
-      }
-      return isCaseSensitive ? scanText.includes(trimmed) : scanText.toLowerCase().includes(trimmed.toLowerCase());
-    };
-
-    while (newTriggeredInLastPass && currentPass < maxRecursionDepth) {
-      newTriggeredInLastPass = false;
-      currentPass++;
-
-      for (const entry of entries) {
-        if (!entry.enabled || !entry.content || activeIds.has(entry.id)) continue;
-
-        if (entry.constant) {
-          activeEntries.push(entry);
-          activeIds.add(entry.id);
-          recursionTextAppend += "\n" + entry.content;
-          newTriggeredInLastPass = true;
-          continue;
-        }
-
-        const scanDepth = entry.scanDepth !== undefined ? entry.scanDepth : 10;
-        if (scanDepth === 0) continue;
-
-        const scanText = getScanText(scanDepth);
-
-        const primaryKeys = Array.isArray(entry.keys) ? entry.keys : [];
-        const primaryMatched = primaryKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
-        if (!primaryMatched) continue;
-
-        let secondaryMatched = true;
-        const logic = entry.selectiveLogic || "NONE";
-        const secKeys = entry.secondary_keys || [];
-
-        if (logic !== "NONE" && secKeys.length > 0) {
-          if (logic === "AND_ANY") {
-            secondaryMatched = secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
-          } else if (logic === "AND_ALL") {
-            secondaryMatched = secKeys.every((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
-          } else if (logic === "NOT_ANY") {
-            secondaryMatched = !secKeys.some((key) => checkMatch(key, !!entry.useRegex, !!entry.caseSensitive, scanText));
-          }
-        }
-
-        if (!secondaryMatched) continue;
-
-        const prob = entry.probability !== undefined ? entry.probability : 100;
-        if (prob < 100 && Math.random() * 100 > prob) {
-          continue;
-        }
-
-        activeEntries.push(entry);
-        activeIds.add(entry.id);
-        recursionTextAppend += "\n" + entry.content;
-        newTriggeredInLastPass = true;
-      }
-    }
-
-    const BUDGET_LIMIT = 6000;
-    let currentLength = 0;
-    const budgetedEntries: LorebookEntry[] = [];
-    for (const entry of activeEntries) {
-      const len = entry.content ? entry.content.length : 0;
-      if (len > BUDGET_LIMIT) {
-        console.warn(`[PromptService] Lorebook entry "${entry.id}" alone exceeds prompt budget limit of ${BUDGET_LIMIT} chars, skipped.`);
-        continue;
-      }
-      if (currentLength + len <= BUDGET_LIMIT) {
-        budgetedEntries.push(entry);
-        currentLength += len;
-      } else {
-        console.warn(`[PromptService] Lorebook entry "${entry.id}" skipped due to prompt budget limit (${BUDGET_LIMIT} chars)`);
-        continue;
-      }
-    }
-
-    return budgetedEntries;
+    return resolveTriggeredLorebookEntries(
+      messages,
+      userInput,
+      entries,
+      maxRecursionDepth
+    );
   }
-
-  private escapeRegExp(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-
 
   replaceMacros(
     text: string,
-    params: {
-      char: string;
-      user: string;
-      description: string;
-      personality: string;
-      scenario: string;
-      userPersona?: string;
-      mes_example?: string;
-      variables?: any;
-    }
+    params: PromptMacroParams
   ): string {
-    if (!text) return "";
-
-    // 容错与归一化：防范并自动修正用户或角色卡中常见的宏拼写错误（如 {charr}}、{{charr}}、{char}、{user} 等）
-    const cleanedText = text
-      .replace(/\{+charr?\}+/gi, "{{char}}")
-      .replace(/\{+chara?\}+/gi, "{{char}}")
-      .replace(/\{+user_name\}+/gi, "{{user}}")
-      .replace(/\{+user\}+/gi, "{{user}}");
-
-    const macroMap: Record<string, string> = {
-      char: params.char,
-      chara: params.char,
-      char_name: params.char,
-      user: params.user,
-      user_name: params.user,
-      char_description: params.description,
-      description: params.description,
-      char_personality: params.personality,
-      personality: params.personality,
-      char_scenario: params.scenario,
-      scenario: params.scenario,
-      userpersona: params.userPersona || "",
-      persona: params.userPersona || "",
-    };
-
-    if (params.mes_example !== undefined) {
-      macroMap["mes_example"] = params.mes_example;
-      macroMap["diags"] = params.mes_example;
-      macroMap["example_dialogue"] = params.mes_example;
-    }
-
-    // 先处理带参数的 MVU 变量宏 {{format_message_variable::stat_data}}
-    // 这是酒馆助手宏，将指定路径的变量以 YAML 格式注入文本
-    let result = cleanedText;
-    if (params.variables) {
-      result = result.replace(/\{\{format_message_variable::([^}]+)\}\}/gi, (_match, varPath) => {
-        const trimmedPath = varPath.trim();
-        const data = trimmedPath === "stat_data"
-          ? params.variables
-          : (params.variables[trimmedPath] || {});
-        return this.formatVariablesAsYaml(data);
-      });
-    }
-
-    // 再处理普通宏 {{char}}、{{user}} 等
-    return result.replace(/\{\{([a-zA-Z0-9_]+)\}\}/gi, (match, key) => {
-      const lowerKey = key.toLowerCase();
-      return macroMap[lowerKey] !== undefined ? macroMap[lowerKey] : match;
-    });
+    return replacePromptMacros(text, params);
   }
 
   assemblePrompt(params: {
@@ -750,7 +575,7 @@ export class PromptService implements IPromptService {
     // ==================================================
     let mvuVariablesSection = "";
     if (settings.enableScriptExecution && this.hasCardScripts(character) && chat.variables && !hasVariableListEntry) {
-      mvuVariablesSection = this.formatMvuVariablesForPrompt(chat.variables, character);
+      mvuVariablesSection = formatMvuVariablesForPrompt(chat.variables, character);
     }
     builder.registerSection({
       id: "mvu_variables",
@@ -1011,91 +836,4 @@ export class PromptService implements IPromptService {
     };
   }
 
-  /** 将变量对象格式化为 YAML 字符串（过滤 $ 前缀的隐藏变量） */
-  private formatVariablesAsYaml(variables: any): string {
-    if (!variables || typeof variables !== "object") return "";
-    const statData = variables.stat_data || variables;
-    if (!statData || typeof statData !== "object" || Object.keys(statData).length === 0) return "";
-
-    const filterHiddenKeys = (obj: any): any => {
-      if (!obj || typeof obj !== "object") return obj;
-      if (Array.isArray(obj)) {
-        return obj.map(filterHiddenKeys);
-      }
-      const clean: Record<string, any> = {};
-      for (const key of Object.keys(obj)) {
-        if (key.startsWith("$")) continue; // 过滤 $ 前缀的隐藏变量
-        clean[key] = filterHiddenKeys(obj[key]);
-      }
-      return clean;
-    };
-
-    const cleanData = filterHiddenKeys(statData);
-    if (Object.keys(cleanData).length === 0) return "";
-
-    const toYaml = (obj: any, depth = 0): string => {
-      const indent = "  ".repeat(depth);
-      if (obj === null || obj === undefined) return "null";
-      if (!obj || typeof obj !== "object") {
-        return String(obj);
-      }
-      if (Array.isArray(obj)) {
-        return "\n" + obj.map(item => `${indent}- ${toYaml(item, depth + 1)}`).join("\n");
-      }
-      const lines: string[] = [];
-      for (const key of Object.keys(obj)) {
-        const val = obj[key];
-        if (val && typeof val === "object") {
-          lines.push(`${indent}${key}:${toYaml(val, depth + 1)}`);
-        } else {
-          lines.push(`${indent}${key}: ${toYaml(val, depth + 1)}`);
-        }
-      }
-      return "\n" + lines.join("\n");
-    };
-
-    return toYaml(cleanData).trim();
-  }
-
-  private formatMvuVariablesForPrompt(variables: any, character?: CharacterCard): string {
-    if (!variables || typeof variables !== "object") return "";
-
-    // 检测只读变量（_ 前缀）
-    let hasReadOnly = false;
-    const statData = variables.stat_data || variables;
-    if (!statData || typeof statData !== "object" || Object.keys(statData).length === 0) return "";
-
-    const checkReadOnly = (obj: any) => {
-      if (!obj || typeof obj !== "object") return;
-      for (const key of Object.keys(obj)) {
-        if (key.startsWith("_")) { hasReadOnly = true; break; }
-        if (obj[key] && typeof obj[key] === "object") checkReadOnly(obj[key]);
-      }
-    };
-    checkReadOnly(statData);
-
-    const yamlContent = this.formatVariablesAsYaml(variables);
-    if (!yamlContent) return "";
-
-    // 从角色卡扩展字段读取外部提示模板（遵循准则二：纯数据驱动与零硬编码）
-    const mvuSettings = character?.extensions?.mvu_settings ||
-                        character?.extensions?.mvu ||
-                        character?.extensions?.MVU;
-    const promptTemplate = mvuSettings?.prompt_template;
-
-    let result = "";
-    if (promptTemplate && typeof promptTemplate === "string") {
-      // 使用角色卡定义的外部模板，支持 {{variables}} 占位符
-      result = promptTemplate.replace(/\{\{variables\}\}/g, `\`\`\`yaml\n${yamlContent}\n\`\`\``);
-    } else {
-      // 无外部模板时，仅输出变量状态（遵循准则二：不注入格式引导）
-      result = `### 角色变量状态\n\`\`\`yaml\n${yamlContent}\n\`\`\``;
-    }
-
-    if (hasReadOnly) {
-      result += `\n重要指示：任何以下划线“_”开头的变量均为只读变量（由本地脚本维护计算），你必须仅读取它们，绝对不要在你的回复中通过 <UpdateVariable> 去尝试修改/写入它们！`;
-    }
-
-    return result;
-  }
 }

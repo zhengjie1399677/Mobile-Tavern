@@ -134,9 +134,21 @@ export async function testKernelPipeline() {
   assert(outputPipeline !== undefined, "output pipeline preset");
   assert(settingsPipeline !== undefined, "settings pipeline preset");
 
-  // 2. 验证防空自动注册
-  const customPipeline = testKernel.getPipeline("my-custom-pipeline");
-  assert(customPipeline !== undefined, "custom pipeline auto registered");
+  // 2. 未知管道必须显式注册，读取操作不得静默修改 Kernel 拓扑
+  let unknownPipelineError: Error | null = null;
+  try {
+    testKernel.getPipeline("my-custom-pipeline");
+  } catch (error) {
+    unknownPipelineError = error as Error;
+  }
+  assert(unknownPipelineError !== null, "unknown pipeline access must throw");
+  assert(
+    unknownPipelineError!.message.includes("registerPipeline"),
+    "unknown pipeline error should explain explicit registration"
+  );
+
+  const customPipeline = testKernel.registerPipeline("my-custom-pipeline");
+  assert(customPipeline !== undefined, "custom pipeline explicitly registered");
   const sameCustom = testKernel.getPipeline("my-custom-pipeline");
   assert(customPipeline === sameCustom, "subsequent get returns the same instance");
 

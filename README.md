@@ -40,9 +40,11 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 ### 4. 🌿 多会话平行分支管理 (Multi-session Branching)
 * 支持对同一个角色开辟多条完全独立的聊天会话（平行宇宙）。
 * 提供极速克隆、重命名和物理删除操作。克隆时会自动完整复制原分支的所有消息树与剧情总结年表。
+* 重发采用同步事务锁与 IndexedDB 跨 Store 原子替换；快速连续点击只会进入一轮生成，失败或取消时不会留下半截分支。
 
 ### 5. 🔒 本地 IndexedDB 离线持久化 (100% Offline Storage)
 * 所有导入的角色设定、全局预设及聊天会话记录均存储在用户本机的 IndexedDB 数据库中，100% 离线，完全保护隐私，响应时间达到毫秒级。
+* 会话元数据与消息正文物理分轨，长期记忆通过领域端口访问存储适配器，业务召回与摘要规则不会污染通用数据库底座。
 
 ### 6. 🚀 运行沙盒与可视化拓扑 (Interactive Sandbox)
 * 内置可视化数据流拓扑图，能够直观展示用户输入、世界书匹配、Prompt 组装以及网络流接收的全链路流转，并提供独立的防坍塌宏替换和缓存分流测试台。
@@ -50,9 +52,10 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 ### 7. 🧭 模块化微内核与洋葱拦截管道 (Modular Kernel & Onion Pipeline)
 * 采用 DI/IOC 控制反转设计构建解耦底座，将数据持久化、大模型流式通信、Prompt 编译等核心逻辑全部下沉为独立的微服务。
 * 引入洋葱模型中间件管道（Pipeline）与具备优先级排序、并行分发和异常隔离的高能消息总线（MessageBus）。支持服务超时 Abort 熔断与非关键服务崩溃时返回 SafeProxy 的容错自愈。
+* 未注册 Pipeline 会立即报错，Kernel 通过 Provider 显式注入；React 视图统一以 selector 订阅最小状态切片，架构守卫持续阻止业务层反向依赖底座实现。
 
 ### 8. 🧪 自动化集成测试套件 (Comprehensive Test Suite)
-* 集成 16 项关键逻辑与防灾策略测试用例（含物理 PNG 二进制解码、SSRF 安全防御、并发写队列锁、SafeProxy 链式兼容以及洋葱管道严格模式等），全天候保护底层健壮。
+* 当前主测试链包含 78 组功能套件与 328 项 Vitest 断言，覆盖物理 PNG 解码、SSRF 防御、IndexedDB 原子事务、快速重复重发、SafeProxy、洋葱管道严格模式及架构依赖边界。
 
 ### 9. 🌐 多语言国际化 (i18n Multi-language)
 * 内置 8 种语言完整翻译：简体中文、繁体中文、English、日本語、Русский、Español、한국어、Português (BR)。
@@ -102,10 +105,13 @@ Mobile-Tavern
 ├── src-tauri                             # Tauri 原生容器构建模块 (Rust 侧，包含本地落盘与 STS 遥测同步引擎)
 └── src                                   # 前端 React 业务代码
     ├── App.tsx                           # 启动流程管理与基础预设包定义
-    ├── AppContext.tsx                    # 全局状态管理 Context
+    ├── UnifiedAppContext.tsx             # 统一状态选择器入口
+    ├── composition                       # 应用装配与扩展注册
     ├── components                        # 共享 UI 容器 (自适应安全区、拇指布局等，含雪团客服)
+    ├── domain                            # 与 React、IndexedDB 无关的纯业务规则
     ├── hooks                             # 核心状态钩子 (useChat, useCharacters, useSettings, useCatbot)
-    ├── kernel                            # 微内核切面底座 (包含 IOC 容器、双轨 Pipeline 及 7 大官方微服务)
+    ├── kernel                            # 微内核切面底座 (包含 IOC 容器、Pipeline 及 17 个官方微服务)
+    ├── infrastructure                    # IndexedDB 等物理基础设施适配器
     ├── tabs                              # 各功能大版块 Tab 页 (包含调试沙盒)
     └── utils                             # 底层计算工具 (cardParser, db, promptBuilder, telemetry)
 ```

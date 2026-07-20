@@ -6,18 +6,17 @@ import {
   Tag
 } from "lucide-react";
 import { useTranslation } from "../../contexts/LanguageContext";
+import type { RecalledMessage } from "../../kernel/services/memory/types";
 
 export interface RecallTabProps {
   activeSession: ChatSession;
   saveSession: (session: ChatSession) => Promise<void>;
+  lastRecalledMemories: RecalledMessage[];
 }
 
-/** 扩展 ChatSession 以包含记忆系统运行时写入的回调记忆字段。 */
-type ChatSessionWithRecall = ChatSession & { lastRecalledMemories?: unknown[] };
-
-function RecallTab({ activeSession, saveSession }: RecallTabProps) {
+function RecallTab({ activeSession, saveSession, lastRecalledMemories }: RecallTabProps) {
   const { t } = useTranslation();
-  const lastRecalled = (activeSession as ChatSessionWithRecall).lastRecalledMemories || [];
+  const lastRecalled = lastRecalledMemories;
 
   // Pin (钉子) 逻辑交互
   const handleTogglePin = async (messageId: string) => {

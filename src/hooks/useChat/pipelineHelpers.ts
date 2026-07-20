@@ -8,9 +8,8 @@
  */
 import React from "react";
 import { ChatSession, UserSettings, CharacterCard } from "../../types";
-import { IDatabaseService, KernelServices } from "../../kernel/types";
+import { IDatabaseService, IKernel, KernelServices } from "../../kernel/types";
 import type { OutputPipelineContext } from "../../services/pipeline";
-import { globalKernel } from "../../kernel";
 import { buildOutputContext } from "./helpers/streamHelpers";
 import { cleanSuggestionsFromText } from "./helpers/textParsing";
 import { notifyVariablesUpdated } from "../../utils/tavernHelper";
@@ -31,9 +30,19 @@ export async function runOutputPipelineAndSave(params: {
   bisonRemainingCount: number;
   setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   databaseService: IDatabaseService;
+  kernel: IKernel;
   triggerScroll?: () => void;
+  /** 重发等事务可注入原子持久化策略；普通发送沿用默认单条追加。 */
+  persistSession?: (session: ChatSession) => Promise<void>;
 }): Promise<OutputPipelineContext> {
-  const { setSessions, databaseService, triggerScroll, ...ctxParams } = params;
+  const {
+    setSessions,
+    databaseService,
+    kernel,
+    triggerScroll,
+    persistSession,
+    ...ctxParams
+  } = params;
 
   console.log("=== [RAW AI RESPONSE] ===");
   if (ctxParams.reasoningText) {
@@ -43,7 +52,7 @@ export async function runOutputPipelineAndSave(params: {
   console.log("=========================");
 
   const outputCtx = buildOutputContext(ctxParams);
-  outputCtx.kernel = globalKernel;
+  outputCtx.kernel = kernel;
   const { session, settings, isBisonConsecutive, responseText } = ctxParams;
 
   // L1 快速通道：当全部功能关闭、非野牛连续、且无需自动总结时，跳过整个 output pipeline。
@@ -53,7 +62,7 @@ export async function runOutputPipelineAndSave(params: {
   //   3. 未总结消息数 < 触发阈值（无需调用 handleAutoSummaryCheck）
   //   4. output 管道仅注册了标准 4 个中间件（无自定义插件中间件）
   // 任一条件不满足则回退到完整管道执行，确保零行为差异。
-  const pipeline = globalKernel.getPipeline("output");
+  const pipeline = kernel.getPipeline("output");
   const STANDARD_OUTPUT_MIDDLEWARE_COUNT = 4;
   const allFeaturesDisabled =
     !settings.enableTableMemory &&
@@ -114,24 +123,28 @@ export async function runOutputPipelineAndSave(params: {
     }
   }
 
-  await databaseService.saveSession(parsedSession);
+  if (persistSession) {
+    await persistSession(parsedSession);
+  } else {
+    await databaseService.saveSession(parsedSession);
 
-  // saveSession 只存会话元数据，AI 消息需显式写入 messages Store
-  // 在 MemoryExtractor 之前执行，确保消息已入库供其 merge 更新
-  if (parsedSession.messages.length > 0) {
-    const lastMsg = parsedSession.messages[parsedSession.messages.length - 1];
-    if (lastMsg && lastMsg.sender === "assistant") {
-      await databaseService.appendSessionMessage(
-        parsedSession.id,
-        lastMsg,
-        parsedSession.messages.length - 1,
-      );
+    // saveSession 只存会话元数据，AI 消息需显式写入 messages Store
+    // 在 MemoryExtractor 之前执行，确保消息已入库供其 merge 更新
+    if (parsedSession.messages.length > 0) {
+      const lastMsg = parsedSession.messages[parsedSession.messages.length - 1];
+      if (lastMsg && lastMsg.sender === "assistant") {
+        await databaseService.appendSessionMessage(
+          parsedSession.id,
+          lastMsg,
+          parsedSession.messages.length - 1,
+        );
+      }
     }
   }
 
   // 异步后台触发记忆抽取（Fire-and-Forget，不阻塞主对话流）
   try {
-    const memoryService = globalKernel.getService<any>(KernelServices.Memory);
+    const memoryService = kernel.getService<any>(KernelServices.Memory);
     if (memoryService && parsedSession.messages.length > 0) {
       const messages = parsedSession.messages;
       const aiMsg = messages[messages.length - 1];

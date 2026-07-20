@@ -10,7 +10,7 @@
 import type { MessageRecord, MessageRole, RecalledMessage } from './types';
 import type { MemoryStorage } from './MemoryStorage';
 import { extractByDict } from './MemoryExtractor';
-import { getSessionById } from "../../../utils/localDB";
+import type { IDatabaseService } from '../../types';
 
 // ===== 常量 =====
 
@@ -45,9 +45,11 @@ export interface RecallOptions {
 
 export class MemoryRecall {
   private storage: MemoryStorage;
+  private database?: IDatabaseService;
 
-  constructor(storage: MemoryStorage) {
+  constructor(storage: MemoryStorage, database?: IDatabaseService) {
     this.storage = storage;
+    this.database = database;
   }
 
   /**
@@ -77,7 +79,7 @@ export class MemoryRecall {
     // 强力 Pin 状态支持：哪怕没有匹配到任何查询标签，若用户有 Pin 的消息，依然需要召回它们
     let sessionObj: any = null;
     try {
-      sessionObj = await getSessionById(sessionId);
+      sessionObj = await this.database?.getSessionById(sessionId);
     } catch (err) {
       console.warn("[MemoryRecall] Failed to fetch session for Pin in recall:", err);
     }
@@ -156,7 +158,7 @@ export class MemoryRecall {
     // 加载 Mute 列表（与 recallByTags 一致的 Mute 过滤）
     let sessionObj: any = null;
     try {
-      sessionObj = await getSessionById(sessionId);
+      sessionObj = await this.database?.getSessionById(sessionId);
     } catch (err) {
       console.warn("[MemoryRecall] Failed to fetch session for Mute in fallback:", err);
     }
@@ -207,7 +209,7 @@ export class MemoryRecall {
     // 2.5 强力 Pin / Mute 机制注入候选池与排除配置
     let sessionObj2: any = null;
     try {
-      sessionObj2 = await getSessionById(sessionId);
+      sessionObj2 = await this.database?.getSessionById(sessionId);
     } catch (err) {
       console.warn("[MemoryRecall] Failed to fetch session for Pin/Mute in recallByTags:", err);
     }

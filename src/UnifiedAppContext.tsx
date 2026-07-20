@@ -15,6 +15,7 @@ import {
   CustomDialogConfig,
 } from "./contexts/AppContext";
 import type { IKernelService } from "./kernel/types";
+import type { RecalledMessage } from "./kernel/services/memory/types";
 
 export interface UnifiedAppContextProps {
   // --- App State ---
@@ -185,10 +186,12 @@ export interface UnifiedAppContextProps {
   renderDialogueBubble: (text: string, messageIndex?: number, isStreaming?: boolean) => React.ReactNode;
   saveSessionWithMvu: (session: ChatSession, messageToParse?: string) => Promise<ChatSession>;
   isBisonLocking: boolean;
+  /** 当前会话最近一次记忆召回的瞬态快照，不进入 ChatSession 持久化。 */
+  lastRecalledMemories: RecalledMessage[];
 
   /**
    * 通过内核统一获取已注册服务，代替组件内直接 import { globalKernel }。
-   * 内部代理到 globalKernel.getService，封装了依赖来源。
+   * 内部代理到 KernelContext 当前实例的 getService，封装依赖来源并支持测试替换。
    */
   getKernelService: <T extends IKernelService>(name: string) => T;
 }
@@ -278,12 +281,8 @@ function shallowEqual(a: any, b: any): boolean {
 }
 
 /**
- * 消费 UnifiedAppContext 的统一 Hook。
- *
- * 实现细节：直接使用 useContext(UnifiedAppContext) 读取数据，通过 useRef + shallowEqual
- * 对 selector 的输出做浅比较缓存，避免 selector 结果没有变化时触发不必要的重渲。
- * 这消除了外部 store（unifiedAppStore）与 React Context 之间的同步竞争，
- * 从根本上解决了 React 19 并发模式下的 "Expected static flag" 断言错误与消息消失 bug。
+ * 通过组合器维护的外部快照消费统一应用状态。
+ * selector 输出使用浅比较缓存，避免无关业务状态变化引发全树重渲染。
  */
 export function useUnifiedApp<SelectorOutput = UnifiedAppContextProps>(
   selector?: (state: UnifiedAppContextProps) => SelectorOutput

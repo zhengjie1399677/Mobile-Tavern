@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { LegacyAppContextProvider } from "./contexts/LegacyAppContextProvider";
+import { AppContextAssembler } from "./contexts/LegacyAppContextProvider";
 import MainLayout from "./components/MainLayout";
 import { initializeKernel, destroyKernel, globalKernel } from "./kernel";
 import { SplashScreen } from "./components/SplashScreen";
@@ -92,11 +92,11 @@ export default function App() {
 
   return (
     <KernelProvider kernel={globalKernel}>
-      <LegacyAppContextProvider>
+      <AppContextAssembler>
         <LanguageProvider>
           <MainLayout />
         </LanguageProvider>
-      </LegacyAppContextProvider>
+      </AppContextAssembler>
     </KernelProvider>
   );
 }

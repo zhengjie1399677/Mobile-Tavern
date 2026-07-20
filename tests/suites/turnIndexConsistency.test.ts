@@ -12,6 +12,17 @@
 
 import 'fake-indexeddb/auto';
 import { assert } from "./testUtils";
+import {
+  __resetDBInstanceForTesting,
+  getDB,
+  saveSession,
+} from "../../src/utils/localDB";
+import {
+  appendMessage,
+  deleteMessageById,
+  syncSessionMessages,
+  replaceSessionBranch,
+} from "../../src/infrastructure/storage/indexedDbMemoryStore";
 
 /**
  * 辅助函数：读取指定会话的所有消息，按 turnIndex 排序
@@ -32,7 +43,6 @@ async function getSessionMessages(db: IDBDatabase, sessionId: string): Promise<a
 
 export async function testTurnIndexBasicAppend() {
   console.log("\n--- Running turnIndex Basic Append Verification ---");
-  const { __resetDBInstanceForTesting, syncSessionMessages, getDB } = await import("../../src/utils/localDB");
   __resetDBInstanceForTesting();
 
   const sessionId = "test_turnindex_basic";
@@ -60,7 +70,6 @@ export async function testTurnIndexBasicAppend() {
 
 export async function testTurnIndexDeleteMiddleThenAppend() {
   console.log("\n--- Running turnIndex Delete-Middle-Then-Append Verification ---");
-  const { __resetDBInstanceForTesting, syncSessionMessages, appendMessage, deleteMessageById, getDB } = await import("../../src/utils/localDB");
   __resetDBInstanceForTesting();
 
   const sessionId = "test_turnindex_delete_append";
@@ -126,7 +135,6 @@ export async function testTurnIndexDeleteMiddleThenAppend() {
 
 export async function testTurnIndexDeleteAllThenAppend() {
   console.log("\n--- Running turnIndex Delete-All-Then-Append Verification ---");
-  const { __resetDBInstanceForTesting, syncSessionMessages, deleteMessageById, getDB } = await import("../../src/utils/localDB");
   __resetDBInstanceForTesting();
 
   const sessionId = "test_turnindex_delete_all";
@@ -170,7 +178,6 @@ export async function testTurnIndexDeleteAllThenAppend() {
 
 export async function testTurnIndexMultipleAppends() {
   console.log("\n--- Running turnIndex Multiple Appends Verification ---");
-  const { __resetDBInstanceForTesting, syncSessionMessages, appendMessage, deleteMessageById, getDB } = await import("../../src/utils/localDB");
   __resetDBInstanceForTesting();
 
   const sessionId = "test_turnindex_multiple";
@@ -243,4 +250,81 @@ export async function testTurnIndexMultipleAppends() {
     `msg_5 turnIndex should be exactly 5, got ${msg5.turnIndex}`);
 
   console.log("✔ turnIndex multiple appends verified! (no duplicate across rounds)");
+}
+
+export async function testRerollBranchAtomicReplace() {
+  console.log("\n--- Running Reroll Branch Atomic Replace Verification ---");
+  __resetDBInstanceForTesting();
+
+  const sessionId = "test_reroll_atomic_branch";
+  const originalMessages = Array.from({ length: 6 }, (_, index) => ({
+    id: `reroll_old_${index}`,
+    sender: index % 2 === 0 ? "user" as const : "assistant" as const,
+    content: `旧消息 ${index}`,
+    timestamp: Date.now() + index,
+  }));
+  const originalSession = {
+    id: sessionId,
+    characterId: "character-reroll",
+    title: "重发原子事务",
+    createdAt: Date.now(),
+    summaries: [],
+    messages: originalMessages,
+  };
+
+  await saveSession(originalSession);
+  await syncSessionMessages(sessionId, originalMessages);
+
+  const replacement = {
+    id: "reroll_new_assistant",
+    sender: "assistant" as const,
+    content: "新的重发回复",
+    timestamp: Date.now() + 10,
+  };
+  const finalSession = {
+    ...originalSession,
+    messages: [...originalMessages.slice(0, 3), replacement],
+  };
+  await replaceSessionBranch(
+    finalSession,
+    originalMessages.slice(3).map((message) => message.id),
+    [replacement]
+  );
+
+  const db = await getDB();
+  const savedMessages = await getSessionMessages(db, sessionId);
+  assert(savedMessages.length === 4, `原子替换后应有 4 条消息，实际 ${savedMessages.length}`);
+  assert(
+    originalMessages.slice(3).every((message) => !savedMessages.some((saved) => saved.id === message.id)),
+    "原子替换后旧分支消息必须全部删除"
+  );
+  assert(savedMessages.some((message) => message.id === replacement.id), "新回复必须与删除操作同事务写入");
+
+  const sessionRecord = await new Promise<any>((resolve, reject) => {
+    const request = db.transaction("sessions", "readonly").objectStore("sessions").get(sessionId);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  assert(!("messages" in sessionRecord), "sessions Store 不得写入 messages 大数组");
+  assert(sessionRecord.turnCount === 2, `会话缓存轮数应同步更新为 2，实际 ${sessionRecord.turnCount}`);
+
+  const aborted = new AbortController();
+  aborted.abort();
+  let abortError: unknown = null;
+  try {
+    await replaceSessionBranch(
+      { ...finalSession, messages: [...finalSession.messages.slice(0, -1), { ...replacement, id: "should_not_commit" }] },
+      [replacement.id],
+      [{ ...replacement, id: "should_not_commit" }],
+      aborted.signal
+    );
+  } catch (error) {
+    abortError = error;
+  }
+  assert(abortError !== null, "预中断的分支替换必须拒绝提交");
+  const afterAbort = await getSessionMessages(db, sessionId);
+  assert(afterAbort.some((message) => message.id === replacement.id), "中断后原分支替换结果必须保留");
+  assert(!afterAbort.some((message) => message.id === "should_not_commit"), "中断事务不得写入新消息");
+
+  console.log("✔ Reroll branch atomic replace and abort rollback verified!");
 }

@@ -21,6 +21,7 @@ import {
   type ValidationResult,
 } from "../../src/kernel/schemas";
 import { assert } from "./testUtils";
+import { Kernel, setKernelStrictMode } from "../../src/kernel/Kernel";
 
 /**
  * 校验失败的窄化类型，便于直接访问 error / summary 字段。
@@ -49,6 +50,34 @@ export async function testKernelSchemaValidation() {
     };
     const r = validateService("chatStream", validChatStream);
     assert(r.success === true, "用例1: P0 ChatStream 合法服务应通过校验");
+  }
+
+  // === Phase C 集成：Kernel 发布入口必须拒绝非法消息 ===
+  {
+    const kernel = new Kernel();
+    let delivered = 0;
+    kernel.subscribe("script:destroyed", () => {
+      delivered++;
+    });
+
+    setKernelStrictMode(true);
+    let strictError: Error | null = null;
+    try {
+      await kernel.publish({
+        topic: "script:destroyed",
+        payload: { reason: 123 },
+      } as unknown as Parameters<Kernel["publish"]>[0]);
+    } catch (error) {
+      strictError = error as Error;
+    }
+    assert(strictError !== null, "集成1: 严格模式应拒绝非法静态消息");
+    assert(delivered === 0, "集成1: 非法消息不得到达订阅者");
+
+    setKernelStrictMode(false);
+    await kernel.publishParallel({ payload: "missing topic" } as unknown as Parameters<Kernel["publishParallel"]>[0]);
+    assert(delivered === 0, "集成2: 非严格模式应丢弃非法消息而非分发");
+    setKernelStrictMode(false);
+    await kernel.destroy();
   }
 
   // === 用例 2：validateService P0 缺方法 → failure，error 含方法名 ===

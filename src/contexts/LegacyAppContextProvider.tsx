@@ -11,7 +11,7 @@ import { SamplerPreset, PromptConfig, UserSettings } from "../types";
 import { useKernel } from "./KernelContext";
 
 /**
- * ⚠️ 命名说明：此文件名中的 "Legacy" 具有历史误导性，实际上这是应用的核心 Provider 组装层。
+ * 应用 Context 组合器。文件名保留是为了兼容历史导入路径，新代码应使用 AppContextAssembler。
  *
  * 职责：
  * 1. 嵌套挂载所有分离的 Context Provider（AppProvider / CharacterProvider / ChatProvider）
@@ -19,8 +19,7 @@ import { useKernel } from "./KernelContext";
  * 3. 将来自多个 context 和 hook 的状态合并为统一 the AppContext 值，供全局消费
  * 4. 通过 useMemo 对 characters 按最近聊天时间排序，避免在下游组件重复计算
  *
- * 如需重命名，建议改为 AppContextAssembler.tsx 或 UnifiedAppProvider.tsx。
- * 当前暂不重命名，以免引入大规模 import 路径变更风险。
+ * LegacyAppContextProvider 仅作为旧名称兼容别名保留。
  */
 
 export {
@@ -28,21 +27,24 @@ export {
   DEFAULT_SETTINGS,
 } from "../hooks/useSettings";
 
-export const LegacyAppContextProvider: React.FC<{ children: React.ReactNode }> = ({
+export const AppContextAssembler: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   return (
     <AppProvider>
       <CharacterProvider>
         <ChatProvider>
-          <LegacyAppContextProviderInner>{children}</LegacyAppContextProviderInner>
+          <AppContextAssemblerInner>{children}</AppContextAssemblerInner>
         </ChatProvider>
       </CharacterProvider>
     </AppProvider>
   );
 };
 
-function LegacyAppContextProviderInner({ children }: { children: React.ReactNode }) {
+/** @deprecated 请使用 AppContextAssembler。 */
+export const LegacyAppContextProvider = AppContextAssembler;
+
+function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
   const kernel = useKernel();
 
   // Usage telemetry tracking hook

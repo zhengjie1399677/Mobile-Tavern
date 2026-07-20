@@ -5,7 +5,7 @@ import { useTranslation } from "../contexts/LanguageContext";
 export default function CustomConfirmDialog() {
   const {
     customDialog,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({ customDialog: state.customDialog }));
 
   const { t } = useTranslation();
 

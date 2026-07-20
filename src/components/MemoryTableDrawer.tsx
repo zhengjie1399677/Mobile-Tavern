@@ -31,7 +31,11 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   enableAutoSummary,
   initialTab
 }) => {
-  const { setSessions, showCustomAlert } = useUnifiedApp();
+  const { setSessions, showCustomAlert, lastRecalledMemories } = useUnifiedApp((state) => ({
+    setSessions: state.setSessions,
+    showCustomAlert: state.showCustomAlert,
+    lastRecalledMemories: state.lastRecalledMemories,
+  }));
   const { t } = useTranslation();
   // 大 Tab 面板：'timeline' | 'table' | 'dict' | 'recall' | 'mvu'
   const [activeTab, setActiveTab] = useState<'timeline' | 'table' | 'dict' | 'recall' | 'mvu'>(
@@ -144,6 +148,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             <RecallTab
               activeSession={activeSession}
               saveSession={saveSession}
+              lastRecalledMemories={lastRecalledMemories}
             />
           )}
 

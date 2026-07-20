@@ -15,7 +15,19 @@ export default function TimelineModal() {
     editingSummaryId,
     setEditingSummaryId,
     handleAddTimelineSummary,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    timelineModalOpen: state.timelineModalOpen,
+    setTimelineModalOpen: state.setTimelineModalOpen,
+    newSummaryTag: state.newSummaryTag,
+    setNewSummaryTag: state.setNewSummaryTag,
+    newSummaryLoc: state.newSummaryLoc,
+    setNewSummaryLoc: state.setNewSummaryLoc,
+    newSummaryContent: state.newSummaryContent,
+    setNewSummaryContent: state.setNewSummaryContent,
+    editingSummaryId: state.editingSummaryId,
+    setEditingSummaryId: state.setEditingSummaryId,
+    handleAddTimelineSummary: state.handleAddTimelineSummary,
+  }));
 
   if (!timelineModalOpen) return null;
 

@@ -1,6 +1,6 @@
 // Sub-tab 1 对话历史容器（背景层 + 滚动区）
 // 从原 ChatTab.tsx L1152-1657 抽离
-// 内部调用 useUnifiedApp() 获取上下文，接收滚动引擎与立绘计算结果作为 props
+// 通过 selector 订阅所需上下文字段，接收滚动引擎与立绘计算结果作为 props
 
 import React from "react";
 import {
@@ -59,7 +59,21 @@ const DialogueHistoryView = ({
     hasMoreMessages,
     isLoadingMoreMessages,
     loadMoreMessages,
-  } = useUnifiedApp();
+  } = useUnifiedApp((state) => ({
+    activeCharacter: state.activeCharacter,
+    activeSession: state.activeSession,
+    settings: state.settings,
+    showFullHistory: state.showFullHistory,
+    setShowFullHistory: state.setShowFullHistory,
+    msgMenuId: state.msgMenuId,
+    setMsgMenuId: state.setMsgMenuId,
+    isSending: state.isSending,
+    isSummarizing: state.isSummarizing,
+    chatBottomRef: state.chatBottomRef,
+    hasMoreMessages: state.hasMoreMessages,
+    isLoadingMoreMessages: state.isLoadingMoreMessages,
+    loadMoreMessages: state.loadMoreMessages,
+  }));
 
   const [swipedMsgId, setSwipedMsgId] = React.useState<string | null>(null);
 

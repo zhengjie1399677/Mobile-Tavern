@@ -3,7 +3,7 @@ import { useTranslation } from "../contexts/LanguageContext";
 
 export default function DbWritingOverlay() {
   const { t } = useTranslation();
-  const { isDbWriting } = useUnifiedApp();
+  const { isDbWriting } = useUnifiedApp((state) => ({ isDbWriting: state.isDbWriting }));
 
   if (!isDbWriting) return null;
 

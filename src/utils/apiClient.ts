@@ -45,7 +45,7 @@ export const apiClient = {
   sendCatbotRequest: async (
     content: string,
     history: any[],
-    clientContext?: any,
+    clientContext?: unknown,
     kernel?: IKernel
   ): Promise<{ reply: string; expression: string }> => {
     return getLlmService(kernel).sendCatbotRequest(content, history, clientContext);

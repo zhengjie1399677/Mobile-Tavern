@@ -826,7 +826,12 @@ const FormattedText = memo(function FormattedText({
     ? text.substring(0, 45000) + `\n\n*... [ 此处已自动折叠超长内容，当前共 ${text.length} 字 ] ...*`
     : text;
 
-  const context = useUnifiedApp();
+  const context = useUnifiedApp((state) => ({
+    settings: state.settings,
+    activeCharacter: state.activeCharacter,
+    activeSession: state.activeSession,
+    isSending: state.isSending,
+  }));
   const enableHtml = context.settings.enableHtmlRendering ?? true;
   const enableScriptExecution = !!context.settings.enableScriptExecution;
   const enableLoopProtection = context.settings.enableLoopProtection !== false;

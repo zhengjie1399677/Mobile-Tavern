@@ -1,6 +1,6 @@
 import { Middleware, KernelServices, IMemoryService, IScriptService } from "../../kernel/types";
 import type { OutputPipelineContext } from "./types";
-import { calculateBisonModeProbability } from "../../hooks/useChat/helpers";
+import { calculateBisonModeProbability } from "../../domain/chat/bisonProbability";
 import { Message } from "../../types";
 
 // L2 快速通道：表格记忆指令预扫描正则。
