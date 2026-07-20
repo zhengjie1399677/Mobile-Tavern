@@ -10,6 +10,12 @@
 
 import type { TableMemorySheet } from '../../../types';
 import type { MemoryStorage } from './MemoryStorage';
+import {
+  coerceTableMemoryValue,
+  createDefaultTableMemoryRow,
+  getTableMemoryColumnDefinitions,
+  normalizeTableMemorySheet,
+} from '../../../domain/memory/tableMemorySchema';
 
 // ===== 常量 =====
 
@@ -35,25 +41,45 @@ const DEFAULT_SHEETS_SCHEMA = [
   {
     id: 'sheet_relation',
     name: '关系',
-    columns: ['角色', '好感度', '亲密度', '当前状态描述'],
+    columns: [
+      { id: 'relation_character', name: '角色', type: 'text' },
+      { id: 'relation_affinity', name: '好感度', type: 'number', defaultValue: '50' },
+      { id: 'relation_closeness', name: '亲密度', type: 'text' },
+      { id: 'relation_status', name: '当前状态描述', type: 'text' },
+    ],
     description: '记录角色与玩家（{{user}}）之间的好感状态和亲密关系定位',
   },
   {
     id: 'sheet_inventory',
     name: '物品',
-    columns: ['物品名', '数量', '获得方式', '备注'],
+    columns: [
+      { id: 'inventory_name', name: '物品名', type: 'text' },
+      { id: 'inventory_quantity', name: '数量', type: 'number', defaultValue: '1' },
+      { id: 'inventory_source', name: '获得方式', type: 'text' },
+      { id: 'inventory_note', name: '备注', type: 'text' },
+    ],
     description: '记录玩家持有的关键物品及其来源',
   },
   {
     id: 'sheet_location',
     name: '位置',
-    columns: ['地点', '区域', '到达方式', '描述'],
+    columns: [
+      { id: 'location_name', name: '地点', type: 'text' },
+      { id: 'location_region', name: '区域', type: 'text' },
+      { id: 'location_route', name: '到达方式', type: 'text' },
+      { id: 'location_description', name: '描述', type: 'text' },
+    ],
     description: '记录已探索的地点和当前所在位置',
   },
   {
     id: 'sheet_quest',
     name: '任务',
-    columns: ['任务名', '状态', '触发条件', '备注'],
+    columns: [
+      { id: 'quest_name', name: '任务名', type: 'text' },
+      { id: 'quest_status', name: '状态', type: 'text' },
+      { id: 'quest_trigger', name: '触发条件', type: 'text' },
+      { id: 'quest_note', name: '备注', type: 'text' },
+    ],
     description: '记录进行中、已完成、已失败的任务',
   },
 ] as const;
@@ -129,7 +155,8 @@ export class MemoryStateTable {
     return DEFAULT_SHEETS_SCHEMA.map((schema) => ({
       id: schema.id,
       name: schema.name,
-      columns: [...schema.columns],
+      columns: schema.columns.map((column) => column.name),
+      columnDefinitions: schema.columns.map((column) => ({ ...column })),
       rows:
         schema.id === 'sheet_relation'
           ? [[characterName, '50', '相识', '初次结识，关系尚显生疏']]
@@ -216,13 +243,7 @@ export class MemoryStateTable {
     // 深拷贝输入表数组，避免污染调用方数据。
     // 空值保护：兼容 session 中可能存在的历史不完整数据（columns/rows 缺失），
     // 避免深拷贝时访问 undefined 导致中间件抛错。
-    const currentMemory: TableMemorySheet[] = tableMemory.map((s) => ({
-      ...s,
-      columns: Array.isArray(s.columns) ? [...s.columns] : [],
-      rows: Array.isArray(s.rows)
-        ? s.rows.map((r) => (Array.isArray(r) ? [...r] : []))
-        : [],
-    }));
+    const currentMemory: TableMemorySheet[] = tableMemory.map((s) => normalizeTableMemorySheet(s));
 
     const matchesToClean: string[] = [];
     const regex = new RegExp(TABLE_ACTION_REGEX.source, 'gi');
@@ -245,6 +266,7 @@ export class MemoryStateTable {
         if (sheetIndex === -1) continue;
 
         const sheet = currentMemory[sheetIndex];
+        const definitions = getTableMemoryColumnDefinitions(sheet);
 
         if (actionType === 'updaterow') {
           if (p2) {
@@ -253,19 +275,28 @@ export class MemoryStateTable {
               const matchesFilter = Object.entries(p1).every(
                 ([filterKey, filterVal]) => {
                   const colIdx = sheet.columns.indexOf(filterKey);
-                  return colIdx !== -1 && String(row[colIdx]) === String(filterVal);
+                  if (colIdx === -1) return false;
+                  const coercedFilter = coerceTableMemoryValue(filterVal, definitions[colIdx]);
+                  return coercedFilter.valid && String(row[colIdx]) === coercedFilter.value;
                 }
               );
               if (matchesFilter) {
-                hasChanges = true;
                 const nextRow = [...row];
+                let rowChanged = false;
                 Object.entries(p2).forEach(([key, val]) => {
                   const colIdx = sheet.columns.indexOf(key);
                   if (colIdx !== -1) {
-                    nextRow[colIdx] = String(val);
+                    const coerced = coerceTableMemoryValue(val, definitions[colIdx]);
+                    if (!coerced.valid) return;
+                    if (nextRow[colIdx] === coerced.value) return;
+                    nextRow[colIdx] = coerced.value;
+                    rowChanged = true;
                   }
                 });
-                return nextRow;
+                if (rowChanged) {
+                  hasChanges = true;
+                  return nextRow;
+                }
               }
               return row;
             });
@@ -282,7 +313,9 @@ export class MemoryStateTable {
               Object.entries(p1).forEach(([key, val]) => {
                 const colIdx = sheet.columns.indexOf(key);
                 if (colIdx !== -1) {
-                  sheet.rows[0][colIdx] = String(val);
+                  const coerced = coerceTableMemoryValue(val, definitions[colIdx]);
+                  if (!coerced.valid) return;
+                  sheet.rows[0][colIdx] = coerced.value;
                   hasChanges = true;
                 }
               });
@@ -290,9 +323,12 @@ export class MemoryStateTable {
           }
         } else if (actionType === 'insertrow') {
           // insertRow("sheet", {"col1": "val1"})
-          const newRow = sheet.columns.map(
-            (col) => (p1[col] !== undefined ? String(p1[col]) : '')
-          );
+          const newRow = createDefaultTableMemoryRow(sheet);
+          sheet.columns.forEach((col, index) => {
+            if (p1[col] === undefined) return;
+            const coerced = coerceTableMemoryValue(p1[col], definitions[index]);
+            newRow[index] = coerced.valid ? coerced.value : definitions[index].defaultValue ?? '';
+          });
           sheet.rows.push(newRow);
           hasChanges = true;
         } else if (actionType === 'deleterow') {
@@ -302,7 +338,9 @@ export class MemoryStateTable {
             const matchesFilter = Object.entries(p1).every(
               ([filterKey, filterVal]) => {
                 const colIdx = sheet.columns.indexOf(filterKey);
-                return colIdx !== -1 && String(row[colIdx]) === String(filterVal);
+                if (colIdx === -1) return false;
+                const coercedFilter = coerceTableMemoryValue(filterVal, definitions[colIdx]);
+                return coercedFilter.valid && String(row[colIdx]) === coercedFilter.value;
               }
             );
             return !matchesFilter;

@@ -4,6 +4,7 @@ import {
   DEFAULT_REASONING_GUIDANCE_PROMPT,
   DEFAULT_TABLE_MEMORY_PROMPT,
 } from "../../defaults/promptTemplates";
+import { createBasicPromptComposition } from "../../domain/prompt-composition";
 
 export { DEFAULT_REPLY_SUGGESTIONS_PROMPT, DEFAULT_TABLE_MEMORY_PROMPT };
 
@@ -136,6 +137,8 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
     beforeLast: "=== 临时触发规则与道具 ===",
     jailbreak: "=== 沉浸式扮演增强保护 (Immersive Alignment) ===",
   },
+  usePromptComposition: false,
+  composition: createBasicPromptComposition(),
 };
 
 

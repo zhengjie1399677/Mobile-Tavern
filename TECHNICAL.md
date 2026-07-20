@@ -220,6 +220,16 @@ graph TB
 5. **云端账号链路**：移动端 fetch HTTPS → `cloud/` 后端 axum 路由 → PostgreSQL（users / identities / refresh_tokens）+ Redis 会话。
 6. **热更新链路**：`UpdateCheckService` 周期校验 → `cloud/` 后端 `update_channels` / `update_assets` → 增量包下载与版本回滚。
 
+### 自由 Prompt 编排边界
+
+自由编排采用“中立领域模型—运行时数据投影—外部格式防腐”三层结构：
+
+1. `src/domain/prompt-composition/` 只定义消息角色、数据源区块、顺序、历史选择、历史深度、条件和纯编译规则，不理解角色卡、世界书或任何第三方格式。每个历史区块独立声明全部或最近若干条、是否保留首条助手消息；深度注入可指定目标历史区块。编译结果保持多条 `system` 消息原始边界，不合并相邻同角色消息。
+2. `PromptCompositionRuntimeAdapter.ts` 只把角色卡、人格、世界书、记忆、历史与当前输入投影为命名字符串数据源；它无权决定角色、顺序、包装文本或是否启用。
+3. `PromptService` 仅在 `usePromptComposition` 显式开启时走新路径。开关开启但编排缺失时按空编排处理，不回退并注入旧 Prompt；关闭时才保留旧路径作为迁移兼容。
+4. `infrastructure/compat/sillytavern/` 独占 SillyTavern identifier、`prompt_order` 与注入位置的转换。未知字段作为不透明元数据隔离保留，无法移植的条件和 Token 策略进入兼容报告。
+5. 编排随 `PromptConfig` 和预设包持久化，大体积正文物理分轨至 `user_settings_large_prompts.promptComposition`，避免主设置记录膨胀。基础示例由 `createBasicPromptComposition()` 显式创建，可修改、可删除，空编排合法。
+
 > 📌 各子系统的详细内部架构与时序图见下方对应章节：[🏗️ 模块架构与状态管理](#️-模块架构与状态管理-system-architecture)、[🧬 Tavern 角色卡解码机制](#-tavern-角色卡解码机制-tavern-png-card-binary-decoder)、[🛡️ Kernel zod 运行时校验层](#️-kernel-zod-运行时校验层-l2-schema-validation)。
 
 ---
@@ -819,14 +829,24 @@ sequenceDiagram
 
 ---
 
+## 🧩 状态记忆 Schema 高阶层
+
+状态表继续使用 `TableMemorySheet.columns: string[]` 作为 SillyTavern 兼容字段，同时通过可选的 `columnDefinitions` 保存稳定列 ID、`text` / `number` / `date` / `enum` 类型、默认值与枚举选项。旧会话没有定义元数据时，由 `src/domain/memory/tableMemorySchema.ts` 按列位置生成稳定 ID 并降级为 `text`，无需数据库版本迁移。
+
+Schema 变更由领域纯函数统一处理：列重命名按稳定 ID 保留数据；新增列使用默认值；现有值无法转换为新类型时原样保留，避免升级静默丢失。后续由用户编辑或大模型执行 `insertRow` / `updateRow` 时采用严格类型校验，非法值不会污染状态表。`PromptService` 会把字段类型、枚举范围和默认值连同表格内容注入上下文。
+
+`.tavern-schema.json` 只包含表名、用途、启用状态和列定义，不包含任何会话行数据。导入入口限制文件大小并经纯函数防腐层校验格式版本、数量上限、重复表列名、字段类型、枚举选项和默认值；同名表采用安全后缀导入为空表。Android 导出优先调用 `AndroidThemeBridge.saveFile` 写入公共下载目录，浏览器环境才使用 Blob 下载兜底。
+
+---
+
 
 ## 🧪 自动化测试套件与覆盖验证 (Comprehensive Test Suite)
 
-为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，当前包含 **78 组核心功能验证套件**（含 Vitest 子进程桥接的 328 项 i18n / 组件渲染 / 服务集成断言）。
+为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，当前包含 **79 组核心功能验证套件**（含 Vitest 子进程桥接的 331 项 i18n / 组件渲染 / 服务集成断言）。
 
 此外，`tsconfig.json` 的 `include` 已扩展至 `tests/` 目录（排除 `.cjs` / `.js`），使 `npm run lint` (`tsc --noEmit`) 能够同时捕获源码与测试代码的类型错误，确保 CI/CD 拦截时自动发现测试用例的类型失效。
 
-### 1. 自动化功能测试一览 (The 78 Test Suites)
+### 1. 自动化功能测试一览 (The 79 Test Suites)
 
 这些测试用例按职责域被高度聚合并物理隔离到 `tests/suites/` 下的各个测试模块中：
 
@@ -898,6 +918,7 @@ sequenceDiagram
 *   **`testMemoryExtractor`**：测试大模型提取情感标签、年表大纲与 RPG 变量变动。
 *   **`testMemoryRecall`**：测试标签倒排（Inverted Index）检索召回、世界设定级联与时间衰减评分。
 *   **`testMemoryStateTable`**：测试 RPG 状态看板数据的更新与增量物理落库。
+*   **`testTableMemorySchema`**：验证旧会话降级、稳定列 ID 迁移、字段类型与默认值、模板包防腐、LLM 类型化写入及非法值拒绝。
 *   **`testMemorySummary`**：验证会话剧情总结大纲压缩机制及首创的零侵入 brackets 标签提取降级。
 *   **`testMemoryE2E`**：运行真实 IndexedDB 物理层，进行端到端的长期记忆全链路存取与重构仿真。
 
@@ -1059,12 +1080,12 @@ SillyTavern 兼容契约（AGENTS.md 准则二）要求 `tavern_helper:${event}`
 │  覆盖：纯函数、无副作用服务、内核逻辑                       │
 │  触发：每次 commit                                         │
 │  预期耗时：< 10s                                           │
-│  现状：✅ 已建设，76 个测试函数全部通过                     │
+│  现状：✅ 已建设，78 个测试函数全部通过                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### 1. 单元测试层（已建设）
-主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 78 个核心功能验证用例，并联动 329 项 Vitest 断言，主要覆盖：
+主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 79 个核心功能验证用例，并联动 331 项 Vitest 断言，主要覆盖：
 * **网络安全与防网闸**：`testSsrfGuard`（防私网 IP、回环及 DNS 重绑定穿透拦截）。
 * **数据库分轨与事务防抖**：`testDbQueue`、`testDatabaseServiceCrud`、`testLocalDBSplitTrack`（并发写 Promise 管道与配置大字段拆分合并）。
 * **Prompt 编译及前缀缓存**：`testPromptBuilder`、`testPromptBuilderSystemMerging`、`testPromptRuntime`（宏安全替换、多 System 消息智能交替合并）。
@@ -1116,5 +1137,3 @@ jobs:
       - run: npm test
 ```
 通过 `c8` 进行测试覆盖率统计，目标保证 `src/kernel/` 内置服务覆盖率 $\ge 85\%$。
-
-

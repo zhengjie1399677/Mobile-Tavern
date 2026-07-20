@@ -15,6 +15,7 @@ import { Textarea } from "../../../components/ui/textarea";
 import { cn } from "../../../lib/utils";
 import CorePromptBlocks from "./CorePromptBlocks";
 import type { UserSettings } from "../../types";
+import PromptCompositionEditor from "./PromptCompositionEditor";
 
 interface PromptsConfigSectionProps {
   settings: UserSettings;
@@ -91,7 +92,11 @@ export default function PromptsConfigSection({
           </p>
         </div>
 
-        {/* CORE PROMPT BLOCKS */}
+        <PromptCompositionEditor settings={settings} updateSettings={updateSettings} />
+
+        {!settings.promptConfig.usePromptComposition && (
+        <>
+        {/* 旧编排迁移期回退；启用自由编排后完全退出运行路径。 */}
         <span className="block text-xs font-bold font-mono text-foreground">CORE PROMPTS</span>
         <CorePromptBlocks settings={settings} updateSettings={updateSettings} />
 
@@ -246,6 +251,8 @@ export default function PromptsConfigSection({
               </AccordionItem>
             ))}
           </Accordion>
+        )}
+        </>
         )}
       </CardContent>
       )}

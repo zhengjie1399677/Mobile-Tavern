@@ -276,6 +276,62 @@ describe("MemoryTableDrawer", () => {
     expect(updatedSheet?.rows[1][0]).toBe("Bob");
   });
 
+  it("新增行时按 Schema 自动填充字段默认值", async () => {
+    const session = makeSession();
+    session.tableMemory![0].columnDefinitions = [
+      { id: "character", name: "角色", type: "text", defaultValue: "NPC" },
+      { id: "affinity", name: "好感度", type: "number", defaultValue: "50" },
+      { id: "status", name: "当前状态", type: "enum", defaultValue: "稳定", enumOptions: ["稳定", "波动"] },
+    ];
+    renderWithI18n(
+      <MemoryTableDrawer
+        isOpen={true}
+        onClose={onClose}
+        activeSession={session}
+        saveSession={saveSession}
+        charName="Alice"
+        enableTableMemory={true}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "添加新行" }));
+    await waitFor(() => expect(saveSession).toHaveBeenCalledTimes(1));
+    const savedSession: ChatSession = saveSession.mock.calls[0][0];
+    expect(savedSession.tableMemory?.[0].rows.at(-1)).toEqual(["NPC", "50", "稳定"]);
+  });
+
+  it("表结构编辑可持久化字段类型、默认值并保留旧列数据", async () => {
+    const session = makeSession();
+    renderWithI18n(
+      <MemoryTableDrawer
+        isOpen={true}
+        onClose={onClose}
+        activeSession={session}
+        saveSession={saveSession}
+        charName="Alice"
+        enableTableMemory={true}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "⚙️ 管理" }));
+    fireEvent.click(screen.getByTitle("编辑表结构"));
+    const typeSelectors = screen.getAllByLabelText("字段类型");
+    fireEvent.change(typeSelectors[1], { target: { value: "number" } });
+    const defaultInputs = screen.getAllByLabelText("默认值");
+    fireEvent.change(defaultInputs[1], { target: { value: "50" } });
+    fireEvent.click(screen.getByRole("button", { name: /保存/ }));
+
+    await waitFor(() => expect(saveSession).toHaveBeenCalledTimes(1));
+    const savedSheet = (saveSession.mock.calls[0][0] as ChatSession).tableMemory?.[0];
+    expect(savedSheet?.columnDefinitions?.[1]).toMatchObject({
+      name: "好感度",
+      type: "number",
+      defaultValue: "50",
+    });
+    expect(savedSheet?.rows[0][0]).toBe("Alice");
+    expect(savedSheet?.rows[1][1]).toBe("30");
+  });
+
   // ------------------------------------------------------------------
   // 边界：缺失列/行的兜底
   // ------------------------------------------------------------------

@@ -151,7 +151,7 @@
 >
 > 以下待办按实现难度从低到高排序，前项为后项基础。
 
-### 1. 状态记忆 Schema 高阶层（字段类型/默认值/模板持久化） [难度：中-高]
+### 1. 状态记忆 Schema 高阶层（字段类型/默认值/模板持久化） [已落地]
 
 * **目标**：在已落地的"用户可编辑表名/列名"基础上，进一步引入字段类型约束（number/date/enum）、默认值、Schema 模板持久化与跨会话复用——把"用户可重定义结构"从一次性编辑升级为可携带的 Schema 资产。
 * **依赖**：待办已修复 #8。
@@ -166,6 +166,7 @@
   - 旧数据迁移：当用户为现有列追加类型约束时的兼容性处理
 * **产出**：字段类型选择 UI + 默认值配置 + Schema 包导入导出 + 类型约束的 LLM 提示词增强。
 * **预估**：5-7 天。涉及 LLM 提示词同步与数据迁移，需谨慎设计。
+* **落地结果**：新增稳定列 ID 与 `text` / `number` / `date` / `enum` 类型、默认值、枚举选项；旧会话按 `text` 无损降级，列重命名按 ID 迁移，无法转换的历史值原样保留；新行与 LLM 写入执行类型约束。`.tavern-schema.json` 支持移动端原生桥接导出、严格校验导入和跨会话空表复用，模板不携带行数据。
 
 ### 2. 脚本片段管理 UI [难度：高]
 
@@ -240,3 +241,5 @@
 | 2026-07-20 | 新增 `docs/agents/architecture_entry.md` 作为短架构工作入口，并在 `AGENTS.md` 顶部建立强制引用；文档按任务给出最小阅读路线、底座边界、关键代码入口及验证/文档维护规则，用于避免每次从超长 `TECHNICAL.md` 恢复上下文。验证：Markdown 链接与 `git diff --check` 通过。 |
 | 2026-07-20 | 修复移动端关闭重开后的对话逆序与十轮折叠边界重发双回复：新增 `src/contexts/chatMessageHydration.ts`，将 IndexedDB 最新优先分页在 Context 适配层恢复为时间正序，`ChatContext.tsx` 首次回载与加载更早页统一使用；加固 `indexedDbMemoryStore.ts` 的 `replaceSessionBranch`，按分支起点 `turnIndex` 清除整个旧尾部，并保留消息 ID 作为旧数据兜底，避免孤儿旧回复与新回复并存。测试新增重启十条正序、分页合并、孤儿回复清理及“欢迎词＋十轮对话”完整成功重发覆盖。同步更新 `README.md` 与 `TECHNICAL.md`。验证：重发定向测试 2/2、`npm test` 78/78、Vitest 329/329、`npm run lint`、`npm run build` 全部通过。 |
 | 2026-07-20 | 维护短架构工作入口：扩展 `docs/agents/architecture_entry.md`，新增每轮最小阅读包、常见问题定位表、会话分页与回载入口、测试选择矩阵和文档维护规则，明确该文档只记录“怎么找”，实现细节继续归入 `TECHNICAL.md` 或专项规范，降低后续协作恢复上下文的 token 成本。验证：`git diff --check` 通过。 |
+| 2026-07-20 | 落地状态记忆 Schema 高阶层：`tableMemorySchema.ts` 新增稳定列 ID、字段类型/默认值/枚举约束、兼容迁移及 `.tavern-schema.json` 防腐导入导出；`TableMemoryTab.tsx` 提供移动端类型编辑和原生桥接导出，`MemoryStateTable.ts` 与 `PromptService.ts` 分别执行类型化写入和字段约束注入。旧会话按 `text` 降级，模板不携带会话行数据。验证：`npm run lint`、`npm run check:i18n`、`npm test` 79/79 全绿（Vitest 331/331），定向组件测试 12/12 通过。 |
+| 2026-07-20 | 落地自由 Prompt 编排首期：新增中立 `PromptComposition` 领域模型、严格编解码器与纯编译器，支持任意多条消息角色、自由顺序、每个历史区块独立选择全部或最近若干条、欢迎消息保留策略，以及目标化历史深度注入；空编排合法且开启后不回退旧路径，原 Prompt 降级为可删除基础示例。`PromptCompositionRuntimeAdapter` 仅投影角色卡、世界书、记忆等命名数据源，`infrastructure/compat/sillytavern` 独立处理 Prompt Manager 导入导出、未知字段隔离和降级报告。新增移动端编辑器、八语言文案、预设持久化与大字段物理分轨。验证：`npm run lint`、`npm run check:i18n`、`npm test` 80/80、Vitest 333/333 全绿。 |

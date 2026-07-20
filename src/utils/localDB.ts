@@ -530,6 +530,7 @@ export async function getStoredSettings(): Promise<UserSettings | null> {
           if (large.postHistoryPrompt !== undefined) settings.promptConfig.postHistoryPrompt = large.postHistoryPrompt;
           if (large.reasoningGuidancePrompt !== undefined) settings.promptConfig.reasoningGuidancePrompt = large.reasoningGuidancePrompt;
           if (large.tableMemoryPrompt !== undefined) settings.promptConfig.tableMemoryPrompt = large.tableMemoryPrompt;
+          if (large.promptComposition !== undefined) settings.promptConfig.composition = large.promptComposition;
         } else {
           settings.promptConfig = {
             mainPrompt: large.mainPrompt || "",
@@ -647,6 +648,7 @@ export async function saveStoredSettings(
       postHistoryPrompt: clonedSettings.promptConfig?.postHistoryPrompt || "",
       reasoningGuidancePrompt: clonedSettings.promptConfig?.reasoningGuidancePrompt || "",
       tableMemoryPrompt: clonedSettings.promptConfig?.tableMemoryPrompt || "",
+      promptComposition: clonedSettings.promptConfig?.composition,
       bisonModePrompt: clonedSettings.bisonModePrompt || "",
       replySuggestionsPrompt: clonedSettings.replySuggestionsPrompt || "",
     };
@@ -659,6 +661,7 @@ export async function saveStoredSettings(
         postHistoryPrompt: "",
         reasoningGuidancePrompt: "",
         tableMemoryPrompt: "",
+        composition: undefined,
       };
     }
     clonedSettings.bisonModePrompt = "";

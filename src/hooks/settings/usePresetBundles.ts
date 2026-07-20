@@ -3,6 +3,10 @@ import { UserSettings, SamplerPreset } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import { IPresetService } from "../../kernel/types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT_CONFIG } from "./defaults";
+import {
+  exportSillyTavernComposition,
+  importSillyTavernPreset,
+} from "../../infrastructure/compat/sillytavern";
 
 /**
  * 微内核插件式架构：预设包持久化统一走 PresetService。
@@ -182,6 +186,8 @@ export const usePresetBundles = ({
         const hasMainPromptText = !!mainPrompt;
         const hasAnyPromptFieldsInJSON =
           hasPromptsArray ||
+          Array.isArray(data.prompt_order) ||
+          Array.isArray(data.promptOrder) ||
           hasMainPromptText ||
           !!jailbreakPrompt ||
           !!postHistoryPrompt ||
@@ -194,6 +200,9 @@ export const usePresetBundles = ({
         let finalUsePostHistory = settings.promptConfig.usePostHistory;
         let finalStoryString = settings.promptConfig.storyString;
         let finalCustomPrompts = settings.promptConfig.customPrompts;
+        let importedComposition = settings.promptConfig.composition;
+        let usePromptComposition = settings.promptConfig.usePromptComposition;
+        let compatibilityWarningCount = 0;
 
         if (hasAnyPromptFieldsInJSON) {
           finalMainPrompt = mainPrompt;
@@ -203,6 +212,10 @@ export const usePresetBundles = ({
           finalUsePostHistory = !!postHistoryPrompt;
           finalStoryString = storyStrFromJSON || "";
           finalCustomPrompts = importedCustomPrompts;
+          const importResult = importSillyTavernPreset(data);
+          importedComposition = importResult.composition;
+          usePromptComposition = true;
+          compatibilityWarningCount = importResult.report.warnings.length;
         }
 
         // 解析预设全局正则脚本
@@ -247,12 +260,17 @@ export const usePresetBundles = ({
             assistantSuffix:
               assistantSuffix || settings.promptConfig.assistantSuffix,
             customPrompts: finalCustomPrompts,
+            composition: importedComposition,
+            usePromptComposition,
           },
         };
 
         let messageDetails = `采样器参数覆盖：温度 ${temp}, TopP ${topP}, 词重复惩罚 ${repPen}`;
         if (importedRegexScripts.length > 0) {
           messageDetails += `\n\n检测到预设专属正则脚本共 ${importedRegexScripts.length} 个。已随此预设一同保存并在激活此预设时生效。`;
+        }
+        if (hasAnyPromptFieldsInJSON) {
+          messageDetails += `\n\nPrompt 已转换为自由编排并启用。兼容报告：${compatibilityWarningCount} 条警告。`;
         }
 
         updateSettings(nextSettings);
@@ -267,6 +285,9 @@ export const usePresetBundles = ({
   }, [settings, updateSettings, showCustomAlert]);
 
   const handleExportPresetJSON = useCallback(() => {
+    const compositionExport = settings.promptConfig.usePromptComposition && settings.promptConfig.composition
+      ? exportSillyTavernComposition(settings.promptConfig.composition)
+      : null;
     const bundleData = {
       name: settings.preset.name,
       temperature: settings.preset.temperature,
@@ -282,7 +303,8 @@ export const usePresetBundles = ({
       jailbreak_prompt: settings.promptConfig.jailbreakPrompt,
       post_history_instructions: settings.promptConfig.postHistoryPrompt,
       story_string: settings.promptConfig.storyString,
-      prompts: settings.promptConfig.customPrompts || [],
+      prompts: compositionExport?.data.prompts || settings.promptConfig.customPrompts || [],
+      ...(compositionExport ? { prompt_order: compositionExport.data.prompt_order } : {}),
 
       instruct_layouts: settings.promptConfig.instructTemplate,
       system_sequence_start: settings.promptConfig.systemPrefix,
@@ -298,12 +320,15 @@ export const usePresetBundles = ({
 
     const content = JSON.stringify(bundleData, null, 2);
     const fileName = `SillyTavern_${settings.preset.name.replace(/\s+/g, "_")}_profile.json`;
+    const compatibilityNotice = compositionExport && compositionExport.report.warnings.length > 0
+      ? `\n兼容报告：${compositionExport.report.warnings.length} 个 Mobile Tavern 专有能力无法原样表达，已尽力降级。`
+      : "";
 
     // If running in Android app via bridge
     if ((window as WindowWithAndroidBridge).AndroidThemeBridge && typeof (window as WindowWithAndroidBridge).AndroidThemeBridge?.saveFile === "function") {
       const path = (window as WindowWithAndroidBridge).AndroidThemeBridge!.saveFile!(fileName, content);
       if (path && !path.startsWith("error:")) {
-        showCustomAlert(`📂 预设配置导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`);
+        showCustomAlert(`📂 预设配置导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}${compatibilityNotice}`);
       } else {
         showCustomAlert(`❌ 导出失败：${path || "未知错误"}`);
       }
@@ -319,7 +344,7 @@ export const usePresetBundles = ({
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
-    showCustomAlert(`📂 预设配置导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}`);
+    showCustomAlert(`📂 预设配置导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}${compatibilityNotice}`);
   }, [settings, showCustomAlert]);
 
   const handleSaveNewPresetBundle = useCallback(async () => {

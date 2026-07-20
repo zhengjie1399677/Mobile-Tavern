@@ -42,6 +42,13 @@ export async function testArchitectureBoundaries(): Promise<void> {
     );
   }
 
+  for (const file of listCodeFiles("src/domain/prompt-composition")) {
+    assert(
+      !/sillytavern/i.test(read(file)),
+      `${file} 必须保持格式中立，SillyTavern 语义只能存在于 infrastructure/compat`
+    );
+  }
+
   assert(
     !read("src/hooks/useChat/pipelineHelpers.ts").includes("globalKernel"),
     "聊天输出管线必须使用调用方注入的 IKernel"

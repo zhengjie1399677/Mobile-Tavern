@@ -76,6 +76,7 @@ import {
   testMemoryStateTable,
   testMemorySummary,
   testMemoryE2E,
+  testTableMemorySchema,
   testCharacterService,
   testWorldbookService,
   testSettingsService,
@@ -98,6 +99,7 @@ import {
   testDestroyWithMultipleActiveControllers,
   testKernelSchemaValidation,
   testArchitectureBoundaries,
+  testPromptComposition,
 } from "./suites/index";
 
 /**
@@ -212,6 +214,7 @@ async function run() {
     { name: "testMemorySummary", fn: testMemorySummary },
     // 记忆系统 E2E 测试（真实 IDB 端到端，覆盖 MockStorage 无法验证的物理层契约）
     { name: "testMemoryE2E", fn: testMemoryE2E },
+    { name: "testTableMemorySchema", fn: testTableMemorySchema },
     // 业务服务插件测试（CharacterService/WorldbookService/SettingsService/PresetService CRUD 桥接）
     { name: "testCharacterService", fn: testCharacterService },
     { name: "testWorldbookService", fn: testWorldbookService },
@@ -237,6 +240,7 @@ async function run() {
     // Kernel zod L2 Phase B：schema 单元测试（validateService / validateMessage / validateServiceRetrieval）
     { name: "testKernelSchemaValidation", fn: testKernelSchemaValidation },
     { name: "testArchitectureBoundaries", fn: testArchitectureBoundaries },
+    { name: "testPromptComposition", fn: testPromptComposition },
     // vitest 套件桥接（i18n 多语言 50 项 + 组件渲染 + 服务集成，共 327 项）
     { name: "testVitestSuite", fn: runVitestSuite },
   ];

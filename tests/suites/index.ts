@@ -88,6 +88,7 @@ export {
 } from "./memoryStageC.test";
 
 export { testMemoryE2E } from "./memoryE2E.test";
+export { testTableMemorySchema } from "./tableMemorySchema.test";
 
 export {
   testCharacterService,
@@ -127,3 +128,4 @@ export {
 // Kernel zod L2 Phase B：schema 单元测试（validateService / validateMessage / validateServiceRetrieval）
 export { testKernelSchemaValidation } from "./kernelSchemaValidation.test";
 export { testArchitectureBoundaries } from "./architectureBoundaries.test";
+export { testPromptComposition } from "./promptComposition.test";

@@ -16,6 +16,12 @@ import {
   replacePromptMacros,
   type PromptMacroParams,
 } from "./prompt/PromptMacroFormatter";
+import {
+  formatTableMemoryColumnConstraint,
+  getTableMemoryColumnDefinitions,
+} from "../../domain/memory/tableMemorySchema";
+import { compilePromptComposition } from "../../domain/prompt-composition";
+import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
 
 /**
  * 提示词编译与组装服务
@@ -139,6 +145,64 @@ export class PromptService implements IPromptService {
       userPersona: settings.userInfo || "无",
       mes_example: character.mes_example || "",
     };
+
+    // 自由编排路径：只有用户显式启用时生效。编译器不会补入任何隐藏区块，
+    // 空编排会产生空 messages；旧路径仅作为迁移期显式回退保留。
+    if (settings.promptConfig?.usePromptComposition) {
+      const composition = settings.promptConfig.composition ?? {
+        id: "composition_missing_empty",
+        name: "空编排",
+        version: 1 as const,
+        blocks: [],
+      };
+      const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
+      const triggeredLorebook = this.getTriggeredLorebookEntries(
+        chat.messages || [],
+        userInput,
+        allEntries,
+      );
+      const runtime = buildPromptCompositionRuntimeData({
+        character,
+        chat,
+        userInput,
+        settings,
+        triggeredLorebook,
+        recalledMemories,
+        cleanHistoryContent: (message) => {
+          if (!character.extensions?.regex_scripts) return message.content;
+          return applyCharacterRegexScripts(
+            message.content,
+            character,
+            message.sender === "assistant",
+            character.name,
+            settings.userName,
+            "prompt",
+          );
+        },
+      });
+      const compiled = compilePromptComposition(composition, runtime);
+      compiled.diagnostics.forEach((diagnostic) => {
+        console.warn(`[PromptComposition:${diagnostic.code}] ${diagnostic.message}`);
+      });
+      const systemInstruction = compiled.messages
+        .filter((message) => message.role === "system")
+        .map((message) => message.content)
+        .join("\n\n");
+      return {
+        systemInstruction,
+        dynamicInstruction: "",
+        history: compiled.messages.flatMap((message) => {
+          if (message.role === "system") return [];
+          const role: "user" | "assistant" | "model" =
+            message.role === "assistant" && settings.api.type !== "openai-compat"
+              ? "model"
+              : message.role;
+          return [{ role, name: message.name, content: message.content }];
+        }),
+        userInput,
+        messages: compiled.messages,
+      };
+    }
 
     if (settings.promptConfig?.roleplayMode === false) {
       const { recentTurns } = settings.memory;
@@ -543,10 +607,14 @@ export class PromptService implements IPromptService {
         const sheetsMarkdown = enabledSheets.map(sheet => {
           const title = `### 表格：${sheet.name}`;
           const desc = sheet.description ? `*用途说明: ${sheet.description}*` : "";
+          const constraints = getTableMemoryColumnDefinitions(sheet)
+            .map(formatTableMemoryColumnConstraint)
+            .join("；");
+          const schema = constraints ? `*字段约束: ${constraints}*` : "";
           const header = `| ${sheet.columns.join(" | ")} |`;
           const divider = `| ${sheet.columns.map(() => "---").join(" | ")} |`;
           const rows = sheet.rows.map(row => `| ${row.join(" | ")} |`).join("\n");
-          return `${title}\n${desc}\n${header}\n${divider}\n${rows}`;
+          return `${title}\n${desc}\n${schema}\n${header}\n${divider}\n${rows}`;
         }).join("\n\n");
 
         // 获取 tableMemoryPrompt 模板配置，替换其中的 {{sheets_markdown}} 占位符

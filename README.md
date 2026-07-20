@@ -33,32 +33,38 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 * 支持标准的酒馆角色卡 PNG 图像直接导入。
 * 纯本地无服务器解码：前端自动提取 PNG `tEXt` 数据块中的 `chara` 元数据，本地进行 Zlib 解压还原为 JSON 人设设定，并自动将 Base64 头像落库。
 
-### 3. ⏳ 智能故事时间线与多维 RPG 状态追踪 (Story Timeline & RPG Tracking)
+### 3. 🧩 自由 Prompt 编排与兼容层 (Free Prompt Composition)
+* 用户可以自由创建、删除、排序任意数量的 `system`、`user`、`assistant` 消息，决定角色卡、世界书、记忆和聊天历史出现的位置；每个历史区块可独立选择全部或最近若干条消息、是否保留欢迎消息，深度注入也可指定目标历史区块。相同角色消息不会被底层强制合并。
+* 编译器没有固定 Prompt、锁定区块或隐藏追加逻辑；空编排是合法状态。现有 Prompt 仅作为可编辑、可删除的基础示例，旧编译路径默认保留用于平滑迁移。
+* SillyTavern Prompt Manager 预设通过 `infrastructure/compat` 防腐适配器导入导出；未知字段隔离保留，无法无损表达的能力生成显式兼容警告，不进入中立领域模型。
+
+### 4. ⏳ 智能故事时间线与多维 RPG 状态追踪 (Story Timeline & RPG Tracking)
 * **剧情故事年表**：根据对话内容自动定时提炼历史剧情大纲，并在会话中以优美的垂直时间轴卡片呈现，帮助用户随时回忆前情提要。
 * **游戏化状态追踪**：非侵入式解析大模型输出，自动提取并追踪角色的好感度变化 (Bonding)、道具装备变动 (Inventory) 以及生理/心理心境状态 (Condition)，完美兼容非 RPG 角色卡的平滑降级。
+* **可编程状态 Schema**：状态表字段支持 `text`、`number`、`date`、`enum` 类型、默认值和枚举选项；列重命名凭稳定 ID 保留历史数据，旧会话自动按 `text` 降级。用户可通过 `.tavern-schema.json` 导入导出不含会话行数据的 Schema 模板，在不同会话和角色间复用。
 
-### 4. 🌿 多会话平行分支管理 (Multi-session Branching)
+### 5. 🌿 多会话平行分支管理 (Multi-session Branching)
 * 支持对同一个角色开辟多条完全独立的聊天会话（平行宇宙）。
 * 提供极速克隆、重命名和物理删除操作。克隆时会自动完整复制原分支的所有消息树与剧情总结年表。
 * 重发采用同步事务锁与 IndexedDB 跨 Store 原子替换；存储事务按 `turnIndex` 分支起点清理整个旧尾部，即使折叠边界存在孤儿旧回复也只会保留一条新回复，失败或取消时不会留下半截分支。
 
-### 5. 🔒 本地 IndexedDB 离线持久化 (100% Offline Storage)
+### 6. 🔒 本地 IndexedDB 离线持久化 (100% Offline Storage)
 * 所有导入的角色设定、全局预设及聊天会话记录均存储在用户本机的 IndexedDB 数据库中，100% 离线，完全保护隐私，响应时间达到毫秒级。
 * 会话元数据与消息正文物理分轨，长期记忆通过领域端口访问存储适配器，业务召回与摘要规则不会污染通用数据库底座。
 * 关闭应用后重新进入会话时，最新优先的存储分页会在 Context 适配层恢复为时间正序；加载更早页同样先正序化再合并，避免首条消息被显示为最新内容。
 
-### 6. 🚀 运行沙盒与可视化拓扑 (Interactive Sandbox)
+### 7. 🚀 运行沙盒与可视化拓扑 (Interactive Sandbox)
 * 内置可视化数据流拓扑图，能够直观展示用户输入、世界书匹配、Prompt 组装以及网络流接收的全链路流转，并提供独立的防坍塌宏替换和缓存分流测试台。
 
-### 7. 🧭 模块化微内核与洋葱拦截管道 (Modular Kernel & Onion Pipeline)
+### 8. 🧭 模块化微内核与洋葱拦截管道 (Modular Kernel & Onion Pipeline)
 * 采用 DI/IOC 控制反转设计构建解耦底座，将数据持久化、大模型流式通信、Prompt 编译等核心逻辑全部下沉为独立的微服务。
 * 引入洋葱模型中间件管道（Pipeline）与具备优先级排序、并行分发和异常隔离的高能消息总线（MessageBus）。支持服务超时 Abort 熔断与非关键服务崩溃时返回 SafeProxy 的容错自愈。
 * 未注册 Pipeline 会立即报错，Kernel 通过 Provider 显式注入；React 视图统一以 selector 订阅最小状态切片，架构守卫持续阻止业务层反向依赖底座实现。
 
-### 8. 🧪 自动化集成测试套件 (Comprehensive Test Suite)
-* 当前主测试链包含 78 组功能套件与 329 项 Vitest 断言，覆盖物理 PNG 解码、SSRF 防御、重启消息顺序、IndexedDB 分支尾部原子替换、十轮折叠边界重发、SafeProxy、洋葱管道严格模式及架构依赖边界。
+### 9. 🧪 自动化集成测试套件 (Comprehensive Test Suite)
+* 当前主测试链包含 80 组功能套件与 333 项 Vitest 断言，覆盖物理 PNG 解码、SSRF 防御、自由 Prompt 编排与兼容防腐、状态 Schema 迁移、重启消息顺序、IndexedDB 分支尾部原子替换、十轮折叠边界重发、SafeProxy、洋葱管道严格模式及架构依赖边界。
 
-### 9. 🌐 多语言国际化 (i18n Multi-language)
+### 10. 🌐 多语言国际化 (i18n Multi-language)
 * 内置 8 种语言完整翻译：简体中文、繁体中文、English、日本語、Русский、Español、한국어、Português (BR)。
 * 自动检测系统默认语言，支持运行时无缝切换。三级回退链保障无翻译 key 时降级显示。
 

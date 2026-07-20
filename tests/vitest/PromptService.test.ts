@@ -1,8 +1,101 @@
 import { describe, it, expect } from "vitest";
 import { PromptService } from "../../src/kernel/services/PromptService";
 import { CharacterCard, ChatSession, UserSettings } from "../../src/types";
+import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 
 describe("PromptService prompt compilation", () => {
+  it("preserves multiple system messages and user-controlled order in free composition mode", () => {
+    const promptService = new PromptService();
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.usePromptComposition = true;
+    settings.promptConfig.composition = {
+      id: "runtime-test",
+      name: "运行路径测试",
+      version: 1,
+      blocks: [
+        {
+          id: "system-a",
+          name: "系统一",
+          enabled: true,
+          role: "system",
+          source: { type: "template" },
+          template: "系统一：{{character.description}}",
+          order: 100,
+          placement: { type: "ordered" },
+        },
+        {
+          id: "history",
+          name: "历史",
+          enabled: true,
+          role: "system",
+          source: { type: "chat_history" },
+          template: "",
+          order: 200,
+          placement: { type: "ordered" },
+        },
+        {
+          id: "system-b",
+          name: "系统二",
+          enabled: true,
+          role: "system",
+          source: { type: "template" },
+          template: "系统二",
+          order: 300,
+          placement: { type: "ordered" },
+        },
+      ],
+    };
+    const character = {
+      id: "free-char",
+      name: "自由角色",
+      description: "角色资料",
+      personality: "",
+      scenario: "",
+      first_mes: "",
+      mes_example: "",
+      creator: "",
+      creator_notes: "",
+      tags: [],
+      character_version: "1",
+      extensions: {},
+      lorebookEntries: [],
+    } as CharacterCard;
+    const chat = {
+      id: "free-chat",
+      characterId: character.id,
+      title: "自由编排测试",
+      createdAt: Date.now(),
+      summaries: [],
+      messages: [
+        { id: "user-1", sender: "user", content: "已进入历史的输入", timestamp: 1 },
+        { id: "assistant-1", sender: "assistant", content: "历史回复", timestamp: 2 },
+      ],
+    } as ChatSession;
+
+    const result = promptService.assemblePrompt({
+      character,
+      chat,
+      userInput: "不会被隐式追加",
+      settings,
+    });
+
+    expect(result.messages).toEqual([
+      { role: "system", content: "系统一：角色资料" },
+      { role: "user", content: "已进入历史的输入" },
+      { role: "assistant", content: "历史回复" },
+      { role: "system", content: "系统二" },
+    ]);
+
+    settings.promptConfig.composition = undefined;
+    const missingCompositionResult = promptService.assemblePrompt({
+      character,
+      chat,
+      userInput: "仍然不回退旧路径",
+      settings,
+    });
+    expect(missingCompositionResult.messages).toEqual([]);
+  });
+
   it("should compile dialogue_examples into system instruction in roleplayMode: true", () => {
     const promptService = new PromptService();
     const character: CharacterCard = {

@@ -178,6 +178,12 @@ export async function testLocalDBSplitTrack() {
       postHistoryPrompt: "POST: End of history",
       reasoningGuidancePrompt: "REASON: Think step-by-step",
       tableMemoryPrompt: "MEM: Keep table",
+      composition: {
+        id: "composition-storage-test",
+        name: "存储测试编排",
+        version: 1,
+        blocks: [],
+      },
     },
     bisonModePrompt: "BISON: Mode prompt",
     replySuggestionsPrompt: "SUGGEST: Options",
@@ -192,6 +198,7 @@ export async function testLocalDBSplitTrack() {
   assert(rawUserSettings !== undefined, "user_settings should be written");
   assert(rawUserSettings.promptConfig.mainPrompt === "", "mainPrompt in user_settings must be cleared");
   assert(rawUserSettings.promptConfig.reasoningGuidancePrompt === "", "reasoningGuidancePrompt in user_settings must be cleared");
+  assert(rawUserSettings.promptConfig.composition === undefined, "prompt composition in user_settings must be cleared");
   assert(rawUserSettings.bisonModePrompt === "", "bisonModePrompt in user_settings must be cleared");
   assert(rawUserSettings.otherOption === "enabled", "other fields must remain intact");
 
@@ -200,10 +207,11 @@ export async function testLocalDBSplitTrack() {
   assert(rawLargePrompts.mainPrompt === "SYSTEM: Hello World", "mainPrompt must be stored in large prompts");
   assert(rawLargePrompts.reasoningGuidancePrompt === "REASON: Think step-by-step", "reasoningGuidancePrompt must be stored in large prompts");
   assert(rawLargePrompts.bisonModePrompt === "BISON: Mode prompt", "bisonModePrompt must be stored in large prompts");
+  assert(rawLargePrompts.promptComposition?.id === "composition-storage-test", "prompt composition must be stored in large prompts");
 
   // 5. 执行读取
   const loadedSettings = await localDB.getStoredSettings() as unknown as {
-    promptConfig: { mainPrompt: string; reasoningGuidancePrompt: string };
+    promptConfig: { mainPrompt: string; reasoningGuidancePrompt: string; composition?: { id: string } };
     bisonModePrompt: string;
     otherOption: string;
   };
@@ -212,6 +220,7 @@ export async function testLocalDBSplitTrack() {
   // 6. 验证读取合并后的内容是否与原 settings 一致
   assert(loadedSettings.promptConfig.mainPrompt === "SYSTEM: Hello World", "Merged mainPrompt matches");
   assert(loadedSettings.promptConfig.reasoningGuidancePrompt === "REASON: Think step-by-step", "Merged reasoningGuidancePrompt matches");
+  assert(loadedSettings.promptConfig.composition?.id === "composition-storage-test", "Merged prompt composition matches");
   assert(loadedSettings.bisonModePrompt === "BISON: Mode prompt", "Merged bisonModePrompt matches");
   assert(loadedSettings.otherOption === "enabled", "Merged otherOption matches");
 

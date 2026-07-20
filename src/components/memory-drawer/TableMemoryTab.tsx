@@ -1,6 +1,21 @@
-import { useState, useEffect, type KeyboardEvent } from "react";
-import { ChatSession, TableMemorySheet } from "../../types";
+import { useState, useEffect, useRef, type ChangeEvent, type KeyboardEvent } from "react";
+import type {
+  ChatSession,
+  TableMemoryColumnDefinition,
+  TableMemoryColumnType,
+  TableMemorySheet,
+} from "../../types";
 import { useTranslation } from "../../contexts/LanguageContext";
+import {
+  coerceTableMemoryValue,
+  createDefaultTableMemoryRow,
+  createTableMemoryColumn,
+  getTableMemoryColumnDefinitions,
+  instantiateTableMemorySchema,
+  migrateTableMemorySheetSchema,
+  parseTableMemorySchema,
+  serializeTableMemorySchema,
+} from "../../domain/memory/tableMemorySchema";
 import {
   Plus,
   Trash2,
@@ -11,6 +26,8 @@ import {
   Eye,
   EyeOff,
   X,
+  Download,
+  Upload,
 } from "lucide-react";
 
 export interface TableMemoryTabProps {
@@ -24,7 +41,13 @@ interface SheetDraft {
   id: string;
   name: string;
   description: string;
-  columns: string[];
+  columns: TableMemoryColumnDefinition[];
+}
+
+interface WindowWithAndroidFileBridge extends Window {
+  AndroidThemeBridge?: {
+    saveFile?: (fileName: string, content: string) => string;
+  };
 }
 
 function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTabProps) {
@@ -33,6 +56,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
   const [editingCell, setEditingCell] = useState<{ sheetId: string; rowIndex: number; colIndex: number } | null>(null);
   const [editValue, setEditValue] = useState("");
   const [showConfig, setShowConfig] = useState(false);
+  const schemaFileInputRef = useRef<HTMLInputElement>(null);
   /** 管理面板的表结构编辑器状态：null 时不显示编辑面板，非 null 时进入编辑视图 */
   const [sheetDraft, setSheetDraft] = useState<SheetDraft | null>(null);
 
@@ -52,6 +76,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
   }, [sheets, activeTableTabId]);
 
   const activeSheet = sheets.find(s => s.id === activeTableTabId) || sheets[0];
+  const activeColumnDefinitions = activeSheet ? getTableMemoryColumnDefinitions(activeSheet) : [];
 
   // 持久化状态表
   const updateSheets = async (nextSheets: TableMemorySheet[]) => {
@@ -72,7 +97,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
       if (s.id === sheetId) {
         return {
           ...s,
-          rows: [...s.rows, s.columns.map(() => "")]
+          rows: [...s.rows, createDefaultTableMemoryRow(s)]
         };
       }
       return s;
@@ -105,13 +130,20 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
   const saveEditing = async () => {
     if (!editingCell) return;
     const { sheetId, rowIndex, colIndex } = editingCell;
+    const targetSheet = sheets.find((sheet) => sheet.id === sheetId);
+    const definition = targetSheet ? getTableMemoryColumnDefinitions(targetSheet)[colIndex] : undefined;
+    const coerced = definition ? coerceTableMemoryValue(editValue, definition) : { value: editValue, valid: true };
+    if (!coerced.valid) {
+      window.alert(t("table_memory.invalid_value"));
+      return;
+    }
 
     const nextSheets = sheets.map(s => {
       if (s.id === sheetId) {
         const nextRows = s.rows.map((row, rIdx) => {
           if (rIdx === rowIndex) {
             const nextRow = [...row];
-            nextRow[colIndex] = editValue;
+            nextRow[colIndex] = coerced.value;
             return nextRow;
           }
           return row;
@@ -155,6 +187,12 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
         id: "sheet_relation",
         name: "关系",
         columns: ["角色", "好感度", "亲密度", "当前状态描述"],
+        columnDefinitions: [
+          createTableMemoryColumn("角色", "text", "relation_character"),
+          { ...createTableMemoryColumn("好感度", "number", "relation_affinity"), defaultValue: "50" },
+          createTableMemoryColumn("亲密度", "text", "relation_closeness"),
+          createTableMemoryColumn("当前状态描述", "text", "relation_status"),
+        ],
         rows: [[charName || "NPC", "50", "相识", "初次结识，关系尚显生疏"]],
         enable: true,
         description: "记录角色与玩家（你）之间的好感状态和亲密关系定位",
@@ -163,6 +201,12 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
         id: "sheet_inventory",
         name: "物品",
         columns: ["物品名", "数量", "获得方式", "备注"],
+        columnDefinitions: [
+          createTableMemoryColumn("物品名", "text", "inventory_name"),
+          { ...createTableMemoryColumn("数量", "number", "inventory_quantity"), defaultValue: "1" },
+          createTableMemoryColumn("获得方式", "text", "inventory_source"),
+          createTableMemoryColumn("备注", "text", "inventory_note"),
+        ],
         rows: [],
         enable: true,
         description: "记录玩家持有的关键物品及其来源",
@@ -171,6 +215,12 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
         id: "sheet_location",
         name: "位置",
         columns: ["地点", "区域", "到达方式", "描述"],
+        columnDefinitions: [
+          createTableMemoryColumn("地点", "text", "location_name"),
+          createTableMemoryColumn("区域", "text", "location_region"),
+          createTableMemoryColumn("到达方式", "text", "location_route"),
+          createTableMemoryColumn("描述", "text", "location_description"),
+        ],
         rows: [],
         enable: true,
         description: "记录已探索的地点和当前所在位置",
@@ -179,6 +229,12 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
         id: "sheet_quest",
         name: "任务",
         columns: ["任务名", "状态", "触发条件", "备注"],
+        columnDefinitions: [
+          createTableMemoryColumn("任务名", "text", "quest_name"),
+          createTableMemoryColumn("状态", "text", "quest_status"),
+          createTableMemoryColumn("触发条件", "text", "quest_trigger"),
+          createTableMemoryColumn("备注", "text", "quest_note"),
+        ],
         rows: [],
         enable: true,
         description: "记录进行中、已完成、已失败的任务",
@@ -213,7 +269,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
       id: "new",
       name: "",
       description: "",
-      columns: ["列1"]
+      columns: [createTableMemoryColumn(t("table_memory.default_column_name"))]
     });
   };
 
@@ -223,7 +279,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
       id: sheet.id,
       name: sheet.name,
       description: sheet.description ?? "",
-      columns: [...sheet.columns]
+      columns: getTableMemoryColumnDefinitions(sheet)
     });
   };
 
@@ -231,7 +287,18 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
   const updateDraftColumn = (idx: number, value: string) => {
     if (!sheetDraft) return;
     const nextCols = [...sheetDraft.columns];
-    nextCols[idx] = value;
+    nextCols[idx] = { ...nextCols[idx], name: value };
+    setSheetDraft({ ...sheetDraft, columns: nextCols });
+  };
+
+  const updateDraftColumnSchema = (
+    idx: number,
+    patch: Partial<TableMemoryColumnDefinition>
+  ) => {
+    if (!sheetDraft) return;
+    const nextCols = sheetDraft.columns.map((column, columnIndex) =>
+      columnIndex === idx ? { ...column, ...patch } : column
+    );
     setSheetDraft({ ...sheetDraft, columns: nextCols });
   };
 
@@ -240,7 +307,10 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     if (!sheetDraft) return;
     setSheetDraft({
       ...sheetDraft,
-      columns: [...sheetDraft.columns, `列${sheetDraft.columns.length + 1}`]
+      columns: [
+        ...sheetDraft.columns,
+        createTableMemoryColumn(`${t("table_memory.default_column_name")}${sheetDraft.columns.length + 1}`),
+      ]
     });
   };
 
@@ -265,9 +335,34 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
       window.alert(t("table_memory.name_required"));
       return;
     }
-    const trimmedCols = sheetDraft.columns.map(c => c.trim()).filter(c => c);
-    if (trimmedCols.length === 0) {
+    const normalizedColumns = sheetDraft.columns
+      .map((column) => ({
+        ...column,
+        name: column.name.trim(),
+        defaultValue: column.defaultValue?.trim() || undefined,
+        enumOptions: column.type === "enum"
+          ? [...new Set((column.enumOptions ?? []).map((option) => option.trim()).filter(Boolean))]
+          : undefined,
+      }))
+      .filter((column) => column.name);
+    if (normalizedColumns.length === 0) {
       window.alert(t("table_memory.columns_required"));
+      return;
+    }
+    if (new Set(normalizedColumns.map((column) => column.name)).size !== normalizedColumns.length) {
+      window.alert(t("table_memory.duplicate_column"));
+      return;
+    }
+    if (normalizedColumns.some((column) => column.type === "enum" && !column.enumOptions?.length)) {
+      window.alert(t("table_memory.enum_options_required"));
+      return;
+    }
+    const invalidDefault = normalizedColumns.some((column) => {
+      if (!column.defaultValue) return false;
+      return !coerceTableMemoryValue(column.defaultValue, { ...column, defaultValue: "" }).valid;
+    });
+    if (invalidDefault) {
+      window.alert(t("table_memory.invalid_default"));
       return;
     }
 
@@ -280,7 +375,8 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
       const newSheet: TableMemorySheet = {
         id: `sheet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         name: trimmedName,
-        columns: trimmedCols,
+        columns: normalizedColumns.map((column) => column.name),
+        columnDefinitions: normalizedColumns,
         rows: [],
         enable: true,
         description: sheetDraft.description.trim() || undefined
@@ -299,21 +395,11 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
           // 列结构变更时的行数据对齐策略：
           // 按列名匹配保留旧值（同名列继承数据），新增列或无匹配列补空字符串。
           // 这样：重命名列会丢失旧数据（符合"按名匹配"契约），新增列补空，删除列自然丢弃。
-          const oldColumns = s.columns;
-          const newColumns = trimmedCols;
-          const newRows = s.rows.map(oldRow => {
-            return newColumns.map(colName => {
-              const oldIdx = oldColumns.indexOf(colName);
-              return oldIdx !== -1 && oldRow[oldIdx] !== undefined ? oldRow[oldIdx] : "";
-            });
-          });
-          return {
+          return migrateTableMemorySheetSchema({
             ...s,
             name: trimmedName,
-            columns: newColumns,
-            rows: newRows,
             description: sheetDraft.description.trim() || undefined
-          };
+          }, normalizedColumns);
         }
         return s;
       });
@@ -324,6 +410,53 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
   const cancelDraft = () => {
     setSheetDraft(null);
+  };
+
+  const exportSchema = () => {
+    if (sheets.length === 0) return;
+    const content = serializeTableMemorySchema(sheets);
+    const safeTitle = (activeSession.title || "table-memory").replace(/[\\/:*?"<>|]/g, "_");
+    const fileName = `${safeTitle}.tavern-schema.json`;
+    const bridge = (window as WindowWithAndroidFileBridge).AndroidThemeBridge;
+    if (bridge?.saveFile) {
+      try {
+        const path = bridge.saveFile(fileName, content);
+        if (path.startsWith("error:")) {
+          window.alert(t("table_memory.export_failed"));
+          return;
+        }
+        window.alert(t("table_memory.export_saved", { path }));
+      } catch {
+        window.alert(t("table_memory.export_failed"));
+      }
+      return;
+    }
+    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importSchema = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      window.alert(t("table_memory.schema_file_too_large"));
+      return;
+    }
+    try {
+      const pkg = parseTableMemorySchema(await file.text());
+      const imported = instantiateTableMemorySchema(pkg, sheets.map((sheet) => sheet.name));
+      await updateSheets([...sheets, ...imported]);
+      setActiveTableTabId(imported[0]?.id ?? activeTableTabId);
+      window.alert(t("table_memory.import_success", { count: String(imported.length) }));
+    } catch {
+      window.alert(t("table_memory.import_failed"));
+    }
   };
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -411,27 +544,62 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold text-muted-foreground block">{t("table_memory.form_columns_label")}</label>
               {sheetDraft.columns.map((col, idx) => (
-                <div key={idx} className="flex items-center gap-1.5">
+                <div key={col.id} className="space-y-2 rounded-xl border border-border/70 bg-muted/20 p-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      value={col.name}
+                      onChange={e => updateDraftColumn(idx, e.target.value)}
+                      placeholder={`${t("table_memory.column_name")} ${idx + 1}`}
+                      className="min-w-0 flex-1 text-xs bg-background border border-border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/30"
+                    />
+                    <select
+                      value={col.type}
+                      onChange={e => updateDraftColumnSchema(idx, {
+                        type: e.target.value as TableMemoryColumnType,
+                        enumOptions: e.target.value === "enum" ? col.enumOptions ?? [] : undefined,
+                      })}
+                      aria-label={t("table_memory.column_type")}
+                      className="text-xs bg-background border border-border rounded-lg px-2 py-2"
+                    >
+                      <option value="text">{t("table_memory.type_text")}</option>
+                      <option value="number">{t("table_memory.type_number")}</option>
+                      <option value="date">{t("table_memory.type_date")}</option>
+                      <option value="enum">{t("table_memory.type_enum")}</option>
+                    </select>
+                    <button
+                      onClick={() => removeDraftColumn(idx)}
+                      className="p-2 rounded-lg text-destructive hover:bg-destructive/10 border border-destructive/20 transition"
+                      title={t("table_memory.delete_column")}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {col.type === "enum" && (
+                    <input
+                      value={(col.enumOptions ?? []).join(", ")}
+                      onChange={e => updateDraftColumnSchema(idx, {
+                        enumOptions: e.target.value.split(/[,，]/),
+                      })}
+                      placeholder={t("table_memory.enum_options_placeholder")}
+                      aria-label={t("table_memory.enum_options")}
+                      className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2"
+                    />
+                  )}
                   <input
-                    value={col}
-                    onChange={e => updateDraftColumn(idx, e.target.value)}
-                    placeholder={`列 ${idx + 1}`}
-                    className="flex-1 text-xs bg-background border border-border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/30"
+                    value={col.defaultValue ?? ""}
+                    onChange={e => updateDraftColumnSchema(idx, { defaultValue: e.target.value })}
+                    type={col.type === "number" ? "number" : col.type === "date" ? "date" : "text"}
+                    placeholder={t("table_memory.default_value_placeholder")}
+                    aria-label={t("table_memory.default_value")}
+                    className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2"
                   />
-                  <button
-                    onClick={() => removeDraftColumn(idx)}
-                    className="p-2 rounded-lg text-destructive hover:bg-destructive/10 border border-destructive/20 transition"
-                    title="删除此列"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
                 </div>
               ))}
               <button
                 onClick={addDraftColumn}
                 className="text-xs font-bold text-primary bg-primary/10 border border-primary/25 hover:bg-primary/20 px-3 py-2 rounded-lg flex items-center gap-1.5 transition w-full justify-center"
               >
-                <Plus className="w-4 h-4" /> 新增列
+                <Plus className="w-4 h-4" /> {t("table_memory.add_column")}
               </button>
             </div>
 
@@ -479,6 +647,29 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
               <Plus className="w-4 h-4" /> {t("table_memory.new_custom")}
             </button>
 
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => schemaFileInputRef.current?.click()}
+                className="text-xs font-bold text-muted-foreground bg-muted border border-border hover:bg-muted/80 px-3 py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition"
+              >
+                <Upload className="w-3.5 h-3.5" /> {t("table_memory.import_schema")}
+              </button>
+              <button
+                onClick={exportSchema}
+                disabled={sheets.length === 0}
+                className="text-xs font-bold text-muted-foreground bg-muted border border-border hover:bg-muted/80 disabled:opacity-40 px-3 py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition"
+              >
+                <Download className="w-3.5 h-3.5" /> {t("table_memory.export_schema")}
+              </button>
+              <input
+                ref={schemaFileInputRef}
+                type="file"
+                accept=".tavern-schema.json,application/json"
+                onChange={importSchema}
+                className="hidden"
+              />
+            </div>
+
             {sheets.length === 0 ? (
               <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
                 <HelpCircle className="w-8 h-8 opacity-40" />
@@ -506,9 +697,9 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                       )}
                       {/* 列名预览（最多 5 列） */}
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {s.columns.slice(0, 5).map((col, idx) => (
-                          <span key={idx} className="text-[9px] px-1.5 py-0.5 bg-muted/40 border border-border/40 rounded text-muted-foreground">
-                            {col}
+                        {getTableMemoryColumnDefinitions(s).slice(0, 5).map((col) => (
+                          <span key={col.id} className="text-[9px] px-1.5 py-0.5 bg-muted/40 border border-border/40 rounded text-muted-foreground">
+                            {col.name} · {t(`table_memory.type_${col.type}`)}
                           </span>
                         ))}
                         {s.columns.length > 5 && (
@@ -584,6 +775,9 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                             <span className="block truncate max-w-[140px]" title={col}>
                               {col}
                             </span>
+                            <span className="block text-[9px] font-normal opacity-60">
+                              {t(`table_memory.type_${activeColumnDefinitions[idx]?.type ?? "text"}`)}
+                            </span>
                           </th>
                         ))}
                         <th className="px-3 py-2.5 font-bold text-muted-foreground w-10 text-center">操作</th>
@@ -599,8 +793,10 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                       ) : (
                         activeSheet.rows.map((row, rIdx) => (
                           <tr key={rIdx} className="border-b border-border/40 hover:bg-muted/10 last:border-0">
-                            {(Array.isArray(row) ? row : []).map((val, cIdx) => {
+                            {activeSheet.columns.map((_, cIdx) => {
+                              const val = Array.isArray(row) ? String(row[cIdx] ?? "") : "";
                               const isEditing = editingCell?.sheetId === activeSheet.id && editingCell?.rowIndex === rIdx && editingCell?.colIndex === cIdx;
+                              const columnDefinition = activeColumnDefinitions[cIdx];
                               return (
                                 <td
                                   key={cIdx}
@@ -608,14 +804,33 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                                 >
                                   {isEditing ? (
                                     <div className="flex items-center gap-1">
-                                      <input
-                                        value={editValue}
-                                        onChange={(e) => setEditValue(e.target.value)}
-                                        onBlur={saveEditing}
-                                        onKeyDown={handleKeyDown}
-                                        autoFocus
-                                        className="w-full text-xs bg-background border border-primary px-1.5 py-0.5 rounded shadow-sm focus:outline-none focus:ring-1 focus:ring-primary/20"
-                                      />
+                                      {columnDefinition?.type === "enum" ? (
+                                        <select
+                                          value={editValue}
+                                          onChange={(e) => setEditValue(e.target.value)}
+                                          onBlur={saveEditing}
+                                          onKeyDown={handleKeyDown}
+                                          autoFocus
+                                          className="w-full text-xs bg-background border border-primary px-1.5 py-0.5 rounded shadow-sm"
+                                        >
+                                          {!columnDefinition.enumOptions?.includes(editValue) && editValue && (
+                                            <option value={editValue}>{editValue}</option>
+                                          )}
+                                          {(columnDefinition.enumOptions ?? []).map((option) => (
+                                            <option key={option} value={option}>{option}</option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <input
+                                          value={editValue}
+                                          onChange={(e) => setEditValue(e.target.value)}
+                                          onBlur={saveEditing}
+                                          onKeyDown={handleKeyDown}
+                                          type={columnDefinition?.type === "number" ? "number" : columnDefinition?.type === "date" ? "date" : "text"}
+                                          autoFocus
+                                          className="w-full text-xs bg-background border border-primary px-1.5 py-0.5 rounded shadow-sm focus:outline-none focus:ring-1 focus:ring-primary/20"
+                                        />
+                                      )}
                                       <button
                                         onMouseDown={(e) => {
                                           e.preventDefault();

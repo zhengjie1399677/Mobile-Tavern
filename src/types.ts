@@ -1,4 +1,5 @@
 import type { CustomThemePackage } from "./utils/themePackage";
+import type { PromptComposition } from "./domain/prompt-composition";
 
 export interface LorebookEntry {
   id: string;
@@ -182,6 +183,9 @@ export interface PromptConfig {
   sectionHeaders?: Record<string, string>;
   tableMemoryPrompt?: string;
   renderingFormat?: 'auto' | 'xml' | 'markdown';
+  /** 新一代自由编排；关闭时保留旧 PromptService 路径作为迁移期回退。 */
+  usePromptComposition?: boolean;
+  composition?: PromptComposition;
 }
 
 export interface ApiProfile {
@@ -304,10 +308,25 @@ export interface RegexScript {
   promptOnly?: boolean;
 }
 
+export type TableMemoryColumnType = "text" | "number" | "date" | "enum";
+
+/**
+ * 状态表列的高阶 Schema。`id` 在列重命名时保持稳定，用于迁移旧行数据；
+ * `columns` 仍作为兼容字段保留，旧会话缺少本字段时按 text 类型降级。
+ */
+export interface TableMemoryColumnDefinition {
+  id: string;
+  name: string;
+  type: TableMemoryColumnType;
+  defaultValue?: string;
+  enumOptions?: string[];
+}
+
 export interface TableMemorySheet {
   id: string;          // Unique Sheet ID
   name: string;        // Sheet name (e.g. "人物属性", "好感关系", "背包状态")
   columns: string[];   // Column names (e.g. ["角色", "好感值", "备注"])
+  columnDefinitions?: TableMemoryColumnDefinition[]; // Typed schema metadata (backward compatible)
   rows: string[][];    // 2D grid of values
   enable: boolean;     // Whether to inject to AI context
   description?: string;// Guide for the AI (e.g. "用于记录玩家和你的好感阶段")
