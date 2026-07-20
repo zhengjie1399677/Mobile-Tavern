@@ -59,13 +59,19 @@ export function cleanAllMetadataFromText(text: string): { content: string; sugge
   let cleanContent = text;
 
   // 1. 剥离各类元数据与脚本标签（包括已闭合和流式未闭合，支持包含属性标签）
+  // - memory_extraction / memory：L0 记忆抽取协议
+  // - UpdateVariable / initvar：MVU 角色变量脚本
+  // - JSONPatch / Analysis：旧版结构化补丁与分析标签
+  // - table_update：表格记忆 CRUD 指令包裹标签（updateRow/insertRow/deleteRow），
+  //   由 tableMemoryMiddleware 解析后剥离，避免正文残留指令文本
   const metadataTags = [
     "memory_extraction",
     "memory",
     "UpdateVariable",
     "initvar",
     "JSONPatch",
-    "Analysis"
+    "Analysis",
+    "table_update"
   ];
   for (const tag of metadataTags) {
     const startRegex = new RegExp(`<${tag}(?:\\s+[^>]*)?>`, "i");

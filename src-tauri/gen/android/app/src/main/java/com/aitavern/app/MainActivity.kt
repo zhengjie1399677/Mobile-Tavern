@@ -67,9 +67,18 @@ class MainActivity : TauriActivity() {
     // Set WebView background color to match the theme background and prevent white flashes during load
     webView.setBackgroundColor(android.graphics.Color.parseColor("#0d1726"))
 
-
-
-    webView.addJavascriptInterface(ThemeBridgeInterface(), "AndroidThemeBridge")
+    // 注意：`window.AndroidThemeBridge` JavascriptInterface 由 Tauri 插件
+    // `tauri_plugin_android_bridge` 在 `AndroidBridgePlugin#load` 中统一注入
+    // （见 src-tauri/plugins/android-bridge/android/.../AndroidBridgePlugin.kt）。
+    //
+    // 此前此处曾调用 `webView.addJavascriptInterface(ThemeBridgeInterface(), "AndroidThemeBridge")`
+    // 用一个仅暴露 4 个方法的内部类覆盖了插件注入的完整 `AndroidThemeBridge` 对象，
+    // 导致 `hasStoragePermission / scanGlobalCards / requestStoragePermission / readLocalFile`
+    // 等方法在 JS 端不可见，抛出 `C.hasStoragePermission is not a function`。
+    //
+    // `AndroidThemeBridge` 类已是 `ThemeBridgeInterface` 的严格超集（同样实现
+    // getSafeAreas / setStatusBarStyle / saveFile / saveFileBase64，且采用 MediaStore API
+    // 而非已废弃的 WRITE_EXTERNAL_STORAGE 路径），因此无需再在 MainActivity 内重复注入。
   }
 
   inner class ThemeBridgeInterface {

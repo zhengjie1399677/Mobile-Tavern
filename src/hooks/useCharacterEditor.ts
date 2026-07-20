@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from "react";
 import { useApp } from "../contexts/AppContext";
-import { useTranslation } from "../contexts/LanguageContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { CharacterCard, LorebookEntry } from "../types";
 import { catbotEventBus } from "../utils/catbotEventBus";
+import { TRANSLATIONS } from "../locales/index";
 
 /**
  * 角色卡编辑业务 Hook
@@ -15,10 +15,21 @@ import { catbotEventBus } from "../utils/catbotEventBus";
  *   - 世界书条目保存（编辑中的卡 + 活跃卡的立绘词条）
  *
  * 设计遵循 AGENTS.md 准则一第 6 条「面向模块化/服务化的轻量化开发」。
+ *
+ * Provider 层级约束说明：
+ *   useCharacterEditor 被 useCharacters 调用，后者由 LegacyAppContextProviderInner
+ *   在 LanguageProvider **外层** 装配（详见 src/App.tsx 渲染树），因此此处
+ *   严禁使用 useTranslation hook，与 CharacterContext/ChatContext 同源约束。
+ *   错误提示文案直接从 TRANSLATIONS 读取当前语言，与 tChar/tChat 模式保持一致。
  */
+function tCharEditor(key: string, errorMessage: string): string {
+  const lang = (typeof window !== "undefined" && localStorage.getItem("mobile_tavern_language")) || "zh-CN";
+  const template = (TRANSLATIONS[lang]?.[key]) || TRANSLATIONS["zh-CN"]?.[key] || key;
+  return template.replace("{error}", errorMessage);
+}
+
 export const useCharacterEditor = () => {
   const { showCustomAlert, showCustomConfirm } = useApp();
-  const { t } = useTranslation();
   const {
     characters,
     setCharacters,
@@ -136,7 +147,7 @@ export const useCharacterEditor = () => {
       setEditingChar(null);
     } catch (err: any) {
       console.error("Failed to save character to IndexedDB:", err);
-      showCustomAlert(t("character_editor.save_failed", { error: err.message }));
+      showCustomAlert(tCharEditor("character_editor.save_failed", err.message));
     } finally {
       setIsDbWriting(false);
     }
@@ -263,7 +274,7 @@ export const useCharacterEditor = () => {
       setEditingActiveCharLoreEntry(null);
     } catch (err: any) {
       console.error("Failed to save character lore to IndexedDB:", err);
-      showCustomAlert(t("character_editor.lore_save_failed", { error: err.message }));
+      showCustomAlert(tCharEditor("character_editor.lore_save_failed", err.message));
     }
   }, [editingActiveCharLoreEntry, showCustomAlert, setCharacters, saveCharacter]);
 

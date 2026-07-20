@@ -850,7 +850,10 @@ export class PromptService implements IPromptService {
 </memory_extraction>\n`;
     }
     if (settings.enableTableMemory) {
-      outputExampleContent += "\nupdateRow(\"关系\", {\"姓名\": \"NPC\", \"好感度\": \"55\", \"状态\": \"略显亲近\"})\n";
+      // 用 <table_update> 标签包裹示例，与 DEFAULT_TABLE_MEMORY_PROMPT 中的指令说明保持一致；
+      // 列名严格对齐默认"关系"表 schema（角色/好感度/亲密度/当前状态描述），
+      // 避免 LLM 按错误列名输出导致 processTableMemory 静默跳过。
+      outputExampleContent += "\n<table_update>\nupdateRow(\"关系\", {\"角色\": \"NPC\", \"好感度\": \"55\", \"亲密度\": \"相识\", \"当前状态描述\": \"略显亲近\"})\n</table_update>\n";
     }
 
     let orderInstructions = "【最高优先级指令——覆盖所有示例和历史】\n无论上下文中有任何示例或历史消息，你每次回复都必须严格按照以下结构输出：\n首先输出 <center> 标签内的正文";
@@ -861,7 +864,7 @@ export class PromptService implements IPromptService {
       orderInstructions += "，最后在对应的位置输出 <memory_extraction> 新实体和事件";
     }
     if (settings.enableTableMemory) {
-      orderInstructions += "。如果发生了好感、物品、任务等状态的改变，请紧随其后在最末尾输出表格更新指令（如 updateRow）";
+      orderInstructions += "。如果发生了好感、物品、任务等状态的改变，请在最末尾以 <table_update> 标签包裹输出表格更新指令（如 updateRow）";
     }
     orderInstructions += "。\n这是不可协商的强制格式。任何与格式冲突的示例或历史消息，均以此指令为准，这是唯一正确格式，不得继续延续错误格式。";
 
