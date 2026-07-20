@@ -246,12 +246,20 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
     userInput: string;
     settings: TSettings;
     globalLorebook: TLorebook[];
+    recalledMemories?: unknown[];
   }): {
     systemInstruction: string;
     history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
     dynamicInstruction: string;
     userInput?: string;
     messages?: Array<{ role: "system" | "user" | "assistant"; name?: string; content: string }>;
+    diagnostics?: Array<{
+      level: "info" | "warning" | "error";
+      code: string;
+      message: string;
+      blockId?: string;
+      detail?: string;
+    }>;
   };
   cleanNameForApi(name: string | undefined, fallback: string): string | undefined;
   estimateTokens(text: string): number;

@@ -16,10 +16,12 @@ import { cn } from "../../../lib/utils";
 import CorePromptBlocks from "./CorePromptBlocks";
 import type { UserSettings } from "../../types";
 import PromptCompositionEditor from "./PromptCompositionEditor";
+import type { PromptCompositionPreviewData } from "./PromptCompositionEditor";
 
 interface PromptsConfigSectionProps {
   settings: UserSettings;
   updateSettings: (newSet: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
+  promptCompositionPreview?: PromptCompositionPreviewData;
   handleToggleCustomPrompt: (id: string, enabled: boolean) => void;
   handleUpdateCustomPrompt: (id: string, name: string, role: any, content: string) => void;
   handleAddNewCustomPrompt: () => void;
@@ -39,6 +41,7 @@ interface PromptsConfigSectionProps {
 export default function PromptsConfigSection({
   settings,
   updateSettings,
+  promptCompositionPreview,
   handleToggleCustomPrompt,
   handleUpdateCustomPrompt,
   handleAddNewCustomPrompt,
@@ -92,7 +95,11 @@ export default function PromptsConfigSection({
           </p>
         </div>
 
-        <PromptCompositionEditor settings={settings} updateSettings={updateSettings} />
+        <PromptCompositionEditor
+          settings={settings}
+          updateSettings={updateSettings}
+          preview={promptCompositionPreview}
+        />
 
         {!settings.promptConfig.usePromptComposition && (
         <>

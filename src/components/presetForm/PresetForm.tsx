@@ -1,4 +1,7 @@
+import { useMemo } from "react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import { useKernel } from "../../contexts/KernelContext";
+import type { IPromptService } from "../../kernel/types";
 import { usePresetFormState } from "./usePresetFormState";
 import PresetSelectorSection from "./PresetSelectorSection";
 import SamplersSection from "./SamplersSection";
@@ -14,6 +17,8 @@ import RegexManagementSection from "./RegexManagementSection";
  * re-export 后，最终解析到本文件的默认导出，导入路径零变更。
  */
 export default function PresetForm() {
+  const kernel = useKernel();
+  const promptService = kernel.getService<IPromptService>("prompt");
   const {
     settings,
     updateSettings,
@@ -29,6 +34,11 @@ export default function PresetForm() {
     showCustomConfirm,
     showCustomAlert,
     activeCharacter,
+    activeSession,
+    characters,
+    globalLorebook,
+    customWorldbooks,
+    lastRecalledMemories,
     saveCharacter,
   } = useUnifiedApp((state) => ({
     settings: state.settings,
@@ -45,6 +55,11 @@ export default function PresetForm() {
     showCustomConfirm: state.showCustomConfirm,
     showCustomAlert: state.showCustomAlert,
     activeCharacter: state.activeCharacter,
+    activeSession: state.activeSession,
+    characters: state.characters,
+    globalLorebook: state.globalLorebook,
+    customWorldbooks: state.customWorldbooks,
+    lastRecalledMemories: state.lastRecalledMemories,
     saveCharacter: state.saveCharacter,
   }));
 
@@ -92,6 +107,43 @@ export default function PresetForm() {
     saveCharacter,
   });
 
+  const promptCompositionPreview = useMemo(() => {
+    if (!activeCharacter || !activeSession || !settings.promptConfig.composition) return undefined;
+    const otherCharacterEntries = characters
+      .filter((character) => character.isWorldbookGlobal && character.id !== activeCharacter.id)
+      .flatMap((character) => character.lorebookEntries || []);
+    const customEntries = Object.values(customWorldbooks || {})
+      .filter((worldbook) => worldbook.enabled)
+      .flatMap((worldbook) => worldbook.entries || []);
+    const result = promptService.assemblePrompt({
+      character: activeCharacter,
+      chat: activeSession,
+      userInput: "",
+      settings: {
+        ...settings,
+        promptConfig: { ...settings.promptConfig, usePromptComposition: true },
+      },
+      globalLorebook: [...globalLorebook, ...otherCharacterEntries, ...customEntries],
+      recalledMemories: lastRecalledMemories,
+    });
+    const messages = result.messages || [];
+    return {
+      messages,
+      diagnostics: result.diagnostics || [],
+      estimatedTokens: messages.reduce((total, message) => total + promptService.estimateTokens(message.content), 0),
+      contextAvailable: true,
+    };
+  }, [
+    activeCharacter,
+    activeSession,
+    characters,
+    customWorldbooks,
+    globalLorebook,
+    lastRecalledMemories,
+    promptService,
+    settings,
+  ]);
+
   return (
     <div className="space-y-2.5">
       {/* 1. 预设选择与管理 */}
@@ -117,6 +169,7 @@ export default function PresetForm() {
       <PromptsConfigSection
         settings={settings}
         updateSettings={updateSettings}
+        promptCompositionPreview={promptCompositionPreview}
         handleToggleCustomPrompt={handleToggleCustomPrompt}
         handleUpdateCustomPrompt={handleUpdateCustomPrompt}
         handleAddNewCustomPrompt={handleAddNewCustomPrompt}

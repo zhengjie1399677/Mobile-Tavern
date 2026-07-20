@@ -130,6 +130,13 @@ export class PromptService implements IPromptService {
     dynamicInstruction: string;
     userInput?: string;
     messages?: Array<{ role: "system" | "user" | "assistant"; name?: string; content: string }>;
+    diagnostics?: Array<{
+      level: "info" | "warning" | "error";
+      code: string;
+      message: string;
+      blockId?: string;
+      detail?: string;
+    }>;
   } {
     const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [] } = params;
 
@@ -201,6 +208,7 @@ export class PromptService implements IPromptService {
         }),
         userInput,
         messages: compiled.messages,
+        diagnostics: compiled.diagnostics,
       };
     }
 
