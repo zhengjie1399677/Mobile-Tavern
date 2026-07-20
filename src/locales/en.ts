@@ -704,6 +704,8 @@ export default {
   "prompt_composer.workbench_view": "Workbench view",
   "prompt_composer.workbench_description": "Inspect the message flow and compiled result, then select a block from the graph to configure it.",
   "prompt_composer.graph": "Composition graph",
+  "prompt_composer.enter_landscape": "Enter landscape workbench",
+  "prompt_composer.restore_auto_rotation": "Restore auto-rotate",
   "prompt_composer.final_preview": "Final preview",
   "prompt_composer.message_flow_graph": "Message flow graph",
   "prompt_composer.graph_block": "Graph block: {name}",

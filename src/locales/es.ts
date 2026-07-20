@@ -694,6 +694,8 @@ export default {
   "prompt_composer.workbench_view": "Vista de la mesa",
   "prompt_composer.workbench_description": "Inspecciona el flujo de mensajes y el resultado compilado, y selecciona en el gráfico el bloque que deseas configurar.",
   "prompt_composer.graph": "Gráfico de composición",
+  "prompt_composer.enter_landscape": "Abrir mesa horizontal",
+  "prompt_composer.restore_auto_rotation": "Restaurar rotación automática",
   "prompt_composer.final_preview": "Vista previa final",
   "prompt_composer.message_flow_graph": "Gráfico de flujo de mensajes",
   "prompt_composer.graph_block": "Bloque del gráfico: {name}",

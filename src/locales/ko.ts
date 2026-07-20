@@ -722,6 +722,8 @@ export default {
   "prompt_composer.workbench_view": "작업대 보기",
   "prompt_composer.workbench_description": "메시지 흐름과 컴파일 결과를 확인하고 그래프에서 구성할 블록을 선택합니다.",
   "prompt_composer.graph": "구성 그래프",
+  "prompt_composer.enter_landscape": "가로 작업대 열기",
+  "prompt_composer.restore_auto_rotation": "자동 회전 복원",
   "prompt_composer.final_preview": "최종 미리보기",
   "prompt_composer.message_flow_graph": "메시지 흐름 그래프",
   "prompt_composer.graph_block": "그래프 블록: {name}",

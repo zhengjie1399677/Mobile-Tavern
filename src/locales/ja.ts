@@ -694,6 +694,8 @@
   "prompt_composer.workbench_view": "ワークベンチ表示",
   "prompt_composer.workbench_description": "メッセージフローとコンパイル結果を確認し、グラフから設定するブロックを選択します。",
   "prompt_composer.graph": "構成グラフ",
+  "prompt_composer.enter_landscape": "横画面ワークベンチへ",
+  "prompt_composer.restore_auto_rotation": "自動回転に戻す",
   "prompt_composer.final_preview": "最終プレビュー",
   "prompt_composer.message_flow_graph": "メッセージフローグラフ",
   "prompt_composer.graph_block": "グラフ内ブロック：{name}",

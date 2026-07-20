@@ -704,6 +704,8 @@ export default {
   "prompt_composer.workbench_view": "Visualização da bancada",
   "prompt_composer.workbench_description": "Inspecione o fluxo de mensagens e o resultado compilado e selecione no gráfico o bloco que deseja configurar.",
   "prompt_composer.graph": "Gráfico de composição",
+  "prompt_composer.enter_landscape": "Abrir bancada horizontal",
+  "prompt_composer.restore_auto_rotation": "Restaurar rotação automática",
   "prompt_composer.final_preview": "Prévia final",
   "prompt_composer.message_flow_graph": "Gráfico de fluxo de mensagens",
   "prompt_composer.graph_block": "Bloco no gráfico: {name}",

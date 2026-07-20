@@ -704,6 +704,8 @@ export default {
   "prompt_composer.workbench_view": "工作台檢視",
   "prompt_composer.workbench_description": "查看訊息流、編譯結果，並從圖中定位需要設定的區塊。",
   "prompt_composer.graph": "編排圖",
+  "prompt_composer.enter_landscape": "進入橫向工作台",
+  "prompt_composer.restore_auto_rotation": "恢復自動旋轉",
   "prompt_composer.final_preview": "最終預覽",
   "prompt_composer.message_flow_graph": "訊息流圖",
   "prompt_composer.graph_block": "圖中區塊：{name}",

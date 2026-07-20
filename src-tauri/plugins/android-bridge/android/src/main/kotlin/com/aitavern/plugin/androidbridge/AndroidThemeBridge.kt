@@ -3,6 +3,7 @@ package com.aitavern.plugin.androidbridge
 import android.app.Activity
 import android.app.Application
 import android.content.ContentValues
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -28,7 +29,7 @@ import java.util.Locale
  * Native bridge injected into the WebView as `window.AndroidThemeBridge`.
  *
  * The class is referenced from the frontend through
- * `(window as any).AndroidThemeBridge` and exposes four synchronous
+ * `(window as any).AndroidThemeBridge` and exposes synchronous
  * `@JavascriptInterface` methods. The call contract (method names, argument
  * order, return types) MUST stay backwards compatible with the existing
  * frontend code in `src/contexts/AppContext.tsx`, `src/hooks/useCharacters.ts`,
@@ -346,6 +347,34 @@ class AndroidThemeBridge(
     }
 
     /**
+     * Lock the Activity to a sensor-aware landscape orientation, or return
+     * orientation control to the manifest and system auto-rotate setting.
+     *
+     * @return `false` when [mode] is unsupported; otherwise `true` once the
+     *     request has been accepted for dispatch on the Android UI thread.
+     */
+    @JavascriptInterface
+    fun setScreenOrientation(mode: String): Boolean {
+        val requestedOrientation = when (mode) {
+            "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            "auto" -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            else -> {
+                Log.w(TAG, "Unsupported screen orientation mode: $mode")
+                return false
+            }
+        }
+
+        activity.runOnUiThread {
+            try {
+                activity.requestedOrientation = requestedOrientation
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to set screen orientation: $mode", e)
+            }
+        }
+        return true
+    }
+
+    /**
      * Open a URL in the system default browser.
      */
     @JavascriptInterface
@@ -654,4 +683,3 @@ class AndroidThemeBridge(
         }
     }
 }
-

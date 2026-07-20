@@ -6,6 +6,7 @@ import {
   GripVertical,
   History,
   MessageSquarePlus,
+  RotateCw,
   RotateCcw,
   Trash2,
 } from "lucide-react";
@@ -22,6 +23,7 @@ import PromptCompositionWorkbench from "./PromptCompositionWorkbench";
 import type { PromptWorkbenchView } from "./PromptCompositionWorkbench";
 import type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 import { useWidePromptWorkbench } from "./useWidePromptWorkbench";
+import { useAndroidOrientationControl } from "./useAndroidOrientationControl";
 
 export type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 
@@ -45,6 +47,7 @@ export default function PromptCompositionEditor({
   const [fullEditorOpen, setFullEditorOpen] = useState(false);
   const [dragTargetId, setDragTargetId] = useState<string>();
   const isWideWorkbench = useWidePromptWorkbench();
+  const orientationControl = useAndroidOrientationControl();
   const dragRef = useRef<{ sourceId: string; targetId: string }>();
   const editingBlock = composition.blocks.find((block) => block.id === editingBlockId);
   const historyBlocks = composition.blocks.filter((block) => block.source.type === "chat_history");
@@ -179,6 +182,20 @@ export default function PromptCompositionEditor({
 
       {freeMode && (
         <>
+          {orientationControl.available && (
+            <button
+              type="button"
+              aria-pressed={orientationControl.forcedLandscape}
+              onClick={orientationControl.toggleOrientation}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 text-xs font-bold text-primary active:bg-primary/15"
+            >
+              <RotateCw className="h-4 w-4" />
+              {t(orientationControl.forcedLandscape
+                ? "prompt_composer.restore_auto_rotation"
+                : "prompt_composer.enter_landscape")}
+            </button>
+          )}
+
           <div className={isWideWorkbench ? "grid grid-cols-[minmax(300px,0.9fr)_minmax(340px,1.1fr)] items-start gap-3" : "space-y-3"}>
             <div className="space-y-3">
               <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-2 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">

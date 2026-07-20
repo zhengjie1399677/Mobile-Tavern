@@ -694,6 +694,8 @@ export default {
   "prompt_composer.workbench_view": "Вид рабочей области",
   "prompt_composer.workbench_description": "Просматривайте поток сообщений и результат компиляции, затем выбирайте на графе блок для настройки.",
   "prompt_composer.graph": "Граф композиции",
+  "prompt_composer.enter_landscape": "Открыть горизонтальную рабочую область",
+  "prompt_composer.restore_auto_rotation": "Вернуть автоповорот",
   "prompt_composer.final_preview": "Итоговый предпросмотр",
   "prompt_composer.message_flow_graph": "Граф потока сообщений",
   "prompt_composer.graph_block": "Блок на графе: {name}",

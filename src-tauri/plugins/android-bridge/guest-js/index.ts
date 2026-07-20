@@ -32,6 +32,8 @@ export interface AndroidThemeBridge {
   getSafeAreas(): string;
   /** Updates the status bar background colour and icon appearance. */
   setStatusBarStyle(isDark: boolean, colorHex: string): void;
+  /** Locks the Activity to sensor landscape or returns control to the system. */
+  setScreenOrientation(mode: "landscape" | "auto"): boolean;
   /**
    * Saves a UTF-8 text file to the public Download directory.
    * @returns the display path of the saved file, or an `error:`-prefixed
