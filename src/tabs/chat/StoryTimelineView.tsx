@@ -47,15 +47,17 @@ const StoryTimelineView = () => {
     createBacktrackFromTimeline: state.createBacktrackFromTimeline,
   }));
 
+  const summaries = activeSession?.summaries ?? [];
+
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 min-h-0">
-      <div className="flex items-center justify-between gap-3">
+    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 custom-scrollbar">
+      <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-foreground">
-            故事历史卡片轴 (Memory Timeline)
+          <p className="text-[13px] font-bold text-foreground">
+            故事年表
           </p>
-          <p className="text-[11px] text-muted-foreground">
-            这些卡片将作为辅助长期记忆状态，拼写入系统 Prompt 中。
+          <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
+            记录长期剧情节点，并在发送时加入系统 Prompt。
           </p>
 
         </div>
@@ -70,17 +72,18 @@ const StoryTimelineView = () => {
             setNewSummaryContent("");
             setTimelineModalOpen(true);
           }}
-          className="bg-primary hover:bg-primary text-primary-foreground text-[11px] px-2.5 py-1.5 rounded transition flex items-center gap-1 font-medium shrink-0 whitespace-nowrap"
+          className="flex min-h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-primary/30 bg-primary px-3 text-[11px] font-bold text-primary-foreground shadow-sm transition active:scale-[0.98]"
         >
           <Plus className="w-3.5 h-3.5" /> 手工补充
         </button>
       </div>
 
-      <div className="relative border-l border-primary/25 ml-3 pl-5 space-y-5 py-2">
-        {activeSession?.summaries.map((summary: any) => (
+      {summaries.length > 0 ? (
+        <div className="relative ml-2 space-y-3 border-l border-primary/25 py-1 pl-4">
+        {summaries.map((summary: any) => (
           <div
             key={summary.id}
-            className="relative group bg-card p-3 rounded-lg border border-border shadow-sm w-full max-w-full overflow-hidden"
+            className="group relative w-full max-w-full overflow-hidden rounded-xl border border-border/70 bg-card/60 p-2.5 shadow-sm"
           >
             {/* Timeline Dot Indicator */}
             <span className="absolute -left-[25px] top-4 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-background"></span>
@@ -154,19 +157,16 @@ const StoryTimelineView = () => {
             </p>
           </div>
         ))}
-
-        {(!activeSession?.summaries ||
-          activeSession.summaries.length === 0) && (
-          <div className="text-center py-8 text-muted-foreground border border-dashed border-border/80 rounded pl-2">
-            <Clock className="w-8 h-8 stroke-[1.2] mx-auto mb-1.5 opacity-60" />
-            <p className="text-xs">目前尚未归档任何宏观发展大纲</p>
-            <p className="text-[10px] leading-normal px-4 mt-1 opacity-70">
-              当聊天内容变长时，可通过上方 “记忆” 菜单中的 “整理潜意识碎片”
-              自主浓缩，或手工录入您对当前关系演变的阶段性理解记录。
-            </p>
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed border-border/70 px-5 py-6 text-center text-muted-foreground">
+          <Clock className="mb-2 size-7 stroke-[1.2] opacity-55" />
+          <p className="text-xs font-semibold">尚无故事节点</p>
+          <p className="mt-1 max-w-sm text-[10px] leading-4 opacity-70">
+            对话积累后可整理潜意识碎片，也可以手工补充阶段性剧情记录。
+          </p>
+        </div>
+      )}
     </div>
   );
 };

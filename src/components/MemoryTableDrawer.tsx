@@ -39,7 +39,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   const { t } = useTranslation();
   // 大 Tab 面板：'timeline' | 'table' | 'dict' | 'recall' | 'mvu'
   const [activeTab, setActiveTab] = useState<'timeline' | 'table' | 'dict' | 'recall' | 'mvu'>(
-    enableAutoSummary ? 'timeline' : (enableTableMemory ? 'table' : 'recall')
+    initialTab ?? (enableAutoSummary ? 'timeline' : (enableTableMemory ? 'table' : 'recall'))
   );
 
   // 当抽屉打开时，根据当前配置或传入初始 Tab 动态重置 Tab
@@ -57,13 +57,19 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px] transition-all duration-300">
-      <div className="w-full max-w-lg bg-background/85 border-t border-border/80 rounded-t-2xl shadow-2xl overflow-hidden flex flex-col h-[75vh] backdrop-blur-xl env-bottom">
+      <div
+        data-memory-drawer-surface
+        data-density="compact"
+        className="flex h-[92dvh] max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[22px] border-t border-border/80 bg-background/95 shadow-2xl backdrop-blur-xl env-bottom sm:h-[86vh] sm:max-h-[760px]"
+      >
 
         {/* Header Section */}
-        <div className="px-4 py-3 border-b border-border/50 flex justify-between items-center bg-muted/30">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold bg-primary/10 text-primary px-2.5 py-1 rounded-full flex items-center gap-1.5 font-sans">
-              <BrainCircuit className="w-3.5 h-3.5" />
+        <div className="flex min-h-12 items-center justify-between border-b border-border/50 bg-muted/20 px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-foreground">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <BrainCircuit className="size-4" />
+              </span>
               {t("memory_drawer.title")}
             </span>
           </div>
@@ -71,19 +77,22 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             {/* 原 ⚙️管理按钮已迁移至 TableMemoryTab 内部顶部，控制其内部 showConfig 状态 */}
             <button
               onClick={onClose}
-              className="p-1.5 rounded-full hover:bg-muted border border-border/40 text-muted-foreground transition"
+              aria-label="关闭记忆与状态中心"
+              className="flex size-9 items-center justify-center rounded-lg border border-border/50 text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
-              <X className="w-4 h-4" />
+              <X className="size-4" />
             </button>
           </div>
         </div>
 
         {/* Tab 栏切换器 */}
-        <div className="flex border-b border-border/30 bg-muted/10 px-4 py-2 gap-2 text-xs font-semibold overflow-x-auto scrollbar-none shrink-0">
+        <div role="tablist" aria-label="记忆与状态分类" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/30 bg-muted/10 px-2 py-1.5 text-[11px] font-semibold scrollbar-none">
           {enableAutoSummary && (
             <button
               onClick={() => setActiveTab('timeline')}
-              className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'timeline' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+              role="tab"
+              aria-selected={activeTab === 'timeline'}
+              className={`min-h-9 shrink-0 rounded-lg border px-3 transition-all ${activeTab === 'timeline' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
                 }`}
             >
               {t("memory_drawer.tab_timeline")}
@@ -92,7 +101,9 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
           {enableTableMemory && (
             <button
               onClick={() => setActiveTab('table')}
-              className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'table' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+              role="tab"
+              aria-selected={activeTab === 'table'}
+              className={`min-h-9 shrink-0 rounded-lg border px-3 transition-all ${activeTab === 'table' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
                 }`}
             >
               {t("memory_drawer.tab_table")}
@@ -100,21 +111,27 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
           )}
           <button
             onClick={() => setActiveTab('dict')}
-            className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'dict' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+            role="tab"
+            aria-selected={activeTab === 'dict'}
+            className={`min-h-9 shrink-0 rounded-lg border px-3 transition-all ${activeTab === 'dict' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
               }`}
           >
             {t("memory_drawer.tab_dict")}
           </button>
           <button
             onClick={() => setActiveTab('recall')}
-            className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'recall' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+            role="tab"
+            aria-selected={activeTab === 'recall'}
+            className={`min-h-9 shrink-0 rounded-lg border px-3 transition-all ${activeTab === 'recall' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
               }`}
           >
             {t("memory_drawer.tab_recall")}
           </button>
           <button
             onClick={() => setActiveTab('mvu')}
-            className={`px-3 py-1.5 rounded-lg border transition-all ${activeTab === 'mvu' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+            role="tab"
+            aria-selected={activeTab === 'mvu'}
+            className={`min-h-9 shrink-0 rounded-lg border px-3 transition-all ${activeTab === 'mvu' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
               }`}
           >
             {t("memory_drawer.tab_mvu")}
@@ -122,7 +139,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
         </div>
 
         {/* Inner Content Area */}
-        <div className={`flex-1 min-h-0 ${activeTab === 'timeline' ? '' : 'overflow-y-auto p-4 space-y-4'}`}>
+        <div className={`min-h-0 flex-1 ${activeTab === 'timeline' ? '' : 'overflow-y-auto p-3'}`}>
 
           {/* TAB 0: ⏱️ 故事年表 */}
           {activeTab === 'timeline' && (

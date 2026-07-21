@@ -106,6 +106,30 @@ describe("MemoryTableDrawer", () => {
     expect(screen.getByText("状态与关系")).toBeInTheDocument();
   });
 
+  it("使用紧凑全高外壳，并为各类记忆保留独立标签", () => {
+    const { container } = renderWithI18n(
+      <MemoryTableDrawer
+        isOpen={true}
+        onClose={onClose}
+        activeSession={makeSession()}
+        saveSession={saveSession}
+        charName="Alice"
+        enableTableMemory={true}
+        enableAutoSummary={true}
+        initialTab="table"
+      />
+    );
+
+    expect(container.querySelector("[data-memory-drawer-surface]"))
+      .toHaveAttribute("data-density", "compact");
+    expect(screen.getByRole("tablist", { name: "记忆与状态分类" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "故事年表" })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: "状态数据" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "记忆词典" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "唤醒记忆" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "角色变量" })).toBeInTheDocument();
+  });
+
   // ------------------------------------------------------------------
   // 无表数据时的兜底（准则五向前兼容）
   // ------------------------------------------------------------------

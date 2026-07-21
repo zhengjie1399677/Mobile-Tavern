@@ -229,31 +229,31 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
   };
 
   return (
-    <div className="space-y-4 flex flex-col h-full">
+    <div className="flex min-h-full flex-col gap-3">
       {/* Sub Tabs */}
-      <div className="flex border-b border-border/20 shrink-0 gap-3 text-[11px] font-bold">
+      <div className="flex shrink-0 gap-1 rounded-lg bg-muted/30 p-1 text-[11px] font-bold">
         <button
           onClick={() => setActiveSubTab("form")}
-          className={`pb-1.5 border-b-2 transition ${
-            activeSubTab === "form" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+          className={`min-h-8 flex-1 rounded-md border transition ${
+            activeSubTab === "form" ? "border-primary/25 bg-background text-primary shadow-sm" : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           表单编辑
         </button>
         <button
           onClick={() => setActiveSubTab("json")}
-          className={`pb-1.5 border-b-2 transition ${
-            activeSubTab === "json" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+          className={`min-h-8 flex-1 rounded-md border transition ${
+            activeSubTab === "json" ? "border-primary/25 bg-background text-primary shadow-sm" : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           JSON 源码
         </button>
       </div>
 
-      <div className="flex-grow overflow-y-auto max-h-[35vh] pr-1">
+      <div className="min-h-0 flex-grow pr-1">
         {activeSubTab === "form" ? (
           Object.keys(statData).length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground italic">
+            <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-border/70 px-5 py-6 text-center text-xs text-muted-foreground">
               当前无变量属性，点击下方「添加新属性」按钮新增。
             </div>
           ) : (
@@ -278,7 +278,7 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end gap-2 pt-2 border-t border-border/30 shrink-0">
+      <div className="sticky bottom-0 flex shrink-0 justify-end gap-2 border-t border-border/30 bg-background/95 pt-2 backdrop-blur">
         {activeSubTab === "json" && (
           <button
             onClick={() => {

@@ -224,23 +224,23 @@ function DictTab({ activeSession }: DictTabProps) {
   });
 
   return (
-    <div className="space-y-3.5 text-xs text-foreground">
+    <div className="space-y-3 text-xs text-foreground">
       
       {/* 顶部简短提示 */}
-      <div className="text-[10px] font-medium bg-muted/40 text-muted-foreground border border-border/30 rounded-lg p-2 leading-relaxed">
+      <div className="rounded-lg border border-border/30 bg-muted/30 px-2.5 py-2 text-[10px] font-medium leading-4 text-muted-foreground">
         {t("dict_tab.info")}
       </div>
 
       {/* 搜索栏与新增/导出操作按钮 */}
-      <div className="flex flex-col gap-2">
-        <div className="relative flex-1">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <div className="relative min-w-0">
           <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder={t("dict_tab.search_placeholder")}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-input border border-border rounded-lg pl-8 pr-7 py-1.5 outline-none focus:ring-1 focus:ring-primary/20 text-xs"
+            className="h-9 w-full rounded-lg border border-border bg-input pl-8 pr-7 text-xs outline-none focus:ring-2 focus:ring-primary/20"
           />
           {searchQuery && (
             <button
@@ -252,10 +252,10 @@ function DictTab({ activeSession }: DictTabProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setIsAdding(!isAdding)}
-            className={`flex-1 py-1.5 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1.5 transition ${
+            className={`flex min-h-9 items-center justify-center gap-1 rounded-lg border px-2.5 text-[11px] font-bold transition ${
               isAdding
                 ? "bg-rose-950/20 text-rose-400 border-rose-900/35 hover:bg-rose-950/30"
                 : "bg-primary/10 text-primary border-primary/20 hover:bg-primary/15"
@@ -276,7 +276,7 @@ function DictTab({ activeSession }: DictTabProps) {
           {dictEntries.length > 0 && (
             <button
               onClick={handleExportDict}
-              className="px-3 py-1.5 bg-muted border border-border hover:bg-primary/10 hover:text-primary hover:border-primary/20 text-muted-foreground transition rounded-lg text-[11px] font-bold flex items-center gap-1"
+              className="flex min-h-9 items-center gap-1 rounded-lg border border-border bg-muted px-2.5 text-[11px] font-bold text-muted-foreground transition hover:border-primary/20 hover:bg-primary/10 hover:text-primary"
               title={t("dict_tab.export_dict_title")}
             >
               <Download className="w-3.5 h-3.5" />
@@ -288,7 +288,7 @@ function DictTab({ activeSession }: DictTabProps) {
 
       {/* 手动添加词条卡片 */}
       {isAdding && (
-        <div className="bg-muted/30 border border-primary/20 rounded-xl p-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="animate-in space-y-2.5 rounded-xl border border-primary/20 bg-muted/30 p-2.5 fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
             <span className="font-bold text-primary flex items-center gap-1">
               <Plus className="w-3.5 h-3.5" /> {t("dict_tab.new_entry_title")}
@@ -398,8 +398,8 @@ function DictTab({ activeSession }: DictTabProps) {
           <RefreshCw className="w-4 h-4 animate-spin" /> {t("dict_tab.loading")}
         </div>
       ) : filteredEntries.length === 0 ? (
-        <div className="border border-dashed border-border/80 rounded-xl p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-          <BookOpen className="w-8 h-8 opacity-30" />
+        <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 px-5 py-6 text-center text-muted-foreground">
+          <BookOpen className="size-7 opacity-35" />
           <span className="text-xs font-bold">{t("dict_tab.no_match")}</span>
           <p className="text-[10px] max-w-xs text-muted-foreground/75 mt-1">
             {searchQuery || selectedType !== "all"
@@ -408,7 +408,7 @@ function DictTab({ activeSession }: DictTabProps) {
           </p>
         </div>
       ) : (
-        <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1 custom-scrollbar">
+        <div className="space-y-2">
           {filteredEntries.map(entry => {
             const isEditing = editingEntryId === entry.id;
             return (

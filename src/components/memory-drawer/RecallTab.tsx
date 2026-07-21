@@ -63,19 +63,19 @@ function RecallTab({ activeSession, saveSession, lastRecalledMemories }: RecallT
   };
 
   return (
-    <div className="space-y-4">
-      <div className="text-[11px] font-medium bg-muted/40 text-muted-foreground border border-border/40 rounded-lg p-2.5 leading-relaxed">
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border/30 bg-muted/30 px-2.5 py-2 text-[10px] font-medium leading-4 text-muted-foreground">
         {t("recall_tab.info")}
       </div>
 
       {lastRecalled.length === 0 ? (
-        <div className="border border-dashed border-border/80 rounded-xl p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-          <BrainCircuit className="w-8 h-8 opacity-30 animate-pulse" />
+        <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 px-5 py-6 text-center text-muted-foreground">
+          <BrainCircuit className="size-7 animate-pulse opacity-35" />
           <span className="text-xs font-bold">{t("recall_tab.empty_title")}</span>
           <p className="text-[10px] max-w-xs text-muted-foreground mt-1">{t("recall_tab.empty_desc")}</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {lastRecalled.map((msg: any) => {
             const isPinned = (activeSession.pinnedMessageIds || []).includes(msg.messageId);
             const isMuted = (activeSession.mutedMessageIds || []).includes(msg.messageId);

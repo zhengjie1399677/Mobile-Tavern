@@ -465,39 +465,37 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
   return (
     <>
-      {/* 管理按钮：从原 Header 迁移至此，控制内部 showConfig 状态 */}
-      <div className="flex justify-end">
+      {/* 状态表切换与管理共用同一行，避免重复占用纵向空间 */}
+      <div className="flex items-center gap-2">
+        {sheets.length > 0 && !showConfig && (
+          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto scrollbar-none">
+            {sheets.map(s => (
+              <button
+                key={s.id}
+                onClick={() => {
+                  setActiveTableTabId(s.id);
+                  setEditingCell(null);
+                }}
+                className={`min-h-8 shrink-0 rounded-lg border px-2.5 text-[11px] font-bold transition-all ${activeTableTabId === s.id
+                  ? "bg-primary/10 border-primary/25 text-primary"
+                  : "bg-card border-border/75 text-muted-foreground hover:bg-muted/50"
+                  }`}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
         <button
           onClick={() => {
             setShowConfig(!showConfig);
             setSheetDraft(null);
           }}
-          className={`p-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition ${showConfig ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted border-border hover:bg-muted/80 text-muted-foreground'}`}
+          className={`flex min-h-8 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-[11px] font-semibold transition ${showConfig ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted border-border hover:bg-muted/80 text-muted-foreground'}`}
         >
           {t("table_memory.manage")}
         </button>
       </div>
-
-      {/* Tab Selector inside Table Section */}
-      {sheets.length > 0 && !showConfig && (
-        <div className="flex pb-2 gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-          {sheets.map(s => (
-            <button
-              key={s.id}
-              onClick={() => {
-                setActiveTableTabId(s.id);
-                setEditingCell(null);
-              }}
-              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${activeTableTabId === s.id
-                ? "bg-primary/10 border-primary/25 text-primary"
-                : "bg-card border-border/75 text-muted-foreground hover:bg-muted/50"
-                }`}
-            >
-              {s.name}
-            </button>
-          ))}
-        </div>
-      )}
 
       {showConfig ? (
         /* CONFIG MODE (MANAGEMENT) */
@@ -671,8 +669,8 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
             </div>
 
             {sheets.length === 0 ? (
-              <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-                <HelpCircle className="w-8 h-8 opacity-40" />
+              <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 px-5 py-6 text-center text-muted-foreground">
+                <HelpCircle className="size-7 opacity-40" />
                 <span className="text-xs font-bold">{t("table_memory.empty")}</span>
                 <button
                   onClick={handleResetToDefault}
@@ -743,8 +741,8 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
         /* ACTIVE TABLE SHEET RENDER */
         <>
           {!activeSheet ? (
-            <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-              <HelpCircle className="w-8 h-8 opacity-40" />
+            <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 px-5 py-6 text-center text-muted-foreground">
+              <HelpCircle className="size-7 opacity-40" />
               <span className="text-xs font-bold">{t("table_memory.init_required")}</span>
               <button
                 onClick={handleResetToDefault}
@@ -756,7 +754,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
           ) : (
             <div className="space-y-3">
               {activeSheet.description && (
-                <div className="text-[11px] font-medium bg-muted/40 text-muted-foreground border border-border/40 rounded-lg p-2.5 leading-relaxed">
+                <div className="rounded-lg border border-border/30 bg-muted/30 px-2.5 py-2 text-[10px] font-medium leading-4 text-muted-foreground">
                   💡 {activeSheet.description.replace("{{user}}", "你")}
                 </div>
               )}
