@@ -1,7 +1,7 @@
 import React, { Suspense, useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { SplashScreen } from "./SplashScreen";
-import { VenetianMask, MessageSquare, Book, Settings, HelpCircle } from "lucide-react";
+import { VenetianMask, MessageSquare, Book, Settings, HelpCircle, LoaderCircle } from "lucide-react";
 import { useKernel } from "../contexts/KernelContext";
 import type { TabType } from "../contexts/AppContext";
 import { useTranslation } from "../contexts/LanguageContext";
@@ -20,6 +20,18 @@ import CustomConfirmDialog from "./CustomConfirmDialog";
 import DbWritingOverlay from "./DbWritingOverlay";
 import { FloatingCat } from "./FloatingCat";
 import UpdatePrompt from "./UpdatePrompt";
+
+function TabLoadingFallback() {
+  return (
+    <div
+      role="status"
+      aria-label="正在加载功能页面"
+      className="flex min-h-full w-full items-center justify-center bg-background text-muted-foreground"
+    >
+      <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" />
+    </div>
+  );
+}
 
 export default function MainLayout() {
   const kernel = useKernel();
@@ -139,13 +151,13 @@ export default function MainLayout() {
             const Comp = tab.component;
             if (tab.id === "playground") {
               return (
-                <Suspense key={tab.id} fallback={<SplashScreen isVisible={true} />}>
+                <Suspense key={tab.id} fallback={<TabLoadingFallback />}>
                   <Comp onBack={() => setActiveTab("settings")} />
                 </Suspense>
               );
             }
             return (
-              <Suspense key={tab.id} fallback={<SplashScreen isVisible={true} />}>
+              <Suspense key={tab.id} fallback={<TabLoadingFallback />}>
                 <Comp />
               </Suspense>
             );

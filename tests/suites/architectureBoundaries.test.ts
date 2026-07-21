@@ -59,6 +59,16 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "聊天输入区不得订阅完整 UnifiedAppContext，必须通过选择器限制状态扩散"
   );
 
+  const mainLayout = read("src/components/MainLayout.tsx");
+  assert(
+    !/fallback=\{<SplashScreen\b/.test(mainLayout),
+    "主功能页的 Suspense 回退不得复用全屏启动页，避免首次切换时闪回首页"
+  );
+  assert(
+    /fallback=\{<TabLoadingFallback\s*\/>\}/.test(mainLayout),
+    "主功能页必须使用局部加载态承接首次代码分块加载"
+  );
+
   for (const file of listCodeFiles("src")) {
     assert(
       !/=\s*useUnifiedApp\(\)/.test(read(file)),
