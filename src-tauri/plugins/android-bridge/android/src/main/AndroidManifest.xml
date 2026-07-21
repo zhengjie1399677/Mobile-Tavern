@@ -13,14 +13,17 @@
         participate in the system's predictive back navigation UX.
         (CR-05 fix)
 
-  Note on storage permissions:
+  Storage behavior:
     The plugin writes user-exported files (character cards, presets, backups,
     world books, PNG cards) to the public Download directory via the
     MediaStore.Downloads API (Android 10+). MediaStore writes to the Download
-    collection do NOT require WRITE_EXTERNAL_STORAGE permission, so no storage
-    permission is declared here. (CR-01 fix)
+    collection do NOT require WRITE_EXTERNAL_STORAGE permission. The optional
+    local-card scanner uses the user-controlled "All files access" settings
+    page; its runtime scan is still bounded to Download/Documents/Pictures.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
     <application
         android:enableOnBackInvokedCallback="true" />

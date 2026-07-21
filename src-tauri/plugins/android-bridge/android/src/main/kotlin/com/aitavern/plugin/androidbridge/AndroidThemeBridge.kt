@@ -3,13 +3,16 @@ package com.aitavern.plugin.androidbridge
 import android.app.Activity
 import android.app.Application
 import android.content.ContentValues
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.storage.StorageManager
 import android.provider.MediaStore
+import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.util.Base64
 import android.util.Log
@@ -23,6 +26,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
+import java.lang.ref.WeakReference
 import java.util.Locale
 
 /**
@@ -53,8 +57,12 @@ class AndroidThemeBridge(
 
     private var tts: TextToSpeech? = null
     private var ttsInitialized = false
+    @Volatile
+    private var awaitingStoragePermissionResult = false
 
     init {
+        activeStorageBridge = WeakReference(this)
+
         // Initialize TTS on the main thread
         activity.runOnUiThread {
             try {
@@ -77,6 +85,9 @@ class AndroidThemeBridge(
                         }
                     }
                     activity.application.unregisterActivityLifecycleCallbacks(this)
+                    if (activeStorageBridge?.get() === this@AndroidThemeBridge) {
+                        activeStorageBridge = null
+                    }
                 }
             }
 
@@ -151,6 +162,11 @@ class AndroidThemeBridge(
 
     companion object {
         private const val TAG = "TavernThemeBridge"
+        private const val MAX_SCAN_DEPTH = 12
+        private const val MAX_SCANNED_FILES = 5_000
+        private const val MAX_SCANNED_DIRECTORIES = 20_000
+        private const val MAX_IMPORT_BYTES = 64L * 1024L * 1024L
+        private var activeStorageBridge: WeakReference<AndroidThemeBridge>? = null
 
         /**
          * Public Download relative path used by the MediaStore. Files written
@@ -159,6 +175,12 @@ class AndroidThemeBridge(
          * user-facing messages emitted by the frontend.
          */
         private const val DOWNLOAD_RELATIVE_SUBDIR = "Download/Mobile Tavern/"
+
+        /** 宿主 Activity 返回前台时同步“所有文件访问权限”的最终状态。 */
+        @JvmStatic
+        fun notifyStoragePermissionStateOnResume() {
+            activeStorageBridge?.get()?.completeStoragePermissionRequestIfPending()
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -627,49 +649,95 @@ class AndroidThemeBridge(
     // Global Character Card Scanner & Reader
     // ---------------------------------------------------------------------
 
+    private fun dispatchStoragePermissionResult(granted: Boolean) {
+        webView.post {
+            webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('androidStoragePermissionResult', { detail: { granted: $granted } }));",
+                null
+            )
+        }
+    }
+
+    private fun completeStoragePermissionRequestIfPending() {
+        if (!awaitingStoragePermissionResult) return
+        awaitingStoragePermissionResult = false
+        dispatchStoragePermissionResult(hasStoragePermission())
+    }
+
     @JavascriptInterface
     fun hasStoragePermission(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val res = activity.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-            return res == android.content.pm.PackageManager.PERMISSION_GRANTED
-        }
-        return true
+        return Environment.isExternalStorageManager()
     }
 
     @JavascriptInterface
     fun requestStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            activity.requestPermissions(
-                arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
-                1002
+        if (hasStoragePermission()) {
+            dispatchStoragePermissionResult(true)
+            return
+        }
+
+        awaitingStoragePermissionResult = true
+        activity.runOnUiThread {
+            val appPermissionIntent = Intent(
+                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:${activity.packageName}")
             )
+            val opened = runCatching {
+                activity.startActivity(appPermissionIntent)
+            }.recoverCatching {
+                activity.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+            }.isSuccess
+
+            if (!opened) {
+                awaitingStoragePermissionResult = false
+                Log.e(TAG, "Failed to open all-files access settings")
+                dispatchStoragePermissionResult(false)
+            }
         }
     }
 
     @JavascriptInterface
     fun scanGlobalCards(): String {
         val result = org.json.JSONArray()
-        val dirs = listOf(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-        )
-
-        for (dir in dirs) {
-            if (dir.exists() && dir.isDirectory) {
-                scanDir(dir, result, 0)
+        if (!hasStoragePermission()) return result.toString()
+        val scanBudget = ScanBudget()
+        scanRoots().forEach { root ->
+            if (root.exists() && root.isDirectory) {
+                scanDir(root, result, 0, scanBudget)
             }
         }
         return result.toString()
     }
 
-    private fun scanDir(dir: File, array: org.json.JSONArray, depth: Int) {
-        if (depth > 4) return // Limit recursion depth
-        val files = dir.listFiles() ?: return
-        for (file in files) {
+    private class ScanBudget {
+        val visitedDirectories = HashSet<String>()
+    }
+
+    private fun scanRoots(): List<File> {
+        val storageManager = activity.getSystemService(StorageManager::class.java)
+        return (listOf(Environment.getExternalStorageDirectory()) +
+            storageManager.storageVolumes.mapNotNull { it.directory })
+            .mapNotNull { runCatching { it.canonicalFile }.getOrNull() }
+            .distinctBy { it.path }
+    }
+
+    private fun scanDir(
+        directory: File,
+        array: org.json.JSONArray,
+        depth: Int,
+        budget: ScanBudget,
+    ) {
+        if (depth > MAX_SCAN_DEPTH || array.length() >= MAX_SCANNED_FILES) return
+        val canonicalPath = runCatching { directory.canonicalPath }.getOrNull() ?: return
+        if (!budget.visitedDirectories.add(canonicalPath) ||
+            budget.visitedDirectories.size > MAX_SCANNED_DIRECTORIES
+        ) return
+        val children = directory.listFiles() ?: return
+        for (file in children) {
+            if (array.length() >= MAX_SCANNED_FILES) return
             if (file.isDirectory) {
-                if (!file.name.startsWith(".") && file.name != "Android" && file.name != "LOST.DIR") {
-                    scanDir(file, array, depth + 1)
+                if (!shouldSkipDirectory(file)) {
+                    scanDir(file, array, depth + 1, budget)
                 }
             } else {
                 val name = file.name.lowercase(Locale.ROOT)
@@ -685,13 +753,50 @@ class AndroidThemeBridge(
         }
     }
 
+    private fun shouldSkipDirectory(directory: File): Boolean {
+        if (directory.name.startsWith(".") || directory.name.equals("LOST.DIR", ignoreCase = true)) {
+            return true
+        }
+        val parentName = directory.parentFile?.name ?: return false
+        return parentName.equals("Android", ignoreCase = true) &&
+            (directory.name.equals("data", ignoreCase = true) ||
+                directory.name.equals("obb", ignoreCase = true))
+    }
+
+    private fun isBlockedAndroidPrivatePath(file: File): Boolean {
+        return scanRoots().any { root ->
+            val relative = runCatching { file.relativeTo(root).invariantSeparatorsPath }.getOrNull()
+                ?: return@any false
+            val segments = relative.split('/')
+            val androidIndex = segments.indexOfFirst { it.equals("Android", ignoreCase = true) }
+            val privateArea = segments.getOrNull(androidIndex + 1)
+            androidIndex >= 0 &&
+                (privateArea.equals("data", ignoreCase = true) ||
+                    privateArea.equals("obb", ignoreCase = true))
+        }
+    }
+
+    private fun isInsideScanRoots(file: File): Boolean {
+        val filePath = file.canonicalFile.path
+        return !isBlockedAndroidPrivatePath(file) && scanRoots().any { root ->
+            val rootPath = root.canonicalFile.path
+            filePath == rootPath || filePath.startsWith(rootPath + File.separator)
+        }
+    }
+
     @JavascriptInterface
     fun readLocalFile(path: String): String {
         return try {
-            val file = File(path)
-            if (!file.exists()) return "error:File not found"
+            if (!hasStoragePermission()) return "error:Storage permission not granted"
+            val file = File(path).canonicalFile
+            val extension = file.extension.lowercase(Locale.ROOT)
+            if (!isInsideScanRoots(file) || extension !in setOf("json", "png")) {
+                return "error:Unsupported local file path"
+            }
+            if (!file.exists() || !file.isFile) return "error:File not found"
+            if (file.length() > MAX_IMPORT_BYTES) return "error:File is too large"
             val bytes = file.readBytes()
-            if (path.endsWith(".png", ignoreCase = true)) {
+            if (extension == "png") {
                 val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
                 "data:image/png;base64,$base64"
             } else {

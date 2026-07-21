@@ -195,6 +195,28 @@ export async function testArchitectureBoundaries(): Promise<void> {
       mainActivity.includes("finishAffinity()"),
     "Android 返回操作必须保留原生双击退出兜底，不能依赖 WebView 路由状态"
   );
+  const androidBridgeManifest = read(
+    "src-tauri/plugins/android-bridge/android/src/main/AndroidManifest.xml"
+  );
+  const androidThemeBridge = read(
+    "src-tauri/plugins/android-bridge/android/src/main/kotlin/com/aitavern/plugin/androidbridge/AndroidThemeBridge.kt"
+  );
+  assert(
+    androidBridgeManifest.includes("android.permission.MANAGE_EXTERNAL_STORAGE") &&
+      androidThemeBridge.includes("Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION") &&
+      androidThemeBridge.includes("Environment.isExternalStorageManager()") &&
+      mainActivity.includes("notifyStoragePermissionStateOnResume"),
+    "本地角色卡扫描必须通过 Android 专属的所有文件访问设置授权，并在返回应用后同步结果"
+  );
+  assert(
+    androidThemeBridge.includes("Environment.getExternalStorageDirectory()") &&
+      androidThemeBridge.includes("storageManager.storageVolumes") &&
+      androidThemeBridge.includes("parentName.equals(\"Android\"") &&
+      androidThemeBridge.includes("directory.name.equals(\"data\"") &&
+      !androidThemeBridge.includes("READ_EXTERNAL_STORAGE") &&
+      !androidThemeBridge.includes("ACTION_OPEN_DOCUMENT_TREE"),
+    "本地角色卡扫描必须覆盖可访问的共享存储与外置卷，跳过 Android 私有数据区且不得退回失效的旧权限"
+  );
 
   const androidReleaseWorkflow = read(".github/workflows/tauri-android.yml");
   assert(

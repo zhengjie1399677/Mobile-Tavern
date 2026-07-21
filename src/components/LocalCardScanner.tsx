@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { FolderSearch, X, Search, FileJson, Image, Loader2, ShieldAlert, CheckCircle } from "lucide-react";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useApp } from "../contexts/AppContext";
@@ -51,6 +51,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
 
   const [isAndroid, setIsAndroid] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scannedFiles, setScannedFiles] = useState<ScannedFile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -63,33 +64,12 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
       setIsAndroid(true);
       const permitted = bridge.hasStoragePermission();
       setHasPermission(permitted);
+      setIsRequestingPermission(false);
     }
   }, [isOpen]);
 
-  // 处理权限申请
-  const handleRequestPermission = () => {
-    const bridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
-    if (typeof window !== "undefined" && bridge) {
-      bridge.requestStoragePermission();
-      
-      // 循环轮询检查用户是否授予权限
-      const timer = setInterval(() => {
-        const permitted = (window as WindowWithAndroidBridge).AndroidThemeBridge?.hasStoragePermission() || false;
-        if (permitted) {
-          setHasPermission(true);
-          clearInterval(timer);
-          // 授权成功后直接触发扫描
-          triggerScan();
-        }
-      }, 1000);
-
-      // 5秒后清除轮询防止后台无限消耗
-      setTimeout(() => clearInterval(timer), 5000);
-    }
-  };
-
   // 触发安卓文件扫描
-  const triggerScan = () => {
+  const triggerScan = useCallback(() => {
     const bridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
     if (typeof window === "undefined" || !bridge) return;
     setIsScanning(true);
@@ -106,6 +86,33 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
         setIsScanning(false);
       }
     }, 400); // 略微延时让 Loading 动画平滑展现
+  }, [showCustomAlert, t]);
+
+  // 原生设置页返回后会发送最终权限结果；拒绝或直接返回时不触发扫描。
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePermissionResult = (event: Event) => {
+      const granted = Boolean(
+        (event as CustomEvent<{ granted?: boolean }>).detail?.granted,
+      );
+      setIsRequestingPermission(false);
+      setHasPermission(granted);
+      if (granted) triggerScan();
+    };
+
+    window.addEventListener("androidStoragePermissionResult", handlePermissionResult);
+    return () => {
+      window.removeEventListener("androidStoragePermissionResult", handlePermissionResult);
+    };
+  }, [isOpen, triggerScan]);
+
+  // 打开 Android 为本应用提供的“所有文件访问权限”设置页。
+  const handleRequestPermission = () => {
+    const bridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
+    if (typeof window === "undefined" || !bridge || isRequestingPermission) return;
+    setIsRequestingPermission(true);
+    bridge.requestStoragePermission();
   };
 
   // 模拟开发环境扫描 (浏览器测试)
@@ -294,9 +301,11 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
               <button
                 type="button"
                 onClick={handleRequestPermission}
-                className="w-full py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition active:scale-[0.98]"
+                disabled={isRequestingPermission}
+                className="w-full py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                {t("scanner.permission_btn")}
+                {isRequestingPermission && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{t("scanner.permission_btn")}</span>
               </button>
             </div>
           ) : (

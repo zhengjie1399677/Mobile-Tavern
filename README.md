@@ -33,6 +33,7 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 ### 2. 🧬 SillyTavern 角色卡无损导入 (Tavern PNG Card Support)
 * 支持标准的酒馆角色卡 PNG 图像直接导入。
 * 纯本地无服务器解码：前端自动提取 PNG `tEXt` 数据块中的 `chara` 元数据，本地进行 Zlib 解压还原为 JSON 人设设定，并自动将 Base64 头像落库。
+* Android 侧可由用户主动授予“所有文件访问权限”，自动扫描可访问的共享存储、外置存储卷及 `Android/media` 中的 PNG/JSON 角色卡；拒绝授权不会继续扫描，系统隔离的其他应用 `Android/data` 私有目录仍无法读取。
 
 ### 3. 🧩 自由 Prompt 编排与兼容层 (Free Prompt Composition)
 * 用户可以自由创建、删除、排序任意数量的 `system`、`user`、`assistant` 消息，决定角色卡、世界书、记忆和聊天历史出现的位置；每个历史区块可独立选择全部或最近若干条消息、是否保留欢迎消息，深度注入也可指定目标历史区块。相同角色消息不会被底层强制合并。

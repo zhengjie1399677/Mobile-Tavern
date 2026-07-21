@@ -17,6 +17,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.Toast
 import android.view.Gravity
+import com.aitavern.plugin.androidbridge.AndroidThemeBridge
 
 class MainActivity : TauriActivity() {
   private var appWebView: WebView? = null
@@ -79,6 +80,11 @@ class MainActivity : TauriActivity() {
     }
 
 
+  }
+
+  override fun onResume() {
+    super.onResume()
+    AndroidThemeBridge.notifyStoragePermissionStateOnResume()
   }
 
   override fun onWebViewCreate(webView: WebView) {

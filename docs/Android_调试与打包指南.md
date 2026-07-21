@@ -68,6 +68,7 @@ Set-Location "D:\projects\Mobile-Tavern\src-tauri\gen\android"
 | 6 | 文件能力 | Prompt 模板和记忆词典可保存到公共下载目录，并显示实际保存路径 |
 | 7 | 软键盘与安全区 | 输入框不被键盘、状态栏或导航栏遮挡，收起键盘后布局恢复 |
 | 8 | 系统返回 | 第一次返回提示再次返回退出；两秒内第二次返回结束应用任务 |
+| 9 | 本地角色卡扫描 | 点击授权后进入本应用的“所有文件访问权限”设置；允许后自动扫描可访问的共享与外置存储，拒绝或返回时不扫描 |
 
 弱网发送由自动化测试验证事务语义：首包失败保留用户消息、显式重发不复制用户消息、部分回复断线保留内容并显示中断标记、主动停止不显示弱网标记。真机只需抽查一次断网后的界面反馈。
 
@@ -76,6 +77,12 @@ Set-Location "D:\projects\Mobile-Tavern\src-tauri\gen\android"
 自由编排通过 `AndroidThemeBridge.setScreenOrientation("landscape")` 进入传感器横屏，通过 `setScreenOrientation("auto")` 恢复系统旋转。`MainActivity` 已处理 `orientation|screenSize`，旋转不应重建 WebView 或丢失编辑状态。
 
 模板和词典导出优先调用 `AndroidThemeBridge.saveFile`，分享调用 `AndroidThemeBridge.shareText`。浏览器环境没有原生桥接时应安全降级，不得伪装为 Android 保存成功。
+
+## 本地角色卡扫描权限
+
+本项目的 Android 包不经应用商店分发，本地角色卡扫描使用 `MANAGE_EXTERNAL_STORAGE`。用户点击授权按钮后，原生桥接必须打开 `ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` 对应的应用专属系统设置页；返回应用后由 `MainActivity.onResume` 检查 `Environment.isExternalStorageManager()` 并通知前端。用户拒绝、关闭或直接返回时不报错、不扫描。
+
+扫描范围覆盖主共享存储、系统报告的外置存储卷和 `Android/media`，以兼容 QQ、微信、Telegram 等应用可公开访问的接收目录；最多递归十二层、访问两万个目录、返回五千个 PNG/JSON 文件，并跳过隐藏目录、`LOST.DIR`、`Android/data` 与 `Android/obb`。后两者属于 Android 隔离区，即使获得所有文件访问权限也不能读取其他应用的私有目录。导入时再次校验规范路径位于已登记存储卷、未进入私有区、扩展名合法且不超过 64 MB。
 
 ## 正式签名
 

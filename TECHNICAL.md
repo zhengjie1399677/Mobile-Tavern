@@ -844,6 +844,14 @@ Schema 变更由领域纯函数统一处理：列重命名按稳定 ID 保留数
 
 ---
 
+## 📂 Android 本地角色卡扫描
+
+`LocalCardScanner.tsx` 通过 `AndroidThemeBridge` 请求 Android 的“所有文件访问权限”。原生层打开 `ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` 对应的应用专属设置页，`MainActivity.onResume` 在用户返回后把最终授权状态作为 `androidStoragePermissionResult` 事件回传；拒绝或直接返回时前端停止等待且不执行扫描。
+
+该能力仅用于不经应用商店分发的 Android 安装包。原生扫描覆盖主共享存储、系统报告的外置存储卷及可访问的 `Android/media`，同时限制递归深度、目录数和结果数，并跳过隐藏目录、`LOST.DIR`、`Android/data` 与 `Android/obb`；读取阶段再次校验文件仍位于已登记存储卷、未进入 Android 私有区、扩展名为 PNG/JSON 且不超过 64 MB。
+
+---
+
 
 ## 🧪 自动化测试套件与覆盖验证 (Comprehensive Test Suite)
 
