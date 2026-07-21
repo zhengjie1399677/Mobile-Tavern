@@ -16,7 +16,7 @@
 
 ### 2. useRerollMessage.ts 事务流程（不属于上帝 Hook）
 
-**例外原因**：[useRerollMessage.ts](file:///e:/modules/projects/Mobile-Tavern/src/hooks/useChat/useRerollMessage.ts)（367 行）含 19 个 await，看似复杂但本质是**完整的事务流程**，不是"代码坏味道"。
+**例外原因**：[useRerollMessage.ts](../src/hooks/useChat/useRerollMessage.ts)（367 行）含 19 个 await，看似复杂但本质是**完整的事务流程**，不是"代码坏味道"。
 
 **事务结构**：
 ```
@@ -41,7 +41,7 @@
 
 ### 代办 1：useSendMessage.ts 拆分（需人工 QA 配合）
 
-**文件**：[useSendMessage.ts](file:///e:/modules/projects/Mobile-Tavern/src/hooks/useChat/useSendMessage.ts)（408 行）
+**文件**：[useSendMessage.ts](../src/hooks/useChat/useSendMessage.ts)（408 行）
 
 **量化指标**：`useEffect:0 useState:0 useCallback:3 useRef:1 await:12 try:5`
 
@@ -91,5 +91,5 @@
 ---
 
 **引用关系**：
-- 本文件被 [AGENTS.md](file:///e:/modules/projects/Mobile-Tavern/AGENTS.md) 「特有例外说明」章节引用
+- 本文件被 [AGENTS.md](../AGENTS.md) 「特有例外说明」章节引用
 - 本文件被 AGENTS.md 准则一第 6 条「单文件行数硬上限」间接引用（useRerollMessage 豁免）

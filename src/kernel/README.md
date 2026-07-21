@@ -1,5 +1,7 @@
 # 🧭 微内核与 Pipeline 管道接口开发文档 (Developer Guide)
 
+> 📌 **项目行为指导规范**：在开发或扩展微内核服务与管道中间件时，必须首先遵守 [AGENTS.md](../../AGENTS.md) 核心行为准则。
+
 本指南旨在为开发人员详细解析系统**微内核基座**及**洋葱模型管道机制**的物理结构、接口契约与插件化开发范式。
 
 ---
@@ -7,7 +9,7 @@
 ## 📂 物理位置与目录结构 (Physical Directory Structure)
 
 微内核与管道的所有核心代码均位于项目的主内核文件夹中：
-👉 **[src/kernel/](file:///e:/modules/projects/Mobile-Tavern/src/kernel/)**
+👉 **[src/kernel/](./)**
 
 内部目录及文件职能分布如下：
 ```text

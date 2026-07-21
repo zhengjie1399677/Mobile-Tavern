@@ -1,6 +1,6 @@
 # 📱 Mobile Tavern 
 
-[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg?style=for-the-badge)](https://github.com/zhengjie1399677/Mobile-Tavern)
+[![Version](https://img.shields.io/badge/version-1.7.2-blue.svg?style=for-the-badge)](https://github.com/zhengjie1399677/Mobile-Tavern)
 [![Tauri](https://img.shields.io/badge/Tauri-v2-green.svg?style=for-the-badge&logo=tauri)](https://tauri.app/)
 [![React](https://img.shields.io/badge/React-v19-blue.svg?style=for-the-badge&logo=react)](https://react.dev/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4.svg?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
@@ -17,6 +17,7 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 > * **功能与技术细节归档**：
 >   * 关于 Android 手机真机调试、网络映射配置、原生 bridge 状态栏同步等原生端适配细则，请直接查阅：[AGENTS.md](AGENTS.md)。
 >   * 关于 用户操作步骤、雪团客服挂件说明以及知识库整理，请直接查阅：[KNOWLEDGE.md](KNOWLEDGE.md)。
+>   * 关于 自由 Prompt 编排完全教程、参数选项通俗字典与实战范例，请直接查阅：[docs/Prompt_Composition_Tutorial.md](docs/Prompt_Composition_Tutorial.md)。
 >   * 关于 Prefix Cache 缓存优化、项目架构职责、数据库设计以及源码模块剖析等底层技术细节，请直接查阅：[TECHNICAL.md](TECHNICAL.md)。
 
 ---
