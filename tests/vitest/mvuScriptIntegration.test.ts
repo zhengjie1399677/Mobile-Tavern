@@ -202,6 +202,20 @@ describe("ScriptService", () => {
       const result = service.parseMvuMessage("crash", { stat_data: { safe: true } });
       expect(result.stat_data).toEqual({ safe: true });
     });
+
+    it("Bridge 抛出 AbortError 时继续向上传导", () => {
+      service.registerBridge({
+        initializeMvuFromCharacter: vi.fn(),
+        parseMvuMessage: vi.fn().mockImplementation(() => {
+          throw new DOMException("cancelled", "AbortError");
+        }),
+        notifyVariablesUpdated: vi.fn(),
+      });
+
+      expect(() => service.parseMvuMessage("cancel", { stat_data: {} })).toThrowError(
+        expect.objectContaining({ name: "AbortError" }),
+      );
+    });
   });
 
   // ------------------------------------------------------------------
@@ -209,6 +223,22 @@ describe("ScriptService", () => {
   // ------------------------------------------------------------------
 
   describe("executeMvuScript", () => {
+    it("预先中止时立即拒绝且不查询数据库", async () => {
+      const getCharacterById = vi.fn();
+      kernel.getService<any>("database").getCharacterById = getCharacterById;
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        service.executeMvuScript(
+          { id: "aborted", characterId: "char-1", messages: [], variables: {} } as any,
+          "_.set('hp', 1)",
+          controller.signal,
+        ),
+      ).rejects.toMatchObject({ name: "AbortError" });
+      expect(getCharacterById).not.toHaveBeenCalled();
+    });
+
     it("将解析后的变量同步到最后一条消息的 extra.variables", async () => {
       const mockBridge = {
         initializeMvuFromCharacter: vi.fn(),

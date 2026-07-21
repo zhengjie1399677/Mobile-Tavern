@@ -129,6 +129,28 @@ const isDev = (): boolean => {
   }
 };
 
+function createAbortError(message = "Script execution was aborted"): DOMException {
+  if (typeof DOMException !== "undefined") {
+    return new DOMException(message, "AbortError");
+  }
+  const error = new Error(message);
+  error.name = "AbortError";
+  return error as unknown as DOMException;
+}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === "object"
+    && error !== null
+    && "name" in error
+    && error.name === "AbortError";
+}
+
+function checkAborted(...signals: Array<AbortSignal | undefined>): void {
+  if (signals.some((signal) => signal?.aborted)) {
+    throw createAbortError();
+  }
+}
+
 export class ScriptService implements IScriptService {
   name = "script";
   private kernel!: IKernel;
@@ -189,6 +211,7 @@ export class ScriptService implements IScriptService {
   }
 
   parseMvuMessage(messageContent: string, currentVariables: Record<string, any>, signal?: AbortSignal): Record<string, any> {
+    checkAborted(signal, this.abortController?.signal);
     // 防腐隔离：清洗输入变量
     const safeCurrentVars = cleanMvuVariables(currentVariables);
 
@@ -206,6 +229,7 @@ export class ScriptService implements IScriptService {
       // 防腐隔离：清洗输出
       return cleanMvuVariables(rawParsed);
     } catch (e) {
+      if (isAbortError(e)) throw e;
       if (isDev()) {
         console.warn("[ScriptService] parseMvuMessage failed:", e);
       }
@@ -214,7 +238,8 @@ export class ScriptService implements IScriptService {
   }
 
 
-  async executeMvuScript(session: ChatSession, messageContent: string): Promise<ChatSession> {
+  async executeMvuScript(session: ChatSession, messageContent: string, signal?: AbortSignal): Promise<ChatSession> {
+    checkAborted(signal, this.abortController?.signal);
     // 防腐隔离：清洗输入会话
     const safeSession = cleanSessionForMvu(session);
 
@@ -227,6 +252,7 @@ export class ScriptService implements IScriptService {
       if (this.kernel.hasService("database")) {
         const dbService = this.kernel.getService<any>("database");
         character = await dbService.getCharacterById(safeSession.characterId);
+        checkAborted(signal, this.abortController?.signal);
       }
       
       let isAi = true;
@@ -237,10 +263,22 @@ export class ScriptService implements IScriptService {
       
       let processedContent = messageContent;
       if (character) {
-        processedContent = applyCharacterRegexScripts(messageContent, character, isAi, undefined, undefined, "store");
+        processedContent = applyCharacterRegexScripts(
+          messageContent,
+          character,
+          isAi,
+          undefined,
+          undefined,
+          "store",
+          signal ?? this.abortController?.signal,
+        );
       }
       
-      const parsedVariables = this.parseMvuMessage(processedContent, safeSession.variables || {});
+      const parsedVariables = this.parseMvuMessage(
+        processedContent,
+        safeSession.variables || {},
+        signal ?? this.abortController?.signal,
+      );
 
       let updatedMessages = safeSession.messages;
       if (updatedMessages.length > 0) {
@@ -277,6 +315,7 @@ export class ScriptService implements IScriptService {
 
       return updatedSession;
     } catch (e) {
+      if (isAbortError(e)) throw e;
       if (isDev()) {
         console.warn("[ScriptService] Failed to parse MVU message:", e);
       }

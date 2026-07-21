@@ -27,6 +27,16 @@ import type {
 } from "../../domain/prompt-composition";
 import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
 
+function checkAborted(...signals: Array<AbortSignal | undefined>): void {
+  if (!signals.some((signal) => signal?.aborted)) return;
+  if (typeof DOMException !== "undefined") {
+    throw new DOMException("Prompt assembly was aborted", "AbortError");
+  }
+  const error = new Error("Prompt assembly was aborted");
+  error.name = "AbortError";
+  throw error;
+}
+
 /**
  * 提示词编译与组装服务
  * 负责根据当前会话状态、设定集、记忆等，动态拼装成发送给 LLM 的系统提示词和消息历史
@@ -128,6 +138,7 @@ export class PromptService implements IPromptService {
     settings: UserSettings;
     globalLorebook?: LorebookEntry[];
     recalledMemories?: any[];
+    signal?: AbortSignal;
   }): {
     systemInstruction: string;
     history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
@@ -144,7 +155,9 @@ export class PromptService implements IPromptService {
     traces?: PromptCompositionTrace[];
     budget?: PromptCompositionBudgetReport;
   } {
-    const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [] } = params;
+    const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [], signal } = params;
+    checkAborted(signal, this.abortController?.signal);
+    const operationSignal = signal ?? this.abortController?.signal;
 
     console.log("[PromptService Debug] chat messages in compiler:", JSON.stringify((chat.messages || []).map(m => ({ id: m.id, sender: m.sender, content: m.content }))));
     console.log("[PromptService Debug] settings.memory:", JSON.stringify(settings.memory), "enableTableMemory:", settings.enableTableMemory);
@@ -190,6 +203,7 @@ export class PromptService implements IPromptService {
             character.name,
             settings.userName,
             "prompt",
+            operationSignal,
           );
         },
       });
@@ -274,7 +288,15 @@ export class PromptService implements IPromptService {
         // 发送给 AI 时应用 promptOnly 正则清理（如隐藏 <StatusPlaceHolderImpl/> 和 <UpdateVariable> 块）
         if (character?.extensions?.regex_scripts) {
           const isAi = msg.sender === "assistant";
-          content = applyCharacterRegexScripts(content, character, isAi, character.name, settings.userName, "prompt");
+          content = applyCharacterRegexScripts(
+            content,
+            character,
+            isAi,
+            character.name,
+            settings.userName,
+            "prompt",
+            operationSignal,
+          );
         }
         const name = msg.sender === "assistant"
           ? this.cleanNameForApi(character.name, "char")
@@ -825,6 +847,7 @@ export class PromptService implements IPromptService {
     const safeLimit = settings.api?.contextLimit || caps.contextWindow || 200000;
 
     while (currentTurns > 0) {
+      checkAborted(operationSignal);
       const firstMsg = validChatMessages[0];
       const isFirstMsgGreeting = firstMsg && firstMsg.sender === "assistant";
 
@@ -847,7 +870,15 @@ export class PromptService implements IPromptService {
         // 发送给 AI 时应用 promptOnly 正则清理（如隐藏 <StatusPlaceHolderImpl/> 和 <UpdateVariable> 块）
         if (character?.extensions?.regex_scripts) {
           const isAi = msg.sender === "assistant";
-          content = applyCharacterRegexScripts(content, character, isAi, character.name, settings.userName, "prompt");
+          content = applyCharacterRegexScripts(
+            content,
+            character,
+            isAi,
+            character.name,
+            settings.userName,
+            "prompt",
+            operationSignal,
+          );
         }
         const name = msg.sender === "assistant"
           ? this.cleanNameForApi(character.name, "char")

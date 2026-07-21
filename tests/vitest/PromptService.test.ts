@@ -4,6 +4,20 @@ import { CharacterCard, ChatSession, UserSettings } from "../../src/types";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 
 describe("PromptService prompt compilation", () => {
+  it("预先中止时不再进入提示词编排", () => {
+    const promptService = new PromptService();
+    const controller = new AbortController();
+    controller.abort();
+
+    expect(() => promptService.assemblePrompt({
+      character: { name: "中止角色" } as CharacterCard,
+      chat: { messages: [] } as unknown as ChatSession,
+      userInput: "不会处理",
+      settings: structuredClone(DEFAULT_SETTINGS),
+      signal: controller.signal,
+    })).toThrowError(expect.objectContaining({ name: "AbortError" }));
+  });
+
   it("preserves multiple system messages and user-controlled order in free composition mode", () => {
     const promptService = new PromptService();
     const settings = structuredClone(DEFAULT_SETTINGS);

@@ -243,6 +243,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         settings: p.settings,
         globalLorebook: combinedGlobals,
         recalledMemories: recalledMemories,
+        signal: controller.signal,
       });
 
       console.clear();

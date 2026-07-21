@@ -252,6 +252,7 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
     settings: TSettings;
     globalLorebook: TLorebook[];
     recalledMemories?: unknown[];
+    signal?: AbortSignal;
   }): {
     systemInstruction: string;
     history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
@@ -315,7 +316,7 @@ export interface ITelemetryService extends IKernelService {
 export interface IScriptService<TCharacter = any, TSession = any> extends IKernelService {
   initializeMvuFromCharacter(character: TCharacter): Record<string, any>;
   parseMvuMessage(messageContent: string, currentVariables: Record<string, any>, signal?: AbortSignal): Record<string, any>;
-  executeMvuScript(session: TSession, messageContent: string): Promise<TSession>;
+  executeMvuScript(session: TSession, messageContent: string, signal?: AbortSignal): Promise<TSession>;
   registerBridge(bridge: any): void;
 }
 

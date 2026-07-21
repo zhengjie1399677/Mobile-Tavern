@@ -8,6 +8,13 @@ import { Message } from "../../types";
 // 用于在响应文本不含任何表格指令时跳过昂贵的 processTableMemory 调用。
 const TABLE_MEMORY_TRIGGER_PATTERN = /(?:updateRow|insertRow|deleteRow)\s*\(/i;
 
+function isAbortError(error: unknown): boolean {
+  return typeof error === "object"
+    && error !== null
+    && "name" in error
+    && error.name === "AbortError";
+}
+
 /**
  * 从角色卡扩展字段中编译外部 MVU 触发正则（遵循准则二：纯数据驱动与零硬编码）。
  * 角色卡可在 extensions.mvu_settings.trigger_patterns 中定义字符串数组，
@@ -144,8 +151,13 @@ export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (con
 
   try {
     const scriptService = kernel.getService<IScriptService>(KernelServices.Script);
-    currentSession = await scriptService.executeMvuScript(currentSession, responseText);
+    currentSession = await scriptService.executeMvuScript(
+      currentSession,
+      responseText,
+      context.controller.signal,
+    );
   } catch (err) {
+    if (isAbortError(err)) throw err;
     console.warn("[MvuScript] Middleware execution error:", err);
   }
 
@@ -222,6 +234,7 @@ export const autoSummaryMiddleware: Middleware<OutputPipelineContext> = async (c
         currentSession = updatedSession;
       }
     } catch (err) {
+      if (isAbortError(err)) throw err;
       console.warn("[MemorySummary] Middleware execution error:", err);
     }
   }

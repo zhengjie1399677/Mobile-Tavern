@@ -95,7 +95,10 @@ function buildMockTransaction(opts: MockTransactionOptions = {}) {
  * 注入 Mock indexedDB，返回恢复函数。
  * 调用方应在 finally 中调用恢复函数以还原 global 状态。
  */
-function injectMockIDB(mockDb: { transaction: () => ReturnType<typeof buildMockTransaction> }): () => void {
+function injectMockIDB(
+  mockDb: { transaction: () => ReturnType<typeof buildMockTransaction> },
+  openDelayMs = 0
+): () => void {
   const originalIndexedDB = (global as unknown as { indexedDB: IDBFactory }).indexedDB;
   (global as unknown as { indexedDB: IDBFactory }).indexedDB = {
     open: () => {
@@ -103,7 +106,7 @@ function injectMockIDB(mockDb: { transaction: () => ReturnType<typeof buildMockT
       setTimeout(() => {
         request.result = mockDb;
         if (request.onsuccess) request.onsuccess();
-      }, 0);
+      }, openDelayMs);
       return request;
     },
   } as unknown as IDBFactory;
@@ -186,13 +189,17 @@ export async function testAbortSignalPreAbortedLocalDB() {
 export async function testAbortSignalMidOperationLocalDB() {
   console.log("\n--- Running AbortSignal Mid-Operation LocalDB Verification ---");
 
+  let transactionCreated = false;
   let abortCalled = false as boolean;
   const mockTx = buildMockTransaction({
     hang: true,
     onAbortCallback: () => { abortCalled = true; },
   });
   const mockDb = {
-    transaction: () => mockTx,
+    transaction: () => {
+      transactionCreated = true;
+      return mockTx;
+    },
   };
 
   const localDB = await import("../../src/utils/localDB");
@@ -206,8 +213,11 @@ export async function testAbortSignalMidOperationLocalDB() {
       controller.signal
     );
 
-    // 让 queuedOperation 进入执行，事务已创建并挂起
-    await new Promise((r) => setTimeout(r, 10));
+    // 等待事务真实创建，避免用固定延时制造测试竞态。
+    for (let attempt = 0; attempt < 50 && !transactionCreated; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert(transactionCreated, "Transaction should be created before the mid-operation abort");
 
     controller.abort();
 
@@ -464,4 +474,57 @@ export async function testMemoryStreamParserAbort() {
   }
 
   console.log("✔ MemoryStreamParser abort verified successfully!");
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 测试 2.1：signal 在事务注册 abort 句柄前触发，注册后必须立即补 abort
+// ──────────────────────────────────────────────────────────────────────────────
+
+export async function testAbortSignalBeforeTransactionRegistration() {
+  console.log("\n--- Running AbortSignal Pre-Registration Race Verification ---");
+
+  let transactionCreated = false;
+  let abortCalled = false;
+  const mockTx = buildMockTransaction({
+    hang: true,
+    onAbortCallback: () => { abortCalled = true; },
+  });
+  const mockDb = {
+    transaction: () => {
+      transactionCreated = true;
+      return mockTx;
+    },
+  };
+
+  const localDB = await import("../../src/utils/localDB");
+  localDB.__resetDBInstanceForTesting();
+  // 故意延迟 open：让 signal 在 getDB() 等待期间触发，此时 abortFn 尚未注册。
+  const restore = injectMockIDB(mockDb, 30);
+
+  try {
+    const controller = new AbortController();
+    const promise = localDB.saveCharacter(
+      buildMinimalCharacter("test-char-pre-register", "PreRegister"),
+      controller.signal
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+
+    const thrown = await captureRejection(promise);
+    assert(
+      (thrown as { name?: string })?.name === "AbortError",
+      `Expected AbortError, got ${(thrown as { name?: string })?.name}`
+    );
+
+    // Promise.race 已向调用方拒绝，但 getDB 后续仍会完成；新注册的事务必须看到
+    // ctx.aborted=true 并立即 transaction.abort()，不能成为无主后台事务。
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert(transactionCreated as boolean, "Delayed operation should eventually create the transaction");
+    assert(abortCalled as boolean, "Late-registered transaction must be aborted immediately");
+
+    console.log("✔ AbortSignal pre-registration race verified successfully!");
+  } finally {
+    restore();
+  }
 }

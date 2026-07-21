@@ -92,6 +92,7 @@ import {
   testAppendSessionMessageFieldMapping,
   testAbortSignalPreAbortedLocalDB,
   testAbortSignalMidOperationLocalDB,
+  testAbortSignalBeforeTransactionRegistration,
   testAbortSignalWriteQueueRecovery,
   testMvuParserAbortedCheckpoints,
   testMemoryStreamParserAbort,
@@ -234,6 +235,7 @@ async function run() {
     // AbortSignal 协作式中断传导测试（TODO #5：IDB 事务主动 abort + MVU/流式解析器检查点）
     { name: "testAbortSignalPreAbortedLocalDB", fn: testAbortSignalPreAbortedLocalDB },
     { name: "testAbortSignalMidOperationLocalDB", fn: testAbortSignalMidOperationLocalDB },
+    { name: "testAbortSignalBeforeTransactionRegistration", fn: testAbortSignalBeforeTransactionRegistration },
     { name: "testAbortSignalWriteQueueRecovery", fn: testAbortSignalWriteQueueRecovery },
     { name: "testMvuParserAbortedCheckpoints", fn: testMvuParserAbortedCheckpoints },
     { name: "testMemoryStreamParserAbort", fn: testMemoryStreamParserAbort },

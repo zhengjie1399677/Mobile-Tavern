@@ -168,10 +168,12 @@ export async function testOutputPipeline() {
     getStateTable() { return mockStateTable; },
     getSummary() { return mockSummary; }
   };
+  let receivedScriptSignal: AbortSignal | undefined;
   const mockScriptService: IKernelService & Partial<Pick<IScriptService, "executeMvuScript">> = {
     name: "script",
     init() { },
-    async executeMvuScript(session: ChatSession, _content: string) {
+    async executeMvuScript(session: ChatSession, _content: string, signal?: AbortSignal) {
+      receivedScriptSignal = signal;
       return { ...session, variables: { ...session.variables, scriptRan: true } };
     }
   };
@@ -218,6 +220,7 @@ export async function testOutputPipeline() {
   assert(result!.tableMemory[0].rows[0][1] === "100", "Table memory updated by TableMemoryMiddleware");
   assert(result!.messages[0].content === "你好", "Message content cleaned by TableMemoryMiddleware");
   assert(result!.variables.scriptRan === true, "MVU variables updated by MvuScriptMiddleware");
+  assert(receivedScriptSignal === outputCtx.controller.signal, "MVU middleware must pass the request AbortSignal");
   assert(result!.summaries.length === 1 && result!.summaries[0].id === "sum_auto", "AutoSummary ran successfully");
 
   await testKernel.destroy();

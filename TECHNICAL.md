@@ -529,6 +529,8 @@ erDiagram
     仅在进行物理保存时开启 `readwrite` 权限。所有的只读查询（如聊天界面滚动加载历史）使用 `readonly` 模式，确保浏览器能同时并行执行多个查询。
 *   **Atomic Branch Replacement**:
     重发完成后由 `replaceSessionBranch` 在同一个 `readwrite` 事务中更新会话元数据、删除旧分支消息并写入新消息。事务错误或 `AbortSignal` 中止会整体回滚，避免 sessions/messages 跨 Store 半提交。
+*   **Abort-aware Write Queue**:
+    `localDB.enqueueWrite` 同时监听调用方信号与 15 秒队列超时，进入事务后把中止映射为 `IDBTransaction.abort()`。若信号在 `getDB()` 尚未返回时先触发，事务句柄注册阶段会依据已记录的中止状态立即补做 `abort()`，防止 Promise 已拒绝后仍有无主事务继续提交。发送与重投链路还会把同一个请求信号传入 Prompt 编排、角色卡正则、MVU 脚本解析、LLM `fetch` 与 SSE reader，取消错误保持向上传导。
 *   **Clean Session Record**:
     `sessionRecord.ts` 统一把运行时 `ChatSession` 映射为不含 `messages` 的持久化元数据，防止消息正文重复写入 sessions Store。
 
@@ -660,6 +662,7 @@ erDiagram
     *   **前端降级与自适应 Mock 逻辑**: 前端不再直连阿里云 SLS 接口。所有遥测事件在整合设备上下文后，均通过 Tauri `invoke("report_telemetry")` 发送到 Rust 后端。**开发期或非 Tauri 浏览器调试下，会自动降级为 `Console` 模拟打印（输出 `[Telemetry] [Mock Dev Send]: ...` 到控制台），此时完全断开网络通道，不向云端发送任何遥测数据。**
     *   **Rust 本地持久化队列**: Rust 后端收到事件后，立即以 JSON Lines (JSONL) 格式写入手机沙盒中的 `telemetry_queue.jsonl` 文件。保证在 App 大退或被系统强杀时，数据已原子级落盘。
     *   **后台异步同步线程**: Rust 后端在 `setup` 阶段启动常驻轮询线程，每 15 秒检测一次本地日志队列。若队列不为空，则后台请求 STS 凭证服务（`https://mobile-xmkoxkjshe.cn-hangzhou.fcapp.run`）获取临时密钥，计算包含 `x-log-bodyrawsize` 的 HMAC-SHA1 签名并批量发送给阿里云 SLS 的 `app-logs` 日志库。发送成功后截断/清除已成功上报的日志。
+    *   **生命周期中止**: `lib.rs` 在 Tauri `ExitRequested` / `Exit` 事件中发送 `watch` 关闭信号；遥测循环用 `tokio::select!` 同时等待退避计时、STS/SLS 上传和关闭事件。退出会直接丢弃进行中的网络 Future 并结束线程，未确认发送成功的日志不会从本地队列移除。
 *   **遥测无数据排查指南**:
     1. **检查是否为真机/模拟器测试**：本地电脑浏览器调试不产生任何网络遥测数据，必须使用 Tauri 原生包测试。
     2. **检查本地缓存**：必须执行相关敏感操作（测试连接、载入对话）往本地写入几条日志以触发增量同步定时器，为空时不启动网络请求。

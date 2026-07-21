@@ -255,6 +255,7 @@ export function useSendMessage(p: SendMessageParams) {
         settings: p.settings,
         globalLorebook: combinedGlobals,
         recalledMemories: recalledMemories,
+        signal: controller.signal,
       });
 
       // 放置 AI 消息占位符

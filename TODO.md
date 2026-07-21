@@ -197,18 +197,14 @@
 * **产出**：公式字段系统（DSL 解析器 + 安全求值器 + 编辑器 UI）。
 * **预估**：2 周以上。需设计安全的表达式沙盒，防止注入攻击。
 
-### 5. AbortSignal 协作式中断缺陷与底层资源泄露治理 [难度：中-高]
+### 5. AbortSignal 协作式中断缺陷与底层资源泄露治理 [已落地]
 
-* **目标**：解决 `AbortSignal` 仅作为协作式而非抢占式中断的局限性，治理内核与底层服务中由于超时/中止未正确传导至底层实现而导致的潜在资源泄漏问题。
-* **现状基础**：
-  - 内核提供了 `AbortController` 并在超时或销毁时进行 `abort()` 触发。
-  - `DatabaseService` 等服务接收了 `AbortSignal` 但并未将其透传至底层的 IndexedDB 事务或写队列中。
-* **缺口**：
-  - `localDB` 等底层的 IndexedDB 操作缺少对 `AbortSignal` 的监听，当 `enqueueWrite` 触发 15 秒超时时，未能调用对应 IDB 事务的 `transaction.abort()` 进行真正取消，可能导致死锁与资源挂起。
-  - 正则表达式匹配及 MVU 脚本解析过程缺乏分步的 `signal.aborted` 检查，在面对复杂或恶意脚本时无法安全退出。
-  - Tauri 原生桥接等操作中，需要确保 `AbortSignal` 的状态正确同步至 Rust 后端以取消后台线程或网络请求。
-* **产出**：底层事务与网络请求的中断传导机制（IndexedDB 事务主动 `abort`、复杂处理循环插入 `aborted` 检查点、原生桥接取消透传）。
-* **预估**：3-5 天。
+* **完成情况**：
+  - 内核超时与服务销毁产生的 `AbortSignal` 已贯穿 `DatabaseService`、IndexedDB 写队列、LLM `fetch`、SSE 读取器、发送/重投提示词编排、角色卡正则与 MVU 输出管道。
+  - `localDB.enqueueWrite` 在取消或 15 秒超时后会主动调用 `transaction.abort()`；即使取消发生在 `getDB()` 等待期间、事务句柄稍后才注册，也会立即补做中止，避免调用方已退出但后台事务继续提交。
+  - MVU 解析器、角色卡正则和记忆流解析器设有协作式检查点；`ScriptService` 与输出中间件对 `AbortError` 保持向上传导，不再按普通脚本错误降级吞掉。
+  - Tauri 遥测线程由应用生命周期 `watch` 信号控制，退出时可打断退避计时和正在进行的 STS/SLS 网络请求，未发送日志仍保留在本地 JSONL 队列。
+* **验证结果**：新增事务注册竞态、提示词预中止、MVU 中止传导、输出管道信号透传及 Rust 遥测退出测试；`npm run lint`、`npm test` 81/81 与 Rust 定向测试全部通过。
 
 ### 6. 自由编排操作控件现代化 [难度：中]
 
@@ -260,3 +256,4 @@
 | 2026-07-20 | 增加自由 Prompt 撤销重做与 JSON 模板迁移：新增 `usePromptCompositionHistory.ts`，提供 30 步有界历史、连续输入合并、外部编排切换重置与导入可撤销；新增 `promptCompositionTransfer.ts` 和 `PromptCompositionTransferToolbar.tsx`，支持版本化 JSON 导入、Android 原生保存、浏览器下载、剪贴板复制及系统分享。`codec.ts` 补齐 SillyTavern 区块与根级兼容元数据的严格解析，保证原生模板往返不丢未知字段；Android 桥接新增 `shareText`。验证：`npm run lint`、`npm run check:i18n`、`npm test` 80/80、Vitest 348/348、`npm run build` 与 Android `assembleArm64Debug` 全部通过。 |
 | 2026-07-20 | 完成自由 Prompt 编排高阶闭环：`validator.ts` 统一编辑期/运行期空模板、重复 ID、无效历史目标和不可用数据源校验；`compiler.ts` 与 `PromptService.ts` 落地发送前 Token 预算裁剪，仅整块移除显式 `drop` 区块并保留超限错误；新增基础示例、用户模板、SillyTavern 导入模板分组及大字段物理分轨；最终调试面板展示变量、角色卡、世界书、记忆到消息区块的真实注入追踪；移动端补充拖拽目标反馈、保存状态、页面隐藏冲刷与未保存离开提醒。验证：`npm run lint`、`npm run check:i18n`、`npm test` 80/80、Vitest 355/355 与 `npm run build` 全绿。 |
 | 2026-07-21 | 重构整个移动端设置页的信息架构并修复真机横屏链路：`SettingsTab.tsx` 将四个顶部页签和超长混合表单改为“六分类首页 → 单类详情”，竖屏一次只呈现模型连接、对话 Prompt、外观、人设、记忆数据或高级关于中的一类，横屏自动使用左侧分类与右侧内容双栏；`PresetForm.tsx` 支持按分类复用预设采样与 Prompt/正则区段，不复制业务状态；`MainLayout.tsx` 压缩设置页标题栏、底部导航和内容预留，横屏底栏隐藏文字，并移除设置页悬浮猫遮挡；八语言同步新增分类文案。`tauri-plugin-android-bridge` 补上 `register_android_plugin` 运行时注册，解决 Kotlin 模块已打包但 `AndroidThemeBridge` 未注入导致横屏入口消失的问题，并增加架构守卫。验证：`npm run lint`、`npm test` 80/80、i18n 与 Prompt 定向测试 63/63、`npm run build`、Android 调试 APK 构建均通过；OPPO PFTM10 覆盖安装后确认桥接对象及横屏、Safe Area、文件接口均存在，竖屏分类首页与横屏双栏截图通过。 |
+| 2026-07-21 | 补全 `AbortSignal` 全链路中断：`localDB.ts` 修复取消早于 IndexedDB 事务注册时仍继续提交的竞态；`PromptService.ts`、`ScriptService.ts`、发送/重投 Hook 与输出中间件贯穿请求信号，并保持 `AbortError` 向上传导；`telemetry.rs` 与 `lib.rs` 通过 Tauri 生命周期 `watch` 信号打断退避等待及 STS/SLS 请求。新增前端竞态、提示词、MVU、管道和 Rust 退出测试。验证：`npm run lint`、`npm test` 81/81、Vitest 定向 53/53、Rust 定向测试 1/1 全绿。 |

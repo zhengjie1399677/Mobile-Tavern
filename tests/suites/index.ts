@@ -115,6 +115,7 @@ export {
 export {
   testAbortSignalPreAbortedLocalDB,
   testAbortSignalMidOperationLocalDB,
+  testAbortSignalBeforeTransactionRegistration,
   testAbortSignalWriteQueueRecovery,
   testMvuParserAbortedCheckpoints,
   testMemoryStreamParserAbort,

@@ -109,13 +109,17 @@ export function bindTransactionAbort(
   transaction: IDBTransaction,
   reject: (e: unknown) => void
 ): void {
-  ctx.registerAbort(() => {
-    try { transaction.abort(); } catch { /* 事务可能已自行结束，忽略二次 abort */ }
-  });
   transaction.onabort = () => {
     if (ctx.aborted) return; // 主动 abort：由 race 的 timeout/signal 分支决定最终错误
     reject(transaction.error || new Error("Transaction aborted"));
   };
+  ctx.registerAbort(() => {
+    try { transaction.abort(); } catch { /* 事务可能已自行结束，忽略二次 abort */ }
+  });
+  // signal 可能在 operation 等待 getDB() 期间已触发，此时 abort 监听先于事务句柄注册。
+  // registerAbort 会立即补调 transaction.abort()；同时结束本 operation 的内部 Promise，
+  // 避免 Promise.race 已拒绝后遗留一个永久 pending 的无主任务。
+  if (ctx.aborted) reject(createAbortError());
 }
 
 export function enqueueWrite<T>(
@@ -184,7 +188,12 @@ export function enqueueWrite<T>(
     const ctx: WriteContext = {
       signal: externalSignal,
       get aborted() { return abortedState; },
-      registerAbort(fn) { abortFn = fn; },
+      registerAbort(fn) {
+        abortFn = fn;
+        // 处理“signal 已触发、事务稍后才创建”的注册竞态。若不补调，调用方虽然
+        // 已收到 AbortError，底层 IDB 事务仍会继续运行且超时计时器已在 finally 清除。
+        if (abortedState) fn();
+      },
     };
 
     // signal abort 监听：触发时主动 abort 底层事务并 reject
