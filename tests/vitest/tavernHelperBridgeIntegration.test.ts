@@ -68,6 +68,21 @@ interface MvuMock {
   parseMessage: (msg: string, oldData: unknown) => Promise<unknown>;
 }
 
+describe("TavernHelper Bridge - 数学运行时按需判定", () => {
+  it("普通脚本不加载 mathjs，MVU 配置或数学引用才加载", async () => {
+    const { cardNeedsMathRuntime } = await import("../../src/utils/tavernHelper");
+
+    expect(cardNeedsMathRuntime(null)).toBe(false);
+    expect(cardNeedsMathRuntime({
+      extensions: { tavern_helper: { scripts: [{ content: "console.log('plain')" }] } },
+    } as any)).toBe(false);
+    expect(cardNeedsMathRuntime({ extensions: { mvu_settings: { enabled: true } } } as any)).toBe(true);
+    expect(cardNeedsMathRuntime({
+      extensions: { tavern_helper: { scripts: [{ content: "import * as math from 'mathjs'" }] } },
+    } as any)).toBe(true);
+  });
+});
+
 describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
   // window.z 由 initTavernHelperMocks() 显式注册
   // happy-dom 下 window 存在，调用 initTavernHelperMocks() 触发初始化

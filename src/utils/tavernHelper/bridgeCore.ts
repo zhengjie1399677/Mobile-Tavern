@@ -395,6 +395,23 @@ export function hasCardScripts(character: CharacterCard | null): boolean {
 }
 
 /**
+ * 仅在角色卡明确启用 MVU，或脚本源码引用 mathjs/MVU 数学桥接时加载数学运行时。
+ * 普通 HTML、Vue 与 jQuery 卡片不应为未使用的数学能力下载独立大分包。
+ */
+export function cardNeedsMathRuntime(character: CharacterCard | null): boolean {
+  if (!character) return false;
+  const ext = character.extensions || {};
+  if (ext.mvu_settings || ext.mvu || ext.MVU) return true;
+  const scripts = ext.tavern_helper?.scripts;
+  if (!Array.isArray(scripts) || scripts.length === 0) return false;
+  try {
+    return /(?:mathjs|TavernHelperMvuLibs\.math|mvu(?:_bundle)?(?:\.js)?)/i.test(JSON.stringify(scripts));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 检测角色卡的开场白（first_mes / alternate_greetings）是否包含 <iframe> 标签。
  * 用于补全 hasCardScripts 的盲区：部分角色卡仅有 regex_scripts 而无 tavern_helper.scripts，
  * 但其 first_mes 内嵌 <iframe srcdoc="..."> 需要由 FormattedText 渲染为消息 iframe。
@@ -433,7 +450,8 @@ function messageContainsHtmlCodeBlock(character: any): boolean {
 //
 // 加载策略：
 //   - 核心库（lodash + 轻量工具）：enableScriptExecution=true 时始终加载
-//   - 重型 UI 库（Vue / Pinia / jQuery / mathjs）：仅当角色卡含可执行脚本时加载
+//   - 重型 UI 库（Vue / Pinia / jQuery）：仅当角色卡含可执行脚本时加载
+//   - 数学运行时（mathjs）：仅当 MVU 或卡片脚本明确引用时加载
 //     （由 hasCardScripts() 检测）
 //
 // 目的：纯对话卡（无 tavern_helper 脚本 / MVU 配置）不应承担 ~400KB 的 UI 框架开销。
@@ -441,6 +459,7 @@ function messageContainsHtmlCodeBlock(character: any): boolean {
 
 let coreLibsPromise: Promise<void> | null = null;
 let uiLibsPromise: Promise<void> | null = null;
+let mathLibPromise: Promise<void> | null = null;
 
 /**
  * 加载核心工具库（lodash + klona 等轻量依赖）。
@@ -471,8 +490,30 @@ export function ensureCoreLibsLoaded(): Promise<void> {
   return coreLibsPromise;
 }
 
+/** 按需加载独立的 mathjs 分包，并挂载到脚本兼容桥。 */
+export function ensureMathLibLoaded(): Promise<void> {
+  if (mathLibPromise) return mathLibPromise;
+
+  mathLibPromise = (async () => {
+    const math = await import("mathjs");
+    if (typeof window !== "undefined") {
+      const w = window as unknown as WindowWithTavernHelperLibs;
+      w.TavernHelperMvuLibs = {
+        ...w.TavernHelperMvuLibs,
+        math,
+      };
+    }
+    console.log("[TavernHelper Bridge] mathjs 按需加载完成");
+  })().catch((error) => {
+    mathLibPromise = null;
+    throw error;
+  });
+
+  return mathLibPromise;
+}
+
 /**
- * 加载重型 UI 框架库（Vue / Pinia / jQuery / mathjs）。
+ * 加载重型 UI 框架库（Vue / Pinia / jQuery）。
  * 仅在角色卡包含可执行脚本（hasCardScripts() = true）时调用。
  * 幂等：多次调用等价于一次调用。
  */
@@ -488,8 +529,6 @@ export function ensureUiLibsLoaded(): Promise<void> {
     await ensureCoreLibsLoaded();
     console.log("[TavernHelper Bridge] 核心库就绪，开始动态 import UI 库");
     try {
-      // mathjs (~600KB) 延迟加载，不阻塞 libsReady
-      // 大多数角色卡不使用 mathjs，加载它会显著增加等待时间
       const [Vue, Pinia, jQuery] = await Promise.all([
         import("vue"),
         import("pinia"),
@@ -527,17 +566,6 @@ export function ensureUiLibsLoaded(): Promise<void> {
           hasJQuery: !!w.jQuery,
         });
 
-        // mathjs 后台异步加载，不阻塞 ensureUiLibsLoaded 的完成
-        // 加载完成后挂载到 window.TavernHelperMvuLibs.math
-        import("mathjs").then(math => {
-          w.TavernHelperMvuLibs = {
-            ...w.TavernHelperMvuLibs,
-            math,
-          };
-          console.log("[TavernHelper Bridge] mathjs 延迟加载完成");
-        }).catch(err => {
-          console.warn("[TavernHelper Bridge] mathjs 延迟加载失败（不影响核心功能）:", err);
-        });
       }
     } catch (err) {
       console.error("[TavernHelper Bridge] UI 库动态 import 失败:", err);
@@ -554,7 +582,7 @@ export function ensureUiLibsLoaded(): Promise<void> {
  * ensureCoreLibsLoaded() / ensureUiLibsLoaded()。
  */
 export function ensureLibrariesLoaded(): Promise<void> {
-  return ensureUiLibsLoaded();
+  return Promise.all([ensureUiLibsLoaded(), ensureMathLibLoaded()]).then(() => undefined);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -575,6 +603,7 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
   const hasIframe = messageContainsIframe(params.activeCharacter);
   const hasHtmlBlock = messageContainsHtmlCodeBlock(params.activeCharacter);
   const shouldLoadUiLibs = enableScript && (hasScripts || hasIframe || hasHtmlBlock);
+  const shouldLoadMath = enableScript && cardNeedsMathRuntime(params.activeCharacter);
   console.log("[TavernHelper Bridge] initTavernHelperBridge 诊断:", {
     charName,
     enableScriptExecution: enableScript,
@@ -582,6 +611,7 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
     messageContainsIframe: hasIframe,
     messageContainsHtmlCodeBlock: hasHtmlBlock,
     willLoadUiLibs: shouldLoadUiLibs,
+    willLoadMath: shouldLoadMath,
   });
 
   if (enableScript) {
@@ -589,7 +619,7 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
     ensureCoreLibsLoaded().catch(err => {
       console.error("[TavernHelper Bridge] 核心库加载失败:", err);
     });
-    // 重型 UI 库（Vue / Pinia / jQuery / mathjs）加载条件：
+    // 重型 UI 库（Vue / Pinia / jQuery）加载条件：
     // 1. 角色卡包含 tavern_helper 脚本或 MVU 设定（原有逻辑）
     // 2. 角色卡的 first_mes / alternate_greetings 包含 <iframe> 标签
     // 3. 角色卡的 first_mes / alternate_greetings 包含 HTML 代码块（```html 或 ``` <）
@@ -610,6 +640,11 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
       });
     } else {
       console.warn("[TavernHelper Bridge] 未触发 UI 库加载（hasCardScripts=false、messageContainsIframe=false、messageContainsHtmlCodeBlock=false）");
+    }
+    if (shouldLoadMath) {
+      ensureMathLibLoaded().catch(err => {
+        console.error("[TavernHelper Bridge] mathjs 加载失败:", err);
+      });
     }
   } else {
     console.warn("[TavernHelper Bridge] enableScriptExecution=false，跳过所有库加载");

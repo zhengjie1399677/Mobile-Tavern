@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { ChatSession } from "../types";
 import { X, BrainCircuit } from "lucide-react";
-import { MvuVariablesTabContent } from "./MvuVariablesTabContent";
 import StoryTimelineView from "../tabs/chat/StoryTimelineView";
 import TableMemoryTab from "./memory-drawer/TableMemoryTab";
 import DictTab from "./memory-drawer/DictTab";
@@ -9,6 +8,10 @@ import RecallTab from "./memory-drawer/RecallTab";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 import { notifyVariablesUpdated } from "../utils/tavernHelper";
+
+const MvuVariablesTabContent = React.lazy(() =>
+  import("./MvuVariablesTabContent").then((module) => ({ default: module.MvuVariablesTabContent }))
+);
 
 interface MemoryTableDrawerProps {
   isOpen: boolean;
@@ -141,6 +144,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
 
         {/* Inner Content Area */}
         <div className={`min-h-0 flex-1 ${activeTab === 'timeline' ? '' : 'overflow-y-auto p-3'}`}>
+          <React.Suspense fallback={<MemoryTabFallback />}>
 
           {/* TAB 0: ⏱️ 故事年表 */}
           {activeTab === 'timeline' && (
@@ -204,9 +208,17 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
               }}
             />
           )}
-
+          </React.Suspense>
         </div>
       </div>
     </div>
   );
 };
+
+function MemoryTabFallback() {
+  return (
+    <div className="flex min-h-32 items-center justify-center text-xs text-muted-foreground" role="status">
+      正在加载…
+    </div>
+  );
+}

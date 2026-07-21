@@ -16,18 +16,18 @@ import {
 } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { Card, CardContent } from "../../../components/ui/card";
-import PresetForm from "../../components/PresetForm";
-import { performUpdateCheck, showUpdatePrompt } from "../../components/UpdatePrompt";
 import { useKernel } from "../../contexts/KernelContext";
 import { getDeviceModel, getFreeTrialCount, useViewportSize } from "./utils";
-import GeneralConfigSection from "./GeneralConfigSection";
-import ThemeConfigSection from "./ThemeConfigSection";
-import PersonaConfigSection from "./PersonaConfigSection";
-import FeaturesSection from "./FeaturesSection";
-import MemoryStorageSection from "./MemoryStorageSection";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
-import SystemReportSection from "./sections/SystemReportSection";
+
+const PresetForm = React.lazy(() => import("../../components/PresetForm"));
+const GeneralConfigSection = React.lazy(() => import("./GeneralConfigSection"));
+const ThemeConfigSection = React.lazy(() => import("./ThemeConfigSection"));
+const PersonaConfigSection = React.lazy(() => import("./PersonaConfigSection"));
+const FeaturesSection = React.lazy(() => import("./FeaturesSection"));
+const MemoryStorageSection = React.lazy(() => import("./MemoryStorageSection"));
+const SystemReportSection = React.lazy(() => import("./sections/SystemReportSection"));
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
 interface TauriWindow extends Window {
@@ -176,6 +176,7 @@ export default function SettingsTab() {
     if (isCheckingUpdate) return;
     setIsCheckingUpdate(true);
     try {
+      const { performUpdateCheck, showUpdatePrompt } = await import("../../components/UpdatePrompt");
       const res = await performUpdateCheck(true, kernel);
       if (res === null) {
         showCustomAlert(t("dialog.alert_default_title"), t("settings.update_service_not_ready"));
@@ -343,13 +344,21 @@ export default function SettingsTab() {
     }
   };
 
+  const renderLazySection = (section: SettingsSectionId) => (
+    <React.Suspense fallback={<SettingsSectionFallback />}>
+      {renderSectionContent(section)}
+    </React.Suspense>
+  );
+
   if (promptFocus.active) {
     return (
       <main
         data-testid="prompt-workbench-focus"
         className="h-full min-h-0 overflow-y-auto p-1.5 custom-scrollbar"
       >
-        <PresetForm sections={["composer"]} />
+        <React.Suspense fallback={<SettingsSectionFallback />}>
+          <PresetForm sections={["composer"]} />
+        </React.Suspense>
       </main>
     );
   }
@@ -416,18 +425,26 @@ export default function SettingsTab() {
             {renderSectionList(true)}
           </aside>
           <section className="min-w-0 min-h-0 overflow-y-auto pr-1 pb-2 custom-scrollbar">
-            {selectedSection && renderSectionContent(selectedSection)}
+            {selectedSection && renderLazySection(selectedSection)}
           </section>
         </div>
       ) : selectedSection ? (
         <main className="flex-1 min-h-0 overflow-y-auto pt-2 pb-2 custom-scrollbar">
-          {renderSectionContent(selectedSection)}
+          {renderLazySection(selectedSection)}
         </main>
       ) : (
         <main className="flex-1 min-h-0 overflow-y-auto pt-2 pb-2 custom-scrollbar">
           {renderSectionList(false)}
         </main>
       )}
+    </div>
+  );
+}
+
+function SettingsSectionFallback() {
+  return (
+    <div className="flex min-h-24 items-center justify-center rounded-xl border border-border/60 bg-card/40 text-muted-foreground">
+      <Loader2 className="size-4 animate-spin" aria-label="正在加载设置模块" />
     </div>
   );
 }

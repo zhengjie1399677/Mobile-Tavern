@@ -87,6 +87,32 @@ export async function testArchitectureBoundaries(): Promise<void> {
       settingsTab.includes("SystemReportSection"),
     "系统报告必须归入独立的关于我们分类，不得继续混在记忆与数据中"
   );
+  assert(
+    settingsTab.includes("React.lazy") &&
+      !/import\s+PresetForm\s+from/.test(settingsTab) &&
+      !/import\s+FeaturesSection\s+from/.test(settingsTab),
+    "设置页高级分区必须保持按需加载，不能重新静态并入设置入口分包"
+  );
+
+  const chatTab = read("src/tabs/chat/ChatTab.tsx");
+  assert(
+    chatTab.includes("React.lazy") &&
+      /isTableDrawerOpen\s*&&[\s\S]*?<React\.Suspense/.test(chatTab),
+    "记忆与状态中心必须只在用户打开抽屉后才下载和挂载"
+  );
+  const memoryDrawer = read("src/components/MemoryTableDrawer.tsx");
+  assert(
+    memoryDrawer.includes("React.lazy") && memoryDrawer.includes("./MvuVariablesTabContent"),
+    "MVU 面板必须与记忆中心主体分离，并在切换到角色变量后动态加载"
+  );
+
+  const bridgeCore = read("src/utils/tavernHelper/bridgeCore.ts");
+  assert(
+    bridgeCore.includes("cardNeedsMathRuntime") &&
+      bridgeCore.includes("ensureMathLibLoaded") &&
+      /ensureMathLibLoaded\(\)[\s\S]*?import\(["']mathjs["']\)/.test(bridgeCore),
+    "mathjs 必须保持独立按需加载，普通脚本卡不得后台下载数学运行时"
+  );
 
   for (const file of [
     "src/components/presetForm/PromptCompositionEditor.tsx",

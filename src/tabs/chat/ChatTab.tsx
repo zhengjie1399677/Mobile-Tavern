@@ -6,7 +6,10 @@ import React from "react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import CharacterDetailDrawer from "../../components/CharacterDetailDrawer";
-import { MemoryTableDrawer } from "../../components/MemoryTableDrawer";
+
+const MemoryTableDrawer = React.lazy(() =>
+  import("../../components/MemoryTableDrawer").then((module) => ({ default: module.MemoryTableDrawer }))
+);
 
 import { useChatAccessibility } from "./useChatAccessibility";
 import { useChatScroll } from "./useChatScroll";
@@ -192,17 +195,19 @@ export default function ChatTab() {
         character={activeCharacter}
         onClose={() => setIsDetailDrawerOpen(false)}
       />
-      {activeSession && activeCharacter && (
-        <MemoryTableDrawer
-          isOpen={isTableDrawerOpen}
-          onClose={() => setIsTableDrawerOpen(false)}
-          activeSession={activeSession}
-          saveSession={saveSession}
-          charName={activeCharacter.name}
-          enableTableMemory={!!settings.enableTableMemory}
-          enableAutoSummary={settings.memory?.enableAutoSummary !== false}
-          initialTab={tableDrawerTab}
-        />
+      {isTableDrawerOpen && activeSession && activeCharacter && (
+        <React.Suspense fallback={<div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px]" aria-label="正在加载记忆与状态中心" />}>
+          <MemoryTableDrawer
+            isOpen
+            onClose={() => setIsTableDrawerOpen(false)}
+            activeSession={activeSession}
+            saveSession={saveSession}
+            charName={activeCharacter.name}
+            enableTableMemory={!!settings.enableTableMemory}
+            enableAutoSummary={settings.memory?.enableAutoSummary !== false}
+            initialTab={tableDrawerTab}
+          />
+        </React.Suspense>
       )}
     </div>
   );
