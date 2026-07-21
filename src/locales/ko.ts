@@ -14,7 +14,7 @@ export default {
   "settings_hub.home_desc": "카테고리를 선택해 필요한 설정만 표시합니다.",
   "settings_hub.connection_title": "모델 및 연결",
   "settings_hub.connection_desc": "API, 모델, 프리셋 및 생성 매개변수",
-  "settings_hub.prompt_title": "채팅 및 Prompt",
+  "settings_hub.prompt_title": "프리셋",
   "settings_hub.prompt_desc": "핵심 Prompt, 사용자 모듈 및 정규식 스크립트",
   "settings_hub.appearance_title": "모양 및 표시",
   "settings_hub.appearance_desc": "테마, 글꼴 및 채팅 배경",

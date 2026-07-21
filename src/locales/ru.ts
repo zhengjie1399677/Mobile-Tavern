@@ -14,7 +14,7 @@ export default {
   "settings_hub.home_desc": "Выберите категорию, чтобы видеть только нужные настройки.",
   "settings_hub.connection_title": "Модели и подключение",
   "settings_hub.connection_desc": "API, модели, пресеты и параметры генерации",
-  "settings_hub.prompt_title": "Чат и Prompt",
+  "settings_hub.prompt_title": "Пресеты",
   "settings_hub.prompt_desc": "Основные Prompt, модули и regex-скрипты",
   "settings_hub.appearance_title": "Внешний вид",
   "settings_hub.appearance_desc": "Темы, шрифты и фон чата",

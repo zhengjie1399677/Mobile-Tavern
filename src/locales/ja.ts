@@ -14,7 +14,7 @@
   "settings_hub.home_desc": "カテゴリを選択すると、必要な設定だけを表示します。",
   "settings_hub.connection_title": "モデルと接続",
   "settings_hub.connection_desc": "API、モデル、プリセット、生成パラメータ",
-  "settings_hub.prompt_title": "チャットと Prompt",
+  "settings_hub.prompt_title": "プリセット",
   "settings_hub.prompt_desc": "コア Prompt、カスタムモジュール、正規表現スクリプト",
   "settings_hub.appearance_title": "外観と表示",
   "settings_hub.appearance_desc": "テーマ、文字、チャット背景",

@@ -14,7 +14,7 @@ export default {
   "settings_hub.home_desc": "选择一个分类，只显示当前需要调整的内容。",
   "settings_hub.connection_title": "模型与连接",
   "settings_hub.connection_desc": "API、模型、预设与生成参数",
-  "settings_hub.prompt_title": "对话与 Prompt",
+  "settings_hub.prompt_title": "预设",
   "settings_hub.prompt_desc": "核心提示词、自定义模组与正则脚本",
   "settings_hub.appearance_title": "外观与显示",
   "settings_hub.appearance_desc": "主题、字体与聊天背景",

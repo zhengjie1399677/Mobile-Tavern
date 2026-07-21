@@ -14,7 +14,7 @@ export default {
   "settings_hub.home_desc": "Choose a category to focus on only the settings you need.",
   "settings_hub.connection_title": "Models & Connection",
   "settings_hub.connection_desc": "API, models, presets, and generation parameters",
-  "settings_hub.prompt_title": "Chat & Prompt",
+  "settings_hub.prompt_title": "Presets",
   "settings_hub.prompt_desc": "Core prompts, custom modules, and regex scripts",
   "settings_hub.appearance_title": "Appearance & Display",
   "settings_hub.appearance_desc": "Themes, typography, and chat backgrounds",
