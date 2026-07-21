@@ -68,6 +68,10 @@ export async function testArchitectureBoundaries(): Promise<void> {
     /fallback=\{<TabLoadingFallback\s*\/>\}/.test(mainLayout),
     "主功能页必须使用局部加载态承接首次代码分块加载"
   );
+  assert(
+    /activeTab === ["']settings["'] \? ["']max-w-lg landscape:max-w-none["']/.test(mainLayout),
+    "设置页横屏时必须解除手机竖屏宽度上限，确保高级工作台获得真实可用宽度"
+  );
 
   for (const file of listCodeFiles("src")) {
     assert(

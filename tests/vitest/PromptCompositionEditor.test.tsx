@@ -95,6 +95,17 @@ describe("PromptCompositionEditor", () => {
     expect(screen.getByRole("heading", { name: "编辑 Prompt 区块" })).toBeInTheDocument();
   });
 
+  it("新增操作使用明确文案，并创建未命名 Prompt 区块", () => {
+    render(<LanguageProvider><Harness /></LanguageProvider>);
+
+    expect(screen.getByRole("button", { name: "添加聊天历史" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "载入基础示例" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "添加 Prompt 区块" }));
+
+    expect(screen.getByTestId("composition-state")).toHaveTextContent("未命名 Prompt 区块");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("可搜索并在光标处插入数据源宏", async () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 

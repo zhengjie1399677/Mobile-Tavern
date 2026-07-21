@@ -227,10 +227,25 @@ export default function PromptCompositionEditor({
     (composition.compatibility?.preservedRootFields ? Object.keys(composition.compatibility.preservedRootFields).length : 0);
 
   return (
-    <section className="space-y-3 rounded-xl border border-primary/25 bg-primary/5 p-3">
-      <div>
-        <div className="text-xs font-bold">{t("prompt_composer.title")}</div>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("prompt_composer.description")}</p>
+    <section className={`rounded-xl border border-primary/25 bg-primary/5 ${isWideWorkbench ? "space-y-2 p-2" : "space-y-3 p-3"}`}>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-bold">{t("prompt_composer.title")}</div>
+          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("prompt_composer.description")}</p>
+        </div>
+        {freeMode && orientationControl.available && (
+          <button
+            type="button"
+            aria-pressed={orientationControl.forcedLandscape}
+            onClick={orientationControl.toggleOrientation}
+            className="flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-primary/35 bg-primary/15 px-2.5 text-[10px] font-bold text-primary shadow-sm active:bg-primary/25"
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+            {t(orientationControl.forcedLandscape
+              ? "prompt_composer.restore_auto_rotation"
+              : "prompt_composer.enter_landscape")}
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 rounded-xl border border-border bg-muted/50 p-1" role="group" aria-label={t("prompt_composer.mode")}>
@@ -240,21 +255,7 @@ export default function PromptCompositionEditor({
 
       {freeMode && (
         <>
-          {orientationControl.available && (
-            <button
-              type="button"
-              aria-pressed={orientationControl.forcedLandscape}
-              onClick={orientationControl.toggleOrientation}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 text-xs font-bold text-primary active:bg-primary/15"
-            >
-              <RotateCw className="h-4 w-4" />
-              {t(orientationControl.forcedLandscape
-                ? "prompt_composer.restore_auto_rotation"
-                : "prompt_composer.enter_landscape")}
-            </button>
-          )}
-
-          <div className={isWideWorkbench ? "grid grid-cols-[minmax(300px,0.9fr)_minmax(340px,1.1fr)] items-start gap-3" : "space-y-3"}>
+          <div className={isWideWorkbench ? "grid grid-cols-[minmax(300px,0.85fr)_minmax(400px,1.15fr)] items-start gap-2 min-[1100px]:grid-cols-[minmax(300px,0.72fr)_minmax(340px,0.82fr)_minmax(420px,1fr)]" : "space-y-3"}>
             <div className="space-y-3">
               <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-2 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
                 {t("prompt_composer.no_hidden_prompt")}
@@ -410,21 +411,21 @@ export default function PromptCompositionEditor({
                 >{t("prompt_composer.reset_example")}</ToolbarButton>
               </div>
 
-              {isWideWorkbench && editingBlock && (
-                <PromptBlockQuickEditor
-                  block={editingBlock}
-                  historyBlocks={historyBlocks}
-                  onPatch={(patch) => updateBlock(editingBlock.id, patch)}
-                  onClose={() => setEditingBlockId(undefined)}
-                  onDelete={() => deleteBlock(editingBlock.id)}
-                  onDuplicate={() => duplicateBlock(editingBlock.id)}
-                  onOpenFullEditor={() => setFullEditorOpen(true)}
-                />
-              )}
             </div>
 
             {isWideWorkbench && (
-              <div className="sticky top-3">
+              <div className="sticky top-2 space-y-2 min-[1100px]:col-span-2 min-[1100px]:grid min-[1100px]:grid-cols-[minmax(340px,0.82fr)_minmax(420px,1fr)] min-[1100px]:items-start">
+                {editingBlock && (
+                  <PromptBlockQuickEditor
+                    block={editingBlock}
+                    historyBlocks={historyBlocks}
+                    onPatch={(patch) => updateBlock(editingBlock.id, patch)}
+                    onClose={() => setEditingBlockId(undefined)}
+                    onDelete={() => deleteBlock(editingBlock.id)}
+                    onDuplicate={() => duplicateBlock(editingBlock.id)}
+                    onOpenFullEditor={() => setFullEditorOpen(true)}
+                  />
+                )}
                 <PromptCompositionWorkbench
                   embedded
                   composition={composition}

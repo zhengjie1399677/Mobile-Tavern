@@ -95,7 +95,9 @@ export default function MainLayout() {
       <SplashScreen isVisible={showSplash} />
       <div
         style={viewportHeight ? { height: `${viewportHeight}px` } : undefined}
-        className={`flex flex-col h-[100dvh] max-w-lg mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] ${
+        className={`flex flex-col h-[100dvh] mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] ${
+        activeTab === "settings" ? "max-w-lg landscape:max-w-none" : "max-w-lg"
+      } ${
         activeTab === "chat" || activeTab === "playground" ? "pt-0" : "pt-[var(--safe-area-top)]"
       }`}>
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
