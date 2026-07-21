@@ -18,6 +18,7 @@ import { Input } from "../../../../components/ui/input";
 import { Textarea } from "../../../../components/ui/textarea";
 import { DEFAULT_SETTINGS } from "../../../hooks/useSettings";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
+import SettingsSelect from "../SettingsSelect";
 
 export interface MemoryConfigCardProps extends Pick<UnifiedAppContextProps, "settings" | "updateSettings"> {}
 
@@ -224,21 +225,22 @@ export default function MemoryConfigCard({
                 <span className="text-[10px] text-muted-foreground font-semibold">
                   {t("memory_sys.table_freq")}
                 </span>
-                <select
-                  aria-label={t("memory_sys.table_freq")}
-                  value={settings.tableMemoryCheckFrequency || 1}
-                  onChange={(e) =>
+                <SettingsSelect
+                  value={String(settings.tableMemoryCheckFrequency || 1)}
+                  onValueChange={(nextValue) =>
                     updateSettings({
                       ...settings,
-                      tableMemoryCheckFrequency: parseInt(e.target.value) || 1,
+                      tableMemoryCheckFrequency: parseInt(nextValue) || 1,
                     })
                   }
-                  className="bg-muted border border-border rounded px-1.5 py-0.5 text-xs outline-none focus:border-primary font-bold text-foreground"
-                >
-                  <option value="1">{t("memory_sys.table_freq_1")}</option>
-                  <option value="3">{t("memory_sys.table_freq_3")}</option>
-                  <option value="5">{t("memory_sys.table_freq_5")}</option>
-                </select>
+                  ariaLabel={t("memory_sys.table_freq")}
+                  className="w-24"
+                  options={[
+                    { value: "1", label: t("memory_sys.table_freq_1") },
+                    { value: "3", label: t("memory_sys.table_freq_3") },
+                    { value: "5", label: t("memory_sys.table_freq_5") },
+                  ]}
+                />
               </div>
             )}
           </div>

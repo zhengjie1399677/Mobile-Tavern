@@ -35,6 +35,8 @@ export interface TableMemoryTabProps {
   activeSession: ChatSession;
   saveSession: (session: ChatSession) => Promise<void>;
   charName: string;
+  showCustomAlert: (message: string, title?: string) => Promise<void>;
+  showCustomConfirm: (message: string, title?: string) => Promise<boolean>;
 }
 
 /** 新建表/编辑表时的中间态结构。id 为 "new" 表示新建，否则为正在编辑的 sheet id。 */
@@ -51,7 +53,13 @@ interface WindowWithAndroidFileBridge extends Window {
   };
 }
 
-function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTabProps) {
+function TableMemoryTab({
+  activeSession,
+  saveSession,
+  charName,
+  showCustomAlert,
+  showCustomConfirm,
+}: TableMemoryTabProps) {
   const { t } = useTranslation();
   const [activeTableTabId, setActiveTableTabId] = useState<string>("");
   const [editingCell, setEditingCell] = useState<{ sheetId: string; rowIndex: number; colIndex: number } | null>(null);
@@ -108,7 +116,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
   // 删除行（带二次确认，防止误删 LLM 关键字段）
   const handleDeleteRow = async (sheetId: string, rowIndex: number) => {
-    if (!window.confirm(t("table_memory.confirm_delete_row"))) return;
+    if (!await showCustomConfirm(t("table_memory.confirm_delete_row"))) return;
     const nextSheets = sheets.map(s => {
       if (s.id === sheetId) {
         return {
@@ -135,7 +143,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     const definition = targetSheet ? getTableMemoryColumnDefinitions(targetSheet)[colIndex] : undefined;
     const coerced = definition ? coerceTableMemoryValue(nextValue, definition) : { value: nextValue, valid: true };
     if (!coerced.valid) {
-      window.alert(t("table_memory.invalid_value"));
+      await showCustomAlert(t("table_memory.invalid_value"));
       return;
     }
 
@@ -182,7 +190,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
   // 重置默认表（带二次确认，覆盖现有数据）
   const handleResetToDefault = async () => {
-    if (!window.confirm(t("table_memory.confirm_reset"))) return;
+    if (!await showCustomConfirm(t("table_memory.confirm_reset"))) return;
     const defaultSheets: TableMemorySheet[] = [
       {
         id: "sheet_relation",
@@ -249,7 +257,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
 
   // 删除整张表（带二次确认）
   const handleDeleteSheet = async (sheetId: string, sheetName: string) => {
-    if (!window.confirm(t("table_memory.confirm_delete_sheet", { name: sheetName }))) return;
+    if (!await showCustomConfirm(t("table_memory.confirm_delete_sheet", { name: sheetName }))) return;
     const nextSheets = sheets.filter(s => s.id !== sheetId);
     await updateSheets(nextSheets);
     // 如果删除的是当前激活的 tab，切到第一张表
@@ -319,7 +327,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
   const removeDraftColumn = (idx: number) => {
     if (!sheetDraft) return;
     if (sheetDraft.columns.length <= 1) {
-      window.alert(t("table_memory.min_one_column"));
+      void showCustomAlert(t("table_memory.min_one_column"));
       return;
     }
     setSheetDraft({
@@ -333,7 +341,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     if (!sheetDraft) return;
     const trimmedName = sheetDraft.name.trim();
     if (!trimmedName) {
-      window.alert(t("table_memory.name_required"));
+      await showCustomAlert(t("table_memory.name_required"));
       return;
     }
     const normalizedColumns = sheetDraft.columns
@@ -347,15 +355,15 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
       }))
       .filter((column) => column.name);
     if (normalizedColumns.length === 0) {
-      window.alert(t("table_memory.columns_required"));
+      await showCustomAlert(t("table_memory.columns_required"));
       return;
     }
     if (new Set(normalizedColumns.map((column) => column.name)).size !== normalizedColumns.length) {
-      window.alert(t("table_memory.duplicate_column"));
+      await showCustomAlert(t("table_memory.duplicate_column"));
       return;
     }
     if (normalizedColumns.some((column) => column.type === "enum" && !column.enumOptions?.length)) {
-      window.alert(t("table_memory.enum_options_required"));
+      await showCustomAlert(t("table_memory.enum_options_required"));
       return;
     }
     const invalidDefault = normalizedColumns.some((column) => {
@@ -363,14 +371,14 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
       return !coerceTableMemoryValue(column.defaultValue, { ...column, defaultValue: "" }).valid;
     });
     if (invalidDefault) {
-      window.alert(t("table_memory.invalid_default"));
+      await showCustomAlert(t("table_memory.invalid_default"));
       return;
     }
 
     if (sheetDraft.id === "new") {
       // 新建表：检查表名冲突
       if (sheets.some(s => s.name === trimmedName)) {
-        window.alert(t("table_memory.duplicate_name", { name: trimmedName }));
+        await showCustomAlert(t("table_memory.duplicate_name", { name: trimmedName }));
         return;
       }
       const newSheet: TableMemorySheet = {
@@ -388,7 +396,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     } else {
       // 编辑现有表：检查表名冲突（排除自身）
       if (sheets.some(s => s.id !== sheetDraft.id && s.name === trimmedName)) {
-        window.alert(t("table_memory.duplicate_name", { name: trimmedName }));
+        await showCustomAlert(t("table_memory.duplicate_name", { name: trimmedName }));
         return;
       }
       const nextSheets = sheets.map(s => {
@@ -413,7 +421,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     setSheetDraft(null);
   };
 
-  const exportSchema = () => {
+  const exportSchema = async () => {
     if (sheets.length === 0) return;
     const content = serializeTableMemorySchema(sheets);
     const safeTitle = (activeSession.title || "table-memory").replace(/[\\/:*?"<>|]/g, "_");
@@ -423,12 +431,12 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
       try {
         const path = bridge.saveFile(fileName, content);
         if (path.startsWith("error:")) {
-          window.alert(t("table_memory.export_failed"));
+          await showCustomAlert(t("table_memory.export_failed"));
           return;
         }
-        window.alert(t("table_memory.export_saved", { path }));
+        await showCustomAlert(t("table_memory.export_saved", { path }));
       } catch {
-        window.alert(t("table_memory.export_failed"));
+        await showCustomAlert(t("table_memory.export_failed"));
       }
       return;
     }
@@ -446,7 +454,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
     event.target.value = "";
     if (!file) return;
     if (file.size > 1024 * 1024) {
-      window.alert(t("table_memory.schema_file_too_large"));
+      await showCustomAlert(t("table_memory.schema_file_too_large"));
       return;
     }
     try {
@@ -454,9 +462,9 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
       const imported = instantiateTableMemorySchema(pkg, sheets.map((sheet) => sheet.name));
       await updateSheets([...sheets, ...imported]);
       setActiveTableTabId(imported[0]?.id ?? activeTableTabId);
-      window.alert(t("table_memory.import_success", { count: String(imported.length) }));
+      await showCustomAlert(t("table_memory.import_success", { count: String(imported.length) }));
     } catch {
-      window.alert(t("table_memory.import_failed"));
+      await showCustomAlert(t("table_memory.import_failed"));
     }
   };
 

@@ -20,6 +20,8 @@ import { MemoryDrawerInput, MemoryDrawerSelect } from "./MemoryDrawerControls";
 
 export interface DictTabProps {
   activeSession: ChatSession;
+  showCustomAlert: (message: string, title?: string) => Promise<void>;
+  showCustomConfirm: (message: string, title?: string) => Promise<boolean>;
 }
 
 interface WindowWithAndroidFileBridge extends Window {
@@ -37,7 +39,7 @@ const ENTITY_TYPES = [
   { value: "concept", labelKey: "dict_tab.type_concept" },
 ];
 
-function DictTab({ activeSession }: DictTabProps) {
+function DictTab({ activeSession, showCustomAlert, showCustomConfirm }: DictTabProps) {
   const { t } = useTranslation();
   const kernel = useKernel();
   const getMemoryStorage = () => kernel.getService<MemoryServiceTyped>("memory").getStorage();
@@ -109,7 +111,7 @@ function DictTab({ activeSession }: DictTabProps) {
   const handleSaveNewEntry = async () => {
     const name = newEntity.trim();
     if (!name) {
-      alert(t("dict_tab.entity_name_required"));
+      await showCustomAlert(t("dict_tab.entity_name_required"));
       return;
     }
     
@@ -118,7 +120,7 @@ function DictTab({ activeSession }: DictTabProps) {
       entry => entry.entity.toLowerCase() === name.toLowerCase()
     );
     if (isDuplicate) {
-      alert(t("dict_tab.duplicate_entity", { name }));
+      await showCustomAlert(t("dict_tab.duplicate_entity", { name }));
       return;
     }
 
@@ -156,7 +158,7 @@ function DictTab({ activeSession }: DictTabProps) {
 
   // 手动删除实体词条
   const handleDeleteEntry = async (entry: any) => {
-    if (!window.confirm(t("dict_tab.confirm_delete_entry", { entity: entry.entity }))) {
+    if (!await showCustomConfirm(t("dict_tab.confirm_delete_entry", { entity: entry.entity }))) {
       return;
     }
     try {
@@ -168,7 +170,7 @@ function DictTab({ activeSession }: DictTabProps) {
   };
 
   // 批量导出词典为 JSON 纯净包
-  const handleExportDict = () => {
+  const handleExportDict = async () => {
     if (dictEntries.length === 0) return;
     
     const exportable = dictEntries.map(entry => ({
@@ -190,12 +192,12 @@ function DictTab({ activeSession }: DictTabProps) {
       try {
         const path = bridge.saveFile(fileName, json);
         if (path.startsWith("error:")) {
-          window.alert(t("dict_tab.export_failed"));
+          await showCustomAlert(t("dict_tab.export_failed"));
           return;
         }
-        window.alert(t("dict_tab.export_saved", { path }));
+        await showCustomAlert(t("dict_tab.export_saved", { path }));
       } catch {
-        window.alert(t("dict_tab.export_failed"));
+        await showCustomAlert(t("dict_tab.export_failed"));
       }
       return;
     }

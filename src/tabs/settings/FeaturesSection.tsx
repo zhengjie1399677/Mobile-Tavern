@@ -1,8 +1,8 @@
-import { FlaskConical, Globe } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, FlaskConical, Globe } from "lucide-react";
 import {
   Card,
   CardHeader,
-  CardTitle,
   CardContent,
   CardDescription,
 } from "../../../components/ui/card";
@@ -18,6 +18,7 @@ import { Textarea } from "../../../components/ui/textarea";
 import { DEFAULT_SETTINGS } from "../../hooks/useSettings";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
+import SettingsSelect from "./SettingsSelect";
 
 export type FeaturesSectionProps = Pick<UnifiedAppContextProps, "settings" | "updateSettings">;
 
@@ -26,6 +27,8 @@ export default function FeaturesSection({
   updateSettings,
 }: FeaturesSectionProps) {
   const { language, changeLanguage, t } = useTranslation();
+  const [showFeatureDetails, setShowFeatureDetails] = useState(false);
+  const [showExpressionDictionary, setShowExpressionDictionary] = useState(false);
 
   return (
     <>
@@ -49,19 +52,20 @@ export default function FeaturesSection({
                   {t("lang.select_desc")}
                 </p>
               </div>
-              <select
-                aria-label={t("lang.select_label")}
+              <SettingsSelect
                 value={language}
-                onChange={(e) => changeLanguage(e.target.value)}
-                className="bg-muted border border-border rounded-lg px-2.5 py-1 text-xs outline-none focus:border-primary font-bold text-foreground sm:w-48 shrink-0"
-              >
-                <option value="zh-CN">简体中文 (Simplified Chinese)</option>
-                <option value="zh-TW">繁體中文 (Traditional Chinese)</option>
-                <option value="en">English</option>
-                <option value="ja">日本語 (Japanese)</option>
-                <option value="ru">Русский (Russian)</option>
-                <option value="es">Español (Spanish)</option>
-              </select>
+                onValueChange={changeLanguage}
+                ariaLabel={t("lang.select_label")}
+                className="shrink-0 sm:w-48"
+                options={[
+                  { value: "zh-CN", label: "简体中文 (Simplified Chinese)" },
+                  { value: "zh-TW", label: "繁體中文 (Traditional Chinese)" },
+                  { value: "en", label: "English" },
+                  { value: "ja", label: "日本語 (Japanese)" },
+                  { value: "ru", label: "Русский (Russian)" },
+                  { value: "es", label: "Español (Spanish)" },
+                ]}
+              />
             </div>
           </div>
         </CardContent>
@@ -69,14 +73,20 @@ export default function FeaturesSection({
 
       {/* 2. 功能设置 (Features) */}
       <Card className="glass-panel shadow-sm mt-2">
-        <CardContent className="p-3 space-y-3">
-          {/* 父标题：功能设置 (紧凑布局) */}
-          <div className="flex items-center gap-2 pb-1.5 border-b border-border/50 mb-1.5 select-none">
+        <button
+          type="button"
+          aria-expanded={showFeatureDetails}
+          onClick={() => setShowFeatureDetails((current) => !current)}
+          className="flex min-h-11 w-full items-center gap-2 px-3 text-left"
+        >
             <FlaskConical className="w-4 h-4 text-primary" />
-            <span className="text-[13.5px] font-black text-foreground tracking-wide">
+            <span className="flex-1 text-[13px] font-black text-foreground tracking-wide">
               {t("features.section_title")}
             </span>
-          </div>
+            <ChevronDown className={`size-4 text-muted-foreground transition-transform ${showFeatureDetails ? "rotate-180" : ""}`} />
+        </button>
+        {showFeatureDetails && (
+        <CardContent className="space-y-3 border-t border-border/40 px-3 pb-3 pt-2">
 
           {/* 子分类 1：界面渲染与交互特性 */}
           <div className="space-y-2">
@@ -349,20 +359,21 @@ export default function FeaturesSection({
                     <span className="text-[10px] text-muted-foreground font-semibold">
                       {t("features.click_mode")}
                     </span>
-                    <select
-                      aria-label={t("features.click_mode")}
+                    <SettingsSelect
                       value={settings.replySuggestionsClickMode || "fill"}
-                      onChange={(e) =>
+                      onValueChange={(nextValue) =>
                         updateSettings({
                           ...settings,
-                          replySuggestionsClickMode: e.target.value as "send" | "fill",
+                          replySuggestionsClickMode: nextValue as "send" | "fill",
                         })
                       }
-                      className="bg-muted border border-border rounded px-1.5 py-0.5 text-xs outline-none focus:border-primary font-bold text-foreground"
-                    >
-                      <option value="fill">{t("features.click_mode_fill")}</option>
-                      <option value="send">{t("features.click_mode_send")}</option>
-                    </select>
+                      ariaLabel={t("features.click_mode")}
+                      className="w-28"
+                      options={[
+                        { value: "fill", label: t("features.click_mode_fill") },
+                        { value: "send", label: t("features.click_mode_send") },
+                      ]}
+                    />
                   </div>
 
                   {/* Collapsible Suggestions Prompt */}
@@ -404,13 +415,32 @@ export default function FeaturesSection({
             </div>
           </div>
         </CardContent>
+        )}
       </Card>
 
       {/* 3. 全局表情情绪匹配正则词典 */}
       <Card className="glass-panel shadow-sm mt-2">
-        <CardHeader className="pb-2 pt-2.5 px-3 border-b border-border/40">
-          <CardTitle className="text-xs flex items-center justify-between font-bold text-foreground gap-2 flex-wrap">
-            <span>{t("features.expression_dict_title")}</span>
+        <CardHeader className="p-0">
+          <button
+            type="button"
+            aria-expanded={showExpressionDictionary}
+            onClick={() => setShowExpressionDictionary((current) => !current)}
+            className="flex min-h-11 w-full items-center gap-2 px-3 text-left"
+          >
+            <span className="flex-1 text-xs font-bold text-foreground">
+              {t("features.expression_dict_title")}
+            </span>
+            <ChevronDown className={`size-4 text-muted-foreground transition-transform ${showExpressionDictionary ? "rotate-180" : ""}`} />
+          </button>
+          {showExpressionDictionary && (
+            <CardDescription className="border-t border-border/40 px-3 pb-2 pt-2 text-[10px] leading-relaxed overflow-wrap break-word">
+              {t("features.expression_dict_desc")}
+            </CardDescription>
+          )}
+        </CardHeader>
+        {showExpressionDictionary && (
+        <CardContent className="space-y-2 px-3 pb-3 pt-2 text-xs">
+          <div className="flex justify-end">
             <button
               type="button"
               onClick={() => {
@@ -435,12 +465,7 @@ export default function FeaturesSection({
             >
               {t("features.reset_dict")}
             </button>
-          </CardTitle>
-          <CardDescription className="text-[10px] mt-0.5 leading-relaxed overflow-wrap break-word">
-            {t("features.expression_dict_desc")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-2 px-3 pb-3 space-y-2 text-xs">
+          </div>
           {[
             { k: "joy", n: "狂喜 (Joy)" },
             { k: "happy", n: "开心 (Happy)" },
@@ -476,6 +501,7 @@ export default function FeaturesSection({
             </div>
           ))}
         </CardContent>
+        )}
       </Card>
     </>
   );

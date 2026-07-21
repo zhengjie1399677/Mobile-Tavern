@@ -250,6 +250,7 @@ export default function SettingsTab() {
             currentTheme={currentTheme}
             handleThemeChange={handleThemeChange}
             showCustomAlert={showCustomAlert}
+            showCustomConfirm={showCustomConfirm}
           />
         );
       case "persona":
@@ -365,17 +366,17 @@ export default function SettingsTab() {
             onClick={() => setActiveSection(section.id)}
             aria-current={selected ? "page" : undefined}
             className={`w-full flex items-center text-left border transition-colors active:scale-[0.99] ${
-              compact ? "min-h-12 rounded-xl px-2.5 py-2 gap-2.5" : "min-h-16 rounded-2xl px-3.5 py-3 gap-3"
+              compact ? "min-h-11 rounded-xl px-2.5 py-1.5 gap-2.5" : "min-h-14 rounded-xl px-3 py-2 gap-2.5"
             } ${selected ? "bg-primary/10 border-primary/30" : "bg-card/55 border-border/70 hover:bg-muted/60"}`}
           >
             <span className={`rounded-xl flex items-center justify-center shrink-0 ${compact ? "w-8 h-8" : "w-10 h-10"} ${selected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>
               <Icon className={compact ? "w-4 h-4" : "w-5 h-5"} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className={`${compact ? "text-[11px]" : "text-[13px]"} block font-bold text-foreground`}>
+              <span className={`${compact ? "text-[11px]" : "text-[12px]"} block font-bold text-foreground`}>
                 {t(section.titleKey)}
               </span>
-              <span className={`${compact ? "text-[8.5px]" : "text-[10px]"} block text-muted-foreground truncate mt-0.5`}>
+              <span className={`${compact ? "text-[8.5px]" : "text-[9px]"} block text-muted-foreground truncate mt-0.5`}>
                 {t(section.descriptionKey)}
               </span>
             </span>
@@ -424,9 +425,6 @@ export default function SettingsTab() {
         </main>
       ) : (
         <main className="flex-1 min-h-0 overflow-y-auto pt-2 pb-2 custom-scrollbar">
-          <div className="px-1 pb-2">
-            <p className="text-[10px] text-muted-foreground">{t("settings_hub.home_desc")}</p>
-          </div>
           {renderSectionList(false)}
         </main>
       )}

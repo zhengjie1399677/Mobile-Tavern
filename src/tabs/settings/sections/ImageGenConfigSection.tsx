@@ -78,7 +78,7 @@ export default function ImageGenConfigSection({
         </div>
 
         {settings.imageGenApi?.enabled && (
-          <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="space-y-3 animate-in fade-in duration-300">
             {/* Force Protocol Switch */}
             <div className="flex items-center justify-between pb-2 border-b border-border/20">
               <div className="space-y-0.5">
@@ -499,7 +499,7 @@ export default function ImageGenConfigSection({
                     {t("image_gen.advanced_prompts")}
                   </span>
                 </AccordionTrigger>
-                <AccordionContent className="pt-3 pb-0 space-y-4">
+                <AccordionContent className="pt-2 pb-0 space-y-3">
                   {/* Prompt Prefix */}
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.prompt_prefix")}</label>

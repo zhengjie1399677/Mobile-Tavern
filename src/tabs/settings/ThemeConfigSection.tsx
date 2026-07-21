@@ -28,7 +28,7 @@ import {
 import ThemeEditorModal from "../../components/ThemeEditorModal";
 
 export type ThemeConfigSectionProps = Pick<UnifiedAppContextProps,
-  "settings" | "updateSettings" | "currentTheme" | "handleThemeChange" | "showCustomAlert"
+  "settings" | "updateSettings" | "currentTheme" | "handleThemeChange" | "showCustomAlert" | "showCustomConfirm"
 >;
 
 export default function ThemeConfigSection({
@@ -37,6 +37,7 @@ export default function ThemeConfigSection({
   currentTheme,
   handleThemeChange,
   showCustomAlert,
+  showCustomConfirm,
 }: ThemeConfigSectionProps) {
   const { t } = useTranslation();
   const customThemes = settings.customThemes ?? [];
@@ -153,7 +154,7 @@ export default function ThemeConfigSection({
   /** 删除已导入的自定义主题 */
   const handleDeleteTheme = async (theme: CustomThemePackage) => {
     if (!theme.id) return;
-    if (!window.confirm(`确认删除主题「${theme.name}」？此操作不可撤销。`)) return;
+    if (!await showCustomConfirm(`确认删除主题「${theme.name}」？此操作不可撤销。`)) return;
 
     const nextThemes = customThemes.filter(t => t.id !== theme.id);
     updateSettings({ ...settings, customThemes: nextThemes });

@@ -124,6 +124,29 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "记忆词典导出必须优先调用 Android 原生 saveFile，不能只依赖 WebView Blob 下载"
   );
 
+  for (const file of listCodeFiles("src")) {
+    assert(
+      !/(?:window\.)?(?:alert|confirm)\s*\(/.test(read(file)),
+      `${file} 不得调用系统 alert/confirm，必须使用应用内统一反馈组件`
+    );
+  }
+
+  for (const file of [
+    "src/tabs/settings/FeaturesSection.tsx",
+    "src/tabs/settings/sections/MemoryConfigCard.tsx",
+  ]) {
+    assert(
+      !/<select\b/.test(read(file)),
+      `${file} 的可见选择控件必须复用 SettingsSelect，不能退回系统默认外观`
+    );
+  }
+  const featuresSection = read("src/tabs/settings/FeaturesSection.tsx");
+  assert(
+    featuresSection.includes("aria-expanded={showFeatureDetails}") &&
+      featuresSection.includes("aria-expanded={showExpressionDictionary}"),
+    "设置页高密度功能与表情词典必须默认折叠并按需展开"
+  );
+
   const androidBridgePlugin = read("src-tauri/plugins/android-bridge/src/lib.rs");
   assert(
     androidBridgePlugin.includes("register_android_plugin"),

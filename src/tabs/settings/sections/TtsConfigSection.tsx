@@ -57,7 +57,7 @@ export default function TtsConfigSection({
           <span className="text-xs font-bold text-foreground">{t("tts.title")}</span>
         </div>
       </AccordionTrigger>
-      <AccordionContent className="p-4 space-y-4">
+      <AccordionContent className="p-3 space-y-3">
         <div className="flex items-center justify-between border-b border-border/30 pb-3">
           <div>
             <div className="text-xs font-semibold text-foreground">{t("tts.enable")}</div>
@@ -90,7 +90,7 @@ export default function TtsConfigSection({
         </div>
 
         {settings.ttsConfig?.enabled && (
-          <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="space-y-3 animate-in fade-in duration-300">
             {/* Play Mode & Read Mode */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">

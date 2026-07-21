@@ -6,6 +6,7 @@ import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import { PromptWorkbenchFocusProvider } from "../../src/contexts/PromptWorkbenchFocusContext";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import type { UserSettings } from "../../src/types";
+import { unifiedAppStore } from "../../src/UnifiedAppContext";
 
 interface WindowWithOrientationBridge extends Window {
   AndroidThemeBridge?: {
@@ -85,7 +86,10 @@ describe("PromptCompositionEditor", () => {
       removeItem: vi.fn(),
       clear: vi.fn(),
     });
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    unifiedAppStore.setRawState({
+      ...unifiedAppStore.getState(),
+      showCustomConfirm: vi.fn(async () => true),
+    });
     stubWideViewport(false);
     delete (window as unknown as WindowWithOrientationBridge).AndroidThemeBridge;
   });
@@ -95,13 +99,15 @@ describe("PromptCompositionEditor", () => {
     vi.unstubAllGlobals();
   });
 
-  it("允许删除最后一个区块，并把空编排保留为合法状态", () => {
+  it("允许删除最后一个区块，并把空编排保留为合法状态", async () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
     fireEvent.click(screen.getByRole("button", { name: "删除区块" }));
 
-    expect(screen.getByText("当前将发送 0 条消息。系统不会自动补充 Prompt，部分 API 可能拒绝空请求。")).toBeInTheDocument();
-    expect(screen.queryByText("唯一消息")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("当前将发送 0 条消息。系统不会自动补充 Prompt，部分 API 可能拒绝空请求。")).toBeInTheDocument();
+      expect(screen.queryByText("唯一消息")).not.toBeInTheDocument();
+    });
   });
 
   it("使用明确的模式选择，并在底部编辑面板中修改区块", () => {
@@ -232,12 +238,12 @@ describe("PromptCompositionEditor", () => {
     expect(screen.queryByRole("button", { name: "进入横屏工作台" })).not.toBeInTheDocument();
   });
 
-  it("删除与排序等自由编辑可以撤销并重做", () => {
+  it("删除与排序等自由编辑可以撤销并重做", async () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
     expect(screen.getByRole("button", { name: "撤销" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "删除区块" }));
-    expect(screen.queryByText("唯一消息")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("唯一消息")).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "撤销" }));
     expect(screen.getByText("唯一消息")).toBeInTheDocument();

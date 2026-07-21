@@ -41,6 +41,7 @@ import { PROMPT_DATA_SOURCE_KEYS } from "./promptDataSources";
 import PromptCompositionTemplateManager from "./PromptCompositionTemplateManager";
 import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
 import { PromptComposerButton, PromptComposerInput } from "./PromptComposerControls";
+import { useUnifiedApp } from "../../UnifiedAppContext";
 
 export type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 
@@ -60,6 +61,7 @@ export default function PromptCompositionEditor({
   lastSavedAt,
 }: PromptCompositionEditorProps) {
   const { t } = useTranslation();
+  const showCustomConfirm = useUnifiedApp((state) => state.showCustomConfirm);
   const composition = settings.promptConfig.composition ?? createBasicPromptComposition();
   const [editingBlockId, setEditingBlockId] = useState<string>();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -123,8 +125,8 @@ export default function PromptCompositionEditor({
     setEditingBlockId(undefined);
   };
 
-  const deleteTemplate = (template: PromptCompositionTemplateRecord) => {
-    if (!window.confirm(t("prompt_composer.confirm_delete_template", { name: template.name }))) return;
+  const deleteTemplate = async (template: PromptCompositionTemplateRecord) => {
+    if (!await showCustomConfirm(t("prompt_composer.confirm_delete_template", { name: template.name }))) return;
     updateSettings((previous) => ({
       ...previous,
       promptCompositionTemplates: (previous.promptCompositionTemplates || []).filter((item) => item.id !== template.id),
@@ -179,8 +181,8 @@ export default function PromptCompositionEditor({
     if (source && target) reorder(source.id, target.id);
   };
 
-  const deleteBlock = (id: string) => {
-    if (!window.confirm(t("prompt_composer.confirm_delete"))) return;
+  const deleteBlock = async (id: string) => {
+    if (!await showCustomConfirm(t("prompt_composer.confirm_delete"))) return;
     updateComposition({ ...composition, blocks: composition.blocks.filter((block) => block.id !== id) });
     if (editingBlockId === id) setEditingBlockId(undefined);
   };
@@ -462,7 +464,11 @@ export default function PromptCompositionEditor({
                 <ToolbarButton onClick={() => addBlock("template")} icon={<MessageSquarePlus className="h-4 w-4" />}>{t("prompt_composer.add_message")}</ToolbarButton>
                 <ToolbarButton onClick={() => addBlock("chat_history")} icon={<History className="h-4 w-4" />}>{t("prompt_composer.add_history")}</ToolbarButton>
                 <ToolbarButton
-                  onClick={() => { if (window.confirm(t("prompt_composer.confirm_reset"))) updateComposition(createBasicPromptComposition()); }}
+                  onClick={async () => {
+                    if (await showCustomConfirm(t("prompt_composer.confirm_reset"))) {
+                      updateComposition(createBasicPromptComposition());
+                    }
+                  }}
                   icon={<RotateCcw className="h-4 w-4" />}
                 >{t("prompt_composer.reset_example")}</ToolbarButton>
               </div>

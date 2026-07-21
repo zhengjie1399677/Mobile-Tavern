@@ -31,9 +31,10 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   enableAutoSummary,
   initialTab
 }) => {
-  const { setSessions, showCustomAlert, lastRecalledMemories } = useUnifiedApp((state) => ({
+  const { setSessions, showCustomAlert, showCustomConfirm, lastRecalledMemories } = useUnifiedApp((state) => ({
     setSessions: state.setSessions,
     showCustomAlert: state.showCustomAlert,
+    showCustomConfirm: state.showCustomConfirm,
     lastRecalledMemories: state.lastRecalledMemories,
   }));
   const { t } = useTranslation();
@@ -152,12 +153,18 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
               activeSession={activeSession}
               saveSession={saveSession}
               charName={charName}
+              showCustomAlert={showCustomAlert}
+              showCustomConfirm={showCustomConfirm}
             />
           )}
 
           {/* TAB 2: 📖 记忆词典 */}
           {activeTab === 'dict' && (
-            <DictTab activeSession={activeSession} />
+            <DictTab
+              activeSession={activeSession}
+              showCustomAlert={showCustomAlert}
+              showCustomConfirm={showCustomConfirm}
+            />
           )}
 
           {/* TAB 3: 唤醒记忆 */}

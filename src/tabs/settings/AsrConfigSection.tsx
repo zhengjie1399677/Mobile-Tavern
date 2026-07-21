@@ -63,7 +63,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
         </div>
 
         {asrConfig.enabled && (
-          <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="space-y-3 animate-in fade-in duration-300">
             {/* Provider Selection */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-muted-foreground block">
@@ -104,7 +104,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
 
             {/* Whisper specific config */}
             {asrConfig.provider === "openai" && (
-              <div className="space-y-4 border-t border-border/20 pt-3 animate-in fade-in duration-300">
+              <div className="space-y-3 border-t border-border/20 pt-2.5 animate-in fade-in duration-300">
                 {/* Whisper API Key */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-muted-foreground">API Key</label>
