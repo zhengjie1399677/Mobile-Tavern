@@ -71,7 +71,7 @@
 
 ### 代办 3：测试覆盖度提升
 
-**当前覆盖**：vitest 135 个测试，覆盖内核机制 / 记忆系统 E2E / ScriptService / PromptService / DatabaseService CRUD / FormattedText 渲染。
+**当前覆盖**：测试由主测试入口统一统计，覆盖内核机制、记忆系统、ScriptService、PromptService、DatabaseService CRUD、FormattedText 渲染、自由编排与移动端高密度控件。具体数量以 `npm test` 当次结果为准，文档不再固化易过时的计数。
 
 **缺失的覆盖**：
 - useCharacters / useCatbot 等 Hook 的单元测试（当前仅靠集成测试覆盖）

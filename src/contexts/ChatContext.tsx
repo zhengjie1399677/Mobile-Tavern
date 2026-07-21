@@ -11,7 +11,7 @@ import { hydrateNewestFirstMessagePage } from "./chatMessageHydration";
 // 默认每页 50 条（覆盖 95% 用户的会话总数），超出部分由 loadMoreSessions 滚动加载。
 const SESSIONS_PAGE_SIZE = 50;
 
-// TODO-4: 单会话消息分页懒加载页大小。
+// 单会话消息分页懒加载页大小。
 // 首次进入聊天室仅加载最新 50 条消息，用户滚动到顶部时通过 loadMoreMessages 异步追加更早的历史。
 const MESSAGES_PAGE_SIZE = 50;
 
@@ -44,7 +44,7 @@ interface ChatContextType {
   isLoadingMoreSessions: boolean;
   saveSession: (session: ChatSession) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
-  // TODO-4: 消息分页懒加载
+  // 单会话消息分页懒加载
   hasMoreMessages: boolean;
   isLoadingMoreMessages: boolean;
   loadMoreMessages: () => Promise<void>;
@@ -71,7 +71,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loadedPageRef = useRef(0);
   const totalCountRef = useRef(0);
 
-  // TODO-4: 消息分页懒加载状态
+  // 消息分页懒加载状态
   // hasMoreMessages / isLoadingMoreMessages 仅针对当前活跃会话；
   // 每个会话的累计已加载条数与是否还有更多历史缓存在 messagePagingRef 中，避免切换会话时重置。
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
@@ -155,7 +155,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // 监听活跃会话切换，异步懒加载其对应的 messages 并填充至 React State
-  // TODO-4: 首次加载仅请求最新 MESSAGES_PAGE_SIZE 条消息，避免长会话全量反序列化阻塞首屏。
+  // 首次加载仅请求最新 MESSAGES_PAGE_SIZE 条消息，避免长会话全量反序列化阻塞首屏。
   useEffect(() => {
     if (!activeSessionId) return;
     // 切换会话时，先从缓存恢复该会话的分页指示器状态
@@ -225,7 +225,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // TODO-4: 加载更多历史消息。
+  // 加载更多历史消息。
   // 基于当前会话已加载的 offset，请求下一页（更早的）消息，并 prepend 到 messages 数组前部。
   // 调用方需在加载完成后自行调整滚动位置以保持视觉锚点（见 useChatScroll / DialogueHistoryView）。
   const loadMoreMessages = async () => {
@@ -275,7 +275,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteSession = async (id: string) => {
     try {
       await dbService.deleteSession(id);
-      // TODO-4: 清理被删除会话的分页缓存，避免内存泄漏与幽灵状态
+      // 清理被删除会话的分页缓存，避免内存泄漏与幽灵状态
       delete messagePagingRef.current[id];
       setSessions((prev) => prev.filter((s) => s.id !== id));
       if (activeSessionId === id) {
@@ -313,7 +313,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoadingMoreSessions,
         saveSession,
         deleteSession,
-        // TODO-4: 消息分页懒加载
+        // 消息分页懒加载
         hasMoreMessages,
         isLoadingMoreMessages,
         loadMoreMessages,

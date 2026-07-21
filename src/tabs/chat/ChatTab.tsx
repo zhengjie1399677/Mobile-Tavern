@@ -38,7 +38,7 @@ export default function ChatTab() {
     updateSettings,
     saveSession,
     getKernelService,
-    // TODO-4: 消息分页懒加载
+    // 单会话消息分页懒加载
     hasMoreMessages,
     isLoadingMoreMessages,
     loadMoreMessages,
@@ -83,7 +83,7 @@ export default function ChatTab() {
   });
 
   // 滚动引擎 Hook（MutationObserver / ResizeObserver / 归底逻辑）
-  // TODO-4: 透传消息分页状态与回调，支持顶部触发加载更多历史
+  // 透传消息分页状态与回调，支持顶部触发加载更多历史
   const { scrollContainerRef, handleScroll, showScrollButton, scrollToBottom } = useChatScroll({
     activeSessionId,
     chatSubTab,

@@ -9,6 +9,7 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import { useRerollMessage } from "../../src/hooks/useChat/useRerollMessage";
+import { CONNECTION_INTERRUPTED_SUFFIX } from "../../src/hooks/useChat/pipelineHelpers";
 import type { ChatSession, CharacterCard, Message, UserSettings } from "../../src/types";
 
 function createLongSession(): ChatSession {
@@ -42,6 +43,78 @@ function createLongSession(): ChatSession {
     messages,
     summaries: [],
     createdAt: 1,
+  };
+}
+
+function createWeakNetworkHarness(
+  session: ChatSession,
+  streamLlmResponse: (...args: any[]) => AsyncGenerator<any>,
+) {
+  let sessions = [session];
+  const sessionsRef = { current: sessions };
+  const setSessions = vi.fn((updater: React.SetStateAction<ChatSession[]>) => {
+    sessions = typeof updater === "function" ? updater(sessions) : updater;
+    sessionsRef.current = sessions;
+  });
+  const replaceSessionBranch = vi.fn(async (
+    _session: ChatSession,
+    _removedMessageIds: string[],
+    _newMessages: Message[],
+  ) => undefined);
+  const showCustomAlert = vi.fn(async () => undefined);
+  const memoryService = {
+    getRecall: () => ({ recall: vi.fn(async () => []) }),
+    getExtractor: () => ({ scheduleExtraction: vi.fn() }),
+  };
+  const isSendingRef = { current: false };
+
+  const params = {
+    kernel: {
+      getService: vi.fn(() => memoryService),
+      getPipeline: vi.fn(() => ({
+        list: () => [{}, {}, {}, {}],
+        execute: vi.fn(async () => undefined),
+      })),
+    },
+    settings: {
+      api: { apiKey: "test-key", modelName: "test-model", baseUrl: "https://example.com" },
+      preset: {},
+      memory: { recentTurns: 100 },
+      enableTableMemory: false,
+      enableScriptExecution: false,
+      enableBisonMode: false,
+      enableReplySuggestions: false,
+    } as UserSettings,
+    globalLorebook: [],
+    customWorldbooks: {},
+    characters: [],
+    activeCharacter: { id: "character-1", name: "测试角色" } as CharacterCard,
+    activeSession: session,
+    isSendingRef,
+    activeRequestIdRef: { current: 0 },
+    activeSessionIdRef: { current: session.id },
+    sessionsRef,
+    abortControllerRef: { current: null },
+    pendingUpdateTimeoutRef: { current: null },
+    setSessions,
+    setIsSending: vi.fn(),
+    setReplySuggestions: vi.fn(),
+    publishRecalledMemories: vi.fn(),
+    triggerScroll: vi.fn(),
+    databaseService: { replaceSessionBranch },
+    promptService: { assemblePrompt: vi.fn(() => ({ messages: [] })) },
+    telemetryService: { reportUsage: vi.fn(), reportLlmPerformance: vi.fn() },
+    chatStreamService: { streamLlmResponse: vi.fn(streamLlmResponse) },
+    showCustomAlert,
+    showCustomConfirm: vi.fn(async () => true),
+  } as unknown as Parameters<typeof useRerollMessage>[0];
+
+  return {
+    params,
+    getSessions: () => sessions,
+    replaceSessionBranch,
+    showCustomAlert,
+    isSendingRef,
   };
 }
 
@@ -194,5 +267,86 @@ describe("useRerollMessage 重发事务锁", () => {
     consoleLog.mockRestore();
     consoleClear.mockRestore();
     consoleDebug.mockRestore();
+  });
+
+  it("首包失败后从最后一条用户消息显式重发，不重复追加用户消息", async () => {
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const consoleClear = vi.spyOn(console, "clear").mockImplementation(() => undefined);
+    const consoleDebug = vi.spyOn(console, "debug").mockImplementation(() => undefined);
+    const session: ChatSession = {
+      id: "session-resend-after-failure",
+      characterId: "character-1",
+      title: "弱网重发",
+      messages: [
+        { id: "welcome", sender: "assistant", content: "欢迎消息", timestamp: 0 },
+        { id: "user-pending", sender: "user", content: "请继续", timestamp: 1 },
+      ],
+      summaries: [],
+      createdAt: 1,
+    };
+    const harness = createWeakNetworkHarness(session, async function* () {
+      yield { choices: [{ delta: { content: "恢复后的回复" } }] };
+    });
+    const { result } = renderHook(() => useRerollMessage(harness.params));
+
+    await act(async () => {
+      await result.current.handleRerollLast();
+    });
+
+    const messages = harness.getSessions()[0].messages;
+    expect(messages.filter((message) => message.id === "user-pending")).toHaveLength(1);
+    expect(messages.map((message) => message.content)).toEqual(["欢迎消息", "请继续", "恢复后的回复"]);
+    expect(harness.replaceSessionBranch).toHaveBeenCalledTimes(1);
+    expect(harness.replaceSessionBranch.mock.calls[0][1]).toEqual([]);
+    expect(harness.replaceSessionBranch.mock.calls[0][2]).toHaveLength(1);
+    expect(harness.isSendingRef.current).toBe(false);
+
+    consoleLog.mockRestore();
+    consoleClear.mockRestore();
+    consoleDebug.mockRestore();
+  });
+
+  it("重发收到部分内容后断线，原子提交带弱网标记的新分支", async () => {
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const consoleClear = vi.spyOn(console, "clear").mockImplementation(() => undefined);
+    const consoleDebug = vi.spyOn(console, "debug").mockImplementation(() => undefined);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const session: ChatSession = {
+      id: "session-partial-reroll",
+      characterId: "character-1",
+      title: "重发断线",
+      messages: [
+        { id: "welcome", sender: "assistant", content: "欢迎消息", timestamp: 0 },
+        { id: "user-1", sender: "user", content: "继续", timestamp: 1 },
+        { id: "assistant-old", sender: "assistant", content: "旧回复", timestamp: 2 },
+      ],
+      summaries: [],
+      createdAt: 1,
+    };
+    const harness = createWeakNetworkHarness(session, async function* () {
+      yield { choices: [{ delta: { content: "新的半段" } }] };
+      throw new Error("connection reset");
+    });
+    const { result } = renderHook(() => useRerollMessage(harness.params));
+
+    await act(async () => {
+      await result.current.handleRerollLast();
+    });
+
+    const messages = harness.getSessions()[0].messages;
+    expect(messages.map((message) => message.content)).toEqual([
+      "欢迎消息",
+      "继续",
+      `新的半段${CONNECTION_INTERRUPTED_SUFFIX}`,
+    ]);
+    expect(harness.replaceSessionBranch).toHaveBeenCalledTimes(1);
+    expect(harness.replaceSessionBranch.mock.calls[0][1]).toEqual(["assistant-old"]);
+    expect(harness.replaceSessionBranch.mock.calls[0][2]).toHaveLength(1);
+    expect(harness.showCustomAlert).not.toHaveBeenCalled();
+
+    consoleLog.mockRestore();
+    consoleClear.mockRestore();
+    consoleDebug.mockRestore();
+    consoleError.mockRestore();
   });
 });

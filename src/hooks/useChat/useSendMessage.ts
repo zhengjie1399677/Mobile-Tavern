@@ -12,7 +12,7 @@ import {
   getTrialCount, incrementTrialCount,
 } from "./helpers";
 import { extractThinkContent } from "./helpers";
-import { runOutputPipelineAndSave } from "./pipelineHelpers";
+import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
 import type { RecalledMessage } from "../../kernel/services/memory/types";
 
 /**
@@ -498,10 +498,10 @@ export function useSendMessage(p: SendMessageParams) {
         if (isStillActive) p.showCustomAlert("发送失败，对话连接异常: " + err.message);
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
-          const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + "\n\n*(连接中断，仅保留部分生成内容)*", timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
+          const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
           } else {
             await p.databaseService.saveSession(trueFinalSession);
             // saveSession 只存元数据，error 场景需显式写入 AI 消息

@@ -24,6 +24,8 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://localhost:3000",
+    // E2E 文案断言统一使用中文，避免受运行器默认 en-US 语言影响。
+    locale: "zh-CN",
     // 导航超时上限 10s（准则四要求）
     navigationTimeout: 30_000,
     actionTimeout: 5_000,

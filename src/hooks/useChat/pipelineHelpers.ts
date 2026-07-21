@@ -14,6 +14,8 @@ import { buildOutputContext } from "./helpers/streamHelpers";
 import { cleanSuggestionsFromText } from "./helpers/textParsing";
 import { notifyVariablesUpdated } from "../../utils/tavernHelper";
 
+export const CONNECTION_INTERRUPTED_SUFFIX = "\n\n*(连接中断，仅保留部分生成内容)*";
+
 /**
  * 执行 Output Pipeline 并保存 Session，成功后更新 React sessions 状态。
  * 若提供 triggerScroll 则在保存后触发滚动。
@@ -32,6 +34,8 @@ export async function runOutputPipelineAndSave(params: {
   databaseService: IDatabaseService;
   kernel: IKernel;
   triggerScroll?: () => void;
+  /** 仅写入最终展示消息的后缀，不参与 Prompt 输出管线或记忆抽取。 */
+  responseSuffix?: string;
   /** 重发等事务可注入原子持久化策略；普通发送沿用默认单条追加。 */
   persistSession?: (session: ChatSession) => Promise<void>;
 }): Promise<OutputPipelineContext> {
@@ -41,6 +45,7 @@ export async function runOutputPipelineAndSave(params: {
     kernel,
     triggerScroll,
     persistSession,
+    responseSuffix = "",
     ...ctxParams
   } = params;
 
@@ -117,7 +122,7 @@ export async function runOutputPipelineAndSave(params: {
     const messages = [...parsedSession.messages];
     const lastMsg = { ...messages[messages.length - 1] };
     if (lastMsg.sender === "assistant") {
-      lastMsg.content = cleanAiText;
+      lastMsg.content = cleanAiText + responseSuffix;
       messages[messages.length - 1] = lastMsg;
       parsedSession.messages = messages;
     }

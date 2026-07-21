@@ -28,16 +28,16 @@ test.describe("MVU 脚本可选动态加载", () => {
     await expect(frames).toHaveCount(0);
   });
 
-  test("设置面板连接标签页可见", async ({ page }) => {
+  test("设置面板高级功能入口可见", async ({ page }) => {
     await page.goto("/", { timeout: 60_000 });
-    await expect(page.getByRole("tab", { name: "角色馆" })).toBeVisible({ timeout: 30_000 });
+    const settings = page.getByRole("tab", { name: "设置" });
+    await expect(settings).toBeVisible({ timeout: 30_000 });
+    await settings.click();
+    await expect(settings).toHaveAttribute("aria-selected", "true");
 
-    await page.getByRole("tab", { name: "设置" }).click();
-    await expect(page.getByRole("tab", { name: "设置" })).toHaveAttribute("aria-selected", "true");
-
-    // 连接子标签页可见且选中（defaultValue="api" → 标签名"连接"）
-    const apiTab = page.getByRole("tab", { name: "连接" });
-    await expect(apiTab).toBeVisible({ timeout: 10_000 });
-    await expect(apiTab).toHaveAttribute("aria-selected", "true");
+    const advancedCategory = page.getByRole("button", { name: /高级设置/ });
+    await expect(advancedCategory).toBeVisible({ timeout: 10_000 });
+    await advancedCategory.click();
+    await expect(page.getByRole("heading", { name: "高级设置" })).toBeVisible({ timeout: 10_000 });
   });
 });

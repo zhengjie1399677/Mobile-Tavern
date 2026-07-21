@@ -1,250 +1,96 @@
-# Android 调试与打包指南
+# Android 调试、打包与验收指南
 
-> **用途**：Android 开发热重载调试 + 真机测试 APK 打包的完整流程。
-> **AGENTS.md 的「Android 调试规范」已整合到本文档，AGENTS.md 仅保留引用链接。**
-> **只在 Android 开发/测试时引用本文档。**
+> 本项目当前只维护 Android 移动端流程，iOS 不在当前开发与验收范围内。
 
----
+## 测试分层
 
-## Prompt 横屏工作台原生入口
+现有自动化已经覆盖大部分稳定且适合自动执行的内容：
 
-自由 Prompt 模式在 Android 原生包内显示“进入横屏工作台”按钮。该入口通过 `window.AndroidThemeBridge.setScreenOrientation("landscape")` 锁定为传感器横屏，切换后按钮变为“恢复自动旋转”，并以 `setScreenOrientation("auto")` 把方向控制权交还给系统。前端按桥接方法是否存在进行能力检测，因此浏览器与其他平台不会显示该按钮。
+- `npm run lint`：类型与接口边界。
+- `npm test`：内核、存储、Prompt、记忆、分页、流式发送、中止、重发与弱网恢复。
+- `npm run test:e2e`：桌面和 Pixel 5 尺寸下的受控浏览器回归。
+- `.github/workflows/tauri-android.yml`：正式 Android 构建、签名、证书校验与产物上传。
 
-Android `MainActivity` 已声明 `orientation|screenSize` 等 `configChanges`，旋转不会重建 WebView；当前 Prompt 编辑状态与已选区块可以继续保留。新增或调整方向桥接后，应至少执行一次下方 Gradle 调试构建并在真机验证锁定、左右横屏切换和恢复自动旋转。
+Android 原生层只保留一组薄冒烟验收，不建设大而脆弱的全页面坐标脚本。需要真实设备或模拟器确认的边界包括：冷启动、屏幕旋转、系统返回、文件导出、软键盘与安全区。业务页面内容继续优先由单元测试和受控浏览器测试覆盖。
 
-Prompt JSON 模板导出会优先调用 `AndroidThemeBridge.saveFile` 写入公共下载目录，分享则调用 `AndroidThemeBridge.shareText` 打开系统分享面板。两项能力都按桥接方法存在性检测；真机回归需同时确认保存结果路径、分享取消以及超大内容改用文件导出的提示。
+## 开发热重载
 
-## Android 返回退出
+启动前必须清理占用 `3000`、`24678` 端口的残留进程，然后反向映射端口：
 
-主 Activity 通过 AndroidX `OnBackPressedDispatcher` 统一接管系统返回操作。第一次返回显示本地化原生提示，2 秒内再次返回调用 `finishAffinity()` 退出应用任务；该行为位于原生层，不依赖 WebView 或前端路由是否完成初始化。修改返回行为后，需至少执行一次 Gradle 调试构建，并在真机分别验证按键返回与手势返回。
+```powershell
+$sdkRoot = if (Test-Path -LiteralPath "E:\modules\ide\android-sdk") {
+    "E:\modules\ide\android-sdk"
+} else {
+    Join-Path $env:LOCALAPPDATA "Android\Sdk"
+}
+$env:ANDROID_HOME = $sdkRoot
+$env:PATH = (Join-Path $sdkRoot "platform-tools") + ";" + $env:PATH
+adb reverse tcp:3000 tcp:3000
+adb reverse tcp:24678 tcp:24678
+npm run dev:android
+```
 
----
+热重载必须绑定 `127.0.0.1`，不能改成局域网地址，以免 TUN 代理干扰 WebView 和热更新连接。
 
-## SDK 路径说明
+## 全新调试包
 
-本项目 Android SDK 优先使用 `E:\modules\ide\android-sdk`（若存在），否则回退到默认路径 `$env:USERPROFILE\AppData\Local\Android\Sdk`。下文命令中两种写法等价，按实际环境选择。
+发布前真机验收使用 DEBUG APK，但必须从干净状态构建：
 
----
-
-## 一、开发热重载调试（Dev Mode）
-
-适用于：开发阶段在真机上实时预览代码改动（热重载），无需每次重新打包 APK。
-
-### 端口与代理限制
-- 必须绑定 `--host 127.0.0.1`，避免网络代理（TUN 模式）干扰
-- 必须反向映射 `3000`（Vite dev server）与 `24678`（HMR WebSocket）端口，防止白屏与进程冲突
-
-### 启动调试命令
+1. 确认 `adb devices -l` 中设备状态为 `device`。
+2. 卸载 `com.aitavern.app.debug`，同时清除旧应用数据和 WebView 缓存。
+3. 只删除工作区内明确的构建产物：`dist/`、`src-tauri/target/`、`src-tauri/gen/android/.gradle/`、`src-tauri/gen/android/build/`、`src-tauri/gen/android/app/build/` 和旧的 `jniLibs/arm64-v8a/libapp_lib.so`。
+4. 执行全量构建：
 
 ```powershell
 $env:ANDROID_HOME = "E:\modules\ide\android-sdk"
-$env:PATH += ";$env:ANDROID_HOME\platform-tools"
-adb reverse tcp:3000 tcp:3000
-adb reverse tcp:24678 tcp:24678
-npx tauri android dev --host 127.0.0.1
-```
-
----
-
-## 二、真机测试打包（Build & Install APK）
-
-适用于：功能开发完成后，构建完整的 DEBUG APK 安装到真机做端到端验证。
-
-### 为什么不能用 `npm run build:android`
-
-`scripts/build-android.cjs` 在 Trae 沙盒环境中会遇到三个阻断性问题：
-
-| 问题 | 原因 | 规避方式 |
-|---|---|---|
-| 脚本走 RELEASE 分支 | Trae IDE 设置了 `CI=true` 环境变量 | 直接调用 `npx tauri android build --debug` |
-| Tauri 创建 symlink 失败 | Windows 无符号链接权限 | 手动拷贝 `.so` 到 jniLibs |
-| Gradle daemon 日志被沙盒拦截 | `E:\modules\ide\.gradle` 不在允许列表 | 改用 `c:\users\20573\.gradle` |
-
-### 前置条件
-
-- 设备已开启 USB 调试并连接
-- Rust 工具链 + `aarch64-linux-android` target 已安装
-- 首次运行需完成下方「首次环境准备」
-
-### 首次环境准备（仅一次）
-
-把 Gradle 8.14.3 distribution 从沙盒外路径拷贝到允许列表内的路径，避免重新下载：
-
-```powershell
-$src = "E:\modules\ide\.gradle\wrapper\dists\gradle-8.14.3-bin"
-$dst = "c:\users\20573\.gradle\wrapper\dists\gradle-8.14.3-bin"
-if (-not (Test-Path $dst)) {
-    New-Item -ItemType Directory -Path $dst -Force | Out-Null
-    Copy-Item "$src\*" $dst -Recurse -Force
-    Write-Host "Gradle distribution copied."
-} else {
-    Write-Host "Already exists, skip."
-}
-```
-
-### 完整流程（每次打包执行）
-
-#### 步骤 0：检查设备连接
-
-```powershell
-adb devices
-```
-
-确认设备出现在列表中且状态为 `device`（不是 `unauthorized` 或 `offline`）。
-
-#### 步骤 1：构建前端 + Rust（容忍 symlink 失败）
-
-```powershell
-Set-Location "E:\modules\projects\Mobile-Tavern"
+$env:GRADLE_USER_HOME = "C:\Users\20573\.gradle"
 npx tauri android build --apk --debug --target aarch64 --verbose
 ```
 
-**预期行为**：
-1. 前端构建到 `dist/`（约 30s）
-2. Rust 编译生成 `.so`（约 2 分钟）
-3. 在 `Failed to create a symbolic link ... (os error 2)` 处退出 ← **正常，忽略**
-
-成功标志：`src-tauri\target\aarch64-linux-android\debug\libapp_lib.so` 文件已生成（约 160-170 MB）。
-
-#### 步骤 2：手动拷贝 .so 到 jniLibs
+若 Windows 符号链接步骤失败，但 `src-tauri/target/aarch64-linux-android/debug/libapp_lib.so` 已生成，则将该文件复制到 `src-tauri/gen/android/app/src/main/jniLibs/arm64-v8a/libapp_lib.so`，再执行：
 
 ```powershell
-$src = "E:\modules\projects\Mobile-Tavern\src-tauri\target\aarch64-linux-android\debug\libapp_lib.so"
-$dst = "E:\modules\projects\Mobile-Tavern\src-tauri\gen\android\app\src\main\jniLibs\arm64-v8a\libapp_lib.so"
-$dstDir = Split-Path $dst -Parent
-New-Item -ItemType Directory -Path $dstDir -Force | Out-Null
-if (Test-Path $dst) { Remove-Item $dst -Force -ErrorAction SilentlyContinue }
-Start-Sleep -Milliseconds 200
-Copy-Item $src $dst -Force
-Write-Host "Copied .so size: $((Get-Item $dst).Length) bytes"
-```
-
-#### 步骤 3：用 Gradle 构建 APK（跳过 Rust 构建）
-
-```powershell
-$env:ANDROID_HOME = "E:\modules\ide\android-sdk"
-$env:GRADLE_USER_HOME = "c:\users\20573\.gradle"
-$env:PATH = "$env:ANDROID_HOME\platform-tools;" + $env:PATH
-Set-Location "E:\modules\projects\Mobile-Tavern\src-tauri\gen\android"
+Set-Location "D:\projects\Mobile-Tavern\src-tauri\gen\android"
 .\gradlew.bat assembleArm64Debug --no-daemon -x rustBuildArm64Debug -x rustBuildArm64Release
 ```
 
-**关键点**：
-- `GRADLE_USER_HOME` 必须改为 `c:\users\20573\.gradle`（Trae 沙盒允许列表内）
-- `-x rustBuildArm64Debug` 跳过 Rust 构建（避免 tauri CLI 尝试连接 WebSocket dev server 失败）
-- 构建产物路径：`app\build\outputs\apk\arm64\debug\app-arm64-debug.apk`
+最终 APK 位于 `src-tauri/gen/android/app/build/outputs/apk/arm64/debug/app-arm64-debug.apk`。使用 `adb install` 安装，不使用 `-r` 覆盖旧包，以保证验收的是全新数据状态。
 
-成功标志：`BUILD SUCCESSFUL`（约 2 分钟）。
+## 真机冒烟验收矩阵
 
-#### 步骤 4：安装到设备
+| 编号 | 场景 | 通过标准 |
+|---|---|---|
+| 1 | 冷启动与首次切换 | 首屏稳定；首次进入任何分类不闪回首页，不出现长时间白屏 |
+| 2 | 四个主标签 | 高度一致；主标题层级明确；设置底栏与其余标签一致 |
+| 3 | 记忆与状态中心 | 首次打开可接受；四个标签内容完整；JSON 与表单控件可读可操作 |
+| 4 | 自由编排 | 竖屏内容不截断；进入横屏后只显示编排工作台；文本长度与滚动正常 |
+| 5 | 故事年表 | 长内容可以持续下滑并展示全文，返回对话位置正确 |
+| 6 | 文件能力 | Prompt 模板和记忆词典可保存到公共下载目录，并显示实际保存路径 |
+| 7 | 软键盘与安全区 | 输入框不被键盘、状态栏或导航栏遮挡，收起键盘后布局恢复 |
+| 8 | 系统返回 | 第一次返回提示再次返回退出；两秒内第二次返回结束应用任务 |
 
-```powershell
-$apk = "E:\modules\projects\Mobile-Tavern\src-tauri\gen\android\app\build\outputs\apk\arm64\debug\app-arm64-debug.apk"
-adb install -r $apk
-```
+弱网发送由自动化测试验证事务语义：首包失败保留用户消息、显式重发不复制用户消息、部分回复断线保留内容并显示中断标记、主动停止不显示弱网标记。真机只需抽查一次断网后的界面反馈。
 
-成功标志：`Success`。
+## Prompt 横屏与原生桥接
 
----
+自由编排通过 `AndroidThemeBridge.setScreenOrientation("landscape")` 进入传感器横屏，通过 `setScreenOrientation("auto")` 恢复系统旋转。`MainActivity` 已处理 `orientation|screenSize`，旋转不应重建 WebView 或丢失编辑状态。
 
-## 三、一键脚本（可选）
+模板和词典导出优先调用 `AndroidThemeBridge.saveFile`，分享调用 `AndroidThemeBridge.shareText`。浏览器环境没有原生桥接时应安全降级，不得伪装为 Android 保存成功。
 
-### 全量重建（前端 + Rust 有变更）
+## 正式签名
 
-把步骤 1-4 合并执行：
+本地调试不使用正式签名。GitHub 工作流从以下仓库机密读取签名材料：
 
-```powershell
-# === 配置 ===
-$projectRoot = "E:\modules\projects\Mobile-Tavern"
-$env:ANDROID_HOME = "E:\modules\ide\android-sdk"
-$env:GRADLE_USER_HOME = "c:\users\20573\.gradle"
-$env:PATH = "$env:ANDROID_HOME\platform-tools;" + $env:PATH
+- `SIGNING_KEY`：Base64 编码的密钥库。
+- `KEYSTORE_PASSWORD`：密钥库与密钥密码。
+- `ALIAS`：密钥别名。
 
-# === 步骤 1：构建前端 + Rust（容忍 symlink 失败）===
-Set-Location $projectRoot
-npx tauri android build --apk --debug --target aarch64 --verbose 2>&1 | Out-Null
-Write-Host "[1/4] Rust build done (symlink error expected)"
+任一机密缺失、找不到 release APK、密钥库解码为空或 `apksigner verify` 失败时，工作流必须失败，不能降级上传未签名 APK。
 
-# === 步骤 2：拷贝 .so ===
-$soSrc = "$projectRoot\src-tauri\target\aarch64-linux-android\debug\libapp_lib.so"
-$soDst = "$projectRoot\src-tauri\gen\android\app\src\main\jniLibs\arm64-v8a\libapp_lib.so"
-$soDstDir = Split-Path $soDst -Parent
-New-Item -ItemType Directory -Path $soDstDir -Force | Out-Null
-if (Test-Path $soDst) { Remove-Item $soDst -Force -ErrorAction SilentlyContinue }
-Start-Sleep -Milliseconds 200
-Copy-Item $soSrc $soDst -Force
-Write-Host "[2/4] .so copied"
+## 常见故障
 
-# === 步骤 3：Gradle 构建 APK ===
-Set-Location "$projectRoot\src-tauri\gen\android"
-.\gradlew.bat assembleArm64Debug --no-daemon -x rustBuildArm64Debug -x rustBuildArm64Release
-if ($LASTEXITCODE -ne 0) { Write-Host "Gradle build failed"; exit 1 }
-Write-Host "[3/4] APK built"
-
-# === 步骤 4：安装到设备 ===
-$apk = "$projectRoot\src-tauri\gen\android\app\build\outputs\apk\arm64\debug\app-arm64-debug.apk"
-adb install -r $apk
-Write-Host "[4/4] Installed to device"
-```
-
-### 纯前端改动快速重建（Rust 未改）
-
-如果只改了 TypeScript/React 代码，Rust 代码没动，可以跳过步骤 1 的 Rust 编译：
-
-```powershell
-$projectRoot = "E:\modules\projects\Mobile-Tavern"
-$env:ANDROID_HOME = "E:\modules\ide\android-sdk"
-$env:GRADLE_USER_HOME = "c:\users\20573\.gradle"
-$env:PATH = "$env:ANDROID_HOME\platform-tools;" + $env:PATH
-
-# 只重建前端
-Set-Location $projectRoot
-npm run build
-
-# 拷贝已有 .so（如果 jniLibs 里已有则跳过）
-$soDst = "$projectRoot\src-tauri\gen\android\app\src\main\jniLibs\arm64-v8a\libapp_lib.so"
-if (-not (Test-Path $soDst)) {
-    $soSrc = "$projectRoot\src-tauri\target\aarch64-linux-android\debug\libapp_lib.so"
-    $soDstDir = Split-Path $soDst -Parent
-    New-Item -ItemType Directory -Path $soDstDir -Force | Out-Null
-    Copy-Item $soSrc $soDst -Force
-}
-
-# Gradle 打包 + 安装
-Set-Location "$projectRoot\src-tauri\gen\android"
-.\gradlew.bat assembleArm64Debug --no-daemon -x rustBuildArm64Debug -x rustBuildArm64Release
-adb install -r "$projectRoot\src-tauri\gen\android\app\build\outputs\apk\arm64\debug\app-arm64-debug.apk"
-```
-
----
-
-## 四、故障排查
-
-### Q1: `adb devices` 看不到设备
-- 检查 USB 调试是否开启（设置 → 开发者选项）
-- 检查 USB 驱动是否安装
-- 尝试 `adb kill-server` 然后 `adb start-server`
-
-### Q2: 步骤 1 报其他错误（不是 symlink 错误）
-- 检查 Rust target 是否安装：`rustup target list --installed | findstr aarch64-linux-android`
-- 如缺失：`rustup target add aarch64-linux-android`
-
-### Q3: 步骤 3 报 `Unable to create daemon log file`
-- 确认 `$env:GRADLE_USER_HOME` 已设为 `c:\users\20573\.gradle`
-- 确认已完成「首次环境准备」
-
-### Q4: 步骤 3 报 `:app:rustBuildArm64Debug FAILED`
-- 确认命令包含 `-x rustBuildArm64Debug -x rustBuildArm64Release`
-- 确认步骤 2 的 `.so` 已拷贝到 jniLibs
-
-### Q5: 步骤 4 报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`
-- 旧版本签名不同：先卸载 `adb uninstall com.aitavern.app` 再安装
-
-### Q6: 构建很慢/卡住
-- 首次构建需下载 AGP 依赖（约 200MB），耐心等待
-- 后续构建会复用缓存，约 2 分钟完成
-
-### Q7: 热重载调试白屏
-- 确认已执行 `adb reverse tcp:3000 tcp:3000` 和 `adb reverse tcp:24678 tcp:24678`
-- 确认 dev server 绑定 `--host 127.0.0.1`
-- 检查开发者 TUN 代理是否干扰，必要时临时关闭代理
+- `unauthorized`：在手机上重新确认 USB 调试授权。
+- `INSTALL_FAILED_UPDATE_INCOMPATIBLE`：卸载签名不同的旧包后再安装。
+- `Unable to create daemon log file`：确认 `GRADLE_USER_HOME` 为可写目录。
+- `rustBuildArm64Debug FAILED`：确认 Rust 目标已安装，或按上面的符号链接兜底流程复制 `.so` 后跳过 Rust Gradle 任务。
+- 热重载白屏：检查 `3000`、`24678` 反向映射、残留监听进程与 TUN 代理。

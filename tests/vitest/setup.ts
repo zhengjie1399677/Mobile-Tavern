@@ -8,8 +8,12 @@
  * 3. 在每个用例后自动清理渲染产物，避免用例间 DOM 污染。
  */
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
+
+// 高级面板采用 React.lazy 分包；全套并发测试时首次模块转换可能超过默认 1 秒。
+// 统一给异步 DOM 断言 3 秒预算，避免把正常的按需加载误判为功能失败。
+configure({ asyncUtilTimeout: 3000 });
 
 // 组件渲染测试用例间清理 DOM
 afterEach(() => {

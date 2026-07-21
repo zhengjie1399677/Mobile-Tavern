@@ -7,7 +7,7 @@ import React from "react";
 interface UseChatScrollDeps {
   activeSessionId: string | null;
   chatSubTab: string;
-  // TODO-4: 顶部触发加载更多历史消息
+  // 顶部触发加载更多历史消息
   hasMoreMessages?: boolean;
   isLoadingMoreMessages?: boolean;
   onLoadMoreMessages?: () => void;
@@ -15,7 +15,7 @@ interface UseChatScrollDeps {
 
 export function useChatScroll(deps: UseChatScrollDeps) {
   const { activeSessionId, chatSubTab } = deps;
-  // TODO-4: 将可变回调用 ref 镜像，避免 handleScroll 闭包陈旧依赖
+  // 将可变回调用 ref 镜像，避免 handleScroll 闭包陈旧依赖
   const hasMoreMessagesRef = React.useRef(deps.hasMoreMessages ?? false);
   const isLoadingMoreMessagesRef = React.useRef(deps.isLoadingMoreMessages ?? false);
   const onLoadMoreMessagesRef = React.useRef(deps.onLoadMoreMessages);
@@ -27,7 +27,7 @@ export function useChatScroll(deps: UseChatScrollDeps) {
   const isAtBottomRef = React.useRef<boolean>(true);
   const [showScrollButton, setShowScrollButton] = React.useState(false);
 
-  // TODO-4: 滚动位置保持
+  // 滚动位置保持
   // 在触发 loadMoreMessages 前记录 scrollHeight，加载完成后在 useEffect 中补偿 scrollTop，
   // 使新 prepend 的历史消息位于视口上方，用户视觉锚点（当前可见消息）保持不动。
   const pendingScrollPreserveRef = React.useRef<{ heightBefore: number } | null>(null);
@@ -46,7 +46,7 @@ export function useChatScroll(deps: UseChatScrollDeps) {
     const distanceToBottom = scrollHeight - scrollTop - clientHeight;
     setShowScrollButton(distanceToBottom > 300);
 
-    // TODO-4: 顶部触发加载更多历史消息
+    // 顶部触发加载更多历史消息
     // 仅在接近顶部 80px 且仍有更多历史且当前未在加载时触发，加 500ms 防抖
     if (
       scrollTop < 80 &&
@@ -61,7 +61,7 @@ export function useChatScroll(deps: UseChatScrollDeps) {
     }
   };
 
-  // TODO-4: 加载更多完成后，若 pendingScrollPreserveRef 有值，补偿 scrollTop 保持视觉锚点
+  // 加载更多完成后，若 pendingScrollPreserveRef 有值，补偿 scrollTop 保持视觉锚点
   // 通过监听 container 的 scrollHeight 变化来感知加载完成（isLoadingMoreMessages 由 true→false）
   React.useEffect(() => {
     const container = scrollContainerRef.current;
@@ -131,7 +131,7 @@ export function useChatScroll(deps: UseChatScrollDeps) {
     });
 
     const mutationObserver = new MutationObserver(() => {
-      // TODO-4: 若正在保持滚动位置（加载更多后），跳过自动归底，避免跳到底部
+      // 若正在保持滚动位置（加载更多后），跳过自动归底，避免跳到底部
       if (pendingScrollPreserveRef.current) return;
       if (isAtBottomRef.current) {
         scrollToBottom("mutation");
@@ -151,7 +151,7 @@ export function useChatScroll(deps: UseChatScrollDeps) {
     const resizeObserver = new ResizeObserver((entries) => {
       const h = entries[0]?.contentRect?.height ?? -1;
       console.log(`[scroll][resize] newH=${Math.round(h)} scrollH=${container.scrollHeight} clientH=${container.clientHeight} isInitWin=${isInInitialWindow} isAtBottom=${isAtBottomRef.current}`);
-      // TODO-4: 正在保持滚动位置时跳过归底
+      // 正在保持滚动位置时跳过归底
       if (pendingScrollPreserveRef.current) return;
       if (isInInitialWindow || isAtBottomRef.current) {
         scrollToBottom("resize-sync");

@@ -228,7 +228,7 @@ export const useChat = (
     }
   }, [activeSession, activeCharacter, settings.enableTableMemory, databaseService, memoryService, setSessions]);
 
-  // TODO-3: 历史消息截断与总结归档。
+  // 长会话历史消息总结归档。
   // 当活跃会话内存消息数超过 ARCHIVE_THRESHOLD（200 条）且开启自动总结时，
   // 自动触发 handleAutoSummaryCheck 将旧消息归纳为 SummaryCard 归档至故事年表。
   // 总结完成后，lastSummarizedMessageId 更新，DialogueHistoryView 据此折叠已归档消息。

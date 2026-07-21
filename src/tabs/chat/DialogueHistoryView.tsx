@@ -55,7 +55,7 @@ const DialogueHistoryView = ({
     isSending,
     isSummarizing,
     chatBottomRef,
-    // TODO-4: 消息分页懒加载
+    // 单会话消息分页懒加载
     hasMoreMessages,
     isLoadingMoreMessages,
     loadMoreMessages,
@@ -88,7 +88,7 @@ const DialogueHistoryView = ({
   // 不依赖此处的 deferred 值，流式渲染判断逻辑不受影响。
   const messagesToRender = React.useDeferredValue(rawMessages);
 
-  // TODO-3: 历史消息截断与总结归档。
+  // 历史消息折叠与总结归档。
   // 当 session.lastSummarizedMessageId 存在时，将其之前的消息视为已归档（已生成 SummaryCard），
   // 默认从渲染流中折叠，用户可通过"查看故事年表"按钮在时间轴抽屉中检索。
   // 若未设置 lastSummarizedMessageId，退回原 20 条折叠逻辑。
@@ -198,7 +198,7 @@ const DialogueHistoryView = ({
             </button>
           </div>
         )}
-        {/* TODO-4: 分页加载更多历史消息指示器。
+        {/* 分页加载更多历史消息指示器。
             1. isLoadingMoreMessages=true：显示加载中旋转图标
             2. hasMoreMessages=true 且未在加载：显示可点击的"加载更早消息"按钮（备用入口，正常情况下由顶部滚动自动触发）
             3. 两者皆否：不渲染 */}

@@ -196,6 +196,21 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "Android 返回操作必须保留原生双击退出兜底，不能依赖 WebView 路由状态"
   );
 
+  const androidReleaseWorkflow = read(".github/workflows/tauri-android.yml");
+  assert(
+    androidReleaseWorkflow.includes("Validate Android signing secrets") &&
+      androidReleaseWorkflow.includes("Required Android signing secret is missing") &&
+      !androidReleaseWorkflow.includes("Skipping signing") &&
+      !androidReleaseWorkflow.includes("Copying raw APK"),
+    "Android 发布工作流必须在签名材料缺失时失败，不能降级上传未签名 APK"
+  );
+  assert(
+    androidReleaseWorkflow.includes('-path "*/release/*.apk"') &&
+      androidReleaseWorkflow.includes("apksigner\" verify --verbose --print-certs") &&
+      androidReleaseWorkflow.includes("sha256sum MobileTavern.apk"),
+    "Android 发布工作流必须只签署 release APK，并校验证书与输出摘要"
+  );
+
   for (const file of listCodeFiles("src")) {
     assert(
       !/=\s*useUnifiedApp\(\)/.test(read(file)),

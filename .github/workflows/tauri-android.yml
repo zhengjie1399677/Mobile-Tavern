@@ -24,6 +24,24 @@ jobs:
         with:
           lfs: true
 
+      - name: Validate Android signing secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.SIGNING_KEY }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ALIAS }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in KEYSTORE_B64 KEYSTORE_PASSWORD KEY_ALIAS; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Required Android signing secret is missing: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -100,27 +118,37 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ALIAS }}
         run: |
-          apk_path=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | grep release | head -n 1)
+          set -euo pipefail
+          apk_path=$(find src-tauri/gen/android/app/build/outputs/apk -type f -path "*/release/*.apk" -print -quit)
           if [ -z "$apk_path" ]; then
-            apk_path=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -n 1)
-          fi
-          if [ -n "$apk_path" ]; then
-            echo "Using APK at: $apk_path"
-            BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
-            if [ -n "$KEYSTORE_B64" ]; then
-              echo "Keystore secret detected. Proceeding with signing."
-              echo "$KEYSTORE_B64" | base64 -d > release.keystore
-              $BUILD_TOOLS_DIR/zipalign -v -f 4 "$apk_path" MobileTavern-aligned.apk
-              $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$KEYSTORE_PASSWORD" MobileTavern-aligned.apk
-              mv MobileTavern-aligned.apk MobileTavern.apk
-            else
-              echo "WARNING: SIGNING_KEY secret not found. Skipping signing. Copying raw APK."
-              cp "$apk_path" MobileTavern.apk
-            fi
-          else
-            echo "::error::APK not found"
+            echo "::error::Release APK not found; refusing to publish a debug or unknown build"
             exit 1
           fi
+
+          build_tools_dir=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          if [ -z "$build_tools_dir" ]; then
+            echo "::error::Android build-tools not found"
+            exit 1
+          fi
+
+          keystore_path="$RUNNER_TEMP/mobile-tavern-release.keystore"
+          trap 'rm -f "$keystore_path"' EXIT
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keystore_path"
+          if [ ! -s "$keystore_path" ]; then
+            echo "::error::Decoded Android keystore is empty"
+            exit 1
+          fi
+
+          echo "Signing release APK: $apk_path"
+          "$build_tools_dir/zipalign" -v -f 4 "$apk_path" MobileTavern.apk
+          "$build_tools_dir/apksigner" sign \
+            --ks "$keystore_path" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --key-pass "pass:$KEYSTORE_PASSWORD" \
+            MobileTavern.apk
+          "$build_tools_dir/apksigner" verify --verbose --print-certs MobileTavern.apk
+          sha256sum MobileTavern.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

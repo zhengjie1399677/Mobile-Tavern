@@ -10,7 +10,7 @@ import {
   generateUniqueId, buildThrottledUpdater, buildFinalAiMessage,
   getTrialCount, incrementTrialCount, extractThinkContent,
 } from "./helpers";
-import { runOutputPipelineAndSave } from "./pipelineHelpers";
+import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
 import type { RecalledMessage } from "../../kernel/services/memory/types";
 
 /**
@@ -459,13 +459,13 @@ export function useRerollMessage(p: RerollMessageParams) {
         }
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
-          const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + "\n\n*(连接中断，仅保留部分生成内容)*", timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
+          const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = {
             ...latestSession,
             messages: [...updatedSession.messages, finishedAiMsg],
           };
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, persistSession: persistRerollSession });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, persistSession: persistRerollSession });
           } else {
             await persistRerollSession(trueFinalSession);
           }

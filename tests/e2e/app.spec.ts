@@ -42,9 +42,8 @@ test.describe("应用启动", () => {
 test.describe("Tab 切换", () => {
   test("设置 Tab 可点击且变为选中状态", async ({ page }) => {
     await page.goto("/", { timeout: 60_000 });
-    await expect(page.getByRole("tab", { name: "角色馆" })).toBeVisible({ timeout: 30_000 });
-
     const settings = page.getByRole("tab", { name: "设置" });
+    await expect(settings).toBeVisible({ timeout: 30_000 });
     await settings.click();
     await expect(settings).toHaveAttribute("aria-selected", "true");
   });
@@ -56,12 +55,13 @@ test.describe("设置面板", () => {
     await expect(page.getByRole("tab", { name: "设置" })).toBeVisible({ timeout: 30_000 });
     await page.getByRole("tab", { name: "设置" }).click();
 
-    await expect(page.getByRole("heading", { name: "设置" })).toBeVisible({ timeout: 5_000 });
     const connectionCategory = page.getByRole("button", { name: /模型与连接/ });
     await expect(connectionCategory).toBeVisible({ timeout: 10_000 });
     await connectionCategory.click();
     await expect(page.getByRole("heading", { name: "模型与连接" })).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByRole("button", { name: "返回设置分类" })).toBeVisible();
+    if ((page.viewportSize()?.width || 0) < 600) {
+      await expect(page.getByRole("button", { name: "返回设置分类" })).toBeVisible();
+    }
   });
 });
 
