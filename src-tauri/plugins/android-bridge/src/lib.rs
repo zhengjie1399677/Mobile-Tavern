@@ -24,8 +24,16 @@ const PLUGIN_NAME: &str = "AndroidBridge";
 pub fn init<R: tauri::Runtime>() -> TauriPlugin<R> {
     Builder::<R>::new(PLUGIN_NAME)
         .setup(|_app, _api| {
-            // No-op on the Rust side; the Kotlin plugin handles WebView
-            // injection in `AndroidBridgePlugin#onWebviewCreated`.
+            // Android libraries are linked during the mobile build, but the
+            // Kotlin Plugin is only instantiated after this explicit runtime
+            // registration. Without it, `load(WebView)` never runs and the
+            // JavascriptInterface remains absent from `window`.
+            #[cfg(target_os = "android")]
+            _api.register_android_plugin(
+                "com.aitavern.plugin.androidbridge",
+                "AndroidBridgePlugin",
+            )?;
+
             Ok(())
         })
         .build()

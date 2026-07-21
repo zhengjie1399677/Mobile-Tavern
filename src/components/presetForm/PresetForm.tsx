@@ -16,7 +16,19 @@ import RegexManagementSection from "./RegexManagementSection";
  * 路径兼容：外部 `import PresetForm from "../components/PresetForm"` 经原文件 barrel
  * re-export 后，最终解析到本文件的默认导出，导入路径零变更。
  */
-export default function PresetForm() {
+export type PresetFormSection = "preset" | "samplers" | "prompts" | "regex";
+
+interface PresetFormProps {
+  sections?: PresetFormSection[];
+}
+
+export default function PresetForm({
+  sections = ["preset", "samplers", "prompts", "regex"],
+}: PresetFormProps) {
+  const showPreset = sections.includes("preset");
+  const showSamplers = sections.includes("samplers");
+  const showPrompts = sections.includes("prompts");
+  const showRegex = sections.includes("regex");
   const kernel = useKernel();
   const promptService = kernel.getService<IPromptService>("prompt");
   const {
@@ -112,7 +124,7 @@ export default function PresetForm() {
   });
 
   const promptCompositionPreview = useMemo(() => {
-    if (!activeCharacter || !activeSession || !settings.promptConfig.composition) return undefined;
+    if (!showPrompts || !activeCharacter || !activeSession || !settings.promptConfig.composition) return undefined;
     const otherCharacterEntries = characters
       .filter((character) => character.isWorldbookGlobal && character.id !== activeCharacter.id)
       .flatMap((character) => character.lorebookEntries || []);
@@ -148,78 +160,87 @@ export default function PresetForm() {
     lastRecalledMemories,
     promptService,
     settings,
+    showPrompts,
   ]);
 
   return (
     <div className="space-y-2.5">
       {/* 1. 预设选择与管理 */}
-      <PresetSelectorSection
-        settings={settings}
-        activeBundleId={activeBundleId}
-        handleImportPresetJSON={handleImportPresetJSON}
-        handleExportPresetJSON={handleExportPresetJSON}
-        handleSaveNewPresetBundle={handleSaveNewPresetBundle}
-        handleLoadPresetBundle={handleLoadPresetBundle}
-        handleDeletePresetBundle={handleDeletePresetBundle}
-      />
+      {showPreset && (
+        <PresetSelectorSection
+          settings={settings}
+          activeBundleId={activeBundleId}
+          handleImportPresetJSON={handleImportPresetJSON}
+          handleExportPresetJSON={handleExportPresetJSON}
+          handleSaveNewPresetBundle={handleSaveNewPresetBundle}
+          handleLoadPresetBundle={handleLoadPresetBundle}
+          handleDeletePresetBundle={handleDeletePresetBundle}
+        />
+      )}
 
       {/* 2. 温度与采样参数 */}
-      <SamplersSection
-        settings={settings}
-        updateSettings={updateSettings}
-        isSamplersFolded={isSamplersFolded}
-        handleToggleSamplersFold={handleToggleSamplersFold}
-      />
+      {showSamplers && (
+        <SamplersSection
+          settings={settings}
+          updateSettings={updateSettings}
+          isSamplersFolded={isSamplersFolded}
+          handleToggleSamplersFold={handleToggleSamplersFold}
+        />
+      )}
 
       {/* 3. 提示词配置（核心 + 自定义模组） */}
-      <PromptsConfigSection
-        settings={settings}
-        updateSettings={updateSettings}
-        promptCompositionPreview={promptCompositionPreview}
-        settingsSaveState={settingsSaveState}
-        settingsLastSavedAt={settingsLastSavedAt}
-        handleToggleCustomPrompt={handleToggleCustomPrompt}
-        handleUpdateCustomPrompt={handleUpdateCustomPrompt}
-        handleAddNewCustomPrompt={handleAddNewCustomPrompt}
-        handleDeleteCustomPrompt={handleDeleteCustomPrompt}
-        isPromptsFolded={isPromptsFolded}
-        handleTogglePromptsFold={handleTogglePromptsFold}
-        coreStatusText={coreStatusText}
-        activeCustomPrompts={activeCustomPrompts}
-        selectedPromptIds={selectedPromptIds}
-        setSelectedPromptIds={setSelectedPromptIds}
-        isBatchDeletingPrompts={isBatchDeletingPrompts}
-        setIsBatchDeletingPrompts={setIsBatchDeletingPrompts}
-        handleBatchDeletePrompts={handleBatchDeletePrompts}
-      />
+      {showPrompts && (
+        <PromptsConfigSection
+          settings={settings}
+          updateSettings={updateSettings}
+          promptCompositionPreview={promptCompositionPreview}
+          settingsSaveState={settingsSaveState}
+          settingsLastSavedAt={settingsLastSavedAt}
+          handleToggleCustomPrompt={handleToggleCustomPrompt}
+          handleUpdateCustomPrompt={handleUpdateCustomPrompt}
+          handleAddNewCustomPrompt={handleAddNewCustomPrompt}
+          handleDeleteCustomPrompt={handleDeleteCustomPrompt}
+          isPromptsFolded={isPromptsFolded}
+          handleTogglePromptsFold={handleTogglePromptsFold}
+          coreStatusText={coreStatusText}
+          activeCustomPrompts={activeCustomPrompts}
+          selectedPromptIds={selectedPromptIds}
+          setSelectedPromptIds={setSelectedPromptIds}
+          isBatchDeletingPrompts={isBatchDeletingPrompts}
+          setIsBatchDeletingPrompts={setIsBatchDeletingPrompts}
+          handleBatchDeletePrompts={handleBatchDeletePrompts}
+        />
+      )}
 
       {/* 4. 正则过滤脚本管理（全局 / 预设 / 角色只读 + 编辑 Modal） */}
-      <RegexManagementSection
-        settings={settings}
-        activeCharacter={activeCharacter}
-        isRegexFolded={isRegexFolded}
-        handleToggleRegexFold={handleToggleRegexFold}
-        activeGlobalRegex={activeGlobalRegex}
-        activePresetRegex={activePresetRegex}
-        activeCharRegex={activeCharRegex}
-        selectedGlobalRegexIds={selectedGlobalRegexIds}
-        setSelectedGlobalRegexIds={setSelectedGlobalRegexIds}
-        selectedPresetRegexIds={selectedPresetRegexIds}
-        setSelectedPresetRegexIds={setSelectedPresetRegexIds}
-        isBatchDeletingGlobalRegex={isBatchDeletingGlobalRegex}
-        setIsBatchDeletingGlobalRegex={setIsBatchDeletingGlobalRegex}
-        isBatchDeletingPresetRegex={isBatchDeletingPresetRegex}
-        setIsBatchDeletingPresetRegex={setIsBatchDeletingPresetRegex}
-        handleBatchDeleteGlobalRegex={handleBatchDeleteGlobalRegex}
-        handleBatchDeletePresetRegex={handleBatchDeletePresetRegex}
-        editingRegex={editingRegex}
-        setEditingRegex={setEditingRegex}
-        isRegexModalOpen={isRegexModalOpen}
-        setIsRegexModalOpen={setIsRegexModalOpen}
-        toggleRegexDisabled={toggleRegexDisabled}
-        deleteRegex={deleteRegex}
-        saveRegex={saveRegex}
-      />
+      {showRegex && (
+        <RegexManagementSection
+          settings={settings}
+          activeCharacter={activeCharacter}
+          isRegexFolded={isRegexFolded}
+          handleToggleRegexFold={handleToggleRegexFold}
+          activeGlobalRegex={activeGlobalRegex}
+          activePresetRegex={activePresetRegex}
+          activeCharRegex={activeCharRegex}
+          selectedGlobalRegexIds={selectedGlobalRegexIds}
+          setSelectedGlobalRegexIds={setSelectedGlobalRegexIds}
+          selectedPresetRegexIds={selectedPresetRegexIds}
+          setSelectedPresetRegexIds={setSelectedPresetRegexIds}
+          isBatchDeletingGlobalRegex={isBatchDeletingGlobalRegex}
+          setIsBatchDeletingGlobalRegex={setIsBatchDeletingGlobalRegex}
+          isBatchDeletingPresetRegex={isBatchDeletingPresetRegex}
+          setIsBatchDeletingPresetRegex={setIsBatchDeletingPresetRegex}
+          handleBatchDeleteGlobalRegex={handleBatchDeleteGlobalRegex}
+          handleBatchDeletePresetRegex={handleBatchDeletePresetRegex}
+          editingRegex={editingRegex}
+          setEditingRegex={setEditingRegex}
+          isRegexModalOpen={isRegexModalOpen}
+          setIsRegexModalOpen={setIsRegexModalOpen}
+          toggleRegexDisabled={toggleRegexDisabled}
+          deleteRegex={deleteRegex}
+          saveRegex={saveRegex}
+        />
+      )}
     </div>
   );
 }

@@ -105,8 +105,12 @@ export default function MainLayout() {
           <div
             role="tablist"
             aria-label="底栏导航页签"
-            style={{ bottom: `${16 + (safeAreas?.bottom ?? 0)}px` }}
-            className="absolute left-4 right-4 h-16 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
+            style={{ bottom: `${(activeTab === "settings" ? 2 : 16) + (safeAreas?.bottom ?? 0)}px` }}
+            className={`absolute bg-card/60 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] ${
+              activeTab === "settings"
+                ? "left-2 right-2 h-12 landscape:h-11 rounded-xl"
+                : "left-4 right-4 h-16 rounded-2xl"
+            }`}
           >
             {bottomBarTabs.map(tab => {
               const IconComp = (tab.meta?.icon && ICON_MAP[tab.meta.icon]) || HelpCircle;
@@ -119,7 +123,9 @@ export default function MainLayout() {
                   role="tab"
                   aria-selected={selected}
                   aria-label={`${localizedName}${selected ? " (selected)" : ""}`}
-                  className={`relative flex flex-col items-center justify-center flex-1 h-[80%] my-auto mx-1 rounded-xl tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                  className={`relative flex flex-col items-center justify-center flex-1 my-auto mx-1 rounded-xl tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                    activeTab === "settings" ? "h-full" : "h-[80%]"
+                  } ${
                     selected
                       ? "text-primary scale-105 font-semibold"
                       : "text-muted-foreground hover:text-foreground"
@@ -130,7 +136,7 @@ export default function MainLayout() {
                     selected ? "scale-100 opacity-100" : "scale-75 opacity-0 pointer-events-none"
                   }`} />
                   <IconComp className="w-5 h-5 mb-0.5" aria-hidden="true" />
-                  <span className="text-[10px]">{localizedName}</span>
+                  <span className={`text-[10px] ${activeTab === "settings" ? "landscape:hidden" : ""}`}>{localizedName}</span>
                   {selected && (
                     <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
                   )}
@@ -142,7 +148,9 @@ export default function MainLayout() {
 
         {/* 2. Content Sections Grid */}
         <div
-          style={activeTab !== "chat" && activeTab !== "playground" ? { paddingBottom: `${96 + (safeAreas?.bottom ?? 0)}px` } : undefined}
+          style={activeTab !== "chat" && activeTab !== "playground" ? {
+            paddingBottom: `${(activeTab === "settings" ? 54 : 96) + (safeAreas?.bottom ?? 0)}px`
+          } : undefined}
           className={`flex-1 relative ${activeTab === "chat" || activeTab === "playground"
               ? "flex flex-col min-h-0 pb-0 overflow-hidden"
               : "overflow-y-auto"
@@ -175,7 +183,7 @@ export default function MainLayout() {
         <UpdatePrompt />
 
         {/* 4. Global Cat Mascot (Only displayed on lists/settings, unmounted in chat rooms) */}
-        {activeTab !== "chat" && activeTab !== "playground" && <FloatingCat />}
+        {activeTab !== "chat" && activeTab !== "playground" && activeTab !== "settings" && <FloatingCat />}
       </div>
     </>
   );

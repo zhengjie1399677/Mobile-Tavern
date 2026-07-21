@@ -73,6 +73,12 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "设置页横屏时必须解除手机竖屏宽度上限，确保高级工作台获得真实可用宽度"
   );
 
+  const androidBridgePlugin = read("src-tauri/plugins/android-bridge/src/lib.rs");
+  assert(
+    androidBridgePlugin.includes("register_android_plugin"),
+    "Android 原生桥接必须显式注册 Kotlin 插件，否则横屏、文件与状态栏接口不会注入 WebView"
+  );
+
   for (const file of listCodeFiles("src")) {
     assert(
       !/=\s*useUnifiedApp\(\)/.test(read(file)),
