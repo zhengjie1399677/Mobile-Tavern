@@ -60,7 +60,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
       <div
         data-memory-drawer-surface
         data-density="compact"
-        className="flex h-[92dvh] max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[22px] border-t border-border/80 bg-background/95 shadow-2xl backdrop-blur-xl env-bottom sm:h-[86vh] sm:max-h-[760px]"
+        className="flex h-[92dvh] max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[22px] border-t border-border/80 bg-background/95 shadow-2xl backdrop-blur-xl env-bottom sm:h-[86vh] sm:max-h-[760px] [&_button]:touch-manipulation [&_button]:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-primary/25 [&_button]:disabled:cursor-not-allowed [&_button]:disabled:opacity-50"
       >
 
         {/* Header Section */}

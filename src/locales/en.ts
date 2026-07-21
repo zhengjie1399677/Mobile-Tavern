@@ -627,6 +627,8 @@ export default {
   "dict_tab.new_entry_title": "New memory entry",
   "dict_tab.export_dict": "Export dictionary",
   "dict_tab.export_dict_title": "Export current session dictionary",
+  "dict_tab.export_saved": "Memory dictionary saved to: {path}",
+  "dict_tab.export_failed": "Failed to save the memory dictionary. Check storage permission and retry.",
   "table_memory.confirm_delete_row": "Confirm deleting this row? This operation is irreversible.",
   "table_memory.confirm_reset": "This will clear all current table data and reset to the default 4 tables (Relations, Items, Locations, Quests). This operation is irreversible. Continue?",
   "table_memory.confirm_delete_sheet": "Confirm deleting table \"{name}\" and all its data? This operation is irreversible.",

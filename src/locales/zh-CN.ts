@@ -627,6 +627,8 @@ export default {
   "dict_tab.new_entry_title": "新增记忆词条",
   "dict_tab.export_dict": "导出词典",
   "dict_tab.export_dict_title": "导出当前会话词典",
+  "dict_tab.export_saved": "记忆词典已保存到：{path}",
+  "dict_tab.export_failed": "记忆词典保存失败，请检查存储权限后重试",
   "table_memory.confirm_delete_row": "确认删除此行数据？此操作不可撤销。",
   "table_memory.confirm_reset": "将清空当前所有状态表数据并重置为默认 4 张表（关系、物品、位置、任务），该操作不可撤销，确定继续吗？",
   "table_memory.confirm_delete_sheet": "确认删除表格「{name}」及其所有数据？此操作不可撤销。",

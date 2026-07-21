@@ -105,6 +105,25 @@ export async function testArchitectureBoundaries(): Promise<void> {
     );
   }
 
+  for (const file of [
+    "src/components/MvuVariablesTabContent.tsx",
+    "src/components/memory-drawer/DictTab.tsx",
+    "src/components/memory-drawer/TableMemoryTab.tsx",
+  ]) {
+    const source = read(file);
+    const visibleSource = source.replace(/<input\b[\s\S]*?type=["']file["'][\s\S]*?\/>/g, "");
+    assert(
+      !/<(?:input|select|textarea)\b/.test(visibleSource),
+      `${file} 的可见表单控件必须复用 MemoryDrawerControls，不能退回系统默认外观`
+    );
+  }
+
+  const memoryDictionary = read("src/components/memory-drawer/DictTab.tsx");
+  assert(
+    memoryDictionary.includes("AndroidThemeBridge") && memoryDictionary.includes("bridge.saveFile(fileName, json)"),
+    "记忆词典导出必须优先调用 Android 原生 saveFile，不能只依赖 WebView Blob 下载"
+  );
+
   const androidBridgePlugin = read("src-tauri/plugins/android-bridge/src/lib.rs");
   assert(
     androidBridgePlugin.includes("register_android_plugin"),

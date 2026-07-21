@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Check, AlertCircle } from "lucide-react";
+import {
+  MemoryDrawerInput,
+  MemoryDrawerSelect,
+  MemoryDrawerTextarea,
+} from "./memory-drawer/MemoryDrawerControls";
 
 interface MvuVariablesTabContentProps {
   variables: any;
@@ -139,7 +144,7 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
                     >
                       -
                     </button>
-                    <input
+                    <MemoryDrawerInput
                       type="number"
                       value={val}
                       onChange={(e) => handleUpdateField(currentPath, Number(e.target.value))}
@@ -153,16 +158,18 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
                     </button>
                   </div>
                 ) : typeof val === "boolean" ? (
-                  <select
+                  <MemoryDrawerSelect
                     value={val ? "true" : "false"}
-                    onChange={(e) => handleUpdateField(currentPath, e.target.value === "true")}
-                    className="bg-background border border-border text-xs rounded-lg px-2 py-1 outline-none"
-                  >
-                    <option value="true">真 (True)</option>
-                    <option value="false">假 (False)</option>
-                  </select>
+                    onValueChange={(nextValue) => handleUpdateField(currentPath, nextValue === "true")}
+                    ariaLabel={`${key} 布尔值`}
+                    className="w-28"
+                    options={[
+                      { value: "true", label: "真 (True)" },
+                      { value: "false", label: "假 (False)" },
+                    ]}
+                  />
                 ) : (
-                  <input
+                  <MemoryDrawerInput
                     type="text"
                     value={val || ""}
                     onChange={(e) => handleUpdateField(currentPath, e.target.value)}
@@ -184,22 +191,24 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
         {/* Inline Add Field Trigger */}
         {addingToPath && addingToPath.join(".") === path.join(".") ? (
           <div className="flex flex-wrap items-center gap-1.5 p-2 bg-muted/40 rounded-xl border border-border/50">
-            <input
+            <MemoryDrawerInput
               type="text"
               placeholder="键名"
               value={newKey}
               onChange={(e) => setNewKey(e.target.value)}
               className="text-xs bg-background border border-border rounded px-1.5 py-0.5 w-24 focus:outline-none"
             />
-            <select
+            <MemoryDrawerSelect
               value={newValType}
-              onChange={(e: any) => setNewValType(e.target.value)}
-              className="text-xs bg-background border border-border rounded px-1.5 py-0.5 focus:outline-none"
-            >
-              <option value="string">文本</option>
-              <option value="number">数字</option>
-              <option value="boolean">布尔</option>
-            </select>
+              onValueChange={(nextValue) => setNewValType(nextValue as typeof newValType)}
+              ariaLabel="新属性类型"
+              className="w-24"
+              options={[
+                { value: "string", label: "文本" },
+                { value: "number", label: "数字" },
+                { value: "boolean", label: "布尔" },
+              ]}
+            />
             <button
               onClick={() => handleAddField(path)}
               className="px-2 py-0.5 bg-primary text-primary-foreground text-[10px] font-bold rounded hover:bg-primary/95 shadow-sm"
@@ -261,7 +270,7 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
           )
         ) : (
           <div className="space-y-2 h-full flex flex-col">
-            <textarea
+            <MemoryDrawerTextarea
               value={jsonText}
               onChange={(e) => setJsonText(e.target.value)}
               className="w-full flex-grow min-h-[25vh] bg-muted/20 border border-border/80 rounded-xl p-3 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/20 text-foreground"

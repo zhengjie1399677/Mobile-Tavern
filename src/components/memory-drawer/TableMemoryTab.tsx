@@ -29,6 +29,7 @@ import {
   Download,
   Upload,
 } from "lucide-react";
+import { MemoryDrawerInput, MemoryDrawerSelect } from "./MemoryDrawerControls";
 
 export interface TableMemoryTabProps {
   activeSession: ChatSession;
@@ -127,12 +128,12 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
   };
 
   // 单元格编辑保存
-  const saveEditing = async () => {
+  const saveEditing = async (nextValue = editValue) => {
     if (!editingCell) return;
     const { sheetId, rowIndex, colIndex } = editingCell;
     const targetSheet = sheets.find((sheet) => sheet.id === sheetId);
     const definition = targetSheet ? getTableMemoryColumnDefinitions(targetSheet)[colIndex] : undefined;
-    const coerced = definition ? coerceTableMemoryValue(editValue, definition) : { value: editValue, valid: true };
+    const coerced = definition ? coerceTableMemoryValue(nextValue, definition) : { value: nextValue, valid: true };
     if (!coerced.valid) {
       window.alert(t("table_memory.invalid_value"));
       return;
@@ -518,7 +519,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
             {/* 表名 */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-muted-foreground block">{t("table_memory.form_name_label")}</label>
-              <input
+              <MemoryDrawerInput
                 value={sheetDraft.name}
                 onChange={e => setSheetDraft({ ...sheetDraft, name: e.target.value })}
                 placeholder={t("table_memory.form_name_placeholder")}
@@ -530,7 +531,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
             {/* 描述 */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-muted-foreground block">用途说明（可选）</label>
-              <input
+              <MemoryDrawerInput
                 value={sheetDraft.description}
                 onChange={e => setSheetDraft({ ...sheetDraft, description: e.target.value })}
                 placeholder="如：记录角色当前的心情与情绪变化"
@@ -544,26 +545,27 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
               {sheetDraft.columns.map((col, idx) => (
                 <div key={col.id} className="space-y-2 rounded-xl border border-border/70 bg-muted/20 p-2.5">
                   <div className="flex items-center gap-1.5">
-                    <input
+                    <MemoryDrawerInput
                       value={col.name}
                       onChange={e => updateDraftColumn(idx, e.target.value)}
                       placeholder={`${t("table_memory.column_name")} ${idx + 1}`}
                       className="min-w-0 flex-1 text-xs bg-background border border-border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/30"
                     />
-                    <select
+                    <MemoryDrawerSelect
                       value={col.type}
-                      onChange={e => updateDraftColumnSchema(idx, {
-                        type: e.target.value as TableMemoryColumnType,
-                        enumOptions: e.target.value === "enum" ? col.enumOptions ?? [] : undefined,
+                      onValueChange={(nextValue) => updateDraftColumnSchema(idx, {
+                        type: nextValue as TableMemoryColumnType,
+                        enumOptions: nextValue === "enum" ? col.enumOptions ?? [] : undefined,
                       })}
-                      aria-label={t("table_memory.column_type")}
-                      className="text-xs bg-background border border-border rounded-lg px-2 py-2"
-                    >
-                      <option value="text">{t("table_memory.type_text")}</option>
-                      <option value="number">{t("table_memory.type_number")}</option>
-                      <option value="date">{t("table_memory.type_date")}</option>
-                      <option value="enum">{t("table_memory.type_enum")}</option>
-                    </select>
+                      ariaLabel={t("table_memory.column_type")}
+                      className="w-24"
+                      options={[
+                        { value: "text", label: t("table_memory.type_text") },
+                        { value: "number", label: t("table_memory.type_number") },
+                        { value: "date", label: t("table_memory.type_date") },
+                        { value: "enum", label: t("table_memory.type_enum") },
+                      ]}
+                    />
                     <button
                       onClick={() => removeDraftColumn(idx)}
                       className="p-2 rounded-lg text-destructive hover:bg-destructive/10 border border-destructive/20 transition"
@@ -573,7 +575,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                     </button>
                   </div>
                   {col.type === "enum" && (
-                    <input
+                    <MemoryDrawerInput
                       value={(col.enumOptions ?? []).join(", ")}
                       onChange={e => updateDraftColumnSchema(idx, {
                         enumOptions: e.target.value.split(/[,，]/),
@@ -583,7 +585,7 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                       className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2"
                     />
                   )}
-                  <input
+                  <MemoryDrawerInput
                     value={col.defaultValue ?? ""}
                     onChange={e => updateDraftColumnSchema(idx, { defaultValue: e.target.value })}
                     type={col.type === "number" ? "number" : col.type === "date" ? "date" : "text"}
@@ -803,23 +805,23 @@ function TableMemoryTab({ activeSession, saveSession, charName }: TableMemoryTab
                                   {isEditing ? (
                                     <div className="flex items-center gap-1">
                                       {columnDefinition?.type === "enum" ? (
-                                        <select
+                                        <MemoryDrawerSelect
                                           value={editValue}
-                                          onChange={(e) => setEditValue(e.target.value)}
-                                          onBlur={saveEditing}
-                                          onKeyDown={handleKeyDown}
-                                          autoFocus
+                                          onValueChange={(nextValue) => {
+                                            setEditValue(nextValue);
+                                            void saveEditing(nextValue);
+                                          }}
+                                          ariaLabel={`${activeSheet.columns[cIdx]} 枚举值`}
                                           className="w-full text-xs bg-background border border-primary px-1.5 py-0.5 rounded shadow-sm"
-                                        >
-                                          {!columnDefinition.enumOptions?.includes(editValue) && editValue && (
-                                            <option value={editValue}>{editValue}</option>
-                                          )}
-                                          {(columnDefinition.enumOptions ?? []).map((option) => (
-                                            <option key={option} value={option}>{option}</option>
-                                          ))}
-                                        </select>
+                                          options={[
+                                            ...(!columnDefinition.enumOptions?.includes(editValue) && editValue
+                                              ? [{ value: editValue, label: editValue }]
+                                              : []),
+                                            ...(columnDefinition.enumOptions ?? []).map((option) => ({ value: option, label: option })),
+                                          ]}
+                                        />
                                       ) : (
-                                        <input
+                                        <MemoryDrawerInput
                                           value={editValue}
                                           onChange={(e) => setEditValue(e.target.value)}
                                           onBlur={saveEditing}

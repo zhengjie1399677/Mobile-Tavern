@@ -644,6 +644,8 @@ export default {
   "dict_tab.new_entry_title": "새 메모리 단어 추가",
   "dict_tab.export_dict": "사전 내보내기",
   "dict_tab.export_dict_title": "현재 세션 사전 내보내기",
+  "dict_tab.export_saved": "메모리 사전 저장 위치: {path}",
+  "dict_tab.export_failed": "메모리 사전을 저장하지 못했습니다. 저장소 권한을 확인하세요.",
 
   "table_memory.confirm_delete_row": "이 행의 데이터를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
   "table_memory.confirm_reset": "현재 모든 상태 테이블 데이터를 지우고 기본 4개 테이블(관계, 아이템, 위치, 퀘스트)로 초기화합니다. 이 작업은 취소할 수 없습니다. 계속하시겠습니까?",

@@ -340,7 +340,8 @@ describe("MemoryTableDrawer", () => {
     fireEvent.click(screen.getByRole("button", { name: "⚙️ 管理" }));
     fireEvent.click(screen.getByTitle("编辑表结构"));
     const typeSelectors = screen.getAllByLabelText("字段类型");
-    fireEvent.change(typeSelectors[1], { target: { value: "number" } });
+    await userEvent.click(typeSelectors[1]);
+    await userEvent.click(screen.getByRole("option", { name: "数字" }));
     const defaultInputs = screen.getAllByLabelText("默认值");
     fireEvent.change(defaultInputs[1], { target: { value: "50" } });
     fireEvent.click(screen.getByRole("button", { name: /保存/ }));

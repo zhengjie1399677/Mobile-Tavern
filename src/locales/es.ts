@@ -617,6 +617,8 @@ export default {
   "dict_tab.new_entry_title": "Nueva entrada de memoria",
   "dict_tab.export_dict": "Exportar diccionario",
   "dict_tab.export_dict_title": "Exportar diccionario de sesión actual",
+  "dict_tab.export_saved": "Diccionario de memoria guardado en: {path}",
+  "dict_tab.export_failed": "No se pudo guardar el diccionario de memoria. Compruebe el permiso de almacenamiento.",
   "table_memory.confirm_delete_row": "¿Confirmar eliminación de esta fila? Esta operación es irreversible.",
   "table_memory.confirm_reset": "Esto borrará todos los datos actuales de las tablas y restablecerá las 4 tablas predeterminadas (Relaciones, Objetos, Ubicaciones, Misiones). Esta operación es irreversible. ¿Continuar?",
   "table_memory.confirm_delete_sheet": "¿Confirmar eliminación de la tabla \"{name}\" y todos sus datos? Esta operación es irreversible.",

@@ -627,6 +627,8 @@ export default {
   "dict_tab.new_entry_title": "Nova Entrada de Memória",
   "dict_tab.export_dict": "Exportar Dicionário",
   "dict_tab.export_dict_title": "Exportar Dicionário da Sessão Atual",
+  "dict_tab.export_saved": "Dicionário de memória salvo em: {path}",
+  "dict_tab.export_failed": "Falha ao salvar o dicionário de memória. Verifique a permissão de armazenamento.",
   "table_memory.confirm_delete_row": "Tem certeza de que deseja excluir esta linha? Esta operação é irreversível.",
   "table_memory.confirm_reset": "Isso limpará todos os dados atuais da tabela de estado e redefinirá para as 4 tabelas padrão (Relações, Itens, Locais, Missões). Esta operação é irreversível. Continuar?",
   "table_memory.confirm_delete_sheet": "Tem certeza de que deseja excluir a tabela「{name}」e todos os seus dados? Esta operação é irreversível.",

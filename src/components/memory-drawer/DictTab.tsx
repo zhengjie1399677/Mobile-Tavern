@@ -16,9 +16,16 @@ import {
   X,
   AlertCircle
 } from "lucide-react";
+import { MemoryDrawerInput, MemoryDrawerSelect } from "./MemoryDrawerControls";
 
 export interface DictTabProps {
   activeSession: ChatSession;
+}
+
+interface WindowWithAndroidFileBridge extends Window {
+  AndroidThemeBridge?: {
+    saveFile?: (fileName: string, content: string) => string;
+  };
 }
 
 const ENTITY_TYPES = [
@@ -175,13 +182,29 @@ function DictTab({ activeSession }: DictTabProps) {
     }));
     
     const json = JSON.stringify(exportable, null, 2);
+    const safeTitle = (activeSession.title || t("session_manager.default_branch_name")).replace(/[^\w\u4e00-\u9fa5]/g, "_").slice(0, 20);
+    const fileName = `${safeTitle}_记忆词典.json`;
+    const bridge = (window as WindowWithAndroidFileBridge).AndroidThemeBridge;
+
+    if (bridge?.saveFile) {
+      try {
+        const path = bridge.saveFile(fileName, json);
+        if (path.startsWith("error:")) {
+          window.alert(t("dict_tab.export_failed"));
+          return;
+        }
+        window.alert(t("dict_tab.export_saved", { path }));
+      } catch {
+        window.alert(t("dict_tab.export_failed"));
+      }
+      return;
+    }
+
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    
     const a = document.createElement("a");
     a.href = url;
-    const safeTitle = (activeSession.title || t("session_manager.default_branch_name")).replace(/[^\w\u4e00-\u9fa5]/g, "_").slice(0, 20);
-    a.download = `${safeTitle}_记忆词典.json`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -235,7 +258,7 @@ function DictTab({ activeSession }: DictTabProps) {
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
         <div className="relative min-w-0">
           <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
-          <input
+          <MemoryDrawerInput
             type="text"
             placeholder={t("dict_tab.search_placeholder")}
             value={searchQuery}
@@ -298,7 +321,7 @@ function DictTab({ activeSession }: DictTabProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
               <label className="block text-muted-foreground text-[10px] mb-1 font-bold">{t("dict_tab.form_name_label")}</label>
-              <input
+              <MemoryDrawerInput
                 type="text"
                 placeholder={t("dict_tab.form_name_placeholder")}
                 value={newEntity}
@@ -308,23 +331,24 @@ function DictTab({ activeSession }: DictTabProps) {
             </div>
             <div>
               <label className="block text-muted-foreground text-[10px] mb-1 font-bold">{t("dict_tab.form_type_label")}</label>
-              <select
+              <MemoryDrawerSelect
                 value={newType}
-                onChange={e => setNewType(e.target.value)}
-                className="w-full bg-input border border-border rounded px-2 py-1 outline-none text-xs"
-              >
-                <option value="character">👤 人物 (Character)</option>
-                <option value="location">📍 地点 (Location)</option>
-                <option value="item">🎒 物品 (Item)</option>
-                <option value="organization">🛡️ 组织 (Organization)</option>
-                <option value="concept">💡 概念 (Concept)</option>
-              </select>
+                onValueChange={setNewType}
+                ariaLabel={t("dict_tab.form_type_label")}
+                options={[
+                  { value: "character", label: "👤 人物 (Character)" },
+                  { value: "location", label: "📍 地点 (Location)" },
+                  { value: "item", label: "🎒 物品 (Item)" },
+                  { value: "organization", label: "🛡️ 组织 (Organization)" },
+                  { value: "concept", label: "💡 概念 (Concept)" },
+                ]}
+              />
             </div>
           </div>
 
           <div>
             <label className="block text-muted-foreground text-[10px] mb-1 font-bold">{t("dict_tab.form_aliases_label")}</label>
-            <input
+            <MemoryDrawerInput
               type="text"
               placeholder={t("dict_tab.form_aliases_placeholder")}
               value={newAliasesText}
@@ -520,7 +544,7 @@ function DictTab({ activeSession }: DictTabProps) {
                 {/* 别名行内编辑 */}
                 {isEditing && (
                   <div className="flex items-center gap-1.5 border-t border-border/20 pt-2 bg-muted/5 p-1 rounded-lg">
-                    <input
+                    <MemoryDrawerInput
                       value={editAliasesText}
                       onChange={e => setEditAliasesText(e.target.value)}
                       placeholder={t("dict_tab.edit_placeholder")}

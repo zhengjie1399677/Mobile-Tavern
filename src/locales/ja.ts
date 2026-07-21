@@ -617,6 +617,8 @@
   "dict_tab.new_entry_title": "新規メモリエントリ",
   "dict_tab.export_dict": "辞書をエクスポート",
   "dict_tab.export_dict_title": "現在のセッション辞書をエクスポート",
+  "dict_tab.export_saved": "メモリ辞書を保存しました：{path}",
+  "dict_tab.export_failed": "メモリ辞書を保存できませんでした。ストレージ権限を確認してください。",
   "table_memory.confirm_delete_row": "この行のデータを削除してもよろしいですか？この操作は元に戻せません。",
   "table_memory.confirm_reset": "現在のすべてのテーブルデータをクリアし、デフォルトの4つのテーブル（関係、アイテム、場所、クエスト）にリセットします。この操作は元に戻せません。続行しますか？",
   "table_memory.confirm_delete_sheet": "テーブル「{name}」とそのすべてのデータを削除してもよろしいですか？この操作は元に戻せません。",
