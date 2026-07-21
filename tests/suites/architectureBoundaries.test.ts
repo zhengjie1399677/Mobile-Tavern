@@ -83,6 +83,12 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "Prompt 横屏专注模式必须只挂载编排器本体"
   );
   assert(
+    /id:\s*["']composer["'][\s\S]*settings_hub\.composer_title/.test(settingsTab) &&
+      /case\s+["']composer["']:[\s\S]*sections=\{\[["']composer["']\]\}/.test(settingsTab) &&
+      !read("src/components/presetForm/PromptsConfigSection.tsx").includes("PromptCompositionEditor"),
+    "自由 Prompt 编排必须作为独立设置分类，不能继续嵌在预设提示词面板内"
+  );
+  assert(
     !read("src/tabs/settings/MemoryStorageSection.tsx").includes("SystemReportSection") &&
       settingsTab.includes("SystemReportSection"),
     "系统报告必须归入独立的关于我们分类，不得继续混在记忆与数据中"
@@ -102,8 +108,12 @@ export async function testArchitectureBoundaries(): Promise<void> {
   );
   const memoryDrawer = read("src/components/MemoryTableDrawer.tsx");
   assert(
-    memoryDrawer.includes("React.lazy") && memoryDrawer.includes("./MvuVariablesTabContent"),
-    "MVU 面板必须与记忆中心主体分离，并在切换到角色变量后动态加载"
+    memoryDrawer.includes("React.lazy") &&
+      memoryDrawer.includes("./MvuVariablesTabContent") &&
+      memoryDrawer.includes("./memory-drawer/TableMemoryTab") &&
+      memoryDrawer.includes("./memory-drawer/DictTab") &&
+      memoryDrawer.includes("./memory-drawer/RecallTab"),
+    "状态数据、记忆词典、召回和 MVU 面板必须与记忆中心外壳分离，并按标签动态加载"
   );
 
   const bridgeCore = read("src/utils/tavernHelper/bridgeCore.ts");

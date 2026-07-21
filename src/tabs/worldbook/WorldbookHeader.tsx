@@ -27,9 +27,9 @@ export default function WorldbookHeader({
 }: WorldbookHeaderProps) {
   const { t } = useTranslation();
   return (
-    <div className="border-b border-border/80 pb-3 mb-2 shrink-0 flex items-center justify-between select-none">
+    <div className="min-h-12 border-b border-border/80 pb-2 mb-2 shrink-0 flex items-center justify-between select-none">
       <div>
-        <h1 className="text-sm font-extrabold flex items-center gap-1.5 text-foreground tracking-tight">
+        <h1 className="text-base font-extrabold flex items-center gap-1.5 text-foreground tracking-tight">
           <Book className="w-4 h-4 text-primary" /> {t("worldbook.title")}
         </h1>
         <p className="text-[10px] text-muted-foreground mt-0.5 font-light">

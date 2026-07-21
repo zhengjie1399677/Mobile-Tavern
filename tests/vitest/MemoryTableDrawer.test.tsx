@@ -89,7 +89,7 @@ describe("MemoryTableDrawer", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("isOpen=true 时渲染抽屉面板", () => {
+  it("isOpen=true 时渲染抽屉面板", async () => {
     renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
@@ -103,7 +103,7 @@ describe("MemoryTableDrawer", () => {
     // 标题标记
     expect(screen.getByText(/记忆与状态中心/)).toBeInTheDocument();
     // 表格名称
-    expect(screen.getByText("状态与关系")).toBeInTheDocument();
+    expect(await screen.findByText("状态与关系")).toBeInTheDocument();
   });
 
   it("使用紧凑全高外壳，并为各类记忆保留独立标签", () => {
@@ -134,7 +134,7 @@ describe("MemoryTableDrawer", () => {
   // 无表数据时的兜底（准则五向前兼容）
   // ------------------------------------------------------------------
 
-  it("tableMemory 缺失时显示初始化提示", () => {
+  it("tableMemory 缺失时显示初始化提示", async () => {
     const session = makeSession({ tableMemory: undefined });
     renderWithI18n(
       <MemoryTableDrawer
@@ -146,11 +146,11 @@ describe("MemoryTableDrawer", () => {
         enableTableMemory={true}
       />
     );
-    expect(screen.getByText("请先初始化表格记忆功能")).toBeInTheDocument();
+    expect(await screen.findByText("请先初始化表格记忆功能")).toBeInTheDocument();
     expect(screen.getByText("一键初始化")).toBeInTheDocument();
   });
 
-  it("tableMemory 为空数组时显示初始化提示", () => {
+  it("tableMemory 为空数组时显示初始化提示", async () => {
     const session = makeSession({ tableMemory: [] });
     renderWithI18n(
       <MemoryTableDrawer
@@ -162,14 +162,14 @@ describe("MemoryTableDrawer", () => {
         enableTableMemory={true}
       />
     );
-    expect(screen.getByText("请先初始化表格记忆功能")).toBeInTheDocument();
+    expect(await screen.findByText("请先初始化表格记忆功能")).toBeInTheDocument();
   });
 
   // ------------------------------------------------------------------
   // 有数据表格渲染
   // ------------------------------------------------------------------
 
-  it("有数据时渲染表头列名", () => {
+  it("有数据时渲染表头列名", async () => {
     renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
@@ -180,12 +180,12 @@ describe("MemoryTableDrawer", () => {
         enableTableMemory={true}
       />
     );
-    expect(screen.getByText("角色")).toBeInTheDocument();
+    expect(await screen.findByText("角色")).toBeInTheDocument();
     expect(screen.getByText("好感度")).toBeInTheDocument();
     expect(screen.getByText("当前状态")).toBeInTheDocument();
   });
 
-  it("有数据时渲染数据行", () => {
+  it("有数据时渲染数据行", async () => {
     renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
@@ -196,13 +196,13 @@ describe("MemoryTableDrawer", () => {
         enableTableMemory={true}
       />
     );
-    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(await screen.findByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("50")).toBeInTheDocument();
     expect(screen.getByText("初次相识")).toBeInTheDocument();
     expect(screen.getByText("Bob")).toBeInTheDocument();
   });
 
-  it("数据行为空时显示空状态占位", () => {
+  it("数据行为空时显示空状态占位", async () => {
     const emptySheet: TableMemorySheet = {
       id: "empty_sheet",
       name: "空表",
@@ -222,7 +222,7 @@ describe("MemoryTableDrawer", () => {
         enableTableMemory={true}
       />
     );
-    expect(screen.getByText("暂无记录数据，点击下方添加按钮新增一行")).toBeInTheDocument();
+    expect(await screen.findByText("暂无记录数据，点击下方添加按钮新增一行")).toBeInTheDocument();
   });
 
   // ------------------------------------------------------------------
@@ -269,7 +269,7 @@ describe("MemoryTableDrawer", () => {
     );
 
     // 点击 "Alice" 单元格进入编辑模式
-    const aliceCell = screen.getByText("Alice");
+    const aliceCell = await screen.findByText("Alice");
     fireEvent.click(aliceCell);
 
     // 编辑模式出现 input 与确认按钮
@@ -318,7 +318,7 @@ describe("MemoryTableDrawer", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "添加新行" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加新行" }));
     await waitFor(() => expect(saveSession).toHaveBeenCalledTimes(1));
     const savedSession: ChatSession = saveSession.mock.calls[0][0];
     expect(savedSession.tableMemory?.[0].rows.at(-1)).toEqual(["NPC", "50", "稳定"]);
@@ -337,7 +337,7 @@ describe("MemoryTableDrawer", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "⚙️ 管理" }));
+    fireEvent.click(await screen.findByRole("button", { name: "⚙️ 管理" }));
     fireEvent.click(screen.getByTitle("编辑表结构"));
     const typeSelectors = screen.getAllByLabelText("字段类型");
     await userEvent.click(typeSelectors[1]);
@@ -361,7 +361,7 @@ describe("MemoryTableDrawer", () => {
   // 边界：缺失列/行的兜底
   // ------------------------------------------------------------------
 
-  it("缺失行时 cells 缺位留空不抛错", () => {
+  it("缺失行时 cells 缺位留空不抛错", async () => {
     const partialRowSheet: TableMemorySheet = {
       id: "partial",
       name: "缺列表",
@@ -382,6 +382,6 @@ describe("MemoryTableDrawer", () => {
       />
     );
     // 应正常渲染，不崩溃
-    expect(screen.getByText("仅一列")).toBeInTheDocument();
+    expect(await screen.findByText("仅一列")).toBeInTheDocument();
   });
 });

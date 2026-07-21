@@ -13,6 +13,7 @@ import {
   Settings,
   Sparkles,
   UserCheck,
+  Workflow,
 } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { Card, CardContent } from "../../../components/ui/card";
@@ -40,6 +41,7 @@ type SettingsSectionId =
   | "appearance"
   | "persona"
   | "memory"
+  | "composer"
   | "advanced"
   | "about";
 
@@ -80,6 +82,12 @@ const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     titleKey: "settings_hub.memory_title",
     descriptionKey: "settings_hub.memory_desc",
     icon: Database,
+  },
+  {
+    id: "composer",
+    titleKey: "settings_hub.composer_title",
+    descriptionKey: "settings_hub.composer_desc",
+    icon: Workflow,
   },
   {
     id: "advanced",
@@ -282,6 +290,8 @@ export default function SettingsTab() {
             handleImportSillyChatHistory={handleImportSillyChatHistory}
           />
         );
+      case "composer":
+        return <PresetForm sections={["composer"]} />;
       case "advanced":
         return (
           <div className="space-y-2">
@@ -397,8 +407,8 @@ export default function SettingsTab() {
   );
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden px-1.5 pt-0 pb-1">
-      <header className="h-9 shrink-0 flex items-center gap-2 px-1 border-b border-border/70">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden px-1.5 pt-1.5 pb-1">
+      <header className="min-h-12 shrink-0 flex items-center gap-2 px-1 pb-2 border-b border-border/70">
         {!isLandscape && selectedSection ? (
           <button
             type="button"
@@ -411,11 +421,16 @@ export default function SettingsTab() {
         ) : (
           <Settings className="w-4.5 h-4.5 text-primary" />
         )}
-        <h1 className="text-sm font-black text-foreground tracking-tight truncate">
-          {selectedMeta ? t(selectedMeta.titleKey) : t("nav.settings")}
-        </h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-base font-black text-foreground tracking-tight truncate">
+            {selectedMeta ? t(selectedMeta.titleKey) : t("nav.settings")}
+          </h1>
+          <p className="mt-0.5 truncate text-[10px] font-light text-muted-foreground">
+            {selectedMeta ? t(selectedMeta.descriptionKey) : t("settings_hub.home_desc")}
+          </p>
+        </div>
         {!selectedMeta && (
-          <span className="ml-auto text-[9px] font-mono text-muted-foreground">v{__APP_VERSION__}</span>
+          <span className="text-[9px] font-mono text-muted-foreground">v{__APP_VERSION__}</span>
         )}
       </header>
 

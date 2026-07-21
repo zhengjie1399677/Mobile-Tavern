@@ -15,16 +15,10 @@ import { Textarea } from "../../../components/ui/textarea";
 import { cn } from "../../../lib/utils";
 import CorePromptBlocks from "./CorePromptBlocks";
 import type { UserSettings } from "../../types";
-import PromptCompositionEditor from "./PromptCompositionEditor";
-import type { PromptCompositionPreviewData } from "./PromptCompositionEditor";
-import type { SettingsSaveState } from "../../hooks/settings/useSettingsPersistence";
 
 interface PromptsConfigSectionProps {
   settings: UserSettings;
   updateSettings: (newSet: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
-  promptCompositionPreview?: PromptCompositionPreviewData;
-  settingsSaveState: SettingsSaveState;
-  settingsLastSavedAt?: number;
   handleToggleCustomPrompt: (id: string, enabled: boolean) => void;
   handleUpdateCustomPrompt: (id: string, name: string, role: any, content: string) => void;
   handleAddNewCustomPrompt: () => void;
@@ -44,9 +38,6 @@ interface PromptsConfigSectionProps {
 export default function PromptsConfigSection({
   settings,
   updateSettings,
-  promptCompositionPreview,
-  settingsSaveState,
-  settingsLastSavedAt,
   handleToggleCustomPrompt,
   handleUpdateCustomPrompt,
   handleAddNewCustomPrompt,
@@ -100,13 +91,11 @@ export default function PromptsConfigSection({
           </p>
         </div>
 
-        <PromptCompositionEditor
-          settings={settings}
-          updateSettings={updateSettings}
-          preview={promptCompositionPreview}
-          saveState={settingsSaveState}
-          lastSavedAt={settingsLastSavedAt}
-        />
+        {settings.promptConfig.usePromptComposition && (
+          <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-[11px] leading-relaxed text-primary">
+            {t("prompt_composer.independent_notice")}
+          </div>
+        )}
 
         {!settings.promptConfig.usePromptComposition && (
         <>

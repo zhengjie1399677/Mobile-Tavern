@@ -121,7 +121,7 @@ export default function MainLayout() {
             role="tablist"
             aria-label="底栏导航页签"
             style={{ bottom: `${2 + (safeAreas?.bottom ?? 0)}px` }}
-            className="absolute left-2 right-2 h-12 landscape:h-11 rounded-xl bg-card/60 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
+            className="absolute left-2 right-2 h-12 rounded-xl bg-card/70 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
           >
             {bottomBarTabs.map(tab => {
               const IconComp = (tab.meta?.icon && ICON_MAP[tab.meta.icon]) || HelpCircle;
@@ -134,20 +134,16 @@ export default function MainLayout() {
                   role="tab"
                   aria-selected={selected}
                   aria-label={`${localizedName}${selected ? " (selected)" : ""}`}
-                  className={`relative flex h-full flex-col items-center justify-center flex-1 my-auto mx-1 rounded-xl tap-scale transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                  className={`relative flex h-full flex-1 flex-col items-center justify-center rounded-xl tap-scale transition-colors duration-200 ${
                     selected
-                      ? "text-primary scale-105 font-semibold"
+                      ? "text-primary font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {/* 胶囊背景平移动效 */}
-                  <div className={`absolute inset-0 rounded-xl bg-primary/8 transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] -z-10 ${
-                    selected ? "scale-100 opacity-100" : "scale-75 opacity-0 pointer-events-none"
-                  }`} />
-                  <IconComp className="w-5 h-5 mb-0.5" aria-hidden="true" />
+                  <IconComp className={`w-5 h-5 mb-0.5 transition-[filter] ${selected ? "drop-shadow-[0_0_5px_var(--primary)]" : ""}`} aria-hidden="true" />
                   <span className="text-[10px] landscape:hidden">{localizedName}</span>
                   {selected && (
-                    <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
+                    <span className="absolute bottom-0.5 h-0.5 w-5 rounded-full bg-primary shadow-[0_0_7px_var(--primary)]" />
                   )}
                 </button>
               );

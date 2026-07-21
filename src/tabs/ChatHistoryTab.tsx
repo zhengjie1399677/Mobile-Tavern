@@ -162,16 +162,16 @@ export default function ChatHistoryTab() {
   return (
     <div className="px-4 pb-4 pt-1.5 space-y-4">
       {/* 头部标题与模式切换器 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border">
-        <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-1.5">
+      <div className="flex min-h-12 items-center justify-between gap-2 pb-2 border-b border-border">
+        <h1 className="shrink-0 text-base font-bold tracking-tight text-foreground flex items-center gap-1.5">
           {t("history.title")}
         </h1>
 
         {/* 顶部 segmented 控制组 */}
-        <div className="flex bg-muted/60 p-1 rounded-xl border border-border/60 self-start sm:self-auto shadow-inner">
+        <div className="flex min-w-0 bg-muted/60 p-0.5 rounded-lg border border-border/60 shadow-inner">
           <button
             onClick={() => handleModeChange("timeline")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex min-h-7 max-w-[92px] items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
               viewMode === "timeline"
                 ? "bg-card text-primary shadow-sm font-semibold"
                 : "text-muted-foreground hover:text-foreground"
@@ -183,7 +183,7 @@ export default function ChatHistoryTab() {
 
           <button
             onClick={() => handleModeChange("character")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex min-h-7 max-w-[92px] items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
               viewMode === "character"
                 ? "bg-card text-primary shadow-sm font-semibold"
                 : "text-muted-foreground hover:text-foreground"

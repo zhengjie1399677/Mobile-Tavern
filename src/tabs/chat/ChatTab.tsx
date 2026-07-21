@@ -3,6 +3,7 @@
 // 通过 selector 订阅所需上下文字段，调用三个 Hook 获取派生状态，管理本地 UI 状态
 
 import React from "react";
+import { LoaderCircle } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import CharacterDetailDrawer from "../../components/CharacterDetailDrawer";
@@ -196,7 +197,14 @@ export default function ChatTab() {
         onClose={() => setIsDetailDrawerOpen(false)}
       />
       {isTableDrawerOpen && activeSession && activeCharacter && (
-        <React.Suspense fallback={<div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px]" aria-label="正在加载记忆与状态中心" />}>
+        <React.Suspense fallback={(
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px]" role="status" aria-label="正在加载记忆与状态中心">
+            <div className="flex min-h-28 w-full max-w-lg items-center justify-center gap-2 rounded-t-[22px] border-t border-border/80 bg-background/95 text-xs text-muted-foreground">
+              <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" />
+              正在打开记忆与状态中心…
+            </div>
+          </div>
+        )}>
           <MemoryTableDrawer
             isOpen
             onClose={() => setIsTableDrawerOpen(false)}

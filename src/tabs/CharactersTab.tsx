@@ -55,15 +55,15 @@ export default function CharactersTab() {
   const [scannerOpen, setScannerOpen] = React.useState(false);
   return (
     <div className="px-4 pb-4 pt-1.5 space-y-4 relative min-h-screen">
-      <div className="flex items-center justify-between border-b border-border pb-3 pt-1">
+      <div className="flex min-h-12 items-center justify-between border-b border-border pb-2">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-1.5">
+          <h1 className="text-base font-bold tracking-tight text-foreground flex items-center gap-1.5">
             Mobile Tavern{" "}
-            <span className="text-[11px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono">
+            <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono">
               Lite
             </span>
           </h1>
-          <p className="text-xs text-muted-foreground font-light mt-0.5">
+          <p className="text-[10px] text-muted-foreground font-light mt-0.5">
             {t("characters_tab.subtitle")}
           </p>
         </div>

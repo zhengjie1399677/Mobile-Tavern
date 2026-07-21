@@ -411,7 +411,7 @@ export default function PromptCompositionEditor({
                 <article
                   key={`${block.id}-${index}`}
                   data-prompt-block-id={block.id}
-                  className={`relative flex items-stretch overflow-hidden rounded-xl border bg-background transition duration-150 ${dragTargetId === block.id && draggingId !== block.id ? "border-primary ring-2 ring-primary/20 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary" : blockDiagnosticCount > 0 ? "border-destructive/60" : "border-border"} ${draggingId === block.id ? "scale-[0.985] opacity-65 shadow-lg" : block.enabled ? "" : "opacity-55"}`}
+                  className={`relative grid min-h-[76px] grid-cols-[36px_minmax(0,1fr)_40px] overflow-hidden rounded-xl border bg-background transition duration-150 ${dragTargetId === block.id && draggingId !== block.id ? "border-primary ring-2 ring-primary/20 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary" : blockDiagnosticCount > 0 ? "border-destructive/60" : "border-border"} ${draggingId === block.id ? "scale-[0.985] opacity-65 shadow-lg" : block.enabled ? "" : "opacity-55"}`}
                 >
                   <PromptComposerButton
                     type="button"
@@ -421,7 +421,7 @@ export default function PromptCompositionEditor({
                     onPointerUp={(event) => finishDrag(event.pointerId, true)}
                     onPointerCancel={(event) => finishDrag(event.pointerId, false)}
                     variant="ghost"
-                    className="h-auto min-h-full touch-none rounded-none border-0 border-r border-border px-2 text-muted-foreground shadow-none active:bg-muted"
+                    className="h-full min-h-0 w-9 touch-none rounded-none border-0 border-r border-border px-0 text-muted-foreground shadow-none active:bg-muted"
                   >
                     <GripVertical className="h-4 w-4" />
                   </PromptComposerButton>
@@ -431,23 +431,25 @@ export default function PromptCompositionEditor({
                     aria-label={t("prompt_composer.edit_block", { name: block.name })}
                     onClick={() => setEditingBlockId(block.id)}
                     variant="ghost"
-                    className="h-auto min-h-16 min-w-0 flex-1 justify-start rounded-none border-0 p-3 text-left shadow-none hover:bg-muted/30 active:scale-100"
+                    className="h-full min-h-0 min-w-0 w-full justify-start overflow-hidden rounded-none border-0 p-3 text-left shadow-none hover:bg-muted/30 active:scale-100"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 shrink-0 font-mono text-[10px] text-muted-foreground">{index + 1}</span>
-                      <span className="min-w-0 flex-1 truncate text-xs font-semibold">{block.name}</span>
-                      <RoleBadge role={block.source.type === "chat_history" ? "history" : block.role} />
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1 pl-7 text-[9px] text-muted-foreground">
-                      <span className="rounded bg-muted px-1.5 py-0.5">{describeSource(block, t)}</span>
-                      <span className="rounded bg-muted px-1.5 py-0.5">{describePlacement(block, composition, t)}</span>
+                    <div className="min-w-0 w-full overflow-hidden">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="w-5 shrink-0 font-mono text-[10px] text-muted-foreground">{index + 1}</span>
+                        <span className="min-w-0 flex-1 truncate text-xs font-semibold">{block.name}</span>
+                        <RoleBadge role={block.source.type === "chat_history" ? "history" : block.role} />
+                      </div>
+                      <div className="mt-2 flex min-w-0 gap-1 overflow-hidden pl-7 text-[9px] text-muted-foreground">
+                      <span className="max-w-[48%] min-w-0 truncate rounded bg-muted px-1.5 py-0.5">{describeSource(block, t)}</span>
+                      <span className="max-w-[48%] min-w-0 truncate rounded bg-muted px-1.5 py-0.5">{describePlacement(block, composition, t)}</span>
                       {(block.condition || block.tokenPolicy) && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">{t("prompt_composer.advanced_active")}</span>}
                       {block.compatibility && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-700 dark:text-sky-300">{block.compatibility.source}</span>}
                       {blockDiagnosticCount > 0 && <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-bold text-destructive">{t("prompt_composer.validation_badge", { count: String(blockDiagnosticCount) })}</span>}
+                      </div>
                     </div>
                   </PromptComposerButton>
 
-                  <div className="flex w-9 shrink-0 flex-col border-l border-border">
+                  <div className="flex w-10 shrink-0 flex-col border-l border-border">
                     <PromptComposerButton variant="ghost" size="icon-xs" disabled={index === 0} onClick={() => moveBlock(index, -1)} aria-label={t("prompt_composer.move_up")} className="h-auto min-h-0 flex-1 rounded-none border-0 shadow-none disabled:opacity-20"><ArrowUp className="h-3 w-3" /></PromptComposerButton>
                     <PromptComposerButton variant="ghost" size="icon-xs" disabled={index === composition.blocks.length - 1} onClick={() => moveBlock(index, 1)} aria-label={t("prompt_composer.move_down")} className="h-auto min-h-0 flex-1 rounded-none border-x-0 border-y border-border shadow-none disabled:opacity-20"><ArrowDown className="h-3 w-3" /></PromptComposerButton>
                     <PromptComposerButton variant="ghost" size="icon-xs" onClick={() => deleteBlock(block.id)} aria-label={t("prompt_composer.delete_block")} className="h-auto min-h-0 flex-1 rounded-none border-0 text-destructive shadow-none hover:bg-destructive/10"><Trash2 className="h-3 w-3" /></PromptComposerButton>

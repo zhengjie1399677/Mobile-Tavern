@@ -238,12 +238,12 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
   };
 
   return (
-    <div className="flex min-h-full flex-col gap-3">
+    <div className="flex min-h-full flex-col gap-3 text-[13px]">
       {/* Sub Tabs */}
-      <div className="flex shrink-0 gap-1 rounded-lg bg-muted/30 p-1 text-[11px] font-bold">
+      <div className="flex shrink-0 gap-1 rounded-lg bg-muted/30 p-1 text-xs font-bold">
         <button
           onClick={() => setActiveSubTab("form")}
-          className={`min-h-8 flex-1 rounded-md border transition ${
+          className={`min-h-9 flex-1 rounded-md border transition ${
             activeSubTab === "form" ? "border-primary/25 bg-background text-primary shadow-sm" : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -251,7 +251,7 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
         </button>
         <button
           onClick={() => setActiveSubTab("json")}
-          className={`min-h-8 flex-1 rounded-md border transition ${
+          className={`min-h-9 flex-1 rounded-md border transition ${
             activeSubTab === "json" ? "border-primary/25 bg-background text-primary shadow-sm" : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -273,7 +273,7 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
             <MemoryDrawerTextarea
               value={jsonText}
               onChange={(e) => setJsonText(e.target.value)}
-              className="w-full flex-grow min-h-[25vh] bg-muted/20 border border-border/80 rounded-xl p-3 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/20 text-foreground"
+              className="w-full flex-grow min-h-[38vh] bg-muted/20 border border-border/80 rounded-xl p-3.5 font-mono text-[13px] leading-relaxed focus:outline-none focus:ring-1 focus:ring-primary/20 text-foreground"
               placeholder="请输入标准格式的 JSON 字符串..."
             />
             {jsonError && (

@@ -196,9 +196,6 @@ export default function PresetForm({
         <PromptsConfigSection
           settings={settings}
           updateSettings={updateSettings}
-          promptCompositionPreview={promptCompositionPreview}
-          settingsSaveState={settingsSaveState}
-          settingsLastSavedAt={settingsLastSavedAt}
           handleToggleCustomPrompt={handleToggleCustomPrompt}
           handleUpdateCustomPrompt={handleUpdateCustomPrompt}
           handleAddNewCustomPrompt={handleAddNewCustomPrompt}

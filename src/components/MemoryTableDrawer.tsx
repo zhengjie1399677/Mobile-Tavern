@@ -1,10 +1,7 @@
 import React, { useState } from "react";
 import { ChatSession } from "../types";
-import { X, BrainCircuit } from "lucide-react";
+import { X, BrainCircuit, LoaderCircle } from "lucide-react";
 import StoryTimelineView from "../tabs/chat/StoryTimelineView";
-import TableMemoryTab from "./memory-drawer/TableMemoryTab";
-import DictTab from "./memory-drawer/DictTab";
-import RecallTab from "./memory-drawer/RecallTab";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 import { notifyVariablesUpdated } from "../utils/tavernHelper";
@@ -12,6 +9,9 @@ import { notifyVariablesUpdated } from "../utils/tavernHelper";
 const MvuVariablesTabContent = React.lazy(() =>
   import("./MvuVariablesTabContent").then((module) => ({ default: module.MvuVariablesTabContent }))
 );
+const TableMemoryTab = React.lazy(() => import("./memory-drawer/TableMemoryTab"));
+const DictTab = React.lazy(() => import("./memory-drawer/DictTab"));
+const RecallTab = React.lazy(() => import("./memory-drawer/RecallTab"));
 
 interface MemoryTableDrawerProps {
   isOpen: boolean;
@@ -217,8 +217,9 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
 
 function MemoryTabFallback() {
   return (
-    <div className="flex min-h-32 items-center justify-center text-xs text-muted-foreground" role="status">
-      正在加载…
+    <div className="flex min-h-32 items-center justify-center gap-2 text-xs text-muted-foreground" role="status">
+      <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" />
+      正在加载当前面板…
     </div>
   );
 }

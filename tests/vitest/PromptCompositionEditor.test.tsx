@@ -136,6 +136,14 @@ describe("PromptCompositionEditor", () => {
     expect(document.querySelector("select")).not.toBeInTheDocument();
   });
 
+  it("区块卡片使用固定三栏布局隔离正文与排序操作", () => {
+    render(<LanguageProvider><Harness /></LanguageProvider>);
+
+    const editButton = screen.getByRole("button", { name: "编辑区块：唯一消息" });
+    expect(editButton.closest("article")).toHaveClass("grid", "grid-cols-[36px_minmax(0,1fr)_40px]", "overflow-hidden");
+    expect(editButton).toHaveClass("min-w-0", "overflow-hidden");
+  });
+
   it("新增操作使用明确文案，并创建未命名 Prompt 区块", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
