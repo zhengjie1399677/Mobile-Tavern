@@ -40,6 +40,7 @@ import PromptCompositionBudgetSettings from "./PromptCompositionBudgetSettings";
 import { PROMPT_DATA_SOURCE_KEYS } from "./promptDataSources";
 import PromptCompositionTemplateManager from "./PromptCompositionTemplateManager";
 import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
+import { PromptComposerButton, PromptComposerInput } from "./PromptComposerControls";
 
 export type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 
@@ -284,17 +285,17 @@ export default function PromptCompositionEditor({
           <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("prompt_composer.description")}</p>
         </div>
         {(freeMode || promptFocus.active) && orientationControl.available && (
-          <button
+          <PromptComposerButton
             type="button"
             aria-pressed={orientationControl.forcedLandscape}
             onClick={orientationControl.toggleOrientation}
-            className="flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-primary/35 bg-primary/15 px-2.5 text-[10px] font-bold text-primary shadow-sm active:bg-primary/25"
+            className="shrink-0 border-primary/35 bg-primary/15 px-2.5 text-[10px] text-primary hover:bg-primary/20 active:bg-primary/25"
           >
             <RotateCw className="h-3.5 w-3.5" />
             {t(orientationControl.forcedLandscape
               ? "prompt_composer.restore_auto_rotation"
               : "prompt_composer.enter_landscape")}
-          </button>
+          </PromptComposerButton>
         )}
       </div>
 
@@ -338,28 +339,28 @@ export default function PromptCompositionEditor({
               />
 
               <div className="flex gap-2">
-                <input
+                <PromptComposerInput
                   value={composition.name}
                   onChange={(event) => updateComposition({ ...composition, name: event.target.value }, "composition-name")}
                   aria-label={t("prompt_composer.composition_name")}
-                  className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary"
+                  className="min-w-0 flex-1"
                 />
                 {!isWideWorkbench && (
                   <>
-                    <button
+                    <PromptComposerButton
                       type="button"
                       onClick={() => { setWorkbenchView("graph"); setWorkbenchOpen(true); }}
-                      className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-bold"
+                      className="shrink-0 gap-1.5 px-2.5"
                     >
                       <GitBranch className="h-3.5 w-3.5" />{t("prompt_composer.graph")}
-                    </button>
-                    <button
+                    </PromptComposerButton>
+                    <PromptComposerButton
                       type="button"
                       onClick={() => setPreviewOpen(true)}
-                      className="flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary"
+                      className="shrink-0 gap-1.5 border-primary/25 bg-primary/10 px-2.5 text-primary hover:bg-primary/15"
                     >
                       <Eye className="h-3.5 w-3.5" />{t("prompt_composer.preview")}
-                    </button>
+                    </PromptComposerButton>
                   </>
                 )}
               </div>
@@ -383,14 +384,15 @@ export default function PromptCompositionEditor({
                     {t("prompt_composer.validation_title", { count: String(validationDiagnostics.length) })}
                   </div>
                   {validationDiagnostics.map((diagnostic, index) => (
-                    <button
+                    <PromptComposerButton
                       type="button"
                       key={`${diagnostic.code}-${diagnostic.blockId ?? "root"}-${index}`}
                       onClick={() => diagnostic.blockId && setEditingBlockId(diagnostic.blockId)}
-                      className="block w-full rounded-md px-1 py-0.5 text-left text-[10px] leading-relaxed text-destructive/90 hover:bg-destructive/10"
+                      variant="ghost"
+                      className="block h-auto min-h-7 w-full justify-start rounded-md px-1 py-0.5 text-left text-[10px] leading-relaxed text-destructive/90 shadow-none hover:bg-destructive/10"
                     >
                       <code className="mr-1 font-bold">{diagnostic.code}</code>{diagnostic.message}
-                    </button>
+                    </PromptComposerButton>
                   ))}
                 </section>
               )}
@@ -409,23 +411,25 @@ export default function PromptCompositionEditor({
                   data-prompt-block-id={block.id}
                   className={`relative flex items-stretch overflow-hidden rounded-xl border bg-background transition duration-150 ${dragTargetId === block.id && draggingId !== block.id ? "border-primary ring-2 ring-primary/20 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary" : blockDiagnosticCount > 0 ? "border-destructive/60" : "border-border"} ${draggingId === block.id ? "scale-[0.985] opacity-65 shadow-lg" : block.enabled ? "" : "opacity-55"}`}
                 >
-                  <button
+                  <PromptComposerButton
                     type="button"
                     aria-label={t("prompt_composer.drag_block", { name: block.name })}
                     onPointerDown={(event) => handleDragStart(event, block.id)}
                     onPointerMove={(event) => updateDragTarget(event.pointerId, event.clientY)}
                     onPointerUp={(event) => finishDrag(event.pointerId, true)}
                     onPointerCancel={(event) => finishDrag(event.pointerId, false)}
-                    className="touch-none border-r border-border px-2 text-muted-foreground active:bg-muted"
+                    variant="ghost"
+                    className="h-auto min-h-full touch-none rounded-none border-0 border-r border-border px-2 text-muted-foreground shadow-none active:bg-muted"
                   >
                     <GripVertical className="h-4 w-4" />
-                  </button>
+                  </PromptComposerButton>
 
-                  <button
+                  <PromptComposerButton
                     type="button"
                     aria-label={t("prompt_composer.edit_block", { name: block.name })}
                     onClick={() => setEditingBlockId(block.id)}
-                    className="min-w-0 flex-1 p-3 text-left"
+                    variant="ghost"
+                    className="h-auto min-h-16 min-w-0 flex-1 justify-start rounded-none border-0 p-3 text-left shadow-none hover:bg-muted/30 active:scale-100"
                   >
                     <div className="flex items-center gap-2">
                       <span className="w-5 shrink-0 font-mono text-[10px] text-muted-foreground">{index + 1}</span>
@@ -439,12 +443,12 @@ export default function PromptCompositionEditor({
                       {block.compatibility && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-700 dark:text-sky-300">{block.compatibility.source}</span>}
                       {blockDiagnosticCount > 0 && <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-bold text-destructive">{t("prompt_composer.validation_badge", { count: String(blockDiagnosticCount) })}</span>}
                     </div>
-                  </button>
+                  </PromptComposerButton>
 
                   <div className="flex w-9 shrink-0 flex-col border-l border-border">
-                    <button type="button" disabled={index === 0} onClick={() => moveBlock(index, -1)} aria-label={t("prompt_composer.move_up")} className="flex flex-1 items-center justify-center disabled:opacity-20"><ArrowUp className="h-3 w-3" /></button>
-                    <button type="button" disabled={index === composition.blocks.length - 1} onClick={() => moveBlock(index, 1)} aria-label={t("prompt_composer.move_down")} className="flex flex-1 items-center justify-center border-y border-border disabled:opacity-20"><ArrowDown className="h-3 w-3" /></button>
-                    <button type="button" onClick={() => deleteBlock(block.id)} aria-label={t("prompt_composer.delete_block")} className="flex flex-1 items-center justify-center text-destructive"><Trash2 className="h-3 w-3" /></button>
+                    <PromptComposerButton variant="ghost" size="icon-xs" disabled={index === 0} onClick={() => moveBlock(index, -1)} aria-label={t("prompt_composer.move_up")} className="h-auto min-h-0 flex-1 rounded-none border-0 shadow-none disabled:opacity-20"><ArrowUp className="h-3 w-3" /></PromptComposerButton>
+                    <PromptComposerButton variant="ghost" size="icon-xs" disabled={index === composition.blocks.length - 1} onClick={() => moveBlock(index, 1)} aria-label={t("prompt_composer.move_down")} className="h-auto min-h-0 flex-1 rounded-none border-x-0 border-y border-border shadow-none disabled:opacity-20"><ArrowDown className="h-3 w-3" /></PromptComposerButton>
+                    <PromptComposerButton variant="ghost" size="icon-xs" onClick={() => deleteBlock(block.id)} aria-label={t("prompt_composer.delete_block")} className="h-auto min-h-0 flex-1 rounded-none border-0 text-destructive shadow-none hover:bg-destructive/10"><Trash2 className="h-3 w-3" /></PromptComposerButton>
                   </div>
                 </article>
                 );
@@ -547,11 +551,11 @@ function SaveStatus({
 }
 
 function ModeButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return <button type="button" aria-pressed={active} onClick={onClick} className={`rounded-lg px-3 py-2 text-xs font-bold transition ${active ? "bg-background text-primary shadow-sm ring-1 ring-border" : "text-muted-foreground"}`}>{children}</button>;
+  return <PromptComposerButton aria-pressed={active} onClick={onClick} variant="ghost" className={`border-0 px-3 shadow-none ${active ? "bg-background text-primary shadow-sm ring-1 ring-border hover:bg-background" : "text-muted-foreground"}`}>{children}</PromptComposerButton>;
 }
 
 function ToolbarButton({ onClick, icon, children }: { onClick: () => void; icon: ReactNode; children: ReactNode }) {
-  return <button type="button" onClick={onClick} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-2 text-[10px] font-bold active:bg-muted">{icon}{children}</button>;
+  return <PromptComposerButton onClick={onClick} className="min-h-11 gap-1.5 rounded-xl px-2 text-[10px]">{icon}{children}</PromptComposerButton>;
 }
 
 function RoleBadge({ role }: { role: string }) {

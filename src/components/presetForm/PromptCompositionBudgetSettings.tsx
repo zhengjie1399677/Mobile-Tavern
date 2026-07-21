@@ -2,6 +2,11 @@ import { Gauge } from "lucide-react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import type { PromptComposition } from "../../domain/prompt-composition";
 import type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
+import {
+  PromptComposerInput,
+  PromptComposerSelect,
+  PromptComposerSwitch,
+} from "./PromptComposerControls";
 
 export default function PromptCompositionBudgetSettings({
   composition,
@@ -24,28 +29,31 @@ export default function PromptCompositionBudgetSettings({
         <span className="inline-flex items-center gap-2"><Gauge className="h-4 w-4 text-primary" />{t("prompt_composer.budget_title")}</span>
       </summary>
       <div className="mt-3 space-y-3">
-        <label className="flex items-center justify-between text-[11px] font-semibold">
+        <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/70 px-3 py-2.5 text-[11px] font-semibold">
           {t("prompt_composer.budget_enabled")}
-          <input type="checkbox" checked={config.enabled} onChange={(event) => patch({ enabled: event.target.checked })} />
-        </label>
+          <PromptComposerSwitch
+            checked={config.enabled}
+            onCheckedChange={(checked) => patch({ enabled: checked })}
+            aria-label={t("prompt_composer.budget_enabled")}
+          />
+        </div>
         {config.enabled && (
           <>
-            <select
+            <PromptComposerSelect
               value={config.mode}
-              onChange={(event) => patch({ mode: event.target.value as "model" | "custom" })}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none"
-              aria-label={t("prompt_composer.budget_mode")}
-            >
-              <option value="model">{t("prompt_composer.budget_model")}</option>
-              <option value="custom">{t("prompt_composer.budget_custom")}</option>
-            </select>
+              onValueChange={(value) => patch({ mode: value as "model" | "custom" })}
+              ariaLabel={t("prompt_composer.budget_mode")}
+              options={[
+                { value: "model", label: t("prompt_composer.budget_model") },
+                { value: "custom", label: t("prompt_composer.budget_custom") },
+              ]}
+            />
             {config.mode === "custom" && (
-              <input
+              <PromptComposerInput
                 type="number"
                 min={1}
                 value={config.maxTokens ?? 4096}
                 onChange={(event) => patch({ maxTokens: Math.max(1, Number(event.target.value) || 1) })}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none"
                 aria-label={t("prompt_composer.budget_limit")}
               />
             )}

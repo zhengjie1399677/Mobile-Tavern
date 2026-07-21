@@ -88,6 +88,23 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "系统报告必须归入独立的关于我们分类，不得继续混在记忆与数据中"
   );
 
+  for (const file of [
+    "src/components/presetForm/PromptCompositionEditor.tsx",
+    "src/components/presetForm/PromptBlockEditorDialog.tsx",
+    "src/components/presetForm/PromptBlockQuickEditor.tsx",
+    "src/components/presetForm/PromptCompositionBudgetSettings.tsx",
+    "src/components/presetForm/PromptCompositionTemplateManager.tsx",
+    "src/components/presetForm/PromptCompositionTransferToolbar.tsx",
+    "src/components/presetForm/PromptCompositionWorkbench.tsx",
+    "src/components/presetForm/PromptCompositionGraph.tsx",
+  ]) {
+    const source = read(file);
+    assert(
+      !/<(?:button|select|textarea)\b/.test(source) && !/<input\b[^>]*type=["']checkbox["']/.test(source),
+      `${file} 的可见交互控件必须复用 PromptComposerControls，不能退回系统默认外观`
+    );
+  }
+
   const androidBridgePlugin = read("src-tauri/plugins/android-bridge/src/lib.rs");
   assert(
     androidBridgePlugin.includes("register_android_plugin"),

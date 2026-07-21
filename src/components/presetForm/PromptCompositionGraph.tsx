@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowDown, Braces, History, MessageSquareText } from "lucide-react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import type { PromptBlock, PromptComposition, PromptCompositionDiagnostic } from "../../domain/prompt-composition";
+import { PromptComposerButton } from "./PromptComposerControls";
 
 interface PromptCompositionGraphProps {
   composition: PromptComposition;
@@ -28,12 +29,12 @@ export default function PromptCompositionGraph({
         const selected = block.id === selectedBlockId;
         return (
           <div key={block.id} role="listitem">
-            <button
+            <PromptComposerButton
               type="button"
               aria-label={t("prompt_composer.graph_block", { name: block.name })}
               aria-pressed={selected}
               onClick={() => onSelectBlock(block.id)}
-              className={`w-full rounded-xl border p-3 text-left transition ${selected ? "border-primary bg-primary/10 ring-2 ring-primary/15" : "border-border bg-background hover:border-primary/30"} ${block.enabled ? "" : "opacity-50"}`}
+              className={`h-auto min-h-16 w-full justify-start rounded-xl p-3 text-left active:scale-[0.995] ${selected ? "border-primary bg-primary/10 ring-2 ring-primary/15 hover:bg-primary/10" : "hover:border-primary/30"} ${block.enabled ? "" : "opacity-50"}`}
             >
               <div className="flex items-center gap-2">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-[10px]">{index + 1}</span>
@@ -48,7 +49,7 @@ export default function PromptCompositionGraph({
                 {block.compatibility && <span className="rounded bg-sky-500/15 px-1.5 py-0.5">{block.compatibility.source}</span>}
                 {blockDiagnostics.length > 0 && <span className="flex items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-destructive"><AlertTriangle className="h-3 w-3" />{blockDiagnostics.length}</span>}
               </div>
-            </button>
+            </PromptComposerButton>
             {index < composition.blocks.length - 1 && (
               <div aria-hidden="true" className="flex h-7 items-center justify-center text-muted-foreground">
                 <div className="h-full w-px bg-border" />

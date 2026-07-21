@@ -5,6 +5,7 @@ import type {
   PromptComposition,
   PromptCompositionTemplateRecord,
 } from "../../domain/prompt-composition";
+import { PromptComposerButton } from "./PromptComposerControls";
 
 export default function PromptCompositionTemplateManager({
   composition,
@@ -31,9 +32,9 @@ export default function PromptCompositionTemplateManager({
         <span className="inline-flex items-center gap-2"><BookOpen className="h-4 w-4 text-primary" />{t("prompt_composer.template_library")}</span>
       </summary>
       <div className="mt-3 space-y-3">
-        <button type="button" onClick={onSave} className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-primary/25 bg-primary/10 text-xs font-bold text-primary">
+        <PromptComposerButton onClick={onSave} className="min-h-10 w-full gap-2 border-primary/25 bg-primary/10 text-primary hover:bg-primary/15">
           <Save className="h-3.5 w-3.5" />{t("prompt_composer.save_current_template", { name: composition.name })}
-        </button>
+        </PromptComposerButton>
         <TemplateGroup
           title={t("prompt_composer.template_group_basic")}
           empty=""
@@ -88,15 +89,15 @@ function TemplateGroup({
     <section className="space-y-1.5">
       <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{icon}{title}</div>
       {basicLabel && onLoadBasic && (
-        <button type="button" onClick={onLoadBasic} className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2 text-left text-xs font-semibold hover:border-primary/30">{basicLabel}</button>
+        <PromptComposerButton onClick={onLoadBasic} className="h-auto min-h-9 w-full justify-start bg-muted/20 px-3 py-2 text-left hover:border-primary/30">{basicLabel}</PromptComposerButton>
       )}
       {templates.map((template) => (
         <div key={template.id} className="flex items-center rounded-lg border border-border bg-muted/20">
-          <button type="button" onClick={() => onLoad(template)} className="min-w-0 flex-1 px-3 py-2 text-left">
+          <PromptComposerButton variant="ghost" onClick={() => onLoad(template)} className="h-auto min-h-10 min-w-0 flex-1 justify-start rounded-none border-0 px-3 py-2 text-left shadow-none active:scale-100">
             <span className="block truncate text-xs font-semibold">{template.name}</span>
             <span className="text-[9px] text-muted-foreground">{new Date(template.updatedAt).toLocaleString()}</span>
-          </button>
-          <button type="button" onClick={() => onDelete(template)} className="min-h-10 px-3 text-destructive" aria-label={`Delete ${template.name}`}><Trash2 className="h-3.5 w-3.5" /></button>
+          </PromptComposerButton>
+          <PromptComposerButton variant="ghost" size="icon-lg" onClick={() => onDelete(template)} className="rounded-none border-0 px-3 text-destructive shadow-none hover:bg-destructive/10" aria-label={`Delete ${template.name}`}><Trash2 className="h-3.5 w-3.5" /></PromptComposerButton>
         </div>
       ))}
       {!basicLabel && templates.length === 0 && <div className="rounded-lg border border-dashed border-border p-2 text-center text-[10px] text-muted-foreground">{empty}</div>}

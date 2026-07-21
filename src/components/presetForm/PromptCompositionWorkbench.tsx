@@ -13,6 +13,7 @@ import PromptCompositionGraph from "./PromptCompositionGraph";
 import { PromptCompositionPreviewContent } from "./PromptCompositionPreviewDialog";
 import type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 import PromptCompositionDebugPanel from "./PromptCompositionDebugPanel";
+import { PromptComposerButton } from "./PromptComposerControls";
 
 export type PromptWorkbenchView = "graph" | "preview" | "debug";
 
@@ -76,8 +77,8 @@ export default function PromptCompositionWorkbench(props: PromptCompositionWorkb
 
 function ViewButton({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: ReactNode; children: ReactNode }) {
   return (
-    <button type="button" aria-pressed={active} onClick={onClick} className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold ${active ? "bg-background text-primary shadow-sm ring-1 ring-border" : "text-muted-foreground"}`}>
+    <PromptComposerButton aria-pressed={active} onClick={onClick} variant="ghost" className={`gap-1.5 border-0 px-2 shadow-none ${active ? "bg-background text-primary shadow-sm ring-1 ring-border hover:bg-background" : "text-muted-foreground"}`}>
       {icon}{children}
-    </button>
+    </PromptComposerButton>
   );
 }

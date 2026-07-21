@@ -9,6 +9,7 @@ import {
   parsePromptCompositionTemplate,
   serializePromptCompositionTemplate,
 } from "./promptCompositionTransfer";
+import { PromptComposerButton } from "./PromptComposerControls";
 
 const MAX_SHARE_TEXT_LENGTH = 500_000;
 
@@ -175,13 +176,13 @@ function TransferButton({
   children: ReactNode;
 }) {
   return (
-    <button
+    <PromptComposerButton
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="flex min-h-10 items-center justify-center gap-1 rounded-lg border border-border bg-background px-1.5 text-[10px] font-bold active:bg-muted disabled:opacity-35"
+      className="min-h-10 gap-1 px-1.5 text-[10px] disabled:opacity-35"
     >
       {icon}{children}
-    </button>
+    </PromptComposerButton>
   );
 }

@@ -115,6 +115,21 @@ describe("PromptCompositionEditor", () => {
     expect(screen.getByRole("heading", { name: "编辑 Prompt 区块" })).toBeInTheDocument();
   });
 
+  it("自由编排可见控件统一使用现代高密度基元", () => {
+    render(<LanguageProvider><Harness /></LanguageProvider>);
+
+    expect(screen.getByLabelText("编排名称")).toHaveAttribute("data-prompt-control", "input");
+    expect(screen.getByRole("button", { name: "自由编排" })).toHaveAttribute("data-prompt-control", "button");
+    expect(document.querySelector("select")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑区块：唯一消息" }));
+
+    expect(screen.getByRole("switch", { name: "启用区块" })).toHaveAttribute("data-prompt-control", "switch");
+    expect(screen.getByRole("combobox", { name: "数据源" })).toHaveAttribute("data-prompt-control", "select");
+    expect(screen.getByLabelText("区块名称")).toHaveAttribute("data-prompt-control", "input");
+    expect(document.querySelector("select")).not.toBeInTheDocument();
+  });
+
   it("新增操作使用明确文案，并创建未命名 Prompt 区块", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
