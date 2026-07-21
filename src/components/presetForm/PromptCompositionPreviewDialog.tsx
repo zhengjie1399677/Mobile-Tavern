@@ -46,8 +46,8 @@ export function PromptCompositionPreviewContent({
   const diagnostics = preview?.diagnostics ?? [];
 
   return (
-    <div>
-      <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-4 py-2 text-[10px] text-muted-foreground">
+    <div className="flex min-h-0 flex-col">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-4 py-2 text-[10px] text-muted-foreground">
         <span>{t("prompt_composer.message_total", { count: String(messages.length) })}</span>
         <span>·</span>
         <span>{t("prompt_composer.token_estimate", { count: String(preview?.estimatedTokens ?? 0) })}</span>
@@ -56,7 +56,10 @@ export function PromptCompositionPreviewContent({
         </span>
       </div>
 
-      <div className={`${scrollClassName} space-y-3 overflow-y-auto overscroll-contain p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]`}>
+      <div
+        data-testid="prompt-preview-scroll"
+        className={`${scrollClassName} min-h-0 touch-pan-y space-y-3 overflow-y-auto overscroll-contain p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]`}
+      >
         {!preview?.contextAvailable && (
           <div className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
             <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -77,7 +80,7 @@ export function PromptCompositionPreviewContent({
                 <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold ${roleClass(message.role)}`}>{message.role.toUpperCase()}</span>
                 {message.name && <span className="ml-auto text-[10px] text-muted-foreground">{message.name}</span>}
               </header>
-              <pre className="max-h-64 whitespace-pre-wrap break-words p-3 font-sans text-xs leading-relaxed">{message.content}</pre>
+              <pre className="whitespace-pre-wrap break-words p-3 font-sans text-xs leading-relaxed">{message.content}</pre>
             </article>
           ))
         )}

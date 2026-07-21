@@ -150,6 +150,15 @@ describe("PromptCompositionEditor", () => {
     expect(screen.getByText("测试诊断")).toBeInTheDocument();
   });
 
+  it("最终预览使用统一的触屏纵向滚动且不截断单条长消息", () => {
+    render(<LanguageProvider><Harness withPreview /></LanguageProvider>);
+
+    fireEvent.click(screen.getByRole("button", { name: "预览" }));
+
+    expect(screen.getByTestId("prompt-preview-scroll")).toHaveClass("overflow-y-auto", "touch-pan-y", "min-h-0");
+    expect(screen.getByText("第一条系统消息")).not.toHaveClass("max-h-64");
+  });
+
   it("宽屏时同时展示区块配置与可视化工作台", () => {
     stubWideViewport(true);
     render(<LanguageProvider><Harness withPreview /></LanguageProvider>);
