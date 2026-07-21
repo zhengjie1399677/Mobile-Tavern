@@ -26,6 +26,8 @@ import PersonaConfigSection from "./PersonaConfigSection";
 import FeaturesSection from "./FeaturesSection";
 import MemoryStorageSection from "./MemoryStorageSection";
 import { useTranslation } from "../../contexts/LanguageContext";
+import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
+import SystemReportSection from "./sections/SystemReportSection";
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
 interface TauriWindow extends Window {
@@ -38,7 +40,8 @@ type SettingsSectionId =
   | "appearance"
   | "persona"
   | "memory"
-  | "advanced";
+  | "advanced"
+  | "about";
 
 interface SettingsSectionMeta {
   id: SettingsSectionId;
@@ -84,6 +87,12 @@ const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     descriptionKey: "settings_hub.advanced_desc",
     icon: Puzzle,
   },
+  {
+    id: "about",
+    titleKey: "settings_hub.about_category_title",
+    descriptionKey: "settings_hub.about_category_desc",
+    icon: Info,
+  },
 ];
 
 export default function SettingsTab() {
@@ -94,6 +103,7 @@ export default function SettingsTab() {
   const viewportSize = useViewportSize();
   const freeCount = getFreeTrialCount();
   const isLandscape = viewportSize.w >= 600 && viewportSize.w > viewportSize.h;
+  const promptFocus = usePromptWorkbenchFocus();
 
   const {
     settings,
@@ -268,38 +278,11 @@ export default function SettingsTab() {
             handleExportLocalDataBackup={handleExportLocalDataBackup}
             handleImportLocalDataBackup={handleImportLocalDataBackup}
             handleImportSillyChatHistory={handleImportSillyChatHistory}
-            safeAreas={safeAreas}
-            showCustomAlert={showCustomAlert}
-            isTauri={isTauri}
-            deviceModel={deviceModel}
-            viewportSize={viewportSize}
-            getKernelService={getKernelService}
           />
         );
       case "advanced":
         return (
           <div className="space-y-2">
-            <Card className="glass-panel shadow-sm">
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <Info className="w-4.5 h-4.5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-foreground">{t("settings_hub.about_title")}</p>
-                  <p className="text-[10px] text-muted-foreground">Mobile Tavern v{__APP_VERSION__}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCheckUpdate}
-                  disabled={isCheckingUpdate}
-                  className="min-h-9 px-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-[10px] font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
-                >
-                  {isCheckingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                  {isCheckingUpdate ? t("control_panel.checking") : t("control_panel.check_update")}
-                </button>
-              </CardContent>
-            </Card>
-
             <FeaturesSection settings={settings} updateSettings={updateSettings} />
 
             <Card className="glass-panel shadow-sm border border-dashed border-primary/30">
@@ -320,8 +303,55 @@ export default function SettingsTab() {
             </Card>
           </div>
         );
+      case "about":
+        return (
+          <div className="space-y-2">
+            <Card className="glass-panel shadow-sm">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Info className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-foreground">Mobile Tavern</p>
+                  <p className="text-[10px] text-muted-foreground">{t("settings_hub.about_product_desc")}</p>
+                  <p className="mt-0.5 text-[9px] font-mono text-muted-foreground">v{__APP_VERSION__}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCheckUpdate}
+                  disabled={isCheckingUpdate}
+                  className="min-h-9 px-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-[10px] font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                >
+                  {isCheckingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  {isCheckingUpdate ? t("control_panel.checking") : t("control_panel.check_update")}
+                </button>
+              </CardContent>
+            </Card>
+
+            <SystemReportSection
+              settings={settings}
+              safeAreas={safeAreas}
+              showCustomAlert={showCustomAlert}
+              getKernelService={getKernelService}
+              isTauri={isTauri}
+              deviceModel={deviceModel}
+              viewportSize={viewportSize}
+            />
+          </div>
+        );
     }
   };
+
+  if (promptFocus.active) {
+    return (
+      <main
+        data-testid="prompt-workbench-focus"
+        className="h-full min-h-0 overflow-y-auto p-1.5 custom-scrollbar"
+      >
+        <PresetForm sections={["composer"]} />
+      </main>
+    );
+  }
 
   const renderSectionList = (compact: boolean) => (
     <nav aria-label={t("settings_hub.categories")} className={compact ? "space-y-1" : "space-y-2"}>

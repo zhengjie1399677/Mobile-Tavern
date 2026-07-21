@@ -14,6 +14,10 @@ Android `MainActivity` 已声明 `orientation|screenSize` 等 `configChanges`，
 
 Prompt JSON 模板导出会优先调用 `AndroidThemeBridge.saveFile` 写入公共下载目录，分享则调用 `AndroidThemeBridge.shareText` 打开系统分享面板。两项能力都按桥接方法存在性检测；真机回归需同时确认保存结果路径、分享取消以及超大内容改用文件导出的提示。
 
+## Android 返回退出
+
+主 Activity 通过 AndroidX `OnBackPressedDispatcher` 统一接管系统返回操作。第一次返回显示本地化原生提示，2 秒内再次返回调用 `finishAffinity()` 退出应用任务；该行为位于原生层，不依赖 WebView 或前端路由是否完成初始化。修改返回行为后，需至少执行一次 Gradle 调试构建，并在真机分别验证按键返回与手势返回。
+
 ---
 
 ## SDK 路径说明

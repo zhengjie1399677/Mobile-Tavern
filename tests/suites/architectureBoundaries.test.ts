@@ -72,11 +72,33 @@ export async function testArchitectureBoundaries(): Promise<void> {
     /activeTab === ["']settings["'] \? ["']max-w-lg landscape:max-w-none["']/.test(mainLayout),
     "设置页横屏时必须解除手机竖屏宽度上限，确保高级工作台获得真实可用宽度"
   );
+  assert(
+    /!promptFocusActive/.test(mainLayout),
+    "Prompt 横屏专注模式必须隐藏全局底栏，避免设置导航继续挤占工作台"
+  );
+
+  const settingsTab = read("src/tabs/settings/SettingsTab.tsx");
+  assert(
+    /promptFocus\.active[\s\S]*sections=\{\[["']composer["']\]\}/.test(settingsTab),
+    "Prompt 横屏专注模式必须只挂载编排器本体"
+  );
+  assert(
+    !read("src/tabs/settings/MemoryStorageSection.tsx").includes("SystemReportSection") &&
+      settingsTab.includes("SystemReportSection"),
+    "系统报告必须归入独立的关于我们分类，不得继续混在记忆与数据中"
+  );
 
   const androidBridgePlugin = read("src-tauri/plugins/android-bridge/src/lib.rs");
   assert(
     androidBridgePlugin.includes("register_android_plugin"),
     "Android 原生桥接必须显式注册 Kotlin 插件，否则横屏、文件与状态栏接口不会注入 WebView"
+  );
+  const mainActivity = read("src-tauri/gen/android/app/src/main/java/com/aitavern/app/MainActivity.kt");
+  assert(
+    mainActivity.includes("onBackPressedDispatcher.addCallback") &&
+      mainActivity.includes("BACK_EXIT_INTERVAL_MS") &&
+      mainActivity.includes("finishAffinity()"),
+    "Android 返回操作必须保留原生双击退出兜底，不能依赖 WebView 路由状态"
   );
 
   for (const file of listCodeFiles("src")) {

@@ -1,13 +1,10 @@
 import { UsageDisplay } from "../../utils/useUsageTracking";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
-import type { ViewportSize } from "./utils";
 import MemoryConfigCard from "./sections/MemoryConfigCard";
 import BackupRestoreCard from "./sections/BackupRestoreCard";
 import ChatImportCard from "./sections/ChatImportCard";
-import SystemReportSection from "./sections/SystemReportSection";
 
-export interface MemoryStorageSectionProps
-  extends Pick<UnifiedAppContextProps,
+export type MemoryStorageSectionProps = Pick<UnifiedAppContextProps,
     | "settings"
     | "updateSettings"
     | "backupPass"
@@ -20,14 +17,7 @@ export interface MemoryStorageSectionProps
     | "handleExportLocalDataBackup"
     | "handleImportLocalDataBackup"
     | "handleImportSillyChatHistory"
-    | "safeAreas"
-    | "showCustomAlert"
-    | "getKernelService"
-  > {
-  isTauri: boolean;
-  deviceModel: string;
-  viewportSize: ViewportSize;
-}
+  >;
 
 export default function MemoryStorageSection({
   settings,
@@ -42,12 +32,6 @@ export default function MemoryStorageSection({
   handleExportLocalDataBackup,
   handleImportLocalDataBackup,
   handleImportSillyChatHistory,
-  safeAreas,
-  showCustomAlert,
-  isTauri,
-  deviceModel,
-  viewportSize,
-  getKernelService,
 }: MemoryStorageSectionProps) {
   return (
     <>
@@ -65,15 +49,6 @@ export default function MemoryStorageSection({
       />
       <ChatImportCard handleImportSillyChatHistory={handleImportSillyChatHistory} />
       <UsageDisplay />
-      <SystemReportSection
-        settings={settings}
-        safeAreas={safeAreas}
-        showCustomAlert={showCustomAlert}
-        getKernelService={getKernelService}
-        isTauri={isTauri}
-        deviceModel={deviceModel}
-        viewportSize={viewportSize}
-      />
     </>
   );
 }

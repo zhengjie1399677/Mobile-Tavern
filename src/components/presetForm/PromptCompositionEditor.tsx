@@ -14,7 +14,7 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import type { PromptBlock, PromptComposition } from "../../domain/prompt-composition";
 import type { PromptCompositionTemplateRecord } from "../../domain/prompt-composition";
@@ -39,6 +39,7 @@ import { usePromptCompositionHistory } from "./usePromptCompositionHistory";
 import PromptCompositionBudgetSettings from "./PromptCompositionBudgetSettings";
 import { PROMPT_DATA_SOURCE_KEYS } from "./promptDataSources";
 import PromptCompositionTemplateManager from "./PromptCompositionTemplateManager";
+import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
 
 export type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 
@@ -68,8 +69,18 @@ export default function PromptCompositionEditor({
   const [draggingId, setDraggingId] = useState<string>();
   const [dragAnnouncement, setDragAnnouncement] = useState("");
   const isWideWorkbench = useWidePromptWorkbench();
-  const orientationControl = useAndroidOrientationControl();
-  const dragRef = useRef<{ sourceId: string; targetId: string }>();
+  const promptFocus = usePromptWorkbenchFocus();
+  const orientationControl = useAndroidOrientationControl({
+    forcedLandscape: promptFocus.managed ? promptFocus.active : undefined,
+    onOrientationChange: promptFocus.setActive,
+  });
+  const blockListRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    sourceId: string;
+    targetId: string;
+    pointerId: number;
+    handle: HTMLButtonElement;
+  }>();
   const editingBlock = composition.blocks.find((block) => block.id === editingBlockId);
   const historyBlocks = composition.blocks.filter((block) => block.source.type === "chat_history");
   const freeMode = settings.promptConfig.usePromptComposition === true;
@@ -147,7 +158,7 @@ export default function PromptCompositionEditor({
     setEditingBlockId(id);
   };
 
-  const reorder = (sourceId: string, targetId: string) => {
+  const reorder = useCallback((sourceId: string, targetId: string) => {
     if (sourceId === targetId) return;
     const blocks = [...composition.blocks];
     const sourceIndex = blocks.findIndex((block) => block.id === sourceId);
@@ -159,7 +170,7 @@ export default function PromptCompositionEditor({
       ...composition,
       blocks: blocks.map((block, index) => ({ ...block, order: (index + 1) * 100 })),
     });
-  };
+  }, [composition, updateComposition]);
 
   const moveBlock = (index: number, offset: -1 | 1) => {
     const target = composition.blocks[index + offset];
@@ -192,36 +203,75 @@ export default function PromptCompositionEditor({
   };
 
   const handleDragStart = (event: ReactPointerEvent<HTMLButtonElement>, blockId: string) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    dragRef.current = { sourceId: blockId, targetId: blockId };
+    dragRef.current = {
+      sourceId: blockId,
+      targetId: blockId,
+      pointerId: event.pointerId,
+      handle: event.currentTarget,
+    };
     setDraggingId(blockId);
     const source = composition.blocks.find((block) => block.id === blockId);
     setDragAnnouncement(t("prompt_composer.drag_started", { name: source?.name ?? blockId }));
     setDragTargetId(blockId);
   };
 
-  const handleDragMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!dragRef.current || typeof document.elementFromPoint !== "function") return;
-    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-prompt-block-id]");
+  const updateDragTarget = useCallback((pointerId: number, clientY: number) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== pointerId) return;
+    const candidates: HTMLElement[] = blockListRef.current
+      ? Array.from(blockListRef.current.querySelectorAll<HTMLElement>("[data-prompt-block-id]"))
+      : [];
+    const target = candidates.reduce<HTMLElement | undefined>((closest, candidate) => {
+      if (!closest) return candidate;
+      const closestRect = closest.getBoundingClientRect();
+      const candidateRect = candidate.getBoundingClientRect();
+      const closestDistance = Math.abs(clientY - (closestRect.top + closestRect.bottom) / 2);
+      const candidateDistance = Math.abs(clientY - (candidateRect.top + candidateRect.bottom) / 2);
+      return candidateDistance < closestDistance ? candidate : closest;
+    }, undefined);
     const targetId = target?.dataset.promptBlockId;
-    if (!targetId) return;
-    dragRef.current.targetId = targetId;
+    if (!targetId || targetId === drag.targetId) return;
+    drag.targetId = targetId;
     setDragTargetId(targetId);
     const targetBlock = composition.blocks.find((block) => block.id === targetId);
     if (targetBlock) setDragAnnouncement(t("prompt_composer.drag_over", { name: targetBlock.name }));
-  };
+  }, [composition.blocks, t]);
 
-  const handleDragEnd = () => {
-    if (dragRef.current) {
-      const targetBlock = composition.blocks.find((block) => block.id === dragRef.current?.targetId);
-      reorder(dragRef.current.sourceId, dragRef.current.targetId);
+  const finishDrag = useCallback((pointerId: number, commit: boolean) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== pointerId) return;
+    const targetBlock = composition.blocks.find((block) => block.id === drag.targetId);
+    if (commit) {
+      reorder(drag.sourceId, drag.targetId);
       if (targetBlock) setDragAnnouncement(t("prompt_composer.drag_completed", { name: targetBlock.name }));
     }
+    if (drag.handle.hasPointerCapture?.(pointerId)) drag.handle.releasePointerCapture?.(pointerId);
     dragRef.current = undefined;
     setDragTargetId(undefined);
     setDraggingId(undefined);
-  };
+  }, [composition.blocks, reorder, t]);
+
+  useEffect(() => {
+    if (!draggingId) return;
+    const handlePointerMove = (event: PointerEvent) => {
+      if (dragRef.current?.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      updateDragTarget(event.pointerId, event.clientY);
+    };
+    const handlePointerUp = (event: PointerEvent) => finishDrag(event.pointerId, true);
+    const handlePointerCancel = (event: PointerEvent) => finishDrag(event.pointerId, false);
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+    };
+  }, [draggingId, finishDrag, updateDragTarget]);
 
   const compatibilityCount = composition.blocks.filter((block) => block.compatibility).length +
     (composition.compatibility?.preservedRootFields ? Object.keys(composition.compatibility.preservedRootFields).length : 0);
@@ -233,7 +283,7 @@ export default function PromptCompositionEditor({
           <div className="text-xs font-bold">{t("prompt_composer.title")}</div>
           <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("prompt_composer.description")}</p>
         </div>
-        {freeMode && orientationControl.available && (
+        {(freeMode || promptFocus.active) && orientationControl.available && (
           <button
             type="button"
             aria-pressed={orientationControl.forcedLandscape}
@@ -248,12 +298,14 @@ export default function PromptCompositionEditor({
         )}
       </div>
 
-      <div className="grid grid-cols-2 rounded-xl border border-border bg-muted/50 p-1" role="group" aria-label={t("prompt_composer.mode")}>
-        <ModeButton active={!freeMode} onClick={() => setMode(false)}>{t("prompt_composer.legacy_mode")}</ModeButton>
-        <ModeButton active={freeMode} onClick={() => setMode(true)}>{t("prompt_composer.free_mode")}</ModeButton>
-      </div>
+      {!promptFocus.active && (
+        <div className="grid grid-cols-2 rounded-xl border border-border bg-muted/50 p-1" role="group" aria-label={t("prompt_composer.mode")}>
+          <ModeButton active={!freeMode} onClick={() => setMode(false)}>{t("prompt_composer.legacy_mode")}</ModeButton>
+          <ModeButton active={freeMode} onClick={() => setMode(true)}>{t("prompt_composer.free_mode")}</ModeButton>
+        </div>
+      )}
 
-      {freeMode && (
+      {(freeMode || promptFocus.active) && (
         <>
           <div className={isWideWorkbench ? "grid grid-cols-[minmax(300px,0.85fr)_minmax(400px,1.15fr)] items-start gap-2 min-[1100px]:grid-cols-[minmax(300px,0.72fr)_minmax(340px,0.82fr)_minmax(420px,1fr)]" : "space-y-3"}>
             <div className="space-y-3">
@@ -348,7 +400,7 @@ export default function PromptCompositionEditor({
               {t("prompt_composer.empty_send_warning")}
             </div>
               ) : (
-            <div className="space-y-2">
+            <div ref={blockListRef} className="space-y-2">
               {composition.blocks.map((block, index) => {
                 const blockDiagnosticCount = validationDiagnostics.filter((diagnostic) => diagnostic.blockId === block.id).length;
                 return (
@@ -361,9 +413,9 @@ export default function PromptCompositionEditor({
                     type="button"
                     aria-label={t("prompt_composer.drag_block", { name: block.name })}
                     onPointerDown={(event) => handleDragStart(event, block.id)}
-                    onPointerMove={handleDragMove}
-                    onPointerUp={handleDragEnd}
-                    onPointerCancel={handleDragEnd}
+                    onPointerMove={(event) => updateDragTarget(event.pointerId, event.clientY)}
+                    onPointerUp={(event) => finishDrag(event.pointerId, true)}
+                    onPointerCancel={(event) => finishDrag(event.pointerId, false)}
                     className="touch-none border-r border-border px-2 text-muted-foreground active:bg-muted"
                   >
                     <GripVertical className="h-4 w-4" />

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PromptCompositionEditor from "../../src/components/presetForm/PromptCompositionEditor";
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
+import { PromptWorkbenchFocusProvider } from "../../src/contexts/PromptWorkbenchFocusContext";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import type { UserSettings } from "../../src/types";
 
@@ -14,7 +15,7 @@ interface WindowWithOrientationBridge extends Window {
   };
 }
 
-function Harness({ withPreview = false }: { withPreview?: boolean }) {
+function Harness({ withPreview = false, withTwoBlocks = false }: { withPreview?: boolean; withTwoBlocks?: boolean }) {
   const [settings, setSettings] = useState<UserSettings>(() => {
     const initial = structuredClone(DEFAULT_SETTINGS);
     initial.promptConfig.usePromptComposition = true;
@@ -31,7 +32,16 @@ function Harness({ withPreview = false }: { withPreview?: boolean }) {
         template: "可删除",
         order: 100,
         placement: { type: "ordered" },
-      }],
+      }, ...(withTwoBlocks ? [{
+        id: "second-block",
+        name: "第二消息",
+        enabled: true,
+        role: "user" as const,
+        source: { type: "template" as const },
+        template: "第二条",
+        order: 200,
+        placement: { type: "ordered" as const },
+      }] : [])],
     };
     return initial;
   });
@@ -54,6 +64,16 @@ function Harness({ withPreview = false }: { withPreview?: boolean }) {
         {JSON.stringify(settings.promptConfig.composition)}
       </output>
     </>
+  );
+}
+
+function ManagedFocusHarness() {
+  const [active, setActive] = useState(false);
+  return (
+    <PromptWorkbenchFocusProvider value={{ active, managed: true, setActive }}>
+      <Harness />
+      <output data-testid="focus-state">{String(active)}</output>
+    </PromptWorkbenchFocusProvider>
   );
 }
 
@@ -172,12 +192,14 @@ describe("PromptCompositionEditor", () => {
   it("仅在 Android 原生桥接可用时展示横屏入口", () => {
     const setScreenOrientation = vi.fn().mockReturnValue(true);
     (window as unknown as WindowWithOrientationBridge).AndroidThemeBridge = { setScreenOrientation };
-    render(<LanguageProvider><Harness /></LanguageProvider>);
+    render(<LanguageProvider><ManagedFocusHarness /></LanguageProvider>);
 
     fireEvent.click(screen.getByRole("button", { name: "进入横屏工作台" }));
     expect(setScreenOrientation).toHaveBeenCalledWith("landscape");
+    expect(screen.getByTestId("focus-state")).toHaveTextContent("true");
     fireEvent.click(screen.getByRole("button", { name: "恢复自动旋转" }));
     expect(setScreenOrientation).toHaveBeenLastCalledWith("auto");
+    expect(screen.getByTestId("focus-state")).toHaveTextContent("false");
   });
 
   it("浏览器环境不显示 Android 横屏入口", () => {
@@ -198,6 +220,24 @@ describe("PromptCompositionEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "重做" }));
     expect(screen.queryByText("唯一消息")).not.toBeInTheDocument();
+  });
+
+  it("触屏拖动离开手柄后仍可把区块移动到新位置", () => {
+    render(<LanguageProvider><Harness withTwoBlocks /></LanguageProvider>);
+    const articles = Array.from(document.querySelectorAll<HTMLElement>("[data-prompt-block-id]"));
+    vi.spyOn(articles[0], "getBoundingClientRect").mockReturnValue(rectAt(0));
+    vi.spyOn(articles[1], "getBoundingClientRect").mockReturnValue(rectAt(100));
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "拖动区块：唯一消息" }), {
+      pointerId: 7,
+      pointerType: "touch",
+      clientY: 20,
+    });
+    fireEvent.pointerMove(window, { pointerId: 7, pointerType: "touch", clientY: 140 });
+    fireEvent.pointerUp(window, { pointerId: 7, pointerType: "touch", clientY: 140 });
+
+    const state = JSON.parse(screen.getByTestId("composition-state").textContent ?? "{}");
+    expect(state.blocks.map((block: { id: string }) => block.id)).toEqual(["second-block", "only-block"]);
   });
 
   it("可通过 Android 原生桥接保存和分享模板，并复制同一份 JSON", async () => {
@@ -260,4 +300,18 @@ function stubWideViewport(matches: boolean) {
     removeListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })));
+}
+
+function rectAt(top: number): DOMRect {
+  return {
+    x: 0,
+    y: top,
+    top,
+    left: 0,
+    right: 300,
+    bottom: top + 80,
+    width: 300,
+    height: 80,
+    toJSON: () => ({}),
+  };
 }

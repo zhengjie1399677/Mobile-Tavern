@@ -210,12 +210,20 @@
 * **产出**：底层事务与网络请求的中断传导机制（IndexedDB 事务主动 `abort`、复杂处理循环插入 `aborted` 检查点、原生桥接取消透传）。
 * **预估**：3-5 天。
 
+### 6. 自由编排操作控件现代化 [难度：中]
+
+* **目标**：统一自由 Prompt 编排内仍带系统默认观感的按钮、选择器与输入控件，使高密度工作台在竖屏和横屏下保持一致的现代移动端视觉与触控反馈。
+* **现状基础**：横屏专注模式、紧凑布局、触屏拖动与主要工具栏已经可用。
+* **缺口**：部分原生按钮和表单控件仍沿用浏览器默认外观，层级、圆角、按压态与禁用态不统一。
+* **产出**：复用统一控件基元，覆盖编排工具栏、区块操作、快速编辑与弹窗表单，并完成窄屏/横屏视觉回归。
+
 ---
 
 ## ✍️ 变更记录
 
 | 日期 | 变动内容 |
 |---|---|
+| 2026-07-21 | 完成设置与 Prompt 编排移动端收敛：`MainLayout.tsx` 统一四个主功能页的紧凑底部导航；`SettingsTab.tsx` 新增底部“关于我们”分类并将系统报告移至分类末尾；横屏入口通过 `PromptWorkbenchFocusContext` 切换为只挂载编排器的专注模式，隐藏设置标题、分类、其他功能与全局底栏。`PromptCompositionEditor.tsx` 将触控排序改为手柄启动、全窗口指针追踪和区块几何落点，修复触点离开手柄后无法换位；新增触屏回归测试。`MainActivity.kt` 通过 `OnBackPressedDispatcher` 实现 2 秒内双击返回退出，并提供 8 语言原生提示资源。验证：`npm run lint`、`npm run check:i18n`、`npm test` 80/80、编排测试 14/14、`npm run build` 与 Android `assembleArm64Debug` 全部通过；真机交互待设备重新连接后复验。 |
 | 2026-07-21 | 修正自由 Prompt 编排横屏入口、操作语义与高密度布局：(1) `src/components/MainLayout.tsx` 在设置页横屏时解除 `max-w-lg` 外层宽度限制，修复原生已旋转但工作台仍被压缩、双栏遭裁切的问题；竖屏及聊天页继续保持移动端宽度约束。(2) `PromptCompositionEditor.tsx` 将“进入横屏工作台”提升到编排标题旁，横屏采用双栏、超宽屏采用区块列表/快速编辑/可视化工作台三栏布局，并把快速编辑器移至独立侧栏，减少高密度配置的纵向堆叠。(3) 中文文案将“消息/历史/示例”明确为“添加 Prompt 区块/添加聊天历史/载入基础示例”，新建区块命名改为“未命名 Prompt 区块”，避免把编排动作误解为新建消息。(4) `PromptCompositionEditor.test.tsx` 新增明确文案与新建区块回归测试，`architectureBoundaries.test.ts` 增加横屏宽度边界守卫。验证：`npm run lint` 通过；编排编辑测试 13/13 通过；`npm test` 80/80 全绿；`npm run build` 通过（仅保留既有大分块警告）。 |
 | 2026-07-21 | 修复 Android 新安装后首次切换任意功能页会短暂闪回启动首页的问题：根因是 `src/components/MainLayout.tsx` 的主 Tab 均采用 `React.lazy`，首次下载代码分块时 `Suspense` 错误复用了全屏 `SplashScreen`；现改为布局内部的轻量 `TabLoadingFallback`，保留按需加载与底部导航，不再重复展示启动页。`tests/suites/architectureBoundaries.test.ts` 新增边界守卫，禁止主功能页回退重新使用 `SplashScreen`。验证：`npm run lint` 通过；`npm test` 80/80 全绿；`npm run build` 通过（仅保留既有大分块警告）。 |
 | 2026-07-20 | 完成 Kernel 下一轮兼容迁移与长会话重发竞态修复：(1) 修复约 10 轮以上会话重发时偶发生成两轮回复：根因是 `useRerollMessage` 已取得 `isSendingRef` 同步锁、但尚未创建 `streamingMessageId` 的持久化/提示词构建窗口内，第二次触发会把真实锁误判为残留锁并强制解锁；现改为发送与重发共用不可通过流式标记误解锁的同步事务锁，并新增 `tests/vitest/useRerollMessage.test.ts` 模拟 10 轮会话快速重复重发，确认仅一个事务进入数据库。(2) `Kernel.getPipeline` 不再自动创建未知管道，拼写错误或插件漏注册会明确抛错；自定义管道必须在 bootstrap 或插件激活阶段调用 `registerPipeline`，对应内核测试已覆盖。(3) 应用入口改用 `AppContextAssembler`，保留 `LegacyAppContextProvider` 兼容别名；`ChatInputArea` 从订阅完整 `UnifiedAppContext` 改为 `useUnifiedApp` 选择器，降低无关状态级联渲染。(4) 将 `lastRecalledMemories` 从 `ChatSession` 临时附加字段迁移为 `useChat` 组合层独立瞬态状态，会话切换自动清空；`RecallTab` 与 token 估算仅消费该运行时快照，召回业务数据不再混入 Session 实体或持久化底座。(5) 扩充 `architectureBoundaries.test.ts`，阻止聊天输入区重新全量订阅 Context 及发送/重发流程重新污染 ChatSession。验证：`npm run lint` 通过；`npm test` 77/77 全绿（Vitest 含新增重发测试）；生产构建通过。 |

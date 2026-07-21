@@ -1,7 +1,9 @@
 package com.aitavern.app
 
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.OnBackPressedCallback
 import android.webkit.WebView
 import android.view.ViewGroup
 import android.view.View
@@ -13,16 +15,19 @@ import android.provider.MediaStore
 import android.os.Environment
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.Toast
 import android.view.Gravity
 
 class MainActivity : TauriActivity() {
   private var appWebView: WebView? = null
+  private var lastBackPressedAt = 0L
 
 
   companion object {
     private const val PREFS_NAME = "AppThemePrefs"
     private const val KEY_THEME_DARK = "isDark"
     private const val KEY_THEME_COLOR = "themeColor"
+    private const val BACK_EXIT_INTERVAL_MS = 2_000L
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,6 +39,22 @@ class MainActivity : TauriActivity() {
     val savedIsDark = prefs.getBoolean(KEY_THEME_DARK, true)
     val savedColor = prefs.getString(KEY_THEME_COLOR, "#15171e") ?: "#15171e"
     applyStatusBar(savedIsDark, savedColor)
+
+    onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+      override fun handleOnBackPressed() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastBackPressedAt <= BACK_EXIT_INTERVAL_MS) {
+          finishAffinity()
+          return
+        }
+        lastBackPressedAt = now
+        Toast.makeText(
+          this@MainActivity,
+          getString(R.string.press_back_again_to_exit),
+          Toast.LENGTH_SHORT
+        ).show()
+      }
+    })
 
     // Listen for window inset changes (e.g. orientation changes, navigation bar toggles)
     val decorView = window.decorView

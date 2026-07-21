@@ -6,6 +6,7 @@ import { usePresetFormState } from "./usePresetFormState";
 import PresetSelectorSection from "./PresetSelectorSection";
 import SamplersSection from "./SamplersSection";
 import PromptsConfigSection from "./PromptsConfigSection";
+import PromptCompositionEditor from "./PromptCompositionEditor";
 import RegexManagementSection from "./RegexManagementSection";
 
 /**
@@ -16,7 +17,7 @@ import RegexManagementSection from "./RegexManagementSection";
  * 路径兼容：外部 `import PresetForm from "../components/PresetForm"` 经原文件 barrel
  * re-export 后，最终解析到本文件的默认导出，导入路径零变更。
  */
-export type PresetFormSection = "preset" | "samplers" | "prompts" | "regex";
+export type PresetFormSection = "preset" | "samplers" | "prompts" | "regex" | "composer";
 
 interface PresetFormProps {
   sections?: PresetFormSection[];
@@ -29,6 +30,7 @@ export default function PresetForm({
   const showSamplers = sections.includes("samplers");
   const showPrompts = sections.includes("prompts");
   const showRegex = sections.includes("regex");
+  const showComposer = sections.includes("composer");
   const kernel = useKernel();
   const promptService = kernel.getService<IPromptService>("prompt");
   const {
@@ -124,7 +126,7 @@ export default function PresetForm({
   });
 
   const promptCompositionPreview = useMemo(() => {
-    if (!showPrompts || !activeCharacter || !activeSession || !settings.promptConfig.composition) return undefined;
+    if ((!showPrompts && !showComposer) || !activeCharacter || !activeSession || !settings.promptConfig.composition) return undefined;
     const otherCharacterEntries = characters
       .filter((character) => character.isWorldbookGlobal && character.id !== activeCharacter.id)
       .flatMap((character) => character.lorebookEntries || []);
@@ -160,6 +162,7 @@ export default function PresetForm({
     lastRecalledMemories,
     promptService,
     settings,
+    showComposer,
     showPrompts,
   ]);
 
@@ -209,6 +212,17 @@ export default function PresetForm({
           isBatchDeletingPrompts={isBatchDeletingPrompts}
           setIsBatchDeletingPrompts={setIsBatchDeletingPrompts}
           handleBatchDeletePrompts={handleBatchDeletePrompts}
+        />
+      )}
+
+      {/* 横屏专注模式只挂载编排器本体，不展示设置分类、正则或外层卡片。 */}
+      {showComposer && (
+        <PromptCompositionEditor
+          settings={settings}
+          updateSettings={updateSettings}
+          preview={promptCompositionPreview}
+          saveState={settingsSaveState}
+          lastSavedAt={settingsLastSavedAt}
         />
       )}
 
