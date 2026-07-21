@@ -50,7 +50,11 @@ const StoryTimelineView = () => {
   const summaries = activeSession?.summaries ?? [];
 
   return (
-    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 custom-scrollbar">
+    <div
+      data-testid="story-timeline-scroll"
+      style={{ WebkitOverflowScrolling: "touch" }}
+      className="h-full min-h-0 flex-1 touch-pan-y space-y-3 overflow-y-auto overscroll-contain p-3 custom-scrollbar"
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-bold text-foreground">
@@ -152,7 +156,7 @@ const StoryTimelineView = () => {
             </div>
 
             {/* Summary prose item */}
-            <p className="text-[12.5px] italic font-serif text-muted-foreground leading-relaxed font-light mt-1.5">
+            <p className="whitespace-pre-wrap break-words text-[12.5px] italic font-serif text-muted-foreground leading-relaxed font-light mt-1.5">
               {summary.content}
             </p>
           </div>
