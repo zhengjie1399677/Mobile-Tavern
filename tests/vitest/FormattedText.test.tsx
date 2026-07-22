@@ -44,6 +44,36 @@ describe("FormattedText component", () => {
     expect(screen.getByText("Hello world")).toBeInTheDocument();
   });
 
+  it("不把内部 data-th-srcdoc-id 误报为未提取的 srcdoc", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const iframe = '<iframe id="TH-msg-iframe-0-0" name="TH-msg-iframe-0-0" data-th-srcdoc-id="th-srcdoc-TH-msg-iframe-0-0-1784713021718" style="width: 100%; min-height: 0; border: none; display: block; background: transparent;"></iframe>';
+
+    render(<FormattedText text={iframe} charName="Bot" />);
+
+    expect(
+      errorSpy.mock.calls.some(([message]) =>
+        String(message).includes("srcdoc present but regex MISSED"),
+      ),
+    ).toBe(false);
+    errorSpy.mockRestore();
+  });
+
+  it("继续提取角色卡直接提供的 srcdoc 内容", () => {
+    mockContext.settings.enableScriptExecution = true;
+    const { container } = render(
+      <FormattedText
+        text={'<iframe srcdoc="&lt;script&gt;window.__TH_MESSAGE_ID=0;&lt;/script&gt;&lt;div data-testid=&#39;card-body&#39;&gt;扬州&lt;/div&gt;"></iframe>'}
+        charName="Bot"
+      />,
+    );
+
+    const iframe = container.querySelector("iframe");
+    expect(iframe).not.toBeNull();
+    expect(iframe?.srcdoc).toContain("data-testid='card-body'");
+    expect(iframe?.srcdoc).toContain("扬州");
+    expect(iframe?.getAttribute("allowtransparency")).toBe("true");
+  });
+
   it("should render bold text inside strong tags", () => {
     render(<FormattedText text="Hello **world**" charName="Bot" />);
     const strongEl = screen.getByText("world");

@@ -416,7 +416,8 @@ function domToReact(
 
     // Set transparency and borderless attributes for compatibility with older WebKit/WebView engines
     // 注意：React 中必须使用驼峰式命名，否则属性不会被正确设置到 DOM 上
-    props.allowTransparency = "true";
+    // React 19 forwards this legacy custom attribute without warnings only in lowercase form.
+    props.allowtransparency = "true";
     props.frameBorder = "0";
     props.marginWidth = "0";
     props.marginHeight = "0";
@@ -452,8 +453,8 @@ function domToReact(
 function extractSrcdocAttrs(html: string): string {
   let extractCount = 0;
   const result = html.replace(
-    /\b((?:data-)?srcdoc)\s*=\s*("([^"]*)"|'([^']*)')/gi,
-    (_match, _attrName, _quotedVal, doubleContent, singleContent) => {
+    /(^|[\s<])((?:data-)?srcdoc)\s*=\s*("([^"]*)"|'([^']*)')/gi,
+    (_match, prefix, _attrName, _quotedVal, doubleContent, singleContent) => {
       const rawContent = doubleContent !== undefined ? doubleContent : (singleContent ?? "");
       // 解码 HTML 实体，还原原始 srcdoc 内容
       const decoded = rawContent
@@ -470,11 +471,12 @@ function extractSrcdocAttrs(html: string): string {
       } else {
         console.error('[parseSafeHtml][PROD] extracted srcdoc, key:', storeKey.slice(0, 40), 'len:', decoded.length, 'hasHtml:', decoded.includes('<html'));
       }
-      return `data-th-srcdoc-id="${storeKey}"`;
+      return `${prefix}data-th-srcdoc-id="${storeKey}"`;
     }
   );
-  // 关键修复：用 /\b(?:data-)?srcdoc\b/ 精确匹配属性名，避免 data-th-srcdoc-id 触发 includes("srcdoc") 误诊
-  if (extractCount === 0 && /\b(?:data-)?srcdoc\b/i.test(html)) {
+  // 仅把标签开头或空白后的 srcdoc/data-srcdoc= 视为真实属性，
+  // 避免内部 data-th-srcdoc-id 中的单词片段触发误诊。
+  if (extractCount === 0 && /(?:^|[\s<])(?:data-)?srcdoc\s*=/i.test(html)) {
     // srcdoc 出现了但正则没有匹配上，输出诊断信息
     console.error('[parseSafeHtml][PROD] srcdoc present but regex MISSED. html snippet:', html.slice(0, 300));
   }
