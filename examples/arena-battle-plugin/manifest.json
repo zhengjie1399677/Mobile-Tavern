@@ -1,0 +1,12 @@
+{
+  "format": "mobile-tavern.plugin",
+  "manifestVersion": 1,
+  "id": "demo.astral-arena",
+  "name": "星穹对决",
+  "version": "1.0.0",
+  "type": "fullscreen",
+  "entry": "index.html",
+  "description": "一局三分钟的横屏战术对战，展示动画、音效、敌方 AI 与独立存档。",
+  "author": "Mobile Tavern",
+  "orientation": "landscape"
+}

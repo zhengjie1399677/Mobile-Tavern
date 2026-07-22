@@ -107,9 +107,9 @@ window.addEventListener("mobile-tavern:lifecycle", (event) => {
 Windows PowerShell 示例：
 
 ```powershell
-Compress-Archive -Path manifest.json,index.html,game.js,style.css,assets -DestinationPath example.zip
+tar.exe -a -c -f example.zip manifest.json index.html game.js style.css assets
 Rename-Item example.zip example.mtplugin
 ```
 
 必须让 `manifest.json` 和入口 HTML 位于 ZIP 根目录，不能把它们额外包在同名文件夹中。
-
+不要使用 Windows PowerShell 的 `Compress-Archive` 打包包含子目录的插件；它可能在 ZIP 中写入反斜杠路径，安全解析器会拒绝该包。

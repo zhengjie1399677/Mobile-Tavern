@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>星穹对决</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main id="game" aria-label="星穹对决战场">
+      <img class="backdrop" src="assets/sky-arena.png" alt="" />
+      <div class="vignette"></div>
+      <canvas id="fx"></canvas>
+
+      <header class="topbar">
+        <button id="leave" class="icon-button" aria-label="退出游戏">‹</button>
+        <div class="brand">
+          <span class="brand-kicker">ASTRAL PROTOCOL</span>
+          <strong>星穹对决</strong>
+        </div>
+        <div class="round"><span>回合</span><strong id="turn">1</strong></div>
+        <button id="sound" class="icon-button" aria-label="切换声音">♫</button>
+      </header>
+
+      <section class="battlefield">
+        <article class="fighter player" id="playerFighter">
+          <div class="status-card">
+            <div class="status-line"><div><small>漫游者</small><strong>星刃</strong></div><span class="level">LV.12</span></div>
+            <div class="meter hp"><i id="playerHp"></i><span id="playerHpText">100 / 100</span></div>
+            <div class="meter shield"><i id="playerShield"></i></div>
+          </div>
+          <div class="unit player-unit">
+            <div class="unit-shadow"></div><div class="orbit one"></div><div class="orbit two"></div>
+            <div class="wing left"></div><div class="core"></div><div class="wing right"></div>
+          </div>
+        </article>
+
+        <div class="versus"><span id="message">选择你的行动</span><div class="intent" id="intent">敌方正在分析……</div></div>
+
+        <article class="fighter enemy" id="enemyFighter">
+          <div class="status-card">
+            <div class="status-line"><div><small>裂隙守卫</small><strong>蚀月</strong></div><span class="level danger">BOSS</span></div>
+            <div class="meter hp enemy-hp"><i id="enemyHp"></i><span id="enemyHpText">120 / 120</span></div>
+            <div class="meter shield"><i id="enemyShield"></i></div>
+          </div>
+          <div class="unit enemy-unit">
+            <div class="unit-shadow"></div><div class="horn left"></div><div class="enemy-core"></div><div class="horn right"></div>
+          </div>
+        </article>
+      </section>
+
+      <footer class="command-deck">
+        <div class="energy-panel"><span>能量</span><div id="energyPips" class="energy-pips"></div></div>
+        <div class="skills">
+          <button class="skill" data-skill="strike"><span class="skill-icon strike-icon">✦</span><span><strong>星闪</strong><small>造成 16 点伤害</small></span><em>+1</em></button>
+          <button class="skill" data-skill="guard"><span class="skill-icon guard-icon">◇</span><span><strong>棱镜护盾</strong><small>获得 24 点护盾</small></span><em>2</em></button>
+          <button class="skill ultimate" data-skill="nova"><span class="skill-icon nova-icon">✹</span><span><strong>超新星</strong><small>穿透护盾的重击</small></span><em>4</em></button>
+        </div>
+        <div class="record"><span>最佳</span><strong id="record">--</strong></div>
+      </footer>
+
+      <section id="startScreen" class="modal-layer visible">
+        <div class="title-card">
+          <span class="eyebrow">MOBILE TAVERN // PLAYABLE PLUGIN</span>
+          <h1>星穹<br /><b>对决</b></h1>
+          <p>洞察敌方意图，在护盾与火力之间做出选择。</p>
+          <button id="start" class="primary-button">进入竞技场 <span>→</span></button>
+          <small id="continueHint"></small>
+        </div>
+      </section>
+
+      <section id="resultScreen" class="modal-layer">
+        <div class="result-card">
+          <span id="resultKicker" class="eyebrow">BATTLE COMPLETE</span>
+          <h2 id="resultTitle">胜利</h2>
+          <p id="resultText"></p>
+          <div class="result-stats"><div><span>回合</span><strong id="resultTurns">0</strong></div><div><span>连胜</span><strong id="resultWins">0</strong></div></div>
+          <button id="restart" class="primary-button">再战一局 <span>↻</span></button>
+        </div>
+      </section>
+
+      <div class="rotate-hint"><div>↻</div><strong>请横屏游玩</strong><span>旋转设备以展开竞技场</span></div>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
