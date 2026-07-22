@@ -13,6 +13,7 @@ await build({
   platform: "browser",
   target: ["chrome100", "safari15"],
   minify: true,
+  loader: { ".webp": "dataurl" },
   legalComments: "none",
   define: { __PIXI_VERSION__: JSON.stringify("8.18.1") },
 });

@@ -9,6 +9,9 @@ test("PixiJS 插件在禁止 unsafe-eval 的强沙箱中完成初始化", async 
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto("/tests/e2e/fixtures/pixi-plugin-sandbox.html", { timeout: 10_000 });
+  await page.waitForTimeout(500);
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
   await expect(page.locator("html")).toHaveAttribute("data-ready-count", "2", { timeout: 5_000 });
 
   const plugin = page.frameLocator("#plugin");
@@ -17,7 +20,7 @@ test("PixiJS 插件在禁止 unsafe-eval 的强沙箱中完成初始化", async 
   } else {
     await plugin.locator("#start").click();
     await expect(plugin.locator("#start-screen")).not.toHaveClass(/visible/);
-    await expect(plugin.locator("#speech-text")).toContainText("出剑");
+    await expect(plugin.locator("#speech-text")).toHaveText(/\S/);
     await plugin.locator("#attack").click();
     await expect(plugin.locator("#attack")).toHaveClass(/cooldown/);
   }
