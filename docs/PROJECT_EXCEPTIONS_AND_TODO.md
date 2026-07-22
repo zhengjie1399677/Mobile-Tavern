@@ -39,7 +39,7 @@
 
 ## 二、代办事项（按风险/难度排序）
 
-### 代办 1：useSendMessage.ts 拆分（需人工 QA 配合）
+### 条件性重构 1：useSendMessage.ts 拆分
 
 **文件**：[useSendMessage.ts](../src/hooks/useChat/useSendMessage.ts)（408 行）
 
@@ -52,6 +52,8 @@
 2. AbortController 生命周期跨多个异步步骤，拆分后可能提前 abort 或泄漏
 3. 3 个 useCallback 间有隐式依赖（通过 ref 共享），拆分后 ref 时机可能错位
 4. 错误恢复路径（5 个 try）拆分后异常冒泡可能改变
+
+**当前决策**：现有文件规模未触及硬上限，聊天主链路已经稳定且具备 `useSendMessage`、`useRerollMessage` 的流式回调、弱网恢复与 `AbortController` 定向测试，不主动为缩短文件而拆分。仅在新增职责导致边界失控或出现可复现缺陷时推进。
 
 **推进前置条件**：
 - 必须有人工 QA 配合：启动 dev server → 真机点击聊天发消息 → 验证流式生成 / 中止 / 错误恢复
@@ -75,7 +77,6 @@
 
 **缺失的覆盖**：
 - useCharacters / useCatbot 等 Hook 的单元测试（当前仅靠集成测试覆盖）
-- useSendMessage / useRerollMessage 的流式回调和 AbortController 行为测试
 - 跨组件数据流的契约测试
 
 **优先级**：中（补齐 Hook 层单元测试可降低未来拆分的回归风险）
