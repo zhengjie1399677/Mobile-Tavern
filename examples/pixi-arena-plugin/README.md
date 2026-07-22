@@ -1,6 +1,6 @@
 # 霓虹围城 PixiJS 示例
 
-这是一个可直接导入 Mobile Tavern 的实时横屏对战插件。它使用 PixiJS 8 的 WebGL 渲染器，演示触控移动、自动射击、弹幕、粒子效果、独立最高分存档和前后台暂停。
+这是一个可直接导入 Mobile Tavern 的实时横屏对战插件。它使用 PixiJS 8 的 WebGL 渲染器，演示触控移动、自动射击、弹幕、粒子效果、独立最高分存档和前后台暂停。源码显式引入 `pixi.js/unsafe-eval` 兼容模块，让 PixiJS 改用静态同步实现；宿主 CSP 仍不开放 `unsafe-eval`。
 
 ## 构建
 

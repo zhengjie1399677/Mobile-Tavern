@@ -1,0 +1,17 @@
+import { expect, test } from "@playwright/test";
+
+test("PixiJS 插件在禁止 unsafe-eval 的强沙箱中完成初始化", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  const pageErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.goto("/tests/e2e/fixtures/pixi-plugin-sandbox.html", { timeout: 10_000 });
+  await expect(page.locator("html")).toHaveAttribute("data-ready-count", "2", { timeout: 5_000 });
+
+  expect(consoleErrors.filter((message) => message.includes("unsafe-eval"))).toEqual([]);
+  expect(pageErrors.filter((message) => message.includes("unsafe-eval"))).toEqual([]);
+  await expect(page.getByTitle("PixiJS 插件强沙箱")).toHaveAttribute("sandbox", "allow-scripts");
+});

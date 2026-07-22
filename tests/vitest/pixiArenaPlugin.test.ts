@@ -7,6 +7,12 @@ import { parseFullscreenPluginPackage } from "../../src/domain/plugins";
 const exampleRoot = resolve("examples/pixi-arena-plugin");
 
 describe("霓虹围城 PixiJS 示例插件", () => {
+  it("显式启用无 unsafe-eval 环境的 PixiJS 静态兼容实现", () => {
+    const source = readFileSync(resolve(exampleRoot, "src/game.ts"), "utf8");
+
+    expect(source).toContain('import "pixi.js/unsafe-eval";');
+  });
+
   it("仓库内安装包可以被直接导入", () => {
     const packageBytes = readFileSync(resolve(exampleRoot, "pixi-neon-siege.mtplugin"));
     const plugin = parseFullscreenPluginPackage(new Uint8Array(packageBytes));

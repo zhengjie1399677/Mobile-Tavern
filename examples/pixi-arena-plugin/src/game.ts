@@ -1,3 +1,4 @@
+import "pixi.js/unsafe-eval";
 import { Application, Container, Graphics } from "pixi.js";
 
 type Shot = { view: Graphics; vx: number; vy: number; friendly: boolean; radius: number };
