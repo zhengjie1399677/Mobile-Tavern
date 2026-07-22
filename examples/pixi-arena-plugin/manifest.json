@@ -1,0 +1,12 @@
+{
+  "format": "mobile-tavern.plugin",
+  "manifestVersion": 1,
+  "id": "demo.pixi-neon-siege",
+  "name": "霓虹围城",
+  "version": "1.0.0",
+  "type": "fullscreen",
+  "entry": "index.html",
+  "description": "PixiJS 驱动的横屏触控弹幕对战，展示实时渲染、粒子、存档与生命周期。",
+  "author": "Mobile Tavern",
+  "orientation": "landscape"
+}
