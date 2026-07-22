@@ -1,4 +1,8 @@
 import type { ChatSession, Message } from "../../types";
+import type {
+  MemoryFragment,
+  MemoryFragmentStatus,
+} from "../../kernel/services/memory/types";
 import {
   bindTransactionAbort,
   enqueueWrite,
@@ -379,9 +383,10 @@ export async function replaceSessionBranch(
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(["sessions", "messages"], "readwrite");
+      const transaction = db.transaction(["sessions", "messages", "memory_fragments"], "readwrite");
       const sessionsStore = transaction.objectStore("sessions");
       const messagesStore = transaction.objectStore("messages");
+      const fragmentsStore = transaction.objectStore("memory_fragments");
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
@@ -421,6 +426,18 @@ export async function replaceSessionBranch(
             newMessages.forEach((message, index) => {
               messagesStore.put(toMessageRecord(session.id, message, branchStartTurnIndex + index));
             });
+
+            // 与消息分支使用同一权威轮次边界，避免旧分支事件泄漏到重发后的召回。
+            const fragmentIndex = fragmentsStore.index("sessionId");
+            const fragmentCursor = fragmentIndex.openCursor(IDBKeyRange.only(session.id));
+            fragmentCursor.onerror = () => reject(fragmentCursor.error);
+            fragmentCursor.onsuccess = () => {
+              const cursor = fragmentCursor.result;
+              if (!cursor) return;
+              const fragment = cursor.value as MemoryFragment;
+              if (fragment.sourceTurnEnd >= branchStartTurnIndex) cursor.delete();
+              cursor.continue();
+            };
           };
         };
 
@@ -658,6 +675,179 @@ export async function deleteDictEntryById(id: string, signal?: AbortSignal): Pro
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, `dict:${id}:delete`, signal);
+}
+
+// === Memory Fragments Store CRUD (v9 事件型长期记忆) ===
+
+export async function upsertFragment(
+  fragment: MemoryFragment,
+  signal?: AbortSignal
+): Promise<void> {
+  return enqueueWrite(async (ctx) => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("memory_fragments", "readwrite");
+      const request = transaction.objectStore("memory_fragments").put(fragment);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      bindTransactionAbort(ctx, transaction, reject);
+    });
+  }, `fragment:${fragment.id}`, signal);
+}
+
+export async function getFragmentById(id: string): Promise<MemoryFragment | null> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("memory_fragments", "readonly");
+    const request = transaction.objectStore("memory_fragments").get(id);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+  });
+}
+
+export async function getFragmentsBySession(sessionId: string): Promise<MemoryFragment[]> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("memory_fragments", "readonly");
+    const store = transaction.objectStore("memory_fragments");
+    const request = store.index("sessionId").getAll(IDBKeyRange.only(sessionId));
+    request.onsuccess = () => {
+      const result = (request.result || []) as MemoryFragment[];
+      result.sort((a, b) => b.sourceTurnEnd - a.sourceTurnEnd || b.updatedAt - a.updatedAt);
+      resolve(result);
+    };
+    request.onerror = () => reject(request.error);
+    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+  });
+}
+
+export async function getFragmentsByTags(
+  sessionId: string,
+  tags: string[],
+  limit?: number
+): Promise<MemoryFragment[]> {
+  if (tags.length === 0) return [];
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("memory_fragments", "readonly");
+    const store = transaction.objectStore("memory_fragments");
+    const index = store.index("tags");
+    const results: MemoryFragment[] = [];
+    const seen = new Set<string>();
+    let pending = tags.length;
+
+    tags.forEach((tag) => {
+      const request = index.getAll(IDBKeyRange.only(tag));
+      request.onsuccess = () => {
+        for (const fragment of request.result as MemoryFragment[]) {
+          if (
+            fragment.sessionId === sessionId &&
+            fragment.status === "active" &&
+            !seen.has(fragment.id)
+          ) {
+            seen.add(fragment.id);
+            results.push(fragment);
+          }
+        }
+        pending--;
+        if (pending === 0) {
+          results.sort((a, b) => b.sourceTurnEnd - a.sourceTurnEnd || b.updatedAt - a.updatedAt);
+          resolve(limit === undefined ? results : results.slice(0, limit));
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+  });
+}
+
+export async function supersedeFragment(
+  originalId: string,
+  replacement: MemoryFragment,
+  signal?: AbortSignal
+): Promise<void> {
+  return enqueueWrite(async (ctx) => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("memory_fragments", "readwrite");
+      const store = transaction.objectStore("memory_fragments");
+      const request = store.get(originalId);
+      request.onsuccess = () => {
+        const original = request.result as MemoryFragment | undefined;
+        if (!original) {
+          reject(new Error(`[memory_fragments] Fragment ${originalId} not found.`));
+          return;
+        }
+        const now = Date.now();
+        store.put({
+          ...original,
+          status: "superseded",
+          supersededById: replacement.id,
+          updatedAt: now,
+        });
+        store.put({
+          ...replacement,
+          supersedesId: originalId,
+          status: "active",
+          updatedAt: now,
+        });
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      bindTransactionAbort(ctx, transaction, reject);
+    });
+  }, `fragment:${originalId}:supersede`, signal);
+}
+
+export async function updateFragmentStatus(
+  id: string,
+  status: MemoryFragmentStatus,
+  signal?: AbortSignal
+): Promise<void> {
+  return enqueueWrite(async (ctx) => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("memory_fragments", "readwrite");
+      const store = transaction.objectStore("memory_fragments");
+      const request = store.get(id);
+      request.onsuccess = () => {
+        if (!request.result) {
+          return;
+        }
+        store.put({ ...request.result, status, updatedAt: Date.now() });
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      bindTransactionAbort(ctx, transaction, reject);
+    });
+  }, `fragment:${id}:status`, signal);
+}
+
+export async function deleteFragmentsBySession(
+  sessionId: string,
+  signal?: AbortSignal
+): Promise<void> {
+  return enqueueWrite(async (ctx) => {
+    const db = await getDB();
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("memory_fragments", "readwrite");
+      const store = transaction.objectStore("memory_fragments");
+      const request = store.index("sessionId").openCursor(IDBKeyRange.only(sessionId));
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        cursor.delete();
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      bindTransactionAbort(ctx, transaction, reject);
+    });
+  }, `fragments:${sessionId}:delete`, signal);
 }
 
 /**

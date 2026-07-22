@@ -31,6 +31,7 @@ export { MemoryStorage } from './MemoryStorage';
 export { MemoryExtractor, validateExtraction, extractByDict } from './MemoryExtractor';
 export type { ExtractionTask, ExtractionResult } from './MemoryExtractor';
 export { MemoryRecall } from './MemoryRecall';
+export { buildMemoryAuditSnapshot } from './MemoryAudit';
 export type { RecallOptions } from './MemoryRecall';
 export { MemoryStateTable } from './MemoryStateTable';
 export type { ParsedTableAction, ProcessTableResult } from './MemoryStateTable';

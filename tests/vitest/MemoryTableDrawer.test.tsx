@@ -130,6 +130,24 @@ describe("MemoryTableDrawer", () => {
     expect(screen.getByRole("tab", { name: "角色变量" })).toBeInTheDocument();
   });
 
+  it("唤醒记忆标签可加载事件记忆管理面板", async () => {
+    renderWithI18n(
+      <MemoryTableDrawer
+        isOpen={true}
+        onClose={onClose}
+        activeSession={makeSession()}
+        saveSession={saveSession}
+        charName="Alice"
+        enableTableMemory={true}
+        enableAutoSummary={true}
+        initialTab="recall"
+      />
+    );
+
+    expect(await screen.findByText("事件记忆")).toBeInTheDocument();
+    expect(screen.getByText(/可纠错、可失效/)).toBeInTheDocument();
+  });
+
   // ------------------------------------------------------------------
   // 无表数据时的兜底（准则五向前兼容）
   // ------------------------------------------------------------------

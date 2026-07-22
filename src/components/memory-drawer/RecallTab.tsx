@@ -6,17 +6,19 @@ import {
   Tag
 } from "lucide-react";
 import { useTranslation } from "../../contexts/LanguageContext";
-import type { RecalledMessage } from "../../kernel/services/memory/types";
+import type { MemoryAuditSnapshot, RecalledMessage } from "../../kernel/services/memory/types";
+import { MemoryFragmentsPanel } from "./MemoryFragmentsPanel";
 
 export interface RecallTabProps {
   activeSession: ChatSession;
   saveSession: (session: ChatSession) => Promise<void>;
   lastRecalledMemories: RecalledMessage[];
+  lastMemoryAudit: MemoryAuditSnapshot | null;
 }
 
-function RecallTab({ activeSession, saveSession, lastRecalledMemories }: RecallTabProps) {
+function RecallTab({ activeSession, saveSession, lastRecalledMemories, lastMemoryAudit }: RecallTabProps) {
   const { t } = useTranslation();
-  const lastRecalled = lastRecalledMemories;
+  const lastRecalled = lastRecalledMemories ?? [];
 
   // Pin (钉子) 逻辑交互
   const handleTogglePin = async (messageId: string) => {
@@ -68,6 +70,35 @@ function RecallTab({ activeSession, saveSession, lastRecalledMemories }: RecallT
         {t("recall_tab.info")}
       </div>
 
+      {lastMemoryAudit && (
+        <section className="rounded-xl border border-primary/20 bg-primary/[0.035] p-2.5">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div>
+              <h3 className="text-xs font-bold text-foreground">{t("recall_tab.packet_title")}</h3>
+              <p className="max-w-[16rem] truncate text-[9px] text-muted-foreground">{lastMemoryAudit.query || t("recall_tab.packet_empty_query")}</p>
+            </div>
+            <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-1 text-[9px] font-bold text-primary">
+              ≈ {lastMemoryAudit.totalEstimatedTokens} tokens
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {lastMemoryAudit.sources.map((source) => (
+              <div key={source.key} className={`rounded-lg border px-2 py-1.5 ${source.included ? "border-primary/20 bg-background/60" : "border-border/30 bg-muted/20 opacity-55"}`}>
+                <p className="text-[9px] font-bold text-foreground">{t({
+                  "memory.summaries": "memory_drawer.tab_timeline",
+                  "memory.recalled": "memory_drawer.tab_recall",
+                  "memory.tables": "memory_drawer.tab_table",
+                }[source.key])}</p>
+                <p className="mt-0.5 text-[8px] text-muted-foreground">
+                  {source.included ? t("recall_tab.packet_included") : source.dropped ? t("recall_tab.packet_dropped") : t("recall_tab.packet_not_included")}
+                  · {source.count}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {lastRecalled.length === 0 ? (
         <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 px-5 py-6 text-center text-muted-foreground">
           <BrainCircuit className="size-7 animate-pulse opacity-35" />
@@ -76,13 +107,14 @@ function RecallTab({ activeSession, saveSession, lastRecalledMemories }: RecallT
         </div>
       ) : (
         <div className="space-y-2">
-          {lastRecalled.map((msg: any) => {
-            const isPinned = (activeSession.pinnedMessageIds || []).includes(msg.messageId);
-            const isMuted = (activeSession.mutedMessageIds || []).includes(msg.messageId);
+          {lastRecalled.map((msg) => {
+            const memoryId = msg.memoryId || msg.messageId;
+            const isPinned = (activeSession.pinnedMessageIds || []).includes(memoryId);
+            const isMuted = (activeSession.mutedMessageIds || []).includes(memoryId);
 
             return (
               <div
-                key={msg.messageId}
+                key={memoryId}
                 className={`border rounded-xl p-3 flex flex-col gap-2 transition ${isPinned
                   ? "bg-primary/5 border-primary/45 shadow-sm"
                   : isMuted
@@ -93,18 +125,21 @@ function RecallTab({ activeSession, saveSession, lastRecalledMemories }: RecallT
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 border border-border/50 bg-muted rounded text-muted-foreground">
-                      {t("recall_tab.turn_label", { turn: msg.turnIndex + 1 })}
+                      {t("recall_tab.turn_label", { turn: String(msg.turnIndex + 1) })}
                     </span>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${msg.role === 'user' ? 'bg-primary/10 text-primary' : 'bg-card text-muted-foreground border border-border'
                       }`}>
                       {msg.role === 'user' ? t("recall_tab.role_user") : t("recall_tab.role_char")}
+                    </span>
+                    <span className="rounded bg-primary/5 px-1.5 py-0.5 text-[9px] font-bold text-primary">
+                      {msg.kind === "event" ? t("recall_tab.kind_event") : t("recall_tab.kind_message")}
                     </span>
                   </div>
 
                   {/* Row Actions: Pin or Mute */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
-                      onClick={() => handleTogglePin(msg.messageId)}
+                      onClick={() => handleTogglePin(memoryId)}
                       className={`p-1 rounded border transition ${isPinned
                         ? "bg-primary border-primary text-primary-foreground"
                         : "hover:bg-muted border-border/60 text-muted-foreground"
@@ -114,7 +149,7 @@ function RecallTab({ activeSession, saveSession, lastRecalledMemories }: RecallT
                       <Pin className="w-3 h-3" />
                     </button>
                     <button
-                      onClick={() => handleToggleMute(msg.messageId)}
+                      onClick={() => handleToggleMute(memoryId)}
                       className={`p-1 rounded border transition ${isMuted
                         ? "bg-destructive border-destructive text-destructive-foreground"
                         : "hover:bg-muted border-border/60 text-muted-foreground"
@@ -143,11 +178,17 @@ function RecallTab({ activeSession, saveSession, lastRecalledMemories }: RecallT
                     ))}
                   </div>
                 )}
+                <div className="flex items-center justify-between px-1 text-[8px] text-muted-foreground/70">
+                  <span>{t(`recall_tab.reason_${msg.reason || "tag"}`)}</span>
+                  <span>{t("recall_tab.score", { score: Number(msg.score || 0).toFixed(2) })}</span>
+                </div>
               </div>
             );
           })}
         </div>
       )}
+
+      <MemoryFragmentsPanel activeSession={activeSession} saveSession={saveSession} />
     </div>
   );
 }

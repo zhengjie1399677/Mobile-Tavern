@@ -15,7 +15,7 @@ import {
   CustomDialogConfig,
 } from "./contexts/AppContext";
 import type { IKernelService } from "./kernel/types";
-import type { RecalledMessage } from "./kernel/services/memory/types";
+import type { MemoryAuditSnapshot, RecalledMessage } from "./kernel/services/memory/types";
 import type { SettingsSaveState } from "./hooks/settings/useSettingsPersistence";
 
 export interface UnifiedAppContextProps {
@@ -191,6 +191,8 @@ export interface UnifiedAppContextProps {
   isBisonLocking: boolean;
   /** 当前会话最近一次记忆召回的瞬态快照，不进入 ChatSession 持久化。 */
   lastRecalledMemories: RecalledMessage[];
+  /** 当前会话最近一次实际 Prompt 记忆包的瞬态审计快照。 */
+  lastMemoryAudit: MemoryAuditSnapshot | null;
 
   /**
    * 通过内核统一获取已注册服务，代替组件内直接 import { globalKernel }。

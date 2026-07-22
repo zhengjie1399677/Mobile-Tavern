@@ -7,7 +7,7 @@
  *   3. 排除最近 N 轮上下文，返回 Top-K 记忆片段
  */
 
-import type { MessageRecord, MessageRole, RecalledMessage } from './types';
+import type { MemoryFragment, MessageRecord, RecalledMessage } from './types';
 import type { MemoryStorage } from './MemoryStorage';
 import { extractByDict } from './MemoryExtractor';
 import type { IDatabaseService } from '../../types';
@@ -39,6 +39,8 @@ export interface RecallOptions {
    * 未传入时自动从 messages Store 推断最后一条消息的 turnIndex + 1。
    */
   currentTurnIndex?: number;
+  /** 仅用于显式兼容场景；默认 false，避免无命中时注入无关旧消息。 */
+  allowWeakFallback?: boolean;
 }
 
 // ===== MemoryRecall 类 =====
@@ -58,7 +60,7 @@ export class MemoryRecall {
    * 流程：
    *   1. 加载会话词典，用 extractByDict 从当前消息提取查询标签
    *   2. 无查询标签且有 Pin → 仅召回 Pin 消息
-   *   3. 无查询标签且无 Pin → E-1 兜底：召回"最近 N 轮外的最新 1 条"
+   *   3. 无查询标签且无 Pin → 默认返回空；仅显式 allowWeakFallback 时弱召回一条
    *   4. 有查询标签 → 按标签查倒排索引获取候选集 + 打分 + 排除最近 N 轮 + 取 top-K
    *
    * @param sessionId 会话 ID
@@ -97,7 +99,7 @@ export class MemoryRecall {
     }
 
     if (queryTags.length === 0 && pinnedIds.length === 0) {
-      // E-1 修复：泛指问句召回兜底
+      if (options?.allowWeakFallback !== true) return [];
       const fallbackResult = await this.fallbackRecallRecent(sessionId, options);
       if (isDev) {
         console.log("[MemoryRecall] 走兜底路径，结果:", fallbackResult.length, "条");
@@ -166,6 +168,7 @@ export class MemoryRecall {
     if (mutedIds.includes(fallbackMsg.id)) return [];
 
     return [{
+      memoryId: fallbackMsg.id,
       messageId: fallbackMsg.id,
       turnIndex: fallbackMsg.turnIndex ?? 0,
       role: fallbackMsg.role,
@@ -173,6 +176,9 @@ export class MemoryRecall {
       hitCount: 0,
       hitTags: [],
       score: 0, // 兜底召回，未命中任何标签
+      kind: 'message',
+      reason: 'weak',
+      sourceMessageIds: [fallbackMsg.id],
     }];
   }
 
@@ -202,9 +208,16 @@ export class MemoryRecall {
 
     // 2. 粗召回：按标签查倒排索引（候选池 = topK × 倍率）
     const candidateLimit = topK * CANDIDATE_MULTIPLIER;
-    let candidates = tags.length > 0
-      ? await this.storage.getMessagesByTag(sessionId, tags, candidateLimit)
-      : [];
+    const [messageCandidates, fragmentCandidates] = await Promise.all([
+      tags.length > 0
+        ? this.storage.getMessagesByTag(sessionId, tags, candidateLimit)
+        : Promise.resolve([]),
+      tags.length > 0
+        ? this.storage.getFragmentsByTags(sessionId, tags, candidateLimit)
+        : Promise.resolve([]),
+    ]);
+    let candidates = messageCandidates;
+    let fragments = fragmentCandidates.filter((fragment) => fragment.status === 'active');
 
     // 2.5 强力 Pin / Mute 机制注入候选池与排除配置
     let sessionObj2: any = null;
@@ -218,9 +231,10 @@ export class MemoryRecall {
     const mutedIdSet = new Set(mutedIds);
 
     if (pinnedIds.length > 0) {
-      // 异步查出被用户强力置顶的 Pin 消息内容
-      const pinnedMsgsPromises = pinnedIds.map(id => this.storage.getMessageById(id));
-      const pinnedMsgs = (await Promise.all(pinnedMsgsPromises)).filter(Boolean);
+      const [pinnedMsgs, pinnedFragments] = await Promise.all([
+        Promise.all(pinnedIds.map(id => this.storage.getMessageById(id))).then(items => items.filter(Boolean)),
+        Promise.all(pinnedIds.map(id => this.storage.getFragmentById(id))).then(items => items.filter(Boolean)),
+      ]);
 
       // 合并到候选池并执行去重
       const candidateIds = new Set(candidates.map(c => c.id));
@@ -228,6 +242,10 @@ export class MemoryRecall {
         if (!candidateIds.has(msg.id)) {
           candidates.push(msg);
         }
+      });
+      const fragmentIds = new Set(fragments.map(fragment => fragment.id));
+      pinnedFragments.forEach(fragment => {
+        if (!fragmentIds.has(fragment.id) && fragment.status === 'active') fragments.push(fragment);
       });
     }
 
@@ -244,7 +262,7 @@ export class MemoryRecall {
       });
     }
 
-    if (candidates.length === 0) return [];
+    if (candidates.length === 0 && fragments.length === 0) return [];
 
     // 3. 获取最近 N 轮消息 ID（用于排除）
     const recentIds = await this.getRecentMessageIds(sessionId, excludeRecentN, currentTurnIndex);
@@ -252,7 +270,25 @@ export class MemoryRecall {
 
     // 4. 打分 + 排除 + 排序
     const scored = this.scoreCandidates(candidates, tags, currentTurnIndex, pinnedIds);
-    const filtered = scored.filter((s) => !recentIdSet.has(s.messageId) && !mutedIdSet.has(s.messageId));
+    const scoredFragments = this.scoreFragments(fragments, tags, currentTurnIndex, pinnedIds);
+    const recentThreshold = currentTurnIndex - excludeRecentN;
+    const fragmentById = new Map(fragments.map((fragment) => [fragment.id, fragment]));
+    const filteredFragments = scoredFragments.filter((item) => {
+      const fragment = fragmentById.get(item.memoryId);
+      if (!fragment) return false;
+      const isRecent = excludeRecentN > 0 && fragment.sourceTurnEnd >= recentThreshold;
+      return !isRecent && !mutedIdSet.has(item.memoryId);
+    });
+    const coveredSourceIds = new Set(filteredFragments.flatMap(item => item.sourceMessageIds));
+    const filteredMessages = scored.filter((item) =>
+      !recentIdSet.has(item.messageId) &&
+      !mutedIdSet.has(item.memoryId) &&
+      (!coveredSourceIds.has(item.messageId) || pinnedIds.includes(item.memoryId))
+    );
+    const filtered = [...filteredFragments, ...filteredMessages].sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.turnIndex - a.turnIndex;
+    });
 
     if (isDev) {
       console.log("[MemoryRecall] recallByTags 打分过滤:", {
@@ -341,6 +377,7 @@ export class MemoryRecall {
       const score = isPinned ? 9999 : (hitCount * decayFactor);
 
       scored.push({
+        memoryId: msg.id,
         messageId: msg.id,
         turnIndex: msg.turnIndex ?? 0,
         role: msg.role,
@@ -348,6 +385,9 @@ export class MemoryRecall {
         hitCount,
         hitTags,
         score,
+        kind: 'message',
+        reason: isPinned ? 'pin' : 'tag',
+        sourceMessageIds: [msg.id],
       });
     }
 
@@ -358,5 +398,43 @@ export class MemoryRecall {
     });
 
     return scored;
+  }
+
+  private scoreFragments(
+    fragments: MemoryFragment[],
+    queryTags: string[],
+    currentTurnIndex: number,
+    pinnedIds: string[] = []
+  ): RecalledMessage[] {
+    const queryTagSet = new Set(queryTags);
+    const scored: RecalledMessage[] = [];
+
+    for (const fragment of fragments) {
+      if (fragment.status !== 'active') continue;
+      const isPinned = pinnedIds.includes(fragment.id);
+      const hitTags = (fragment.tags ?? []).filter((tag) => queryTagSet.has(tag));
+      const hitCount = hitTags.length;
+      if (hitCount === 0 && !isPinned) continue;
+      const ageInTurns = Math.max(0, currentTurnIndex - fragment.sourceTurnEnd);
+      const decayFactor = 1 / (1 + ageInTurns / DECAY_HALF_LIFE_TURNS);
+      const importanceFactor = 0.75 + 0.25 * Math.max(0, Math.min(1, fragment.importance ?? 0.7));
+      scored.push({
+        memoryId: fragment.id,
+        messageId: fragment.sourceMessageIds[0] ?? fragment.id,
+        turnIndex: fragment.sourceTurnEnd,
+        role: fragment.sourceRole ?? 'assistant',
+        content: fragment.content,
+        hitCount,
+        hitTags,
+        score: isPinned ? 9999 : hitCount * decayFactor * importanceFactor,
+        kind: 'event',
+        reason: isPinned ? 'pin' : 'tag',
+        sourceMessageIds: fragment.sourceMessageIds,
+        importance: fragment.importance,
+        confidence: fragment.confidence,
+      });
+    }
+
+    return scored.sort((a, b) => b.score - a.score || b.turnIndex - a.turnIndex);
   }
 }

@@ -520,6 +520,7 @@ export async function testMemoryStorageCrud() {
     // 验证 Store 与索引已创建
     assert(stores.has("messages"), "messages Store should be created");
     assert(stores.has("memory_dict"), "memory_dict Store should be created");
+    assert(stores.has("memory_fragments"), "memory_fragments Store should be created");
     const messagesStore = stores.get("messages")!;
     assert(messagesStore.indexes.has("sessionId"), "messages: sessionId index created");
     assert(messagesStore.indexes.has("createdAt"), "messages: createdAt index created");
@@ -531,6 +532,10 @@ export async function testMemoryStorageCrud() {
     const dictStore = stores.get("memory_dict")!;
     assert(dictStore.indexes.has("sessionId"), "memory_dict: sessionId index created");
     assert(dictStore.indexes.has("entity"), "memory_dict: entity index created");
+    const fragmentsStore = stores.get("memory_fragments")!;
+    assert(fragmentsStore.indexes.has("sessionId"), "memory_fragments: sessionId index created");
+    assert(fragmentsStore.indexes.has("tags"), "memory_fragments: tags multiEntry index created");
+    assert(fragmentsStore.indexes.has("status"), "memory_fragments: status index created");
 
     // 3. 测试 messages Store CRUD
     const sessionId = "sess_test_1";
@@ -635,7 +640,31 @@ export async function testMemoryStorageCrud() {
     const dictList = await storage.getDictBySession(sessionId);
     assert(dictList.length === 2, "getDictBySession should return 2 entries");
 
-    // 5. 级联删除测试
+    // 5. 测试事件型记忆片段 CRUD 与会话隔离
+    await storage.upsertFragment({
+      id: "fragment_1",
+      sessionId,
+      content: "老张答应明日在城外会合",
+      participants: ["老张", "城外"],
+      tags: ["老张", "城外"],
+      sourceMessageIds: ["msg_2"],
+      sourceRole: "assistant",
+      sourceTurnStart: 1,
+      sourceTurnEnd: 1,
+      status: "active",
+      importance: 0.8,
+      confidence: 1,
+      createdAt: 2000,
+      updatedAt: 2000,
+    });
+    const fragment = await storage.getFragmentById("fragment_1");
+    assert(fragment?.content === "老张答应明日在城外会合", "Fragment content should persist");
+    const fragmentsBySession = await storage.getFragmentsBySession(sessionId);
+    assert(fragmentsBySession.length === 1, "Fragment query should be isolated by sessionId");
+    const fragmentsByTag = await storage.getFragmentsByTags(sessionId, ["老张"]);
+    assert(fragmentsByTag.length === 1, "Fragment should be recalled by tag");
+
+    // 6. 级联删除测试
     await storage.deleteMessagesBySession(sessionId);
     const afterDelete = await storage.getMessagesBySession(sessionId);
     assert(afterDelete.length === 0, "Messages should be deleted after deleteMessagesBySession");
@@ -644,7 +673,7 @@ export async function testMemoryStorageCrud() {
     const dictAfterDelete = await storage.getDictBySession(sessionId);
     assert(dictAfterDelete.length === 0, "Dict entries should be deleted after deleteDictBySession");
 
-    // 6. 销毁后访问应快速失败
+    // 7. 销毁后访问应快速失败
     storage.destroy();
     let threw = false;
     try {
@@ -766,10 +795,12 @@ export async function testMemoryServiceLifecycle() {
 function createMockStorage() {
   const messages = new Map<string, any>();
   const dict = new Map<string, any>();
+  const fragments = new Map<string, any>();
 
   return {
     _messages: messages,
     _dict: dict,
+    _fragments: fragments,
 
     async appendMessage(msg: any): Promise<void> {
       messages.set(msg.id, { ...msg });
@@ -806,6 +837,28 @@ function createMockStorage() {
         .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)); // 按时间倒序
       if (limit !== undefined && limit > 0) result = result.slice(0, limit);
       return result;
+    },
+
+    async upsertFragment(fragment: any): Promise<void> {
+      fragments.set(fragment.id, { ...fragment });
+    },
+
+    async getFragmentById(id: string): Promise<any | null> {
+      return fragments.get(id) ?? null;
+    },
+
+    async getFragmentsBySession(sessionId: string): Promise<any[]> {
+      return Array.from(fragments.values()).filter((fragment) => fragment.sessionId === sessionId);
+    },
+
+    async getFragmentsByTags(sessionId: string, tags: string[], limit?: number): Promise<any[]> {
+      const tagSet = new Set(tags);
+      const result = Array.from(fragments.values()).filter((fragment) =>
+        fragment.sessionId === sessionId &&
+        fragment.status === "active" &&
+        fragment.tags?.some((tag: string) => tagSet.has(tag))
+      );
+      return limit === undefined ? result : result.slice(0, limit);
     },
 
     async upsertDictEntry(
@@ -1398,6 +1451,7 @@ export async function testMemoryRecall() {
   const fallback = await recall6.recall("sess_fb", "还记得我们之前聊了什么吗？", {
     currentTurnIndex: 10,
     excludeRecentN: 5,
+    allowWeakFallback: true,
   });
 
   assert(fallback.length === 1, "兜底召回应返回 1 条消息");
@@ -1411,6 +1465,7 @@ export async function testMemoryRecall() {
   const fallbackNoExclude = await recall6.recall("sess_fb", "任意泛指问句", {
     currentTurnIndex: 10,
     excludeRecentN: 0,
+    allowWeakFallback: true,
   });
   assert(fallbackNoExclude.length === 1, "excludeRecentN=0 时仍兜底召回 1 条");
   assert(fallbackNoExclude[0].turnIndex === 9, "不排除时召回最新一条 (turnIndex=9)");
@@ -1420,6 +1475,7 @@ export async function testMemoryRecall() {
   const fallbackAdaptive = await recall6.recall("sess_fb", "泛指问句", {
     currentTurnIndex: 10,
     excludeRecentN: 20,
+    allowWeakFallback: true,
   });
   assert(fallbackAdaptive.length === 1, "自适应排除后应保留 1 条最旧消息");
   assert(fallbackAdaptive[0].turnIndex === 0, "自适应排除后召回 turnIndex=0 的消息");
@@ -1429,6 +1485,7 @@ export async function testMemoryRecall() {
   const fallbackColdStart = await recall6.recall("sess_fb", "泛指问句", {
     currentTurnIndex: 3,
     excludeRecentN: 5,
+    allowWeakFallback: true,
   });
   assert(fallbackColdStart.length === 1, "新会话冷启动应自适应召回 1 条");
   assert(fallbackColdStart[0].turnIndex === 0, "冷启动召回 turnIndex=0 的消息");

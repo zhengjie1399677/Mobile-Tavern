@@ -34,11 +34,12 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   enableAutoSummary,
   initialTab
 }) => {
-  const { setSessions, showCustomAlert, showCustomConfirm, lastRecalledMemories } = useUnifiedApp((state) => ({
+  const { setSessions, showCustomAlert, showCustomConfirm, lastRecalledMemories, lastMemoryAudit } = useUnifiedApp((state) => ({
     setSessions: state.setSessions,
     showCustomAlert: state.showCustomAlert,
     showCustomConfirm: state.showCustomConfirm,
     lastRecalledMemories: state.lastRecalledMemories,
+    lastMemoryAudit: state.lastMemoryAudit,
   }));
   const { t } = useTranslation();
   // 大 Tab 面板：'timeline' | 'table' | 'dict' | 'recall' | 'mvu'
@@ -177,6 +178,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
               activeSession={activeSession}
               saveSession={saveSession}
               lastRecalledMemories={lastRecalledMemories}
+              lastMemoryAudit={lastMemoryAudit}
             />
           )}
 

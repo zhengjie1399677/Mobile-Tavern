@@ -116,12 +116,16 @@ export const useBackupRestore = ({
           };
         })
       );
+      const memoryFragments = (await Promise.all(
+        dbSessions.map((session) => memoryService.getStorage().getFragmentsBySession(session.id))
+      )).flat();
 
       const payloadObj = {
         magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
-        version: 1,
+        version: 2,
         characters,
         sessions: completeSessions,
+        memoryFragments,
         settings: exportedSettings,
         globalLorebook,
         backupDate: new Date().toISOString(),
@@ -256,6 +260,31 @@ export const useBackupRestore = ({
           console.warn("Filtered out corrupted session entry during import:", s);
         }
       }
+      const validatedFragments = Array.isArray(parsed.memoryFragments)
+        ? parsed.memoryFragments.filter((fragment: any) =>
+            fragment &&
+            typeof fragment.id === "string" &&
+            typeof fragment.sessionId === "string" &&
+            typeof fragment.content === "string" &&
+            Array.isArray(fragment.sourceMessageIds)
+          ).map((fragment: any) => ({
+            ...fragment,
+            participants: Array.isArray(fragment.participants) ? fragment.participants : [],
+            tags: Array.isArray(fragment.tags) ? fragment.tags : [],
+            sourceRole: ["user", "assistant", "system"].includes(fragment.sourceRole)
+              ? fragment.sourceRole
+              : "assistant",
+            sourceTurnStart: Number.isInteger(fragment.sourceTurnStart) ? fragment.sourceTurnStart : 0,
+            sourceTurnEnd: Number.isInteger(fragment.sourceTurnEnd) ? fragment.sourceTurnEnd : 0,
+            status: ["active", "superseded", "invalid"].includes(fragment.status)
+              ? fragment.status
+              : "active",
+            importance: typeof fragment.importance === "number" ? fragment.importance : 0.7,
+            confidence: typeof fragment.confidence === "number" ? fragment.confidence : 1,
+            createdAt: typeof fragment.createdAt === "number" ? fragment.createdAt : Date.now(),
+            updatedAt: typeof fragment.updatedAt === "number" ? fragment.updatedAt : Date.now(),
+          }))
+        : [];
 
       const ok = await showCustomConfirm(
         "数据解密与格式校验成功！此备份覆盖将导致当前浏览器的本地全部状态清空，是否确认还原？",
@@ -287,6 +316,9 @@ export const useBackupRestore = ({
 
         await characterService.bulkSaveCharacters(validatedCharacters);
         await databaseService.bulkSaveSessions(validatedSessions);
+        await Promise.all(
+          validatedFragments.map((fragment: any) => memoryService.getStorage().upsertFragment(fragment))
+        );
         if (mergedSettings) await settingsService.saveStoredSettings(mergedSettings);
         if (parsed.globalLorebook)
           await worldbookService.saveGlobalLorebook(parsed.globalLorebook);
@@ -309,7 +341,7 @@ export const useBackupRestore = ({
     } finally {
       e.target.value = "";
     }
-  }, [backupPass, showCustomAlert, showCustomConfirm, setBackupStatus, setSettings, setGlobalLorebook, characterService, databaseService, settingsService, worldbookService]);
+  }, [backupPass, showCustomAlert, showCustomConfirm, setBackupStatus, setSettings, setGlobalLorebook, characterService, databaseService, settingsService, worldbookService, memoryService]);
 
   const handleImportSillyChatHistory = useCallback(async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -525,12 +557,16 @@ export const useBackupRestore = ({
           };
         })
       );
+      const memoryFragments = (await Promise.all(
+        dbSessions.map((session) => memoryService.getStorage().getFragmentsBySession(session.id))
+      )).flat();
 
       const payloadObj = {
         magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
-        version: 1,
+        version: 2,
         characters,
         sessions: completeSessions,
+        memoryFragments,
         settings: exportedSettings,
         globalLorebook,
         backupDate: new Date().toISOString(),

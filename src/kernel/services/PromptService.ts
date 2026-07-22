@@ -741,7 +741,7 @@ export class PromptService implements IPromptService {
     if (settings.memory?.enableRecall !== false) {
       memoryExtractionSection = `要求根据输出示例，在 <memory_extraction> 标签对应的位置提取本轮的新实体和事件，以帮助系统记录故事发展。
 格式要求：使用 <memory_extraction> 标签包裹一个极简的 JSON 对象，其中只能包含 "entities" 和 "events" 字段。必须是合法 JSON，不要添加任何多余文字。
-(注意：entities 和 events 均使用简单的一维字符串数组，不要嵌套复杂的对象！若本轮无新内容则输出空数组。)`;
+entities 项使用 {"name":"实体名","type":"character|location|item|organization|concept","first_seen":true|false}；events 项使用 {"summary":"简洁事实","participants":["相关实体"]}。若本轮无新内容则输出空数组。`;
     }
     builder.registerSection({
       id: "memory_extraction",
@@ -785,12 +785,11 @@ export class PromptService implements IPromptService {
     if (settings.memory?.enableRecall !== false) {
       outputExampleContent += `\n<memory_extraction>
 {
-  "entities": ["新出现的人物、地点、或物品等"],
+  "entities": [
+    {"name": "新出现的实体", "type": "character", "first_seen": true}
+  ],
   "events": [
-    "任务进展A",
-    "任务进展B",
-    "任务进展C",
-    "任务进展D"
+    {"summary": "某角色答应在约定地点完成某事", "participants": ["某角色", "约定地点"]}
   ]
 }
 </memory_extraction>\n`;

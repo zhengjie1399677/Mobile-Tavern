@@ -2,6 +2,8 @@ import type { IKernel, IKernelService } from "../../kernel/types";
 import {
   MEMORY_PERSISTENCE_SERVICE,
   type MemoryDictEntry,
+  type MemoryFragment,
+  type MemoryFragmentStatus,
   type MemoryPersistencePort,
   type MessageRecord,
 } from "../../kernel/services/memory/types";
@@ -17,6 +19,13 @@ import {
   getMessagesByTag,
   updateMessageExtraction,
   upsertDictEntry,
+  upsertFragment,
+  getFragmentById,
+  getFragmentsBySession,
+  getFragmentsByTags,
+  supersedeFragment,
+  updateFragmentStatus,
+  deleteFragmentsBySession,
 } from "./indexedDbMemoryStore";
 import { getDB } from "../../utils/localDB";
 
@@ -109,6 +118,46 @@ export class IndexedDbMemoryPersistenceService
 
   deleteDictEntryById(id: string, signal?: AbortSignal): Promise<void> {
     return deleteDictEntryById(id, this.resolveSignal(signal));
+  }
+
+  upsertFragment(fragment: MemoryFragment, signal?: AbortSignal): Promise<void> {
+    return upsertFragment(fragment, this.resolveSignal(signal));
+  }
+
+  getFragmentById(id: string): Promise<MemoryFragment | null> {
+    return getFragmentById(id);
+  }
+
+  getFragmentsBySession(sessionId: string): Promise<MemoryFragment[]> {
+    return getFragmentsBySession(sessionId);
+  }
+
+  getFragmentsByTags(
+    sessionId: string,
+    tags: string[],
+    limit?: number
+  ): Promise<MemoryFragment[]> {
+    return getFragmentsByTags(sessionId, tags, limit);
+  }
+
+  supersedeFragment(
+    originalId: string,
+    replacement: MemoryFragment,
+    signal?: AbortSignal
+  ): Promise<void> {
+    return supersedeFragment(originalId, replacement, this.resolveSignal(signal));
+  }
+
+  updateFragmentStatus(
+    id: string,
+    status: MemoryFragmentStatus,
+    signal?: AbortSignal
+  ): Promise<void> {
+    return updateFragmentStatus(id, status, this.resolveSignal(signal));
+  }
+
+  deleteFragmentsBySession(sessionId: string, signal?: AbortSignal): Promise<void> {
+    return deleteFragmentsBySession(sessionId, this.resolveSignal(signal));
   }
 
   private resolveSignal(external?: AbortSignal): AbortSignal | undefined {

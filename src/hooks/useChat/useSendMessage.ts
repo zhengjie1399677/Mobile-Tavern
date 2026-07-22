@@ -13,7 +13,8 @@ import {
 } from "./helpers";
 import { extractThinkContent } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
-import type { RecalledMessage } from "../../kernel/services/memory/types";
+import type { MemoryAuditSnapshot } from "../../kernel/services/memory/types";
+import { buildMemoryAuditSnapshot } from "../../kernel/services/memory/MemoryAudit";
 
 /**
  * Tavern 全局辅助 window 字段类型收口。
@@ -51,7 +52,9 @@ interface SendMessageParams {
   setIsSending: (v: boolean) => void;
   setIsBisonLocking: React.Dispatch<React.SetStateAction<boolean>>;
   setReplySuggestions: React.Dispatch<React.SetStateAction<string[]>>;
-  publishRecalledMemories: (sessionId: string, items: RecalledMessage[]) => void;
+  publishMemoryAudit?: (snapshot: MemoryAuditSnapshot) => void;
+  /** 迁移期兼容旧消费方；新代码应使用 publishMemoryAudit。 */
+  publishRecalledMemories?: (sessionId: string, items: MemoryAuditSnapshot["recalled"]) => void;
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
   databaseService: IDatabaseService;
   promptService: IPromptService;
@@ -245,9 +248,6 @@ export function useSendMessage(p: SendMessageParams) {
         console.warn("[useSendMessage] Memory recall failed:", err);
       }
 
-      // 召回快照属于聊天运行时状态，不得附加到 ChatSession 或进入持久化。
-      p.publishRecalledMemories(updatedSession.id, recalledMemories);
-
       const promptPayload = p.promptService.assemblePrompt({
         character: p.activeCharacter!,
         chat: updatedSession,
@@ -257,6 +257,18 @@ export function useSendMessage(p: SendMessageParams) {
         recalledMemories: recalledMemories,
         signal: controller.signal,
       });
+
+      // 审计快照以最终 Prompt 编排轨迹为准，只保留在当前聊天运行时。
+      const memoryAudit = buildMemoryAuditSnapshot({
+        session: updatedSession,
+        query: isBisonConsecutive ? "" : textToSend,
+        recalled: recalledMemories,
+        settings: p.settings,
+        traces: promptPayload.traces,
+        estimateTokens: (content) => p.promptService.estimateTokens(content),
+      });
+      if (p.publishMemoryAudit) p.publishMemoryAudit(memoryAudit);
+      else p.publishRecalledMemories?.(updatedSession.id, recalledMemories);
 
       // 放置 AI 消息占位符
       console.log("--- AI 发言流式开始 ---");

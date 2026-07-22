@@ -10,6 +10,8 @@ import type {
   MemoryPersistencePort,
   MessageRecord,
   MemoryDictEntry,
+  MemoryFragment,
+  MemoryFragmentStatus,
 } from './types';
 import { buildDictId } from './types';
 
@@ -203,6 +205,47 @@ export class MemoryStorage {
   async deleteDictEntry(id: string): Promise<void> {
     this.ensureInitialized();
     await this.persistence.deleteDictEntryById(id, this.getActiveSignal());
+  }
+
+  // ===== memory_fragments Store CRUD =====
+
+  async upsertFragment(fragment: MemoryFragment): Promise<void> {
+    this.ensureInitialized();
+    await this.persistence.upsertFragment(fragment, this.getActiveSignal());
+  }
+
+  async getFragmentById(id: string): Promise<MemoryFragment | null> {
+    this.ensureInitialized();
+    return this.persistence.getFragmentById(id);
+  }
+
+  async getFragmentsBySession(sessionId: string): Promise<MemoryFragment[]> {
+    this.ensureInitialized();
+    return this.persistence.getFragmentsBySession(sessionId);
+  }
+
+  async getFragmentsByTags(
+    sessionId: string,
+    tags: string[],
+    limit?: number
+  ): Promise<MemoryFragment[]> {
+    this.ensureInitialized();
+    return this.persistence.getFragmentsByTags(sessionId, tags, limit);
+  }
+
+  async supersedeFragment(originalId: string, replacement: MemoryFragment): Promise<void> {
+    this.ensureInitialized();
+    await this.persistence.supersedeFragment(originalId, replacement, this.getActiveSignal());
+  }
+
+  async updateFragmentStatus(id: string, status: MemoryFragmentStatus): Promise<void> {
+    this.ensureInitialized();
+    await this.persistence.updateFragmentStatus(id, status, this.getActiveSignal());
+  }
+
+  async deleteFragmentsBySession(sessionId: string): Promise<void> {
+    this.ensureInitialized();
+    await this.persistence.deleteFragmentsBySession(sessionId, this.getActiveSignal());
   }
 
   // ===== 内部方法 =====

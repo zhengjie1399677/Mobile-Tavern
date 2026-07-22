@@ -72,6 +72,32 @@ export interface MemoryDictEntry {
   updatedAt: number;
 }
 
+export type MemoryFragmentStatus = 'active' | 'superseded' | 'invalid';
+
+/**
+ * 从原始消息中提炼出的事件型长期记忆。
+ * 原始消息仍永久保留；片段只承载可召回、可纠错的简洁事实及其来源链。
+ */
+export interface MemoryFragment {
+  id: string;
+  sessionId: string;
+  content: string;
+  participants: string[];
+  tags: string[];
+  sourceMessageIds: string[];
+  sourceRole: MessageRole;
+  sourceTurnStart: number;
+  sourceTurnEnd: number;
+  status: MemoryFragmentStatus;
+  supersedesId?: string;
+  supersededById?: string;
+  importance: number;
+  confidence: number;
+  createdAt: number;
+  updatedAt: number;
+  lastUsedAt?: number;
+}
+
 /**
  * 记忆领域持久化端口。
  *
@@ -111,6 +137,21 @@ export interface MemoryPersistencePort {
   getDictBySession(sessionId: string): Promise<MemoryDictEntry[]>;
   deleteDictBySession(sessionId: string, signal?: AbortSignal): Promise<void>;
   deleteDictEntryById(id: string, signal?: AbortSignal): Promise<void>;
+  upsertFragment(fragment: MemoryFragment, signal?: AbortSignal): Promise<void>;
+  getFragmentById(id: string): Promise<MemoryFragment | null>;
+  getFragmentsBySession(sessionId: string): Promise<MemoryFragment[]>;
+  getFragmentsByTags(sessionId: string, tags: string[], limit?: number): Promise<MemoryFragment[]>;
+  supersedeFragment(
+    originalId: string,
+    replacement: MemoryFragment,
+    signal?: AbortSignal
+  ): Promise<void>;
+  updateFragmentStatus(
+    id: string,
+    status: MemoryFragmentStatus,
+    signal?: AbortSignal
+  ): Promise<void>;
+  deleteFragmentsBySession(sessionId: string, signal?: AbortSignal): Promise<void>;
 }
 
 /** LLM 抽取结果（L0 阶段产出） */
@@ -128,6 +169,8 @@ export interface MemoryExtraction {
 
 /** 召回结果项 */
 export interface RecalledMessage {
+  /** 统一记忆 ID；事件片段为 fragment.id，原始消息为 message.id。 */
+  memoryId: string;
   messageId: string;
   turnIndex: number;
   role: MessageRole;
@@ -138,6 +181,32 @@ export interface RecalledMessage {
   hitTags: string[];
   /** 评分（hitCount × 时间衰减） */
   score: number;
+  /** 召回内容类型与理由，供“本轮记忆包”审计。 */
+  kind: 'event' | 'message';
+  reason: 'tag' | 'pin' | 'weak';
+  sourceMessageIds: string[];
+  importance?: number;
+  confidence?: number;
+}
+
+export interface MemoryPacketSourceAudit {
+  key: 'memory.summaries' | 'memory.recalled' | 'memory.tables';
+  label: string;
+  included: boolean;
+  count: number;
+  characters: number;
+  estimatedTokens: number;
+  dropped?: boolean;
+}
+
+/** 最近一次真正参与 Prompt 组装的记忆包快照，只存在于运行时。 */
+export interface MemoryAuditSnapshot {
+  sessionId: string;
+  query: string;
+  createdAt: number;
+  recalled: RecalledMessage[];
+  sources: MemoryPacketSourceAudit[];
+  totalEstimatedTokens: number;
 }
 
 /** 流式解析器单次输出 */

@@ -11,7 +11,8 @@ import {
   getTrialCount, incrementTrialCount, extractThinkContent,
 } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
-import type { RecalledMessage } from "../../kernel/services/memory/types";
+import type { MemoryAuditSnapshot } from "../../kernel/services/memory/types";
+import { buildMemoryAuditSnapshot } from "../../kernel/services/memory/MemoryAudit";
 
 /**
  * Tavern 全局辅助 window 字段类型收口。
@@ -44,7 +45,9 @@ interface RerollMessageParams {
   setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   setIsSending: (v: boolean) => void;
   setReplySuggestions: React.Dispatch<React.SetStateAction<string[]>>;
-  publishRecalledMemories: (sessionId: string, items: RecalledMessage[]) => void;
+  publishMemoryAudit?: (snapshot: MemoryAuditSnapshot) => void;
+  /** 迁移期兼容旧消费方；新代码应使用 publishMemoryAudit。 */
+  publishRecalledMemories?: (sessionId: string, items: MemoryAuditSnapshot["recalled"]) => void;
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
   databaseService: IDatabaseService;
   promptService: IPromptService;
@@ -231,9 +234,6 @@ export function useRerollMessage(p: RerollMessageParams) {
         console.warn("[useRerollMessage] Memory recall failed:", err);
       }
 
-      // 召回快照属于聊天运行时状态，不得附加到 ChatSession 或进入持久化。
-      p.publishRecalledMemories(updatedSession.id, recalledMemories);
-
       console.log("[Reroll Debug] updatedSession messages:", JSON.stringify(updatedSession.messages.map(m => ({ id: m.id, sender: m.sender, content: m.content }))));
 
       const promptPayload = p.promptService.assemblePrompt({
@@ -245,6 +245,17 @@ export function useRerollMessage(p: RerollMessageParams) {
         recalledMemories: recalledMemories,
         signal: controller.signal,
       });
+
+      const memoryAudit = buildMemoryAuditSnapshot({
+        session: updatedSession,
+        query: lastUserText,
+        recalled: recalledMemories,
+        settings: p.settings,
+        traces: promptPayload.traces,
+        estimateTokens: (content) => p.promptService.estimateTokens(content),
+      });
+      if (p.publishMemoryAudit) p.publishMemoryAudit(memoryAudit);
+      else p.publishRecalledMemories?.(updatedSession.id, recalledMemories);
 
       console.clear();
       console.log("--- AI 发言重新生成流式开始 ---");

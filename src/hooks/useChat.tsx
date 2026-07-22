@@ -23,7 +23,7 @@ import {
   IChatStreamService, IMultiMessageService, IScriptService,
 } from "../kernel/types";
 import type { MemoryServiceTyped } from "../kernel/services/memory";
-import type { RecalledMessage } from "../kernel/services/memory/types";
+import type { MemoryAuditSnapshot } from "../kernel/services/memory/types";
 
 import { useChatUI } from "./useChat/useChatUI";
 import { useSessionManager } from "./useChat/useSessionManager";
@@ -62,14 +62,11 @@ export const useChat = (
   const memoryService = kernel.hasService("memory")
     ? kernel.getService<MemoryServiceTyped>("memory")
     : undefined;
-  const [recallSnapshot, setRecallSnapshot] = useState<{
-    sessionId: string | null;
-    items: RecalledMessage[];
-  }>({ sessionId: null, items: [] });
+  const [memoryAuditSnapshot, setMemoryAuditSnapshot] = useState<MemoryAuditSnapshot | null>(null);
 
   // 召回结果属于当前聊天运行时快照，不写入 ChatSession；切换会话时立即清空防止串话。
   useEffect(() => {
-    setRecallSnapshot({ sessionId: activeSessionId, items: [] });
+    setMemoryAuditSnapshot(null);
   }, [activeSessionId]);
 
   // ── 稳定 Ref 镜像（供异步回调安全读取最新值） ─────────────────────────────────
@@ -81,12 +78,15 @@ export const useChat = (
   activeSessionIdRef.current = activeSessionId;
   activeCharIdRef.current    = activeCharId;
 
-  const publishRecalledMemories = useCallback((sessionId: string, items: RecalledMessage[]) => {
-    if (activeSessionIdRef.current !== sessionId) return;
-    setRecallSnapshot({ sessionId, items });
+  const publishMemoryAudit = useCallback((snapshot: MemoryAuditSnapshot) => {
+    if (activeSessionIdRef.current !== snapshot.sessionId) return;
+    setMemoryAuditSnapshot(snapshot);
   }, []);
-  const lastRecalledMemories = recallSnapshot.sessionId === activeSessionId
-    ? recallSnapshot.items
+  const lastMemoryAudit = memoryAuditSnapshot?.sessionId === activeSessionId
+    ? memoryAuditSnapshot
+    : null;
+  const lastRecalledMemories = lastMemoryAudit
+    ? lastMemoryAudit.recalled
     : [];
 
   // ── 子 Hook 装配 ──────────────────────────────────────────────────────────────
@@ -145,7 +145,7 @@ export const useChat = (
     triggerScroll: ui.triggerScroll,
     databaseService, promptService, telemetryService, chatStreamService, multiMessageService,
     memoryService,
-    publishRecalledMemories,
+    publishMemoryAudit,
     showCustomAlert, draftsRef: ui.draftsRef,
   });
 
@@ -162,7 +162,7 @@ export const useChat = (
     setReplySuggestions: ui.setReplySuggestions,
     triggerScroll: ui.triggerScroll,
     databaseService, promptService, telemetryService, chatStreamService,
-    publishRecalledMemories,
+    publishMemoryAudit,
     showCustomAlert, showCustomConfirm,
   });
 
@@ -304,6 +304,7 @@ export const useChat = (
     setMsgMenuId: ui.setMsgMenuId,
     isBisonLocking: ui.isBisonLocking,
     lastRecalledMemories,
+    lastMemoryAudit,
     // 渲染
     renderDialogueBubble,
     // 兼容接口：保存会话并在有消息内容时触发 MVU 变量重解析
@@ -333,7 +334,7 @@ export const useChat = (
     ui.triggerScroll, ui.showSessionManager, ui.showFullHistory,
     ui.chatSubTab, ui.userInputMessage, ui.replySuggestions,
     ui.editingMsgId, ui.editingMsgContent, ui.msgMenuId, ui.isBisonLocking,
-    lastRecalledMemories,
+    lastRecalledMemories, lastMemoryAudit,
     renderDialogueBubble, databaseService,
   ]);
 };

@@ -346,8 +346,12 @@ export class MemoryExtractor {
     // L0: LLM 抽取
     if (task.memoryContent) {
       const parsed = validateExtraction(task.memoryContent);
-      if (parsed && parsed.entities.length > 0) {
-        tags = parsed.entities.map((e) => e.name);
+      if (parsed && (parsed.entities.length > 0 || parsed.events.length > 0)) {
+        const participantTags = parsed.events.flatMap((event) => event.participants);
+        tags = Array.from(new Set([
+          ...parsed.entities.map((e) => e.name),
+          ...participantTags,
+        ]));
         extractSource = 'llm';
         extraction = parsed;
       } else {
@@ -398,6 +402,12 @@ export class MemoryExtractor {
       } catch (e) {
         console.error("[MemoryExtractor] updateDictFromExtraction failed:", task.msgId, e);
       }
+
+      try {
+        await this.persistEventFragments(task, extraction);
+      } catch (e) {
+        console.error("[MemoryExtractor] persistEventFragments failed:", task.msgId, e);
+      }
     }
 
     return { tags, extractSource, extraction };
@@ -442,6 +452,7 @@ export class MemoryExtractor {
     task: ExtractionTask,
     extraction: MemoryExtraction
   ): Promise<void> {
+    const extractedNames = new Set(extraction.entities.map((entity) => entity.name));
     for (const entity of extraction.entities) {
       if (this.abortController?.signal.aborted) break;
       await this.storage.upsertDictEntry(task.sessionId, entity.name, {
@@ -449,6 +460,58 @@ export class MemoryExtractor {
         firstSeenMsgId: task.msgId,
         firstSeenTurn: task.turnIndex,
         aliases: [],
+      });
+    }
+    const participantNames = Array.from(new Set(
+      extraction.events.flatMap((event) => event.participants)
+    )).filter((name) => !extractedNames.has(name));
+    for (const participant of participantNames) {
+      if (this.abortController?.signal.aborted) break;
+      await this.storage.upsertDictEntry(task.sessionId, participant, {
+        type: 'concept',
+        firstSeenMsgId: task.msgId,
+        firstSeenTurn: task.turnIndex,
+        aliases: [],
+      });
+    }
+  }
+
+  /**
+   * 将 L0 事件写入独立分轨。确定性 ID 保证同一消息重复抽取时只会覆盖，不会产生重复记忆。
+   */
+  private async persistEventFragments(
+    task: ExtractionTask,
+    extraction: MemoryExtraction
+  ): Promise<void> {
+    const entityNames = extraction.entities.map((entity) => entity.name);
+    const now = Date.now();
+
+    for (let index = 0; index < extraction.events.length; index++) {
+      if (this.abortController?.signal.aborted) break;
+      const event = extraction.events[index];
+      const inferredEntities = entityNames.filter(
+        (name) => event.summary.includes(name) || task.message.includes(name),
+      );
+      const tags = Array.from(new Set([...event.participants, ...inferredEntities]));
+      const id = `${task.msgId}:event:${index}`;
+      const existing = await this.storage.getFragmentById(id);
+      // 用户纠错或手动失效的状态优先于重复抽取，不能被后台任务重新激活。
+      if (existing && existing.status !== 'active') continue;
+      await this.storage.upsertFragment({
+        id,
+        sessionId: task.sessionId,
+        content: event.summary,
+        participants: Array.from(new Set(event.participants)),
+        tags,
+        sourceMessageIds: [task.msgId],
+        sourceRole: task.role,
+        sourceTurnStart: task.turnIndex,
+        sourceTurnEnd: task.turnIndex,
+        status: 'active',
+        importance: 0.7,
+        confidence: 1,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
       });
     }
   }

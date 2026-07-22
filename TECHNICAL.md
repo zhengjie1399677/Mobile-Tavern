@@ -103,11 +103,12 @@ Mobile-Tavern
 │   │       ├── UpdateCheckService.ts         # 客户端热更新与版本状态校验服务
 │   │       ├── ImageGenerationService.ts     # AI 绘图代理与生成接口管理服务
 │   │       └── memory/                       # 下沉的官方统一长期记忆系统服务模块
-│   │           ├── MemoryService.ts          # 记忆服务主控类，挂载 6 大核心子模块
+│   │           ├── MemoryService.ts          # 记忆服务主控类，装配存储、抽取、召回、状态表与摘要
 │   │           ├── types.ts                  # 记忆持久化端口及领域服务令牌
 │   │           ├── MemoryStorage.ts          # 记忆碎片/总结底座数据库持久化子模块
 │   │           ├── MemoryExtractor.ts        # 大模型异步情感、年表、RPG 状态增量提取器
 │   │           ├── MemoryRecall.ts           # 记忆匹配、检索与级联载入中间件子模块
+│   │           ├── MemoryAudit.ts            # 最终 Prompt 记忆包运行时审计快照
 │   │           ├── MemoryStateTable.ts       # RPG 属性看板增量提取与分析子模块
 │   │           └── MemorySummary.ts          # 故事大纲自动提炼与年表总结子模块
 │   │
@@ -217,7 +218,7 @@ graph TB
 ### 核心数据流摘要
 
 1. **聊天主链路**：UI → `useChat` → `kernel.publish("chat:message_received")` → Pipeline 洋葱管道（敏感词 / 世界书 / MVU 脚本）→ `PromptService.assemblePrompt` → `LLMService.universalFetch` → SSE 字节流 → `ChatStreamService` 零丢包切分 → React 19 并发渲染。
-2. **持久化链路**：Services → `DatabaseService` → IndexedDB 三 Store（messages / memory_dict / sessions）+ 业务对象仓库（characters / dictionaries 等）；重启回载以最新优先读取分页，再由 `chatMessageHydration` 转换成界面时间正序。
+2. **持久化链路**：Services → `DatabaseService` / `MemoryPersistencePort` → IndexedDB 分轨 Store（sessions / messages / memory_dict / memory_fragments）+ 业务对象仓库（characters / dictionaries 等）；重启回载以最新优先读取分页，再由 `chatMessageHydration` 转换成界面时间正序。
 3. **重发链路**：UI 同步事务锁 → 截断内存工作副本 → Prompt 与流式生成 → `replaceSessionBranch` 按分支起点 `turnIndex` 清理旧尾部，并在 sessions/messages 两个 Store 内一次提交新尾部；纯失败或 Abort 恢复原会话，不产生中间态。
 4. **遥测链路**：前端事件 → Tauri IPC → `telemetry_queue.jsonl` 本地落盘 → Rust 后台线程批量取 STS + HMAC 签名 → SLS 仓库。
 5. **云端账号链路**：移动端 fetch HTTPS → `cloud/` 后端 axum 路由 → PostgreSQL（users / identities / refresh_tokens）+ Redis 会话。
@@ -790,7 +791,7 @@ graph TD
 *   `MultiMessageService` (multiMessage)：消息并发/多宇宙分支会话分发机制，支持多分支对话平行克隆与管理。
 *   `UpdateCheckService` (updateCheck)：提供客户端热更新与版本状态校验服务，基于 IP 限流和时间戳防重放校验。
 *   `ImageGenerationService` (imageGen)：AI 绘图代理与生成接口管理，集成前端自适应跨域代理与 SSRF 防御机制。
-*   `MemoryService` (memory)：统一的长期记忆系统，内含 6 大核心子模块，负责记忆持久化（storage）、大模型异步信息提取（extractor）、记忆检索召回（recall）、RPG 看板数据变动分析（stateTable）与前情概要总结（summary）。领域层只依赖 `MemoryPersistencePort`，具体 IndexedDB 实现由 bootstrap 注入；召回快照保存在 `useChat` 组合层并按 sessionId 隔离，不写入 `ChatSession`。
+*   `MemoryService` (memory)：统一的长期记忆系统，负责分轨持久化（storage）、大模型异步实体/事件提取（extractor）、消息与事件混合召回（recall）、RPG 看板（stateTable）及前情摘要（summary）。事件写入独立 `memory_fragments` Store，支持有效、被修订、失效三态并保留原始消息来源；领域层只依赖 `MemoryPersistencePort`。最终 Prompt 的记忆包审计快照保存在 `useChat` 组合层并按 `sessionId` 隔离，不写入 `ChatSession`。
 
 ### 7. 数据流向全景图 (Core Message Data Flow)
 
@@ -929,13 +930,13 @@ Schema 变更由领域纯函数统一处理：列重命名按稳定 ID 保留数
 #### 🏎️ 极速直连旁路测试 (Fast Path Bypass)
 *   **`testFastPathL3AutoSummaryIndex`** / **`testFastPathL2ContentPrescan`** / **`testFastPathL1PipelineBypass`**：验证 L1-L3 级极速发送通道，在纯文本无变量、无世界书命中、无需年表更新时，智能绕过繁冗的 Pipeline 和中间件栈，直连 API 的零延迟发信。
 
-#### 🧠 长期记忆金字塔系统 (Memory System v8)
+#### 🧠 长期记忆金字塔系统 (Memory System v9)
 *   **`testModelCapabilityRegistry`**：验证长期记忆的模型适配性校验。
 *   **`testMemoryStreamParser`**：验证大模型情感与 RPG 属性块的反序列化分段解析。
 *   **`testMemoryStorageCrud`**：验证记忆碎片与总结卡在分轨 Store 中的增删改查。
 *   **`testMemoryServiceLifecycle`**：测试长期记忆服务在内核启动/销毁时的资源装配与销毁。
 *   **`testMemoryExtractor`**：测试大模型提取情感标签、年表大纲与 RPG 变量变动。
-*   **`testMemoryRecall`**：测试标签倒排（Inverted Index）检索召回、世界设定级联与时间衰减评分。
+*   **`testMemoryRecall` / `MemoryFragments.test.ts`**：测试标签倒排、事件优先召回、无命中默认空结果、来源审计、时间衰减及 Prompt 预算裁剪状态。
 *   **`testMemoryStateTable`**：测试 RPG 状态看板数据的更新与增量物理落库。
 *   **`testTableMemorySchema`**：验证旧会话降级、稳定列 ID 迁移、字段类型与默认值、模板包防腐、LLM 类型化写入及非法值拒绝。
 *   **`testMemorySummary`**：验证会话剧情总结大纲压缩机制及首创的零侵入 brackets 标签提取降级。

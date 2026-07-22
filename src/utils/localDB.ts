@@ -29,7 +29,8 @@ type PersistedMessage = Message & {
 const DB_NAME = "MobileTavernLiteDB";
 // v7: 新增 sessions.createdAt 索引，支持按时间倒序分页加载（P0-1）
 // v8: 新增 messages 和 memory_dict Store，承载记忆系统物理分轨存储（AGENTS.md 准则一）
-const DB_VERSION = 8;
+// v9: 新增 memory_fragments Store，承载可纠错的事件型长期记忆
+const DB_VERSION = 9;
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -358,6 +359,18 @@ export function getDB(): Promise<IDBDatabase> {
         // 按实体名查询（跨会话去重场景）
         dictStore.createIndex("entity", "entity", { unique: false });
       }
+
+      if (!db.objectStoreNames.contains("memory_fragments")) {
+        const fragmentsStore = db.createObjectStore("memory_fragments", { keyPath: "id" });
+        fragmentsStore.createIndex("sessionId", "sessionId", { unique: false });
+        fragmentsStore.createIndex("tags", "tags", { unique: false, multiEntry: true });
+        fragmentsStore.createIndex("status", "status", { unique: false });
+        fragmentsStore.createIndex(
+          "sessionId_sourceTurnEnd",
+          ["sessionId", "sourceTurnEnd"],
+          { unique: false },
+        );
+      }
     };
   });
 }
@@ -466,18 +479,19 @@ export async function saveSession(session: ChatSession, signal?: AbortSignal): P
 }
 
 export async function deleteSession(id: string, signal?: AbortSignal): Promise<void> {
-  // 会话删除时级联清理 messages 和 memory_dict Store 的相关数据，使用单事务保证原子性
+  // 会话删除时级联清理所有记忆分轨，使用单事务保证原子性
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      // 跨 Store 事务：sessions + messages + memory_dict
+      // 跨 Store 事务：sessions + messages + memory_dict + memory_fragments
       const transaction = db.transaction(
-        ["sessions", "messages", "memory_dict"],
+        ["sessions", "messages", "memory_dict", "memory_fragments"],
         "readwrite"
       );
       const sessionsStore = transaction.objectStore("sessions");
       const messagesStore = transaction.objectStore("messages");
       const dictStore = transaction.objectStore("memory_dict");
+      const fragmentsStore = transaction.objectStore("memory_fragments");
 
       // 1. 删除会话主记录
       sessionsStore.delete(id);
@@ -503,6 +517,17 @@ export async function deleteSession(id: string, signal?: AbortSignal): Promise<v
         cursor.continue();
       };
       dictCursorReq.onerror = () => reject(dictCursorReq.error);
+
+      // 4. 删除事件型记忆片段
+      const fragmentIndex = fragmentsStore.index("sessionId");
+      const fragmentCursorReq = fragmentIndex.openCursor(IDBKeyRange.only(id));
+      fragmentCursorReq.onsuccess = () => {
+        const cursor = fragmentCursorReq.result;
+        if (!cursor) return;
+        cursor.delete();
+        cursor.continue();
+      };
+      fragmentCursorReq.onerror = () => reject(fragmentCursorReq.error);
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);

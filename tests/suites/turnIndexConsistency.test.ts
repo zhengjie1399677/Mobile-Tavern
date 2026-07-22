@@ -22,6 +22,9 @@ import {
   deleteMessageById,
   syncSessionMessages,
   replaceSessionBranch,
+  upsertFragment,
+  supersedeFragment,
+  updateFragmentStatus,
 } from "../../src/infrastructure/storage/indexedDbMemoryStore";
 
 /**
@@ -252,6 +255,16 @@ export async function testTurnIndexMultipleAppends() {
   console.log("✔ turnIndex multiple appends verified! (no duplicate across rounds)");
 }
 
+async function getSessionFragments(db: IDBDatabase, sessionId: string): Promise<any[]> {
+  const transaction = db.transaction("memory_fragments", "readonly");
+  const request = transaction.objectStore("memory_fragments").index("sessionId")
+    .getAll(IDBKeyRange.only(sessionId));
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 export async function testRerollBranchAtomicReplace() {
   console.log("\n--- Running Reroll Branch Atomic Replace Verification ---");
   __resetDBInstanceForTesting();
@@ -285,6 +298,45 @@ export async function testRerollBranchAtomicReplace() {
     createdAt: Date.now() + 9,
     turnIndex: 3,
   });
+  const makeFragment = (id: string, turn: number) => ({
+    id,
+    sessionId,
+    content: `事件 ${turn}`,
+    participants: [],
+    tags: ["测试"],
+    sourceMessageIds: [`reroll_old_${turn}`],
+    sourceRole: "assistant" as const,
+    sourceTurnStart: turn,
+    sourceTurnEnd: turn,
+    status: "active" as const,
+    importance: 0.7,
+    confidence: 1,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+  await upsertFragment(makeFragment("fragment_before_branch", 2));
+  await upsertFragment(makeFragment("fragment_in_old_branch", 4));
+  const correctedFragment = {
+    ...makeFragment("fragment_corrected", 2),
+    content: "修正后的事件",
+    supersedesId: "fragment_before_branch",
+  };
+  await supersedeFragment("fragment_before_branch", correctedFragment);
+  let correctionChain = await getSessionFragments(await getDB(), sessionId);
+  assert(
+    correctionChain.find((fragment) => fragment.id === "fragment_before_branch")?.status === "superseded",
+    "纠错必须保留原片段并标记为已被修订"
+  );
+  assert(
+    correctionChain.find((fragment) => fragment.id === "fragment_corrected")?.status === "active",
+    "纠错后的新片段必须成为有效记忆"
+  );
+  await updateFragmentStatus("fragment_corrected", "invalid");
+  correctionChain = await getSessionFragments(await getDB(), sessionId);
+  assert(
+    correctionChain.find((fragment) => fragment.id === "fragment_corrected")?.status === "invalid",
+    "事件片段必须支持显式失效"
+  );
 
   const replacement = {
     id: "reroll_new_assistant",
@@ -326,6 +378,10 @@ export async function testRerollBranchAtomicReplace() {
     "分支起点之后未列入 removedMessageIds 的孤儿回复也必须删除"
   );
   assert(savedMessages.some((message) => message.id === replacement.id), "新回复必须与删除操作同事务写入");
+  const savedFragments = await getSessionFragments(db, sessionId);
+  assert(savedFragments.some((fragment) => fragment.id === "fragment_before_branch"), "分支起点前的事件修订链必须保留");
+  assert(savedFragments.some((fragment) => fragment.id === "fragment_corrected"), "分支起点前的纠错片段必须保留");
+  assert(!savedFragments.some((fragment) => fragment.id === "fragment_in_old_branch"), "旧分支事件记忆必须与消息原子清理");
 
   const sessionRecord = await new Promise<any>((resolve, reject) => {
     const request = db.transaction("sessions", "readonly").objectStore("sessions").get(sessionId);
