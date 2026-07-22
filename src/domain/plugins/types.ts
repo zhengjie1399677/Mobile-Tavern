@@ -20,6 +20,7 @@ export interface InstalledFullscreenPlugin {
   installedAt: number;
   updatedAt: number;
   uncompressedSize: number;
+  builtin?: boolean;
 }
 
 export interface PluginSaveRecord {
@@ -29,4 +30,3 @@ export interface PluginSaveRecord {
   data: unknown;
   updatedAt: number;
 }
-

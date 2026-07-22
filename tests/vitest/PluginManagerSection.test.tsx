@@ -19,10 +19,13 @@ describe("PluginManagerSection", () => {
     });
   });
 
-  it("空状态展示本地安装入口和安全边界", async () => {
+  it("展示本地安装入口、安全边界和两个只读内置插件", async () => {
     render(<LanguageProvider><PluginManagerSection /></LanguageProvider>);
     expect(screen.getByRole("button", { name: "导入 .mtplugin" })).toBeInTheDocument();
     expect(screen.getByText(/隔离的全屏容器/)).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("尚未安装全屏插件")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("星渊终焉")).toBeInTheDocument());
+    expect(screen.getByText("夜雨试剑")).toBeInTheDocument();
+    expect(screen.getAllByText("内置")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /删除插件/ })).not.toBeInTheDocument();
   });
 });

@@ -119,3 +119,9 @@ Rename-Item example.zip example.mtplugin
 第一版不由宿主注入 PixiJS。插件应把实际使用的 PixiJS 模块通过 tree-shaking 打成单个经典 JavaScript 文件，以换取版本隔离、离线运行和可移植安装包；`examples/pixi-arena-plugin` 提供了 WebGL 实时对战示例和构建脚本。由于宿主 CSP 不开放 `unsafe-eval`，PixiJS 8 插件必须在初始化渲染器前引入 `pixi.js/unsafe-eval`，该官方兼容模块会改用静态同步实现，并不要求 CSP 增加 `unsafe-eval` 权限。
 
 多个插件分别携带 PixiJS 会重复占用安装存储，但不会因“已安装插件数量”线性占用运行内存，因为宿主同一时刻只运行一个全屏插件。宿主内置共享引擎主要节省磁盘、解压、解析和缓存成本，不会天然提高帧率，还会引入版本协商与兼容风险。只有在出现多个实际插件、重复引擎体积成为可测量问题后，才考虑增加可选且版本化的共享运行时；插件仍需保留自带回退能力。
+
+## 8. 内置示例
+
+正式安装包内置《星渊终焉》和《夜雨试剑》两个只读 PixiJS 示例。内置示例在构建期把与 `.mtplugin` 相同的 `manifest.json`、HTML、CSS 和经典 JavaScript 作为前端资源打包，运行时仍经过统一的 `createPluginRuntimeDocument` 强沙箱链路，不获得额外宿主权限。
+
+内置示例不能从插件管理页卸载；其存档继续使用独立 `MobileTavernPluginDB`，与用户安装插件和主应用数据物理隔离。用户安装同 ID 包时可临时覆盖内置版本，卸载覆盖包后恢复显示安装包自带版本。

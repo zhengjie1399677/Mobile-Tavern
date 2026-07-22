@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <title>星渊终焉</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="game-shell">
+    <div id="pixi-stage" aria-label="星渊终焉 PixiJS 战斗画布"></div>
+
+    <header id="hud">
+      <div class="pilot-panel">
+        <div class="micro">ASTRAL-07 // 光刃协议</div>
+        <div class="bar"><i id="player-hp"></i><em></em></div>
+        <div class="row"><strong>星梭</strong><span id="status">核心稳定</span></div>
+      </div>
+      <div class="encounter">
+        <div id="phase">PHASE 01</div>
+        <strong id="timer">00:00</strong>
+        <span id="rank">RANK C</span>
+      </div>
+      <div class="boss-panel">
+        <div class="micro">VOID SERAPH // 灾厄级</div>
+        <div class="bar boss"><i id="boss-hp"></i><em></em></div>
+        <div class="row"><span id="intent">观测</span><strong>虚空炽天使</strong></div>
+      </div>
+    </header>
+
+    <section id="score-panel">
+      <span>SCORE</span><strong id="score">000000</strong>
+      <div id="combo">×1.0</div>
+    </section>
+
+    <div id="warning"><span>WARNING</span><strong>空间曲率异常</strong></div>
+    <div id="phase-banner"><small>PHASE SHIFT</small><strong id="phase-name">虚空开眼</strong></div>
+    <div id="dialogue"><span>虚空炽天使</span><strong id="dialogue-text">渺小的光，也敢穿过终焉？</strong></div>
+
+    <button id="leave" class="top-button" aria-label="退出游戏">×</button>
+    <button id="pause" class="top-button pause" aria-label="暂停游戏">Ⅱ</button>
+
+    <section id="controls">
+      <div id="joystick" aria-label="移动摇杆"><i id="stick"></i><b></b></div>
+      <div class="ability-cluster">
+        <button id="overdrive" class="ability overdrive"><span>脉冲</span><small>超载齐射</small><i></i></button>
+        <button id="dash" class="ability dash"><span>相位</span><small>无伤穿越</small><i></i></button>
+        <button id="ultimate" class="ability ultimate"><span>终焉</span><small id="ultimate-charge">0%</small><i></i></button>
+      </div>
+    </section>
+
+    <section id="start-screen" class="overlay visible">
+      <div class="sigil"><i></i><b></b><em></em></div>
+      <p>ASTRAL RIFT // FINAL PROTOCOL</p>
+      <h1>星渊终焉</h1>
+      <h2>在奇点吞噬一切之前，击穿神明。</h2>
+      <button id="start">点燃星核</button>
+      <small>左侧摇杆移动 · 自动射击 · 脉冲增幅 · 相位闪避 · 满能量释放终焉</small>
+      <div id="record">尚无作战记录</div>
+    </section>
+
+    <section id="result-screen" class="overlay">
+      <p id="result-kicker">MISSION COMPLETE</p>
+      <h1 id="result-title">奇点，已贯穿。</h1>
+      <h2 id="result-copy"></h2>
+      <button id="restart">再次越过星渊</button>
+    </section>
+
+    <section id="portrait-lock">
+      <strong>请旋转设备</strong><span>星渊战斗需要横屏空间</span>
+    </section>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>

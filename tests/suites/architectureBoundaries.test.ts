@@ -89,6 +89,13 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "自由 Prompt 编排必须作为独立设置分类，不能继续嵌在预设提示词面板内"
   );
   assert(
+    settingsTab.indexOf('id: "composer"') < settingsTab.indexOf('id: "plugins"') &&
+      settingsTab.indexOf('id: "plugins"') < settingsTab.indexOf('id: "advanced"') &&
+      /case\s+["']plugins["']:[\s\S]*<PluginManagerSection\s*\/>/.test(settingsTab) &&
+      /id:\s*["']plugins["'][\s\S]*experimental:\s*true/.test(settingsTab),
+    "第三方插件必须作为编排后的独立实验性设置分类"
+  );
+  assert(
     !read("src/tabs/settings/MemoryStorageSection.tsx").includes("SystemReportSection") &&
       settingsTab.includes("SystemReportSection"),
     "系统报告必须归入独立的关于我们分类，不得继续混在记忆与数据中"

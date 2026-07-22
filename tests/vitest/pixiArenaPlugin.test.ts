@@ -19,7 +19,7 @@ describe("夜雨试剑 PixiJS 示例插件", () => {
 
     expect(plugin.manifest.id).toBe("demo.rain-sword-duel");
     expect(plugin.manifest.name).toBe("夜雨试剑");
-    expect(plugin.manifest.version).toBe("1.1.0");
+    expect(plugin.manifest.version).toBe("1.3.0");
     expect(plugin.manifest.orientation).toBe("landscape");
     expect(plugin.files["game.js"].byteLength).toBeGreaterThan(100_000);
     expect(new TextDecoder().decode(plugin.files["game.js"])).toContain("pixiReady");

@@ -1,0 +1,12 @@
+{
+  "format": "mobile-tavern.plugin",
+  "manifestVersion": 1,
+  "id": "demo.astral-rift",
+  "name": "星渊终焉",
+  "version": "1.0.0",
+  "type": "fullscreen",
+  "entry": "index.html",
+  "description": "高密度科幻弹幕 Boss 战：多阶段攻击、激光预警、相位闪避、连击与奇点终结技。",
+  "author": "Mobile Tavern",
+  "orientation": "landscape"
+}

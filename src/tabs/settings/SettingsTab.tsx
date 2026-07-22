@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ChevronRight,
   Database,
+  Gamepad2,
   Info,
   KeySquare,
   Loader2,
@@ -43,6 +44,7 @@ type SettingsSectionId =
   | "persona"
   | "memory"
   | "composer"
+  | "plugins"
   | "advanced"
   | "about";
 
@@ -51,6 +53,7 @@ interface SettingsSectionMeta {
   titleKey: string;
   descriptionKey: string;
   icon: React.ComponentType<{ className?: string }>;
+  experimental?: boolean;
 }
 
 const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
@@ -89,6 +92,13 @@ const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     titleKey: "settings_hub.composer_title",
     descriptionKey: "settings_hub.composer_desc",
     icon: Workflow,
+  },
+  {
+    id: "plugins",
+    titleKey: "plugin_manager.title",
+    descriptionKey: "plugin_manager.description",
+    icon: Gamepad2,
+    experimental: true,
   },
   {
     id: "advanced",
@@ -293,12 +303,12 @@ export default function SettingsTab() {
         );
       case "composer":
         return <PresetForm sections={["composer"]} />;
+      case "plugins":
+        return <PluginManagerSection />;
       case "advanced":
         return (
           <div className="space-y-2">
             <FeaturesSection settings={settings} updateSettings={updateSettings} />
-
-            <PluginManagerSection />
 
             <Card className="glass-panel shadow-sm border border-dashed border-primary/30">
               <CardContent className="p-3 flex items-center gap-3">
@@ -395,8 +405,15 @@ export default function SettingsTab() {
               <Icon className={compact ? "w-4 h-4" : "w-5 h-5"} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className={`${compact ? "text-[11px]" : "text-[12px]"} block font-bold text-foreground`}>
-                {t(section.titleKey)}
+              <span className="flex min-w-0 items-baseline gap-1.5">
+                <span className={`${compact ? "text-[11px]" : "text-[12px]"} truncate font-bold text-foreground`}>
+                  {t(section.titleKey)}
+                </span>
+                {section.experimental && (
+                  <span className="shrink-0 text-[8px] font-normal text-muted-foreground/75">
+                    {t("settings_hub.experimental")}
+                  </span>
+                )}
               </span>
               <span className={`${compact ? "text-[8.5px]" : "text-[9px]"} block text-muted-foreground truncate mt-0.5`}>
                 {t(section.descriptionKey)}
@@ -425,9 +442,16 @@ export default function SettingsTab() {
           <Settings className="w-4.5 h-4.5 text-primary" />
         )}
         <div className="min-w-0 flex-1">
-          <h1 className="text-base font-black text-foreground tracking-tight truncate">
-            {selectedMeta ? t(selectedMeta.titleKey) : t("nav.settings")}
-          </h1>
+          <div className="flex min-w-0 items-baseline gap-2">
+            <h1 className="truncate text-base font-black tracking-tight text-foreground">
+              {selectedMeta ? t(selectedMeta.titleKey) : t("nav.settings")}
+            </h1>
+            {selectedMeta?.experimental && (
+              <span className="shrink-0 text-[8px] font-normal text-muted-foreground/75">
+                {t("settings_hub.experimental")}
+              </span>
+            )}
+          </div>
           <p className="mt-0.5 truncate text-[10px] font-light text-muted-foreground">
             {selectedMeta ? t(selectedMeta.descriptionKey) : t("settings_hub.home_desc")}
           </p>

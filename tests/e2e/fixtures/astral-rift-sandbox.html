@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>星渊终焉强沙箱回归</title>
+  </head>
+  <body style="margin:0;background:#02030a;overflow:hidden">
+    <iframe id="plugin" title="星渊终焉强沙箱" sandbox="allow-scripts" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>
+    <script type="module">
+      import { createPluginRuntimeDocument, parseFullscreenPluginPackage } from "/src/domain/plugins/index.ts";
+
+      const frame = document.querySelector("#plugin");
+      const packageBytes = await fetch("/examples/astral-rift-plugin/astral-rift.mtplugin").then((response) => response.arrayBuffer());
+      const plugin = parseFullscreenPluginPackage(packageBytes);
+      const runtime = createPluginRuntimeDocument(plugin, "astral-rift-csp-regression");
+      const html = await fetch(runtime.url).then((response) => response.text());
+      let readyCount = 0;
+
+      window.addEventListener("message", (event) => {
+        const message = event.data;
+        if (event.source !== frame.contentWindow || message?.mtPlugin !== 1) return;
+        if (message.method === "host.ready") {
+          readyCount += 1;
+          document.documentElement.dataset.readyCount = String(readyCount);
+        }
+        const result = message.method === "storage.load"
+          ? null
+          : message.method === "host.ready"
+            ? { apiVersion: 1 }
+            : undefined;
+        event.source.postMessage({
+          mtPlugin: 1,
+          channel: message.channel,
+          type: "response",
+          requestId: message.requestId,
+          ok: true,
+          result,
+        }, "*");
+      });
+
+      frame.srcdoc = html;
+      window.addEventListener("pagehide", () => runtime.revoke(), { once: true });
+    </script>
+  </body>
+</html>

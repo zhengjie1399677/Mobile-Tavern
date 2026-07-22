@@ -3,7 +3,7 @@
   "manifestVersion": 1,
   "id": "demo.rain-sword-duel",
   "name": "夜雨试剑",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "type": "fullscreen",
   "entry": "index.html",
   "description": "生成式 2D 美术与 PixiJS 驱动的横屏武侠即时战斗，展示动作切换、智能控距、触控连招、弹反、雨幕与插件生命周期。",

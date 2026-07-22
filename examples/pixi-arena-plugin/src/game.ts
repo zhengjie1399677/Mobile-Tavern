@@ -1,24 +1,34 @@
 import "pixi.js/unsafe-eval";
-import { Application, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
+import { Application, Container, Graphics, Sprite, Texture } from "pixi.js";
 
 import backgroundUrl from "../assets/rain-bamboo-bg.webp";
-import heroSheetUrl from "../assets/hero-sheet.webp";
-import masterSheetUrl from "../assets/master-sheet.webp";
+import heroGuardUrl from "../assets/hero-guard.webp";
+import heroIdleUrl from "../assets/hero-idle.webp";
+import heroSlashUrl from "../assets/hero-slash.webp";
+import heroWalkUrl from "../assets/hero-walk.webp";
+import masterGuardUrl from "../assets/master-guard.webp";
+import masterIdleUrl from "../assets/master-idle.webp";
+import masterSlashUrl from "../assets/master-slash.webp";
+import masterWalkUrl from "../assets/master-walk.webp";
 
-type Pose = "idle" | "move" | "attack1" | "attack2" | "guard" | "hurt";
+type Pose = "idle" | "move" | "dash" | "attack1" | "attack2" | "guard" | "hurt";
 type Fighter = {
   root: Container;
   sprite: Sprite;
   textures: Record<Pose, Texture>;
+  anchors: Record<Pose, number>;
   x: number;
   y: number;
   vx: number;
   vy: number;
   face: number;
+  artFacing: number;
   hp: number;
   posture: number;
   invulnerable: number;
+  pose: Pose;
   poseTimer: number;
+  poseDuration: number;
   trail: number;
 };
 type Effect = { view: Graphics | Sprite; life: number; vx: number; vy: number; scale: number };
@@ -37,7 +47,6 @@ const scene = new Container();
 const world = new Container();
 const effects: Effect[] = [];
 const input = { x: 0, y: 0, active: false };
-const poseIndexes: Record<Pose, number> = { idle: 0, move: 1, attack1: 2, attack2: 3, guard: 4, hurt: 5 };
 const conversations = {
   opening: [
     ["沈孤鸿", "出剑。让我看看，这场雨教会了你什么。"],
@@ -89,12 +98,8 @@ let playerWhiffs = 0;
 let playerAttacks = 0;
 let playerParries = 0;
 
-function sheetTextures(base: Texture): Record<Pose, Texture> {
-  const width = base.source.width / 6;
-  return Object.fromEntries(Object.entries(poseIndexes).map(([pose, index]) => [pose, new Texture({
-    source: base.source,
-    frame: new Rectangle(Math.floor(index * width), 0, Math.ceil(width), base.source.height),
-  })])) as Record<Pose, Texture>;
+function actionTextures(idle: Texture, walk: Texture, slash: Texture, guard: Texture): Record<Pose, Texture> {
+  return { idle, move: walk, dash: idle, attack1: slash, attack2: slash, guard, hurt: idle };
 }
 
 async function loadTexture(url: string) {
@@ -104,21 +109,27 @@ async function loadTexture(url: string) {
   return Texture.from(image);
 }
 
-function makeFighter(textures: Record<Pose, Texture>, face: number): Fighter {
+function makeFighter(textures: Record<Pose, Texture>, anchors: Record<Pose, number>, face: number, artFacing: number): Fighter {
   const root = new Container();
   const shadow = new Graphics().ellipse(0, -4, 45, 10).fill({ color: 0x020706, alpha: .42 });
   const sprite = new Sprite(textures.idle);
-  sprite.anchor.set(.5, 1);
+  sprite.anchor.set(anchors.idle, 1);
   sprite.scale.set(.38);
   root.addChild(shadow, sprite);
   world.addChild(root);
-  return { root, sprite, textures, x: 0, y: 0, vx: 0, vy: 0, face, hp: 100, posture: 0, invulnerable: 0, poseTimer: 0, trail: 0 };
+  return { root, sprite, textures, anchors, x: 0, y: 0, vx: 0, vy: 0, face, artFacing, hp: 100, posture: 0, invulnerable: 0, pose: "idle", poseTimer: 0, poseDuration: 1, trail: 0 };
 }
 
 function pose(fighter: Fighter, next: Pose, duration = 0) {
   fighter.sprite.texture = fighter.textures[next];
+  fighter.sprite.anchor.x = fighter.anchors[next];
+  fighter.pose = next;
   fighter.poseTimer = duration;
+  fighter.poseDuration = Math.max(1, duration);
 }
+
+function groundY(_fighter: Fighter) { return 618; }
+function depthScale(_fighter: Fighter) { return 1; }
 
 function layoutBackground() {
   if (!background) return;
@@ -165,11 +176,12 @@ function slash(x: number, y: number, face: number, color: number, big = false) {
 
 function afterimage(fighter: Fighter) {
   const ghost = new Sprite(fighter.sprite.texture);
-  ghost.anchor.set(.5, 1);
-  ghost.scale.set(.38 * fighter.face, .38);
+  ghost.anchor.set(fighter.sprite.anchor.x, 1);
+  const scale = depthScale(fighter);
+  ghost.scale.set(.38 * fighter.face * fighter.artFacing * scale, .38 * scale);
   ghost.tint = fighter === player ? 0x8cc7b7 : 0xb85b4b;
   ghost.alpha = .22;
-  ghost.position.set(fighter.x - fighter.face * 12, fighter.y);
+  ghost.position.set(fighter.x - fighter.face * 12, groundY(fighter));
   world.addChildAt(ghost, 1);
   effects.push({ view: ghost, life: .38, vx: -fighter.face * 1.5, vy: 0, scale: 1 });
 }
@@ -179,7 +191,7 @@ function screenShake(power = 7) {
   scene.y = (Math.random() - .5) * power;
 }
 
-function distance(a: Fighter, b: Fighter) { return Math.hypot(a.x - b.x, (a.y - b.y) * .75); }
+function distance(a: Fighter, b: Fighter) { return Math.abs(a.x - b.x); }
 
 function say(speaker: string, text: string, hold = 260) {
   $("speech").querySelector(".speaker")!.textContent = speaker;
@@ -213,8 +225,8 @@ function hit(target: Fighter, amount: number, posture = 0) {
   target.posture = Math.min(100, target.posture + posture);
   target.invulnerable = target === player ? 32 : 11;
   pose(target, "hurt", 20);
-  spark(target.x, target.y - 70, target === master ? 0xf2c171 : 0xd9e8c1, 18, true);
-  ripple(target.x, target.y, target === master ? 0xd69b78 : 0x9bc9bf);
+  spark(target.x, groundY(target) - 70, target === master ? 0xf2c171 : 0xd9e8c1, 18, true);
+  ripple(target.x, groundY(target), target === master ? 0xd69b78 : 0x9bc9bf);
   screenShake(target === player ? 8 : 6);
   updateHud();
   if (target.hp <= 0) finish(target === master);
@@ -229,7 +241,7 @@ function startAttack() {
   playerAttacks += 1;
   pose(player, combo === 3 ? "attack2" : "attack1", attackTimer);
   player.vx += player.face * (combo === 3 ? 5.2 : 3);
-  slash(player.x + player.face * 45, player.y - 72, player.face, combo === 3 ? 0xf5c96f : 0xdce9bd, combo === 3);
+  slash(player.x + player.face * 45, groundY(player) - 72, player.face, combo === 3 ? 0xf5c96f : 0xdce9bd, combo === 3);
   if (distance(player, master) < 124) {
     hit(master, combo === 3 ? 9 : 5, combo === 3 ? 24 : 8);
     score += combo * 12;
@@ -253,8 +265,8 @@ function startDash() {
   player.vx = player.face * 14;
   player.vy *= .25;
   player.trail = 20;
-  pose(player, "move", 22);
-  ripple(player.x, player.y);
+  pose(player, "dash", 22);
+  ripple(player.x, groundY(player));
   say("无名剑客", "踏雨无痕！", 150);
 }
 
@@ -264,8 +276,8 @@ function startParry() {
   parryCooldown = 78;
   playerParries += 1;
   pose(player, "guard", 28);
-  spark(player.x + player.face * 18, player.y - 80, 0xf0d68c, 12);
-  if (playerParries === 1) say("无名剑客", "听雨。", 150);
+  spark(player.x + player.face * 18, groundY(player) - 80, 0xf0d68c, 12);
+  if (playerParries === 1) say("无名剑客", "格挡！", 150);
 }
 
 function chooseEnemyAction(range: number) {
@@ -298,20 +310,16 @@ function enemyLogic(delta: number) {
   master.face = player.x > master.x ? 1 : -1;
   enemyTimer -= delta;
   if (enemyPhase === "circle") {
-    const side = Math.sin(elapsed / 34) > 0 ? 1 : -1;
-    master.vy += side * .16 * delta;
     if (range > 220) master.vx += master.face * .12 * delta;
     if (range < 150) master.vx -= master.face * .12 * delta;
-    pose(master, Math.abs(master.vx) + Math.abs(master.vy) > .45 ? "move" : "idle");
+    pose(master, Math.abs(master.vx) > .45 ? "move" : "idle");
     if (enemyTimer <= 0) chooseEnemyAction(range);
   } else if (enemyPhase === "approach") {
     master.vx += master.face * .28 * delta;
-    master.vy += Math.sign(player.y - master.y) * .1 * delta;
     pose(master, "move");
     if (range < 190 || enemyTimer <= 0) chooseEnemyAction(range);
   } else if (enemyPhase === "retreat") {
     master.vx -= master.face * .34 * delta;
-    master.vy += (Math.random() > .5 ? 1 : -1) * .08 * delta;
     pose(master, "move");
     if (enemyTimer <= 0 || range > 230) chooseEnemyAction(range);
   } else if (enemyPhase === "feint") {
@@ -331,7 +339,7 @@ function enemyLogic(delta: number) {
     master.vx = master.face * (master.hp < 45 ? 18 : 16);
     master.trail = 22;
     pose(master, master.hp < 45 ? "attack2" : "attack1", 24);
-    slash(master.x, master.y - 72, master.face, 0xdf7654, true);
+    slash(master.x, groundY(master) - 72, master.face, 0xdf7654, true);
   } else if (enemyPhase === "lunge") {
     if (!enemyHitCommitted && range < 102 && enemyTimer < 13) {
       enemyHitCommitted = true;
@@ -341,7 +349,7 @@ function enemyLogic(delta: number) {
         master.vx *= -.35;
         master.posture = Math.min(100, master.posture + 44);
         pose(master, "hurt", 24);
-        spark(player.x, player.y - 72, 0xffe8a5, 30, true);
+        spark(player.x, groundY(player) - 72, 0xffe8a5, 30, true);
         screenShake(11);
         score += 60;
         sayFrom("parry");
@@ -437,17 +445,28 @@ function tickEffects(delta: number) {
 
 function updateFighter(fighter: Fighter, delta: number) {
   fighter.x += fighter.vx * delta;
-  fighter.y += fighter.vy * delta;
   fighter.vx *= dashTimer > 0 && fighter === player ? .91 : .82;
-  fighter.vy *= .82;
+  fighter.vy = 0;
   fighter.x = Math.max(40, Math.min(960, fighter.x));
-  fighter.y = Math.max(275, Math.min(455, fighter.y));
-  fighter.root.position.set(fighter.x, fighter.y);
-  fighter.root.scale.x = fighter.face;
+  fighter.root.position.set(fighter.x, groundY(fighter));
+  const scale = depthScale(fighter);
+  fighter.root.scale.set(fighter.face * fighter.artFacing * scale, scale);
   fighter.invulnerable = Math.max(0, fighter.invulnerable - delta);
   fighter.poseTimer = Math.max(0, fighter.poseTimer - delta);
   fighter.sprite.alpha = fighter.invulnerable > 0 && Math.floor(fighter.invulnerable / 3) % 2 === 0 ? .65 : 1;
-  if (fighter.poseTimer <= 0 && fighter === player) pose(fighter, Math.abs(input.x) + Math.abs(input.y) > .2 ? "move" : "idle");
+  if (fighter.poseTimer <= 0) {
+    const walking = Math.abs(fighter.vx) > .45;
+    const walkFrame = Math.floor(Math.abs(fighter.x) / 16) % 2 === 0 ? "move" : "idle";
+    pose(fighter, walking ? walkFrame : "idle");
+  }
+  fighter.sprite.position.set(0, 0);
+  fighter.sprite.rotation = 0;
+  fighter.sprite.scale.set(.38);
+  if (fighter.pose === "dash") {
+    fighter.sprite.rotation = .12 * fighter.artFacing;
+    fighter.sprite.x = 9 * fighter.artFacing;
+    fighter.sprite.scale.set(.41, .36);
+  }
   if (fighter.trail > 0) {
     fighter.trail -= delta;
     if (Math.floor(fighter.trail) % 3 === 0) afterimage(fighter);
@@ -459,17 +478,33 @@ async function boot() {
   $("pixi-stage").appendChild(app.canvas);
   app.canvas.setAttribute("aria-label", "夜雨竹林 PixiJS 武侠战斗画布");
   app.stage.addChild(scene);
-  const [backgroundTexture, heroTexture, masterTexture] = await Promise.all([
+  const [backgroundTexture, heroIdle, heroWalk, heroSlash, heroGuard, masterIdle, masterWalk, masterSlash, masterGuard] = await Promise.all([
     loadTexture(backgroundUrl),
-    loadTexture(heroSheetUrl),
-    loadTexture(masterSheetUrl),
+    loadTexture(heroIdleUrl),
+    loadTexture(heroWalkUrl),
+    loadTexture(heroSlashUrl),
+    loadTexture(heroGuardUrl),
+    loadTexture(masterIdleUrl),
+    loadTexture(masterWalkUrl),
+    loadTexture(masterSlashUrl),
+    loadTexture(masterGuardUrl),
   ]);
   background = new Sprite(backgroundTexture);
   background.anchor.set(.5);
   scene.addChild(background, world);
   rainLayer = makeRain();
-  player = makeFighter(sheetTextures(heroTexture), 1);
-  master = makeFighter(sheetTextures(masterTexture), -1);
+  player = makeFighter(
+    actionTextures(heroIdle, heroWalk, heroSlash, heroGuard),
+    { idle: .52, move: .53, dash: .52, attack1: .57, attack2: .57, guard: .53, hurt: .52 },
+    1,
+    1,
+  );
+  master = makeFighter(
+    actionTextures(masterIdle, masterWalk, masterSlash, masterGuard),
+    { idle: .62, move: .60, dash: .62, attack1: .56, attack2: .56, guard: .58, hurt: .62 },
+    -1,
+    -1,
+  );
   layoutBackground();
   window.addEventListener("resize", layoutBackground);
   reset();
@@ -501,19 +536,22 @@ async function boot() {
     parryTimer = Math.max(0, parryTimer - delta);
     parryCooldown = Math.max(0, parryCooldown - delta);
     player.vx += input.x * (dashTimer > 0 ? .18 : .58) * delta;
-    player.vy += input.y * (dashTimer > 0 ? .18 : .5) * delta;
+    player.vy = 0;
     if (Math.abs(input.x) > .1) player.face = input.x > 0 ? 1 : -1;
     enemyLogic(delta);
     updateFighter(player, delta);
     updateFighter(master, delta);
-    const scale = Math.min(1.08, Math.max(.8, 840 / Math.max(650, Math.abs(player.x - master.x) + 310)));
-    world.scale.set(scale);
-    world.position.set(app.screen.width / 2 - (player.x + master.x) / 2 * scale, app.screen.height * .73 - (player.y + master.y) / 2 * scale);
+    const worldScale = app.screen.height / 720;
+    world.scale.set(worldScale);
+    world.position.set((app.screen.width - 1000 * worldScale) / 2, 0);
     tickEffects(delta);
     dialogueTimer -= delta;
     if (dialogueTimer <= 0 && elapsed > 180 && Math.random() < .004) sayFrom("idle");
     if (elapsed > 190) $("hint").style.opacity = "0";
-    if (Math.random() < .02 && (Math.abs(player.vx) > 1.4 || Math.abs(master.vx) > 1.4)) ripple(Math.abs(player.vx) > Math.abs(master.vx) ? player.x : master.x, Math.abs(player.vx) > Math.abs(master.vx) ? player.y : master.y);
+    if (Math.random() < .02 && (Math.abs(player.vx) > 1.4 || Math.abs(master.vx) > 1.4)) {
+      const movingFighter = Math.abs(player.vx) > Math.abs(master.vx) ? player : master;
+      ripple(movingFighter.x, groundY(movingFighter));
+    }
     updateHud();
   });
   window.addEventListener("mobile-tavern:lifecycle", ((event: CustomEvent<"pause" | "resume">) => { pausedByLifecycle = event.detail === "pause"; }) as EventListener);

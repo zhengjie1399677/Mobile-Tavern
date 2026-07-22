@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Gamepad2, HardDriveDownload, Loader2, Play, Trash2, Upload } from "lucide-react";
 import { parseFullscreenPluginPackage, type InstalledFullscreenPlugin } from "../../domain/plugins";
 import { deletePlugin, installPlugin, listInstalledPlugins } from "../../infrastructure/plugins/pluginStorage";
+import { listBuiltinPlugins } from "../../infrastructure/plugins/builtinPlugins";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import FullscreenPluginRunner from "./FullscreenPluginRunner";
@@ -18,7 +19,13 @@ export default function PluginManagerSection() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
-    setPlugins(await listInstalledPlugins());
+    const packagedBuiltins = listBuiltinPlugins();
+    setPlugins(packagedBuiltins);
+    const installed = await listInstalledPlugins();
+    const installedById = new Map(installed.map((plugin) => [plugin.id, plugin]));
+    const builtins = packagedBuiltins.map((plugin) => installedById.get(plugin.id) ?? plugin);
+    const builtinIds = new Set(builtins.map((plugin) => plugin.id));
+    setPlugins([...builtins, ...installed.filter((plugin) => !builtinIds.has(plugin.id))]);
   }, []);
 
   useEffect(() => {
@@ -91,12 +98,15 @@ export default function PluginManagerSection() {
         ) : plugins.map((plugin) => (
           <article key={plugin.id} className="flex items-center gap-2 rounded-xl border border-border bg-background/80 p-2.5">
             <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-semibold">{plugin.manifest.name}</div>
+              <div className="flex min-w-0 items-baseline gap-1.5">
+                <div className="truncate text-xs font-semibold">{plugin.manifest.name}</div>
+                {plugin.builtin && <span className="shrink-0 text-[8px] text-primary/70">{t("plugin_manager.builtin")}</span>}
+              </div>
               <div className="mt-0.5 truncate font-mono text-[8.5px] text-muted-foreground">{plugin.id} · v{plugin.manifest.version}</div>
               {plugin.manifest.description && <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{plugin.manifest.description}</p>}
             </div>
             <button type="button" onClick={() => setRunning(plugin)} aria-label={t("plugin_manager.run_named", { name: plugin.manifest.name })} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary active:scale-95"><Play className="h-4 w-4" /></button>
-            <button type="button" onClick={() => void handleDelete(plugin)} aria-label={t("plugin_manager.delete_named", { name: plugin.manifest.name })} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-destructive/25 bg-destructive/5 text-destructive active:scale-95"><Trash2 className="h-4 w-4" /></button>
+            {!plugin.builtin && <button type="button" onClick={() => void handleDelete(plugin)} aria-label={t("plugin_manager.delete_named", { name: plugin.manifest.name })} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-destructive/25 bg-destructive/5 text-destructive active:scale-95"><Trash2 className="h-4 w-4" /></button>}
           </article>
         ))}
       </div>
