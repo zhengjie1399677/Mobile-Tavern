@@ -899,6 +899,8 @@ Schema 变更由领域纯函数统一处理：列重命名按稳定 ID 保留数
 *   **`testArchitectureBoundaries`**：静态扫描依赖方向、Context selector、瞬态召回隔离与核心文件行数，阻止业务代码污染底座。
 
 #### 🌀 版本修复、生命周期与插件机制 (Lifecycle & SPI)
+*   **第三方全屏插件 v1**：第三方 UI 不进入 React 组件树，也不复用 TavernHelper/MVU 的同源 iframe。`.mtplugin` 经 ZIP 中央目录、清单、路径、大小和压缩方式校验后写入独立 `MobileTavernPluginDB`；运行时包内资源映射为临时 Blob URL，入口加载于仅含 `allow-scripts` 的全屏 sandbox iframe，并注入禁止网络、子框架、对象和表单的 CSP。
+*   **受限宿主桥接**：插件通过带随机通道和请求 ID 的 `postMessage` RPC 使用存档、退出与方向控制；宿主同时校验 `event.source`、插件 ID、通道和方法白名单。插件无法获得 Kernel、Tauri、主 DOM、API 凭证及主数据库引用，关闭时回收 Blob URL、监听器并恢复自动旋转。
 *   **`testKernelKernelV2Fixes`**：验证 Kahn 拓扑依赖排序分配、环形依赖拦截、事件发布 Concurrency 控制。
 *   **`testKernelV3Fixes`**：测试内核卸载时注销空 Key 以及防 Symbol 探测死锁。
 *   **`testKernelV4AbortAndInterrupt`**：测试可选中间件 `interrupt()` 彻底熔断管道以及超时 Abort 取消挂起操作。

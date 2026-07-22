@@ -1,0 +1,12 @@
+{
+  "format": "mobile-tavern.plugin",
+  "manifestVersion": 1,
+  "id": "example.gal.demo",
+  "name": "最小 Gal 示例",
+  "version": "1.0.0",
+  "type": "fullscreen",
+  "entry": "index.html",
+  "description": "演示全屏运行、独立存档和方向控制。",
+  "author": "Mobile Tavern",
+  "orientation": "landscape"
+}

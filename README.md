@@ -68,6 +68,10 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 * 引入洋葱模型中间件管道（Pipeline）与具备优先级排序、并行分发和异常隔离的高能消息总线（MessageBus）。支持服务超时 Abort 熔断与非关键服务崩溃时返回 SafeProxy 的容错自愈。
 * 未注册 Pipeline 会立即报错，Kernel 通过 Provider 显式注入；React 视图统一以 selector 订阅最小状态切片，架构守卫持续阻止业务层反向依赖底座实现。
 
+### 9. 🎮 第三方全屏插件容器
+* 可从“设置 → 高级设置”本地导入 `.mtplugin` ZIP 包，并在隔离的全屏 `iframe` 中运行 HTML/CSS/JS Gal 游戏或独立微应用；插件包、配置和存档使用独立 `MobileTavernPluginDB`，不会污染主 settings/session。
+* 运行容器仅授予 `allow-scripts`，不授予同源、表单、弹窗、下载或导航能力；插件不能访问主应用 DOM、Kernel、API 凭证、网络或 Tauri，只能使用版本化宿主桥接进行存档、退出和方向控制。完整格式见 [第三方全屏插件规范](docs/Plugin_System_v1.md)。
+
 ### 9. 🧪 自动化集成测试套件 (Comprehensive Test Suite)
 * 当前主测试链包含 80 组功能套件与 348 项 Vitest 断言，覆盖物理 PNG 解码、SSRF 防御、自由 Prompt 编排、撤销重做、JSON 模板迁移与兼容防腐、Android 横屏及分享入口、状态 Schema 迁移、重启消息顺序、IndexedDB 分支尾部原子替换、十轮折叠边界重发、SafeProxy、洋葱管道严格模式及架构依赖边界。
 
