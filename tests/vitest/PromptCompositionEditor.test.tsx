@@ -155,6 +155,18 @@ describe("PromptCompositionEditor", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  it("可载入场景化预设，并把载入操作纳入撤销历史", () => {
+    render(<LanguageProvider><Harness /></LanguageProvider>);
+
+    fireEvent.click(screen.getByRole("button", { name: /轻量对话/ }));
+    expect(screen.getByTestId("composition-state")).toHaveTextContent("轻量对话");
+    expect(screen.getByTestId("composition-state")).toHaveTextContent("最近聊天历史");
+
+    fireEvent.click(screen.getByRole("button", { name: "撤销" }));
+    expect(screen.getByTestId("composition-state")).toHaveTextContent("编辑器测试");
+    expect(screen.getByTestId("composition-state")).toHaveTextContent("唯一消息");
+  });
+
   it("可搜索并在光标处插入数据源宏", async () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 

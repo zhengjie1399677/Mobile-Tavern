@@ -3,8 +3,10 @@ import type { ReactNode } from "react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import type {
   PromptComposition,
+  PromptCompositionScenePreset,
   PromptCompositionTemplateRecord,
 } from "../../domain/prompt-composition";
+import { listPromptCompositionScenePresets } from "../../domain/prompt-composition";
 import { PromptComposerButton } from "./PromptComposerControls";
 
 export default function PromptCompositionTemplateManager({
@@ -14,6 +16,7 @@ export default function PromptCompositionTemplateManager({
   onLoad,
   onDelete,
   onLoadBasic,
+  onLoadScene,
 }: {
   composition: PromptComposition;
   templates: PromptCompositionTemplateRecord[];
@@ -21,10 +24,12 @@ export default function PromptCompositionTemplateManager({
   onLoad: (template: PromptCompositionTemplateRecord) => void;
   onDelete: (template: PromptCompositionTemplateRecord) => void;
   onLoadBasic: () => void;
+  onLoadScene: (preset: PromptCompositionScenePreset, localizedName: string) => void;
 }) {
   const { t } = useTranslation();
   const userTemplates = templates.filter((template) => template.source === "user");
   const sillyTavernTemplates = templates.filter((template) => template.source === "external");
+  const scenePresets = listPromptCompositionScenePresets();
 
   return (
     <details className="rounded-xl border border-border bg-background/70 p-3">
@@ -45,6 +50,26 @@ export default function PromptCompositionTemplateManager({
           onLoad={onLoad}
           onDelete={onDelete}
         />
+        <section className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+            <BookOpen className="h-3.5 w-3.5" />{t("prompt_composer.template_group_scenes")}
+          </div>
+          {scenePresets.map((preset) => {
+            const name = t(`prompt_composer.scene_${preset.id}`);
+            return (
+              <PromptComposerButton
+                key={preset.id}
+                onClick={() => onLoadScene(preset, name)}
+                className="h-auto min-h-11 w-full flex-col items-start gap-0.5 bg-muted/20 px-3 py-2 text-left hover:border-primary/30"
+              >
+                <span className="text-xs font-semibold">{name}</span>
+                <span className="whitespace-normal text-[9px] font-normal leading-relaxed text-muted-foreground">
+                  {t(`prompt_composer.scene_${preset.id}_description`)}
+                </span>
+              </PromptComposerButton>
+            );
+          })}
+        </section>
         <TemplateGroup
           title={t("prompt_composer.template_group_user")}
           empty={t("prompt_composer.template_group_empty")}

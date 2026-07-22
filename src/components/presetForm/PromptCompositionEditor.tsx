@@ -338,6 +338,10 @@ export default function PromptCompositionEditor({
                 onLoad={loadTemplate}
                 onDelete={deleteTemplate}
                 onLoadBasic={() => updateComposition(createBasicPromptComposition())}
+                onLoadScene={(preset, localizedName) => {
+                  updateComposition({ ...structuredClone(preset.composition), name: localizedName });
+                  setEditingBlockId(undefined);
+                }}
               />
 
               <div className="flex gap-2">
