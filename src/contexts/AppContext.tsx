@@ -65,7 +65,19 @@ interface AppContextType {
   safeAreas: { top: number; bottom: number };
 }
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+const APP_CONTEXT_REGISTRY_KEY = "__MOBILE_TAVERN_APP_CONTEXT_V1__" as const;
+type AppContextRegistry = typeof globalThis & {
+  [APP_CONTEXT_REGISTRY_KEY]?: React.Context<AppContextType | undefined>;
+};
+
+// Vite Fast Refresh can evaluate a context module again while mounted providers
+// still reference the previous module instance. Keep the context identity stable
+// across module reloads so consumers never detach from an otherwise valid provider.
+const appContextRegistry = globalThis as AppContextRegistry;
+const AppContext =
+  appContextRegistry[APP_CONTEXT_REGISTRY_KEY] ??
+  createContext<AppContextType | undefined>(undefined);
+appContextRegistry[APP_CONTEXT_REGISTRY_KEY] = AppContext;
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTabState] = useState<TabType>(() => {

@@ -18,6 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const { execSync, spawnSync } = require('child_process');
 
 const ICON_PATH = path.join(__dirname, '..', 'app-icon.png');
 
@@ -135,14 +136,47 @@ function generateFallbackPng() {
 
 const SOURCE_LOGO_PATH = path.join(__dirname, '..', 'public', 'logo.png');
 
-let pythonCmd = 'python3';
-if (process.platform === 'win32') {
-  const venvPython = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
-  pythonCmd = fs.existsSync(venvPython) ? `"${venvPython}"` : 'py';
-} else {
-  const venvPython = path.join(__dirname, '..', '.venv', 'bin', 'python');
-  if (fs.existsSync(venvPython)) {
-    pythonCmd = `"${venvPython}"`;
+function resolvePythonCommand() {
+  const projectRoot = path.join(__dirname, '..');
+  const venvPython = process.platform === 'win32'
+    ? path.join(projectRoot, '.venv', 'Scripts', 'python.exe')
+    : path.join(projectRoot, '.venv', 'bin', 'python');
+  const candidates = [
+    process.env.MOBILE_TAVERN_PYTHON
+      ? { command: process.env.MOBILE_TAVERN_PYTHON, prefixArgs: [] }
+      : null,
+    fs.existsSync(venvPython) ? { command: venvPython, prefixArgs: [] } : null,
+    { command: 'python3', prefixArgs: [] },
+    { command: 'python', prefixArgs: [] },
+    ...(process.platform === 'win32'
+      ? [{ command: 'py', prefixArgs: ['-3'] }]
+      : []),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const probe = spawnSync(
+      candidate.command,
+      [...candidate.prefixArgs, '--version'],
+      { stdio: 'ignore', shell: false },
+    );
+    if (probe.status === 0) return candidate;
+  }
+  return null;
+}
+
+const pythonCommand = resolvePythonCommand();
+
+function runIconProcessor(phase) {
+  if (!pythonCommand) {
+    throw new Error('No usable Python 3 executable found.');
+  }
+  const result = spawnSync(
+    pythonCommand.command,
+    [...pythonCommand.prefixArgs, 'scripts/process_icon.py', String(phase)],
+    { cwd: path.join(__dirname, '..'), stdio: 'inherit', shell: false },
+  );
+  if (result.status !== 0) {
+    throw new Error(`process_icon.py phase ${phase} exited with code ${result.status}`);
   }
 }
 
@@ -150,8 +184,7 @@ let hasPython = false;
 if (isValidPng(SOURCE_LOGO_PATH)) {
   console.log(`✅ 检测到 public/logo.png 为有效新版 Logo，调用 scripts/process_icon.py Phase 1 生成大图作为打包源...`);
   try {
-    const { execSync } = require('child_process');
-    execSync(`${pythonCmd} scripts/process_icon.py 1`, { stdio: 'inherit', shell: true });
+    runIconProcessor(1);
     hasPython = true;
   } catch (err) {
     console.warn('⚠️ 调用 Python 处理图标 Phase 1 失败，回退到直接复制原始 Logo...', err.message);
@@ -171,7 +204,6 @@ if (!isValidPng(ICON_PATH)) {
 }
 
 // 执行 npx tauri icon 生成各种分辨率图标
-const { execSync } = require('child_process');
 console.log('Running npx tauri icon...');
 try {
   execSync('npx tauri icon', { stdio: 'inherit', shell: true });
@@ -184,7 +216,7 @@ try {
 if (hasPython) {
   console.log('Running scripts/process_icon.py Phase 2 to optimize adaptive foreground icons...');
   try {
-    execSync(`${pythonCmd} scripts/process_icon.py 2`, { stdio: 'inherit', shell: true });
+    runIconProcessor(2);
     console.log('✅ Adaptive foreground icons optimized successfully.');
   } catch (err) {
     console.error('Failed to run process_icon.py Phase 2:', err);

@@ -71,6 +71,36 @@ def main():
     elif phase == 2:
         # Phase 2: Overwrite only the adaptive foreground icons with a 60% scaled and transparent background logo
         print("[Phase 2] Overwriting adaptive foreground icons with padded transparent version...")
+
+        # Android adaptive icons split the background color and foreground artwork.
+        # The source logo is a complete square app icon, so using it directly here
+        # would render a smaller dark square inside circular/squircle launcher masks.
+        # Extract the luminous emblem from the dark source while retaining its soft
+        # antialiased edge and restrained bloom.
+        foreground_source = img.copy()
+        source_pixels = foreground_source.load()
+        for y in range(height):
+            for x in range(width):
+                pr, pg, pb, pa = source_pixels[x, y]
+                luminance = max(pr, pg, pb)
+                # Background stays below ~30; the emblem is substantially brighter.
+                # A soft ramp avoids jagged edges and preserves a small amount of glow.
+                matte = max(0, min(255, round((luminance - 22) * 255 / 78)))
+                source_pixels[x, y] = (pr, pg, pb, min(pa, matte))
+
+        strong_alpha = foreground_source.getchannel("A").point(
+            lambda alpha: 255 if alpha >= 48 else 0
+        )
+        emblem_bounds = strong_alpha.getbbox()
+        if emblem_bounds:
+            left, top, right, bottom = emblem_bounds
+            padding = round(max(right - left, bottom - top) * 0.03)
+            foreground_source = foreground_source.crop((
+                max(0, left - padding),
+                max(0, top - padding),
+                min(width, right + padding),
+                min(height, bottom + padding),
+            ))
         
         # Mipmap folder density sizes for ic_launcher_foreground.png
         densities = {
@@ -82,18 +112,23 @@ def main():
         }
         
         for folder, canvas_size in densities.items():
-            scale_factor = 0.60
+            scale_factor = 0.66
             target_logo_size = int(canvas_size * scale_factor)
-            
-            # Resize the original logo
-            resized_logo = img.resize((target_logo_size, target_logo_size), Image.Resampling.LANCZOS)
+
+            # Fit the cropped emblem into the adaptive safe zone without distorting it.
+            source_width, source_height = foreground_source.size
+            resize_ratio = min(target_logo_size / source_width, target_logo_size / source_height)
+            resized_width = max(1, round(source_width * resize_ratio))
+            resized_height = max(1, round(source_height * resize_ratio))
+            resized_logo = foreground_source.resize((resized_width, resized_height), Image.Resampling.LANCZOS)
             
             # Create a transparent canvas
             foreground_img = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
             
             # Center the logo on the transparent canvas
-            offset = (canvas_size - target_logo_size) // 2
-            foreground_img.paste(resized_logo, (offset, offset), resized_logo)
+            offset_x = (canvas_size - resized_width) // 2
+            offset_y = (canvas_size - resized_height) // 2
+            foreground_img.paste(resized_logo, (offset_x, offset_y), resized_logo)
             
             # Paths to update (both source icons and generated build res)
             paths_to_update = [
@@ -132,4 +167,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
