@@ -6,7 +6,7 @@ import { parseFullscreenPluginPackage } from "../../src/domain/plugins";
 
 const exampleRoot = resolve("examples/pixi-arena-plugin");
 
-describe("霓虹围城 PixiJS 示例插件", () => {
+describe("夜雨试剑 PixiJS 示例插件", () => {
   it("显式启用无 unsafe-eval 环境的 PixiJS 静态兼容实现", () => {
     const source = readFileSync(resolve(exampleRoot, "src/game.ts"), "utf8");
 
@@ -14,13 +14,15 @@ describe("霓虹围城 PixiJS 示例插件", () => {
   });
 
   it("仓库内安装包可以被直接导入", () => {
-    const packageBytes = readFileSync(resolve(exampleRoot, "pixi-neon-siege.mtplugin"));
+    const packageBytes = readFileSync(resolve(exampleRoot, "rain-sword-duel.mtplugin"));
     const plugin = parseFullscreenPluginPackage(new Uint8Array(packageBytes));
 
-    expect(plugin.manifest.id).toBe("demo.pixi-neon-siege");
+    expect(plugin.manifest.id).toBe("demo.rain-sword-duel");
+    expect(plugin.manifest.name).toBe("夜雨试剑");
     expect(plugin.manifest.orientation).toBe("landscape");
     expect(plugin.files["game.js"].byteLength).toBeGreaterThan(100_000);
     expect(new TextDecoder().decode(plugin.files["game.js"])).toContain("pixiReady");
-    expect(plugin.files["assets/sky-arena.png"].byteLength).toBeGreaterThan(1_000_000);
+    expect(new TextDecoder().decode(plugin.files["game.js"])).toContain("rain-sword-record");
+    expect(plugin.files["assets/sky-arena.png"]).toBeUndefined();
   });
 });

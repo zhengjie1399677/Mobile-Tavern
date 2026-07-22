@@ -3,45 +3,50 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <title>霓虹围城</title>
+    <title>夜雨试剑</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main id="game" aria-label="霓虹围城实时战场">
-      <img class="backdrop" src="assets/sky-arena.png" alt="" />
+    <main id="game" aria-label="夜雨竹林试剑">
       <div id="pixi-stage"></div>
+      <div class="grain"></div>
       <header class="hud">
-        <button id="leave" class="glass-button" aria-label="退出游戏">‹</button>
-        <div class="identity"><span>PIXI PROTOCOL // WEBGL</span><strong>霓虹围城</strong></div>
-        <div class="meters">
-          <label>机体 <i><b id="player-hp"></b></i></label>
-          <label class="boss">裂隙核心 <i><b id="boss-hp"></b></i></label>
-        </div>
-        <div class="score"><span>战果</span><strong id="score">000000</strong></div>
-        <button id="pause" class="glass-button" aria-label="暂停游戏">Ⅱ</button>
+        <button id="leave" class="round-button" aria-label="退出试剑">‹</button>
+        <section class="fighter-card player-card"><span>雨夜客</span><strong>无名剑客</strong><i><b id="player-hp"></b></i><small id="player-posture">气势 100</small></section>
+        <div class="versus"><span>夜雨竹林</span><b>试剑</b><small id="timer">00:00</small></div>
+        <section class="fighter-card enemy-card"><span>守关人</span><strong>沈孤鸿</strong><i><b id="boss-hp"></b></i><small id="boss-posture">破绽 0</small></section>
+        <button id="pause" class="round-button" aria-label="暂停试剑">Ⅱ</button>
       </header>
-      <footer class="controls">
-        <div><strong>拖动光标移动</strong><span>武器自动锁定 · 闪避弹幕积累能量</span></div>
-        <button id="burst" disabled><span>✦</span><strong>星爆</strong><small id="energy">0%</small></button>
-      </footer>
+      <section id="speech" class="speech" aria-live="polite"><span class="speaker">沈孤鸿</span><p id="speech-text">剑不在快，在于你敢不敢近身。</p></section>
+      <aside class="boss-intent"><span>招式</span><strong id="intent">观势</strong><i id="intent-bar"></i></aside>
+      <section class="controls" aria-label="战斗操作">
+        <div id="joystick" class="joystick" aria-label="移动摇杆"><i id="stick"></i><span>轻功走位</span></div>
+        <div class="skills">
+          <button id="attack" class="skill attack" aria-label="剑式连招"><b>剑</b><span>剑式</span></button>
+          <button id="dash" class="skill dash" aria-label="轻功突进"><b>◈</b><span>轻功</span></button>
+          <button id="parry" class="skill parry" aria-label="格挡弹反"><b>⊕</b><span>听雨</span></button>
+        </div>
+      </section>
+      <div id="hint" class="hint">左侧移动，右侧以剑式、轻功与听雨破招。</div>
       <section id="start-screen" class="overlay visible">
-        <div class="panel">
-          <span class="eyebrow">A REAL-TIME PIXIJS BATTLE</span>
-          <h1>霓虹<br /><em>围城</em></h1>
-          <p>指尖拖动星舰穿越弹幕。武器会自动开火，能量充满后释放星爆清场。</p>
-          <button id="start">启动连接 <b>→</b></button>
-          <small id="record">尚无作战记录</small>
+        <div class="title-card">
+          <span class="seal">MOBILE TAVERN · ACTION SHOWCASE</span>
+          <p>夜雨 · 竹林 · 试剑</p>
+          <h1>一剑<br /><em>听雨</em></h1>
+          <div class="rule"><i>轻功近身</i><i>见招弹反</i><i>连式破势</i></div>
+          <button id="start">入林试剑 <b>→</b></button>
+          <small id="record">首次交锋，胜负未定</small>
         </div>
       </section>
       <section id="result-screen" class="overlay">
-        <div class="panel compact">
-          <span class="eyebrow">CONNECTION CLOSED</span>
-          <h2 id="result-title">核心击破</h2>
+        <div class="title-card result-card">
+          <span class="seal" id="result-kicker">雨歇</span>
+          <h2 id="result-title">剑意初成</h2>
           <p id="result-copy"></p>
-          <button id="restart">再次出击 <b>↻</b></button>
+          <button id="restart">再试一剑 <b>↻</b></button>
         </div>
       </section>
-      <div class="rotate"><b>↻</b><strong>请横屏游玩</strong><span>旋转设备以展开战场</span></div>
+      <div class="rotate"><b>↻</b><strong>请横屏试剑</strong><span>旋转设备以展开竹林</span></div>
     </main>
     <script src="game.js"></script>
   </body>

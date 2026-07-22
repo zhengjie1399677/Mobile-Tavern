@@ -1,163 +1,218 @@
 import "pixi.js/unsafe-eval";
 import { Application, Container, Graphics } from "pixi.js";
 
-type Shot = { view: Graphics; vx: number; vy: number; friendly: boolean; radius: number };
-type Spark = { view: Graphics; vx: number; vy: number; life: number };
+type Fighter = {
+  root: Container;
+  body: Graphics;
+  sword: Graphics;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  face: number;
+  hp: number;
+  posture: number;
+  flash: number;
+  trail: number;
+};
+type Effect = { view: Graphics; life: number; vx: number; vy: number; scale: number };
 
 const previewSaves = new Map<string, unknown>();
 const api = window.MobileTavernPlugin ?? {
   exit: () => undefined,
   ready: async () => ({ apiVersion: 1 }),
-  save: async (slot: string, data: unknown) => { previewSaves.set(slot, structuredClone(data)); },
+  save: async (slot: string, data: unknown) => previewSaves.set(slot, structuredClone(data)),
   load: async (slot: string) => previewSaves.get(slot) ?? null,
-  deleteSave: async (slot: string) => { previewSaves.delete(slot); },
 };
-const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const app = new Application();
 const world = new Container();
-const shots: Shot[] = [];
-const sparks: Spark[] = [];
-let player!: Graphics;
-let boss!: Container;
-let running = false;
+const stage = new Container();
+const effects: Effect[] = [];
+const input = { x: 0, y: 0, active: false };
+let player: Fighter;
+let master: Fighter;
+let playing = false;
 let paused = false;
-let playerHp = 100;
-let bossHp = 100;
-let energy = 0;
+let elapsed = 0;
 let score = 0;
 let best = 0;
-let playerCooldown = 0;
-let bossCooldown = 0;
-let elapsed = 0;
+let attackTimer = 0;
+let combo = 0;
+let dashTimer = 0;
+let dashCooldown = 0;
+let parryTimer = 0;
+let parryCooldown = 0;
+let enemyPhase: "observe" | "telegraph" | "lunge" | "recover" = "observe";
+let enemyTimer = 100;
+let dialogueTimer = 0;
+let pausedByLifecycle = false;
 
-function ship(color: number) {
-  return new Graphics().poly([-22, 15, 0, -27, 22, 15, 8, 10, 0, 23, -8, 10]).fill({ color }).stroke({ color: 0xffffff, width: 1.4, alpha: .7 });
-}
-
-function makeBoss() {
+function makeFighter(color: number, accent: number, isMaster = false): Fighter {
   const root = new Container();
-  root.addChild(new Graphics().poly([-78, -12, -35, -32, 0, -18, 35, -32, 78, -12, 46, 4, 25, 28, 0, 12, -25, 28, -46, 4]).fill({ color: 0x28184c }).stroke({ color: 0xff5fa2, width: 3 }));
-  root.addChild(new Graphics().circle(0, 0, 18).fill({ color: 0xff4b99 }).circle(0, 0, 8).fill({ color: 0xffd0e2 }));
-  return root;
+  const body = new Graphics();
+  const sword = new Graphics();
+  const aura = new Graphics().circle(0, 9, 23).fill({ color: isMaster ? 0xbc4e3c : 0x648d72, alpha: .13 });
+  body.roundRect(-14, -25, 28, 46, 8).fill({ color }).poly([-22, 18, 0, 38, 22, 18, 13, 10, -13, 10]).fill({ color: accent });
+  body.circle(0, -34, 10).fill({ color: 0xe7c39b }).poly([-15, -42, 0, -57, 15, -42, 8, -35, -8, -35]).fill({ color: isMaster ? 0xe4e0cf : 0x182c29 });
+  body.moveTo(-8, -8).lineTo(-29, 10).stroke({ color: accent, width: 5, alpha: .75 });
+  sword.moveTo(8, -10).lineTo(46, -34).stroke({ color: 0xf5edd0, width: 3 }).moveTo(8, -10).lineTo(46, -34).stroke({ color: 0xffffff, width: 1 });
+  root.addChild(aura, body, sword);
+  world.addChild(root);
+  return { root, body, sword, x: 0, y: 0, vx: 0, vy: 0, face: 1, hp: 100, posture: 0, flash: 0, trail: 0 };
 }
 
-function addShot(x: number, y: number, vx: number, vy: number, friendly: boolean, radius = 5) {
-  const color = friendly ? 0x83f4ff : 0xff4c9a;
-  const view = new Graphics().circle(0, 0, radius).fill({ color }).circle(0, 0, radius * 2).fill({ color, alpha: .12 });
-  view.position.set(x, y); world.addChild(view); shots.push({ view, vx, vy, friendly, radius });
+function drawArena() {
+  const backdrop = new Graphics().rect(-900, -650, 2600, 1700).fill({ color: 0x081310 });
+  backdrop.rect(-900, -650, 2600, 510).fill({ color: 0x112b25, alpha: .9 });
+  backdrop.rect(-900, 300, 2600, 750).fill({ color: 0x0d1c18 });
+  world.addChild(backdrop);
+  for (let index = 0; index < 34; index += 1) {
+    const x = -700 + index * 76 + (index % 3) * 19;
+    const height = 340 + (index % 7) * 45;
+    const bamboo = new Graphics();
+    bamboo.moveTo(x, 360).lineTo(x + (index % 2 ? -35 : 35), 360 - height).stroke({ color: index % 2 ? 0x1b4437 : 0x173a31, width: 13, alpha: .88 });
+    for (let joint = 1; joint < 5; joint += 1) bamboo.moveTo(x - 7, 360 - joint * height / 5).lineTo(x + 7, 360 - joint * height / 5).stroke({ color: 0x547661, width: 2, alpha: .5 });
+    const leafX = x + (index % 2 ? -28 : 28);
+    bamboo.ellipse(leafX, 360 - height * .62, 55, 10).fill({ color: 0x345d46, alpha: .8 }).ellipse(leafX + 24, 360 - height * .7, 43, 8).fill({ color: 0x244a38, alpha: .8 });
+    world.addChild(bamboo);
+  }
+  const bridge = new Graphics().ellipse(350, 350, 760, 185).fill({ color: 0x12211c, alpha: .9 }).ellipse(350, 333, 620, 128).fill({ color: 0x20352b, alpha: .55 });
+  for (let plank = 0; plank < 19; plank += 1) bridge.moveTo(-210 + plank * 61, 255).lineTo(-225 + plank * 61, 405).stroke({ color: 0x48604d, width: 1, alpha: .45 });
+  world.addChild(bridge);
 }
 
-function burst(x: number, y: number, color: number, count = 18) {
+function rain() {
+  const layer = new Container();
+  for (let index = 0; index < 105; index += 1) {
+    const drop = new Graphics().moveTo(0, 0).lineTo(-5, 22).stroke({ color: 0xa8d7ce, width: 1, alpha: .3 + (index % 4) * .08 });
+    drop.position.set(-700 + Math.random() * 2100, -600 + Math.random() * 1150);
+    drop.label = String(2 + Math.random() * 4);
+    layer.addChild(drop);
+  }
+  world.addChild(layer);
+  return layer;
+}
+
+function spark(x: number, y: number, color: number, count = 12, strong = false) {
   for (let index = 0; index < count; index += 1) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 1.2 + Math.random() * 4.5;
-    const view = new Graphics().circle(0, 0, 1 + Math.random() * 2.2).fill({ color });
+    const view = new Graphics().circle(0, 0, strong ? 3 : 1.7 + Math.random() * 1.5).fill({ color });
     view.position.set(x, y); world.addChild(view);
-    sparks.push({ view, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 1 });
+    effects.push({ view, life: 1, vx: Math.cos(angle) * (strong ? 6 : 2 + Math.random() * 3), vy: Math.sin(angle) * (strong ? 6 : 2 + Math.random() * 3), scale: 1 });
   }
 }
 
-function updateHud() {
-  byId("player-hp").style.width = `${playerHp}%`;
-  byId("boss-hp").style.width = `${bossHp}%`;
-  byId("score").textContent = String(score).padStart(6, "0");
-  byId("energy").textContent = `${Math.floor(energy)}%`;
-  byId<HTMLButtonElement>("burst").disabled = energy < 100 || !running || paused;
+function slash(x: number, y: number, face: number, color: number, big = false) {
+  const view = new Graphics().arc(0, 0, big ? 78 : 48, face > 0 ? -.9 : Math.PI - .9, face > 0 ? 1.3 : Math.PI + 1.3).stroke({ color, width: big ? 8 : 5, alpha: .94 });
+  view.position.set(x, y); world.addChild(view); effects.push({ view, life: .48, vx: 0, vy: 0, scale: big ? 1.35 : 1.12 });
 }
 
-function removeShot(index: number) { const [shot] = shots.splice(index, 1); shot.view.destroy(); }
-function distance(a: { x: number; y: number }, b: { x: number; y: number }) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function screenShake(power = 7) { stage.x = (Math.random() - .5) * power; stage.y = (Math.random() - .5) * power; }
+function distance(a: Fighter, b: Fighter) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function say(speaker: string, text: string) { $("speech").querySelector(".speaker")!.textContent = speaker; $("speech-text").textContent = text; dialogueTimer = 240; }
 
-function finish(victory: boolean) {
-  running = false;
-  best = Math.max(best, score);
-  void api.save("pixi-record", { best });
-  byId("result-title").textContent = victory ? "核心击破" : "连接中断";
-  byId("result-copy").textContent = `本次战果 ${score}，最高记录 ${best}。`;
-  byId("result-screen").classList.add("visible");
-  updateHud();
+function updateHud() {
+  $("player-hp").style.width = `${Math.max(0, player.hp)}%`;
+  $("boss-hp").style.width = `${Math.max(0, master.hp)}%`;
+  $("player-posture").textContent = dashCooldown > 0 ? `轻功回气 ${Math.ceil(dashCooldown / 12)}` : `气势 ${Math.round(player.hp)}`;
+  $("boss-posture").textContent = master.posture > 0 ? `破绽 ${Math.round(master.posture)}` : "气势如山";
+  const seconds = Math.floor(elapsed / 60); $("timer").textContent = `00:${String(seconds).padStart(2, "0")}`;
+  const labels = { observe: "观势", telegraph: "孤鸿落", lunge: "剑啸", recover: "收剑" };
+  $("intent").textContent = labels[enemyPhase];
+  $("intent-bar").style.transform = `scaleX(${enemyPhase === "telegraph" ? Math.min(1, enemyTimer / 75) : enemyPhase === "lunge" ? 1 : .12})`;
+  $("attack").classList.toggle("cooldown", attackTimer > 0);
+  $("dash").classList.toggle("cooldown", dashCooldown > 0);
+  $("parry").classList.toggle("cooldown", parryCooldown > 0);
+}
+
+function hit(target: Fighter, amount: number, posture = 0) {
+  target.hp = Math.max(0, target.hp - amount); target.posture = Math.min(100, target.posture + posture); target.flash = 8;
+  spark(target.x, target.y - 15, target === master ? 0xf2c171 : 0xd9e8c1, 15, true); screenShake(9); updateHud();
+  if (target.hp <= 0) finish(target === master);
+}
+
+function startAttack() {
+  if (!playing || paused || attackTimer > 0 || dashTimer > 0) return;
+  combo = combo >= 3 ? 1 : combo + 1; attackTimer = 15 + combo * 3;
+  player.vx += player.face * (combo === 3 ? 4.8 : 2.4); slash(player.x + player.face * 24, player.y - 5, player.face, combo === 3 ? 0xf5c96f : 0xdce9bd, combo === 3);
+  if (distance(player, master) < 102) { hit(master, combo === 3 ? 12 : 6, combo === 3 ? 28 : 9); score += combo * 10; if (master.posture >= 100) { master.posture = 0; hit(master, 16); say("沈孤鸿", "好一记破势。再来。"); } }
+  else say("无名剑客", combo === 3 ? "断！" : "喝！");
+}
+
+function startDash() {
+  if (!playing || paused || dashCooldown > 0 || dashTimer > 0) return;
+  dashTimer = 20; dashCooldown = 150; player.vx = player.face * 15; player.vy *= .25; player.trail = 24; slash(player.x, player.y, player.face, 0xa6e2cf, true); say("无名剑客", "踏雨无痕！");
+}
+
+function startParry() {
+  if (!playing || paused || parryCooldown > 0) return;
+  parryTimer = 22; parryCooldown = 86; player.flash = 10; spark(player.x, player.y - 15, 0xf0d68c, 14); say("无名剑客", "听雨。 ");
+}
+
+function enemyLogic(delta: number) {
+  const range = distance(player, master); enemyTimer -= delta;
+  if (enemyPhase === "observe") {
+    master.face = player.x > master.x ? 1 : -1;
+    if (range > 180) master.vx += master.face * .18 * delta;
+    if (enemyTimer <= 0 && range < 420) { enemyPhase = "telegraph"; enemyTimer = 76; say("沈孤鸿", "看清了，这一剑很重。 "); }
+  } else if (enemyPhase === "telegraph" && enemyTimer <= 0) {
+    enemyPhase = "lunge"; enemyTimer = 19; master.vx = master.face * 17; master.trail = 24; slash(master.x, master.y, master.face, 0xdf7654, true);
+  } else if (enemyPhase === "lunge") {
+    if (range < 86 && enemyTimer < 11) {
+      if (parryTimer > 0) { enemyPhase = "recover"; enemyTimer = 70; master.vx *= -.25; master.posture = Math.min(100, master.posture + 48); spark(player.x, player.y, 0xffe8a5, 28, true); say("沈孤鸿", "……竟接住了。 "); score += 55; }
+      else if (dashTimer <= 0) { hit(player, 17); say("沈孤鸿", "剑已至。 "); }
+    }
+    if (enemyTimer <= 0) { enemyPhase = "recover"; enemyTimer = 44; }
+  } else if (enemyPhase === "recover" && enemyTimer <= 0) { enemyPhase = "observe"; enemyTimer = 80 + Math.random() * 60; }
 }
 
 function reset() {
-  for (let i = shots.length - 1; i >= 0; i -= 1) removeShot(i);
-  sparks.splice(0).forEach((spark) => spark.view.destroy());
-  playerHp = 100; bossHp = 100; energy = 0; score = 0; elapsed = 0; playerCooldown = 0; bossCooldown = 32;
-  player.position.set(app.screen.width / 2, app.screen.height * .78);
-  boss.position.set(app.screen.width / 2, Math.max(105, app.screen.height * .2));
-  byId("result-screen").classList.remove("visible"); running = true; paused = false; updateHud();
+  player.hp = 100; player.posture = 0; player.x = 100; player.y = 340; player.vx = player.vy = 0; player.face = 1;
+  master.hp = 100; master.posture = 0; master.x = 590; master.y = 300; master.vx = master.vy = 0; master.face = -1;
+  elapsed = score = attackTimer = combo = dashTimer = dashCooldown = parryTimer = parryCooldown = 0; enemyPhase = "observe"; enemyTimer = 85; playing = true; paused = false;
+  $("start-screen").classList.remove("visible"); $("result-screen").classList.remove("visible"); $("hint").style.opacity = "1"; say("沈孤鸿", "出剑。让我看看你走到了哪一步。 "); updateHud();
 }
 
-function fireBoss() {
-  const base = Math.atan2(player.y - boss.y, player.x - boss.x);
-  const count = bossHp < 45 ? 7 : 5;
-  for (let i = 0; i < count; i += 1) {
-    const angle = base + (i - (count - 1) / 2) * .18;
-    addShot(boss.x, boss.y + 18, Math.cos(angle) * 3.1, Math.sin(angle) * 3.1, false, 5.5);
-  }
+function finish(victory: boolean) {
+  if (!playing) return; playing = false; best = Math.max(best, score); void api.save("rain-sword-record", { best });
+  $("result-kicker").textContent = victory ? "剑意初成" : "雨未停";
+  $("result-title").textContent = victory ? "这一剑，胜了。" : "再来。剑不该停在这里。";
+  $("result-copy").textContent = victory ? `你以 ${score} 点剑意破开守关人的气势。` : `本次试剑获得 ${score} 点剑意，下一次会更接近那一剑。`;
+  $("result-screen").classList.add("visible");
 }
 
-function tick(ticker: { deltaTime: number }) {
-  if (!running || paused) return;
-  const delta = Math.min(ticker.deltaTime, 2); elapsed += delta; playerCooldown -= delta; bossCooldown -= delta;
-  boss.x = app.screen.width / 2 + Math.sin(elapsed * .018) * Math.min(150, app.screen.width * .2);
-  boss.rotation = Math.sin(elapsed * .025) * .04;
-  if (playerCooldown <= 0) { addShot(player.x - 9, player.y - 16, 0, -8.5, true, 3.8); addShot(player.x + 9, player.y - 16, 0, -8.5, true, 3.8); playerCooldown = 9; }
-  if (bossCooldown <= 0) { fireBoss(); bossCooldown = Math.max(30, 62 - (100 - bossHp) * .25); }
-  for (let i = shots.length - 1; i >= 0; i -= 1) {
-    const shot = shots[i]; shot.view.x += shot.vx * delta; shot.view.y += shot.vy * delta;
-    const target = shot.friendly ? boss : player;
-    if (distance(shot.view, target) < (shot.friendly ? 38 : 20) + shot.radius) {
-      burst(shot.view.x, shot.view.y, shot.friendly ? 0x7cf4ff : 0xff4c9a, shot.friendly ? 5 : 14);
-      if (shot.friendly) { bossHp = Math.max(0, bossHp - 1.4); score += 12; energy = Math.min(100, energy + 1.6); }
-      else { playerHp = Math.max(0, playerHp - 7); energy = Math.min(100, energy + 7); }
-      removeShot(i); updateHud();
-      if (bossHp <= 0) finish(true); else if (playerHp <= 0) finish(false);
-      continue;
-    }
-    if (shot.view.y < -30 || shot.view.y > app.screen.height + 30 || shot.view.x < -30 || shot.view.x > app.screen.width + 30) removeShot(i);
-  }
-  for (let i = sparks.length - 1; i >= 0; i -= 1) {
-    const spark = sparks[i]; spark.view.x += spark.vx * delta; spark.view.y += spark.vy * delta; spark.life -= .045 * delta; spark.view.alpha = spark.life;
-    if (spark.life <= 0) { spark.view.destroy(); sparks.splice(i, 1); }
-  }
-}
-
-function movePlayer(clientX: number, clientY: number) {
-  if (!running || paused) return;
-  const rect = app.canvas.getBoundingClientRect();
-  player.x = Math.max(28, Math.min(app.screen.width - 28, (clientX - rect.left) * app.screen.width / rect.width));
-  player.y = Math.max(app.screen.height * .42, Math.min(app.screen.height - 62, (clientY - rect.top) * app.screen.height / rect.height));
+function bindJoystick() {
+  const pad = $("joystick"); const stick = $("stick");
+  const set = (event: PointerEvent) => { const rect = pad.getBoundingClientRect(); const dx = event.clientX - rect.left - rect.width / 2; const dy = event.clientY - rect.top - rect.height / 2; const length = Math.min(32, Math.hypot(dx, dy)); const angle = Math.atan2(dy, dx); input.x = Math.cos(angle) * length / 32; input.y = Math.sin(angle) * length / 32; stick.style.transform = `translate(${input.x * 25}px, ${input.y * 25}px)`; };
+  pad.addEventListener("pointerdown", (event) => { pad.setPointerCapture(event.pointerId); input.active = true; set(event); });
+  pad.addEventListener("pointermove", (event) => { if (input.active) set(event); });
+  const clear = () => { input.active = false; input.x = input.y = 0; stick.style.transform = ""; }; pad.addEventListener("pointerup", clear); pad.addEventListener("pointercancel", clear);
 }
 
 async function boot() {
   await app.init({ resizeTo: window, preference: "webgl", backgroundAlpha: 0, antialias: true, resolution: Math.min(devicePixelRatio || 1, 2), autoDensity: true });
-  app.canvas.setAttribute("aria-label", "PixiJS WebGL 对战画布");
-  byId("pixi-stage").appendChild(app.canvas); app.stage.addChild(world);
-  player = ship(0x5be8ff); boss = makeBoss(); world.addChild(boss, player); app.ticker.add(tick);
-  app.canvas.addEventListener("pointerdown", (event) => { app.canvas.setPointerCapture(event.pointerId); movePlayer(event.clientX, event.clientY); });
-  app.canvas.addEventListener("pointermove", (event) => { if (event.buttons || event.pointerType === "touch") movePlayer(event.clientX, event.clientY); });
-  byId("start").addEventListener("click", () => { byId("start-screen").classList.remove("visible"); reset(); });
-  byId("restart").addEventListener("click", reset);
-  byId("leave").addEventListener("click", () => api.exit());
-  byId("pause").addEventListener("click", () => { paused = !paused; byId("pause").textContent = paused ? "▶" : "Ⅱ"; updateHud(); });
-  byId("burst").addEventListener("click", () => { if (energy < 100 || !running) return; energy = 0; score += shots.filter((shot) => !shot.friendly).length * 30; for (let i = shots.length - 1; i >= 0; i -= 1) if (!shots[i].friendly) { burst(shots[i].view.x, shots[i].view.y, 0x8df7ff, 8); removeShot(i); } bossHp = Math.max(0, bossHp - 18); burst(boss.x, boss.y, 0xffffff, 45); if (bossHp <= 0) finish(true); updateHud(); });
-  window.addEventListener("mobile-tavern:lifecycle", ((event: CustomEvent<"pause" | "resume">) => { paused = event.detail === "pause"; updateHud(); }) as EventListener);
-  const saved = await api.load("pixi-record") as { best?: number } | null; best = saved?.best ?? 0;
-  byId("record").textContent = best ? `最高战果 ${best}` : "尚无作战记录";
-  await api.ready();
-  document.documentElement.dataset.pixiReady = "true";
+  $("pixi-stage").appendChild(app.canvas); app.canvas.setAttribute("aria-label", "夜雨竹林 PixiJS 战斗画布"); app.stage.addChild(stage); stage.addChild(world);
+  drawArena(); const rainLayer = rain(); player = makeFighter(0x23453d, 0x6d9374); master = makeFighter(0x5a2b25, 0xb94f3d, true); reset(); playing = false; $("start-screen").classList.add("visible");
+  bindJoystick(); $("start").addEventListener("click", reset); $("restart").addEventListener("click", reset); $("attack").addEventListener("click", startAttack); $("dash").addEventListener("click", startDash); $("parry").addEventListener("click", startParry); $("leave").addEventListener("click", () => api.exit());
+  $("pause").addEventListener("click", () => { paused = !paused; $("pause").textContent = paused ? "▶" : "Ⅱ"; });
+  app.canvas.addEventListener("pointerdown", (event) => { if (!playing || paused) return; const rect = app.canvas.getBoundingClientRect(); const targetX = (event.clientX - rect.left) / rect.width * app.screen.width + player.x - app.screen.width / 2; const targetY = (event.clientY - rect.top) / rect.height * app.screen.height + player.y - app.screen.height / 2; input.x = Math.sign(targetX - player.x); input.y = Math.sign(targetY - player.y); });
+  app.ticker.add((ticker) => {
+    const delta = Math.min(ticker.deltaTime, 2); for (const drop of rainLayer.children) { drop.y += Number(drop.label) * delta; drop.x -= 1.8 * delta; if (drop.y > 520) { drop.y = -560; drop.x += 850; } }
+    if (!playing || paused || pausedByLifecycle) return;
+    elapsed += delta; attackTimer = Math.max(0, attackTimer - delta); dashTimer = Math.max(0, dashTimer - delta); dashCooldown = Math.max(0, dashCooldown - delta); parryTimer = Math.max(0, parryTimer - delta); parryCooldown = Math.max(0, parryCooldown - delta);
+    player.vx += input.x * (dashTimer > 0 ? .18 : .62) * delta; player.vy += input.y * (dashTimer > 0 ? .18 : .62) * delta; if (Math.abs(input.x) > .1) player.face = input.x > 0 ? 1 : -1;
+    enemyLogic(delta);
+    for (const fighter of [player, master]) { fighter.x += fighter.vx * delta; fighter.y += fighter.vy * delta; fighter.vx *= dashTimer > 0 && fighter === player ? .91 : .82; fighter.vy *= .82; fighter.x = Math.max(-280, Math.min(980, fighter.x)); fighter.y = Math.max(180, Math.min(465, fighter.y)); fighter.root.position.set(fighter.x, fighter.y); fighter.root.scale.x = fighter.face; fighter.body.tint = fighter.flash > 0 ? 0xffffff : 0xffffff; fighter.flash = Math.max(0, fighter.flash - delta); fighter.sword.rotation = (fighter === player && attackTimer > 0 ? -attackTimer / 18 * fighter.face : 0); if (fighter.trail > 0) { fighter.trail -= delta; const ghost = new Graphics().circle(0, 0, 20).fill({ color: fighter === player ? 0x9bd8c5 : 0xdb7658, alpha: .18 }); ghost.position.set(fighter.x - fighter.face * 15, fighter.y + 8); world.addChildAt(ghost, 2); effects.push({ view: ghost, life: .35, vx: -fighter.face * 1.5, vy: 0, scale: 1.4 }); } }
+    const cameraX = app.screen.width / 2 - (player.x + master.x) / 2; const cameraY = app.screen.height * .58 - (player.y + master.y) / 2; world.position.set(cameraX, cameraY); stage.x *= .72; stage.y *= .72;
+    for (let index = effects.length - 1; index >= 0; index -= 1) { const effect = effects[index]; effect.life -= .035 * delta; effect.view.x += effect.vx * delta; effect.view.y += effect.vy * delta; effect.view.scale.set(effect.scale += .015 * delta); effect.view.alpha = Math.max(0, effect.life); if (effect.life <= 0) { effect.view.destroy(); effects.splice(index, 1); } }
+    dialogueTimer -= delta; if (dialogueTimer <= 0 && elapsed > 140 && Math.random() < .004) say("沈孤鸿", enemyPhase === "observe" ? "别等雨停。" : "看剑。 "); if (elapsed > 170) $("hint").style.opacity = "0"; updateHud();
+  });
+  window.addEventListener("mobile-tavern:lifecycle", ((event: CustomEvent<"pause" | "resume">) => { pausedByLifecycle = event.detail === "pause"; }) as EventListener);
+  const saved = await api.load("rain-sword-record") as { best?: number } | null; best = saved?.best ?? 0; $("record").textContent = best ? `旧日剑意 ${best}` : "首次交锋，胜负未定";
+  await api.ready(); document.documentElement.dataset.pixiReady = "true";
 }
 
 void boot();
 
-declare global {
-  interface Window {
-    MobileTavernPlugin?: {
-      exit(): void | Promise<void>;
-      ready(): Promise<{ apiVersion: number }>;
-      save(slot: string, data: unknown): Promise<void>;
-      load(slot: string): Promise<unknown | null>;
-      deleteSave(slot: string): Promise<void>;
-    };
-  }
-}
+declare global { interface Window { MobileTavernPlugin?: { exit(): void | Promise<void>; ready(): Promise<{ apiVersion: number }>; save(slot: string, data: unknown): Promise<void>; load(slot: string): Promise<unknown | null>; }; } }

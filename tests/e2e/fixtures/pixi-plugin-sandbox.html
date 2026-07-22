@@ -11,7 +11,7 @@
       import { createPluginRuntimeDocument, parseFullscreenPluginPackage } from "/src/domain/plugins/index.ts";
 
       const frame = document.querySelector("#plugin");
-      const packageBytes = await fetch("/examples/pixi-arena-plugin/pixi-neon-siege.mtplugin").then((response) => response.arrayBuffer());
+        const packageBytes = await fetch("/examples/pixi-arena-plugin/rain-sword-duel.mtplugin").then((response) => response.arrayBuffer());
       const plugin = parseFullscreenPluginPackage(packageBytes);
       const runtime = createPluginRuntimeDocument(plugin, "pixi-csp-regression");
       const html = await fetch(runtime.url).then((response) => response.text());

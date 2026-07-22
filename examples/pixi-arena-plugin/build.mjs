@@ -17,6 +17,6 @@ await build({
   define: { __PIXI_VERSION__: JSON.stringify("8.18.1") },
 });
 
-const names = ["manifest.json", "index.html", "style.css", "game.js", "assets/sky-arena.png"];
+const names = ["manifest.json", "index.html", "style.css", "game.js"];
 const files = Object.fromEntries(await Promise.all(names.map(async (name) => [name, new Uint8Array(await readFile(resolve(root, name)))])));
-await writeFile(resolve(root, "pixi-neon-siege.mtplugin"), zipSync(files, { level: 6 }));
+await writeFile(resolve(root, "rain-sword-duel.mtplugin"), zipSync(files, { level: 6 }));
