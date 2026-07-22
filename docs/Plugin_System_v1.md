@@ -67,7 +67,7 @@ example.mtplugin
 <iframe sandbox="allow-scripts">
 ```
 
-不授予 `allow-same-origin`、表单、弹窗、下载和导航权限。宿主还会注入独立 CSP，禁止网络连接、子框架、对象、表单和外部资源。包内静态资源在运行前转换为临时 Blob URL，关闭插件后立即回收。
+不授予 `allow-same-origin`、表单、弹窗、下载和导航权限。宿主还会注入独立 CSP，禁止网络连接、子框架、对象、表单和外部资源。为兼容 Android WebView 的不透明来源限制，包内 CSS 与经典 JavaScript 在校验后内联到入口文档，图片、音频、视频和字体转换为自包含 `data:` URL；入口本身仍使用临时 Blob URL，并在关闭插件后立即回收。
 
 第一版支持普通外部 CSS、经典 JavaScript 和直接引用的包内媒体；暂不支持 ES Module 依赖图、动态 `import()`、Web Worker、Service Worker 或运行时拼接的包内相对路径。复杂游戏建议构建为单个 JavaScript 包后再制作 `.mtplugin`。
 

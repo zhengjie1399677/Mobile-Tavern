@@ -28,19 +28,22 @@ describe("全屏插件运行文档", () => {
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
   });
 
-  it("注入严格 CSP、受限桥接并把包内资源替换为 Blob URL", async () => {
+  it("注入严格 CSP，并将子资源变成不依赖父页面来源的自包含内容", async () => {
     const runtime = createPluginRuntimeDocument(plugin, "channel-test");
     const html = await blobs.at(-1)!.text();
 
     expect(runtime.url).toMatch(/^blob:test-/);
+    expect(blobs).toHaveLength(1);
     expect(html).toContain("connect-src 'none'");
     expect(html).toContain("MobileTavernPlugin");
     expect(html).toContain("channel-test");
-    expect(html).toContain('href="blob:test-');
-    expect(html).toContain('src="blob:test-');
+    expect(html).toContain('<style data-mobile-tavern-source="style.css">');
+    expect(html).toContain("body{background:url('data:image/png;base64,AQID')}");
+    expect(html).toContain('<script data-mobile-tavern-source="game.js">window.started=true</script>');
+    expect(html).toContain('src="data:image/png;base64,AQID"');
+    expect(html).not.toContain('src="blob:test-');
 
     runtime.revoke();
-    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(blobs.length);
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
   });
 });
-
