@@ -4,6 +4,7 @@ import { createPluginRuntimeDocument, type InstalledFullscreenPlugin, type Plugi
 import { deletePluginData, loadPluginData, savePluginData } from "../../infrastructure/plugins/pluginStorage";
 
 const STARTUP_EXIT_GUARD_MS = 2_000;
+const RUNNING_PLUGIN_SESSION_KEY = "mobile-tavern.running-fullscreen-plugin";
 
 interface AndroidPluginBridgeWindow extends Window {
   AndroidThemeBridge?: {
@@ -63,8 +64,12 @@ export default function FullscreenPluginRunner({
       document.removeEventListener("visibilitychange", handleVisibility);
       window.clearTimeout(enableExitTimer);
       exitEnabledRef.current = false;
-      setImmersiveMode(false);
-      setOrientation("auto");
+      const resumeAfterConfiguration = readRunningPluginId() === plugin.id;
+      logPluginDiagnostic(`cleanup-resume plugin=${plugin.id} value=${resumeAfterConfiguration}`);
+      if (!resumeAfterConfiguration) {
+        setImmersiveMode(false);
+        setOrientation("auto");
+      }
       runtime.revoke();
     };
   }, [channel, plugin, runtime]);
@@ -180,6 +185,14 @@ function logPluginDiagnostic(message: string): void {
     (window as AndroidPluginBridgeWindow).AndroidThemeBridge?.logPluginDiagnostic?.(message);
   } catch {
     // 诊断能力不可用时不影响插件运行。
+  }
+}
+
+function readRunningPluginId(): string | undefined {
+  try {
+    return window.sessionStorage.getItem(RUNNING_PLUGIN_SESSION_KEY) ?? undefined;
+  } catch {
+    return undefined;
   }
 }
 

@@ -7,6 +7,25 @@ import { useTranslation } from "../../contexts/LanguageContext";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import FullscreenPluginRunner from "./FullscreenPluginRunner";
 
+const RUNNING_PLUGIN_SESSION_KEY = "mobile-tavern.running-fullscreen-plugin";
+
+function readRunningPluginId(): string | undefined {
+  try {
+    return window.sessionStorage.getItem(RUNNING_PLUGIN_SESSION_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function setRunningPluginId(pluginId?: string): void {
+  try {
+    if (pluginId) window.sessionStorage.setItem(RUNNING_PLUGIN_SESSION_KEY, pluginId);
+    else window.sessionStorage.removeItem(RUNNING_PLUGIN_SESSION_KEY);
+  } catch {
+    // 会话存储不可用时，保持原有的内存态行为。
+  }
+}
+
 export default function PluginManagerSection() {
   const { t } = useTranslation();
   const { showCustomAlert, showCustomConfirm } = useUnifiedApp((state) => ({
@@ -33,6 +52,23 @@ export default function PluginManagerSection() {
       showCustomAlert(t("plugin_manager.storage_failed", { error: normalizeError(error) }), t("plugin_manager.title"));
     });
   }, [reload, showCustomAlert, t]);
+
+  useEffect(() => {
+    if (running) return;
+    const pluginId = readRunningPluginId();
+    const plugin = pluginId ? plugins.find((item) => item.id === pluginId) : undefined;
+    if (plugin) setRunning(plugin);
+  }, [plugins, running]);
+
+  const runPlugin = (plugin: InstalledFullscreenPlugin) => {
+    setRunningPluginId(plugin.id);
+    setRunning(plugin);
+  };
+
+  const exitPlugin = () => {
+    setRunningPluginId();
+    setRunning(undefined);
+  };
 
   const handleImport = async (file?: File) => {
     if (!file || busy) return;
@@ -105,13 +141,13 @@ export default function PluginManagerSection() {
               <div className="mt-0.5 truncate font-mono text-[8.5px] text-muted-foreground">{plugin.id} · v{plugin.manifest.version}</div>
               {plugin.manifest.description && <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{plugin.manifest.description}</p>}
             </div>
-            <button type="button" onClick={() => setRunning(plugin)} aria-label={t("plugin_manager.run_named", { name: plugin.manifest.name })} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary active:scale-95"><Play className="h-4 w-4" /></button>
+            <button type="button" onClick={() => runPlugin(plugin)} aria-label={t("plugin_manager.run_named", { name: plugin.manifest.name })} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary active:scale-95"><Play className="h-4 w-4" /></button>
             {!plugin.builtin && <button type="button" onClick={() => void handleDelete(plugin)} aria-label={t("plugin_manager.delete_named", { name: plugin.manifest.name })} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-destructive/25 bg-destructive/5 text-destructive active:scale-95"><Trash2 className="h-4 w-4" /></button>}
           </article>
         ))}
       </div>
 
-      {running && <FullscreenPluginRunner plugin={running} onExit={() => setRunning(undefined)} />}
+      {running && <FullscreenPluginRunner plugin={running} onExit={exitPlugin} />}
     </section>
   );
 }
