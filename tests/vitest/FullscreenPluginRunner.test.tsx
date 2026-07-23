@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import FullscreenPluginRunner from "../../src/components/plugins/FullscreenPluginRunner";
 import type { InstalledFullscreenPlugin } from "../../src/domain/plugins";
@@ -19,6 +19,7 @@ const plugin: InstalledFullscreenPlugin = {
 describe("FullscreenPluginRunner", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     delete (window as Window & { AndroidThemeBridge?: unknown }).AndroidThemeBridge;
     vi.restoreAllMocks();
   });
@@ -49,5 +50,22 @@ describe("FullscreenPluginRunner", () => {
 
     view.unmount();
     expect(setImmersiveMode).toHaveBeenLastCalledWith(false);
+  });
+
+  it("阻断启动切屏阶段误触到宿主关闭按钮，稳定后仍允许正常退出", () => {
+    vi.useFakeTimers();
+    (window as unknown as { happyDOM?: { settings: { disableIframePageLoading: boolean } } }).happyDOM!.settings.disableIframePageLoading = true;
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-runtime");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const onExit = vi.fn();
+    render(<FullscreenPluginRunner plugin={plugin} onExit={onExit} />);
+
+    const exitButton = screen.getByRole("button", { name: "退出插件" });
+    fireEvent.click(exitButton);
+    expect(onExit).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(800);
+    fireEvent.click(exitButton);
+    expect(onExit).toHaveBeenCalledTimes(1);
   });
 });

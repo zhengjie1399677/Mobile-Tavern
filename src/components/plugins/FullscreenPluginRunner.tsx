@@ -75,7 +75,7 @@ export default function FullscreenPluginRunner({
     <section className="fixed inset-0 z-[200] flex flex-col bg-black" aria-label={`插件：${plugin.manifest.name}`}>
       <header className="absolute inset-x-0 top-0 z-10 flex min-h-12 items-center justify-between bg-gradient-to-b from-black/75 to-transparent px-3 pt-[env(safe-area-inset-top)] pointer-events-none">
         <span className="max-w-[70%] truncate text-xs font-semibold text-white/80">{plugin.manifest.name}</span>
-        <button type="button" onClick={onExit} aria-label="退出插件" className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur active:scale-95">
+        <button type="button" onClick={() => exitEnabledRef.current && onExit()} aria-label="退出插件" className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur active:scale-95">
           <X className="h-5 w-5" />
         </button>
       </header>
