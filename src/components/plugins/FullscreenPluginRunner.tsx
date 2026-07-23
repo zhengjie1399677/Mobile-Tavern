@@ -3,6 +3,8 @@ import { AlertTriangle, X } from "lucide-react";
 import { createPluginRuntimeDocument, type InstalledFullscreenPlugin, type PluginOrientation } from "../../domain/plugins";
 import { deletePluginData, loadPluginData, savePluginData } from "../../infrastructure/plugins/pluginStorage";
 
+const STARTUP_EXIT_GUARD_MS = 2_000;
+
 interface AndroidPluginBridgeWindow extends Window {
   AndroidThemeBridge?: {
     setScreenOrientation?: (mode: PluginOrientation) => boolean;
@@ -32,7 +34,7 @@ export default function FullscreenPluginRunner({
     // 内置游戏的“离开”按钮若收到该触摸会立即请求退出，因此仅在稳定后接受该请求。
     const enableExitTimer = window.setTimeout(() => {
       exitEnabledRef.current = true;
-    }, 800);
+    }, STARTUP_EXIT_GUARD_MS);
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const message = event.data;

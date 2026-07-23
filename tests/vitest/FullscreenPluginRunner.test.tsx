@@ -64,7 +64,7 @@ describe("FullscreenPluginRunner", () => {
     fireEvent.click(exitButton);
     expect(onExit).not.toHaveBeenCalled();
 
-    vi.advanceTimersByTime(800);
+    vi.advanceTimersByTime(2_000);
     fireEvent.click(exitButton);
     expect(onExit).toHaveBeenCalledTimes(1);
   });
