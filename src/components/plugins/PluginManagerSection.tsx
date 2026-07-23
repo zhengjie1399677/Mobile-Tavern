@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Gamepad2, HardDriveDownload, Loader2, Play, Trash2, Upload } from "lucide-react";
 import { parseFullscreenPluginPackage, type InstalledFullscreenPlugin } from "../../domain/plugins";
-import { deletePlugin, installPlugin, listInstalledPlugins } from "../../infrastructure/plugins/pluginStorage";
+import {
+  deletePlugin,
+  installPlugin,
+  listInstalledPlugins,
+  loadPluginFiles,
+  type InstalledPluginMetadata,
+} from "../../infrastructure/plugins/pluginStorage";
 import { listBuiltinPlugins } from "../../infrastructure/plugins/builtinPlugins";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import FullscreenPluginRunner from "./FullscreenPluginRunner";
 
 const RUNNING_PLUGIN_SESSION_KEY = "mobile-tavern.running-fullscreen-plugin";
+
+type PluginListItem = InstalledFullscreenPlugin | InstalledPluginMetadata;
 
 function readRunningPluginId(): string | undefined {
   try {
@@ -32,7 +40,7 @@ export default function PluginManagerSection() {
     showCustomAlert: state.showCustomAlert,
     showCustomConfirm: state.showCustomConfirm,
   }));
-  const [plugins, setPlugins] = useState<InstalledFullscreenPlugin[]>([]);
+  const [plugins, setPlugins] = useState<PluginListItem[]>([]);
   const [running, setRunning] = useState<InstalledFullscreenPlugin>();
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -56,13 +64,26 @@ export default function PluginManagerSection() {
   useEffect(() => {
     if (running) return;
     const pluginId = readRunningPluginId();
-    const plugin = pluginId ? plugins.find((item) => item.id === pluginId) : undefined;
-    if (plugin) setRunning(plugin);
+    if (!pluginId) return;
+    const item = plugins.find((entry) => entry.id === pluginId);
+    if (item) void runPlugin(item);
   }, [plugins, running]);
 
-  const runPlugin = (plugin: InstalledFullscreenPlugin) => {
-    setRunningPluginId(plugin.id);
-    setRunning(plugin);
+  const runPlugin = async (plugin: PluginListItem) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      // 内置插件与已加载对象含 files；用户安装项仅元数据，需按需从 packageFiles 拉取字节。
+      const full: InstalledFullscreenPlugin = "files" in plugin && plugin.files
+        ? plugin
+        : { ...(plugin as InstalledPluginMetadata), files: await loadPluginFiles(plugin.id) };
+      setRunningPluginId(full.id);
+      setRunning(full);
+    } catch (error) {
+      showCustomAlert(t("plugin_manager.storage_failed", { error: normalizeError(error) }), t("plugin_manager.title"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const exitPlugin = () => {
@@ -74,7 +95,7 @@ export default function PluginManagerSection() {
     if (!file || busy) return;
     setBusy(true);
     try {
-      const parsed = parseFullscreenPluginPackage(await file.arrayBuffer());
+      const parsed = await parseFullscreenPluginPackage(await file.arrayBuffer());
       const previous = plugins.find((item) => item.id === parsed.id);
       await installPlugin({ ...parsed, installedAt: previous?.installedAt ?? parsed.installedAt });
       await reload();

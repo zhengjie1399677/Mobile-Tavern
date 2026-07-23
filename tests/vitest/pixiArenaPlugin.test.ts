@@ -13,9 +13,9 @@ describe("夜雨试剑 PixiJS 示例插件", () => {
     expect(source).toContain('import "pixi.js/unsafe-eval";');
   });
 
-  it("仓库内安装包可以被直接导入", () => {
+  it("仓库内安装包可以被直接导入", async () => {
     const packageBytes = readFileSync(resolve(exampleRoot, "rain-sword-duel.mtplugin"));
-    const plugin = parseFullscreenPluginPackage(new Uint8Array(packageBytes));
+    const plugin = await parseFullscreenPluginPackage(new Uint8Array(packageBytes));
 
     expect(plugin.manifest.id).toBe("demo.rain-sword-duel");
     expect(plugin.manifest.name).toBe("夜雨试剑");

@@ -1,4 +1,4 @@
-import { unzipSync } from "fflate";
+import { unzip } from "fflate";
 import type { FullscreenPluginManifest, InstalledFullscreenPlugin } from "./types";
 
 export const PLUGIN_PACKAGE_LIMITS = {
@@ -14,16 +14,16 @@ const MANIFEST_PATH = "manifest.json";
 const ZIP_EOCD_SIGNATURE = 0x06054b50;
 const ZIP_CENTRAL_SIGNATURE = 0x02014b50;
 
-export function parseFullscreenPluginPackage(
+export async function parseFullscreenPluginPackage(
   input: ArrayBuffer | Uint8Array,
   now = Date.now()
-): InstalledFullscreenPlugin {
+): Promise<InstalledFullscreenPlugin> {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   if (bytes.byteLength > PLUGIN_PACKAGE_LIMITS.compressedBytes) {
     throw new Error("PLUGIN_PACKAGE_TOO_LARGE");
   }
   const inspection = inspectZipCentralDirectory(bytes);
-  const inflated = unzipSync(bytes);
+  const inflated = await inflatePackage(bytes);
   const files: Record<string, Uint8Array> = {};
   for (const entry of inspection.entries) {
     if (entry.directory) continue;
@@ -64,6 +64,24 @@ interface ZipEntryInspection {
   path: string;
   uncompressedSize: number;
   directory: boolean;
+}
+
+function inflatePackage(bytes: Uint8Array): Promise<Record<string, Uint8Array>> {
+  // fflate 异步 unzip 内部走 setTimeout 分块路径（非 Web Worker），天然不阻塞主线程。
+  // inspectZipCentralDirectory 已完成安全校验（路径穿越/加密/文件数/大小），此处只负责解压。
+  // 签名为 unzip(data, cb)，回调参数为 (err, data)。
+  return new Promise((resolve, reject) => {
+    unzip(
+      bytes,
+      (err, data) => {
+        if (err) {
+          reject(new Error("PLUGIN_PACKAGE_INVALID_ZIP"));
+          return;
+        }
+        resolve(data as Record<string, Uint8Array>);
+      }
+    );
+  });
 }
 
 function inspectZipCentralDirectory(bytes: Uint8Array): {

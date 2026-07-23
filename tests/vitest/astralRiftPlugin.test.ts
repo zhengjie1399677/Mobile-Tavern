@@ -16,9 +16,9 @@ describe("星渊终焉 PixiJS 示例插件", () => {
     expect(source).toContain("activateUltimate");
   });
 
-  it("生成的安装包可通过第三方插件解析器", () => {
+  it("生成的安装包可通过第三方插件解析器", async () => {
     const packageBytes = readFileSync(resolve(exampleRoot, "astral-rift.mtplugin"));
-    const plugin = parseFullscreenPluginPackage(new Uint8Array(packageBytes));
+    const plugin = await parseFullscreenPluginPackage(new Uint8Array(packageBytes));
 
     expect(plugin.manifest.id).toBe("demo.astral-rift");
     expect(plugin.manifest.version).toBe("1.0.0");

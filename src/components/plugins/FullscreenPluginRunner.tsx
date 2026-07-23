@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, X } from "lucide-react";
-import { createPluginRuntimeDocument, type InstalledFullscreenPlugin, type PluginOrientation } from "../../domain/plugins";
+import { AlertTriangle, Loader2, X } from "lucide-react";
+import { createPluginRuntimeDocument, type InstalledFullscreenPlugin, type PluginOrientation, type PluginRuntimeDocument } from "../../domain/plugins";
 import { deletePluginData, loadPluginData, savePluginData } from "../../infrastructure/plugins/pluginStorage";
 
 const STARTUP_EXIT_GUARD_MS = 2_000;
@@ -23,10 +23,37 @@ export default function FullscreenPluginRunner({
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const channel = useMemo(() => crypto.randomUUID(), []);
-  const runtime = useMemo(() => createPluginRuntimeDocument(plugin, channel), [plugin, channel]);
+  const [runtime, setRuntime] = useState<PluginRuntimeDocument>();
+  const [runtimeError, setRuntimeError] = useState<string>();
   const [error, setError] = useState<string>();
   const loadedRef = useRef(false);
   const exitEnabledRef = useRef(false);
+
+  // runtime 生成与生命周期拆分：本 effect 仅负责 Blob URL 的异步构造与释放，
+  // 不介入沉浸式/方向/消息监听，避免 runtime 变化触发生命周期 effect 重订阅。
+  useEffect(() => {
+    let cancelled = false;
+    let pendingDoc: PluginRuntimeDocument | undefined;
+    setRuntime(undefined);
+    setRuntimeError(undefined);
+    createPluginRuntimeDocument(plugin, channel)
+      .then((doc) => {
+        if (cancelled) {
+          doc.revoke();
+        } else {
+          pendingDoc = doc;
+          setRuntime(doc);
+        }
+      })
+      .catch((reason) => {
+        if (!cancelled) setRuntimeError(normalizeError(reason));
+      });
+    return () => {
+      cancelled = true;
+      // cleanup 时若 doc 已生成则立即释放，避免 Blob URL 泄漏；未生成则由 then 分支看到 cancelled 自行 revoke。
+      if (pendingDoc) pendingDoc.revoke();
+    };
+  }, [plugin, channel]);
 
   useEffect(() => {
     const orientation = plugin.manifest.orientation ?? "auto";
@@ -70,9 +97,8 @@ export default function FullscreenPluginRunner({
         setImmersiveMode(false);
         setOrientation("auto");
       }
-      runtime.revoke();
     };
-  }, [channel, plugin, runtime]);
+  }, [channel, plugin]);
 
   const handleLoad = () => {
     logPluginDiagnostic(`iframe-load plugin=${plugin.id} repeated=${loadedRef.current}`);
@@ -94,14 +120,21 @@ export default function FullscreenPluginRunner({
           <X className="h-5 w-5" />
         </button>
       </header>
-      {error ? (
+      {runtimeError ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-white">
+          <AlertTriangle className="h-8 w-8 text-amber-400" />
+          <p className="text-sm font-semibold">插件运行已停止</p>
+          <p className="max-w-md text-xs text-white/65">{runtimeError}</p>
+          <button type="button" onClick={onExit} className="min-h-10 rounded-xl bg-white px-4 text-xs font-bold text-black">返回 Mobile Tavern</button>
+        </div>
+      ) : error ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-white">
           <AlertTriangle className="h-8 w-8 text-amber-400" />
           <p className="text-sm font-semibold">插件运行已停止</p>
           <p className="max-w-md text-xs text-white/65">{error}</p>
           <button type="button" onClick={onExit} className="min-h-10 rounded-xl bg-white px-4 text-xs font-bold text-black">返回 Mobile Tavern</button>
         </div>
-      ) : (
+      ) : runtime ? (
         <iframe
           ref={iframeRef}
           title={plugin.manifest.name}
@@ -111,6 +144,11 @@ export default function FullscreenPluginRunner({
           onLoad={handleLoad}
           className="h-full w-full flex-1 border-0 bg-black"
         />
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-white/70">
+          <Loader2 className="h-7 w-7 animate-spin" />
+          <p className="text-xs">正在准备插件运行环境…</p>
+        </div>
       )}
     </section>
   );

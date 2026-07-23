@@ -29,7 +29,7 @@ describe("全屏插件运行文档", () => {
   });
 
   it("注入严格 CSP，并将子资源变成不依赖父页面来源的自包含内容", async () => {
-    const runtime = createPluginRuntimeDocument(plugin, "channel-test");
+    const runtime = await createPluginRuntimeDocument(plugin, "channel-test");
     const html = await blobs.at(-1)!.text();
 
     expect(runtime.url).toMatch(/^blob:test-/);
@@ -45,5 +45,28 @@ describe("全屏插件运行文档", () => {
 
     runtime.revoke();
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it("未被引用的二进制资源不进行 base64 编码（懒编码）", async () => {
+    const pluginWithUnused: InstalledFullscreenPlugin = {
+      ...plugin,
+      files: {
+        ...plugin.files,
+        "assets/unused.png": new Uint8Array([9, 9, 9, 9, 9]),
+      },
+    };
+    const runtime = await createPluginRuntimeDocument(pluginWithUnused, "ch");
+    const html = await blobs.at(-1)!.text();
+    // unused.png 的 base64 为 CQkJCQkJ=，未被引用故不应出现在文档中。
+    expect(html).not.toContain("CQkJCQkJ");
+    runtime.revoke();
+  });
+
+  it("base64 编码与原生 btoa 输出一致", async () => {
+    // plugin 中 assets/bg.png = [1,2,3]，标准 base64 为 AQID。
+    const runtime = await createPluginRuntimeDocument(plugin, "ch");
+    const html = await blobs.at(-1)!.text();
+    expect(html).toContain("data:image/png;base64,AQID");
+    runtime.revoke();
   });
 });

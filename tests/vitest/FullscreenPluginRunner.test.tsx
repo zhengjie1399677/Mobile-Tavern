@@ -24,14 +24,14 @@ describe("FullscreenPluginRunner", () => {
     vi.restoreAllMocks();
   });
 
-  it("只给 iframe 脚本权限，不授予同源、表单、弹窗和导航权限", () => {
+  it("只给 iframe 脚本权限，不授予同源、表单、弹窗和导航权限", async () => {
     (window as unknown as { happyDOM?: { settings: { disableIframePageLoading: boolean } } }).happyDOM!.settings.disableIframePageLoading = true;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-runtime");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     render(<FullscreenPluginRunner plugin={plugin} onExit={vi.fn()} />);
 
-    const iframe = screen.getByTitle("测试 Gal");
+    const iframe = await screen.findByTitle("测试 Gal");
     expect(iframe).toHaveAttribute("sandbox", "allow-scripts");
     expect(iframe.getAttribute("sandbox")).not.toContain("allow-same-origin");
     expect(screen.getByRole("button", { name: "退出插件" })).toBeInTheDocument();

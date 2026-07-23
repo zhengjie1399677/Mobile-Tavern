@@ -8,7 +8,7 @@ import { parseFullscreenPluginPackage } from "../../src/domain/plugins";
 const exampleRoot = resolve("examples/arena-battle-plugin");
 
 describe("星穹对决示例插件", () => {
-  it("可以打包为受支持的完整插件", () => {
+  it("可以打包为受支持的完整插件", async () => {
     const files = {
       "manifest.json": readFileSync(resolve(exampleRoot, "manifest.json")),
       "index.html": readFileSync(resolve(exampleRoot, "index.html")),
@@ -17,16 +17,16 @@ describe("星穹对决示例插件", () => {
       "assets/sky-arena.png": readFileSync(resolve(exampleRoot, "assets/sky-arena.png")),
     };
 
-    const plugin = parseFullscreenPluginPackage(zipSync(files, { level: 6 }));
+    const plugin = await parseFullscreenPluginPackage(zipSync(files, { level: 6 }));
 
     expect(plugin.manifest.id).toBe("demo.astral-arena");
     expect(plugin.manifest.orientation).toBe("landscape");
     expect(plugin.files["assets/sky-arena.png"].byteLength).toBeGreaterThan(1_000_000);
   });
 
-  it("仓库内安装包可以被直接导入", () => {
+  it("仓库内安装包可以被直接导入", async () => {
     const packageBytes = readFileSync(resolve(exampleRoot, "astral-arena.mtplugin"));
-    const plugin = parseFullscreenPluginPackage(new Uint8Array(packageBytes));
+    const plugin = await parseFullscreenPluginPackage(new Uint8Array(packageBytes));
 
     expect(plugin.manifest.name).toBe("星穹对决");
     expect(plugin.files["game.js"].byteLength).toBeGreaterThan(5_000);
