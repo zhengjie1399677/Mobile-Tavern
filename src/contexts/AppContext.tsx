@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, startTransition } from "react";
 import { TRANSLATIONS } from "../locales/index";
 
 /**
@@ -91,19 +91,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return "characters";
   });
 
+  // 主页面均由 React.lazy 按需加载。将页签提交标记为 Transition，能在分包解析的
+  // 短暂间隙继续保留当前页面，避免快速加载时局部 loading 转圈一闪而过。
+  const commitActiveTab = (tab: TabType) => {
+    startTransition(() => setActiveTabState(tab));
+  };
+
   const setActiveTab = (tab: TabType) => {
     if (typeof window !== "undefined") {
       const currentTab = window.location.hash.replace("#/", "");
       if (tab === "chat" && currentTab === "characters") {
         window.history.pushState(null, "", "#/characters");
         window.history.pushState(null, "", "#/chat");
-        setActiveTabState("chat");
+        commitActiveTab("chat");
         return;
       }
       if (tab === "chat" && currentTab === "chat-history") {
         window.history.pushState(null, "", "#/chat-history");
         window.history.pushState(null, "", "#/chat");
-        setActiveTabState("chat");
+        commitActiveTab("chat");
         return;
       }
       if (tab === "chat-history" && currentTab === "chat") {
@@ -116,7 +122,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       window.location.hash = `#/${tab}`;
     } else {
-      setActiveTabState(tab);
+      commitActiveTab(tab);
     }
   };
 
@@ -125,7 +131,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const hash = window.location.hash.replace("#/", "");
       const validTabs: TabType[] = ["characters", "chat", "chat-history", "settings", "global-worldbook", "playground"];
       if (validTabs.includes(hash as TabType)) {
-        setActiveTabState(hash as TabType);
+        commitActiveTab(hash as TabType);
       }
     };
 

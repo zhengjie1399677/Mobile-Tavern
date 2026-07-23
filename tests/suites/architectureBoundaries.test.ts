@@ -69,6 +69,21 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "主功能页必须使用局部加载态承接首次代码分块加载"
   );
   assert(
+    /useDeferredValue\(activeTab\)/.test(mainLayout) &&
+      /deferredActiveTab\s*!==\s*tab\.id/.test(mainLayout),
+    "主功能页必须在新分块就绪前保留已完成页面，避免短时 loading 动画闪烁"
+  );
+  const appContext = read("src/contexts/AppContext.tsx");
+  assert(
+    /startTransition\(\(\)\s*=>\s*setActiveTabState\(tab\)\)/.test(appContext) &&
+      /commitActiveTab\(hash as TabType\)/.test(appContext),
+    "主功能页切换必须使用 Transition，避免快速代码分块加载时 loading 动画闪烁"
+  );
+  assert(
+    !read("src/contexts/LegacyAppContextProvider.tsx").includes("Triggering daily backup check"),
+    "应用启动不得静默触发文件备份；数据导出必须由用户显式发起"
+  );
+  assert(
     /activeTab === ["']settings["'] \? ["']max-w-lg landscape:max-w-none["']/.test(mainLayout),
     "设置页横屏时必须解除手机竖屏宽度上限，确保高级工作台获得真实可用宽度"
   );
@@ -214,6 +229,13 @@ export async function testArchitectureBoundaries(): Promise<void> {
       androidThemeBridge.includes("Environment.isExternalStorageManager()") &&
       mainActivity.includes("notifyStoragePermissionStateOnResume"),
     "本地角色卡扫描必须通过 Android 专属的所有文件访问设置授权，并在返回应用后同步结果"
+  );
+  assert(
+    androidThemeBridge.includes("fun setImmersiveMode(enabled: Boolean)") &&
+      androidThemeBridge.includes("BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE") &&
+      read("src/components/plugins/FullscreenPluginRunner.tsx").includes("setImmersiveMode(true)") &&
+      read("src/components/plugins/FullscreenPluginRunner.tsx").includes("setImmersiveMode(false)"),
+    "第三方全屏插件必须在运行期启用可临时唤出的 Android 沉浸式系统栏，并在退出时恢复"
   );
   assert(
     androidThemeBridge.includes("Environment.getExternalStorageDirectory()") &&

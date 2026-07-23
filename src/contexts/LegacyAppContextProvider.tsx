@@ -192,32 +192,6 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     unifiedAppStore.setState(appContextValue);
   }, [appContextValue]);
 
-  // 使用 ref 存储最新的备份函数与角色数据，避免它们作为定时器依赖导致频繁重置
-  const silentDailyBackupRef = React.useRef(settingsHook.handleSilentDailyBackup);
-  silentDailyBackupRef.current = settingsHook.handleSilentDailyBackup;
-  const backupCharactersRef = React.useRef(charState.characters);
-  backupCharactersRef.current = charState.characters;
-
-  // 每日后台自动备份定时器，在应用就绪 5 秒后静默检测并执行
-  // 依赖数组仅保留就绪标志，避免活跃聊天时 sessions/characters 变化不断重置 5 秒定时器
-  React.useEffect(() => {
-    if (!settingsHook.isReady || !charState.isDBReady) return;
-
-    const timer = setTimeout(() => {
-      console.log("[AutoBackup] App state is ready. Triggering daily backup check...");
-      silentDailyBackupRef.current(
-        backupCharactersRef.current
-      ).catch((err) => {
-        console.error("[AutoBackup] Background daily backup scheduler failed:", err);
-      });
-    }, 5000);
-
-    return () => clearTimeout(timer);
-  }, [
-    settingsHook.isReady,
-    charState.isDBReady,
-  ]);
-
   return (
     <UnifiedAppContext.Provider value={appContextValue}>
       {children}

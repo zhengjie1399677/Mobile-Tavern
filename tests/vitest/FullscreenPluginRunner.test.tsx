@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import FullscreenPluginRunner from "../../src/components/plugins/FullscreenPluginRunner";
 import type { InstalledFullscreenPlugin } from "../../src/domain/plugins";
 
@@ -17,6 +17,12 @@ const plugin: InstalledFullscreenPlugin = {
 };
 
 describe("FullscreenPluginRunner", () => {
+  afterEach(() => {
+    cleanup();
+    delete (window as Window & { AndroidThemeBridge?: unknown }).AndroidThemeBridge;
+    vi.restoreAllMocks();
+  });
+
   it("只给 iframe 脚本权限，不授予同源、表单、弹窗和导航权限", () => {
     (window as unknown as { happyDOM?: { settings: { disableIframePageLoading: boolean } } }).happyDOM!.settings.disableIframePageLoading = true;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -28,5 +34,20 @@ describe("FullscreenPluginRunner", () => {
     expect(iframe).toHaveAttribute("sandbox", "allow-scripts");
     expect(iframe.getAttribute("sandbox")).not.toContain("allow-same-origin");
     expect(screen.getByRole("button", { name: "退出插件" })).toBeInTheDocument();
+  });
+
+  it("进入插件时开启 Android 沉浸式模式，退出时恢复系统栏", () => {
+    (window as unknown as { happyDOM?: { settings: { disableIframePageLoading: boolean } } }).happyDOM!.settings.disableIframePageLoading = true;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-runtime");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const setImmersiveMode = vi.fn();
+    (window as Window & { AndroidThemeBridge?: unknown }).AndroidThemeBridge = { setImmersiveMode };
+
+    const view = render(<FullscreenPluginRunner plugin={plugin} onExit={vi.fn()} />);
+    expect(setImmersiveMode).toHaveBeenCalledWith(true);
+
+    view.unmount();
+    expect(setImmersiveMode).toHaveBeenLastCalledWith(false);
   });
 });

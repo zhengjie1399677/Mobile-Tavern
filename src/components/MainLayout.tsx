@@ -48,6 +48,9 @@ export default function MainLayout() {
     safeAreas: state.safeAreas,
   }));
   const { t } = useTranslation();
+  // Suspense 在新的懒加载页就绪前继续渲染上一个已完成页面，避免快速分包加载时
+  // 局部 loading 转圈闪现；底栏仍立即使用 activeTab 提供触控反馈。
+  const deferredActiveTab = React.useDeferredValue(activeTab);
 
   const [viewportHeight, setViewportHeight] = React.useState<number | null>(null);
   const [promptFocusActive, setPromptFocusActive] = React.useState(false);
@@ -153,6 +156,7 @@ export default function MainLayout() {
 
         {/* 2. Content Sections Grid */}
         <div
+          aria-busy={deferredActiveTab !== activeTab}
           style={activeTab !== "chat" && activeTab !== "playground" && !promptFocusActive ? {
             paddingBottom: `${54 + (safeAreas?.bottom ?? 0)}px`
           } : undefined}
@@ -162,7 +166,7 @@ export default function MainLayout() {
             }`}
         >
           {tabs.map(tab => {
-            if (activeTab !== tab.id) return null;
+            if (deferredActiveTab !== tab.id) return null;
             const Comp = tab.component;
             if (tab.id === "playground") {
               return (

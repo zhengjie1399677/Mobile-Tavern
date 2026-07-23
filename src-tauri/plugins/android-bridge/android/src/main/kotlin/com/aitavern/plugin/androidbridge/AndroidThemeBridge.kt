@@ -396,6 +396,30 @@ class AndroidThemeBridge(
         return true
     }
 
+    /**
+     * Enter or leave Android immersive mode for trusted host-owned full-screen surfaces.
+     * System bars remain temporarily revealable with an edge swipe.
+     */
+    @JavascriptInterface
+    fun setImmersiveMode(enabled: Boolean): Boolean {
+        activity.runOnUiThread {
+            try {
+                val window = activity.window
+                val controller = WindowInsetsControllerCompat(window, window.decorView)
+                if (enabled) {
+                    controller.systemBarsBehavior =
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.hide(WindowInsetsCompat.Type.systemBars())
+                } else {
+                    controller.show(WindowInsetsCompat.Type.systemBars())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update immersive mode: $enabled", e)
+            }
+        }
+        return true
+    }
+
     /** Open the Android system share sheet with plain or JSON text content. */
     @JavascriptInterface
     fun shareText(title: String, text: String, mimeType: String): Boolean {

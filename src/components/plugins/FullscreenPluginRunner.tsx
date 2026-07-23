@@ -6,6 +6,7 @@ import { deletePluginData, loadPluginData, savePluginData } from "../../infrastr
 interface AndroidPluginBridgeWindow extends Window {
   AndroidThemeBridge?: {
     setScreenOrientation?: (mode: PluginOrientation) => boolean;
+    setImmersiveMode?: (enabled: boolean) => boolean;
   };
 }
 
@@ -25,6 +26,7 @@ export default function FullscreenPluginRunner({
   useEffect(() => {
     const orientation = plugin.manifest.orientation ?? "auto";
     setOrientation(orientation);
+    setImmersiveMode(true);
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const message = event.data;
@@ -47,6 +49,7 @@ export default function FullscreenPluginRunner({
     return () => {
       window.removeEventListener("message", handleMessage);
       document.removeEventListener("visibilitychange", handleVisibility);
+      setImmersiveMode(false);
       setOrientation("auto");
       runtime.revoke();
     };
@@ -141,7 +144,14 @@ function setOrientation(orientation: PluginOrientation): void {
   }
 }
 
+function setImmersiveMode(enabled: boolean): void {
+  try {
+    (window as AndroidPluginBridgeWindow).AndroidThemeBridge?.setImmersiveMode?.(enabled);
+  } catch {
+    // 浏览器和不支持沉浸式桥接的平台保持系统栏现状。
+  }
+}
+
 function normalizeError(error: unknown): string {
   return error instanceof Error ? error.message : "PLUGIN_HOST_ERROR";
 }
-

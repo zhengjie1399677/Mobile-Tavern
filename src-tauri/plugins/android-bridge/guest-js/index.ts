@@ -34,6 +34,8 @@ export interface AndroidThemeBridge {
   setStatusBarStyle(isDark: boolean, colorHex: string): void;
   /** Locks the Activity to sensor landscape or returns control to the system. */
   setScreenOrientation(mode: "landscape" | "auto"): boolean;
+  /** Hides or restores Android system bars for a host-owned full-screen surface. */
+  setImmersiveMode(enabled: boolean): boolean;
   /** Opens the Android system share sheet with text content. */
   shareText(title: string, text: string, mimeType: string): boolean;
   /**
