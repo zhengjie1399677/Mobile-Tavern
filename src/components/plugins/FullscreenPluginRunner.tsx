@@ -22,11 +22,17 @@ export default function FullscreenPluginRunner({
   const runtime = useMemo(() => createPluginRuntimeDocument(plugin, channel), [plugin, channel]);
   const [error, setError] = useState<string>();
   const loadedRef = useRef(false);
+  const exitEnabledRef = useRef(false);
 
   useEffect(() => {
     const orientation = plugin.manifest.orientation ?? "auto";
     setOrientation(orientation);
     setImmersiveMode(true);
+    // Android 在方向切换期间可能把启动按钮的尾随触摸传递给刚创建的 iframe。
+    // 内置游戏的“离开”按钮若收到该触摸会立即请求退出，因此仅在稳定后接受该请求。
+    const enableExitTimer = window.setTimeout(() => {
+      exitEnabledRef.current = true;
+    }, 800);
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const message = event.data;
@@ -49,6 +55,8 @@ export default function FullscreenPluginRunner({
     return () => {
       window.removeEventListener("message", handleMessage);
       document.removeEventListener("visibilitychange", handleVisibility);
+      window.clearTimeout(enableExitTimer);
+      exitEnabledRef.current = false;
       setImmersiveMode(false);
       setOrientation("auto");
       runtime.revoke();
@@ -96,6 +104,7 @@ export default function FullscreenPluginRunner({
     const record = params && typeof params === "object" ? params as Record<string, unknown> : {};
     if (method === "host.ready") return { apiVersion: 1 };
     if (method === "host.exit") {
+      if (!exitEnabledRef.current) throw new Error("PLUGIN_EXIT_NOT_READY");
       onExit();
       return null;
     }
