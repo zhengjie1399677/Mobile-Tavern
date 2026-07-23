@@ -23,13 +23,20 @@ import UpdatePrompt from "./UpdatePrompt";
 import { PromptWorkbenchFocusProvider } from "../contexts/PromptWorkbenchFocusContext";
 
 function TabLoadingFallback() {
+  const [visible, setVisible] = React.useState(false);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setVisible(true), 350);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <div
       role="status"
       aria-label="正在加载功能页面"
       className="flex min-h-full w-full items-center justify-center bg-background text-muted-foreground"
     >
-      <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" />
+      {visible && <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" />}
     </div>
   );
 }
