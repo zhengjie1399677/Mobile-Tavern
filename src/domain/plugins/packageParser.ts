@@ -190,6 +190,29 @@ function validateManifest(value: unknown): FullscreenPluginManifest {
   for (const field of ["description", "author"] as const) {
     if (record[field] !== undefined && typeof record[field] !== "string") throw new Error(`PLUGIN_MANIFEST_INVALID_${field.toUpperCase()}`);
   }
+  // 权限声明白名单校验
+  const ALLOWED_PERMISSIONS = ["llm.chat", "llm.chatStream", "llm.preset.list"];
+  const permissions = record.permissions;
+  let safePermissions: string[] | undefined;
+  if (permissions !== undefined) {
+    if (!Array.isArray(permissions) || permissions.length === 0 ||
+        permissions.some((p) => typeof p !== "string" || !ALLOWED_PERMISSIONS.includes(p))) {
+      throw new Error("PLUGIN_MANIFEST_INVALID_PERMISSIONS");
+    }
+    safePermissions = permissions as string[];
+  }
+  // LLM 配置校验：syncPreset 必须布尔；llm 存在时隐式要求 permissions 含对应 llm.* 权限
+  const llm = record.llm;
+  let safeLlm: { syncPreset: boolean } | undefined;
+  if (llm !== undefined) {
+    if (!llm || typeof llm !== "object" || typeof (llm as Record<string, unknown>).syncPreset !== "boolean") {
+      throw new Error("PLUGIN_MANIFEST_INVALID_LLM");
+    }
+    if (!(safePermissions ?? []).some((p) => p.startsWith("llm."))) {
+      throw new Error("PLUGIN_MANIFEST_LLM_REQUIRES_PERMISSION");
+    }
+    safeLlm = { syncPreset: (llm as { syncPreset: boolean }).syncPreset };
+  }
   const safeOrientation = orientation === "portrait" || orientation === "landscape" || orientation === "auto"
     ? orientation
     : undefined;
@@ -204,5 +227,7 @@ function validateManifest(value: unknown): FullscreenPluginManifest {
     ...(typeof record.description === "string" ? { description: record.description.slice(0, 500) } : {}),
     ...(typeof record.author === "string" ? { author: record.author.slice(0, 120) } : {}),
     ...(safeOrientation ? { orientation: safeOrientation } : {}),
+    ...(safePermissions ? { permissions: safePermissions as FullscreenPluginManifest["permissions"] } : {}),
+    ...(safeLlm ? { llm: safeLlm } : {}),
   };
 }

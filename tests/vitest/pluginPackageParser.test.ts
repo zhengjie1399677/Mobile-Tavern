@@ -48,5 +48,35 @@ describe("第三方全屏插件包协议", () => {
     const corrupted = new Uint8Array(25);
     await expect(parseFullscreenPluginPackage(corrupted)).rejects.toThrow();
   });
+
+  it("解析含 permissions 与 llm.syncPreset 的 manifest", async () => {
+    const parsed = await parseFullscreenPluginPackage(buildPackage({
+      permissions: ["llm.chat", "llm.chatStream"],
+      llm: { syncPreset: true },
+    }));
+    expect(parsed.manifest.permissions).toEqual(["llm.chat", "llm.chatStream"]);
+    expect(parsed.manifest.llm).toEqual({ syncPreset: true });
+  });
+
+  it("permissions 非数组或含非法值时拒绝", async () => {
+    await expect(parseFullscreenPluginPackage(buildPackage({ permissions: "llm.chat" })))
+      .rejects.toThrow("PLUGIN_MANIFEST_INVALID_PERMISSIONS");
+    await expect(parseFullscreenPluginPackage(buildPackage({ permissions: ["llm.evil"] })))
+      .rejects.toThrow("PLUGIN_MANIFEST_INVALID_PERMISSIONS");
+    await expect(parseFullscreenPluginPackage(buildPackage({ permissions: [] })))
+      .rejects.toThrow("PLUGIN_MANIFEST_INVALID_PERMISSIONS");
+  });
+
+  it("llm.syncPreset 非布尔时拒绝", async () => {
+    await expect(parseFullscreenPluginPackage(buildPackage({
+      permissions: ["llm.chat"], llm: { syncPreset: "yes" },
+    }))).rejects.toThrow("PLUGIN_MANIFEST_INVALID_LLM");
+  });
+
+  it("llm 存在但 permissions 缺失时拒绝", async () => {
+    await expect(parseFullscreenPluginPackage(buildPackage({
+      llm: { syncPreset: true },
+    }))).rejects.toThrow("PLUGIN_MANIFEST_LLM_REQUIRES_PERMISSION");
+  });
 });
 

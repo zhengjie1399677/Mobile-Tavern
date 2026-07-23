@@ -170,7 +170,55 @@ async function dataUrl(data: Uint8Array, type: string): Promise<string> {
 }
 
 function bridgeSource(pluginId: string, channel: string): string {
-  return `(()=>{'use strict';const pluginId=${pluginId};const channel=${channel};let seq=0;const pending=new Map();const call=(method,params)=>new Promise((resolve,reject)=>{const requestId=String(++seq);pending.set(requestId,{resolve,reject});parent.postMessage({mtPlugin:1,channel,pluginId,requestId,method,params},'*');setTimeout(()=>{if(pending.delete(requestId))reject(new Error('HOST_TIMEOUT'))},10000)});addEventListener('message',event=>{const message=event.data;if(!message||message.mtPlugin!==1||message.channel!==channel)return;if(message.type==='response'){const item=pending.get(message.requestId);if(!item)return;pending.delete(message.requestId);message.ok?item.resolve(message.result):item.reject(new Error(message.error||'HOST_ERROR'))}else if(message.type==='lifecycle'){dispatchEvent(new CustomEvent('mobile-tavern:lifecycle',{detail:message.event}))}});addEventListener('click',event=>{const anchor=event.target&&event.target.closest?event.target.closest('a[href]'):null;if(anchor)event.preventDefault()},true);addEventListener('submit',event=>event.preventDefault(),true);Object.defineProperty(window,'MobileTavernPlugin',{value:Object.freeze({version:1,ready:()=>call('host.ready'),exit:()=>call('host.exit'),setOrientation:orientation=>call('host.orientation',{orientation}),save:(slot,data)=>call('storage.save',{slot,data}),load:slot=>call('storage.load',{slot}),deleteSave:slot=>call('storage.delete',{slot})}),writable:false,configurable:false});call('host.ready').catch(()=>{})})();`;
+  return `(()=>{
+'use strict';
+const pluginId=${pluginId};
+const channel=${channel};
+let seq=0;
+const pending=new Map();
+const streams=new Map();
+const call=(method,params,timeoutMs)=>{
+  timeoutMs=timeoutMs==null?10000:timeoutMs;
+  return new Promise((resolve,reject)=>{
+    const requestId=String(++seq);
+    const entry={resolve,reject,timer:0};
+    pending.set(requestId,entry);
+    parent.postMessage({mtPlugin:1,channel,pluginId,requestId,method,params},'*');
+    if(timeoutMs>0){entry.timer=setTimeout(function(){if(pending.delete(requestId))reject(new Error('HOST_TIMEOUT'))},timeoutMs)}
+  });
+};
+const callStream=(method,params)=>{
+  const requestId=String(++seq);
+  const handler={onChunk:function(){},onDone:function(){},onError:function(){}};
+  streams.set(requestId,handler);
+  parent.postMessage({mtPlugin:1,channel,pluginId,requestId,type:'stream-request',method,params},'*');
+  var api={onChunk:function(fn){handler.onChunk=fn;return api},onDone:function(fn){handler.onDone=fn;return api},onError:function(fn){handler.onError=fn;return api},cancel:function(){parent.postMessage({mtPlugin:1,channel,pluginId,requestId,type:'cancel'},'*');streams.delete(requestId)}};
+  return api;
+};
+addEventListener('message',function(event){
+  var message=event.data;
+  if(!message||message.mtPlugin!==1||message.channel!==channel)return;
+  if(message.type==='response'){
+    var item=pending.get(message.requestId);
+    if(!item)return;
+    if(item.timer)clearTimeout(item.timer);
+    pending.delete(message.requestId);
+    message.ok?item.resolve(message.result):item.reject(new Error(message.error||'HOST_ERROR'));
+  }else if(message.type==='stream'){
+    var s=streams.get(message.requestId);
+    if(!s)return;
+    if(message.error){s.onError(new Error(message.error));streams.delete(message.requestId)}
+    else if(message.done){s.onDone({fullText:message.fullText,usage:message.usage});streams.delete(message.requestId)}
+    else if(message.chunk!==undefined){s.onChunk(message.chunk)}
+  }else if(message.type==='lifecycle'){
+    dispatchEvent(new CustomEvent('mobile-tavern:lifecycle',{detail:message.event}));
+  }
+});
+addEventListener('click',function(event){var anchor=event.target&&event.target.closest?event.target.closest('a[href]'):null;if(anchor)event.preventDefault()},true);
+addEventListener('submit',function(event){event.preventDefault()},true);
+Object.defineProperty(window,'MobileTavernPlugin',{value:Object.freeze({version:1,ready:function(){return call('host.ready')},exit:function(){return call('host.exit')},setOrientation:function(orientation){return call('host.orientation',{orientation:orientation})},save:function(slot,data){return call('storage.save',{slot:slot,data:data})},load:function(slot){return call('storage.load',{slot:slot})},deleteSave:function(slot){return call('storage.delete',{slot:slot})},llm:Object.freeze({chat:function(opts){return call('llm.chat',opts,300000)},chatStream:function(opts){return callStream('llm.chatStream',opts)},listPresets:function(){return call('llm.listPresets',{},10000)}})}),writable:false,configurable:false});
+call('host.ready').catch(function(){});
+})();`;
 }
 
 function rewriteResourceReferences(text: string, sourcePath: string, urls: Map<string, string>): string {

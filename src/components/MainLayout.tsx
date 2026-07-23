@@ -73,13 +73,19 @@ export default function MainLayout() {
 
   React.useEffect(() => {
     const vvp = window.visualViewport;
-    if (!vvp) return;
     const handleResize = () => {
-      setViewportHeight(Math.min(vvp.height, window.innerHeight));
+      setViewportHeight(vvp ? Math.min(vvp.height, window.innerHeight) : window.innerHeight);
     };
-    vvp.addEventListener("resize", handleResize);
+    // 同时监听 window.resize 与 visualViewport.resize：interactive-widget=resizes-content
+    // 模式下，部分 Android WebView（如 Android 16）键盘弹出时只触发 window.resize 而不触发
+    // vvp.resize，仅监听 vvp.resize 会导致容器高度不更新、输入框被键盘遮挡。
+    window.addEventListener("resize", handleResize);
+    if (vvp) vvp.addEventListener("resize", handleResize);
     handleResize();
-    return () => vvp.removeEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (vvp) vvp.removeEventListener("resize", handleResize);
+    };
   }, []);
 
   // 全局输入框聚焦滚动保障（KB-04/KB-05）：监听 document 的 focusin 事件，

@@ -122,7 +122,10 @@ async function openPluginDb(): Promise<IDBDatabase> {
             if (record.files) {
               packageFiles.put({ pluginId: record.id, files: record.files });
               delete record.files;
-              cursor.update(record);
+              // 用 store.put 而非 cursor.update：cursor.update 会将 cursor 的 gotValue 置为 false，
+              // 随后 cursor.continue 会抛 InvalidStateError（MDN: cursor "is currently being iterated"），
+              // 导致遍历中断、后续记录未迁移。store.put 不受 cursor 请求状态约束，可安全与 continue 同步调用。
+              packages.put(record);
             }
             cursor.continue();
           };
@@ -173,7 +176,7 @@ export const __pluginStorageTest = {
     await openPluginDb();
   },
   // 模拟 v1 安装：以旧 schema（packages 含 files、无 packageFiles store）直接写入完整记录。
-  async seedV1Record(plugin: InstalledFullscreenPlugin): Promise<void> {
+  async seedV1Records(plugins: InstalledFullscreenPlugin[]): Promise<void> {
     openedDb?.close();
     openedDb = null;
     dbPromise = null;
@@ -194,13 +197,17 @@ export const __pluginStorageTest = {
       opening.onsuccess = () => {
         const db = opening.result;
         const tx = db.transaction(PACKAGES_STORE, "readwrite");
-        tx.objectStore(PACKAGES_STORE).put(plugin);
+        const store = tx.objectStore(PACKAGES_STORE);
+        for (const p of plugins) store.put(p);
         tx.oncomplete = () => { db.close(); resolve(); };
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error ?? new Error("PLUGIN_DB_TRANSACTION_ABORTED"));
       };
       opening.onerror = () => reject(opening.error);
     });
+  },
+  async seedV1Record(plugin: InstalledFullscreenPlugin): Promise<void> {
+    return this.seedV1Records([plugin]);
   },
   // 重新以当前版本打开，触发 v1→v2 onupgradeneeded 迁移。
   async reopenWithCurrentVersion(): Promise<void> {

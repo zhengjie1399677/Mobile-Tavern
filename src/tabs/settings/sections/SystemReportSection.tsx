@@ -3,6 +3,7 @@ import { getDB } from "../../../utils/localDB";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import type { ViewportSize } from "../utils";
 import { useTranslation } from "../../../contexts/LanguageContext";
+import { getViewportSnapshot, getViewportHistory, getViewportMeta, measureDynamicViewportHeight } from "../../../utils/viewportDiagnostic";
 
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。
@@ -345,6 +346,35 @@ export default function SystemReportSection({
     }
     log(`[6. LLM API] Elapsed: ${Date.now() - llmStart}ms`);
 
+    // 7. 视口/键盘诊断（定位"小键盘遮挡输入框"等瞬态问题，含黑匣子事件历史）
+    const viewportStart = Date.now();
+    log(`\n[7. VIEWPORT] Viewport & keyboard diagnostic (black-box history)...`);
+    log(`[7. VIEWPORT] meta: ${getViewportMeta()}`);
+    const snap = getViewportSnapshot();
+    log(`[7. VIEWPORT] window: ${snap.innerW}x${snap.innerH}`);
+    log(`[7. VIEWPORT] visualViewport: ${snap.hasVisualViewport ? `${snap.vvpW}x${snap.vvpH} (offsetTop=${snap.vvpOffsetTop}, scale=${snap.vvpScale})` : "UNAVAILABLE (no visualViewport API)"}`);
+    const dvh = measureDynamicViewportHeight();
+    const dvhMismatch = dvh !== null && dvh !== snap.innerH;
+    log(`[7. VIEWPORT] 100dvh measured: ${dvh ?? "N/A"}px (vs innerH=${snap.innerH}px${dvhMismatch ? " ⚠️ MISMATCH" : " match"})`);
+    const history = getViewportHistory();
+    log(`[7. VIEWPORT] Resize event history (${history.length} records, oldest→newest):`);
+    for (const r of history) {
+      const t = new Date(r.time).toISOString().split("T")[1].replace("Z", "");
+      const vvpStr = r.vvpH !== null ? `${r.vvpW}x${r.vvpH} off=${r.vvpOffsetTop} scale=${r.vvpScale}` : "no-vvp";
+      log(`[7. VIEWPORT]   ${t} [${r.source}] win=${r.innerW}x${r.innerH} vvp=${vvpStr}`);
+    }
+    // 自动诊断提示：判定 keyboard avoidance 事件通道健康度
+    const hasVvpResize = history.some(r => r.source === "visualViewport");
+    const hasWinResize = history.some(r => r.source === "window");
+    if (history.length > 1 && hasWinResize && !hasVvpResize) {
+      log(`[7. VIEWPORT] DIAGNOSIS: window.resize fired but visualViewport.resize NEVER fired.`);
+      log(`[7. VIEWPORT]   → interactive-widget=resizes-content 下 vvp.resize 缺失，容器高度需同时监听 window.resize。`);
+    } else if (history.length > 1 && hasVvpResize && !hasWinResize) {
+      log(`[7. VIEWPORT] DIAGNOSIS: visualViewport.resize fired but window.resize NEVER fired.`);
+      log(`[7. VIEWPORT]   → overlays-content 模式典型特征，offsetTop 应在键盘弹出时增大。`);
+    }
+    log(`[7. VIEWPORT] Elapsed: ${Date.now() - viewportStart}ms`);
+
     const totalElapsed = Date.now() - totalStart;
     log(`\n=================================================`);
     log(`[DIAGNOSTIC COMPLETE] Total elapsed: ${totalElapsed}ms`);
@@ -363,6 +393,7 @@ export default function SystemReportSection({
               `${t("report.platform")}: ${isTauri ? t("report.android_client") : t("report.web_client")}`,
               `${t("report.device")}: ${deviceModel}`,
               typeof window !== "undefined" ? `${t("report.viewport")}: ${viewportSize.w}x${viewportSize.h} (visual: ${Math.round(viewportSize.vW)}x${Math.round(viewportSize.vH)})` : null,
+              typeof window !== "undefined" && window.visualViewport ? `visualViewport: ${Math.round(window.visualViewport.width)}x${Math.round(window.visualViewport.height)} offsetTop=${Math.round(window.visualViewport.offsetTop)} scale=${window.visualViewport.scale?.toFixed(2)}` : null,
               safeAreas ? `${t("report.safe_area")}: ${safeAreas.top}dp | ${safeAreas.bottom}dp` : null,
               `${t("report.android_bridge")}: ${typeof window !== "undefined" && (window as WindowWithAndroidBridge).AndroidThemeBridge ? t("report.success") : t("report.none")}`,
               `${t("report.ua")}: ${typeof navigator !== "undefined" ? navigator.userAgent : "N/A"}`,
