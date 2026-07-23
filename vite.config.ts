@@ -4,7 +4,8 @@ import path from 'path';
 import {defineConfig} from 'vite';
 import packageJson from './package.json';
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
+  const isProd = command === 'build';
   return {
     define: {
       __APP_VERSION__: JSON.stringify(packageJson.version),
@@ -16,9 +17,16 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    esbuild: {
+      // 生产构建时移除 console.log / console.debug，保留 console.warn / console.error 用于诊断。
+      // 一次性收口代码库中 100+ 处未保护的调试日志，无需逐个手动清理。
+      pure: isProd ? ['console.log', 'console.debug'] : [],
+    },
     build: {
       target: 'es2020',
       chunkSizeWarningLimit: 800,
+      // 小资源内联为 base64，减少 Tauri WebView 本地文件 IO（10KB 阈值平衡体积与请求数）
+      assetsInlineLimit: 10240,
       rollupOptions: {
         output: {
           // 统一使用函数形式 manualChunks，避免对象与函数形式冲突

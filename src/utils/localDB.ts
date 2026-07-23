@@ -132,6 +132,7 @@ export function enqueueWrite<T>(
   if (key) {
     const existing = pendingKeyedWrites.get(key);
     if (existing) {
+      console.warn(`[localDB] Write coalesced for key "${key}": previous pending operation replaced. If data loss is suspected, inspect rapid successive writes to the same resource.`);
       existing.operation = operation;
       return existing.pendingPromise as Promise<T>;
     }

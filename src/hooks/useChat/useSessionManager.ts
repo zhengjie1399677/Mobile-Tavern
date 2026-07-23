@@ -207,9 +207,16 @@ export function useSessionManager(p: SessionManagerParams) {
     const activeId = p.activeSessionId;
     if (!activeId) return;
 
+    // 手动创建的空会话保护期：创建后 5 分钟内不清理，避免用户刚创建分支还没发消息就被回收。
+    const GRACE_PERIOD_MS = 5 * 60 * 1000;
+    const now = Date.now();
+
     const emptySessions = p.sessions.filter((s) => {
       if (s.id === activeId) return false;
-      
+
+      // 保护期判定：创建时间在 5 分钟内的会话跳过清理
+      if (s.createdAt && now - s.createdAt < GRACE_PERIOD_MS) return false;
+
       // 核心修正：当会话未懒加载（s.messages 为 undefined 时），切勿降级计算。
       // 此时必须通过数据库缓存的 turnCount 字段进行快速识别过滤。
       if (s.messages === undefined) {
@@ -217,7 +224,7 @@ export function useSessionManager(p: SessionManagerParams) {
         // 如果是老数据（s.turnCount 缺失为 undefined），为防止数据误删，必须保守跳过，决不能清理
         return s.turnCount === 0;
       }
-      
+
       // messages 已经加载的情况：直接通过内存中的 user 消息数量计算
       const userMsgCount = s.messages.filter((m) => m.sender === "user").length;
       return userMsgCount === 0;

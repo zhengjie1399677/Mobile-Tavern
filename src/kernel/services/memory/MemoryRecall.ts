@@ -54,6 +54,38 @@ export class MemoryRecall {
     this.database = database;
   }
 
+  // ===== 会话级缓存 =====
+  // 词典与 Pin/Mute 列表变更频率极低，连续 recall（如用户连续发消息）可复用缓存避免重复 IDB 查询。
+  // TTL 30 秒兜底；编辑点可调用 invalidateCache 主动失效。
+  private sessionCache = new Map<string, { dict: any[]; sessionObj: any; ts: number }>();
+  private static readonly CACHE_TTL_MS = 30_000;
+
+  private getCachedSessionMeta(sessionId: string): { dict: any[]; sessionObj: any } | null {
+    const entry = this.sessionCache.get(sessionId);
+    if (!entry) return null;
+    if (Date.now() - entry.ts > MemoryRecall.CACHE_TTL_MS) {
+      this.sessionCache.delete(sessionId);
+      return null;
+    }
+    return { dict: entry.dict, sessionObj: entry.sessionObj };
+  }
+
+  private setCachedSessionMeta(sessionId: string, dict: any[], sessionObj: any): void {
+    this.sessionCache.set(sessionId, { dict, sessionObj, ts: Date.now() });
+  }
+
+  /**
+   * 失效指定会话的缓存。在 Pin/Mute/词典编辑后调用可立即生效；
+   * 不传 sessionId 则清空全部缓存。
+   */
+  invalidateCache(sessionId?: string): void {
+    if (sessionId) {
+      this.sessionCache.delete(sessionId);
+    } else {
+      this.sessionCache.clear();
+    }
+  }
+
   /**
    * 召回相关历史片段（主入口）。
    *
@@ -74,18 +106,31 @@ export class MemoryRecall {
   ): Promise<RecalledMessage[]> {
     const isDev = import.meta.env?.DEV ?? false;
 
-    // 1. 提取查询标签
-    const dict = await this.storage.getDictBySession(sessionId);
-    const queryTags = extractByDict(currentMessage, dict);
-
-    // 强力 Pin 状态支持：哪怕没有匹配到任何查询标签，若用户有 Pin 的消息，依然需要召回它们
+    // 1. 优先读会话级缓存（TTL 30s），命中则跳过 IDB 查询；未命中则并行查 IDB 并写缓存。
+    //    sessionObj 在后续 recallByTags / fallbackRecallRecent 中复用，避免重复 getSessionById。
+    let dict: any[] = [];
     let sessionObj: any = null;
-    try {
-      sessionObj = await this.database?.getSessionById(sessionId);
-    } catch (err) {
-      console.warn("[MemoryRecall] Failed to fetch session for Pin in recall:", err);
+    const cached = this.getCachedSessionMeta(sessionId);
+    if (cached) {
+      dict = cached.dict;
+      sessionObj = cached.sessionObj;
+    } else {
+      try {
+        [dict, sessionObj] = await Promise.all([
+          this.storage.getDictBySession(sessionId),
+          this.database?.getSessionById(sessionId).catch((err: unknown) => {
+            console.warn("[MemoryRecall] Failed to fetch session in recall:", err);
+            return null;
+          }),
+        ]);
+      } catch (err) {
+        console.warn("[MemoryRecall] Failed to load dict in recall:", err);
+      }
+      this.setCachedSessionMeta(sessionId, dict, sessionObj);
     }
-    const pinnedIds = sessionObj?.pinnedMessageIds || [];
+    const queryTags = extractByDict(currentMessage, dict);
+    const pinnedIds: string[] = sessionObj?.pinnedMessageIds || [];
+    const mutedIds: string[] = sessionObj?.mutedMessageIds || [];
 
     if (isDev) {
       console.log("[MemoryRecall] recall 入口:", {
@@ -94,21 +139,22 @@ export class MemoryRecall {
         dictSize: dict.length,
         queryTags,
         pinnedIds: pinnedIds.length,
+        mutedIds: mutedIds.length,
         topK: options?.topK,
       });
     }
 
     if (queryTags.length === 0 && pinnedIds.length === 0) {
       if (options?.allowWeakFallback !== true) return [];
-      const fallbackResult = await this.fallbackRecallRecent(sessionId, options);
+      const fallbackResult = await this.fallbackRecallRecent(sessionId, options, mutedIds);
       if (isDev) {
         console.log("[MemoryRecall] 走兜底路径，结果:", fallbackResult.length, "条");
       }
       return fallbackResult;
     }
 
-    // 2. 按标签召回
-    const tagResult = await this.recallByTags(sessionId, queryTags, options);
+    // 2. 按标签召回（传入 sessionMeta 避免子方法重复查 getSessionById）
+    const tagResult = await this.recallByTags(sessionId, queryTags, options, { pinnedIds, mutedIds });
     if (isDev) {
       console.log("[MemoryRecall] 走标签召回，结果:", tagResult.length, "条，tags:", queryTags);
     }
@@ -128,7 +174,8 @@ export class MemoryRecall {
    */
   private async fallbackRecallRecent(
     sessionId: string,
-    options?: RecallOptions
+    options?: RecallOptions,
+    mutedIds?: string[]
   ): Promise<RecalledMessage[]> {
     const rawExcludeN = Math.max(0, options?.excludeRecentN ?? DEFAULT_EXCLUDE_RECENT_N);
     const currentTurnIndex = await this.resolveCurrentTurnIndex(sessionId, options?.currentTurnIndex);
@@ -157,15 +204,9 @@ export class MemoryRecall {
     candidates.sort((a, b) => (b.turnIndex ?? 0) - (a.turnIndex ?? 0));
     const fallbackMsg = candidates[0];
 
-    // 加载 Mute 列表（与 recallByTags 一致的 Mute 过滤）
-    let sessionObj: any = null;
-    try {
-      sessionObj = await this.database?.getSessionById(sessionId);
-    } catch (err) {
-      console.warn("[MemoryRecall] Failed to fetch session for Mute in fallback:", err);
-    }
-    const mutedIds: string[] = sessionObj?.mutedMessageIds || [];
-    if (mutedIds.includes(fallbackMsg.id)) return [];
+    // Mute 过滤：使用主入口 recall() 传入的 mutedIds，避免重复 getSessionById。
+    // 兜底方法被外部直接调用时（mutedIds 为 undefined），降级为不过滤以保持向后兼容。
+    if (mutedIds && mutedIds.includes(fallbackMsg.id)) return [];
 
     return [{
       memoryId: fallbackMsg.id,
@@ -192,7 +233,8 @@ export class MemoryRecall {
   async recallByTags(
     sessionId: string,
     tags: string[],
-    options?: RecallOptions
+    options?: RecallOptions,
+    sessionMeta?: { pinnedIds: string[]; mutedIds: string[] }
   ): Promise<RecalledMessage[]> {
     const isDev = import.meta.env?.DEV ?? false;
     const topK = Math.max(1, options?.topK ?? DEFAULT_TOP_K);
@@ -220,15 +262,23 @@ export class MemoryRecall {
     let fragments = fragmentCandidates.filter((fragment) => fragment.status === 'active');
 
     // 2.5 强力 Pin / Mute 机制注入候选池与排除配置
-    let sessionObj2: any = null;
-    try {
-      sessionObj2 = await this.database?.getSessionById(sessionId);
-    } catch (err) {
-      console.warn("[MemoryRecall] Failed to fetch session for Pin/Mute in recallByTags:", err);
+    // 优先使用主入口 recall() 传入的 sessionMeta，避免重复 getSessionById。
+    // recallByTags 被外部直接调用时（sessionMeta 为 undefined），降级自查以保持向后兼容。
+    let pinnedIds: string[];
+    let mutedIdSet: Set<string>;
+    if (sessionMeta) {
+      pinnedIds = sessionMeta.pinnedIds;
+      mutedIdSet = new Set(sessionMeta.mutedIds);
+    } else {
+      let sessionObj2: any = null;
+      try {
+        sessionObj2 = await this.database?.getSessionById(sessionId);
+      } catch (err) {
+        console.warn("[MemoryRecall] Failed to fetch session for Pin/Mute in recallByTags:", err);
+      }
+      pinnedIds = sessionObj2?.pinnedMessageIds || [];
+      mutedIdSet = new Set(sessionObj2?.mutedMessageIds || []);
     }
-    const pinnedIds = sessionObj2?.pinnedMessageIds || [];
-    const mutedIds = sessionObj2?.mutedMessageIds || [];
-    const mutedIdSet = new Set(mutedIds);
 
     if (pinnedIds.length > 0) {
       const [pinnedMsgs, pinnedFragments] = await Promise.all([
@@ -258,7 +308,7 @@ export class MemoryRecall {
         excludeRecentN,
         candidateCount: candidates.length,
         pinnedCount: pinnedIds.length,
-        mutedCount: mutedIds.length,
+        mutedCount: mutedIdSet.size,
       });
     }
 

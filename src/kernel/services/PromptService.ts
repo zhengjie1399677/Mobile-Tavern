@@ -159,9 +159,6 @@ export class PromptService implements IPromptService {
     checkAborted(signal, this.abortController?.signal);
     const operationSignal = signal ?? this.abortController?.signal;
 
-    console.log("[PromptService Debug] chat messages in compiler:", JSON.stringify((chat.messages || []).map(m => ({ id: m.id, sender: m.sender, content: m.content }))));
-    console.log("[PromptService Debug] settings.memory:", JSON.stringify(settings.memory), "enableTableMemory:", settings.enableTableMemory);
-
     const macroParams = {
       char: character.name,
       user: settings.userName || "user",
