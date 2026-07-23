@@ -184,7 +184,7 @@ export function useSessionManager(p: SessionManagerParams) {
       return;
     }
     const branchTitle = await p.showCustomPrompt(
-      "请输入根据该幕历史创立的心宿分支标题:",
+      "请输入根据该幕历史创立的新分支标题:",
       `时间流分支: ${summary.timeTag}`
     );
     if (!branchTitle) return;
