@@ -16,8 +16,10 @@ import {
   Book,
   MoreHorizontal,
   FolderSearch,
+  Gamepad2,
 } from "lucide-react";
 import { getAvatarGradientClass } from "../utils/avatarUtils";
+import { listBuiltinPluginCards } from "../infrastructure/plugins/builtinPlugins";
 
 export default function CharactersTab() {
   const {
@@ -53,6 +55,19 @@ export default function CharactersTab() {
   const [selectedDetailChar, setSelectedDetailChar] = React.useState<CharacterCard | null>(null);
   const [actionMenuChar, setActionMenuChar] = React.useState<CharacterCard | null>(null);
   const [scannerOpen, setScannerOpen] = React.useState(false);
+  // 插件型角色卡：异步加载内置插件并映射为虚拟角色卡，与普通角色卡合并展示。
+  const [pluginCards, setPluginCards] = React.useState<CharacterCard[]>([]);
+  React.useEffect(() => {
+    let cancelled = false;
+    listBuiltinPluginCards()
+      .then((cards) => { if (!cancelled) setPluginCards(cards); })
+      .catch((err) => console.warn("[CharactersTab] Failed to load plugin cards:", err));
+    return () => { cancelled = true; };
+  }, []);
+  const displayCharacters = React.useMemo(
+    () => [...characters, ...pluginCards],
+    [characters, pluginCards]
+  );
   return (
     <div className="px-4 pb-4 pt-1.5 space-y-4 relative min-h-screen">
       <div className="flex min-h-12 items-center justify-between border-b border-border pb-2">
@@ -97,7 +112,8 @@ export default function CharactersTab() {
       {/* List Cards */}
       <div className="space-y-3">
       {/* characters array is pre-sorted by last chat time via useMemo in LegacyAppContextProvider */}
-        {characters.map((char, index) => {
+        {displayCharacters.map((char, index) => {
+          const isPluginCard = !!char.extensions?.mt_plugin;
           const charSessList = sessions.filter(
             (s) => s.characterId === char.id,
           );
@@ -114,6 +130,13 @@ export default function CharactersTab() {
                   : "shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_10px_25px_-5px_rgba(255,255,255,0.03)] hover:-translate-y-0.5"
               }`}
             >
+              {/* 插件型角色卡互动角标 */}
+              {isPluginCard && (
+                <div className="absolute top-1 right-1 flex items-center gap-0.5 text-[8px] opacity-60 text-muted-foreground bg-muted/40 px-1 py-0.5 rounded select-none">
+                  <Gamepad2 className="w-2 h-2" />
+                  <span>{t("characters_tab.interactive_badge")}</span>
+                </div>
+              )}
               {/* Character Avatar Grid */}
               <div 
                 className={`w-16 h-20 rounded-2xl overflow-hidden border border-border/40 flex items-center justify-center relative shrink-0 ${
@@ -141,18 +164,20 @@ export default function CharactersTab() {
                     <h2 className="font-bold text-foreground text-sm truncate flex-1">
                       {char.name}
                     </h2>
-                    <div
-                      className="flex gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        onClick={() => setActionMenuChar(char)}
-                        className="text-muted-foreground hover:text-primary p-1 bg-muted/40 rounded-lg hover:bg-muted transition active:scale-95 flex items-center justify-center"
-                        title={t("characters_tab.more_title")}
+                    {!isPluginCard && (
+                      <div
+                        className="flex gap-1"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <MoreHorizontal className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                        <button
+                          onClick={() => setActionMenuChar(char)}
+                          className="text-muted-foreground hover:text-primary p-1 bg-muted/40 rounded-lg hover:bg-muted transition active:scale-95 flex items-center justify-center"
+                          title={t("characters_tab.more_title")}
+                        >
+                          <MoreHorizontal className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground line-clamp-2 mt-1.5 leading-relaxed font-light">
                     {char.description || char.personality || t("characters_tab.no_description")}
@@ -170,7 +195,7 @@ export default function CharactersTab() {
         })}
 
 
-        {characters.length === 0 && (
+        {displayCharacters.length === 0 && (
           <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl flex flex-col items-center justify-center">
             <Bot className="w-10 h-10 stroke-[1.2] mb-2 text-muted-foreground" />
             <p className="text-sm">{t("characters_tab.empty_title")}</p>

@@ -584,6 +584,7 @@ export default {
   "characters_tab.export_json": "導出為 JSON 文件",
   "characters_tab.export_png": "導出為 SillyTavern PNG 角色卡",
   "characters_tab.delete_char": "刪除该角色卡",
+  "characters_tab.interactive_badge": "互動",
   "session_manager.title": "對話分支管理",
   "session_manager.busy_switch_warning": "當前有正在生成的對話，請等待生成完毕或手動停止生成後再切換分支。",
   "session_manager.default_branch_name": "主劇情线",

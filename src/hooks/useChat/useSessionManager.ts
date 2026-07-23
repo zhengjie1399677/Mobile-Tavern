@@ -3,6 +3,9 @@ import { ChatSession, CharacterCard, Message, SummaryCard, UserSettings } from "
 import { IDatabaseService } from "../../kernel/types";
 import { ITelemetryService } from "../../kernel/types";
 import { cleanSuggestionsFromText, parseSuggestions } from "./helpers";
+import { listBuiltinPlugins } from "../../infrastructure/plugins/builtinPlugins";
+import { listInstalledPlugins, loadPluginFiles } from "../../infrastructure/plugins/pluginStorage";
+import type { InstalledFullscreenPlugin } from "../../domain/plugins";
 
 interface SessionManagerParams {
   isSending: boolean;
@@ -28,6 +31,7 @@ interface SessionManagerParams {
   showCustomAlert: (msg: string) => Promise<void>;
   showCustomConfirm: (msg: string) => Promise<boolean>;
   showCustomPrompt: (msg: string, defaultValue?: string) => Promise<string | null>;
+  launchPlugin: (plugin: InstalledFullscreenPlugin) => void;
 }
 
 /**
@@ -69,6 +73,12 @@ export function useSessionManager(p: SessionManagerParams) {
   }, [p]);
 
   const selectCharacter = useCallback(async (charId: string) => {
+    // 插件型角色卡：启动全屏插件而非进入对话
+    if (charId.startsWith("plugin:")) {
+      const pluginId = charId.slice("plugin:".length);
+      await launchPluginById(pluginId, p.launchPlugin);
+      return;
+    }
     if (p.isSending) {
       await p.showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再切换角色卡。");
       return;
@@ -257,4 +267,28 @@ export function useSessionManager(p: SessionManagerParams) {
     createBacktrackBranch,
     createBacktrackFromTimeline,
   };
+}
+
+/**
+ * 根据 pluginId 解析并启动全屏插件。
+ * 先查内置插件（已含 files），再查用户已安装插件（按需加载 files），最后调用 launchPlugin。
+ */
+async function launchPluginById(
+  pluginId: string,
+  launchPlugin: (plugin: InstalledFullscreenPlugin) => void,
+): Promise<void> {
+  const builtins = await listBuiltinPlugins();
+  const builtin = builtins.find((item) => item.id === pluginId);
+  if (builtin) {
+    launchPlugin(builtin);
+    return;
+  }
+  const installed = await listInstalledPlugins();
+  const meta = installed.find((item) => item.id === pluginId);
+  if (meta) {
+    const files = await loadPluginFiles(pluginId);
+    launchPlugin({ ...meta, files });
+    return;
+  }
+  console.warn(`[SessionManager] Plugin not found: ${pluginId}`);
 }

@@ -584,6 +584,7 @@ export default {
   "characters_tab.export_json": "Exportar como Arquivo JSON",
   "characters_tab.export_png": "Exportar como Carta PNG SillyTavern",
   "characters_tab.delete_char": "Excluir Esta Carta",
+  "characters_tab.interactive_badge": "Interativo",
   "session_manager.title": "Gerenciamento de Ramificações de Diálogo",
   "session_manager.busy_switch_warning": "Há um diálogo sendo gerado no momento. Aguarde a conclusão ou pare manualmente antes de alternar a ramificação.",
   "session_manager.default_branch_name": "Linha do Tempo Principal",

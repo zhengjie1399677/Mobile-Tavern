@@ -56,6 +56,7 @@ function createMockParams(overrides?: Partial<any>) {
   const showCustomAlert = vi.fn().mockResolvedValue(undefined);
   const showCustomConfirm = vi.fn().mockResolvedValue(true);
   const showCustomPrompt = vi.fn().mockResolvedValue("新分支");
+  const launchPlugin = vi.fn();
 
   const character = createMockCharacter();
   const session = createMockSession();
@@ -91,6 +92,7 @@ function createMockParams(overrides?: Partial<any>) {
     showCustomAlert,
     showCustomConfirm,
     showCustomPrompt,
+    launchPlugin,
     ...overrides,
   };
 }

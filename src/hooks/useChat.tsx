@@ -24,6 +24,7 @@ import {
 } from "../kernel/types";
 import type { MemoryServiceTyped } from "../kernel/services/memory";
 import type { MemoryAuditSnapshot } from "../kernel/services/memory/types";
+import type { InstalledFullscreenPlugin } from "../domain/plugins";
 
 import { useChatUI } from "./useChat/useChatUI";
 import { useSessionManager } from "./useChat/useSessionManager";
@@ -39,7 +40,8 @@ export const useChat = (
   settings: UserSettings,
   globalLorebook: LorebookEntry[],
   chatBottomRef: React.RefObject<HTMLDivElement | null>,
-  customWorldbooks: Record<string, CustomWorldbook>
+  customWorldbooks: Record<string, CustomWorldbook>,
+  launchPlugin: (plugin: InstalledFullscreenPlugin) => void
 ) => {
   const kernel = useKernel();
   const { showCustomAlert, showCustomConfirm, showCustomPrompt, setActiveTab } = useApp();
@@ -121,6 +123,7 @@ export const useChat = (
     deleteSession, databaseService, telemetryService,
     triggerScroll: ui.triggerScroll,
     showCustomAlert, showCustomConfirm, showCustomPrompt,
+    launchPlugin,
   });
 
   const timelineSummary = useTimelineSummary({

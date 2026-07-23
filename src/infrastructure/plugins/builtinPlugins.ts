@@ -7,6 +7,7 @@ import rainHtmlUrl from "../../../examples/pixi-arena-plugin/index.html?url";
 import rainManifestUrl from "../../../examples/pixi-arena-plugin/manifest.json?url";
 import rainStyleUrl from "../../../examples/pixi-arena-plugin/style.css?url";
 import type { FullscreenPluginManifest, InstalledFullscreenPlugin } from "../../domain/plugins";
+import type { CharacterCard } from "../../types";
 
 const encoder = new TextEncoder();
 
@@ -52,4 +53,24 @@ async function loadBuiltinPlugin(
     uncompressedSize: Object.values(files).reduce((sum, file) => sum + file.byteLength, 0),
     builtin: true,
   };
+}
+
+/**
+ * 将内置全屏插件映射为虚拟角色卡，使其出现在角色卡列表中。
+ *
+ * 虚拟卡 id 形如 `plugin:<pluginId>`，通过 `extensions.mt_plugin` 标记，
+ * 供 CharactersTab 渲染互动角标并由 selectCharacter 分流到全屏插件运行器。
+ */
+export async function listBuiltinPluginCards(): Promise<CharacterCard[]> {
+  const plugins = await listBuiltinPlugins();
+  return plugins.map((plugin) => ({
+    id: `plugin:${plugin.id}`,
+    name: plugin.manifest.name,
+    description: plugin.manifest.description ?? "",
+    personality: "",
+    scenario: "",
+    first_mes: "",
+    mes_example: "",
+    extensions: { mt_plugin: { pluginId: plugin.id } },
+  }));
 }

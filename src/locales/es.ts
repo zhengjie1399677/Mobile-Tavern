@@ -574,6 +574,7 @@ export default {
   "characters_tab.export_json": "Exportar como JSON",
   "characters_tab.export_png": "Exportar como tarjeta PNG de SillyTavern",
   "characters_tab.delete_char": "Eliminar este personaje",
+  "characters_tab.interactive_badge": "Interactivo",
   "session_manager.title": "Gestión de ramas de sesión",
   "session_manager.busy_switch_warning": "Hay una generación en curso. Espere a que termine o deténgala manualmente antes de cambiar de rama.",
   "session_manager.default_branch_name": "Historia principal",

@@ -584,6 +584,7 @@ export default {
   "characters_tab.export_json": "Export as JSON",
   "characters_tab.export_png": "Export as SillyTavern PNG card",
   "characters_tab.delete_char": "Delete this character",
+  "characters_tab.interactive_badge": "Interactive",
   "session_manager.title": "Session branch management",
   "session_manager.busy_switch_warning": "A generation is in progress. Please wait for it to finish or manually stop it before switching branches.",
   "session_manager.default_branch_name": "Main storyline",

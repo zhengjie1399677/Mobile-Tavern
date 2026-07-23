@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { UnifiedAppContext, unifiedAppStore } from "../UnifiedAppContext";
 import { AppProvider, useApp } from "./AppContext";
 import { CharacterProvider, useCharactersState } from "./CharacterContext";
@@ -9,6 +9,26 @@ import { useChat } from "../hooks/useChat";
 import { useUsageTracking } from "../utils/useUsageTracking";
 import { SamplerPreset, PromptConfig, UserSettings } from "../types";
 import { useKernel } from "./KernelContext";
+import type { InstalledFullscreenPlugin } from "../domain/plugins";
+
+const RUNNING_PLUGIN_SESSION_KEY = "mobile-tavern.running-fullscreen-plugin";
+
+function readRunningPluginId(): string | undefined {
+  try {
+    return window.sessionStorage.getItem(RUNNING_PLUGIN_SESSION_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function setRunningPluginId(pluginId?: string): void {
+  try {
+    if (pluginId) window.sessionStorage.setItem(RUNNING_PLUGIN_SESSION_KEY, pluginId);
+    else window.sessionStorage.removeItem(RUNNING_PLUGIN_SESSION_KEY);
+  } catch {
+    // 会话存储不可用时，保持原有的内存态行为。
+  }
+}
 
 /**
  * 应用 Context 组合器。文件名保留是为了兼容历史导入路径，新代码应使用 AppContextAssembler。
@@ -50,6 +70,23 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
   // Usage telemetry tracking hook
   useUsageTracking();
 
+  // --- 全屏插件运行态（提升到全局，由 App 顶层渲染 FullscreenPluginRunner）---
+  const [runningPlugin, setRunningPlugin] = useState<InstalledFullscreenPlugin | undefined>(undefined);
+
+  const launchPlugin = useCallback((plugin: InstalledFullscreenPlugin) => {
+    setRunningPluginId(plugin.id);
+    setRunningPlugin(plugin);
+  }, []);
+
+  const exitPlugin = useCallback(() => {
+    setRunningPluginId();
+    setRunningPlugin(undefined);
+  }, []);
+
+  // 刷新恢复：首次挂载时若 sessionStorage 标记了正在运行的插件，按 ID 解析并恢复运行态。
+  // 复用 selectCharacter 的插件分支（通过 chatHook 在下方挂载后调用）。
+  const restorePluginId = useRef<string | undefined>(undefined);
+
   // 1. AppContext State & Triggers
   const appState = useApp();
 
@@ -71,8 +108,21 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     settingsHook.settings,
     settingsHook.globalLorebook,
     chatBottomRef,
-    settingsHook.customWorldbooks
+    settingsHook.customWorldbooks,
+    launchPlugin
   );
+
+  // 刷新恢复 effect：在 chatHook 装配后首次挂载触发，借 selectCharacter 的插件分支解析并启动。
+  useEffect(() => {
+    if (restorePluginId.current) return;
+    const pluginId = readRunningPluginId();
+    if (!pluginId) return;
+    restorePluginId.current = pluginId;
+    void chatHook.selectCharacter(`plugin:${pluginId}`).catch((err) => {
+      console.warn("[AppContextAssembler] Failed to restore running plugin:", err);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatHook.selectCharacter]);
 
   // Wrap handleDeleteCharacter to inject chatState dependencies
   const wrappedHandleDeleteCharacter = React.useCallback(async (id: string, e: React.MouseEvent) => {
@@ -166,6 +216,11 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
 
     // 封装内核服务访问，代替组件内直接 import globalKernel
     getKernelService: kernel.getService.bind(kernel),
+
+    // 全屏插件运行态
+    runningPlugin,
+    launchPlugin,
+    exitPlugin,
   }), [
     appState,
     charState,
@@ -180,6 +235,9 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     wrappedHandleImportSillyChatHistory,
     wrappedHandleSilentDailyBackup,
     kernel,
+    runningPlugin,
+    launchPlugin,
+    exitPlugin,
   ]);
 
   // 仅在首次渲染且 store 尚未初始化时同步写入，防止下游子组件在初次挂载时由于解构空对象而崩溃

@@ -17,6 +17,7 @@ import {
 import type { IKernelService } from "./kernel/types";
 import type { MemoryAuditSnapshot, RecalledMessage } from "./kernel/services/memory/types";
 import type { SettingsSaveState } from "./hooks/settings/useSettingsPersistence";
+import type { InstalledFullscreenPlugin } from "./domain/plugins";
 
 export interface UnifiedAppContextProps {
   // --- App State ---
@@ -199,6 +200,14 @@ export interface UnifiedAppContextProps {
    * 内部代理到 KernelContext 当前实例的 getService，封装依赖来源并支持测试替换。
    */
   getKernelService: <T extends IKernelService>(name: string) => T;
+
+  // --- Fullscreen Plugin Runner ---
+  /** 当前正在运行的全屏插件；为 undefined 时表示未运行。提升到全局以便 App 顶层渲染。 */
+  runningPlugin: InstalledFullscreenPlugin | undefined;
+  /** 启动全屏插件：设置 runningPlugin 并持久化到 sessionStorage 以便刷新恢复。 */
+  launchPlugin: (plugin: InstalledFullscreenPlugin) => void;
+  /** 退出全屏插件：清除 runningPlugin 与 sessionStorage 标记。 */
+  exitPlugin: () => void;
 }
 
 export const UnifiedAppContext = React.createContext<UnifiedAppContextProps | null>(null);

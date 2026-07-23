@@ -574,6 +574,7 @@ export default {
   "characters_tab.export_json": "Экспорт как JSON",
   "characters_tab.export_png": "Экспорт как PNG-карточка SillyTavern",
   "characters_tab.delete_char": "Удалить этого персонажа",
+  "characters_tab.interactive_badge": "Интерактив",
   "session_manager.title": "Управление ветками сессии",
   "session_manager.busy_switch_warning": "Идёт генерация диалога. Пожалуйста, дождитесь завершения или остановите вручную перед переключением ветки.",
   "session_manager.default_branch_name": "Основная сюжетная линия",

@@ -11,37 +11,17 @@ import {
 import { listBuiltinPlugins } from "../../infrastructure/plugins/builtinPlugins";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { useUnifiedApp } from "../../UnifiedAppContext";
-import FullscreenPluginRunner from "./FullscreenPluginRunner";
-
-const RUNNING_PLUGIN_SESSION_KEY = "mobile-tavern.running-fullscreen-plugin";
 
 type PluginListItem = InstalledFullscreenPlugin | InstalledPluginMetadata;
 
-function readRunningPluginId(): string | undefined {
-  try {
-    return window.sessionStorage.getItem(RUNNING_PLUGIN_SESSION_KEY) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function setRunningPluginId(pluginId?: string): void {
-  try {
-    if (pluginId) window.sessionStorage.setItem(RUNNING_PLUGIN_SESSION_KEY, pluginId);
-    else window.sessionStorage.removeItem(RUNNING_PLUGIN_SESSION_KEY);
-  } catch {
-    // 会话存储不可用时，保持原有的内存态行为。
-  }
-}
-
 export default function PluginManagerSection() {
   const { t } = useTranslation();
-  const { showCustomAlert, showCustomConfirm } = useUnifiedApp((state) => ({
+  const { showCustomAlert, showCustomConfirm, launchPlugin } = useUnifiedApp((state) => ({
     showCustomAlert: state.showCustomAlert,
     showCustomConfirm: state.showCustomConfirm,
+    launchPlugin: state.launchPlugin,
   }));
   const [plugins, setPlugins] = useState<PluginListItem[]>([]);
-  const [running, setRunning] = useState<InstalledFullscreenPlugin>();
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -61,14 +41,6 @@ export default function PluginManagerSection() {
     });
   }, [reload, showCustomAlert, t]);
 
-  useEffect(() => {
-    if (running) return;
-    const pluginId = readRunningPluginId();
-    if (!pluginId) return;
-    const item = plugins.find((entry) => entry.id === pluginId);
-    if (item) void runPlugin(item);
-  }, [plugins, running]);
-
   const runPlugin = async (plugin: PluginListItem) => {
     if (busy) return;
     setBusy(true);
@@ -77,18 +49,12 @@ export default function PluginManagerSection() {
       const full: InstalledFullscreenPlugin = "files" in plugin && plugin.files
         ? plugin
         : { ...(plugin as InstalledPluginMetadata), files: await loadPluginFiles(plugin.id) };
-      setRunningPluginId(full.id);
-      setRunning(full);
+      launchPlugin(full);
     } catch (error) {
       showCustomAlert(t("plugin_manager.storage_failed", { error: normalizeError(error) }), t("plugin_manager.title"));
     } finally {
       setBusy(false);
     }
-  };
-
-  const exitPlugin = () => {
-    setRunningPluginId();
-    setRunning(undefined);
   };
 
   const handleImport = async (file?: File) => {
@@ -167,8 +133,6 @@ export default function PluginManagerSection() {
           </article>
         ))}
       </div>
-
-      {running && <FullscreenPluginRunner plugin={running} onExit={exitPlugin} />}
     </section>
   );
 }

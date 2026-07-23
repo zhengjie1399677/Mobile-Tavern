@@ -574,6 +574,7 @@ export default {
   "characters_tab.export_json": "JSONとしてエクスポート",
   "characters_tab.export_png": "SillyTavern PNGカードとしてエクスポート",
   "characters_tab.delete_char": "このキャラクターを削除",
+  "characters_tab.interactive_badge": "インタラクティブ",
   "session_manager.title": "セッション分岐管理",
   "session_manager.busy_switch_warning": "生成中の会話があります。完了するか手動で停止してから分岐を切り替えてください。",
   "session_manager.default_branch_name": "メインストーリーライン",
