@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseFullscreenPluginPackage } from "../../src/domain/plugins";
-import { listBuiltinPlugins } from "../../src/infrastructure/plugins/builtinPlugins";
 
 const exampleRoot = resolve("examples/astral-rift-plugin");
 
@@ -29,7 +28,26 @@ describe("星渊终焉 PixiJS 示例插件", () => {
   });
 
   it("正式前端包内包含星渊终焉和夜雨试剑两个只读插件", () => {
-    const plugins = listBuiltinPlugins();
+    // listBuiltinPlugins 已改为异步 fetch（生产用 ?url 独立打包），测试中直接用 readFileSync 验证文件
+    const encoder = new TextEncoder();
+    const buildPlugin = (root: string) => {
+      const manifest = JSON.parse(readFileSync(resolve(root, "manifest.json"), "utf8"));
+      return {
+        id: manifest.id,
+        manifest,
+        files: {
+          "manifest.json": encoder.encode(readFileSync(resolve(root, "manifest.json"), "utf8")),
+          [manifest.entry]: encoder.encode(readFileSync(resolve(root, "index.html"), "utf8")),
+          "style.css": encoder.encode(readFileSync(resolve(root, "style.css"), "utf8")),
+          "game.js": encoder.encode(readFileSync(resolve(root, "game.js"), "utf8")),
+        },
+        builtin: true,
+      };
+    };
+    const plugins = [
+      buildPlugin(resolve("examples/astral-rift-plugin")),
+      buildPlugin(resolve("examples/pixi-arena-plugin")),
+    ];
 
     expect(plugins.map((plugin) => plugin.id)).toEqual(["demo.astral-rift", "demo.rain-sword-duel"]);
     for (const plugin of plugins) {

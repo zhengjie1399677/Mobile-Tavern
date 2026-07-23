@@ -46,7 +46,7 @@ export default function PluginManagerSection() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
-    const packagedBuiltins = listBuiltinPlugins();
+    const packagedBuiltins = await listBuiltinPlugins();
     setPlugins(packagedBuiltins);
     const installed = await listInstalledPlugins();
     const installedById = new Map(installed.map((plugin) => [plugin.id, plugin]));
