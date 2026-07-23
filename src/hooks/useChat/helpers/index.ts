@@ -9,4 +9,5 @@ export {
   buildOutputContext,
   getTrialCount,
   incrementTrialCount,
+  recallWithTimeout,
 } from "./streamHelpers";

@@ -134,6 +134,31 @@ export default function MemoryConfigCard({
                 />
               </div>
             )}
+            {settings.memory.enableRecall !== false && (
+              <div className="flex justify-between items-center bg-muted/30 p-2 rounded border border-border">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-muted-foreground font-semibold">
+                    {t("memory_sys.recall_timeout")}
+                  </span>
+                  <span className="text-[9px] text-muted-foreground/70 mt-0.5">
+                    {t("memory_sys.recall_timeout_desc")}
+                  </span>
+                </div>
+                <Switch
+                  aria-label={t("memory_sys.recall_timeout")}
+                  checked={(settings.memory.recallTimeoutMs ?? 3000) > 0}
+                  onCheckedChange={(val) =>
+                    updateSettings({
+                      ...settings,
+                      memory: {
+                        ...settings.memory,
+                        recallTimeoutMs: val ? 3000 : 0,
+                      },
+                    })
+                  }
+                />
+              </div>
+            )}
           </div>
 
           {/* 子模块 2：叙事记忆（Auto Summary 时间轴摘要） */}

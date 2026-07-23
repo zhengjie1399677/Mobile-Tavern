@@ -400,6 +400,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     enableAutoSummary: true,
     enableRecall: true,
     recallTopK: 3,
+    recallTimeoutMs: 3000,
   },
   promptConfig: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
   promptCompositionTemplates: [],

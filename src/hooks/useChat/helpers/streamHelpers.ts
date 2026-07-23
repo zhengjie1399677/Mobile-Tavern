@@ -184,3 +184,33 @@ export const incrementTrialCount = (): void => {
   const count = getTrialCount();
   localStorage.setItem("mobile_tavern_free_trial_count", String(count + 1));
 };
+
+// ─── 记忆召回超时保护 ─────────────────────────────────────────────────────────
+/**
+ * 执行记忆召回并施加超时保护。
+ *
+ * 召回慢会阻塞 prompt 组装进而拖慢首字（TTFT）。超时后返回空数组（跳过召回），
+ * 保证主链路不被慢召回卡死。后台 recall 仍会继续执行（IDB 查询无副作用），
+ * 但其结果被丢弃。
+ *
+ * @param recallPromise 召回 Promise
+ * @param timeoutMs 超时毫秒；undefined 走默认 3000ms，0 表示禁用超时（始终等待）
+ * @param context 调用方标识，用于超时告警日志
+ */
+export async function recallWithTimeout(
+  recallPromise: Promise<any[]>,
+  timeoutMs: number | undefined,
+  context: string
+): Promise<any[]> {
+  const timeout = timeoutMs ?? 3000;
+  if (timeout <= 0) return recallPromise;
+  return Promise.race([
+    recallPromise,
+    new Promise<any[]>((resolve) => {
+      setTimeout(() => {
+        console.warn(`[${context}] 记忆召回超时（${timeout}ms），跳过召回以保证首字响应。`);
+        resolve([]);
+      }, timeout);
+    }),
+  ]);
+}

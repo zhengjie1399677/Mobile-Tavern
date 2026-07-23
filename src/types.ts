@@ -146,6 +146,9 @@ export interface MemoryConfig {
   enableAutoSummary?: boolean;
   enableRecall?: boolean;
   recallTopK?: number;
+  /** 记忆召回超时保护（毫秒）。超时后跳过召回以保证首字响应速度。
+   *  默认 3000ms；设为 0 表示禁用超时保护（始终等待召回完成）。 */
+  recallTimeoutMs?: number;
 }
 
 export interface CustomPromptBlock {

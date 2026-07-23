@@ -7,7 +7,7 @@ import {
 } from "../../kernel/types";
 import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 import {
-  generateUniqueId, buildThrottledUpdater, buildFinalAiMessage,
+  generateUniqueId, buildThrottledUpdater, buildFinalAiMessage, recallWithTimeout,
   replacePlaceholderMessage,
   getTrialCount, incrementTrialCount,
 } from "./helpers";
@@ -231,10 +231,14 @@ export function useSendMessage(p: SendMessageParams) {
         const memoryService = p.memoryService;
         if (memoryService && p.settings.memory?.enableRecall !== false) {
           const recallTopK = p.settings.memory?.recallTopK ?? 3;
-          recalledMemories = await memoryService.getRecall().recall(
-            updatedSession.id,
-            isBisonConsecutive ? "" : textToSend,
-            { topK: recallTopK }
+          recalledMemories = await recallWithTimeout(
+            memoryService.getRecall().recall(
+              updatedSession.id,
+              isBisonConsecutive ? "" : textToSend,
+              { topK: recallTopK }
+            ),
+            p.settings.memory?.recallTimeoutMs,
+            "useSendMessage"
           );
           if (import.meta.env?.DEV) {
             console.log("[useSendMessage] 记忆召回完成:", recalledMemories.length, "条，topK:", recallTopK);

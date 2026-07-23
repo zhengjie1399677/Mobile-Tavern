@@ -1,4 +1,4 @@
-﻿export default {
+export default {
   "control_panel.title": "コントロールパネル",
   "control_panel.subtitle": "システム設定と詳細な規則の調整",
   "control_panel.check_update": "更新確認",
@@ -127,6 +127,12 @@
   "report.copied_log": "デバッグログをクリップボードにコピーしました。",
   "report.copy_success": "コピー完了",
   "report.ua": "User-Agent",
+  "report.copy_section": "この項目をコピー",
+  "report.copy_errors": "エラー項目のみコピー",
+  "report.copied_section": "項目をクリップボードにコピーしました。",
+  "report.copied_errors": "エラー項目 {count} 個をコピーしました。",
+  "report.no_errors": "診断でエラーや警告は見つかりませんでした。",
+  "report.errors_summary": "診断結果: エラー {errors} 件、警告 {warnings} 件",
 
   "theme.section_title": "表示テーマと配色",
   "theme.placeholder": "テーマを選択",
@@ -272,6 +278,8 @@
   "memory_sys.recall_enable": "記憶リコールを有効にする",
   "memory_sys.recall_desc": "ベクトルストレージから類似の過去イベントを自動的に検索します",
   "memory_sys.recall_top_k": "リコール上位K件数",
+  "memory_sys.recall_timeout": "リコールタイムアウト保護",
+  "memory_sys.recall_timeout_desc": "3秒でタイムアウトし、最初のトークン応答を優先",
   "memory_sys.summary_title": "ナラティブ記憶（自動要約）",
   "memory_sys.summary_enable": "自動要約を有効にする",
   "memory_sys.summary_desc": "定期的なバックグラウンド要約をトリガーします（0はコンテキストラウンド数と一致）",

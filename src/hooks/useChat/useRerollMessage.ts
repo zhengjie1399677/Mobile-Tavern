@@ -7,7 +7,7 @@ import {
 } from "../../kernel/types";
 import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 import {
-  generateUniqueId, buildThrottledUpdater, buildFinalAiMessage,
+  generateUniqueId, buildThrottledUpdater, buildFinalAiMessage, recallWithTimeout,
   getTrialCount, incrementTrialCount, extractThinkContent,
 } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
@@ -224,17 +224,19 @@ export function useRerollMessage(p: RerollMessageParams) {
         const memoryService = p.kernel.getService<any>("memory");
         if (memoryService && p.settings.memory?.enableRecall !== false) {
           const recallTopK = p.settings.memory?.recallTopK ?? 3;
-          recalledMemories = await memoryService.getRecall().recall(
-            updatedSession.id,
-            lastUserText,
-            { topK: recallTopK }
+          recalledMemories = await recallWithTimeout(
+            memoryService.getRecall().recall(
+              updatedSession.id,
+              lastUserText,
+              { topK: recallTopK }
+            ),
+            p.settings.memory?.recallTimeoutMs,
+            "useRerollMessage"
           );
         }
       } catch (err) {
         console.warn("[useRerollMessage] Memory recall failed:", err);
       }
-
-      console.log("[Reroll Debug] updatedSession messages:", JSON.stringify(updatedSession.messages.map(m => ({ id: m.id, sender: m.sender, content: m.content }))));
 
       const promptPayload = p.promptService.assemblePrompt({
         character: p.activeCharacter!,

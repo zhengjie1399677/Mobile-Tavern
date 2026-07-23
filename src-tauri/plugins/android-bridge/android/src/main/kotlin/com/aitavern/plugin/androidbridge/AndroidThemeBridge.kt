@@ -332,6 +332,88 @@ class AndroidThemeBridge(
     }
 
     // ---------------------------------------------------------------------
+    // Input method (IME) diagnostics
+    // ---------------------------------------------------------------------
+
+    /**
+     * 返回当前系统默认输入法的诊断信息，用于排查"键盘遮挡输入框"等兼容性问题。
+     *
+     * 返回 JSON 结构：
+     *   {
+     *     "id": "com.sohu.inputmethod.sogou/.SogouIME",
+     *     "package": "com.sohu.inputmethod.sogou",
+     *     "label": "搜狗输入法",
+     *     "is_system": false,
+     *     "enabled_count": 3
+     *   }
+     *
+     * 实现策略：
+     *  1. 读取 Settings.Secure.DEFAULT_INPUT_METHOD 获取当前 IME 的 component flatten
+     *  2. 通过 InputMethodManager.enabledInputMethodList 匹配并加载 label（不受包可见性限制）
+     *  3. label 加载失败时回落到内置常见 IME 包名映射表，再回落到原始包名
+     */
+    @JavascriptInterface
+    fun getActiveInputMethod(): String {
+        val json = JSONObject()
+        try {
+            val imeId = Settings.Secure.getString(
+                activity.contentResolver,
+                Settings.Secure.DEFAULT_INPUT_METHOD
+            ) ?: ""
+            json.put("id", imeId)
+            val pkg = imeId.substringBefore("/", "")
+            json.put("package", pkg)
+
+            val imm = activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                as? android.view.inputmethod.InputMethodManager
+            val enabledList = imm?.enabledInputMethodList ?: emptyList()
+            json.put("enabled_count", enabledList.size)
+
+            val currentMethodInfo = enabledList.firstOrNull { it.id == imeId }
+            val label = currentMethodInfo?.loadLabel(activity.packageManager)?.toString()
+                ?: knownImeLabel(pkg)
+                ?: pkg.ifEmpty { "(unknown)" }
+            json.put("label", label)
+
+            val systemImePrefixes = listOf(
+                "com.android.inputmethod",
+                "com.google.android.inputmethod",
+                "com.samsung.android.inputmethod",
+                "com.huawei.android.inputmethod",
+                "com.miui.inputmethod"
+            )
+            json.put("is_system", systemImePrefixes.any { pkg.startsWith(it) })
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to query active input method", e)
+            json.put("error", e.message ?: "Unknown error")
+        }
+        return json.toString()
+    }
+
+    /**
+     * 常见第三方输入法包名到中文名称的映射，作为 [getActiveInputMethod] 在
+     * InputMethodInfo.loadLabel 失败时的回落。仅覆盖主流中文输入法。
+     */
+    private fun knownImeLabel(pkg: String): String? {
+        val p = pkg.lowercase(Locale.ROOT)
+        return when {
+            p.contains("sogou") -> "搜狗输入法"
+            p.contains("baidu") -> "百度输入法"
+            p.contains("iflytek") || p.contains("flyime") -> "讯飞输入法"
+            p.contains("qq") && p.contains("inputmethod") -> "QQ输入法"
+            p.contains("wetype") || p.contains("tencent.wetype") -> "微信输入法"
+            p.contains("huawei") && p.contains("inputmethod") -> "华为输入法"
+            p.contains("miui") || p.contains("xiaomi") -> "小米输入法"
+            p.contains("samsung") && p.contains("inputmethod") -> "三星输入法"
+            p.contains("google") && p.contains("inputmethod") -> "Gboard"
+            p.contains("kika") -> "Kika键盘"
+            p.contains("touchpal") -> "触宝输入法"
+            p.contains("gboard") -> "Gboard"
+            else -> null
+        }
+    }
+
+    // ---------------------------------------------------------------------
     // Status bar styling
     // ---------------------------------------------------------------------
 

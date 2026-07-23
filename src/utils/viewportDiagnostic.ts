@@ -135,3 +135,138 @@ export function __resetViewportDiagnosticForTest(): void {
   records.length = 0;
   initialized = false;
 }
+
+// ---------------------------------------------------------------------------
+// 键盘状态与 active element 遮挡判定（纯函数，供系统报告自检调用）
+// ---------------------------------------------------------------------------
+
+/** 键盘弹出状态判定结果。 */
+export interface KeyboardState {
+  /** 键盘是否被认为已弹出。 */
+  likelyUp: boolean;
+  /** 估算的键盘高度（px），无法估算时为 null。 */
+  estimatedHeightPx: number | null;
+  /** 判定依据说明，便于人工核对。 */
+  basis: string;
+}
+
+/**
+ * 基于视口快照判定键盘弹出状态与估算高度。
+ *
+ * 两种 WebView 键盘避让模式下的判定逻辑：
+ *  - overlays-content：visualViewport.offsetTop 在键盘弹出时增大，近似键盘高度
+ *  - resizes-content：visualViewport.height 在键盘弹出时减小，差值近似键盘高度
+ *
+ * 阈值 50px 用于过滤状态栏/导航栏等小幅 inset 噪声。
+ */
+export function estimateKeyboardState(snap: ViewportSnapshot): KeyboardState {
+  if (!snap.hasVisualViewport || snap.vvpH === null) {
+    return { likelyUp: false, estimatedHeightPx: null, basis: "no visualViewport API" };
+  }
+  // overlays-content 模式：offsetTop 增大代表键盘顶起可视区域
+  if (snap.vvpOffsetTop !== null && snap.vvpOffsetTop > 50) {
+    return {
+      likelyUp: true,
+      estimatedHeightPx: snap.vvpOffsetTop,
+      basis: `overlays-content (offsetTop=${snap.vvpOffsetTop}px)`,
+    };
+  }
+  // resizes-content 模式：vvp.height 明显小于 innerHeight
+  const heightDiff = snap.innerH - snap.vvpH;
+  if (heightDiff > 50) {
+    return {
+      likelyUp: true,
+      estimatedHeightPx: heightDiff,
+      basis: `resizes-content (innerH ${snap.innerH} - vvpH ${snap.vvpH} = ${heightDiff}px)`,
+    };
+  }
+  return {
+    likelyUp: false,
+    estimatedHeightPx: 0,
+    basis: `vvpH=${snap.vvpH} ≈ innerH=${snap.innerH}`,
+  };
+}
+
+/** active element 遮挡判定结果。 */
+export interface ActiveElementOcclusion {
+  /** 是否有可评估的 active element。 */
+  hasActiveElement: boolean;
+  /** active element 的 tagName（如 INPUT/TEXTAREA）。 */
+  tagName: string | null;
+  /** active element 的 boundingClientRect（px）。 */
+  rect: { top: number; bottom: number; left: number; right: number; width: number; height: number } | null;
+  /** 当前可视区域底部边界（px），即键盘上沿位置。 */
+  visibleBottomPx: number | null;
+  /** active element 底部是否超出可视区域（被键盘遮挡）。 */
+  isOccluded: boolean;
+  /** 遮挡距离（px），正值表示被遮挡的程度，负值表示未遮挡的余量。 */
+  occlusionDistancePx: number | null;
+  /** 判定说明，供报告直接输出。 */
+  detail: string;
+}
+
+/**
+ * 判定当前 active element 是否被键盘遮挡。
+ *
+ * 需在键盘弹出状态下调用才有意义；键盘未弹出时 isOccluded 恒为 false，
+ * 但仍会输出 active element 的 rect 与 visibleBottom 供人工核对。
+ */
+export function checkActiveElementOcclusion(snap: ViewportSnapshot): ActiveElementOcclusion {
+  const empty: ActiveElementOcclusion = {
+    hasActiveElement: false,
+    tagName: null,
+    rect: null,
+    visibleBottomPx: null,
+    isOccluded: false,
+    occlusionDistancePx: null,
+    detail: "no active element",
+  };
+  if (typeof document === "undefined") return empty;
+
+  const el = document.activeElement as HTMLElement | null;
+  if (!el || el === document.body || el === document.documentElement) {
+    return empty;
+  }
+
+  const tag = el.tagName;
+  const isEditable = tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+  if (!isEditable) {
+    return {
+      ...empty,
+      hasActiveElement: true,
+      tagName: tag,
+      detail: `active element is <${tag}> (not input/textarea/contentEditable)`,
+    };
+  }
+
+  const rect = el.getBoundingClientRect();
+  // 可视区域底部：overlays 模式用 offsetTop + vvp.height，resizes 模式 vvp.height 已是缩小后的值
+  let visibleBottom: number;
+  if (snap.hasVisualViewport && snap.vvpH !== null) {
+    visibleBottom = (snap.vvpOffsetTop ?? 0) + snap.vvpH;
+  } else {
+    visibleBottom = snap.innerH;
+  }
+
+  const occlusionDist = Math.round(rect.bottom - visibleBottom);
+  const isOccluded = occlusionDist > 0;
+
+  return {
+    hasActiveElement: true,
+    tagName: tag,
+    rect: {
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      left: Math.round(rect.left),
+      right: Math.round(rect.right),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    },
+    visibleBottomPx: Math.round(visibleBottom),
+    isOccluded,
+    occlusionDistancePx: occlusionDist,
+    detail: isOccluded
+      ? `OCCLUDED: <${tag}> bottom ${Math.round(rect.bottom)}px > visible bottom ${Math.round(visibleBottom)}px (超出 ${occlusionDist}px)`
+      : `<${tag}> bottom ${Math.round(rect.bottom)}px ≤ visible bottom ${Math.round(visibleBottom)}px (余量 ${-occlusionDist}px)`,
+  };
+}
