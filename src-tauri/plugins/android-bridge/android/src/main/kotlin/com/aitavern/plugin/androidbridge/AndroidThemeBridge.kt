@@ -420,6 +420,12 @@ class AndroidThemeBridge(
         return true
     }
 
+    /** Emits bounded host-side diagnostics for full-screen plugin troubleshooting. */
+    @JavascriptInterface
+    fun logPluginDiagnostic(message: String) {
+        Log.i("TavernPlugin", message.take(500))
+    }
+
     /** Open the Android system share sheet with plain or JSON text content. */
     @JavascriptInterface
     fun shareText(title: String, text: String, mimeType: String): Boolean {

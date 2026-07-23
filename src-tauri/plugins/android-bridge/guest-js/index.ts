@@ -36,6 +36,8 @@ export interface AndroidThemeBridge {
   setScreenOrientation(mode: "landscape" | "auto"): boolean;
   /** Hides or restores Android system bars for a host-owned full-screen surface. */
   setImmersiveMode(enabled: boolean): boolean;
+  /** Writes a bounded full-screen-plugin diagnostic message to Android logcat. */
+  logPluginDiagnostic(message: string): void;
   /** Opens the Android system share sheet with text content. */
   shareText(title: string, text: string, mimeType: string): boolean;
   /**

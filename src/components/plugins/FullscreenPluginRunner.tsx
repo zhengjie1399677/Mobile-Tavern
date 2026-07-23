@@ -9,6 +9,7 @@ interface AndroidPluginBridgeWindow extends Window {
   AndroidThemeBridge?: {
     setScreenOrientation?: (mode: PluginOrientation) => boolean;
     setImmersiveMode?: (enabled: boolean) => boolean;
+    logPluginDiagnostic?: (message: string) => void;
   };
 }
 
@@ -28,6 +29,7 @@ export default function FullscreenPluginRunner({
 
   useEffect(() => {
     const orientation = plugin.manifest.orientation ?? "auto";
+    logPluginDiagnostic(`mount plugin=${plugin.id} orientation=${orientation}`);
     setOrientation(orientation);
     setImmersiveMode(true);
     // Android 在方向切换期间可能把启动按钮的尾随触摸传递给刚创建的 iframe。
@@ -40,6 +42,7 @@ export default function FullscreenPluginRunner({
       const message = event.data;
       if (!message || message.mtPlugin !== 1 || message.channel !== channel || message.pluginId !== plugin.id) return;
       if (typeof message.requestId !== "string" || typeof message.method !== "string") return;
+      logPluginDiagnostic(`request plugin=${plugin.id} method=${message.method}`);
       void handleRequest(plugin.id, message.method, message.params)
         .then((result) => respond(event.source, channel, message.requestId, true, result))
         .catch((reason) => respond(event.source, channel, message.requestId, false, undefined, normalizeError(reason)));
@@ -55,6 +58,7 @@ export default function FullscreenPluginRunner({
     window.addEventListener("message", handleMessage);
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
+      logPluginDiagnostic(`cleanup plugin=${plugin.id}`);
       window.removeEventListener("message", handleMessage);
       document.removeEventListener("visibilitychange", handleVisibility);
       window.clearTimeout(enableExitTimer);
@@ -66,6 +70,7 @@ export default function FullscreenPluginRunner({
   }, [channel, plugin, runtime]);
 
   const handleLoad = () => {
+    logPluginDiagnostic(`iframe-load plugin=${plugin.id} repeated=${loadedRef.current}`);
     if (loadedRef.current) {
       setError("插件尝试离开本地入口，运行已终止。");
       return;
@@ -77,7 +82,10 @@ export default function FullscreenPluginRunner({
     <section className="fixed inset-0 z-[200] flex flex-col bg-black" aria-label={`插件：${plugin.manifest.name}`}>
       <header className="absolute inset-x-0 top-0 z-10 flex min-h-12 items-center justify-between bg-gradient-to-b from-black/75 to-transparent px-3 pt-[env(safe-area-inset-top)] pointer-events-none">
         <span className="max-w-[70%] truncate text-xs font-semibold text-white/80">{plugin.manifest.name}</span>
-        <button type="button" onClick={() => exitEnabledRef.current && onExit()} aria-label="退出插件" className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur active:scale-95">
+        <button type="button" onClick={() => {
+          logPluginDiagnostic(`close-click plugin=${plugin.id} enabled=${exitEnabledRef.current}`);
+          if (exitEnabledRef.current) onExit();
+        }} aria-label="退出插件" className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur active:scale-95">
           <X className="h-5 w-5" />
         </button>
       </header>
@@ -106,7 +114,11 @@ export default function FullscreenPluginRunner({
     const record = params && typeof params === "object" ? params as Record<string, unknown> : {};
     if (method === "host.ready") return { apiVersion: 1 };
     if (method === "host.exit") {
-      if (!exitEnabledRef.current) throw new Error("PLUGIN_EXIT_NOT_READY");
+      if (!exitEnabledRef.current) {
+        logPluginDiagnostic(`exit-blocked plugin=${plugin.id}`);
+        throw new Error("PLUGIN_EXIT_NOT_READY");
+      }
+      logPluginDiagnostic(`exit-accepted plugin=${plugin.id}`);
       onExit();
       return null;
     }
@@ -160,6 +172,14 @@ function setImmersiveMode(enabled: boolean): void {
     (window as AndroidPluginBridgeWindow).AndroidThemeBridge?.setImmersiveMode?.(enabled);
   } catch {
     // 浏览器和不支持沉浸式桥接的平台保持系统栏现状。
+  }
+}
+
+function logPluginDiagnostic(message: string): void {
+  try {
+    (window as AndroidPluginBridgeWindow).AndroidThemeBridge?.logPluginDiagnostic?.(message);
+  } catch {
+    // 诊断能力不可用时不影响插件运行。
   }
 }
 
