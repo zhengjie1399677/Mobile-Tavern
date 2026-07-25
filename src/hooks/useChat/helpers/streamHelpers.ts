@@ -8,6 +8,9 @@
 import React from "react";
 import { Message, ChatSession, UserSettings, CharacterCard } from "../../../types";
 import type { OutputPipelineContext } from "../../../services/pipeline";
+import { Logger } from "../../../utils/logger";
+
+const logger = Logger.create("streamHelpers");
 import { extractThinkContent, cleanSuggestionsFromText } from "./textParsing";
 import { parseSuggestions } from "./suggestions";
 
@@ -208,7 +211,7 @@ export async function recallWithTimeout(
     recallPromise,
     new Promise<any[]>((resolve) => {
       setTimeout(() => {
-        console.warn(`[${context}] 记忆召回超时（${timeout}ms），跳过召回以保证首字响应。`);
+        logger.warn("记忆召回超时，跳过召回以保证首字响应", { context, timeout });
         resolve([]);
       }, timeout);
     }),

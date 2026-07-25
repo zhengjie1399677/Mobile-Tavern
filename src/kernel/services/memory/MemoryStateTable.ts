@@ -16,6 +16,9 @@ import {
   getTableMemoryColumnDefinitions,
   normalizeTableMemorySheet,
 } from '../../../domain/memory/tableMemorySchema';
+import { Logger } from '../../../utils/logger';
+
+const logger = Logger.create('MemoryStateTable');
 
 // ===== 常量 =====
 
@@ -209,9 +212,9 @@ export class MemoryStateTable {
           raw: fullMatch,
         });
       } catch (e) {
-        console.warn(
-          `[MemoryStateTable] Action parse failed: ${actionType} on ${sheetName}:`,
-          e
+        logger.warn(
+          `Action parse failed`,
+          { actionType, sheetName, error: e }
         );
       }
     }
@@ -306,8 +309,9 @@ export class MemoryStateTable {
             // 改为 no-op 静默跳过，与"不存在表名静默降级"的设计契约一致
             // （避免数据污染，AI 误用 updateRow 不会产生半空行）
             if (sheet.rows.length === 0) {
-              console.warn(
-                `[MemoryStateTable] updateRow single-param skipped: sheet "${sheetName}" is empty (no-op to avoid half-empty row pollution)`
+              logger.warn(
+                `updateRow single-param skipped: sheet is empty (no-op to avoid half-empty row pollution)`,
+                { sheetName }
               );
             } else {
               Object.entries(p1).forEach(([key, val]) => {
@@ -350,9 +354,9 @@ export class MemoryStateTable {
           }
         }
       } catch (e) {
-        console.warn(
-          `[MemoryStateTable] Action parse failed: ${actionType} on ${sheetName}:`,
-          e
+        logger.warn(
+          `Action parse failed`,
+          { actionType, sheetName, error: e }
         );
       }
     }

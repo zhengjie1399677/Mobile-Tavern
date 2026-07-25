@@ -1,4 +1,7 @@
 import type { LorebookEntry, Message } from "../../../types";
+import { Logger } from "../../../utils/logger";
+
+const logger = Logger.create("LorebookResolver");
 
 const PROMPT_BUDGET_CHARS = 6000;
 const MAX_SCAN_CHARS = 8000;
@@ -15,7 +18,7 @@ function matchesKey(
     const unsafe = /(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(trimmed) ||
       /(\[[^\]]*[\+\*]\][^\]]*[\+\*])/.test(trimmed);
     if (unsafe) {
-      console.warn("Potential ReDoS pattern skipped in regex key matching:", trimmed);
+      logger.warn("Potential ReDoS pattern skipped in regex key matching", { pattern: trimmed });
       return isCaseSensitive
         ? scanText.includes(trimmed)
         : scanText.toLowerCase().includes(trimmed.toLowerCase());
@@ -116,14 +119,16 @@ export function resolveTriggeredLorebookEntries(
   return activeEntries.filter((entry) => {
     const length = entry.content?.length ?? 0;
     if (length > PROMPT_BUDGET_CHARS) {
-      console.warn(
-        `[PromptService] Lorebook entry "${entry.id}" alone exceeds prompt budget limit of ${PROMPT_BUDGET_CHARS} chars, skipped.`
+      logger.warn(
+        `Lorebook entry alone exceeds prompt budget limit, skipped`,
+        { entryId: entry.id, length, budget: PROMPT_BUDGET_CHARS }
       );
       return false;
     }
     if (currentLength + length > PROMPT_BUDGET_CHARS) {
-      console.warn(
-        `[PromptService] Lorebook entry "${entry.id}" skipped due to prompt budget limit (${PROMPT_BUDGET_CHARS} chars)`
+      logger.warn(
+        `Lorebook entry skipped due to prompt budget limit`,
+        { entryId: entry.id, budget: PROMPT_BUDGET_CHARS }
       );
       return false;
     }

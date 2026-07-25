@@ -220,7 +220,9 @@ export async function testKernelV3Fixes() {
     const originalWarn = console.warn;
     const warnedMsgs: string[] = [];
     console.warn = (...args: any[]) => {
-      warnedMsgs.push(args[0]);
+      // Logger 输出格式：[prefix] message fields；合并所有参数以兼容旧断言
+      const combined = args.map(a => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ");
+      warnedMsgs.push(combined);
       originalWarn(...args);
     };
 
@@ -229,10 +231,11 @@ export async function testKernelV3Fixes() {
       // 访问属性触发 get
       const val1 = proxy.someProperty;
       const val2 = proxy.anotherProperty;
-      
-      // 应该有 `[Kernel] Missing service: nonexistent-service-for-warn-test` 告警
-      const missingServiceWarns = warnedMsgs.filter(msg => 
-        typeof msg === "string" && msg.includes("[Kernel] Missing service: nonexistent-service-for-warn-test")
+
+      // Logger 输出为 `[Kernel] Missing service, returning SafeProxy fallback { service: '...' }`
+      // 合并后断言：包含 "Missing service" 且包含本测试用例唯一服务名
+      const missingServiceWarns = warnedMsgs.filter(msg =>
+        typeof msg === "string" && msg.includes("Missing service") && msg.includes("nonexistent-service-for-warn-test")
       );
       assert(missingServiceWarns.length === 1, `SafeProxy should warn about missing service exactly once, but got ${missingServiceWarns.length} times.`);
     } finally {

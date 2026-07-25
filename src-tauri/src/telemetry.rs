@@ -33,6 +33,10 @@ pub struct TelemetryLog {
     pub timezone: String,
     #[serde(default)]
     pub app_version: String,
+    /// trace_id：用于在 SLS 侧关联同一调用链路上的 LLM 性能、持久化、错误兜底等事件。
+    /// 旧版日志（无此字段）反序列化时默认为空字符串，保持向后兼容。
+    #[serde(default)]
+    pub trace_id: String,
     pub __time__: Option<u64>,
 }
 
@@ -88,6 +92,82 @@ pub fn enqueue_log(app_handle: &tauri::AppHandle, mut log: TelemetryLog) -> Resu
     writeln!(file, "{}", log_line).map_err(|e| format!("Failed to write to queue file: {}", e))?;
 
     Ok(())
+}
+
+// ─── Panic 钩子落盘机制 ─────────────────────────────────────────────────────
+//
+// panic 钩子内操作受限：不能获取已中毒锁、不能分配大量内存、不能做异步 IO。
+// 此处用独立的全局 Mutex<Option<PathBuf>> 存储队列文件路径，panic 钩子内用
+// try_lock 避免死锁，再用 std::fs::OpenOptions 同步追加写入一行 TelemetryLog。
+//
+// 写入的日志 action = "rust_panic"，SLS 侧可据此定位 Rust 崩溃现场。
+
+static PANIC_QUEUE_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+/// 初始化 panic 落盘路径。应在 setup 阶段、panic 钩子安装后立即调用。
+/// 路径与 enqueue_log 使用的 telemetry_queue.jsonl 一致，panic 日志会与
+/// 常规遥测日志混排在同一文件，由 start_telemetry_loop 统一上传。
+pub fn init_panic_queue_path(app_handle: &tauri::AppHandle) {
+    if let Ok(path) = get_queue_file_path(app_handle) {
+        // try_lock 避免在 setup 阶段死锁；失败则静默（panic 落盘是 best-effort）
+        if let Ok(mut guard) = PANIC_QUEUE_PATH.try_lock() {
+            *guard = Some(path);
+        }
+    }
+}
+
+/// panic 钩子专用：同步追加写入一条 panic 日志到 telemetry_queue.jsonl。
+///
+/// 安全约束：
+///   - 使用 try_lock 避免死锁（panic 可能发生在持锁期间）
+///   - 失败则静默返回（panic 钩子内不得再抛错）
+///   - 不分配大量内存，仅构造最小必要的 TelemetryLog
+pub fn enqueue_panic_log(panic_location: &str, panic_payload: &str) {
+    let path_opt = match PANIC_QUEUE_PATH.try_lock() {
+        Ok(guard) => guard.clone(),
+        Err(_) => return, // 锁中毒或争用，放弃落盘
+    };
+    let path = match path_opt {
+        Some(p) => p,
+        None => return, // 路径未初始化
+    };
+
+    let log = TelemetryLog {
+        action: "rust_panic".to_string(),
+        device_id: "unknown".to_string(),
+        player_name: "unknown".to_string(),
+        character_name: "unknown".to_string(),
+        model: "".to_string(),
+        tokens_used: "0".to_string(),
+        generation_time_ms: "0".to_string(),
+        detail: format!(
+            "location={} payload={}",
+            panic_location, panic_payload
+        ),
+        session_id: "unknown".to_string(),
+        session_start_time: "".to_string(),
+        session_duration_sec: "0".to_string(),
+        platform: "Tauri".to_string(),
+        user_agent: "".to_string(),
+        language: "".to_string(),
+        timezone: "".to_string(),
+        app_version: "".to_string(),
+        trace_id: "".to_string(),
+        __time__: None,
+    };
+
+    // 序列化失败则放弃（避免 panic 钩子内再次 panic）
+    let log_line = match serde_json::to_string(&log) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    // 同步追加写入，try_lock FILE_MUTEX 避免与 enqueue_log 死锁
+    if let Ok(_lock) = FILE_MUTEX.try_lock() {
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
+            let _ = writeln!(file, "{}", log_line);
+        }
+    }
 }
 
 /// Retrieve and clear successfully sent logs from the queue file

@@ -121,6 +121,7 @@ export function useSendMessage(p: SendMessageParams) {
       p.telemetryService.reportUsage("send_message", {
         modelName: modelToReport,
         characterName: p.activeCharacter.name,
+        traceId,
       });
     } else {
       if (!p.activeCharacter || !p.activeSession) return;
@@ -265,6 +266,7 @@ export function useSendMessage(p: SendMessageParams) {
         globalLorebook: combinedGlobals,
         recalledMemories: recalledMemories,
         signal: controller.signal,
+        traceId,
       });
 
       // 审计快照以最终 Prompt 编排轨迹为准，只保留在当前聊天运行时。
@@ -323,6 +325,7 @@ export function useSendMessage(p: SendMessageParams) {
           repetition_penalty: p.settings.preset.repetitionPenalty ?? 1.0,
         },
         signal: controller.signal,
+        traceId,
       });
 
       for await (const chunk of stream) {
@@ -387,7 +390,7 @@ export function useSendMessage(p: SendMessageParams) {
           p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
           p.showCustomAlert("发送失败：AI 未返回任何内容，请检查 API 配置、网络连接或模型是否可用。");
         }
-        await p.databaseService.saveSession(nextSession).catch((e) => log.error("Failed to save after empty response", e));
+        await p.databaseService.saveSession(nextSession, undefined, traceId).catch((e) => log.error("Failed to save after empty response", e));
         return;
       }
 
@@ -418,6 +421,7 @@ export function useSendMessage(p: SendMessageParams) {
           setSessions: p.setSessions,
           databaseService: p.databaseService,
           triggerScroll: () => p.triggerScroll("smooth"),
+          traceId,
         });
 
         if (isTrialMode) incrementTrialCount();
@@ -432,7 +436,8 @@ export function useSendMessage(p: SendMessageParams) {
             tokenUsage.prompt,
             tokenUsage.completion,
             p.activeCharacter!.name,
-            p.settings.userName
+            p.settings.userName,
+            traceId
           );
         } catch (telemetryErr) {
           log.warn("Failed to report LLM performance telemetry", { error: telemetryErr });
@@ -460,11 +465,11 @@ export function useSendMessage(p: SendMessageParams) {
           p.setIsBisonLocking(false);
         }
       } else {
-        await p.databaseService.saveSession(trueFinalSession);
+        await p.databaseService.saveSession(trueFinalSession, undefined, traceId);
         // saveSession 只存元数据，会话切换场景需显式写入 AI 消息
         const switchedAiMsg = trueFinalSession.messages[trueFinalSession.messages.length - 1];
         if (switchedAiMsg && switchedAiMsg.sender === "assistant") {
-          await p.databaseService.appendSessionMessage(trueFinalSession.id, switchedAiMsg, trueFinalSession.messages.length - 1)
+          await p.databaseService.appendSessionMessage(trueFinalSession.id, switchedAiMsg, trueFinalSession.messages.length - 1, undefined, traceId)
             .catch((e) => log.error("Failed to save AI message after session switch", e));
           log.info("Session switched during generation, saved silently", { sessionId: updatedSession.id });
         }
@@ -501,17 +506,17 @@ export function useSendMessage(p: SendMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: parsed.content, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, traceId });
           } else {
-            await p.databaseService.saveSession(trueFinalSession);
+            await p.databaseService.saveSession(trueFinalSession, undefined, traceId);
             // saveSession 只存元数据，abort 场景需显式写入 AI 消息
-            await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, trueFinalSession.messages.length - 1)
+            await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, trueFinalSession.messages.length - 1, undefined, traceId)
               .catch((e) => log.error("Failed to save AI message on abort", e));
           }
         } else if (latestSession) {
           const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
           if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
-          await p.databaseService.saveSession(nextSession).catch((e) => log.error("Failed to save after abort", e));
+          await p.databaseService.saveSession(nextSession, undefined, traceId).catch((e) => log.error("Failed to save after abort", e));
         }
       } else {
         if (isStillActive) p.showCustomAlert("发送失败，对话连接异常: " + err.message);
@@ -520,17 +525,17 @@ export function useSendMessage(p: SendMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, traceId });
           } else {
-            await p.databaseService.saveSession(trueFinalSession);
+            await p.databaseService.saveSession(trueFinalSession, undefined, traceId);
             // saveSession 只存元数据，error 场景需显式写入 AI 消息
-            await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, trueFinalSession.messages.length - 1)
+            await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, trueFinalSession.messages.length - 1, undefined, traceId)
               .catch((e) => log.error("Failed to save AI message on error", e));
           }
         } else if (latestSession) {
           const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
           if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
-          await p.databaseService.saveSession(nextSession).catch((e) => log.error("Failed to save on error", e));
+          await p.databaseService.saveSession(nextSession, undefined, traceId).catch((e) => log.error("Failed to save on error", e));
         }
       }
     } finally {

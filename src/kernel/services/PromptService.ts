@@ -26,6 +26,9 @@ import type {
   PromptCompositionTrace,
 } from "../../domain/prompt-composition";
 import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("PromptService");
 
 function checkAborted(...signals: Array<AbortSignal | undefined>): void {
   if (!signals.some((signal) => signal?.aborted)) return;
@@ -139,6 +142,7 @@ export class PromptService implements IPromptService {
     globalLorebook?: LorebookEntry[];
     recalledMemories?: any[];
     signal?: AbortSignal;
+    traceId?: string;
   }): {
     systemInstruction: string;
     history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
@@ -155,7 +159,8 @@ export class PromptService implements IPromptService {
     traces?: PromptCompositionTrace[];
     budget?: PromptCompositionBudgetReport;
   } {
-    const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [], signal } = params;
+    const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [], signal, traceId } = params;
+    const log = traceId ? logger.withTrace(traceId) : logger;
     checkAborted(signal, this.abortController?.signal);
     const operationSignal = signal ?? this.abortController?.signal;
 
@@ -221,7 +226,7 @@ export class PromptService implements IPromptService {
         estimateTokens: (text) => this.estimateTokens(text),
       });
       compiled.diagnostics.forEach((diagnostic) => {
-        console.warn(`[PromptComposition:${diagnostic.code}] ${diagnostic.message}`);
+        log.warn(`[PromptComposition:${diagnostic.code}] ${diagnostic.message}`);
       });
       const systemInstruction = compiled.messages
         .filter((message) => message.role === "system")

@@ -22,6 +22,12 @@ export interface OutputPipelineContext {
   isStillActive: boolean;
   isBisonConsecutive: boolean;
   bisonRemainingCount: number;
+  /**
+   * traceId：一次用户操作的调用链路标识。
+   * 由调用方（useSendMessage/useRerollMessage）生成并注入，
+   * 中间件可通过此字段关联同一调用链路上的日志与遥测事件。
+   */
+  traceId?: string;
 
   // Outputs from middlewares
   resultSession?: ChatSession;

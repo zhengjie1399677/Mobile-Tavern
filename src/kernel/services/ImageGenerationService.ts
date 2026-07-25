@@ -1,5 +1,8 @@
 import { IKernel, IKernelService, IImageGenerationService } from "../types";
 import { ImageGenApiConfig } from "../../types";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("ImageGenerationService");
 
 /**
  * Tauri 运行时注入到 window 的内部桥接对象。
@@ -29,7 +32,7 @@ export class ImageGenerationService implements IImageGenerationService {
   private abortController: AbortController | null = null;
 
   async init(kernel: IKernel, signal?: AbortSignal): Promise<void> {
-    console.log("[ImageGenerationService] Initializing...");
+    logger.info("Initializing");
     this.abortController = new AbortController();
     if (signal) {
       if (signal.aborted) this.abortController.abort();
@@ -41,7 +44,7 @@ export class ImageGenerationService implements IImageGenerationService {
       try {
         await tauriFetchPromise;
       } catch (e) {
-        console.warn("[ImageGenerationService] Failed to pre-resolve Tauri fetch:", e);
+        logger.warn("Failed to pre-resolve Tauri fetch", { error: e });
       }
     }
   }
@@ -49,7 +52,7 @@ export class ImageGenerationService implements IImageGenerationService {
   async destroy(kernel: IKernel, signal?: AbortSignal): Promise<void> {
     this.abortController?.abort();
     this.abortController = null;
-    console.log("[ImageGenerationService] Destroyed.");
+    logger.info("Destroyed");
   }
 
   async generateImage(prompt: string, config: ImageGenApiConfig, signal?: AbortSignal): Promise<string> {

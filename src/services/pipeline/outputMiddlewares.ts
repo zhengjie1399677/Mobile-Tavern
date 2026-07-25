@@ -2,6 +2,9 @@ import { Middleware, KernelServices, IMemoryService, IScriptService } from "../.
 import type { OutputPipelineContext } from "./types";
 import { calculateBisonModeProbability } from "../../domain/chat/bisonProbability";
 import { Message } from "../../types";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("outputMiddlewares");
 
 // L2 快速通道：表格记忆指令预扫描正则。
 // 匹配 updateRow/insertRow/deleteRow 后紧跟左括号的模式，
@@ -36,7 +39,7 @@ function buildExternalMvuTriggerRegex(character: any): RegExp | null {
         new RegExp(p);
         validSources.push(p);
       } catch {
-        console.warn("[MVU] Invalid external trigger pattern skipped:", p);
+        logger.warn("Invalid external trigger pattern skipped", { pattern: p });
       }
     }
   }
@@ -50,6 +53,7 @@ function buildExternalMvuTriggerRegex(character: any): RegExp | null {
 
 export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (context, next) => {
   const { session, responseText, settings, activeCharacter } = context;
+  const log = context.traceId ? logger.withTrace(context.traceId) : logger;
   let currentSession = context.resultSession || session;
 
   // L2 快速通道：功能开启但响应文本不含表格指令时，跳过 processTableMemory 调用。
@@ -57,7 +61,7 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
   if (settings.enableTableMemory && activeCharacter && TABLE_MEMORY_TRIGGER_PATTERN.test(responseText)) {
     const kernel = context.kernel;
     if (!kernel) {
-      console.warn("[tableMemoryMiddleware] kernel not injected in OutputPipelineContext, skipping.");
+      log.warn("kernel not injected in OutputPipelineContext, skipping", { middleware: "tableMemory" });
       context.resultSession = currentSession;
       await next();
       return;
@@ -102,7 +106,7 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
         };
       }
     } catch (err) {
-      console.warn("[MemoryStateTable] Middleware processing error:", err);
+      log.warn("Middleware processing error", { middleware: "MemoryStateTable", error: err });
     }
   }
 
@@ -112,6 +116,7 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
 
 export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (context, next) => {
   const { responseText, settings, activeCharacter } = context;
+  const log = context.traceId ? logger.withTrace(context.traceId) : logger;
   let currentSession = context.resultSession || context.session;
 
   // 功能关闭或空响应时跳过
@@ -123,7 +128,7 @@ export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (con
 
   const kernel = context.kernel;
   if (!kernel) {
-    console.warn("[mvuScriptMiddleware] kernel not injected in OutputPipelineContext, skipping.");
+    log.warn("kernel not injected in OutputPipelineContext, skipping", { middleware: "mvuScript" });
     context.resultSession = currentSession;
     await next();
     return;
@@ -143,10 +148,7 @@ export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (con
   // 仍需执行解析——trigger_patterns 是优化而非门控，错误定义不应导致数据丢失。
   const externalRegex = buildExternalMvuTriggerRegex(activeCharacter);
   if (externalRegex && !externalRegex.test(responseText)) {
-    console.warn(
-      "[mvuScriptMiddleware] External trigger_patterns did not match, but MVU parsing will proceed as fallback.",
-      "Card:", activeCharacter?.name
-    );
+    log.warn("External trigger_patterns did not match, MVU parsing will proceed as fallback", { card: activeCharacter?.name });
   }
 
   try {
@@ -158,7 +160,7 @@ export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (con
     );
   } catch (err) {
     if (isAbortError(err)) throw err;
-    console.warn("[MvuScript] Middleware execution error:", err);
+    log.warn("Middleware execution error", { middleware: "MvuScript", error: err });
   }
 
   context.resultSession = currentSession;
@@ -209,12 +211,13 @@ export const bisonModeMiddleware: Middleware<OutputPipelineContext> = async (con
 
 export const autoSummaryMiddleware: Middleware<OutputPipelineContext> = async (context, next) => {
   const { settings, activeCharacter, controller, shouldTriggerBison } = context;
+  const log = context.traceId ? logger.withTrace(context.traceId) : logger;
   let currentSession = context.resultSession || context.session;
 
   if (!shouldTriggerBison) {
     const kernel = context.kernel;
     if (!kernel) {
-      console.warn("[autoSummaryMiddleware] kernel not injected in OutputPipelineContext, skipping.");
+      log.warn("kernel not injected in OutputPipelineContext, skipping", { middleware: "autoSummary" });
       context.resultSession = currentSession;
       await next();
       return;
@@ -235,7 +238,7 @@ export const autoSummaryMiddleware: Middleware<OutputPipelineContext> = async (c
       }
     } catch (err) {
       if (isAbortError(err)) throw err;
-      console.warn("[MemorySummary] Middleware execution error:", err);
+      log.warn("Middleware execution error", { middleware: "MemorySummary", error: err });
     }
   }
 

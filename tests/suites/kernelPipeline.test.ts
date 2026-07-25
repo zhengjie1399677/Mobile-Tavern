@@ -239,7 +239,8 @@ export async function testKernelPipelineHardening() {
   const originalWarn = console.warn;
   let warnMessage = "";
   console.warn = (msg: string, ...args: any[]) => {
-    warnMessage = msg;
+    // Logger 输出格式：[prefix] message fields；合并所有参数以兼容旧断言
+    warnMessage = [msg, ...args].map(a => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ");
     originalWarn(msg, ...args);
   };
 

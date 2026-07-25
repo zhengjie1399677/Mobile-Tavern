@@ -4,6 +4,9 @@
 
 import { IKernel } from "../types";
 import { CharacterCard, TableMemorySheet } from "../../types";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("TableMemoryService");
 
 // @deprecated — 不再 implements ITableMemoryService（该接口已从 kernel/types.ts 清理）
 export class TableMemoryService {
@@ -138,7 +141,7 @@ export class TableMemoryService {
           }
         }
       } catch (e) {
-        console.warn(`[TableMemory] 指令解析失败: ${actionType} 在表 ${sheetName} 上:`, e);
+        logger.warn(`指令解析失败`, { actionType, sheetName, error: e });
       }
     }
 

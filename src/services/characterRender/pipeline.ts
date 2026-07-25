@@ -8,6 +8,9 @@
 //     合并为单次 matchExpression，一次匹配同时得到 { name, image }
 
 import { isSafeRegex } from "../../tabs/chat/utils";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("characterRenderPipeline");
 
 // ─── 类型契约 ─────────────────────────────────────────────────────────────────
 
@@ -148,10 +151,10 @@ function tryTrigger(text: string, trigger: string): boolean {
       return new RegExp(trigger, "i").test(text);
     }
     // 不安全正则降级为子串包含
-    console.warn("Potential ReDoS pattern bypassed in triggers matching:", trigger);
+    logger.warn("Potential ReDoS pattern bypassed in triggers matching", { trigger });
     return text.includes(trigger.toLowerCase());
   } catch (err) {
-    console.warn("Invalid triggers RegExp in card:", trigger, err);
+    logger.warn("Invalid triggers RegExp in card", { trigger, error: err });
     return false;
   }
 }

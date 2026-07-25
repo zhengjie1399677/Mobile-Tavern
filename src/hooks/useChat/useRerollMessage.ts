@@ -177,7 +177,7 @@ export function useRerollMessage(p: RerollMessageParams) {
     }
 
     const modelToReport = p.settings.api.apiKey ? (p.settings.api.modelName || FALLBACK_MODEL) : "openrouter/free";
-    p.telemetryService.reportUsage("regenerate_message", { modelName: modelToReport, characterName: p.activeCharacter.name });
+    p.telemetryService.reportUsage("regenerate_message", { modelName: modelToReport, characterName: p.activeCharacter.name, traceId });
 
     const removedMessageIds = cleanHistory.slice(nextMsgsIdx).map((message) => message.id);
     let updatedSession = { ...currentSession, messages: nextMsgs };
@@ -251,6 +251,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         globalLorebook: combinedGlobals,
         recalledMemories: recalledMemories,
         signal: controller.signal,
+        traceId,
       });
 
       const memoryAudit = buildMemoryAuditSnapshot({
@@ -310,6 +311,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           repetition_penalty: p.settings.preset.repetitionPenalty ?? 1.0,
         },
         signal: controller.signal,
+        traceId,
       });
 
       for await (const chunk of stream) {
@@ -403,6 +405,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           databaseService: p.databaseService,
           persistSession: persistRerollSession,
           triggerScroll: () => p.triggerScroll(),
+          traceId,
         });
         if (isTrialMode) incrementTrialCount();
 
@@ -416,7 +419,8 @@ export function useRerollMessage(p: RerollMessageParams) {
             tokenUsage.prompt,
             tokenUsage.completion,
             p.activeCharacter!.name,
-            p.settings.userName
+            p.settings.userName,
+            traceId
           );
         } catch (telemetryErr) {
           log.warn("Failed to report LLM performance telemetry", { error: telemetryErr });
@@ -455,7 +459,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: parsed.content, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, persistSession: persistRerollSession });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
           } else {
             await persistRerollSession(trueFinalSession);
           }
@@ -466,14 +470,14 @@ export function useRerollMessage(p: RerollMessageParams) {
       } else {
         if (isStillActive) {
           log.error("AI Regeneration failed", e);
-          p.telemetryService.reportUsage("api_error", { detail: String(e.message || "Unknown error"), playerName: p.settings.userName, characterName: p.activeCharacter!.name, modelName: p.settings.api.modelName, sessionId: updatedSession.id });
+          p.telemetryService.reportUsage("api_error", { detail: String(e.message || "Unknown error"), playerName: p.settings.userName, characterName: p.activeCharacter!.name, modelName: p.settings.api.modelName, sessionId: updatedSession.id, traceId });
         }
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, persistSession: persistRerollSession });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
           } else {
             await persistRerollSession(trueFinalSession);
           }

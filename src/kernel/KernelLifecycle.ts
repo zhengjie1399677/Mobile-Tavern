@@ -1,4 +1,7 @@
 import type { IKernel } from "./types";
+import { Logger } from "../utils/logger";
+
+const logger = Logger.create("KernelLifecycle");
 
 export type KernelLifecycleState = "idle" | "initializing" | "ready" | "destroying";
 
@@ -51,7 +54,7 @@ export function createKernelLifecycleController(
           try {
             await kernel.destroy();
           } catch (cleanupErr) {
-            console.error("[KernelLifecycle] Cleanup after bootstrap failure failed:", cleanupErr);
+            logger.error("Cleanup after bootstrap failure failed", cleanupErr);
           }
           throw error;
         }

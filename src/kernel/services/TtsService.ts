@@ -1,4 +1,7 @@
 import { IKernel, IKernelService, ITtsService } from "../types";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("TtsService");
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
 interface TauriWindow extends Window {
@@ -48,7 +51,7 @@ export class TtsService implements ITtsService {
   private speakingMessageId: string | null = null;
 
   async init(kernel: IKernel, signal?: AbortSignal): Promise<void> {
-    console.log("[TtsService] Initializing...");
+    logger.info("Initializing");
     this.abortController = new AbortController();
     if (signal) {
       if (signal.aborted) this.abortController.abort();
@@ -58,7 +61,7 @@ export class TtsService implements ITtsService {
       try {
         await tauriFetchPromise;
       } catch (e) {
-        console.warn("[TtsService] Failed to pre-resolve Tauri fetch:", e);
+        logger.warn("Failed to pre-resolve Tauri fetch", { error: e });
       }
     }
   }
@@ -67,7 +70,7 @@ export class TtsService implements ITtsService {
     this.stop();
     this.abortController?.abort();
     this.abortController = null;
-    console.log("[TtsService] Destroyed.");
+    logger.info("Destroyed");
   }
 
   isSpeaking(): boolean {

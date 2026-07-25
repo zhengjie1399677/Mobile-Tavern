@@ -1,4 +1,7 @@
 import { IKernel, IKernelService, IAsrService, AsrConfig } from "../types";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("AsrService");
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
 interface TauriWindow extends Window {
@@ -88,7 +91,7 @@ export class AsrService implements IAsrService {
    * @param signal 外部传入的取消信号，用于配合服务销毁
    */
   async init(kernel: IKernel, signal?: AbortSignal): Promise<void> {
-    console.log("[AsrService] Initializing...");
+    logger.info("Initializing");
     this.abortController = new AbortController();
     if (signal) {
       if (signal.aborted) this.abortController.abort();
@@ -99,7 +102,7 @@ export class AsrService implements IAsrService {
       try {
         await tauriFetchPromise;
       } catch (e) {
-        console.warn("[AsrService] Failed to pre-resolve Tauri fetch:", e);
+        logger.warn("Failed to pre-resolve Tauri fetch", { error: e });
       }
     }
   }
@@ -112,7 +115,7 @@ export class AsrService implements IAsrService {
     this.cancelListening();
     this.abortController?.abort();
     this.abortController = null;
-    console.log("[AsrService] Destroyed.");
+    logger.info("Destroyed");
   }
 
   /**
@@ -180,7 +183,7 @@ export class AsrService implements IAsrService {
 
         // 监听错误事件
         recognition.onerror = (event: any) => {
-          console.error("[AsrService] WebSpeech error:", event.error);
+          logger.error("WebSpeech error", undefined, { error: event.error });
           onError(new Error(`Speech recognition error: ${event.error}`));
           this.cleanupWebSpeech();
           onEnd?.();
@@ -247,7 +250,7 @@ export class AsrService implements IAsrService {
             const resultText = await this.uploadToWhisper(audioBlob, extension, config);
             onResult(resultText, true);
           } catch (err: any) {
-            console.error("[AsrService] OpenAI Whisper upload error:", err);
+            logger.error("OpenAI Whisper upload error", err);
             onError(err);
           } finally {
             onEnd?.();

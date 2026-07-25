@@ -7,6 +7,9 @@ import {
   bulkSaveSessions as dbBulkSaveSessions,
 } from "../../utils/localDB";
 import { verifyDatabaseIntegrity } from "../../infrastructure/storage/indexedDbIntegrityCheck";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("DatabaseService");
 import {
   getAllSessions,
   getSessionById,
@@ -53,7 +56,7 @@ export class DatabaseService implements IDatabaseService {
     // 此前仅有 v1→v9 迁移与写队列安全网，无启动时损坏检测，单副本存储无冗余。
     void verifyDatabaseIntegrity().catch((e) => {
       // 兜底：扫描本身异常不得影响 DatabaseService 可用性
-      console.warn("[DatabaseService] Integrity scan failed:", e);
+      logger.warn("Integrity scan failed", { error: e });
     });
   }
 
@@ -81,7 +84,10 @@ export class DatabaseService implements IDatabaseService {
     return getSessionsPaginated(page, pageSize);
   }
 
-  async saveSession(session: ChatSession, signal?: AbortSignal): Promise<void> {
+  async saveSession(session: ChatSession, signal?: AbortSignal, traceId?: string): Promise<void> {
+    // traceId 预留：当前 saveSession 转发到底层 localDB，无内部日志输出。
+    // 未来若在持久化前后增加诊断日志，应通过 logger.withTrace(traceId) 创建子 logger。
+    void traceId;
     return saveSession(session, signal ?? this.abortController?.signal);
   }
 
@@ -102,7 +108,9 @@ export class DatabaseService implements IDatabaseService {
    * 将内存 Message 格式转换为 DB MessageRecord 格式后调用 appendMessage。
    * turnIndex 未提供时使用 Date.now() 作为占位，MemoryExtractor 后续会更新。
    */
-  async appendSessionMessage(sessionId: string, message: PersistedMessage, turnIndex?: number, signal?: AbortSignal): Promise<void> {
+  async appendSessionMessage(sessionId: string, message: PersistedMessage, turnIndex?: number, signal?: AbortSignal, traceId?: string): Promise<void> {
+    // traceId 预留：与 saveSession 一致，供未来诊断日志接入。
+    void traceId;
     await dbAppendMessage({
       id: message.id,
       sessionId,
@@ -163,7 +171,7 @@ export class DatabaseService implements IDatabaseService {
         const processedStarter = applyCharacterRegexScripts(formattedStarter, character, undefined, undefined, undefined, "store");
         mvuVariables = scriptService.parseMvuMessage(processedStarter, mvuVariables);
       } catch (err) {
-        console.warn("[DatabaseService] Failed to parse starterMessage variables:", err);
+        logger.warn("Failed to parse starterMessage variables", { error: err });
       }
     }
     if (formattedStarter && !formattedStarter.includes("<center>")) {
@@ -215,7 +223,7 @@ export class DatabaseService implements IDatabaseService {
         const processedStarter = applyCharacterRegexScripts(starterMessage, character, undefined, undefined, undefined, "store");
         mvuVariables = scriptService.parseMvuMessage(processedStarter, mvuVariables);
       } catch (err) {
-        console.warn("[DatabaseService] Failed to parse branch starterMessage variables:", err);
+        logger.warn("Failed to parse branch starterMessage variables", { error: err });
       }
     }
     if (starterMessage && !starterMessage.includes("<center>")) {

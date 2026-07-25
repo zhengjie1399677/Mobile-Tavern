@@ -1,6 +1,9 @@
 import { IKernel, IKernelService, IPipeline, Middleware, IExtension, IMessage, type KernelValidationMode } from "./types";
 import { SAFE_PROXY_SYMBOL, validateMessage, validateService, validateServiceRetrieval, type ValidationResult } from "./schemas";
 import { reportImmediate } from "../utils/telemetry";
+import { Logger } from "../utils/logger";
+
+const logger = Logger.create("Kernel");
 
 // 全局严格模式开关，默认为 true
 let strictMode = true;
@@ -109,14 +112,11 @@ const createSafeProxy = (name: string): any => {
           // 开发/生产告警，只打印一次
           if (!warnedServices.has(name)) {
             warnedServices.add(name);
-            console.warn(`[Kernel] Missing service: ${name}`);
+            logger.warn("Missing service, returning SafeProxy fallback", { service: name });
           }
           if (isDev()) {
             // 开发非严格模式下输出警告日志
-            console.warn(
-              `[Kernel DevWarning] Accessing property "${prop}" on SafeProxy of service "${name}". ` +
-              `Please ensure this service is correctly registered.`
-            );
+            logger.warn("Accessing property on SafeProxy in dev mode", { service: name, property: prop });
           }
         }
       }
@@ -220,11 +220,10 @@ class Pipeline<T> implements IPipeline<T> {
           } else {
             // 生产环境：记录错误但绝不自动穿透。
             // 若该中间件是有意阻断，自动穿透将导致安全漏洞；若是遗忘，亦应被修复而非掩盖。
-            console.error(
-              `[Pipeline Error] Middleware "${middleware.fn.name || "anonymous"}" (index ${i}) ` +
-              `finished without calling next() or interrupt(). ` +
-              `Pipeline halted at this point to preserve security boundary integrity. ` +
-              `This is a bug — fix the middleware.`
+            logger.error(
+              `Pipeline middleware finished without calling next() or interrupt(). Pipeline halted to preserve security boundary. This is a bug — fix the middleware.`,
+              undefined,
+              { middleware: middleware.fn.name || "anonymous", index: i }
             );
           }
         }
@@ -234,10 +233,10 @@ class Pipeline<T> implements IPipeline<T> {
           throw err;
         } else {
           // 生产环境：记录错误并终止管道，不自动跳过出错的中间件以保全运行边界
-          console.error(
-            `[Pipeline Error] Middleware "${middleware.fn.name || "anonymous"}" (index ${i}) ` +
-            `threw an exception. Pipeline halted. Error:`,
-            err
+          logger.error(
+            `Pipeline middleware threw an exception. Pipeline halted.`,
+            err,
+            { middleware: middleware.fn.name || "anonymous", index: i }
           );
         }
       }
@@ -292,7 +291,7 @@ export class Kernel implements IKernel {
   async registerService(name: string, service: IKernelService, initTimeoutMs?: number): Promise<void> {
     this.validateServiceAtRegistration(name, service);
     if (this.services.has(name)) {
-      console.warn(`[Kernel] Service "${name}" is already registered. Destroying existing instance before overwriting...`);
+      logger.warn("Service is already registered. Destroying existing instance before overwriting", { service: name });
       await this.destroyService(name);
     }
 
@@ -331,11 +330,11 @@ export class Kernel implements IKernel {
       this.services.set(name, service);
       const initTime = Date.now() - startTime;
       this.serviceMetadata.set(name, { state: "ready", initTime });
-      if (isDev()) console.log(`[Kernel] Service registered and initialized successfully: ${name}`);
+      logger.info("Service registered and initialized successfully", { service: name, initTimeMs: initTime });
     } catch (err: any) {
       if (timeoutId) clearTimeout(timeoutId);
       controller.abort(); // 若初始化异常，立刻触发 abort 中止内部已经拉起但未释放的临时状态
-      console.error(`[Kernel] FAILED to initialize service "${name}":`, err);
+      logger.error(`Service FAILED to initialize`, err, { service: name });
       this.services.delete(name);
       this.serviceMetadata.set(name, { state: "failed" });
       const isTimeout = err.message && err.message.includes("timed out");
@@ -432,7 +431,7 @@ export class Kernel implements IKernel {
           await this.destroyService(registered[i]);
         } catch (cleanupErr) {
           // 清理失败不应掩盖原始错误，仅记录
-          console.error(`[Kernel] Cleanup of "${registered[i]}" during batch rollback failed:`, cleanupErr);
+          logger.error(`Cleanup during batch rollback failed`, cleanupErr, { service: registered[i] });
         }
       }
       throw err;
@@ -455,10 +454,7 @@ export class Kernel implements IKernel {
         );
       }
       // 非关键服务缺失时，返回一个无操作的 Fallback 降级安全代理，防止页面级组件在调用可选服务时崩溃
-      console.warn(
-        `[Kernel] Service "${name}" is not registered or failed to initialize. ` +
-        `Returning safe no-op fallback proxy.`
-      );
+      logger.warn("Service is not registered or failed to initialize. Returning safe no-op fallback proxy", { service: name });
       // 走缓存保证同名服务返回同一 SafeProxy 引用（warnedServices 仅去重日志，此处去重对象）
       let proxy = safeProxyCache.get(name);
       if (!proxy) {
@@ -504,7 +500,7 @@ export class Kernel implements IKernel {
     const warningKey = `${operation}:${name}:${detail}`;
     if (!warnedServiceValidation.has(warningKey)) {
       warnedServiceValidation.add(warningKey);
-      console.error(`${message}; continuing because validation mode is warn.`);
+      logger.error(`${message}; continuing because validation mode is warn.`);
     }
   }
 
@@ -543,14 +539,14 @@ export class Kernel implements IKernel {
         } catch (err) {
           if (timeoutId) clearTimeout(timeoutId);
           controller.abort();
-          console.error(`[Kernel] Error executing destroy on service "${name}":`, err);
+          logger.error(`Error executing destroy on service`, err, { service: name });
         } finally {
           this.activeControllers.delete(controller);
         }
       }
       this.services.delete(name);
       this.serviceMetadata.set(name, { state: "destroyed" });
-      if (isDev()) console.log(`[Kernel] Service destroyed and removed: ${name}`);
+      logger.info("Service destroyed and removed", { service: name });
     }
   }
 
@@ -559,12 +555,12 @@ export class Kernel implements IKernel {
    */
   registerPipeline<T = any>(name: string): IPipeline<T> {
     if (this.pipelines.has(name)) {
-      console.warn(`[Kernel] Pipeline "${name}" is already registered. Returning existing instance.`);
+      logger.warn("Pipeline is already registered. Returning existing instance", { pipeline: name });
       return this.pipelines.get(name) as IPipeline<T>;
     }
     const pipeline = new Pipeline<T>();
     this.pipelines.set(name, pipeline);
-    if (isDev()) console.log(`[Kernel] Pipeline registered: ${name}`);
+    logger.info("Pipeline registered", { pipeline: name });
     return pipeline;
   }
 
@@ -682,7 +678,7 @@ export class Kernel implements IKernel {
           // 静默退出，且直接中断后续订阅者发布（已发生信号中止）
           break;
         } else {
-          console.error(`[Kernel] Error executing subscriber on topic "${message.topic}":`, err);
+          logger.error(`Error executing subscriber on topic`, err, { topic: message.topic });
           // 遇到任何订阅者处理超时异常，立刻进行熔断中止后续执行，防止 5s 串行累加死锁
           if (err && err.message && err.message.includes("timed out")) {
             break;
@@ -755,7 +751,7 @@ export class Kernel implements IKernel {
         if (err && err.message === "aborted") {
           continue;
         }
-        console.error(`[Kernel] Error executing parallel subscriber on topic "${message.topic}":`, result.reason);
+        logger.error(`Error executing parallel subscriber on topic`, result.reason, { topic: message.topic });
       }
     }
   }
@@ -771,7 +767,7 @@ export class Kernel implements IKernel {
     if (getKernelStrictMode()) {
       throw new Error(`[Kernel MessageValidation] ${detail}`);
     }
-    console.error(`[Kernel MessageValidation] Dropped invalid message. ${detail}`);
+    logger.error(`[Kernel MessageValidation] Dropped invalid message. ${detail}`);
     return false;
   }
 
@@ -863,7 +859,7 @@ export class Kernel implements IKernel {
    * 销毁整个内核系统，逆序释放所有管道、消息队列和 IoC 服务
    */
   async destroy(): Promise<void> {
-    if (isDev()) console.log("[Kernel] Destroying all core pipelines, hooks, and services...");
+    logger.info("Destroying all core pipelines, hooks, and services");
     // 强行中止所有当前尚未结束的并发异步/定时/网络/数据库操作。
     // 快照后遍历：各 controller 被 abort 后其 finally 块会并发 activeControllers.delete(controller)，
     // 直接遍历 Set 期间被 delete 可能导致迭代器跳过未访问项，漏 abort 个别 controller。
@@ -872,7 +868,7 @@ export class Kernel implements IKernel {
       try {
         controller.abort();
       } catch (err) {
-        console.error("[Kernel] Error aborting active controller during destroy:", err);
+        logger.error("Error aborting active controller during destroy", err);
       }
     }
     this.activeControllers.clear();
@@ -890,7 +886,7 @@ export class Kernel implements IKernel {
     this.subscribers.clear();
     this.pipelines.clear();
     this.extensions.clear();
-    if (isDev()) console.log("[Kernel] Kernel base destroyed successfully.");
+    logger.info("Kernel base destroyed successfully");
   }
 }
 

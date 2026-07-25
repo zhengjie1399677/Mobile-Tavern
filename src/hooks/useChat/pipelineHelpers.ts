@@ -13,6 +13,9 @@ import type { OutputPipelineContext } from "../../services/pipeline";
 import { buildOutputContext } from "./helpers/streamHelpers";
 import { cleanSuggestionsFromText } from "./helpers/textParsing";
 import { notifyVariablesUpdated } from "../../utils/tavernHelper";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("pipelineHelpers");
 
 export const CONNECTION_INTERRUPTED_SUFFIX = "\n\n*(连接中断，仅保留部分生成内容)*";
 
@@ -38,6 +41,8 @@ export async function runOutputPipelineAndSave(params: {
   responseSuffix?: string;
   /** 重发等事务可注入原子持久化策略；普通发送沿用默认单条追加。 */
   persistSession?: (session: ChatSession) => Promise<void>;
+  /** traceId：用于关联一次用户操作的管道执行日志与遥测事件，贯穿中间件链路。 */
+  traceId?: string;
 }): Promise<OutputPipelineContext> {
   const {
     setSessions,
@@ -46,18 +51,20 @@ export async function runOutputPipelineAndSave(params: {
     triggerScroll,
     persistSession,
     responseSuffix = "",
+    traceId,
     ...ctxParams
   } = params;
 
-  console.log("=== [RAW AI RESPONSE] ===");
-  if (ctxParams.reasoningText) {
-    console.log("<think>\n" + ctxParams.reasoningText + "\n</think>");
-  }
-  console.log(ctxParams.responseText);
-  console.log("=========================");
+  const log = traceId ? logger.withTrace(traceId) : logger;
+
+  log.debug("RAW AI RESPONSE", {
+    content: ctxParams.responseText,
+    reasoning: ctxParams.reasoningText || undefined,
+  });
 
   const outputCtx = buildOutputContext(ctxParams);
   outputCtx.kernel = kernel;
+  if (traceId) outputCtx.traceId = traceId;
   const { session, settings, isBisonConsecutive, responseText } = ctxParams;
 
   // L1 快速通道：当全部功能关闭、非野牛连续、且无需自动总结时，跳过整个 output pipeline。
@@ -181,7 +188,7 @@ export async function runOutputPipelineAndSave(params: {
       }
     }
   } catch (err) {
-    console.warn("[MemoryExtractor] Failed to schedule background extraction:", err);
+    log.warn("Failed to schedule background extraction", { error: err });
   }
 
   setSessions((prev) =>
@@ -190,7 +197,7 @@ export async function runOutputPipelineAndSave(params: {
   try {
     notifyVariablesUpdated(parsedSession);
   } catch (e) {
-    console.warn("[pipelineHelpers] Failed to notifyVariablesUpdated:", e);
+    log.warn("Failed to notifyVariablesUpdated", { error: e });
   }
   if (triggerScroll) triggerScroll();
   return outputCtx;

@@ -12,6 +12,9 @@ import {
   DEFAULT_INVENTORY_REGEX,
   DEFAULT_BONDING_REGEX,
 } from "../../defaults/promptTemplates";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("AutoSummary");
 
 const generateUniqueId = (prefix: string): string => {
   return prefix + Math.random().toString(36).substring(2, 9);
@@ -168,7 +171,7 @@ export class AutoSummaryService {
 
       if (!response.ok) {
         const errStatus = response.status;
-        console.error("[AutoSummary] fetch failed with status:", errStatus);
+        logger.error("fetch failed with status", undefined, { status: errStatus });
         throw new Error(`API 返回错误状态码 ${errStatus}`);
       }
 
@@ -177,7 +180,7 @@ export class AutoSummaryService {
       try {
         resData = JSON.parse(responseText);
       } catch (e) {
-        console.error("[AutoSummary] JSON parse failed. Response text was:", responseText);
+        logger.error("JSON parse failed. Response text was", e, { responseText });
         throw new Error("接口返回数据格式错误，解析 JSON 失败");
       }
 
@@ -218,7 +221,7 @@ export class AutoSummaryService {
             try {
               return text.match(new RegExp(pattern, "i"));
             } catch (e) {
-              console.error("[AutoSummary] Invalid regex pattern:", pattern, e);
+              logger.error("Invalid regex pattern", e, { pattern });
               return null;
             }
           };

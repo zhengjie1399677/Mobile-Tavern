@@ -1,4 +1,7 @@
 import { IKernel, IKernelService, IUpdateCheckService, UpdateInfo } from "../types";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("UpdateCheckService");
 
 // 注意：客户端不再参与签名计算。
 // 历史问题：曾硬编码 HMAC 密钥 "TavernUpdateCheckSecretSalt" 并在客户端计算签名，
@@ -33,7 +36,7 @@ export class UpdateCheckService implements IUpdateCheckService {
   private abortController: AbortController | null = null;
 
   async init(kernel: IKernel, signal?: AbortSignal): Promise<void> {
-    console.log("[UpdateCheckService] Initializing...");
+    logger.info("Initializing");
     this.abortController = new AbortController();
     if (signal) {
       // 对齐 LLMService.ts 实现：处理 signal 已 aborted 的初始状态，避免无效请求
@@ -45,7 +48,7 @@ export class UpdateCheckService implements IUpdateCheckService {
   async destroy(kernel: IKernel, signal?: AbortSignal): Promise<void> {
     this.abortController?.abort();
     this.abortController = null;
-    console.log("[UpdateCheckService] Destroyed.");
+    logger.info("Destroyed");
   }
 
   async checkUpdate(currentVersion: string, signal?: AbortSignal, force?: boolean): Promise<UpdateInfo> {
@@ -90,7 +93,7 @@ export class UpdateCheckService implements IUpdateCheckService {
 
     // 如果未满足环境条件（不是 Wifi 或不是 Android 11+），且非本地开发/测试环境，且非手动强制更新，则不触发更新检测
     if (!force && !isDevOrTest && (!isWifi || !isAndroid11Plus)) {
-      console.log(`[UpdateCheckService] Pre-check failed. isWifi=${isWifi}, isAndroid11Plus=${isAndroid11Plus}. Skip update check.`);
+      logger.info("Pre-check failed, skip update check", { isWifi, isAndroid11Plus });
       return {
         hasUpdate: false,
         message: "当前版本已是最新，无需更新"
@@ -138,12 +141,12 @@ export class UpdateCheckService implements IUpdateCheckService {
           fetchFn = mod.fetch;
         }
       } catch (err) {
-        console.warn("[UpdateCheckService] Failed to load Tauri native HTTP plugin, fallback to window.fetch");
+        logger.warn("Failed to load Tauri native HTTP plugin, fallback to window.fetch");
       }
     }
 
     try {
-      console.log(`[UpdateCheckService] Requesting update check from: ${url}`);
+      logger.info("Requesting update check", { url });
       const response = await fetchFn(url, {
         method: "POST",
         headers: {
@@ -198,7 +201,7 @@ export class UpdateCheckService implements IUpdateCheckService {
       };
 
     } catch (e: any) {
-      console.error("[UpdateCheckService] Failed to execute update check:", e);
+      logger.error("Failed to execute update check", e);
       return {
         hasUpdate: false,
       };

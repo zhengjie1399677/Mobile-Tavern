@@ -1,6 +1,9 @@
 import { PromptSection, PromptNode, RuntimeContext, SectionPriority, SectionPhase } from "./types";
 import { PromptRenderer, XMLRenderer, MarkdownRenderer } from "./PromptRenderer";
 import { ModelCapabilityRegistry } from "../memory/ModelCapabilityRegistry";
+import { Logger } from "../../../utils/logger";
+
+const logger = Logger.create("PromptCompiler");
 
 export class PromptCompiler {
   private static readonly PHASE_ORDER: SectionPhase[] = [
@@ -148,7 +151,7 @@ export class PromptCompiler {
           nodes.push(node);
         }
       } catch (err) {
-        console.error(`[PromptCompiler] Error compiling section ${section.id}:`, err);
+        logger.error(`Error compiling section`, err, { section: section.id });
       }
     }
 
@@ -168,7 +171,7 @@ export class PromptCompiler {
     // Token Budget Defense (Trimming)
     let estimatedTokens = this.estimateTokens(compiledText);
     if (estimatedTokens > safeLimit) {
-      console.warn(`[PromptCompiler] Compiled prompt tokens (${estimatedTokens}) exceeds limit (${safeLimit}). Trimming...`);
+      logger.warn("Compiled prompt tokens exceeds limit. Trimming", { estimatedTokens, limit: safeLimit });
 
       const trimmableNodes = nodes.filter(n => n.type !== "Instruction");
       trimmableNodes.sort((a, b) => {

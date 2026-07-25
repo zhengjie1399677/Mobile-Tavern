@@ -2,6 +2,9 @@ import { IScriptService, IKernel } from "../types";
 import { CharacterCard, ChatSession } from "../../types";
 import { parseMvuMessage as parseMvuMessageDirect, applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
 import JSON5 from "json5";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("ScriptService");
 
 
 export interface ITavernHelperBridge {
@@ -204,7 +207,7 @@ export class ScriptService implements IScriptService {
       return cleanMvuVariables(rawVariables);
     } catch (e) {
       if (isDev()) {
-        console.warn("[ScriptService] initializeMvuFromCharacter failed:", e);
+        logger.warn("initializeMvuFromCharacter failed", { error: e });
       }
       return { stat_data: {} };
     }
@@ -231,7 +234,7 @@ export class ScriptService implements IScriptService {
     } catch (e) {
       if (isAbortError(e)) throw e;
       if (isDev()) {
-        console.warn("[ScriptService] parseMvuMessage failed:", e);
+        logger.warn("parseMvuMessage failed", { error: e });
       }
       return safeCurrentVars;
     }
@@ -245,7 +248,7 @@ export class ScriptService implements IScriptService {
 
     try {
       if (isDev()) {
-        console.log("[ScriptService] Parsing message...");
+        logger.debug("Parsing message");
       }
       
       let character: any = null;
@@ -297,7 +300,7 @@ export class ScriptService implements IScriptService {
           lastMsg,
         ];
         if (isDev()) {
-          console.log(`[ScriptService] Synced parsed variables to last message (swipeId: ${swipeId})`);
+          logger.debug("Synced parsed variables to last message", { swipeId });
         }
       }
 
@@ -317,7 +320,7 @@ export class ScriptService implements IScriptService {
     } catch (e) {
       if (isAbortError(e)) throw e;
       if (isDev()) {
-        console.warn("[ScriptService] Failed to parse MVU message:", e);
+        logger.warn("Failed to parse MVU message", { error: e });
       }
       return session;
     }
@@ -378,7 +381,7 @@ function localInitializeMvuFromCharacter(character: any): Record<string, any> {
         variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
       }
     } catch (e) {
-      console.warn("[localInitializeMvuFromCharacter] Failed to parse first_mes initvars:", e);
+      logger.warn("Failed to parse first_mes initvars", { error: e });
     }
   }
 
@@ -398,7 +401,7 @@ function localInitializeMvuFromCharacter(character: any): Record<string, any> {
             variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
           }
         } catch (e) {
-          console.warn("[localInitializeMvuFromCharacter] Failed to parse lorebook initvars:", e);
+          logger.warn("Failed to parse lorebook initvars", { error: e });
         }
       }
     }

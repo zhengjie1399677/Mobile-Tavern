@@ -22,6 +22,9 @@ import type {
 } from '../../../types';
 import type { MemoryStorage } from './MemoryStorage';
 import { FALLBACK_MODEL, API_ENDPOINT, TRIAL_OPENROUTER_KEY } from '../../../utils/apiClient';
+import { Logger } from '../../../utils/logger';
+
+const logger = Logger.create('MemorySummary');
 
 // ===== 常量 =====
 
@@ -322,7 +325,7 @@ export class MemorySummary {
     );
 
     if (!response.ok) {
-      console.error('[MemorySummary] fetch failed with status:', response.status);
+      logger.error('fetch failed with status', undefined, { status: response.status });
       throw new Error(`API 返回错误状态码 ${response.status}`);
     }
 
@@ -331,10 +334,7 @@ export class MemorySummary {
     try {
       resData = JSON.parse(responseText);
     } catch (e) {
-      console.error(
-        '[MemorySummary] JSON parse failed. Response text was:',
-        responseText
-      );
+      logger.error('JSON parse failed. Response text was', e, { responseText });
       throw new Error('接口返回数据格式错误，解析 JSON 失败');
     }
 

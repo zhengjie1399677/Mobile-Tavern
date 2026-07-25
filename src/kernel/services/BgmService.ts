@@ -1,4 +1,7 @@
 import { IBgmService, IKernel } from "../types";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("BgmService");
 
 export class BgmService implements IBgmService {
   name = "bgm";
@@ -24,7 +27,7 @@ export class BgmService implements IBgmService {
       // 避免同一死链接无限重复打印 Warning 刷屏
       if (this.lastFailedUrl !== this.currentUrl) {
         this.lastFailedUrl = this.currentUrl;
-        console.warn(`[BgmService] Audio loading error (${this.currentUrl}):`, e);
+        logger.warn(`Audio loading error`, { url: this.currentUrl, error: e });
       }
     });
 
@@ -67,7 +70,7 @@ export class BgmService implements IBgmService {
       // 捕获自动播放限制或失败，去重日志
       if (this.lastFailedUrl !== trimmedUrl) {
         this.lastFailedUrl = trimmedUrl;
-        console.warn("[BgmService] Autoplay blocked or failed:", err.message);
+        logger.warn("Autoplay blocked or failed", { url: trimmedUrl, message: err.message });
       }
     });
   }

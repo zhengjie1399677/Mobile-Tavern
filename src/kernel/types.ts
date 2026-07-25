@@ -56,6 +56,8 @@ export interface StreamParams {
   forceBasicParams?: boolean;
   reqBody: any;
   signal?: AbortSignal;
+  /** traceId：透传给 LLMService.universalFetch，关联 API 调用链日志 */
+  traceId?: string;
 }
 
 export interface IChatStreamService extends IKernelService {
@@ -176,7 +178,7 @@ export interface IDatabaseService<TSession = any, TCharacter = any, TSummary = a
   // PERF-03: 分页加载 API，避免一次性 getAll() 阻塞主线程
   getSessionsCount(): Promise<number>;
   getSessionsPaginated(page: number, pageSize: number): Promise<TSession[]>;
-  saveSession(session: TSession, signal?: AbortSignal): Promise<void>;
+  saveSession(session: TSession, signal?: AbortSignal, traceId?: string): Promise<void>;
   /**
    * 在 sessions Store 内原子追加摘要并推进最后总结位置。
    * 这是会话聚合能力，不暴露记忆词典、召回等业务专用存储细节。
@@ -190,7 +192,7 @@ export interface IDatabaseService<TSession = any, TCharacter = any, TSummary = a
    * 单条消息写入 messages Store（用于发送/重投场景的精准单条持久化）。
    * saveSession 只存会话元数据，新消息必须通过本方法显式写入。
    */
-  appendSessionMessage(sessionId: string, message: any, turnIndex?: number, signal?: AbortSignal): Promise<void>;
+  appendSessionMessage(sessionId: string, message: any, turnIndex?: number, signal?: AbortSignal, traceId?: string): Promise<void>;
   /**
    * 按主键删除单条消息（用于重投/编辑场景删除旧消息）。
    */
@@ -235,13 +237,15 @@ export interface ILLMService extends IKernelService {
       forceBasicParams?: boolean;
       reqBody: any;
     },
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    traceId?: string
   ): Promise<Response>;
   isClientMode(): boolean;
   sendCatbotRequest(
     content: string,
     history: any[],
-    clientContext?: unknown
+    clientContext?: unknown,
+    traceId?: string
   ): Promise<{ reply: string; expression: string }>;
 }
 
@@ -254,6 +258,8 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
     globalLorebook: TLorebook[];
     recalledMemories?: unknown[];
     signal?: AbortSignal;
+    /** traceId：用于关联一次用户操作的提示词编译日志与遥测事件 */
+    traceId?: string;
   }): {
     systemInstruction: string;
     history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
@@ -305,7 +311,8 @@ export interface ITelemetryService extends IKernelService {
     promptTokens: number,
     completionTokens: number,
     characterName?: string,
-    playerName?: string
+    playerName?: string,
+    traceId?: string
   ): void;
   reportImmediate(action: string, extraData?: Record<string, any>): Promise<void>;
   reportColdStartReady(): Promise<void>;

@@ -16,6 +16,9 @@ import type {
   MessageRole,
 } from './types';
 import type { MemoryStorage } from './MemoryStorage';
+import { Logger } from '../../../utils/logger';
+
+const logger = Logger.create('MemoryExtractor');
 
 // ===== 常量 =====
 
@@ -280,7 +283,7 @@ export class MemoryExtractor {
 
     // 触发队列处理（异步，不等待）
     this.processQueue().catch((e) => {
-      console.error('[MemoryExtractor] Queue processing failed:', e);
+      logger.error('Queue processing failed', e);
     });
   }
 
@@ -316,7 +319,7 @@ export class MemoryExtractor {
       try {
         await this.processExtraction(task);
       } catch (e) {
-        console.error('[MemoryExtractor] Extraction failed for task:', task.msgId, e);
+        logger.error('Extraction failed for task', e, { msgId: task.msgId });
       }
     }
 
@@ -368,7 +371,7 @@ export class MemoryExtractor {
     }
 
     if (isDev) {
-      console.log("[MemoryExtractor] processExtraction 结果:", {
+      logger.debug("processExtraction result", {
         msgId: task.msgId,
         sessionId: task.sessionId,
         tags,
@@ -391,7 +394,7 @@ export class MemoryExtractor {
         extraction ? { modelUsed: undefined } : undefined,
       );
     } catch (e) {
-      console.error("[MemoryExtractor] updateMessageExtraction failed:", task.msgId, e);
+      logger.error("updateMessageExtraction failed", e, { msgId: task.msgId });
     }
 
     // 辅助链路：更新 memory_dict Store（仅 L0 抽取出的新实体）。
@@ -400,13 +403,13 @@ export class MemoryExtractor {
       try {
         await this.updateDictFromExtraction(task, extraction);
       } catch (e) {
-        console.error("[MemoryExtractor] updateDictFromExtraction failed:", task.msgId, e);
+        logger.error("updateDictFromExtraction failed", e, { msgId: task.msgId });
       }
 
       try {
         await this.persistEventFragments(task, extraction);
       } catch (e) {
-        console.error("[MemoryExtractor] persistEventFragments failed:", task.msgId, e);
+        logger.error("persistEventFragments failed", e, { msgId: task.msgId });
       }
     }
 

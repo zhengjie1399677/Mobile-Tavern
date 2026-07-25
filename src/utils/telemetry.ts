@@ -54,7 +54,8 @@ export function reportLlmPerformance(
   completionTokens: number,
   characterName?: string,
   playerName?: string,
-  kernel?: IKernel
+  kernel?: IKernel,
+  traceId?: string
 ) {
   getTelemetryService(kernel).reportLlmPerformance(
     sessionId,
@@ -65,7 +66,8 @@ export function reportLlmPerformance(
     promptTokens,
     completionTokens,
     characterName,
-    playerName
+    playerName,
+    traceId
   );
 }
 

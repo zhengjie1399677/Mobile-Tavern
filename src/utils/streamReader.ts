@@ -9,6 +9,10 @@
  *  - 流终止时的尾部缓冲区刷新
  */
 
+import { Logger } from "./logger";
+
+const logger = Logger.create("streamReader");
+
 export interface SSEChunkCallbacks {
   /** 每次解析出有效 JSON 数据串时的回调（[DONE] 之前） */
   onData: (jsonStr: string) => void;
@@ -64,10 +68,10 @@ export async function readSSEStream(
     if (idleTimeoutMs <= 0 || !Number.isFinite(idleTimeoutMs)) return;
     clearIdleTimer();
     idleTimer = setTimeout(() => {
-      console.warn(`[streamReader] 超过空闲超时限制 (${idleTimeoutMs}ms)，终止流`);
+      logger.warn("超过空闲超时限制，终止流", { idleTimeoutMs });
       idleTimedOut = true;
       reader.cancel().catch((err) => {
-        console.warn("[streamReader] 空闲超时取消流时异常:", err);
+        logger.warn("空闲超时取消流时异常", { error: err });
       });
     }, idleTimeoutMs);
   };
@@ -77,7 +81,7 @@ export async function readSSEStream(
   const onSignalAbort = () => {
     clearIdleTimer();
     reader.cancel().catch((err) => {
-      console.warn("[streamReader] 接收到取消信号时取消流异常:", err);
+      logger.warn("接收到取消信号时取消流异常", { error: err });
     });
   };
   if (signal) {
@@ -195,7 +199,7 @@ export async function readSSEStream(
     }
     try {
       reader.cancel().catch((err) => {
-        console.warn("[streamReader] 取消流操作（连接中止时可安全忽略）:", err);
+        logger.warn("取消流操作（连接中止时可安全忽略）", { error: err });
       });
       reader.releaseLock();
     } catch {

@@ -350,6 +350,7 @@ describe("useRerollMessage 重发事务锁", () => {
     consoleError.mockRestore();
   });
 
+  
   it("流式期间 session 被修改时，最终 session 保留修改（P0 A 回归）", async () => {
     const consoleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const consoleClear = vi.spyOn(console, "clear").mockImplementation(() => undefined);

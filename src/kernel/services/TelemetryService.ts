@@ -1,5 +1,8 @@
 import { ITelemetryService, IKernel } from "../types";
 import { invoke } from '@tauri-apps/api/core';
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("TelemetryService");
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、TtsService.ts 对齐）。 */
 interface TauriWindow extends Window {
@@ -66,7 +69,7 @@ export class TelemetryService implements ITelemetryService {
       try {
         localStorage.setItem(DEVICE_ID_KEY, deviceId);
       } catch (e) {
-        console.warn("[TelemetryService] LocalStorage 写入设备 ID 失败:", e);
+        logger.warn("LocalStorage 写入设备 ID 失败", { error: e });
       }
     }
     return deviceId;
@@ -87,11 +90,15 @@ export class TelemetryService implements ITelemetryService {
 
   /**
    * 构建标准的结构化遥测日志体
+   *
+   * traceId 透传：调用方可通过 extraData.traceId 传入一次用户操作的 traceId，
+   * 用于在 SLS 侧关联同一调用链路上的 LLM 性能、持久化、错误兜底等事件。
+   * 未传入时为空字符串，保持与旧日志的向后兼容。
    */
   private buildLog(action: string, extraData: Record<string, any> = {}) {
     const deviceInfo = this.getDeviceInfo();
     const eventDurMs = Math.max(0, Date.now() - sessionStartTime);
-    
+
     return {
       action: action,
       device_id: deviceInfo.deviceId,
@@ -107,7 +114,8 @@ export class TelemetryService implements ITelemetryService {
       platform: "Tauri",
       user_agent: deviceInfo.userAgent,
       language: deviceInfo.language,
-      timezone: deviceInfo.timeZone
+      timezone: deviceInfo.timeZone,
+      trace_id: String(extraData.traceId || ""),
     };
   }
 
@@ -120,10 +128,10 @@ export class TelemetryService implements ITelemetryService {
       try {
         await invoke('report_telemetry', { log });
       } catch (err) {
-        console.warn("[TelemetryService] 桥接 Rust report_telemetry 命令调用失败:", err);
+        logger.warn("桥接 Rust report_telemetry 命令调用失败", { error: err });
       }
     } else {
-      console.log("[TelemetryService] [本地模拟开发发送日志]:", log);
+      logger.debug("[本地模拟开发发送日志]", { log });
     }
   }
 
@@ -150,7 +158,7 @@ export class TelemetryService implements ITelemetryService {
     try {
       await this.reportImmediate("app_instant_launch", { detail: "应用启动，立刻上报瞬时遥测，绕过离线缓存" });
     } catch (e) {
-      console.warn("[TelemetryService] 发送 app_instant_launch 瞬时遥测失败:", e);
+      logger.warn("发送 app_instant_launch 瞬时遥测失败", { error: e });
     }
     this.reportUsage("performance_cold_start", {
       detail: "应用冷启动完成就绪",
@@ -170,6 +178,8 @@ export class TelemetryService implements ITelemetryService {
 
   /**
    * 上报 LLM 生成大模型接口性能指标
+   *
+   * traceId：用于在 SLS 侧关联同一调用链路上的 send_message、llm_performance 与错误兜底事件。
    */
   reportLlmPerformance(
     sessionId: string,
@@ -180,7 +190,8 @@ export class TelemetryService implements ITelemetryService {
     promptTokens: number,
     completionTokens: number,
     characterName?: string,
-    playerName?: string
+    playerName?: string,
+    traceId?: string
   ): void {
     this.reportUsage("llm_performance", {
       sessionId,
@@ -189,6 +200,7 @@ export class TelemetryService implements ITelemetryService {
       generationTime: durationMs,
       characterName,
       playerName,
+      traceId,
       detail: `首字延迟 TTFT: ${ttftMs}ms, 生成耗时 Duration: ${durationMs}ms, 输入 Token 数量 PromptTokens: ${promptTokens}, 输出 Token 数量 CompletionTokens: ${completionTokens}`
     });
   }

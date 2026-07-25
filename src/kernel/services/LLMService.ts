@@ -2,6 +2,9 @@ import { ILLMService, IKernel } from "../types";
 import { getTrialKey } from "../../utils/keyManager";
 import { cleanRequestPayload, cleanLLMResponse } from "../utils/requestSchema";
 import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("LLMService");
 
 declare const IS_MOBILE_NATIVE: boolean;
 
@@ -43,11 +46,11 @@ if (typeof window !== "undefined") {
     tauriFetchPromise = import("@tauri-apps/plugin-http")
       .then((mod) => {
         tauriFetch = mod.fetch;
-        console.log("[LLMService] Successfully loaded Tauri native HTTP plugin.");
+        logger.info("Successfully loaded Tauri native HTTP plugin");
         return mod.fetch;
       })
       .catch((err) => {
-        console.warn("[LLMService] Failed to load Tauri native HTTP plugin, fallback to window.fetch:", err);
+        logger.warn("Failed to load Tauri native HTTP plugin, fallback to window.fetch", { error: err });
         return null;
       });
   }
@@ -116,8 +119,10 @@ export class LLMService implements ILLMService {
   async universalFetch(
     endpoint: string,
     proxyPayload: any,
-    customSignal?: AbortSignal
+    customSignal?: AbortSignal,
+    traceId?: string
   ): Promise<Response> {
+    const log = traceId ? logger.withTrace(traceId) : logger;
     let cleanedReqBody = cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, any>);
     
     // API 级别关闭推理模式（直接在 Payload 中设置控制参数）
@@ -145,7 +150,7 @@ export class LLMService implements ILLMService {
       try {
         actualApiKey = await getTrialKey();
       } catch (err) {
-        console.error("[LLMService] Failed to dynamically fetch trial key:", err);
+        log.error("Failed to dynamically fetch trial key", err);
       }
     }
 
@@ -354,9 +359,7 @@ export class LLMService implements ILLMService {
             const unsupported = ModelCapabilityRegistry.isUnsupportedParamError(errText);
             if (unsupported && modelId) {
               ModelCapabilityRegistry.updateCapabilities(modelId, { [unsupported.param]: false });
-              console.warn(
-                `[LLMService] Auto-healing: Disabled unsupported capability "${unsupported.param}" for model: ${modelId}. Retrying request...`
-              );
+              log.warn("Auto-healing: Disabled unsupported capability", { param: unsupported.param, modelId });
 
               const recleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(
                 modelId,
@@ -372,7 +375,7 @@ export class LLMService implements ILLMService {
               });
             }
           } catch (e) {
-            console.warn("[LLMService] Failed to analyze api error for self-healing or retry:", e);
+            log.warn("Failed to analyze api error for self-healing or retry", { error: e });
           }
         }
 
@@ -412,8 +415,11 @@ export class LLMService implements ILLMService {
   async sendCatbotRequest(
     content: string,
     history: any[],
-    clientContext?: unknown
+    clientContext?: unknown,
+    traceId?: string
   ): Promise<{ reply: string; expression: string }> {
+    const log = traceId ? logger.withTrace(traceId) : logger;
+    void log; // 当前 sendCatbotRequest 无日志输出，保留 log 供未来错误追踪扩展
     const normalizedClientContext =
       clientContext && typeof clientContext === "object"
         ? (clientContext as Record<string, unknown>)
