@@ -301,3 +301,89 @@ export async function testGetStoredSettingsAsyncExceptionSafety() {
     restore();
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 测试 3：路径 C4 — 合并写 + 第一调用方 signal abort，第二调用方无 signal
+// ──────────────────────────────────────────────────────────────────────────────
+
+export async function testCoalescedWriteFirstCallerAbort() {
+  console.log("\n--- Running Coalesced Write First Caller Abort Verification (Path C4) ---");
+
+  // 路径 C4：合并写 + 第一调用方有 signal1，第二调用方无 signal，第一调用方 abort
+  // 验证：两个调用方都应快速收到 rejection（远小于 15s 超时）
+  // 关键：第二调用方无 signal，直接返回 existing.pendingPromise，
+  //       signal1 abort → onAbort → slot.abortFn() → transaction.abort() → onabort reject（P0 #1 修复）
+  //       若 onabort 短路（旧实现），第一调用方通过 signalAbortPromise reject，
+  //       但第二调用方依赖 existing.pendingPromise，operation 永不 settle → 等 15s 超时
+  let transactionCreated = false;
+  let abortCalled = false;
+  const mockTx = buildMockTransactionWithConfig({
+    hang: true, // 事务挂起，只能通过 transaction.abort() 终结
+    onAbortCallback: () => { abortCalled = true; },
+  });
+  const mockDb = {
+    transaction: () => {
+      transactionCreated = true;
+      return mockTx;
+    },
+  };
+
+  const localDB = await import("../../src/utils/localDB");
+  localDB.__resetDBInstanceForTesting();
+  const restore = injectMockIDB(mockDb);
+
+  try {
+    const controller1 = new AbortController();
+
+    // 第一调用方：有 signal1，同 key（character:coalesce-first-abort-char）
+    const p1 = localDB.saveCharacter(
+      buildMinimalCharacter("coalesce-first-abort-char", "A"),
+      controller1.signal
+    );
+
+    // 第二调用方：无 signal，同 key（合并到第一调用方，直接返回 existing.pendingPromise）
+    const p2 = localDB.saveCharacter(
+      buildMinimalCharacter("coalesce-first-abort-char", "B")
+    );
+
+    // 预挂 catch：controller1.abort() 会同步触发 onAbort reject p1/p2，
+    // 若无 catch handler，Node.js 24 默认 --unhandled-rejections=throw 会 fatal exit。
+    const p1Caught = p1.catch((e) => e);
+    const p2Caught = p2.catch((e) => e);
+
+    // 等待事务真实创建（queuedOperation 已开始执行，slot.operation 已被 p2 替换）
+    for (let attempt = 0; attempt < 50 && !transactionCreated; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert(transactionCreated, "Transaction should be created for coalesced write");
+
+    // 记录 abort 前的时间戳
+    const abortStart = Date.now();
+    controller1.abort();
+
+    // 第一调用方应在 onabort 触发后立即 reject（远小于 15s 超时）
+    // 旧实现：onabort 短路 return，p1 通过 signalAbortPromise reject，但 p2 依赖
+    //         existing.pendingPromise，operation 永不 settle → p2 等 15s timeoutPromise
+    // 修复后：onabort 无条件 reject，operation 立即 settle，p1/p2 都快速收到 rejection
+    const thrown1 = await p1Caught;
+    const elapsed1 = Date.now() - abortStart;
+
+    assert(thrown1 !== null, "First caller (with signal) should reject after signal abort");
+    assert(
+      elapsed1 < 2000,
+      `First caller should reject quickly (<2s), got ${elapsed1}ms — Path C4: should not wait 15s timeout`
+    );
+
+    // 第二调用方也应通过 existing.pendingPromise 收到 rejection
+    const thrown2 = await p2Caught;
+    assert(thrown2 !== null, "Second caller (no signal) should reject via coalesced pendingPromise");
+
+    // 验证 transaction.abort() 被调用
+    await new Promise((r) => setTimeout(r, 0));
+    assert(abortCalled, "transaction.abort() should be invoked when first caller's signal aborts");
+
+    console.log("✔ Coalesced write first caller abort verified successfully!");
+  } finally {
+    restore();
+  }
+}

@@ -64,6 +64,7 @@ import {
   testBootstrapRollbackOnCriticalFailure,
   testCoalescedWriteAbortNoHang,
   testGetStoredSettingsAsyncExceptionSafety,
+  testCoalescedWriteFirstCallerAbort,
   testFastPathL3AutoSummaryIndex,
   testFastPathL2ContentPrescan,
   testFastPathL1PipelineBypass,
@@ -204,9 +205,10 @@ async function run() {
     { name: "testFastPathL1PipelineBypass", fn: testFastPathL1PipelineBypass },
     { name: "testCleanLLMResponse", fn: testCleanLLMResponse },
     { name: "testWriteQueueKeyCoalescing", fn: testWriteQueueKeyCoalescing },
-    // localDB P0 修复回归测试（合并写 abort 不挂起 + getStoredSettings 异步异常兜底）
+    // localDB P0 修复回归测试（合并写 abort 不挂起 + getStoredSettings 异步异常兜底 + 路径 C4）
     { name: "testCoalescedWriteAbortNoHang", fn: testCoalescedWriteAbortNoHang },
     { name: "testGetStoredSettingsAsyncExceptionSafety", fn: testGetStoredSettingsAsyncExceptionSafety },
+    { name: "testCoalescedWriteFirstCallerAbort", fn: testCoalescedWriteFirstCallerAbort },
     // 记忆系统阶段 A 测试（v8 物理分轨 + 服务骨架）
     { name: "testModelCapabilityRegistry", fn: testModelCapabilityRegistry },
     { name: "testMemoryStreamParser", fn: testMemoryStreamParser },

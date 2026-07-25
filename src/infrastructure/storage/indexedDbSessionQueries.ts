@@ -1,5 +1,6 @@
 import type { ChatSession } from "../../types";
-import { getDB } from "../../utils/localDB";
+import { getDB } from "./idbConnection";
+import { bindReadonlyTransactionAbort } from "./idbQueue";
 
 export async function getAllSessions(): Promise<ChatSession[]> {
   const db = await getDB();
@@ -8,7 +9,7 @@ export async function getAllSessions(): Promise<ChatSession[]> {
     const request = transaction.objectStore("sessions").getAll();
     request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
-    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+    bindReadonlyTransactionAbort(transaction, reject);
   });
 }
 
@@ -19,7 +20,7 @@ export async function getSessionById(id: string): Promise<ChatSession | null> {
     const request = transaction.objectStore("sessions").get(id);
     request.onsuccess = () => resolve(request.result || null);
     request.onerror = () => reject(request.error);
-    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+    bindReadonlyTransactionAbort(transaction, reject);
   });
 }
 
@@ -30,7 +31,7 @@ export async function getSessionsCount(): Promise<number> {
     const request = transaction.objectStore("sessions").count();
     request.onsuccess = () => resolve(request.result || 0);
     request.onerror = () => reject(request.error);
-    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+    bindReadonlyTransactionAbort(transaction, reject);
   });
 }
 
@@ -63,6 +64,6 @@ export async function getSessionsPaginated(page: number, pageSize: number): Prom
       cursor.continue();
     };
     request.onerror = () => reject(request.error);
-    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+    bindReadonlyTransactionAbort(transaction, reject);
   });
 }
