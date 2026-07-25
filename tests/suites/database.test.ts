@@ -156,8 +156,11 @@ export async function testLocalDBSplitTrack() {
   };
 
   // 注入 mock DB 实例到 localDB 中以避免调用真实的 indexedDB.open
+  // 必须 try/finally 保护：若测试中途 assert 失败，全局 indexedDB 必须被还原，
+  // 否则后续依赖真实 fake-indexeddb 的测试会全部连锁失败（store.getAll is not a function）。
   const originalIndexedDB = (global as unknown as { indexedDB: IDBFactory }).indexedDB;
 
+  try {
   (global as unknown as { indexedDB: IDBFactory }).indexedDB = {
     open: () => {
       const request: any = {};
@@ -224,8 +227,10 @@ export async function testLocalDBSplitTrack() {
   assert(loadedSettings.bisonModePrompt === "BISON: Mode prompt", "Merged bisonModePrompt matches");
   assert(loadedSettings.otherOption === "enabled", "Merged otherOption matches");
 
-  // 7. 还原 global 状态
+  // 7. 还原 global 状态（无论测试成功或失败都必须执行）
+  } finally {
   (global as unknown as { indexedDB: IDBFactory }).indexedDB = originalIndexedDB;
+  }
 
   console.log("✔ localDB settings Split-Track Storage and Merge verified successfully!");
 }

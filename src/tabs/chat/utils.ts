@@ -12,5 +12,6 @@ export const chatTabState = {
   // 建议词点击模式：send=直接发送 / fill=填入框内
   suggestionsClickMode: null as "send" | "fill" | null,
   // 全局基准高度（用于键盘检测阈值计算）
-  maxHeight: window.innerHeight,
+  // Node.js 测试环境（tsx/vitest 无 jsdom）无 window，降级为 0 避免模块加载抛错
+  maxHeight: typeof window !== "undefined" ? window.innerHeight : 0,
 };
