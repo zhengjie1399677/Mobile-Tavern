@@ -10,6 +10,7 @@ import {
   ArrowDown,
   Loader2,
 } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import ChatInputArea from "./ChatInputArea";
@@ -117,6 +118,21 @@ const DialogueHistoryView = ({
     roundNums[m.id] = roundCount;
   });
 
+  // 虚拟列表：长会话下 visibleMessages 可达数百条，全量渲染会导致
+  // React VDOM 协调遍历 1500+ 节点。useVirtualizer 只渲染视口内 + overscan 条目，
+  // 协调节点数从 ~1500 降到 ~100，是 50 轮长会话延迟优化的关键。
+  // - estimateSize 400px：与原 content-visibility 的 containIntrinsicSize 一致
+  // - overscan 5：移动端快速滚动时预渲染 5 条避免空白
+  // - measureElement：动态测量实际高度，流式消息高度变化时 ResizeObserver 自动重测
+  // - gap strategy: paddingBottom 1rem 模拟原 space-y-4 间距
+  const virtualizer = useVirtualizer({
+    count: visibleMessages.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 400,
+    overscan: 5,
+    measureElement: (element) => element.getBoundingClientRect().height,
+  });
+
   return (
     <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
       {/* Custom card background layer */}
@@ -179,7 +195,7 @@ const DialogueHistoryView = ({
         aria-label="聊天消息记录"
         aria-live="polite"
         aria-relevant="additions"
-        className="p-3.5 space-y-4 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative z-10"
+        className="p-3.5 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative z-10"
         onClick={() => {
           if (msgMenuId) setMsgMenuId(null);
         }}
@@ -224,56 +240,77 @@ const DialogueHistoryView = ({
             )}
           </div>
         )}
-        {visibleMessages.map((message: any, idx: number) => {
-          const isSystem = message.sender === "system";
+        {/* 虚拟列表容器：占位总高度，子项绝对定位。
+            顶部按钮与底部 typing/chatBottomRef 流式布局在虚拟列表之外，
+            共享同一滚动容器。 */}
+        <div
+          style={{
+            height: virtualizer.getTotalSize(),
+            position: "relative",
+            width: "100%",
+          }}
+        >
+          {virtualizer.getVirtualItems().map((vi) => {
+            const message = visibleMessages[vi.index];
+            const isSystem = message.sender === "system";
 
-          if (isSystem) {
+            // 预计算 isStreamingThisMsg：只有流式中的消息和末位消息会变，
+            // 其余消息此值为 false 且不随 isSending/messagesToRenderLength 变化而变化，
+            // 配合 React.memo 可跳过绝大多数 MessageBubble 的重渲染。
+            const streamingId = typeof window !== "undefined"
+              ? (window as any).TavernHelperStreamingMessageId as string | undefined
+              : undefined;
+            const isStreamingThisMsg = streamingId
+              ? streamingId === message.id
+              : isSending && vi.index === visibleMessages.length - 1;
+
             return (
               <div
                 key={message.id}
-                className="flex items-center justify-center"
+                data-index={vi.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  // translateY 而非 top：避免触发 layout，走合成器层
+                  transform: `translateY(${vi.start}px)`,
+                  // 模拟原 space-y-4 间距（1rem = 16px）
+                  paddingBottom: "1rem",
+                }}
               >
-                <div
-                  role="status"
-                  aria-label={`系统提示：${message.content}`}
-                  className="bg-primary/10 text-primary text-xs px-3 py-1.5 rounded-lg border border-primary/30 max-w-xs text-center flex items-start gap-1.5 leading-relaxed"
-                >
-                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
-                  <span>{message.content}</span>
-                </div>
+                {isSystem ? (
+                  <div className="flex items-center justify-center">
+                    <div
+                      role="status"
+                      aria-label={`系统提示：${message.content}`}
+                      className="bg-primary/10 text-primary text-xs px-3 py-1.5 rounded-lg border border-primary/30 max-w-xs text-center flex items-start gap-1.5 leading-relaxed"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                      <span>{message.content}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <MessageBubble
+                    message={message}
+                    idx={vi.index}
+                    foldedCount={foldedCount}
+                    roundNum={roundNums[message.id] || 0}
+                    activePortraitUrl={activePortraitUrl}
+                    expandedReasoningIds={expandedReasoningIds}
+                    setExpandedReasoningIds={setExpandedReasoningIds}
+                    copiedReasoningIds={copiedReasoningIds}
+                    setCopiedReasoningIds={setCopiedReasoningIds}
+                    isStreamingThisMsg={isStreamingThisMsg}
+                    swipedMsgId={swipedMsgId}
+                    setSwipedMsgId={setSwipedMsgId}
+                  />
+                )}
               </div>
             );
-          }
-
-          // 预计算 isStreamingThisMsg：只有流式中的消息和末位消息会变，
-          // 其余消息此值为 false 且不随 isSending/messagesToRenderLength 变化而变化，
-          // 配合 React.memo 可跳过绝大多数 MessageBubble 的重渲染。
-          const streamingId = typeof window !== "undefined"
-            ? (window as any).TavernHelperStreamingMessageId as string | undefined
-            : undefined;
-          const isStreamingThisMsg = streamingId
-            ? streamingId === message.id
-            : isSending && idx === visibleMessages.length - 1;
-
-          return (
-            <React.Fragment key={message.id}>
-              <MessageBubble
-                message={message}
-                idx={idx}
-                foldedCount={foldedCount}
-                roundNum={roundNums[message.id] || 0}
-                activePortraitUrl={activePortraitUrl}
-                expandedReasoningIds={expandedReasoningIds}
-                setExpandedReasoningIds={setExpandedReasoningIds}
-                copiedReasoningIds={copiedReasoningIds}
-                setCopiedReasoningIds={setCopiedReasoningIds}
-                isStreamingThisMsg={isStreamingThisMsg}
-                swipedMsgId={swipedMsgId}
-                setSwipedMsgId={setSwipedMsgId}
-              />
-            </React.Fragment>
-          );
-        })}
+          })}
+        </div>
 
         {/* Typing Indicator */}
         {isSending && (

@@ -453,17 +453,9 @@ const MessageBubble = ({
   return (
     <div
       ref={bubbleRef}
-      key={message.id}
       role="article"
       aria-label={`${isUser ? t("message_bubble.user_said") : (activeCharacter?.name || t("message_bubble.role")) + t("message_bubble.char_said")}：${message.content}`}
       className={`flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}
-      style={{
-        // 性能优化：屏幕外消息跳过布局和绘制，浏览器原生虚拟列表
-        // contain-intrinsic-size 的 auto 关键字记住元素上次渲染的实际高度，
-        // 首次渲染前用 400px 作为预估高度，避免滚动条跳动
-        contentVisibility: "auto",
-        containIntrinsicSize: "auto 400px",
-      }}
     >
       <div
         aria-hidden="true"
