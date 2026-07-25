@@ -17,6 +17,12 @@ export {
   testWriteQueueKeyCoalescing,
 } from "./database.test";
 
+// localDB P0 修复回归测试（合并写 abort 不挂起 + getStoredSettings 异步异常兜底）
+export {
+  testCoalescedWriteAbortNoHang,
+  testGetStoredSettingsAsyncExceptionSafety,
+} from "./localDbP0Fixes.test";
+
 export { testPromptBuilder, testPromptBuilderSystemMerging } from "./promptBuilder.test";
 export { testPromptRuntime, testPromptServiceIntegration } from "./promptRuntime.test";
 

@@ -1,26 +1,15 @@
 import { getDB } from "../../utils/localDB";
 import { reportImmediate } from "../../utils/telemetry";
+import { DB_SCHEMA } from "./dbSchema";
 
 // ─── 启动时 IndexedDB 完整性扫描 ───────────────────────────────────────────────
 // 此前仅有 v1→v9 迁移与写队列并发安全网（串行化、15s 超时、队列深度告警），
 // 但单副本存储无冗余，缺少启动时的 schema 完整性扫描与损坏检测。
 // 本模块在 DB 打开后校验所有期望的 objectStore 与关键索引是否存在，
 // 发现缺失时上报遥测但不自动修复（自动修复对单副本存储风险过高，需用户介入）。
-
-interface ExpectedStoreSchema {
-  indexes: string[];
-}
-
-const EXPECTED_DB_SCHEMA: Record<string, ExpectedStoreSchema> = {
-  characters: { indexes: [] },
-  sessions: { indexes: ["characterId", "createdAt"] },
-  settings: { indexes: [] },
-  lorebooks: { indexes: [] },
-  worldbooks: { indexes: [] },
-  messages: { indexes: ["sessionId", "createdAt", "tags", "sessionId_createdAt"] },
-  memory_dict: { indexes: ["sessionId", "entity"] },
-  memory_fragments: { indexes: ["sessionId", "tags", "status", "sessionId_sourceTurnEnd"] },
-};
+//
+// schema 期望清单统一引用 dbSchema.ts 的 DB_SCHEMA 单一来源，
+// 与 localDB.ts 的 onupgradeneeded 共享同一份定义，消除双源同步风险。
 
 export interface DatabaseIntegrityReport {
   healthy: boolean;
@@ -43,24 +32,22 @@ export async function verifyDatabaseIntegrity(): Promise<DatabaseIntegrityReport
     const db = await getDB();
     dbVersion = db.version;
 
-    const expectedStoreNames = Object.keys(EXPECTED_DB_SCHEMA);
-    for (const storeName of expectedStoreNames) {
-      if (!db.objectStoreNames.contains(storeName)) {
-        issues.push(`missing_object_store:${storeName}`);
+    for (const storeDef of DB_SCHEMA) {
+      if (!db.objectStoreNames.contains(storeDef.name)) {
+        issues.push(`missing_object_store:${storeDef.name}`);
         continue;
       }
       // 打开只读事务校验索引存在性
       try {
-        const tx = db.transaction(storeName, "readonly");
-        const store = tx.objectStore(storeName);
-        const expectedIndexes = EXPECTED_DB_SCHEMA[storeName].indexes;
-        for (const idxName of expectedIndexes) {
-          if (!store.indexNames.contains(idxName)) {
-            issues.push(`missing_index:${storeName}.${idxName}`);
+        const tx = db.transaction(storeDef.name, "readonly");
+        const store = tx.objectStore(storeDef.name);
+        for (const idxDef of storeDef.indexes) {
+          if (!store.indexNames.contains(idxDef.name)) {
+            issues.push(`missing_index:${storeDef.name}.${idxDef.name}`);
           }
         }
       } catch (e) {
-        issues.push(`store_access_error:${storeName}:${(e as Error).message ?? "unknown"}`);
+        issues.push(`store_access_error:${storeDef.name}:${(e as Error).message ?? "unknown"}`);
       }
     }
   } catch (e) {

@@ -36,9 +36,13 @@ interface MockTransactionOptions {
  * 构造 Mock IDBTransaction，支持挂起模式与 abort 行为追踪。
  * 当 hang=true 时，put/get/delete 的 onsuccess 永不触发，
  * 只能通过 transaction.abort() 终结（触发 onabort 事件）。
+ *
+ * hang=false 时模拟真实 IDB 行为：所有请求 onsuccess 触发后，
+ * 事务提交时触发 oncomplete（生产代码已统一用 oncomplete 判定成功）。
  */
 function buildMockTransaction(opts: MockTransactionOptions = {}) {
   let abortCalled = false;
+  let oncompleteTimer: ReturnType<typeof setTimeout> | undefined;
   const fireSuccess = (req: { onsuccess?: () => void }) => {
     if (!opts.hang) {
       setTimeout(() => {
@@ -46,20 +50,33 @@ function buildMockTransaction(opts: MockTransactionOptions = {}) {
       }, 0);
     }
   };
+  // 事务级 oncomplete：每次请求入队后重置 timer，最后一个请求的 timer 触发 oncomplete。
+  // 模拟真实 IDB "所有请求完成后才提交事务" 的语义，匹配生产代码用 oncomplete 判定成功的契约。
+  const scheduleOncomplete = () => {
+    if (opts.hang) return;
+    if (oncompleteTimer) clearTimeout(oncompleteTimer);
+    oncompleteTimer = setTimeout(() => {
+      if (abortCalled) return;
+      if (tx.oncomplete) tx.oncomplete(new Event("complete"));
+    }, 0);
+  };
   const store = {
     put: (_value: unknown, _key?: string) => {
       const req: { onsuccess?: () => void } = {};
       fireSuccess(req);
+      scheduleOncomplete();
       return req;
     },
     get: (_key: string) => {
       const req: { onsuccess?: () => void; result?: unknown } = { result: undefined };
       fireSuccess(req);
+      scheduleOncomplete();
       return req;
     },
     delete: (_key: string) => {
       const req: { onsuccess?: () => void } = {};
       fireSuccess(req);
+      scheduleOncomplete();
       return req;
     },
   };
@@ -76,6 +93,7 @@ function buildMockTransaction(opts: MockTransactionOptions = {}) {
     abort: () => {
       if (abortCalled) return;
       abortCalled = true;
+      if (oncompleteTimer) clearTimeout(oncompleteTimer);
       // 模拟 IDB 行为：abort() 后异步触发 onabort 事件
       setTimeout(() => {
         if (tx.onabort) tx.onabort(new Event("abort"));

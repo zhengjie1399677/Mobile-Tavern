@@ -13,6 +13,11 @@ import { Kernel } from "../../src/kernel/Kernel";
 import { IKernelService } from "../../src/kernel/types";
 import { DatabaseService } from "../../src/kernel/services/DatabaseService";
 import { assert } from "./testUtils";
+// fake-indexeddb 全局注入：替代 testLocalDBSplitTrack 原先的手写 mock。
+// 手写 mock 的 oncomplete 调度时序与真实 IDB 存在差异，是历史 flaky 源头；
+// fake-indexeddb 完整实现 IDB 协议（含事务提交、索引、cursor），测试更接近生产行为。
+// 对不依赖 IDB 的测试（testDbQueue/testWriteQueueTimeout 等）无副作用。
+import 'fake-indexeddb/auto';
 
 export async function testDbQueue() {
   console.log("\n--- Running DB Concurrency Queue Verification ---");
@@ -117,122 +122,104 @@ export async function testDatabaseServiceCrud() {
 export async function testLocalDBSplitTrack() {
   console.log("\n--- Running localDB settings Split-Track Storage Verification ---");
   const localDB = await import("../../src/utils/localDB");
-  // 清除可能由前序测试缓存的 dbInstance，确保本测试的 mock indexedDB 能生效
+  // fake-indexeddb 已在文件顶部全局注入，此处仅需清 localDB 的 dbInstance 缓存，
+  // 确保本测试拿到的是干净的 fake-indexeddb 连接（前序测试可能已缓存旧连接）。
   localDB.__resetDBInstanceForTesting();
 
-  // 1. Mock 内存数据库存储
-  const mockStorage: Record<string, any> = {};
-
-  // Mock IDBObjectStore
-  const mockStore = {
-    get: (key: string) => {
-      const request: any = { result: mockStorage[key] };
-      setTimeout(() => {
-        if (request.onsuccess) request.onsuccess();
-      }, 0);
-      return request;
-    },
-    put: (value: any, key?: string) => {
-      mockStorage[key || value.id] = value;
-      const request: any = { result: key || value.id };
-      setTimeout(() => {
-        if (request.onsuccess) request.onsuccess();
-      }, 0);
-      return request;
-    }
-  };
-
-  // Mock IDBTransaction
-  const mockTransaction = {
-    objectStore: (name: string) => mockStore,
-    oncomplete: null as ((ev: Event) => void) | null,
-    onerror: null as ((ev: Event) => void) | null,
-    error: null
-  };
-
-  // Mock IDBDatabase
-  const mockDb = {
-    transaction: (storeNames: any, mode: any) => mockTransaction
-  };
-
-  // 注入 mock DB 实例到 localDB 中以避免调用真实的 indexedDB.open
-  // 必须 try/finally 保护：若测试中途 assert 失败，全局 indexedDB 必须被还原，
-  // 否则后续依赖真实 fake-indexeddb 的测试会全部连锁失败（store.getAll is not a function）。
-  const originalIndexedDB = (global as unknown as { indexedDB: IDBFactory }).indexedDB;
-
+  // db 提到 try 外：finally 中需要用它清理 settings store，防止本测试写入的数据
+  // 污染后续测试（fake-indexeddb 数据库跨测试持久，testSettingsService 期望初始为 null）。
+  let db: IDBDatabase | null = null;
   try {
-  (global as unknown as { indexedDB: IDBFactory }).indexedDB = {
-    open: () => {
-      const request: any = {};
-      setTimeout(() => {
-        request.result = mockDb;
-        if (request.onsuccess) request.onsuccess();
-      }, 0);
-      return request;
-    }
-  } as unknown as IDBFactory;
-
-  // 2. 模拟要保存的 settings
-  const testSettings: any = {
-    api: { apiKey: "sk-test-key-abc" },
-    promptConfig: {
-      mainPrompt: "SYSTEM: Hello World",
-      jailbreakPrompt: "JB: Act normal",
-      postHistoryPrompt: "POST: End of history",
-      reasoningGuidancePrompt: "REASON: Think step-by-step",
-      tableMemoryPrompt: "MEM: Keep table",
-      composition: {
-        id: "composition-storage-test",
-        name: "存储测试编排",
-        version: 1,
-        blocks: [],
+    // 1. 模拟要保存的 settings
+    const testSettings: any = {
+      api: { apiKey: "sk-test-key-abc" },
+      promptConfig: {
+        mainPrompt: "SYSTEM: Hello World",
+        jailbreakPrompt: "JB: Act normal",
+        postHistoryPrompt: "POST: End of history",
+        reasoningGuidancePrompt: "REASON: Think step-by-step",
+        tableMemoryPrompt: "MEM: Keep table",
+        composition: {
+          id: "composition-storage-test",
+          name: "存储测试编排",
+          version: 1,
+          blocks: [],
+        },
       },
-    },
-    bisonModePrompt: "BISON: Mode prompt",
-    replySuggestionsPrompt: "SUGGEST: Options",
-    otherOption: "enabled"
-  };
+      bisonModePrompt: "BISON: Mode prompt",
+      replySuggestionsPrompt: "SUGGEST: Options",
+      otherOption: "enabled"
+    };
 
-  // 3. 执行保存
-  await localDB.saveStoredSettings(testSettings);
+    // 2. 执行保存
+    await localDB.saveStoredSettings(testSettings);
 
-  // 4. 验证分轨后的物理存储结构
-  const rawUserSettings = mockStorage["user_settings"];
-  assert(rawUserSettings !== undefined, "user_settings should be written");
-  assert(rawUserSettings.promptConfig.mainPrompt === "", "mainPrompt in user_settings must be cleared");
-  assert(rawUserSettings.promptConfig.reasoningGuidancePrompt === "", "reasoningGuidancePrompt in user_settings must be cleared");
-  assert(rawUserSettings.promptConfig.composition === undefined, "prompt composition in user_settings must be cleared");
-  assert(rawUserSettings.bisonModePrompt === "", "bisonModePrompt in user_settings must be cleared");
-  assert(rawUserSettings.otherOption === "enabled", "other fields must remain intact");
+    // 3. 验证分轨后的物理存储结构：直接读取 settings store 原始值
+    //    （fake-indexeddb 提供真实 IDB 语义，不再依赖手写 mock 的 mockStorage）
+    db = await localDB.getDB();
+    const readSetting = (key: string) => new Promise<any>((resolve, reject) => {
+      const tx = db!.transaction("settings", "readonly");
+      const req = tx.objectStore("settings").get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+      tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
+    });
+    const rawUserSettings = await readSetting("user_settings");
+    const rawLargePrompts = await readSetting("user_settings_large_prompts");
 
-  const rawLargePrompts = mockStorage["user_settings_large_prompts"];
-  assert(rawLargePrompts !== undefined, "user_settings_large_prompts should be written");
-  assert(rawLargePrompts.mainPrompt === "SYSTEM: Hello World", "mainPrompt must be stored in large prompts");
-  assert(rawLargePrompts.reasoningGuidancePrompt === "REASON: Think step-by-step", "reasoningGuidancePrompt must be stored in large prompts");
-  assert(rawLargePrompts.bisonModePrompt === "BISON: Mode prompt", "bisonModePrompt must be stored in large prompts");
-  assert(rawLargePrompts.promptComposition?.id === "composition-storage-test", "prompt composition must be stored in large prompts");
+    assert(rawUserSettings !== undefined, "user_settings should be written");
+    assert(rawUserSettings.promptConfig.mainPrompt === "", "mainPrompt in user_settings must be cleared");
+    assert(rawUserSettings.promptConfig.reasoningGuidancePrompt === "", "reasoningGuidancePrompt in user_settings must be cleared");
+    assert(rawUserSettings.promptConfig.composition === undefined, "prompt composition in user_settings must be cleared");
+    assert(rawUserSettings.bisonModePrompt === "", "bisonModePrompt in user_settings must be cleared");
+    assert(rawUserSettings.otherOption === "enabled", "other fields must remain intact");
 
-  // 5. 执行读取
-  const loadedSettings = await localDB.getStoredSettings() as unknown as {
-    promptConfig: { mainPrompt: string; reasoningGuidancePrompt: string; composition?: { id: string } };
-    bisonModePrompt: string;
-    otherOption: string;
-  };
-  assert(loadedSettings !== null, "getStoredSettings should return object");
+    assert(rawLargePrompts !== undefined, "user_settings_large_prompts should be written");
+    assert(rawLargePrompts.mainPrompt === "SYSTEM: Hello World", "mainPrompt must be stored in large prompts");
+    assert(rawLargePrompts.reasoningGuidancePrompt === "REASON: Think step-by-step", "reasoningGuidancePrompt must be stored in large prompts");
+    assert(rawLargePrompts.bisonModePrompt === "BISON: Mode prompt", "bisonModePrompt must be stored in large prompts");
+    assert(rawLargePrompts.promptComposition?.id === "composition-storage-test", "prompt composition must be stored in large prompts");
 
-  // 6. 验证读取合并后的内容是否与原 settings 一致
-  assert(loadedSettings.promptConfig.mainPrompt === "SYSTEM: Hello World", "Merged mainPrompt matches");
-  assert(loadedSettings.promptConfig.reasoningGuidancePrompt === "REASON: Think step-by-step", "Merged reasoningGuidancePrompt matches");
-  assert(loadedSettings.promptConfig.composition?.id === "composition-storage-test", "Merged prompt composition matches");
-  assert(loadedSettings.bisonModePrompt === "BISON: Mode prompt", "Merged bisonModePrompt matches");
-  assert(loadedSettings.otherOption === "enabled", "Merged otherOption matches");
+    // 4. 执行读取（含解密 + 合并 largePrompts）
+    const loadedSettings = await localDB.getStoredSettings() as unknown as {
+      promptConfig: { mainPrompt: string; reasoningGuidancePrompt: string; composition?: { id: string } };
+      bisonModePrompt: string;
+      otherOption: string;
+    };
 
-  // 7. 还原 global 状态（无论测试成功或失败都必须执行）
+    assert(loadedSettings !== null, "getStoredSettings should return object");
+
+    // 5. 验证读取合并后的内容是否与原 settings 一致
+    assert(loadedSettings.promptConfig.mainPrompt === "SYSTEM: Hello World", "Merged mainPrompt matches");
+    assert(loadedSettings.promptConfig.reasoningGuidancePrompt === "REASON: Think step-by-step", "Merged reasoningGuidancePrompt matches");
+    assert(loadedSettings.promptConfig.composition?.id === "composition-storage-test", "Merged prompt composition matches");
+    assert(loadedSettings.bisonModePrompt === "BISON: Mode prompt", "Merged bisonModePrompt matches");
+    assert(loadedSettings.otherOption === "enabled", "Merged otherOption matches");
+
+    console.log("✔ localDB settings Split-Track Storage and Merge verified successfully!");
   } finally {
-  (global as unknown as { indexedDB: IDBFactory }).indexedDB = originalIndexedDB;
+    // 清理本测试写入的 settings store 数据 + crypto key 缓存：
+    // fake-indexeddb 数据库跨测试持久，若不清理，后续 testSettingsService 期望"初始为 null"会失败。
+    // 即使 assert 抛错也必须执行清理，避免单测失败连锁污染后续测试。
+    if (db) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = db!.transaction("settings", "readwrite");
+          const store = tx.objectStore("settings");
+          store.delete("user_settings");
+          store.delete("user_settings_large_prompts");
+          store.delete("api_crypto_key");
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
+        });
+      } catch (cleanupErr) {
+        console.error("[testLocalDBSplitTrack] cleanup failed:", cleanupErr);
+      }
+    }
+    // 重置 crypto key 缓存 + dbInstance 缓存，让后续测试从干净状态开始
+    localDB.__resetDBInstanceForTesting();
   }
-
-  console.log("✔ localDB settings Split-Track Storage and Merge verified successfully!");
 }
 
 /**
