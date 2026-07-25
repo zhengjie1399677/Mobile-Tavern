@@ -24,6 +24,8 @@
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
+    "test:stress:mock": "tsx tests/stress/mock-llm-server.ts",
+    "test:stress:http": "tsx tests/stress/http-stress.ts",
     "check:i18n": "tsx scripts/check-i18n.ts"
   },
   "dependencies": {
@@ -70,6 +72,7 @@
     "@types/express": "^4.17.21",
     "@types/lodash": "^4.17.24",
     "@types/node": "^22.14.0",
+    "autocannon": "^8.0.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "fake-indexeddb": "^6.2.5",

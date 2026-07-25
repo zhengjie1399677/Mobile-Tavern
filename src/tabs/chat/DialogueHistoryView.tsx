@@ -245,6 +245,16 @@ const DialogueHistoryView = ({
             );
           }
 
+          // 预计算 isStreamingThisMsg：只有流式中的消息和末位消息会变，
+          // 其余消息此值为 false 且不随 isSending/messagesToRenderLength 变化而变化，
+          // 配合 React.memo 可跳过绝大多数 MessageBubble 的重渲染。
+          const streamingId = typeof window !== "undefined"
+            ? (window as any).TavernHelperStreamingMessageId as string | undefined
+            : undefined;
+          const isStreamingThisMsg = streamingId
+            ? streamingId === message.id
+            : isSending && idx === visibleMessages.length - 1;
+
           return (
             <React.Fragment key={message.id}>
               <MessageBubble
@@ -257,7 +267,7 @@ const DialogueHistoryView = ({
                 setExpandedReasoningIds={setExpandedReasoningIds}
                 copiedReasoningIds={copiedReasoningIds}
                 setCopiedReasoningIds={setCopiedReasoningIds}
-                messagesToRenderLength={visibleMessages.length}
+                isStreamingThisMsg={isStreamingThisMsg}
                 swipedMsgId={swipedMsgId}
                 setSwipedMsgId={setSwipedMsgId}
               />

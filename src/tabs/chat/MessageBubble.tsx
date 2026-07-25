@@ -18,7 +18,7 @@ import {
   VolumeX,
 } from "lucide-react";
 
-import { useUnifiedApp } from "../../UnifiedAppContext";
+import { useUnifiedApp, unifiedAppStore } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
 import { handleGenerateImageForMessage } from "./imageGenerationHandler";
@@ -59,7 +59,7 @@ interface MessageBubbleProps {
   setExpandedReasoningIds: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   copiedReasoningIds: Record<string, boolean>;
   setCopiedReasoningIds: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-  messagesToRenderLength: number;
+  isStreamingThisMsg: boolean;
   swipedMsgId: string | null;
   setSwipedMsgId: (id: string | null) => void;
 }
@@ -74,7 +74,7 @@ const MessageBubble = ({
   setExpandedReasoningIds,
   copiedReasoningIds,
   setCopiedReasoningIds,
-  messagesToRenderLength,
+  isStreamingThisMsg,
   swipedMsgId,
   setSwipedMsgId,
 }: MessageBubbleProps): React.JSX.Element => {
@@ -91,7 +91,6 @@ const MessageBubble = ({
     renderDialogueBubble,
     saveSessionWithMvu,
     setSessions,
-    activeSession,
     showCustomAlert,
     showCustomConfirm,
     getKernelService,
@@ -109,7 +108,6 @@ const MessageBubble = ({
     renderDialogueBubble: state.renderDialogueBubble,
     saveSessionWithMvu: state.saveSessionWithMvu,
     setSessions: state.setSessions,
-    activeSession: state.activeSession,
     showCustomAlert: state.showCustomAlert,
     showCustomConfirm: state.showCustomConfirm,
     getKernelService: state.getKernelService,
@@ -120,27 +118,10 @@ const MessageBubble = ({
 
   const isUser = message.sender === "user";
 
-  // 关键修复：使用 window.TavernHelperStreamingMessageId 精确判断当前消息是否正在流式生成
-  // 替代旧的 isSending && idx === messagesToRenderLength - 1 判断，解决两个核心 bug：
-  //   1. isSending React state 异步更新延迟 → 流式开始瞬间误判为非流式 → iframe 抢跑
-  //   2. Bison 模式 500ms 间隔内 isSending 仍为 true，已完成的第一条消息被误判为流式 → iframe 被替换为 loading placeholder（第二句话丢失）
-  // streamingMessageId 在 useSendMessage/useRerollMessage 中同步设置（添加占位符之前）和清除（流式结束/异常/finally）
-  const isStreamingThisMsg = (() => {
-    if (typeof window === "undefined") return idx === messagesToRenderLength - 1;
-    const streamingId = (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId;
-    // streamingMessageId 精确命中当前消息 → 流式中
-    // 必须优先检查全局标志（在 isSending 之前），因为：
-    // __streamingMsgIdGuard 在 useSendMessage 中是同步赋值（早于 setSessions），
-    // 而 isSending 是 React 状态异步更新，首帧可能仍为 false。
-    // 若先判断 isSending → return false，全局标志的抢跑防护完全被架空。
-    if (typeof streamingId === "string" && streamingId) {
-      return streamingId === message.id;
-    }
-    // 全局标志未设置时，若不在发送中则肯定非流式
-    if (!isSending) return false;
-    // 全局标志未设置但仍在发送中 → 兜底：末位消息即流式消息
-    return idx === messagesToRenderLength - 1;
-  })();
+  // isStreamingThisMsg 由父组件 DialogueHistoryView 预计算后传入，
+  // 判断逻辑（window.TavernHelperStreamingMessageId 优先 + isSending 兜底末位消息）
+  // 统一收敛到父组件，避免每条消息都订阅 isSending 和 messagesToRenderLength。
+  // 此处直接使用 prop 值，无需重复计算。
 
   // --- 修复1：所有 Refs 必须先于任何 useEffect 声明 ---
   const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
@@ -476,6 +457,13 @@ const MessageBubble = ({
       role="article"
       aria-label={`${isUser ? t("message_bubble.user_said") : (activeCharacter?.name || t("message_bubble.role")) + t("message_bubble.char_said")}：${message.content}`}
       className={`flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}
+      style={{
+        // 性能优化：屏幕外消息跳过布局和绘制，浏览器原生虚拟列表
+        // contain-intrinsic-size 的 auto 关键字记住元素上次渲染的实际高度，
+        // 首次渲染前用 400px 作为预估高度，避免滚动条跳动
+        contentVisibility: "auto",
+        containIntrinsicSize: "auto 400px",
+      }}
     >
       <div
         aria-hidden="true"
@@ -576,7 +564,7 @@ const MessageBubble = ({
                   
                   await handleGenerateImageForMessage({
                     message,
-                    activeSession,
+                    activeSession: unifiedAppStore.getState().activeSession,
                     settings,
                     activeCharacter,
                     setSessions,
@@ -668,15 +656,16 @@ const MessageBubble = ({
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
-                  if (!activeSession) return;
-                  const nextMsgs = (activeSession.messages || []).map(
+                  const currentSession = unifiedAppStore.getState().activeSession;
+                  if (!currentSession) return;
+                  const nextMsgs = (currentSession.messages || []).map(
                     (m: any) =>
                       m.id === message.id
                         ? { ...m, content: editingMsgContent }
                         : m,
                   );
                   const updated = {
-                    ...activeSession,
+                    ...currentSession,
                     messages: nextMsgs,
                   };
                   setSessions((prev: any) =>
@@ -927,4 +916,4 @@ const MessageBubble = ({
   );
 };
 
-export default MessageBubble;
+export default React.memo(MessageBubble);
