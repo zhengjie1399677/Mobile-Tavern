@@ -349,4 +349,65 @@ describe("useRerollMessage 重发事务锁", () => {
     consoleDebug.mockRestore();
     consoleError.mockRestore();
   });
+
+  it("流式期间 session 被修改时，最终 session 保留修改（P0 A 回归）", async () => {
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const consoleClear = vi.spyOn(console, "clear").mockImplementation(() => undefined);
+    const consoleDebug = vi.spyOn(console, "debug").mockImplementation(() => undefined);
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const session: ChatSession = {
+      id: "session-p0-a",
+      characterId: "character-1",
+      title: "P0 A 回归",
+      messages: [
+        { id: "welcome", sender: "assistant", content: "欢迎消息", timestamp: 0 },
+        { id: "user-1", sender: "user", content: "原始用户消息", timestamp: 1 },
+        { id: "assistant-old", sender: "assistant", content: "旧回复", timestamp: 2 },
+      ],
+      summaries: [],
+      createdAt: 1,
+    };
+
+    // 捕获 setSessions，在 streamLlmResponse 中调用以模拟"流式期间 session 被修改"
+    // （如用户通过 MemoryTableDrawer 编辑了某条消息）
+    let externalSetSessions: ((updater: React.SetStateAction<ChatSession[]>) => void) | null = null;
+    const harness = createWeakNetworkHarness(session, async function* () {
+      // 模拟流式期间用户编辑了 user-1 消息内容
+      if (externalSetSessions) {
+        externalSetSessions((prev) => prev.map((s) =>
+          s.id === session.id
+            ? {
+                ...s,
+                messages: s.messages.map((m) =>
+                  m.id === "user-1" ? { ...m, content: "编辑后的用户消息" } : m
+                ),
+              }
+            : s
+        ));
+      }
+      yield { choices: [{ delta: { content: "新的回复" } }] };
+    });
+    externalSetSessions = harness.params.setSessions as unknown as (updater: React.SetStateAction<ChatSession[]>) => void;
+
+    const { result } = renderHook(() => useRerollMessage(harness.params));
+
+    await act(async () => {
+      await result.current.handleRerollLast();
+    });
+
+    const messages = harness.getSessions()[0].messages;
+    // P0 A 修复前：trueFinalSession.messages = [...updatedSession.messages, finalAiMsg]
+    //   → user-1 内容是"原始用户消息"（旧切片覆盖了流式期间的编辑）
+    // P0 A 修复后：trueFinalSession = replacePlaceholderMessage(latestSession, finalAiMsg)
+    //   → user-1 内容是"编辑后的用户消息"（保留流式期间的修改）
+    expect(messages.find((m) => m.id === "user-1")?.content).toBe("编辑后的用户消息");
+    expect(messages.at(-1)?.content).toBe("新的回复");
+    expect(harness.replaceSessionBranch).toHaveBeenCalledTimes(1);
+
+    consoleLog.mockRestore();
+    consoleClear.mockRestore();
+    consoleDebug.mockRestore();
+    consoleWarn.mockRestore();
+  });
 });

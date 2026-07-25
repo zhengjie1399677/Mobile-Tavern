@@ -13,7 +13,7 @@ import {
 } from "./helpers";
 import { extractThinkContent } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
-import type { MemoryAuditSnapshot } from "../../kernel/services/memory/types";
+import type { MemoryAuditSnapshot, RecalledMessage } from "../../kernel/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../kernel/services/memory/MemoryAudit";
 
 /**
@@ -226,7 +226,7 @@ export function useSendMessage(p: SendMessageParams) {
       const combinedGlobals = [...(p.globalLorebook || []), ...otherCharGlobals, ...customWorldbookGlobals];
 
       // 1. 异步执行记忆召回
-      let recalledMemories: any[] = [];
+      let recalledMemories: RecalledMessage[] = [];
       try {
         const memoryService = p.memoryService;
         if (memoryService && p.settings.memory?.enableRecall !== false) {
@@ -275,7 +275,9 @@ export function useSendMessage(p: SendMessageParams) {
       else p.publishRecalledMemories?.(updatedSession.id, recalledMemories);
 
       // 放置 AI 消息占位符
-      console.log("--- AI 发言流式开始 ---");
+      if (import.meta.env?.DEV) {
+        console.log("--- AI 发言流式开始 ---");
+      }
       // 关键：在添加占位符之前同步设置 streamingMessageId，
       // 确保 MessageBubble 首次渲染占位符时 isStreaming 就能精确命中（避免 iframe 抢跑）
       __streamingMsgIdGuard(aiMsgId);
@@ -353,14 +355,14 @@ export function useSendMessage(p: SendMessageParams) {
         throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
       }
 
-      console.log("=== [RAW AI RESPONSE] ===");
-      if (reasoningChunks.length > 0) {
-        console.log("<think>\n" + reasoningChunks.join("") + "\n</think>");
+      if (import.meta.env?.DEV) {
+        console.log("=== [RAW AI RESPONSE] ===");
+        if (reasoningChunks.length > 0) {
+          console.log("<think>\n" + reasoningChunks.join("") + "\n</think>");
+        }
+        console.log(responseChunks.join(""));
+        console.log("=========================");
       }
-      const finalSendText = responseChunks.join("");
-      console.log(finalSendText);
-      console.log("=========================");
-      console.debug("[send_message]", finalSendText);
 
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }

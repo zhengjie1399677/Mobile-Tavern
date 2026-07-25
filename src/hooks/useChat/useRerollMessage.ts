@@ -8,10 +8,10 @@ import {
 import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 import {
   generateUniqueId, buildThrottledUpdater, buildFinalAiMessage, recallWithTimeout,
-  getTrialCount, incrementTrialCount, extractThinkContent,
+  getTrialCount, incrementTrialCount, extractThinkContent, replacePlaceholderMessage,
 } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
-import type { MemoryAuditSnapshot } from "../../kernel/services/memory/types";
+import type { MemoryAuditSnapshot, RecalledMessage } from "../../kernel/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../kernel/services/memory/MemoryAudit";
 
 /**
@@ -219,7 +219,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       const combinedGlobals = [...(p.globalLorebook || []), ...otherCharGlobals, ...customWorldbookGlobals];
 
       // 1. 异步执行记忆召回
-      let recalledMemories: any[] = [];
+      let recalledMemories: RecalledMessage[] = [];
       try {
         const memoryService = p.kernel.getService<any>("memory");
         if (memoryService && p.settings.memory?.enableRecall !== false) {
@@ -259,8 +259,9 @@ export function useRerollMessage(p: RerollMessageParams) {
       if (p.publishMemoryAudit) p.publishMemoryAudit(memoryAudit);
       else p.publishRecalledMemories?.(updatedSession.id, recalledMemories);
 
-      console.clear();
-      console.log("--- AI 发言重新生成流式开始 ---");
+      if (import.meta.env?.DEV) {
+        console.log("--- AI 发言重新生成流式开始 ---");
+      }
       // 关键修复：同步设置 streamingMessageId，与 useSendMessage 保持一致，避免 iframe 抢跑
       if (typeof window !== "undefined") {
         (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = aiMsgId;
@@ -337,14 +338,14 @@ export function useRerollMessage(p: RerollMessageParams) {
         throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
       }
 
-      console.log("=== [RAW AI RESPONSE] ===");
-      if (reasoningChunks.length > 0) {
-        console.log("<think>\n" + reasoningChunks.join("") + "\n</think>");
+      if (import.meta.env?.DEV) {
+        console.log("=== [RAW AI RESPONSE] ===");
+        if (reasoningChunks.length > 0) {
+          console.log("<think>\n" + reasoningChunks.join("") + "\n</think>");
+        }
+        console.log(responseChunks.join(""));
+        console.log("=========================");
       }
-      const finalRerollText = responseChunks.join("");
-      console.log(finalRerollText);
-      console.log("=========================");
-      console.debug("[reroll]", finalRerollText);
 
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
@@ -380,10 +381,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         p.setReplySuggestions(suggestions);
       }
 
-      const trueFinalSession = {
-        ...latestSession,
-        messages: [...updatedSession.messages, finalAiMsg],
-      };
+      const trueFinalSession = replacePlaceholderMessage(latestSession, finalAiMsg);
       const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
 
       if (isStillActive) {
@@ -452,10 +450,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: parsed.content, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
-          const trueFinalSession = {
-            ...latestSession,
-            messages: [...updatedSession.messages, finishedAiMsg],
-          };
+          const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
             await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, persistSession: persistRerollSession });
           } else {
@@ -473,10 +468,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
-          const trueFinalSession = {
-            ...latestSession,
-            messages: [...updatedSession.messages, finishedAiMsg],
-          };
+          const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
             await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, persistSession: persistRerollSession });
           } else {
