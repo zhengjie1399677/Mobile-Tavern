@@ -13,6 +13,9 @@ import {
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../kernel/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../kernel/services/memory/MemoryAudit";
+import { Logger, generateTraceId } from "../../utils/logger";
+
+const logger = Logger.create("useRerollMessage");
 
 /**
  * Tavern 全局辅助 window 字段类型收口。
@@ -68,6 +71,8 @@ export function useRerollMessage(p: RerollMessageParams) {
   const handleRerollFromMessage = useCallback(async (targetMsg: Message) => {
     const p = pRef.current;
     p.setReplySuggestions([]);
+    const traceId = generateTraceId();
+    const log = logger.withTrace(traceId);
 
     const currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
 
@@ -235,7 +240,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           );
         }
       } catch (err) {
-        console.warn("[useRerollMessage] Memory recall failed:", err);
+        log.warn("Memory recall failed", err);
       }
 
       const promptPayload = p.promptService.assemblePrompt({
@@ -260,7 +265,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       else p.publishRecalledMemories?.(updatedSession.id, recalledMemories);
 
       if (import.meta.env?.DEV) {
-        console.log("--- AI 发言重新生成流式开始 ---");
+        log.info("AI 发言重新生成流式开始");
       }
       // 关键修复：同步设置 streamingMessageId，与 useSendMessage 保持一致，避免 iframe 抢跑
       if (typeof window !== "undefined") {
@@ -339,12 +344,10 @@ export function useRerollMessage(p: RerollMessageParams) {
       }
 
       if (import.meta.env?.DEV) {
-        console.log("=== [RAW AI RESPONSE] ===");
-        if (reasoningChunks.length > 0) {
-          console.log("<think>\n" + reasoningChunks.join("") + "\n</think>");
-        }
-        console.log(responseChunks.join(""));
-        console.log("=========================");
+        log.debug("RAW AI RESPONSE", {
+          content: responseChunks.join(""),
+          reasoning: reasoningChunks.length > 0 ? reasoningChunks.join("") : undefined,
+        });
       }
 
       isStreamActiveRef.current = false;
@@ -355,13 +358,13 @@ export function useRerollMessage(p: RerollMessageParams) {
       }
 
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
-      if (!latestSession) { console.warn("[useRerollMessage] Aborted save, session was deleted:", updatedSession.id); return; }
+      if (!latestSession) { log.warn("Aborted save, session was deleted", { sessionId: updatedSession.id }); return; }
 
       // 关键修复：流式"正常完成"但 AI 返回空内容（与 useSendMessage 一致）
       const rawResponseText = responseChunks.join("");
       const rawReasoningText = reasoningChunks.join("");
       if (!rawResponseText.trim() && !rawReasoningText.trim()) {
-        console.warn("[useRerollMessage] 流式正常结束但 AI 返回空内容，判定为重新生成失败");
+        log.warn("流式正常结束但 AI 返回空内容，判定为重新生成失败");
         const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
         // 尚未提交分支事务，直接恢复原始会话即可。
         const restoreSession = currentSession;
@@ -416,11 +419,11 @@ export function useRerollMessage(p: RerollMessageParams) {
             p.settings.userName
           );
         } catch (telemetryErr) {
-          console.warn("Failed to report LLM performance telemetry:", telemetryErr);
+          log.warn("Failed to report LLM performance telemetry", { error: telemetryErr });
         }
       } else {
         await persistRerollSession(trueFinalSession);
-        console.log("[useRerollMessage] Session switched during reroll, saved silently:", updatedSession.id);
+        log.info("Session switched during reroll, saved silently", { sessionId: updatedSession.id });
       }
     } catch (e: any) {
       const responseText = responseChunks.join("");
@@ -462,7 +465,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         }
       } else {
         if (isStillActive) {
-          console.error("AI Regeneration failed:", e);
+          log.error("AI Regeneration failed", e);
           p.telemetryService.reportUsage("api_error", { detail: String(e.message || "Unknown error"), playerName: p.settings.userName, characterName: p.activeCharacter!.name, modelName: p.settings.api.modelName, sessionId: updatedSession.id });
         }
         if (responseText.trim().length > 0 && latestSession) {

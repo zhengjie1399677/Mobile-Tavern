@@ -13,6 +13,9 @@
  */
 
 import { reportDbQueueTimeout } from "../../utils/telemetry";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("idbQueue");
 
 // 全局基于 Promise 的队列，顺序串行化所有 IndexedDB 写入操作。
 // 防止并发写入事务冲突或死锁，这在 WebView 原生环境中至关重要。
@@ -127,7 +130,7 @@ export function enqueueWrite<T>(
   if (key) {
     const existing = pendingKeyedWrites.get(key);
     if (existing) {
-      console.warn(`[localDB] Write coalesced for key "${key}": previous pending operation replaced. If data loss is suspected, inspect rapid successive writes to the same resource.`);
+      logger.warn("Write coalesced: previous pending operation replaced", { key });
       existing.operation = operation;
       // 第二次调用方的 externalSignal 必须能取消其收到的 Promise 并触发底层 abort。
       // 旧实现直接返回 existing.pendingPromise，signal2 被完全丢弃，调用方持有的
@@ -172,14 +175,15 @@ export function enqueueWrite<T>(
 
   // 深度上限安全网 —— 超过阈值时上报遥测，但仍然入队保证数据完整性
   if (activeWriteQueueCount >= MAX_WRITE_QUEUE_DEPTH) {
-    console.error(
-      `[localDB] Write queue depth ${activeWriteQueueCount} exceeded safety threshold ${MAX_WRITE_QUEUE_DEPTH}. This indicates abnormal write accumulation.`
-    );
+    logger.error("Write queue depth exceeded safety threshold", undefined, {
+      depth: activeWriteQueueCount,
+      threshold: MAX_WRITE_QUEUE_DEPTH,
+    });
     setTimeout(() => {
       try {
         reportDbQueueTimeout(0, activeWriteQueueCount);
       } catch (e) {
-        console.error("Failed to report queue overflow telemetry:", e);
+        logger.error("Failed to report queue overflow telemetry", e);
       }
     }, 0);
   }
@@ -194,12 +198,12 @@ export function enqueueWrite<T>(
     activeWriteQueueCount--;
     const queueDelay = Date.now() - enqueueTime;
     if (queueDelay > 3000) {
-      console.warn(`[localDB] Write queue delay exceeded threshold: ${queueDelay}ms. Reporting warning.`);
+      logger.warn("Write queue delay exceeded threshold", { queueDelayMs: queueDelay });
       setTimeout(() => {
         try {
           reportDbQueueTimeout(queueDelay, activeWriteQueueCount + 1);
         } catch (e) {
-          console.error("Failed to report queue timeout telemetry:", e);
+          logger.error("Failed to report queue timeout telemetry", e);
         }
       }, 0);
     }

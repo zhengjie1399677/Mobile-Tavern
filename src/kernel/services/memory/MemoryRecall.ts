@@ -11,6 +11,9 @@ import type { MemoryFragment, MessageRecord, RecalledMessage } from './types';
 import type { MemoryStorage } from './MemoryStorage';
 import { extractByDict } from './MemoryExtractor';
 import type { IDatabaseService } from '../../types';
+import { Logger } from '../../../utils/logger';
+
+const logger = Logger.create("MemoryRecall");
 
 // ===== 常量 =====
 
@@ -119,12 +122,12 @@ export class MemoryRecall {
         [dict, sessionObj] = await Promise.all([
           this.storage.getDictBySession(sessionId),
           this.database?.getSessionById(sessionId).catch((err: unknown) => {
-            console.warn("[MemoryRecall] Failed to fetch session in recall:", err);
+            logger.warn("Failed to fetch session in recall", { error: err });
             return null;
           }),
         ]);
       } catch (err) {
-        console.warn("[MemoryRecall] Failed to load dict in recall:", err);
+        logger.warn("Failed to load dict in recall", { error: err });
       }
       this.setCachedSessionMeta(sessionId, dict, sessionObj);
     }
@@ -133,13 +136,13 @@ export class MemoryRecall {
     const mutedIds: string[] = sessionObj?.mutedMessageIds || [];
 
     if (isDev) {
-      console.log("[MemoryRecall] recall 入口:", {
+      logger.debug("recall 入口", {
         sessionId,
         messageLen: currentMessage?.length ?? 0,
         dictSize: dict.length,
         queryTags,
-        pinnedIds: pinnedIds.length,
-        mutedIds: mutedIds.length,
+        pinnedCount: pinnedIds.length,
+        mutedCount: mutedIds.length,
         topK: options?.topK,
       });
     }
@@ -148,7 +151,7 @@ export class MemoryRecall {
       if (options?.allowWeakFallback !== true) return [];
       const fallbackResult = await this.fallbackRecallRecent(sessionId, options, mutedIds);
       if (isDev) {
-        console.log("[MemoryRecall] 走兜底路径，结果:", fallbackResult.length, "条");
+        logger.debug("走兜底路径", { count: fallbackResult.length });
       }
       return fallbackResult;
     }
@@ -156,7 +159,7 @@ export class MemoryRecall {
     // 2. 按标签召回（传入 sessionMeta 避免子方法重复查 getSessionById）
     const tagResult = await this.recallByTags(sessionId, queryTags, options, { pinnedIds, mutedIds });
     if (isDev) {
-      console.log("[MemoryRecall] 走标签召回，结果:", tagResult.length, "条，tags:", queryTags);
+      logger.debug("走标签召回", { count: tagResult.length, tags: queryTags });
     }
     return tagResult;
   }
@@ -274,7 +277,7 @@ export class MemoryRecall {
       try {
         sessionObj2 = await this.database?.getSessionById(sessionId);
       } catch (err) {
-        console.warn("[MemoryRecall] Failed to fetch session for Pin/Mute in recallByTags:", err);
+        logger.warn("Failed to fetch session for Pin/Mute in recallByTags", { error: err });
       }
       pinnedIds = sessionObj2?.pinnedMessageIds || [];
       mutedIdSet = new Set(sessionObj2?.mutedMessageIds || []);
@@ -300,7 +303,7 @@ export class MemoryRecall {
     }
 
     if (isDev) {
-      console.log("[MemoryRecall] recallByTags 中间态:", {
+      logger.debug("recallByTags 中间态", {
         sessionId,
         tags,
         currentTurnIndex,
@@ -341,7 +344,7 @@ export class MemoryRecall {
     });
 
     if (isDev) {
-      console.log("[MemoryRecall] recallByTags 打分过滤:", {
+      logger.debug("recallByTags 打分过滤", {
         scoredCount: scored.length,
         filteredCount: filtered.length,
         recentExcludedCount: scored.length - scored.filter((s) => !recentIdSet.has(s.messageId)).length,
