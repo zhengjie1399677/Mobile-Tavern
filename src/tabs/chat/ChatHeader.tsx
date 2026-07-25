@@ -8,12 +8,14 @@ import {
   GitFork,
   Volume2,
   VolumeX,
+  Box,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { IDatabaseService } from "../../kernel/types";
+import { useArSync } from "../../services/ar/useArSync";
 
 interface ChatHeaderProps {
   openTableDrawer: (tab: 'timeline' | 'table' | 'dict' | 'recall' | 'mvu') => void;
@@ -55,6 +57,9 @@ const ChatHeader = ({
   const [isMuted, setIsMuted] = React.useState(false);
   const [showMemoryMenu, setShowMemoryMenu] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+
+  // AR 入口：仅在 Android + ARCore 可用时显示按钮
+  const { isArAvailable, launchAr } = useArSync({ activeSession });
 
   React.useEffect(() => {
     if (!showMemoryMenu) return;
@@ -169,6 +174,16 @@ const ChatHeader = ({
             ) : (
               <Volume2 className="w-4 h-4 text-emerald-500 animate-pulse" />
             )}
+          </button>
+        )}
+        {isArAvailable && (
+          <button
+            aria-label="启动 AR 模式"
+            onClick={() => { void launchAr(); }}
+            className="p-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center justify-center shrink-0"
+            title="AR 模式"
+          >
+            <Box className="w-4 h-4" />
           </button>
         )}
         {activeSession && (

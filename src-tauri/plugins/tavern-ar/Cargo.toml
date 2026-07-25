@@ -1,0 +1,21 @@
+[package]
+name = "tauri-plugin-tavern-ar"
+links = "tauri-plugin-tavern-ar"
+version = "0.1.0"
+description = "Tauri plugin that provides real ARCore spatial anchoring for Mobile Tavern characters, running in a full-screen Android Activity with billboard + ground shadow + AR lighting + procedural micro-animation."
+authors = ["Mobile Tavern"]
+license = "Apache-2.0"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "tauri_plugin_tavern_ar"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = "1"
+log = "0.4"
+
+[build-dependencies]
+tauri-plugin = { version = "2.6.2", features = ["build"] }

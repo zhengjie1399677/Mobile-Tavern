@@ -17,6 +17,7 @@ import { CharacterService } from "../services/CharacterService";
 import { WorldbookService } from "../services/WorldbookService";
 import { SettingsService } from "../services/SettingsService";
 import { PresetService } from "../services/PresetService";
+import { CharacterRenderService } from "../services/CharacterRenderService";
 import { IndexedDbMemoryPersistenceService } from "../../infrastructure/storage/IndexedDbMemoryPersistenceService";
 import { MEMORY_PERSISTENCE_SERVICE } from "../services/memory/types";
 
@@ -45,5 +46,6 @@ export async function registerCoreServices(kernel: IKernel): Promise<void> {
     { name: KernelServices.Worldbook, service: new WorldbookService(), initTimeoutMs: 3000 },
     { name: KernelServices.Settings, service: new SettingsService(), initTimeoutMs: 3000 },
     { name: KernelServices.Preset, service: new PresetService(), initTimeoutMs: 3000 },
+    { name: KernelServices.CharacterRender, service: new CharacterRenderService(), initTimeoutMs: 3000 },
   ]);
 }

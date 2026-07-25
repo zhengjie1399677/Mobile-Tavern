@@ -88,6 +88,7 @@ dependencies = [
  "tauri-plugin-android-bridge",
  "tauri-plugin-http",
  "tauri-plugin-log",
+ "tauri-plugin-tavern-ar",
  "tokio",
 ]
 
@@ -4580,6 +4581,16 @@ dependencies = [
  "tauri-plugin",
  "thiserror 2.0.18",
  "time",
+]
+
+[[package]]
+name = "tauri-plugin-tavern-ar"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "serde",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

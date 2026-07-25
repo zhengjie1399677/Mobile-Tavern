@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-update-character-texture"
+description = "Enables the update_character_texture command without any pre-configured scope."
+commands.allow = ["update_character_texture"]
+
+[[permission]]
+identifier = "deny-update-character-texture"
+description = "Denies the update_character_texture command without any pre-configured scope."
+commands.deny = ["update_character_texture"]

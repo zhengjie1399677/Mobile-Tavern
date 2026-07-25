@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Camera permission for ARCore camera tracking. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Declare that the app uses AR features (optional, not required). -->
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
+
+    <!-- ARCore metadata: mark as optional so non-AR devices can still install. -->
+    <application>
+        <meta-data android:name="com.google.ar.core" android:value="optional" />
+
+        <!-- Full-screen AR Activity. Theme uses fullscreen + no action bar so
+             the GLSurfaceView owns the whole display. The host app should
+             derive from a Theme.AppCompat base or override this theme name. -->
+        <activity
+            android:name=".ArActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:exported="false" />
+    </application>
+
+</manifest>

@@ -185,6 +185,29 @@ export default function FeaturesSection({
                 />
               </div>
 
+              {/* 悬浮角色助手 */}
+              <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div className="space-y-0.5 min-w-0 flex-1">
+                  <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5 flex-wrap">
+                    <span>悬浮角色助手</span>
+                    <span className="text-[8.5px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">
+                      实验性
+                    </span>
+                  </label>
+                  <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                    在非聊天页显示当前角色的悬浮立绘，实时同步情绪与聊天气泡。单击跳转聊天，长按打开快捷菜单，可拖拽到屏幕边缘。
+                  </p>
+                </div>
+                <Switch
+                  aria-label="悬浮角色助手"
+                  checked={settings.enableFloatingCharacter || false}
+                  onCheckedChange={(val) =>
+                    updateSettings({ ...settings, enableFloatingCharacter: val })
+                  }
+                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
+                />
+              </div>
+
               {/* 思维链显示 */}
               <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
                 <div className="space-y-0.5 min-w-0 flex-1">

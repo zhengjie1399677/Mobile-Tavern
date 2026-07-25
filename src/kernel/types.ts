@@ -21,6 +21,7 @@ export const KernelServices = {
   Worldbook: "worldbook",
   Settings: "settings",
   Preset: "preset",
+  CharacterRender: "characterRender",
 } as const;
 
 export type InterruptFn = () => void;

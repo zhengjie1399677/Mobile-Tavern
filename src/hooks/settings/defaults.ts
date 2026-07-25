@@ -494,5 +494,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
     openaiModel: "whisper-1",
   },
   lastBackupTime: 0,
+  enableFloatingCharacter: false,
 };
 

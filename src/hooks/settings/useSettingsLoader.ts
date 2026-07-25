@@ -355,6 +355,7 @@ export const useSettingsLoader = ({
               ...DEFAULT_SETTINGS.imageGenApi,
               ...(storedSet.imageGenApi || {}),
             },
+            enableFloatingCharacter: storedSet.enableFloatingCharacter ?? DEFAULT_SETTINGS.enableFloatingCharacter,
           } as UserSettings;
 
           if (externalPreset) {

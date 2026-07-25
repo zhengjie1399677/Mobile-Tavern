@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-check-gesture-recognition-ready"
+description = "Enables the check_gesture_recognition_ready command without any pre-configured scope."
+commands.allow = ["check_gesture_recognition_ready"]
+
+[[permission]]
+identifier = "deny-check-gesture-recognition-ready"
+description = "Denies the check_gesture_recognition_ready command without any pre-configured scope."
+commands.deny = ["check_gesture_recognition_ready"]

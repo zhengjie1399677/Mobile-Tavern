@@ -28,6 +28,10 @@ tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 # the WebView for native safe-area / status-bar / MediaStore file-save support.
 # Path-based dependency so the Kotlin sources are version-controlled.
 tauri-plugin-android-bridge = { path = "./plugins/android-bridge" }
+# Local plugin that provides real ARCore spatial anchoring for character
+# cards, running in a full-screen Android Activity (billboard + shadow +
+# AR lighting + procedural micro-animation + chat bubble).
+tauri-plugin-tavern-ar = { path = "./plugins/tavern-ar" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 chrono = { version = "0.4", features = ["serde"] }
 hmac = "0.12"

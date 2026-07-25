@@ -1,0 +1,10 @@
+[default]
+description = "Default permission set for the tavern-ar plugin. Allows the frontend to check ARCore availability, launch/close the AR Activity, and push character texture / render state / chat bubble updates."
+permissions = [
+    "allow-check-ar-availability",
+    "allow-launch-ar",
+    "allow-close-ar",
+    "allow-update-character-texture",
+    "allow-update-render-state",
+    "allow-update-chat-bubble",
+]

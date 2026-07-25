@@ -21,6 +21,12 @@ pub fn run() {
         // `AndroidBridgePlugin#onWebviewCreated`; on other platforms it is a
         // no-op so the desktop dev server keeps compiling.
         .plugin(tauri_plugin_android_bridge::init())
+        // Register the local tavern-ar plugin. On Android this launches a
+        // full-screen ArActivity backed by ARCore (plane detection + light
+        // estimation + OES camera background + billboard + shadow + chat
+        // bubble); on other platforms it is a no-op so the desktop dev server
+        // keeps compiling.
+        .plugin(tauri_plugin_tavern_ar::init())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-set-gesture-recognition"
+description = "Enables the set_gesture_recognition command without any pre-configured scope."
+commands.allow = ["set_gesture_recognition"]
+
+[[permission]]
+identifier = "deny-set-gesture-recognition"
+description = "Denies the set_gesture_recognition command without any pre-configured scope."
+commands.deny = ["set_gesture_recognition"]
