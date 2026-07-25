@@ -6,6 +6,7 @@ import {
   getCharacterById,
   bulkSaveSessions as dbBulkSaveSessions,
 } from "../../utils/localDB";
+import { verifyDatabaseIntegrity } from "../../infrastructure/storage/indexedDbIntegrityCheck";
 import {
   getAllSessions,
   getSessionById,
@@ -47,6 +48,13 @@ export class DatabaseService implements IDatabaseService {
       if (signal.aborted) this.abortController.abort();
       else signal.addEventListener("abort", () => this.abortController?.abort());
     }
+    // 启动时后台触发 IndexedDB schema 完整性扫描（fire-and-forget）：
+    // 不阻塞 init，不抛错；缺失项由 verifyDatabaseIntegrity 内部上报遥测与日志。
+    // 此前仅有 v1→v9 迁移与写队列安全网，无启动时损坏检测，单副本存储无冗余。
+    void verifyDatabaseIntegrity().catch((e) => {
+      // 兜底：扫描本身异常不得影响 DatabaseService 可用性
+      console.warn("[DatabaseService] Integrity scan failed:", e);
+    });
   }
 
   // P1-2: 销毁时中止挂起的 IDB 操作（IDB 事务会被 abort）

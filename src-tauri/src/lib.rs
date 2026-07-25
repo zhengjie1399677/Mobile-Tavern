@@ -30,6 +30,27 @@ pub fn run() {
                 )?;
             }
 
+            // 安装 panic 钩子：release profile 配置 panic = "abort"，默认行为是直接终止无日志。
+            // 此钩子在 abort 前将 panic 信息打印到 stderr，Tauri Android 会将其重定向到 logcat
+            // （tag = RustStdoutStderr），填补 Rust 侧崩溃可观测性盲区。
+            // 注意：钩子内禁止任何可能再次 panic 的操作（如分配大量内存、获取已中毒锁）。
+            std::panic::set_hook(Box::new(|info| {
+                let location = info
+                    .location()
+                    .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+                    .unwrap_or_else(|| "<unknown>".to_string());
+                let payload = info
+                    .payload()
+                    .downcast_ref::<&str>()
+                    .copied()
+                    .or_else(|| info.payload().downcast_ref::<String>().map(|s| s.as_str()))
+                    .unwrap_or("<non-string panic payload>");
+                eprintln!(
+                    "[RUST_PANIC_ABORT] location={} payload={}",
+                    location, payload
+                );
+            }));
+
             // Start the background telemetry loop thread and retain a lifecycle shutdown sender.
             let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
             app.manage(TelemetryShutdown(shutdown_tx));

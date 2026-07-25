@@ -1,5 +1,6 @@
 import { IKernel, IKernelService, IPipeline, Middleware, IExtension, IMessage, type KernelValidationMode } from "./types";
 import { SAFE_PROXY_SYMBOL, validateMessage, validateService, validateServiceRetrieval, type ValidationResult } from "./schemas";
+import { reportImmediate } from "../utils/telemetry";
 
 // 全局严格模式开关，默认为 true
 let strictMode = true;
@@ -463,6 +464,15 @@ export class Kernel implements IKernel {
       if (!proxy) {
         proxy = createSafeProxy(name);
         safeProxyCache.set(name, proxy);
+        // 接入遥测管道：每次新出现缺失服务降级时上报一次，供可观测性分析定位 SafeProxy 接管事件
+        // 失败兜底：遥测管道自身异常不得影响 Kernel 主流程，亦不得演化为 unhandled rejection
+        try {
+          reportImmediate("kernel_safe_proxy_fallback", { service: name }).catch(() => {
+            // 静默：遥测不可用时不污染 Kernel 行为
+          });
+        } catch {
+          // 同步异常兜底（如遥测模块加载失败）
+        }
       }
       return proxy as unknown as T;
     }

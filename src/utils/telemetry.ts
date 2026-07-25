@@ -81,6 +81,52 @@ export async function reportImmediate(action: string, extraData: Record<string, 
   await getTelemetryService(kernel).reportImmediate(action, extraData);
 }
 
+/**
+ * 安装主应用级全局错误兜底：捕获 window.onerror 与 unhandledrejection，
+ * 上报遥测后再次抛出/打印以保留浏览器默认诊断行为。
+ *
+ * 此前仅在 MVU iframe 沙盒内有 window.onerror（见 scriptIframe.ts），
+ * 主应用层的未捕获同步异常与 Promise rejection 长期是可观测性盲区。
+ *
+ * 幂等：重复调用不会叠加监听器。
+ * 失败兜底：遥测管道异常不得阻塞默认错误传播。
+ */
+let globalErrorHandlersInstalled = false;
+export function installGlobalErrorHandlers(): void {
+  if (globalErrorHandlersInstalled || typeof window === "undefined") return;
+  globalErrorHandlersInstalled = true;
+
+  window.addEventListener("error", (event) => {
+    try {
+      reportImmediate("window_uncaught_error", {
+        message: event.message ?? "unknown",
+        filename: (event.filename ?? "").slice(0, 500),
+        lineno: event.lineno ?? 0,
+        colno: event.colno ?? 0,
+        stack: (event.error?.stack ?? "").slice(0, 4000),
+      }).catch(() => {
+        // 静默：遥测不可用时不影响默认错误处理
+      });
+    } catch {
+      // 同步异常兜底
+    }
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    try {
+      const reason = event.reason;
+      reportImmediate("window_unhandled_rejection", {
+        reason: reason instanceof Error ? reason.message : String(reason ?? "unknown"),
+        stack: reason instanceof Error ? (reason.stack ?? "").slice(0, 4000) : "",
+      }).catch(() => {
+        // 静默
+      });
+    } catch {
+      // 同步异常兜底
+    }
+  });
+}
+
 /** 暴露到 window 供 iframe 沙盒内 zod 校验失败上报的回调类型收口。 */
 interface WindowWithTelemetryCallback extends Window {
   reportZodValidationError?: typeof reportZodValidationError;

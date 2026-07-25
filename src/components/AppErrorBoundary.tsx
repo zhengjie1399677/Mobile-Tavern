@@ -1,4 +1,5 @@
 import React, { type ReactNode } from "react";
+import { reportImmediate } from "../utils/telemetry";
 
 // PERF-01: 应用级 ErrorBoundary，捕获渲染异常防止整个 React 树白屏。
 // 采用内联样式而非 Tailwind 类，确保即便 CSS 变量解析失败（如旧版 WebView 对 oklch() 不支持）
@@ -24,6 +25,19 @@ class AppErrorBoundary extends React.Component<any, any> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     console.error("[AppErrorBoundary] Render error caught:", error, errorInfo);
+    // 接入遥测：React 渲染异常此前是黑盒，上报后可在 SLS 侧定位崩溃现场
+    // 失败兜底：遥测管道异常不得阻塞 ErrorBoundary 的兜底渲染语义，亦不得演化为 unhandled rejection
+    try {
+      reportImmediate("react_render_error", {
+        message: error?.message ?? "unknown",
+        stack: (error?.stack ?? "").slice(0, 4000),
+        componentStack: (errorInfo?.componentStack ?? "").slice(0, 4000),
+      }).catch(() => {
+        // 静默：遥测不可用时不影响兜底渲染
+      });
+    } catch {
+      // 同步异常兜底
+    }
   }
 
   handleRetry = (): void => {

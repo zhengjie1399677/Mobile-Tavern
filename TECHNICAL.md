@@ -75,11 +75,11 @@ Mobile-Tavern
 │   │   ├── GlobalWorldbookTab.tsx            # 全局知识库条目创建、编辑与原子写库面板
 │   │   └── SettingsTab.tsx                   # 备份管理、采样参数调节及大模型接入设置
 │   │
-│   ├── kernel/                               # 微内核切面底座 (包含 IOC 容器、双轨 Pipeline 及 17 大官方核心服务)
+│   ├── kernel/                               # 微内核切面底座 (包含 IOC 容器、双轨 Pipeline 及 19 大官方核心服务)
 │   │   ├── Kernel.ts                         # 核心 Kernel 容器类实现 (包含 globalKernel 单例)
 │   │   ├── types.ts                          # 全局微内核契约接口规范 (IKernel, IKernelService 等)
 │   │   ├── index.ts                          # 统一对外导出入口与内核冷启动装配函数 (initializeKernel)
-│   │   ├── schemas/                          # Kernel 运行时 zod schema 校验层（L2 Phase B 已落地）
+│   │   ├── schemas/                          # Kernel 运行时 zod schema 校验层（L2 Phase C 已全面落地）
 │   │   │   ├── p0Services.ts                 # 5 个 P0 服务完整 schema + IKernelService 基础结构 + P1 服务名清单
 │   │   │   ├── messages.ts                   # IMessage 顶层 schema + 2 静态 topic payload schema + 动态 topic 黑名单
 │   │   │   └── index.ts                      # validateService/validateMessage/validateServiceRetrieval 纯函数 + SAFE_PROXY_SYMBOL
@@ -576,82 +576,71 @@ erDiagram
 
 ### 1. `promptBuilder.ts` (Prompt 编译组装)
 *   **实现位置**: [promptBuilder.ts](src/utils/promptBuilder.ts)
-*   **核心逻辑**: 
-    负责在内存中拼接角色卡各项静态设定、当前全局设置与对话上下文历史。该模块不依赖任何硬编码的内置指令作为缺省值，以绝对无偏向的兼容方式组装数据。
-*   **宏替换防坍塌算法**:
-    大模型使用的模版字符在拼接时极其容易在正则匹配端遭遇转义符坍塌漏洞。我们摒弃了普通的 `str.replace(regexp, val)` 表达式（会解析 `val` 中含有的 `$1`, `$&` 等特殊符号），采用 lambda 回调执行返回的方式完成安全的物理级内容替换。
+*   **核心�### 1. 自动化功能测试一览 (The 79 Test Suites)
 
-### 2. `useChat.tsx` (流式长连接管理)
-*   **实现位置**: [useChat.tsx](src/hooks/useChat.tsx)
-*   **核心逻辑**: 
-    实现了基于流式连接（EventSource / ReadableStream）的会话更新器。它负责发起请求、抓取网络分块，并同步刷新 IndexedDB 对应分叉内的 `messages` 数组。
-*   **分阶段缓冲算法**:
-    网络层读取的字符首先被保存在局部流缓冲器中，当检测到符合 SSE 终止标记（如 `[DONE]` 信号）或长连接在物理层宣告 EOF 时，引擎将自动唤醒缓冲段解析器，执行终点冲刷操作，提取尾部所有剩余半字符，彻底防止了流截断所导致的结尾文字丢失。
+这些测试用例按职责域被高度聚合并物理隔离到 `tests/suites/` 下的各个测试模块中：
 
-### 3. `cardParser.ts` (酒馆卡 PNG 二进制还原)
-*   **实现位置**: [cardParser.ts](src/utils/cardParser.ts)
-*   **核心逻辑**: 
-    这是一个纯前端运行的二进制图像块解构器，能够在本地沙盒中无损提取和重构卡片信息。
-*   **块迭代策略**:
-    算法将传入的文件以 `ArrayBuffer` 的形式读入内存，将指针移向 PNG 特征头签名之后。通过循环计算每一个块的物理位移跨度（Length + Type），计算 CRC32 并校验包完整性。若探测到 `tEXt` 标识，便在此空间中匹配 ASCII `chara` 标记，进而以同步方式完成数据解压与实例化。
+#### 🔒 网络安全与防网闸 (Security & SSRF Guard)
+*   **`testSsrfGuard`** (`security.test.ts`)：验证安全网闸对私网 IP（如 `127.0.0.1`、内网段、`169.254.169.254` 等）、DNS Rebinding 伪造 IP、八/十六进制伪装 IP 的拦截，并确认放行正常的公网 API 域名。
 
-### 4. `PlaygroundTab.tsx` (交互调试沙盒)
-*   **实现位置**: [PlaygroundTab.tsx](src/tabs/PlaygroundTab.tsx)
-*   **核心逻辑**: 
-    构建了一个可以隔离进行算法测试的互动游戏场。它为上面所有的核心逻辑（如宏替换、前缀分流、网络包解压等）提供了单独的仿真验证面板。
-*   **状态隔离**:
-    沙盒内使用完全隔离的 `mockChar` 与 `mockHistory` 变量，确保开发人员在调节和探索算法特性时，绝不会对真实的本地 IndexedDB 角色与会话库产生状态污染。
+#### 💾 数据库并发与物理分轨 (Database & Storage)
+*   **`testDbQueue`**, **`testDatabaseServiceCrud`**, **`testLocalDBSplitTrack`**, **`testWriteQueueTimeout`**, **`testWriteQueueKeyCoalescing`** (`database.test.ts`)：验证 IndexedDB 并发写 Promise 队列的串行化写入与异常自愈、Database 服务底座的对象仓 CRUD 基本物理契约、Settings 配置与大字段（Preset/Worldbook）分轨存储逻辑、以及高频对同一 Key 写入时的防抖合并（Coalescing）机制与事务超时释放。
 
-### 5. `db.ts` (高性能存储层)
-*   **实现位置**: [db.ts](src/utils/db.ts)
-*   **核心逻辑**: 
-    提供了一个坚固的本地关系化存储底座。数据库实例通过单例模式暴露，避免频繁握手。
-*   **事务管道**:
-    在写操作被并发触发时（例如高频发送），`db.ts` 会严格在底层通过队列来控制写事务的顺序，防止两个写事务同时获取锁而造成 IndexedDB 独占死锁或引发白屏崩溃。
+#### 📝 Prompt 编译与上下文缓存 (Prompt Builder & Runtime)
+*   **`testPromptBuilder`**, **`testPromptBuilderSystemMerging`** (`promptBuilder.test.ts`)：验证模板宏安全替换（lambda 回调防转义符坍塌）及世界书三阶级联检索逻辑，会话历史中多条 System 旁白消息与相邻 User 消息的安全交替归并。
+*   **`testPromptRuntime`**, **`testPromptServiceIntegration`** (`promptRuntime.test.ts`)：测试编译期与运行期合并后 Prompt 的最终形态与规范性，以及 PromptService 注册与微内核冷启动后的状态连通性。
 
-### 6. `App.tsx` (应用初始化配置)
-*   **实现位置**: [App.tsx](src/App.tsx)
-*   **核心逻辑**:
-    负责系统冷启动的流程管理。加载内置的三套预设模版包，并检查本地数据库 settings 是否存在旧记录。如果首次安装，自动写入缺省的用户参数。它还负责捕获顶级的未捕获异常。
-*   **流自适应高度机制**:
-    检测视口物理像素尺寸，尤其是移动端的输入键盘拉起事件，利用动态 `viewport-height` 刷新 DOM 元素的高度，避免聊天输入框被键盘推移挤出屏幕范围。
+#### 🎴 角色卡解析与还原 (PNG Card Decoder)
+*   **`testPngCardParser`** (`cardParser.test.ts`)：从物理级还原 PNG 图像文件，读取并检索 `tEXt` 中的 `chara` 标记，对其 Zlib 压缩字节块解压反序列化还原成标准的 `CharacterCard` 结构。
 
-### 7. `MainLayout.tsx` (物理主导航控制)
-*   **实现位置**: [MainLayout.tsx](src/components/MainLayout.tsx)
-*   **核心逻辑**:
-    作为前端视图层的承载骨架。它响应 AppContext 广播的 Tab 变化，渲染不同的 Tab 面板。
-*   **拇指交互实现**:
-    将高频次使用的角色管理、历史分支列表、世界书配置以及控制面板按钮以 2.5 字符高度的形式均匀放置于屏幕最底端，使得单手握持状态下大拇指能轻松覆盖所有跳转范围。
+#### 📞 API 厂商流式与请求清洗 (API Request & SSE Stream)
+*   **`testApiCleanRequestPayload`**, **`testSSEStreamWithReasoning`**, **`testCleanLLMResponse`** (`apiRequest.test.ts`)：模拟多厂商大模型 API 参数差异化，校验 `cleanRequestPayload` 过滤非标参数以防 400 报错的能力；校验 SSE 流式输出缓冲区切分，测试能精准拦截 DeepSeek R1 等思维链 `reasoning_content` 数据并安全拼接主文本，以及清除模型返回正文尾部的代码块标记等杂质。
 
-### 8. `GlobalWorldbookTab.tsx` (设定集检索管理)
-*   **实现位置**: [GlobalWorldbookTab.tsx](src/tabs/GlobalWorldbookTab.tsx)
-*   **核心逻辑**:
-    提供对于全局知识库条目的反应式配置。允许用户动态创建、使能或禁用指定的 key 组。
-*   **原子化写入**:
-    当对词条内容执行变更后，模块并不直接执行全局存储刷新，而是将当前被编辑的条目通过特定事务单独投递至 IndexedDB，限制了数据库锁定所引起的性能损耗。
+#### ⚙️ 微内核底座与 Pipeline 拦截 (Modular Kernel & Pipeline)
+*   **`testKernelFaultIsolation`**, **`testKernelPipeline`**, **`testKernelPipelineHardening`**, **`testKernelHardeningP0ToP3`** (`kernelPipeline.test.ts`)：验证核心服务引发的内核级熔断、非关键服务异常时 SafeProxy 自动接管与链式 No-op 调用、拦截中间件依照优先级链式流转以及超时/熔断控制、开发与生产模式下管道防灾校验、可选服务注销与卸载等。
 
-### 9. `CharacterDetailDrawer.tsx` (人设与立绘表情解析器)
-*   **实现位置**: [CharacterDetailDrawer.tsx](src/components/CharacterDetailDrawer.tsx)
-*   **核心逻辑**:
-    渲染角色卡元信息。包括人设展示、局部世界书挂载，以及立绘表情差分图谱检查。
-*   **对话例句断行分块**:
-    它能够对角色卡中的 `mes_example` 对话范本执行特殊词组切分（例如以 `<START>` 划分），将一长串原始例句分割成不同的气泡流展示在面板抽屉中，让用户极其直观地看到角色的扮演风格。
+#### 🌀 版本修复、生命周期与插件机制 (Lifecycle & SPI)
+*   **`testKernelKernelV2Fixes`**, **`testKernelV3Fixes`**, **`testKernelV4AbortAndInterrupt`**, **`testKernelExtensionRegistry`**, **`testKernelDestroyIdempotency`**, **`testKernelInspect`** (`kernelVersionFixes.test.ts`)：验证 Kahn 拓扑依赖排序分配、环形依赖拦截、事件发布并发控制、内核卸载时注销空 Key 以及防 Symbol 探测死锁、SPI 扩展插件的动态插拔、一键 destroy() 销毁时的幂等性与逆序解绑等。
+*   **`testKernelLifecycleAndDependencies`**, **`testBootstrapRollbackOnCriticalFailure`** (`kernelLifecycle.test.ts`)：验证内核生命周期装配顺序与 P0/P1 服务依赖加载，以及在关键 P0 服务启动失败时触发的引导回滚保护机制。
+*   **第三方全屏插件与受限宿主桥接**：非 React 组件树插件 v1 装载与沙盒隔离规约，基于随机通道/请求 ID 的 `postMessage` 受限 RPC 桥接契约，以及游戏引擎 tree-shaking 后经典 IIFE 的依赖边界机制。
 
-### 10. `AppContext.tsx` (全局交互事件分发器)
-*   **实现位置**: [AppContext.tsx](src/contexts/AppContext.tsx)
-*   **核心逻辑**:
-    提供了跨组件的多点弹窗调用（Alert, Confirm, Prompt）异步桥接包装。
-*   **Promise 状态机序列化**:
-    为解决在高频异步更新下 React Modal 状态错乱导致的事件丢失，`AppContext` 底层将弹窗动作转化为标准的 `Promise<void>` / `Promise<boolean>` / `Promise<string | null>`，通过状态机的解耦分发使得开发者可以在异步 hook 中像同步调用浏览器 `window.confirm` 一样书写业务逻辑。
+#### 🎲 交互性、概率与辅助算法 (Algorithms & Interactions)
+*   **`testBisonModeProbability`** (`bisonMode.test.ts`)：测试野牛判定（Bison Mode）在百分比概率触发下的数理概率分布。
+*   **`testPresetAndWorldbookIntegration`** (`presetWorldbook.test.ts`)：验证采样参数预设与世界书级联检索合并后的效果。
+*   **`testSuggestionsRobustness`** (`suggestions.test.ts`)：验证对话后续引导句（Reply Suggestions）推荐算法的极端情况健壮性。
 
-### 11. `useSettings.ts` (参数自动同步及持久化)
-*   **实现位置**: [useSettings.ts](src/hooks/useSettings.ts)
-*   **核心逻辑**:
-    统一同步并托管用户的全局设置参数设定。
-*   **防抖自动写入**:
-    当用户拖拽设置页的 temperature、top_p 或是重复惩罚参数时，数据会反应式在内存中更新。防抖机制会将写入 IndexedDB 的底层调用聚合，降低系统频繁落库引起的并发 IO 压力。
+#### 📻 业务微服务底座 (Kernel Services Core)
+*   **`testMultiMessageService`**, **`testScriptServiceDecoupling`**, **`testOutputPipeline`**, **`testChatStreamService`**, **`testKeyManagerDynamicFetch`**, **`testUpdateCheckService`** (`services.test.ts`)：测试会话分支树（平行宇宙会话复制）及分支删除、角色卡内嵌 JS 变量计算沙盒隔离防污染、文本输出后处理中间件链条（状态表、沙盒、年表、野牛判定）的正确拼接顺序、SSE 字符接收管理器状态重置与 Abort 释放、多设备标识下临时 STS 签发与 AES 密钥动态读取，以及热更新版本的语义化版本号比对与安全防刷。
 
-### 12. `CharactersTab.tsx` (角色列表交互模块)
+#### 🎨 视图渲染与日志脱敏 (Rendering & Desensitization)
+*   **`testCssSanitization`**, **`testServerLogDesensitization`**, **`testApiKeyEncryption`** (`rendering.test.ts`)：测试对 Markdown 样式及 HTML 标签的注入防护与安全清理，Express 控制台及落盘日志中大模型 API Key（sk-...）的安全脱敏抹除，以及客户端敏感 API Key 在本地 IndexedDB 存储时的 AES-GCM 加密存储。
+
+#### 🏎️ 极速直连旁路测试 (Fast Path Bypass)
+*   **`testFastPathL3AutoSummaryIndex`**, **`testFastPathL2ContentPrescan`**, **`testFastPathL1PipelineBypass`** (`fastPath.test.ts`)：验证 L1-L3 级极速发送通道，在纯文本无变量、无世界书命中、无需年表更新时，智能绕过繁冗的 Pipeline 和中间件栈，直连 API 的零延迟发信。
+
+#### 🧠 长期记忆金字塔系统 (Memory System)
+*   **`testModelCapabilityRegistry`**, **`testMemoryStreamParser`**, **`testMemoryStorageCrud`**, **`testMemoryServiceLifecycle`**, **`testMemoryExtractor`**, **`testMemoryRecall`** (`memoryService.test.ts`)：验证长期记忆的模型适配性校验、大模型情感与 RPG 属性块的反序列化分段解析、记忆碎片与总结卡在分轨 Store 中的 CRUD，记忆提取器及标签倒排检索打分、时间衰减计算等。
+*   **`testMemoryStateTable`**, **`testMemorySummary`** (`memoryStageC.test.ts`)：测试 RPG 状态看板数据的更新与增量物理落库，会话剧情总结大纲压缩机制及首创的零侵入 brackets 标签提取降级。
+*   **`testMemoryE2E`** (`memoryE2E.test.ts`)：运行真实 IndexedDB 物理层，进行端到端的长期记忆全链路存取与重构仿真。
+*   **`testTableMemorySchema`** (`tableMemorySchema.test.ts`)：验证旧会话降级、稳定列 ID 迁移、字段类型与默认值、模板包防腐、LLM 类型化写入及非法值拒绝。
+
+#### 🏢 业务管理服务组件 (Business Services)
+*   **`testCharacterService`**, **`testWorldbookService`**, **`testSettingsService`**, **`testPresetService`** (`businessServices.test.ts`)：验证角色卡管理服务、全局/局部世界设定集的读写，测试服务级的生命周期资源回收（AbortController），全局 Settings 的合并逻辑与防抖存入，以及大模型预设自适应版本升级。
+
+#### 📈 对话轮次与一致性 (Turn Index Consistency)
+*   **`testTurnIndexBasicAppend`**, **`testTurnIndexDeleteMiddleThenAppend`**, **`testTurnIndexDeleteAllThenAppend`**, **`testTurnIndexMultipleAppends`**, **`testRerollBranchAtomicReplace`** (`turnIndexConsistency.test.ts`)：验证正常发送消息时消息索引的顺序递增、多分支中途删除或清空后追加消息时的 turnIndex 顺序稳定性，以及模拟重发分支原子替换与事务中止回滚。
+
+#### 📻 分页懒加载与总结归档 (Pagination & Archival) - [新]
+*   **`testMessageRoleMapping`**, **`testPaginationBoundaries`**, **`testAutoSummaryTriggerConditions`**, **`testAppendSessionMessageFieldMapping`** (`paginationAndArchival.test.ts`)：测试消息角色映射机制、消息分页懒加载边界、自动总结的触发条件与多宇宙分支元数据安全同步。
+
+#### ⚡ Abort 信号传导与并发控制 (Abort & Concurrency) - [新]
+*   **`testAbortSignalPreAbortedLocalDB`**, **`testAbortSignalMidOperationLocalDB`**, **`testAbortSignalBeforeTransactionRegistration`**, **`testAbortSignalWriteQueueRecovery`**, **`testMvuParserAbortedCheckpoints`**, **`testMemoryStreamParserAbort`** (`abortSignalConduction.test.ts`)：全面测试并发写入管道中的事务超时挂载释放、异步流程终止后底层事务的回滚、以及在 `getDB()` 返回前先触发中止时的句柄自愈防御。
+*   **`testPublishSnapshotDuringConcurrentSubscribe`**, **`testDestroyWithMultipleActiveControllers`** (`kernelConcurrency.test.ts`)：验证在并发订阅时发布事件快照的机制，以及多活动 AbortController 下内核一键销毁时的防死锁和幂等清理。
+
+#### 🛡️ Zod 运行时与自由编排测试 (Kernel validation & Prompt Composition) - [新]
+*   **`testKernelSchemaValidation`** (`kernelSchemaValidation.test.ts`)：对 P0/P1 服务分级 Schema、静态消息 Payload 格式、动态 topic `tavern_helper:*` 与 Proxy 契约标记进行全面运行时类型校验测试。
+*   **`testArchitectureBoundaries`** (`architectureBoundaries.test.ts`)：静态扫描依赖方向、Context 最小订阅 selector、瞬态召回隔离，保障微内核架构物理隔离。
+*   **`testPromptComposition`** (`promptComposition.test.ts`)：验证 Prompt 自由编排的 Token 预算计算、裁剪策略和多 System 块编译输出。��块)
 *   **实现位置**: [CharactersTab.tsx](src/tabs/CharactersTab.tsx)
 *   **核心逻辑**:
     管理卡片的交互陈列。支持多属性过滤、全文模糊搜索和 PNG 卡片解析。
@@ -988,7 +977,7 @@ TypeScript 编译期类型检查无法拦截运行时形状漂移：`IMessage.pa
 
 ### 2. 三大纯函数校验工具
 
-[schemas/index.ts](src/kernel/schemas/index.ts) 导出三个不耦合 Kernel 内部状态、不抛错的纯函数，返回 `{success, error?, summary?}` result 对象。当前消息校验由 Kernel 依据既有严格模式决定抛错或记录后丢弃；服务校验仍作为后续增强入口：
+[schemas/index.ts](src/kernel/schemas/index.ts) 导出三个不耦合 Kernel 内部状态、不抛错的纯函数，返回 `{success, error?, summary?}` result 对象。当前消息校验与服务检索校验（validateServiceRetrieval）已完全落地；服务注册校验（validateService）仍作为后续增强入口：
 
 | 函数 | 入口 | 分级策略 |
 |---|---|---|
@@ -1028,7 +1017,7 @@ SillyTavern 兼容契约（AGENTS.md 准则二）要求 `tavern_helper:${event}`
 | **Phase A** 探测 | ✅ 已完成 | [docs/agents/zod-l2-probe-report.md](docs/agents/zod-l2-probe-report.md) — 17 服务接口 vs 实现方法差异表、2 静态 topic 确认、动态 topic 黑名单确认 |
 | **Phase B** schema 定义 | ✅ 已完成 | P0/P1 服务 schema、消息 schema、动态 topic 降级规则及单元测试 |
 | **Phase C-1** 消息边界 | ✅ 已完成 | `publish` / `publishParallel` 运行时校验，SafeProxy 契约标记 |
-| **Phase C-2** 服务边界 | ⏳ 待后续 | 三态 `validationMode` 与 registerService/getService 接入 |
+| **Phase C-2** 服务边界 | ✅ 已完成 | 落地 `validateServiceRetrieval` 运行时校验，实现 `SAFE_PROXY_SYMBOL` 契约标记 |
 
 ---
 
