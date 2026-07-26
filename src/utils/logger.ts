@@ -118,7 +118,7 @@ export class Logger {
    * 防污染：handler 异常由 try/catch 兜底，不得影响主流程。
    */
   private triggerErrorHandler(message: string, fields: Record<string, unknown>): void {
-    if (!injectedErrorHandler || isHandlingError) return;
+    if (!injectedErrorHandler || isHandlingError || fields.skipTelemetry === true) return;
     isHandlingError = true;
     try {
       injectedErrorHandler({

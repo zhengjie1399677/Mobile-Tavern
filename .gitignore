@@ -51,3 +51,6 @@ target/
 
 # 注意：shared/bindings/ 下的 ts-rs 生成文件入 git，
 # 以便前端开发者在未安装 Rust 工具链时也能获取类型定义。
+
+# 测试诊断日志文件夹
+tests/logs/

@@ -3,6 +3,7 @@ import { getDB } from "../../../utils/localDB";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import type { ViewportSize } from "../utils";
 import { useTranslation } from "../../../contexts/LanguageContext";
+import { Logger } from "../../../utils/logger";
 import {
   getViewportSnapshot,
   getViewportHistory,
@@ -160,6 +161,8 @@ export default function SystemReportSection({
       currentSecLines = [];
     };
 
+    const logger = Logger.create("SystemReport");
+
     const startSection = (id: string, title: string) => {
       flushSection();
       currentSecId = id;
@@ -169,12 +172,28 @@ export default function SystemReportSection({
       allLines.push(header);
       currentSecLines.push(header);
       setDiagnoseLog([...allLines].join("\n"));
+
+      logger.info(`=== Section: ${title} ===`);
     };
 
-    const log = (text: string) => {
-      allLines.push(text);
-      currentSecLines.push(text);
+    const log = (text: string, err?: unknown) => {
+      let uiText = text;
+      if (err != null) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        uiText = `${text} (Details: ${errMsg})`;
+      }
+      allLines.push(uiText);
+      currentSecLines.push(uiText);
       setDiagnoseLog([...allLines].join("\n"));
+
+      const cleanText = text.trim();
+      if (isErrorLine(cleanText) || err != null) {
+        logger.error(cleanText, err, { skipTelemetry: true });
+      } else if (isWarningLine(cleanText)) {
+        logger.warn(cleanText);
+      } else {
+        logger.info(cleanText);
+      }
     };
 
     const totalStart = Date.now();
@@ -211,22 +230,41 @@ export default function SystemReportSection({
           const warnTag = count > 1000 ? " ⚠️ HIGH" : count > 200 ? " (moderate)" : "";
           log(`  - ${storeName}: ${count} records${warnTag}`);
         } catch (err: any) {
-          log(`  - ${storeName}: COUNT ERROR (${err.message})`);
+          log(`  - ${storeName}: COUNT ERROR`, err);
         }
       }
 
-      // 写入延迟测试
+      // 写入测试与延迟测量
       const writeStart = Date.now();
+      const testTimestamp = Date.now();
       const writeTx = db.transaction(["settings"], "readwrite");
       const writeStore = writeTx.objectStore("settings");
       await new Promise<void>((resolve, reject) => {
-        const req = writeStore.put({ id: "diagnose_transient_key", value: Date.now() }, "diagnose_transient_key");
+        const req = writeStore.put({ id: "diagnose_transient_key", value: testTimestamp }, "diagnose_transient_key");
         req.onsuccess = () => resolve();
         req.onerror = () => reject(req.error);
       });
       const writeLatency = Date.now() - writeStart;
       const writeHealth = writeLatency < 50 ? "EXCELLENT" : writeLatency < 200 ? "GOOD" : "SLOW";
       log(`Write latency: ${writeLatency}ms (${writeHealth})`);
+
+      // 闭环读回校验：通过开启全新事务测试只读锁/物理扇区故障
+      try {
+        const readTx = db.transaction(["settings"], "readonly");
+        const readStore = readTx.objectStore("settings");
+        const readVal = await new Promise<any>((resolve, reject) => {
+          const req = readStore.get("diagnose_transient_key");
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+        if (readVal && readVal.value === testTimestamp) {
+          log(`Read & Verify: OK (integrity verified, readwrite loopcheck passed)`);
+        } else {
+          log(`ERROR: IndexedDB read integrity failed (value mismatch or transient key lost)`);
+        }
+      } catch (readErr: any) {
+        log(`ERROR: IndexedDB readonly transaction test failed (suspect DB read-only lock or storage corrupt)`, readErr);
+      }
 
       // 清理临时记录
       const deleteTx = db.transaction(["settings"], "readwrite");
@@ -237,7 +275,7 @@ export default function SystemReportSection({
         req.onerror = () => reject(req.error);
       });
     } catch (err: any) {
-      log(`ERROR: ${err?.stack || err?.message || err}`);
+      log(`ERROR: Database connection or CRUD check failed`, err);
     }
     log(`Elapsed: ${Date.now() - dbStart}ms`);
 
@@ -265,6 +303,16 @@ export default function SystemReportSection({
         log(`All critical methods present (OK)`);
       }
 
+      // 存储权限检测
+      if (typeof w.AndroidThemeBridge.hasStoragePermission === "function") {
+        try {
+          const permitted = w.AndroidThemeBridge.hasStoragePermission();
+          log(`Storage permission (native check): ${permitted ? "GRANTED" : "⚠️ DENIED (users must grant storage permission manually)"}`);
+        } catch (err: any) {
+          log(`Storage permission check error`, err);
+        }
+      }
+
       // Safe-area 实际渲染值 vs 桥接返回值对比（定位"CSS env 与原生 inset 不一致"）
       try {
         const bridgeJson = w.AndroidThemeBridge.getSafeAreas?.();
@@ -278,20 +326,21 @@ export default function SystemReportSection({
           probe.style.setProperty("--sa-bottom", "env(safe-area-inset-bottom)");
           probe.style.setProperty("--sa-left", "env(safe-area-inset-left)");
           probe.style.setProperty("--sa-right", "env(safe-area-inset-right)");
-          // 用 outline-width 借位读取 env 值（content-box 不能直接读 env，这里用 transform 技巧）
-          // 更稳妥：直接读 documentElement 的计算样式（前端在 AppContext 里设置过 --safe-area-inset-*）
           document.documentElement.appendChild(probe);
-          const cs = getComputedStyle(document.documentElement);
-          const cssTop = cs.getPropertyValue("--safe-area-inset-top").trim();
-          const cssBottom = cs.getPropertyValue("--safe-area-inset-bottom").trim();
-          const cssLeft = cs.getPropertyValue("--safe-area-inset-left").trim();
-          const cssRight = cs.getPropertyValue("--safe-area-inset-right").trim();
+          
+          // 从 probe 获取计算样式
+          const cs = getComputedStyle(probe);
+          const cssTop = cs.getPropertyValue("--sa-top").trim();
+          const cssBottom = cs.getPropertyValue("--sa-bottom").trim();
+          const cssLeft = cs.getPropertyValue("--sa-left").trim();
+          const cssRight = cs.getPropertyValue("--sa-right").trim();
           probe.remove();
+          
           log(`CSS --safe-area-inset: top=${cssTop || "(unset)"} bottom=${cssBottom || "(unset)"} left=${cssLeft || "(unset)"} right=${cssRight || "(unset)"}`);
           // 比对（桥接返回 dp，CSS 是 px 字符串，仅做存在性差异提示）
           const bridgeKeys = Object.keys(parsed);
           const mismatch = bridgeKeys.filter(k => {
-            const cssVal = cs.getPropertyValue(`--safe-area-inset-${k}`).trim();
+            const cssVal = cs.getPropertyValue(`--sa-${k}`).trim();
             return cssVal && cssVal !== "0px" && parsed[k] === 0;
           });
           if (mismatch.length > 0) {
@@ -299,7 +348,48 @@ export default function SystemReportSection({
           }
         }
       } catch (err: any) {
-        log(`getSafeAreas/cross-check error: ${err?.message || err}`);
+        log(`getSafeAreas/cross-check error`, err);
+      }
+
+      // 原生桥接 IPC 往返延迟压力测试
+      if (typeof w.AndroidThemeBridge.isSpeakingNative === "function") {
+        try {
+          const ipcStart = Date.now();
+          const count = 15;
+          for (let i = 0; i < count; i++) {
+            w.AndroidThemeBridge.isSpeakingNative();
+          }
+          const ipcElapsed = Date.now() - ipcStart;
+          const avgLatency = ipcElapsed / count;
+          const latencyStatus = avgLatency < 2 ? "EXCELLENT" : avgLatency < 7 ? "GOOD" : "⚠️ SLOW (IPC pathway congestion risk)";
+          log(`Native bridge IPC latency: ${avgLatency.toFixed(2)}ms/call (${latencyStatus})`);
+        } catch (err: any) {
+          log(`Native bridge IPC latency test error`, err);
+        }
+      }
+
+      // 文件存取 IO 闭环验证
+      if (typeof w.AndroidThemeBridge.saveFile === "function" && typeof w.AndroidThemeBridge.readLocalFile === "function") {
+        try {
+          const testContent = `MobileTavernDiag:${Date.now()}`;
+          const fileName = "diagnose_temp_file.txt";
+          const savedPath = w.AndroidThemeBridge.saveFile(fileName, testContent);
+          if (savedPath.startsWith("error:")) {
+            log(`File IO ERROR: saveFile returned error status (${savedPath})`);
+          } else {
+            log(`File IO (Save): OK, path = ${savedPath}`);
+            const readContent = w.AndroidThemeBridge.readLocalFile(savedPath);
+            if (readContent.startsWith("error:")) {
+              log(`File IO ERROR: readLocalFile returned error status (${readContent})`);
+            } else if (readContent === testContent) {
+              log(`File IO (Read & Verify): OK (integrity verified)`);
+            } else {
+              log(`File IO ERROR: content mismatch! saved "${testContent}" but read "${readContent}"`);
+            }
+          }
+        } catch (err: any) {
+          log(`File IO Loopcheck error`, err);
+        }
       }
     } else {
       log(`WARNING: AndroidThemeBridge undefined (Web environment / not injected).`);
@@ -337,10 +427,35 @@ export default function SystemReportSection({
     const asrEnabled = settings.asrConfig?.enabled;
     if (!asrEnabled) {
       log(`ASR: disabled (skip)`);
-    } else if (hasASR) {
-      log(`ASR: OK (WebSpeech available)`);
     } else {
-      log(`ASR: ERROR (enabled but WebSpeech API unavailable in this WebView)`);
+      // 麦克风硬件设备探测
+      if (typeof navigator !== "undefined" && navigator.mediaDevices) {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const hasMic = devices.some(d => d.kind === "audioinput");
+          log(`Audio Input Hardware: ${hasMic ? "Detected microphone hardware (OK)" : "⚠️ No microphone hardware found"}`);
+        } catch (err: any) {
+          log(`Audio Hardware probe warning`, err);
+        }
+      } else {
+        log(`Audio Hardware API: UNAVAILABLE (non-secure context or old WebView)`);
+      }
+
+      // 麦克风录音权限检测
+      if (typeof navigator !== "undefined" && navigator.permissions?.query) {
+        try {
+          const status = await navigator.permissions.query({ name: "microphone" as PermissionName });
+          log(`Microphone permission status: ${status.state.toUpperCase()}`);
+        } catch (_) {
+          // 部分环境不支持 query 麦克风权限，静默跳过
+        }
+      }
+
+      if (hasASR) {
+        log(`ASR: OK (WebSpeech available)`);
+      } else {
+        log(`ASR: ERROR (enabled but WebSpeech API unavailable in this WebView)`);
+      }
     }
     log(`Elapsed: ${Date.now() - speechStart}ms`);
 
@@ -380,7 +495,7 @@ export default function SystemReportSection({
           kernelFailed++;
         }
       } catch (err: any) {
-        log(`  ${svc.name}: ERROR - ${err.message}`);
+        log(`  ${svc.name}: ERROR`, err);
         kernelFailed++;
       }
     }
@@ -405,7 +520,7 @@ export default function SystemReportSection({
         const storageStatus = pctNum > 80 ? "⚠️ CRITICAL (may cause IDB write failure)" : pctNum > 60 ? "⚠️ WARNING" : "OK";
         log(`Storage: ${usageMB}MB / ${quotaMB}MB (${percent}% used) ${storageStatus}`);
       } catch (err: any) {
-        log(`Storage estimate error: ${err.message}`);
+        log(`Storage estimate error`, err);
       }
     } else {
       log(`Storage estimate API unavailable`);
@@ -484,8 +599,7 @@ export default function SystemReportSection({
           }
         }
       } catch (err: any) {
-        log(`ERROR: Ping failed.`);
-        log(`Details: ${err?.stack || err?.message || err}`);
+        log(`ERROR: Ping failed`, err);
       }
     }
     log(`Elapsed: ${Date.now() - llmStart}ms`);
@@ -499,7 +613,7 @@ export default function SystemReportSection({
     log(`window: ${snap.innerW}x${snap.innerH}`);
     log(`visualViewport: ${snap.hasVisualViewport ? `${snap.vvpW}x${snap.vvpH} (offsetTop=${snap.vvpOffsetTop}, scale=${snap.vvpScale})` : "UNAVAILABLE (no visualViewport API)"}`);
     const dvh = measureDynamicViewportHeight();
-    const dvhMismatch = dvh !== null && dvh !== snap.innerH;
+    const dvhMismatch = dvh !== null && Math.abs(dvh - snap.innerH) > 1.5;
     log(`100dvh measured: ${dvh ?? "N/A"}px (vs innerH=${snap.innerH}px${dvhMismatch ? " ⚠️ MISMATCH" : " match"})`);
 
     // 键盘状态与高度估算
@@ -563,10 +677,10 @@ export default function SystemReportSection({
             }
           }
         } catch (e: any) {
-          log(`JSON parse error: ${e?.message || e}`);
+          log(`JSON parse error`, e);
         }
       } catch (err: any) {
-        log(`ERROR: getActiveInputMethod() threw: ${err?.message || err}`);
+        log(`ERROR: getActiveInputMethod() threw`, err);
       }
     } else {
       log(`WARNING: getActiveInputMethod not available (bridge not injected or old version).`);
@@ -617,7 +731,7 @@ export default function SystemReportSection({
         }
       }
     } catch (e: any) {
-      log(`WebGL renderer probe failed: ${e?.message || e}`);
+      log(`WebGL renderer probe failed`, e);
     }
     log(`Elapsed: ${Date.now() - webviewStart}ms`);
 
@@ -686,7 +800,7 @@ export default function SystemReportSection({
       const tsa = htmlCs.getPropertyValue("-webkit-text-size-adjust");
       if (tsa) log(`-webkit-text-size-adjust: ${tsa}`);
     } catch (err: any) {
-      log(`ERROR: font-size probe failed: ${err?.message || err}`);
+      log(`ERROR: font-size probe failed`, err);
     }
     log(`Elapsed: ${Date.now() - fontStart}ms`);
 
@@ -739,7 +853,7 @@ export default function SystemReportSection({
           log(`NOTE: voices empty (may populate after voiceschanged event, retry later).`);
         }
       } catch (err: any) {
-        log(`ERROR: getVoices() threw: ${err?.message || err}`);
+        log(`ERROR: getVoices() threw`, err);
       }
     } else {
       log(`speechSynthesis API unavailable (rely on native bridge TTS).`);
@@ -860,11 +974,11 @@ export default function SystemReportSection({
 
       {/* 分块诊断结果：每项独立显示 + 独立复制按钮 */}
       {sections.length > 0 && (
-        <div className="mt-3 space-y-2 text-left">
+        <div className="mt-3 space-y-2 text-left touch-pan-y">
           {sections.map(sec => (
             <div
               key={sec.id}
-              className={`p-2 bg-zinc-950/90 border rounded-lg text-zinc-300 font-sans tracking-wide overflow-x-auto max-w-full shadow-inner leading-relaxed ${
+              className={`p-2 bg-zinc-950/90 border rounded-lg text-zinc-300 font-sans tracking-wide max-w-full shadow-inner leading-relaxed touch-pan-y ${
                 sec.hasError ? "border-red-500/40" : sec.hasWarning ? "border-amber-500/40" : "border-zinc-800"
               }`}
             >
@@ -879,7 +993,7 @@ export default function SystemReportSection({
                   [{t("report.copy_section")}]
                 </button>
               </div>
-              <pre className="whitespace-pre-wrap break-all select-text font-mono text-[8.5px] leading-relaxed text-zinc-300">
+              <pre className="whitespace-pre-wrap break-all select-text font-mono text-[8.5px] leading-relaxed text-zinc-300 touch-pan-y">
                 {sec.lines.filter(l => !l.startsWith("\n[")).join("\n")}
               </pre>
             </div>
@@ -889,7 +1003,7 @@ export default function SystemReportSection({
 
       {/* 完整日志（折叠态，保留原行为供需要全量的场景使用） */}
       {diagnoseLog && sections.length === 0 && (
-        <div className="mt-3 text-left p-2.5 bg-zinc-950/90 border border-zinc-800 rounded-lg text-zinc-300 font-sans tracking-wide overflow-x-auto max-w-full shadow-inner leading-relaxed">
+        <div className="mt-3 text-left p-2.5 bg-zinc-950/90 border border-zinc-800 rounded-lg text-zinc-300 font-sans tracking-wide max-w-full shadow-inner leading-relaxed touch-pan-y">
           <div className="flex justify-between items-center border-b border-zinc-800 pb-1 mb-1.5 text-[8px] font-bold text-zinc-500 select-none">
             <span>🛠️ {t("report.title")} DEBUGLOG</span>
             <div className="flex gap-2">
@@ -910,7 +1024,7 @@ export default function SystemReportSection({
               </button>
             </div>
           </div>
-          <pre className="whitespace-pre-wrap break-all select-text font-mono text-[8.5px] leading-relaxed text-zinc-300">{diagnoseLog}</pre>
+          <pre className="whitespace-pre-wrap break-all select-text font-mono text-[8.5px] leading-relaxed text-zinc-300 touch-pan-y">{diagnoseLog}</pre>
         </div>
       )}
     </div>
