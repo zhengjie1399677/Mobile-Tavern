@@ -7,4 +7,6 @@ permissions = [
     "allow-update-character-texture",
     "allow-update-render-state",
     "allow-update-chat-bubble",
+    "allow-check-gesture-recognition-ready",
+    "allow-set-gesture-recognition",
 ]

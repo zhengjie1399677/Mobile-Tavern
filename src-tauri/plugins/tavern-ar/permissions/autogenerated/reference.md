@@ -10,6 +10,8 @@ Default permission set for the tavern-ar plugin. Allows the frontend to check AR
 - `allow-update-character-texture`
 - `allow-update-render-state`
 - `allow-update-chat-bubble`
+- `allow-check-gesture-recognition-ready`
+- `allow-set-gesture-recognition`
 
 ## Permission Table
 

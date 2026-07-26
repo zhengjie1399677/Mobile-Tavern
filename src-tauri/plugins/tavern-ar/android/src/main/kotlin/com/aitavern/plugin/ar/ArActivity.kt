@@ -66,6 +66,8 @@ class ArActivity : AppCompatActivity() {
     @Volatile
     private var gestureRecognitionEnabled = false
 
+    private val mainHandler = Handler(android.os.Looper.getMainLooper())
+
     // ─── 生命周期 ──────────────────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -121,16 +123,20 @@ class ArActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        Log.i(TAG, "onResume: Activity resumed, verifying camera permission")
         // 确保相机权限
         if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            Log.i(TAG, "onResume: Camera permission not granted, requesting permission")
             requestPermissions(arrayOf(android.Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
             return
         }
+        Log.i(TAG, "onResume: Camera permission granted, resuming AR session")
         resumeArSession()
     }
 
     override fun onPause() {
         super.onPause()
+        mainHandler.removeCallbacksAndMessages(null)
         session?.pause()
         glSurfaceView?.onPause()
     }
@@ -164,16 +170,21 @@ class ArActivity : AppCompatActivity() {
     // ─── ARCore Session 管理 ──────────────────────────────────────────────
 
     private fun resumeArSession() {
+        Log.i(TAG, "resumeArSession called, session is null: ${session == null}")
         if (session == null) {
             // 检查 ARCore 可用性 + 引导安装
             val availability = ArCoreApk.getInstance().checkAvailability(this)
+            Log.i(TAG, "resumeArSession: checkAvailability status is: $availability")
             when {
                 availability.isTransient -> {
-                    // 稍后重试
-                    Toast.makeText(this, "正在检查 ARCore 支持状态...", Toast.LENGTH_SHORT).show()
+                    Log.i(TAG, "ARCore checkAvailability is transient, retrying in 500ms...")
+                    mainHandler.postDelayed({
+                        resumeArSession()
+                    }, 500)
                     return
                 }
                 !availability.isSupported -> {
+                    Log.w(TAG, "ARCore is unsupported on this device")
                     Toast.makeText(this, "此设备不支持 ARCore", Toast.LENGTH_LONG).show()
                     finish()
                     return
@@ -183,6 +194,7 @@ class ArActivity : AppCompatActivity() {
             // 请求安装 ARCore APK
             try {
                 val installStatus = ArCoreApk.getInstance().requestInstall(this, !installRequested)
+                Log.i(TAG, "resumeArSession: requestInstall status: $installStatus")
                 when (installStatus) {
                     ArCoreApk.InstallStatus.INSTALL_REQUESTED -> {
                         installRequested = true
@@ -201,7 +213,9 @@ class ArActivity : AppCompatActivity() {
 
             // 创建 Session
             try {
+                Log.i(TAG, "resumeArSession: Creating ARCore Session...")
                 session = Session(this)
+                Log.i(TAG, "resumeArSession: ARCore Session created successfully")
             } catch (e: UnavailableArcoreNotInstalledException) {
                 Log.e(TAG, "ARCore not installed", e)
                 Toast.makeText(this, "请先安装 ARCore", Toast.LENGTH_LONG).show()
@@ -225,15 +239,19 @@ class ArActivity : AppCompatActivity() {
 
             // 配置 Session：平面检测 + 深度（若支持）+ 光照估算
             try {
+                Log.i(TAG, "resumeArSession: Configuring ARCore Session...")
                 val config = Config(session!!)
                 config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
                 config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
                 // 深度模式：仅在支持时启用
-                if (session!!.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
+                val depthSupported = session!!.isDepthModeSupported(Config.DepthMode.AUTOMATIC)
+                Log.i(TAG, "resumeArSession: isDepthModeSupported: $depthSupported")
+                if (depthSupported) {
                     config.depthMode = Config.DepthMode.AUTOMATIC
                 }
                 session!!.configure(config)
                 renderer?.setSession(session!!)
+                Log.i(TAG, "resumeArSession: ARCore Session configured successfully")
             } catch (e: Exception) {
                 Log.e(TAG, "Session config failed", e)
             }
@@ -241,8 +259,10 @@ class ArActivity : AppCompatActivity() {
 
         // 恢复 Session
         try {
+            Log.i(TAG, "resumeArSession: Resuming ARCore session & GLSurfaceView...")
             session?.resume()
             glSurfaceView?.onResume()
+            Log.i(TAG, "resumeArSession: ARCore session & GLSurfaceView resumed successfully")
         } catch (e: CameraNotAvailableException) {
             Log.e(TAG, "Camera not available", e)
             Toast.makeText(this, "相机不可用: ${e.message}", Toast.LENGTH_LONG).show()

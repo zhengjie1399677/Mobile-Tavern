@@ -12,7 +12,7 @@
 use tauri::plugin::{Builder, TauriPlugin};
 
 /// Plugin identifier used by Tauri to match the Kotlin `ArPlugin`.
-const PLUGIN_NAME: &str = "TavernAr";
+const PLUGIN_NAME: &str = "tavern-ar";
 
 /// Initialise and return the `tavern-ar` Tauri plugin.
 pub fn init<R: tauri::Runtime>() -> TauriPlugin<R> {

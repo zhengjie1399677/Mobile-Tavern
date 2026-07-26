@@ -28,6 +28,10 @@ import {
   listenArGestureEvent,
   type GestureEventPayload,
 } from "./TavernArBridge";
+import { Logger } from "../../utils/logger";
+import { reportUsage } from "../../utils/telemetry";
+
+const logger = Logger.create("useArSync");
 
 interface UseArSyncArgs {
   /** 当前活跃 session，用于提取最近一条 assistant 消息作为聊天气泡文本。 */
@@ -107,12 +111,24 @@ export function useArSync({ activeSession }: UseArSyncArgs): UseArSyncResult {
       setIsArAvailable(false);
       return;
     }
+    // 调试与国内机型适配：在 Android 环境下强制开启 AR 入口，防止因缺少 Google 商店等原因被误判为 unsupported
+    setIsArAvailable(true);
+
     // 异步检查 ARCore 安装状态
     let cancelled = false;
     void (async () => {
-      const status = await checkArAvailability();
+      let status = await checkArAvailability();
+      let retries = 0;
+      // 如果是瞬态 unknown 状态，根据 ARCore 官方规范轮询重试，最大 5 次
+      while (status === "unknown" && retries < 5 && !cancelled) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        if (cancelled) return;
+        status = await checkArAvailability();
+        retries++;
+      }
       if (!cancelled) {
-        setIsArAvailable(status === "supported-installed" || status === "supported-not-installed");
+        logger.warn("checkArAvailability final status: " + status);
+        reportUsage("ar_availability_status", { status });
       }
     })();
     return () => {
@@ -190,6 +206,7 @@ export function useArSync({ activeSession }: UseArSyncArgs): UseArSyncResult {
     const result = await bridgeLaunchAr();
     if (!result.error) {
       setIsArActive(true);
+      reportUsage("ar_enter", { status: "success" });
       // 启动后立即推送当前快照（若有）
       try {
         const service = globalKernel.getService<any>("characterRender");
@@ -226,6 +243,7 @@ export function useArSync({ activeSession }: UseArSyncArgs): UseArSyncResult {
     }
     await bridgeCloseAr();
     setIsArActive(false);
+    reportUsage("ar_exit", { action: "close" });
   }, [isGestureEnabled]);
 
   const setGestureRecognition = React.useCallback(async (enabled: boolean) => {

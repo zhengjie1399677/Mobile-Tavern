@@ -95,12 +95,14 @@ class ArPlugin(private val activity: Activity) : Plugin(activity) {
     fun checkArAvailability(invoke: Invoke) {
         try {
             val availability = com.google.ar.core.ArCoreApk.getInstance().checkAvailability(activity)
+            Log.i(TAG, "checkArAvailability: raw availability = $availability")
             val finalResult = when {
                 availability.isTransient -> "unknown"
                 availability == com.google.ar.core.ArCoreApk.Availability.SUPPORTED_INSTALLED -> "supported-installed"
                 availability.isSupported -> "supported-not-installed"
                 else -> "unsupported"
             }
+            Log.i(TAG, "checkArAvailability: mapped final result = $finalResult")
             val ret = JSObject()
             ret.put("availability", finalResult)
             invoke.resolve(ret)

@@ -118,18 +118,18 @@ describe("TavernArBridge — Android 环境 invoke 路由", () => {
 
   afterEach(() => clearAndroidEnv());
 
-  it("checkArAvailability 调用 plugin:TavernAr|check_ar_availability", async () => {
+  it("checkArAvailability 调用 plugin:tavern-ar|check_ar_availability", async () => {
     mockInvoke.mockResolvedValueOnce({ availability: "supported-installed" });
     const result = await checkArAvailability();
     expect(result).toBe("supported-installed");
-    expect(mockInvoke).toHaveBeenCalledWith("plugin:TavernAr|check_ar_availability");
+    expect(mockInvoke).toHaveBeenCalledWith("plugin:tavern-ar|check_ar_availability");
   });
 
-  it("launchAr 调用 plugin:TavernAr|launch_ar 并返回空对象", async () => {
+  it("launchAr 调用 plugin:tavern-ar|launch_ar 并返回空对象", async () => {
     mockInvoke.mockResolvedValueOnce(undefined);
     const result = await launchAr();
     expect(result).toEqual({});
-    expect(mockInvoke).toHaveBeenCalledWith("plugin:TavernAr|launch_ar");
+    expect(mockInvoke).toHaveBeenCalledWith("plugin:tavern-ar|launch_ar");
   });
 
   it("launchAr invoke 抛错时返回 error 字符串", async () => {
@@ -138,17 +138,17 @@ describe("TavernArBridge — Android 环境 invoke 路由", () => {
     expect(result.error).toBeTruthy();
   });
 
-  it("closeAr 调用 plugin:TavernAr|close_ar", async () => {
+  it("closeAr 调用 plugin:tavern-ar|close_ar", async () => {
     mockInvoke.mockResolvedValueOnce(undefined);
     await closeAr();
-    expect(mockInvoke).toHaveBeenCalledWith("plugin:TavernAr|close_ar");
+    expect(mockInvoke).toHaveBeenCalledWith("plugin:tavern-ar|close_ar");
   });
 
   it("updateCharacterTexture 传递 base64 参数", async () => {
     mockInvoke.mockResolvedValueOnce(undefined);
     await updateCharacterTexture("data:image/png;base64,xxx");
     expect(mockInvoke).toHaveBeenCalledWith(
-      "plugin:TavernAr|update_character_texture",
+      "plugin:tavern-ar|update_character_texture",
       { base64: "data:image/png;base64,xxx" }
     );
   });
@@ -157,7 +157,7 @@ describe("TavernArBridge — Android 环境 invoke 路由", () => {
     mockInvoke.mockResolvedValueOnce(undefined);
     await updateRenderState("joy", "rgba(1,2,3,0.5)", "rgba(4,5,6,0.3)");
     expect(mockInvoke).toHaveBeenCalledWith(
-      "plugin:TavernAr|update_render_state",
+      "plugin:tavern-ar|update_render_state",
       { emotion: "joy", light1: "rgba(1,2,3,0.5)", light2: "rgba(4,5,6,0.3)" }
     );
   });
@@ -166,7 +166,7 @@ describe("TavernArBridge — Android 环境 invoke 路由", () => {
     mockInvoke.mockResolvedValueOnce(undefined);
     await updateChatBubble("你好");
     expect(mockInvoke).toHaveBeenCalledWith(
-      "plugin:TavernAr|update_chat_bubble",
+      "plugin:tavern-ar|update_chat_bubble",
       { text: "你好" }
     );
   });
@@ -175,7 +175,7 @@ describe("TavernArBridge — Android 环境 invoke 路由", () => {
     mockInvoke.mockResolvedValueOnce(undefined);
     await setGestureRecognition(true);
     expect(mockInvoke).toHaveBeenCalledWith(
-      "plugin:TavernAr|set_gesture_recognition",
+      "plugin:tavern-ar|set_gesture_recognition",
       { enabled: true }
     );
   });
@@ -184,7 +184,7 @@ describe("TavernArBridge — Android 环境 invoke 路由", () => {
     mockInvoke.mockResolvedValueOnce({ ready: true });
     const result = await checkGestureRecognitionReady();
     expect(result).toBe(true);
-    expect(mockInvoke).toHaveBeenCalledWith("plugin:TavernAr|check_gesture_recognition_ready");
+    expect(mockInvoke).toHaveBeenCalledWith("plugin:tavern-ar|check_gesture_recognition_ready");
   });
 
   it("checkGestureRecognitionReady 返回 false 时降级", async () => {

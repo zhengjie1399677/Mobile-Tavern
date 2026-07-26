@@ -7,6 +7,10 @@ import { initTavernHelperBridge, cleanTavernHelperBridge, getBridgeInterface, ge
 import lodashCloneDeep from "lodash/cloneDeep";
 import lodashIsEqual from "lodash/isEqual";
 import { chatTabState } from "./utils";
+import { Logger } from "../../utils/logger";
+import { reportUsage } from "../../utils/telemetry";
+
+const logger = Logger.create("ChatAccessibility");
 import { useKernel } from "../../contexts/KernelContext";
 import { IDatabaseService } from "../../kernel/types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
@@ -164,7 +168,31 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
         chatTabState.maxHeight = currentHeight;
       }
       const threshold = Math.min(chatTabState.maxHeight * 0.15, 100);
-      const isNowOpen = chatTabState.maxHeight - currentHeight > threshold;
+      const diff = chatTabState.maxHeight - currentHeight;
+      const isNowOpen = diff > threshold;
+
+      // 只有在键盘状态转换，或视口高度差变化明显时才输出日志和上报，防止打字高频输入时泛滥
+      if (isKeyboardOpen !== isNowOpen || diff > 30) {
+        logger.warn("Viewport resize handled (keyboard transition check)", {
+          vvpHeight: vvp?.height ?? null,
+          windowHeight: window.innerHeight,
+          currentHeight,
+          maxHeight: chatTabState.maxHeight,
+          threshold,
+          heightDiff: diff,
+          isKeyboardOpen: isNowOpen,
+        });
+
+        reportUsage("keyboard_viewport_diagnostic", {
+          vvp_height: vvp?.height ?? 0,
+          window_height: window.innerHeight,
+          current_height: currentHeight,
+          max_height: chatTabState.maxHeight,
+          height_diff: diff,
+          is_keyboard_open: isNowOpen,
+        });
+      }
+
       setIsKeyboardOpen(isNowOpen);
     };
 

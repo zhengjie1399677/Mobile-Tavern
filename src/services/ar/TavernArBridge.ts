@@ -3,13 +3,16 @@
 // 通过 Tauri invoke 调用 Kotlin @Command 方法，桥接到全屏 ArActivity。
 // 桌面环境（非 Android WebView）下 invoke 会失败，所有方法都做 try/catch 兜底。
 //
-// 命令路由：invoke("plugin:TavernAr|<command>", args)
-//   - "plugin:TavernAr" 是 Tauri 的插件命令命名约定
+// 命令路由：invoke("plugin:tavern-ar|<command>", args)
+//   - "plugin:tavern-ar" 是 Tauri 的插件命令命名约定
 //   - <command> 对应 ArPlugin.kt 中 @Command 注解的方法名（snake_case）
 //
 // 与 src-tauri/plugins/tavern-ar/guest-js/index.ts 的类型保持同步。
 
 import { invoke } from "@tauri-apps/api/core";
+import { Logger } from "../../utils/logger";
+
+const logger = Logger.create("TavernAr");
 
 /** ARCore 可用性状态，对齐 ArPlugin.kt checkArAvailability 返回值。 */
 export type ArAvailability =
@@ -81,10 +84,10 @@ export function isArSupported(): boolean {
 export async function checkArAvailability(): Promise<ArAvailability> {
   if (!isArSupported()) return "unsupported";
   try {
-    const result = await invoke<{ availability: ArAvailability }>("plugin:TavernAr|check_ar_availability");
+    const result = await invoke<{ availability: ArAvailability }>("plugin:tavern-ar|check_ar_availability");
     return result?.availability ?? "unknown";
   } catch (err) {
-    console.warn("[TavernAr] checkArAvailability failed:", err);
+    logger.warn("checkArAvailability failed", { error: err });
     return "unknown";
   }
 }
@@ -101,10 +104,10 @@ export async function launchAr(): Promise<LaunchArResult> {
     return { error: "ar_not_supported_on_desktop" };
   }
   try {
-    const result = await invoke<LaunchArResult | void>("plugin:TavernAr|launch_ar");
+    const result = await invoke<LaunchArResult | void>("plugin:tavern-ar|launch_ar");
     return (result as LaunchArResult | undefined) ?? {};
   } catch (err) {
-    console.warn("[TavernAr] launchAr failed:", err);
+    logger.warn("launchAr failed", { error: err });
     return { error: String(err) };
   }
 }
@@ -115,9 +118,9 @@ export async function launchAr(): Promise<LaunchArResult> {
 export async function closeAr(): Promise<void> {
   if (!isArSupported()) return;
   try {
-    await invoke("plugin:TavernAr|close_ar");
+    await invoke("plugin:tavern-ar|close_ar");
   } catch (err) {
-    console.warn("[TavernAr] closeAr failed:", err);
+    logger.warn("closeAr failed", { error: err });
   }
 }
 
@@ -129,9 +132,9 @@ export async function updateCharacterTexture(base64: string): Promise<void> {
   if (!isArSupported()) return;
   try {
     const args: UpdateTextureArgs = { base64 };
-    await invoke("plugin:TavernAr|update_character_texture", args);
+    await invoke("plugin:tavern-ar|update_character_texture", args);
   } catch (err) {
-    console.warn("[TavernAr] updateCharacterTexture failed:", err);
+    logger.warn("updateCharacterTexture failed", { error: err });
   }
 }
 
@@ -149,9 +152,9 @@ export async function updateRenderState(
   if (!isArSupported()) return;
   try {
     const args: UpdateRenderStateArgs = { emotion, light1, light2 };
-    await invoke("plugin:TavernAr|update_render_state", args);
+    await invoke("plugin:tavern-ar|update_render_state", args);
   } catch (err) {
-    console.warn("[TavernAr] updateRenderState failed:", err);
+    logger.warn("updateRenderState failed", { error: err });
   }
 }
 
@@ -163,9 +166,9 @@ export async function updateChatBubble(text: string): Promise<void> {
   if (!isArSupported()) return;
   try {
     const args: UpdateChatBubbleArgs = { text };
-    await invoke("plugin:TavernAr|update_chat_bubble", args);
+    await invoke("plugin:tavern-ar|update_chat_bubble", args);
   } catch (err) {
-    console.warn("[TavernAr] updateChatBubble failed:", err);
+    logger.warn("updateChatBubble failed", { error: err });
   }
 }
 
@@ -181,9 +184,9 @@ export async function setGestureRecognition(enabled: boolean): Promise<void> {
   if (!isArSupported()) return;
   try {
     const args: SetGestureRecognitionArgs = { enabled };
-    await invoke("plugin:TavernAr|set_gesture_recognition", args);
+    await invoke("plugin:tavern-ar|set_gesture_recognition", args);
   } catch (err) {
-    console.warn("[TavernAr] setGestureRecognition failed:", err);
+    logger.warn("setGestureRecognition failed", { error: err });
   }
 }
 
@@ -194,10 +197,10 @@ export async function setGestureRecognition(enabled: boolean): Promise<void> {
 export async function checkGestureRecognitionReady(): Promise<boolean> {
   if (!isArSupported()) return false;
   try {
-    const result = await invoke<{ ready: boolean }>("plugin:TavernAr|check_gesture_recognition_ready");
+    const result = await invoke<{ ready: boolean }>("plugin:tavern-ar|check_gesture_recognition_ready");
     return result?.ready ?? false;
   } catch (err) {
-    console.warn("[TavernAr] checkGestureRecognitionReady failed:", err);
+    logger.warn("checkGestureRecognitionReady failed", { error: err });
     return false;
   }
 }
@@ -206,7 +209,7 @@ export async function checkGestureRecognitionReady(): Promise<boolean> {
  * 监听 AR 手势事件。
  *
  * Tauri plugin event 命名规则：`plugin:<plugin-name>://<event-name>`
- * ArPlugin.emit("ar-gesture", data) 会在前端产生 `plugin:TavernAr://ar-gesture` 事件。
+ * ArPlugin.emit("ar-gesture", data) 会在前端产生 `plugin:tavern-ar://ar-gesture` 事件。
  *
  * @param callback 手势事件回调
  * @returns 取消监听的函数
@@ -222,11 +225,11 @@ export function listenArGestureEvent(
     try {
       const { listen } = await import("@tauri-apps/api/event");
       if (cancelled) return;
-      unlisten = await listen<GestureEventPayload>("plugin:TavernAr://ar-gesture", (e) => {
+      unlisten = await listen<GestureEventPayload>("plugin:tavern-ar://ar-gesture", (e) => {
         callback(e.payload);
       });
     } catch (err) {
-      console.warn("[TavernAr] listenArGestureEvent failed:", err);
+      logger.warn("listenArGestureEvent failed", { error: err });
     }
   })();
 

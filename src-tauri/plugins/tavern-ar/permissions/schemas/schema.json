@@ -391,10 +391,10 @@
           "markdownDescription": "Denies the update_render_state command without any pre-configured scope."
         },
         {
-          "description": "Default permission set for the tavern-ar plugin. Allows the frontend to check ARCore availability, launch/close the AR Activity, and push character texture / render state / chat bubble updates.\n#### This default permission set includes:\n\n- `allow-check-ar-availability`\n- `allow-launch-ar`\n- `allow-close-ar`\n- `allow-update-character-texture`\n- `allow-update-render-state`\n- `allow-update-chat-bubble`",
+          "description": "Default permission set for the tavern-ar plugin. Allows the frontend to check ARCore availability, launch/close the AR Activity, and push character texture / render state / chat bubble updates.\n#### This default permission set includes:\n\n- `allow-check-ar-availability`\n- `allow-launch-ar`\n- `allow-close-ar`\n- `allow-update-character-texture`\n- `allow-update-render-state`\n- `allow-update-chat-bubble`\n- `allow-check-gesture-recognition-ready`\n- `allow-set-gesture-recognition`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permission set for the tavern-ar plugin. Allows the frontend to check ARCore availability, launch/close the AR Activity, and push character texture / render state / chat bubble updates.\n#### This default permission set includes:\n\n- `allow-check-ar-availability`\n- `allow-launch-ar`\n- `allow-close-ar`\n- `allow-update-character-texture`\n- `allow-update-render-state`\n- `allow-update-chat-bubble`"
+          "markdownDescription": "Default permission set for the tavern-ar plugin. Allows the frontend to check ARCore availability, launch/close the AR Activity, and push character texture / render state / chat bubble updates.\n#### This default permission set includes:\n\n- `allow-check-ar-availability`\n- `allow-launch-ar`\n- `allow-close-ar`\n- `allow-update-character-texture`\n- `allow-update-render-state`\n- `allow-update-chat-bubble`\n- `allow-check-gesture-recognition-ready`\n- `allow-set-gesture-recognition`"
         }
       ]
     }

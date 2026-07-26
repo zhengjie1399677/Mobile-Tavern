@@ -50,12 +50,20 @@ export default function MainLayout() {
     showSplash,
     safeAreas,
     settings,
+    runningPlugin,
+    charModalOpen,
+    timelineModalOpen,
+    showSessionManager,
   } = useUnifiedApp((state) => ({
     activeTab: state.activeTab,
     setActiveTab: state.setActiveTab,
     showSplash: state.showSplash,
     safeAreas: state.safeAreas,
     settings: state.settings,
+    runningPlugin: state.runningPlugin,
+    charModalOpen: state.charModalOpen,
+    timelineModalOpen: state.timelineModalOpen,
+    showSessionManager: state.showSessionManager,
   }));
   const { t } = useTranslation();
   // Suspense 在新的懒加载页就绪前继续渲染上一个已完成页面，避免快速分包加载时
@@ -208,14 +216,26 @@ export default function MainLayout() {
         <UpdatePrompt />
 
         {/* 4. Global Cat Mascot (Only displayed on lists/settings, unmounted in chat rooms) */}
-        {activeTab !== "chat" && activeTab !== "playground" && activeTab !== "settings" && <FloatingCat />}
+        {activeTab !== "chat" &&
+          activeTab !== "playground" &&
+          activeTab !== "settings" &&
+          !runningPlugin &&
+          !charModalOpen &&
+          !timelineModalOpen &&
+          !showSessionManager && <FloatingCat />}
 
         {/* 5. Floating Character Assistant (current character card pet mode)
             受 settings.enableFloatingCharacter 控制，全 Tab 可见（聊天页除外避免遮挡立绘），
             订阅 CharacterRenderService 实时同步情绪与立绘。 */}
-        {settings?.enableFloatingCharacter && activeTab !== "chat" && activeTab !== "playground" && (
-          <FloatingCharacter enabled={true} />
-        )}
+        {settings?.enableFloatingCharacter &&
+          activeTab !== "chat" &&
+          activeTab !== "playground" &&
+          !runningPlugin &&
+          !charModalOpen &&
+          !timelineModalOpen &&
+          !showSessionManager && (
+            <FloatingCharacter enabled={true} />
+          )}
       </div>
     </PromptWorkbenchFocusProvider>
   );
