@@ -287,6 +287,8 @@ export class DatabaseService implements IDatabaseService {
       lastSummarizedMessageId,
       variables: sourceSession.variables ? { ...sourceSession.variables } : undefined,
       tableMemory: sourceSession.tableMemory ? sourceSession.tableMemory.map(s => ({ ...s })) : undefined,
+      parentSessionId: sourceSession.id,
+      parentMessageId: msgId,
     };
     await this.saveSession(newSession);
     // saveSession 只存元数据，初始消息需显式同步到 messages Store

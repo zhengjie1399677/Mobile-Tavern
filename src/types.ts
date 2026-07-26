@@ -105,6 +105,8 @@ export interface ChatSession {
   mutedMessageIds?: string[]; // IDs of messages muted from recall list
   turnCount?: number; // Cached count of turns (computed from user messages)
   charCount?: number; // Cached count of total characters in messages
+  parentSessionId?: string; // Parent session ID if this session was branched
+  parentMessageId?: string; // Message ID at which this session split off from parent
 }
 
 export type ApiType = "openai-compat" | "openai" | "anthropic";
