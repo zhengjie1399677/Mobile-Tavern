@@ -44,7 +44,52 @@ if (isCI || hasGenerateIconsFlag) {
     console.error('Failed to run decode_icon.cjs script:', err.message);
   }
 } else {
-  console.log('Local build: Skipping launcher icon regeneration to preserve pre-optimized adaptive icons (run with --generate-icons to force regenerate).');
+  console.log('Local build: Skipping launcher icon regeneration. Syncing pre-optimized adaptive icons to native Android res directory...');
+  try {
+    const srcIconsDir = path.join(__dirname, '..', 'src-tauri', 'icons', 'android');
+    const destResDir = path.join(__dirname, '..', 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'res');
+    
+    function copyDirRecursive(src, dest) {
+      if (!fs.existsSync(src)) return;
+      if (!fs.existsSync(dest)) {
+        fs.mkdirSync(dest, { recursive: true });
+      }
+      const entries = fs.readdirSync(src, { withFileTypes: true });
+      for (const entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+        if (entry.isDirectory()) {
+          copyDirRecursive(srcPath, destPath);
+        } else {
+          if (entry.name.startsWith('ic_launcher')) {
+            fs.copyFileSync(srcPath, destPath);
+          }
+        }
+      }
+    }
+
+    if (fs.existsSync(srcIconsDir) && fs.existsSync(destResDir)) {
+      const subdirs = [
+        'mipmap-anydpi-v26',
+        'mipmap-hdpi',
+        'mipmap-mdpi',
+        'mipmap-xhdpi',
+        'mipmap-xxhdpi',
+        'mipmap-xxxhdpi',
+        'values'
+      ];
+      for (const dir of subdirs) {
+        const srcSub = path.join(srcIconsDir, dir);
+        const destSub = path.join(destResDir, dir);
+        copyDirRecursive(srcSub, destSub);
+      }
+      console.log('✅ Pre-optimized adaptive icons successfully synced to native Android res.');
+    } else {
+      console.warn('⚠️ Source or destination res directory not found during local icon sync.');
+    }
+  } catch (err) {
+    console.error('Failed to sync icons to Android res:', err.message);
+  }
 }
 
 // Clean Gradle cache to prevent stale resource caching of old icons
