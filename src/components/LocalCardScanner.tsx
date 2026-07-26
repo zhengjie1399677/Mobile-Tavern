@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { FolderSearch, X, Search, FileJson, Image, Loader2, ShieldAlert, CheckCircle } from "lucide-react";
+import { FolderSearch, X, Search, FileJson, Image, Loader2, ShieldAlert, CheckCircle, ArrowDownUp, ArrowUp, ArrowDown } from "lucide-react";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
@@ -39,6 +39,10 @@ interface ScannedFile {
   lastModified: number;
 }
 
+// 排序模式与方向
+type SortMode = "time" | "size" | "name";
+type SortDirection = "asc" | "desc";
+
 interface LocalCardScannerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -56,6 +60,9 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
   const [scannedFiles, setScannedFiles] = useState<ScannedFile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [importingPath, setImportingPath] = useState<string | null>(null);
+  // 默认按时间降序（最新在前），与历史排序行为一致
+  const [sortMode, setSortMode] = useState<SortMode>("time");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   // 检测是否为 Android 运行环境
   useEffect(() => {
@@ -77,8 +84,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
       try {
         const jsonStr = bridge.scanGlobalCards();
         const files: ScannedFile[] = JSON.parse(jsonStr || "[]");
-        // 按最后修改时间降序排序（最新放在前面）
-        files.sort((a, b) => b.lastModified - a.lastModified);
+        // 排序交由 filteredFiles useMemo 统一处理，避免与用户切换的排序模式冲突
         setScannedFiles(files);
       } catch (err: any) {
         showCustomAlert(t("scanner.scan_failed") + err.message);
@@ -222,12 +228,27 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
     }
   };
 
-  // 搜索关键字过滤
+  // 搜索关键字过滤 + 排序
   const filteredFiles = useMemo(() => {
-    if (!searchQuery.trim()) return scannedFiles;
-    const query = searchQuery.toLowerCase();
-    return scannedFiles.filter((f) => f.name.toLowerCase().includes(query));
-  }, [scannedFiles, searchQuery]);
+    const query = searchQuery.trim().toLowerCase();
+    const list = query
+      ? scannedFiles.filter((f) => f.name.toLowerCase().includes(query))
+      : [...scannedFiles];
+    const dir = sortDirection === "asc" ? 1 : -1;
+    list.sort((a, b) => {
+      let cmp = 0;
+      if (sortMode === "time") {
+        cmp = a.lastModified - b.lastModified;
+      } else if (sortMode === "size") {
+        cmp = a.size - b.size;
+      } else {
+        // name: 按文件名 localeCompare，自然语言排序更友好
+        cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+      }
+      return cmp * dir;
+    });
+    return list;
+  }, [scannedFiles, searchQuery, sortMode, sortDirection]);
 
   // 格式化文件大小
   const formatSize = (bytes: number) => {
@@ -341,6 +362,49 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-2.5 py-1.5 bg-input border border-border rounded-lg text-[11px] text-foreground outline-none focus:border-primary transition"
               />
+            </div>
+          )}
+
+          {/* 排序切换行：仅在有扫描结果时显示 */}
+          {scannedFiles.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1 text-[10px] text-muted-foreground/80 shrink-0">
+                <ArrowDownUp className="w-3 h-3" />
+                <span>{t("scanner.sort_label")}</span>
+              </span>
+              <div className="flex items-center gap-1 flex-1">
+                {(["time", "size", "name"] as const).map((mode) => {
+                  const active = sortMode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setSortMode(mode)}
+                      className={`px-2 py-1 rounded-md text-[10px] font-medium border transition active:scale-95 ${
+                        active
+                          ? "bg-primary/15 border-primary/50 text-primary"
+                          : "bg-background border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      {t(`scanner.sort_by_${mode}`)}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSortDirection((d) => (d === "asc" ? "desc" : "asc"))}
+                aria-label={sortDirection === "asc" ? t("scanner.sort_desc") : t("scanner.sort_asc")}
+                title={sortDirection === "asc" ? t("scanner.sort_desc") : t("scanner.sort_asc")}
+                className="ml-auto px-2 py-1 rounded-md text-[10px] font-medium border bg-background border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition active:scale-95 flex items-center gap-1 shrink-0"
+              >
+                {sortDirection === "asc" ? (
+                  <ArrowUp className="w-3 h-3" />
+                ) : (
+                  <ArrowDown className="w-3 h-3" />
+                )}
+                <span>{sortDirection === "asc" ? t("scanner.sort_asc") : t("scanner.sort_desc")}</span>
+              </button>
             </div>
           )}
         </div>

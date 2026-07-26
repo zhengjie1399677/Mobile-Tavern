@@ -452,6 +452,12 @@ export default {
   "scanner.file_meta": "크기: {size} | 수정 시간: {date}",
   "scanner.importing": "가져오는 중",
   "scanner.import": "가져오기",
+  "scanner.sort_label": "정렬",
+  "scanner.sort_by_time": "시간",
+  "scanner.sort_by_size": "크기",
+  "scanner.sort_by_name": "이름",
+  "scanner.sort_asc": "오름차순",
+  "scanner.sort_desc": "내림차순",
 
   "quick_dialogue.copy": "복사",
   "quick_dialogue.edit": "편집",
