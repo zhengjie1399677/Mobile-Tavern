@@ -31,7 +31,8 @@ tauri-plugin-android-bridge = { path = "./plugins/android-bridge" }
 # Local plugin that provides real ARCore spatial anchoring for character
 # cards, running in a full-screen Android Activity (billboard + shadow +
 # AR lighting + procedural micro-animation + chat bubble).
-tauri-plugin-tavern-ar = { path = "./plugins/tavern-ar" }
+# 暂缓上线：在此注释以彻底从打包中剥离相机敏感权限。需要本地测试 AR 时请解开此注释。
+# tauri-plugin-tavern-ar = { path = "./plugins/tavern-ar" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 chrono = { version = "0.4", features = ["serde"] }
 hmac = "0.12"

@@ -26,7 +26,8 @@ pub fn run() {
         // estimation + OES camera background + billboard + shadow + chat
         // bubble); on other platforms it is a no-op so the desktop dev server
         // keeps compiling.
-        .plugin(tauri_plugin_tavern_ar::init())
+        // 暂缓上线：在此注释以彻底从打包中剥离相机敏感权限。需要本地测试 AR 时请解开此注释。
+        // .plugin(tauri_plugin_tavern_ar::init())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

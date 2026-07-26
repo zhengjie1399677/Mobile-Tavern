@@ -32,12 +32,19 @@ try {
   process.exit(1);
 }
 
-// Generate and sync launcher icons
-console.log('Generating and syncing launcher icons...');
-try {
-  execSync('node scripts/decode_icon.cjs', { stdio: 'inherit', shell: true });
-} catch (err) {
-  console.error('Failed to run decode_icon.cjs script:', err.message);
+const isCI = process.env.CI === 'true';
+
+// Generate and sync launcher icons (skipped on local builds unless --generate-icons is passed, protecting pre-optimized icons from stretching when Python is missing)
+const hasGenerateIconsFlag = process.argv.includes('--generate-icons');
+if (isCI || hasGenerateIconsFlag) {
+  console.log('Generating and syncing launcher icons...');
+  try {
+    execSync('node scripts/decode_icon.cjs', { stdio: 'inherit', shell: true });
+  } catch (err) {
+    console.error('Failed to run decode_icon.cjs script:', err.message);
+  }
+} else {
+  console.log('Local build: Skipping launcher icon regeneration to preserve pre-optimized adaptive icons (run with --generate-icons to force regenerate).');
 }
 
 // Clean Gradle cache to prevent stale resource caching of old icons
@@ -50,7 +57,6 @@ try {
   console.warn('⚠️ Gradle clean failed, proceeding anyway:', err.message);
 }
 
-const isCI = process.env.CI === 'true';
 const maxRetries = isCI ? 5 : 3;
 const retryDelayMs = isCI ? 15000 : 5000;
 
