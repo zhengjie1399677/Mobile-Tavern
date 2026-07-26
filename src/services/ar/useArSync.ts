@@ -111,8 +111,6 @@ export function useArSync({ activeSession }: UseArSyncArgs): UseArSyncResult {
       setIsArAvailable(false);
       return;
     }
-    // 调试与国内机型适配：在 Android 环境下强制开启 AR 入口，防止因缺少 Google 商店等原因被误判为 unsupported
-    setIsArAvailable(true);
 
     // 异步检查 ARCore 安装状态
     let cancelled = false;
@@ -129,6 +127,7 @@ export function useArSync({ activeSession }: UseArSyncArgs): UseArSyncResult {
       if (!cancelled) {
         logger.warn("checkArAvailability final status: " + status);
         reportUsage("ar_availability_status", { status });
+        setIsArAvailable(status === "supported-installed");
       }
     })();
     return () => {

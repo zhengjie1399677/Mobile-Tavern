@@ -141,10 +141,9 @@ class ArPlugin(private val activity: Activity) : Plugin(activity) {
      * 必须使用 @ActivityCallback 注解，且方法签名匹配 Tauri 期望的回调契约。
      */
     @ActivityCallback
-    fun onCameraPermissionResult(invoke: Invoke, grantResults: IntArray) {
-        val granted = grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
+    fun onCameraPermissionResult(invoke: Invoke) {
         activity.runOnUiThread {
-            if (granted) {
+            if (hasCameraPermission()) {
                 try {
                     startArActivity()
                     invoke.resolve()

@@ -67,6 +67,7 @@ class ArActivity : AppCompatActivity() {
     private var gestureRecognitionEnabled = false
 
     private val mainHandler = Handler(android.os.Looper.getMainLooper())
+    private var arCheckRetries = 0
 
     // ─── 生命周期 ──────────────────────────────────────────────────────────
 
@@ -137,6 +138,7 @@ class ArActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         mainHandler.removeCallbacksAndMessages(null)
+        arCheckRetries = 0
         session?.pause()
         glSurfaceView?.onPause()
     }
@@ -172,22 +174,21 @@ class ArActivity : AppCompatActivity() {
     private fun resumeArSession() {
         Log.i(TAG, "resumeArSession called, session is null: ${session == null}")
         if (session == null) {
-            // 检查 ARCore 可用性 + 引导安装
             val availability = ArCoreApk.getInstance().checkAvailability(this)
             Log.i(TAG, "resumeArSession: checkAvailability status is: $availability")
-            when {
-                availability.isTransient -> {
-                    Log.i(TAG, "ARCore checkAvailability is transient, retrying in 500ms...")
+            
+
+
+            if (availability.isTransient) {
+                if (arCheckRetries < 3) {
+                    arCheckRetries++
+                    Log.i(TAG, "ARCore checkAvailability is transient (attempt $arCheckRetries), retrying in 500ms...")
                     mainHandler.postDelayed({
                         resumeArSession()
                     }, 500)
                     return
-                }
-                !availability.isSupported -> {
-                    Log.w(TAG, "ARCore is unsupported on this device")
-                    Toast.makeText(this, "此设备不支持 ARCore", Toast.LENGTH_LONG).show()
-                    finish()
-                    return
+                } else {
+                    Log.w(TAG, "ARCore checkAvailability is STILL transient after 3 attempts. Bypassing check...")
                 }
             }
 
@@ -218,7 +219,7 @@ class ArActivity : AppCompatActivity() {
                 Log.i(TAG, "resumeArSession: ARCore Session created successfully")
             } catch (e: UnavailableArcoreNotInstalledException) {
                 Log.e(TAG, "ARCore not installed", e)
-                Toast.makeText(this, "请先安装 ARCore", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "未检测到 ARCore，请先下载安装 Google Play AR 服务", Toast.LENGTH_LONG).show()
                 finish()
                 return
             } catch (e: UnavailableApkTooOldException) {
@@ -232,7 +233,7 @@ class ArActivity : AppCompatActivity() {
                 return
             } catch (e: UnavailableDeviceNotCompatibleException) {
                 Log.e(TAG, "Device not compatible", e)
-                Toast.makeText(this, "设备不兼容 ARCore", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "此设备硬件不支持 AR 功能", Toast.LENGTH_LONG).show()
                 finish()
                 return
             }
