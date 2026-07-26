@@ -81,8 +81,8 @@ export function isArSupported(): boolean {
 export async function checkArAvailability(): Promise<ArAvailability> {
   if (!isArSupported()) return "unsupported";
   try {
-    const result = await invoke<ArAvailability>("plugin:TavernAr|check_ar_availability");
-    return result;
+    const result = await invoke<{ availability: ArAvailability }>("plugin:TavernAr|check_ar_availability");
+    return result?.availability ?? "unknown";
   } catch (err) {
     console.warn("[TavernAr] checkArAvailability failed:", err);
     return "unknown";

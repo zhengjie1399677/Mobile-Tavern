@@ -211,7 +211,8 @@ class ArRenderer(private val context: Context) : GLSurfaceView.Renderer {
             if (gestureFrameCounter % gestureFrameInterval == 0) {
                 try {
                     val cameraImage = currentFrame.acquireCameraImage()
-                    val rotation = session?.displayRotation ?: 0
+                    val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+                    val rotation = windowManager.defaultDisplay.rotation
                     callback.onCameraFrameAvailable(cameraImage, rotation)
                 } catch (e: Exception) {
                     // acquireCameraImage 偶尔失败（帧被占用），静默忽略
@@ -235,8 +236,16 @@ class ArRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (anchor != null && anchor.trackingState == TrackingState.TRACKING) {
             // 计算光照
             val lightIntensity = currentFrame.lightEstimate?.pixelIntensity ?: 1.0f
-            val lightColor = currentFrame.lightEstimate?.colorCorrection
-                ?: floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f)
+            val lightColor = FloatArray(4)
+            val estimate = currentFrame.lightEstimate
+            if (estimate != null && estimate.state == com.google.ar.core.LightEstimate.State.VALID) {
+                estimate.getColorCorrection(lightColor, 0)
+            } else {
+                lightColor[0] = 1.0f
+                lightColor[1] = 1.0f
+                lightColor[2] = 1.0f
+                lightColor[3] = 1.0f
+            }
 
             drawShadow(anchor, lightIntensity)
             drawCharacter(anchor, currentFrame.camera, lightIntensity, lightColor)
@@ -388,14 +397,16 @@ class ArRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (backgroundTextureId < 0) return
 
         // 处理 display rotation 变化（屏幕旋转）
-        if (frame.hasDisplayRotationChanged()) {
+        if (frame.hasDisplayGeometryChanged()) {
             // ARCore 内部已更新 texture transform，无需额外操作
         }
 
-        // 计算 UV 变换矩阵：把 [-0.5,0.5] 的 quad 坐标映射到 OES 纹理
+        // 计算 UV 变换矩阵：把 [-0.5,0.5] 的 quad 坐标映射 to OES 纹理
         // ARCore 提供的 transformDisplayUvCoords 接受 normalized [0,1] UV
-        val originalUvs = quadTexCoords
-        val transformedUvs = FloatArray(originalUvs.size)
+        val originalUvs = quadTexCoords.toFloatBuffer()
+        val transformedUvs = java.nio.ByteBuffer.allocateDirect(quadTexCoords.size * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+            .asFloatBuffer()
         frame.transformDisplayUvCoords(originalUvs, transformedUvs)
 
         GLES20.glDepthMask(false)
@@ -414,7 +425,7 @@ class ArRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         val texCoordLoc = GLES20.glGetAttribLocation(backgroundProgram, "a_TexCoord")
         GLES20.glEnableVertexAttribArray(texCoordLoc)
-        GLES20.glVertexAttribPointer(texCoordLoc, TEX_COORDS_PER_VERTEX, GLES20.GL_FLOAT, false, 0, transformedUvs.toFloatBuffer())
+        GLES20.glVertexAttribPointer(texCoordLoc, TEX_COORDS_PER_VERTEX, GLES20.GL_FLOAT, false, 0, transformedUvs)
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, backgroundTextureId)

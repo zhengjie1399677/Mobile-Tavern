@@ -119,7 +119,7 @@ describe("TavernArBridge — Android 环境 invoke 路由", () => {
   afterEach(() => clearAndroidEnv());
 
   it("checkArAvailability 调用 plugin:TavernAr|check_ar_availability", async () => {
-    mockInvoke.mockResolvedValueOnce("supported-installed");
+    mockInvoke.mockResolvedValueOnce({ availability: "supported-installed" });
     const result = await checkArAvailability();
     expect(result).toBe("supported-installed");
     expect(mockInvoke).toHaveBeenCalledWith("plugin:TavernAr|check_ar_availability");

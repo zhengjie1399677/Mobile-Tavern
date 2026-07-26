@@ -90,14 +90,18 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
       }
     };
 
+    // 挂载时同步一次状态（恢复朗读指示）；仅当本条消息正在朗读时才启动轮询，
+    // 避免虚拟列表下 N 个 QuickDialogueOptions 同时每秒调用 isSpeakingNative
     checkSpeaking();
-    timer = setInterval(checkSpeaking, 1000);
+    if (isSpeakingThis) {
+      timer = setInterval(checkSpeaking, 1000);
+    }
 
     return () => {
       active = false;
       if (timer) clearInterval(timer);
     };
-  }, [message.id]);
+  }, [message.id, isSpeakingThis]);
 
   React.useEffect(() => {
     if (!showMore) return;

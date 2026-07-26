@@ -101,3 +101,11 @@ Set-Location "D:\projects\Mobile-Tavern\src-tauri\gen\android"
 - `Unable to create daemon log file`：确认 `GRADLE_USER_HOME` 为可写目录。
 - `rustBuildArm64Debug FAILED`：确认 Rust 目标已安装，或按上面的符号链接兜底流程复制 `.so` 后跳过 Rust Gradle 任务。
 - 热重载白屏：检查 `3000`、`24678` 反向映射、残留监听进程与 TUN 代理。
+- `Unable to find your web assets` (Windows 构建环境)：由于 Windows `cmd.exe` 处理批处理命令链时的固有缺陷，导致 `npm run build:examples && vite build` 中的前端编译被静默截断未运行。解决方案是先手动在工作区运行 `npx vite build` 导出静态资源，再将 `tauri.conf.json` 中的 `beforeBuildCommand` 临时修改为 `"echo skip"` 避开该命令链。构建成功后还原配置。
+- `:tauri-plugin-tavern-ar:compileDebugKotlin FAILED`：AR 插件编译因 ARCore SDK API 不匹配而失败。关键修复点：
+  1. Tauri v2 Android 插件向前端发送事件必须使用 `trigger("event-name", data)`，不得使用 `emit`。
+  2. 获取屏幕物理旋转需要调用 WindowManager：`(context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation`。
+  3. 获取色温需调用 `getColorCorrection(lightColor, 0)`，而非直接读取属性。
+  4. 检查屏幕几何改变需调用 `frame.hasDisplayGeometryChanged()`。
+  5. `transformDisplayUvCoords` 接收的是 `FloatBuffer`，必须通过 `ByteBuffer.allocateDirect` 分配原生 Buffer，不得直接传入未转换的 `FloatArray`，以防止渲染 UV 发生拉伸白屏或类型不匹配。
+

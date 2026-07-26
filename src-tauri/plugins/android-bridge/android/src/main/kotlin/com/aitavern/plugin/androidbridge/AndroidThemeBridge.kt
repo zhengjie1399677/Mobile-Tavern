@@ -157,6 +157,9 @@ class AndroidThemeBridge(
 
     @JavascriptInterface
     fun isSpeakingNative(): Boolean {
+        // TTS 引擎未成功初始化时直接返回 false，
+        // 避免调用 tts?.isSpeaking 触发 "not bound to TTS engine" 警告刷屏
+        if (!ttsInitialized) return false
         return tts?.isSpeaking ?: false
     }
 

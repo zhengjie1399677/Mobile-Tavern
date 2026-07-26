@@ -262,7 +262,7 @@ class ArPlugin(private val activity: Activity) : Plugin(activity) {
                 put("pinchDistance", event.pinchDistance.toDouble())
             }
             // Tauri plugin event：event 名为 "ar-gesture"，前端通过 listen("plugin:TavernAr://ar-gesture") 监听
-            emit("ar-gesture", data)
+            trigger("ar-gesture", data)
         } catch (e: Exception) {
             Log.w(TAG, "emitGestureEvent failed", e)
         }

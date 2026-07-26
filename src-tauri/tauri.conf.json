@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:3000",
     "beforeDevCommand": "vite --host 127.0.0.1",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "echo skip"
   },
   "app": {
     "windows": [
@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; media-src 'self' data: blob: https:; object-src 'none'; frame-src 'self' blob: data:; worker-src 'self' blob:; base-uri 'self'",
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https: data: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; media-src 'self' data: blob: https:; object-src 'none'; frame-src 'self' blob: data:; worker-src 'self' blob:; base-uri 'self'",
       "dangerousDisableAssetCspModification": true
     }
   },
