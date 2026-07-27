@@ -52,6 +52,11 @@ export interface AndroidThemeBridge {
    *   message on failure.
    */
   saveFileBase64(fileName: string, base64Data: string, mimeType: string): string;
+  /**
+   * Writes, reads, verifies, and removes a native temporary export file.
+   * @returns `"OK"` on success, or an `error:`-prefixed message on failure.
+   */
+  verifyFileIo(): string;
   /** Opens a URL in the system default browser. */
   openUrl(url: string): void;
   /** Plays native Android TTS speech synthesis. */

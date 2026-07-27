@@ -109,7 +109,7 @@ export function useSendMessage(p: SendMessageParams) {
 
       // isSendingRef 是发送与重发共享的同步事务锁；React state 仅负责 UI 展示。
       // streamingMessageId 只覆盖流式阶段，不能用于推断提示词构建或持久化阶段是否空闲。
-      if (p.isSending || p.isSendingRef.current) {
+      if (p.isSendingRef.current) {
         return;
       }
 

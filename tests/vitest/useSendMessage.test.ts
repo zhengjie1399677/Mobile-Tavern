@@ -139,6 +139,25 @@ describe("useSendMessage 弱网与中止事务", () => {
     );
   }
 
+  it("事务锁已释放但 React 展示状态仍滞后时继续调用 LLM", async () => {
+    silenceConsole();
+    const harness = createHarness(async function* () {
+      yield { choices: [{ delta: { content: "正常回复" } }] };
+    });
+    harness.params.isSending = true;
+    harness.isSendingRef.current = false;
+    const { result } = renderHook(() => useSendMessage(harness.params));
+
+    await act(async () => {
+      await result.current.handleSendMessage("紧接上一轮发送");
+    });
+
+    expect(harness.params.chatStreamService.streamLlmResponse).toHaveBeenCalledTimes(1);
+    expect(harness.queueUserMessage).toHaveBeenCalledTimes(1);
+    expect(harness.getSessions()[0].messages.at(-1)?.content).toBe("正常回复");
+    expect(harness.isSendingRef.current).toBe(false);
+  });
+
   it("首包失败时移除占位符但只保留一条用户消息，供显式重发", async () => {
     silenceConsole();
     const harness = createHarness(async function* () {

@@ -604,6 +604,82 @@ class AndroidThemeBridge(
     }
 
     /**
+     * Verifies the native export IO path without leaving a diagnostic file in
+     * the user's Download directory.
+     *
+     * The public save methods intentionally return a user-facing relative
+     * path, which is not a valid input for [readLocalFile]. This dedicated
+     * probe keeps the MediaStore URI (or legacy File) internally, reads the
+     * exact bytes back, and removes the temporary entry before returning.
+     */
+    @JavascriptInterface
+    fun verifyFileIo(): String {
+        val payload = "MobileTavernDiag:${System.currentTimeMillis()}".toByteArray(Charsets.UTF_8)
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                verifyMediaStoreFileIo(payload)
+            } else {
+                verifyLegacyFileIo(payload)
+            }
+            "OK"
+        } catch (e: Exception) {
+            Log.e(TAG, "Native file IO verification failed", e)
+            "error:${e.message ?: "Unknown file IO verification error"}"
+        }
+    }
+
+    private fun verifyMediaStoreFileIo(payload: ByteArray) {
+        val resolver = activity.contentResolver
+        var uri: Uri? = null
+        try {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, ".mobile_tavern_io_probe_${System.currentTimeMillis()}.tmp")
+                put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, DOWNLOAD_RELATIVE_SUBDIR)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+            }
+            uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("Failed to create temporary MediaStore entry")
+            resolver.openOutputStream(uri, "w")?.use { stream ->
+                stream.write(payload)
+                stream.flush()
+            } ?: throw IllegalStateException("Failed to open temporary MediaStore output stream")
+
+            val restored = resolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: throw IllegalStateException("Failed to open temporary MediaStore input stream")
+            if (!restored.contentEquals(payload)) {
+                throw IllegalStateException("Temporary MediaStore content mismatch")
+            }
+        } finally {
+            uri?.let { runCatching { resolver.delete(it, null, null) } }
+        }
+    }
+
+    private fun verifyLegacyFileIo(payload: ByteArray) {
+        val downloadDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            "Mobile Tavern"
+        )
+        if (!downloadDir.exists() && !downloadDir.mkdirs()) {
+            throw IllegalStateException("Failed to create Download/Mobile Tavern directory")
+        }
+        val file = File(downloadDir, ".mobile_tavern_io_probe_${System.currentTimeMillis()}.tmp")
+        try {
+            FileOutputStream(file).use { stream ->
+                stream.write(payload)
+                stream.flush()
+            }
+            if (!file.readBytes().contentEquals(payload)) {
+                throw IllegalStateException("Temporary legacy file content mismatch")
+            }
+        } finally {
+            runCatching { file.delete() }
+        }
+    }
+
+    /**
      * Shared implementation for [saveFile] / [saveFileBase64].
      *
      * On Android 10+ (API 29+) the file is written through

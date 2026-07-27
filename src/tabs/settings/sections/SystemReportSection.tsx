@@ -22,6 +22,7 @@ interface AndroidThemeBridge {
   setStatusBarStyle?: (isDark: boolean, color: string) => void;
   saveFile?: (fileName: string, content: string) => string;
   saveFileBase64?: (fileName: string, base64Data: string, mimeType: string) => string;
+  verifyFileIo?: () => string;
   openUrl?: (url: string) => void;
   speakNative?: (text: string) => void;
   stopNative?: () => void;
@@ -292,7 +293,7 @@ export default function SystemReportSection({
       // 关键方法完整性检查（含新增的 getActiveInputMethod）
       const criticalBridgeMethods = [
         "getSafeAreas", "setStatusBarStyle",
-        "saveFile", "saveFileBase64", "openUrl",
+        "saveFile", "saveFileBase64", "verifyFileIo", "openUrl",
         "speakNative", "stopNative", "isSpeakingNative",
         "getActiveInputMethod"
       ];
@@ -368,28 +369,21 @@ export default function SystemReportSection({
         }
       }
 
-      // 文件存取 IO 闭环验证
-      if (typeof w.AndroidThemeBridge.saveFile === "function" && typeof w.AndroidThemeBridge.readLocalFile === "function") {
+      // 原生文件存取 IO 闭环验证。由原生层持有 MediaStore URI 并负责清理临时文件，
+      // 避免将 saveFile 返回的展示路径误传给只接受受控绝对路径的 readLocalFile。
+      if (typeof w.AndroidThemeBridge.verifyFileIo === "function") {
         try {
-          const testContent = `MobileTavernDiag:${Date.now()}`;
-          const fileName = "diagnose_temp_file.txt";
-          const savedPath = w.AndroidThemeBridge.saveFile(fileName, testContent);
-          if (savedPath.startsWith("error:")) {
-            log(`File IO ERROR: saveFile returned error status (${savedPath})`);
+          const result = w.AndroidThemeBridge.verifyFileIo();
+          if (result.startsWith("error:")) {
+            log(`File IO ERROR: native loopcheck failed (${result})`);
           } else {
-            log(`File IO (Save): OK, path = ${savedPath}`);
-            const readContent = w.AndroidThemeBridge.readLocalFile(savedPath);
-            if (readContent.startsWith("error:")) {
-              log(`File IO ERROR: readLocalFile returned error status (${readContent})`);
-            } else if (readContent === testContent) {
-              log(`File IO (Read & Verify): OK (integrity verified)`);
-            } else {
-              log(`File IO ERROR: content mismatch! saved "${testContent}" but read "${readContent}"`);
-            }
+            log(`File IO (Write, Read, Verify & Cleanup): OK`);
           }
         } catch (err: any) {
           log(`File IO Loopcheck error`, err);
         }
+      } else {
+        log(`File IO WARNING: verifyFileIo unavailable (native bridge update required).`);
       }
     } else {
       log(`WARNING: AndroidThemeBridge undefined (Web environment / not injected).`);

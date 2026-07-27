@@ -246,6 +246,15 @@ export async function testArchitectureBoundaries(): Promise<void> {
       !androidThemeBridge.includes("ACTION_OPEN_DOCUMENT_TREE"),
     "本地角色卡扫描必须覆盖可访问的共享存储与外置卷，跳过 Android 私有数据区且不得退回失效的旧权限"
   );
+  const systemReportSection = read("src/tabs/settings/sections/SystemReportSection.tsx");
+  assert(
+    androidThemeBridge.includes("fun verifyFileIo(): String") &&
+      androidThemeBridge.includes("resolver.openInputStream(uri)") &&
+      androidThemeBridge.includes("resolver.delete(it, null, null)") &&
+      systemReportSection.includes("w.AndroidThemeBridge.verifyFileIo()") &&
+      !systemReportSection.includes("readLocalFile(savedPath)"),
+    "Android 文件 IO 系统诊断必须在原生层基于同一 MediaStore URI 完成写入、回读和清理，不能把展示路径传给本地导入接口"
+  );
 
   const androidReleaseWorkflow = read(".github/workflows/tauri-android.yml");
   assert(
