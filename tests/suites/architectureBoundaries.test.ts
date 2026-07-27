@@ -255,6 +255,14 @@ export async function testArchitectureBoundaries(): Promise<void> {
       !systemReportSection.includes("readLocalFile(savedPath)"),
     "Android 文件 IO 系统诊断必须在原生层基于同一 MediaStore URI 完成写入、回读和清理，不能把展示路径传给本地导入接口"
   );
+  const dialogueHistoryView = read("src/tabs/chat/DialogueHistoryView.tsx");
+  assert(
+    dialogueHistoryView.includes("useVirtualizer") &&
+      dialogueHistoryView.includes("lastSummarizedMessageId") &&
+      !dialogueHistoryView.includes("messagesToRender.length > 20") &&
+      !dialogueHistoryView.includes("节约内存渲染"),
+    "聊天流必须由消息分页和虚拟列表控制资源占用，只允许折叠故事年表归档消息，不能恢复固定 20 条旧折叠"
+  );
 
   const androidReleaseWorkflow = read(".github/workflows/tauri-android.yml");
   assert(

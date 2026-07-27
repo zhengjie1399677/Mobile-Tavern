@@ -89,10 +89,10 @@ const DialogueHistoryView = ({
   // 不依赖此处的 deferred 值，流式渲染判断逻辑不受影响。
   const messagesToRender = React.useDeferredValue(rawMessages);
 
-  // 历史消息折叠与总结归档。
+  // 总结归档消息折叠。
   // 当 session.lastSummarizedMessageId 存在时，将其之前的消息视为已归档（已生成 SummaryCard），
   // 默认从渲染流中折叠，用户可通过"查看故事年表"按钮在时间轴抽屉中检索。
-  // 若未设置 lastSummarizedMessageId，退回原 20 条折叠逻辑。
+  // 未归档消息不再按固定条数折叠：内存规模由消息分页控制，DOM 数量由虚拟列表控制。
   let foldedCount = 0;
   let visibleMessages = messagesToRender;
   const lastSummarizedId = activeSession?.lastSummarizedMessageId;
@@ -102,10 +102,6 @@ const DialogueHistoryView = ({
       foldedCount = archiveIndex + 1;
       visibleMessages = messagesToRender.slice(foldedCount);
     }
-  } else if (!showFullHistory && messagesToRender.length > 20) {
-    const foldIndex = messagesToRender.length - 20;
-    foldedCount = foldIndex;
-    visibleMessages = messagesToRender.slice(foldIndex);
   }
 
   // 预计算每条消息的轮次编号
@@ -208,9 +204,7 @@ const DialogueHistoryView = ({
               className="bg-muted hover:bg-muted/80 border border-border text-[10px] px-4 py-1.5 rounded-full text-muted-foreground shadow-sm flex items-center gap-1.5 transition"
             >
               <ChevronUp className="w-3 h-3" aria-hidden="true" />
-              {lastSummarizedId
-                ? `已归档 ${foldedCount} 条至故事年表，点击展开`
-                : `点击展开更早的 ${foldedCount} 条历史对话 (节约内存渲染)`}
+              {`已归档 ${foldedCount} 条至故事年表，点击展开`}
             </button>
           </div>
         )}
