@@ -19,8 +19,8 @@ import lodashGet from "lodash/get";
 import lodashSet from "lodash/set";
 import { CharacterCard, ChatSession, Message, UserSettings } from "../../types";
 import { klona } from "klona";
-import { globalKernel } from "../../kernel/Kernel";
 import type { IKernel } from "../../kernel/types";
+import { getRuntimeKernel } from "../../kernel/runtimeKernel";
 import { compare } from "compare-versions";
 import JSON5 from "json5";
 import { jsonrepair } from "jsonrepair";
@@ -92,10 +92,9 @@ export interface ITavernHelperEventEmitter {
   clearAll(): void;
 }
 
-// TODO-2: 工厂函数接收可选 kernel 参数，默认回退 globalKernel 单例。
-// 如此测试环境可传入隔离的 Mock 实例，实现物理隔离测试。
 export function createTavernHelperEventEmitter(kernel?: IKernel): ITavernHelperEventEmitter {
-  const k = kernel || globalKernel;
+  const k = kernel ?? getRuntimeKernel();
+  if (!k) throw new Error("TAVERN_HELPER_EVENT_EMITTER_KERNEL_REQUIRED");
   const subscriptions = new Map<string, Array<{ cb: any; unsub: () => void }>>();
 
   const emitter = {
@@ -202,8 +201,24 @@ export function createTavernHelperEventEmitter(kernel?: IKernel): ITavernHelperE
   return emitter;
 }
 
-// 默认导出：使用 globalKernel 创建的实例，保持向后兼容
-export const tavernHelperEventEmitter = createTavernHelperEventEmitter();
+let defaultEventEmitter: ITavernHelperEventEmitter | null = null;
+function getDefaultEventEmitter(): ITavernHelperEventEmitter {
+  if (!defaultEventEmitter) defaultEventEmitter = createTavernHelperEventEmitter();
+  return defaultEventEmitter;
+}
+
+export const tavernHelperEventEmitter: ITavernHelperEventEmitter = {
+  on: (event, cb) => getDefaultEventEmitter().on(event, cb),
+  once: (event, cb) => getDefaultEventEmitter().once(event, cb),
+  off: (event, cb) => getDefaultEventEmitter().off(event, cb),
+  removeListener: (event, cb) => getDefaultEventEmitter().removeListener(event, cb),
+  emit: (event, ...args) => getDefaultEventEmitter().emit(event, ...args),
+  emitAndWait: (event, ...args) => getDefaultEventEmitter().emitAndWait(event, ...args),
+  makeFirst: (event, cb) => getDefaultEventEmitter().makeFirst(event, cb),
+  makeLast: (event, cb) => getDefaultEventEmitter().makeLast(event, cb),
+  clear: (event) => getDefaultEventEmitter().clear(event),
+  clearAll: () => getDefaultEventEmitter().clearAll(),
+};
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 工具函数

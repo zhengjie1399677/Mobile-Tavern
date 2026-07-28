@@ -1,12 +1,10 @@
-import { globalKernel } from "../kernel/Kernel";
 import type { IKernel } from "../kernel/types";
+import { getRuntimeKernel } from "../kernel/runtimeKernel";
 import { TelemetryService } from "../kernel/services/TelemetryService";
 
 let fallbackTelemetry: TelemetryService | null = null;
-// TODO-2: 接收可选 kernel 参数，默认回退 globalKernel 单例。
-// 如此测试环境可传入隔离的 Mock 实例，实现物理隔离测试。
 function getTelemetryService(kernel?: IKernel) {
-  const k = kernel || globalKernel;
+  const k = kernel ?? getRuntimeKernel();
   if (k && k.hasService("telemetry")) {
     return k.getService<any>("telemetry");
   }

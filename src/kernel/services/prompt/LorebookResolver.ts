@@ -1,5 +1,6 @@
 import type { LorebookEntry, Message } from "../../../types";
 import { Logger } from "../../../utils/logger";
+import { evaluateVariableCondition, type VariableConditionContext } from "../../../domain/conditions";
 
 const logger = Logger.create("LorebookResolver");
 
@@ -51,7 +52,8 @@ export function resolveTriggeredLorebookEntries(
   messages: Message[],
   userInput: string,
   entries: LorebookEntry[],
-  maxRecursionDepth = 3
+  maxRecursionDepth = 3,
+  conditionContext: VariableConditionContext = {},
 ): LorebookEntry[] {
   if (!entries?.length) return [];
 
@@ -79,6 +81,7 @@ export function resolveTriggeredLorebookEntries(
 
     for (const entry of entries) {
       if (!entry.enabled || !entry.content || activeIds.has(entry.id)) continue;
+      if (!evaluateVariableCondition(entry.condition, conditionContext)) continue;
 
       if (entry.constant) {
         activeEntries.push(entry);

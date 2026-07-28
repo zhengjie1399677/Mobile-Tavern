@@ -362,7 +362,11 @@ Mobile Tavern 利用 React 19 的 Concurrent Mode，通过分片更新机制，
 
 #### 第三层：纯 TS 工具类的 globalKernel 解耦
 * **实现位置**: [telemetry.ts](src/utils/telemetry.ts)、[apiClient.ts](src/utils/apiClient.ts)、[catbotEventBus.ts](src/utils/catbotEventBus.ts)、[bridgeCore.ts](src/utils/tavernHelper/bridgeCore.ts)
-* **核心机制**: 将四个纯 TS 工具类对 `globalKernel` 单例的直接依赖重构为可选参数注入：所有 `getTelemetryService()` / `getLlmService()` / `CatbotEventBus` 构造函数 / `createTavernHelperEventEmitter()` 均接收 `kernel?: IKernel`，默认回退 `globalKernel`。如此测试环境可传入隔离的 Mock 实例，实现物理隔离测试。
+* **核心机制**: 四个纯 TS 工具类继续支持显式 `IKernel` 注入；默认兼容入口通过 `runtimeKernel.ts` 延迟读取由组合根绑定的容器，不再直接导入 `globalKernel`。测试可传入隔离实例，业务模块不会反向依赖应用单例。
+
+#### 第四层：声明式服务目录与后台 Worker 宿主
+* **实现位置**: [serviceCatalog.ts](src/kernel/bootstrap/serviceCatalog.ts)、[WorkerPluginService.ts](src/kernel/services/WorkerPluginService.ts)
+* **核心机制**: 官方服务使用声明式目录和 `dynamic import()` 并行装载，`registerServiceModules` 再交给 `registerServiceBatch` 做依赖拓扑注册；运行时卸载统一调用 `destroyService`。后台 Worker 必须由受信模块显式提供工厂与入站主题白名单；宿主只转发消息，不向 Worker 暴露 Kernel，并在注销、内核销毁或中止时终止 Worker。
 
 ---
 
@@ -576,7 +580,7 @@ erDiagram
 
 ### 1. `promptBuilder.ts` (Prompt 编译组装)
 *   **实现位置**: [promptBuilder.ts](src/utils/promptBuilder.ts)
-*   **核心�### 1. 自动化功能测试一览 (The 79 Test Suites)
+*   **核心### 1. 自动化功能测试一览 (The 79 Test Suites)
 
 这些测试用例按职责域被高度聚合并物理隔离到 `tests/suites/` 下的各个测试模块中：
 
@@ -640,7 +644,7 @@ erDiagram
 #### 🛡️ Zod 运行时与自由编排测试 (Kernel validation & Prompt Composition) - [新]
 *   **`testKernelSchemaValidation`** (`kernelSchemaValidation.test.ts`)：对 P0/P1 服务分级 Schema、静态消息 Payload 格式、动态 topic `tavern_helper:*` 与 Proxy 契约标记进行全面运行时类型校验测试。
 *   **`testArchitectureBoundaries`** (`architectureBoundaries.test.ts`)：静态扫描依赖方向、Context 最小订阅 selector、瞬态召回隔离，保障微内核架构物理隔离。
-*   **`testPromptComposition`** (`promptComposition.test.ts`)：验证 Prompt 自由编排的 Token 预算计算、裁剪策略和多 System 块编译输出。��块)
+*   **`testPromptComposition`** (`promptComposition.test.ts`)：验证 Prompt 自由编排的 Token 预算计算、裁剪策略和多 System 块编译输出。模块)
 *   **实现位置**: [CharactersTab.tsx](src/tabs/CharactersTab.tsx)
 *   **核心逻辑**:
     管理卡片的交互陈列。支持多属性过滤、全文模糊搜索和 PNG 卡片解析。
@@ -673,11 +677,11 @@ erDiagram
     在手机端渲染折叠的前情概要大纲（故事年表），帮助用户在超长对话中回忆历史场景。点击事件可以展开完整的剧情概要，为用户提供沉浸式小说阅读视角。
 
 ### 15. `SessionManagerModal.tsx` (多会话剧情分支分叉管理)
-*   **实现位置**: [SessionManagerModal.tsx](src/components/SessionManagerModal.tsx)
+*   **实现位置**: [SessionManagerModal.tsx](src/components/SessionManagerModal.tsx)、[BranchUniverseDiagram.tsx](src/components/BranchUniverseDiagram.tsx)、[MemoryFragmentEditor.tsx](src/components/MemoryFragmentEditor.tsx)
 *   **核心逻辑**:
-    负责对指定的角色卡开启多条独立的聊天剧情分支（类似于世界分支的切换）。
+    负责对指定角色卡开启多条独立剧情分支，并根据 `parentSessionId`、`parentMessageId` 和消息轮次生成 SVG 树状拓扑。画布支持拖拽、滚轮、按钮和移动端双指缩放。
 *   **多维度并发操作**:
-    在前端执行分支克隆、重命名及物理删除。当克隆时，开启 IndexedDB 关联事务，复制原分支的所有消息历史和剧情提炼大纲，并迅速建立具有新 UUID 的平行会话分支实体。
+    分支克隆和回溯继续由 `DatabaseService` 持久化；图中每个轮次节点挂载对应 `memory_fragments`。界面只通过 `MemoryPersistencePort` 读取和写入，新增使用 `upsertFragment`，编辑使用 `supersedeFragment` 保留修订链，删除使用 `invalid` 逻辑失效，禁止直接绕过端口操作 IndexedDB。
 
 ### 16. `CustomConfirmDialog.tsx` (移动端风格交互对话框)
 *   **实现位置**: [CustomConfirmDialog.tsx](src/components/CustomConfirmDialog.tsx)
@@ -1146,3 +1150,10 @@ jobs:
       - run: npm test
 ```
 通过 `c8` 进行测试覆盖率统计，目标保证 `src/kernel/` 内置服务覆盖率 $\ge 85\%$。
+## 世界书高级条件变量表达式
+
+世界书条目的可选 `condition` 在关键词匹配后、Prompt 注入前由 `src/domain/conditions/VariableExpressionEngine.ts` 求值。语法仅包含 `{var::路径}`、`{session::路径}`、字符串/数字/布尔值、`!`、`&&`、`||`、比较运算和括号；不使用 `eval`，限制表达式长度与 Token 数，非法表达式安全返回不命中。会话作用域只提供 `id`、`title`、`characterId`、`messageCount` 和 `parentSessionId`，引擎只读且不承担变量派生或更新。
+
+## 插件消息总线 Bridge V2
+
+全屏插件桥接仍通过带随机 `channel` 和插件 ID 的 `postMessage` 请求响应协议运行。V2 在原有存档、方向与 LLM 能力外增加 `context.get`、`chat.injectAction` 和 `chat.send`；三项能力分别要求 `context.read`、`chat.action`、`chat.send` 清单权限。上下文由宿主生成脱敏快照，不包含消息正文、变量、头像、凭证或数据库引用；动作注入复用聊天发送事务的 `skipAI` 模式，AI 发送复用正常聊天事务，文本在边界执行长度与控制字符校验。

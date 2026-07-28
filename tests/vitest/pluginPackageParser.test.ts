@@ -58,6 +58,13 @@ describe("第三方全屏插件包协议", () => {
     expect(parsed.manifest.llm).toEqual({ syncPreset: true });
   });
 
+  it("接受 Bridge V2 上下文与聊天权限", async () => {
+    const parsed = await parseFullscreenPluginPackage(buildPackage({
+      permissions: ["context.read", "chat.action", "chat.send"],
+    }));
+    expect(parsed.manifest.permissions).toEqual(["context.read", "chat.action", "chat.send"]);
+  });
+
   it("permissions 非数组或含非法值时拒绝", async () => {
     await expect(parseFullscreenPluginPackage(buildPackage({ permissions: "llm.chat" })))
       .rejects.toThrow("PLUGIN_MANIFEST_INVALID_PERMISSIONS");
@@ -79,4 +86,3 @@ describe("第三方全屏插件包协议", () => {
     }))).rejects.toThrow("PLUGIN_MANIFEST_LLM_REQUIRES_PERMISSION");
   });
 });
-

@@ -323,6 +323,8 @@ export class DatabaseService implements IDatabaseService {
       ],
       summaries: targetBranchesSummaries,
       lastSummarizedMessageId: undefined,
+      parentSessionId: sourceSession.id,
+      parentMessageId: summary.lastMessageId,
     };
     await this.saveSession(newSession);
     // saveSession 只存元数据，初始消息需显式同步到 messages Store

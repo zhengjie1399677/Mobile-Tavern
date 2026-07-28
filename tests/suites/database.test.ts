@@ -110,10 +110,18 @@ export async function testDatabaseServiceCrud() {
   assert(backtrackSession.title === "新分支", "Backtrack title matches");
   assert(backtrackSession.messages.length === 1, "Backtrack messages count matches");
 
-  session.summaries = [{ id: "sum_1", timeTag: "深夜", location: "旅馆", content: "发生战斗" }];
+  session.summaries = [{
+    id: "sum_1",
+    timeTag: "深夜",
+    location: "旅馆",
+    content: "发生战斗",
+    lastMessageId: session.messages[0].id,
+  }];
   const timelineSession = await mockDbService.createBacktrackFromTimeline(session, "时间流分支", "sum_1");
   assert(timelineSession.summaries.length === 1, "Timeline session summaries count matches");
   assert(timelineSession.messages[0].content.includes("发生战斗"), "Timeline message content matches");
+  assert(timelineSession.parentSessionId === session.id, "Timeline branch keeps parent session");
+  assert(timelineSession.parentMessageId === session.messages[0].id, "Timeline branch keeps split message");
 
   await testKernel.destroy();
   console.log("✔ DatabaseService CRUD verified successfully!");

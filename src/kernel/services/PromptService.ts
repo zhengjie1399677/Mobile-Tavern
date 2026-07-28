@@ -117,13 +117,15 @@ export class PromptService implements IPromptService {
     messages: Message[],
     userInput: string,
     entries: LorebookEntry[],
-    maxRecursionDepth: number = 3
+    maxRecursionDepth: number = 3,
+    conditionContext: { variables?: Record<string, unknown>; session?: Record<string, unknown> } = {},
   ): LorebookEntry[] {
     return resolveTriggeredLorebookEntries(
       messages,
       userInput,
       entries,
-      maxRecursionDepth
+      maxRecursionDepth,
+      conditionContext,
     );
   }
 
@@ -188,6 +190,8 @@ export class PromptService implements IPromptService {
         chat.messages || [],
         userInput,
         allEntries,
+        3,
+        { variables: chat.variables, session: createLorebookSessionContext(chat) },
       );
       const runtime = buildPromptCompositionRuntimeData({
         character,
@@ -377,6 +381,8 @@ export class PromptService implements IPromptService {
         chat.messages || [],
         userInput,
         allEntries,
+        3,
+        { variables: chat.variables, session: createLorebookSessionContext(chat) },
       );
 
       if (activeEntries.length > 0) {
@@ -540,7 +546,13 @@ export class PromptService implements IPromptService {
     });
 
     const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
-    const activeEntries = this.getTriggeredLorebookEntries(chat.messages || [], userInput, allEntries);
+    const activeEntries = this.getTriggeredLorebookEntries(
+      chat.messages || [],
+      userInput,
+      allEntries,
+      3,
+      { variables: chat.variables, session: createLorebookSessionContext(chat) },
+    );
     // 检测是否有世界书条目使用了 {{format_message_variable::}} 宏，
     // 若有则由宏替换负责注入变量，避免与 mvu_variables section 重复注入
     const hasVariableListEntry = activeEntries.some(e =>
@@ -967,4 +979,14 @@ entities 项使用 {"name":"实体名","type":"character|location|item|organizat
     };
   }
 
+}
+
+function createLorebookSessionContext(chat: ChatSession): Record<string, unknown> {
+  return {
+    id: chat.id,
+    title: chat.title,
+    characterId: chat.characterId,
+    messageCount: chat.messages?.length ?? 0,
+    parentSessionId: chat.parentSessionId,
+  };
 }

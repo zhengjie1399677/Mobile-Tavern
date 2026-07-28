@@ -60,7 +60,7 @@ describe("FormattedText component", () => {
 
   it("继续提取角色卡直接提供的 srcdoc 内容", () => {
     mockContext.settings.enableScriptExecution = true;
-    const { container } = render(
+    const { container, unmount } = render(
       <FormattedText
         text={'<iframe srcdoc="&lt;script&gt;window.__TH_MESSAGE_ID=0;&lt;/script&gt;&lt;div data-testid=&#39;card-body&#39;&gt;扬州&lt;/div&gt;"></iframe>'}
         charName="Bot"
@@ -72,6 +72,18 @@ describe("FormattedText component", () => {
     expect(iframe?.srcdoc).toContain("data-testid='card-body'");
     expect(iframe?.srcdoc).toContain("扬州");
     expect(iframe?.getAttribute("allowtransparency")).toBe("true");
+    unmount();
+  });
+
+  it("卸载时取消 TavernHelper 运行库轮询定时器", () => {
+    mockContext.settings.enableScriptExecution = true;
+    const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
+    const { unmount } = render(<FormattedText text="<iframe></iframe>" charName="Bot" />);
+
+    unmount();
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
   });
 
   it("should render bold text inside strong tags", () => {

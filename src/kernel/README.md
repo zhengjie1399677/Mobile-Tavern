@@ -176,20 +176,16 @@ export class CustomFeatureService implements IKernelService {
 ### 示例二：挂载中间件对大模型输入流进行安全过滤与拦截 (Pipeline Interception)
 
 ```typescript
-import { globalKernel } from "./src/kernel/Kernel";
+import type { IKernel } from "./src/kernel/types";
 
-// 1. 注册一个敏感词拦截中间件
-const unsubscribeWordFilter = globalKernel.getPipeline("input").use(async (ctx, next, interrupt) => {
-  if (ctx.userInput.includes("敏感词")) {
-    // 调用第三个参数 interrupt() 显式声明受控阻断，不再执行后续中间件并拦截
-    interrupt();
-    ctx.userInput = "[被合规过滤]";
-    return;
-  }
-  // 放行
-  await next();
-}, 100);
-
-// 2. 正常运行完毕后，如需注销直接执行：
-// unsubscribeWordFilter();
+export function registerWordFilter(kernel: IKernel) {
+  return kernel.getPipeline("input").use(async (ctx, next, interrupt) => {
+    if (ctx.userInput.includes("敏感词")) {
+      interrupt();
+      ctx.userInput = "[被合规过滤]";
+      return;
+    }
+    await next();
+  }, 100);
+}
 ```

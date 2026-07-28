@@ -21,6 +21,8 @@ export interface LorebookEntry {
   depth?: number; // Insertion depth (0 = at the end, > 0 = deep into history)
   scanDepth?: number; // Scan depth (how many of recent messages to inspect, >= 0)
   isGlobal?: boolean; // Whether this lorebook is global
+  /** 可选安全条件表达式；在关键词触发后根据 MVU 变量与会话状态二次过滤。 */
+  condition?: string;
 }
 
 export interface CharacterVisualSettings {

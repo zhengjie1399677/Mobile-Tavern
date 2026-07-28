@@ -5,6 +5,7 @@ import type { InstalledFullscreenPlugin } from "../../src/domain/plugins";
 
 // vi.hoisted 确保 mock 函数在 vi.mock 工厂执行前可用
 const mockStreamLlmResponse = vi.hoisted(() => vi.fn());
+const mockHandleSendMessage = vi.hoisted(() => vi.fn());
 
 vi.mock("../../src/UnifiedAppContext", () => ({
   useUnifiedApp: () => ({
@@ -13,6 +14,9 @@ vi.mock("../../src/UnifiedAppContext", () => ({
       preset: { temperature: 0.8, topP: 0.9, topK: 40, minP: 0.1, maxTokens: 1000, presencePenalty: 0, frequencyPenalty: 0, repetitionPenalty: 1 },
     },
     getKernelService: (name: string) => name === "chatStream" ? { streamLlmResponse: mockStreamLlmResponse } : {},
+    activeCharacter: null,
+    activeSession: null,
+    handleSendMessage: mockHandleSendMessage,
   }),
 }));
 
@@ -52,6 +56,7 @@ describe("FullscreenPluginRunner", () => {
     cleanup();
     vi.useRealTimers();
     mockStreamLlmResponse.mockReset();
+    mockHandleSendMessage.mockReset();
     delete (window as Window & { AndroidThemeBridge?: unknown }).AndroidThemeBridge;
     vi.restoreAllMocks();
   });

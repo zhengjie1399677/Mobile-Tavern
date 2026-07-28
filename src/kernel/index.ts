@@ -2,7 +2,9 @@ import { globalKernel } from "./Kernel";
 import { createKernelLifecycleController } from "./KernelLifecycle";
 import { registerCoreServices } from "./bootstrap/registerCoreServices";
 import { registerDefaultPipelines } from "./bootstrap/registerDefaultPipelines";
+import { bindRuntimeKernel } from "./runtimeKernel";
 
+bindRuntimeKernel(globalKernel);
 const lifecycle = createKernelLifecycleController(globalKernel, async () => {
   await registerCoreServices(globalKernel);
   registerDefaultPipelines(globalKernel);
@@ -21,5 +23,6 @@ export function destroyKernel(): Promise<void> {
 export { globalKernel } from "./Kernel";
 export { createKernel } from "./Kernel";
 export { createKernelLifecycleController } from "./KernelLifecycle";
+export { bindRuntimeKernel, getRuntimeKernel } from "./runtimeKernel";
 export type { KernelLifecycleController, KernelLifecycleState } from "./KernelLifecycle";
 export * from "./types";

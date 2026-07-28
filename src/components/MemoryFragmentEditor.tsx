@@ -1,205 +1,225 @@
-import React, { useState } from "react";
-import { getDB } from "../utils/localDB";
+import React, { useMemo, useState } from "react";
+import { Check, Plus, Tag, Trash2, X } from "lucide-react";
 import { useTranslation } from "../contexts/LanguageContext";
-import { X, Trash2, Check, Plus, Tag } from "lucide-react";
-import type { MemoryFragment } from "./BranchUniverseDiagram";
+import type {
+  MemoryFragment,
+  MemoryPersistencePort,
+} from "../kernel/services/memory/types";
 
 interface MemoryFragmentEditorProps {
-  fragment: MemoryFragment;
+  sessionId: string;
+  sourceTurnEnd: number;
+  fragments: MemoryFragment[];
+  persistence: MemoryPersistencePort;
   onClose: () => void;
-  onSave: (updated: MemoryFragment) => void;
-  onDelete: (id: string) => void;
+  onChanged: () => void | Promise<void>;
 }
 
 export default function MemoryFragmentEditor({
-  fragment,
+  sessionId,
+  sourceTurnEnd,
+  fragments,
+  persistence,
   onClose,
-  onSave,
-  onDelete,
+  onChanged,
 }: MemoryFragmentEditorProps) {
   const { t } = useTranslation();
-  const [content, setContent] = useState(fragment.content);
-  const [tags, setTags] = useState<string[]>(fragment.tags || []);
+  const activeFragments = useMemo(
+    () => fragments.filter((fragment) => fragment.status === "active"),
+    [fragments],
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(activeFragments[0]?.id ?? null);
+  const selected = activeFragments.find((fragment) => fragment.id === selectedId) ?? null;
+  const [content, setContent] = useState(selected?.content ?? "");
+  const [tags, setTags] = useState<string[]>(selected?.tags ?? []);
   const [newTag, setNewTag] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  // 1. 保存更改到 IndexedDB
+  const selectFragment = (fragment: MemoryFragment | null) => {
+    setSelectedId(fragment?.id ?? null);
+    setContent(fragment?.content ?? "");
+    setTags(fragment?.tags ?? []);
+    setError("");
+  };
+
   const handleSave = async () => {
-    if (!content.trim()) return;
+    const normalizedContent = content.trim();
+    if (!normalizedContent || isSaving) return;
+    setIsSaving(true);
+    setError("");
     try {
-      const db = await getDB();
-      const tx = db.transaction("memory_fragments", "readwrite");
-      const store = tx.objectStore("memory_fragments");
-      
-      const updated: MemoryFragment = {
-        ...fragment,
-        content: content.trim(),
-        tags,
-      };
-
-      await new Promise<void>((resolve, reject) => {
-        const req = store.put(updated);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      });
-
-      onSave(updated);
-    } catch (err) {
-      console.error("[MemoryFragmentEditor] Save failed", err);
+      const now = Date.now();
+      if (selected) {
+        const replacement: MemoryFragment = {
+          ...selected,
+          id: `memory_manual_${now}_${Math.random().toString(36).slice(2, 8)}`,
+          content: normalizedContent,
+          tags,
+          status: "active",
+          supersedesId: selected.id,
+          supersededById: undefined,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await persistence.supersedeFragment(selected.id, replacement);
+      } else {
+        await persistence.upsertFragment({
+          id: `memory_manual_${now}_${Math.random().toString(36).slice(2, 8)}`,
+          sessionId,
+          content: normalizedContent,
+          participants: [],
+          tags,
+          sourceMessageIds: [],
+          sourceRole: "assistant",
+          sourceTurnStart: sourceTurnEnd,
+          sourceTurnEnd,
+          status: "active",
+          importance: 0.6,
+          confidence: 1,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      await onChanged();
+      onClose();
+    } catch (cause) {
+      console.error("[MemoryFragmentEditor] Save failed", cause);
+      setError(t("memory.save_failed"));
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // 2. 从 IndexedDB 物理删除该碎片
   const handleDelete = async () => {
+    if (!selected || isSaving) return;
+    setIsSaving(true);
+    setError("");
     try {
-      const db = await getDB();
-      const tx = db.transaction("memory_fragments", "readwrite");
-      const store = tx.objectStore("memory_fragments");
-
-      await new Promise<void>((resolve, reject) => {
-        const req = store.delete(fragment.id);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      });
-
-      onDelete(fragment.id);
-    } catch (err) {
-      console.error("[MemoryFragmentEditor] Delete failed", err);
+      await persistence.updateFragmentStatus(selected.id, "invalid");
+      await onChanged();
+      const next = activeFragments.find((fragment) => fragment.id !== selected.id) ?? null;
+      selectFragment(next);
+    } catch (cause) {
+      console.error("[MemoryFragmentEditor] Invalidate failed", cause);
+      setError(t("memory.delete_failed"));
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // 3. 标签交互操作
-  const handleAddTag = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddTag = (event: React.FormEvent) => {
+    event.preventDefault();
     const tag = newTag.trim();
-    if (tag && !tags.includes(tag)) {
-      setTags([...tags, tag]);
-    }
+    if (tag && !tags.includes(tag)) setTags([...tags, tag]);
     setNewTag("");
   };
 
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter((t) => t !== tagToRemove));
-  };
-
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[1000] flex items-center justify-center p-4 transition-all duration-200">
-      <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl max-w-md w-full p-5 shadow-2xl text-foreground flex flex-col gap-4 animate-scale-up">
-        
-        {/* 顶部标题与关闭 */}
-        <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
-          <p className="font-bold text-sm text-zinc-200 flex items-center gap-2">
-            <Tag className="w-4 h-4 text-primary" /> {t("memory.audit_title") || "长期记忆审计与编辑"}
-          </p>
+    <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/65 backdrop-blur-md sm:items-center sm:p-4">
+      <section
+        aria-label={t("memory.audit_title")}
+        className="flex max-h-[88dvh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-t-2xl border border-zinc-800 bg-zinc-900/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-2xl sm:rounded-2xl sm:p-5"
+      >
+        <header className="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-bold text-zinc-200">
+              <Tag className="size-4 text-primary" />
+              {t("memory.audit_title")}
+            </p>
+            <p className="mt-1 text-[10px] text-zinc-500">
+              {t("memory.turn_label", { turn: String(sourceTurnEnd) })}
+            </p>
+          </div>
+          <button aria-label={t("common.close")} onClick={onClose} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">
+            <X className="size-4" />
+          </button>
+        </header>
+
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {activeFragments.map((fragment, index) => (
+            <button
+              key={fragment.id}
+              onClick={() => selectFragment(fragment)}
+              className={`min-h-9 shrink-0 rounded-lg border px-3 text-xs ${
+                selectedId === fragment.id
+                  ? "border-primary bg-primary/15 text-primary"
+                  : "border-zinc-800 bg-zinc-950/50 text-zinc-400"
+              }`}
+            >
+              {t("memory.fragment_number", { number: String(index + 1) })}
+            </button>
+          ))}
           <button
-            onClick={onClose}
-            className="text-zinc-400 hover:text-white p-1 hover:bg-zinc-800/80 rounded-md transition"
+            onClick={() => selectFragment(null)}
+            className={`flex min-h-9 shrink-0 items-center gap-1 rounded-lg border px-3 text-xs ${
+              selectedId === null
+                ? "border-primary bg-primary/15 text-primary"
+                : "border-zinc-800 bg-zinc-950/50 text-zinc-400"
+            }`}
           >
-            <X className="w-4 h-4" />
+            <Plus className="size-3.5" />
+            {t("memory.new_fragment")}
           </button>
         </div>
 
-        {/* 记忆文本编辑域 */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-zinc-400 font-semibold">
-            {t("memory.content_label") || "提炼出的事件事实"}
-          </label>
+        <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
+          {t("memory.content_label")}
           <textarea
             value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="w-full min-h-[100px] p-3 text-xs bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-300 focus:outline-none focus:border-primary/80 transition resize-none leading-relaxed font-sans"
-            placeholder="输入提炼的事实内容..."
+            onChange={(event) => setContent(event.target.value)}
+            className="min-h-28 w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-sm font-normal leading-relaxed text-zinc-200 outline-none focus:border-primary"
+            placeholder={t("memory.content_placeholder")}
           />
-        </div>
+        </label>
 
-        {/* 标签管理层 */}
         <div className="flex flex-col gap-2">
-          <label className="text-xs text-zinc-400 font-semibold">
-            {t("memory.tags_label") || "关联实体与特征标签"}
-          </label>
-          
-          {/* 已选标签列表 */}
-          <div className="flex flex-wrap gap-1.5 max-h-[70px] overflow-y-auto pr-1">
-            {tags.map((t) => (
-              <span
-                key={t}
-                className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] bg-primary/10 border border-primary/20 text-primary-foreground/90 rounded-full font-sans"
-              >
-                {t}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveTag(t)}
-                  className="text-primary-foreground/50 hover:text-primary-foreground font-bold"
-                >
-                  &times;
+          <span className="text-xs font-semibold text-zinc-400">{t("memory.tags_label")}</span>
+          <div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">
+            {tags.map((tag) => (
+              <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[10px] text-primary">
+                {tag}
+                <button type="button" aria-label={t("memory.remove_tag", { tag })} onClick={() => setTags(tags.filter((item) => item !== tag))}>
+                  ×
                 </button>
               </span>
             ))}
-            {tags.length === 0 && (
-              <span className="text-[10px] text-zinc-500 italic">暂无关联标签</span>
-            )}
+            {tags.length === 0 && <span className="text-[10px] italic text-zinc-500">{t("memory.no_tags")}</span>}
           </div>
-
-          {/* 新建标签小表单 */}
           <form onSubmit={handleAddTag} className="flex gap-2">
             <input
-              type="text"
               value={newTag}
-              onChange={(e) => setNewTag(e.target.value)}
-              placeholder="新增标签 (回车确定)"
-              className="flex-1 px-3 py-1.5 text-xs bg-zinc-950 border border-zinc-800 rounded-md text-zinc-300 focus:outline-none focus:border-primary/50 transition font-sans"
+              onChange={(event) => setNewTag(event.target.value)}
+              placeholder={t("memory.tag_placeholder")}
+              className="min-h-10 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-xs text-zinc-200 outline-none focus:border-primary"
             />
-            <button
-              type="submit"
-              className="px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-md transition font-semibold"
-            >
-              <Plus className="w-3.5 h-3.5" />
+            <button type="submit" aria-label={t("memory.add_tag")} className="min-h-10 min-w-10 rounded-lg bg-zinc-800 text-zinc-200">
+              <Plus className="mx-auto size-4" />
             </button>
           </form>
         </div>
 
-        {/* 底部控制按钮组 */}
-        <div className="flex justify-between items-center pt-3 border-t border-zinc-800 gap-3 shrink-0">
+        {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
+
+        <footer className="flex items-center justify-between gap-2 border-t border-zinc-800 pt-3">
           <button
             onClick={handleDelete}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs bg-red-950/40 border border-red-900/60 hover:bg-red-950/80 text-red-400 hover:text-red-300 rounded-lg transition-all"
-            title="删除记忆碎片"
+            disabled={!selected || isSaving}
+            className="flex min-h-10 items-center gap-1.5 rounded-lg border border-red-900/60 bg-red-950/40 px-3 text-xs text-red-400 disabled:opacity-40"
           >
-            <Trash2 className="w-3.5 h-3.5" /> {t("common.delete") || "物理删除"}
+            <Trash2 className="size-3.5" />
+            {t("common.delete")}
           </button>
-          
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-3.5 py-2 text-xs bg-zinc-800/80 hover:bg-zinc-850 border border-zinc-750 text-zinc-300 hover:text-white rounded-lg transition"
-            >
-              {t("common.cancel") || "取消"}
-            </button>
-            <button
-              onClick={handleSave}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs bg-primary text-primary-foreground font-semibold rounded-lg hover:opacity-90 active:scale-95 transition"
-            >
-              <Check className="w-3.5 h-3.5" /> {t("common.save") || "保存修改"}
-            </button>
-          </div>
-        </div>
-
-      </div>
-
-      <style>{`
-        .animate-scale-up {
-          animation: scale-up-anim 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        @keyframes scale-up-anim {
-          from {
-            transform: scale(0.92);
-            opacity: 0;
-          }
-          to {
-            transform: scale(1);
-            opacity: 1;
-          }
-        }
-      `}</style>
+          <button
+            onClick={handleSave}
+            disabled={!content.trim() || isSaving}
+            className="flex min-h-10 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+          >
+            <Check className="size-3.5" />
+            {isSaving ? t("common.saving") : t("common.save")}
+          </button>
+        </footer>
+      </section>
     </div>
   );
 }

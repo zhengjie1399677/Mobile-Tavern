@@ -1,10 +1,11 @@
-import { globalKernel } from "../kernel/Kernel";
 import { PromptService } from "../kernel/services/PromptService";
+import { getRuntimeKernel } from "../kernel/runtimeKernel";
 
 let fallbackPrompt: PromptService | null = null;
 function getPromptService() {
-  if (globalKernel && globalKernel.hasService("prompt")) {
-    return globalKernel.getService<any>("prompt");
+  const kernel = getRuntimeKernel();
+  if (kernel?.hasService("prompt")) {
+    return kernel.getService<any>("prompt");
   }
   if (!fallbackPrompt) {
     fallbackPrompt = new PromptService();

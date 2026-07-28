@@ -1,69 +1,40 @@
-import React, { useState, useEffect, useRef } from "react";
-import { getDB } from "../utils/localDB";
+import React, { useState, useRef } from "react";
 import { useTranslation } from "../contexts/LanguageContext";
-import { GitFork, ZoomIn, ZoomOut, RotateCcw, BrainCircuit } from "lucide-react";
+import { GitFork, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import type { ChatSession } from "../types";
-
-export interface MemoryFragment {
-  id: string;
-  sessionId: string;
-  content: string;
-  tags: string[];
-  sourceTurnEnd: number;
-  status: "active" | "superseded" | "invalid";
-  createdAt: number;
-}
+import type { MemoryFragment } from "../kernel/services/memory/types";
 
 interface BranchUniverseDiagramProps {
   sessions: ChatSession[];
   activeSession: ChatSession | null;
+  fragments: MemoryFragment[];
   onSelectSession: (id: string) => void;
-  onEditFragment: (fragment: MemoryFragment) => void;
+  onInspectNode: (sessionId: string, turn: number, fragments: MemoryFragment[]) => void;
 }
 
 export default function BranchUniverseDiagram({
   sessions,
   activeSession,
+  fragments,
   onSelectSession,
-  onEditFragment,
+  onInspectNode,
 }: BranchUniverseDiagramProps) {
   const { t } = useTranslation();
-  const [fragments, setFragments] = useState<MemoryFragment[]>([]);
   
   // 手势缩放与拖拽状态
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
+  const pinchDistance = useRef<number | null>(null);
+  const pinchScale = useRef(1);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // 参数常量
   const turnHeight = 50; // 每条消息的垂直距离 (px)
   const colWidth = 140;  // 每个水平通道的间距 (px)
 
-  // 1. 异步载入 memory_fragments
-  useEffect(() => {
-    let active = true;
-    const fetchFragments = async () => {
-      try {
-        const db = await getDB();
-        const tx = db.transaction("memory_fragments", "readonly");
-        const store = tx.objectStore("memory_fragments");
-        const req = store.getAll();
-        req.onsuccess = () => {
-          if (active && req.result) {
-            setFragments(req.result as MemoryFragment[]);
-          }
-        };
-      } catch (_) {
-        // 自检/未初始化或非原生环境下兜底
-      }
-    };
-    fetchFragments();
-    return () => { active = false; };
-  }, [sessions, activeSession]);
-
-  // 2. 水平通道 X 分配
+  // 1. 水平通道 X 分配
   const getXCoordinate = (sessionId: string, totalWidth: number): number => {
     const columns: Record<string, number> = {};
     let nextLeft = -1;
@@ -92,7 +63,7 @@ export default function BranchUniverseDiagram({
     return totalWidth / 2 + colIndex * colWidth;
   };
 
-  // 3. 计算垂直偏移 Y
+  // 2. 计算垂直偏移 Y
   const yOffsets: Record<string, number> = {};
   const sessionsByTime = [...sessions].sort((a, b) => a.createdAt - b.createdAt);
   const rootSession = sessions.find((s) => !s.parentSessionId) || sessions[0];
@@ -116,7 +87,7 @@ export default function BranchUniverseDiagram({
     }
   });
 
-  // 4. 树尺寸计算，为 SVG viewBox 提供大小
+  // 3. 树尺寸计算，为 SVG viewBox 提供大小
   const svgWidth = Math.max(colWidth * (sessions.length + 1), 600);
   let svgHeight = 400;
   sessions.forEach((s) => {
@@ -124,7 +95,7 @@ export default function BranchUniverseDiagram({
     if (endY > svgHeight) svgHeight = endY;
   });
 
-  // 5. 拖拽与手势控制处理器
+  // 4. 拖拽与手势控制处理器
   const handleMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
     dragStart.current = { x: e.clientX - translate.x, y: e.clientY - translate.y };
@@ -143,6 +114,12 @@ export default function BranchUniverseDiagram({
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      isDragging.current = false;
+      pinchDistance.current = touchDistance(e.touches[0], e.touches[1]);
+      pinchScale.current = scale;
+      return;
+    }
     if (e.touches.length === 1) {
       isDragging.current = true;
       const touch = e.touches[0];
@@ -151,6 +128,11 @@ export default function BranchUniverseDiagram({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && pinchDistance.current) {
+      const ratio = touchDistance(e.touches[0], e.touches[1]) / pinchDistance.current;
+      setScale(Math.min(3, Math.max(0.6, pinchScale.current * ratio)));
+      return;
+    }
     if (!isDragging.current || e.touches.length !== 1) return;
     const touch = e.touches[0];
     setTranslate({
@@ -162,6 +144,11 @@ export default function BranchUniverseDiagram({
   const handleReset = () => {
     setScale(1);
     setTranslate({ x: 0, y: 0 });
+  };
+
+  const handleTouchEnd = () => {
+    isDragging.current = false;
+    pinchDistance.current = null;
   };
 
   return (
@@ -201,7 +188,11 @@ export default function BranchUniverseDiagram({
         onMouseLeave={handleMouseUpOrLeave}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
-        onTouchEnd={handleMouseUpOrLeave}
+        onTouchEnd={handleTouchEnd}
+        onWheel={(event) => {
+          event.preventDefault();
+          setScale((current) => Math.min(3, Math.max(0.6, current + (event.deltaY < 0 ? 0.1 : -0.1))));
+        }}
         className="flex-1 w-full h-full cursor-grab active:cursor-grabbing overflow-hidden"
       >
         <svg
@@ -336,9 +327,10 @@ export default function BranchUniverseDiagram({
                       const nodeY = startY + idx * turnHeight;
                       // 获取属于该轮次的长期记忆碎片
                       const nodeFragments = fragments.filter(
-                        (f) => f.sessionId === s.id && f.sourceTurnEnd === idx + 1 && f.status === "active"
+                        (f) => f.sessionId === s.id && f.sourceTurnEnd === idx + 1
                       );
-                      const hasMemory = nodeFragments.length > 0;
+                      const activeFragments = nodeFragments.filter((fragment) => fragment.status === "active");
+                      const hasMemory = activeFragments.length > 0;
 
                       return (
                         <g key={`node-${s.id}-${idx}`}>
@@ -346,10 +338,24 @@ export default function BranchUniverseDiagram({
                           <circle
                             cx={x}
                             cy={nodeY}
-                            r="2.5"
-                            fill="rgba(30,41,59,0.9)"
+                            r="5"
+                            fill="rgba(30,41,59,0.95)"
                             stroke={isActive ? "#34d399" : "#8b5cf6"}
-                            strokeWidth="1"
+                            strokeWidth="1.5"
+                            className="cursor-pointer"
+                            role="button"
+                            tabIndex={0}
+                            aria-label={t("memory.inspect_turn", { turn: String(idx + 1) })}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onInspectNode(s.id, idx + 1, nodeFragments);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                onInspectNode(s.id, idx + 1, nodeFragments);
+                              }
+                            }}
                           />
                           
                           {/* 记忆碎片晶体挂载（如果有） */}
@@ -358,7 +364,7 @@ export default function BranchUniverseDiagram({
                               transform={`translate(${x + 14}, ${nodeY})`}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onEditFragment(nodeFragments[0]);
+                                onInspectNode(s.id, idx + 1, nodeFragments);
                               }}
                               className="cursor-pointer animate-pulse-glow"
                             >
@@ -378,6 +384,11 @@ export default function BranchUniverseDiagram({
                                 fill="#10b981"
                                 filter="url(#shadow-glow)"
                               />
+                              {activeFragments.length > 1 && (
+                                <text x="9" y="3" fill="#d1fae5" fontSize="8" fontWeight="bold">
+                                  {activeFragments.length}
+                                </text>
+                              )}
                               <polygon
                                 points="0,-6 5,-2 5,2 0,6 -5,2 -5,-2"
                                 fill="#d1fae5"
@@ -416,15 +427,19 @@ export default function BranchUniverseDiagram({
         }
         @keyframes pulse-glow-effect {
           0%, 100% {
-            transform: translate(var(--tw-translate-x), var(--tw-translate-y)) scale(1);
             filter: drop-shadow(0 0 1px rgba(16,185,129,0.4));
+            opacity: 0.85;
           }
           50% {
-            transform: translate(var(--tw-translate-x), var(--tw-translate-y)) scale(1.15);
             filter: drop-shadow(0 0 5px rgba(52,211,153,0.85));
+            opacity: 1;
           }
         }
       `}</style>
     </div>
   );
+}
+
+function touchDistance(first: React.Touch, second: React.Touch): number {
+  return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
 }

@@ -1,4 +1,4 @@
-# Mobile Tavern 第三方全屏插件规范 v1
+# Mobile Tavern 第三方全屏插件规范
 
 ## 1. 能力边界
 
@@ -71,23 +71,50 @@ example.mtplugin
 
 第一版支持普通外部 CSS、经典 JavaScript 和直接引用的包内媒体；暂不支持 ES Module 依赖图、动态 `import()`、Web Worker、Service Worker 或运行时拼接的包内相对路径。复杂游戏建议构建为单个 JavaScript 包后再制作 `.mtplugin`。
 
+内核另有面向随 App 构建之受信模块的后台 Worker 宿主。该能力与用户安装的 `.mtplugin` 完全隔离，不接受插件包内脚本，不向 Worker 暴露 Kernel，只允许清单式注册和白名单消息转发。
+
 ## 5. 宿主 API
 
 插件启动后可通过 `window.MobileTavernPlugin` 使用宿主 API：
 
 ```ts
-interface MobileTavernPluginApiV1 {
-  readonly version: 1;
-  ready(): Promise<{ apiVersion: 1 }>;
+interface MobileTavernPluginApiV2 {
+  readonly version: 2;
+  ready(): Promise<{ apiVersion: 2 }>;
   exit(): Promise<void>;
   setOrientation(value: "portrait" | "landscape" | "auto"): Promise<void>;
   save(slot: string, data: unknown): Promise<void>;
   load(slot: string): Promise<unknown | null>;
   deleteSave(slot: string): Promise<void>;
+  context: {
+    get(): Promise<{
+      character: null | {
+        id: string;
+        name: string;
+        description: string;
+        personality: string;
+        scenario: string;
+        tags: string[];
+      };
+      session: null | {
+        id: string;
+        title: string;
+        characterId: string;
+        messageCount: number;
+        parentSessionId: string | null;
+      };
+    }>;
+  };
+  chat: {
+    injectAction(text: string): Promise<void>;
+    send(text: string): Promise<void>;
+  };
 }
 ```
 
 存档槽位只能包含英文字母、数字、下划线和连字符，长度为 1–64；每个槽位的 JSON 数据不超过 1 MiB。插件存档位于独立 `MobileTavernPluginDB`，不会写入主 settings 或 session。
+
+Bridge V2 能力必须在清单 `permissions` 中逐项声明：`context.read` 允许读取脱敏后的活跃角色和会话摘要；`chat.action` 允许注入不触发 AI 的动作描述；`chat.send` 允许注入用户消息并触发 AI。宿主不会暴露消息正文、变量、头像、API 凭证或数据库对象；写入文本经长度和控制字符校验，未授权调用统一拒绝。
 
 插件可监听生命周期：
 

@@ -854,7 +854,9 @@ const FormattedText = memo(function FormattedText({
     }
     let isMounted = true;
     let checkCount = 0;
+    let checkTimer: number | undefined;
     const checkLibs = () => {
+      if (!isMounted) return;
       const w = window as unknown as WindowWithTavernHelperLibs;
       checkCount++;
       const hasDefineStore = !!w.TavernHelperMvuLibs?.defineStore;
@@ -871,12 +873,15 @@ const FormattedText = memo(function FormattedText({
         if (isMounted) setLibsReady(true);
         console.log("[FormattedText] libsReady=true，停止轮询");
       } else {
-        setTimeout(checkLibs, 50);
+        checkTimer = window.setTimeout(checkLibs, 50);
       }
     };
     checkLibs();
     return () => {
       isMounted = false;
+      if (checkTimer !== undefined) {
+        window.clearTimeout(checkTimer);
+      }
     };
   }, [enableScriptExecution]);
   // 优先取角色卡 visualSettings 中的显式声明（true/false）；

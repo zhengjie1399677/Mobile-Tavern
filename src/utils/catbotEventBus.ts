@@ -1,16 +1,16 @@
-import { globalKernel } from "../kernel/Kernel";
 import type { IKernel } from "../kernel/types";
+import { getRuntimeKernel } from "../kernel/runtimeKernel";
 
 export type CatbotEvent = "api_error" | "character_imported" | "night_mode" | "idle_timeout" | "lorebook_imported" | "character_created";
 
 type CatbotListener = (event: CatbotEvent) => void;
 
-// TODO-2: 构造函数接收可选 kernel 参数，默认回退 globalKernel 单例。
-// 如此测试环境可传入隔离的 Mock 实例，实现物理隔离测试。
 class CatbotEventBus {
   private kernel: IKernel;
   constructor(kernel?: IKernel) {
-    this.kernel = kernel || globalKernel;
+    const resolved = kernel ?? getRuntimeKernel();
+    if (!resolved) throw new Error("CATBOT_EVENT_BUS_KERNEL_REQUIRED");
+    this.kernel = resolved;
   }
 
   subscribe(listener: CatbotListener) {
@@ -36,4 +36,17 @@ export function createCatbotEventBus(kernel?: IKernel): CatbotEventBus {
   return new CatbotEventBus(kernel);
 }
 
-export const catbotEventBus = new CatbotEventBus();
+let defaultBus: CatbotEventBus | null = null;
+function getDefaultBus(): CatbotEventBus {
+  if (!defaultBus) defaultBus = new CatbotEventBus();
+  return defaultBus;
+}
+
+export const catbotEventBus = {
+  subscribe(listener: CatbotListener) {
+    return getDefaultBus().subscribe(listener);
+  },
+  emit(event: CatbotEvent) {
+    return getDefaultBus().emit(event);
+  },
+};

@@ -1,7 +1,13 @@
 export type PluginOrientation = "portrait" | "landscape" | "auto";
 
 /** 插件可声明的权限白名单。未声明的 llm.* 方法调用会被宿主拒绝。 */
-export type PluginPermission = "llm.chat" | "llm.chatStream" | "llm.preset.list";
+export type PluginPermission =
+  | "llm.chat"
+  | "llm.chatStream"
+  | "llm.preset.list"
+  | "context.read"
+  | "chat.action"
+  | "chat.send";
 
 export interface FullscreenPluginManifest {
   format: "mobile-tavern.plugin";

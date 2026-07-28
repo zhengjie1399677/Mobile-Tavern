@@ -1,9 +1,16 @@
-import React, { useContext, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 import { GitFork, X, Trash2, Plus, LayoutGrid, Network } from "lucide-react";
-import BranchUniverseDiagram, { MemoryFragment } from "./BranchUniverseDiagram";
+import BranchUniverseDiagram from "./BranchUniverseDiagram";
 import MemoryFragmentEditor from "./MemoryFragmentEditor";
+import { useKernel } from "../contexts/KernelContext";
+import {
+  MEMORY_PERSISTENCE_SERVICE,
+  type MemoryFragment,
+  type MemoryPersistencePort,
+} from "../kernel/services/memory/types";
+import type { IKernelService } from "../kernel/types";
 
 export default function SessionManagerModal() {
   const {
@@ -31,15 +38,53 @@ export default function SessionManagerModal() {
   }));
 
   const { t } = useTranslation();
+  const kernel = useKernel();
   
   // 选项卡状态："list" (列表) | "diagram" (脉络图)
   const [activeTab, setActiveTab] = useState<"list" | "diagram">("list");
-  // 当前正在审计编辑的记忆碎片状态
-  const [editingFragment, setEditingFragment] = useState<MemoryFragment | null>(null);
+  const [fragments, setFragments] = useState<MemoryFragment[]>([]);
+  const [auditNode, setAuditNode] = useState<{
+    sessionId: string;
+    turn: number;
+    fragments: MemoryFragment[];
+  } | null>(null);
+
+  const characterSessions = useMemo(
+    () => activeCharacter
+      ? sessions.filter((session) => session.characterId === activeCharacter.id)
+      : [],
+    [activeCharacter, sessions],
+  );
+  const persistence = useMemo(
+    () => kernel.getService<MemoryPersistencePort & IKernelService>(MEMORY_PERSISTENCE_SERVICE),
+    [kernel],
+  );
+  const loadFragments = useCallback(async () => {
+    try {
+      const groups = await Promise.all(
+        characterSessions.map((session) => persistence.getFragmentsBySession(session.id)),
+      );
+      const next = groups.flat();
+      setFragments(next);
+      setAuditNode((current) => current ? {
+        ...current,
+        fragments: next.filter(
+          (fragment) =>
+            fragment.sessionId === current.sessionId &&
+            fragment.sourceTurnEnd === current.turn,
+        ),
+      } : null);
+    } catch (error) {
+      console.warn("[SessionManagerModal] Failed to load memory fragments", error);
+      setFragments([]);
+    }
+  }, [characterSessions, persistence]);
+
+  useEffect(() => {
+    if (showSessionManager && activeTab === "diagram") void loadFragments();
+  }, [activeTab, loadFragments, showSessionManager]);
 
   if (!showSessionManager || !activeCharacter) return null;
-
-  const characterSessions = sessions.filter((s) => s.characterId === activeCharacter.id);
 
   return (
     <div
@@ -169,6 +214,7 @@ export default function SessionManagerModal() {
               <BranchUniverseDiagram
                 sessions={characterSessions}
                 activeSession={activeSession}
+                fragments={fragments}
                 onSelectSession={(id) => {
                   if (isSending) {
                     showCustomAlert(t("session_manager.busy_switch_warning"));
@@ -177,7 +223,9 @@ export default function SessionManagerModal() {
                   setActiveSessionId(id);
                   setShowSessionManager(false);
                 }}
-                onEditFragment={(frag) => setEditingFragment(frag)}
+                onInspectNode={(sessionId, turn, nodeFragments) => {
+                  setAuditNode({ sessionId, turn, fragments: nodeFragments });
+                }}
               />
             </div>
           )}
@@ -198,16 +246,14 @@ export default function SessionManagerModal() {
         </button>
 
         {/* 记忆碎片审计浮层 */}
-        {editingFragment && (
+        {auditNode && (
           <MemoryFragmentEditor
-            fragment={editingFragment}
-            onClose={() => setEditingFragment(null)}
-            onSave={(updated) => {
-              setEditingFragment(null);
-            }}
-            onDelete={(id) => {
-              setEditingFragment(null);
-            }}
+            sessionId={auditNode.sessionId}
+            sourceTurnEnd={auditNode.turn}
+            fragments={auditNode.fragments}
+            persistence={persistence}
+            onClose={() => setAuditNode(null)}
+            onChanged={loadFragments}
           />
         )}
       </div>

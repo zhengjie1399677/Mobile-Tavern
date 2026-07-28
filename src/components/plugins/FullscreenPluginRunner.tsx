@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Loader2, X } from "lucide-react";
-import { createPluginRuntimeDocument, type InstalledFullscreenPlugin, type PluginOrientation, type PluginRuntimeDocument } from "../../domain/plugins";
+import { createPluginRuntimeDocument, dispatchPluginHostRequest, type InstalledFullscreenPlugin, type PluginOrientation, type PluginRuntimeDocument } from "../../domain/plugins";
 import { deletePluginData, loadPluginData, savePluginData } from "../../infrastructure/plugins/pluginStorage";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import type { IChatStreamService, StreamChunk } from "../../kernel/types";
@@ -30,9 +30,12 @@ export default function FullscreenPluginRunner({
   const [error, setError] = useState<string>();
   const loadedRef = useRef(false);
   const exitEnabledRef = useRef(false);
-  const { settings, getKernelService } = useUnifiedApp((state) => ({
+  const { settings, getKernelService, activeCharacter, activeSession, handleSendMessage } = useUnifiedApp((state) => ({
     settings: state.settings,
     getKernelService: state.getKernelService,
+    activeCharacter: state.activeCharacter,
+    activeSession: state.activeSession,
+    handleSendMessage: state.handleSendMessage,
   }));
   const pendingStreamsRef = useRef<Map<string, AbortController>>(new Map());
 
@@ -181,7 +184,7 @@ export default function FullscreenPluginRunner({
 
   async function handleRequest(pluginId: string, method: string, params: unknown): Promise<unknown> {
     const record = params && typeof params === "object" ? params as Record<string, unknown> : {};
-    if (method === "host.ready") return { apiVersion: 1 };
+    if (method === "host.ready") return { apiVersion: 2 };
     if (method === "host.exit") {
       if (!exitEnabledRef.current) {
         logPluginDiagnostic(`exit-blocked plugin=${plugin.id}`);
@@ -211,6 +214,18 @@ export default function FullscreenPluginRunner({
       if (typeof record.slot !== "string") throw new Error("PLUGIN_SAVE_INVALID_SLOT");
       await deletePluginData(pluginId, record.slot);
       return null;
+    }
+    if (method === "context.get" || method === "chat.injectAction" || method === "chat.send") {
+      return dispatchPluginHostRequest(
+        plugin.manifest.permissions,
+        method,
+        params,
+        { activeCharacter, activeSession },
+        {
+          injectAction: (text) => handleSendMessage(text, { skipAI: true }),
+          sendMessage: (text) => handleSendMessage(text),
+        },
+      );
     }
     if (method === "llm.chat") {
       checkPermission(plugin.manifest.permissions, method);

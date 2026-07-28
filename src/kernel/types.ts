@@ -22,6 +22,7 @@ export const KernelServices = {
   Settings: "settings",
   Preset: "preset",
   CharacterRender: "characterRender",
+  WorkerPlugins: "workerPlugins",
 } as const;
 
 export type InterruptFn = () => void;
@@ -283,7 +284,11 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
     messages: any[],
     userInput: string,
     entries: TLorebook[],
-    maxRecursionDepth?: number
+    maxRecursionDepth?: number,
+    conditionContext?: {
+      variables?: Record<string, unknown>;
+      session?: Record<string, unknown>;
+    }
   ): TLorebook[];
   replaceMacros(
     text: string,

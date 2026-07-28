@@ -191,7 +191,14 @@ function validateManifest(value: unknown): FullscreenPluginManifest {
     if (record[field] !== undefined && typeof record[field] !== "string") throw new Error(`PLUGIN_MANIFEST_INVALID_${field.toUpperCase()}`);
   }
   // 权限声明白名单校验
-  const ALLOWED_PERMISSIONS = ["llm.chat", "llm.chatStream", "llm.preset.list"];
+  const ALLOWED_PERMISSIONS = [
+    "llm.chat",
+    "llm.chatStream",
+    "llm.preset.list",
+    "context.read",
+    "chat.action",
+    "chat.send",
+  ];
   const permissions = record.permissions;
   let safePermissions: string[] | undefined;
   if (permissions !== undefined) {
