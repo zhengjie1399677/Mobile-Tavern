@@ -185,7 +185,7 @@ export default function ThemeConfigSection({
           value={currentTheme}
           onValueChange={(val: any) => handleThemeChange(val)}
         >
-          <SelectTrigger aria-label={t("theme.section_title")} className="w-full text-xs h-9 bg-input/50 font-medium">
+          <SelectTrigger aria-label={t("theme.section_title")} className="w-full text-xs min-h-12 bg-input/50 font-medium">
             <SelectValue placeholder={t("theme.placeholder")}>
               {currentTheme === "snow"
                 ? t("theme.snow")
@@ -248,12 +248,12 @@ export default function ThemeConfigSection({
                   setEditingTheme(null);
                   setEditorOpen(true);
                 }}
-                className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] px-2.5 py-1.5 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold gap-1 animate-pulse"
+                className="min-h-12 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] px-3 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold gap-1 animate-pulse"
               >
                 <Plus className="w-3 h-3" />
                 {t("theme.new")}
               </button>
-              <label className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] px-2.5 py-1.5 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold gap-1">
+              <label className="min-h-12 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] px-3 rounded-md flex items-center justify-center cursor-pointer select-none transition tap-scale font-semibold gap-1">
                 <Upload className="w-3 h-3" />
                 {t("theme.import")}
                 <input
@@ -277,7 +277,7 @@ export default function ThemeConfigSection({
                 return (
                   <div
                     key={theme.id}
-                    className={`flex items-center justify-between gap-2 p-2 rounded-lg border transition ${isCurrent
+                    className={`flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg border transition ${isCurrent
                       ? "bg-primary/10 border-primary/30"
                       : "bg-muted/20 border-border/40 hover:bg-muted/35"
                       }`}
@@ -299,7 +299,7 @@ export default function ThemeConfigSection({
                         <p className="text-[10px] text-muted-foreground truncate mt-0.5">{theme.description}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex w-full items-center justify-end gap-1 sm:w-auto shrink-0">
                       <button
                         type="button"
                         onClick={() => {
@@ -307,7 +307,7 @@ export default function ThemeConfigSection({
                           setEditingTheme(theme);
                           setEditorOpen(true);
                         }}
-                        className="p-1.5 rounded-md border border-border bg-muted hover:bg-primary/10 hover:text-primary hover:border-primary/20 text-muted-foreground transition"
+                        className="w-12 h-12 rounded-md border border-border bg-muted hover:bg-primary/10 hover:text-primary hover:border-primary/20 text-muted-foreground transition flex items-center justify-center shrink-0"
                         title="编辑此主题"
                       >
                         <Edit className="w-3.5 h-3.5" />
@@ -316,7 +316,7 @@ export default function ThemeConfigSection({
                         type="button"
                         onClick={() => handleApplyTheme(theme)}
                         disabled={isCurrent}
-                        className={`p-1.5 rounded-md border transition ${isCurrent
+                        className={`w-12 h-12 rounded-md border transition flex items-center justify-center shrink-0 ${isCurrent
                           ? "bg-primary/15 border-primary/30 text-primary cursor-default"
                           : "bg-muted hover:bg-primary/10 hover:text-primary hover:border-primary/20 text-muted-foreground"
                           }`}
@@ -327,7 +327,7 @@ export default function ThemeConfigSection({
                       <button
                         type="button"
                         onClick={() => handleExportTheme(theme)}
-                        className="p-1.5 rounded-md border border-border bg-muted hover:bg-primary/10 hover:text-primary hover:border-primary/20 text-muted-foreground transition"
+                        className="w-12 h-12 rounded-md border border-border bg-muted hover:bg-primary/10 hover:text-primary hover:border-primary/20 text-muted-foreground transition flex items-center justify-center shrink-0"
                         title="导出为 .tavern-theme.json"
                       >
                         <Download className="w-3.5 h-3.5" />
@@ -335,7 +335,7 @@ export default function ThemeConfigSection({
                       <button
                         type="button"
                         onClick={() => handleDeleteTheme(theme)}
-                        className="p-1.5 rounded-md border border-destructive/20 bg-destructive/10 hover:bg-destructive/20 text-destructive transition"
+                        className="w-12 h-12 rounded-md border border-destructive/20 bg-destructive/10 hover:bg-destructive/20 text-destructive transition flex items-center justify-center shrink-0"
                         title="删除此主题"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -365,7 +365,7 @@ export default function ThemeConfigSection({
                   const newSize = Math.max(12, currentSize - 1);
                   updateSettings((prev) => ({ ...prev, chatFontSize: newSize }));
                 }}
-                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-8 h-8 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
+                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-12 h-12 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
                 title="减小字号"
               >
                 A-
@@ -377,7 +377,7 @@ export default function ThemeConfigSection({
                   const newSize = Math.min(24, currentSize + 1);
                   updateSettings((prev) => ({ ...prev, chatFontSize: newSize }));
                 }}
-                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-8 h-8 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
+                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-12 h-12 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
                 title="增大字号"
               >
                 A+
@@ -403,7 +403,7 @@ export default function ThemeConfigSection({
                   const newLH = Number(Math.max(1.0, currentLH - 0.1).toFixed(1));
                   updateSettings((prev) => ({ ...prev, chatLineHeight: newLH }));
                 }}
-                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-8 h-8 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
+                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-12 h-12 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
                 title="减小行距"
               >
                 L-
@@ -415,7 +415,7 @@ export default function ThemeConfigSection({
                   const newLH = Number(Math.min(2.5, currentLH + 0.1).toFixed(1));
                   updateSettings((prev) => ({ ...prev, chatLineHeight: newLH }));
                 }}
-                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-8 h-8 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
+                className="bg-muted hover:bg-primary/10 border border-border hover:border-primary/20 text-muted-foreground hover:text-primary w-12 h-12 rounded-md flex items-center justify-center text-xs transition tap-scale font-bold"
                 title="增大行距"
               >
                 L+

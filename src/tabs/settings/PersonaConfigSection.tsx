@@ -58,7 +58,7 @@ export default function PersonaConfigSection({
                 value={settings.activePersonaId || "default-persona"}
                 onValueChange={(val) => switchUserPersona(val)}
               >
-                <SelectTrigger aria-label={t("persona.active")} className="w-full text-xs h-9 bg-input/50 font-semibold">
+                <SelectTrigger aria-label={t("persona.active")} className="w-full text-xs min-h-12 bg-input/50 font-semibold">
                   <SelectValue placeholder={t("persona.select_placeholder")}>
                     👤 {settings.userPersonas?.find(p => p.id === (settings.activePersonaId || "default-persona"))?.name || t("persona.select_placeholder")}
                   </SelectValue>
@@ -80,7 +80,7 @@ export default function PersonaConfigSection({
             <button
               type="button"
               onClick={addUserPersona}
-              className="h-9 px-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 active:scale-95 shrink-0"
+              className="min-h-12 px-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 active:scale-95 shrink-0"
               title={t("persona.create")}
             >
               <Plus className="w-3.5 h-3.5" />
@@ -91,7 +91,7 @@ export default function PersonaConfigSection({
               type="button"
               onClick={() => deleteUserPersona(settings.activePersonaId || "")}
               disabled={(settings.userPersonas || []).length <= 1}
-              className="h-9 px-3 bg-rose-950/15 border border-rose-900/35 hover:bg-rose-950/35 text-red-400 disabled:opacity-40 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 active:scale-95 shrink-0"
+              className="min-h-12 px-3 bg-rose-950/15 border border-rose-900/35 hover:bg-rose-950/35 text-red-400 disabled:opacity-40 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 active:scale-95 shrink-0"
               title={t("persona.delete")}
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -109,7 +109,7 @@ export default function PersonaConfigSection({
             onChange={(e) =>
               updateSettings({ ...settings, userName: e.target.value })
             }
-            className="h-9 text-xs bg-input/50"
+            className="min-h-12 text-xs bg-input/50"
             placeholder={t("persona.name_placeholder")}
           />
         </div>
@@ -131,7 +131,7 @@ export default function PersonaConfigSection({
               onChange={(e) =>
                 updateSettings({ ...settings, userAvatar: e.target.value })
               }
-              className="h-9 text-xs bg-input/50 flex-1 truncate"
+              className="min-h-12 text-xs bg-input/50 flex-1 truncate"
               placeholder={t("persona.avatar_placeholder")}
             />
             <label className="bg-muted text-muted-foreground text-xs px-3 rounded flex items-center justify-center cursor-pointer border border-border select-none shrink-0">

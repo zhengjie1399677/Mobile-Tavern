@@ -266,7 +266,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
       <div className="bg-background border border-border rounded-2xl w-full max-w-lg flex flex-col h-[85vh] max-h-[640px] shadow-2xl overflow-hidden text-xs">
         
         {/* 头部标题区 */}
-        <div className="flex items-center justify-between border-b border-border p-3.5 shrink-0">
+        <div className="flex min-h-14 items-center justify-between border-b border-border px-3.5 py-1 shrink-0">
           <h4 className="font-bold text-foreground flex items-center gap-2 text-sm">
             <FolderSearch className="w-4.5 h-4.5 text-primary" />
             <span>{t("scanner.title")}</span>
@@ -275,7 +275,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
             type="button"
             onClick={onClose}
             aria-label={t("scanner.close")}
-            className="text-muted-foreground hover:text-foreground hover:bg-muted/40 p-1 rounded-lg transition active:scale-95"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted/40 w-12 h-12 rounded-lg transition active:scale-95 flex items-center justify-center shrink-0"
           >
             <X className="w-4.5 h-4.5" />
           </button>
@@ -297,7 +297,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                 type="button"
                 onClick={triggerMockScan}
                 disabled={isScanning}
-                className="w-full py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition active:scale-[0.98] flex items-center justify-center gap-1.5 disabled:opacity-50"
+                className="w-full min-h-12 px-3 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition active:scale-[0.98] flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 {isScanning ? (
                   <>
@@ -323,7 +323,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                 type="button"
                 onClick={handleRequestPermission}
                 disabled={isRequestingPermission}
-                className="w-full py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="w-full min-h-12 px-3 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 {isRequestingPermission && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 <span>{t("scanner.permission_btn")}</span>
@@ -335,7 +335,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
               type="button"
               onClick={triggerScan}
               disabled={isScanning}
-              className="w-full py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition active:scale-[0.98] flex items-center justify-center gap-1.5 disabled:opacity-50"
+              className="w-full min-h-12 px-3 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition active:scale-[0.98] flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
               {isScanning ? (
                 <>
@@ -354,13 +354,13 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
           {/* 实时搜索过滤框 */}
           {scannedFiles.length > 0 && (
             <div className="relative">
-              <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground/70" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
                 type="text"
                 placeholder={t("scanner.search_placeholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-2.5 py-1.5 bg-input border border-border rounded-lg text-[11px] text-foreground outline-none focus:border-primary transition"
+                className="w-full min-h-12 pl-8 pr-2.5 bg-input border border-border rounded-lg text-[11px] text-foreground outline-none focus:border-primary transition"
               />
             </div>
           )}
@@ -380,7 +380,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                       key={mode}
                       type="button"
                       onClick={() => setSortMode(mode)}
-                      className={`px-2 py-1 rounded-md text-[10px] font-medium border transition active:scale-95 ${
+                      className={`min-h-12 px-3 rounded-md text-[10px] font-medium border transition active:scale-95 ${
                         active
                           ? "bg-primary/15 border-primary/50 text-primary"
                           : "bg-background border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -396,7 +396,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                 onClick={() => setSortDirection((d) => (d === "asc" ? "desc" : "asc"))}
                 aria-label={sortDirection === "asc" ? t("scanner.sort_desc") : t("scanner.sort_asc")}
                 title={sortDirection === "asc" ? t("scanner.sort_desc") : t("scanner.sort_asc")}
-                className="ml-auto px-2 py-1 rounded-md text-[10px] font-medium border bg-background border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition active:scale-95 flex items-center gap-1 shrink-0"
+                className="ml-auto min-h-12 px-3 rounded-md text-[10px] font-medium border bg-background border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition active:scale-95 flex items-center gap-1 shrink-0"
               >
                 {sortDirection === "asc" ? (
                   <ArrowUp className="w-3 h-3" />
@@ -418,9 +418,9 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
             </div>
           ) : filteredFiles.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center space-y-1.5 text-muted-foreground text-center py-16 leading-relaxed">
-              <FolderSearch className="w-10 h-10 text-muted-foreground/30 stroke-[1.2]" />
+              <FolderSearch className="w-10 h-10 text-muted-foreground stroke-[1.2]" />
               <p className="font-bold text-[11px]">{t("scanner.no_results")}</p>
-              <p className="text-[10px] text-muted-foreground/80 max-w-xs">
+              <p className="text-[10px] text-muted-foreground max-w-xs">
                 {scannedFiles.length > 0
                   ? t("scanner.no_match")
                   : t("scanner.no_results_tip")}
@@ -452,7 +452,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                         <p className="text-[9px] text-muted-foreground truncate leading-tight mt-0.5" title={file.path}>
                           {file.path}
                         </p>
-                        <p className="text-[8.5px] text-muted-foreground/75 leading-none mt-1">
+                        <p className="text-[8.5px] text-muted-foreground leading-none mt-1">
                           {t("scanner.file_meta", { size: formatSize(file.size), date: new Date(file.lastModified).toLocaleDateString() })}
                         </p>
                       </div>
@@ -462,7 +462,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                       type="button"
                       disabled={isImporting || !!importingPath}
                       onClick={() => handleImportFile(file)}
-                      className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-lg text-[10px] transition active:scale-95 disabled:opacity-50 shrink-0 flex items-center gap-1"
+                      className="min-h-12 px-3 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-lg text-[10px] transition active:scale-95 disabled:opacity-50 shrink-0 flex items-center gap-1"
                     >
                       {isImporting ? (
                         <>

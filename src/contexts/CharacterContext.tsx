@@ -22,6 +22,7 @@ interface CharacterContextType {
   isDBReady: boolean;
   setIsDBReady: (ready: boolean) => void;
   loadCharacters: () => Promise<void>;
+  loadCharacterById: (id: string) => Promise<CharacterCard | null>;
   saveCharacter: (character: CharacterCard) => Promise<void>;
   deleteCharacter: (id: string) => Promise<void>;
 }
@@ -69,7 +70,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const loadCharacters = async () => {
     try {
-      let stored = await characterService.getAllCharacters();
+      let stored = await characterService.getCharacterCatalog();
 
       const hasInitialized = await characterService.getStoredDefaultCharactersInitializedFlag();
 
@@ -82,7 +83,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         await characterService.saveStoredDefaultCharactersInitializedFlag(true);
 
-        stored = await characterService.getAllCharacters();
+        stored = await characterService.getCharacterCatalog();
       }
 
       const cleaned = (stored || []).map(cleanCharacter);
@@ -122,6 +123,18 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  const loadCharacterById = async (id: string): Promise<CharacterCard | null> => {
+    const current = characters.find((character) => character.id === id);
+    if (current && !current.extensions?.__catalogOnly) return current;
+    const loaded = await characterService.getCharacterById(id);
+    if (!loaded) return null;
+    const cleaned = cleanCharacter(loaded);
+    setCharacters((previous) =>
+      previous.map((character) => character.id === id ? cleaned : character)
+    );
+    return cleaned;
+  };
+
   const deleteCharacter = async (id: string) => {
     try {
       await characterService.deleteCharacter(id);
@@ -147,6 +160,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isDBReady,
         setIsDBReady,
         loadCharacters,
+        loadCharacterById,
         saveCharacter,
         deleteCharacter,
       }}

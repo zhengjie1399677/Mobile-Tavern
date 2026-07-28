@@ -89,6 +89,7 @@ export const useBackupRestore = ({
       encryptBackup ? "正在加密并创建备份文件..." : "正在创建明文备份...",
     );
     try {
+      const completeCharacters = await characterService.getAllCharacters();
       const exportedSettings = encryptBackup
         ? settings
         : {
@@ -126,7 +127,7 @@ export const useBackupRestore = ({
       const payloadObj = {
         magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
         version: 3,
-        characters,
+        characters: completeCharacters,
         sessions: completeSessions,
         memoryFragments,
         memoryFacts,
@@ -558,6 +559,7 @@ export const useBackupRestore = ({
 
     try {
       console.log("[AutoBackup] Performing silent daily background backup...");
+      const completeCharacters = await characterService.getAllCharacters();
       
       // 数据脱敏，抹除 API Key
       const exportedSettings = {
@@ -598,7 +600,7 @@ export const useBackupRestore = ({
       const payloadObj = {
         magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
         version: 3,
-        characters,
+        characters: completeCharacters,
         sessions: completeSessions,
         memoryFragments,
         memoryFacts,

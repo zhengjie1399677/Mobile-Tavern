@@ -2,6 +2,8 @@ import { IKernelService, IKernel } from "../types";
 import { CharacterCard } from "../../types";
 import {
   getAllCharacters,
+  getCharacterCatalog,
+  getCharacterById,
   saveCharacter as dbSaveCharacter,
   deleteCharacter as dbDeleteCharacter,
   bulkSaveCharacters as dbBulkSaveCharacters,
@@ -47,6 +49,14 @@ export class CharacterService implements IKernelService {
 
   async getAllCharacters(): Promise<CharacterCard[]> {
     return getAllCharacters();
+  }
+
+  async getCharacterCatalog(): Promise<CharacterCard[]> {
+    return getCharacterCatalog();
+  }
+
+  async getCharacterById(id: string): Promise<CharacterCard | null> {
+    return getCharacterById(id);
   }
 
   async saveCharacter(character: CharacterCard): Promise<void> {

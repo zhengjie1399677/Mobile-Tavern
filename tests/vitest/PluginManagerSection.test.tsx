@@ -9,7 +9,7 @@ import { unifiedAppStore } from "../../src/UnifiedAppContext";
 // listBuiltinPlugins 生产环境用 ?url + fetch 加载，测试环境无法 fetch 本地资源，
 // 此处 mock 返回最小插件数据（仅需满足渲染断言：name + builtin）。
 vi.mock("../../src/infrastructure/plugins/builtinPlugins", () => ({
-  listBuiltinPlugins: vi.fn(async () => [
+  listBuiltinPluginMetadata: vi.fn(async () => [
     {
       id: "demo.astral-rift",
       manifest: { id: "demo.astral-rift", name: "星渊终焉", version: "1.0.0", entry: "index.html", orientation: "landscape" },
@@ -29,6 +29,7 @@ vi.mock("../../src/infrastructure/plugins/builtinPlugins", () => ({
       builtin: true,
     },
   ]),
+  loadBuiltinPluginById: vi.fn(),
 }));
 
 describe("PluginManagerSection", () => {

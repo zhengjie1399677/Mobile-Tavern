@@ -36,6 +36,7 @@ export default function CharactersTab() {
     handleExportCharacterPNG,
     setActiveTab,
     setActiveWorldbookHostId,
+    loadCharacterById,
   } = useUnifiedApp(state => ({
     characters: state.characters,
     sessions: state.sessions,
@@ -50,6 +51,7 @@ export default function CharactersTab() {
     handleExportCharacterPNG: state.handleExportCharacterPNG,
     setActiveTab: state.setActiveTab,
     setActiveWorldbookHostId: state.setActiveWorldbookHostId,
+    loadCharacterById: state.loadCharacterById,
   }));
   const { t } = useTranslation();
   const [selectedDetailChar, setSelectedDetailChar] = React.useState<CharacterCard | null>(null);
@@ -85,12 +87,12 @@ export default function CharactersTab() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setScannerOpen(true)}
-            className="bg-card active:scale-[0.98] text-muted-foreground p-2 rounded-lg border border-border transition flex items-center justify-center"
+            className="bg-card active:scale-[0.98] text-muted-foreground w-12 h-12 rounded-lg border border-border transition flex items-center justify-center shrink-0"
             title={t("characters_tab.scan_title")}
           >
             <FolderSearch className="w-4 h-4" />
           </button>
-          <label className="cursor-pointer bg-card active:scale-[0.98] text-muted-foreground p-2 rounded-lg border border-border transition flex items-center justify-center" title={t("characters_tab.import_title")}>
+          <label className="cursor-pointer bg-card active:scale-[0.98] text-muted-foreground w-12 h-12 rounded-lg border border-border transition flex items-center justify-center shrink-0" title={t("characters_tab.import_title")}>
             <FileUp className="w-4 h-4" />
             <input
               type="file"
@@ -101,7 +103,7 @@ export default function CharactersTab() {
           </label>
           <button
             onClick={handleAddNewCharacter}
-            className="bg-primary hover:bg-primary text-primary-foreground p-2 rounded-lg transition-all font-medium flex items-center justify-center"
+            className="bg-primary hover:bg-primary text-primary-foreground w-12 h-12 rounded-lg transition-all font-medium flex items-center justify-center shrink-0"
             title={t("characters_tab.create_title")}
           >
             <Plus className="w-4 h-4" />
@@ -166,12 +168,12 @@ export default function CharactersTab() {
                     </h2>
                     {!isPluginCard && (
                       <div
-                        className="flex gap-1"
+                        className="flex gap-2"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
                           onClick={() => setActionMenuChar(char)}
-                          className="text-muted-foreground hover:text-primary p-1 bg-muted/40 rounded-lg hover:bg-muted transition active:scale-95 flex items-center justify-center"
+                          className="text-muted-foreground hover:text-primary w-12 h-12 bg-muted/40 rounded-lg hover:bg-muted transition active:scale-95 flex items-center justify-center shrink-0"
                           title={t("characters_tab.more_title")}
                         >
                           <MoreHorizontal className="w-3.5 h-3.5" />
@@ -252,8 +254,9 @@ export default function CharactersTab() {
             {/* 功能选项列表 */}
             <div className="p-3 space-y-1">
               <button
-                onClick={() => {
-                  setSelectedDetailChar(actionMenuChar);
+                onClick={async () => {
+                  const loaded = await loadCharacterById(actionMenuChar.id);
+                  if (loaded) setSelectedDetailChar(loaded);
                   setActionMenuChar(null);
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted active:bg-muted/70 rounded-xl transition text-left"
@@ -263,8 +266,9 @@ export default function CharactersTab() {
               </button>
 
               <button
-                onClick={() => {
-                  handleEditCharacter(actionMenuChar);
+                onClick={async () => {
+                  const loaded = await loadCharacterById(actionMenuChar.id);
+                  if (loaded) handleEditCharacter(loaded);
                   setActionMenuChar(null);
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted active:bg-muted/70 rounded-xl transition text-left"
@@ -274,7 +278,8 @@ export default function CharactersTab() {
               </button>
 
               <button
-                onClick={() => {
+                onClick={async () => {
+                  await loadCharacterById(actionMenuChar.id);
                   setActiveWorldbookHostId(actionMenuChar.id);
                   setActiveTab("global-worldbook");
                   setActionMenuChar(null);
@@ -289,7 +294,10 @@ export default function CharactersTab() {
                 onClick={async () => {
                   setActionMenuChar(null);
                   const ok = await showCustomConfirm(t("characters_tab.confirm_export_json"));
-                  if (ok) handleExportCharacterJSON(actionMenuChar);
+                  if (ok) {
+                    const loaded = await loadCharacterById(actionMenuChar.id);
+                    if (loaded) handleExportCharacterJSON(loaded);
+                  }
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted active:bg-muted/70 rounded-xl transition text-left"
               >
@@ -298,8 +306,9 @@ export default function CharactersTab() {
               </button>
 
               <button
-                onClick={() => {
-                  handleExportCharacterPNG(actionMenuChar);
+                onClick={async () => {
+                  const loaded = await loadCharacterById(actionMenuChar.id);
+                  if (loaded) handleExportCharacterPNG(loaded);
                   setActionMenuChar(null);
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted active:bg-muted/70 rounded-xl transition text-left"

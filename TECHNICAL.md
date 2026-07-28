@@ -410,6 +410,7 @@ graph TB
     仅接受启动层显式传入的 `IKernel`，缺少 `KernelProvider` 时立即抛错，不再静默回退到 `globalKernel` 单例。
 *   **CharactersTab**: 
     维护本地导入的角色卡列表。在用户对卡片进行增删改查时，直接通过自定义 Hook [useCharacters.ts](src/hooks/useCharacters.ts) 进行 IndexedDB 存储库的原子操作，并同步分发至 UI 进行反应式视图更新。
+    首页只读取独立的 `character_catalog` 轻量 Store（名称、摘要、作者、标签），不反序列化头像、世界书、正则脚本和完整问候语；开始对话、查看、编辑、世界书与导出操作再通过角色主键从 `characters` Store 水合完整卡片。两个 Store 的保存、删除和批量导入必须处于同一事务，统一备份则直接读取完整主 Store。内置全屏游戏同样只预载 manifest，点击启动后才读取 HTML、CSS 与游戏脚本。
 *   **ChatTab**: 
     承载当前激活对话。采用 [useChat.tsx](src/hooks/useChat.tsx) Hook 管理 SSE 接收状态、流缓冲分词器以及消息历史树。
 

@@ -443,6 +443,8 @@ export interface IAsrService extends IKernelService {
 
 export interface ICharacterService extends IKernelService {
   getAllCharacters(): Promise<any[]>;
+  getCharacterCatalog(): Promise<any[]>;
+  getCharacterById(id: string): Promise<any | null>;
   saveCharacter(character: any): Promise<void>;
   deleteCharacter(id: string): Promise<void>;
   bulkSaveCharacters(charactersList: any[]): Promise<void>;

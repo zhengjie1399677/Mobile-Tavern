@@ -45,6 +45,7 @@ export interface UnifiedAppContextProps {
   isDBReady: boolean;
   setIsDBReady: (ready: boolean) => void;
   loadCharacters: () => Promise<void>;
+  loadCharacterById: (id: string) => Promise<CharacterCard | null>;
   saveCharacter: (character: CharacterCard) => Promise<void>;
   deleteCharacter: (id: string) => Promise<void>;
 

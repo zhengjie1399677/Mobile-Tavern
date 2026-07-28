@@ -119,7 +119,7 @@ export default function TtsConfigSection({
                     }));
                   }}
                 >
-                  <SelectTrigger aria-label={t("tts.trigger")} className="w-full text-xs h-9 bg-input/50 font-semibold">
+                  <SelectTrigger aria-label={t("tts.trigger")} className="w-full text-xs min-h-12 bg-input/50 font-semibold">
                     <SelectValue placeholder="Trigger Mode" />
                   </SelectTrigger>
                   <SelectContent>
@@ -155,7 +155,7 @@ export default function TtsConfigSection({
                     }));
                   }}
                 >
-                  <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-semibold">
+                  <SelectTrigger className="w-full text-xs min-h-12 bg-input/50 font-semibold">
                     <SelectValue placeholder="Content Range" />
                   </SelectTrigger>
                   <SelectContent>
@@ -193,7 +193,7 @@ export default function TtsConfigSection({
                   }));
                 }}
               >
-                <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-semibold">
+                <SelectTrigger className="w-full text-xs min-h-12 bg-input/50 font-semibold">
                   <SelectValue placeholder="Select Engine" />
                 </SelectTrigger>
                 <SelectContent>
@@ -342,7 +342,7 @@ export default function TtsConfigSection({
                       }));
                     }}
                     placeholder="sk-..."
-                    className="h-8 text-xs bg-input/50"
+                    className="min-h-12 text-xs bg-input/50"
                   />
                 </div>
 
@@ -372,7 +372,7 @@ export default function TtsConfigSection({
                       }));
                     }}
                     placeholder="https://api.openai.com/v1"
-                    className="h-8 text-xs bg-input/50"
+                    className="min-h-12 text-xs bg-input/50"
                   />
                 </div>
 
@@ -403,7 +403,7 @@ export default function TtsConfigSection({
                         }));
                       }}
                       placeholder="tts-1"
-                      className="h-8 text-xs bg-input/50"
+                      className="min-h-12 text-xs bg-input/50"
                     />
                   </div>
 
@@ -433,7 +433,7 @@ export default function TtsConfigSection({
                         }));
                       }}
                     >
-                      <SelectTrigger className="w-full text-xs h-8 bg-input/50 font-semibold">
+                      <SelectTrigger className="w-full text-xs min-h-12 bg-input/50 font-semibold">
                         <SelectValue placeholder="alloy" />
                       </SelectTrigger>
                       <SelectContent>
@@ -455,7 +455,7 @@ export default function TtsConfigSection({
                 <button
                   type="button"
                   onClick={handleStopTest}
-                  className="h-8 px-3 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-900/40 text-red-400 text-xs font-bold rounded-lg transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+                  className="min-h-12 px-3 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-900/40 text-red-400 text-xs font-bold rounded-lg transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                   <span>{t("tts.test_stop")}</span>
@@ -464,7 +464,7 @@ export default function TtsConfigSection({
                 <button
                   type="button"
                   onClick={handlePlayTest}
-                  className="h-8 px-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-lg transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+                  className="min-h-12 px-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-lg transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   <span>{t("tts.test_play")}</span>

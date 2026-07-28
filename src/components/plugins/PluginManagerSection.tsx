@@ -8,7 +8,7 @@ import {
   loadPluginFiles,
   type InstalledPluginMetadata,
 } from "../../infrastructure/plugins/pluginStorage";
-import { listBuiltinPlugins } from "../../infrastructure/plugins/builtinPlugins";
+import { listBuiltinPluginMetadata, loadBuiltinPluginById } from "../../infrastructure/plugins/builtinPlugins";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 
@@ -26,7 +26,7 @@ export default function PluginManagerSection() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
-    const packagedBuiltins = await listBuiltinPlugins();
+    const packagedBuiltins = await listBuiltinPluginMetadata();
     setPlugins(packagedBuiltins);
     const installed = await listInstalledPlugins();
     const installedById = new Map(installed.map((plugin) => [plugin.id, plugin]));
@@ -46,7 +46,9 @@ export default function PluginManagerSection() {
     setBusy(true);
     try {
       // 内置插件与已加载对象含 files；用户安装项仅元数据，需按需从 packageFiles 拉取字节。
-      const full: InstalledFullscreenPlugin = "files" in plugin && plugin.files
+      const full: InstalledFullscreenPlugin = plugin.builtin
+        ? await loadBuiltinPluginById(plugin.id)
+        : "files" in plugin && plugin.files
         ? plugin
         : { ...(plugin as InstalledPluginMetadata), files: await loadPluginFiles(plugin.id) };
       launchPlugin(full);

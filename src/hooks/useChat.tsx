@@ -45,7 +45,7 @@ export const useChat = (
 ) => {
   const kernel = useKernel();
   const { showCustomAlert, showCustomConfirm, showCustomPrompt, setActiveTab } = useApp();
-  const { characters, activeCharId, setActiveCharId, activeCharacter } = useCharactersState();
+  const { characters, activeCharId, setActiveCharId, activeCharacter, loadCharacterById } = useCharactersState();
   const {
     sessions, setSessions,
     activeSessionId, setActiveSessionId,
@@ -116,7 +116,7 @@ export const useChat = (
     isSending, isSendingRef: ui.isSendingRef,
     activeCharId, activeCharacter, activeSession, activeSessionId,
     sessions, characters, settings,
-    setSessions, setActiveCharId, setActiveSessionId, setActiveTab,
+    setSessions, loadCharacterById, setActiveCharId, setActiveSessionId, setActiveTab,
     setChatSubTab: ui.setChatSubTab,
     setShowSessionManager: ui.setShowSessionManager,
     setMsgMenuId: ui.setMsgMenuId,

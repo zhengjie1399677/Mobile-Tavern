@@ -41,6 +41,7 @@ export { decryptValue, encryptValue } from "../infrastructure/storage/settingsCr
 // === Characters Store ===
 export {
   getAllCharacters,
+  getCharacterCatalog,
   getCharacterById,
   saveCharacter,
   deleteCharacter,

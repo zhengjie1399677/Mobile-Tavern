@@ -18,7 +18,8 @@ export const DB_NAME = "MobileTavernLiteDB";
 // v8: 新增 messages 和 memory_dict Store，承载记忆系统物理分轨存储（AGENTS.md 准则一）
 // v9: 新增 memory_fragments Store，承载可纠错的事件型长期记忆
 // v10: 新增 memory_facts Store，承载实体关系图与时态事实演化
-export const DB_VERSION = 10;
+// v11: 新增 character_catalog Store，首屏只读取轻量角色目录
+export const DB_VERSION = 11;
 
 export interface IndexSchema {
   name: string;
@@ -40,6 +41,7 @@ export interface StoreSchema {
  */
 export const DB_SCHEMA: StoreSchema[] = [
   { name: "characters", keyPath: "id", indexes: [] },
+  { name: "character_catalog", keyPath: "id", indexes: [] },
   {
     name: "sessions",
     keyPath: "id",
@@ -158,4 +160,27 @@ export function applyDbSchema(
       }
     };
   }
+
+  if (oldVersion < 11) {
+    const characters = transaction.objectStore("characters");
+    const catalog = transaction.objectStore("character_catalog");
+    if (typeof characters.openCursor === "function") {
+      characters.openCursor().onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+        if (!cursor) return;
+        catalog.put(toCharacterCatalogRecord(cursor.value));
+        cursor.continue();
+      };
+    }
+  }
+}
+
+export function toCharacterCatalogRecord(character: Record<string, any>): Record<string, any> {
+  return {
+    id: character.id,
+    name: character.name || "",
+    description: character.description || "",
+    creator: character.creator,
+    tags: Array.isArray(character.tags) ? character.tags : [],
+  };
 }

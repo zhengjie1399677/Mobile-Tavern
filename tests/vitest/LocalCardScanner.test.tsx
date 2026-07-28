@@ -54,10 +54,21 @@ describe("LocalCardScanner Android 权限流程", () => {
   });
 
   it("拒绝或直接返回时停止等待且不扫描", () => {
-    render(<LocalCardScanner isOpen onClose={vi.fn()} />);
+    const onClose = vi.fn();
+    render(<LocalCardScanner isOpen onClose={onClose} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "scanner.permission_btn" }));
+    const permissionButton = screen.getByRole("button", { name: "scanner.permission_btn" });
+    const closeButton = screen.getByRole("button", { name: "scanner.close" });
+    expect(permissionButton).toHaveClass("min-h-12");
+    expect(closeButton).toHaveClass("w-12", "h-12");
+
+    fireEvent.click(closeButton);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(bridge.requestStoragePermission).not.toHaveBeenCalled();
+
+    fireEvent.click(permissionButton);
     expect(bridge.requestStoragePermission).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
 
     act(() => {
       window.dispatchEvent(

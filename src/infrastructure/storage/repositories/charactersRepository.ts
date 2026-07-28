@@ -12,6 +12,30 @@ import {
   bindTransactionAbort,
   bindReadonlyTransactionAbort,
 } from "../idbQueue";
+import { toCharacterCatalogRecord } from "../dbSchema";
+
+/** 首屏专用轻量目录，不读取 avatar、世界书、脚本或问候语。 */
+export async function getCharacterCatalog(): Promise<CharacterCard[]> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("character_catalog", "readonly");
+    const request = transaction.objectStore("character_catalog").getAll();
+    request.onsuccess = () => resolve((request.result || []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description || "",
+      personality: "",
+      scenario: "",
+      first_mes: "",
+      mes_example: "",
+      creator: item.creator,
+      tags: item.tags || [],
+      extensions: { __catalogOnly: true },
+    })));
+    request.onerror = () => reject(request.error);
+    bindReadonlyTransactionAbort(transaction, reject);
+  });
+}
 
 export async function getAllCharacters(): Promise<CharacterCard[]> {
   const db = await getDB();
@@ -48,9 +72,10 @@ export async function saveCharacter(character: CharacterCard, signal?: AbortSign
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction("characters", "readwrite");
+      const transaction = db.transaction(["characters", "character_catalog"], "readwrite");
       const store = transaction.objectStore("characters");
       const request = store.put(character);
+      transaction.objectStore("character_catalog").put(toCharacterCatalogRecord(character));
 
       // 用 oncomplete 判定成功：request.onsuccess 仅表示请求入队成功，不保证事务 commit。
       // commit 前若发生 QuotaExceededError 等错误，事务 abort 但 resolve() 已被调用，
@@ -66,9 +91,10 @@ export async function deleteCharacter(id: string, signal?: AbortSignal): Promise
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction("characters", "readwrite");
+      const transaction = db.transaction(["characters", "character_catalog"], "readwrite");
       const store = transaction.objectStore("characters");
       const request = store.delete(id);
+      transaction.objectStore("character_catalog").delete(id);
 
       // 用 oncomplete 判定成功（详见 saveCharacter 注释）
       transaction.oncomplete = () => resolve();
@@ -83,8 +109,9 @@ export async function bulkSaveCharacters(charactersList: CharacterCard[], signal
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       if (charactersList.length === 0) return resolve();
-      const transaction = db.transaction("characters", "readwrite");
+      const transaction = db.transaction(["characters", "character_catalog"], "readwrite");
       const store = transaction.objectStore("characters");
+      const catalog = transaction.objectStore("character_catalog");
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
@@ -92,6 +119,7 @@ export async function bulkSaveCharacters(charactersList: CharacterCard[], signal
 
       for (const char of charactersList) {
         store.put(char);
+        catalog.put(toCharacterCatalogRecord(char));
       }
     });
   }, undefined, signal);

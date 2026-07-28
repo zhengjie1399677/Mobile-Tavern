@@ -3,7 +3,7 @@ import { ChatSession, CharacterCard, Message, SummaryCard, UserSettings } from "
 import { IDatabaseService } from "../../kernel/types";
 import { ITelemetryService } from "../../kernel/types";
 import { cleanSuggestionsFromText, parseSuggestions } from "./helpers";
-import { listBuiltinPlugins } from "../../infrastructure/plugins/builtinPlugins";
+import { listBuiltinPluginMetadata, loadBuiltinPluginById } from "../../infrastructure/plugins/builtinPlugins";
 import { listInstalledPlugins, loadPluginFiles } from "../../infrastructure/plugins/pluginStorage";
 import type { InstalledFullscreenPlugin } from "../../domain/plugins";
 
@@ -18,6 +18,7 @@ interface SessionManagerParams {
   characters: CharacterCard[];
   settings: UserSettings;
   setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
+  loadCharacterById?: (id: string) => Promise<CharacterCard | null>;
   setActiveCharId: (id: string) => void;
   setActiveSessionId: (id: string | null) => void;
   setActiveTab: (tab: string) => void;
@@ -85,6 +86,10 @@ export function useSessionManager(p: SessionManagerParams) {
     }
     const loadStartTime = performance.now();
     try {
+      const targetChar = p.loadCharacterById
+        ? await p.loadCharacterById(charId)
+        : p.characters.find((character) => character.id === charId) ?? null;
+      if (!targetChar) throw new Error(`CHARACTER_NOT_FOUND:${charId}`);
       p.setActiveCharId(charId);
       const charSessions = p.sessions.filter((s) => s.characterId === charId);
       if (charSessions.length > 0) {
@@ -95,7 +100,6 @@ export function useSessionManager(p: SessionManagerParams) {
         })[0];
         p.setActiveSessionId(lastSession.id);
       } else {
-        const targetChar = p.characters.find((c) => c.id === charId);
         const newSession = await p.databaseService.createNewSession(targetChar, targetChar?.first_mes);
         p.setSessions((prev) => [...prev, newSession]);
         p.setActiveSessionId(newSession.id);
@@ -277,10 +281,10 @@ async function launchPluginById(
   pluginId: string,
   launchPlugin: (plugin: InstalledFullscreenPlugin) => void,
 ): Promise<void> {
-  const builtins = await listBuiltinPlugins();
+  const builtins = await listBuiltinPluginMetadata();
   const builtin = builtins.find((item) => item.id === pluginId);
   if (builtin) {
-    launchPlugin(builtin);
+    launchPlugin(await loadBuiltinPluginById(pluginId));
     return;
   }
   const installed = await listInstalledPlugins();

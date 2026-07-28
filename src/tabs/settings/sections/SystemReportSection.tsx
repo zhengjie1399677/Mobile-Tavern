@@ -916,31 +916,31 @@ export default function SystemReportSection({
   const warningCount = sections.filter(s => s.hasWarning).length;
 
   return (
-    <div className="mt-6 text-center space-y-1 pb-4 select-text font-mono text-[9px] text-muted-foreground/80">
-      <p className="font-bold text-[10px] text-muted-foreground mb-1 select-none flex items-center justify-center gap-1">
+    <div className="mt-6 text-center space-y-1 pb-4 select-text font-mono text-[9px] text-muted-foreground">
+      <div className="font-bold text-[10px] text-muted-foreground mb-1 select-none flex flex-wrap items-center justify-center gap-2">
         🛠️ {t("report.title")}
         <button
           onClick={copyFullReport}
-          className="text-[9px] text-primary hover:underline font-normal cursor-pointer select-none px-1.5 py-0.5 border border-primary/20 rounded bg-primary/5 hover:bg-primary/10 ml-1.5 active:scale-95 transition-all"
+          className="min-h-12 text-[9px] text-primary hover:underline font-normal cursor-pointer select-none px-3 border border-primary/20 rounded bg-primary/5 hover:bg-primary/10 active:scale-95 transition-all"
         >
           {t("report.copy")}
         </button>
         <button
           onClick={runSelfCheck}
           disabled={isChecking}
-          className="text-[9px] text-emerald-500 hover:underline font-normal cursor-pointer select-none px-1.5 py-0.5 border border-emerald-500/20 rounded bg-emerald-500/5 hover:bg-emerald-500/10 ml-1 active:scale-95 transition-all disabled:opacity-55"
+          className="min-h-12 text-[9px] text-emerald-400 hover:underline font-normal cursor-pointer select-none px-3 border border-emerald-400/30 rounded bg-emerald-400/10 hover:bg-emerald-400/15 active:scale-95 transition-all disabled:opacity-55"
         >
           {isChecking ? t("report.checking") : t("report.check_start")}
         </button>
         {sections.length > 0 && (errorCount > 0 || warningCount > 0) && (
           <button
             onClick={copyErrorsOnly}
-            className="text-[9px] text-amber-500 hover:underline font-normal cursor-pointer select-none px-1.5 py-0.5 border border-amber-500/20 rounded bg-amber-500/5 hover:bg-amber-500/10 ml-1 active:scale-95 transition-all"
+            className="min-h-12 text-[9px] text-amber-400 hover:underline font-normal cursor-pointer select-none px-3 border border-amber-400/30 rounded bg-amber-400/10 hover:bg-amber-400/15 active:scale-95 transition-all"
           >
             {t("report.copy_errors")}
           </button>
         )}
-      </p>
+      </div>
 
       {/* 错误摘要 */}
       {sections.length > 0 && (

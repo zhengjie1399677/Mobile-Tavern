@@ -7,9 +7,11 @@ import rainHtmlUrl from "../../../examples/pixi-arena-plugin/index.html?url";
 import rainManifestUrl from "../../../examples/pixi-arena-plugin/manifest.json?url";
 import rainStyleUrl from "../../../examples/pixi-arena-plugin/style.css?url";
 import type { FullscreenPluginManifest, InstalledFullscreenPlugin } from "../../domain/plugins";
+import type { InstalledPluginMetadata } from "./pluginStorage";
 import type { CharacterCard } from "../../types";
 
 const encoder = new TextEncoder();
+const manifestCache = new Map<string, string>();
 
 /**
  * 列出内置全屏插件。
@@ -18,11 +20,47 @@ const encoder = new TextEncoder();
  * 调用时按需 fetch 加载。这使 PluginManagerSection chunk 从 ~2.3MB 降至 ~50KB。
  */
 export async function listBuiltinPlugins(): Promise<InstalledFullscreenPlugin[]> {
-  const [astral, rain] = await Promise.all([
-    loadBuiltinPlugin(astralManifestUrl, astralHtmlUrl, astralStyleUrl, astralGameUrl),
-    loadBuiltinPlugin(rainManifestUrl, rainHtmlUrl, rainStyleUrl, rainGameUrl),
-  ]);
-  return [astral, rain];
+  const metadata = await listBuiltinPluginMetadata();
+  return Promise.all(metadata.map((plugin) => loadBuiltinPluginById(plugin.id)));
+}
+
+const BUILTIN_SOURCES = [
+  { manifestUrl: astralManifestUrl, htmlUrl: astralHtmlUrl, styleUrl: astralStyleUrl, gameUrl: astralGameUrl },
+  { manifestUrl: rainManifestUrl, htmlUrl: rainHtmlUrl, styleUrl: rainStyleUrl, gameUrl: rainGameUrl },
+] as const;
+
+/** 首页目录只加载两个很小的 manifest，不读取 HTML/CSS/游戏脚本。 */
+export async function listBuiltinPluginMetadata(): Promise<InstalledPluginMetadata[]> {
+  return Promise.all(BUILTIN_SOURCES.map(async (source) => {
+    const manifestSource = await getManifestSource(source.manifestUrl);
+    const manifest = JSON.parse(manifestSource) as FullscreenPluginManifest;
+    return {
+      id: manifest.id,
+      manifest,
+      installedAt: 0,
+      updatedAt: 0,
+      uncompressedSize: 0,
+      builtin: true,
+    };
+  }));
+}
+
+/** 点击卡片后才读取指定内置游戏的完整资源。 */
+export async function loadBuiltinPluginById(pluginId: string): Promise<InstalledFullscreenPlugin> {
+  for (const source of BUILTIN_SOURCES) {
+    const manifestSource = await getManifestSource(source.manifestUrl);
+    const manifest = JSON.parse(manifestSource) as FullscreenPluginManifest;
+    if (manifest.id === pluginId) {
+      return loadBuiltinPlugin(
+        source.manifestUrl,
+        source.htmlUrl,
+        source.styleUrl,
+        source.gameUrl,
+        manifestSource,
+      );
+    }
+  }
+  throw new Error(`BUILTIN_PLUGIN_NOT_FOUND:${pluginId}`);
 }
 
 async function loadBuiltinPlugin(
@@ -30,12 +68,13 @@ async function loadBuiltinPlugin(
   htmlUrl: string,
   styleUrl: string,
   gameUrl: string,
+  knownManifestSource?: string,
 ): Promise<InstalledFullscreenPlugin> {
   const [manifestSource, html, style, game] = await Promise.all([
-    fetch(manifestUrl).then((r) => r.text()),
-    fetch(htmlUrl).then((r) => r.text()),
-    fetch(styleUrl).then((r) => r.text()),
-    fetch(gameUrl).then((r) => r.text()),
+    knownManifestSource ?? fetch(manifestUrl).then(assertFetchOk).then((r) => r.text()),
+    fetch(htmlUrl).then(assertFetchOk).then((r) => r.text()),
+    fetch(styleUrl).then(assertFetchOk).then((r) => r.text()),
+    fetch(gameUrl).then(assertFetchOk).then((r) => r.text()),
   ]);
   const manifest = JSON.parse(manifestSource) as FullscreenPluginManifest;
   const files = {
@@ -62,7 +101,7 @@ async function loadBuiltinPlugin(
  * 供 CharactersTab 渲染互动角标并由 selectCharacter 分流到全屏插件运行器。
  */
 export async function listBuiltinPluginCards(): Promise<CharacterCard[]> {
-  const plugins = await listBuiltinPlugins();
+  const plugins = await listBuiltinPluginMetadata();
   return plugins.map((plugin) => ({
     id: `plugin:${plugin.id}`,
     name: plugin.manifest.name,
@@ -73,4 +112,17 @@ export async function listBuiltinPluginCards(): Promise<CharacterCard[]> {
     mes_example: "",
     extensions: { mt_plugin: { pluginId: plugin.id } },
   }));
+}
+
+function assertFetchOk(response: Response): Response {
+  if (!response.ok) throw new Error(`BUILTIN_PLUGIN_RESOURCE_FAILED:${response.status}`);
+  return response;
+}
+
+async function getManifestSource(manifestUrl: string): Promise<string> {
+  const cached = manifestCache.get(manifestUrl);
+  if (cached) return cached;
+  const source = await fetch(manifestUrl).then(assertFetchOk).then((response) => response.text());
+  manifestCache.set(manifestUrl, source);
+  return source;
 }
