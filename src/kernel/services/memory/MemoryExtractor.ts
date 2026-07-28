@@ -36,6 +36,7 @@ const MAX_ENTITIES_PER_TURN = 20;
 
 /** 单轮最多抽取的事件数 */
 const MAX_EVENTS_PER_TURN = 10;
+const MAX_RELATIONS_PER_TURN = 20;
 
 /** 实体名最大长度 */
 const MAX_ENTITY_NAME_LEN = 50;
@@ -155,7 +156,27 @@ export function validateExtraction(content: string): MemoryExtraction | null {
     }
   }
 
-  return { entities, events };
+  const relations: MemoryExtraction['relations'] = [];
+  if (parsed.relations !== undefined) {
+    if (!Array.isArray(parsed.relations) || parsed.relations.length > MAX_RELATIONS_PER_TURN) return null;
+    for (const item of parsed.relations) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      const subject = typeof item.subject === 'string' ? item.subject.trim() : '';
+      const predicate = typeof item.predicate === 'string' ? item.predicate.trim() : '';
+      const object = typeof item.object === 'string' ? item.object.trim() : '';
+      const confidence = item.confidence === undefined ? 1 : item.confidence;
+      if (
+        !subject || subject.length > MAX_ENTITY_NAME_LEN ||
+        !predicate || predicate.length > MAX_ENTITY_NAME_LEN ||
+        !object || object.length > MAX_EVENT_SUMMARY_LEN ||
+        typeof confidence !== 'number' || !Number.isFinite(confidence) ||
+        confidence < 0 || confidence > 1
+      ) return null;
+      relations.push({ subject, predicate, object, confidence });
+    }
+  }
+
+  return { entities, events, relations };
 }
 
 // ===== 纯函数：L1 词典匹配（RegExp 批量匹配，替代 AC 自动机） =====
@@ -349,11 +370,12 @@ export class MemoryExtractor {
     // L0: LLM 抽取
     if (task.memoryContent) {
       const parsed = validateExtraction(task.memoryContent);
-      if (parsed && (parsed.entities.length > 0 || parsed.events.length > 0)) {
+      if (parsed && (parsed.entities.length > 0 || parsed.events.length > 0 || parsed.relations.length > 0)) {
         const participantTags = parsed.events.flatMap((event) => event.participants);
         tags = Array.from(new Set([
           ...parsed.entities.map((e) => e.name),
           ...participantTags,
+          ...parsed.relations.flatMap((relation) => [relation.subject, relation.object]),
         ]));
         extractSource = 'llm';
         extraction = parsed;
@@ -410,6 +432,12 @@ export class MemoryExtractor {
         await this.persistEventFragments(task, extraction);
       } catch (e) {
         logger.error("persistEventFragments failed", e, { msgId: task.msgId });
+      }
+
+      try {
+        await this.persistTemporalFacts(task, extraction);
+      } catch (e) {
+        logger.error("persistTemporalFacts failed", e, { msgId: task.msgId });
       }
     }
 
@@ -514,6 +542,31 @@ export class MemoryExtractor {
         importance: 0.7,
         confidence: 1,
         createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      });
+    }
+  }
+
+  private async persistTemporalFacts(
+    task: ExtractionTask,
+    extraction: MemoryExtraction
+  ): Promise<void> {
+    const now = Date.now();
+    for (let index = 0; index < extraction.relations.length; index++) {
+      if (this.abortController?.signal.aborted) break;
+      const relation = extraction.relations[index];
+      await this.storage.evolveTemporalFact({
+        id: `${task.msgId}:fact:${index}`,
+        sessionId: task.sessionId,
+        subject: relation.subject,
+        predicate: relation.predicate,
+        object: relation.object,
+        tags: Array.from(new Set([relation.subject, relation.object])),
+        status: 'active',
+        validFromTurn: task.turnIndex,
+        sourceMessageId: task.msgId,
+        confidence: relation.confidence,
+        createdAt: now,
         updatedAt: now,
       });
     }

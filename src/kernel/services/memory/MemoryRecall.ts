@@ -7,7 +7,7 @@
  *   3. 排除最近 N 轮上下文，返回 Top-K 记忆片段
  */
 
-import type { MemoryFragment, MessageRecord, RecalledMessage } from './types';
+import type { MemoryFragment, MessageRecord, RecalledMessage, TemporalFact } from './types';
 import type { MemoryStorage } from './MemoryStorage';
 import { extractByDict } from './MemoryExtractor';
 import type { IDatabaseService } from '../../types';
@@ -253,12 +253,16 @@ export class MemoryRecall {
 
     // 2. 粗召回：按标签查倒排索引（候选池 = topK × 倍率）
     const candidateLimit = topK * CANDIDATE_MULTIPLIER;
-    const [messageCandidates, fragmentCandidates] = await Promise.all([
+    const [messageCandidates, fragmentCandidates, factCandidates] = await Promise.all([
       tags.length > 0
         ? this.storage.getMessagesByTag(sessionId, tags, candidateLimit)
         : Promise.resolve([]),
       tags.length > 0
         ? this.storage.getFragmentsByTags(sessionId, tags, candidateLimit)
+        : Promise.resolve([]),
+      tags.length > 0
+        && typeof this.storage.getTemporalFactsByEntities === 'function'
+        ? this.storage.getTemporalFactsByEntities(sessionId, tags, candidateLimit)
         : Promise.resolve([]),
     ]);
     let candidates = messageCandidates;
@@ -324,6 +328,7 @@ export class MemoryRecall {
     // 4. 打分 + 排除 + 排序
     const scored = this.scoreCandidates(candidates, tags, currentTurnIndex, pinnedIds);
     const scoredFragments = this.scoreFragments(fragments, tags, currentTurnIndex, pinnedIds);
+    const scoredFacts = this.scoreFacts(factCandidates, tags, currentTurnIndex);
     const recentThreshold = currentTurnIndex - excludeRecentN;
     const fragmentById = new Map(fragments.map((fragment) => [fragment.id, fragment]));
     const filteredFragments = scoredFragments.filter((item) => {
@@ -338,7 +343,7 @@ export class MemoryRecall {
       !mutedIdSet.has(item.memoryId) &&
       (!coveredSourceIds.has(item.messageId) || pinnedIds.includes(item.memoryId))
     );
-    const filtered = [...filteredFragments, ...filteredMessages].sort((a, b) => {
+    const filtered = [...scoredFacts, ...filteredFragments, ...filteredMessages].sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       return b.turnIndex - a.turnIndex;
     });
@@ -489,5 +494,35 @@ export class MemoryRecall {
     }
 
     return scored.sort((a, b) => b.score - a.score || b.turnIndex - a.turnIndex);
+  }
+
+  private scoreFacts(
+    facts: TemporalFact[],
+    queryTags: string[],
+    currentTurnIndex: number,
+  ): RecalledMessage[] {
+    const queryTagSet = new Set(queryTags);
+    return facts
+      .filter((fact) => fact.status === 'active')
+      .map((fact) => {
+        const hitTags = fact.tags.filter((tag) => queryTagSet.has(tag));
+        const ageInTurns = Math.max(0, currentTurnIndex - fact.validFromTurn);
+        const decayFactor = 1 / (1 + ageInTurns / (DECAY_HALF_LIFE_TURNS * 2));
+        return {
+          memoryId: fact.id,
+          messageId: fact.sourceMessageId,
+          turnIndex: fact.validFromTurn,
+          role: 'system' as const,
+          content: `${fact.subject} —${fact.predicate}→ ${fact.object}`,
+          hitCount: hitTags.length,
+          hitTags,
+          score: (1.5 + hitTags.length) * decayFactor * fact.confidence,
+          kind: 'fact' as const,
+          reason: 'entity' as const,
+          sourceMessageIds: [fact.sourceMessageId],
+          confidence: fact.confidence,
+        };
+      })
+      .sort((a, b) => b.score - a.score || b.turnIndex - a.turnIndex);
   }
 }

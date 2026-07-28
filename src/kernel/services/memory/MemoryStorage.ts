@@ -12,6 +12,8 @@ import type {
   MemoryDictEntry,
   MemoryFragment,
   MemoryFragmentStatus,
+  TemporalFact,
+  TemporalFactStatus,
 } from './types';
 import { buildDictId } from './types';
 
@@ -246,6 +248,42 @@ export class MemoryStorage {
   async deleteFragmentsBySession(sessionId: string): Promise<void> {
     this.ensureInitialized();
     await this.persistence.deleteFragmentsBySession(sessionId, this.getActiveSignal());
+  }
+
+  // ===== memory_facts Store CRUD =====
+
+  async evolveTemporalFact(fact: TemporalFact): Promise<{ changed: boolean; fact: TemporalFact }> {
+    this.ensureInitialized();
+    if (!this.persistence.evolveTemporalFact) throw new Error('[MemoryStorage] Temporal facts unsupported.');
+    return this.persistence.evolveTemporalFact(fact, this.getActiveSignal());
+  }
+
+  async getTemporalFactsBySession(
+    sessionId: string,
+    options?: { activeOnly?: boolean },
+  ): Promise<TemporalFact[]> {
+    this.ensureInitialized();
+    return this.persistence.getTemporalFactsBySession?.(sessionId, options) ?? [];
+  }
+
+  async getTemporalFactsByEntities(
+    sessionId: string,
+    entities: string[],
+    limit?: number,
+  ): Promise<TemporalFact[]> {
+    this.ensureInitialized();
+    return this.persistence.getTemporalFactsByEntities?.(sessionId, entities, limit) ?? [];
+  }
+
+  async updateTemporalFactStatus(id: string, status: TemporalFactStatus): Promise<void> {
+    this.ensureInitialized();
+    if (!this.persistence.updateTemporalFactStatus) throw new Error('[MemoryStorage] Temporal facts unsupported.');
+    await this.persistence.updateTemporalFactStatus(id, status, this.getActiveSignal());
+  }
+
+  async deleteTemporalFactsBySession(sessionId: string): Promise<void> {
+    this.ensureInitialized();
+    await this.persistence.deleteTemporalFactsBySession?.(sessionId, this.getActiveSignal());
   }
 
   // ===== 内部方法 =====

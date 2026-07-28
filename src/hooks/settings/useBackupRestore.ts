@@ -119,13 +119,17 @@ export const useBackupRestore = ({
       const memoryFragments = (await Promise.all(
         dbSessions.map((session) => memoryService.getStorage().getFragmentsBySession(session.id))
       )).flat();
+      const memoryFacts = (await Promise.all(
+        dbSessions.map((session) => memoryService.getStorage().getTemporalFactsBySession(session.id))
+      )).flat();
 
       const payloadObj = {
         magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
-        version: 2,
+        version: 3,
         characters,
         sessions: completeSessions,
         memoryFragments,
+        memoryFacts,
         settings: exportedSettings,
         globalLorebook,
         backupDate: new Date().toISOString(),
@@ -285,6 +289,27 @@ export const useBackupRestore = ({
             updatedAt: typeof fragment.updatedAt === "number" ? fragment.updatedAt : Date.now(),
           }))
         : [];
+      const validatedFacts = Array.isArray(parsed.memoryFacts)
+        ? parsed.memoryFacts.filter((fact: any) =>
+            fact &&
+            typeof fact.id === "string" &&
+            typeof fact.sessionId === "string" &&
+            typeof fact.subject === "string" &&
+            typeof fact.predicate === "string" &&
+            typeof fact.object === "string" &&
+            typeof fact.sourceMessageId === "string"
+          ).map((fact: any) => ({
+            ...fact,
+            tags: Array.isArray(fact.tags) ? fact.tags : [fact.subject, fact.object],
+            status: ["active", "superseded", "invalid"].includes(fact.status)
+              ? fact.status
+              : "active",
+            validFromTurn: Number.isInteger(fact.validFromTurn) ? fact.validFromTurn : 0,
+            confidence: typeof fact.confidence === "number" ? fact.confidence : 1,
+            createdAt: typeof fact.createdAt === "number" ? fact.createdAt : Date.now(),
+            updatedAt: typeof fact.updatedAt === "number" ? fact.updatedAt : Date.now(),
+          }))
+        : [];
 
       const ok = await showCustomConfirm(
         "数据解密与格式校验成功！此备份覆盖将导致当前浏览器的本地全部状态清空，是否确认还原？",
@@ -319,6 +344,12 @@ export const useBackupRestore = ({
         await Promise.all(
           validatedFragments.map((fragment: any) => memoryService.getStorage().upsertFragment(fragment))
         );
+        for (const fact of validatedFacts.sort((a: any, b: any) => a.validFromTurn - b.validFromTurn)) {
+          await memoryService.getStorage().evolveTemporalFact({ ...fact, status: "active" });
+        }
+        for (const fact of validatedFacts.filter((item: any) => item.status === "invalid")) {
+          await memoryService.getStorage().updateTemporalFactStatus(fact.id, "invalid");
+        }
         if (mergedSettings) await settingsService.saveStoredSettings(mergedSettings);
         if (parsed.globalLorebook)
           await worldbookService.saveGlobalLorebook(parsed.globalLorebook);
@@ -560,13 +591,17 @@ export const useBackupRestore = ({
       const memoryFragments = (await Promise.all(
         dbSessions.map((session) => memoryService.getStorage().getFragmentsBySession(session.id))
       )).flat();
+      const memoryFacts = (await Promise.all(
+        dbSessions.map((session) => memoryService.getStorage().getTemporalFactsBySession(session.id))
+      )).flat();
 
       const payloadObj = {
         magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
-        version: 2,
+        version: 3,
         characters,
         sessions: completeSessions,
         memoryFragments,
+        memoryFacts,
         settings: exportedSettings,
         globalLorebook,
         backupDate: new Date().toISOString(),

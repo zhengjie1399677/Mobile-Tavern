@@ -521,6 +521,7 @@ export async function testMemoryStorageCrud() {
     assert(stores.has("messages"), "messages Store should be created");
     assert(stores.has("memory_dict"), "memory_dict Store should be created");
     assert(stores.has("memory_fragments"), "memory_fragments Store should be created");
+    assert(stores.has("memory_facts"), "memory_facts Store should be created");
     const messagesStore = stores.get("messages")!;
     assert(messagesStore.indexes.has("sessionId"), "messages: sessionId index created");
     assert(messagesStore.indexes.has("createdAt"), "messages: createdAt index created");
@@ -536,6 +537,14 @@ export async function testMemoryStorageCrud() {
     assert(fragmentsStore.indexes.has("sessionId"), "memory_fragments: sessionId index created");
     assert(fragmentsStore.indexes.has("tags"), "memory_fragments: tags multiEntry index created");
     assert(fragmentsStore.indexes.has("status"), "memory_fragments: status index created");
+    const factsStore = stores.get("memory_facts")!;
+    assert(factsStore.indexes.has("sessionId"), "memory_facts: sessionId index created");
+    assert(factsStore.indexes.has("tags"), "memory_facts: tags multiEntry index created");
+    assert(factsStore.indexes.has("status"), "memory_facts: status index created");
+    assert(
+      factsStore.indexes.has("sessionId_subject_predicate"),
+      "memory_facts: compound current-fact index created"
+    );
 
     // 3. 测试 messages Store CRUD
     const sessionId = "sess_test_1";

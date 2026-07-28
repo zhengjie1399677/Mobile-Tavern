@@ -730,7 +730,9 @@ export class PromptService implements IPromptService {
     let recalledMemoriesSection = "";
     if (recalledMemories && recalledMemories.length > 0) {
       recalledMemoriesSection = recalledMemories
-        .map((m: any) => `[第 ${m.turnIndex} 轮 - ${m.role === 'user' ? '用户' : '角色'}]: ${m.content}`)
+        .map((m: any) => m.kind === 'fact'
+          ? `[当前事实｜第 ${m.turnIndex} 轮起]: ${m.content}`
+          : `[第 ${m.turnIndex} 轮 - ${m.role === 'user' ? '用户' : '角色'}]: ${m.content}`)
         .join("\n");
     }
     builder.registerSection({
@@ -754,8 +756,9 @@ export class PromptService implements IPromptService {
     let memoryExtractionSection = "";
     if (settings.memory?.enableRecall !== false) {
       memoryExtractionSection = `要求根据输出示例，在 <memory_extraction> 标签对应的位置提取本轮的新实体和事件，以帮助系统记录故事发展。
-格式要求：使用 <memory_extraction> 标签包裹一个极简的 JSON 对象，其中只能包含 "entities" 和 "events" 字段。必须是合法 JSON，不要添加任何多余文字。
-entities 项使用 {"name":"实体名","type":"character|location|item|organization|concept","first_seen":true|false}；events 项使用 {"summary":"简洁事实","participants":["相关实体"]}。若本轮无新内容则输出空数组。`;
+格式要求：使用 <memory_extraction> 标签包裹一个极简的 JSON 对象，其中包含 "entities"、"events" 和 "relations" 字段。必须是合法 JSON，不要添加任何多余文字。
+entities 项使用 {"name":"实体名","type":"character|location|item|organization|concept","first_seen":true|false}；events 项使用 {"summary":"简洁事实","participants":["相关实体"]}。
+relations 项只记录当前明确成立、未来可能变化的事实，使用 {"subject":"主语实体","predicate":"稳定关系名","object":"宾语实体或值","confidence":0到1}；例如居住地、持有物、关系状态。各项没有内容时输出空数组。`;
     }
     builder.registerSection({
       id: "memory_extraction",
@@ -804,6 +807,9 @@ entities 项使用 {"name":"实体名","type":"character|location|item|organizat
   ],
   "events": [
     {"summary": "某角色答应在约定地点完成某事", "participants": ["某角色", "约定地点"]}
+  ],
+  "relations": [
+    {"subject": "某角色", "predicate": "当前所在地", "object": "约定地点", "confidence": 1}
   ]
 }
 </memory_extraction>\n`;
@@ -917,7 +923,7 @@ entities 项使用 {"name":"实体名","type":"character|location|item|organizat
               content += `\n\n<suggestions>\n["继续推进剧情", "观察周围环境", "询问更多信息", "保持沉思"]\n</suggestions>`;
             }
             if (settings.memory?.enableRecall !== false && !content.includes("<memory_extraction>")) {
-              content += `\n\n<memory_extraction>\n{\n  "entities": [],\n  "events": []\n}\n</memory_extraction>`;
+              content += `\n\n<memory_extraction>\n{\n  "entities": [],\n  "events": [],\n  "relations": []\n}\n</memory_extraction>`;
             }
           }
         } else if (msg.sender === "system") {

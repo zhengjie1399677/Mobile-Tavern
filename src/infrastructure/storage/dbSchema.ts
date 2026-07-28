@@ -17,7 +17,8 @@ export const DB_NAME = "MobileTavernLiteDB";
 // v7: 新增 sessions.createdAt 索引，支持按时间倒序分页加载（P0-1）
 // v8: 新增 messages 和 memory_dict Store，承载记忆系统物理分轨存储（AGENTS.md 准则一）
 // v9: 新增 memory_fragments Store，承载可纠错的事件型长期记忆
-export const DB_VERSION = 9;
+// v10: 新增 memory_facts Store，承载实体关系图与时态事实演化
+export const DB_VERSION = 10;
 
 export interface IndexSchema {
   name: string;
@@ -77,6 +78,18 @@ export const DB_SCHEMA: StoreSchema[] = [
       { name: "tags", keyPath: "tags", multiEntry: true },
       { name: "status", keyPath: "status" },
       { name: "sessionId_sourceTurnEnd", keyPath: ["sessionId", "sourceTurnEnd"] },
+    ],
+  },
+  {
+    name: "memory_facts",
+    keyPath: "id",
+    indexes: [
+      { name: "sessionId", keyPath: "sessionId" },
+      { name: "subject", keyPath: "subject" },
+      { name: "object", keyPath: "object" },
+      { name: "tags", keyPath: "tags", multiEntry: true },
+      { name: "status", keyPath: "status" },
+      { name: "sessionId_subject_predicate", keyPath: ["sessionId", "subject", "predicate"] },
     ],
   },
 ];

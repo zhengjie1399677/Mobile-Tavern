@@ -1157,3 +1157,8 @@ jobs:
 ## 插件消息总线 Bridge V2
 
 全屏插件桥接仍通过带随机 `channel` 和插件 ID 的 `postMessage` 请求响应协议运行。V2 在原有存档、方向与 LLM 能力外增加 `context.get`、`chat.injectAction` 和 `chat.send`；三项能力分别要求 `context.read`、`chat.action`、`chat.send` 清单权限。上下文由宿主生成脱敏快照，不包含消息正文、变量、头像、凭证或数据库引用；动作注入复用聊天发送事务的 `skipAI` 模式，AI 发送复用正常聊天事务，文本在边界执行长度与控制字符校验。
+### 实体关系图谱与时态事实
+
+`memory_dict` 继续作为会话级实体节点目录，新增独立 `memory_facts` Store 保存 `subject — predicate → object` 时态边。每条边记录 `validFromTurn`、可选 `validToTurn`、来源消息、置信度和替代链；同一会话内相同主语与关系出现新宾语时，单个 IndexedDB 事务会把旧边标记为 `superseded` 并写入新边。相同值重复出现只强化置信度和标签，不制造重复当前事实。
+
+LLM 的 `<memory_extraction>` 可选输出 `relations`，旧版仅含 `entities/events` 的结果仍兼容。当前事实按实体参与混合召回，使用比普通事件更缓慢的时间衰减；历史事实不直接注入 Prompt，但保留用于审计。`memory_facts` 与会话主表物理分轨，并纳入重发尾部分支清理、会话级联删除和统一备份 v3。

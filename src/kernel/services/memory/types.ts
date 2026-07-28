@@ -98,6 +98,27 @@ export interface MemoryFragment {
   lastUsedAt?: number;
 }
 
+export type TemporalFactStatus = 'active' | 'superseded' | 'invalid';
+
+/** 实体关系图中的一条时态边；同一 sessionId/subject/predicate 同时只允许一个当前值。 */
+export interface TemporalFact {
+  id: string;
+  sessionId: string;
+  subject: string;
+  predicate: string;
+  object: string;
+  tags: string[];
+  status: TemporalFactStatus;
+  validFromTurn: number;
+  validToTurn?: number;
+  sourceMessageId: string;
+  supersedesId?: string;
+  supersededById?: string;
+  confidence: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /**
  * 记忆领域持久化端口。
  *
@@ -152,6 +173,25 @@ export interface MemoryPersistencePort {
     signal?: AbortSignal
   ): Promise<void>;
   deleteFragmentsBySession(sessionId: string, signal?: AbortSignal): Promise<void>;
+  evolveTemporalFact?(
+    fact: TemporalFact,
+    signal?: AbortSignal
+  ): Promise<{ changed: boolean; fact: TemporalFact }>;
+  getTemporalFactsBySession?(
+    sessionId: string,
+    options?: { activeOnly?: boolean }
+  ): Promise<TemporalFact[]>;
+  getTemporalFactsByEntities?(
+    sessionId: string,
+    entities: string[],
+    limit?: number
+  ): Promise<TemporalFact[]>;
+  updateTemporalFactStatus?(
+    id: string,
+    status: TemporalFactStatus,
+    signal?: AbortSignal
+  ): Promise<void>;
+  deleteTemporalFactsBySession?(sessionId: string, signal?: AbortSignal): Promise<void>;
 }
 
 /** LLM 抽取结果（L0 阶段产出） */
@@ -164,6 +204,12 @@ export interface MemoryExtraction {
   events: Array<{
     summary: string;
     participants: string[];
+  }>;
+  relations: Array<{
+    subject: string;
+    predicate: string;
+    object: string;
+    confidence: number;
   }>;
 }
 
@@ -182,8 +228,8 @@ export interface RecalledMessage {
   /** 评分（hitCount × 时间衰减） */
   score: number;
   /** 召回内容类型与理由，供“本轮记忆包”审计。 */
-  kind: 'event' | 'message';
-  reason: 'tag' | 'pin' | 'weak';
+  kind: 'event' | 'message' | 'fact';
+  reason: 'tag' | 'pin' | 'weak' | 'entity';
   sourceMessageIds: string[];
   importance?: number;
   confidence?: number;

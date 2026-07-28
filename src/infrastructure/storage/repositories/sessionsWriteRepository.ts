@@ -58,15 +58,16 @@ export async function deleteSession(id: string, signal?: AbortSignal): Promise<v
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      // 跨 Store 事务：sessions + messages + memory_dict + memory_fragments
+      // 跨 Store 事务：会话主记录及所有记忆分轨
       const transaction = db.transaction(
-        ["sessions", "messages", "memory_dict", "memory_fragments"],
+        ["sessions", "messages", "memory_dict", "memory_fragments", "memory_facts"],
         "readwrite"
       );
       const sessionsStore = transaction.objectStore("sessions");
       const messagesStore = transaction.objectStore("messages");
       const dictStore = transaction.objectStore("memory_dict");
       const fragmentsStore = transaction.objectStore("memory_fragments");
+      const factsStore = transaction.objectStore("memory_facts");
 
       // 1. 删除会话主记录
       sessionsStore.delete(id);
@@ -103,6 +104,16 @@ export async function deleteSession(id: string, signal?: AbortSignal): Promise<v
         cursor.continue();
       };
       fragmentCursorReq.onerror = () => reject(fragmentCursorReq.error);
+
+      // 5. 删除实体关系图与时态事实
+      const factCursorReq = factsStore.index("sessionId").openCursor(IDBKeyRange.only(id));
+      factCursorReq.onsuccess = () => {
+        const cursor = factCursorReq.result;
+        if (!cursor) return;
+        cursor.delete();
+        cursor.continue();
+      };
+      factCursorReq.onerror = () => reject(factCursorReq.error);
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);

@@ -6,6 +6,8 @@ import {
   type MemoryFragmentStatus,
   type MemoryPersistencePort,
   type MessageRecord,
+  type TemporalFact,
+  type TemporalFactStatus,
 } from "../../kernel/services/memory/types";
 import {
   appendMessage,
@@ -26,6 +28,11 @@ import {
   supersedeFragment,
   updateFragmentStatus,
   deleteFragmentsBySession,
+  evolveTemporalFact,
+  getTemporalFactsBySession,
+  getTemporalFactsByEntities,
+  updateTemporalFactStatus,
+  deleteTemporalFactsBySession,
 } from "./indexedDbMemoryStore";
 import { getDB } from "../../utils/localDB";
 
@@ -158,6 +165,40 @@ export class IndexedDbMemoryPersistenceService
 
   deleteFragmentsBySession(sessionId: string, signal?: AbortSignal): Promise<void> {
     return deleteFragmentsBySession(sessionId, this.resolveSignal(signal));
+  }
+
+  evolveTemporalFact(
+    fact: TemporalFact,
+    signal?: AbortSignal
+  ): Promise<{ changed: boolean; fact: TemporalFact }> {
+    return evolveTemporalFact(fact, this.resolveSignal(signal));
+  }
+
+  getTemporalFactsBySession(
+    sessionId: string,
+    options?: { activeOnly?: boolean }
+  ): Promise<TemporalFact[]> {
+    return getTemporalFactsBySession(sessionId, options);
+  }
+
+  getTemporalFactsByEntities(
+    sessionId: string,
+    entities: string[],
+    limit?: number
+  ): Promise<TemporalFact[]> {
+    return getTemporalFactsByEntities(sessionId, entities, limit);
+  }
+
+  updateTemporalFactStatus(
+    id: string,
+    status: TemporalFactStatus,
+    signal?: AbortSignal
+  ): Promise<void> {
+    return updateTemporalFactStatus(id, status, this.resolveSignal(signal));
+  }
+
+  deleteTemporalFactsBySession(sessionId: string, signal?: AbortSignal): Promise<void> {
+    return deleteTemporalFactsBySession(sessionId, this.resolveSignal(signal));
   }
 
   private resolveSignal(external?: AbortSignal): AbortSignal | undefined {
