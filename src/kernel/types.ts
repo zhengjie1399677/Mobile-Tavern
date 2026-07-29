@@ -40,11 +40,19 @@ export interface StreamChunk {
     completion_tokens: number;
   };
   __rescuedContent?: string;
+  /** 错误载荷：可能是字符串或 { message: string } 结构 */
+  error?: string | { message?: string };
   choices?: Array<{
     delta?: {
       content?: string;
       reasoning_content?: string;
     };
+    /** 非流式响应中的完整消息（部分 provider 在首 chunk 返回） */
+    message?: { content?: string };
+    /** 部分 provider（如 Anthropic 兼容层）用 text 而非 delta.content */
+    text?: string;
+    /** 完成原因：stop / length / content_filter 等 */
+    finish_reason?: string;
   }>;
 }
 

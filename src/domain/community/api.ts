@@ -19,7 +19,7 @@ interface DownloadTicket {
 
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const payload = await response.json().catch(() => null);
+    const payload = await response.json().catch((): null => null);
     throw new Error(payload?.error || `HTTP ${response.status}`);
   }
   return response.json() as Promise<T>;

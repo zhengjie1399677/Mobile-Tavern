@@ -740,10 +740,10 @@ export function initTavernHelperMocks(): void {
       }
       return Promise.resolve();
     },
-    _getCharLorebooks() { return []; },
-    _getCharWorldbookNames() { return []; },
-    _getCurrentCharPrimaryLorebook() { return null; },
-    _getLorebookEntries() { return []; },
+    _getCharLorebooks(): unknown[] { return []; },
+    _getCharWorldbookNames(): unknown[] { return []; },
+    _getCurrentCharPrimaryLorebook(): unknown { return null; },
+    _getLorebookEntries(): unknown[] { return []; },
     _getLorebookSettings() { return {}; },
     _setLorebookSettings() {},
     _setExtraAnalysisStates() {},
@@ -884,7 +884,7 @@ export function initTavernHelperMocks(): void {
     },
     playAudio: () => {},
     pauseAudio: () => {},
-    getAudioList: () => [],
+    getAudioList: (): unknown[] => [],
   };
 
   // ──────────────────────────────────────────────────────────────────────────

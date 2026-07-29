@@ -71,7 +71,7 @@ interface SendMessageParams {
   promptService: IPromptService;
   telemetryService: ITelemetryService;
   chatStreamService: IChatStreamService;
-  multiMessageService: IMultiMessageService;
+  multiMessageService: IMultiMessageService<ChatSession>;
   /**
    * 记忆服务实例，由外部注入以解耦对 globalKernel 单例的直接依赖。
    * 若为 undefined 则跳过记忆召回。

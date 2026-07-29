@@ -53,7 +53,7 @@ if (typeof window !== "undefined") {
         logger.info("Successfully loaded Tauri native HTTP plugin");
         return mod.fetch;
       })
-      .catch((err) => {
+      .catch((err): null => {
         logger.warn("Failed to load Tauri native HTTP plugin, fallback to window.fetch", { error: err });
         return null;
       });

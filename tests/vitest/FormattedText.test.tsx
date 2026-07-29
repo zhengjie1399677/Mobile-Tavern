@@ -10,8 +10,8 @@ const mockSettings = {
   enableScriptExecution: false,
   enableLoopProtection: true,
   enableAsteriskFormatting: false,
-  globalRegexScripts: [],
-  presetRegexScripts: [],
+  globalRegexScripts: [] as never[],
+  presetRegexScripts: [] as never[],
 };
 
 const mockContext: {

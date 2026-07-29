@@ -124,7 +124,7 @@ export function usePlaygroundActions() {
       title: "Playground Session",
       createdAt: Date.now(),
       messages: [...mockHistory, { id: "cur", sender: "user", content: mockUserInput, timestamp: Date.now() } as Message],
-      summaries: [],
+      summaries: [] as never[],
     };
 
     const payload = assemblePromptContext({

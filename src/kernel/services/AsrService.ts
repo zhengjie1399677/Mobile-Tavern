@@ -67,7 +67,7 @@ if (typeof window !== "undefined" && (window as TauriWindow).__TAURI_INTERNALS__
       tauriFetch = mod.fetch;
       return mod.fetch;
     })
-    .catch(() => null);
+    .catch((): null => null);
 }
 
 /**

@@ -147,7 +147,7 @@ export function createTavernHelperEventEmitter(kernel?: IKernel): ITavernHelperE
       });
       return emitter;
     },
-    async emitAndWait(event: string, ...args: any[]) {
+    async emitAndWait(event: string, ...args: any[]): Promise<unknown[]> {
       try {
         await k.publishParallel({
           topic: `tavern_helper:${event}`,
@@ -600,7 +600,7 @@ export function ensureUiLibsLoaded(): Promise<void> {
  * ensureCoreLibsLoaded() / ensureUiLibsLoaded()。
  */
 export function ensureLibrariesLoaded(): Promise<void> {
-  return Promise.all([ensureUiLibsLoaded(), ensureMathLibLoaded()]).then(() => undefined);
+  return Promise.all([ensureUiLibsLoaded(), ensureMathLibLoaded()]).then((): void => undefined);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ const context = {
     avatar: "data:image/png;base64,secret", variables: { secret: true },
   },
   activeSession: {
-    id: "session-1", title: "主线", characterId: "char-1", createdAt: 1, summaries: [], messages: [
+    id: "session-1", title: "主线", characterId: "char-1", createdAt: 1, summaries: [] as never[], messages: [
       { id: "m1", sender: "user" as const, content: "私密消息", timestamp: 1 },
     ],
     variables: { secret: true },

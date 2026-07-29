@@ -164,7 +164,7 @@ export function testPromptServiceIntegration() {
       if (name === "memory") {
         return {
           getStateTable: () => ({
-            initDefaultSheets: () => []
+            initDefaultSheets: (): unknown[] => []
           })
         };
       }

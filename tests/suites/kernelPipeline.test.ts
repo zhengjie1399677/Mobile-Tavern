@@ -484,6 +484,7 @@ export async function testKernelHardeningP0ToP3() {
     assert(hangErrorThrown === true, "Pipeline hang error thrown in dev mode");
 
     // 清除刚才的漏调中间件，测试受控拦截
+    // @ts-expect-error middlewares 为 IPipeline 内部实现，测试需通过下标访问
     pipeline.unuse(pipeline["middlewares"][0].fn); // 强行清除刚才挂载的漏调中间件
 
     // 3.2 验证中间件报错在开发环境下向上强抛，不加掩盖
@@ -529,7 +530,7 @@ export async function testKernelHardeningP0ToP3() {
      await testKernel.destroy();
 
      // 验证服务注销及 destroy 钩子触发
-     assert(okService["destroyed"] === true, "Service destroy hook executed");
+     assert((okService as unknown as { destroyed: boolean })["destroyed"] === true, "Service destroy hook executed");
      assert(testKernel["services"].size === 0, "All services cleared");
      assert(testKernel["subscribers"].size === 0, "All subscribers cleared");
      assert(testKernel["pipelines"].size === 0, "All pipelines cleared");

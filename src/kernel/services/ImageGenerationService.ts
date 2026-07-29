@@ -22,7 +22,7 @@ if (typeof window !== "undefined" && (window as WindowWithTauriInternals).__TAUR
       tauriFetch = mod.fetch;
       return mod.fetch;
     })
-    .catch(() => null);
+    .catch((): null => null);
 }
 
 export class ImageGenerationService implements IImageGenerationService {

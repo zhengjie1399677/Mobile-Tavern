@@ -27,7 +27,7 @@ if (typeof window !== "undefined" && !window.matchMedia) {
     value: (query: string) => ({
       matches: false,
       media: query,
-      onchange: null,
+      onchange: null as null,
       addListener: () => {},
       removeListener: () => {},
       addEventListener: () => {},
@@ -43,7 +43,7 @@ if (typeof window !== "undefined" && !("IntersectionObserver" in window)) {
     observe() {}
     unobserve() {}
     disconnect() {}
-    takeRecords() {
+    takeRecords(): unknown[] {
       return [];
     }
   }

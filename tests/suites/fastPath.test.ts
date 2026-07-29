@@ -63,7 +63,7 @@ export async function testFastPathL3AutoSummaryIndex() {
     { id: "msg1", content: "hello", sender: "user" },
     { id: "msg2", content: "hi", sender: "assistant" },
   ];
-  const resolvedLastId3 = undefined;
+  const resolvedLastId3: string | undefined = undefined;
   let lastIndex3 = -1;
   if (resolvedLastId3) {
     for (let i = messages3.length - 1; i >= 0; i--) {

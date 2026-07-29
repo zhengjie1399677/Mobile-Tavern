@@ -302,7 +302,7 @@ export default function FeaturesSection({
 
               {settings.enableBisonMode && (
                 <div className="mt-1.5 bg-muted/15 p-2 rounded-lg border border-border/30 space-y-1.5 animate-in fade-in duration-300">
-                  <Accordion type="single" collapsible className="w-full">
+                  <Accordion className="w-full">
                     <AccordionItem value="bison-prompt-accordion" className="border-none">
                       <AccordionTrigger className="py-0.5 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
                         <span className="text-[10px] font-semibold text-muted-foreground">
@@ -400,7 +400,7 @@ export default function FeaturesSection({
                   </div>
 
                   {/* Collapsible Suggestions Prompt */}
-                  <Accordion type="single" collapsible className="w-full pt-0.5">
+                  <Accordion className="w-full pt-0.5">
                     <AccordionItem value="suggestions-prompt-accordion" className="border-none">
                       <AccordionTrigger className="py-0.5 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
                         <span className="text-[10px] font-semibold text-muted-foreground">

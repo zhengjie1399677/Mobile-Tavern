@@ -92,7 +92,7 @@ export default function PromptCompositionEditor({
     targetId: string;
     pointerId: number;
     handle: HTMLButtonElement;
-  }>();
+  } | null>(null);
   const editingBlock = composition.blocks.find((block) => block.id === editingBlockId);
   const historyBlocks = composition.blocks.filter((block) => block.source.type === "chat_history");
   const freeMode = settings.promptConfig.usePromptComposition === true;

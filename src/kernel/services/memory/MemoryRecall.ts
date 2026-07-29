@@ -121,7 +121,7 @@ export class MemoryRecall {
       try {
         [dict, sessionObj] = await Promise.all([
           this.storage.getDictBySession(sessionId),
-          this.database?.getSessionById(sessionId).catch((err: unknown) => {
+          this.database?.getSessionById(sessionId).catch((err: unknown): null => {
             logger.warn("Failed to fetch session in recall", { error: err });
             return null;
           }),

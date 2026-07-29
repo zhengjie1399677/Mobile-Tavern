@@ -29,7 +29,7 @@ export function createKernelLifecycleController(
   const enqueue = (operation: () => Promise<void>): Promise<void> => {
     const scheduled = queue.then(operation, operation);
     // 保持后续请求可执行，同时仍将本次错误返回给调用方。
-    queue = scheduled.catch(() => undefined);
+    queue = scheduled.catch((): void => undefined);
     return scheduled;
   };
 

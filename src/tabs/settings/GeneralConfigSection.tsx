@@ -37,7 +37,7 @@ export default function GeneralConfigSection({
   freeCount,
 }: GeneralConfigSectionProps) {
   return (
-    <Accordion type="single" collapsible className="w-full">
+    <Accordion className="w-full">
       <ApiConfigSection
         settings={settings}
         updateSettings={updateSettings}

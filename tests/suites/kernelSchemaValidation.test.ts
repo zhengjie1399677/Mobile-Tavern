@@ -186,7 +186,7 @@ export async function testKernelSchemaValidation() {
   {
     const dynamicMsg = {
       topic: "tavern_helper:foo",
-      payload: { anything: 123, any: "shape", even: null }, // 任意形状都应通过
+      payload: { anything: 123, any: "shape", even: null as unknown }, // 任意形状都应通过
     };
     const r = validateMessage(dynamicMsg);
     assert(

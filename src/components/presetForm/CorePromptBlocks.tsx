@@ -21,7 +21,7 @@ export default function CorePromptBlocks({
 }: CorePromptBlocksProps) {
   const { t } = useTranslation();
   return (
-    <Accordion type="multiple" className="space-y-2">
+    <Accordion multiple className="space-y-2">
 
       {/* 1. 底层扮演指令 (Main System Prompt) */}
       <AccordionItem value="main-prompt" className="border border-border rounded-lg bg-card overflow-hidden [&[data-state=open]]:border-primary/40 transition-all duration-200">

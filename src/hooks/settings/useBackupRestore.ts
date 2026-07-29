@@ -523,10 +523,10 @@ export const useBackupRestore = ({
         title: chatTitle,
         createdAt: Date.now(),
         messages: finalMessages,
-        summaries: [],
+        summaries: [] as never[],
         lastSummarizedMessageId: lastMsgId,
         variables: {},
-        tableMemory: [],
+        tableMemory: [] as never[],
       };
 
       const ok = await showCustomConfirm(

@@ -492,7 +492,7 @@ export default function ImageGenConfigSection({
             </div>
 
             {/* Nested Collapsible Prompts Accordion */}
-            <Accordion type="single" collapsible className="w-full border-t border-border/40 pt-2 mt-2">
+            <Accordion className="w-full border-t border-border/40 pt-2 mt-2">
               <AccordionItem value="image-prompts-settings" className="border-none">
                 <AccordionTrigger className="py-2 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
                   <span className="text-[11px] font-semibold text-foreground">

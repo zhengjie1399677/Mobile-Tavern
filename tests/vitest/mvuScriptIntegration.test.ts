@@ -36,7 +36,7 @@ async function createTestKernel(): Promise<IKernel> {
   const mockDb = {
     name: "database",
     init: () => {},
-    getCharacterById: async () => null,
+    getCharacterById: async (): Promise<void> => null,
   };
   await kernel.registerService("database", mockDb as unknown as IKernelService);
   return kernel as unknown as IKernel;

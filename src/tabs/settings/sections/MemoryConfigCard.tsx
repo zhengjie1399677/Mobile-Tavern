@@ -270,7 +270,7 @@ export default function MemoryConfigCard({
             )}
           </div>
 
-          <Accordion type="single" collapsible className="w-full mt-2.5 border-t border-border/30 pt-2.5">
+          <Accordion className="w-full mt-2.5 border-t border-border/30 pt-2.5">
             <AccordionItem value="advanced-templates" className="border-none">
               <AccordionTrigger className="py-1.5 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
                 <span className="text-[11px] font-semibold text-foreground">

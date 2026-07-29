@@ -22,6 +22,7 @@
  *   - errors / timeouts：应为 0，否则说明到达卡顿临界点
  */
 
+// @ts-expect-error autocannon 缺少类型声明文件
 import autocannon from "autocannon";
 
 const TARGET_URL = process.env.TARGET_URL || "http://localhost:8080/v1/chat/completions";
@@ -109,7 +110,14 @@ const instance = autocannon({
   timeout: (DURATION + 10) * 1000,
   // 流式响应不应检查 body 完整性
   expectBody: false,
-}, (err, result) => {
+}, (err: unknown, result: {
+  requests: { total: number; average: number };
+  throughput: { total: number; average: number };
+  errors: number;
+  timeouts: number;
+  non2xx: number;
+  latency: { p2_5?: number; p50?: number; p97_5?: number; p99?: number; average?: number; max?: number; maximum?: number };
+}) => {
   if (err) {
     console.error("[Stress] 压测失败:", err);
     process.exit(1);

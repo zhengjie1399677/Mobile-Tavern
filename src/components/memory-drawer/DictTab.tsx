@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ChatSession } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import type { MemoryServiceTyped } from "../../kernel/services/memory";
+import type { EntityType } from "../../kernel/services/memory/types";
 import { useTranslation } from "../../contexts/LanguageContext";
 import {
   RefreshCw,
@@ -60,7 +61,7 @@ function DictTab({ activeSession, showCustomAlert, showCustomConfirm }: DictTabP
   // 手动新增词条状态
   const [isAdding, setIsAdding] = useState(false);
   const [newEntity, setNewEntity] = useState("");
-  const [newType, setNewType] = useState("concept");
+  const [newType, setNewType] = useState<EntityType>("concept");
   const [newAliasesText, setNewAliasesText] = useState("");
   const [isSavingNew, setIsSavingNew] = useState(false);
 
@@ -335,7 +336,7 @@ function DictTab({ activeSession, showCustomAlert, showCustomConfirm }: DictTabP
               <label className="block text-muted-foreground text-[10px] mb-1 font-bold">{t("dict_tab.form_type_label")}</label>
               <MemoryDrawerSelect
                 value={newType}
-                onValueChange={setNewType}
+                onValueChange={(v) => setNewType(v as EntityType)}
                 ariaLabel={t("dict_tab.form_type_label")}
                 options={[
                   { value: "character", label: "👤 人物 (Character)" },

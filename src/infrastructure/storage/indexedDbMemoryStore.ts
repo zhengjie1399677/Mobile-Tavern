@@ -306,7 +306,7 @@ export async function getMessagesByTag(
             (m) =>
               m.sessionId === sessionId &&
               Array.isArray(m.tags) &&
-              m.tags.some((t) => tagSet.has(t))
+              m.tags.some((t: string) => tagSet.has(t))
           )
           .sort((a, b) => b.createdAt - a.createdAt);
         resolve(limit !== undefined ? filtered.slice(0, limit) : filtered);
@@ -541,7 +541,7 @@ export async function syncSessionMessages(
           content: msg.content,
           createdAt: msg.timestamp || Date.now(),
           turnIndex: idx,
-          tags: [],
+          tags: [] as string[],
           extractSource: "none",
           metadata: msg.metadata || msg.extra,
         };

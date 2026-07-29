@@ -242,7 +242,7 @@ export function instantiateTableMemorySchema(
       enable: template.enable,
       columns: columnDefinitions.map((column) => column.name),
       columnDefinitions,
-      rows: [],
+      rows: [] as never[],
     };
   });
 }

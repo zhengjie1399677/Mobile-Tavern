@@ -160,7 +160,7 @@ export default function PromptsConfigSection({
             </span>
           </div>
         ) : (
-          <Accordion type="multiple" className="space-y-2">
+          <Accordion multiple className="space-y-2">
             {settings.promptConfig.customPrompts.map((p) => (
               <AccordionItem
                 value={p.id}

@@ -4,7 +4,7 @@ import { TRANSLATIONS } from "../locales/index";
 export interface LanguageContextProps {
   language: string;
   changeLanguage: (lang: string) => void;
-  t: (key: string, variables?: Record<string, string>) => string;
+  t: (key: string, variables?: Record<string, string | number>) => string;
 }
 
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined);
@@ -64,7 +64,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   // 直接键解析器 (e.g. "features.html_rendering") 与插值查找
-  const t = (key: string, variables?: Record<string, string>): string => {
+  const t = (key: string, variables?: Record<string, string | number>): string => {
     // 1. 尝试从当前选择的语言提取
     const currentDict = TRANSLATIONS[language];
     let result = key;
@@ -88,7 +88,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // 3. 动态变量插值替换 (e.g. t("key", { count: "5" }) 替换 {count})
     if (variables && typeof variables === "object") {
       Object.entries(variables).forEach(([k, v]) => {
-        result = result.replace(new RegExp(`{${k}}`, "g"), v);
+        result = result.replace(new RegExp(`{${k}}`, "g"), String(v));
       });
     }
 

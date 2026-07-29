@@ -19,7 +19,7 @@ describe("StoryTimelineView", () => {
       characterId: "timeline-character",
       title: "年表测试",
       createdAt: Date.now(),
-      messages: [],
+      messages: [] as never[],
       summaries: [{
         id: "summary-1",
         timeTag: "第一幕",
@@ -36,7 +36,7 @@ describe("StoryTimelineView", () => {
         id: "timeline-character",
         name: "测试角色",
       },
-    } as typeof originalState);
+    } as unknown as typeof originalState);
 
     const kernel = {
       getService: vi.fn(() => ({ saveSession: vi.fn() })),

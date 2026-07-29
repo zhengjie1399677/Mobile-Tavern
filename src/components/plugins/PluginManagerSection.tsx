@@ -78,7 +78,7 @@ export default function PluginManagerSection() {
     }
   };
 
-  const handleDelete = async (plugin: InstalledFullscreenPlugin) => {
+  const handleDelete = async (plugin: PluginListItem) => {
     if (!await showCustomConfirm(t("plugin_manager.delete_confirm", { name: plugin.manifest.name }))) return;
     await deletePlugin(plugin.id);
     await reload();

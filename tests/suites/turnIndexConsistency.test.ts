@@ -279,7 +279,7 @@ export async function testRerollBranchAtomicReplace() {
     characterId: "character-reroll",
     title: "重发原子事务",
     createdAt: Date.now(),
-    summaries: [],
+    summaries: [] as never[],
     messages: originalMessages,
   };
 
@@ -300,7 +300,7 @@ export async function testRerollBranchAtomicReplace() {
     id,
     sessionId,
     content: `事件 ${turn}`,
-    participants: [],
+    participants: [] as never[],
     tags: ["测试"],
     sourceMessageIds: [`reroll_old_${turn}`],
     sourceRole: "assistant" as const,

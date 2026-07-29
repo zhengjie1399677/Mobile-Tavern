@@ -14,8 +14,8 @@ vi.mock("../../src/UnifiedAppContext", () => ({
       preset: { temperature: 0.8, topP: 0.9, topK: 40, minP: 0.1, maxTokens: 1000, presencePenalty: 0, frequencyPenalty: 0, repetitionPenalty: 1 },
     },
     getKernelService: (name: string) => name === "chatStream" ? { streamLlmResponse: mockStreamLlmResponse } : {},
-    activeCharacter: null,
-    activeSession: null,
+    activeCharacter: null as null,
+    activeSession: null as null,
     handleSendMessage: mockHandleSendMessage,
   }),
 }));

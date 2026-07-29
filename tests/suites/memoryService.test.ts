@@ -454,7 +454,7 @@ function buildInMemoryIDB() {
         },
         onabort: null as MockIDBEventHandler,
         oncomplete: null as MockIDBEventHandler,
-        get error() {
+        get error(): null {
           return null;
         },
       };
@@ -595,7 +595,7 @@ export async function testMemoryStorageCrud() {
       content: "另一个会话的消息",
       createdAt: 3000,
       turnIndex: 0,
-      tags: [],
+      tags: [] as string[],
       extractSource: "none" as const,
     };
 

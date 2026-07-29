@@ -7,7 +7,8 @@ import {
   CustomWorldbook,
 } from "../../types";
 import { mapSillyTavernLorebookEntry } from "../../utils/cardParser";
-
+
+
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 /**
  * Android WebView 注入的原生桥接对象（仅导出文件用到的子集方法）。
@@ -479,7 +480,7 @@ export function useWorldbookActions(params: UseWorldbookActionsParams) {
     const newWorldbook = {
       id: newId,
       name: name.trim(),
-      entries: [],
+      entries: [] as never[],
       enabled: true,
     };
     updateCustomWorldbooks((prev) => ({
@@ -601,7 +602,7 @@ export function useWorldbookActions(params: UseWorldbookActionsParams) {
 
   // 导出当前世界书（全局或当前激活角色绑定的条目列表）
   const handleExportLorebookJSON = async () => {
-    let entriesToExport = [];
+    let entriesToExport: unknown[] = [];
     let fileName = "worldbook-export.json";
 
     if (activeHostId === "global") {

@@ -74,11 +74,11 @@ export async function testMultiMessageService() {
     messages: [
       { id: "msg_1", sender: "assistant", content: "Hello!" }
     ],
-    summaries: [],
+    summaries: [] as never[],
     variables: {}
   };
 
-  const updated = await multiMsgService.queueUserMessage(initialSession as ChatSession, "  Hello, this is message 1.  ");
+  const updated = await multiMsgService.queueUserMessage(initialSession as unknown as ChatSession, "  Hello, this is message 1.  ");
 
   assert(updated.messages.length === 2, "Should append user message");
   assert(updated.messages[1].sender === "user", "Sender should be user");
@@ -146,7 +146,7 @@ export async function testOutputPipeline() {
   // 阶段 C 迁移：中间件已切换到 KernelServices.Memory.getStateTable() / getSummary() 子模块
   // 旧 tableMemory / autoSummary 服务已从注册表移除并标记 @deprecated
   const mockStateTable = {
-    initDefaultSheets(_charName: string) {
+    initDefaultSheets(_charName: string): unknown[] {
       return [];
     },
     processTableMemory(_mem: unknown, content: string) {
@@ -194,9 +194,9 @@ export async function testOutputPipeline() {
     title: "Session 1",
     createdAt: Date.now(),
     messages: [{ id: "msg_ai_1", sender: "assistant" as const, content: '你好\nupdateRow("好感关系表", {"好感度": "100"})\n_.set("scriptRan", true)', timestamp: Date.now() }],
-    summaries: [],
+    summaries: [] as never[],
     variables: {},
-    tableMemory: []
+    tableMemory: [] as never[]
   };
 
   const outputCtx: OutputPipelineContext = {

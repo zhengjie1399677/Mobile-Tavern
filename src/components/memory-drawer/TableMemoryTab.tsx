@@ -832,7 +832,7 @@ function TableMemoryTab({
                                         <MemoryDrawerInput
                                           value={editValue}
                                           onChange={(e) => setEditValue(e.target.value)}
-                                          onBlur={saveEditing}
+                                          onBlur={() => void saveEditing()}
                                           onKeyDown={handleKeyDown}
                                           type={columnDefinition?.type === "number" ? "number" : columnDefinition?.type === "date" ? "date" : "text"}
                                           autoFocus
