@@ -20,6 +20,7 @@ import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { IDatabaseService } from "../../kernel/types";
+import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
@@ -30,7 +31,7 @@ interface QuickDialogueOptionsProps {
 
 const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) => {
   const kernel = useKernel();
-  const databaseService = kernel.getService<IDatabaseService>("database");
+  const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
   const saveSession = (session: any) => databaseService.saveSession(session);
   const { t } = useTranslation();
   const {

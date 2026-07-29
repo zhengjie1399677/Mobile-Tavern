@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { UserSettings, LorebookEntry } from "../../types";
+import { UserSettings, LorebookEntry, CharacterCard, CustomWorldbook, ChatSession, Message, SummaryCard } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import {
   ISettingsService,
@@ -76,9 +76,9 @@ export const useBackupRestore = ({
 }: UseBackupRestoreDeps): UseBackupRestoreReturn => {
   const kernel = useKernel();
   const settingsService = kernel.getService<ISettingsService<UserSettings>>("settings");
-  const worldbookService = kernel.getService<IWorldbookService>("worldbook");
-  const characterService = kernel.getService<ICharacterService>("character");
-  const databaseService = kernel.getService<IDatabaseService>("database");
+  const worldbookService = kernel.getService<IWorldbookService<LorebookEntry, CustomWorldbook>>("worldbook");
+  const characterService = kernel.getService<ICharacterService<CharacterCard>>("character");
+  const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
   const memoryService = kernel.getService<MemoryServiceTyped>("memory");
 
   const handleExportLocalDataBackup = useCallback(async (characters: any[]) => {

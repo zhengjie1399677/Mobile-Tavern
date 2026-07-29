@@ -11,7 +11,7 @@ import type { ChatSession, CharacterCard, UserSettings, Message, SummaryCard } f
 import type { IDatabaseService, ITelemetryService } from "../../src/kernel/types";
 
 // 测试专用：IDatabaseService 的 Mock 变体，暴露 vi.fn() 的 .mock 属性用于断言调用参数
-type MockDatabaseService = IDatabaseService & {
+type MockDatabaseService = IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message> & {
   createNewSession: Mock;
 };
 

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
 import type { IPromptService } from "../../kernel/types";
+import type { CharacterCard, ChatSession, UserSettings, LorebookEntry } from "../../types";
 import { usePresetFormState } from "./usePresetFormState";
 import PresetSelectorSection from "./PresetSelectorSection";
 import SamplersSection from "./SamplersSection";
@@ -32,7 +33,7 @@ export default function PresetForm({
   const showRegex = sections.includes("regex");
   const showComposer = sections.includes("composer");
   const kernel = useKernel();
-  const promptService = kernel.getService<IPromptService>("prompt");
+  const promptService = kernel.getService<IPromptService<CharacterCard, ChatSession, UserSettings, LorebookEntry>>("prompt");
   const {
     settings,
     updateSettings,

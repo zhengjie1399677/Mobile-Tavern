@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from "react";
-import { ChatSession, Message, SummaryCard } from "../types";
+import { ChatSession, Message, SummaryCard, CharacterCard } from "../types";
 import { useKernel } from "./KernelContext";
 import { IDatabaseService } from "../kernel/types";
 import type { MemoryServiceTyped } from "../kernel/services/memory";
@@ -55,7 +55,7 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const kernel = useKernel();
-  const dbService = kernel.getService<IDatabaseService>("database");
+  const dbService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
   const memoryService = kernel.getService<MemoryServiceTyped>("memory");
   const { showCustomAlert } = useApp();
   const [sessions, setSessions] = useState<ChatSession[]>([]);

@@ -1,5 +1,5 @@
-import { IPromptService, IKernel, KernelServices } from "../types";
-import { CharacterCard, ChatSession, UserSettings, LorebookEntry, Message } from "../../types";
+import { IPromptService, IKernel, IKernelService, KernelServices } from "../types";
+import { CharacterCard, ChatSession, UserSettings, LorebookEntry, Message, TableMemorySheet } from "../../types";
 import { DEFAULT_REPLY_SUGGESTIONS_PROMPT } from "../../defaults/suggestionsPrompt";
 import {
   DEFAULT_REASONING_GUIDANCE_PROMPT,
@@ -44,7 +44,7 @@ function checkAborted(...signals: Array<AbortSignal | undefined>): void {
  * 提示词编译与组装服务
  * 负责根据当前会话状态、设定集、记忆等，动态拼装成发送给 LLM 的系统提示词和消息历史
  */
-export class PromptService implements IPromptService {
+export class PromptService implements IPromptService<CharacterCard, ChatSession, UserSettings, LorebookEntry> {
   name = "prompt";
   private kernel!: IKernel;
   // P1-1/P1-2: 服务级 AbortController（纯计算服务，主要用于契约一致性）
@@ -142,7 +142,7 @@ export class PromptService implements IPromptService {
     userInput: string;
     settings: UserSettings;
     globalLorebook?: LorebookEntry[];
-    recalledMemories?: any[];
+    recalledMemories?: unknown[];
     signal?: AbortSignal;
     traceId?: string;
   }): {
@@ -668,7 +668,12 @@ export class PromptService implements IPromptService {
         // 旧实现 getService 返回 SafeProxy（truthy），if(memoryService) 通过后整条调用链
         // 静默降级为 noop，表格记忆初始化静默失效无法排障。
         if (this.kernel.hasService(KernelServices.Memory)) {
-          const memoryService = this.kernel.getService<any>(KernelServices.Memory);
+          // 使用结构类型避免对 MemoryService 具体实现的硬依赖，仅约束本调用点所需的最小方法集。
+          // 注意：getService 的泛型约束为 IKernelService，故 MemoryServiceLike 需带上 name/init/destroy
+          // 等最小字段以兼容。这里用 Pick<IMemoryService<...>, "getStateTable"> + IKernelService 最小集。
+          type MemoryStateTableLike = { initDefaultSheets(characterName: string): TableMemorySheet[] };
+          type MemoryServiceLike = IKernelService & { getStateTable(): MemoryStateTableLike };
+          const memoryService = this.kernel.getService<MemoryServiceLike>(KernelServices.Memory);
           activeSheets = memoryService.getStateTable().initDefaultSheets(character.name || "char");
         }
       }
@@ -732,10 +737,19 @@ export class PromptService implements IPromptService {
 
     let recalledMemoriesSection = "";
     if (recalledMemories && recalledMemories.length > 0) {
+      type RecalledMemoryEntry = {
+        kind?: "fact" | "event";
+        turnIndex?: number;
+        content?: string;
+        role?: "user" | "assistant" | string;
+      };
       recalledMemoriesSection = recalledMemories
-        .map((m: any) => m.kind === 'fact'
-          ? `[当前事实｜第 ${m.turnIndex} 轮起]: ${m.content}`
-          : `[第 ${m.turnIndex} 轮 - ${m.role === 'user' ? '用户' : '角色'}]: ${m.content}`)
+        .map((m: unknown) => {
+          const entry = m as RecalledMemoryEntry;
+          return entry.kind === 'fact'
+            ? `[当前事实｜第 ${entry.turnIndex} 轮起]: ${entry.content}`
+            : `[第 ${entry.turnIndex} 轮 - ${entry.role === 'user' ? '用户' : '角色'}]: ${entry.content}`;
+        })
         .join("\n");
     }
     builder.registerSection({
@@ -969,11 +983,14 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
 
     const finalMessages = [
       {
-        role: "system",
+        role: "system" as const,
         content: compiledSystemPrompt,
       },
-      ...chatHistory.map((h) => {
-        const msgObj: any = { role: h.role === "model" ? "assistant" : h.role, content: h.content };
+      ...chatHistory.map((h): { role: "system" | "user" | "assistant"; content: string; name?: string } => {
+        const msgObj: { role: "system" | "user" | "assistant"; content: string; name?: string } = {
+          role: h.role === "model" ? "assistant" : h.role,
+          content: h.content,
+        };
         if (settings.api.sendNames && h.name) msgObj.name = h.name;
         return msgObj;
       }),

@@ -12,6 +12,7 @@
 import { Kernel } from "../../src/kernel/Kernel";
 import { IKernelService } from "../../src/kernel/types";
 import { DatabaseService } from "../../src/kernel/services/DatabaseService";
+import type { CharacterCard } from "../../src/types";
 import { assert } from "./testUtils";
 // fake-indexeddb 全局注入：替代 testLocalDBSplitTrack 原先的手写 mock。
 // 手写 mock 的 oncomplete 调度时序与真实 IDB 存在差异，是历史 flaky 源头；
@@ -97,7 +98,7 @@ export async function testDatabaseServiceCrud() {
   await testKernel.registerService("script", mockScriptService);
   await testKernel.registerService("database", mockDbService);
 
-  const mockChar = { id: "char-123", name: "银霜", first_mes: "你好" };
+  const mockChar = { id: "char-123", name: "银霜", first_mes: "你好" } as unknown as CharacterCard;
   const session = await mockDbService.createNewSession(mockChar, "你好啊", ["选项一"]);
 
   assert(session.characterId === "char-123", "Session character ID matches");

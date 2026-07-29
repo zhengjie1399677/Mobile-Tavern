@@ -1,4 +1,5 @@
-import { IKernelService, IKernel } from "../types";
+import { IPresetService, IKernel } from "../types";
+import { SavedPresetBundle } from "../../types";
 import {
   getStoredSavedPresets as dbGetStoredSavedPresets,
   saveStoredSavedPresets as dbSaveStoredSavedPresets,
@@ -20,7 +21,7 @@ import {
  * 但逻辑上属于独立的 preset 业务域，故独立封装为 PresetService，
  * 遵循准则一「物理层数据严格解耦与隔离」的「分轨存储」精神。
  */
-export class PresetService implements IKernelService {
+export class PresetService implements IPresetService<SavedPresetBundle> {
   name = "preset";
   isCritical = false;
   // 依赖 DatabaseService 先完成 IDB schema 就绪（getDB 触发 onupgradeneeded）
@@ -43,11 +44,11 @@ export class PresetService implements IKernelService {
     this.abortController = null;
   }
 
-  async getStoredSavedPresets(): Promise<any[] | null> {
+  async getStoredSavedPresets(): Promise<SavedPresetBundle[] | null> {
     return dbGetStoredSavedPresets();
   }
 
-  async saveStoredSavedPresets(presets: any[]): Promise<void> {
+  async saveStoredSavedPresets(presets: SavedPresetBundle[]): Promise<void> {
     return dbSaveStoredSavedPresets(presets);
   }
 }

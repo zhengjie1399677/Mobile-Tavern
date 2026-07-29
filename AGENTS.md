@@ -89,16 +89,19 @@
 - 异质事件载荷（如 `IMessage.payload`）：用泛型 `<TPayload = unknown>` 让订阅方传入具体类型
 - 第三方库缺类型：优先 `// @ts-expect-error` + 注释说明，不退化为 `any`
 
-## 豁免清单（待 P2 阶段泛型化重构，不得新增）
-以下场景的 `any` 为本次清理遗留，已用 `// 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单` 注释标记，禁止新增同类型 any：
+## 豁免清单（待后续阶段渐进清理，不得新增）
+以下场景的 `any` 为历史遗留，已用 `// 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单` 注释标记，禁止新增同类型 any：
 
 | 文件 | 字段 / 位置 | 豁免理由 |
 |------|-------------|----------|
-| `src/kernel/types.ts` | `IExtension.component` | React 组件类型，但 kernel 不应反向依赖 React；P2 应在 `src/services/pipeline/types.ts` 定义具体 Extension 契约 |
-| `src/kernel/types.ts` | `IDatabaseService<TSession = any, TCharacter = any, TSummary = any>` 及其 message/character/messages 入参 | 改成 `unknown` 会触发 TS2416（实现方 CharacterService 等传入具体类型时不兼容）；P2 应引入新泛型参数 `TMessage` / `TCharacterEntry` |
-| `src/kernel/types.ts` | `IPromptService<TCharacter = any, ...>` 等所有服务接口的泛型默认值 | 同上 TS2416 原因；P2 应让实现方显式声明类型参数 `implements IPromptService<CharacterCard, ...>` |
-| `src/kernel/types.ts` | `ICharacterService` / `IWorldbookService` / `IPresetService` 的实体字段 | 同 IDatabaseService 实体字段；P2 应引入 `TCharacter` / `TLorebook` / `TPreset` 泛型参数 |
-| `src/kernel/types.ts` | `IMemoryService<TStorage = any, ...>` 五个泛型参数 | 同上 TS2416 原因；实现方 MemoryService 应显式声明类型参数 |
+| `src/kernel/types.ts` | `IExtension.component` | React 组件类型，但 kernel 不应反向依赖 React；后续应在 `src/services/pipeline/types.ts` 定义具体 Extension 契约 |
+| `src/utils/tavernHelper/bridgeCore.ts` | `initializeMvuFromCharacter(character: any)` 等桥接函数 | 解析 SillyTavern 角色卡 extensions 等动态 JSON 结构，结构由外部数据决定；防腐层已通过 ScriptService.cleanMvuVariables 收口为 `Record<string, unknown>` |
+| `src/kernel/services/LLMService.ts` | `AbortSignal.any`、`proxyPayload: any`、`history: any[]` | ES2024 提案 `AbortSignal.any` 在 ES2022 lib 中类型缺失；LLM 请求体结构因 provider 而异，待引入 Zod schema 收敛 |
+| `src/kernel/services/TelemetryService.ts` | `extraData: Record<string, any>`、`log: any`、`inputVal: any` | 遥测载荷字段稀疏且频繁演进，结构稳定性低于业务实体；待遥测契约稳定后引入 Zod schema |
+| `src/kernel/services/{Tts,Asr,ImageGeneration}Service.ts` | `config: any`、`activeRecognition: any`、`bodyObj: any` | Web Speech API / FormData 等 Web API 在 TS lib 中类型不完整；待 lib 升级或局部声明类型 |
+| `src/kernel/services/memory/{MemoryExtractor,MemoryRecall,MemoryStateTable,MemoryStorage,MemorySummary}.ts` | `dict: any[]`、`sessionObj: any`、`parsed: any`、`dbMessagesRecords: any[]` 等 | 记忆系统内部 LLM 抽取/召回的中间结构动态性较高；待 Memory 子模块契约稳定后泛型化 |
+| `src/kernel/services/prompt/{PromptMacroFormatter,types}.ts` | `variables: any`、`modelCapabilities: any` | MVU 变量结构与模型能力描述由外部数据决定；待 Prompt 子模块契约稳定后引入具体类型 |
+| `src/kernel/services/AutoSummaryService.ts` | `resData: any`、`mem: any` | 已标记 `@deprecated`，逻辑已合并到 MemoryService.getSummary()；待废弃删除 |
 
 ## 落地纪律
 - **代码审查**：新增 any 必须在 PR 描述中说明豁免理由，未声明者一律拒绝合并

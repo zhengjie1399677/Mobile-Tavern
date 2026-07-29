@@ -16,7 +16,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
-import { UserSettings, LorebookEntry, CustomWorldbook, ChatSession } from "../types";
+import { UserSettings, LorebookEntry, CustomWorldbook, ChatSession, CharacterCard, Message } from "../types";
 import { useKernel } from "../contexts/KernelContext";
 import {
   IDatabaseService, IPromptService, ITelemetryService,
@@ -55,12 +55,12 @@ export const useChat = (
   } = useChatState();
 
   // ── 微服务注入 ────────────────────────────────────────────────────────────────
-  const databaseService  = kernel.getService<IDatabaseService>("database");
-  const promptService    = kernel.getService<IPromptService>("prompt");
+  const databaseService  = kernel.getService<IDatabaseService<ChatSession, CharacterCard, ChatSession["summaries"][number], Message>>("database");
+  const promptService    = kernel.getService<IPromptService<CharacterCard, ChatSession, UserSettings, LorebookEntry>>("prompt");
   const telemetryService = kernel.getService<ITelemetryService>("telemetry");
   const chatStreamService = kernel.getService<IChatStreamService>("chatStream");
-  const multiMessageService = kernel.getService<IMultiMessageService>("multiMessage");
-  const scriptService = kernel.getService<IScriptService>("script");
+  const multiMessageService = kernel.getService<IMultiMessageService<ChatSession>>("multiMessage");
+  const scriptService = kernel.getService<IScriptService<CharacterCard, ChatSession>>("script");
   const memoryService = kernel.hasService("memory")
     ? kernel.getService<MemoryServiceTyped>("memory")
     : undefined;

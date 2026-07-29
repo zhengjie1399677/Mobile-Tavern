@@ -15,6 +15,7 @@ import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { IDatabaseService } from "../../kernel/types";
+import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { useArSync } from "../../services/ar/useArSync";
 
 interface ChatHeaderProps {
@@ -27,7 +28,7 @@ const ChatHeader = ({
   setIsDetailDrawerOpen,
 }: ChatHeaderProps) => {
   const kernel = useKernel();
-  const databaseService = kernel.getService<IDatabaseService>("database");
+  const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
   const saveSession = (session: any) => databaseService.saveSession(session);
   const { t } = useTranslation();
   const {

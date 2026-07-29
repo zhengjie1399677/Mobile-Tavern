@@ -1,6 +1,6 @@
 import type * as React from "react";
 import { useEffect } from "react";
-import { UserSettings, LorebookEntry, CustomWorldbook } from "../../types";
+import { UserSettings, LorebookEntry, CustomWorldbook, SavedPresetBundle } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import {
   ISettingsService,
@@ -40,8 +40,8 @@ export const useSettingsLoader = ({
 }: UseSettingsLoaderDeps) => {
   const kernel = useKernel();
   const settingsService = kernel.getService<ISettingsService<UserSettings>>("settings");
-  const presetService = kernel.getService<IPresetService>("preset");
-  const worldbookService = kernel.getService<IWorldbookService>("worldbook");
+  const presetService = kernel.getService<IPresetService<SavedPresetBundle>>("preset");
+  const worldbookService = kernel.getService<IWorldbookService<LorebookEntry, CustomWorldbook>>("worldbook");
 
   // Load Settings and Lorebook from local DB
   useEffect(() => {

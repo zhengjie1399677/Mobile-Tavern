@@ -32,7 +32,7 @@ const CharacterContext = createContext<CharacterContextType | undefined>(undefin
 
 export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const kernel = useKernel();
-  const characterService = kernel.getService<ICharacterService>("character");
+  const characterService = kernel.getService<ICharacterService<CharacterCard>>("character");
   const { showCustomAlert } = useApp();
   const [characters, setCharacters] = useState<CharacterCard[]>([]);
   const [activeCharId, setActiveCharId] = useState<string | null>(null);

@@ -12,7 +12,8 @@ import { reportUsage } from "../../utils/telemetry";
 
 const logger = Logger.create("ChatAccessibility");
 import { useKernel } from "../../contexts/KernelContext";
-import { IDatabaseService } from "../../kernel/types";
+import { IDatabaseService, IScriptService } from "../../kernel/types";
+import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
 
 interface UseChatAccessibilityDeps {
@@ -29,7 +30,7 @@ interface UseChatAccessibilityDeps {
 
 export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   const kernel = useKernel();
-  const databaseService = kernel.getService<IDatabaseService>("database");
+  const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
   const saveSession = (session: any): Promise<void> => {
     return databaseService.saveSession(session);
   };
@@ -110,7 +111,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
       handleSendMessage,
     });
     try {
-      const scriptService = kernel.getService<any>("script");
+      const scriptService = kernel.getService<IScriptService<CharacterCard, ChatSession>>("script");
       if (scriptService && typeof scriptService.registerBridge === "function") {
         scriptService.registerBridge(getBridgeInterface());
       }

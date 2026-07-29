@@ -175,12 +175,16 @@ export interface IKernelService {
 /**
  * 数据库服务契约。
  *
- * 注意：以下 `any` 字段（message / character / newMessages / messages）保留 any 而非 unknown，
- * 是为了不破坏下游消费方对 `.id` / `.role` 等字段的直接访问。
- * 这些字段应通过引入新泛型参数（TMessage / TCharacterEntry）在 P2 阶段彻底类型化。
- * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ * 泛型参数（默认 unknown）：
+ * - TSession：会话实体类型（如 ChatSession）
+ * - TCharacter：角色卡实体类型（如 CharacterCard）
+ * - TSummary：摘要实体类型（如 SummaryCard）
+ * - TMessage：消息实体类型（如 Message）
+ *
+ * 实现方必须显式声明所有类型参数，例如：
+ *   `class DatabaseService implements IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>`
  */
-export interface IDatabaseService<TSession = any, TCharacter = any, TSummary = any> extends IKernelService {
+export interface IDatabaseService<TSession = unknown, TCharacter = unknown, TSummary = unknown, TMessage = unknown> extends IKernelService {
   getAllSessions(): Promise<TSession[]>;
   /**
    * P0-2 基础设施：按主键单条直查会话，避免 getAllSessions() 全量反序列化。
@@ -204,7 +208,7 @@ export interface IDatabaseService<TSession = any, TCharacter = any, TSummary = a
    * 单条消息写入 messages Store（用于发送/重投场景的精准单条持久化）。
    * saveSession 只存会话元数据，新消息必须通过本方法显式写入。
    */
-  appendSessionMessage(sessionId: string, message: any, turnIndex?: number, signal?: AbortSignal, traceId?: string): Promise<void>;
+  appendSessionMessage(sessionId: string, message: TMessage, turnIndex?: number, signal?: AbortSignal, traceId?: string): Promise<void>;
   /**
    * 按主键删除单条消息（用于重投/编辑场景删除旧消息）。
    */
@@ -213,22 +217,22 @@ export interface IDatabaseService<TSession = any, TCharacter = any, TSummary = a
   replaceSessionBranch(
     session: TSession,
     removedMessageIds: string[],
-    newMessages: any[],
+    newMessages: TMessage[],
     signal?: AbortSignal
   ): Promise<void>;
   /**
    * 批量同步会话消息（用于分支创建/备份恢复等全量写入场景）。
    * 仅 PUT upsert，不做孤儿清理。
    */
-  syncSessionMessages(sessionId: string, messages: any[], signal?: AbortSignal): Promise<void>;
+  syncSessionMessages(sessionId: string, messages: TMessage[], signal?: AbortSignal): Promise<void>;
   deleteSession(id: string, signal?: AbortSignal): Promise<void>;
   /**
    * 批量写入会话（备份恢复 / 跨设备同步场景）。
    * 跨 sessions+messages Store 事务，用于一次性导入完整对话历史。
    */
   bulkSaveSessions(sessionsList: TSession[], signal?: AbortSignal): Promise<void>;
-  createNewSession(character: any, starterMessage?: string, initialSuggestions?: string[]): Promise<TSession>;
-  createEmptyBranch(character: any, title: string): Promise<TSession>;
+  createNewSession(character: TCharacter, starterMessage?: string, initialSuggestions?: string[]): Promise<TSession>;
+  createEmptyBranch(character: TCharacter, title: string): Promise<TSession>;
   createBacktrackBranch(sourceSession: TSession, title: string, msgId: string): Promise<TSession>;
   createBacktrackFromTimeline(sourceSession: TSession, title: string, summaryId: string): Promise<TSession>;
   /**
@@ -264,13 +268,16 @@ export interface ILLMService extends IKernelService {
 /**
  * 提示词服务契约。
  *
- * 注意：泛型默认值保留 `any` 而非 `unknown`，是为了让实现方（PromptService）
- * 直接 `implements IPromptService` 时无需显式声明类型参数；改成 unknown 会让
- * 默认契约为 `<unknown, unknown, unknown, unknown>`，与实现方传入的
- * CharacterCard / ChatSession / UserSettings / LorebookEntry 类型不兼容（TS2416）。
- * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ * 泛型参数（默认 unknown）：
+ * - TCharacter：角色卡实体类型（如 CharacterCard）
+ * - TSession：会话实体类型（如 ChatSession）
+ * - TSettings：用户设置实体类型（如 UserSettings）
+ * - TLorebook：世界书条目实体类型（如 LorebookEntry）
+ *
+ * 实现方必须显式声明所有类型参数，例如：
+ *   `class PromptService implements IPromptService<CharacterCard, ChatSession, UserSettings, LorebookEntry>`
  */
-export interface IPromptService<TCharacter = any, TSession = any, TSettings = any, TLorebook = any> extends IKernelService {
+export interface IPromptService<TCharacter = unknown, TSession = unknown, TSettings = unknown, TLorebook = unknown> extends IKernelService {
   assemblePrompt(params: {
     character: TCharacter;
     chat: TSession;
@@ -301,7 +308,7 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
   estimateTokens(text: string): number;
   sanitizeName(name: string): string;
   getTriggeredLorebookEntries(
-    messages: any[],
+    messages: ReadonlyArray<{ content: string; role?: string; sender?: string }>,
     userInput: string,
     entries: TLorebook[],
     maxRecursionDepth?: number,
@@ -348,18 +355,29 @@ export interface ITelemetryService extends IKernelService {
 
 /**
  * 脚本服务契约。
- * 泛型默认值保留 any 而非 unknown：与 IDatabaseService / IPromptService 同因，
- * 实现方直接 implements 时不需要显式声明类型参数。
- * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ *
+ * 泛型参数（默认 unknown）：
+ * - TCharacter：角色卡实体类型（如 CharacterCard）
+ * - TSession：会话实体类型（如 ChatSession）
+ *
+ * 实现方必须显式声明所有类型参数，例如：
+ *   `class ScriptService implements IScriptService<CharacterCard, ChatSession>`
  */
-export interface IScriptService<TCharacter = any, TSession = any> extends IKernelService {
+export interface IScriptService<TCharacter = unknown, TSession = unknown> extends IKernelService {
   initializeMvuFromCharacter(character: TCharacter): Record<string, unknown>;
   parseMvuMessage(messageContent: string, currentVariables: Record<string, unknown>, signal?: AbortSignal): Record<string, unknown>;
   executeMvuScript(session: TSession, messageContent: string, signal?: AbortSignal): Promise<TSession>;
   registerBridge(bridge: unknown): void;
 }
 
-export interface IMultiMessageService<TSession = any> extends IKernelService {
+/**
+ * 多消息队列服务契约。
+ *
+ * 泛型参数（默认 unknown）：TSession 为会话实体类型（如 ChatSession）。
+ * 实现方必须显式声明类型参数，例如：
+ *   `class MultiMessageService implements IMultiMessageService<ChatSession>`
+ */
+export interface IMultiMessageService<TSession = unknown> extends IKernelService {
   queueUserMessage(session: TSession, text: string): Promise<TSession>;
 }
 
@@ -397,21 +415,22 @@ export interface IBgmService extends IKernelService {
  * 记忆系统服务接口（物理分轨存储 + 分层认知记忆架构）。
  * 整合底层存储 (Storage)、实体/事件抽取 (Extractor)、标签召回 (Recall)、状态表 (StateTable) 及剧情摘要 (Summary)。
  *
- * 泛型参数说明（默认 any 保持向后兼容，与 IDatabaseService / IPromptService 范式对齐）：
- * 实现类应绑定具体子模块类型，例如：
- *   `class MemoryService implements IMemoryService<MemoryStorage, MemoryExtractor, ...>`
- * 消费方可通过类型别名（如 MemoryServiceTyped）一次性获取具体类型，避免重复书写 5 个泛型参数。
+ * 泛型参数（默认 unknown）：
+ * - TStorage：存储层子模块类型（如 MemoryStorage）
+ * - TExtractor：抽取器子模块类型（如 MemoryExtractor）
+ * - TRecall：召回器子模块类型（如 MemoryRecall）
+ * - TStateTable：状态表子模块类型（如 MemoryStateTable）
+ * - TSummary：摘要子模块类型（如 MemorySummary）
  *
- * 注意：泛型默认值保留 any 而非 unknown：实现方 MemoryService 直接 implements 时不需要显式声明
- * 5 个类型参数；改成 unknown 会触发 TS2416（实现方传入的具体类型与默认 unknown 不兼容）。
- * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ * 实现方必须显式声明所有类型参数，例如：
+ *   `class MemoryService implements IMemoryService<MemoryStorage, MemoryExtractor, MemoryRecall, MemoryStateTable, MemorySummary>`
  */
 export interface IMemoryService<
-  TStorage = any,
-  TExtractor = any,
-  TRecall = any,
-  TStateTable = any,
-  TSummary = any
+  TStorage = unknown,
+  TExtractor = unknown,
+  TRecall = unknown,
+  TStateTable = unknown,
+  TSummary = unknown
 > extends IKernelService {
   /**
    * 获取存储层 OOP 入口（messages / memory_dict Store CRUD）。
@@ -473,49 +492,61 @@ export interface IAsrService extends IKernelService {
 
 /**
  * 角色卡服务契约。
- * 注意：以下 `any` 字段保留以避免下游消费方对 `.id` / `.name` 等字段的直接访问被破坏。
- * P2 阶段应引入泛型参数 TCharacter / TLorebook，让消费方传入具体类型。
- * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ *
+ * 泛型参数（默认 unknown）：TCharacter 为角色卡实体类型（如 CharacterCard）。
+ * 实现方必须显式声明类型参数，例如：
+ *   `class CharacterService implements ICharacterService<CharacterCard>`
  */
-export interface ICharacterService extends IKernelService {
-  getAllCharacters(): Promise<any[]>;
-  getCharacterCatalog(): Promise<any[]>;
-  getCharacterById(id: string): Promise<any | null>;
-  saveCharacter(character: any): Promise<void>;
+export interface ICharacterService<TCharacter = unknown> extends IKernelService {
+  getAllCharacters(): Promise<TCharacter[]>;
+  getCharacterCatalog(): Promise<TCharacter[]>;
+  getCharacterById(id: string): Promise<TCharacter | null>;
+  saveCharacter(character: TCharacter): Promise<void>;
   deleteCharacter(id: string): Promise<void>;
-  bulkSaveCharacters(charactersList: any[]): Promise<void>;
+  bulkSaveCharacters(charactersList: TCharacter[]): Promise<void>;
   getStoredDefaultCharactersInitializedFlag(): Promise<boolean>;
   saveStoredDefaultCharactersInitializedFlag(initialized: boolean): Promise<void>;
 }
 
 /**
- * 世界书服务契约。同 ICharacterService，P2 阶段应引入 TLorebook 泛型参数。
- * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ * 世界书服务契约。
+ *
+ * 泛型参数（默认 unknown）：
+ * - TLorebook：世界书条目实体类型（如 LorebookEntry）
+ * - TWorldbook：自定义世界书实体类型（如 CustomWorldbook）
+ *
+ * 实现方必须显式声明所有类型参数，例如：
+ *   `class WorldbookService implements IWorldbookService<LorebookEntry, CustomWorldbook>`
  */
-export interface IWorldbookService extends IKernelService {
-  getGlobalLorebook(): Promise<any[]>;
-  saveGlobalLorebook(entries: any[]): Promise<void>;
-  getCustomWorldbooks(): Promise<Record<string, any>>;
-  saveCustomWorldbooks(worldbooks: Record<string, any>): Promise<void>;
+export interface IWorldbookService<TLorebook = unknown, TWorldbook = unknown> extends IKernelService {
+  getGlobalLorebook(): Promise<TLorebook[]>;
+  saveGlobalLorebook(entries: TLorebook[]): Promise<void>;
+  getCustomWorldbooks(): Promise<Record<string, TWorldbook>>;
+  saveCustomWorldbooks(worldbooks: Record<string, TWorldbook>): Promise<void>;
 }
 
 /**
- * 设置服务契约。泛型默认值保留 any 而非 unknown：实现方 SettingsService 直接 implements
- * 时无需显式声明类型参数；改成 unknown 会触发 TS2416（与 UserSettings 不兼容）。
- * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ * 设置服务契约。
+ *
+ * 泛型参数（默认 unknown）：TSettings 为用户设置实体类型（如 UserSettings）。
+ * 实现方必须显式声明类型参数，例如：
+ *   `class SettingsService implements ISettingsService<UserSettings>`
  */
-export interface ISettingsService<TSettings = any> extends IKernelService {
+export interface ISettingsService<TSettings = unknown> extends IKernelService {
   getStoredSettings(): Promise<TSettings | null>;
   saveStoredSettings(settings: TSettings): Promise<void>;
 }
 
 /**
- * 预设服务契约。同 ICharacterService，P2 阶段应引入 TPreset 泛型参数。
- * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ * 预设服务契约。
+ *
+ * 泛型参数（默认 unknown）：TPreset 为预设包实体类型（如 SavedPresetBundle）。
+ * 实现方必须显式声明类型参数，例如：
+ *   `class PresetService implements IPresetService<SavedPresetBundle>`
  */
-export interface IPresetService extends IKernelService {
-  getStoredSavedPresets(): Promise<any[] | null>;
-  saveStoredSavedPresets(presets: any[]): Promise<void>;
+export interface IPresetService<TPreset = unknown> extends IKernelService {
+  getStoredSavedPresets(): Promise<TPreset[] | null>;
+  saveStoredSavedPresets(presets: TPreset[]): Promise<void>;
 }
 
 

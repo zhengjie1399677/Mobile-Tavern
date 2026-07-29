@@ -67,8 +67,8 @@ export interface UseWorldbookActionsParams {
  */
 export function useWorldbookActions(params: UseWorldbookActionsParams) {
   const kernel = useKernel();
-  const characterService = kernel.getService<ICharacterService>("character");
-  const worldbookService = kernel.getService<IWorldbookService>("worldbook");
+  const characterService = kernel.getService<ICharacterService<CharacterCard>>("character");
+  const worldbookService = kernel.getService<IWorldbookService<LorebookEntry, CustomWorldbook>>("worldbook");
 
   const saveCharacter = (character: CharacterCard): Promise<void> => {
     return characterService.saveCharacter(character);

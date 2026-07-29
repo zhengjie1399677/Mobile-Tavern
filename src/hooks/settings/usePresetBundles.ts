@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { UserSettings, SamplerPreset } from "../../types";
+import { UserSettings, SamplerPreset, SavedPresetBundle } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import { IPresetService } from "../../kernel/types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT_CONFIG } from "./defaults";
@@ -67,7 +67,7 @@ export const usePresetBundles = ({
   showCustomConfirm,
 }: UsePresetBundlesDeps): UsePresetBundlesReturn => {
   const kernel = useKernel();
-  const presetService = kernel.getService<IPresetService>("preset");
+  const presetService = kernel.getService<IPresetService<SavedPresetBundle>>("preset");
 
   const handleImportPresetJSON = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

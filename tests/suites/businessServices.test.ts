@@ -16,7 +16,7 @@
 import 'fake-indexeddb/auto';
 import { assert } from "./testUtils";
 import type { IKernel } from "../../src/kernel/types";
-import type { CharacterCard, LorebookEntry, CustomWorldbook, UserSettings } from "../../src/types";
+import type { CharacterCard, LorebookEntry, CustomWorldbook, UserSettings, SavedPresetBundle } from "../../src/types";
 
 export async function testCharacterService() {
   console.log("\n--- Running CharacterService Verification ---");
@@ -181,9 +181,9 @@ export async function testPresetService() {
   const presets = [
     { id: "preset_1", name: "预设A", settings: { temperature: 0.8 } },
     { id: "preset_2", name: "预设B", settings: { temperature: 1.0 } },
-  ];
+  ] as unknown as SavedPresetBundle[];
   await service.saveStoredSavedPresets(presets);
-  const saved = await service.getStoredSavedPresets();
+  const saved = await service.getStoredSavedPresets() as unknown as Array<{ id: string; name: string }>;
   assert(Array.isArray(saved), "Saved presets should be an array");
   assert(saved.length === 2, "Should have 2 presets");
   assert(saved[0].id === "preset_1", "First preset id matches");

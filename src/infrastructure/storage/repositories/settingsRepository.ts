@@ -12,7 +12,7 @@
  *  - settled 守卫：getStoredSettings 嵌套 onsuccess 防止 resolve-after-reject
  */
 
-import type { UserSettings } from "../../../types";
+import type { UserSettings, SavedPresetBundle } from "../../../types";
 import { getDB } from "../idbConnection";
 import {
   enqueueWrite,
@@ -275,7 +275,7 @@ export async function saveStoredSettings(
   }, "settings:user_settings", signal);  // P1-11: 单一 settings 记录多次保存合并为一次落盘
 }
 
-export async function getStoredSavedPresets(): Promise<any[] | null> {
+export async function getStoredSavedPresets(): Promise<SavedPresetBundle[] | null> {
   const db = await getDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("settings", "readonly");
@@ -288,7 +288,7 @@ export async function getStoredSavedPresets(): Promise<any[] | null> {
   });
 }
 
-export async function saveStoredSavedPresets(presets: any[], signal?: AbortSignal): Promise<void> {
+export async function saveStoredSavedPresets(presets: SavedPresetBundle[], signal?: AbortSignal): Promise<void> {
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {

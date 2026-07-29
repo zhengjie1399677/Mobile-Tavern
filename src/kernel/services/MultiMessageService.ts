@@ -1,7 +1,7 @@
 import { IMultiMessageService, IKernel, IDatabaseService } from "../types";
 import { ChatSession, Message } from "../../types";
 
-export class MultiMessageService implements IMultiMessageService {
+export class MultiMessageService implements IMultiMessageService<ChatSession> {
   name = "multiMessage";
   dependencies = ["database"] as const;
   private kernel!: IKernel;
@@ -36,7 +36,7 @@ export class MultiMessageService implements IMultiMessageService {
     const updatedMessages = [...cleanHistory, userMsg];
     const updatedSession = { ...session, messages: updatedMessages };
 
-    const databaseService = this.kernel.getService<IDatabaseService>("database");
+    const databaseService = this.kernel.getService<IDatabaseService<ChatSession, unknown, unknown, Message>>("database");
     // saveSession 只存会话元数据，用户消息需显式写入 messages Store
     await databaseService.saveSession(updatedSession);
     await databaseService.appendSessionMessage(updatedSession.id, userMsg);

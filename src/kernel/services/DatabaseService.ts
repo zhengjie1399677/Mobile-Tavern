@@ -1,5 +1,5 @@
-import { IDatabaseService, IKernel } from "../types";
-import { ChatSession, Message } from "../../types";
+import { IDatabaseService, IKernel, IScriptService } from "../types";
+import { CharacterCard, ChatSession, Message } from "../../types";
 import {
   saveSession,
   deleteSession,
@@ -36,7 +36,12 @@ type PersistedMessage = Message & {
   metadata?: Record<string, unknown>;
 };
 
-export class DatabaseService implements IDatabaseService {
+export class DatabaseService implements IDatabaseService<
+  ChatSession,
+  CharacterCard,
+  ChatSession["summaries"][number],
+  Message
+> {
   name = "database";
   isCritical = true;
   dependencies = ["script"] as const;
@@ -107,10 +112,15 @@ export class DatabaseService implements IDatabaseService {
    * 单条消息写入 messages Store。
    * 将内存 Message 格式转换为 DB MessageRecord 格式后调用 appendMessage。
    * turnIndex 未提供时由存储层在同一事务内按会话原子分配绝对序号。
+   *
+   * 注意：入参类型为 Message（与 IDatabaseService 契约一致），但内存层在
+   * 记忆系统注入字段时会携带 tags / extractSource / metadata。这里通过
+   * 类型断言安全读取这些可选字段，缺失时回退到存储层默认值。
    */
-  async appendSessionMessage(sessionId: string, message: PersistedMessage, turnIndex?: number, signal?: AbortSignal, traceId?: string): Promise<void> {
+  async appendSessionMessage(sessionId: string, message: Message, turnIndex?: number, signal?: AbortSignal, traceId?: string): Promise<void> {
     // traceId 预留：与 saveSession 一致，供未来诊断日志接入。
     void traceId;
+    const persisted = message as PersistedMessage;
     await dbAppendMessage({
       id: message.id,
       sessionId,
@@ -118,9 +128,9 @@ export class DatabaseService implements IDatabaseService {
       content: message.content,
       createdAt: message.timestamp || Date.now(),
       turnIndex,
-      tags: message.tags || [],
-      extractSource: message.extractSource || "none",
-      metadata: message.metadata || message.extra,
+      tags: persisted.tags || [],
+      extractSource: persisted.extractSource || "none",
+      metadata: persisted.metadata || message.extra,
     }, signal ?? this.abortController?.signal);
   }
 
@@ -142,7 +152,7 @@ export class DatabaseService implements IDatabaseService {
     );
   }
 
-  async syncSessionMessages(sessionId: string, messages: any[], signal?: AbortSignal): Promise<void> {
+  async syncSessionMessages(sessionId: string, messages: Message[], signal?: AbortSignal): Promise<void> {
     return dbSyncSessionMessages(sessionId, messages, signal ?? this.abortController?.signal);
   }
 
@@ -156,12 +166,12 @@ export class DatabaseService implements IDatabaseService {
   }
 
   // P0-4 / P1-4: 单条直查角色卡，避免全量反序列化
-  async getCharacterById(id: string): Promise<any | null> {
+  async getCharacterById(id: string): Promise<CharacterCard | null> {
     return getCharacterById(id);
   }
 
-  async createNewSession(character: any, starterMessage?: string, initialSuggestions?: string[]): Promise<ChatSession> {
-    const scriptService = this.kernel.getService<any>("script");
+  async createNewSession(character: CharacterCard, starterMessage?: string, initialSuggestions?: string[]): Promise<ChatSession> {
+    const scriptService = this.kernel.getService<IScriptService<CharacterCard, ChatSession>>("script");
     let mvuVariables = scriptService.initializeMvuFromCharacter(character);
     
     const id = "session_" + Math.random().toString(36).substring(2, 9);
@@ -212,8 +222,8 @@ export class DatabaseService implements IDatabaseService {
     return newSession;
   }
 
-  async createEmptyBranch(character: any, title: string): Promise<ChatSession> {
-    const scriptService = this.kernel.getService<any>("script");
+  async createEmptyBranch(character: CharacterCard, title: string): Promise<ChatSession> {
+    const scriptService = this.kernel.getService<IScriptService<CharacterCard, ChatSession>>("script");
     let mvuVariables = scriptService.initializeMvuFromCharacter(character);
     
     // 如果角色卡有开场白，将其作为新分支的初始第一条消息，避免页面完全空白

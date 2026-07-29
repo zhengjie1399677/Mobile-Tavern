@@ -26,7 +26,7 @@ interface SessionManagerParams {
   setShowSessionManager: React.Dispatch<React.SetStateAction<boolean>>;
   setMsgMenuId: React.Dispatch<React.SetStateAction<string | null>>;
   deleteSession: (id: string) => Promise<void>;
-  databaseService: IDatabaseService;
+  databaseService: IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>;
   telemetryService: ITelemetryService;
   triggerScroll: () => void;
   showCustomAlert: (msg: string) => Promise<void>;

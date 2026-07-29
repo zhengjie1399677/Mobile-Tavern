@@ -1,4 +1,4 @@
-import { IKernelService, IKernel } from "../types";
+import { IWorldbookService, IKernel } from "../types";
 import { LorebookEntry, CustomWorldbook } from "../../types";
 import {
   getGlobalLorebook as dbGetGlobalLorebook,
@@ -20,7 +20,7 @@ import {
  *   - 物理隔离：不侵入 Kernel.ts 底座，不污染通用的 DatabaseService
  *   - 资源回收：持有服务级 AbortController，destroy 时中止进行中的异步任务
  */
-export class WorldbookService implements IKernelService {
+export class WorldbookService implements IWorldbookService<LorebookEntry, CustomWorldbook> {
   name = "worldbook";
   isCritical = false;
   // 依赖 DatabaseService 先完成 IDB schema 就绪

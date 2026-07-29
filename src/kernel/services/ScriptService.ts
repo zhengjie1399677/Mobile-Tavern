@@ -1,4 +1,4 @@
-import { IScriptService, IKernel } from "../types";
+import { IScriptService, IKernel, IDatabaseService } from "../types";
 import { CharacterCard, ChatSession } from "../../types";
 import { parseMvuMessage as parseMvuMessageDirect, applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
 import JSON5 from "json5";
@@ -8,9 +8,9 @@ const logger = Logger.create("ScriptService");
 
 
 export interface ITavernHelperBridge {
-  initializeMvuFromCharacter(character: any): Record<string, any>;
-  parseMvuMessage(messageContent: string, currentVariables: Record<string, any>, signal?: AbortSignal): Record<string, any>;
-  notifyVariablesUpdated(session: any): void;
+  initializeMvuFromCharacter(character: unknown): Record<string, unknown>;
+  parseMvuMessage(messageContent: string, currentVariables: Record<string, unknown>, signal?: AbortSignal): Record<string, unknown>;
+  notifyVariablesUpdated(session: unknown): void;
 }
 
 /**
@@ -23,16 +23,16 @@ export interface ITavernHelperBridge {
  * @param raw - tavernHelperBridge 返回的原始变量对象
  * @returns 清洗后的安全变量对象
  */
-function cleanMvuVariables(raw: Record<string, any> | null | undefined): Record<string, any> {
+function cleanMvuVariables(raw: Record<string, unknown> | null | undefined): Record<string, unknown> {
   if (!raw || typeof raw !== "object") {
     return { stat_data: {} };
   }
 
-  const cleaned: Record<string, any> = {};
+  const cleaned: Record<string, unknown> = {};
 
   // stat_data 是 MVU 的核心数据载体，必须为纯对象
   if (raw.stat_data && typeof raw.stat_data === "object" && !Array.isArray(raw.stat_data)) {
-    cleaned.stat_data = sanitizeValueObject(raw.stat_data);
+    cleaned.stat_data = sanitizeValueObject(raw.stat_data as Record<string, unknown>);
   } else {
     cleaned.stat_data = {};
   }
@@ -64,18 +64,18 @@ function cleanMvuVariables(raw: Record<string, any> | null | undefined): Record<
 /**
  * 递归清洗值对象，移除函数、Symbol、原型链等非数据型属性
  */
-function sanitizeValueObject(obj: Record<string, any>): Record<string, any> {
-  const sanitized: Record<string, any> = {};
+function sanitizeValueObject(obj: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
   for (const key of Object.keys(obj)) {
     const val = obj[key];
     if (typeof val === "function" || typeof val === "symbol") {
       continue;
     }
     if (val !== null && typeof val === "object" && !Array.isArray(val)) {
-      sanitized[key] = sanitizeValueObject(val);
+      sanitized[key] = sanitizeValueObject(val as Record<string, unknown>);
     } else if (Array.isArray(val)) {
       sanitized[key] = val.map((item) =>
-        item !== null && typeof item === "object" ? sanitizeValueObject(item) : item
+        item !== null && typeof item === "object" ? sanitizeValueObject(item as Record<string, unknown>) : item
       );
     } else {
       sanitized[key] = val;
@@ -154,7 +154,7 @@ function checkAborted(...signals: Array<AbortSignal | undefined>): void {
   }
 }
 
-export class ScriptService implements IScriptService {
+export class ScriptService implements IScriptService<CharacterCard, ChatSession> {
   name = "script";
   private kernel!: IKernel;
   private bridge: ITavernHelperBridge | null = null;
@@ -189,7 +189,7 @@ export class ScriptService implements IScriptService {
     this.bridge = bridge;
   }
 
-  initializeMvuFromCharacter(character: CharacterCard): Record<string, any> {
+  initializeMvuFromCharacter(character: CharacterCard): Record<string, unknown> {
     // 防腐隔离：清洗输入
     const safeCharacter = cleanCharacterForMvu(character);
     if (!safeCharacter) {
@@ -197,7 +197,7 @@ export class ScriptService implements IScriptService {
     }
 
     try {
-      let rawVariables: any;
+      let rawVariables: Record<string, unknown> | undefined;
       if (this.bridge) {
         rawVariables = this.bridge.initializeMvuFromCharacter(safeCharacter);
       } else {
@@ -213,7 +213,7 @@ export class ScriptService implements IScriptService {
     }
   }
 
-  parseMvuMessage(messageContent: string, currentVariables: Record<string, any>, signal?: AbortSignal): Record<string, any> {
+  parseMvuMessage(messageContent: string, currentVariables: Record<string, unknown>, signal?: AbortSignal): Record<string, unknown> {
     checkAborted(signal, this.abortController?.signal);
     // 防腐隔离：清洗输入变量
     const safeCurrentVars = cleanMvuVariables(currentVariables);
@@ -223,7 +223,7 @@ export class ScriptService implements IScriptService {
     }
 
     try {
-      let rawParsed: any;
+      let rawParsed: Record<string, unknown> | undefined;
       if (this.bridge) {
         rawParsed = this.bridge.parseMvuMessage(messageContent, safeCurrentVars, signal);
       } else {
@@ -250,10 +250,10 @@ export class ScriptService implements IScriptService {
       if (isDev()) {
         logger.debug("Parsing message");
       }
-      
-      let character: any = null;
+
+      let character: CharacterCard | null = null;
       if (this.kernel.hasService("database")) {
-        const dbService = this.kernel.getService<any>("database");
+        const dbService = this.kernel.getService<IDatabaseService<ChatSession, CharacterCard, ChatSession["summaries"][number], unknown>>("database");
         character = await dbService.getCharacterById(safeSession.characterId);
         checkAborted(signal, this.abortController?.signal);
       }
@@ -327,45 +327,49 @@ export class ScriptService implements IScriptService {
   }
 }
 
-function localInitializeMvuFromCharacter(character: any): Record<string, any> {
+function localInitializeMvuFromCharacter(character: CharacterCard | null | undefined): Record<string, unknown> {
   if (!character) return { stat_data: {} };
 
-  const ext = character.extensions || {};
-  const variables: Record<string, any> = {
+  const ext = (character.extensions || {}) as Record<string, unknown>;
+  const variables: Record<string, unknown> = {
     stat_data: {},
     schema: { type: 'object', properties: {} },
     display_data: {},
     delta_data: {},
   };
 
-  let mvuSettings = ext.mvu_settings ||
-                    ext.mvu ||
-                    ext.MVU ||
-                    null;
+  let mvuSettings: Record<string, unknown> | string | null | undefined =
+    (ext.mvu_settings as Record<string, unknown> | undefined) ||
+    (ext.mvu as Record<string, unknown> | undefined) ||
+    (ext.MVU as Record<string, unknown> | undefined) ||
+    null;
 
   if (typeof mvuSettings === "string") {
+    // 取局部变量持有原始字符串，避免 try/catch 跨块重新赋值导致 mvuSettings 类型被放宽回联合类型。
+    const rawStr = mvuSettings;
     try {
-      mvuSettings = JSON5.parse(mvuSettings);
+      mvuSettings = JSON5.parse(rawStr) as Record<string, unknown>;
     } catch {
       try {
-        mvuSettings = JSON.parse(mvuSettings);
+        mvuSettings = JSON.parse(rawStr) as Record<string, unknown>;
       } catch {
         mvuSettings = null;
       }
     }
   }
 
-  if (mvuSettings) {
-    if (mvuSettings.schema) {
-      variables.schema = mvuSettings.schema;
+  if (mvuSettings && typeof mvuSettings === "object") {
+    const settings = mvuSettings as Record<string, unknown>;
+    if (settings.schema) {
+      variables.schema = settings.schema;
     }
-    if (mvuSettings.stat_data) {
-      variables.stat_data = { ...mvuSettings.stat_data };
-    } else if (mvuSettings.defaults) {
-      variables.stat_data = { ...mvuSettings.defaults };
+    if (settings.stat_data && typeof settings.stat_data === "object") {
+      variables.stat_data = { ...(settings.stat_data as Record<string, unknown>) };
+    } else if (settings.defaults && typeof settings.defaults === "object") {
+      variables.stat_data = { ...(settings.defaults as Record<string, unknown>) };
     }
-    if (mvuSettings.display_data) {
-      variables.display_data = { ...mvuSettings.display_data };
+    if (settings.display_data && typeof settings.display_data === "object") {
+      variables.display_data = { ...(settings.display_data as Record<string, unknown>) };
     }
   }
 
@@ -377,8 +381,8 @@ function localInitializeMvuFromCharacter(character: any): Record<string, any> {
     try {
       const processedGreeting = applyCharacterRegexScripts(character.first_mes, character, undefined, undefined, undefined, "store");
       const parsedVars = parseMvuMessageDirect(processedGreeting, variables);
-      if (parsedVars && parsedVars.stat_data) {
-        variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
+      if (parsedVars && parsedVars.stat_data && typeof parsedVars.stat_data === "object") {
+        variables.stat_data = { ...(variables.stat_data as Record<string, unknown>), ...(parsedVars.stat_data as Record<string, unknown>) };
       }
     } catch (e) {
       logger.warn("Failed to parse first_mes initvars", { error: e });
@@ -388,7 +392,10 @@ function localInitializeMvuFromCharacter(character: any): Record<string, any> {
   // P0-A 修复：解析 Worldbook/Lorebook 中的 [initvar] 词条
   // 与 bridgeCore.initializeMvuFromCharacter 保持逻辑一致，
   // 防止会话创建时 bridge 未注册导致 lorebook 初始变量丢失。
-  const lorebookEntries = character.character_book?.entries || character.extensions?.world?.entries || [];
+  // 注意：SillyTavern v2 角色卡的 character_book 字段不在 CharacterCard 显式声明中
+  // （历史数据保留在 extensions.world 或顶层 character_book），此处通过 extensions 兼容读取。
+  const worldFromExt = (ext.world ?? ext.character_book) as { entries?: ReadonlyArray<{ content?: string; comment?: string }> } | undefined;
+  const lorebookEntries = worldFromExt?.entries || [];
   if (Array.isArray(lorebookEntries)) {
     for (const entry of lorebookEntries) {
       if (!entry || !entry.content) continue;
@@ -397,8 +404,11 @@ function localInitializeMvuFromCharacter(character: any): Record<string, any> {
       if (comment.includes("initvar") || comment.includes("stat_data") || content.includes("<initvar>") || content.includes("stat_data:")) {
         try {
           const parsedVars = parseMvuMessageDirect(content, variables);
-          if (parsedVars && parsedVars.stat_data && Object.keys(parsedVars.stat_data).length > 0) {
-            variables.stat_data = { ...variables.stat_data, ...parsedVars.stat_data };
+          if (parsedVars && parsedVars.stat_data && typeof parsedVars.stat_data === "object") {
+            const parsedStat = parsedVars.stat_data as Record<string, unknown>;
+            if (Object.keys(parsedStat).length > 0) {
+              variables.stat_data = { ...(variables.stat_data as Record<string, unknown>), ...parsedStat };
+            }
           }
         } catch (e) {
           logger.warn("Failed to parse lorebook initvars", { error: e });

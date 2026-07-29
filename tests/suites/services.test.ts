@@ -128,7 +128,7 @@ export async function testScriptServiceDecoupling() {
   assert(result3.variables.stat_data.hp === 100, "Should use injected bridge logic to modify variables");
 
   const result4 = scriptService.initializeMvuFromCharacter({ name: "银霜" } as CharacterCard);
-  assert(result4.stat_data.hp === 99, "Should use injected bridge logic to initialize variables");
+  assert((result4.stat_data as { hp: number }).hp === 99, "Should use injected bridge logic to initialize variables");
 
   await testKernel.destroy();
   console.log("✔ ScriptService Decoupling verified successfully!");

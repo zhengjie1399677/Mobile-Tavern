@@ -1,4 +1,4 @@
-import { IKernelService, IKernel } from "../types";
+import { ICharacterService, IKernel } from "../types";
 import { CharacterCard } from "../../types";
 import {
   getAllCharacters,
@@ -24,7 +24,7 @@ import {
  *   - 物理隔离：不侵入 Kernel.ts 底座，不污染通用的 DatabaseService（character 是业务实体）
  *   - 资源回收：持有服务级 AbortController，destroy 时中止进行中的异步任务
  */
-export class CharacterService implements IKernelService {
+export class CharacterService implements ICharacterService<CharacterCard> {
   name = "character";
   isCritical = false;
   // 依赖 DatabaseService 先完成 IDB schema 就绪（getDB 触发 onupgradeneeded）

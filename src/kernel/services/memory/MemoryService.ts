@@ -13,6 +13,7 @@ import {
   type IMemoryService,
   type IDatabaseService,
 } from '../../types';
+import type { ChatSession, CharacterCard, Message } from '../../../types';
 import { MEMORY_PERSISTENCE_SERVICE, type MemoryPersistencePort } from './types';
 import { MemoryStorage } from './MemoryStorage';
 import { MemoryExtractor } from './MemoryExtractor';
@@ -55,7 +56,7 @@ export class MemoryService implements IMemoryService<
     }
 
     // 1. 获取会话数据库与记忆物理存储端口；领域服务不直接依赖 localDB。
-    const dbService = kernel.getService<IDatabaseService>(KernelServices.Database);
+    const dbService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, ChatSession["summaries"][number], Message>>(KernelServices.Database);
     const persistence = kernel.getService<MemoryPersistencePort & IKernelService>(
       MEMORY_PERSISTENCE_SERVICE
     );

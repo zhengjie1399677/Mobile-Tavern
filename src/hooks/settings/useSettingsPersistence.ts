@@ -53,7 +53,7 @@ export const useSettingsPersistence = ({
 }: UseSettingsPersistenceDeps): UseSettingsPersistenceReturn => {
   const kernel = useKernel();
   const settingsService = kernel.getService<ISettingsService<UserSettings>>("settings");
-  const worldbookService = kernel.getService<IWorldbookService>("worldbook");
+  const worldbookService = kernel.getService<IWorldbookService<LorebookEntry, CustomWorldbook>>("worldbook");
 
   // Debounced settings save to prevent locking IndexedDB on sliders
   const saveTimeoutRef = useRef<any>(null);

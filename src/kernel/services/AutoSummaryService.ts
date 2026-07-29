@@ -257,7 +257,7 @@ export class AutoSummaryService {
 
         if (signal?.aborted) return session;
 
-        const db = this.kernel.getService<IDatabaseService>(KernelServices.Database);
+        const db = this.kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>(KernelServices.Database);
         // P0-2: 改用单条直查，避免 getAllSessions() 全量反序列化整个 sessions 表
         const latestSession = await db.getSessionById(session.id);
         if (latestSession) {

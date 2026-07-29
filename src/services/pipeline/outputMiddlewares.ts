@@ -1,7 +1,8 @@
-import { Middleware, KernelServices, IMemoryService, IScriptService } from "../../kernel/types";
+import { Middleware, KernelServices, IScriptService } from "../../kernel/types";
+import type { MemoryServiceTyped } from "../../kernel/services/memory";
 import type { OutputPipelineContext } from "./types";
 import { calculateBisonModeProbability } from "../../domain/chat/bisonProbability";
-import { Message } from "../../types";
+import { Message, CharacterCard, ChatSession } from "../../types";
 import { Logger } from "../../utils/logger";
 
 const logger = Logger.create("outputMiddlewares");
@@ -67,7 +68,7 @@ export const tableMemoryMiddleware: Middleware<OutputPipelineContext> = async (c
       return;
     }
     // 阶段 C 迁移：通过 MemoryService.getStateTable() 访问状态表子模块
-    const memoryService = kernel.getService<IMemoryService>(KernelServices.Memory);
+    const memoryService = kernel.getService<MemoryServiceTyped>(KernelServices.Memory);
     const stateTable = memoryService.getStateTable();
 
     let currentMemory = currentSession.tableMemory || [];
@@ -152,7 +153,7 @@ export const mvuScriptMiddleware: Middleware<OutputPipelineContext> = async (con
   }
 
   try {
-    const scriptService = kernel.getService<IScriptService>(KernelServices.Script);
+    const scriptService = kernel.getService<IScriptService<CharacterCard, ChatSession>>(KernelServices.Script);
     currentSession = await scriptService.executeMvuScript(
       currentSession,
       responseText,
@@ -224,7 +225,7 @@ export const autoSummaryMiddleware: Middleware<OutputPipelineContext> = async (c
     }
     try {
       // 通过 MemoryService.getSummary() 触发摘要检查
-      const memoryService = kernel.getService<IMemoryService>(KernelServices.Memory);
+      const memoryService = kernel.getService<MemoryServiceTyped>(KernelServices.Memory);
       const summary = memoryService.getSummary();
       const updatedSession = await summary.checkAndSummarize(
         currentSession,
