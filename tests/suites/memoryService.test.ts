@@ -530,6 +530,10 @@ export async function testMemoryStorageCrud() {
       messagesStore.indexes.has("sessionId_createdAt"),
       "messages: sessionId_createdAt compound index created"
     );
+    assert(
+      messagesStore.indexes.has("sessionId_turnIndex_createdAt"),
+      "messages: sessionId_turnIndex_createdAt compound index created"
+    );
     const dictStore = stores.get("memory_dict")!;
     assert(dictStore.indexes.has("sessionId"), "memory_dict: sessionId index created");
     assert(dictStore.indexes.has("entity"), "memory_dict: entity index created");

@@ -45,7 +45,7 @@ export async function appendMessage(message: {
   role: string;
   content: string;
   createdAt: number;
-  turnIndex: number;
+  turnIndex?: number;
   tags?: string[];
   extractSource?: string;
   metadata?: Record<string, any>;
@@ -55,21 +55,54 @@ export async function appendMessage(message: {
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("messages", "readwrite");
       const store = transaction.objectStore("messages");
-      const record = {
-        id: message.id,
-        sessionId: message.sessionId,
-        role: message.role,
-        content: message.content,
-        createdAt: message.createdAt,
-        turnIndex: message.turnIndex,
-        tags: message.tags || [],
-        extractSource: message.extractSource || "none",
-        metadata: message.metadata,
+      const putRecord = (turnIndex: number) => {
+        const request = store.put({
+          id: message.id,
+          sessionId: message.sessionId,
+          role: message.role,
+          content: message.content,
+          createdAt: message.createdAt,
+          turnIndex,
+          tags: message.tags || [],
+          extractSource: message.extractSource || "none",
+          metadata: message.metadata,
+        });
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
       };
-      const request = store.put(record);
 
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      if (Number.isInteger(message.turnIndex) && (message.turnIndex as number) >= 0) {
+        putRecord(message.turnIndex as number);
+      } else if (store.indexNames.contains("sessionId_turnIndex_createdAt")) {
+        const index = store.index("sessionId_turnIndex_createdAt");
+        const lower = [message.sessionId, -Infinity, -Infinity];
+        const upper = [message.sessionId, Infinity, Infinity];
+        const request = index.openCursor(IDBKeyRange.bound(lower, upper), "prev");
+        request.onsuccess = () => {
+          const lastTurn = request.result?.value?.turnIndex;
+          putRecord(Number.isInteger(lastTurn) ? lastTurn + 1 : 0);
+        };
+        request.onerror = () => reject(request.error);
+      } else {
+        const index = store.index("sessionId");
+        const request = index.openCursor(IDBKeyRange.only(message.sessionId));
+        let maxTurn = -1;
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (cursor) {
+            if (Number.isInteger(cursor.value?.turnIndex)) {
+              maxTurn = Math.max(maxTurn, cursor.value.turnIndex);
+            }
+            cursor.continue();
+            return;
+          }
+          putRecord(maxTurn + 1);
+        };
+        request.onerror = () => reject(request.error);
+      }
+
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, `message:${message.id}`, signal);
@@ -134,9 +167,8 @@ export async function getMessageById(id: string): Promise<any | null> {
 }
 
 /**
- * 按会话查询所有消息（按 createdAt 升序）。
- * 优先使用复合索引 sessionId_createdAt（仅游标范围查询，高效），
- * 降级时使用 sessionId 单值索引并在内存中按 createdAt 排序。
+ * 按会话查询消息。优先使用绝对 turnIndex 复合索引，使分页边界和最终展示
+ * 使用同一顺序；旧数据库降级到 createdAt 索引。
  */
 export async function getMessagesBySession(
   sessionId: string,
@@ -151,30 +183,29 @@ export async function getMessagesBySession(
     const transaction = db.transaction("messages", "readonly");
     const store = transaction.objectStore("messages");
 
-    // 复合索引 [sessionId, createdAt] 可用 → 用 bound 范围查询
-    if (store.indexNames.contains("sessionId_createdAt")) {
-      const index = store.index("sessionId_createdAt");
+    const preferredIndex = store.indexNames.contains("sessionId_turnIndex_createdAt")
+      ? "sessionId_turnIndex_createdAt"
+      : store.indexNames.contains("sessionId_createdAt")
+        ? "sessionId_createdAt"
+        : null;
+
+    if (preferredIndex) {
+      const index = store.index(preferredIndex);
       const results: any[] = [];
       let skipped = 0;
       let collected = 0;
 
-      const lower = [sessionId, -Infinity];
-      const upper = [sessionId, Infinity];
+      const lower = preferredIndex === "sessionId_turnIndex_createdAt"
+        ? [sessionId, -Infinity, -Infinity]
+        : [sessionId, -Infinity];
+      const upper = preferredIndex === "sessionId_turnIndex_createdAt"
+        ? [sessionId, Infinity, Infinity]
+        : [sessionId, Infinity];
       const direction: IDBCursorDirection = descending ? "prev" : "next";
       const request = index.openCursor(IDBKeyRange.bound(lower, upper), direction);
       request.onsuccess = () => {
         const cursor = request.result;
         if (!cursor) {
-          // 按照 turnIndex 升序排序，若 turnIndex 相同或缺失则按 createdAt 排序
-          results.sort((a, b) => {
-            const turnA = a.turnIndex !== undefined ? a.turnIndex : 0;
-            const turnB = b.turnIndex !== undefined ? b.turnIndex : 0;
-            if (turnA !== turnB) return turnA - turnB;
-            return a.createdAt - b.createdAt;
-          });
-          if (descending) {
-            results.reverse();
-          }
           resolve(results);
           return;
         }
@@ -184,16 +215,6 @@ export async function getMessagesBySession(
           return;
         }
         if (limit !== undefined && collected >= limit) {
-          // 同样进行排序和翻转
-          results.sort((a, b) => {
-            const turnA = a.turnIndex !== undefined ? a.turnIndex : 0;
-            const turnB = b.turnIndex !== undefined ? b.turnIndex : 0;
-            if (turnA !== turnB) return turnA - turnB;
-            return a.createdAt - b.createdAt;
-          });
-          if (descending) {
-            results.reverse();
-          }
           resolve(results);
           return;
         }

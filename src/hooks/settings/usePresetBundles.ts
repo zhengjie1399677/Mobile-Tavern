@@ -72,17 +72,26 @@ export const usePresetBundles = ({
   const handleImportPresetJSON = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const input = e.target;
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
         const data = JSON.parse(event.target?.result as string);
 
-        const name =
+        const requestedName =
           data.name ||
           data.presetName ||
           data.title ||
           data.preset_name ||
           "导入自定义SillyTavern预设";
+        const existingNames = new Set(
+          (settings.savedPresets || []).map((bundle) => bundle.preset.name),
+        );
+        let name = requestedName;
+        let duplicateNumber = 2;
+        while (existingNames.has(name)) {
+          name = `${requestedName} (${duplicateNumber++})`;
+        }
 
         const temp =
           typeof data.temperature === "number"
@@ -242,34 +251,43 @@ export const usePresetBundles = ({
           }
         }
 
+        const importedPromptConfig = {
+          ...settings.promptConfig,
+          mainPrompt: finalMainPrompt,
+          jailbreakPrompt: finalJailbreakPrompt,
+          useJailbreak: finalUseJailbreak,
+          postHistoryPrompt: finalPostHistoryPrompt,
+          usePostHistory: finalUsePostHistory,
+          storyString: finalStoryString,
+          instructTemplate: instructTemplate,
+          systemPrefix: systemPrefix || settings.promptConfig.systemPrefix,
+          systemSuffix: systemSuffix || settings.promptConfig.systemSuffix,
+          userPrefix: userPrefix || settings.promptConfig.userPrefix,
+          userSuffix: userSuffix || settings.promptConfig.userSuffix,
+          assistantPrefix:
+            assistantPrefix || settings.promptConfig.assistantPrefix,
+          assistantSuffix:
+            assistantSuffix || settings.promptConfig.assistantSuffix,
+          customPrompts: finalCustomPrompts,
+          composition: importedComposition,
+          usePromptComposition,
+        };
+        const importedBundle = {
+          id: "bundle_" + Math.random().toString(36).substring(2, 9),
+          preset: importedPreset,
+          promptConfig: importedPromptConfig,
+          presetRegexScripts: importedRegexScripts,
+        };
+        const nextSaved = [...(settings.savedPresets || []), importedBundle];
         const nextSettings: UserSettings = {
           ...settings,
           preset: importedPreset,
           presetRegexScripts: importedRegexScripts,
+          savedPresets: nextSaved,
           promptCompositionTemplates: importedTemplateRecord
             ? [...(settings.promptCompositionTemplates || []), importedTemplateRecord]
             : settings.promptCompositionTemplates,
-          promptConfig: {
-            ...settings.promptConfig,
-            mainPrompt: finalMainPrompt,
-            jailbreakPrompt: finalJailbreakPrompt,
-            useJailbreak: finalUseJailbreak,
-            postHistoryPrompt: finalPostHistoryPrompt,
-            usePostHistory: finalUsePostHistory,
-            storyString: finalStoryString,
-            instructTemplate: instructTemplate,
-            systemPrefix: systemPrefix || settings.promptConfig.systemPrefix,
-            systemSuffix: systemSuffix || settings.promptConfig.systemSuffix,
-            userPrefix: userPrefix || settings.promptConfig.userPrefix,
-            userSuffix: userSuffix || settings.promptConfig.userSuffix,
-            assistantPrefix:
-              assistantPrefix || settings.promptConfig.assistantPrefix,
-            assistantSuffix:
-              assistantSuffix || settings.promptConfig.assistantSuffix,
-            customPrompts: finalCustomPrompts,
-            composition: importedComposition,
-            usePromptComposition,
-          },
+          promptConfig: importedPromptConfig,
         };
 
         let messageDetails = `采样器参数覆盖：温度 ${temp}, TopP ${topP}, 词重复惩罚 ${repPen}`;
@@ -281,15 +299,18 @@ export const usePresetBundles = ({
         }
 
         updateSettings(nextSettings);
-        showCustomAlert(
-          `🎉 SillyTavern 级别系统预设包解析导入成功！\n[${name}]\n${messageDetails}`
+        await presetService.saveStoredSavedPresets(nextSaved);
+        await showCustomAlert(
+          `🎉 SillyTavern 级别系统预设包解析导入并保存成功！\n[${name}]\n${messageDetails}`
         );
       } catch (err) {
-        showCustomAlert("解析预设 JSON 配置文件失败，请确保格式正确");
+        await showCustomAlert("解析或保存预设 JSON 配置文件失败，请确保格式正确");
+      } finally {
+        input.value = "";
       }
     };
     reader.readAsText(file);
-  }, [settings, updateSettings, showCustomAlert]);
+  }, [settings, updateSettings, showCustomAlert, presetService]);
 
   const handleExportPresetJSON = useCallback(() => {
     const compositionExport = settings.promptConfig.usePromptComposition && settings.promptConfig.composition

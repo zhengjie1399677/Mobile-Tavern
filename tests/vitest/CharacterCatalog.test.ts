@@ -15,7 +15,7 @@ describe("角色卡轻量目录", () => {
     await deleteCharacter(characterId);
   });
 
-  it("首页目录不反序列化头像、世界书与脚本，按主键仍可读取完整卡片", async () => {
+  it("首页目录加载头像但不反序列化世界书与脚本，按主键仍可读取完整卡片", async () => {
     const completeCard: CharacterCard = {
       id: characterId,
       name: "轻量目录测试角色",
@@ -42,9 +42,9 @@ describe("角色卡轻量目录", () => {
       id: characterId,
       name: completeCard.name,
       description: completeCard.description,
+      avatar: completeCard.avatar,
       extensions: { __catalogOnly: true },
     });
-    expect(catalogCard).not.toHaveProperty("avatar");
     expect(catalogCard).not.toHaveProperty("lorebookEntries");
 
     const hydrated = await getCharacterById(characterId);

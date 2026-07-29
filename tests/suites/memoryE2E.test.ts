@@ -47,6 +47,7 @@ export async function testMemoryE2E() {
   assert(messagesStore.indexNames.contains("createdAt"), "messages.createdAt 索引存在");
   assert(messagesStore.indexNames.contains("tags"), "messages.tags multiEntry 索引存在");
   assert(messagesStore.indexNames.contains("sessionId_createdAt"), "messages.sessionId_createdAt 复合索引存在");
+  assert(messagesStore.indexNames.contains("sessionId_turnIndex_createdAt"), "messages 绝对序号复合索引存在");
 
   const dictTxn = db.transaction("memory_dict", "readonly");
   const dictStore = dictTxn.objectStore("memory_dict");
@@ -143,6 +144,28 @@ export async function testMemoryE2E() {
   const paged = await getMessagesBySession("ps", { limit: 2, offset: 2 });
   assert(paged.length === 2, "offset=2 + limit=2 应返回 2 条");
   assert(paged[0].id === "p2", "分页首条应为 p2");
+
+  // 长会话只加载尾页后继续追加，不能再使用局部数组长度作为 turnIndex。
+  __resetDBInstanceForTesting();
+  for (let i = 0; i < 120; i++) {
+    await appendMessage({
+      id: `long_${i}`, sessionId: "long_session", role: i % 2 === 0 ? "user" : "assistant",
+      content: `长会话消息 ${i}`, createdAt: 10_000 + i, turnIndex: i, tags: [],
+    });
+  }
+  const latestPage = await getMessagesBySession("long_session", { limit: 50, descending: true });
+  assert(latestPage[0].id === "long_119", "最新页应从完整会话末尾开始");
+  await appendMessage({
+    id: "long_120", sessionId: "long_session", role: "user",
+    content: "懒加载后追加的消息", createdAt: 10_120, tags: [],
+  });
+  const reloadedLatest = await getMessagesBySession("long_session", { limit: 50, descending: true });
+  assert(reloadedLatest[0].id === "long_120", "追加消息必须保持在时间线末尾");
+  assert(reloadedLatest[0].turnIndex === 120, "追加消息必须获得完整会话绝对序号 120");
+  assert(
+    reloadedLatest.every((message: any, index: number) => message.turnIndex === 120 - index),
+    "重新分页后的最新 50 条消息必须严格连续且顺序稳定"
+  );
 
   console.log("  ✔ 分页与排序验证通过");
 

@@ -19,7 +19,9 @@ export const DB_NAME = "MobileTavernLiteDB";
 // v9: 新增 memory_fragments Store，承载可纠错的事件型长期记忆
 // v10: 新增 memory_facts Store，承载实体关系图与时态事实演化
 // v11: 新增 character_catalog Store，首屏只读取轻量角色目录
-export const DB_VERSION = 11;
+// v12: 新增 messages.sessionId_turnIndex_createdAt 索引，并按创建时间修复旧消息序号
+// v13: 为 character_catalog 补回首页展示所需头像，仍排除其余角色卡重数据
+export const DB_VERSION = 13;
 
 export interface IndexSchema {
   name: string;
@@ -62,6 +64,10 @@ export const DB_SCHEMA: StoreSchema[] = [
       { name: "createdAt", keyPath: "createdAt" },
       { name: "tags", keyPath: "tags", multiEntry: true },
       { name: "sessionId_createdAt", keyPath: ["sessionId", "createdAt"] },
+      {
+        name: "sessionId_turnIndex_createdAt",
+        keyPath: ["sessionId", "turnIndex", "createdAt"],
+      },
     ],
   },
   {
@@ -173,6 +179,39 @@ export function applyDbSchema(
       };
     }
   }
+
+  if (oldVersion < 12) {
+    const messages = transaction.objectStore("messages");
+    const nextTurnBySession = new Map<string, number>();
+    const source = messages.indexNames.contains("sessionId_createdAt")
+      ? messages.index("sessionId_createdAt")
+      : messages;
+    const messageCursorRequest = source.openCursor();
+    messageCursorRequest.onsuccess = () => {
+      const cursor = messageCursorRequest.result;
+      if (!cursor) return;
+      const record = cursor.value;
+      if (typeof record?.sessionId === "string") {
+        const nextTurn = nextTurnBySession.get(record.sessionId) || 0;
+        messages.put({ ...record, turnIndex: nextTurn });
+        nextTurnBySession.set(record.sessionId, nextTurn + 1);
+      }
+      cursor.continue();
+    };
+  }
+
+  if (oldVersion >= 11 && oldVersion < 13) {
+    const characters = transaction.objectStore("characters");
+    const catalog = transaction.objectStore("character_catalog");
+    if (typeof characters.openCursor === "function") {
+      characters.openCursor().onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+        if (!cursor) return;
+        catalog.put(toCharacterCatalogRecord(cursor.value));
+        cursor.continue();
+      };
+    }
+  }
 }
 
 export function toCharacterCatalogRecord(character: Record<string, any>): Record<string, any> {
@@ -180,6 +219,7 @@ export function toCharacterCatalogRecord(character: Record<string, any>): Record
     id: character.id,
     name: character.name || "",
     description: character.description || "",
+    avatar: character.avatar || "",
     creator: character.creator,
     tags: Array.isArray(character.tags) ? character.tags : [],
   };

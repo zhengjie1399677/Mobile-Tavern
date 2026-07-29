@@ -469,7 +469,7 @@ export function useSendMessage(p: SendMessageParams) {
         // saveSession 只存元数据，会话切换场景需显式写入 AI 消息
         const switchedAiMsg = trueFinalSession.messages[trueFinalSession.messages.length - 1];
         if (switchedAiMsg && switchedAiMsg.sender === "assistant") {
-          await p.databaseService.appendSessionMessage(trueFinalSession.id, switchedAiMsg, trueFinalSession.messages.length - 1, undefined, traceId)
+          await p.databaseService.appendSessionMessage(trueFinalSession.id, switchedAiMsg, undefined, undefined, traceId)
             .catch((e) => log.error("Failed to save AI message after session switch", e));
           log.info("Session switched during generation, saved silently", { sessionId: updatedSession.id });
         }
@@ -510,7 +510,7 @@ export function useSendMessage(p: SendMessageParams) {
           } else {
             await p.databaseService.saveSession(trueFinalSession, undefined, traceId);
             // saveSession 只存元数据，abort 场景需显式写入 AI 消息
-            await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, trueFinalSession.messages.length - 1, undefined, traceId)
+            await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, undefined, undefined, traceId)
               .catch((e) => log.error("Failed to save AI message on abort", e));
           }
         } else if (latestSession) {
@@ -529,7 +529,7 @@ export function useSendMessage(p: SendMessageParams) {
           } else {
             await p.databaseService.saveSession(trueFinalSession, undefined, traceId);
             // saveSession 只存元数据，error 场景需显式写入 AI 消息
-            await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, trueFinalSession.messages.length - 1, undefined, traceId)
+            await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, undefined, undefined, traceId)
               .catch((e) => log.error("Failed to save AI message on error", e));
           }
         } else if (latestSession) {

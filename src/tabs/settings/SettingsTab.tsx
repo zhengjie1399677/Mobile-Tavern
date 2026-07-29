@@ -257,11 +257,11 @@ export default function SettingsTab() {
               saveState={saveState}
               freeCount={freeCount}
             />
-            <PresetForm sections={["preset", "samplers"]} />
+            <PresetForm sections={["samplers"]} />
           </div>
         );
       case "prompt":
-        return <PresetForm sections={["prompts", "regex"]} />;
+        return <PresetForm sections={["preset", "prompts", "regex"]} />;
       case "appearance":
         return (
           <ThemeConfigSection

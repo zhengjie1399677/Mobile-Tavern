@@ -106,7 +106,7 @@ export class DatabaseService implements IDatabaseService {
   /**
    * 单条消息写入 messages Store。
    * 将内存 Message 格式转换为 DB MessageRecord 格式后调用 appendMessage。
-   * turnIndex 未提供时使用 Date.now() 作为占位，MemoryExtractor 后续会更新。
+   * turnIndex 未提供时由存储层在同一事务内按会话原子分配绝对序号。
    */
   async appendSessionMessage(sessionId: string, message: PersistedMessage, turnIndex?: number, signal?: AbortSignal, traceId?: string): Promise<void> {
     // traceId 预留：与 saveSession 一致，供未来诊断日志接入。
@@ -117,7 +117,7 @@ export class DatabaseService implements IDatabaseService {
       role: message.sender === "user" ? "user" : "assistant",
       content: message.content,
       createdAt: message.timestamp || Date.now(),
-      turnIndex: turnIndex ?? 0,
+      turnIndex,
       tags: message.tags || [],
       extractSource: message.extractSource || "none",
       metadata: message.metadata || message.extra,

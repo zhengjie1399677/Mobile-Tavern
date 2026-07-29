@@ -148,7 +148,6 @@ export async function runOutputPipelineAndSave(params: {
         await databaseService.appendSessionMessage(
           parsedSession.id,
           lastMsg,
-          parsedSession.messages.length - 1,
         );
       }
     }

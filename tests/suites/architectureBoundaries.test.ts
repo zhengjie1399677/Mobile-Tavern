@@ -94,6 +94,10 @@ export async function testArchitectureBoundaries(): Promise<void> {
 
   const settingsTab = read("src/tabs/settings/SettingsTab.tsx");
   assert(
+    /case\s+["']prompt["']:[\s\S]*sections=\{\[["']preset["'],\s*["']prompts["'],\s*["']regex["']\]\}/.test(settingsTab),
+    "预设导入、切换与管理入口必须挂载在用户可见的“预设”分类中"
+  );
+  assert(
     /promptFocus\.active[\s\S]*sections=\{\[["']composer["']\]\}/.test(settingsTab),
     "Prompt 横屏专注模式必须只挂载编排器本体"
   );

@@ -14,7 +14,7 @@ import {
 } from "../idbQueue";
 import { toCharacterCatalogRecord } from "../dbSchema";
 
-/** 首屏专用轻量目录，不读取 avatar、世界书、脚本或问候语。 */
+/** 首屏专用轻量目录，仅额外读取展示所需 avatar，不读取世界书、脚本或问候语。 */
 export async function getCharacterCatalog(): Promise<CharacterCard[]> {
   const db = await getDB();
   return new Promise((resolve, reject) => {
@@ -24,6 +24,7 @@ export async function getCharacterCatalog(): Promise<CharacterCard[]> {
       id: item.id,
       name: item.name,
       description: item.description || "",
+      avatar: item.avatar || "",
       personality: "",
       scenario: "",
       first_mes: "",

@@ -39,7 +39,7 @@ export class MultiMessageService implements IMultiMessageService {
     const databaseService = this.kernel.getService<IDatabaseService>("database");
     // saveSession 只存会话元数据，用户消息需显式写入 messages Store
     await databaseService.saveSession(updatedSession);
-    await databaseService.appendSessionMessage(updatedSession.id, userMsg, updatedMessages.length - 1);
+    await databaseService.appendSessionMessage(updatedSession.id, userMsg);
     return updatedSession;
   }
 }

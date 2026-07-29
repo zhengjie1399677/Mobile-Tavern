@@ -5,7 +5,7 @@
  *  - testTurnIndexBasicAppend：syncSessionMessages 批量写入，turnIndex = [0, 1, 2, ...]
  *  - testTurnIndexDeleteMiddleThenAppend：deleteMessageById + appendMessage 显式删除与追加
  *  - testTurnIndexDeleteAllThenAppend：全部删除后重新批量写入，turnIndex 从 0 开始
- *  - testTurnIndexMultipleAppends：多次 appendMessage 单条追加，turnIndex 持续递增
+ *  - testTurnIndexMultipleAppends：不传局部数组长度，存储层原子分配绝对 turnIndex
  *
  * 使用 fake-indexeddb 模拟真实 IDB 行为。
  */
@@ -196,14 +196,14 @@ export async function testTurnIndexMultipleAppends() {
 
   await syncSessionMessages(sessionId, msgs1);
 
-  // 第二轮：单条追加 2 条新消息 (turnIndex = 3, 4)
+  // 第二轮：模拟只加载尾页后继续对话；调用方不传局部数组长度，
+  // 存储层必须从完整会话分配绝对 turnIndex = 3, 4。
   await appendMessage({
     id: "msg_3",
     sessionId,
     role: "user",
     content: "消息 3",
     createdAt: Date.now() + 3,
-    turnIndex: 3,
   });
   await appendMessage({
     id: "msg_4",
@@ -211,10 +211,9 @@ export async function testTurnIndexMultipleAppends() {
     role: "assistant",
     content: "消息 4",
     createdAt: Date.now() + 4,
-    turnIndex: 4,
   });
 
-  // 第三轮：删除中间(msg_1)，追加 1 条新消息 (turnIndex = 5)
+  // 第三轮：删除中间消息后继续追加，必须取 max(turnIndex) + 1，而不是消息总数。
   await deleteMessageById("msg_1");
   await appendMessage({
     id: "msg_5",
@@ -222,7 +221,6 @@ export async function testTurnIndexMultipleAppends() {
     role: "user",
     content: "消息 5",
     createdAt: Date.now() + 5,
-    turnIndex: 5,
   });
 
   const saved = await getSessionMessages(db, sessionId);
