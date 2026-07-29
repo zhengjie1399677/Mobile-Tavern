@@ -664,8 +664,11 @@ export class PromptService implements IPromptService {
     if (settings.enableTableMemory) {
       let activeSheets = chat.tableMemory || [];
       if (activeSheets.length === 0) {
-        const memoryService = this.kernel.getService<any>(KernelServices.Memory);
-        if (memoryService) {
+        // 改进-2 / 7.3.1: 关键业务路径用 hasService 显式判断，不依赖 SafeProxy 降级。
+        // 旧实现 getService 返回 SafeProxy（truthy），if(memoryService) 通过后整条调用链
+        // 静默降级为 noop，表格记忆初始化静默失效无法排障。
+        if (this.kernel.hasService(KernelServices.Memory)) {
+          const memoryService = this.kernel.getService<any>(KernelServices.Memory);
           activeSheets = memoryService.getStateTable().initDefaultSheets(character.name || "char");
         }
       }

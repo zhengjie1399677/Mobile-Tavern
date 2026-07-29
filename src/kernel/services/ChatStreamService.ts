@@ -9,13 +9,22 @@ export class ChatStreamService implements IChatStreamService {
   private kernel!: IKernel;
   // P1-1/P1-2: 服务级 AbortController
   private abortController: AbortController | null = null;
+  // 7.3.2: 保存 init 时注册的外部 signal 监听器引用，destroy 时移除避免累积
+  private initAbortListener: (() => void) | null = null;
+  private initAbortSignal: AbortSignal | null = null;
 
   init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
     this.abortController = new AbortController();
     if (signal) {
-      if (signal.aborted) this.abortController.abort();
-      else signal.addEventListener("abort", () => this.abortController?.abort());
+      if (signal.aborted) {
+        this.abortController.abort();
+      } else {
+        // 7.3.2: 保存监听器引用以便 destroy 时移除
+        this.initAbortListener = () => this.abortController?.abort();
+        this.initAbortSignal = signal;
+        signal.addEventListener("abort", this.initAbortListener);
+      }
     }
   }
 
@@ -23,6 +32,12 @@ export class ChatStreamService implements IChatStreamService {
   destroy(): void {
     this.abortController?.abort();
     this.abortController = null;
+    // 7.3.2: 移除 init 时注册的外部 signal 监听器
+    if (this.initAbortListener && this.initAbortSignal) {
+      this.initAbortSignal.removeEventListener("abort", this.initAbortListener);
+      this.initAbortListener = null;
+      this.initAbortSignal = null;
+    }
   }
 
   async *streamLlmResponse(params: StreamParams): AsyncGenerator<StreamChunk, void, unknown> {
@@ -62,10 +77,13 @@ export class ChatStreamService implements IChatStreamService {
     };
 
     // 若外部 signal 已 aborted，立即同步取消
+    // 7.3.2: 跟踪是否注册了监听器，确保在 generator 退出时移除，避免外部 signal 复用时累积
+    let abortListenerRegistered = false;
     if (signal?.aborted) {
       handleAbortAction();
     } else if (signal) {
       signal.addEventListener("abort", handleAbortAction);
+      abortListenerRegistered = true;
     }
 
     readSSEStream(response, {
@@ -122,6 +140,10 @@ export class ChatStreamService implements IChatStreamService {
     } finally {
       // P1-7: generator 提前退出（break/return/throw）时，主动 abort 后台 readSSEStream
       streamAbortController.abort();
+      // 7.3.2: 移除外部 signal 上的 abort 监听器，避免复用同一 signal 时累积
+      if (abortListenerRegistered && signal) {
+        signal.removeEventListener("abort", handleAbortAction);
+      }
     }
   }
 }

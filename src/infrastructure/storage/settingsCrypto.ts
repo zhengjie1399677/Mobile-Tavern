@@ -47,8 +47,13 @@ export async function getOrCreateCryptoKey(db: IDBDatabase): Promise<CryptoKey> 
             resolve(newKey);
           };
           putRequest.onerror = () => {
+            // P1-6: put 失败时不得 resolve(newKey)。若 resolve 内存 key 但未持久化，
+            // 重启后 IDB 无 key 会重新生成，导致之前用该 key 加密的 apiKey 密文
+            // 永久无法解密（数据丢失）。改为 reject，让上层走 DATA-04 清空 apiKey
+            // 路径，宁可让用户重新输入，也不保留无法解密的密文。
             console.error("[localDB] Failed to save CryptoKey to IndexedDB settings:", putRequest.error);
-            resolve(newKey);
+            cryptoKeyPromise = null;
+            reject(putRequest.error || new Error("Failed to persist CryptoKey"));
           };
         } catch (err) {
           // DATA-03: 失败后重置 cryptoKeyPromise，允许后续重试，避免功能永久阻塞

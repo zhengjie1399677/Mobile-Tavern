@@ -28,11 +28,8 @@ import {
 export async function getStoredSettings(): Promise<UserSettings | null> {
   const db = await getDB();
   return new Promise((resolve, reject) => {
-    // settled 守卫：getStoredSettings 有两层嵌套 async onsuccess + cryptoKey 异步获取，
-    // 事务可能在任意阶段被 abort（版本变更、浏览器回收等）。onabort 触发 reject 后，
-    // 嵌套 onsuccess 仍可能继续执行并 resolve，造成"resolve after reject"。
-    // 虽然标准 Promise 仅接受首次 settle，但后续解密逻辑仍会执行，可能读取已失效的
-    // 事务对象。故用 settled 标志位短路所有后续 settle 调用，确保语义一致。
+    // settled 守卫：事务可能在任意阶段被 abort，onabort 触发 reject 后，
+    // 后续 oncomplete 仍可能执行。用 settled 标志位短路所有后续 settle 调用。
     let settled = false;
     const safeResolve = (v: UserSettings | null) => {
       if (settled) return;
@@ -47,7 +44,15 @@ export async function getStoredSettings(): Promise<UserSettings | null> {
 
     const transaction = db.transaction("settings", "readonly");
     const store = transaction.objectStore("settings");
-    const request = store.get("user_settings");
+
+    // 在 readonly 事务内仅执行 GET 请求，将结果保存到闭包变量。
+    // cryptoKey 获取与解密延迟到 transaction.oncomplete 后执行，
+    // 避免 readonly 事务的 async onsuccess 内启动 readwrite 事务导致跨事务死锁
+    // （readonly 事务等待 async onsuccess 结束才自动提交，而 readwrite 事务
+    //  等待 readonly 事务释放）。
+    let pendingSettings: UserSettings | null = null;
+    let pendingLargePrompts: Record<string, any> | null = null;
+    let settingsMissing = true;
 
     transaction.onabort = () =>
       safeReject(transaction.error || new Error("Transaction aborted"));
@@ -55,98 +60,111 @@ export async function getStoredSettings(): Promise<UserSettings | null> {
       if (!settled) safeReject(transaction.error || new Error("Transaction error"));
     };
 
-    request.onsuccess = async () => {
-      const settings = request.result as UserSettings | null;
+    const reqSettings = store.get("user_settings");
+    reqSettings.onerror = () => safeReject(reqSettings.error);
+    reqSettings.onsuccess = () => {
+      const settings = reqSettings.result as UserSettings | null;
       if (!settings) {
+        settingsMissing = true;
+        return;
+      }
+      settingsMissing = false;
+      pendingSettings = settings;
+      // 在同一 readonly 事务内获取大文本分轨数据
+      const reqLarge = store.get("user_settings_large_prompts");
+      reqLarge.onerror = () => safeReject(reqLarge.error);
+      reqLarge.onsuccess = () => {
+        pendingLargePrompts = reqLarge.result || {};
+      };
+    };
+
+    // 事务 commit 后（所有 GET 完成），在事务外执行 cryptoKey 获取与解密
+    transaction.oncomplete = () => {
+      if (settingsMissing) {
         safeResolve(null);
         return;
       }
-
-      // v6 升级/优化: 并行获取大文本配置并重新拼装以保障向前兼容与零数据丢失
-      const reqLarge = store.get("user_settings_large_prompts");
-      reqLarge.onerror = () => safeReject(reqLarge.error);
-      reqLarge.onsuccess = async () => {
-        // 整个回调体包裹 try/catch（P0 修复）：
-        // 旧实现 try/catch 仅包裹 crypto 操作，前面的设置拼装逻辑若抛异常
-        // （如对象被冻结后赋值抛 TypeError、large 是异常 Proxy 等），异常变成
-        // unhandled rejection，safeResolve/safeReject 均不执行，外层 Promise 永久 pending。
-        // 外层 catch 兜底 safeReject，确保 Promise 一定 settle。
-        try {
-          const large = reqLarge.result || {};
-
-          if (settings.promptConfig) {
-            if (large.mainPrompt !== undefined) settings.promptConfig.mainPrompt = large.mainPrompt;
-            if (large.jailbreakPrompt !== undefined) settings.promptConfig.jailbreakPrompt = large.jailbreakPrompt;
-            if (large.postHistoryPrompt !== undefined) settings.promptConfig.postHistoryPrompt = large.postHistoryPrompt;
-            if (large.reasoningGuidancePrompt !== undefined) settings.promptConfig.reasoningGuidancePrompt = large.reasoningGuidancePrompt;
-            if (large.tableMemoryPrompt !== undefined) settings.promptConfig.tableMemoryPrompt = large.tableMemoryPrompt;
-            if (large.promptComposition !== undefined) settings.promptConfig.composition = large.promptComposition;
-          } else {
-            // 主记录 promptConfig 整体缺失（旧版数据/损坏）：从 largePrompts 还原全部字段，
-            // 必须包含 composition，否则用户配置的组合策略静默丢失。
-            settings.promptConfig = {
-              mainPrompt: large.mainPrompt || "",
-              jailbreakPrompt: large.jailbreakPrompt || "",
-              postHistoryPrompt: large.postHistoryPrompt || "",
-              reasoningGuidancePrompt: large.reasoningGuidancePrompt || "",
-              tableMemoryPrompt: large.tableMemoryPrompt || "",
-              composition: large.promptComposition,
-              roleplayMode: true,
-              useJailbreak: true,
-              usePostHistory: true,
-              instructTemplate: "default",
-              systemPrefix: "",
-              systemSuffix: "",
-              userPrefix: "",
-              userSuffix: "",
-              assistantPrefix: "",
-              assistantSuffix: "",
-            };
-          }
-
-          if (large.bisonModePrompt !== undefined) settings.bisonModePrompt = large.bisonModePrompt;
-          if (large.replySuggestionsPrompt !== undefined) settings.replySuggestionsPrompt = large.replySuggestionsPrompt;
-          if (large.promptCompositionTemplates !== undefined) {
-            settings.promptCompositionTemplates = large.promptCompositionTemplates;
-          }
-
-          try {
-            const key = await getOrCreateCryptoKey(db);
-            if (settings.api && settings.api.apiKey) {
-              settings.api.apiKey = await decryptValue(settings.api.apiKey, key);
-            }
-            if (settings.savedApiProfiles && Array.isArray(settings.savedApiProfiles)) {
-              for (const profile of settings.savedApiProfiles) {
-                if (profile.apiKey) {
-                  profile.apiKey = await decryptValue(profile.apiKey, key);
-                }
-              }
-            }
-          } catch (err) {
-            // 解密链路失败（通常是 getOrCreateCryptoKey 抛错）：必须清空所有 apiKey 字段，
-            // 否则密文（enc_aes_gcm:...）会原样返回上层，用户看到 401/403 无法定位；
-            // 更严重的是用户编辑其他设置触发 saveStoredSettings 时，encryptValue 会再次
-            // 加密已加密的密文，造成双重加密，数据永久损坏。与 saveStoredSettings 的
-            // DATA-04 策略保持一致：宁可让用户重新输入 key，也不保留密文/明文落库。
-            console.error("[localDB] Failed to decrypt settings API keys, clearing to prevent double encryption:", err);
-            if (settings.api) settings.api.apiKey = "";
-            if (settings.savedApiProfiles && Array.isArray(settings.savedApiProfiles)) {
-              for (const profile of settings.savedApiProfiles) {
-                if (profile.apiKey) profile.apiKey = "";
-              }
-            }
-          }
-
-          if (!settled) safeResolve(settings);
-        } catch (err) {
-          // 拼装逻辑异常兜底：避免 async 回调内异常逃逸为 unhandled rejection，
-          // 导致外层 Promise 永久 pending、调用方挂起。
-          safeReject(err);
-        }
-      };
+      const settings = pendingSettings as UserSettings;
+      const large = pendingLargePrompts || {};
+      void assembleSettings(settings, large, db).then(safeResolve, safeReject);
     };
-    request.onerror = () => safeReject(request.error);
   });
+}
+
+/**
+ * 在事务外拼装 settings 并执行 cryptoKey 获取与解密。
+ * 提取为独立函数避免在 readonly 事务的 onsuccess 回调内启动 readwrite 事务。
+ */
+async function assembleSettings(
+  settings: UserSettings,
+  large: Record<string, any>,
+  db: IDBDatabase,
+): Promise<UserSettings> {
+  // v6 升级/优化: 将大文本配置重新拼装回 settings 以保障向前兼容与零数据丢失
+  if (settings.promptConfig) {
+    if (large.mainPrompt !== undefined) settings.promptConfig.mainPrompt = large.mainPrompt;
+    if (large.jailbreakPrompt !== undefined) settings.promptConfig.jailbreakPrompt = large.jailbreakPrompt;
+    if (large.postHistoryPrompt !== undefined) settings.promptConfig.postHistoryPrompt = large.postHistoryPrompt;
+    if (large.reasoningGuidancePrompt !== undefined) settings.promptConfig.reasoningGuidancePrompt = large.reasoningGuidancePrompt;
+    if (large.tableMemoryPrompt !== undefined) settings.promptConfig.tableMemoryPrompt = large.tableMemoryPrompt;
+    if (large.promptComposition !== undefined) settings.promptConfig.composition = large.promptComposition;
+  } else {
+    // 主记录 promptConfig 整体缺失（旧版数据/损坏）：从 largePrompts 还原全部字段，
+    // 必须包含 composition，否则用户配置的组合策略静默丢失。
+    settings.promptConfig = {
+      mainPrompt: large.mainPrompt || "",
+      jailbreakPrompt: large.jailbreakPrompt || "",
+      postHistoryPrompt: large.postHistoryPrompt || "",
+      reasoningGuidancePrompt: large.reasoningGuidancePrompt || "",
+      tableMemoryPrompt: large.tableMemoryPrompt || "",
+      composition: large.promptComposition,
+      roleplayMode: true,
+      useJailbreak: true,
+      usePostHistory: true,
+      instructTemplate: "default",
+      systemPrefix: "",
+      systemSuffix: "",
+      userPrefix: "",
+      userSuffix: "",
+      assistantPrefix: "",
+      assistantSuffix: "",
+    };
+  }
+
+  if (large.bisonModePrompt !== undefined) settings.bisonModePrompt = large.bisonModePrompt;
+  if (large.replySuggestionsPrompt !== undefined) settings.replySuggestionsPrompt = large.replySuggestionsPrompt;
+  if (large.promptCompositionTemplates !== undefined) {
+    settings.promptCompositionTemplates = large.promptCompositionTemplates;
+  }
+
+  try {
+    const key = await getOrCreateCryptoKey(db);
+    if (settings.api && settings.api.apiKey) {
+      settings.api.apiKey = await decryptValue(settings.api.apiKey, key);
+    }
+    if (settings.savedApiProfiles && Array.isArray(settings.savedApiProfiles)) {
+      for (const profile of settings.savedApiProfiles) {
+        if (profile.apiKey) {
+          profile.apiKey = await decryptValue(profile.apiKey, key);
+        }
+      }
+    }
+  } catch (err) {
+    // 解密链路失败（通常是 getOrCreateCryptoKey 抛错）：必须清空所有 apiKey 字段，
+    // 否则密文（enc_aes_gcm:...）会原样返回上层，用户看到 401/403 无法定位；
+    // 更严重的是用户编辑其他设置触发 saveStoredSettings 时，encryptValue 会再次
+    // 加密已加密的密文，造成双重加密，数据永久损坏。与 saveStoredSettings 的
+    // DATA-04 策略保持一致：宁可让用户重新输入 key，也不保留密文/明文落库。
+    console.error("[localDB] Failed to decrypt settings API keys, clearing to prevent double encryption:", err);
+    if (settings.api) settings.api.apiKey = "";
+    if (settings.savedApiProfiles && Array.isArray(settings.savedApiProfiles)) {
+      for (const profile of settings.savedApiProfiles) {
+        if (profile.apiKey) profile.apiKey = "";
+      }
+    }
+  }
+
+  return settings;
 }
 
 export async function saveStoredSettings(

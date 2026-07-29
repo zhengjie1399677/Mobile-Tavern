@@ -129,9 +129,12 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const loaded = await characterService.getCharacterById(id);
     if (!loaded) return null;
     const cleaned = cleanCharacter(loaded);
-    setCharacters((previous) =>
-      previous.map((character) => character.id === id ? cleaned : character)
-    );
+    // 7.3.3: 异步操作后检查 isMountedRef，避免组件卸载后 setCharacters 触发状态更新泄漏
+    if (isMountedRef.current) {
+      setCharacters((previous) =>
+        previous.map((character) => character.id === id ? cleaned : character)
+      );
+    }
     return cleaned;
   };
 

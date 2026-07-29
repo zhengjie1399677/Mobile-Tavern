@@ -20,6 +20,7 @@ interface WindowWithAndroidBridge extends Window {
 
 export type TabType =
   | "characters"
+  | "community"
   | "chat"
   | "chat-history"
   | "settings"
@@ -129,7 +130,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace("#/", "");
-      const validTabs: TabType[] = ["characters", "chat", "chat-history", "settings", "global-worldbook", "playground"];
+      const validTabs: TabType[] = ["characters", "community", "chat", "chat-history", "settings", "global-worldbook", "playground"];
       if (validTabs.includes(hash as TabType)) {
         commitActiveTab(hash as TabType);
       }

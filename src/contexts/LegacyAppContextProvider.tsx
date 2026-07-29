@@ -190,6 +190,14 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     });
   }, [charState.characters, chatState.sessions]);
 
+  // 稳定化 getKernelService 引用：kernel 实例在整个应用生命周期内不变，
+  // bind 一次即可。之前放在 appContextValue useMemo 内每次业务 state 变化都会重新 bind，
+  // 导致下游 useEffect 依赖 getKernelService 反复触发（如 BGM 反复重启）。
+  const stableGetKernelService = React.useMemo(
+    () => kernel.getService.bind(kernel),
+    [kernel]
+  );
+
   const appContextValue = React.useMemo(() => ({
     // Context States
     ...appState,
@@ -215,7 +223,7 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     handleSilentDailyBackup: wrappedHandleSilentDailyBackup,
 
     // 封装内核服务访问，代替组件内直接 import globalKernel
-    getKernelService: kernel.getService.bind(kernel),
+    getKernelService: stableGetKernelService,
 
     // 全屏插件运行态
     runningPlugin,
@@ -234,7 +242,7 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     wrappedHandleImportLocalDataBackup,
     wrappedHandleImportSillyChatHistory,
     wrappedHandleSilentDailyBackup,
-    kernel,
+    stableGetKernelService,
     runningPlugin,
     launchPlugin,
     exitPlugin,

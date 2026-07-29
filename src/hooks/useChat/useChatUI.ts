@@ -115,6 +115,8 @@ export function useChatUI(params: {
   const isSendingRef = React.useRef(false);
   const activeRequestIdRef = React.useRef(0);
   const pendingUpdateTimeoutRef = React.useRef<any>(null);
+  // 7.3.4: triggerScroll 的 setTimeout timer id，供卸载时清理
+  const scrollTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 卸载时清理
   useEffect(() => {
@@ -134,12 +136,22 @@ export function useChatUI(params: {
         clearTimeout(bisonChainTimerRef.current);
         bisonChainTimerRef.current = null;
       }
+      // 7.3.4: 卸载时清理 triggerScroll 的 setTimeout，避免卸载后访问已失效的 DOM ref
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+        scrollTimerRef.current = null;
+      }
     };
   }, [setIsSending]);
 
   const triggerScroll = useCallback(
     (behavior: "smooth" | "instant" | "auto" = "smooth") => {
-      setTimeout(() => {
+      // 7.3.4: 清理上一次未完成的 scroll timer，避免堆积；保存 timer id 供卸载清理
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+      }
+      scrollTimerRef.current = setTimeout(() => {
+        scrollTimerRef.current = null;
         if (chatBottomRef && chatBottomRef.current) {
           const container = chatBottomRef.current.parentElement;
           if (container) {

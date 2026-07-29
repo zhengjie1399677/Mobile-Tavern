@@ -1,13 +1,14 @@
 import React, { Suspense, useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { SplashScreen } from "./SplashScreen";
-import { VenetianMask, MessageSquare, Book, Settings, HelpCircle, LoaderCircle } from "lucide-react";
+import { VenetianMask, MessageSquare, Book, Settings, Users, HelpCircle, LoaderCircle } from "lucide-react";
 import { useKernel } from "../contexts/KernelContext";
 import type { TabType } from "../contexts/AppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
   VenetianMask,
+  Users,
   MessageSquare,
   Book,
   Settings,
@@ -120,6 +121,13 @@ export default function MainLayout() {
 
   const tabs = kernel.getExtensions("main:tabs");
   const bottomBarTabs = tabs.filter(t => t.meta?.showInBottomBar);
+  const registeredTabIds = tabs.map((tab) => tab.id).join("|");
+
+  React.useEffect(() => {
+    if (tabs.length > 0 && !tabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab("characters");
+    }
+  }, [activeTab, registeredTabIds, setActiveTab, tabs]);
 
   const isActive = (tab: any) => {
     if (tab.meta?.highlightOnActiveTabs) {

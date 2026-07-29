@@ -73,6 +73,60 @@ const warnedServiceValidation = new Set<string>();
 // 避免调用方基于 === 的引用比较/缓存判断失效。
 const safeProxyCache = new Map<string, any>();
 
+// 改进-2 / 7.3.1: SafeProxy 接管次数计数器。
+// 旧实现 warnedServices 只告警一次，后续调用完全静默，生产环境功能静默失效无法排障。
+// 现在每次属性访问递增计数，达到阈值时上报遥测告警，之后每 N 次再上报一次保持持续可观测性。
+const safeProxyAccessCount = new Map<string, number>();
+const SAFE_PROXY_WARN_THRESHOLD = 10;       // 首次告警阈值
+const SAFE_PROXY_REPORT_INTERVAL = 50;       // 后续每 50 次再上报一次
+
+/**
+ * 重置 SafeProxy 模块级状态（warnedServices / safeProxyCache / safeProxyAccessCount）。
+ *
+ * 用途：Kernel 重建（HMR、测试隔离）时清理上一轮残留，避免：
+ *   - 旧 Kernel 已销毁的服务在新 Kernel 中因缓存命中仍返回 SafeProxy
+ *   - 告警去重 Set 残留导致新 Kernel 中缺失服务不再告警
+ *   - 计数器残留导致阈值告警时机错乱
+ */
+export function resetSafeProxyState(): void {
+  warnedServices.clear();
+  warnedServiceValidation.clear();
+  safeProxyCache.clear();
+  safeProxyAccessCount.clear();
+}
+
+/**
+ * 记录一次 SafeProxy 属性访问，按阈值上报遥测与告警。
+ */
+function trackSafeProxyAccess(name: string, prop: string): void {
+  const count = (safeProxyAccessCount.get(name) ?? 0) + 1;
+  safeProxyAccessCount.set(name, count);
+
+  if (count === SAFE_PROXY_WARN_THRESHOLD) {
+    // 达到阈值：功能静默失效已不是偶发，上报告警
+    logger.warn(`[Kernel] SafeProxy access threshold exceeded for service "${name}"`, {
+      service: name,
+      accessCount: count,
+      lastProperty: prop,
+    });
+    try {
+      reportImmediate("safe_proxy_threshold_exceeded", {
+        service: name,
+        accessCount: count,
+      }).catch(() => { /* 遥测不可用时不影响 Kernel */ });
+    } catch { /* 同步异常兜底 */ }
+  } else if (count > SAFE_PROXY_WARN_THRESHOLD && (count - SAFE_PROXY_WARN_THRESHOLD) % SAFE_PROXY_REPORT_INTERVAL === 0) {
+    // 后续周期性上报，保持持续可观测性而不刷屏
+    try {
+      reportImmediate("safe_proxy_threshold_exceeded", {
+        service: name,
+        accessCount: count,
+        recurring: true,
+      }).catch(() => { /* 遥测不可用时不影响 Kernel */ });
+    } catch { /* 同步异常兜底 */ }
+  }
+}
+
 /**
  * 创建安全无操作的 Fallback 代理对象 (SafeProxy)
  * 当调用的非关键服务未注册或初始化失败时，返回此代理，防止前台页面级组件在尝试链式调用时直接白屏崩溃。
@@ -102,6 +156,9 @@ const createSafeProxy = (name: string): any => {
       if (prop === "init") return () => {};
 
       if (typeof prop === "string" && prop !== "then" && prop !== "name" && prop !== "init") {
+        // 改进-2: 每次属性访问都记录，按阈值上报遥测
+        trackSafeProxyAccess(name, prop);
+
         if (getKernelStrictMode()) {
           // 开发严格模式下直接抛错，确保开发者在开发阶段尽早发现服务依赖缺失
           throw new Error(
@@ -109,7 +166,7 @@ const createSafeProxy = (name: string): any => {
             `Denying property access "${prop}" on SafeProxy in development mode.`
           );
         } else {
-          // 开发/生产告警，只打印一次
+          // 首次告警（去重），后续依赖 trackSafeProxyAccess 的阈值遥测保持可观测性
           if (!warnedServices.has(name)) {
             warnedServices.add(name);
             logger.warn("Missing service, returning SafeProxy fallback", { service: name });
@@ -873,11 +930,13 @@ export class Kernel implements IKernel {
     }
     this.activeControllers.clear();
 
-    // 逆序销毁逻辑：采用先进后出，自顶向下销毁。
-    // 即后加载的业务上层服务先被销毁，最基础的服务（如 DatabaseService 等）最后销毁。
-    // 确保销毁生命周期钩子内仍能安全调用底层服务进行数据落盘等操作。
-    const serviceNames = Array.from(this.services.keys()).reverse();
-    for (const name of serviceNames) {
+    // P1-5: 基于依赖关系计算拓扑逆序销毁顺序。
+    // 旧实现用 Array.from(services.keys()).reverse()，依赖 Map 插入顺序作为拓扑逆序的近似。
+    // 但批量注册外的单独 registerService、动态注册或跨批次依赖可能导致插入顺序不严格等于拓扑顺序，
+    // 此时 reverse 会先销毁被依赖的底层服务，使上层服务 destroy 钩子调用底层服务失败。
+    // 修复：用 Kahn 算法在反向图上计算——被依赖次数为 0 的先销毁，销毁后递减依赖者的被依赖次数。
+    const destroyOrder = this.computeDestroyOrder();
+    for (const name of destroyOrder) {
       await this.destroyService(name);
     }
     this.services.clear();
@@ -886,7 +945,88 @@ export class Kernel implements IKernel {
     this.subscribers.clear();
     this.pipelines.clear();
     this.extensions.clear();
+    // 改进-2: 清理 SafeProxy 模块级状态，避免 HMR/重建后残留导致新 Kernel 中
+    // 缺失服务因缓存命中仍返回 SafeProxy 或告警去重 Set 残留不再告警
+    resetSafeProxyState();
     logger.info("Kernel base destroyed successfully");
+  }
+
+  /**
+   * 基于服务依赖声明计算销毁顺序（拓扑逆序）。
+   *
+   * 规则：若 A 依赖 B（B 在 A 的 dependencies/optionalDependencies 中且 B 已注册），
+   * 则 A 必须先于 B 销毁，保证 A 的 destroy 钩子内仍能安全调用 B。
+   *
+   * 算法：以"被依赖次数（出度）"为判据的 Kahn BFS。
+   *   - refCount[name] = name 被多少其他已注册服务依赖
+   *   - 出度为 0 的服务（没人依赖它）先入队销毁，可安全释放
+   *   - 销毁某服务后，对它依赖的每个服务递减出度，归零则入队
+   *
+   * 循环依赖兜底：若拓扑产出不完整（存在环），将剩余服务按注册顺序逆序追加到末尾，
+   * 避免环内服务永久漏销毁。
+   */
+  private computeDestroyOrder(): string[] {
+    const serviceNames = Array.from(this.services.keys());
+    if (serviceNames.length === 0) return [];
+
+    const nameSet = new Set(serviceNames);
+    // depsMap: 服务 → 它依赖的已注册服务列表
+    const depsMap = new Map<string, string[]>();
+    // refCount: 服务被多少其他已注册服务依赖（出度）
+    const refCount = new Map<string, number>();
+
+    for (const name of serviceNames) {
+      depsMap.set(name, []);
+      refCount.set(name, 0);
+    }
+
+    for (const name of serviceNames) {
+      const service = this.services.get(name)!;
+      const deps = [
+        ...(service.dependencies ?? []),
+        ...(service.optionalDependencies ?? []),
+      ];
+      for (const dep of deps) {
+        if (dep === name) continue;
+        if (nameSet.has(dep)) {
+          depsMap.get(name)!.push(dep);
+          refCount.set(dep, (refCount.get(dep) ?? 0) + 1);
+        }
+      }
+    }
+
+    // 出度为 0（没人依赖）的先销毁
+    const queue: string[] = [];
+    for (const [name, count] of refCount) {
+      if (count === 0) queue.push(name);
+    }
+
+    const ordered: string[] = [];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      ordered.push(current);
+      // current 销毁后，递减 current 依赖的服务的被依赖次数
+      for (const dep of depsMap.get(current) ?? []) {
+        const newCount = (refCount.get(dep) ?? 0) - 1;
+        refCount.set(dep, newCount);
+        if (newCount === 0) queue.push(dep);
+      }
+    }
+
+    if (ordered.length !== serviceNames.length) {
+      // 循环依赖兜底：未排序的服务按注册顺序逆序追加到末尾
+      const orderedSet = new Set(ordered);
+      logger.warn("Circular dependency detected during destroy, falling back to reverse registration order for remaining services", {
+        remaining: serviceNames.filter(n => !orderedSet.has(n)),
+      });
+      for (let i = serviceNames.length - 1; i >= 0; i--) {
+        if (!orderedSet.has(serviceNames[i])) {
+          ordered.push(serviceNames[i]);
+        }
+      }
+    }
+
+    return ordered;
   }
 }
 

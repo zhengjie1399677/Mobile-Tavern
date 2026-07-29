@@ -181,6 +181,12 @@ export function applyDbSchema(
   }
 
   if (oldVersion < 12) {
+    // v12 迁移幂等修复：迁移中途异常重启时，部分消息已分配 turnIndex。
+    // 若重新遍历并覆盖，会破坏已落盘的顺序，导致 turnIndex 错乱。
+    // 修复策略：对每条记录先检查 turnIndex 是否已存在，
+    //   - 已存在：更新 nextTurnBySession 为 max(current, existing+1)，不重新 put
+    //   - 不存在：按 nextTurnBySession 分配并 put
+    // 这样可保证重启后未迁移的消息从已有最大值 +1 开始分配，不产生重复或覆盖。
     const messages = transaction.objectStore("messages");
     const nextTurnBySession = new Map<string, number>();
     const source = messages.indexNames.contains("sessionId_createdAt")
@@ -192,9 +198,16 @@ export function applyDbSchema(
       if (!cursor) return;
       const record = cursor.value;
       if (typeof record?.sessionId === "string") {
-        const nextTurn = nextTurnBySession.get(record.sessionId) || 0;
-        messages.put({ ...record, turnIndex: nextTurn });
-        nextTurnBySession.set(record.sessionId, nextTurn + 1);
+        const existingTurn = record.turnIndex;
+        if (typeof existingTurn === "number" && Number.isFinite(existingTurn)) {
+          // 已迁移过的记录：保留原值，仅推进计数器防止后续分配冲突
+          const current = nextTurnBySession.get(record.sessionId) || 0;
+          nextTurnBySession.set(record.sessionId, Math.max(current, existingTurn + 1));
+        } else {
+          const nextTurn = nextTurnBySession.get(record.sessionId) || 0;
+          messages.put({ ...record, turnIndex: nextTurn });
+          nextTurnBySession.set(record.sessionId, nextTurn + 1);
+        }
       }
       cursor.continue();
     };

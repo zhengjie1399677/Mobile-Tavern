@@ -80,6 +80,12 @@ export const useChat = (
   activeSessionIdRef.current = activeSessionId;
   activeCharIdRef.current    = activeCharId;
 
+  // P1-7: 卸载保护 ref。fire-and-forget saveSession 的 .then 回调在组件卸载后
+  // 仍会执行 setSessions，导致 React 状态更新泄漏（卸载后 setState 警告）。
+  // 用 isMountedRef 在 .then 内守卫，卸载后仅放行数据落盘，不再更新 React state。
+  const isMountedRef = React.useRef(true);
+  useEffect(() => () => { isMountedRef.current = false; }, []);
+
   const publishMemoryAudit = useCallback((snapshot: MemoryAuditSnapshot) => {
     if (activeSessionIdRef.current !== snapshot.sessionId) return;
     setMemoryAuditSnapshot(snapshot);
@@ -112,7 +118,10 @@ export const useChat = (
     }
   }, [activeCharId, activeSessionId, setIsSending]);
 
-  const sessionManager = useSessionManager({
+  // P1-2: useMemo 化 sessionManagerParams，避免每次渲染创建新对象导致
+  // useSessionManager 内部所有 useCallback 依赖 [p] 形同虚设（每次都变）。
+  // 稳定化后，仅当 p 的实际字段变化时才重建回调，与 useCallback 语义一致。
+  const sessionManagerParams = useMemo(() => ({
     isSending, isSendingRef: ui.isSendingRef,
     activeCharId, activeCharacter, activeSession, activeSessionId,
     sessions, characters, settings,
@@ -124,7 +133,17 @@ export const useChat = (
     triggerScroll: ui.triggerScroll,
     showCustomAlert, showCustomConfirm, showCustomPrompt,
     launchPlugin,
-  });
+  }), [
+    isSending, ui.isSendingRef,
+    activeCharId, activeCharacter, activeSession, activeSessionId,
+    sessions, characters, settings,
+    setSessions, loadCharacterById, setActiveCharId, setActiveSessionId, setActiveTab,
+    ui.setChatSubTab, ui.setShowSessionManager, ui.setMsgMenuId,
+    deleteSession, databaseService, telemetryService, ui.triggerScroll,
+    showCustomAlert, showCustomConfirm, showCustomPrompt, launchPlugin,
+  ]);
+
+  const sessionManager = useSessionManager(sessionManagerParams);
 
   const timelineSummary = useTimelineSummary({
     activeSession, settings, activeCharacter,
@@ -194,6 +213,8 @@ export const useChat = (
             messages: [updatedMsg],
           };
           databaseService.saveSession(updatedSession).then(() => {
+            // P1-7: 卸载保护，避免组件卸载后 setSessions 触发状态更新泄漏
+            if (!isMountedRef.current) return;
             setSessions((prev) =>
               prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
             );
@@ -221,6 +242,8 @@ export const useChat = (
           tableMemory: defaultSheets,
         };
         databaseService.saveSession(updatedSession).then(() => {
+          // P1-7: 卸载保护，避免组件卸载后 setSessions 触发状态更新泄漏
+          if (!isMountedRef.current) return;
           setSessions((prev) =>
             prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
           );

@@ -169,6 +169,27 @@ export class LLMService implements ILLMService {
       if (customSignal) {
         if (AbortSignalCtor.any) {
           signal = AbortSignalCtor.any([customSignal, timeoutSignal]);
+        } else {
+          // P1-4: AbortSignal.any 兼容性回退。旧实现此处直接保留 customSignal，
+          // 导致 timeoutSignal 被丢弃，请求在 customSignal 不 abort 时永久挂起。
+          // 手动合并：用新 controller 监听两个 signal 的 abort，任一触发即转发。
+          const merged = new AbortController();
+          const onAbort = (reason: any) => {
+            if (!merged.signal.aborted) {
+              merged.abort(reason);
+            }
+          };
+          if (customSignal.aborted) {
+            onAbort(customSignal.reason);
+          } else {
+            customSignal.addEventListener("abort", () => onAbort(customSignal.reason), { once: true });
+          }
+          if (timeoutSignal.aborted) {
+            onAbort(timeoutSignal.reason);
+          } else {
+            timeoutSignal.addEventListener("abort", () => onAbort(timeoutSignal.reason), { once: true });
+          }
+          signal = merged.signal;
         }
       } else {
         signal = timeoutSignal;

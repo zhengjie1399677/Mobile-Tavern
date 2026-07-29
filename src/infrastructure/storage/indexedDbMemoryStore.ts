@@ -67,7 +67,8 @@ export async function appendMessage(message: {
           extractSource: message.extractSource || "none",
           metadata: message.metadata,
         });
-        request.onsuccess = () => resolve();
+        // 仅注册 onerror 用于错误传播；resolve 统一由 transaction.oncomplete 处理，
+        // 避免 onsuccess 早于事务 commit 导致跨事务读不到最新数据。
         request.onerror = () => reject(request.error);
       };
 
@@ -129,8 +130,7 @@ export async function updateMessageExtraction(
       getReq.onsuccess = () => {
         const existing = getReq.result;
         if (!existing) {
-          // 消息尚未入库（appendSessionMessage 未完成或失败），跳过更新
-          resolve();
+          // 消息尚未入库（appendSessionMessage 未完成或失败），无写操作，事务会立即 complete。
           return;
         }
         const updated = {
@@ -140,10 +140,13 @@ export async function updateMessageExtraction(
           metadata: metadata !== undefined ? metadata : existing.metadata,
         };
         const putReq = store.put(updated);
-        putReq.onsuccess = () => resolve();
+        // 仅注册 onerror；resolve 统一由 transaction.oncomplete 处理，
+        // 保证跨事务读取时能看到已 commit 的数据。
         putReq.onerror = () => reject(putReq.error);
       };
       getReq.onerror = () => reject(getReq.error);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, `message:${id}:extract`, signal);
@@ -362,14 +365,12 @@ export async function deleteMessagesBySession(sessionId: string, signal?: AbortS
       const request = index.openCursor(IDBKeyRange.only(sessionId));
       request.onsuccess = () => {
         const cursor = request.result;
-        if (!cursor) {
-          resolve();
-          return;
-        }
+        if (!cursor) return;
         cursor.delete();
         cursor.continue();
       };
       request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, undefined, signal);
@@ -385,8 +386,8 @@ export async function deleteMessageById(id: string, signal?: AbortSignal): Promi
       const transaction = db.transaction("messages", "readwrite");
       const store = transaction.objectStore("messages");
       const request = store.delete(id);
-      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, `message:${id}:delete`, signal);
@@ -585,11 +586,12 @@ export async function upsertDictEntry(entry: {
       const transaction = db.transaction("memory_dict", "readwrite");
       const store = transaction.objectStore("memory_dict");
       const getReq = store.get(id);
+      // isNew 提升至外层作用域，供 transaction.oncomplete 在 getReq.onsuccess 之外读取。
+      let isNew = false;
 
       getReq.onsuccess = () => {
         const existing = getReq.result;
         const now = Date.now();
-        let isNew = false;
         let record: any;
 
         if (existing) {
@@ -623,11 +625,11 @@ export async function upsertDictEntry(entry: {
         }
 
         const putRequest = store.put(record);
-        putRequest.onsuccess = () => resolve(isNew);
         putRequest.onerror = () => reject(putRequest.error);
       };
 
       getReq.onerror = () => reject(getReq.error);
+      transaction.oncomplete = () => resolve(isNew);
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, `dict:${id}`, signal);
@@ -681,14 +683,12 @@ export async function deleteDictBySession(sessionId: string, signal?: AbortSigna
       const request = index.openCursor(IDBKeyRange.only(sessionId));
       request.onsuccess = () => {
         const cursor = request.result;
-        if (!cursor) {
-          resolve();
-          return;
-        }
+        if (!cursor) return;
         cursor.delete();
         cursor.continue();
       };
       request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, undefined, signal);
@@ -704,8 +704,8 @@ export async function deleteDictEntryById(id: string, signal?: AbortSignal): Pro
       const transaction = db.transaction("memory_dict", "readwrite");
       const store = transaction.objectStore("memory_dict");
       const request = store.delete(id);
-      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, `dict:${id}:delete`, signal);
@@ -722,8 +722,8 @@ export async function upsertFragment(
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("memory_fragments", "readwrite");
       const request = transaction.objectStore("memory_fragments").put(fragment);
-      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, `fragment:${fragment.id}`, signal);
@@ -1030,6 +1030,8 @@ export async function appendSessionSummary(
       const transaction = db.transaction("sessions", "readwrite");
       const store = transaction.objectStore("sessions");
       const getReq = store.get(sessionId);
+      // updatedSession 提升至外层作用域，供 transaction.oncomplete 在 getReq.onsuccess 之外读取。
+      let updatedSession: ChatSession | undefined;
 
       getReq.onsuccess = () => {
         const existingSession = getReq.result;
@@ -1038,18 +1040,18 @@ export async function appendSessionSummary(
           return;
         }
 
-        const updatedSession = {
+        updatedSession = {
           ...existingSession,
           summaries: [...(existingSession.summaries || []), newCard],
           lastSummarizedMessageId: newCard.lastMessageId,
         };
 
         const putReq = store.put(updatedSession);
-        putReq.onsuccess = () => resolve(updatedSession);
         putReq.onerror = () => reject(putReq.error);
       };
 
       getReq.onerror = () => reject(getReq.error);
+      transaction.oncomplete = () => resolve(updatedSession as ChatSession);
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, `session:${sessionId}`, signal);

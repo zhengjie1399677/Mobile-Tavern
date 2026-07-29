@@ -80,7 +80,7 @@ export function useSessionManager(p: SessionManagerParams) {
       await launchPluginById(pluginId, p.launchPlugin);
       return;
     }
-    if (p.isSending) {
+    if (p.isSending || p.isSendingRef.current) {
       await p.showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再切换角色卡。");
       return;
     }

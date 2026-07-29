@@ -87,12 +87,12 @@ export default function CharactersTab() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setScannerOpen(true)}
-            className="bg-card active:scale-[0.98] text-muted-foreground w-12 h-12 rounded-lg border border-border transition flex items-center justify-center shrink-0"
+            className="bg-card active:scale-[0.98] text-muted-foreground w-9 h-9 rounded-lg border border-border transition flex items-center justify-center shrink-0"
             title={t("characters_tab.scan_title")}
           >
             <FolderSearch className="w-4 h-4" />
           </button>
-          <label className="cursor-pointer bg-card active:scale-[0.98] text-muted-foreground w-12 h-12 rounded-lg border border-border transition flex items-center justify-center shrink-0" title={t("characters_tab.import_title")}>
+          <label className="cursor-pointer bg-card active:scale-[0.98] text-muted-foreground w-9 h-9 rounded-lg border border-border transition flex items-center justify-center shrink-0" title={t("characters_tab.import_title")}>
             <FileUp className="w-4 h-4" />
             <input
               type="file"
@@ -103,7 +103,7 @@ export default function CharactersTab() {
           </label>
           <button
             onClick={handleAddNewCharacter}
-            className="bg-primary hover:bg-primary text-primary-foreground w-12 h-12 rounded-lg transition-all font-medium flex items-center justify-center shrink-0"
+            className="bg-primary hover:bg-primary text-primary-foreground w-9 h-9 rounded-lg transition-all font-medium flex items-center justify-center shrink-0"
             title={t("characters_tab.create_title")}
           >
             <Plus className="w-4 h-4" />
@@ -112,7 +112,7 @@ export default function CharactersTab() {
       </div>
 
       {/* List Cards */}
-      <div className="space-y-3">
+      <div className="space-y-2.5">
       {/* characters array is pre-sorted by last chat time via useMemo in LegacyAppContextProvider */}
         {displayCharacters.map((char, index) => {
           const isPluginCard = !!char.extensions?.mt_plugin;
@@ -126,7 +126,7 @@ export default function CharactersTab() {
               key={char.id}
               onClick={() => selectCharacter(char.id)}
               style={{ "--card-index": index } as React.CSSProperties}
-              className={`bg-card rounded-2xl border border-border/40 spring-press-effect animate-card-fade-in p-3.5 relative cursor-pointer flex items-center gap-3.5 min-h-[112px] h-auto select-none ${
+              className={`bg-card rounded-xl border border-border/40 spring-press-effect animate-card-fade-in p-3 relative cursor-pointer flex items-center gap-3 min-h-[96px] h-auto select-none ${
                 isActive
                   ? "border-primary/50 ring-1 ring-primary/20 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_30px_-8px_rgba(255,255,255,0.06)] bg-primary/[0.03]"
                   : "shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_10px_25px_-5px_rgba(255,255,255,0.03)] hover:-translate-y-0.5"
@@ -141,7 +141,7 @@ export default function CharactersTab() {
               )}
               {/* Character Avatar Grid */}
               <div 
-                className={`w-16 h-20 rounded-2xl overflow-hidden border border-border/40 flex items-center justify-center relative shrink-0 ${
+                className={`w-14 h-[72px] rounded-xl overflow-hidden border border-border/40 flex items-center justify-center relative shrink-0 ${
                   char.avatar ? "bg-muted/30" : getAvatarGradientClass(char.name)
                 }`}
               >
@@ -168,12 +168,12 @@ export default function CharactersTab() {
                     </h2>
                     {!isPluginCard && (
                       <div
-                        className="flex gap-2"
+                        className="flex gap-1"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
                           onClick={() => setActionMenuChar(char)}
-                          className="text-muted-foreground hover:text-primary w-12 h-12 bg-muted/40 rounded-lg hover:bg-muted transition active:scale-95 flex items-center justify-center shrink-0"
+                          className="text-muted-foreground hover:text-primary w-8 h-8 bg-muted/40 rounded-lg hover:bg-muted transition active:scale-95 flex items-center justify-center shrink-0"
                           title={t("characters_tab.more_title")}
                         >
                           <MoreHorizontal className="w-3.5 h-3.5" />
@@ -181,7 +181,7 @@ export default function CharactersTab() {
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1.5 leading-relaxed font-light">
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1 leading-snug font-light">
                     {char.description || char.personality || t("characters_tab.no_description")}
                   </p>
                 </div>

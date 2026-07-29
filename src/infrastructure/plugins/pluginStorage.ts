@@ -78,7 +78,10 @@ export async function savePluginData(pluginId: string, slot: string, data: unkno
     data: JSON.parse(serialized),
     updatedAt: Date.now(),
   };
-  await request((await readyStore(SAVES_STORE, "readwrite")).put(record));
+  const db = await openPluginDb();
+  const transaction = db.transaction(SAVES_STORE, "readwrite");
+  transaction.objectStore(SAVES_STORE).put(record);
+  await transactionDone(transaction);
 }
 
 export async function loadPluginData(pluginId: string, slot: string): Promise<unknown | null> {
@@ -89,7 +92,10 @@ export async function loadPluginData(pluginId: string, slot: string): Promise<un
 
 export async function deletePluginData(pluginId: string, slot: string): Promise<void> {
   validateSlot(slot);
-  await request((await readyStore(SAVES_STORE, "readwrite")).delete(`${pluginId}:${slot}`));
+  const db = await openPluginDb();
+  const transaction = db.transaction(SAVES_STORE, "readwrite");
+  transaction.objectStore(SAVES_STORE).delete(`${pluginId}:${slot}`);
+  await transactionDone(transaction);
 }
 
 function validateSlot(slot: string): void {
@@ -115,19 +121,31 @@ async function openPluginDb(): Promise<IDBDatabase> {
         if (oldVersion >= 1 && oldVersion < 2 && opening.transaction) {
           const packages = opening.transaction.objectStore(PACKAGES_STORE);
           const packageFiles = opening.transaction.objectStore(PACKAGE_FILES_STORE);
-          packages.openCursor().onsuccess = (cursorEvent) => {
+          const cursorRequest = packages.openCursor();
+          cursorRequest.onsuccess = (cursorEvent) => {
             const cursor = (cursorEvent.target as IDBRequest<IDBCursorWithValue>).result;
             if (!cursor) return;
             const record = cursor.value as InstalledFullscreenPlugin & { files?: Record<string, Uint8Array> };
             if (record.files) {
-              packageFiles.put({ pluginId: record.id, files: record.files });
+              const filesPut = packageFiles.put({ pluginId: record.id, files: record.files });
+              filesPut.onerror = () => {
+                // P1-3: 绑定 onerror 记录诊断信息。错误会冒泡至 upgrade 事务，
+                // 最终触发 opening.onerror 并 reject openPluginDb 的 Promise。
+                console.error(`[pluginStorage] v1→v2 迁移失败: packageFiles.put(${record.id}) 出错:`, filesPut.error);
+              };
               delete record.files;
               // 用 store.put 而非 cursor.update：cursor.update 会将 cursor 的 gotValue 置为 false，
               // 随后 cursor.continue 会抛 InvalidStateError（MDN: cursor "is currently being iterated"），
               // 导致遍历中断、后续记录未迁移。store.put 不受 cursor 请求状态约束，可安全与 continue 同步调用。
-              packages.put(record);
+              const pkgPut = packages.put(record);
+              pkgPut.onerror = () => {
+                console.error(`[pluginStorage] v1→v2 迁移失败: packages.put(${record.id}) 出错:`, pkgPut.error);
+              };
             }
             cursor.continue();
+          };
+          cursorRequest.onerror = () => {
+            console.error(`[pluginStorage] v1→v2 迁移失败: cursor 遍历出错:`, cursorRequest.error);
           };
         }
       };

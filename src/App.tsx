@@ -43,9 +43,10 @@ export default function App() {
     let unlistenClose: (() => void) | null = null;
 
     initializeKernel()
-      .then(() => {
+      .then(async () => {
         if (active) {
-          registerMainTabExtensions(globalKernel);
+          await registerMainTabExtensions(globalKernel);
+          if (!active) return;
           setKernelReady(true);
         }
       })

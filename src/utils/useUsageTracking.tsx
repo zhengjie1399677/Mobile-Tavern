@@ -17,6 +17,7 @@ const WRITE_INTERVAL_MS = 30000;
 export interface UsageMetrics {
   totalOpens: number;
   totalUsageSeconds: number;
+  firstOpenedAt: number | null;
   lastOpenedAt: number | null;
   history: { date: string; seconds: number }[];
 }
@@ -24,6 +25,7 @@ export interface UsageMetrics {
 const DEFAULT_METRICS: UsageMetrics = {
   totalOpens: 0,
   totalUsageSeconds: 0,
+  firstOpenedAt: null,
   lastOpenedAt: null,
   history: [],
 };
@@ -57,6 +59,14 @@ export function useUsageTracking() {
           ? { ...DEFAULT_METRICS, ...stored }
           : { ...DEFAULT_METRICS };
 
+        if (metrics.firstOpenedAt === null) {
+          const earliestHistoryTime = metrics.history
+            .map((entry) => Date.parse(`${entry.date}T00:00:00`))
+            .filter(Number.isFinite)
+            .sort((left, right) => left - right)[0];
+          metrics.firstOpenedAt =
+            earliestHistoryTime ?? metrics.lastOpenedAt ?? Date.now();
+        }
         metrics.totalOpens += 1;
         metrics.lastOpenedAt = Date.now();
 

@@ -295,6 +295,7 @@ function buildInMemoryIDB() {
               setTimeout(() => {
                 if (req.onsuccess) req.onsuccess();
               }, 0);
+              (tx as any)._scheduleOncomplete();
               return req;
             },
             delete(key: any) {
@@ -303,6 +304,7 @@ function buildInMemoryIDB() {
               setTimeout(() => {
                 if (req.onsuccess) req.onsuccess();
               }, 0);
+              (tx as any)._scheduleOncomplete();
               return req;
             },
             getAll() {
@@ -437,6 +439,7 @@ function buildInMemoryIDB() {
                           const k = String(extractKey(filtered[idx], def.keyPath));
                           def.records.delete(k);
                         }
+                        (tx as any)._scheduleOncomplete();
                       },
                     };
                     req.result = filtered.length > 0 ? cursor : null;
@@ -450,10 +453,23 @@ function buildInMemoryIDB() {
           return store;
         },
         onabort: null as MockIDBEventHandler,
+        oncomplete: null as MockIDBEventHandler,
         get error() {
           return null;
         },
       };
+      // 模拟真实 IDB：所有写请求完成后由事务提交触发 oncomplete。
+      // 生产代码已统一用 transaction.oncomplete 判定写操作成功（替代 request.onsuccess），
+      // 因此 mock 必须在 put/delete 等写请求入队后调度 oncomplete，否则 Promise 永不 settle。
+      let oncompleteTimer: ReturnType<typeof setTimeout> | undefined;
+      const scheduleOncomplete = () => {
+        if (oncompleteTimer) clearTimeout(oncompleteTimer);
+        oncompleteTimer = setTimeout(() => {
+          if (tx.oncomplete) tx.oncomplete(new Event("complete"));
+        }, 0);
+      };
+      // scheduleOncomplete 通过闭包被 store 的 put/delete 等写方法捕获引用。
+      (tx as any)._scheduleOncomplete = scheduleOncomplete;
       return tx;
     },
   };
