@@ -68,7 +68,7 @@ export function useSessionManager(p: SessionManagerParams) {
       p.setSessions((prev) => [...prev, newSession]);
       p.setActiveSessionId(newSession.id);
       p.triggerScroll();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save new session:", err);
     }
   }, [p]);
@@ -136,7 +136,7 @@ export function useSessionManager(p: SessionManagerParams) {
       p.setSessions((prev) => [...prev, newSession]);
       p.setActiveSessionId(newSession.id);
       p.setShowSessionManager(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save new branch session:", err);
     }
   }, [p]);
@@ -162,7 +162,7 @@ export function useSessionManager(p: SessionManagerParams) {
         p.setActiveSessionId(charRemaining.length > 0 ? charRemaining[0].id : null);
       }
       p.setSessions(remaining);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to delete branch session:", err);
     }
   }, [p]);
@@ -186,7 +186,7 @@ export function useSessionManager(p: SessionManagerParams) {
       p.setChatSubTab("dialogue");
       await p.showCustomAlert("分支故事线创建完美拉起！您已成功无痛回溯至选定对话时间轴。");
       p.triggerScroll();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save backtrack branch session:", err);
     }
   }, [p]);
@@ -211,7 +211,7 @@ export function useSessionManager(p: SessionManagerParams) {
       p.setChatSubTab("dialogue");
       await p.showCustomAlert(`已基于时间线："${summary.timeTag}" 重构分叉世界！`);
       p.triggerScroll();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save backtrack timeline session:", err);
     }
   }, [p]);

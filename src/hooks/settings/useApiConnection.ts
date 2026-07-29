@@ -2,7 +2,8 @@ import type * as React from "react";
 import { useCallback } from "react";
 import { UserSettings } from "../../types";
 import { universalFetch } from "../../utils/apiClient";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 interface UseApiConnectionDeps {
   settings: UserSettings;
   updateSettings: (
@@ -78,11 +79,11 @@ export const useApiConnection = ({
           message: `获取失败: ${data.error}`,
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setConnectionStatus({
         testing: false,
         success: false,
-        message: `请求错误: ${e.message}`,
+        message: `请求错误: ${getErrorMessage(e)}`,
       });
     } finally {
       setIsFetchingModels(false);
@@ -114,11 +115,11 @@ export const useApiConnection = ({
           message: `连接失败: ${data.error}`,
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setConnectionStatus({
         testing: false,
         success: false,
-        message: `请求错误: ${e.message}`,
+        message: `请求错误: ${getErrorMessage(e)}`,
       });
     }
   }, [settings.api, setConnectionStatus]);

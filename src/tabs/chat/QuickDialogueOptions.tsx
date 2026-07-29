@@ -21,7 +21,8 @@ import { useKernel } from "../../contexts/KernelContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { IDatabaseService } from "../../kernel/types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 interface QuickDialogueOptionsProps {
   message: any;
   isUser: boolean;
@@ -298,9 +299,9 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                 prev.map((s: any) => (s.id === finalSession.id ? finalSession : s)),
               );
               await saveSession(finalSession);
-            } catch (err: any) {
+            } catch (err: unknown) {
               console.error("Image generation failed:", err);
-              showCustomAlert(t("quick_dialogue.img_gen_failed_msg", { error: err.message || String(err) }), t("quick_dialogue.img_gen_failed"));
+              showCustomAlert(t("quick_dialogue.img_gen_failed_msg", { error: getErrorMessage(err) || String(err) }), t("quick_dialogue.img_gen_failed"));
               const errorSession = {
                 ...activeSession,
                 messages: activeSession.messages.map((m: any) =>

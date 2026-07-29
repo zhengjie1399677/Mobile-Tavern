@@ -21,7 +21,8 @@ import type {
   Message,
 } from '../../../types';
 import type { MemoryStorage } from './MemoryStorage';
-import { FALLBACK_MODEL, API_ENDPOINT, TRIAL_OPENROUTER_KEY } from '../../../utils/apiClient';
+import { API_ENDPOINT } from '../../../utils/apiClient';
+import { resolveApiCredentials, TrialExhaustedError } from '../../../utils/resolveApiCredentials';
 import { Logger } from '../../../utils/logger';
 
 const logger = Logger.create('MemorySummary');
@@ -286,18 +287,19 @@ export class MemorySummary {
       )
       .join('\n');
 
-    // 解析最终 API 参数（含免 Key 模式降级）
-    let finalApiKey = settings.api.apiKey;
-    let finalBaseUrl = settings.api.baseUrl;
-    let finalModel = settings.api.modelName || FALLBACK_MODEL;
-    let finalChatPath = settings?.api?.chatPath;
-
-    if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
-      finalApiKey = TRIAL_OPENROUTER_KEY;
-      finalBaseUrl = 'https://openrouter.ai/api/v1';
-      finalModel = 'openrouter/free';
-      finalChatPath = undefined;
+    // 解析最终 API 参数（含免 Key 模式降级）：收口到 resolveApiCredentials helper。
+    // 后台任务：trial 配额耗尽时静默跳过，返回空字符串不阻塞主流程。
+    let creds;
+    try {
+      creds = resolveApiCredentials(settings);
+    } catch (e) {
+      if (e instanceof TrialExhaustedError) {
+        logger.info('Trial quota exhausted, skip summary');
+        return '';
+      }
+      throw e;
     }
+    const { apiKey: finalApiKey, baseUrl: finalBaseUrl, model: finalModel, chatPath: finalChatPath } = creds;
 
     const reqBody = {
       model: finalModel,

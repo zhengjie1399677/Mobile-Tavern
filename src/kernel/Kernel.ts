@@ -2,7 +2,8 @@ import { IKernel, IKernelService, IPipeline, Middleware, IExtension, IMessage, t
 import { SAFE_PROXY_SYMBOL, validateMessage, validateService, validateServiceRetrieval, type ValidationResult } from "./schemas";
 import { reportImmediate } from "../utils/telemetry";
 import { Logger } from "../utils/logger";
-
+
+import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 const logger = Logger.create("Kernel");
 
 // 全局严格模式开关，默认为 true
@@ -284,7 +285,7 @@ class Pipeline<T> implements IPipeline<T> {
             );
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (getKernelStrictMode()) {
           // 开发环境直接抛出，不遮掩任何错误
           throw err;
@@ -388,16 +389,16 @@ export class Kernel implements IKernel {
       const initTime = Date.now() - startTime;
       this.serviceMetadata.set(name, { state: "ready", initTime });
       logger.info("Service registered and initialized successfully", { service: name, initTimeMs: initTime });
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (timeoutId) clearTimeout(timeoutId);
       controller.abort(); // 若初始化异常，立刻触发 abort 中止内部已经拉起但未释放的临时状态
       logger.error(`Service FAILED to initialize`, err, { service: name });
       this.services.delete(name);
       this.serviceMetadata.set(name, { state: "failed" });
-      const isTimeout = err.message && err.message.includes("timed out");
+      const isTimeout = getErrorMessage(err) && getErrorMessage(err).includes("timed out");
       // 关键服务失败或任何初始化超时均视为致命异常，直接向上抛出，并防止前台应用挂死
       if (service.isCritical || isTimeout) {
-        throw new Error(`[Kernel] Fatal: ${isTimeout ? "Timeout" : "Critical"} service "${name}" failed to initialize: ${err.message || err}`);
+        throw new Error(`[Kernel] Fatal: ${isTimeout ? "Timeout" : "Critical"} service "${name}" failed to initialize: ${getErrorMessage(err) || err}`);
       }
     } finally {
       this.activeControllers.delete(controller);
@@ -729,15 +730,15 @@ export class Kernel implements IKernel {
         ]).finally(() => {
           if (timerId) clearTimeout(timerId);
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         controller.abort();
-        if (err && err.message === "aborted") {
+        if (err && getErrorMessage(err) === "aborted") {
           // 静默退出，且直接中断后续订阅者发布（已发生信号中止）
           break;
         } else {
           logger.error(`Error executing subscriber on topic`, err, { topic: message.topic });
           // 遇到任何订阅者处理超时异常，立刻进行熔断中止后续执行，防止 5s 串行累加死锁
-          if (err && err.message && err.message.includes("timed out")) {
+          if (err && getErrorMessage(err) && getErrorMessage(err).includes("timed out")) {
             break;
           }
         }

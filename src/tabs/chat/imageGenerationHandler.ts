@@ -1,5 +1,6 @@
 import { IDatabaseService } from "../../kernel/types";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 export interface ImageGenerationHandlerParams {
   message: any;
   activeSession: any;
@@ -213,9 +214,9 @@ export async function handleGenerateImageForMessage({
       prev.map((s: any) => (s.id === finalSession.id ? finalSession : s)),
     );
     await databaseService.saveSession(finalSession);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Image generation failed:", err);
-    showCustomAlert(`绘图失败: ${err.message || String(err)}`, "生图失败");
+    showCustomAlert(`绘图失败: ${getErrorMessage(err) || String(err)}`, "生图失败");
     const errorSession = updateMessageDrawingState(activeSession, targetMsgId, false);
     setSessions((prev: any[]) =>
       prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),

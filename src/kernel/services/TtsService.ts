@@ -253,7 +253,7 @@ export class TtsService implements ITtsService {
           body: finalBody,
           signal: fetchController.signal
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         this.isSpeakingState = false;
         this.speakingMessageId = null;
         if (activeSignal) {

@@ -6,7 +6,8 @@ import type { MemoryServiceTyped } from "../kernel/services/memory";
 import { useApp } from "./AppContext";
 import { TRANSLATIONS } from "../locales/index";
 import { hydrateNewestFirstMessagePage } from "./chatMessageHydration";
-
+
+import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 // P0-1: 启动时分页加载会话，避免一次性 getAll() 全量反序列化阻塞首屏。
 // 默认每页 50 条（覆盖 95% 用户的会话总数），超出部分由 loadMoreSessions 滚动加载。
 const SESSIONS_PAGE_SIZE = 50;
@@ -106,10 +107,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         totalCountRef.current = total;
         setHasMoreSessions(total > (firstPage?.length || 0));
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Failed to load sessions from IndexedDB:", e);
       if (isMountedRef.current) {
-        showCustomAlert(tChat("chat.load_sessions_failed", e.message));
+        showCustomAlert(tChat("chat.load_sessions_failed", getErrorMessage(e)));
       }
     }
   };
@@ -138,10 +139,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // 若本页返回少于 pageSize，说明已无更多
         setHasMoreSessions(moreLength >= SESSIONS_PAGE_SIZE);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Failed to load more sessions from IndexedDB:", e);
       if (isMountedRef.current) {
-        showCustomAlert(tChat("chat.load_more_sessions_failed", e.message));
+        showCustomAlert(tChat("chat.load_more_sessions_failed", getErrorMessage(e)));
       }
     } finally {
       if (isMountedRef.current) {
@@ -218,9 +219,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return [...prev, session];
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Failed to save session to IndexedDB:", e);
-      showCustomAlert(tChat("chat.save_session_failed", e.message));
+      showCustomAlert(tChat("chat.save_session_failed", getErrorMessage(e)));
       throw e;
     }
   };
@@ -260,10 +261,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           })
         );
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Failed to load more messages for active session:", e);
       if (isMountedRef.current) {
-        showCustomAlert(tChat("chat.load_more_messages_failed", e.message));
+        showCustomAlert(tChat("chat.load_more_messages_failed", getErrorMessage(e)));
       }
     } finally {
       if (isMountedRef.current) {
@@ -282,9 +283,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setActiveSessionId(null);
         setHasMoreMessages(false);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Failed to delete session from IndexedDB:", e);
-      showCustomAlert(tChat("chat.delete_session_failed", e.message));
+      showCustomAlert(tChat("chat.delete_session_failed", getErrorMessage(e)));
       throw e;
     }
   };

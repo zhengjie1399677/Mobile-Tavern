@@ -6,7 +6,8 @@ import { useCharactersState } from "../contexts/CharacterContext";
 import { parseCharacterFile } from "../utils/cardParser";
 import { catbotEventBus } from "../utils/catbotEventBus";
 import { CharacterCard } from "../types";
-
+
+import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 // Android 原生桥接接口定义
 interface AndroidThemeBridge {
   hasStoragePermission(): boolean;
@@ -86,8 +87,8 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
         const files: ScannedFile[] = JSON.parse(jsonStr || "[]");
         // 排序交由 filteredFiles useMemo 统一处理，避免与用户切换的排序模式冲突
         setScannedFiles(files);
-      } catch (err: any) {
-        showCustomAlert(t("scanner.scan_failed") + err.message);
+      } catch (err: unknown) {
+        showCustomAlert(t("scanner.scan_failed") + getErrorMessage(err));
       } finally {
         setIsScanning(false);
       }
@@ -221,8 +222,8 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
       
       // 导入成功后，从本地扫描列表中剔除该文件
       setScannedFiles((prev) => prev.filter((f) => f.path !== file.path));
-    } catch (err: any) {
-      showCustomAlert(t("scanner.import_failed") + err.message);
+    } catch (err: unknown) {
+      showCustomAlert(t("scanner.import_failed") + getErrorMessage(err));
     } finally {
       setImportingPath(null);
     }

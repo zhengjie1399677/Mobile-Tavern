@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Check, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Check, AlertCircle } from "lucide-react";
+import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 import {
   MemoryDrawerInput,
   MemoryDrawerSelect,
@@ -85,8 +86,8 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
       try {
         finalStat = JSON.parse(jsonText);
         setJsonError(null);
-      } catch (err: any) {
-        setJsonError("JSON 格式错误: " + err.message);
+      } catch (err: unknown) {
+        setJsonError("JSON 格式错误: " + getErrorMessage(err));
         return;
       }
     }
@@ -295,8 +296,8 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
                 const parsed = JSON.parse(jsonText);
                 setJsonText(JSON.stringify(parsed, null, 2));
                 setJsonError(null);
-              } catch (err: any) {
-                setJsonError("格式化失败: " + err.message);
+              } catch (err: unknown) {
+                setJsonError("格式化失败: " + getErrorMessage(err));
               }
             }}
             className="text-xs font-bold border border-border hover:bg-muted text-muted-foreground px-3 py-2 rounded-xl transition"

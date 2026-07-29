@@ -1,4 +1,5 @@
 mod telemetry;
+mod secrets;
 
 use tauri::Manager;
 
@@ -81,7 +82,10 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![report_telemetry])
+        .invoke_handler(tauri::generate_handler![
+            report_telemetry,
+            secrets::decrypt_trial_key
+        ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application");
 

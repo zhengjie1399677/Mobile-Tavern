@@ -5,18 +5,25 @@ import {
   ITelemetryService, IChatStreamService, IMultiMessageService,
   StreamChunk, IKernel,
 } from "../../kernel/types";
-import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
+import { FALLBACK_MODEL } from "../../utils/apiClient";
+import {
+  resolveApiCredentials,
+  TrialExhaustedError,
+  ModelNotConfiguredError,
+  type ResolvedApiCredentials,
+} from "../../utils/resolveApiCredentials";
 import {
   generateUniqueId, buildThrottledUpdater, buildFinalAiMessage, recallWithTimeout,
   replacePlaceholderMessage,
-  getTrialCount, incrementTrialCount,
+  incrementTrialCount,
 } from "./helpers";
 import { extractThinkContent } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../kernel/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../kernel/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useSendMessage");
 
 /**
@@ -136,36 +143,29 @@ export function useSendMessage(p: SendMessageParams) {
       try {
         const updatedSession = await p.multiMessageService.queueUserMessage(p.activeSession!, textToSend);
         p.setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
-      } catch (err: any) {
+      } catch (err: unknown) {
         log.error("Failed to save session user message", err);
       }
       p.triggerScroll("smooth");
       return;
     }
 
-    // API 参数解析（试用 / 正式 Key 选择）
-    let finalApiKey = p.settings.api.apiKey;
-    let finalBaseUrl = p.settings.api.baseUrl;
-    let finalModel = p.settings.api.modelName || FALLBACK_MODEL;
-    let finalChatPath = p.settings?.api?.chatPath;
-    let isTrialMode = false;
-
-    if (!p.settings.api.apiKey || !p.settings.api.apiKey.trim()) {
-      if (getTrialCount() >= 10) {
+    // API 参数解析（试用 / 正式 Key 选择）：收口到 resolveApiCredentials helper
+    let creds: ResolvedApiCredentials;
+    try {
+      creds = resolveApiCredentials(p.settings, { requireModel: true });
+    } catch (e) {
+      if (e instanceof TrialExhaustedError) {
         p.showCustomAlert("💡 您的 10 次公共免 Key 体验次数已用完，请前往\"设置 -> API配置\"中填写您自己的 API Key。");
         return;
       }
-      isTrialMode = true;
-      finalApiKey = TRIAL_OPENROUTER_KEY;
-      finalBaseUrl = "https://openrouter.ai/api/v1";
-      finalModel = "openrouter/free";
-      finalChatPath = undefined;
-    } else {
-      if (!p.settings.api.modelName) {
+      if (e instanceof ModelNotConfiguredError) {
         p.showCustomAlert("对话失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
         return;
       }
+      throw e;
     }
+    const { apiKey: finalApiKey, baseUrl: finalBaseUrl, model: finalModel, chatPath: finalChatPath, isTrial: isTrialMode } = creds;
 
     const currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
     if (!currentSession) return;
@@ -193,7 +193,7 @@ export function useSendMessage(p: SendMessageParams) {
       try {
         updatedSession = await p.multiMessageService.queueUserMessage(currentSession, textToSend);
         p.setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
-      } catch (err: any) {
+      } catch (err: unknown) {
         log.error("Failed to save session user message", err);
         p.isSendingRef.current = false;
         p.setIsSending(false);
@@ -474,7 +474,7 @@ export function useSendMessage(p: SendMessageParams) {
           log.info("Session switched during generation, saved silently", { sessionId: updatedSession.id });
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const responseText = responseChunks.join("");
       p.bisonRemainingCountRef.current = 0;
       p.setIsBisonLocking(false);
@@ -496,7 +496,7 @@ export function useSendMessage(p: SendMessageParams) {
       // 异常/中断分支：同样清除 streamingMessageId，避免残留导致 FormattedText 卡在 loading placeholder
       __streamingMsgIdGuard(null);
 
-      const isManualAbort = err.name === "AbortError" || err.message?.includes("aborted") || controller.signal.aborted;
+      const isManualAbort = getErrorName(err) === "AbortError" || getErrorMessage(err)?.includes("aborted") || controller.signal.aborted;
       const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
 
@@ -519,7 +519,7 @@ export function useSendMessage(p: SendMessageParams) {
           await p.databaseService.saveSession(nextSession, undefined, traceId).catch((e) => log.error("Failed to save after abort", e));
         }
       } else {
-        if (isStillActive) p.showCustomAlert("发送失败，对话连接异常: " + err.message);
+        if (isStillActive) p.showCustomAlert("发送失败，对话连接异常: " + getErrorMessage(err));
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };

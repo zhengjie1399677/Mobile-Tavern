@@ -5,6 +5,7 @@ import React from "react";
 
 import { createScriptIframeSrcDoc, notifyVariablesUpdated, hasCardScripts } from "../../utils/tavernHelper";
 import { useKernel } from "../../contexts/KernelContext";
+import type { ChatSession } from "../../types";
 
 interface HiddenScriptLayerProps {
   settings: any;
@@ -120,7 +121,8 @@ const HiddenScriptLayer = ({
   // 确保 bridge 缺失时变量更新通知仍能到达 iframe 内的 MVU 脚本。
   React.useEffect(() => {
     const unsub = kernel.subscribe("script:mvuVariablesUpdated", (msg) => {
-      const { session } = msg.payload || {};
+      // P2 待重构：IMessage 应泛型化为 IMessage<TPayload>，订阅方传入具体类型
+      const { session } = (msg.payload || {}) as { session?: ChatSession };
       if (session) {
         try {
           notifyVariablesUpdated(session);

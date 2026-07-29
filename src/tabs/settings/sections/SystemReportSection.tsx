@@ -230,7 +230,7 @@ export default function SystemReportSection({
           });
           const warnTag = count > 1000 ? " ⚠️ HIGH" : count > 200 ? " (moderate)" : "";
           log(`  - ${storeName}: ${count} records${warnTag}`);
-        } catch (err: any) {
+        } catch (err: unknown) {
           log(`  - ${storeName}: COUNT ERROR`, err);
         }
       }
@@ -263,7 +263,7 @@ export default function SystemReportSection({
         } else {
           log(`ERROR: IndexedDB read integrity failed (value mismatch or transient key lost)`);
         }
-      } catch (readErr: any) {
+      } catch (readErr: unknown) {
         log(`ERROR: IndexedDB readonly transaction test failed (suspect DB read-only lock or storage corrupt)`, readErr);
       }
 
@@ -275,7 +275,7 @@ export default function SystemReportSection({
         req.onsuccess = () => resolve();
         req.onerror = () => reject(req.error);
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       log(`ERROR: Database connection or CRUD check failed`, err);
     }
     log(`Elapsed: ${Date.now() - dbStart}ms`);
@@ -309,7 +309,7 @@ export default function SystemReportSection({
         try {
           const permitted = w.AndroidThemeBridge.hasStoragePermission();
           log(`Storage permission (native check): ${permitted ? "GRANTED" : "⚠️ DENIED (users must grant storage permission manually)"}`);
-        } catch (err: any) {
+        } catch (err: unknown) {
           log(`Storage permission check error`, err);
         }
       }
@@ -348,7 +348,7 @@ export default function SystemReportSection({
             log(`WARNING: safe-area mismatch on keys: ${mismatch.join(", ")} (bridge=0 but CSS has value)`);
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         log(`getSafeAreas/cross-check error`, err);
       }
 
@@ -364,7 +364,7 @@ export default function SystemReportSection({
           const avgLatency = ipcElapsed / count;
           const latencyStatus = avgLatency < 2 ? "EXCELLENT" : avgLatency < 7 ? "GOOD" : "⚠️ SLOW (IPC pathway congestion risk)";
           log(`Native bridge IPC latency: ${avgLatency.toFixed(2)}ms/call (${latencyStatus})`);
-        } catch (err: any) {
+        } catch (err: unknown) {
           log(`Native bridge IPC latency test error`, err);
         }
       }
@@ -379,7 +379,7 @@ export default function SystemReportSection({
           } else {
             log(`File IO (Write, Read, Verify & Cleanup): OK`);
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           log(`File IO Loopcheck error`, err);
         }
       } else {
@@ -428,7 +428,7 @@ export default function SystemReportSection({
           const devices = await navigator.mediaDevices.enumerateDevices();
           const hasMic = devices.some(d => d.kind === "audioinput");
           log(`Audio Input Hardware: ${hasMic ? "Detected microphone hardware (OK)" : "⚠️ No microphone hardware found"}`);
-        } catch (err: any) {
+        } catch (err: unknown) {
           log(`Audio Hardware probe warning`, err);
         }
       } else {
@@ -488,7 +488,7 @@ export default function SystemReportSection({
           log(`  ${svc.name}: NOT FOUND${svc.critical ? " (CRITICAL!)" : " (warning)"}`);
           kernelFailed++;
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         log(`  ${svc.name}: ERROR`, err);
         kernelFailed++;
       }
@@ -513,7 +513,7 @@ export default function SystemReportSection({
         const pctNum = parseFloat(String(percent));
         const storageStatus = pctNum > 80 ? "⚠️ CRITICAL (may cause IDB write failure)" : pctNum > 60 ? "⚠️ WARNING" : "OK";
         log(`Storage: ${usageMB}MB / ${quotaMB}MB (${percent}% used) ${storageStatus}`);
-      } catch (err: any) {
+      } catch (err: unknown) {
         log(`Storage estimate error`, err);
       }
     } else {
@@ -564,7 +564,7 @@ export default function SystemReportSection({
           if (contentType.includes("application/json") || (rawText.trim().startsWith("{") && rawText.trim().endsWith("}"))) {
             data = JSON.parse(rawText);
           }
-        } catch (e: any) {
+        } catch (e: unknown) {
           // Fallback if reading text fails
         }
 
@@ -592,7 +592,7 @@ export default function SystemReportSection({
             }
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         log(`ERROR: Ping failed`, err);
       }
     }
@@ -670,10 +670,10 @@ export default function SystemReportSection({
               log(`NOTE: third-party IME may override keyboard avoidance behavior.`);
             }
           }
-        } catch (e: any) {
+        } catch (e: unknown) {
           log(`JSON parse error`, e);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         log(`ERROR: getActiveInputMethod() threw`, err);
       }
     } else {
@@ -724,7 +724,7 @@ export default function SystemReportSection({
           log(`WebGL renderer: ${renderer || "(unavailable)"}`);
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       log(`WebGL renderer probe failed`, e);
     }
     log(`Elapsed: ${Date.now() - webviewStart}ms`);
@@ -793,7 +793,7 @@ export default function SystemReportSection({
       // -webkit-text-size-adjust（部分 WebView 受系统字体缩放影响）
       const tsa = htmlCs.getPropertyValue("-webkit-text-size-adjust");
       if (tsa) log(`-webkit-text-size-adjust: ${tsa}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       log(`ERROR: font-size probe failed`, err);
     }
     log(`Elapsed: ${Date.now() - fontStart}ms`);
@@ -846,7 +846,7 @@ export default function SystemReportSection({
         } else {
           log(`NOTE: voices empty (may populate after voiceschanged event, retry later).`);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         log(`ERROR: getVoices() threw`, err);
       }
     } else {

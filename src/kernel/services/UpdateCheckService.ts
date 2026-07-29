@@ -1,5 +1,6 @@
 import { IKernel, IKernelService, IUpdateCheckService, UpdateInfo } from "../types";
 import { Logger } from "../../utils/logger";
+import { CLOUD_ENDPOINTS } from "../../utils/cloudEndpoints";
 
 const logger = Logger.create("UpdateCheckService");
 
@@ -129,7 +130,7 @@ export class UpdateCheckService implements IUpdateCheckService {
     // 注意：oss-get-moblie 是更新检查专用 FC 函数；catbot-gmkodirnhh 是 LLM 代理函数，二者不同
     const origin = typeof window !== "undefined" && window.location ? window.location.origin : "http://127.0.0.1:3000";
     const url = isClient
-      ? "https://oss-get-moblie-pkyxzkhwob.cn-hangzhou.fcapp.run/api/check-update"
+      ? CLOUD_ENDPOINTS.updateCheck
       : `${origin}/api/check-update`;
 
     // 根据是否是 Tauri 环境，决定是否引入 tauri-plugin-http fetch 避开 CORS
@@ -200,7 +201,7 @@ export class UpdateCheckService implements IUpdateCheckService {
         enablePush: resJson.enablePush !== false
       };
 
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error("Failed to execute update check", e);
       return {
         hasUpdate: false,

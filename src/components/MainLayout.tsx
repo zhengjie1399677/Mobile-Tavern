@@ -159,7 +159,7 @@ export default function MainLayout() {
             className="absolute left-2 right-2 h-12 rounded-xl bg-card/70 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
           >
             {bottomBarTabs.map(tab => {
-              const IconComp = (tab.meta?.icon && ICON_MAP[tab.meta.icon]) || HelpCircle;
+              const IconComp = (tab.meta?.icon && ICON_MAP[tab.meta.icon as keyof typeof ICON_MAP]) || HelpCircle;
               const selected = isActive(tab);
               const localizedName = t("nav." + tab.id);
               return (

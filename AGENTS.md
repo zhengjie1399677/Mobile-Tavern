@@ -74,6 +74,41 @@
 
 ---
 
+# 🚨 核心行为准则十二：TypeScript 严格类型纪律与非必要禁用 any 准则
+
+## 默认禁用范围
+新增或修改代码中**严禁**使用以下形式，除非属于本准则末尾的"豁免清单"或经用户显式授权：
+- `: any`、`<T = any>`、`Array<any>`、`Promise<any>`、`Record<string, any>`、`as any`
+- `catch (e: any)` 必须改写为 `catch (e: unknown)` + narrowing（`e instanceof Error` 等）
+- 函数返回值类型为 `any` 或包含 `any` 的联合类型
+
+## 替代方案
+- 真正无法预知类型：用 `unknown`，消费方负责 narrowing
+- 复杂请求/响应结构：用 Zod schema 推导 `z.infer<typeof schema>`
+- 函数返回多种类型：用联合类型 `T1 | T2` 或 discriminated union
+- 异质事件载荷（如 `IMessage.payload`）：用泛型 `<TPayload = unknown>` 让订阅方传入具体类型
+- 第三方库缺类型：优先 `// @ts-expect-error` + 注释说明，不退化为 `any`
+
+## 豁免清单（待 P2 阶段泛型化重构，不得新增）
+以下场景的 `any` 为本次清理遗留，已用 `// 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单` 注释标记，禁止新增同类型 any：
+
+| 文件 | 字段 / 位置 | 豁免理由 |
+|------|-------------|----------|
+| `src/kernel/types.ts` | `IExtension.component` | React 组件类型，但 kernel 不应反向依赖 React；P2 应在 `src/services/pipeline/types.ts` 定义具体 Extension 契约 |
+| `src/kernel/types.ts` | `IDatabaseService<TSession = any, TCharacter = any, TSummary = any>` 及其 message/character/messages 入参 | 改成 `unknown` 会触发 TS2416（实现方 CharacterService 等传入具体类型时不兼容）；P2 应引入新泛型参数 `TMessage` / `TCharacterEntry` |
+| `src/kernel/types.ts` | `IPromptService<TCharacter = any, ...>` 等所有服务接口的泛型默认值 | 同上 TS2416 原因；P2 应让实现方显式声明类型参数 `implements IPromptService<CharacterCard, ...>` |
+| `src/kernel/types.ts` | `ICharacterService` / `IWorldbookService` / `IPresetService` 的实体字段 | 同 IDatabaseService 实体字段；P2 应引入 `TCharacter` / `TLorebook` / `TPreset` 泛型参数 |
+| `src/kernel/types.ts` | `IMemoryService<TStorage = any, ...>` 五个泛型参数 | 同上 TS2416 原因；实现方 MemoryService 应显式声明类型参数 |
+
+## 落地纪律
+- **代码审查**：新增 any 必须在 PR 描述中说明豁免理由，未声明者一律拒绝合并
+- **渐进清理**：本准则不要求一次性消除全部 any，但每次触及含 any 的文件时，应顺手清理本文件可触及的字段（最小改动原则）
+- **测试代码豁免**：`tests/` 目录下的测试代码允许保留 `any`（mock 场景必需），但应优先用 `as unknown as T` 显式断言
+- **lint 配置**：`@typescript-eslint/no-explicit-any` 规则建议设为 `warn`（仅警告不阻断构建），避免一次性堆积大量 error
+
+
+---
+
 # ℹ️ 开发者网络代理环境限制
 * 常态使用代理软件的 **TUN (虚拟网卡) 模式**，导致浏览器自动化请求外部 CDN 时极易死锁。测试必须严格使用本地静态化资源、缩短超时并配置国内镜像下载。
 

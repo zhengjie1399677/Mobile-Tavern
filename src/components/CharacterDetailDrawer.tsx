@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 import { CharacterCard, LorebookEntry } from "../types";
-import FormattedText from "./FormattedText";
+import FormattedText from "./FormattedText";
+import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 import {
   X,
   User,
@@ -72,8 +73,8 @@ export default function CharacterDetailDrawer({
         prev.map((c) => (c.id === updatedChar.id ? updatedChar : c))
       );
       showCustomAlert(t("char_detail.greeting_updated"));
-    } catch (e: any) {
-      showCustomAlert(t("char_detail.greeting_error", { error: e.message }));
+    } catch (e: unknown) {
+      showCustomAlert(t("char_detail.greeting_error", { error: getErrorMessage(e) }));
     }
   };
 

@@ -3,7 +3,9 @@ import { getTrialKey } from "../../utils/keyManager";
 import { cleanRequestPayload, cleanLLMResponse } from "../utils/requestSchema";
 import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
 import { Logger } from "../../utils/logger";
-
+import { CLOUD_ENDPOINTS } from "../../utils/cloudEndpoints";
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("LLMService");
 
 declare const IS_MOBILE_NATIVE: boolean;
@@ -239,7 +241,7 @@ export class LLMService implements ILLMService {
             signal,
           });
         } catch (fetchErr: unknown) {
-          const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+          const errMsg = fetchErr instanceof Error ? getErrorMessage(fetchErr) : String(fetchErr);
           return new Response(
             JSON.stringify({
               success: false,
@@ -293,7 +295,7 @@ export class LLMService implements ILLMService {
             signal,
           });
         } catch (fetchErr: unknown) {
-          const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+          const errMsg = fetchErr instanceof Error ? getErrorMessage(fetchErr) : String(fetchErr);
           return new Response(
             JSON.stringify({ success: false, error: `网络请求失败，请检查 Base URL 是否可达。具体错误: ${errMsg}` }),
             { status: 400, headers: { "Content-Type": "application/json" } }
@@ -456,8 +458,8 @@ export class LLMService implements ILLMService {
       fetchFn = resolvedFetch || fetch;
     }
     
-    const targetUrl = isTauri 
-      ? "https://catbot-gmkodirnhh.cn-hangzhou.fcapp.run/api/catbot" 
+    const targetUrl = isTauri
+      ? CLOUD_ENDPOINTS.catbot
       : "/api/catbot";
     
     const res = await fetchFn(targetUrl, {

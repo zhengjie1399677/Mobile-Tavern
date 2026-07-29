@@ -4,7 +4,8 @@ import { CharacterCard, Message, LorebookEntry } from "../../types";
 import { assemblePromptContext } from "../../utils/promptBuilder";
 import { parseCharacterFile } from "../../utils/cardParser";
 import { FLOW_NODES } from "./flowNodes";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 export function usePlaygroundActions() {
   // ==========================================
   // 0. ARCHITECTURE FLOWCHART STATES & DATA
@@ -239,8 +240,8 @@ export function usePlaygroundActions() {
     try {
       const data = await parseCharacterFile(file);
       setPngData(data);
-    } catch (err: any) {
-      setPngParseError(err.message || "未知解析错误");
+    } catch (err: unknown) {
+      setPngParseError(getErrorMessage(err) || "未知解析错误");
     }
   };
 

@@ -22,6 +22,7 @@ import { useKernel } from "../../contexts/KernelContext";
 import { getDeviceModel, getFreeTrialCount, useViewportSize } from "./utils";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
+import { getErrorMessage } from "../../utils/errorUtils";
 
 const PresetForm = React.lazy(() => import("../../components/PresetForm"));
 const GeneralConfigSection = React.lazy(() => import("./GeneralConfigSection"));
@@ -211,11 +212,11 @@ export default function SettingsTab() {
           res.message || t("settings.already_latest_message", { version: __APP_VERSION__ })
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[SettingsTab] Manual check update failed:", err);
       showCustomAlert(
         t("settings.check_failed"),
-        t("settings.check_failed_message", { error: err?.message || "未知错误" })
+        t("settings.check_failed_message", { error: getErrorMessage(err) || "未知错误" })
       );
     } finally {
       setIsCheckingUpdate(false);

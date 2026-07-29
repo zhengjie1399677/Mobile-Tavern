@@ -110,7 +110,8 @@ export function createTavernHelperEventEmitter(kernel?: IKernel): ITavernHelperE
       }
       const unsub = k.subscribe(`tavern_helper:${event}`, (msg) => {
         try {
-          return cb(...msg.payload);
+          // P2 待重构：IMessage 应泛型化为 IMessage<TPayload>
+          return cb(...(msg.payload as unknown[]));
         } catch (e) {
           console.error(`[Event Execution Error in ${event}]:`, e);
         }
@@ -160,7 +161,8 @@ export function createTavernHelperEventEmitter(kernel?: IKernel): ITavernHelperE
     makeFirst(event: string, cb: any) {
       const unsub = k.subscribe(`tavern_helper:${event}`, (msg) => {
         try {
-          return cb(...msg.payload);
+          // P2 待重构：IMessage 应泛型化为 IMessage<TPayload>
+          return cb(...(msg.payload as unknown[]));
         } catch (e) {
           console.error(`[Event Execution Error in ${event}]:`, e);
         }
@@ -174,7 +176,8 @@ export function createTavernHelperEventEmitter(kernel?: IKernel): ITavernHelperE
     makeLast(event: string, cb: any) {
       const unsub = k.subscribe(`tavern_helper:${event}`, (msg) => {
         try {
-          return cb(...msg.payload);
+          // P2 待重构：IMessage 应泛型化为 IMessage<TPayload>
+          return cb(...(msg.payload as unknown[]));
         } catch (e) {
           console.error(`[Event Execution Error in ${event}]:`, e);
         }

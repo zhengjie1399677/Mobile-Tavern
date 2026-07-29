@@ -362,7 +362,7 @@ export function createZodProxy(): any {
           return { success: false, error: e };
         }
       },
-      catch(fallback: any) {
+      catch (fallback: unknown) {
         const originalParse = this.parse.bind(this);
         this.parse = (val: any) => {
           try {

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { apiClient } from "../utils/apiClient";
 import { getDeviceId } from "../utils/telemetry";
-import { catbotEventBus, CatbotEvent } from "../utils/catbotEventBus";
+import { catbotEventBus, CatbotEvent } from "../utils/catbotEventBus";
+import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 import {
   DEFAULT_CAT_RESPONSES,
   getResponsesCache,
@@ -240,13 +241,13 @@ export function useCatbot() {
           updateGlobalState({ expression: endExpr });
         }, 3000));
 
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Catbot cloud response error:", err);
 
         // 异常回退逻辑 (离线/网络故障本地保底)
         const responsesCache = getResponsesCache();
         let fallbackText = "喵呜，云端判定服务开小差了，要不要检查下网络或者设置喵？";
-        if (err && err.message === "TIMEOUT") {
+        if (err && getErrorMessage(err) === "TIMEOUT") {
           fallbackText = "喵呜呜……等了太久云端都没有反应喵，可能脑回路断掉了，稍后再试试看喵？🐾";
         } else if (responsesCache && responsesCache.cloud_fallback) {
           fallbackText = responsesCache.cloud_fallback.offline;

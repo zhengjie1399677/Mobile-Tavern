@@ -98,7 +98,7 @@ export async function parseCharacterFile(
     const base64Avatar = await compressImage(file, 400, 400, 0.8, "image/png");
     cardData.avatar = base64Avatar;
     return cardData;
-  } catch (pngErr: any) {
+  } catch (pngErr: unknown) {
     throw new Error(
       "解析失败：未能将文件解析为有效的 JSON 角色卡或 SillyTavern PNG 图片卡元数据。"
     );

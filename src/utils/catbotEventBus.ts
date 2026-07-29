@@ -16,7 +16,8 @@ class CatbotEventBus {
   subscribe(listener: CatbotListener) {
     return this.kernel.subscribe("catbot:event", (message) => {
       try {
-        listener(message.payload);
+        // P2 待重构：IMessage 应泛型化为 IMessage<TPayload>
+        listener(message.payload as CatbotEvent);
       } catch (e) {
         console.error("Failed to execute Catbot listener", e);
       }

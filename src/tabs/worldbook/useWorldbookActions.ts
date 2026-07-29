@@ -7,7 +7,8 @@ import {
   CustomWorldbook,
 } from "../../types";
 import { mapSillyTavernLorebookEntry } from "../../utils/cardParser";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 /**
  * Android WebView 注入的原生桥接对象（仅导出文件用到的子集方法）。
  * 由原生层通过 @JavascriptInterface 挂载到 window.AndroidThemeBridge。
@@ -589,9 +590,9 @@ export function useWorldbookActions(params: UseWorldbookActionsParams) {
           );
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       await showCustomAlert(
-        "解析世界书失败，请检查文件格式。错误: " + err.message,
+        "解析世界书失败，请检查文件格式。错误: " + getErrorMessage(err),
       );
     } finally {
       e.target.value = "";

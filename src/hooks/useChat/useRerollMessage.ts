@@ -5,16 +5,23 @@ import {
   ITelemetryService, IChatStreamService,
   IKernel,
 } from "../../kernel/types";
-import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
+import { FALLBACK_MODEL } from "../../utils/apiClient";
+import {
+  resolveApiCredentials,
+  TrialExhaustedError,
+  ModelNotConfiguredError,
+  type ResolvedApiCredentials,
+} from "../../utils/resolveApiCredentials";
 import {
   generateUniqueId, buildThrottledUpdater, buildFinalAiMessage, recallWithTimeout,
-  getTrialCount, incrementTrialCount, extractThinkContent, replacePlaceholderMessage,
+  incrementTrialCount, extractThinkContent, replacePlaceholderMessage,
 } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../kernel/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../kernel/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useRerollMessage");
 
 /**
@@ -92,14 +99,12 @@ export function useRerollMessage(p: RerollMessageParams) {
       (window as WindowWithTavernHelpers).TavernHelperIsSending = true;
     }
 
-    let finalApiKey = p.settings.api.apiKey;
-    let finalBaseUrl = p.settings.api.baseUrl;
-    let finalModel = p.settings.api.modelName || FALLBACK_MODEL;
-    let finalChatPath = p.settings?.api?.chatPath;
-    let isTrialMode = false;
-
-    if (!p.settings.api.apiKey || !p.settings.api.apiKey.trim()) {
-      if (getTrialCount() >= 10) {
+    // API 参数解析（试用 / 正式 Key 选择）：收口到 resolveApiCredentials helper
+    let creds: ResolvedApiCredentials;
+    try {
+      creds = resolveApiCredentials(p.settings, { requireModel: true });
+    } catch (e) {
+      if (e instanceof TrialExhaustedError) {
         await p.showCustomAlert("💡 您的 10 次公共免 Key 体验次数已用完，请前往\"设置 -> API配置\"中填写您自己的 API Key。");
         p.isSendingRef.current = false;
         p.setIsSending(false);
@@ -108,13 +113,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         }
         return;
       }
-      isTrialMode = true;
-      finalApiKey = TRIAL_OPENROUTER_KEY;
-      finalBaseUrl = "https://openrouter.ai/api/v1";
-      finalModel = "openrouter/free";
-      finalChatPath = undefined;
-    } else {
-      if (!p.settings.api.modelName) {
+      if (e instanceof ModelNotConfiguredError) {
         await p.showCustomAlert("重发失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
         p.isSendingRef.current = false;
         p.setIsSending(false);
@@ -123,7 +122,9 @@ export function useRerollMessage(p: RerollMessageParams) {
         }
         return;
       }
+      throw e;
     }
+    const { apiKey: finalApiKey, baseUrl: finalBaseUrl, model: finalModel, chatPath: finalChatPath, isTrial: isTrialMode } = creds;
 
     const requestId = ++p.activeRequestIdRef.current;
 
@@ -429,7 +430,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         await persistRerollSession(trueFinalSession);
         log.info("Session switched during reroll, saved silently", { sessionId: updatedSession.id });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       const responseText = responseChunks.join("");
       if (requestId !== p.activeRequestIdRef.current) {
         // 当前请求已被新请求取代，清理旧占位符（仅当占位符未被替换为真实内容时）
@@ -449,7 +450,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       if (typeof window !== "undefined") {
         (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = null;
       }
-      const isManualAbort = e.name === "AbortError" || e.message?.includes("aborted") || controller.signal.aborted;
+      const isManualAbort = getErrorName(e) === "AbortError" || getErrorMessage(e)?.includes("aborted") || controller.signal.aborted;
       const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
 
@@ -470,7 +471,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       } else {
         if (isStillActive) {
           log.error("AI Regeneration failed", e);
-          p.telemetryService.reportUsage("api_error", { detail: String(e.message || "Unknown error"), playerName: p.settings.userName, characterName: p.activeCharacter!.name, modelName: p.settings.api.modelName, sessionId: updatedSession.id, traceId });
+          p.telemetryService.reportUsage("api_error", { detail: String(getErrorMessage(e) || "Unknown error"), playerName: p.settings.userName, characterName: p.activeCharacter!.name, modelName: p.settings.api.modelName, sessionId: updatedSession.id, traceId });
         }
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
@@ -485,7 +486,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           // 纯失败不提交任何分支变更，恢复重发前的完整会话。
           if (isStillActive) {
             p.setSessions((prev) => prev.map((s) => (s.id === currentSession.id ? currentSession : s)));
-            p.showCustomAlert(`重新生成失败：${e.message || "未知错误"}`);
+            p.showCustomAlert(`重新生成失败：${getErrorMessage(e) || "未知错误"}`);
           }
         }
         if (isStillActive) p.triggerScroll();

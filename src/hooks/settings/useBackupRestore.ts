@@ -10,7 +10,8 @@ import {
 import type { MemoryServiceTyped } from "../../kernel/services/memory";
 import { encryptBackupData, decryptBackupData } from "../../utils/cardParser";
 import { DEFAULT_SETTINGS } from "./defaults";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本 Hook 实际使用的方法）。
  * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
@@ -174,8 +175,8 @@ export const useBackupRestore = ({
         `备份数据已导出成功！\n文件名：\n${fileName}\n\n文件已触发浏览器或客户端下载，请前往您的“下载 (Downloads)”目录查找。${encryptBackup ? "" : "\n\n⚠️ 注意：为了您的秘钥安全，明文备份已自动抹除 API Key 配置。"}`,
         "导出成功"
       );
-    } catch (err: any) {
-      setBackupStatus(`备份崩溃: ${err.message}`);
+    } catch (err: unknown) {
+      setBackupStatus(`备份崩溃: ${getErrorMessage(err)}`);
     }
   }, [encryptBackup, backupPass, showCustomAlert, setBackupStatus, settings, globalLorebook, databaseService, memoryService]);
 
@@ -365,11 +366,11 @@ export const useBackupRestore = ({
         );
         setBackupStatus("数据导入覆盖完成！");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       await showCustomAlert(
-        `无法解密或导入备份: ${err.message}. 请确保密码拼写绝对一致。`,
+        `无法解密或导入备份: ${getErrorMessage(err)}. 请确保密码拼写绝对一致。`,
       );
-      setBackupStatus(`失败: ${err.message}`);
+      setBackupStatus(`失败: ${getErrorMessage(err)}`);
     } finally {
       e.target.value = "";
     }
@@ -540,9 +541,9 @@ export const useBackupRestore = ({
           `🎉 聊天记录导入成功！\n分支标题：${chatTitle}\n已绑定到角色：${matchedChar.name}\n共 ${finalMessages.length} 回合对话，您可以进入聊天页向上翻阅查看。`
         );
       }
-    } catch (err: any) {
-      await showCustomAlert(`导入聊天记录失败: ${err.message}`);
-      setBackupStatus(`导入失败: ${err.message}`);
+    } catch (err: unknown) {
+      await showCustomAlert(`导入聊天记录失败: ${getErrorMessage(err)}`);
+      setBackupStatus(`导入失败: ${getErrorMessage(err)}`);
     } finally {
       e.target.value = "";
     }

@@ -55,7 +55,7 @@ export interface StreamParams {
   bypassProxy?: boolean;
   disableReasoning?: boolean;
   forceBasicParams?: boolean;
-  reqBody: any;
+  reqBody: unknown;
   signal?: AbortSignal;
   /** traceId：透传给 LLMService.universalFetch，关联 API 调用链日志 */
   traceId?: string;
@@ -72,14 +72,17 @@ export interface IExtension {
   id: string;
   targetPoint: string;
   priority?: number;
+  // component 保留 any：实际为 React 组件类型，但 kernel 不应反向依赖 React。
+  // P2 阶段应在 src/services/pipeline/types.ts 中定义具体 Extension 契约并替代此接口。
+  // 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
   component: any;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 }
 
 export interface IMessage {
   topic: string;
-  payload: any;
-  metadata?: Record<string, any>;
+  payload: unknown;
+  metadata?: Record<string, unknown>;
 }
 
 export interface IPipeline<T> {
@@ -104,8 +107,8 @@ export interface IKernel {
   hasService(name: string): boolean;
   destroyService(name: string): Promise<void>;
 
-  registerPipeline<T = any>(name: string): IPipeline<T>;
-  getPipeline<T = any>(name: string): IPipeline<T>;
+  registerPipeline<T = unknown>(name: string): IPipeline<T>;
+  getPipeline<T = unknown>(name: string): IPipeline<T>;
 
   // 扩展点注册与获取接口 (SPI)
   registerExtension(extension: IExtension): void;
@@ -169,6 +172,14 @@ export interface IKernelService {
   destroy?(kernel: IKernel, signal?: AbortSignal): Promise<void> | void;
 }
 
+/**
+ * 数据库服务契约。
+ *
+ * 注意：以下 `any` 字段（message / character / newMessages / messages）保留 any 而非 unknown，
+ * 是为了不破坏下游消费方对 `.id` / `.role` 等字段的直接访问。
+ * 这些字段应通过引入新泛型参数（TMessage / TCharacterEntry）在 P2 阶段彻底类型化。
+ * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ */
 export interface IDatabaseService<TSession = any, TCharacter = any, TSummary = any> extends IKernelService {
   getAllSessions(): Promise<TSession[]>;
   /**
@@ -236,7 +247,7 @@ export interface ILLMService extends IKernelService {
       bypassProxy?: boolean;
       disableReasoning?: boolean;
       forceBasicParams?: boolean;
-      reqBody: any;
+      reqBody: unknown;
     },
     signal?: AbortSignal,
     traceId?: string
@@ -244,12 +255,21 @@ export interface ILLMService extends IKernelService {
   isClientMode(): boolean;
   sendCatbotRequest(
     content: string,
-    history: any[],
+    history: unknown[],
     clientContext?: unknown,
     traceId?: string
   ): Promise<{ reply: string; expression: string }>;
 }
 
+/**
+ * 提示词服务契约。
+ *
+ * 注意：泛型默认值保留 `any` 而非 `unknown`，是为了让实现方（PromptService）
+ * 直接 `implements IPromptService` 时无需显式声明类型参数；改成 unknown 会让
+ * 默认契约为 `<unknown, unknown, unknown, unknown>`，与实现方传入的
+ * CharacterCard / ChatSession / UserSettings / LorebookEntry 类型不兼容（TS2416）。
+ * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ */
 export interface IPromptService<TCharacter = any, TSession = any, TSettings = any, TLorebook = any> extends IKernelService {
   assemblePrompt(params: {
     character: TCharacter;
@@ -305,7 +325,7 @@ export interface IPromptService<TCharacter = any, TSession = any, TSettings = an
 }
 
 export interface ITelemetryService extends IKernelService {
-  reportUsage(action?: string, extraData?: Record<string, any>): void;
+  reportUsage(action?: string, extraData?: Record<string, unknown>): void;
   incrementUsageCount(): void;
   reportLlmPerformance(
     sessionId: string,
@@ -319,18 +339,24 @@ export interface ITelemetryService extends IKernelService {
     playerName?: string,
     traceId?: string
   ): void;
-  reportImmediate(action: string, extraData?: Record<string, any>): Promise<void>;
+  reportImmediate(action: string, extraData?: Record<string, unknown>): Promise<void>;
   reportColdStartReady(): Promise<void>;
   reportChatLoadTime(durationMs: number): void;
   reportDbQueueTimeout(queueDelayMs: number, queueLength: number): void;
-  reportZodValidationError(errorDetail: string, path: string, inputVal: any): void;
+  reportZodValidationError(errorDetail: string, path: string, inputVal: unknown): void;
 }
 
+/**
+ * 脚本服务契约。
+ * 泛型默认值保留 any 而非 unknown：与 IDatabaseService / IPromptService 同因，
+ * 实现方直接 implements 时不需要显式声明类型参数。
+ * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ */
 export interface IScriptService<TCharacter = any, TSession = any> extends IKernelService {
-  initializeMvuFromCharacter(character: TCharacter): Record<string, any>;
-  parseMvuMessage(messageContent: string, currentVariables: Record<string, any>, signal?: AbortSignal): Record<string, any>;
+  initializeMvuFromCharacter(character: TCharacter): Record<string, unknown>;
+  parseMvuMessage(messageContent: string, currentVariables: Record<string, unknown>, signal?: AbortSignal): Record<string, unknown>;
   executeMvuScript(session: TSession, messageContent: string, signal?: AbortSignal): Promise<TSession>;
-  registerBridge(bridge: any): void;
+  registerBridge(bridge: unknown): void;
 }
 
 export interface IMultiMessageService<TSession = any> extends IKernelService {
@@ -350,7 +376,7 @@ export interface IUpdateCheckService extends IKernelService {
 }
 
 export interface IImageGenerationService extends IKernelService {
-  generateImage(prompt: string, config: any, signal?: AbortSignal): Promise<string>;
+  generateImage(prompt: string, config: unknown, signal?: AbortSignal): Promise<string>;
 }
 
 /**
@@ -375,6 +401,10 @@ export interface IBgmService extends IKernelService {
  * 实现类应绑定具体子模块类型，例如：
  *   `class MemoryService implements IMemoryService<MemoryStorage, MemoryExtractor, ...>`
  * 消费方可通过类型别名（如 MemoryServiceTyped）一次性获取具体类型，避免重复书写 5 个泛型参数。
+ *
+ * 注意：泛型默认值保留 any 而非 unknown：实现方 MemoryService 直接 implements 时不需要显式声明
+ * 5 个类型参数；改成 unknown 会触发 TS2416（实现方传入的具体类型与默认 unknown 不兼容）。
+ * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
  */
 export interface IMemoryService<
   TStorage = any,
@@ -411,7 +441,7 @@ export interface IMemoryService<
 }
 
 export interface ITtsService extends IKernelService {
-  speak(text: string, config: any, signal?: AbortSignal): Promise<void>;
+  speak(text: string, config: unknown, signal?: AbortSignal): Promise<void>;
   stop(): void;
   pause(): void;
   resume(): void;
@@ -441,6 +471,12 @@ export interface IAsrService extends IKernelService {
   cancelListening(): void;
 }
 
+/**
+ * 角色卡服务契约。
+ * 注意：以下 `any` 字段保留以避免下游消费方对 `.id` / `.name` 等字段的直接访问被破坏。
+ * P2 阶段应引入泛型参数 TCharacter / TLorebook，让消费方传入具体类型。
+ * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ */
 export interface ICharacterService extends IKernelService {
   getAllCharacters(): Promise<any[]>;
   getCharacterCatalog(): Promise<any[]>;
@@ -452,6 +488,10 @@ export interface ICharacterService extends IKernelService {
   saveStoredDefaultCharactersInitializedFlag(initialized: boolean): Promise<void>;
 }
 
+/**
+ * 世界书服务契约。同 ICharacterService，P2 阶段应引入 TLorebook 泛型参数。
+ * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ */
 export interface IWorldbookService extends IKernelService {
   getGlobalLorebook(): Promise<any[]>;
   saveGlobalLorebook(entries: any[]): Promise<void>;
@@ -459,11 +499,20 @@ export interface IWorldbookService extends IKernelService {
   saveCustomWorldbooks(worldbooks: Record<string, any>): Promise<void>;
 }
 
+/**
+ * 设置服务契约。泛型默认值保留 any 而非 unknown：实现方 SettingsService 直接 implements
+ * 时无需显式声明类型参数；改成 unknown 会触发 TS2416（与 UserSettings 不兼容）。
+ * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ */
 export interface ISettingsService<TSettings = any> extends IKernelService {
   getStoredSettings(): Promise<TSettings | null>;
   saveStoredSettings(settings: TSettings): Promise<void>;
 }
 
+/**
+ * 预设服务契约。同 ICharacterService，P2 阶段应引入 TPreset 泛型参数。
+ * 详见 AGENTS.md "非必要不允许使用 any" 准则的待重构豁免清单。
+ */
 export interface IPresetService extends IKernelService {
   getStoredSavedPresets(): Promise<any[] | null>;
   saveStoredSavedPresets(presets: any[]): Promise<void>;

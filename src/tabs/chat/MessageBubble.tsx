@@ -25,7 +25,8 @@ import { handleGenerateImageForMessage } from "./imageGenerationHandler";
 import TypingIndicator from "./TypingIndicator";
 import QuickDialogueOptions from "./QuickDialogueOptions";
 import CloudLoader from "../../components/CloudLoader";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 /**
  * Tavern 全局辅助 window 字段类型收口。
  * 这些字段被本文件跨 iframe / 原生桥接边界读取，
@@ -842,9 +843,9 @@ const MessageBubble = ({
                             await showCustomAlert(t("message_bubble.image_save_failed_msg", { error: path || "未知错误" }), t("message_bubble.image_save_failed"));
                           }
                           return;
-                        } catch (err: any) {
+                        } catch (err: unknown) {
                           console.error("AndroidThemeBridge download failed:", err);
-                          await showCustomAlert(`❌ ${t("message_bubble.save_error")}: ${err.message || String(err)}`, t("message_bubble.image_save_failed"));
+                          await showCustomAlert(`❌ ${t("message_bubble.save_error")}: ${getErrorMessage(err) || String(err)}`, t("message_bubble.image_save_failed"));
                         }
                       }
 

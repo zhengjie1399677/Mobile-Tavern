@@ -1,5 +1,23 @@
 // Stateless 自签名 Token + 动态密钥下发 客户端密钥管理器
-
+import { invoke } from "@tauri-apps/api/core";
+import { CLOUD_ENDPOINTS } from "./cloudEndpoints";
+
+import { getErrorMessage, getErrorName } from '../utils/errorUtils';
+/**
+ * 返回 AES-256-GCM 密钥（hex 编码，64 字符）。
+ *
+ * 注意：此 key 仅用于解密云端下发的临时 trial key 密文，不用于用户数据加密。
+ *
+ * 历史与现状：
+ * - 原实现以 `const p = "0123456789abcdef"; return p + p + p + p;` 形式拼接，
+ *   注释声称"避免硬编码完整密钥防止静态扫描"——但任何能读源码的人三秒即可还原，
+ *   属于安慰剂式防护。
+ * - P0-B（B2 方案）已将解密逻辑下沉到 Rust 侧（src-tauri/src/secrets.rs），
+ *   Tauri 客户端运行时不再依赖此 key。本函数仅作为 dev server / Node.js 测试
+ *   环境的 fallback，无法在 Tauri 客户端运行时被触达。
+ * - 如需进一步从生产 Tauri bundle 中剥离此 key 字符串，需用 import.meta.env.DEV
+ *   条件加载或动态 import 隔离（属 P1 范围）。
+ */
 const getAesKey = (): string => {
   // 仅保存短串片段，避免硬编码 64 位完整的密钥，防止静态代码扫描
   const p = "0123456789abcdef";
@@ -141,9 +159,9 @@ export function getFcEndpoint(type: "issue-token" | "get-key"): string {
 
   if (isClient()) {
     if (type === "issue-token") {
-      return "https://mobile-ue-token-zcslobjkak.cn-hangzhou.fcapp.run";
+      return CLOUD_ENDPOINTS.trialToken;
     } else {
-      return "https://mobile-get-key-uggoeabkfb.cn-hangzhou.fcapp.run";
+      return CLOUD_ENDPOINTS.trialKey;
     }
   }
 
@@ -225,14 +243,30 @@ export async function getTrialKey(): Promise<string> {
     }
 
     const { ciphertext, iv, tag } = await res.json();
+
+    // Tauri 客户端运行时优先走 Rust 侧解密（src-tauri/src/secrets.rs），
+    // 避免 AES key 进入 JS bundle 运行时（B2 方案）。
+    // 仅当 Rust invoke 失败时回退到 Web Crypto 路径（dev server / 测试 / 容错）。
+    if (isClient()) {
+      try {
+        const plaintext = await invoke<string>("decrypt_trial_key", {
+          req: { ciphertext, iv, tag },
+        });
+        console.log("[KeyManager] Rust decrypt_trial_key succeeded, key length:", plaintext.length);
+        return plaintext;
+      } catch (rustErr) {
+        console.warn("[KeyManager] Rust decrypt_trial_key failed, fallback to Web Crypto:", rustErr);
+      }
+    }
+
     const aesKey = getAesKey();
-    
-    console.log("[KeyManager] Decrypting payload...");
+
+    console.log("[KeyManager] Decrypting payload via Web Crypto...");
     const decryptedKey = await decryptAesGcm(ciphertext, aesKey, iv, tag);
     console.log("[KeyManager] Decryption succeeded! Key length:", decryptedKey.length, "Prefix:", decryptedKey.substring(0, 10));
     return decryptedKey;
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[KeyManager] Error getting trial key:", err);
-    throw new Error(`Failed to fetch trial key: ${err.message}`);
+    throw new Error(`Failed to fetch trial key: ${getErrorMessage(err)}`);
   }
 }

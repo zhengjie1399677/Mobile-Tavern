@@ -4,7 +4,8 @@ import { useCharactersState } from "../contexts/CharacterContext";
 import { CharacterCard, LorebookEntry } from "../types";
 import { catbotEventBus } from "../utils/catbotEventBus";
 import { TRANSLATIONS } from "../locales/index";
-
+
+import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 /**
  * 角色卡编辑业务 Hook
  *
@@ -145,9 +146,9 @@ export const useCharacterEditor = () => {
       }
       setCharModalOpen(false);
       setEditingChar(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save character to IndexedDB:", err);
-      showCustomAlert(tCharEditor("character_editor.save_failed", err.message));
+      showCustomAlert(tCharEditor("character_editor.save_failed", getErrorMessage(err)));
     } finally {
       setIsDbWriting(false);
     }
@@ -272,9 +273,9 @@ export const useCharacterEditor = () => {
     try {
       await saveCharacter(updatedChar);
       setEditingActiveCharLoreEntry(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save character lore to IndexedDB:", err);
-      showCustomAlert(tCharEditor("character_editor.lore_save_failed", err.message));
+      showCustomAlert(tCharEditor("character_editor.lore_save_failed", getErrorMessage(err)));
     }
   }, [editingActiveCharLoreEntry, showCustomAlert, setCharacters, saveCharacter]);
 

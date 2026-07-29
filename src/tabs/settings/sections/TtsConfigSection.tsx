@@ -34,7 +34,7 @@ export default function TtsConfigSection({
       const ttsService = getKernelService<any>("tts");
       const testText = t("tts.test_text");
       await ttsService.speak(testText, settings.ttsConfig);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.warn("TTS test failed:", e);
     } finally {
       setTestSpeaking(false);

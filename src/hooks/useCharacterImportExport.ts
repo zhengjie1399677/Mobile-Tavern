@@ -4,6 +4,7 @@ import { useCharactersState } from "../contexts/CharacterContext";
 import { CharacterCard, LorebookEntry } from "../types";
 import { parseCharacterFile } from "../utils/cardParser";
 import { catbotEventBus } from "../utils/catbotEventBus";
+import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 import {
   generateCharacterPngBlob,
   saveBlobViaBridgeOrDownload,
@@ -82,9 +83,9 @@ export const useCharacterImportExport = () => {
       showCustomAlert(
         `导入成功: Character Card "${importedChar.name}" 已正确就绪！`
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       showCustomAlert(
-        `文件解析失败: ${err.message}. 请确保上传的是标度 SillyTavern 兼容格式。`
+        `文件解析失败: ${getErrorMessage(err)}. 请确保上传的是标度 SillyTavern 兼容格式。`
       );
     } finally {
       e.target.value = "";
@@ -223,8 +224,8 @@ export const useCharacterImportExport = () => {
       showCustomAlert(
         `成功从酒馆格式 JSON 导入 ${importedEntries.length} 条世界设定到 [${updatedChar.name}]！`
       );
-    } catch (err: any) {
-      showCustomAlert("解析世界书失败，请检查文件格式。错误: " + err.message);
+    } catch (err: unknown) {
+      showCustomAlert("解析世界书失败，请检查文件格式。错误: " + getErrorMessage(err));
     } finally {
       e.target.value = "";
     }
@@ -280,9 +281,9 @@ export const useCharacterImportExport = () => {
           showCustomAlert(`❌ 导出失败：${errMsg}`);
         }
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.warn("Failed to generate tavern image card:", e);
-      showCustomAlert("制作精美 PNG 角色卡出错: " + e.message);
+      showCustomAlert("制作精美 PNG 角色卡出错: " + getErrorMessage(e));
     }
   }, [showCustomAlert]);
 

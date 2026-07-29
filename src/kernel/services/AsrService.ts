@@ -196,7 +196,7 @@ export class AsrService implements IAsrService {
         };
 
         recognition.start();
-      } catch (err: any) {
+      } catch (err: unknown) {
         this.isListeningState = false;
         this.activeRecognition = null;
         throw err;
@@ -249,7 +249,7 @@ export class AsrService implements IAsrService {
             // 调用接口将录音文件上传至 Whisper 服务进行识别
             const resultText = await this.uploadToWhisper(audioBlob, extension, config);
             onResult(resultText, true);
-          } catch (err: any) {
+          } catch (err: unknown) {
             logger.error("OpenAI Whisper upload error", err);
             onError(err);
           } finally {
@@ -258,7 +258,7 @@ export class AsrService implements IAsrService {
         };
 
         mediaRecorder.start();
-      } catch (err: any) {
+      } catch (err: unknown) {
         this.cleanupMediaRecorder();
         this.isListeningState = false;
         throw err;

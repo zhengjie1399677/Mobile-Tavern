@@ -1,7 +1,8 @@
 import { IKernel, IKernelService, IImageGenerationService } from "../types";
 import { ImageGenApiConfig } from "../../types";
 import { Logger } from "../../utils/logger";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("ImageGenerationService");
 
 /**
@@ -211,8 +212,8 @@ export class ImageGenerationService implements IImageGenerationService {
         body: finalBody,
         signal: timeoutController.signal,
       });
-    } catch (err: any) {
-      if (err.name === "AbortError" && timeoutController.signal.aborted) {
+    } catch (err: unknown) {
+      if (getErrorName(err) === "AbortError" && timeoutController.signal.aborted) {
         throw new Error("Image generation request timed out after 60 seconds");
       }
       throw err;

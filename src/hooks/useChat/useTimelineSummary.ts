@@ -3,7 +3,8 @@ import { ChatSession, SummaryCard, UserSettings, CharacterCard } from "../../typ
 import { IDatabaseService, KernelServices } from "../../kernel/types";
 import { useKernel } from "../../contexts/KernelContext";
 import { generateUniqueId } from "./helpers";
-
+
+import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 export interface TimelineSummaryState {
   timelineModalOpen: boolean;
   setTimelineModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -62,10 +63,10 @@ export function useTimelineSummary(params: {
       } else if (force) {
         await showCustomAlert("当前无需强制压缩。");
       }
-    } catch (e: any) {
-      if (e.name === "AbortError" || e.message === "AbortError") return;
+    } catch (e: unknown) {
+      if (getErrorName(e) === "AbortError" || getErrorMessage(e) === "AbortError") return;
       console.warn("Auto-compactor service bypassed or offline:", e);
-      if (force) await showCustomAlert("记忆整理出错: " + e.message);
+      if (force) await showCustomAlert("记忆整理出错: " + getErrorMessage(e));
     } finally {
       setIsSummarizing(false);
     }
@@ -113,7 +114,7 @@ export function useTimelineSummary(params: {
     );
     try {
       await databaseService.saveSession(updatedSession);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save timeline summary:", err);
     }
 
