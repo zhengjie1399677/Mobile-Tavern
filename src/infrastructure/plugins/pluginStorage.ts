@@ -133,7 +133,7 @@ async function openPluginDb(): Promise<IDBDatabase> {
                 // 最终触发 opening.onerror 并 reject openPluginDb 的 Promise。
                 console.error(`[pluginStorage] v1→v2 迁移失败: packageFiles.put(${record.id}) 出错:`, filesPut.error);
               };
-              delete record.files;
+              delete (record as { files?: unknown }).files;
               // 用 store.put 而非 cursor.update：cursor.update 会将 cursor 的 gotValue 置为 false，
               // 随后 cursor.continue 会抛 InvalidStateError（MDN: cursor "is currently being iterated"），
               // 导致遍历中断、后续记录未迁移。store.put 不受 cursor 请求状态约束，可安全与 continue 同步调用。

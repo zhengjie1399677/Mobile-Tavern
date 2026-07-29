@@ -136,7 +136,7 @@ export class LLMService implements ILLMService {
     }
 
     const modelId = proxyPayload.reqBody?.model || "";
-    if (modelId) {
+    if (modelId && cleanedReqBody) {
       cleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(
         modelId,
         cleanedReqBody,

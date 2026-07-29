@@ -131,6 +131,7 @@ export function useSessionManager(p: SessionManagerParams) {
       `${p.activeCharacter?.name} - 新分支线 ${new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
     );
     if (!branchTitle) return;
+    if (!p.activeCharacter) return;
     try {
       const newSession = await p.databaseService.createEmptyBranch(p.activeCharacter, branchTitle);
       p.setSessions((prev) => [...prev, newSession]);

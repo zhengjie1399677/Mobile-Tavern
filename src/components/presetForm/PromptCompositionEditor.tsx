@@ -261,7 +261,7 @@ export default function PromptCompositionEditor({
       if (targetBlock) setDragAnnouncement(t("prompt_composer.drag_completed", { name: targetBlock.name }));
     }
     if (drag.handle.hasPointerCapture?.(pointerId)) drag.handle.releasePointerCapture?.(pointerId);
-    dragRef.current = undefined;
+    dragRef.current = null;
     setDragTargetId(undefined);
     setDraggingId(undefined);
   }, [composition.blocks, reorder, t]);

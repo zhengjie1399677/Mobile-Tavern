@@ -381,7 +381,7 @@ export function useRerollMessage(p: RerollMessageParams) {
 
       const { finalAiMsg, suggestions } = buildFinalAiMessage({
         aiMsgId, responseText: responseChunks.join(""), reasoningText: reasoningChunks.join(""),
-        startTime, tokenUsage, enableReplySuggestions: p.settings.enableReplySuggestions, latestSession,
+        startTime, tokenUsage, enableReplySuggestions: p.settings.enableReplySuggestions ?? false, latestSession,
       });
 
       if (p.settings.enableReplySuggestions && suggestions.length > 0) {

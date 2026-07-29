@@ -428,7 +428,7 @@ export default function TtsConfigSection({
                               openaiModel: "tts-1",
                               openaiVoice: "alloy",
                             }),
-                            openaiVoice: val,
+                            openaiVoice: val ?? "alloy",
                           },
                         }));
                       }}

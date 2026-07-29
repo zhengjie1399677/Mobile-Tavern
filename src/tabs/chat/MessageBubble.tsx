@@ -478,7 +478,7 @@ const MessageBubble = ({
           )
         ) : (activePortraitUrl || activeCharacter?.avatar) ? (
           <img
-            src={activePortraitUrl || activeCharacter.avatar}
+            src={activePortraitUrl || activeCharacter?.avatar || ""}
             alt=""
             className="w-full h-full object-cover animate-fadeIn"
           />

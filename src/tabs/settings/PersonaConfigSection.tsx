@@ -56,7 +56,7 @@ export default function PersonaConfigSection({
             >
               <Select
                 value={settings.activePersonaId || "default-persona"}
-                onValueChange={(val) => switchUserPersona(val)}
+                onValueChange={(val) => { if (val) switchUserPersona(val); }}
               >
                 <SelectTrigger aria-label={t("persona.active")} className="w-full text-xs h-9 bg-input/50 font-semibold">
                   <SelectValue placeholder={t("persona.select_placeholder")}>

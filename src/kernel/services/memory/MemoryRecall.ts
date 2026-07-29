@@ -296,13 +296,13 @@ export class MemoryRecall {
       // 合并到候选池并执行去重
       const candidateIds = new Set(candidates.map(c => c.id));
       pinnedMsgs.forEach(msg => {
-        if (!candidateIds.has(msg.id)) {
+        if (msg && !candidateIds.has(msg.id)) {
           candidates.push(msg);
         }
       });
       const fragmentIds = new Set(fragments.map(fragment => fragment.id));
       pinnedFragments.forEach(fragment => {
-        if (!fragmentIds.has(fragment.id) && fragment.status === 'active') fragments.push(fragment);
+        if (fragment && !fragmentIds.has(fragment.id) && fragment.status === 'active') fragments.push(fragment);
       });
     }
 

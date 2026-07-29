@@ -285,9 +285,10 @@ export default function SystemReportSection({
     startSection("BRIDGE", "2. BRIDGE");
     log(`Native Webview bridge verification...`);
     const w = window as WindowWithAndroidBridge;
-    if (w.AndroidThemeBridge) {
+    const bridge = w.AndroidThemeBridge;
+    if (bridge) {
       log(`OK: AndroidThemeBridge detected.`);
-      const methods = Object.getOwnPropertyNames(w.AndroidThemeBridge).filter((p: string) => typeof w.AndroidThemeBridge[p] === 'function');
+      const methods = Object.getOwnPropertyNames(bridge).filter((p: string) => typeof bridge[p] === 'function');
       log(`Methods (${methods.length}): ${methods.join(", ")}`);
 
       // 关键方法完整性检查（含新增的 getActiveInputMethod）
@@ -305,9 +306,9 @@ export default function SystemReportSection({
       }
 
       // 存储权限检测
-      if (typeof w.AndroidThemeBridge.hasStoragePermission === "function") {
+      if (typeof bridge.hasStoragePermission === "function") {
         try {
-          const permitted = w.AndroidThemeBridge.hasStoragePermission();
+          const permitted = bridge.hasStoragePermission();
           log(`Storage permission (native check): ${permitted ? "GRANTED" : "⚠️ DENIED (users must grant storage permission manually)"}`);
         } catch (err: unknown) {
           log(`Storage permission check error`, err);
@@ -316,7 +317,7 @@ export default function SystemReportSection({
 
       // Safe-area 实际渲染值 vs 桥接返回值对比（定位"CSS env 与原生 inset 不一致"）
       try {
-        const bridgeJson = w.AndroidThemeBridge.getSafeAreas?.();
+        const bridgeJson = bridge.getSafeAreas?.();
         if (bridgeJson) {
           log(`getSafeAreas() → ${bridgeJson}`);
           const parsed = JSON.parse(bridgeJson);
@@ -353,12 +354,12 @@ export default function SystemReportSection({
       }
 
       // 原生桥接 IPC 往返延迟压力测试
-      if (typeof w.AndroidThemeBridge.isSpeakingNative === "function") {
+      if (typeof bridge.isSpeakingNative === "function") {
         try {
           const ipcStart = Date.now();
           const count = 15;
           for (let i = 0; i < count; i++) {
-            w.AndroidThemeBridge.isSpeakingNative();
+            bridge.isSpeakingNative();
           }
           const ipcElapsed = Date.now() - ipcStart;
           const avgLatency = ipcElapsed / count;
@@ -371,9 +372,9 @@ export default function SystemReportSection({
 
       // 原生文件存取 IO 闭环验证。由原生层持有 MediaStore URI 并负责清理临时文件，
       // 避免将 saveFile 返回的展示路径误传给只接受受控绝对路径的 readLocalFile。
-      if (typeof w.AndroidThemeBridge.verifyFileIo === "function") {
+      if (typeof bridge.verifyFileIo === "function") {
         try {
-          const result = w.AndroidThemeBridge.verifyFileIo();
+          const result = bridge.verifyFileIo();
           if (result.startsWith("error:")) {
             log(`File IO ERROR: native loopcheck failed (${result})`);
           } else {
@@ -394,7 +395,7 @@ export default function SystemReportSection({
     const speechStart = Date.now();
     startSection("SPEECH", "3. SPEECH");
     log(`TTS/ASR provider-availability cross-check...`);
-    const hasBridgeTTS = !!(w.AndroidThemeBridge && typeof w.AndroidThemeBridge.speakNative === "function");
+    const hasBridgeTTS = !!(bridge && typeof bridge.speakNative === "function");
     const ttsProvider = settings.ttsConfig?.provider || "speech-synthesis";
     const ttsEnabled = settings.ttsConfig?.enabled;
 
@@ -652,9 +653,9 @@ export default function SystemReportSection({
     const imeStart = Date.now();
     startSection("INPUT_METHOD", "8. INPUT_METHOD");
     log(`Active input method (IME) diagnostic...`);
-    if (w.AndroidThemeBridge?.getActiveInputMethod) {
+    if (bridge?.getActiveInputMethod) {
       try {
-        const imeJson = w.AndroidThemeBridge.getActiveInputMethod();
+        const imeJson = bridge.getActiveInputMethod();
         log(`Bridge result: ${imeJson}`);
         try {
           const ime = JSON.parse(imeJson);

@@ -431,7 +431,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                 setShowMore(false);
                 const ok = await showCustomConfirm(t("quick_dialogue.confirm_delete_msg"));
                 if (ok) {
-                  const nextMessages = (activeSession.messages || []).filter(
+                  const nextMessages = (activeSession?.messages || []).filter(
                     (m: any) => m.id !== message.id,
                   );
                   const updated = {

@@ -62,7 +62,7 @@ export function getDB(): Promise<IDBDatabase> {
         dbOpenPromise = null;
       };
       dbInstance.onversionchange = () => {
-        dbInstance.close();
+        dbInstance?.close();
         dbInstance = null;
         dbOpenPromise = null;
       };

@@ -73,7 +73,7 @@ function inlineTextResources(html: string, entryPath: string, resources: Map<str
     if (!href || !rel.includes("stylesheet")) return tag;
     const path = resolvePackageReference(entryPath, href);
     const css = path ? resources.get(path) : undefined;
-    if (!css || !path.toLowerCase().endsWith(".css")) return tag;
+    if (!css || !path || !path.toLowerCase().endsWith(".css")) return tag;
     return `<style data-mobile-tavern-source="${escapeAttribute(path)}">${escapeInlineEndTag(css, "style")}</style>`;
   });
 
@@ -82,7 +82,7 @@ function inlineTextResources(html: string, entryPath: string, resources: Map<str
     if (!src) return tag;
     const path = resolvePackageReference(entryPath, src);
     const script = path ? resources.get(path) : undefined;
-    if (!script || !path.toLowerCase().endsWith(".js")) return tag;
+    if (!script || !path || !path.toLowerCase().endsWith(".js")) return tag;
     return `<script data-mobile-tavern-source="${escapeAttribute(path)}">${escapeInlineEndTag(script, "script")}</script>`;
   });
 }

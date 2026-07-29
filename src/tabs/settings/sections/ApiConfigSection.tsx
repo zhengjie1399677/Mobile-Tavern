@@ -95,7 +95,7 @@ export default function ApiConfigSection({
                     if (target) {
                       updateSettings((prev) => ({
                         ...prev,
-                        currentApiProfileId: val,
+                        currentApiProfileId: val ?? "",
                         api: {
                           ...prev.api,
                           type: target.type,
@@ -365,7 +365,7 @@ export default function ApiConfigSection({
                 updateSettings((prev) => ({
                   ...prev,
                   currentApiProfileId: "", // 修改时自动脱离通道绑定
-                  api: { ...prev.api, modelName: val },
+                  api: { ...prev.api, modelName: val ?? "" },
                 }))
               }
             >
