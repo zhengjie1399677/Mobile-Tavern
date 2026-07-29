@@ -78,20 +78,14 @@ export const usePresetBundles = ({
       try {
         const data = JSON.parse(event.target?.result as string);
 
-        const requestedName =
-          data.name ||
-          data.presetName ||
-          data.title ||
-          data.preset_name ||
-          "导入自定义SillyTavern预设";
-        const existingNames = new Set(
-          (settings.savedPresets || []).map((bundle) => bundle.preset.name),
-        );
-        let name = requestedName;
-        let duplicateNumber = 2;
-        while (existingNames.has(name)) {
-          name = `${requestedName} (${duplicateNumber++})`;
-        }
+        // 名称优先级：JSON 内 name 字段 > 文件名（去掉 .json 后缀）
+        // SillyTavern 预设 JSON 通常不含 name 字段，名称存于文件名
+        const fileNameWithoutExt = file.name.replace(/\.json$/i, "");
+        const name: string =
+          (typeof data.name === "string" && data.name) ||
+          (typeof data.preset_name === "string" && data.preset_name) ||
+          (typeof data.presetName === "string" && data.presetName) ||
+          fileNameWithoutExt;
 
         const temp =
           typeof data.temperature === "number"
@@ -227,7 +221,8 @@ export const usePresetBundles = ({
           const importResult = importSillyTavernPreset(data);
           importedComposition = importResult.composition;
           importedTemplateRecord = createPromptCompositionTemplateRecord(importResult.composition, "external");
-          usePromptComposition = true;
+          // 不自动启用自由编排：保持用户当前 usePromptComposition 设置
+          // composition 已准备好，用户可手动切换到自由编排模式
           compatibilityWarningCount = importResult.report.warnings.length;
         }
 
@@ -278,31 +273,30 @@ export const usePresetBundles = ({
           promptConfig: importedPromptConfig,
           presetRegexScripts: importedRegexScripts,
         };
-        const nextSaved = [...(settings.savedPresets || []), importedBundle];
-        const nextSettings: UserSettings = {
-          ...settings,
+
+        // 从 DB 读取当前 savedPresets 作为基准（避免陈旧闭包导致 savedPresets 被回退）
+        // DB 是 savedPresets 的单一事实来源，React state 的 savedPresets 仅在挂载时从 DB 加载
+        const currentSavedFromDB = (await presetService.getStoredSavedPresets()) || [];
+        const nextSaved = [...currentSavedFromDB, importedBundle];
+
+        // 使用函数式 updater 确保基于最新 prev 状态合并，避免对象式 updater
+        // 在陈旧闭包场景下错误回退 savedPresets（根因：getNestedDelta 对象式 delta 提取缺陷）
+        updateSettings((prev) => ({
+          ...prev,
           preset: importedPreset,
           presetRegexScripts: importedRegexScripts,
           savedPresets: nextSaved,
           promptCompositionTemplates: importedTemplateRecord
-            ? [...(settings.promptCompositionTemplates || []), importedTemplateRecord]
-            : settings.promptCompositionTemplates,
+            ? [...(prev.promptCompositionTemplates || []), importedTemplateRecord]
+            : prev.promptCompositionTemplates,
           promptConfig: importedPromptConfig,
-        };
-
-        let messageDetails = `采样器参数覆盖：温度 ${temp}, TopP ${topP}, 词重复惩罚 ${repPen}`;
-        if (importedRegexScripts.length > 0) {
-          messageDetails += `\n\n检测到预设专属正则脚本共 ${importedRegexScripts.length} 个。已随此预设一同保存并在激活此预设时生效。`;
+        }));
+        try {
+          await presetService.saveStoredSavedPresets(nextSaved);
+        } catch (saveErr) {
+          throw saveErr;
         }
-        if (hasAnyPromptFieldsInJSON) {
-          messageDetails += `\n\nPrompt 已转换为自由编排并启用。兼容报告：${compatibilityWarningCount} 条警告。`;
-        }
-
-        updateSettings(nextSettings);
-        await presetService.saveStoredSavedPresets(nextSaved);
-        await showCustomAlert(
-          `🎉 SillyTavern 级别系统预设包解析导入并保存成功！\n[${name}]\n${messageDetails}`
-        );
+        await showCustomAlert(`预设已导入\n[${name}]`);
       } catch (err) {
         await showCustomAlert("解析或保存预设 JSON 配置文件失败，请确保格式正确");
       } finally {

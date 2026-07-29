@@ -100,8 +100,8 @@ export const useSettingsPersistence = ({
       if (typeof updater === "function") {
         const next = updater(prev);
         if (!next) return prev;
-        // 如果是函数式 updater，直接使用其返回的最新 settings 对象，不再执行复杂的 deepMerge
-        // 这样可以规避 deepMerge 内部复杂的合并逻辑和引用相同问题，确保 100% 触发 React 状态重绘
+        // 函数式 updater：直接使用其返回的最新 settings 对象，不执行 deepMerge
+        // 这样可以规避 deepMerge 内部合并逻辑和引用相同问题，确保 100% 触发 React 状态重绘
         merged = next;
       } else {
         const next = updater;
@@ -109,7 +109,9 @@ export const useSettingsPersistence = ({
 
         // Compare next with base settings in this render closure to extract custom changes
         const delta = getNestedDelta(next, settings);
-        if (!delta) return prev;
+        if (!delta) {
+          return prev;
+        }
         merged = deepMerge(prev, delta);
       }
 
