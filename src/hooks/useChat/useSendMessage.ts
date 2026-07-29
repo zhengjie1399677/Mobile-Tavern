@@ -9,6 +9,7 @@ import { FALLBACK_MODEL } from "../../utils/apiClient";
 import {
   resolveApiCredentials,
   TrialExhaustedError,
+  TrialKeyFetchError,
   ModelNotConfiguredError,
   type ResolvedApiCredentials,
 } from "../../utils/resolveApiCredentials";
@@ -499,6 +500,19 @@ export function useSendMessage(p: SendMessageParams) {
       const isManualAbort = getErrorName(err) === "AbortError" || getErrorMessage(err)?.includes("aborted") || controller.signal.aborted;
       const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
+
+      // 试用 Key 拉取失败：提示用户配置自己的 API Key，不展示通用连接异常信息
+      if (err instanceof TrialKeyFetchError) {
+        if (isStillActive) {
+          p.showCustomAlert("💡 免费试用服务暂不可用，请前往\"设置 -> API配置\"中填写您自己的 API Key。");
+        }
+        if (latestSession) {
+          const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
+          if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+          await p.databaseService.saveSession(nextSession, undefined, traceId).catch((e) => log.error("Failed to save after trial key fetch error", e));
+        }
+        return;
+      }
 
       if (isManualAbort) {
         if (responseText.trim().length > 0 && latestSession) {

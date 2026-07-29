@@ -22,7 +22,7 @@ import type {
 } from '../../../types';
 import type { MemoryStorage } from './MemoryStorage';
 import { API_ENDPOINT } from '../../../utils/apiClient';
-import { resolveApiCredentials, TrialExhaustedError } from '../../../utils/resolveApiCredentials';
+import { resolveApiCredentials, TrialExhaustedError, TrialKeyFetchError } from '../../../utils/resolveApiCredentials';
 import { Logger } from '../../../utils/logger';
 
 const logger = Logger.create('MemorySummary');
@@ -313,18 +313,28 @@ export class MemorySummary {
     };
 
     const llm = this.kernel.getService<ILLMService>(KernelServices.LLM);
-    const response = await llm.universalFetch(
-      API_ENDPOINT.ProxyOpenAI,
-      {
-        baseUrl: finalBaseUrl,
-        apiKey: finalApiKey,
-        chatPath: finalChatPath,
-        reqBody,
-        bypassProxy: settings.api.bypassProxy,
-        forceBasicParams: settings.api.forceBasicParams,
-      },
-      signal
-    );
+    let response: Response;
+    try {
+      response = await llm.universalFetch(
+        API_ENDPOINT.ProxyOpenAI,
+        {
+          baseUrl: finalBaseUrl,
+          apiKey: finalApiKey,
+          chatPath: finalChatPath,
+          reqBody,
+          bypassProxy: settings.api.bypassProxy,
+          forceBasicParams: settings.api.forceBasicParams,
+        },
+        signal
+      );
+    } catch (e) {
+      // 后台任务：试用 Key 拉取失败时静默跳过，不阻塞主流程
+      if (e instanceof TrialKeyFetchError) {
+        logger.info('Trial key fetch failed, skip summary');
+        return '';
+      }
+      throw e;
+    }
 
     if (!response.ok) {
       logger.error('fetch failed with status', undefined, { status: response.status });

@@ -9,6 +9,7 @@ import { FALLBACK_MODEL } from "../../utils/apiClient";
 import {
   resolveApiCredentials,
   TrialExhaustedError,
+  TrialKeyFetchError,
   ModelNotConfiguredError,
   type ResolvedApiCredentials,
 } from "../../utils/resolveApiCredentials";
@@ -453,6 +454,18 @@ export function useRerollMessage(p: RerollMessageParams) {
       const isManualAbort = getErrorName(e) === "AbortError" || getErrorMessage(e)?.includes("aborted") || controller.signal.aborted;
       const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
+
+      // 试用 Key 拉取失败：提示用户配置自己的 API Key，不展示通用连接异常信息
+      if (e instanceof TrialKeyFetchError) {
+        if (isStillActive) {
+          await p.showCustomAlert("💡 免费试用服务暂不可用，请前往\"设置 -> API配置\"中填写您自己的 API Key。");
+        }
+        if (latestSession) {
+          const nextSession = currentSession;
+          if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+        }
+        return;
+      }
 
       if (isManualAbort) {
         if (responseText.trim().length > 0 && latestSession) {

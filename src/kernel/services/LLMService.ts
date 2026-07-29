@@ -4,6 +4,8 @@ import { cleanRequestPayload, cleanLLMResponse } from "../utils/requestSchema";
 import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
 import { Logger } from "../../utils/logger";
 import { CLOUD_ENDPOINTS } from "../../utils/cloudEndpoints";
+import { FALLBACK_MODEL } from "../../utils/apiClient";
+import { TrialKeyFetchError } from "../../utils/resolveApiCredentials";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("LLMService");
@@ -57,8 +59,6 @@ if (typeof window !== "undefined") {
       });
   }
 }
-
-export const FALLBACK_MODEL = "gpt-3.5-turbo";
 
 export class LLMService implements ILLMService {
   name = "llm";
@@ -153,6 +153,9 @@ export class LLMService implements ILLMService {
         actualApiKey = await getTrialKey();
       } catch (err) {
         log.error("Failed to dynamically fetch trial key", err);
+        // 不再静默继续：占位符若发给 OpenRouter 会得到 401 且无明确提示。
+        // 抛出 TrialKeyFetchError 让 UI 层拦截并提示用户配置自己的 API Key。
+        throw new TrialKeyFetchError(`试用 Key 拉取失败：${getErrorMessage(err)}`);
       }
     }
 

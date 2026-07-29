@@ -20,6 +20,15 @@ export class ModelNotConfiguredError extends Error {
   }
 }
 
+/** 试用 key 动态拉取失败时抛出；调用方应 catch 后提示用户试用服务暂不可用。 */
+export class TrialKeyFetchError extends Error {
+  constructor(message = "Failed to fetch trial key") {
+    super(message);
+    this.name = "TrialKeyFetchError";
+    Object.setPrototypeOf(this, TrialKeyFetchError.prototype);
+  }
+}
+
 export interface ResolvedApiCredentials {
   apiKey: string;
   baseUrl: string;

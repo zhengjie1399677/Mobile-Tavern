@@ -5,7 +5,7 @@
 import { IKernel, IDatabaseService, ILLMService, KernelServices } from "../types";
 import { ChatSession, UserSettings, CharacterCard, SummaryCard, Message } from "../../types";
 import { API_ENDPOINT } from "../../utils/apiClient";
-import { resolveApiCredentials, TrialExhaustedError } from "../../utils/resolveApiCredentials";
+import { resolveApiCredentials, TrialExhaustedError, TrialKeyFetchError } from "../../utils/resolveApiCredentials";
 import {
   DEFAULT_LOCATION_REGEX,
   DEFAULT_TIME_REGEX,
@@ -161,14 +161,24 @@ export class AutoSummaryService {
       };
 
       const llm = this.kernel.getService<ILLMService>(KernelServices.LLM);
-      const response = await llm.universalFetch(API_ENDPOINT.ProxyOpenAI, {
-        baseUrl: finalBaseUrl,
-        apiKey: finalApiKey,
-        chatPath: finalChatPath,
-        reqBody,
-        bypassProxy: settings.api.bypassProxy,
-        forceBasicParams: settings.api.forceBasicParams,
-      }, signal);
+      let response: Response;
+      try {
+        response = await llm.universalFetch(API_ENDPOINT.ProxyOpenAI, {
+          baseUrl: finalBaseUrl,
+          apiKey: finalApiKey,
+          chatPath: finalChatPath,
+          reqBody,
+          bypassProxy: settings.api.bypassProxy,
+          forceBasicParams: settings.api.forceBasicParams,
+        }, signal);
+      } catch (e) {
+        // 后台任务：试用 Key 拉取失败时静默跳过，不阻塞主流程
+        if (e instanceof TrialKeyFetchError) {
+          logger.info("Trial key fetch failed, skip summary", { sessionId: session.id });
+          return session;
+        }
+        throw e;
+      }
 
       if (signal?.aborted) return session;
 

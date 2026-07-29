@@ -8,6 +8,9 @@ coverage/
 !.env.example
 scratch/
 
+# 临时 codegen / debug 脚本（一次性使用后不应入库）
+temp_*
+
 # Android signing keys
 *.keystore
 *.jks
