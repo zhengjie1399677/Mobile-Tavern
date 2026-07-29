@@ -174,7 +174,7 @@ describe("useRerollMessage 重发事务锁", () => {
     expect(isSendingRef.current).toBe(true);
     expect(recall).toHaveBeenCalledTimes(1);
 
-    rejectRecall?.(new Error("测试结束：中断提示词准备阶段"));
+    if (rejectRecall) (rejectRecall as (reason?: unknown) => void)(new Error("测试结束：中断提示词准备阶段"));
     await act(async () => {
       await Promise.all([firstReroll, secondReroll]);
     });

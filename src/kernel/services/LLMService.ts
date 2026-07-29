@@ -4,7 +4,7 @@ import { cleanRequestPayload, cleanLLMResponse } from "../utils/requestSchema";
 import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
 import { Logger } from "../../utils/logger";
 import { CLOUD_ENDPOINTS } from "../../utils/cloudEndpoints";
-import { FALLBACK_MODEL } from "../../utils/apiClient";
+import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
 import { TrialKeyFetchError } from "../../utils/resolveApiCredentials";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
@@ -147,7 +147,7 @@ export class LLMService implements ILLMService {
     
     let actualApiKey = proxyPayload.apiKey;
     let isTrial = false;
-    if (!actualApiKey || actualApiKey.trim() === "" || actualApiKey === "TRIAL_KEY_PLACEHOLDER") {
+    if (!actualApiKey || actualApiKey.trim() === "" || actualApiKey === TRIAL_OPENROUTER_KEY) {
       isTrial = true;
       try {
         actualApiKey = await getTrialKey();

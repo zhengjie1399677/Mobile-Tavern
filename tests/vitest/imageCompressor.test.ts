@@ -179,7 +179,7 @@ describe("compressImage", () => {
     global.document = { createElement: vi.fn(() => mockCanvas) } as unknown as Document;
 
     // Mock FileReader — 使用闭包捕获实例引用
-    let fileReaderInstance: MockFileReaderInstance;
+    let fileReaderInstance: MockFileReaderInstance | undefined;
     global.FileReader = vi.fn(function (this: MockFileReaderInstance) {
       this.onload = null;
       this.onerror = null;
@@ -203,7 +203,7 @@ describe("compressImage", () => {
 
     const result = await promise;
     expect(result).toBe("data:image/jpeg;base64,from-file");
-    expect(fileReaderInstance.readAsDataURL).toHaveBeenCalledWith(mockFile);
+    expect(fileReaderInstance!.readAsDataURL).toHaveBeenCalledWith(mockFile);
   }, 10000);
 
   it("自定义输出类型", async () => {

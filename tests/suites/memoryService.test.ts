@@ -606,8 +606,8 @@ export async function testMemoryStorageCrud() {
     // 按主键查询
     const got = await storage.getMessageById("msg_1");
     assert(got !== null, "getMessageById should return the message");
-    assert(got.content === "今天遇到了老张，他在酒馆喝梅子酒", "Message content matches");
-    assert(got.tags.length === 3, "Message tags count matches");
+    assert(got!.content === "今天遇到了老张，他在酒馆喝梅子酒", "Message content matches");
+    assert(got!.tags.length === 3, "Message tags count matches");
 
     // 按会话查询（按 createdAt 升序）
     const sessionMsgs = await storage.getMessagesBySession(sessionId);
@@ -655,8 +655,8 @@ export async function testMemoryStorageCrud() {
     assert(isNew2 === false, "Second upsert should return false (update)");
     const dictEntry = await storage.getDictEntryById(buildDictId(sessionId, "老张"));
     assert(dictEntry !== null, "Dict entry should exist");
-    assert(dictEntry.count === 2, "Dict entry count should be 2 after second upsert");
-    assert(dictEntry.type === "character", "Dict entry type preserved on update");
+    assert(dictEntry!.count === 2, "Dict entry count should be 2 after second upsert");
+    assert(dictEntry!.type === "character", "Dict entry type preserved on update");
 
     // 新建另一个实体
     await storage.upsertDictEntry(sessionId, "梅子酒", {

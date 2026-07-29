@@ -8,18 +8,21 @@ import { getErrorMessage, getErrorName } from '../utils/errorUtils';
  *
  * 注意：此 key 仅用于解密云端下发的临时 trial key 密文，不用于用户数据加密。
  *
- * 历史与现状：
- * - 原实现以 `const p = "0123456789abcdef"; return p + p + p + p;` 形式拼接，
- *   注释声称"避免硬编码完整密钥防止静态扫描"——但任何能读源码的人三秒即可还原，
- *   属于安慰剂式防护。
- * - P0-B（B2 方案）已将解密逻辑下沉到 Rust 侧（src-tauri/src/secrets.rs），
- *   Tauri 客户端运行时不再依赖此 key。本函数仅作为 dev server / Node.js 测试
- *   环境的 fallback，无法在 Tauri 客户端运行时被触达。
- * - 如需进一步从生产 Tauri bundle 中剥离此 key 字符串，需用 import.meta.env.DEV
- *   条件加载或动态 import 隔离（属 P1 范围）。
+ * 安全策略：
+ * - 生产构建（import.meta.env.DEV === false）直接抛错，硬编码 key 字符串
+ *   虽然仍存在于源码，但运行时不可达，无法被 Tauri bundle 运行时调用。
+ * - Tauri 客户端生产构建必须走 Rust 侧 decrypt_trial_key（src-tauri/src/secrets.rs）。
+ * - 仅 dev server / Node.js 测试环境允许走 Web Crypto fallback。
  */
 const getAesKey = (): string => {
-  // 仅保存短串片段，避免硬编码 64 位完整的密钥，防止静态代码扫描
+  // 生产构建剥离硬编码 key：仅 dev / 测试环境允许走 Web Crypto fallback。
+  // Tauri 客户端生产构建必须走 Rust 侧 decrypt_trial_key，否则抛错。
+  if (!import.meta.env.DEV) {
+    throw new Error(
+      "[KeyManager] AES key fallback is only available in dev mode. " +
+      "Tauri production builds must use Rust decrypt_trial_key."
+    );
+  }
   const p = "0123456789abcdef";
   return p + p + p + p;
 };

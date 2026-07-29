@@ -36,7 +36,7 @@ async function createTestKernel(): Promise<IKernel> {
   const mockDb = {
     name: "database",
     init: () => {},
-    getCharacterById: async (): Promise<void> => null,
+    getCharacterById: async (): Promise<void> => undefined,
   };
   await kernel.registerService("database", mockDb as unknown as IKernelService);
   return kernel as unknown as IKernel;
@@ -270,8 +270,8 @@ describe("ScriptService", () => {
       const updated = await service.executeMvuScript(session, "hp=80 mp=20");
 
       const lastMsg = updated.messages[updated.messages.length - 1] as Message;
-      expect(lastMsg.extra.variables[0]).toBeDefined();
-      expect(lastMsg.extra.variables[0].stat_data).toEqual({ hp: 80, mp: 20 });
+      expect(lastMsg.extra?.variables[0]).toBeDefined();
+      expect(lastMsg.extra?.variables[0]?.stat_data).toEqual({ hp: 80, mp: 20 });
       expect(updated.variables?.stat_data).toEqual({ hp: 80, mp: 20 });
     });
 
@@ -302,11 +302,11 @@ describe("ScriptService", () => {
 
       // 前三条消息的 extra.variables 应保持原样
       const m2 = updated.messages[1] as Message;
-      expect(m2.extra.variables).toEqual({});
+      expect(m2.extra?.variables).toEqual({});
 
       // 最后一条消息的 extra.variables[0] 被更新
       const m4 = updated.messages[3] as Message;
-      expect(m4.extra.variables[0].stat_data).toEqual({ x: 1 });
+      expect(m4.extra?.variables[0]?.stat_data).toEqual({ x: 1 });
     });
 
     it("Bridge 缺失时降级走 kernel 消息总线并安全返回", async () => {

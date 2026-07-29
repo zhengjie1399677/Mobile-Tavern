@@ -3,12 +3,13 @@ const DEFAULT_COMMUNITY_ORIGIN = "https://community.neural-node.xyz";
 /**
  * 社区入口的源码配置。
  *
- * 修改后需要重新构建 App。入口必须先启用，并满足首次使用时间或累计运行时间中的任意一项。
+ * Debug 构建（npm run tauri dev）直接开启社区入口，跳过时间门槛；
+ * 正式构建（npm run tauri build）关闭入口。
  */
 export const COMMUNITY_ENTRY_CONFIG = {
-  enabled: false,
-  minFirstUseAgeDays: 3,
-  minCumulativeUsageHours: 3,
+  enabled: import.meta.env.DEV,
+  minFirstUseAgeDays: 0,
+  minCumulativeUsageHours: 0,
 } as const;
 
 function normalizeOrigin(value: string): string {

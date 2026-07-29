@@ -56,7 +56,7 @@ export function parseIpAddress(ip: string): number[] | null {
     const parts = ipv4Match[1].split(".").map(x => parseInt(x, 10));
     if (parts.some(isNaN) || parts.some(p => p < 0 || p > 255)) return null;
     ipv4Parts = parts;
-    ipv6Str = ipv6Str.substring(0, ipv4Match.index + 1) + "0:0";
+    ipv6Str = ipv6Str.substring(0, (ipv4Match.index ?? 0) + 1) + "0:0";
   }
 
   const parts = ipv6Str.split(":");

@@ -225,22 +225,22 @@ export async function testCleanLLMResponse() {
   assert(cleaned.id === "chatcmpl-abc123", "Standard top-level field 'id' should be preserved");
   assert(cleaned.object === "chat.completion", "Standard top-level field 'object' should be preserved");
   assert(cleaned.model === "gpt-4", "Standard top-level field 'model' should be preserved");
-  assert(cleaned.usage.total_tokens === 15, "Standard top-level field 'usage' should be preserved");
+  assert(cleaned.usage?.total_tokens === 15, "Standard top-level field 'usage' should be preserved");
 
   // 顶层非标字段应被剥离
   assert(cleaned.__proxy_version === undefined, "Non-standard top-level field '__proxy_version' should be stripped");
   assert(cleaned.__request_id === undefined, "Non-standard top-level field '__request_id' should be stripped");
 
   // message 标准字段应保留
-  const msg = cleaned.choices[0].message;
-  assert(msg.role === "assistant", "Standard message field 'role' should be preserved");
-  assert(msg.content === "你好，世界！", "Standard message field 'content' should be preserved");
-  assert(msg.reasoning_content === "思考过程...", "Standard message field 'reasoning_content' should be preserved");
+  const msg = cleaned.choices?.[0]?.message;
+  assert(msg?.role === "assistant", "Standard message field 'role' should be preserved");
+  assert(msg?.content === "你好，世界！", "Standard message field 'content' should be preserved");
+  assert(msg?.reasoning_content === "思考过程...", "Standard message field 'reasoning_content' should be preserved");
 
   // message 非标字段应被剥离
-  assert(msg.__proxy_cache_key === undefined, "Non-standard message field '__proxy_cache_key' should be stripped");
-  assert(msg.__upstream_latency_ms === undefined, "Non-standard message field '__upstream_latency_ms' should be stripped");
-  assert(msg.__raw_provider === undefined, "Non-standard message field '__raw_provider' should be stripped");
+  assert(msg?.__proxy_cache_key === undefined, "Non-standard message field '__proxy_cache_key' should be stripped");
+  assert(msg?.__upstream_latency_ms === undefined, "Non-standard message field '__upstream_latency_ms' should be stripped");
+  assert(msg?.__raw_provider === undefined, "Non-standard message field '__raw_provider' should be stripped");
 
   // 场景 2：null/undefined 输入应安全降级
   assert(cleanLLMResponse(null) === null, "null input should return null");

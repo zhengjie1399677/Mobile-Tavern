@@ -53,9 +53,9 @@ export async function testCharacterService() {
   const afterBulk = await service.getAllCharacters();
   assert(afterBulk.length === 2, "bulkSave should result in 2 items (1 updated + 1 new)");
   const updatedCard = afterBulk.find((c: any) => c.id === "char_test_1");
-  assert(updatedCard && updatedCard.name === "更新后的名字", "Existing card should be updated by bulkSave (put semantics)");
+  assert(!!(updatedCard && updatedCard.name === "更新后的名字"), "Existing card should be updated by bulkSave (put semantics)");
   const newCard = afterBulk.find((c: any) => c.id === "char_bulk_2");
-  assert(newCard && newCard.name === "批量2", "New bulk card should be added");
+  assert(!!(newCard && newCard.name === "批量2"), "New bulk card should be added");
 
   // 4. deleteCharacter
   await service.deleteCharacter("char_bulk_2");

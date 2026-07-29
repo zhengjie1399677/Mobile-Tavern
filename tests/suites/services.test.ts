@@ -100,7 +100,7 @@ export async function testScriptServiceDecoupling() {
 
   // 1. 验证在没有注入 bridge 的情况下，方法能安全降级（不崩溃）
   const result1 = await scriptService.executeMvuScript({ id: "sess-1", variables: { stat_data: { hp: 50 } } } as unknown as ChatSession, "test");
-  assert(result1.variables.stat_data.hp === 50, "Should safely return session without mutating variables");
+  assert(result1.variables?.stat_data?.hp === 50, "Should safely return session without mutating variables");
 
   const result2 = scriptService.initializeMvuFromCharacter({ name: "银霜" } as CharacterCard);
   assert(typeof result2 === "object" && result2 !== null, "Should return empty object");
@@ -125,7 +125,7 @@ export async function testScriptServiceDecoupling() {
   scriptService.registerBridge(mockBridge);
 
   const result3 = await scriptService.executeMvuScript({ id: "sess-1", variables: { stat_data: { hp: 50 } } } as unknown as ChatSession, "test");
-  assert(result3.variables.stat_data.hp === 100, "Should use injected bridge logic to modify variables");
+  assert(result3.variables?.stat_data?.hp === 100, "Should use injected bridge logic to modify variables");
 
   const result4 = scriptService.initializeMvuFromCharacter({ name: "银霜" } as CharacterCard);
   assert((result4.stat_data as { hp: number }).hp === 99, "Should use injected bridge logic to initialize variables");
@@ -217,9 +217,9 @@ export async function testOutputPipeline() {
 
   const result = outputCtx.resultSession;
   assert(result !== undefined, "Output resultSession must be populated");
-  assert(result!.tableMemory[0].rows[0][1] === "100", "Table memory updated by TableMemoryMiddleware");
-  assert(result!.messages[0].content === "你好", "Message content cleaned by TableMemoryMiddleware");
-  assert(result!.variables.scriptRan === true, "MVU variables updated by MvuScriptMiddleware");
+  assert(result!.tableMemory?.[0]?.rows?.[0]?.[1] === "100", "Table memory updated by TableMemoryMiddleware");
+  assert(result!.messages?.[0]?.content === "你好", "Message content cleaned by TableMemoryMiddleware");
+  assert(result!.variables?.scriptRan === true, "MVU variables updated by MvuScriptMiddleware");
   assert(receivedScriptSignal === outputCtx.controller.signal, "MVU middleware must pass the request AbortSignal");
   assert(result!.summaries.length === 1 && result!.summaries[0].id === "sum_auto", "AutoSummary ran successfully");
 
@@ -318,7 +318,7 @@ export async function testKeyManagerDynamicFetch() {
     if (urlStr.includes("/api/get-key")) {
       getKeyCalled = true;
       const auth = init?.headers ? (init.headers as Record<string, string>)["Authorization"] : "";
-      assert(auth && auth.startsWith("Bearer "), "Should carry Authorization Bearer Token");
+      assert(!!(auth && auth.startsWith("Bearer ")), "Should carry Authorization Bearer Token");
 
       return new Response(JSON.stringify({
         ciphertext,
