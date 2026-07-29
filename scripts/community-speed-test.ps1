@@ -7,6 +7,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 $normalizedBaseUrl = $BaseUrl.TrimEnd("/")
+$effectiveAdminToken = if ($AdminToken) {
+    $AdminToken
+}
+else {
+    [Environment]::GetEnvironmentVariable("MOBILE_TAVERN_ADMIN_TOKEN", "User")
+}
 $testRoot = Join-Path $env:TEMP ("mobile-tavern-speed-test-" + [Guid]::NewGuid().ToString("N"))
 $testFile = Join-Path $testRoot "community-speed-test.json"
 $downloadFile = Join-Path $testRoot "downloaded-card.json"
@@ -112,10 +118,10 @@ try {
 }
 finally {
     if ($uploadedCardId) {
-        if ($AdminToken) {
+        if ($effectiveAdminToken) {
             try {
                 & curl.exe -fsS -X DELETE `
-                    -H "X-Admin-Token: $AdminToken" `
+                    -H "X-Admin-Token: $effectiveAdminToken" `
                     "$normalizedBaseUrl/api/cards/$uploadedCardId" | Out-Null
                 Write-Host "The temporary server card was deleted."
             }
