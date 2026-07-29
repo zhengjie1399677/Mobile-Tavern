@@ -8,6 +8,7 @@ import {
   GitBranch,
   GripVertical,
   History,
+  HelpCircle,
   LoaderCircle,
   MessageSquarePlus,
   RotateCw,
@@ -42,6 +43,13 @@ import PromptCompositionTemplateManager from "./PromptCompositionTemplateManager
 import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
 import { PromptComposerButton, PromptComposerInput } from "./PromptComposerControls";
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "../../../components/ui/dialog";
 
 export type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 
@@ -68,6 +76,7 @@ export default function PromptCompositionEditor({
   const [workbenchOpen, setWorkbenchOpen] = useState(false);
   const [workbenchView, setWorkbenchView] = useState<PromptWorkbenchView>("graph");
   const [fullEditorOpen, setFullEditorOpen] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const [dragTargetId, setDragTargetId] = useState<string>();
   const [draggingId, setDraggingId] = useState<string>();
   const [dragAnnouncement, setDragAnnouncement] = useState("");
@@ -286,6 +295,14 @@ export default function PromptCompositionEditor({
           <div className="text-xs font-bold">{t("prompt_composer.title")}</div>
           <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("prompt_composer.description")}</p>
         </div>
+        <PromptComposerButton
+          type="button"
+          onClick={() => setTutorialOpen(true)}
+          className="shrink-0 gap-1.5 border-primary/30 bg-background/80 px-2.5 text-[10px] text-primary"
+        >
+          <HelpCircle className="h-3.5 w-3.5" />
+          {t("prompt_composer.tutorial")}
+        </PromptComposerButton>
         {(freeMode || promptFocus.active) && orientationControl.available && (
           <PromptComposerButton
             type="button"
@@ -307,6 +324,8 @@ export default function PromptCompositionEditor({
           <ModeButton active={freeMode} onClick={() => setMode(true)}>{t("prompt_composer.free_mode")}</ModeButton>
         </div>
       )}
+
+      {!freeMode && !promptFocus.active && <TraditionalPromptFlow />}
 
       {(freeMode || promptFocus.active) && (
         <>
@@ -530,7 +549,53 @@ export default function PromptCompositionEditor({
           onOpenChange={setWorkbenchOpen}
         />
       )}
+      <PromptCompositionTutorial open={tutorialOpen} onOpenChange={setTutorialOpen} />
     </section>
+  );
+}
+
+function TraditionalPromptFlow() {
+  const { t } = useTranslation();
+  const steps = t("prompt_composer.legacy_flow_steps").split("|");
+  return (
+    <section className="rounded-xl border border-border bg-background/70 p-3" aria-label={t("prompt_composer.legacy_flow_title")}>
+      <div className="text-xs font-bold text-foreground">{t("prompt_composer.legacy_flow_title")}</div>
+      <p className="mt-1 text-[9px] leading-relaxed text-muted-foreground">{t("prompt_composer.legacy_flow_description")}</p>
+      <div className="mt-3 flex flex-col items-center gap-1.5">
+        {steps.map((step, index) => (
+          <div key={`${step}-${index}`} className="contents">
+            <div className="w-full rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-center text-[10px] font-semibold text-foreground">
+              {step}
+            </div>
+            {index < steps.length - 1 && <ArrowDown className="h-3.5 w-3.5 text-primary/70" aria-hidden="true" />}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PromptCompositionTutorial({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { t } = useTranslation();
+  const steps = t("prompt_composer.tutorial_steps").split("|");
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="top-auto bottom-0 left-1/2 max-h-[88dvh] w-full max-w-xl -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none p-0">
+        <DialogHeader className="border-b border-border px-4 pb-3 pt-4 pr-12">
+          <DialogTitle>{t("prompt_composer.tutorial_title")}</DialogTitle>
+          <DialogDescription>{t("prompt_composer.tutorial_intro")}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+          {steps.map((step, index) => (
+            <div key={`${step}-${index}`} className="flex gap-3 rounded-xl border border-border bg-card/70 p-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">{index + 1}</span>
+              <p className="text-[10px] leading-relaxed text-foreground">{step}</p>
+            </div>
+          ))}
+          <TraditionalPromptFlow />
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

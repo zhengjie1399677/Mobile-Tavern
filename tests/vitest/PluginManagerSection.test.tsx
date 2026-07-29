@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PluginManagerSection from "../../src/components/plugins/PluginManagerSection";
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
@@ -53,5 +53,9 @@ describe("PluginManagerSection", () => {
     expect(screen.getByText("夜雨试剑")).toBeInTheDocument();
     expect(screen.getAllByText("内置")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /删除插件/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "使用教程" }));
+    expect(screen.getByRole("heading", { name: "第三方插件使用教程" })).toBeInTheDocument();
+    expect(screen.getByText(/从可信作者处获取 .mtplugin/)).toBeInTheDocument();
   });
 });

@@ -121,6 +121,21 @@ describe("PromptCompositionEditor", () => {
     expect(screen.getByRole("heading", { name: "编辑 Prompt 区块" })).toBeInTheDocument();
   });
 
+  it("提供应用内教程，并在传统模式展示不可编辑的简化流程", () => {
+    render(<LanguageProvider><Harness /></LanguageProvider>);
+
+    fireEvent.click(screen.getByRole("button", { name: "使用教程" }));
+    expect(screen.getByRole("heading", { name: "自由编排使用教程" })).toBeInTheDocument();
+    expect(screen.getByText(/先切换到“自由编排”/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "传统 Prompt" }));
+    expect(screen.getByRole("region", { name: "传统模式流程（只读）" })).toBeInTheDocument();
+    expect(screen.getByText("系统与预设提示词")).toBeInTheDocument();
+    expect(screen.getByText("发送给模型")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /系统与预设提示词/ })).not.toBeInTheDocument();
+  });
+
   it("自由编排可见控件统一使用现代高密度基元", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 

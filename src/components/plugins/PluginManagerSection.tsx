@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Gamepad2, HardDriveDownload, Loader2, Play, Trash2, Upload } from "lucide-react";
+import { BookOpen, Gamepad2, HardDriveDownload, Loader2, Play, Trash2, Upload } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { parseFullscreenPluginPackage, type InstalledFullscreenPlugin } from "../../domain/plugins";
 import {
   deletePlugin,
@@ -23,6 +24,7 @@ export default function PluginManagerSection() {
   }));
   const [plugins, setPlugins] = useState<PluginListItem[]>([]);
   const [busy, setBusy] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
@@ -90,6 +92,14 @@ export default function PluginManagerSection() {
           <h2 className="text-xs font-bold text-foreground">{t("plugin_manager.title")}</h2>
           <p className="mt-0.5 text-[9px] leading-relaxed text-muted-foreground">{t("plugin_manager.description")}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setTutorialOpen(true)}
+          className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 text-[10px] font-bold text-primary active:scale-95"
+        >
+          <BookOpen className="h-3.5 w-3.5" />
+          {t("plugin_manager.tutorial")}
+        </button>
       </header>
 
       <div className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 p-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
@@ -135,7 +145,34 @@ export default function PluginManagerSection() {
           </article>
         ))}
       </div>
+      <PluginTutorial open={tutorialOpen} onOpenChange={setTutorialOpen} />
     </section>
+  );
+}
+
+function PluginTutorial({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { t } = useTranslation();
+  const steps = t("plugin_manager.tutorial_steps").split("|");
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="top-auto bottom-0 left-1/2 max-h-[88dvh] w-full max-w-xl -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none p-0">
+        <DialogHeader className="border-b border-border px-4 pb-3 pt-4 pr-12">
+          <DialogTitle>{t("plugin_manager.tutorial_title")}</DialogTitle>
+          <DialogDescription>{t("plugin_manager.tutorial_intro")}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+          {steps.map((step, index) => (
+            <div key={`${step}-${index}`} className="flex gap-3 rounded-xl border border-border bg-card/70 p-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">{index + 1}</span>
+              <p className="text-[10px] leading-relaxed text-foreground">{step}</p>
+            </div>
+          ))}
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+            {t("plugin_manager.tutorial_package_tip")}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
