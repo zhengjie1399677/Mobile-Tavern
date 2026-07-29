@@ -461,8 +461,9 @@ export function useRerollMessage(p: RerollMessageParams) {
           await p.showCustomAlert("💡 免费试用服务暂不可用，请前往\"设置 -> API配置\"中填写您自己的 API Key。");
         }
         if (latestSession) {
-          const nextSession = currentSession;
+          const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
           if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+          await p.databaseService.saveSession(nextSession, undefined, traceId).catch((err) => log.error("Failed to save after trial key fetch error", err));
         }
         return;
       }

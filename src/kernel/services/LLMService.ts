@@ -4,8 +4,11 @@ import { cleanRequestPayload, cleanLLMResponse } from "../utils/requestSchema";
 import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
 import { Logger } from "../../utils/logger";
 import { CLOUD_ENDPOINTS } from "../../utils/cloudEndpoints";
-import { FALLBACK_MODEL, TRIAL_OPENROUTER_KEY } from "../../utils/apiClient";
+import { FALLBACK_MODEL } from "../../utils/apiClient";
 import { TrialKeyFetchError } from "../../utils/resolveApiCredentials";
+
+/** Trial key 占位符哨兵值，须与 apiClient.ts 的 TRIAL_OPENROUTER_KEY 保持一致 */
+const TRIAL_KEY_SENTINEL = "TRIAL_KEY_PLACEHOLDER";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("LLMService");
@@ -147,7 +150,7 @@ export class LLMService implements ILLMService {
     
     let actualApiKey = proxyPayload.apiKey;
     let isTrial = false;
-    if (!actualApiKey || actualApiKey.trim() === "" || actualApiKey === TRIAL_OPENROUTER_KEY) {
+    if (!actualApiKey || actualApiKey.trim() === "" || actualApiKey === TRIAL_KEY_SENTINEL) {
       isTrial = true;
       try {
         actualApiKey = await getTrialKey();

@@ -32,7 +32,7 @@ interface QuickDialogueOptionsProps {
 const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) => {
   const kernel = useKernel();
   const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
-  const saveSession = (session: any) => databaseService.saveSession(session);
+  const saveSession = (session: ChatSession) => databaseService.saveSession(session);
   const { t } = useTranslation();
   const {
     isSending,
@@ -430,11 +430,11 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                 e.stopPropagation();
                 setShowMore(false);
                 const ok = await showCustomConfirm(t("quick_dialogue.confirm_delete_msg"));
-                if (ok) {
-                  const nextMessages = (activeSession?.messages || []).filter(
-                    (m: any) => m.id !== message.id,
+                if (ok && activeSession) {
+                  const nextMessages = (activeSession.messages || []).filter(
+                    (m: Message) => m.id !== message.id,
                   );
-                  const updated = {
+                  const updated: ChatSession = {
                     ...activeSession,
                     messages: nextMessages,
                   };
