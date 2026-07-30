@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PromptService } from "../../src/kernel/services/PromptService";
+import { PromptService } from "../../src/application/services/PromptService";
 import { CharacterCard, ChatSession, UserSettings } from "../../src/types";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 

@@ -1,5 +1,5 @@
 import type { ChatSession, UserSettings } from "../../types";
-import type { IKernel } from "../../kernel/types";
+import type { IKernel } from "@/src/application/serviceContracts";
 
 /**
  * 业务输出管道上下文。

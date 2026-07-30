@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
-import type { IPromptService } from "../../kernel/types";
+import type { IPromptService } from "@/src/application/serviceContracts";
 import type { CharacterCard, ChatSession, UserSettings, LorebookEntry } from "../../types";
 import { usePresetFormState } from "./usePresetFormState";
 import PresetSelectorSection from "./PresetSelectorSection";

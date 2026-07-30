@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateVariableCondition } from "../../src/domain/conditions";
-import { resolveTriggeredLorebookEntries } from "../../src/kernel/services/prompt/LorebookResolver";
+import { resolveTriggeredLorebookEntries } from "../../src/application/services/prompt/LorebookResolver";
 
 describe("VariableExpressionEngine", () => {
   const context = {

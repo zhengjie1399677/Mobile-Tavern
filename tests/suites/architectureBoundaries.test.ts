@@ -4,7 +4,7 @@
  * 防止后续业务开发重新绕过持久化端口、回流全局内核单例，
  * 或让基础服务反向依赖 React Hook。
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { assert } from "./testUtils";
 
@@ -24,7 +24,42 @@ const listCodeFiles = (relativeDir: string): string[] => {
 export async function testArchitectureBoundaries(): Promise<void> {
   console.log("\n--- Running Architecture Boundary Guards ---");
 
-  for (const file of listCodeFiles("src/kernel/services/memory")) {
+  const allowedKernelFiles = new Set([
+    "src/kernel/index.ts",
+    "src/kernel/Kernel.ts",
+    "src/kernel/KernelLifecycle.ts",
+    "src/kernel/Pipeline.ts",
+    "src/kernel/runtimeKernel.ts",
+    "src/kernel/types.ts",
+    "src/kernel/validation.ts",
+  ]);
+
+  for (const forbiddenDir of [
+    "src/kernel/services",
+    "src/kernel/bootstrap",
+    "src/kernel/schemas",
+    "src/kernel/utils",
+  ]) {
+    assert(
+      !existsSync(path.join(workspace, forbiddenDir)),
+      `${forbiddenDir} 不得存在：Kernel 只允许通用运行时机制，业务服务、契约校验与装配必须位于 src/application`
+    );
+  }
+
+  for (const file of listCodeFiles("src/kernel")) {
+    const normalizedFile = file.replaceAll("\\", "/");
+    assert(
+      allowedKernelFiles.has(normalizedFile),
+      `${normalizedFile} 不在 Kernel 通用机制白名单中；新增内核文件前必须先确认其与具体业务无关`
+    );
+    const source = read(file);
+    assert(
+      !/from\s+["'][^"']*(?:application|domain|infrastructure|components|hooks|tabs)\//.test(source),
+      `${file} 不得反向依赖应用、领域、基础设施或界面层`
+    );
+  }
+
+  for (const file of listCodeFiles("src/application/services/memory")) {
     assert(
       !read(file).includes("utils/localDB"),
       `${file} 不得绕过记忆持久化端口直接依赖 localDB`
@@ -32,6 +67,89 @@ export async function testArchitectureBoundaries(): Promise<void> {
     assert(
       !read(file).includes("infrastructure/"),
       `${file} 不得反向依赖具体基础设施适配器`
+    );
+  }
+
+  for (const file of listCodeFiles("src/infrastructure/storage")) {
+    assert(
+      !read(file).includes("utils/localDB"),
+      `${file} 不得反向依赖 localDB 兼容门面`
+    );
+  }
+
+  const localDbFacade = read("src/utils/localDB.ts");
+  assert(
+    !/\bindexedDB\.open\s*\(|\.createObjectStore\s*\(|\.transaction\s*\(/.test(localDbFacade),
+    "localDB 只能保留重导出与测试重置协调，不得重新承载 IndexedDB 物理实现"
+  );
+
+  for (const file of listCodeFiles("src")) {
+    if (file.replaceAll("\\", "/") === "src/utils/localDB.ts") continue;
+    assert(
+      !/(?:from\s+|import\s*\()\s*["'][^"']*localDB["']/.test(read(file)),
+      `${file} 不得导入已冻结的 localDB 兼容门面；业务存储访问必须走 Service 或领域端口`
+    );
+  }
+
+  for (const file of listCodeFiles("src/contexts")) {
+    const source = read(file);
+    assert(
+      !/(?:infrastructure\/storage|utils\/localDB|compatibility\/sillytavern|services\/ar)\b/.test(source),
+      `${file} 只能保存和投影界面状态，不得直接访问存储、Compatibility Runtime 或 Native Adapter`
+    );
+    assert(
+      !/\b(?:dbService|memoryService|characterService)\.(?:save|delete|getStorage|getSessions|getCharacter|bulk|create)/.test(source),
+      `${file} 不得直接编排业务 Service；持久化、分页和级联流程必须进入 application/useCases`
+    );
+  }
+
+  for (const file of listCodeFiles("src")) {
+    const normalizedFile = file.replaceAll("\\", "/");
+    if (
+      normalizedFile.startsWith("src/utils/tavernHelper/") ||
+      normalizedFile.startsWith("src/compatibility/sillytavern/")
+    ) {
+      continue;
+    }
+    assert(
+      !/(?:from\s+|import\s*\()\s*["'][^"']*utils\/tavernHelper/.test(read(file)),
+      `${file} 不得继续使用旧 TavernHelper 导入路径；新代码必须进入 SillyTavern Compatibility Runtime`
+    );
+  }
+
+  for (const file of listCodeFiles("src/domain/plugins")) {
+    const source = read(file);
+    assert(
+      !source.includes("compatibility/sillytavern") && !source.includes("services/ar"),
+      `${file} 的 Plugin Host RPC 不得复用 Compatibility Runtime 或 Native Adapter`
+    );
+  }
+
+  for (const file of listCodeFiles("src/services/ar")) {
+    const source = read(file);
+    assert(
+      !source.includes("domain/plugins") && !source.includes("compatibility/sillytavern"),
+      `${file} 的 Native Adapter 不得反向依赖 Plugin Host RPC 或 Compatibility Runtime`
+    );
+  }
+
+  for (const file of listCodeFiles("src/utils/tavernHelper")) {
+    const source = read(file);
+    assert(
+      !source.includes("domain/plugins") && !source.includes("services/ar"),
+      `${file} 的 SillyTavern Compatibility Runtime 不得反向依赖 Plugin Host RPC 或 Native Adapter`
+    );
+  }
+
+  for (const file of listCodeFiles("src/compatibility/sillytavern")) {
+    const source = read(file);
+    assert(
+      !source.includes("domain/plugins") && !source.includes("services/ar"),
+      `${file} 的 Compatibility Runtime 权威入口不得反向依赖 Plugin Host RPC 或 Native Adapter`
+    );
+    assert(
+      !/\bIKernelService\b|registerService\s*\(/.test(source),
+      `${file} 的 Compatibility Runtime 不得实现或注册为通用 Kernel Service`
     );
   }
 
@@ -321,7 +439,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "src/kernel/Kernel.ts",
     "src/kernel/types.ts",
     "src/utils/localDB.ts",
-    "src/kernel/services/PromptService.ts",
+    "src/application/services/PromptService.ts",
   ]) {
     const lines = read(file).split(/\r?\n/).length;
     assert(lines <= 1000, `${file} 超过单文件 1000 行硬上限：${lines}`);

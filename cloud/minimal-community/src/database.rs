@@ -77,4 +77,45 @@ mod tests {
         initialize(&path).unwrap();
         verify(&path).unwrap();
     }
+
+    #[test]
+    fn persists_upload_and_download_timestamps() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("community.sqlite3");
+        initialize(&path).unwrap();
+
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "INSERT INTO cards (
+                    id, title, description, file_name, mime_type, file_size,
+                    uploader_name, uploader_uuid, created_at
+                 ) VALUES ('card-1', 'Card', '', 'card-1.png', 'image/png', 8,
+                           'author', '00000000-0000-4000-8000-000000000001', 100)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO card_downloads (
+                    card_id, actor_name, actor_uuid, downloaded_at
+                 ) VALUES ('card-1', 'reader',
+                           '00000000-0000-4000-8000-000000000002', 200)",
+                [],
+            )
+            .unwrap();
+
+        let (created_at, downloaded_at): (i64, i64) = connection
+            .query_row(
+                "SELECT cards.created_at, MAX(card_downloads.downloaded_at)
+                 FROM cards
+                 JOIN card_downloads ON card_downloads.card_id = cards.id
+                 WHERE cards.id = 'card-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(created_at, 100);
+        assert_eq!(downloaded_at, 200);
+    }
 }

@@ -3,7 +3,7 @@
 
 import React from "react";
 
-import { createScriptIframeSrcDoc, notifyVariablesUpdated, hasCardScripts } from "../../utils/tavernHelper";
+import { createScriptIframeSrcDoc, notifyVariablesUpdated, hasCardScripts } from "../../compatibility/sillytavern";
 import { useKernel } from "../../contexts/KernelContext";
 import type { ChatSession } from "../../types";
 

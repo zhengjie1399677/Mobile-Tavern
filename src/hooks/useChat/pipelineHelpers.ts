@@ -8,11 +8,11 @@
  */
 import React from "react";
 import { ChatSession, UserSettings, CharacterCard } from "../../types";
-import { IDatabaseService, IKernel, KernelServices } from "../../kernel/types";
+import { IDatabaseService, IKernel, KernelServices } from "@/src/application/serviceContracts";
 import type { OutputPipelineContext } from "../../services/pipeline";
 import { buildOutputContext } from "./helpers/streamHelpers";
 import { cleanSuggestionsFromText } from "./helpers/textParsing";
-import { notifyVariablesUpdated } from "../../utils/tavernHelper";
+import { notifyVariablesUpdated } from "../../compatibility/sillytavern";
 import { Logger } from "../../utils/logger";
 
 const logger = Logger.create("pipelineHelpers");

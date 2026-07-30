@@ -10,12 +10,12 @@
  * 遵循 AGENTS.md 准则八：单兵测试跑通，独立验证后再装配至 run_all_tests.ts
  */
 
-import { TableMemoryService } from "../src/kernel/services/TableMemoryService";
-import { PromptService } from "../src/kernel/services/PromptService";
-import { LLMService } from "../src/kernel/services/LLMService";
-import { AutoSummaryService } from "../src/kernel/services/AutoSummaryService";
+import { TableMemoryService } from "../src/application/services/TableMemoryService";
+import { PromptService } from "../src/application/services/PromptService";
+import { LLMService } from "../src/application/services/LLMService";
+import { AutoSummaryService } from "../src/application/services/AutoSummaryService";
 import { Kernel } from "../src/kernel/Kernel";
-import { IKernelService } from "../src/kernel/types";
+import { IKernelService } from "@/src/application/serviceContracts";
 import { TableMemorySheet, CharacterCard, ChatSession, UserSettings, Message } from "../src/types";
 
 // 注：ScriptService 测试因依赖 tavernHelperBridge（操作 window 对象）在 Node 环境下无法加载，

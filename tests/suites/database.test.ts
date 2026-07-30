@@ -10,8 +10,8 @@
  */
 
 import { Kernel } from "../../src/kernel/Kernel";
-import { IKernelService } from "../../src/kernel/types";
-import { DatabaseService } from "../../src/kernel/services/DatabaseService";
+import { IKernelService } from "@/src/application/serviceContracts";
+import { DatabaseService } from "../../src/application/services/DatabaseService";
 import type { CharacterCard } from "../../src/types";
 import { assert } from "./testUtils";
 // fake-indexeddb 全局注入：替代 testLocalDBSplitTrack 原先的手写 mock。

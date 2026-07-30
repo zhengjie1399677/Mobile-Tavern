@@ -8,7 +8,7 @@
  *   - destroy 资源清理
  */
 import { describe, it, expect, vi } from "vitest";
-import { CharacterRenderService } from "../../src/kernel/services/CharacterRenderService";
+import { CharacterRenderService } from "../../src/application/services/CharacterRenderService";
 import { RenderState } from "../../src/services/characterRender/pipeline";
 
 function makeState(overrides: Partial<RenderState> = {}): RenderState {

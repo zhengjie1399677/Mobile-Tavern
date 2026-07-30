@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadServiceModules, registerServiceModules } from "../../src/kernel/bootstrap/serviceCatalog";
-import { WorkerPluginService } from "../../src/kernel/services/WorkerPluginService";
+import { loadServiceModules, registerServiceModules } from "../../src/application/bootstrap/serviceCatalog";
+import { WorkerPluginService } from "../../src/application/services/WorkerPluginService";
 import { createKernel } from "../../src/kernel/Kernel";
-import type { IKernelService } from "../../src/kernel/types";
+import type { IKernelService } from "@/src/application/serviceContracts";
 
 describe("服务动态装载", () => {
   it("并行装载声明式服务并校验名称", async () => {

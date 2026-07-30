@@ -1,7 +1,7 @@
 import React, { useCallback } from "react";
 import { ChatSession, CharacterCard, Message, SummaryCard, UserSettings } from "../../types";
-import { IDatabaseService } from "../../kernel/types";
-import { ITelemetryService } from "../../kernel/types";
+import { IDatabaseService } from "@/src/application/serviceContracts";
+import { ITelemetryService } from "@/src/application/serviceContracts";
 import { cleanSuggestionsFromText, parseSuggestions } from "./helpers";
 import { listBuiltinPluginMetadata, loadBuiltinPluginById } from "../../infrastructure/plugins/builtinPlugins";
 import { listInstalledPlugins, loadPluginFiles } from "../../infrastructure/plugins/pluginStorage";

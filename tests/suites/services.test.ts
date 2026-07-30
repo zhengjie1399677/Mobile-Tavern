@@ -18,12 +18,12 @@ import {
   IScriptService,
   ILLMService,
   StreamChunk
-} from "../../src/kernel/types";
+} from "@/src/application/serviceContracts";
 import type { OutputPipelineContext } from "../../src/services/pipeline";
-import type { ITavernHelperBridge } from "../../src/kernel/services/ScriptService";
+import type { ITavernHelperBridge } from "../../src/application/services/ScriptService";
 import type { ChatSession, CharacterCard, UserSettings } from "../../src/types";
-import { MultiMessageService } from "../../src/kernel/services/MultiMessageService";
-import { ChatStreamService } from "../../src/kernel/services/ChatStreamService";
+import { MultiMessageService } from "../../src/application/services/MultiMessageService";
+import { ChatStreamService } from "../../src/application/services/ChatStreamService";
 import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
@@ -93,7 +93,7 @@ export async function testMultiMessageService() {
 
 export async function testScriptServiceDecoupling() {
   console.log("\n--- Running ScriptService Decoupling Verification ---");
-  const { ScriptService } = await import("../../src/kernel/services/ScriptService");
+  const { ScriptService } = await import("../../src/application/services/ScriptService");
   const testKernel = new Kernel();
   const scriptService = new ScriptService();
   await testKernel.registerService("script", scriptService);
@@ -348,7 +348,7 @@ export async function testKeyManagerDynamicFetch() {
 export async function testUpdateCheckService() {
   console.log("\n--- Running UpdateCheckService & OSS Signer Verification ---");
   const { Kernel } = await import("../../src/kernel/Kernel");
-  const { UpdateCheckService } = await import("../../src/kernel/services/UpdateCheckService");
+  const { UpdateCheckService } = await import("../../src/application/services/UpdateCheckService");
 
   const testKernel = new Kernel();
   const updateService = new UpdateCheckService();

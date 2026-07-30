@@ -4,7 +4,7 @@ import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService,
   IKernel,
-} from "../../kernel/types";
+} from "@/src/application/serviceContracts";
 import { FALLBACK_MODEL } from "../../utils/apiClient";
 import {
   resolveApiCredentials,
@@ -18,8 +18,8 @@ import {
   incrementTrialCount, extractThinkContent, replacePlaceholderMessage,
 } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
-import type { MemoryAuditSnapshot, RecalledMessage } from "../../kernel/services/memory/types";
-import { buildMemoryAuditSnapshot } from "../../kernel/services/memory/MemoryAudit";
+import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/services/memory/types";
+import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
 
 

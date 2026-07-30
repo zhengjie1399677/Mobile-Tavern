@@ -1,5 +1,4 @@
-import { getStoredUsageMetrics } from "../../utils/localDB";
-import type { UsageMetrics } from "../../utils/useUsageTracking";
+import type { UsageMetrics, UsageMetricsPort } from "../usage/metrics";
 import { COMMUNITY_ENTRY_CONFIG } from "./config";
 
 export const COMMUNITY_MIN_INSTALL_AGE_MS =
@@ -42,10 +41,13 @@ export function meetsCommunityEntryThreshold(
   );
 }
 
-export async function shouldShowCommunityEntry(now = Date.now()): Promise<boolean> {
+export async function shouldShowCommunityEntry(
+  usageMetrics: Pick<UsageMetricsPort, "getUsageMetrics">,
+  now = Date.now(),
+): Promise<boolean> {
   if (!COMMUNITY_ENTRY_CONFIG.enabled) return false;
   try {
-    const metrics = (await getStoredUsageMetrics()) as UsageMetrics | null;
+    const metrics = await usageMetrics.getUsageMetrics();
     return meetsCommunityEntryThreshold(metrics, now);
   } catch (error) {
     console.warn("[Community] Failed to read usage gate metrics:", error);

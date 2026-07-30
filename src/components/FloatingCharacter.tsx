@@ -17,7 +17,7 @@ import { MessageSquare, X, ChevronRight } from "lucide-react";
 
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useKernel } from "../contexts/KernelContext";
-import type { IKernelService } from "../kernel/types";
+import type { IKernelService } from "@/src/application/serviceContracts";
 
 interface RenderStateSnapshot {
   portraitBase64: string;

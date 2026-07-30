@@ -6,8 +6,8 @@
  * OpenAI Whisper 路径因依赖 MediaRecorder 仅测试错误降级
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { AsrService } from "../../src/kernel/services/AsrService";
-import type { AsrConfig, IKernel } from "../../src/kernel/types";
+import { AsrService } from "../../src/application/services/AsrService";
+import type { AsrConfig, IKernel } from "@/src/application/serviceContracts";
 
 /**
  * 测试专用 Mock 类型定义。

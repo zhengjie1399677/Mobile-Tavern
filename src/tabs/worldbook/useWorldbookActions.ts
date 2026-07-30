@@ -1,6 +1,6 @@
 import React from "react";
 import { useKernel } from "../../contexts/KernelContext";
-import { ICharacterService, IWorldbookService } from "../../kernel/types";
+import { ICharacterService, IWorldbookService } from "@/src/application/serviceContracts";
 import {
   LorebookEntry,
   CharacterCard,

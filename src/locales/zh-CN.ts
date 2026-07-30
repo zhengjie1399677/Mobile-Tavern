@@ -203,6 +203,9 @@ export default {
   "community.no_description": "暂无简介",
   "community.shared_by": "分享者",
   "community.download_count": "下载次数",
+  "community.featured": "本期精选",
+  "community.uploaded_at": "上传于 {time}",
+  "community.last_downloaded_at": "最近下载于 {time}",
   
   "api.title": "API 服务端点配置",
   "api.subtitle": "配置大语言模型接口地址与授权凭证",

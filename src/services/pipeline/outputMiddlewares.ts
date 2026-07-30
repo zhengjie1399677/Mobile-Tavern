@@ -1,5 +1,5 @@
-import { Middleware, KernelServices, IScriptService } from "../../kernel/types";
-import type { MemoryServiceTyped } from "../../kernel/services/memory";
+import { Middleware, KernelServices, IScriptService } from "@/src/application/serviceContracts";
+import type { MemoryServiceTyped } from "../../application/services/memory";
 import type { OutputPipelineContext } from "./types";
 import { calculateBisonModeProbability } from "../../domain/chat/bisonProbability";
 import { Message, CharacterCard, ChatSession } from "../../types";

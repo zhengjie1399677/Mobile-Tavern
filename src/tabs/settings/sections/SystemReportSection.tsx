@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { getDB } from "../../../utils/localDB";
+import type { IDatabaseService } from "../../../application/serviceContracts";
+import type { CharacterCard, ChatSession, Message, SummaryCard } from "../../../types";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import type { ViewportSize } from "../utils";
 import { useTranslation } from "../../../contexts/LanguageContext";
@@ -211,70 +212,27 @@ export default function SystemReportSection({
     startSection("DB", "1. DB");
     log(`IndexedDB connection & CRUD & record counts...`);
     try {
-      const db = await getDB();
-      log(`OK: Opened "${db.name}" (v${db.version})`);
-
-      const storeNames = Array.from(db.objectStoreNames) as string[];
-      log(`ObjectStores (${storeNames.length}): ${storeNames.join(", ")}`);
-
-      // 各 Store 记录数（判断数据膨胀导致卡顿）
+      const databaseService = getKernelService<
+        IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>
+      >("database");
+      const snapshot = await databaseService.runStorageDiagnostics();
+      log(`OK: Opened "${snapshot.databaseName}" (v${snapshot.version})`);
+      log(`ObjectStores (${snapshot.storeNames.length}): ${snapshot.storeNames.join(", ")}`);
       log(`Record counts:`);
-      for (const storeName of storeNames) {
-        try {
-          const countTx = db.transaction(storeName, "readonly");
-          const countStore = countTx.objectStore(storeName);
-          const count = await new Promise<number>((resolve, reject) => {
-            const req = countStore.count();
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-          });
-          const warnTag = count > 1000 ? " ⚠️ HIGH" : count > 200 ? " (moderate)" : "";
-          log(`  - ${storeName}: ${count} records${warnTag}`);
-        } catch (err: unknown) {
-          log(`  - ${storeName}: COUNT ERROR`, err);
-        }
+      for (const storeName of snapshot.storeNames) {
+        const count = snapshot.recordCounts[storeName] ?? 0;
+        const warnTag = count > 1000 ? " ⚠️ HIGH" : count > 200 ? " (moderate)" : "";
+        log(`  - ${storeName}: ${count} records${warnTag}`);
       }
-
-      // 写入测试与延迟测量
-      const writeStart = Date.now();
-      const testTimestamp = Date.now();
-      const writeTx = db.transaction(["settings"], "readwrite");
-      const writeStore = writeTx.objectStore("settings");
-      await new Promise<void>((resolve, reject) => {
-        const req = writeStore.put({ id: "diagnose_transient_key", value: testTimestamp }, "diagnose_transient_key");
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      });
-      const writeLatency = Date.now() - writeStart;
-      const writeHealth = writeLatency < 50 ? "EXCELLENT" : writeLatency < 200 ? "GOOD" : "SLOW";
-      log(`Write latency: ${writeLatency}ms (${writeHealth})`);
-
-      // 闭环读回校验：通过开启全新事务测试只读锁/物理扇区故障
-      try {
-        const readTx = db.transaction(["settings"], "readonly");
-        const readStore = readTx.objectStore("settings");
-        const readVal = await new Promise<any>((resolve, reject) => {
-          const req = readStore.get("diagnose_transient_key");
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-        });
-        if (readVal && readVal.value === testTimestamp) {
-          log(`Read & Verify: OK (integrity verified, readwrite loopcheck passed)`);
-        } else {
-          log(`ERROR: IndexedDB read integrity failed (value mismatch or transient key lost)`);
-        }
-      } catch (readErr: unknown) {
-        log(`ERROR: IndexedDB readonly transaction test failed (suspect DB read-only lock or storage corrupt)`, readErr);
-      }
-
-      // 清理临时记录
-      const deleteTx = db.transaction(["settings"], "readwrite");
-      const deleteStore = deleteTx.objectStore("settings");
-      await new Promise<void>((resolve, reject) => {
-        const req = deleteStore.delete("diagnose_transient_key");
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      });
+      const writeHealth = snapshot.writeLatencyMs < 50
+        ? "EXCELLENT"
+        : snapshot.writeLatencyMs < 200
+          ? "GOOD"
+          : "SLOW";
+      log(`Write latency: ${snapshot.writeLatencyMs}ms (${writeHealth})`);
+      log(snapshot.readWriteVerified
+        ? `Read & Verify: OK (integrity verified, readwrite loopcheck passed)`
+        : `ERROR: IndexedDB read integrity failed (value mismatch or transient key lost)`);
     } catch (err: unknown) {
       log(`ERROR: Database connection or CRUD check failed`, err);
     }

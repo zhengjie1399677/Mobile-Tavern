@@ -7,7 +7,7 @@
  *  - testCleanLLMResponse：非流式 LLM 响应字段白名单清洗（P1-9）
  */
 
-import { cleanRequestPayload, cleanLLMResponse } from "../../src/kernel/utils/requestSchema";
+import { cleanRequestPayload, cleanLLMResponse } from "../../src/application/services/requestSchema";
 import { readSSEStream, safeParseSSEData } from "../../src/utils/streamReader";
 import { assert } from "./testUtils";
 

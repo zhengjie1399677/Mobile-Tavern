@@ -9,7 +9,7 @@
  */
 
 import { Kernel, setKernelStrictMode } from "../../src/kernel/Kernel";
-import { IKernelService } from "../../src/kernel/types";
+import { IKernelService } from "@/src/application/serviceContracts";
 import { assert } from "./testUtils";
 
 export async function testKernelFaultIsolation() {

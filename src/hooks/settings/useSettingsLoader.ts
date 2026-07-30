@@ -7,7 +7,7 @@ import {
   ISettingsService,
   IPresetService,
   IWorldbookService,
-} from "../../kernel/types";
+} from "@/src/application/serviceContracts";
 import {
   DEFAULT_REPLY_SUGGESTIONS_PROMPT,
   DEFAULT_TABLE_MEMORY_PROMPT,

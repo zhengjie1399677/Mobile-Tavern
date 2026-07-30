@@ -1,9 +1,14 @@
 import { IKernel, IKernelService, IPipeline, IExtension, IMessage, type KernelValidationMode } from "./types";
-import { SAFE_PROXY_SYMBOL, validateMessage, validateService, validateServiceRetrieval, type ValidationResult } from "./schemas";
+import {
+  SAFE_PROXY_SYMBOL,
+  validateKernelMessage,
+  validateKernelService,
+  validateKernelServiceRetrieval,
+  type ValidationResult,
+} from "./validation";
 import { Pipeline } from "./Pipeline";
-import { reportImmediate } from "../utils/telemetry";
 import { Logger } from "../utils/logger";
-
+
 import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 const logger = Logger.create("Kernel");
 
@@ -73,14 +78,13 @@ const warnedServiceValidation = new Set<string>();
 
 // 按服务名缓存 SafeProxy 实例，保证同一缺失服务多次 getService 返回同一引用，
 // 避免调用方基于 === 的引用比较/缓存判断失效。
-const safeProxyCache = new Map<string, any>();
+const safeProxyCache = new Map<string, unknown>();
 
 // 改进-2 / 7.3.1: SafeProxy 接管次数计数器。
 // 旧实现 warnedServices 只告警一次，后续调用完全静默，生产环境功能静默失效无法排障。
 // 现在每次属性访问递增计数，达到阈值时上报遥测告警，之后每 N 次再上报一次保持持续可观测性。
 const safeProxyAccessCount = new Map<string, number>();
 const SAFE_PROXY_WARN_THRESHOLD = 10;       // 首次告警阈值
-const SAFE_PROXY_REPORT_INTERVAL = 50;       // 后续每 50 次再上报一次
 
 /**
  * 重置 SafeProxy 模块级状态（warnedServices / safeProxyCache / safeProxyAccessCount）。
@@ -98,34 +102,20 @@ export function resetSafeProxyState(): void {
 }
 
 /**
- * 记录一次 SafeProxy 属性访问，按阈值上报遥测与告警。
+ * 记录一次 SafeProxy 属性访问，并在达到阈值时输出内核告警。
+ * 外部遥测由应用层订阅日志或检查快照，不由 Kernel 直接调用业务服务。
  */
 function trackSafeProxyAccess(name: string, prop: string): void {
   const count = (safeProxyAccessCount.get(name) ?? 0) + 1;
   safeProxyAccessCount.set(name, count);
 
   if (count === SAFE_PROXY_WARN_THRESHOLD) {
-    // 达到阈值：功能静默失效已不是偶发，上报告警
+    // 达到阈值：功能静默失效已不是偶发，输出一次结构化告警。
     logger.warn(`[Kernel] SafeProxy access threshold exceeded for service "${name}"`, {
       service: name,
       accessCount: count,
       lastProperty: prop,
     });
-    try {
-      reportImmediate("safe_proxy_threshold_exceeded", {
-        service: name,
-        accessCount: count,
-      }).catch(() => { /* 遥测不可用时不影响 Kernel */ });
-    } catch { /* 同步异常兜底 */ }
-  } else if (count > SAFE_PROXY_WARN_THRESHOLD && (count - SAFE_PROXY_WARN_THRESHOLD) % SAFE_PROXY_REPORT_INTERVAL === 0) {
-    // 后续周期性上报，保持持续可观测性而不刷屏
-    try {
-      reportImmediate("safe_proxy_threshold_exceeded", {
-        service: name,
-        accessCount: count,
-        recurring: true,
-      }).catch(() => { /* 遥测不可用时不影响 Kernel */ });
-    } catch { /* 同步异常兜底 */ }
   }
 }
 
@@ -134,13 +124,13 @@ function trackSafeProxyAccess(name: string, prop: string): void {
  * 当调用的非关键服务未注册或初始化失败时，返回此代理，防止前台页面级组件在尝试链式调用时直接白屏崩溃。
  * @param name 服务的名称
  */
-const createSafeProxy = (name: string): any => {
-  const noop = (..._args: any[]) => {
+const createSafeProxy = (name: string): unknown => {
+  const noop = (..._args: unknown[]): unknown => {
     return createSafeProxy(name);
   };
 
   return new Proxy(noop, {
-    // has trap：向 schemas/index.ts 的 isSafeProxy 契约检测（SAFE_PROXY_SYMBOL in service）
+    // has trap：供通用 validation.ts 识别 Kernel 生成的安全降级代理。
     // 暴露标记，使 validateServiceRetrieval 能识别本代理并跳过 P0 schema 校验（Phase C 接入点）。
     // 注意：in 运算符走 has trap 而非 get trap，因此 get 中的 Symbol 短路不影响此检测。
     has(target, prop) {
@@ -152,7 +142,7 @@ const createSafeProxy = (name: string): any => {
       if (typeof prop === "symbol") return undefined;
       if (prop === "then") {
         // 让 Promise await 链可以正常 resolve 结束，防止 SafeProxy 在 await 时永久挂起
-        return (resolve: any) => resolve(undefined);
+        return (resolve: (value: undefined) => unknown) => resolve(undefined);
       }
       if (prop === "name") return name;
       if (prop === "init") return () => {};
@@ -194,7 +184,7 @@ const createSafeProxy = (name: string): any => {
 export class Kernel implements IKernel {
   private services = new Map<string, IKernelService>(); // 已成功初始化注册的服务映射表
   private serviceMetadata = new Map<string, { state: string; initTime?: number }>(); // 服务元数据（状态、初始化耗时等）
-  private extensions = new Map<string, IExtension[]>(); // 扩展插槽映射表
+  private extensions = new Map<string, IExtension<unknown>[]>(); // 扩展插槽映射表
 
   /**
    * 记录所有声明了 isCritical=true 的关键服务名称。
@@ -212,7 +202,7 @@ export class Kernel implements IKernel {
       priority: number;
     }>
   >();
-  private pipelines = new Map<string, IPipeline<any>>(); // 命名拦截管道表
+  private pipelines = new Map<string, IPipeline<unknown>>(); // 命名拦截管道表
 
   constructor() {
     // 初始化注册系统内置的三大核心拦截管道
@@ -399,15 +389,6 @@ export class Kernel implements IKernel {
       if (!proxy) {
         proxy = createSafeProxy(name);
         safeProxyCache.set(name, proxy);
-        // 接入遥测管道：每次新出现缺失服务降级时上报一次，供可观测性分析定位 SafeProxy 接管事件
-        // 失败兜底：遥测管道自身异常不得影响 Kernel 主流程，亦不得演化为 unhandled rejection
-        try {
-          reportImmediate("kernel_safe_proxy_fallback", { service: name }).catch(() => {
-            // 静默：遥测不可用时不污染 Kernel 行为
-          });
-        } catch {
-          // 同步异常兜底（如遥测模块加载失败）
-        }
       }
       return proxy as unknown as T;
     }
@@ -417,12 +398,12 @@ export class Kernel implements IKernel {
 
   /** 服务注册入口的 schema 防腐层。warn 模式保持既有兼容行为，strict 用于阻断错误实现。 */
   private validateServiceAtRegistration(name: string, service: unknown): void {
-    this.handleServiceValidation("registration", name, validateService(name, service));
+    this.handleServiceValidation("registration", name, validateKernelService(name, service));
   }
 
   /** 服务获取入口的 schema 防腐层；SafeProxy 会由 validateServiceRetrieval 自动降级放行。 */
   private validateServiceAtRetrieval(name: string, service: unknown): void {
-    this.handleServiceValidation("retrieval", name, validateServiceRetrieval(name, service));
+    this.handleServiceValidation("retrieval", name, validateKernelServiceRetrieval(name, service));
   }
 
   private handleServiceValidation(
@@ -492,13 +473,13 @@ export class Kernel implements IKernel {
   /**
    * 显式注册一个新命名过滤管道
    */
-  registerPipeline<T = any>(name: string): IPipeline<T> {
+  registerPipeline<T = unknown>(name: string): IPipeline<T> {
     if (this.pipelines.has(name)) {
       logger.warn("Pipeline is already registered. Returning existing instance", { pipeline: name });
       return this.pipelines.get(name) as IPipeline<T>;
     }
     const pipeline = new Pipeline<T>(getKernelStrictMode, logger);
-    this.pipelines.set(name, pipeline);
+    this.pipelines.set(name, pipeline as IPipeline<unknown>);
     logger.info("Pipeline registered", { pipeline: name });
     return pipeline;
   }
@@ -507,7 +488,7 @@ export class Kernel implements IKernel {
    * 获取已显式注册的过滤管道。
    * 未知名称通常意味着插件漏注册或调用方拼写错误，禁止在读取操作中隐式修改 Kernel 拓扑。
    */
-  getPipeline<T = any>(name: string): IPipeline<T> {
+  getPipeline<T = unknown>(name: string): IPipeline<T> {
     const pipeline = this.pipelines.get(name);
     if (!pipeline) {
       throw new Error(
@@ -697,7 +678,7 @@ export class Kernel implements IKernel {
 
   /** 外部消息进入总线前的统一防腐校验。 */
   private validatePublishedMessage(message: unknown): message is IMessage {
-    const result = validateMessage(message);
+    const result = validateKernelMessage(message);
     if (result.success === true) return true;
 
     const detail = `${result.summary}: ${result.error.issues
@@ -713,14 +694,14 @@ export class Kernel implements IKernel {
   /**
    * 注册扩展插件插槽组件
    */
-  registerExtension(extension: IExtension): void {
+  registerExtension<TValue>(extension: IExtension<TValue>): void {
     const point = extension.targetPoint;
     if (!this.extensions.has(point)) {
       this.extensions.set(point, []);
     }
     const list = this.extensions.get(point)!;
     const filtered = list.filter(ext => ext.id !== extension.id);
-    filtered.push(extension);
+    filtered.push(extension as IExtension<unknown>);
     // 优先级降序排列，数值高者排在链条前端
     filtered.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
     this.extensions.set(point, filtered);
@@ -729,8 +710,8 @@ export class Kernel implements IKernel {
   /**
    * 获取指定插槽下的所有扩展插件列表
    */
-  getExtensions(point: string): IExtension[] {
-    return this.extensions.get(point) ?? [];
+  getExtensions<TValue = unknown>(point: string): IExtension<TValue>[] {
+    return (this.extensions.get(point) ?? []) as IExtension<TValue>[];
   }
 
   /**
@@ -770,13 +751,14 @@ export class Kernel implements IKernel {
       point,
       extensions: list.map(ext => {
         let componentName = "unknown";
-        if (ext.component) {
-          if (typeof ext.component === "function") {
-            componentName = ext.component.name || "anonymous";
-          } else if (typeof ext.component === "object") {
-            componentName = ext.component.name || ext.component.constructor?.name || "object";
+        if (ext.value) {
+          if (typeof ext.value === "function") {
+            componentName = ext.value.name || "anonymous";
+          } else if (typeof ext.value === "object") {
+            const namedValue = ext.value as { name?: string; constructor?: { name?: string } };
+            componentName = namedValue.name || namedValue.constructor?.name || "object";
           } else {
-            componentName = String(ext.component);
+            componentName = String(ext.value);
           }
         }
         return {

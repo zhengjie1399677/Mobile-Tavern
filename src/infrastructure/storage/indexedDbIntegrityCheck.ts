@@ -1,4 +1,4 @@
-import { getDB } from "../../utils/localDB";
+import { getDB } from "./idbConnection";
 import { reportImmediate } from "../../utils/telemetry";
 import { DB_SCHEMA } from "./dbSchema";
 
@@ -9,7 +9,7 @@ import { DB_SCHEMA } from "./dbSchema";
 // 发现缺失时上报遥测但不自动修复（自动修复对单副本存储风险过高，需用户介入）。
 //
 // schema 期望清单统一引用 dbSchema.ts 的 DB_SCHEMA 单一来源，
-// 与 localDB.ts 的 onupgradeneeded 共享同一份定义，消除双源同步风险。
+// 与 idbConnection.ts 的 onupgradeneeded 共享同一份定义，消除双源同步风险。
 
 export interface DatabaseIntegrityReport {
   healthy: boolean;

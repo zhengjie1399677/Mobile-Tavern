@@ -4,7 +4,7 @@ import { X, BrainCircuit, LoaderCircle } from "lucide-react";
 import StoryTimelineView from "../tabs/chat/StoryTimelineView";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
-import { notifyVariablesUpdated } from "../utils/tavernHelper";
+import { notifyVariablesUpdated } from "../compatibility/sillytavern";
 
 const MvuVariablesTabContent = React.lazy(() =>
   import("./MvuVariablesTabContent").then((module) => ({ default: module.MvuVariablesTabContent }))

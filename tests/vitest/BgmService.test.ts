@@ -5,8 +5,8 @@
  * 静音控制（mute/unmute/toggleMute）、状态查询、错误防御
  */
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { BgmService } from "../../src/kernel/services/BgmService";
-import type { IKernel } from "../../src/kernel/types";
+import { BgmService } from "../../src/application/services/BgmService";
+import type { IKernel } from "@/src/application/serviceContracts";
 
 /**
  * Mock 事件监听器签名：与原生 EventListener 兼容，但放宽参数类型以便测试中

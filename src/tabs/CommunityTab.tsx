@@ -1,10 +1,13 @@
 import React from "react";
 import {
+  CalendarDays,
   Cloud,
   Download,
+  FileJson2,
   LoaderCircle,
   RefreshCw,
   Search,
+  Sparkles,
   Upload,
   UserRound,
 } from "lucide-react";
@@ -16,7 +19,9 @@ import {
   type CommunityCardSummary,
   uploadCommunityCard,
 } from "../domain/community/api";
+import { buildCommunityUrl } from "../domain/community/config";
 import { getCommunityIdentity } from "../domain/community/identity";
+import { formatCommunityTimestamp } from "../domain/community/presentation";
 import { generateCharacterPngBlob } from "../utils/characterPngExporter";
 import { parseCharacterFile } from "../utils/cardParser";
 import type { CharacterCard } from "../types";
@@ -40,7 +45,7 @@ export default function CommunityTab() {
     saveCharacter: state.saveCharacter,
     showCustomAlert: state.showCustomAlert,
   }));
-  const { t } = useTranslation();
+  const { language, t } = useTranslation();
   const activePersona = settings.userPersonas?.find(
     (persona) => persona.id === settings.activePersonaId,
   );
@@ -160,7 +165,11 @@ export default function CommunityTab() {
       setCards((previous) =>
         previous.map((item) =>
           item.id === card.id
-            ? { ...item, downloadCount: item.downloadCount + 1 }
+            ? {
+                ...item,
+                downloadCount: item.downloadCount + 1,
+                lastDownloadedAt: Math.floor(Date.now() / 1000),
+              }
             : item,
         ),
       );
@@ -184,32 +193,38 @@ export default function CommunityTab() {
   };
 
   return (
-    <div className="min-h-screen space-y-3 px-4 pb-4 pt-1.5">
-      <header className="flex min-h-12 items-center justify-between border-b border-border pb-2">
-        <div>
-          <h1 className="flex items-center gap-2 text-base font-bold text-foreground">
-            <Cloud className="h-4 w-4 text-primary" aria-hidden="true" />
+    <div className="min-h-screen space-y-4 px-4 pb-6 pt-2">
+      <header className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/20 via-card to-violet-500/10 px-4 py-4 shadow-sm">
+        <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-primary/20 blur-3xl" />
+        <div className="relative flex items-start justify-between gap-3">
+          <div>
+          <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground">
+            <Sparkles className="h-5 w-5 text-primary" aria-hidden="true" />
             {t("community.title")}
           </h1>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
+          <p className="mt-1 max-w-[15rem] text-xs leading-relaxed text-muted-foreground">
             {t("community.subtitle")}
           </p>
         </div>
-        <div className="flex max-w-[45%] items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-xs text-primary">
+        <div className="flex max-w-[42%] items-center gap-1.5 rounded-full border border-primary/25 bg-background/65 px-2.5 py-1.5 text-xs text-primary shadow-sm backdrop-blur">
           <UserRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="truncate">{identity.name}</span>
         </div>
+        </div>
       </header>
 
-      <section className="rounded-xl border border-border bg-card p-3">
-        <div className="mb-2 text-xs font-semibold text-foreground">
-          {t("community.share_title")}
+      <section className="rounded-2xl border border-border/70 bg-card/80 p-3.5 shadow-sm">
+        <div className="mb-2.5 flex items-center gap-2 text-xs font-semibold text-foreground">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Upload className="h-3.5 w-3.5" />
+          </span>
+          <span>{t("community.share_title")}</span>
         </div>
         <div className="flex gap-2">
           <select
             value={selectedCharacterId}
             onChange={(event) => setSelectedCharacterId(event.target.value)}
-            className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-input px-2.5 text-xs text-foreground"
+            className="h-10 min-w-0 flex-1 rounded-xl border border-border bg-input px-3 text-xs text-foreground outline-none focus:border-primary"
             aria-label={t("community.select_character")}
           >
             {characters.map((character) => (
@@ -222,7 +237,7 @@ export default function CommunityTab() {
             type="button"
             disabled={!selectedCharacterId || uploading}
             onClick={handleUpload}
-            className="flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+            className="flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-sm transition-transform active:scale-95 disabled:opacity-50"
           >
             {uploading
               ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -239,7 +254,7 @@ export default function CommunityTab() {
       </section>
 
       <form
-        className="flex gap-2"
+        className="sticky top-0 z-10 flex gap-2 rounded-xl bg-background/85 py-1.5 backdrop-blur-md"
         onSubmit={(event) => {
           event.preventDefault();
           void loadCards(search);
@@ -251,13 +266,13 @@ export default function CommunityTab() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t("community.search_placeholder")}
-            className="h-9 w-full rounded-lg border border-border bg-input pl-8 pr-2 text-xs text-foreground outline-none focus:border-primary"
+            className="h-10 w-full rounded-xl border border-border bg-input pl-8 pr-3 text-xs text-foreground shadow-sm outline-none focus:border-primary"
           />
         </div>
         <button
           type="button"
           onClick={() => void loadCards(search)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-primary"
           aria-label={t("community.refresh")}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -270,42 +285,94 @@ export default function CommunityTab() {
         </div>
       )}
 
-      <section className="space-y-2">
+      <section className="grid grid-cols-2 gap-3">
         {!loading && cards.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border py-10 text-center text-xs text-muted-foreground">
+          <div className="col-span-2 rounded-2xl border border-dashed border-border py-12 text-center text-xs text-muted-foreground">
             {t("community.empty")}
           </div>
         )}
-        {cards.map((card) => (
+        {cards.map((card, index) => (
           <article
             key={card.id}
-            className="rounded-xl border border-border/70 bg-card p-3"
+            className={`group overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm transition-transform active:scale-[0.99] ${
+              index === 0 ? "col-span-2" : ""
+            }`}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-sm font-semibold text-foreground">
+            <div className={`relative overflow-hidden bg-gradient-to-br from-primary/25 via-violet-500/15 to-amber-400/15 ${
+              index === 0 ? "h-48" : "h-32"
+            }`}>
+              {card.mimeType === "image/png" ? (
+                <img
+                  src={buildCommunityUrl(card.downloadUrl)}
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center">
+                  <FileJson2 className="h-12 w-12 text-primary/55" aria-hidden="true" />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-3">
+                <h2 className={`truncate font-bold text-white drop-shadow ${
+                  index === 0 ? "text-lg" : "text-sm"
+                }`}>
                   {card.title}
                 </h2>
-                <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-                  {card.description || t("community.no_description")}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
-                  <span>{t("community.shared_by", { user: card.uploaderName })}</span>
-                  <span>{formatFileSize(card.fileSize)}</span>
-                  <span>{t("community.download_count", { count: String(card.downloadCount) })}</span>
-                </div>
               </div>
+              {index === 0 && (
+                <span className="absolute left-3 top-3 rounded-full border border-white/20 bg-black/30 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur">
+                  {t("community.featured")}
+                </span>
+              )}
+            </div>
+
+            <div className="p-3">
+              <p className={`text-[11px] leading-relaxed text-muted-foreground ${
+                index === 0 ? "line-clamp-2" : "line-clamp-3 min-h-[3rem]"
+              }`}>
+                {card.description || t("community.no_description")}
+              </p>
+              <div className="mt-2.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <UserRound className="h-3 w-3 shrink-0 text-primary" />
+                <span className="truncate">{card.uploaderName}</span>
+                <span aria-hidden="true">·</span>
+                <span className="shrink-0">{formatFileSize(card.fileSize)}</span>
+              </div>
+              <div className="mt-2 space-y-1 text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                  <CalendarDays className="h-3 w-3 shrink-0" />
+                  <span>{t("community.uploaded_at", {
+                    time: formatCommunityTimestamp(card.createdAt, language),
+                  })}</span>
+                </div>
+                {card.lastDownloadedAt && (
+                  <div className="flex items-center gap-1.5">
+                    <Download className="h-3 w-3 shrink-0" />
+                    <span>{t("community.last_downloaded_at", {
+                      time: formatCommunityTimestamp(card.lastDownloadedAt, language),
+                    })}</span>
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <Cloud className="h-3 w-3 shrink-0" />
+                  {t("community.download_count", { count: String(card.downloadCount) })}
+                </span>
               <button
                 type="button"
                 disabled={Boolean(downloadingId)}
                 onClick={() => void handleDownload(card)}
-                className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 text-xs font-semibold text-primary disabled:opacity-50"
+                className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-[11px] font-semibold text-primary-foreground shadow-sm transition-transform active:scale-95 disabled:opacity-50"
               >
                 {downloadingId === card.id
                   ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                   : <Download className="h-3.5 w-3.5" />}
                 {t("community.download")}
               </button>
+              </div>
             </div>
           </article>
         ))}

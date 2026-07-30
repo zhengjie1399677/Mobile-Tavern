@@ -3,7 +3,7 @@ import { DownloadCloud, Loader2, ArrowUpCircle, X } from "lucide-react";
 import { IKernel, globalKernel } from "../kernel";
 import { useKernel } from "../contexts/KernelContext";
 import { useTranslation } from "../contexts/LanguageContext";
-import { IUpdateCheckService, UpdateInfo } from "../kernel/types";
+import { IUpdateCheckService, UpdateInfo } from "@/src/application/serviceContracts";
 
 // === 更新检查策略常量 ===
 // 6 小时冷却期：避免用户频繁冷启动 App 导致重复请求 FC 接口

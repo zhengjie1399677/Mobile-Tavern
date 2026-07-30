@@ -6,7 +6,7 @@ import {
   PresetPromptConfig,
 } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
-import { IPresetService } from "../../kernel/types";
+import { IPresetService } from "@/src/application/serviceContracts";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT_CONFIG } from "./defaults";
 import { applyPresetPromptConfig, toPresetPromptConfig } from "./presetPromptConfig";
 

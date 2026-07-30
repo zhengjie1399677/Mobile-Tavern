@@ -9,6 +9,7 @@ export interface CommunityCardSummary {
   fileSize: number;
   uploaderName: string;
   createdAt: number;
+  lastDownloadedAt?: number | null;
   downloadCount: number;
   downloadUrl: string;
 }

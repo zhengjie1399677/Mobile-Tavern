@@ -289,7 +289,7 @@ export function initTavernHelperMocks(): void {
             try {
               cb(vars, 0);
             } catch (err) {
-              console.warn("[TavernHelper Bridge] Error during initial event replay:", err);
+              console.warn("[SillyTavern Compatibility Runtime] Error during initial event replay:", err);
             }
           }, 0);
         }
@@ -325,7 +325,7 @@ export function initTavernHelperMocks(): void {
       }
       parentWin.__readyIframeSet.add(iframeId);
 
-      console.log(`[TavernHelper Bridge] Iframe ${iframeId} is ready.`);
+      console.log(`[SillyTavern Compatibility Runtime] Iframe ${iframeId} is ready.`);
       try {
         const iframe = document.getElementById(iframeId) as HTMLIFrameElement;
         if (iframe) {
@@ -351,7 +351,7 @@ export function initTavernHelperMocks(): void {
                 }
               }
             } catch (innerErr) {
-              console.warn("[TavernHelper Bridge] Failed to apply inner transparency style:", innerErr);
+              console.warn("[SillyTavern Compatibility Runtime] Failed to apply inner transparency style:", innerErr);
             }
           };
 
@@ -359,7 +359,7 @@ export function initTavernHelperMocks(): void {
           iframe.addEventListener("load", applyTransparency);
         }
       } catch (e) {
-        console.warn("[TavernHelper Bridge] Failed to force transparency on iframe DOM:", e);
+        console.warn("[SillyTavern Compatibility Runtime] Failed to force transparency on iframe DOM:", e);
       }
       setTimeout(() => {
         const params = getBridgeParams();
@@ -371,7 +371,7 @@ export function initTavernHelperMocks(): void {
             const mvuVars = initializeMvuFromCharacter(params.activeCharacter);
             if (mvuVars && mvuVars.stat_data) {
               session.variables = mvuVars;
-              console.log("[TavernHelper Bridge] Auto-repaired empty session variables from character card.");
+              console.log("[SillyTavern Compatibility Runtime] Auto-repaired empty session variables from character card.");
             }
           }
           // 【修复】：不管变量先前是否为空，在任何 iframe/状态栏就绪时都必须向下游广播初始化变量，
@@ -393,7 +393,7 @@ export function initTavernHelperMocks(): void {
           } catch (err) {
             // 【修复差异3】与 SillyTavern 原生行为一致：静默吞掉错误，仅做日志输出
             // 原先 throw err 会在 zod 解析警告时中断整个变量初始化链条
-            console.warn("[TavernHelper Bridge] Error caught inside errorCatched (silenced):", err);
+            console.warn("[SillyTavern Compatibility Runtime] Error caught inside errorCatched (silenced):", err);
             return undefined;
           }
         };
@@ -408,7 +408,7 @@ export function initTavernHelperMocks(): void {
       return (getBridgeParams()?.activeSession?.messages?.length || 1) - 1;
     },
     _getVariables(opt: any = { type: "chat" }) {
-      // console.log("[TavernHelper Bridge] _getVariables called with:", JSON.stringify(opt));
+      // console.log("[SillyTavern Compatibility Runtime] _getVariables called with:", JSON.stringify(opt));
       const params = getBridgeParams();
       if (!params) return {};
       const { activeCharacter, settings, activeSession } = params;
@@ -461,16 +461,16 @@ export function initTavernHelperMocks(): void {
     _getAllVariables() {
       const params = getBridgeParams();
       if (!params) {
-        console.log("[TavernHelper Bridge] _getAllVariables: no bridge params");
+        console.log("[SillyTavern Compatibility Runtime] _getAllVariables: no bridge params");
         return {};
       }
       const { activeCharacter, settings, activeSession } = params;
       const res = { ...(settings?.variables || {}), ...(activeCharacter?.variables || {}), ...(activeSession?.variables || {}) };
-      // console.log("[TavernHelper Bridge] _getAllVariables returned:", JSON.stringify(res));
+      // console.log("[SillyTavern Compatibility Runtime] _getAllVariables returned:", JSON.stringify(res));
       return res;
     },
     _replaceVariables(variables: Record<string, any>, opt: any = { type: "chat" }) {
-      // console.log("[TavernHelper Bridge] _replaceVariables called with opt:", JSON.stringify(opt));
+      // console.log("[SillyTavern Compatibility Runtime] _replaceVariables called with opt:", JSON.stringify(opt));
       const params = getBridgeParams();
       if (!params) return;
       const { activeCharacter, settings, activeSession, setCharacters, saveCharacter, updateSettings, setSessions, saveSession } = params;
@@ -577,7 +577,7 @@ export function initTavernHelperMocks(): void {
       return { variables: vars, delete_occurred: true };
     },
     _setChatMessage(id: number, messageObj: any) {
-      console.log(`[TavernHelper Bridge] _setChatMessage called for id: ${id}`, messageObj);
+      console.log(`[SillyTavern Compatibility Runtime] _setChatMessage called for id: ${id}`, messageObj);
       const params = getBridgeParams();
       if (!params || !params.activeSession) return;
       const { activeSession, setSessions, saveSession } = params;
@@ -637,7 +637,7 @@ export function initTavernHelperMocks(): void {
       });
     },
     _setChatMessages(messagesList: any[]) {
-      console.log("[TavernHelper Bridge] _setChatMessages called with:", JSON.stringify(messagesList, null, 2));
+      console.log("[SillyTavern Compatibility Runtime] _setChatMessages called with:", JSON.stringify(messagesList, null, 2));
       const params = getBridgeParams();
       if (!params || !params.activeSession) return;
       const { activeSession, setSessions, saveSession, activeCharacter } = params;
@@ -654,7 +654,7 @@ export function initTavernHelperMocks(): void {
             let updated: SillyTavernMessage = { ...m };
             let localChanged = false;
             const content = typeof newMsg === "string" ? newMsg : (newMsg.mes !== undefined ? newMsg.mes : (newMsg.content !== undefined ? newMsg.content : (newMsg.message !== undefined ? newMsg.message : undefined)));
-            console.log(`[TavernHelper Bridge] msg ${idx} content resolution: newMsgContent:`, content, "existingContent:", updated.content);
+            console.log(`[SillyTavern Compatibility Runtime] msg ${idx} content resolution: newMsgContent:`, content, "existingContent:", updated.content);
             if (content !== undefined && updated.content !== content) { updated.content = content; localChanged = true; }
             if (typeof newMsg === "object") {
               if (newMsg.swipe_id !== undefined && updated.swipe_id !== newMsg.swipe_id) {
@@ -698,7 +698,7 @@ export function initTavernHelperMocks(): void {
           }
           return m;
         });
-        console.log("[TavernHelper Bridge] _setChatMessages execution status: changed =", changed);
+        console.log("[SillyTavern Compatibility Runtime] _setChatMessages execution status: changed =", changed);
         if (changed) {
           const updatedSession = { ...activeS, messages: updatedMessages, variables: sessionVarsUpdated ? newSessionVars : activeS.variables };
           setTimeout(() => { saveSession(updatedSession); notifyVariablesUpdated(updatedSession); }, 0);
@@ -860,7 +860,7 @@ export function initTavernHelperMocks(): void {
     updateTavernHelper() { return Promise.resolve(true); },
     getLastMessageId() { const msgs = getBridgeParams()?.activeSession?.messages || []; return msgs.length > 0 ? msgs.length - 1 : 0; },
     triggerSlash(command: string) {
-      console.log("[TavernHelper Bridge triggerSlash]", command);
+      console.log("[SillyTavern Compatibility Runtime triggerSlash]", command);
       // 支持 SillyTavern 的 | 命令链式语法（如 /send payload|/trigger）
       // 逐条解析并执行，/trigger 等无对应实现的命令安全忽略
       const commands = String(command || "").split("|").map(c => c.trim()).filter(Boolean);
@@ -869,9 +869,9 @@ export function initTavernHelperMocks(): void {
           getBridgeParams()?.handleSendMessage(cmd.slice(6).trim());
         } else if (cmd === "/trigger" || cmd === "/continue") {
           // /trigger 和 /continue 由 handleSendMessage 的自然流程触发（发送后自动生成），此处无需额外动作
-          console.log("[TavernHelper Bridge triggerSlash] 命令已由 send 流程隐式触发:", cmd);
+          console.log("[SillyTavern Compatibility Runtime triggerSlash] 命令已由 send 流程隐式触发:", cmd);
         } else {
-          console.log("[TavernHelper Bridge triggerSlash] 未实现的命令已忽略:", cmd);
+          console.log("[SillyTavern Compatibility Runtime triggerSlash] 未实现的命令已忽略:", cmd);
         }
       }
       return "";

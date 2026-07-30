@@ -203,6 +203,9 @@ export default {
   "community.no_description": "설명 없음",
   "community.shared_by": "공유자",
   "community.download_count": "다운로드 수",
+  "community.featured": "추천 카드",
+  "community.uploaded_at": "{time} 업로드",
+  "community.last_downloaded_at": "최근 다운로드 {time}",
 
   "api.title": "API 서비스 엔드포인트 설정",
   "api.subtitle": "대규모 언어 모델 인터페이스 주소 및 인증 정보 구성",

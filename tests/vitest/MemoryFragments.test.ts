@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { MemoryExtractor } from "../../src/kernel/services/memory/MemoryExtractor";
-import { MemoryRecall } from "../../src/kernel/services/memory/MemoryRecall";
-import { buildMemoryAuditSnapshot } from "../../src/kernel/services/memory/MemoryAudit";
+import { MemoryExtractor } from "../../src/application/services/memory/MemoryExtractor";
+import { MemoryRecall } from "../../src/application/services/memory/MemoryRecall";
+import { buildMemoryAuditSnapshot } from "../../src/application/services/memory/MemoryAudit";
 
 function createStorage(overrides: Record<string, unknown> = {}) {
   return {

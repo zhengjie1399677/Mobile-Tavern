@@ -9,18 +9,16 @@ import {
 } from "../../components/ui/card";
 import { Activity } from "lucide-react";
 import { reportColdStartReady } from "./telemetry";
-import { getStoredUsageMetrics, saveStoredUsageMetrics } from "./localDB";
+import { useKernel } from "../contexts/KernelContext";
+import {
+  KernelServices,
+  type ISettingsService,
+} from "../application/serviceContracts";
+import type { UserSettings } from "../types";
+import type { UsageMetrics } from "../domain/usage/metrics";
 
 const MAX_HISTORY_DAYS = 90;
 const WRITE_INTERVAL_MS = 30000;
-
-export interface UsageMetrics {
-  totalOpens: number;
-  totalUsageSeconds: number;
-  firstOpenedAt: number | null;
-  lastOpenedAt: number | null;
-  history: { date: string; seconds: number }[];
-}
 
 const DEFAULT_METRICS: UsageMetrics = {
   totalOpens: 0,
@@ -39,6 +37,11 @@ function trimHistory(metrics: UsageMetrics): void {
 }
 
 export function useUsageTracking() {
+  const kernel = useKernel();
+  const usageMetricsService = kernel.getService<ISettingsService<UserSettings, UsageMetrics>>(
+    KernelServices.Settings,
+  );
+
   useEffect(() => {
     // 上报应用就绪遥测
     try {
@@ -52,7 +55,7 @@ export function useUsageTracking() {
 
     const initAndTrack = async () => {
       try {
-        const stored = await getStoredUsageMetrics();
+        const stored = await usageMetricsService.getUsageMetrics();
         if (!active) return;
 
         const metrics: UsageMetrics = stored
@@ -78,12 +81,12 @@ export function useUsageTracking() {
         }
 
         trimHistory(metrics);
-        await saveStoredUsageMetrics(metrics);
+        await usageMetricsService.saveUsageMetrics(metrics);
 
         // 每 30 秒异步写入一次
         interval = setInterval(async () => {
           try {
-            const current = await getStoredUsageMetrics();
+            const current = await usageMetricsService.getUsageMetrics();
             if (!active) return;
 
             const currentMetrics: UsageMetrics = current
@@ -103,7 +106,7 @@ export function useUsageTracking() {
             currentTodayRecord.seconds += WRITE_INTERVAL_MS / 1000;
 
             trimHistory(currentMetrics);
-            await saveStoredUsageMetrics(currentMetrics);
+            await usageMetricsService.saveUsageMetrics(currentMetrics);
           } catch (err) {
             console.error("Failed to update usage metrics inside interval", err);
           }
@@ -122,11 +125,15 @@ export function useUsageTracking() {
         clearInterval(interval);
       }
     };
-  }, []);
+  }, [usageMetricsService]);
 }
 
 export function UsageDisplay() {
   const { t } = useTranslation();
+  const kernel = useKernel();
+  const usageMetricsService = kernel.getService<ISettingsService<UserSettings, UsageMetrics>>(
+    KernelServices.Settings,
+  );
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
 
   useEffect(() => {
@@ -134,7 +141,7 @@ export function UsageDisplay() {
 
     const loadMetrics = async () => {
       try {
-        const data = await getStoredUsageMetrics();
+        const data = await usageMetricsService.getUsageMetrics();
         if (!active) return;
         setMetrics((data as UsageMetrics | null) || DEFAULT_METRICS);
       } catch (err) {
@@ -159,7 +166,7 @@ export function UsageDisplay() {
       clearInterval(i);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, []);
+  }, [usageMetricsService]);
 
   if (!metrics) return null;
 

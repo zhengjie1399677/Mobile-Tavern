@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from "react";
 import { ChatSession, SummaryCard, UserSettings, CharacterCard } from "../../types";
-import { IDatabaseService, KernelServices } from "../../kernel/types";
+import { IDatabaseService, KernelServices } from "@/src/application/serviceContracts";
 import { useKernel } from "../../contexts/KernelContext";
 import { generateUniqueId } from "./helpers";
-
+
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 export interface TimelineSummaryState {
   timelineModalOpen: boolean;

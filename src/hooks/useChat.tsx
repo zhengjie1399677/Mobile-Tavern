@@ -21,9 +21,9 @@ import { useKernel } from "../contexts/KernelContext";
 import {
   IDatabaseService, IPromptService, ITelemetryService,
   IChatStreamService, IMultiMessageService, IScriptService,
-} from "../kernel/types";
-import type { MemoryServiceTyped } from "../kernel/services/memory";
-import type { MemoryAuditSnapshot } from "../kernel/services/memory/types";
+} from "@/src/application/serviceContracts";
+import type { MemoryServiceTyped } from "../application/services/memory";
+import type { MemoryAuditSnapshot } from "../application/services/memory/types";
 import type { InstalledFullscreenPlugin } from "../domain/plugins";
 
 import { useChatUI } from "./useChat/useChatUI";

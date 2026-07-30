@@ -1,8 +1,9 @@
 /**
- * index.ts — TavernHelper Bridge 模块 barrel 导出
+ * index.ts — SillyTavern Compatibility Runtime 模块 barrel 导出
  *
- * 此文件为唯一的公共入口，将各子模块的公共 API 统一 re-export。
- * 外部消费者通过 `from "../utils/tavernHelper"` 或 `from "../../src/utils/tavernHelper"` 导入。
+ * 本路径仅保留旧导入兼容；权威公共入口是 `src/compatibility/sillytavern/`。
+ * 该目录是 SillyTavern 角色卡、MVU 与脚本生态的长期防腐层，不是通用 Kernel 服务、
+ * 第三方全屏插件 RPC 或 Tauri 原生能力桥；外部动态数据必须在此完成解析与降级。
  *
  * 模块依赖拓扑（经 grep 验证，单向无静态循环）：
  *

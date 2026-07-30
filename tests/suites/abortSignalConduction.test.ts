@@ -11,7 +11,7 @@
  */
 
 import { CharacterCard } from "../../src/types";
-import { MemoryStreamParser } from "../../src/kernel/services/memory/MemoryStreamParser";
+import { MemoryStreamParser } from "../../src/application/services/memory/MemoryStreamParser";
 import {
   extractMvuCommands,
   extractXmlMvuCommands,

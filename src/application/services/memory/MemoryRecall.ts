@@ -1,0 +1,528 @@
+/**
+ * MemoryRecall - 记忆召回器（标签倒排索引 + 时间衰减打分）
+ *
+ * 核心职责：
+ *   1. 提取查询标签并按倒排索引召回候选消息
+ *   2. 结合匹配标签数、时间衰减与 Pin/Mute 标记计算综合得分
+ *   3. 排除最近 N 轮上下文，返回 Top-K 记忆片段
+ */
+
+import type { MemoryFragment, MessageRecord, RecalledMessage, TemporalFact } from './types';
+import type { MemoryStorage } from './MemoryStorage';
+import { extractByDict } from './MemoryExtractor';
+import type { IDatabaseService } from '../../serviceContracts';
+import { Logger } from '../../../utils/logger';
+
+const logger = Logger.create("MemoryRecall");
+
+// ===== 常量 =====
+
+/** 默认召回条数 */
+const DEFAULT_TOP_K = 3;
+
+/** 默认排除最近 N 轮（避免与 recentTurns 上下文重复） */
+const DEFAULT_EXCLUDE_RECENT_N = 5;
+
+/** 时间衰减半衰期（轮次），ageInTurns = 50 时衰减因子 = 0.5 */
+const DECAY_HALF_LIFE_TURNS = 50;
+
+/** 召回候选倍率（候选池 = topK × 倍率，先粗召回再精排） */
+const CANDIDATE_MULTIPLIER = 5;
+
+// ===== 类型 =====
+
+/** 召回选项 */
+export interface RecallOptions {
+  /** 召回条数，默认 3 */
+  topK?: number;
+  /** 排除最近 N 轮消息，默认 5 */
+  excludeRecentN?: number;
+  /**
+   * 当前轮次序号（用于计算时间衰减与排除最近 N 轮）。
+   * 未传入时自动从 messages Store 推断最后一条消息的 turnIndex + 1。
+   */
+  currentTurnIndex?: number;
+  /** 仅用于显式兼容场景；默认 false，避免无命中时注入无关旧消息。 */
+  allowWeakFallback?: boolean;
+}
+
+// ===== MemoryRecall 类 =====
+
+export class MemoryRecall {
+  private storage: MemoryStorage;
+  private database?: IDatabaseService;
+
+  constructor(storage: MemoryStorage, database?: IDatabaseService) {
+    this.storage = storage;
+    this.database = database;
+  }
+
+  // ===== 会话级缓存 =====
+  // 词典与 Pin/Mute 列表变更频率极低，连续 recall（如用户连续发消息）可复用缓存避免重复 IDB 查询。
+  // TTL 30 秒兜底；编辑点可调用 invalidateCache 主动失效。
+  private sessionCache = new Map<string, { dict: any[]; sessionObj: any; ts: number }>();
+  private static readonly CACHE_TTL_MS = 30_000;
+
+  private getCachedSessionMeta(sessionId: string): { dict: any[]; sessionObj: any } | null {
+    const entry = this.sessionCache.get(sessionId);
+    if (!entry) return null;
+    if (Date.now() - entry.ts > MemoryRecall.CACHE_TTL_MS) {
+      this.sessionCache.delete(sessionId);
+      return null;
+    }
+    return { dict: entry.dict, sessionObj: entry.sessionObj };
+  }
+
+  private setCachedSessionMeta(sessionId: string, dict: any[], sessionObj: any): void {
+    this.sessionCache.set(sessionId, { dict, sessionObj, ts: Date.now() });
+  }
+
+  /**
+   * 失效指定会话的缓存。在 Pin/Mute/词典编辑后调用可立即生效；
+   * 不传 sessionId 则清空全部缓存。
+   */
+  invalidateCache(sessionId?: string): void {
+    if (sessionId) {
+      this.sessionCache.delete(sessionId);
+    } else {
+      this.sessionCache.clear();
+    }
+  }
+
+  /**
+   * 召回相关历史片段（主入口）。
+   *
+   * 流程：
+   *   1. 加载会话词典，用 extractByDict 从当前消息提取查询标签
+   *   2. 无查询标签且有 Pin → 仅召回 Pin 消息
+   *   3. 无查询标签且无 Pin → 默认返回空；仅显式 allowWeakFallback 时弱召回一条
+   *   4. 有查询标签 → 按标签查倒排索引获取候选集 + 打分 + 排除最近 N 轮 + 取 top-K
+   *
+   * @param sessionId 会话 ID
+   * @param currentMessage 当前消息文本
+   * @param options 召回选项
+   */
+  async recall(
+    sessionId: string,
+    currentMessage: string,
+    options?: RecallOptions
+  ): Promise<RecalledMessage[]> {
+    const isDev = import.meta.env?.DEV ?? false;
+
+    // 1. 优先读会话级缓存（TTL 30s），命中则跳过 IDB 查询；未命中则并行查 IDB 并写缓存。
+    //    sessionObj 在后续 recallByTags / fallbackRecallRecent 中复用，避免重复 getSessionById。
+    let dict: any[] = [];
+    let sessionObj: any = null;
+    const cached = this.getCachedSessionMeta(sessionId);
+    if (cached) {
+      dict = cached.dict;
+      sessionObj = cached.sessionObj;
+    } else {
+      try {
+        [dict, sessionObj] = await Promise.all([
+          this.storage.getDictBySession(sessionId),
+          this.database?.getSessionById(sessionId).catch((err: unknown): null => {
+            logger.warn("Failed to fetch session in recall", { error: err });
+            return null;
+          }),
+        ]);
+      } catch (err) {
+        logger.warn("Failed to load dict in recall", { error: err });
+      }
+      this.setCachedSessionMeta(sessionId, dict, sessionObj);
+    }
+    const queryTags = extractByDict(currentMessage, dict);
+    const pinnedIds: string[] = sessionObj?.pinnedMessageIds || [];
+    const mutedIds: string[] = sessionObj?.mutedMessageIds || [];
+
+    if (isDev) {
+      logger.debug("recall 入口", {
+        sessionId,
+        messageLen: currentMessage?.length ?? 0,
+        dictSize: dict.length,
+        queryTags,
+        pinnedCount: pinnedIds.length,
+        mutedCount: mutedIds.length,
+        topK: options?.topK,
+      });
+    }
+
+    if (queryTags.length === 0 && pinnedIds.length === 0) {
+      if (options?.allowWeakFallback !== true) return [];
+      const fallbackResult = await this.fallbackRecallRecent(sessionId, options, mutedIds);
+      if (isDev) {
+        logger.debug("走兜底路径", { count: fallbackResult.length });
+      }
+      return fallbackResult;
+    }
+
+    // 2. 按标签召回（传入 sessionMeta 避免子方法重复查 getSessionById）
+    const tagResult = await this.recallByTags(sessionId, queryTags, options, { pinnedIds, mutedIds });
+    if (isDev) {
+      logger.debug("走标签召回", { count: tagResult.length, tags: queryTags });
+    }
+    return tagResult;
+  }
+
+  /**
+   * 泛指问句兜底召回：返回最近 excludeRecentN 轮外的最新 1 条消息。
+   *
+   * 设计取舍（E-1 修复）：
+   *   - 仅召回 1 条（最小化噪音，避免无关内容污染 Prompt）
+   *   - score=0 明确标记为兜底（上层可按 score 判断是否使用）
+   *   - hitCount=0, hitTags=[]（未命中任何标签）
+   *   - 仍受 Mute 机制约束（过滤 mutedMessageIds）
+   *   - 仍排除最近 N 轮（避免与 recentTurns 上下文重复）
+   *   - 无消息时返回空数组（保持向后兼容）
+   */
+  private async fallbackRecallRecent(
+    sessionId: string,
+    options?: RecallOptions,
+    mutedIds?: string[]
+  ): Promise<RecalledMessage[]> {
+    const rawExcludeN = Math.max(0, options?.excludeRecentN ?? DEFAULT_EXCLUDE_RECENT_N);
+    const currentTurnIndex = await this.resolveCurrentTurnIndex(sessionId, options?.currentTurnIndex);
+
+    // 自适应排除：小会话时降低 excludeRecentN，避免新会话前 N 轮完全无召回。
+    // 策略：至少保留 1 条候选可用，排除数不超过 currentTurnIndex - 1。
+    // 例：currentTurnIndex=3 → excludeRecentN=min(5, 2)=2，排除最近 2 轮，保留 1 条。
+    const excludeRecentN = Math.min(rawExcludeN, Math.max(0, currentTurnIndex - 1));
+
+    // 加载最近消息（生产环境用 limit + descending 走复合索引高效路径）
+    const limit = Math.max(20, rawExcludeN + 5);
+    const recentMessages = await this.storage.getMessagesBySession(sessionId, {
+      limit,
+      descending: true,
+    });
+
+    if (recentMessages.length === 0) return [];
+
+    // 排除最近 N 轮
+    const threshold = currentTurnIndex - excludeRecentN;
+    const candidates = recentMessages.filter((m) => (m.turnIndex ?? 0) < threshold);
+    if (candidates.length === 0) return [];
+
+    // 按 turnIndex 降序排序后取首条（最新）
+    // 注：不依赖 storage 层 descending，确保 MockStorage 与真实 IDB 行为一致
+    candidates.sort((a, b) => (b.turnIndex ?? 0) - (a.turnIndex ?? 0));
+    const fallbackMsg = candidates[0];
+
+    // Mute 过滤：使用主入口 recall() 传入的 mutedIds，避免重复 getSessionById。
+    // 兜底方法被外部直接调用时（mutedIds 为 undefined），降级为不过滤以保持向后兼容。
+    if (mutedIds && mutedIds.includes(fallbackMsg.id)) return [];
+
+    return [{
+      memoryId: fallbackMsg.id,
+      messageId: fallbackMsg.id,
+      turnIndex: fallbackMsg.turnIndex ?? 0,
+      role: fallbackMsg.role,
+      content: fallbackMsg.content,
+      hitCount: 0,
+      hitTags: [],
+      score: 0, // 兜底召回，未命中任何标签
+      kind: 'message',
+      reason: 'weak',
+      sourceMessageIds: [fallbackMsg.id],
+    }];
+  }
+
+  /**
+   * 直接按标签召回（跳过查询标签提取步骤）。
+   *
+   * @param sessionId 会话 ID
+   * @param tags 查询标签列表
+   * @param options 召回选项
+   */
+  async recallByTags(
+    sessionId: string,
+    tags: string[],
+    options?: RecallOptions,
+    sessionMeta?: { pinnedIds: string[]; mutedIds: string[] }
+  ): Promise<RecalledMessage[]> {
+    const isDev = import.meta.env?.DEV ?? false;
+    const topK = Math.max(1, options?.topK ?? DEFAULT_TOP_K);
+    const rawExcludeN = Math.max(0, options?.excludeRecentN ?? DEFAULT_EXCLUDE_RECENT_N);
+
+    // 1. 获取当前轮次（用于计算 ageInTurns 与排除最近 N 轮）
+    const currentTurnIndex = await this.resolveCurrentTurnIndex(sessionId, options?.currentTurnIndex);
+
+    // 自适应排除：小会话时降低 excludeRecentN，避免所有候选被排除导致召回为空。
+    // 与 fallbackRecallRecent 保持一致策略：排除数不超过 currentTurnIndex - 1。
+    // 例：currentTurnIndex=3 → excludeRecentN=min(5, 2)=2，保留至少 1 条候选可用。
+    const excludeRecentN = Math.min(rawExcludeN, Math.max(0, currentTurnIndex - 1));
+
+    // 2. 粗召回：按标签查倒排索引（候选池 = topK × 倍率）
+    const candidateLimit = topK * CANDIDATE_MULTIPLIER;
+    const [messageCandidates, fragmentCandidates, factCandidates] = await Promise.all([
+      tags.length > 0
+        ? this.storage.getMessagesByTag(sessionId, tags, candidateLimit)
+        : Promise.resolve([]),
+      tags.length > 0
+        ? this.storage.getFragmentsByTags(sessionId, tags, candidateLimit)
+        : Promise.resolve([]),
+      tags.length > 0
+        && typeof this.storage.getTemporalFactsByEntities === 'function'
+        ? this.storage.getTemporalFactsByEntities(sessionId, tags, candidateLimit)
+        : Promise.resolve([]),
+    ]);
+    let candidates = messageCandidates;
+    let fragments = fragmentCandidates.filter((fragment) => fragment.status === 'active');
+
+    // 2.5 强力 Pin / Mute 机制注入候选池与排除配置
+    // 优先使用主入口 recall() 传入的 sessionMeta，避免重复 getSessionById。
+    // recallByTags 被外部直接调用时（sessionMeta 为 undefined），降级自查以保持向后兼容。
+    let pinnedIds: string[];
+    let mutedIdSet: Set<string>;
+    if (sessionMeta) {
+      pinnedIds = sessionMeta.pinnedIds;
+      mutedIdSet = new Set(sessionMeta.mutedIds);
+    } else {
+      let sessionObj2: any = null;
+      try {
+        sessionObj2 = await this.database?.getSessionById(sessionId);
+      } catch (err) {
+        logger.warn("Failed to fetch session for Pin/Mute in recallByTags", { error: err });
+      }
+      pinnedIds = sessionObj2?.pinnedMessageIds || [];
+      mutedIdSet = new Set(sessionObj2?.mutedMessageIds || []);
+    }
+
+    if (pinnedIds.length > 0) {
+      const [pinnedMsgs, pinnedFragments] = await Promise.all([
+        Promise.all(pinnedIds.map(id => this.storage.getMessageById(id))).then(items => items.filter(Boolean)),
+        Promise.all(pinnedIds.map(id => this.storage.getFragmentById(id))).then(items => items.filter(Boolean)),
+      ]);
+
+      // 合并到候选池并执行去重
+      const candidateIds = new Set(candidates.map(c => c.id));
+      pinnedMsgs.forEach(msg => {
+        if (msg && !candidateIds.has(msg.id)) {
+          candidates.push(msg);
+        }
+      });
+      const fragmentIds = new Set(fragments.map(fragment => fragment.id));
+      pinnedFragments.forEach(fragment => {
+        if (fragment && !fragmentIds.has(fragment.id) && fragment.status === 'active') fragments.push(fragment);
+      });
+    }
+
+    if (isDev) {
+      logger.debug("recallByTags 中间态", {
+        sessionId,
+        tags,
+        currentTurnIndex,
+        rawExcludeN,
+        excludeRecentN,
+        candidateCount: candidates.length,
+        pinnedCount: pinnedIds.length,
+        mutedCount: mutedIdSet.size,
+      });
+    }
+
+    if (candidates.length === 0 && fragments.length === 0) return [];
+
+    // 3. 获取最近 N 轮消息 ID（用于排除）
+    const recentIds = await this.getRecentMessageIds(sessionId, excludeRecentN, currentTurnIndex);
+    const recentIdSet = new Set(recentIds);
+
+    // 4. 打分 + 排除 + 排序
+    const scored = this.scoreCandidates(candidates, tags, currentTurnIndex, pinnedIds);
+    const scoredFragments = this.scoreFragments(fragments, tags, currentTurnIndex, pinnedIds);
+    const scoredFacts = this.scoreFacts(factCandidates, tags, currentTurnIndex);
+    const recentThreshold = currentTurnIndex - excludeRecentN;
+    const fragmentById = new Map(fragments.map((fragment) => [fragment.id, fragment]));
+    const filteredFragments = scoredFragments.filter((item) => {
+      const fragment = fragmentById.get(item.memoryId);
+      if (!fragment) return false;
+      const isRecent = excludeRecentN > 0 && fragment.sourceTurnEnd >= recentThreshold;
+      return !isRecent && !mutedIdSet.has(item.memoryId);
+    });
+    const coveredSourceIds = new Set(filteredFragments.flatMap(item => item.sourceMessageIds));
+    const filteredMessages = scored.filter((item) =>
+      !recentIdSet.has(item.messageId) &&
+      !mutedIdSet.has(item.memoryId) &&
+      (!coveredSourceIds.has(item.messageId) || pinnedIds.includes(item.memoryId))
+    );
+    const filtered = [...scoredFacts, ...filteredFragments, ...filteredMessages].sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.turnIndex - a.turnIndex;
+    });
+
+    if (isDev) {
+      logger.debug("recallByTags 打分过滤", {
+        scoredCount: scored.length,
+        filteredCount: filtered.length,
+        recentExcludedCount: scored.length - scored.filter((s) => !recentIdSet.has(s.messageId)).length,
+        topK,
+      });
+    }
+
+    // 5. 取 top-K
+    return filtered.slice(0, topK);
+  }
+
+  // ===== 内部方法 =====
+
+  /**
+   * 解析当前轮次序号。
+   * 优先使用调用方传入的值，否则从 messages Store 推断最后一条消息的 turnIndex + 1。
+   */
+  private async resolveCurrentTurnIndex(
+    sessionId: string,
+    explicit?: number
+  ): Promise<number> {
+    if (typeof explicit === 'number' && explicit >= 0) return explicit;
+
+    // 仅查询最新的一条消息（按时间倒序 limit 1），大幅降低查询与序列化开销
+    const lastMessages = await this.storage.getMessagesBySession(sessionId, { limit: 1, descending: true });
+    if (lastMessages.length === 0) return 0;
+    const last = lastMessages[0];
+    return (last.turnIndex ?? 0) + 1;
+  }
+
+  private async getRecentMessageIds(
+    sessionId: string,
+    n: number,
+    currentTurnIndex: number
+  ): Promise<string[]> {
+    if (n <= 0) return [];
+
+    // 读取最新的若干条消息（取 n * 4 或 20 的较大者），既能覆盖所有最近轮次，又避免拉取全表
+    const limit = Math.max(20, n * 4);
+    const recentMessages = await this.storage.getMessagesBySession(sessionId, { limit, descending: true });
+    
+    const threshold = currentTurnIndex - n;
+    return recentMessages
+      .filter((m) => (m.turnIndex ?? 0) >= threshold)
+      .map((m) => m.id);
+  }
+
+  /**
+   * 候选打分：hitCount × (1 / (1 + ageInTurns / 50))。
+   *
+   * @param candidates 候选消息列表
+   * @param queryTags 查询标签列表
+   * @param currentTurnIndex 当前轮次
+   * @returns 按 score 降序排序的 RecalledMessage 列表
+   */
+  private scoreCandidates(
+    candidates: MessageRecord[],
+    queryTags: string[],
+    currentTurnIndex: number,
+    pinnedIds: string[] = []
+  ): RecalledMessage[] {
+    const queryTagSet = new Set(queryTags);
+
+    const scored: RecalledMessage[] = [];
+
+    for (const msg of candidates) {
+      // 强力 Pin 机制打分判定
+      const isPinned = pinnedIds.includes(msg.id);
+
+      // 计算命中标签
+      const msgTags = msg.tags ?? [];
+      const hitTags = msgTags.filter((t) => queryTagSet.has(t));
+      const hitCount = hitTags.length;
+
+      // 无匹配且不是 pinned 消息，则跳过
+      if (hitCount === 0 && !isPinned) continue;
+
+      // 计算时间衰减
+      const ageInTurns = Math.max(0, currentTurnIndex - (msg.turnIndex ?? 0));
+      const decayFactor = 1 / (1 + ageInTurns / DECAY_HALF_LIFE_TURNS);
+      
+      // 强力 Pin 置顶得分
+      const score = isPinned ? 9999 : (hitCount * decayFactor);
+
+      scored.push({
+        memoryId: msg.id,
+        messageId: msg.id,
+        turnIndex: msg.turnIndex ?? 0,
+        role: msg.role,
+        content: msg.content,
+        hitCount,
+        hitTags,
+        score,
+        kind: 'message',
+        reason: isPinned ? 'pin' : 'tag',
+        sourceMessageIds: [msg.id],
+      });
+    }
+
+    // 按 score 降序排序（同分时按 turnIndex 降序，优先返回较新的消息）
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.turnIndex - a.turnIndex;
+    });
+
+    return scored;
+  }
+
+  private scoreFragments(
+    fragments: MemoryFragment[],
+    queryTags: string[],
+    currentTurnIndex: number,
+    pinnedIds: string[] = []
+  ): RecalledMessage[] {
+    const queryTagSet = new Set(queryTags);
+    const scored: RecalledMessage[] = [];
+
+    for (const fragment of fragments) {
+      if (fragment.status !== 'active') continue;
+      const isPinned = pinnedIds.includes(fragment.id);
+      const hitTags = (fragment.tags ?? []).filter((tag) => queryTagSet.has(tag));
+      const hitCount = hitTags.length;
+      if (hitCount === 0 && !isPinned) continue;
+      const ageInTurns = Math.max(0, currentTurnIndex - fragment.sourceTurnEnd);
+      const decayFactor = 1 / (1 + ageInTurns / DECAY_HALF_LIFE_TURNS);
+      const importanceFactor = 0.75 + 0.25 * Math.max(0, Math.min(1, fragment.importance ?? 0.7));
+      scored.push({
+        memoryId: fragment.id,
+        messageId: fragment.sourceMessageIds[0] ?? fragment.id,
+        turnIndex: fragment.sourceTurnEnd,
+        role: fragment.sourceRole ?? 'assistant',
+        content: fragment.content,
+        hitCount,
+        hitTags,
+        score: isPinned ? 9999 : hitCount * decayFactor * importanceFactor,
+        kind: 'event',
+        reason: isPinned ? 'pin' : 'tag',
+        sourceMessageIds: fragment.sourceMessageIds,
+        importance: fragment.importance,
+        confidence: fragment.confidence,
+      });
+    }
+
+    return scored.sort((a, b) => b.score - a.score || b.turnIndex - a.turnIndex);
+  }
+
+  private scoreFacts(
+    facts: TemporalFact[],
+    queryTags: string[],
+    currentTurnIndex: number,
+  ): RecalledMessage[] {
+    const queryTagSet = new Set(queryTags);
+    return facts
+      .filter((fact) => fact.status === 'active')
+      .map((fact) => {
+        const hitTags = fact.tags.filter((tag) => queryTagSet.has(tag));
+        const ageInTurns = Math.max(0, currentTurnIndex - fact.validFromTurn);
+        const decayFactor = 1 / (1 + ageInTurns / (DECAY_HALF_LIFE_TURNS * 2));
+        return {
+          memoryId: fact.id,
+          messageId: fact.sourceMessageId,
+          turnIndex: fact.validFromTurn,
+          role: 'system' as const,
+          content: `${fact.subject} —${fact.predicate}→ ${fact.object}`,
+          hitCount: hitTags.length,
+          hitTags,
+          score: (1.5 + hitTags.length) * decayFactor * fact.confidence,
+          kind: 'fact' as const,
+          reason: 'entity' as const,
+          sourceMessageIds: [fact.sourceMessageId],
+          confidence: fact.confidence,
+        };
+      })
+      .sort((a, b) => b.score - a.score || b.turnIndex - a.turnIndex);
+  }
+}

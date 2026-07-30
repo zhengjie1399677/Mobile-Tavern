@@ -15,9 +15,9 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { ScriptService } from "../../src/kernel/services/ScriptService";
+import { ScriptService } from "../../src/application/services/ScriptService";
 import { Kernel } from "../../src/kernel/Kernel";
-import type { IKernel, IKernelService } from "../../src/kernel/types";
+import type { IKernel, IKernelService } from "@/src/application/serviceContracts";
 import type { CharacterCard, Message } from "../../src/types";
 // 导入 bridge 的纯函数用于 mock 桥接与直接测试
 import {

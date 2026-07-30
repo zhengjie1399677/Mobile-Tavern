@@ -15,7 +15,7 @@
 
 import 'fake-indexeddb/auto';
 import { assert } from "./testUtils";
-import type { IKernel } from "../../src/kernel/types";
+import type { IKernel } from "@/src/application/serviceContracts";
 
 export async function testMemoryE2E() {
   console.log("\n--- Running Memory E2E (fake-indexeddb) Verification ---");
@@ -211,7 +211,7 @@ export async function testMemoryE2E() {
   console.log("  [E2E.6] MemoryStorage 端到端...");
   __resetDBInstanceForTesting();
 
-  const { MemoryStorage } = await import("../../src/kernel/services/memory/MemoryStorage");
+  const { MemoryStorage } = await import("../../src/application/services/memory/MemoryStorage");
   const { IndexedDbMemoryPersistenceService } = await import(
     "../../src/infrastructure/storage/IndexedDbMemoryPersistenceService"
   );
@@ -256,7 +256,7 @@ export async function testMemoryE2E() {
   console.log("  [E2E.7] MemoryRecall 端到端（真实 IDB）...");
   __resetDBInstanceForTesting();
 
-  const { MemoryRecall } = await import("../../src/kernel/services/memory/MemoryRecall");
+  const { MemoryRecall } = await import("../../src/application/services/memory/MemoryRecall");
   const storage2 = new MemoryStorage(persistence);
   await storage2.init();
 

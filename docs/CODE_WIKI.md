@@ -1,4 +1,4 @@
-# Mobile Tavern Code Wiki
+﻿# Mobile Tavern Code Wiki
 
 > **版本**：v1.7.4 | **生成日期**：2026-07-29 | **审查范围**：全仓库代码静态审查 + 隐性 Bug 与漏洞挖掘
 >
@@ -95,7 +95,7 @@ graph TB
     end
 
     subgraph KernelLayer["🧩 微内核切面底座 (src/kernel/)"]
-        Entry["initializeKernel"]
+        Entry["initializeApplicationRuntime"]
         Schemas["schemas/ zod 校验层"]
         Pipeline["Pipeline 洋葱管道"]
         Bus["MessageBus 事件总线"]
@@ -416,7 +416,7 @@ App.tsx
 - **导航逃逸防御**:`loadedRef` 二次触发 `onLoad` 即判定为导航逃逸
 - **链接与表单拦截**:bridge 注入 `click` / `submit` 事件 preventDefault
 
-#### 3.4.3 宿主桥接 V2 (hostBridgeV2.ts + runtimeDocument.ts)
+#### 3.4.3 Plugin Host RPC (pluginHostRpc.ts + runtimeDocument.ts)
 
 - **协议消息**:`{ mtPlugin: 1, channel: UUID, pluginId, requestId, method, params }`
 - **四元组校验**:`mtPlugin === 1` + `channel` + `pluginId` + `event.source !== iframeRef.current?.contentWindow`
@@ -682,7 +682,7 @@ function validateBaseUrlSecurity(baseUrl: string): Promise<void>;
 function parsePluginPackage(data: Uint8Array): Promise<InstalledFullscreenPlugin>;
 function validateManifest(manifest: unknown): PluginManifest;
 
-// domain/plugins/hostBridgeV2.ts
+// domain/plugins/pluginHostRpc.ts
 function dispatchPluginHostRequest(message, deps): Promise<unknown>;
 function requirePermission(permissions: string[], required: string): void;
 function createReadonlyPluginContext(character, session): ReadonlyPluginContext;
@@ -952,7 +952,7 @@ npm run build:examples
 
 > **状态**:✅ 已修复 — 不支持 `AbortSignal.any` 时手动组合多个 signal 的 abort 事件,保留 5 分钟超时保护。
 
-**位置**:[LLMService.ts](file:///d:/projects/Mobile-Tavern/src/kernel/services/LLMService.ts) L166-176
+**位置**:[LLMService.ts](file:///d:/projects/Mobile-Tavern/src/application/services/LLMService.ts) L166-176
 
 **问题**:若运行环境不支持 `AbortSignal.any`(旧 WebView),外部传入 `customSignal` 时会丢失 5 分钟超时保护,可能导致 LLM 调用永久挂起。
 
@@ -1016,7 +1016,7 @@ npm run build:examples
 
 > **状态**:✅ 已修复 — `ChatStreamService` 的 `handleAbortAction` 在 generator `finally` 块中 `removeEventListener`;`init()` 注册的服务级监听器在 `destroy()` 中移除,避免外部 signal 复用时累积。
 
-**位置**:[Kernel.ts](file:///d:/projects/Mobile-Tavern/src/kernel/Kernel.ts) L652-659 `publish`;[ChatStreamService.ts](file:///d:/projects/Mobile-Tavern/src/kernel/services/ChatStreamService.ts) L67-69
+**位置**:[Kernel.ts](file:///d:/projects/Mobile-Tavern/src/kernel/Kernel.ts) L652-659 `publish`;[ChatStreamService.ts](file:///d:/projects/Mobile-Tavern/src/application/services/ChatStreamService.ts) L67-69
 
 **问题**:`publish` 中 `{ once: true }` 保证监听器在 abort 触发后自动移除,但若 handler 正常完成、signal 从未 abort,监听器会一直挂着。高频发布场景下累积。`ChatStreamService` 的 `handleAbortAction` 未在 finally 中 removeEventListener。
 
@@ -1259,8 +1259,8 @@ npm run build:examples
 ### 核心架构
 - [Kernel.ts](file:///d:/projects/Mobile-Tavern/src/kernel/Kernel.ts) — Kernel 容器类
 - [types.ts](file:///d:/projects/Mobile-Tavern/src/kernel/types.ts) — 微内核契约接口
-- [serviceCatalog.ts](file:///d:/projects/Mobile-Tavern/src/kernel/bootstrap/serviceCatalog.ts) — 服务目录
-- [p0Services.ts](file:///d:/projects/Mobile-Tavern/src/kernel/schemas/p0Services.ts) — P0 服务 schema
+- [serviceCatalog.ts](file:///d:/projects/Mobile-Tavern/src/application/bootstrap/serviceCatalog.ts) — 服务目录
+- [p0Services.ts](file:///d:/projects/Mobile-Tavern/src/application/serviceSchemas/p0Services.ts) — P0 服务 schema
 
 ### 存储层
 - [dbSchema.ts](file:///d:/projects/Mobile-Tavern/src/infrastructure/storage/dbSchema.ts) — 数据库 Schema
@@ -1276,7 +1276,7 @@ npm run build:examples
 
 ### 插件与安全
 - [packageParser.ts](file:///d:/projects/Mobile-Tavern/src/domain/plugins/packageParser.ts) — 插件包解析
-- [hostBridgeV2.ts](file:///d:/projects/Mobile-Tavern/src/domain/plugins/hostBridgeV2.ts) — 宿主桥接
+- [pluginHostRpc.ts](file:///d:/projects/Mobile-Tavern/src/domain/plugins/pluginHostRpc.ts) — 宿主桥接
 - [FullscreenPluginRunner.tsx](file:///d:/projects/Mobile-Tavern/src/components/plugins/FullscreenPluginRunner.tsx) — 全屏运行器
 - [security.ts](file:///d:/projects/Mobile-Tavern/server/security.ts) — SSRF 防御
 

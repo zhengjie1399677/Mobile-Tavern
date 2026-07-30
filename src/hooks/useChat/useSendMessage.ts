@@ -4,8 +4,8 @@ import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService, IMultiMessageService,
   StreamChunk, IKernel,
-} from "../../kernel/types";
-import type { MemoryServiceTyped } from "../../kernel/services/memory";
+} from "@/src/application/serviceContracts";
+import type { MemoryServiceTyped } from "../../application/services/memory";
 import { FALLBACK_MODEL } from "../../utils/apiClient";
 import {
   resolveApiCredentials,
@@ -21,10 +21,10 @@ import {
 } from "./helpers";
 import { extractThinkContent } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
-import type { MemoryAuditSnapshot, RecalledMessage } from "../../kernel/services/memory/types";
-import { buildMemoryAuditSnapshot } from "../../kernel/services/memory/MemoryAudit";
+import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/services/memory/types";
+import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
-
+
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useSendMessage");
 

@@ -203,6 +203,9 @@ export default {
   "community.no_description": "No description",
   "community.shared_by": "Shared by",
   "community.download_count": "Downloads",
+  "community.featured": "Featured",
+  "community.uploaded_at": "Uploaded {time}",
+  "community.last_downloaded_at": "Last downloaded {time}",
   
   "api.title": "API Endpoint Configuration",
   "api.subtitle": "Configure LLM service endpoint URL and authorization credentials",

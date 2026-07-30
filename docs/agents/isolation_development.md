@@ -1,4 +1,4 @@
-# AI 协作物理隔离开发铁律与实操流程
+﻿# AI 协作物理隔离开发铁律与实操流程
 
 > [!IMPORTANT]
 > **此文件为 Mobile Tavern 行为指导手册的子规范，定义了新服务开发时的沙盒隔离、上下文控制及 TDD 流程。**
@@ -6,7 +6,7 @@
 ---
 
 ### 1. 沙盒隔离原则
-AI 仅允许对新创建的或指定的单兵服务/插件文件（如 `src/kernel/services/QuotaCheckService.ts`）进行读写，严禁改动 `Kernel.ts` 底座或其他无关服务文件。
+AI 仅允许对新创建的或指定的单兵服务/插件文件（如 `src/application/services/QuotaCheckService.ts`）进行读写，严禁改动 `Kernel.ts` 底座或其他无关服务文件。
 
 ### 2. 双重锁框定输入范围
 *   **框定最简上下文**：向 AI 提问时，仅向 AI 提供以下三个文件引用：

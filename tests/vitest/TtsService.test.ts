@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { TtsService } from "../../src/kernel/services/TtsService";
-import type { IKernel } from "../../src/kernel/types";
+import { TtsService } from "../../src/application/services/TtsService";
+import type { IKernel } from "@/src/application/serviceContracts";
 
 /**
  * 测试专用 Mock 类型定义。

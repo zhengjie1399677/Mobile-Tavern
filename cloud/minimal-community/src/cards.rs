@@ -28,6 +28,7 @@ pub struct CardSummary {
     file_size: i64,
     uploader_name: String,
     created_at: i64,
+    last_downloaded_at: Option<i64>,
     download_count: i64,
     download_url: String,
 }
@@ -79,14 +80,16 @@ async fn list_cards(
         let pattern = format!("%{search}%");
         let mut statement = connection.prepare(
             "SELECT id, title, description, mime_type, file_size, uploader_name,
-                    created_at, download_count, file_name
+                    created_at,
+                    (SELECT MAX(downloaded_at) FROM card_downloads WHERE card_id = cards.id),
+                    download_count, file_name
              FROM cards
              WHERE (?1 = '' OR title LIKE ?2 ESCAPE '\\' OR description LIKE ?2 ESCAPE '\\')
              ORDER BY created_at DESC
              LIMIT ?3 OFFSET ?4",
         )?;
         let rows = statement.query_map(params![search, pattern, limit, offset], |row| {
-            let file_name: String = row.get(8)?;
+            let file_name: String = row.get(9)?;
             Ok(CardSummary {
                 id: row.get(0)?,
                 title: row.get(1)?,
@@ -95,7 +98,8 @@ async fn list_cards(
                 file_size: row.get(4)?,
                 uploader_name: row.get(5)?,
                 created_at: row.get(6)?,
-                download_count: row.get(7)?,
+                last_downloaded_at: row.get(7)?,
+                download_count: row.get(8)?,
                 download_url: format!("/cards/{file_name}"),
             })
         })?;
@@ -192,6 +196,7 @@ async fn upload_card(
             file_size,
             uploader_name: input.uploader_name,
             created_at,
+            last_downloaded_at: None,
             download_count: 0,
             download_url: format!("/cards/{stored_file_name}"),
         }),

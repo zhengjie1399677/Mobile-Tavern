@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Ban, Check, History, Pencil, RotateCcw, X } from "lucide-react";
 import type { ChatSession } from "../../types";
-import type { MemoryFragment } from "../../kernel/services/memory/types";
-import type { MemoryServiceTyped } from "../../kernel/services/memory";
+import type { MemoryFragment } from "../../application/services/memory/types";
+import type { MemoryServiceTyped } from "../../application/services/memory";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 

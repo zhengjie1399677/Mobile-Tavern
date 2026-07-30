@@ -1,4 +1,4 @@
-import type { IKernel, IKernelService } from "../../kernel/types";
+import type { IKernel, IKernelService } from "@/src/application/serviceContracts";
 import {
   MEMORY_PERSISTENCE_SERVICE,
   type MemoryDictEntry,
@@ -8,7 +8,7 @@ import {
   type MessageRecord,
   type TemporalFact,
   type TemporalFactStatus,
-} from "../../kernel/services/memory/types";
+} from "../../application/services/memory/types";
 import {
   appendMessage,
   deleteDictBySession,
@@ -34,7 +34,7 @@ import {
   updateTemporalFactStatus,
   deleteTemporalFactsBySession,
 } from "./indexedDbMemoryStore";
-import { getDB } from "../../utils/localDB";
+import { getDB } from "./idbConnection";
 
 /**
  * IndexedDB 对记忆领域持久化端口的实现。

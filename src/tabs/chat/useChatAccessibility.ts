@@ -3,7 +3,7 @@
 
 import React from "react";
 
-import { initTavernHelperBridge, cleanTavernHelperBridge, getBridgeInterface, getBridgeParams, notifyVariablesUpdated } from "../../utils/tavernHelper";
+import { initTavernHelperBridge, cleanTavernHelperBridge, getBridgeInterface, getBridgeParams, notifyVariablesUpdated } from "../../compatibility/sillytavern";
 import lodashCloneDeep from "lodash/cloneDeep";
 import lodashIsEqual from "lodash/isEqual";
 import { chatTabState } from "./utils";
@@ -12,10 +12,10 @@ import { reportUsage } from "../../utils/telemetry";
 
 const logger = Logger.create("ChatAccessibility");
 import { useKernel } from "../../contexts/KernelContext";
-import { IDatabaseService, IScriptService } from "../../kernel/types";
+import { IDatabaseService, IScriptService } from "@/src/application/serviceContracts";
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
-import type { CardRuntimeBridgeParams } from "../../utils/tavernHelper";
+import type { CardRuntimeBridgeParams } from "../../compatibility/sillytavern";
 
 interface UseChatAccessibilityDeps
   extends Omit<CardRuntimeBridgeParams, "saveSession"> {

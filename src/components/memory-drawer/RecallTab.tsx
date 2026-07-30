@@ -6,7 +6,7 @@ import {
   Tag
 } from "lucide-react";
 import { useTranslation } from "../../contexts/LanguageContext";
-import type { MemoryAuditSnapshot, RecalledMessage } from "../../kernel/services/memory/types";
+import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/services/memory/types";
 import { MemoryFragmentsPanel } from "./MemoryFragmentsPanel";
 
 export interface RecallTabProps {

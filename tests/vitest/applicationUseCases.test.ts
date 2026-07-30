@@ -1,0 +1,81 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  createCharacterUseCases,
+  normalizeCharacterCard,
+} from "../../src/application/useCases/characterUseCases";
+import {
+  createChatSessionUseCases,
+  mergeSessionPage,
+} from "../../src/application/useCases/chatSessionUseCases";
+import type {
+  ICharacterService,
+  IDatabaseService,
+} from "../../src/application/serviceContracts";
+import type {
+  CharacterCard,
+  ChatSession,
+  Message,
+  SummaryCard,
+} from "../../src/types";
+import type { MemoryServiceTyped } from "../../src/application/services/memory";
+
+const character = {
+  id: "char-1",
+  name: "角色",
+  lorebookEntries: [],
+} as unknown as CharacterCard;
+
+const session = {
+  id: "session-1",
+  characterId: character.id,
+  messages: [],
+  summaries: [],
+  createdAt: 1,
+} as unknown as ChatSession;
+
+describe("application useCases 边界回归", () => {
+  it("角色目录初始化流程由用例层协调，Context 无需直接编排存储", async () => {
+    const service = {
+      getCharacterCatalog: vi.fn().mockResolvedValue([character]),
+      getStoredDefaultCharactersInitializedFlag: vi.fn().mockResolvedValue(true),
+    } as unknown as ICharacterService<CharacterCard>;
+
+    const result = await createCharacterUseCases(service).loadCatalog();
+
+    expect(result).toEqual([character]);
+    expect(service.getCharacterCatalog).toHaveBeenCalledOnce();
+  });
+
+  it("兼容输入中的字符串世界书关键词在用例边界完成归一化", () => {
+    const externalCharacter = {
+      ...character,
+      lorebookEntries: [{ id: "entry-1", keys: "alpha, beta" }],
+    } as unknown as CharacterCard;
+
+    expect(normalizeCharacterCard(externalCharacter).lorebookEntries?.[0].keys)
+      .toEqual(["alpha", "beta"]);
+  });
+
+  it("会话分页由用例层调用 Service，并返回界面可直接投影的结果", async () => {
+    const database = {
+      getSessionsCount: vi.fn().mockResolvedValue(1),
+      getSessionsPaginated: vi.fn().mockResolvedValue([session]),
+    } as unknown as IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>;
+    const memory = {
+      getStorage: () => ({
+        getMessagesBySession: vi.fn().mockResolvedValue([]),
+      }),
+    } as unknown as MemoryServiceTyped;
+
+    const result = await createChatSessionUseCases(database, memory)
+      .loadInitialSessions(50);
+
+    expect(result).toEqual({ sessions: [session], total: 1, hasMore: false });
+  });
+
+  it("分页合并去重且保持已有会话顺序", () => {
+    const second = { ...session, id: "session-2" };
+    expect(mergeSessionPage([session], [session, second]).map((item) => item.id))
+      .toEqual(["session-1", "session-2"]);
+  });
+});

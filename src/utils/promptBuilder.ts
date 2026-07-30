@@ -1,4 +1,4 @@
-import { PromptService } from "../kernel/services/PromptService";
+import { PromptService } from "../application/services/PromptService";
 import { getRuntimeKernel } from "../kernel/runtimeKernel";
 
 let fallbackPrompt: PromptService | null = null;

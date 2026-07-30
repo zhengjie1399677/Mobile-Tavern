@@ -5,7 +5,7 @@ import MemoryFragmentEditor from "../../src/components/MemoryFragmentEditor";
 import type {
   MemoryFragment,
   MemoryPersistencePort,
-} from "../../src/kernel/services/memory/types";
+} from "../../src/application/services/memory/types";
 
 vi.mock("../../src/contexts/LanguageContext", () => ({
   useTranslation: () => ({

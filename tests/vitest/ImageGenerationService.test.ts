@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ImageGenerationService } from "../../src/kernel/services/ImageGenerationService";
+import { ImageGenerationService } from "../../src/application/services/ImageGenerationService";
 import { ImageGenApiConfig } from "../../src/types";
-import type { IKernel } from "../../src/kernel/types";
+import type { IKernel } from "@/src/application/serviceContracts";
 
 describe("ImageGenerationService tests", () => {
   let service: ImageGenerationService;

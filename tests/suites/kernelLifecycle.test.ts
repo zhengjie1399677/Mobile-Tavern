@@ -1,6 +1,6 @@
 import { createKernelLifecycleController } from "../../src/kernel/KernelLifecycle";
 import { Kernel } from "../../src/kernel/Kernel";
-import type { IKernelService } from "../../src/kernel/types";
+import type { IKernelService } from "@/src/application/serviceContracts";
 import { assert } from "./testUtils";
 
 export async function testKernelLifecycleAndDependencies() {

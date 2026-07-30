@@ -6,8 +6,8 @@ import {
   getTemporalFactsBySession,
   updateTemporalFactStatus,
 } from "../../src/infrastructure/storage/indexedDbMemoryStore";
-import { validateExtraction } from "../../src/kernel/services/memory/MemoryExtractor";
-import type { TemporalFact } from "../../src/kernel/services/memory/types";
+import { validateExtraction } from "../../src/application/services/memory/MemoryExtractor";
+import type { TemporalFact } from "../../src/application/services/memory/types";
 
 function fact(overrides: Partial<TemporalFact> = {}): TemporalFact {
   return {

@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useSessionManager } from "../../src/hooks/useChat/useSessionManager";
 import type { ChatSession, CharacterCard, UserSettings, Message, SummaryCard } from "../../src/types";
-import type { IDatabaseService, ITelemetryService } from "../../src/kernel/types";
+import type { IDatabaseService, ITelemetryService } from "@/src/application/serviceContracts";
 
 // 测试专用：IDatabaseService 的 Mock 变体，暴露 vi.fn() 的 .mock 属性用于断言调用参数
 type MockDatabaseService = IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message> & {

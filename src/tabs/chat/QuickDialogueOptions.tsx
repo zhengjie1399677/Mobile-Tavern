@@ -19,10 +19,10 @@ import {
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { IDatabaseService, ITtsService, IImageGenerationService } from "../../kernel/types";
+import { IDatabaseService, ITtsService, IImageGenerationService } from "@/src/application/serviceContracts";
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
-
+
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 interface QuickDialogueOptionsProps {
   message: Message;
@@ -168,7 +168,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               prev.map((s: ChatSession) => (s.id === drawSession.id ? drawSession : s)),
             );
 
-            const { KernelServices } = await import("../../kernel");
+            const { KernelServices } = await import("../../application/serviceContracts");
             const imageGenService = getKernelService<IImageGenerationService>(KernelServices.ImageGen);
             try {
               const config = settings.imageGenApi;

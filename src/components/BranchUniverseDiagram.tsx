@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import { useTranslation } from "../contexts/LanguageContext";
 import { GitFork, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import type { ChatSession } from "../types";
-import type { MemoryFragment } from "../kernel/services/memory/types";
+import type { MemoryFragment } from "../application/services/memory/types";
 
 interface BranchUniverseDiagramProps {
   sessions: ChatSession[];

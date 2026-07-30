@@ -15,7 +15,7 @@
 
 import 'fake-indexeddb/auto';
 import { assert } from "./testUtils";
-import type { IKernel } from "../../src/kernel/types";
+import type { IKernel } from "@/src/application/serviceContracts";
 import type { CharacterCard, LorebookEntry, CustomWorldbook, UserSettings, SavedPresetBundle } from "../../src/types";
 
 export async function testCharacterService() {
@@ -23,7 +23,7 @@ export async function testCharacterService() {
   const { __resetDBInstanceForTesting } = await import("../../src/utils/localDB");
   __resetDBInstanceForTesting();
 
-  const { CharacterService } = await import("../../src/kernel/services/CharacterService");
+  const { CharacterService } = await import("../../src/application/services/CharacterService");
   const service = new CharacterService();
   service.init({} as unknown as IKernel);
 
@@ -79,7 +79,7 @@ export async function testWorldbookService() {
   const { __resetDBInstanceForTesting } = await import("../../src/utils/localDB");
   __resetDBInstanceForTesting();
 
-  const { WorldbookService } = await import("../../src/kernel/services/WorldbookService");
+  const { WorldbookService } = await import("../../src/application/services/WorldbookService");
   const service = new WorldbookService();
   service.init({} as unknown as IKernel);
 
@@ -122,7 +122,7 @@ export async function testSettingsService() {
   const { __resetDBInstanceForTesting } = await import("../../src/utils/localDB");
   __resetDBInstanceForTesting();
 
-  const { SettingsService } = await import("../../src/kernel/services/SettingsService");
+  const { SettingsService } = await import("../../src/application/services/SettingsService");
   const service = new SettingsService();
   service.init({} as unknown as IKernel);
 
@@ -169,7 +169,7 @@ export async function testPresetService() {
   const { __resetDBInstanceForTesting } = await import("../../src/utils/localDB");
   __resetDBInstanceForTesting();
 
-  const { PresetService } = await import("../../src/kernel/services/PresetService");
+  const { PresetService } = await import("../../src/application/services/PresetService");
   const service = new PresetService();
   service.init({} as unknown as IKernel);
 

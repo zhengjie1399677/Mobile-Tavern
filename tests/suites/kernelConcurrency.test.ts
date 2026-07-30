@@ -1,5 +1,5 @@
 import { Kernel } from "../../src/kernel/Kernel";
-import type { IMessage } from "../../src/kernel/types";
+import type { IMessage } from "@/src/application/serviceContracts";
 import { assert } from "./testUtils";
 
 /**

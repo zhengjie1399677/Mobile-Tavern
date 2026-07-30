@@ -1,13 +1,16 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from "react";
 import { ChatSession, Message, SummaryCard, CharacterCard } from "../types";
 import { useKernel } from "./KernelContext";
-import { IDatabaseService } from "../kernel/types";
-import type { MemoryServiceTyped } from "../kernel/services/memory";
+import { IDatabaseService } from "@/src/application/serviceContracts";
+import type { MemoryServiceTyped } from "../application/services/memory";
+import {
+  createChatSessionUseCases,
+  mergeSessionPage,
+} from "../application/useCases/chatSessionUseCases";
 import { useApp } from "./AppContext";
 import { TRANSLATIONS } from "../locales/index";
-import { hydrateNewestFirstMessagePage } from "./chatMessageHydration";
-
-import { getErrorMessage, getErrorName } from '../utils/errorUtils';
+
+import { getErrorMessage } from '../utils/errorUtils';
 // P0-1: 启动时分页加载会话，避免一次性 getAll() 全量反序列化阻塞首屏。
 // 默认每页 50 条（覆盖 95% 用户的会话总数），超出部分由 loadMoreSessions 滚动加载。
 const SESSIONS_PAGE_SIZE = 50;
@@ -37,8 +40,8 @@ interface ChatContextType {
   setAvailableModels: (models: string[]) => void;
   isFetchingModels: boolean;
   setIsFetchingModels: (fetching: boolean) => void;
-  connectionStatus: { testing: boolean; success?: boolean; message?: string };
-  setConnectionStatus: (status: any) => void;
+  connectionStatus: ConnectionStatus;
+  setConnectionStatus: React.Dispatch<React.SetStateAction<ConnectionStatus>>;
   loadSessions: () => Promise<void>;
   loadMoreSessions: () => Promise<void>;
   hasMoreSessions: boolean;
@@ -51,12 +54,22 @@ interface ChatContextType {
   loadMoreMessages: () => Promise<void>;
 }
 
+interface ConnectionStatus {
+  testing: boolean;
+  success?: boolean;
+  message?: string;
+}
+
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const kernel = useKernel();
   const dbService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
   const memoryService = kernel.getService<MemoryServiceTyped>("memory");
+  const chatSessionUseCases = useMemo(
+    () => createChatSessionUseCases(dbService, memoryService),
+    [dbService, memoryService],
+  );
   const { showCustomAlert } = useApp();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -64,7 +77,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<any>({ testing: false });
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({ testing: false });
 
   // P0-1: 分页加载状态
   const [hasMoreSessions, setHasMoreSessions] = useState(false);
@@ -99,13 +112,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loadSessions = async () => {
     try {
       // P0-1: 启动时仅加载第一页（最近 SESSIONS_PAGE_SIZE 条会话），避免全量反序列化阻塞首屏。
-      const total = await dbService.getSessionsCount();
-      const firstPage = await dbService.getSessionsPaginated(1, SESSIONS_PAGE_SIZE);
+      const result = await chatSessionUseCases.loadInitialSessions(SESSIONS_PAGE_SIZE);
       if (isMountedRef.current) {
-        setSessions(firstPage || []);
+        setSessions(result.sessions);
         loadedPageRef.current = 1;
-        totalCountRef.current = total;
-        setHasMoreSessions(total > (firstPage?.length || 0));
+        totalCountRef.current = result.total;
+        setHasMoreSessions(result.hasMore);
       }
     } catch (e: unknown) {
       console.error("Failed to load sessions from IndexedDB:", e);
@@ -120,24 +132,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoadingMoreSessions(true);
     try {
       const nextPage = loadedPageRef.current + 1;
-      const more = await dbService.getSessionsPaginated(nextPage, SESSIONS_PAGE_SIZE);
-      const moreLength = more?.length || 0;
+      const result = await chatSessionUseCases.loadSessionPage(nextPage, SESSIONS_PAGE_SIZE);
       if (isMountedRef.current) {
-        setSessions((prev) => {
-          // 去重合并：用户在加载期间可能已新建会话，避免重复
-          const existing = new Set(prev.map((s) => s.id));
-          const merged = [...prev];
-          for (const s of more || []) {
-            if (!existing.has(s.id)) {
-              merged.push(s);
-              existing.add(s.id);
-            }
-          }
-          return merged;
-        });
+        setSessions((previous) => mergeSessionPage(previous, result.sessions));
         loadedPageRef.current = nextPage;
-        // 若本页返回少于 pageSize，说明已无更多
-        setHasMoreSessions(moreLength >= SESSIONS_PAGE_SIZE);
+        setHasMoreSessions(result.hasMore);
       }
     } catch (e: unknown) {
       console.error("Failed to load more sessions from IndexedDB:", e);
@@ -175,22 +174,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let isCurrent = true;
       // descending: true 仅用于高效取最新 N 条；返回批次仍是“最新优先”，
       // 必须在 Context 适配层转换为界面需要的时间正序。
-      memoryService.getStorage().getMessagesBySession(activeSessionId, {
-        limit: MESSAGES_PAGE_SIZE,
-        descending: true,
-      })
-        .then((msgs) => {
+      chatSessionUseCases.loadMessagePage(activeSessionId, 0, MESSAGES_PAGE_SIZE)
+        .then((page) => {
           if (isCurrent && isMountedRef.current) {
-            const loaded = msgs.length;
-            const hasMore = loaded >= MESSAGES_PAGE_SIZE;
-            messagePagingRef.current[activeSessionId] = { offset: loaded, hasMore };
-            setHasMoreMessages(hasMore);
+            messagePagingRef.current[activeSessionId] = {
+              offset: page.loadedCount,
+              hasMore: page.hasMore,
+            };
+            setHasMoreMessages(page.hasMore);
             setSessions((prev) =>
               prev.map((s) =>
                 s.id === activeSessionId
                   ? {
                       ...s,
-                      messages: hydrateNewestFirstMessagePage(msgs),
+                      messages: page.messages,
                     }
                   : s
               )
@@ -205,11 +202,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isCurrent = false;
       };
     }
-  }, [activeSessionId, memoryService]);
+  }, [activeSessionId, chatSessionUseCases]);
 
   const saveSession = async (session: ChatSession) => {
     try {
-      await dbService.saveSession(session);
+      await chatSessionUseCases.saveSession(session);
       setSessions((prev) => {
         const idx = prev.findIndex((s) => s.id === session.id);
         if (idx >= 0) {
@@ -235,28 +232,25 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!cached) return; // 尚未进行首次分页加载，忽略
     setIsLoadingMoreMessages(true);
     try {
-      const olderMsgs = await memoryService
-        .getStorage()
-        .getMessagesBySession(activeSessionId, {
-          limit: MESSAGES_PAGE_SIZE,
-          offset: cached.offset,
-          descending: true,
-        });
+      const page = await chatSessionUseCases.loadMessagePage(
+        activeSessionId,
+        cached.offset,
+        MESSAGES_PAGE_SIZE,
+      );
       if (!isMountedRef.current) return;
-      const loadedCount = olderMsgs.length;
-      const newHasMore = loadedCount >= MESSAGES_PAGE_SIZE;
-      const newOffset = cached.offset + loadedCount;
+      const loadedCount = page.loadedCount;
+      const newHasMore = page.hasMore;
+      const newOffset = cached.offset + page.loadedCount;
       messagePagingRef.current[activeSessionId] = { offset: newOffset, hasMore: newHasMore };
       setHasMoreMessages(newHasMore);
       if (loadedCount > 0) {
         setSessions((prev) =>
           prev.map((s) => {
             if (s.id !== activeSessionId) return s;
-            const mapped = hydrateNewestFirstMessagePage(olderMsgs);
             // 每一页先转换为时间正序，再 prepend 到现有最新页之前。
             return {
               ...s,
-              messages: [...mapped, ...(s.messages || [])],
+              messages: [...page.messages, ...(s.messages || [])],
             };
           })
         );
@@ -275,7 +269,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteSession = async (id: string) => {
     try {
-      await dbService.deleteSession(id);
+      await chatSessionUseCases.deleteSession(id);
       // 清理被删除会话的分页缓存，避免内存泄漏与幽灵状态
       delete messagePagingRef.current[id];
       setSessions((prev) => prev.filter((s) => s.id !== id));

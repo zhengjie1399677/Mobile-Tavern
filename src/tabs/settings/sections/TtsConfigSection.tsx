@@ -16,7 +16,7 @@ import {
 import { Switch } from "../../../../components/ui/switch";
 import { Input } from "../../../../components/ui/input";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
-import type { ITtsService } from "../../../kernel/types";
+import type { ITtsService } from "@/src/application/serviceContracts";
 
 export interface TtsConfigSectionProps
   extends Pick<UnifiedAppContextProps, "settings" | "updateSettings" | "getKernelService"> {}

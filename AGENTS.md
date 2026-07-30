@@ -1,5 +1,5 @@
-# Mobile Tavern 行为指导手册 (AGENTS.md)
-*Version: 1.7.2*
+﻿# Mobile Tavern 行为指导手册 (AGENTS.md)
+*Version: 1.8.0*
 
 > [!IMPORTANT]
 > **此文件定义了本项目的核心行为指导规范与技术边界约束。**
@@ -94,14 +94,13 @@
 
 | 文件 | 字段 / 位置 | 豁免理由 |
 |------|-------------|----------|
-| `src/kernel/types.ts` | `IExtension.component` | React 组件类型，但 kernel 不应反向依赖 React；后续应在 `src/services/pipeline/types.ts` 定义具体 Extension 契约 |
 | `src/utils/tavernHelper/bridgeCore.ts` | `initializeMvuFromCharacter(character: any)` 等桥接函数 | 解析 SillyTavern 角色卡 extensions 等动态 JSON 结构，结构由外部数据决定；防腐层已通过 ScriptService.cleanMvuVariables 收口为 `Record<string, unknown>` |
-| `src/kernel/services/LLMService.ts` | `AbortSignal.any`、`proxyPayload: any`、`history: any[]` | ES2024 提案 `AbortSignal.any` 在 ES2022 lib 中类型缺失；LLM 请求体结构因 provider 而异，待引入 Zod schema 收敛 |
-| `src/kernel/services/TelemetryService.ts` | `extraData: Record<string, any>`、`log: any`、`inputVal: any` | 遥测载荷字段稀疏且频繁演进，结构稳定性低于业务实体；待遥测契约稳定后引入 Zod schema |
-| `src/kernel/services/{Tts,Asr,ImageGeneration}Service.ts` | `config: any`、`activeRecognition: any`、`bodyObj: any` | Web Speech API / FormData 等 Web API 在 TS lib 中类型不完整；待 lib 升级或局部声明类型 |
-| `src/kernel/services/memory/{MemoryExtractor,MemoryRecall,MemoryStateTable,MemoryStorage,MemorySummary}.ts` | `dict: any[]`、`sessionObj: any`、`parsed: any`、`dbMessagesRecords: any[]` 等 | 记忆系统内部 LLM 抽取/召回的中间结构动态性较高；待 Memory 子模块契约稳定后泛型化 |
-| `src/kernel/services/prompt/{PromptMacroFormatter,types}.ts` | `variables: any`、`modelCapabilities: any` | MVU 变量结构与模型能力描述由外部数据决定；待 Prompt 子模块契约稳定后引入具体类型 |
-| `src/kernel/services/AutoSummaryService.ts` | `resData: any`、`mem: any` | 已标记 `@deprecated`，逻辑已合并到 MemoryService.getSummary()；待废弃删除 |
+| `src/application/services/LLMService.ts` | `AbortSignal.any`、`proxyPayload: any`、`history: any[]` | ES2024 提案 `AbortSignal.any` 在 ES2022 lib 中类型缺失；LLM 请求体结构因 provider 而异，待引入 Zod schema 收敛 |
+| `src/application/services/TelemetryService.ts` | `extraData: Record<string, any>`、`log: any`、`inputVal: any` | 遥测载荷字段稀疏且频繁演进，结构稳定性低于业务实体；待遥测契约稳定后引入 Zod schema |
+| `src/application/services/{Tts,Asr,ImageGeneration}Service.ts` | `config: any`、`activeRecognition: any`、`bodyObj: any` | Web Speech API / FormData 等 Web API 在 TS lib 中类型不完整；待 lib 升级或局部声明类型 |
+| `src/application/services/memory/{MemoryExtractor,MemoryRecall,MemoryStateTable,MemoryStorage,MemorySummary}.ts` | `dict: any[]`、`sessionObj: any`、`parsed: any`、`dbMessagesRecords: any[]` 等 | 记忆系统内部 LLM 抽取/召回的中间结构动态性较高；待 Memory 子模块契约稳定后泛型化 |
+| `src/application/services/prompt/{PromptMacroFormatter,types}.ts` | `variables: any`、`modelCapabilities: any` | MVU 变量结构与模型能力描述由外部数据决定；待 Prompt 子模块契约稳定后引入具体类型 |
+| `src/application/services/AutoSummaryService.ts` | `resData: any`、`mem: any` | 已标记 `@deprecated`，逻辑已合并到 MemoryService.getSummary()；待废弃删除 |
 | `src/types.ts` | `expressions?: any`、`extensions?: Record<string, any>`、`variables?: Record<string, any>`、`extra?: Record<string, any>`、`extensionSettings?: Record<string, any>` 等 | SillyTavern 兼容的动态 JSON 结构（角色卡 extensions、MVU 变量、消息 extra 等），结构由外部数据决定；待 SillyTavern 兼容契约稳定后引入 Zod schema |
 | `src/components/FormattedText.tsx` | `SafeIframe props: any`、`activeCharacter: any`、`globalRegexScripts/presetRegexScripts: any[]`、`LocalErrorBoundary` 旧 any（已修复）等 | 富文本渲染组件涉及角色卡动态结构、正则脚本动态配置；待 P3-A UI 拆分时一并清理 |
 | `src/infrastructure/storage/{indexedDbMemoryStore,IndexedDbMemoryPersistenceService,idbQueue,dbSchema,settingsRepository}.ts` | `metadata?: Record<string, any>`、`record: any`、`Promise<any>`、`saveStoredUsageMetrics(metrics: any)` 等 | IndexedDB 物理存储层处理动态记录结构（SillyTavern 兼容字段、用户自定义 metadata）；待存储层 schema 强类型化后清理 |
@@ -113,6 +112,58 @@
 - **测试代码豁免**：`tests/` 目录下的测试代码允许保留 `any`（mock 场景必需），但应优先用 `as unknown as T` 显式断言
 - **lint 配置**：`@typescript-eslint/no-explicit-any` 规则建议设为 `warn`（仅警告不阻断构建），避免一次性堆积大量 error
 
+
+---
+
+# 🚨 核心行为准则十三：Kernel 纯机制与业务代码物理隔离铁律
+
+`src/kernel/` 是与具体产品业务无关的通用运行时底座，只允许包含容器、服务生命周期、Pipeline、消息总线、扩展注册、运行时契约及其通用校验。Kernel 必须能够在不知道角色卡、Prompt、记忆、设置、数据库、模型厂商、UI 或移动端原生能力的情况下独立成立。
+
+## 严格禁止
+
+- 严禁在 `src/kernel/` 新建 `services/`、`bootstrap/` 或任何业务实现目录。
+- 严禁把角色、会话、Prompt、世界书、记忆、LLM、TTS、ASR、插件、存储、遥测等应用服务实现放入 Kernel。
+- 严禁 Kernel 导入 `src/application/`、`src/domain/`、`src/infrastructure/`、`src/components/`、`src/hooks/`、`src/tabs/` 或业务默认数据。
+- 严禁以“核心服务”“官方服务”或“方便统一注册”为理由把业务代码回迁 Kernel。
+- 严禁 Kernel 主动调用应用遥测、数据库或平台桥；可观测性必须通过通用日志、快照或由应用层注入的契约实现。
+
+## 权威位置
+
+- 应用服务实现与业务运行时装配：`src/application/`
+- 纯领域规则：`src/domain/`
+- 存储、原生和外部系统适配器：`src/infrastructure/` 或职责明确的适配目录
+- React 视图与交互编排：`src/components/`、`src/hooks/`、`src/tabs/`
+- 通用内核机制：`src/kernel/`
+
+应用服务可以实现 `IKernelService` 并由应用组合根注册到 Kernel，但“使用 Kernel 托管”不等于“属于 Kernel”。任何例外都必须获得用户明确授权，并同步修改本准则与架构回归守卫。
+
+---
+
+# 🚨 核心行为准则十四：运行时边界、存储入口与用例层铁律
+
+## 存储访问单一入口
+
+- 页面、组件、React Hook、React Context 和领域规则严禁直接导入 `src/utils/localDB.ts`、`src/infrastructure/storage/` 或直接创建 IndexedDB 事务。
+- 业务访问存储必须通过应用 Service；需要保持纯领域方向时，必须依赖领域端口，由应用组合根注入基础设施适配器。
+- 应用 Service 实现可以调用职责明确的 Repository 或 Adapter，但不得通过 `localDB` 兼容门面间接回取存储实现。
+- `src/utils/localDB.ts` 已冻结：只允许旧版外部兼容和测试重置，不得增加新导出、实现或生产调用。生产调用清零后继续保留一个兼容周期，确认无外部依赖后物理删除。
+
+## 运行时体系命名与隔离
+
+- SillyTavern 角色卡脚本、MVU、正则和 iframe 兼容能力统一称为 **SillyTavern Compatibility Runtime**，权威入口为 `src/compatibility/sillytavern/`。
+- Compatibility Runtime 是外部生态防腐运行时，不是通用 Service，不得实现或注册为 `IKernelService`，不得吸收普通业务用例、存储事务或原生平台能力。
+- 强沙箱插件与宿主之间的权限化调用统一称为 **Plugin Host RPC**，权威入口为 `src/domain/plugins/pluginHostRpc.ts`。
+- Web 前端到 Tauri/Kotlin 的平台调用统一称为 **Native Adapter**，AR 权威入口为 `src/services/ar/NativeArAdapter.ts`。
+- 旧 `TavernHelper Bridge`、`hostBridgeV2`、`TavernArBridge` 名称只允许出现在兼容导出、外部协议字段或历史归档中；新增代码和文档不得继续把三者统称为 Bridge。
+
+## React Context 与用例层
+
+- React Context 只保存和分发界面状态、选择状态、加载状态及界面回调绑定，不得实现持久化事务、级联删除、导入导出、业务初始化、分页合并、网络请求或跨 Service 流程。
+- 事务和业务流程必须集中到 `src/application/useCases/` 或职责明确的应用 Service；Context 只能调用用例并把结果投影为 React State。
+- Context 不得直接调用 Repository、IndexedDB、Compatibility Runtime 或 Native Adapter；平台相关界面状态必须先经过 Adapter 或专用 Hook。
+- 新增业务流程时，先定义用例输入、输出和失败边界，再由 React 层绑定交互，禁止把 `useEffect` 或 Context Provider 当作业务编排器。
+
+上述约束必须由 `tests/suites/architectureBoundaries.test.ts` 自动守卫。任何放宽均属于架构变更，必须先获得用户明确授权并同步修改本准则。
 
 ---
 

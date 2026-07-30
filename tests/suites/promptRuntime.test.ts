@@ -1,9 +1,9 @@
-import { PromptBuilder } from "../../src/kernel/services/prompt/PromptBuilder";
-import { PromptCompiler } from "../../src/kernel/services/prompt/PromptCompiler";
-import { PromptService } from "../../src/kernel/services/PromptService";
+import { PromptBuilder } from "../../src/application/services/prompt/PromptBuilder";
+import { PromptCompiler } from "../../src/application/services/prompt/PromptCompiler";
+import { PromptService } from "../../src/application/services/PromptService";
 import { assert } from "./testUtils";
-import type { RuntimeContext } from "../../src/kernel/services/prompt/types";
-import type { IKernel } from "../../src/kernel/types";
+import type { RuntimeContext } from "../../src/application/services/prompt/types";
+import type { IKernel } from "@/src/application/serviceContracts";
 import type { CharacterCard, ChatSession, UserSettings } from "../../src/types";
 
 export function testPromptRuntime() {

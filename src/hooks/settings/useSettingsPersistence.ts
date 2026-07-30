@@ -5,7 +5,7 @@ import { useKernel } from "../../contexts/KernelContext";
 import {
   ISettingsService,
   IWorldbookService,
-} from "../../kernel/types";
+} from "@/src/application/serviceContracts";
 import { getNestedDelta, deepMerge, cleanLorebookEntry } from "./mergeUtils";
 
 interface UseSettingsPersistenceDeps {

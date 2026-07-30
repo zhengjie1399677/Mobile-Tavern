@@ -3,7 +3,7 @@ import { useUnifiedApp } from "../UnifiedAppContext";
 import { SplashScreen } from "./SplashScreen";
 import { VenetianMask, MessageSquare, Book, Settings, Users, HelpCircle, LoaderCircle, type LucideIcon } from "lucide-react";
 import { useKernel } from "../contexts/KernelContext";
-import type { IExtension } from "../kernel/types";
+import type { IExtension } from "@/src/application/serviceContracts";
 import type { TabType } from "../contexts/AppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 
@@ -120,7 +120,7 @@ export default function MainLayout() {
     return () => document.removeEventListener("focusin", handleFocusIn);
   }, [activeTab]);
 
-  const tabs = kernel.getExtensions("main:tabs");
+  const tabs = kernel.getExtensions<React.ComponentType<Record<string, unknown>>>("main:tabs");
   const bottomBarTabs = tabs.filter(t => t.meta?.showInBottomBar);
   const registeredTabIds = tabs.map((tab) => tab.id).join("|");
 
@@ -130,7 +130,7 @@ export default function MainLayout() {
     }
   }, [activeTab, registeredTabIds, setActiveTab, tabs]);
 
-  const isActive = (tab: IExtension) => {
+  const isActive = (tab: IExtension<React.ComponentType<Record<string, unknown>>>) => {
     if (tab.meta?.highlightOnActiveTabs) {
       return (tab.meta.highlightOnActiveTabs as string[]).includes(activeTab);
     }
@@ -200,7 +200,7 @@ export default function MainLayout() {
         >
           {tabs.map(tab => {
             if (deferredActiveTab !== tab.id) return null;
-            const Comp = tab.component;
+            const Comp = tab.value;
             if (tab.id === "playground") {
               return (
                 <Suspense key={tab.id} fallback={<TabLoadingFallback />}>

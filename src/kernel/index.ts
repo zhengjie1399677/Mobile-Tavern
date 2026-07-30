@@ -1,25 +1,9 @@
-import { globalKernel } from "./Kernel";
-import { createKernelLifecycleController } from "./KernelLifecycle";
-import { registerCoreServices } from "./bootstrap/registerCoreServices";
-import { registerDefaultPipelines } from "./bootstrap/registerDefaultPipelines";
-import { bindRuntimeKernel } from "./runtimeKernel";
-
-bindRuntimeKernel(globalKernel);
-const lifecycle = createKernelLifecycleController(globalKernel, async () => {
-  await registerCoreServices(globalKernel);
-  registerDefaultPipelines(globalKernel);
-});
-
-/** 启动纯内核服务与默认管线；UI 扩展由应用组合根单独注册。 */
-export function initializeKernel(): Promise<void> {
-  return lifecycle.initialize();
-}
-
-/** 串行化销毁，避免 StrictMode、HMR 与关闭事件相互竞争。 */
-export function destroyKernel(): Promise<void> {
-  return lifecycle.destroy();
-}
-
+/**
+ * Kernel 公共入口。
+ *
+ * 这里只导出容器、生命周期、Pipeline、消息总线和通用运行时契约。
+ * 应用服务及其装配入口位于 src/application/，Kernel 不启动任何业务。
+ */
 export { globalKernel } from "./Kernel";
 export { createKernel } from "./Kernel";
 export { createKernelLifecycleController } from "./KernelLifecycle";

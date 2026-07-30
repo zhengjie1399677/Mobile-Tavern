@@ -4,7 +4,7 @@ import { useTranslation } from "../contexts/LanguageContext";
 import type {
   MemoryFragment,
   MemoryPersistencePort,
-} from "../kernel/services/memory/types";
+} from "../application/services/memory/types";
 
 interface MemoryFragmentEditorProps {
   sessionId: string;

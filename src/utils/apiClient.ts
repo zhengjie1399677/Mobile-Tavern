@@ -1,6 +1,6 @@
-import type { IKernel } from "../kernel/types";
+import type { IKernel } from "@/src/application/serviceContracts";
 import { getRuntimeKernel } from "../kernel/runtimeKernel";
-import { LLMService } from "../kernel/services/LLMService";
+import { LLMService } from "../application/services/LLMService";
 
 export const FALLBACK_MODEL = "gpt-3.5-turbo";
 

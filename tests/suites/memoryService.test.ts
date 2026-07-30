@@ -20,8 +20,8 @@
  */
 
 import { assert } from "./testUtils";
-import type { MemoryStorage } from "../../src/kernel/services/memory/MemoryStorage";
-import type { MemoryDictEntry } from "../../src/kernel/services/memory/types";
+import type { MemoryStorage } from "../../src/application/services/memory/MemoryStorage";
+import type { MemoryDictEntry } from "../../src/application/services/memory/types";
 
 /** 扩展 globalThis 以访问浏览器 API（localStorage / indexedDB / IDBKeyRange） */
 type GlobalWithWebAPIs = typeof globalThis & {
@@ -40,7 +40,7 @@ type MockIDBEventHandler = ((ev: Event) => void) | null;
 export async function testModelCapabilityRegistry() {
   console.log("\n--- Running ModelCapabilityRegistry Verification ---");
   const { ModelCapabilityRegistry } = await import(
-    "../../src/kernel/services/memory/ModelCapabilityRegistry"
+    "../../src/application/services/memory/ModelCapabilityRegistry"
   );
 
   // Mock localStorage（Node 环境无原生 localStorage）
@@ -151,7 +151,7 @@ export async function testModelCapabilityRegistry() {
 export async function testMemoryStreamParser() {
   console.log("\n--- Running MemoryStreamParser Verification ---");
   const { MemoryStreamParser } = await import(
-    "../../src/kernel/services/memory/MemoryStreamParser"
+    "../../src/application/services/memory/MemoryStreamParser"
   );
 
   // 1. 标签完整出现在单个 chunk：displayText 包含标签前后的文本，memoryContent 在标签闭合时返回
@@ -500,8 +500,8 @@ function buildInMemoryIDB() {
 export async function testMemoryStorageCrud() {
   console.log("\n--- Running MemoryStorage CRUD Verification ---");
   const localDB = await import("../../src/utils/localDB");
-  const { MemoryStorage } = await import("../../src/kernel/services/memory/MemoryStorage");
-  const { buildDictId } = await import("../../src/kernel/services/memory/types");
+  const { MemoryStorage } = await import("../../src/application/services/memory/MemoryStorage");
+  const { buildDictId } = await import("../../src/application/services/memory/types");
   const { IndexedDbMemoryPersistenceService } = await import(
     "../../src/infrastructure/storage/IndexedDbMemoryPersistenceService"
   );
@@ -725,13 +725,13 @@ export async function testMemoryStorageCrud() {
 export async function testMemoryServiceLifecycle() {
   console.log("\n--- Running MemoryService Lifecycle Verification ---");
   const { Kernel } = await import("../../src/kernel/Kernel");
-  const { MemoryService } = await import("../../src/kernel/services/memory/MemoryService");
-  const { KernelServices } = await import("../../src/kernel/types");
+  const { MemoryService } = await import("../../src/application/services/memory/MemoryService");
+  const { KernelServices } = await import("@/src/application/serviceContracts");
   const {
     IndexedDbMemoryPersistenceService,
   } = await import("../../src/infrastructure/storage/IndexedDbMemoryPersistenceService");
   const { MEMORY_PERSISTENCE_SERVICE } = await import(
-    "../../src/kernel/services/memory/types"
+    "../../src/application/services/memory/types"
   );
   const localDB = await import("../../src/utils/localDB");
 
@@ -945,7 +945,7 @@ function createMockStorage() {
 export async function testMemoryExtractor() {
   console.log("\n--- Running MemoryExtractor Verification ---");
   const { validateExtraction, extractByDict, MemoryExtractor } = await import(
-    "../../src/kernel/services/memory/MemoryExtractor"
+    "../../src/application/services/memory/MemoryExtractor"
   );
 
   // === 5.1 validateExtraction 校验器 ===
@@ -1233,7 +1233,7 @@ export async function testMemoryExtractor() {
 
 export async function testMemoryRecall() {
   console.log("\n--- Running MemoryRecall Verification ---");
-  const { MemoryRecall } = await import("../../src/kernel/services/memory/MemoryRecall");
+  const { MemoryRecall } = await import("../../src/application/services/memory/MemoryRecall");
 
   // === 6.1 recall() 主入口 ===
   console.log("  [6.1] recall()...");

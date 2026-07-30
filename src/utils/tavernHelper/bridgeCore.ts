@@ -1,5 +1,5 @@
 /**
- * bridgeCore.ts — TavernHelper Bridge 核心状态与生命周期管理
+ * bridgeCore.ts — SillyTavern Compatibility Runtime 核心状态与生命周期管理
  *
  * 职责：
  * - 类型定义与模块级可变状态（bridgeParams）
@@ -19,7 +19,7 @@ import lodashGet from "lodash/get";
 import lodashSet from "lodash/set";
 import { CharacterCard, ChatSession, Message, UserSettings } from "../../types";
 import { klona } from "klona";
-import type { IKernel } from "../../kernel/types";
+import type { IKernel } from "@/src/application/serviceContracts";
 import { getRuntimeKernel } from "../../kernel/runtimeKernel";
 import { compare } from "compare-versions";
 import JSON5 from "json5";
@@ -393,7 +393,7 @@ export function initializeMvuFromCharacter(character: any): Record<string, any> 
     }
   }
 
-  console.log("[TavernHelper Bridge] initializeMvuFromCharacter initialized variables:", JSON.stringify(variables));
+  console.log("[SillyTavern Compatibility Runtime] initializeMvuFromCharacter initialized variables:", JSON.stringify(variables));
   return variables;
 }
 
@@ -487,7 +487,7 @@ export function ensureCoreLibsLoaded(): Promise<void> {
   if (coreLibsPromise) return coreLibsPromise;
 
   coreLibsPromise = (async () => {
-    console.log("[TavernHelper Bridge] 加载核心工具库（lodash）...");
+    console.log("[SillyTavern Compatibility Runtime] 加载核心工具库（lodash）...");
     const lodash = await import("lodash");
     const lodashInstance = lodash.default || lodash;
 
@@ -521,7 +521,7 @@ export function ensureMathLibLoaded(): Promise<void> {
         math,
       };
     }
-    console.log("[TavernHelper Bridge] mathjs 按需加载完成");
+    console.log("[SillyTavern Compatibility Runtime] mathjs 按需加载完成");
   })().catch((error) => {
     mathLibPromise = null;
     throw error;
@@ -537,22 +537,22 @@ export function ensureMathLibLoaded(): Promise<void> {
  */
 export function ensureUiLibsLoaded(): Promise<void> {
   if (uiLibsPromise) {
-    console.log("[TavernHelper Bridge] ensureUiLibsLoaded 已有进行中的 promise，复用");
+    console.log("[SillyTavern Compatibility Runtime] ensureUiLibsLoaded 已有进行中的 promise，复用");
     return uiLibsPromise;
   }
 
-  console.log("[TavernHelper Bridge] ensureUiLibsLoaded 首次调用，开始加载 UI 库");
+  console.log("[SillyTavern Compatibility Runtime] ensureUiLibsLoaded 首次调用，开始加载 UI 库");
   uiLibsPromise = (async () => {
     // 确保核心库先就绪
     await ensureCoreLibsLoaded();
-    console.log("[TavernHelper Bridge] 核心库就绪，开始动态 import UI 库");
+    console.log("[SillyTavern Compatibility Runtime] 核心库就绪，开始动态 import UI 库");
     try {
       const [Vue, Pinia, jQuery] = await Promise.all([
         import("vue"),
         import("pinia"),
         import("jquery"),
       ]);
-      console.log("[TavernHelper Bridge] UI 库动态 import 成功（不含 mathjs）", {
+      console.log("[SillyTavern Compatibility Runtime] UI 库动态 import 成功（不含 mathjs）", {
         hasVue: !!Vue,
         hasPinia: !!Pinia,
         hasJQuery: !!jQuery,
@@ -579,14 +579,14 @@ export function ensureUiLibsLoaded(): Promise<void> {
           },
           vue: Vue,
         };
-        console.log("[TavernHelper Bridge] UI 库挂载到 window 完成", {
+        console.log("[SillyTavern Compatibility Runtime] UI 库挂载到 window 完成", {
           hasDefineStore: !!w.TavernHelperMvuLibs?.defineStore,
           hasJQuery: !!w.jQuery,
         });
 
       }
     } catch (err) {
-      console.error("[TavernHelper Bridge] UI 库动态 import 失败:", err);
+      console.error("[SillyTavern Compatibility Runtime] UI 库动态 import 失败:", err);
       throw err;
     }
   })();
@@ -622,7 +622,7 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
   const hasHtmlBlock = messageContainsHtmlCodeBlock(params.activeCharacter);
   const shouldLoadUiLibs = enableScript && (hasScripts || hasIframe || hasHtmlBlock);
   const shouldLoadMath = enableScript && cardNeedsMathRuntime(params.activeCharacter);
-  console.log("[TavernHelper Bridge] initTavernHelperBridge 诊断:", {
+  console.log("[SillyTavern Compatibility Runtime] initTavernHelperBridge 诊断:", {
     charName,
     enableScriptExecution: enableScript,
     hasCardScripts: hasScripts,
@@ -635,7 +635,7 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
   if (enableScript) {
     // 核心库（lodash）：只要开启脚本模式就加载
     ensureCoreLibsLoaded().catch(err => {
-      console.error("[TavernHelper Bridge] 核心库加载失败:", err);
+      console.error("[SillyTavern Compatibility Runtime] 核心库加载失败:", err);
     });
     // 重型 UI 库（Vue / Pinia / jQuery）加载条件：
     // 1. 角色卡包含 tavern_helper 脚本或 MVU 设定（原有逻辑）
@@ -646,31 +646,31 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
     //    "正在载入脚本依赖..." 占位符而非实际内容。
     if (shouldLoadUiLibs) {
       const reason = hasScripts ? "hasCardScripts" : (hasIframe ? "messageContainsIframe" : "messageContainsHtmlCodeBlock");
-      console.log("[TavernHelper Bridge] 触发 UI 库加载，原因:", reason);
+      console.log("[SillyTavern Compatibility Runtime] 触发 UI 库加载，原因:", reason);
       ensureUiLibsLoaded().then(() => {
-        console.log("[TavernHelper Bridge] UI 库加载完成，验证:", {
+        console.log("[SillyTavern Compatibility Runtime] UI 库加载完成，验证:", {
           hasDefineStore: !!(window as unknown as WindowWithTavernHelperLibs).TavernHelperMvuLibs?.defineStore,
           hasLodash: !!(window as unknown as WindowWithTavernHelperLibs)._,
           hasJQuery: !!(window as unknown as WindowWithTavernHelperLibs).jQuery,
         });
       }).catch(err => {
-        console.error("[TavernHelper Bridge] UI 框架库加载失败:", err);
+        console.error("[SillyTavern Compatibility Runtime] UI 框架库加载失败:", err);
       });
     } else {
-      console.warn("[TavernHelper Bridge] 未触发 UI 库加载（hasCardScripts=false、messageContainsIframe=false、messageContainsHtmlCodeBlock=false）");
+      console.warn("[SillyTavern Compatibility Runtime] 未触发 UI 库加载（hasCardScripts=false、messageContainsIframe=false、messageContainsHtmlCodeBlock=false）");
     }
     if (shouldLoadMath) {
       ensureMathLibLoaded().catch(err => {
-        console.error("[TavernHelper Bridge] mathjs 加载失败:", err);
+        console.error("[SillyTavern Compatibility Runtime] mathjs 加载失败:", err);
       });
     }
   } else {
-    console.warn("[TavernHelper Bridge] enableScriptExecution=false，跳过所有库加载");
+    console.warn("[SillyTavern Compatibility Runtime] enableScriptExecution=false，跳过所有库加载");
   }
   // 以下追踪 FormattedText 的 libsReady 检测（5秒后采样）
   setTimeout(() => {
     const w = window as unknown as WindowWithTavernHelperLibs;
-    console.log("[TavernHelper Bridge] 5秒后 libsReady 采样:", {
+    console.log("[SillyTavern Compatibility Runtime] 5秒后 libsReady 采样:", {
       hasDefineStore: !!w.TavernHelperMvuLibs?.defineStore,
       hasLodash: !!w._,
       libsReadyShouldBe: !!(w.TavernHelperMvuLibs?.defineStore && w._),
@@ -693,7 +693,7 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
       const mvuVars = initializeMvuFromCharacter(params.activeCharacter);
       if (mvuVars && mvuVars.stat_data && Object.keys(mvuVars.stat_data).length > 0) {
         session.variables = mvuVars;
-        console.log("[TavernHelper Bridge] Auto-repaired empty session variables during bridge initialization.");
+        console.log("[SillyTavern Compatibility Runtime] Auto-repaired empty session variables during bridge initialization.");
         initializeVariablesForSession(session);
       }
     }

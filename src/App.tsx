@@ -1,7 +1,11 @@
 import React, { Suspense, useEffect, useState } from "react";
 import { AppContextAssembler } from "./contexts/LegacyAppContextProvider";
 import MainLayout from "./components/MainLayout";
-import { initializeKernel, destroyKernel, globalKernel } from "./kernel";
+import { globalKernel } from "./kernel";
+import {
+  destroyApplicationRuntime,
+  initializeApplicationRuntime,
+} from "./application/runtime";
 import { SplashScreen } from "./components/SplashScreen";
 import { registerMainTabExtensions } from "./composition/registerMainTabExtensions";
 import { KernelProvider } from "./contexts/KernelContext";
@@ -42,7 +46,7 @@ export default function App() {
     let active = true;
     let unlistenClose: (() => void) | null = null;
 
-    initializeKernel()
+    initializeApplicationRuntime()
       .then(async () => {
         if (active) {
           await registerMainTabExtensions(globalKernel);
@@ -62,7 +66,7 @@ export default function App() {
       .then(({ getCurrentWindow }) => {
         if (!active) return;
         return getCurrentWindow().onCloseRequested(() => {
-          void destroyKernel();
+          void destroyApplicationRuntime();
         });
       })
       .then((unlisten) => {
@@ -83,7 +87,7 @@ export default function App() {
       }
       // React 组件卸载时（HMR 热更新、路由切换等）清理内核资源
       // destroy() 是幂等的，重复调用安全（空映射遍历后即返回）
-      void destroyKernel();
+      void destroyApplicationRuntime();
     };
   }, []);
 

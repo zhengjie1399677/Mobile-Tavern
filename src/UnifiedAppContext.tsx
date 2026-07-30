@@ -14,8 +14,8 @@ import {
   ThemeType,
   CustomDialogConfig,
 } from "./contexts/AppContext";
-import type { IKernelService } from "./kernel/types";
-import type { MemoryAuditSnapshot, RecalledMessage } from "./kernel/services/memory/types";
+import type { IKernelService } from "@/src/application/serviceContracts";
+import type { MemoryAuditSnapshot, RecalledMessage } from "./application/services/memory/types";
 import type { SettingsSaveState } from "./hooks/settings/useSettingsPersistence";
 import type { InstalledFullscreenPlugin } from "./domain/plugins";
 

@@ -4,12 +4,12 @@ import type {
   MemoryFragmentStatus,
   TemporalFact,
   TemporalFactStatus,
-} from "../../kernel/services/memory/types";
+} from "../../application/services/memory/types";
 import {
   bindTransactionAbort,
   enqueueWrite,
-  getDB,
-} from "../../utils/localDB";
+} from "./idbQueue";
+import { getDB } from "./idbConnection";
 import { toSessionStorageRecord } from "./sessionRecord";
 
 function toMessageRecord(sessionId: string, message: Message, turnIndex: number) {

@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import BranchUniverseDiagram from "../../src/components/BranchUniverseDiagram";
 import type { ChatSession } from "../../src/types";
-import type { MemoryFragment } from "../../src/kernel/services/memory/types";
+import type { MemoryFragment } from "../../src/application/services/memory/types";
 
 vi.mock("../../src/contexts/LanguageContext", () => ({
   useTranslation: () => ({

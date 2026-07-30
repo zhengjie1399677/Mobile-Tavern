@@ -15,7 +15,7 @@
 import React from "react";
 
 import { useKernel } from "../../contexts/KernelContext";
-import type { IKernelService } from "../../kernel/types";
+import type { IKernelService } from "@/src/application/serviceContracts";
 import type { RenderState } from "../../services/characterRender/pipeline";
 import {
   isArSupported,
@@ -29,7 +29,7 @@ import {
   checkGestureRecognitionReady as bridgeCheckReady,
   listenArGestureEvent,
   type GestureEventPayload,
-} from "./TavernArBridge";
+} from "./NativeArAdapter";
 import { Logger } from "../../utils/logger";
 import { reportUsage } from "../../utils/telemetry";
 

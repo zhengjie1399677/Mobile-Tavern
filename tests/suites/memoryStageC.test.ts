@@ -10,8 +10,8 @@
  */
 
 import { assert } from "./testUtils";
-import type { MemoryStorage } from "../../src/kernel/services/memory/MemoryStorage";
-import type { IKernel } from "../../src/kernel/types";
+import type { MemoryStorage } from "../../src/application/services/memory/MemoryStorage";
+import type { IKernel } from "@/src/application/serviceContracts";
 import type { ChatSession, UserSettings, CharacterCard, Message, SummaryCard } from "../../src/types";
 
 // ===== 测试 7：MemoryStateTable =====
@@ -19,7 +19,7 @@ import type { ChatSession, UserSettings, CharacterCard, Message, SummaryCard } f
 export async function testMemoryStateTable() {
   console.log("\n--- Running MemoryStateTable Verification ---");
   const { MemoryStateTable } = await import(
-    "../../src/kernel/services/memory/MemoryStateTable"
+    "../../src/application/services/memory/MemoryStateTable"
   );
 
   // 用 MockStorage 占位（MemoryStateTable 仅持有引用，目前不实际调用）
@@ -295,7 +295,7 @@ insertRow("物品", {"物品名": "梅子酒", "数量": "1"})
 
 export async function testMemorySummary() {
   console.log("\n--- Running MemorySummary Verification ---");
-  const { MemorySummary } = await import("../../src/kernel/services/memory/MemorySummary");
+  const { MemorySummary } = await import("../../src/application/services/memory/MemorySummary");
 
   // === Mock 基础设施 ===
 

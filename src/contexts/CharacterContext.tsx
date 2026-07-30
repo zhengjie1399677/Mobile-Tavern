@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
 import { CharacterCard } from "../types";
 import { useKernel } from "./KernelContext";
-import { ICharacterService } from "../kernel/types";
+import { ICharacterService } from "@/src/application/serviceContracts";
+import { createCharacterUseCases } from "../application/useCases/characterUseCases";
 import { useApp } from "./AppContext";
-import { reportUsage } from "../utils/telemetry";
 import { TRANSLATIONS } from "../locales/index";
-
-import { getErrorMessage, getErrorName } from '../utils/errorUtils';
+
+import { getErrorMessage } from '../utils/errorUtils';
 /** CharacterProvider 在 LanguageProvider 上方，无法使用 useTranslation hook。直接从 TRANSLATIONS 读当前语言翻译。 */
 function tChar(key: string, errorMessage: string): string {
   const lang = (typeof window !== "undefined" && localStorage.getItem("mobile_tavern_language")) || "zh-CN";
@@ -33,6 +33,10 @@ const CharacterContext = createContext<CharacterContextType | undefined>(undefin
 export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const kernel = useKernel();
   const characterService = kernel.getService<ICharacterService<CharacterCard>>("character");
+  const characterUseCases = useMemo(
+    () => createCharacterUseCases(characterService),
+    [characterService],
+  );
   const { showCustomAlert } = useApp();
   const [characters, setCharacters] = useState<CharacterCard[]>([]);
   const [activeCharId, setActiveCharId] = useState<string | null>(null);
@@ -51,43 +55,9 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [characters, activeCharId]
   );
 
-  const cleanCharacter = (char: CharacterCard): CharacterCard => {
-    if (!char) return char;
-    return {
-      ...char,
-      lorebookEntries: (char.lorebookEntries || []).map((entry) => ({
-        ...entry,
-        keys: Array.isArray(entry.keys)
-          ? entry.keys
-          : typeof entry.keys === "string"
-            ? (entry.keys as string)
-                .split(",")
-                .map((k) => k.trim())
-                .filter(Boolean)
-            : [],
-      })),
-    };
-  };
-
   const loadCharacters = async () => {
     try {
-      let stored = await characterService.getCharacterCatalog();
-
-      const hasInitialized = await characterService.getStoredDefaultCharactersInitializedFlag();
-
-      if (!hasInitialized) {
-        // 使用异步加载函数获取含图片数据的完整角色卡
-        // 符合 AGENTS.md 准则一第 2 条「物理层数据严格解耦与隔离」
-        const { loadBuiltinCharacters } = await import("../utils/builtInCharacters");
-        const builtinCharacters = await loadBuiltinCharacters();
-        await characterService.bulkSaveCharacters(builtinCharacters);
-
-        await characterService.saveStoredDefaultCharactersInitializedFlag(true);
-
-        stored = await characterService.getCharacterCatalog();
-      }
-
-      const cleaned = (stored || []).map(cleanCharacter);
+      const cleaned = await characterUseCases.loadCatalog();
       if (isMountedRef.current) {
         setCharacters(cleaned);
         setIsDBReady(true);
@@ -106,8 +76,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const saveCharacter = async (char: CharacterCard) => {
     try {
-      const cleaned = cleanCharacter(char);
-      await characterService.saveCharacter(cleaned);
+      const cleaned = await characterUseCases.saveCharacter(char);
       setCharacters((prev) => {
         const idx = prev.findIndex((c) => c.id === cleaned.id);
         if (idx >= 0) {
@@ -125,23 +94,20 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const loadCharacterById = async (id: string): Promise<CharacterCard | null> => {
-    const current = characters.find((character) => character.id === id);
-    if (current && !current.extensions?.__catalogOnly) return current;
-    const loaded = await characterService.getCharacterById(id);
+    const loaded = await characterUseCases.loadCharacter(id, characters);
     if (!loaded) return null;
-    const cleaned = cleanCharacter(loaded);
     // 7.3.3: 异步操作后检查 isMountedRef，避免组件卸载后 setCharacters 触发状态更新泄漏
     if (isMountedRef.current) {
       setCharacters((previous) =>
-        previous.map((character) => character.id === id ? cleaned : character)
+        previous.map((character) => character.id === id ? loaded : character)
       );
     }
-    return cleaned;
+    return loaded;
   };
 
   const deleteCharacter = async (id: string) => {
     try {
-      await characterService.deleteCharacter(id);
+      await characterUseCases.deleteCharacter(id);
       setCharacters((prev) => prev.filter((c) => c.id !== id));
       if (activeCharId === id) {
         setActiveCharId(null);

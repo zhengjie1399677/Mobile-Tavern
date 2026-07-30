@@ -1,7 +1,7 @@
 import { assert } from "./testUtils";
 import type { TableMemoryColumnDefinition, TableMemorySheet } from "../../src/types";
-import type { MemoryStorage } from "../../src/kernel/services/memory/MemoryStorage";
-import { MemoryStateTable } from "../../src/kernel/services/memory/MemoryStateTable";
+import type { MemoryStorage } from "../../src/application/services/memory/MemoryStorage";
+import { MemoryStateTable } from "../../src/application/services/memory/MemoryStateTable";
 import {
   coerceTableMemoryValue,
   createDefaultTableMemoryRow,

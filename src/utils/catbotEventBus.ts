@@ -1,4 +1,4 @@
-import type { IKernel } from "../kernel/types";
+import type { IKernel } from "@/src/application/serviceContracts";
 import { getRuntimeKernel } from "../kernel/runtimeKernel";
 
 export type CatbotEvent = "api_error" | "character_imported" | "night_mode" | "idle_timeout" | "lorebook_imported" | "character_created";

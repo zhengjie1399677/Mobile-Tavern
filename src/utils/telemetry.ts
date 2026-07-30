@@ -1,6 +1,6 @@
-import type { IKernel } from "../kernel/types";
+import type { IKernel } from "@/src/application/serviceContracts";
 import { getRuntimeKernel } from "../kernel/runtimeKernel";
-import { TelemetryService } from "../kernel/services/TelemetryService";
+import { TelemetryService } from "../application/services/TelemetryService";
 
 let fallbackTelemetry: TelemetryService | null = null;
 function getTelemetryService(kernel?: IKernel) {

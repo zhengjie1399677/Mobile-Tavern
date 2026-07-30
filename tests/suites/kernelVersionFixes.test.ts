@@ -10,7 +10,7 @@
  */
 
 import { Kernel, setKernelStrictMode } from "../../src/kernel/Kernel";
-import { IKernelService } from "../../src/kernel/types";
+import { IKernelService } from "@/src/application/serviceContracts";
 import { assert } from "./testUtils";
 
 export async function testKernelKernelV2Fixes() {
@@ -470,21 +470,21 @@ export async function testKernelExtensionRegistry() {
     id: "ext1",
     targetPoint: "test:point",
     priority: 10,
-    component: comp1,
+    value: comp1,
   });
 
   testKernel.registerExtension({
     id: "ext2",
     targetPoint: "test:point",
     priority: 50,
-    component: comp2,
+    value: comp2,
   });
 
   testKernel.registerExtension({
     id: "ext3",
     targetPoint: "test:point",
     priority: 5,
-    component: comp3,
+    value: comp3,
   });
 
   const list = testKernel.getExtensions("test:point");
@@ -499,14 +499,14 @@ export async function testKernelExtensionRegistry() {
     id: "ext2",
     targetPoint: "test:point",
     priority: 8,
-    component: comp2Updated,
+    value: comp2Updated,
   });
 
   const updatedList = testKernel.getExtensions("test:point");
   assert(updatedList.length === 3, "Should still contain 3 extensions after replacement");
   const ext2Node = updatedList.find(e => e.id === "ext2");
   assert(ext2Node !== undefined, "ext2 node must exist");
-  assert(ext2Node!.component === comp2Updated, "Component must be updated to the new one");
+  assert(ext2Node!.value === comp2Updated, "Component must be updated to the new one");
   assert(ext2Node!.priority === 8, "Priority must be updated to 8");
 
   assert(updatedList[0].id === "ext1", "ext1 (priority 10) should now be first");
@@ -597,7 +597,7 @@ export async function testKernelInspect() {
     id: "ext-inspect-1",
     targetPoint: "point-inspect",
     priority: 10,
-    component,
+    value: component,
   });
 
   const inspectAfterExtension = testKernel.inspect();

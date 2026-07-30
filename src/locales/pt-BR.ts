@@ -203,6 +203,9 @@ export default {
   "community.no_description": "Sem descrição",
   "community.shared_by": "Compartilhado por",
   "community.download_count": "Downloads",
+  "community.featured": "Destaque",
+  "community.uploaded_at": "Enviado em {time}",
+  "community.last_downloaded_at": "Último download em {time}",
   
   "api.title": "Configuração do Endpoint da API",
   "api.subtitle": "Configure o endereço da interface do LLM e as credenciais de autorização",

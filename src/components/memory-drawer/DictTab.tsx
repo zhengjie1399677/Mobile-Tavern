@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { ChatSession } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
-import type { MemoryServiceTyped } from "../../kernel/services/memory";
-import type { EntityType } from "../../kernel/services/memory/types";
+import type { MemoryServiceTyped } from "../../application/services/memory";
+import type { EntityType } from "../../application/services/memory/types";
 import { useTranslation } from "../../contexts/LanguageContext";
 import {
   RefreshCw,

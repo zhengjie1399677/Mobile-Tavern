@@ -14,7 +14,7 @@ import {
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { IDatabaseService } from "../../kernel/types";
+import { IDatabaseService } from "@/src/application/serviceContracts";
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { useArSync } from "../../services/ar/useArSync";
 

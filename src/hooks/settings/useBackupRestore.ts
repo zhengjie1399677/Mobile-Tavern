@@ -6,11 +6,11 @@ import {
   IWorldbookService,
   ICharacterService,
   IDatabaseService,
-} from "../../kernel/types";
-import type { MemoryServiceTyped } from "../../kernel/services/memory";
+} from "@/src/application/serviceContracts";
+import type { MemoryServiceTyped } from "../../application/services/memory";
 import { encryptBackupData, decryptBackupData } from "../../utils/cardParser";
 import { DEFAULT_SETTINGS } from "./defaults";
-
+
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本 Hook 实际使用的方法）。
@@ -563,7 +563,7 @@ export const useBackupRestore = ({
     try {
       console.log("[AutoBackup] Performing silent daily background backup...");
       const completeCharacters = await characterService.getAllCharacters();
-      
+
       // 数据脱敏，抹除 API Key
       const exportedSettings = {
         ...settings,

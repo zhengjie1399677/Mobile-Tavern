@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createKernel } from "../../src/kernel/Kernel";
-import type { IKernelService } from "../../src/kernel/types";
+import type { IKernelService } from "@/src/application/serviceContracts";
 
 /**
  * Kernel 拓扑逆序销毁时序测试。

@@ -1,5 +1,5 @@
-import { IDatabaseService } from "../../kernel/types";
-
+import { IDatabaseService } from "@/src/application/serviceContracts";
+
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 export interface ImageGenerationHandlerParams {
   message: any;
@@ -200,7 +200,7 @@ export async function handleGenerateImageForMessage({
     }
 
     // 调用生图服务
-    const { KernelServices } = await import("../../kernel");
+    const { KernelServices } = await import("../../application/serviceContracts");
     const imageGenService = getKernelService(KernelServices.ImageGen);
     const imgUrl = await imageGenService.generateImage(finalPrompt, config);
 

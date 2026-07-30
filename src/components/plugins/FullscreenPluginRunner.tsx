@@ -3,7 +3,7 @@ import { AlertTriangle, Loader2, X } from "lucide-react";
 import { createPluginRuntimeDocument, dispatchPluginHostRequest, type InstalledFullscreenPlugin, type PluginOrientation, type PluginRuntimeDocument } from "../../domain/plugins";
 import { deletePluginData, loadPluginData, savePluginData } from "../../infrastructure/plugins/pluginStorage";
 import { useUnifiedApp } from "../../UnifiedAppContext";
-import type { IChatStreamService, StreamChunk } from "../../kernel/types";
+import type { IChatStreamService, StreamChunk } from "@/src/application/serviceContracts";
 
 const STARTUP_EXIT_GUARD_MS = 2_000;
 const RUNNING_PLUGIN_SESSION_KEY = "mobile-tavern.running-fullscreen-plugin";

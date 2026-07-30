@@ -9,8 +9,8 @@ import {
   MEMORY_PERSISTENCE_SERVICE,
   type MemoryFragment,
   type MemoryPersistencePort,
-} from "../kernel/services/memory/types";
-import type { IKernelService } from "../kernel/types";
+} from "../application/services/memory/types";
+import type { IKernelService } from "@/src/application/serviceContracts";
 
 export default function SessionManagerModal() {
   const {

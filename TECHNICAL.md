@@ -1,4 +1,4 @@
-# 🛠️ Mobile Tavern 技术实现细节与架构设计 (Technical Specifications)
+﻿# 🛠️ Mobile Tavern 技术实现细节与架构设计 (Technical Specifications)
 
 > 📌 **项目行为指导规范**：在理解或重构架构职责与数据流之前，必须首先阅读 [AGENTS.md](AGENTS.md) 中的核心行为准则（大单体防御、生态兼容与纯移动端适配）。
 > *当前版本：v1.7.2*
@@ -48,11 +48,11 @@ Mobile-Tavern
 │   │   ├── indexedDbSessionQueries.ts        # 会话只读查询与分页
 │   │   └── sessionRecord.ts                  # 会话元数据纯净记录映射
 │   │
-│   ├── contexts/                              # React Context 全局状态提供者
+│   ├── contexts/                              # React 界面状态提供者，不承载业务事务
 │   │   ├── LanguageContext.tsx               # 多语言 i18n Provider 与 useTranslation 钩子
-│   │   ├── AppContext.tsx                    # 全局应用设置、备份、导入导出状态管理
-│   │   ├── ChatContext.tsx                   # 聊天会话生命周期与消息流状态管理
-│   │   └── chatMessageHydration.ts           # 最新优先存储页到界面时间正序的纯适配器
+│   │   ├── AppContext.tsx                    # 页签、主题、弹窗与安全区界面状态
+│   │   ├── CharacterContext.tsx              # 角色目录选择与加载状态投影
+│   │   └── ChatContext.tsx                   # 会话选择、发送态与分页加载态投影
 │   │
 │   ├── locales/                               # 多语言翻译资源（按语言独立文件）
 │   │   ├── index.ts                          # 聚合导出 TRANSLATIONS 对象
@@ -75,52 +75,38 @@ Mobile-Tavern
 │   │   ├── GlobalWorldbookTab.tsx            # 全局知识库条目创建、编辑与原子写库面板
 │   │   └── SettingsTab.tsx                   # 备份管理、采样参数调节及大模型接入设置
 │   │
-│   ├── kernel/                               # 微内核切面底座 (包含 IOC 容器、双轨 Pipeline 及 19 大官方核心服务)
-│   │   ├── Kernel.ts                         # 核心 Kernel 容器类实现 (包含 globalKernel 单例)
-│   │   ├── types.ts                          # 全局微内核契约接口规范 (IKernel, IKernelService 等)
-│   │   ├── index.ts                          # 统一对外导出入口与内核冷启动装配函数 (initializeKernel)
-│   │   ├── schemas/                          # Kernel 运行时 zod schema 校验层（L2 Phase C 已全面落地）
-│   │   │   ├── p0Services.ts                 # 5 个 P0 服务完整 schema + IKernelService 基础结构 + P1 服务名清单
-│   │   │   ├── messages.ts                   # IMessage 顶层 schema + 2 静态 topic payload schema + 动态 topic 黑名单
-│   │   │   └── index.ts                      # validateService/validateMessage/validateServiceRetrieval 纯函数 + SAFE_PROXY_SYMBOL
-│   │   └── services/                         # 下沉的官方核心微服务实现
-│   │       ├── DatabaseService.ts            # 数据库物理 CRUD 服务 [isCritical: 致命]
-│   │       ├── LLMService.ts                 # 大模型数据通信与 SSE 流式读取服务
-│   │       ├── PromptService.ts              # Prompt 组装与宏替换服务
-│   │       ├── prompt/LorebookResolver.ts     # 世界书触发与级联解析
-│   │       ├── prompt/PromptMacroFormatter.ts # 宏与 MVU 变量格式化
-│   │       ├── TelemetryService.ts           # 使用率上报与崩溃日志本地落盘遥测服务
-│   │       ├── ScriptService.ts              # 角色卡扩展字段变量沙盒 MVU 服务
-│   │       ├── AsrService.ts                 # 语音录制与识别（ASR）服务
-│   │       ├── WorldbookService.ts           # 全局及自定义世界书与设定集服务
-│   │       ├── PresetService.ts              # 采样与大模型预设参数管理服务
-│   │       ├── SettingsService.ts            # 用户全局配置参数自动同步及持久化服务
-│   │       ├── CharacterService.ts           # 角色卡数据库 CRUD 操作服务
-│   │       ├── BgmService.ts                 # 背景音乐控制与音频调度服务
-│   │       ├── TtsService.ts                 # 文本转语音 (TTS) 服务
-│   │       ├── ChatStreamService.ts          # 管理 SSE 字节切分、流式输出传输事务服务
-│   │       ├── MultiMessageService.ts        # 消息并发/多宇宙分支会话分发服务
-│   │       ├── UpdateCheckService.ts         # 客户端热更新与版本状态校验服务
-│   │       ├── ImageGenerationService.ts     # AI 绘图代理与生成接口管理服务
-│   │       └── memory/                       # 下沉的官方统一长期记忆系统服务模块
-│   │           ├── MemoryService.ts          # 记忆服务主控类，装配存储、抽取、召回、状态表与摘要
-│   │           ├── types.ts                  # 记忆持久化端口及领域服务令牌
-│   │           ├── MemoryStorage.ts          # 记忆碎片/总结底座数据库持久化子模块
-│   │           ├── MemoryExtractor.ts        # 大模型异步情感、年表、RPG 状态增量提取器
-│   │           ├── MemoryRecall.ts           # 记忆匹配、检索与级联载入中间件子模块
-│   │           ├── MemoryAudit.ts            # 最终 Prompt 记忆包运行时审计快照
-│   │           ├── MemoryStateTable.ts       # RPG 属性看板增量提取与分析子模块
-│   │           └── MemorySummary.ts          # 故事大纲自动提炼与年表总结子模块
+│   ├── application/                          # Mobile Tavern 应用服务与运行时组合层
+│   │   ├── runtime.ts                        # 应用启动、销毁与 Kernel 装配入口
+│   │   ├── serviceContracts.ts               # 数据库、Prompt、记忆等应用服务契约
+│   │   ├── serviceSchemas/                   # 具体服务和消息主题的 zod 契约校验
+│   │   ├── bootstrap/                        # 声明式服务目录与默认 Pipeline 装配
+│   │   ├── useCases/                         # 业务初始化、分页、事务与跨 Service 协调
+│   │   └── services/                         # LLM、数据库、Prompt、记忆、设置等应用服务实现
+│   │       ├── DatabaseService.ts            # 通用数据库 CRUD 与跨 Store 事务
+│   │       ├── PromptService.ts              # Prompt 组装与宏替换
+│   │       ├── LLMService.ts                 # 大模型通信与请求清洗
+│   │       ├── prompt/                       # Prompt 编译、渲染与世界书解析
+│   │       └── memory/                       # 长期记忆抽取、召回、状态表与摘要
 │   │
-│   └── utils/                                # 底层核心计算工具包
+│   ├── kernel/                               # 与业务无关的通用运行时机制
+│   │   ├── Kernel.ts                         # IoC、生命周期、消息总线与扩展注册
+│   │   ├── KernelLifecycle.ts                # 幂等启动与串行销毁
+│   │   ├── Pipeline.ts                       # 通用洋葱管道
+│   │   ├── validation.ts                     # 可注入的通用校验扩展点
+│   │   ├── types.ts                          # IKernel、IKernelService、IPipeline 等纯契约
+│   │   └── index.ts                          # 仅导出 Kernel 通用能力
+│   │
+│   ├── compatibility/sillytavern/            # SillyTavern Compatibility Runtime 权威入口
+│   │
+│   └── utils/                                # 底层核心计算与历史兼容工具包
 │       ├── apiClient.ts                      # 跨环境 Fetch 直连/代理自适应包装器（支持 kernel 注入解耦）
 │       ├── cardParser.ts                     # 二进制 PNG 酒馆卡解码、备份 AES 加密
 │       ├── promptBuilder.ts                  # 前缀缓存 Prompt 重排、世界书 3 阶级联检索
 │       ├── security.ts                       # SSRF 私网 IP 过滤、DNS 防重绑定安全网闸
-│       ├── localDB.ts                        # IndexedDB 对象仓声明与并发写 Promise 管道
+│       ├── localDB.ts                        # 已冻结；仅外部兼容与测试重置，后续删除
 │       ├── telemetry.ts                      # 前端遥测桥接，自适应降级 console 并调用 Rust 命令（支持 kernel 注入解耦）
 │       ├── catbotEventBus.ts                 # 客服助理雪团事件总线（支持 kernel 注入解耦与工厂函数）
-│       └── tavernHelper/                     # TavernHelper Bridge 模块
+│       └── tavernHelper/                     # Compatibility Runtime 暂存实现与旧路径兼容
 │           ├── bridgeCore.ts                 # Bridge 核心状态与事件发射器（支持 kernel 注入解耦与工厂函数）
 │           ├── mvuParser.ts                  # MVU 角色卡扩展字段与正则脚本解析
 │           └── scriptIframe.ts               # MVU 沙盒脚本执行器
@@ -162,7 +148,7 @@ graph TB
 
 ### 图 B：移动端 App 内部架构
 
-下图聚焦移动端 App 内部的三层结构：React 视图层、Kernel 微内核切面底座（含 zod schema 校验层）、IndexedDB 本地存储：
+下图聚焦移动端 App 内部的四层结构：React 视图层、应用服务与组合层、纯 Kernel 运行时、IndexedDB 本地存储：
 
 ```mermaid
 graph TB
@@ -176,29 +162,30 @@ graph TB
         Hooks <--> Utils
     end
 
-    subgraph KernelLayer["🧩 微内核切面底座 (src/kernel/)"]
-        Entry["initializeKernel"]
-        Schemas["schemas/ zod 校验层"]
+    subgraph ApplicationLayer["🧭 应用运行时 (src/application/)"]
+        Entry["runtime.ts"]
+        Schemas["serviceSchemas/ 契约校验"]
+        Services["应用服务"]
+        Entry --> Services
+        Schemas -.->|"注入校验器"| Services
+    end
+
+    subgraph KernelLayer["🧩 通用 Kernel (src/kernel/)"]
         Pipeline["Pipeline 洋葱管道"]
         Bus["MessageBus 事件总线"]
-        Services["17 大核心服务"]
-        Entry --> Pipeline
-        Entry --> Bus
-        Entry --> Services
-        Schemas -.->|"服务契约校验"| Services
-        Schemas -.->|"消息边界校验"| Bus
-        Pipeline <--> Services
-        Bus <--> Services
+        Lifecycle["服务生命周期与容器"]
     end
 
     subgraph StorageLayer["💾 本地持久化"]
         DB[("IndexedDB<br/>MobileTavernLiteDB")]
     end
 
-    ReactLayer <-->|"getService / publish"| KernelLayer
+    ReactLayer <-->|"用例调用"| ApplicationLayer
+    ApplicationLayer <-->|"registerService / getService / publish"| KernelLayer
     Services <-->|"领域端口 / DatabaseService"| DB
 
     style ReactLayer fill:#fafafa,stroke:#666,stroke-width:1px
+    style ApplicationLayer fill:#eefaf3,stroke:#228b22,stroke-width:2px
     style KernelLayer fill:#f5f5ff,stroke:#6a5acd,stroke-width:2px
     style StorageLayer fill:#fff8dc,stroke:#daa520,stroke-width:2px
 ```
@@ -209,6 +196,10 @@ graph TB
 |------|----------|----------|
 | React 前端 ↔ Kernel 微内核 | kernel 实例注入 / `getService` / `publish` | 同进程函数调用 |
 | 记忆领域 ↔ IndexedDB | `MemoryPersistencePort` / `IndexedDbMemoryPersistenceService` | 端口—适配器调用，领域层不导入基础设施 |
+| 业务用例 ↔ IndexedDB | 应用 Service / 领域端口 → `infrastructure/storage` | 页面、Hook、Context 和领域规则不得直接访问存储 |
+| 外部角色卡 ↔ 应用 | `compatibility/sillytavern` | MVU、正则脚本与动态字段在 Compatibility Runtime 解析并降级 |
+| 强沙箱插件 ↔ 宿主 | `domain/plugins/pluginHostRpc` | 权限化 RPC 与上下文脱敏，不复用 Compatibility Runtime |
+| Web 前端 ↔ Android AR | `services/ar/NativeArAdapter` | Tauri IPC 原生适配，不暴露给第三方插件 |
 | 移动端 ↔ Tauri Rust 后端 | Tauri IPC `invoke` | 序列化消息 + Blob 文件路径 |
 | 移动端 ↔ 云端后端 | HTTPS REST API | `cloud/` 目录代码物理隔离，不打入 APK |
 | 移动端 ↔ 第三方 LLM | `apiClient` 自适应（原生直连 / Express 代理） | SSE 流式 HTTP |
@@ -236,7 +227,7 @@ graph TB
 6. 移动端视图只编辑领域字段，不自行拼接 Prompt。`PromptCompositionEditor.tsx` 负责模式选择、顺序和入口，`PromptBlockEditorDialog.tsx` 负责窄屏完整编辑与宏选择，`PromptBlockQuickEditor.tsx` 提供宽屏同步快速配置；`PromptCompositionWorkbench.tsx` 在 700px 以上常驻双栏右侧，在窄屏降级为底部面板。`PromptCompositionGraph.tsx` 是同一份 `PromptComposition` 的只读投影，节点点击只改变 UI 选择；最终预览仍由 `PromptService.assemblePrompt` 返回，图形层无权自行编译。`usePromptCompositionHistory.ts` 为同一领域对象提供 30 步内存历史，外部切换编排时清空历史，连续输入在 800ms 内合并；导入通过同一提交入口，因此可撤销。`promptCompositionTransfer.ts` 使用 `mobile-tavern.prompt-composition` 版本化信封导出，并兼容旧的裸 `PromptComposition`；所有导入仍经 `parsePromptComposition` 防腐校验，兼容元数据不会丢失。Android 原生环境通过能力检测显示横屏、文件保存和文本分享入口，不使用 User-Agent 判断且不向浏览器提供伪实现。
 7. `validator.ts` 在编辑期与运行期共同检查空模板、重复区块 ID、无效历史深度目标和不可用数据源。组合级 Token 预算默认取“模型上下文窗口减预留回复 Token”，也可自定义或关闭；编译器仅按优先级整块移除显式声明 `overflow: "drop"` 的区块，`keep` 内容不可隐式截断，仍超限时返回错误诊断。编译结果同时返回区块、数据键、最终消息索引和裁剪状态追踪，调试面板只消费该追踪，不自行推断注入链路。基础示例、用户模板与外部兼容模板分组管理，持久化至 `user_settings_large_prompts.promptCompositionTemplates`。设置编辑采用防抖写入状态机，页面隐藏时冲刷写入，确有未落盘内容时才注册离开确认。
 
-> 📌 各子系统的详细内部架构与时序图见下方对应章节：[🏗️ 模块架构与状态管理](#️-模块架构与状态管理-system-architecture)、[🧬 Tavern 角色卡解码机制](#-tavern-角色卡解码机制-tavern-png-card-binary-decoder)、[🛡️ Kernel zod 运行时校验层](#️-kernel-zod-运行时校验层-l2-schema-validation)。
+> 📌 各子系统的详细内部架构与时序图见下方对应章节：[🏗️ 模块架构与状态管理](#️-模块架构与状态管理-system-architecture)、[🧬 Tavern 角色卡解码机制](#-tavern-角色卡解码机制-tavern-png-card-binary-decoder)、[🛡️ 应用契约 zod 运行时校验层](#️-应用契约-zod-运行时校验层-l2-schema-validation)。
 
 ---
 
@@ -365,7 +356,7 @@ Mobile Tavern 利用 React 19 的 Concurrent Mode，通过分片更新机制，
 * **核心机制**: 四个纯 TS 工具类继续支持显式 `IKernel` 注入；默认兼容入口通过 `runtimeKernel.ts` 延迟读取由组合根绑定的容器，不再直接导入 `globalKernel`。测试可传入隔离实例，业务模块不会反向依赖应用单例。
 
 #### 第四层：声明式服务目录与后台 Worker 宿主
-* **实现位置**: [serviceCatalog.ts](src/kernel/bootstrap/serviceCatalog.ts)、[WorkerPluginService.ts](src/kernel/services/WorkerPluginService.ts)
+* **实现位置**: [serviceCatalog.ts](src/application/bootstrap/serviceCatalog.ts)、[WorkerPluginService.ts](src/application/services/WorkerPluginService.ts)
 * **核心机制**: 官方服务使用声明式目录和 `dynamic import()` 并行装载，`registerServiceModules` 再交给 `registerServiceBatch` 做依赖拓扑注册；运行时卸载统一调用 `destroyService`。后台 Worker 必须由受信模块显式提供工厂与入站主题白名单；宿主只转发消息，不向 Worker 暴露 Kernel，并在注销、内核销毁或中止时终止 Worker。
 
 ---
@@ -756,13 +747,13 @@ graph TD
 
 ### 5. P0/P1 服务分级与 zod 运行时 schema 校验层
 
-为了在运行时为内核三大入口（`registerService` / `publish` / `getService`）提供契约级防御，内核在 `src/kernel/schemas/` 下引入了基于 [zod v3](https://github.com/colinhacks/zod) 的运行时 schema 校验层（L2 Phase B 已落地）。该层采用 **P0/P1 分级策略**，在保障关键数据流入边界的同时避免对全部 17 个服务做冗余校验：
+为了在运行时为容器三大入口（`registerService` / `publish` / `getService`）提供契约级防御，应用层在 `src/application/serviceSchemas/` 下提供了基于 [zod v3](https://github.com/colinhacks/zod) 的业务契约校验器（L2 Phase B 已落地），并由 `src/application/runtime.ts` 注入 Kernel 的通用校验插槽。Kernel 不认识具体服务名、消息主题或业务 schema。应用校验器采用 **P0/P1 分级策略**，在保障关键数据流入边界的同时避免对全部 17 个服务做冗余校验：
 
 *   **P0 服务（数据流入边界，5 个）**：`ChatStreamService` / `ScriptService` / `DatabaseService` / `MemoryService` / `LLMService`。这些服务直接接触 SSE 字节流、用户脚本执行结果、IndexedDB 物理持久化与大模型通信，是契约违例后果最严重的边界。P0 服务在 `p0Services.ts` 中各拥有一份完整 schema，校验其声明的所有方法存在且类型为 `function`（如 `DatabaseService` 的 15 个方法 / `MemoryService` 的 5 个方法）。
 *   **P1 服务（其余 12 个）**：仅校验 `IKernelService` 基础结构（`name` 字段非空字符串 + `init` / `destroy` 为 function），降低运行时开销。
 *   **未知服务名**：保守默认按 P1 基础结构校验，避免自定义服务名漏校验。
 
-校验入口在 [schemas/index.ts](src/kernel/schemas/index.ts) 中以 **三个纯函数** 形式提供，不耦合 Kernel 内部状态、不抛错，返回 `{ success: true } | { success: false, error, summary }` result 对象，由调用方按 `validationMode` 决定 throw / warn / skip：
+校验入口在 [schemas/index.ts](src/application/serviceSchemas/index.ts) 中以 **三个纯函数** 形式提供，不耦合 Kernel 内部状态、不抛错，返回 `{ success: true } | { success: false, error, summary }` result 对象，由调用方按 `validationMode` 决定 throw / warn / skip：
 
 *   `validateService(name, service)` — `registerService` 入口用，P0 走完整 schema / P1 走基础结构。
 *   `validateMessage(message)` — `publish` 入口用，先校验顶层 `IMessage` 结构，再按 topic 分流：动态 topic（`tavern_helper:*` 前缀，由用户脚本决定 payload 形状，符合 SillyTavern 兼容契约）跳过 payload 校验；静态 topic（`script:destroyed` / `catbot:event`）额外用 payload schema 校验；未登记 topic 仅做顶层校验。
@@ -893,7 +884,7 @@ Schema 变更由领域纯函数统一处理：列重命名按稳定 ID 保留数
 *   **`testKernelPipeline`**：验证 input/output 管道中中间件依照优先级 `priority` 链式流转以及被中间件漏调 `next` 时的内核强熔断报错。
 *   **`testKernelPipelineHardening`**：测试开发严格模式（strictMode）与生产容错模式下管道防灾校验。
 *   **`testKernelHardeningP0ToP3`**：全面测试注销订阅、可选服务降级、JS 内置 Symbol 属性读取拦截、内存清理。
-*   **`testArchitectureBoundaries`**：静态扫描依赖方向、Context selector、瞬态召回隔离与核心文件行数，阻止业务代码污染底座。
+*   **`testArchitectureBoundaries`**：静态扫描 Kernel 白名单、`localDB` 生产调用、Context 用例边界、三类适配器依赖方向、selector、瞬态召回隔离与核心文件行数，阻止业务代码污染底座。
 
 #### 🌀 版本修复、生命周期与插件机制 (Lifecycle & SPI)
 *   **第三方全屏插件 v1**：第三方 UI 不进入 React 组件树，也不复用 TavernHelper/MVU 的同源 iframe。`.mtplugin` 经 ZIP 中央目录、清单、路径、大小和压缩方式校验后写入独立 `MobileTavernPluginDB`；运行时将包内 CSS/经典 JavaScript 安全内联、媒体与字体映射为 `data:` URL，仅为入口创建临时 Blob URL，避免无 `allow-same-origin` 时 Android WebView 拒绝父来源 Blob 子资源；入口加载于仅含 `allow-scripts` 的全屏 sandbox iframe，并注入禁止网络、子框架、对象和表单的 CSP。
@@ -967,9 +958,9 @@ npm run test
 
 ---
 
-## 🛡️ Kernel zod 运行时校验层 (L2 Schema Validation)
+## 🛡️ 应用契约 zod 运行时校验层 (L2 Schema Validation)
 
-TypeScript 编译期类型检查无法拦截运行时形状漂移：`IMessage.payload: any` 让 publish/subscribe 消息无任何运行时校验，17 个 `IXxxService` 接口契约只靠编译期检查，但 `getService<T>()` 调用方常以 `getService<any>("database")` 形式绕过类型约束。为补齐运行时类型安全，项目引入 zod v3 并设计了 **L2 三边界校验层**。
+TypeScript 编译期类型检查无法拦截运行时形状漂移。为补齐运行时类型安全，应用层引入 zod v3 并设计了 **L2 三边界校验层**：业务 schema 保留在 `src/application/serviceSchemas/`，组合根将三个纯校验函数注入 `src/kernel/validation.ts` 暴露的通用插槽。Kernel 只执行校验结果，不依赖 zod，也不认识任何具体服务或消息主题。
 
 ### 1. P0 / P1 服务分级标准
 
@@ -984,7 +975,7 @@ TypeScript 编译期类型检查无法拦截运行时形状漂移：`IMessage.pa
 
 ### 2. 三大纯函数校验工具
 
-[schemas/index.ts](src/kernel/schemas/index.ts) 导出三个不耦合 Kernel 内部状态、不抛错的纯函数，返回 `{success, error?, summary?}` result 对象。当前消息校验与服务检索校验（validateServiceRetrieval）已完全落地；服务注册校验（validateService）仍作为后续增强入口：
+[schemas/index.ts](src/application/serviceSchemas/index.ts) 导出三个不耦合 Kernel 内部状态、不抛错的纯函数，返回 `{success, error?, summary?}` result 对象。当前消息校验与服务检索校验（validateServiceRetrieval）已完全落地；服务注册校验（validateService）仍作为后续增强入口：
 
 | 函数 | 入口 | 分级策略 |
 |---|---|---|
@@ -1013,7 +1004,7 @@ SillyTavern 兼容契约（AGENTS.md 准则二）要求 `tavern_helper:${event}`
 ### 5. 设计原则与边界
 
 * **纯函数 + result 对象**：不抛错、不耦合 Kernel 内部状态，由各入口决定如何处理失败
-* **不替换 `zodMock.ts`**：[zodMock.ts](src/utils/tavernHelper/zodMock.ts)（511 行）是 SillyTavern 沙箱内用的伪 zod，真 zod 仅用于 Kernel 内部校验，两者物理隔离
+* **不替换 `zodMock.ts`**：[zodMock.ts](src/utils/tavernHelper/zodMock.ts)（511 行）是 SillyTavern 沙箱内用的伪 zod，真 zod 仅用于应用层服务契约校验，两者物理隔离
 * **渐进接入**：消息发布边界已经启用；服务注册/获取边界及三态 `validationMode` 仍未落地
 * **兼容优先**：动态 SillyTavern topic 只校验顶层结构，不约束业务 payload
 
@@ -1117,7 +1108,7 @@ SillyTavern 兼容契约（AGENTS.md 准则二）要求 `tavern_helper:${event}`
 * **高阶业务服务生命周期**：`testCharacterService`、`testWorldbookService`、`testSettingsService`、`testPresetService`（解耦后的独立微服务 CRUD 契约与 Abort 释放）。
 * **turnIndex 时序一致性**：`testTurnIndexConsistency`（分支对话中途删除并追加消息时的 turnIndex 顺序稳定性测试）。
 * **客服小猫异常降级**：`runCatbotErrorTests`（云端 FC 限流、欠费等异常网络下的本地正则规则器健壮处理）。
-* **Kernel zod L2 schema 校验**：`testKernelSchemaValidation`（10 项主断言 + 2 项边界：P0 服务完整 schema 通过/失败、P1 基础结构通过/失败、静态 topic payload 通过/失败、动态 topic `tavern_helper:*` 跳过 payload 校验、缺顶层字段失败、SafeProxy 标记跳过 P0 校验含交叉验证、真实 P0 服务通过、null/undefined 输入不抛错）。
+* **应用契约 zod L2 schema 校验**：`testKernelSchemaValidation`（10 项主断言 + 2 项边界：P0 服务完整 schema 通过/失败、P1 基础结构通过/失败、静态 topic payload 通过/失败、动态 topic `tavern_helper:*` 跳过 payload 校验、缺顶层字段失败、SafeProxy 标记跳过 P0 校验含交叉验证、真实 P0 服务通过、null/undefined 输入不抛错）。
 
 ### 2. 集成测试层（规划中）
 * **建设目标**：验证多模块协作与 React 视图渲染正确性。

@@ -1,6 +1,6 @@
 import React, { useContext, memo, useState } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
-import { createMessageIframeSrcDoc, initTavernHelperMocks } from "../utils/tavernHelper";
+import { createMessageIframeSrcDoc, initTavernHelperMocks } from "../compatibility/sillytavern";
 import { useLibsReady } from "./formatted-text/useLibsReady";
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "./formattedTextUtils";
 

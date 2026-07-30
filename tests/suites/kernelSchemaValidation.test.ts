@@ -19,13 +19,14 @@ import {
   validateServiceRetrieval,
   SAFE_PROXY_SYMBOL,
   type ValidationResult,
-} from "../../src/kernel/schemas";
+} from "../../src/application/serviceSchemas";
 import { assert } from "./testUtils";
 import {
   Kernel,
   setKernelServiceValidationMode,
   setKernelStrictMode,
 } from "../../src/kernel/Kernel";
+import { configureKernelValidators } from "../../src/kernel/validation";
 
 /**
  * 校验失败的窄化类型，便于直接访问 error / summary 字段。
@@ -42,6 +43,11 @@ const expectFailure = (r: ValidationResult, label: string): ValidationFailure =>
 
 export async function testKernelSchemaValidation() {
   console.log("\n--- Running Kernel Schema Validation (Phase B unit tests) ---");
+  configureKernelValidators({
+    validateMessage,
+    validateService,
+    validateServiceRetrieval,
+  });
 
   // === 用例 1：validateService P0 ChatStream 合法 → success ===
   {

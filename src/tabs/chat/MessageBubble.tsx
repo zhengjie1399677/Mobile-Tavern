@@ -26,8 +26,8 @@ import TypingIndicator from "./TypingIndicator";
 import QuickDialogueOptions from "./QuickDialogueOptions";
 import CloudLoader from "../../components/CloudLoader";
 import type { Message } from "../../types";
-import { ITtsService } from "../../kernel/types";
-
+import { ITtsService } from "@/src/application/serviceContracts";
+
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 /**
  * Tavern 全局辅助 window 字段类型收口。
@@ -556,7 +556,7 @@ const MessageBubble = ({
                   e.stopPropagation();
                   setSwipedMsgId(null);
                   setDragOffset(0);
-                  
+
                   await handleGenerateImageForMessage({
                     message,
                     activeSession: unifiedAppStore.getState().activeSession,
