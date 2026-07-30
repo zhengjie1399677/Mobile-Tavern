@@ -16,6 +16,7 @@ import type {
   MessageRole,
 } from './types';
 import type { MemoryStorage } from './MemoryStorage';
+import { publicEnvironment } from "../../../config";
 import { Logger } from '../../../utils/logger';
 
 const logger = Logger.create('MemoryExtractor');
@@ -362,7 +363,7 @@ export class MemoryExtractor {
    */
   private async processExtraction(task: ExtractionTask): Promise<ExtractionResult> {
     const signal = this.abortController?.signal;
-    const isDev = import.meta.env?.DEV ?? false;
+    const isDev = publicEnvironment.isDevelopment;
     let tags: string[];
     let extractSource: ExtractSource;
     let extraction: MemoryExtraction | undefined;

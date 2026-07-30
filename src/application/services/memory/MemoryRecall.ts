@@ -11,6 +11,7 @@ import type { MemoryFragment, MessageRecord, RecalledMessage, TemporalFact } fro
 import type { MemoryStorage } from './MemoryStorage';
 import { extractByDict } from './MemoryExtractor';
 import type { IDatabaseService } from '../../serviceContracts';
+import { publicEnvironment } from "../../../config";
 import { Logger } from '../../../utils/logger';
 
 const logger = Logger.create("MemoryRecall");
@@ -107,7 +108,7 @@ export class MemoryRecall {
     currentMessage: string,
     options?: RecallOptions
   ): Promise<RecalledMessage[]> {
-    const isDev = import.meta.env?.DEV ?? false;
+    const isDev = publicEnvironment.isDevelopment;
 
     // 1. 优先读会话级缓存（TTL 30s），命中则跳过 IDB 查询；未命中则并行查 IDB 并写缓存。
     //    sessionObj 在后续 recallByTags / fallbackRecallRecent 中复用，避免重复 getSessionById。
@@ -239,7 +240,7 @@ export class MemoryRecall {
     options?: RecallOptions,
     sessionMeta?: { pinnedIds: string[]; mutedIds: string[] }
   ): Promise<RecalledMessage[]> {
-    const isDev = import.meta.env?.DEV ?? false;
+    const isDev = publicEnvironment.isDevelopment;
     const topK = Math.max(1, options?.topK ?? DEFAULT_TOP_K);
     const rawExcludeN = Math.max(0, options?.excludeRecentN ?? DEFAULT_EXCLUDE_RECENT_N);
 

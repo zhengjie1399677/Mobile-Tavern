@@ -1,4 +1,5 @@
 import { IKernel, IKernelService, IImageGenerationService } from "../serviceContracts";
+import { publicEnvironment } from "../../config";
 import { ImageGenApiConfig } from "../../types";
 import { Logger } from "../../utils/logger";
 
@@ -186,7 +187,7 @@ export class ImageGenerationService implements IImageGenerationService {
 
     const isBrowserEnv = typeof window !== "undefined" &&
                          !(window as WindowWithTauriInternals).__TAURI_INTERNALS__ &&
-                         (typeof process === "undefined" || process.env.NODE_ENV !== "test");
+                         !publicEnvironment.isTest;
     const isRemoteUrl = url.startsWith("https://") || (url.startsWith("http://") && !url.includes("127.0.0.1") && !url.includes("localhost"));
 
     let finalUrl = url;

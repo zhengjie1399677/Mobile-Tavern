@@ -15,7 +15,7 @@
  *  - testMemoryStateTable：默认表初始化 + getSheet + parseAICommand + processTableMemory CRUD
  *  - testMemorySummary：触发检测 + LLM 调用 + 瘦身 SummaryCard（砸 5 条正则状态抽离）
  *
- * 测试遵循 AGENTS.md 准则八/十 TDD 单兵验证流程，
+ * 测试遵循 AGENTS.md `CHANGE-SAFE` 与 `TEST-CONTROLLED` 的 TDD 局部验证流程，
  * 在 tests/run_all_tests.ts 中聚合执行。
  */
 

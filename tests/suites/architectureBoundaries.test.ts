@@ -24,12 +24,98 @@ const listCodeFiles = (relativeDir: string): string[] => {
 export async function testArchitectureBoundaries(): Promise<void> {
   console.log("\n--- Running Architecture Boundary Guards ---");
 
+  const agentsGuide = read("AGENTS.md");
+  const architectureEntry = read("docs/agents/architecture_entry.md");
+  const stableRuleIds = [
+    "ARCH-KERNEL",
+    "ARCH-FLOW",
+    "COMPAT-DATA",
+    "PLATFORM-MOBILE",
+    "CONFIG-TRACKS",
+    "QUALITY-TYPES",
+    "CHANGE-SAFE",
+    "TEST-CONTROLLED",
+    "DOC-CHINESE",
+    "COLLAB-IDENTITY",
+  ];
+  for (const ruleId of stableRuleIds) {
+    assert(
+      agentsGuide.includes(`\`${ruleId}\``),
+      `AGENTS.md 必须保留稳定规则标识 ${ruleId}，不得退回会因排序变化而失效的数字编号`
+    );
+  }
+  assert(
+    !/^# .*核心行为准则[一二三四五六七八九十]/m.test(agentsGuide),
+    "AGENTS.md 不得恢复按追加时间排列的中文数字准则编号，规则引用必须使用稳定标识"
+  );
+  assert(
+    agentsGuide.split(/\r?\n/).length <= 180,
+    "AGENTS.md 只保留默认必读铁律，超过 180 行的细则必须下沉到按需专项文档"
+  );
+  assert(
+    architectureEntry.split(/\r?\n/).length <= 130,
+    "architecture_entry.md 只负责阅读路由和权威入口，排障、测试与实现细节必须下沉"
+  );
+  for (const requiredDocument of [
+    "docs/agents/runtime_boundaries.md",
+    "docs/agents/configuration_strategy.md",
+    "docs/agents/typescript_discipline.md",
+    "docs/agents/development_workflow.md",
+    "docs/agents/troubleshooting_entry.md",
+  ]) {
+    assert(
+      existsSync(path.join(workspace, requiredDocument)),
+      `行为指导引用的按需文档不存在：${requiredDocument}`
+    );
+    assert(
+      agentsGuide.includes(requiredDocument) || architectureEntry.includes(requiredDocument),
+      `按需文档必须从 AGENTS.md 或 architecture_entry.md 获得明确路由：${requiredDocument}`
+    );
+  }
+  assert(
+    !agentsGuide.includes("豁免清单（待后续阶段渐进清理") &&
+      read("docs/agents/typescript_discipline.md").includes("历史豁免清单"),
+    "TypeScript 历史豁免表必须留在按需类型规范，不得重新膨胀默认必读 AGENTS.md"
+  );
+
+  for (const file of listCodeFiles("src")) {
+    const normalizedFile = file.replaceAll("\\", "/");
+    if (
+      normalizedFile === "src/config/publicEnvironment.ts"
+      || normalizedFile === "src/kernel/runtimeEnvironment.ts"
+    ) {
+      continue;
+    }
+    assert(
+      !/\b(?:import\.meta\.env|process\.env)\b/.test(read(file)),
+      `${file} 不得直接读取环境变量；移动端公开环境统一通过 src/config/publicEnvironment.ts，Kernel 仅保留运行模式自检例外`
+    );
+  }
+
+  assert(
+    !read("server.ts").includes("process.env")
+      && !read("vite.config.ts").includes("process.env"),
+    "Node 服务与 Vite 配置入口不得散落读取 process.env，必须通过各自的类型化配置模块"
+  );
+  assert(
+    read("server/config.ts").includes("生产环境必须提供")
+      && read("server/config.ts").includes("AES_ENCRYPT_KEY")
+      && read("build/viteEnvironment.ts").includes("parseViteEnvironment"),
+    "服务端和构建配置必须保留类型校验与生产秘密 fail-fast 保护"
+  );
+  assert(
+    read("src/config/featurePolicies.ts").includes("minFirstUseAgeDays")
+      && read("src/config/featurePolicies.ts").includes("minCumulativeUsageHours"),
+    "功能发布时间策略必须集中在 src/config/featurePolicies.ts，并在名称中明确时间单位"
+  );
+
   const allowedKernelFiles = new Set([
     "src/kernel/index.ts",
     "src/kernel/Kernel.ts",
     "src/kernel/KernelLifecycle.ts",
     "src/kernel/Pipeline.ts",
     "src/kernel/runtimeKernel.ts",
+    "src/kernel/runtimeEnvironment.ts",
     "src/kernel/types.ts",
     "src/kernel/validation.ts",
   ]);

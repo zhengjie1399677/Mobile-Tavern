@@ -2,7 +2,7 @@
  * 测试套件 barrel 文件
  *
  * 统一 re-export 所有测试函数，供 tests/run_all_tests.ts 聚合入口按需引用。
- * 拆分遵循 AGENTS.md 准则一与准则十：单文件 ≤1000 行，按测试域物理分轨。
+ * 拆分遵循 AGENTS.md `QUALITY-TYPES` 与 `TEST-CONTROLLED`：单文件 ≤1000 行，按测试域物理分轨。
  */
 
 export { assert, parsePngMetadataLocal, PNG_SIGNATURE_HEADER_1, PNG_SIGNATURE_HEADER_2, PNG_IHDR_END_OFFSET } from "./testUtils";

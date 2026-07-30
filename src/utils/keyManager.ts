@@ -1,5 +1,6 @@
 // Stateless 自签名 Token + 动态密钥下发 客户端密钥管理器
 import { invoke } from "@tauri-apps/api/core";
+import { publicEnvironment } from "../config";
 import { CLOUD_ENDPOINTS } from "./cloudEndpoints";
 
 import { getErrorMessage, getErrorName } from '../utils/errorUtils';
@@ -15,7 +16,7 @@ export const TRIAL_KEY_SENTINEL = "TRIAL_KEY_PLACEHOLDER";
  * 注意：此 key 仅用于解密云端下发的临时 trial key 密文，不用于用户数据加密。
  *
  * 安全策略：
- * - 生产构建（import.meta.env.DEV === false）直接抛错，硬编码 key 字符串
+ * - 生产构建（publicEnvironment.isDevelopment === false）直接抛错，硬编码 key 字符串
  *   虽然仍存在于源码，但运行时不可达，无法被 Tauri bundle 运行时调用。
  * - Tauri 客户端生产构建必须走 Rust 侧 decrypt_trial_key（src-tauri/src/secrets.rs）。
  * - 仅 dev server / Node.js 测试环境允许走 Web Crypto fallback。
@@ -23,7 +24,7 @@ export const TRIAL_KEY_SENTINEL = "TRIAL_KEY_PLACEHOLDER";
 const getAesKey = (): string => {
   // 生产构建剥离硬编码 key：仅 dev / 测试环境允许走 Web Crypto fallback。
   // Tauri 客户端生产构建必须走 Rust 侧 decrypt_trial_key，否则抛错。
-  const isDevBuild = import.meta.env?.DEV === true;
+  const isDevBuild = publicEnvironment.isDevelopment;
   const isNodeTestEnvironment = typeof window === "undefined";
   if (!isDevBuild && !isNodeTestEnvironment) {
     throw new Error(

@@ -3,10 +3,12 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { loadServerConfig } from "./server/config";
 import { ssrfGuard, validateBaseUrlSecurity } from "./server/security";
 import crypto from "crypto";
 
 dotenv.config();
+const serverConfig = loadServerConfig();
 
 let resolvedDirname = "";
 try {
@@ -101,7 +103,7 @@ function prepareProxyRequest({ baseUrl, routePath, apiKey }: ProxyRequestConfig)
 async function startServer() {
   console.log("[Local Server] startServer invoked.");
   const app = express();
-  const PORT = 3000;
+  const PORT = serverConfig.port;
 
   app.use((req, res, next) => {
     console.log(`[Express Log] ${req.method} ${req.url}`);
@@ -134,7 +136,7 @@ async function startServer() {
         exp,
       };
       const payloadStr = Buffer.from(JSON.stringify(payload)).toString("base64url");
-      const signKey = process.env.HMAC_SIGN_KEY || "default_local_hmac_sign_key_123456";
+      const signKey = serverConfig.hmacSignKey;
       const signature = crypto
         .createHmac("sha256", signKey)
         .update(payloadStr)
@@ -172,7 +174,7 @@ async function startServer() {
         return res.status(401).json({ error: "Invalid token format" });
       }
       const [payloadStr, signature] = parts;
-      const signKey = process.env.HMAC_SIGN_KEY || "default_local_hmac_sign_key_123456";
+      const signKey = serverConfig.hmacSignKey;
       const expectedSignature = crypto
         .createHmac("sha256", signKey)
         .update(payloadStr)
@@ -188,8 +190,8 @@ async function startServer() {
       if (!payload.exp || Math.floor(Date.now() / 1000) > payload.exp) {
         return res.status(401).json({ error: "Token has expired" });
       }
-      const realApiKey = process.env.REAL_API_KEY || process.env.TRIAL_OPENROUTER_KEY || "sk-or-v1-TRIAL_KEY_PLACEHOLDER_LOCAL_DEVELOPMENT_FALLBACK";
-      const aesKeyHex = process.env.AES_ENCRYPT_KEY || "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+      const realApiKey = serverConfig.trialApiKey;
+      const aesKeyHex = serverConfig.aesEncryptKey;
       const keyBytes = Buffer.from(aesKeyHex, "hex");
       const iv = crypto.randomBytes(12);
       const cipher = crypto.createCipheriv("aes-256-gcm", keyBytes, iv);
@@ -456,7 +458,7 @@ async function startServer() {
     const deviceId = clientContext?.deviceId || req.headers["x-device-id"] || "local_dev_user";
 
     // 优先转发到阿里云 FC 真实云端客服服务（解决本地 Web 调试由于跨域无法直连云端的问题）
-    const cloudFcUrl = process.env.CATBOT_FC_URL || "https://catbot-gmkodirnhh.cn-hangzhou.fcapp.run/api/catbot";
+    const cloudFcUrl = serverConfig.catbotFcUrl;
     console.log(`[Catbot Proxy] 收到本地请求，尝试转发到云端 FC: ${cloudFcUrl}`);
 
     try {
@@ -555,7 +557,7 @@ async function startServer() {
       if (clientContext) {
         console.log(`[Catbot Server Fallback] Received client device context:`, JSON.stringify(clientContext, null, 2));
       }
-      const apiKey = process.env.DASHSCOPE_API_KEY;
+      const apiKey = serverConfig.dashscopeApiKey;
 
       if (!apiKey) {
         // Fallback: Local rule-based keyword matcher if no API key is provided
@@ -755,7 +757,7 @@ async function startServer() {
   });
 
   // Vite development middleware vs Static Production files serving
-  if (process.env.NODE_ENV !== "production") {
+  if (!serverConfig.isProduction) {
     console.log("[Local Server] Creating Vite server...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -772,7 +774,7 @@ async function startServer() {
     });
   }
 
-  const HOST = process.env.TAURI_DEV_HOST || "0.0.0.0";
+  const HOST = serverConfig.host;
   console.log(`[Local Server] Attempting to listen on ${HOST}:${PORT}...`);
   app.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST}:${PORT}`);

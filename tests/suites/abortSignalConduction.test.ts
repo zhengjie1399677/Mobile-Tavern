@@ -6,7 +6,7 @@
  *  2. mvuParser 复杂正则循环顶部的 aborted 检查点
  *  3. MemoryStreamParser 流式状态机循环的 aborted 检查点
  *
- * 设计遵循 AGENTS.md 准则八（物理隔离）：所有测试仅消费导出接口，不直接触及私有实现。
+ * 设计遵循 AGENTS.md `CHANGE-SAFE`：所有测试仅消费导出接口，不直接触及私有实现。
  * Mock IDB 模式参考 database.test.ts，通过 global.indexedDB 注入桩件。
  */
 

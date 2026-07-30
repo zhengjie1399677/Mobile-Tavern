@@ -7,6 +7,7 @@ import {
   type ValidationResult,
 } from "./validation";
 import { Pipeline } from "./Pipeline";
+import { runtimeEnvironment } from "./runtimeEnvironment";
 import { Logger } from "../utils/logger";
 
 import { getErrorMessage, getErrorName } from '../utils/errorUtils';
@@ -33,28 +34,11 @@ export const setKernelServiceValidationMode = (mode: KernelValidationMode): void
 };
 
 /**
- * 判断当前是否处于开发环境
- * 优先读取 process.env.NODE_ENV 或 import.meta.env.PROD
- */
-const isDev = (): boolean => {
-  try {
-    if (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "production") {
-      return false;
-    }
-    // @ts-ignore
-    if (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.PROD) {
-      return false;
-    }
-  } catch (e) {}
-  return true; // 默认开发环境
-};
-
-/**
  * 获取内核是否当前应执行严格的模式校验
  * 只有在开发环境且 strictMode 为 true 时才生效
  */
 const getKernelStrictMode = (): boolean => {
-  return strictMode && isDev();
+  return strictMode && runtimeEnvironment.isDevelopment;
 };
 
 const describeValidationFailure = (result: ValidationResult): string => {
@@ -163,7 +147,7 @@ const createSafeProxy = (name: string): unknown => {
             warnedServices.add(name);
             logger.warn("Missing service, returning SafeProxy fallback", { service: name });
           }
-          if (isDev()) {
+          if (runtimeEnvironment.isDevelopment) {
             // 开发非严格模式下输出警告日志
             logger.warn("Accessing property on SafeProxy in dev mode", { service: name, property: prop });
           }

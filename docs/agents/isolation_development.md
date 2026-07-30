@@ -1,23 +1,30 @@
-﻿# AI 协作物理隔离开发铁律与实操流程
+# 隔离开发与 TDD 接入流程
 
 > [!IMPORTANT]
-> **此文件为 Mobile Tavern 行为指导手册的子规范，定义了新服务开发时的沙盒隔离、上下文控制及 TDD 流程。**
+> 本文是 `AGENTS.md` 中 `CHANGE-SAFE` 的按需细则。仅在新增服务、中间件、插件或执行跨层重构时读取。
 
----
+## 一、先确定物理边界
 
-### 1. 沙盒隔离原则
-AI 仅允许对新创建的或指定的单兵服务/插件文件（如 `src/application/services/QuotaCheckService.ts`）进行读写，严禁改动 `Kernel.ts` 底座或其他无关服务文件。
+开始实现前先确定目标属于 `application`、`domain`、`infrastructure`、Compatibility Runtime、
+Plugin Host RPC、Native Adapter 或 Kernel。新业务默认不得修改 `Kernel.ts`；确需改变通用机制时，
+必须单独说明理由、影响范围和回归守卫。
 
-### 2. 双重锁框定输入范围
-*   **框定最简上下文**：向 AI 提问时，仅向 AI 提供以下三个文件引用：
-    1. `src/kernel/types.ts` —— 内核接口契约
-    2. 新创建的空服务文件 —— 本次修改的唯一物理阵地
-    3. `src/kernel/README.md` —— 内核开发约束指南
-*   **边界 Prompt 模板**：向 AI 发出明确约束，限定其仅修改此单个物理文件。
+## 二、使用最小必要上下文
 
-### 3. TDD 单兵测试驱动
-*   **局部跑通验证**：在 `tests/run_all_tests.ts` 中追加独立的单元测试。通过在命令行执行 `npm run lint` 和 `npm run test` 进行局部单兵验证，在这个隔离测试容器中修补逻辑直至其 100% 成功通过，最后才允许被装配注册至 `index.ts` 中上线。
+- 只读取目标模块、直接调用方、直接契约和命中测试。
+- 不为“理解全局”默认读取整个 `TECHNICAL.md`、历史归档或无关服务。
+- 先把纯实现限制在职责明确的新文件或目标模块；不得同时整理无关目录。
 
-### 4. 彻底解耦与生命周期资源回收
-*   **按需声明拓扑依赖**：在类中声明 `readonly dependencies = [KernelServices.Database] as const`，利用拓扑 Kahn 排序进行服务批量自愈装配。
-*   **AbortSignal 彻底回收**：在 `init(kernel, signal?)` and `destroy(kernel, signal?)` 中，必须将 `signal` 绑定到所有内部的 `fetch`、异步 Promise 或定时器中，确保在内核注销/销毁时资源能被 100% 回收释放，严禁残留挂起异步任务。
+## 三、TDD 局部验证
+
+1. 先为公开契约、正常路径、失败路径和中止路径添加局部测试。
+2. 局部测试通过后，才修改应用组合根、导出入口或调用方。
+3. 接入后运行架构守卫和与风险相称的回归测试。
+4. 测试应进入现有 Vitest 或系统测试体系；不要为每个功能机械修改 `tests/run_all_tests.ts`。
+
+## 四、接入与资源回收
+
+- 应用服务按需声明拓扑依赖，但不得因此把实现移入 Kernel。
+- 长生命周期的请求、定时器、Worker 和订阅必须支持 `AbortSignal` 或等效释放机制。
+- `destroy` 后不得残留监听器、未清理定时器或后台任务。
+- 隔离阶段不是永久孤岛；最终必须通过明确的公共契约接入，并删除重复或临时路径。

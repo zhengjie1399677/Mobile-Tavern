@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { publicEnvironment } from "../../config";
 import { ChatSession, UserSettings, CharacterCard, LorebookEntry, CustomWorldbook, Message } from "../../types";
 import {
   IDatabaseService, IPromptService,
@@ -268,7 +269,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       if (p.publishMemoryAudit) p.publishMemoryAudit(memoryAudit);
       else p.publishRecalledMemories?.(updatedSession.id, recalledMemories);
 
-      if (import.meta.env?.DEV) {
+      if (publicEnvironment.isDevelopment) {
         log.info("AI 发言重新生成流式开始");
       }
       // 关键修复：同步设置 streamingMessageId，与 useSendMessage 保持一致，避免 iframe 抢跑
@@ -348,7 +349,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
       }
 
-      if (import.meta.env?.DEV) {
+      if (publicEnvironment.isDevelopment) {
         log.debug("RAW AI RESPONSE", {
           content: responseChunks.join(""),
           reasoning: reasoningChunks.length > 0 ? reasoningChunks.join("") : undefined,

@@ -1,114 +1,63 @@
-﻿# 架构工作入口
+# 架构工作入口
 
-> 本文档是进入本仓库后的短索引，不替代 `AGENTS.md`、`TECHNICAL.md` 或各专项规范。
-> 修改代码前，先读 `AGENTS.md`，再读本文；仅在任务命中相应领域时继续读取下方链接的详细文档。
-> 本文目标是减少上下文恢复成本：先判断任务归属，再打开最小必要文件，不把超长技术文档当作默认入口。
-> 需要快速确认当前进度时，先读 `docs/agents/CURRENT_STATE.md`，该文件只保留当前态，不记录历史。
+> 修改代码或架构时，在完整阅读 `AGENTS.md` 后阅读本文。本文只负责把任务路由到最小必要上下文，
+> 不重复核心铁律、实现细节、排障步骤或历史记录。
 
 ## 一、项目定位
 
-Mobile Tavern 是纯移动端的 SillyTavern 兼容运行容器。底座保持无主观引导、数据驱动和可降级；移动端前端代码位于 `src/`，云端服务仅位于 `cloud/`，两者不得互相污染。
+Mobile Tavern 是纯移动端的 SillyTavern 兼容运行容器。移动端位于 `src/` 与 `src-tauri/`，
+云端服务位于 `cloud/`，共享契约位于 `shared/`。Kernel 是通用运行时机制，不是业务层。
 
-## 二、每轮最小阅读包
+## 二、阅读决策
 
-| 场景 | 最小阅读包 | 何时继续加读 |
+1. 每次修改先读 `AGENTS.md` 和本文。
+2. 从下表选择与任务直接相关的路线；未命中的文档不读取。
+3. 只有需要当前进度、风险或下一步时读取 `docs/agents/CURRENT_STATE.md`。
+4. 只有需要完整实现链路时读取 `TECHNICAL.md` 的相关章节。
+5. 只有追溯历史决策时读取 `docs/history/`；不得把历史目录作为默认上下文。
+
+## 三、按任务读取
+
+| 任务 | 最小入口 | 继续读取 |
 |---|---|---|
-| 只回答架构问题 | `AGENTS.md`、本文、`docs/agents/CURRENT_STATE.md`、相关入口文件 | 涉及历史决策时再按月读取 `docs/history/` 对应归档 |
-| 修复用户可见 Bug | `docs/agents/CURRENT_STATE.md`、本文的问题定位表、命中的代码入口、对应测试 | 涉及跨层持久化或内核边界时再读 `TECHNICAL.md` 对应章节 |
-| 做新功能 | `AGENTS.md`、本文、`docs/agents/CURRENT_STATE.md`、对应专项规范、目标目录 README | 涉及新服务、插件、云端或中间件时先读隔离开发规范 |
-| 打包或真机问题 | `docs/Android_调试与打包指南.md`、`docs/agents/mobile_strategy.md` | 版本号变更时再读 `docs/agents/version_bump.md` |
-| 云端后端 | `docs/agents/cloud_strategy.md`、`cloud/README.md`、`shared/` 类型 | 移动端调用云端前必须确认 `src/` 不引入 `cloud/` |
+| Kernel、Pipeline、消息总线 | `src/kernel/README.md`、`src/kernel/types.ts`、`src/kernel/Kernel.ts` | `docs/agents/runtime_boundaries.md`、必要时读 `docs/agents/module_contracts.md` |
+| 应用服务与运行时装配 | `src/application/README.md`、`src/application/runtime.ts`、目标服务 | `docs/agents/runtime_boundaries.md` |
+| 存储、会话、记忆 | `DatabaseService.ts`、`src/infrastructure/storage/`、相关端口 | `docs/agents/runtime_boundaries.md`、`docs/agents/module_contracts.md` |
+| React 状态或业务流程 | 目标组件、Hook、Context 与 `src/application/useCases/` | `docs/agents/runtime_boundaries.md` |
+| 聊天发送、重发、流式输出 | `useChat.tsx`、`useSendMessage.ts`、`useRerollMessage.ts` | 对应回归测试；需要全链路时读 `TECHNICAL.md` |
+| Prompt、角色卡、世界书 | `PromptService.ts`、`src/application/services/prompt/` | `docs/agents/sillytavern_compat.md` |
+| Compatibility Runtime | `src/compatibility/sillytavern/` | `docs/agents/runtime_boundaries.md`、`docs/agents/sillytavern_compat.md` |
+| 第三方全屏插件 | `docs/Plugin_System_v1.md`、`src/domain/plugins/` | `src/components/plugins/`、`src/infrastructure/plugins/pluginStorage.ts` |
+| Native Adapter、Android、Tauri、打包 | 对应 Adapter、`src-tauri/` | `docs/agents/mobile_strategy.md`、Android 调试指南 |
+| 云端服务 | 目标 `cloud/<service>/`、其 README 和 Config | `docs/agents/cloud_strategy.md`、相关 `shared/` 契约 |
+| 环境变量、功能开关、灰度策略 | 对应配置入口 | `docs/agents/configuration_strategy.md` |
+| TypeScript 类型或历史 `any` | 目标类型和调用方 | `docs/agents/typescript_discipline.md` |
+| 新服务、中间件、插件或跨层重构 | 目标边界与局部测试 | `docs/agents/isolation_development.md` |
+| 浏览器或 E2E 自动化 | 已纳入仓库的测试脚本 | `docs/agents/browser_testing.md` |
+| 可复现故障排查 | `docs/agents/troubleshooting_entry.md` | 由排障表继续进入命中模块 |
+| 测试选择、开发服务、文档归档 | `docs/agents/development_workflow.md` | 仅按其中条件继续读取 |
 
-## 三、按任务阅读路线
+## 四、关键代码入口
 
-| 任务 | 先读文件 | 再读文件 |
-|---|---|---|
-| 所有修改 | `AGENTS.md`、本文 | 需要确认剩余工作时读精简 `TODO.md`；历史归档不默认读取 |
-| Kernel、Pipeline、消息总线 | `src/kernel/README.md`、`src/kernel/types.ts`、`src/kernel/Kernel.ts` | `TECHNICAL.md` 的微内核章节 |
-| 应用服务与运行时装配 | `src/application/README.md`、`src/application/runtime.ts`、目标服务文件 | `docs/agents/runtime_boundaries.md` |
-| 聊天发送、重发、流式输出 | `src/hooks/useChat.tsx`、`src/hooks/useChat/useSendMessage.ts`、`src/hooks/useChat/useRerollMessage.ts` | `TECHNICAL.md` 的数据流和 IndexedDB 章节 |
-| 会话回载、分页、折叠顺序 | `src/contexts/ChatContext.tsx`、`src/contexts/chatMessageHydration.ts`、`src/tabs/chat/DialogueHistoryView.tsx` | `src/infrastructure/storage/indexedDbSessionQueries.ts`、`TECHNICAL.md` 的持久化链路 |
-| 存储、会话、记忆 | `src/application/services/DatabaseService.ts`、`src/infrastructure/storage/` | `docs/agents/decoupling_strategy.md` |
-| Kernel、存储、兼容层或 Bridge 边界 | `docs/agents/runtime_boundaries.md`、对应模块入口 | `TECHNICAL.md` 的物理隔离与数据流章节 |
-| Prompt、角色卡、世界书 | `src/application/services/PromptService.ts`、`src/application/services/prompt/` | `docs/agents/sillytavern_compat.md` |
-| React 视图与状态 | `src/UnifiedAppContext.tsx`、`src/contexts/KernelContext.tsx` | 业务流程先进入 `src/application/useCases/`，再读 `TECHNICAL.md` 的状态管理章节 |
-| Android、Tauri、打包 | `docs/Android_调试与打包指南.md` | `docs/agents/mobile_strategy.md` |
-| 云端服务 | `docs/agents/cloud_strategy.md`、`cloud/` | `shared/` 类型契约 |
-| 第三方全屏插件 | `docs/Plugin_System_v1.md`、`src/domain/plugins/`、`src/components/plugins/` | `src/infrastructure/plugins/pluginStorage.ts` |
-| 浏览器自动化 | `docs/agents/browser_testing.md` | 仅使用受控、声明式测试 |
-
-## 四、常见问题定位表
-
-| 用户现象或开发问题 | 优先检查 | 常用验证 |
-|---|---|---|
-| 关闭重开后消息顺序错乱 | `ChatContext.tsx`、`chatMessageHydration.ts`、`indexedDbSessionQueries.ts` | `tests/suites/paginationAndArchival.test.ts` |
-| 重发没有覆盖旧回复或出现双回复 | `useRerollMessage.ts`、`indexedDbMemoryStore.ts` 的 `replaceSessionBranch` | `tests/vitest/useRerollMessage.test.ts`、`tests/suites/turnIndexConsistency.test.ts` |
-| 流式输出卡顿、跳字、丢字 | `useChat.tsx`、`useSendMessage.ts`、`streamHelpers.ts`、`ChatStreamService.ts` | `npm run test:unit` 中流式相关用例 |
-| 会话、角色或记忆数据异常 | `DatabaseService.ts`、`src/infrastructure/storage/`、`src/utils/localDB.ts` | 先跑命中存储测试，再跑 `npm test` |
-| Prompt 组装、世界书触发异常 | `PromptService.ts`、`src/application/services/prompt/`、`src/utils/promptBuilder.ts` | Prompt/世界书相关 suite |
-| 应用服务拿不到或降级异常 | `Kernel.ts`、`src/application/serviceSchemas/`、`src/application/bootstrap/registerCoreServices.ts` | `tests/suites/kernelSchemaValidation.test.ts`、`tests/suites/architectureBoundaries.test.ts` |
-| UI 改动后全局重渲染变重 | `UnifiedAppContext.tsx`、相关组件的 `useUnifiedApp(selector)` | 架构边界测试与局部 Vitest |
-| Android 真机白屏、网络或热重载问题 | `docs/Android_调试与打包指南.md`、`vite.config.ts`、`src-tauri/` | 真机调试前按文档检查端口与 host |
-| 生产 APK 混入 Node 或云端代码 | `docs/agents/mobile_strategy.md`、`docs/agents/cloud_strategy.md`、打包配置 | `npm run build`，必要时检查产物依赖 |
-
-## 五、当前不可跨越的边界
-
-1. `src/kernel/` 只放容器、生命周期、Pipeline、消息总线、扩展注册与通用运行时契约；业务服务和应用装配必须位于 `src/application/`，纯领域规则归入 `src/domain/`。
-2. 长期记忆领域只依赖 `MemoryPersistencePort`；`src/application/services/memory/` 不得直接导入 `utils/localDB` 或 `infrastructure/`。
-3. IndexedDB 物理实现归入 `src/infrastructure/storage/`；`DatabaseService` 只提供通用 CRUD 与事务能力，不承载召回、摘要或角色行为。
-4. `src/utils/localDB.ts` 已冻结且仓库内生产调用清零；只保留外部兼容与测试重置，兼容期结束后删除。
-5. SillyTavern Compatibility Runtime、Plugin Host RPC 与 Native Adapter 是三条独立边界，不得互相复用或交叉导入。
-6. React Context 只保存界面状态，业务初始化、分页、存删事务和跨 Service 流程必须进入 `src/application/useCases/`；组件必须使用 `useUnifiedApp(selector)` 最小订阅。
-7. `KernelProvider` 必须显式提供 `IKernel`；业务代码和管道辅助函数不得自行读取 `globalKernel`。
-8. 自定义 Pipeline 必须先调用 `registerPipeline`；`getPipeline` 不会隐式创建。
-9. 重发必须走 `replaceSessionBranch` 的跨 Store 原子替换；不得先删旧消息再分步写入新消息。
-10. 召回结果属于运行时快照，按 `sessionId` 隔离；不得写入 `ChatSession` 或持久化会话记录。
-11. `cloud/`、`shared/` 与移动端 `src/` 的依赖方向必须保持单向契约化；移动端不得直接导入云端实现代码。
-12. Markdown 文档必须使用中文说明；代码标识符、命令、文件名和技术名词保留英文原拼写。
-
-## 六、当前关键入口
-
-| 能力 | 入口 |
+| 能力 | 权威入口 |
 |---|---|
-| 应用装配 | `src/App.tsx`、`src/application/runtime.ts`、`src/application/bootstrap/registerCoreServices.ts` |
-| 聊天编排 | `src/hooks/useChat.tsx`、`src/hooks/useChat/useSendMessage.ts`、`src/hooks/useChat/useRerollMessage.ts` |
-| 会话原子持久化 | `src/application/services/DatabaseService.ts`、`src/infrastructure/storage/indexedDbMemoryStore.ts` |
-| 会话分页与回载正序化 | `src/application/useCases/chatSessionUseCases.ts`、`src/application/useCases/chatMessageHydration.ts`、`src/infrastructure/storage/indexedDbSessionQueries.ts` |
-| 记忆端口与适配器 | `src/application/services/memory/types.ts`、`src/infrastructure/storage/IndexedDbMemoryPersistenceService.ts` |
-| 角色与会话用例 | `src/application/useCases/characterUseCases.ts`、`src/application/useCases/chatSessionUseCases.ts` |
-| SillyTavern 兼容运行时 | `src/compatibility/sillytavern/` |
-| 插件宿主 RPC | `src/domain/plugins/pluginHostRpc.ts` |
-| AR 原生适配 | `src/services/ar/NativeArAdapter.ts` |
-| Prompt 拆分职责 | `src/application/services/PromptService.ts`、`src/application/services/prompt/` |
-| 运行时模块边界 | `docs/agents/runtime_boundaries.md` |
-| 架构回归防线 | `tests/suites/architectureBoundaries.test.ts` |
+| 应用组合根 | `src/App.tsx`、`src/application/runtime.ts`、`src/application/bootstrap/registerCoreServices.ts` |
+| Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts`、`src/kernel/Kernel.ts` |
+| 聊天编排 | `src/hooks/useChat.tsx`、`src/hooks/useChat/` |
+| 角色与会话用例 | `src/application/useCases/characterUseCases.ts`、`chatSessionUseCases.ts` |
+| 通用数据服务 | `src/application/services/DatabaseService.ts` |
+| IndexedDB 物理实现 | `src/infrastructure/storage/` |
+| 记忆端口与适配器 | `src/application/services/memory/types.ts`、`IndexedDbMemoryPersistenceService.ts` |
+| SillyTavern Compatibility Runtime | `src/compatibility/sillytavern/` |
+| Plugin Host RPC | `src/domain/plugins/pluginHostRpc.ts` |
+| AR Native Adapter | `src/services/ar/NativeArAdapter.ts` |
+| 移动端公开配置与产品策略 | `src/config/` |
+| Node 与构建配置 | `server/config.ts`、`build/viteEnvironment.ts` |
+| 架构自动守卫 | `tests/suites/architectureBoundaries.test.ts` |
 
-## 七、测试选择
+## 五、入口维护边界
 
-| 改动范围 | 优先命令 |
-|---|---|
-| 文档、注释、无行为变更 | `git diff --check` |
-| 单个纯函数或 hook | 命中测试文件，必要时再跑 `npm run test:unit` |
-| 聊天、存储、重发、分页 | 命中测试 + `npm test` + `npm run test:unit` |
-| 内核、依赖边界、类型契约 | `npm run lint` + `npm test` |
-| 打包、Tauri、生产路径 | `npm run lint` + `npm test` + `npm run build` |
-
-代码变更至少运行与风险相称的检查；涉及内核、存储、聊天或依赖边界时，完整执行：
-
-```powershell
-npm run lint
-npm test
-npm run build
-```
-
-## 八、文档维护规则
-
-完成重大功能或修复后：
-
-1. `TODO.md` 只维护活跃事项；功能完成后移入 `docs/history/TODO_ARCHIVE_2026.md` 的一行索引。
-2. 在当月 `docs/history/CHANGELOG_YYYY-MM.md` 追加一行中文变更记录，不复制完整实现过程。
-3. 架构边界、目录职责或运行链路变化时，同步更新 `TECHNICAL.md`。
-4. 用户可见能力或开发入口变化时，同步更新 `README.md`。
-5. 本文仅维护稳定入口与边界；实现细节写入对应专项文档，避免本文膨胀。
-
-维护本文时优先追加“怎么找”的信息，不展开“为什么这样实现”。如果一段说明需要超过三五句话，通常应移动到 `TECHNICAL.md` 或对应 `docs/agents/*.md`。
+- 本文只回答“应该去哪里找”，不解释“具体如何实现”。
+- 新增稳定模块边界时更新关键入口；实现细节进入模块 README、专项规范或 `TECHNICAL.md`。
+- 排障现象进入 `troubleshooting_entry.md`，测试与文档流程进入 `development_workflow.md`。
+- 表格内容如果需要超过两句话解释，说明它不应继续留在本入口。

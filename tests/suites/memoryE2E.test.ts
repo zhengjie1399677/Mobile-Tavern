@@ -9,8 +9,8 @@
  *  - upsertDictEntry 在真实 IDB 下的新建/更新合并（count++ 并发安全）
  *  - MemoryStorage + MemoryRecall 端到端流程
  *
- * 遵循 AGENTS.md 准则四：使用本地静态资源（fake-indexeddb），不加载境外 CDN。
- * 遵循 AGENTS.md 准则十：物理隔离沙盒测试，不污染其他测试套件。
+ * 遵循 AGENTS.md `TEST-CONTROLLED`：使用本地静态资源（fake-indexeddb），不加载境外 CDN。
+ * 遵循 AGENTS.md `CHANGE-SAFE`：隔离测试，不污染其他测试套件。
  */
 
 import 'fake-indexeddb/auto';

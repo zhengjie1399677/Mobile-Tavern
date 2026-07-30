@@ -1,4 +1,5 @@
 import { IKernel, IKernelService, IUpdateCheckService, UpdateInfo } from "../serviceContracts";
+import { publicEnvironment } from "../../config";
 import { Logger } from "../../utils/logger";
 import { CLOUD_ENDPOINTS } from "../../utils/cloudEndpoints";
 
@@ -79,11 +80,12 @@ export class UpdateCheckService implements IUpdateCheckService {
     const isAndroid11Plus = isAndroid && androidVersion >= 11;
 
     // 是否是本地开发/测试模式：如果是 localhost 或处于单元测试，跳过环境限制方便调试
-    const isTest = typeof process !== "undefined" && process.env && (
-      process.env.NODE_ENV === "test" || 
-      process.env.VITEST ||
-      (process.argv && process.argv.some(arg => arg.includes("run_all_tests")))
-    );
+    const isTest = publicEnvironment.isTest
+      || (
+        typeof process !== "undefined"
+        && process.argv
+        && process.argv.some((argument) => argument.includes("run_all_tests"))
+      );
 
     const isDev = typeof window !== "undefined" && window.location && (
       window.location.hostname === "localhost" || 

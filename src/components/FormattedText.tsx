@@ -1,4 +1,5 @@
 import React, { useContext, memo, useState } from "react";
+import { publicEnvironment } from "../config";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { createMessageIframeSrcDoc, initTavernHelperMocks } from "../compatibility/sillytavern";
 import { useLibsReady } from "./formatted-text/useLibsReady";
@@ -36,7 +37,7 @@ const SafeIframe = React.memo((props: any) => {
     if (iframeRef.current && srcDoc !== undefined && srcDoc !== null) {
       try {
         if (iframeRef.current.srcdoc !== srcDoc) {
-          if (import.meta.env.DEV) {
+          if (publicEnvironment.isDevelopment) {
             console.log('[SafeIframe] setting srcdoc via DOM property, length:', srcDoc.length);
           }
           iframeRef.current.srcdoc = srcDoc;
@@ -308,7 +309,7 @@ function domToReact(
             if (libsReady) {
               try {
                 resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex, enableLoopProtection !== false);
-                if (import.meta.env.DEV) {
+                if (publicEnvironment.isDevelopment) {
                   console.log('[FormattedText] bridge injected for card srcdoc, len:', resolvedSrcdoc.length);
                 }
               } catch (e) {
@@ -324,7 +325,7 @@ function domToReact(
             }
           }
           props.srcDoc = resolvedSrcdoc;
-          if (import.meta.env.DEV) {
+          if (publicEnvironment.isDevelopment) {
             console.log('[FormattedText] srcdoc retrieved from store, id:', val, 'len:', resolvedSrcdoc.length);
           } else {
             console.error('[FormattedText][PROD] srcdoc-id found:', val.slice(0, 40), 'len:', resolvedSrcdoc.length, 'hasMsg:', resolvedSrcdoc.includes('__TH_MESSAGE_ID'));
@@ -463,7 +464,7 @@ function extractSrcdocAttrs(html: string): string {
       const storeKey = `th-srcdoc-card-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       _srcdocStore.set(storeKey, decoded);
       extractCount++;
-      if (import.meta.env.DEV) {
+      if (publicEnvironment.isDevelopment) {
         console.log('[parseSafeHtml] extracted srcdoc to store, key:', storeKey, 'len:', decoded.length);
       } else {
         console.error('[parseSafeHtml][PROD] extracted srcdoc, key:', storeKey.slice(0, 40), 'len:', decoded.length, 'hasHtml:', decoded.includes('<html'));
@@ -580,7 +581,7 @@ function preprocessFormattedText(
     ? rawCharScripts
     : (rawCharScripts && typeof rawCharScripts === "object" ? Object.values(rawCharScripts) : []);
 
-  if (import.meta.env.DEV) {
+  if (publicEnvironment.isDevelopment) {
     console.log("[charRegexScripts Raw] for activeCharacter:", activeCharacter?.name, charRegexScripts);
   }
 
@@ -598,7 +599,7 @@ function preprocessFormattedText(
   }
 
   // 依次执行过滤清洗
-  if (import.meta.env.DEV) {
+  if (publicEnvironment.isDevelopment) {
     console.log("[RegexScripts List] for messageIndex:", messageIndex, mergedScripts.map(s => ({
       name: s.scriptName || s.id,
       findRegex: s.findRegex,
@@ -667,7 +668,7 @@ function preprocessFormattedText(
       }
       const beforeLen = processed.length;
       processed = processed.replace(regex, replaceString);
-      if (import.meta.env.DEV) {
+      if (publicEnvironment.isDevelopment) {
         const tempRegex = new RegExp(regex.source, regex.flags.replace('g', ''));
         const hasMatch = tempRegex.test(processed);
         console.log(`[RegexScript] Applied: "${script.scriptName || script.id}", beforeLen: ${beforeLen}, afterLen: ${processed.length}, hasMatch: ${hasMatch}`);

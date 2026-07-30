@@ -12,7 +12,7 @@
  *  - 循环发送 50 轮对话，每 5 轮采样 heap / DOM / 每轮延迟 / 请求体大小
  *  - 断言 heap 增量、DOM 节点数、延迟增长率在阈值内
  *
- * 遵循 AGENTS.md 核心行为准则四（受控浏览器自动化测试规范）：
+ * 遵循 AGENTS.md `TEST-CONTROLLED`（受控浏览器自动化测试规范）：
  *  - 声明式、可复现：所有交互通过 getByRole/getByPlaceholder 定位，无一次性探索
  *  - 强制超时：导航 60s（首启 IndexedDB + Kernel 较慢）、断言 5s
  *  - 本地静态化：beforeEach 拦截境外 CDN
@@ -83,7 +83,7 @@ test.describe("长会话压力测试", () => {
   test.describe.configure({ timeout: 600_000 }); // 10 分钟，50 轮 + 大响应需要更长预算
 
   test.beforeEach(async ({ context }) => {
-    // 拦截境外 CDN（遵循准则四）
+    // 拦截境外 CDN（遵循 TEST-CONTROLLED）
     await context.route("**/*", (route) => {
       const url = route.request().url();
       if (

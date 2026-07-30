@@ -1,3 +1,5 @@
+import { publicEnvironment } from "../../config";
+
 /**
  * scriptIframe.ts — Iframe 沙盒 HTML 工厂
  *
@@ -22,7 +24,7 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   const processedMvuBundle  = getProcessedMvuBundle();
 
   // 开发模式下验证是否有未替换的 CDN import 残留
-  if (import.meta.env.DEV) {
+  if (publicEnvironment.isDevelopment) {
     const unresolvedImports = processedMvuBundle.match(/import\s*\{[^}]*\}\s*from\s*['"][^'"]+['"]/g);
     if (unresolvedImports) {
       console.log("[TH Bridge] 未替换的 CDN import：", unresolvedImports);
@@ -47,7 +49,7 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
     console.error("[TH Iframe Unhandled Rejection]:", event.reason);
   };
   // Debug 日志仅在开发模式输出，生产环境静默（error 始终保留）
-  var __TH_DEBUG = ${import.meta.env.DEV ? 'true' : 'false'};
+  var __TH_DEBUG = ${publicEnvironment.isDevelopment ? 'true' : 'false'};
   var __thLog = __TH_DEBUG ? console.log.bind(console) : function(){};
   var __thWarn = __TH_DEBUG ? console.warn.bind(console) : function(){};
   // ─── Step 1: inherit libraries from parent window (NO external CDN requests) ───
@@ -521,7 +523,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
   const scriptInjects = `
 <script>
   window.__TH_MESSAGE_ID = ${messageIndex !== undefined ? messageIndex : 'undefined'};
-  var __TH_DEBUG = ${import.meta.env.DEV ? 'true' : 'false'};
+  var __TH_DEBUG = ${publicEnvironment.isDevelopment ? 'true' : 'false'};
   var __thLog = __TH_DEBUG ? console.log.bind(console) : function(){};
   var __thWarn = __TH_DEBUG ? console.warn.bind(console) : function(){};
 </script>

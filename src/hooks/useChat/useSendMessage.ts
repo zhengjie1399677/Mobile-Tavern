@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { publicEnvironment } from "../../config";
 import { ChatSession, UserSettings, CharacterCard, LorebookEntry, CustomWorldbook } from "../../types";
 import {
   IDatabaseService, IPromptService,
@@ -248,11 +249,11 @@ export function useSendMessage(p: SendMessageParams) {
             p.settings.memory?.recallTimeoutMs,
             "useSendMessage"
           );
-          if (import.meta.env?.DEV) {
+          if (publicEnvironment.isDevelopment) {
             log.info("记忆召回完成", { count: recalledMemories.length, topK: recallTopK });
           }
         } else {
-          if (import.meta.env?.DEV) {
+          if (publicEnvironment.isDevelopment) {
             log.warn("memoryService 未注入，跳过召回");
           }
         }
@@ -363,7 +364,7 @@ export function useSendMessage(p: SendMessageParams) {
         throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
       }
 
-      if (import.meta.env?.DEV) {
+      if (publicEnvironment.isDevelopment) {
         log.debug("RAW AI RESPONSE", {
           content: responseChunks.join(""),
           reasoning: reasoningChunks.length > 0 ? reasoningChunks.join("") : undefined,

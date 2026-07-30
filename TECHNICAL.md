@@ -1144,6 +1144,13 @@ jobs:
       - run: npm test
 ```
 通过 `c8` 进行测试覆盖率统计，目标保证 `src/kernel/` 内置服务覆盖率 $\ge 85\%$。
+
+## 分层配置体系
+
+配置按运行产物分为五个权威入口：`src/config/publicEnvironment.ts` 校验会进入移动端包的公开环境，`src/config/featurePolicies.ts` 保存社区开放等产品发布策略，`build/viteEnvironment.ts` 解析构建工具开关，`server/config.ts` 管理本地 Node 服务变量，`cloud/minimal-community/src/config.rs` 管理社区容器配置。消费者只读取解析后的类型化对象，不继续传播环境变量原始字符串。
+
+移动端 `VITE_*` 始终视为公开数据。Node 服务在生产模式下缺失 HMAC、AES 或试用 API Key 时启动失败，不允许使用开发默认密钥。模块内部超时、缓存 TTL 和容量阈值继续靠近实现；用户可修改设置继续由 `SettingsService` 管理，不进入环境配置。详细规则见 `docs/agents/configuration_strategy.md`。
+
 ## 世界书高级条件变量表达式
 
 世界书条目的可选 `condition` 在关键词匹配后、Prompt 注入前由 `src/domain/conditions/VariableExpressionEngine.ts` 求值。语法仅包含 `{var::路径}`、`{session::路径}`、字符串/数字/布尔值、`!`、`&&`、`||`、比较运算和括号；不使用 `eval`，限制表达式长度与 Token 数，非法表达式安全返回不命中。会话作用域只提供 `id`、`title`、`characterId`、`messageCount` 和 `parentSessionId`，引擎只读且不承担变量派生或更新。

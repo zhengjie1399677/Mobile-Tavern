@@ -5,8 +5,8 @@
  *  - testMemoryStateTable：默认表初始化 + getSheet + parseAICommand + processTableMemory CRUD
  *  - testMemorySummary：触发检测 + LLM 调用 + 瘦身 SummaryCard（砸 5 条正则状态抽离）
  *
- * 拆分为独立文件遵循 AGENTS.md 准则一（单文件 ≤1000 行），与 memoryService.test.ts 物理分轨。
- * 测试遵循 AGENTS.md 准则八/十 TDD 单兵验证流程，在 tests/run_all_tests.ts 中聚合执行。
+ * 拆分为独立文件遵循 AGENTS.md `QUALITY-TYPES`（单文件 ≤1000 行），与 memoryService.test.ts 物理分轨。
+ * 测试遵循 `CHANGE-SAFE` 与 `TEST-CONTROLLED` 的 TDD 局部验证流程，在 tests/run_all_tests.ts 中聚合执行。
  */
 
 import { assert } from "./testUtils";

@@ -3,10 +3,10 @@
 - 日期：2026-07-30。
 - 主线：移动端底座解耦、聊天链路稳定性、Kernel 边界收敛、Tauri AR 插件与手势权限联调。
 - 最近完成：落地 Zod 运行时与服务检索校验，实现 SafeProxy 契约标记；补全消息懒加载、并发事务控制与 Abort 信号底层句柄自愈测试。长期记忆升级为事件型片段与可审计记忆包，重发分支、会话删除与统一备份同步覆盖独立 `memory_fragments` Store。Tauri AR 插件（tavern-ar）完成底层单参数授权反射、瞬态 checkAvailability 轮询和精细化 Session 错误分流。
-- 架构进展：Kernel 已收敛为纯运行时机制；仓库内 `localDB` 生产调用清零，业务存储统一走 Service 或领域端口；角色初始化、会话分页与存删流程迁入 `application/useCases`。三条适配边界正式命名为 SillyTavern Compatibility Runtime、Plugin Host RPC、Native Adapter，并由回归守卫阻止互相导入或业务回流 Context。
+- 架构进展：Kernel 已收敛为纯运行时机制；仓库内 `localDB` 生产调用清零，业务存储统一走 Service 或领域端口；角色初始化、会话分页与存删流程迁入 `application/useCases`。三条适配边界正式命名为 SillyTavern Compatibility Runtime、Plugin Host RPC、Native Adapter，并由回归守卫阻止互相导入或业务回流 Context。行为指导已改用稳定规则标识和两级按需阅读，默认入口不再承载低频豁免、排障与维护细节。
 - 产品进展：平行分支宇宙与记忆脉络图已接入会话管理；长期记忆新增实体关系图谱与可审计时态事实；世界书支持 MVU/会话条件表达式过滤；Plugin Host RPC 以声明权限提供脱敏上下文读取、动作注入和 AI 发送。
 - 当前进展：角色卡与内置游戏首页目录已改为轻量加载；完整角色数据和游戏资源仅在用户操作时按需载入，完整备份不受轻量目录影响。Firebase Test Lab 检出的触摸目标与低对比度问题已按 48dp 实体布局和主题色对比度统一修复。
-- 稳定性进展：2026-07-30 完成运行时边界收敛与角色卡社区展示改造后的全面回归；84 个测试入口全部通过，其中 Vitest 57 个文件、543 条断言通过，TypeScript 严格检查、八语言一致性、社区 Rust 测试与生产构建通过。
+- 稳定性进展：2026-07-30 完成运行时边界、角色卡社区与分层配置体系改造后的全面回归；84 个测试入口全部通过，其中 Vitest 58 个文件、547 条断言通过，TypeScript 严格检查、八语言一致性、社区 Rust 测试与生产构建通过。
 - 当前风险：
   1. 顶层功能继续使用 `React.lazy` 按需分包；页签提交已改为 React Transition，快速加载不再闪烁局部加载态，弱性能设备上的长耗时加载仍需继续观察。
   2. **AR 模式真机硬件兼容风险（已暂缓上线）**：原生 ARCore 插件在真机上运行实例化时，国内部分未通过谷歌 SafetyNet 认证的机型（如 OPPO A97 5G，型号 PFTM10）在底座就绪后仍会抛出 `UnavailableDeviceNotCompatibleException` 硬件级不兼容报错。由于无法跑通最终测试，已在前端默认隐去 AR 📦 调试入口，本功能作暂缓上线处理。

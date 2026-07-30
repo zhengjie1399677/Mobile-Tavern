@@ -15,7 +15,7 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 
 > [!NOTE]
 > * **功能与技术细节归档**：
->   * 关于 Android 手机真机调试、网络映射配置、原生 bridge 状态栏同步等原生端适配细则，请直接查阅：[AGENTS.md](AGENTS.md)。
+>   * 关于 Android 真机调试和网络映射，请查阅：[Android 调试与打包指南](docs/Android_调试与打包指南.md)；原生适配边界见 [移动端规范](docs/agents/mobile_strategy.md)。
 >   * 关于 用户操作步骤、雪团客服挂件说明以及知识库整理，请直接查阅：[KNOWLEDGE.md](KNOWLEDGE.md)。
 >   * 关于 自由 Prompt 编排完全教程、参数选项通俗字典与实战范例，请直接查阅：[docs/Prompt_Composition_Tutorial.md](docs/Prompt_Composition_Tutorial.md)。
 >   * 关于 Prefix Cache 缓存优化、项目架构职责、数据库设计以及源码模块剖析等底层技术细节，请直接查阅：[TECHNICAL.md](TECHNICAL.md)。
@@ -118,7 +118,7 @@ npm run test
 ```text
 Mobile-Tavern
 ├── server.ts                             # 本地 Express 流代理服务 (CORS 转发)
-├── AGENTS.md                             # APK 原生适配、遥测上报与调试白屏排查指南
+├── AGENTS.md                             # 默认必读的核心行为铁律与专项文档路由
 ├── TECHNICAL.md                          # 技术架构细节、项目源码架构树、缓存优化及源码剖析
 ├── KNOWLEDGE.md                          # 项目知识库，包含用户操作指南、挂件雪团说明与常用解答
 ├── src-tauri                             # Tauri 原生容器构建模块 (Rust 侧，包含本地落盘与 STS 遥测同步引擎)

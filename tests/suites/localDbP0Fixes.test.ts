@@ -15,7 +15,7 @@
  *      旧实现 try/catch 仅包裹 crypto，异常逃逸为 unhandled rejection，Promise 永久 pending
  *      修复后外层 try/catch 兜底 safeReject，Promise 一定 settle
  *
- * 设计遵循 AGENTS.md 准则八（物理隔离）：所有测试仅消费导出接口，Mock IDB 通过 global 注入。
+ * 设计遵循 AGENTS.md `CHANGE-SAFE`：所有测试仅消费导出接口，Mock IDB 通过 global 注入。
  */
 
 import { CharacterCard } from "../../src/types";

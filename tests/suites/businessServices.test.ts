@@ -10,7 +10,7 @@
  * 使用 fake-indexeddb 模拟真实 IDB 行为，验证服务层 → localDB 的桥接正确性，
  * 防止方法名拼写错误、参数顺序错位、返回值不正确等运行时缺陷。
  *
- * 遵循 AGENTS.md 准则一/八/十：物理隔离沙盒测试，不污染其他测试套件。
+ * 遵循 AGENTS.md `CHANGE-SAFE` 与 `TEST-CONTROLLED`：隔离测试，不污染其他测试套件。
  */
 
 import 'fake-indexeddb/auto';

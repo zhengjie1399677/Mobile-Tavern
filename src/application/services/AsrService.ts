@@ -1,4 +1,5 @@
 import { IKernel, IKernelService, IAsrService, AsrConfig } from "../serviceContracts";
+import { publicEnvironment } from "../../config";
 import { Logger } from "../../utils/logger";
 
 const logger = Logger.create("AsrService");
@@ -370,7 +371,7 @@ export class AsrService implements IAsrService {
 
     const isBrowserEnv = typeof window !== "undefined" &&
                          !(window as TauriWindow).__TAURI_INTERNALS__ &&
-                         (typeof process === "undefined" || process.env.NODE_ENV !== "test");
+                         !publicEnvironment.isTest;
     const isRemoteUrl = url.startsWith("https://") || (url.startsWith("http://") && !url.includes("127.0.0.1") && !url.includes("localhost"));
 
     let finalUrl = url;

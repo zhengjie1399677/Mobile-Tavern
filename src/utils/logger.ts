@@ -1,10 +1,12 @@
+import { runtimeEnvironment } from "../kernel/runtimeEnvironment";
+
 /**
  * 轻量结构化日志器：级别管理 + 模块标签 + traceId 注入。
  *
  * 设计目标：
  *   - 替换关键模块的裸 console.* 调用，提供级别枚举与模块标签
  *   - traceId 注入：通过 withTrace() 创建子 logger，关联一次用户操作的跨节点日志
- *   - 生产环境：debug/info 由 import.meta.env.DEV 守卫移除；warn/error 保留
+ *   - 生产环境：debug/info 由 publicEnvironment 守卫移除；warn/error 保留
  *
  * 职责边界：
  *   - 本模块只负责日志输出，不内置遥测上报（遥测由调用方在 catch 块显式调用）
@@ -81,14 +83,14 @@ export class Logger {
 
   /** DEBUG 级别：仅开发环境输出，生产构建由 DEV 守卫移除 */
   debug(message: string, fields?: Record<string, unknown>): void {
-    if (import.meta.env?.DEV) {
+    if (runtimeEnvironment.isDevelopment) {
       this.emit("debug", message, fields);
     }
   }
 
   /** INFO 级别：仅开发环境输出 */
   info(message: string, fields?: Record<string, unknown>): void {
-    if (import.meta.env?.DEV) {
+    if (runtimeEnvironment.isDevelopment) {
       this.emit("info", message, fields);
     }
   }

@@ -7,7 +7,7 @@
  * 3. LLMService - validateBaseUrl URL 校验
  * 4. AutoSummaryService - 元数据解析逻辑
  *
- * 遵循 AGENTS.md 准则八：单兵测试跑通，独立验证后再装配至 run_all_tests.ts
+ * 遵循 AGENTS.md `CHANGE-SAFE`：局部测试跑通，独立验证后再接入聚合测试。
  */
 
 import { TableMemoryService } from "../src/application/services/TableMemoryService";
