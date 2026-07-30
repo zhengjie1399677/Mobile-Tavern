@@ -209,10 +209,13 @@ export interface ApiProfile {
   forceBasicParams?: boolean;
 }
 
+/** 预设包只保存传统 Prompt 配置；自由编排拥有独立的状态与模板生命周期。 */
+export type PresetPromptConfig = Omit<PromptConfig, "usePromptComposition" | "composition">;
+
 export interface SavedPresetBundle {
   id: string;
   preset: SamplerPreset;
-  promptConfig: PromptConfig;
+  promptConfig: PresetPromptConfig;
   presetRegexScripts?: RegexScript[];
 }
 

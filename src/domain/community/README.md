@@ -6,13 +6,13 @@
 
 ```ts
 export const COMMUNITY_ENTRY_CONFIG = {
-  enabled: false,
-  minFirstUseAgeDays: 3,
-  minCumulativeUsageHours: 3,
+  enabled: import.meta.env.DEV,
+  minFirstUseAgeDays: 0,
+  minCumulativeUsageHours: 0,
 } as const;
 ```
 
-- `enabled`：社区入口总开关。改为 `true` 后才会进行门槛判断。
+- `enabled`：开发构建开启，生产构建关闭。
 - `minFirstUseAgeDays`：从 App 首次使用时间起计算的最少天数。
 - `minCumulativeUsageHours`：App 累计处于运行状态的最少小时数。
 
@@ -25,6 +25,6 @@ enabled 为 true
 或累计运行时间达到 minCumulativeUsageHours
 ```
 
-因此当前配置表示：总开关仍然关闭；未来改成 `enabled: true` 后，首次使用达到三天或累计运行达到三小时中的任意一项，即显示社区主入口。
+因此当前配置表示：开发构建直接显示社区入口，便于联调；生产构建完全隐藏入口。若以后恢复灰度发布，可重新启用非零的首次使用或累计运行门槛。
 
 社区接口地址也在同一文件维护。生产环境默认使用 `https://community.neural-node.xyz`，开发构建可通过 `VITE_COMMUNITY_ORIGIN` 覆盖。

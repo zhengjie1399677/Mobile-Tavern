@@ -1,6 +1,7 @@
 import type * as React from "react";
 import { useEffect } from "react";
 import { UserSettings, LorebookEntry, CustomWorldbook, SavedPresetBundle } from "../../types";
+import { toPresetPromptConfig } from "./presetPromptConfig";
 import { useKernel } from "../../contexts/KernelContext";
 import {
   ISettingsService,
@@ -69,10 +70,10 @@ export const useSettingsLoader = ({
           if (externalPreset?.basicPresetBundle) {
             setMobileTavernBasicPresetBundle({
               ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE,
-              promptConfig: {
+              promptConfig: toPresetPromptConfig({
                 ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
                 ...externalPreset.basicPresetBundle.promptConfig,
-              }
+              })
             });
           }
 
@@ -389,10 +390,10 @@ export const useSettingsLoader = ({
             if (externalPreset.basicPresetBundle) {
               setMobileTavernBasicPresetBundle({
                 ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE,
-                promptConfig: {
+                promptConfig: toPresetPromptConfig({
                   ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
                   ...externalPreset.basicPresetBundle.promptConfig,
-                }
+                })
               });
               initialSet.preset = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset;
               initialSet.promptConfig = {

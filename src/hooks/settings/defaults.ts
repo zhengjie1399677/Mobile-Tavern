@@ -5,6 +5,7 @@ import {
   DEFAULT_TABLE_MEMORY_PROMPT,
 } from "../../defaults/promptTemplates";
 import { createBasicPromptComposition } from "../../domain/prompt-composition";
+import { toPresetPromptConfig } from "./presetPromptConfig";
 
 export { DEFAULT_REPLY_SUGGESTIONS_PROMPT, DEFAULT_TABLE_MEMORY_PROMPT };
 
@@ -158,7 +159,7 @@ export let MOBILE_TAVERN_BASIC_PRESET_BUNDLE: SavedPresetBundle = {
     maxTokens: 1500,
   },
   promptConfig: {
-    ...DEFAULT_PROMPT_CONFIG,
+    ...toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
     roleplayMode: true,
     useJailbreak: true,
     storyString: "{{system_prompt}}\n\n{{personality}}\n\n{{description}}\n\n{{scenario}}\n\n{{char_system}}\n\n{{summaries}}\n\n{{lorebook_entries}}\n\n{{mes_example}}\n\n{{jailbreak}}",
@@ -402,7 +403,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
     recallTopK: 3,
     recallTimeoutMs: 3000,
   },
-  promptConfig: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
+  promptConfig: {
+    ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
+    usePromptComposition: false,
+    composition: createBasicPromptComposition(),
+  },
   promptCompositionTemplates: [],
   userName: "user",
   userInfo: "",

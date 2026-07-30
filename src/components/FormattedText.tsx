@@ -1,6 +1,7 @@
 import React, { useContext, memo, useState } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { createMessageIframeSrcDoc, initTavernHelperMocks } from "../utils/tavernHelper";
+import { useLibsReady } from "./formatted-text/useLibsReady";
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "./formattedTextUtils";
 
 /**
@@ -9,12 +10,8 @@ import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } f
  * 字段标记为可选，反映"运行时动态挂载到 window"的真实语义。
  */
 interface WindowWithTavernHelperLibs extends Window {
-  /** lodash 实例，核心库加载后挂载 */
-  _?: unknown;
   /** jQuery 实例（仅角色卡含脚本时挂载） */
   jQuery?: unknown;
-  /** TavernHelper MVU 框架库集合（含 defineStore 等方法） */
-  TavernHelperMvuLibs?: Record<string, unknown>;
   /** 流式输出标记（由 useChatStreaming 写入） */
   TavernHelperIsSending?: boolean;
 }
@@ -852,45 +849,7 @@ const FormattedText = memo(function FormattedText({
     initTavernHelperMocks();
   }
 
-  const [libsReady, setLibsReady] = useState(false);
-
-  React.useEffect(() => {
-    if (!enableScriptExecution) {
-      setLibsReady(true);
-      return;
-    }
-    let isMounted = true;
-    let checkCount = 0;
-    let checkTimer: number | undefined;
-    const checkLibs = () => {
-      if (!isMounted) return;
-      const w = window as unknown as WindowWithTavernHelperLibs;
-      checkCount++;
-      const hasDefineStore = !!w.TavernHelperMvuLibs?.defineStore;
-      const hasLodash = !!w._;
-      // 前 3 次与第 20 次、第 60 次打印诊断（避免日志爆炸）
-      if (checkCount === 1 || checkCount === 3 || checkCount === 20 || checkCount === 60) {
-        console.log("[FormattedText] libsReady 检测 #" + checkCount, {
-          hasDefineStore,
-          hasLodash,
-          libsReady: hasDefineStore && hasLodash,
-        });
-      }
-      if (hasDefineStore && hasLodash) {
-        if (isMounted) setLibsReady(true);
-        console.log("[FormattedText] libsReady=true，停止轮询");
-      } else {
-        checkTimer = window.setTimeout(checkLibs, 50);
-      }
-    };
-    checkLibs();
-    return () => {
-      isMounted = false;
-      if (checkTimer !== undefined) {
-        window.clearTimeout(checkTimer);
-      }
-    };
-  }, [enableScriptExecution]);
+  const libsReady = useLibsReady(enableScriptExecution);
   // 优先取角色卡 visualSettings 中的显式声明（true/false）；
   // 若角色卡未配置（undefined），则回退到全局 settings.enableAsteriskFormatting。
   const enableAsteriskFormatting = activeCharacter?.visualSettings?.enableAsteriskFormatting !== undefined

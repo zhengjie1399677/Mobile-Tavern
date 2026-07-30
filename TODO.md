@@ -11,7 +11,7 @@
 ## 重构排期
 
 - [ ] **P3-A UI 组件拆分**：按优先级 FormattedText → SystemReportSection → MessageBubble 拆为 10-12 个独立 PR，每个可独立回退。
-  - FormattedText（激进，~7h）：6 个纯函数（SafeIframe/parseMarkdownToReact/domToReact/parseSafeHtml/preprocessFormattedText/LocalErrorBoundary）+ useLibsReady Hook 外迁；主组件留 ~150 行。关键：preprocessFormattedText 的 MVU/流式分支必须原样保留。
+  - FormattedText（激进，~7h）：`useLibsReady` Hook 已于 2026-07-30 完成外迁；后续外迁 6 个纯函数（SafeIframe/parseMarkdownToReact/domToReact/parseSafeHtml/preprocessFormattedText/LocalErrorBoundary），主组件留 ~150 行。关键：preprocessFormattedText 的 MVU/流式分支必须原样保留。
   - SystemReportSection（中等，~8h）：类型+工具函数外迁；13 个 checker 按 2-3 个一组迁到 ./checkers/，引入 CheckCtx 接口显式传 log/startSection。
   - MessageBubble（中等，~10h，最后做）：先抽 MessageAvatar/MessageTimestamp/GeneratedImageBlock（低风险）→ ReasoningBlock/MessageEditPanel → useSwipeGesture Hook + SwipeActionMenu（12 ref 闭包迁移，需手势回归测试）。
 - [ ] **P3-B Store 拆分**：UnifiedAppContext 拆分估算完成，推荐保守方案（仅拆 Settings，~24h），前置解决 useSettings→ChatContext 的 availableModels 反向依赖。中等/激进方案 60-110h，暂缓。

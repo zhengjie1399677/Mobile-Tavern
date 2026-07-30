@@ -21,13 +21,9 @@ import {
   getTableMemoryColumnDefinitions,
 } from "../../domain/memory/tableMemorySchema";
 import { compilePromptComposition } from "../../domain/prompt-composition";
-import type {
-  PromptCompositionBudgetReport,
-  PromptCompositionTrace,
-} from "../../domain/prompt-composition";
 import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
+import type { PromptAssemblyResult } from "./prompt/PromptAssemblyResult";
 import { Logger } from "../../utils/logger";
-
 const logger = Logger.create("PromptService");
 
 function checkAborted(...signals: Array<AbortSignal | undefined>): void {
@@ -145,22 +141,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     recalledMemories?: unknown[];
     signal?: AbortSignal;
     traceId?: string;
-  }): {
-    systemInstruction: string;
-    history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
-    dynamicInstruction: string;
-    userInput?: string;
-    messages?: Array<{ role: "system" | "user" | "assistant"; name?: string; content: string }>;
-    diagnostics?: Array<{
-      level: "info" | "warning" | "error";
-      code: string;
-      message: string;
-      blockId?: string;
-      detail?: string;
-    }>;
-    traces?: PromptCompositionTrace[];
-    budget?: PromptCompositionBudgetReport;
-  } {
+  }): PromptAssemblyResult {
     const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [], signal, traceId } = params;
     const log = traceId ? logger.withTrace(traceId) : logger;
     checkAborted(signal, this.abortController?.signal);

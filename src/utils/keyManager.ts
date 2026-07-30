@@ -23,7 +23,9 @@ export const TRIAL_KEY_SENTINEL = "TRIAL_KEY_PLACEHOLDER";
 const getAesKey = (): string => {
   // 生产构建剥离硬编码 key：仅 dev / 测试环境允许走 Web Crypto fallback。
   // Tauri 客户端生产构建必须走 Rust 侧 decrypt_trial_key，否则抛错。
-  if (!import.meta.env.DEV) {
+  const isDevBuild = import.meta.env?.DEV === true;
+  const isNodeTestEnvironment = typeof window === "undefined";
+  if (!isDevBuild && !isNodeTestEnvironment) {
     throw new Error(
       "[KeyManager] AES key fallback is only available in dev mode. " +
       "Tauri production builds must use Rust decrypt_trial_key."

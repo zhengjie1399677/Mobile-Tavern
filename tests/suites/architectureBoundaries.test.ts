@@ -255,7 +255,8 @@ export async function testArchitectureBoundaries(): Promise<void> {
     androidThemeBridge.includes("fun verifyFileIo(): String") &&
       androidThemeBridge.includes("resolver.openInputStream(uri)") &&
       androidThemeBridge.includes("resolver.delete(it, null, null)") &&
-      systemReportSection.includes("w.AndroidThemeBridge.verifyFileIo()") &&
+      systemReportSection.includes("const bridge = w.AndroidThemeBridge") &&
+      systemReportSection.includes("bridge.verifyFileIo()") &&
       !systemReportSection.includes("readLocalFile(savedPath)"),
     "Android 文件 IO 系统诊断必须在原生层基于同一 MediaStore URI 完成写入、回读和清理，不能把展示路径传给本地导入接口"
   );

@@ -1,14 +1,14 @@
 import React, { useCallback } from "react";
-import { UserSettings, SamplerPreset, SavedPresetBundle } from "../../types";
+import {
+  UserSettings,
+  SamplerPreset,
+  SavedPresetBundle,
+  PresetPromptConfig,
+} from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import { IPresetService } from "../../kernel/types";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT_CONFIG } from "./defaults";
-import {
-  exportSillyTavernComposition,
-  importSillyTavernPreset,
-} from "../../infrastructure/compat/sillytavern";
-import { createPromptCompositionTemplateRecord } from "../../domain/prompt-composition";
-import type { PromptCompositionTemplateRecord } from "../../domain/prompt-composition";
+import { applyPresetPromptConfig, toPresetPromptConfig } from "./presetPromptConfig";
 
 /**
  * 微内核插件式架构：预设包持久化统一走 PresetService。
@@ -205,11 +205,6 @@ export const usePresetBundles = ({
         let finalUsePostHistory = settings.promptConfig.usePostHistory;
         let finalStoryString = settings.promptConfig.storyString;
         let finalCustomPrompts = settings.promptConfig.customPrompts;
-        let importedComposition = settings.promptConfig.composition;
-        let usePromptComposition = settings.promptConfig.usePromptComposition;
-        let compatibilityWarningCount = 0;
-        let importedTemplateRecord: PromptCompositionTemplateRecord | undefined;
-
         if (hasAnyPromptFieldsInJSON) {
           finalMainPrompt = mainPrompt;
           finalJailbreakPrompt = jailbreakPrompt;
@@ -218,12 +213,6 @@ export const usePresetBundles = ({
           finalUsePostHistory = !!postHistoryPrompt;
           finalStoryString = storyStrFromJSON || "";
           finalCustomPrompts = importedCustomPrompts;
-          const importResult = importSillyTavernPreset(data);
-          importedComposition = importResult.composition;
-          importedTemplateRecord = createPromptCompositionTemplateRecord(importResult.composition, "external");
-          // 不自动启用自由编排：保持用户当前 usePromptComposition 设置
-          // composition 已准备好，用户可手动切换到自由编排模式
-          compatibilityWarningCount = importResult.report.warnings.length;
         }
 
         // 解析预设全局正则脚本
@@ -246,7 +235,7 @@ export const usePresetBundles = ({
           }
         }
 
-        const importedPromptConfig = {
+        const importedPromptConfig: PresetPromptConfig = toPresetPromptConfig({
           ...settings.promptConfig,
           mainPrompt: finalMainPrompt,
           jailbreakPrompt: finalJailbreakPrompt,
@@ -264,9 +253,7 @@ export const usePresetBundles = ({
           assistantSuffix:
             assistantSuffix || settings.promptConfig.assistantSuffix,
           customPrompts: finalCustomPrompts,
-          composition: importedComposition,
-          usePromptComposition,
-        };
+        });
         const importedBundle = {
           id: "bundle_" + Math.random().toString(36).substring(2, 9),
           preset: importedPreset,
@@ -286,10 +273,7 @@ export const usePresetBundles = ({
           preset: importedPreset,
           presetRegexScripts: importedRegexScripts,
           savedPresets: nextSaved,
-          promptCompositionTemplates: importedTemplateRecord
-            ? [...(prev.promptCompositionTemplates || []), importedTemplateRecord]
-            : prev.promptCompositionTemplates,
-          promptConfig: importedPromptConfig,
+          promptConfig: applyPresetPromptConfig(prev.promptConfig, importedPromptConfig),
         }));
         try {
           await presetService.saveStoredSavedPresets(nextSaved);
@@ -307,9 +291,6 @@ export const usePresetBundles = ({
   }, [settings, updateSettings, showCustomAlert, presetService]);
 
   const handleExportPresetJSON = useCallback(() => {
-    const compositionExport = settings.promptConfig.usePromptComposition && settings.promptConfig.composition
-      ? exportSillyTavernComposition(settings.promptConfig.composition)
-      : null;
     const bundleData = {
       name: settings.preset.name,
       temperature: settings.preset.temperature,
@@ -325,8 +306,7 @@ export const usePresetBundles = ({
       jailbreak_prompt: settings.promptConfig.jailbreakPrompt,
       post_history_instructions: settings.promptConfig.postHistoryPrompt,
       story_string: settings.promptConfig.storyString,
-      prompts: compositionExport?.data.prompts || settings.promptConfig.customPrompts || [],
-      ...(compositionExport ? { prompt_order: compositionExport.data.prompt_order } : {}),
+      prompts: settings.promptConfig.customPrompts || [],
 
       instruct_layouts: settings.promptConfig.instructTemplate,
       system_sequence_start: settings.promptConfig.systemPrefix,
@@ -342,15 +322,11 @@ export const usePresetBundles = ({
 
     const content = JSON.stringify(bundleData, null, 2);
     const fileName = `SillyTavern_${settings.preset.name.replace(/\s+/g, "_")}_profile.json`;
-    const compatibilityNotice = compositionExport && compositionExport.report.warnings.length > 0
-      ? `\n兼容报告：${compositionExport.report.warnings.length} 个 Mobile Tavern 专有能力无法原样表达，已尽力降级。`
-      : "";
-
     // If running in Android app via bridge
     if ((window as WindowWithAndroidBridge).AndroidThemeBridge && typeof (window as WindowWithAndroidBridge).AndroidThemeBridge?.saveFile === "function") {
       const path = (window as WindowWithAndroidBridge).AndroidThemeBridge!.saveFile!(fileName, content);
       if (path && !path.startsWith("error:")) {
-        showCustomAlert(`📂 预设配置导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}${compatibilityNotice}`);
+        showCustomAlert(`📂 预设配置导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}`);
       } else {
         showCustomAlert(`❌ 导出失败：${path || "未知错误"}`);
       }
@@ -366,7 +342,7 @@ export const usePresetBundles = ({
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
-    showCustomAlert(`📂 预设配置导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}${compatibilityNotice}`);
+    showCustomAlert(`📂 预设配置导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}`);
   }, [settings, showCustomAlert]);
 
   const handleSaveNewPresetBundle = useCallback(async () => {
@@ -383,7 +359,7 @@ export const usePresetBundles = ({
         id: "preset_" + Math.random().toString(36).substring(2, 9),
         name,
       },
-      promptConfig: { ...settings.promptConfig },
+      promptConfig: toPresetPromptConfig(settings.promptConfig),
       presetRegexScripts: settings.presetRegexScripts ? [...settings.presetRegexScripts] : [],
     };
 
@@ -391,7 +367,7 @@ export const usePresetBundles = ({
     const nextSettings = {
       ...settings,
       preset: newBundle.preset,
-      promptConfig: newBundle.promptConfig,
+      promptConfig: applyPresetPromptConfig(settings.promptConfig, newBundle.promptConfig),
       presetRegexScripts: newBundle.presetRegexScripts,
       savedPresets: nextSaved,
     };
@@ -412,7 +388,7 @@ export const usePresetBundles = ({
     updateSettings({
       ...settings,
       preset: mergedPreset,
-      promptConfig: bundle.promptConfig,
+      promptConfig: applyPresetPromptConfig(settings.promptConfig, bundle.promptConfig),
       presetRegexScripts: bundle.presetRegexScripts || [],
     });
   }, [settings, updateSettings]);
@@ -434,10 +410,13 @@ export const usePresetBundles = ({
     let nextPromptConfig = settings.promptConfig;
     if (nextSaved.length > 0) {
       nextPreset = nextSaved[0].preset;
-      nextPromptConfig = nextSaved[0].promptConfig;
+      nextPromptConfig = applyPresetPromptConfig(settings.promptConfig, nextSaved[0].promptConfig);
     } else {
       nextPreset = DEFAULT_SETTINGS.preset;
-      nextPromptConfig = DEFAULT_PROMPT_CONFIG;
+      nextPromptConfig = applyPresetPromptConfig(
+        settings.promptConfig,
+        toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+      );
     }
 
     updateSettings({
@@ -469,11 +448,14 @@ export const usePresetBundles = ({
     if (isCurrentDeleted) {
       if (nextSaved.length > 0) {
         nextPreset = nextSaved[0].preset;
-        nextPromptConfig = nextSaved[0].promptConfig;
+        nextPromptConfig = applyPresetPromptConfig(settings.promptConfig, nextSaved[0].promptConfig);
         nextRegex = nextSaved[0].presetRegexScripts || [];
       } else {
         nextPreset = DEFAULT_SETTINGS.preset;
-        nextPromptConfig = DEFAULT_PROMPT_CONFIG;
+        nextPromptConfig = applyPresetPromptConfig(
+          settings.promptConfig,
+          toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+        );
         nextRegex = [];
       }
     }

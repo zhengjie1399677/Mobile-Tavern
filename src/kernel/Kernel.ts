@@ -1,5 +1,6 @@
-import { IKernel, IKernelService, IPipeline, Middleware, IExtension, IMessage, type KernelValidationMode } from "./types";
+import { IKernel, IKernelService, IPipeline, IExtension, IMessage, type KernelValidationMode } from "./types";
 import { SAFE_PROXY_SYMBOL, validateMessage, validateService, validateServiceRetrieval, type ValidationResult } from "./schemas";
+import { Pipeline } from "./Pipeline";
 import { reportImmediate } from "../utils/telemetry";
 import { Logger } from "../utils/logger";
 
@@ -183,126 +184,6 @@ const createSafeProxy = (name: string): any => {
     },
   });
 };
-
-// ─── Pipeline (管道流中间件机制) ────────────────────────────────────────────────
-
-/**
- * 管道机制实现类
- * 类似于 Koa 的洋葱模型，支持优先级调度，主要用于处理文本输入、输出清洗及配置生命周期过滤
- */
-class Pipeline<T> implements IPipeline<T> {
-  // 内部维护的中间件列表，包含中间件函数和优先级
-  private middlewares: Array<{ fn: Middleware<T>; priority: number }> = [];
-
-  /**
-   * 注册中间件
-   * @param middleware 中间件函数
-   * @param priority 优先级（数值越大越先执行，默认为 0）
-   * @returns 注销该中间件的函数
-   */
-  use(middleware: Middleware<T>, priority = 0): () => void {
-    const entry = { fn: middleware, priority };
-    this.middlewares.push(entry);
-    // 按优先级降序排列，高优先级中间件先执行
-    this.middlewares.sort((a, b) => b.priority - a.priority);
-    return () => {
-      this.middlewares = this.middlewares.filter(m => m !== entry);
-    };
-  }
-
-  /**
-   * 注销指定的中间件
-   * @param middleware 需要注销的中间件函数
-   */
-  unuse(middleware: Middleware<T>): void {
-    this.middlewares = this.middlewares.filter(m => m.fn !== middleware);
-  }
-
-  /**
-   * 返回当前已注册的中间件列表快照（用于调试与运行时可观测性）
-   */
-  list(): ReadonlyArray<{ name: string; priority: number }> {
-    return this.middlewares.map(m => ({
-      name: m.fn.name || "(anonymous)",
-      priority: m.priority,
-    }));
-  }
-
-  /**
-   * 异步依次执行所有中间件（洋葱模型）
-   * @param context 执行上下文
-   */
-  async execute(context: T): Promise<void> {
-    // 快照当前中间件列表，防止执行期间 use()/unuse() 修改数组导致索引错位
-    const middlewares = [...this.middlewares];
-    let index = -1;
-
-    const dispatch = async (i: number): Promise<void> => {
-      if (i <= index) {
-        throw new Error("[Pipeline] next() called multiple times within the same middleware.");
-      }
-      index = i;
-
-      // 所有中间件执行完毕
-      if (i === middlewares.length) return;
-
-      // 显式受控阻断：尊重中间件的有意拦截语义
-      // 注：T 无类型约束，isInterrupted 为 Pipeline 运行时注入的阻断标记字段
-      if ((context as { isInterrupted?: boolean }).isInterrupted === true) return;
-
-      const middleware = middlewares[i];
-      let nextCalled = false;
-      const nextWrapper = async (): Promise<void> => {
-        nextCalled = true;
-        await dispatch(i + 1);
-      };
-
-      const interruptWrapper = () => {
-        (context as { isInterrupted?: boolean }).isInterrupted = true;
-      };
-
-      try {
-        await middleware.fn(context, nextWrapper, interruptWrapper);
-
-        // 三态严格语义校验：
-        //   - 调用 next()           → 继续执行后续中间件（正常流转）
-        //   - isInterrupted = true  → 有意阻断，管道在此终止（权限拒绝、内容过滤等）
-        //   - 两者均未执行          → 记录错误，不主动穿透安全边界
-        if (!nextCalled && (context as { isInterrupted?: boolean }).isInterrupted !== true) {
-          if (getKernelStrictMode()) {
-            throw new Error(
-              `[Pipeline DevError] Middleware "${middleware.fn.name || "anonymous"}" (index ${i}) ` +
-              `finished execution without calling next() and without calling interrupt(). ` +
-              `This is a design logic violation. Use the third parameter interrupt() for intentional blocking.`
-            );
-          } else {
-            // 生产环境：记录错误但绝不自动穿透。
-            // 若该中间件是有意阻断，自动穿透将导致安全漏洞；若是遗忘，亦应被修复而非掩盖。
-            logger.error(
-              `Pipeline middleware finished without calling next() or interrupt(). Pipeline halted to preserve security boundary. This is a bug — fix the middleware.`,
-              undefined,
-              { middleware: middleware.fn.name || "anonymous", index: i }
-            );
-          }
-        }
-      } catch (err: unknown) {
-        if (getKernelStrictMode()) {
-          // 开发环境直接抛出，不遮掩任何错误
-          throw err;
-        } else {
-          // 生产环境：记录错误并终止管道，不自动跳过出错的中间件以保全运行边界
-          logger.error(
-            `Pipeline middleware threw an exception. Pipeline halted.`,
-            err,
-            { middleware: middleware.fn.name || "anonymous", index: i }
-          );
-        }
-      }
-    };
-
-    await dispatch(0);
-  }
-}
 
 // ─── Kernel (内核主容器) ──────────────────────────────────────────────────────
 
@@ -616,7 +497,7 @@ export class Kernel implements IKernel {
       logger.warn("Pipeline is already registered. Returning existing instance", { pipeline: name });
       return this.pipelines.get(name) as IPipeline<T>;
     }
-    const pipeline = new Pipeline<T>();
+    const pipeline = new Pipeline<T>(getKernelStrictMode, logger);
     this.pipelines.set(name, pipeline);
     logger.info("Pipeline registered", { pipeline: name });
     return pipeline;
