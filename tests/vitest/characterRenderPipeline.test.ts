@@ -8,7 +8,7 @@
  *   - 无角色卡边界
  */
 import { describe, it, expect } from "vitest";
-import { computeRenderState, PipelineInput } from "../../src/services/characterRender/pipeline";
+import { computeRenderState, PipelineInput } from "../../src/application/services/characterRender/pipeline";
 
 function makeInput(overrides: Partial<PipelineInput> = {}): PipelineInput {
   return {

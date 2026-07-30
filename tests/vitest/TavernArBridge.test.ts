@@ -26,7 +26,7 @@ import {
   updateChatBubble,
   setGestureRecognition,
   checkGestureRecognitionReady,
-} from "../../src/services/ar/TavernArBridge";
+} from "../../src/infrastructure/ar/NativeArAdapter";
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>;
 

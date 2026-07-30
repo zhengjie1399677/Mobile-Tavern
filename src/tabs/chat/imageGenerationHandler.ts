@@ -1,12 +1,13 @@
-import { IDatabaseService } from "@/src/application/serviceContracts";
+import { IDatabaseService, IImageGenerationService, IKernelService, KernelServices } from "@/src/application/serviceContracts";
+import type { ChatSession, CharacterCard, Message, UserSettings } from "../../types";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 export interface ImageGenerationHandlerParams {
-  message: any;
-  activeSession: any;
-  settings: any;
-  activeCharacter: any;
-  setSessions: (updater: (prev: any[]) => any[]) => void;
+  message: Message;
+  activeSession: ChatSession | null;
+  settings: UserSettings;
+  activeCharacter: CharacterCard | null;
+  setSessions: (updater: (prev: ChatSession[]) => ChatSession[]) => void;
   showCustomAlert: (msg: string, title?: string) => void;
   showCustomPrompt: (
     message: string,
@@ -14,19 +15,19 @@ export interface ImageGenerationHandlerParams {
     title?: string,
     inputType?: string,
   ) => Promise<string | null>;
-  getKernelService: (name: string) => any;
+  getKernelService: <T extends IKernelService>(name: string) => T;
 }
 
 /** 将目标消息标记为正在/结束绘图 */
 function updateMessageDrawingState(
-  activeSession: any,
+  activeSession: ChatSession,
   targetMsgId: string,
   isDrawing: boolean,
   imageUrl?: string,
-) {
+): ChatSession {
   return {
     ...activeSession,
-    messages: activeSession.messages.map((m: any) =>
+    messages: activeSession.messages.map((m: Message) =>
       m.id === targetMsgId
         ? {
             ...m,
@@ -92,11 +93,11 @@ export async function handleGenerateImageForMessage({
 
   // 设置 loading 状态
   const drawSession = updateMessageDrawingState(activeSession, targetMsgId, true);
-  setSessions((prev: any[]) =>
-    prev.map((s: any) => (s.id === drawSession.id ? drawSession : s)),
+  setSessions((prev: ChatSession[]) =>
+    prev.map((s: ChatSession) => (s.id === drawSession.id ? drawSession : s)),
   );
 
-  const databaseService = getKernelService("database") as IDatabaseService;
+  const databaseService = getKernelService<IDatabaseService>("database");
 
   try {
     const config = settings.imageGenApi;
@@ -114,14 +115,14 @@ export async function handleGenerateImageForMessage({
       try {
         const { universalFetch, API_ENDPOINT } = await import("../../utils/apiClient");
         const messageIndex = activeSession.messages.findIndex(
-          (m: any) => m.id === message.id,
+          (m: Message) => m.id === message.id,
         );
         const recentMessages = activeSession.messages.slice(
           Math.max(0, messageIndex - 4),
           messageIndex + 1,
         );
         const contextText = recentMessages
-          .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+          .map((m: Message) => `${m.sender === "user" ? "User" : "Assistant"}: ${m.content}`)
           .join("\n");
 
         const charName = activeCharacter?.name || "Assistant";
@@ -191,8 +192,8 @@ export async function handleGenerateImageForMessage({
           targetMsgId,
           false,
         );
-        setSessions((prev: any[]) =>
-          prev.map((s: any) => (s.id === cancelledSession.id ? cancelledSession : s)),
+        setSessions((prev: ChatSession[]) =>
+          prev.map((s: ChatSession) => (s.id === cancelledSession.id ? cancelledSession : s)),
         );
         return;
       }
@@ -200,8 +201,7 @@ export async function handleGenerateImageForMessage({
     }
 
     // 调用生图服务
-    const { KernelServices } = await import("../../application/serviceContracts");
-    const imageGenService = getKernelService(KernelServices.ImageGen);
+    const imageGenService = getKernelService<IImageGenerationService>(KernelServices.ImageGen);
     const imgUrl = await imageGenService.generateImage(finalPrompt, config);
 
     const finalSession = updateMessageDrawingState(
@@ -210,16 +210,16 @@ export async function handleGenerateImageForMessage({
       false,
       imgUrl,
     );
-    setSessions((prev: any[]) =>
-      prev.map((s: any) => (s.id === finalSession.id ? finalSession : s)),
+    setSessions((prev: ChatSession[]) =>
+      prev.map((s: ChatSession) => (s.id === finalSession.id ? finalSession : s)),
     );
     await databaseService.saveSession(finalSession);
   } catch (err: unknown) {
     console.error("Image generation failed:", err);
     showCustomAlert(`绘图失败: ${getErrorMessage(err) || String(err)}`, "生图失败");
     const errorSession = updateMessageDrawingState(activeSession, targetMsgId, false);
-    setSessions((prev: any[]) =>
-      prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
+    setSessions((prev: ChatSession[]) =>
+      prev.map((s: ChatSession) => (s.id === errorSession.id ? errorSession : s)),
     );
     await databaseService.saveSession(errorSession);
   }

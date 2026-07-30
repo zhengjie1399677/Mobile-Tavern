@@ -6,6 +6,7 @@ import React from "react";
 import { LoaderCircle } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import { IBgmService } from "@/src/application/serviceContracts";
 import CharacterDetailDrawer from "../../components/CharacterDetailDrawer";
 
 const MemoryTableDrawer = React.lazy(() =>
@@ -111,7 +112,7 @@ export default function ChatTab() {
   const bgmVolume = activeCharacter?.visualSettings?.bgmVolume ?? 0.5;
 
   React.useEffect(() => {
-    const bgmService = getKernelService<any>("bgm");
+    const bgmService = getKernelService<IBgmService>("bgm");
     if (bgmService) {
       if (bgmUrl) {
         bgmService.play(bgmUrl, bgmVolume);
@@ -124,7 +125,7 @@ export default function ChatTab() {
   // 仅在 ChatTab 完全卸载时停止 BGM
   React.useEffect(() => {
     return () => {
-      const bgmService = getKernelService<any>("bgm");
+      const bgmService = getKernelService<IBgmService>("bgm");
       if (bgmService) {
         bgmService.stop();
       }

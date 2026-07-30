@@ -133,10 +133,11 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "src/kernel/bootstrap",
     "src/kernel/schemas",
     "src/kernel/utils",
+    "src/services",
   ]) {
     assert(
       !existsSync(path.join(workspace, forbiddenDir)),
-      `${forbiddenDir} 不得存在：Kernel 只允许通用运行时机制，业务服务、契约校验与装配必须位于 src/application`
+      `${forbiddenDir} 不得存在：业务服务、契约校验与装配必须位于 src/application/services；原生适配必须位于 src/infrastructure；React Hook 必须位于 src/hooks`
     );
   }
 

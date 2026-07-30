@@ -13,6 +13,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { Logger } from "../../utils/logger";
+// 位置说明：本文件位于 src/infrastructure/ar/，相对 src 根需多回退一层
 
 const logger = Logger.create("TavernAr");
 

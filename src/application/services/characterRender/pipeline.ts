@@ -7,8 +7,8 @@
 //   - 消除原 useCharacterPortrait 中 activePortraitUrl 与 currentEmotionName 的重复遍历：
 //     合并为单次 matchExpression，一次匹配同时得到 { name, image }
 
-import { isSafeRegex } from "../../tabs/chat/utils";
-import { Logger } from "../../utils/logger";
+import { isSafeRegex } from "../../../tabs/chat/utils";
+import { Logger } from "../../../utils/logger";
 
 const logger = Logger.create("characterRenderPipeline");
 

@@ -1,5 +1,5 @@
 import { IKernel, IKernelService } from "../serviceContracts";
-import { computeRenderState, PipelineInput, RenderState } from "../../services/characterRender/pipeline";
+import { computeRenderState, PipelineInput, RenderState } from "./characterRender/pipeline";
 
 /**
  * 角色渲染管线内核服务。

@@ -4,7 +4,7 @@ import {
   mvuScriptMiddleware,
   bisonModeMiddleware,
   autoSummaryMiddleware,
-} from "../../services/pipeline";
+} from "../../application/pipeline";
 
 /** 装配内置管线中间件；不承担服务启动或 UI 注册。 */
 export function registerDefaultPipelines(kernel: IKernel): void {

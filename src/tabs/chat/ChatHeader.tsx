@@ -14,9 +14,9 @@ import {
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { IDatabaseService } from "@/src/application/serviceContracts";
+import { IDatabaseService, IBgmService } from "@/src/application/serviceContracts";
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
-import { useArSync } from "../../services/ar/useArSync";
+import { useArSync } from "../../hooks/ar/useArSync";
 
 interface ChatHeaderProps {
   openTableDrawer: (tab: 'timeline' | 'table' | 'dict' | 'recall' | 'mvu') => void;
@@ -76,14 +76,14 @@ const ChatHeader = ({
   }, [showMemoryMenu]);
 
   React.useEffect(() => {
-    const bgmService = getKernelService<any>("bgm");
+    const bgmService = getKernelService<IBgmService>("bgm");
     if (bgmService) {
       setIsMuted(bgmService.getMuteState());
     }
   }, [activeCharacter, getKernelService]);
 
   const toggleMute = () => {
-    const bgmService = getKernelService<any>("bgm");
+    const bgmService = getKernelService<IBgmService>("bgm");
     if (bgmService) {
       const nextMute = bgmService.toggleMute();
       setIsMuted(nextMute);

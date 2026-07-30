@@ -16,7 +16,7 @@ import React from "react";
 
 import { useKernel } from "../../contexts/KernelContext";
 import type { IKernelService } from "@/src/application/serviceContracts";
-import type { RenderState } from "../../services/characterRender/pipeline";
+import type { RenderState } from "../../application/services/characterRender/pipeline";
 import {
   isArSupported,
   checkArAvailability,
@@ -29,7 +29,7 @@ import {
   checkGestureRecognitionReady as bridgeCheckReady,
   listenArGestureEvent,
   type GestureEventPayload,
-} from "./NativeArAdapter";
+} from "../../infrastructure/ar/NativeArAdapter";
 import { Logger } from "../../utils/logger";
 import { reportUsage } from "../../utils/telemetry";
 
@@ -85,7 +85,7 @@ export function useArSync({ activeSession }: UseArSyncArgs): UseArSyncResult {
   // 监听手势事件（AR 活跃时）
   React.useEffect(() => {
     if (!isArActive) return;
-    const unlisten = listenArGestureEvent((event) => {
+    const unlisten = listenArGestureEvent((event: GestureEventPayload) => {
       setLastGesture(event);
     });
     return () => unlisten();

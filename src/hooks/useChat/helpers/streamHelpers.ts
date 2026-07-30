@@ -7,7 +7,7 @@
  */
 import React from "react";
 import { Message, ChatSession, UserSettings, CharacterCard } from "../../../types";
-import type { OutputPipelineContext } from "../../../services/pipeline";
+import type { OutputPipelineContext } from "../../../application/pipeline";
 import { Logger } from "../../../utils/logger";
 
 const logger = Logger.create("streamHelpers");

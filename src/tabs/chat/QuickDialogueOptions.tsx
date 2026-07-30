@@ -327,7 +327,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
         <button
           onClick={async (e) => {
             e.stopPropagation();
-            const ttsService = getKernelService<any>("tts");
+            const ttsService = getKernelService<ITtsService>("tts");
             if (!ttsService) return;
 
             if (isSpeakingThis) {

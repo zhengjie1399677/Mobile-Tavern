@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { CharacterRenderService } from "../../src/application/services/CharacterRenderService";
-import { RenderState } from "../../src/services/characterRender/pipeline";
+import { RenderState } from "../../src/application/services/characterRender/pipeline";
 
 function makeState(overrides: Partial<RenderState> = {}): RenderState {
   return {

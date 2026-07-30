@@ -39,6 +39,14 @@
 | `src/components/FormattedText.tsx` | iframe、角色与正则脚本动态结构 | 等待富文本视图拆分和 Schema 收口 |
 | `src/infrastructure/storage/` | 动态记录和 metadata | 存储 Schema 尚在渐进强类型化 |
 | `src/infrastructure/storage/repositories/settingsRepository.ts` | 大型 Prompt 分段 | Preset 契约尚未稳定 |
+| `src/hooks/settings/useBackupRestore.ts` | 备份导入时 `validatedCharacters`/`validatedSessions`/`rawMessages` 等清洗后子集 | 字段为 ChatSession/CharacterCard 的运行时子集，强类型化会丢字段或破坏 JSON 导入兼容；边界已通过 `typeof` 守卫收口 |
+
+### 文件行数豁免（QUALITY-TYPES 单文件 1000 行阈值）
+
+| 文件 | 当前行数 | 豁免原因 |
+|---|---|---|
+| `src/utils/tavernHelper/scriptIframe.ts` | ~1252 | SillyTavern 兼容端口 iframe 沙盒 HTML 工厂；已拆出 esmReplacer/scriptPreprocessor，剩余逻辑强耦合于沙盒生成与字符串模板，待兼容契约稳定后继续拆分 |
+| `src/infrastructure/storage/indexedDbMemoryStore.ts` | ~991 | 已拆分至阈值以下，保留监控以防回涨 |
 
 ## 四、落地纪律
 
