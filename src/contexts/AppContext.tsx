@@ -35,7 +35,7 @@ export interface CustomDialogConfig {
   message: string;
   type: "alert" | "confirm" | "prompt";
   defaultValue?: string;
-  inputType?: "text" | "textarea";
+  inputType?: "text" | "textarea" | "password";
   onConfirmPrompt?: (value: string) => void;
   onConfirm?: () => void;
   onCancel?: () => void;
@@ -359,7 +359,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const showCustomPrompt = (message: string, defaultValue: string = "", title: string = TRANSLATIONS["zh-CN"]["dialog.prompt_default_title"], inputType: "text" | "textarea" = "text") => {
+  const showCustomPrompt = (message: string, defaultValue: string = "", title: string = TRANSLATIONS["zh-CN"]["dialog.prompt_default_title"], inputType: "text" | "textarea" | "password" = "text") => {
     return new Promise<string | null>((resolve) => {
       const newDialog: CustomDialogConfig = {
         isOpen: true,

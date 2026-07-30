@@ -25,6 +25,7 @@ import { formatCommunityTimestamp } from "../domain/community/presentation";
 import { generateCharacterPngBlob } from "../utils/characterPngExporter";
 import { parseCharacterFile } from "../utils/cardParser";
 import type { CharacterCard } from "../types";
+import { CommunityCardDetail } from "../components/community/CommunityCardDetail";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -38,12 +39,14 @@ export default function CommunityTab() {
     loadCharacterById,
     saveCharacter,
     showCustomAlert,
+    showCustomConfirm,
   } = useUnifiedApp((state) => ({
     settings: state.settings,
     characters: state.characters,
     loadCharacterById: state.loadCharacterById,
     saveCharacter: state.saveCharacter,
     showCustomAlert: state.showCustomAlert,
+    showCustomConfirm: state.showCustomConfirm,
   }));
   const { language, t } = useTranslation();
   const activePersona = settings.userPersonas?.find(
@@ -62,8 +65,12 @@ export default function CommunityTab() {
   const [search, setSearch] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [uploading, setUploading] = React.useState(false);
+  const [uploadDescription, setUploadDescription] = React.useState("");
+  const [uploadProgress, setUploadProgress] = React.useState(0);
   const [downloadingId, setDownloadingId] = React.useState<string>();
+  const [downloadProgress, setDownloadProgress] = React.useState(0);
   const [error, setError] = React.useState<string>();
+  const [detailCard, setDetailCard] = React.useState<CommunityCardSummary>();
 
   React.useEffect(() => {
     if (!selectedCharacterId && characters[0]?.id) {
@@ -99,6 +106,7 @@ export default function CommunityTab() {
   const handleUpload = async () => {
     if (!selectedCharacterId || uploading) return;
     setUploading(true);
+    setUploadProgress(0);
     try {
       const character = await loadCharacterById(selectedCharacterId);
       if (!character) throw new Error(t("community.character_missing"));
@@ -107,10 +115,12 @@ export default function CommunityTab() {
         blob,
         fileName: `${character.name.replace(/\s+/g, "_")}.png`,
         title: character.name,
-        description: character.description || character.personality || "",
+        description: uploadDescription.trim(),
         identity,
+        onProgress: setUploadProgress,
       });
       setCards((previous) => [uploaded, ...previous]);
+      setUploadDescription("");
       await showCustomAlert(
         t("community.upload_success", { name: character.name, user: identity.name }),
       );
@@ -122,14 +132,16 @@ export default function CommunityTab() {
       );
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
   const handleDownload = async (card: CommunityCardSummary) => {
     if (downloadingId) return;
     setDownloadingId(card.id);
+    setDownloadProgress(0);
     try {
-      const file = await fetchCommunityCardFile(card, identity);
+      const file = await fetchCommunityCardFile(card, identity, setDownloadProgress);
       const parsed = await parseCharacterFile(file);
       const importedCharacter: CharacterCard = {
         id: `char_community_${crypto.randomUUID?.() || Date.now()}`,
@@ -189,6 +201,7 @@ export default function CommunityTab() {
       );
     } finally {
       setDownloadingId(undefined);
+      setDownloadProgress(0);
     }
   };
 
@@ -245,6 +258,29 @@ export default function CommunityTab() {
             {t("community.upload")}
           </button>
         </div>
+        <textarea
+          value={uploadDescription}
+          onChange={(event) => setUploadDescription(event.target.value.slice(0, 1000))}
+          rows={2}
+          placeholder="角色卡介绍（选填）"
+          className="mt-2.5 w-full resize-none rounded-xl border border-border bg-input px-3 py-2 text-xs text-foreground outline-none focus:border-primary"
+        />
+        <div className="mt-1 flex justify-end text-[10px] text-muted-foreground">
+          {uploadDescription.length}/1000
+        </div>
+        {uploading && (
+          <div className="mt-2" aria-label={`上传进度 ${uploadProgress}%`}>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-[width]"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+            <p className="mt-1 text-right text-[10px] text-muted-foreground">
+              上传中 {uploadProgress}%
+            </p>
+          </div>
+        )}
         <p className="mt-2 text-[10px] text-muted-foreground">
           {t("community.identity_hint", {
             user: identity.name,
@@ -294,6 +330,12 @@ export default function CommunityTab() {
         {cards.map((card, index) => (
           <article
             key={card.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => setDetailCard(card)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") setDetailCard(card);
+            }}
             className={`group overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm transition-transform active:scale-[0.99] ${
               index === 0 ? "col-span-2" : ""
             }`}
@@ -364,7 +406,10 @@ export default function CommunityTab() {
               <button
                 type="button"
                 disabled={Boolean(downloadingId)}
-                onClick={() => void handleDownload(card)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleDownload(card);
+                }}
                 className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-[11px] font-semibold text-primary-foreground shadow-sm transition-transform active:scale-95 disabled:opacity-50"
               >
                 {downloadingId === card.id
@@ -373,10 +418,36 @@ export default function CommunityTab() {
                 {t("community.download")}
               </button>
               </div>
+              {downloadingId === card.id && (
+                <div className="mt-2" aria-label={`下载进度 ${downloadProgress}%`}>
+                  <div className="h-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-[width]"
+                      style={{ width: `${downloadProgress}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-right text-[9px] text-muted-foreground">
+                    {downloadProgress}%
+                  </p>
+                </div>
+              )}
             </div>
           </article>
         ))}
       </section>
+      {detailCard && (
+        <CommunityCardDetail
+          card={detailCard}
+          identity={identity}
+          language={language}
+          onClose={() => setDetailCard(undefined)}
+          onCardDeleted={(cardId) => {
+            setCards((previous) => previous.filter((card) => card.id !== cardId));
+          }}
+          confirmAction={showCustomConfirm}
+          showAlert={showCustomAlert}
+        />
+      )}
     </div>
   );
 }

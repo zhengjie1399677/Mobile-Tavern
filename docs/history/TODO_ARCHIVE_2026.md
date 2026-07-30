@@ -51,6 +51,7 @@
 | 首页角色卡与内置游戏轻量目录、点击按需加载 | 已落地 | 2026 年 7 月变更记录与 `TECHNICAL.md` 存储章节 |
 
 | 五十人以内最小角色卡社区上传下载与匿名署名 | 已落地 | 2026 年 7 月变更记录与 `cloud/minimal-community/README.md` |
+| `FormattedText`、`SystemReportSection` 与 `MessageBubble` 职责拆分 | 已落地 | 2026 年 7 月变更记录与组件边界回归测试 |
 
 ## 维护规则
 

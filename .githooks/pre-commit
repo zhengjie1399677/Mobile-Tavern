@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+echo "Running pre-commit type check..."
+npm run lint

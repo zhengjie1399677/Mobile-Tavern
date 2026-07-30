@@ -5,16 +5,13 @@
 
 ## 当前优先级
 
+- [ ] **社区生产版本对齐**：部署最新社区二进制后复验深度健康、双哈希去重、评论限流、管理员删除、上传下载时间戳与测试数据清理闭环；当前线上仍是旧版本。
 - 后续评估面向非开发者的 AI 插件创作层：以双角色或多 NPC 设定生成受控模板，通过气泡交互驱动游戏状态与 LLM 对话，不向用户暴露底层代码权限。
 - 顶层功能首次进入仍采用现有按需加载策略；真机验收未发现明显问题，暂不为消除短暂加载增加常驻内存，后续仅在出现可复现体验问题时调整。
 
 ## 重构排期
 
-- [ ] **P3-A UI 组件拆分**：按优先级 FormattedText → SystemReportSection → MessageBubble 拆为 10-12 个独立 PR，每个可独立回退。
-  - FormattedText（激进，~7h）：`useLibsReady` Hook 已于 2026-07-30 完成外迁；后续外迁 6 个纯函数（SafeIframe/parseMarkdownToReact/domToReact/parseSafeHtml/preprocessFormattedText/LocalErrorBoundary），主组件留 ~150 行。关键：preprocessFormattedText 的 MVU/流式分支必须原样保留。
-  - SystemReportSection（中等，~8h）：类型+工具函数外迁；13 个 checker 按 2-3 个一组迁到 ./checkers/，引入 CheckCtx 接口显式传 log/startSection。
-  - MessageBubble（中等，~10h，最后做）：先抽 MessageAvatar/MessageTimestamp/GeneratedImageBlock（低风险）→ ReasoningBlock/MessageEditPanel → useSwipeGesture Hook + SwipeActionMenu（12 ref 闭包迁移，需手势回归测试）。
-- [ ] **P3-B Store 拆分**：UnifiedAppContext 拆分估算完成，推荐保守方案（仅拆 Settings，~24h），前置解决 useSettings→ChatContext 的 availableModels 反向依赖。中等/激进方案 60-110h，暂缓。
+- [ ] **P3-B Store 拆分**：采用保守边界，优先拆出 Settings；实施前先解除 `useSettings` 对 `ChatContext.availableModels` 的反向依赖。更大范围拆分暂缓，只有出现明确维护瓶颈时再评估。
 
 ## 中期规划
 

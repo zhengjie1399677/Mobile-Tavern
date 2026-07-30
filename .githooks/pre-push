@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+echo "Running pre-push quality gate..."
+npm run quality:push

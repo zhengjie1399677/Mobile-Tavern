@@ -20,4 +20,7 @@ await build({
 
 const names = ["manifest.json", "index.html", "style.css", "game.js"];
 const files = Object.fromEntries(await Promise.all(names.map(async (name) => [name, new Uint8Array(await readFile(resolve(root, name)))])));
-await writeFile(resolve(root, "rain-sword-duel.mtplugin"), zipSync(files, { level: 6 }));
+await writeFile(
+  resolve(root, "rain-sword-duel.mtplugin"),
+  zipSync(files, { level: 6, mtime: new Date("1980-01-01T00:00:00.000Z") }),
+);

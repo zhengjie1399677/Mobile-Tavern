@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::AppState;
+use crate::{card_hash, is_admin, AppState};
 
 const MAX_CARD_BYTES: usize = 10 * 1024 * 1024;
 const MAX_NAME_CHARS: usize = 64;
@@ -123,6 +123,8 @@ async fn upload_card(
     }
     let input = read_upload(multipart).await?;
     validate_upload(&input)?;
+    let hashes = card_hash::calculate(&input.bytes, &input.mime_type)
+        .map_err(|message| api_error(StatusCode::BAD_REQUEST, message))?;
     let reserved_bytes = input.bytes.len() as u64;
     if !state.upload_guard.reserve_storage(reserved_bytes) {
         return Err(api_error(
@@ -156,14 +158,31 @@ async fn upload_card(
     let result_uploader_name = input.uploader_name.clone();
     let file_size = input.bytes.len() as i64;
     let uploader_uuid = input.uploader_uuid.clone();
+    let file_sha256 = hashes.file_sha256;
+    let content_sha256 = hashes.content_sha256;
+    let duplicate_file_sha256 = file_sha256.clone();
+    let duplicate_content_sha256 = content_sha256.clone();
 
     let database_result = run_database(move || {
-        let connection = Connection::open(database_path)?;
-        connection.execute(
+        let mut connection = Connection::open(database_path)?;
+        let transaction = connection.transaction()?;
+        let existing_id = transaction
+            .query_row(
+                "SELECT id FROM cards
+                 WHERE file_sha256 = ?1 OR content_sha256 = ?2
+                 LIMIT 1",
+                params![file_sha256, content_sha256],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        if existing_id.is_some() {
+            return Ok(existing_id);
+        }
+        transaction.execute(
             "INSERT INTO cards (
                 id, title, description, file_name, mime_type, file_size,
-                uploader_name, uploader_uuid, created_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                uploader_name, uploader_uuid, created_at, file_sha256, content_sha256
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 result_id,
                 result_title,
@@ -174,15 +193,50 @@ async fn upload_card(
                 result_uploader_name,
                 uploader_uuid,
                 created_at,
+                file_sha256,
+                content_sha256,
             ],
         )?;
-        Ok(())
+        transaction.commit()?;
+        Ok(None)
     })
     .await;
 
+    if let Ok(Some(existing_id)) = database_result {
+        let _ = tokio::fs::remove_file(&target_path).await;
+        state.upload_guard.release_storage(reserved_bytes);
+        return Err((
+            StatusCode::CONFLICT,
+            Json(json!({
+                "error": "相同角色卡已经存在",
+                "existingCardId": existing_id
+            })),
+        ));
+    }
     if let Err(error) = database_result {
         let _ = tokio::fs::remove_file(&target_path).await;
         state.upload_guard.release_storage(reserved_bytes);
+        let duplicate_path = state.config.database_path();
+        if let Ok(Some(existing_id)) = run_database(move || {
+            Connection::open(duplicate_path)?
+                .query_row(
+                    "SELECT id FROM cards
+                     WHERE file_sha256 = ?1 OR content_sha256 = ?2 LIMIT 1",
+                    params![duplicate_file_sha256, duplicate_content_sha256],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()
+        })
+        .await
+        {
+            return Err((
+                StatusCode::CONFLICT,
+                Json(json!({
+                    "error": "相同角色卡已经存在",
+                    "existingCardId": existing_id
+                })),
+            ));
+        }
         return Err(error);
     }
 
@@ -208,17 +262,7 @@ async fn delete_card(
     headers: HeaderMap,
     AxumPath(card_id): AxumPath<String>,
 ) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
-    let Some(expected_token) = state.config.admin_token.as_deref() else {
-        return Err(api_error(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "管理员删除接口未启用",
-        ));
-    };
-    let supplied_token = headers
-        .get("x-admin-token")
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default();
-    if supplied_token != expected_token {
+    if !is_admin(&state, &headers) {
         return Err(api_error(StatusCode::UNAUTHORIZED, "管理员令牌无效"));
     }
 

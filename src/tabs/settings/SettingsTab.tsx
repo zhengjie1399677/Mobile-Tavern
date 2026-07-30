@@ -12,6 +12,7 @@ import {
   Puzzle,
   RefreshCw,
   Settings,
+  ShieldCheck,
   Sparkles,
   UserCheck,
   Workflow,
@@ -23,6 +24,12 @@ import { getDeviceModel, getFreeTrialCount, useViewportSize } from "./utils";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
 import { getErrorMessage } from "../../utils/errorUtils";
+import {
+  clearCommunityAdminToken,
+  isCommunityAdmin,
+  setCommunityAdminToken,
+} from "../../domain/community/adminSession";
+import { verifyCommunityAdmin } from "../../domain/community/api";
 
 const PresetForm = React.lazy(() => import("../../components/PresetForm"));
 const GeneralConfigSection = React.lazy(() => import("./GeneralConfigSection"));
@@ -124,6 +131,8 @@ export default function SettingsTab() {
   const freeCount = getFreeTrialCount();
   const isLandscape = viewportSize.w >= 600 && viewportSize.w > viewportSize.h;
   const promptFocus = usePromptWorkbenchFocus();
+  const versionTapTimes = React.useRef<number[]>([]);
+  const [adminMode, setAdminMode] = React.useState(isCommunityAdmin);
 
   const {
     settings,
@@ -184,6 +193,37 @@ export default function SettingsTab() {
     handleImportSillyChatHistory: state.handleImportSillyChatHistory,
     getKernelService: state.getKernelService,
   }));
+
+  const handleVersionTap = async () => {
+    const now = Date.now();
+    versionTapTimes.current = [...versionTapTimes.current, now]
+      .filter((timestamp) => now - timestamp <= 2000)
+      .slice(-3);
+    if (versionTapTimes.current.length < 3) return;
+    versionTapTimes.current = [];
+
+    if (isCommunityAdmin()) {
+      clearCommunityAdminToken();
+      setAdminMode(false);
+      await showCustomAlert("已退出社区管理员模式");
+      return;
+    }
+    const token = await showCustomPrompt(
+      "管理员密码只在本次 App 运行期间保存在内存中，关闭 App 后自动清除。",
+      "",
+      "社区管理员验证",
+      "password",
+    );
+    if (!token) return;
+    try {
+      await verifyCommunityAdmin(token);
+      setCommunityAdminToken(token);
+      setAdminMode(true);
+      await showCustomAlert("社区管理员模式已启用");
+    } catch {
+      await showCustomAlert("管理员密码验证失败");
+    }
+  };
 
   const [activeSection, setActiveSection] = React.useState<SettingsSectionId | null>(null);
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
@@ -458,7 +498,15 @@ export default function SettingsTab() {
           </p>
         </div>
         {!selectedMeta && (
-          <span className="text-[9px] font-mono text-muted-foreground">v{__APP_VERSION__}</span>
+          <button
+            type="button"
+            onClick={() => void handleVersionTap()}
+            className="flex h-9 items-center gap-1 rounded-lg px-2 text-[9px] font-mono text-muted-foreground active:bg-muted"
+            aria-label="应用版本"
+          >
+            {adminMode && <ShieldCheck className="h-3 w-3 text-emerald-500" />}
+            v{__APP_VERSION__}
+          </button>
         )}
       </header>
 

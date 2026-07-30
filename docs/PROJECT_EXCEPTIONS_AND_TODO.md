@@ -16,7 +16,7 @@
 
 ### 2. useRerollMessage.ts 事务流程（不属于上帝 Hook）
 
-**例外原因**：[useRerollMessage.ts](../src/hooks/useChat/useRerollMessage.ts)（367 行）含 19 个 await，看似复杂但本质是**完整的事务流程**，不是"代码坏味道"。
+**例外原因**：[useRerollMessage.ts](../src/hooks/useChat/useRerollMessage.ts) 虽然异步步骤较多，但本质是**完整的事务流程**，不是“代码坏味道”。
 
 **事务结构**：
 ```
@@ -41,17 +41,15 @@
 
 ### 条件性重构 1：useSendMessage.ts 拆分
 
-**文件**：[useSendMessage.ts](../src/hooks/useChat/useSendMessage.ts)（408 行）
-
-**量化指标**：`useEffect:0 useState:0 useCallback:3 useRef:1 await:12 try:5`
+**文件**：[useSendMessage.ts](../src/hooks/useChat/useSendMessage.ts)
 
 **影响**：聊天主路径核心（发送消息 / 流式回调 / 中止生成）
 
 **可能问题**：
-1. 12 个 await 链串联流式回调，拆分后回调顺序错乱会导致消息截断
+1. 多个异步步骤串联流式回调，拆分后回调顺序错乱会导致消息截断
 2. AbortController 生命周期跨多个异步步骤，拆分后可能提前 abort 或泄漏
-3. 3 个 useCallback 间有隐式依赖（通过 ref 共享），拆分后 ref 时机可能错位
-4. 错误恢复路径（5 个 try）拆分后异常冒泡可能改变
+3. 回调间通过 ref 共享时序状态，拆分后 ref 时机可能错位
+4. 错误恢复路径拆分后异常冒泡可能改变
 
 **当前决策**：现有文件规模未触及硬上限，聊天主链路已经稳定且具备 `useSendMessage`、`useRerollMessage` 的流式回调、弱网恢复与 `AbortController` 定向测试，不主动为缩短文件而拆分。仅在新增职责导致边界失控或出现可复现缺陷时推进。
 

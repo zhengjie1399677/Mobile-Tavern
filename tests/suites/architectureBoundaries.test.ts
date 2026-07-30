@@ -77,6 +77,14 @@ export async function testArchitectureBoundaries(): Promise<void> {
       read("docs/agents/typescript_discipline.md").includes("历史豁免清单"),
     "TypeScript 历史豁免表必须留在按需类型规范，不得重新膨胀默认必读 AGENTS.md"
   );
+  const qualityWorkflow = read(".github/workflows/quality.yml");
+  assert(
+    /push:\s*[\s\S]*?branches:\s*[\s\S]*?-\s*main/.test(qualityWorkflow) &&
+      /pull_request:\s*[\s\S]*?branches:\s*[\s\S]*?-\s*main/.test(qualityWorkflow) &&
+      read(".githooks/pre-push").includes("npm run quality:push") &&
+      read("package.json").includes('"quality:push"'),
+    "main 主分支必须同时具备 GitHub push/PR 自动质量门禁和仓库内 pre-push 门禁"
+  );
 
   for (const file of listCodeFiles("src")) {
     const normalizedFile = file.replaceAll("\\", "/");
@@ -454,7 +462,9 @@ export async function testArchitectureBoundaries(): Promise<void> {
       !androidThemeBridge.includes("ACTION_OPEN_DOCUMENT_TREE"),
     "本地角色卡扫描必须覆盖可访问的共享存储与外置卷，跳过 Android 私有数据区且不得退回失效的旧权限"
   );
-  const systemReportSection = read("src/tabs/settings/sections/SystemReportSection.tsx");
+  const systemReportSection = read(
+    "src/tabs/settings/sections/system-report/SystemReportSectionView.tsx"
+  );
   assert(
     androidThemeBridge.includes("fun verifyFileIo(): String") &&
       androidThemeBridge.includes("resolver.openInputStream(uri)") &&
@@ -526,10 +536,26 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "src/kernel/types.ts",
     "src/utils/localDB.ts",
     "src/application/services/PromptService.ts",
+    "src/components/FormattedText.tsx",
+    "src/components/formatted-text/renderingRuntime.tsx",
+    "src/tabs/settings/sections/system-report/SystemReportSectionView.tsx",
+    "src/tabs/settings/sections/system-report/SystemReportPanel.tsx",
+    "src/tabs/chat/MessageBubble.tsx",
+    "src/tabs/chat/message-bubble/MessageAvatar.tsx",
+    "src/tabs/chat/message-bubble/ReasoningBlock.tsx",
+    "src/tabs/chat/message-bubble/GeneratedImageBlock.tsx",
+    "src/tabs/chat/message-bubble/MessageTimestamp.tsx",
   ]) {
     const lines = read(file).split(/\r?\n/).length;
     assert(lines <= 1000, `${file} 超过单文件 1000 行硬上限：${lines}`);
   }
+  assert(
+    read("src/components/FormattedText.tsx").includes("./formatted-text/renderingRuntime") &&
+      read("src/tabs/settings/sections/system-report/SystemReportSectionView.tsx").includes("./SystemReportPanel") &&
+      read("src/tabs/chat/MessageBubble.tsx").includes("./message-bubble/ReasoningBlock") &&
+      read("src/tabs/chat/MessageBubble.tsx").includes("./message-bubble/GeneratedImageBlock"),
+    "FormattedText、SystemReportSection 与 MessageBubble 必须保持职责拆分，不能重新合并为接近千行的单体组件"
+  );
 
   console.log("✔ 内核架构边界守卫通过");
 }

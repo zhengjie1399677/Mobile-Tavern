@@ -29,12 +29,12 @@ export type { CatExpression, CatMessage };
 /**
  * 小猫助手雪团业务 Hook
  *
- * 职责拆分（AGENTS.md 准则一第 6 条）：
+ * 职责拆分（AGENTS.md `QUALITY-TYPES` 与 `CHANGE-SAFE`）：
  *   - catbotResponses.ts → 本地预设吐槽词条数据 + 响应缓存
  *   - catbotGlobalState.ts → 全局单例状态 + 监听器 + 定时器管理
- *   - useCatbot.ts → Hook 本身（5 个 useEffect 整体保留，保证副作用时序不变）
+ *   - useCatbot.ts → Hook 本身（副作用整体保留，保证执行时序不变）
  *
- * 风险控制：5 个 useEffect 严格保留在同一 Hook 内，执行顺序不变。
+ * 风险控制：相关副作用保留在同一 Hook 内，执行顺序不变。
  */
 export function useCatbot() {
   const [state, setState] = useState(globalState);

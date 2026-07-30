@@ -6,12 +6,6 @@ import React from "react";
 import {
   Check,
   X,
-  Brain,
-  Clock,
-  Cpu,
-  Copy,
-  ChevronDown,
-  MoreHorizontal,
   Edit2,
   Palette,
   Volume2,
@@ -27,30 +21,10 @@ import QuickDialogueOptions from "./QuickDialogueOptions";
 import CloudLoader from "../../components/CloudLoader";
 import type { Message } from "../../types";
 import { ITtsService } from "@/src/application/serviceContracts";
-
-import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
-/**
- * Tavern 全局辅助 window 字段类型收口。
- * 这些字段被本文件跨 iframe / 原生桥接边界读取，
- * 本地接口替代类型逃逸写法，避免类型丢失。
- * 字段标记为可选，反映"运行时动态挂载到 window"的真实语义。
- */
-interface WindowWithTavernHelpers extends Window {
-  /** 当前流式输出的 messageId，供 MessageBubble 判断渲染态 */
-  TavernHelperStreamingMessageId?: string | null;
-  /** 由 AndroidBridgePlugin 注入的原生桥接对象（仅声明本文件用到的子集） */
-  AndroidThemeBridge?: AndroidThemeBridge;
-}
-
-/**
- * `window.AndroidThemeBridge` 的最小子集类型，仅声明本文件实际调用的方法。
- * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
- * 所有方法同步执行于 WebView JS 线程，返回值为保存路径或 `error:` 前缀错误信息。
- */
-interface AndroidThemeBridge {
-  saveFile(fileName: string, content: string): string;
-  saveFileBase64(fileName: string, base64Data: string, mimeType: string): string;
-}
+import { MessageAvatar } from "./message-bubble/MessageAvatar";
+import { ReasoningBlock } from "./message-bubble/ReasoningBlock";
+import { GeneratedImageBlock } from "./message-bubble/GeneratedImageBlock";
+import { MessageTimestamp } from "./message-bubble/MessageTimestamp";
 
 interface MessageBubbleProps {
   message: Message;
@@ -460,34 +434,12 @@ const MessageBubble = ({
       aria-label={`${isUser ? t("message_bubble.user_said") : (activeCharacter?.name || t("message_bubble.role")) + t("message_bubble.char_said")}：${message.content}`}
       className={`flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}
     >
-      <div
-        aria-hidden="true"
-        className={`w-8 h-8 rounded-[11px] bg-gradient-to-br flex items-center justify-center font-bold text-xs shadow-sm border flex-shrink-0 overflow-hidden ${
-          isUser
-            ? "from-secondary to-muted border-border text-foreground transition-colors duration-300"
-            : "from-card to-muted border-border text-foreground font-serif transition-colors duration-300"
-        }`}
-      >
-        {isUser ? (
-          settings?.userAvatar ? (
-            <img
-              src={settings.userAvatar}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            t("message_bubble.me_avatar")
-          )
-        ) : (activePortraitUrl || activeCharacter?.avatar) ? (
-          <img
-            src={activePortraitUrl || activeCharacter?.avatar || ""}
-            alt=""
-            className="w-full h-full object-cover animate-fadeIn"
-          />
-        ) : (
-          activeCharacter?.name?.[0] || t("message_bubble.ai_fallback")
-        )}
-      </div>
+      <MessageAvatar
+        isUser={isUser}
+        userAvatar={settings?.userAvatar}
+        activePortraitUrl={activePortraitUrl}
+        activeCharacter={activeCharacter}
+      />
 
       {/* Speech Bubble */}
       <div
@@ -583,7 +535,7 @@ const MessageBubble = ({
                   e.stopPropagation();
                   setSwipedMsgId(null);
                   setDragOffset(0);
-                  const ttsService = getKernelService<any>("tts");
+                  const ttsService = getKernelService<ITtsService>("tts");
                   if (!ttsService) return;
 
                   if (isSpeakingThis) {
@@ -654,18 +606,18 @@ const MessageBubble = ({
                   const currentSession = unifiedAppStore.getState().activeSession;
                   if (!currentSession) return;
                   const nextMsgs = (currentSession.messages || []).map(
-                    (m: any) =>
-                      m.id === message.id
-                        ? { ...m, content: editingMsgContent }
-                        : m,
+                    (currentMessage) =>
+                      currentMessage.id === message.id
+                        ? { ...currentMessage, content: editingMsgContent }
+                        : currentMessage,
                   );
                   const updated = {
                     ...currentSession,
                     messages: nextMsgs,
                   };
-                  setSessions((prev: any) =>
-                    prev.map((s: any) =>
-                      s.id === updated.id ? updated : s,
+                  setSessions((previous) =>
+                    previous.map((session) =>
+                      session.id === updated.id ? updated : session,
                     ),
                   );
                   await saveSessionWithMvu(updated, editingMsgContent);
@@ -698,73 +650,19 @@ const MessageBubble = ({
             }}
           >
             <div className="space-y-1 max-w-full">
-              {/* 思维链渲染模块 */}
-              {!isUser && message.reasoningContent && settings.enableReasoningContentDisplay !== false && (
-                <div className="mb-2 text-xs max-w-sm">
-                  <div
-                    onClick={() => {
-                      setExpandedReasoningIds((prev) => ({
-                        ...prev,
-                        [message.id]: !prev[message.id],
-                      }));
-                    }}
-                    className="bg-muted/40 hover:bg-muted/60 border-border/30 text-muted-foreground cursor-pointer flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-semibold select-none transition-all active:scale-95 w-fit"
-                  >
-                    <Brain className={`w-3.5 h-3.5 ${isStreamingThisMsg ? "animate-pulse text-primary" : "opacity-75"}`} />
-                    <span>
-                      {expandedReasoningIds[message.id]
-                        ? t("message_bubble.reasoning_collapse")
-                        : isStreamingThisMsg
-                        ? t("message_bubble.reasoning_thinking")
-                        : t("message_bubble.reasoning_view")}
-                    </span>
-                    {!isSending && message.reasoningContent && (
-                      <span className="text-muted-foreground/60 font-normal">
-                        · {t("message_bubble.reasoning_chars", { length: String(message.reasoningContent.length) })}
-                      </span>
-                    )}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${
-                        expandedReasoningIds[message.id] ? "rotate-180" : ""
-                      }`}
-                    />
-                  </div>
-
-                  {expandedReasoningIds[message.id] && (
-                    <div className="mt-1.5 relative">
-                      <div className="p-3 pr-8 rounded-xl glass-panel border border-border/20 text-muted-foreground font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-[200px] overflow-y-auto custom-scrollbar animate-in fade-in duration-300">
-                        {message.reasoningContent}
-                        {isStreamingThisMsg && (
-                          <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-primary/70 animate-pulse" />
-                        )}
-                      </div>
-                      {!isSending && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const textToCopy = message.reasoningContent || "";
-                            if (navigator.clipboard?.writeText) {
-                              navigator.clipboard.writeText(textToCopy);
-                            }
-                            setCopiedReasoningIds((prev) => ({ ...prev, [message.id]: true }));
-                            setTimeout(() => {
-                              setCopiedReasoningIds((prev) => ({ ...prev, [message.id]: false }));
-                            }, 1500);
-                          }}
-                          className="absolute top-1.5 right-1.5 p-1 rounded-md hover:bg-muted/80 text-muted-foreground/60 hover:text-foreground transition-colors"
-                          title={t("message_bubble.copy_reasoning")}
-                        >
-                          {copiedReasoningIds[message.id] ? (
-                            <Check className="w-3 h-3 text-emerald-500" />
-                          ) : (
-                            <Copy className="w-3 h-3" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+              {!isUser &&
+                message.reasoningContent &&
+                settings.enableReasoningContentDisplay !== false && (
+                  <ReasoningBlock
+                    message={message}
+                    isStreaming={isStreamingThisMsg}
+                    isSending={isSending}
+                    expandedIds={expandedReasoningIds}
+                    setExpandedIds={setExpandedReasoningIds}
+                    copiedIds={copiedReasoningIds}
+                    setCopiedIds={setCopiedReasoningIds}
+                  />
+                )}
 
               {/* 主对白内容气泡：仅在思维链且正文还在准备时，暂不显示空气泡 */}
               {!(message.content === "💭..." && message.reasoningContent) && (
@@ -806,102 +704,19 @@ const MessageBubble = ({
                 </div>
               )}
 
-              {/* Generated Image & Drawing Loader */}
-              {message.extra?.isDrawing && (
-                <div className="mt-2 p-3 bg-muted/40 border border-dashed border-border rounded-xl flex items-center justify-center gap-2.5 text-xs text-muted-foreground animate-pulse">
-                  <CloudLoader size={30} />
-                  <span>{t("message_bubble.drawing_scene")}</span>
-                </div>
-              )}
-
-              {message.extra?.image && (
-                <div className="mt-2 rounded-xl overflow-hidden border border-border/80 bg-muted/30 shadow-md max-w-full group/image relative select-none">
-                  <img
-                    src={message.extra.image}
-                    alt="Generated Scene"
-                    className="w-full object-cover max-h-60 cursor-pointer hover:opacity-95 transition-opacity"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      // 捕获到局部变量，避免 message.extra 在异步回调中被 TS 判定为可能 undefined
-                      const imageData = message.extra?.image;
-                      if (!imageData) return;
-                      const ok = await showCustomConfirm(t("message_bubble.confirm_save_image"));
-                      if (!ok) return;
-
-                      const filename = `draw_${Date.now()}.png`;
-                      if ((window as WindowWithTavernHelpers).AndroidThemeBridge) {
-                        try {
-                          let path = null;
-                          const isDataUrl = imageData.startsWith("data:");
-                          if (isDataUrl && typeof (window as WindowWithTavernHelpers).AndroidThemeBridge?.saveFileBase64 === "function") {
-                            const commaIdx = imageData.indexOf(",");
-                            const mimeType = imageData.slice(5, commaIdx).split(";")[0] || "image/png";
-                            const base64Data = imageData.slice(commaIdx + 1);
-                            path = (window as WindowWithTavernHelpers).AndroidThemeBridge!.saveFileBase64(filename, base64Data, mimeType);
-                          } else if (typeof (window as WindowWithTavernHelpers).AndroidThemeBridge?.saveFile === "function") {
-                            path = (window as WindowWithTavernHelpers).AndroidThemeBridge!.saveFile(filename, imageData);
-                          }
-
-                          if (path && !path.startsWith("error:")) {
-                            await showCustomAlert(t("message_bubble.image_save_success_msg"), t("message_bubble.image_save_success"));
-                          } else {
-                            await showCustomAlert(t("message_bubble.image_save_failed_msg", { error: path || "未知错误" }), t("message_bubble.image_save_failed"));
-                          }
-                          return;
-                        } catch (err: unknown) {
-                          console.error("AndroidThemeBridge download failed:", err);
-                          await showCustomAlert(`❌ ${t("message_bubble.save_error")}: ${getErrorMessage(err) || String(err)}`, t("message_bubble.image_save_failed"));
-                        }
-                      }
-
-                      const link = document.createElement("a");
-                      link.href = imageData;
-                      link.download = filename;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      await showCustomAlert(`图片已成功导出！\n文件已触发浏览器或客户端下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${filename}`, t("message_bubble.export_success"));
-                    }}
-                  />
-                  <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-mono pointer-events-none opacity-0 group-hover/image:opacity-100 transition-opacity">
-                    {t("message_bubble.click_to_save")}
-                  </div>
-                </div>
-              )}
+              <GeneratedImageBlock
+                image={message.extra?.image}
+                isDrawing={message.extra?.isDrawing}
+                showCustomAlert={showCustomAlert}
+                showCustomConfirm={showCustomConfirm}
+              />
             </div>
 
-            {/* Bubble timestamp */}
-            <div
-              className={`text-[10px] text-muted-foreground font-mono mt-1 ${isUser ? "text-right" : "text-left"} flex gap-2 ${isUser ? "justify-end" : "justify-start"} flex-wrap`}
-            >
-              {roundNum > 0 && (
-                <span className="flex items-center gap-1 opacity-70 text-primary font-medium">
-                  {t("message_bubble.round_label", { roundNum: String(roundNum) })}
-                </span>
-              )}
-              <span className={roundNum > 0 ? "border-l border-border pl-2" : ""}>
-                {new Date(message.timestamp).toLocaleTimeString(
-                  undefined,
-                  { hour: "2-digit", minute: "2-digit" },
-                )}
-              </span>
-              {message.generationTime !== undefined && (
-                <span className="flex items-center gap-1 opacity-70 border-l border-border pl-2">
-                  <Clock className="w-2.5 h-2.5" />
-                  {message.generationTime.toFixed(1)}s
-                </span>
-              )}
-              {message.tokenCount !== undefined &&
-                message.tokenCount > 0 && (
-                  <span
-                    className="flex items-center gap-1 opacity-70 border-l border-border pl-2"
-                    title={`提示词Tokens: ${message.promptTokenCount || 0}`}
-                  >
-                    <Cpu className="w-2.5 h-2.5" />
-                    {message.tokenCount} Token
-                  </span>
-                )}
-            </div>
+            <MessageTimestamp
+              message={message}
+              roundNum={roundNum}
+              isUser={isUser}
+            />
           </div>
         )}
 

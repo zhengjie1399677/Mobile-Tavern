@@ -43,7 +43,7 @@ export default function CustomConfirmDialog() {
                 />
               ) : (
                 <input
-                  type="text"
+                  type={customDialog.inputType === "password" ? "password" : "text"}
                   value={localVal}
                   onChange={(e) => setLocalVal(e.target.value)}
                   onKeyDown={(e) => {

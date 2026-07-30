@@ -1,7 +1,7 @@
 /**
  * 角色卡管理聚合 Hook（壳）
  *
- * 职责拆分（AGENTS.md 准则一第 6 条「面向模块化/服务化的轻量化开发」）：
+ * 职责拆分（AGENTS.md `QUALITY-TYPES` 与 `CHANGE-SAFE`）：
  *   - useCharacterEditor     → 编辑态 + CRUD/保存 handlers
  *   - useCharacterImportExport → 导入/导出 handlers
  *

@@ -55,6 +55,10 @@ cargo run -p mobile-tavern-community
 - `GET /api/cards?q=&limit=&offset=`：角色卡列表。
 - `POST /api/cards`：上传角色卡，使用 `multipart/form-data`。
 - `POST /api/cards/:id/download`：登记下载者并返回文件地址。
+- `GET /api/cards/:id/comments?limit=&offset=`：分页读取角色卡评论。
+- `POST /api/cards/:id/comments`：发表纯文字评论。
+- `DELETE /api/comments/:id`：管理员删除评论。
+- `POST /api/admin/verify`：验证管理员密码。
 - `DELETE /api/cards/:id`：使用 `X-Admin-Token` 请求头删除角色卡。
 
 上传字段为 `title`、`description`、`uploaderName`、`uploaderUuid` 和 `card`。下载登记请求为：
@@ -65,6 +69,14 @@ cargo run -p mobile-tavern-community
   "actorUuid": "本机 UUID"
 }
 ```
+
+评论字段为 `authorName`、`authorUuid` 与 `content`。评论最多 100 个 Unicode
+字符；同一匿名 UUID 每小时最多发表 6 条、两条至少间隔 20 秒，同一卡片下
+10 分钟内不得重复提交相同内容。
+
+上传时服务端计算原始文件与规范化角色内容的 SHA-256，并分别建立唯一索引。
+字节完全相同或仅头像、文件名、导出时间等易变字段不同的重复角色卡会返回
+`409 Conflict`，响应中的 `existingCardId` 指向已存在的卡片。
 
 ## VPS 部署
 

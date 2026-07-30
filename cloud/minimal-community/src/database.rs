@@ -25,7 +25,9 @@ CREATE TABLE IF NOT EXISTS cards (
     uploader_name TEXT NOT NULL,
     uploader_uuid TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    download_count INTEGER NOT NULL DEFAULT 0
+    download_count INTEGER NOT NULL DEFAULT 0,
+    file_sha256 TEXT,
+    content_sha256 TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_cards_created_at
@@ -47,11 +49,52 @@ ON card_downloads(card_id);
 
 CREATE INDEX IF NOT EXISTS idx_card_downloads_actor_uuid
 ON card_downloads(actor_uuid);
+
+CREATE TABLE IF NOT EXISTS card_comments (
+    id TEXT PRIMARY KEY,
+    card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    author_name TEXT NOT NULL,
+    author_uuid TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_card_comments_card_created
+ON card_comments(card_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_card_comments_author_created
+ON card_comments(author_uuid, created_at DESC);
 "#;
 
 pub fn initialize(path: &Path) -> rusqlite::Result<()> {
     let connection = Connection::open(path)?;
     connection.execute_batch(INITIAL_SCHEMA)?;
+    ensure_column(&connection, "cards", "file_sha256", "TEXT")?;
+    ensure_column(&connection, "cards", "content_sha256", "TEXT")?;
+    connection.execute_batch(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_cards_file_sha256
+         ON cards(file_sha256) WHERE file_sha256 IS NOT NULL;
+         CREATE UNIQUE INDEX IF NOT EXISTS idx_cards_content_sha256
+         ON cards(content_sha256) WHERE content_sha256 IS NOT NULL;",
+    )?;
+    Ok(())
+}
+
+fn ensure_column(
+    connection: &Connection,
+    table: &str,
+    column: &str,
+    data_type: &str,
+) -> rusqlite::Result<()> {
+    let mut statement = connection.prepare(&format!("PRAGMA table_info({table})"))?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    if !columns.iter().any(|name| name == column) {
+        connection.execute_batch(&format!(
+            "ALTER TABLE {table} ADD COLUMN {column} {data_type}"
+        ))?;
+    }
     Ok(())
 }
 
@@ -117,5 +160,50 @@ mod tests {
             .unwrap();
         assert_eq!(created_at, 100);
         assert_eq!(downloaded_at, 200);
+    }
+
+    #[test]
+    fn migrates_hash_columns_and_comment_store() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("community.sqlite3");
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE cards (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    file_name TEXT NOT NULL UNIQUE,
+                    mime_type TEXT NOT NULL,
+                    file_size INTEGER NOT NULL,
+                    uploader_name TEXT NOT NULL,
+                    uploader_uuid TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    download_count INTEGER NOT NULL DEFAULT 0
+                );",
+            )
+            .unwrap();
+        drop(connection);
+
+        initialize(&path).unwrap();
+        let connection = Connection::open(&path).unwrap();
+        let columns = connection
+            .prepare("PRAGMA table_info(cards)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap();
+        assert!(columns.contains(&"file_sha256".to_owned()));
+        assert!(columns.contains(&"content_sha256".to_owned()));
+        let comments_table: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'table' AND name = 'card_comments'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(comments_table, 1);
     }
 }

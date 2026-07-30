@@ -73,10 +73,10 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 * 正式安装包内置只读的《星渊终焉》和《夜雨试剑》两个 PixiJS 示例，无需导入即可运行；它们与用户安装的插件共用同一强沙箱运行链路，但包体不可卸载，游戏存档仍按插件 ID 独立保存。
 * 运行容器仅授予 `allow-scripts`，不授予同源、表单、弹窗、下载或导航能力；插件不能访问主应用 DOM、Kernel、API 凭证、网络或 Tauri，只能使用版本化宿主桥接进行存档、退出和方向控制。完整格式见 [第三方全屏插件规范](docs/Plugin_System_v1.md)。
 
-### 9. 🧪 自动化集成测试套件 (Comprehensive Test Suite)
-* 当前主测试链包含 80 组功能套件与 348 项 Vitest 断言，覆盖物理 PNG 解码、SSRF 防御、自由 Prompt 编排、撤销重做、JSON 模板迁移与兼容防腐、Android 横屏及分享入口、状态 Schema 迁移、重启消息顺序、IndexedDB 分支尾部原子替换、十轮折叠边界重发、SafeProxy、洋葱管道严格模式及架构依赖边界。
+### 10. 🧪 自动化集成测试套件 (Comprehensive Test Suite)
+* 当前主测试链包含 611 个测试用例（拆分：Vitest 95 个测试文件 + Playwright 4 个 E2E 套件 + 自研 CJS 脚本 11 个），覆盖物理 PNG 解码、SSRF 防御、自由 Prompt 编排、撤销重做、JSON 模板迁移与兼容防腐、Android 横屏及分享入口、状态 Schema 迁移、重启消息顺序、IndexedDB 分支尾部原子替换、十轮折叠边界重发、SafeProxy、洋葱管道严格模式及架构依赖边界。
 
-### 10. 🌐 多语言国际化 (i18n Multi-language)
+### 11. 🌐 多语言国际化 (i18n Multi-language)
 * 内置 8 种语言完整翻译：简体中文、繁体中文、English、日本語、Русский、Español、한국어、Português (BR)。
 * 自动检测系统默认语言，支持运行时无缝切换。三级回退链保障无翻译 key 时降级显示。
 
@@ -121,18 +121,29 @@ Mobile-Tavern
 ├── AGENTS.md                             # 默认必读的核心行为铁律与专项文档路由
 ├── TECHNICAL.md                          # 技术架构细节、项目源码架构树、缓存优化及源码剖析
 ├── KNOWLEDGE.md                          # 项目知识库，包含用户操作指南、挂件雪团说明与常用解答
-├── src-tauri                             # Tauri 原生容器构建模块 (Rust 侧，包含本地落盘与 STS 遥测同步引擎)
+├── src-tauri                             # Tauri 原生容器构建模块 (Rust 侧，含本地落盘与 STS 遥测同步引擎)
+├── cloud                                # 云端相关资源 (minimal-community / archive 等部署与归档)
+├── tests                                # 自动化测试总目录 (vitest 套件 / e2e E2E / 自研 CJS 脚本 / stress 压测)
 └── src                                   # 前端 React 业务代码
     ├── App.tsx                           # 启动流程管理与基础预设包定义
     ├── UnifiedAppContext.tsx             # 统一状态选择器入口
+    ├── types.ts                          # 全局共享类型定义
+    ├── main.tsx                          # 应用入口与挂载
+    ├── kernel                            # 微内核切面底座 (IOC 容器、Pipeline 及官方微服务)
+    ├── application                       # 应用层 (serviceContracts 服务契约、services 服务实现、useCases 用例、bootstrap 启动装配)
+    ├── domain                            # 与 React、IndexedDB 无关的纯业务规则 (chat/community/conditions/memory/plugins/prompt-composition/usage)
+    ├── infrastructure                    # IndexedDB 等物理基础设施适配器 (compat/plugins/storage)
+    ├── compatibility                     # 防腐兼容层 (sillytavern 等外部格式适配)
     ├── composition                       # 应用装配与扩展注册
-    ├── components                        # 共享 UI 容器 (自适应安全区、拇指布局等，含雪团客服)
-    ├── domain                            # 与 React、IndexedDB 无关的纯业务规则
-    ├── hooks                             # 核心状态钩子 (useChat, useCharacters, useSettings, useCatbot)
-    ├── kernel                            # 微内核切面底座 (包含 IOC 容器、Pipeline 及 17 个官方微服务)
-    ├── infrastructure                    # IndexedDB 等物理基础设施适配器
-    ├── tabs                              # 各功能大版块 Tab 页 (包含调试沙盒)
-    └── utils                             # 底层计算工具 (cardParser, db, promptBuilder, telemetry)
+    ├── config                            # 特性开关与公共环境配置
+    ├── services                          # 顶层服务聚合模块 (ar/characterRender/pipeline 等)
+    ├── tabs                              # 各功能大版块 Tab 页 (chat/characters/worldbook/settings/playground/community)
+    ├── components                        # 共享 UI 容器与抽屉 (自适应安全区、拇指布局、memory-drawer 等，含雪团客服)
+    ├── hooks                             # 核心状态钩子 (useChat, useCharacters, useSettings, useCatbot 等)
+    ├── contexts                          # React Context 上下文提供
+    ├── utils                             # 底层计算工具 (cardParser, db, promptBuilder, telemetry)
+    ├── defaults                          # 默认配置与出厂预设
+    └── locales                           # 多语言 i18n 语言包
 ```
 
 ---

@@ -2,7 +2,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
     extract::State,
-    http::{Method, StatusCode},
+    http::{HeaderMap, Method, StatusCode},
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -14,7 +14,9 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
+mod card_hash;
 mod cards;
+mod comments;
 mod config;
 mod database;
 mod upload_guard;
@@ -81,10 +83,33 @@ fn build_router(state: AppState) -> Router {
         .route("/", get(root))
         .route("/health", get(health))
         .route("/health/deep", get(deep_health))
+        .route("/api/admin/verify", axum::routing::post(verify_admin))
         .merge(cards::router())
+        .merge(comments::router())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+async fn verify_admin(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<StatusCode, StatusCode> {
+    if is_admin(&state, &headers) {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
+}
+
+pub(crate) fn is_admin(state: &AppState, headers: &HeaderMap) -> bool {
+    let Some(expected) = state.config.admin_token.as_deref() else {
+        return false;
+    };
+    headers
+        .get("x-admin-token")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|supplied| supplied == expected)
 }
 
 async fn root() -> Json<serde_json::Value> {
