@@ -189,7 +189,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
   for (const file of listCodeFiles("src/contexts")) {
     const source = read(file);
     assert(
-      !/(?:infrastructure\/storage|utils\/localDB|compatibility\/sillytavern|services\/ar)\b/.test(source),
+      !/(?:infrastructure\/storage|utils\/localDB|compatibility\/sillytavern|infrastructure\/ar)\b/.test(source),
       `${file} 只能保存和投影界面状态，不得直接访问存储、Compatibility Runtime 或 Native Adapter`
     );
     assert(
@@ -215,12 +215,12 @@ export async function testArchitectureBoundaries(): Promise<void> {
   for (const file of listCodeFiles("src/domain/plugins")) {
     const source = read(file);
     assert(
-      !source.includes("compatibility/sillytavern") && !source.includes("services/ar"),
+      !source.includes("compatibility/sillytavern") && !source.includes("infrastructure/ar"),
       `${file} 的 Plugin Host RPC 不得复用 Compatibility Runtime 或 Native Adapter`
     );
   }
 
-  for (const file of listCodeFiles("src/services/ar")) {
+  for (const file of listCodeFiles("src/infrastructure/ar")) {
     const source = read(file);
     assert(
       !source.includes("domain/plugins") && !source.includes("compatibility/sillytavern"),
@@ -231,7 +231,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
   for (const file of listCodeFiles("src/utils/tavernHelper")) {
     const source = read(file);
     assert(
-      !source.includes("domain/plugins") && !source.includes("services/ar"),
+      !source.includes("domain/plugins") && !source.includes("infrastructure/ar"),
       `${file} 的 SillyTavern Compatibility Runtime 不得反向依赖 Plugin Host RPC 或 Native Adapter`
     );
   }
@@ -239,7 +239,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
   for (const file of listCodeFiles("src/compatibility/sillytavern")) {
     const source = read(file);
     assert(
-      !source.includes("domain/plugins") && !source.includes("services/ar"),
+      !source.includes("domain/plugins") && !source.includes("infrastructure/ar"),
       `${file} 的 Compatibility Runtime 权威入口不得反向依赖 Plugin Host RPC 或 Native Adapter`
     );
     assert(
@@ -248,7 +248,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
     );
   }
 
-  for (const file of listCodeFiles("src/services")) {
+  for (const file of listCodeFiles("src/application/services")) {
     assert(
       !/from\s+["'][^"']*hooks\//.test(read(file)),
       `${file} 不得反向依赖 Hook 层`
