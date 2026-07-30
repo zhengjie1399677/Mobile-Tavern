@@ -1,5 +1,5 @@
-mod telemetry;
 mod secrets;
+mod telemetry;
 
 use tauri::Manager;
 

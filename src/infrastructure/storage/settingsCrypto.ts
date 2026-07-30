@@ -21,60 +21,53 @@ export async function getOrCreateCryptoKey(db: IDBDatabase): Promise<CryptoKey> 
   if (cachedCryptoKey) return cachedCryptoKey;
   if (cryptoKeyPromise) return cryptoKeyPromise;
 
-  cryptoKeyPromise = new Promise<CryptoKey>((resolve, reject) => {
-    const transaction = db.transaction("settings", "readwrite");
+  const readStoredKey = (): Promise<CryptoKey | undefined> => new Promise((resolve, reject) => {
+    const transaction = db.transaction("settings", "readonly");
     const store = transaction.objectStore("settings");
     const request = store.get("api_crypto_key");
 
-    request.onsuccess = async () => {
-      let key = request.result as CryptoKey | undefined;
-      if (key) {
-        cachedCryptoKey = key;
-        resolve(key);
-      } else {
-        try {
-          const newKey = await crypto.subtle.generateKey(
-            {
-              name: "AES-GCM",
-              length: 256,
-            },
-            false, // Non-extractable for security
-            ["encrypt", "decrypt"]
-          );
-          const putRequest = store.put(newKey, "api_crypto_key");
-          putRequest.onsuccess = () => {
-            cachedCryptoKey = newKey;
-            resolve(newKey);
-          };
-          putRequest.onerror = () => {
-            // P1-6: put 失败时不得 resolve(newKey)。若 resolve 内存 key 但未持久化，
-            // 重启后 IDB 无 key 会重新生成，导致之前用该 key 加密的 apiKey 密文
-            // 永久无法解密（数据丢失）。改为 reject，让上层走 DATA-04 清空 apiKey
-            // 路径，宁可让用户重新输入，也不保留无法解密的密文。
-            console.error("[localDB] Failed to save CryptoKey to IndexedDB settings:", putRequest.error);
-            cryptoKeyPromise = null;
-            reject(putRequest.error || new Error("Failed to persist CryptoKey"));
-          };
-        } catch (err) {
-          // DATA-03: 失败后重置 cryptoKeyPromise，允许后续重试，避免功能永久阻塞
-          cryptoKeyPromise = null;
-          reject(err);
-        }
-      }
-    };
-
-    request.onerror = () => {
-      // DATA-03: 失败后重置 cryptoKeyPromise，允许后续重试
-      cryptoKeyPromise = null;
-      reject(request.error);
-    };
-
-    // DATA-01: 事务被中断时同样需要重置并 reject
-    transaction.onabort = () => {
-      cryptoKeyPromise = null;
-      reject(transaction.error || new Error("Transaction aborted"));
-    };
+    request.onsuccess = () => resolve(request.result as CryptoKey | undefined);
+    request.onerror = () => reject(request.error);
+    transaction.onabort = () => reject(transaction.error || new Error("CryptoKey read transaction aborted"));
   });
+
+  const persistKey = (key: CryptoKey): Promise<void> => new Promise((resolve, reject) => {
+    // CryptoKey 生成是异步操作，必须在其完成后新开事务。复用读取事务会因
+    // IndexedDB 自动提交而触发 TransactionInactiveError。
+    const transaction = db.transaction("settings", "readwrite");
+    const store = transaction.objectStore("settings");
+    const request = store.put(key, "api_crypto_key");
+
+    request.onerror = () => reject(request.error || new Error("Failed to persist CryptoKey"));
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(transaction.error || new Error("CryptoKey write transaction aborted"));
+    transaction.onerror = () => reject(transaction.error || new Error("CryptoKey write transaction failed"));
+  });
+
+  cryptoKeyPromise = (async () => {
+    try {
+      const storedKey = await readStoredKey();
+      if (storedKey) {
+        cachedCryptoKey = storedKey;
+        return storedKey;
+      }
+
+      const newKey = await crypto.subtle.generateKey(
+        {
+          name: "AES-GCM",
+          length: 256,
+        },
+        false,
+        ["encrypt", "decrypt"],
+      );
+      await persistKey(newKey);
+      cachedCryptoKey = newKey;
+      return newKey;
+    } catch (error: unknown) {
+      cryptoKeyPromise = null;
+      throw error;
+    }
+  })();
 
   return cryptoKeyPromise;
 }

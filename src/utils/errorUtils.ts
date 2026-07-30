@@ -16,7 +16,7 @@
  * 使用场景：
  * ```ts
  * try { ... } catch (e: unknown) {
- *   showCustomAlert(t("chat.save_failed", { error: getErrorMessage(e) }));
+ *   showCustomAlert(t("chat.save_session_failed", { error: getErrorMessage(e) }));
  * }
  * ```
  */

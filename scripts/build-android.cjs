@@ -26,7 +26,7 @@ if (process.platform === 'win32') {
 
 console.log('Ensuring latest frontend is compiled...');
 try {
-  execSync('npm run build', { stdio: 'inherit', shell: true });
+  execSync('npm run build:mobile', { stdio: 'inherit', shell: true });
 } catch (err) {
   console.error('Frontend build failed. Stop.');
   process.exit(1);

@@ -7,6 +7,7 @@ coverage/
 .env*
 !.env.example
 scratch/
+tmp/
 
 # 临时 codegen / debug 脚本（一次性使用后不应入库）
 temp_*

@@ -12,8 +12,8 @@
 
       const frame = document.querySelector("#plugin");
       const packageBytes = await fetch("/examples/astral-rift-plugin/astral-rift.mtplugin").then((response) => response.arrayBuffer());
-      const plugin = parseFullscreenPluginPackage(packageBytes);
-      const runtime = createPluginRuntimeDocument(plugin, "astral-rift-csp-regression");
+      const plugin = await parseFullscreenPluginPackage(packageBytes);
+      const runtime = await createPluginRuntimeDocument(plugin, "astral-rift-csp-regression");
       const html = await fetch(runtime.url).then((response) => response.text());
       let readyCount = 0;
 

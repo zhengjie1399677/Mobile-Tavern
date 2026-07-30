@@ -374,6 +374,8 @@ Mobile Tavern 利用 React 19 的 Concurrent Mode，通过分片更新机制，
 
 Mobile Tavern 的底层由前端 React 视图层、Tauri 原生桥接层、Express 代理服务以及本地高性能 IndexedDB 存储四部分构成：
 
+生产构建采用物理分轨：`build:web` 只生成 Tauri/WebView 所需前端资源，`build:server` 仅用于独立的 Node/Express 调试或 Web 服务部署。Tauri 与 Android 构建入口固定调用 `build:mobile`，在 `build:web` 后扫描并拒绝 `server.cjs`、源码映射或其他服务端产物进入移动端 `frontendDist`。
+
 ```mermaid
 graph TB
     subgraph Frontend ["React 前端应用层"]

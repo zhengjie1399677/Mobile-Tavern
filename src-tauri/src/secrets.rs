@@ -51,14 +51,11 @@ pub struct DecryptTrialKeyRequest {
 ///   UTF-8 转换失败），便于前端透传给用户。
 #[tauri::command]
 pub fn decrypt_trial_key(req: DecryptTrialKeyRequest) -> Result<String, String> {
-    let key_bytes = hex::decode(AES_KEY_HEX)
-        .map_err(|e| format!("Invalid AES key hex: {}", e))?;
-    let cipher_bytes = hex::decode(&req.ciphertext)
-        .map_err(|e| format!("Invalid ciphertext hex: {}", e))?;
-    let iv_bytes = hex::decode(&req.iv)
-        .map_err(|e| format!("Invalid iv hex: {}", e))?;
-    let tag_bytes = hex::decode(&req.tag)
-        .map_err(|e| format!("Invalid tag hex: {}", e))?;
+    let key_bytes = hex::decode(AES_KEY_HEX).map_err(|e| format!("Invalid AES key hex: {}", e))?;
+    let cipher_bytes =
+        hex::decode(&req.ciphertext).map_err(|e| format!("Invalid ciphertext hex: {}", e))?;
+    let iv_bytes = hex::decode(&req.iv).map_err(|e| format!("Invalid iv hex: {}", e))?;
+    let tag_bytes = hex::decode(&req.tag).map_err(|e| format!("Invalid tag hex: {}", e))?;
 
     // 与 Web Crypto API 对齐：ciphertext 与 tag 拼接后传入 decrypt。
     let mut combined = Vec::with_capacity(cipher_bytes.len() + tag_bytes.len());
@@ -73,8 +70,7 @@ pub fn decrypt_trial_key(req: DecryptTrialKeyRequest) -> Result<String, String> 
         .decrypt(nonce, combined.as_ref())
         .map_err(|e| format!("AES-GCM decrypt failed: {}", e))?;
 
-    String::from_utf8(plaintext)
-        .map_err(|e| format!("Decrypted bytes are not valid UTF-8: {}", e))
+    String::from_utf8(plaintext).map_err(|e| format!("Decrypted bytes are not valid UTF-8: {}", e))
 }
 
 #[cfg(test)]

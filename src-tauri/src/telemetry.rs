@@ -140,10 +140,7 @@ pub fn enqueue_panic_log(panic_location: &str, panic_payload: &str) {
         model: "".to_string(),
         tokens_used: "0".to_string(),
         generation_time_ms: "0".to_string(),
-        detail: format!(
-            "location={} payload={}",
-            panic_location, panic_payload
-        ),
+        detail: format!("location={} payload={}", panic_location, panic_payload),
         session_id: "unknown".to_string(),
         session_start_time: "".to_string(),
         session_duration_sec: "0".to_string(),

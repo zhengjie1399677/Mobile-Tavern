@@ -284,6 +284,22 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "Android 发布工作流必须只签署 release APK，并校验证书与输出摘要"
   );
 
+  const packageScripts = JSON.parse(read("package.json")) as {
+    scripts?: Record<string, string>;
+  };
+  const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json")) as {
+    build?: { beforeBuildCommand?: string };
+  };
+  assert(
+    packageScripts.scripts?.["build:web"] === "npm run build:examples && vite build" &&
+      packageScripts.scripts?.["build:mobile"] === "npm run build:web && npm run check:mobile-assets" &&
+      packageScripts.scripts?.["build:server"]?.includes("server.ts") &&
+      tauriConfig.build?.beforeBuildCommand === "npm run build:mobile" &&
+      read("scripts/build-android.cjs").includes("execSync('npm run build:mobile'") &&
+      read("scripts/check-mobile-assets.cjs").includes("prohibitedNames"),
+    "Tauri 与 Android 构建必须执行纯前端 build:mobile 及产物扫描，Node/Express 服务只能通过 build:server 独立构建"
+  );
+
   for (const file of listCodeFiles("src")) {
     assert(
       !/=\s*useUnifiedApp\(\)/.test(read(file)),
