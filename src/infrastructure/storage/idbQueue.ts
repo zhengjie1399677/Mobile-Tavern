@@ -212,7 +212,7 @@ export function enqueueWrite<T>(
     if (key) pendingKeyedWrites.delete(key);
     const latestOperation = slot.operation;
 
-    // ── AbortSignal 协作式中断传导（TODO #5）──────────────────────────
+    // ── AbortSignal 协作式中断传导（DESIGN-NOTE）──────────────────────────
     // 1) 进入执行前 signal 已 abort 或合并场景下第二次 signal 已 abort：立即拒绝
     if (externalSignal?.aborted || slot.abortedState) {
       throw createAbortError();

@@ -5,6 +5,7 @@ import {
   ITelemetryService, IChatStreamService, IMultiMessageService,
   StreamChunk, IKernel,
 } from "../../kernel/types";
+import type { MemoryServiceTyped } from "../../kernel/services/memory";
 import { FALLBACK_MODEL } from "../../utils/apiClient";
 import {
   resolveApiCredentials,
@@ -76,7 +77,7 @@ interface SendMessageParams {
    * 记忆服务实例，由外部注入以解耦对 globalKernel 单例的直接依赖。
    * 若为 undefined 则跳过记忆召回。
    */
-  memoryService?: any;
+  memoryService?: MemoryServiceTyped;
   showCustomAlert: (msg: string) => void | Promise<void>;
   draftsRef: React.MutableRefObject<Record<string, string>>;
 }
@@ -310,8 +311,8 @@ export function useSendMessage(p: SendMessageParams) {
               role: "system",
               content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction].filter(Boolean).join("\n\n"),
             },
-            ...promptPayload.history.map((h: any) => {
-              const msgObj: any = { role: h.role === "model" ? "assistant" : h.role, content: h.content };
+            ...promptPayload.history.map((h: { role: "model" | "user" | "assistant"; name?: string; content: string }) => {
+              const msgObj: { role: string; content: string; name?: string } = { role: h.role === "model" ? "assistant" : h.role, content: h.content };
               if (p.settings.api.sendNames && h.name) msgObj.name = h.name;
               return msgObj;
             }),

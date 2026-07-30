@@ -50,9 +50,10 @@ export default function App() {
           setKernelReady(true);
         }
       })
-      .catch((err: any) => {
+      .catch((err: unknown) => {
         console.error("[App] Failed to initialize microkernel:", err);
-        if (active) setInitError(err.message || String(err));
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (active) setInitError(errMsg);
       });
 
     // 监听 Tauri 原生窗口关闭事件，确保内核资源在 App 被强杀前被正确回收

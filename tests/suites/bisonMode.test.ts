@@ -7,6 +7,7 @@
  */
 
 import { calculateBisonModeProbability } from "../../src/hooks/useChat/helpers/bisonProbability";
+import type { CharacterCard } from "../../src/types";
 import { assert } from "./testUtils";
 
 export function testBisonModeProbability() {
@@ -19,28 +20,29 @@ export function testBisonModeProbability() {
     blush: "脸红|害羞|😳|blush|shy",
   };
 
+  // 测试用例仅需 personality 字段；测试桩用 as unknown as CharacterCard 跳过完整结构校验
   // 1. 基础情况
-  const charNormal = { personality: "" };
+  const charNormal = { personality: "" } as unknown as CharacterCard;
   assert(calculateBisonModeProbability(charNormal, "", triggers) === 30, "Base probability should be 30");
 
   // 2. 具备急躁性格的说话性格
-  const charAggressive = { personality: "性格急躁且非常粗鲁，傲慢强势" };
+  const charAggressive = { personality: "性格急躁且非常粗鲁，傲慢强势" } as unknown as CharacterCard;
   // 急躁(+8) + 粗鲁(+8) + 傲慢(+8) + 强势(+8) = +32. 30 + 32 = 62.
   assert(calculateBisonModeProbability(charAggressive, "", triggers) === 62, "Aggressive personality should increase probability to 62");
 
   // 3. 冷漠安静性格
-  const charQuiet = { personality: "冷漠安静沉默寡言" };
+  const charQuiet = { personality: "冷漠安静沉默寡言" } as unknown as CharacterCard;
   // 冷漠(-10) + 安静(-10) + 沉默(-10) + 寡言(-10) = -40. 30 - 40 = -10, clamped to 5
   assert(calculateBisonModeProbability(charQuiet, "", triggers) === 5, "Quiet personality should decrease probability to clamp at 5");
 
   // 4. 情绪联动 (生气)
-  const charNormalAngry = { personality: "" };
+  const charNormalAngry = { personality: "" } as unknown as CharacterCard;
   const lastAngryText = "你到底想怎么样？！我非常生气！😡";
   // anger (+15) -> 30 + 15 = 45.
   assert(calculateBisonModeProbability(charNormalAngry, lastAngryText, triggers) === 45, "Anger emotion should increase probability to 45");
 
   // 5. 性格与情绪组合 (冷漠 + 开心)
-  const charCold = { personality: "有些冷漠" }; // -10 -> 20
+  const charCold = { personality: "有些冷漠" } as unknown as CharacterCard; // -10 -> 20
   const lastHappyText = "听你这么说，我忍不住笑了，心里很开心。"; // joy (+15) -> 20 + 15 = 35.
   assert(calculateBisonModeProbability(charCold, lastHappyText, triggers) === 35, "Cold personality + Happy emotion should equal 35");
 
@@ -48,7 +50,7 @@ export function testBisonModeProbability() {
   const dangerousTriggers = {
     joy: "(a+)+b", // 嵌套量词，isSafeRegexForBison 判定为不安全
   };
-  const redosChar = { personality: "" };
+  const redosChar = { personality: "" } as unknown as CharacterCard;
   // 文本不含字面量 "(a+)+b"，includes 降级不命中 → 30
   assert(calculateBisonModeProbability(redosChar, "happy smiling day", dangerousTriggers) === 30,
     "ReDoS dangerous regex should be safely degraded to includes matching, not throw");

@@ -48,7 +48,7 @@ export function useUsageTracking() {
     }
 
     let active = true;
-    let interval: any = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
 
     const initAndTrack = async () => {
       try {
@@ -136,7 +136,7 @@ export function UsageDisplay() {
       try {
         const data = await getStoredUsageMetrics();
         if (!active) return;
-        setMetrics(data || DEFAULT_METRICS);
+        setMetrics((data as UsageMetrics | null) || DEFAULT_METRICS);
       } catch (err) {
         console.error("Failed to load metrics in UsageDisplay", err);
       }

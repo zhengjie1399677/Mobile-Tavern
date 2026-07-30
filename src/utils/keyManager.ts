@@ -1,8 +1,14 @@
 // Stateless 自签名 Token + 动态密钥下发 客户端密钥管理器
 import { invoke } from "@tauri-apps/api/core";
 import { CLOUD_ENDPOINTS } from "./cloudEndpoints";
-
+
 import { getErrorMessage, getErrorName } from '../utils/errorUtils';
+
+/**
+ * Trial key 占位符哨兵值。
+ * 单一来源：apiClient.ts 与 LLMService.ts 都从此处导入，避免重复定义导致不同步。
+ */
+export const TRIAL_KEY_SENTINEL = "TRIAL_KEY_PLACEHOLDER";
 /**
  * 返回 AES-256-GCM 密钥（hex 编码，64 字符）。
  *

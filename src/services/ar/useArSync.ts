@@ -14,7 +14,9 @@
 
 import React from "react";
 
-import { globalKernel } from "../../kernel/Kernel";
+import { useKernel } from "../../contexts/KernelContext";
+import type { IKernelService } from "../../kernel/types";
+import type { RenderState } from "../../services/characterRender/pipeline";
 import {
   isArSupported,
   checkArAvailability,
@@ -64,6 +66,7 @@ interface UseArSyncResult {
  * 桌面环境下 isArAvailable=false，launchAr 直接返回。
  */
 export function useArSync({ activeSession }: UseArSyncArgs): UseArSyncResult {
+  const kernel = useKernel();
   const [isArActive, setIsArActive] = React.useState(false);
   const [isArAvailable, setIsArAvailable] = React.useState(false);
   const [isGestureReady, setIsGestureReady] = React.useState(false);
@@ -152,9 +155,9 @@ export function useArSync({ activeSession }: UseArSyncArgs): UseArSyncResult {
 
     let unsubscribe: (() => void) | null = null;
     try {
-      const service = globalKernel.getService<any>("characterRender");
+      const service = kernel.getService<IKernelService & { subscribe(fn: (s: RenderState) => void): () => void; getState?(): RenderState | null }>("characterRender");
       if (service && typeof service.subscribe === "function") {
-        unsubscribe = service.subscribe((state: any) => {
+        unsubscribe = service.subscribe((state) => {
           // 推送角色纹理（仅当变化时）
           if (state.portraitBase64 && state.portraitBase64 !== lastPushedRef.current.portraitBase64) {
             lastPushedRef.current.portraitBase64 = state.portraitBase64;
@@ -208,8 +211,8 @@ export function useArSync({ activeSession }: UseArSyncArgs): UseArSyncResult {
       reportUsage("ar_enter", { status: "success" });
       // 启动后立即推送当前快照（若有）
       try {
-        const service = globalKernel.getService<any>("characterRender");
-        const state = service?.getState?.();
+        const service = kernel.getService<IKernelService & { subscribe(fn: (s: RenderState) => void): () => void; getState?(): RenderState | null }>("characterRender");
+      const state = service?.getState?.();
         if (state) {
           if (state.portraitBase64) {
             lastPushedRef.current.portraitBase64 = state.portraitBase64;

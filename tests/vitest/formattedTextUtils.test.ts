@@ -79,7 +79,7 @@ describe("resolveExpressionUrl", () => {
   });
 
   it("avatar:// 协议角色卡无头像时返回空字符串", () => {
-    const char = { name: "Test" };
+    const char = {};
     expect(resolveExpressionUrl("avatar://", char)).toBe("");
   });
 
@@ -129,7 +129,7 @@ describe("resolveExpressionUrl", () => {
   });
 
   it("expression:// 角色卡无任何表情且无头像时降级空串", () => {
-    const char = { name: "empty" };
+    const char = {};
     expect(resolveExpressionUrl("expression://any", char)).toBe("");
   });
 

@@ -1,5 +1,5 @@
 import { ILLMService, IKernel } from "../types";
-import { getTrialKey } from "../../utils/keyManager";
+import { getTrialKey, TRIAL_KEY_SENTINEL } from "../../utils/keyManager";
 import { cleanRequestPayload, cleanLLMResponse } from "../utils/requestSchema";
 import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
 import { Logger } from "../../utils/logger";
@@ -7,9 +7,6 @@ import { CLOUD_ENDPOINTS } from "../../utils/cloudEndpoints";
 import { FALLBACK_MODEL } from "../../utils/apiClient";
 import { TrialKeyFetchError } from "../../utils/resolveApiCredentials";
 
-/** Trial key 占位符哨兵值，须与 apiClient.ts 的 TRIAL_OPENROUTER_KEY 保持一致 */
-const TRIAL_KEY_SENTINEL = "TRIAL_KEY_PLACEHOLDER";
-
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("LLMService");
 
@@ -128,7 +125,7 @@ export class LLMService implements ILLMService {
     traceId?: string
   ): Promise<Response> {
     const log = traceId ? logger.withTrace(traceId) : logger;
-    let cleanedReqBody = cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, any>);
+    let cleanedReqBody = cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, unknown>);
     
     // API 级别关闭推理模式（直接在 Payload 中设置控制参数）
     if (proxyPayload.disableReasoning && cleanedReqBody) {

@@ -10,7 +10,7 @@ export const API_ENDPOINT = {
   ProxyOpenAI: "/api/proxy/openai",
 } as const;
 
-export const TRIAL_OPENROUTER_KEY = "TRIAL_KEY_PLACEHOLDER";
+export { TRIAL_KEY_SENTINEL as TRIAL_OPENROUTER_KEY } from "./keyManager";
 
 let fallbackLlm: LLMService | null = null;
 function getLlmService(kernel?: IKernel) {

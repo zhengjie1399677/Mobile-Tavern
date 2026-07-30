@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import type { Message } from "../../types";
 
 export interface ChatUIState {
   // 显示控制
@@ -52,7 +53,7 @@ export interface ChatUIState {
  */
 export function useChatUI(params: {
   activeSessionId: string | null;
-  activeSession: { messages: any[] } | null;
+  activeSession: { messages: Message[] } | null;
   setIsSending: (v: boolean) => void;
   chatBottomRef: React.RefObject<HTMLDivElement | null>;
 }): ChatUIState {

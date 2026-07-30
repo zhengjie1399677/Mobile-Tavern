@@ -25,6 +25,8 @@ import { handleGenerateImageForMessage } from "./imageGenerationHandler";
 import TypingIndicator from "./TypingIndicator";
 import QuickDialogueOptions from "./QuickDialogueOptions";
 import CloudLoader from "../../components/CloudLoader";
+import type { Message } from "../../types";
+import { ITtsService } from "../../kernel/types";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 /**
@@ -51,7 +53,7 @@ interface AndroidThemeBridge {
 }
 
 interface MessageBubbleProps {
-  message: any;
+  message: Message;
   idx: number;
   foldedCount: number;
   roundNum: number;
@@ -184,10 +186,10 @@ const MessageBubble = ({
   // 同一时刻最多只有 1 个定时器在运行，避免消息多时 N 个定时器同时轮询
   React.useEffect(() => {
     let active = true;
-    let timer: any = null;
+    let timer: ReturnType<typeof setInterval> | null = null;
 
     const checkSpeaking = () => {
-      const ttsService = getKernelService<any>("tts");
+      const ttsService = getKernelService<ITtsService>("tts");
       if (!ttsService || !active) return;
       const speakingId = ttsService.getSpeakingMessageId();
       const speaking = ttsService.isSpeaking() && speakingId === message.id;
@@ -820,6 +822,9 @@ const MessageBubble = ({
                     className="w-full object-cover max-h-60 cursor-pointer hover:opacity-95 transition-opacity"
                     onClick={async (e) => {
                       e.stopPropagation();
+                      // 捕获到局部变量，避免 message.extra 在异步回调中被 TS 判定为可能 undefined
+                      const imageData = message.extra?.image;
+                      if (!imageData) return;
                       const ok = await showCustomConfirm(t("message_bubble.confirm_save_image"));
                       if (!ok) return;
 
@@ -827,14 +832,14 @@ const MessageBubble = ({
                       if ((window as WindowWithTavernHelpers).AndroidThemeBridge) {
                         try {
                           let path = null;
-                          const isDataUrl = message.extra.image.startsWith("data:");
+                          const isDataUrl = imageData.startsWith("data:");
                           if (isDataUrl && typeof (window as WindowWithTavernHelpers).AndroidThemeBridge?.saveFileBase64 === "function") {
-                            const commaIdx = message.extra.image.indexOf(",");
-                            const mimeType = message.extra.image.slice(5, commaIdx).split(";")[0] || "image/png";
-                            const base64Data = message.extra.image.slice(commaIdx + 1);
+                            const commaIdx = imageData.indexOf(",");
+                            const mimeType = imageData.slice(5, commaIdx).split(";")[0] || "image/png";
+                            const base64Data = imageData.slice(commaIdx + 1);
                             path = (window as WindowWithTavernHelpers).AndroidThemeBridge!.saveFileBase64(filename, base64Data, mimeType);
                           } else if (typeof (window as WindowWithTavernHelpers).AndroidThemeBridge?.saveFile === "function") {
-                            path = (window as WindowWithTavernHelpers).AndroidThemeBridge!.saveFile(filename, message.extra.image);
+                            path = (window as WindowWithTavernHelpers).AndroidThemeBridge!.saveFile(filename, imageData);
                           }
 
                           if (path && !path.startsWith("error:")) {
@@ -850,7 +855,7 @@ const MessageBubble = ({
                       }
 
                       const link = document.createElement("a");
-                      link.href = message.extra.image;
+                      link.href = imageData;
                       link.download = filename;
                       document.body.appendChild(link);
                       link.click();

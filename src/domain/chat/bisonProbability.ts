@@ -5,6 +5,8 @@
  * Kernel/Pipeline 仅调用其公开函数，不持有任何具体角色行为规则。
  */
 
+import type { CharacterCard } from "../../types";
+
 function isSafeRegexForBison(pattern: string): boolean {
   if (!pattern) return true;
   return !/(\([^\)]*[\+\*]\)[^\)]*[\+\*])/.test(pattern) &&
@@ -12,7 +14,7 @@ function isSafeRegexForBison(pattern: string): boolean {
 }
 
 export function calculateBisonModeProbability(
-  character: any,
+  character: CharacterCard | null | undefined,
   lastAiContent: string,
   triggers: Record<string, string>
 ): number {

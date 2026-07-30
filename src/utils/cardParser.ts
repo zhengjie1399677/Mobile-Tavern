@@ -76,7 +76,9 @@ export async function parseCharacterFile(
   let text = "";
   try {
     text = await file.text();
-  } catch (err) {}
+  } catch (err) {
+    console.warn("[cardParser] Failed to read file as text:", err);
+  }
 
   const trimmed = text.trim();
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {

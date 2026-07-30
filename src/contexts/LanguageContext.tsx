@@ -13,7 +13,8 @@ const SUPPORTED_LANGUAGES = ["zh-CN", "zh-TW", "en", "ja", "ru", "es", "ko", "pt
 
 const getSystemDefaultLanguage = (): string => {
   if (typeof window === "undefined") return "en";
-  const sysLang = navigator.language || (navigator as any).userLanguage || "en";
+  // IE/旧版 Edge 私有属性，类型库未声明，用交叉类型扩展避免 as any
+  const sysLang = navigator.language || (navigator as Navigator & { userLanguage?: string }).userLanguage || "en";
   const lowerLang = sysLang.toLowerCase();
 
   if (lowerLang === "zh-tw" || lowerLang === "zh-hk" || lowerLang === "zh-mo") {

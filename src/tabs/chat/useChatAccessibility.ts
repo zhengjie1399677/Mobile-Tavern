@@ -15,23 +15,17 @@ import { useKernel } from "../../contexts/KernelContext";
 import { IDatabaseService, IScriptService } from "../../kernel/types";
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
+import type { CardRuntimeBridgeParams } from "../../utils/tavernHelper";
 
-interface UseChatAccessibilityDeps {
-  activeCharacter: any;
-  settings: any;
-  activeSession: any;
-  setSessions: any;
-  setCharacters: any;
-  saveCharacter: any;
-  updateSettings: any;
-  handleSendMessage: any;
+interface UseChatAccessibilityDeps
+  extends Omit<CardRuntimeBridgeParams, "saveSession"> {
   isSending: boolean;
 }
 
 export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   const kernel = useKernel();
   const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
-  const saveSession = (session: any): Promise<void> => {
+  const saveSession = (session: ChatSession): Promise<void> => {
     return databaseService.saveSession(session);
   };
 
@@ -268,7 +262,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
         ttsService.speak(textToSpeak, {
           ...settings.ttsConfig,
           messageId: lastMsg.id,
-        }).catch((err: any) => {
+        }).catch((err: unknown) => {
           console.error("[TTS AutoPlay] Speak failed:", err);
         });
       }

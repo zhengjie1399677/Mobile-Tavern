@@ -17,7 +17,7 @@ import { MessageSquare, X, ChevronRight } from "lucide-react";
 
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useKernel } from "../contexts/KernelContext";
-import { globalKernel } from "../kernel";
+import type { IKernelService } from "../kernel/types";
 
 interface RenderStateSnapshot {
   portraitBase64: string;
@@ -71,7 +71,7 @@ export function FloatingCharacter({ enabled }: FloatingCharacterProps) {
     }
     let unsubscribe: (() => void) | null = null;
     try {
-      const service = kernel.getService<any>("characterRender");
+      const service = kernel.getService<IKernelService & { subscribe(fn: (s: RenderStateSnapshot) => void): () => void; getState?(): RenderStateSnapshot | null }>("characterRender");
       if (service && typeof service.subscribe === "function") {
         unsubscribe = service.subscribe((state: RenderStateSnapshot) => {
           setRenderState(state);

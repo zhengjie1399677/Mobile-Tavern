@@ -331,7 +331,7 @@ export async function saveStoredDefaultCharactersInitializedFlag(initialized: bo
   }, undefined, signal);
 }
 
-export async function getStoredUsageMetrics(): Promise<any | null> {
+export async function getStoredUsageMetrics(): Promise<unknown | null> {
   const db = await getDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("settings", "readonly");
@@ -344,7 +344,7 @@ export async function getStoredUsageMetrics(): Promise<any | null> {
   });
 }
 
-export async function saveStoredUsageMetrics(metrics: any, signal?: AbortSignal): Promise<void> {
+export async function saveStoredUsageMetrics(metrics: unknown, signal?: AbortSignal): Promise<void> {
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {

@@ -10,16 +10,19 @@ interface AppErrorBoundaryProps {
   fallback?: (error: Error, retry: () => void) => ReactNode;
 }
 
-class AppErrorBoundary extends React.Component<any, any> {
-  state: any = { hasError: false, error: null };
-  props: any;
+interface AppErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class AppErrorBoundary extends React.Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
+  state: AppErrorBoundaryState = { hasError: false, error: null };
 
   constructor(props: AppErrorBoundaryProps) {
     super(props);
-    this.props = props;
   }
 
-  static getDerivedStateFromError(error: Error) {
+  static getDerivedStateFromError(error: Error): AppErrorBoundaryState {
     return { hasError: true, error };
   }
 

@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
-import { CharacterCard, LorebookEntry } from "../types";
+import { CharacterCard, ChatSession, LorebookEntry } from "../types";
 import { catbotEventBus } from "../utils/catbotEventBus";
 import { TRANSLATIONS } from "../locales/index";
 
@@ -79,8 +79,8 @@ export const useCharacterEditor = () => {
   const handleDeleteCharacter = useCallback(async (
     id: string,
     e: React.MouseEvent,
-    sessions: any[],
-    setSessions: React.Dispatch<React.SetStateAction<any[]>>,
+    sessions: ChatSession[],
+    setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>,
     deleteSession: (id: string) => Promise<void>
   ) => {
     e.stopPropagation();

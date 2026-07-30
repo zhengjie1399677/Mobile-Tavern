@@ -12,7 +12,7 @@
  * 关键设计：
  *   1. findSafeDisplayEnd() 避免在 buffer 末尾截断可能的开标签前缀（如 "<memo"）
  *   2. 用户看到的对话流完全不包含 <memory> 标签内容，体验无感
- *   3. onChunk 接收可选 AbortSignal，循环顶部插入 aborted 检查点（TODO #5）
+ *   3. onChunk 接收可选 AbortSignal，循环顶部插入 aborted 检查点（DESIGN-NOTE）
  */
 
 import type { StreamParserOutput } from './types';

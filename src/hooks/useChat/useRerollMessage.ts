@@ -21,7 +21,8 @@ import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipel
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../kernel/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../kernel/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
-
+
+
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useRerollMessage");
 
@@ -297,8 +298,8 @@ export function useRerollMessage(p: RerollMessageParams) {
               role: "system",
               content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction].filter(Boolean).join("\n\n"),
             },
-            ...promptPayload.history.map((h: any) => {
-              const msgObj: any = { role: h.role === "model" ? "assistant" : h.role, content: h.content };
+            ...promptPayload.history.map((h: { role: "model" | "user" | "assistant"; name?: string; content: string }) => {
+              const msgObj: { role: string; content: string; name?: string } = { role: h.role === "model" ? "assistant" : h.role, content: h.content };
               if (p.settings.api.sendNames && h.name) msgObj.name = h.name;
               return msgObj;
             }),

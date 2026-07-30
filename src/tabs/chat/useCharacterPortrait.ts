@@ -10,16 +10,19 @@
 import React from "react";
 
 import { sanitizeCss } from "../../utils/security";
-import { computeRenderState } from "../../services/characterRender/pipeline";
-import { globalKernel } from "../../kernel/Kernel";
+import { computeRenderState, RenderState } from "../../services/characterRender/pipeline";
+import { useKernel } from "../../contexts/KernelContext";
+import type { IKernelService } from "../../kernel/types";
+import type { CharacterCard, ChatSession, UserSettings } from "../../types";
 
 interface UseCharacterPortraitDeps {
-  activeCharacter: any;
-  activeSession: any;
-  settings: any;
+  activeCharacter: CharacterCard | null;
+  activeSession: ChatSession | null;
+  settings: UserSettings;
 }
 
 export function useCharacterPortrait(deps: UseCharacterPortraitDeps) {
+  const kernel = useKernel();
   const { activeCharacter, activeSession, settings } = deps;
 
   const hasExpressions = React.useMemo(() => {
@@ -57,14 +60,14 @@ export function useCharacterPortrait(deps: UseCharacterPortraitDeps) {
   // fire-and-forget：服务不可用（SafeProxy 降级）时静默，不影响聊天主链路
   React.useEffect(() => {
     try {
-      const service = globalKernel.getService<any>("characterRender");
+      const service = kernel.getService<IKernelService & { setState(s: RenderState): void }>("characterRender");
       if (service && typeof service.setState === "function") {
         service.setState(renderState);
       }
     } catch {
       // 静默：服务未注册或降级时不影响聊天
     }
-  }, [renderState]);
+  }, [renderState, kernel]);
 
   const safeCustomCss = React.useMemo(() => {
     const css = activeCharacter?.visualSettings?.customCss;

@@ -19,13 +19,13 @@ import {
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { IDatabaseService } from "../../kernel/types";
+import { IDatabaseService, ITtsService, IImageGenerationService } from "../../kernel/types";
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 interface QuickDialogueOptionsProps {
-  message: any;
+  message: Message;
   isUser: boolean;
 }
 
@@ -76,10 +76,10 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
 
   React.useEffect(() => {
     let active = true;
-    let timer: any = null;
+    let timer: ReturnType<typeof setInterval> | null = null;
 
     const checkSpeaking = () => {
-      const ttsService = getKernelService<any>("tts");
+      const ttsService = getKernelService<ITtsService>("tts");
       if (!ttsService || !active) return;
       const speakingId = ttsService.getSpeakingMessageId();
       const speaking = ttsService.isSpeaking() && speakingId === message.id;
@@ -160,16 +160,16 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
             // Set loading state
             const drawSession = {
               ...activeSession,
-              messages: activeSession.messages.map((m: any) =>
+              messages: activeSession.messages.map((m: Message) =>
                 m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: true } } : m
               )
             };
-            setSessions((prev: any) =>
-              prev.map((s: any) => (s.id === drawSession.id ? drawSession : s)),
+            setSessions((prev: ChatSession[]) =>
+              prev.map((s: ChatSession) => (s.id === drawSession.id ? drawSession : s)),
             );
 
             const { KernelServices } = await import("../../kernel");
-            const imageGenService = getKernelService<any>(KernelServices.ImageGen);
+            const imageGenService = getKernelService<IImageGenerationService>(KernelServices.ImageGen);
             try {
               const config = settings.imageGenApi;
               if (!config || !config.enabled) {
@@ -207,10 +207,10 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                   const { universalFetch, API_ENDPOINT } = await import("../../utils/apiClient");
 
                   // 获取最近 5 条对话作为 Context，帮助 LLM 了解上下文
-                  const messageIndex = activeSession.messages.findIndex((m: any) => m.id === message.id);
+                  const messageIndex = activeSession.messages.findIndex((m: Message) => m.id === message.id);
                   const recentMessages = activeSession.messages.slice(Math.max(0, messageIndex - 4), messageIndex + 1);
                   const contextText = recentMessages
-                    .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+                    .map((m: Message) => `${m.sender === "user" ? "User" : "Assistant"}: ${m.content}`)
                     .join("\n");
 
                   // 准备并清洗人物外观特征描述文本
@@ -276,12 +276,12 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                 if (editedPrompt === null) {
                   const errorSession = {
                     ...activeSession,
-                    messages: activeSession.messages.map((m: any) =>
+                    messages: activeSession.messages.map((m: Message) =>
                       m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
                     )
                   };
-                  setSessions((prev: any) =>
-                    prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
+                  setSessions((prev: ChatSession[]) =>
+                    prev.map((s: ChatSession) => (s.id === errorSession.id ? errorSession : s)),
                   );
                   return;
                 }
@@ -292,12 +292,12 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               const imgUrl = await imageGenService.generateImage(finalPrompt, config);
               const finalSession = {
                 ...activeSession,
-                messages: activeSession.messages.map((m: any) =>
+                messages: activeSession.messages.map((m: Message) =>
                   m.id === targetMsgId ? { ...m, extra: { ...m.extra, image: imgUrl, isDrawing: false } } : m
                 )
               };
-              setSessions((prev: any) =>
-                prev.map((s: any) => (s.id === finalSession.id ? finalSession : s)),
+              setSessions((prev: ChatSession[]) =>
+                prev.map((s: ChatSession) => (s.id === finalSession.id ? finalSession : s)),
               );
               await saveSession(finalSession);
             } catch (err: unknown) {
@@ -305,12 +305,12 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
               showCustomAlert(t("quick_dialogue.img_gen_failed_msg", { error: getErrorMessage(err) || String(err) }), t("quick_dialogue.img_gen_failed"));
               const errorSession = {
                 ...activeSession,
-                messages: activeSession.messages.map((m: any) =>
+                messages: activeSession.messages.map((m: Message) =>
                   m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
                 )
               };
-              setSessions((prev: any) =>
-                prev.map((s: any) => (s.id === errorSession.id ? errorSession : s)),
+              setSessions((prev: ChatSession[]) =>
+                prev.map((s: ChatSession) => (s.id === errorSession.id ? errorSession : s)),
               );
               await saveSession(errorSession);
             }
@@ -438,8 +438,8 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                     ...activeSession,
                     messages: nextMessages,
                   };
-                  setSessions((prev: any) =>
-                    prev.map((s: any) => (s.id === updated.id ? updated : s)),
+                  setSessions((prev: ChatSession[]) =>
+                    prev.map((s: ChatSession) => (s.id === updated.id ? updated : s)),
                   );
                   await saveSession(updated);
                   setMsgMenuId(null);

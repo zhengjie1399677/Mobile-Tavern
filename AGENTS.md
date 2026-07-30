@@ -102,6 +102,10 @@
 | `src/kernel/services/memory/{MemoryExtractor,MemoryRecall,MemoryStateTable,MemoryStorage,MemorySummary}.ts` | `dict: any[]`、`sessionObj: any`、`parsed: any`、`dbMessagesRecords: any[]` 等 | 记忆系统内部 LLM 抽取/召回的中间结构动态性较高；待 Memory 子模块契约稳定后泛型化 |
 | `src/kernel/services/prompt/{PromptMacroFormatter,types}.ts` | `variables: any`、`modelCapabilities: any` | MVU 变量结构与模型能力描述由外部数据决定；待 Prompt 子模块契约稳定后引入具体类型 |
 | `src/kernel/services/AutoSummaryService.ts` | `resData: any`、`mem: any` | 已标记 `@deprecated`，逻辑已合并到 MemoryService.getSummary()；待废弃删除 |
+| `src/types.ts` | `expressions?: any`、`extensions?: Record<string, any>`、`variables?: Record<string, any>`、`extra?: Record<string, any>`、`extensionSettings?: Record<string, any>` 等 | SillyTavern 兼容的动态 JSON 结构（角色卡 extensions、MVU 变量、消息 extra 等），结构由外部数据决定；待 SillyTavern 兼容契约稳定后引入 Zod schema |
+| `src/components/FormattedText.tsx` | `SafeIframe props: any`、`activeCharacter: any`、`globalRegexScripts/presetRegexScripts: any[]`、`LocalErrorBoundary` 旧 any（已修复）等 | 富文本渲染组件涉及角色卡动态结构、正则脚本动态配置；待 P3-A UI 拆分时一并清理 |
+| `src/infrastructure/storage/{indexedDbMemoryStore,IndexedDbMemoryPersistenceService,idbQueue,dbSchema,settingsRepository}.ts` | `metadata?: Record<string, any>`、`record: any`、`Promise<any>`、`saveStoredUsageMetrics(metrics: any)` 等 | IndexedDB 物理存储层处理动态记录结构（SillyTavern 兼容字段、用户自定义 metadata）；待存储层 schema 强类型化后清理 |
+| `src/infrastructure/storage/repositories/settingsRepository.ts` | `pendingLargePrompts: Record<string, any>`、`large: Record<string, any>` | 大型 Prompt 段落数据结构动态性较高，待 Preset 契约稳定后引入具体类型 |
 
 ## 落地纪律
 - **代码审查**：新增 any 必须在 PR 描述中说明豁免理由，未声明者一律拒绝合并

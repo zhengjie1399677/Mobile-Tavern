@@ -208,22 +208,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 2. 如果初始获取失败（可能由于 Bridge 尚未准备就绪），设置定时器重试（3秒内每150毫秒重试一次）
     let retryCount = 0;
     const maxRetries = 20;
-    let timerId: any = null;
+    let timerId: ReturnType<typeof setInterval> | null = null;
 
     if (!initialSuccess) {
       timerId = setInterval(() => {
         retryCount++;
         const success = tryFetchSafeAreas();
         if (success || retryCount >= maxRetries) {
-          clearInterval(timerId);
+          if (timerId) clearInterval(timerId);
         }
       }, 150);
     }
 
-    const handleSafeAreasChange = (e: any) => {
-      console.log("[AppContext] androidSafeAreasChanged event received:", e.detail);
-      if (e.detail) {
-        updateSafeAreas(e.detail.top, e.detail.bottom);
+    const handleSafeAreasChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      console.log("[AppContext] androidSafeAreasChanged event received:", detail);
+      if (detail) {
+        updateSafeAreas(detail.top, detail.bottom);
       }
     };
 
@@ -235,7 +236,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   useEffect(() => {
-    let timer: any;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (isInitialRender.current) {
       isInitialRender.current = false;
     } else {

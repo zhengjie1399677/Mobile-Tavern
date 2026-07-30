@@ -19,7 +19,7 @@ import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 const StoryTimelineView = () => {
   const kernel = useKernel();
   const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
-  const saveSession = (session: any) => databaseService.saveSession(session);
+  const saveSession = (session: ChatSession) => databaseService.saveSession(session);
   const {
     sessions,
     activeSessionId,
@@ -69,7 +69,7 @@ const StoryTimelineView = () => {
         <button
           onClick={() => {
             setNewSummaryTag(
-              `幕段 ${sessions.find((s: any) => s.id === activeSessionId)?.summaries?.length || 0}`,
+              `幕段 ${sessions.find((s: ChatSession) => s.id === activeSessionId)?.summaries?.length || 0}`,
             );
             setNewSummaryLoc(
               activeCharacter?.scenario?.slice(0, 8) || "荒野野营",
@@ -85,7 +85,7 @@ const StoryTimelineView = () => {
 
       {summaries.length > 0 ? (
         <div className="relative ml-2 space-y-3 border-l border-primary/25 py-1 pl-4">
-        {summaries.map((summary: any) => (
+        {summaries.map((summary: SummaryCard) => (
           <div
             key={summary.id}
             className="group relative w-full max-w-full overflow-hidden rounded-xl border border-border/70 bg-card/60 p-2.5 shadow-sm"
@@ -130,15 +130,15 @@ const StoryTimelineView = () => {
                         );
                       if (ok) {
                          const nextSums = activeSession.summaries.filter(
-                           (s: any) => s.id !== summary.id,
+                           (s: SummaryCard) => s.id !== summary.id,
                          );
                          const updated = {
                            ...activeSession,
                            summaries: nextSums,
                            lastSummarizedMessageId: nextSums[nextSums.length - 1]?.lastMessageId || undefined,
                          };
-                        setSessions((prev: any) =>
-                          prev.map((s: any) =>
+                        setSessions((prev: ChatSession[]) =>
+                          prev.map((s: ChatSession) =>
                             s.id === updated.id ? updated : s,
                           ),
                         );

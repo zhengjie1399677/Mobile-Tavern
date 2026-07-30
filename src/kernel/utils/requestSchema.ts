@@ -69,11 +69,11 @@ const REQUEST_FIELD_WHITELIST = new Set<string>([
  */
 export function cleanRequestPayload(
   baseUrl: string | undefined,
-  reqBody: Record<string, any> | undefined
-): Record<string, any> | undefined {
+  reqBody: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
   if (!reqBody) return reqBody;
 
-  const cleaned: Record<string, any> = {};
+  const cleaned: Record<string, unknown> = {};
   for (const key of Object.keys(reqBody)) {
     if (REQUEST_FIELD_WHITELIST.has(key)) {
       cleaned[key] = reqBody[key];
@@ -128,14 +128,14 @@ const RESPONSE_MESSAGE_WHITELIST = new Set<string>([
  * 注意：本函数仅清洗非流式响应（type === "openai-compat" 的非流式分支）。
  * 流式响应由 streamReader 逐 chunk 处理，仅提取 choices[].delta.content / reasoning_content。
  */
-type CleanLLMResponseReturn<T> = T extends null | undefined ? T : Record<string, any>;
+type CleanLLMResponseReturn<T> = T extends null | undefined ? T : Record<string, unknown>;
 
-export function cleanLLMResponse<T extends Record<string, any> | null | undefined>(
+export function cleanLLMResponse<T extends Record<string, unknown> | null | undefined>(
   resp: T
 ): CleanLLMResponseReturn<T> {
   if (!resp) return resp as CleanLLMResponseReturn<T>;
 
-  const cleaned: Record<string, any> = {};
+  const cleaned: Record<string, unknown> = {};
   for (const key of Object.keys(resp)) {
     if (RESPONSE_TOP_LEVEL_WHITELIST.has(key)) {
       cleaned[key] = resp[key];
@@ -144,17 +144,19 @@ export function cleanLLMResponse<T extends Record<string, any> | null | undefine
 
   // 清洗 choices[].message
   if (Array.isArray(cleaned.choices)) {
-    cleaned.choices = cleaned.choices.map((choice: any) => {
+    cleaned.choices = (cleaned.choices as unknown[]).map((choice: unknown) => {
       if (!choice || typeof choice !== "object") return choice;
-      const cleanedChoice: Record<string, any> = {};
-      for (const key of Object.keys(choice)) {
+      const choiceObj = choice as Record<string, unknown>;
+      const cleanedChoice: Record<string, unknown> = {};
+      for (const key of Object.keys(choiceObj)) {
         if (key === "message" || key === "delta") {
-          const msg = choice[key];
+          const msg = choiceObj[key];
           if (msg && typeof msg === "object") {
-            const cleanedMsg: Record<string, any> = {};
-            for (const msgKey of Object.keys(msg)) {
+            const msgObj = msg as Record<string, unknown>;
+            const cleanedMsg: Record<string, unknown> = {};
+            for (const msgKey of Object.keys(msgObj)) {
               if (RESPONSE_MESSAGE_WHITELIST.has(msgKey)) {
-                cleanedMsg[msgKey] = msg[msgKey];
+                cleanedMsg[msgKey] = msgObj[msgKey];
               }
             }
             cleanedChoice[key] = cleanedMsg;
@@ -162,7 +164,7 @@ export function cleanLLMResponse<T extends Record<string, any> | null | undefine
             cleanedChoice[key] = msg;
           }
         } else if (key === "index" || key === "finish_reason" || key === "logprobs") {
-          cleanedChoice[key] = choice[key];
+          cleanedChoice[key] = choiceObj[key];
         }
       }
       return cleanedChoice;

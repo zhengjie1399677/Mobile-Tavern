@@ -54,7 +54,7 @@ export function parseStyleString(styleStr: string): Record<string, string> {
  * - `expression://<name>` → 解析为角色卡扩展字段中的表情图片
  * - 其它 → 原样返回
  */
-export function resolveExpressionUrl(srcVal: string, activeCharacter: any): string {
+export function resolveExpressionUrl(srcVal: string, activeCharacter: { avatar?: string; extensions?: Record<string, unknown>; visualSettings?: { expressions?: unknown } } | null | undefined): string {
   if (!srcVal || !activeCharacter) return srcVal;
 
   if (srcVal.toLowerCase().startsWith("avatar://")) {
@@ -65,11 +65,11 @@ export function resolveExpressionUrl(srcVal: string, activeCharacter: any): stri
     const exprName = srcVal.slice("expression://".length).trim().toLowerCase();
 
     const ext = activeCharacter.extensions || {};
-    const rawStyle = ext.style || ext.character_style || {};
+    const rawStyle = (ext.style || ext.character_style || {}) as { expressions?: unknown };
     const expressions = activeCharacter.visualSettings?.expressions || rawStyle.expressions || ext.expressions || {};
 
     if (Array.isArray(expressions)) {
-      const match = expressions.find((e: any) => e && e.name && e.name.toLowerCase() === exprName);
+      const match = (expressions as Array<{ name?: string; image?: string }>).find((e) => e && e.name && e.name.toLowerCase() === exprName);
       if (match && match.image) return match.image;
     } else if (expressions && typeof expressions === "object") {
       const match = Object.entries(expressions).find(([k]) => k.toLowerCase() === exprName);

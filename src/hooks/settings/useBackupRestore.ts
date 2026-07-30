@@ -397,7 +397,9 @@ export const useBackupRestore = ({
         if (file.name.endsWith(".jsonl") || (!textData.trim().startsWith("[") && !textData.trim().startsWith("{"))) {
           isJsonl = true;
         }
-      } catch (err) {}
+      } catch (err) {
+        console.warn("[useBackupRestore] Failed to detect jsonl format:", err);
+      }
 
       if (isJsonl) {
         let firstLineParsed: any = null;

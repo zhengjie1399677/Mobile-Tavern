@@ -780,20 +780,27 @@ function preprocessFormattedText(
   return processed;
 }
 
-class LocalErrorBoundary extends React.Component<any, any> {
-  state: any = { hasError: false };
-  props: any;
+interface LocalErrorBoundaryProps {
+  fallback: React.ReactNode;
+  children: React.ReactNode;
+}
 
-  constructor(props: any) {
+interface LocalErrorBoundaryState {
+  hasError: boolean;
+}
+
+class LocalErrorBoundary extends React.Component<LocalErrorBoundaryProps, LocalErrorBoundaryState> {
+  state: LocalErrorBoundaryState = { hasError: false };
+
+  constructor(props: LocalErrorBoundaryProps) {
     super(props);
-    this.props = props;
   }
 
-  static getDerivedStateFromError() {
+  static getDerivedStateFromError(): LocalErrorBoundaryState {
     return { hasError: true };
   }
 
-  componentDidCatch(error: any, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("[LocalErrorBoundary] Message render error caught:", error, errorInfo);
   }
 

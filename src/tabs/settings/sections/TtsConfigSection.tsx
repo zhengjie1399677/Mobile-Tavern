@@ -16,6 +16,7 @@ import {
 import { Switch } from "../../../../components/ui/switch";
 import { Input } from "../../../../components/ui/input";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
+import type { ITtsService } from "../../../kernel/types";
 
 export interface TtsConfigSectionProps
   extends Pick<UnifiedAppContextProps, "settings" | "updateSettings" | "getKernelService"> {}
@@ -31,7 +32,7 @@ export default function TtsConfigSection({
   const handlePlayTest = async () => {
     try {
       setTestSpeaking(true);
-      const ttsService = getKernelService<any>("tts");
+      const ttsService = getKernelService<ITtsService>("tts");
       const testText = t("tts.test_text");
       await ttsService.speak(testText, settings.ttsConfig);
     } catch (e: unknown) {
@@ -43,9 +44,11 @@ export default function TtsConfigSection({
 
   const handleStopTest = async () => {
     try {
-      const ttsService = getKernelService<any>("tts");
+      const ttsService = getKernelService<ITtsService>("tts");
       ttsService.stop();
-    } catch (e) { }
+    } catch (e) {
+      console.warn("[TtsConfigSection] Failed to stop TTS test:", e);
+    }
     setTestSpeaking(false);
   };
 

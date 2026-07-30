@@ -1,12 +1,13 @@
 import React, { Suspense, useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { SplashScreen } from "./SplashScreen";
-import { VenetianMask, MessageSquare, Book, Settings, Users, HelpCircle, LoaderCircle } from "lucide-react";
+import { VenetianMask, MessageSquare, Book, Settings, Users, HelpCircle, LoaderCircle, type LucideIcon } from "lucide-react";
 import { useKernel } from "../contexts/KernelContext";
+import type { IExtension } from "../kernel/types";
 import type { TabType } from "../contexts/AppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 
-const ICON_MAP: Record<string, React.ComponentType<any>> = {
+const ICON_MAP: Record<string, LucideIcon> = {
   VenetianMask,
   Users,
   MessageSquare,
@@ -129,9 +130,9 @@ export default function MainLayout() {
     }
   }, [activeTab, registeredTabIds, setActiveTab, tabs]);
 
-  const isActive = (tab: any) => {
+  const isActive = (tab: IExtension) => {
     if (tab.meta?.highlightOnActiveTabs) {
-      return tab.meta.highlightOnActiveTabs.includes(activeTab);
+      return (tab.meta.highlightOnActiveTabs as string[]).includes(activeTab);
     }
     return activeTab === tab.id;
   };
@@ -159,7 +160,7 @@ export default function MainLayout() {
             className="absolute left-2 right-2 h-12 rounded-xl bg-card/70 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
           >
             {bottomBarTabs.map(tab => {
-              const IconComp = ((tab.meta?.icon && ICON_MAP[tab.meta.icon as keyof typeof ICON_MAP]) || HelpCircle) as React.ComponentType<any>;
+              const IconComp = ((tab.meta?.icon && ICON_MAP[tab.meta.icon as keyof typeof ICON_MAP]) || HelpCircle) as LucideIcon;
               const selected = isActive(tab);
               const localizedName = t("nav." + tab.id);
               return (
