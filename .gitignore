@@ -46,7 +46,9 @@ test-cards/
 
 # 全局忽略所有层级的 Gradle 缓存和编译生成物
 **/.gradle/
-**/build/
+**/build/*
+# 保留项目构建配置（vite.config.ts 依赖）
+!build/viteEnvironment.ts
 
 # Rust 编译产物（cloud / shared workspace members）
 target/
