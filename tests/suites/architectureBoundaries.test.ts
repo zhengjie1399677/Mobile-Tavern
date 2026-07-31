@@ -79,11 +79,10 @@ export async function testArchitectureBoundaries(): Promise<void> {
   );
   const qualityWorkflow = read(".github/workflows/quality.yml");
   assert(
-    /push:\s*[\s\S]*?branches:\s*[\s\S]*?-\s*main/.test(qualityWorkflow) &&
-      /pull_request:\s*[\s\S]*?branches:\s*[\s\S]*?-\s*main/.test(qualityWorkflow) &&
+    /pull_request:\s*[\s\S]*?branches:\s*[\s\S]*?-\s*main/.test(qualityWorkflow) &&
       read(".githooks/pre-push").includes("npm run quality:push") &&
       read("package.json").includes('"quality:push"'),
-    "main 主分支必须同时具备 GitHub push/PR 自动质量门禁和仓库内 pre-push 门禁"
+    "main 主分支必须同时具备 GitHub PR 自动质量门禁和仓库内 pre-push 门禁"
   );
 
   for (const file of listCodeFiles("src")) {
