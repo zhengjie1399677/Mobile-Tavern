@@ -2,8 +2,8 @@ name: Build Android APK
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 concurrency:
@@ -15,6 +15,10 @@ env:
   NO_PROXY: localhost,127.0.0.1,::1
   _JAVA_OPTIONS: -Djava.net.preferIPv4Stack=true
   GRADLE_OPTS: -Djava.net.preferIPv4Stack=true
+  VITE_COMMUNITY_ENABLED: 'true'
+  VITE_COMMUNITY_ORIGIN: 'https://community.neural-node.xyz'
+  VITE_COMMUNITY_MIN_FIRST_USE_AGE_DAYS: '0'
+  VITE_COMMUNITY_MIN_CUMULATIVE_USAGE_HOURS: '0'
 
 permissions:
   contents: write
@@ -159,3 +163,9 @@ jobs:
         with:
           name: mobile-tavern-release.apk
           path: MobileTavern.apk
+
+      - name: Publish APK to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: MobileTavern.apk
+          fail_on_unmatched_files: true

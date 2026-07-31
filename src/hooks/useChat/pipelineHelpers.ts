@@ -9,7 +9,7 @@
 import React from "react";
 import { ChatSession, UserSettings, CharacterCard } from "../../types";
 import { IDatabaseService, IKernel, KernelServices } from "@/src/application/serviceContracts";
-import type { OutputPipelineContext } from "../../services/pipeline";
+import type { OutputPipelineContext } from "../../application/pipeline";
 import { buildOutputContext } from "./helpers/streamHelpers";
 import { cleanSuggestionsFromText } from "./helpers/textParsing";
 import { notifyVariablesUpdated } from "../../compatibility/sillytavern";

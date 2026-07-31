@@ -17,6 +17,9 @@ import {
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { chatTabState } from "./utils";
+import type { ChatSession, CustomPromptBlock, Message, SummaryCard } from "../../types";
+import type { IAsrService } from "@/src/application/serviceContracts";
+import type { RecalledMessage } from "@/src/application/services/memory/types";
 
 /**
  * 用于在事件 currentTarget 上标记 _touched 状态，
@@ -139,7 +142,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
 
   const handleToggleAsr = async () => {
     try {
-      const asrService = getKernelService<any>("asr");
+      const asrService = getKernelService<IAsrService>("asr");
       if (isRecording) {
         setIsRecording(false);
         if (settings.asrConfig?.provider === "openai") {
@@ -171,12 +174,12 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               setUserInputMessage(newText);
             }
           },
-          (err: any) => {
+          (err: unknown) => {
             console.error("ASR Error:", err);
             setIsRecording(false);
             setIsTranscribing(false);
 
-            const errMsg = err.message || String(err);
+            const errMsg = err instanceof Error ? err.message : String(err);
             if (errMsg.includes("not-allowed") || errMsg.includes("Permission denied") || errMsg.includes("NotAllowedError") || errMsg.includes("permission denied")) {
               showCustomAlert(
                 t("chat_input.asr_permission_msg"),
@@ -234,7 +237,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   }, [localInput, isKeyboardOpen, triggerScroll]);
 
   React.useEffect(() => {
-    let timeoutId: any = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const scrollInputIntoView = () => {
       const textarea = textareaRef.current;
       if (!textarea) return;
@@ -301,7 +304,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     handleSendMessage(msg, { skipAI: false });
   }, [localInput, handleSendMessage]);
 
-  const longPressTimerRef = React.useRef<any>(null);
+  const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasTriggeredLongPress = React.useRef(false);
 
   const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
@@ -387,7 +390,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                 isSending ||
                 !activeSession ||
                 !Array.isArray(activeSession.messages) ||
-                !activeSession.messages.some((m: any) => m.sender === "assistant")
+                !activeSession.messages.some((m: Message) => m.sender === "assistant")
               }
               className="flex items-center gap-1.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
               title="消除整条故事分支的最后一条AI回复并进行重新生成"
@@ -421,7 +424,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                   ? activeSession.messages.slice(-settings.memory.recentTurns)
                   : []
                 ).reduce(
-                  (acc: any, m: any) => acc + (m.content || "").length,
+                  (acc: number, m: Message) => acc + (m.content || "").length,
                   0,
                 ) || 0) *
                 1.5 +
@@ -431,19 +434,19 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                   (activeCharacter?.system_prompt || "").length) *
                 1.5 +
                 (settings.promptConfig?.customPrompts || [])
-                  .filter((p: any) => p.enabled)
+                  .filter((p: CustomPromptBlock) => p.enabled)
                   .reduce(
-                    (acc: any, p: any) => acc + (p.content || "").length,
+                    (acc: number, p: CustomPromptBlock) => acc + (p.content || "").length,
                     0,
                   ) *
                 1.5 +
                 (activeSession?.summaries || []).reduce(
-                  (acc: any, s: any) => acc + (s.content || "").length,
+                  (acc: number, s: SummaryCard) => acc + (s.content || "").length,
                   0,
                 ) *
                 1.5 +
                 (settings.memory?.enableRecall !== false && lastRecalledMemories || []).reduce(
-                  (acc: any, m: any) => acc + (m.content || "").length,
+                  (acc: number, m: RecalledMessage) => acc + (m.content || "").length,
                   0,
                 ) *
                 1.5 +
@@ -476,7 +479,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                 chatTabState.suggestionsClickMode = nextMode;
                 clickModeRef.current = nextMode;
                 setClickMode(nextMode);
-                updateSettings((prev: any) => ({
+                updateSettings((prev) => ({
                   ...prev,
                   replySuggestionsClickMode: nextMode,
                 }));

@@ -4,6 +4,7 @@ import {
   SamplerPreset,
   SavedPresetBundle,
   PresetPromptConfig,
+  RegexScript,
 } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import { IPresetService } from "@/src/application/serviceContracts";
@@ -216,7 +217,7 @@ export const usePresetBundles = ({
         }
 
         // 解析预设全局正则脚本
-        const importedRegexScripts: any[] = [];
+        const importedRegexScripts: RegexScript[] = [];
         if (data.extensions && Array.isArray(data.extensions.regex_scripts)) {
           for (const item of data.extensions.regex_scripts) {
             if (item && typeof item === "object" && item.scriptName && item.findRegex) {

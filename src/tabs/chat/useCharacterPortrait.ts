@@ -10,7 +10,7 @@
 import React from "react";
 
 import { sanitizeCss } from "../../utils/security";
-import { computeRenderState, RenderState } from "../../services/characterRender/pipeline";
+import { computeRenderState, RenderState } from "../../application/services/characterRender/pipeline";
 import { useKernel } from "../../contexts/KernelContext";
 import type { IKernelService } from "@/src/application/serviceContracts";
 import type { CharacterCard, ChatSession, UserSettings } from "../../types";

@@ -19,7 +19,7 @@ import {
   ILLMService,
   StreamChunk
 } from "@/src/application/serviceContracts";
-import type { OutputPipelineContext } from "../../src/services/pipeline";
+import type { OutputPipelineContext } from "../../src/application/pipeline";
 import type { ITavernHelperBridge } from "../../src/application/services/ScriptService";
 import type { ChatSession, CharacterCard, UserSettings } from "../../src/types";
 import { MultiMessageService } from "../../src/application/services/MultiMessageService";
@@ -29,7 +29,7 @@ import {
   mvuScriptMiddleware,
   bisonModeMiddleware,
   autoSummaryMiddleware
-} from "../../src/services/pipeline";
+} from "../../src/application/pipeline";
 import { assert } from "./testUtils";
 
 /** 更新检查接口请求体结构（覆盖测试断言访问的字段） */
