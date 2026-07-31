@@ -68,26 +68,21 @@ vi.mock("../../src/domain/community/api", () => ({
 }));
 
 describe("角色卡社区页面", () => {
-  it("以精选封面和双列卡片展示上传、下载信息", async () => {
+  it("以双列卡片展示上传、下载信息", async () => {
     const { container } = render(<CommunityTab />);
 
     expect(await screen.findByText("Featured Character")).toBeInTheDocument();
     expect(screen.getByText("Second Character")).toBeInTheDocument();
     expect(screen.getAllByText(/community\.uploaded_at:/)).toHaveLength(2);
-    expect(screen.getByText(/community\.last_downloaded_at:/)).toBeInTheDocument();
 
     const cards = container.querySelectorAll("article");
     expect(cards).toHaveLength(2);
-    expect(cards[0]).toHaveClass("col-span-2");
+    expect(cards[0]).not.toHaveClass("col-span-2");
     expect(cards[1]).not.toHaveClass("col-span-2");
     expect(cards[0].querySelector("img")).toHaveAttribute(
       "src",
       "https://community.neural-node.xyz/cards/featured.png",
     );
-
-    await waitFor(() => {
-      expect(screen.getByText("community.featured")).toBeInTheDocument();
-    });
   });
 
   it("点击角色卡后打开详情并加载纯文字评论", async () => {
