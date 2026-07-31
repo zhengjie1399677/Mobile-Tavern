@@ -206,6 +206,7 @@ export default {
   "community.featured": "注目カード",
   "community.uploaded_at": "{time} にアップロード",
   "community.last_downloaded_at": "最終ダウンロード {time}",
+  "community.invalid_file_format": "PNGまたはJSON形式のキャラクターカードのみ対応しています",
   "api.title": "APIエンドポイント設定",
   "api.subtitle": "LLMサービスのエンドポイントURLと認証情報を設定します",
   "api.saving": "自動保存中...",

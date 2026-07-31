@@ -206,6 +206,7 @@ export default {
   "community.featured": "Featured",
   "community.uploaded_at": "Uploaded {time}",
   "community.last_downloaded_at": "Last downloaded {time}",
+  "community.invalid_file_format": "Only PNG or JSON character card files are supported",
   
   "api.title": "API Endpoint Configuration",
   "api.subtitle": "Configure LLM service endpoint URL and authorization credentials",

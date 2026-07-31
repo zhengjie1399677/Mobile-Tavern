@@ -206,6 +206,7 @@ export default {
   "community.featured": "Рекомендуем",
   "community.uploaded_at": "Загружено {time}",
   "community.last_downloaded_at": "Последнее скачивание {time}",
+  "community.invalid_file_format": "Поддерживаются только файлы карточек персонажей в формате PNG или JSON",
   "api.title": "Конфигурация API эндпоинта",
   "api.subtitle": "Настройка URL эндпоинта LLM и учётных данных авторизации",
   "api.saving": "Автосохранение...",

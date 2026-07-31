@@ -206,6 +206,7 @@ export default {
   "community.featured": "Destacado",
   "community.uploaded_at": "Subido el {time}",
   "community.last_downloaded_at": "Última descarga el {time}",
+  "community.invalid_file_format": "Solo se admiten archivos de tarjeta de personaje en formato PNG o JSON",
   "api.title": "Configuración del Endpoint API",
   "api.subtitle": "Configurar la URL del endpoint del servicio LLM y las credenciales de autorización",
   "api.saving": "Autoguardando...",

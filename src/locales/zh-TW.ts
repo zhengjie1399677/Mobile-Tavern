@@ -206,6 +206,7 @@ export default {
   "community.featured": "本期精選",
   "community.uploaded_at": "上傳於 {time}",
   "community.last_downloaded_at": "最近下載於 {time}",
+  "community.invalid_file_format": "僅支援 PNG 或 JSON 格式的角色卡檔案",
   
   "api.title": "API 服务端点配置",
   "api.subtitle": "配置大语言模型接口地址与授权凭证",

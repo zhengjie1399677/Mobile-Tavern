@@ -206,6 +206,7 @@ export default {
   "community.featured": "추천 카드",
   "community.uploaded_at": "{time} 업로드",
   "community.last_downloaded_at": "최근 다운로드 {time}",
+  "community.invalid_file_format": "PNG 또는 JSON 형식의 캐릭터 카드만 지원됩니다",
 
   "api.title": "API 서비스 엔드포인트 설정",
   "api.subtitle": "대규모 언어 모델 인터페이스 주소 및 인증 정보 구성",

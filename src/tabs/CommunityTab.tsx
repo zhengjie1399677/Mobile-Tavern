@@ -155,7 +155,7 @@ export default function CommunityTab() {
     if (!file) return;
     const ext = file.name.toLowerCase().split(".").pop();
     if (ext !== "png" && ext !== "json") {
-      await showCustomAlert("仅支持 PNG 或 JSON 格式的角色卡文件");
+      await showCustomAlert(t("community.invalid_file_format"));
       return;
     }
     const title = file.name.replace(/\.(png|json)$/i, "");
