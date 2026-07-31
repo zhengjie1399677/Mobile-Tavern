@@ -10,12 +10,7 @@ import {
 } from "../../domain/community/api";
 import { getCommunityAdminToken } from "../../domain/community/adminSession";
 import type { CommunityIdentity } from "../../domain/community/identity";
-import { formatCommunityTimestamp } from "../../domain/community/presentation";
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
+import { formatCommunityTimestamp, formatCommunityFileSize } from "../../domain/community/presentation";
 
 interface CommunityCardDetailProps {
   card: CommunityCardSummary;
@@ -144,7 +139,7 @@ export function CommunityCardDetail({
           {/* 卡片信息 */}
           <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
             <span>{card.mimeType === "image/png" ? "PNG 角色卡" : "JSON 角色卡"}</span>
-            <span>{formatFileSize(card.fileSize)}</span>
+            <span>{formatCommunityFileSize(card.fileSize)}</span>
             <span>{card.downloadCount} 次下载</span>
           </div>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">

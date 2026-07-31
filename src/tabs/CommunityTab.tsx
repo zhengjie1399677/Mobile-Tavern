@@ -21,15 +21,11 @@ import {
 } from "../domain/community/api";
 import { buildCommunityUrl } from "../domain/community/config";
 import { getCommunityIdentity } from "../domain/community/identity";
+import { formatCommunityFileSize } from "../domain/community/presentation";
 import { generateCharacterPngBlob } from "../utils/characterPngExporter";
 import { parseCharacterFile } from "../utils/cardParser";
 import type { CharacterCard } from "../types";
 import { CommunityCardDetail } from "../components/community/CommunityCardDetail";
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
 
 export default function CommunityTab() {
   const {
@@ -449,7 +445,7 @@ export default function CommunityTab() {
                   <UserRound className="h-3 w-3 shrink-0 text-primary" />
                   <span className="truncate">{card.uploaderName}</span>
                   <span aria-hidden="true">·</span>
-                  <span className="shrink-0">{formatFileSize(card.fileSize)}</span>
+                  <span className="shrink-0">{formatCommunityFileSize(card.fileSize)}</span>
                 </div>
                 <div className="mt-2.5 flex items-center justify-between gap-1.5">
                   <span className="flex min-w-0 items-center gap-1 text-[10px] font-medium text-muted-foreground">
