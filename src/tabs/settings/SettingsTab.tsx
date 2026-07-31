@@ -212,7 +212,7 @@ export default function SettingsTab() {
       "管理员密码只在本次 App 运行期间保存在内存中，关闭 App 后自动清除。",
       "",
       "社区管理员验证",
-      "password",
+      "text",
     );
     if (!token) return;
     try {

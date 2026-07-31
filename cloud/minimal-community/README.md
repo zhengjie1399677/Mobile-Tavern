@@ -88,7 +88,9 @@ cargo run -p mobile-tavern-community
 - 角色卡：`/var/lib/mobile-tavern/uploads/cards`
 - SQLite：`/var/lib/mobile-tavern/database/community.sqlite3`
 
-创建专用系统用户并授予数据目录写权限后，可参考 `deploy/mobile-tavern-community.service` 注册为 systemd 服务。Nginx 将 `/api/` 代理到 `127.0.0.1:8080`，并将 `/cards/` 映射到角色卡目录。
+创建专用系统用户并授予数据目录写权限后，可参考 `deploy/mobile-tavern-community.service` 注册为 systemd 服务。Nginx 将 `/api/` 代理到 `127.0.0.1:8080`，并将 `/cards/` 映射到角色卡目录，站点配置示例见 `deploy/nginx.conf.example`。
+
+`/cards/` 静态文件不经过 Rust 服务，必须在 Nginx 为其配置 `Access-Control-Allow-Origin` 响应头（示例配置已包含）；否则 App WebView 内 `fetch()` 下载会被浏览器拦截，表现为"封面能显示但下载失败"。PC 脚本不强制 CORS，无法暴露此问题。
 
 SQLite 数据库和 `cards/` 目录必须一起备份。更新程序前无需迁移独立数据库服务，但仍应先保留这两部分的快照。
 

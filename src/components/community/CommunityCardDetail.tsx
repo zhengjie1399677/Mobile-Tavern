@@ -1,5 +1,5 @@
 import React from "react";
-import { LoaderCircle, MessageCircle, Send, Trash2, X } from "lucide-react";
+import { Download, LoaderCircle, MessageCircle, Send, Trash2, X } from "lucide-react";
 import {
   createCommunityComment,
   deleteCommunityCard,
@@ -12,6 +12,11 @@ import { getCommunityAdminToken } from "../../domain/community/adminSession";
 import type { CommunityIdentity } from "../../domain/community/identity";
 import { formatCommunityTimestamp } from "../../domain/community/presentation";
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 interface CommunityCardDetailProps {
   card: CommunityCardSummary;
   identity: CommunityIdentity;
@@ -20,6 +25,8 @@ interface CommunityCardDetailProps {
   onCardDeleted: (cardId: string) => void;
   confirmAction: (message: string, title?: string) => Promise<boolean>;
   showAlert: (message: string) => Promise<void>;
+  onDownload?: (card: CommunityCardSummary) => void;
+  downloading?: boolean;
 }
 
 export function CommunityCardDetail({
@@ -30,6 +37,8 @@ export function CommunityCardDetail({
   onCardDeleted,
   confirmAction,
   showAlert,
+  onDownload,
+  downloading,
 }: CommunityCardDetailProps) {
   const [comments, setComments] = React.useState<CommunityComment[]>([]);
   const [content, setContent] = React.useState("");
@@ -106,6 +115,17 @@ export function CommunityCardDetail({
               {card.uploaderName} · {formatCommunityTimestamp(card.createdAt, language)}
             </p>
           </div>
+          {onDownload && (
+            <button
+              type="button"
+              disabled={downloading}
+              onClick={() => onDownload(card)}
+              className="flex h-9 items-center gap-1 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm"
+            >
+              {downloading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              下载
+            </button>
+          )}
           {adminToken && (
             <button
               type="button"
@@ -121,6 +141,12 @@ export function CommunityCardDetail({
         </header>
 
         <div className="overflow-y-auto p-4">
+          {/* 卡片信息 */}
+          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+            <span>{card.mimeType === "image/png" ? "PNG 角色卡" : "JSON 角色卡"}</span>
+            <span>{formatFileSize(card.fileSize)}</span>
+            <span>{card.downloadCount} 次下载</span>
+          </div>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
             {card.description || "暂无角色卡介绍"}
           </p>
