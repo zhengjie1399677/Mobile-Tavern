@@ -239,7 +239,7 @@ async function run() {
     { name: "testPaginationBoundaries", fn: testPaginationBoundaries },
     { name: "testAutoSummaryTriggerConditions", fn: testAutoSummaryTriggerConditions },
     { name: "testAppendSessionMessageFieldMapping", fn: testAppendSessionMessageFieldMapping },
-    // AbortSignal 协作式中断传导测试（TODO #5：IDB 事务主动 abort + MVU/流式解析器检查点）
+    // AbortSignal 协作式中断传导测试（DESIGN-NOTE：IDB 事务主动 abort + MVU/流式解析器检查点）
     { name: "testAbortSignalPreAbortedLocalDB", fn: testAbortSignalPreAbortedLocalDB },
     { name: "testAbortSignalMidOperationLocalDB", fn: testAbortSignalMidOperationLocalDB },
     { name: "testAbortSignalBeforeTransactionRegistration", fn: testAbortSignalBeforeTransactionRegistration },

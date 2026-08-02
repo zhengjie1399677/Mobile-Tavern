@@ -1,7 +1,7 @@
 /**
  * 消息总线 Schema（zod 运行时校验）
  *
- * 设计原则（详见 docs/agents/zod-l2-probe-report.md）：
+ * 设计原则：
  *   1. 顶层 IMessage 结构所有 topic 都校验
  *   2. 静态 topic（仅 2 个）有 payload schema
  *   3. 动态 topic 前缀（tavern_helper:*）显式 skip payload 校验，符合 SillyTavern 兼容契约

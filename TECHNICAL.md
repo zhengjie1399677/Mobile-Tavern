@@ -1012,7 +1012,7 @@ SillyTavern 兼容契约（AGENTS.md 准则二）要求 `tavern_helper:${event}`
 
 | 阶段 | 状态 | 产出 |
 |---|---|---|
-| **Phase A** 探测 | ✅ 已完成 | [docs/agents/zod-l2-probe-report.md](docs/agents/zod-l2-probe-report.md) — 17 服务接口 vs 实现方法差异表、2 静态 topic 确认、动态 topic 黑名单确认 |
+| **Phase A** 探测 | ✅ 已完成 | 探测结论已固化到 `src/application/serviceSchemas/` 与 `src/kernel/schemas/` |
 | **Phase B** schema 定义 | ✅ 已完成 | P0/P1 服务 schema、消息 schema、动态 topic 降级规则及单元测试 |
 | **Phase C-1** 消息边界 | ✅ 已完成 | `publish` / `publishParallel` 运行时校验，SafeProxy 契约标记 |
 | **Phase C-2** 服务边界 | ✅ 已完成 | 落地 `validateServiceRetrieval` 运行时校验，实现 `SAFE_PROXY_SYMBOL` 契约标记 |

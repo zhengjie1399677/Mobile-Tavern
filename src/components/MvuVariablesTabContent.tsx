@@ -7,9 +7,23 @@ import {
   MemoryDrawerTextarea,
 } from "./memory-drawer/MemoryDrawerControls";
 
+type MvuPrimitive = string | number | boolean | null;
+type MvuJsonValue = MvuPrimitive | MvuJsonValue[] | MvuJsonRecord;
+interface MvuJsonRecord {
+  [key: string]: MvuJsonValue;
+}
+
+interface MvuVariablesRecord {
+  stat_data?: MvuJsonRecord;
+  [key: string]: unknown;
+}
+
+const isMvuRecord = (value: unknown): value is MvuJsonRecord =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
 interface MvuVariablesTabContentProps {
-  variables: any;
-  onSave: (newVars: any) => Promise<void>;
+  variables: MvuVariablesRecord | undefined;
+  onSave: (newVars: MvuVariablesRecord) => Promise<void>;
 }
 
 export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
@@ -17,38 +31,45 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
   onSave,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<"form" | "json">("form");
-  const [statData, setStatData] = useState<any>({});
+  const [statData, setStatData] = useState<MvuJsonRecord>({});
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
 
   // Initialize from props
   useEffect(() => {
-    const rawStat = variables?.stat_data || {};
-    setStatData(JSON.parse(JSON.stringify(rawStat)));
-    setJsonText(JSON.stringify(rawStat, null, 2));
+    const rawStat = variables?.stat_data;
+    const parsedStat = isMvuRecord(rawStat) ? rawStat : {};
+    setStatData(JSON.parse(JSON.stringify(parsedStat)) as MvuJsonRecord);
+    setJsonText(JSON.stringify(parsedStat, null, 2));
     setJsonError(null);
   }, [variables]);
 
   // Handle Form field update
-  const handleUpdateField = (path: string[], value: any) => {
-    const updated = JSON.parse(JSON.stringify(statData));
+  const handleUpdateField = (path: string[], value: MvuPrimitive) => {
+    const updated = JSON.parse(JSON.stringify(statData)) as MvuJsonRecord;
     let current = updated;
     for (let i = 0; i < path.length - 1; i++) {
-      current = current[path[i]];
+      const next = current[path[i]];
+      if (!isMvuRecord(next)) return;
+      current = next;
     }
-    current[path[path.length - 1]] = value;
+    const leaf = path[path.length - 1];
+    if (leaf !== undefined) current[leaf] = value;
     setStatData(updated);
     setJsonText(JSON.stringify(updated, null, 2));
   };
 
   // Handle Form delete field
   const handleDeleteField = (path: string[]) => {
-    const updated = JSON.parse(JSON.stringify(statData));
+    const updated = JSON.parse(JSON.stringify(statData)) as MvuJsonRecord;
     let current = updated;
     for (let i = 0; i < path.length - 1; i++) {
-      current = current[path[i]];
+      const next = current[path[i]];
+      if (!isMvuRecord(next)) return;
+      current = next;
     }
-    delete current[path[path.length - 1]];
+    const leaf = path[path.length - 1];
+    if (leaf !== undefined) delete current[leaf];
     setStatData(updated);
     setJsonText(JSON.stringify(updated, null, 2));
   };
@@ -61,14 +82,16 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
   const handleAddField = (path: string[]) => {
     if (!newKey.trim()) return;
     const key = newKey.trim();
-    const updated = JSON.parse(JSON.stringify(statData));
+    const updated = JSON.parse(JSON.stringify(statData)) as MvuJsonRecord;
     let current = updated;
-    for (let i = 0; i < path.length; i++) {
-      current = current[path[i]];
+    for (const key of path) {
+      const next = current[key];
+      if (!isMvuRecord(next)) return;
+      current = next;
     }
     if (current[key] !== undefined) return; // avoid duplicate
 
-    let defaultValue: any = "";
+    let defaultValue: MvuPrimitive = "";
     if (newValType === "number") defaultValue = 0;
     if (newValType === "boolean") defaultValue = false;
 
@@ -81,35 +104,37 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
 
   // Handle saving
   const handleSave = async () => {
-    let finalStat = statData;
+    let finalStat: MvuJsonRecord = statData;
     if (activeSubTab === "json") {
       try {
-        finalStat = JSON.parse(jsonText);
+        const parsed: unknown = JSON.parse(jsonText);
+        if (!isMvuRecord(parsed)) {
+          setJsonError("JSON 顶层必须是对象");
+          return;
+        }
+        finalStat = parsed;
         setJsonError(null);
       } catch (err: unknown) {
         setJsonError("JSON 格式错误: " + getErrorMessage(err));
         return;
       }
     }
-    const nextVars = {
-      ...variables,
+    const nextVars: MvuVariablesRecord = {
+      ...(variables ?? {}),
       stat_data: finalStat,
     };
     await onSave(nextVars);
   };
 
   // Recursive form renderer
-  const renderFields = (data: any, path: string[] = []): React.ReactNode => {
-    if (!data || typeof data !== "object" || Array.isArray(data)) {
-      return null;
-    }
+  const renderFields = (data: MvuJsonRecord, path: string[] = []): React.ReactNode => {
 
     return (
       <div className="space-y-3 pl-2.5 border-l border-border/40">
         {Object.keys(data).map((key) => {
           const val = data[key];
           const currentPath = [...path, key];
-          const isObject = val !== null && typeof val === "object" && !Array.isArray(val);
+          const isObject = isMvuRecord(val);
 
           if (isObject) {
             return (
@@ -172,7 +197,7 @@ export const MvuVariablesTabContent: React.FC<MvuVariablesTabContentProps> = ({
                 ) : (
                   <MemoryDrawerInput
                     type="text"
-                    value={val || ""}
+                    value={Array.isArray(val) ? JSON.stringify(val) : (val ?? "")}
                     onChange={(e) => handleUpdateField(currentPath, e.target.value)}
                     className="flex-grow bg-background border border-border text-xs rounded-lg px-2 py-1 outline-none"
                   />

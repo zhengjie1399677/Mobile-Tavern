@@ -279,6 +279,7 @@ export async function testKeyManagerDynamicFetch() {
 
   const aesKeyHex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
   const originalText = "sk-or-v1-my-mock-openrouter-key-987654";
+  Object.assign(globalThis, { __AES_FALLBACK_KEY__: aesKeyHex });
 
   const cryptoNode = await import("crypto");
   const iv = cryptoNode.randomBytes(12);
@@ -340,6 +341,7 @@ export async function testKeyManagerDynamicFetch() {
     assert((getKeyCalled as boolean) === true, "get-key api was invoked");
   } finally {
     global.fetch = originalFetch;
+    delete (globalThis as unknown as Record<string, unknown>).__AES_FALLBACK_KEY__;
   }
 
   console.log("✔ KeyManager Dynamic Fetch & Decryption verified successfully!");

@@ -38,6 +38,7 @@ vi.mock("../../src/domain/community/api", () => ({
       lastDownloadedAt: 1_754_092_800,
       downloadCount: 12,
       downloadUrl: "/cards/featured.png",
+      thumbnailUrl: "/thumbnails/featured.jpg",
     },
     {
       id: "second",
@@ -81,7 +82,33 @@ describe("角色卡社区页面", () => {
     expect(cards[1]).not.toHaveClass("col-span-2");
     expect(cards[0].querySelector("img")).toHaveAttribute(
       "src",
-      "https://community.neural-node.xyz/cards/featured.png",
+      "https://community.neural-node.xyz/thumbnails/featured.jpg",
+    );
+  });
+
+  it("PNG 角色卡无缩略图时回退到完整角色卡地址", async () => {
+    const { listCommunityCards } = await import("../../src/domain/community/api");
+    vi.mocked(listCommunityCards).mockResolvedValueOnce([
+      {
+        id: "legacy",
+        title: "Legacy Character",
+        description: "上传于缩略图功能上线前的角色卡。",
+        mimeType: "image/png",
+        fileSize: 4096,
+        uploaderName: "Creator",
+        createdAt: 1_754_006_400,
+        downloadCount: 5,
+        downloadUrl: "/cards/legacy.png",
+        thumbnailUrl: null,
+      },
+    ]);
+
+    const { container } = render(<CommunityTab />);
+    expect(await screen.findByText("Legacy Character")).toBeInTheDocument();
+    const image = container.querySelector("img");
+    expect(image).toHaveAttribute(
+      "src",
+      "https://community.neural-node.xyz/cards/legacy.png",
     );
   });
 

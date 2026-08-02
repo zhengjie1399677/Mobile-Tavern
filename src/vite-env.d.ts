@@ -2,6 +2,7 @@
 
 declare const __APP_VERSION__: string;
 declare const IS_MOBILE_NATIVE: boolean;
+declare const __AES_FALLBACK_KEY__: string | undefined;
 
 interface ImportMetaEnv {
   readonly VITE_COMMUNITY_ORIGIN?: string;

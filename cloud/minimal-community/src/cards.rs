@@ -31,6 +31,7 @@ pub struct CardSummary {
     last_downloaded_at: Option<i64>,
     download_count: i64,
     download_url: String,
+    thumbnail_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,7 +83,7 @@ async fn list_cards(
             "SELECT id, title, description, mime_type, file_size, uploader_name,
                     created_at,
                     (SELECT MAX(downloaded_at) FROM card_downloads WHERE card_id = cards.id),
-                    download_count, file_name
+                    download_count, file_name, thumbnail_file_name
              FROM cards
              WHERE (?1 = '' OR title LIKE ?2 ESCAPE '\\' OR description LIKE ?2 ESCAPE '\\')
              ORDER BY created_at DESC
@@ -90,6 +91,7 @@ async fn list_cards(
         )?;
         let rows = statement.query_map(params![search, pattern, limit, offset], |row| {
             let file_name: String = row.get(9)?;
+            let thumbnail_file_name: Option<String> = row.get(10)?;
             Ok(CardSummary {
                 id: row.get(0)?,
                 title: row.get(1)?,
@@ -101,6 +103,8 @@ async fn list_cards(
                 last_downloaded_at: row.get(7)?,
                 download_count: row.get(8)?,
                 download_url: format!("/cards/{file_name}"),
+                thumbnail_url: thumbnail_file_name
+                    .map(|name| format!("/thumbnails/{name}")),
             })
         })?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
@@ -148,6 +152,49 @@ async fn upload_card(
             internal_error(error)
         })?;
 
+    let file_size = input.bytes.len() as i64;
+    // 仅 PNG 角色卡生成封面缩略图；失败不影响角色卡本身上传。
+    let thumbnail_file_name = if input.mime_type == "image/png" {
+        let png_bytes = input.bytes;
+        let thumbnail_result = tokio::task::spawn_blocking(move || {
+            crate::thumbnails::generate_thumbnail(&png_bytes)
+        })
+        .await;
+        match thumbnail_result {
+            Ok(Ok(jpeg_bytes)) => {
+                let thumbnail_name = format!(
+                    "{id}.{}",
+                    crate::thumbnails::THUMBNAIL_EXTENSION
+                );
+                match tokio::fs::write(
+                    state.config.thumbnails_dir().join(&thumbnail_name),
+                    jpeg_bytes,
+                )
+                .await
+                {
+                    Ok(()) => Some(thumbnail_name),
+                    Err(error) => {
+                        tracing::warn!(%error, "缩略图写入失败，角色卡仍正常上传");
+                        None
+                    }
+                }
+            }
+            Ok(Err(message)) => {
+                tracing::warn!(message, "PNG 缩略图生成失败，角色卡仍正常上传");
+                None
+            }
+            Err(error) => {
+                tracing::warn!(%error, "缩略图生成任务失败，角色卡仍正常上传");
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let thumbnail_url = thumbnail_file_name
+        .as_ref()
+        .map(|name| format!("/thumbnails/{name}"));
+
     let database_path = state.config.database_path();
     let created_at = unix_timestamp();
     let result_id = id.clone();
@@ -156,54 +203,59 @@ async fn upload_card(
     let result_description = input.description.clone();
     let result_mime_type = input.mime_type.clone();
     let result_uploader_name = input.uploader_name.clone();
-    let file_size = input.bytes.len() as i64;
     let uploader_uuid = input.uploader_uuid.clone();
     let file_sha256 = hashes.file_sha256;
     let content_sha256 = hashes.content_sha256;
     let duplicate_file_sha256 = file_sha256.clone();
     let duplicate_content_sha256 = content_sha256.clone();
 
-    let database_result = run_database(move || {
-        let mut connection = Connection::open(database_path)?;
-        let transaction = connection.transaction()?;
-        let existing_id = transaction
-            .query_row(
-                "SELECT id FROM cards
-                 WHERE file_sha256 = ?1 OR content_sha256 = ?2
-                 LIMIT 1",
-                params![file_sha256, content_sha256],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()?;
-        if existing_id.is_some() {
-            return Ok(existing_id);
+    let database_result = run_database({
+        let db_thumbnail_file_name = thumbnail_file_name.clone();
+        move || {
+            let mut connection = Connection::open(database_path)?;
+            let transaction = connection.transaction()?;
+            let existing_id = transaction
+                .query_row(
+                    "SELECT id FROM cards
+                     WHERE file_sha256 = ?1 OR content_sha256 = ?2
+                     LIMIT 1",
+                    params![file_sha256, content_sha256],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            if existing_id.is_some() {
+                return Ok(existing_id);
+            }
+            transaction.execute(
+                "INSERT INTO cards (
+                    id, title, description, file_name, mime_type, file_size,
+                    uploader_name, uploader_uuid, created_at, file_sha256,
+                    content_sha256, thumbnail_file_name
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                params![
+                    result_id,
+                    result_title,
+                    result_description,
+                    result_file_name,
+                    result_mime_type,
+                    file_size,
+                    result_uploader_name,
+                    uploader_uuid,
+                    created_at,
+                    file_sha256,
+                    content_sha256,
+                    db_thumbnail_file_name,
+                ],
+            )?;
+            transaction.commit()?;
+            Ok(None)
         }
-        transaction.execute(
-            "INSERT INTO cards (
-                id, title, description, file_name, mime_type, file_size,
-                uploader_name, uploader_uuid, created_at, file_sha256, content_sha256
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            params![
-                result_id,
-                result_title,
-                result_description,
-                result_file_name,
-                result_mime_type,
-                file_size,
-                result_uploader_name,
-                uploader_uuid,
-                created_at,
-                file_sha256,
-                content_sha256,
-            ],
-        )?;
-        transaction.commit()?;
-        Ok(None)
     })
     .await;
 
     if let Ok(Some(existing_id)) = database_result {
         let _ = tokio::fs::remove_file(&target_path).await;
+        remove_thumbnail(&state, &thumbnail_file_name).await;
         state.upload_guard.release_storage(reserved_bytes);
         return Err((
             StatusCode::CONFLICT,
@@ -215,6 +267,7 @@ async fn upload_card(
     }
     if let Err(error) = database_result {
         let _ = tokio::fs::remove_file(&target_path).await;
+        remove_thumbnail(&state, &thumbnail_file_name).await;
         state.upload_guard.release_storage(reserved_bytes);
         let duplicate_path = state.config.database_path();
         if let Ok(Some(existing_id)) = run_database(move || {
@@ -253,6 +306,7 @@ async fn upload_card(
             last_downloaded_at: None,
             download_count: 0,
             download_url: format!("/cards/{stored_file_name}"),
+            thumbnail_url,
         }),
     ))
 }
@@ -272,14 +326,21 @@ async fn delete_card(
         let connection = Connection::open(database_path)?;
         connection
             .query_row(
-                "SELECT file_name, file_size FROM cards WHERE id = ?1",
+                "SELECT file_name, file_size, thumbnail_file_name
+                 FROM cards WHERE id = ?1",
                 [&lookup_id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?)),
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, u64>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
+                },
             )
             .optional()
     })
     .await?;
-    let Some((file_name, file_size)) = card else {
+    let Some((file_name, file_size, thumbnail_file_name)) = card else {
         return Err(api_error(StatusCode::NOT_FOUND, "角色卡不存在"));
     };
 
@@ -300,7 +361,19 @@ async fn delete_card(
         }
         Err(error) => tracing::error!(%error, "管理员删除角色卡文件失败"),
     }
+    remove_thumbnail(&state, &thumbnail_file_name).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn remove_thumbnail(state: &AppState, file_name: &Option<String>) {
+    if let Some(file_name) = file_name {
+        let thumbnail_path = state.config.thumbnails_dir().join(file_name);
+        match tokio::fs::remove_file(thumbnail_path).await {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => tracing::error!(%error, "删除角色卡缩略图文件失败"),
+        }
+    }
 }
 
 async fn record_download(

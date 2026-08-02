@@ -1,7 +1,7 @@
 /**
  * P0 服务契约 Schema（zod 运行时校验）
  *
- * 设计原则（详见 docs/agents/zod-l2-probe-report.md）：
+ * 设计原则：
  *   1. 仅校验"接口声明的方法在实现中存在且是 function"
  *   2. 不校验"实现不能有额外方法"（容忍 LLM.buildHeaders / Prompt.escapeRegExp 等内部辅助方法）
  *   3. P0 = 数据流入边界服务（ChatStream/Script/Database/Memory/LLM）

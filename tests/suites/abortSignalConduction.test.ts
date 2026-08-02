@@ -1,7 +1,7 @@
 /**
  * AbortSignal 协作式中断传导测试套件
  *
- * 验证 TODO #5 落地的三大中断传导机制：
+ * 验证 DESIGN-NOTE 落地的三大中断传导机制：
  *  1. localDB 写操作的预 abort / 中途 abort 触发 transaction.abort() 真正释放底层资源
  *  2. mvuParser 复杂正则循环顶部的 aborted 检查点
  *  3. MemoryStreamParser 流式状态机循环的 aborted 检查点

@@ -16,3 +16,25 @@
 - 下一步：
   1. 体验验收《星渊终焉》与《夜雨试剑》的横屏触控、性能和战斗节奏；后续评估面向非开发者的 AI 插件创作层，以双角色或多 NPC 模板生成气泡交互、游戏状态和 LLM 对话。
   2. AR 模式原生与 TS 桥接代码在仓库中完整保留，等后续有完全兼容的测试机时再重新验收上线。
+
+---
+
+## 2026-08-02/03 更新：社区缩略图上线与线上修复
+
+### 已上线（服务器 173.254.203.206）
+- 社区服务新增封面缩略图：上传 PNG 角色卡自动生成最长边 256px JPEG（`/thumbnails/<id>.jpg`），列表接口返回 `thumbnailUrl`；新增 `backfill-thumbnails` 子命令为旧卡回填，3 张旧 PNG 卡已回填完成。
+- 线上修复两个"图片无法加载"根因：
+  1. 服务器 nginx 主配置补 `include /etc/nginx/mime.types;`（此前 PNG 以 text/plain+nosniff 输出导致 WebView 拒绝渲染）。
+  2. 清除 Cloudflare 边缘缓存的旧 text/plain 响应（用服务器 acme.sh 凭据 purge）。
+- 补上缺失的 `/health/deep` nginx 路由。
+- 端到端验证通过：上传→自动缩略图→nginx 200 image/jpeg→管理员删除并清理。
+
+### 仓库未提交改动（本次功能相关）
+- `cloud/minimal-community/`：Cargo.toml（+image）、src/thumbnails.rs（新）、src/backfill.rs（新）、cards.rs（thumbnailUrl 三链路）、database.rs（thumbnail_file_name 迁移）、main.rs、README.md、deploy/nginx.conf.example
+- 前端：src/domain/community/api.ts、src/tabs/CommunityTab.tsx（封面优先缩略图+原图兜底）、tests/vitest/CommunityTab.test.tsx、Cargo.lock
+- 另有此前一批未提交改动（文档清理、AES 密钥注入、MvuVariables 类型收紧等），均未提交。
+
+### 待办
+1. 重新构建 App：当前线上 App 版本不认识 `thumbnailUrl`，封面仍加载完整 PNG；新版本才会走缩略图。
+2. 方案 C（网络加速）：Cloudflare 对国内线路慢的问题未解决，建议接国内 CDN 香港节点或换友好线路，需用户域名/CDN 侧操作。
+3. 未提交改动整理提交（含补 v1.7.5 changelog、同步本文件）。

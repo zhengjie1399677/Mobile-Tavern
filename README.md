@@ -16,7 +16,7 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 > [!NOTE]
 > * **功能与技术细节归档**：
 >   * 关于 Android 真机调试和网络映射，请查阅：[Android 调试与打包指南](docs/Android_调试与打包指南.md)；原生适配边界见 [移动端规范](docs/agents/mobile_strategy.md)。
->   * 关于 用户操作步骤、雪团客服挂件说明以及知识库整理，请直接查阅：[KNOWLEDGE.md](KNOWLEDGE.md)。
+>   * 关于 用户操作步骤、雪团客服挂件说明以及知识库整理，请直接查阅：[knowledge.md](knowledge.md)。
 >   * 关于 自由 Prompt 编排完全教程、参数选项通俗字典与实战范例，请直接查阅：[docs/Prompt_Composition_Tutorial.md](docs/Prompt_Composition_Tutorial.md)。
 >   * 关于 Prefix Cache 缓存优化、项目架构职责、数据库设计以及源码模块剖析等底层技术细节，请直接查阅：[TECHNICAL.md](TECHNICAL.md)。
 
@@ -120,7 +120,7 @@ Mobile-Tavern
 ├── server.ts                             # 本地 Express 流代理服务 (CORS 转发)
 ├── AGENTS.md                             # 默认必读的核心行为铁律与专项文档路由
 ├── TECHNICAL.md                          # 技术架构细节、项目源码架构树、缓存优化及源码剖析
-├── KNOWLEDGE.md                          # 项目知识库，包含用户操作指南、挂件雪团说明与常用解答
+├── knowledge.md                          # 项目知识库，包含用户操作指南、挂件雪团说明与常用解答
 ├── src-tauri                             # Tauri 原生容器构建模块 (Rust 侧，含本地落盘与 STS 遥测同步引擎)
 ├── cloud                                # 云端相关资源 (minimal-community / archive 等部署与归档)
 ├── tests                                # 自动化测试总目录 (vitest 套件 / e2e E2E / 自研 CJS 脚本 / stress 压测)

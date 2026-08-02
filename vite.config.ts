@@ -5,12 +5,21 @@ import {defineConfig} from 'vite';
 import { viteEnvironment } from './build/viteEnvironment';
 import packageJson from './package.json';
 
+/**
+ * 开发 / 测试环境 AES-GCM fallback 密钥（hex 编码，64 字符）。
+ * 仅经 Vite define 注入开发 / 测试构建；生产构建注入空字符串，
+ * 因此 JS bundle 中不包含此硬编码密钥。
+ */
+const AES_FALLBACK_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
 export default defineConfig(({ command }) => {
   const isProd = command === 'build';
   return {
     define: {
       __APP_VERSION__: JSON.stringify(packageJson.version),
       IS_MOBILE_NATIVE: viteEnvironment.isMobileNative,
+      // 生产构建注入空字符串，确保 AES fallback 密钥不进入 JS bundle。
+      __AES_FALLBACK_KEY__: JSON.stringify(isProd ? "" : AES_FALLBACK_KEY),
     },
     plugins: [react(), tailwindcss()],
     resolve: {

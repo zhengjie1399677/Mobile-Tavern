@@ -12,6 +12,8 @@ export interface CommunityCardSummary {
   lastDownloadedAt?: number | null;
   downloadCount: number;
   downloadUrl: string;
+  /** PNG 角色卡的封面缩略图地址（相对路径）；JSON 卡或缩略图生成失败时为 null。 */
+  thumbnailUrl?: string | null;
 }
 
 export interface CommunityComment {

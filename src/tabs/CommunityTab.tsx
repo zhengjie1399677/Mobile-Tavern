@@ -558,9 +558,10 @@ export default function CommunityTab() {
               <div className="relative aspect-[4/5] w-full overflow-hidden bg-gradient-to-br from-primary/10 via-violet-500/5 to-amber-500/5 border-b border-border/40 shrink-0">
                 {isPng ? (
                   <img
-                    src={buildCommunityUrl(card.downloadUrl)}
+                    src={buildCommunityUrl(card.thumbnailUrl || card.downloadUrl)}
                     alt={card.title}
                     loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
                   />
                 ) : (

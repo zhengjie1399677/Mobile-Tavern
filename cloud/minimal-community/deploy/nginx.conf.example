@@ -5,6 +5,9 @@
 # 修改后验证并重载：sudo nginx -t && sudo systemctl reload nginx
 #
 # 注意：本文件是示例，SSL 证书路径、域名按服务器实际情况填写。
+# 若服务器使用自建完整 http 配置（非发行版默认 nginx.conf），必须在 http 块
+# 引入 `include /etc/nginx/mime.types;`，否则角色卡 PNG 会以 text/plain 输出，
+# 配合 nosniff 后 WebView 会拒绝把封面当图片渲染，表现为"图片无法加载"。
 
 server {
     listen 443 ssl;
@@ -57,6 +60,24 @@ server {
         add_header X-Content-Type-Options nosniff always;
 
         # 文件不可变（文件名为 UUID），可长缓存
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # 角色卡封面缩略图：Nginx 直接映射磁盘目录，规则与 /cards/ 一致。
+    location /thumbnails/ {
+        alias /var/lib/mobile-tavern/uploads/thumbnails/;
+
+        set $mt_cors_origin "";
+        if ($http_origin ~ ^(https?://tauri\.localhost|tauri://localhost)$) {
+            set $mt_cors_origin $http_origin;
+        }
+        add_header Access-Control-Allow-Origin $mt_cors_origin always;
+        add_header Vary Origin always;
+
+        add_header X-Content-Type-Options nosniff always;
+
+        # 缩略图不可变（文件名与角色卡 ID 绑定），可长缓存
         expires 30d;
         add_header Cache-Control "public, immutable";
     }

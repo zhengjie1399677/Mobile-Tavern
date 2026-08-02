@@ -16,9 +16,11 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 mod card_hash;
 mod cards;
+mod backfill;
 mod comments;
 mod config;
 mod database;
+mod thumbnails;
 mod upload_guard;
 
 use config::AppConfig;
@@ -41,6 +43,10 @@ async fn main() -> anyhow::Result<()> {
     let config = AppConfig::from_env()?;
     config.ensure_directories()?;
     database::initialize(&config.database_path())?;
+
+    if std::env::args().any(|argument| argument == "backfill-thumbnails") {
+        return backfill::run(&config);
+    }
 
     let upload_guard = UploadGuard::new(
         &config.cards_dir(),

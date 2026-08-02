@@ -16,14 +16,12 @@ export const TRIAL_KEY_SENTINEL = "TRIAL_KEY_PLACEHOLDER";
  * 注意：此 key 仅用于解密云端下发的临时 trial key 密文，不用于用户数据加密。
  *
  * 安全策略：
- * - 生产构建（publicEnvironment.isDevelopment === false）直接抛错，硬编码 key 字符串
- *   虽然仍存在于源码，但运行时不可达，无法被 Tauri bundle 运行时调用。
+ * - 生产构建（publicEnvironment.isDevelopment === false）直接抛错，AES fallback 密钥
+ *   由 Vite 在生产构建时注入为空字符串，JS bundle 中不包含硬编码密钥。
  * - Tauri 客户端生产构建必须走 Rust 侧 decrypt_trial_key（src-tauri/src/secrets.rs）。
  * - 仅 dev server / Node.js 测试环境允许走 Web Crypto fallback。
  */
 const getAesKey = (): string => {
-  // 生产构建剥离硬编码 key：仅 dev / 测试环境允许走 Web Crypto fallback。
-  // Tauri 客户端生产构建必须走 Rust 侧 decrypt_trial_key，否则抛错。
   const isDevBuild = publicEnvironment.isDevelopment;
   const isNodeTestEnvironment = typeof window === "undefined";
   if (!isDevBuild && !isNodeTestEnvironment) {
@@ -32,8 +30,14 @@ const getAesKey = (): string => {
       "Tauri production builds must use Rust decrypt_trial_key."
     );
   }
-  const p = "0123456789abcdef";
-  return p + p + p + p;
+  const aesKey = typeof __AES_FALLBACK_KEY__ === "string" ? __AES_FALLBACK_KEY__ : "";
+  if (!aesKey) {
+    throw new Error(
+      "[KeyManager] AES key fallback is not bundled for this build. " +
+      "Tauri production builds must use Rust decrypt_trial_key."
+    );
+  }
+  return aesKey;
 };
 
 function hexToBytes(hex: string): Uint8Array {

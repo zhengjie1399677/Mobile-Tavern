@@ -6,6 +6,8 @@
 
 - 搜索与分页列出角色卡。
 - 上传 PNG 或 JSON 角色卡，单文件上限为 10 MB。
+- 上传 PNG 角色卡时自动生成最长边 256px 的 JPEG 封面缩略图（`/thumbnails/`），
+  列表封面只下载几十 KB 的缩略图，不再拉取完整角色卡。
 - 下载前记录下载者当前名称和本机 UUID，并累计下载次数。
 - 上传记录分享者当前名称和本机 UUID。
 - SQLite 使用 WAL 模式；角色卡文件与数据库均保存在 `DATA_DIR`。
@@ -61,6 +63,10 @@ cargo run -p mobile-tavern-community
 - `POST /api/admin/verify`：验证管理员密码。
 - `DELETE /api/cards/:id`：使用 `X-Admin-Token` 请求头删除角色卡。
 
+列表项额外返回 `thumbnailUrl`（PNG 卡为 `/thumbnails/<id>.jpg`，JSON 卡或缩略图
+生成失败时为 `null`）。缩略图功能上线前上传的旧 PNG 卡没有缩略图，客户端
+应回退使用 `downloadUrl` 显示封面。
+
 上传字段为 `title`、`description`、`uploaderName`、`uploaderUuid` 和 `card`。下载登记请求为：
 
 ```json
@@ -90,9 +96,9 @@ cargo run -p mobile-tavern-community
 
 创建专用系统用户并授予数据目录写权限后，可参考 `deploy/mobile-tavern-community.service` 注册为 systemd 服务。Nginx 将 `/api/` 代理到 `127.0.0.1:8080`，并将 `/cards/` 映射到角色卡目录，站点配置示例见 `deploy/nginx.conf.example`。
 
-`/cards/` 静态文件不经过 Rust 服务，必须在 Nginx 为其配置 `Access-Control-Allow-Origin` 响应头（示例配置已包含）；否则 App WebView 内 `fetch()` 下载会被浏览器拦截，表现为"封面能显示但下载失败"。PC 脚本不强制 CORS，无法暴露此问题。
+`/cards/` 与 `/thumbnails/` 静态文件不经过 Rust 服务，必须在 Nginx 为其配置 `Access-Control-Allow-Origin` 响应头（示例配置已包含）；否则 App WebView 内 `fetch()` 下载会被浏览器拦截，表现为"封面能显示但下载失败"。PC 脚本不强制 CORS，无法暴露此问题。更新 nginx 配置后执行 `sudo nginx -t && sudo systemctl reload nginx`。
 
-SQLite 数据库和 `cards/` 目录必须一起备份。更新程序前无需迁移独立数据库服务，但仍应先保留这两部分的快照。
+SQLite 数据库、`cards/` 与 `thumbnails/` 目录必须一起备份。更新程序前无需迁移独立数据库服务，但仍应先保留这些部分的快照。数据库首次启动会自动为 `cards` 表补充 `thumbnail_file_name` 列，旧数据无需手工迁移。
 
 ## 防滥用配置
 

@@ -71,6 +71,7 @@ pub fn initialize(path: &Path) -> rusqlite::Result<()> {
     connection.execute_batch(INITIAL_SCHEMA)?;
     ensure_column(&connection, "cards", "file_sha256", "TEXT")?;
     ensure_column(&connection, "cards", "content_sha256", "TEXT")?;
+    ensure_column(&connection, "cards", "thumbnail_file_name", "TEXT")?;
     connection.execute_batch(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_cards_file_sha256
          ON cards(file_sha256) WHERE file_sha256 IS NOT NULL;
@@ -196,6 +197,7 @@ mod tests {
             .unwrap();
         assert!(columns.contains(&"file_sha256".to_owned()));
         assert!(columns.contains(&"content_sha256".to_owned()));
+        assert!(columns.contains(&"thumbnail_file_name".to_owned()));
         let comments_table: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master
