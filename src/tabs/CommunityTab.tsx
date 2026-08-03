@@ -22,9 +22,12 @@ import {
 } from "../domain/community/api";
 import { buildCommunityUrl } from "../domain/community/config";
 import { getCommunityIdentity } from "../domain/community/identity";
-import { formatCommunityFileSize, formatCommunityTimestamp } from "../domain/community/presentation";
+import { formatCommunityTimestamp } from "../domain/community/presentation";
 import { generateCharacterPngBlob } from "../utils/characterPngExporter";
-import { parseCharacterFile } from "../utils/cardParser";
+import {
+  isCharacterCardFileSizeAllowed,
+  parseCharacterFile,
+} from "../utils/cardParser";
 import type { CharacterCard } from "../types";
 import { CommunityCardDetail } from "../components/community/CommunityCardDetail";
 
@@ -121,6 +124,10 @@ export default function CommunityTab() {
 
   const doUpload = async (blob: Blob, fileName: string, title: string) => {
     if (uploading) return;
+    if (!isCharacterCardFileSizeAllowed(blob.size)) {
+      await showCustomAlert("角色卡文件必须小于等于 20 MB");
+      return;
+    }
     setUploading(true);
     setUploadProgress(0);
     try {
@@ -194,6 +201,11 @@ export default function CommunityTab() {
     const ext = file.name.toLowerCase().split(".").pop();
     if (ext !== "png" && ext !== "json") {
       await showCustomAlert(t("community.invalid_file_format"));
+      return;
+    }
+    if (!isCharacterCardFileSizeAllowed(file.size)) {
+      await showCustomAlert("角色卡文件必须小于等于 20 MB");
+      event.target.value = "";
       return;
     }
     const title = file.name.replace(/\.(png|json)$/i, "");
@@ -295,40 +307,43 @@ export default function CommunityTab() {
   };
 
   return (
-    <div className="px-4 pb-4 pt-1.5 space-y-4">
-      {/* Header - 与其他标签页统一样式 */}
-      <div className="flex min-h-12 items-center justify-between border-b border-border pb-2">
-        <div>
-          <h1 className="flex items-center gap-1.5 text-base font-bold tracking-tight text-foreground">
-            <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-            {t("community.title")}
-          </h1>
-          <p className="mt-0.5 text-[10px] text-muted-foreground font-light">
-            {t("community.subtitle")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* 用户标识 */}
-          <div className="flex h-8 items-center gap-1 rounded-lg border border-primary/20 bg-background/65 px-2.5 text-[11px] text-primary shrink-0">
-            <UserRound className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate max-w-[80px] font-medium">{identity.name}</span>
+    <div className="space-y-4 px-4 pb-5 pt-2">
+      <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/12 via-card/90 to-violet-500/10 p-3.5 shadow-sm">
+        <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-primary/10 blur-2xl" />
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-inner">
+              <Sparkles className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-base font-bold tracking-tight text-foreground">
+                {t("community.title")}
+              </h1>
+              <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                {t("community.subtitle")}
+              </p>
+            </div>
           </div>
-          {/* 小入口分享按钮 */}
-          <button
-            type="button"
-            onClick={() => setUploadOpen(true)}
-            className="flex h-8 items-center gap-1 rounded-lg bg-primary/10 border border-primary/30 px-3 text-[11px] font-semibold text-primary shadow-sm hover:bg-primary/20 active:scale-95 transition-all shrink-0"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            <span>分享</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-border/70 bg-background/70 px-2.5 text-[11px] text-foreground shadow-sm backdrop-blur-sm">
+              <UserRound className="h-3.5 w-3.5 shrink-0" />
+              <span className="max-w-[48px] truncate font-medium">{identity.name}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUploadOpen(true)}
+              className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-primary px-3 text-[11px] font-semibold text-primary-foreground shadow-md shadow-primary/15 transition-all hover:opacity-90 active:scale-95"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              <span>分享</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 搜索栏 + 刷新 */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-card/70 p-1.5 shadow-sm backdrop-blur-sm">
         <div className="relative min-w-0 flex-1">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-primary/70" />
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -336,13 +351,13 @@ export default function CommunityTab() {
               if (event.key === "Enter") void loadCards(search);
             }}
             placeholder={t("community.search_placeholder")}
-            className="h-9 w-full rounded-lg border border-border bg-input pl-8 pr-3 text-xs text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+            className="h-9 w-full rounded-xl border-0 bg-transparent pl-8 pr-3 text-xs text-foreground outline-none placeholder:text-muted-foreground/70"
           />
         </div>
         <button
           type="button"
           onClick={() => void loadCards(search)}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-primary active:scale-95 transition"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/70 text-muted-foreground shadow-sm hover:text-primary active:scale-95 transition"
           aria-label={t("community.refresh")}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -534,7 +549,6 @@ export default function CommunityTab() {
         </div>
       )}
 
-      {/* 角色卡列表网格 - 统一为双列 */}
       <section className="grid grid-cols-2 gap-3.5">
         {!loading && cards.length === 0 && (
           <div className="col-span-2 rounded-2xl border border-dashed border-border py-12 text-center text-xs text-muted-foreground">
@@ -552,60 +566,52 @@ export default function CommunityTab() {
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") setDetailCard(card);
               }}
-              className="group overflow-hidden rounded-xl border border-border/60 bg-card/65 shadow-sm hover:border-primary/30 transition-all duration-300 spring-press-effect flex flex-col h-full"
+              className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-lg spring-press-effect"
             >
-              {/* 卡片封面区域 */}
-              <div className="relative aspect-[4/5] w-full overflow-hidden bg-gradient-to-br from-primary/10 via-violet-500/5 to-amber-500/5 border-b border-border/40 shrink-0">
+              <div
+                data-testid="community-card-cover"
+                className="relative aspect-[4/5] w-full shrink-0 overflow-hidden border-b border-border/35 bg-gradient-to-br from-primary/12 via-muted/35 to-violet-500/10 p-2.5"
+              >
                 {isPng ? (
                   <img
                     src={buildCommunityUrl(card.thumbnailUrl || card.downloadUrl)}
                     alt={card.title}
                     loading="lazy"
                     decoding="async"
-                    className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                    className="h-full w-full rounded-xl bg-background/35 object-contain shadow-inner"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center">
-                    <FileJson2 className="h-12 w-12 text-primary/30" aria-hidden="true" />
+                  <div className="flex h-full items-center justify-center rounded-xl border border-border/40 bg-background/35 shadow-inner">
+                    <FileJson2 className="h-12 w-12 text-primary/35" aria-hidden="true" />
                   </div>
                 )}
-                {/* 格式角标 */}
-                <div className="absolute top-2 left-2 flex items-center gap-1 text-[8px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-black/60 text-white border border-white/10 backdrop-blur-md">
+                <div className="absolute left-4 top-4 flex items-center gap-1 rounded-full border border-white/15 bg-black/55 px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide text-white backdrop-blur-md">
                   {isPng ? "PNG" : "JSON"}
                 </div>
-                
-                {/* 底部文字遮罩层 */}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-3 pt-6">
-                  <h2 className="text-xs font-bold text-white tracking-wide truncate drop-shadow-md">
-                    {card.title}
-                  </h2>
+                <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full border border-white/15 bg-black/55 px-2 py-0.5 text-[8px] font-semibold text-white backdrop-blur-md">
+                  <Download className="h-2.5 w-2.5" />
+                  {card.downloadCount}
                 </div>
               </div>
 
-              {/* 卡片内容主体 */}
-              <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-                <p className="line-clamp-2 text-[10px] leading-relaxed text-muted-foreground/80 min-h-[2.4rem] font-light">
+              <div className="flex flex-1 flex-col p-3">
+                <h2 className="truncate text-xs font-bold tracking-wide text-foreground">
+                  {card.title}
+                </h2>
+                <p className="mt-1.5 line-clamp-2 min-h-[2.4rem] text-[10px] leading-relaxed text-muted-foreground">
                   {card.description || t("community.no_description")}
                 </p>
 
-                {/* 底部作者与数据行 */}
-                <div className="space-y-1.5 border-t border-border/30 pt-2 text-[9px] text-muted-foreground/75">
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className="flex items-center gap-1 truncate font-medium text-foreground/90">
-                      <UserRound className="h-2.5 w-2.5 shrink-0 text-primary" />
-                      <span className="truncate max-w-[70px]">{card.uploaderName}</span>
+                <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-border/35 pt-2.5 text-[9px] text-muted-foreground">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-bold text-primary">
+                      {card.uploaderName.trim().charAt(0).toUpperCase() || "?"}
                     </span>
-                    <span className="shrink-0 flex items-center gap-0.5">
-                      <Download className="h-2.5 w-2.5 text-muted-foreground" />
-                      {card.downloadCount}
-                    </span>
+                    <span className="truncate font-medium text-foreground/85">{card.uploaderName}</span>
                   </div>
-
-                  <div className="flex items-center justify-between text-[8px] opacity-80">
-                    <span>
-                      {t("community.uploaded_at", { time: formatCommunityTimestamp(card.createdAt, language) })}
-                    </span>
-                  </div>
+                  <span className="shrink-0 text-[8px] opacity-80">
+                    {t("community.uploaded_at", { time: formatCommunityTimestamp(card.createdAt, language) })}
+                  </span>
                 </div>
               </div>
             </article>

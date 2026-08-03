@@ -173,6 +173,37 @@ export async function saveStoredSettings(
 ): Promise<void> {
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
+    const prepared = await prepareSettingsStorageRecords(settings, db);
+
+    return new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("settings", "readwrite");
+      const store = transaction.objectStore("settings");
+
+      const reqLarge = store.put(prepared.largePrompts, "user_settings_large_prompts");
+      reqLarge.onerror = () => reject(reqLarge.error);
+      // 不在 reqLarge.onsuccess 中触发 resolve：用 transaction.oncomplete 统一判定成功，
+      // 确保两次 put 都已 commit。嵌套 onsuccess 仅表示请求入队，不保证事务整体落盘。
+      const request = store.put(prepared.settings, "user_settings");
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
+      bindTransactionAbort(ctx, transaction, reject);
+    });
+  }, "settings:user_settings", signal);  // P1-11: 单一 settings 记录多次保存合并为一次落盘
+}
+
+export interface PreparedSettingsStorageRecords {
+  settings: UserSettings;
+  largePrompts: Record<string, unknown>;
+}
+
+/**
+ * 将内存设置转换为可直接写入 settings Store 的两条物理记录。
+ * 数据迁移仓库复用该入口，确保原子覆盖恢复仍执行 API Key 加密与大字段分轨。
+ */
+export async function prepareSettingsStorageRecords(
+  settings: UserSettings,
+  db: IDBDatabase,
+): Promise<PreparedSettingsStorageRecords> {
 
     // Perform shallow clone of root settings and shallow clone of API configurations
     // to prevent mutating the original settings objects in React memory state.
@@ -259,20 +290,7 @@ export async function saveStoredSettings(
     clonedSettings.replySuggestionsPrompt = "";
     clonedSettings.promptCompositionTemplates = [];
 
-    return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction("settings", "readwrite");
-      const store = transaction.objectStore("settings");
-
-      const reqLarge = store.put(largePrompts, "user_settings_large_prompts");
-      reqLarge.onerror = () => reject(reqLarge.error);
-      // 不在 reqLarge.onsuccess 中触发 resolve：用 transaction.oncomplete 统一判定成功，
-      // 确保两次 put 都已 commit。嵌套 onsuccess 仅表示请求入队，不保证事务整体落盘。
-      const request = store.put(clonedSettings, "user_settings");
-      request.onerror = () => reject(request.error);
-      transaction.oncomplete = () => resolve();
-      bindTransactionAbort(ctx, transaction, reject);
-    });
-  }, "settings:user_settings", signal);  // P1-11: 单一 settings 记录多次保存合并为一次落盘
+  return { settings: clonedSettings, largePrompts };
 }
 
 export async function getStoredSavedPresets(): Promise<SavedPresetBundle[] | null> {

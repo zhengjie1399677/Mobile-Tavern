@@ -16,8 +16,8 @@ server {
     # ssl_certificate     /path/to/fullchain.pem;
     # ssl_certificate_key /path/to/privkey.pem;
 
-    # 角色卡单文件上限 10MB，加上 multipart 开销
-    client_max_body_size 11m;
+    # 角色卡单文件上限 20MB，加上 multipart 开销
+    client_max_body_size 21m;
 
     # API 反向代理到 Rust 服务。
     # 跨域响应头由服务的 CorsLayer 统一处理，Nginx 不需要（也不要）重复加。

@@ -80,10 +80,13 @@ describe("角色卡社区页面", () => {
     expect(cards).toHaveLength(2);
     expect(cards[0]).not.toHaveClass("col-span-2");
     expect(cards[1]).not.toHaveClass("col-span-2");
-    expect(cards[0].querySelector("img")).toHaveAttribute(
+    const coverImage = cards[0].querySelector("img");
+    expect(coverImage).toHaveAttribute(
       "src",
       "https://community.neural-node.xyz/thumbnails/featured.jpg",
     );
+    expect(coverImage).toHaveClass("object-contain");
+    expect(coverImage).not.toHaveClass("object-cover");
   });
 
   it("PNG 角色卡无缩略图时回退到完整角色卡地址", async () => {
@@ -110,6 +113,7 @@ describe("角色卡社区页面", () => {
       "src",
       "https://community.neural-node.xyz/cards/legacy.png",
     );
+    expect(image).toHaveClass("object-contain");
   });
 
   it("点击角色卡后打开详情并加载纯文字评论", async () => {
@@ -119,5 +123,13 @@ describe("角色卡社区页面", () => {
     expect(await screen.findByText("很有表现力的角色卡")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("写下对这张角色卡的看法……")).toBeInTheDocument();
     expect(screen.getByText("0/100 · 每小时最多 6 条")).toBeInTheDocument();
+    const detailCover = screen.getByTestId("community-detail-cover");
+    const detailImage = detailCover.querySelector("img");
+    expect(detailImage).toHaveAttribute(
+      "src",
+      "https://community.neural-node.xyz/thumbnails/featured.jpg",
+    );
+    expect(detailImage).toHaveClass("object-contain");
+    expect(detailImage).not.toHaveClass("object-cover");
   });
 });

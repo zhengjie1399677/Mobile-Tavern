@@ -52,6 +52,7 @@
 
 | 五十人以内最小角色卡社区上传下载与匿名署名 | 已落地 | 2026 年 7 月变更记录与 `cloud/minimal-community/README.md` |
 | `FormattedText`、`SystemReportSection` 与 `MessageBubble` 职责拆分 | 已落地 | 2026 年 7 月变更记录与组件边界回归测试 |
+| 统一备份 v4、聊天导入持久化与原子覆盖恢复 | 已落地 | 2026 年 8 月变更记录与数据迁移回归测试 |
 
 ## 维护规则
 
