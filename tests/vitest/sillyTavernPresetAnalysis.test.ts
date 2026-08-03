@@ -75,6 +75,20 @@ describe("SillyTavern 预设兼容分析", () => {
     ]));
   });
 
+  it("统计对象映射和顶层正则集合", () => {
+    const analysis = analyzeSillyTavernPreset({
+      prompts: [{ identifier: "main", content: "MAIN" }],
+      prompt_order: [{ character_id: 100001, order: [{ identifier: "main", enabled: true }] }],
+      regex_scripts: {
+        first: { scriptName: "A", findRegex: "/a/g" },
+        second: { scriptName: "B", findRegex: "/b/g" },
+      },
+    });
+
+    expect(analysis.level).toBe("full");
+    expect(analysis.regexCount).toBe(2);
+  });
+
   describe("社区主流形状回归矩阵", () => {
     it.each(SILLY_TAVERN_PRESET_ARCHETYPES)(
       "$id：$description",

@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ChangeEvent } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import type { SavedPresetBundle, UserSettings } from "../../src/types";
 
@@ -21,6 +21,9 @@ vi.mock("../../src/contexts/KernelContext", () => ({
 import { usePresetBundles } from "../../src/hooks/settings/usePresetBundles";
 
 describe("usePresetBundles 预设导入", () => {
+  afterEach(() => {
+    delete (window as unknown as { AndroidThemeBridge?: unknown }).AndroidThemeBridge;
+  });
   beforeEach(() => {
     mocks.saveStoredSavedPresets.mockClear();
     mocks.getStoredSavedPresets.mockClear();
@@ -243,5 +246,73 @@ describe("usePresetBundles 预设导入", () => {
     expect(latestSettings.promptConfig.composition?.blocks.map(
       (block) => block.compatibility?.originalIdentifier,
     ).slice(0, 3)).toEqual(["chatHistory", "main", "optional"]);
+  });
+
+  it("正式导出入口使用自由编排顺序并剥离外部脚本", () => {
+    const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
+    initial.promptConfig.usePromptComposition = true;
+    initial.promptConfig.composition = {
+      id: "export-composition",
+      name: "导出编排",
+      version: 1,
+      blocks: [
+        {
+          id: "main",
+          name: "Main",
+          enabled: true,
+          role: "system",
+          source: { type: "template" },
+          template: "MAIN",
+          order: 10,
+          placement: { type: "ordered" },
+          compatibility: { source: "sillytavern", originalIdentifier: "main" },
+        },
+        {
+          id: "tail",
+          name: "Tail",
+          enabled: true,
+          role: "system",
+          source: { type: "template" },
+          template: "TAIL",
+          order: 20,
+          placement: { type: "in_chat", depth: 1, order: 5 },
+          compatibility: { source: "sillytavern", originalIdentifier: "tail" },
+        },
+      ],
+      compatibility: {
+        source: "sillytavern",
+        preservedRootFields: {
+          extensions: {
+            tavern_helper: { scripts: [{ content: "REMOTE_SCRIPT" }] },
+          },
+        },
+      },
+    };
+    const saveFile = vi.fn<(fileName: string, content: string) => string>(
+      () => "C:\\Download\\preset.json",
+    );
+    (window as unknown as {
+      AndroidThemeBridge?: { saveFile: (fileName: string, content: string) => string };
+    }).AndroidThemeBridge = { saveFile };
+    const { result } = renderHook(() => usePresetBundles({
+      settings: initial,
+      updateSettings: vi.fn(),
+      showCustomAlert: vi.fn(async () => undefined),
+      showCustomPrompt: vi.fn(async () => null),
+      showCustomConfirm: vi.fn(async () => true),
+    }));
+
+    act(() => result.current.handleExportPresetJSON());
+
+    expect(saveFile).toHaveBeenCalledTimes(1);
+    const exported = JSON.parse(saveFile.mock.calls[0][1]) as {
+      prompt_order: Array<{ order: Array<{ identifier: string }> }>;
+      prompts: Array<Record<string, unknown>>;
+      extensions: Record<string, unknown>;
+    };
+    expect(exported.prompt_order[0].order.map((entry) => entry.identifier)).toEqual(["main", "tail"]);
+    expect(exported.prompts[1]).toMatchObject({ injection_position: 1, injection_depth: 1 });
+    expect(JSON.stringify(exported.extensions)).not.toContain("REMOTE_SCRIPT");
+    expect(JSON.stringify(exported.extensions)).not.toContain("tavern_helper");
   });
 });
