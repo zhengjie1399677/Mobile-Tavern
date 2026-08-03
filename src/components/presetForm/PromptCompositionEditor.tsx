@@ -11,6 +11,8 @@ import {
   HelpCircle,
   LoaderCircle,
   MessageSquarePlus,
+  CheckSquare2,
+  Square,
   RotateCw,
   RotateCcw,
   Trash2,
@@ -41,6 +43,15 @@ import PromptCompositionBudgetSettings from "./PromptCompositionBudgetSettings";
 import { PROMPT_DATA_SOURCE_KEYS } from "./promptDataSources";
 import PromptCompositionTemplateManager from "./PromptCompositionTemplateManager";
 import PromptSceneProfileManager from "./PromptSceneProfileManager";
+import PromptBlockListToolbar from "./PromptBlockListToolbar";
+import {
+  buildPromptBlockListGroups,
+  estimatePromptBlockTokens,
+  patchSelectedBlockStates,
+  removePromptBlocks,
+  type PromptBlockGroupMode,
+  type PromptBlockSortMode,
+} from "./promptBlockListTools";
 import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
 import { PromptComposerButton, PromptComposerInput } from "./PromptComposerControls";
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -81,6 +92,10 @@ export default function PromptCompositionEditor({
   const [dragTargetId, setDragTargetId] = useState<string>();
   const [draggingId, setDraggingId] = useState<string>();
   const [dragAnnouncement, setDragAnnouncement] = useState("");
+  const [blockQuery, setBlockQuery] = useState("");
+  const [blockGroupMode, setBlockGroupMode] = useState<PromptBlockGroupMode>("none");
+  const [blockSortMode, setBlockSortMode] = useState<PromptBlockSortMode>("order");
+  const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(() => new Set());
   const isWideWorkbench = useWidePromptWorkbench();
   const promptFocus = usePromptWorkbenchFocus();
   const orientationControl = useAndroidOrientationControl({
@@ -101,6 +116,26 @@ export default function PromptCompositionEditor({
     () => validatePromptComposition(composition, { availableDataKeys: PROMPT_DATA_SOURCE_KEYS }),
     [composition]
   );
+  const tokenByBlockId = useMemo(
+    () => {
+      const traced = new Map((preview?.traces ?? []).map((trace) => [trace.blockId, trace.estimatedTokens]));
+      return new Map(composition.blocks.map((block) => [
+        block.id,
+        traced.get(block.id) ?? estimatePromptBlockTokens(block),
+      ]));
+    },
+    [composition.blocks, preview?.traces],
+  );
+  const blockGroups = useMemo(() => buildPromptBlockListGroups({
+    blocks: composition.blocks,
+    query: blockQuery,
+    groupMode: blockGroupMode,
+    sortMode: blockSortMode,
+    tokenByBlockId,
+  }), [blockGroupMode, blockQuery, blockSortMode, composition.blocks, tokenByBlockId]);
+  const visibleBlockItems = blockGroups.flatMap((group) => group.items);
+  const visibleBlockIds = visibleBlockItems.map((item) => item.block.id);
+  const visibleTokens = visibleBlockItems.reduce((total, item) => total + item.estimatedTokens, 0);
 
   const persistComposition = (next: PromptComposition) => {
     updateSettings((previous) => ({
@@ -150,6 +185,17 @@ export default function PromptCompositionEditor({
     }, `block:${id}`);
   };
 
+  const batchSetEnabled = (enabled: boolean) => {
+    updateComposition(patchSelectedBlockStates(composition, selectedBlockIds, enabled), `batch:${enabled ? "enable" : "disable"}`);
+  };
+
+  const batchDelete = async () => {
+    if (selectedBlockIds.size === 0 || !await showCustomConfirm(t("prompt_composer.batch_delete_confirm", { count: String(selectedBlockIds.size) }))) return;
+    updateComposition(removePromptBlocks(composition, selectedBlockIds), "batch:delete");
+    setSelectedBlockIds(new Set());
+    if (editingBlockId && selectedBlockIds.has(editingBlockId)) setEditingBlockId(undefined);
+  };
+
   const addBlock = (sourceType: "template" | "chat_history") => {
     const order = composition.blocks.length === 0
       ? 100
@@ -193,9 +239,22 @@ export default function PromptCompositionEditor({
 
   const deleteBlock = async (id: string) => {
     if (!await showCustomConfirm(t("prompt_composer.confirm_delete"))) return;
-    updateComposition({ ...composition, blocks: composition.blocks.filter((block) => block.id !== id) });
+    updateComposition(removePromptBlocks(composition, new Set([id])));
+    setSelectedBlockIds((previous) => {
+      const next = new Set(previous);
+      next.delete(id);
+      return next;
+    });
     if (editingBlockId === id) setEditingBlockId(undefined);
   };
+
+  useEffect(() => {
+    const currentIds = new Set(composition.blocks.map((block) => block.id));
+    setSelectedBlockIds((previous) => {
+      const next = new Set([...previous].filter((id) => currentIds.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [composition.blocks]);
 
   const duplicateBlock = (id: string) => {
     const sourceIndex = composition.blocks.findIndex((block) => block.id === id);
@@ -408,6 +467,23 @@ export default function PromptCompositionEditor({
                 onChange={(next) => updateComposition(next, "scene-profiles")}
               />
 
+              <PromptBlockListToolbar
+                query={blockQuery}
+                onQueryChange={setBlockQuery}
+                groupMode={blockGroupMode}
+                onGroupModeChange={setBlockGroupMode}
+                sortMode={blockSortMode}
+                onSortModeChange={setBlockSortMode}
+                visibleCount={visibleBlockItems.length}
+                totalCount={composition.blocks.length}
+                visibleTokens={visibleTokens}
+                selectedCount={selectedBlockIds.size}
+                onSelectVisible={() => setSelectedBlockIds(new Set(visibleBlockIds))}
+                onClearSelection={() => setSelectedBlockIds(new Set())}
+                onSetEnabled={batchSetEnabled}
+                onDelete={() => void batchDelete()}
+              />
+
               {validationDiagnostics.length > 0 && (
                 <section className="space-y-1.5 rounded-xl border border-destructive/30 bg-destructive/5 p-3" aria-live="polite">
                   <div className="flex items-center gap-2 text-xs font-bold text-destructive">
@@ -433,26 +509,55 @@ export default function PromptCompositionEditor({
               {t("prompt_composer.empty_send_warning")}
             </div>
               ) : (
-            <div ref={blockListRef} className="space-y-2">
-              {composition.blocks.map((block, index) => {
+            <div ref={blockListRef} className="space-y-3">
+              {visibleBlockItems.length === 0 && (
+                <div className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">
+                  {t("prompt_composer.list_empty")}
+                </div>
+              )}
+              {blockGroups.map((group) => (
+                <section key={group.key} className="space-y-2">
+                  {blockGroupMode !== "none" && (
+                    <header className="flex items-center gap-2 px-1 text-[10px] font-bold text-muted-foreground">
+                      <span>{describeBlockGroup(group.key, t)}</span>
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[9px]">{group.items.length}</span>
+                    </header>
+                  )}
+              {group.items.map(({ block, index, estimatedTokens }) => {
                 const blockDiagnosticCount = validationDiagnostics.filter((diagnostic) => diagnostic.blockId === block.id).length;
+                const selected = selectedBlockIds.has(block.id);
                 return (
                 <article
                   key={`${block.id}-${index}`}
                   data-prompt-block-id={block.id}
-                  className={`relative grid min-h-[76px] grid-cols-[36px_minmax(0,1fr)_40px] overflow-hidden rounded-xl border bg-background transition duration-150 ${dragTargetId === block.id && draggingId !== block.id ? "border-primary ring-2 ring-primary/20 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary" : blockDiagnosticCount > 0 ? "border-destructive/60" : "border-border"} ${draggingId === block.id ? "scale-[0.985] opacity-65 shadow-lg" : block.enabled ? "" : "opacity-55"}`}
+                  className={`relative grid min-h-[76px] grid-cols-[36px_32px_minmax(0,1fr)_40px] overflow-hidden rounded-xl border bg-background transition duration-150 ${selected ? "border-primary/70 ring-1 ring-primary/20" : dragTargetId === block.id && draggingId !== block.id ? "border-primary ring-2 ring-primary/20 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary" : blockDiagnosticCount > 0 ? "border-destructive/60" : "border-border"} ${draggingId === block.id ? "scale-[0.985] opacity-65 shadow-lg" : block.enabled ? "" : "opacity-55"}`}
                 >
                   <PromptComposerButton
                     type="button"
                     aria-label={t("prompt_composer.drag_block", { name: block.name })}
-                    onPointerDown={(event) => handleDragStart(event, block.id)}
+                    onPointerDown={(event) => blockSortMode === "order" && handleDragStart(event, block.id)}
                     onPointerMove={(event) => updateDragTarget(event.pointerId, event.clientY)}
                     onPointerUp={(event) => finishDrag(event.pointerId, true)}
                     onPointerCancel={(event) => finishDrag(event.pointerId, false)}
                     variant="ghost"
+                    disabled={blockSortMode !== "order"}
                     className="h-full min-h-0 w-9 touch-none rounded-none border-0 border-r border-border px-0 text-muted-foreground shadow-none active:bg-muted"
                   >
                     <GripVertical className="h-4 w-4" />
+                  </PromptComposerButton>
+
+                  <PromptComposerButton
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setSelectedBlockIds((previous) => {
+                      const next = new Set(previous);
+                      if (next.has(block.id)) next.delete(block.id); else next.add(block.id);
+                      return next;
+                    })}
+                    aria-label={t(selected ? "prompt_composer.unselect_block" : "prompt_composer.select_block", { name: block.name })}
+                    className="h-full min-h-0 w-8 rounded-none border-0 border-r border-border px-0 text-muted-foreground shadow-none"
+                  >
+                    {selected ? <CheckSquare2 className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
                   </PromptComposerButton>
 
                   <PromptComposerButton
@@ -473,19 +578,22 @@ export default function PromptCompositionEditor({
                       <span className="max-w-[48%] min-w-0 truncate rounded bg-muted px-1.5 py-0.5">{describePlacement(block, composition, t)}</span>
                       {(block.condition || block.tokenPolicy) && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">{t("prompt_composer.advanced_active")}</span>}
                       {block.compatibility && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-700 dark:text-sky-300">{block.compatibility.source}</span>}
+                      <span className="rounded bg-violet-500/15 px-1.5 py-0.5 font-mono text-violet-700 dark:text-violet-300">{estimatedTokens} T</span>
                       {blockDiagnosticCount > 0 && <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-bold text-destructive">{t("prompt_composer.validation_badge", { count: String(blockDiagnosticCount) })}</span>}
                       </div>
                     </div>
                   </PromptComposerButton>
 
                   <div className="flex w-10 shrink-0 flex-col border-l border-border">
-                    <PromptComposerButton variant="ghost" size="icon-xs" disabled={index === 0} onClick={() => moveBlock(index, -1)} aria-label={t("prompt_composer.move_up")} className="h-auto min-h-0 flex-1 rounded-none border-0 shadow-none disabled:opacity-20"><ArrowUp className="h-3 w-3" /></PromptComposerButton>
-                    <PromptComposerButton variant="ghost" size="icon-xs" disabled={index === composition.blocks.length - 1} onClick={() => moveBlock(index, 1)} aria-label={t("prompt_composer.move_down")} className="h-auto min-h-0 flex-1 rounded-none border-x-0 border-y border-border shadow-none disabled:opacity-20"><ArrowDown className="h-3 w-3" /></PromptComposerButton>
+                    <PromptComposerButton variant="ghost" size="icon-xs" disabled={blockSortMode !== "order" || index === 0} onClick={() => moveBlock(index, -1)} aria-label={t("prompt_composer.move_up")} className="h-auto min-h-0 flex-1 rounded-none border-0 shadow-none disabled:opacity-20"><ArrowUp className="h-3 w-3" /></PromptComposerButton>
+                    <PromptComposerButton variant="ghost" size="icon-xs" disabled={blockSortMode !== "order" || index === composition.blocks.length - 1} onClick={() => moveBlock(index, 1)} aria-label={t("prompt_composer.move_down")} className="h-auto min-h-0 flex-1 rounded-none border-x-0 border-y border-border shadow-none disabled:opacity-20"><ArrowDown className="h-3 w-3" /></PromptComposerButton>
                     <PromptComposerButton variant="ghost" size="icon-xs" onClick={() => deleteBlock(block.id)} aria-label={t("prompt_composer.delete_block")} className="h-auto min-h-0 flex-1 rounded-none border-0 text-destructive shadow-none hover:bg-destructive/10"><Trash2 className="h-3 w-3" /></PromptComposerButton>
                   </div>
                 </article>
                 );
               })}
+                </section>
+              ))}
             </div>
               )}
 
@@ -650,6 +758,20 @@ function RoleBadge({ role }: { role: string }) {
         ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
         : "bg-sky-500/15 text-sky-600 dark:text-sky-300";
   return <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold ${classes}`}>{role.toUpperCase()}</span>;
+}
+
+function describeBlockGroup(key: string, t: (key: string, params?: Record<string, string>) => string): string {
+  const translationKey = {
+    system: "prompt_composer.group_label_system",
+    user: "prompt_composer.group_label_user",
+    assistant: "prompt_composer.group_label_assistant",
+    history: "prompt_composer.group_label_history",
+    template: "prompt_composer.group_label_template",
+    chat_history: "prompt_composer.group_label_history",
+    ordered: "prompt_composer.group_label_ordered",
+    in_chat: "prompt_composer.group_label_in_chat",
+  }[key];
+  return translationKey ? t(translationKey) : key;
 }
 
 function describeSource(block: PromptBlock, t: (key: string, params?: Record<string, string>) => string): string {

@@ -151,11 +151,11 @@ describe("PromptCompositionEditor", () => {
     expect(document.querySelector("select")).not.toBeInTheDocument();
   });
 
-  it("区块卡片使用固定三栏布局隔离正文与排序操作", () => {
+  it("区块卡片使用固定四栏布局隔离拖拽、选择、正文与排序操作", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
     const editButton = screen.getByRole("button", { name: "编辑区块：唯一消息" });
-    expect(editButton.closest("article")).toHaveClass("grid", "grid-cols-[36px_minmax(0,1fr)_40px]", "overflow-hidden");
+    expect(editButton.closest("article")).toHaveClass("grid", "grid-cols-[36px_32px_minmax(0,1fr)_40px]", "overflow-hidden");
     expect(editButton).toHaveClass("min-w-0", "overflow-hidden");
   });
 

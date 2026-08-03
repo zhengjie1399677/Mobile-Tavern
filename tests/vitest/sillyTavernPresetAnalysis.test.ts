@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { analyzeSillyTavernPreset } from "../../src/infrastructure/compat/sillytavern";
+import {
+  analyzeSillyTavernPreset,
+  importSillyTavernPreset,
+} from "../../src/infrastructure/compat/sillytavern";
+import { SILLY_TAVERN_PRESET_ARCHETYPES } from "../fixtures/sillyTavernPresetArchetypes";
 
 describe("SillyTavern 预设兼容分析", () => {
   it("将标准 Prompt 编排判定为完整兼容", () => {
@@ -69,5 +73,57 @@ describe("SillyTavern 预设兼容分析", () => {
       "UNSUPPORTED_ATTACHMENT_PROMPTS",
       "UNSUPPORTED_AGENT_MARKERS",
     ]));
+  });
+
+  describe("社区主流形状回归矩阵", () => {
+    it.each(SILLY_TAVERN_PRESET_ARCHETYPES)(
+      "$id：$description",
+      ({ preset, expected }) => {
+        const analysis = analyzeSillyTavernPreset(preset);
+
+        expect(analysis).toMatchObject({
+          level: expected.level,
+          promptCount: expected.promptCount,
+          enabledPromptCount: expected.enabledPromptCount,
+          regexCount: expected.regexCount,
+        });
+        expect(analysis.diagnostics).toEqual(expect.arrayContaining(expected.diagnostics));
+        if (expected.diagnostics.length === 0) {
+          expect(analysis.diagnostics).toEqual([]);
+        }
+      },
+    );
+
+    it.each(SILLY_TAVERN_PRESET_ARCHETYPES)(
+      "$id：导入结果保留 Prompt 顺序，但不会把扩展脚本混入 Prompt",
+      ({ preset, expected }) => {
+        const result = importSillyTavernPreset(preset);
+        const importedIdentifiers = result.composition.blocks.map(
+          (block) => block.compatibility?.originalIdentifier,
+        );
+        const sourceOrder = (
+          (preset.prompt_order as Array<{ order: Array<{ identifier: string }> }>)[0]?.order ?? []
+        ).map((entry) => entry.identifier);
+
+        expect(importedIdentifiers).toEqual(sourceOrder);
+        expect(result.composition.blocks).toHaveLength(expected.promptCount);
+        expect(result.composition.blocks.filter((block) => block.enabled)).toHaveLength(
+          expected.importedEnabledPromptCount ?? expected.enabledPromptCount,
+        );
+        expect(result.composition.blocks.every(
+          (block) => !block.template.includes("frontend-runtime.js"),
+        )).toBe(true);
+      },
+    );
+
+    it("通用轻量旧版和新版保持同一完整兼容等级", () => {
+      const universalSamples = SILLY_TAVERN_PRESET_ARCHETYPES.filter(
+        (fixture) => fixture.id.startsWith("universal-light-"),
+      );
+
+      expect(universalSamples).toHaveLength(2);
+      expect(universalSamples.map((fixture) => analyzeSillyTavernPreset(fixture.preset).level))
+        .toEqual(["full", "full"]);
+    });
   });
 });
