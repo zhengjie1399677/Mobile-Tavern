@@ -40,6 +40,7 @@ import { usePromptCompositionHistory } from "./usePromptCompositionHistory";
 import PromptCompositionBudgetSettings from "./PromptCompositionBudgetSettings";
 import { PROMPT_DATA_SOURCE_KEYS } from "./promptDataSources";
 import PromptCompositionTemplateManager from "./PromptCompositionTemplateManager";
+import PromptSceneProfileManager from "./PromptSceneProfileManager";
 import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
 import { PromptComposerButton, PromptComposerInput } from "./PromptComposerControls";
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -400,6 +401,11 @@ export default function PromptCompositionEditor({
                 composition={composition}
                 preview={preview}
                 onChange={(next) => updateComposition(next, "token-budget")}
+              />
+
+              <PromptSceneProfileManager
+                composition={composition}
+                onChange={(next) => updateComposition(next, "scene-profiles")}
               />
 
               {validationDiagnostics.length > 0 && (

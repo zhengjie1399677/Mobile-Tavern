@@ -1,6 +1,6 @@
 import { IPromptService, IKernel, IKernelService, KernelServices } from "../serviceContracts";
 import { CharacterCard, ChatSession, UserSettings, LorebookEntry, Message, TableMemorySheet } from "../../types";
-import { DEFAULT_REPLY_SUGGESTIONS_PROMPT } from "../../defaults/suggestionsPrompt";
+import { DEFAULT_REPLY_CHOICES_EXAMPLE, DEFAULT_REPLY_SUGGESTIONS_PROMPT } from "../../defaults/suggestionsPrompt";
 import {
   DEFAULT_REASONING_GUIDANCE_PROMPT,
   DEFAULT_TABLE_MEMORY_PROMPT,
@@ -20,21 +20,13 @@ import {
   formatTableMemoryColumnConstraint,
   getTableMemoryColumnDefinitions,
 } from "../../domain/memory/tableMemorySchema";
-import { compilePromptComposition } from "../../domain/prompt-composition";
+import { applyPromptSceneProfile, compilePromptComposition } from "../../domain/prompt-composition";
 import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
 import type { PromptAssemblyResult } from "./prompt/PromptAssemblyResult";
+import { buildPromptRequestMessages, shapePromptRequest } from "./prompt/PromptRequestShaper";
+import { checkPromptAssemblyAborted, createLorebookSessionContext } from "./prompt/PromptAssemblySupport";
 import { Logger } from "../../utils/logger";
 const logger = Logger.create("PromptService");
-
-function checkAborted(...signals: Array<AbortSignal | undefined>): void {
-  if (!signals.some((signal) => signal?.aborted)) return;
-  if (typeof DOMException !== "undefined") {
-    throw new DOMException("Prompt assembly was aborted", "AbortError");
-  }
-  const error = new Error("Prompt assembly was aborted");
-  error.name = "AbortError";
-  throw error;
-}
 
 /**
  * 提示词编译与组装服务
@@ -144,7 +136,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
   }): PromptAssemblyResult {
     const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [], signal, traceId } = params;
     const log = traceId ? logger.withTrace(traceId) : logger;
-    checkAborted(signal, this.abortController?.signal);
+    checkPromptAssemblyAborted(signal, this.abortController?.signal);
     const operationSignal = signal ?? this.abortController?.signal;
 
     const macroParams = {
@@ -206,21 +198,24 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         : budgetConfig?.mode === "custom"
           ? budgetConfig.maxTokens
           : modelPromptBudget;
-      const compiled = compilePromptComposition(composition, runtime, {
+      const sceneResolution = applyPromptSceneProfile(composition, chat.activePromptSceneProfileId);
+      const compiled = compilePromptComposition(sceneResolution.composition, runtime, {
         tokenBudget,
         estimateTokens: (text) => this.estimateTokens(text),
       });
+      compiled.diagnostics.unshift(...sceneResolution.diagnostics);
       compiled.diagnostics.forEach((diagnostic) => {
         log.warn(`[PromptComposition:${diagnostic.code}] ${diagnostic.message}`);
       });
-      const systemInstruction = compiled.messages
+      const shaped = shapePromptRequest(compiled.messages, settings.promptConfig.requestShaping);
+      const systemInstruction = shaped.messages
         .filter((message) => message.role === "system")
         .map((message) => message.content)
         .join("\n\n");
       return {
         systemInstruction,
         dynamicInstruction: "",
-        history: compiled.messages.flatMap((message) => {
+        history: shaped.messages.flatMap((message) => {
           if (message.role === "system") return [];
           const role: "user" | "assistant" | "model" =
             message.role === "assistant" && settings.api.type !== "openai-compat"
@@ -229,10 +224,12 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
           return [{ role, name: message.name, content: message.content }];
         }),
         userInput,
-        messages: compiled.messages,
+        messages: shaped.messages,
         diagnostics: compiled.diagnostics,
         traces: compiled.traces,
         budget: compiled.budget,
+        stopSequences: shaped.stopSequences,
+        requestShaping: shaped.report,
       };
     }
 
@@ -384,11 +381,19 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         finalSystem += `\n\n${settings.replySuggestionsPrompt || DEFAULT_REPLY_SUGGESTIONS_PROMPT}`;
       }
 
+      const systemInstruction = (finalSystem + reasoningGuidance).trim();
+      const shaped = shapePromptRequest(
+        buildPromptRequestMessages(systemInstruction, chatHistory, settings.api.sendNames),
+        settings.promptConfig.requestShaping,
+      );
       return {
-        systemInstruction: (finalSystem + reasoningGuidance).trim(),
+        systemInstruction,
         dynamicInstruction: "",
         history: chatHistory,
         userInput,
+        messages: shaped.messages,
+        stopSequences: shaped.stopSequences,
+        requestShaping: shaped.report,
       };
     }
 
@@ -795,7 +800,7 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
     let outputExampleContent = "";
     outputExampleContent += "<center>\n用户看见的消息输出到这里。\n</center>\n";
     if (settings.enableReplySuggestions) {
-      outputExampleContent += "\n<suggestions>\n[\"选项A\", \"选项B\", \"选项C\", \"选项D\"]\n</suggestions>\n";
+      outputExampleContent += `\n<suggestions>\n${DEFAULT_REPLY_CHOICES_EXAMPLE}\n</suggestions>\n`;
     }
     if (settings.memory?.enableRecall !== false) {
       outputExampleContent += `\n<memory_extraction>
@@ -864,7 +869,7 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
     const safeLimit = settings.api?.contextLimit || caps.contextWindow || 200000;
 
     while (currentTurns > 0) {
-      checkAborted(operationSignal);
+      checkPromptAssemblyAborted(operationSignal);
       const firstMsg = validChatMessages[0];
       const isFirstMsgGreeting = firstMsg && firstMsg.sender === "assistant";
 
@@ -918,7 +923,7 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
           // 确保历史纪录第一项与输出规范完全对齐
           if (idx === 0) {
             if (settings.enableReplySuggestions && !content.includes("<suggestions>")) {
-              content += `\n\n<suggestions>\n["继续推进剧情", "观察周围环境", "询问更多信息", "保持沉思"]\n</suggestions>`;
+              content += `\n\n<suggestions>\n${DEFAULT_REPLY_CHOICES_EXAMPLE}\n</suggestions>`;
             }
             if (settings.memory?.enableRecall !== false && !content.includes("<memory_extraction>")) {
               content += `\n\n<memory_extraction>\n{\n  "entities": [],\n  "events": [],\n  "relations": []\n}\n</memory_extraction>`;
@@ -962,38 +967,19 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
       currentTurns--;
     }
 
-    const finalMessages = [
-      {
-        role: "system" as const,
-        content: compiledSystemPrompt,
-      },
-      ...chatHistory.map((h): { role: "system" | "user" | "assistant"; content: string; name?: string } => {
-        const msgObj: { role: "system" | "user" | "assistant"; content: string; name?: string } = {
-          role: h.role === "model" ? "assistant" : h.role,
-          content: h.content,
-        };
-        if (settings.api.sendNames && h.name) msgObj.name = h.name;
-        return msgObj;
-      }),
-    ];
-
+    const shaped = shapePromptRequest(
+      buildPromptRequestMessages(compiledSystemPrompt, chatHistory, settings.api.sendNames),
+      settings.promptConfig.requestShaping,
+    );
     return {
       systemInstruction: compiledSystemPrompt,
       dynamicInstruction: "",
       history: chatHistory,
       userInput,
-      messages: finalMessages,
+      messages: shaped.messages,
+      stopSequences: shaped.stopSequences,
+      requestShaping: shaped.report,
     };
   }
 
-}
-
-function createLorebookSessionContext(chat: ChatSession): Record<string, unknown> {
-  return {
-    id: chat.id,
-    title: chat.title,
-    characterId: chat.characterId,
-    messageCount: chat.messages?.length ?? 0,
-    parentSessionId: chat.parentSessionId,
-  };
 }

@@ -17,7 +17,7 @@ import {
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { chatTabState } from "./utils";
-import type { ChatSession, CustomPromptBlock, Message, SummaryCard } from "../../types";
+import type { ChatSession, CustomPromptBlock, Message, ReplyChoice, SummaryCard } from "../../types";
 import type { IAsrService } from "@/src/application/serviceContracts";
 import type { RecalledMessage } from "@/src/application/services/memory/types";
 
@@ -346,7 +346,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     hasTriggeredLongPress.current = false;
   }, []);
 
-  const handleSelectSuggestion = (e: React.MouseEvent | React.TouchEvent, suggestion: string) => {
+  const handleSelectSuggestion = (e: React.MouseEvent | React.TouchEvent, suggestion: ReplyChoice) => {
     if (e && e.cancelable) {
       e.preventDefault();
     }
@@ -365,10 +365,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       setLocalInput("");
       setUserInputMessage("");
       setReplySuggestions([]);
-      handleSendMessage(suggestion);
-    } else {
-      setLocalInput(suggestion);
-      setUserInputMessage(suggestion);
+        handleSendMessage(suggestion.prompt);
+      } else {
+        setLocalInput(suggestion.prompt);
+        setUserInputMessage(suggestion.prompt);
     }
   };
 
@@ -492,16 +492,19 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           <div className="grid grid-cols-2 gap-2.5 py-1.5 px-0.5">
             {replySuggestions.map((suggestion, idx) => (
               <button
-                key={idx}
+                key={suggestion.id || idx}
                 onMouseDown={(e) => handleSelectSuggestion(e, suggestion)}
                 onTouchStart={(e) => handleSelectSuggestion(e, suggestion)}
                 onClick={(e) => {
                   e.preventDefault();
                 }}
                 className="w-full px-3 py-2 rounded-lg text-[11px] font-normal leading-normal text-left text-foreground bg-primary/5 hover:bg-primary/10 border border-primary/15 hover:border-primary/30 transition active:scale-95 shadow-sm truncate"
-                title={suggestion}
+                title={suggestion.description || suggestion.prompt}
               >
-                {suggestion}
+                <span className="block truncate font-medium">{suggestion.label}</span>
+                {suggestion.description && (
+                  <span className="mt-0.5 block truncate text-[9px] text-muted-foreground">{suggestion.description}</span>
+                )}
               </button>
             ))}
           </div>

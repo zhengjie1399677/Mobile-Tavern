@@ -35,6 +35,14 @@ export interface PromptCompositionTokenBudget {
   maxTokens?: number;
 }
 
+export interface PromptSceneProfile {
+  id: string;
+  name: string;
+  description?: string;
+  /** 仅覆盖列出的区块；未列出的区块继续使用预设基础开关。 */
+  blockStates: Record<string, boolean>;
+}
+
 export interface PromptBlockCompatibilityMetadata {
   /** 外部格式标识仅作为不透明元数据；领域层不解释其语义。 */
   source: string;
@@ -70,6 +78,7 @@ export interface PromptComposition {
   version: 1;
   blocks: PromptBlock[];
   tokenBudget?: PromptCompositionTokenBudget;
+  sceneProfiles?: PromptSceneProfile[];
   compatibility?: PromptCompositionCompatibilityMetadata;
 }
 

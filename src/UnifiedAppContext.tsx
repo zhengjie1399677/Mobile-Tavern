@@ -8,6 +8,7 @@ import {
   SummaryCard,
   CustomPromptBlock,
   CustomWorldbook,
+  ReplyChoice,
 } from "./types";
 import {
   TabType,
@@ -160,8 +161,8 @@ export interface UnifiedAppContextProps {
   setChatSubTab: (tab: "dialogue" | "timeline") => void;
   userInputMessage: string;
   setUserInputMessage: (msg: string) => void;
-  replySuggestions: string[];
-  setReplySuggestions: React.Dispatch<React.SetStateAction<string[]>>;
+  replySuggestions: ReplyChoice[];
+  setReplySuggestions: React.Dispatch<React.SetStateAction<ReplyChoice[]>>;
   editingMsgId: string | null;
   setEditingMsgId: (id: string | null) => void;
   editingMsgContent: string;

@@ -1,5 +1,6 @@
 import type { PromptComposition } from "../../domain/prompt-composition";
 import { parsePromptComposition } from "../../domain/prompt-composition";
+import { importSillyTavernPreset } from "../../infrastructure/compat/sillytavern";
 
 export const PROMPT_COMPOSITION_TEMPLATE_FORMAT = "mobile-tavern.prompt-composition";
 export const PROMPT_COMPOSITION_TEMPLATE_VERSION = 1;
@@ -42,6 +43,9 @@ export function parsePromptCompositionTemplate(input: string): PromptComposition
       throw new Error("PROMPT_COMPOSITION_TEMPLATE_UNSUPPORTED_VERSION");
     }
     return parsePromptComposition(value.composition);
+  }
+  if (isRecord(value) && Array.isArray(value.prompts)) {
+    return parsePromptComposition(importSillyTavernPreset(value).composition);
   }
   return parsePromptComposition(value);
 }

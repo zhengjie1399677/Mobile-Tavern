@@ -90,7 +90,7 @@ describe("usePresetBundles 预设导入", () => {
         updateSettings,
         showCustomAlert: vi.fn(async () => undefined),
         showCustomPrompt: vi.fn(async () => null),
-        showCustomConfirm: vi.fn(async () => true),
+        showCustomConfirm: vi.fn(async () => false),
       })
     );
     const input = {
@@ -166,5 +166,82 @@ describe("usePresetBundles 预设导入", () => {
     expect(latestSettings.promptConfig.mainPrompt).toBe("旧预设主 Prompt");
     expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
     expect(latestSettings.promptConfig.composition?.id).toBe("active-composition");
+  });
+  it("imports ST order 100001, identifiers, and extended fields", async () => {
+    let latestSettings = structuredClone(DEFAULT_SETTINGS);
+    const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
+      latestSettings = typeof next === "function" ? next(latestSettings) : next;
+    });
+    const { result } = renderHook(() => usePresetBundles({
+      settings: latestSettings,
+      updateSettings,
+      showCustomAlert: vi.fn(async () => undefined),
+      showCustomPrompt: vi.fn(async () => null),
+      showCustomConfirm: vi.fn(async () => true),
+    }));
+    const input = {
+      files: [new File([JSON.stringify({
+        temperature: 1,
+        openai_max_tokens: 32000,
+        assistant_prefill: "思考已结束。",
+        squash_system_messages: true,
+        custom_stop_strings: ["User:", "<END>"],
+        prompts: [
+          { identifier: "main", name: "Main", role: "system", content: "MAIN", injection_order: 100 },
+          { identifier: "chatHistory", name: "History", role: "user", marker: true },
+          { identifier: "optional", name: "Optional", role: "user", content: "OFF", enabled: false },
+        ],
+        prompt_order: [
+          { character_id: 100000, order: [{ identifier: "main", enabled: false }] },
+          { character_id: 100001, order: [
+            { identifier: "chatHistory", enabled: true },
+            { identifier: "main", enabled: true },
+          ] },
+        ],
+        extensions: { regex_scripts: [{
+          id: "regex-1",
+          scriptName: "Depth regex",
+          findRegex: "/x/g",
+          replaceString: "y",
+          placement: [2],
+          minDepth: 1,
+          maxDepth: 9,
+          substituteRegex: 0,
+          trimStrings: ["trim-me"],
+        }] },
+      })], "st-preset.json", { type: "application/json" })],
+      value: "st-preset.json",
+    };
+
+    act(() => result.current.handleImportPresetJSON({ target: input } as unknown as ChangeEvent<HTMLInputElement>));
+    await waitFor(() => expect(mocks.saveStoredSavedPresets).toHaveBeenCalledTimes(1));
+
+    expect(latestSettings.preset.maxTokens).toBe(32000);
+    expect(latestSettings.promptConfig.customPrompts?.map((prompt) => prompt.identifier)).toEqual([
+      "chatHistory", "main", "optional",
+    ]);
+    expect(latestSettings.promptConfig.customPrompts?.map((prompt) => prompt.enabled)).toEqual([
+      true, true, false,
+    ]);
+    expect(latestSettings.promptConfig.customPrompts?.[0].marker).toBe(true);
+    expect(latestSettings.promptConfig.customPrompts?.[1].injection_order).toBe(100);
+    expect(latestSettings.presetRegexScripts?.[0]).toMatchObject({
+      id: "regex-1",
+      minDepth: 1,
+      maxDepth: 9,
+      substituteRegex: 0,
+      trimStrings: ["trim-me"],
+    });
+    expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
+    expect(latestSettings.promptConfig.requestShaping).toEqual({
+      enabled: true,
+      mergeAdjacentMessages: false,
+      squashSystemMessages: true,
+      assistantPrefill: "思考已结束。",
+      stopSequences: ["User:", "<END>"],
+    });
+    expect(latestSettings.promptConfig.composition?.blocks.map(
+      (block) => block.compatibility?.originalIdentifier,
+    ).slice(0, 3)).toEqual(["chatHistory", "main", "optional"]);
   });
 });

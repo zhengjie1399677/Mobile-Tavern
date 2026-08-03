@@ -213,6 +213,16 @@ export interface IPromptService<TCharacter = unknown, TSession = unknown, TSetti
     }>;
     traces?: PromptCompositionTrace[];
     budget?: PromptCompositionBudgetReport;
+    stopSequences?: string[];
+    requestShaping?: {
+      enabled: boolean;
+      originalMessageCount: number;
+      finalMessageCount: number;
+      mergedMessageCount: number;
+      squashedSystemMessageCount: number;
+      assistantPrefillAdded: boolean;
+      stopSequences: string[];
+    };
   };
   cleanNameForApi(name: string | undefined, fallback: string): string | undefined;
   estimateTokens(text: string): number;

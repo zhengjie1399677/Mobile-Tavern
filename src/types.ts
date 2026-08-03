@@ -109,6 +109,8 @@ export interface ChatSession {
   charCount?: number; // Cached count of total characters in messages
   parentSessionId?: string; // Parent session ID if this session was branched
   parentMessageId?: string; // Message ID at which this session split off from parent
+  /** 当前会话选择的 Prompt 场景方案；不修改全局预设。 */
+  activePromptSceneProfileId?: string;
 }
 
 export type ApiType = "openai-compat" | "openai" | "anthropic";
@@ -162,7 +164,40 @@ export interface CustomPromptBlock {
   content: string;
   enabled: boolean;
   identifier?: string;
+  marker?: boolean;
+  system_prompt?: boolean;
+  injection_position?: number;
+  injection_depth?: number;
   injection_order?: number;
+  forbid_overrides?: boolean;
+  injection_trigger?: string[];
+}
+
+/** 模型可返回的受约束原生选择项；不包含可执行动作或脚本。 */
+export interface ReplyChoice {
+  id: string;
+  label: string;
+  prompt: string;
+  description?: string;
+}
+
+/**
+ * 模型请求整形。该配置只描述通用 Chat Completions 消息语义，
+ * 不承载 SillyTavern 脚本、DOM 或插件生命周期。
+ */
+export interface PromptRequestShapingConfig {
+  enabled: boolean;
+  /** 合并相邻且 role/name 相同的消息。 */
+  mergeAdjacentMessages?: boolean;
+  /** 将全部 system 消息合并到首条 system 消息。 */
+  squashSystemMessages?: boolean;
+  roleWrappers?: Partial<Record<"system" | "user" | "assistant", {
+    prefix?: string;
+    suffix?: string;
+  }>>;
+  /** 作为最后一条 assistant 消息发送的续写起始文本。 */
+  assistantPrefill?: string;
+  stopSequences?: string[];
 }
 
 export interface PromptConfig {
@@ -190,6 +225,7 @@ export interface PromptConfig {
   sectionHeaders?: Record<string, string>;
   tableMemoryPrompt?: string;
   renderingFormat?: 'auto' | 'xml' | 'markdown';
+  requestShaping?: PromptRequestShapingConfig;
   /** 新一代自由编排；关闭时保留旧 PromptService 路径作为迁移期回退。 */
   usePromptComposition?: boolean;
   composition?: PromptComposition;
@@ -318,6 +354,10 @@ export interface RegexScript {
   runOnEdit?: boolean;
   markdownOnly?: boolean;
   promptOnly?: boolean;
+  substituteRegex?: number;
+  minDepth?: number | null;
+  maxDepth?: number | null;
+  trimStrings?: string[];
 }
 
 export type TableMemoryColumnType = "text" | "number" | "date" | "enum";
