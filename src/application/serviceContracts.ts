@@ -26,6 +26,7 @@ export const KernelServices = {
   Preset: "preset",
   CharacterRender: "characterRender",
   WorkerPlugins: "workerPlugins",
+  DataMigration: "dataMigration",
 } as const;
 
 
@@ -446,6 +447,16 @@ export interface ISettingsService<TSettings = unknown, TUsageMetrics = unknown> 
   saveStoredSettings(settings: TSettings): Promise<void>;
   getUsageMetrics(): Promise<TUsageMetrics | null>;
   saveUsageMetrics(metrics: TUsageMetrics): Promise<void>;
+}
+
+/** 统一备份创建与本地数据原子覆盖恢复。 */
+export interface IDataMigrationService<TSettings = unknown, TPayload = unknown> extends IKernelService {
+  createBackupPayload(
+    settings: TSettings,
+    isEncrypted: boolean,
+    backupDate?: string,
+  ): Promise<TPayload>;
+  replaceFromBackup(payload: TPayload, signal?: AbortSignal): Promise<void>;
 }
 
 /**

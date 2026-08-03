@@ -2,16 +2,19 @@ import React, { useCallback } from "react";
 import { UserSettings, LorebookEntry, CharacterCard, CustomWorldbook, ChatSession, Message, SummaryCard } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import {
-  ISettingsService,
-  IWorldbookService,
-  ICharacterService,
   IDatabaseService,
+  KernelServices,
 } from "@/src/application/serviceContracts";
-import type { MemoryServiceTyped } from "../../application/services/memory";
+import type { DataMigrationServiceTyped } from "../../application/services/DataMigrationService";
 import { encryptBackupData, decryptBackupData } from "../../utils/cardParser";
 import { DEFAULT_SETTINGS } from "./defaults";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
+import { persistImportedChatSession } from "../../application/useCases/chatImportUseCases";
+import {
+  buildUnifiedBackupPayload,
+  UNIFIED_BACKUP_MAGIC,
+} from "../../application/useCases/dataMigrationUseCases";
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本 Hook 实际使用的方法）。
  * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
@@ -28,11 +31,33 @@ interface WindowWithAndroidBridge extends Window {
   AndroidThemeBridge?: AndroidThemeBridge;
 }
 
+function saveBackupFile(fileName: string, content: string): string | undefined {
+  const bridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
+  if (bridge && typeof bridge.saveFile === "function") {
+    const path = bridge.saveFile(fileName, content);
+    if (!path || path.startsWith("error:")) {
+      throw new Error(path || "原生文件保存失败");
+    }
+    return path;
+  }
+
+  const dataBlob = new Blob([content], { type: "text/plain" });
+  const downloadUrl = URL.createObjectURL(dataBlob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(downloadUrl);
+  return undefined;
+}
+
 interface UseBackupRestoreDeps {
   settings: UserSettings;
-  globalLorebook: LorebookEntry[];
   setSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
   setGlobalLorebook: React.Dispatch<React.SetStateAction<LorebookEntry[]>>;
+  setCustomWorldbooks: React.Dispatch<React.SetStateAction<Record<string, CustomWorldbook>>>;
   backupPass: string;
   encryptBackup: boolean;
   setBackupStatus: React.Dispatch<React.SetStateAction<string>>;
@@ -65,9 +90,9 @@ interface UseBackupRestoreReturn {
  */
 export const useBackupRestore = ({
   settings,
-  globalLorebook,
   setSettings,
   setGlobalLorebook,
+  setCustomWorldbooks,
   backupPass,
   encryptBackup,
   setBackupStatus,
@@ -75,13 +100,11 @@ export const useBackupRestore = ({
   showCustomConfirm,
 }: UseBackupRestoreDeps): UseBackupRestoreReturn => {
   const kernel = useKernel();
-  const settingsService = kernel.getService<ISettingsService<UserSettings>>("settings");
-  const worldbookService = kernel.getService<IWorldbookService<LorebookEntry, CustomWorldbook>>("worldbook");
-  const characterService = kernel.getService<ICharacterService<CharacterCard>>("character");
-  const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
-  const memoryService = kernel.getService<MemoryServiceTyped>("memory");
+  const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>(KernelServices.Database);
+  const dataMigrationService = kernel.getService<DataMigrationServiceTyped>(KernelServices.DataMigration);
 
   const handleExportLocalDataBackup = useCallback(async (characters: any[]) => {
+    void characters;
     if (encryptBackup && !backupPass.trim()) {
       await showCustomAlert("开启了加密，请预设一个强度适宜的数据保护密码。");
       return;
@@ -90,53 +113,7 @@ export const useBackupRestore = ({
       encryptBackup ? "正在加密并创建备份文件..." : "正在创建明文备份...",
     );
     try {
-      const completeCharacters = await characterService.getAllCharacters();
-      const exportedSettings = encryptBackup
-        ? settings
-        : {
-            ...settings,
-            api: {
-              ...settings.api,
-              apiKey: "",
-            },
-          };
-
-      // 从数据库获取包含完整消息的会话数据，防止前端分页/懒加载导致的消息遗漏
-      const dbSessions = await databaseService.getAllSessions();
-      const completeSessions = await Promise.all(
-        dbSessions.map(async (s) => {
-          const msgs = await memoryService.getStorage().getMessagesBySession(s.id);
-          return {
-            ...s,
-            messages: msgs.map((m: any) => ({
-              id: m.id,
-              sender: m.role === "user" ? "user" : "assistant",
-              content: m.content,
-              timestamp: m.createdAt,
-              extra: m.metadata,
-            })),
-          };
-        })
-      );
-      const memoryFragments = (await Promise.all(
-        dbSessions.map((session) => memoryService.getStorage().getFragmentsBySession(session.id))
-      )).flat();
-      const memoryFacts = (await Promise.all(
-        dbSessions.map((session) => memoryService.getStorage().getTemporalFactsBySession(session.id))
-      )).flat();
-
-      const payloadObj = {
-        magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
-        version: 3,
-        characters: completeCharacters,
-        sessions: completeSessions,
-        memoryFragments,
-        memoryFacts,
-        settings: exportedSettings,
-        globalLorebook,
-        backupDate: new Date().toISOString(),
-        isEncrypted: encryptBackup,
-      };
+      const payloadObj = await dataMigrationService.createBackupPayload(settings, encryptBackup);
       const jsonStr = JSON.stringify(payloadObj);
       let outputData = jsonStr;
 
@@ -145,40 +122,18 @@ export const useBackupRestore = ({
       }
 
       const fileName = `mobile_tavern_backup_${new Date().toISOString().slice(0, 10)}${encryptBackup ? ".backup" : ".json"}`;
-
-      // If running in Android app via bridge
-      const exportBridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
-      if (exportBridge && typeof exportBridge.saveFile === "function") {
-        const path = exportBridge.saveFile(fileName, outputData);
-        if (path && !path.startsWith("error:")) {
-          setBackupStatus("备份文件保存成功！");
-          await showCustomAlert(`📂 数据备份导出成功！\n文件已保存至手机 /Download 公共文件夹下，绝对路径为：\n${path}${encryptBackup ? "" : "\n\n⚠️ 注意：为了您的秘钥安全，明文备份已自动抹除 API Key 配置。"}`, "导出成功");
-        } else {
-          setBackupStatus(`备份失败: ${path}`);
-          await showCustomAlert(`❌ 备份导出失败：${path || "未知错误"}`, "导出失败");
-        }
-        return;
-      }
-
-      const dataBlob = new Blob([outputData], { type: "text/plain" });
-      const downloadUrl = URL.createObjectURL(dataBlob);
-
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(downloadUrl);
+      const path = saveBackupFile(fileName, outputData);
       setBackupStatus("备份文件创建并下载完成！");
       await showCustomAlert(
-        `备份数据已导出成功！\n文件名：\n${fileName}\n\n文件已触发浏览器或客户端下载，请前往您的“下载 (Downloads)”目录查找。${encryptBackup ? "" : "\n\n⚠️ 注意：为了您的秘钥安全，明文备份已自动抹除 API Key 配置。"}`,
+        path
+          ? `📂 数据备份导出成功！\n文件已保存至手机 /Download 公共文件夹下：\n${path}${encryptBackup ? "" : "\n\n⚠️ 明文备份已自动抹除全部 API Key 配置。"}`
+          : `备份数据已导出成功！\n文件名：\n${fileName}\n\n文件已触发浏览器或客户端下载，请前往“下载 (Downloads)”目录查找。${encryptBackup ? "" : "\n\n⚠️ 明文备份已自动抹除全部 API Key 配置。"}`,
         "导出成功"
       );
     } catch (err: unknown) {
       setBackupStatus(`备份崩溃: ${getErrorMessage(err)}`);
     }
-  }, [encryptBackup, backupPass, showCustomAlert, setBackupStatus, settings, globalLorebook, databaseService, memoryService]);
+  }, [encryptBackup, backupPass, showCustomAlert, setBackupStatus, settings, dataMigrationService]);
 
   const handleImportLocalDataBackup = useCallback(async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -209,7 +164,7 @@ export const useBackupRestore = ({
       }
 
       // 1. Magic Header Envelope check (Backward compatible)
-      if (parsed.magic !== undefined && parsed.magic !== "MOBILE_TAVERN_UNIFIED_BACKUP") {
+      if (parsed.magic !== undefined && parsed.magic !== UNIFIED_BACKUP_MAGIC) {
         throw new Error("备份文件签名不匹配，非此程序导出的有效备份数据。");
       }
 
@@ -226,6 +181,7 @@ export const useBackupRestore = ({
       for (const c of parsed.characters) {
         if (c && typeof c === "object" && typeof c.id === "string" && typeof c.name === "string") {
           validatedCharacters.push({
+            ...c,
             id: c.id,
             name: c.name,
             avatar: typeof c.avatar === "string" ? c.avatar : "",
@@ -253,6 +209,7 @@ export const useBackupRestore = ({
       for (const s of parsed.sessions) {
         if (s && typeof s === "object" && typeof s.id === "string" && typeof s.characterId === "string" && Array.isArray(s.messages)) {
           validatedSessions.push({
+            ...s,
             id: s.id,
             characterId: s.characterId,
             title: typeof s.title === "string" ? s.title : "无标题对话",
@@ -312,14 +269,28 @@ export const useBackupRestore = ({
             updatedAt: typeof fact.updatedAt === "number" ? fact.updatedAt : Date.now(),
           }))
         : [];
+      const validatedDictEntries = Array.isArray(parsed.memoryDictEntries)
+        ? parsed.memoryDictEntries.filter((entry: any) =>
+            entry &&
+            typeof entry.id === "string" &&
+            typeof entry.sessionId === "string" &&
+            typeof entry.entity === "string"
+          )
+        : [];
+      const validatedGlobalLorebook = Array.isArray(parsed.globalLorebook)
+        ? parsed.globalLorebook
+        : [];
+      const validatedCustomWorldbooks = parsed.customWorldbooks &&
+        typeof parsed.customWorldbooks === "object" &&
+        !Array.isArray(parsed.customWorldbooks)
+        ? parsed.customWorldbooks
+        : {};
+      const validatedSavedPresets = Array.isArray(parsed.savedPresets)
+        ? parsed.savedPresets
+        : [];
 
-      const ok = await showCustomConfirm(
-        "数据解密与格式校验成功！此备份覆盖将导致当前浏览器的本地全部状态清空，是否确认还原？",
-      );
-      if (ok) {
-        let mergedSettings = undefined;
-        if (parsed.settings) {
-          mergedSettings = {
+      const mergedSettings: UserSettings = parsed.settings
+        ? {
             ...DEFAULT_SETTINGS,
             ...parsed.settings,
             api: {
@@ -338,33 +309,50 @@ export const useBackupRestore = ({
                 ...(parsed.settings.promptConfig?.sectionHeaders || {}),
               },
             },
-          };
-        }
+          }
+        : structuredClone(DEFAULT_SETTINGS);
 
-        await characterService.bulkSaveCharacters(validatedCharacters);
-        await databaseService.bulkSaveSessions(validatedSessions);
-        await Promise.all(
-          validatedFragments.map((fragment: any) => memoryService.getStorage().upsertFragment(fragment))
-        );
-        for (const fact of validatedFacts.sort((a: any, b: any) => a.validFromTurn - b.validFromTurn)) {
-          await memoryService.getStorage().evolveTemporalFact({ ...fact, status: "active" });
-        }
-        for (const fact of validatedFacts.filter((item: any) => item.status === "invalid")) {
-          await memoryService.getStorage().updateTemporalFactStatus(fact.id, "invalid");
-        }
-        if (mergedSettings) await settingsService.saveStoredSettings(mergedSettings);
-        if (parsed.globalLorebook)
-          await worldbookService.saveGlobalLorebook(parsed.globalLorebook);
+      const legacyWarning = Number(parsed.version || 0) < 4
+        ? "\n\n注意：这是旧版备份，不包含独立世界书、记忆词典和自定义预设库；这些项目将按空数据恢复。当前数据会先自动导出安全快照。"
+        : "\n\n恢复前会自动导出当前数据的脱敏安全快照。";
+
+      const ok = await showCustomConfirm(
+        `数据解密与格式校验成功！恢复将以备份内容完整替换本地角色、会话、记忆和世界书，是否确认？${legacyWarning}`,
+      );
+      if (ok) {
+        setBackupStatus("正在创建恢复前安全快照...");
+        const safetySnapshot = await dataMigrationService.createBackupPayload(settings, false);
+        const safetyName = `pre_restore_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+        saveBackupFile(safetyName, JSON.stringify(safetySnapshot));
+
+        const replacementPayload = buildUnifiedBackupPayload({
+          characters: validatedCharacters,
+          sessions: validatedSessions,
+          memoryDictEntries: validatedDictEntries,
+          memoryFragments: validatedFragments,
+          memoryFacts: validatedFacts,
+          settings: mergedSettings,
+          savedPresets: validatedSavedPresets,
+          globalLorebook: validatedGlobalLorebook,
+          customWorldbooks: validatedCustomWorldbooks,
+          backupDate: typeof parsed.backupDate === "string" ? parsed.backupDate : new Date().toISOString(),
+          isEncrypted: false,
+        });
+
+        setBackupStatus("正在原子覆盖本地数据...");
+        await dataMigrationService.replaceFromBackup(replacementPayload);
 
         setCharacters(validatedCharacters);
         setSessions(validatedSessions);
-        if (mergedSettings) setSettings(mergedSettings);
-        if (parsed.globalLorebook) setGlobalLorebook(parsed.globalLorebook);
+        setSettings(mergedSettings);
+        setGlobalLorebook(validatedGlobalLorebook);
+        setCustomWorldbooks(validatedCustomWorldbooks);
 
         await showCustomAlert(
-          "本地备份完美覆盖还原！页面数据已完成重加载组装。",
+          `本地备份已原子覆盖还原。恢复前安全快照：${safetyName}`,
         );
         setBackupStatus("数据导入覆盖完成！");
+        window.location.reload();
       }
     } catch (err: unknown) {
       await showCustomAlert(
@@ -374,7 +362,7 @@ export const useBackupRestore = ({
     } finally {
       e.target.value = "";
     }
-  }, [backupPass, showCustomAlert, showCustomConfirm, setBackupStatus, setSettings, setGlobalLorebook, characterService, databaseService, settingsService, worldbookService, memoryService]);
+  }, [backupPass, showCustomAlert, showCustomConfirm, setBackupStatus, setSettings, setGlobalLorebook, setCustomWorldbooks, settings, dataMigrationService]);
 
   const handleImportSillyChatHistory = useCallback(async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -536,7 +524,7 @@ export const useBackupRestore = ({
       );
 
       if (ok) {
-        await databaseService.saveSession(newSession);
+        await persistImportedChatSession(databaseService, newSession);
         setSessions((prev) => [...prev, newSession]);
         setBackupStatus("聊天记录导入完成！");
         await showCustomAlert(
@@ -552,6 +540,7 @@ export const useBackupRestore = ({
   }, [showCustomAlert, showCustomConfirm, setBackupStatus, databaseService]);
 
   const handleSilentDailyBackup = useCallback(async (characters: any[]) => {
+    void characters;
     const lastBackup = settings.lastBackupTime || 0;
     const ONE_DAY = 24 * 60 * 60 * 1000;
 
@@ -562,64 +551,13 @@ export const useBackupRestore = ({
 
     try {
       console.log("[AutoBackup] Performing silent daily background backup...");
-      const completeCharacters = await characterService.getAllCharacters();
-
-      // 数据脱敏，抹除 API Key
-      const exportedSettings = {
-        ...settings,
-        api: {
-          ...settings.api,
-          apiKey: "",
-        },
-        savedApiProfiles: settings.savedApiProfiles
-          ? settings.savedApiProfiles.map(p => ({ ...p, apiKey: "" }))
-          : [],
-      };
-
-      // 从数据库加载完整消息的会话，确保备份完整
-      const dbSessions = await databaseService.getAllSessions();
-      const completeSessions = await Promise.all(
-        dbSessions.map(async (s) => {
-          const msgs = await memoryService.getStorage().getMessagesBySession(s.id);
-          return {
-            ...s,
-            messages: msgs.map((m: any) => ({
-              id: m.id,
-              sender: m.role === "user" ? "user" : "assistant",
-              content: m.content,
-              timestamp: m.createdAt,
-              extra: m.metadata,
-            })),
-          };
-        })
-      );
-      const memoryFragments = (await Promise.all(
-        dbSessions.map((session) => memoryService.getStorage().getFragmentsBySession(session.id))
-      )).flat();
-      const memoryFacts = (await Promise.all(
-        dbSessions.map((session) => memoryService.getStorage().getTemporalFactsBySession(session.id))
-      )).flat();
-
-      const payloadObj = {
-        magic: "MOBILE_TAVERN_UNIFIED_BACKUP",
-        version: 3,
-        characters: completeCharacters,
-        sessions: completeSessions,
-        memoryFragments,
-        memoryFacts,
-        settings: exportedSettings,
-        globalLorebook,
-        backupDate: new Date().toISOString(),
-        isEncrypted: false,
-      };
-
-      const jsonStr = JSON.stringify(payloadObj);
-      const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const fileName = `autobackup_${todayStr}.json`;
-
       // 真机写入逻辑
       const silentBridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
       if (silentBridge && typeof silentBridge.saveFile === "function") {
+        const payloadObj = await dataMigrationService.createBackupPayload(settings, false);
+        const jsonStr = JSON.stringify(payloadObj);
+        const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        const fileName = `autobackup_${todayStr}.json`;
         const path = silentBridge.saveFile(fileName, jsonStr);
         if (path && !path.startsWith("error:")) {
           console.log("[AutoBackup] Silent daily backup saved successfully to: ", path);
@@ -644,7 +582,7 @@ export const useBackupRestore = ({
       console.error("[AutoBackup] Error during silent daily background backup:", err);
     }
     return false;
-  }, [settings, globalLorebook, setSettings, databaseService, memoryService]);
+  }, [settings, setSettings, dataMigrationService]);
 
   return {
     handleExportLocalDataBackup,

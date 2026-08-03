@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, LoaderCircle, MessageCircle, Send, Trash2, X } from "lucide-react";
+import { Download, FileJson2, LoaderCircle, MessageCircle, Send, Trash2, X } from "lucide-react";
 import {
   createCommunityComment,
   deleteCommunityCard,
@@ -9,6 +9,7 @@ import {
   type CommunityComment,
 } from "../../domain/community/api";
 import { getCommunityAdminToken } from "../../domain/community/adminSession";
+import { buildCommunityUrl } from "../../domain/community/config";
 import type { CommunityIdentity } from "../../domain/community/identity";
 import { formatCommunityTimestamp, formatCommunityFileSize } from "../../domain/community/presentation";
 
@@ -156,6 +157,24 @@ export function CommunityCardDetail({
         </header>
 
         <div className="overflow-y-auto p-4 space-y-4 custom-scrollbar">
+          <div
+            data-testid="community-detail-cover"
+            className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-2xl border border-border/45 bg-gradient-to-br from-primary/12 via-muted/30 to-violet-500/10 p-3 shadow-inner"
+          >
+            {card.mimeType === "image/png" ? (
+              <img
+                src={buildCommunityUrl(card.thumbnailUrl || card.downloadUrl)}
+                alt={card.title}
+                className="h-full w-full rounded-xl bg-background/30 object-contain"
+              />
+            ) : (
+              <FileJson2 className="h-16 w-16 text-primary/35" aria-hidden="true" />
+            )}
+            <span className="absolute left-5 top-5 rounded-full border border-white/15 bg-black/55 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-md">
+              {card.mimeType === "image/png" ? "PNG" : "JSON"}
+            </span>
+          </div>
+
           {/* Card Meta Info */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground/80 font-medium">
             <span className="bg-muted px-2 py-0.5 rounded-md border border-border/40">

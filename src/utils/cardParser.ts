@@ -39,6 +39,11 @@ function sanitizeExtensions(ext: any, depth = 0): Record<string, any> {
 export const PNG_SIGNATURE_HEADER_1 = 0x89504e47;
 export const PNG_SIGNATURE_HEADER_2 = 0x0d0a1a0a;
 export const PNG_IHDR_END_OFFSET = 33; // PNG 签名 (8) + IHDR 长度 (4) + 类型 (4) + IHDR 数据 (13) + IHDR CRC (4)
+export const MAX_CHARACTER_CARD_FILE_BYTES = 20 * 1024 * 1024;
+
+export function isCharacterCardFileSizeAllowed(size: number): boolean {
+  return size > 0 && size <= MAX_CHARACTER_CARD_FILE_BYTES;
+}
 
 // PNG Chunk 写入用 CRC32 查找表
 const crcTable: number[] = (() => {
@@ -68,8 +73,8 @@ function crc32(buf: Uint8Array): number {
 export async function parseCharacterFile(
   file: File,
 ): Promise<Partial<CharacterCard>> {
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error("文件大小超过 10MB 限制，导入终止。");
+  if (!isCharacterCardFileSizeAllowed(file.size)) {
+    throw new Error("文件大小超过 20MB 限制，导入终止。");
   }
 
   // 优先尝试读取文件文本判定是否为 JSON

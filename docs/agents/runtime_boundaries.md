@@ -10,6 +10,7 @@
 | 应用运行时组合 | `src/application/runtime.ts`、`src/application/bootstrap/` | 把应用服务和默认 Pipeline 注册到 Kernel | 不反向改变 Kernel 的通用机制 |
 | 通用数据库服务 | `src/application/services/DatabaseService.ts` | 面向上层提供通用 CRUD、分页与跨 Store 事务能力 | 不承载记忆召回、摘要或角色行为 |
 | IndexedDB 物理实现 | `src/infrastructure/storage/` | 连接、Schema、事务队列、仓库和端口适配器 | 不反向导入 `src/utils/localDB.ts` |
+| 数据迁移应用服务 | `src/application/services/DataMigrationService.ts` | 聚合完整备份、统一脱敏，并委托基础设施以单事务覆盖用户数据 | 不在 React Hook 中直接清 Store 或跨 Repository 编排恢复 |
 | 冻结的存储兼容门面 | `src/utils/localDB.ts` | 旧版外部导入兼容与测试重置 | 不允许任何生产调用或新增导出；兼容期结束后删除 |
 | SillyTavern Compatibility Runtime | `src/compatibility/sillytavern/` | 角色卡扩展、MVU、正则脚本和 iframe 兼容解析与降级 | 不注册为通用 Service，不承载存储或原生能力 |
 | Plugin Host RPC | `src/domain/plugins/pluginHostRpc.ts` | 强沙箱插件的权限校验、输入清洗和脱敏 RPC | 不复用 Compatibility Runtime，不直接访问原生平台 |

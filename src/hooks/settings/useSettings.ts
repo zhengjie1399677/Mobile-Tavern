@@ -126,9 +126,9 @@ export const useSettings = () => {
     handleSilentDailyBackup,
   } = useBackupRestore({
     settings,
-    globalLorebook,
     setSettings,
     setGlobalLorebook,
+    setCustomWorldbooks,
     backupPass,
     encryptBackup,
     setBackupStatus,

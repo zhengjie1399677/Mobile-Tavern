@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::{card_hash, is_admin, AppState};
 
-const MAX_CARD_BYTES: usize = 10 * 1024 * 1024;
+const MAX_CARD_BYTES: usize = 20 * 1024 * 1024;
 const MAX_NAME_CHARS: usize = 64;
 const MAX_TITLE_CHARS: usize = 100;
 const MAX_DESCRIPTION_CHARS: usize = 1000;
@@ -473,7 +473,7 @@ fn validate_upload(input: &UploadInput) -> Result<(), (StatusCode, Json<serde_js
     if input.bytes.is_empty() || input.bytes.len() > MAX_CARD_BYTES {
         return Err(api_error(
             StatusCode::PAYLOAD_TOO_LARGE,
-            "角色卡文件必须小于等于 10MB",
+            "角色卡文件必须小于等于 20MB",
         ));
     }
     if input.file_name.chars().count() > 255 {
@@ -592,5 +592,23 @@ mod tests {
     fn rejects_invalid_identity() {
         assert!(validate_identity("", &Uuid::new_v4().to_string()).is_err());
         assert!(validate_identity("user", "not-a-uuid").is_err());
+    }
+
+    #[test]
+    fn accepts_twenty_megabyte_cards_and_rejects_larger_files() {
+        let mut input = UploadInput {
+            title: "limit test".to_owned(),
+            description: String::new(),
+            uploader_name: "user".to_owned(),
+            uploader_uuid: Uuid::new_v4().to_string(),
+            file_name: "limit.json".to_owned(),
+            mime_type: "application/json".to_owned(),
+            bytes: vec![0; MAX_CARD_BYTES],
+        };
+
+        assert!(validate_upload(&input).is_ok());
+        input.bytes.push(0);
+        let (status, _) = validate_upload(&input).expect_err("超过 20 MB 应被拒绝");
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
     }
 }

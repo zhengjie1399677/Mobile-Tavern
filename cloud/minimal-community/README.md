@@ -5,7 +5,7 @@
 ## 已实现范围
 
 - 搜索与分页列出角色卡。
-- 上传 PNG 或 JSON 角色卡，单文件上限为 10 MB。
+- 上传 PNG 或 JSON 角色卡，单文件上限为 20 MB。
 - 上传 PNG 角色卡时自动生成最长边 256px 的 JPEG 封面缩略图（`/thumbnails/`），
   列表封面只下载几十 KB 的缩略图，不再拉取完整角色卡。
 - 下载前记录下载者当前名称和本机 UUID，并累计下载次数。
@@ -123,7 +123,7 @@ Windows 测速脚本位于项目根目录的 `scripts/community-speed-test.ps1`�
 powershell -ExecutionPolicy Bypass -File .\scripts\community-speed-test.ps1 -TestSizeMB 5 -AdminToken "服务器管理员令牌"
 ```
 
-测试文件大小可设置为 1 至 9 MB。提供 `AdminToken` 时，脚本会在测速完成后调用管理员删除接口清理临时角色卡；未提供时会输出需要手动删除的角色卡 ID。
+测试文件大小可设置为 1 至 19 MB。提供 `AdminToken` 时，脚本会在测速完成后调用管理员删除接口清理临时角色卡；未提供时会输出需要手动删除的角色卡 ID。
 
 ## 更新单二进制服务
 

@@ -1,6 +1,6 @@
 ﻿param(
     [string]$BaseUrl = "https://community.neural-node.xyz",
-    [ValidateRange(1, 9)]
+    [ValidateRange(1, 19)]
     [int]$TestSizeMB = 3,
     [string]$AdminToken = ""
 )
