@@ -63,6 +63,7 @@ const ROOT_KNOWN_FIELDS = new Set([
   "postHistoryPrompt",
   "story_string",
   "storyString",
+  "regex_scripts",
 ]);
 
 const PROMPT_KNOWN_FIELDS = new Set([
@@ -80,6 +81,15 @@ const PROMPT_KNOWN_FIELDS = new Set([
   "depth",
   "order",
   "marker",
+]);
+
+/** 已识别但领域编排不执行的 ST 字段：隔离保留用于往返，不作为未知字段报警。 */
+const PROMPT_RECOGNIZED_PRESERVED_FIELDS = new Set([
+  "forbid_overrides",
+  "injection_trigger",
+  "attach_index",
+  "attach_role",
+  "attach_side",
 ]);
 
 const KNOWN_SOURCE_MACROS: Record<string, string> = {
@@ -148,9 +158,7 @@ export function analyzeSillyTavernPreset(input: unknown): SillyTavernPresetAnaly
     AGENT_IDENTIFIERS.has(getIdentifier(prompt, index))
   ).length;
   const extensions = isRecord(input.extensions) ? input.extensions : undefined;
-  const regexScripts = extensions && Array.isArray(extensions.regex_scripts)
-    ? extensions.regex_scripts.filter(isRecord)
-    : [];
+  const regexScripts = readRecordCollection(extensions?.regex_scripts ?? input.regex_scripts);
   const tavernHelper = extensions && isRecord(extensions.tavern_helper)
     ? extensions.tavern_helper
     : undefined;
@@ -331,14 +339,19 @@ function convertPrompt(
   usedBlockIds: Set<string>
 ): PromptBlock {
   const originalFields = pickUnknownFields(prompt, PROMPT_KNOWN_FIELDS);
-  if (Object.keys(originalFields).length > 0) {
+  const unknownFieldNames = Object.keys(originalFields).filter(
+    (field) => !PROMPT_RECOGNIZED_PRESERVED_FIELDS.has(field),
+  );
+  if (unknownFieldNames.length > 0) {
     warnings.push(warning("PRESERVED_UNKNOWN_FIELDS", `Prompt“${identifier}”的未知字段已隔离保留。`));
   }
   const rawRole = readOptionalString(prompt.role);
-  const role: PromptMessageRole = rawRole === "user" || rawRole === "assistant" || rawRole === "system"
-    ? rawRole
-    : "system";
-  if (rawRole && rawRole !== role) {
+  const role: PromptMessageRole = rawRole === "model"
+    ? "assistant"
+    : rawRole === "user" || rawRole === "assistant" || rawRole === "system"
+      ? rawRole
+      : "system";
+  if (rawRole && rawRole !== role && rawRole !== "model") {
     warnings.push(warning("INVALID_ROLE_FALLBACK", `Prompt“${identifier}”的角色无效，已降级为 system。`));
   }
   const source = HISTORY_IDENTIFIERS.has(identifier)
@@ -395,6 +408,12 @@ function readPromptOrder(value: unknown): SillyTavernPromptOrderEntry[] {
     .filter(isRecord)
     .map((item) => ({ identifier: readOptionalString(item.identifier), enabled: item.enabled !== false }))
     .filter((item) => item.identifier);
+}
+
+function readRecordCollection(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.filter(isRecord);
+  if (isRecord(value)) return Object.values(value).filter(isRecord);
+  return [];
 }
 
 function addRootPrompt(
