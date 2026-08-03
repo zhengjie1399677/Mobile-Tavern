@@ -59,3 +59,6 @@ target/
 
 # 测试诊断日志文件夹
 tests/logs/
+
+# JetBrains IDEA 本地配置
+.idea/
