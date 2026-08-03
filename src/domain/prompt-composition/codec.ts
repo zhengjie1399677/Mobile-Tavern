@@ -8,6 +8,7 @@ import type {
 } from "./types";
 
 const MAX_BLOCKS = 200;
+const MAX_SCENE_PROFILES = 50;
 const MAX_NAME_LENGTH = 120;
 const MAX_TEMPLATE_LENGTH = 100_000;
 const MAX_COMPATIBILITY_JSON_LENGTH = 1_000_000;
@@ -47,10 +48,43 @@ export function parsePromptComposition(input: string | unknown): PromptCompositi
     tokenBudget: value.tokenBudget === undefined
       ? undefined
       : parseCompositionTokenBudget(value.tokenBudget),
+    sceneProfiles: value.sceneProfiles === undefined
+      ? undefined
+      : parseSceneProfiles(value.sceneProfiles),
     compatibility: value.compatibility === undefined
       ? undefined
       : parseCompositionCompatibility(value.compatibility),
   };
+}
+
+function parseSceneProfiles(value: unknown): PromptComposition["sceneProfiles"] {
+  if (!Array.isArray(value) || value.length > MAX_SCENE_PROFILES) {
+    throw new Error("PROMPT_COMPOSITION_INVALID_SCENE_PROFILES");
+  }
+  const ids = new Set<string>();
+  return value.map((candidate) => {
+    if (!isRecord(candidate) || !isRecord(candidate.blockStates)) {
+      throw new Error("PROMPT_COMPOSITION_INVALID_SCENE_PROFILE");
+    }
+    const id = readString(candidate.id, "PROMPT_COMPOSITION_INVALID_SCENE_PROFILE", MAX_NAME_LENGTH);
+    if (ids.has(id)) throw new Error("PROMPT_COMPOSITION_DUPLICATE_SCENE_PROFILE");
+    ids.add(id);
+    const blockStates: Record<string, boolean> = {};
+    for (const [blockId, enabled] of Object.entries(candidate.blockStates).slice(0, MAX_BLOCKS)) {
+      if (typeof enabled !== "boolean" || !blockId.trim() || blockId.length > MAX_NAME_LENGTH) {
+        throw new Error("PROMPT_COMPOSITION_INVALID_SCENE_PROFILE_STATE");
+      }
+      blockStates[blockId] = enabled;
+    }
+    return {
+      id,
+      name: readString(candidate.name, "PROMPT_COMPOSITION_INVALID_SCENE_PROFILE", MAX_NAME_LENGTH),
+      description: candidate.description === undefined
+        ? undefined
+        : readOptionalString(candidate.description, 500),
+      blockStates,
+    };
+  });
 }
 
 function parseCompositionTokenBudget(value: unknown): PromptComposition["tokenBudget"] {

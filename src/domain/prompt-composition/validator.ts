@@ -32,11 +32,32 @@ export function validatePromptComposition(
     ? undefined
     : new Set(options.availableDataKeys);
   const seenIds = new Set<string>();
+  const sceneProfileIds = new Set<string>();
   const enabledHistoryIds = new Set(
     composition.blocks
       .filter((block) => block.enabled && block.source.type === "chat_history" && block.placement.type !== "in_chat")
       .map((block) => block.id)
   );
+
+  for (const profile of composition.sceneProfiles ?? []) {
+    if (sceneProfileIds.has(profile.id)) {
+      diagnostics.push({
+        level: "error",
+        code: "DUPLICATE_SCENE_PROFILE_ID",
+        message: `场景方案 ID 重复：${profile.id}`,
+      });
+    }
+    sceneProfileIds.add(profile.id);
+    for (const blockId of Object.keys(profile.blockStates)) {
+      if (composition.blocks.some((block) => block.id === blockId)) continue;
+      diagnostics.push({
+        level: "warning",
+        code: "SCENE_PROFILE_UNKNOWN_BLOCK",
+        message: `场景方案“${profile.name}”引用了不存在的区块：${blockId}`,
+        detail: blockId,
+      });
+    }
+  }
 
   for (const block of composition.blocks) {
     if (seenIds.has(block.id)) {

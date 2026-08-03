@@ -5,11 +5,17 @@ import {
   SavedPresetBundle,
   PresetPromptConfig,
   RegexScript,
+  CustomPromptBlock,
 } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import { IPresetService } from "@/src/application/serviceContracts";
 import { DEFAULT_SETTINGS, DEFAULT_PROMPT_CONFIG } from "./defaults";
 import { applyPresetPromptConfig, toPresetPromptConfig } from "./presetPromptConfig";
+import {
+  analyzeSillyTavernPreset,
+  importSillyTavernPreset,
+  type SillyTavernPresetAnalysis,
+} from "../../infrastructure/compat/sillytavern";
 
 /**
  * 微内核插件式架构：预设包持久化统一走 PresetService。
@@ -31,6 +37,64 @@ interface AndroidThemeBridge {
 interface WindowWithAndroidBridge extends Window {
   AndroidThemeBridge?: AndroidThemeBridge;
 }
+
+type ExternalRecord = Record<string, unknown>;
+
+interface PromptOrderEntry {
+  identifier: string;
+  enabled: boolean;
+}
+
+const isRecord = (value: unknown): value is ExternalRecord =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const readString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const readNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
+const readStringArray = (value: unknown): string[] | undefined =>
+  Array.isArray(value) && value.every((item) => typeof item === "string") ? value : undefined;
+
+/** ST 导出通常用 100001 保存用户实际编排，100000 是基础默认编排。 */
+const readPreferredPromptOrder = (value: unknown): PromptOrderEntry[] => {
+  if (!Array.isArray(value)) return [];
+  const containers = value.filter(isRecord).filter((item) => Array.isArray(item.order));
+  const selected = containers.find((item) => item.character_id === 100001 || item.character_id === "100001")
+    ?? containers[0];
+  if (!selected || !Array.isArray(selected.order)) return [];
+  return selected.order.filter(isRecord).flatMap((item) => {
+    const identifier = readString(item.identifier);
+    return identifier ? [{ identifier, enabled: item.enabled !== false }] : [];
+  });
+};
+
+const formatCompatibilityAnalysis = (analysis: SillyTavernPresetAnalysis): string => {
+  const levelLabel = {
+    full: "完整兼容",
+    core: "核心兼容",
+    recognize_only: "仅识别/降级导入",
+    invalid: "无效格式",
+  }[analysis.level];
+  const scriptSize = analysis.tavernHelperScriptBytes >= 1024 * 1024
+    ? `${(analysis.tavernHelperScriptBytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.round(analysis.tavernHelperScriptBytes / 1024)} KB`;
+  const details = [
+    `兼容分级：${levelLabel}`,
+    `Prompt：${analysis.enabledPromptCount}/${analysis.orderedPromptCount} 启用（共 ${analysis.promptCount} 项）`,
+    `Marker：${analysis.markerCount}，In-Chat：${analysis.inChatPromptCount}，正则：${analysis.regexCount}`,
+  ];
+  if (analysis.tavernHelperScriptCount > 0) {
+    details.push(
+      `TavernHelper：${analysis.enabledTavernHelperScriptCount}/${analysis.tavernHelperScriptCount} 启用，脚本 ${scriptSize}`,
+    );
+  }
+  if (analysis.remoteScriptCount > 0) details.push(`外部网络脚本：${analysis.remoteScriptCount} 个（不执行）`);
+  if (analysis.attachmentPromptCount > 0) details.push(`降级：${analysis.attachmentPromptCount} 个数据库附着 Prompt 不执行附着语义`);
+  if (analysis.unknownMarkerCount > 0) details.push(`降级：${analysis.unknownMarkerCount} 个未知 Marker`);
+  return details.join("\n");
+};
 
 
 interface UsePresetBundlesDeps {
@@ -77,7 +141,9 @@ export const usePresetBundles = ({
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const data = JSON.parse(event.target?.result as string);
+        const parsed: unknown = JSON.parse(event.target?.result as string);
+        if (!isRecord(parsed)) throw new Error("PRESET_INVALID_ROOT");
+        const data = parsed;
 
         // 名称优先级：JSON 内 name 字段 > 文件名（去掉 .json 后缀）
         // SillyTavern 预设 JSON 通常不含 name 字段，名称存于文件名
@@ -133,9 +199,11 @@ export const usePresetBundles = ({
         const maxTok =
           typeof data.max_tokens === "number"
             ? data.max_tokens
-            : typeof data.maxTokens === "number"
-              ? data.maxTokens
-              : 600;
+            : typeof data.openai_max_tokens === "number"
+              ? data.openai_max_tokens
+              : typeof data.maxTokens === "number"
+                ? data.maxTokens
+                : 600;
 
         const importedPreset: SamplerPreset = {
           id: "import_" + Math.random().toString(36).substring(2, 9),
@@ -150,21 +218,48 @@ export const usePresetBundles = ({
           maxTokens: maxTok,
         };
 
-        const mainPrompt = data.system_prompt || data.mainPrompt || "";
-        const jailbreakPrompt = data.jailbreak_prompt || data.jailbreakPrompt || "";
+        const mainPrompt = readString(data.system_prompt) ?? readString(data.mainPrompt) ?? "";
+        const jailbreakPrompt = readString(data.jailbreak_prompt) ?? readString(data.jailbreakPrompt) ?? "";
         const postHistoryPrompt =
-          data.post_history_instructions || data.postHistoryPrompt || "";
-        const storyStrFromJSON = data.story_string || data.storyString || "";
-        const rawPrompts = data.prompts || data.customPrompts || [];
-        const importedCustomPrompts = Array.isArray(rawPrompts)
-          ? rawPrompts.map((p: any) => ({
-              id: p.id || "import_comp_" + Math.random().toString(36).substring(2, 9),
-              name: p.name || "导入提示词模组",
-              role: p.role || "system",
-              content: p.content || "",
-              enabled: p.enabled !== false,
-            }))
-          : [];
+          readString(data.post_history_instructions) ?? readString(data.postHistoryPrompt) ?? "";
+        const storyStrFromJSON = readString(data.story_string) ?? readString(data.storyString) ?? "";
+        const rawPrompts = Array.isArray(data.prompts)
+          ? data.prompts
+          : Array.isArray(data.customPrompts) ? data.customPrompts : [];
+        const promptRecords = rawPrompts.filter(isRecord);
+        const preferredOrder = readPreferredPromptOrder(data.prompt_order ?? data.promptOrder);
+        const orderByIdentifier = new Map(preferredOrder.map((item) => [item.identifier, item]));
+        const promptByIdentifier = new Map(promptRecords.map((prompt, index) => [
+          readString(prompt.identifier) ?? readString(prompt.id) ?? `prompt_${index + 1}`,
+          prompt,
+        ]));
+        const orderedIdentifiers = [
+          ...preferredOrder.map((item) => item.identifier),
+          ...[...promptByIdentifier.keys()].filter((identifier) => !orderByIdentifier.has(identifier)),
+        ];
+        const importedCustomPrompts: CustomPromptBlock[] = orderedIdentifiers.map((identifier) => {
+          const prompt = promptByIdentifier.get(identifier) ?? {};
+          const rawRole = readString(prompt.role);
+          const role: CustomPromptBlock["role"] = rawRole === "user" || rawRole === "assistant"
+            ? rawRole
+            : "system";
+          const orderEntry = orderByIdentifier.get(identifier);
+          return {
+            id: readString(prompt.id) ?? identifier,
+            identifier,
+            name: readString(prompt.name) ?? "导入提示词模组",
+            role,
+            content: readString(prompt.content) ?? "",
+            enabled: orderEntry?.enabled ?? (preferredOrder.length > 0 ? false : prompt.enabled !== false),
+            marker: prompt.marker === true || undefined,
+            system_prompt: typeof prompt.system_prompt === "boolean" ? prompt.system_prompt : undefined,
+            injection_position: readNumber(prompt.injection_position),
+            injection_depth: readNumber(prompt.injection_depth),
+            injection_order: readNumber(prompt.injection_order),
+            forbid_overrides: typeof prompt.forbid_overrides === "boolean" ? prompt.forbid_overrides : undefined,
+            injection_trigger: readStringArray(prompt.injection_trigger),
+          };
+        });
 
         const stInstructLayout = data.instruct_layouts || data.instructTemplate || "default";
         let instructTemplate: "default" | "alpaca" | "chatml" | "llama3" | "custom" = "default";
@@ -178,15 +273,20 @@ export const usePresetBundles = ({
           instructTemplate = stInstructLayout;
         }
 
-        const systemPrefix =
-          data.system_sequence_start || data.systemPrefix || "";
-        const systemSuffix = data.system_sequence_end || data.systemSuffix || "";
-        const userPrefix = data.user_sequence_start || data.userPrefix || "";
-        const userSuffix = data.user_sequence_end || data.userSuffix || "";
-        const assistantPrefix =
-          data.assistant_sequence_start || data.assistantPrefix || "";
-        const assistantSuffix =
-          data.assistant_sequence_end || data.assistantSuffix || "";
+        const systemPrefix = readString(data.system_sequence_start) ?? readString(data.systemPrefix) ?? "";
+        const systemSuffix = readString(data.system_sequence_end) ?? readString(data.systemSuffix) ?? "";
+        const userPrefix = readString(data.user_sequence_start) ?? readString(data.userPrefix) ?? "";
+        const userSuffix = readString(data.user_sequence_end) ?? readString(data.userSuffix) ?? "";
+        const assistantPrefix = readString(data.assistant_sequence_start) ?? readString(data.assistantPrefix) ?? "";
+        const assistantSuffix = readString(data.assistant_sequence_end) ?? readString(data.assistantSuffix) ?? "";
+        const assistantPrefill = readString(data.assistant_prefill) ?? "";
+        const importedStopSequences = readStringArray(data.custom_stop_strings)
+          ?? readStringArray(data.stop_sequences)
+          ?? [];
+        const squashSystemMessages = data.squash_system_messages === true;
+        const hasImportedRequestShaping = !!assistantPrefill
+          || importedStopSequences.length > 0
+          || squashSystemMessages;
 
         const hasPromptsArray = importedCustomPrompts.length > 0;
         const hasMainPromptText = !!mainPrompt;
@@ -218,19 +318,26 @@ export const usePresetBundles = ({
 
         // 解析预设全局正则脚本
         const importedRegexScripts: RegexScript[] = [];
-        if (data.extensions && Array.isArray(data.extensions.regex_scripts)) {
-          for (const item of data.extensions.regex_scripts) {
-            if (item && typeof item === "object" && item.scriptName && item.findRegex) {
+        const extensions = isRecord(data.extensions) ? data.extensions : undefined;
+        if (extensions && Array.isArray(extensions.regex_scripts)) {
+          for (const item of extensions.regex_scripts) {
+            if (isRecord(item) && readString(item.scriptName) && readString(item.findRegex)) {
               importedRegexScripts.push({
-                id: item.id || "import_reg_" + Math.random().toString(36).substring(2, 9),
-                scriptName: item.scriptName,
-                findRegex: item.findRegex,
+                id: readString(item.id) ?? "import_reg_" + Math.random().toString(36).substring(2, 9),
+                scriptName: readString(item.scriptName)!,
+                findRegex: readString(item.findRegex)!,
                 replaceString: typeof item.replaceString === "string" ? item.replaceString : "",
                 disabled: item.disabled === true,
-                placement: Array.isArray(item.placement) ? item.placement : [2],
-                runOnEdit: item.runOnEdit ?? true,
-                markdownOnly: item.markdownOnly ?? false,
-                promptOnly: item.promptOnly ?? false,
+                placement: Array.isArray(item.placement)
+                  ? item.placement.filter((entry): entry is number => typeof entry === "number")
+                  : [2],
+                runOnEdit: typeof item.runOnEdit === "boolean" ? item.runOnEdit : true,
+                markdownOnly: typeof item.markdownOnly === "boolean" ? item.markdownOnly : false,
+                promptOnly: typeof item.promptOnly === "boolean" ? item.promptOnly : false,
+                substituteRegex: readNumber(item.substituteRegex),
+                minDepth: item.minDepth === null ? null : readNumber(item.minDepth),
+                maxDepth: item.maxDepth === null ? null : readNumber(item.maxDepth),
+                trimStrings: readStringArray(item.trimStrings),
               });
             }
           }
@@ -253,8 +360,33 @@ export const usePresetBundles = ({
             assistantPrefix || settings.promptConfig.assistantPrefix,
           assistantSuffix:
             assistantSuffix || settings.promptConfig.assistantSuffix,
+          requestShaping: hasImportedRequestShaping
+            ? {
+                enabled: true,
+                mergeAdjacentMessages: false,
+                squashSystemMessages,
+                assistantPrefill,
+                stopSequences: importedStopSequences,
+              }
+            : settings.promptConfig.requestShaping,
           customPrompts: finalCustomPrompts,
         });
+        const isSillyTavernPromptPreset = Array.isArray(data.prompts)
+          && (Array.isArray(data.prompt_order) || Array.isArray(data.promptOrder));
+        const importedComposition = isSillyTavernPromptPreset
+          ? {
+              ...importSillyTavernPreset({ ...data, name }).composition,
+              name,
+            }
+          : undefined;
+        const compatibilityAnalysis = isSillyTavernPromptPreset
+          ? analyzeSillyTavernPreset(data)
+          : undefined;
+        const enableImportedComposition = importedComposition
+          ? await showCustomConfirm(
+              `检测到 SillyTavern Prompt 编排。\n\n${compatibilityAnalysis ? formatCompatibilityAnalysis(compatibilityAnalysis) : ""}\n\n是否启用自由编排以完整保留 Prompt 顺序、Marker 和注入位置？\n\n选择取消仍会导入传统预设，不会修改当前自由编排。`,
+            )
+          : false;
         const importedBundle = {
           id: "bundle_" + Math.random().toString(36).substring(2, 9),
           preset: importedPreset,
@@ -269,13 +401,18 @@ export const usePresetBundles = ({
 
         // 使用函数式 updater 确保基于最新 prev 状态合并，避免对象式 updater
         // 在陈旧闭包场景下错误回退 savedPresets（根因：getNestedDelta 对象式 delta 提取缺陷）
-        updateSettings((prev) => ({
-          ...prev,
-          preset: importedPreset,
-          presetRegexScripts: importedRegexScripts,
-          savedPresets: nextSaved,
-          promptConfig: applyPresetPromptConfig(prev.promptConfig, importedPromptConfig),
-        }));
+        updateSettings((prev) => {
+          const promptConfig = applyPresetPromptConfig(prev.promptConfig, importedPromptConfig);
+          return {
+            ...prev,
+            preset: importedPreset,
+            presetRegexScripts: importedRegexScripts,
+            savedPresets: nextSaved,
+            promptConfig: enableImportedComposition && importedComposition
+              ? { ...promptConfig, usePromptComposition: true, composition: importedComposition }
+              : promptConfig,
+          };
+        });
         try {
           await presetService.saveStoredSavedPresets(nextSaved);
         } catch (saveErr) {
@@ -289,7 +426,7 @@ export const usePresetBundles = ({
       }
     };
     reader.readAsText(file);
-  }, [settings, updateSettings, showCustomAlert, presetService]);
+  }, [settings, updateSettings, showCustomAlert, showCustomConfirm, presetService]);
 
   const handleExportPresetJSON = useCallback(() => {
     const bundleData = {

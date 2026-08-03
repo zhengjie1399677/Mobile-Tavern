@@ -8,6 +8,23 @@
  */
 
 import { splitTextIntoItems } from "./textParsing";
+import type { ReplyChoice } from "../../../types";
+
+const MAX_REPLY_CHOICES = 8;
+
+/**
+ * 解析字符串数组或 `{ choices: [{ label, prompt, description }] }`。
+ * 外部数据只会变成原生按钮文本与待发送文本，任何额外字段都会被丢弃。
+ */
+export function parseReplyChoices(suggestionsText: string): ReplyChoice[] {
+  const structured = parseStructuredChoiceJson(suggestionsText);
+  if (structured.length > 0) return structured;
+  return parseSuggestions(suggestionsText).slice(0, MAX_REPLY_CHOICES).map((prompt, index) => ({
+    id: `choice-${index + 1}`,
+    label: prompt.slice(0, 120),
+    prompt: prompt.slice(0, 2000),
+  }));
+}
 
 /**
  * 解析 <suggestions> 标签内的原始文本，返回去重清洗后的建议条目数组。
@@ -115,5 +132,44 @@ export function parseSuggestions(suggestionsText: string): string[] {
       return cleaned.trim();
     })
     .filter(item => item.length > 0 && item.toLowerCase() !== "json");
+}
+
+function parseStructuredChoiceJson(value: string): ReplyChoice[] {
+  if (!value) return [];
+  const normalized = value.trim()
+    .replace(/^```[a-zA-Z0-9]*\s*/, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  try {
+    const parsed: unknown = JSON.parse(normalized);
+    const candidates = Array.isArray(parsed)
+      ? parsed
+      : isRecord(parsed) && Array.isArray(parsed.choices)
+        ? parsed.choices
+        : [];
+    return candidates.slice(0, MAX_REPLY_CHOICES).flatMap((candidate, index) => {
+      if (!isRecord(candidate)) return [];
+      const label = readChoiceText(candidate.label) ?? readChoiceText(candidate.title) ?? readChoiceText(candidate.text);
+      const prompt = readChoiceText(candidate.prompt) ?? readChoiceText(candidate.value) ?? readChoiceText(candidate.content) ?? label;
+      if (!label || !prompt) return [];
+      const description = readChoiceText(candidate.description)?.slice(0, 300);
+      return [{
+        id: readChoiceText(candidate.id)?.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || `choice-${index + 1}`,
+        label: label.slice(0, 120),
+        prompt: prompt.slice(0, 2000),
+        ...(description ? { description } : {}),
+      }];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readChoiceText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 

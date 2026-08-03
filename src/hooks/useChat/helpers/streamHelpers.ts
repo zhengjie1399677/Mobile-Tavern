@@ -6,13 +6,13 @@
  * 需要 Kernel Pipeline 的操作请使用 pipelineHelpers.ts（不经过 helpers barrel 导出）。
  */
 import React from "react";
-import { Message, ChatSession, UserSettings, CharacterCard } from "../../../types";
+import { Message, ChatSession, UserSettings, CharacterCard, ReplyChoice } from "../../../types";
 import type { OutputPipelineContext } from "../../../application/pipeline";
 import { Logger } from "../../../utils/logger";
 
 const logger = Logger.create("streamHelpers");
 import { extractThinkContent, cleanSuggestionsFromText } from "./textParsing";
-import { parseSuggestions } from "./suggestions";
+import { parseReplyChoices } from "./suggestions";
 
 // ─── 唯一 ID 生成 ─────────────────────────────────────────────────────────────
 export const generateUniqueId = (prefix: string): string =>
@@ -120,14 +120,15 @@ export function buildFinalAiMessage(params: {
   tokenUsage: { prompt: number; completion: number };
   enableReplySuggestions: boolean;
   latestSession: ChatSession;
-}): { finalAiMsg: Message; suggestions: string[] } {
+}): { finalAiMsg: Message; suggestions: string[]; replyChoices: ReplyChoice[] } {
   const { aiMsgId, responseText, reasoningText, startTime, tokenUsage, enableReplySuggestions, latestSession } = params;
   const parsed = extractThinkContent(responseText.trim(), reasoningText.trim(), false);
   const cleaned = cleanSuggestionsFromText(parsed.content);
-  let suggestions: string[] = [];
+  let replyChoices: ReplyChoice[] = [];
   if (enableReplySuggestions && cleaned.suggestionsText) {
-    suggestions = parseSuggestions(cleaned.suggestionsText);
+    replyChoices = parseReplyChoices(cleaned.suggestionsText);
   }
+  const suggestions = replyChoices.map((choice) => choice.prompt);
 
   const finalAiMsg: Message = {
     id: aiMsgId,
@@ -141,10 +142,11 @@ export function buildFinalAiMessage(params: {
     extra: {
       ...(latestSession.messages.find((m) => m.id === aiMsgId)?.extra || {}),
       suggestions: suggestions.length > 0 ? suggestions : undefined,
+      replyChoices: replyChoices.length > 0 ? replyChoices : undefined,
     },
   };
 
-  return { finalAiMsg, suggestions };
+  return { finalAiMsg, suggestions, replyChoices };
 }
 
 // ─── 将最终消息替换 placeholder ──────────────────────────────────────────────

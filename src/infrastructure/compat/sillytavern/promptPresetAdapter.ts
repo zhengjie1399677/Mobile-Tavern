@@ -30,6 +30,25 @@ export interface SillyTavernExportResult {
   report: CompatibilityReport;
 }
 
+export type SillyTavernCompatibilityLevel = "full" | "core" | "recognize_only" | "invalid";
+
+export interface SillyTavernPresetAnalysis {
+  level: SillyTavernCompatibilityLevel;
+  promptCount: number;
+  orderedPromptCount: number;
+  enabledPromptCount: number;
+  markerCount: number;
+  unknownMarkerCount: number;
+  inChatPromptCount: number;
+  attachmentPromptCount: number;
+  regexCount: number;
+  tavernHelperScriptCount: number;
+  enabledTavernHelperScriptCount: number;
+  remoteScriptCount: number;
+  tavernHelperScriptBytes: number;
+  diagnostics: string[];
+}
+
 const ROOT_KNOWN_FIELDS = new Set([
   "name",
   "version",
@@ -86,6 +105,99 @@ const KNOWN_SOURCE_MACROS: Record<string, string> = {
 };
 
 const HISTORY_IDENTIFIERS = new Set(["chatHistory", "chat_history"]);
+const AGENT_IDENTIFIERS = new Set(["agentSystemPrompt", "agentResults"]);
+const MAX_PRESERVED_SCRIPT_BYTES = 2 * 1024 * 1024;
+
+/**
+ * 在导入前只读分析 ST 预设的可移植语义与扩展风险。
+ * 结果只由数据形状决定，不包含任何特定预设或作者名称。
+ */
+export function analyzeSillyTavernPreset(input: unknown): SillyTavernPresetAnalysis {
+  if (!isRecord(input) || !Array.isArray(input.prompts)) {
+    return {
+      level: "invalid",
+      promptCount: 0,
+      orderedPromptCount: 0,
+      enabledPromptCount: 0,
+      markerCount: 0,
+      unknownMarkerCount: 0,
+      inChatPromptCount: 0,
+      attachmentPromptCount: 0,
+      regexCount: 0,
+      tavernHelperScriptCount: 0,
+      enabledTavernHelperScriptCount: 0,
+      remoteScriptCount: 0,
+      tavernHelperScriptBytes: 0,
+      diagnostics: ["INVALID_PRESET_ROOT"],
+    };
+  }
+
+  const prompts = input.prompts.filter(isRecord);
+  const order = readPromptOrder(input.prompt_order ?? input.promptOrder);
+  const markers = prompts.filter((prompt) => prompt.marker === true);
+  const unknownMarkers = markers.filter((prompt, index) => {
+    const identifier = getIdentifier(prompt, index);
+    return !KNOWN_SOURCE_MACROS[identifier]
+      && !HISTORY_IDENTIFIERS.has(identifier)
+      && !AGENT_IDENTIFIERS.has(identifier);
+  });
+  const attachmentPromptCount = prompts.filter((prompt) =>
+    prompt.attach_index !== undefined || prompt.attach_role !== undefined || prompt.attach_side !== undefined
+  ).length;
+  const agentMarkerCount = markers.filter((prompt, index) =>
+    AGENT_IDENTIFIERS.has(getIdentifier(prompt, index))
+  ).length;
+  const extensions = isRecord(input.extensions) ? input.extensions : undefined;
+  const regexScripts = extensions && Array.isArray(extensions.regex_scripts)
+    ? extensions.regex_scripts.filter(isRecord)
+    : [];
+  const tavernHelper = extensions && isRecord(extensions.tavern_helper)
+    ? extensions.tavern_helper
+    : undefined;
+  const scripts = tavernHelper && Array.isArray(tavernHelper.scripts)
+    ? tavernHelper.scripts.filter(isRecord)
+    : [];
+  const enabledScripts = scripts.filter((script) => script.enabled !== false);
+  const remoteScriptCount = enabledScripts.filter((script) => {
+    const content = readOptionalString(script.content);
+    return /https?:\/\//i.test(content);
+  }).length;
+  const tavernHelperScriptBytes = scripts.reduce((total, script) =>
+    total + byteLength(readOptionalString(script.content)), 0
+  );
+  const diagnostics: string[] = [];
+  if (attachmentPromptCount > 0) diagnostics.push("UNSUPPORTED_ATTACHMENT_PROMPTS");
+  if (agentMarkerCount > 0) diagnostics.push("UNSUPPORTED_AGENT_MARKERS");
+  if (unknownMarkers.length > 0) diagnostics.push("UNKNOWN_MARKERS");
+  if (enabledScripts.length > 0) diagnostics.push("PRESET_TAVERN_HELPER_SCRIPTS_NOT_EXECUTED");
+  if (remoteScriptCount > 0) diagnostics.push("REMOTE_SCRIPT_EXECUTION_BLOCKED");
+  if (tavernHelperScriptBytes > MAX_PRESERVED_SCRIPT_BYTES) diagnostics.push("SCRIPT_PAYLOAD_TOO_LARGE");
+
+  const level: SillyTavernCompatibilityLevel = attachmentPromptCount > 0
+    || agentMarkerCount > 0
+    || tavernHelperScriptBytes > MAX_PRESERVED_SCRIPT_BYTES
+    ? "recognize_only"
+    : enabledScripts.length > 0 || unknownMarkers.length > 0
+      ? "core"
+      : "full";
+
+  return {
+    level,
+    promptCount: prompts.length,
+    orderedPromptCount: order.length,
+    enabledPromptCount: order.filter((entry) => entry.enabled).length,
+    markerCount: markers.length,
+    unknownMarkerCount: unknownMarkers.length,
+    inChatPromptCount: prompts.filter((prompt) => prompt.injection_position === 1).length,
+    attachmentPromptCount,
+    regexCount: regexScripts.length,
+    tavernHelperScriptCount: scripts.length,
+    enabledTavernHelperScriptCount: enabledScripts.length,
+    remoteScriptCount,
+    tavernHelperScriptBytes,
+    diagnostics,
+  };
+}
 
 /**
  * SillyTavern Chat Completion 预设防腐导入。
@@ -134,6 +246,7 @@ export function importSillyTavernPreset(input: unknown): SillyTavernImportResult
   });
 
   const preservedRootFields = pickUnknownFields(input, ROOT_KNOWN_FIELDS);
+  const sourceVersion = readOptionalString(input.version);
   if (Object.keys(preservedRootFields).length > 0) {
     warnings.push(warning("PRESERVED_UNKNOWN_ROOT_FIELDS", "未识别的 SillyTavern 根字段已隔离保留，不参与编译。"));
   }
@@ -146,7 +259,7 @@ export function importSillyTavernPreset(input: unknown): SillyTavernImportResult
       blocks,
       compatibility: {
         source: "sillytavern",
-        sourceVersion: readOptionalString(input.version),
+        sourceVersion: sourceVersion || undefined,
         originalName: name,
         preservedRootFields: Object.keys(preservedRootFields).length ? preservedRootFields : undefined,
       },
@@ -273,7 +386,10 @@ function convertPrompt(
 
 function readPromptOrder(value: unknown): SillyTavernPromptOrderEntry[] {
   if (!Array.isArray(value)) return [];
-  const container = value.find((item) => isRecord(item) && Array.isArray(item.order));
+  const containers = value.filter((item) => isRecord(item) && Array.isArray(item.order));
+  const container = containers.find((item) =>
+    isRecord(item) && (item.character_id === 100001 || item.character_id === "100001")
+  ) ?? containers[0];
   if (!isRecord(container) || !Array.isArray(container.order)) return [];
   return container.order
     .filter(isRecord)
@@ -315,6 +431,10 @@ function readOptionalString(value: unknown): string {
 
 function readFiniteNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function byteLength(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
 }
 
 function createSafeId(value: string): string {

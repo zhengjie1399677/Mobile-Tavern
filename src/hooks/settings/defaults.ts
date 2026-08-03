@@ -125,6 +125,13 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
   userSuffix: "",
   assistantPrefix: "",
   assistantSuffix: "",
+  requestShaping: {
+    enabled: false,
+    mergeAdjacentMessages: false,
+    squashSystemMessages: false,
+    assistantPrefill: "",
+    stopSequences: [],
+  },
   sectionHeaders: {
     system: "=== 设定基础基石 (World Lore) ===",
     beforeChar: "=== 世界背景设定前置 ===",

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import type { Message } from "../../types";
+import type { Message, ReplyChoice } from "../../types";
+import { parseReplyChoices } from "./helpers";
 
 export interface ChatUIState {
   // 显示控制
@@ -17,8 +18,8 @@ export interface ChatUIState {
   userInputMessageRef: React.MutableRefObject<string>;
 
   // 回复建议
-  replySuggestions: string[];
-  setReplySuggestions: React.Dispatch<React.SetStateAction<string[]>>;
+  replySuggestions: ReplyChoice[];
+  setReplySuggestions: React.Dispatch<React.SetStateAction<ReplyChoice[]>>;
 
   // 编辑消息态
   editingMsgId: string | null;
@@ -67,12 +68,14 @@ export function useChatUI(params: {
     setShowFullHistory(false);
   }, [activeSessionId]);
 
-  const [replySuggestions, setReplySuggestions] = useState<string[]>([]);
+  const [replySuggestions, setReplySuggestions] = useState<ReplyChoice[]>([]);
   useEffect(() => {
     if (activeSession && Array.isArray(activeSession.messages) && activeSession.messages.length > 0) {
       const lastMsg = activeSession.messages[activeSession.messages.length - 1];
-      if (lastMsg.sender === "assistant" && lastMsg.extra?.suggestions) {
-        setReplySuggestions(lastMsg.extra.suggestions);
+      if (lastMsg.sender === "assistant" && Array.isArray(lastMsg.extra?.replyChoices)) {
+        setReplySuggestions(parseReplyChoices(JSON.stringify(lastMsg.extra.replyChoices)));
+      } else if (lastMsg.sender === "assistant" && Array.isArray(lastMsg.extra?.suggestions)) {
+        setReplySuggestions(parseReplyChoices(JSON.stringify(lastMsg.extra.suggestions)));
       } else {
         setReplySuggestions([]);
       }

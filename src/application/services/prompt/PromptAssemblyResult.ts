@@ -2,6 +2,7 @@ import type {
   PromptCompositionBudgetReport,
   PromptCompositionTrace,
 } from "../../../domain/prompt-composition";
+import type { PromptRequestShapingReport } from "./PromptRequestShaper";
 
 export interface PromptAssemblyResult {
   systemInstruction: string;
@@ -26,4 +27,6 @@ export interface PromptAssemblyResult {
   }>;
   traces?: PromptCompositionTrace[];
   budget?: PromptCompositionBudgetReport;
+  stopSequences?: string[];
+  requestShaping?: PromptRequestShapingReport;
 }

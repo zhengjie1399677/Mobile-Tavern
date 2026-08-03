@@ -45,6 +45,29 @@ describe("PromptComposition JSON 模板迁移", () => {
     expect(parsePromptCompositionTemplate(JSON.stringify(composition))).toEqual(composition);
   });
 
+  it("imports native SillyTavern preset files with the 100001 order", () => {
+    const imported = parsePromptCompositionTemplate(JSON.stringify({
+      name: "ST preset",
+      prompts: [
+        { identifier: "main", name: "Main", role: "system", content: "MAIN" },
+        { identifier: "chatHistory", name: "History", marker: true, role: "user" },
+      ],
+      prompt_order: [
+        { character_id: 100000, order: [{ identifier: "main", enabled: false }] },
+        { character_id: 100001, order: [
+          { identifier: "chatHistory", enabled: true },
+          { identifier: "main", enabled: true },
+        ] },
+      ],
+    }));
+
+    expect(imported.compatibility?.source).toBe("sillytavern");
+    expect(imported.blocks.map((block) => block.compatibility?.originalIdentifier)).toEqual([
+      "chatHistory", "main",
+    ]);
+    expect(imported.blocks[0].source.type).toBe("chat_history");
+  });
+
   it("拒绝未知模板版本", () => {
     expect(() => parsePromptCompositionTemplate(JSON.stringify({
       format: "mobile-tavern.prompt-composition",

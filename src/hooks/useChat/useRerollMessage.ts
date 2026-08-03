@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import { publicEnvironment } from "../../config";
-import { ChatSession, UserSettings, CharacterCard, LorebookEntry, CustomWorldbook, Message } from "../../types";
+import { ChatSession, UserSettings, CharacterCard, LorebookEntry, CustomWorldbook, Message, ReplyChoice } from "../../types";
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService,
@@ -57,7 +57,7 @@ interface RerollMessageParams {
   pendingUpdateTimeoutRef: React.MutableRefObject<any>;
   setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   setIsSending: (v: boolean) => void;
-  setReplySuggestions: React.Dispatch<React.SetStateAction<string[]>>;
+  setReplySuggestions: React.Dispatch<React.SetStateAction<ReplyChoice[]>>;
   publishMemoryAudit?: (snapshot: MemoryAuditSnapshot) => void;
   /** 迁移期兼容旧消费方；新代码应使用 publishMemoryAudit。 */
   publishRecalledMemories?: (sessionId: string, items: MemoryAuditSnapshot["recalled"]) => void;
@@ -305,6 +305,7 @@ export function useRerollMessage(p: RerollMessageParams) {
               return msgObj;
             }),
           ],
+          ...(promptPayload.stopSequences?.length ? { stop: promptPayload.stopSequences } : {}),
           temperature: p.settings.preset.temperature,
           top_p: p.settings.preset.topP,
           top_k: p.settings.preset.topK,
@@ -381,13 +382,13 @@ export function useRerollMessage(p: RerollMessageParams) {
         return;
       }
 
-      const { finalAiMsg, suggestions } = buildFinalAiMessage({
+      const { finalAiMsg, replyChoices } = buildFinalAiMessage({
         aiMsgId, responseText: responseChunks.join(""), reasoningText: reasoningChunks.join(""),
         startTime, tokenUsage, enableReplySuggestions: p.settings.enableReplySuggestions ?? false, latestSession,
       });
 
-      if (p.settings.enableReplySuggestions && suggestions.length > 0) {
-        p.setReplySuggestions(suggestions);
+      if (p.settings.enableReplySuggestions && replyChoices.length > 0) {
+        p.setReplySuggestions(replyChoices);
       }
 
       const trueFinalSession = replacePlaceholderMessage(latestSession, finalAiMsg);
