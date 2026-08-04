@@ -11,12 +11,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { configure, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { MemoryTableDrawer } from "../../src/components/MemoryTableDrawer";
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import type { ChatSession, TableMemorySheet } from "../../src/types";
+
+// 抽屉依赖 React.lazy 按需加载，全量并行测试时模块转换偶发超过全局 3s 预算，
+// 单独跑必过；本文件统一放宽到 8s，避免把加载耗时误判为功能失败。
+configure({ asyncUtilTimeout: 8000 });
 
 // i18n 迁移后 MemoryTableDrawer 内部调用 useTranslation()，必须包裹 LanguageProvider。
 // 统一通过 renderWithI18n 渲染，避免每个用例重复手写 wrapper。
