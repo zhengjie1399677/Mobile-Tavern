@@ -1,5 +1,10 @@
 # 2026 年 8 月变更记录
 
+## 2026-08-05
+
+- 发布 v1.7.8：修复真机 LLM 流式响应中途断流（`error decoding response body`）后无法自动恢复的问题，未输出内容时自动重试一次，错误信息补充目标主机与已接收字节数。
+- 修复仓库 `npm.bat`/`npx.bat` 包装脚本导致 Windows 下 `npm run X && npm run Y` 链式中断的环境问题，并启用仓库 Git Hooks 让推送自动执行质量门禁。
+
 ## 2026-08-04
 
 - 完成小版本发布同步至 v1.7.7，统一更新应用版本标识、Tauri/Rust 配置、`public/version`、展示页与 `README.md`。
