@@ -122,6 +122,50 @@ describe("usePresetBundles 预设导入", () => {
     const storedBundle = storedBundles[storedBundles.length - 1];
     expect(storedBundle.promptConfig).not.toHaveProperty("usePromptComposition");
     expect(storedBundle.promptConfig).not.toHaveProperty("composition");
+    // 规划属于预设：即使取消启用自由编排，编排快照仍随预设包保存，开关记为关闭。
+    expect(storedBundle.composition).toBeDefined();
+    expect(storedBundle.usePromptComposition).toBe(false);
+  });
+
+  it("确认启用自由编排时，预设包携带编排快照并整体激活", async () => {
+    const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
+    let latestSettings = initial;
+    const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
+      latestSettings = typeof next === "function" ? next(latestSettings) : next;
+    });
+    const { result } = renderHook(() =>
+      usePresetBundles({
+        settings: initial,
+        updateSettings,
+        showCustomAlert: vi.fn(async () => undefined),
+        showCustomPrompt: vi.fn(async () => null),
+        showCustomConfirm: vi.fn(async () => true),
+      })
+    );
+    const input = {
+      files: [new File([
+        JSON.stringify({
+          name: "启用编排的预设",
+          prompts: [{ identifier: "main", name: "主 Prompt", role: "system", content: "内容" }],
+          prompt_order: [{ character_id: 100001, order: [{ identifier: "main", enabled: true }] }],
+        }),
+      ], "preset.json", { type: "application/json" })],
+      value: "preset.json",
+    };
+
+    act(() => {
+      result.current.handleImportPresetJSON({
+        target: input,
+      } as unknown as ChangeEvent<HTMLInputElement>);
+    });
+
+    await waitFor(() => expect(mocks.saveStoredSavedPresets).toHaveBeenCalledTimes(1));
+    const storedBundles = mocks.saveStoredSavedPresets.mock.calls[0][0];
+    const storedBundle = storedBundles[storedBundles.length - 1];
+    expect(storedBundle.composition).toBeDefined();
+    expect(storedBundle.usePromptComposition).toBe(true);
+    expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
+    expect(latestSettings.promptConfig.composition?.id).toBe(storedBundle.composition!.id);
   });
 
   it("加载旧预设包时忽略其中遗留的自由编排字段", () => {
@@ -148,7 +192,7 @@ describe("usePresetBundles 预设导入", () => {
       id: "legacy-bundle",
       preset: { ...initial.preset, id: "legacy-preset", name: "旧预设" },
       // 模拟历史版本已写入自由编排字段的持久化数据。
-      promptConfig: legacyPromptConfig,
+      promptConfig: legacyPromptConfig as SavedPresetBundle["promptConfig"],
     }];
     let latestSettings = initial;
     const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
@@ -169,6 +213,98 @@ describe("usePresetBundles 预设导入", () => {
     expect(latestSettings.promptConfig.mainPrompt).toBe("旧预设主 Prompt");
     expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
     expect(latestSettings.promptConfig.composition?.id).toBe("active-composition");
+  });
+
+  it("加载携带编排的预设时整体切换自由编排与编排快照", () => {
+    const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
+    initial.promptConfig.usePromptComposition = false;
+    initial.promptConfig.composition = {
+      id: "before-load",
+      name: "加载前编排",
+      version: 1,
+      blocks: [],
+    };
+    initial.savedPresets = [{
+      id: "bundle-with-composition",
+      preset: { ...initial.preset, id: "preset-with-composition", name: "带编排预设" },
+      promptConfig: initial.promptConfig as SavedPresetBundle["promptConfig"],
+      composition: {
+        id: "preset-composition",
+        name: "预设自己的编排",
+        version: 1 as const,
+        blocks: [
+          {
+            id: "block-a",
+            name: "区块 A",
+            enabled: true,
+            role: "system" as const,
+            source: { type: "template" },
+            template: "A",
+            order: 10,
+            placement: { type: "ordered" },
+          },
+        ],
+      },
+      usePromptComposition: true,
+    }];
+    let latestSettings = initial;
+    const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
+      latestSettings = typeof next === "function" ? next(latestSettings) : next;
+    });
+    const { result } = renderHook(() =>
+      usePresetBundles({
+        settings: initial,
+        updateSettings,
+        showCustomAlert: vi.fn(async () => undefined),
+        showCustomPrompt: vi.fn(async () => null),
+        showCustomConfirm: vi.fn(async () => true),
+      })
+    );
+
+    act(() => result.current.handleLoadPresetBundle("bundle-with-composition"));
+
+    expect(latestSettings.preset.id).toBe("preset-with-composition");
+    expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
+    expect(latestSettings.promptConfig.composition?.id).toBe("preset-composition");
+    expect(latestSettings.promptConfig.composition?.blocks[0]?.name).toBe("区块 A");
+  });
+
+  it("保存新预设时携带当前自由编排状态与编排快照", async () => {
+    const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
+    initial.promptConfig.usePromptComposition = true;
+    initial.promptConfig.composition = {
+      id: "save-composition",
+      name: "待保存编排",
+      version: 1,
+      blocks: [],
+    };
+    let latestSettings = initial;
+    const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
+      latestSettings = typeof next === "function" ? next(latestSettings) : next;
+    });
+    const { result } = renderHook(() =>
+      usePresetBundles({
+        settings: initial,
+        updateSettings,
+        showCustomAlert: vi.fn(async () => undefined),
+        showCustomPrompt: vi.fn(async () => "新预设副本"),
+        showCustomConfirm: vi.fn(async () => true),
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleSaveNewPresetBundle();
+    });
+
+    const storedBundles = mocks.saveStoredSavedPresets.mock.calls[0][0];
+    const saved = storedBundles.find(
+      (bundle: SavedPresetBundle) => bundle.preset.name === "新预设副本",
+    );
+    expect(saved).toBeDefined();
+    expect(saved?.usePromptComposition).toBe(true);
+    expect(saved?.composition?.id).toBe("save-composition");
+    expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
+    expect(latestSettings.promptConfig.composition?.id).toBe("save-composition");
   });
   it("imports ST order 100001, identifiers, and extended fields", async () => {
     let latestSettings = structuredClone(DEFAULT_SETTINGS);

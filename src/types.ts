@@ -253,6 +253,14 @@ export interface SavedPresetBundle {
   preset: SamplerPreset;
   promptConfig: PresetPromptConfig;
   presetRegexScripts?: RegexScript[];
+  /**
+   * 预设携带的提示词编排（规划）。
+   * 规划属于预设而非全局：切换预设时随预设整体切换，区块开关即预设的子节点开关。
+   * 缺省时（旧预设包）保持当前自由编排状态不变，仅应用传统 Prompt 字段。
+   */
+  composition?: PromptComposition;
+  /** 该预设是否启用自由编排；缺省时保持当前设置（兼容旧预设包）。 */
+  usePromptComposition?: boolean;
 }
 
 export interface UserPersona {

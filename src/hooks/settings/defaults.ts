@@ -378,7 +378,10 @@ export let MOBILE_TAVERN_BASIC_PRESET_BUNDLE: SavedPresetBundle = {
         enabled: false,
       }
     ]
-  }
+  },
+  // 规划属于预设：基础预设携带自己的编排快照（默认走传统路径，开关由用户按需切换）。
+  composition: createBasicPromptComposition(),
+  usePromptComposition: false,
 };
 
 export const setMobileTavernBasicPresetBundle = (next: SavedPresetBundle) => {

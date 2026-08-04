@@ -9,7 +9,7 @@ import {
 } from "../../application/useCases/preparePresetBundleImport";
 import { preparePresetBundleExport } from "../../application/useCases/preparePresetBundleExport";
 import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "./defaults";
-import { applyPresetPromptConfig, toPresetPromptConfig } from "./presetPromptConfig";
+import { applyPresetCompositionToPromptConfig, applyPresetPromptConfig, toPresetPromptConfig } from "./presetPromptConfig";
 
 /**
  * 微内核插件式架构：预设包持久化统一走 PresetService。
@@ -70,9 +70,7 @@ export const usePresetBundles = ({
           fallbackName: file.name.replace(/\.json$/i, ""),
           currentPromptConfig: settings.promptConfig,
         });
-        const importedBundle = prepared.bundle;
         const importedComposition = prepared.composition;
-        const importedRegexScripts = importedBundle.presetRegexScripts ?? [];
         const importReportText = formatPresetOperationReport(prepared.report);
         if (prepared.report.errors.length > 0) throw new Error("PRESET_IMPORT_REPORT_HAS_ERRORS");
         const enableImportedComposition = importedComposition
@@ -82,6 +80,13 @@ export const usePresetBundles = ({
                 : ""}${importReportText ? `\n\n${importReportText}` : ""}\n\n是否启用自由编排以完整保留 Prompt 顺序、Marker 和注入位置？\n\n选择取消仍会导入传统预设，不会修改当前自由编排。`,
             )
           : false;
+        // 规划属于预设：导入的编排快照与开关随预设包一起保存，切换预设时整体切换。
+        const importedBundle: SavedPresetBundle = {
+          ...prepared.bundle,
+          composition: importedComposition,
+          usePromptComposition: enableImportedComposition,
+        };
+        const importedRegexScripts = importedBundle.presetRegexScripts ?? [];
 
         // DB 是 savedPresets 的单一事实来源，避免陈旧闭包回退已保存预设。
         const currentSavedFromDB = (await presetService.getStoredSavedPresets()) || [];
@@ -91,14 +96,16 @@ export const usePresetBundles = ({
             prev.promptConfig,
             importedBundle.promptConfig,
           );
+          const appliedPromptConfig = applyPresetCompositionToPromptConfig(
+            promptConfig,
+            importedBundle,
+          );
           return {
             ...prev,
             preset: importedBundle.preset,
             presetRegexScripts: importedRegexScripts,
             savedPresets: nextSaved,
-            promptConfig: enableImportedComposition && importedComposition
-              ? { ...promptConfig, usePromptComposition: true, composition: importedComposition }
-              : promptConfig,
+            promptConfig: appliedPromptConfig,
           };
         });
         await presetService.saveStoredSavedPresets(nextSaved);
@@ -163,6 +170,8 @@ export const usePresetBundles = ({
         name,
       },
       promptConfig: toPresetPromptConfig(settings.promptConfig),
+      composition: settings.promptConfig.composition,
+      usePromptComposition: settings.promptConfig.usePromptComposition ?? false,
       presetRegexScripts: settings.presetRegexScripts ? [...settings.presetRegexScripts] : [],
     };
     const nextSaved = [...(settings.savedPresets || []), newBundle];
@@ -180,10 +189,14 @@ export const usePresetBundles = ({
   const handleLoadPresetBundle = useCallback((bundleId: string) => {
     const bundle = (settings.savedPresets || []).find((candidate) => candidate.id === bundleId);
     if (!bundle) return;
+    const promptConfig = applyPresetCompositionToPromptConfig(
+      applyPresetPromptConfig(settings.promptConfig, bundle.promptConfig),
+      bundle,
+    );
     updateSettings({
       ...settings,
       preset: { ...DEFAULT_SETTINGS.preset, ...bundle.preset },
-      promptConfig: applyPresetPromptConfig(settings.promptConfig, bundle.promptConfig),
+      promptConfig,
       presetRegexScripts: bundle.presetRegexScripts || [],
     });
   }, [settings, updateSettings]);
@@ -197,11 +210,16 @@ export const usePresetBundles = ({
 
     const nextSaved = (settings.savedPresets || []).filter((bundle) => bundle.id !== bundleId);
     const nextPreset = nextSaved.length > 0 ? nextSaved[0].preset : DEFAULT_SETTINGS.preset;
-    const nextPromptConfig = applyPresetPromptConfig(
-      settings.promptConfig,
-      nextSaved.length > 0
-        ? nextSaved[0].promptConfig
-        : toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+    const fallbackBundle = nextSaved.length > 0
+      ? nextSaved[0]
+      : {
+          promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+          composition: DEFAULT_SETTINGS.promptConfig.composition,
+          usePromptComposition: DEFAULT_SETTINGS.promptConfig.usePromptComposition,
+        };
+    const nextPromptConfig = applyPresetCompositionToPromptConfig(
+      applyPresetPromptConfig(settings.promptConfig, fallbackBundle.promptConfig),
+      fallbackBundle,
     );
     updateSettings({
       ...settings,
@@ -228,13 +246,21 @@ export const usePresetBundles = ({
     if (isCurrentDeleted) {
       if (nextSaved.length > 0) {
         nextPreset = nextSaved[0].preset;
-        nextPromptConfig = applyPresetPromptConfig(settings.promptConfig, nextSaved[0].promptConfig);
+        nextPromptConfig = applyPresetCompositionToPromptConfig(
+          applyPresetPromptConfig(settings.promptConfig, nextSaved[0].promptConfig),
+          nextSaved[0],
+        );
         nextRegex = nextSaved[0].presetRegexScripts || [];
       } else {
         nextPreset = DEFAULT_SETTINGS.preset;
-        nextPromptConfig = applyPresetPromptConfig(
-          settings.promptConfig,
-          toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+        const defaultBundle = {
+          promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+          composition: DEFAULT_SETTINGS.promptConfig.composition,
+          usePromptComposition: DEFAULT_SETTINGS.promptConfig.usePromptComposition,
+        };
+        nextPromptConfig = applyPresetCompositionToPromptConfig(
+          applyPresetPromptConfig(settings.promptConfig, defaultBundle.promptConfig),
+          defaultBundle,
         );
         nextRegex = [];
       }

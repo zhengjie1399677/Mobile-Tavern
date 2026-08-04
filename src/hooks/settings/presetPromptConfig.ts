@@ -3,6 +3,7 @@
  * 保留本文件可避免现有调用方一次性迁移。
  */
 export {
+  applyPresetCompositionToPromptConfig,
   applyPresetPromptConfig,
   toPresetPromptConfig,
 } from "../../application/useCases/presetPromptConfig";
