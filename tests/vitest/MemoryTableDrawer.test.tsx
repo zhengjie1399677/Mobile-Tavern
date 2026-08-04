@@ -104,8 +104,8 @@ describe("MemoryTableDrawer", () => {
     );
     // 标题标记
     expect(screen.getByText(/记忆与状态中心/)).toBeInTheDocument();
-    // 表格名称
-    expect(await screen.findByText("状态与关系")).toBeInTheDocument();
+    // 默认表格内容
+    expect(await screen.findByText("角色")).toBeInTheDocument();
   });
 
   it("使用紧凑全高外壳，并为各类记忆保留独立标签", () => {
