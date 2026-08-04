@@ -30,6 +30,11 @@ export interface SSEStreamOptions {
    * 可选 AbortSignal，用于在消费方提前退出时立即取消底层 reader。
    */
   signal?: AbortSignal;
+  /**
+   * 可选：每收到一块原始字节时回调（字节数）。用于上层统计已接收流量，
+   * 在流中断时提供"已接收多少字节"的诊断信息。
+   */
+  onBytesReceived?: (bytes: number) => void;
 }
 
 /**
@@ -173,6 +178,7 @@ export async function readSSEStream(
       if (value) {
         // 收到任意数据即重置空闲定时器（包含 SSE 心跳注释）
         resetIdleTimer();
+        options?.onBytesReceived?.(value.byteLength);
         pbuf += decoder.decode(value, { stream: true });
       }
 

@@ -69,6 +69,12 @@ export {
 } from "./services.test";
 
 export {
+  testChatStreamRetryOnDecodeError,
+  testChatStreamNoRetryAfterPartialContent,
+  testChatStreamNoRetryOnNonTransientError,
+} from "./chatStreamRetry.test";
+
+export {
   testCssSanitization,
   testServerLogDesensitization,
   testApiKeyEncryption,
