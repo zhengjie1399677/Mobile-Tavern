@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../../../components/ui/textarea";
 import { cn } from "../../../lib/utils";
 import CorePromptBlocks from "./CorePromptBlocks";
+import { estimatePromptBlockTokens, patchSelectedBlockStates } from "./promptBlockListTools";
+import type { PromptComposition } from "../../domain/prompt-composition";
 import type { UserSettings } from "../../types";
 
 interface PromptsConfigSectionProps {
@@ -32,6 +34,91 @@ interface PromptsConfigSectionProps {
   isBatchDeletingPrompts: boolean;
   setIsBatchDeletingPrompts: (value: boolean | ((prev: boolean) => boolean)) => void;
   handleBatchDeletePrompts: () => Promise<void>;
+}
+
+/**
+ * 自由编排模式下的预设提示词控制：直接列出当前编排的 Prompt 区块开关。
+ * 规划属于预设，区块启用/停用即"子预设节点"开关；顺序、位置与内容的高级编辑
+ * 仍在独立的「自由 Prompt 编排」分类中。
+ */
+function CompositionBlockToggleList({
+  composition,
+  updateSettings,
+}: {
+  composition: PromptComposition;
+  updateSettings: (newSet: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
+}) {
+  const { t } = useTranslation();
+  const blocks = composition.blocks;
+  const enabledCount = blocks.filter((block) => block.enabled).length;
+  const totalTokens = blocks.reduce(
+    (sum, block) => sum + estimatePromptBlockTokens(block),
+    0,
+  );
+
+  const handleToggleBlock = (blockId: string, enabled: boolean) => {
+    updateSettings((prev) => {
+      const current = prev.promptConfig.composition;
+      if (!current) return prev;
+      return {
+        ...prev,
+        promptConfig: {
+          ...prev.promptConfig,
+          composition: patchSelectedBlockStates(current, new Set([blockId]), enabled),
+        },
+      };
+    });
+  };
+
+  return (
+    <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-[10px] font-mono text-muted-foreground">
+          {t("prompt_composer.list_stats", {
+            visible: enabledCount,
+            total: blocks.length,
+            tokens: totalTokens,
+          })}
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          {t("prompt_composer.independent_notice")}
+        </span>
+      </div>
+      {blocks.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground">
+          {t("prompt_composer.empty_valid")}
+        </p>
+      ) : (
+        <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+          {blocks.map((block) => (
+            <div
+              key={block.id}
+              className="flex items-center justify-between gap-2 rounded-md border border-border/40 bg-background/60 px-2 py-1.5"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`text-[11px] truncate ${
+                    block.enabled ? "text-foreground" : "text-muted-foreground/70"
+                  }`}
+                >
+                  {block.name}
+                </span>
+                <span className="text-[9px] font-mono text-muted-foreground/60 uppercase">
+                  {block.role}
+                </span>
+              </div>
+              <Switch
+                aria-label={`${t("prompt_composer.block_enabled")} ${block.name}`}
+                checked={block.enabled}
+                onCheckedChange={(checked) => handleToggleBlock(block.id, checked)}
+                className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** 3. 预设提示词配置容器（编排 CorePromptBlocks 与自定义提示词模组） */
@@ -91,11 +178,17 @@ export default function PromptsConfigSection({
           </p>
         </div>
 
-        {settings.promptConfig.usePromptComposition && (
-          <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-[11px] leading-relaxed text-primary">
-            {t("prompt_composer.independent_notice")}
-          </div>
-        )}
+        {settings.promptConfig.usePromptComposition &&
+          (settings.promptConfig.composition ? (
+            <CompositionBlockToggleList
+              composition={settings.promptConfig.composition}
+              updateSettings={updateSettings}
+            />
+          ) : (
+            <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-[11px] leading-relaxed text-primary">
+              {t("prompt_composer.independent_notice")}
+            </div>
+          ))}
 
         {!settings.promptConfig.usePromptComposition && (
         <>

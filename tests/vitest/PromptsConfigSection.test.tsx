@@ -1,0 +1,111 @@
+import { useState } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import PromptsConfigSection from "../../src/components/presetForm/PromptsConfigSection";
+import { LanguageProvider } from "../../src/contexts/LanguageContext";
+import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
+import type { UserSettings } from "../../src/types";
+
+function Harness({ initial }: { initial: UserSettings }) {
+  const [settings, setSettings] = useState<UserSettings>(initial);
+  const updateSettings = (next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
+    setSettings((prev) => (typeof next === "function" ? next(prev) : next));
+  };
+  return (
+    <LanguageProvider>
+      <PromptsConfigSection
+        settings={settings}
+        updateSettings={updateSettings}
+        handleToggleCustomPrompt={vi.fn()}
+        handleUpdateCustomPrompt={vi.fn()}
+        handleAddNewCustomPrompt={vi.fn()}
+        handleDeleteCustomPrompt={vi.fn(async () => undefined)}
+        isPromptsFolded={false}
+        handleTogglePromptsFold={vi.fn()}
+        coreStatusText="0/4"
+        activeCustomPrompts={0}
+        selectedPromptIds={[]}
+        setSelectedPromptIds={vi.fn()}
+        isBatchDeletingPrompts={false}
+        setIsBatchDeletingPrompts={vi.fn()}
+        handleBatchDeletePrompts={vi.fn(async () => undefined)}
+      />
+    </LanguageProvider>
+  );
+}
+
+function withComposition(
+  blocks: NonNullable<UserSettings["promptConfig"]["composition"]>["blocks"],
+): UserSettings {
+  const initial = structuredClone(DEFAULT_SETTINGS);
+  initial.promptConfig.usePromptComposition = true;
+  initial.promptConfig.composition = {
+    id: "section-test",
+    name: "区块开关测试",
+    version: 1,
+    blocks,
+  };
+  return initial;
+}
+
+const sampleBlocks: NonNullable<UserSettings["promptConfig"]["composition"]>["blocks"] = [
+  {
+    id: "block-pov",
+    name: "视角-第一人称",
+    enabled: false,
+    role: "system",
+    source: { type: "template" },
+    template: "第一人称约束",
+    order: 100,
+    placement: { type: "ordered" },
+  },
+  {
+    id: "block-style",
+    name: "文风-轻小说",
+    enabled: true,
+    role: "user",
+    source: { type: "template" },
+    template: "轻小说文风",
+    order: 200,
+    placement: { type: "ordered" },
+  },
+];
+
+describe("PromptsConfigSection 自由编排区块开关", () => {
+  beforeEach(() => {
+    localStorage.setItem("mobile_tavern_language", "zh-CN");
+  });
+
+  it("自由编排模式下直接列出当前编排的 Prompt 区块与开关状态", () => {
+    render(<Harness initial={withComposition(sampleBlocks)} />);
+    expect(screen.getByText("视角-第一人称")).toBeInTheDocument();
+    expect(screen.getByText("文风-轻小说")).toBeInTheDocument();
+    const switches = screen.getAllByRole("switch");
+    expect(switches).toHaveLength(2);
+    expect(switches[0]).not.toBeChecked();
+    expect(switches[1]).toBeChecked();
+  });
+
+  it("点击开关即更新对应区块的启用状态", () => {
+    render(<Harness initial={withComposition(sampleBlocks)} />);
+    const firstSwitch = screen.getByRole("switch", { name: /视角-第一人称/ });
+    fireEvent.click(firstSwitch);
+    expect(firstSwitch).toBeChecked();
+    const secondSwitch = screen.getByRole("switch", { name: /文风-轻小说/ });
+    fireEvent.click(secondSwitch);
+    expect(secondSwitch).not.toBeChecked();
+  });
+
+  it("空编排时给出明确提示而不是空白", () => {
+    render(<Harness initial={withComposition([])} />);
+    expect(
+      screen.getByText("当前为空编排，这是合法状态，不会隐式注入内容。"),
+    ).toBeInTheDocument();
+  });
+
+  it("传统模式仍渲染 CORE PROMPTS 与 PROMPT MODULES", () => {
+    render(<Harness initial={structuredClone(DEFAULT_SETTINGS)} />);
+    expect(screen.getByText("CORE PROMPTS")).toBeInTheDocument();
+    expect(screen.getByText("PROMPT MODULES")).toBeInTheDocument();
+  });
+});
