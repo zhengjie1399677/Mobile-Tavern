@@ -56,3 +56,8 @@
 - App 版本 1.7.7 → 1.7.8：修复真机 LLM 流式响应中途断流（`error decoding response body`）后无法自动恢复的问题——未输出内容时自动重试一次，错误信息补充目标主机与已接收字节数；已输出部分内容时保持"部分内容 + 连接中断"行为。
 - 修复仓库 `npm.bat`/`npx.bat` 包装脚本导致 Windows 下 `npm run X && npm run Y` 链式脚本提前中断的环境问题，并启用仓库 Git Hooks（`core.hooksPath=.githooks`）让推送自动执行质量门禁。
 - 新增 3 项 ChatStreamService 流式中断回归测试；lint、i18n、全量测试（87 项套件 + 622 项 vitest）与 Web/Node 构建全部通过。
+
+### 2026-08-05 v1.7.9 发布
+
+- App 版本 1.7.8 → 1.7.9：修复"自由编排开启后传统预设完全失效"的回归——提示词规划归预设，`SavedPresetBundle` 携带编排快照与开关，切换预设整体切换提示词规划，CORE PROMPTS / PROMPT MODULES 子节点开关恢复可用；旧预设包向后兼容。
+- 使用真实 SillyTavern 预设（明月秋青 / 双人成行 / 夏瑾 天琴座）全链路验证导入与区块开关；lint、全量测试与构建通过。
