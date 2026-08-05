@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      create_release:
+        description: '是否同时创建 GitHub Release（仅手动触发时生效；tag 触发始终发布）'
+        required: false
+        default: 'false'
+        type: boolean
 
 concurrency:
   group: android-release-${{ github.ref }}
@@ -165,6 +171,8 @@ jobs:
           path: MobileTavern.apk
 
       - name: Publish APK to Release
+        # tag 推送自动发布；手动触发时默认只出构建产物，不创建 Release。
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.create_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: MobileTavern.apk
