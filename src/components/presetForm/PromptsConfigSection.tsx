@@ -148,40 +148,39 @@ function CompositionBlockToggleList({
   };
 
   return (
-    <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <span className="text-[10px] font-mono text-muted-foreground">
-          {t("prompt_composer.list_stats", {
-            visible: enabledCount,
-            total: blocks.length,
-            tokens: totalTokens,
-          })}
-        </span>
-        <span className="text-[10px] text-muted-foreground">
-          {t("prompt_composer.independent_notice")}
-        </span>
-      </div>
+    <div className="space-y-1">
+      <span className="block text-[10px] font-mono text-muted-foreground">
+        {t("prompt_composer.list_stats", {
+          visible: enabledCount,
+          total: blocks.length,
+          tokens: totalTokens,
+        })}
+      </span>
       {blocks.length === 0 ? (
         <p className="text-[11px] text-muted-foreground">
           {t("prompt_composer.empty_valid")}
         </p>
       ) : (
-        <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+        <div className="max-h-72 overflow-y-auto pr-1 divide-y divide-border/40">
           {blocks.map((block) => (
             <div
               key={block.id}
-              className="flex items-center justify-between gap-2 rounded-md border border-border/40 bg-background/60 px-2 py-1.5"
+              className="flex items-center justify-between gap-2 py-1.5"
             >
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Switch
+                  aria-label={`${t("prompt_composer.block_enabled")} ${block.name}`}
+                  checked={block.enabled}
+                  onCheckedChange={(checked) => handleToggleBlock(block.id, checked)}
+                  className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4 shrink-0"
+                />
                 <span
-                  className={`text-[11px] truncate ${
+                  className={cn(
+                    "text-[11px] truncate",
                     block.enabled ? "text-foreground" : "text-muted-foreground/70"
-                  }`}
+                  )}
                 >
                   {block.name}
-                </span>
-                <span className="text-[9px] font-mono text-muted-foreground/60 uppercase">
-                  {block.role}
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -189,7 +188,7 @@ function CompositionBlockToggleList({
                   type="button"
                   aria-label={`${t("prompt_composer.edit_block_title")} ${block.name}`}
                   onClick={() => setEditingBlockId(block.id)}
-                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                  className="p-1 text-muted-foreground hover:text-foreground transition"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
@@ -197,24 +196,20 @@ function CompositionBlockToggleList({
                   type="button"
                   aria-label={`${t("prompt_composer.delete_block")} ${block.name}`}
                   onClick={() => handleDeleteClick(block.id)}
-                  className={`rounded-md p-1.5 transition ${
+                  className={`p-1 transition ${
                     confirmingDeleteId === block.id
-                      ? "text-rose-500 bg-rose-500/10"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "text-rose-500"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {confirmingDeleteId === block.id ? (
-                    <span className="text-[10px] font-bold px-0.5">{t("prompts.confirm_delete")}</span>
+                    <span className="text-[10px] font-bold px-0.5 whitespace-nowrap">
+                      {t("prompts.confirm_delete")}
+                    </span>
                   ) : (
                     <Trash2 className="w-3.5 h-3.5" />
                   )}
                 </button>
-                <Switch
-                  aria-label={`${t("prompt_composer.block_enabled")} ${block.name}`}
-                  checked={block.enabled}
-                  onCheckedChange={(checked) => handleToggleBlock(block.id, checked)}
-                  className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4"
-                />
               </div>
             </div>
           ))}
