@@ -1,4 +1,5 @@
-import { Brain, ChevronDown, ChevronUp, AlertCircle, HelpCircle, Plus, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Brain, ChevronDown, ChevronUp, AlertCircle, HelpCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../../components/ui/card";
 import { useTranslation } from "../../contexts/LanguageContext";
 import {
@@ -14,8 +15,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../../../components/ui/textarea";
 import { cn } from "../../../lib/utils";
 import CorePromptBlocks from "./CorePromptBlocks";
-import { estimatePromptBlockTokens, patchSelectedBlockStates } from "./promptBlockListTools";
-import type { PromptComposition } from "../../domain/prompt-composition";
+import PromptBlockEditorDialog from "./PromptBlockEditorDialog";
+import {
+  estimatePromptBlockTokens,
+  patchSelectedBlockStates,
+  removePromptBlocks,
+} from "./promptBlockListTools";
+import type { PromptBlock, PromptComposition } from "../../domain/prompt-composition";
 import type { UserSettings } from "../../types";
 
 interface PromptsConfigSectionProps {
@@ -49,12 +55,17 @@ function CompositionBlockToggleList({
   updateSettings: (newSet: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
 }) {
   const { t } = useTranslation();
+  const [editingBlockId, setEditingBlockId] = useState<string>();
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string>();
+  const deleteConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const blocks = composition.blocks;
   const enabledCount = blocks.filter((block) => block.enabled).length;
   const totalTokens = blocks.reduce(
     (sum, block) => sum + estimatePromptBlockTokens(block),
     0,
   );
+  const editingBlock = blocks.find((block) => block.id === editingBlockId);
+  const historyBlocks = blocks.filter((block) => block.source.type === "chat_history");
 
   const handleToggleBlock = (blockId: string, enabled: boolean) => {
     updateSettings((prev) => {
@@ -66,6 +77,72 @@ function CompositionBlockToggleList({
           ...prev.promptConfig,
           composition: patchSelectedBlockStates(current, new Set([blockId]), enabled),
         },
+      };
+    });
+  };
+
+  const handlePatchBlock = (blockId: string, patch: Partial<PromptBlock>) => {
+    updateSettings((prev) => {
+      const current = prev.promptConfig.composition;
+      if (!current) return prev;
+      return {
+        ...prev,
+        promptConfig: {
+          ...prev.promptConfig,
+          composition: {
+            ...current,
+            blocks: current.blocks.map((block) =>
+              block.id === blockId ? { ...block, ...patch } : block,
+            ),
+          },
+        },
+      };
+    });
+  };
+
+  const handleDeleteBlock = (blockId: string) => {
+    updateSettings((prev) => {
+      const current = prev.promptConfig.composition;
+      if (!current) return prev;
+      return {
+        ...prev,
+        promptConfig: {
+          ...prev.promptConfig,
+          composition: removePromptBlocks(current, new Set([blockId])),
+        },
+      };
+    });
+    if (editingBlockId === blockId) setEditingBlockId(undefined);
+    setConfirmingDeleteId(undefined);
+  };
+
+  const handleDeleteClick = (blockId: string) => {
+    if (confirmingDeleteId === blockId) {
+      handleDeleteBlock(blockId);
+      return;
+    }
+    setConfirmingDeleteId(blockId);
+    if (deleteConfirmTimerRef.current) clearTimeout(deleteConfirmTimerRef.current);
+    deleteConfirmTimerRef.current = setTimeout(() => setConfirmingDeleteId(undefined), 2500);
+  };
+
+  const handleDuplicateBlock = (blockId: string) => {
+    updateSettings((prev) => {
+      const current = prev.promptConfig.composition;
+      if (!current) return prev;
+      const sourceIndex = current.blocks.findIndex((block) => block.id === blockId);
+      if (sourceIndex < 0) return prev;
+      const source = current.blocks[sourceIndex];
+      const duplicate: PromptBlock = {
+        ...structuredClone(source),
+        id: `prompt_block_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        name: `${source.name} ${t("prompt_composer.copy_suffix")}`,
+      };
+      const blocks = [...current.blocks];
+      blocks.splice(sourceIndex + 1, 0, duplicate);
+      return {
+        ...prev,
+        promptConfig: { ...prev.promptConfig, composition: { ...current, blocks } },
       };
     });
   };
@@ -107,16 +184,50 @@ function CompositionBlockToggleList({
                   {block.role}
                 </span>
               </div>
-              <Switch
-                aria-label={`${t("prompt_composer.block_enabled")} ${block.name}`}
-                checked={block.enabled}
-                onCheckedChange={(checked) => handleToggleBlock(block.id, checked)}
-                className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4"
-              />
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  aria-label={`${t("prompt_composer.edit_block_title")} ${block.name}`}
+                  onClick={() => setEditingBlockId(block.id)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${t("prompt_composer.delete_block")} ${block.name}`}
+                  onClick={() => handleDeleteClick(block.id)}
+                  className={`rounded-md p-1.5 transition ${
+                    confirmingDeleteId === block.id
+                      ? "text-rose-500 bg-rose-500/10"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  {confirmingDeleteId === block.id ? (
+                    <span className="text-[10px] font-bold px-0.5">{t("prompts.confirm_delete")}</span>
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                <Switch
+                  aria-label={`${t("prompt_composer.block_enabled")} ${block.name}`}
+                  checked={block.enabled}
+                  onCheckedChange={(checked) => handleToggleBlock(block.id, checked)}
+                  className="data-[state=checked]:bg-primary !h-5 !w-9 [&>span]:!w-4 [&>span]:!h-4"
+                />
+              </div>
             </div>
           ))}
         </div>
       )}
+      <PromptBlockEditorDialog
+        block={editingBlock}
+        historyBlocks={historyBlocks}
+        onClose={() => setEditingBlockId(undefined)}
+        onPatch={(patch) => editingBlock && handlePatchBlock(editingBlock.id, patch)}
+        onDelete={() => editingBlock && handleDeleteBlock(editingBlock.id)}
+        onDuplicate={() => editingBlock && handleDuplicateBlock(editingBlock.id)}
+      />
     </div>
   );
 }

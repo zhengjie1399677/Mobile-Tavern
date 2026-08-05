@@ -96,6 +96,37 @@ describe("PromptsConfigSection 自由编排区块开关", () => {
     expect(secondSwitch).not.toBeChecked();
   });
 
+  it("点击编辑按钮可直接修改区块名称与内容", () => {
+    render(<Harness initial={withComposition(sampleBlocks)} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /编辑 Prompt 区块 视角-第一人称/ }),
+    );
+    const nameInput = screen.getByLabelText("区块名称");
+    fireEvent.change(nameInput, { target: { value: "视角-第二人称" } });
+    expect(screen.getByDisplayValue("视角-第二人称")).toBeInTheDocument();
+  });
+
+  it("点击删除按钮二次确认后移除对应区块", () => {
+    render(<Harness initial={withComposition(sampleBlocks)} />);
+    const deleteButton = screen.getByRole("button", {
+      name: /删除区块 视角-第一人称/,
+    });
+    fireEvent.click(deleteButton);
+    fireEvent.click(deleteButton);
+    expect(screen.queryByText("视角-第一人称")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(1);
+  });
+
+  it("编辑对话框中可复制区块", () => {
+    render(<Harness initial={withComposition(sampleBlocks)} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /编辑 Prompt 区块 视角-第一人称/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "复制区块" }));
+    expect(screen.getAllByRole("switch")).toHaveLength(3);
+    expect(screen.getByText("视角-第一人称 副本")).toBeInTheDocument();
+  });
+
   it("空编排时给出明确提示而不是空白", () => {
     render(<Harness initial={withComposition([])} />);
     expect(
