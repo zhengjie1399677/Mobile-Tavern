@@ -15,7 +15,7 @@
  *   - vitest 拥有独立 happy-dom 环境与 React Testing Library，子进程隔离避免污染自定义 runner。
  */
 
-import { spawn } from "child_process";
+import { execFileSync, spawn } from "child_process";
 import path from "path";
 import { setKernelStrictMode } from "../src/kernel/Kernel";
 import { runCatbotErrorTests } from "./test_catbot_error_handling";
@@ -146,6 +146,16 @@ async function runVitestSuite(): Promise<void> {
       settled = true;
       if (fallback) clearTimeout(fallback);
       try { child.kill("SIGKILL"); } catch { /* 忽略 */ }
+      if (process.platform === "win32") {
+        // kill 只作用于 cmd 外壳，vitest 的 worker 孙进程会残留并保持后台
+        // 任务/门禁的进程组不结束；用 taskkill /T 按 PID 杀整棵进程树。
+        try {
+          execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], {
+            stdio: "ignore",
+            windowsHide: true,
+          });
+        } catch { /* 进程可能已退出，忽略 */ }
+      }
       if (code === 0) {
         console.log("✓ Vitest suite passed");
         resolve();
