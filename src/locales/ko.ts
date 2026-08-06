@@ -379,6 +379,8 @@ export default {
   "preset_selector.export": "설정 내보내기",
   "preset_selector.save_copy": "새 프리셋 사본으로 저장",
   "preset_selector.delete_custom": "현재 커스텀 프리셋 삭제",
+  "preset_selector.builtin_badge": "내장",
+  "preset_selector.custom_badge": "가져온/커스텀",
 
   "prompts.title": "프리셋 프롬프트 설정",
   "prompts.subtitle": "기본 역할극 명령, 규칙 프롬프트 및 세부 확장 프롬프트 모듈 구성",
@@ -954,6 +956,8 @@ export default {
   "prompt_composer.duplicate_block": "블록 복제",
   "prompt_composer.copy_suffix": "복사본",
   "prompt_composer.advanced_fields": "조건 및 Token 정책",
+  "prompt_composer.advanced_go_composer": "조건 및 Token 정책 등 고급 편집은 '자유 Prompt 편성'에서 수행하세요.",
+  "prompt_composer.open_composer": "자유 Prompt 편성 열기",
   "prompt_composer.active": "구성됨",
   "prompt_composer.condition": "조건 활성화",
   "prompt_composer.condition_key": "조건 데이터 소스",

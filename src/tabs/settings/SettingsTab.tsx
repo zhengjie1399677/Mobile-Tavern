@@ -302,7 +302,7 @@ export default function SettingsTab() {
           </div>
         );
       case "prompt":
-        return <PresetForm sections={["preset", "prompts", "regex"]} />;
+        return <PresetForm sections={["preset", "prompts", "regex"]} onOpenComposer={() => setActiveSection("composer")} />;
       case "appearance":
         return (
           <ThemeConfigSection

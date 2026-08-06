@@ -19,10 +19,19 @@ vi.mock("../../src/contexts/KernelContext", () => ({
 }));
 
 import { usePresetBundles } from "../../src/hooks/settings/usePresetBundles";
+import { MOBILE_TAVERN_BASIC_PRESET_BUNDLE } from "../../src/hooks/settings/defaults";
 
 describe("usePresetBundles 预设导入", () => {
   afterEach(() => {
     delete (window as unknown as { AndroidThemeBridge?: unknown }).AndroidThemeBridge;
+  });
+
+  it("出厂内置预设携带 isBuiltin 标记（用于界面区分内置/导入）", () => {
+    expect(MOBILE_TAVERN_BASIC_PRESET_BUNDLE.isBuiltin).toBe(true);
+    const bundled = (DEFAULT_SETTINGS.savedPresets || []).find(
+      (bundle) => bundle.id === "bundle_mobile_tavern_basic",
+    );
+    expect(bundled?.isBuiltin).toBe(true);
   });
   beforeEach(() => {
     mocks.saveStoredSavedPresets.mockClear();
@@ -66,6 +75,8 @@ describe("usePresetBundles 预设导入", () => {
       (bundle) => bundle.preset.name === "导入测试预设"
     );
     expect(imported).toBeDefined();
+    // 导入的预设不标记为内置（来源标识：内置仅限出厂 bundle）
+    expect(imported?.isBuiltin).toBeFalsy();
     expect(latestSettings?.preset.id).toBe(imported?.preset.id);
     expect(latestSettings?.preset.temperature).toBe(0.63);
     expect(input.value).toBe("");

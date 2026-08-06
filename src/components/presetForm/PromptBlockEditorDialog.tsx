@@ -29,6 +29,12 @@ interface PromptBlockEditorDialogProps {
   onPatch: (patch: Partial<PromptBlock>) => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  /**
+   * 是否允许编辑高级字段（条件 / Token 策略）。
+   * 预设界面传 false：高级编辑收敛到「自由 Prompt 编排」页；
+   * 编排页省略（默认 true）保留完整能力。
+   */
+  allowAdvancedFields?: boolean;
 }
 
 export default function PromptBlockEditorDialog({
@@ -38,6 +44,7 @@ export default function PromptBlockEditorDialog({
   onPatch,
   onDelete,
   onDuplicate,
+  allowAdvancedFields = true,
 }: PromptBlockEditorDialogProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -292,9 +299,15 @@ export default function PromptBlockEditorDialog({
             </>
           )}
 
-          <div key={block.id}>
-            <AdvancedFields block={block} onPatch={onPatch} />
-          </div>
+          {allowAdvancedFields ? (
+            <div key={block.id}>
+              <AdvancedFields block={block} onPatch={onPatch} />
+            </div>
+          ) : (
+            <p className="rounded-lg border border-primary/25 bg-primary/5 p-3 text-[10px] leading-relaxed text-primary">
+              {t("prompt_composer.advanced_go_composer")}
+            </p>
+          )}
 
           {block.compatibility && (
             <div className="rounded-lg border border-sky-500/25 bg-sky-500/10 p-3 text-[10px] text-sky-700 dark:text-sky-300">

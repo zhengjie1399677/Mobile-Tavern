@@ -372,6 +372,8 @@ export default {
   "preset_selector.export": "导出配置",
   "preset_selector.save_copy": "另存为新预设副本",
   "preset_selector.delete_custom": "删除当前自定义预设",
+  "preset_selector.builtin_badge": "内置",
+  "preset_selector.custom_badge": "导入/自定义",
   
   "prompts.title": "预设提示词配置",
   "prompts.subtitle": "配置底层扮演指令、规则提示以及颗粒化扩展提示词模组",
@@ -936,6 +938,8 @@ export default {
   "prompt_composer.duplicate_block": "复制区块",
   "prompt_composer.copy_suffix": "副本",
   "prompt_composer.advanced_fields": "条件与 Token 策略",
+  "prompt_composer.advanced_go_composer": "条件与 Token 策略等高级编辑，请在「自由 Prompt 编排」中调整。",
+  "prompt_composer.open_composer": "前往自由 Prompt 编排",
   "prompt_composer.active": "已配置",
   "prompt_composer.condition": "启用条件",
   "prompt_composer.condition_key": "条件数据源",

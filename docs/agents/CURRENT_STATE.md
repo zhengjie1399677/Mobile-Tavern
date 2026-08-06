@@ -1,5 +1,14 @@
 # 当前状态
 
+## 2026-08-06 更新：世界书角色导入持久化与空壳覆盖守卫
+
+- 修复反馈 bug：从全局世界书导出 JSON 导入到角色后，关闭重开即消失（手动编辑可保存）。根因是启动加载仅使用 `character_catalog` 轻量目录（`toCharacterCatalogRecord` 不含词库条目），世界书 Tab 直接渲染该空壳且从不重灌，重启后角色专属词库必然不可见；更严重的是，基于空壳对象保存会以残缺字段覆盖 `characters` store 中的完整角色记录。
+- 修复一（hydrate）：世界书 Tab（`GlobalWorldbookTab`）挂载后批量重灌 catalog 空壳角色，`handleSelectCharacter` 进入角色详情前先 `loadCharacterById`，名录徽标与详情使用完整数据。
+- 修复二（保存守卫）：`CharacterService.saveCharacter` 检测 `extensions.__catalogOnly` 空壳对象，落盘前先 `getCharacterById` 合并完整字段，仅允许 `name/description/avatar/creator/tags/lorebookEntries/isWorldbookGlobal` 覆盖，其余字段（`personality/scenario/first_mes/mes_example/system_prompt/extensions` 等）以完整记录为准，防止空壳覆盖清空真实数据。
+- 新增 `tests/vitest/characterSaveGuard.test.ts` 覆盖空壳守卫两条行为；typecheck 与相关回归测试通过。
+
+---
+
 ## 2026-08-03 更新：统一备份 v4 与原子覆盖恢复
 
 - SillyTavern 聊天记录导入会同时写入会话元数据与独立 `messages` Store，重启后不再出现空会话。

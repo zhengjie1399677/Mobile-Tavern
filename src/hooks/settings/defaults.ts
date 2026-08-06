@@ -153,6 +153,7 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
 
 export let MOBILE_TAVERN_BASIC_PRESET_BUNDLE: SavedPresetBundle = {
   id: "bundle_mobile_tavern_basic",
+  isBuiltin: true,
   preset: {
     id: "preset_mobile_tavern_basic",
     name: "基本预设",

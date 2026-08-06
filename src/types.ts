@@ -261,6 +261,11 @@ export interface SavedPresetBundle {
   composition?: PromptComposition;
   /** 该预设是否启用自由编排；缺省时保持当前设置（兼容旧预设包）。 */
   usePromptComposition?: boolean;
+  /**
+   * 是否为内置（随应用出厂）预设。内置预设由启动加载器强制重建，不可删除；
+   * 导入或另存为副本的预设不带此标记。旧数据缺省视为非内置（导入/自定义）。
+   */
+  isBuiltin?: boolean;
 }
 
 export interface UserPersona {

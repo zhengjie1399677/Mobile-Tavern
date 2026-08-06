@@ -6,7 +6,13 @@ import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import type { UserSettings } from "../../src/types";
 
-function Harness({ initial }: { initial: UserSettings }) {
+function Harness({
+  initial,
+  onOpenComposer,
+}: {
+  initial: UserSettings;
+  onOpenComposer?: () => void;
+}) {
   const [settings, setSettings] = useState<UserSettings>(initial);
   const updateSettings = (next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
     setSettings((prev) => (typeof next === "function" ? next(prev) : next));
@@ -29,6 +35,7 @@ function Harness({ initial }: { initial: UserSettings }) {
         isBatchDeletingPrompts={false}
         setIsBatchDeletingPrompts={vi.fn()}
         handleBatchDeletePrompts={vi.fn(async () => undefined)}
+        onOpenComposer={onOpenComposer}
       />
     </LanguageProvider>
   );
@@ -123,8 +130,10 @@ describe("PromptsConfigSection 自由编排区块开关", () => {
       screen.getByRole("button", { name: /编辑 Prompt 区块 视角-第一人称/ }),
     );
     fireEvent.click(screen.getByRole("button", { name: "复制区块" }));
-    expect(screen.getAllByRole("switch")).toHaveLength(3);
+    // 复制后列表出现副本条目；不再以对话框内开关数量断言（高级字段已收敛
+    // 到编排页，对话框仅保留基础开关）。
     expect(screen.getByText("视角-第一人称 副本")).toBeInTheDocument();
+    expect(screen.getByText("视角-第一人称")).toBeInTheDocument();
   });
 
   it("空编排时给出明确提示而不是空白", () => {
@@ -138,5 +147,32 @@ describe("PromptsConfigSection 自由编排区块开关", () => {
     render(<Harness initial={structuredClone(DEFAULT_SETTINGS)} />);
     expect(screen.getByText("CORE PROMPTS")).toBeInTheDocument();
     expect(screen.getByText("PROMPT MODULES")).toBeInTheDocument();
+  });
+
+  it("预设界面编辑对话框不展示高级字段，仅提示前往自由 Prompt 编排", () => {
+    render(<Harness initial={withComposition(sampleBlocks)} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /编辑 Prompt 区块 视角-第一人称/ }),
+    );
+    expect(
+      screen.queryByText("条件与 Token 策略"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/高级编辑，请在「自由 Prompt 编排」中调整/),
+    ).toBeInTheDocument();
+  });
+
+  it("提供 onOpenComposer 时渲染前往编排按钮并触发回调", () => {
+    const openComposer = vi.fn();
+    render(
+      <Harness
+        initial={withComposition(sampleBlocks)}
+        onOpenComposer={openComposer}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "前往自由 Prompt 编排" }),
+    );
+    expect(openComposer).toHaveBeenCalledTimes(1);
   });
 });

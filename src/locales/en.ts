@@ -372,6 +372,8 @@ export default {
   "preset_selector.export": "Export Config",
   "preset_selector.save_copy": "Save Copy",
   "preset_selector.delete_custom": "Delete Custom Preset",
+  "preset_selector.builtin_badge": "Built-in",
+  "preset_selector.custom_badge": "Imported/Custom",
   
   "prompts.title": "Preset Prompts Configuration",
   "prompts.subtitle": "Configure base system prompts, jailbreaks, and custom modules",
@@ -936,6 +938,8 @@ export default {
   "prompt_composer.duplicate_block": "Duplicate block",
   "prompt_composer.copy_suffix": "copy",
   "prompt_composer.advanced_fields": "Conditions and token policy",
+  "prompt_composer.advanced_go_composer": "Advanced fields (conditions & token policy) are edited in the Free Prompt Composition section.",
+  "prompt_composer.open_composer": "Open Free Prompt Composition",
   "prompt_composer.active": "Configured",
   "prompt_composer.condition": "Enable condition",
   "prompt_composer.condition_key": "Condition data source",

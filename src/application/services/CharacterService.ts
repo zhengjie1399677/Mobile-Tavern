@@ -62,7 +62,33 @@ export class CharacterService implements ICharacterService<CharacterCard> {
   }
 
   async saveCharacter(character: CharacterCard): Promise<void> {
-    return dbSaveCharacter(character);
+    let toSave = character;
+    // 空壳保存守卫（修复：世界书 Tab 基于 catalog 轻量对象回写会覆盖完整角色卡）：
+    // catalog 空壳对象（getCharacterCatalog 产物，extensions.__catalogOnly === true）缺少
+    // personality/scenario/first_mes/mes_example/system_prompt 与真实 extensions，若直接
+    // store.put 会以空字段覆盖 characters store 中的完整记录。落盘前先按主键重灌完整记录，
+    // 仅让空壳上可能真实改动的展示字段（name/description/avatar/creator/tags）与
+    // 业务字段（lorebookEntries/isWorldbookGlobal）覆盖回合并对象，其余字段以完整记录为准。
+    if (character.extensions?.__catalogOnly) {
+      const full = await getCharacterById(character.id);
+      if (full) {
+        toSave = {
+          ...character,
+          ...full,
+          id: character.id,
+          name: character.name ?? full.name,
+          description: character.description ?? full.description,
+          avatar: character.avatar ?? full.avatar,
+          creator: character.creator ?? full.creator,
+          tags: character.tags ?? full.tags,
+          lorebookEntries:
+            character.lorebookEntries ?? full.lorebookEntries ?? [],
+          isWorldbookGlobal:
+            character.isWorldbookGlobal ?? full.isWorldbookGlobal ?? false,
+        };
+      }
+    }
+    return dbSaveCharacter(toSave);
   }
 
   async deleteCharacter(id: string): Promise<void> {

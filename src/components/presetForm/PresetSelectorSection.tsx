@@ -25,6 +25,11 @@ export default function PresetSelectorSection({
   handleDeletePresetBundle,
 }: PresetSelectorSectionProps) {
   const { t } = useTranslation();
+  const activeBundle = (settings.savedPresets || []).find(
+    (p) => p.preset.id === settings.preset.id,
+  );
+  const isActiveBuiltin = !!activeBundle?.isBuiltin ||
+    settings.preset.id === "preset_mobile_tavern_basic";
   return (
     <Card className="glass-panel shadow-sm p-3">
       <div className="flex flex-col gap-2">
@@ -40,7 +45,9 @@ export default function PresetSelectorSection({
             </option>
             {(settings.savedPresets || []).map((p) => (
               <option key={p.id} value={p.id}>
-                📄 {p.preset.name}
+                {p.isBuiltin
+                  ? `📦 ${p.preset.name} · ${t("preset_selector.builtin_badge")}`
+                  : `📄 ${p.preset.name} · ${t("preset_selector.custom_badge")}`}
               </option>
             ))}
           </select>
@@ -60,7 +67,7 @@ export default function PresetSelectorSection({
             disabled={
               (settings.savedPresets || []).length === 0 ||
               !settings.preset.id ||
-              settings.preset.id === "preset_mobile_tavern_basic"
+              isActiveBuiltin
             }
             title={t("preset_selector.delete_custom")}
             className="shrink-0 bg-muted hover:bg-destructive/10 border border-border hover:border-destructive/20 text-muted-foreground hover:text-destructive disabled:opacity-20 disabled:bg-muted/30 disabled:border-transparent p-2 rounded-md transition tap-scale flex items-center justify-center"

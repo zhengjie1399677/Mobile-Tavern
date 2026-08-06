@@ -372,6 +372,8 @@ export default {
   "preset_selector.export": "Exportar Config.",
   "preset_selector.save_copy": "Salvar como Novo Preset",
   "preset_selector.delete_custom": "Excluir Preset Personalizado Atual",
+  "preset_selector.builtin_badge": "Integrado",
+  "preset_selector.custom_badge": "Importado/Personalizado",
   
   "prompts.title": "Configuração de Prompts Predefinidos",
   "prompts.subtitle": "Configure instruções de atuação de baixo nível, regras de prompt e módulos de extensão granular",
@@ -936,6 +938,8 @@ export default {
   "prompt_composer.duplicate_block": "Duplicar bloco",
   "prompt_composer.copy_suffix": "cópia",
   "prompt_composer.advanced_fields": "Condições e política Token",
+  "prompt_composer.advanced_go_composer": "Condições e política de Token são editadas na seção Composição de Prompt livre.",
+  "prompt_composer.open_composer": "Abrir Composição de Prompt livre",
   "prompt_composer.active": "Configurado",
   "prompt_composer.condition": "Ativar condição",
   "prompt_composer.condition_key": "Fonte da condição",

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Plus, Search, X } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { LorebookEntry, CharacterCard } from "../../types";
@@ -35,6 +35,7 @@ export default function GlobalWorldbookTab() {
     setActiveWorldbookHostId,
     customWorldbooks = {},
     updateCustomWorldbooks,
+    loadCharacterById,
   } = useUnifiedApp((state) => ({
     characters: state.characters,
     setCharacters: state.setCharacters,
@@ -47,6 +48,7 @@ export default function GlobalWorldbookTab() {
     setActiveWorldbookHostId: state.setActiveWorldbookHostId,
     customWorldbooks: state.customWorldbooks,
     updateCustomWorldbooks: state.updateCustomWorldbooks,
+    loadCharacterById: state.loadCharacterById,
   }));
 
   // 当前选中的宿主 ID： "list" / "global" / 具体角色卡 ID / 自定义设定集 ID
@@ -165,10 +167,31 @@ export default function GlobalWorldbookTab() {
     setEditForm({});
   };
 
-  const handleSelectCharacter = (char: CharacterCard) => {
+  // 世界书 Tab 需要角色的完整词库数据，而启动时 characters 是 character_catalog 的
+  // 轻量空壳（无 lorebookEntries）。挂载后批量重灌一次，避免重启后名录徽标恒为 0、
+  // 角色详情为空壳导致「导入的世界书像没保存」。
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    if (characters.length === 0) return; // catalog 尚未加载完成，等待下一轮渲染
+    hydratedRef.current = true;
+    const shells = characters.filter((c) => c.extensions?.__catalogOnly);
+    if (shells.length > 0) {
+      Promise.all(shells.map((c) => loadCharacterById(c.id))).catch((err) => {
+        console.error("Failed to hydrate characters in worldbook tab:", err);
+      });
+    }
+  }, [characters, loadCharacterById]);
+
+  const handleSelectCharacter = async (char: CharacterCard) => {
     setActiveWorldbookHostId(char.id);
     setSearchQuery("");
     setEditingId(null);
+    // 进入详情前确保是完整数据：若角色仍是 catalog 空壳，先重灌完整记录，
+    // 否则基于空壳对象的新增/导入会以残缺对象覆盖 characters store 中的完整角色卡。
+    if (char.extensions?.__catalogOnly) {
+      await loadCharacterById(char.id);
+    }
   };
 
   return (

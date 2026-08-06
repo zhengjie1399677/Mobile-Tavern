@@ -40,6 +40,12 @@ interface PromptsConfigSectionProps {
   isBatchDeletingPrompts: boolean;
   setIsBatchDeletingPrompts: (value: boolean | ((prev: boolean) => boolean)) => void;
   handleBatchDeletePrompts: () => Promise<void>;
+  /**
+   * 跳转到「自由 Prompt 编排」分类（SettingsTab 提供）。
+   * 预设界面只保留区块开关与基础内容编辑，条件 / Token 策略等高级编辑
+   * 统一在编排页进行；未提供时隐藏跳转按钮。
+   */
+  onOpenComposer?: () => void;
 }
 
 /**
@@ -50,9 +56,11 @@ interface PromptsConfigSectionProps {
 function CompositionBlockToggleList({
   composition,
   updateSettings,
+  onOpenComposer,
 }: {
   composition: PromptComposition;
   updateSettings: (newSet: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
+  onOpenComposer?: () => void;
 }) {
   const { t } = useTranslation();
   const [editingBlockId, setEditingBlockId] = useState<string>();
@@ -222,7 +230,17 @@ function CompositionBlockToggleList({
         onPatch={(patch) => editingBlock && handlePatchBlock(editingBlock.id, patch)}
         onDelete={() => editingBlock && handleDeleteBlock(editingBlock.id)}
         onDuplicate={() => editingBlock && handleDuplicateBlock(editingBlock.id)}
+        allowAdvancedFields={false}
       />
+      {onOpenComposer && (
+        <button
+          type="button"
+          onClick={onOpenComposer}
+          className="mt-2 w-full rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-[11px] font-bold text-primary transition hover:bg-primary/10 active:scale-[0.99]"
+        >
+          {t("prompt_composer.open_composer")}
+        </button>
+      )}
     </div>
   );
 }
@@ -244,6 +262,7 @@ export default function PromptsConfigSection({
   isBatchDeletingPrompts,
   setIsBatchDeletingPrompts,
   handleBatchDeletePrompts,
+  onOpenComposer,
 }: PromptsConfigSectionProps) {
   const { t } = useTranslation();
   return (
@@ -289,6 +308,7 @@ export default function PromptsConfigSection({
             <CompositionBlockToggleList
               composition={settings.promptConfig.composition}
               updateSettings={updateSettings}
+              onOpenComposer={onOpenComposer}
             />
           ) : (
             <div className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-[11px] leading-relaxed text-primary">

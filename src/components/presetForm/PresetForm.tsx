@@ -22,10 +22,16 @@ export type PresetFormSection = "preset" | "samplers" | "prompts" | "regex" | "c
 
 interface PresetFormProps {
   sections?: PresetFormSection[];
+  /**
+   * 可选：跳转到「自由 Prompt 编排」分类（SettingsTab 提供）。
+   * 预设界面提示词配置区的区块高级编辑收敛到编排页后，用此入口引导用户前往。
+   */
+  onOpenComposer?: () => void;
 }
 
 export default function PresetForm({
   sections = ["preset", "samplers", "prompts", "regex"],
+  onOpenComposer,
 }: PresetFormProps) {
   const showPreset = sections.includes("preset");
   const showSamplers = sections.includes("samplers");
@@ -210,6 +216,7 @@ export default function PresetForm({
           isBatchDeletingPrompts={isBatchDeletingPrompts}
           setIsBatchDeletingPrompts={setIsBatchDeletingPrompts}
           handleBatchDeletePrompts={handleBatchDeletePrompts}
+          onOpenComposer={onOpenComposer}
         />
       )}
 
