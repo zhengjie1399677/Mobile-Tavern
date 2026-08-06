@@ -131,21 +131,56 @@ async function runVitestSuite(): Promise<void> {
   );
   return new Promise<void>((resolve, reject) => {
     const child = spawn(bin, ["run"], {
-      stdio: "inherit",
+      // stdout 走管道以捕获完成标记：Windows 下 vitest 测试完成后偶发进程残留
+      // 不退出，close 事件永不触发，导致整个 npm test 挂起（pre-push 门禁卡死）。
+      // 捕获输出检测汇总行后启动兜底定时器，超时强制收尾，按输出判定成败。
+      stdio: ["inherit", "pipe", "inherit"],
       cwd: process.cwd(),
       shell: isWin,
     });
-    child.on("close", (code) => {
+    let output = "";
+    let settled = false;
+    let fallback: ReturnType<typeof setTimeout> | null = null;
+    const settle = (code: number) => {
+      if (settled) return;
+      settled = true;
+      if (fallback) clearTimeout(fallback);
+      try { child.kill("SIGKILL"); } catch { /* 忽略 */ }
       if (code === 0) {
         console.log("✓ Vitest suite passed");
         resolve();
       } else {
         reject(new Error(`Vitest suite failed with exit code ${code}`));
       }
+    };
+    const stripAnsi = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
+    const scheduleFallback = () => {
+      // 汇总行已出现（如 "Test Files  76 passed (76)"），说明测试已出结果；
+      // 再等 5s 让 vitest 自然退出，仍残留则强制杀掉并按输出判定成败。
+      if (fallback || settled) return;
+      fallback = setTimeout(() => {
+        if (settled) return;
+        const plain = stripAnsi(output);
+        const failed = /(\d+)\s+failed/.exec(plain);
+        if (failed && Number(failed[1]) > 0) {
+          settle(1);
+        } else {
+          console.log("✓ Vitest suite passed (process cleanup fallback)");
+          settle(0);
+        }
+      }, 5000);
+    };
+    child.stdout?.on("data", (chunk: Buffer) => {
+      process.stdout.write(chunk);
+      output += chunk.toString();
+      if (stripAnsi(output).match(/Test Files\s+\d+\s+passed|Tests\s+\d+\s+passed|\d+\s+failed/)) {
+        scheduleFallback();
+      }
     });
-    child.on("error", (err) =>
-      reject(new Error(`Failed to spawn vitest: ${err.message}`))
-    );
+    child.on("close", (code) => settle(code ?? 1));
+    child.on("error", (err) => {
+      if (!settled) reject(new Error(`Failed to spawn vitest: ${err.message}`));
+    });
   });
 }
 
@@ -292,6 +327,9 @@ async function run() {
     process.exit(1);
   }
   console.log("\n🎉 ALL TESTS COMPLETED SUCCESSFULLY!");
+  // Windows 下 vitest 子进程及其残留 worker 会保持事件循环不退出（close 后 pipe 写端
+  // 未释放），导致 npm test 主进程挂起、pre-push 门禁卡死。测试结果已打印，显式退出。
+  process.exit(0);
 }
 
 run();
