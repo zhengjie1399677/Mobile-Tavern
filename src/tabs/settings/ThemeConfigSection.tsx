@@ -5,7 +5,6 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-  CardDescription,
 } from "../../../components/ui/card";
 import {
   Select,
@@ -50,7 +49,7 @@ export default function ThemeConfigSection({
     if (!updatedTheme.id) return;
 
     const oldId = editingTheme?.id;
-    let nextThemes = [...customThemes];
+    const nextThemes = [...customThemes];
 
     if (oldId) {
       const idx = nextThemes.findIndex(t => t.id === oldId);
@@ -183,7 +182,7 @@ export default function ThemeConfigSection({
       <CardContent className="pt-1 px-3 pb-3">
         <Select
           value={currentTheme}
-          onValueChange={(val: any) => handleThemeChange(val)}
+          onValueChange={(val: string) => handleThemeChange(val)}
         >
           <SelectTrigger aria-label={t("theme.section_title")} className="w-full text-xs h-9 bg-input/50 font-medium">
             <SelectValue placeholder={t("theme.placeholder")}>

@@ -18,8 +18,10 @@ import { Input } from "../../../../components/ui/input";
 import { Textarea } from "../../../../components/ui/textarea";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 
-export interface ImageGenConfigSectionProps
-  extends Pick<UnifiedAppContextProps, "settings" | "updateSettings"> {}
+export type ImageGenConfigSectionProps = Pick<
+  UnifiedAppContextProps,
+  "settings" | "updateSettings"
+>;
 
 export default function ImageGenConfigSection({
   settings,
@@ -138,7 +140,7 @@ export default function ImageGenConfigSection({
                       return "openai-dalle";
                     })()
                 }
-                onValueChange={(val: any) =>
+                onValueChange={(val: "openai-dalle" | "sd-webui" | "novelai") =>
                   updateSettings((prev) => ({
                     ...prev,
                     imageGenApi: {

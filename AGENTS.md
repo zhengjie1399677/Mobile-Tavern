@@ -102,6 +102,7 @@
 | 浏览器或 E2E 自动化 | `docs/agents/browser_testing.md` |
 | 版本号变更 | `docs/agents/version_bump.md` |
 | 测试选择、开发服务、文档归档 | `docs/agents/development_workflow.md` |
+| 提交 PR、评审 PR、处理审查意见 | `docs/agents/code_review.md` |
 | 可复现故障排查 | `docs/agents/troubleshooting_entry.md` |
 
 `TECHNICAL.md` 只在需要完整实现链路时读取，`docs/history/` 只在追溯历史决策时读取。

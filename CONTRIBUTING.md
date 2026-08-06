@@ -46,7 +46,7 @@ npm run test:e2e:install
    - `refactor: 重构描述`
    - `docs: 文档变更描述`
    - `test: 测试变更描述`
-5. **Pull Request** 附带变更说明与测试结果
+5. **Pull Request** 附带变更说明与测试结果，使用 `.github/PULL_REQUEST_TEMPLATE.md` 模板；审查标准与流程见 `docs/agents/code_review.md`
 
 ## 代码规范
 

@@ -4,8 +4,8 @@ import { CharacterCard, Message, LorebookEntry } from "../../types";
 import { assemblePromptContext } from "../../utils/promptBuilder";
 import { parseCharacterFile } from "../../utils/cardParser";
 import { FLOW_NODES } from "./flowNodes";
-
-import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
+
+import { getErrorMessage } from '../../utils/errorUtils';
 export function usePlaygroundActions() {
   // ==========================================
   // 0. ARCHITECTURE FLOWCHART STATES & DATA
@@ -25,7 +25,7 @@ export function usePlaygroundActions() {
   const [simulatedStatusHex, setSimulatedStatusHex] = useState<string>("#f5f0e8");
 
   useEffect(() => {
-    let interval: any;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (simulationActive) {
       interval = setInterval(() => {
         setSimNodeIdx((prev) => {

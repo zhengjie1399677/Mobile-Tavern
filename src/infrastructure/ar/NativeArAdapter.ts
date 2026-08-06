@@ -72,10 +72,14 @@ export interface LaunchArResult {
  * 桌面 dev server 下返回 false，AR 相关 UI 应隐藏或禁用。
  */
 export function isArSupported(): boolean {
+  const w = window as unknown as {
+    AndroidThemeBridge?: unknown;
+    __TAURI_INTERNALS__?: unknown;
+  };
   return (
     typeof window !== "undefined" &&
-    typeof (window as any).AndroidThemeBridge !== "undefined" &&
-    typeof (window as any).__TAURI_INTERNALS__ !== "undefined"
+    typeof w.AndroidThemeBridge !== "undefined" &&
+    typeof w.__TAURI_INTERNALS__ !== "undefined"
   );
 }
 

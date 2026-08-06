@@ -252,7 +252,8 @@ const DialogueHistoryView = ({
             // 其余消息此值为 false 且不随 isSending/messagesToRenderLength 变化而变化，
             // 配合 React.memo 可跳过绝大多数 MessageBubble 的重渲染。
             const streamingId = typeof window !== "undefined"
-              ? (window as any).TavernHelperStreamingMessageId as string | undefined
+              ? (window as unknown as { TavernHelperStreamingMessageId?: string | undefined })
+                  .TavernHelperStreamingMessageId
               : undefined;
             const isStreamingThisMsg = streamingId
               ? streamingId === message.id
