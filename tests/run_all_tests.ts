@@ -145,10 +145,10 @@ async function runVitestSuite(): Promise<void> {
       if (settled) return;
       settled = true;
       if (fallback) clearTimeout(fallback);
-      try { child.kill("SIGKILL"); } catch { /* 忽略 */ }
       if (process.platform === "win32") {
-        // kill 只作用于 cmd 外壳，vitest 的 worker 孙进程会残留并保持后台
-        // 任务/门禁的进程组不结束；用 taskkill /T 按 PID 杀整棵进程树。
+        // 先按 PID 杀整棵进程树（vitest worker 孙进程会保持输出管道写端，
+        // 导致后台任务/门禁不结束）；再 kill 外壳兜底。顺序不可反：
+        // 先 kill 外壳后 taskkill 会因 PID 已失效而失败。
         try {
           execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], {
             stdio: "ignore",
@@ -156,6 +156,7 @@ async function runVitestSuite(): Promise<void> {
           });
         } catch { /* 进程可能已退出，忽略 */ }
       }
+      try { child.kill("SIGKILL"); } catch { /* 忽略 */ }
       if (code === 0) {
         console.log("✓ Vitest suite passed");
         resolve();
