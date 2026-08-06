@@ -23,7 +23,7 @@
     "bump-version": "node scripts/bump-version.cjs",
     "test": "tsx tests/run_all_tests.ts",
     "test:zod": "node tests/test_zod_compatibility.cjs",
-    "test:unit": "vitest run",
+    "test:unit": "node scripts/vitest-clean-run.mjs run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
