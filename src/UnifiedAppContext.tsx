@@ -155,8 +155,6 @@ export interface UnifiedAppContextProps {
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
   showSessionManager: boolean;
   setShowSessionManager: (show: boolean) => void;
-  showFullHistory: boolean;
-  setShowFullHistory: (show: boolean) => void;
   chatSubTab: "dialogue" | "timeline";
   setChatSubTab: (tab: "dialogue" | "timeline") => void;
   userInputMessage: string;

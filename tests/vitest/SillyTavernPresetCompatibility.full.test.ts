@@ -213,6 +213,47 @@ describe("SillyTavern 预设完整兼容链路", () => {
     expect(analysis.level).toBe("recognize_only");
     expect(analysis.diagnostics).toContain("SCRIPT_PAYLOAD_TOO_LARGE");
   });
+
+  it("候选库 Prompt 不转为编排区块，与 ST Prompt Manager 列表一致", () => {
+    const imported = importSillyTavernPreset({
+      prompts: [
+        { identifier: "main", content: "MAIN" },
+        { identifier: "chatHistory", marker: true },
+        { identifier: "candidate-a", content: "A" },
+        { identifier: "candidate-b", content: "B" },
+      ],
+      prompt_order: [{
+        character_id: 100001,
+        order: [
+          { identifier: "main", enabled: true },
+          { identifier: "chatHistory", enabled: true },
+        ],
+      }],
+    });
+
+    expect(imported.composition.blocks.map(
+      (block) => block.compatibility?.originalIdentifier,
+    )).toEqual(["main", "chatHistory"]);
+    expect(imported.report.warnings).toContainEqual(expect.objectContaining({
+      code: "SKIPPED_UNORDERED_PROMPTS",
+    }));
+  });
+
+  it("没有 prompt_order 时降级保留全部 Prompt，不产生候选库警告", () => {
+    const imported = importSillyTavernPreset({
+      prompts: [
+        { identifier: "main", content: "MAIN" },
+        { identifier: "chatHistory", marker: true },
+      ],
+    });
+
+    expect(imported.composition.blocks.map(
+      (block) => block.compatibility?.originalIdentifier,
+    )).toEqual(["main", "chatHistory"]);
+    expect(imported.report.warnings).not.toContainEqual(expect.objectContaining({
+      code: "SKIPPED_UNORDERED_PROMPTS",
+    }));
+  });
 });
 
 function getFixture(id: string): SillyTavernPresetArchetype {

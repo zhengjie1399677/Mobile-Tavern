@@ -83,10 +83,10 @@ describe("preparePresetBundleImport", () => {
 
     expect(result.bundle.preset.maxTokens).toBe(32000);
     expect(result.bundle.promptConfig.customPrompts?.map((prompt) => prompt.identifier)).toEqual([
-      "chatHistory", "main", "optional",
+      "chatHistory", "main",
     ]);
     expect(result.bundle.promptConfig.customPrompts?.map((prompt) => prompt.enabled)).toEqual([
-      true, true, false,
+      true, true,
     ]);
     expect(result.bundle.promptConfig.customPrompts?.[0].marker).toBe(true);
     expect(result.bundle.promptConfig.customPrompts?.[1].injection_order).toBe(100);
@@ -105,8 +105,48 @@ describe("preparePresetBundleImport", () => {
     });
     expect(result.composition?.blocks.map(
       (block) => block.compatibility?.originalIdentifier,
-    )).toEqual(["chatHistory", "main", "optional"]);
+    )).toEqual(["chatHistory", "main"]);
+    expect(result.report.warnings).toContainEqual(expect.objectContaining({
+      code: "SKIPPED_UNORDERED_PROMPTS",
+    }));
     expect(result.compatibilityAnalysis?.level).toBe("full");
+  });
+
+  it("候选库 Prompt 不转为编排区块，与 ST Prompt Manager 列表一致", () => {
+    const result = preparePresetBundleImport({
+      input: {
+        name: "候选库形状",
+        prompts: [
+          { identifier: "main", name: "Main", role: "system", content: "MAIN" },
+          { identifier: "chatHistory", name: "History", marker: true },
+          { identifier: "candidate-a", name: "候选 A", content: "A" },
+          { identifier: "candidate-b", name: "候选 B", content: "B" },
+        ],
+        prompt_order: [{
+          character_id: 100001,
+          order: [
+            { identifier: "main", enabled: true },
+            { identifier: "chatHistory", enabled: true },
+          ],
+        }],
+      },
+      fallbackName: "fixture",
+      currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+      createId,
+    });
+
+    expect(result.composition?.blocks.map(
+      (block) => block.compatibility?.originalIdentifier,
+    )).toEqual(["main", "chatHistory"]);
+    expect(result.bundle.promptConfig.customPrompts?.map(
+      (prompt) => prompt.identifier,
+    )).toEqual(["main", "chatHistory"]);
+    expect(result.composition?.blocks.every(
+      (block) => !["candidate-a", "candidate-b"].includes(block.compatibility?.originalIdentifier ?? ""),
+    )).toBe(true);
+    expect(result.report.warnings).toContainEqual(expect.objectContaining({
+      code: "SKIPPED_UNORDERED_PROMPTS",
+    }));
   });
 
   it.each(SILLY_TAVERN_PRESET_ARCHETYPES)(

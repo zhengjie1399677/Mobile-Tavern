@@ -231,10 +231,11 @@ function parseCustomPrompts(data: ExternalRecord): CustomPromptBlock[] {
     readString(prompt.identifier) ?? readString(prompt.id) ?? `prompt_${index + 1}`,
     prompt,
   ]));
-  const identifiers = [
-    ...preferredOrder.map((entry) => entry.identifier),
-    ...[...promptByIdentifier.keys()].filter((identifier) => !orderByIdentifier.has(identifier)),
-  ];
+  // 与 ST Prompt Manager 一致：有排序时只保留排序条目，候选库不进入界面列表；
+  // 无排序时降级保留全部，避免静默丢失。
+  const identifiers = preferredOrder.length > 0
+    ? preferredOrder.map((entry) => entry.identifier)
+    : [...promptByIdentifier.keys()];
   return identifiers.map((identifier) => {
     const prompt = promptByIdentifier.get(identifier) ?? {};
     const rawRole = readString(prompt.role);

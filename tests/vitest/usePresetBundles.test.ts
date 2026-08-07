@@ -368,10 +368,10 @@ describe("usePresetBundles 预设导入", () => {
 
     expect(latestSettings.preset.maxTokens).toBe(32000);
     expect(latestSettings.promptConfig.customPrompts?.map((prompt) => prompt.identifier)).toEqual([
-      "chatHistory", "main", "optional",
+      "chatHistory", "main",
     ]);
     expect(latestSettings.promptConfig.customPrompts?.map((prompt) => prompt.enabled)).toEqual([
-      true, true, false,
+      true, true,
     ]);
     expect(latestSettings.promptConfig.customPrompts?.[0].marker).toBe(true);
     expect(latestSettings.promptConfig.customPrompts?.[1].injection_order).toBe(100);
@@ -392,7 +392,7 @@ describe("usePresetBundles 预设导入", () => {
     });
     expect(latestSettings.promptConfig.composition?.blocks.map(
       (block) => block.compatibility?.originalIdentifier,
-    ).slice(0, 3)).toEqual(["chatHistory", "main", "optional"]);
+    )).toEqual(["chatHistory", "main"]);
   });
 
   it("正式导出入口使用自由编排顺序并剥离外部脚本", () => {

@@ -49,8 +49,6 @@ const DialogueHistoryView = ({
     activeCharacter,
     activeSession,
     settings,
-    showFullHistory,
-    setShowFullHistory,
     msgMenuId,
     setMsgMenuId,
     isSending,
@@ -64,8 +62,6 @@ const DialogueHistoryView = ({
     activeCharacter: state.activeCharacter,
     activeSession: state.activeSession,
     settings: state.settings,
-    showFullHistory: state.showFullHistory,
-    setShowFullHistory: state.setShowFullHistory,
     msgMenuId: state.msgMenuId,
     setMsgMenuId: state.setMsgMenuId,
     isSending: state.isSending,
@@ -89,20 +85,8 @@ const DialogueHistoryView = ({
   // 不依赖此处的 deferred 值，流式渲染判断逻辑不受影响。
   const messagesToRender = React.useDeferredValue(rawMessages);
 
-  // 总结归档消息折叠。
-  // 当 session.lastSummarizedMessageId 存在时，将其之前的消息视为已归档（已生成 SummaryCard），
-  // 默认从渲染流中折叠，用户可通过"查看故事年表"按钮在时间轴抽屉中检索。
-  // 未归档消息不再按固定条数折叠：内存规模由消息分页控制，DOM 数量由虚拟列表控制。
-  let foldedCount = 0;
-  let visibleMessages = messagesToRender;
-  const lastSummarizedId = activeSession?.lastSummarizedMessageId;
-  if (!showFullHistory && lastSummarizedId) {
-    const archiveIndex = messagesToRender.findIndex((m: any) => m.id === lastSummarizedId);
-    if (archiveIndex >= 0 && archiveIndex + 1 < messagesToRender.length) {
-      foldedCount = archiveIndex + 1;
-      visibleMessages = messagesToRender.slice(foldedCount);
-    }
-  }
+  // 消息流不再折叠：历史消息完整性由"故事年表"子页维护（总结卡片与检索入口），
+  // 正文渲染只由分页懒加载（内存规模）与虚拟列表（DOM 数量）控制。
 
   // 预计算每条消息的轮次编号
   const roundNums: Record<string, number> = {};
@@ -114,7 +98,7 @@ const DialogueHistoryView = ({
     roundNums[m.id] = roundCount;
   });
 
-  // 虚拟列表：长会话下 visibleMessages 可达数百条，全量渲染会导致
+  // 虚拟列表：长会话下 messagesToRender 可达数百条，全量渲染会导致
   // React VDOM 协调遍历 1500+ 节点。useVirtualizer 只渲染视口内 + overscan 条目，
   // 协调节点数从 ~1500 降到 ~100，是 50 轮长会话延迟优化的关键。
   // - estimateSize 400px：与原 content-visibility 的 containIntrinsicSize 一致
@@ -122,7 +106,7 @@ const DialogueHistoryView = ({
   // - measureElement：动态测量实际高度，流式消息高度变化时 ResizeObserver 自动重测
   // - gap strategy: paddingBottom 1rem 模拟原 space-y-4 间距
   const virtualizer = useVirtualizer({
-    count: visibleMessages.length,
+    count: messagesToRender.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => 400,
     overscan: 5,
@@ -196,18 +180,6 @@ const DialogueHistoryView = ({
           if (msgMenuId) setMsgMenuId(null);
         }}
       >
-        {foldedCount > 0 && (
-          <div className="flex justify-center mb-2 animate-fadeIn">
-            <button
-              onClick={() => setShowFullHistory(true)}
-              aria-label={`展开更早的 ${foldedCount} 条历史对话`}
-              className="bg-muted hover:bg-muted/80 border border-border text-[10px] px-4 py-1.5 rounded-full text-muted-foreground shadow-sm flex items-center gap-1.5 transition"
-            >
-              <ChevronUp className="w-3 h-3" aria-hidden="true" />
-              {`已归档 ${foldedCount} 条至故事年表，点击展开`}
-            </button>
-          </div>
-        )}
         {/* 分页加载更多历史消息指示器。
             1. isLoadingMoreMessages=true：显示加载中旋转图标
             2. hasMoreMessages=true 且未在加载：显示可点击的"加载更早消息"按钮（备用入口，正常情况下由顶部滚动自动触发）
@@ -245,7 +217,7 @@ const DialogueHistoryView = ({
           }}
         >
           {virtualizer.getVirtualItems().map((vi) => {
-            const message = visibleMessages[vi.index];
+            const message = messagesToRender[vi.index];
             const isSystem = message.sender === "system";
 
             // 预计算 isStreamingThisMsg：只有流式中的消息和末位消息会变，
@@ -257,7 +229,7 @@ const DialogueHistoryView = ({
               : undefined;
             const isStreamingThisMsg = streamingId
               ? streamingId === message.id
-              : isSending && vi.index === visibleMessages.length - 1;
+              : isSending && vi.index === messagesToRender.length - 1;
 
             return (
               <div
@@ -290,7 +262,6 @@ const DialogueHistoryView = ({
                   <MessageBubble
                     message={message}
                     idx={vi.index}
-                    foldedCount={foldedCount}
                     roundNum={roundNums[message.id] || 0}
                     activePortraitUrl={activePortraitUrl}
                     expandedReasoningIds={expandedReasoningIds}

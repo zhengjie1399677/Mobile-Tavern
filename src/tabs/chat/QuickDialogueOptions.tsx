@@ -22,6 +22,7 @@ import { useTranslation } from "../../contexts/LanguageContext";
 import { IDatabaseService, ITtsService, IImageGenerationService } from "@/src/application/serviceContracts";
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
+import { reconcileSummaryBoundary } from "../../hooks/useChat/helpers";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 interface QuickDialogueOptionsProps {
@@ -434,14 +435,28 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                   const nextMessages = (activeSession.messages || []).filter(
                     (m: Message) => m.id !== message.id,
                   );
+                  // 删除可能移除年表边界消息：同步维护最后总结位置，避免边界悬空
+                  const reconciled = reconcileSummaryBoundary(
+                    nextMessages,
+                    activeSession.summaries,
+                    activeSession.lastSummarizedMessageId,
+                  );
                   const updated: ChatSession = {
                     ...activeSession,
                     messages: nextMessages,
+                    summaries: reconciled.summaries,
+                    lastSummarizedMessageId: reconciled.lastSummarizedMessageId,
                   };
                   setSessions((prev: ChatSession[]) =>
                     prev.map((s: ChatSession) => (s.id === updated.id ? updated : s)),
                   );
                   await saveSession(updated);
+                  // saveSession 只写会话元数据：消息必须显式从 messages Store 删除，否则重启后会"复活"
+                  await databaseService
+                    .deleteMessageById(message.id)
+                    .catch((err: unknown) => {
+                      console.error("Failed to delete message from store:", err);
+                    });
                   setMsgMenuId(null);
                 }
               }}

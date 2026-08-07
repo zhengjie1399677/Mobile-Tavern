@@ -375,11 +375,12 @@ App.tsx
 ```
 1. 同步事务锁检查:if (p.isSendingRef.current) return;
 2. 截断内存工作副本:
-   - 过滤占位符(💭... 或空内容)
-   - 定位 targetMsg 在 cleanHistory 中的 idx
+   - 目标定位基于全量消息列表(空正文但带思维链的已完成消息也可重发)
    - 用户消息重发:nextMsgsIdx = targetIdx + 1(保留该用户消息)
    - AI 消息重发:nextMsgsIdx = targetIdx(从该位置覆盖)
-   - removedMessageIds = cleanHistory.slice(nextMsgsIdx).map(m => m.id)
+   - removedMessageIds = rawMessages.slice(nextMsgsIdx).map(m => m.id)
+   - 重发截断到归档边界之前时,同步维护年表卡片与 lastSummarizedMessageId,避免边界悬空
+   - Prompt 历史仍过滤占位符(💭...)与空正文,避免把空内容发送给模型
 3. 立即更新 UI 工作副本(旧分支在 DB 中完整保留)
 4. 流式生成:
    - 成功:runOutputPipelineAndSave → persistRerollSession → replaceSessionBranch(原子事务)

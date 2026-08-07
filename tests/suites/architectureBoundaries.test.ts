@@ -477,10 +477,12 @@ export async function testArchitectureBoundaries(): Promise<void> {
   const dialogueHistoryView = read("src/tabs/chat/DialogueHistoryView.tsx");
   assert(
     dialogueHistoryView.includes("useVirtualizer") &&
-      dialogueHistoryView.includes("lastSummarizedMessageId") &&
+      !dialogueHistoryView.includes("foldedCount") &&
+      !dialogueHistoryView.includes("showFullHistory") &&
+      !dialogueHistoryView.includes("已归档") &&
       !dialogueHistoryView.includes("messagesToRender.length > 20") &&
       !dialogueHistoryView.includes("节约内存渲染"),
-    "聊天流必须由消息分页和虚拟列表控制资源占用，只允许折叠故事年表归档消息，不能恢复固定 20 条旧折叠"
+    "聊天流必须只由消息分页和虚拟列表控制资源占用，不得保留任何形式的正文折叠"
   );
 
   const androidReleaseWorkflow = read(".github/workflows/tauri-android.yml");

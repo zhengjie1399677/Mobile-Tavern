@@ -935,6 +935,123 @@ describe("useRerollMessage 成功路径与遥测上报", () => {
   });
 });
 
+describe("useRerollMessage 仅思维链（正文为空）回归", () => {
+  function createReasoningOnlySession(): ChatSession {
+    return {
+      id: "session-reasoning-only",
+      characterId: "character-1",
+      title: "仅思维链重发",
+      messages: [
+        { id: "welcome", sender: "assistant", content: "欢迎消息", timestamp: 0 },
+        { id: "user-1", sender: "user", content: "继续", timestamp: 1 },
+        {
+          id: "assistant-empty",
+          sender: "assistant",
+          content: "",
+          reasoningContent: "全部内容都在思维链里",
+          timestamp: 2,
+        },
+      ],
+      summaries: [],
+      createdAt: 1,
+    };
+  }
+
+  it("正文为空但带思维链的助手消息可直接重发（菜单入口）", async () => {
+    const session = createReasoningOnlySession();
+    const harness = createControllableHarness({
+      session,
+      streamFactory: async function* () {
+        yield { choices: [{ delta: { content: "重发后的正文" } }] };
+      },
+    });
+    const { result } = renderHook(() => useRerollMessage(harness.params));
+
+    const emptyMsg = session.messages[2];
+    await act(async () => {
+      await result.current.handleRerollFromMessage(emptyMsg);
+    });
+
+    const messages = harness.getSessions()[0].messages;
+    expect(messages.map((m) => m.content)).toEqual(["欢迎消息", "继续", "重发后的正文"]);
+    expect(messages.some((m) => m.id === "assistant-empty")).toBe(false);
+    expect(harness.replaceSessionBranch).toHaveBeenCalledTimes(1);
+    expect(harness.replaceSessionBranch.mock.calls[0][1]).toEqual(["assistant-empty"]);
+    expect(harness.isSendingRef.current).toBe(false);
+  });
+
+  it("重发最后一条：最后一条为仅思维链消息时正常重发", async () => {
+    const session = createReasoningOnlySession();
+    const harness = createControllableHarness({
+      session,
+      streamFactory: async function* () {
+        yield { choices: [{ delta: { content: "重发后的正文" } }] };
+      },
+    });
+    const { result } = renderHook(() => useRerollMessage(harness.params));
+
+    await act(async () => {
+      await result.current.handleRerollLast();
+    });
+
+    const messages = harness.getSessions()[0].messages;
+    expect(messages.at(-1)?.content).toBe("重发后的正文");
+    expect(messages.some((m) => m.id === "assistant-empty")).toBe(false);
+    expect(harness.replaceSessionBranch).toHaveBeenCalledTimes(1);
+    expect(harness.replaceSessionBranch.mock.calls[0][1]).toEqual(["assistant-empty"]);
+  });
+
+  it("重发移除年表边界消息时同步修正 lastSummarizedMessageId 与年表卡片", async () => {
+    const session: ChatSession = {
+      id: "session-boundary-reroll",
+      characterId: "character-1",
+      title: "边界重发",
+      messages: [
+        { id: "welcome", sender: "assistant", content: "欢迎消息", timestamp: 0 },
+        { id: "user-1", sender: "user", content: "继续", timestamp: 1 },
+        { id: "assistant-archived", sender: "assistant", content: "已归档回复", timestamp: 2 },
+      ],
+      summaries: [
+        {
+          id: "summary-1",
+          timeTag: "第一幕",
+          location: "营地",
+          content: "早期剧情",
+          lastMessageId: "assistant-archived",
+        },
+      ],
+      lastSummarizedMessageId: "assistant-archived",
+      createdAt: 1,
+    };
+    const harness = createControllableHarness({
+      session,
+      streamFactory: async function* () {
+        yield { choices: [{ delta: { content: "重发后的正文" } }] };
+      },
+    });
+    const { result } = renderHook(() => useRerollMessage(harness.params));
+
+    await act(async () => {
+      await result.current.handleRerollLast();
+    });
+
+    const persisted = harness.replaceSessionBranch.mock.calls[0][0] as ChatSession;
+    expect(persisted.lastSummarizedMessageId).toBeUndefined();
+    expect(persisted.summaries).toEqual([]);
+    expect(persisted.messages.map((m) => m.content)).toEqual([
+      "欢迎消息",
+      "继续",
+      "重发后的正文",
+    ]);
+    const uiMessages = harness.getSessions()[0].messages;
+    expect(uiMessages.map((m) => m.content)).toEqual([
+      "欢迎消息",
+      "继续",
+      "重发后的正文",
+    ]);
+  });
+});
+
 describe("useRerollMessage 凭证解析错误处理", () => {
   let consoleSpies: Array<ReturnType<typeof vi.spyOn>>;
 

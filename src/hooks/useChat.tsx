@@ -257,7 +257,7 @@ export const useChat = (
   // 长会话历史消息总结归档。
   // 当活跃会话内存消息数超过 ARCHIVE_THRESHOLD（200 条）且开启自动总结时，
   // 自动触发 handleAutoSummaryCheck 将旧消息归纳为 SummaryCard 归档至故事年表。
-  // 总结完成后，lastSummarizedMessageId 更新，DialogueHistoryView 据此折叠已归档消息。
+  // 总结卡片在"故事年表"子页展示并注入系统 Prompt，正文消息流不做折叠。
   const ARCHIVE_THRESHOLD = 200;
   const ARCHIVE_RETRIGGER_INCREMENT = 50; // 总结成功后，消息数再增长 50 条才允许再次触发
   const lastAutoSummaryRef = React.useRef<{ sessionId: string; messageCount: number } | null>(null);
@@ -314,8 +314,6 @@ export const useChat = (
     triggerScroll: ui.triggerScroll,
     showSessionManager: ui.showSessionManager,
     setShowSessionManager: ui.setShowSessionManager,
-    showFullHistory: ui.showFullHistory,
-    setShowFullHistory: ui.setShowFullHistory,
     chatSubTab: ui.chatSubTab,
     setChatSubTab: ui.setChatSubTab,
     userInputMessage: ui.userInputMessage,
@@ -357,7 +355,7 @@ export const useChat = (
     timelineSummary.timelineModalOpen, timelineSummary.newSummaryTag,
     timelineSummary.newSummaryLoc, timelineSummary.newSummaryContent,
     timelineSummary.editingSummaryId,
-    ui.triggerScroll, ui.showSessionManager, ui.showFullHistory,
+    ui.triggerScroll, ui.showSessionManager,
     ui.chatSubTab, ui.userInputMessage, ui.replySuggestions,
     ui.editingMsgId, ui.editingMsgContent, ui.msgMenuId, ui.isBisonLocking,
     lastRecalledMemories, lastMemoryAudit,

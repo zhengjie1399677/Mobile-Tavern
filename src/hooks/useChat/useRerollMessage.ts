@@ -17,6 +17,7 @@ import {
 import {
   generateUniqueId, buildThrottledUpdater, buildFinalAiMessage, recallWithTimeout,
   incrementTrialCount, extractThinkContent, replacePlaceholderMessage,
+  reconcileSummaryBoundary,
 } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/services/memory/types";
@@ -131,11 +132,12 @@ export function useRerollMessage(p: RerollMessageParams) {
 
     const requestId = ++p.activeRequestIdRef.current;
 
-    const cleanHistory = (currentSession.messages || []).filter(
-      (m) => !(m.sender === "assistant" && (m.content === "💭..." || !m.content))
-    );
-    const targetIdx = cleanHistory.findIndex((m) => m.id === targetMsg.id);
+    const rawMessages = currentSession.messages || [];
+    // 重发目标定位与截断必须基于全量消息列表：若按"剔除占位符与空正文"后的
+    // 历史定位，"正文为空但带思维链"的已完成助手消息会被过滤掉而无法重发。
+    const targetIdx = rawMessages.findIndex((m) => m.id === targetMsg.id);
     if (targetIdx === -1) {
+      await p.showCustomAlert("该消息已不存在或已被清理，无法重新生成。");
       p.isSendingRef.current = false;
       p.setIsSending(false);
       if (typeof window !== "undefined") {
@@ -144,7 +146,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       return;
     }
 
-    if (targetIdx < cleanHistory.length - 1) {
+    if (targetIdx < rawMessages.length - 1) {
       const ok = await p.showCustomConfirm("从该条对白开始重新生成，将会抹除整条分支此后的所有对话。确认继续吗？");
       if (!ok) {
         p.isSendingRef.current = false;
@@ -157,7 +159,7 @@ export function useRerollMessage(p: RerollMessageParams) {
     }
 
     const nextMsgsIdx = targetMsg.sender === "user" ? targetIdx + 1 : targetIdx;
-    const nextMsgs = cleanHistory.slice(0, nextMsgsIdx);
+    const nextMsgs = rawMessages.slice(0, nextMsgsIdx);
 
     // 寻找最近的一条用户消息作为驱动对白，但不删除夹在中间的系统或助手消息（如野牛模式的静默指令）
     let lastUserText = "";
@@ -183,8 +185,20 @@ export function useRerollMessage(p: RerollMessageParams) {
     const modelToReport = p.settings.api.apiKey ? (p.settings.api.modelName || FALLBACK_MODEL) : "openrouter/free";
     p.telemetryService.reportUsage("regenerate_message", { modelName: modelToReport, characterName: p.activeCharacter.name, traceId });
 
-    const removedMessageIds = cleanHistory.slice(nextMsgsIdx).map((message) => message.id);
-    let updatedSession = { ...currentSession, messages: nextMsgs };
+    const removedMessageIds = rawMessages.slice(nextMsgsIdx).map((message) => message.id);
+    // 重发可能截断到归档边界之前（对已归档消息重发）：同步维护年表卡片与
+    // 最后总结位置，避免 lastSummarizedMessageId 悬空导致折叠与总结失效。
+    const reconciled = reconcileSummaryBoundary(
+      nextMsgs,
+      currentSession.summaries,
+      currentSession.lastSummarizedMessageId
+    );
+    let updatedSession = {
+      ...currentSession,
+      messages: nextMsgs,
+      summaries: reconciled.summaries,
+      lastSummarizedMessageId: reconciled.lastSummarizedMessageId,
+    };
     const persistRerollSession = (session: ChatSession) =>
       p.databaseService.replaceSessionBranch(
         session,
@@ -247,9 +261,15 @@ export function useRerollMessage(p: RerollMessageParams) {
         log.warn("Memory recall failed", err);
       }
 
+      // Prompt 历史仍剔除占位符与空正文助手消息，避免把空内容发送给模型；
+      // 只影响发给模型的上下文，不影响重发目标定位与落库完整性。
+      const promptMessages = rawMessages.slice(0, nextMsgsIdx).filter(
+        (m) => !(m.sender === "assistant" && (m.content === "💭..." || !m.content))
+      );
+      const promptSession = { ...updatedSession, messages: promptMessages };
       const promptPayload = p.promptService.assemblePrompt({
         character: p.activeCharacter!,
-        chat: updatedSession,
+        chat: promptSession,
         userInput: lastUserText,
         settings: p.settings,
         globalLorebook: combinedGlobals,

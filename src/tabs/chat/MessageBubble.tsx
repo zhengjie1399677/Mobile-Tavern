@@ -29,7 +29,6 @@ import { MessageTimestamp } from "./message-bubble/MessageTimestamp";
 interface MessageBubbleProps {
   message: Message;
   idx: number;
-  foldedCount: number;
   roundNum: number;
   activePortraitUrl: string;
   expandedReasoningIds: Record<string, boolean>;
@@ -44,7 +43,6 @@ interface MessageBubbleProps {
 const MessageBubble = ({
   message,
   idx,
-  foldedCount,
   roundNum,
   activePortraitUrl,
   expandedReasoningIds,
@@ -697,7 +695,7 @@ const MessageBubble = ({
                   ) : (
                     renderDialogueBubble(
                       message.content,
-                      foldedCount + idx,
+                      idx,
                       isStreamingThisMsg
                     )
                   )}

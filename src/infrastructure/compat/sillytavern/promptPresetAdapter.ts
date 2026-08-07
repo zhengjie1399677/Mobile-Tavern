@@ -239,10 +239,20 @@ export function importSillyTavernPreset(input: unknown): SillyTavernImportResult
   addRootPrompt(promptByIdentifier, "postHistoryInstructions", input.post_history_instructions ?? input.postHistoryPrompt, "Post-History Instructions");
   addRootPrompt(promptByIdentifier, "storyString", input.story_string ?? input.storyString, "Story String");
 
-  const identifiers = [
-    ...order.map((item) => item.identifier),
-    ...[...promptByIdentifier.keys()].filter((identifier) => !order.some((item) => item.identifier === identifier)),
-  ];
+  // 与 ST Prompt Manager 一致：有 prompt_order 时只导入排序条目，
+  // 候选库（未排序 Prompt）在 ST 中仅存在于下拉候选、不进入管理器列表，因此不转为编排区块。
+  // 完全没有 prompt_order 时降级保留全部，避免静默丢失无排序预设的内容。
+  const unorderedIdentifiers = [...promptByIdentifier.keys()]
+    .filter((identifier) => !order.some((item) => item.identifier === identifier));
+  const identifiers = order.length > 0
+    ? order.map((item) => item.identifier)
+    : unorderedIdentifiers;
+  if (order.length > 0 && unorderedIdentifiers.length > 0) {
+    warnings.push(warning(
+      "SKIPPED_UNORDERED_PROMPTS",
+      `${unorderedIdentifiers.length} 个未在 prompt_order 中的候选 Prompt 未导入（与 ST Prompt Manager 一致，它们仅存在于候选库）。`,
+    ));
+  }
   const usedBlockIds = new Set<string>();
   const blocks: PromptBlock[] = [];
 

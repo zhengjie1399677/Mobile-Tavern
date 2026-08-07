@@ -6,8 +6,6 @@ export interface ChatUIState {
   // 显示控制
   showSessionManager: boolean;
   setShowSessionManager: React.Dispatch<React.SetStateAction<boolean>>;
-  showFullHistory: boolean;
-  setShowFullHistory: React.Dispatch<React.SetStateAction<boolean>>;
   chatSubTab: "dialogue" | "timeline";
   setChatSubTab: React.Dispatch<React.SetStateAction<"dialogue" | "timeline">>;
 
@@ -61,12 +59,7 @@ export function useChatUI(params: {
   const { activeSessionId, activeSession, setIsSending, chatBottomRef } = params;
 
   const [showSessionManager, setShowSessionManager] = useState(false);
-  const [showFullHistory, setShowFullHistory] = useState(false);
   const [chatSubTab, setChatSubTab] = useState<"dialogue" | "timeline">("dialogue");
-
-  useEffect(() => {
-    setShowFullHistory(false);
-  }, [activeSessionId]);
 
   const [replySuggestions, setReplySuggestions] = useState<ReplyChoice[]>([]);
   useEffect(() => {
@@ -182,7 +175,6 @@ export function useChatUI(params: {
 
   return {
     showSessionManager, setShowSessionManager,
-    showFullHistory, setShowFullHistory,
     chatSubTab, setChatSubTab,
     userInputMessage, setUserInputMessage,
     draftsRef, userInputMessageRef,

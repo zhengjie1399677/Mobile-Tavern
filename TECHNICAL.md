@@ -348,8 +348,8 @@ Mobile Tavern 利用 React 19 的 Concurrent Mode，通过分片更新机制，
 
 #### 第二层：历史消息截断与总结归档
 * **实现位置**: [useChat.tsx](src/hooks/useChat.tsx) 与 [DialogueHistoryView.tsx](src/tabs/chat/DialogueHistoryView.tsx)
-* **自动触发**: 当活跃会话内存消息数超过 `ARCHIVE_THRESHOLD = 200` 且开启自动总结时，自动调用 `handleAutoSummaryCheck` 将旧消息归纳为 `SummaryCard` 归档至故事年表。使用 `lastAutoSummarySessionIdRef` 防止对同一会话重复触发。
-* **渲染折叠**: `DialogueHistoryView` 基于 `session.lastSummarizedMessageId` 计算已归档消息数，将其之前的消息从渲染流中折叠，显示"已归档 N 条至故事年表，点击展开"提示。若未设置则退回原 20 条折叠逻辑。
+* **自动触发**: 当活跃会话内存消息数超过 `ARCHIVE_THRESHOLD = 200` 且开启自动总结时，自动调用 `handleAutoSummaryCheck` 将旧消息归纳为 `SummaryCard` 归档至故事年表。使用 `lastAutoSummaryRef`（记录会话 ID 与消息数）防止对同一会话重复触发，总结成功后消息数再增长 `ARCHIVE_RETRIGGER_INCREMENT = 50` 才允许再次触发。
+* **正文渲染**: 消息流不做任何折叠，全部消息按时间正序由分页懒加载（内存规模）与虚拟列表（DOM 数量）渲染；总结卡片在"故事年表"子页展示并注入系统 Prompt，`lastSummarizedMessageId` 仅用于总结服务计算未总结消息起点，重发/删除截断时由 `reconcileSummaryBoundary` 同步维护边界，避免重复总结。
 
 #### 第三层：纯 TS 工具类的 globalKernel 解耦
 * **实现位置**: [telemetry.ts](src/utils/telemetry.ts)、[apiClient.ts](src/utils/apiClient.ts)、[catbotEventBus.ts](src/utils/catbotEventBus.ts)、[bridgeCore.ts](src/utils/tavernHelper/bridgeCore.ts)

@@ -11,3 +11,4 @@ export {
   incrementTrialCount,
   recallWithTimeout,
 } from "./streamHelpers";
+export { reconcileSummaryBoundary } from "./archival";
