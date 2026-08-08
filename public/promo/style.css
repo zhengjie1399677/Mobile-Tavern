@@ -4,8 +4,8 @@
 
 /* 1. 全局设计变量与重置 */
 :root {
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: 'Outfit', var(--font-sans);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif;
+  --font-display: var(--font-sans);
   
   /* 精致灰度调色盘 */
   --bg-dark: #050507;
