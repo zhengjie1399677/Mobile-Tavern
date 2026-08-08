@@ -16,27 +16,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 2. 云端统计展示：页面访问与下载分开（/stats 只读聚合，不含明细）
-  const visitEl = document.getElementById('page-visit-count');
+  // 2. 云端下载统计展示（/stats 只读聚合，不含明细）
   const countEl = document.getElementById('download-count');
-  if (visitEl || countEl) {
+  if (countEl) {
     fetch('/stats', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('stats unavailable'))))
       .then((stats) => {
-        if (visitEl) visitEl.textContent = String(stats.pageVisits?.total ?? 0);
-        if (countEl) countEl.textContent = String(stats.downloads?.total ?? 0);
+        countEl.textContent = String(stats.totalDownloads ?? 0);
       })
       .catch(() => {
-        if (visitEl) visitEl.textContent = '-';
-        if (countEl) countEl.textContent = '-';
+        countEl.textContent = '-';
       });
-  }
-
-  // 3. 页面访问上报（与下载分开记录，sendBeacon 不阻塞页面卸载）
-  if (navigator.sendBeacon) {
-    navigator.sendBeacon('/visit?page=tavern');
-  } else {
-    fetch('/visit?page=tavern', { method: 'POST', keepalive: true, cache: 'no-store' }).catch(() => {});
   }
 
 });
