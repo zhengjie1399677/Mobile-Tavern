@@ -1,4 +1,4 @@
-import { Lock, Download, Upload } from "lucide-react";
+import { Lock, Download, Upload, ChevronDown } from "lucide-react";
 import { useTranslation } from "../../../contexts/LanguageContext";
 import {
   Card,
@@ -27,6 +27,10 @@ export default function BackupRestoreCard({
   handleImportLocalDataBackup,
 }: BackupRestoreCardProps) {
   const { t } = useTranslation();
+  const toggleIconClass = `w-3.5 h-3.5 transition-transform duration-200 ${
+    showBackupUI ? "rotate-180" : ""
+  }`;
+
   return (
     <Card className="bg-card border-border shadow-sm mt-2">
       <CardHeader
@@ -38,8 +42,9 @@ export default function BackupRestoreCard({
             <Lock className="w-4 h-4 text-emerald-500" />{" "}
             {t("backup.title")}
           </CardTitle>
-          <span className="text-muted-foreground text-[10px]">
+          <span className="text-muted-foreground text-[10px] flex items-center gap-1">
             {showBackupUI ? t("backup.collapse") : t("backup.expand")}
+            <ChevronDown aria-hidden="true" className={toggleIconClass} />
           </span>
         </div>
       </CardHeader>

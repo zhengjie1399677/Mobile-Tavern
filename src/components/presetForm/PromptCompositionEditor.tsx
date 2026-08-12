@@ -363,19 +363,6 @@ export default function PromptCompositionEditor({
           <HelpCircle className="h-3.5 w-3.5" />
           {t("prompt_composer.tutorial")}
         </PromptComposerButton>
-        {(freeMode || promptFocus.active) && orientationControl.available && (
-          <PromptComposerButton
-            type="button"
-            aria-pressed={orientationControl.forcedLandscape}
-            onClick={orientationControl.toggleOrientation}
-            className="shrink-0 border-primary/35 bg-primary/15 px-2.5 text-[10px] text-primary hover:bg-primary/20 active:bg-primary/25"
-          >
-            <RotateCw className="h-3.5 w-3.5" />
-            {t(orientationControl.forcedLandscape
-              ? "prompt_composer.restore_auto_rotation"
-              : "prompt_composer.enter_landscape")}
-          </PromptComposerButton>
-        )}
       </div>
 
       {!promptFocus.active && (
@@ -396,6 +383,20 @@ export default function PromptCompositionEditor({
               </div>
 
               <SaveStatus state={saveState} lastSavedAt={lastSavedAt} t={t} />
+
+              {orientationControl.available && (
+                <PromptComposerButton
+                  type="button"
+                  aria-pressed={orientationControl.forcedLandscape}
+                  onClick={orientationControl.toggleOrientation}
+                  className="gap-1.5 border-primary/35 bg-primary/15 px-2.5 text-[10px] text-primary hover:bg-primary/20 active:bg-primary/25"
+                >
+                  <RotateCw className="h-3.5 w-3.5" />
+                  {t(orientationControl.forcedLandscape
+                    ? "prompt_composer.restore_auto_rotation"
+                    : "prompt_composer.enter_landscape")}
+                </PromptComposerButton>
+              )}
 
               <PromptCompositionTransferToolbar
                 composition={composition}
