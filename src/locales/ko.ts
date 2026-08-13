@@ -646,6 +646,10 @@ export default {
   "characters_tab.export_png": "SillyTavern PNG 캐릭터 카드로 내보내기",
   "characters_tab.delete_char": "이 캐릭터 카드 삭제",
   "characters_tab.interactive_badge": "인터랙티브",
+  "characters_tab.layout_group": "캐릭터 카드 레이아웃",
+  "characters_tab.layout_list": "목록 레이아웃",
+  "characters_tab.layout_shelf": "책장 레이아웃",
+  "characters_tab.layout_showcase": "2열 큰 카드",
 
   "session_manager.title": "대화 브랜치 관리",
   "session_manager.busy_switch_warning": "현재 생성 중인 대화가 있습니다. 생성 완료 또는 수동 중단 후 브랜치를 전환해 주세요.",

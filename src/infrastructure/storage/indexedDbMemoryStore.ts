@@ -1,4 +1,4 @@
-import type { ChatSession, Message } from "../../types";
+import type { ChatSession, Message, SummaryCard } from "../../types";
 import type {
   MemoryFragment,
   MemoryFragmentStatus,
@@ -10,7 +10,12 @@ import {
   enqueueWrite,
 } from "./idbQueue";
 import { getDB } from "./idbConnection";
-import { toSessionStorageRecord } from "./sessionRecord";
+import {
+  fromSessionStorageRecord,
+  stripLegacySessionMessages,
+  toSessionStorageRecord,
+  type SessionStorageRecord,
+} from "./sessionRecord";
 
 function toMessageRecord(sessionId: string, message: Message, turnIndex: number) {
   const extended = message as Message & {
@@ -1021,7 +1026,7 @@ export async function deleteTemporalFactsBySession(
  */
 export async function appendSessionSummary(
   sessionId: string,
-  newCard: any,
+  newCard: SummaryCard,
   signal?: AbortSignal
 ): Promise<ChatSession> {
   return enqueueWrite(async (ctx) => {
@@ -1034,19 +1039,20 @@ export async function appendSessionSummary(
       let updatedSession: ChatSession | undefined;
 
       getReq.onsuccess = () => {
-        const existingSession = getReq.result;
+        const existingSession = getReq.result as SessionStorageRecord | undefined;
         if (!existingSession) {
           reject(new Error(`[localDB] Session ${sessionId} not found for appending summary.`));
           return;
         }
 
-        updatedSession = {
-          ...existingSession,
+        const updatedRecord = {
+          ...stripLegacySessionMessages(existingSession),
           summaries: [...(existingSession.summaries || []), newCard],
           lastSummarizedMessageId: newCard.lastMessageId,
         };
+        updatedSession = fromSessionStorageRecord(updatedRecord);
 
-        const putReq = store.put(updatedSession);
+        const putReq = store.put(updatedRecord);
         putReq.onerror = () => reject(putReq.error);
       };
 
@@ -1054,5 +1060,67 @@ export async function appendSessionSummary(
       transaction.oncomplete = () => resolve(updatedSession as ChatSession);
       bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `session:${sessionId}`, signal);
+  }, undefined, signal);
+}
+
+/** 原子更新指定摘要，避免用完整会话快照覆盖并发追加的时间线节点。 */
+export async function updateSessionSummary(
+  sessionId: string,
+  summary: SummaryCard,
+  signal?: AbortSignal
+): Promise<ChatSession> {
+  return mutateSessionSummaries(
+    sessionId,
+    (summaries) => summaries.map((item) => item.id === summary.id ? summary : item),
+    signal
+  );
+}
+
+/** 原子删除指定摘要，并把归档指针回退到剩余时间线的最后一项。 */
+export async function deleteSessionSummary(
+  sessionId: string,
+  summaryId: string,
+  signal?: AbortSignal
+): Promise<ChatSession> {
+  return mutateSessionSummaries(
+    sessionId,
+    (summaries) => summaries.filter((item) => item.id !== summaryId),
+    signal
+  );
+}
+
+function mutateSessionSummaries(
+  sessionId: string,
+  mutate: (summaries: SummaryCard[]) => SummaryCard[],
+  signal?: AbortSignal
+): Promise<ChatSession> {
+  return enqueueWrite(async (ctx) => {
+    const db = await getDB();
+    return new Promise<ChatSession>((resolve, reject) => {
+      const transaction = db.transaction("sessions", "readwrite");
+      const store = transaction.objectStore("sessions");
+      const getRequest = store.get(sessionId);
+      let updatedSession: ChatSession | undefined;
+
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result as SessionStorageRecord | undefined;
+        if (!existing) {
+          reject(new Error(`[localDB] Session ${sessionId} not found for mutating summary.`));
+          return;
+        }
+        const summaries = mutate(Array.isArray(existing.summaries) ? existing.summaries : []);
+        const updatedRecord = {
+          ...stripLegacySessionMessages(existing),
+          summaries,
+          lastSummarizedMessageId: summaries[summaries.length - 1]?.lastMessageId,
+        };
+        updatedSession = fromSessionStorageRecord(updatedRecord);
+        const putRequest = store.put(updatedRecord);
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      getRequest.onerror = () => reject(getRequest.error);
+      transaction.oncomplete = () => resolve(updatedSession as ChatSession);
+      bindTransactionAbort(ctx, transaction, reject);
+    });
+  }, undefined, signal);
 }

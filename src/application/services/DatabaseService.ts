@@ -20,9 +20,11 @@ import {
 import {
   appendMessage as dbAppendMessage,
   appendSessionSummary as dbAppendSessionSummary,
+  deleteSessionSummary as dbDeleteSessionSummary,
   deleteMessageById as dbDeleteMessageById,
   replaceSessionBranch as dbReplaceSessionBranch,
   syncSessionMessages as dbSyncSessionMessages,
+  updateSessionSummary as dbUpdateSessionSummary,
 } from "../../infrastructure/storage/indexedDbMemoryStore";
 import { applyCharacterRegexScripts } from "../../compatibility/sillytavern/mvuParser";
 
@@ -109,6 +111,30 @@ export class DatabaseService implements IDatabaseService<
     return dbAppendSessionSummary(
       sessionId,
       summary,
+      signal ?? this.abortController?.signal
+    );
+  }
+
+  async updateSessionSummary(
+    sessionId: string,
+    summary: ChatSession["summaries"][number],
+    signal?: AbortSignal
+  ): Promise<ChatSession> {
+    return dbUpdateSessionSummary(
+      sessionId,
+      summary,
+      signal ?? this.abortController?.signal
+    );
+  }
+
+  async deleteSessionSummary(
+    sessionId: string,
+    summaryId: string,
+    signal?: AbortSignal
+  ): Promise<ChatSession> {
+    return dbDeleteSessionSummary(
+      sessionId,
+      summaryId,
       signal ?? this.abortController?.signal
     );
   }

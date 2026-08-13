@@ -1,13 +1,21 @@
 import type { ChatSession } from "../../types";
 import { getDB } from "./idbConnection";
 import { bindReadonlyTransactionAbort } from "./idbQueue";
+import {
+  fromSessionStorageRecord,
+  type SessionStorageRecord,
+} from "./sessionRecord";
 
 export async function getAllSessions(): Promise<ChatSession[]> {
   const db = await getDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("sessions", "readonly");
     const request = transaction.objectStore("sessions").getAll();
-    request.onsuccess = () => resolve(request.result || []);
+    request.onsuccess = () => resolve(
+      (request.result || []).map((record) =>
+        fromSessionStorageRecord(record as SessionStorageRecord)
+      )
+    );
     request.onerror = () => reject(request.error);
     bindReadonlyTransactionAbort(transaction, reject);
   });
@@ -18,7 +26,11 @@ export async function getSessionById(id: string): Promise<ChatSession | null> {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("sessions", "readonly");
     const request = transaction.objectStore("sessions").get(id);
-    request.onsuccess = () => resolve(request.result || null);
+    request.onsuccess = () => resolve(
+      request.result
+        ? fromSessionStorageRecord(request.result as SessionStorageRecord)
+        : null
+    );
     request.onerror = () => reject(request.error);
     bindReadonlyTransactionAbort(transaction, reject);
   });
@@ -60,7 +72,7 @@ export async function getSessionsPaginated(page: number, pageSize: number): Prom
         cursor.continue();
         return;
       }
-      results.push(cursor.value as ChatSession);
+      results.push(fromSessionStorageRecord(cursor.value as SessionStorageRecord));
       cursor.continue();
     };
     request.onerror = () => reject(request.error);

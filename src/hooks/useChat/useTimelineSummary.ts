@@ -113,7 +113,17 @@ export function useTimelineSummary(params: {
       prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
     );
     try {
-      await databaseService.saveSession(updatedSession);
+      if (editingSummaryId) {
+        const editedSummary = updatedSummaries.find((summary) => summary.id === editingSummaryId);
+        if (editedSummary) {
+          await databaseService.updateSessionSummary(updatedSession.id, editedSummary);
+        }
+      } else {
+        const appendedSummary = updatedSummaries[updatedSummaries.length - 1];
+        if (appendedSummary) {
+          await databaseService.appendSessionSummary(updatedSession.id, appendedSummary);
+        }
+      }
     } catch (err: unknown) {
       console.error("Failed to save timeline summary:", err);
     }

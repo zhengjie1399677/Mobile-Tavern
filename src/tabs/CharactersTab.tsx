@@ -17,9 +17,17 @@ import {
   MoreHorizontal,
   FolderSearch,
   Gamepad2,
+  LayoutList,
+  Grid3X3,
+  Columns2,
 } from "lucide-react";
 import { getAvatarGradientClass } from "../utils/avatarUtils";
 import { listBuiltinPluginCards } from "../infrastructure/plugins/builtinPlugins";
+import {
+  readCharacterLayout,
+  saveCharacterLayout,
+  type CharacterLayout,
+} from "./characterLayout";
 
 export default function CharactersTab() {
   const {
@@ -57,6 +65,21 @@ export default function CharactersTab() {
   const [selectedDetailChar, setSelectedDetailChar] = React.useState<CharacterCard | null>(null);
   const [actionMenuChar, setActionMenuChar] = React.useState<CharacterCard | null>(null);
   const [scannerOpen, setScannerOpen] = React.useState(false);
+  const [characterLayout, setCharacterLayout] = React.useState<CharacterLayout>(() => {
+    try {
+      return readCharacterLayout(window.localStorage);
+    } catch {
+      return "list";
+    }
+  });
+  const changeCharacterLayout = React.useCallback((layout: CharacterLayout) => {
+    setCharacterLayout(layout);
+    try {
+      saveCharacterLayout(window.localStorage, layout);
+    } catch {
+      // WebView 隐私模式可能禁用 localStorage；本次会话内的布局切换仍然有效。
+    }
+  }, []);
   // 插件型角色卡：异步加载内置插件并映射为虚拟角色卡，与普通角色卡合并展示。
   const [pluginCards, setPluginCards] = React.useState<CharacterCard[]>([]);
   React.useEffect(() => {
@@ -111,8 +134,38 @@ export default function CharactersTab() {
         </div>
       </div>
 
+      <div className="flex items-center justify-end gap-1" role="group" aria-label={t("characters_tab.layout_group")}>
+        {([
+          ["list", LayoutList, "characters_tab.layout_list"],
+          ["shelf", Grid3X3, "characters_tab.layout_shelf"],
+          ["showcase", Columns2, "characters_tab.layout_showcase"],
+        ] as const).map(([layout, Icon, labelKey]) => (
+          <button
+            key={layout}
+            type="button"
+            onClick={() => changeCharacterLayout(layout)}
+            aria-pressed={characterLayout === layout}
+            title={t(labelKey)}
+            className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 transition active:scale-95 ${
+              characterLayout === layout
+                ? "border-primary/40 bg-primary/15 text-primary"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="sr-only">{t(labelKey)}</span>
+          </button>
+        ))}
+      </div>
+
       {/* List Cards */}
-      <div className="space-y-2.5">
+      <div className={
+        characterLayout === "list"
+          ? "space-y-2.5"
+          : characterLayout === "shelf"
+            ? "grid grid-cols-3 gap-2"
+            : "grid grid-cols-2 gap-3"
+      }>
       {/* characters array is pre-sorted by last chat time via useMemo in LegacyAppContextProvider */}
         {displayCharacters.map((char, index) => {
           const isPluginCard = !!char.extensions?.mt_plugin;
@@ -126,7 +179,13 @@ export default function CharactersTab() {
               key={char.id}
               onClick={() => selectCharacter(char.id)}
               style={{ "--card-index": index } as React.CSSProperties}
-              className={`bg-card rounded-xl border border-border/40 spring-press-effect animate-card-fade-in p-3 relative cursor-pointer flex items-center gap-3 min-h-[96px] h-auto select-none ${
+              className={`bg-card rounded-xl border border-border/40 spring-press-effect animate-card-fade-in relative cursor-pointer flex h-auto select-none ${
+                characterLayout === "list"
+                  ? "items-center gap-3 min-h-[96px] p-3"
+                  : characterLayout === "shelf"
+                    ? "flex-col items-stretch gap-1.5 p-1.5 min-h-[150px]"
+                    : "flex-col items-stretch gap-2 p-2 min-h-[220px]"
+              } ${
                 isActive
                   ? "border-primary/50 ring-1 ring-primary/20 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_30px_-8px_rgba(255,255,255,0.06)] bg-primary/[0.03]"
                   : "shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_10px_25px_-5px_rgba(255,255,255,0.03)] hover:-translate-y-0.5"
@@ -141,7 +200,11 @@ export default function CharactersTab() {
               )}
               {/* Character Avatar Grid */}
               <div 
-                className={`w-14 h-[72px] rounded-xl overflow-hidden border border-border/40 flex items-center justify-center relative shrink-0 ${
+                className={`${
+                  characterLayout === "list"
+                    ? "w-14 h-[72px] shrink-0"
+                    : "w-full aspect-[3/4]"
+                } rounded-xl overflow-hidden border border-border/40 flex items-center justify-center relative ${
                   char.avatar ? "bg-muted/30" : getAvatarGradientClass(char.name)
                 }`}
               >
@@ -163,17 +226,17 @@ export default function CharactersTab() {
               <div className="flex-1 min-w-0 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between gap-2">
-                    <h2 className="font-bold text-foreground text-sm truncate flex-1">
+                    <h2 className={`font-bold text-foreground truncate flex-1 ${characterLayout === "shelf" ? "text-xs" : "text-sm"}`}>
                       {char.name}
                     </h2>
                     {!isPluginCard && (
                       <div
-                        className="flex gap-1"
+                        className={characterLayout === "list" ? "flex gap-1" : "absolute right-2 top-2 z-10 flex gap-1"}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
                           onClick={() => setActionMenuChar(char)}
-                          className="text-muted-foreground hover:text-primary w-8 h-8 bg-muted/40 rounded-lg hover:bg-muted transition active:scale-95 flex items-center justify-center shrink-0"
+                          className="text-muted-foreground hover:text-primary w-8 h-8 bg-background/80 backdrop-blur-sm rounded-lg hover:bg-muted transition active:scale-95 flex items-center justify-center shrink-0 shadow-sm"
                           title={t("characters_tab.more_title")}
                         >
                           <MoreHorizontal className="w-3.5 h-3.5" />
@@ -181,13 +244,13 @@ export default function CharactersTab() {
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1 leading-snug font-light">
+                  <p className={`${characterLayout === "shelf" ? "hidden" : "line-clamp-2"} text-xs text-muted-foreground mt-1 leading-snug font-light`}>
                     {char.description || char.personality || t("characters_tab.no_description")}
                   </p>
                 </div>
 
                 <div className="flex items-center justify-between gap-1.5 pt-1.5">
-                  <span className="text-[10px] bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1 font-medium select-none">
+                  <span className="max-w-full truncate text-[10px] bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1 font-medium select-none">
                     <RefreshCw className="w-2.5 h-2.5" /> {t("characters_tab.branch_count", { count: String(charSessList.length) })}
                   </span>
                 </div>
@@ -198,7 +261,7 @@ export default function CharactersTab() {
 
 
         {displayCharacters.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl flex flex-col items-center justify-center">
+          <div className="col-span-full text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl flex flex-col items-center justify-center">
             <Bot className="w-10 h-10 stroke-[1.2] mb-2 text-muted-foreground" />
             <p className="text-sm">{t("characters_tab.empty_title")}</p>
             <p className="text-[11px] text-muted-foreground mt-1 max-w-xs leading-relaxed">

@@ -19,7 +19,6 @@ import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 const StoryTimelineView = () => {
   const kernel = useKernel();
   const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
-  const saveSession = (session: ChatSession) => databaseService.saveSession(session);
   const {
     sessions,
     activeSessionId,
@@ -142,7 +141,7 @@ const StoryTimelineView = () => {
                             s.id === updated.id ? updated : s,
                           ),
                         );
-                        await saveSession(updated);
+                        await databaseService.deleteSessionSummary(updated.id, summary.id);
                       }
                     }}
                     className="text-muted-foreground hover:text-red-400 p-1"

@@ -276,7 +276,12 @@ export class AutoSummaryService {
             summaries: [...(latestSession.summaries || []), newCard],
             lastSummarizedMessageId,
           };
-          await db.saveSession(nextSession);
+          if (typeof db.appendSessionSummary === "function") {
+            await db.appendSessionSummary(session.id, newCard);
+          } else {
+            // 仅兼容历史测试/外部 Mock；生产 DatabaseService 始终提供原子追加接口。
+            await db.saveSession(nextSession);
+          }
           return nextSession;
         } else {
           throw new Error("记忆整理失败，该会话可能已被删除。");

@@ -11,7 +11,10 @@
 import type { ChatSession, Message } from "../../../types";
 import { getDB } from "../idbConnection";
 import { enqueueWrite, bindTransactionAbort } from "../idbQueue";
-import { toSessionStorageRecord } from "../sessionRecord";
+import {
+  toSessionStorageRecord,
+  type SessionStorageRecord,
+} from "../sessionRecord";
 
 // 内存 Message 在持久化到 messages Store 时可能携带的额外字段。
 // 这些字段由记忆系统写入，但未纳入 Message 接口契约，故在此显式声明以避免类型逃逸。
@@ -42,12 +45,26 @@ export async function saveSession(session: ChatSession, signal?: AbortSignal): P
       const transaction = db.transaction("sessions", "readwrite");
       const sessionsStore = transaction.objectStore("sessions");
 
-      const sessionToSave = toSessionStorageRecord(session);
+      const incomingRecord = toSessionStorageRecord(session);
+      const getRequest = sessionsStore.get(session.id);
 
-      const request = sessionsStore.put(sessionToSave);
+      // summaries 只能通过专用的原子摘要操作修改。普通会话保存常由流式输出、
+      // 图片状态或标题更新触发，携带的可能是陈旧 React 快照，不能反向覆盖时间线。
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result as SessionStorageRecord | undefined;
+        const sessionToSave = existing
+          ? {
+              ...incomingRecord,
+              summaries: Array.isArray(existing.summaries) ? existing.summaries : [],
+              lastSummarizedMessageId: existing.lastSummarizedMessageId,
+            }
+          : incomingRecord;
+        const putRequest = sessionsStore.put(sessionToSave);
+        putRequest.onerror = () => reject(putRequest.error);
+      };
       // 用 oncomplete 判定成功（详见 charactersRepository.saveCharacter 注释）
       transaction.oncomplete = () => resolve();
-      request.onerror = () => reject(request.error);
+      getRequest.onerror = () => reject(getRequest.error);
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, `session:${session.id}`, signal);  // P1-11: 同会话多次保存合并为一次落盘

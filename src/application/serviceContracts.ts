@@ -114,6 +114,18 @@ export interface IDatabaseService<TSession = unknown, TCharacter = unknown, TSum
     summary: TSummary,
     signal?: AbortSignal
   ): Promise<TSession>;
+  /** 原子更新单条摘要，保留并发追加的其他时间线节点。 */
+  updateSessionSummary(
+    sessionId: string,
+    summary: TSummary,
+    signal?: AbortSignal
+  ): Promise<TSession>;
+  /** 原子删除单条摘要，并按剩余时间线回退最后总结位置。 */
+  deleteSessionSummary(
+    sessionId: string,
+    summaryId: string,
+    signal?: AbortSignal
+  ): Promise<TSession>;
   /**
    * 单条消息写入 messages Store（用于发送/重投场景的精准单条持久化）。
    * saveSession 只存会话元数据，新消息必须通过本方法显式写入。
