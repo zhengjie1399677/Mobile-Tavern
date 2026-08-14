@@ -17,3 +17,9 @@ src/application/
 纯计算规则优先下沉到 `src/domain/`；IndexedDB、原生平台和外部系统细节归入 `src/infrastructure/` 或明确的适配器目录。应用服务只负责用例协调，不应成为新的大单体。
 
 React Context 只保存界面状态。角色初始化、会话分页、级联存删、导入导出等流程必须先进入 `useCases/`，再调用 Service 或领域端口；Context 不得直接访问 Repository、`localDB`、Compatibility Runtime 或 Native Adapter。
+
+## 能力登记
+
+运行时能力索引位于 `bootstrap/capabilityCatalog.ts` 与 `bootstrap/capabilityRegistry.ts`。它只描述 Mobile Tavern 当前拥有哪些内部能力、由谁提供、需要哪些权限和何时装载，不负责执行插件、替换服务或访问存储。
+
+能力语义属于应用层和领域层，挂载到 Kernel extension 只是为了复用通用扩展点和 inspect/debug；不得把 LLM、TTS、ASR、插件、兼容运行时或原生能力的业务实现移入 `src/kernel/`。

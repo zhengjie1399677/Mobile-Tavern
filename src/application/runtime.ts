@@ -10,6 +10,7 @@ import { bindRuntimeKernel } from "../kernel/runtimeKernel";
 import { configureKernelValidators } from "../kernel/validation";
 import { registerCoreServices } from "./bootstrap/registerCoreServices";
 import { registerDefaultPipelines } from "./bootstrap/registerDefaultPipelines";
+import { registerRuntimeCapabilities } from "./bootstrap/capabilityRegistry";
 import {
   validateMessage,
   validateService,
@@ -26,6 +27,7 @@ configureKernelValidators({
 const lifecycle = createKernelLifecycleController(globalKernel, async () => {
   await registerCoreServices(globalKernel);
   registerDefaultPipelines(globalKernel);
+  registerRuntimeCapabilities(globalKernel);
 });
 
 export function initializeApplicationRuntime(): Promise<void> {

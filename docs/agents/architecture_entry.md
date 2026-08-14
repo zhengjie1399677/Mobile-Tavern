@@ -41,7 +41,7 @@ Mobile Tavern 是纯移动端的 SillyTavern 兼容运行容器。移动端位�
 
 | 能力 | 权威入口 |
 |---|---|
-| 应用组合根 | `src/App.tsx`、`src/application/runtime.ts`、`src/application/bootstrap/registerCoreServices.ts` |
+| 应用组合根 | `src/App.tsx`、`src/application/runtime.ts`、`src/application/bootstrap/registerCoreServices.ts`、`src/application/bootstrap/capabilityRegistry.ts` |
 | Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts`、`src/kernel/Kernel.ts` |
 | 聊天编排 | `src/hooks/useChat.tsx`、`src/hooks/useChat/` |
 | 角色与会话用例 | `src/application/useCases/characterUseCases.ts`、`chatSessionUseCases.ts` |
