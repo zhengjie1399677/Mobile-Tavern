@@ -324,6 +324,35 @@ describe("useSessionManager", () => {
     });
   });
 
+  describe("历史会话安全", () => {
+    it("切换会话不会删除尚未水合消息的历史会话", async () => {
+      vi.useFakeTimers();
+      try {
+        const activeSession = createMockSession({ id: "active-session" });
+        const unloadedHistorySession = createMockSession({
+          id: "history-session",
+          createdAt: 1,
+          messages: [],
+          turnCount: 3,
+        });
+        const params = createMockParams({
+          activeSession,
+          activeSessionId: activeSession.id,
+          sessions: [activeSession, unloadedHistorySession],
+        });
+
+        renderHook(() => useSessionManager(params));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500);
+        });
+
+        expect(params.deleteSession).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe("createBacktrackBranch", () => {
     it("无活跃角色或会话时不执行", async () => {
       const params = createMockParams({ activeCharacter: null });
