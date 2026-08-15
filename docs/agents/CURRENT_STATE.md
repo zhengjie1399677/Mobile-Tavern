@@ -1,5 +1,23 @@
 # 当前状态
 
+## 2026-08-10 更新：宣传页迁移至 tavern.neural-node.xyz 子域名
+
+- 宣传页从 `https://neural-node.xyz/tavern/` 迁移到子域名 `https://tavern.neural-node.xyz/`：DNS（tavern.neural-node.xyz 由 Vercel CNAME 改为 A 记录指向 173.254.203.206 并开启 Cloudflare 代理）、nginx 新增 tavern server 块（根目录 `/var/www/neural/tavern`，`/stats`、`/visit` 反代 8787 统计服务）、主域名 `/tavern/` 全部 301 跳转到子域名。
+- 页面 canonical/OG/JSON-LD 已改为 tavern 地址；robots.txt 与 sitemap.xml 只保留在 `/var/www/neural/tavern/`（子域根，Sitemap 指向 `https://tavern.neural-node.xyz/sitemap.xml`）；主域名根的原 robots.txt/sitemap.xml 已删除，恢复 Cloudflare 托管 robots。
+- Bing 收录：新 IndexNow 密钥（存本机 `secrets/indexnow-tavern.md`）已提交 `https://tavern.neural-node.xyz/`（2026-08-10，API 返回 202）；Bing Webmaster 需注册新站点 tavern.neural-node.xyz（验证文件 `BingSiteAuth.xml` 已在子域根）、提交 `https://tavern.neural-node.xyz/sitemap.xml`；旧站点 `https://neural-node.xyz/tavern` 待新站点确认收录后清理。
+
+---
+
+## 2026-08-10 更新：宣传页接入必应/Edge 搜索收录
+
+> 本节已被同日“宣传页迁移至 tavern 子域名”取代，保留作为当日过程记录。
+
+- 宣传页（https://neural-node.xyz/tavern/）完成搜索收录准备：页面新增 canonical、Open Graph、Twitter Card 与 JSON-LD（SoftwareApplication）结构化数据；新增 `robots.txt`（允许搜索引擎抓取、沿用 Cloudflare 托管的 AI 爬虫禁用名单）与 `sitemap.xml`；IndexNow 密钥文件托管在域名根路径并已提交收录（2026-08-10，API 返回 202）。
+- 部署位置：`/var/www/neural/tavern/index.html`、`/var/www/neural/robots.txt`、`/var/www/neural/sitemap.xml`、`/var/www/neural/<key>.txt`；IndexNow 密钥仅存本机 secrets（`C:\Users\20573\.codex\secrets\indexnow-neural-node.md`），不进仓库，后续部署需一并上传。
+- 注意：Cloudflare 会在 robots.txt 前附加托管段落，源站 robots.txt 仍生效（`Sitemap:` 声明可被必应识别）；Google/百度收录需在对应站长后台提交，本次未做。
+
+---
+
 ## 2026-08-06 更新：世界书角色导入持久化与空壳覆盖守卫
 
 - 修复反馈 bug：从全局世界书导出 JSON 导入到角色后，关闭重开即消失（手动编辑可保存）。根因是启动加载仅使用 `character_catalog` 轻量目录（`toCharacterCatalogRecord` 不含词库条目），世界书 Tab 直接渲染该空壳且从不重灌，重启后角色专属词库必然不可见；更严重的是，基于空壳对象保存会以残缺字段覆盖 `characters` store 中的完整角色记录。
