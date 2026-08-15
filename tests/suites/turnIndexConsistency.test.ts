@@ -407,5 +407,40 @@ export async function testRerollBranchAtomicReplace() {
   assert(afterAbort.some((message) => message.id === replacement.id), "中断后原分支替换结果必须保留");
   assert(!afterAbort.some((message) => message.id === "should_not_commit"), "中断事务不得写入新消息");
 
+  // 空 removedMessageIds：重发最后一条用户消息时只能追加，不得删除更早历史。
+  const appendOnlySessionId = "test_reroll_append_only";
+  const appendOnlyMessages = Array.from({ length: 5 }, (_, index) => ({
+    id: `append_old_${index}`,
+    sender: index % 2 === 0 ? "user" as const : "assistant" as const,
+    content: `旧消息 ${index}`,
+    timestamp: Date.now() + index,
+  }));
+  const appendOnlySession = {
+    id: appendOnlySessionId,
+    characterId: "character-append-only",
+    title: "追加不删历史",
+    createdAt: Date.now(),
+    summaries: [] as never[],
+    messages: appendOnlyMessages,
+  };
+  await saveSession(appendOnlySession);
+  await syncSessionMessages(appendOnlySessionId, appendOnlyMessages);
+
+  const newAi = {
+    id: "append_new_ai",
+    sender: "assistant" as const,
+    content: "新的重发回复",
+    timestamp: Date.now() + 10,
+  };
+  await replaceSessionBranch(
+    { ...appendOnlySession, messages: [appendOnlyMessages[4], newAi] },
+    [],
+    [newAi]
+  );
+  const appendOnlySaved = await getSessionMessages(db, appendOnlySessionId);
+  assert(appendOnlySaved.length === 6, `无 removedMessageIds 时必须只追加不删历史，实际 ${appendOnlySaved.length}`);
+  assert(appendOnlySaved.some((message) => message.id === "append_old_4"), "重发最后一条用户消息必须保留该用户消息");
+  assert(appendOnlySaved.some((message) => message.id === "append_new_ai"), "新 AI 回复必须写入");
+
   console.log("✔ Reroll branch atomic replace and abort rollback verified!");
 }

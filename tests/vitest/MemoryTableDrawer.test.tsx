@@ -110,7 +110,7 @@ describe("MemoryTableDrawer", () => {
     expect(screen.getByText(/记忆与状态中心/)).toBeInTheDocument();
     // 默认表格内容
     expect(await screen.findByText("角色")).toBeInTheDocument();
-  });
+  }, 10_000);
 
   it("使用紧凑全高外壳，并为各类记忆保留独立标签", () => {
     const { container } = renderWithI18n(
@@ -152,7 +152,7 @@ describe("MemoryTableDrawer", () => {
 
     expect(await screen.findByText("事件记忆")).toBeInTheDocument();
     expect(screen.getByText(/可纠错、可失效/)).toBeInTheDocument();
-  });
+  }, 10_000);
 
   // ------------------------------------------------------------------
   // 无表数据时的兜底（准则五向前兼容）

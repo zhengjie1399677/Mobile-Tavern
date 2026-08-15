@@ -428,6 +428,7 @@ export async function replaceSessionBranch(
         const removedIds = new Set(removedMessageIds);
         const sessionIndex = messagesStore.index("sessionId");
         let branchStartTurnIndex = firstTurnIndex;
+        let calibrated = false;
 
         const sweepOldBranch = () => {
           const cursorRequest = sessionIndex.openCursor(IDBKeyRange.only(session.id));
@@ -481,11 +482,34 @@ export async function replaceSessionBranch(
           };
         };
 
+        // 无被移除消息时（例如重发最后一条用户消息），不能信任 firstTurnIndex：
+        // 懒加载下它只是内存数组长度，可能远小于真实 turnIndex，导致该用户消息与
+        // 更早历史被误删。此时新消息应追加到 store 当前最大 turnIndex 之后。
+        const computeMaxTurnIndex = (cb: (maxTurn: number) => void) => {
+          const maxCursor = sessionIndex.openCursor(IDBKeyRange.only(session.id));
+          let maxTurn = -1;
+          maxCursor.onerror = () => reject(maxCursor.error);
+          maxCursor.onsuccess = () => {
+            const cursor = maxCursor.result;
+            if (cursor) {
+              const t = cursor.value?.turnIndex;
+              if (Number.isInteger(t)) maxTurn = Math.max(maxTurn, t);
+              cursor.continue();
+              return;
+            }
+            cb(maxTurn);
+          };
+        };
+
         // 若旧版本已经产生重复回复，内存数组长度推导出的 firstTurnIndex 会偏大。
         // 先读取调用方明确要求移除的记录，以其最早 turnIndex 校准真实分支起点。
         let pendingBoundaryReads = removedIds.size;
         if (pendingBoundaryReads === 0) {
-          sweepOldBranch();
+          computeMaxTurnIndex((maxTurn) => {
+            branchStartTurnIndex = maxTurn + 1;
+            calibrated = true;
+            sweepOldBranch();
+          });
         } else {
           removedIds.forEach((messageId) => {
             const boundaryRequest = messagesStore.get(messageId);
@@ -496,7 +520,15 @@ export async function replaceSessionBranch(
                 record?.sessionId === session.id &&
                 Number.isInteger(record.turnIndex)
               ) {
-                branchStartTurnIndex = Math.min(branchStartTurnIndex, record.turnIndex);
+                // 分支起点应以“被移除消息的最小 turnIndex”为准，而不是 firstTurnIndex。
+                // firstTurnIndex 由内存数组长度推导；懒加载时该数组只含最近一页，
+                // 用它作为清扫下界会把早于已加载页的合法历史一并删除，造成数据丢失。
+                if (!calibrated) {
+                  branchStartTurnIndex = record.turnIndex;
+                  calibrated = true;
+                } else {
+                  branchStartTurnIndex = Math.min(branchStartTurnIndex, record.turnIndex);
+                }
               }
               pendingBoundaryReads--;
               if (pendingBoundaryReads === 0) sweepOldBranch();
@@ -542,7 +574,7 @@ export async function syncSessionMessages(
         const record = {
           id: msg.id,
           sessionId,
-          role: msg.sender === "user" ? "user" : "assistant",
+          role: msg.sender === "user" ? "user" : msg.sender === "system" ? "system" : "assistant",
           content: msg.content,
           createdAt: msg.timestamp || Date.now(),
           turnIndex: idx,

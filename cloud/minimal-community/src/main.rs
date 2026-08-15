@@ -115,7 +115,21 @@ pub(crate) fn is_admin(state: &AppState, headers: &HeaderMap) -> bool {
     headers
         .get("x-admin-token")
         .and_then(|value| value.to_str().ok())
-        .is_some_and(|supplied| supplied == expected)
+        .is_some_and(|supplied| constant_time_eq(supplied, expected))
+}
+
+/// 管理令牌必须使用常数时间比较，避免 `==` 的逐字节提前退出泄露时序侧信道。
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    let a = a.as_bytes();
+    let b = b.as_bytes();
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
 }
 
 async fn root() -> Json<serde_json::Value> {

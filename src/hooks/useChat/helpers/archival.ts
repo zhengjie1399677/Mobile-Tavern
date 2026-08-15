@@ -6,7 +6,7 @@
  * 总结服务回退失败、把已归档内容从头重复总结。
  */
 
-import type { Message, SummaryCard } from "../../../types";
+import type { SummaryCard } from "../../../types";
 
 export interface ReconciledSummaryBoundary {
   summaries: SummaryCard[];
@@ -16,24 +16,25 @@ export interface ReconciledSummaryBoundary {
 /**
  * 消息被重发/删除截断后，同步维护年表卡片与最后总结位置。
  *
- * - 只保留 lastMessageId 仍被消息覆盖的年表卡片（lastMessageId 缺失的旧数据卡片保留，但不作为边界依据）；
- * - 若原边界消息已不在保留消息中，回退到最后一张保留卡片的边界；
- * - 原边界仍有效时保持不变，避免无谓的状态扰动。
+ * - 移除 lastMessageId 落在被删除/被覆盖分支中的年表卡片；
+ * - 归档边界回退到最后一张保留卡片的 lastMessageId。
  */
 export function reconcileSummaryBoundary(
-  messages: Message[],
+  removedMessageIds: string[],
   summaries: SummaryCard[] | undefined,
-  previousBoundary: string | undefined
+  previousBoundary?: string
 ): ReconciledSummaryBoundary {
-  const retainedIds = new Set(messages.map((m) => m.id));
+  const removed = new Set(removedMessageIds);
   const kept = (summaries || []).filter(
-    (s) => !s.lastMessageId || retainedIds.has(s.lastMessageId)
+    (s) => !s.lastMessageId || !removed.has(s.lastMessageId)
   );
+  // 仅在原边界确实被删除/覆盖时才回退；否则保持原值（不主动创建边界）。
+  // 不再依赖内存中的 retained 消息集合，避免懒加载时把更早的年表卡片误删。
   let boundary = previousBoundary;
-  if (boundary && !retainedIds.has(boundary)) {
+  if (boundary && removed.has(boundary)) {
     boundary = [...kept]
       .reverse()
-      .find((s) => s.lastMessageId && retainedIds.has(s.lastMessageId))
+      .find((s) => s.lastMessageId)
       ?.lastMessageId;
   }
   return { summaries: kept, lastSummarizedMessageId: boundary };

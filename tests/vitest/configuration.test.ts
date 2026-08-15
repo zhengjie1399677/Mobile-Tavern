@@ -59,6 +59,13 @@ describe("分层配置体系", () => {
       /HMAC_SIGN_KEY/,
     );
 
+    expect(() => parseServerConfig({
+      NODE_ENV: "production",
+      HMAC_SIGN_KEY: "default_local_hmac_sign_key_123456",
+      AES_ENCRYPT_KEY: "a".repeat(64),
+      REAL_API_KEY: "production-key",
+    })).toThrow(/HMAC_SIGN_KEY/);
+
     const config = parseServerConfig({
       NODE_ENV: "production",
       HMAC_SIGN_KEY: "h".repeat(32),

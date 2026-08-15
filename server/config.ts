@@ -52,8 +52,8 @@ export function parseServerConfig(
     throw new Error("AES_ENCRYPT_KEY 必须是 64 位十六进制字符串");
   }
   if (isProduction) {
-    if (!parsed.HMAC_SIGN_KEY || parsed.HMAC_SIGN_KEY.length < 32) {
-      throw new Error("生产环境必须提供至少 32 个字符的 HMAC_SIGN_KEY");
+    if (!parsed.HMAC_SIGN_KEY || parsed.HMAC_SIGN_KEY.length < 32 || parsed.HMAC_SIGN_KEY === DEVELOPMENT_HMAC_SIGN_KEY) {
+      throw new Error("生产环境必须提供非默认且至少 32 个字符的 HMAC_SIGN_KEY");
     }
     if (!parsed.AES_ENCRYPT_KEY || aesEncryptKey === DEVELOPMENT_AES_ENCRYPT_KEY) {
       throw new Error("生产环境必须提供非默认的 AES_ENCRYPT_KEY");

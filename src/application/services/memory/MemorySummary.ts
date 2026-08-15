@@ -143,7 +143,7 @@ export class MemorySummary {
 
     const messages: Message[] = dbMessagesRecords.map((m: any) => ({
       id: m.id,
-      sender: m.role === 'user' ? 'user' : 'assistant',
+      sender: m.role === 'user' ? 'user' : m.role === 'system' ? 'system' : 'assistant',
       content: m.content,
       timestamp: m.createdAt,
       extra: m.metadata,

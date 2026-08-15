@@ -189,7 +189,7 @@ export function useRerollMessage(p: RerollMessageParams) {
     // 重发可能截断到归档边界之前（对已归档消息重发）：同步维护年表卡片与
     // 最后总结位置，避免 lastSummarizedMessageId 悬空导致折叠与总结失效。
     const reconciled = reconcileSummaryBoundary(
-      nextMsgs,
+      removedMessageIds,
       currentSession.summaries,
       currentSession.lastSummarizedMessageId
     );
@@ -386,6 +386,12 @@ export function useRerollMessage(p: RerollMessageParams) {
 
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
       if (!latestSession) { log.warn("Aborted save, session was deleted", { sessionId: updatedSession.id }); return; }
+      // 若期间已有更新的重发请求接管（requestId 被推进），本请求结果必须丢弃，
+      // 否则会出现低概率的“连续发两条”。
+      if (requestId !== p.activeRequestIdRef.current) {
+        log.warn("Superseded reroll result discarded", { requestId, activeRequestId: p.activeRequestIdRef.current });
+        return;
+      }
 
       // 关键修复：流式"正常完成"但 AI 返回空内容（与 useSendMessage 一致）
       const rawResponseText = responseChunks.join("");

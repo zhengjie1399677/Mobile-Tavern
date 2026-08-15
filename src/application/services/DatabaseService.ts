@@ -22,6 +22,7 @@ import {
   appendSessionSummary as dbAppendSessionSummary,
   deleteSessionSummary as dbDeleteSessionSummary,
   deleteMessageById as dbDeleteMessageById,
+  getMessagesBySession,
   replaceSessionBranch as dbReplaceSessionBranch,
   syncSessionMessages as dbSyncSessionMessages,
   updateSessionSummary as dbUpdateSessionSummary,
@@ -38,6 +39,15 @@ type PersistedMessage = Message & {
   extractSource?: string;
   metadata?: Record<string, unknown>;
 };
+
+/** messages Store 原始记录的最小投影，用于分支回溯时读取完整历史。 */
+interface StoredMessageRecord {
+  id: string;
+  role?: string;
+  content: string;
+  createdAt: number;
+  metadata?: Record<string, unknown>;
+}
 
 export class DatabaseService implements IDatabaseService<
   ChatSession,
@@ -304,11 +314,24 @@ export class DatabaseService implements IDatabaseService<
   }
 
   async createBacktrackBranch(sourceSession: ChatSession, title: string, msgId: string): Promise<ChatSession> {
-    const msgIndex = sourceSession.messages.findIndex(m => m.id === msgId);
+    // 分支回溯必须基于 messages Store 的完整历史，而不是内存中懒加载的最近一页。
+    // 否则早于已加载页的历史消息会从新分支中整段丢失（数据丢失根因）。
+    const rawHistory = await getMessagesBySession(sourceSession.id);
+    const fullHistory: Message[] = rawHistory.length > 0
+      ? (rawHistory as StoredMessageRecord[]).map((record) => ({
+        id: record.id,
+        sender: record.role === "user" ? "user" : record.role === "system" ? "system" : "assistant",
+        content: record.content,
+        timestamp: record.createdAt,
+        extra: record.metadata,
+      }))
+      : sourceSession.messages;
+
+    const msgIndex = fullHistory.findIndex(m => m.id === msgId);
     if (msgIndex < 0) {
       throw new Error("Message not found in source session");
     }
-    const sourceSubHistory = sourceSession.messages.slice(0, msgIndex + 1);
+    const sourceSubHistory = fullHistory.slice(0, msgIndex + 1);
     const messageIdsSet = new Set(sourceSubHistory.map((m) => m.id));
     const filteredSummaries = (sourceSession.summaries || [])
       .filter((s) => s.lastMessageId && messageIdsSet.has(s.lastMessageId))

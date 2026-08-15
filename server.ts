@@ -689,11 +689,18 @@ async function startServer() {
 
     try {
       const { clientVersion, userCredential, timestamp } = req.body || {};
-      console.log(`[Check Update] Request clientVersion: ${clientVersion}, credential: ${userCredential}`);
+      // 设备标识属于用户可关联信息，禁止原样写入日志，仅记录长度用于排障。
+      const credentialLength = typeof userCredential === "string" ? userCredential.length : 0;
+      console.log(`[Check Update] Request clientVersion: ${clientVersion}, credentialLength: ${credentialLength}`);
 
       // 1. 必填参数校验（不再要求 encryptedAlgorithm 签名字段）
       if (!clientVersion || !userCredential || !timestamp) {
         return res.status(400).json({ success: false, error: "Missing required update parameters" });
+      }
+      // 1.1 时间戳必须是有限数字，避免 Number("abc") === NaN 绕过 5 分钟新鲜度校验
+      const ts = Number(timestamp);
+      if (!Number.isFinite(ts)) {
+        return res.status(400).json({ success: false, error: "Invalid timestamp" });
       }
 
       // 2. 基于 IP 的速率限制（防刷兜底，每分钟 10 次）
@@ -712,7 +719,7 @@ async function startServer() {
       }
 
       // 3. 时间戳防重放校验（5 分钟有效期）
-      const timeDiff = Math.abs(Date.now() - Number(timestamp));
+      const timeDiff = Math.abs(Date.now() - ts);
       if (timeDiff > 5 * 60 * 1000) {
         return res.status(403).json({ success: false, error: "Forbidden: Request timestamp has expired" });
       }
@@ -725,7 +732,7 @@ async function startServer() {
         if (pkg.version) latestVersion = pkg.version;
       } catch (e) {}
 
-      const hasUpdate = compareVersions(clientVersion, latestVersion) < 0;
+      const hasUpdate = compareVersions(String(clientVersion), latestVersion) < 0;
 
       if (!hasUpdate) {
         return res.json({ success: false, message: "当前已是最新版本" });

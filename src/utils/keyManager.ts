@@ -252,8 +252,10 @@ export async function getTrialKey(): Promise<string> {
 
     if (!res.ok) {
       if (res.status === 401) {
-        localStorage.removeItem("mt_auth_token_cache");
-        console.warn("[KeyManager] 401 Unauthorized from key service. Cleared cached auth token.");
+        // 失效 token 缓存在内存 tokenCache 中，401 时必须主动清空，
+        // 否则后续请求会继续复用已被服务端拒绝的 token，直到接近过期才刷新。
+        tokenCache = null;
+        console.warn("[KeyManager] 401 Unauthorized from key service. Cleared in-memory token cache.");
       }
       throw new Error(`Failed to get key ciphertext: ${res.status}`);
     }
@@ -279,7 +281,7 @@ export async function getTrialKey(): Promise<string> {
 
     console.log("[KeyManager] Decrypting payload via Web Crypto...");
     const decryptedKey = await decryptAesGcm(ciphertext, aesKey, iv, tag);
-    console.log("[KeyManager] Decryption succeeded! Key length:", decryptedKey.length, "Prefix:", decryptedKey.substring(0, 10));
+    console.log("[KeyManager] Decryption succeeded! Key length:", decryptedKey.length);
     return decryptedKey;
   } catch (err: unknown) {
     console.error("[KeyManager] Error getting trial key:", err);

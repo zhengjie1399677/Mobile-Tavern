@@ -437,7 +437,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                   );
                   // 删除可能移除年表边界消息：同步维护最后总结位置，避免边界悬空
                   const reconciled = reconcileSummaryBoundary(
-                    nextMessages,
+                    [message.id],
                     activeSession.summaries,
                     activeSession.lastSummarizedMessageId,
                   );

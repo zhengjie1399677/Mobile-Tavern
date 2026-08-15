@@ -160,14 +160,32 @@ export async function runOutputPipelineAndSave(params: {
       const messages = parsedSession.messages;
       const aiMsg = messages[messages.length - 1];
 
+      // 记忆片段/事实需要绝对 turnIndex（与 replaceSessionBranch 的清扫边界一致），
+      // 不能用懒加载内存数组下标，否则长会话里会误删/漏删旧分支记忆。
+      const resolveTurnIndex = async (msgId: string, fallback: number): Promise<number> => {
+        try {
+          const storage = typeof memoryService.getStorage === "function"
+            ? memoryService.getStorage()
+            : null;
+          const record = storage ? await storage.getMessageById(msgId) : null;
+          if (record && Number.isInteger(record.turnIndex)) {
+            return record.turnIndex;
+          }
+        } catch (e) {
+          log.warn("Failed to resolve message turnIndex for extraction", { error: e, msgId });
+        }
+        return fallback;
+      };
+
       // 1. 抽取最新 AI 消息（L0 + L1 + L2）
       if (aiMsg && aiMsg.sender === "assistant") {
+        const turnIndex = await resolveTurnIndex(aiMsg.id, messages.length - 1);
         memoryService.getExtractor().scheduleExtraction({
           msgId: aiMsg.id,
           sessionId: parsedSession.id,
           role: "assistant",
           message: cleanAiText,
-          turnIndex: messages.length - 1,
+          turnIndex,
           memoryContent: memoryContent, // 传入提取到的 <memory> 内容
         });
       }
@@ -176,12 +194,13 @@ export async function runOutputPipelineAndSave(params: {
       if (!isBisonConsecutive && messages.length >= 2) {
         const userMsg = messages[messages.length - 2];
         if (userMsg && userMsg.sender === "user") {
+          const turnIndex = await resolveTurnIndex(userMsg.id, messages.length - 2);
           memoryService.getExtractor().scheduleExtraction({
             msgId: userMsg.id,
             sessionId: parsedSession.id,
             role: "user",
             message: userMsg.content,
-            turnIndex: messages.length - 2,
+            turnIndex,
           });
         }
       }
