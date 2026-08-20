@@ -5,7 +5,6 @@
  * 1. TableMemoryService - 表格记忆解析（updateRow/insertRow/deleteRow）
  * 2. PromptService - ReDoS 防护与 Lorebook 递归触发
  * 3. LLMService - validateBaseUrl URL 校验
- * 4. AutoSummaryService - 元数据解析逻辑
  *
  * 遵循 AGENTS.md `CHANGE-SAFE`：局部测试跑通，独立验证后再接入聚合测试。
  */
@@ -13,10 +12,9 @@
 import { TableMemoryService } from "../src/application/services/TableMemoryService";
 import { PromptService } from "../src/application/services/PromptService";
 import { LLMService } from "../src/application/services/LLMService";
-import { AutoSummaryService } from "../src/application/services/AutoSummaryService";
 import { Kernel } from "../src/kernel/Kernel";
 import { IKernelService } from "@/src/application/serviceContracts";
-import { TableMemorySheet, CharacterCard, ChatSession, UserSettings, Message } from "../src/types";
+import { TableMemorySheet, CharacterCard, ChatSession, Message } from "../src/types";
 
 // 注：ScriptService 测试因依赖 tavernHelperBridge（操作 window 对象）在 Node 环境下无法加载，
 // 已记录为测试覆盖空白，需在浏览器环境或 E2E 测试中补充覆盖。
@@ -283,157 +281,6 @@ async function testLLMServiceUrlValidation() {
 }
 
 // ============================================================
-// 4. AutoSummaryService 元数据解析测试
-// ============================================================
-
-async function testAutoSummaryMetadataParsing() {
-  console.log("\n--- Running AutoSummaryService Metadata Parsing Verification ---");
-  const testKernel = new Kernel();
-
-  // Mock LLM 服务返回带元数据的总结
-  const mockSummaryContent = "银霜在旅馆中与旅人交谈，气氛逐渐缓和。\n---\n[Location: 旅馆大厅]\n[Time: 深夜]\n[Condition: 放松]\n[Inventory: 长剑]\n[Bonding: 好感+5]";
-
-  let capturedReqBody: any = null;
-  const mockLlmService: any = {
-    name: "llm",
-    init() {},
-    async universalFetch(endpoint: string, options: any) {
-      capturedReqBody = options.reqBody;
-      return new Response(JSON.stringify({
-        choices: [{ message: { content: mockSummaryContent } }],
-      }), { status: 200, headers: { "Content-Type": "application/json" } });
-    },
-  };
-
-  const mockDbService: any = {
-    name: "database",
-    init() {},
-    async getAllSessions() {
-      return [mockSession];
-    },
-    // P0-2: AutoSummaryService 改用 getSessionById 单条直查，mock 需同步实现
-    async getSessionById(id: string) {
-      return mockSession && mockSession.id === id ? mockSession : null;
-    },
-    async saveSession(session: any) {
-      mockSession = session;
-    },
-  };
-
-  let mockSession: ChatSession = {
-    id: "sess-test",
-    characterId: "char-1",
-    title: "Test",
-    createdAt: Date.now(),
-    messages: Array.from({ length: 10 }, (_, i) => ({
-      id: `msg_${i}`,
-      sender: (i % 2 === 0 ? "user" : "assistant") as "user" | "assistant",
-      content: `消息 ${i}`,
-      timestamp: Date.now(),
-    })),
-    summaries: [],
-    variables: {},
-  };
-
-  const autoSummaryService = new AutoSummaryService();
-
-  await testKernel.registerService("llm", mockLlmService);
-  await testKernel.registerService("database", mockDbService);
-  await testKernel.registerService("autoSummary", autoSummaryService);
-
-  const mockSettings: UserSettings = {
-    userName: "Tester",
-    api: {
-      type: "openai-compat",
-      baseUrl: "https://api.openai.com/v1",
-      apiKey: "sk-test-key",
-      modelName: "gpt-4",
-    },
-    preset: {
-      id: "test-preset",
-      name: "测试预设",
-      temperature: 0.7,
-      topP: 0.9,
-      topK: 40,
-      repetitionPenalty: 1.0,
-      maxTokens: 1000,
-    },
-    memory: {
-      recentTurns: 6,
-      summaryTriggerTurns: 4,
-      summaryLength: 150,
-    },
-    promptConfig: {
-      mainPrompt: "",
-      jailbreakPrompt: "",
-      useJailbreak: false,
-      instructTemplate: "default",
-      systemPrefix: "",
-      systemSuffix: "",
-      userPrefix: "",
-      userSuffix: "",
-      assistantPrefix: "",
-      assistantSuffix: "",
-    },
-  };
-
-  const mockCharacter: CharacterCard = {
-    id: "char-1",
-    name: "银霜",
-    description: "剑士",
-    personality: "坚毅",
-    scenario: "旅馆大厅的夜晚",
-    first_mes: "",
-    mes_example: "",
-  };
-
-  // 触发自动总结
-  const result = await autoSummaryService.handleAutoSummaryCheck(
-    mockSession,
-    mockSettings,
-    mockCharacter,
-    true // force
-  );
-
-  // 验证总结卡片生成
-  assert(result.summaries.length === 1, "应生成一张总结卡片");
-  const summary = result.summaries[0];
-
-  // 验证元数据解析
-  assert(summary.content.includes("银霜在旅馆中与旅人交谈"), "总结正文应正确提取");
-  assert(summary.location === "旅馆大厅", "Location 元数据应正确解析");
-  assert(summary.timeTag === "深夜", "Time 元数据应正确解析");
-  assert(summary.condition === "放松", "Condition 元数据应正确解析");
-  assert(summary.inventory === "长剑", "Inventory 元数据应正确解析");
-  assert(summary.bonding === "好感+5", "Bonding 元数据应正确解析");
-  assert(summary.lastMessageId !== undefined, "lastMessageId 应被记录");
-
-  console.log("  ✔ 总结元数据解析验证通过");
-
-  // 验证免 Key 模式降级
-  {
-    const noKeySettings = { ...mockSettings, api: { ...mockSettings.api, apiKey: "" } };
-    let threw = false;
-    try {
-      await autoSummaryService.handleAutoSummaryCheck(
-        mockSession,
-        noKeySettings,
-        mockCharacter,
-        true // force
-      );
-    } catch (e: any) {
-      threw = true;
-      assert(e.message.includes("免 Key"), "免 Key 模式应抛出明确错误");
-    }
-    assert(threw === true, "免 Key 强制总结应抛错");
-    console.log("  ✔ 免 Key 模式降级验证通过");
-  }
-
-  await testKernel.destroy();
-  console.log("✔ AutoSummaryService 元数据解析测试全部通过！");
-}
-
-// ============================================================
 // 5. ScriptService MVU 变量解析测试
 // ============================================================
 // 注：ScriptService 依赖 tavernHelperBridge（在模块加载时操作 window 对象），
@@ -453,7 +300,6 @@ export {
   testTableMemoryService,
   testPromptServiceRedosProtection,
   testLLMServiceUrlValidation,
-  testAutoSummaryMetadataParsing,
 };
 
 // 独立运行入口（用于单兵测试）
@@ -465,7 +311,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       await testTableMemoryService();
       await testPromptServiceRedosProtection();
       await testLLMServiceUrlValidation();
-      await testAutoSummaryMetadataParsing();
       console.log("\n=================================================");
       console.log("🎉 Kernel Services Coverage Tests ALL PASSED!");
       console.log("=================================================");

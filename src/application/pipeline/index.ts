@@ -1,8 +1,8 @@
 /**
  * 业务输出管道层 barrel 文件
  *
- * 集中导出 OutputPipelineContext 类型与默认装配的 4 个内置中间件
- * （tableMemory / mvuScript / bisonMode / autoSummary），供
+ * 集中导出 OutputPipelineContext 类型与默认装配的 3 个纯输出中间件
+ * （tableMemory / mvuScript / bisonMode），供
  * bootstrap 装配、hooks/useChat 消费方统一从此处导入。
  */
 
@@ -11,5 +11,4 @@ export {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
   bisonModeMiddleware,
-  autoSummaryMiddleware,
 } from "./outputMiddlewares";

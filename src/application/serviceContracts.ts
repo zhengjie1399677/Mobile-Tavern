@@ -86,16 +86,35 @@ export interface IChatStreamService extends IKernelService {
  * 实现方必须显式声明所有类型参数，例如：
  *   `class DatabaseService implements IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>`
  */
-export interface IDatabaseService<TSession = unknown, TCharacter = unknown, TSummary = unknown, TMessage = unknown> extends IKernelService {
+export interface IDatabaseService<TSession = unknown, TCharacter = unknown, TSummary = unknown, TMessage = unknown, TSessionPatch = unknown> extends IKernelService {
   getAllSessions(): Promise<TSession[]>;
   /**
    * P0-2 基础设施：按主键单条直查会话，避免 getAllSessions() 全量反序列化。
-   * 用于 AutoSummaryService 等仅需查找当前会话的场景。
+   * 用于 MemorySummary 等仅需查找当前会话的场景。
    */
   getSessionById(id: string): Promise<TSession | null>;
+  getLatestSessionByCharacter(characterId: string): Promise<TSession | null>;
+  /** 使用稳定消息游标读取一个界面窗口；虚拟列表只负责渲染，不替代存储分页。 */
+  getSessionMessageWindow(
+    sessionId: string,
+    options: { pageSize: number; beforeMessageId?: string },
+  ): Promise<{ messages: TMessage[]; hasMore: boolean }>;
+  getSessionPromptMessages(
+    sessionId: string,
+    options: { limit?: number; preserveFirstAssistant: boolean; beforeMessageId?: string },
+  ): Promise<TMessage[]>;
+  /** 读取指定消息之前最近的持久化变量/状态表快照，供重发恢复。 */
+  getSessionStateBeforeMessage(sessionId: string, messageId: string): Promise<TSessionPatch>;
   // PERF-03: 分页加载 API，避免一次性 getAll() 阻塞主线程
   getSessionsCount(): Promise<number>;
+  /** 只扫描索引键汇总每个角色的会话数，供目录统计使用。 */
+  getSessionCountsByCharacter(): Promise<Record<string, number>>;
   getSessionsPaginated(page: number, pageSize: number): Promise<TSession[]>;
+  /** 使用稳定 `(createdAt, id)` 游标读取会话目录页。 */
+  getSessionsPage(options: {
+    pageSize: number;
+    before?: { createdAt: number; id: string };
+  }): Promise<{ sessions: TSession[]; hasMore: boolean }>;
   runStorageDiagnostics(): Promise<{
     databaseName: string;
     version: number;
@@ -104,7 +123,7 @@ export interface IDatabaseService<TSession = unknown, TCharacter = unknown, TSum
     writeLatencyMs: number;
     readWriteVerified: boolean;
   }>;
-  saveSession(session: TSession, signal?: AbortSignal, traceId?: string): Promise<void>;
+  updateSessionMetadata(sessionId: string, patch: TSessionPatch, signal?: AbortSignal, traceId?: string): Promise<void>;
   /**
    * 在 sessions Store 内原子追加摘要并推进最后总结位置。
    * 这是会话聚合能力，不暴露记忆词典、召回等业务专用存储细节。
@@ -128,13 +147,26 @@ export interface IDatabaseService<TSession = unknown, TCharacter = unknown, TSum
   ): Promise<TSession>;
   /**
    * 单条消息写入 messages Store（用于发送/重投场景的精准单条持久化）。
-   * saveSession 只存会话元数据，新消息必须通过本方法显式写入。
+   * 元数据更新不写消息；新消息必须通过本方法显式写入。
    */
   appendSessionMessage(sessionId: string, message: TMessage, turnIndex?: number, signal?: AbortSignal, traceId?: string): Promise<void>;
-  /**
-   * 按主键删除单条消息（用于重投/编辑场景删除旧消息）。
-   */
-  deleteMessageById(id: string, signal?: AbortSignal): Promise<void>;
+  /** 原子提交一次输出流水线产生的全部消息和元数据变更。 */
+  commitSessionTurn(
+    sessionId: string,
+    patch: TSessionPatch,
+    messages: TMessage[],
+    signal?: AbortSignal,
+    traceId?: string
+  ): Promise<void>;
+  /** 原子删除会话消息并级联清理摘要与派生记忆。 */
+  deleteSessionMessage(sessionId: string, messageId: string, signal?: AbortSignal): Promise<TSession>;
+  /** 原子编辑会话消息，并失效该轮次之后的摘要、状态快照与派生记忆。 */
+  updateSessionMessage(
+    sessionId: string,
+    message: TMessage,
+    patch: TSessionPatch,
+    signal?: AbortSignal,
+  ): Promise<TSession>;
   /** 原子替换重发分支：会话元数据、旧消息删除和新消息写入同事务提交。 */
   replaceSessionBranch(
     session: TSession,
@@ -142,17 +174,12 @@ export interface IDatabaseService<TSession = unknown, TCharacter = unknown, TSum
     newMessages: TMessage[],
     signal?: AbortSignal
   ): Promise<void>;
-  /**
-   * 批量同步会话消息（用于分支创建/备份恢复等全量写入场景）。
-   * 仅 PUT upsert，不做孤儿清理。
-   */
-  syncSessionMessages(sessionId: string, messages: TMessage[], signal?: AbortSignal): Promise<void>;
   deleteSession(id: string, signal?: AbortSignal): Promise<void>;
   /**
    * 批量写入会话（备份恢复 / 跨设备同步场景）。
    * 跨 sessions+messages Store 事务，用于一次性导入完整对话历史。
    */
-  bulkSaveSessions(sessionsList: TSession[], signal?: AbortSignal): Promise<void>;
+  replaceCompleteSessions(sessionsList: TSession[], signal?: AbortSignal): Promise<void>;
   createNewSession(character: TCharacter, starterMessage?: string, initialSuggestions?: string[]): Promise<TSession>;
   createEmptyBranch(character: TCharacter, title: string): Promise<TSession>;
   createBacktrackBranch(sourceSession: TSession, title: string, msgId: string): Promise<TSession>;
@@ -385,7 +412,7 @@ export interface IMemoryService<
    */
   getStateTable(): TStateTable;
   /**
-   * 获取摘要子模块（瘦身自 AutoSummaryService）。
+   * 获取摘要子模块。
    * 阶段 C 装配，供 output 中间件触发剧情时间线摘要。
    */
   getSummary(): TSummary;

@@ -124,17 +124,23 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatHook.selectCharacter]);
 
-  // Wrap handleDeleteCharacter to inject chatState dependencies
+  // 角色聚合已由 CharacterService 原子级联删除；这里只在成功后同步分页视图与统计。
   const wrappedHandleDeleteCharacter = React.useCallback(async (id: string, e: React.MouseEvent) => {
     chatHook.handleStopGeneration();
     return charactersHook.handleDeleteCharacter(
       id,
       e,
-      chatState.sessions,
-      chatState.setSessions,
-      chatState.deleteSession
+      async () => {
+        chatState.setSessionViews((previous) =>
+          previous.filter((session) => session.characterId !== id)
+        );
+        if (chatState.activeSession?.characterId === id) {
+          chatState.setActiveSessionId(null);
+        }
+        await chatState.refreshSessionStatistics();
+      },
     );
-  }, [chatHook, charactersHook, chatState.sessions, chatState.setSessions, chatState.deleteSession]);
+  }, [chatHook, charactersHook, chatState]);
 
   // Wrap backup exports to inject current characters state
   const wrappedHandleExportLocalDataBackup = React.useCallback(async () => {
@@ -145,21 +151,25 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
 
   // Wrap backup imports to inject state dispatch actions
   const wrappedHandleImportLocalDataBackup = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    return settingsHook.handleImportLocalDataBackup(
+    const result = await settingsHook.handleImportLocalDataBackup(
       e,
       charState.setCharacters,
-      chatState.setSessions
+      chatState.setSessionViews
     );
-  }, [settingsHook, charState.setCharacters, chatState.setSessions]);
+    await chatState.refreshSessionStatistics();
+    return result;
+  }, [settingsHook, charState.setCharacters, chatState.setSessionViews, chatState.refreshSessionStatistics]);
 
   // Wrap SillyTavern chat history import
   const wrappedHandleImportSillyChatHistory = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    return settingsHook.handleImportSillyChatHistory(
+    const result = await settingsHook.handleImportSillyChatHistory(
       e,
       charState.characters,
-      chatState.setSessions
+      chatState.setSessionViews
     );
-  }, [settingsHook, charState.characters, chatState.setSessions]);
+    await chatState.refreshSessionStatistics();
+    return result;
+  }, [settingsHook, charState.characters, chatState.setSessionViews, chatState.refreshSessionStatistics]);
 
   // Wrap silent daily backup to inject characters state
   const wrappedHandleSilentDailyBackup = React.useCallback(async () => {

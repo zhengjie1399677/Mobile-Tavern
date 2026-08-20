@@ -12,28 +12,38 @@ import { reportUsage } from "../../utils/telemetry";
 
 const logger = Logger.create("ChatAccessibility");
 import { useKernel } from "../../contexts/KernelContext";
-import { IDatabaseService, IScriptService } from "@/src/application/serviceContracts";
+import { IDatabaseService, IScriptService, ITtsService } from "@/src/application/serviceContracts";
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
 import type { CardRuntimeBridgeParams } from "../../compatibility/sillytavern";
 
 interface UseChatAccessibilityDeps
-  extends Omit<CardRuntimeBridgeParams, "saveSession"> {
+  extends Omit<CardRuntimeBridgeParams, "saveSession" | "setSessions"> {
+  setSessionViews: CardRuntimeBridgeParams["setSessions"];
   isSending: boolean;
 }
 
 export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   const kernel = useKernel();
   const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
-  const saveSession = (session: ChatSession): Promise<void> => {
-    return databaseService.saveSession(session);
+  const saveSession = async (session: ChatSession): Promise<void> => {
+    const current = getBridgeParams()?.activeSession;
+    const currentMessages = new Map((current?.messages ?? []).map((message) => [message.id, message]));
+    const changedMessages = session.messages.filter((message) => {
+      const previous = currentMessages.get(message.id);
+      return !previous || !lodashIsEqual(previous, message);
+    });
+    await databaseService.updateSessionMetadata(session.id, { variables: session.variables });
+    for (const message of changedMessages) {
+      await databaseService.appendSessionMessage(session.id, message);
+    }
   };
 
   const {
     activeCharacter,
     settings,
     activeSession,
-    setSessions,
+    setSessionViews,
     setCharacters,
     saveCharacter,
     updateSettings,
@@ -96,7 +106,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     initTavernHelperBridge({
       activeCharacter,
       activeSession,
-      setSessions,
+      setSessions: setSessionViews,
       saveSession,
       setCharacters,
       saveCharacter,
@@ -120,7 +130,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   ]);
 
   // 轻量引用同步 effect：仅在 session/character 引用变化时同步给 bridge 状态，不执行重初始化，避免 60ms 高频开销
-  const prevVarsRef = React.useRef<any>(null);
+  const prevVarsRef = React.useRef<unknown>(null);
   React.useEffect(() => {
     if (!settings.enableScriptExecution) return;
     const params = getBridgeParams();
@@ -247,7 +257,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     if (lastSpokenMsgIdRef.current === lastMsg.id) return;
 
     try {
-      const ttsService = kernel.getService<any>("tts");
+      const ttsService = kernel.getService<ITtsService>("tts");
       if (ttsService) {
         lastSpokenMsgIdRef.current = lastMsg.id;
 

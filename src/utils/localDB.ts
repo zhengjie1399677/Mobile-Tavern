@@ -58,9 +58,9 @@ export {
   getSessionsPaginated,
 } from "../infrastructure/storage/indexedDbSessionQueries";
 export {
-  saveSession,
+  updateSessionMetadata,
   deleteSession,
-  bulkSaveSessions,
+  replaceCompleteSessions,
 } from "../infrastructure/storage/repositories/sessionsWriteRepository";
 
 // === Settings Store ===

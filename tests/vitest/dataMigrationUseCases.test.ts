@@ -29,14 +29,12 @@ describe("数据迁移应用用例", () => {
       ],
     } as ChatSession;
     const database = {
-      saveSession: vi.fn().mockResolvedValue(undefined),
-      syncSessionMessages: vi.fn().mockResolvedValue(undefined),
+      replaceCompleteSessions: vi.fn().mockResolvedValue(undefined),
     } as unknown as IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>;
 
     await persistImportedChatSession(database, session);
 
-    expect(database.saveSession).toHaveBeenCalledWith(session);
-    expect(database.syncSessionMessages).toHaveBeenCalledWith(session.id, session.messages);
+    expect(database.replaceCompleteSessions).toHaveBeenCalledWith([session]);
   });
 
   it("明文备份同时清空当前通道与全部已保存通道的 API Key", () => {
@@ -118,6 +116,14 @@ describe("数据迁移应用用例", () => {
               turnIndex: 0,
               tags: ["系统"],
               extractSource: "dict",
+              metadata: { image: "asset://backup-image" },
+              reasoningContent: "备份中的推理",
+              generationTime: 1.5,
+              tokenCount: 24,
+              promptTokenCount: 48,
+              swipes: ["版本一", "版本二"],
+              swipe_id: 1,
+              variables: { affection: 9 },
             },
           ]),
           getDictBySession: vi.fn().mockResolvedValue([
@@ -159,6 +165,14 @@ describe("数据迁移应用用例", () => {
       content: "系统消息",
       turnIndex: 0,
       tags: ["系统"],
+      extra: { image: "asset://backup-image" },
+      reasoningContent: "备份中的推理",
+      generationTime: 1.5,
+      tokenCount: 24,
+      promptTokenCount: 48,
+      swipes: ["版本一", "版本二"],
+      swipe_id: 1,
+      variables: { affection: 9 },
     });
     expect(payload.memoryDictEntries[0].entity).toBe("城镇");
     expect(payload.savedPresets[0].id).toBe("preset-1");

@@ -3,7 +3,6 @@ import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
   bisonModeMiddleware,
-  autoSummaryMiddleware,
 } from "../../application/pipeline";
 
 /** 装配内置管线中间件；不承担服务启动或 UI 注册。 */
@@ -15,5 +14,4 @@ export function registerDefaultPipelines(kernel: IKernel): void {
   outputPipeline.use(tableMemoryMiddleware, 100);
   outputPipeline.use(mvuScriptMiddleware, 90);
   outputPipeline.use(bisonModeMiddleware, 80);
-  outputPipeline.use(autoSummaryMiddleware, 70);
 }

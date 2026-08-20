@@ -40,7 +40,7 @@ export interface ChatUIState {
   abortControllerRef: React.MutableRefObject<AbortController | null>;
   isSendingRef: React.MutableRefObject<boolean>;
   activeRequestIdRef: React.MutableRefObject<number>;
-  pendingUpdateTimeoutRef: React.MutableRefObject<any>;
+  pendingUpdateTimeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
 
   // 滚动
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
@@ -111,7 +111,7 @@ export function useChatUI(params: {
   const abortControllerRef = React.useRef<AbortController | null>(null);
   const isSendingRef = React.useRef(false);
   const activeRequestIdRef = React.useRef(0);
-  const pendingUpdateTimeoutRef = React.useRef<any>(null);
+  const pendingUpdateTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   // 7.3.4: triggerScroll 的 setTimeout timer id，供卸载时清理
   const scrollTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 

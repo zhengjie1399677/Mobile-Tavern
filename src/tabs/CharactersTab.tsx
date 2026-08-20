@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
@@ -20,6 +20,9 @@ import {
   LayoutList,
   Grid3X3,
   Columns2,
+  History,
+  Sparkles,
+  UsersRound,
 } from "lucide-react";
 import { getAvatarGradientClass } from "../utils/avatarUtils";
 import { listBuiltinPluginCards } from "../infrastructure/plugins/builtinPlugins";
@@ -32,7 +35,9 @@ import {
 export default function CharactersTab() {
   const {
     characters,
-    sessions,
+    sessionCountsByCharacter,
+    totalSessionCount,
+    areSessionCountsReady,
     activeCharId,
     showCustomConfirm,
     selectCharacter,
@@ -47,7 +52,9 @@ export default function CharactersTab() {
     loadCharacterById,
   } = useUnifiedApp(state => ({
     characters: state.characters,
-    sessions: state.sessions,
+    sessionCountsByCharacter: state.sessionCountsByCharacter,
+    totalSessionCount: state.totalSessionCount,
+    areSessionCountsReady: state.areSessionCountsReady,
     activeCharId: state.activeCharId,
     showCustomConfirm: state.showCustomConfirm,
     selectCharacter: state.selectCharacter,
@@ -94,68 +101,99 @@ export default function CharactersTab() {
     [characters, pluginCards]
   );
   return (
-    <div className="px-4 pb-4 pt-1.5 space-y-4 relative min-h-screen">
-      <div className="flex min-h-12 items-center justify-between border-b border-border pb-2">
-        <div>
-          <h1 className="text-base font-bold tracking-tight text-foreground flex items-center gap-1.5">
-            Mobile Tavern{" "}
-            <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono">
-              Lite
-            </span>
-          </h1>
-          <p className="text-[10px] text-muted-foreground font-light mt-0.5">
-            {t("characters_tab.subtitle")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setScannerOpen(true)}
-            className="bg-card active:scale-[0.98] text-muted-foreground w-9 h-9 rounded-lg border border-border transition flex items-center justify-center shrink-0"
-            title={t("characters_tab.scan_title")}
-          >
-            <FolderSearch className="w-4 h-4" />
-          </button>
-          <label className="cursor-pointer bg-card active:scale-[0.98] text-muted-foreground w-9 h-9 rounded-lg border border-border transition flex items-center justify-center shrink-0" title={t("characters_tab.import_title")}>
-            <FileUp className="w-4 h-4" />
-            <input
-              type="file"
-              onChange={handleImportCardFile}
-              accept=".png,.webp,.json,.txt,.bin,image/png,image/webp,application/json"
-              className="hidden"
-            />
-          </label>
-          <button
-            onClick={handleAddNewCharacter}
-            className="bg-primary hover:bg-primary text-primary-foreground w-9 h-9 rounded-lg transition-all font-medium flex items-center justify-center shrink-0"
-            title={t("characters_tab.create_title")}
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+    <div className="relative min-h-screen space-y-3.5 px-4 pb-4 pt-2.5">
+      <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-card p-4 shadow-[0_14px_35px_-24px_var(--primary)]">
+        <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-primary/15 blur-2xl" />
+        <Sparkles className="pointer-events-none absolute right-4 top-4 h-12 w-12 text-primary/10" aria-hidden="true" />
 
-      <div className="flex items-center justify-end gap-1" role="group" aria-label={t("characters_tab.layout_group")}>
-        {([
-          ["list", LayoutList, "characters_tab.layout_list"],
-          ["shelf", Grid3X3, "characters_tab.layout_shelf"],
-          ["showcase", Columns2, "characters_tab.layout_showcase"],
-        ] as const).map(([layout, Icon, labelKey]) => (
-          <button
-            key={layout}
-            type="button"
-            onClick={() => changeCharacterLayout(layout)}
-            aria-pressed={characterLayout === layout}
-            title={t(labelKey)}
-            className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 transition active:scale-95 ${
-              characterLayout === layout
-                ? "border-primary/40 bg-primary/15 text-primary"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="sr-only">{t(labelKey)}</span>
-          </button>
-        ))}
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="min-w-0 pt-0.5">
+            <h1 className="flex items-center gap-1.5 text-lg font-bold tracking-tight text-foreground">
+              <span className="truncate">Mobile Tavern</span>
+              <span className="rounded-md border border-primary/20 bg-primary/15 px-1.5 py-0.5 font-mono text-[9px] text-primary">
+                Lite
+              </span>
+            </h1>
+            <p className="mt-1 max-w-[190px] text-[10px] font-light leading-relaxed text-muted-foreground">
+              {t("characters_tab.subtitle")}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              onClick={() => setScannerOpen(true)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-sm transition hover:text-foreground active:scale-[0.96]"
+              title={t("characters_tab.scan_title")}
+            >
+              <FolderSearch className="h-4 w-4" />
+            </button>
+            <label className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-sm transition hover:text-foreground active:scale-[0.96]" title={t("characters_tab.import_title")}>
+              <FileUp className="h-4 w-4" />
+              <input
+                type="file"
+                onChange={handleImportCardFile}
+                accept=".png,.webp,.json,.txt,.bin,image/png,image/webp,application/json"
+                className="hidden"
+              />
+            </label>
+            <button
+              onClick={handleAddNewCharacter}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary font-medium text-primary-foreground shadow-[0_8px_20px_-10px_var(--primary)] transition-all hover:bg-primary/90 active:scale-[0.96]"
+              title={t("characters_tab.create_title")}
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="relative mt-4 grid grid-cols-2 gap-2">
+          <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/55 px-3 py-2 backdrop-blur-sm">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <UsersRound className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold leading-none text-foreground">{displayCharacters.length}</p>
+              <p className="mt-1 truncate text-[9px] text-muted-foreground">{t("nav.characters")}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/55 px-3 py-2 backdrop-blur-sm">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <History className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold leading-none text-foreground">
+                {areSessionCountsReady ? totalSessionCount : "…"}
+              </p>
+              <p className="mt-1 truncate text-[9px] text-muted-foreground">{t("nav.chat-history")}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/70 px-2 py-1.5 shadow-sm" role="group" aria-label={t("characters_tab.layout_group")}>
+        <span className="pl-1.5 text-[10px] font-medium text-muted-foreground">{t("characters_tab.layout_group")}</span>
+        <div className="flex items-center gap-1">
+          {([
+            ["list", LayoutList, "characters_tab.layout_list"],
+            ["shelf", Grid3X3, "characters_tab.layout_shelf"],
+            ["showcase", Columns2, "characters_tab.layout_showcase"],
+          ] as const).map(([layout, Icon, labelKey]) => (
+            <button
+              key={layout}
+              type="button"
+              onClick={() => changeCharacterLayout(layout)}
+              aria-pressed={characterLayout === layout}
+              title={t(labelKey)}
+              className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 transition active:scale-95 ${
+                characterLayout === layout
+                  ? "border-primary/40 bg-primary/15 text-primary"
+                  : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="sr-only">{t(labelKey)}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* List Cards */}
@@ -169,9 +207,7 @@ export default function CharactersTab() {
       {/* characters array is pre-sorted by last chat time via useMemo in LegacyAppContextProvider */}
         {displayCharacters.map((char, index) => {
           const isPluginCard = !!char.extensions?.mt_plugin;
-          const charSessList = sessions.filter(
-            (s) => s.characterId === char.id,
-          );
+          const branchCount = sessionCountsByCharacter[char.id] ?? 0;
           const isActive = activeCharId === char.id;
 
           return (
@@ -179,7 +215,7 @@ export default function CharactersTab() {
               key={char.id}
               onClick={() => selectCharacter(char.id)}
               style={{ "--card-index": index } as React.CSSProperties}
-              className={`bg-card rounded-xl border border-border/40 spring-press-effect animate-card-fade-in relative cursor-pointer flex h-auto select-none ${
+              className={`relative flex h-auto cursor-pointer select-none rounded-xl border border-border/50 bg-gradient-to-br from-card to-muted/20 spring-press-effect animate-card-fade-in ${
                 characterLayout === "list"
                   ? "items-center gap-3 min-h-[96px] p-3"
                   : characterLayout === "shelf"
@@ -251,7 +287,7 @@ export default function CharactersTab() {
 
                 <div className="flex items-center justify-between gap-1.5 pt-1.5">
                   <span className="max-w-full truncate text-[10px] bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1 font-medium select-none">
-                    <RefreshCw className="w-2.5 h-2.5" /> {t("characters_tab.branch_count", { count: String(charSessList.length) })}
+                    <RefreshCw className={`h-2.5 w-2.5 ${areSessionCountsReady ? "" : "animate-spin"}`} /> {t("characters_tab.branch_count", { count: areSessionCountsReady ? String(branchCount) : "…" })}
                   </span>
                 </div>
               </div>

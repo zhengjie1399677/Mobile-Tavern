@@ -25,7 +25,7 @@ import HiddenScriptLayer from "./HiddenScriptLayer";
 export default function ChatTab() {
   const {
     sessions,
-    setSessions,
+    setSessionViews,
     settings,
     activeSessionId,
     isSending,
@@ -37,7 +37,7 @@ export default function ChatTab() {
     setCharacters,
     saveCharacter,
     updateSettings,
-    saveSession,
+    updateSessionMetadata,
     getKernelService,
     // 单会话消息分页懒加载
     hasMoreMessages,
@@ -45,7 +45,7 @@ export default function ChatTab() {
     loadMoreMessages,
   } = useUnifiedApp((state) => ({
     sessions: state.sessions,
-    setSessions: state.setSessions,
+    setSessionViews: state.setSessionViews,
     settings: state.settings,
     activeSessionId: state.activeSessionId,
     isSending: state.isSending,
@@ -57,7 +57,7 @@ export default function ChatTab() {
     setCharacters: state.setCharacters,
     saveCharacter: state.saveCharacter,
     updateSettings: state.updateSettings,
-    saveSession: state.saveSession,
+    updateSessionMetadata: state.updateSessionMetadata,
     getKernelService: state.getKernelService,
     hasMoreMessages: state.hasMoreMessages,
     isLoadingMoreMessages: state.isLoadingMoreMessages,
@@ -75,7 +75,7 @@ export default function ChatTab() {
     activeCharacter,
     settings,
     activeSession,
-    setSessions,
+    setSessionViews,
     setCharacters,
     saveCharacter,
     updateSettings,
@@ -210,7 +210,7 @@ export default function ChatTab() {
             isOpen
             onClose={() => setIsTableDrawerOpen(false)}
             activeSession={activeSession}
-            saveSession={saveSession}
+            updateSessionMetadata={updateSessionMetadata}
             charName={activeCharacter.name}
             enableTableMemory={!!settings.enableTableMemory}
             enableAutoSummary={settings.memory?.enableAutoSummary !== false}

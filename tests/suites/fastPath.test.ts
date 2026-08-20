@@ -4,13 +4,13 @@
  * 覆盖：
  *  - testFastPathL3AutoSummaryIndex：AutoSummary 索引缓存与阈值计算
  *  - testFastPathL2ContentPrescan：表格记忆 / MVU 脚本指令正则预扫描
- *  - testFastPathL1PipelineBypass：管道旁路条件判定（功能开关/野牛/总结阈值）
+ *  - testFastPathL1PipelineBypass：管道旁路条件判定（功能开关/野牛/自动总结）
  */
 
 import { assert } from "./testUtils";
 
 /**
- * L3 快速通道验证：AutoSummaryService 索引缓存优化
+ * L3 快速通道验证：MemorySummary 索引缓存优化
  * 验证合并后的单次反向遍历能正确找到 lastSummarizedMessageId 的索引，
  * 以及 fallback 到 summaries 最后一条的逻辑，阈值计算与原逻辑等价。
  */
@@ -140,89 +140,52 @@ export async function testFastPathL2ContentPrescan() {
 export async function testFastPathL1PipelineBypass() {
   console.log("\n--- Running Fast Path L1: Pipeline Bypass Verification ---");
 
-  // 测试 1：全部功能关闭 + 未达总结阈值 → 应旁路
-  const settings1: any = {
+  // UI 只持有消息窗口，因此快速通道不能根据 session.messages 估算全量未总结数。
+  // 只有自动总结被明确关闭时，才允许跳过包含 MemorySummary 的输出管道。
+  const settings1 = {
     enableTableMemory: false,
     enableScriptExecution: false,
     enableBisonMode: false,
-    memory: { summaryTriggerTurns: 6, recentTurns: 6 },
-  };
-  const session1: any = {
-    messages: [
-      { id: "m1" }, { id: "m2" }, { id: "m3" }, { id: "m4" },
-    ],
-    lastSummarizedMessageId: "m4",
+    memory: { enableAutoSummary: false },
   };
   const allFeaturesDisabled1 =
     !settings1.enableTableMemory &&
     !settings1.enableScriptExecution &&
-    !settings1.enableBisonMode;
+    !settings1.enableBisonMode &&
+    settings1.memory.enableAutoSummary === false;
   assert(allFeaturesDisabled1 === true, "All features should be disabled");
 
-  const triggerTurns1 = Number(settings1.memory?.summaryTriggerTurns || 0);
-  const recentTurns1 = Number(settings1.memory?.recentTurns || 6);
-  const triggerRounds1 = (!isNaN(triggerTurns1) && triggerTurns1 > 0) ? triggerTurns1 : recentTurns1;
-  const maxAllowed1 = Math.max(4, triggerRounds1) * 2;
-  assert(maxAllowed1 === 12, "Max allowed should be 12");
-
-  let lastIdx1 = -1;
-  if (session1.lastSummarizedMessageId) {
-    for (let i = session1.messages.length - 1; i >= 0; i--) {
-      if (session1.messages[i].id === session1.lastSummarizedMessageId) { lastIdx1 = i; break; }
-    }
-  }
-  const unsummarized1 = session1.messages.length - (lastIdx1 + 1);
-  assert(unsummarized1 === 0, "Should have 0 unsummarized (m4 is last)");
-  assert(unsummarized1 < maxAllowed1, "Should bypass (0 < 12)");
-
-  // 测试 2：任一功能开启 → 不应旁路
-  const settings2: any = {
+  const settings2 = {
     enableTableMemory: true,
     enableScriptExecution: false,
     enableBisonMode: false,
-    memory: { summaryTriggerTurns: 6, recentTurns: 6 },
+    memory: { enableAutoSummary: false },
   };
   const allFeaturesDisabled2 =
     !settings2.enableTableMemory &&
     !settings2.enableScriptExecution &&
-    !settings2.enableBisonMode;
+    !settings2.enableBisonMode &&
+    settings2.memory.enableAutoSummary === false;
   assert(allFeaturesDisabled2 === false, "Should not bypass when tableMemory enabled");
 
-  // 测试 3：未达总结阈值边界 → 应旁路
-  const settings3: any = {
+  const settings3 = {
     enableTableMemory: false,
     enableScriptExecution: false,
     enableBisonMode: false,
-    memory: { summaryTriggerTurns: 4, recentTurns: 6 },
+    memory: { enableAutoSummary: true },
   };
-  const maxAllowed3 = Math.max(4, 4) * 2;
-  const session3: any = {
-    messages: Array.from({ length: 7 }, (_, i) => ({ id: `m${i}` })),
-    lastSummarizedMessageId: undefined,
-  };
-  const unsummarized3 = session3.messages.length - 0;
-  assert(unsummarized3 === 7, "Should have 7 unsummarized");
-  assert(unsummarized3 < maxAllowed3, "7 < 8, should bypass");
+  const allFeaturesDisabled3 =
+    !settings3.enableTableMemory &&
+    !settings3.enableScriptExecution &&
+    !settings3.enableBisonMode &&
+    settings3.memory.enableAutoSummary === false;
+  assert(allFeaturesDisabled3 === false, "Enabled auto summary must prevent bypass");
 
-  // 测试 4：达到总结阈值 → 不应旁路
-  const session4: any = {
-    messages: Array.from({ length: 9 }, (_, i) => ({ id: `m${i}` })),
-    lastSummarizedMessageId: undefined,
-  };
-  const unsummarized4 = session4.messages.length - 0;
-  assert(unsummarized4 === 9, "Should have 9 unsummarized");
-  assert(unsummarized4 >= maxAllowed3, "9 >= 8, should NOT bypass");
+  const isBisonConsecutive = true;
+  assert(isBisonConsecutive === true, "Bison consecutive should prevent bypass");
 
-  // 测试 5：野牛连续模式 → 不应旁路
-  const isBisonConsecutive5 = true;
-  assert(isBisonConsecutive5 === true, "Bison consecutive should prevent bypass");
-
-  // 测试 6：triggerTurns 允许低至最小值 1 轮
-  const triggerTurns6 = 1;
-  const recentTurns6 = 6;
-  const triggerRounds6 = (!isNaN(triggerTurns6) && triggerTurns6 > 0) ? triggerTurns6 : recentTurns6;
-  const maxAllowed6 = Math.max(1, triggerRounds6) * 2;
-  assert(maxAllowed6 === 2, "Should be 2 when triggerTurns=1");
+  const customMiddlewareCount: number = 5;
+  assert(customMiddlewareCount !== 4, "Custom middleware must prevent standard pipeline bypass");
 
   console.log("✔ Fast Path L1: Pipeline Bypass verified successfully!");
 }

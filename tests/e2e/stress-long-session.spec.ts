@@ -178,7 +178,7 @@ test.describe("长会话压力测试", () => {
               },
             });
           } else {
-            // 非流式 JSON 响应（AutoSummaryService 等内部调用）
+            // 非流式 JSON 响应（MemorySummary 等内部调用）
             const body = JSON.stringify({
               choices: [
                 {

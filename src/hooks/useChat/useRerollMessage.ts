@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import { publicEnvironment } from "../../config";
-import { ChatSession, UserSettings, CharacterCard, LorebookEntry, CustomWorldbook, Message, ReplyChoice } from "../../types";
+import { ChatSession, ChatSessionMetadataPatch, UserSettings, CharacterCard, LorebookEntry, CustomWorldbook, Message, ReplyChoice, SummaryCard } from "../../types";
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService,
@@ -23,6 +23,9 @@ import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipel
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
+import { buildAuthoritativePromptSession } from "../../application/useCases/promptHistoryUseCases";
+import type { MemoryServiceTyped } from "../../application/services/memory";
+import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
 
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
@@ -55,15 +58,15 @@ interface RerollMessageParams {
   activeSessionIdRef: React.MutableRefObject<string | null>;
   sessionsRef: React.MutableRefObject<ChatSession[]>;
   abortControllerRef: React.MutableRefObject<AbortController | null>;
-  pendingUpdateTimeoutRef: React.MutableRefObject<any>;
-  setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
+  pendingUpdateTimeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
+  setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   setIsSending: (v: boolean) => void;
   setReplySuggestions: React.Dispatch<React.SetStateAction<ReplyChoice[]>>;
   publishMemoryAudit?: (snapshot: MemoryAuditSnapshot) => void;
   /** 迁移期兼容旧消费方；新代码应使用 publishMemoryAudit。 */
   publishRecalledMemories?: (sessionId: string, items: MemoryAuditSnapshot["recalled"]) => void;
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
-  databaseService: IDatabaseService;
+  databaseService: IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message, ChatSessionMetadataPatch>;
   promptService: IPromptService;
   telemetryService: ITelemetryService;
   chatStreamService: IChatStreamService;
@@ -199,15 +202,42 @@ export function useRerollMessage(p: RerollMessageParams) {
       summaries: reconciled.summaries,
       lastSummarizedMessageId: reconciled.lastSummarizedMessageId,
     };
-    const persistRerollSession = (session: ChatSession) =>
-      p.databaseService.replaceSessionBranch(
-        session,
-        removedMessageIds,
-        session.messages.slice(nextMsgs.length)
+    let restoredState: ChatSessionMetadataPatch;
+    try {
+      restoredState = await p.databaseService.getSessionStateBeforeMessage(
+        currentSession.id,
+        targetMsg.id,
       );
+    } catch (error) {
+      log.error("Failed to restore session state for reroll", error);
+      await p.showCustomAlert("无法恢复该时间点的变量与状态，已取消重新生成以避免污染存档。");
+      p.isSendingRef.current = false;
+      p.setIsSending(false);
+      if (typeof window !== "undefined") {
+        (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
+      }
+      return;
+    }
+    updatedSession = { ...updatedSession, ...restoredState };
+    const persistRerollSession = (session: ChatSession) => {
+      const newMessages = session.messages.slice(nextMsgs.length).map((message) =>
+        message.sender === "assistant"
+          ? attachSessionStateSnapshot(message, session)
+          : message
+      );
+      const sessionWithSnapshots = {
+        ...session,
+        messages: [...session.messages.slice(0, nextMsgs.length), ...newMessages],
+      };
+      return p.databaseService.replaceSessionBranch(
+        sessionWithSnapshots,
+        removedMessageIds,
+        newMessages,
+      );
+    };
 
     // 这里只更新 UI 工作副本；旧分支在生成成功前继续完整保留于数据库。
-    p.setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
+    p.setSessionViews((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
     p.triggerScroll();
 
     const controller = new AbortController();
@@ -222,7 +252,7 @@ export function useRerollMessage(p: RerollMessageParams) {
     let ttftMs = 0;
 
     const { throttledUpdate, isStreamActiveRef } = buildThrottledUpdater(
-      p.setSessions, updatedSession.id, aiMsgId,
+      p.setSessionViews, updatedSession.id, aiMsgId,
       responseChunks, reasoningChunks, p.pendingUpdateTimeoutRef
     );
 
@@ -244,14 +274,17 @@ export function useRerollMessage(p: RerollMessageParams) {
       // 1. 异步执行记忆召回
       let recalledMemories: RecalledMessage[] = [];
       try {
-        const memoryService = p.kernel.getService<any>("memory");
+        const memoryService = p.kernel.getService<MemoryServiceTyped>("memory");
         if (memoryService && p.settings.memory?.enableRecall !== false) {
           const recallTopK = p.settings.memory?.recallTopK ?? 3;
           recalledMemories = await recallWithTimeout(
             memoryService.getRecall().recall(
               updatedSession.id,
               lastUserText,
-              { topK: recallTopK }
+              {
+                topK: recallTopK,
+                currentTurnIndex: targetMsg.turnIndex ?? nextMsgsIdx,
+              }
             ),
             p.settings.memory?.recallTimeoutMs,
             "useRerollMessage"
@@ -261,12 +294,12 @@ export function useRerollMessage(p: RerollMessageParams) {
         log.warn("Memory recall failed", err);
       }
 
-      // Prompt 历史仍剔除占位符与空正文助手消息，避免把空内容发送给模型；
-      // 只影响发给模型的上下文，不影响重发目标定位与落库完整性。
-      const promptMessages = rawMessages.slice(0, nextMsgsIdx).filter(
-        (m) => !(m.sender === "assistant" && (m.content === "💭..." || !m.content))
+      const promptSession = await buildAuthoritativePromptSession(
+        p.databaseService,
+        updatedSession,
+        p.settings,
+        targetMsg.id,
       );
-      const promptSession = { ...updatedSession, messages: promptMessages };
       const promptPayload = p.promptService.assemblePrompt({
         character: p.activeCharacter!,
         chat: promptSession,
@@ -297,7 +330,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = aiMsgId;
       }
       const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };
-      p.setSessions((prev) =>
+      p.setSessionViews((prev) =>
         prev.map((s) => s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)
       );
 
@@ -402,7 +435,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         // 尚未提交分支事务，直接恢复原始会话即可。
         const restoreSession = currentSession;
         if (isStillActive) {
-          p.setSessions((prev) => prev.map((s) => (s.id === restoreSession.id ? restoreSession : s)));
+          p.setSessionViews((prev) => prev.map((s) => (s.id === restoreSession.id ? restoreSession : s)));
           p.showCustomAlert("重新生成失败：AI 未返回任何内容，请检查 API 配置、网络连接或模型是否可用。");
         }
         return;
@@ -432,7 +465,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           isStillActive,
           isBisonConsecutive: false,
           bisonRemainingCount: 0,
-          setSessions: p.setSessions,
+          setSessionViews: p.setSessionViews,
           databaseService: p.databaseService,
           persistSession: persistRerollSession,
           triggerScroll: () => p.triggerScroll(),
@@ -469,7 +502,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           const placeholderMsg = latestSessionForCleanup.messages.find((m) => m.id === aiMsgId);
           if (placeholderMsg && (placeholderMsg.content === "💭..." || !placeholderMsg.content?.trim())) {
             const nextSession = { ...latestSessionForCleanup, messages: latestSessionForCleanup.messages.filter((m) => m.id !== aiMsgId) };
-            p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+            p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
           }
         }
         return;
@@ -491,8 +524,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         }
         if (latestSession) {
           const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
-          if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
-          await p.databaseService.saveSession(nextSession, undefined, traceId).catch((err) => log.error("Failed to save after trial key fetch error", err));
+          if (isStillActive) p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
         }
         return;
       }
@@ -503,13 +535,13 @@ export function useRerollMessage(p: RerollMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: parsed.content, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
           } else {
             await persistRerollSession(trueFinalSession);
           }
         } else if (latestSession) {
           const nextSession = currentSession;
-          if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+          if (isStillActive) p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
         }
       } else {
         if (isStillActive) {
@@ -521,14 +553,14 @@ export function useRerollMessage(p: RerollMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
           } else {
             await persistRerollSession(trueFinalSession);
           }
         } else {
           // 纯失败不提交任何分支变更，恢复重发前的完整会话。
           if (isStillActive) {
-            p.setSessions((prev) => prev.map((s) => (s.id === currentSession.id ? currentSession : s)));
+            p.setSessionViews((prev) => prev.map((s) => (s.id === currentSession.id ? currentSession : s)));
             p.showCustomAlert(`重新生成失败：${getErrorMessage(e) || "未知错误"}`);
           }
         }

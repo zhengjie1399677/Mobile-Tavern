@@ -75,6 +75,7 @@ export async function testMemoryE2E() {
   await appendMessage(testMsg);
   const retrieved = await getMessageById("e2e_msg_1");
   assert(retrieved !== null, "应能按 id 读取消息");
+  if (!retrieved) throw new Error("消息读取结果为空");
   assert(retrieved.id === testMsg.id, "id 字段一致");
   assert(retrieved.sessionId === testMsg.sessionId, "sessionId 字段一致");
   assert(retrieved.role === testMsg.role, "role 字段一致");

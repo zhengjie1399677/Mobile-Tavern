@@ -1,7 +1,5 @@
 import type { IDatabaseService } from "../serviceContracts";
-import type { MemoryServiceTyped } from "../services/memory";
-import type { CharacterCard, ChatSession, Message, SummaryCard } from "../../types";
-import { hydrateNewestFirstMessagePage } from "./chatMessageHydration";
+import type { CharacterCard, ChatSession, ChatSessionMetadataPatch, Message, SummaryCard } from "../../types";
 
 export function mergeSessionPage(
   current: readonly ChatSession[],
@@ -19,45 +17,53 @@ export function mergeSessionPage(
 }
 
 export function createChatSessionUseCases(
-  databaseService: IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>,
-  memoryService: MemoryServiceTyped,
+  databaseService: IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message, ChatSessionMetadataPatch>,
 ) {
   return {
     async loadInitialSessions(pageSize: number) {
-      const [total, sessions] = await Promise.all([
+      const [total, countsByCharacter, sessions] = await Promise.all([
         databaseService.getSessionsCount(),
-        databaseService.getSessionsPaginated(1, pageSize),
+        databaseService.getSessionCountsByCharacter(),
+        databaseService.getSessionsPage({ pageSize }),
       ]);
+      const page = sessions;
       return {
-        sessions: sessions || [],
+        sessions: page.sessions || [],
         total,
-        hasMore: total > (sessions?.length || 0),
+        countsByCharacter,
+        hasMore: page.hasMore,
       };
     },
 
-    async loadSessionPage(page: number, pageSize: number) {
-      const sessions = await databaseService.getSessionsPaginated(page, pageSize);
-      return {
-        sessions: sessions || [],
-        hasMore: (sessions?.length || 0) >= pageSize,
-      };
+    async loadSessionStatistics() {
+      const [total, countsByCharacter] = await Promise.all([
+        databaseService.getSessionsCount(),
+        databaseService.getSessionCountsByCharacter(),
+      ]);
+      return { total, countsByCharacter };
     },
 
-    async loadMessagePage(sessionId: string, offset: number, pageSize: number) {
-      const messages = await memoryService.getStorage().getMessagesBySession(sessionId, {
-        limit: pageSize,
-        offset,
-        descending: true,
+    async loadSessionPage(
+      pageSize: number,
+      before: { createdAt: number; id: string } | undefined,
+    ) {
+      return databaseService.getSessionsPage({ pageSize, before });
+    },
+
+    async loadMessagePage(sessionId: string, pageSize: number, beforeMessageId?: string) {
+      const window = await databaseService.getSessionMessageWindow(sessionId, {
+        pageSize,
+        beforeMessageId,
       });
       return {
-        messages: hydrateNewestFirstMessagePage(messages),
-        loadedCount: messages.length,
-        hasMore: messages.length >= pageSize,
+        messages: window.messages,
+        loadedCount: window.messages.length,
+        hasMore: window.hasMore,
       };
     },
 
-    saveSession(session: ChatSession): Promise<void> {
-      return databaseService.saveSession(session);
+    updateSessionMetadata(sessionId: string, patch: ChatSessionMetadataPatch): Promise<void> {
+      return databaseService.updateSessionMetadata(sessionId, patch);
     },
 
     deleteSession(id: string): Promise<void> {

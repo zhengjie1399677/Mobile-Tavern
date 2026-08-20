@@ -66,18 +66,18 @@ interface UseBackupRestoreDeps {
 }
 
 interface UseBackupRestoreReturn {
-  handleExportLocalDataBackup: (characters: any[]) => Promise<void>;
+  handleExportLocalDataBackup: (characters: CharacterCard[]) => Promise<void>;
   handleImportLocalDataBackup: (
     e: React.ChangeEvent<HTMLInputElement>,
-    setCharacters: React.Dispatch<React.SetStateAction<any[]>>,
-    setSessions: React.Dispatch<React.SetStateAction<any[]>>
+    setCharacters: React.Dispatch<React.SetStateAction<CharacterCard[]>>,
+    setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>
   ) => Promise<void>;
   handleImportSillyChatHistory: (
     e: React.ChangeEvent<HTMLInputElement>,
-    characters: any[],
-    setSessions: React.Dispatch<React.SetStateAction<any[]>>
+    characters: CharacterCard[],
+    setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>
   ) => Promise<void>;
-  handleSilentDailyBackup: (characters: any[]) => Promise<boolean>;
+  handleSilentDailyBackup: (characters: CharacterCard[]) => Promise<boolean>;
 }
 
 /**
@@ -137,8 +137,8 @@ export const useBackupRestore = ({
 
   const handleImportLocalDataBackup = useCallback(async (
     e: React.ChangeEvent<HTMLInputElement>,
-    setCharacters: React.Dispatch<React.SetStateAction<any[]>>,
-    setSessions: React.Dispatch<React.SetStateAction<any[]>>,
+    setCharacters: React.Dispatch<React.SetStateAction<CharacterCard[]>>,
+    setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>,
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -343,7 +343,7 @@ export const useBackupRestore = ({
         await dataMigrationService.replaceFromBackup(replacementPayload);
 
         setCharacters(validatedCharacters);
-        setSessions(validatedSessions);
+        setSessionViews(validatedSessions);
         setSettings(mergedSettings);
         setGlobalLorebook(validatedGlobalLorebook);
         setCustomWorldbooks(validatedCustomWorldbooks);
@@ -366,8 +366,8 @@ export const useBackupRestore = ({
 
   const handleImportSillyChatHistory = useCallback(async (
     e: React.ChangeEvent<HTMLInputElement>,
-    characters: any[],
-    setSessions: React.Dispatch<React.SetStateAction<any[]>>,
+    characters: CharacterCard[],
+    setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>,
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -525,7 +525,7 @@ export const useBackupRestore = ({
 
       if (ok) {
         await persistImportedChatSession(databaseService, newSession);
-        setSessions((prev) => [...prev, newSession]);
+        setSessionViews((prev) => [...prev, newSession]);
         setBackupStatus("聊天记录导入完成！");
         await showCustomAlert(
           `🎉 聊天记录导入成功！\n分支标题：${chatTitle}\n已绑定到角色：${matchedChar.name}\n共 ${finalMessages.length} 回合对话，您可以进入聊天页向上翻阅查看。`

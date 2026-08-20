@@ -212,7 +212,7 @@ $$\text{insertIndex} = \max(0, L - \lfloor D \rfloor)$$
 | `first_mes` | `character.first_mes` | `""` | 角色卡自带的首句开场问候语。 |
 | `scenario` | `character.scenario` | `""` | 角色卡决定的当前幕场景背景。 |
 | `lorebook` | `LorebookResolver.resolve()` | `""` | 经三阶检索自动匹配触发的全局/角色世界书词条正文。 |
-| `memory` | `AutoSummaryService.summaries` | `""` | `AutoSummaryService` 异步提炼的剧情时间轴概要。 |
+| `memory` | `MemorySummary` 时间线摘要 | `""` | 记忆服务异步提炼的剧情时间轴概要。 |
 | `history` | `ChatHistory` | N/A | 聊天历史专属占位符（仅用于 `chat_history` 类型区块）。 |
 
 ---

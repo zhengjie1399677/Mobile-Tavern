@@ -43,7 +43,7 @@ export class MemoryService implements IMemoryService<
   private recall: MemoryRecall | null = null;
   /** 状态表子模块（阶段 C 装配，合并自 TableMemoryService） */
   private stateTable: MemoryStateTable | null = null;
-  /** 摘要子模块（阶段 C 装配，瘦身自 AutoSummaryService） */
+  /** 摘要子模块 */
   private summary: MemorySummary | null = null;
   /** 服务级 AbortController */
   private abortController: AbortController | null = null;
@@ -76,7 +76,7 @@ export class MemoryService implements IMemoryService<
     this.stateTable = new MemoryStateTable(this.storage);
     this.stateTable.init(this.abortController.signal);
 
-    // 6. 装配摘要子模块（瘦身自 AutoSummaryService，砍掉 5 条正则状态抽离）
+    // 6. 装配摘要子模块
     this.summary = new MemorySummary(this.storage);
     this.summary.init(kernel, this.abortController.signal);
   }
@@ -153,7 +153,7 @@ export class MemoryService implements IMemoryService<
   }
 
   /**
-   * 获取摘要子模块（瘦身自 AutoSummaryService）。
+   * 获取摘要子模块。
    * 供 output 中间件触发剧情时间线摘要。
    */
   getSummary(): MemorySummary {

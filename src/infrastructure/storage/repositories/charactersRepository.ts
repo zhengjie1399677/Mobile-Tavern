@@ -1,8 +1,8 @@
 /**
  * Characters Store 仓库。
  *
- * 从 localDB.ts 抽离，职责单一化：本模块只关心 characters Store 的 CRUD，
- * 不涉及连接管理、写队列、加密或 schema。
+ * 从 localDB.ts 抽离，负责角色聚合的 CRUD。删除角色属于聚合级操作，必须在同一
+ * 事务中级联其全部会话与记忆分轨，不能依赖 UI 当前加载的会话分页。
  */
 
 import type { CharacterCard } from "../../../types";
@@ -92,14 +92,62 @@ export async function deleteCharacter(id: string, signal?: AbortSignal): Promise
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(["characters", "character_catalog"], "readwrite");
+      const transaction = db.transaction(
+        [
+          "characters",
+          "character_catalog",
+          "sessions",
+          "messages",
+          "memory_dict",
+          "memory_fragments",
+          "memory_facts",
+        ],
+        "readwrite",
+      );
       const store = transaction.objectStore("characters");
+      const sessionsStore = transaction.objectStore("sessions");
       const request = store.delete(id);
       transaction.objectStore("character_catalog").delete(id);
 
+      const fail = (error: unknown) => {
+        try { transaction.abort(); } catch { /* 事务可能已结束 */ }
+        reject(error);
+      };
+      const deleteBySession = (storeName: string, sessionId: string) => {
+        const targetStore = transaction.objectStore(storeName);
+        const cursorRequest = targetStore.index("sessionId")
+          .openCursor(IDBKeyRange.only(sessionId));
+        cursorRequest.onsuccess = () => {
+          const cursor = cursorRequest.result;
+          if (!cursor) return;
+          cursor.delete();
+          cursor.continue();
+        };
+        cursorRequest.onerror = () => fail(cursorRequest.error);
+      };
+
+      const sessionCursor = sessionsStore.index("characterId")
+        .openCursor(IDBKeyRange.only(id));
+      sessionCursor.onsuccess = () => {
+        const cursor = sessionCursor.result;
+        if (!cursor) return;
+        const sessionId = cursor.primaryKey;
+        if (typeof sessionId !== "string") {
+          fail(new Error(`[localDB] Invalid session key while deleting character ${id}.`));
+          return;
+        }
+        deleteBySession("messages", sessionId);
+        deleteBySession("memory_dict", sessionId);
+        deleteBySession("memory_fragments", sessionId);
+        deleteBySession("memory_facts", sessionId);
+        cursor.delete();
+        cursor.continue();
+      };
+      sessionCursor.onerror = () => fail(sessionCursor.error);
+
       // 用 oncomplete 判定成功（详见 saveCharacter 注释）
       transaction.oncomplete = () => resolve();
-      request.onerror = () => reject(request.error);
+      request.onerror = () => fail(request.error);
       bindTransactionAbort(ctx, transaction, reject);
     });
   }, undefined, signal);

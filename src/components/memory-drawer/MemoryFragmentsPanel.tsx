@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Ban, Check, History, Pencil, RotateCcw, X } from "lucide-react";
-import type { ChatSession } from "../../types";
+import type { ChatSession, ChatSessionMetadataPatch } from "../../types";
 import type { MemoryFragment } from "../../application/services/memory/types";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -8,10 +8,10 @@ import { useTranslation } from "../../contexts/LanguageContext";
 
 interface MemoryFragmentsPanelProps {
   activeSession: ChatSession;
-  saveSession: (session: ChatSession) => Promise<void>;
+  updateSessionMetadata: (sessionId: string, patch: ChatSessionMetadataPatch) => Promise<void>;
 }
 
-export function MemoryFragmentsPanel({ activeSession, saveSession }: MemoryFragmentsPanelProps) {
+export function MemoryFragmentsPanel({ activeSession, updateSessionMetadata }: MemoryFragmentsPanelProps) {
   const { t } = useTranslation();
   const { getKernelService, showCustomConfirm } = useUnifiedApp((state) => ({
     getKernelService: state.getKernelService,
@@ -70,8 +70,7 @@ export function MemoryFragmentsPanel({ activeSession, saveSession }: MemoryFragm
       activeSession.pinnedMessageIds?.includes(fragment.id) ||
       activeSession.mutedMessageIds?.includes(fragment.id)
     ) {
-      await saveSession({
-        ...activeSession,
+      await updateSessionMetadata(activeSession.id, {
         pinnedMessageIds: replaceId(activeSession.pinnedMessageIds),
         mutedMessageIds: replaceId(activeSession.mutedMessageIds),
       });

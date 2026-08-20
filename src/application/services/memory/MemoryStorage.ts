@@ -101,7 +101,7 @@ export class MemoryStorage {
     id: string,
     tags: string[],
     extractSource: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<void> {
     this.ensureInitialized();
     await this.persistence.updateMessageExtraction(
@@ -120,12 +120,17 @@ export class MemoryStorage {
   }
 
   /**
-   * 按会话查询所有消息（按 createdAt 升序）。
-   * 支持分页参数 limit / offset。
+   * 按会话查询消息，支持分页及绝对轮次范围。
    */
   async getMessagesBySession(
     sessionId: string,
-    options?: { limit?: number; offset?: number; descending?: boolean }
+    options?: {
+      limit?: number;
+      offset?: number;
+      descending?: boolean;
+      minTurnIndexExclusive?: number;
+      maxTurnIndexExclusive?: number;
+    }
   ): Promise<MessageRecord[]> {
     this.ensureInitialized();
     return this.persistence.getMessagesBySession(sessionId, options);
@@ -166,7 +171,8 @@ export class MemoryStorage {
     patch: Partial<Omit<MemoryDictEntry, 'id' | 'sessionId' | 'entity'>> & {
       firstSeenMsgId: string;
       firstSeenTurn: number;
-    }
+    },
+    requireSourceMessage = false,
   ): Promise<boolean> {
     this.ensureInitialized();
     // 配合已恢复的单对象签名进行调用
@@ -178,6 +184,7 @@ export class MemoryStorage {
       firstSeenMsgId: patch.firstSeenMsgId,
       firstSeenTurn: patch.firstSeenTurn,
       count: patch.count,
+      requireSourceMessage,
     }, this.getActiveSignal());
   }
 
@@ -211,9 +218,13 @@ export class MemoryStorage {
 
   // ===== memory_fragments Store CRUD =====
 
-  async upsertFragment(fragment: MemoryFragment): Promise<void> {
+  async upsertFragment(fragment: MemoryFragment, requireSourceMessages = false): Promise<void> {
     this.ensureInitialized();
-    await this.persistence.upsertFragment(fragment, this.getActiveSignal());
+    await this.persistence.upsertFragment(
+      fragment,
+      this.getActiveSignal(),
+      { requireSourceMessages },
+    );
   }
 
   async getFragmentById(id: string): Promise<MemoryFragment | null> {
@@ -252,10 +263,17 @@ export class MemoryStorage {
 
   // ===== memory_facts Store CRUD =====
 
-  async evolveTemporalFact(fact: TemporalFact): Promise<{ changed: boolean; fact: TemporalFact }> {
+  async evolveTemporalFact(
+    fact: TemporalFact,
+    requireSourceMessage = false,
+  ): Promise<{ changed: boolean; fact: TemporalFact }> {
     this.ensureInitialized();
     if (!this.persistence.evolveTemporalFact) throw new Error('[MemoryStorage] Temporal facts unsupported.');
-    return this.persistence.evolveTemporalFact(fact, this.getActiveSignal());
+    return this.persistence.evolveTemporalFact(
+      fact,
+      this.getActiveSignal(),
+      { requireSourceMessage },
+    );
   }
 
   async getTemporalFactsBySession(

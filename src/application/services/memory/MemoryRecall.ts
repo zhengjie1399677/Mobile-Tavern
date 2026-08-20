@@ -266,8 +266,13 @@ export class MemoryRecall {
         ? this.storage.getTemporalFactsByEntities(sessionId, tags, candidateLimit)
         : Promise.resolve([]),
     ]);
-    let candidates = messageCandidates;
-    let fragments = fragmentCandidates.filter((fragment) => fragment.status === 'active');
+    let candidates = messageCandidates.filter((message) => message.turnIndex < currentTurnIndex);
+    let fragments = fragmentCandidates.filter((fragment) =>
+      fragment.status === 'active' && fragment.sourceTurnEnd < currentTurnIndex
+    );
+    const boundedFactCandidates = factCandidates.filter((fact) =>
+      fact.validFromTurn < currentTurnIndex
+    );
 
     // 2.5 强力 Pin / Mute 机制注入候选池与排除配置
     // 优先使用主入口 recall() 传入的 sessionMeta，避免重复 getSessionById。
@@ -329,7 +334,7 @@ export class MemoryRecall {
     // 4. 打分 + 排除 + 排序
     const scored = this.scoreCandidates(candidates, tags, currentTurnIndex, pinnedIds);
     const scoredFragments = this.scoreFragments(fragments, tags, currentTurnIndex, pinnedIds);
-    const scoredFacts = this.scoreFacts(factCandidates, tags, currentTurnIndex);
+    const scoredFacts = this.scoreFacts(boundedFactCandidates, tags, currentTurnIndex);
     const recentThreshold = currentTurnIndex - excludeRecentN;
     const fragmentById = new Map(fragments.map((fragment) => [fragment.id, fragment]));
     const filteredFragments = scoredFragments.filter((item) => {

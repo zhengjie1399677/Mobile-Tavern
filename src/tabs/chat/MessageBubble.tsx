@@ -65,7 +65,7 @@ const MessageBubble = ({
     setMsgMenuId,
     renderDialogueBubble,
     saveSessionWithMvu,
-    setSessions,
+    setSessionViews,
     showCustomAlert,
     showCustomConfirm,
     getKernelService,
@@ -82,7 +82,7 @@ const MessageBubble = ({
     setMsgMenuId: state.setMsgMenuId,
     renderDialogueBubble: state.renderDialogueBubble,
     saveSessionWithMvu: state.saveSessionWithMvu,
-    setSessions: state.setSessions,
+    setSessionViews: state.setSessionViews,
     showCustomAlert: state.showCustomAlert,
     showCustomConfirm: state.showCustomConfirm,
     getKernelService: state.getKernelService,
@@ -512,7 +512,7 @@ const MessageBubble = ({
                     activeSession: unifiedAppStore.getState().activeSession,
                     settings,
                     activeCharacter,
-                    setSessions,
+                    setSessionViews,
                     showCustomAlert,
                     showCustomPrompt,
                     getKernelService,
@@ -613,12 +613,14 @@ const MessageBubble = ({
                     ...currentSession,
                     messages: nextMsgs,
                   };
-                  setSessions((previous) =>
+                  const editedMessage = updated.messages.find((item) => item.id === message.id);
+                  if (!editedMessage) return;
+                  const persistedSession = await saveSessionWithMvu(updated, editedMessage);
+                  setSessionViews((previous) =>
                     previous.map((session) =>
-                      session.id === updated.id ? updated : session,
+                      session.id === persistedSession.id ? persistedSession : session,
                     ),
                   );
-                  await saveSessionWithMvu(updated, editingMsgContent);
                   setEditingMsgId(null);
                 }}
                 disabled={isSending}

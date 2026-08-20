@@ -30,12 +30,12 @@ export const generateUniqueId = (prefix: string): string =>
  * 此时缓存 id 校验不通过，自动回退到 findIndex 重新定位，安全无副作用。
  */
 export function buildThrottledUpdater(
-  setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>,
+  setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>,
   sessionId: string,
   aiMsgId: string,
   responseChunks: string[],
   reasoningChunks: string[],
-  pendingUpdateTimeoutRef: React.MutableRefObject<any>
+  pendingUpdateTimeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
 ): {
   throttledUpdate: (content: string, reasoningContent?: string) => void;
   isStreamActiveRef: { current: boolean };
@@ -50,7 +50,7 @@ export function buildThrottledUpdater(
   const updateSessionsContent = (content: string, reasoningContent?: string) => {
     const parsed = extractThinkContent(content, reasoningContent, true);
     const cleaned = cleanSuggestionsFromText(parsed.content);
-    setSessions((prev) => {
+    setSessionViews((prev) => {
       // 定位 session：优先用缓存索引（校验 id 仍匹配），否则 findIndex
       let sIdx = cachedSessionIdx;
       if (sIdx < 0 || sIdx >= prev.length || prev[sIdx].id !== sessionId) {

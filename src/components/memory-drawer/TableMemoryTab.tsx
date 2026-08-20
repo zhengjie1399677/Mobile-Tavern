@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type ChangeEvent, type KeyboardEvent } from "react";
 import type {
   ChatSession,
+  ChatSessionMetadataPatch,
   TableMemoryColumnDefinition,
   TableMemoryColumnType,
   TableMemorySheet,
@@ -33,7 +34,7 @@ import { MemoryDrawerInput, MemoryDrawerSelect } from "./MemoryDrawerControls";
 
 export interface TableMemoryTabProps {
   activeSession: ChatSession;
-  saveSession: (session: ChatSession) => Promise<void>;
+  updateSessionMetadata: (sessionId: string, patch: ChatSessionMetadataPatch) => Promise<void>;
   charName: string;
   showCustomAlert: (message: string, title?: string) => Promise<void>;
   showCustomConfirm: (message: string, title?: string) => Promise<boolean>;
@@ -55,7 +56,7 @@ interface WindowWithAndroidFileBridge extends Window {
 
 function TableMemoryTab({
   activeSession,
-  saveSession,
+  updateSessionMetadata,
   charName,
   showCustomAlert,
   showCustomConfirm,
@@ -89,11 +90,7 @@ function TableMemoryTab({
 
   // 持久化状态表
   const updateSheets = async (nextSheets: TableMemorySheet[]) => {
-    const nextSession = {
-      ...activeSession,
-      tableMemory: nextSheets
-    };
-    await saveSession(nextSession);
+    await updateSessionMetadata(activeSession.id, { tableMemory: nextSheets });
   };
 
   // ──────────────────────────────────────────────────────────────────────────

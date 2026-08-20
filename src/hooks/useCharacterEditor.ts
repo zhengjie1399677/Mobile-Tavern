@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
-import { CharacterCard, ChatSession, LorebookEntry } from "../types";
+import { CharacterCard, LorebookEntry } from "../types";
 import { catbotEventBus } from "../utils/catbotEventBus";
 import { TRANSLATIONS } from "../locales/index";
 
@@ -79,9 +79,7 @@ export const useCharacterEditor = () => {
   const handleDeleteCharacter = useCallback(async (
     id: string,
     e: React.MouseEvent,
-    sessions: ChatSession[],
-    setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>,
-    deleteSession: (id: string) => Promise<void>
+    onDeleted?: () => void | Promise<void>,
   ) => {
     e.stopPropagation();
     const ok = await showCustomConfirm(
@@ -91,16 +89,11 @@ export const useCharacterEditor = () => {
       setIsDbWriting(true);
       try {
         await deleteCharacter(id);
-        // 级联清理关联会话
-        const assocSessions = sessions.filter((s) => s.characterId === id);
-        for (const s of assocSessions) {
-          await deleteSession(s.id);
-        }
         setCharacters((prev) => prev.filter((c) => c.id !== id));
-        setSessions((prev) => prev.filter((s) => s.characterId !== id));
         if (activeCharId === id) {
           setActiveCharId(null);
         }
+        await onDeleted?.();
       } finally {
         setIsDbWriting(false);
       }

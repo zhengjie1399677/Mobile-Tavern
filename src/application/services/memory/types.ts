@@ -39,10 +39,15 @@ export interface MessageRecord {
   /** 标签来源：llm=主对话顺便抽取, dict=词典匹配, none=未抽取 */
   extractSource: ExtractSource;
   /** 元数据 */
-  metadata?: {
-    modelUsed?: string;
-    tokenCount?: number;
-  };
+  metadata?: Record<string, unknown>;
+  isSummaryLine?: boolean;
+  generationTime?: number;
+  tokenCount?: number;
+  promptTokenCount?: number;
+  reasoningContent?: string;
+  swipes?: string[];
+  swipe_id?: number;
+  variables?: Record<string, unknown>;
 }
 
 /**
@@ -131,13 +136,19 @@ export interface MemoryPersistencePort {
     id: string,
     tags: string[],
     extractSource: string,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
     signal?: AbortSignal
   ): Promise<void>;
   getMessageById(id: string): Promise<MessageRecord | null>;
   getMessagesBySession(
     sessionId: string,
-    options?: { limit?: number; offset?: number; descending?: boolean }
+    options?: {
+      limit?: number;
+      offset?: number;
+      descending?: boolean;
+      minTurnIndexExclusive?: number;
+      maxTurnIndexExclusive?: number;
+    }
   ): Promise<MessageRecord[]>;
   getMessagesByTag(
     sessionId: string,
@@ -153,12 +164,18 @@ export interface MemoryPersistencePort {
     firstSeenMsgId: string;
     firstSeenTurn: number;
     count?: number;
+    /** 后台抽取写入时要求来源消息仍存在，避免分支删除后任务回写旧记忆。 */
+    requireSourceMessage?: boolean;
   }, signal?: AbortSignal): Promise<boolean>;
   getDictEntryById(id: string): Promise<MemoryDictEntry | null>;
   getDictBySession(sessionId: string): Promise<MemoryDictEntry[]>;
   deleteDictBySession(sessionId: string, signal?: AbortSignal): Promise<void>;
   deleteDictEntryById(id: string, signal?: AbortSignal): Promise<void>;
-  upsertFragment(fragment: MemoryFragment, signal?: AbortSignal): Promise<void>;
+  upsertFragment(
+    fragment: MemoryFragment,
+    signal?: AbortSignal,
+    options?: { requireSourceMessages?: boolean },
+  ): Promise<void>;
   getFragmentById(id: string): Promise<MemoryFragment | null>;
   getFragmentsBySession(sessionId: string): Promise<MemoryFragment[]>;
   getFragmentsByTags(sessionId: string, tags: string[], limit?: number): Promise<MemoryFragment[]>;
@@ -175,7 +192,8 @@ export interface MemoryPersistencePort {
   deleteFragmentsBySession(sessionId: string, signal?: AbortSignal): Promise<void>;
   evolveTemporalFact?(
     fact: TemporalFact,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: { requireSourceMessage?: boolean },
   ): Promise<{ changed: boolean; fact: TemporalFact }>;
   getTemporalFactsBySession?(
     sessionId: string,

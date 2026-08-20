@@ -77,7 +77,7 @@ const DialogueHistoryView = ({
   // 过滤隐藏的野牛静默消息
   const rawMessages = (activeSession?.messages || []).filter((m: any) => !m.extra?.isBisonSilent);
 
-  // 性能优化：流式期间 activeSession.messages 每 60ms 触发一次 setSessions，
+  // 性能优化：流式期间 activeSession.messages 每 60ms 触发一次 setSessionViews，
   // 若直接驱动 visibleMessages.map 渲染会阻塞用户滚动等高优先级交互。
   // useDeferredValue 让 React 把"消息列表变化"降级为低优先级更新，
   // 高优先级更新（滚动、点击、输入）能立即响应，流式文本延迟到下次空闲帧合并提交。

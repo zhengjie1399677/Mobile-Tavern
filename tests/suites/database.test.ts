@@ -12,7 +12,7 @@
 import { Kernel } from "../../src/kernel/Kernel";
 import { IKernelService } from "@/src/application/serviceContracts";
 import { DatabaseService } from "../../src/application/services/DatabaseService";
-import type { CharacterCard } from "../../src/types";
+import type { CharacterCard, ChatSession } from "../../src/types";
 import { assert } from "./testUtils";
 // fake-indexeddb 全局注入：替代 testLocalDBSplitTrack 原先的手写 mock。
 // 手写 mock 的 oncomplete 调度时序与真实 IDB 存在差异，是历史 flaky 源头；
@@ -89,11 +89,9 @@ export async function testDatabaseServiceCrud() {
   } as unknown as IKernelService;
 
   const mockDbService = new DatabaseService();
-  mockDbService.saveSession = async (sess: any) => {
-    savedSession = sess;
+  mockDbService.replaceCompleteSessions = async (sessions: ChatSession[]) => {
+    savedSession = sessions[0] ?? null;
   };
-  // Mock syncSessionMessages 防止触发 getDB() 缓存 dbInstance，污染后续测试
-  mockDbService.syncSessionMessages = async () => {};
 
   await testKernel.registerService("script", mockScriptService);
   await testKernel.registerService("database", mockDbService);
@@ -120,7 +118,7 @@ export async function testDatabaseServiceCrud() {
   }];
   const timelineSession = await mockDbService.createBacktrackFromTimeline(session, "时间流分支", "sum_1");
   assert(timelineSession.summaries.length === 1, "Timeline session summaries count matches");
-  assert(timelineSession.messages[0].content.includes("发生战斗"), "Timeline message content matches");
+  assert(timelineSession.messages[0].id === session.messages[0].id, "Timeline branch ends at summary message boundary");
   assert(timelineSession.parentSessionId === session.id, "Timeline branch keeps parent session");
   assert(timelineSession.parentMessageId === session.messages[0].id, "Timeline branch keeps split message");
 

@@ -44,14 +44,18 @@ function createMockSession(overrides?: Partial<ChatSession>): ChatSession {
 }
 
 function createMockParams(overrides?: Partial<any>) {
-  const setSessions = vi.fn();
+  const setSessionViews = vi.fn();
   const setActiveCharId = vi.fn();
   const setActiveSessionId = vi.fn();
   const setActiveTab = vi.fn();
   const setChatSubTab = vi.fn();
   const setShowSessionManager = vi.fn();
   const setMsgMenuId = vi.fn();
-  const deleteSession = vi.fn().mockResolvedValue(undefined);
+  let persistedSessions = overrides?.sessions ?? [createMockSession()];
+  const deleteSession = vi.fn(async (id: string) => {
+    persistedSessions = persistedSessions.filter((item: ChatSession) => item.id !== id);
+  });
+  const refreshSessionStatistics = vi.fn().mockResolvedValue(undefined);
   const triggerScroll = vi.fn();
   const showCustomAlert = vi.fn().mockResolvedValue(undefined);
   const showCustomConfirm = vi.fn().mockResolvedValue(true);
@@ -71,7 +75,7 @@ function createMockParams(overrides?: Partial<any>) {
     sessions: [session],
     characters: [character],
     settings: { enableReplySuggestions: false } as unknown as UserSettings,
-    setSessions,
+    setSessionViews,
     setActiveCharId,
     setActiveSessionId,
     setActiveTab,
@@ -79,7 +83,13 @@ function createMockParams(overrides?: Partial<any>) {
     setShowSessionManager,
     setMsgMenuId,
     deleteSession,
+    refreshSessionStatistics,
     databaseService: {
+      getLatestSessionByCharacter: vi.fn(async (characterId: string) =>
+        persistedSessions
+          .filter((item: ChatSession) => item.characterId === characterId)
+          .sort((a: ChatSession, b: ChatSession) => b.createdAt - a.createdAt)[0] ?? null
+      ),
       createNewSession: vi.fn().mockResolvedValue(createMockSession({ id: "new-session" })),
       createEmptyBranch: vi.fn().mockResolvedValue(createMockSession({ id: "branch-session" })),
       createBacktrackBranch: vi.fn().mockResolvedValue(createMockSession({ id: "backtrack-session" })),
@@ -109,7 +119,7 @@ describe("useSessionManager", () => {
       await act(async () => {
         await result.current.handleStartNewSession();
       });
-      expect(params.setSessions).not.toHaveBeenCalled();
+      expect(params.setSessionViews).not.toHaveBeenCalled();
     });
 
     it("正常创建新会话", async () => {
@@ -119,8 +129,9 @@ describe("useSessionManager", () => {
         await result.current.handleStartNewSession();
       });
       expect(params.databaseService.createNewSession).toHaveBeenCalled();
-      expect(params.setSessions).toHaveBeenCalled();
+      expect(params.setSessionViews).toHaveBeenCalled();
       expect(params.setActiveSessionId).toHaveBeenCalledWith("new-session");
+      expect(params.refreshSessionStatistics).toHaveBeenCalledOnce();
       expect(params.triggerScroll).toHaveBeenCalled();
     });
 
@@ -171,8 +182,8 @@ describe("useSessionManager", () => {
       await act(async () => {
         await result.current.handleStartNewSession();
       });
-      // 不应崩溃，setSessions 不应被调用
-      expect(params.setSessions).not.toHaveBeenCalled();
+      // 不应崩溃，setSessionViews 不应被调用
+      expect(params.setSessionViews).not.toHaveBeenCalled();
     });
   });
 
@@ -217,7 +228,7 @@ describe("useSessionManager", () => {
         await result.current.selectCharacter("char-2");
       });
       expect(params.databaseService.createNewSession).toHaveBeenCalled();
-      expect(params.setSessions).toHaveBeenCalled();
+      expect(params.setSessionViews).toHaveBeenCalled();
     });
 
     it("切换后上报遥测", async () => {
@@ -270,7 +281,7 @@ describe("useSessionManager", () => {
         await result.current.createNewBranch();
       });
       expect(params.databaseService.createEmptyBranch).toHaveBeenCalled();
-      expect(params.setSessions).toHaveBeenCalled();
+      expect(params.setSessionViews).toHaveBeenCalled();
       expect(params.setActiveSessionId).toHaveBeenCalledWith("branch-session");
       expect(params.setShowSessionManager).toHaveBeenCalledWith(false);
     });
@@ -305,7 +316,7 @@ describe("useSessionManager", () => {
         await result.current.deleteBranch("session-to-delete");
       });
       expect(params.deleteSession).toHaveBeenCalledWith("session-to-delete");
-      expect(params.setSessions).toHaveBeenCalled();
+      expect(params.setSessionViews).toHaveBeenCalled();
     });
 
     it("删除活跃会话时切换到其他会话", async () => {

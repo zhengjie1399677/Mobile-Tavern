@@ -7,7 +7,7 @@ export interface ImageGenerationHandlerParams {
   activeSession: ChatSession | null;
   settings: UserSettings;
   activeCharacter: CharacterCard | null;
-  setSessions: (updater: (prev: ChatSession[]) => ChatSession[]) => void;
+  setSessionViews: (updater: (prev: ChatSession[]) => ChatSession[]) => void;
   showCustomAlert: (msg: string, title?: string) => void;
   showCustomPrompt: (
     message: string,
@@ -83,7 +83,7 @@ export async function handleGenerateImageForMessage({
   activeSession,
   settings,
   activeCharacter,
-  setSessions,
+  setSessionViews,
   showCustomAlert,
   showCustomPrompt,
   getKernelService,
@@ -93,7 +93,7 @@ export async function handleGenerateImageForMessage({
 
   // 设置 loading 状态
   const drawSession = updateMessageDrawingState(activeSession, targetMsgId, true);
-  setSessions((prev: ChatSession[]) =>
+  setSessionViews((prev: ChatSession[]) =>
     prev.map((s: ChatSession) => (s.id === drawSession.id ? drawSession : s)),
   );
 
@@ -192,7 +192,7 @@ export async function handleGenerateImageForMessage({
           targetMsgId,
           false,
         );
-        setSessions((prev: ChatSession[]) =>
+        setSessionViews((prev: ChatSession[]) =>
           prev.map((s: ChatSession) => (s.id === cancelledSession.id ? cancelledSession : s)),
         );
         return;
@@ -210,17 +210,19 @@ export async function handleGenerateImageForMessage({
       false,
       imgUrl,
     );
-    setSessions((prev: ChatSession[]) =>
+    setSessionViews((prev: ChatSession[]) =>
       prev.map((s: ChatSession) => (s.id === finalSession.id ? finalSession : s)),
     );
-    await databaseService.saveSession(finalSession);
+    const finalMessage = finalSession.messages.find((message) => message.id === targetMsgId);
+    if (finalMessage) await databaseService.appendSessionMessage(finalSession.id, finalMessage);
   } catch (err: unknown) {
     console.error("Image generation failed:", err);
     showCustomAlert(`绘图失败: ${getErrorMessage(err) || String(err)}`, "生图失败");
     const errorSession = updateMessageDrawingState(activeSession, targetMsgId, false);
-    setSessions((prev: ChatSession[]) =>
+    setSessionViews((prev: ChatSession[]) =>
       prev.map((s: ChatSession) => (s.id === errorSession.id ? errorSession : s)),
     );
-    await databaseService.saveSession(errorSession);
+    const errorMessage = errorSession.messages.find((message) => message.id === targetMsgId);
+    if (errorMessage) await databaseService.appendSessionMessage(errorSession.id, errorMessage);
   }
 }

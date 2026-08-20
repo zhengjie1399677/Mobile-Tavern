@@ -34,7 +34,6 @@
 | `src/application/services/{Tts,Asr,ImageGeneration}Service.ts` | Web API 与请求体 | Web Speech、FormData 等平台类型不完整 |
 | `src/application/services/memory/` | LLM 抽取与召回中间结构 | 外部生成结构尚未完全 Schema 化 |
 | `src/application/services/prompt/` | MVU 变量与模型能力 | 外部动态结构尚未完全 Schema 化 |
-| `src/application/services/AutoSummaryService.ts` | 旧响应与记忆结构 | 已废弃，等待物理删除 |
 | `src/types.ts` | 角色卡扩展、变量、消息附加字段 | SillyTavern 兼容动态 JSON |
 | `src/components/FormattedText.tsx` | iframe、角色与正则脚本动态结构 | 等待富文本视图拆分和 Schema 收口 |
 | `src/infrastructure/storage/` | 动态记录和 metadata | 存储 Schema 尚在渐进强类型化 |
@@ -62,7 +61,6 @@
 | 文件 | 当前行数 | 豁免原因 |
 |---|---|---|
 | `src/utils/tavernHelper/scriptIframe.ts` | ~1252 | SillyTavern 兼容端口 iframe 沙盒 HTML 工厂；已拆出 esmReplacer/scriptPreprocessor，剩余逻辑强耦合于沙盒生成与字符串模板，待兼容契约稳定后继续拆分 |
-| `src/infrastructure/storage/indexedDbMemoryStore.ts` | ~991 | 已拆分至阈值以下，保留监控以防回涨 |
 | `src/utils/tavernHelper/tavernHelperMocks.ts` | ~1013 | SillyTavern 兼容 Window 全局 Mock 注册单体，仅一个导出入口 `initTavernHelperMocks()`，内部注册链强耦合；超出阈值 13 行，待兼容契约稳定后评估拆分 |
 
 ## 四、落地纪律

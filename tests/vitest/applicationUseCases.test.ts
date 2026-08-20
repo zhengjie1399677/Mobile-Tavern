@@ -14,10 +14,10 @@ import type {
 import type {
   CharacterCard,
   ChatSession,
+  ChatSessionMetadataPatch,
   Message,
   SummaryCard,
 } from "../../src/types";
-import type { MemoryServiceTyped } from "../../src/application/services/memory";
 
 const character = {
   id: "char-1",
@@ -59,18 +59,18 @@ describe("application useCases 边界回归", () => {
   it("会话分页由用例层调用 Service，并返回界面可直接投影的结果", async () => {
     const database = {
       getSessionsCount: vi.fn().mockResolvedValue(1),
-      getSessionsPaginated: vi.fn().mockResolvedValue([session]),
-    } as unknown as IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>;
-    const memory = {
-      getStorage: () => ({
-        getMessagesBySession: vi.fn().mockResolvedValue([]),
-      }),
-    } as unknown as MemoryServiceTyped;
-
-    const result = await createChatSessionUseCases(database, memory)
+      getSessionCountsByCharacter: vi.fn().mockResolvedValue({ [character.id]: 1 }),
+      getSessionsPage: vi.fn().mockResolvedValue({ sessions: [session], hasMore: false }),
+    } as unknown as IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message, ChatSessionMetadataPatch>;
+    const result = await createChatSessionUseCases(database)
       .loadInitialSessions(50);
 
-    expect(result).toEqual({ sessions: [session], total: 1, hasMore: false });
+    expect(result).toEqual({
+      sessions: [session],
+      total: 1,
+      countsByCharacter: { [character.id]: 1 },
+      hasMore: false,
+    });
   });
 
   it("分页合并去重且保持已有会话顺序", () => {

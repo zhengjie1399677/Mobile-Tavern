@@ -1,30 +1,29 @@
 import type { Message } from "../../types";
+import {
+  fromStoredMessageRecord,
+  type StoredChatMessageRecord,
+} from "../../infrastructure/storage/messageRecord";
 
-interface StoredChatMessage {
-  id: string;
+type HydratableStoredMessage = Pick<
+  StoredChatMessageRecord,
+  "id" | "content" | "createdAt"
+> & Partial<Omit<StoredChatMessageRecord, "id" | "content" | "createdAt" | "role">> & {
   role?: string;
-  content: string;
-  createdAt: number;
-  metadata?: Record<string, unknown>;
-}
+};
 
 /** 将存储层“最新优先”的消息页投影成界面所需的时间正序。 */
 export function hydrateNewestFirstMessagePage(
-  records: StoredChatMessage[],
+  records: HydratableStoredMessage[],
 ): Message[] {
   return records
     .slice()
     .reverse()
-    .map((record) => ({
-      id: record.id,
-      sender:
-        record.role === "user"
-          ? "user"
-          : record.role === "system"
-            ? "system"
-            : "assistant",
-      content: record.content,
-      timestamp: record.createdAt,
-      extra: record.metadata,
+    .map((record) => fromStoredMessageRecord({
+      sessionId: "",
+      turnIndex: 0,
+      tags: [],
+      extractSource: "none",
+      ...record,
+      role: record.role === "user" || record.role === "system" ? record.role : "assistant",
     }));
 }

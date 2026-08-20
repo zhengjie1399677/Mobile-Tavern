@@ -91,6 +91,13 @@ export interface Message {
   swipe_id?: number;
   extra?: Record<string, any>;
   variables?: Record<string, any>;
+  /** messages Store 中的绝对顺序；分页、分支与记忆边界统一使用该值。 */
+  turnIndex?: number;
+  /** 后台记忆抽取结果；消息重新水合后仍需保留，避免编辑等写回路径将其清空。 */
+  tags?: string[];
+  extractSource?: "llm" | "dict" | "none";
+  /** `extra` 的持久化别名，仅用于兼容存储/备份边界。 */
+  metadata?: Record<string, unknown>;
 }
 
 export interface ChatSession {
@@ -111,6 +118,24 @@ export interface ChatSession {
   parentMessageId?: string; // Message ID at which this session split off from parent
   /** 当前会话选择的 Prompt 场景方案；不修改全局预设。 */
   activePromptSceneProfileId?: string;
+}
+
+/** sessions Store 与界面会话目录共享的轻量会话信息，不包含消息窗口。 */
+export type ChatSessionMetadata = Omit<ChatSession, "messages">;
+
+/**
+ * 只允许普通会话字段通过元数据更新路径修改。
+ * 摘要、消息统计和消息内容各自拥有独立的原子事务，不能混入通用 patch。
+ */
+export type ChatSessionMetadataPatch = Partial<Omit<
+  ChatSessionMetadata,
+  "id" | "summaries" | "lastSummarizedMessageId" | "turnCount" | "charCount"
+>>;
+
+/** 当前会话已水合的消息窗口；虚拟列表只消费这里，不承担存储分页职责。 */
+export interface ChatMessageWindow {
+  sessionId: string;
+  messages: Message[];
 }
 
 export type ApiType = "openai-compat" | "openai" | "anthropic";
@@ -412,5 +437,3 @@ export interface AsrConfig {
   openaiBaseUrl?: string;
   openaiModel?: string;
 }
-
-

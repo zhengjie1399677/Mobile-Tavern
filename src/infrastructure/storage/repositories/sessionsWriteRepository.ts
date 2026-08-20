@@ -8,58 +8,57 @@
  * 仍由 indexedDbSessionQueries.ts 提供，本模块仅负责写入路径。
  */
 
-import type { ChatSession, Message } from "../../../types";
+import type {
+  ChatSession,
+  ChatSessionMetadataPatch,
+} from "../../../types";
 import { getDB } from "../idbConnection";
 import { enqueueWrite, bindTransactionAbort } from "../idbQueue";
 import {
+  calculateSessionMessageStats,
+  stripLegacySessionMessages,
   toSessionStorageRecord,
   type SessionStorageRecord,
 } from "../sessionRecord";
-
-// 内存 Message 在持久化到 messages Store 时可能携带的额外字段。
-// 这些字段由记忆系统写入，但未纳入 Message 接口契约，故在此显式声明以避免类型逃逸。
-type PersistedMessage = Message & {
-  turnIndex?: number;
-  tags?: string[];
-  extractSource?: string;
-  metadata?: Record<string, unknown>;
-};
+import { toStoredMessageRecord, type PersistableMessage } from "../messageRecord";
 
 /**
  * 保存会话元数据到 sessions Store。
  *
  * **职责边界（2026-07-11 重构）**：
  *   - 只写入 sessions Store（会话元数据），不触碰 messages Store。
- *   - 从 messages 计算 turnCount / charCount 缓存字段，供前台懒加载分页使用。
+ *   - 不从内存消息窗口重算 turnCount / charCount；这些字段只由消息事务维护。
  *   - 不再做消息全量同步（旧实现的 N 次 GET+PUT 已废弃，消除"多存"问题）。
  *   - 不再做孤儿清理（旧实现的 cursor.delete 已废弃，消除"遗漏"风险）。
  *
- * 新消息的持久化由调用方通过 appendSessionMessage / appendMessage 单条写入。
- * 消息删除由调用方通过 deleteMessageById 显式删除。
- * 批量同步（备份恢复/分支创建）使用 syncSessionMessages。
+ * 消息写入、删除与分支替换均通过各自的跨 Store 原子事务完成。
  */
-export async function saveSession(session: ChatSession, signal?: AbortSignal): Promise<void> {
+export async function updateSessionMetadata(
+  sessionId: string,
+  patch: ChatSessionMetadataPatch,
+  signal?: AbortSignal,
+): Promise<void> {
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("sessions", "readwrite");
       const sessionsStore = transaction.objectStore("sessions");
 
-      const incomingRecord = toSessionStorageRecord(session);
-      const getRequest = sessionsStore.get(session.id);
+      const getRequest = sessionsStore.get(sessionId);
 
       // summaries 只能通过专用的原子摘要操作修改。普通会话保存常由流式输出、
       // 图片状态或标题更新触发，携带的可能是陈旧 React 快照，不能反向覆盖时间线。
       getRequest.onsuccess = () => {
         const existing = getRequest.result as SessionStorageRecord | undefined;
-        const sessionToSave = existing
-          ? {
-              ...incomingRecord,
-              summaries: Array.isArray(existing.summaries) ? existing.summaries : [],
-              lastSummarizedMessageId: existing.lastSummarizedMessageId,
-            }
-          : incomingRecord;
-        const putRequest = sessionsStore.put(sessionToSave);
+        if (!existing) {
+          try { transaction.abort(); } catch { /* 事务可能已终止 */ }
+          reject(new Error(`[localDB] Session ${sessionId} not found for metadata update.`));
+          return;
+        }
+        const putRequest = sessionsStore.put({
+          ...stripLegacySessionMessages(existing),
+          ...patch,
+        });
         putRequest.onerror = () => reject(putRequest.error);
       };
       // 用 oncomplete 判定成功（详见 charactersRepository.saveCharacter 注释）
@@ -67,7 +66,7 @@ export async function saveSession(session: ChatSession, signal?: AbortSignal): P
       getRequest.onerror = () => reject(getRequest.error);
       bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `session:${session.id}`, signal);  // P1-11: 同会话多次保存合并为一次落盘
+  }, `session:${sessionId}:metadata`, signal);
 }
 
 export async function deleteSession(id: string, signal?: AbortSignal): Promise<void> {
@@ -139,11 +138,22 @@ export async function deleteSession(id: string, signal?: AbortSignal): Promise<v
   }, `session:${id}:cascade`, signal);  // 同会话级联删除合并为一次写入
 }
 
-export async function bulkSaveSessions(sessionsList: ChatSession[], signal?: AbortSignal): Promise<void> {
+export async function replaceCompleteSessions(sessionsList: ChatSession[], signal?: AbortSignal): Promise<void> {
+  const sessionsById = new Map(sessionsList.map((session) => [session.id, session]));
+  const messageOwners = new Map<string, string>();
+  for (const session of sessionsById.values()) {
+    for (const message of session.messages) {
+      const owner = messageOwners.get(message.id);
+      if (owner && owner !== session.id) {
+        throw new Error(`[localDB] Message ${message.id} is shared by sessions ${owner} and ${session.id}.`);
+      }
+      messageOwners.set(message.id, session.id);
+    }
+  }
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      if (sessionsList.length === 0) return resolve();
+      if (sessionsById.size === 0) return resolve();
       const transaction = db.transaction(["sessions", "messages"], "readwrite");
       const sessionsStore = transaction.objectStore("sessions");
       const messagesStore = transaction.objectStore("messages");
@@ -151,35 +161,64 @@ export async function bulkSaveSessions(sessionsList: ChatSession[], signal?: Abo
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
       bindTransactionAbort(ctx, transaction, reject);
+      const fail = (error: unknown) => {
+        try { transaction.abort(); } catch { /* 事务可能已结束 */ }
+        reject(error);
+      };
 
-      for (const session of sessionsList) {
-        // 统一走 toSessionStorageRecord：与 saveSession 共用同一字段映射逻辑，
-        // 避免两处手工计算 turnCount/charCount 出现偏差。
-        const sessionToSave = toSessionStorageRecord(session);
-        const messages = session.messages;
+      for (const session of sessionsById.values()) {
+        // 备份恢复和导入语义是“完整替换会话”，必须先在同一事务内清除旧消息。
+        // 等游标结束后再 PUT，避免游标把刚写入的新消息一并扫掉。
+        const deleteCursor = messagesStore.index("sessionId")
+          .openCursor(IDBKeyRange.only(session.id));
+        deleteCursor.onsuccess = () => {
+          const cursor = deleteCursor.result;
+          if (cursor) {
+            cursor.delete();
+            cursor.continue();
+            return;
+          }
 
-        sessionsStore.put(sessionToSave);
+          const uniqueMessages = Array.from(
+            new Map(session.messages.map((message) => [message.id, message])).values(),
+          );
+          const writeSession = () => {
+            sessionsStore.put({
+              ...toSessionStorageRecord(session),
+              ...calculateSessionMessageStats(uniqueMessages),
+            });
+            uniqueMessages.forEach((message, index) => {
+              const persisted = message as PersistableMessage;
+              messagesStore.put(toStoredMessageRecord(
+                session.id,
+                persisted,
+                persisted.turnIndex ?? index,
+              ));
+            });
+          };
+          if (uniqueMessages.length === 0) {
+            writeSession();
+            return;
+          }
 
-        if (messages && Array.isArray(messages)) {
-          messages.forEach((msg, idx) => {
-            const persisted = msg as PersistedMessage;
-            const record = {
-              id: msg.id,
-              sessionId: session.id,
-              // 保留原始 sender 三态（user/assistant/system）：
-              // 旧实现把 system 一律映射为 assistant，导致备份恢复后系统消息变成助手回复，
-              // 破坏对话上下文与记忆提取逻辑。chatMessageHydration 读取时已支持三态 role。
-              role: msg.sender,
-              content: msg.content,
-              createdAt: msg.timestamp || Date.now(),
-              turnIndex: persisted.turnIndex !== undefined ? persisted.turnIndex : idx,
-              tags: persisted.tags || [],
-              extractSource: persisted.extractSource || "none",
-              metadata: persisted.metadata || msg.extra,
+          let pendingChecks = uniqueMessages.length;
+          for (const message of uniqueMessages) {
+            const ownerRequest = messagesStore.get(message.id);
+            ownerRequest.onsuccess = () => {
+              const existing = ownerRequest.result as { sessionId?: string } | undefined;
+              if (existing?.sessionId && existing.sessionId !== session.id) {
+                fail(new Error(
+                  `[localDB] Message ${message.id} already belongs to session ${existing.sessionId}.`,
+                ));
+                return;
+              }
+              pendingChecks--;
+              if (pendingChecks === 0) writeSession();
             };
-            messagesStore.put(record);
-          });
-        }
+            ownerRequest.onerror = () => fail(ownerRequest.error);
+          }
+        };
+        deleteCursor.onerror = () => reject(deleteCursor.error);
       }
     });
   }, undefined, signal);

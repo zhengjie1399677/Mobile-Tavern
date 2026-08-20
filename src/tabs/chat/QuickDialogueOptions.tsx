@@ -22,7 +22,6 @@ import { useTranslation } from "../../contexts/LanguageContext";
 import { IDatabaseService, ITtsService, IImageGenerationService } from "@/src/application/serviceContracts";
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
-import { reconcileSummaryBoundary } from "../../hooks/useChat/helpers";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 interface QuickDialogueOptionsProps {
@@ -33,7 +32,6 @@ interface QuickDialogueOptionsProps {
 const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) => {
   const kernel = useKernel();
   const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
-  const saveSession = (session: ChatSession) => databaseService.saveSession(session);
   const { t } = useTranslation();
   const {
     isSending,
@@ -46,7 +44,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     showCustomConfirm,
     showCustomPrompt,
     showCustomAlert,
-    setSessions,
+    setSessionViews,
     getKernelService,
     handleAutoSummaryCheck,
 
@@ -64,7 +62,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
     showCustomConfirm: state.showCustomConfirm,
     showCustomPrompt: state.showCustomPrompt,
     showCustomAlert: state.showCustomAlert,
-    setSessions: state.setSessions,
+    setSessionViews: state.setSessionViews,
     getKernelService: state.getKernelService,
     handleAutoSummaryCheck: state.handleAutoSummaryCheck,
     activeSession: state.activeSession,
@@ -165,7 +163,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                 m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: true } } : m
               )
             };
-            setSessions((prev: ChatSession[]) =>
+            setSessionViews((prev: ChatSession[]) =>
               prev.map((s: ChatSession) => (s.id === drawSession.id ? drawSession : s)),
             );
 
@@ -281,7 +279,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                       m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
                     )
                   };
-                  setSessions((prev: ChatSession[]) =>
+                  setSessionViews((prev: ChatSession[]) =>
                     prev.map((s: ChatSession) => (s.id === errorSession.id ? errorSession : s)),
                   );
                   return;
@@ -297,10 +295,11 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                   m.id === targetMsgId ? { ...m, extra: { ...m.extra, image: imgUrl, isDrawing: false } } : m
                 )
               };
-              setSessions((prev: ChatSession[]) =>
+              setSessionViews((prev: ChatSession[]) =>
                 prev.map((s: ChatSession) => (s.id === finalSession.id ? finalSession : s)),
               );
-              await saveSession(finalSession);
+              const finalMessage = finalSession.messages.find((item) => item.id === targetMsgId);
+              if (finalMessage) await databaseService.appendSessionMessage(finalSession.id, finalMessage);
             } catch (err: unknown) {
               console.error("Image generation failed:", err);
               showCustomAlert(t("quick_dialogue.img_gen_failed_msg", { error: getErrorMessage(err) || String(err) }), t("quick_dialogue.img_gen_failed"));
@@ -310,10 +309,11 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                   m.id === targetMsgId ? { ...m, extra: { ...m.extra, isDrawing: false } } : m
                 )
               };
-              setSessions((prev: ChatSession[]) =>
+              setSessionViews((prev: ChatSession[]) =>
                 prev.map((s: ChatSession) => (s.id === errorSession.id ? errorSession : s)),
               );
-              await saveSession(errorSession);
+              const errorMessage = errorSession.messages.find((item) => item.id === targetMsgId);
+              if (errorMessage) await databaseService.appendSessionMessage(errorSession.id, errorMessage);
             }
           }}
           disabled={isSending}
@@ -435,28 +435,18 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                   const nextMessages = (activeSession.messages || []).filter(
                     (m: Message) => m.id !== message.id,
                   );
-                  // 删除可能移除年表边界消息：同步维护最后总结位置，避免边界悬空
-                  const reconciled = reconcileSummaryBoundary(
-                    [message.id],
-                    activeSession.summaries,
-                    activeSession.lastSummarizedMessageId,
-                  );
+                  const persisted = await databaseService.deleteSessionMessage(activeSession.id, message.id);
                   const updated: ChatSession = {
                     ...activeSession,
                     messages: nextMessages,
-                    summaries: reconciled.summaries,
-                    lastSummarizedMessageId: reconciled.lastSummarizedMessageId,
+                    summaries: persisted.summaries,
+                    lastSummarizedMessageId: persisted.lastSummarizedMessageId,
+                    turnCount: persisted.turnCount,
+                    charCount: persisted.charCount,
                   };
-                  setSessions((prev: ChatSession[]) =>
+                  setSessionViews((prev: ChatSession[]) =>
                     prev.map((s: ChatSession) => (s.id === updated.id ? updated : s)),
                   );
-                  await saveSession(updated);
-                  // saveSession 只写会话元数据：消息必须显式从 messages Store 删除，否则重启后会"复活"
-                  await databaseService
-                    .deleteMessageById(message.id)
-                    .catch((err: unknown) => {
-                      console.error("Failed to delete message from store:", err);
-                    });
                   setMsgMenuId(null);
                 }
               }}

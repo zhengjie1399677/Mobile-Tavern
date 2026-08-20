@@ -13,10 +13,10 @@ export default function PromptSceneProfileManager({
   onChange: (composition: PromptComposition) => void;
 }) {
   const { t } = useTranslation();
-  const { activeSession, setSessions, saveSession, showCustomPrompt, showCustomConfirm, showCustomAlert } = useUnifiedApp((state) => ({
+  const { activeSession, setSessionViews, updateSessionMetadata, showCustomPrompt, showCustomConfirm, showCustomAlert } = useUnifiedApp((state) => ({
     activeSession: state.activeSession,
-    setSessions: state.setSessions,
-    saveSession: state.saveSession,
+    setSessionViews: state.setSessionViews,
+    updateSessionMetadata: state.updateSessionMetadata,
     showCustomPrompt: state.showCustomPrompt,
     showCustomConfirm: state.showCustomConfirm,
     showCustomAlert: state.showCustomAlert,
@@ -31,8 +31,8 @@ export default function PromptSceneProfileManager({
     if (!activeSession) return;
     const updated = { ...activeSession, activePromptSceneProfileId: profileId || undefined };
     try {
-      await saveSession(updated);
-      setSessions((previous) => previous.map((session) => session.id === updated.id ? updated : session));
+      await updateSessionMetadata(updated.id, { activePromptSceneProfileId: updated.activePromptSceneProfileId });
+      setSessionViews((previous) => previous.map((session) => session.id === updated.id ? updated : session));
     } catch {
       await showCustomAlert(t("prompt_composer.scene_save_failed"));
     }

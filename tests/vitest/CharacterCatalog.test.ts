@@ -7,6 +7,10 @@ import {
   saveCharacter,
 } from "../../src/infrastructure/storage/repositories/charactersRepository";
 import type { CharacterCard } from "../../src/types";
+import { replaceCompleteSessions } from "../../src/infrastructure/storage/repositories/sessionsWriteRepository";
+import { getSessionById } from "../../src/infrastructure/storage/indexedDbSessionQueries";
+import { getMessagesBySession } from "../../src/infrastructure/storage/indexedDbMemoryStore";
+import { getDB } from "../../src/infrastructure/storage/idbConnection";
 
 const characterId = `catalog-test-${Date.now()}`;
 
@@ -54,5 +58,64 @@ describe("角色卡轻量目录", () => {
       lorebookEntries: completeCard.lorebookEntries,
       extensions: completeCard.extensions,
     });
+  });
+
+  it("删除角色时原子级联未加载分页中的全部会话和记忆分轨", async () => {
+    const sessionIds = Array.from({ length: 55 }, (_, index) => `${characterId}-session-${index}`);
+    await replaceCompleteSessions(sessionIds.map((id, index) => ({
+      id,
+      characterId,
+      title: `会话 ${index}`,
+      createdAt: index + 1,
+      summaries: [],
+      messages: [{
+        id: `${id}-message`,
+        sender: "assistant" as const,
+        content: `消息 ${index}`,
+        timestamp: index + 1,
+      }],
+    })));
+    const db = await getDB();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(
+        ["memory_dict", "memory_fragments", "memory_facts"],
+        "readwrite",
+      );
+      transaction.objectStore("memory_dict").put({
+        id: `${sessionIds[54]}:实体`, sessionId: sessionIds[54], entity: "实体", count: 1,
+      });
+      transaction.objectStore("memory_fragments").put({
+        id: `${sessionIds[54]}-fragment`, sessionId: sessionIds[54], content: "事件",
+        participants: [], tags: [], sourceMessageIds: [`${sessionIds[54]}-message`],
+        sourceRole: "assistant", sourceTurnStart: 0, sourceTurnEnd: 0, status: "active",
+        importance: 1, confidence: 1, createdAt: 1, updatedAt: 1,
+      });
+      transaction.objectStore("memory_facts").put({
+        id: `${sessionIds[54]}-fact`, sessionId: sessionIds[54], subject: "甲",
+        predicate: "认识", object: "乙", tags: [], status: "active", validFromTurn: 0,
+        sourceMessageId: `${sessionIds[54]}-message`, confidence: 1, createdAt: 1, updatedAt: 1,
+      });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+
+    await deleteCharacter(characterId);
+
+    expect(await getCharacterById(characterId)).toBeNull();
+    expect(await getSessionById(sessionIds[0])).toBeNull();
+    expect(await getSessionById(sessionIds[54])).toBeNull();
+    expect(await getMessagesBySession(sessionIds[54])).toEqual([]);
+    const derivedCounts = await new Promise<number[]>((resolve, reject) => {
+      const transaction = db.transaction(
+        ["memory_dict", "memory_fragments", "memory_facts"],
+        "readonly",
+      );
+      const requests = ["memory_dict", "memory_fragments", "memory_facts"].map((store) =>
+        transaction.objectStore(store).index("sessionId").count(IDBKeyRange.only(sessionIds[54]))
+      );
+      transaction.oncomplete = () => resolve(requests.map((request) => request.result));
+      transaction.onerror = () => reject(transaction.error);
+    });
+    expect(derivedCounts).toEqual([0, 0, 0]);
   });
 });

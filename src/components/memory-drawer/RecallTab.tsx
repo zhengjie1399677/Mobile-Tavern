@@ -1,4 +1,4 @@
-import { ChatSession } from "../../types";
+import { ChatSession, ChatSessionMetadataPatch } from "../../types";
 import {
   BrainCircuit,
   Pin,
@@ -11,12 +11,12 @@ import { MemoryFragmentsPanel } from "./MemoryFragmentsPanel";
 
 export interface RecallTabProps {
   activeSession: ChatSession;
-  saveSession: (session: ChatSession) => Promise<void>;
+  updateSessionMetadata: (sessionId: string, patch: ChatSessionMetadataPatch) => Promise<void>;
   lastRecalledMemories: RecalledMessage[];
   lastMemoryAudit: MemoryAuditSnapshot | null;
 }
 
-function RecallTab({ activeSession, saveSession, lastRecalledMemories, lastMemoryAudit }: RecallTabProps) {
+function RecallTab({ activeSession, updateSessionMetadata, lastRecalledMemories, lastMemoryAudit }: RecallTabProps) {
   const { t } = useTranslation();
   const lastRecalled = lastRecalledMemories ?? [];
 
@@ -34,12 +34,10 @@ function RecallTab({ activeSession, saveSession, lastRecalledMemories, lastMemor
       nextMuted = nextMuted.filter(id => id !== messageId);
     }
 
-    const nextSession = {
-      ...activeSession,
+    await updateSessionMetadata(activeSession.id, {
       pinnedMessageIds: nextPinned,
       mutedMessageIds: nextMuted
-    };
-    await saveSession(nextSession);
+    });
   };
 
   // Mute (小黑屋) 逻辑交互
@@ -56,12 +54,10 @@ function RecallTab({ activeSession, saveSession, lastRecalledMemories, lastMemor
       nextPinned = nextPinned.filter(id => id !== messageId);
     }
 
-    const nextSession = {
-      ...activeSession,
+    await updateSessionMetadata(activeSession.id, {
       pinnedMessageIds: nextPinned,
       mutedMessageIds: nextMuted
-    };
-    await saveSession(nextSession);
+    });
   };
 
   return (
@@ -188,7 +184,7 @@ function RecallTab({ activeSession, saveSession, lastRecalledMemories, lastMemor
         </div>
       )}
 
-      <MemoryFragmentsPanel activeSession={activeSession} saveSession={saveSession} />
+      <MemoryFragmentsPanel activeSession={activeSession} updateSessionMetadata={updateSessionMetadata} />
     </div>
   );
 }

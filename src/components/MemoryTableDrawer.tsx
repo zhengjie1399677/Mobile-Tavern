@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChatSession } from "../types";
+import { ChatSession, ChatSessionMetadataPatch } from "../types";
 import { X, BrainCircuit, LoaderCircle } from "lucide-react";
 import StoryTimelineView from "../tabs/chat/StoryTimelineView";
 import { useUnifiedApp } from "../UnifiedAppContext";
@@ -17,7 +17,7 @@ interface MemoryTableDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   activeSession: ChatSession;
-  saveSession: (session: ChatSession) => Promise<void>;
+  updateSessionMetadata: (sessionId: string, patch: ChatSessionMetadataPatch) => Promise<void>;
   charName: string;
   enableTableMemory: boolean;
   enableAutoSummary: boolean;
@@ -28,14 +28,14 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   isOpen,
   onClose,
   activeSession,
-  saveSession,
+  updateSessionMetadata,
   charName,
   enableTableMemory,
   enableAutoSummary,
   initialTab
 }) => {
-  const { setSessions, showCustomAlert, showCustomConfirm, lastRecalledMemories, lastMemoryAudit } = useUnifiedApp((state) => ({
-    setSessions: state.setSessions,
+  const { setSessionViews, showCustomAlert, showCustomConfirm, lastRecalledMemories, lastMemoryAudit } = useUnifiedApp((state) => ({
+    setSessionViews: state.setSessionViews,
     showCustomAlert: state.showCustomAlert,
     showCustomConfirm: state.showCustomConfirm,
     lastRecalledMemories: state.lastRecalledMemories,
@@ -156,7 +156,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
           {activeTab === 'table' && (
             <TableMemoryTab
               activeSession={activeSession}
-              saveSession={saveSession}
+              updateSessionMetadata={updateSessionMetadata}
               charName={charName}
               showCustomAlert={showCustomAlert}
               showCustomConfirm={showCustomConfirm}
@@ -176,7 +176,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
           {activeTab === 'recall' && (
             <RecallTab
               activeSession={activeSession}
-              saveSession={saveSession}
+              updateSessionMetadata={updateSessionMetadata}
               lastRecalledMemories={lastRecalledMemories}
               lastMemoryAudit={lastMemoryAudit}
             />
@@ -192,14 +192,9 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                   ...activeSession,
                   variables: newVars
                 };
-                try {
-                  await saveSession(nextSession);
-                  console.log(`[MVU-SAVE-DIAG] saveSession done`);
-                } catch (e) {
-                  console.error(`[MVU-SAVE-DIAG] saveSession FAILED:`, e);
-                }
-                setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
-                console.log(`[MVU-SAVE-DIAG] setSessions done`);
+                await updateSessionMetadata(nextSession.id, { variables: newVars });
+                setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+                console.log(`[MVU-SAVE-DIAG] setSessionViews done`);
                 try {
                   notifyVariablesUpdated(nextSession);
                   console.log(`[MVU-SAVE-DIAG] notifyVariablesUpdated done`);

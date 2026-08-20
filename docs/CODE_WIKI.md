@@ -136,7 +136,7 @@ graph TB
 
 1. **聊天主链路**:UI → `useChat` → `kernel.publish("chat:message_received")` → Pipeline 洋葱管道(敏感词 / 世界书 / MVU 脚本)→ `PromptService.assemblePrompt` → `LLMService.universalFetch` → SSE 字节流 → `ChatStreamService` 零丢包切分 → React 19 并发渲染。
 2. **持久化链路**:Services → `DatabaseService` / `MemoryPersistencePort` → IndexedDB 分轨 Store(sessions / messages / memory_dict / memory_fragments);重启回载以最新优先读取分页,再由 `chatMessageHydration` 转换成界面时间正序。
-3. **重发链路**:UI 同步事务锁 → 截断内存工作副本 → Prompt 与流式生成 → `replaceSessionBranch` 按分支起点 `turnIndex` 清理旧尾部,在 sessions/messages 两个 Store 内一次提交新尾部;失败或取消恢复原会话,不产生中间态。
+3. **重发链路**:UI 同步事务锁 → 截断内存工作副本 → Prompt 与流式生成 → 附加状态快照 → `replaceSessionBranch` 按分支起点 `turnIndex` 清理旧尾部及派生记忆,在跨 Store 事务内一次提交新尾部;失败或取消恢复原会话,不产生中间态。
 4. **遥测链路**:前端事件 → Tauri IPC → `telemetry_queue.jsonl` 本地落盘 → Rust 后台线程批量取 STS + HMAC 签名 → SLS 仓库。
 5. **云端账号链路**:移动端 fetch HTTPS → `cloud/` 后端 axum 路由 → PostgreSQL(users / identities / refresh_tokens)+ Redis 会话。
 
@@ -326,7 +326,7 @@ Mobile-Tavern
 #### 3.2.5 记忆持久化 (IndexedDbMemoryPersistenceService.ts + indexedDbMemoryStore.ts)
 
 - `IndexedDbMemoryPersistenceService`:`isCritical = true`,纯委托类型转换 + signal 传导
-- `replaceSessionBranch`:跨 4 Store(sessions / messages / memory_fragments / memory_facts)原子事务,先校准 `branchStartTurnIndex` 再 `sweepOldBranch` 游标清理,任一步失败整体回滚
+- `replaceSessionBranch`:跨 5 Store(sessions / messages / memory_dict / memory_fragments / memory_facts)原子事务,先校准 `branchStartTurnIndex` 再 `sweepOldBranch` 游标清理；边界失效时失败关闭，任一步失败整体回滚
 
 #### 3.2.6 完整性检查 (indexedDbIntegrityCheck.ts)
 
@@ -570,11 +570,15 @@ class DatabaseService implements IDatabaseService {
   name = "database"; isCritical = true; dependencies = ["script"];
   getAllSessions(): Promise<ChatSession[]>;
   getSessionById(id): Promise<ChatSession | null>;
-  saveSession(session, signal?, traceId?): Promise<void>;
+  getSessionMessageWindow(sessionId, options): Promise<{ messages: Message[]; hasMore: boolean }>;
+  getSessionPromptMessages(sessionId, options): Promise<Message[]>;
+  updateSessionMetadata(sessionId, patch, signal?, traceId?): Promise<void>;
   appendSessionMessage(sessionId, message, turnIndex?, signal?, traceId?): Promise<void>;
+  commitSessionTurn(sessionId, patch, messages, signal?, traceId?): Promise<void>;
+  deleteSessionMessage(sessionId, messageId, signal?): Promise<ChatSession>;
   replaceSessionBranch(session, removedMessageIds, newMessages, signal?): Promise<void>;
   createNewSession(character, starterMessage?, initialSuggestions?): Promise<ChatSession>;
-  // ... 共 16 个方法
+  // 其余方法见 IDatabaseService 权威契约
 }
 
 // LLMService
@@ -986,13 +990,13 @@ npm run build:examples
 
 **修复建议**:put 失败时 reject,让上层感知并提示用户清理存储空间。
 
-#### 7.2.7 useChat.tsx fire-and-forget saveSession 未保护卸载后状态更新
+#### 7.2.7 useChat.tsx 异步消息/元数据落盘未保护卸载后状态更新
 
-> **状态**:✅ 已修复 — 新增 `isMountedRef` 守卫,fire-and-forget saveSession 的 `.then` 回调在卸载后仅放行数据落盘,不再更新 React state。
+> **状态**:✅ 已修复 — 新增 `isMountedRef` 守卫，异步落盘的 `.then` 回调在卸载后仅放行数据落盘，不再更新 React state。
 
 **位置**:[useChat.tsx](file:///d:/projects/Mobile-Tavern/src/hooks/useChat.tsx) L196-202, L223-229
 
-**问题**:开场白同步、tableMemory 初始化等 effect 中调用 `saveSession` 是 fire-and-forget,Promise 完成后可能组件已卸载,`setSessions` 触发 React 警告。
+**问题**:开场白同步、tableMemory 初始化等 effect 中的消息事务或元数据更新为 fire-and-forget，Promise 完成后组件可能已卸载，界面更新会触发 React 警告。
 
 **影响**:React 警告,潜在内存泄漏。
 
@@ -1088,7 +1092,7 @@ npm run build:examples
 
 **位置**:[Kernel.ts](file:///d:/projects/Mobile-Tavern/src/kernel/Kernel.ts) L230-242
 
-生产环境下中间件抛错会终止整个管道,后续中间件不执行。例如 `tableMemoryMiddleware` 抛错 → `mvuScriptMiddleware` / `bisonModeMiddleware` / `autoSummaryMiddleware` 全部不执行。这是设计选择(保全运行边界),但缺少单中间件失败的恢复路径。
+生产环境下中间件抛错会终止整个管道,后续中间件不执行。例如 `tableMemoryMiddleware` 抛错 → `mvuScriptMiddleware` / `bisonModeMiddleware` 不再执行。自动总结不属于输出中间件：它在本轮消息事务成功提交后独立检查，失败不会回滚已保存对话。
 
 #### 7.4.2 publish 串行超时累加
 
@@ -1159,9 +1163,9 @@ npm run build:examples
 
 #### 8.2.2 异步操作卸载保护统一
 
-> **状态**:✅ 已完成 — `loadCharacterById` 添加 `isMountedRef` 检查(7.3.3);`triggerScroll` 的 setTimeout 用 `scrollTimerRef` 跟踪并在卸载时清理(7.3.4);fire-and-forget `saveSession` 用 `isMountedRef` 守卫(P1-7)。三处卸载保护均已落地。
+> **状态**:✅ 已完成 — `loadCharacterById` 添加 `isMountedRef` 检查(7.3.3)；`triggerScroll` 的 setTimeout 用 `scrollTimerRef` 跟踪并在卸载时清理(7.3.4)；异步消息/元数据落盘用 `isMountedRef` 守卫(P1-7)。三处卸载保护均已落地。
 
-**现状**:`loadCharacterById`、`triggerScroll` setTimeout、fire-and-forget saveSession 等异步操作未统一保护卸载后状态更新。
+**现状**:`loadCharacterById`、`triggerScroll` setTimeout、异步消息/元数据落盘等操作曾未统一保护卸载后状态更新。
 
 **建议**:提供 `useSafeAsyncCallback` hook 封装 `isMountedRef` 检查,全仓库异步 setState 统一使用。
 

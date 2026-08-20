@@ -14,6 +14,8 @@ import { buildOutputContext } from "./helpers/streamHelpers";
 import { cleanSuggestionsFromText } from "./helpers/textParsing";
 import { notifyVariablesUpdated } from "../../compatibility/sillytavern";
 import { Logger } from "../../utils/logger";
+import type { MemoryServiceTyped } from "../../application/services/memory";
+import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
 
 const logger = Logger.create("pipelineHelpers");
 
@@ -33,7 +35,7 @@ export async function runOutputPipelineAndSave(params: {
   isStillActive: boolean;
   isBisonConsecutive: boolean;
   bisonRemainingCount: number;
-  setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
+  setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   databaseService: IDatabaseService;
   kernel: IKernel;
   triggerScroll?: () => void;
@@ -45,7 +47,7 @@ export async function runOutputPipelineAndSave(params: {
   traceId?: string;
 }): Promise<OutputPipelineContext> {
   const {
-    setSessions,
+    setSessionViews,
     databaseService,
     kernel,
     triggerScroll,
@@ -65,54 +67,46 @@ export async function runOutputPipelineAndSave(params: {
   const outputCtx = buildOutputContext(ctxParams);
   outputCtx.kernel = kernel;
   if (traceId) outputCtx.traceId = traceId;
-  const { session, settings, isBisonConsecutive, responseText } = ctxParams;
+  const {
+    session,
+    settings,
+    activeCharacter,
+    controller,
+    isBisonConsecutive,
+    responseText,
+  } = ctxParams;
+  const pendingAssistantId = [...session.messages]
+    .reverse()
+    .find((message) => message.sender === "assistant")?.id;
+  const inputMessageIds = new Set(session.messages.map((message) => message.id));
 
-  // L1 快速通道：当全部功能关闭、非野牛连续、且无需自动总结时，跳过整个 output pipeline。
+  // L1 快速通道：仅当全部功能（含自动总结）明确关闭且非野牛连续时跳过管道。
   // 旁路条件保守：必须同时满足以下全部条件才命中：
   //   1. enableTableMemory / enableScriptExecution / enableBisonMode 三个开关全关
   //   2. 非野牛连续输出模式（isBisonConsecutive === false）
-  //   3. 未总结消息数 < 触发阈值（无需调用 handleAutoSummaryCheck）
-  //   4. output 管道仅注册了标准 4 个中间件（无自定义插件中间件）
+  //   3. 自动总结明确关闭；UI 只持有分页窗口，不能据此估算未总结消息数
+  //   4. output 管道仅注册了标准 3 个中间件（无自定义插件中间件）
   // 任一条件不满足则回退到完整管道执行，确保零行为差异。
   const pipeline = kernel.getPipeline("output");
-  const STANDARD_OUTPUT_MIDDLEWARE_COUNT = 4;
+  const STANDARD_OUTPUT_MIDDLEWARE_COUNT = 3;
   const allFeaturesDisabled =
     !settings.enableTableMemory &&
     !settings.enableScriptExecution &&
-    !settings.enableBisonMode;
+    !settings.enableBisonMode &&
+    settings.memory?.enableAutoSummary === false;
   const hasStandardPipeline = pipeline.list().length === STANDARD_OUTPUT_MIDDLEWARE_COUNT;
 
   let bypassed = false;
   if (allFeaturesDisabled && !isBisonConsecutive && hasStandardPipeline) {
-    // 快速估算未总结轮数（不创建 slice，仅计算长度差）
-    const triggerTurns = Number(settings?.memory?.summaryTriggerTurns || 0);
-    const recentTurns = Number(settings?.memory?.recentTurns || 6);
-    const triggerRounds = (!isNaN(triggerTurns) && triggerTurns > 0) ? triggerTurns : recentTurns;
-    const maxAllowedUnsummarized = Math.max(1, triggerRounds) * 2;
-
-    let lastSummaryIdx = -1;
-    if (session.lastSummarizedMessageId) {
-      for (let i = session.messages.length - 1; i >= 0; i--) {
-        if (session.messages[i].id === session.lastSummarizedMessageId) {
-          lastSummaryIdx = i;
-          break;
-        }
-      }
-    }
-    const unsummarizedCount = session.messages.length - (lastSummaryIdx + 1);
-
-    if (unsummarizedCount < maxAllowedUnsummarized) {
-      // 快速通道命中：所有中间件都会跳过，resultSession 等于原 session
-      outputCtx.resultSession = session;
-      bypassed = true;
-    }
+    outputCtx.resultSession = session;
+    bypassed = true;
   }
 
   if (!bypassed) {
     await pipeline.execute(outputCtx);
   }
 
-  const parsedSession = outputCtx.resultSession || ctxParams.session;
+  let parsedSession = outputCtx.resultSession || ctxParams.session;
 
   // 提取并剥离 <memory> 与 <suggestions> 等所有元数据标签
   const cleanResult = cleanSuggestionsFromText(responseText);
@@ -125,40 +119,85 @@ export async function runOutputPipelineAndSave(params: {
   }
 
   // 始终更新 session 中的最新 AI 消息内容，防止元数据标签污染数据库
+  let persistedAssistantIndex = -1;
   if (parsedSession.messages.length > 0) {
     const messages = [...parsedSession.messages];
-    const lastMsg = { ...messages[messages.length - 1] };
-    if (lastMsg.sender === "assistant") {
-      lastMsg.content = cleanAiText + responseSuffix;
-      messages[messages.length - 1] = lastMsg;
+    for (let index = messages.length - 1; index >= 0; index--) {
+      if (messages[index].sender !== "assistant") continue;
+      const assistantMessage = {
+        ...messages[index],
+        content: cleanAiText + responseSuffix,
+      };
+      messages[index] = assistantMessage;
+      persistedAssistantIndex = index;
       parsedSession.messages = messages;
+      break;
     }
+  }
+
+  const messagesToCommit = parsedSession.messages.filter((message) =>
+    !inputMessageIds.has(message.id) || message.id === pendingAssistantId
+  ).map((message) => message.sender === "assistant"
+    ? attachSessionStateSnapshot(message, parsedSession)
+    : message
+  );
+  if (messagesToCommit.length > 0) {
+    const committedById = new Map(messagesToCommit.map((message) => [message.id, message]));
+    parsedSession.messages = parsedSession.messages.map((message) =>
+      committedById.get(message.id) ?? message
+    );
   }
 
   if (persistSession) {
     await persistSession(parsedSession);
   } else {
-    await databaseService.saveSession(parsedSession);
+    await databaseService.commitSessionTurn(
+      parsedSession.id,
+      {
+        variables: parsedSession.variables,
+        tableMemory: parsedSession.tableMemory,
+        pinnedMessageIds: parsedSession.pinnedMessageIds,
+        mutedMessageIds: parsedSession.mutedMessageIds,
+        activePromptSceneProfileId: parsedSession.activePromptSceneProfileId,
+      },
+      messagesToCommit,
+      undefined,
+      traceId,
+    );
+  }
 
-    // saveSession 只存会话元数据，AI 消息需显式写入 messages Store
-    // 在 MemoryExtractor 之前执行，确保消息已入库供其 merge 更新
-    if (parsedSession.messages.length > 0) {
-      const lastMsg = parsedSession.messages[parsedSession.messages.length - 1];
-      if (lastMsg && lastMsg.sender === "assistant") {
-        await databaseService.appendSessionMessage(
-          parsedSession.id,
-          lastMsg,
+  // 摘要必须在本轮消息事务提交后读取数据库，否则阈值边界会停在用户消息并拆开一轮对话。
+  // 摘要失败不回滚已经成功提交的聊天消息，下一轮仍可按同一持久化边界重试。
+  if (!outputCtx.shouldTriggerBison) {
+    try {
+      const memoryService = kernel.getService<MemoryServiceTyped>(KernelServices.Memory);
+      const summary = typeof memoryService?.getSummary === "function"
+        ? memoryService.getSummary()
+        : null;
+      if (summary && typeof summary.checkAndSummarize === "function") {
+        const summarized = await summary.checkAndSummarize(
+          parsedSession,
+          settings,
+          activeCharacter,
+          false,
+          controller.signal,
         );
+        if (summarized !== parsedSession) {
+          parsedSession = summarized;
+          outputCtx.resultSession = summarized;
+        }
       }
+    } catch (error) {
+      log.warn("Post-commit auto summary failed", { error });
     }
   }
 
   // 异步后台触发记忆抽取（Fire-and-Forget，不阻塞主对话流）
   try {
-    const memoryService = kernel.getService<any>(KernelServices.Memory);
+    const memoryService = kernel.getService<MemoryServiceTyped>(KernelServices.Memory);
     if (memoryService && parsedSession.messages.length > 0) {
       const messages = parsedSession.messages;
-      const aiMsg = messages[messages.length - 1];
+      const aiMsg = persistedAssistantIndex >= 0 ? messages[persistedAssistantIndex] : undefined;
 
       // 记忆片段/事实需要绝对 turnIndex（与 replaceSessionBranch 的清扫边界一致），
       // 不能用懒加载内存数组下标，否则长会话里会误删/漏删旧分支记忆。
@@ -192,9 +231,10 @@ export async function runOutputPipelineAndSave(params: {
 
       // 2. 抽取最新用户消息（如果不是野牛模式连续输出）
       if (!isBisonConsecutive && messages.length >= 2) {
-        const userMsg = messages[messages.length - 2];
+        const userMsg = [...messages].reverse().find((message) => message.sender === "user");
         if (userMsg && userMsg.sender === "user") {
-          const turnIndex = await resolveTurnIndex(userMsg.id, messages.length - 2);
+          const userMessageIndex = messages.findIndex((message) => message.id === userMsg.id);
+          const turnIndex = await resolveTurnIndex(userMsg.id, userMessageIndex);
           memoryService.getExtractor().scheduleExtraction({
             msgId: userMsg.id,
             sessionId: parsedSession.id,
@@ -209,7 +249,7 @@ export async function runOutputPipelineAndSave(params: {
     log.warn("Failed to schedule background extraction", { error: err });
   }
 
-  setSessions((prev) =>
+  setSessionViews((prev) =>
     prev.map((s) => (s.id === parsedSession.id ? parsedSession : s))
   );
   try {

@@ -4,7 +4,7 @@
  * 覆盖：
  *  - testMultiMessageService：MultiMessageService 用户消息入队与会话持久化
  *  - testScriptServiceDecoupling：ScriptService 桥接注入与降级
- *  - testOutputPipeline：output 管道中间件编排（表格记忆/MVU/野牛/总结）
+ *  - testOutputPipeline：output 管道中间件编排（表格记忆/MVU/野牛）
  *  - testChatStreamService：ChatStreamService SSE 流式分片解析
  *  - testKeyManagerDynamicFetch：KeyManager 动态获取 token 与 AES-GCM 解密
  *  - testUpdateCheckService：UpdateCheckService 版本检测与字段白名单
@@ -27,8 +27,7 @@ import { ChatStreamService } from "../../src/application/services/ChatStreamServ
 import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
-  bisonModeMiddleware,
-  autoSummaryMiddleware
+  bisonModeMiddleware
 } from "../../src/application/pipeline";
 import { assert } from "./testUtils";
 
@@ -51,14 +50,11 @@ export async function testMultiMessageService() {
   console.log("\n--- Running MultiMessageService Verification ---");
   const testKernel = new Kernel();
 
-  let savedSession: ChatSession | null = null;
-  const mockDbService: IKernelService & Partial<Pick<IDatabaseService, "saveSession" | "appendSessionMessage">> = {
+  let savedMessageSessionId: string | null = null;
+  const mockDbService: IKernelService & Partial<Pick<IDatabaseService, "appendSessionMessage">> = {
     name: "database",
     init() { },
-    async saveSession(session: ChatSession) {
-      savedSession = session;
-    },
-    async appendSessionMessage() { },
+    async appendSessionMessage(sessionId: string) { savedMessageSessionId = sessionId; },
   };
 
   const multiMsgService = new MultiMessageService();
@@ -83,9 +79,7 @@ export async function testMultiMessageService() {
   assert(updated.messages.length === 2, "Should append user message");
   assert(updated.messages[1].sender === "user", "Sender should be user");
   assert(updated.messages[1].content === "Hello, this is message 1.", "Content should be trimmed");
-  assert(savedSession !== null, "Session should be saved to database service");
-  assert(savedSession!.id === "test-sess", "Saved session ID matches");
-  assert(savedSession!.messages[1].content === "Hello, this is message 1.", "Saved session has the user message");
+  assert(savedMessageSessionId === "test-sess", "User message should be persisted for the current session");
 
   await testKernel.destroy();
   console.log("✔ MultiMessageService verified successfully!");
@@ -137,12 +131,8 @@ export async function testScriptServiceDecoupling() {
 export async function testOutputPipeline() {
   console.log("\n--- Running Output Pipeline Verification ---");
   const testKernel = new Kernel();
+  const mockDbService: IKernelService = { name: "database", init() { } };
 
-  const mockDbService: IKernelService & Partial<Pick<IDatabaseService, "saveSession">> = {
-    name: "database",
-    init() { },
-    async saveSession() { }
-  };
   // 阶段 C 迁移：中间件已切换到 KernelServices.Memory.getStateTable() / getSummary() 子模块
   // 旧 tableMemory / autoSummary 服务已从注册表移除并标记 @deprecated
   const mockStateTable = {
@@ -157,16 +147,10 @@ export async function testOutputPipeline() {
       };
     }
   };
-  const mockSummary = {
-    async checkAndSummarize(session: ChatSession) {
-      return { ...session, summaries: [{ id: "sum_auto", content: "自动整理" }] };
-    }
-  };
   const mockMemoryService: IKernelService & Partial<IMemoryService> = {
     name: "memory",
     init() { },
-    getStateTable() { return mockStateTable; },
-    getSummary() { return mockSummary; }
+    getStateTable() { return mockStateTable; }
   };
   let receivedScriptSignal: AbortSignal | undefined;
   const mockScriptService: IKernelService & Partial<Pick<IScriptService, "executeMvuScript">> = {
@@ -186,7 +170,6 @@ export async function testOutputPipeline() {
   outputPipeline.use(tableMemoryMiddleware, 100);
   outputPipeline.use(mvuScriptMiddleware, 90);
   outputPipeline.use(bisonModeMiddleware, 80);
-  outputPipeline.use(autoSummaryMiddleware, 70);
 
   const initialSession = {
     id: "sess_1",
@@ -221,7 +204,6 @@ export async function testOutputPipeline() {
   assert(result!.messages?.[0]?.content === "你好", "Message content cleaned by TableMemoryMiddleware");
   assert(result!.variables?.scriptRan === true, "MVU variables updated by MvuScriptMiddleware");
   assert(receivedScriptSignal === outputCtx.controller.signal, "MVU middleware must pass the request AbortSignal");
-  assert(result!.summaries.length === 1 && result!.summaries[0].id === "sum_auto", "AutoSummary ran successfully");
 
   await testKernel.destroy();
   console.log("✔ Output Pipeline Middlewares verified successfully!");

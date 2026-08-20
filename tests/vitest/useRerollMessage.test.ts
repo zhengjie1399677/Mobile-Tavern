@@ -5,7 +5,7 @@
  * 用户再次触发重发。第二次调用必须被同步事务锁拒绝，不能生成第二轮回复。
  */
 
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import React from "react";
 import { useRerollMessage } from "../../src/hooks/useChat/useRerollMessage";
@@ -81,13 +81,41 @@ function createLongSession(): ChatSession {
   };
 }
 
+function createRerollDatabaseStub(
+  getSession: () => ChatSession,
+  replaceSessionBranch: (...args: [ChatSession, string[], Message[]]) => Promise<void>,
+) {
+  return {
+    getSessionStateBeforeMessage: vi.fn(async () => ({})),
+    getSessionPromptMessages: vi.fn(async (
+      _sessionId: string,
+      options: { limit?: number; preserveFirstAssistant: boolean; beforeMessageId?: string },
+    ) => {
+      const messages = getSession().messages;
+      const boundaryIndex = options.beforeMessageId
+        ? messages.findIndex((message) => message.id === options.beforeMessageId)
+        : -1;
+      const eligible = boundaryIndex >= 0 ? messages.slice(0, boundaryIndex) : messages;
+      if (options.limit === undefined) return eligible;
+      const recent = eligible.slice(-options.limit);
+      const firstAssistant = eligible.find((message) => message.sender === "assistant");
+      return options.preserveFirstAssistant
+        && firstAssistant
+        && !recent.some((message) => message.id === firstAssistant.id)
+        ? [firstAssistant, ...recent]
+        : recent;
+    }),
+    replaceSessionBranch,
+  };
+}
+
 function createWeakNetworkHarness(
   session: ChatSession,
   streamLlmResponse: (...args: any[]) => AsyncGenerator<any>,
 ) {
   let sessions = [session];
   const sessionsRef = { current: sessions };
-  const setSessions = vi.fn((updater: React.SetStateAction<ChatSession[]>) => {
+  const setSessionViews = vi.fn((updater: React.SetStateAction<ChatSession[]>) => {
     sessions = typeof updater === "function" ? updater(sessions) : updater;
     sessionsRef.current = sessions;
   });
@@ -107,7 +135,7 @@ function createWeakNetworkHarness(
     kernel: {
       getService: vi.fn(() => memoryService),
       getPipeline: vi.fn(() => ({
-        list: () => [{}, {}, {}, {}],
+        list: () => [{}, {}, {}],
         execute: vi.fn(async () => undefined),
       })),
     },
@@ -131,13 +159,19 @@ function createWeakNetworkHarness(
     sessionsRef,
     abortControllerRef: { current: null },
     pendingUpdateTimeoutRef: { current: null },
-    setSessions,
+    setSessionViews,
     setIsSending: vi.fn(),
     setReplySuggestions: vi.fn(),
     publishRecalledMemories: vi.fn(),
     triggerScroll: vi.fn(),
-    databaseService: { replaceSessionBranch },
-    promptService: { assemblePrompt: vi.fn(() => ({ messages: [] })) },
+    databaseService: createRerollDatabaseStub(
+      () => sessionsRef.current.find((item) => item.id === session.id) ?? session,
+      replaceSessionBranch,
+    ),
+    promptService: {
+      assemblePrompt: vi.fn(() => ({ messages: [], traces: [] })),
+      estimateTokens: vi.fn((content: string) => content.length),
+    },
     telemetryService: { reportUsage: vi.fn(), reportLlmPerformance: vi.fn() },
     chatStreamService: { streamLlmResponse: vi.fn(streamLlmResponse) },
     showCustomAlert,
@@ -184,12 +218,12 @@ describe("useRerollMessage 重发事务锁", () => {
       sessionsRef: { current: [session] },
       abortControllerRef: { current: null },
       pendingUpdateTimeoutRef: { current: null },
-      setSessions: vi.fn(),
+      setSessionViews: vi.fn(),
       setIsSending: vi.fn(),
       setReplySuggestions: vi.fn(),
       publishRecalledMemories: vi.fn(),
       triggerScroll: vi.fn(),
-      databaseService: {},
+      databaseService: createRerollDatabaseStub(() => session, vi.fn(async () => undefined)),
       promptService: {},
       telemetryService: { reportUsage: vi.fn() },
       chatStreamService: {},
@@ -207,7 +241,7 @@ describe("useRerollMessage 重发事务锁", () => {
     });
 
     expect(isSendingRef.current).toBe(true);
-    expect(recall).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(recall).toHaveBeenCalledTimes(1));
 
     if (rejectRecall) (rejectRecall as (reason?: unknown) => void)(new Error("测试结束：中断提示词准备阶段"));
     await act(async () => {
@@ -227,7 +261,7 @@ describe("useRerollMessage 重发事务锁", () => {
     const session = createLongSession();
     let sessions = [session];
     const sessionsRef = { current: sessions };
-    const setSessions = vi.fn((updater: React.SetStateAction<ChatSession[]>) => {
+    const setSessionViews = vi.fn((updater: React.SetStateAction<ChatSession[]>) => {
       sessions = typeof updater === "function" ? updater(sessions) : updater;
       sessionsRef.current = sessions;
     });
@@ -245,7 +279,7 @@ describe("useRerollMessage 重发事务锁", () => {
       kernel: {
         getService: vi.fn(() => memoryService),
         getPipeline: vi.fn(() => ({
-          list: () => [{}, {}, {}, {}],
+          list: () => [{}, {}, {}],
           execute: vi.fn(async () => undefined),
         })),
       },
@@ -268,13 +302,19 @@ describe("useRerollMessage 重发事务锁", () => {
       sessionsRef,
       abortControllerRef: { current: null },
       pendingUpdateTimeoutRef: { current: null },
-      setSessions,
+      setSessionViews,
       setIsSending: vi.fn(),
       setReplySuggestions: vi.fn(),
       publishRecalledMemories: vi.fn(),
       triggerScroll: vi.fn(),
-      databaseService: { replaceSessionBranch },
-      promptService: { assemblePrompt: vi.fn(() => ({ messages: [] })) },
+      databaseService: createRerollDatabaseStub(
+        () => sessionsRef.current.find((item) => item.id === session.id) ?? session,
+        replaceSessionBranch,
+      ),
+      promptService: {
+        assemblePrompt: vi.fn(() => ({ messages: [], traces: [] })),
+        estimateTokens: vi.fn((content: string) => content.length),
+      },
       telemetryService: { reportUsage: vi.fn(), reportLlmPerformance: vi.fn() },
       chatStreamService: {
         streamLlmResponse: vi.fn(async function* () {
@@ -298,6 +338,8 @@ describe("useRerollMessage 重发事务锁", () => {
     expect(replaceSessionBranch).toHaveBeenCalledTimes(1);
     expect(replaceSessionBranch.mock.calls[0][1]).toEqual(["assistant-9"]);
     expect(replaceSessionBranch.mock.calls[0][2]).toHaveLength(1);
+    expect(replaceSessionBranch.mock.calls[0][2][0].extra?.mobileTavernSessionState)
+      .toMatchObject({ version: 1 });
 
     consoleLog.mockRestore();
     consoleClear.mockRestore();
@@ -405,7 +447,7 @@ describe("useRerollMessage 重发事务锁", () => {
       createdAt: 1,
     };
 
-    // 捕获 setSessions，在 streamLlmResponse 中调用以模拟"流式期间 session 被修改"
+    // 捕获 setSessionViews，在 streamLlmResponse 中调用以模拟"流式期间 session 被修改"
     // （如用户通过 MemoryTableDrawer 编辑了某条消息）
     let externalSetSessions: ((updater: React.SetStateAction<ChatSession[]>) => void) | null = null;
     const harness = createWeakNetworkHarness(session, async function* () {
@@ -424,7 +466,7 @@ describe("useRerollMessage 重发事务锁", () => {
       }
       yield { choices: [{ delta: { content: "新的回复" } }] };
     });
-    externalSetSessions = harness.params.setSessions as unknown as (updater: React.SetStateAction<ChatSession[]>) => void;
+    externalSetSessions = harness.params.setSessionViews as unknown as (updater: React.SetStateAction<ChatSession[]>) => void;
 
     const { result } = renderHook(() => useRerollMessage(harness.params));
 
@@ -465,12 +507,11 @@ function createControllableHarness(options: {
   const { session, streamFactory, showCustomConfirm } = options;
   let sessions = [session];
   const sessionsRef = { current: sessions };
-  const setSessions = vi.fn((updater: React.SetStateAction<ChatSession[]>) => {
+  const setSessionViews = vi.fn((updater: React.SetStateAction<ChatSession[]>) => {
     sessions = typeof updater === "function" ? updater(sessions) : updater;
     sessionsRef.current = sessions;
   });
   const replaceSessionBranch = vi.fn<(session: ChatSession, removedIds: string[], newMessages: Message[]) => Promise<void>>(async () => undefined);
-  const saveSession = vi.fn<(session: ChatSession, traceId?: string) => Promise<void>>(async () => undefined);
   const isSendingRef = { current: false };
   const abortControllerRef = { current: null as AbortController | null };
   const pendingUpdateTimeoutRef = { current: null as ReturnType<typeof setTimeout> | null };
@@ -507,13 +548,16 @@ function createControllableHarness(options: {
     sessionsRef,
     abortControllerRef,
     pendingUpdateTimeoutRef,
-    setSessions,
+    setSessionViews,
     setIsSending: vi.fn(),
     setReplySuggestions: vi.fn(),
     publishMemoryAudit: vi.fn(),
     publishRecalledMemories: vi.fn(),
     triggerScroll: vi.fn(),
-    databaseService: { replaceSessionBranch, saveSession },
+    databaseService: createRerollDatabaseStub(
+      () => sessionsRef.current.find((item) => item.id === session.id) ?? session,
+      replaceSessionBranch,
+    ),
     promptService: { assemblePrompt: vi.fn(() => ({ messages: [], systemInstruction: "", dynamicInstruction: "", history: [], traces: [] })), estimateTokens: vi.fn((s: string) => s.length) },
     telemetryService: {
       reportUsage: vi.fn(),
@@ -534,8 +578,7 @@ function createControllableHarness(options: {
     abortControllerRef,
     pendingUpdateTimeoutRef,
     replaceSessionBranch,
-    saveSession,
-    setSessions,
+    setSessionViews,
   };
 }
 
@@ -703,10 +746,10 @@ describe("useRerollMessage 错误路径与边界条件", () => {
     const { result } = renderHook(() => useRerollMessage(harness.params));
 
     // 在流式开始前，将 activeSessionIdRef 切换到别的会话
-    // 通过劫持 setSessions 在流式期间触发切换
-    const originalSetSessions = harness.params.setSessions;
+    // 通过劫持 setSessionViews 在流式期间触发切换
+    const originalSetSessions = harness.params.setSessionViews;
     let switched = false;
-    harness.params.setSessions = vi.fn((updater: React.SetStateAction<ChatSession[]>) => {
+    harness.params.setSessionViews = vi.fn((updater: React.SetStateAction<ChatSession[]>) => {
       (originalSetSessions as (u: React.SetStateAction<ChatSession[]>) => void)(updater);
       if (!switched) {
         switched = true;
@@ -1135,8 +1178,8 @@ describe("useRerollMessage 凭证解析错误处理", () => {
     expect(harness.params.showCustomAlert).toHaveBeenCalledWith(
       expect.stringContaining("免费试用服务暂不可用")
     );
-    // 应通过 saveSession 清理占位符（TrialKeyFetchError 走专用清理路径）
-    expect(harness.saveSession).toHaveBeenCalled();
+    // 旧分支尚未提交，失败时只需清理 UI 占位符，不应改写数据库分支。
+    expect(harness.replaceSessionBranch).not.toHaveBeenCalled();
     expect(harness.isSendingRef.current).toBe(false);
   });
 });

@@ -85,7 +85,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={false}
         onClose={onClose}
         activeSession={makeSession()}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -100,7 +100,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={makeSession()}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -118,7 +118,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={makeSession()}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={true}
@@ -142,7 +142,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={makeSession()}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={true}
@@ -165,7 +165,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={session}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -182,7 +182,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={session}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -201,7 +201,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={makeSession()}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -218,7 +218,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={makeSession()}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -245,7 +245,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={session}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Test"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -264,7 +264,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={makeSession()}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -280,10 +280,10 @@ describe("MemoryTableDrawer", () => {
   });
 
   // ------------------------------------------------------------------
-  // 单元格编辑 → saveSession
+  // 单元格编辑 → updateSessionMetadata
   // ------------------------------------------------------------------
 
-  it("点击单元格进入编辑模式，修改值并保存后调用 saveSession 传入正确数据", async () => {
+  it("点击单元格进入编辑模式，修改值并保存后提交正确元数据", async () => {
     const session = makeSession();
     saveSession.mockResolvedValue(undefined);
 
@@ -292,7 +292,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={session}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -324,8 +324,8 @@ describe("MemoryTableDrawer", () => {
     });
 
     // 断言传入的 session 含正确的更新值
-    const savedSession: ChatSession = saveSession.mock.calls[0][0];
-    const updatedSheet = savedSession.tableMemory?.[0];
+    expect(saveSession.mock.calls[0][0]).toBe(session.id);
+    const updatedSheet = saveSession.mock.calls[0][1].tableMemory?.[0];
     expect(updatedSheet?.rows[0][0]).toBe("Alice Updated");
     // 其他行未受影响
     expect(updatedSheet?.rows[1][0]).toBe("Bob");
@@ -343,7 +343,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={session}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -352,8 +352,7 @@ describe("MemoryTableDrawer", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "添加新行" }));
     await waitFor(() => expect(saveSession).toHaveBeenCalledTimes(1));
-    const savedSession: ChatSession = saveSession.mock.calls[0][0];
-    expect(savedSession.tableMemory?.[0].rows.at(-1)).toEqual(["NPC", "50", "稳定"]);
+    expect(saveSession.mock.calls[0][1].tableMemory?.[0].rows.at(-1)).toEqual(["NPC", "50", "稳定"]);
   });
 
   it("表结构编辑可持久化字段类型、默认值并保留旧列数据", async () => {
@@ -363,7 +362,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={session}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={false}
@@ -380,7 +379,7 @@ describe("MemoryTableDrawer", () => {
     fireEvent.click(screen.getByRole("button", { name: /保存/ }));
 
     await waitFor(() => expect(saveSession).toHaveBeenCalledTimes(1));
-    const savedSheet = (saveSession.mock.calls[0][0] as ChatSession).tableMemory?.[0];
+    const savedSheet = saveSession.mock.calls[0][1].tableMemory?.[0];
     expect(savedSheet?.columnDefinitions?.[1]).toMatchObject({
       name: "好感度",
       type: "number",
@@ -409,7 +408,7 @@ describe("MemoryTableDrawer", () => {
         isOpen={true}
         onClose={onClose}
         activeSession={session}
-        saveSession={saveSession}
+        updateSessionMetadata={saveSession}
         charName="Test"
         enableTableMemory={true}
         enableAutoSummary={false}

@@ -23,7 +23,6 @@ import {
   testTableMemoryService,
   testPromptServiceRedosProtection,
   testLLMServiceUrlValidation,
-  testAutoSummaryMetadataParsing,
 } from "./test_kernel_services_coverage";
 import {
   testSsrfGuard,
@@ -238,7 +237,6 @@ async function run() {
     { name: "testTableMemoryService", fn: testTableMemoryService },
     { name: "testPromptServiceRedosProtection", fn: testPromptServiceRedosProtection },
     { name: "testLLMServiceUrlValidation", fn: testLLMServiceUrlValidation },
-    { name: "testAutoSummaryMetadataParsing", fn: testAutoSummaryMetadataParsing },
     { name: "testScriptServiceDecoupling", fn: testScriptServiceDecoupling },
     { name: "testLocalDBSplitTrack", fn: testLocalDBSplitTrack },
     { name: "testKeyManagerDynamicFetch", fn: testKeyManagerDynamicFetch },

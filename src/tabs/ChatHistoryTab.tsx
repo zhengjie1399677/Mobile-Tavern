@@ -60,25 +60,34 @@ export default function ChatHistoryTab() {
         const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
         const lastActiveTime = lastMsg ? (lastMsg.timestamp || s.createdAt) : s.createdAt;
         
-        // 优先使用实际 messages 的长度计算，否则回退到 session 上持久化的缓存数据，解决懒加载状态下显示为 0 回合 0 字的 Bug
-        const isLoaded = Array.isArray(s.messages);
-        
-        const totalChars = isLoaded
-          ? messages.reduce((total, msg) => total + (msg.content?.length || 0), 0)
-          : (s.charCount ?? 0);
+        // sessions Store 冷启动投影会固定提供 messages: []，不能用 Array.isArray
+        // 判断消息是否已水合。空数组时优先使用持久化统计；有消息时取缓存值与
+        // 当前内存页计算值的较大者，避免长会话只加载最近一页时被低估。
+        const calculatedChars = messages.reduce(
+          (total, msg) => total + (msg.content?.length || 0),
+          0,
+        );
+        const cachedChars = Number.isFinite(s.charCount) ? Math.max(0, s.charCount ?? 0) : 0;
+        const totalChars = messages.length > 0
+          ? Math.max(cachedChars, calculatedChars)
+          : cachedChars;
           
         const totalCharsDisplay = totalChars > 1000
           ? (totalChars / 1000).toFixed(1) + "k"
           : String(totalChars);
           
-        // 回合数计算：优先实际计算，兜底为缓存数
-        let turnCount = 0;
-        if (isLoaded) {
-          const userMsgCount = messages.filter((m) => m.sender === "user").length;
-          turnCount = userMsgCount > 0 ? userMsgCount : (messages.length > 1 ? Math.floor(messages.length / 2) : (messages.length > 0 ? 1 : 0));
-        } else {
-          turnCount = s.turnCount ?? 0;
-        }
+        const userMsgCount = messages.filter((m) => m.sender === "user").length;
+        const calculatedTurns = userMsgCount > 0
+          ? userMsgCount
+          : messages.length > 1
+            ? Math.floor(messages.length / 2)
+            : messages.length > 0
+              ? 1
+              : 0;
+        const cachedTurns = Number.isFinite(s.turnCount) ? Math.max(0, s.turnCount ?? 0) : 0;
+        const turnCount = messages.length > 0
+          ? Math.max(cachedTurns, calculatedTurns)
+          : cachedTurns;
 
         return { s, char, lastMsg, lastActiveTime, totalCharsDisplay, rawTotalChars: totalChars, turnCount };
       })

@@ -21,6 +21,7 @@ import type {
   Message,
 } from '../../../types';
 import type { MemoryStorage } from './MemoryStorage';
+import type { MessageRecord } from './types';
 import { API_ENDPOINT } from '../../../utils/apiClient';
 import { resolveApiCredentials, TrialExhaustedError, TrialKeyFetchError } from '../../../utils/resolveApiCredentials';
 import { Logger } from '../../../utils/logger';
@@ -66,6 +67,8 @@ export class MemorySummary {
   private kernel: IKernel | null = null;
   /** 服务级 AbortController */
   private abortController: AbortController | null = null;
+  /** 同一会话同一时刻只允许一个总结事务，避免重复卡片和边界竞争。 */
+  private summaryTasks = new Map<string, Promise<ChatSession>>();
 
   constructor(storage: MemoryStorage) {
     this.storage = storage;
@@ -98,7 +101,7 @@ export class MemorySummary {
   }
 
   /**
-   * 检测并触发摘要（与旧 AutoSummaryService.handleAutoSummaryCheck API 兼容）。
+   * 检测并触发摘要。
    *
    * 触发条件：
    *   - force=true：强制总结当前未总结消息
@@ -118,12 +121,38 @@ export class MemorySummary {
     force: boolean,
     signal?: AbortSignal
   ): Promise<ChatSession> {
+    const running = this.summaryTasks.get(session.id);
+    if (running) return running;
+    const task = this.checkAndSummarizeOnce(
+      session,
+      settings,
+      activeCharacter,
+      force,
+      signal,
+    ).finally(() => {
+      if (this.summaryTasks.get(session.id) === task) {
+        this.summaryTasks.delete(session.id);
+      }
+    });
+    this.summaryTasks.set(session.id, task);
+    return task;
+  }
+
+  private async checkAndSummarizeOnce(
+    session: ChatSession,
+    settings: UserSettings,
+    activeCharacter: CharacterCard | null,
+    force: boolean,
+    signal?: AbortSignal,
+  ): Promise<ChatSession> {
     if (!this.kernel) {
       throw new Error('[MemorySummary] Not initialized. Call init() first.');
     }
 
     // 合并外部 signal 与服务级 signal
-    const activeSignal = this.mergeSignal(signal);
+    const linkedSignal = this.mergeSignal(signal);
+    const activeSignal = linkedSignal.signal;
+    try {
     if (activeSignal?.aborted) return session;
 
     // 若未启用自动整理且非强制，直接返回
@@ -132,48 +161,7 @@ export class MemorySummary {
       return session;
     }
 
-    // 0. 从隔离存储 messages Store 异步加载本会话所有消息，实现物理脱耦
-    let dbMessagesRecords: any[] = [];
-    if (this.storage && typeof this.storage.getMessagesBySession === 'function') {
-      dbMessagesRecords = await this.storage.getMessagesBySession(session.id);
-    } else {
-      // 降级保护：在测试 Mock 等 storage 未定义对应方法的场景下，退回直接使用内存中 session.messages
-      dbMessagesRecords = session.messages || [];
-    }
-
-    const messages: Message[] = dbMessagesRecords.map((m: any) => ({
-      id: m.id,
-      sender: m.role === 'user' ? 'user' : m.role === 'system' ? 'system' : 'assistant',
-      content: m.content,
-      timestamp: m.createdAt,
-      extra: m.metadata,
-    }));
-
-    // 1. 定位上次总结位置
-    let resolvedLastId = session.lastSummarizedMessageId;
-    const findIndexById = (id: string | undefined): number => {
-      if (!id) return -1;
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i].id === id) return i;
-      }
-      return -1;
-    };
-
-    let lastIndex = findIndexById(resolvedLastId);
-    if (lastIndex < 0 && resolvedLastId) {
-      // lastSummarizedMessageId 在消息中不存在（可能被删除），回退到 summaries 最后一条
-      const lastSummary =
-        session.summaries && session.summaries.length > 0
-          ? session.summaries[session.summaries.length - 1]
-          : null;
-      resolvedLastId = lastSummary?.lastMessageId || undefined;
-      lastIndex = findIndexById(resolvedLastId);
-    }
-
-    const startIndex = lastIndex >= 0 ? lastIndex + 1 : 0;
-    const unsummarizedCount = messages.length - startIndex;
-
-    // 2. 计算触发阈值
+    // 0. 计算触发阈值
     const summaryTurnsVal = settings?.memory?.summaryTriggerTurns;
     const rawTriggerTurns = summaryTurnsVal ? Number(summaryTurnsVal) : 0;
 
@@ -183,7 +171,46 @@ export class MemorySummary {
     const safeTriggerRounds = Math.max(MIN_TRIGGER_ROUNDS, triggerRounds);
     const maxAllowedUnsummarized = safeTriggerRounds * 2;
 
-    // 3. 未达阈值且非强制，直接返回
+    // 1. 只读取上次摘要边界之后、达到本轮阈值所需的消息。
+    // UI 会话只持有分页窗口，不能用于判断全量未总结数；同时也无需每轮扫描完整长会话。
+    let messages: Message[];
+    if (this.storage && typeof this.storage.getMessagesBySession === 'function') {
+      let resolvedLastId = session.lastSummarizedMessageId;
+      let boundary = resolvedLastId
+        ? await this.storage.getMessageById(resolvedLastId)
+        : null;
+      if ((!boundary || boundary.sessionId !== session.id) && resolvedLastId) {
+        resolvedLastId = session.summaries?.at(-1)?.lastMessageId;
+        boundary = resolvedLastId
+          ? await this.storage.getMessageById(resolvedLastId)
+          : null;
+      }
+      const records: MessageRecord[] = await this.storage.getMessagesBySession(session.id, {
+        limit: maxAllowedUnsummarized,
+        descending: false,
+        minTurnIndexExclusive: boundary?.sessionId === session.id
+          ? boundary.turnIndex
+          : undefined,
+      });
+      messages = records.map((record) => ({
+        id: record.id,
+        sender: record.role === 'user' ? 'user' : record.role === 'system' ? 'system' : 'assistant',
+        content: record.content,
+        timestamp: record.createdAt,
+        extra: record.metadata,
+      }));
+    } else {
+      // 测试 Mock 降级：仅在没有持久化查询能力时使用内存窗口。
+      const fallback = session.messages || [];
+      const boundaryIndex = session.lastSummarizedMessageId
+        ? fallback.findIndex((message) => message.id === session.lastSummarizedMessageId)
+        : -1;
+      messages = fallback.slice(boundaryIndex + 1, boundaryIndex + 1 + maxAllowedUnsummarized);
+    }
+
+    const unsummarizedCount = messages.length;
+
+    // 2. 未达阈值且非强制，直接返回
     if (!force && unsummarizedCount < maxAllowedUnsummarized) {
       return session;
     }
@@ -195,11 +222,7 @@ export class MemorySummary {
       return session;
     }
 
-    // 仅截取需要的部分（避免全量 slice）
-    const messagesToCompress = messages.slice(
-      startIndex,
-      startIndex + maxAllowedUnsummarized
-    );
+    const messagesToCompress = messages;
 
     // 4. 免 Key 模式降级
     if (!settings.api.apiKey || !settings.api.apiKey.trim()) {
@@ -247,9 +270,13 @@ export class MemorySummary {
     );
 
     return {
-      ...updatedSessionWithoutMsgs,
-      messages: session.messages,
+      ...session,
+      summaries: updatedSessionWithoutMsgs.summaries,
+      lastSummarizedMessageId: updatedSessionWithoutMsgs.lastSummarizedMessageId,
     };
+    } finally {
+      linkedSignal.dispose();
+    }
   }
 
   /**
@@ -342,7 +369,7 @@ export class MemorySummary {
     }
 
     const responseText = await response.text();
-    let resData: any;
+    let resData: unknown;
     try {
       resData = JSON.parse(responseText);
     } catch (e) {
@@ -350,8 +377,16 @@ export class MemorySummary {
       throw new Error('接口返回数据格式错误，解析 JSON 失败');
     }
 
-    if (resData?.choices?.length > 0) {
-      return resData.choices[0].message?.content || '';
+    if (resData && typeof resData === 'object') {
+      const choices = (resData as Record<string, unknown>).choices;
+      const first = Array.isArray(choices) ? choices[0] : undefined;
+      const message = first && typeof first === 'object'
+        ? (first as Record<string, unknown>).message
+        : undefined;
+      const content = message && typeof message === 'object'
+        ? (message as Record<string, unknown>).content
+        : undefined;
+      if (typeof content === 'string') return content;
     }
     return '';
   }
@@ -397,16 +432,25 @@ export class MemorySummary {
    * 合并外部 signal 与服务级 signal。
    * 任一触发 abort，则合并后的 signal 视为 aborted。
    */
-  private mergeSignal(external?: AbortSignal): AbortSignal | undefined {
-    if (!this.abortController) return external;
+  private mergeSignal(external?: AbortSignal): { signal?: AbortSignal; dispose: () => void } {
+    if (!this.abortController) return { signal: external, dispose: () => undefined };
     const internal = this.abortController.signal;
-    if (!external) return internal;
+    if (!external) return { signal: internal, dispose: () => undefined };
     // 外部 signal 已 aborted → 直接返回
-    if (external.aborted) return external;
+    if (external.aborted) return { signal: external, dispose: () => undefined };
     // 内部 signal 已 aborted → 直接返回
-    if (internal.aborted) return internal;
-    // 两者都未 aborted，返回内部 signal（外部 abort 时由调用方自行处理）
-    // 注：简化实现，不动态桥接 external → internal（避免监听器泄漏）
-    return internal;
+    if (internal.aborted) return { signal: internal, dispose: () => undefined };
+
+    const controller = new AbortController();
+    const relayAbort = () => controller.abort();
+    external.addEventListener('abort', relayAbort, { once: true });
+    internal.addEventListener('abort', relayAbort, { once: true });
+    return {
+      signal: controller.signal,
+      dispose: () => {
+        external.removeEventListener('abort', relayAbort);
+        internal.removeEventListener('abort', relayAbort);
+      },
+    };
   }
 }

@@ -63,7 +63,7 @@ const TRIAL_QUOTA = 10;
  * - 返回值中 isTrial 标记当前是否处于 trial 模式，调用方应在请求成功后调用
  *   incrementTrialCount() 计数。
  *
- * 该 helper 用于收口 useSendMessage / useRerollMessage / AutoSummaryService /
+ * 该 helper 用于收口 useSendMessage / useRerollMessage / MemorySummary /
  * MemorySummary 四处重复的 trial 解析逻辑，统一行为避免漏改。
  */
 export function resolveApiCredentials(

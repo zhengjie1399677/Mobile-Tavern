@@ -37,16 +37,19 @@ describe("事件型记忆片段", () => {
       }),
     });
 
-    expect(storage.upsertFragment).toHaveBeenCalledWith(expect.objectContaining({
-      id: "msg-1:event:0",
-      sessionId: "session-1",
-      content: "沈孤鸿答应三日后在渡口交剑",
-      participants: ["沈孤鸿", "渡口"],
-      sourceMessageIds: ["msg-1"],
-      sourceTurnStart: 12,
-      sourceTurnEnd: 12,
-      status: "active",
-    }));
+    expect(storage.upsertFragment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "msg-1:event:0",
+        sessionId: "session-1",
+        content: "沈孤鸿答应三日后在渡口交剑",
+        participants: ["沈孤鸿", "渡口"],
+        sourceMessageIds: ["msg-1"],
+        sourceTurnStart: 12,
+        sourceTurnEnd: 12,
+        status: "active",
+      }),
+      true,
+    );
   });
 
   it("重复抽取不会重新激活用户已纠错或失效的旧片段", async () => {

@@ -16,7 +16,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { useChatState } from "../contexts/ChatContext";
-import { UserSettings, LorebookEntry, CustomWorldbook, ChatSession, CharacterCard, Message } from "../types";
+import { UserSettings, LorebookEntry, CustomWorldbook, ChatSession, ChatSessionMetadataPatch, CharacterCard, Message } from "../types";
 import { useKernel } from "../contexts/KernelContext";
 import {
   IDatabaseService, IPromptService, ITelemetryService,
@@ -47,15 +47,16 @@ export const useChat = (
   const { showCustomAlert, showCustomConfirm, showCustomPrompt, setActiveTab } = useApp();
   const { characters, activeCharId, setActiveCharId, activeCharacter, loadCharacterById } = useCharactersState();
   const {
-    sessions, setSessions,
+    sessions, setSessionViews,
     activeSessionId, setActiveSessionId,
     activeSession, isSending, setIsSending,
-    saveSession, deleteSession,
+    deleteSession,
+    refreshSessionStatistics,
     isSummarizing, setIsSummarizing,
   } = useChatState();
 
   // ── 微服务注入 ────────────────────────────────────────────────────────────────
-  const databaseService  = kernel.getService<IDatabaseService<ChatSession, CharacterCard, ChatSession["summaries"][number], Message>>("database");
+  const databaseService  = kernel.getService<IDatabaseService<ChatSession, CharacterCard, ChatSession["summaries"][number], Message, ChatSessionMetadataPatch>>("database");
   const promptService    = kernel.getService<IPromptService<CharacterCard, ChatSession, UserSettings, LorebookEntry>>("prompt");
   const telemetryService = kernel.getService<ITelemetryService>("telemetry");
   const chatStreamService = kernel.getService<IChatStreamService>("chatStream");
@@ -80,8 +81,8 @@ export const useChat = (
   activeSessionIdRef.current = activeSessionId;
   activeCharIdRef.current    = activeCharId;
 
-  // P1-7: 卸载保护 ref。fire-and-forget saveSession 的 .then 回调在组件卸载后
-  // 仍会执行 setSessions，导致 React 状态更新泄漏（卸载后 setState 警告）。
+  // P1-7: 卸载保护 ref。异步持久化回调在组件卸载后
+  // 仍会执行 setSessionViews，导致 React 状态更新泄漏（卸载后 setState 警告）。
   // 用 isMountedRef 在 .then 内守卫，卸载后仅放行数据落盘，不再更新 React state。
   const isMountedRef = React.useRef(true);
   useEffect(() => () => { isMountedRef.current = false; }, []);
@@ -125,11 +126,11 @@ export const useChat = (
     isSending, isSendingRef: ui.isSendingRef,
     activeCharId, activeCharacter, activeSession, activeSessionId,
     sessions, characters, settings,
-    setSessions, loadCharacterById, setActiveCharId, setActiveSessionId, setActiveTab,
+    setSessionViews, loadCharacterById, setActiveCharId, setActiveSessionId, setActiveTab,
     setChatSubTab: ui.setChatSubTab,
     setShowSessionManager: ui.setShowSessionManager,
     setMsgMenuId: ui.setMsgMenuId,
-    deleteSession, databaseService, telemetryService,
+    deleteSession, refreshSessionStatistics, databaseService, telemetryService,
     triggerScroll: ui.triggerScroll,
     showCustomAlert, showCustomConfirm, showCustomPrompt,
     launchPlugin,
@@ -137,9 +138,9 @@ export const useChat = (
     isSending, ui.isSendingRef,
     activeCharId, activeCharacter, activeSession, activeSessionId,
     sessions, characters, settings,
-    setSessions, loadCharacterById, setActiveCharId, setActiveSessionId, setActiveTab,
+    setSessionViews, loadCharacterById, setActiveCharId, setActiveSessionId, setActiveTab,
     ui.setChatSubTab, ui.setShowSessionManager, ui.setMsgMenuId,
-    deleteSession, databaseService, telemetryService, ui.triggerScroll,
+    deleteSession, refreshSessionStatistics, databaseService, telemetryService, ui.triggerScroll,
     showCustomAlert, showCustomConfirm, showCustomPrompt, launchPlugin,
   ]);
 
@@ -147,7 +148,7 @@ export const useChat = (
 
   const timelineSummary = useTimelineSummary({
     activeSession, settings, activeCharacter,
-    setSessions, setIsSummarizing, databaseService, showCustomAlert,
+    setSessionViews, setIsSummarizing, databaseService, showCustomAlert,
   });
 
   const sendMessage = useSendMessage({
@@ -161,7 +162,7 @@ export const useChat = (
     pendingUpdateTimeoutRef: ui.pendingUpdateTimeoutRef,
     bisonRemainingCountRef: ui.bisonRemainingCountRef,
     bisonChainTimerRef: ui.bisonChainTimerRef,
-    setSessions, setIsSending,
+    setSessionViews, setIsSending,
     setIsBisonLocking: ui.setIsBisonLocking,
     setReplySuggestions: ui.setReplySuggestions,
     triggerScroll: ui.triggerScroll,
@@ -180,7 +181,7 @@ export const useChat = (
     activeSessionIdRef, sessionsRef,
     abortControllerRef: ui.abortControllerRef,
     pendingUpdateTimeoutRef: ui.pendingUpdateTimeoutRef,
-    setSessions, setIsSending,
+    setSessionViews, setIsSending,
     setReplySuggestions: ui.setReplySuggestions,
     triggerScroll: ui.triggerScroll,
     databaseService, promptService, telemetryService, chatStreamService,
@@ -212,10 +213,10 @@ export const useChat = (
             ...activeSession,
             messages: [updatedMsg],
           };
-          databaseService.saveSession(updatedSession).then(() => {
-            // P1-7: 卸载保护，避免组件卸载后 setSessions 触发状态更新泄漏
+          databaseService.appendSessionMessage(updatedSession.id, updatedMsg, 0).then(() => {
+            // P1-7: 卸载保护，避免组件卸载后 setSessionViews 触发状态更新泄漏
             if (!isMountedRef.current) return;
-            setSessions((prev) =>
+            setSessionViews((prev) =>
               prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
             );
           }).catch((err) => {
@@ -224,7 +225,7 @@ export const useChat = (
         }
       }
     }
-  }, [activeSession, activeCharacter, databaseService, setSessions]);
+  }, [activeSession, activeCharacter, databaseService, setSessionViews]);
 
   // 自动初始化表格：当开启状态表功能且会话中表格数据为空时，自动在本地进行初始化并保存
   useEffect(() => {
@@ -241,10 +242,10 @@ export const useChat = (
           ...activeSession,
           tableMemory: defaultSheets,
         };
-        databaseService.saveSession(updatedSession).then(() => {
-          // P1-7: 卸载保护，避免组件卸载后 setSessions 触发状态更新泄漏
+        databaseService.updateSessionMetadata(updatedSession.id, { tableMemory: defaultSheets }).then(() => {
+          // P1-7: 卸载保护，避免组件卸载后 setSessionViews 触发状态更新泄漏
           if (!isMountedRef.current) return;
-          setSessions((prev) =>
+          setSessionViews((prev) =>
             prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
           );
         }).catch((err) => {
@@ -252,34 +253,7 @@ export const useChat = (
         });
       }
     }
-  }, [activeSession, activeCharacter, settings.enableTableMemory, databaseService, memoryService, setSessions]);
-
-  // 长会话历史消息总结归档。
-  // 当活跃会话内存消息数超过 ARCHIVE_THRESHOLD（200 条）且开启自动总结时，
-  // 自动触发 handleAutoSummaryCheck 将旧消息归纳为 SummaryCard 归档至故事年表。
-  // 总结卡片在"故事年表"子页展示并注入系统 Prompt，正文消息流不做折叠。
-  const ARCHIVE_THRESHOLD = 200;
-  const ARCHIVE_RETRIGGER_INCREMENT = 50; // 总结成功后，消息数再增长 50 条才允许再次触发
-  const lastAutoSummaryRef = React.useRef<{ sessionId: string; messageCount: number } | null>(null);
-  useEffect(() => {
-    if (!activeSession || !activeSession.messages) return;
-    // 仅在自动总结开启时触发
-    if (settings.memory?.enableAutoSummary === false) return;
-    // 仅在消息数超过阈值时触发
-    if (activeSession.messages.length < ARCHIVE_THRESHOLD) return;
-    // 防止对同一会话重复触发：仅在上次触发后消息数增长超过增量阈值时才再次触发
-    const last = lastAutoSummaryRef.current;
-    if (last && last.sessionId === activeSession.id) {
-      if (activeSession.messages.length < last.messageCount + ARCHIVE_RETRIGGER_INCREMENT) return;
-    }
-    lastAutoSummaryRef.current = { sessionId: activeSession.id, messageCount: activeSession.messages.length };
-    console.log(`[useChat] Message count ${activeSession.messages.length} >= ${ARCHIVE_THRESHOLD}, triggering auto summary archival...`);
-    timelineSummary.handleAutoSummaryCheck(activeSession).catch((err) => {
-      console.warn("[useChat] Auto summary archival failed:", err);
-      // 失败后重置 ref，允许下次重试
-      lastAutoSummaryRef.current = null;
-    });
-  }, [activeSession, settings.memory?.enableAutoSummary, timelineSummary]);
+  }, [activeSession, activeCharacter, settings.enableTableMemory, databaseService, memoryService, setSessionViews]);
 
   // ── 返回值聚合（保持与原 chatHookValue 完全相同的接口形状） ─────────────────────
   return useMemo(() => ({
@@ -332,18 +306,26 @@ export const useChat = (
     // 渲染
     renderDialogueBubble,
     // 兼容接口：保存会话并在有消息内容时触发 MVU 变量重解析
-    saveSessionWithMvu: async (s: ChatSession, messageToParse?: string) => {
+    saveSessionWithMvu: async (s: ChatSession, messageToSave: Message) => {
       // 如果传入了消息内容且脚本执行已启用，通过 ScriptService 触发 MVU 变量重解析
       // 遵循 AGENTS.md 准则一.3（防腐隔离）：解析失败不阻塞保存流程
-      if (messageToParse && scriptService) {
+      if (scriptService) {
         try {
-          s = await scriptService.executeMvuScript(s, messageToParse);
+          s = await scriptService.executeMvuScript(s, messageToSave.content);
         } catch (err) {
           console.warn("[saveSessionWithMvu] MVU re-parse failed, saving without variable update:", err);
         }
       }
-      await databaseService.saveSession(s);
-      return s;
+      const persisted = await databaseService.updateSessionMessage(
+        s.id,
+        messageToSave,
+        { variables: s.variables },
+      );
+      return {
+        ...s,
+        ...persisted,
+        messages: s.messages,
+      };
     },
   }), [
     sendMessage.handleSendMessage, sendMessage.handleStopGeneration,

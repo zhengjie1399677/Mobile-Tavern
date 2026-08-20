@@ -46,20 +46,38 @@ function createHarness(streamLlmResponse: (...args: any[]) => AsyncGenerator<any
     ],
   }));
   const scheduleExtraction = vi.fn();
+  const checkAndSummarize = vi.fn(async (current: ChatSession) => current);
   const abortControllerRef = { current: null as AbortController | null };
   const bisonChainTimerRef = { current: null as ReturnType<typeof setTimeout> | null };
   const isSendingRef = { current: false };
   const showCustomAlert = vi.fn(async () => undefined);
   const databaseService = {
-    saveSession: vi.fn(async () => undefined),
+    getSessionPromptMessages: vi.fn(async (
+      requestedSessionId: string,
+      options: { limit?: number; preserveFirstAssistant: boolean },
+    ) => {
+      const messages = sessionsRef.current.find((item) => item.id === requestedSessionId)?.messages ?? [];
+      if (options.limit === undefined) return messages;
+      const recent = messages.slice(-options.limit);
+      const firstAssistant = messages.find((message) => message.sender === "assistant");
+      return options.preserveFirstAssistant
+        && firstAssistant
+        && !recent.some((message) => message.id === firstAssistant.id)
+        ? [firstAssistant, ...recent]
+        : recent;
+    }),
+    commitSessionTurn: vi.fn(async () => undefined),
     appendSessionMessage: vi.fn(async () => undefined),
   };
 
   const params = {
     kernel: {
-      getService: vi.fn(() => ({ getExtractor: () => ({ scheduleExtraction }) })),
+      getService: vi.fn(() => ({
+        getExtractor: () => ({ scheduleExtraction }),
+        getSummary: () => ({ checkAndSummarize }),
+      })),
       getPipeline: vi.fn(() => ({
-        list: () => [{}, {}, {}, {}],
+        list: () => [{}, {}, {}],
         execute: vi.fn(async () => undefined),
       })),
     },
@@ -90,14 +108,17 @@ function createHarness(streamLlmResponse: (...args: any[]) => AsyncGenerator<any
     pendingUpdateTimeoutRef: { current: null },
     bisonRemainingCountRef: { current: 0 },
     bisonChainTimerRef,
-    setSessions,
+    setSessionViews: setSessions,
     setIsSending: vi.fn(),
     setIsBisonLocking: vi.fn(),
     setReplySuggestions: vi.fn(),
     publishRecalledMemories: vi.fn(),
     triggerScroll: vi.fn(),
     databaseService,
-    promptService: { assemblePrompt: vi.fn(() => ({ messages: [] })) },
+    promptService: {
+      assemblePrompt: vi.fn(() => ({ messages: [], traces: [] })),
+      estimateTokens: vi.fn((content: string) => content.length),
+    },
     telemetryService: {
       incrementUsageCount: vi.fn(),
       reportUsage: vi.fn(),
@@ -116,6 +137,7 @@ function createHarness(streamLlmResponse: (...args: any[]) => AsyncGenerator<any
     queueUserMessage,
     showCustomAlert,
     databaseService,
+    checkAndSummarize,
     abortControllerRef,
     bisonChainTimerRef,
     isSendingRef,
@@ -156,6 +178,8 @@ describe("useSendMessage 弱网与中止事务", () => {
     expect(harness.queueUserMessage).toHaveBeenCalledTimes(1);
     expect(harness.getSessions()[0].messages.at(-1)?.content).toBe("正常回复");
     expect(harness.isSendingRef.current).toBe(false);
+    expect(harness.databaseService.commitSessionTurn.mock.invocationCallOrder[0])
+      .toBeLessThan(harness.checkAndSummarize.mock.invocationCallOrder[0]);
   });
 
   it("首包失败时移除占位符但只保留一条用户消息，供显式重发", async () => {
@@ -194,7 +218,7 @@ describe("useSendMessage 弱网与中止事务", () => {
     const messages = harness.getSessions()[0].messages;
     expect(messages.at(-1)?.content).toBe(`半段回复${CONNECTION_INTERRUPTED_SUFFIX}`);
     expect(messages.filter((message) => message.content === "继续故事")).toHaveLength(1);
-    expect(harness.databaseService.appendSessionMessage).toHaveBeenCalledTimes(1);
+    expect(harness.databaseService.commitSessionTurn).toHaveBeenCalledTimes(1);
     expect(harness.showCustomAlert).toHaveBeenCalledWith(expect.stringContaining("连接异常"));
   });
 

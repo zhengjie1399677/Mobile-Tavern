@@ -41,7 +41,15 @@ function toBackupMessage(record: MessageRecord): Message {
     tags: record.tags,
     extractSource: record.extractSource,
     metadata: record.metadata,
-  } as Message;
+    isSummaryLine: record.isSummaryLine,
+    generationTime: record.generationTime,
+    tokenCount: record.tokenCount,
+    promptTokenCount: record.promptTokenCount,
+    reasoningContent: record.reasoningContent,
+    swipes: record.swipes,
+    swipe_id: record.swipe_id,
+    variables: record.variables,
+  };
 }
 
 /** 数据迁移应用边界：读取完整聚合并委托基础设施执行原子覆盖。 */

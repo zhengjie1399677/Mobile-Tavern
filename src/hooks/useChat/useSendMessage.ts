@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import { publicEnvironment } from "../../config";
-import { ChatSession, UserSettings, CharacterCard, LorebookEntry, CustomWorldbook, ReplyChoice } from "../../types";
+import { ChatSession, ChatSessionMetadataPatch, UserSettings, CharacterCard, LorebookEntry, CustomWorldbook, ReplyChoice, Message, SummaryCard } from "../../types";
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService, IMultiMessageService,
@@ -25,6 +25,7 @@ import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipel
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
+import { buildAuthoritativePromptSession } from "../../application/useCases/promptHistoryUseCases";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useSendMessage");
@@ -57,11 +58,11 @@ interface SendMessageParams {
   activeSessionIdRef: React.MutableRefObject<string | null>;
   sessionsRef: React.MutableRefObject<ChatSession[]>;
   abortControllerRef: React.MutableRefObject<AbortController | null>;
-  pendingUpdateTimeoutRef: React.MutableRefObject<any>;
+  pendingUpdateTimeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   bisonRemainingCountRef: React.MutableRefObject<number>;
   // P1-8: Bison 连续推进 setTimeout 的 timer id，供会话切换/卸载/手动停止时清理
   bisonChainTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
-  setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
+  setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   setIsSending: (v: boolean) => void;
   setIsBisonLocking: React.Dispatch<React.SetStateAction<boolean>>;
   setReplySuggestions: React.Dispatch<React.SetStateAction<ReplyChoice[]>>;
@@ -69,7 +70,7 @@ interface SendMessageParams {
   /** 迁移期兼容旧消费方；新代码应使用 publishMemoryAudit。 */
   publishRecalledMemories?: (sessionId: string, items: MemoryAuditSnapshot["recalled"]) => void;
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
-  databaseService: IDatabaseService;
+  databaseService: IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message, ChatSessionMetadataPatch>;
   promptService: IPromptService;
   telemetryService: ITelemetryService;
   chatStreamService: IChatStreamService;
@@ -145,7 +146,7 @@ export function useSendMessage(p: SendMessageParams) {
     if (skipAI && !isBisonConsecutive && textToSend && textToSend.trim()) {
       try {
         const updatedSession = await p.multiMessageService.queueUserMessage(p.activeSession!, textToSend);
-        p.setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
+        p.setSessionViews((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
       } catch (err: unknown) {
         log.error("Failed to save session user message", err);
       }
@@ -195,7 +196,7 @@ export function useSendMessage(p: SendMessageParams) {
     if (!isBisonConsecutive && textToSend && textToSend.trim()) {
       try {
         updatedSession = await p.multiMessageService.queueUserMessage(currentSession, textToSend);
-        p.setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
+        p.setSessionViews((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
       } catch (err: unknown) {
         log.error("Failed to save session user message", err);
         p.isSendingRef.current = false;
@@ -220,7 +221,7 @@ export function useSendMessage(p: SendMessageParams) {
     let ttftMs = 0;
 
     const { throttledUpdate, isStreamActiveRef } = buildThrottledUpdater(
-      p.setSessions, updatedSession.id, aiMsgId,
+      p.setSessionViews, updatedSession.id, aiMsgId,
       responseChunks, reasoningChunks, p.pendingUpdateTimeoutRef
     );
 
@@ -261,9 +262,14 @@ export function useSendMessage(p: SendMessageParams) {
         log.warn("Memory recall failed", err);
       }
 
+      const promptSession = await buildAuthoritativePromptSession(
+        p.databaseService,
+        updatedSession,
+        p.settings,
+      );
       const promptPayload = p.promptService.assemblePrompt({
         character: p.activeCharacter!,
-        chat: updatedSession,
+        chat: promptSession,
         userInput: isBisonConsecutive ? "" : textToSend,
         settings: p.settings,
         globalLorebook: combinedGlobals,
@@ -274,7 +280,7 @@ export function useSendMessage(p: SendMessageParams) {
 
       // 审计快照以最终 Prompt 编排轨迹为准，只保留在当前聊天运行时。
       const memoryAudit = buildMemoryAuditSnapshot({
-        session: updatedSession,
+        session: promptSession,
         query: isBisonConsecutive ? "" : textToSend,
         recalled: recalledMemories,
         settings: p.settings,
@@ -290,7 +296,7 @@ export function useSendMessage(p: SendMessageParams) {
       // 确保 MessageBubble 首次渲染占位符时 isStreaming 就能精确命中（避免 iframe 抢跑）
       __streamingMsgIdGuard(aiMsgId);
       const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };
-      p.setSessions((prev) =>
+      p.setSessionViews((prev) =>
         prev.map((s) => s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)
       );
 
@@ -391,10 +397,9 @@ export function useSendMessage(p: SendMessageParams) {
         // 删除占位符，避免 UI 残留空消息
         const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
         if (isStillActive) {
-          p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+          p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
           p.showCustomAlert("发送失败：AI 未返回任何内容，请检查 API 配置、网络连接或模型是否可用。");
         }
-        await p.databaseService.saveSession(nextSession, undefined, traceId).catch((e) => log.error("Failed to save after empty response", e));
         return;
       }
 
@@ -422,7 +427,7 @@ export function useSendMessage(p: SendMessageParams) {
           isStillActive,
           isBisonConsecutive,
           bisonRemainingCount: p.bisonRemainingCountRef.current,
-          setSessions: p.setSessions,
+          setSessionViews: p.setSessionViews,
           databaseService: p.databaseService,
           triggerScroll: () => p.triggerScroll("smooth"),
           traceId,
@@ -469,11 +474,15 @@ export function useSendMessage(p: SendMessageParams) {
           p.setIsBisonLocking(false);
         }
       } else {
-        await p.databaseService.saveSession(trueFinalSession, undefined, traceId);
-        // saveSession 只存元数据，会话切换场景需显式写入 AI 消息
         const switchedAiMsg = trueFinalSession.messages[trueFinalSession.messages.length - 1];
         if (switchedAiMsg && switchedAiMsg.sender === "assistant") {
-          await p.databaseService.appendSessionMessage(trueFinalSession.id, switchedAiMsg, undefined, undefined, traceId)
+          await p.databaseService.commitSessionTurn(
+            trueFinalSession.id,
+            { variables: trueFinalSession.variables, tableMemory: trueFinalSession.tableMemory },
+            [switchedAiMsg],
+            undefined,
+            traceId,
+          )
             .catch((e) => log.error("Failed to save AI message after session switch", e));
           log.info("Session switched during generation, saved silently", { sessionId: updatedSession.id });
         }
@@ -490,7 +499,7 @@ export function useSendMessage(p: SendMessageParams) {
           const placeholderMsg = latestSessionForCleanup.messages.find((m) => m.id === aiMsgId);
           if (placeholderMsg && (placeholderMsg.content === "💭..." || !placeholderMsg.content?.trim())) {
             const nextSession = { ...latestSessionForCleanup, messages: latestSessionForCleanup.messages.filter((m) => m.id !== aiMsgId) };
-            p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
+            p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
           }
         }
         return;
@@ -511,8 +520,7 @@ export function useSendMessage(p: SendMessageParams) {
         }
         if (latestSession) {
           const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
-          if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
-          await p.databaseService.saveSession(nextSession, undefined, traceId).catch((e) => log.error("Failed to save after trial key fetch error", e));
+          if (isStillActive) p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
         }
         return;
       }
@@ -523,17 +531,14 @@ export function useSendMessage(p: SendMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: parsed.content, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, traceId });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, traceId });
           } else {
-            await p.databaseService.saveSession(trueFinalSession, undefined, traceId);
-            // saveSession 只存元数据，abort 场景需显式写入 AI 消息
             await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, undefined, undefined, traceId)
               .catch((e) => log.error("Failed to save AI message on abort", e));
           }
         } else if (latestSession) {
           const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
-          if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
-          await p.databaseService.saveSession(nextSession, undefined, traceId).catch((e) => log.error("Failed to save after abort", e));
+          if (isStillActive) p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
         }
       } else {
         if (isStillActive) p.showCustomAlert("发送失败，对话连接异常: " + getErrorMessage(err));
@@ -542,17 +547,14 @@ export function useSendMessage(p: SendMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessions: p.setSessions, databaseService: p.databaseService, traceId });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, traceId });
           } else {
-            await p.databaseService.saveSession(trueFinalSession, undefined, traceId);
-            // saveSession 只存元数据，error 场景需显式写入 AI 消息
             await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, undefined, undefined, traceId)
               .catch((e) => log.error("Failed to save AI message on error", e));
           }
         } else if (latestSession) {
           const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
-          if (isStillActive) p.setSessions((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
-          await p.databaseService.saveSession(nextSession, undefined, traceId).catch((e) => log.error("Failed to save on error", e));
+          if (isStillActive) p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
         }
       }
     } finally {

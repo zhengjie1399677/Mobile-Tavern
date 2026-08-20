@@ -24,7 +24,7 @@ const StoryTimelineView = () => {
     activeSessionId,
     activeCharacter,
     activeSession,
-    setSessions,
+    setSessionViews,
     showCustomConfirm,
     setTimelineModalOpen,
     setNewSummaryTag,
@@ -37,7 +37,7 @@ const StoryTimelineView = () => {
     activeSessionId: state.activeSessionId,
     activeCharacter: state.activeCharacter,
     activeSession: state.activeSession,
-    setSessions: state.setSessions,
+    setSessionViews: state.setSessionViews,
     showCustomConfirm: state.showCustomConfirm,
     setTimelineModalOpen: state.setTimelineModalOpen,
     setNewSummaryTag: state.setNewSummaryTag,
@@ -136,7 +136,7 @@ const StoryTimelineView = () => {
                            summaries: nextSums,
                            lastSummarizedMessageId: nextSums[nextSums.length - 1]?.lastMessageId || undefined,
                          };
-                        setSessions((prev: ChatSession[]) =>
+                        setSessionViews((prev: ChatSession[]) =>
                           prev.map((s: ChatSession) =>
                             s.id === updated.id ? updated : s,
                           ),

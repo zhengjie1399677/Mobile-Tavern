@@ -1,18 +1,11 @@
 import type { Message } from "../../../types";
 import type { UnifiedBackupPayload } from "../../../application/useCases/dataMigrationUseCases";
-import type { ExtractSource } from "../../../application/services/memory/types";
 import { getDB } from "../idbConnection";
 import { bindTransactionAbort, enqueueWrite } from "../idbQueue";
 import { toCharacterCatalogRecord } from "../dbSchema";
 import { toSessionStorageRecord } from "../sessionRecord";
+import { toStoredMessageRecord } from "../messageRecord";
 import { prepareSettingsStorageRecords } from "./settingsRepository";
-
-type PersistedImportMessage = Message & {
-  turnIndex?: number;
-  tags?: string[];
-  extractSource?: ExtractSource;
-  metadata?: Record<string, unknown>;
-};
 
 const REPLACED_STORES = [
   "characters",
@@ -79,18 +72,11 @@ export async function replaceLocalDataFromBackup(
         for (const session of payload.sessions) {
           sessionsStore.put(toSessionStorageRecord(session));
           session.messages.forEach((message, index) => {
-            const persisted = message as PersistedImportMessage;
-            messagesStore.put({
-              id: message.id,
-              sessionId: session.id,
-              role: message.sender,
-              content: message.content,
-              createdAt: message.timestamp || Date.now(),
-              turnIndex: persisted.turnIndex ?? index,
-              tags: persisted.tags || [],
-              extractSource: persisted.extractSource || "none",
-              metadata: persisted.metadata || message.extra,
-            });
+            messagesStore.put(toStoredMessageRecord(
+              session.id,
+              message,
+              message.turnIndex ?? index,
+            ));
           });
         }
 

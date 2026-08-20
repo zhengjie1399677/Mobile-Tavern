@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from "react";
-import { ChatSession, SummaryCard, UserSettings, CharacterCard } from "../../types";
+import { ChatSession, ChatSessionMetadataPatch, SummaryCard, UserSettings, CharacterCard, Message } from "../../types";
 import { IDatabaseService, KernelServices } from "@/src/application/serviceContracts";
 import { useKernel } from "../../contexts/KernelContext";
+import type { MemoryServiceTyped } from "../../application/services/memory";
 import { generateUniqueId } from "./helpers";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
@@ -27,13 +28,19 @@ export function useTimelineSummary(params: {
   activeSession: ChatSession | null;
   settings: UserSettings;
   activeCharacter: CharacterCard | null;
-  setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
+  setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   setIsSummarizing: (v: boolean) => void;
-  databaseService: IDatabaseService;
+  databaseService: IDatabaseService<
+    ChatSession,
+    CharacterCard,
+    SummaryCard,
+    Message,
+    ChatSessionMetadataPatch
+  >;
   showCustomAlert: (msg: string) => Promise<void>;
 }): TimelineSummaryState {
   const kernel = useKernel();
-  const { activeSession, settings, activeCharacter, setSessions, setIsSummarizing, databaseService, showCustomAlert } = params;
+  const { activeSession, settings, activeCharacter, setSessionViews, setIsSummarizing, databaseService, showCustomAlert } = params;
 
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [newSummaryTag, setNewSummaryTag] = useState("");
@@ -46,17 +53,15 @@ export function useTimelineSummary(params: {
     force: boolean = false,
     signal?: AbortSignal
   ) => {
-    // 阶段 C 迁移：通过 MemoryService.getSummary() 访问摘要子模块
-    // （旧 KernelServices.AutoSummary 已从 registerServiceBatch 移除并标记 @deprecated）
     try {
-      const memoryService = kernel.getService<any>(KernelServices.Memory);
+      const memoryService = kernel.getService<MemoryServiceTyped>(KernelServices.Memory);
       const summary = memoryService.getSummary();
       setIsSummarizing(true);
       const updatedSession = await summary.checkAndSummarize(
         session, settings, activeCharacter, force, signal
       );
       if (updatedSession !== session) {
-        setSessions((prev) =>
+        setSessionViews((prev) =>
           prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
         );
         if (force) await showCustomAlert("记忆整理完毕，已收录至潜意识年表！");
@@ -70,7 +75,7 @@ export function useTimelineSummary(params: {
     } finally {
       setIsSummarizing(false);
     }
-  }, [settings, activeCharacter, showCustomAlert, setSessions, setIsSummarizing]);
+  }, [settings, activeCharacter, showCustomAlert, setSessionViews, setIsSummarizing]);
 
   const handleAddTimelineSummary = useCallback(async () => {
     if (!newSummaryTag.trim() || !newSummaryContent.trim() || !activeSession) return;
@@ -109,7 +114,7 @@ export function useTimelineSummary(params: {
         : (updatedSummaries[updatedSummaries.length - 1]?.lastMessageId || activeSession.lastSummarizedMessageId),
     };
 
-    setSessions((prev) =>
+    setSessionViews((prev) =>
       prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
     );
     try {
@@ -135,7 +140,7 @@ export function useTimelineSummary(params: {
     setTimelineModalOpen(false);
   }, [
     newSummaryTag, newSummaryContent, newSummaryLoc, activeSession, editingSummaryId,
-    setSessions, databaseService,
+    setSessionViews, databaseService,
   ]);
 
   return {

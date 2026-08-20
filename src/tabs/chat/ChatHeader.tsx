@@ -12,10 +12,8 @@ import {
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
-import { useKernel } from "../../contexts/KernelContext";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { IDatabaseService, IBgmService } from "@/src/application/serviceContracts";
-import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
+import { IBgmService } from "@/src/application/serviceContracts";
 import { useArSync } from "../../hooks/ar/useArSync";
 
 interface ChatHeaderProps {
@@ -27,9 +25,6 @@ const ChatHeader = ({
   openTableDrawer,
   setIsDetailDrawerOpen,
 }: ChatHeaderProps) => {
-  const kernel = useKernel();
-  const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
-  const saveSession = (session: any) => databaseService.saveSession(session);
   const { t } = useTranslation();
   const {
     activeCharacter,
@@ -37,7 +32,8 @@ const ChatHeader = ({
     setShowSessionManager,
     setActiveTab,
     showCustomPrompt,
-    setSessions,
+    setSessionViews,
+    updateSessionMetadata,
     settings,
     chatSubTab,
     setChatSubTab,
@@ -48,7 +44,8 @@ const ChatHeader = ({
     setShowSessionManager: state.setShowSessionManager,
     setActiveTab: state.setActiveTab,
     showCustomPrompt: state.showCustomPrompt,
-    setSessions: state.setSessions,
+    setSessionViews: state.setSessionViews,
+    updateSessionMetadata: state.updateSessionMetadata,
     settings: state.settings,
     chatSubTab: state.chatSubTab,
     setChatSubTab: state.setChatSubTab,
@@ -148,10 +145,10 @@ const ChatHeader = ({
                 );
                 if (nextTitle && activeSession) {
                   const updated = { ...activeSession, title: nextTitle };
-                  setSessions((prev: any) =>
-                    prev.map((s: any) => (s.id === updated.id ? updated : s)),
+                  setSessionViews((prev) =>
+                    prev.map((session) => (session.id === updated.id ? updated : session)),
                   );
-                  await saveSession(updated);
+                  await updateSessionMetadata(updated.id, { title: nextTitle });
                 }
               }}
             >

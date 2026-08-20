@@ -470,7 +470,7 @@ export class MemoryExtractor {
         firstSeenMsgId: task.msgId,
         firstSeenTurn: task.turnIndex,
         aliases: [],
-      });
+      }, true);
     }
     return { tags, source: 'dict' };
   }
@@ -492,7 +492,7 @@ export class MemoryExtractor {
         firstSeenMsgId: task.msgId,
         firstSeenTurn: task.turnIndex,
         aliases: [],
-      });
+      }, true);
     }
     const participantNames = Array.from(new Set(
       extraction.events.flatMap((event) => event.participants)
@@ -504,7 +504,7 @@ export class MemoryExtractor {
         firstSeenMsgId: task.msgId,
         firstSeenTurn: task.turnIndex,
         aliases: [],
-      });
+      }, true);
     }
   }
 
@@ -544,7 +544,7 @@ export class MemoryExtractor {
         confidence: 1,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
-      });
+      }, true);
     }
   }
 
@@ -569,7 +569,7 @@ export class MemoryExtractor {
         confidence: relation.confidence,
         createdAt: now,
         updatedAt: now,
-      });
+      }, true);
     }
   }
 }

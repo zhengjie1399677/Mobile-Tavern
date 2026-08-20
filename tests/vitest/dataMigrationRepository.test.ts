@@ -36,7 +36,20 @@ function createPayload(id: string) {
     createdAt: 1,
     summaries: [],
     messages: [
-      { id: `message-${id}`, sender: "assistant", content: `正文-${id}`, timestamp: 1 },
+      {
+        id: `message-${id}`,
+        sender: "assistant",
+        content: `正文-${id}`,
+        timestamp: 1,
+        reasoningContent: `推理-${id}`,
+        generationTime: 1.25,
+        tokenCount: 12,
+        promptTokenCount: 34,
+        swipes: ["版本一", "版本二"],
+        swipe_id: 1,
+        extra: { image: `asset://${id}` },
+        variables: { stage: id },
+      },
     ],
   } as ChatSession;
 
@@ -73,6 +86,16 @@ describe("本地数据原子覆盖仓库", () => {
     expect((await getAllSessions()).map((item) => item.id)).toEqual(["session-new"]);
     expect((await getMessagesBySession("session-old"))).toEqual([]);
     expect((await getMessagesBySession("session-new")).map((item) => item.content)).toEqual(["正文-new"]);
+    expect((await getMessagesBySession("session-new"))[0]).toMatchObject({
+      reasoningContent: "推理-new",
+      generationTime: 1.25,
+      tokenCount: 12,
+      promptTokenCount: 34,
+      swipes: ["版本一", "版本二"],
+      swipe_id: 1,
+      metadata: { image: "asset://new" },
+      variables: { stage: "new" },
+    });
     expect(Object.keys(await getCustomWorldbooks())).toEqual(["worldbook-new"]);
     expect((await getGlobalLorebook()).map((item) => item.id)).toEqual(["lore-new"]);
   });

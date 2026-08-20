@@ -69,7 +69,7 @@ export class IndexedDbMemoryPersistenceService
     id: string,
     tags: string[],
     extractSource: string,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
     signal?: AbortSignal
   ): Promise<void> {
     return updateMessageExtraction(
@@ -87,7 +87,13 @@ export class IndexedDbMemoryPersistenceService
 
   getMessagesBySession(
     sessionId: string,
-    options?: { limit?: number; offset?: number; descending?: boolean }
+    options?: {
+      limit?: number;
+      offset?: number;
+      descending?: boolean;
+      minTurnIndexExclusive?: number;
+      maxTurnIndexExclusive?: number;
+    }
   ): Promise<MessageRecord[]> {
     return getMessagesBySession(sessionId, options);
   }
@@ -127,8 +133,12 @@ export class IndexedDbMemoryPersistenceService
     return deleteDictEntryById(id, this.resolveSignal(signal));
   }
 
-  upsertFragment(fragment: MemoryFragment, signal?: AbortSignal): Promise<void> {
-    return upsertFragment(fragment, this.resolveSignal(signal));
+  upsertFragment(
+    fragment: MemoryFragment,
+    signal?: AbortSignal,
+    options?: { requireSourceMessages?: boolean },
+  ): Promise<void> {
+    return upsertFragment(fragment, this.resolveSignal(signal), options);
   }
 
   getFragmentById(id: string): Promise<MemoryFragment | null> {
@@ -169,9 +179,10 @@ export class IndexedDbMemoryPersistenceService
 
   evolveTemporalFact(
     fact: TemporalFact,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: { requireSourceMessage?: boolean },
   ): Promise<{ changed: boolean; fact: TemporalFact }> {
-    return evolveTemporalFact(fact, this.resolveSignal(signal));
+    return evolveTemporalFact(fact, this.resolveSignal(signal), options);
   }
 
   getTemporalFactsBySession(

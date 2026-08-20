@@ -2,6 +2,7 @@ import React, { useSyncExternalStore, useCallback } from "react";
 import {
   CharacterCard,
   ChatSession,
+  ChatSessionMetadataPatch,
   UserSettings,
   LorebookEntry,
   Message,
@@ -52,7 +53,10 @@ export interface UnifiedAppContextProps {
 
   // --- Chat Context ---
   sessions: ChatSession[];
-  setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
+  setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>;
+  sessionCountsByCharacter: Readonly<Record<string, number>>;
+  totalSessionCount: number;
+  areSessionCountsReady: boolean;
   activeSessionId: string | null;
   setActiveSessionId: (id: string | null) => void;
   activeSession: ChatSession | null;
@@ -67,7 +71,8 @@ export interface UnifiedAppContextProps {
   connectionStatus: { testing: boolean; success?: boolean; message?: string };
   setConnectionStatus: (status: any) => void;
   loadSessions: () => Promise<void>;
-  saveSession: (session: ChatSession) => Promise<void>;
+  refreshSessionStatistics: () => Promise<void>;
+  updateSessionMetadata: (sessionId: string, patch: ChatSessionMetadataPatch) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   // 单会话消息分页懒加载
   hasMoreMessages: boolean;
@@ -188,7 +193,7 @@ export interface UnifiedAppContextProps {
   createBacktrackFromTimeline: (summary: SummaryCard) => Promise<void>;
   handleAddTimelineSummary: () => Promise<void>;
   renderDialogueBubble: (text: string, messageIndex?: number, isStreaming?: boolean) => React.ReactNode;
-  saveSessionWithMvu: (session: ChatSession, messageToParse?: string) => Promise<ChatSession>;
+  saveSessionWithMvu: (session: ChatSession, message: Message) => Promise<ChatSession>;
   isBisonLocking: boolean;
   /** 当前会话最近一次记忆召回的瞬态快照，不进入 ChatSession 持久化。 */
   lastRecalledMemories: RecalledMessage[];

@@ -17,7 +17,7 @@ interface SessionManagerParams {
   sessions: ChatSession[];
   characters: CharacterCard[];
   settings: UserSettings;
-  setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
+  setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   loadCharacterById?: (id: string) => Promise<CharacterCard | null>;
   setActiveCharId: (id: string) => void;
   setActiveSessionId: (id: string | null) => void;
@@ -26,6 +26,7 @@ interface SessionManagerParams {
   setShowSessionManager: React.Dispatch<React.SetStateAction<boolean>>;
   setMsgMenuId: React.Dispatch<React.SetStateAction<string | null>>;
   deleteSession: (id: string) => Promise<void>;
+  refreshSessionStatistics: () => Promise<void>;
   databaseService: IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>;
   telemetryService: ITelemetryService;
   triggerScroll: () => void;
@@ -65,7 +66,8 @@ export function useSessionManager(p: SessionManagerParams) {
       const newSession = await p.databaseService.createNewSession(
         p.activeCharacter, finalStarterMsg, initialSuggestions
       );
-      p.setSessions((prev) => [...prev, newSession]);
+      p.setSessionViews((prev) => [...prev, newSession]);
+      void p.refreshSessionStatistics();
       p.setActiveSessionId(newSession.id);
       p.triggerScroll();
     } catch (err: unknown) {
@@ -91,17 +93,16 @@ export function useSessionManager(p: SessionManagerParams) {
         : p.characters.find((character) => character.id === charId) ?? null;
       if (!targetChar) throw new Error(`CHARACTER_NOT_FOUND:${charId}`);
       p.setActiveCharId(charId);
-      const charSessions = p.sessions.filter((s) => s.characterId === charId);
-      if (charSessions.length > 0) {
-        const lastSession = [...charSessions].sort((a, b) => {
-          const aTime = a.messages?.at(-1)?.timestamp ?? a.createdAt;
-          const bTime = b.messages?.at(-1)?.timestamp ?? b.createdAt;
-          return bTime - aTime;
-        })[0];
+      const lastSession = await p.databaseService.getLatestSessionByCharacter(charId);
+      if (lastSession) {
+        p.setSessionViews((previous) => previous.some((session) => session.id === lastSession.id)
+          ? previous
+          : [...previous, lastSession]);
         p.setActiveSessionId(lastSession.id);
       } else {
         const newSession = await p.databaseService.createNewSession(targetChar, targetChar?.first_mes);
-        p.setSessions((prev) => [...prev, newSession]);
+        p.setSessionViews((prev) => [...prev, newSession]);
+        void p.refreshSessionStatistics();
         p.setActiveSessionId(newSession.id);
       }
       p.setActiveTab("chat");
@@ -134,7 +135,8 @@ export function useSessionManager(p: SessionManagerParams) {
     if (!p.activeCharacter) return;
     try {
       const newSession = await p.databaseService.createEmptyBranch(p.activeCharacter, branchTitle);
-      p.setSessions((prev) => [...prev, newSession]);
+      p.setSessionViews((prev) => [...prev, newSession]);
+      void p.refreshSessionStatistics();
       p.setActiveSessionId(newSession.id);
       p.setShowSessionManager(false);
     } catch (err: unknown) {
@@ -153,16 +155,13 @@ export function useSessionManager(p: SessionManagerParams) {
       await p.deleteSession(id);
       const remaining = p.sessions.filter((s) => s.id !== id);
       if (p.activeSessionId === id) {
-        const charRemaining = remaining
-          .filter((s) => s.characterId === p.activeCharId)
-          .sort((a, b) => {
-            const aTime = a.messages?.at(-1)?.timestamp ?? a.createdAt;
-            const bTime = b.messages?.at(-1)?.timestamp ?? b.createdAt;
-            return bTime - aTime;
-          });
-        p.setActiveSessionId(charRemaining.length > 0 ? charRemaining[0].id : null);
+        const latest = p.activeCharId
+          ? await p.databaseService.getLatestSessionByCharacter(p.activeCharId)
+          : null;
+        if (latest && !remaining.some((session) => session.id === latest.id)) remaining.push(latest);
+        p.setActiveSessionId(latest?.id ?? null);
       }
-      p.setSessions(remaining);
+      p.setSessionViews(remaining);
     } catch (err: unknown) {
       console.error("Failed to delete branch session:", err);
     }
@@ -181,7 +180,8 @@ export function useSessionManager(p: SessionManagerParams) {
     if (!branchTitle) return;
     try {
       const newSession = await p.databaseService.createBacktrackBranch(p.activeSession, branchTitle, msg.id);
-      p.setSessions((prev) => [...prev, newSession]);
+      p.setSessionViews((prev) => [...prev, newSession]);
+      void p.refreshSessionStatistics();
       p.setActiveSessionId(newSession.id);
       p.setMsgMenuId(null);
       p.setChatSubTab("dialogue");
@@ -207,7 +207,8 @@ export function useSessionManager(p: SessionManagerParams) {
       const newSession = await p.databaseService.createBacktrackFromTimeline(
         p.activeSession, branchTitle, summary.id
       );
-      p.setSessions((prev) => [...prev, newSession]);
+      p.setSessionViews((prev) => [...prev, newSession]);
+      void p.refreshSessionStatistics();
       p.setActiveSessionId(newSession.id);
       p.setChatSubTab("dialogue");
       await p.showCustomAlert(`已基于时间线："${summary.timeTag}" 重构分叉世界！`);

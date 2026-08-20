@@ -1,9 +1,9 @@
 import { IDatabaseService, IKernel, IScriptService } from "../serviceContracts";
-import { CharacterCard, ChatSession, Message } from "../../types";
+import { CharacterCard, ChatSession, ChatSessionMetadataPatch, Message } from "../../types";
 import {
-  saveSession,
+  updateSessionMetadata,
   deleteSession,
-  bulkSaveSessions as dbBulkSaveSessions,
+  replaceCompleteSessions as dbReplaceCompleteSessions,
 } from "../../infrastructure/storage/repositories/sessionsWriteRepository";
 import { getCharacterById } from "../../infrastructure/storage/repositories/charactersRepository";
 import { verifyDatabaseIntegrity } from "../../infrastructure/storage/indexedDbIntegrityCheck";
@@ -13,47 +13,39 @@ import { Logger } from "../../utils/logger";
 const logger = Logger.create("DatabaseService");
 import {
   getAllSessions,
+  getLatestSessionByCharacter,
   getSessionById,
+  getSessionCountsByCharacter,
+  getSessionsPage,
   getSessionsCount,
   getSessionsPaginated,
 } from "../../infrastructure/storage/indexedDbSessionQueries";
 import {
-  appendMessage as dbAppendMessage,
   appendSessionSummary as dbAppendSessionSummary,
   deleteSessionSummary as dbDeleteSessionSummary,
-  deleteMessageById as dbDeleteMessageById,
+  getMessageById,
   getMessagesBySession,
   replaceSessionBranch as dbReplaceSessionBranch,
-  syncSessionMessages as dbSyncSessionMessages,
   updateSessionSummary as dbUpdateSessionSummary,
 } from "../../infrastructure/storage/indexedDbMemoryStore";
+import { updateSessionMessage as dbUpdateSessionMessage } from "../../infrastructure/storage/repositories/sessionMessageUpdateRepository";
 import { applyCharacterRegexScripts } from "../../compatibility/sillytavern/mvuParser";
-
-/**
- * 内存 Message 在持久化到 messages Store 时可能携带的记忆系统额外字段。
- * 与 localDB.ts 中的 PersistedMessage 保持一致，确保类型契约不逃逸。
- */
-type PersistedMessage = Message & {
-  turnIndex?: number;
-  tags?: string[];
-  extractSource?: string;
-  metadata?: Record<string, unknown>;
-};
-
-/** messages Store 原始记录的最小投影，用于分支回溯时读取完整历史。 */
-interface StoredMessageRecord {
-  id: string;
-  role?: string;
-  content: string;
-  createdAt: number;
-  metadata?: Record<string, unknown>;
-}
+import { commitSessionTurn as dbCommitSessionTurn } from "../../infrastructure/storage/repositories/sessionTurnRepository";
+import { deleteSessionMessage as dbDeleteSessionMessage } from "../../infrastructure/storage/repositories/sessionMessageDeleteRepository";
+import { hydrateNewestFirstMessagePage } from "../useCases/chatMessageHydration";
+import { fromStoredMessageRecord, type StoredChatMessageRecord } from "../../infrastructure/storage/messageRecord";
+import {
+  findLegacyMvuVariables,
+  findSessionStateSnapshot,
+} from "../../domain/chat/sessionStateSnapshot";
+import type { MemoryServiceTyped } from "./memory";
 
 export class DatabaseService implements IDatabaseService<
   ChatSession,
   CharacterCard,
   ChatSession["summaries"][number],
-  Message
+  Message,
+  ChatSessionMetadataPatch
 > {
   name = "database";
   isCritical = true;
@@ -93,24 +85,152 @@ export class DatabaseService implements IDatabaseService<
     return getSessionById(id);
   }
 
+  async getLatestSessionByCharacter(characterId: string): Promise<ChatSession | null> {
+    return getLatestSessionByCharacter(characterId);
+  }
+
+  private async resolveMessageBoundary(
+    sessionId: string,
+    messageId: string | undefined,
+  ): Promise<StoredChatMessageRecord | null> {
+    if (!messageId) return null;
+    const boundary = await getMessageById(messageId);
+    if (!boundary) {
+      throw new Error(`[DatabaseService] Message cursor ${messageId} no longer exists.`);
+    }
+    if (boundary.sessionId !== sessionId) {
+      throw new Error(`[DatabaseService] Message cursor ${messageId} belongs to another session.`);
+    }
+    if (!Number.isInteger(boundary.turnIndex)) {
+      throw new Error(`[DatabaseService] Message cursor ${messageId} has no valid turnIndex.`);
+    }
+    return boundary;
+  }
+
+  async getSessionMessageWindow(
+    sessionId: string,
+    options: { pageSize: number; beforeMessageId?: string },
+  ): Promise<{ messages: Message[]; hasMore: boolean }> {
+    const boundary = await this.resolveMessageBoundary(sessionId, options.beforeMessageId);
+    const records = await getMessagesBySession(sessionId, {
+      limit: options.pageSize + 1,
+      descending: true,
+      maxTurnIndexExclusive: Number.isInteger(boundary?.turnIndex)
+        ? boundary?.turnIndex
+        : undefined,
+    });
+    return {
+      messages: hydrateNewestFirstMessagePage(records.slice(0, options.pageSize)),
+      hasMore: records.length > options.pageSize,
+    };
+  }
+
+  async getSessionPromptMessages(
+    sessionId: string,
+    options: { limit?: number; preserveFirstAssistant: boolean; beforeMessageId?: string },
+  ): Promise<Message[]> {
+    const boundary = await this.resolveMessageBoundary(sessionId, options.beforeMessageId);
+    const boundaryTurnIndex = boundary?.turnIndex;
+    const maxTurnIndexExclusive = Number.isInteger(boundaryTurnIndex)
+      ? boundaryTurnIndex as number
+      : undefined;
+    const records = await getMessagesBySession(sessionId, {
+      limit: options.limit,
+      descending: true,
+      maxTurnIndexExclusive,
+    });
+    const recent = hydrateNewestFirstMessagePage(records);
+    if (!options.preserveFirstAssistant || recent.length === 0) return recent;
+    const firstRecords = await getMessagesBySession(sessionId, {
+      limit: 1,
+      descending: false,
+      maxTurnIndexExclusive,
+    });
+    const first = firstRecords[0];
+    if (!first || first.role !== "assistant" || recent.some((message) => message.id === first.id)) {
+      return recent;
+    }
+    return [hydrateNewestFirstMessagePage(firstRecords)[0], ...recent];
+  }
+
+  async getSessionStateBeforeMessage(
+    sessionId: string,
+    messageId: string,
+  ): Promise<ChatSessionMetadataPatch> {
+    const [session, boundary] = await Promise.all([
+      getSessionById(sessionId),
+      getMessageById(messageId),
+    ]);
+    if (!session) throw new Error(`[DatabaseService] Session ${sessionId} not found.`);
+    if (!boundary) throw new Error(`[DatabaseService] Message ${messageId} not found.`);
+    if (boundary.sessionId !== sessionId || !Number.isInteger(boundary.turnIndex)) {
+      throw new Error(`[DatabaseService] Message ${messageId} is not a valid boundary for session ${sessionId}.`);
+    }
+
+    const pageSize = 50;
+    let offset = 0;
+    let legacyVariables: Record<string, unknown> | undefined;
+    while (true) {
+      const records = await getMessagesBySession(sessionId, {
+        limit: pageSize,
+        offset,
+        descending: true,
+        maxTurnIndexExclusive: boundary.turnIndex,
+      });
+      if (records.length === 0) break;
+      const messages = hydrateNewestFirstMessagePage(records);
+      const snapshot = findSessionStateSnapshot(messages);
+      if (snapshot) {
+        return {
+          variables: snapshot.variables,
+          tableMemory: snapshot.tableMemory,
+        };
+      }
+      legacyVariables ??= findLegacyMvuVariables(messages);
+      if (records.length < pageSize) break;
+      offset += records.length;
+    }
+
+    let tableMemory: ChatSession["tableMemory"];
+    if (session.tableMemory && this.kernel.hasService("memory")) {
+      const character = await this.getCharacterById(session.characterId);
+      tableMemory = this.kernel
+        .getService<MemoryServiceTyped>("memory")
+        .getStateTable()
+        .initDefaultSheets(character?.name || "NPC");
+    }
+    return { variables: legacyVariables, tableMemory };
+  }
+
   // PERF-03: 分页加载 API，封装 localDB 实现
   async getSessionsCount(): Promise<number> {
     return getSessionsCount();
+  }
+
+  async getSessionCountsByCharacter(): Promise<Record<string, number>> {
+    return getSessionCountsByCharacter();
   }
 
   async getSessionsPaginated(page: number, pageSize: number): Promise<ChatSession[]> {
     return getSessionsPaginated(page, pageSize);
   }
 
+  async getSessionsPage(options: {
+    pageSize: number;
+    before?: { createdAt: number; id: string };
+  }): Promise<{ sessions: ChatSession[]; hasMore: boolean }> {
+    return getSessionsPage(options);
+  }
+
   async runStorageDiagnostics() {
     return runStorageDiagnostics();
   }
 
-  async saveSession(session: ChatSession, signal?: AbortSignal, traceId?: string): Promise<void> {
-    // traceId 预留：当前 saveSession 转发到底层 localDB，无内部日志输出。
+  async updateSessionMetadata(sessionId: string, patch: ChatSessionMetadataPatch, signal?: AbortSignal, traceId?: string): Promise<void> {
+    // traceId 预留：当前元数据更新转发到底层仓库，无内部日志输出。
     // 未来若在持久化前后增加诊断日志，应通过 logger.withTrace(traceId) 创建子 logger。
     void traceId;
-    return saveSession(session, signal ?? this.abortController?.signal);
+    return updateSessionMetadata(sessionId, patch, signal ?? this.abortController?.signal);
   }
 
   async appendSessionSummary(
@@ -150,33 +270,53 @@ export class DatabaseService implements IDatabaseService<
   }
 
   /**
-   * 单条消息写入 messages Store。
-   * 将内存 Message 格式转换为 DB MessageRecord 格式后调用 appendMessage。
-   * turnIndex 未提供时由存储层在同一事务内按会话原子分配绝对序号。
-   *
-   * 注意：入参类型为 Message（与 IDatabaseService 契约一致），但内存层在
-   * 记忆系统注入字段时会携带 tags / extractSource / metadata。这里通过
-   * 类型断言安全读取这些可选字段，缺失时回退到存储层默认值。
+   * 应用层单条消息写入也统一经过会话事务，确保聚合统计和消息内容同时提交。
    */
   async appendSessionMessage(sessionId: string, message: Message, turnIndex?: number, signal?: AbortSignal, traceId?: string): Promise<void> {
-    // traceId 预留：与 saveSession 一致，供未来诊断日志接入。
     void traceId;
-    const persisted = message as PersistedMessage;
-    await dbAppendMessage({
-      id: message.id,
+    const messageWithTurn = turnIndex === undefined
+      ? message
+      : { ...message, turnIndex };
+    await dbCommitSessionTurn(
       sessionId,
-      role: message.sender === "user" ? "user" : "assistant",
-      content: message.content,
-      createdAt: message.timestamp || Date.now(),
-      turnIndex,
-      tags: persisted.tags || [],
-      extractSource: persisted.extractSource || "none",
-      metadata: persisted.metadata || message.extra,
-    }, signal ?? this.abortController?.signal);
+      {},
+      [messageWithTurn],
+      signal ?? this.abortController?.signal,
+    );
   }
 
-  async deleteMessageById(id: string, signal?: AbortSignal): Promise<void> {
-    return dbDeleteMessageById(id, signal ?? this.abortController?.signal);
+  async commitSessionTurn(
+    sessionId: string,
+    patch: ChatSessionMetadataPatch,
+    messages: Message[],
+    signal?: AbortSignal,
+    traceId?: string,
+  ): Promise<void> {
+    void traceId;
+    return dbCommitSessionTurn(
+      sessionId,
+      patch,
+      messages,
+      signal ?? this.abortController?.signal,
+    );
+  }
+
+  async deleteSessionMessage(sessionId: string, messageId: string, signal?: AbortSignal): Promise<ChatSession> {
+    return dbDeleteSessionMessage(sessionId, messageId, signal ?? this.abortController?.signal);
+  }
+
+  async updateSessionMessage(
+    sessionId: string,
+    message: Message,
+    patch: ChatSessionMetadataPatch,
+    signal?: AbortSignal,
+  ): Promise<ChatSession> {
+    return dbUpdateSessionMessage(
+      sessionId,
+      message,
+      patch,
+      signal ?? this.abortController?.signal,
+    );
   }
 
   async replaceSessionBranch(
@@ -193,17 +333,13 @@ export class DatabaseService implements IDatabaseService<
     );
   }
 
-  async syncSessionMessages(sessionId: string, messages: Message[], signal?: AbortSignal): Promise<void> {
-    return dbSyncSessionMessages(sessionId, messages, signal ?? this.abortController?.signal);
-  }
-
   async deleteSession(id: string, signal?: AbortSignal): Promise<void> {
     return deleteSession(id, signal ?? this.abortController?.signal);
   }
 
   // 批量写入会话（备份恢复 / 跨设备同步场景），跨 sessions+messages Store 事务
-  async bulkSaveSessions(sessionsList: ChatSession[], signal?: AbortSignal): Promise<void> {
-    return dbBulkSaveSessions(sessionsList, signal ?? this.abortController?.signal);
+  async replaceCompleteSessions(sessionsList: ChatSession[], signal?: AbortSignal): Promise<void> {
+    return dbReplaceCompleteSessions(sessionsList, signal ?? this.abortController?.signal);
   }
 
   // P0-4 / P1-4: 单条直查角色卡，避免全量反序列化
@@ -255,11 +391,7 @@ export class DatabaseService implements IDatabaseService<
       summaries: [],
       variables: mvuVariables,
     };
-    await this.saveSession(newSession);
-    // saveSession 只存元数据，初始消息需显式同步到 messages Store
-    if (newSession.messages && newSession.messages.length > 0) {
-      await this.syncSessionMessages(newSession.id, newSession.messages);
-    }
+    await this.replaceCompleteSessions([newSession]);
     return newSession;
   }
 
@@ -305,11 +437,7 @@ export class DatabaseService implements IDatabaseService<
       createdAt: Date.now(),
       variables: mvuVariables,
     };
-    await this.saveSession(newSession);
-    // saveSession 只存元数据，初始消息需显式同步到 messages Store
-    if (newSession.messages && newSession.messages.length > 0) {
-      await this.syncSessionMessages(newSession.id, newSession.messages);
-    }
+    await this.replaceCompleteSessions([newSession]);
     return newSession;
   }
 
@@ -318,13 +446,7 @@ export class DatabaseService implements IDatabaseService<
     // 否则早于已加载页的历史消息会从新分支中整段丢失（数据丢失根因）。
     const rawHistory = await getMessagesBySession(sourceSession.id);
     const fullHistory: Message[] = rawHistory.length > 0
-      ? (rawHistory as StoredMessageRecord[]).map((record) => ({
-        id: record.id,
-        sender: record.role === "user" ? "user" : record.role === "system" ? "system" : "assistant",
-        content: record.content,
-        timestamp: record.createdAt,
-        extra: record.metadata,
-      }))
+      ? (rawHistory as StoredChatMessageRecord[]).map(fromStoredMessageRecord)
       : sourceSession.messages;
 
     const msgIndex = fullHistory.findIndex(m => m.id === msgId);
@@ -340,6 +462,20 @@ export class DatabaseService implements IDatabaseService<
     const lastSummarizedMessageId = filteredSummaries.length > 0
       ? filteredSummaries[filteredSummaries.length - 1].lastMessageId
       : undefined;
+    const snapshot = findSessionStateSnapshot(sourceSubHistory);
+    const legacyVariables = findLegacyMvuVariables(sourceSubHistory);
+    let tableMemory = snapshot?.tableMemory;
+    if (!tableMemory && sourceSession.tableMemory) {
+      if (msgIndex === fullHistory.length - 1) {
+        tableMemory = structuredClone(sourceSession.tableMemory);
+      } else if (this.kernel.hasService("memory")) {
+        const character = await this.getCharacterById(sourceSession.characterId);
+        tableMemory = this.kernel
+          .getService<MemoryServiceTyped>("memory")
+          .getStateTable()
+          .initDefaultSheets(character?.name || "NPC");
+      }
+    }
 
     const newSession: ChatSession = {
       id: "session_branch_" + Math.random().toString(36).substring(2, 9),
@@ -349,16 +485,16 @@ export class DatabaseService implements IDatabaseService<
       messages: sourceSubHistory,
       summaries: filteredSummaries,
       lastSummarizedMessageId,
-      variables: sourceSession.variables ? { ...sourceSession.variables } : undefined,
-      tableMemory: sourceSession.tableMemory ? sourceSession.tableMemory.map(s => ({ ...s })) : undefined,
+      variables: snapshot?.variables
+        ?? legacyVariables
+        ?? (msgIndex === fullHistory.length - 1
+          ? structuredClone(sourceSession.variables)
+          : undefined),
+      tableMemory,
       parentSessionId: sourceSession.id,
       parentMessageId: msgId,
     };
-    await this.saveSession(newSession);
-    // saveSession 只存元数据，初始消息需显式同步到 messages Store
-    if (newSession.messages && newSession.messages.length > 0) {
-      await this.syncSessionMessages(newSession.id, newSession.messages);
-    }
+    await this.replaceCompleteSessions([newSession]);
     return newSession;
   }
 
@@ -368,33 +504,9 @@ export class DatabaseService implements IDatabaseService<
       throw new Error("Summary not found in source session");
     }
     const summary = sourceSession.summaries[sumIdx];
-    const targetBranchesSummaries = (sourceSession.summaries || [])
-      .slice(0, sumIdx + 1)
-      .map((s) => ({ ...s }));
-
-    const newSession: ChatSession = {
-      id: "session_branch_" + Math.random().toString(36).substring(2, 9),
-      characterId: sourceSession.characterId,
-      title,
-      createdAt: Date.now(),
-      messages: [
-        {
-          id: "msg_re_" + Date.now(),
-          sender: "assistant" as const,
-          content: `（继续在先前的局面上续写）\n当前时局记述: ${summary.content}\n\n“接下来，我们需要如何安排行动？”`,
-          timestamp: Date.now(),
-        },
-      ],
-      summaries: targetBranchesSummaries,
-      lastSummarizedMessageId: undefined,
-      parentSessionId: sourceSession.id,
-      parentMessageId: summary.lastMessageId,
-    };
-    await this.saveSession(newSession);
-    // saveSession 只存元数据，初始消息需显式同步到 messages Store
-    if (newSession.messages && newSession.messages.length > 0) {
-      await this.syncSessionMessages(newSession.id, newSession.messages);
+    if (!summary.lastMessageId) {
+      throw new Error("Summary has no message boundary");
     }
-    return newSession;
+    return this.createBacktrackBranch(sourceSession, title, summary.lastMessageId);
   }
 }

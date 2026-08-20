@@ -2,8 +2,8 @@
  * turnIndex 一致性测试套件
  *
  * 验证新存储架构下 turnIndex 的正确性：
- *  - testTurnIndexBasicAppend：syncSessionMessages 批量写入，turnIndex = [0, 1, 2, ...]
- *  - testTurnIndexDeleteMiddleThenAppend：deleteMessageById + appendMessage 显式删除与追加
+ *  - testTurnIndexBasicAppend：完整会话导入后 turnIndex = [0, 1, 2, ...]
+ *  - testTurnIndexDeleteMiddleThenAppend：会话删除事务 + 提交事务保持绝对序号
  *  - testTurnIndexDeleteAllThenAppend：全部删除后重新批量写入，turnIndex 从 0 开始
  *  - testTurnIndexMultipleAppends：不传局部数组长度，存储层原子分配绝对 turnIndex
  *
@@ -15,17 +15,18 @@ import { assert } from "./testUtils";
 import {
   __resetDBInstanceForTesting,
   getDB,
-  saveSession,
+  replaceCompleteSessions,
 } from "../../src/utils/localDB";
 import {
   appendMessage,
-  deleteMessageById,
-  syncSessionMessages,
   replaceSessionBranch,
   upsertFragment,
   supersedeFragment,
   updateFragmentStatus,
 } from "../../src/infrastructure/storage/indexedDbMemoryStore";
+import { commitSessionTurn } from "../../src/infrastructure/storage/repositories/sessionTurnRepository";
+import { deleteSessionMessage } from "../../src/infrastructure/storage/repositories/sessionMessageDeleteRepository";
+import type { Message } from "../../src/types";
 
 /**
  * 辅助函数：读取指定会话的所有消息，按 turnIndex 排序
@@ -44,6 +45,17 @@ async function getSessionMessages(db: IDBDatabase, sessionId: string): Promise<a
   });
 }
 
+async function seedSession(sessionId: string, messages: Message[]): Promise<void> {
+  await replaceCompleteSessions([{
+    id: sessionId,
+    characterId: `character-${sessionId}`,
+    title: "turnIndex 测试",
+    createdAt: Date.now(),
+    summaries: [],
+    messages,
+  }]);
+}
+
 export async function testTurnIndexBasicAppend() {
   console.log("\n--- Running turnIndex Basic Append Verification ---");
   __resetDBInstanceForTesting();
@@ -52,13 +64,13 @@ export async function testTurnIndexBasicAppend() {
 
   // 批量写入 5 条消息
   const msgs = Array.from({ length: 5 }, (_, i) => ({
-    id: `msg_${i}`,
+    id: `basic_msg_${i}`,
     sender: i % 2 === 0 ? "user" : "assistant",
     content: `消息 ${i}`,
     timestamp: Date.now() + i,
   }));
 
-  await syncSessionMessages(sessionId, msgs);
+  await seedSession(sessionId, msgs as Message[]);
 
   const db = await getDB();
   const saved = await getSessionMessages(db, sessionId);
@@ -80,49 +92,48 @@ export async function testTurnIndexDeleteMiddleThenAppend() {
 
   // 1. 初始批量写入 5 条消息 (turnIndex = [0, 1, 2, 3, 4])
   const msgs1 = Array.from({ length: 5 }, (_, i) => ({
-    id: `msg_${i}`,
+    id: `middle_msg_${i}`,
     sender: i % 2 === 0 ? "user" : "assistant",
     content: `消息 ${i}`,
     timestamp: Date.now() + i,
   }));
 
-  await syncSessionMessages(sessionId, msgs1);
+  await seedSession(sessionId, msgs1 as Message[]);
 
   const saved1 = await getSessionMessages(db, sessionId);
   assert(saved1.length === 5, `Should have 5 messages after initial sync`);
 
   // 2. 显式删除第 3 条 (msg_2)
-  await deleteMessageById("msg_2");
+  await deleteSessionMessage(sessionId, "middle_msg_2");
 
   const afterDelete = await getSessionMessages(db, sessionId);
   assert(afterDelete.length === 4, `Should have 4 messages after delete, got ${afterDelete.length}`);
-  assert(!afterDelete.find(m => m.id === "msg_2"), "msg_2 should be deleted");
+  assert(!afterDelete.find(m => m.id === "middle_msg_2"), "middle_msg_2 should be deleted");
 
   // 3. 单条追加新消息 (turnIndex 由调用方指定为 5，即 max(4)+1)
-  await appendMessage({
-    id: "msg_5",
-    sessionId,
-    role: "user",
+  await commitSessionTurn(sessionId, {}, [{
+    id: "middle_msg_5",
+    sender: "user",
     content: "新消息",
-    createdAt: Date.now() + 5,
+    timestamp: Date.now() + 5,
     turnIndex: 5,
-  });
+  } as Message]);
 
   const saved2 = await getSessionMessages(db, sessionId);
   assert(saved2.length === 5, `Should have 5 messages after append, got ${saved2.length}`);
 
   // 4. 验证保留的旧消息 turnIndex 未变
-  const msg0 = saved2.find(m => m.id === "msg_0");
-  const msg1 = saved2.find(m => m.id === "msg_1");
-  const msg3 = saved2.find(m => m.id === "msg_3");
-  const msg4 = saved2.find(m => m.id === "msg_4");
+  const msg0 = saved2.find(m => m.id === "middle_msg_0");
+  const msg1 = saved2.find(m => m.id === "middle_msg_1");
+  const msg3 = saved2.find(m => m.id === "middle_msg_3");
+  const msg4 = saved2.find(m => m.id === "middle_msg_4");
   assert(msg0 && msg0.turnIndex === 0, `msg_0 turnIndex should be 0, got ${msg0?.turnIndex}`);
   assert(msg1 && msg1.turnIndex === 1, `msg_1 turnIndex should be 1, got ${msg1?.turnIndex}`);
   assert(msg3 && msg3.turnIndex === 3, `msg_3 turnIndex should be 3, got ${msg3?.turnIndex}`);
   assert(msg4 && msg4.turnIndex === 4, `msg_4 turnIndex should be 4, got ${msg4?.turnIndex}`);
 
   // 5. 验证新消息 turnIndex = 5
-  const msg5 = saved2.find(m => m.id === "msg_5");
+  const msg5 = saved2.find(m => m.id === "middle_msg_5");
   assert(msg5, `New message msg_5 should exist`);
   assert(msg5.turnIndex === 5,
     `New message turnIndex should be exactly 5, got ${msg5.turnIndex}`);
@@ -145,17 +156,17 @@ export async function testTurnIndexDeleteAllThenAppend() {
 
   // 1. 初始批量写入 3 条消息
   const msgs1 = Array.from({ length: 3 }, (_, i) => ({
-    id: `msg_${i}`,
+    id: `delete_all_msg_${i}`,
     sender: "user",
     content: `消息 ${i}`,
     timestamp: Date.now() + i,
   }));
 
-  await syncSessionMessages(sessionId, msgs1);
+  await seedSession(sessionId, msgs1 as Message[]);
 
   // 2. 显式删除所有消息
   for (const msg of msgs1) {
-    await deleteMessageById(msg.id);
+    await deleteSessionMessage(sessionId, msg.id);
   }
 
   const afterDelete = await getSessionMessages(db, sessionId);
@@ -167,7 +178,7 @@ export async function testTurnIndexDeleteAllThenAppend() {
     { id: "msg_new_1", sender: "assistant", content: "新消息 1", timestamp: Date.now() + 11 },
   ];
 
-  await syncSessionMessages(sessionId, msgs2);
+  await commitSessionTurn(sessionId, {}, msgs2 as Message[]);
 
   const saved = await getSessionMessages(db, sessionId);
   assert(saved.length === 2, `Should have 2 messages after delete-all+append, got ${saved.length}`);
@@ -188,40 +199,37 @@ export async function testTurnIndexMultipleAppends() {
 
   // 第一轮：批量写入 3 条消息 (turnIndex = [0, 1, 2])
   const msgs1 = Array.from({ length: 3 }, (_, i) => ({
-    id: `msg_${i}`,
+    id: `multi_msg_${i}`,
     sender: "user",
     content: `消息 ${i}`,
     timestamp: Date.now() + i,
   }));
 
-  await syncSessionMessages(sessionId, msgs1);
+  await seedSession(sessionId, msgs1 as Message[]);
 
   // 第二轮：模拟只加载尾页后继续对话；调用方不传局部数组长度，
   // 存储层必须从完整会话分配绝对 turnIndex = 3, 4。
-  await appendMessage({
-    id: "msg_3",
-    sessionId,
-    role: "user",
+  await commitSessionTurn(sessionId, {}, [{
+    id: "multi_msg_3",
+    sender: "user",
     content: "消息 3",
-    createdAt: Date.now() + 3,
-  });
-  await appendMessage({
-    id: "msg_4",
-    sessionId,
-    role: "assistant",
+    timestamp: Date.now() + 3,
+  }]);
+  await commitSessionTurn(sessionId, {}, [{
+    id: "multi_msg_4",
+    sender: "assistant",
     content: "消息 4",
-    createdAt: Date.now() + 4,
-  });
+    timestamp: Date.now() + 4,
+  }]);
 
   // 第三轮：删除中间消息后继续追加，必须取 max(turnIndex) + 1，而不是消息总数。
-  await deleteMessageById("msg_1");
-  await appendMessage({
-    id: "msg_5",
-    sessionId,
-    role: "user",
+  await deleteSessionMessage(sessionId, "multi_msg_1");
+  await commitSessionTurn(sessionId, {}, [{
+    id: "multi_msg_5",
+    sender: "user",
     content: "消息 5",
-    createdAt: Date.now() + 5,
-  });
+    timestamp: Date.now() + 5,
+  }]);
 
   const saved = await getSessionMessages(db, sessionId);
   assert(saved.length === 5, `Should have 5 messages after multiple appends, got ${saved.length}`);
@@ -233,19 +241,19 @@ export async function testTurnIndexMultipleAppends() {
     `turnIndex should have no duplicates after multiple appends, got ${JSON.stringify(turnIndices)}`);
 
   // 验证保留的旧消息 turnIndex 未变
-  const msg0 = saved.find(m => m.id === "msg_0");
-  const msg2 = saved.find(m => m.id === "msg_2");
+  const msg0 = saved.find(m => m.id === "multi_msg_0");
+  const msg2 = saved.find(m => m.id === "multi_msg_2");
   assert(msg0 && msg0.turnIndex === 0, `msg_0 turnIndex should be 0, got ${msg0?.turnIndex}`);
   assert(msg2 && msg2.turnIndex === 2, `msg_2 turnIndex should be 2, got ${msg2?.turnIndex}`);
 
   // 验证第二轮新消息 turnIndex 精确值
-  const msg3 = saved.find(m => m.id === "msg_3");
-  const msg4 = saved.find(m => m.id === "msg_4");
+  const msg3 = saved.find(m => m.id === "multi_msg_3");
+  const msg4 = saved.find(m => m.id === "multi_msg_4");
   assert(msg3 && msg3.turnIndex === 3, `msg_3 turnIndex should be 3, got ${msg3?.turnIndex}`);
   assert(msg4 && msg4.turnIndex === 4, `msg_4 turnIndex should be 4, got ${msg4?.turnIndex}`);
 
   // 验证第三轮新消息 turnIndex 精确值
-  const msg5 = saved.find(m => m.id === "msg_5");
+  const msg5 = saved.find(m => m.id === "multi_msg_5");
   assert(msg5, `New message msg_5 should exist`);
   assert(msg5.turnIndex === 5,
     `msg_5 turnIndex should be exactly 5, got ${msg5.turnIndex}`);
@@ -283,8 +291,19 @@ export async function testRerollBranchAtomicReplace() {
     messages: originalMessages,
   };
 
-  await saveSession(originalSession);
-  await syncSessionMessages(sessionId, originalMessages);
+  await replaceCompleteSessions([originalSession]);
+  const initialDb = await getDB();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = initialDb.transaction("memory_dict", "readwrite");
+    transaction.objectStore("memory_dict").put({
+      id: `${sessionId}:旧分支实体`,
+      sessionId,
+      entity: "旧分支实体",
+      count: 1,
+    });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
 
   // 模拟折叠边界或旧版本异常留下的孤儿回复：它与待覆盖分支拥有相同
   // turnIndex，但不在调用方根据当前 UI 快照计算出的 removedMessageIds 中。
@@ -380,6 +399,13 @@ export async function testRerollBranchAtomicReplace() {
   assert(savedFragments.some((fragment) => fragment.id === "fragment_before_branch"), "分支起点前的事件修订链必须保留");
   assert(savedFragments.some((fragment) => fragment.id === "fragment_corrected"), "分支起点前的纠错片段必须保留");
   assert(!savedFragments.some((fragment) => fragment.id === "fragment_in_old_branch"), "旧分支事件记忆必须与消息原子清理");
+  const dictCount = await new Promise<number>((resolve, reject) => {
+    const request = db.transaction("memory_dict", "readonly").objectStore("memory_dict")
+      .index("sessionId").count(IDBKeyRange.only(sessionId));
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  assert(dictCount === 0, "分支替换后无法证明有效的自动词典必须清空重建");
 
   const sessionRecord = await new Promise<any>((resolve, reject) => {
     const request = db.transaction("sessions", "readonly").objectStore("sessions").get(sessionId);
@@ -388,6 +414,21 @@ export async function testRerollBranchAtomicReplace() {
   });
   assert(!("messages" in sessionRecord), "sessions Store 不得写入 messages 大数组");
   assert(sessionRecord.turnCount === 2, `会话缓存轮数应同步更新为 2，实际 ${sessionRecord.turnCount}`);
+
+  let staleBoundaryError: unknown = null;
+  try {
+    await replaceSessionBranch(
+      { ...finalSession, messages: [...finalSession.messages.slice(0, -1), { ...replacement, id: "stale_boundary_new" }] },
+      ["missing-old-branch-message"],
+      [{ ...replacement, id: "stale_boundary_new" }],
+    );
+  } catch (error) {
+    staleBoundaryError = error;
+  }
+  assert(staleBoundaryError !== null, "失效的旧分支边界必须失败关闭，不能退回内存数组长度清扫");
+  const afterStaleBoundary = await getSessionMessages(db, sessionId);
+  assert(afterStaleBoundary.some((message) => message.id === replacement.id), "边界失效时原分支必须保持不变");
+  assert(!afterStaleBoundary.some((message) => message.id === "stale_boundary_new"), "边界失效时不得提交新消息");
 
   const aborted = new AbortController();
   aborted.abort();
@@ -423,8 +464,7 @@ export async function testRerollBranchAtomicReplace() {
     summaries: [] as never[],
     messages: appendOnlyMessages,
   };
-  await saveSession(appendOnlySession);
-  await syncSessionMessages(appendOnlySessionId, appendOnlyMessages);
+  await replaceCompleteSessions([appendOnlySession]);
 
   const newAi = {
     id: "append_new_ai",
