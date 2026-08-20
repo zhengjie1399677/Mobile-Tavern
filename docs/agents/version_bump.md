@@ -1,34 +1,56 @@
-# 应用发布版本号同步修改与一键命令规范
+# 应用发布版本同步规范
 
 > [!IMPORTANT]
-> **此文件为 Mobile Tavern 行为指导手册的子规范，定义了版本号一键同步命令及其影响的物理文件映射。**
+> 本文是 Mobile Tavern 版本号修改的唯一权威映射。版本号必须通过脚本同步，禁止手工跨文件替换。
 
----
+## 一、常用命令
 
-### 一键同步命令
+指定版本：
 
-当需要更新或升级客户端 App 的整体发布版本号（例如从 1.6.1 升级到 1.7.0）时，前端及本地服务代码已实现变量化（直接引用 `__APP_VERSION__` / `package.json`）。对于跨语言构建及文档配置文件，必须优先使用内置的一键同步脚本：
-
-```bash
-npm run bump-version <new_version>   # 示例：npm run bump-version 1.7.0
+```powershell
+npm run bump-version 1.9.0
 ```
 
-该命令会自动精确更新以下物理文件，**严禁执行耗费 Token 的全盘目录扫描与手动逐文件替换**：
+按语义化版本递增：
 
-### 1. 核心构建与配置文件（脚本自动同步）
-*   **Vite 前端主配置**：修改 `package.json` 中的 `"version"` 字段。
-*   **Tauri 构建配置**：修改 `src-tauri/tauri.conf.json` 中的 `"version"` 字段。
-*   **Rust 后端配置**：修改 `src-tauri/Cargo.toml` 中的 `version` 字段。
-*   **Aliyun FC Serverless 配置**：修改 `serverless/aliyun-fc-sts/package.json` 中的 `"version"` 字段。
+```powershell
+npm run bump-version patch
+npm run bump-version minor
+npm run bump-version major
+```
 
-### 2. 运行时与服务层版本定义（已变量化/自动读取）
-*   **Vite 全局常量**：在 `vite.config.ts` 中注入 `__APP_VERSION__`，读取 `package.json` 的 `version`，前端代码统一使用变量。
-*   **本地 Express 服务端**：`server.ts` 中的端点（如 `/api/check-update`、`/version`）自动从 `package.json` 动态读取。
-*   **客户端静态版本文件**：修改 `public/version` 文件中的 `"pkgVersion"` 键值（脚本自动同步）。
+只预览变更或检查当前一致性：
 
-### 3. 说明文档与演示网页（脚本自动同步）
-*   **README 项目徽章**：修改 `README.md` 头部的 `badge/version-...` 徽章标识。
-*   **官方展示/下载网页**：修改 `docs/index.html` 中涉及版本号的声明与下载按钮。
+```powershell
+npm run bump-version patch -- --dry-run
+npm run check:version
+```
 
-### 4. 依赖锁定文件（自动同步）
-*   **npm 锁定文件**：修改 `package-lock.json` 中的顶层 `"version"` 键值。
+脚本会先读取并校验全部版本来源，再统一写入；缺文件、格式异常或定位不到目标字段时会失败，已写入内容会回滚，禁止留下部分同步状态。
+
+## 二、脚本管理的版本来源
+
+| 文件 | 字段或展示位置 |
+|---|---|
+| `package.json` | 根包 `version`，也是前端与本地服务的运行时基准 |
+| `package-lock.json` | 顶层 `version` 与 `packages[""]` 根包版本 |
+| `src-tauri/tauri.conf.json` | Tauri `version` |
+| `src-tauri/Cargo.toml` | `[package]` 的 `version` |
+| `src-tauri/Cargo.lock` | `app` 包的锁定版本 |
+| `public/version` | `pkgVersion` |
+| `README.md` | 版本徽章 |
+| `docs/index.html` | 页面版本标签与 Android 下载按钮文本 |
+
+`vite.config.ts` 注入的 `__APP_VERSION__` 与 `server.ts` 的版本接口均从 `package.json` 读取，不单独维护版本常量。发布 APK 使用 `releases/latest/download/MobileTavern.apk` 固定入口，文件名不再包含版本号。
+
+## 三、发布门禁
+
+普通代码推送继续运行 `npm run quality:push`。只有 Git Hook 能证明待推送提交与 `bump-version.cjs` 从其父提交生成的结果完全一致时，才降级为 `npm run quality:release`；若同时或单独推送标签，标签还必须是对应的 `v<version>`。这可避免在同一份已验证代码上重复执行完整测试与 Web 构建。
+
+任何新分支、混合提交、强制推送、非标准提交标题或无法确认的引用都会自动回退到完整门禁。标准版本提交标题为：
+
+```text
+chore(release): bump version to 1.9.0
+```
+
+GitHub 的 `v*` 标签仍会触发 Android 构建与 Release 发布；轻量本地门禁不替代远端打包。

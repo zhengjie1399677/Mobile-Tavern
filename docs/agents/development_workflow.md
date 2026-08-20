@@ -46,4 +46,4 @@
 npm run bump-version <new_version>
 ```
 
-禁止手工逐文件替换。完整映射见 `docs/agents/version_bump.md`。
+也可使用 `patch`、`minor`、`major` 自动递增；提交前运行 `npm run check:version` 校验全部版本来源。禁止手工逐文件替换，完整映射与发布门禁见 `docs/agents/version_bump.md`。

@@ -21,6 +21,7 @@
     "build:examples": "npm run build:example:pixi && npm run build:example:astral",
     "dev:android": "node scripts/decode_icon.cjs && tauri android dev --host 127.0.0.1",
     "bump-version": "node scripts/bump-version.cjs",
+    "check:version": "node scripts/bump-version.cjs --check",
     "test": "tsx tests/run_all_tests.ts",
     "test:zod": "node tests/test_zod_compatibility.cjs",
     "test:unit": "node scripts/vitest-clean-run.mjs run",
@@ -33,6 +34,7 @@
     "check:i18n": "tsx scripts/check-i18n.ts",
     "check:mobile-assets": "node scripts/check-mobile-assets.cjs",
     "quality:push": "npm run lint && npm run check:i18n && npm test && npm run build",
+    "quality:release": "npm run check:version",
     "setup:hooks": "node scripts/setup-git-hooks.cjs",
     "prepare": "npm run setup:hooks"
   },

@@ -1,5 +1,12 @@
 #!/bin/sh
 set -e
 
-echo "Running pre-push quality gate..."
-npm run quality:push
+gate_mode="$(node scripts/pre-push-quality.cjs)"
+
+if [ "$gate_mode" = "release" ]; then
+  echo "Running release version consistency gate..."
+  npm run quality:release
+else
+  echo "Running pre-push quality gate..."
+  npm run quality:push
+fi

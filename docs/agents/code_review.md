@@ -94,8 +94,8 @@
 
 | 层级 | 机制 | 判定内容 | 何时触发 |
 |---|---|---|---|
-| 提交前 | `.githooks/pre-commit`、`pre-push` | 格式、明显错误、轻量校验 | 每次 commit / push |
-| 推送前 | `npm run quality:push` | `lint` + `check:i18n` + `test` + `build` | 每次准备推送 |
+| 提交前 | `.githooks/pre-commit`、`pre-push` | 类型检查；推送内容分类与门禁选择 | 每次 commit / push |
+| 推送前 | `npm run quality:push` / `quality:release` | 普通改动执行完整门禁；可证明的纯版本提交只检查版本一致性 | 每次准备推送 |
 | CI | `.github/workflows/quality.yml` | `lint` + `test` + `build` + Playwright E2E | 每次 PR 到 `main` |
 | 按范围 | `check:i18n`、`verify:preset-samples`、`check:mobile-assets`、`cargo test`（云端） | 专项完整性 | 改动涉及对应领域时 |
 | 人工 | 本节清单 + 第四节专项清单 | 设计合理性、边界、可维护性、测试质量、自动化覆盖不到的 | 每次 PR 合入前 |
