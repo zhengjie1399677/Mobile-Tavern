@@ -244,7 +244,7 @@ export function ThemeInteractionHost({
             }}
             src={url}
             loop={definition.loop}
-            muted={definition.muted}
+            muted={runtime.muted}
             preload={definition.preload}
             playsInline
             onEnded={() => interactionService.dispatch({ type: "media.ended", mediaId: surfaceState.mediaId })}

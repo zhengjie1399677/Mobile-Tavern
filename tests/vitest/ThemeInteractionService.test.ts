@@ -20,6 +20,7 @@ const config: ThemeInteractionConfig = {
       do: [
         { action: "media.play", target: "rain", delayMs: 0 },
         { action: "surface.show", target: "main.background", mediaId: "aurora", delayMs: 0 },
+        { action: "media.setMuted", target: "aurora", muted: false, delayMs: 0 },
         { action: "state.set", key: "mood", value: "dream", delayMs: 0 },
         { action: "theme.state.add", value: "ambient-active", delayMs: 0 },
       ],
@@ -61,6 +62,7 @@ describe("ThemeInteractionService", () => {
 
     const snapshot = service.getSnapshot();
     expect(snapshot.media.rain.status).toBe("playing");
+    expect(snapshot.media.aurora.muted).toBe(false);
     expect(snapshot.surfaces["main.background"]).toEqual({ visible: true, mediaId: "aurora" });
     expect(snapshot.state.mood).toBe("dream");
     expect(snapshot.styleStates).toContain("ambient-active");

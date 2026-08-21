@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   applyThemePackage,
   buildThemeCss,
+  detectCriticalNavigationHiding,
   setActiveThemePackageStyles,
   type CustomThemePackage,
   validateThemePackage,
@@ -58,6 +59,17 @@ describe("自定义主题样式隔离", () => {
 
     expect(validateThemePackage(unsafeTheme).valid).toBe(false);
     expect(buildThemeCss(unsafeTheme)).not.toContain("example.com");
+  });
+
+  it("检测明显隐藏关键导航的主题 CSS", () => {
+    const risks = detectCriticalNavigationHiding(`
+      [data-ui="main-tab-bar"] { display: none; }
+      [data-ui = "main-tab"][data-tab-id = "characters"] { visibility: hidden !important; }
+      [data-ui="main-tab"][data-tab-id="community"] { display: none; }
+    `);
+
+    expect(risks).toEqual(["整条主导航", "关键入口 characters"]);
+    expect(detectCriticalNavigationHiding('[data-ui="main-tab-bar"] .label { display: none; }')).toEqual([]);
   });
 
   it("兼容 1.0，并校验与保留 1.1 受限交互", () => {

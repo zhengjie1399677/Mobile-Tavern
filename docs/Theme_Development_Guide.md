@@ -78,7 +78,9 @@
 
 颜色变量通常使用 Tailwind/shadcn 风格的 HSL 通道，例如 `"268 90% 72%"`，不要包一层 `hsl()`；`--radius` 使用合法长度，例如 `"0.75rem"`。
 
-变量值不得包含外部 `url()`、`@import`、动态表达式、花括号、分号或 HTML 逃逸字符。未在白名单中的变量会使主题包校验失败。
+变量值不得包含 `url()`、`image-set()`、`@import`、`expression()`、`behavior:`、`-moz-binding`、
+`http:` / `data:` / `blob:` / `file:` 等外部资源协议、花括号、分号或尖括号。这里限制的是会造成
+CSS 声明逃逸、外部加载或 HTML 注入的具体内容，并不是笼统禁止所有 HTML 特殊字符。未在白名单中的变量会使主题包校验失败。
 
 以下原生布局变量永远不可覆盖：
 
@@ -116,7 +118,9 @@
 }
 ```
 
-宿主会把普通规则递归限定到当前主题。非当前自定义主题的 `<style>` 会被禁用，以隔离 `@keyframes` 等全局命名空间。动画名称仍建议加入主题前缀，例如 `twilight-tab-glow`。
+宿主会把普通规则递归限定到当前主题。非当前自定义主题的 `<style>` 会被禁用，以隔离不同自定义主题中的
+`@keyframes` 等全局命名空间。宿主不会自动重命名动画；公开分发的主题必须为动画名称加入主题前缀，
+例如 `twilight-tab-glow`，避免与主应用或其他启用中的样式冲突。
 
 ### 硬限制
 
@@ -126,7 +130,9 @@
 - `@import`；
 - 任意直接 `url(...)`、`image-set(...)` 与外部资源协议，包括远程地址、`data:` 和手写 Blob URL；
 - `expression()`、`behavior:`、`-moz-binding`；
-- `position: fixed`，会降级为 `position: absolute`；
+- `position: fixed`，会降级为 `position: absolute`；降级后遵循普通 CSS 绝对定位规则，使用元素的 CSS 包含块
+  （通常是最近的已定位祖先元素，没有相应祖先时通常是初始包含块）。主题作用域选择器本身不是定位容器，
+  不得依赖视口固定效果；
 - Safe Area 变量重新声明。
 
 主题不能执行 JavaScript、读取 Cookie、调用 API、访问 IndexedDB、改变插件权限或直接修改用户设置。
@@ -140,6 +146,7 @@
 | `[data-ui="main-tab-bar"]` | 主界面底栏容器 |
 | `[data-ui="main-tab"]` | 单个底栏入口 |
 | `[data-ui="main-tab"][data-tab-id="..."]` | 指定 Tab 入口 |
+| `[data-ui="main-tab"][aria-selected="true"]` | 当前选中的底栏入口 |
 | `[data-ui="main-tab-content"]` | 主页面内容容器 |
 | `[data-ui="main-tab-content"][data-active-tab="..."]` | 指定当前页面状态 |
 | `[data-ui="main-tab-visibility-settings"]` | Tab 显隐设置区 |
@@ -160,6 +167,8 @@ playground
 ```
 
 `community` 可能受产品策略影响而不注册；`chat` 与 `playground` 默认不显示在底栏。未来应用内扩展可以注册其他 ID，因此不要假设列表永远固定。
+主题引用当前未注册的 Tab ID 时，对应的 `tab.enter`、`tab.leave` 事件不会出现，`tab.is` 条件也不会成立；
+主题不会因此报错。
 
 ## 六、隐藏 Tab 与插件入口
 
@@ -180,7 +189,7 @@ playground
 }
 ```
 
-也可以隐藏整条底栏并清除内容预留：
+从 CSS 能力上也可以隐藏整条底栏并清除内容预留：
 
 ```css
 [data-ui="main-tab-bar"] {
@@ -192,7 +201,11 @@ playground
 }
 ```
 
-分发主题时不要隐藏 `characters`、`settings` 或全部导航入口，否则用户可能无法恢复。视觉隐藏不等于禁用页面，已有路由和状态仍然存在。
+上述整栏隐藏只适合作者本人能够控制恢复路径的本机调试。公开分发的主题不得隐藏 `characters`、`settings`
+或整条主导航，也不得通过 `visibility: hidden`、`opacity: 0`、移出可视区域等方式做等价隐藏，除非产品以后提供
+明确的用户确认和独立恢复入口。导入器会识别稳定导航选择器上的直接 `display: none`、`visibility: hidden`
+和 `opacity: 0` 并要求用户二次确认，但不能模拟任意 CSS 的最终布局与级联，因此主题作者不能依赖导入器代替这项检查。
+视觉隐藏不等于禁用页面，已有路由和状态仍然存在。
 
 ### 应用内扩展控制
 
@@ -224,13 +237,22 @@ kernel.registerExtension({
 | 音频/音乐 | 100 MiB | 预览、主题 1.1 受限播放、应用服务解析 |
 | 视频 | 256 MiB | 预览、主题 1.1 背景 Surface、应用服务解析 |
 
-资源库总上限为 512 MiB。SVG 不开放；资源元数据与文件字节位于独立 `MobileTavernResourceDB`，不会塞入 settings 大对象。
+资源库总上限为 512 MiB。导入器按文件 MIME 类型接受除 SVG 外的 `image/*`，并接受 `audio/*` 与 `video/*`；
+文件没有可识别 MIME 类型时，扩展名回退白名单为：图片 `png`、`jpg`、`jpeg`、`webp`、`gif`、`avif`，
+音频 `mp3`、`m4a`、`aac`、`wav`、`ogg`、`flac`，视频 `mp4`、`webm`、`mov`、`m4v`。
+文件能够导入不代表当前设备一定能够解码，实际播放与显示仍取决于系统 WebView 的格式支持。SVG 不开放；
+资源元数据与文件字节位于独立 `MobileTavernResourceDB`，不会塞入 settings 大对象。
 
 所有资源都有稳定引用：
 
 ```text
-tavern-resource://r_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+tavern-resource://<resource-id>
 ```
+
+当前应用生成的 `<resource-id>` 是 `r_` 加 32 位小写十六进制字符，例如
+`r_0123456789abcdef0123456789abcdef`。为兼容已有或后续来源，运行时接受总长度不超过 80 个字符的 ID：
+必须以 `r_` 开头，其后为 1–78 个小写字母、数字、下划线或连字符。主题作者应始终复制资源库生成的引用，
+不要自行构造 ID。
 
 该引用不是网络 URL，也不能直接写进 CSS `url()`。受信运行时代码应通过 `LocalResourceService.resolveResourceReference()` 把它解析为当前会话 Blob URL，禁止持久化 Blob URL。
 
@@ -310,7 +332,8 @@ tavern-resource://r_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
         { "action": "media.play", "target": "rain" },
         { "action": "media.play", "target": "station" },
         { "action": "surface.show", "target": "main.background", "mediaId": "station" },
-        { "action": "state.set", "key": "mood", "value": "dream" }
+        { "action": "state.set", "key": "mood", "value": "dream" },
+        { "action": "state.set", "key": "visited", "value": true }
       ]
     },
     {
@@ -337,8 +360,11 @@ tavern-resource://r_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 | 媒体类型 | 字段 | 默认与范围 |
 |---|---|---|
-| `audio` | `src`、`loop`、`volume`、`preload` | `loop=false`；`volume=0.5`，范围 0–1；`preload=metadata` |
+| `audio` | `src`、`loop`、`volume`、`preload` | `loop=false`；`volume=0.5`，范围 0–1；`preload` 为 `none`、`metadata` 或 `auto`，默认 `metadata` |
 | `video` | 以上字段及 `muted`、`fit` | `volume=1`；`muted=true`；`fit` 为 `cover`、`contain` 或 `fill` |
+
+`auto` 可能让移动端预先加载更多数据；没有明确需要时使用 `metadata` 或 `none`。视频可在媒体定义中设置初始
+`muted`，也可通过 `media.setMuted` 在用户交互后修改；`media.setVolume` 不会自动解除静音。
 
 可显示视频的宿主 Surface 只有：
 
@@ -355,10 +381,12 @@ tavern-resource://r_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 `state` 支持三种非持久化类型：
 
 - `boolean`：声明 `default`；
-- `enum`：声明 1–16 个 `values` 和其中一个 `default`；
+- `enum`：声明 1–16 个 `values` 和其中一个 `default`；每个值最长 48 个字符，必须以小写字母开头，
+  后续只允许小写字母、数字和连字符，即满足 `^[a-z][a-z0-9-]*$`；
 - `counter`：声明整数 `default`、`min`、`max`，增减会自动钳制在边界内。
 
-每个状态自动生成 `<key>-<value>` token，宿主把全部 token 写入根节点的 `data-theme-state`。CSS 应使用 token 匹配：
+每个状态自动生成 `<key>-<value>` token，宿主把全部 token 写入根节点的 `data-theme-state`。`counter` 也遵循
+同一规则并使用当前整数值，例如 `pulses` 为 0 和 3 时分别生成 `pulses-0` 和 `pulses-3`。CSS 应使用 token 匹配：
 
 ```css
 [data-theme-state~="visited-true"] [data-ui="main-tab-bar"] {
@@ -366,7 +394,8 @@ tavern-resource://r_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 }
 ```
 
-`theme.state.add/remove/replace` 可额外维护纯样式 token。token 只允许小写字母、数字和连字符，不得当作任意属性或选择器注入。
+`theme.state.add/remove/replace` 可额外维护纯样式 token。token 最长 48 个字符，必须以小写字母开头，后续只允许
+小写字母、数字和连字符，不得当作任意属性或选择器注入。
 
 ### 8.5 事件
 
@@ -390,7 +419,7 @@ tavern-resource://r_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 | `state.equals` | `key`、`value` |
 | `tab.is` | `value` 为 Tab ID |
 | `orientation.is` | `portrait` 或 `landscape` |
-| `media.enabled` | 布尔值 |
+| `media.enabled` | 布尔值；表示用户是否打开“允许主题播放本地媒体”，不表示资源存在或正在播放 |
 | `accessibility.reducedMotion` | 布尔值 |
 
 白名单动作：
@@ -399,15 +428,17 @@ tavern-resource://r_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 |---|---|
 | `media.play/pause/stop` | `target` 为媒体 ID；`stop` 同时回到起点 |
 | `media.setVolume` | `target`、0–1 的 `volume` |
+| `media.setMuted` | `target` 为视频媒体 ID；`muted` 为布尔值 |
 | `surface.show` | `target` 为 Surface、`mediaId` 为视频 ID |
 | `surface.hide` | `target` 为 Surface |
 | `state.set` | `key`、类型匹配的 `value` |
 | `state.toggle` | `key` 必须是 boolean |
 | `state.increment` | `key` 必须是 counter；`amount` 为 -100 至 100 的整数 |
-| `theme.state.add/remove` | 添加或移除样式 token |
-| `theme.state.replace` | 移除 `group` 及 `group-*` token，再添加 `value` |
+| `theme.state.add/remove` | 必填 `value`；添加或移除一个显式样式 token。重复添加或移除不存在的显式 token 均为幂等操作 |
+| `theme.state.replace` | 必填 `group`、`value`；移除显式集合中的 `group` 及 `group-*` token，再添加 `value`。`value` 必须以 `group-` 开头，否则导入/保存失败 |
 
 所有动作可选 `delayMs`。规则可选 `cooldownMs` 和 `once`；默认冷却 100ms，`once` 默认为 false。
+`once=true` 只在当前主题激活期间生效；主题停用、切换、重新激活或运行时销毁后会清空记录，规则下次激活时可再次触发一次。
 
 ### 8.7 硬上限与失败方式
 
@@ -420,7 +451,12 @@ tavern-resource://r_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 | 同时等待的延迟任务 | 10 |
 | 单动作延迟 | 60,000ms |
 
-规则 ID、引用、状态类型、资源协议或数量不合法时，整个主题包导入/保存失败，不会只跳过危险片段。运行时资源已被删除或类型不符时，该媒体静默不渲染，主题的 CSS 与其他规则继续降级工作。
+规则 ID、引用、状态类型、资源协议或数量不合法时，整个主题包导入/保存失败，不会只跳过危险片段。
+同时等待的延迟任务已达到 10 个时，新产生的延迟动作会被丢弃；同一规则中的即时动作和其他规则仍继续工作，
+不会导致运行时崩溃。
+
+运行时资源已被删除、不可读或类型不符时，该媒体不播放也不渲染，引用它的 Surface 不显示；对应图片 CSS 变量不存在时
+使用作者提供的 fallback（例如 `none`）。主题的其他样式、状态和规则继续降级工作，不因单个资源缺失导致整个运行时失败。
 
 ## 九、完整主题示例
 
@@ -465,15 +501,19 @@ AI 输出前必须逐项确认：
 
 1. 先判断需求是主题、`.mtplugin` 还是仓库内受信扩展。
 2. 主题只输出合法 JSON，不附 Markdown 代码围栏，除非用户明确要求解释。
-3. 纯样式使用 `schemaVersion: "1.0"`；需要声明式状态或音视频才使用 `"1.1"`；不输出 `id` 和 `importedAt`。
-4. `variables` 只使用本文白名单；颜色值优先使用 HSL 通道。
-5. 不生成外部 URL、`@import`、`data:` URL、手写 Blob URL、JavaScript 或 HTML。
-6. `customCss` 优先使用 `data-ui`、`data-tab-id` 和 `data-active-tab`，不要依赖内部 class 名。
-7. 不主动隐藏 `characters`、`settings` 或全部导航。
-8. 本地图片在 CSS 中使用用户提供的 `var(--tavern-resource-..., none)`；音视频只放入 1.1 的 `media`，并假设用户会替换本机资源 ID。
-9. 为窄屏、横屏、Safe Area 和 `prefers-reduced-motion` 保留可用降级。
-10. 1.1 只使用本文事件、条件、动作和 Surface；不要生成 JavaScript、CSS 选择器点击监听或未公开的宿主能力。
-11. 共享主题不得硬编码仅作者设备存在的资源 ID，必须提供回退值或安装替换说明。
+3. JSON 字符串不能包含未转义的实际换行；多行 `customCss` 必须在 JSON 中使用 `\n`。
+4. 纯样式使用 `schemaVersion: "1.0"`；需要声明式状态或音视频才使用 `"1.1"`；不输出 `id` 和 `importedAt`。
+5. `variables` 只使用本文白名单；颜色值优先使用 HSL 通道。
+6. 不生成外部 URL、`@import`、`data:` URL、手写 Blob URL、JavaScript 或 HTML。
+7. `customCss` 优先使用本文列出的稳定选择器，包括选中态的 `[aria-selected="true"]`；不要依赖内部 class 名。
+8. 不隐藏 `characters`、`settings` 或全部导航，也不生成视觉等价的隐藏方式。
+9. 本地图片在 CSS 中使用用户提供的 `var(--tavern-resource-..., none)`；音视频只放入 1.1 的 `media`，并假设用户会替换本机资源 ID。
+10. 1.1 的枚举值必须满足 `^[a-z][a-z0-9-]*$`；`counter` 状态按 `<key>-<整数>` 生成 CSS token。
+11. `theme.state.replace` 的 `value` 必须以 `group-` 开头；`media.preload` 只使用 `none`、`metadata` 或 `auto`。
+12. 视频运行时静音只使用 `media.setMuted`；不要生成 `media.toggleMuted` 或借 `media.setVolume` 解除静音。
+13. 为窄屏、横屏、Safe Area 和 `prefers-reduced-motion` 保留可用降级。
+14. 1.1 只使用本文事件、条件、动作和 Surface；不要生成 JavaScript、CSS 选择器点击监听或未公开的宿主能力。
+15. 共享主题不得硬编码仅作者设备存在的资源 ID，必须提供回退值或安装替换说明。
 
 ## 十一、验证与排错
 

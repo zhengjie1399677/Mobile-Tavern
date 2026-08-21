@@ -413,6 +413,7 @@ export interface ThemeMediaRuntimeState {
   definition: ThemeMediaDefinition;
   status: "stopped" | "playing" | "paused";
   volume: number;
+  muted: boolean;
 }
 
 export interface ThemeSurfaceRuntimeState {
