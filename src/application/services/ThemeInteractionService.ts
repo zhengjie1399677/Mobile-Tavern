@@ -78,6 +78,7 @@ export class ThemeInteractionService implements IThemeInteractionService {
         definition,
         status: "stopped",
         volume: definition.volume,
+        muted: definition.type === "video" ? definition.muted : false,
       } satisfies ThemeMediaRuntimeState,
     ]));
     const state = Object.fromEntries(Object.entries(config.state).map(([key, definition]) => [
@@ -204,6 +205,9 @@ export class ThemeInteractionService implements IThemeInteractionService {
         return;
       case "media.setVolume":
         this.updateMedia(action.target, runtime => ({ ...runtime, volume: action.volume }));
+        return;
+      case "media.setMuted":
+        this.updateMedia(action.target, runtime => ({ ...runtime, muted: action.muted }));
         return;
       case "surface.show":
         if (this.environment.mediaEnabled) {

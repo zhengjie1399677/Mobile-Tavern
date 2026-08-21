@@ -18,6 +18,7 @@ import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
 import { Upload, Download, Trash2, Check, Plus, Edit } from "lucide-react";
 import {
   applyThemePackage,
+  detectCriticalNavigationHiding,
   removeThemePackageStyle,
   parseThemePackage,
   serializeThemePackage,
@@ -117,6 +118,14 @@ export default function ThemeConfigSection({
       }
 
       const pkg = result.sanitized;
+      const navigationRisks = detectCriticalNavigationHiding(pkg.customCss ?? "");
+      if (navigationRisks.length > 0) {
+        const confirmed = await showCustomConfirm(
+          `检测到主题 CSS 可能隐藏${navigationRisks.join("、")}。应用后可能无法进入角色页或设置页恢复主题，仍要导入吗？`,
+          "导航恢复风险",
+        );
+        if (!confirmed) return;
+      }
       // 同 id 主题覆盖（同名包幂等去重）
       const existingIdx = customThemes.findIndex(t => t.id === pkg.id);
       let nextThemes: CustomThemePackage[];

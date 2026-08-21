@@ -152,6 +152,12 @@ const actionSchema = z.discriminatedUnion("action", [
     delayMs: delayMsSchema,
   }).strict(),
   z.object({
+    action: z.literal("media.setMuted"),
+    target: identifierSchema,
+    muted: z.boolean(),
+    delayMs: delayMsSchema,
+  }).strict(),
+  z.object({
     action: z.literal("surface.show"),
     target: z.enum(THEME_MEDIA_SURFACES),
     mediaId: identifierSchema,
@@ -265,7 +271,8 @@ export const ThemeInteractionConfigSchema = configBaseSchema.superRefine((config
       const actionPath = ["interactions", ruleIndex, "do", actionIndex];
       if (
         (action.action === "media.play" || action.action === "media.pause" ||
-          action.action === "media.stop" || action.action === "media.setVolume") &&
+          action.action === "media.stop" || action.action === "media.setVolume" ||
+          action.action === "media.setMuted") &&
         !config.media[action.target]
       ) {
         context.addIssue({
@@ -289,6 +296,24 @@ export const ThemeInteractionConfigSchema = configBaseSchema.superRefine((config
             message: "媒体 Surface 只能显示视频资源",
           });
         }
+      }
+      if (
+        action.action === "media.setMuted" &&
+        config.media[action.target] &&
+        config.media[action.target].type !== "video"
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...actionPath, "target"],
+          message: "media.setMuted 只能操作视频媒体",
+        });
+      }
+      if (action.action === "theme.state.replace" && !action.value.startsWith(`${action.group}-`)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...actionPath, "value"],
+          message: `theme.state.replace 的 value 必须以 ${action.group}- 开头`,
+        });
       }
       if (
         action.action === "state.set" || action.action === "state.toggle" ||

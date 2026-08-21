@@ -17,6 +17,7 @@ describe("主题交互 1.1 契约", () => {
         do: [
           { action: "media.play", target: "rain" },
           { action: "surface.show", target: "main.background", mediaId: "aurora" },
+          { action: "media.setMuted", target: "aurora", muted: false },
           { action: "state.set", key: "mood", value: "dream" },
           { action: "theme.state.add", value: "ambient-active" },
         ],
@@ -65,5 +66,25 @@ describe("主题交互 1.1 契约", () => {
 
     expect(result.success).toBe(false);
     expect(result.errors.join("\n")).toMatch(/100|60000/);
+  });
+
+  it("校验静音动作媒体类型与样式 token 分组", () => {
+    const result = parseThemeInteractionConfig({
+      media: {
+        rain: { type: "audio", src: "tavern-resource://r_rain" },
+      },
+      interactions: [{
+        id: "invalid-actions",
+        when: { event: "theme.activate" },
+        do: [
+          { action: "media.setMuted", target: "rain", muted: false },
+          { action: "theme.state.replace", group: "mood", value: "dream" },
+        ],
+      }],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.errors.join("\n")).toContain("只能操作视频媒体");
+    expect(result.errors.join("\n")).toContain("必须以 mood- 开头");
   });
 });

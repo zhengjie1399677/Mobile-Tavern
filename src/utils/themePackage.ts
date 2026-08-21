@@ -78,6 +78,58 @@ function isSafeThemeVariableValue(value: string): boolean {
   return !FORBIDDEN_CSS_VALUE_PATTERN.test(value);
 }
 
+const NAVIGATION_HIDING_DECLARATION = /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)|opacity\s*:\s*(?:0(?:\.0*)?|\.0+))\s*(?:!important\s*)?(?:;|$)/i;
+const MAIN_TAB_UI_ATTRIBUTE = /\[data-ui\s*=\s*["']?main-tab["']?\]/i;
+const MAIN_TAB_BAR_UI_ATTRIBUTE = /\[data-ui\s*=\s*["']?main-tab-bar["']?\]/i;
+const TAB_ID_ATTRIBUTE = /\[data-tab-id\s*=/i;
+const PROTECTED_TAB_ID_ATTRIBUTE = /\[data-tab-id\s*=\s*["']?(characters|settings)["']?\]/i;
+
+function getSelectorSubject(selector: string): string {
+  const normalized = selector.trim();
+  let bracketDepth = 0;
+  let parenthesisDepth = 0;
+  for (let index = normalized.length - 1; index >= 0; index -= 1) {
+    const char = normalized[index];
+    if (char === "]") bracketDepth += 1;
+    else if (char === "[") bracketDepth -= 1;
+    else if (char === ")") parenthesisDepth += 1;
+    else if (char === "(") parenthesisDepth -= 1;
+    else if (bracketDepth === 0 && parenthesisDepth === 0 && (/[>+~\s]/.test(char))) {
+      return normalized.slice(index + 1).trim();
+    }
+  }
+  return normalized;
+}
+
+/**
+ * 找出会明显隐藏关键导航的 customCss 规则，供导入界面要求用户二次确认。
+ * 这里只识别稳定选择器上的直接隐藏声明，不尝试模拟完整 CSS 布局与级联。
+ */
+export function detectCriticalNavigationHiding(customCss: string): string[] {
+  const cssWithoutComments = customCss.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
+  const risks = new Set<string>();
+  let match: RegExpExecArray | null;
+
+  while ((match = rulePattern.exec(cssWithoutComments)) !== null) {
+    const declarations = match[2];
+    if (!NAVIGATION_HIDING_DECLARATION.test(declarations)) continue;
+
+    for (const selector of match[1].split(",")) {
+      const subject = getSelectorSubject(selector);
+      if (MAIN_TAB_BAR_UI_ATTRIBUTE.test(subject)) {
+        risks.add("整条主导航");
+      } else if (MAIN_TAB_UI_ATTRIBUTE.test(subject)) {
+        const protectedTab = subject.match(PROTECTED_TAB_ID_ATTRIBUTE)?.[1];
+        if (protectedTab) risks.add(`关键入口 ${protectedTab}`);
+        else if (!TAB_ID_ATTRIBUTE.test(subject)) risks.add("全部主导航入口");
+      }
+    }
+  }
+
+  return [...risks];
+}
+
 // ===== 类型 =====
 
 /**
