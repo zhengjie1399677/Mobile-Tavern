@@ -25,6 +25,7 @@ import { FloatingCat } from "./FloatingCat";
 import { FloatingCharacter } from "./FloatingCharacter";
 import UpdatePrompt from "./UpdatePrompt";
 import { PromptWorkbenchFocusProvider } from "../contexts/PromptWorkbenchFocusContext";
+import { ThemeInteractionHost } from "./theme-interactions/ThemeInteractionHost";
 
 function TabLoadingFallback() {
   const [visible, setVisible] = React.useState(false);
@@ -53,6 +54,7 @@ export default function MainLayout() {
     showSplash,
     safeAreas,
     settings,
+    currentTheme,
     runningPlugin,
     charModalOpen,
     timelineModalOpen,
@@ -63,6 +65,7 @@ export default function MainLayout() {
     showSplash: state.showSplash,
     safeAreas: state.safeAreas,
     settings: state.settings,
+    currentTheme: state.currentTheme,
     runningPlugin: state.runningPlugin,
     charModalOpen: state.charModalOpen,
     timelineModalOpen: state.timelineModalOpen,
@@ -152,6 +155,12 @@ export default function MainLayout() {
       } ${
         activeTab === "chat" || activeTab === "playground" ? "pt-0" : "pt-[var(--safe-area-top)]"
       }`}>
+        <ThemeInteractionHost
+          currentTheme={String(currentTheme)}
+          customThemes={settings.customThemes ?? []}
+          activeTab={activeTab}
+          mediaEnabled={settings.themeMediaEnabled ?? false}
+        />
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
         {activeTab !== "chat" && activeTab !== "playground" && !promptFocusActive && (
           <div

@@ -147,6 +147,8 @@ export default {
   "report.errors_summary": "진단 결과: 오류 {errors}개, 경고 {warnings}개",
 
   "theme.section_title": "읽기 테마 및 색조",
+  "theme.media_enabled": "테마의 로컬 미디어 재생 허용",
+  "theme.media_enabled_desc": "제한된 규칙으로 현재 테마가 로컬 리소스의 오디오나 비디오를 재생합니다. 기본값은 꺼짐이며 네트워크나 다른 사용자 데이터에는 접근할 수 없습니다.",
   "tab_visibility.title": "하단 바 항목",
   "tab_visibility.description": "하단 바에 표시할 선택 페이지를 고릅니다. 캐릭터와 설정은 복구 항목으로 항상 유지됩니다.",
   "local_resources.title": "로컬 UI 리소스",

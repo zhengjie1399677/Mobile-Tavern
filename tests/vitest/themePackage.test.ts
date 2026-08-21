@@ -59,4 +59,36 @@ describe("自定义主题样式隔离", () => {
     expect(validateThemePackage(unsafeTheme).valid).toBe(false);
     expect(buildThemeCss(unsafeTheme)).not.toContain("example.com");
   });
+
+  it("兼容 1.0，并校验与保留 1.1 受限交互", () => {
+    const interactiveTheme: CustomThemePackage = {
+      ...createTheme("custom_interactive", ""),
+      schemaVersion: "1.1",
+      media: {
+        rain: { type: "audio", src: "tavern-resource://r_rain", loop: true, volume: 0.4, preload: "metadata" },
+      },
+      state: {
+        active: { type: "boolean", default: false },
+      },
+      interactions: [{
+        id: "activate",
+        when: { event: "theme.activate" },
+        if: [],
+        do: [{ action: "media.play", target: "rain", delayMs: 0 }],
+        cooldownMs: 100,
+        once: false,
+      }],
+    };
+
+    const result = validateThemePackage(interactiveTheme);
+    expect(result.valid).toBe(true);
+    expect(result.sanitized?.schemaVersion).toBe("1.1");
+    expect(result.sanitized?.interactions).toHaveLength(1);
+    expect(validateThemePackage(createTheme("custom_legacy", "")).valid).toBe(true);
+  });
+
+  it("拒绝 1.0 偷带交互字段", () => {
+    const invalid = { ...createTheme("custom_invalid", ""), media: {} };
+    expect(validateThemePackage(invalid).errors.join("\n")).toContain("schemaVersion 1.1");
+  });
 });

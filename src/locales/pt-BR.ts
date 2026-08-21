@@ -147,6 +147,8 @@ export default {
   "report.errors_summary": "Diagnóstico: {errors} erro(s), {warnings} aviso(s)",
 
   "theme.section_title": "Tema de Leitura e Tom de Cor",
+  "theme.media_enabled": "Permitir mídia local do tema",
+  "theme.media_enabled_desc": "Permite que o tema ativo reproduza áudio ou vídeo local por regras restritas. Desativado por padrão; temas não acessam a rede nem outros dados do usuário.",
   "tab_visibility.title": "Itens da barra inferior",
   "tab_visibility.description": "Escolha as páginas opcionais da barra inferior. Personagens e Configurações permanecem como entradas de recuperação.",
   "local_resources.title": "Recursos locais de UI",

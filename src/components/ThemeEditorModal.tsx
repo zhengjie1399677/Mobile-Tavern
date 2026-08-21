@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { X, Save, Eye, Palette, Code, Info, FileText } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Save, Eye, Palette, Code, Info, FileText, Workflow } from "lucide-react";
 import {
   type CustomThemePackage,
   applyThemePackage,
@@ -7,6 +7,7 @@ import {
   generateThemeId,
   validateThemePackage,
 } from "../utils/themePackage";
+import { parseThemeInteractionConfig } from "../domain/themes/themeInteractionContract";
 
 interface ThemeEditorModalProps {
   isOpen: boolean;
@@ -63,6 +64,53 @@ const VARIABLE_GROUPS = [
   },
 ];
 
+type EditorTab = "basic" | "colors" | "css" | "interactions";
+
+const DEFAULT_EDITOR_THEME: CustomThemePackage = {
+  schemaVersion: "1.0",
+  name: "新自定义主题",
+  version: "1.0.0",
+  description: "",
+  isDark: true,
+  variables: {
+    "--background": "#0d0f17",
+    "--foreground": "#e2e8f0",
+    "--card": "#161925",
+    "--card-foreground": "#e2e8f0",
+    "--popover": "#161925",
+    "--popover-foreground": "#e2e8f0",
+    "--primary": "#8b5cf6",
+    "--primary-foreground": "#ffffff",
+    "--secondary": "#1e293b",
+    "--secondary-foreground": "#e2e8f0",
+    "--muted": "#1f2937",
+    "--muted-foreground": "#9ca3af",
+    "--accent": "#2d1b54",
+    "--accent-foreground": "#c084fc",
+    "--destructive": "#ef4444",
+    "--destructive-foreground": "#ffffff",
+    "--border": "#1e293b",
+    "--input": "#1e293b",
+    "--ring": "#8b5cf6",
+    "--radius": "0.6rem",
+    "--dialogue-color": "#f1f5f9",
+    "--prose-color": "#a78bfa",
+  },
+  customCss: "",
+};
+
+function cloneEditorTheme(source: CustomThemePackage | null): CustomThemePackage {
+  return JSON.parse(JSON.stringify(source ?? DEFAULT_EDITOR_THEME)) as CustomThemePackage;
+}
+
+function buildInteractionDraft(source: CustomThemePackage | null): string {
+  return JSON.stringify({
+    media: source?.media ?? {},
+    state: source?.state ?? {},
+    interactions: source?.interactions ?? [],
+  }, null, 2);
+}
+
 export default function ThemeEditorModal({
   isOpen,
   onClose,
@@ -73,46 +121,18 @@ export default function ThemeEditorModal({
   originalThemeId,
   showCustomAlert,
 }: ThemeEditorModalProps) {
-  const [activeTab, setActiveTab] = useState<"basic" | "colors" | "css">("basic");
+  const [activeTab, setActiveTab] = useState<EditorTab>("basic");
   
   // 初始化主题对象状态
-  const [theme, setTheme] = useState<CustomThemePackage>(() => {
-    if (themeToEdit) {
-      return JSON.parse(JSON.stringify(themeToEdit));
-    }
-    return {
-      schemaVersion: "1.0",
-      name: "新自定义主题",
-      version: "1.0.0",
-      description: "",
-      isDark: true,
-      variables: {
-        "--background": "#0d0f17",
-        "--foreground": "#e2e8f0",
-        "--card": "#161925",
-        "--card-foreground": "#e2e8f0",
-        "--popover": "#161925",
-        "--popover-foreground": "#e2e8f0",
-        "--primary": "#8b5cf6",
-        "--primary-foreground": "#ffffff",
-        "--secondary": "#1e293b",
-        "--secondary-foreground": "#e2e8f0",
-        "--muted": "#1f2937",
-        "--muted-foreground": "#9ca3af",
-        "--accent": "#2d1b54",
-        "--accent-foreground": "#c084fc",
-        "--destructive": "#ef4444",
-        "--destructive-foreground": "#ffffff",
-        "--border": "#1e293b",
-        "--input": "#1e293b",
-        "--ring": "#8b5cf6",
-        "--radius": "0.6rem",
-        "--dialogue-color": "#f1f5f9",
-        "--prose-color": "#a78bfa",
-      },
-      customCss: "",
-    };
-  });
+  const [theme, setTheme] = useState<CustomThemePackage>(() => cloneEditorTheme(themeToEdit));
+  const [interactionDraft, setInteractionDraft] = useState(() => buildInteractionDraft(themeToEdit));
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setTheme(cloneEditorTheme(themeToEdit));
+    setInteractionDraft(buildInteractionDraft(themeToEdit));
+    setActiveTab("basic");
+  }, [isOpen, themeToEdit]);
 
   // 侦听变化实时预览
   useEffect(() => {
@@ -195,13 +215,33 @@ export default function ThemeEditorModal({
       return;
     }
 
+    let rawInteractionConfig: unknown;
+    try {
+      rawInteractionConfig = JSON.parse(interactionDraft);
+    } catch (error) {
+      await showCustomAlert(`交互规则 JSON 无法解析：${(error as Error).message}`, "校验失败");
+      return;
+    }
+    const interactionValidation = parseThemeInteractionConfig(rawInteractionConfig);
+    if (!interactionValidation.success || !interactionValidation.config) {
+      await showCustomAlert(`交互规则无效：\n${interactionValidation.errors.join("\n")}`, "校验失败");
+      return;
+    }
+    const interactionConfig = interactionValidation.config;
+    const hasInteractions = Object.keys(interactionConfig.media).length > 0 ||
+      Object.keys(interactionConfig.state).length > 0 || interactionConfig.interactions.length > 0;
+
     const candidateTheme: CustomThemePackage = {
       ...theme,
+      schemaVersion: hasInteractions ? "1.1" : "1.0",
       name: trimmedName,
       version: theme.version.trim(),
       description: theme.description?.trim() || undefined,
       id: editingThemeId && themeToEdit?.name === trimmedName ? editingThemeId : generateThemeId(trimmedName),
       importedAt: theme.importedAt || Date.now(),
+      media: hasInteractions ? interactionConfig.media : undefined,
+      state: hasInteractions ? interactionConfig.state : undefined,
+      interactions: hasInteractions ? interactionConfig.interactions : undefined,
     };
 
     const validation = validateThemePackage(candidateTheme);
@@ -262,18 +302,19 @@ export default function ThemeEditorModal({
         </div>
 
         {/* 选项卡切换 */}
-        <div className="flex border-b border-border/80 bg-input/50 px-3 shrink-0">
+        <div className="flex shrink-0 overflow-x-auto border-b border-border/80 bg-input/50 px-3">
           {[
             { id: "basic", label: "基本元数据", icon: FileText },
             { id: "colors", label: "颜色调色板", icon: Palette },
             { id: "css", label: "自定义 CSS", icon: Code },
+            { id: "interactions", label: "受限交互", icon: Workflow },
           ].map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as EditorTab)}
                 className={`py-2 px-3 text-xs font-semibold flex items-center gap-1.5 transition-all ${
                   active
                     ? "border-b-2 border-primary text-primary"
@@ -447,6 +488,32 @@ export default function ThemeEditorModal({
                 }}
                 className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs font-mono leading-relaxed resize-y"
               />
+            </div>
+          )}
+
+          {/* TAB 4: 受限交互 */}
+          {activeTab === "interactions" && (
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="block font-bold text-muted-foreground">主题交互配置</label>
+                <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-500">
+                  schema 1.1 · 无 JavaScript
+                </span>
+              </div>
+              <p className="text-[10px] leading-relaxed text-muted-foreground">
+                使用 JSON 声明本地音视频、主题私有状态与事件规则。运行时只接受文档列出的事件、条件和动作；不能访问 DOM、网络、聊天内容或设置。引用资源前请在本地资源库复制 <code>tavern-resource://r_...</code>。
+              </p>
+              <textarea
+                aria-label="主题受限交互 JSON"
+                rows={20}
+                value={interactionDraft}
+                onChange={event => setInteractionDraft(event.target.value)}
+                spellCheck={false}
+                className="w-full resize-y rounded border border-border bg-input p-2 font-mono text-[11px] leading-relaxed text-foreground outline-none"
+              />
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-[10px] leading-relaxed text-muted-foreground">
+                保存时会自动校验引用、类型和数量上限。有交互内容时主题会升级为 1.1；清空 <code>media</code>、<code>state</code> 与 <code>interactions</code> 后会恢复为 1.0。
+              </div>
             </div>
           )}
 

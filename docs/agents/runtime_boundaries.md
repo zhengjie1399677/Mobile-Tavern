@@ -18,6 +18,8 @@
 | 应用用例层 | `src/application/useCases/` | 业务初始化、分页、级联流程和跨 Service 协调 | 不保存 React State，不直接渲染界面 |
 | 本地界面资源服务 | `src/application/services/LocalResourceService.ts` | 校验用户导入的图片、视频与音频，管理受控 Blob URL 和 CSS 资源变量 | 不把媒体字节写入 settings，不开放任意远程 URL |
 | 本地界面资源存储 | `src/infrastructure/resources/localResourceStorage.ts` | 在独立数据库中物理分轨资源元数据与文件字节 | 不被 React 组件直接调用，不与插件包存储混用 |
+| 主题交互应用服务 | `src/application/services/ThemeInteractionService.ts` | 解释主题 1.1 白名单事件、条件与动作，维护有限状态、冷却和延迟任务 | 不接触 DOM、存储、网络或业务数据，不执行主题代码 |
+| 主题媒体宿主 | `src/components/theme-interactions/ThemeInteractionHost.tsx` | 把稳定 `data-ui` 事件、生命周期和三个背景 Surface 适配到主题服务，并解析本地媒体 | 不向主题暴露元素引用，不接受远程 URL 或任意选择器 |
 
 ## 二、允许的数据方向
 
@@ -27,6 +29,8 @@
   ├─→ React Context ─→ application/useCases ─→ 应用 Service
   ├─→ 应用 Service ─→ Repository/Adapter ─→ infrastructure/storage
   ├─→ LocalResourceService ───────────────→ infrastructure/resources
+  ├─→ ThemeInteractionHost ─→ ThemeInteractionService ─→ 主题私有运行态
+  │                        └→ LocalResourceService（只解析已声明本地媒体）
   ├─→ 记忆领域端口 ───────────────────────→ IndexedDbMemoryPersistenceService
   ├─→ SillyTavern Compatibility Runtime
   ├─→ Plugin Host RPC

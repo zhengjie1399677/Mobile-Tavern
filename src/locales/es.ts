@@ -147,6 +147,8 @@ export default {
   "report.errors_summary": "Diagnóstico: {errors} error(es), {warnings} advertencia(s)",
 
   "theme.section_title": "Temas y Colores",
+  "theme.media_enabled": "Permitir contenido multimedia local del tema",
+  "theme.media_enabled_desc": "Permite que el tema activo reproduzca audio o vídeo local mediante reglas restringidas. Está desactivado por defecto; los temas no acceden a la red ni a otros datos.",
   "tab_visibility.title": "Entradas de la barra inferior",
   "tab_visibility.description": "Elige las páginas opcionales de la barra inferior. Personajes y Ajustes permanecen como entradas de recuperación.",
   "local_resources.title": "Recursos locales de IU",

@@ -353,6 +353,7 @@ export const useSettingsLoader = ({
             chatLineHeight: storedSet.chatLineHeight ?? DEFAULT_SETTINGS.chatLineHeight,
             customThemes: Array.isArray(storedSet.customThemes) ? storedSet.customThemes : DEFAULT_SETTINGS.customThemes,
             hiddenMainTabs: Array.isArray(storedSet.hiddenMainTabs) ? storedSet.hiddenMainTabs : DEFAULT_SETTINGS.hiddenMainTabs,
+            themeMediaEnabled: storedSet.themeMediaEnabled ?? DEFAULT_SETTINGS.themeMediaEnabled,
             imageGenApi: {
               ...DEFAULT_SETTINGS.imageGenApi,
               ...(storedSet.imageGenApi || {}),

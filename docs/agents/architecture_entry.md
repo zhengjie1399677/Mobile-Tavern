@@ -28,6 +28,7 @@ Mobile Tavern 是纯移动端的 SillyTavern 兼容运行容器。移动端位�
 | Prompt、角色卡、世界书 | `PromptService.ts`、`src/application/services/prompt/` | `docs/agents/sillytavern_compat.md` |
 | Compatibility Runtime | `src/compatibility/sillytavern/` | `docs/agents/runtime_boundaries.md`、`docs/agents/sillytavern_compat.md` |
 | 第三方全屏插件 | `docs/Plugin_System_v1.md`、`src/domain/plugins/` | `src/components/plugins/`、`src/infrastructure/plugins/pluginStorage.ts` |
+| 自定义主题、Tab 显隐、本地界面资源与受限交互 | `docs/Theme_Development_Guide.md`、`src/domain/themes/` | `ThemeInteractionService.ts`、`src/components/theme-interactions/`、`LocalResourceService.ts` |
 | Native Adapter、Android、Tauri、打包 | 对应 Adapter、`src-tauri/` | `docs/agents/mobile_strategy.md`、Android 调试指南 |
 | 云端服务 | 目标 `cloud/<service>/`、其 README 和 Config | `docs/agents/cloud_strategy.md`、相关 `shared/` 契约 |
 | 环境变量、功能开关、灰度策略 | 对应配置入口 | `docs/agents/configuration_strategy.md` |

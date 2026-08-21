@@ -147,6 +147,8 @@ export default {
   "report.errors_summary": "自检结果：错误 {errors} 项，警告 {warnings} 项",
 
   "theme.section_title": "阅读主题与色彩基调",
+  "theme.media_enabled": "允许主题播放本地媒体",
+  "theme.media_enabled_desc": "允许当前主题按受限规则播放资源库中的音频或视频。默认关闭，主题无法访问网络或其他用户数据。",
   "tab_visibility.title": "底栏入口",
   "tab_visibility.description": "选择显示在底栏的可选页面。角色与设置作为恢复入口始终保留。",
   "local_resources.title": "本地界面资源",

@@ -223,6 +223,21 @@ export default function ThemeConfigSection({
           </div>
         </section>
 
+        <section data-ui="theme-media-permission" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/35 p-3">
+          <div>
+            <h4 className="text-xs font-bold text-foreground">{t("theme.media_enabled")}</h4>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("theme.media_enabled_desc")}</p>
+          </div>
+          <label className="checkBox-container shrink-0">
+            <input
+              type="checkbox"
+              checked={settings.themeMediaEnabled ?? false}
+              onChange={event => updateSettings(prev => ({ ...prev, themeMediaEnabled: event.target.checked }))}
+            />
+            <div className="checkBox-transition" />
+          </label>
+        </section>
+
         <Select
           value={currentTheme}
           onValueChange={(val: string) => handleThemeChange(val)}

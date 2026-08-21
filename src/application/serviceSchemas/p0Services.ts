@@ -129,6 +129,7 @@ export const P1_SERVICE_NAMES: readonly string[] = [
   KernelServices.Bgm,
   KernelServices.MultiMessage,
   KernelServices.LocalResources,
+  KernelServices.ThemeInteractions,
 ] as const;
 
 /**

@@ -20,6 +20,12 @@
 
 import { sanitizeCss } from "./security";
 import { scopeThemeCss } from "./cssScope";
+import {
+  parseThemeInteractionConfig,
+  type ThemeInteractionRule,
+  type ThemeMediaDefinition,
+  type ThemeStateDefinition,
+} from "../domain/themes/themeInteractionContract";
 
 // ===== 常量 =====
 
@@ -79,8 +85,8 @@ function isSafeThemeVariableValue(value: string): boolean {
  * 对应 `.tavern-theme.json` 文件格式。
  */
 export interface CustomThemePackage {
-  /** 包格式版本，当前固定为 "1.0" */
-  schemaVersion: "1.0";
+  /** 1.1 在 1.0 样式能力上增加受限交互；旧 1.0 包保持兼容。 */
+  schemaVersion: "1.0" | "1.1";
   /** 主题显示名（用户可读） */
   name: string;
   /** 主题版本号（语义化版本，如 "1.0.0"） */
@@ -100,6 +106,12 @@ export interface CustomThemePackage {
    * 经 sanitizeCss 过滤，禁止 @import / url() / expression() / position:fixed / <script>。
    */
   customCss?: string;
+  /** 1.1：宿主可播放的本地音视频声明。 */
+  media?: Record<string, ThemeMediaDefinition>;
+  /** 1.1：主题私有、非持久化的有限状态声明。 */
+  state?: Record<string, ThemeStateDefinition>;
+  /** 1.1：事件、条件和白名单动作规则。 */
+  interactions?: ThemeInteractionRule[];
   /** 导入时由系统生成的唯一 id（导出时为空，导入时填充） */
   id?: string;
   /** 创建时间戳（导入时填充） */
@@ -121,7 +133,7 @@ export interface ValidationResult {
  *
  * 校验项：
  *   1. 顶层字段齐全（schemaVersion / name / version / isDark / variables）
- *   2. schemaVersion 必须为 "1.0"
+ *   2. schemaVersion 必须为 "1.0" 或 "1.1"
  *   3. name 非空且 ≤ 40 字符
  *   4. version 非空
  *   5. variables 的键必须在 ALLOWED_CSS_VARS 白名单内
@@ -141,8 +153,8 @@ export function validateThemePackage(raw: unknown): ValidationResult {
   const pkg = raw as Record<string, unknown>;
 
   // 1. schemaVersion
-  if (pkg.schemaVersion !== "1.0") {
-    errors.push(`schemaVersion 必须为 "1.0"，当前为 ${JSON.stringify(pkg.schemaVersion)}`);
+  if (pkg.schemaVersion !== "1.0" && pkg.schemaVersion !== "1.1") {
+    errors.push(`schemaVersion 必须为 "1.0" 或 "1.1"，当前为 ${JSON.stringify(pkg.schemaVersion)}`);
   }
 
   // 2. name
@@ -178,6 +190,22 @@ export function validateThemePackage(raw: unknown): ValidationResult {
   // 7. description（可选）
   if (pkg.description !== undefined && typeof pkg.description !== "string") {
     errors.push("description 必须是字符串");
+  }
+
+  const hasInteractionFields = pkg.media !== undefined || pkg.state !== undefined || pkg.interactions !== undefined;
+  if (pkg.schemaVersion === "1.0" && hasInteractionFields) {
+    errors.push("media、state 与 interactions 需要 schemaVersion 1.1");
+  }
+
+  const parsedInteractions = pkg.schemaVersion === "1.1"
+    ? parseThemeInteractionConfig({
+        media: pkg.media ?? {},
+        state: pkg.state ?? {},
+        interactions: pkg.interactions ?? [],
+      })
+    : undefined;
+  if (parsedInteractions && !parsedInteractions.success) {
+    errors.push(...parsedInteractions.errors.map(error => `主题交互：${error}`));
   }
 
   if (errors.length > 0) {
@@ -220,7 +248,7 @@ export function validateThemePackage(raw: unknown): ValidationResult {
   }
 
   const sanitized: CustomThemePackage = {
-    schemaVersion: "1.0",
+    schemaVersion: pkg.schemaVersion as "1.0" | "1.1",
     name: rawName,
     version: rawVersion,
     isDark: pkg.isDark as boolean,
@@ -234,6 +262,12 @@ export function validateThemePackage(raw: unknown): ValidationResult {
   if (typeof pkg.customCss === "string" && pkg.customCss.trim()) {
     // customCss 经 sanitizeCss 过滤后保留
     sanitized.customCss = sanitizeCss(pkg.customCss);
+  }
+
+  if (sanitized.schemaVersion === "1.1" && parsedInteractions?.config) {
+    sanitized.media = parsedInteractions.config.media;
+    sanitized.state = parsedInteractions.config.state;
+    sanitized.interactions = parsedInteractions.config.interactions;
   }
 
   return { valid: true, errors: [], sanitized };
@@ -286,6 +320,11 @@ export function serializeThemePackage(pkg: CustomThemePackage): string {
   };
   if (pkg.description) exportable.description = pkg.description;
   if (pkg.customCss) exportable.customCss = pkg.customCss;
+  if (pkg.schemaVersion === "1.1") {
+    exportable.media = { ...(pkg.media ?? {}) };
+    exportable.state = { ...(pkg.state ?? {}) };
+    exportable.interactions = [...(pkg.interactions ?? [])];
+  }
   return JSON.stringify(exportable, null, 2);
 }
 

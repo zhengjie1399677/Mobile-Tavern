@@ -471,6 +471,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   chatLineHeight: 1.5,
   customThemes: [],
   hiddenMainTabs: [],
+  themeMediaEnabled: false,
   imageGenApi: {
     enabled: false,
     type: "openai-dalle",

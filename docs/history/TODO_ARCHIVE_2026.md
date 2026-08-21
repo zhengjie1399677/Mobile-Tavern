@@ -54,6 +54,7 @@
 | `FormattedText`、`SystemReportSection` 与 `MessageBubble` 职责拆分 | 已落地 | 2026 年 7 月变更记录与组件边界回归测试 |
 | 统一备份 v4、聊天导入持久化与原子覆盖恢复 | 已落地 | 2026 年 8 月变更记录与数据迁移回归测试 |
 | 主题 CSS 隔离、Tab 显隐与本地界面资源库 | 已落地 | 2026 年 8 月变更记录与运行时边界文档 |
+| 主题 1.1 受限交互、本地音视频与背景 Surface | 已落地 | `Theme_Development_Guide.md` 与 2026 年 8 月变更记录 |
 
 ## 维护规则
 

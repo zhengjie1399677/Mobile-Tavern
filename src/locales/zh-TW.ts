@@ -147,6 +147,8 @@ export default {
   "report.errors_summary": "自檢結果：錯誤 {errors} 項，警告 {warnings} 項",
 
   "theme.section_title": "閱讀主題與色彩基調",
+  "theme.media_enabled": "允許主題播放本機媒體",
+  "theme.media_enabled_desc": "允許目前主題按受限規則播放資源庫中的音訊或影片。預設關閉，主題無法存取網路或其他使用者資料。",
   "tab_visibility.title": "底欄入口",
   "tab_visibility.description": "選擇顯示在底欄的可選頁面。角色與設定作為恢復入口會始終保留。",
   "local_resources.title": "本機介面資源",

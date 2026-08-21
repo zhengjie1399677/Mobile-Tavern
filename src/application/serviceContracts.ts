@@ -6,6 +6,13 @@ import type {
   PromptCompositionTrace,
 } from "../domain/prompt-composition";
 import type { LocalResourceMetadata } from "../domain/resources/types";
+import type {
+  ThemeInteractionConfig,
+  ThemeInteractionEventType,
+  ThemeMediaDefinition,
+  ThemeMediaSurface,
+  ThemeStateValue,
+} from "../domain/themes/themeInteractionContract";
 
 export const KernelServices = {
   Database: "database",
@@ -29,6 +36,7 @@ export const KernelServices = {
   WorkerPlugins: "workerPlugins",
   DataMigration: "dataMigration",
   LocalResources: "localResources",
+  ThemeInteractions: "themeInteractions",
 } as const;
 
 
@@ -381,6 +389,55 @@ export interface ILocalResourceService extends IKernelService {
   getResourceReference(id: string): string;
   resolveResourceReference(reference: string): Promise<string>;
   getCssReference(id: string): string;
+}
+
+export type ThemeOrientation = "portrait" | "landscape";
+
+export interface ThemeInteractionEvent {
+  type: ThemeInteractionEventType;
+  target?: string;
+  tabId?: string;
+  orientation?: ThemeOrientation;
+  mediaId?: string;
+}
+
+export interface ThemeInteractionEnvironment {
+  mediaEnabled: boolean;
+  orientation: ThemeOrientation;
+  activeTab: string;
+  appVisible: boolean;
+  reducedMotion: boolean;
+}
+
+export interface ThemeMediaRuntimeState {
+  definition: ThemeMediaDefinition;
+  status: "stopped" | "playing" | "paused";
+  volume: number;
+}
+
+export interface ThemeSurfaceRuntimeState {
+  visible: boolean;
+  mediaId: string;
+}
+
+export interface ThemeInteractionSnapshot {
+  revision: number;
+  themeId: string | null;
+  mediaEnabled: boolean;
+  media: Record<string, ThemeMediaRuntimeState>;
+  surfaces: Partial<Record<ThemeMediaSurface, ThemeSurfaceRuntimeState>>;
+  state: Record<string, ThemeStateValue>;
+  styleStates: string[];
+}
+
+/** 主题 1.1 的有限状态机；只编排声明式动作，不接触 DOM、存储或网络。 */
+export interface IThemeInteractionService extends IKernelService {
+  activateTheme(themeId: string, config: ThemeInteractionConfig): void;
+  deactivateTheme(): void;
+  setEnvironment(patch: Partial<ThemeInteractionEnvironment>): void;
+  dispatch(event: ThemeInteractionEvent): void;
+  getSnapshot(): ThemeInteractionSnapshot;
+  subscribe(listener: () => void): () => void;
 }
 
 /**

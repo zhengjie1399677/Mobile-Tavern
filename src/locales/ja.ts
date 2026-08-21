@@ -147,6 +147,8 @@ export default {
   "report.errors_summary": "診断結果: エラー {errors} 件、警告 {warnings} 件",
 
   "theme.section_title": "表示テーマと配色",
+  "theme.media_enabled": "テーマのローカルメディア再生を許可",
+  "theme.media_enabled_desc": "制限付きルールにより、現在のテーマがローカルリソースの音声や動画を再生できます。初期設定はオフで、ネットワークや他のユーザーデータにはアクセスできません。",
   "tab_visibility.title": "下部バー項目",
   "tab_visibility.description": "下部バーに表示するページを選択します。キャラクターと設定は復旧用に常に表示されます。",
   "local_resources.title": "ローカル UI リソース",

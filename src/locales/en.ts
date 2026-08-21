@@ -147,6 +147,8 @@ export default {
   "report.errors_summary": "Diagnostic: {errors} error(s), {warnings} warning(s)",
 
   "theme.section_title": "Theme & Color Scheme",
+  "theme.media_enabled": "Allow local theme media",
+  "theme.media_enabled_desc": "Lets the active theme play audio or video from the local resource library through restricted rules. Off by default; themes cannot access the network or other user data.",
   "tab_visibility.title": "Bottom Bar Entries",
   "tab_visibility.description": "Choose optional pages shown in the bottom bar. Characters and Settings remain available as recovery entries.",
   "local_resources.title": "Local UI Resources",
