@@ -5,6 +5,7 @@ import type {
   PromptCompositionBudgetReport,
   PromptCompositionTrace,
 } from "../domain/prompt-composition";
+import type { LocalResourceMetadata } from "../domain/resources/types";
 
 export const KernelServices = {
   Database: "database",
@@ -27,6 +28,7 @@ export const KernelServices = {
   CharacterRender: "characterRender",
   WorkerPlugins: "workerPlugins",
   DataMigration: "dataMigration",
+  LocalResources: "localResources",
 } as const;
 
 
@@ -368,6 +370,17 @@ export interface IBgmService extends IKernelService {
   toggleMute(): boolean;
   getCurrentUrl(): string;
   getMuteState(): boolean;
+}
+
+/** 本地界面媒体资源服务：大字段独立存储，向主题与 UI 插件提供受控 Blob URL。 */
+export interface ILocalResourceService extends IKernelService {
+  listResources(): Promise<LocalResourceMetadata[]>;
+  importFile(file: File): Promise<LocalResourceMetadata>;
+  deleteResource(id: string): Promise<void>;
+  getObjectUrl(id: string): Promise<string>;
+  getResourceReference(id: string): string;
+  resolveResourceReference(reference: string): Promise<string>;
+  getCssReference(id: string): string;
 }
 
 /**

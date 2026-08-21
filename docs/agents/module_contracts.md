@@ -169,7 +169,7 @@ someAsyncOp().then(() => {
 
 ---
 
-## 7. 双数据库物理隔离契约
+## 7. 多数据库物理隔离契约
 
 ### 数据库划分
 
@@ -177,12 +177,16 @@ someAsyncOp().then(() => {
 |--------|------|------|
 | `MobileTavernLiteDB` | 主数据库（角色/会话/消息/记忆/设置） | v13 |
 | `MobileTavernPluginDB` | 插件数据库（包元数据/存档/文件字节） | v2 |
+| `MobileTavernResourceDB` | 用户本地界面资源（图片/视频/音频的元数据与文件字节） | v1 |
 
 ### 隔离规则
 
-- 两个数据库的连接管理独立，互不影响
+- 三个数据库的连接管理独立，互不影响
 - 插件数据库的 schema 升级不触发主数据库的 `onupgradeneeded`
 - 插件数据库的写操作不经过主数据库的 `enqueueWrite` 队列
+- 本地界面资源不得写入 `settings` 大对象，也不得借用插件包数据库；资源元数据与文件字节必须分 Store 保存。
+- 资源 Blob URL 只能由 `LocalResourceService` 创建和回收；React UI 不能直接读取资源 Repository。
+- 跨主题和后续 UI 插件持久化引用统一使用 `tavern-resource://<id>`，运行时必须经 `LocalResourceService.resolveResourceReference()` 解析，禁止持久化会话级 Blob URL。
 
 ---
 

@@ -6,6 +6,7 @@ import { useKernel } from "../contexts/KernelContext";
 import type { IExtension } from "@/src/application/serviceContracts";
 import type { TabType } from "../contexts/AppContext";
 import { useTranslation } from "../contexts/LanguageContext";
+import { getVisibleBottomBarTabs } from "../domain/ui/mainTabVisibility";
 
 const ICON_MAP: Record<string, LucideIcon> = {
   VenetianMask,
@@ -121,7 +122,7 @@ export default function MainLayout() {
   }, [activeTab]);
 
   const tabs = kernel.getExtensions<React.ComponentType<Record<string, unknown>>>("main:tabs");
-  const bottomBarTabs = tabs.filter(t => t.meta?.showInBottomBar);
+  const bottomBarTabs = getVisibleBottomBarTabs(tabs, settings.hiddenMainTabs);
   const registeredTabIds = tabs.map((tab) => tab.id).join("|");
 
   React.useEffect(() => {
@@ -156,6 +157,7 @@ export default function MainLayout() {
           <div
             role="tablist"
             aria-label="底栏导航页签"
+            data-ui="main-tab-bar"
             style={{ bottom: `${2 + (safeAreas?.bottom ?? 0)}px` }}
             className="absolute left-2 right-2 h-12 rounded-xl bg-card/70 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
           >
@@ -168,6 +170,8 @@ export default function MainLayout() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as TabType)}
                   role="tab"
+                  data-ui="main-tab"
+                  data-tab-id={tab.id}
                   aria-selected={selected}
                   aria-label={`${localizedName}${selected ? " (selected)" : ""}`}
                   className={`relative flex h-full flex-1 flex-col items-center justify-center rounded-xl tap-scale transition-colors duration-200 ${
@@ -189,6 +193,8 @@ export default function MainLayout() {
 
         {/* 2. Content Sections Grid */}
         <div
+          data-ui="main-tab-content"
+          data-active-tab={activeTab}
           aria-busy={deferredActiveTab !== activeTab}
           style={activeTab !== "chat" && activeTab !== "playground" && !promptFocusActive ? {
             paddingBottom: `${54 + (safeAreas?.bottom ?? 0)}px`

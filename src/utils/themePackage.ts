@@ -19,6 +19,7 @@
  */
 
 import { sanitizeCss } from "./security";
+import { scopeThemeCss } from "./cssScope";
 
 // ===== 常量 =====
 
@@ -63,6 +64,13 @@ const STYLE_TAG_ID_PREFIX = "tavern-custom-theme-";
 
 /** 包名最大长度 */
 const MAX_NAME_LENGTH = 40;
+
+/** 变量值也会进入最终样式，必须阻止绕过 customCss 的外链与声明逃逸。 */
+const FORBIDDEN_CSS_VALUE_PATTERN = /[{};<>]|url\s*\(|(?:-webkit-)?image-set\s*\(|(?:https?|data|blob|file)\s*:|@import\b|expression\s*\(|-moz-binding|behavior\s*:/i;
+
+function isSafeThemeVariableValue(value: string): boolean {
+  return !FORBIDDEN_CSS_VALUE_PATTERN.test(value);
+}
 
 // ===== 类型 =====
 
@@ -199,8 +207,8 @@ export function validateThemePackage(raw: unknown): ValidationResult {
     }
 
     // 值内容安全检查（防止 </style> 逃逸注入）
-    if (value.includes("</style>") || /<script/i.test(value)) {
-      errors.push(`变量 ${key} 的值包含禁止字符（</style> 或 <script>）`);
+    if (!isSafeThemeVariableValue(value)) {
+      errors.push(`变量 ${key} 的值包含禁止内容（外链、动态表达式或声明逃逸字符）`);
       continue;
     }
 
@@ -327,10 +335,19 @@ export function parseThemePackage(jsonStr: string): ValidationResult {
 export function buildThemeCss(pkg: CustomThemePackage): string {
   const selector = `[data-theme="${pkg.id}"]`;
   const varDecls = Object.entries(pkg.variables)
+    .filter(([key, value]) => (
+      ALLOWED_CSS_VARS.has(key) &&
+      typeof value === "string" &&
+      isSafeThemeVariableValue(value)
+    ))
     .map(([key, value]) => `  ${key}: ${value};`)
     .join("\n");
 
-  const customCss = pkg.customCss ? `\n${pkg.customCss}` : "";
+  // 编辑器实时预览也会直接经过这里，因此注入时必须再次清洗，不能只依赖导入校验。
+  // 额外 CSS 保持可以命中任意应用组件，但仅在当前主题处于激活状态时生效。
+  const sanitizedCustomCss = sanitizeCss(pkg.customCss ?? "");
+  const scopedCustomCss = scopeThemeCss(sanitizedCustomCss, selector);
+  const customCss = scopedCustomCss ? `\n${scopedCustomCss}` : "";
 
   return `${selector} {\n${varDecls}\n}${customCss}`;
 }
@@ -355,7 +372,20 @@ export function applyThemePackage(pkg: CustomThemePackage): void {
   style.id = styleId;
   style.setAttribute("data-tavern-theme", pkg.id);
   style.textContent = buildThemeCss(pkg);
+  style.disabled = document.documentElement.getAttribute("data-theme") !== pkg.id;
   document.head.appendChild(style);
+}
+
+/**
+ * 只启用当前自定义主题的 style 标签。
+ * 除了普通规则作用域，这也隔离了 @keyframes / @font-face 等全局命名空间声明。
+ */
+export function setActiveThemePackageStyles(themeId: string): void {
+  if (typeof document === "undefined") return;
+  const themeStyles = document.querySelectorAll<HTMLStyleElement>("style[data-tavern-theme]");
+  for (const style of themeStyles) {
+    style.disabled = style.getAttribute("data-tavern-theme") !== themeId;
+  }
 }
 
 /**

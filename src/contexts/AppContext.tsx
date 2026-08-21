@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, startTransition } from "react";
 import { TRANSLATIONS } from "../locales/index";
+import { setActiveThemePackageStyles } from "../utils/themePackage";
 
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。
@@ -247,6 +248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     document.documentElement.setAttribute("data-theme", currentTheme);
+    setActiveThemePackageStyles(currentTheme);
     // isDark 判定：内置主题用字面量；自定义主题（custom_* 前缀）从 localStorage 读取由
     // ThemeConfigSection 在应用主题前写入的 isDark 标记，避免 AppProvider 反向依赖 settings.customThemes
     let isDark: boolean;

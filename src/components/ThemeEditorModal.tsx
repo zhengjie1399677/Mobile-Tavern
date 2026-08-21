@@ -4,9 +4,9 @@ import {
   type CustomThemePackage,
   applyThemePackage,
   removeThemePackageStyle,
-  generateThemeId
+  generateThemeId,
+  validateThemePackage,
 } from "../utils/themePackage";
-import { sanitizeCss } from "../utils/security";
 
 interface ThemeEditorModalProps {
   isOpen: boolean;
@@ -195,13 +195,25 @@ export default function ThemeEditorModal({
       return;
     }
 
-    const finalTheme: CustomThemePackage = {
+    const candidateTheme: CustomThemePackage = {
       ...theme,
       name: trimmedName,
       version: theme.version.trim(),
       description: theme.description?.trim() || undefined,
       id: editingThemeId && themeToEdit?.name === trimmedName ? editingThemeId : generateThemeId(trimmedName),
       importedAt: theme.importedAt || Date.now(),
+    };
+
+    const validation = validateThemePackage(candidateTheme);
+    if (!validation.valid || !validation.sanitized) {
+      await showCustomAlert(`主题内容无效：\n${validation.errors.join("\n")}`, "校验失败");
+      return;
+    }
+
+    const finalTheme: CustomThemePackage = {
+      ...validation.sanitized,
+      id: candidateTheme.id,
+      importedAt: candidateTheme.importedAt,
     };
 
     // 移除预览样式并返回
@@ -422,7 +434,7 @@ export default function ThemeEditorModal({
                 </span>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                此部分 CSS 会附加在变量声明后面。支持利用 CSS 选择器微调特定界面样式。严禁使用 <code>@import</code>、<code>url()</code> 及 <code>position:fixed</code> 以避免安全风险。
+                可以使用应用内任意选择器、伪类、伪元素、<code>@media</code>、<code>@supports</code> 与 <code>@keyframes</code> 深度调整界面。本地图片可通过资源库复制的 <code>var(--tavern-resource-...)</code> 引用。保存和预览时会自动限定到当前主题；远程 <code>url()</code>、<code>@import</code>、<code>position:fixed</code> 与安全区变量仍属于硬限制。
               </p>
               <textarea
                 placeholder="/* 如: */\n.glass-panel {\n  background: rgba(255, 255, 255, 0.15);\n  backdrop-filter: blur(10px);\n}"

@@ -12,6 +12,7 @@ import { assert } from "./testUtils";
 export async function testCssSanitization() {
   console.log("\n--- Running CSS Sanitization Verification ---");
   const { sanitizeCss } = await import("../../src/utils/security");
+  const { buildThemeCss } = await import("../../src/utils/themePackage");
 
   // 1. Standard valid CSS
   const cleanCss = ".my-bubble { color: #fff; font-size: 14px; position: absolute; }";
@@ -28,6 +29,11 @@ export async function testCssSanitization() {
   const resLeak = sanitizeCss(leakCss);
   assert(!resLeak.includes("http://attacker.com"), "Must block url loading");
   assert(resLeak.includes("/* url blocked */"), "Must leave placeholder");
+  const imageSetLeak = '.bubble { background-image: image-set("https://attacker.com/a.png" 1x); }';
+  const resImageSetLeak = sanitizeCss(imageSetLeak);
+  assert(!resImageSetLeak.includes("attacker.com"), "Must block image-set URL loading");
+  const localResourceCss = '.bubble { background-image: var(--tavern-resource-r_example); }';
+  assert(sanitizeCss(localResourceCss) === localResourceCss, "Must preserve host-managed local resource variables");
 
   // 4. @import malicious sheets
   const importCss = "@import url('https://attacker.com/evil.css'); body { background: black; }";
@@ -40,6 +46,52 @@ export async function testCssSanitization() {
   const resHijack = sanitizeCss(hijackCss);
   assert(!resHijack.includes("position: fixed"), "Must block position fixed");
   assert(resHijack.includes("position: absolute"), "Must demote position fixed to absolute");
+
+  // 6. Native safe-area variables remain a hard boundary even in free-form CSS.
+  const safeAreaOverride = ":root { --safe-area-top: 0px; --android-safe-area-bottom: 0px; color: red; }";
+  const resSafeArea = sanitizeCss(safeAreaOverride);
+  assert(!resSafeArea.includes("--safe-area-top:"), "Must block safe-area variable overrides");
+  assert(!resSafeArea.includes("--android-safe-area-bottom:"), "Must block Android safe-area variable overrides");
+  assert(resSafeArea.includes("color: red"), "Must preserve unrelated declarations");
+
+  // 7. Extra theme CSS can stay expressive, but every style rule is active-theme scoped.
+  const themeCss = buildThemeCss({
+    schemaVersion: "1.0",
+    name: "Scoped Theme",
+    version: "1.0.0",
+    isDark: true,
+    id: "custom_scoped",
+    variables: {
+      "--primary": "#8b5cf6",
+      "--safe-area-top": "0px",
+      "--background": "red; } body { display: none",
+    },
+    customCss: `
+      :root { --accent: #fff; }
+      html.dark body, .glass-panel:hover::before { backdrop-filter: blur(10px); }
+      @media (max-width: 600px) { body { padding: 1rem; } }
+      @supports selector(:has(*)) { .card:has(button) { opacity: .9; } }
+      @keyframes pulse { from { opacity: 0; } to { opacity: 1; } }
+      .animated { animation: pulse 1s; position: fixed; }
+    `,
+  });
+  const scope = '[data-theme="custom_scoped"]';
+  assert(themeCss.includes(`${scope} {\n  --primary: #8b5cf6;`), "Must preserve allowed theme variables");
+  assert(!themeCss.includes("--safe-area-top: 0px"), "Must reject non-whitelisted variables at injection time");
+  assert(!themeCss.includes("body { display: none"), "Must reject declaration-breaking variable values");
+  assert(themeCss.includes(`${scope}{ --accent: #fff; }`), "Must rewrite :root to the active theme root");
+  assert(themeCss.includes(`${scope}.dark body, ${scope} .glass-panel:hover::before`), "Must scope selector lists");
+  assert(
+    /@media\s*\(max-width:\s*600px\)\s*\{\s*\[data-theme="custom_scoped"\]\s+body/.test(themeCss),
+    "Must scope rules inside media queries"
+  );
+  assert(
+    /@supports\s+selector\(:has\(\*\)\)\s*\{\s*\[data-theme="custom_scoped"\]\s+\.card:has\(button\)/.test(themeCss),
+    "Must preserve advanced selectors inside supports queries"
+  );
+  assert(themeCss.includes("@keyframes pulse { from { opacity: 0; } to { opacity: 1; } }"), "Must preserve keyframes");
+  assert(themeCss.includes(`${scope} .animated`), "Must scope animated elements");
+  assert(!themeCss.includes("position: fixed"), "Must sanitize preview and runtime injection paths");
 
   console.log("✔ CSS Sanitization verified successfully!");
 }

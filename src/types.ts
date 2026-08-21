@@ -346,6 +346,7 @@ export interface UserSettings {
   asrConfig?: AsrConfig; // ASR 语音输入配置
   lastBackupTime?: number; // 上次成功执行每日自动备份的时间戳
   customThemes?: CustomThemePackage[]; // 已导入的自定义主题包列表（.tavern-theme.json）
+  hiddenMainTabs?: string[]; // 仅隐藏底栏入口；角色与设置为恢复入口，不能隐藏
   enableFloatingCharacter?: boolean; // 启用应用内悬浮角色助手（显示当前角色立绘 + 情绪 + 聊天气泡）
 }
 

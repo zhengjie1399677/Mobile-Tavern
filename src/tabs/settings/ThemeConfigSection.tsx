@@ -25,6 +25,9 @@ import {
   type CustomThemePackage,
 } from "../../utils/themePackage";
 import ThemeEditorModal from "../../components/ThemeEditorModal";
+import LocalResourceManager from "./LocalResourceManager";
+import { PROTECTED_MAIN_TABS, sanitizeHiddenMainTabs } from "../../domain/ui/mainTabVisibility";
+import { useKernel } from "../../contexts/KernelContext";
 
 export type ThemeConfigSectionProps = Pick<UnifiedAppContextProps,
   "settings" | "updateSettings" | "currentTheme" | "handleThemeChange" | "showCustomAlert" | "showCustomConfirm"
@@ -39,7 +42,11 @@ export default function ThemeConfigSection({
   showCustomConfirm,
 }: ThemeConfigSectionProps) {
   const { t } = useTranslation();
+  const kernel = useKernel();
   const customThemes = settings.customThemes ?? [];
+  const hiddenMainTabs = sanitizeHiddenMainTabs(settings.hiddenMainTabs);
+  const configurableMainTabs = kernel.getExtensions<unknown>("main:tabs")
+    .filter(tab => tab.meta?.showInBottomBar === true && !PROTECTED_MAIN_TABS.has(tab.id));
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<CustomThemePackage | null>(null);
@@ -77,8 +84,8 @@ export default function ThemeConfigSection({
     await showCustomAlert(`主题「${updatedTheme.name}」已成功保存！`, "保存成功");
   };
 
-  // 挂载时与 customThemes 变化时，把所有自定义主题 CSS 注入 document.head
-  // 这样切换主题时只需切换 data-theme 属性，CSS 选择器自动命中
+  // 挂载时与 customThemes 变化时，把所有自定义主题 CSS 注入 document.head。
+  // 注入层会禁用非当前主题的 style，隔离 @keyframes 等全局命名空间声明。
   useEffect(() => {
     for (const theme of customThemes) {
       if (theme.id) {
@@ -180,6 +187,42 @@ export default function ThemeConfigSection({
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-1 px-3 pb-3">
+        <section data-ui="main-tab-visibility-settings" className="mb-4 rounded-xl border border-border/60 bg-card/35 p-3">
+          <h4 className="text-xs font-bold text-foreground">{t("tab_visibility.title")}</h4>
+          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("tab_visibility.description")}</p>
+          <div className="mt-2.5 grid grid-cols-3 gap-2">
+            {configurableMainTabs.map(tab => {
+              const tabId = tab.id;
+              const hidden = hiddenMainTabs.includes(tabId);
+              const translationKey = `nav.${tabId}`;
+              const translatedName = t(translationKey);
+              const displayName = translatedName === translationKey
+                ? String(tab.meta?.name ?? tabId)
+                : translatedName;
+              return (
+                <button
+                  key={tabId}
+                  type="button"
+                  data-tab-id={tabId}
+                  aria-pressed={!hidden}
+                  onClick={() => {
+                    const next = hidden
+                      ? hiddenMainTabs.filter(id => id !== tabId)
+                      : [...hiddenMainTabs, tabId];
+                    updateSettings({ ...settings, hiddenMainTabs: sanitizeHiddenMainTabs(next) });
+                  }}
+                  className={`min-h-9 rounded-lg border px-2 text-[10px] font-semibold transition ${hidden
+                    ? "border-border bg-muted/35 text-muted-foreground line-through"
+                    : "border-primary/30 bg-primary/10 text-primary"
+                  }`}
+                >
+                  {displayName}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         <Select
           value={currentTheme}
           onValueChange={(val: string) => handleThemeChange(val)}
@@ -345,6 +388,10 @@ export default function ThemeConfigSection({
               })}
             </div>
           )}
+        </div>
+
+        <div className="mt-4">
+          <LocalResourceManager showCustomAlert={showCustomAlert} showCustomConfirm={showCustomConfirm} />
         </div>
 
         {/* 聊天字体大小调节 */}

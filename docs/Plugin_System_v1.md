@@ -1,5 +1,7 @@
 # Mobile Tavern 第三方全屏插件规范
 
+> `.mtplugin` 用于独立全屏微应用，不是主应用主题，也不能访问主应用 DOM。需要修改主界面视觉、隐藏可选 Tab 或引用主题图片时，请先阅读[主题与界面扩展开发指南](Theme_Development_Guide.md)。
+
 ## 1. 能力边界
 
 第一版插件是安装在本地、运行于隔离全屏 `iframe` 的 HTML/CSS/JS 微应用，适合 Gal 游戏和独立交互内容。

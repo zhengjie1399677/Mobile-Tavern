@@ -31,6 +31,7 @@ export const coreServiceCatalog: readonly ServiceModuleDescriptor[] = [
   { name: KernelServices.CharacterRender, initTimeoutMs: 3000, load: async () => new (await import("../services/CharacterRenderService")).CharacterRenderService() },
   { name: KernelServices.WorkerPlugins, initTimeoutMs: 3000, load: async () => new (await import("../services/WorkerPluginService")).WorkerPluginService() },
   { name: KernelServices.DataMigration, initTimeoutMs: 5000, load: async () => new (await import("../services/DataMigrationService")).DataMigrationService() },
+  { name: KernelServices.LocalResources, initTimeoutMs: 5000, load: async () => new (await import("../services/LocalResourceService")).LocalResourceService() },
 ];
 
 export async function loadServiceModules(

@@ -47,6 +47,7 @@ Mobile Tavern 是纯移动端的 SillyTavern 兼容运行容器。移动端位�
 | 角色与会话用例 | `src/application/useCases/characterUseCases.ts`、`chatSessionUseCases.ts` |
 | 通用数据服务 | `src/application/services/DatabaseService.ts` |
 | IndexedDB 物理实现 | `src/infrastructure/storage/` |
+| 本地图片、视频与音频资源 | `src/application/services/LocalResourceService.ts`、`src/infrastructure/resources/` |
 | 记忆端口与适配器 | `src/application/services/memory/types.ts`、`IndexedDbMemoryPersistenceService.ts` |
 | 统一备份与覆盖恢复 | `src/application/services/DataMigrationService.ts`、`src/application/useCases/dataMigrationUseCases.ts` |
 | SillyTavern Compatibility Runtime | `src/compatibility/sillytavern/` |

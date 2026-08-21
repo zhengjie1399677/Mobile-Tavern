@@ -197,6 +197,21 @@ export async function testArchitectureBoundaries(): Promise<void> {
     );
   }
 
+  for (const directory of ["src/components", "src/tabs", "src/hooks", "src/contexts"]) {
+    for (const file of listCodeFiles(directory)) {
+      assert(
+        !/infrastructure\/resources/.test(read(file)),
+        `${file} 不得直接读取本地界面资源存储；必须通过 LocalResourceService 管理字节与 Blob URL`
+      );
+    }
+  }
+
+  assert(
+    read("src/components/MainLayout.tsx").includes('data-tab-id={tab.id}') &&
+      read("src/domain/ui/mainTabVisibility.ts").includes("PROTECTED_MAIN_TABS"),
+    "主 Tab 必须提供稳定 data-tab-id，角色与设置必须保留为不可隐藏的恢复入口"
+  );
+
   for (const file of listCodeFiles("src")) {
     const normalizedFile = file.replaceAll("\\", "/");
     if (

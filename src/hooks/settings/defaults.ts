@@ -470,6 +470,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   chatFontSize: 14,
   chatLineHeight: 1.5,
   customThemes: [],
+  hiddenMainTabs: [],
   imageGenApi: {
     enabled: false,
     type: "openai-dalle",
@@ -512,4 +513,3 @@ export const DEFAULT_SETTINGS: UserSettings = {
   lastBackupTime: 0,
   enableFloatingCharacter: false,
 };
-

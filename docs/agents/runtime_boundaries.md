@@ -16,6 +16,8 @@
 | Plugin Host RPC | `src/domain/plugins/pluginHostRpc.ts` | 强沙箱插件的权限校验、输入清洗和脱敏 RPC | 不复用 Compatibility Runtime，不直接访问原生平台 |
 | Native Adapter | `src/services/ar/NativeArAdapter.ts` | 将 Web 调用适配为 Tauri/Kotlin AR 命令 | 不承载第三方插件权限或角色卡兼容逻辑 |
 | 应用用例层 | `src/application/useCases/` | 业务初始化、分页、级联流程和跨 Service 协调 | 不保存 React State，不直接渲染界面 |
+| 本地界面资源服务 | `src/application/services/LocalResourceService.ts` | 校验用户导入的图片、视频与音频，管理受控 Blob URL 和 CSS 资源变量 | 不把媒体字节写入 settings，不开放任意远程 URL |
+| 本地界面资源存储 | `src/infrastructure/resources/localResourceStorage.ts` | 在独立数据库中物理分轨资源元数据与文件字节 | 不被 React 组件直接调用，不与插件包存储混用 |
 
 ## 二、允许的数据方向
 
@@ -24,6 +26,7 @@
   ├─→ application/runtime ─→ Kernel 通用机制
   ├─→ React Context ─→ application/useCases ─→ 应用 Service
   ├─→ 应用 Service ─→ Repository/Adapter ─→ infrastructure/storage
+  ├─→ LocalResourceService ───────────────→ infrastructure/resources
   ├─→ 记忆领域端口 ───────────────────────→ IndexedDbMemoryPersistenceService
   ├─→ SillyTavern Compatibility Runtime
   ├─→ Plugin Host RPC

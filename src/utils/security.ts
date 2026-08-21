@@ -12,6 +12,8 @@ export function sanitizeCss(css: string): string {
 
   // 3. 过滤 url(...) 引用，防止通过 CSS 键盘记录泄漏敏感信息
   sanitized = sanitized.replace(/url\s*\(([^)]*)\)/gi, "/* url blocked */");
+  sanitized = sanitized.replace(/(?:-webkit-)?image-set\s*\(([^)]*)\)/gi, "/* image-set blocked */");
+  sanitized = sanitized.replace(/(?:https?|data|blob|file)\s*:/gi, "/* external scheme blocked */");
 
   // 4. 过滤 position: fixed 属性，防止全局覆盖型点击劫持
   sanitized = sanitized.replace(/position\s*:\s*fixed\b/gi, "position: absolute /* fixed blocked */");
@@ -20,6 +22,13 @@ export function sanitizeCss(css: string): string {
   sanitized = sanitized.replace(/expression\s*\(([^)]*)\)/gi, "/* expr blocked */");
   sanitized = sanitized.replace(/-moz-binding/gi, "/* -moz-binding blocked */");
   sanitized = sanitized.replace(/behavior\s*:/gi, "/* behavior blocked */");
+
+  // 6. 安全区变量是原生 WebView 布局边界，不允许主题 CSS 重新声明。
+  // env(safe-area-inset-*) 仍可作为普通属性值使用，这里只拦截自定义变量赋值。
+  sanitized = sanitized.replace(
+    /--(?:android-)?safe-area[\w-]*\s*:\s*[^;}]*;?/gi,
+    "/* protected safe-area variable blocked */"
+  );
 
   return sanitized;
 }

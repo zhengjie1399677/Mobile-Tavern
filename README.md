@@ -18,6 +18,7 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 >   * 关于 Android 真机调试和网络映射，请查阅：[Android 调试与打包指南](docs/Android_调试与打包指南.md)；原生适配边界见 [移动端规范](docs/agents/mobile_strategy.md)。
 >   * 关于 用户操作步骤、雪团客服挂件说明以及知识库整理，请直接查阅：[knowledge.md](knowledge.md)。
 >   * 关于 自由 Prompt 编排完全教程、参数选项通俗字典与实战范例，请直接查阅：[docs/Prompt_Composition_Tutorial.md](docs/Prompt_Composition_Tutorial.md)。
+>   * 关于 自定义主题、稳定 UI 选择器、Tab 显隐和本地媒体资源引用，请查阅：[主题与界面扩展开发指南](docs/Theme_Development_Guide.md)。
 >   * 关于 Prefix Cache 缓存优化、项目架构职责、数据库设计以及源码模块剖析等底层技术细节，请直接查阅：[TECHNICAL.md](TECHNICAL.md)。
 
 ---
@@ -74,6 +75,7 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 * 可从“设置 → 第三方全屏插件（实验性功能）”本地导入 `.mtplugin` ZIP 包，并在隔离的全屏 `iframe` 中运行 HTML/CSS/JS Gal 游戏或独立微应用；该入口位于“自由 Prompt 编排”之后，插件包、配置和存档使用独立 `MobileTavernPluginDB`，不会污染主 settings/session。
 * 正式安装包内置只读的《星渊终焉》和《夜雨试剑》两个 PixiJS 示例，无需导入即可运行；它们与用户安装的插件共用同一强沙箱运行链路，但包体不可卸载，游戏存档仍按插件 ID 独立保存。
 * 运行容器仅授予 `allow-scripts`，不授予同源、表单、弹窗、下载或导航能力；插件不能访问主应用 DOM、Kernel、API 凭证、网络或 Tauri，只能使用版本化宿主桥接进行存档、退出和方向控制。完整格式见 [第三方全屏插件规范](docs/Plugin_System_v1.md)。
+* 主应用外观可通过 `.tavern-theme.json`、受限 `customCss`、稳定 `data-ui` 选择器和本地图片变量调整；主题与插件的能力差异见 [主题与界面扩展开发指南](docs/Theme_Development_Guide.md)。
 
 ### 10. 🧪 自动化集成测试套件 (Comprehensive Test Suite)
 * 当前主测试链包含 611 个测试用例（拆分：Vitest 95 个测试文件 + Playwright 4 个 E2E 套件 + 自研 CJS 脚本 11 个），覆盖物理 PNG 解码、SSRF 防御、自由 Prompt 编排、撤销重做、JSON 模板迁移与兼容防腐、Android 横屏及分享入口、状态 Schema 迁移、重启消息顺序、IndexedDB 分支尾部原子替换、十轮折叠边界重发、SafeProxy、洋葱管道严格模式及架构依赖边界。
