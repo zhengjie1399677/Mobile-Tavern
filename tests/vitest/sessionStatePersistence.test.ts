@@ -7,6 +7,8 @@ import { updateMessageExtraction } from "../../src/infrastructure/storage/indexe
 import { __resetDBInstanceForTesting } from "../../src/utils/localDB";
 import type { ChatSession, Message, TableMemorySheet } from "../../src/types";
 
+const COMPATIBILITY_PLUGIN_ID = "mobile-tavern.sillytavern-compat";
+
 const tableMemory: TableMemorySheet[] = [{
   id: "sheet-state",
   name: "角色状态",
@@ -33,7 +35,9 @@ describe("会话状态重启恢复", () => {
       content: "状态已变化",
       timestamp: 2,
     }, {
-      variables: { affection: 8, location: "酒馆" },
+      runtimePluginState: {
+        [COMPATIBILITY_PLUGIN_ID]: { affection: 8, location: "酒馆" },
+      },
       tableMemory,
     });
     const target: Message = {
@@ -54,7 +58,9 @@ describe("会话状态重启恢复", () => {
       ],
       summaries: [],
       // 模拟当前分支已经继续演化；重发必须恢复消息边界快照，而不是复制当前值。
-      variables: { affection: 99 },
+      runtimePluginState: {
+        [COMPATIBILITY_PLUGIN_ID]: { affection: 99 },
+      },
       tableMemory: [{ ...tableMemory[0], rows: [["好感", "99"]] }],
     };
     await replaceCompleteSessions([session]);
@@ -72,7 +78,10 @@ describe("会话状态重启恢复", () => {
       target.id,
     );
     expect(restored).toEqual({
-      variables: { affection: 8, location: "酒馆" },
+      variables: undefined,
+      runtimePluginState: {
+        [COMPATIBILITY_PLUGIN_ID]: { affection: 8, location: "酒馆" },
+      },
       tableMemory,
     });
   });

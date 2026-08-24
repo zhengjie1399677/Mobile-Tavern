@@ -197,8 +197,14 @@ export class DatabaseService implements IDatabaseService<
       const messages = hydrateNewestFirstMessagePage(records);
       const snapshot = findSessionStateSnapshot(messages);
       if (snapshot) {
+        const runtimePluginState = snapshot.version === 2
+          ? snapshot.runtimePluginState
+          : snapshot.variables
+            ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: snapshot.variables }
+            : undefined;
         return {
-          variables: snapshot.variables,
+          variables: undefined,
+          runtimePluginState,
           tableMemory: snapshot.tableMemory,
         };
       }
@@ -215,7 +221,13 @@ export class DatabaseService implements IDatabaseService<
         .getStateTable()
         .initDefaultSheets(character?.name || "NPC");
     }
-    return { variables: legacyVariables, tableMemory };
+    return {
+      variables: undefined,
+      runtimePluginState: legacyVariables
+        ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: legacyVariables }
+        : undefined,
+      tableMemory,
+    };
   }
 
   // PERF-03: 分页加载 API，封装 localDB 实现
@@ -490,7 +502,6 @@ export class DatabaseService implements IDatabaseService<
       createdAt: Date.now(),
       messages,
       summaries: [],
-      variables: mvuVariables,
       runtimePluginState: this.createCompatibilityState(mvuVariables),
       compositionSnapshot: this.getAgentCompositionSnapshot(),
     };
@@ -542,7 +553,6 @@ export class DatabaseService implements IDatabaseService<
       messages,
       summaries: [],
       createdAt: Date.now(),
-      variables: mvuVariables,
       runtimePluginState: this.createCompatibilityState(mvuVariables),
       compositionSnapshot: this.getAgentCompositionSnapshot(),
     };
@@ -585,16 +595,21 @@ export class DatabaseService implements IDatabaseService<
           .initDefaultSheets(character?.name || "NPC");
       }
     }
-    const variables = snapshot?.variables
-      ?? legacyVariables
-      ?? (msgIndex === fullHistory.length - 1
-        ? structuredClone(sourceSession.variables)
-        : undefined);
-    const runtimePluginState = msgIndex === fullHistory.length - 1
-      ? structuredClone(sourceSession.runtimePluginState)
-      : variables
-        ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(variables) }
+    const snapshotPluginState = snapshot?.version === 2
+      ? snapshot.runtimePluginState
+      : snapshot?.variables
+        ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: snapshot.variables }
         : undefined;
+    const runtimePluginState = snapshotPluginState
+      ?? (legacyVariables
+        ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(legacyVariables) }
+        : undefined)
+      ?? (msgIndex === fullHistory.length - 1
+        ? structuredClone(sourceSession.runtimePluginState)
+          ?? (sourceSession.variables
+            ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(sourceSession.variables) }
+            : undefined)
+        : undefined);
 
     const newSession: ChatSession = {
       id: "session_branch_" + Math.random().toString(36).substring(2, 9),
@@ -604,7 +619,6 @@ export class DatabaseService implements IDatabaseService<
       messages: sourceSubHistory,
       summaries: filteredSummaries,
       lastSummarizedMessageId,
-      variables,
       runtimePluginState,
       tableMemory,
       parentSessionId: sourceSession.id,

@@ -58,6 +58,8 @@ export interface AgentToolDefinition {
   readonly version: string;
   readonly description: string;
   readonly inputSchema: z.ZodType<unknown>;
+  /** 发给 Provider 的公开 JSON Schema；不得包含权限或执行实现。 */
+  readonly inputJsonSchema: Readonly<Record<string, unknown>>;
   readonly outputSchema: z.ZodType<unknown>;
   readonly permissions: readonly string[];
   readonly timeoutMs: number;

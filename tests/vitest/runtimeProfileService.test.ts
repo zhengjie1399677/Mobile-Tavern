@@ -14,11 +14,22 @@ import {
   readRuntimeProfilePreferences,
 } from "../../src/infrastructure/runtimeProfiles/runtimeProfilePreferences";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../src/application/useCases/runtimeProfileSession";
+import { prepareRuntimeProfileSessionResume } from "../../src/application/useCases/runtimeProfileSessionResume";
+import {
+  clearRuntimeProfileSessionResumeIntent,
+  readRuntimeProfileSessionResumeIntent,
+} from "../../src/infrastructure/runtimeProfiles/runtimeProfileSessionResume";
 import type { ChatSession } from "../../src/types";
 
 describe("RuntimeProfileService", () => {
-  beforeEach(clearRuntimeProfilePreferencesForTests);
-  afterEach(clearRuntimeProfilePreferencesForTests);
+  beforeEach(() => {
+    clearRuntimeProfilePreferencesForTests();
+    clearRuntimeProfileSessionResumeIntent();
+  });
+  afterEach(() => {
+    clearRuntimeProfilePreferencesForTests();
+    clearRuntimeProfileSessionResumeIntent();
+  });
 
   it("首次启动默认选择 Tavern Agent，同时提供不受兼容能力污染的 Base Agent", () => {
     const service = new RuntimeProfileService();
@@ -122,5 +133,77 @@ describe("RuntimeProfileService", () => {
       profileId: "user.profile.demo",
       profileVersion: 2,
     })).toBe(false);
+  });
+
+  it("跨 Profile 会话跳转会选择目标 Profile 并保存重载恢复意图", () => {
+    const profileService = new RuntimeProfileService();
+    const kernel = {
+      hasService: (name: string) => name === "agentRuntime",
+      getService: (name: string) => name === "agentRuntime"
+        ? {
+            getCompositionSnapshot: () => ({
+              profileId: BUILTIN_BASE_PROFILE_ID,
+              profileVersion: 1,
+            }),
+          }
+        : profileService,
+    } as unknown as IKernel;
+    const tavernSession = {
+      id: "tavern-session",
+      characterId: "character-1",
+      title: "Tavern 会话",
+      createdAt: 1,
+      messages: [],
+      summaries: [],
+      compositionSnapshot: {
+        profileId: BUILTIN_TAVERN_PROFILE_ID,
+        profileVersion: 3,
+        pluginVersions: {},
+        providerBindings: {},
+        contributionOrder: {},
+        capabilityDecisions: {},
+      },
+    } satisfies ChatSession;
+
+    expect(prepareRuntimeProfileSessionResume(kernel, tavernSession)).toEqual({ status: "reload" });
+    expect(profileService.listProfiles().selectedProfileId).toBe(BUILTIN_TAVERN_PROFILE_ID);
+    expect(readRuntimeProfileSessionResumeIntent()).toEqual({
+      schemaVersion: 1,
+      sessionId: tavernSession.id,
+      characterId: tavernSession.characterId,
+      profileId: BUILTIN_TAVERN_PROFILE_ID,
+      profileVersion: 3,
+    });
+  });
+
+  it("Profile 已删除或版本不可用时拒绝重载，不产生悬空恢复意图", () => {
+    const profileService = new RuntimeProfileService();
+    const kernel = {
+      hasService: () => true,
+      getService: (name: string) => name === "agentRuntime"
+        ? { getCompositionSnapshot: () => ({ profileId: BUILTIN_BASE_PROFILE_ID, profileVersion: 1 }) }
+        : profileService,
+    } as unknown as IKernel;
+    const missingSession = {
+      id: "missing-session",
+      characterId: "character-1",
+      title: "缺失 Profile",
+      createdAt: 1,
+      messages: [],
+      summaries: [],
+      compositionSnapshot: {
+        profileId: "user.profile.deleted",
+        profileVersion: 1,
+        pluginVersions: {},
+        providerBindings: {},
+        contributionOrder: {},
+        capabilityDecisions: {},
+      },
+    } satisfies ChatSession;
+
+    expect(prepareRuntimeProfileSessionResume(kernel, missingSession)).toMatchObject({
+      status: "unavailable",
+    });
+    expect(readRuntimeProfileSessionResumeIntent()).toBeNull();
   });
 });

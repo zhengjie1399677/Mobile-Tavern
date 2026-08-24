@@ -123,9 +123,23 @@ export interface StreamChunk {
     delta?: {
       content?: string;
       reasoning_content?: string;
+      tool_calls?: Array<{
+        index?: number;
+        id?: string;
+        type?: string;
+        function?: { name?: string; arguments?: string };
+      }>;
     };
     /** 非流式响应中的完整消息（部分 provider 在首 chunk 返回） */
-    message?: { content?: string };
+    message?: {
+      content?: string;
+      tool_calls?: Array<{
+        index?: number;
+        id?: string;
+        type?: string;
+        function?: { name?: string; arguments?: string };
+      }>;
+    };
     /** 部分 provider（如 Anthropic 兼容层）用 text 而非 delta.content */
     text?: string;
     /** 完成原因：stop / length / content_filter 等 */

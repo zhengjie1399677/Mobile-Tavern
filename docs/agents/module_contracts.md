@@ -216,6 +216,7 @@ someAsyncOp().then(() => {
 - AgentHandle 同一时刻只允许一个活跃 Turn；`stop()`、Handle 销毁和 Runtime 销毁必须中止 Turn，并等待清理完成后移除活跃句柄。
 - Driver、Provider、Tool 与媒体 Processor 使用稳定 ID/版本注册，每次注册返回基于实例身份的 disposer；重复 ID 必须拒绝，Profile Scope 卸载后不得残留贡献。
 - Tool 输入和输出都必须经过 Schema 校验；执行前检查权限，使用有限超时和 Turn AbortSignal；Call、Result、失败与最终 Turn 状态按序进入 Agent Journal。
+- OpenAI-compatible 流式 `tool_calls` 必须按 index 聚合分片名称与 JSON 参数；每一步经当前 Turn 的 `executeTool` 执行后，以 Assistant `tool_calls` 和 Tool Result 消息继续请求。循环必须有固定上限，停止、超限和非法参数均进入现有失败/取消语义。
 - Provider 必须声明输入模态、MIME/数量/大小限制、流式与工具能力；实际 Provider/模型选择及 `MediaProjectionDecision` 写入 Journal，重试不得重新猜测。
 - 音频 ASR 结果作为模型可见文本写回 V2 消息；视频关键帧作为派生附件 ID 写回 video part，使重发、分支、备份与 GC 能从持久化事实重建。
 
@@ -308,6 +309,7 @@ someAsyncOp().then(() => {
 - 当前 Runtime Plugin 仅允许随 App 编译的受信代码。用户安装的 `.mtplugin` 继续使用强沙箱 Plugin Host RPC，不能共享 Runtime Plugin 权限。
 - `src/application/runtime.ts` 只选择并挂载 Profile；现有服务、默认 Pipeline 和能力清单统一由 `mobile-tavern.legacy-runtime` 承接，禁止恢复三条散落的直接注册路径。
 - 通用 Capability 清单由承载它的 Runtime Plugin 显式声明；注册器必须要求调用方传入清单，不得恢复全局 `capabilityCatalog.ts` 或隐式默认目录。
+- 每个 Runtime Plugin 必须声明 Zod `configSchema`；Profile 引用的公开配置在任何 Effect 产生前完成解析。Capability Slot 使用类型化 Token 声明 `single`/`multiple` 基数与必选性，重复 Provider、Token 定义冲突、缺失必选 Binding、未知 Contribution 和错误基数必须拒绝装载。
 
 ### 解析、快照与失败语义
 
@@ -319,6 +321,7 @@ someAsyncOp().then(() => {
 - Runtime Profile 偏好只保存内置引用或用户复制后的能力布尔值，并由 Zod 在 Infrastructure 边界校验；启动时重建为当前插件版本的定义，损坏或悬空选择回退 Tavern Agent并返回诊断。
 - 内置 Profile 只读；用户必须先复制才能修改 Compatibility、音频 ASR 或视频关键帧开关。开关必须改变实际注册贡献，不能只改变 UI 文案。
 - 会话 Composition Snapshot 一经创建不得被全局 Profile 静默覆盖；发送与重发在 Profile ID 不一致时必须阻止并引导显式切换。
+- 从会话列表打开其他 Profile 的会话时，必须验证精确 Profile ID/版本并写入经过 Schema 校验的一次性恢复意图；重启装载目标组合后从数据库恢复目标会话和角色并清除意图，缺失或版本漂移不得继续重启。
 
 ---
 
@@ -327,7 +330,7 @@ someAsyncOp().then(() => {
 - `CompatibilityRuntimeService` 是常驻但默认为空的 Application Host，只提供 Codec、Prompt Section、Context Source、Transform、State Reducer 和 Renderer 六类可撤销 Registry；它本身不得包含 SillyTavern 语义或依赖 React。
 - `mobile-tavern.base` 不装载生态兼容实现；`mobile-tavern.tavern` 显式装载 `mobile-tavern.sillytavern-compat`。插件卸载必须逆序移除全部贡献、清理 Bridge 和生成状态，同一 Host 随后可以重新装载。
 - Database、Prompt、Script、聊天 Hook 和消息 UI 只能依赖 Compatibility Host 契约，不得直接导入 `compatibility/sillytavern`，也不得直接读写 TavernHelper 全局字段。
-- 插件私有会话状态写入 `runtimePluginState[pluginId]`；SillyTavern 迁移期继续双写旧 `variables`，读取时优先命名空间、缺失时降级读取 `variables`，不得因插件关闭或旧备份恢复静默丢失数据。
+- 插件私有会话状态单写 `runtimePluginState[pluginId]`；读取时优先命名空间、缺失时降级读取旧 `variables`。Compatibility Bridge 需要旧会话形状时只允许插件内部瞬时投影，保存边界必须归一化回命名空间并清除旧字段，不得因插件关闭或旧备份恢复静默丢失数据。
 - `runtimePluginState` 进入统一备份；恢复时必须校验插件 ID、危险键名和对象边界。插件配置、凭据、媒体字节和运行实例不得写入该命名空间。
 
 ---
@@ -344,3 +347,4 @@ someAsyncOp().then(() => {
 | 2026-08-24 | 增加 AgentHandle、Provider/Tool/媒体 Processor、Agent Journal、会话组合快照与 v6 备份契约 |
 | 2026-08-24 | 增加空 Compatibility Host、六类可撤销贡献、base/tavern Profile 隔离与插件状态命名空间契约 |
 | 2026-08-24 | 增加 Runtime Profile 公开偏好、复制/开关/诊断 UI、会话快照切换守卫，并删除旧静态 Capability Catalog 与 legacy driver ID |
+| 2026-08-24 | 完成插件配置 Schema、类型化 Capability Token/冲突校验、OpenAI 多步 Tool Loop、跨 Profile 会话自动恢复及兼容状态命名空间单写契约 |

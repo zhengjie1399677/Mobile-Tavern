@@ -166,7 +166,7 @@ export async function runOutputPipelineAndSave(params: {
     await databaseService.commitSessionTurn(
       parsedSession.id,
       {
-        variables: parsedSession.variables,
+        variables: undefined,
         runtimePluginState: parsedSession.runtimePluginState,
         tableMemory: parsedSession.tableMemory,
         pinnedMessageIds: parsedSession.pinnedMessageIds,

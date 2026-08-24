@@ -12,6 +12,8 @@
 import { Kernel } from "../../src/kernel/Kernel";
 import { IKernelService } from "@/src/application/serviceContracts";
 import { DatabaseService } from "../../src/application/services/DatabaseService";
+import { CompatibilityRuntimeService } from "../../src/application/services/CompatibilityRuntimeService";
+import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../../src/application/compatibility/contracts";
 import type { CharacterCard, ChatSession } from "../../src/types";
 import { assert } from "./testUtils";
 // fake-indexeddb 全局注入：替代 testLocalDBSplitTrack 原先的手写 mock。
@@ -85,7 +87,10 @@ export async function testDatabaseServiceCrud() {
     init() {},
     initializeMvuFromCharacter(char: any) {
       return { hp: 100 };
-    }
+    },
+    parseMvuMessage(_text: string, variables: Record<string, unknown>) {
+      return variables;
+    },
   } as unknown as IKernelService;
 
   const mockDbService = new DatabaseService();
@@ -94,6 +99,24 @@ export async function testDatabaseServiceCrud() {
   };
 
   await testKernel.registerService("script", mockScriptService);
+  const compatibilityRuntime = new CompatibilityRuntimeService();
+  await testKernel.registerService(compatibilityRuntime.name, compatibilityRuntime);
+  compatibilityRuntime.registerStateReducer({
+    id: "compat.test.database-state",
+    version: "1.0.0",
+    initialize: () => ({}),
+    reduce: ({ currentState }) => currentState,
+    read: (currentSession) => currentSession.variables ?? {},
+    write: (currentSession, state) => ({
+      ...currentSession,
+      variables: undefined,
+      runtimePluginState: {
+        ...currentSession.runtimePluginState,
+        [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: state,
+      },
+    }),
+    notify: () => undefined,
+  });
   await testKernel.registerService("database", mockDbService);
 
   const mockChar = { id: "char-123", name: "银霜", first_mes: "你好" } as unknown as CharacterCard;
@@ -102,7 +125,11 @@ export async function testDatabaseServiceCrud() {
   assert(session.characterId === "char-123", "Session character ID matches");
   assert(session.messages.length === 1, "Should have starter message");
   assert(session.messages[0].content.includes("你好啊"), "Message content matches");
-  assert(session.variables?.hp === 100, "MVU variables initialized");
+  assert(session.variables === undefined, "Legacy session.variables is no longer written");
+  assert(
+    (session.runtimePluginState?.[SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID] as { hp?: number })?.hp === 100,
+    "MVU variables initialized in compatibility namespace",
+  );
   assert(savedSession !== null, "Session saved");
 
   const backtrackSession = await mockDbService.createBacktrackBranch(session, "新分支", session.messages[0].id);

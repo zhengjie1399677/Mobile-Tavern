@@ -195,6 +195,12 @@ describe("AgentRuntimeService", () => {
       version: "1.0.0",
       description: "把数值乘以二",
       inputSchema: z.object({ value: z.number() }),
+      inputJsonSchema: {
+        type: "object",
+        properties: { value: { type: "number" } },
+        required: ["value"],
+        additionalProperties: false,
+      },
       outputSchema: z.object({ value: z.number() }),
       permissions: ["compute.basic"],
       timeoutMs: 100,

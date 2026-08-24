@@ -143,6 +143,13 @@ export class AgentRuntimeService implements IAgentRuntimeService {
       throw new AgentRuntimeError("AGENT_TOOL_DESCRIPTION_INVALID");
     }
     if (
+      !definition.inputJsonSchema
+      || typeof definition.inputJsonSchema !== "object"
+      || Array.isArray(definition.inputJsonSchema)
+    ) {
+      throw new AgentRuntimeError("AGENT_TOOL_JSON_SCHEMA_INVALID");
+    }
+    if (
       !Number.isFinite(definition.timeoutMs)
       || definition.timeoutMs <= 0
       || definition.timeoutMs > MAX_TOOL_TIMEOUT_MS

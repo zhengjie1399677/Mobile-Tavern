@@ -1,4 +1,5 @@
 import type { AgentProviderDefinition } from "../../domain/agents/contracts";
+import { z } from "zod";
 import type {
   AsrConfig,
   IAgentRuntimeService,
@@ -7,7 +8,17 @@ import type {
 } from "../serviceContracts";
 import { KernelServices } from "../serviceContracts";
 import { extractVideoKeyframes } from "../../infrastructure/media/browserVideoFrameExtractor";
-import type { RuntimePluginDefinition } from "./contracts";
+import { defineRuntimePlugin } from "./contracts";
+import {
+  AGENT_DRIVER_CAPABILITY,
+  LLM_ROUTE_CAPABILITY,
+  MEDIA_PROCESSOR_CAPABILITY,
+  TOOL_CAPABILITY,
+} from "./capabilityCatalog";
+import {
+  contributeRuntimeCapability,
+  provideRuntimeCapability,
+} from "./capabilityTokens";
 
 export const AGENT_SPINE_RUNTIME_PLUGIN_ID = "mobile-tavern.agent-spine";
 export const MOBILE_TAVERN_CHAT_DRIVER_ID = "mobile-tavern.chat.driver";
@@ -47,13 +58,24 @@ const anthropicCompatibleProvider: AgentProviderDefinition = {
 };
 
 /** 阶段 3 的受信 Agent Spine 插件；注册项全部归属 Profile 子 Scope。 */
-export const agentSpineRuntimePlugin: RuntimePluginDefinition = {
+export const agentSpineRuntimePlugin = defineRuntimePlugin({
   id: AGENT_SPINE_RUNTIME_PLUGIN_ID,
   version: "1.0.0",
   requires: ["mobile-tavern.legacy-runtime"],
-  validateConfig(config: unknown): void {
-    if (config !== undefined) throw new Error("AGENT_SPINE_PLUGIN_CONFIG_UNSUPPORTED");
-  },
+  configSchema: z.undefined(),
+  capabilitySlots: [
+    AGENT_DRIVER_CAPABILITY,
+    LLM_ROUTE_CAPABILITY,
+    TOOL_CAPABILITY,
+    MEDIA_PROCESSOR_CAPABILITY,
+  ],
+  capabilities: [
+    provideRuntimeCapability(AGENT_DRIVER_CAPABILITY, MOBILE_TAVERN_CHAT_DRIVER_ID),
+    provideRuntimeCapability(LLM_ROUTE_CAPABILITY, OPENAI_COMPATIBLE_PROVIDER_ID),
+    provideRuntimeCapability(LLM_ROUTE_CAPABILITY, ANTHROPIC_COMPATIBLE_PROVIDER_ID),
+    contributeRuntimeCapability(MEDIA_PROCESSOR_CAPABILITY, AUDIO_ASR_PROCESSOR_ID),
+    contributeRuntimeCapability(MEDIA_PROCESSOR_CAPABILITY, VIDEO_KEYFRAME_PROCESSOR_ID),
+  ],
   setup({ kernel, scope, profile }): void {
     const runtime = kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
     scope.add(runtime.bindComposition({
@@ -130,7 +152,7 @@ export const agentSpineRuntimePlugin: RuntimePluginDefinition = {
       }));
     }
   },
-};
+});
 
 function isContributionEnabled(
   profile: { readonly contributionOrder: Readonly<Record<string, readonly string[]>> },

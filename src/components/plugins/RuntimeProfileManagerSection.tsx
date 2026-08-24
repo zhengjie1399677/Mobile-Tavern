@@ -74,7 +74,7 @@ export default function RuntimeProfileManagerSection() {
       sessionProfileId !== profile.id
       || (sessionProfileVersion !== undefined && sessionProfileVersion !== profile.version)
     )
-      ? `\n\n当前会话固定使用 ${sessionProfileId} v${sessionProfileVersion ?? "legacy"}。切换后请新建会话；继续在旧会话发送会被安全阻止。`
+      ? `\n\n当前会话固定使用 ${sessionProfileId} v${sessionProfileVersion ?? "legacy"}。切换后该会话仍保留原组合；再次打开时会自动恢复其 Profile。`
       : "";
     const confirmed = await showCustomConfirm(
       `切换到「${profile.name}」需要重启应用运行时。${sessionWarning}\n\n是否继续？`,

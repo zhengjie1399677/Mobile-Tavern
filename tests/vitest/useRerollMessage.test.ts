@@ -341,7 +341,7 @@ describe("useRerollMessage 重发事务锁", () => {
     expect(replaceSessionBranch.mock.calls[0][1]).toEqual(["assistant-9"]);
     expect(replaceSessionBranch.mock.calls[0][2]).toHaveLength(1);
     expect(replaceSessionBranch.mock.calls[0][2][0].extra?.mobileTavernSessionState)
-      .toMatchObject({ version: 1 });
+      .toEqual({ version: 2, runtimePluginState: undefined, tableMemory: undefined });
 
     consoleLog.mockRestore();
     consoleClear.mockRestore();

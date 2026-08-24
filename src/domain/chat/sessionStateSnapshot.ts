@@ -2,11 +2,17 @@ import type { ChatSession, Message, TableMemorySheet } from "../../types";
 
 export const SESSION_STATE_SNAPSHOT_KEY = "mobileTavernSessionState";
 
-export interface SessionStateSnapshot {
-  version: 1;
-  variables?: Record<string, unknown>;
-  tableMemory?: TableMemorySheet[];
-}
+export type SessionStateSnapshot =
+  | {
+      version: 1;
+      variables?: Record<string, unknown>;
+      tableMemory?: TableMemorySheet[];
+    }
+  | {
+      version: 2;
+      runtimePluginState?: Record<string, unknown>;
+      tableMemory?: TableMemorySheet[];
+    };
 
 function cloneValue<T>(value: T): T {
   return typeof structuredClone === "function"
@@ -34,11 +40,13 @@ function isTableMemorySheet(value: unknown): value is TableMemorySheet {
 /** 把一次输出完成后的状态绑定到对应助手消息，供重启和分支恢复。 */
 export function attachSessionStateSnapshot(
   message: Message,
-  session: Pick<ChatSession, "variables" | "tableMemory">,
+  session: Pick<ChatSession, "runtimePluginState" | "tableMemory">,
 ): Message {
   const snapshot: SessionStateSnapshot = {
-    version: 1,
-    variables: session.variables ? cloneValue(session.variables) : undefined,
+    version: 2,
+    runtimePluginState: session.runtimePluginState
+      ? cloneValue(session.runtimePluginState)
+      : undefined,
     tableMemory: session.tableMemory ? cloneValue(session.tableMemory) : undefined,
   };
   return {
@@ -54,15 +62,25 @@ export function readSessionStateSnapshot(message: Message): SessionStateSnapshot
   const candidate = message.extra?.[SESSION_STATE_SNAPSHOT_KEY];
   if (!isRecord(candidate)) return undefined;
   const record = candidate;
-  if (record.version !== 1) return undefined;
-  if (record.variables !== undefined && !isRecord(record.variables)) return undefined;
+  if (record.version !== 1 && record.version !== 2) return undefined;
   if (
     record.tableMemory !== undefined
     && (!Array.isArray(record.tableMemory) || !record.tableMemory.every(isTableMemorySheet))
   ) return undefined;
+  if (record.version === 1) {
+    if (record.variables !== undefined && !isRecord(record.variables)) return undefined;
+    return cloneValue({
+      version: 1,
+      variables: record.variables as Record<string, unknown> | undefined,
+      tableMemory: record.tableMemory as TableMemorySheet[] | undefined,
+    });
+  }
+  if (record.runtimePluginState !== undefined && !isRecord(record.runtimePluginState)) {
+    return undefined;
+  }
   return cloneValue({
-    version: 1,
-    variables: record.variables as Record<string, unknown> | undefined,
+    version: 2,
+    runtimePluginState: record.runtimePluginState as Record<string, unknown> | undefined,
     tableMemory: record.tableMemory as TableMemorySheet[] | undefined,
   });
 }

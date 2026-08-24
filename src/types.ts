@@ -114,7 +114,8 @@ export interface ChatSession {
   messages: Message[];
   summaries: SummaryCard[]; // Timeline summaries
   lastSummarizedMessageId?: string; // Tracks up to which message the summary has covered
-  variables?: Record<string, any>; // Chat session local variables
+  /** @deprecated 仅供旧会话读取迁移；新写入必须进入对应的 runtimePluginState 命名空间。 */
+  variables?: Record<string, any>;
   tableMemory?: TableMemorySheet[]; // Structured memory sheets for stateful RP tracking
   pinnedMessageIds?: string[]; // IDs of messages explicitly pinned to recall list
   mutedMessageIds?: string[]; // IDs of messages muted from recall list

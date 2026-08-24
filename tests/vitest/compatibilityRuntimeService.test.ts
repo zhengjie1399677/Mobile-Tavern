@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { createKernel } from "../../src/kernel/Kernel";
 import { CompatibilityRuntimeService } from "../../src/application/services/CompatibilityRuntimeService";
 import {
@@ -68,6 +69,7 @@ describe("CompatibilityRuntimeService", () => {
     const corePlugin: RuntimePluginDefinition = {
       id: "mobile-tavern.legacy-runtime",
       version: "1.0.0",
+      configSchema: z.undefined(),
       setup: () => undefined,
     };
     const baseProfile: RuntimeProfileDefinition = {
@@ -133,6 +135,17 @@ describe("CompatibilityRuntimeService", () => {
       },
     }))).toEqual({
       "compat.sillytavern.context.mvu-state": { namespaced: true },
+    });
+    expect(service.readState(createSession({ variables: { legacy: true } }))).toEqual({
+      legacy: true,
+    });
+    const namespacedWrite = service.writeState(
+      createSession({ variables: { legacy: true } }),
+      { migrated: true },
+    );
+    expect(namespacedWrite.variables).toBeUndefined();
+    expect(namespacedWrite.runtimePluginState).toEqual({
+      [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: { migrated: true },
     });
     await first.dispose();
     expect(mountedRenderer?.getGenerationState()).toEqual({

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   baseRuntimeProfileDefinition,
   createLegacyRuntimePlugin,
@@ -6,6 +7,10 @@ import {
   legacyRuntimeProfileDefinition,
   mountRuntimeProfile,
   resolveRuntimeProfile,
+  contributeRuntimeCapability,
+  createRuntimeCapabilityToken,
+  defineRuntimePlugin,
+  provideRuntimeCapability,
   type RuntimePluginDefinition,
   type RuntimeProfileDefinition,
 } from "../../src/application/runtimePlugins";
@@ -29,6 +34,7 @@ function createPlugin(
   return {
     id,
     version: "1.0.0",
+    configSchema: z.unknown(),
     setup: () => undefined,
     ...options,
   };
@@ -87,9 +93,6 @@ describe("Runtime Plugin Profile", () => {
       kernel: createKernel(),
       profile: createProfile([{ id: "feature.secret", config: secretConfig }]),
       plugins: [createPlugin("feature.secret", {
-        validateConfig(config) {
-          expect(config).toBe(secretConfig);
-        },
         setup(_context, config) {
           receivedConfig = config;
         },
@@ -102,6 +105,93 @@ describe("Runtime Plugin Profile", () => {
       { id: "feature.secret", version: "1.0.0" },
     ]);
     await mounted.dispose();
+  });
+
+  it("通过统一 Zod Schema 解析配置并拒绝无效输入", async () => {
+    const configuredPlugin = defineRuntimePlugin({
+      id: "feature.configured",
+      version: "1.0.0",
+      configSchema: z.object({ enabled: z.boolean().default(true) }).default({}),
+      setup(_context, config) {
+        expect(config).toEqual({ enabled: true });
+      },
+    });
+
+    const mounted = await mountRuntimeProfile({
+      kernel: createKernel(),
+      profile: createProfile([{ id: configuredPlugin.id }]),
+      plugins: [configuredPlugin],
+    });
+    await mounted.dispose();
+
+    expect(() => resolveRuntimeProfile(
+      createProfile([{ id: configuredPlugin.id, config: { enabled: "yes" } }]),
+      [configuredPlugin],
+    )).toThrow("RUNTIME_PLUGIN_CONFIG_INVALID: feature.configured");
+  });
+
+  it("校验类型化单例 Slot 并用显式绑定消解多个 Provider", () => {
+    const providerSlot = createRuntimeCapabilityToken<{ readonly id: string }>({
+      id: "test.provider",
+      cardinality: "single",
+      required: true,
+    });
+    const plugin = createPlugin("feature.providers", {
+      capabilitySlots: [providerSlot],
+      capabilities: [
+        provideRuntimeCapability(providerSlot, "provider.alpha"),
+        provideRuntimeCapability(providerSlot, "provider.beta"),
+      ],
+    });
+
+    expect(() => resolveRuntimeProfile(
+      createProfile([{ id: plugin.id }]),
+      [plugin],
+    )).toThrow("RUNTIME_CAPABILITY_BINDING_REQUIRED: test.provider");
+
+    const snapshot = resolveRuntimeProfile({
+      ...createProfile([{ id: plugin.id }]),
+      bindings: { [providerSlot.id]: "provider.beta" },
+    }, [plugin]);
+    expect(snapshot.providerBindings).toEqual({ "test.provider": "provider.beta" });
+  });
+
+  it("拒绝重复 Provider、未知绑定和未声明贡献", () => {
+    const providerSlot = createRuntimeCapabilityToken<{ readonly id: string }>({
+      id: "test.provider",
+      cardinality: "single",
+      required: true,
+    });
+    const contributionSlot = createRuntimeCapabilityToken<{ readonly id: string }>({
+      id: "test.contribution",
+      cardinality: "multiple",
+    });
+    const left = createPlugin("feature.left", {
+      capabilitySlots: [providerSlot, contributionSlot],
+      capabilities: [
+        provideRuntimeCapability(providerSlot, "provider.shared"),
+        contributeRuntimeCapability(contributionSlot, "contribution.known"),
+      ],
+    });
+    const right = createPlugin("feature.right", {
+      capabilities: [provideRuntimeCapability(providerSlot, "provider.shared")],
+    });
+
+    expect(() => resolveRuntimeProfile({
+      ...createProfile([{ id: left.id }, { id: right.id }]),
+      bindings: { [providerSlot.id]: "provider.shared" },
+    }, [left, right])).toThrow("RUNTIME_CAPABILITY_PROVIDER_CONFLICT");
+
+    expect(() => resolveRuntimeProfile({
+      ...createProfile([{ id: left.id }]),
+      bindings: { "unknown.slot": "provider.shared" },
+    }, [left])).toThrow("RUNTIME_CAPABILITY_SLOT_NOT_FOUND: unknown.slot");
+
+    expect(() => resolveRuntimeProfile({
+      ...createProfile([{ id: left.id }]),
+      bindings: { [providerSlot.id]: "provider.shared" },
+      contributions: { [contributionSlot.id]: ["contribution.missing"] },
+    }, [left])).toThrow("RUNTIME_CAPABILITY_CONTRIBUTION_NOT_FOUND");
   });
 
   it("按依赖顺序装载，并按逆序卸载插件", async () => {

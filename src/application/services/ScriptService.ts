@@ -5,7 +5,6 @@ import {
   KernelServices,
 } from "../serviceContracts";
 import type { ICompatibilityRuntimeService } from "../compatibility/contracts";
-import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../compatibility/contracts";
 import { CharacterCard, ChatSession } from "../../types";
 import { Logger } from "../../utils/logger";
 
@@ -113,13 +112,10 @@ function cleanCharacterForMvu(character: CharacterCard | null | undefined): Char
  * 会话输入防腐清洗函数
  *
  * 对输入的 session 进行字段校验与降级处理，
- * 确保变量字段是安全对象。
+ * 确保消息窗口是安全数组；插件状态读取由 Compatibility Host 负责。
  */
 function cleanSessionForMvu(session: ChatSession): ChatSession {
   const cleaned = { ...session };
-  if (!cleaned.variables || typeof cleaned.variables !== "object" || Array.isArray(cleaned.variables)) {
-    cleaned.variables = { stat_data: {} };
-  }
   if (!cleaned.messages || !Array.isArray(cleaned.messages)) {
     cleaned.messages = [];
   }
@@ -289,9 +285,10 @@ export class ScriptService implements IScriptService<CharacterCard, ChatSession>
         }) ?? messageContent;
       }
       
+      const compatibilityRuntime = this.getCompatibilityRuntime();
       const parsedVariables = this.parseMvuMessage(
         processedContent,
-        safeSession.variables || {},
+        compatibilityRuntime?.readState(safeSession) ?? {},
         signal ?? this.abortController?.signal,
       );
 
@@ -316,15 +313,10 @@ export class ScriptService implements IScriptService<CharacterCard, ChatSession>
         }
       }
 
-      const updatedSession = {
+      const updatedSession = compatibilityRuntime?.writeState({
         ...safeSession,
-        variables: parsedVariables,
-        runtimePluginState: {
-          ...safeSession.runtimePluginState,
-          [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: parsedVariables,
-        },
         messages: updatedMessages,
-      };
+      }, parsedVariables) ?? { ...safeSession, messages: updatedMessages };
 
       // notifyVariablesUpdated 统一由 pipelineHelpers.ts 在 pipeline 执行完毕后
       // 调用一次（含 mag_variable_initialized / message_received / character_message_rendered），

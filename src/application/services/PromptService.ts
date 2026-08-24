@@ -160,7 +160,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         userInput,
         allEntries,
         3,
-        { variables: chat.variables, session: createLorebookSessionContext(chat) },
+        { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
       );
       const runtime = buildPromptCompositionRuntimeData({
         character,
@@ -356,7 +356,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         userInput,
         allEntries,
         3,
-        { variables: chat.variables, session: createLorebookSessionContext(chat) },
+        { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
       );
 
       if (activeEntries.length > 0) {
@@ -533,7 +533,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       userInput,
       allEntries,
       3,
-      { variables: chat.variables, session: createLorebookSessionContext(chat) },
+      { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
     );
     // 检测是否有世界书条目使用了 {{format_message_variable::}} 宏，
     // 若有则由宏替换负责注入变量，避免与 mvu_variables section 重复注入
@@ -542,7 +542,10 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     );
     const formatEntryContent = (entry: LorebookEntry): string => {
       // 世界书条目内容需经过宏替换，支持 {{char}}、{{user}}、{{format_message_variable::stat_data}} 等
-      const content = this.replaceMacros(entry.content, { ...macroParams, variables: chat.variables });
+      const content = this.replaceMacros(entry.content, {
+        ...macroParams,
+        variables: this.getCompatibilityState(chat),
+      });
       if (entry.addMemo && entry.comment) {
         return `[设定及备注: ${entry.comment}]\n${content}`;
       }
@@ -971,6 +974,10 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
       stopSequences: shaped.stopSequences,
       requestShaping: shaped.report,
     };
+  }
+
+  private getCompatibilityState(chat: ChatSession): Record<string, unknown> {
+    return this.getCompatibilityRuntime()?.readState(chat) ?? {};
   }
 
   private getCompatibilityRuntime(): ICompatibilityRuntimeService | null {

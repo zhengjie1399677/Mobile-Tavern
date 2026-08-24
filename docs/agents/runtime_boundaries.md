@@ -7,7 +7,7 @@
 | 能力 | 权威入口 | 职责 | 禁止事项 |
 |---|---|---|---|
 | Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts`、`src/kernel/EffectScope.ts` | 容器、服务生命周期、父子 Scope、可撤销 Effect、消息总线、Pipeline 与扩展契约 | 不放任何应用服务、业务装配、生态格式、存储或平台调用 |
-| 应用运行时组合 | `src/application/runtime.ts`、`src/application/runtimePlugins/`、`src/application/bootstrap/` | 解析受信 Runtime Profile，以插件子 Scope 把应用服务、默认 Pipeline 和能力清单装配到 Kernel | 不反向改变 Kernel 的通用机制，不执行用户安装的任意代码，不把插件配置或秘密写入解析快照 |
+| 应用运行时组合 | `src/application/runtime.ts`、`src/application/runtimePlugins/`、`src/application/bootstrap/` | 解析受信 Runtime Profile，以插件子 Scope 把应用服务、默认 Pipeline 和类型化 Capability 装配到 Kernel | 不反向改变 Kernel 的通用机制，不执行用户安装的任意代码，不把插件配置或秘密写入解析快照；配置必须先过插件 Zod Schema，Slot/Provider 冲突必须在产生 Effect 前失败 |
 | Runtime Profile 管理 | `src/application/runtimeProfiles/`、`RuntimeProfileService.ts`、`src/infrastructure/runtimeProfiles/` | 校验并持久化公开 Profile 选择、复制与能力开关，生成当前受信组合并提供脱敏诊断 | 不保存 API Key、会话正文、Blob 或服务实例；UI 不直接访问 `localStorage`；不开放任意 Runtime Plugin 安装 |
 | 通用数据库服务 | `src/application/services/DatabaseService.ts` | 面向上层提供通用 CRUD、分页、轻量索引统计与跨 Store 事务能力 | 不承载记忆召回、摘要或角色行为 |
 | IndexedDB 物理实现 | `src/infrastructure/storage/` | 连接、Schema、事务队列、仓库和端口适配器 | 不反向导入 `src/utils/localDB.ts` |
@@ -23,7 +23,7 @@
 | 消息附件应用服务 | `src/application/services/AttachmentService.ts` | 校验附件魔数与配额，管理引用状态、备份字节和受控 Blob URL | 不承载 Provider 方言，不借用主题资源数据库 |
 | 消息附件存储 | `src/infrastructure/attachments/attachmentStorage.ts` | 在独立数据库中分轨消息附件元数据和字节，执行引用重建与 GC | 不被 React Hook/组件直接调用，不把媒体塞入主消息记录 |
 | 多模态 Provider 投影 | `src/application/useCases/multimodalProviderProjection.ts` | 把通用 Content Parts 按已确认能力投影为请求方言 | 不修改领域消息，不把 Provider 格式持久化 |
-| Agent Runtime 主干 | `src/application/services/AgentRuntimeService.ts`、`src/domain/agents/` | 管理 AgentHandle、Turn、Driver、Provider、Tool、媒体 Processor、权限、取消与诊断 | 不进入 Kernel，不持有 React State，不执行用户安装的任意代码 |
+| Agent Runtime 主干 | `src/application/services/AgentRuntimeService.ts`、`src/domain/agents/`、`src/application/useCases/openAiToolLoop.ts` | 管理 AgentHandle、Turn、Driver、Provider、有限多步 Tool Loop、媒体 Processor、权限、取消与诊断 | 不进入 Kernel，不持有 React State，不绕过 Turn 直接执行 Tool，不执行用户安装的任意代码 |
 | Agent Journal 存储 | `src/infrastructure/agents/agentJournalStorage.ts` | 物理分轨持久化 Turn、Provider/媒体决定与 Tool Call/Result | 不保存插件配置或凭据，不塞入 sessions/messages 大对象 |
 | 浏览器视频关键帧适配 | `src/infrastructure/media/browserVideoFrameExtractor.ts` | 在 WebView 边界解码本地视频并生成有限 JPEG 关键帧 | 不参与 Profile 解析，不直接写会话或消息 |
 | 主题交互应用服务 | `src/application/services/ThemeInteractionService.ts` | 解释主题 1.1 白名单事件、条件与动作，维护有限状态、冷却和延迟任务 | 不接触 DOM、存储、网络或业务数据，不执行主题代码 |
@@ -66,6 +66,8 @@
 - 消息事务完成后由 Database Service 串行扫描权威消息记录并重建附件反向引用；主库与附件库跨库提交使用可恢复状态补偿，不能伪装成单个 IndexedDB 原子事务。
 - Prompt 组装必须根据编排配置从数据库读取权威历史窗口；重生成必须传入目标消息边界，不能使用当前 UI 分页切片。
 - 每次完成助手输出后，把变量和状态表快照绑定到该消息。重生成与历史分支优先恢复最近完整快照；旧 MVU 消息只作为变量降级来源，缺失的旧状态表不得伪造为可回放结果。
+- 插件私有会话状态只持久化到 `runtimePluginState[pluginId]`。旧 `session.variables` 只在 Compatibility Plugin 边界作为读取降级或瞬时 Bridge 投影，不得由通用写路径继续双写。
+- 会话 Composition Snapshot 与当前 Profile 不一致时，跨 Profile 恢复必须先验证目标 ID 和精确版本，再以一次性意图重启；目标组合装载后从权威存储恢复会话，缺失或漂移时明确失败且不得循环重启。
 
 ## 四、适配边界命名
 
@@ -90,5 +92,7 @@
 9. Agent Journal 必须使用独立数据库并通过应用服务访问；React、Driver 和 Tool 不得直连其 IndexedDB 实现。
 10. 通用生产代码不得直接导入 `compatibility/sillytavern` 或读写 TavernHelper 全局字段；只有内置 Compatibility Runtime Plugin 可以连接实现，`base` Profile 必须不装载它。
 11. Profile 启动偏好是公开、类型化的小对象，只能通过 Runtime Profile Service/Infrastructure Port 读写；损坏、缺失 Provider 或找不到 Profile 时必须返回诊断并安全回退，不能把秘密并入 Profile。
+12. Runtime Plugin 配置必须由 Zod Schema 校验，Capability Token/Provider 冲突必须在装载前失败；模型 Tool Call 必须经有限 Step Loop 和 Agent Turn 执行边界。
+13. 跨 Profile 会话恢复必须使用 Schema 校验的一次性意图；兼容会话状态必须单写插件命名空间，旧 `session.variables` 不得恢复为通用持久化路径。
 
 若确需改变这些方向，应先更新本文件与 `TECHNICAL.md`，说明新边界及迁移策略，再修改守卫。

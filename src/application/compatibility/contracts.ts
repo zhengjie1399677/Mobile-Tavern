@@ -36,6 +36,8 @@ export interface CompatibilityStateReducerDefinition {
     readonly currentState: Record<string, unknown>;
     readonly signal?: AbortSignal;
   }): Record<string, unknown>;
+  read(session: ChatSession): Record<string, unknown>;
+  write(session: ChatSession, state: Record<string, unknown>): ChatSession;
   notify(session: ChatSession, messageId?: number): void;
 }
 
@@ -137,6 +139,8 @@ export interface ICompatibilityRuntimeService extends IKernelService {
     currentState: Record<string, unknown>,
     signal?: AbortSignal,
   ): Record<string, unknown>;
+  readState(session: ChatSession): Record<string, unknown>;
+  writeState(session: ChatSession, state: Record<string, unknown>): ChatSession;
   notifyStateChanged(session: ChatSession, messageId?: number): void;
   buildPromptSections(request: CompatibilityPromptSectionRequest): PromptNode[];
   readContextSources(session: ChatSession): Readonly<Record<string, unknown>>;

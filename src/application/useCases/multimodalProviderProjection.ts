@@ -14,8 +14,19 @@ interface ImageProviderPart {
 
 export interface OpenAiProviderMessage {
   role: string;
-  content: string | Array<TextProviderPart | ImageProviderPart>;
+  content: string | Array<TextProviderPart | ImageProviderPart> | null;
   name?: string;
+  tool_calls?: readonly OpenAiProviderToolCall[];
+  tool_call_id?: string;
+}
+
+export interface OpenAiProviderToolCall {
+  readonly id: string;
+  readonly type: "function";
+  readonly function: {
+    readonly name: string;
+    readonly arguments: string;
+  };
 }
 
 export interface MediaProjectionDecision {
@@ -227,6 +238,10 @@ function cloneProviderMessage(message: OpenAiProviderMessage): OpenAiProviderMes
         ? { ...part }
         : { ...part, image_url: { ...part.image_url } })
       : message.content,
+    tool_calls: message.tool_calls?.map((call) => ({
+      ...call,
+      function: { ...call.function },
+    })),
   };
 }
 

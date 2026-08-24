@@ -301,6 +301,17 @@ export async function testArchitectureBoundaries(): Promise<void> {
       && !baseProfileSource.includes("SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID"),
     "运行时必须同时保留不装载兼容实现的 base Profile 与显式装载兼容插件的 Tavern Profile"
   );
+  const runtimePluginContracts = read("src/application/runtimePlugins/contracts.ts");
+  const runtimeProfileLoader = read("src/application/runtimePlugins/profileLoader.ts");
+  assert(
+    runtimePluginContracts.includes("readonly configSchema: z.ZodType<unknown>")
+      && runtimePluginContracts.includes("RuntimeCapabilityToken")
+      && runtimePluginContracts.includes("defineRuntimePlugin")
+      && runtimeProfileLoader.includes("definition.configSchema.parse")
+      && runtimeProfileLoader.includes("RUNTIME_CAPABILITY_PROVIDER_CONFLICT")
+      && runtimeProfileLoader.includes("RUNTIME_CAPABILITY_TOKEN_CONFLICT"),
+    "Runtime Plugin 必须以 Zod 校验公开配置，并通过类型化 Capability Token 检测 Provider 与 Slot 冲突"
+  );
 
   for (const file of listCodeFiles("src/domain/plugins")) {
     const source = read(file);
@@ -391,6 +402,15 @@ export async function testArchitectureBoundaries(): Promise<void> {
       sendMessageHook.includes("recordDecision(\"media.projection\""),
     "聊天发送必须经 AgentHandle/通用聊天 Driver，并记录实际 Provider 与媒体投影决定"
   );
+  const openAiToolLoop = read("src/application/useCases/openAiToolLoop.ts");
+  assert(
+    sendMessageHook.includes("executeOpenAiToolLoop")
+      && openAiToolLoop.includes("delta.tool_calls")
+      && openAiToolLoop.includes("executeTool")
+      && openAiToolLoop.includes("tool.loop.step")
+      && openAiToolLoop.includes("maxSteps"),
+    "OpenAI-compatible 聊天必须消费分片 tool_calls、经 Agent Turn 执行工具并以有限 Step 继续模型循环"
+  );
   const agentJournalStorage = read("src/infrastructure/agents/agentJournalStorage.ts");
   assert(
     agentJournalStorage.includes("MobileTavernAgentJournalDB") &&
@@ -418,6 +438,25 @@ export async function testArchitectureBoundaries(): Promise<void> {
       sendMessageHook.includes("canRunSessionWithProfile") &&
       read("src/hooks/useChat/useRerollMessage.ts").includes("canRunSessionWithProfile"),
     "阶段 5 必须从持久化选择装载 Profile、提供管理 UI，并在发送与重发前守卫会话组合快照"
+  );
+  assert(
+    read("src/contexts/ChatContext.tsx").includes("prepareRuntimeProfileSessionResume")
+      && read("src/contexts/LegacyAppContextProvider.tsx").includes("readRuntimeProfileSessionResumeIntent")
+      && read("src/infrastructure/runtimeProfiles/runtimeProfileSessionResume.ts")
+        .includes("resumeIntentSchema.safeParse"),
+    "跨 Profile 打开会话必须以经过 Schema 校验的一次性意图重启，并在目标组合装载后恢复会话"
+  );
+  const sessionStateSnapshot = read("src/domain/chat/sessionStateSnapshot.ts");
+  assert(
+    compatibilityHost.includes("readState(session")
+      && compatibilityHost.includes("writeState(session")
+      && compatibilityPlugin.includes("variables: undefined")
+      && compatibilityPlugin.includes("runtimePluginState")
+      && sessionStateSnapshot.includes("version: 2")
+      && sessionStateSnapshot.includes("runtimePluginState")
+      && !read("src/application/services/ScriptService.ts").includes("session.variables")
+      && !read("src/components/MemoryTableDrawer.tsx").includes("activeSession.variables"),
+    "兼容会话状态必须经 Compatibility Host 单写插件命名空间；旧 session.variables 只允许在兼容边界读取降级"
   );
 
   assert(

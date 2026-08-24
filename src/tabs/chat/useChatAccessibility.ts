@@ -42,7 +42,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
       return !previous || !lodashIsEqual(previous, message);
     });
     await databaseService.updateSessionMetadata(session.id, {
-      variables: session.variables,
+      variables: undefined,
       runtimePluginState: session.runtimePluginState,
     });
     for (const message of changedMessages) {
@@ -138,7 +138,9 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
       params.settings = settings;
 
       // 仅更新内存引用比对，不进行事件广播，避免在 React 渲染过程中因竞态引发未自愈的空变量覆盖
-      const currentVars = activeSession?.variables;
+      const currentVars = activeSession
+        ? compatibilityRuntime.readState(activeSession)
+        : undefined;
       if (currentVars && !lodashIsEqual(prevVarsRef.current, currentVars)) {
         prevVarsRef.current = lodashCloneDeep(currentVars);
       }

@@ -40,6 +40,11 @@ import {
   projectMessagePartsForProvider,
   type OpenAiProviderMessage,
 } from "../../application/useCases/multimodalProviderProjection";
+import {
+  executeOpenAiToolLoop,
+  OpenAiToolCallAccumulator,
+  type OpenAiToolLoopModelStep,
+} from "../../application/useCases/openAiToolLoop";
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
 import {
@@ -518,76 +523,103 @@ export function useSendMessage(p: SendMessageParams) {
         prev.map((s) => s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)
       );
 
-      const commonRequestBody: Record<string, unknown> = {
-        model: finalModel,
-        stream: true,
-        ...(p.settings.api.type !== "anthropic" && !p.settings.api.forceBasicParams && {
-          stream_options: { include_usage: true }
-        }),
-        messages: providerMessages,
-        ...(promptPayload.stopSequences?.length ? { stop: promptPayload.stopSequences } : {}),
-        temperature: p.settings.preset.temperature,
-        top_p: p.settings.preset.topP,
-        top_k: p.settings.preset.topK,
-        min_p: p.settings.preset.minP,
-        max_tokens: isBisonConsecutive ? 300 : p.settings.preset.maxTokens,
-        presence_penalty: p.settings.preset.presencePenalty ?? 0.0,
-        frequency_penalty: p.settings.preset.frequencyPenalty ?? 0.0,
-        repetition_penalty: p.settings.preset.repetitionPenalty ?? 1.0,
+      const executeProviderStep = async (step: OpenAiToolLoopModelStep) => {
+        responseChunks.splice(0, responseChunks.length);
+        reasoningChunks.splice(0, reasoningChunks.length);
+        const toolCallAccumulator = new OpenAiToolCallAccumulator();
+        const commonRequestBody: Record<string, unknown> = {
+          model: finalModel,
+          stream: true,
+          ...(p.settings.api.type !== "anthropic" && !p.settings.api.forceBasicParams && {
+            stream_options: { include_usage: true }
+          }),
+          messages: [...providerMessages, ...step.continuationMessages],
+          ...(step.tools.length > 0 ? { tools: step.tools, tool_choice: "auto" } : {}),
+          ...(promptPayload.stopSequences?.length ? { stop: promptPayload.stopSequences } : {}),
+          temperature: p.settings.preset.temperature,
+          top_p: p.settings.preset.topP,
+          top_k: p.settings.preset.topK,
+          min_p: p.settings.preset.minP,
+          max_tokens: isBisonConsecutive ? 300 : p.settings.preset.maxTokens,
+          presence_penalty: p.settings.preset.presencePenalty ?? 0.0,
+          frequency_penalty: p.settings.preset.frequencyPenalty ?? 0.0,
+          repetition_penalty: p.settings.preset.repetitionPenalty ?? 1.0,
+        };
+        const providerRequestBody = provider.buildRequestBody(commonRequestBody);
+        await agentTurn?.recordDecision("provider.request", {
+          step: step.step,
+          providerId: provider.id,
+          providerVersion: provider.version,
+          model: finalModel,
+          apiType: p.settings.api.type,
+          streaming: provider.capabilities.supportsStreaming,
+          tools: step.tools.map((tool) => tool.function.name),
+        });
+
+        const stream = p.chatStreamService.streamLlmResponse({
+          baseUrl: finalBaseUrl,
+          apiKey: finalApiKey,
+          chatPath: finalChatPath,
+          bypassProxy: p.settings.api.bypassProxy,
+          disableReasoning: p.settings.api.disableReasoning,
+          forceBasicParams: p.settings.api.forceBasicParams,
+          reqBody: providerRequestBody,
+          signal: controller.signal,
+          traceId,
+        });
+
+        for await (const chunk of stream) {
+          const chunkError = (chunk as StreamChunk & { error?: string | { message?: string } }).error;
+          if (chunkError) {
+            const errMsg = typeof chunkError === "string"
+              ? chunkError
+              : (chunkError.message || JSON.stringify(chunkError));
+            throw new Error(`[API Error] ${errMsg}`);
+          }
+          if (chunk.__rescuedContent) {
+            responseChunks.push(chunk.__rescuedContent);
+          } else {
+            const choice = chunk.choices?.[0];
+            const reasoning = choice?.delta?.reasoning_content;
+            const delta = choice?.delta?.content || choice?.message?.content || choice?.text;
+            const finishReason = choice?.finish_reason;
+            toolCallAccumulator.append(choice?.delta?.tool_calls ?? choice?.message?.tool_calls);
+
+            if (finishReason === "content_filter") {
+              throw new Error("内容被服务商的安全过滤（Content Filter）拦截，生成终止。");
+            }
+            if (reasoning && !delta) {
+              reasoningChunks.push(reasoning);
+            } else if (delta) {
+              responseChunks.push(delta);
+              if (isFirstTokenForSpeed) { isFirstTokenForSpeed = false; ttftMs = performance.now() - startTime; }
+            }
+            if (chunk.usage) {
+              tokenUsage = {
+                prompt: tokenUsage.prompt + (chunk.usage.prompt_tokens || 0),
+                completion: tokenUsage.completion + (chunk.usage.completion_tokens || 0),
+              };
+            }
+          }
+          throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
+        }
+        return {
+          content: responseChunks.join(""),
+          toolCalls: toolCallAccumulator.finalize(),
+        };
       };
-      const providerRequestBody = provider.buildRequestBody(commonRequestBody);
-      await agentTurn?.recordDecision("provider.request", {
-        providerId: provider.id,
-        providerVersion: provider.version,
-        model: finalModel,
-        apiType: p.settings.api.type,
-        streaming: provider.capabilities.supportsStreaming,
-        tools: provider.capabilities.supportsTools,
-      });
 
-      const stream = p.chatStreamService.streamLlmResponse({
-        baseUrl: finalBaseUrl,
-        apiKey: finalApiKey,
-        chatPath: finalChatPath,
-        bypassProxy: p.settings.api.bypassProxy,
-        disableReasoning: p.settings.api.disableReasoning,
-        forceBasicParams: p.settings.api.forceBasicParams,
-        reqBody: providerRequestBody,
-        signal: controller.signal,
-        traceId,
-      });
-
-      for await (const chunk of stream) {
-        // StreamChunk 类型未声明 error 字段，但服务商错误响应可能携带，故局部扩展类型
-        const chunkError = (chunk as StreamChunk & { error?: string | { message?: string } }).error;
-        if (chunkError) {
-          const errMsg = typeof chunkError === "string"
-            ? chunkError
-            : (chunkError.message || JSON.stringify(chunkError));
-          throw new Error(`[API Error] ${errMsg}`);
-        }
-        if (chunk.__rescuedContent) {
-          responseChunks.push(chunk.__rescuedContent);
-        } else {
-          const reasoning = chunk.choices?.[0]?.delta?.reasoning_content;
-          const delta = chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.message?.content || chunk.choices?.[0]?.text;
-          const finishReason = chunk.choices?.[0]?.finish_reason;
-
-          if (finishReason && finishReason === "content_filter") {
-            throw new Error("内容被服务商的安全过滤（Content Filter）拦截，生成终止。");
-          }
-
-          if (reasoning && !delta) {
-            reasoningChunks.push(reasoning);
-          } else if (delta) {
-            responseChunks.push(delta);
-            if (isFirstTokenForSpeed) { isFirstTokenForSpeed = false; ttftMs = performance.now() - startTime; }
-          }
-          if (chunk.usage) {
-            tokenUsage = { prompt: chunk.usage.prompt_tokens || 0, completion: chunk.usage.completion_tokens || 0 };
-          }
-        }
-        throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
+      if (agentTurn) {
+        const runtime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+        await executeOpenAiToolLoop({
+          context: agentTurn,
+          tools: provider.capabilities.supportsTools && typeof runtime.listTools === "function"
+            ? runtime.listTools()
+            : [],
+          executeModelStep: executeProviderStep,
+        });
+      } else {
+        await executeProviderStep({ step: 0, continuationMessages: [], tools: [] });
       }
 
       if (publicEnvironment.isDevelopment) {
@@ -697,7 +729,11 @@ export function useSendMessage(p: SendMessageParams) {
         if (switchedAiMsg && switchedAiMsg.sender === "assistant") {
           await p.databaseService.commitSessionTurn(
             trueFinalSession.id,
-            { variables: trueFinalSession.variables, tableMemory: trueFinalSession.tableMemory },
+            {
+              variables: undefined,
+              runtimePluginState: trueFinalSession.runtimePluginState,
+              tableMemory: trueFinalSession.tableMemory,
+            },
             [switchedAiMsg],
             undefined,
             traceId,

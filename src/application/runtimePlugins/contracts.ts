@@ -3,6 +3,11 @@ import type {
   IEffectScope,
   IKernel,
 } from "../../kernel/types";
+import type { z } from "zod";
+import type {
+  RuntimeCapabilityDeclaration,
+  RuntimeCapabilityToken,
+} from "./capabilityTokens";
 
 /** Profile 中对一个插件及其公开配置的声明。配置不会进入运行快照。 */
 export interface RuntimePluginReference {
@@ -51,11 +56,35 @@ export interface RuntimePluginDefinition {
   readonly id: string;
   readonly version: string;
   readonly requires?: readonly string[];
-  validateConfig?(config: unknown): void;
+  readonly configSchema: z.ZodType<unknown>;
+  readonly capabilitySlots?: readonly RuntimeCapabilityToken<unknown>[];
+  readonly capabilities?: readonly RuntimeCapabilityDeclaration[];
   setup(
     context: RuntimePluginContext,
     config: unknown,
   ): void | EffectDisposer | Promise<void | EffectDisposer>;
+}
+
+export interface RuntimePluginAuthorDefinition<TConfig>
+  extends Omit<RuntimePluginDefinition, "configSchema" | "setup"> {
+  readonly configSchema: z.ZodType<TConfig>;
+  setup(
+    context: RuntimePluginContext,
+    config: TConfig,
+  ): void | EffectDisposer | Promise<void | EffectDisposer>;
+}
+
+/** 用 Zod Schema 保持插件配置的输入校验与 setup 类型一致。 */
+export function defineRuntimePlugin<TConfig>(
+  definition: RuntimePluginAuthorDefinition<TConfig>,
+): RuntimePluginDefinition {
+  return Object.freeze({
+    ...definition,
+    configSchema: definition.configSchema as unknown as z.ZodType<unknown>,
+    setup(context: RuntimePluginContext, config: unknown) {
+      return definition.setup(context, config as TConfig);
+    },
+  });
 }
 
 export interface MountedRuntimeProfile {

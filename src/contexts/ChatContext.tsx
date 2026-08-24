@@ -17,6 +17,7 @@ import {
 import { useApp } from "./AppContext";
 import { TRANSLATIONS } from "../locales/index";
 import type { MemoryServiceTyped } from "../application/services/memory";
+import { prepareRuntimeProfileSessionResume } from "../application/useCases/runtimeProfileSessionResume";
 
 import { getErrorMessage } from '../utils/errorUtils';
 // P0-1: 启动时分页加载会话，避免一次性 getAll() 全量反序列化阻塞首屏。
@@ -120,7 +121,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [sessionCountsByCharacter, setSessionCountsByCharacter] = useState<Record<string, number>>({});
   const [totalSessionCount, setTotalSessionCount] = useState(0);
   const [areSessionCountsReady, setAreSessionCountsReady] = useState(false);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionIdState] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -144,6 +145,28 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // sessions 快照 ref：供 useEffect 在不依赖 sessions 数组的前提下读取最新值
   const sessionsRef = useRef<ChatSession[]>([]);
   sessionsRef.current = sessions;
+
+  const setActiveSessionId = useCallback((id: string | null): void => {
+    if (!id) {
+      setActiveSessionIdState(null);
+      return;
+    }
+    const targetSession = sessionsRef.current.find((session) => session.id === id);
+    if (!targetSession) {
+      setActiveSessionIdState(id);
+      return;
+    }
+    const resume = prepareRuntimeProfileSessionResume(kernel, targetSession);
+    if (resume.status === "ready") {
+      setActiveSessionIdState(id);
+      return;
+    }
+    if (resume.status === "unavailable") {
+      void showCustomAlert(resume.message);
+      return;
+    }
+    window.location.reload();
+  }, [kernel, showCustomAlert]);
 
   const isMountedRef = useRef(true);
   useEffect(() => {

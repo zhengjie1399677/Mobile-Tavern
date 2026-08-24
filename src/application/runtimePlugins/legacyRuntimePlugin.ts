@@ -1,10 +1,12 @@
 import type { EffectDisposer, IEffectScope, IKernel } from "../../kernel/types";
+import { z } from "zod";
 import { registerRuntimeCapabilities } from "../bootstrap/capabilityRegistry";
 import { registerCoreServices } from "../bootstrap/registerCoreServices";
 import { registerDefaultPipelines } from "../bootstrap/registerDefaultPipelines";
-import type {
-  RuntimePluginDefinition,
-  RuntimeProfileDefinition,
+import {
+  defineRuntimePlugin,
+  type RuntimePluginDefinition,
+  type RuntimeProfileDefinition,
 } from "./contracts";
 import { agentSpineRuntimePlugin, AGENT_SPINE_RUNTIME_PLUGIN_ID } from "./agentSpineRuntimePlugin";
 import {
@@ -76,14 +78,10 @@ async function addLegacyRuntimeEffect(
 export function createLegacyRuntimePlugin(
   registrars: LegacyRuntimeRegistrars = defaultLegacyRuntimeRegistrars,
 ): RuntimePluginDefinition {
-  return {
+  return defineRuntimePlugin({
     id: LEGACY_RUNTIME_PLUGIN_ID,
     version: "1.0.0",
-    validateConfig(config: unknown): void {
-      if (config !== undefined) {
-        throw new Error("LEGACY_RUNTIME_PLUGIN_CONFIG_UNSUPPORTED");
-      }
-    },
+    configSchema: z.undefined(),
     async setup({ kernel, scope }): Promise<void> {
       await addLegacyRuntimeEffect(
         scope,
@@ -98,7 +96,7 @@ export function createLegacyRuntimePlugin(
         registrars.registerRuntimeCapabilities(kernel),
       );
     },
-  };
+  });
 }
 
 export const legacyRuntimePlugin = createLegacyRuntimePlugin();

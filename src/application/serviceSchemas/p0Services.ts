@@ -41,7 +41,7 @@ export const ChatStreamServiceSchema = KernelServiceBaseSchema.extend({
 });
 
 /**
- * Script：parseMvuMessage 输出写入 session.variables 持久化，LLM 文本→数据库转换点。
+ * Script：parseMvuMessage 输出经 Compatibility Host 写入插件状态命名空间，LLM 文本→数据库转换点。
  * 接口方法：initializeMvuFromCharacter, parseMvuMessage, executeMvuScript, registerBridge
  */
 export const ScriptServiceSchema = KernelServiceBaseSchema.extend({

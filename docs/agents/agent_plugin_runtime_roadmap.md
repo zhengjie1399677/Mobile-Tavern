@@ -283,7 +283,7 @@ file  → text extraction / unsupported
 
 完成条件：测试插件可以注册服务、事件和 Pipeline，卸载后运行时无残留；现有应用行为不变。
 
-当前进度（2026-08-24）：Scope/Effect、Runtime Plugin Definition、Profile 的稳定拓扑解析与版本校验、初始化失败回滚、脱敏运行快照，以及 legacy runtime plugin 组合根接入已经完成。类型化 Capability Token、Provider 冲突解析和插件配置 Schema 仍属于本阶段后续工作。
+当前进度（2026-08-24）：阶段 1 已完成。Scope/Effect、Runtime Plugin Definition、Profile 的稳定拓扑解析与版本校验、初始化失败回滚、脱敏运行快照，以及 legacy runtime plugin 组合根接入已经完成。Runtime Plugin 配置统一由 Zod Schema 在装载前校验；类型化 Capability Token 同时描述 Slot 基数与必选性，Profile Loader 会拒绝 Token 定义冲突、重复 Provider、缺失 Binding、错误基数与未知 Contribution。
 
 ### 阶段 2：Message Content V2 与 Attachment Data Plane
 
@@ -299,7 +299,7 @@ file  → text extraction / unsupported
 
 完成条件：图片消息可以保存、重启恢复、重生成、分支、备份恢复；不支持图片的模型会明确拒绝或降级，不会静默丢失。
 
-当前进度（2026-08-24）：阶段 2 最小纵向闭环已完成。`messages` Store 支持 V1 文本记录与 V2 Content Parts 联合读取，运行态继续提供兼容文本投影；消息附件使用独立 `MobileTavernAttachmentDB`，元数据与字节分 Store 保存，并具备魔数校验、`staging/committed/orphaned`、引用重建、垃圾回收和 Blob URL 回收。聊天端已接入最多四张图片的选择、预览、V2 落盘和气泡展示；OpenAI-compatible 图片输入只在用户明确启用模型视觉能力后投影，Anthropic 原生方言及音视频 Provider 投影会明确拒绝。统一备份升级为 v5 并携带所引用附件字节，恢复使用安全快照和跨数据库补偿。音视频文件的领域类型、存储与展示能力已预留，ASR、视频关键帧、声明式 Provider 能力协商和可复现 `MediaProjectionDecision` 留待阶段 3。
+当前进度（2026-08-24）：阶段 2 已完成。`messages` Store 支持 V1 文本记录与 V2 Content Parts 联合读取，运行态继续提供兼容文本投影；消息附件使用独立 `MobileTavernAttachmentDB`，元数据与字节分 Store 保存，并具备魔数校验、`staging/committed/orphaned`、引用重建、垃圾回收和 Blob URL 回收。聊天端已接入最多四张图片的选择、预览、V2 落盘和气泡展示；OpenAI-compatible 图片输入只在用户明确启用模型视觉能力后投影，Anthropic 原生方言及音视频 Provider 投影会明确拒绝。统一备份携带所引用附件字节，恢复使用安全快照和跨数据库补偿。音视频文件的领域类型、存储与展示已进入同一 Content Parts/Attachment Data Plane；ASR、视频关键帧和声明式 Provider 能力协商由阶段 3 的 Runtime Plugin 接续实现。
 
 ### 阶段 3：Agent Spine、Tool Registry 与 Provider Seam
 
@@ -315,7 +315,7 @@ file  → text extraction / unsupported
 
 完成条件：同一聊天 UI 可以切换两个 Driver 或两个 Provider；工具循环和多模态降级可以重放，停止与销毁不残留请求。
 
-当前进度（2026-08-24）：阶段 3 最小纵向闭环已完成。应用层新增 `AgentRuntimeService`、AgentHandle/Turn/Driver/Provider/Tool/Media Processor 契约和独立 Agent Journal；聊天发送与停止已通过 `mobile-tavern.chat.driver` 进入 AgentHandle，同一 UI 按 API 类型解析 OpenAI-compatible 或 Anthropic-compatible Provider。Tool Registry 已具备输入/输出 Schema、权限、超时、取消与 Call/Result 持久化；Provider/媒体决定、Turn 终态和会话 Composition Snapshot 可重放并随 v6 备份恢复。音频附件可经 ASR 转写，视频附件可生成关键帧并把派生引用写回 V2 消息。后续仍需提供真正消费模型 `tool_calls` 的内置多 Step Tool Loop Driver。
+当前进度（2026-08-24）：阶段 3 已完成。应用层新增 `AgentRuntimeService`、AgentHandle/Turn/Driver/Provider/Tool/Media Processor 契约和独立 Agent Journal；聊天发送与停止已通过 `mobile-tavern.chat.driver` 进入 AgentHandle，同一 UI 按 API 类型解析 OpenAI-compatible 或 Anthropic-compatible Provider。Tool Registry 已具备输入/输出 Schema、权限、超时、取消与 Call/Result 持久化；Provider/媒体决定、Turn 终态和会话 Composition Snapshot 可重放并随 v6 备份恢复。OpenAI-compatible 流会聚合分片 `tool_calls`，经 Agent Turn 执行工具后附加 Assistant/Tool 消息继续模型请求，最多执行 8 个 Step；每步决定和工具结果进入 Journal。音频附件可经 ASR 转写，视频附件可生成关键帧并把派生引用写回 V2 消息。
 
 ### 阶段 4：SillyTavern 兼容能力降级为 Runtime Plugin
 
@@ -331,7 +331,7 @@ file  → text extraction / unsupported
 
 完成条件：通用生产代码不再 import `compatibility/sillytavern`；Compatibility Runtime Plugin 可关闭和重载；旧用户数据无静默丢失。
 
-当前进度（2026-08-24）：阶段 4 底层闭环已完成。Application 层新增默认为空的 `CompatibilityRuntimeService`，提供 Codec、Prompt Section、Context Source、Transform、State Reducer 和 Renderer 六类可撤销贡献；`mobile-tavern.sillytavern-compat` 作为独立受信 Runtime Plugin 连接现有 SillyTavern 实现。Database、Prompt、Script、消息渲染、变量通知和聊天生成状态已改为只消费 Host 契约，通用生产代码不再直接导入 `compatibility/sillytavern` 或读写 TavernHelper 生成全局字段。`mobile-tavern.base` 不装载兼容插件，`mobile-tavern.tavern` 显式装载并可在同一 Host 卸载、重载。会话状态优先读取 `runtimePluginState[pluginId]`，迁移期继续双写并降级读取旧 `variables`，统一备份恢复对该命名空间执行边界校验。Profile 选择界面、设置面板贡献和旧兼容字段最终停止双写留到阶段 5。
+当前进度（2026-08-24）：阶段 4 已完成。Application 层新增默认为空的 `CompatibilityRuntimeService`，提供 Codec、Prompt Section、Context Source、Transform、State Reducer 和 Renderer 六类可撤销贡献；`mobile-tavern.sillytavern-compat` 作为独立受信 Runtime Plugin 连接现有 SillyTavern 实现。Database、Prompt、Script、消息渲染、变量通知和聊天生成状态已改为只消费 Host 契约，通用生产代码不再直接导入 `compatibility/sillytavern` 或读写 TavernHelper 生成全局字段。`mobile-tavern.base` 不装载兼容插件，`mobile-tavern.tavern` 显式装载并可在同一 Host 卸载、重载。会话状态以 `runtimePluginState[pluginId]` 为新权威位置，旧 `variables` 仅在兼容插件边界读取和瞬时投影，统一备份恢复对命名空间执行边界校验。
 
 ### 阶段 5：Profile UI、生态扩展与旧路径清理
 
@@ -347,7 +347,7 @@ file  → text extraction / unsupported
 
 完成条件：用户可以用同一聊天端创建至少一个 base Agent 和一个 Tavern Agent；两者共享通用多模态与 Provider 底座，兼容能力互不污染。
 
-当前进度（2026-08-24）：阶段 5 第一批产品闭环已完成。设置页新增 Agent Runtime Profiles 管理区，提供内置 Base/Tavern 选择、复制、自定义 Compatibility/音频/视频能力开关和实际运行诊断；启动组合从独立公开偏好恢复，外部值经过 Schema、数量、稳定 ID 与重复项校验，损坏或悬空记录回退 Tavern Agent。会话 Composition Snapshot 与当前 Profile 不一致时，发送和重发会明确拒绝；切换 Profile 前展示当前会话影响并要求确认，随后重启运行时。迁移期 `legacy.tavern.driver` 已替换为 `mobile-tavern.chat.driver`，旧静态 capability catalog 与隐式默认注册已删除。受信 Runtime Plugin 仍只随安装包分发；签名方案至少需要发行方公钥固定、清单与代码摘要绑定、版本/权限声明、防降级和可回滚撤销，在这些机制完成前不开放外部安装。会话列表跨 Profile 自动重启后恢复和旧兼容变量停止双写仍是阶段 5 剩余工作。
+当前进度（2026-08-24）：阶段 5 已完成当前路线定义的产品闭环。设置页提供内置 Base/Tavern 选择、复制、自定义 Compatibility/音频/视频能力开关和实际运行诊断；启动组合从独立公开偏好恢复，损坏、悬空或旧版本记录安全回退。打开绑定其他 Profile 的会话时，应用会验证目标 Profile 与精确版本，写入一次性恢复意图并重启；目标组合装载后从权威存储恢复会话、角色和聊天页，目标已删除或版本不匹配时明确拒绝且不会形成重启循环。旧 `session.variables` 已停止持久化双写，仅保留旧数据读取降级；Bridge 内部需要旧形状时由 Compatibility Plugin 瞬时投影并在保存边界归一化回命名空间。`legacy.tavern.driver`、旧静态 capability catalog 与隐式默认注册均已删除。受信 Runtime Plugin 仍只随安装包分发；外部任意 Runtime Plugin 安装继续作为安全方案完成前的明确非目标。
 
 ## 八、第一批实施任务
 

@@ -115,6 +115,22 @@ export class CompatibilityRuntimeService implements ICompatibilityRuntimeService
     return structuredClone(state);
   }
 
+  readState(session: ChatSession): Record<string, unknown> {
+    let state: Record<string, unknown> = {};
+    for (const definition of sorted(this.stateReducers)) {
+      state = { ...state, ...definition.read(session) };
+    }
+    return structuredClone(state);
+  }
+
+  writeState(session: ChatSession, state: Record<string, unknown>): ChatSession {
+    let next = structuredClone(session);
+    for (const definition of sorted(this.stateReducers)) {
+      next = definition.write(next, structuredClone(state));
+    }
+    return next;
+  }
+
   notifyStateChanged(session: ChatSession, messageId?: number): void {
     for (const definition of sorted(this.stateReducers)) definition.notify(session, messageId);
   }

@@ -16,18 +16,30 @@ import {
   exportSillyTavernComposition,
   importSillyTavernPreset,
 } from "../../infrastructure/compat/sillytavern";
+import { z } from "zod";
 import { parsePromptComposition } from "../../domain/prompt-composition";
 import type { CharacterCard, ChatSession } from "../../types";
 import {
   SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID,
   type CompatibilityBackgroundScript,
+  type CompatibilityBridgeParams,
   type CompatibilityRendererDefinition,
+  type CompatibilityStateUpdater,
   type ICompatibilityRuntimeService,
 } from "../compatibility/contracts";
 import { formatMvuVariablesForPrompt } from "../services/prompt/PromptMacroFormatter";
 import { registerRuntimeCapabilities } from "../bootstrap/capabilityRegistry";
 import { KernelServices } from "../serviceContracts";
-import type { RuntimePluginDefinition } from "./contracts";
+import { defineRuntimePlugin } from "./contracts";
+import {
+  COMPATIBILITY_CODEC_CAPABILITY,
+  COMPATIBILITY_CONTEXT_SOURCE_CAPABILITY,
+  COMPATIBILITY_PROMPT_SECTION_CAPABILITY,
+  COMPATIBILITY_RENDERER_CAPABILITY,
+  COMPATIBILITY_STATE_REDUCER_CAPABILITY,
+  COMPATIBILITY_TRANSFORM_CAPABILITY,
+} from "./capabilityCatalog";
+import { contributeRuntimeCapability } from "./capabilityTokens";
 
 const CONTRIBUTION_VERSION = "1.0.0";
 const STATE_NAMESPACE = SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID;
@@ -55,11 +67,18 @@ const renderer: CompatibilityRendererDefinition = {
     if (content.includes("window.__TH_MESSAGE_ID")) return content;
     return createSillyTavernMessageIframeSrcDoc(content, messageId, loopProtection);
   },
-  initializeBridge: initTavernHelperBridge,
+  initializeBridge(params) {
+    initTavernHelperBridge(adaptBridgeParams(params));
+  },
   updateBridge(update) {
     const params = getBridgeParams();
     if (!params) return;
-    Object.assign(params, update);
+    Object.assign(params, {
+      ...update,
+      activeSession: update.activeSession === undefined
+        ? params.activeSession
+        : projectSessionForLegacyBridge(update.activeSession),
+    });
   },
   getBridgeParams,
   getGenerationState() {
@@ -93,13 +112,45 @@ const renderer: CompatibilityRendererDefinition = {
 };
 
 /** 受信 SillyTavern Compatibility Runtime；与用户安装的沙箱插件物理分离。 */
-export const sillyTavernCompatibilityRuntimePlugin: RuntimePluginDefinition = {
+export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
   id: SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID,
   version: CONTRIBUTION_VERSION,
   requires: ["mobile-tavern.legacy-runtime"],
-  validateConfig(config: unknown): void {
-    if (config !== undefined) throw new Error("SILLY_TAVERN_COMPATIBILITY_CONFIG_UNSUPPORTED");
-  },
+  configSchema: z.undefined(),
+  capabilitySlots: [
+    COMPATIBILITY_CODEC_CAPABILITY,
+    COMPATIBILITY_PROMPT_SECTION_CAPABILITY,
+    COMPATIBILITY_CONTEXT_SOURCE_CAPABILITY,
+    COMPATIBILITY_TRANSFORM_CAPABILITY,
+    COMPATIBILITY_STATE_REDUCER_CAPABILITY,
+    COMPATIBILITY_RENDERER_CAPABILITY,
+  ],
+  capabilities: [
+    contributeRuntimeCapability(
+      COMPATIBILITY_CODEC_CAPABILITY,
+      "compat.sillytavern.codec.prompt-preset",
+    ),
+    contributeRuntimeCapability(
+      COMPATIBILITY_PROMPT_SECTION_CAPABILITY,
+      "compat.sillytavern.prompt.mvu-state",
+    ),
+    contributeRuntimeCapability(
+      COMPATIBILITY_CONTEXT_SOURCE_CAPABILITY,
+      "compat.sillytavern.context.mvu-state",
+    ),
+    contributeRuntimeCapability(
+      COMPATIBILITY_TRANSFORM_CAPABILITY,
+      "compat.sillytavern.transform.regex",
+    ),
+    contributeRuntimeCapability(
+      COMPATIBILITY_STATE_REDUCER_CAPABILITY,
+      "compat.sillytavern.state.mvu",
+    ),
+    contributeRuntimeCapability(
+      COMPATIBILITY_RENDERER_CAPABILITY,
+      "compat.sillytavern.renderer",
+    ),
+  ],
   setup({ kernel, scope, profile }): void {
     const runtime = kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime);
     scope.add(registerRuntimeCapabilities(kernel, [{
@@ -155,7 +206,11 @@ export const sillyTavernCompatibilityRuntimePlugin: RuntimePluginDefinition = {
       version: CONTRIBUTION_VERSION,
       initialize: initializeMvuFromCharacter,
       reduce: ({ text, currentState, signal }) => parseMvuMessage(text, currentState, signal),
-      notify: notifyVariablesUpdated,
+      read: readNamespacedState,
+      write: writeNamespacedState,
+      notify(session, messageId) {
+        notifyVariablesUpdated(projectSessionForLegacyBridge(session)!, messageId);
+      },
       }));
     }
     if (isContributionEnabled(profile, "compat.prompt-section", "compat.sillytavern.prompt.mvu-state")) {
@@ -183,7 +238,7 @@ export const sillyTavernCompatibilityRuntimePlugin: RuntimePluginDefinition = {
       scope.add(runtime.registerRenderer(renderer));
     }
   },
-};
+});
 
 function isContributionEnabled(
   profile: { readonly contributionOrder: Readonly<Record<string, readonly string[]>> },
@@ -202,6 +257,52 @@ function readNamespacedState(session: ChatSession): Record<string, unknown> {
   return legacy && typeof legacy === "object" && !Array.isArray(legacy)
     ? legacy as Record<string, unknown>
     : {};
+}
+
+function writeNamespacedState(
+  session: ChatSession,
+  state: Record<string, unknown>,
+): ChatSession {
+  return {
+    ...session,
+    variables: undefined,
+    runtimePluginState: {
+      ...session.runtimePluginState,
+      [STATE_NAMESPACE]: structuredClone(state),
+    },
+  };
+}
+
+function projectSessionForLegacyBridge(session: ChatSession | null): ChatSession | null {
+  if (!session) return null;
+  return {
+    ...session,
+    variables: structuredClone(readNamespacedState(session)),
+  };
+}
+
+function normalizeSessionFromLegacyBridge(session: ChatSession): ChatSession {
+  const state = session.variables;
+  return state && typeof state === "object" && !Array.isArray(state)
+    ? writeNamespacedState(session, state as Record<string, unknown>)
+    : { ...session, variables: undefined };
+}
+
+function adaptBridgeParams(params: CompatibilityBridgeParams): CompatibilityBridgeParams {
+  return {
+    ...params,
+    activeSession: projectSessionForLegacyBridge(params.activeSession),
+    setSessions(update: CompatibilityStateUpdater<ChatSession[]>) {
+      params.setSessions((previous) => {
+        const projected = previous.map((session) => projectSessionForLegacyBridge(session)!);
+        const next = typeof update === "function" ? update(projected) : update;
+        return next.map(normalizeSessionFromLegacyBridge);
+      });
+    },
+    saveSession(session) {
+      return params.saveSession(normalizeSessionFromLegacyBridge(session));
+    },
+  };
 }
 
 function readBackgroundScripts(character: CharacterCard | null): CompatibilityBackgroundScript[] {

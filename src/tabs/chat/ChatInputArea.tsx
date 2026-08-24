@@ -20,7 +20,12 @@ import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { chatTabState } from "./utils";
 import type { ChatSession, CustomPromptBlock, Message, ReplyChoice, SummaryCard } from "../../types";
-import type { IAsrService, IAttachmentService } from "@/src/application/serviceContracts";
+import {
+  KernelServices,
+  type IAsrService,
+  type IAttachmentService,
+  type ICompatibilityRuntimeService,
+} from "@/src/application/serviceContracts";
 import type { RecalledMessage } from "@/src/application/services/memory/types";
 import type { AttachmentMetadata } from "../../domain/attachments/types";
 import type { MessageContentPart } from "../../domain/messages/messageContent";
@@ -88,6 +93,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     triggerScroll: state.triggerScroll,
     getKernelService: state.getKernelService,
   }));
+  const compatibilityVariables = activeSession
+    ? getKernelService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+      .readState(activeSession)
+    : {};
 
 
   React.useEffect(() => {
@@ -527,8 +536,8 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                       !!(ext.mvu_settings || ext.mvu || ext.MVU)
                     );
                   })() &&
-                  activeSession?.variables
-                  ? JSON.stringify(activeSession.variables).length
+                  Object.keys(compatibilityVariables).length > 0
+                  ? JSON.stringify(compatibilityVariables).length
                   : 0) *
                 1.5,
               )}{" "}

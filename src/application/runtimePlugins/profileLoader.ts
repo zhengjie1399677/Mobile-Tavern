@@ -8,12 +8,17 @@ import type {
   RuntimePluginReference,
   RuntimeProfileDefinition,
 } from "./contracts";
+import type {
+  RuntimeCapabilityDeclaration,
+  RuntimeCapabilityToken,
+} from "./capabilityTokens";
+import { assertRuntimeCapabilityId } from "./capabilityTokens";
 
 const RUNTIME_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,127}$/;
 
 interface ResolvedRuntimePlugin {
   readonly definition: RuntimePluginDefinition;
-  readonly reference: RuntimePluginReference;
+  readonly config: unknown;
 }
 
 interface ResolvedRuntimeProfile {
@@ -132,16 +137,23 @@ function resolveRuntimeProfilePlan(
     throw new Error(`RUNTIME_PLUGIN_DEPENDENCY_CYCLE: ${cyclicIds.join(", ")}`);
   }
 
-  const resolvedPlugins = orderedIds.map((id) => ({
-    definition: catalog.get(id)!,
-    reference: references.get(id)!,
-  }));
-  for (const resolved of resolvedPlugins) {
-    resolved.definition.validateConfig?.(resolved.reference.config);
-  }
+  const resolvedPlugins = orderedIds.map((id) => {
+    const definition = catalog.get(id)!;
+    const reference = references.get(id)!;
+    try {
+      return {
+        definition,
+        config: definition.configSchema.parse(reference.config),
+      };
+    } catch (error: unknown) {
+      throw new Error(`RUNTIME_PLUGIN_CONFIG_INVALID: ${id}`, { cause: error });
+    }
+  });
 
-  const providerBindings = normalizeBindings(profile.bindings);
-  const contributionOrder = normalizeContributions(profile.contributions);
+  const { providerBindings, contributionOrder } = resolveCapabilityComposition(
+    profile,
+    resolvedPlugins,
+  );
 
   const snapshot: ResolvedRuntimeProfileSnapshot = Object.freeze({
     profileId: profile.id,
@@ -157,35 +169,121 @@ function resolveRuntimeProfilePlan(
   return { snapshot, plugins: resolvedPlugins };
 }
 
-function normalizeBindings(
-  bindings: RuntimeProfileDefinition["bindings"],
-): Readonly<Record<string, string>> {
-  const normalized: Record<string, string> = {};
-  for (const [slotId, providerId] of Object.entries(bindings ?? {}).sort(([left], [right]) => left.localeCompare(right))) {
-    assertRuntimeId(slotId, "PLUGIN");
-    assertRuntimeId(providerId, "PLUGIN");
-    normalized[slotId] = providerId;
-  }
-  return Object.freeze(normalized);
+interface RuntimeCapabilityIndexEntry {
+  readonly token: RuntimeCapabilityToken<unknown>;
+  readonly values: Map<string, string>;
 }
 
-function normalizeContributions(
-  contributions: RuntimeProfileDefinition["contributions"],
-): Readonly<Record<string, readonly string[]>> {
-  const normalized: Record<string, readonly string[]> = {};
-  for (const [slotId, contributionIds] of Object.entries(contributions ?? {}).sort(([left], [right]) => left.localeCompare(right))) {
-    assertRuntimeId(slotId, "PLUGIN");
+function resolveCapabilityComposition(
+  profile: RuntimeProfileDefinition,
+  plugins: readonly ResolvedRuntimePlugin[],
+): Pick<ResolvedRuntimeProfileSnapshot, "providerBindings" | "contributionOrder"> {
+  const index = new Map<string, RuntimeCapabilityIndexEntry>();
+  for (const plugin of plugins) {
+    for (const token of plugin.definition.capabilitySlots ?? []) {
+      registerCapabilityToken(index, token);
+    }
+    for (const declaration of plugin.definition.capabilities ?? []) {
+      const entry = registerCapabilityToken(index, declaration.token);
+      assertCapabilityDeclarationKind(declaration);
+      const previousPluginId = entry.values.get(declaration.valueId);
+      if (previousPluginId) {
+        throw new Error(
+          `RUNTIME_CAPABILITY_PROVIDER_CONFLICT: ${declaration.token.id} -> ${declaration.valueId} `
+            + `(${previousPluginId}, ${plugin.definition.id})`,
+        );
+      }
+      entry.values.set(declaration.valueId, plugin.definition.id);
+    }
+  }
+
+  const providerBindings: Record<string, string> = {};
+  for (const [slotId, providerId] of sortedEntries(profile.bindings)) {
+    assertRuntimeCapabilityId(slotId, "RUNTIME_CAPABILITY_SLOT_ID_INVALID");
+    assertRuntimeCapabilityId(providerId, "RUNTIME_CAPABILITY_VALUE_ID_INVALID");
+    const entry = index.get(slotId);
+    if (!entry) throw new Error(`RUNTIME_CAPABILITY_SLOT_NOT_FOUND: ${slotId}`);
+    if (entry.token.cardinality !== "single") {
+      throw new Error(`RUNTIME_CAPABILITY_BINDING_CARDINALITY_INVALID: ${slotId}`);
+    }
+    if (!entry.values.has(providerId)) {
+      throw new Error(`RUNTIME_CAPABILITY_PROVIDER_NOT_FOUND: ${slotId} -> ${providerId}`);
+    }
+    providerBindings[slotId] = providerId;
+  }
+
+  for (const [slotId, entry] of index) {
+    if (entry.token.cardinality !== "single") continue;
+    const selected = providerBindings[slotId];
+    if (entry.token.required && !selected) {
+      throw new Error(`RUNTIME_CAPABILITY_BINDING_REQUIRED: ${slotId}`);
+    }
+    if (!selected && entry.values.size > 1) {
+      throw new Error(`RUNTIME_CAPABILITY_PROVIDER_AMBIGUOUS: ${slotId}`);
+    }
+  }
+
+  const contributionOrder: Record<string, readonly string[]> = {};
+  for (const [slotId, contributionIds] of sortedEntries(profile.contributions)) {
+    assertRuntimeCapabilityId(slotId, "RUNTIME_CAPABILITY_SLOT_ID_INVALID");
+    const entry = index.get(slotId);
+    if (!entry) throw new Error(`RUNTIME_CAPABILITY_SLOT_NOT_FOUND: ${slotId}`);
+    if (entry.token.cardinality !== "multiple") {
+      throw new Error(`RUNTIME_CAPABILITY_CONTRIBUTION_CARDINALITY_INVALID: ${slotId}`);
+    }
     const uniqueIds = new Set<string>();
     for (const contributionId of contributionIds) {
-      assertRuntimeId(contributionId, "PLUGIN");
+      assertRuntimeCapabilityId(contributionId, "RUNTIME_CAPABILITY_VALUE_ID_INVALID");
       if (uniqueIds.has(contributionId)) {
         throw new Error(`RUNTIME_CONTRIBUTION_DUPLICATE: ${slotId} -> ${contributionId}`);
       }
+      if (!entry.values.has(contributionId)) {
+        throw new Error(`RUNTIME_CAPABILITY_CONTRIBUTION_NOT_FOUND: ${slotId} -> ${contributionId}`);
+      }
       uniqueIds.add(contributionId);
     }
-    normalized[slotId] = Object.freeze([...uniqueIds]);
+    contributionOrder[slotId] = Object.freeze([...uniqueIds]);
   }
-  return Object.freeze(normalized);
+
+  return {
+    providerBindings: Object.freeze(providerBindings),
+    contributionOrder: Object.freeze(contributionOrder),
+  };
+}
+
+function registerCapabilityToken(
+  index: Map<string, RuntimeCapabilityIndexEntry>,
+  token: RuntimeCapabilityToken<unknown>,
+): RuntimeCapabilityIndexEntry {
+  assertRuntimeCapabilityId(token.id, "RUNTIME_CAPABILITY_SLOT_ID_INVALID");
+  const existing = index.get(token.id);
+  if (existing) {
+    if (
+      existing.token.cardinality !== token.cardinality
+      || existing.token.required !== token.required
+    ) {
+      throw new Error(`RUNTIME_CAPABILITY_TOKEN_CONFLICT: ${token.id}`);
+    }
+    return existing;
+  }
+  const entry = { token, values: new Map<string, string>() };
+  index.set(token.id, entry);
+  return entry;
+}
+
+function assertCapabilityDeclarationKind(declaration: RuntimeCapabilityDeclaration): void {
+  const expectedKind = declaration.token.cardinality === "single"
+    ? "provider"
+    : "contribution";
+  if (declaration.kind !== expectedKind) {
+    throw new Error(`RUNTIME_CAPABILITY_DECLARATION_INVALID: ${declaration.token.id}`);
+  }
+}
+
+function sortedEntries<TValue>(
+  record: Readonly<Record<string, TValue>> | undefined,
+): Array<[string, TValue]> {
+  return Object.entries(record ?? {}).sort(([left], [right]) => left.localeCompare(right));
 }
 
 /** 校验 Profile 并返回不含插件配置和秘密的稳定解析快照。 */
@@ -245,7 +343,7 @@ export async function mountRuntimeProfile(
           scope: pluginScope,
           profile: resolved.snapshot,
         },
-        plugin.reference.config,
+        plugin.config,
       );
       if (disposer) await addReturnedPluginEffect(pluginScope, disposer);
       assertScopeActive(scope);

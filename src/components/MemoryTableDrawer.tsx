@@ -9,7 +9,6 @@ import {
   KernelServices,
   type ICompatibilityRuntimeService,
 } from "../application/serviceContracts";
-import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../application/compatibility/contracts";
 
 const MvuVariablesTabContent = React.lazy(() =>
   import("./MvuVariablesTabContent").then((module) => ({ default: module.MvuVariablesTabContent }))
@@ -191,19 +190,24 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
           {/* TAB 4: 🏮 角色变量 */}
           {activeTab === 'mvu' && (
             <MvuVariablesTabContent
-              variables={activeSession.variables || {}}
+              variables={kernel?.hasService(KernelServices.CompatibilityRuntime)
+                ? kernel
+                    .getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+                    .readState(activeSession)
+                : {}}
               onSave={async (newVars) => {
                 console.log(`[MVU-SAVE-DIAG] onSave called, sessId=${activeSession.id}, varKeys=${Object.keys(newVars?.stat_data || {}).join(',')}`);
-                const runtimePluginState = {
-                  ...activeSession.runtimePluginState,
-                  [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: newVars,
-                };
-                const nextSession = {
-                  ...activeSession,
-                  variables: newVars,
-                  runtimePluginState,
-                };
-                await updateSessionMetadata(nextSession.id, { variables: newVars, runtimePluginState });
+                const compatibilityRuntime = kernel?.hasService(KernelServices.CompatibilityRuntime)
+                  ? kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+                  : null;
+                if (!compatibilityRuntime?.isEnabled()) {
+                  throw new Error("SILLY_TAVERN_COMPATIBILITY_RUNTIME_DISABLED");
+                }
+                const nextSession = compatibilityRuntime.writeState(activeSession, newVars);
+                await updateSessionMetadata(nextSession.id, {
+                  variables: undefined,
+                  runtimePluginState: nextSession.runtimePluginState,
+                });
                 setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
                 console.log(`[MVU-SAVE-DIAG] setSessionViews done`);
                 try {

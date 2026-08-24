@@ -324,7 +324,7 @@ export const useChat = (
       const persisted = await databaseService.updateSessionMessage(
         s.id,
         messageToSave,
-        { variables: s.variables },
+        { variables: undefined, runtimePluginState: s.runtimePluginState },
       );
       return {
         ...s,
