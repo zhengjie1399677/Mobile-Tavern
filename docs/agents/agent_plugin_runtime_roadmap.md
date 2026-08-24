@@ -315,6 +315,8 @@ file  → text extraction / unsupported
 
 完成条件：同一聊天 UI 可以切换两个 Driver 或两个 Provider；工具循环和多模态降级可以重放，停止与销毁不残留请求。
 
+当前进度（2026-08-24）：阶段 3 最小纵向闭环已完成。应用层新增 `AgentRuntimeService`、AgentHandle/Turn/Driver/Provider/Tool/Media Processor 契约和独立 Agent Journal；聊天发送与停止已通过 `legacy.tavern.driver` 进入 AgentHandle，同一 UI 按 API 类型解析 OpenAI-compatible 或 Anthropic-compatible Provider。Tool Registry 已具备输入/输出 Schema、权限、超时、取消与 Call/Result 持久化；Provider/媒体决定、Turn 终态和会话 Composition Snapshot 可重放并随 v6 备份恢复。音频附件可经 ASR 转写，视频附件可生成关键帧并把派生引用写回 V2 消息。后续仍需提供真正消费模型 `tool_calls` 的内置多 Step Tool Loop Driver，以及产品级 Driver/Profile 切换界面；这些属于阶段 3 的剩余项，不提前进入兼容层大迁移。
+
 ### 阶段 4：SillyTavern 兼容能力降级为 Runtime Plugin
 
 目标：清除通用层对 SillyTavern 实现的直接依赖。
@@ -328,6 +330,8 @@ file  → text extraction / unsupported
 - 保持 Tavern Profile 现有导入、聊天、重生成、分支和状态恢复能力。
 
 完成条件：通用生产代码不再 import `compatibility/sillytavern`；Compatibility Runtime Plugin 可关闭和重载；旧用户数据无静默丢失。
+
+当前进度（2026-08-24）：阶段 4 底层闭环已完成。Application 层新增默认为空的 `CompatibilityRuntimeService`，提供 Codec、Prompt Section、Context Source、Transform、State Reducer 和 Renderer 六类可撤销贡献；`mobile-tavern.sillytavern-compat` 作为独立受信 Runtime Plugin 连接现有 SillyTavern 实现。Database、Prompt、Script、消息渲染、变量通知和聊天生成状态已改为只消费 Host 契约，通用生产代码不再直接导入 `compatibility/sillytavern` 或读写 TavernHelper 生成全局字段。`mobile-tavern.base` 不装载兼容插件，`mobile-tavern.tavern` 显式装载并可在同一 Host 卸载、重载。会话状态优先读取 `runtimePluginState[pluginId]`，迁移期继续双写并降级读取旧 `variables`，统一备份恢复对该命名空间执行边界校验。Profile 选择界面、设置面板贡献和旧兼容字段最终停止双写留到阶段 5。
 
 ### 阶段 5：Profile UI、生态扩展与旧路径清理
 

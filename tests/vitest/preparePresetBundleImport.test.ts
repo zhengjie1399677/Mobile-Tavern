@@ -1,14 +1,35 @@
 import { describe, expect, it } from "vitest";
 import {
   formatSillyTavernCompatibilityAnalysis,
-  preparePresetBundleImport,
+  preparePresetBundleImport as preparePresetBundleImportCore,
+  type PreparePresetBundleImportOptions,
 } from "../../src/application/useCases/preparePresetBundleImport";
+import { testSillyTavernCompatibilityCodec } from "../fixtures/sillyTavernCompatibilityCodec";
 import { DEFAULT_PROMPT_CONFIG } from "../../src/hooks/settings/defaults";
 import { SILLY_TAVERN_PRESET_ARCHETYPES } from "../fixtures/sillyTavernPresetArchetypes";
 
 const createId = (kind: "preset" | "regex" | "bundle") => `${kind}-fixture-id`;
+const preparePresetBundleImport = (options: PreparePresetBundleImportOptions) =>
+  preparePresetBundleImportCore({
+    ...options,
+    compatibilityCodec: testSillyTavernCompatibilityCodec,
+  });
 
 describe("preparePresetBundleImport", () => {
+  it("base Profile 未提供 Codec 时只导入通用字段并返回明确诊断", () => {
+    const fixture = SILLY_TAVERN_PRESET_ARCHETYPES[0];
+    const result = preparePresetBundleImportCore({
+      input: fixture.preset,
+      fallbackName: "base-profile",
+      currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+    });
+
+    expect(result.composition).toBeUndefined();
+    expect(result.report.warnings).toContainEqual(expect.objectContaining({
+      code: "COMPATIBILITY_CODEC_UNAVAILABLE",
+    }));
+  });
+
   it("拒绝非对象根结构", () => {
     expect(() => preparePresetBundleImport({
       input: [],

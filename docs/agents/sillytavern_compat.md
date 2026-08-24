@@ -31,3 +31,10 @@
 - `full` 表示通用 Prompt 语义完整兼容；`core` 表示 Prompt 核心可用但插件脚本不执行；`recognize_only` 表示仅安全识别和降级导入。
 - 预设导入遵循 ST Prompt Manager 语义：只有 `prompt_order` 中排序的 Prompt 转为编排区块（顺序与启用状态照搬）；未排序的候选 Prompt 仅存在于 ST 候选库、不进入管理器列表，因此不导入，并产生 `SKIPPED_UNORDERED_PROMPTS` 警告。完全没有 `prompt_order` 时降级保留全部 Prompt，避免静默丢失。
 - 数据库附着、Agent Marker、TavernHelper/远程脚本和前端 DOM 生命周期不属于通用预设兼容范围，不得因样本流行度绕过边界。
+
+### 5. Runtime Plugin 边界与旧数据降级
+
+- SillyTavern 兼容实现只由 `mobile-tavern.sillytavern-compat` 受信 Runtime Plugin 接入；Database、Prompt、Script、聊天 Hook 和通用 UI 只能依赖 `CompatibilityRuntimeService` 的类型化贡献契约。
+- `mobile-tavern.base` 必须在不装载兼容插件时继续提供基础 Agent、纯文本聊天、多模态附件和通用工具；兼容插件卸载时必须清理贡献、Bridge、iframe 运行态和生成标记。
+- 会话插件状态以 `runtimePluginState["mobile-tavern.sillytavern-compat"]` 为新权威位置。迁移期写入同时镜像至旧 `variables`，读取优先命名空间，缺失时读取旧字段；不得批量改写旧会话或静默删除未知插件状态。
+- TavernHelper 全局对象只属于 Renderer/Bridge 实现细节，通用生产代码不得直接读写；状态同步、脚本库就绪检查和 iframe 构建必须经 Renderer 契约。

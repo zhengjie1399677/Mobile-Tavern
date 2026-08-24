@@ -12,7 +12,8 @@
 | IndexedDB 物理实现 | `src/infrastructure/storage/` | 连接、Schema、事务队列、仓库和端口适配器 | 不反向导入 `src/utils/localDB.ts` |
 | 数据迁移应用服务 | `src/application/services/DataMigrationService.ts` | 聚合完整备份、统一脱敏，并委托基础设施以单事务覆盖用户数据 | 不在 React Hook 中直接清 Store 或跨 Repository 编排恢复 |
 | 冻结的存储兼容门面 | `src/utils/localDB.ts` | 旧版外部导入兼容与测试重置 | 不允许任何生产调用或新增导出；兼容期结束后删除 |
-| SillyTavern Compatibility Runtime | `src/compatibility/sillytavern/` | 角色卡扩展、MVU、正则脚本和 iframe 兼容解析与降级 | 不注册为通用 Service，不承载存储或原生能力 |
+| Compatibility Host | `src/application/compatibility/`、`CompatibilityRuntimeService.ts` | 提供无生态语义的 Codec、Prompt Section、Context Source、Transform、State Reducer、Renderer 注册与撤销机制 | 不实现 SillyTavern 语义，不依赖 React，不执行用户安装代码 |
+| SillyTavern Compatibility Runtime Plugin | `sillyTavernCompatibilityRuntimePlugin.ts`、`src/compatibility/sillytavern/` | 以受信 Profile Scope 注册角色卡扩展、MVU、正则脚本、预设 Codec 和 iframe 兼容实现 | 不进入 Kernel，不承载通用存储或原生能力，不与 `.mtplugin` 沙箱合并 |
 | Plugin Host RPC | `src/domain/plugins/pluginHostRpc.ts` | 强沙箱插件的权限校验、输入清洗和脱敏 RPC | 不复用 Compatibility Runtime，不直接访问原生平台 |
 | Native Adapter | `src/services/ar/NativeArAdapter.ts` | 将 Web 调用适配为 Tauri/Kotlin AR 命令 | 不承载第三方插件权限或角色卡兼容逻辑 |
 | 应用用例层 | `src/application/useCases/` | 业务初始化、分页、级联流程和跨 Service 协调 | 不保存 React State，不直接渲染界面 |
@@ -21,6 +22,9 @@
 | 消息附件应用服务 | `src/application/services/AttachmentService.ts` | 校验附件魔数与配额，管理引用状态、备份字节和受控 Blob URL | 不承载 Provider 方言，不借用主题资源数据库 |
 | 消息附件存储 | `src/infrastructure/attachments/attachmentStorage.ts` | 在独立数据库中分轨消息附件元数据和字节，执行引用重建与 GC | 不被 React Hook/组件直接调用，不把媒体塞入主消息记录 |
 | 多模态 Provider 投影 | `src/application/useCases/multimodalProviderProjection.ts` | 把通用 Content Parts 按已确认能力投影为请求方言 | 不修改领域消息，不把 Provider 格式持久化 |
+| Agent Runtime 主干 | `src/application/services/AgentRuntimeService.ts`、`src/domain/agents/` | 管理 AgentHandle、Turn、Driver、Provider、Tool、媒体 Processor、权限、取消与诊断 | 不进入 Kernel，不持有 React State，不执行用户安装的任意代码 |
+| Agent Journal 存储 | `src/infrastructure/agents/agentJournalStorage.ts` | 物理分轨持久化 Turn、Provider/媒体决定与 Tool Call/Result | 不保存插件配置或凭据，不塞入 sessions/messages 大对象 |
+| 浏览器视频关键帧适配 | `src/infrastructure/media/browserVideoFrameExtractor.ts` | 在 WebView 边界解码本地视频并生成有限 JPEG 关键帧 | 不参与 Profile 解析，不直接写会话或消息 |
 | 主题交互应用服务 | `src/application/services/ThemeInteractionService.ts` | 解释主题 1.1 白名单事件、条件与动作，维护有限状态、冷却和延迟任务 | 不接触 DOM、存储、网络或业务数据，不执行主题代码 |
 | 主题媒体宿主 | `src/components/theme-interactions/ThemeInteractionHost.tsx` | 把稳定 `data-ui` 事件、生命周期和三个背景 Surface 适配到主题服务，并解析本地媒体 | 不向主题暴露元素引用，不接受远程 URL 或任意选择器 |
 
@@ -34,10 +38,13 @@
   ├─→ LocalResourceService ───────────────→ infrastructure/resources
   ├─→ AttachmentService ─────────────────→ infrastructure/attachments
   ├─→ Chat Use Case ─→ Provider Projection ─→ AttachmentService（按需读取字节）
+  ├─→ Chat UI ─→ AgentHandle ─→ Driver ─→ Provider/Tool/Media Processor
+  │                                  ├─→ Agent Journal Port ─→ infrastructure/agents
+  │                                  └─→ Attachment/ASR/视频关键帧 Adapter
   ├─→ ThemeInteractionHost ─→ ThemeInteractionService ─→ 主题私有运行态
   │                        └→ LocalResourceService（只解析已声明本地媒体）
   ├─→ 记忆领域端口 ───────────────────────→ IndexedDbMemoryPersistenceService
-  ├─→ SillyTavern Compatibility Runtime
+  ├─→ Compatibility Host ─→ 受信 Compatibility Runtime Plugin ─→ SillyTavern 实现
   ├─→ Plugin Host RPC
   └─→ Native Adapter ─→ Tauri IPC
 ```
@@ -78,5 +85,8 @@
 5. `src/kernel/` 不得重新出现业务服务、页面业务、应用装配目录或对应用层的反向依赖。
 6. React Context 不得直接访问存储、Compatibility Runtime、Native Adapter 或执行业务 Service 的持久化方法。
 7. Runtime Plugin/Profile 契约只能位于 Application 层；应用组合根必须通过 Profile Loader 装载 legacy runtime，不能恢复散落的直接注册路径。
+8. Agent、Provider、Tool 与媒体 Processor 契约只能位于 Domain/Application 层；Kernel 不得出现 Agent 业务语义，聊天发送必须经 AgentHandle 进入 legacy driver。
+9. Agent Journal 必须使用独立数据库并通过应用服务访问；React、Driver 和 Tool 不得直连其 IndexedDB 实现。
+10. 通用生产代码不得直接导入 `compatibility/sillytavern` 或读写 TavernHelper 全局字段；只有内置 Compatibility Runtime Plugin 可以连接实现，`base` Profile 必须不装载它。
 
 若确需改变这些方向，应先更新本文件与 `TECHNICAL.md`，说明新边界及迁移策略，再修改守卫。

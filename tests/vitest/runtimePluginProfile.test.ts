@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  baseRuntimeProfileDefinition,
   createLegacyRuntimePlugin,
+  legacyRuntimePluginCatalog,
+  legacyRuntimeProfileDefinition,
   mountRuntimeProfile,
   resolveRuntimeProfile,
   type RuntimePluginDefinition,
@@ -52,6 +55,8 @@ describe("Runtime Plugin Profile", () => {
         { id: "feature.consumer", version: "1.0.0" },
         { id: "feature.independent", version: "1.0.0" },
       ],
+      providerBindings: {},
+      contributionOrder: {},
     });
   });
 
@@ -243,6 +248,43 @@ describe("Runtime Plugin Profile", () => {
 });
 
 describe("Legacy Runtime Plugin", () => {
+  it("base Profile 不装载生态兼容插件，Tavern Profile 显式声明六类兼容贡献", () => {
+    const baseSnapshot = resolveRuntimeProfile(
+      baseRuntimeProfileDefinition,
+      legacyRuntimePluginCatalog,
+    );
+    const tavernSnapshot = resolveRuntimeProfile(
+      legacyRuntimeProfileDefinition,
+      legacyRuntimePluginCatalog,
+    );
+
+    expect(baseSnapshot.plugins.map((plugin) => plugin.id)).not.toContain(
+      "mobile-tavern.sillytavern-compat",
+    );
+    expect(tavernSnapshot.plugins.map((plugin) => plugin.id)).toContain(
+      "mobile-tavern.sillytavern-compat",
+    );
+    expect(Object.keys(tavernSnapshot.contributionOrder).filter((slot) =>
+      slot.startsWith("compat."),
+    )).toHaveLength(6);
+  });
+
+  it("Profile 快照声明 Agent Driver、Provider 与媒体处理顺序", () => {
+    const snapshot = resolveRuntimeProfile(
+      legacyRuntimeProfileDefinition,
+      legacyRuntimePluginCatalog,
+    );
+
+    expect(snapshot.providerBindings).toEqual({
+      "agent.driver": "legacy.tavern.driver",
+      "llm.route": "provider.openai-compatible",
+    });
+    expect(snapshot.contributionOrder["media.processor"]).toEqual([
+      "media.audio.asr",
+      "media.video.keyframes",
+    ]);
+  });
+
   it("把现有服务、Pipeline 和能力登记收口到一个可逆插件", async () => {
     const calls: string[] = [];
     const plugin = createLegacyRuntimePlugin({

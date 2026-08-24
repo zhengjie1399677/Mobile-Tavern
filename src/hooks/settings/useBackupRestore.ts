@@ -14,6 +14,9 @@ import { persistImportedChatSession } from "../../application/useCases/chatImpor
 import {
   buildUnifiedBackupPayload,
   UNIFIED_BACKUP_MAGIC,
+  parseAgentJournalEvents,
+  parseAgentCompositionSnapshot,
+  parseRuntimePluginState,
   parseAttachmentBackupRecords,
 } from "../../application/useCases/dataMigrationUseCases";
 /**
@@ -219,6 +222,8 @@ export const useBackupRestore = ({
             summaries: Array.isArray(s.summaries) ? s.summaries : [],
             lastSummarizedMessageId: typeof s.lastSummarizedMessageId === "string" ? s.lastSummarizedMessageId : undefined,
             variables: s.variables && typeof s.variables === "object" ? s.variables : undefined,
+            runtimePluginState: parseRuntimePluginState(s.runtimePluginState),
+            compositionSnapshot: parseAgentCompositionSnapshot(s.compositionSnapshot),
           });
         } else {
           console.warn("Filtered out corrupted session entry during import:", s);
@@ -290,6 +295,7 @@ export const useBackupRestore = ({
         ? parsed.savedPresets
         : [];
       const validatedAttachments = parseAttachmentBackupRecords(parsed.attachments);
+      const validatedAgentJournal = parseAgentJournalEvents(parsed.agentJournal);
 
       const mergedSettings: UserSettings = parsed.settings
         ? {
@@ -319,7 +325,9 @@ export const useBackupRestore = ({
         ? "\n\n注意：这是旧版备份，不包含独立世界书、记忆词典、自定义预设库和消息附件；这些项目将按空数据恢复。当前数据会先自动导出安全快照。"
         : parsedVersion < 5
           ? "\n\n注意：这是 v4 备份，不包含消息附件；当前数据会先自动导出安全快照。"
-          : "\n\n恢复前会自动导出当前数据的脱敏安全快照。";
+          : parsedVersion < 6
+            ? "\n\n注意：这是 v5 备份，不包含 Agent Turn、Provider 决定和工具调用记录；当前数据会先自动导出安全快照。"
+            : "\n\n恢复前会自动导出当前数据的脱敏安全快照。";
 
       const ok = await showCustomConfirm(
         `数据解密与格式校验成功！恢复将以备份内容完整替换本地角色、会话、记忆和世界书，是否确认？${legacyWarning}`,
@@ -343,6 +351,7 @@ export const useBackupRestore = ({
           backupDate: typeof parsed.backupDate === "string" ? parsed.backupDate : new Date().toISOString(),
           isEncrypted: false,
           attachments: validatedAttachments,
+          agentJournal: validatedAgentJournal,
         });
 
         setBackupStatus("正在原子覆盖本地数据...");

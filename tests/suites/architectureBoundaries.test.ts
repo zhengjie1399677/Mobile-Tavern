@@ -243,6 +243,65 @@ export async function testArchitectureBoundaries(): Promise<void> {
     );
   }
 
+  const compatibilityPluginEntry = "src/application/runtimePlugins/sillyTavernCompatibilityRuntimePlugin.ts";
+  for (const file of listCodeFiles("src")) {
+    const normalizedFile = file.replaceAll("\\", "/");
+    if (
+      normalizedFile.startsWith("src/compatibility/sillytavern/")
+      || normalizedFile.startsWith("src/utils/tavernHelper/")
+      || normalizedFile.startsWith("src/infrastructure/compat/sillytavern/")
+      || normalizedFile === compatibilityPluginEntry
+    ) {
+      continue;
+    }
+    const source = read(file);
+    assert(
+      !/(?:from\s+|import\s*\()\s*["'][^"']*compatibility\/sillytavern/.test(source),
+      `${file} 不得直接导入 SillyTavern 实现；通用消费者只能依赖 Compatibility Host 契约`
+    );
+    assert(
+      !/(?:from\s+|import\s*\()\s*["'][^"']*infrastructure\/compat\/sillytavern/.test(source),
+      `${file} 不得绕过 Codec Slot 直接导入 SillyTavern 基础设施 Adapter`
+    );
+    assert(
+      !/TavernHelperIsSending|TavernHelperStreamingMessageId|TavernHelperMvuLibs/.test(source),
+      `${file} 不得直接读写 SillyTavern 运行时全局字段；必须通过 Renderer 契约访问`
+    );
+  }
+
+  const compatibilityHost = read("src/application/services/CompatibilityRuntimeService.ts");
+  assert(
+    compatibilityHost.includes("registerCodec")
+      && compatibilityHost.includes("registerPromptSection")
+      && compatibilityHost.includes("registerContextSource")
+      && compatibilityHost.includes("registerTransform")
+      && compatibilityHost.includes("registerStateReducer")
+      && compatibilityHost.includes("registerRenderer")
+      && !compatibilityHost.includes('from "react"')
+      && !compatibilityHost.includes("from 'react'"),
+    "Compatibility Host 必须在 Application 层提供六类可撤销贡献，且不得依赖 React"
+  );
+  const compatibilityPlugin = read(compatibilityPluginEntry);
+  assert(
+    compatibilityPlugin.includes("SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID")
+      && compatibilityPlugin.includes("scope.add(runtime.registerCodec")
+      && compatibilityPlugin.includes("scope.add(runtime.registerRenderer"),
+    "SillyTavern 兼容能力必须由独立受信 Runtime Plugin 注册，并归属 Profile Scope"
+  );
+  const runtimeProfiles = read("src/application/runtimePlugins/legacyRuntimePlugin.ts");
+  const baseProfileSource = runtimeProfiles.slice(
+    runtimeProfiles.indexOf("export const baseRuntimeProfileDefinition"),
+    runtimeProfiles.indexOf("export const legacyRuntimeProfileDefinition"),
+  );
+  assert(
+    runtimeProfiles.includes("baseRuntimeProfileDefinition")
+      && runtimeProfiles.includes('id: "mobile-tavern.base"')
+      && runtimeProfiles.includes('id: "mobile-tavern.tavern"')
+      && runtimeProfiles.includes("SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID")
+      && !baseProfileSource.includes("SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID"),
+    "运行时必须同时保留不装载兼容实现的 base Profile 与显式装载兼容插件的 Tavern Profile"
+  );
+
   for (const file of listCodeFiles("src/domain/plugins")) {
     const source = read(file);
     assert(
@@ -309,10 +368,43 @@ export async function testArchitectureBoundaries(): Promise<void> {
   );
   for (const file of listCodeFiles("src/kernel")) {
     assert(
-      !/RuntimePlugin|RuntimeProfile|legacy-runtime/.test(read(file)),
-      `${file} 不得引入 Application 层 Runtime Plugin/Profile 业务语义`
+      !/RuntimePlugin|RuntimeProfile|legacy-runtime|AgentHandle|AgentRuntime|ToolRegistry|MediaProcessor/.test(read(file)),
+      `${file} 不得引入 Application 层 Runtime Plugin/Profile/Agent 业务语义`
     );
   }
+  const agentRuntime = read("src/application/services/AgentRuntimeService.ts");
+  assert(
+    agentRuntime.includes("openHandle") &&
+      agentRuntime.includes("registerDriver") &&
+      agentRuntime.includes("registerProvider") &&
+      agentRuntime.includes("registerTool") &&
+      agentRuntime.includes("registerMediaProcessor") &&
+      !agentRuntime.includes("from \"react\"") &&
+      !agentRuntime.includes("from 'react'"),
+    "Agent Runtime 必须留在 Application 层，以可撤销 Registry 和 AgentHandle 管理能力，且不得依赖 React"
+  );
+  const sendMessageHook = read("src/hooks/useChat/useSendMessage.ts");
+  assert(
+    sendMessageHook.includes("ensureAgentHandle") &&
+      sendMessageHook.includes("LEGACY_TAVERN_DRIVER_ID") &&
+      sendMessageHook.includes("recordDecision(\"provider.request\"") &&
+      sendMessageHook.includes("recordDecision(\"media.projection\""),
+    "聊天发送必须经 AgentHandle/legacy driver，并记录实际 Provider 与媒体投影决定"
+  );
+  const agentJournalStorage = read("src/infrastructure/agents/agentJournalStorage.ts");
+  assert(
+    agentJournalStorage.includes("MobileTavernAgentJournalDB") &&
+      agentJournalStorage.includes('EVENT_STORE = "events"') &&
+      !agentJournalStorage.includes("application/"),
+    "Agent Journal 必须使用独立数据库并保持 Infrastructure 不反向依赖 Application"
+  );
+  const agentPlugin = read("src/application/runtimePlugins/agentSpineRuntimePlugin.ts");
+  assert(
+    agentPlugin.includes("media.audio.asr") &&
+      agentPlugin.includes("media.video.keyframes") &&
+      agentPlugin.includes("scope.add(runtime.registerMediaProcessor"),
+    "音频 ASR 与视频关键帧必须作为受信 Runtime Plugin 的可撤销媒体 Processor 注册"
+  );
 
   assert(
     !read("src/tabs/chat/ChatInputArea.tsx").includes("useContext(UnifiedAppContext)"),

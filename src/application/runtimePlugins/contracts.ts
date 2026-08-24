@@ -16,6 +16,10 @@ export interface RuntimeProfileDefinition {
   readonly id: string;
   readonly version: number;
   readonly plugins: readonly RuntimePluginReference[];
+  /** 单例 Slot 的显式选择；值只保存稳定 Provider/Driver ID。 */
+  readonly bindings?: Readonly<Record<string, string>>;
+  /** 多贡献 Slot 的稳定顺序。 */
+  readonly contributions?: Readonly<Record<string, readonly string[]>>;
 }
 
 export interface ResolvedRuntimePluginSnapshot {
@@ -32,6 +36,8 @@ export interface ResolvedRuntimeProfileSnapshot {
   readonly profileId: string;
   readonly profileVersion: number;
   readonly plugins: readonly ResolvedRuntimePluginSnapshot[];
+  readonly providerBindings: Readonly<Record<string, string>>;
+  readonly contributionOrder: Readonly<Record<string, readonly string[]>>;
 }
 
 export interface RuntimePluginContext {

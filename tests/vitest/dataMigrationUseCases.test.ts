@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildUnifiedBackupPayload,
+  parseRuntimePluginState,
   redactSettingsForPlainBackup,
 } from "../../src/application/useCases/dataMigrationUseCases";
 import { persistImportedChatSession } from "../../src/application/useCases/chatImportUseCases";
@@ -17,6 +18,18 @@ import type {
 } from "../../src/types";
 
 describe("数据迁移应用用例", () => {
+  it("Runtime Plugin 私有状态按命名空间收口并拒绝危险键名", () => {
+    const state = {
+      "mobile-tavern.sillytavern-compat": { stat_data: { affinity: 2 } },
+    };
+    const parsed = parseRuntimePluginState(state);
+
+    expect(parsed).toEqual(state);
+    expect(parsed).not.toBe(state);
+    expect(() => parseRuntimePluginState(JSON.parse('{"__proto__":{"polluted":true}}')))
+      .toThrow(/runtimePluginState|插件 ID/);
+  });
+
   it("导入聊天时同时持久化会话元数据与消息正文", async () => {
     const session = {
       id: "session-imported",
@@ -60,7 +73,7 @@ describe("数据迁移应用用例", () => {
     expect(settings.savedApiProfiles?.[0].apiKey).toBe("sk-profile-1");
   });
 
-  it("v5 统一备份包含独立世界书与附件目录且不共享可变引用", () => {
+  it("v6 统一备份包含独立世界书、附件与 Agent Journal 且不共享可变引用", () => {
     const customWorldbooks: Record<string, CustomWorldbook> = {
       "worldbook-1": {
         id: "worldbook-1",
@@ -82,8 +95,9 @@ describe("数据迁移应用用例", () => {
       isEncrypted: false,
     });
 
-    expect(payload.version).toBe(5);
+    expect(payload.version).toBe(6);
     expect(payload.attachments).toEqual([]);
+    expect(payload.agentJournal).toEqual([]);
     expect(payload.customWorldbooks).toEqual(customWorldbooks);
     expect(payload.customWorldbooks).not.toBe(customWorldbooks);
   });
@@ -187,6 +201,10 @@ describe("数据迁移应用用例", () => {
             dataBase64: "AQID",
           },
         ]),
+      },
+      [KernelServices.AgentRuntime]: {
+        listJournalBySession: vi.fn().mockResolvedValue([]),
+        replaceJournal: vi.fn().mockResolvedValue(undefined),
       },
     };
     service.init({

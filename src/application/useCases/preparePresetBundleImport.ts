@@ -12,11 +12,8 @@ import type {
   PromptComposition,
   PromptCompositionDiagnostic,
 } from "../../domain/prompt-composition";
-import {
-  analyzeSillyTavernPreset,
-  importSillyTavernPreset,
-  type SillyTavernPresetAnalysis,
-} from "../../infrastructure/compat/sillytavern";
+import { parsePromptComposition } from "../../domain/prompt-composition";
+import type { CompatibilityCodecDefinition } from "../compatibility/contracts";
 import { toPresetPromptConfig } from "./presetPromptConfig";
 
 type ExternalRecord = Record<string, unknown>;
@@ -27,6 +24,24 @@ export interface PreparePresetBundleImportOptions {
   fallbackName: string;
   currentPromptConfig: PromptConfig;
   createId?: (kind: ImportIdKind) => string;
+  compatibilityCodec?: CompatibilityCodecDefinition | null;
+}
+
+export interface SillyTavernPresetAnalysis {
+  level: "full" | "core" | "recognize_only" | "invalid";
+  promptCount: number;
+  orderedPromptCount: number;
+  enabledPromptCount: number;
+  markerCount: number;
+  unknownMarkerCount: number;
+  inChatPromptCount: number;
+  attachmentPromptCount: number;
+  regexCount: number;
+  tavernHelperScriptCount: number;
+  enabledTavernHelperScriptCount: number;
+  remoteScriptCount: number;
+  tavernHelperScriptBytes: number;
+  diagnostics: string[];
 }
 
 export interface PreparedPresetBundleImport {
@@ -73,15 +88,23 @@ export function preparePresetBundleImport(
   const regexResult = parseRegexScripts(data, createId);
   const isSillyTavernPromptPreset = Array.isArray(data.prompts)
     && (Array.isArray(data.prompt_order) || Array.isArray(data.promptOrder));
-  const compositionImport = isSillyTavernPromptPreset
-    ? importSillyTavernPreset({ ...data, name })
+  const codec = options.compatibilityCodec;
+  const compositionImport = isSillyTavernPromptPreset && codec?.canDecode(data)
+    ? parseCodecImport(codec.decode({ ...data, name }))
     : undefined;
   const composition = compositionImport
     ? { ...compositionImport.composition, name }
     : undefined;
-  const compatibilityAnalysis = isSillyTavernPromptPreset
-    ? analyzeSillyTavernPreset(data)
+  const compatibilityAnalysis = isSillyTavernPromptPreset && codec?.analyze
+    ? parseCompatibilityAnalysis(codec.analyze(data))
     : undefined;
+  const codecWarnings: PromptCompositionDiagnostic[] = isSillyTavernPromptPreset && !codec
+    ? [{
+        level: "warning",
+        code: "COMPATIBILITY_CODEC_UNAVAILABLE",
+        message: "当前 Profile 未启用 SillyTavern 兼容 Codec，已仅导入通用预设字段。",
+      }]
+    : [];
 
   return {
     name,
@@ -96,11 +119,48 @@ export function preparePresetBundleImport(
     report: {
       warnings: [
         ...(compositionImport?.report.warnings ?? []),
+        ...codecWarnings,
         ...regexResult.warnings,
       ],
       errors: compositionImport?.report.errors ?? [],
     },
   };
+}
+
+function parseCodecImport(value: unknown): {
+  composition: PromptComposition;
+  report: CompatibilityReport;
+} {
+  if (!isRecord(value) || !isRecord(value.composition) || !isCompatibilityReport(value.report)) {
+    throw new Error("COMPATIBILITY_CODEC_INVALID_IMPORT_RESULT");
+  }
+  return {
+    composition: parsePromptComposition(value.composition),
+    report: value.report,
+  };
+}
+
+function isCompatibilityReport(value: unknown): value is CompatibilityReport {
+  return isRecord(value) && Array.isArray(value.warnings) && Array.isArray(value.errors);
+}
+
+function parseCompatibilityAnalysis(value: unknown): SillyTavernPresetAnalysis {
+  if (!isRecord(value) || !["full", "core", "recognize_only", "invalid"].includes(String(value.level))) {
+    throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
+  }
+  const numberFields = [
+    "promptCount", "orderedPromptCount", "enabledPromptCount", "markerCount",
+    "unknownMarkerCount", "inChatPromptCount", "attachmentPromptCount", "regexCount",
+    "tavernHelperScriptCount", "enabledTavernHelperScriptCount", "remoteScriptCount",
+    "tavernHelperScriptBytes",
+  ] as const;
+  if (numberFields.some((field) => typeof value[field] !== "number")) {
+    throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
+  }
+  if (!Array.isArray(value.diagnostics) || value.diagnostics.some((item) => typeof item !== "string")) {
+    throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
+  }
+  return value as unknown as SillyTavernPresetAnalysis;
 }
 
 export function formatSillyTavernCompatibilityAnalysis(

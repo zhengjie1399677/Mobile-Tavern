@@ -7,7 +7,11 @@
 - 第一批实现顺序为 Scope/Effect 可撤销注册、Runtime Plugin/Profile 最小组合、Message Content V2 与 Attachment Data Plane；在对应实现和守卫完成前，现有 `runtime_boundaries.md` 仍是代码必须遵守的当前边界。
 - Scope/Effect 与 Runtime Plugin/Profile 两项底层工作已完成最小闭环：通用父子 `EffectScope` 支持逆序幂等释放、并发提前释放等待、失败后继续清理和错误聚合；核心服务批次、默认 Pipeline 中间件、Capability、消息订阅和主 Tab UI Slot 均返回基于注册身份的 disposer，并统一挂入 Application Scope。Application 层新增 Runtime Plugin Definition、Profile 依赖解析、版本校验、循环检测、失败回滚和脱敏解析快照，现有服务、默认 Pipeline 与能力清单已通过 `mobile-tavern.legacy-runtime` 插件装载，用户行为保持不变。阶段 1 尚未完成类型化 Capability Token 与配置 Schema 体系。
 - 阶段 2 的最小闭环已完成：消息存储支持 V1 文本与 V2 Content Parts 联合读取，附件使用独立数据库和 `staging/committed/orphaned` 引用生命周期；聊天端已贯通图片选择、预览、重启恢复、编辑、重发、分支、气泡展示和 OpenAI-compatible 请求投影。模型视觉能力未知时默认拒绝，需用户在 API 配置显式确认；Anthropic 原生方言和音视频 Provider 投影不做静默降级。
-- 统一备份升级为 v5，备份所引用附件的 Base64 字节；恢复先验证附件覆盖，使用恢复前安全快照、附件暂存、主库覆盖和引用重建完成跨数据库补偿。下一步进入阶段 3：Agent Spine、Tool Registry、声明式 Provider Capability 与复杂媒体处理。
+- 阶段 3 已完成最小纵向闭环：应用层 Agent Runtime 提供 AgentHandle、Turn/取消、legacy driver、两个声明式 Provider、Tool Registry 和媒体 Processor；聊天发送与停止已进入 AgentHandle。Tool 输入/输出 Schema、权限、超时、Provider/媒体决定和 Turn 终态进入独立 Agent Journal，新会话冻结 Composition Snapshot。
+- 音频附件可使用现有 OpenAI ASR 配置转写并写回模型可见文本；视频附件通过 WebView Adapter 生成有限 JPEG 关键帧并把派生引用写回 V2 消息。统一备份升级为 v6，同时覆盖附件字节与 Agent Journal，并在主库提交前失败时恢复两者快照。
+- 阶段 3 尚余真正消费模型 `tool_calls` 的内置多 Step Tool Loop Driver；该项不阻塞已经完成的阶段 4 底层边界收口。
+- 阶段 4 已完成底层闭环：常驻空 Compatibility Host 提供六类可撤销 Registry，独立 SillyTavern Runtime Plugin 负责连接兼容实现；通用生产代码不再直接导入兼容目录或读写 TavernHelper 生成全局字段。`base` Profile 不加载兼容插件，`tavern` Profile 可关闭、卸载和重载。插件状态进入独立会话命名空间，同时保留旧 `variables` 读取与双写降级。
+- 下一步进入阶段 5 的 Profile 选择/诊断 UI、设置面板贡献与旧路径清理；Driver/Profile 产品切换界面在此阶段统一交付。
 - 权威目标、聊天组合规则、阶段任务和验收条件见[插件式 Agent Runtime 与聊天组合路线](agent_plugin_runtime_roadmap.md)。
 
 ---

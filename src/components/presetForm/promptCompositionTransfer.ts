@@ -1,6 +1,6 @@
 import type { PromptComposition } from "../../domain/prompt-composition";
 import { parsePromptComposition } from "../../domain/prompt-composition";
-import { importSillyTavernPreset } from "../../infrastructure/compat/sillytavern";
+import type { CompatibilityCodecDefinition } from "../../application/compatibility/contracts";
 
 export const PROMPT_COMPOSITION_TEMPLATE_FORMAT = "mobile-tavern.prompt-composition";
 export const PROMPT_COMPOSITION_TEMPLATE_VERSION = 1;
@@ -30,7 +30,10 @@ export function serializePromptCompositionTemplate(
 }
 
 /** 支持当前版本化模板，同时兼容首期直接导出的裸 PromptComposition。 */
-export function parsePromptCompositionTemplate(input: string): PromptComposition {
+export function parsePromptCompositionTemplate(
+  input: string,
+  compatibilityCodec?: CompatibilityCodecDefinition | null,
+): PromptComposition {
   let value: unknown;
   try {
     value = JSON.parse(input);
@@ -45,7 +48,14 @@ export function parsePromptCompositionTemplate(input: string): PromptComposition
     return parsePromptComposition(value.composition);
   }
   if (isRecord(value) && Array.isArray(value.prompts)) {
-    return parsePromptComposition(importSillyTavernPreset(value).composition);
+    if (!compatibilityCodec?.canDecode(value)) {
+      throw new Error("PROMPT_COMPOSITION_COMPATIBILITY_CODEC_UNAVAILABLE");
+    }
+    const decoded = compatibilityCodec.decode(value);
+    if (!isRecord(decoded) || !isRecord(decoded.composition)) {
+      throw new Error("PROMPT_COMPOSITION_COMPATIBILITY_CODEC_INVALID_RESULT");
+    }
+    return parsePromptComposition(decoded.composition);
   }
   return parsePromptComposition(value);
 }

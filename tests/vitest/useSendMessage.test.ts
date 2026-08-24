@@ -11,8 +11,17 @@ import { useSendMessage } from "../../src/hooks/useChat/useSendMessage";
 import { CONNECTION_INTERRUPTED_SUFFIX } from "../../src/hooks/useChat/pipelineHelpers";
 import type { ChatSession, CharacterCard, Message, UserSettings } from "../../src/types";
 import type { MessageContentPart } from "../../src/domain/messages/messageContent";
+import type {
+  AgentHandle,
+  AgentInputModality,
+  AgentProviderDefinition,
+  AgentTurnExecutionContext,
+} from "../../src/domain/agents/contracts";
 
-function createHarness(streamLlmResponse: (...args: any[]) => AsyncGenerator<any>) {
+function createHarness(
+  streamLlmResponse: (...args: any[]) => AsyncGenerator<any>,
+  providerModalities: readonly AgentInputModality[] = ["text", "image"],
+) {
   const welcome: Message = {
     id: "welcome",
     sender: "assistant",
@@ -80,18 +89,87 @@ function createHarness(streamLlmResponse: (...args: any[]) => AsyncGenerator<any
     }),
     commitSessionTurn: vi.fn(async () => undefined),
     appendSessionMessage: vi.fn(async () => undefined),
+    updateSessionMetadata: vi.fn(async () => undefined),
+  };
+  const provider: AgentProviderDefinition = {
+    id: "provider.openai-compatible",
+    version: "1.0.0",
+    capabilities: {
+      inputModalities: providerModalities,
+      supportedMimeTypes: ["image/png", "image/jpeg", "image/gif", "image/webp"],
+      supportsStreaming: true,
+      supportsTools: true,
+    },
+    buildRequestBody: (request) => ({ ...request }),
+  };
+  const agentRuntime = {
+    getProvider: () => provider,
+    getCompositionSnapshot: () => null,
+    openHandle: (options: {
+      sessionId: string;
+      driverId: string;
+      providerId: string;
+      executeLegacy: (context: AgentTurnExecutionContext) => Promise<void>;
+    }): AgentHandle => {
+      let controller: AbortController | null = null;
+      let activeTurnId: string | null = null;
+      return {
+        async send(input) {
+          controller = new AbortController();
+          activeTurnId = "turn-test";
+          const context: AgentTurnExecutionContext = {
+            sessionId: options.sessionId,
+            turnId: activeTurnId,
+            driverId: options.driverId,
+            providerId: options.providerId,
+            input,
+            signal: controller.signal,
+            provider,
+            executeLegacy: async () => undefined,
+            executeTool: async () => undefined,
+            processMedia: async () => ({
+              sourceAssetId: "att_test",
+              projectionParts: [],
+              derivedAssetIds: [],
+              strategy: "test",
+            }),
+            recordDecision: async () => undefined,
+          };
+          await options.executeLegacy(context);
+          activeTurnId = null;
+          controller = null;
+          return { turnId: "turn-test", status: "completed" };
+        },
+        async stop() {
+          controller?.abort(new DOMException("user", "AbortError"));
+        },
+        async dispose() {
+          controller?.abort(new DOMException("disposed", "AbortError"));
+        },
+        getSnapshot: () => ({
+          sessionId: options.sessionId,
+          driverId: options.driverId,
+          providerId: options.providerId,
+          status: activeTurnId ? "running" : "idle",
+          activeTurnId,
+        }),
+        subscribe: () => () => undefined,
+      };
+    },
   };
 
   const params = {
     kernel: {
-      getService: vi.fn((name: string) => name === "attachments"
-        ? {
+      getService: vi.fn((name: string) => {
+        if (name === "agentRuntime") return agentRuntime;
+        return name === "attachments" ? {
             getBlob: vi.fn(async () => new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" })),
           }
         : {
             getExtractor: () => ({ scheduleExtraction }),
             getSummary: () => ({ checkAndSummarize }),
-          }),
+          };
+      }),
       getPipeline: vi.fn(() => ({
         list: () => [{}, {}, {}],
         matches: () => true,
@@ -298,5 +376,28 @@ describe("useSendMessage 弱网与中止事务", () => {
       { type: "text", text: "请看图" },
       { type: "image_url", image_url: { url: "data:image/png;base64,AQID", detail: "auto" } },
     ]);
+  });
+
+  it("视频关键帧所需图片能力缺失时在消息落库前拒绝", async () => {
+    silenceConsole();
+    const harness = createHarness(async function* () {
+      yield { choices: [{ delta: { content: "不应调用" } }] };
+    }, ["text"]);
+    harness.params.settings.api = {
+      ...harness.params.settings.api,
+      type: "anthropic",
+      supportsVision: true,
+    };
+    const { result } = renderHook(() => useSendMessage(harness.params));
+
+    await act(async () => {
+      await result.current.handleSendMessage("请看视频", {
+        attachmentParts: [{ type: "video", assetId: "att_video1" }],
+      });
+    });
+
+    expect(harness.showCustomAlert).toHaveBeenCalledWith(expect.stringContaining("video"));
+    expect(harness.queueUserMessage).not.toHaveBeenCalled();
+    expect(harness.params.chatStreamService.streamLlmResponse).not.toHaveBeenCalled();
   });
 });

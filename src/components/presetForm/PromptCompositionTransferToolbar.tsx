@@ -3,6 +3,11 @@ import { useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { PromptComposition } from "../../domain/prompt-composition";
 import { useTranslation } from "../../contexts/LanguageContext";
+import { useOptionalKernel } from "../../contexts/KernelContext";
+import {
+  getCompatibilityCodec,
+  SILLY_TAVERN_PROMPT_PRESET_FORMAT,
+} from "../../application/useCases/compatibilityGenerationState";
 import {
   createPromptCompositionFileName,
   MAX_PROMPT_COMPOSITION_FILE_SIZE,
@@ -42,6 +47,11 @@ export default function PromptCompositionTransferToolbar({
   onImport,
 }: PromptCompositionTransferToolbarProps) {
   const { t } = useTranslation();
+  const kernel = useOptionalKernel();
+  const compatibilityCodec = getCompatibilityCodec(
+    kernel,
+    SILLY_TAVERN_PROMPT_PRESET_FORMAT,
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const [feedback, setFeedback] = useState<Feedback>();
   const transferData = useMemo(() => ({
@@ -112,7 +122,7 @@ export default function PromptCompositionTransferToolbar({
       if (file.size > MAX_PROMPT_COMPOSITION_FILE_SIZE) {
         throw new Error("PROMPT_COMPOSITION_TEMPLATE_TOO_LARGE");
       }
-      const imported = parsePromptCompositionTemplate(await file.text());
+      const imported = parsePromptCompositionTemplate(await file.text(), compatibilityCodec);
       onImport(imported);
       setFeedback({ kind: "success", message: t("prompt_composer.import_success", { name: imported.name }) });
     } catch {

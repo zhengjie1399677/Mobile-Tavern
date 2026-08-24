@@ -140,6 +140,9 @@ function resolveRuntimeProfilePlan(
     resolved.definition.validateConfig?.(resolved.reference.config);
   }
 
+  const providerBindings = normalizeBindings(profile.bindings);
+  const contributionOrder = normalizeContributions(profile.contributions);
+
   const snapshot: ResolvedRuntimeProfileSnapshot = Object.freeze({
     profileId: profile.id,
     profileVersion: profile.version,
@@ -147,9 +150,42 @@ function resolveRuntimeProfilePlan(
       id: definition.id,
       version: definition.version,
     }))),
+    providerBindings,
+    contributionOrder,
   });
 
   return { snapshot, plugins: resolvedPlugins };
+}
+
+function normalizeBindings(
+  bindings: RuntimeProfileDefinition["bindings"],
+): Readonly<Record<string, string>> {
+  const normalized: Record<string, string> = {};
+  for (const [slotId, providerId] of Object.entries(bindings ?? {}).sort(([left], [right]) => left.localeCompare(right))) {
+    assertRuntimeId(slotId, "PLUGIN");
+    assertRuntimeId(providerId, "PLUGIN");
+    normalized[slotId] = providerId;
+  }
+  return Object.freeze(normalized);
+}
+
+function normalizeContributions(
+  contributions: RuntimeProfileDefinition["contributions"],
+): Readonly<Record<string, readonly string[]>> {
+  const normalized: Record<string, readonly string[]> = {};
+  for (const [slotId, contributionIds] of Object.entries(contributions ?? {}).sort(([left], [right]) => left.localeCompare(right))) {
+    assertRuntimeId(slotId, "PLUGIN");
+    const uniqueIds = new Set<string>();
+    for (const contributionId of contributionIds) {
+      assertRuntimeId(contributionId, "PLUGIN");
+      if (uniqueIds.has(contributionId)) {
+        throw new Error(`RUNTIME_CONTRIBUTION_DUPLICATE: ${slotId} -> ${contributionId}`);
+      }
+      uniqueIds.add(contributionId);
+    }
+    normalized[slotId] = Object.freeze([...uniqueIds]);
+  }
+  return Object.freeze(normalized);
 }
 
 /** 校验 Profile 并返回不含插件配置和秘密的稳定解析快照。 */

@@ -1,4 +1,4 @@
-import type { IKernelService } from "../kernel/types";
+import type { EffectDisposer, IKernelService } from "../kernel/types";
 export * from "../kernel/types";
 
 import type {
@@ -11,6 +11,17 @@ import type {
   AttachmentBackupRecord,
   AttachmentReference,
 } from "../domain/attachments/types";
+import type {
+  AgentDriverDefinition,
+  AgentHandle,
+  AgentJournalEvent,
+  AgentCompositionSnapshot,
+  AgentMediaProcessorDefinition,
+  AgentProviderDefinition,
+  AgentToolDefinition,
+  AgentTurnExecutionContext,
+} from "../domain/agents/contracts";
+export type { ICompatibilityRuntimeService } from "./compatibility/contracts";
 import type { MessageContentPart } from "../domain/messages/messageContent";
 import type {
   ThemeInteractionConfig,
@@ -44,7 +55,40 @@ export const KernelServices = {
   LocalResources: "localResources",
   ThemeInteractions: "themeInteractions",
   Attachments: "attachments",
+  AgentRuntime: "agentRuntime",
+  CompatibilityRuntime: "compatibilityRuntime",
 } as const;
+
+export interface IAgentRuntimeService extends IKernelService {
+  registerDriver(definition: AgentDriverDefinition): EffectDisposer;
+  registerProvider(definition: AgentProviderDefinition): EffectDisposer;
+  registerTool(definition: AgentToolDefinition): EffectDisposer;
+  registerMediaProcessor(definition: AgentMediaProcessorDefinition): EffectDisposer;
+  listDrivers(): AgentDriverDefinition[];
+  listProviders(): AgentProviderDefinition[];
+  listTools(): AgentToolDefinition[];
+  listMediaProcessors(): AgentMediaProcessorDefinition[];
+  getProvider(providerId: string): AgentProviderDefinition;
+  openHandle(options: {
+    sessionId: string;
+    driverId: string;
+    providerId: string;
+    executeLegacy: (context: AgentTurnExecutionContext) => Promise<void>;
+    grantedPermissions: readonly string[];
+  }): AgentHandle;
+  getDiagnostics(): {
+    drivers: ReadonlyArray<{ id: string; version: string }>;
+    providers: ReadonlyArray<{ id: string; version: string }>;
+    tools: ReadonlyArray<{ name: string; version: string }>;
+    mediaProcessors: ReadonlyArray<{ id: string; version: string }>;
+    activeHandles: number;
+  };
+  listJournalBySession(sessionId: string): Promise<AgentJournalEvent[]>;
+  replaceJournal(events: readonly AgentJournalEvent[]): Promise<void>;
+  deleteJournalBySession(sessionId: string): Promise<void>;
+  bindComposition(snapshot: AgentCompositionSnapshot): EffectDisposer;
+  getCompositionSnapshot(): AgentCompositionSnapshot | null;
+}
 
 export interface IAttachmentService extends IKernelService {
   stageFile(file: File): Promise<AttachmentMetadata>;
@@ -545,6 +589,12 @@ export interface IAsrService extends IKernelService {
   ): Promise<void>;
   stopListening(): void;
   cancelListening(): void;
+  transcribeFile(
+    blob: Blob,
+    fileName: string,
+    config: AsrConfig,
+    signal?: AbortSignal,
+  ): Promise<string>;
 }
 
 /**

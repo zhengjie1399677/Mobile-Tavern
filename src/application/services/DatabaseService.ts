@@ -1,5 +1,7 @@
 import {
   type IAttachmentService,
+  type IAgentRuntimeService,
+  type ICompatibilityRuntimeService,
   type IDatabaseService,
   type IKernel,
   type IScriptService,
@@ -35,7 +37,7 @@ import {
   updateSessionSummary as dbUpdateSessionSummary,
 } from "../../infrastructure/storage/indexedDbMemoryStore";
 import { updateSessionMessage as dbUpdateSessionMessage } from "../../infrastructure/storage/repositories/sessionMessageUpdateRepository";
-import { applyCharacterRegexScripts } from "../../compatibility/sillytavern/mvuParser";
+import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../compatibility/contracts";
 import { commitSessionTurn as dbCommitSessionTurn } from "../../infrastructure/storage/repositories/sessionTurnRepository";
 import { deleteSessionMessage as dbDeleteSessionMessage } from "../../infrastructure/storage/repositories/sessionMessageDeleteRepository";
 import { hydrateNewestFirstMessagePage } from "../useCases/chatMessageHydration";
@@ -56,7 +58,12 @@ export class DatabaseService implements IDatabaseService<
 > {
   name = "database";
   isCritical = true;
-  dependencies = [KernelServices.Script, KernelServices.Attachments] as const;
+  dependencies = [
+    KernelServices.Script,
+    KernelServices.Attachments,
+    KernelServices.AgentRuntime,
+    KernelServices.CompatibilityRuntime,
+  ] as const;
   private kernel!: IKernel;
   private attachmentSyncQueue: Promise<void> = Promise.resolve();
   // P1-1/P1-2: 服务级 AbortController
@@ -357,6 +364,11 @@ export class DatabaseService implements IDatabaseService<
     const removedMessageIds = (await getMessagesBySession(id)).map(record => record.id);
     await deleteSession(id, signal ?? this.abortController?.signal);
     await this.patchMessageAttachmentReferences(id, [], removedMessageIds);
+    if (this.kernel.hasService(KernelServices.AgentRuntime)) {
+      await this.kernel
+        .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
+        .deleteJournalBySession(id);
+    }
   }
 
   // 批量写入会话（备份恢复 / 跨设备同步场景），跨 sessions+messages Store 事务
@@ -440,7 +452,11 @@ export class DatabaseService implements IDatabaseService<
     let formattedStarter = (starterMessage || "").trim();
     if (formattedStarter) {
       try {
-        const processedStarter = applyCharacterRegexScripts(formattedStarter, character, undefined, undefined, undefined, "store");
+        const processedStarter = this.getCompatibilityRuntime()?.transformText({
+          text: formattedStarter,
+          character,
+          mode: "store",
+        }) ?? formattedStarter;
         mvuVariables = scriptService.parseMvuMessage(processedStarter, mvuVariables);
       } catch (err) {
         logger.warn("Failed to parse starterMessage variables", { error: err });
@@ -475,6 +491,8 @@ export class DatabaseService implements IDatabaseService<
       messages,
       summaries: [],
       variables: mvuVariables,
+      runtimePluginState: this.createCompatibilityState(mvuVariables),
+      compositionSnapshot: this.getAgentCompositionSnapshot(),
     };
     await this.replaceCompleteSessions([newSession]);
     return newSession;
@@ -488,7 +506,11 @@ export class DatabaseService implements IDatabaseService<
     let starterMessage = (character?.first_mes || "").trim();
     if (starterMessage) {
       try {
-        const processedStarter = applyCharacterRegexScripts(starterMessage, character, undefined, undefined, undefined, "store");
+        const processedStarter = this.getCompatibilityRuntime()?.transformText({
+          text: starterMessage,
+          character,
+          mode: "store",
+        }) ?? starterMessage;
         mvuVariables = scriptService.parseMvuMessage(processedStarter, mvuVariables);
       } catch (err) {
         logger.warn("Failed to parse branch starterMessage variables", { error: err });
@@ -521,6 +543,8 @@ export class DatabaseService implements IDatabaseService<
       summaries: [],
       createdAt: Date.now(),
       variables: mvuVariables,
+      runtimePluginState: this.createCompatibilityState(mvuVariables),
+      compositionSnapshot: this.getAgentCompositionSnapshot(),
     };
     await this.replaceCompleteSessions([newSession]);
     return newSession;
@@ -561,6 +585,16 @@ export class DatabaseService implements IDatabaseService<
           .initDefaultSheets(character?.name || "NPC");
       }
     }
+    const variables = snapshot?.variables
+      ?? legacyVariables
+      ?? (msgIndex === fullHistory.length - 1
+        ? structuredClone(sourceSession.variables)
+        : undefined);
+    const runtimePluginState = msgIndex === fullHistory.length - 1
+      ? structuredClone(sourceSession.runtimePluginState)
+      : variables
+        ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(variables) }
+        : undefined;
 
     const newSession: ChatSession = {
       id: "session_branch_" + Math.random().toString(36).substring(2, 9),
@@ -570,14 +604,13 @@ export class DatabaseService implements IDatabaseService<
       messages: sourceSubHistory,
       summaries: filteredSummaries,
       lastSummarizedMessageId,
-      variables: snapshot?.variables
-        ?? legacyVariables
-        ?? (msgIndex === fullHistory.length - 1
-          ? structuredClone(sourceSession.variables)
-          : undefined),
+      variables,
+      runtimePluginState,
       tableMemory,
       parentSessionId: sourceSession.id,
       parentMessageId: msgId,
+      compositionSnapshot: sourceSession.compositionSnapshot
+        ?? this.getAgentCompositionSnapshot(),
     };
     await this.replaceCompleteSessions([newSession]);
     return newSession;
@@ -593,5 +626,30 @@ export class DatabaseService implements IDatabaseService<
       throw new Error("Summary has no message boundary");
     }
     return this.createBacktrackBranch(sourceSession, title, summary.lastMessageId);
+  }
+
+  private getAgentCompositionSnapshot(): ChatSession["compositionSnapshot"] {
+    if (!this.kernel.hasService(KernelServices.AgentRuntime)) return undefined;
+    return this.kernel
+      .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
+      .getCompositionSnapshot() ?? undefined;
+  }
+
+  private getCompatibilityRuntime(): ICompatibilityRuntimeService | null {
+    if (
+      !this.kernel
+      || typeof this.kernel.hasService !== "function"
+      || !this.kernel.hasService(KernelServices.CompatibilityRuntime)
+    ) {
+      return null;
+    }
+    return this.kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime);
+  }
+
+  private createCompatibilityState(
+    state: Record<string, unknown>,
+  ): ChatSession["runtimePluginState"] {
+    if (!this.getCompatibilityRuntime()?.isEnabled()) return undefined;
+    return { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(state) };
   }
 }

@@ -1,7 +1,11 @@
 import React, { memo, useState } from "react";
 import type { CharacterCard } from "../types";
 import { useUnifiedApp } from "../UnifiedAppContext";
-import { initTavernHelperMocks } from "../compatibility/sillytavern";
+import { useOptionalKernel } from "../contexts/KernelContext";
+import {
+  KernelServices,
+  type ICompatibilityRuntimeService,
+} from "../application/serviceContracts";
 import { useLibsReady } from "./formatted-text/useLibsReady";
 import {
   LocalErrorBoundary,
@@ -9,10 +13,6 @@ import {
   parseSafeHtmlToReact,
   preprocessFormattedText,
 } from "./formatted-text/renderingRuntime";
-
-interface WindowWithTavernHelperState extends Window {
-  TavernHelperIsSending?: boolean;
-}
 
 interface FormattedTextProps {
   text: string;
@@ -35,6 +35,7 @@ const FormattedText = memo(function FormattedText({
 }: FormattedTextProps) {
   if (!text) return null;
 
+  const kernel = useOptionalKernel();
   const [isExpanded, setIsExpanded] = useState(false);
   const isTooLong = text.length > 50000;
   const isWidget = /```html\b|<iframe\b|<StatusPlaceHolder/i.test(text);
@@ -50,15 +51,19 @@ const FormattedText = memo(function FormattedText({
     isSending: state.isSending,
   }));
   const enableHtml = context.settings.enableHtmlRendering ?? true;
+  const compatibilityRuntime = kernel?.hasService(KernelServices.CompatibilityRuntime)
+    ? kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+    : null;
+  const compatibilityRenderer = compatibilityRuntime?.getRenderer() ?? null;
   const enableScriptExecution = Boolean(context.settings.enableScriptExecution);
   const enableLoopProtection = context.settings.enableLoopProtection !== false;
   const activeCharacter = character ?? context.activeCharacter;
 
   if (enableScriptExecution) {
-    initTavernHelperMocks();
+    compatibilityRenderer?.initializeGlobals();
   }
 
-  const libsReady = useLibsReady(enableScriptExecution);
+  const libsReady = useLibsReady(enableScriptExecution, compatibilityRenderer);
   const enableAsteriskFormatting =
     activeCharacter?.visualSettings?.enableAsteriskFormatting !== undefined
       ? Boolean(activeCharacter.visualSettings.enableAsteriskFormatting)
@@ -66,8 +71,7 @@ const FormattedText = memo(function FormattedText({
   const { isSending, activeSession } = context;
   const isSendingSync = Boolean(
     isSending ||
-      (typeof window !== "undefined" &&
-        (window as WindowWithTavernHelperState).TavernHelperIsSending),
+      compatibilityRenderer?.getGenerationState().isSending,
   );
   const isStreamingLastMessage =
     isStreaming ??
@@ -105,6 +109,7 @@ const FormattedText = memo(function FormattedText({
     enableLoopProtection,
     isAiMessage,
     isStreamingLastMessage,
+    compatibilityRenderer,
   );
   const hasHtml = enableHtml && /<[a-z/][\s\S]*?>/i.test(processed);
   const swipeId =
@@ -123,6 +128,7 @@ const FormattedText = memo(function FormattedText({
         libsReady,
         enableLoopProtection,
         swipeId,
+        compatibilityRenderer,
       )}
     </span>
   ) : (

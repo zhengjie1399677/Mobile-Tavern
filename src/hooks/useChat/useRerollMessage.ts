@@ -30,24 +30,11 @@ import {
   projectMessagePartsToOpenAi,
   type OpenAiProviderMessage,
 } from "../../application/useCases/multimodalProviderProjection";
+import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useRerollMessage");
-
-/**
- * Tavern 全局辅助 window 字段类型收口。
- * 这些字段被 FormattedText.tsx / MessageBubble.tsx / useSendMessage.ts 等多处
- * 跨 iframe / 原生桥接边界共享读取，本文件内通过本地接口
- * 替代类型逃逸写法，避免类型丢失。
- * 字段标记为可选，反映"运行时动态挂载到 window"的真实语义。
- */
-interface WindowWithTavernHelpers extends Window {
-  /** 当前流式输出的 messageId，供 FormattedText / MessageBubble 判断渲染态 */
-  TavernHelperStreamingMessageId?: string | null;
-  /** 全局发送互斥标志，供 iframe / 原生桥接侧读取 */
-  TavernHelperIsSending?: boolean;
-}
 
 interface RerollMessageParams {
   kernel: IKernel;
@@ -106,9 +93,7 @@ export function useRerollMessage(p: RerollMessageParams) {
     // 立即锁定发送状态（防止异步弹窗与后续重复点击导致竞争）
     p.isSendingRef.current = true;
     p.setIsSending(true);
-    if (typeof window !== "undefined") {
-      (window as WindowWithTavernHelpers).TavernHelperIsSending = true;
-    }
+    setCompatibilityGenerationState(p.kernel, { isSending: true });
 
     // API 参数解析（试用 / 正式 Key 选择）：收口到 resolveApiCredentials helper
     let creds: ResolvedApiCredentials;
@@ -119,18 +104,14 @@ export function useRerollMessage(p: RerollMessageParams) {
         await p.showCustomAlert("💡 您的 10 次公共免 Key 体验次数已用完，请前往\"设置 -> API配置\"中填写您自己的 API Key。");
         p.isSendingRef.current = false;
         p.setIsSending(false);
-        if (typeof window !== "undefined") {
-          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-        }
+        setCompatibilityGenerationState(p.kernel, { isSending: false });
         return;
       }
       if (e instanceof ModelNotConfiguredError) {
         await p.showCustomAlert("重发失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
         p.isSendingRef.current = false;
         p.setIsSending(false);
-        if (typeof window !== "undefined") {
-          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-        }
+        setCompatibilityGenerationState(p.kernel, { isSending: false });
         return;
       }
       throw e;
@@ -147,9 +128,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       await p.showCustomAlert("该消息已不存在或已被清理，无法重新生成。");
       p.isSendingRef.current = false;
       p.setIsSending(false);
-      if (typeof window !== "undefined") {
-        (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-      }
+      setCompatibilityGenerationState(p.kernel, { isSending: false });
       return;
     }
 
@@ -158,9 +137,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       if (!ok) {
         p.isSendingRef.current = false;
         p.setIsSending(false);
-        if (typeof window !== "undefined") {
-          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-        }
+        setCompatibilityGenerationState(p.kernel, { isSending: false });
         return;
       }
     }
@@ -183,9 +160,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       await p.showCustomAlert("重新生成回复之前，需要前置有一条用户消息作为驱动对白！");
       p.isSendingRef.current = false;
       p.setIsSending(false);
-      if (typeof window !== "undefined") {
-        (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-      }
+      setCompatibilityGenerationState(p.kernel, { isSending: false });
       return;
     }
 
@@ -217,9 +192,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       await p.showCustomAlert("无法恢复该时间点的变量与状态，已取消重新生成以避免污染存档。");
       p.isSendingRef.current = false;
       p.setIsSending(false);
-      if (typeof window !== "undefined") {
-        (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-      }
+      setCompatibilityGenerationState(p.kernel, { isSending: false });
       return;
     }
     if (nextMsgs[lastUserIdx].parts?.some(part => part.type !== "text")) {
@@ -232,9 +205,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         await p.showCustomAlert(reason);
         p.isSendingRef.current = false;
         p.setIsSending(false);
-        if (typeof window !== "undefined") {
-          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-        }
+        setCompatibilityGenerationState(p.kernel, { isSending: false });
         return;
       }
     }
@@ -370,9 +341,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         log.info("AI 发言重新生成流式开始");
       }
       // 关键修复：同步设置 streamingMessageId，与 useSendMessage 保持一致，避免 iframe 抢跑
-      if (typeof window !== "undefined") {
-        (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = aiMsgId;
-      }
+      setCompatibilityGenerationState(p.kernel, { streamingMessageId: aiMsgId });
       const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };
       p.setSessionViews((prev) =>
         prev.map((s) => s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)
@@ -447,9 +416,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
       // 流式正常完成：清除 streamingMessageId
-      if (typeof window !== "undefined") {
-        (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = null;
-      }
+      setCompatibilityGenerationState(p.kernel, { streamingMessageId: null });
 
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
       if (!latestSession) { log.warn("Aborted save, session was deleted", { sessionId: updatedSession.id }); return; }
@@ -544,9 +511,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
       // 异常/中断分支：清除 streamingMessageId
-      if (typeof window !== "undefined") {
-        (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = null;
-      }
+      setCompatibilityGenerationState(p.kernel, { streamingMessageId: null });
       const isManualAbort = getErrorName(e) === "AbortError" || getErrorMessage(e)?.includes("aborted") || controller.signal.aborted;
       const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
@@ -604,16 +569,12 @@ export function useRerollMessage(p: RerollMessageParams) {
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
       // finally 兜底：确保 streamingMessageId 被清除，避免任何未捕获路径残留导致 FormattedText 卡死
-      if (typeof window !== "undefined") {
-        (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = null;
-      }
+      setCompatibilityGenerationState(p.kernel, { streamingMessageId: null });
       if (p.abortControllerRef.current === controller) p.abortControllerRef.current = null;
       if (requestId === p.activeRequestIdRef.current) {
         p.isSendingRef.current = false;
         p.setIsSending(false);
-        if (typeof window !== "undefined") {
-          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-        }
+        setCompatibilityGenerationState(p.kernel, { isSending: false });
       }
     }
   }, []);

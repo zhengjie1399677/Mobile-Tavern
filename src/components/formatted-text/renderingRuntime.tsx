@@ -1,7 +1,8 @@
 import React from "react";
 import { publicEnvironment } from "../../config";
-import { createMessageIframeSrcDoc } from "../../compatibility/sillytavern";
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "../formattedTextUtils";
+import { readFormattedTextSrcdoc, storeFormattedTextSrcdoc } from "./srcdocStore";
+import type { CompatibilityRendererDefinition } from "../../application/compatibility/contracts";
 
 interface RegexScript {
   id?: string;
@@ -46,19 +47,12 @@ type RenderElementProps = Record<string, unknown> & {
   marginHeight?: string;
 };
 
-/**
- * TavernHelper 注入到 window 的全局辅助字段类型收口。
- * 这些字段由 bridgeCore 在运行时按需挂载，本文件通过 window.* 读取以检测库就绪状态。
- * 字段标记为可选，反映"运行时动态挂载到 window"的真实语义。
- */
 // ─── Srcdoc Store ─────────────────────────────────────────────────────────────
 // Android WebView 的 DOMParser 在解析超长 HTML attribute 值时，遇到 attribute
 // 内的 `<` 字符会提前终止属性解析，导致 iframe 的 srcdoc 被截断或丢失（PC
 // Chrome 可以容忍此行为，Android WebView 不行）。
 // 解决方案：将 srcdoc 内容存入模块级 Map，iframe 只携带短 ID；domToReact
 // 从 Map 中取出完整 srcdoc 赋值，彻底绕开 DOMParser 对属性值大小的限制。
-const _srcdocStore = new Map<string, string>();
-
 const SafeIframe = React.memo((props: SafeIframeProps) => {
   const { srcDoc, ...rest } = props;
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
@@ -255,7 +249,8 @@ function domToReact(
   messageIndex?: number,
   libsReady?: boolean,
   enableLoopProtection?: boolean,
-  swipeId?: number
+  swipeId?: number,
+  compatibilityRenderer?: CompatibilityRendererDefinition | null,
 ): React.ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
     return renderTextNode(node.nodeValue || "", enableAsteriskFormatting, index);
@@ -286,7 +281,7 @@ function domToReact(
       return null;
     }
     return Array.from(element.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer)
     );
   }
 
@@ -319,15 +314,18 @@ function domToReact(
       } else if (name === "data-th-srcdoc-id" && tagName === "iframe") {
         // 新策略：从模块级 _srcdocStore 中取出完整 srcdoc，完全绕开 DOMParser
         // 对超长 attribute 值的截断限制（Android WebView 对含 < 的属性值处理有 bug）
-        const stored = _srcdocStore.get(val);
+        const stored = readFormattedTextSrcdoc(val);
         if (stored) {
           let resolvedSrcdoc = stored;
-          // 若 srcdoc 未注入 TavernHelper bridge（非我们生成的，来自角色卡正则），
-          // 则在此注入，使 iframe 内脚本能访问 window.parent.TavernHelper。
-          if (enableScriptExecution && !resolvedSrcdoc.includes("window.__TH_MESSAGE_ID")) {
+          // 原始角色卡 iframe 统一交给可选 Compatibility Renderer 准备运行环境。
+          if (enableScriptExecution && compatibilityRenderer) {
             if (libsReady) {
               try {
-                resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex, enableLoopProtection !== false);
+                resolvedSrcdoc = compatibilityRenderer?.createMessageIframeSrcDoc(
+                  resolvedSrcdoc,
+                  messageIndex,
+                  enableLoopProtection !== false,
+                ) ?? resolvedSrcdoc;
                 if (publicEnvironment.isDevelopment) {
                   console.log('[FormattedText] bridge injected for card srcdoc, len:', resolvedSrcdoc.length);
                 }
@@ -347,7 +345,7 @@ function domToReact(
           if (publicEnvironment.isDevelopment) {
             console.log('[FormattedText] srcdoc retrieved from store, id:', val, 'len:', resolvedSrcdoc.length);
           } else {
-            console.error('[FormattedText][PROD] srcdoc-id found:', val.slice(0, 40), 'len:', resolvedSrcdoc.length, 'hasMsg:', resolvedSrcdoc.includes('__TH_MESSAGE_ID'));
+            console.error('[FormattedText][PROD] srcdoc-id found:', val.slice(0, 40), 'len:', resolvedSrcdoc.length);
           }
         } else {
           console.error('[FormattedText] srcdoc store MISS for id:', val);
@@ -368,10 +366,14 @@ function domToReact(
           });
         }
 
-        // Apply bridge injection if it's a raw un-injected iframe
-        if (enableScriptExecution && !resolvedSrcdoc.includes("window.__TH_MESSAGE_ID")) {
+        // 原始 iframe 统一交给可选 Compatibility Renderer 准备运行环境。
+        if (enableScriptExecution && compatibilityRenderer) {
           if (libsReady) {
-            resolvedSrcdoc = createMessageIframeSrcDoc(resolvedSrcdoc, messageIndex, enableLoopProtection !== false);
+            resolvedSrcdoc = compatibilityRenderer?.createMessageIframeSrcDoc(
+              resolvedSrcdoc,
+              messageIndex,
+              enableLoopProtection !== false,
+            ) ?? resolvedSrcdoc;
           } else {
             resolvedSrcdoc = `<html><body style="background:transparent;color:#a8a29e;font-family:sans-serif;font-size:11px;margin:0;padding:4px;display:flex;align-items:center;gap:6px;">
               <span style="width:8px;height:8px;border:1.5px solid #a8a29e;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span>
@@ -441,7 +443,7 @@ function domToReact(
   }
 
   const children = Array.from(element.childNodes).map((child, i) => 
-    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId)
+    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer)
   );
   
   const reactElement =
@@ -484,7 +486,7 @@ function extractSrcdocAttrs(html: string): string {
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>');
       const storeKey = `th-srcdoc-card-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      _srcdocStore.set(storeKey, decoded);
+      storeFormattedTextSrcdoc(storeKey, decoded);
       extractCount++;
       if (publicEnvironment.isDevelopment) {
         console.log('[parseSafeHtml] extracted srcdoc to store, key:', storeKey, 'len:', decoded.length);
@@ -511,7 +513,8 @@ export function parseSafeHtmlToReact(
   messageIndex?: number,
   libsReady?: boolean,
   enableLoopProtection?: boolean,
-  swipeId?: number
+  swipeId?: number,
+  compatibilityRenderer?: CompatibilityRendererDefinition | null,
 ): React.ReactNode {
   try {
     const parser = new DOMParser();
@@ -523,7 +526,7 @@ export function parseSafeHtmlToReact(
     if (!container) return html;
 
     return Array.from(container.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer)
     );
   } catch (err) {
     console.error("Failed to parse HTML safely:", err);
@@ -542,7 +545,8 @@ export function preprocessFormattedText(
   messageIndex?: number,
   enableLoopProtection?: boolean,
   isAiMessage?: boolean,
-  isStreamingLastMsg?: boolean
+  isStreamingLastMsg?: boolean,
+  compatibilityRenderer?: CompatibilityRendererDefinition | null,
 ): string {
   if (!text) return "";
 
@@ -755,12 +759,16 @@ export function preprocessFormattedText(
       const htmlCodeBlockRegex = /```html\s*([\s\S]*?)\s*```/gi;
       processed = processed.replace(htmlCodeBlockRegex, (_match, htmlContent) => {
         const cleanedHtml = stripGuiWrapper(htmlContent);
-        const compiledSrcdoc = createMessageIframeSrcDoc(cleanedHtml, messageIndex, loopGuard);
+        const compiledSrcdoc = compatibilityRenderer?.createMessageIframeSrcDoc(
+          cleanedHtml,
+          messageIndex,
+          loopGuard,
+        ) ?? cleanedHtml;
         const iframeId = nextIframeId();
         // 关键：用 store 策略替代 data-srcdoc 属性，彻底绕开 Android WebView
         // DOMParser 对含 < 字符的超长 attribute 值的截断 bug。
         const storeKey = `th-srcdoc-${iframeId}-${Date.now()}`;
-        _srcdocStore.set(storeKey, compiledSrcdoc);
+        storeFormattedTextSrcdoc(storeKey, compiledSrcdoc);
         return `<iframe id="${iframeId}" name="${iframeId}" data-th-srcdoc-id="${storeKey}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
       });
 
@@ -771,10 +779,14 @@ export function preprocessFormattedText(
         // 内容以 < 开头（HTML 标签），当作 HTML 渲染
         if (trimmedContent.startsWith("<")) {
           const cleanedHtml = stripGuiWrapper(trimmedContent);
-          const compiledSrcdoc = createMessageIframeSrcDoc(cleanedHtml, messageIndex, loopGuard);
+          const compiledSrcdoc = compatibilityRenderer?.createMessageIframeSrcDoc(
+            cleanedHtml,
+            messageIndex,
+            loopGuard,
+          ) ?? cleanedHtml;
           const iframeId = nextIframeId();
           const storeKey = `th-srcdoc-${iframeId}-${Date.now()}`;
-          _srcdocStore.set(storeKey, compiledSrcdoc);
+          storeFormattedTextSrcdoc(storeKey, compiledSrcdoc);
           return `<iframe id="${iframeId}" name="${iframeId}" data-th-srcdoc-id="${storeKey}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
         }
         // 非 HTML 内容：保持原始代码块渲染

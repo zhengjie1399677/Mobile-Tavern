@@ -96,7 +96,7 @@ const MessageBubble = ({
   const hasAttachmentParts = message.parts?.some(part => part.type !== "text") === true;
 
   // isStreamingThisMsg 由父组件 DialogueHistoryView 预计算后传入，
-  // 判断逻辑（window.TavernHelperStreamingMessageId 优先 + isSending 兜底末位消息）
+  // 判断逻辑由上层 Compatibility Host 生成状态优先，并以 React isSending 兜底末位消息。
   // 统一收敛到父组件，避免每条消息都订阅 isSending 和 messagesToRenderLength。
   // 此处直接使用 prop 值，无需重复计算。
 

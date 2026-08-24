@@ -17,7 +17,6 @@ describe("运行时能力登记", () => {
       "asr.provider",
       "storage.memory",
       "plugin.fullscreen",
-      "compat.sillytavern",
       "native.file",
       "native.orientation",
       "prompt.composition",
@@ -36,7 +35,6 @@ describe("运行时能力登记", () => {
     const capabilities = listRuntimeCapabilities(kernel);
     expect(capabilities.map((capability) => capability.id)).toEqual([
       "asr.provider",
-      "compat.sillytavern",
       "llm.provider",
       "native.file",
       "native.orientation",

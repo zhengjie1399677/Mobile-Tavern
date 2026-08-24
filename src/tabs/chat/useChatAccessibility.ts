@@ -3,7 +3,6 @@
 
 import React from "react";
 
-import { initTavernHelperBridge, cleanTavernHelperBridge, getBridgeInterface, getBridgeParams, notifyVariablesUpdated } from "../../compatibility/sillytavern";
 import lodashCloneDeep from "lodash/cloneDeep";
 import lodashIsEqual from "lodash/isEqual";
 import { chatTabState } from "./utils";
@@ -12,28 +11,40 @@ import { reportUsage } from "../../utils/telemetry";
 
 const logger = Logger.create("ChatAccessibility");
 import { useKernel } from "../../contexts/KernelContext";
-import { IDatabaseService, IScriptService, ITtsService } from "@/src/application/serviceContracts";
+import {
+  IDatabaseService,
+  ITtsService,
+  KernelServices,
+  type ICompatibilityRuntimeService,
+} from "@/src/application/serviceContracts";
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
-import type { CardRuntimeBridgeParams } from "../../compatibility/sillytavern";
+import type { CompatibilityBridgeParams } from "../../application/compatibility/contracts";
 
 interface UseChatAccessibilityDeps
-  extends Omit<CardRuntimeBridgeParams, "saveSession" | "setSessions"> {
-  setSessionViews: CardRuntimeBridgeParams["setSessions"];
+  extends Omit<CompatibilityBridgeParams, "saveSession" | "setSessions"> {
+  setSessionViews: CompatibilityBridgeParams["setSessions"];
   isSending: boolean;
 }
 
 export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   const kernel = useKernel();
+  const compatibilityRuntime = kernel.getService<ICompatibilityRuntimeService>(
+    KernelServices.CompatibilityRuntime,
+  );
+  const compatibilityRenderer = compatibilityRuntime.getRenderer();
   const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
   const saveSession = async (session: ChatSession): Promise<void> => {
-    const current = getBridgeParams()?.activeSession;
+    const current = compatibilityRenderer?.getBridgeParams()?.activeSession;
     const currentMessages = new Map((current?.messages ?? []).map((message) => [message.id, message]));
     const changedMessages = session.messages.filter((message) => {
       const previous = currentMessages.get(message.id);
       return !previous || !lodashIsEqual(previous, message);
     });
-    await databaseService.updateSessionMetadata(session.id, { variables: session.variables });
+    await databaseService.updateSessionMetadata(session.id, {
+      variables: session.variables,
+      runtimePluginState: session.runtimePluginState,
+    });
     for (const message of changedMessages) {
       await databaseService.appendSessionMessage(session.id, message);
     }
@@ -54,13 +65,8 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   // Render-phase sync: 强行在渲染阶段将最新的会话与配置同步给 bridge params。
   // 这能确保在任何子组件（如 FormattedText）挂载、iframe 加载及 _onIframeReady() 触发时，
   // 它们都能够直接、同步且无时序滞后地通过 getBridgeParams() 拿到最新的 activeSession。
-  if (settings.enableScriptExecution) {
-    const params = getBridgeParams();
-    if (params) {
-      params.activeCharacter = activeCharacter;
-      params.activeSession = activeSession;
-      params.settings = settings;
-    }
+  if (settings.enableScriptExecution && compatibilityRenderer) {
+    compatibilityRenderer.updateBridge({ activeCharacter, activeSession, settings });
   }
 
   // a11y Live Announcer state and effect
@@ -100,10 +106,10 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     if (prevCharIdRef.current !== activeCharId || prevSessionIdRef.current !== activeSessionId) {
       prevCharIdRef.current = activeCharId;
       prevSessionIdRef.current = activeSessionId;
-      cleanTavernHelperBridge();
+      compatibilityRenderer?.cleanBridge();
     }
 
-    initTavernHelperBridge({
+    compatibilityRenderer?.initializeBridge({
       activeCharacter,
       activeSession,
       setSessions: setSessionViews,
@@ -114,14 +120,6 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
       updateSettings,
       handleSendMessage,
     });
-    try {
-      const scriptService = kernel.getService<IScriptService<CharacterCard, ChatSession>>("script");
-      if (scriptService && typeof scriptService.registerBridge === "function") {
-        scriptService.registerBridge(getBridgeInterface());
-      }
-    } catch {
-      // 测试环境下 ScriptService 可能未注册，静默跳过
-    }
   }, [
     activeCharId,
     activeSessionId,
@@ -133,7 +131,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   const prevVarsRef = React.useRef<unknown>(null);
   React.useEffect(() => {
     if (!settings.enableScriptExecution) return;
-    const params = getBridgeParams();
+    const params = compatibilityRenderer?.getBridgeParams();
     if (params) {
       params.activeCharacter = activeCharacter;
       params.activeSession = activeSession;
@@ -150,14 +148,14 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   // 仅在脚本关闭时清理 bridge
   React.useEffect(() => {
     if (!settings.enableScriptExecution) {
-      cleanTavernHelperBridge();
+      compatibilityRenderer?.cleanBridge();
     }
   }, [settings.enableScriptExecution]);
 
   // Only clean up the bridge when the ChatTab unmounts entirely.
   React.useEffect(() => {
     return () => {
-      cleanTavernHelperBridge();
+      compatibilityRenderer?.cleanBridge();
     };
   }, []);
 

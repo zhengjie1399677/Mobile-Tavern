@@ -4,7 +4,12 @@ import { X, BrainCircuit, LoaderCircle } from "lucide-react";
 import StoryTimelineView from "../tabs/chat/StoryTimelineView";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
-import { notifyVariablesUpdated } from "../compatibility/sillytavern";
+import { useOptionalKernel } from "../contexts/KernelContext";
+import {
+  KernelServices,
+  type ICompatibilityRuntimeService,
+} from "../application/serviceContracts";
+import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../application/compatibility/contracts";
 
 const MvuVariablesTabContent = React.lazy(() =>
   import("./MvuVariablesTabContent").then((module) => ({ default: module.MvuVariablesTabContent }))
@@ -34,6 +39,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   enableAutoSummary,
   initialTab
 }) => {
+  const kernel = useOptionalKernel();
   const { setSessionViews, showCustomAlert, showCustomConfirm, lastRecalledMemories, lastMemoryAudit } = useUnifiedApp((state) => ({
     setSessionViews: state.setSessionViews,
     showCustomAlert: state.showCustomAlert,
@@ -188,15 +194,24 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
               variables={activeSession.variables || {}}
               onSave={async (newVars) => {
                 console.log(`[MVU-SAVE-DIAG] onSave called, sessId=${activeSession.id}, varKeys=${Object.keys(newVars?.stat_data || {}).join(',')}`);
+                const runtimePluginState = {
+                  ...activeSession.runtimePluginState,
+                  [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: newVars,
+                };
                 const nextSession = {
                   ...activeSession,
-                  variables: newVars
+                  variables: newVars,
+                  runtimePluginState,
                 };
-                await updateSessionMetadata(nextSession.id, { variables: newVars });
+                await updateSessionMetadata(nextSession.id, { variables: newVars, runtimePluginState });
                 setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
                 console.log(`[MVU-SAVE-DIAG] setSessionViews done`);
                 try {
-                  notifyVariablesUpdated(nextSession);
+                  if (kernel?.hasService(KernelServices.CompatibilityRuntime)) {
+                    kernel
+                      .getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+                      .notifyStateChanged(nextSession);
+                  }
                   console.log(`[MVU-SAVE-DIAG] notifyVariablesUpdated done`);
                 } catch (e) {
                   console.warn("[MemoryTableDrawer] notifyVariablesUpdated failed:", e);

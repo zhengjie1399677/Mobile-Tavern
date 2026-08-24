@@ -22,3 +22,6 @@ export const useKernel = (): IKernel => {
   }
   return kernel;
 };
+
+/** 仅用于允许脱离应用组合根渲染的纯展示组件与隔离测试。 */
+export const useOptionalKernel = (): IKernel | null => useContext(KernelContext);

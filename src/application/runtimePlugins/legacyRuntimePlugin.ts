@@ -6,6 +6,11 @@ import type {
   RuntimePluginDefinition,
   RuntimeProfileDefinition,
 } from "./contracts";
+import { agentSpineRuntimePlugin, AGENT_SPINE_RUNTIME_PLUGIN_ID } from "./agentSpineRuntimePlugin";
+import {
+  sillyTavernCompatibilityRuntimePlugin,
+} from "./sillyTavernCompatibilityRuntimePlugin";
+import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../compatibility/contracts";
 
 export const LEGACY_RUNTIME_PLUGIN_ID = "mobile-tavern.legacy-runtime";
 
@@ -74,12 +79,53 @@ export function createLegacyRuntimePlugin(
 
 export const legacyRuntimePlugin = createLegacyRuntimePlugin();
 
-export const legacyRuntimeProfileDefinition: RuntimeProfileDefinition = {
-  id: "mobile-tavern.legacy",
+const basePlugins: RuntimeProfileDefinition["plugins"] = [
+  { id: LEGACY_RUNTIME_PLUGIN_ID, version: "1.0.0" },
+  { id: AGENT_SPINE_RUNTIME_PLUGIN_ID, version: "1.0.0" },
+];
+
+const baseBindings = {
+  "agent.driver": "legacy.tavern.driver",
+  "llm.route": "provider.openai-compatible",
+} as const;
+
+const baseContributions = {
+  tool: [],
+  "media.processor": ["media.audio.asr", "media.video.keyframes"],
+} as const;
+
+/** 不装载任何生态兼容实现的基础 Agent Host Profile。 */
+export const baseRuntimeProfileDefinition: RuntimeProfileDefinition = {
+  id: "mobile-tavern.base",
   version: 1,
-  plugins: [{ id: LEGACY_RUNTIME_PLUGIN_ID, version: "1.0.0" }],
+  plugins: basePlugins,
+  bindings: baseBindings,
+  contributions: baseContributions,
+};
+
+/** 当前默认 Tavern Profile；Compatibility Runtime 可从 Profile 中独立移除。 */
+export const legacyRuntimeProfileDefinition: RuntimeProfileDefinition = {
+  id: "mobile-tavern.tavern",
+  version: 3,
+  plugins: [
+    { id: LEGACY_RUNTIME_PLUGIN_ID, version: "1.0.0" },
+    { id: SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID, version: "1.0.0" },
+    { id: AGENT_SPINE_RUNTIME_PLUGIN_ID, version: "1.0.0" },
+  ],
+  bindings: baseBindings,
+  contributions: {
+    ...baseContributions,
+    "compat.codec": ["compat.sillytavern.codec.prompt-preset"],
+    "compat.prompt-section": ["compat.sillytavern.prompt.mvu-state"],
+    "compat.context-source": ["compat.sillytavern.context.mvu-state"],
+    "compat.transform": ["compat.sillytavern.transform.regex"],
+    "compat.state-reducer": ["compat.sillytavern.state.mvu"],
+    "compat.renderer": ["compat.sillytavern.renderer"],
+  },
 };
 
 export const legacyRuntimePluginCatalog: readonly RuntimePluginDefinition[] = [
   legacyRuntimePlugin,
+  sillyTavernCompatibilityRuntimePlugin,
+  agentSpineRuntimePlugin,
 ];

@@ -8,7 +8,12 @@
  */
 import React from "react";
 import { ChatSession, UserSettings, CharacterCard } from "../../types";
-import { IDatabaseService, IKernel, KernelServices } from "@/src/application/serviceContracts";
+import {
+  IDatabaseService,
+  IKernel,
+  KernelServices,
+  type ICompatibilityRuntimeService,
+} from "@/src/application/serviceContracts";
 import {
   bisonModeMiddleware,
   mvuScriptMiddleware,
@@ -17,7 +22,6 @@ import {
 } from "../../application/pipeline";
 import { buildOutputContext } from "./helpers/streamHelpers";
 import { cleanSuggestionsFromText } from "./helpers/textParsing";
-import { notifyVariablesUpdated } from "../../compatibility/sillytavern";
 import { Logger } from "../../utils/logger";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
@@ -163,6 +167,7 @@ export async function runOutputPipelineAndSave(params: {
       parsedSession.id,
       {
         variables: parsedSession.variables,
+        runtimePluginState: parsedSession.runtimePluginState,
         tableMemory: parsedSession.tableMemory,
         pinnedMessageIds: parsedSession.pinnedMessageIds,
         mutedMessageIds: parsedSession.mutedMessageIds,
@@ -261,7 +266,14 @@ export async function runOutputPipelineAndSave(params: {
     prev.map((s) => (s.id === parsedSession.id ? parsedSession : s))
   );
   try {
-    notifyVariablesUpdated(parsedSession);
+    if (
+      typeof kernel.hasService === "function"
+      && kernel.hasService(KernelServices.CompatibilityRuntime)
+    ) {
+      kernel
+        .getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+        .notifyStateChanged(parsedSession);
+    }
   } catch (e) {
     log.warn("Failed to notifyVariablesUpdated", { error: e });
   }

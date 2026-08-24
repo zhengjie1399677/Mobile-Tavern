@@ -23,6 +23,7 @@ import type { ChatSession, CustomPromptBlock, Message, ReplyChoice, SummaryCard 
 import type { IAsrService, IAttachmentService } from "@/src/application/serviceContracts";
 import type { RecalledMessage } from "@/src/application/services/memory/types";
 import type { AttachmentMetadata } from "../../domain/attachments/types";
+import type { MessageContentPart } from "../../domain/messages/messageContent";
 
 /**
  * 用于在事件 currentTarget 上标记 _touched 状态，
@@ -33,6 +34,13 @@ type TouchTrackedElement = Element & { _touched?: boolean };
 interface PendingAttachment {
   metadata: AttachmentMetadata;
   previewUrl: string;
+}
+
+function toMessageAttachmentPart(metadata: AttachmentMetadata): MessageContentPart {
+  if (metadata.kind === "image") return { type: "image", assetId: metadata.id };
+  if (metadata.kind === "audio") return { type: "audio", assetId: metadata.id };
+  if (metadata.kind === "video") return { type: "video", assetId: metadata.id };
+  return { type: "file", assetId: metadata.id, displayName: metadata.originalName };
 }
 
 const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
@@ -160,13 +168,9 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (files.length === 0) return;
-    if (settings.api.supportsVision !== true) {
-      await showCustomAlert("当前 API 配置未启用图片输入能力，请先在 API 配置中确认模型支持视觉输入。");
-      return;
-    }
     const remainingSlots = Math.max(0, 4 - pendingAttachments.length);
     if (remainingSlots === 0) {
-      await showCustomAlert("每条消息最多添加 4 张图片。");
+      await showCustomAlert("每条消息最多添加 4 个附件。");
       return;
     }
     const service = getKernelService<IAttachmentService>("attachments");
@@ -174,7 +178,6 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     try {
       for (const file of files.slice(0, remainingSlots)) {
         const metadata = await service.stageFile(file);
-        if (metadata.kind !== "image") throw new Error("ATTACHMENT_KIND_UNSUPPORTED");
         imported.push({
           metadata,
           previewUrl: await service.getObjectUrl(metadata.id),
@@ -182,10 +185,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await showCustomAlert(`图片导入失败：${message}`);
+      await showCustomAlert(`附件导入失败：${message}`);
     }
     if (imported.length > 0) setPendingAttachments(current => [...current, ...imported]);
-  }, [getKernelService, pendingAttachments.length, settings.api.supportsVision, showCustomAlert]);
+  }, [getKernelService, pendingAttachments.length, showCustomAlert]);
 
   const handleToggleAsr = async () => {
     try {
@@ -342,6 +345,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       await handleSendMessage(msg, {
         skipAI: true,
         attachmentIds: pendingAttachments.map(item => item.metadata.id),
+        attachmentParts: pendingAttachments.map(item => toMessageAttachmentPart(item.metadata)),
       });
     } catch {
       return;
@@ -358,6 +362,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       await handleSendMessage(msg, {
         skipAI: false,
         attachmentIds: pendingAttachments.map(item => item.metadata.id),
+        attachmentParts: pendingAttachments.map(item => toMessageAttachmentPart(item.metadata)),
       });
     } catch {
       return;
@@ -575,14 +580,22 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         </div>
       )}
       {pendingAttachments.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto px-1 py-1" aria-label="待发送图片">
+        <div className="flex gap-2 overflow-x-auto px-1 py-1" aria-label="待发送附件">
           {pendingAttachments.map(item => (
             <div key={item.metadata.id} className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-border bg-muted">
-              <img
-                src={item.previewUrl}
-                alt={item.metadata.originalName}
-                className="w-full h-full object-cover"
-              />
+              {item.metadata.kind === "image" ? (
+                <img
+                  src={item.previewUrl}
+                  alt={item.metadata.originalName}
+                  className="w-full h-full object-cover"
+                />
+              ) : item.metadata.kind === "video" ? (
+                <video src={item.previewUrl} muted preload="metadata" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center px-1 text-[9px] text-center text-muted-foreground break-all">
+                  {item.metadata.kind === "audio" ? "音频" : "文件"}
+                </div>
+              )}
               <button
                 type="button"
                 aria-label={`移除 ${item.metadata.originalName}`}
@@ -608,15 +621,15 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         <input
           ref={attachmentInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
+          accept="image/png,image/jpeg,image/gif,image/webp,audio/mpeg,audio/ogg,audio/wav,audio/mp4,video/mp4,video/webm"
           multiple
           className="hidden"
           onChange={handleSelectAttachments}
         />
         <button
           type="button"
-          aria-label="添加图片"
-          title="添加图片（最多 4 张）"
+          aria-label="添加附件"
+          title="添加图片、音频或视频（最多 4 个）"
           disabled={isSending || isBisonLocking}
           onClick={() => attachmentInputRef.current?.click()}
           className="p-2.5 rounded-xl border bg-input/30 border-border/80 hover:bg-muted text-muted-foreground transition-all shrink-0 disabled:opacity-45"

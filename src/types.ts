@@ -1,6 +1,7 @@
 import type { CustomThemePackage } from "./utils/themePackage";
 import type { PromptComposition, PromptCompositionTemplateRecord } from "./domain/prompt-composition";
 import type { MessageContentPart } from "./domain/messages/messageContent";
+import type { AgentCompositionSnapshot } from "./domain/agents/contracts";
 
 export interface LorebookEntry {
   id: string;
@@ -123,6 +124,10 @@ export interface ChatSession {
   parentMessageId?: string; // Message ID at which this session split off from parent
   /** 当前会话选择的 Prompt 场景方案；不修改全局预设。 */
   activePromptSceneProfileId?: string;
+  /** 首次进入 Agent Spine 时冻结的安全组合快照；旧会话可缺失并在下一轮补写。 */
+  compositionSnapshot?: AgentCompositionSnapshot;
+  /** Runtime Plugin 私有状态命名空间；兼容期 `variables` 仍作为只读降级源。 */
+  runtimePluginState?: Record<string, unknown>;
 }
 
 /** sessions Store 与界面会话目录共享的轻量会话信息，不包含消息窗口。 */

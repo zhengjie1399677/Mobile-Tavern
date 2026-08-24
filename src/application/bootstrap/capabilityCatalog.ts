@@ -40,13 +40,6 @@ export const defaultCapabilityCatalog = [
     lifecycle: "on-demand",
   },
   {
-    id: "compat.sillytavern",
-    kind: "compatibility",
-    providedBy: "SillyTavern Compatibility Runtime",
-    permissions: [],
-    lifecycle: "lazy",
-  },
-  {
     id: "native.file",
     kind: "native",
     providedBy: "AndroidThemeBridge",

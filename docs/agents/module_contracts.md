@@ -185,10 +185,11 @@ someAsyncOp().then(() => {
 | `MobileTavernPluginDB` | 插件数据库（包元数据/存档/文件字节） | v2 |
 | `MobileTavernResourceDB` | 用户本地界面资源（主题图片/视频/音频的元数据与文件字节） | v1 |
 | `MobileTavernAttachmentDB` | 消息附件元数据、引用状态与媒体字节 | v1 |
+| `MobileTavernAgentJournalDB` | Agent Turn、Provider/媒体决定、Tool Call/Result | v1 |
 
 ### 隔离规则
 
-- 四个数据库的连接管理独立，互不影响
+- 五个数据库的连接管理独立，互不影响
 - 插件数据库的 schema 升级不触发主数据库的 `onupgradeneeded`
 - 插件数据库的写操作不经过主数据库的 `enqueueWrite` 队列
 - 本地界面资源不得写入 `settings` 大对象，也不得借用插件包数据库；资源元数据与文件字节必须分 Store 保存。
@@ -196,7 +197,8 @@ someAsyncOp().then(() => {
 - 跨主题和后续 UI 插件持久化引用统一使用 `tavern-resource://<id>`，运行时必须经 `LocalResourceService.resolveResourceReference()` 解析，禁止持久化会话级 Blob URL。
 - 消息只持久化 `att_*` 引用，附件元数据与字节分别进入 `metadata`、`contents` Store；聊天 UI 只能通过 `AttachmentService` 读取和创建 Blob URL。
 - 主消息库与附件库不能共享 IndexedDB 事务：新附件先进入 `staging`，消息事务成功后从权威消息快照重建引用并转为 `committed`；最后引用移除后进入 `orphaned`，启动修复和 GC 负责崩溃恢复。
-- 完整备份必须携带消息引用的附件字节；覆盖恢复先验证引用覆盖，再暂存附件、提交主库并重建引用，主库提交前失败必须恢复旧附件快照。
+- Agent Journal 只保存可重放的安全数据，不得写入 Profile config、API Key、访问令牌或 Processor 私有输入；会话删除必须同步清理 Journal。
+- v6 完整备份必须携带消息引用的附件字节和 Agent Journal；覆盖恢复先验证引用与会话归属，再暂存附件和 Journal、提交主库并重建引用，主库提交前失败必须恢复旧附件与 Journal 快照。
 
 ---
 
@@ -205,8 +207,17 @@ someAsyncOp().then(() => {
 - `messages` Store 的 V1 记录继续使用 `content: string`；V2 记录使用 `contentVersion: 2` 和唯一权威的 Content Parts 数组，不得并列持久化派生文本字段。
 - 运行态 `Message.content` 是 V2 文本 Part 的兼容投影，供旧 UI、Prompt、摘要和记忆链路使用；编辑文本时必须同步改写 Content Parts，并原位保留附件。
 - Content Parts 只保存通用的 `text/image/audio/video/file` 语义和 `assetId`，不得保存 OpenAI、Anthropic 或其他 Provider 方言。
-- Provider 请求投影发生在应用用例边界。能力未知时默认拒绝图片发送；当前只允许用户显式确认后的 OpenAI-compatible `image_url` 投影，不支持的媒体或方言必须明确报错，禁止静默丢弃。
+- Provider 请求投影发生在应用用例边界，并读取已注册 Provider 的声明式能力。能力未知时默认拒绝；图片可直投 OpenAI-compatible `image_url`，音频通过 ASR 转写，视频通过关键帧降级，不支持的媒体或方言必须明确报错，禁止静默丢弃。
 - 图片、音频、视频和文件的原件不得进入 `sessions`、`messages` 或 `settings` 大对象；Blob URL 不得持久化。
+
+## 7.2 AgentHandle、Provider、Tool 与媒体处理契约
+
+- React 聊天端只持有 AgentHandle 和界面状态；现有 Tavern 发送链由 `legacy.tavern.driver` 包装，迁移期不得绕过 AgentHandle 新增第二条发送入口。
+- AgentHandle 同一时刻只允许一个活跃 Turn；`stop()`、Handle 销毁和 Runtime 销毁必须中止 Turn，并等待清理完成后移除活跃句柄。
+- Driver、Provider、Tool 与媒体 Processor 使用稳定 ID/版本注册，每次注册返回基于实例身份的 disposer；重复 ID 必须拒绝，Profile Scope 卸载后不得残留贡献。
+- Tool 输入和输出都必须经过 Schema 校验；执行前检查权限，使用有限超时和 Turn AbortSignal；Call、Result、失败与最终 Turn 状态按序进入 Agent Journal。
+- Provider 必须声明输入模态、MIME/数量/大小限制、流式与工具能力；实际 Provider/模型选择及 `MediaProjectionDecision` 写入 Journal，重试不得重新猜测。
+- 音频 ASR 结果作为模型可见文本写回 V2 消息；视频关键帧作为派生附件 ID 写回 video part，使重发、分支、备份与 GC 能从持久化事实重建。
 
 ---
 
@@ -303,7 +314,17 @@ someAsyncOp().then(() => {
 - `requires` 必须完整存在并进行稳定拓扑排序；缺失依赖、重复依赖和循环依赖均在产生 Effect 前失败。
 - 每个 Profile 与插件拥有独立子 Scope。插件应把每次注册立即加入自己的 Scope；初始化中途失败时由 Profile Scope 统一逆序回滚。
 - 插件 `setup` 返回的 disposer 也由插件 Scope 托管；Profile 卸载按插件依赖逆序释放且保持幂等。
-- `ResolvedRuntimeProfileSnapshot` 只保存 Profile ID/版本、插件 ID/版本和解析顺序。插件 config、API Key、令牌、服务实例与 Blob 均不得进入快照。
+- `ResolvedRuntimeProfileSnapshot` 只保存 Profile ID/版本、插件 ID/版本、Provider Binding 与 Contribution 顺序。插件 config、API Key、令牌、服务实例与 Blob 均不得进入快照。
+
+---
+
+## 12. Compatibility Host 与生态状态契约
+
+- `CompatibilityRuntimeService` 是常驻但默认为空的 Application Host，只提供 Codec、Prompt Section、Context Source、Transform、State Reducer 和 Renderer 六类可撤销 Registry；它本身不得包含 SillyTavern 语义或依赖 React。
+- `mobile-tavern.base` 不装载生态兼容实现；`mobile-tavern.tavern` 显式装载 `mobile-tavern.sillytavern-compat`。插件卸载必须逆序移除全部贡献、清理 Bridge 和生成状态，同一 Host 随后可以重新装载。
+- Database、Prompt、Script、聊天 Hook 和消息 UI 只能依赖 Compatibility Host 契约，不得直接导入 `compatibility/sillytavern`，也不得直接读写 TavernHelper 全局字段。
+- 插件私有会话状态写入 `runtimePluginState[pluginId]`；SillyTavern 迁移期继续双写旧 `variables`，读取时优先命名空间、缺失时降级读取 `variables`，不得因插件关闭或旧备份恢复静默丢失数据。
+- `runtimePluginState` 进入统一备份；恢复时必须校验插件 ID、危险键名和对象边界。插件配置、凭据、媒体字节和运行实例不得写入该命名空间。
 
 ---
 
@@ -316,3 +337,5 @@ someAsyncOp().then(() => {
 | 2026-08-20 | 增加元数据/消息窗口分离、游标分页、消息事务、完整导入和状态快照契约 |
 | 2026-08-24 | 增加 EffectScope 逆序幂等释放、并发等待、错误聚合，以及 extension/subscription/Pipeline 注册身份契约 |
 | 2026-08-24 | 增加 Application 层 Runtime Plugin/Profile 依赖解析、脱敏快照、Scoped 装载回滚与 legacy runtime 装配契约 |
+| 2026-08-24 | 增加 AgentHandle、Provider/Tool/媒体 Processor、Agent Journal、会话组合快照与 v6 备份契约 |
+| 2026-08-24 | 增加空 Compatibility Host、六类可撤销贡献、base/tavern Profile 隔离与插件状态命名空间契约 |
