@@ -6,8 +6,8 @@
  *
  * 改进：
  *   - 用数组+循环包裹每个测试函数，统一 await（对同步函数也安全）
- *   - 失败时不立即退出，跑完所有测试后汇总报告
- *   - 报告格式："X/Y passed, failed at: testNth"
+ *   - 默认跑完所有测试后汇总报告；`--bail` 模式在首个失败后立即停止
+ *   - 报告格式包含已执行数量、计划总数与失败入口
  *
  * 多语言/组件测试归纳（2026-07-17）：
  *   - tests/vitest/** 下的 vitest 用例（含 i18n 50 项、组件渲染、服务集成共 327 项）
@@ -119,7 +119,7 @@ import {
  * 跨平台注意：Windows 下 node_modules/.bin/vitest 为 .cmd 批处理，需 shell:true；
  * Unix 下为带 shebang 的软链，可直接 exec。stdio:inherit 使 vitest 输出实时透传。
  */
-async function runVitestSuite(): Promise<void> {
+async function runVitestSuite(failFast: boolean): Promise<void> {
   console.log("\n--- Running Vitest Suite (tests/vitest/**, 含 i18n 多语言 50 项) ---");
   const isWin = process.platform === "win32";
   const bin = path.join(
@@ -129,7 +129,8 @@ async function runVitestSuite(): Promise<void> {
     isWin ? "vitest.cmd" : "vitest"
   );
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(bin, ["run"], {
+    const vitestArgs = failFast ? ["run", "--bail=1"] : ["run"];
+    const child = spawn(bin, vitestArgs, {
       // stdout 走管道以捕获完成标记：Windows 下 vitest 测试完成后偶发进程残留
       // 不退出，close 事件永不触发，导致整个 npm test 挂起（pre-push 门禁卡死）。
       // 捕获输出检测汇总行后启动兜底定时器，超时强制收尾，按输出判定成败。
@@ -195,6 +196,7 @@ async function runVitestSuite(): Promise<void> {
 }
 
 async function run() {
+  const failFast = process.argv.includes("--bail");
   setKernelStrictMode(false); // 默认在测试流程中采用生产（容错自愈）模式
   console.log("=================================================");
   console.log("🚀 STARTING ALL SYSTEM FUNCTIONAL TESTS");
@@ -301,12 +303,12 @@ async function run() {
     { name: "testArchitectureBoundaries", fn: testArchitectureBoundaries },
     { name: "testPromptComposition", fn: testPromptComposition },
     // vitest 套件桥接（i18n 多语言 50 项 + 组件渲染 + 服务集成，共 327 项）
-    { name: "testVitestSuite", fn: runVitestSuite },
+    { name: "testVitestSuite", fn: () => runVitestSuite(failFast) },
   ];
 
   let passed = 0;
   let failed = 0;
-  const failures: { name: string; index: number; error: any }[] = [];
+  const failures: { name: string; index: number; error: unknown }[] = [];
 
   for (let i = 0; i < tests.length; i++) {
     const test = tests[i];
@@ -315,16 +317,21 @@ async function run() {
       await test.fn();
       passed++;
       console.log(`\n✅ ${label} passed`);
-    } catch (err: any) {
+    } catch (error: unknown) {
       failed++;
-      failures.push({ name: test.name, index: i + 1, error: err });
+      failures.push({ name: test.name, index: i + 1, error });
       console.error(`\n❌ ${label} FAILED`);
-      console.error(err.stack || err.message);
+      console.error(error instanceof Error ? error.stack || error.message : String(error));
+      if (failFast) {
+        console.error("\n⏹ 已启用 --bail，首个失败后停止后续测试。");
+        break;
+      }
     }
   }
 
   console.log("\n=================================================");
-  console.log(`📊 TEST SUMMARY: ${passed} passed, ${failed} failed (total ${tests.length})`);
+  const executed = passed + failed;
+  console.log(`📊 TEST SUMMARY: ${passed} passed, ${failed} failed (executed ${executed}/${tests.length})`);
   if (failures.length > 0) {
     console.log("\nFailed tests:");
     failures.forEach(f => console.log(`  - #${f.index} ${f.name}`));

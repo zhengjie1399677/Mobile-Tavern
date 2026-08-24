@@ -231,13 +231,15 @@ setTimeout(() => {
   cpuBefore = sampleCpuSeconds(child.pid);
 }, 300);
 
-function writeReport(reason, exitCode) {
+function writeReport(reason, exitCode, diagnostics = {}) {
   const summary = extractTestSummary(lines);
   const testsDone = summary.tests && summary.tests.total > 0;
   const hint = testsDone
     ? "检测到测试统计已完成 → 疑似「测试通过但进程未退出」型挂起（残留子进程/句柄），非测试本身卡住"
     : "未检测到完整测试统计 → 疑似「执行中卡死」（单测死循环 / await 永不返回），可配合 --testTimeout 第一层防护";
-  const cpuAfter = sampleCpuSeconds(child.pid);
+  const skipLiveDiagnostics = diagnostics.skipLiveDiagnostics === true;
+  const cpuAfter = skipLiveDiagnostics ? null : sampleCpuSeconds(child.pid);
+  const processSnapshot = diagnostics.processSnapshot ?? snapshotProcessTree(child.pid);
   const report = {
     trigger: reason,
     command: opts.cmd,
@@ -249,7 +251,7 @@ function writeReport(reason, exitCode) {
     summary,
     hint,
     cpuDeltaSeconds: cpuBefore != null && cpuAfter != null ? Math.round((cpuAfter - cpuBefore) * 1000) / 1000 : null,
-    processSnapshot: snapshotProcessTree(child.pid),
+    processSnapshot,
     logTail: lines.slice(-opts.tail),
   };
   const abs = path.resolve(opts.report);
@@ -264,8 +266,14 @@ function writeReport(reason, exitCode) {
 const timer = opts.timeout > 0
   ? setTimeout(() => {
       timedOut = true;
-      writeReport("timeout", 124);
       killProcessTree(child.pid);
+      writeReport("timeout", 124, {
+        skipLiveDiagnostics: true,
+        processSnapshot: {
+          note: "为保证超时立即截断，进程树已在诊断采集前终止。",
+          rootPid: child.pid,
+        },
+      });
       setTimeout(() => process.exit(124), 500);
     }, opts.timeout)
   : null;
@@ -281,8 +289,14 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, () => {
     if (timer) clearTimeout(timer);
     console.error(`\n[watchdog] 收到 ${sig}，清理进程树后退出`);
-    writeReport(`signal:${sig}`, 130);
     killProcessTree(child.pid);
+    writeReport(`signal:${sig}`, 130, {
+      skipLiveDiagnostics: true,
+      processSnapshot: {
+        note: "为保证信号中断立即生效，进程树已在诊断采集前终止。",
+        rootPid: child.pid,
+      },
+    });
     setTimeout(() => process.exit(130), 500);
   });
 }
