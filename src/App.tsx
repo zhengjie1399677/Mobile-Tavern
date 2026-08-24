@@ -3,6 +3,7 @@ import { AppContextAssembler } from "./contexts/LegacyAppContextProvider";
 import MainLayout from "./components/MainLayout";
 import { globalKernel } from "./kernel";
 import {
+  addApplicationRuntimeEffect,
   destroyApplicationRuntime,
   initializeApplicationRuntime,
 } from "./application/runtime";
@@ -49,8 +50,12 @@ export default function App() {
     initializeApplicationRuntime()
       .then(async () => {
         if (active) {
-          await registerMainTabExtensions(globalKernel);
-          if (!active) return;
+          const disposeMainTabs = await registerMainTabExtensions(globalKernel);
+          if (!active) {
+            await disposeMainTabs();
+            return;
+          }
+          addApplicationRuntimeEffect(disposeMainTabs);
           setKernelReady(true);
         }
       })

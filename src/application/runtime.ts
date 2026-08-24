@@ -6,11 +6,16 @@
  */
 import { globalKernel } from "../kernel/Kernel";
 import { createKernelLifecycleController } from "../kernel/KernelLifecycle";
+import { createEffectScope } from "../kernel/EffectScope";
+import type { EffectDisposer, IEffectScope } from "../kernel/types";
 import { bindRuntimeKernel } from "../kernel/runtimeKernel";
 import { configureKernelValidators } from "../kernel/validation";
-import { registerCoreServices } from "./bootstrap/registerCoreServices";
-import { registerDefaultPipelines } from "./bootstrap/registerDefaultPipelines";
-import { registerRuntimeCapabilities } from "./bootstrap/capabilityRegistry";
+import {
+  legacyRuntimePluginCatalog,
+  legacyRuntimeProfileDefinition,
+  mountRuntimeProfile,
+  type ResolvedRuntimeProfileSnapshot,
+} from "./runtimePlugins";
 import {
   validateMessage,
   validateService,
@@ -24,11 +29,59 @@ configureKernelValidators({
   validateServiceRetrieval,
 });
 
-const lifecycle = createKernelLifecycleController(globalKernel, async () => {
-  await registerCoreServices(globalKernel);
-  registerDefaultPipelines(globalKernel);
-  registerRuntimeCapabilities(globalKernel);
+let runtimeScope: IEffectScope | null = null;
+let activeRuntimeProfileSnapshot: ResolvedRuntimeProfileSnapshot | null = null;
+
+async function destroyScopedApplicationRuntime(): Promise<void> {
+  const scope = runtimeScope;
+  runtimeScope = null;
+  activeRuntimeProfileSnapshot = null;
+  let scopeError: unknown;
+  try {
+    await scope?.dispose();
+  } catch (error: unknown) {
+    scopeError = error;
+  }
+
+  try {
+    await globalKernel.destroy();
+  } catch (kernelError: unknown) {
+    if (scopeError !== undefined) {
+      throw new AggregateError(
+        [scopeError, kernelError],
+        "APPLICATION_RUNTIME_DESTROY_FAILED",
+      );
+    }
+    throw kernelError;
+  }
+
+  if (scopeError !== undefined) throw scopeError;
+}
+
+const lifecycle = createKernelLifecycleController({ destroy: destroyScopedApplicationRuntime }, async () => {
+  const scope = createEffectScope("application.runtime");
+  runtimeScope = scope;
+  const mountedProfile = await mountRuntimeProfile({
+    kernel: globalKernel,
+    profile: legacyRuntimeProfileDefinition,
+    plugins: legacyRuntimePluginCatalog,
+    parentScope: scope,
+  });
+  activeRuntimeProfileSnapshot = mountedProfile.snapshot;
 });
+
+/** 把应用组合层的后注册 Effect 纳入当前 Application Scope。 */
+export function addApplicationRuntimeEffect(disposer: EffectDisposer): EffectDisposer {
+  if (!runtimeScope || runtimeScope.state !== "active") {
+    throw new Error("APPLICATION_RUNTIME_SCOPE_NOT_ACTIVE");
+  }
+  return runtimeScope.add(disposer);
+}
+
+/** 当前已解析的运行时 Profile；快照不包含插件配置或秘密。 */
+export function getActiveRuntimeProfileSnapshot(): ResolvedRuntimeProfileSnapshot | null {
+  return activeRuntimeProfileSnapshot;
+}
 
 export function initializeApplicationRuntime(): Promise<void> {
   return lifecycle.initialize();

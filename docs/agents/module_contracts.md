@@ -80,6 +80,7 @@ return enqueueWrite(async (ctx) => {
 
 - `registerServiceBatch` 用 Kahn 算法按 `dependencies` 计算拓扑顺序
 - 被依赖的服务先 init，依赖者后 init
+- 必选依赖初始化失败后，依赖者不得继续启动；整个批次拒绝并回滚已成功注册项
 - `optionalDependencies` 不参与拓扑（缺失不阻止启动）
 
 ### destroy 拓扑逆序
@@ -92,6 +93,8 @@ return enqueueWrite(async (ctx) => {
 ### 规则
 
 - 若 A 依赖 B，则 A 必须先于 B 销毁（A 的 destroy 钩子可能需要调用 B）
+- 单服务与批量注册均返回基于实例身份的 disposer；旧 Scope 不得销毁同名后注册替代服务
+- 应用组合根把核心服务批次、默认中间件、Capability 与 UI Slot 统一挂入 Application Scope
 - `destroyService` 有 5 秒超时，超时后 abort 并继续
 - destroy 完成后调用 `resetSafeProxyState()` 清理模块级缓存
 
@@ -140,7 +143,10 @@ someAsyncOp().then(() => {
 
 ### 异常策略
 
-- 任一中间件抛出异常，整个 pipeline 中止
+- 任一中间件抛出异常，整个 pipeline 中止并向调用方 reject；生产日志不能把失败转换为成功结果
+- 漏调 `next()` 且未显式 `interrupt()` 属于失败，必须 reject；只有 `interrupt()` 是正常受控终止
+- 调度器会等待已调用的 `next()`，即使中间件漏写 `await` 也不会让外层执行提前完成；新代码仍必须保留 `await next()` 以维持清晰的洋葱模型语义
+- `context.isInterrupted` 只是本次执行的可观测输出；预置或手改该字段不能替代 `interrupt()` 或绕过管道
 - 中间件超时（`MSG_TIMEOUT_MS = 5000ms`）触发 abort 熔断
 - 超时不阻断事件链，后续订阅者仍会收到消息
 
@@ -238,6 +244,55 @@ someAsyncOp().then(() => {
 
 ---
 
+## 10. EffectScope 可撤销生命周期契约
+
+### Scope 状态与释放顺序
+
+- Scope 状态固定为 `active`、`disposing`、`disposed`；只有 `active` 状态允许增加 Effect 或创建子 Scope。
+- `dispose()` 按注册逆序释放 Effect，保证后注册的上层资源先于其依赖回收。
+- `dispose()` 幂等并复用同一释放 Promise；Effect 即使被提前释放，也只能执行一次。
+- 提前释放与 `dispose()` 并发时，Scope 必须等待已经开始的 disposer 完成，不能提前进入 `disposed`。
+- 子 Scope 以一个普通 Effect 挂入父 Scope，因此父 Scope 回收时按统一逆序规则回收子 Scope。
+
+### 错误与回滚语义
+
+- 单个 Effect 抛错不能阻止其余 Effect 释放。
+- 全部清理结束后以 `EffectScopeDisposeError` 聚合错误，调用方负责记录或判定插件卸载失败。
+- 插件初始化回滚必须复用 Scope 释放语义，不能维护第二套手写清理列表。
+
+### Extension 注册身份
+
+- `registerExtension()` 返回幂等 disposer，可直接加入 EffectScope。
+- 同一扩展点和 ID 的后注册项替换旧项；旧 disposer 只能释放自己的注册记录，不得误删后注册替代项。
+- Kernel 整体销毁后调用遗留 disposer 必须安全无副作用。
+
+### Subscription 与 Pipeline 注册身份
+
+- `subscribe()` 返回的 disposer 只释放本次订阅记录；同一 handler 的后注册项不能被旧 disposer 误删。
+- 默认 Pipeline 由应用组合根显式注册，Kernel 销毁后重新启动必须重新建立命名 Pipeline。
+- 快速路径必须按中间件注册身份判断完整标准集合，不能只比较数量或函数名。
+- 应用组合层的 UI Slot 注册必须返回 disposer；异步装配失败时先回滚已注册项，再传播原始错误。
+
+---
+
+## 11. Runtime Plugin 与 Profile 装载契约
+
+### 所属边界与信任级别
+
+- `RuntimePluginDefinition`、Profile Loader 与 legacy runtime plugin 位于 `src/application/runtimePlugins/`；Kernel 只提供 Scope、注册和校验机制，不理解插件、Profile 或配置。
+- 当前 Runtime Plugin 仅允许随 App 编译的受信代码。用户安装的 `.mtplugin` 继续使用强沙箱 Plugin Host RPC，不能共享 Runtime Plugin 权限。
+- `src/application/runtime.ts` 只选择并挂载 Profile；现有服务、默认 Pipeline 和能力清单统一由 `mobile-tavern.legacy-runtime` 承接，禁止恢复三条散落的直接注册路径。
+
+### 解析、快照与失败语义
+
+- Profile 必须校验稳定 ID、正整数版本、插件定义唯一性、引用唯一性和可选的精确版本约束。
+- `requires` 必须完整存在并进行稳定拓扑排序；缺失依赖、重复依赖和循环依赖均在产生 Effect 前失败。
+- 每个 Profile 与插件拥有独立子 Scope。插件应把每次注册立即加入自己的 Scope；初始化中途失败时由 Profile Scope 统一逆序回滚。
+- 插件 `setup` 返回的 disposer 也由插件 Scope 托管；Profile 卸载按插件依赖逆序释放且保持幂等。
+- `ResolvedRuntimeProfileSnapshot` 只保存 Profile ID/版本、插件 ID/版本和解析顺序。插件 config、API Key、令牌、服务实例与 Blob 均不得进入快照。
+
+---
+
 ## 变更记录
 
 | 日期 | 变更 |
@@ -245,3 +300,5 @@ someAsyncOp().then(() => {
 | 2026-07-29 | 初始创建，提取 8 项关键契约 |
 | 2026-08-13 | 增加会话消息单一来源与摘要原子保存契约 |
 | 2026-08-20 | 增加元数据/消息窗口分离、游标分页、消息事务、完整导入和状态快照契约 |
+| 2026-08-24 | 增加 EffectScope 逆序幂等释放、并发等待、错误聚合，以及 extension/subscription/Pipeline 注册身份契约 |
+| 2026-08-24 | 增加 Application 层 Runtime Plugin/Profile 依赖解析、脱敏快照、Scoped 装载回滚与 legacy runtime 装配契约 |

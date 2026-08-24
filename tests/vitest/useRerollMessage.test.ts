@@ -136,6 +136,7 @@ function createWeakNetworkHarness(
       getService: vi.fn(() => memoryService),
       getPipeline: vi.fn(() => ({
         list: () => [{}, {}, {}],
+        matches: () => true,
         execute: vi.fn(async () => undefined),
       })),
     },
@@ -280,6 +281,7 @@ describe("useRerollMessage 重发事务锁", () => {
         getService: vi.fn(() => memoryService),
         getPipeline: vi.fn(() => ({
           list: () => [{}, {}, {}],
+          matches: () => true,
           execute: vi.fn(async () => undefined),
         })),
       },
@@ -524,6 +526,7 @@ function createControllableHarness(options: {
       })),
       getPipeline: vi.fn(() => ({
         list: () => [],
+        matches: () => false,
         execute: vi.fn(async () => undefined),
       })),
     },

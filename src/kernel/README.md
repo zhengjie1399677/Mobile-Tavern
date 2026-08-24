@@ -1,11 +1,12 @@
 # Kernel 开发边界
 
-`src/kernel/` 是与 Mobile Tavern 具体业务无关的通用运行时机制。它只负责容器、服务生命周期、Pipeline、消息总线、扩展注册、运行时契约和通用校验。
+`src/kernel/` 是与 Mobile Tavern 具体业务无关的通用运行时机制。它只负责容器、服务生命周期、父子 Scope、可撤销 Effect、Pipeline、消息总线、扩展注册、运行时契约和通用校验。
 
 ## 允许内容
 
 ```text
 src/kernel/
+├── EffectScope.ts
 ├── Kernel.ts
 ├── KernelLifecycle.ts
 ├── Pipeline.ts
@@ -30,6 +31,6 @@ Kernel 可以托管实现 `IKernelService` 的对象，但不拥有这些对象�
 - 服务装配与启动：`src/application/runtime.ts`、`src/application/bootstrap/`
 - 纯领域规则：`src/domain/`
 - 物理适配器：`src/infrastructure/`
-- Pipeline 中间件：`src/services/pipeline/`
+- Pipeline 中间件：`src/application/pipeline/`
 
 架构守卫位于 `tests/suites/architectureBoundaries.test.ts`。任何边界调整必须先修改 `AGENTS.md` 并获得用户明确授权。

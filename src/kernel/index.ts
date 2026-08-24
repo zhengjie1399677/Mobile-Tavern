@@ -7,6 +7,11 @@
 export { globalKernel } from "./Kernel";
 export { createKernel } from "./Kernel";
 export { createKernelLifecycleController } from "./KernelLifecycle";
+export {
+  EffectScope,
+  EffectScopeDisposeError,
+  createEffectScope,
+} from "./EffectScope";
 export { bindRuntimeKernel, getRuntimeKernel } from "./runtimeKernel";
 export type { KernelLifecycleController, KernelLifecycleState } from "./KernelLifecycle";
 export * from "./types";

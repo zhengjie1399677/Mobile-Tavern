@@ -1,5 +1,15 @@
 # 当前状态
 
+## 2026-08-24 更新：确定插件式 Agent Runtime 与多模态聊天目标
+
+- 产品目标从固定的 SillyTavern 兼容容器演进为本地优先、多模态、可组合的移动端 Agent Host；现有 Tavern 体验继续作为默认 Profile，SillyTavern 角色卡、预设、世界书、MVU、Regex、TavernHelper 和兼容 iframe 将按阶段降级为可关闭的内置 Compatibility Runtime Plugin。
+- 目标架构采用 Runtime Plugin、Worker Plugin、Sandbox App Plugin 三条信任边界；聊天通过 Profile、类型化 Capability Slot、Provider Binding、可叠加 Contribution 和会话级 Composition Snapshot 确定性组合。
+- 第一批实现顺序为 Scope/Effect 可撤销注册、Runtime Plugin/Profile 最小组合、Message Content V2 与 Attachment Data Plane；在对应实现和守卫完成前，现有 `runtime_boundaries.md` 仍是代码必须遵守的当前边界。
+- Scope/Effect 与 Runtime Plugin/Profile 两项底层工作已完成最小闭环：通用父子 `EffectScope` 支持逆序幂等释放、并发提前释放等待、失败后继续清理和错误聚合；核心服务批次、默认 Pipeline 中间件、Capability、消息订阅和主 Tab UI Slot 均返回基于注册身份的 disposer，并统一挂入 Application Scope。Application 层新增 Runtime Plugin Definition、Profile 依赖解析、版本校验、循环检测、失败回滚和脱敏解析快照，现有服务、默认 Pipeline 与能力清单已通过 `mobile-tavern.legacy-runtime` 插件装载，用户行为保持不变。阶段 1 尚未完成类型化 Capability Token 与配置 Schema 体系，下一批进入 Message Content V2 与 Attachment Data Plane。
+- 权威目标、聊天组合规则、阶段任务和验收条件见[插件式 Agent Runtime 与聊天组合路线](agent_plugin_runtime_roadmap.md)。
+
+---
+
 ## 2026-08-10 更新：宣传页迁移至 tavern.neural-node.xyz 子域名
 
 - 宣传页从 `https://neural-node.xyz/tavern/` 迁移到子域名 `https://tavern.neural-node.xyz/`：DNS（tavern.neural-node.xyz 由 Vercel CNAME 改为 A 记录指向 173.254.203.206 并开启 Cloudflare 代理）、nginx 新增 tavern server 块（根目录 `/var/www/neural/tavern`，`/stats`、`/visit` 反代 8787 统计服务）、主域名 `/tavern/` 全部 301 跳转到子域名。

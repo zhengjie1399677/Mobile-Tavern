@@ -210,9 +210,9 @@ export async function testKernelPipeline() {
   }, 20);
 
   // 阻断者：不调用 next()
-  interceptPipeline.use(async (ctx, next) => {
+  interceptPipeline.use(async (ctx, next, interrupt) => {
     ctx.logs.push("blocker");
-    (ctx as unknown as { isInterrupted: boolean }).isInterrupted = true;
+    interrupt();
     // 不调用 next()
   }, 10);
 
@@ -316,8 +316,14 @@ export async function testKernelPipelineHardening() {
 
   try {
     const errorCtx: HardContext = { logs: [] };
-    await p2.execute(errorCtx);
+    let rejected = false;
+    try {
+      await p2.execute(errorCtx);
+    } catch (error: unknown) {
+      rejected = error instanceof Error && error.message === "Simulated plugin crash!";
+    }
     // B-3 修复：异常后管道在此终止，后续中间件不应执行
+    assert(rejected, "Pipeline propagates middleware failure to the transaction caller");
     assert(errorCtx.logs.includes("err-start"), "Error middleware ran before crash");
     assert(!errorCtx.logs.includes("should-not-run-after-crash"), "Pipeline halted at crash point, subsequent middleware did not run (B-3 fix)");
     assert((errorLogged as boolean) === true, "Pipeline logged the exception correctly");
@@ -348,8 +354,14 @@ export async function testKernelPipelineHardening() {
 
   try {
     const hangCtx: HardContext = { logs: [] };
-    await p3.execute(hangCtx);
+    let rejected = false;
+    try {
+      await p3.execute(hangCtx);
+    } catch (error: unknown) {
+      rejected = error instanceof Error && error.message.includes("without calling next()");
+    }
     // B-3 修复：遗忘 next() 后记录错误但不穿透，后续中间件不执行
+    assert(rejected, "Pipeline rejects when middleware omits next() and interrupt()");
     assert(hangCtx.logs.includes("forget-next"), "Middleware ran before forgetting next()");
     assert(!hangCtx.logs.includes("should-not-run-without-next"), "Pipeline halted after forget-next, no bypass (B-3 fix)");
     assert((forgotNextErrorLogged as boolean) === true, "Pipeline logged forget-next error");
@@ -361,9 +373,9 @@ export async function testKernelPipelineHardening() {
   const p4 = testKernel.registerPipeline<HardContext>("hardening-pipeline-interrupt");
 
   // 敏感词/阻断中间件
-  p4.use((ctx, next) => {
+  p4.use((ctx, next, interrupt) => {
     ctx.logs.push("interrupt-middleware");
-    ctx.isInterrupted = true;
+    interrupt();
     // 显式申请阻断，不调 next
   }, 10);
 

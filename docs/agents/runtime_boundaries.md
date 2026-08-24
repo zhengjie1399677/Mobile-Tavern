@@ -6,8 +6,8 @@
 
 | 能力 | 权威入口 | 职责 | 禁止事项 |
 |---|---|---|---|
-| Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts` | 容器、服务生命周期、消息总线、Pipeline 与扩展契约 | 不放任何应用服务、业务装配、生态格式、存储或平台调用 |
-| 应用运行时组合 | `src/application/runtime.ts`、`src/application/bootstrap/` | 把应用服务和默认 Pipeline 注册到 Kernel | 不反向改变 Kernel 的通用机制 |
+| Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts`、`src/kernel/EffectScope.ts` | 容器、服务生命周期、父子 Scope、可撤销 Effect、消息总线、Pipeline 与扩展契约 | 不放任何应用服务、业务装配、生态格式、存储或平台调用 |
+| 应用运行时组合 | `src/application/runtime.ts`、`src/application/runtimePlugins/`、`src/application/bootstrap/` | 解析受信 Runtime Profile，以插件子 Scope 把应用服务、默认 Pipeline 和能力清单装配到 Kernel | 不反向改变 Kernel 的通用机制，不执行用户安装的任意代码，不把插件配置或秘密写入解析快照 |
 | 通用数据库服务 | `src/application/services/DatabaseService.ts` | 面向上层提供通用 CRUD、分页、轻量索引统计与跨 Store 事务能力 | 不承载记忆召回、摘要或角色行为 |
 | IndexedDB 物理实现 | `src/infrastructure/storage/` | 连接、Schema、事务队列、仓库和端口适配器 | 不反向导入 `src/utils/localDB.ts` |
 | 数据迁移应用服务 | `src/application/services/DataMigrationService.ts` | 聚合完整备份、统一脱敏，并委托基础设施以单事务覆盖用户数据 | 不在 React Hook 中直接清 Store 或跨 Repository 编排恢复 |
@@ -25,7 +25,7 @@
 
 ```text
 界面与业务组合
-  ├─→ application/runtime ─→ Kernel 通用机制
+  ├─→ application/runtime ─→ Runtime Profile/Plugin Scope ─→ Kernel 通用机制
   ├─→ React Context ─→ application/useCases ─→ 应用 Service
   ├─→ 应用 Service ─→ Repository/Adapter ─→ infrastructure/storage
   ├─→ LocalResourceService ───────────────→ infrastructure/resources
@@ -70,5 +70,6 @@
 4. Compatibility Runtime、Plugin Host RPC、Native Adapter 不得相互导入。
 5. `src/kernel/` 不得重新出现业务服务、页面业务、应用装配目录或对应用层的反向依赖。
 6. React Context 不得直接访问存储、Compatibility Runtime、Native Adapter 或执行业务 Service 的持久化方法。
+7. Runtime Plugin/Profile 契约只能位于 Application 层；应用组合根必须通过 Profile Loader 装载 legacy runtime，不能恢复散落的直接注册路径。
 
 若确需改变这些方向，应先更新本文件与 `TECHNICAL.md`，说明新边界及迁移策略，再修改守卫。

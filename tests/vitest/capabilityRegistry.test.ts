@@ -25,9 +25,9 @@ describe("运行时能力登记", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("注册后可通过 Kernel 扩展点检查能力快照", () => {
+  it("注册后可通过 Kernel 扩展点检查能力快照", async () => {
     const kernel = createKernel();
-    registerRuntimeCapabilities(kernel);
+    const dispose = registerRuntimeCapabilities(kernel);
 
     const extensions = kernel.getExtensions<CapabilityDescriptor>(CAPABILITY_EXTENSION_POINT);
     expect(extensions).toHaveLength(defaultCapabilityCatalog.length);
@@ -47,6 +47,9 @@ describe("运行时能力登记", () => {
     ]);
     expect(capabilities.find((capability) => capability.id === "plugin.fullscreen")?.permissions)
       .toContain("llm.chatStream");
+
+    await dispose();
+    expect(kernel.getExtensions(CAPABILITY_EXTENSION_POINT)).toEqual([]);
   });
 
   it("拒绝重复 capability id，避免后注册项静默覆盖", () => {

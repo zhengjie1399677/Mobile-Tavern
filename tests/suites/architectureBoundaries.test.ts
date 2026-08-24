@@ -117,6 +117,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
   );
 
   const allowedKernelFiles = new Set([
+    "src/kernel/EffectScope.ts",
     "src/kernel/index.ts",
     "src/kernel/Kernel.ts",
     "src/kernel/KernelLifecycle.ts",
@@ -280,6 +281,22 @@ export async function testArchitectureBoundaries(): Promise<void> {
     !read("src/hooks/useChat/pipelineHelpers.ts").includes("globalKernel"),
     "聊天输出管线必须使用调用方注入的 IKernel"
   );
+
+  const applicationRuntime = read("src/application/runtime.ts");
+  assert(
+    applicationRuntime.includes("mountRuntimeProfile") &&
+      applicationRuntime.includes("legacyRuntimePluginCatalog") &&
+      !applicationRuntime.includes("registerCoreServices") &&
+      !applicationRuntime.includes("registerDefaultPipelines") &&
+      !applicationRuntime.includes("registerRuntimeCapabilities"),
+    "应用组合根必须通过 Runtime Profile 装载 legacy runtime，不能恢复服务、Pipeline 和能力清单的散落直接注册"
+  );
+  for (const file of listCodeFiles("src/kernel")) {
+    assert(
+      !/RuntimePlugin|RuntimeProfile|legacy-runtime/.test(read(file)),
+      `${file} 不得引入 Application 层 Runtime Plugin/Profile 业务语义`
+    );
+  }
 
   assert(
     !read("src/tabs/chat/ChatInputArea.tsx").includes("useContext(UnifiedAppContext)"),

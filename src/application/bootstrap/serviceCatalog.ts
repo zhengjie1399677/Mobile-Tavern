@@ -1,4 +1,4 @@
-import type { IKernel, IKernelService } from "../serviceContracts";
+import type { EffectDisposer, IKernel, IKernelService } from "../serviceContracts";
 import { KernelServices } from "../serviceContracts";
 import { MEMORY_PERSISTENCE_SERVICE } from "../services/memory/types";
 
@@ -57,6 +57,6 @@ export async function loadServiceModules(
 export async function registerServiceModules(
   kernel: IKernel,
   catalog: readonly ServiceModuleDescriptor[],
-): Promise<void> {
-  await kernel.registerServiceBatch(await loadServiceModules(catalog));
+): Promise<EffectDisposer> {
+  return kernel.registerServiceBatch(await loadServiceModules(catalog));
 }

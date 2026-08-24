@@ -1,5 +1,22 @@
 export type InterruptFn = () => void;
 
+/** 可由 Scope 统一回收的同步或异步 Effect。 */
+export type EffectDisposer = () => void | Promise<void>;
+
+export type EffectScopeState = "active" | "disposing" | "disposed";
+
+/** 通用父子生命周期作用域；不包含任何应用或插件业务语义。 */
+export interface IEffectScope {
+  readonly id: string;
+  readonly state: EffectScopeState;
+  /** 注册 Effect，并返回一个只执行一次的提前释放函数。 */
+  add(disposer: EffectDisposer): EffectDisposer;
+  /** 创建随父 Scope 一同释放的子 Scope。 */
+  fork(id: string): IEffectScope;
+  /** 按注册逆序释放全部 Effect；重复调用返回同一释放结果。 */
+  dispose(): Promise<void>;
+}
+
 /** Kernel 运行时契约校验的处置策略。 */
 export type KernelValidationMode = "strict" | "warn" | "off";
 
@@ -23,6 +40,8 @@ export interface IPipeline<T> {
   use(middleware: Middleware<T>, priority?: number): () => void;
   unuse(middleware: Middleware<T>): void;
   execute(context: T): Promise<void>;
+  /** 按函数注册身份判断当前管道是否只包含给定中间件集合。 */
+  matches(middlewares: readonly Middleware<T>[]): boolean;
   /** 返回当前已注册的中间件列表（用于调试与可观测性） */
   list(): ReadonlyArray<{ name: string; priority: number }>;
 }
@@ -31,12 +50,12 @@ export interface IKernel {
   /**
    * 单个服务注册。`initTimeoutMs` 可选，超时后按 isCritical 决定是否抛出致命错误。
    */
-  registerService(name: string, service: IKernelService, initTimeoutMs?: number): Promise<void>;
+  registerService(name: string, service: IKernelService, initTimeoutMs?: number): Promise<EffectDisposer>;
   /**
    * 批量服务注册。自动读取各服务的 `dependencies` 字段进行拓扑排序，
    * 保证依赖关系的正确注册顺序，并在检测到循环依赖时立即抛出。
    */
-  registerServiceBatch(entries: Array<{ name: string; service: IKernelService; initTimeoutMs?: number }>): Promise<void>;
+  registerServiceBatch(entries: Array<{ name: string; service: IKernelService; initTimeoutMs?: number }>): Promise<EffectDisposer>;
   getService<T extends IKernelService>(name: string): T;
   hasService(name: string): boolean;
   destroyService(name: string): Promise<void>;
@@ -45,7 +64,7 @@ export interface IKernel {
   getPipeline<T = unknown>(name: string): IPipeline<T>;
 
   // 扩展点注册与获取接口 (SPI)
-  registerExtension<TValue>(extension: IExtension<TValue>): void;
+  registerExtension<TValue>(extension: IExtension<TValue>): () => void;
   getExtensions<TValue = unknown>(point: string): IExtension<TValue>[];
 
   // MessageBus (EventBus) System
@@ -105,4 +124,3 @@ export interface IKernelService {
   init(kernel: IKernel, signal?: AbortSignal): Promise<void> | void;
   destroy?(kernel: IKernel, signal?: AbortSignal): Promise<void> | void;
 }
-

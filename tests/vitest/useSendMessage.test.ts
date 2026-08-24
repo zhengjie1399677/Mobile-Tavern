@@ -78,6 +78,7 @@ function createHarness(streamLlmResponse: (...args: any[]) => AsyncGenerator<any
       })),
       getPipeline: vi.fn(() => ({
         list: () => [{}, {}, {}],
+        matches: () => true,
         execute: vi.fn(async () => undefined),
       })),
     },
