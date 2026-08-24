@@ -299,6 +299,8 @@ file  → text extraction / unsupported
 
 完成条件：图片消息可以保存、重启恢复、重生成、分支、备份恢复；不支持图片的模型会明确拒绝或降级，不会静默丢失。
 
+当前进度（2026-08-24）：阶段 2 最小纵向闭环已完成。`messages` Store 支持 V1 文本记录与 V2 Content Parts 联合读取，运行态继续提供兼容文本投影；消息附件使用独立 `MobileTavernAttachmentDB`，元数据与字节分 Store 保存，并具备魔数校验、`staging/committed/orphaned`、引用重建、垃圾回收和 Blob URL 回收。聊天端已接入最多四张图片的选择、预览、V2 落盘和气泡展示；OpenAI-compatible 图片输入只在用户明确启用模型视觉能力后投影，Anthropic 原生方言及音视频 Provider 投影会明确拒绝。统一备份升级为 v5 并携带所引用附件字节，恢复使用安全快照和跨数据库补偿。音视频文件的领域类型、存储与展示能力已预留，ASR、视频关键帧、声明式 Provider 能力协商和可复现 `MediaProjectionDecision` 留待阶段 3。
+
 ### 阶段 3：Agent Spine、Tool Registry 与 Provider Seam
 
 目标：把一次性聊天调用升级为可插拔 Agent Driver。
@@ -347,7 +349,7 @@ file  → text extraction / unsupported
 
 1. **Scope/Effect 契约（已完成）**：为 Kernel extension、消息订阅和 Pipeline 注册补充可撤销 Effect，并建立生命周期测试。
 2. **Runtime Plugin/Profile 最小实现（已完成）**：用 legacy plugin 包装当前 `serviceCatalog`，输出不含配置秘密的可诊断插件快照，不改变用户行为。
-3. **Message Content V2 设计与存储测试**：先完成 V1 读取兼容、V2 Record、附件引用和事务/回收测试，再接入聊天 UI。
+3. **Message Content V2 与 Attachment Data Plane（已完成最小闭环）**：V1/V2 兼容、独立附件存储、引用/回收、图片 UI、OpenAI-compatible 投影和 v5 备份恢复均已接入；复杂媒体处理与 Provider 能力注册进入阶段 3。
 
 每个批次都必须遵循 `CHANGE-SAFE`：先定义公开契约与失败路径测试，再接入组合根；涉及当前边界变化时同步更新 `runtime_boundaries.md`、`module_contracts.md` 和架构守卫。
 

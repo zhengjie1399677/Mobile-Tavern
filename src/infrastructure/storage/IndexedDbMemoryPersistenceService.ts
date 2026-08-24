@@ -35,6 +35,17 @@ import {
   deleteTemporalFactsBySession,
 } from "./indexedDbMemoryStore";
 import { getDB } from "./idbConnection";
+import {
+  getStoredMessageText,
+  type StoredChatMessageRecord,
+} from "./messageRecord";
+
+function toMemoryMessageRecord(record: StoredChatMessageRecord): MessageRecord {
+  return {
+    ...record,
+    content: getStoredMessageText(record),
+  };
+}
 
 /**
  * IndexedDB 对记忆领域持久化端口的实现。
@@ -81,8 +92,9 @@ export class IndexedDbMemoryPersistenceService
     );
   }
 
-  getMessageById(id: string): Promise<MessageRecord | null> {
-    return getMessageById(id);
+  async getMessageById(id: string): Promise<MessageRecord | null> {
+    const record = await getMessageById(id);
+    return record ? toMemoryMessageRecord(record) : null;
   }
 
   getMessagesBySession(
@@ -95,7 +107,9 @@ export class IndexedDbMemoryPersistenceService
       maxTurnIndexExclusive?: number;
     }
   ): Promise<MessageRecord[]> {
-    return getMessagesBySession(sessionId, options);
+    return getMessagesBySession(sessionId, options).then((records) =>
+      records.map(toMemoryMessageRecord)
+    );
   }
 
   getMessagesByTag(
@@ -103,7 +117,9 @@ export class IndexedDbMemoryPersistenceService
     tags: string[],
     limit?: number
   ): Promise<MessageRecord[]> {
-    return getMessagesByTag(sessionId, tags, limit);
+    return getMessagesByTag(sessionId, tags, limit).then((records) =>
+      records.map(toMemoryMessageRecord)
+    );
   }
 
   deleteMessagesBySession(sessionId: string, signal?: AbortSignal): Promise<void> {

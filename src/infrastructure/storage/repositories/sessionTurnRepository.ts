@@ -10,6 +10,7 @@ import {
   type SessionStorageRecord,
 } from "../sessionRecord";
 import {
+  getStoredMessageText,
   toStoredMessageRecord,
   type PersistableMessage,
   type StoredChatMessageRecord,
@@ -65,7 +66,7 @@ export function commitSessionTurn(
             return;
           }
           if (existing) {
-            charCount -= existing.content?.length ?? 0;
+            charCount -= getStoredMessageText(existing).length;
             if (existing.role === "user") userMessageCount--;
           } else {
             messageCount++;
@@ -115,7 +116,7 @@ export function commitSessionTurn(
               existingById.set(record.id, record);
               messageCount++;
               if (record.role === "user") userMessageCount++;
-              charCount += record.content?.length ?? 0;
+              charCount += getStoredMessageText(record).length;
               if (Number.isInteger(record.turnIndex)) {
                 maxTurnIndex = Math.max(maxTurnIndex, record.turnIndex);
               }

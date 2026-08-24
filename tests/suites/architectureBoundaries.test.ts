@@ -201,11 +201,27 @@ export async function testArchitectureBoundaries(): Promise<void> {
   for (const directory of ["src/components", "src/tabs", "src/hooks", "src/contexts"]) {
     for (const file of listCodeFiles(directory)) {
       assert(
-        !/infrastructure\/resources/.test(read(file)),
-        `${file} 不得直接读取本地界面资源存储；必须通过 LocalResourceService 管理字节与 Blob URL`
+        !/infrastructure\/(?:resources|attachments)/.test(read(file)),
+        `${file} 不得直接读取本地界面资源或消息附件存储；必须通过对应应用 Service 管理字节与 Blob URL`
       );
     }
   }
+
+  const attachmentStorage = read("src/infrastructure/attachments/attachmentStorage.ts");
+  assert(
+    attachmentStorage.includes('MobileTavernAttachmentDB') &&
+      attachmentStorage.includes('METADATA_STORE = "metadata"') &&
+      attachmentStorage.includes('CONTENT_STORE = "contents"') &&
+      !read("src/infrastructure/resources/localResourceStorage.ts").includes("Attachment"),
+    "消息附件必须使用独立数据库并分轨元数据与字节，不能回流主题资源存储"
+  );
+  const messageRecord = read("src/infrastructure/storage/messageRecord.ts");
+  assert(
+    messageRecord.includes("contentVersion: 2") &&
+      messageRecord.includes("content: MessageContentPart[]") &&
+      !/contentVersion:\s*2[\s\S]{0,160}\bparts\s*:/.test(messageRecord),
+    "V2 消息记录必须以 Content Parts 作为唯一权威 content，不得并列持久化派生 parts/content 字段"
+  );
 
   assert(
     read("src/components/MainLayout.tsx").includes('data-tab-id={tab.id}') &&

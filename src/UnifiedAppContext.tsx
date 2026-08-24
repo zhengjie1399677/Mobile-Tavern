@@ -155,7 +155,11 @@ export interface UnifiedAppContextProps {
 
   // --- Chat Hook ---
   chatBottomRef: React.RefObject<HTMLDivElement | null>;
-  handleSendMessage: (textToSend: string, options?: { isBisonConsecutive?: boolean, skipAI?: boolean }) => Promise<void>;
+  handleSendMessage: (textToSend: string, options?: {
+    isBisonConsecutive?: boolean;
+    skipAI?: boolean;
+    attachmentIds?: string[];
+  }) => Promise<void>;
   handleStartNewSession: (customFirstMessage?: string) => Promise<void>;
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
   showSessionManager: boolean;

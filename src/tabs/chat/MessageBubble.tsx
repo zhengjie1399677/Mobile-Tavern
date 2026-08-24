@@ -25,6 +25,7 @@ import { MessageAvatar } from "./message-bubble/MessageAvatar";
 import { ReasoningBlock } from "./message-bubble/ReasoningBlock";
 import { GeneratedImageBlock } from "./message-bubble/GeneratedImageBlock";
 import { MessageTimestamp } from "./message-bubble/MessageTimestamp";
+import { MessageAttachmentParts } from "./message-bubble/MessageAttachmentParts";
 
 interface MessageBubbleProps {
   message: Message;
@@ -92,6 +93,7 @@ const MessageBubble = ({
   const { t } = useTranslation();
 
   const isUser = message.sender === "user";
+  const hasAttachmentParts = message.parts?.some(part => part.type !== "text") === true;
 
   // isStreamingThisMsg 由父组件 DialogueHistoryView 预计算后传入，
   // 判断逻辑（window.TavernHelperStreamingMessageId 优先 + isSending 兜底末位消息）
@@ -664,8 +666,12 @@ const MessageBubble = ({
                   />
                 )}
 
+              <MessageAttachmentParts parts={message.parts ?? []} />
+
               {/* 主对白内容气泡：仅在思维链且正文还在准备时，暂不显示空气泡 */}
-              {!(message.content === "💭..." && message.reasoningContent) && (
+              {!(message.content === "💭..." && message.reasoningContent)
+                && (!hasAttachmentParts || Boolean(message.content?.trim()) || isStreamingThisMsg)
+                && (
                 <div
                   className={`px-3.5 py-2.5 shadow-sm text-sm border font-light tracking-wide transition-all cursor-pointer relative overflow-hidden ${
                     isUser

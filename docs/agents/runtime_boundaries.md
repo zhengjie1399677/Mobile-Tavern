@@ -18,6 +18,9 @@
 | 应用用例层 | `src/application/useCases/` | 业务初始化、分页、级联流程和跨 Service 协调 | 不保存 React State，不直接渲染界面 |
 | 本地界面资源服务 | `src/application/services/LocalResourceService.ts` | 校验用户导入的图片、视频与音频，管理受控 Blob URL 和 CSS 资源变量 | 不把媒体字节写入 settings，不开放任意远程 URL |
 | 本地界面资源存储 | `src/infrastructure/resources/localResourceStorage.ts` | 在独立数据库中物理分轨资源元数据与文件字节 | 不被 React 组件直接调用，不与插件包存储混用 |
+| 消息附件应用服务 | `src/application/services/AttachmentService.ts` | 校验附件魔数与配额，管理引用状态、备份字节和受控 Blob URL | 不承载 Provider 方言，不借用主题资源数据库 |
+| 消息附件存储 | `src/infrastructure/attachments/attachmentStorage.ts` | 在独立数据库中分轨消息附件元数据和字节，执行引用重建与 GC | 不被 React Hook/组件直接调用，不把媒体塞入主消息记录 |
+| 多模态 Provider 投影 | `src/application/useCases/multimodalProviderProjection.ts` | 把通用 Content Parts 按已确认能力投影为请求方言 | 不修改领域消息，不把 Provider 格式持久化 |
 | 主题交互应用服务 | `src/application/services/ThemeInteractionService.ts` | 解释主题 1.1 白名单事件、条件与动作，维护有限状态、冷却和延迟任务 | 不接触 DOM、存储、网络或业务数据，不执行主题代码 |
 | 主题媒体宿主 | `src/components/theme-interactions/ThemeInteractionHost.tsx` | 把稳定 `data-ui` 事件、生命周期和三个背景 Surface 适配到主题服务，并解析本地媒体 | 不向主题暴露元素引用，不接受远程 URL 或任意选择器 |
 
@@ -29,6 +32,8 @@
   ├─→ React Context ─→ application/useCases ─→ 应用 Service
   ├─→ 应用 Service ─→ Repository/Adapter ─→ infrastructure/storage
   ├─→ LocalResourceService ───────────────→ infrastructure/resources
+  ├─→ AttachmentService ─────────────────→ infrastructure/attachments
+  ├─→ Chat Use Case ─→ Provider Projection ─→ AttachmentService（按需读取字节）
   ├─→ ThemeInteractionHost ─→ ThemeInteractionService ─→ 主题私有运行态
   │                        └→ LocalResourceService（只解析已声明本地媒体）
   ├─→ 记忆领域端口 ───────────────────────→ IndexedDbMemoryPersistenceService
@@ -43,12 +48,14 @@
 
 - `sessions` Store 只保存 `ChatSessionMetadata`、摘要和内部计数基线；旧记录中的内嵌 `messages` 读取时必须丢弃。
 - `messages` Store 是消息正文的唯一权威来源。消息的展示字段、重生成字段和状态快照统一经过 `messageRecord.ts` 映射，禁止写入路径各自挑选字段。
+- V2 消息以 Content Parts 为唯一权威内容，`Message.content` 只作为兼容文本投影；附件只保存 `att_*` 引用，物理字节进入独立 Attachment 数据库。
 - React 内部将会话元数据与已水合的 `ChatMessageWindow` 分开保存；对外兼容的 `ChatSession` 视图只是投影，不得反向作为全量历史写回数据库。
 - 虚拟列表只减少 DOM 渲染量；消息分页通过最早消息 ID 对应的绝对 `turnIndex` 游标读取，会话目录分页通过 `(createdAt, id)` 游标读取，禁止使用会受并发新增影响的数字 offset 作为持续分页边界。
 - 应用消息新增、编辑、删除或替换统一经过 `commitSessionTurn`、`updateSessionMessage`、`deleteSessionMessage`、`replaceSessionBranch` 跨 Store 事务；低层记忆消息原语不得顺带维护会话统计。
 - 自动总结必须在本轮消息事务提交后读取权威消息 Store；不能在输出中间件尚未持久化助手回复时推进摘要边界。
 - 角色删除由 Character Service 的聚合仓库在单事务内按 `characterId` 级联全部会话和记忆分轨，禁止遍历 React 已加载的会话分页执行删除。
 - 备份恢复的 `replaceCompleteSessions` 是完整替换语义：同一事务内先清理旧消息，再写入最终消息并重算统计，禁止保留旧尾部；普通 UI 分页会话不得调用。
+- 消息事务完成后由 Database Service 串行扫描权威消息记录并重建附件反向引用；主库与附件库跨库提交使用可恢复状态补偿，不能伪装成单个 IndexedDB 原子事务。
 - Prompt 组装必须根据编排配置从数据库读取权威历史窗口；重生成必须传入目标消息边界，不能使用当前 UI 分页切片。
 - 每次完成助手输出后，把变量和状态表快照绑定到该消息。重生成与历史分支优先恢复最近完整快照；旧 MVU 消息只作为变量降级来源，缺失的旧状态表不得伪造为可回放结果。
 

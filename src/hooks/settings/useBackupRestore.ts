@@ -14,6 +14,7 @@ import { persistImportedChatSession } from "../../application/useCases/chatImpor
 import {
   buildUnifiedBackupPayload,
   UNIFIED_BACKUP_MAGIC,
+  parseAttachmentBackupRecords,
 } from "../../application/useCases/dataMigrationUseCases";
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本 Hook 实际使用的方法）。
@@ -288,6 +289,7 @@ export const useBackupRestore = ({
       const validatedSavedPresets = Array.isArray(parsed.savedPresets)
         ? parsed.savedPresets
         : [];
+      const validatedAttachments = parseAttachmentBackupRecords(parsed.attachments);
 
       const mergedSettings: UserSettings = parsed.settings
         ? {
@@ -312,9 +314,12 @@ export const useBackupRestore = ({
           }
         : structuredClone(DEFAULT_SETTINGS);
 
-      const legacyWarning = Number(parsed.version || 0) < 4
-        ? "\n\n注意：这是旧版备份，不包含独立世界书、记忆词典和自定义预设库；这些项目将按空数据恢复。当前数据会先自动导出安全快照。"
-        : "\n\n恢复前会自动导出当前数据的脱敏安全快照。";
+      const parsedVersion = Number(parsed.version || 0);
+      const legacyWarning = parsedVersion < 4
+        ? "\n\n注意：这是旧版备份，不包含独立世界书、记忆词典、自定义预设库和消息附件；这些项目将按空数据恢复。当前数据会先自动导出安全快照。"
+        : parsedVersion < 5
+          ? "\n\n注意：这是 v4 备份，不包含消息附件；当前数据会先自动导出安全快照。"
+          : "\n\n恢复前会自动导出当前数据的脱敏安全快照。";
 
       const ok = await showCustomConfirm(
         `数据解密与格式校验成功！恢复将以备份内容完整替换本地角色、会话、记忆和世界书，是否确认？${legacyWarning}`,
@@ -337,6 +342,7 @@ export const useBackupRestore = ({
           customWorldbooks: validatedCustomWorldbooks,
           backupDate: typeof parsed.backupDate === "string" ? parsed.backupDate : new Date().toISOString(),
           isEncrypted: false,
+          attachments: validatedAttachments,
         });
 
         setBackupStatus("正在原子覆盖本地数据...");

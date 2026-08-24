@@ -4,7 +4,7 @@ import { ChatSession, ChatSessionMetadataPatch, UserSettings, CharacterCard, Lor
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService,
-  IKernel,
+  IKernel, IAttachmentService, KernelServices,
 } from "@/src/application/serviceContracts";
 import { FALLBACK_MODEL } from "../../utils/apiClient";
 import {
@@ -26,6 +26,10 @@ import { Logger, generateTraceId } from "../../utils/logger";
 import { buildAuthoritativePromptSession } from "../../application/useCases/promptHistoryUseCases";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
+import {
+  projectMessagePartsToOpenAi,
+  type OpenAiProviderMessage,
+} from "../../application/useCases/multimodalProviderProjection";
 
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
@@ -218,6 +222,22 @@ export function useRerollMessage(p: RerollMessageParams) {
       }
       return;
     }
+    if (nextMsgs[lastUserIdx].parts?.some(part => part.type !== "text")) {
+      const reason = p.settings.api.supportsVision !== true
+        ? "当前 API 配置未启用图片输入能力，请先在 API 配置中确认模型支持视觉输入。"
+        : p.settings.api.type === "anthropic"
+          ? "当前阶段尚未提供 Anthropic 原生多模态投影，请改用 OpenAI-compatible 接口。"
+          : null;
+      if (reason) {
+        await p.showCustomAlert(reason);
+        p.isSendingRef.current = false;
+        p.setIsSending(false);
+        if (typeof window !== "undefined") {
+          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
+        }
+        return;
+      }
+    }
     updatedSession = { ...updatedSession, ...restoredState };
     const persistRerollSession = (session: ChatSession) => {
       const newMessages = session.messages.slice(nextMsgs.length).map((message) =>
@@ -310,6 +330,30 @@ export function useRerollMessage(p: RerollMessageParams) {
         signal: controller.signal,
         traceId,
       });
+      const baseProviderMessages: OpenAiProviderMessage[] = promptPayload.messages || [
+        {
+          role: "system",
+          content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction].filter(Boolean).join("\n\n"),
+        },
+        ...promptPayload.history.map((historyMessage: { role: "model" | "user" | "assistant"; name?: string; content: string }) => {
+          const providerMessage: OpenAiProviderMessage = {
+            role: historyMessage.role === "model" ? "assistant" : historyMessage.role,
+            content: historyMessage.content,
+          };
+          if (p.settings.api.sendNames && historyMessage.name) providerMessage.name = historyMessage.name;
+          return providerMessage;
+        }),
+      ];
+      const latestMultimodalUserMessage = [...promptSession.messages]
+        .reverse()
+        .find(message => message.sender === "user" && message.parts?.some(part => part.type !== "text"));
+      const providerMessages = latestMultimodalUserMessage
+        ? await projectMessagePartsToOpenAi(
+            baseProviderMessages,
+            latestMultimodalUserMessage,
+            p.kernel.getService<IAttachmentService>(KernelServices.Attachments),
+          )
+        : baseProviderMessages;
 
       const memoryAudit = buildMemoryAuditSnapshot({
         session: updatedSession,
@@ -347,17 +391,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           ...(p.settings.api.type !== "anthropic" && !p.settings.api.forceBasicParams && {
             stream_options: { include_usage: true }
           }),
-          messages: promptPayload.messages || [
-            {
-              role: "system",
-              content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction].filter(Boolean).join("\n\n"),
-            },
-            ...promptPayload.history.map((h: { role: "model" | "user" | "assistant"; name?: string; content: string }) => {
-              const msgObj: { role: string; content: string; name?: string } = { role: h.role === "model" ? "assistant" : h.role, content: h.content };
-              if (p.settings.api.sendNames && h.name) msgObj.name = h.name;
-              return msgObj;
-            }),
-          ],
+          messages: providerMessages,
           ...(promptPayload.stopSequences?.length ? { stop: promptPayload.stopSequences } : {}),
           temperature: p.settings.preset.temperature,
           top_p: p.settings.preset.topP,

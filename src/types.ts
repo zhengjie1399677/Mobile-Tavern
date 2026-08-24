@@ -1,5 +1,6 @@
 import type { CustomThemePackage } from "./utils/themePackage";
 import type { PromptComposition, PromptCompositionTemplateRecord } from "./domain/prompt-composition";
+import type { MessageContentPart } from "./domain/messages/messageContent";
 
 export interface LorebookEntry {
   id: string;
@@ -81,6 +82,10 @@ export interface Message {
   id: string;
   sender: "user" | "assistant" | "system";
   content: string;
+  /** V2 消息的唯一权威正文；`content` 仅为旧调用方使用的派生文本投影。 */
+  parts?: MessageContentPart[];
+  /** 缺失表示原始 V1 string 记录；值 2 表示 Content Parts 记录。 */
+  contentVersion?: 2;
   timestamp: number;
   isSummaryLine?: boolean; // For inline marker
   generationTime?: number; // Time in seconds taken to generate the response
@@ -152,6 +157,8 @@ export interface ApiConfig {
   sendNames?: boolean;
   disableReasoning?: boolean;
   forceBasicParams?: boolean;
+  /** 用户确认当前模型/接口支持 OpenAI-compatible 图片输入；缺省按不支持处理。 */
+  supportsVision?: boolean;
   contextLimit?: number;
 }
 
@@ -268,6 +275,7 @@ export interface ApiProfile {
   bypassProxy?: boolean;
   disableReasoning?: boolean;
   forceBasicParams?: boolean;
+  supportsVision?: boolean;
 }
 
 /** 预设包只保存传统 Prompt 配置；自由编排拥有独立的状态与模板生命周期。 */

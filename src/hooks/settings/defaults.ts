@@ -401,6 +401,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     sendNames: false,
     disableReasoning: false,
     forceBasicParams: false,
+    supportsVision: false,
   },
   preset: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset,
   memory: {

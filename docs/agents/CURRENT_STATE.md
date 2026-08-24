@@ -5,7 +5,9 @@
 - 产品目标从固定的 SillyTavern 兼容容器演进为本地优先、多模态、可组合的移动端 Agent Host；现有 Tavern 体验继续作为默认 Profile，SillyTavern 角色卡、预设、世界书、MVU、Regex、TavernHelper 和兼容 iframe 将按阶段降级为可关闭的内置 Compatibility Runtime Plugin。
 - 目标架构采用 Runtime Plugin、Worker Plugin、Sandbox App Plugin 三条信任边界；聊天通过 Profile、类型化 Capability Slot、Provider Binding、可叠加 Contribution 和会话级 Composition Snapshot 确定性组合。
 - 第一批实现顺序为 Scope/Effect 可撤销注册、Runtime Plugin/Profile 最小组合、Message Content V2 与 Attachment Data Plane；在对应实现和守卫完成前，现有 `runtime_boundaries.md` 仍是代码必须遵守的当前边界。
-- Scope/Effect 与 Runtime Plugin/Profile 两项底层工作已完成最小闭环：通用父子 `EffectScope` 支持逆序幂等释放、并发提前释放等待、失败后继续清理和错误聚合；核心服务批次、默认 Pipeline 中间件、Capability、消息订阅和主 Tab UI Slot 均返回基于注册身份的 disposer，并统一挂入 Application Scope。Application 层新增 Runtime Plugin Definition、Profile 依赖解析、版本校验、循环检测、失败回滚和脱敏解析快照，现有服务、默认 Pipeline 与能力清单已通过 `mobile-tavern.legacy-runtime` 插件装载，用户行为保持不变。阶段 1 尚未完成类型化 Capability Token 与配置 Schema 体系，下一批进入 Message Content V2 与 Attachment Data Plane。
+- Scope/Effect 与 Runtime Plugin/Profile 两项底层工作已完成最小闭环：通用父子 `EffectScope` 支持逆序幂等释放、并发提前释放等待、失败后继续清理和错误聚合；核心服务批次、默认 Pipeline 中间件、Capability、消息订阅和主 Tab UI Slot 均返回基于注册身份的 disposer，并统一挂入 Application Scope。Application 层新增 Runtime Plugin Definition、Profile 依赖解析、版本校验、循环检测、失败回滚和脱敏解析快照，现有服务、默认 Pipeline 与能力清单已通过 `mobile-tavern.legacy-runtime` 插件装载，用户行为保持不变。阶段 1 尚未完成类型化 Capability Token 与配置 Schema 体系。
+- 阶段 2 的最小闭环已完成：消息存储支持 V1 文本与 V2 Content Parts 联合读取，附件使用独立数据库和 `staging/committed/orphaned` 引用生命周期；聊天端已贯通图片选择、预览、重启恢复、编辑、重发、分支、气泡展示和 OpenAI-compatible 请求投影。模型视觉能力未知时默认拒绝，需用户在 API 配置显式确认；Anthropic 原生方言和音视频 Provider 投影不做静默降级。
+- 统一备份升级为 v5，备份所引用附件的 Base64 字节；恢复先验证附件覆盖，使用恢复前安全快照、附件暂存、主库覆盖和引用重建完成跨数据库补偿。下一步进入阶段 3：Agent Spine、Tool Registry、声明式 Provider Capability 与复杂媒体处理。
 - 权威目标、聊天组合规则、阶段任务和验收条件见[插件式 Agent Runtime 与聊天组合路线](agent_plugin_runtime_roadmap.md)。
 
 ---

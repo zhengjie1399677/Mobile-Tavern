@@ -13,19 +13,27 @@ import {
   MicOff,
   Loader2,
   Play,
+  Paperclip,
+  X,
 } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { chatTabState } from "./utils";
 import type { ChatSession, CustomPromptBlock, Message, ReplyChoice, SummaryCard } from "../../types";
-import type { IAsrService } from "@/src/application/serviceContracts";
+import type { IAsrService, IAttachmentService } from "@/src/application/serviceContracts";
 import type { RecalledMessage } from "@/src/application/services/memory/types";
+import type { AttachmentMetadata } from "../../domain/attachments/types";
 
 /**
  * 用于在事件 currentTarget 上标记 _touched 状态，
  * 以区分 touchstart 与 mousedown 事件，避免移动端重复触发。
  */
 type TouchTrackedElement = Element & { _touched?: boolean };
+
+interface PendingAttachment {
+  metadata: AttachmentMetadata;
+  previewUrl: string;
+}
 
 const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [showQuickActions, setShowQuickActions] = React.useState(false);
@@ -139,6 +147,45 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
 
   const [isRecording, setIsRecording] = React.useState(false);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
+  const [pendingAttachments, setPendingAttachments] = React.useState<PendingAttachment[]>([]);
+  const attachmentInputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    setPendingAttachments([]);
+  }, [activeSession?.id]);
+
+  const handleSelectAttachments = React.useCallback(async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (files.length === 0) return;
+    if (settings.api.supportsVision !== true) {
+      await showCustomAlert("当前 API 配置未启用图片输入能力，请先在 API 配置中确认模型支持视觉输入。");
+      return;
+    }
+    const remainingSlots = Math.max(0, 4 - pendingAttachments.length);
+    if (remainingSlots === 0) {
+      await showCustomAlert("每条消息最多添加 4 张图片。");
+      return;
+    }
+    const service = getKernelService<IAttachmentService>("attachments");
+    const imported: PendingAttachment[] = [];
+    try {
+      for (const file of files.slice(0, remainingSlots)) {
+        const metadata = await service.stageFile(file);
+        if (metadata.kind !== "image") throw new Error("ATTACHMENT_KIND_UNSUPPORTED");
+        imported.push({
+          metadata,
+          previewUrl: await service.getObjectUrl(metadata.id),
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await showCustomAlert(`图片导入失败：${message}`);
+    }
+    if (imported.length > 0) setPendingAttachments(current => [...current, ...imported]);
+  }, [getKernelService, pendingAttachments.length, settings.api.supportsVision, showCustomAlert]);
 
   const handleToggleAsr = async () => {
     try {
@@ -281,28 +328,45 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
 
   const canSend = React.useMemo(() => {
     const hasInput = (localInput || "").trim() !== "";
+    const hasAttachments = pendingAttachments.length > 0;
     if (settings.enableMultiMessageQueue) {
-      return hasInput || lastMsgIsUser;
+      return hasInput || hasAttachments || lastMsgIsUser;
     }
-    return hasInput;
-  }, [localInput, settings.enableMultiMessageQueue, lastMsgIsUser]);
+    return hasInput || hasAttachments;
+  }, [localInput, pendingAttachments.length, settings.enableMultiMessageQueue, lastMsgIsUser]);
 
-  const onSendPure = React.useCallback(() => {
-    if (!localInput.trim()) return;
+  const onSendPure = React.useCallback(async () => {
+    if (!localInput.trim() && pendingAttachments.length === 0) return;
     const msg = localInput;
+    try {
+      await handleSendMessage(msg, {
+        skipAI: true,
+        attachmentIds: pendingAttachments.map(item => item.metadata.id),
+      });
+    } catch {
+      return;
+    }
+    setPendingAttachments([]);
     setLocalInput("");
     setUserInputMessage("");
     setReplySuggestions([]);
-    handleSendMessage(msg, { skipAI: true });
-  }, [localInput, handleSendMessage]);
+  }, [localInput, pendingAttachments, handleSendMessage, setReplySuggestions, setUserInputMessage]);
 
-  const onSendMerged = React.useCallback(() => {
+  const onSendMerged = React.useCallback(async () => {
     const msg = localInput.trim();
+    try {
+      await handleSendMessage(msg, {
+        skipAI: false,
+        attachmentIds: pendingAttachments.map(item => item.metadata.id),
+      });
+    } catch {
+      return;
+    }
+    setPendingAttachments([]);
     setLocalInput("");
     setUserInputMessage("");
     setReplySuggestions([]);
-    handleSendMessage(msg, { skipAI: false });
-  }, [localInput, handleSendMessage]);
+  }, [localInput, pendingAttachments, handleSendMessage, setReplySuggestions, setUserInputMessage]);
 
   const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasTriggeredLongPress = React.useRef(false);
@@ -318,13 +382,13 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     }
     longPressTimerRef.current = setTimeout(() => {
       hasTriggeredLongPress.current = true;
-      onSendMerged();
+      void onSendMerged();
     }, 500);
   }, [isSending, onSendMerged, settings.enableMultiMessageQueue]);
 
   const handlePointerUp = React.useCallback((e: React.PointerEvent) => {
     if (!settings.enableMultiMessageQueue) {
-      onSendMerged();
+      void onSendMerged();
       return;
     }
 
@@ -333,7 +397,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       longPressTimerRef.current = null;
     }
     if (!hasTriggeredLongPress.current) {
-      onSendPure();
+      void onSendPure();
     }
     hasTriggeredLongPress.current = false;
   }, [onSendPure, onSendMerged, settings.enableMultiMessageQueue]);
@@ -510,6 +574,27 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           </div>
         </div>
       )}
+      {pendingAttachments.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto px-1 py-1" aria-label="待发送图片">
+          {pendingAttachments.map(item => (
+            <div key={item.metadata.id} className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-border bg-muted">
+              <img
+                src={item.previewUrl}
+                alt={item.metadata.originalName}
+                className="w-full h-full object-cover"
+              />
+              <button
+                type="button"
+                aria-label={`移除 ${item.metadata.originalName}`}
+                onClick={() => setPendingAttachments(current => current.filter(candidate => candidate.metadata.id !== item.metadata.id))}
+                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/65 text-white flex items-center justify-center"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-2 relative">
         <button
           aria-label="切换快捷工具栏"
@@ -520,6 +605,24 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         >
           <Sliders className="w-4 h-4" />
         </button>
+        <input
+          ref={attachmentInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          multiple
+          className="hidden"
+          onChange={handleSelectAttachments}
+        />
+        <button
+          type="button"
+          aria-label="添加图片"
+          title="添加图片（最多 4 张）"
+          disabled={isSending || isBisonLocking}
+          onClick={() => attachmentInputRef.current?.click()}
+          className="p-2.5 rounded-xl border bg-input/30 border-border/80 hover:bg-muted text-muted-foreground transition-all shrink-0 disabled:opacity-45"
+        >
+          <Paperclip className="w-4 h-4" />
+        </button>
         <textarea
           ref={textareaRef}
           value={localInput}
@@ -528,9 +631,9 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               if (settings.enableMultiMessageQueue) {
-                onSendPure();
+                void onSendPure();
               } else {
-                onSendMerged();
+                void onSendMerged();
               }
             }
           }}

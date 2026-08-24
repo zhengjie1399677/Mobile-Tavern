@@ -60,7 +60,7 @@ describe("数据迁移应用用例", () => {
     expect(settings.savedApiProfiles?.[0].apiKey).toBe("sk-profile-1");
   });
 
-  it("v4 统一备份包含独立世界书且不与输入对象共享可变引用", () => {
+  it("v5 统一备份包含独立世界书与附件目录且不共享可变引用", () => {
     const customWorldbooks: Record<string, CustomWorldbook> = {
       "worldbook-1": {
         id: "worldbook-1",
@@ -82,7 +82,8 @@ describe("数据迁移应用用例", () => {
       isEncrypted: false,
     });
 
-    expect(payload.version).toBe(4);
+    expect(payload.version).toBe(5);
+    expect(payload.attachments).toEqual([]);
     expect(payload.customWorldbooks).toEqual(customWorldbooks);
     expect(payload.customWorldbooks).not.toBe(customWorldbooks);
   });
@@ -96,6 +97,30 @@ describe("数据迁移应用用例", () => {
       [KernelServices.Database]: {
         getAllSessions: vi.fn().mockResolvedValue([
           { id: "session-1", characterId: "character-1", title: "会话", createdAt: 1, summaries: [], messages: [] },
+        ]),
+        getSessionPromptMessages: vi.fn().mockResolvedValue([
+          {
+            id: "message-1",
+            sender: "system",
+            content: "系统消息",
+            timestamp: 1,
+            turnIndex: 0,
+            tags: ["系统"],
+            extractSource: "dict",
+            extra: { image: "asset://backup-image" },
+            reasoningContent: "备份中的推理",
+            generationTime: 1.5,
+            tokenCount: 24,
+            promptTokenCount: 48,
+            swipes: ["版本一", "版本二"],
+            swipe_id: 1,
+            variables: { affection: 9 },
+            contentVersion: 2,
+            parts: [
+              { type: "text", text: "系统消息" },
+              { type: "image", assetId: "att_backup1" },
+            ],
+          },
         ]),
       },
       [KernelServices.Worldbook]: {
@@ -149,6 +174,20 @@ describe("数据迁移应用用例", () => {
           { id: "preset-1", name: "长篇预设" },
         ]),
       },
+      [KernelServices.Attachments]: {
+        exportAttachments: vi.fn().mockResolvedValue([
+          {
+            id: "att_backup1",
+            kind: "image",
+            mimeType: "image/png",
+            originalName: "backup.png",
+            size: 3,
+            createdAt: 1,
+            updatedAt: 1,
+            dataBase64: "AQID",
+          },
+        ]),
+      },
     };
     service.init({
       getService: vi.fn((name: keyof typeof services) => services[name]),
@@ -178,6 +217,8 @@ describe("数据迁移应用用例", () => {
     expect(payload.savedPresets[0].id).toBe("preset-1");
     expect(Object.keys(payload.customWorldbooks)).toEqual(["worldbook-1"]);
     expect(payload.settings.api.apiKey).toBe("");
+    expect(payload.attachments.map(item => item.id)).toEqual(["att_backup1"]);
+    expect(services[KernelServices.Attachments].exportAttachments).toHaveBeenCalledWith(["att_backup1"]);
     service.destroy();
   });
 });

@@ -183,16 +183,30 @@ someAsyncOp().then(() => {
 |--------|------|------|
 | `MobileTavernLiteDB` | 主数据库（角色/会话/消息/记忆/设置） | v13 |
 | `MobileTavernPluginDB` | 插件数据库（包元数据/存档/文件字节） | v2 |
-| `MobileTavernResourceDB` | 用户本地界面资源（图片/视频/音频的元数据与文件字节） | v1 |
+| `MobileTavernResourceDB` | 用户本地界面资源（主题图片/视频/音频的元数据与文件字节） | v1 |
+| `MobileTavernAttachmentDB` | 消息附件元数据、引用状态与媒体字节 | v1 |
 
 ### 隔离规则
 
-- 三个数据库的连接管理独立，互不影响
+- 四个数据库的连接管理独立，互不影响
 - 插件数据库的 schema 升级不触发主数据库的 `onupgradeneeded`
 - 插件数据库的写操作不经过主数据库的 `enqueueWrite` 队列
 - 本地界面资源不得写入 `settings` 大对象，也不得借用插件包数据库；资源元数据与文件字节必须分 Store 保存。
 - 资源 Blob URL 只能由 `LocalResourceService` 创建和回收；React UI 不能直接读取资源 Repository。
 - 跨主题和后续 UI 插件持久化引用统一使用 `tavern-resource://<id>`，运行时必须经 `LocalResourceService.resolveResourceReference()` 解析，禁止持久化会话级 Blob URL。
+- 消息只持久化 `att_*` 引用，附件元数据与字节分别进入 `metadata`、`contents` Store；聊天 UI 只能通过 `AttachmentService` 读取和创建 Blob URL。
+- 主消息库与附件库不能共享 IndexedDB 事务：新附件先进入 `staging`，消息事务成功后从权威消息快照重建引用并转为 `committed`；最后引用移除后进入 `orphaned`，启动修复和 GC 负责崩溃恢复。
+- 完整备份必须携带消息引用的附件字节；覆盖恢复先验证引用覆盖，再暂存附件、提交主库并重建引用，主库提交前失败必须恢复旧附件快照。
+
+---
+
+## 7.1 Message Content V2 与 Provider 投影契约
+
+- `messages` Store 的 V1 记录继续使用 `content: string`；V2 记录使用 `contentVersion: 2` 和唯一权威的 Content Parts 数组，不得并列持久化派生文本字段。
+- 运行态 `Message.content` 是 V2 文本 Part 的兼容投影，供旧 UI、Prompt、摘要和记忆链路使用；编辑文本时必须同步改写 Content Parts，并原位保留附件。
+- Content Parts 只保存通用的 `text/image/audio/video/file` 语义和 `assetId`，不得保存 OpenAI、Anthropic 或其他 Provider 方言。
+- Provider 请求投影发生在应用用例边界。能力未知时默认拒绝图片发送；当前只允许用户显式确认后的 OpenAI-compatible `image_url` 投影，不支持的媒体或方言必须明确报错，禁止静默丢弃。
+- 图片、音频、视频和文件的原件不得进入 `sessions`、`messages` 或 `settings` 大对象；Blob URL 不得持久化。
 
 ---
 

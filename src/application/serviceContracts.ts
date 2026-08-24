@@ -7,6 +7,12 @@ import type {
 } from "../domain/prompt-composition";
 import type { LocalResourceMetadata } from "../domain/resources/types";
 import type {
+  AttachmentMetadata,
+  AttachmentBackupRecord,
+  AttachmentReference,
+} from "../domain/attachments/types";
+import type { MessageContentPart } from "../domain/messages/messageContent";
+import type {
   ThemeInteractionConfig,
   ThemeInteractionEventType,
   ThemeMediaDefinition,
@@ -37,7 +43,24 @@ export const KernelServices = {
   DataMigration: "dataMigration",
   LocalResources: "localResources",
   ThemeInteractions: "themeInteractions",
+  Attachments: "attachments",
 } as const;
+
+export interface IAttachmentService extends IKernelService {
+  stageFile(file: File): Promise<AttachmentMetadata>;
+  listAttachments(): Promise<AttachmentMetadata[]>;
+  getMetadata(id: string): Promise<AttachmentMetadata | null>;
+  getBlob(id: string): Promise<Blob>;
+  getObjectUrl(id: string): Promise<string>;
+  reconcileReferences(references: readonly AttachmentReference[]): Promise<void>;
+  patchReferences(
+    references: readonly AttachmentReference[],
+    removedReferenceIds?: readonly string[],
+  ): Promise<void>;
+  collectGarbage(cutoffTime: number): Promise<string[]>;
+  exportAttachments(assetIds?: readonly string[]): Promise<AttachmentBackupRecord[]>;
+  replaceAttachments(records: readonly AttachmentBackupRecord[]): Promise<void>;
+}
 
 
 export interface StreamChunk {
@@ -347,7 +370,11 @@ export interface IScriptService<TCharacter = unknown, TSession = unknown> extend
  *   `class MultiMessageService implements IMultiMessageService<ChatSession>`
  */
 export interface IMultiMessageService<TSession = unknown> extends IKernelService {
-  queueUserMessage(session: TSession, text: string): Promise<TSession>;
+  queueUserMessage(
+    session: TSession,
+    text: string,
+    additionalParts?: readonly MessageContentPart[],
+  ): Promise<TSession>;
 }
 
 export interface UpdateInfo {

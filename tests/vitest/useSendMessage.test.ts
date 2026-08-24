@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useSendMessage } from "../../src/hooks/useChat/useSendMessage";
 import { CONNECTION_INTERRUPTED_SUFFIX } from "../../src/hooks/useChat/pipelineHelpers";
 import type { ChatSession, CharacterCard, Message, UserSettings } from "../../src/types";
+import type { MessageContentPart } from "../../src/domain/messages/messageContent";
 
 function createHarness(streamLlmResponse: (...args: any[]) => AsyncGenerator<any>) {
   const welcome: Message = {
@@ -33,7 +34,11 @@ function createHarness(streamLlmResponse: (...args: any[]) => AsyncGenerator<any
     sessionsRef.current = sessions;
   });
   let userMessageIndex = 0;
-  const queueUserMessage = vi.fn(async (source: ChatSession, text: string) => ({
+  const queueUserMessage = vi.fn(async (
+    source: ChatSession,
+    text: string,
+    additionalParts: readonly MessageContentPart[] = [],
+  ) => ({
     ...source,
     messages: [
       ...source.messages.filter((message) => message.content !== "💭..."),
@@ -42,6 +47,13 @@ function createHarness(streamLlmResponse: (...args: any[]) => AsyncGenerator<any
         sender: "user" as const,
         content: text.trim(),
         timestamp: userMessageIndex,
+        ...(additionalParts.length > 0 ? {
+          contentVersion: 2 as const,
+          parts: [
+            ...(text.trim() ? [{ type: "text" as const, text: text.trim() }] : []),
+            ...additionalParts,
+          ],
+        } : {}),
       },
     ],
   }));
@@ -72,10 +84,14 @@ function createHarness(streamLlmResponse: (...args: any[]) => AsyncGenerator<any
 
   const params = {
     kernel: {
-      getService: vi.fn(() => ({
-        getExtractor: () => ({ scheduleExtraction }),
-        getSummary: () => ({ checkAndSummarize }),
-      })),
+      getService: vi.fn((name: string) => name === "attachments"
+        ? {
+            getBlob: vi.fn(async () => new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" })),
+          }
+        : {
+            getExtractor: () => ({ scheduleExtraction }),
+            getSummary: () => ({ checkAndSummarize }),
+          }),
       getPipeline: vi.fn(() => ({
         list: () => [{}, {}, {}],
         matches: () => true,
@@ -251,5 +267,36 @@ describe("useSendMessage 弱网与中止事务", () => {
     expect(harness.abortControllerRef.current).toBeNull();
     expect(harness.bisonChainTimerRef.current).toBeNull();
     expect(harness.isSendingRef.current).toBe(false);
+  });
+
+  it("显式启用视觉能力后把 V2 图片消息投影到 Provider 请求", async () => {
+    silenceConsole();
+    const harness = createHarness(async function* () {
+      yield { choices: [{ delta: { content: "看到了" } }] };
+    });
+    harness.params.settings.api = {
+      ...harness.params.settings.api,
+      type: "openai-compat",
+      supportsVision: true,
+    };
+    harness.params.promptService.assemblePrompt = vi.fn(() => ({
+      systemInstruction: "",
+      dynamicInstruction: "",
+      history: [],
+      messages: [{ role: "user" as const, content: "请看图" }],
+      traces: [],
+    }));
+    const { result } = renderHook(() => useSendMessage(harness.params));
+
+    await act(async () => {
+      await result.current.handleSendMessage("请看图", { attachmentIds: ["att_image1"] });
+    });
+
+    const streamCall = vi.mocked(harness.params.chatStreamService.streamLlmResponse).mock.calls[0][0];
+    const body = streamCall.reqBody as { messages: Array<{ role: string; content: unknown }> };
+    expect(body.messages[0].content).toEqual([
+      { type: "text", text: "请看图" },
+      { type: "image_url", image_url: { url: "data:image/png;base64,AQID", detail: "auto" } },
+    ]);
   });
 });
