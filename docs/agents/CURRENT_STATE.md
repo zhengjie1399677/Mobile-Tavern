@@ -7,11 +7,13 @@
 - 第一批实现顺序为 Scope/Effect 可撤销注册、Runtime Plugin/Profile 最小组合、Message Content V2 与 Attachment Data Plane；在对应实现和守卫完成前，现有 `runtime_boundaries.md` 仍是代码必须遵守的当前边界。
 - Scope/Effect 与 Runtime Plugin/Profile 两项底层工作已完成最小闭环：通用父子 `EffectScope` 支持逆序幂等释放、并发提前释放等待、失败后继续清理和错误聚合；核心服务批次、默认 Pipeline 中间件、Capability、消息订阅和主 Tab UI Slot 均返回基于注册身份的 disposer，并统一挂入 Application Scope。Application 层新增 Runtime Plugin Definition、Profile 依赖解析、版本校验、循环检测、失败回滚和脱敏解析快照，现有服务、默认 Pipeline 与能力清单已通过 `mobile-tavern.legacy-runtime` 插件装载，用户行为保持不变。阶段 1 尚未完成类型化 Capability Token 与配置 Schema 体系。
 - 阶段 2 的最小闭环已完成：消息存储支持 V1 文本与 V2 Content Parts 联合读取，附件使用独立数据库和 `staging/committed/orphaned` 引用生命周期；聊天端已贯通图片选择、预览、重启恢复、编辑、重发、分支、气泡展示和 OpenAI-compatible 请求投影。模型视觉能力未知时默认拒绝，需用户在 API 配置显式确认；Anthropic 原生方言和音视频 Provider 投影不做静默降级。
-- 阶段 3 已完成最小纵向闭环：应用层 Agent Runtime 提供 AgentHandle、Turn/取消、legacy driver、两个声明式 Provider、Tool Registry 和媒体 Processor；聊天发送与停止已进入 AgentHandle。Tool 输入/输出 Schema、权限、超时、Provider/媒体决定和 Turn 终态进入独立 Agent Journal，新会话冻结 Composition Snapshot。
+- 阶段 3 已完成最小纵向闭环：应用层 Agent Runtime 提供 AgentHandle、Turn/取消、通用聊天 Driver、两个声明式 Provider、Tool Registry 和媒体 Processor；聊天发送与停止已进入 AgentHandle。Tool 输入/输出 Schema、权限、超时、Provider/媒体决定和 Turn 终态进入独立 Agent Journal，新会话冻结 Composition Snapshot。
 - 音频附件可使用现有 OpenAI ASR 配置转写并写回模型可见文本；视频附件通过 WebView Adapter 生成有限 JPEG 关键帧并把派生引用写回 V2 消息。统一备份升级为 v6，同时覆盖附件字节与 Agent Journal，并在主库提交前失败时恢复两者快照。
 - 阶段 3 尚余真正消费模型 `tool_calls` 的内置多 Step Tool Loop Driver；该项不阻塞已经完成的阶段 4 底层边界收口。
 - 阶段 4 已完成底层闭环：常驻空 Compatibility Host 提供六类可撤销 Registry，独立 SillyTavern Runtime Plugin 负责连接兼容实现；通用生产代码不再直接导入兼容目录或读写 TavernHelper 生成全局字段。`base` Profile 不加载兼容插件，`tavern` Profile 可关闭、卸载和重载。插件状态进入独立会话命名空间，同时保留旧 `variables` 读取与双写降级。
-- 下一步进入阶段 5 的 Profile 选择/诊断 UI、设置面板贡献与旧路径清理；Driver/Profile 产品切换界面在此阶段统一交付。
+- 阶段 5 第一批已落地：设置页可选择内置 Base/Tavern Agent、复制为用户 Profile，并实际开关 SillyTavern Compatibility、音频 ASR 与视频关键帧贡献；启动组合从经过 Schema 校验的独立公开偏好读取，损坏、缺失或旧版本记录安全回退 Tavern Agent。诊断面板展示实际 Provider、Tool、Prompt Section、Renderer 与媒体降级策略；会话组合快照与当前 Profile 不一致时发送和重发都会阻止，切换前必须确认并重启运行时。
+- `legacy.tavern.driver` 已替换为格式中立的 `mobile-tavern.chat.driver`；旧静态 `capabilityCatalog.ts` 已删除，通用能力改由核心 Runtime Plugin 显式声明。任意 Runtime Plugin 安装仍关闭，签名、来源验证、版本回滚与撤销机制完成前只允许随安装包分发的受信实现。
+- 阶段 5 后续仍需把会话列表的跨 Profile 跳转做成自动恢复流程，并在所有 TavernHelper 兼容写路径完成命名空间改造后停止旧 `session.variables` 双写；当前继续保留只读降级与双写，避免旧角色卡数据静默损坏。
 - 权威目标、聊天组合规则、阶段任务和验收条件见[插件式 Agent Runtime 与聊天组合路线](agent_plugin_runtime_roadmap.md)。
 
 ---

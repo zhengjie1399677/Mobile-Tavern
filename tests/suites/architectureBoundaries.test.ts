@@ -386,10 +386,10 @@ export async function testArchitectureBoundaries(): Promise<void> {
   const sendMessageHook = read("src/hooks/useChat/useSendMessage.ts");
   assert(
     sendMessageHook.includes("ensureAgentHandle") &&
-      sendMessageHook.includes("LEGACY_TAVERN_DRIVER_ID") &&
+      sendMessageHook.includes("MOBILE_TAVERN_CHAT_DRIVER_ID") &&
       sendMessageHook.includes("recordDecision(\"provider.request\"") &&
       sendMessageHook.includes("recordDecision(\"media.projection\""),
-    "聊天发送必须经 AgentHandle/legacy driver，并记录实际 Provider 与媒体投影决定"
+    "聊天发送必须经 AgentHandle/通用聊天 Driver，并记录实际 Provider 与媒体投影决定"
   );
   const agentJournalStorage = read("src/infrastructure/agents/agentJournalStorage.ts");
   assert(
@@ -404,6 +404,20 @@ export async function testArchitectureBoundaries(): Promise<void> {
       agentPlugin.includes("media.video.keyframes") &&
       agentPlugin.includes("scope.add(runtime.registerMediaProcessor"),
     "音频 ASR 与视频关键帧必须作为受信 Runtime Plugin 的可撤销媒体 Processor 注册"
+  );
+  assert(
+    !existsSync(path.join(workspace, "src/application/bootstrap/capabilityCatalog.ts")) &&
+      read("src/application/runtimePlugins/legacyRuntimePlugin.ts").includes("coreRuntimeCapabilities") &&
+      !read("src/application/bootstrap/capabilityRegistry.ts").includes("defaultCapabilityCatalog"),
+    "能力声明必须归属具体 Runtime Plugin，不能恢复旧静态 capability catalog 或隐式默认注册"
+  );
+  assert(
+    applicationRuntime.includes("readRuntimeProfilePreferences") &&
+      applicationRuntime.includes("resolveRuntimeProfileSelection") &&
+      read("src/tabs/settings/SettingsTab.tsx").includes("RuntimeProfileManagerSection") &&
+      sendMessageHook.includes("canRunSessionWithProfile") &&
+      read("src/hooks/useChat/useRerollMessage.ts").includes("canRunSessionWithProfile"),
+    "阶段 5 必须从持久化选择装载 Profile、提供管理 UI，并在发送与重发前守卫会话组合快照"
   );
 
   assert(

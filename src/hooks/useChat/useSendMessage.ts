@@ -41,8 +41,9 @@ import {
   type OpenAiProviderMessage,
 } from "../../application/useCases/multimodalProviderProjection";
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
+import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
 import {
-  LEGACY_TAVERN_DRIVER_ID,
+  MOBILE_TAVERN_CHAT_DRIVER_ID,
   AUDIO_ASR_PROCESSOR_ID,
   VIDEO_KEYFRAME_PROCESSOR_ID,
   resolveBuiltinProviderId,
@@ -167,6 +168,29 @@ export function useSendMessage(p: SendMessageParams) {
         : latestQueuedUserMessage?.parts?.filter(part => part.type !== "text") ?? [];
       const needsMultimodalProjection = pendingMultimodalParts.length > 0;
       if (!skipAI && needsMultimodalProjection) {
+        const agentRuntime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+        const canInspectMediaProcessors = typeof agentRuntime.listMediaProcessors === "function";
+        const registeredMediaProcessors = canInspectMediaProcessors
+          ? agentRuntime.listMediaProcessors().map((processor) => processor.id)
+          : [];
+        if (
+          agentTurn
+          && canInspectMediaProcessors
+          && pendingMultimodalParts.some((part) => part.type === "audio")
+          && !registeredMediaProcessors.includes(AUDIO_ASR_PROCESSOR_ID)
+        ) {
+          await p.showCustomAlert("当前 Agent Profile 未启用音频 ASR 降级，无法把音频发送给当前 Provider。");
+          return;
+        }
+        if (
+          agentTurn
+          && canInspectMediaProcessors
+          && pendingMultimodalParts.some((part) => part.type === "video")
+          && !registeredMediaProcessors.includes(VIDEO_KEYFRAME_PROCESSOR_ID)
+        ) {
+          await p.showCustomAlert("当前 Agent Profile 未启用视频关键帧降级，无法把视频发送给当前 Provider。");
+          return;
+        }
         if (
           pendingMultimodalParts.some(part => part.type === "audio")
           && (!p.settings.asrConfig?.enabled || p.settings.asrConfig.provider !== "openai")
@@ -779,7 +803,7 @@ export function useSendMessage(p: SendMessageParams) {
     const sessionId = current.activeSessionIdRef.current ?? current.activeSession?.id;
     if (!sessionId) return null;
     const providerId = resolveBuiltinProviderId(current.settings.api.type);
-    const handleKey = `${sessionId}:${LEGACY_TAVERN_DRIVER_ID}:${providerId}`;
+    const handleKey = `${sessionId}:${MOBILE_TAVERN_CHAT_DRIVER_ID}:${providerId}`;
     if (agentHandleRef.current && agentHandleKeyRef.current === handleKey) {
       return agentHandleRef.current;
     }
@@ -787,7 +811,7 @@ export function useSendMessage(p: SendMessageParams) {
     const runtime = current.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
     const handle = runtime.openHandle({
       sessionId,
-      driverId: LEGACY_TAVERN_DRIVER_ID,
+      driverId: MOBILE_TAVERN_CHAT_DRIVER_ID,
       providerId,
       executeLegacy: (context) => runLegacyTurnRef.current(
         context.input.text,
@@ -812,6 +836,16 @@ export function useSendMessage(p: SendMessageParams) {
     textToSend: string,
     options?: SendMessageOptions,
   ): Promise<void> => {
+    const current = pRef.current;
+    const activeProfile = current.kernel
+      .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
+      .getCompositionSnapshot();
+    if (!canRunSessionWithProfile(current.activeSession, activeProfile)) {
+      await current.showCustomAlert(
+        `此会话固定使用 ${getSessionRuntimeProfileId(current.activeSession)} v${current.activeSession?.compositionSnapshot?.profileVersion ?? "legacy"}，当前运行时为 ${activeProfile ? `${activeProfile.profileId} v${activeProfile.profileVersion}` : "未装载"}。请在设置 → 插件与 Agent Profiles 中切换后再继续。`,
+      );
+      return;
+    }
     const handle = ensureAgentHandle();
     if (!handle) {
       await runLegacyTurn(textToSend, options);

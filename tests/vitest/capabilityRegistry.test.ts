@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultCapabilityCatalog } from "../../src/application/bootstrap/capabilityCatalog";
+import { coreRuntimeCapabilities } from "../../src/application/runtimePlugins/legacyRuntimePlugin";
 import {
   listRuntimeCapabilities,
   registerRuntimeCapabilities,
@@ -9,7 +9,7 @@ import { CAPABILITY_EXTENSION_POINT, type CapabilityDescriptor } from "../../src
 
 describe("运行时能力登记", () => {
   it("默认能力清单覆盖第一批内部能力索引", () => {
-    const ids = defaultCapabilityCatalog.map((capability) => capability.id);
+    const ids = coreRuntimeCapabilities.map((capability) => capability.id);
 
     expect(ids).toEqual([
       "llm.provider",
@@ -26,10 +26,10 @@ describe("运行时能力登记", () => {
 
   it("注册后可通过 Kernel 扩展点检查能力快照", async () => {
     const kernel = createKernel();
-    const dispose = registerRuntimeCapabilities(kernel);
+    const dispose = registerRuntimeCapabilities(kernel, coreRuntimeCapabilities);
 
     const extensions = kernel.getExtensions<CapabilityDescriptor>(CAPABILITY_EXTENSION_POINT);
-    expect(extensions).toHaveLength(defaultCapabilityCatalog.length);
+    expect(extensions).toHaveLength(coreRuntimeCapabilities.length);
     expect(extensions.map((extension) => extension.id)).toContain("llm.provider");
 
     const capabilities = listRuntimeCapabilities(kernel);

@@ -251,7 +251,7 @@ file  → text extraction / unsupported
 | 消息 iframe | `message.renderer` |
 | 专属设置 | `settings.panel` |
 
-迁移期间先把现有聊天路径包装为 `legacy.tavern.driver`，保持旧行为；新的 UI 只调用 `AgentHandle`。随后逐项把直接 import 改为扩展注册，最后以“禁用兼容插件后基础 Profile 完整工作”为完成标志。
+迁移期间先把现有聊天路径包装为 Driver，保持旧行为；新的 UI 只调用 `AgentHandle`。阶段 5 已将迁移期 ID 收口为格式中立的 `mobile-tavern.chat.driver`。随后逐项把直接 import 改为扩展注册，最后以“禁用兼容插件后基础 Profile 完整工作”为完成标志。
 
 ## 七、分阶段实施路线
 
@@ -315,7 +315,7 @@ file  → text extraction / unsupported
 
 完成条件：同一聊天 UI 可以切换两个 Driver 或两个 Provider；工具循环和多模态降级可以重放，停止与销毁不残留请求。
 
-当前进度（2026-08-24）：阶段 3 最小纵向闭环已完成。应用层新增 `AgentRuntimeService`、AgentHandle/Turn/Driver/Provider/Tool/Media Processor 契约和独立 Agent Journal；聊天发送与停止已通过 `legacy.tavern.driver` 进入 AgentHandle，同一 UI 按 API 类型解析 OpenAI-compatible 或 Anthropic-compatible Provider。Tool Registry 已具备输入/输出 Schema、权限、超时、取消与 Call/Result 持久化；Provider/媒体决定、Turn 终态和会话 Composition Snapshot 可重放并随 v6 备份恢复。音频附件可经 ASR 转写，视频附件可生成关键帧并把派生引用写回 V2 消息。后续仍需提供真正消费模型 `tool_calls` 的内置多 Step Tool Loop Driver，以及产品级 Driver/Profile 切换界面；这些属于阶段 3 的剩余项，不提前进入兼容层大迁移。
+当前进度（2026-08-24）：阶段 3 最小纵向闭环已完成。应用层新增 `AgentRuntimeService`、AgentHandle/Turn/Driver/Provider/Tool/Media Processor 契约和独立 Agent Journal；聊天发送与停止已通过 `mobile-tavern.chat.driver` 进入 AgentHandle，同一 UI 按 API 类型解析 OpenAI-compatible 或 Anthropic-compatible Provider。Tool Registry 已具备输入/输出 Schema、权限、超时、取消与 Call/Result 持久化；Provider/媒体决定、Turn 终态和会话 Composition Snapshot 可重放并随 v6 备份恢复。音频附件可经 ASR 转写，视频附件可生成关键帧并把派生引用写回 V2 消息。后续仍需提供真正消费模型 `tool_calls` 的内置多 Step Tool Loop Driver。
 
 ### 阶段 4：SillyTavern 兼容能力降级为 Runtime Plugin
 
@@ -346,6 +346,8 @@ file  → text extraction / unsupported
 - 评估受信插件签名与分发；在安全方案完成前不开放任意 Runtime Plugin 安装。
 
 完成条件：用户可以用同一聊天端创建至少一个 base Agent 和一个 Tavern Agent；两者共享通用多模态与 Provider 底座，兼容能力互不污染。
+
+当前进度（2026-08-24）：阶段 5 第一批产品闭环已完成。设置页新增 Agent Runtime Profiles 管理区，提供内置 Base/Tavern 选择、复制、自定义 Compatibility/音频/视频能力开关和实际运行诊断；启动组合从独立公开偏好恢复，外部值经过 Schema、数量、稳定 ID 与重复项校验，损坏或悬空记录回退 Tavern Agent。会话 Composition Snapshot 与当前 Profile 不一致时，发送和重发会明确拒绝；切换 Profile 前展示当前会话影响并要求确认，随后重启运行时。迁移期 `legacy.tavern.driver` 已替换为 `mobile-tavern.chat.driver`，旧静态 capability catalog 与隐式默认注册已删除。受信 Runtime Plugin 仍只随安装包分发；签名方案至少需要发行方公钥固定、清单与代码摘要绑定、版本/权限声明、防降级和可回滚撤销，在这些机制完成前不开放外部安装。会话列表跨 Profile 自动重启后恢复和旧兼容变量停止双写仍是阶段 5 剩余工作。
 
 ## 八、第一批实施任务
 

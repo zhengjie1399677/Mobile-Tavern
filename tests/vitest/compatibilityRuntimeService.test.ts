@@ -85,6 +85,14 @@ describe("CompatibilityRuntimeService", () => {
           version: sillyTavernCompatibilityRuntimePlugin.version,
         },
       ],
+      contributions: {
+        "compat.codec": ["compat.sillytavern.codec.prompt-preset"],
+        "compat.prompt-section": ["compat.sillytavern.prompt.mvu-state"],
+        "compat.context-source": ["compat.sillytavern.context.mvu-state"],
+        "compat.transform": ["compat.sillytavern.transform.regex"],
+        "compat.state-reducer": ["compat.sillytavern.state.mvu"],
+        "compat.renderer": ["compat.sillytavern.renderer"],
+      },
     };
     const catalog = [corePlugin, sillyTavernCompatibilityRuntimePlugin];
 

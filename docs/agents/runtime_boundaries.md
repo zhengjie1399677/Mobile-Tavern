@@ -8,6 +8,7 @@
 |---|---|---|---|
 | Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts`、`src/kernel/EffectScope.ts` | 容器、服务生命周期、父子 Scope、可撤销 Effect、消息总线、Pipeline 与扩展契约 | 不放任何应用服务、业务装配、生态格式、存储或平台调用 |
 | 应用运行时组合 | `src/application/runtime.ts`、`src/application/runtimePlugins/`、`src/application/bootstrap/` | 解析受信 Runtime Profile，以插件子 Scope 把应用服务、默认 Pipeline 和能力清单装配到 Kernel | 不反向改变 Kernel 的通用机制，不执行用户安装的任意代码，不把插件配置或秘密写入解析快照 |
+| Runtime Profile 管理 | `src/application/runtimeProfiles/`、`RuntimeProfileService.ts`、`src/infrastructure/runtimeProfiles/` | 校验并持久化公开 Profile 选择、复制与能力开关，生成当前受信组合并提供脱敏诊断 | 不保存 API Key、会话正文、Blob 或服务实例；UI 不直接访问 `localStorage`；不开放任意 Runtime Plugin 安装 |
 | 通用数据库服务 | `src/application/services/DatabaseService.ts` | 面向上层提供通用 CRUD、分页、轻量索引统计与跨 Store 事务能力 | 不承载记忆召回、摘要或角色行为 |
 | IndexedDB 物理实现 | `src/infrastructure/storage/` | 连接、Schema、事务队列、仓库和端口适配器 | 不反向导入 `src/utils/localDB.ts` |
 | 数据迁移应用服务 | `src/application/services/DataMigrationService.ts` | 聚合完整备份、统一脱敏，并委托基础设施以单事务覆盖用户数据 | 不在 React Hook 中直接清 Store 或跨 Repository 编排恢复 |
@@ -85,8 +86,9 @@
 5. `src/kernel/` 不得重新出现业务服务、页面业务、应用装配目录或对应用层的反向依赖。
 6. React Context 不得直接访问存储、Compatibility Runtime、Native Adapter 或执行业务 Service 的持久化方法。
 7. Runtime Plugin/Profile 契约只能位于 Application 层；应用组合根必须通过 Profile Loader 装载 legacy runtime，不能恢复散落的直接注册路径。
-8. Agent、Provider、Tool 与媒体 Processor 契约只能位于 Domain/Application 层；Kernel 不得出现 Agent 业务语义，聊天发送必须经 AgentHandle 进入 legacy driver。
+8. Agent、Provider、Tool 与媒体 Processor 契约只能位于 Domain/Application 层；Kernel 不得出现 Agent 业务语义，聊天发送必须经 AgentHandle 进入 `mobile-tavern.chat.driver`。
 9. Agent Journal 必须使用独立数据库并通过应用服务访问；React、Driver 和 Tool 不得直连其 IndexedDB 实现。
 10. 通用生产代码不得直接导入 `compatibility/sillytavern` 或读写 TavernHelper 全局字段；只有内置 Compatibility Runtime Plugin 可以连接实现，`base` Profile 必须不装载它。
+11. Profile 启动偏好是公开、类型化的小对象，只能通过 Runtime Profile Service/Infrastructure Port 读写；损坏、缺失 Provider 或找不到 Profile 时必须返回诊断并安全回退，不能把秘密并入 Profile。
 
 若确需改变这些方向，应先更新本文件与 `TECHNICAL.md`，说明新边界及迁移策略，再修改守卫。

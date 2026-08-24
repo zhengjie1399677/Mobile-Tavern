@@ -12,6 +12,7 @@ export interface ServiceModuleDescriptor {
 export const coreServiceCatalog: readonly ServiceModuleDescriptor[] = [
   { name: KernelServices.AgentRuntime, initTimeoutMs: 3000, load: async () => new (await import("../services/AgentRuntimeService")).AgentRuntimeService() },
   { name: KernelServices.CompatibilityRuntime, initTimeoutMs: 3000, load: async () => new (await import("../services/CompatibilityRuntimeService")).CompatibilityRuntimeService() },
+  { name: KernelServices.RuntimeProfiles, initTimeoutMs: 3000, load: async () => new (await import("../services/RuntimeProfileService")).RuntimeProfileService() },
   { name: KernelServices.Attachments, initTimeoutMs: 5000, load: async () => new (await import("../services/AttachmentService")).AttachmentService() },
   { name: KernelServices.Database, initTimeoutMs: 5000, load: async () => new (await import("../services/DatabaseService")).DatabaseService() },
   { name: KernelServices.LLM, initTimeoutMs: 8000, load: async () => new (await import("../services/LLMService")).LLMService() },

@@ -12,10 +12,12 @@ import { bindRuntimeKernel } from "../kernel/runtimeKernel";
 import { configureKernelValidators } from "../kernel/validation";
 import {
   legacyRuntimePluginCatalog,
-  legacyRuntimeProfileDefinition,
   mountRuntimeProfile,
   type ResolvedRuntimeProfileSnapshot,
 } from "./runtimePlugins";
+import { resolveRuntimeProfileSelection } from "./runtimeProfiles/catalog";
+import type { RuntimeProfileResolutionDiagnostic } from "./runtimeProfiles/contracts";
+import { readRuntimeProfilePreferences } from "../infrastructure/runtimeProfiles/runtimeProfilePreferences";
 import {
   validateMessage,
   validateService,
@@ -31,11 +33,13 @@ configureKernelValidators({
 
 let runtimeScope: IEffectScope | null = null;
 let activeRuntimeProfileSnapshot: ResolvedRuntimeProfileSnapshot | null = null;
+let runtimeProfileStartupDiagnostics: readonly RuntimeProfileResolutionDiagnostic[] = [];
 
 async function destroyScopedApplicationRuntime(): Promise<void> {
   const scope = runtimeScope;
   runtimeScope = null;
   activeRuntimeProfileSnapshot = null;
+  runtimeProfileStartupDiagnostics = [];
   let scopeError: unknown;
   try {
     await scope?.dispose();
@@ -61,13 +65,19 @@ async function destroyScopedApplicationRuntime(): Promise<void> {
 const lifecycle = createKernelLifecycleController({ destroy: destroyScopedApplicationRuntime }, async () => {
   const scope = createEffectScope("application.runtime");
   runtimeScope = scope;
+  const storedPreference = readRuntimeProfilePreferences();
+  const selectedProfile = resolveRuntimeProfileSelection(
+    storedPreference.state,
+    storedPreference.invalidStoredValue,
+  );
   const mountedProfile = await mountRuntimeProfile({
     kernel: globalKernel,
-    profile: legacyRuntimeProfileDefinition,
+    profile: selectedProfile.definition,
     plugins: legacyRuntimePluginCatalog,
     parentScope: scope,
   });
   activeRuntimeProfileSnapshot = mountedProfile.snapshot;
+  runtimeProfileStartupDiagnostics = selectedProfile.diagnostics;
 });
 
 /** 把应用组合层的后注册 Effect 纳入当前 Application Scope。 */
@@ -81,6 +91,10 @@ export function addApplicationRuntimeEffect(disposer: EffectDisposer): EffectDis
 /** 当前已解析的运行时 Profile；快照不包含插件配置或秘密。 */
 export function getActiveRuntimeProfileSnapshot(): ResolvedRuntimeProfileSnapshot | null {
   return activeRuntimeProfileSnapshot;
+}
+
+export function getRuntimeProfileStartupDiagnostics(): readonly RuntimeProfileResolutionDiagnostic[] {
+  return runtimeProfileStartupDiagnostics;
 }
 
 export function initializeApplicationRuntime(): Promise<void> {

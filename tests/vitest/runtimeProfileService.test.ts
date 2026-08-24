@@ -1,0 +1,126 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { IKernel } from "../../src/kernel/types";
+import { RuntimeProfileService } from "../../src/application/services/RuntimeProfileService";
+import {
+  BUILTIN_BASE_PROFILE_ID,
+  BUILTIN_TAVERN_PROFILE_ID,
+} from "../../src/application/runtimeProfiles/contracts";
+import {
+  buildRuntimeProfileDefinition,
+  resolveRuntimeProfileSelection,
+} from "../../src/application/runtimeProfiles/catalog";
+import {
+  clearRuntimeProfilePreferencesForTests,
+  readRuntimeProfilePreferences,
+} from "../../src/infrastructure/runtimeProfiles/runtimeProfilePreferences";
+import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../src/application/useCases/runtimeProfileSession";
+import type { ChatSession } from "../../src/types";
+
+describe("RuntimeProfileService", () => {
+  beforeEach(clearRuntimeProfilePreferencesForTests);
+  afterEach(clearRuntimeProfilePreferencesForTests);
+
+  it("首次启动默认选择 Tavern Agent，同时提供不受兼容能力污染的 Base Agent", () => {
+    const service = new RuntimeProfileService();
+    const snapshot = service.listProfiles();
+
+    expect(snapshot.selectedProfileId).toBe(BUILTIN_TAVERN_PROFILE_ID);
+    expect(snapshot.profiles.map((profile) => profile.id)).toEqual([
+      BUILTIN_BASE_PROFILE_ID,
+      BUILTIN_TAVERN_PROFILE_ID,
+    ]);
+    expect(snapshot.profiles[0].capabilities.sillyTavernCompatibility).toBe(false);
+    expect(snapshot.profiles[1].capabilities.sillyTavernCompatibility).toBe(true);
+  });
+
+  it("复制 Profile 后可独立开关兼容与媒体贡献，并持久化选中项", () => {
+    const service = new RuntimeProfileService();
+    const copied = service.copyProfile(BUILTIN_BASE_PROFILE_ID, "我的 Base Agent");
+    const updated = service.updateCapabilities(copied.id, {
+      sillyTavernCompatibility: true,
+      videoKeyframeFallback: false,
+    });
+    service.selectProfile(updated.id);
+
+    const stored = readRuntimeProfilePreferences().state;
+    expect(stored.selectedProfileId).toBe(updated.id);
+    const definition = buildRuntimeProfileDefinition(updated);
+    expect(definition.version).toBe(2);
+    expect(definition.plugins.map((plugin) => plugin.id)).toContain(
+      "mobile-tavern.sillytavern-compat",
+    );
+    expect(definition.contributions?.["media.processor"]).toEqual(["media.audio.asr"]);
+  });
+
+  it("删除当前自定义 Profile 时回退 Tavern Agent，不留下悬空选择", () => {
+    const service = new RuntimeProfileService();
+    const copied = service.copyProfile(BUILTIN_BASE_PROFILE_ID, "临时 Profile");
+    service.selectProfile(copied.id);
+    service.deleteProfile(copied.id);
+
+    expect(service.listProfiles().selectedProfileId).toBe(BUILTIN_TAVERN_PROFILE_ID);
+  });
+
+  it("损坏或版本不兼容的启动配置安全回退并返回诊断", () => {
+    localStorage.setItem("mobile-tavern.runtime-profiles.v1", JSON.stringify({ schemaVersion: 99 }));
+    const read = readRuntimeProfilePreferences();
+    const resolution = resolveRuntimeProfileSelection(read.state, read.invalidStoredValue);
+
+    expect(resolution.profile.id).toBe(BUILTIN_TAVERN_PROFILE_ID);
+    expect(resolution.diagnostics.map((item) => item.code)).toContain("PROFILE_INVALID");
+  });
+
+  it("缺失 Provider 和未装载 Profile 只产生诊断，不让设置页崩溃", () => {
+    const service = new RuntimeProfileService();
+    service.init({ hasService: () => false } as unknown as IKernel);
+
+    const diagnostics = service.getDiagnostics(BUILTIN_BASE_PROFILE_ID, "anthropic");
+    expect(diagnostics.active).toBe(false);
+    expect(diagnostics.provider.available).toBe(false);
+    expect(diagnostics.warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining("需要重启"),
+      expect.stringContaining("缺少可用 Provider"),
+    ]));
+  });
+
+  it("无组合快照的旧会话继续按 Tavern Agent 解释", () => {
+    const session = {
+      id: "legacy-session",
+      characterId: "character",
+      title: "旧会话",
+      createdAt: 1,
+      messages: [],
+      summaries: [],
+    } satisfies ChatSession;
+
+    expect(getSessionRuntimeProfileId(session)).toBe(BUILTIN_TAVERN_PROFILE_ID);
+    expect(canRunSessionWithProfile(session, {
+      profileId: BUILTIN_TAVERN_PROFILE_ID,
+      profileVersion: 3,
+    })).toBe(true);
+  });
+
+  it("同 ID Profile 更新能力后，旧会话因版本不同被拒绝继续运行", () => {
+    const session = {
+      id: "versioned-session",
+      characterId: "character",
+      title: "版本会话",
+      createdAt: 1,
+      messages: [],
+      summaries: [],
+      compositionSnapshot: {
+        profileId: "user.profile.demo",
+        profileVersion: 1,
+        pluginVersions: {},
+        providerBindings: {},
+        contributionOrder: {},
+        capabilityDecisions: {},
+      },
+    } satisfies ChatSession;
+
+    expect(canRunSessionWithProfile(session, {
+      profileId: "user.profile.demo",
+      profileVersion: 2,
+    })).toBe(false);
+  });
+});

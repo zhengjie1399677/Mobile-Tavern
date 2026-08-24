@@ -22,6 +22,7 @@ import type {
   AgentTurnExecutionContext,
 } from "../domain/agents/contracts";
 export type { ICompatibilityRuntimeService } from "./compatibility/contracts";
+export type { IRuntimeProfileService } from "./runtimeProfiles/contracts";
 import type { MessageContentPart } from "../domain/messages/messageContent";
 import type {
   ThemeInteractionConfig,
@@ -57,6 +58,7 @@ export const KernelServices = {
   Attachments: "attachments",
   AgentRuntime: "agentRuntime",
   CompatibilityRuntime: "compatibilityRuntime",
+  RuntimeProfiles: "runtimeProfiles",
 } as const;
 
 export interface IAgentRuntimeService extends IKernelService {

@@ -212,7 +212,7 @@ someAsyncOp().then(() => {
 
 ## 7.2 AgentHandle、Provider、Tool 与媒体处理契约
 
-- React 聊天端只持有 AgentHandle 和界面状态；现有 Tavern 发送链由 `legacy.tavern.driver` 包装，迁移期不得绕过 AgentHandle 新增第二条发送入口。
+- React 聊天端只持有 AgentHandle 和界面状态；现有发送链由格式中立的 `mobile-tavern.chat.driver` 包装，不得绕过 AgentHandle 新增第二条发送入口。
 - AgentHandle 同一时刻只允许一个活跃 Turn；`stop()`、Handle 销毁和 Runtime 销毁必须中止 Turn，并等待清理完成后移除活跃句柄。
 - Driver、Provider、Tool 与媒体 Processor 使用稳定 ID/版本注册，每次注册返回基于实例身份的 disposer；重复 ID 必须拒绝，Profile Scope 卸载后不得残留贡献。
 - Tool 输入和输出都必须经过 Schema 校验；执行前检查权限，使用有限超时和 Turn AbortSignal；Call、Result、失败与最终 Turn 状态按序进入 Agent Journal。
@@ -307,6 +307,7 @@ someAsyncOp().then(() => {
 - `RuntimePluginDefinition`、Profile Loader 与 legacy runtime plugin 位于 `src/application/runtimePlugins/`；Kernel 只提供 Scope、注册和校验机制，不理解插件、Profile 或配置。
 - 当前 Runtime Plugin 仅允许随 App 编译的受信代码。用户安装的 `.mtplugin` 继续使用强沙箱 Plugin Host RPC，不能共享 Runtime Plugin 权限。
 - `src/application/runtime.ts` 只选择并挂载 Profile；现有服务、默认 Pipeline 和能力清单统一由 `mobile-tavern.legacy-runtime` 承接，禁止恢复三条散落的直接注册路径。
+- 通用 Capability 清单由承载它的 Runtime Plugin 显式声明；注册器必须要求调用方传入清单，不得恢复全局 `capabilityCatalog.ts` 或隐式默认目录。
 
 ### 解析、快照与失败语义
 
@@ -315,6 +316,9 @@ someAsyncOp().then(() => {
 - 每个 Profile 与插件拥有独立子 Scope。插件应把每次注册立即加入自己的 Scope；初始化中途失败时由 Profile Scope 统一逆序回滚。
 - 插件 `setup` 返回的 disposer 也由插件 Scope 托管；Profile 卸载按插件依赖逆序释放且保持幂等。
 - `ResolvedRuntimeProfileSnapshot` 只保存 Profile ID/版本、插件 ID/版本、Provider Binding 与 Contribution 顺序。插件 config、API Key、令牌、服务实例与 Blob 均不得进入快照。
+- Runtime Profile 偏好只保存内置引用或用户复制后的能力布尔值，并由 Zod 在 Infrastructure 边界校验；启动时重建为当前插件版本的定义，损坏或悬空选择回退 Tavern Agent并返回诊断。
+- 内置 Profile 只读；用户必须先复制才能修改 Compatibility、音频 ASR 或视频关键帧开关。开关必须改变实际注册贡献，不能只改变 UI 文案。
+- 会话 Composition Snapshot 一经创建不得被全局 Profile 静默覆盖；发送与重发在 Profile ID 不一致时必须阻止并引导显式切换。
 
 ---
 
@@ -339,3 +343,4 @@ someAsyncOp().then(() => {
 | 2026-08-24 | 增加 Application 层 Runtime Plugin/Profile 依赖解析、脱敏快照、Scoped 装载回滚与 legacy runtime 装配契约 |
 | 2026-08-24 | 增加 AgentHandle、Provider/Tool/媒体 Processor、Agent Journal、会话组合快照与 v6 备份契约 |
 | 2026-08-24 | 增加空 Compatibility Host、六类可撤销贡献、base/tavern Profile 隔离与插件状态命名空间契约 |
+| 2026-08-24 | 增加 Runtime Profile 公开偏好、复制/开关/诊断 UI、会话快照切换守卫，并删除旧静态 Capability Catalog 与 legacy driver ID |

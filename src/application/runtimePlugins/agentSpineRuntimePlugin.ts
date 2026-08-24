@@ -10,7 +10,7 @@ import { extractVideoKeyframes } from "../../infrastructure/media/browserVideoFr
 import type { RuntimePluginDefinition } from "./contracts";
 
 export const AGENT_SPINE_RUNTIME_PLUGIN_ID = "mobile-tavern.agent-spine";
-export const LEGACY_TAVERN_DRIVER_ID = "legacy.tavern.driver";
+export const MOBILE_TAVERN_CHAT_DRIVER_ID = "mobile-tavern.chat.driver";
 export const OPENAI_COMPATIBLE_PROVIDER_ID = "provider.openai-compatible";
 export const ANTHROPIC_COMPATIBLE_PROVIDER_ID = "provider.anthropic-compatible";
 export const AUDIO_ASR_PROCESSOR_ID = "media.audio.asr";
@@ -66,13 +66,14 @@ export const agentSpineRuntimePlugin: RuntimePluginDefinition = {
       capabilityDecisions: {},
     }));
     scope.add(runtime.registerDriver({
-      id: LEGACY_TAVERN_DRIVER_ID,
+      id: MOBILE_TAVERN_CHAT_DRIVER_ID,
       version: "1.0.0",
       run: ({ executeLegacy }) => executeLegacy(),
     }));
     scope.add(runtime.registerProvider(openAiCompatibleProvider));
     scope.add(runtime.registerProvider(anthropicCompatibleProvider));
-    scope.add(runtime.registerMediaProcessor({
+    if (isContributionEnabled(profile, "media.processor", AUDIO_ASR_PROCESSOR_ID)) {
+      scope.add(runtime.registerMediaProcessor({
       id: AUDIO_ASR_PROCESSOR_ID,
       version: "1.0.0",
       inputKinds: ["audio"],
@@ -93,8 +94,10 @@ export const agentSpineRuntimePlugin: RuntimePluginDefinition = {
           strategy: "audio-asr",
         };
       },
-    }));
-    scope.add(runtime.registerMediaProcessor({
+      }));
+    }
+    if (isContributionEnabled(profile, "media.processor", VIDEO_KEYFRAME_PROCESSOR_ID)) {
+      scope.add(runtime.registerMediaProcessor({
       id: VIDEO_KEYFRAME_PROCESSOR_ID,
       version: "1.0.0",
       inputKinds: ["video"],
@@ -124,9 +127,18 @@ export const agentSpineRuntimePlugin: RuntimePluginDefinition = {
           strategy: "video-keyframes",
         };
       },
-    }));
+      }));
+    }
   },
 };
+
+function isContributionEnabled(
+  profile: { readonly contributionOrder: Readonly<Record<string, readonly string[]>> },
+  slotId: string,
+  contributionId: string,
+): boolean {
+  return profile.contributionOrder[slotId]?.includes(contributionId) === true;
+}
 
 export function resolveBuiltinProviderId(apiType: string): string {
   return apiType === "anthropic"

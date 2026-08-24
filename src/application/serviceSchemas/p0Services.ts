@@ -133,6 +133,7 @@ export const P1_SERVICE_NAMES: readonly string[] = [
   KernelServices.Attachments,
   KernelServices.AgentRuntime,
   KernelServices.CompatibilityRuntime,
+  KernelServices.RuntimeProfiles,
 ] as const;
 
 /**

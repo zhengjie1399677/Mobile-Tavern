@@ -5,11 +5,10 @@ import {
   sortCapabilities,
   type CapabilityDescriptor,
 } from "../../domain/capabilities";
-import { defaultCapabilityCatalog } from "./capabilityCatalog";
 
 export function registerRuntimeCapabilities(
   kernel: IKernel,
-  capabilities: readonly CapabilityDescriptor[] = defaultCapabilityCatalog,
+  capabilities: readonly CapabilityDescriptor[],
 ): EffectDisposer {
   assertUniqueCapabilityIds(capabilities);
   const disposers: EffectDisposer[] = [];

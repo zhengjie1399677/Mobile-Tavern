@@ -39,6 +39,7 @@ const FeaturesSection = React.lazy(() => import("./FeaturesSection"));
 const MemoryStorageSection = React.lazy(() => import("./MemoryStorageSection"));
 const SystemReportSection = React.lazy(() => import("./sections/SystemReportSection"));
 const PluginManagerSection = React.lazy(() => import("../../components/plugins/PluginManagerSection"));
+const RuntimeProfileManagerSection = React.lazy(() => import("../../components/plugins/RuntimeProfileManagerSection"));
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
 interface TauriWindow extends Window {
@@ -345,7 +346,7 @@ export default function SettingsTab() {
       case "composer":
         return <PresetForm sections={["composer"]} />;
       case "plugins":
-        return <PluginManagerSection />;
+        return <div className="space-y-3"><RuntimeProfileManagerSection /><PluginManagerSection /></div>;
       case "advanced":
         return (
           <div className="space-y-2">

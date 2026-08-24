@@ -4,7 +4,7 @@ import { ChatSession, ChatSessionMetadataPatch, UserSettings, CharacterCard, Lor
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService,
-  IKernel, IAttachmentService, KernelServices,
+  IKernel, IAttachmentService, IAgentRuntimeService, KernelServices,
 } from "@/src/application/serviceContracts";
 import { FALLBACK_MODEL } from "../../utils/apiClient";
 import {
@@ -31,6 +31,7 @@ import {
   type OpenAiProviderMessage,
 } from "../../application/useCases/multimodalProviderProjection";
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
+import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
 
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
@@ -80,6 +81,17 @@ export function useRerollMessage(p: RerollMessageParams) {
     const log = logger.withTrace(traceId);
 
     const currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
+
+    const activeProfile = p.kernel.hasService?.(KernelServices.AgentRuntime)
+      ? p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
+        .getCompositionSnapshot()
+      : null;
+    if (!canRunSessionWithProfile(currentSession, activeProfile)) {
+      await p.showCustomAlert(
+        `此会话固定使用 ${getSessionRuntimeProfileId(currentSession)} v${currentSession?.compositionSnapshot?.profileVersion ?? "legacy"}，当前运行时为 ${activeProfile ? `${activeProfile.profileId} v${activeProfile.profileVersion}` : "未装载"}。请先切换 Agent Profile。`,
+      );
+      return;
+    }
 
     // isSendingRef 是发送与重发共享的同步事务锁。
     // 不得以 streamingMessageId 为空作为“残留锁”判断：提示词构建、旧分支持久化期间

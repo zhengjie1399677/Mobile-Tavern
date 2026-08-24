@@ -100,7 +100,7 @@ export const sillyTavernCompatibilityRuntimePlugin: RuntimePluginDefinition = {
   validateConfig(config: unknown): void {
     if (config !== undefined) throw new Error("SILLY_TAVERN_COMPATIBILITY_CONFIG_UNSUPPORTED");
   },
-  setup({ kernel, scope }): void {
+  setup({ kernel, scope, profile }): void {
     const runtime = kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime);
     scope.add(registerRuntimeCapabilities(kernel, [{
       id: "compat.sillytavern",
@@ -109,7 +109,8 @@ export const sillyTavernCompatibilityRuntimePlugin: RuntimePluginDefinition = {
       permissions: [],
       lifecycle: "lazy",
     }]));
-    scope.add(runtime.registerCodec({
+    if (isContributionEnabled(profile, "compat.codec", "compat.sillytavern.codec.prompt-preset")) {
+      scope.add(runtime.registerCodec({
       id: "compat.sillytavern.codec.prompt-preset",
       version: CONTRIBUTION_VERSION,
       format: "sillytavern.prompt-preset",
@@ -121,13 +122,17 @@ export const sillyTavernCompatibilityRuntimePlugin: RuntimePluginDefinition = {
       encode(input) {
         return exportSillyTavernComposition(parsePromptComposition(input));
       },
-    }));
-    scope.add(runtime.registerContextSource({
+      }));
+    }
+    if (isContributionEnabled(profile, "compat.context-source", "compat.sillytavern.context.mvu-state")) {
+      scope.add(runtime.registerContextSource({
       id: "compat.sillytavern.context.mvu-state",
       version: CONTRIBUTION_VERSION,
       read: readNamespacedState,
-    }));
-    scope.add(runtime.registerTransform({
+      }));
+    }
+    if (isContributionEnabled(profile, "compat.transform", "compat.sillytavern.transform.regex")) {
+      scope.add(runtime.registerTransform({
       id: "compat.sillytavern.transform.regex",
       version: CONTRIBUTION_VERSION,
       transform(request) {
@@ -142,15 +147,19 @@ export const sillyTavernCompatibilityRuntimePlugin: RuntimePluginDefinition = {
           request.signal,
         );
       },
-    }));
-    scope.add(runtime.registerStateReducer({
+      }));
+    }
+    if (isContributionEnabled(profile, "compat.state-reducer", "compat.sillytavern.state.mvu")) {
+      scope.add(runtime.registerStateReducer({
       id: "compat.sillytavern.state.mvu",
       version: CONTRIBUTION_VERSION,
       initialize: initializeMvuFromCharacter,
       reduce: ({ text, currentState, signal }) => parseMvuMessage(text, currentState, signal),
       notify: notifyVariablesUpdated,
-    }));
-    scope.add(runtime.registerPromptSection({
+      }));
+    }
+    if (isContributionEnabled(profile, "compat.prompt-section", "compat.sillytavern.prompt.mvu-state")) {
+      scope.add(runtime.registerPromptSection({
       id: "compat.sillytavern.prompt.mvu-state",
       version: CONTRIBUTION_VERSION,
       build({ character, chat, settings, hasVariableListEntry }) {
@@ -168,10 +177,21 @@ export const sillyTavernCompatibilityRuntimePlugin: RuntimePluginDefinition = {
           content,
         }] : [];
       },
-    }));
-    scope.add(runtime.registerRenderer(renderer));
+      }));
+    }
+    if (isContributionEnabled(profile, "compat.renderer", renderer.id)) {
+      scope.add(runtime.registerRenderer(renderer));
+    }
   },
 };
+
+function isContributionEnabled(
+  profile: { readonly contributionOrder: Readonly<Record<string, readonly string[]>> },
+  slotId: string,
+  contributionId: string,
+): boolean {
+  return profile.contributionOrder[slotId]?.includes(contributionId) === true;
+}
 
 function readNamespacedState(session: ChatSession): Record<string, unknown> {
   const namespaced = session.runtimePluginState?.[STATE_NAMESPACE];

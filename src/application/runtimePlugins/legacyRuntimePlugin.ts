@@ -11,6 +11,10 @@ import {
   sillyTavernCompatibilityRuntimePlugin,
 } from "./sillyTavernCompatibilityRuntimePlugin";
 import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../compatibility/contracts";
+import { KernelServices } from "../serviceContracts";
+import type { CapabilityDescriptor } from "../../domain/capabilities";
+import { assertUniqueCapabilityIds } from "../../domain/capabilities";
+import { MEMORY_PERSISTENCE_SERVICE } from "../services/memory/types";
 
 export const LEGACY_RUNTIME_PLUGIN_ID = "mobile-tavern.legacy-runtime";
 
@@ -23,8 +27,28 @@ export interface LegacyRuntimeRegistrars {
 const defaultLegacyRuntimeRegistrars: LegacyRuntimeRegistrars = {
   registerCoreServices,
   registerDefaultPipelines,
-  registerRuntimeCapabilities,
+  registerRuntimeCapabilities: (kernel) => registerRuntimeCapabilities(kernel, coreRuntimeCapabilities),
 };
+
+/** 通用能力由核心 Runtime Plugin 自己声明，不再通过全局静态 catalog 隐式注册。 */
+export const coreRuntimeCapabilities = [
+  { id: "llm.provider", kind: "provider", providedBy: KernelServices.LLM, permissions: [], lifecycle: "boot" },
+  { id: "tts.provider", kind: "provider", providedBy: KernelServices.Tts, permissions: [], lifecycle: "boot" },
+  { id: "asr.provider", kind: "provider", providedBy: KernelServices.Asr, permissions: [], lifecycle: "boot" },
+  { id: "storage.memory", kind: "storage", providedBy: MEMORY_PERSISTENCE_SERVICE, permissions: [], lifecycle: "boot" },
+  {
+    id: "plugin.fullscreen",
+    kind: "plugin-host",
+    providedBy: "Plugin Host RPC",
+    permissions: ["context.read", "chat.action", "chat.send", "llm.chat", "llm.chatStream", "llm.preset.list"],
+    lifecycle: "on-demand",
+  },
+  { id: "native.file", kind: "native", providedBy: "AndroidThemeBridge", permissions: [], lifecycle: "on-demand" },
+  { id: "native.orientation", kind: "native", providedBy: "AndroidThemeBridge", permissions: [], lifecycle: "on-demand" },
+  { id: "prompt.composition", kind: "runtime", providedBy: KernelServices.Prompt, permissions: [], lifecycle: "boot" },
+] as const satisfies readonly CapabilityDescriptor[];
+
+assertUniqueCapabilityIds(coreRuntimeCapabilities);
 
 async function addLegacyRuntimeEffect(
   scope: IEffectScope,
@@ -85,7 +109,7 @@ const basePlugins: RuntimeProfileDefinition["plugins"] = [
 ];
 
 const baseBindings = {
-  "agent.driver": "legacy.tavern.driver",
+  "agent.driver": "mobile-tavern.chat.driver",
   "llm.route": "provider.openai-compatible",
 } as const;
 
