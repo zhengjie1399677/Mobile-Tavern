@@ -367,7 +367,7 @@ describe("Legacy Runtime Plugin", () => {
 
     expect(snapshot.providerBindings).toEqual({
       "agent.driver": "mobile-tavern.chat.driver",
-      "llm.route": "provider.openai-compatible",
+      "llm.route": "provider.route.settings",
     });
     expect(snapshot.contributionOrder["media.processor"]).toEqual([
       "media.audio.asr",

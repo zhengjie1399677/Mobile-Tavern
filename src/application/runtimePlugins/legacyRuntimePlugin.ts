@@ -8,7 +8,11 @@ import {
   type RuntimePluginDefinition,
   type RuntimeProfileDefinition,
 } from "./contracts";
-import { agentSpineRuntimePlugin, AGENT_SPINE_RUNTIME_PLUGIN_ID } from "./agentSpineRuntimePlugin";
+import {
+  agentSpineRuntimePlugin,
+  AGENT_SPINE_RUNTIME_PLUGIN_ID,
+  SETTINGS_PROVIDER_ROUTE_ID,
+} from "./agentSpineRuntimePlugin";
 import {
   sillyTavernCompatibilityRuntimePlugin,
 } from "./sillyTavernCompatibilityRuntimePlugin";
@@ -108,7 +112,7 @@ const basePlugins: RuntimeProfileDefinition["plugins"] = [
 
 const baseBindings = {
   "agent.driver": "mobile-tavern.chat.driver",
-  "llm.route": "provider.openai-compatible",
+  "llm.route": SETTINGS_PROVIDER_ROUTE_ID,
 } as const;
 
 const baseContributions = {

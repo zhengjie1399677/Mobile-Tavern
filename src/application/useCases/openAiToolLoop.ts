@@ -78,6 +78,10 @@ export async function executeOpenAiToolLoop(options: OpenAiToolLoopOptions): Pro
       callIds: result.toolCalls.map((call) => call.callId),
       toolNames: result.toolCalls.map((call) => call.name),
     });
+    // 没有后续模型步骤消费 Tool Result 时禁止执行工具，避免副作用成功而 Turn 仍失败。
+    if (step === maxSteps - 1) {
+      throw new Error(`AGENT_TOOL_LOOP_STEP_LIMIT_EXCEEDED: ${maxSteps}`);
+    }
     continuationMessages.push({
       role: "assistant",
       content: result.content || null,

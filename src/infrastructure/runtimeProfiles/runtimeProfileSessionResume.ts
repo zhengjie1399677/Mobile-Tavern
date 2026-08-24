@@ -33,8 +33,13 @@ export function writeRuntimeProfileSessionResumeIntent(
   intent: RuntimeProfileSessionResumeIntent,
 ): void {
   const parsed = resumeIntentSchema.parse(intent);
-  if (typeof sessionStorage !== "undefined") {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+  if (typeof sessionStorage === "undefined") {
+    throw new Error("RUNTIME_PROFILE_SESSION_STORAGE_UNAVAILABLE");
+  }
+  const serialized = JSON.stringify(parsed);
+  sessionStorage.setItem(STORAGE_KEY, serialized);
+  if (sessionStorage.getItem(STORAGE_KEY) !== serialized) {
+    throw new Error("RUNTIME_PROFILE_SESSION_RESUME_INTENT_NOT_PERSISTED");
   }
 }
 

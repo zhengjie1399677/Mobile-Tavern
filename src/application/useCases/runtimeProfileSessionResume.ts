@@ -5,6 +5,7 @@ import { KernelServices } from "../serviceContracts";
 import type { IRuntimeProfileService } from "../runtimeProfiles/contracts";
 import { BUILTIN_TAVERN_PROFILE_ID } from "../runtimeProfiles/contracts";
 import {
+  clearRuntimeProfileSessionResumeIntent,
   writeRuntimeProfileSessionResumeIntent,
 } from "../../infrastructure/runtimeProfiles/runtimeProfileSessionResume";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "./runtimeProfileSession";
@@ -42,13 +43,39 @@ export function prepareRuntimeProfileSessionResume(
     };
   }
 
-  profiles.selectProfile(targetProfile.id);
-  writeRuntimeProfileSessionResumeIntent({
+  const intent = {
     schemaVersion: 1,
     sessionId: session.id,
     characterId: session.characterId,
     profileId: targetProfile.id,
     profileVersion: targetProfile.version,
-  });
+  } as const;
+  try {
+    // 先可靠落下一次性意图，避免 Profile 已切换而目标会话无法在重载后恢复。
+    writeRuntimeProfileSessionResumeIntent(intent);
+  } catch {
+    clearResumeIntentBestEffort();
+    return {
+      status: "unavailable",
+      message: "当前环境无法保存跨 Profile 会话恢复状态，已保持现有 Agent Profile。",
+    };
+  }
+  try {
+    profiles.selectProfile(targetProfile.id);
+  } catch {
+    clearResumeIntentBestEffort();
+    return {
+      status: "unavailable",
+      message: "目标 Agent Profile 无法持久化，已取消本次会话切换。",
+    };
+  }
   return { status: "reload" };
+}
+
+function clearResumeIntentBestEffort(): void {
+  try {
+    clearRuntimeProfileSessionResumeIntent();
+  } catch {
+    // 不再触发重载；后续读取会校验 Profile 身份并拒绝悬空意图。
+  }
 }

@@ -98,8 +98,9 @@ describe("OpenAI-compatible Tool Loop", () => {
   });
 
   it("达到步骤上限时显式失败，不形成无界循环", async () => {
+    const executeTool = vi.fn(async () => ({ value: 8 }));
     const context = createContext(
-      vi.fn(async () => ({ value: 8 })),
+      executeTool,
       vi.fn(async () => undefined),
     );
     await expect(executeOpenAiToolLoop({
@@ -111,6 +112,7 @@ describe("OpenAI-compatible Tool Loop", () => {
         toolCalls: [{ callId: "call-loop", name: "math.double", arguments: { value: 4 } }],
       }),
     })).rejects.toThrow("AGENT_TOOL_LOOP_STEP_LIMIT_EXCEEDED: 1");
+    expect(executeTool).not.toHaveBeenCalled();
   });
 });
 

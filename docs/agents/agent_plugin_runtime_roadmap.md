@@ -315,7 +315,7 @@ file  → text extraction / unsupported
 
 完成条件：同一聊天 UI 可以切换两个 Driver 或两个 Provider；工具循环和多模态降级可以重放，停止与销毁不残留请求。
 
-当前进度（2026-08-24）：阶段 3 已完成。应用层新增 `AgentRuntimeService`、AgentHandle/Turn/Driver/Provider/Tool/Media Processor 契约和独立 Agent Journal；聊天发送与停止已通过 `mobile-tavern.chat.driver` 进入 AgentHandle，同一 UI 按 API 类型解析 OpenAI-compatible 或 Anthropic-compatible Provider。Tool Registry 已具备输入/输出 Schema、权限、超时、取消与 Call/Result 持久化；Provider/媒体决定、Turn 终态和会话 Composition Snapshot 可重放并随 v6 备份恢复。OpenAI-compatible 流会聚合分片 `tool_calls`，经 Agent Turn 执行工具后附加 Assistant/Tool 消息继续模型请求，最多执行 8 个 Step；每步决定和工具结果进入 Journal。音频附件可经 ASR 转写，视频附件可生成关键帧并把派生引用写回 V2 消息。
+当前进度（2026-08-24）：阶段 3 已完成。应用层新增 `AgentRuntimeService`、AgentHandle/Turn/Driver/Provider/Tool/Media Processor 契约和独立 Agent Journal；聊天发送与停止已通过 `mobile-tavern.chat.driver` 进入 AgentHandle，同一 UI 的 Profile 绑定稳定的 settings route，再按 API 类型解析 OpenAI-compatible 或 Anthropic-compatible Provider，并在每个 Turn 记录实际 Provider。Tool Registry 已具备输入/输出 Schema、权限、超时、取消与 Call/Result 持久化；Provider/媒体决定、Turn 终态和会话 Composition Snapshot 可重放并随 v6 备份恢复。OpenAI-compatible 流会聚合分片 `tool_calls`，经 Agent Turn 执行工具后附加 Assistant/Tool 消息继续模型请求，最多执行 8 个 Step；达到上限且已无后续模型步骤时不会再执行有副作用的工具，每步决定和已执行工具结果进入 Journal。音频附件可经 ASR 转写，视频附件可生成关键帧并把派生引用写回 V2 消息。
 
 ### 阶段 4：SillyTavern 兼容能力降级为 Runtime Plugin
 

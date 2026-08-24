@@ -24,6 +24,7 @@ export const AGENT_SPINE_RUNTIME_PLUGIN_ID = "mobile-tavern.agent-spine";
 export const MOBILE_TAVERN_CHAT_DRIVER_ID = "mobile-tavern.chat.driver";
 export const OPENAI_COMPATIBLE_PROVIDER_ID = "provider.openai-compatible";
 export const ANTHROPIC_COMPATIBLE_PROVIDER_ID = "provider.anthropic-compatible";
+export const SETTINGS_PROVIDER_ROUTE_ID = "provider.route.settings";
 export const AUDIO_ASR_PROCESSOR_ID = "media.audio.asr";
 export const VIDEO_KEYFRAME_PROCESSOR_ID = "media.video.keyframes";
 
@@ -71,8 +72,7 @@ export const agentSpineRuntimePlugin = defineRuntimePlugin({
   ],
   capabilities: [
     provideRuntimeCapability(AGENT_DRIVER_CAPABILITY, MOBILE_TAVERN_CHAT_DRIVER_ID),
-    provideRuntimeCapability(LLM_ROUTE_CAPABILITY, OPENAI_COMPATIBLE_PROVIDER_ID),
-    provideRuntimeCapability(LLM_ROUTE_CAPABILITY, ANTHROPIC_COMPATIBLE_PROVIDER_ID),
+    provideRuntimeCapability(LLM_ROUTE_CAPABILITY, SETTINGS_PROVIDER_ROUTE_ID),
     contributeRuntimeCapability(MEDIA_PROCESSOR_CAPABILITY, AUDIO_ASR_PROCESSOR_ID),
     contributeRuntimeCapability(MEDIA_PROCESSOR_CAPABILITY, VIDEO_KEYFRAME_PROCESSOR_ID),
   ],

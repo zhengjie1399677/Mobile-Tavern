@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { IKernel } from "../../src/kernel/types";
 import { RuntimeProfileService } from "../../src/application/services/RuntimeProfileService";
 import {
@@ -27,6 +27,7 @@ describe("RuntimeProfileService", () => {
     clearRuntimeProfileSessionResumeIntent();
   });
   afterEach(() => {
+    vi.unstubAllGlobals();
     clearRuntimeProfilePreferencesForTests();
     clearRuntimeProfileSessionResumeIntent();
   });
@@ -57,6 +58,7 @@ describe("RuntimeProfileService", () => {
     expect(stored.selectedProfileId).toBe(updated.id);
     const definition = buildRuntimeProfileDefinition(updated);
     expect(definition.version).toBe(2);
+    expect(definition.bindings?.["llm.route"]).toBe("provider.route.settings");
     expect(definition.plugins.map((plugin) => plugin.id)).toContain(
       "mobile-tavern.sillytavern-compat",
     );
@@ -174,6 +176,39 @@ describe("RuntimeProfileService", () => {
       profileId: BUILTIN_TAVERN_PROFILE_ID,
       profileVersion: 3,
     });
+  });
+
+  it("恢复意图存储不可用时不改变已选择的 Profile", () => {
+    const profileService = new RuntimeProfileService();
+    profileService.selectProfile(BUILTIN_BASE_PROFILE_ID);
+    const kernel = {
+      hasService: () => true,
+      getService: (name: string) => name === "agentRuntime"
+        ? { getCompositionSnapshot: () => ({ profileId: BUILTIN_BASE_PROFILE_ID, profileVersion: 1 }) }
+        : profileService,
+    } as unknown as IKernel;
+    const tavernSession = {
+      id: "tavern-session-storage-failure",
+      characterId: "character-1",
+      title: "Tavern 会话",
+      createdAt: 1,
+      messages: [],
+      summaries: [],
+      compositionSnapshot: {
+        profileId: BUILTIN_TAVERN_PROFILE_ID,
+        profileVersion: 3,
+        pluginVersions: {},
+        providerBindings: {},
+        contributionOrder: {},
+        capabilityDecisions: {},
+      },
+    } satisfies ChatSession;
+    vi.stubGlobal("sessionStorage", undefined);
+
+    expect(prepareRuntimeProfileSessionResume(kernel, tavernSession)).toMatchObject({
+      status: "unavailable",
+    });
+    expect(profileService.listProfiles().selectedProfileId).toBe(BUILTIN_BASE_PROFILE_ID);
   });
 
   it("Profile 已删除或版本不可用时拒绝重载，不产生悬空恢复意图", () => {

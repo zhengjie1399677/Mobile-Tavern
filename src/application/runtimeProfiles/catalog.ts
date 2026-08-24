@@ -3,7 +3,7 @@ import {
   AGENT_SPINE_RUNTIME_PLUGIN_ID,
   AUDIO_ASR_PROCESSOR_ID,
   MOBILE_TAVERN_CHAT_DRIVER_ID,
-  OPENAI_COMPATIBLE_PROVIDER_ID,
+  SETTINGS_PROVIDER_ROUTE_ID,
   VIDEO_KEYFRAME_PROCESSOR_ID,
 } from "../runtimePlugins/agentSpineRuntimePlugin";
 import { LEGACY_RUNTIME_PLUGIN_ID } from "../runtimePlugins/legacyRuntimePlugin";
@@ -108,7 +108,7 @@ export function buildRuntimeProfileDefinition(
     ],
     bindings: {
       "agent.driver": MOBILE_TAVERN_CHAT_DRIVER_ID,
-      "llm.route": OPENAI_COMPATIBLE_PROVIDER_ID,
+      "llm.route": SETTINGS_PROVIDER_ROUTE_ID,
     },
     contributions: {
       tool: [],
