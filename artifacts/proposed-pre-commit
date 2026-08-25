@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+echo "Running pre-commit type check..."
+npm run lint
+
+echo "Running pre-commit ESLint on staged files..."
+staged_files=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx)$' || true)
+if [ -n "$staged_files" ]; then
+  npx eslint $staged_files --quiet
+fi

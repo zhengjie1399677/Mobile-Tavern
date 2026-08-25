@@ -77,6 +77,8 @@ export default {
   
   "features.js_execution": "カードJSスクリプト実行",
   "features.js_execution_desc": "ステータスパネル表示などのためにキャラクターカード独自のJS実行を許可します。実行には一定のセキュリティリスクがあります。",
+  "features.trusted_script_mode": "信頼済み完全互換モード",
+  "features.trusted_script_mode_desc": "分離を無効にし、親ウィンドウのアプリデータとネイティブ機能へのアクセスを許可します。審査済みの信頼できるカードだけに使用してください。",
   
   "features.loop_protection": "スクリプト無限ループ保護",
   "features.loop_protection_desc": "JSスクリプト内のループ処理にタイムアウト監視を挿入し、フリーズを防止します。ループ上限は1000msです。",

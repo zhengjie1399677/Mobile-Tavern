@@ -141,6 +141,23 @@ describe("消息附件服务", () => {
     await service.destroy();
   });
 
+  it("恢复时在同一附件事务内写入反向引用，不需要主库提交后的二次 reconcile", async () => {
+    const service = new AttachmentService();
+    await service.init({} as IKernel);
+    const metadata = await service.stageFile(pngFile());
+    const backup = await service.exportAttachments([metadata.id]);
+
+    await service.replaceAttachments(backup, [
+      { referenceId: "session-1/message-1", assetIds: [metadata.id] },
+    ]);
+
+    expect(await service.getMetadata(metadata.id)).toMatchObject({
+      state: "committed",
+      referenceIds: ["session-1/message-1"],
+    });
+    await service.destroy();
+  });
+
   it("损坏的备份字节在清库前拒绝，保留已有附件", async () => {
     const service = new AttachmentService();
     await service.init({} as IKernel);

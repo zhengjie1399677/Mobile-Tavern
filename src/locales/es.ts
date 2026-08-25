@@ -77,6 +77,8 @@ export default {
   
   "features.js_execution": "Ejecución de Scripts JS",
   "features.js_execution_desc": "Permite a las cartas ejecutar JS para mostrar paneles dinámicos. Su ejecución conlleva riesgos de seguridad.",
+  "features.trusted_script_mode": "Compatibilidad total de confianza",
+  "features.trusted_script_mode_desc": "Desactiva el aislamiento y permite acceder a datos de la aplicación y funciones nativas. Úsalo solo con cartas revisadas y de confianza.",
   
   "features.loop_protection": "Protección de Bucles JS",
   "features.loop_protection_desc": "Inyecta temporizadores en bucles de scripts para evitar bloqueos de la interfaz. Límite: 1000ms.",

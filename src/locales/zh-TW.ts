@@ -76,7 +76,9 @@ export default {
   "features.html_rendering_desc": "允許角色卡使用 HTML/CSS 標籤控制對話氣泡文本樣式。關閉後使用純文本渲染。",
   
   "features.js_execution": "卡片 JS 腳本執行",
-  "features.js_execution_desc": "允許角色卡運行自定義 JS 腳本以展示動態狀態面板。運行未知腳本具有一定安全風險。",
+  "features.js_execution_desc": "允許角色卡運行自定義 JS。預設使用隔離模式，部分依賴完整 SillyTavern API 的舊卡可能需要受信相容模式。",
+  "features.trusted_script_mode": "受信完整相容模式",
+  "features.trusted_script_mode_desc": "關閉隔離並允許腳本存取父視窗應用資料與原生能力。僅對已審查且明確可信的角色卡開啟。",
   
   "features.loop_protection": "腳本循環安全監視器",
   "features.loop_protection_desc": "自動對卡片腳本中的死循環織入時間監視器，防止介面掛起卡死。單次循環上限 1000ms。",

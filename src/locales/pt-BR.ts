@@ -77,6 +77,8 @@ export default {
   
   "features.js_execution": "Execução de Script JS da Carta",
   "features.js_execution_desc": "Permite que cartas executem scripts JS personalizados para painéis dinâmicos. Executar scripts desconhecidos envolve riscos.",
+  "features.trusted_script_mode": "Compatibilidade total confiável",
+  "features.trusted_script_mode_desc": "Desativa o isolamento e permite acesso aos dados do app e recursos nativos. Use apenas com cartas revisadas e confiáveis.",
   
   "features.loop_protection": "Monitor de Segurança de Loop",
   "features.loop_protection_desc": "Insere automaticamente um watchdog de tempo em loops infinitos nos scripts, evitando travamentos. Limite de 1000ms por ciclo.",

@@ -136,29 +136,39 @@ export class DataMigrationService implements IDataMigrationService<UserSettings,
     }
 
     const previousAttachments = await attachmentService.exportAttachments();
+    const previousAttachmentMetadata = await attachmentService.listAttachments();
+    const previousReferencesById = new Map<string, string[]>();
+    for (const metadata of previousAttachmentMetadata) {
+      for (const referenceId of metadata.referenceIds) {
+        const assetIds = previousReferencesById.get(referenceId) ?? [];
+        assetIds.push(metadata.id);
+        previousReferencesById.set(referenceId, assetIds);
+      }
+    }
+    const previousReferences = Array.from(previousReferencesById, ([referenceId, assetIds]) => ({
+      referenceId,
+      assetIds,
+    }));
     const previousSessions = await this.kernel
       .getService<DatabaseService>(KernelServices.Database)
       .getAllSessions();
     const previousJournal = (await Promise.all(previousSessions.map((session) =>
       agentRuntime.listJournalBySession(session.id),
     ))).flat();
-    let mainDatabaseReplaced = false;
     try {
-      await attachmentService.replaceAttachments(payload.attachments);
+      // 附件字节与反向引用在同一个附件库事务中一次提交。主库替换成功后不再
+      // 执行可能失败的二次 reconcile，从而消除“主库已换、附件索引未换”的窗口。
+      await attachmentService.replaceAttachments(payload.attachments, references);
       await agentRuntime.replaceJournal(payload.agentJournal);
       await replaceLocalDataFromBackup(
         payload,
         signal || this.abortController?.signal,
       );
-      mainDatabaseReplaced = true;
-      await attachmentService.reconcileReferences(references);
     } catch (error) {
-      if (!mainDatabaseReplaced) {
-        await Promise.all([
-          attachmentService.replaceAttachments(previousAttachments),
-          agentRuntime.replaceJournal(previousJournal),
-        ]);
-      }
+      await Promise.all([
+        attachmentService.replaceAttachments(previousAttachments, previousReferences),
+        agentRuntime.replaceJournal(previousJournal),
+      ]);
       throw error;
     }
   }

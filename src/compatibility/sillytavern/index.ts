@@ -5,3 +5,5 @@
  * 不属于通用 Service，不得注册为 Kernel 业务服务。
  */
 export * from "../../utils/tavernHelper";
+export * from "./isolatedBridgeHost";
+export * from "./isolatedScriptRuntime";

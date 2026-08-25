@@ -313,6 +313,10 @@ export const useSettingsLoader = ({
             globalChatBg: storedSet.globalChatBg || DEFAULT_SETTINGS.globalChatBg,
             enableHtmlRendering: storedSet.enableHtmlRendering ?? DEFAULT_SETTINGS.enableHtmlRendering,
             enableScriptExecution: storedSet.enableScriptExecution ?? DEFAULT_SETTINGS.enableScriptExecution,
+            // CHANGE-SAFE：旧版本只有 enableScriptExecution。已开启脚本的旧用户迁移到
+            // trusted 以避免现有 MVU 卡静默失效；新用户与未开启脚本的旧数据默认 isolated。
+            scriptSecurityMode: storedSet.scriptSecurityMode
+              ?? (storedSet.enableScriptExecution === true ? "trusted" : "isolated"),
             enableLoopProtection: storedSet.enableLoopProtection ?? DEFAULT_SETTINGS.enableLoopProtection,
             savedPresets: mergedSavedPresets,
             expressionTriggers: storedSet.expressionTriggers || DEFAULT_SETTINGS.expressionTriggers,

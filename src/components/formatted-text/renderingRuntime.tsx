@@ -3,6 +3,7 @@ import { publicEnvironment } from "../../config";
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "../formattedTextUtils";
 import { readFormattedTextSrcdoc, storeFormattedTextSrcdoc } from "./srcdocStore";
 import type { CompatibilityRendererDefinition } from "../../application/compatibility/contracts";
+import type { CompatibilityScriptSecurityMode } from "../../types";
 
 interface RegexScript {
   id?: string;
@@ -251,6 +252,7 @@ function domToReact(
   enableLoopProtection?: boolean,
   swipeId?: number,
   compatibilityRenderer?: CompatibilityRendererDefinition | null,
+  scriptSecurityMode: CompatibilityScriptSecurityMode = "isolated",
 ): React.ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
     return renderTextNode(node.nodeValue || "", enableAsteriskFormatting, index);
@@ -281,7 +283,7 @@ function domToReact(
       return null;
     }
     return Array.from(element.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer, scriptSecurityMode)
     );
   }
 
@@ -325,6 +327,7 @@ function domToReact(
                   resolvedSrcdoc,
                   messageIndex,
                   enableLoopProtection !== false,
+                  scriptSecurityMode,
                 ) ?? resolvedSrcdoc;
                 if (publicEnvironment.isDevelopment) {
                   console.log('[FormattedText] bridge injected for card srcdoc, len:', resolvedSrcdoc.length);
@@ -373,6 +376,7 @@ function domToReact(
               resolvedSrcdoc,
               messageIndex,
               enableLoopProtection !== false,
+              scriptSecurityMode,
             ) ?? resolvedSrcdoc;
           } else {
             resolvedSrcdoc = `<html><body style="background:transparent;color:#a8a29e;font-family:sans-serif;font-size:11px;margin:0;padding:4px;display:flex;align-items:center;gap:6px;">
@@ -390,14 +394,14 @@ function domToReact(
     }
   }
 
-  // Force strict sandboxing for iframe tags
+  // 为 iframe 统一设置 SillyTavern 兼容执行权限。
   if (tagName === "iframe") {
-    // allow-popups: 支持卡片内 target="_blank" 链接；allow-popups-to-escape-sandbox: 弹窗回归父级安全上下文
-    // 关键修复：Android WebView 中，srcdoc iframe 若无 sandbox（含 allow-same-origin），
-    // 会被赋予 opaque origin，导致 window.parent.* 访问被跨域策略阻止，
-    // MVU 框架（Vue/Pinia）无法继承父窗口库而初始化失败，最终只渲染静态文本。
-    // 必须在所有平台统一设置 allow-same-origin，使 iframe 继承父文档的 origin。
-    props.sandbox = "allow-scripts allow-same-origin allow-modals allow-popups allow-popups-to-escape-sandbox";
+    // 安全缺省为 opaque-origin iframe；只有用户显式选择 trusted 兼容模式时，
+    // Compatibility Runtime 才恢复 allow-same-origin 与弹窗能力。
+    const iframePolicy = compatibilityRenderer?.getIframePolicy(scriptSecurityMode)
+      ?? { isolated: true, sandbox: "allow-scripts" };
+    props.sandbox = iframePolicy.sandbox;
+    if (iframePolicy.isolated) props["data-mt-compat-isolated"] = "true";
     if (!props.id && messageIndex !== undefined) {
       props.id = `TH-msg-iframe-${messageIndex}`;
       props.name = `TH-msg-iframe-${messageIndex}`;
@@ -443,7 +447,7 @@ function domToReact(
   }
 
   const children = Array.from(element.childNodes).map((child, i) => 
-    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer)
+    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer, scriptSecurityMode)
   );
   
   const reactElement =
@@ -515,6 +519,7 @@ export function parseSafeHtmlToReact(
   enableLoopProtection?: boolean,
   swipeId?: number,
   compatibilityRenderer?: CompatibilityRendererDefinition | null,
+  scriptSecurityMode: CompatibilityScriptSecurityMode = "isolated",
 ): React.ReactNode {
   try {
     const parser = new DOMParser();
@@ -526,7 +531,7 @@ export function parseSafeHtmlToReact(
     if (!container) return html;
 
     return Array.from(container.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer, scriptSecurityMode)
     );
   } catch (err) {
     console.error("Failed to parse HTML safely:", err);
@@ -547,6 +552,7 @@ export function preprocessFormattedText(
   isAiMessage?: boolean,
   isStreamingLastMsg?: boolean,
   compatibilityRenderer?: CompatibilityRendererDefinition | null,
+  scriptSecurityMode: CompatibilityScriptSecurityMode = "isolated",
 ): string {
   if (!text) return "";
 
@@ -763,6 +769,7 @@ export function preprocessFormattedText(
           cleanedHtml,
           messageIndex,
           loopGuard,
+          scriptSecurityMode,
         ) ?? cleanedHtml;
         const iframeId = nextIframeId();
         // 关键：用 store 策略替代 data-srcdoc 属性，彻底绕开 Android WebView
@@ -783,6 +790,7 @@ export function preprocessFormattedText(
             cleanedHtml,
             messageIndex,
             loopGuard,
+            scriptSecurityMode,
           ) ?? cleanedHtml;
           const iframeId = nextIframeId();
           const storeKey = `th-srcdoc-${iframeId}-${Date.now()}`;

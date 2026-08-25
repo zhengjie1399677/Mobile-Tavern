@@ -145,9 +145,20 @@ export class AttachmentService implements IAttachmentService {
     })));
   }
 
-  async replaceAttachments(records: readonly AttachmentBackupRecord[]): Promise<void> {
+  async replaceAttachments(
+    records: readonly AttachmentBackupRecord[],
+    references: readonly AttachmentReference[] = [],
+  ): Promise<void> {
     this.assertReady();
     const ids = new Set<string>();
+    const referenceIdsByAsset = new Map<string, Set<string>>();
+    for (const reference of references) {
+      for (const assetId of new Set(reference.assetIds)) {
+        const referenceIds = referenceIdsByAsset.get(assetId) ?? new Set<string>();
+        referenceIds.add(reference.referenceId);
+        referenceIdsByAsset.set(assetId, referenceIds);
+      }
+    }
     const decoded = records.map(record => {
       assertAttachmentId(record.id);
       if (ids.has(record.id)) throw new Error("ATTACHMENT_BACKUP_DUPLICATE_ID");
@@ -164,6 +175,7 @@ export class AttachmentService implements IAttachmentService {
         throw new Error("ATTACHMENT_BACKUP_SIZE_INVALID");
       }
       const now = Date.now();
+      const referenceIds = Array.from(referenceIdsByAsset.get(record.id) ?? []).sort();
       return {
         metadata: {
           id: record.id,
@@ -171,8 +183,8 @@ export class AttachmentService implements IAttachmentService {
           mimeType: record.mimeType,
           originalName: normalizeName(record.originalName),
           size: record.size,
-          state: "staging" as const,
-          referenceIds: [],
+          state: referenceIds.length > 0 ? "committed" as const : "staging" as const,
+          referenceIds,
           createdAt: Number.isFinite(record.createdAt) ? record.createdAt : now,
           updatedAt: Number.isFinite(record.updatedAt) ? record.updatedAt : now,
         },
@@ -181,6 +193,9 @@ export class AttachmentService implements IAttachmentService {
     });
     if (decoded.reduce((total, item) => total + item.metadata.size, 0) > MAX_TOTAL_ATTACHMENT_BYTES) {
       throw new Error("ATTACHMENT_TOTAL_LIMIT");
+    }
+    for (const assetId of referenceIdsByAsset.keys()) {
+      if (!ids.has(assetId)) throw new Error("ATTACHMENT_NOT_FOUND");
     }
     for (const url of this.objectUrls.values()) URL.revokeObjectURL(url);
     this.objectUrls.clear();

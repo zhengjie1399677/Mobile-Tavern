@@ -105,7 +105,10 @@ export interface IAttachmentService extends IKernelService {
   ): Promise<void>;
   collectGarbage(cutoffTime: number): Promise<string[]>;
   exportAttachments(assetIds?: readonly string[]): Promise<AttachmentBackupRecord[]>;
-  replaceAttachments(records: readonly AttachmentBackupRecord[]): Promise<void>;
+  replaceAttachments(
+    records: readonly AttachmentBackupRecord[],
+    references?: readonly AttachmentReference[],
+  ): Promise<void>;
 }
 
 

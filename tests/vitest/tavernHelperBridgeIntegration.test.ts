@@ -245,6 +245,16 @@ const x = 1;
   });
 });
 
+describe("TavernHelper Bridge - 脚本 iframe 标识符边界", () => {
+  it("将外部 scriptId 安全序列化到内联脚本", async () => {
+    const { createScriptIframeSrcDoc } = await import("../../src/utils/tavernHelper");
+    const srcDoc = createScriptIframeSrcDoc("window.__cardScriptRan = true;", 'bad"</script><p>broken</p>');
+
+    expect(srcDoc).toContain('var iframeId = "bad\\"\\u003c/script>\\u003cp>broken\\u003c/p>";');
+    expect(srcDoc).not.toContain('var iframeId = "bad"</script>');
+  });
+});
+
 describe("TavernHelper Bridge - 全局对象契约", () => {
   beforeAll(async () => {
     const { initTavernHelperMocks } = await import("../../src/utils/tavernHelper");

@@ -76,7 +76,9 @@ export default {
   "features.html_rendering_desc": "Allow character cards to style dialogue bubbles using HTML/CSS tags. Fallback to plain text if disabled.",
   
   "features.js_execution": "Card JS Script Execution",
-  "features.js_execution_desc": "Allow character cards to run custom JS in sandbox to show dynamic status panels. Execution carries security risks.",
+  "features.js_execution_desc": "Allow character cards to run custom JS. Isolated mode is the default; older cards that require the full SillyTavern API may need trusted compatibility mode.",
+  "features.trusted_script_mode": "Trusted full compatibility",
+  "features.trusted_script_mode_desc": "Disables isolation and lets scripts access parent-window app data and native capabilities. Enable only for reviewed, explicitly trusted cards.",
   
   "features.loop_protection": "Script Loop Protection",
   "features.loop_protection_desc": "Inject watchdog timers into script loops to prevent WebView locks. Execution limit: 1000ms.",

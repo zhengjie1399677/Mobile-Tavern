@@ -198,7 +198,7 @@ someAsyncOp().then(() => {
 - 消息只持久化 `att_*` 引用，附件元数据与字节分别进入 `metadata`、`contents` Store；聊天 UI 只能通过 `AttachmentService` 读取和创建 Blob URL。
 - 主消息库与附件库不能共享 IndexedDB 事务：新附件先进入 `staging`，消息事务成功后从权威消息快照重建引用并转为 `committed`；最后引用移除后进入 `orphaned`，启动修复和 GC 负责崩溃恢复。
 - Agent Journal 只保存可重放的安全数据，不得写入 Profile config、API Key、访问令牌或 Processor 私有输入；会话删除必须同步清理 Journal。
-- v6 完整备份必须携带消息引用的附件字节和 Agent Journal；覆盖恢复先验证引用与会话归属，再暂存附件和 Journal、提交主库并重建引用，主库提交前失败必须恢复旧附件与 Journal 快照。
+- v6 完整备份必须携带消息引用的附件字节和 Agent Journal；覆盖恢复先验证引用与会话归属，再将附件字节、状态和反向引用在附件库单事务中一次提交，随后替换 Journal 与主库。主库提交后禁止再执行可能失败的附件引用重建；主库提交前任一步失败都必须恢复旧附件引用快照与 Journal。
 
 ---
 

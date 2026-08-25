@@ -58,7 +58,7 @@ describe("FormattedText component", () => {
     errorSpy.mockRestore();
   });
 
-  it("继续提取角色卡直接提供的 srcdoc 内容", () => {
+  it("Compatibility Renderer 未装载时不执行角色卡直接提供的 iframe", () => {
     mockContext.settings.enableScriptExecution = true;
     const { container, unmount } = render(
       <FormattedText
@@ -68,10 +68,7 @@ describe("FormattedText component", () => {
     );
 
     const iframe = container.querySelector("iframe");
-    expect(iframe).not.toBeNull();
-    expect(iframe?.srcdoc).toContain("data-testid='card-body'");
-    expect(iframe?.srcdoc).toContain("扬州");
-    expect(iframe?.getAttribute("allowtransparency")).toBe("true");
+    expect(iframe).toBeNull();
     unmount();
   });
 

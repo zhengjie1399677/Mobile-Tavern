@@ -77,6 +77,8 @@ export default {
 
   "features.js_execution": "카드 JS 스크립트 실행",
   "features.js_execution_desc": "캐릭터 카드가 커스텀 JS 스크립트를 실행하여 동적 상태 패널을 표시합니다. 알 수 없는 스크립트 실행은 보안 위험이 있습니다.",
+  "features.trusted_script_mode": "신뢰된 전체 호환 모드",
+  "features.trusted_script_mode_desc": "격리를 해제하고 부모 창의 앱 데이터와 네이티브 기능에 접근합니다. 검토하여 명확히 신뢰한 카드에만 사용하세요.",
 
   "features.loop_protection": "스크립트 루프 안전 감시기",
   "features.loop_protection_desc": "카드 스크립트의 무한 루프에 시간 감시기를 자동으로 삽입하여 UI가 멈추는 것을 방지합니다. 단일 루프 상한 1000ms.",

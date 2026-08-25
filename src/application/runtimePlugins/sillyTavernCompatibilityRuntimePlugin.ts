@@ -1,11 +1,15 @@
 import {
   cleanTavernHelperBridge,
+  cleanIsolatedBridgeHost,
+  createIsolatedMessageIframeSrcDoc,
+  createIsolatedScriptIframeSrcDoc,
   createMessageIframeSrcDoc as createSillyTavernMessageIframeSrcDoc,
   createScriptIframeSrcDoc as createSillyTavernScriptIframeSrcDoc,
   getBridgeParams,
   hasCardScripts,
   initTavernHelperBridge,
   initTavernHelperMocks,
+  initIsolatedBridgeHost,
   initializeMvuFromCharacter,
   notifyVariablesUpdated,
   parseMvuMessage,
@@ -55,20 +59,47 @@ const renderer: CompatibilityRendererDefinition = {
   id: "compat.sillytavern.renderer",
   version: CONTRIBUTION_VERSION,
   initializeGlobals: initTavernHelperMocks,
-  areRuntimeLibrariesReady() {
+  areRuntimeLibrariesReady(securityMode) {
+    if (securityMode === "isolated") return true;
     if (typeof window === "undefined") return false;
     const compatibilityWindow = window as SillyTavernCompatibilityWindow;
     return Boolean(compatibilityWindow._ && compatibilityWindow.TavernHelperMvuLibs?.defineStore);
   },
   hasCardScripts,
   listBackgroundScripts: readBackgroundScripts,
-  createScriptIframeSrcDoc: createSillyTavernScriptIframeSrcDoc,
-  createMessageIframeSrcDoc(content, messageId, loopProtection) {
-    if (content.includes("window.__TH_MESSAGE_ID")) return content;
-    return createSillyTavernMessageIframeSrcDoc(content, messageId, loopProtection);
+  getIframePolicy(securityMode) {
+    return securityMode === "trusted"
+      ? {
+          isolated: false,
+          sandbox: "allow-scripts allow-same-origin allow-modals allow-popups allow-popups-to-escape-sandbox",
+        }
+      : { isolated: true, sandbox: "allow-scripts" };
+  },
+  createScriptIframeSrcDoc(content, scriptId, loopProtection, securityMode) {
+    if (securityMode === "trusted") {
+      return createSillyTavernScriptIframeSrcDoc(content, scriptId, loopProtection);
+    }
+    return createIsolatedScriptIframeSrcDoc(
+      content,
+      scriptId,
+      getBridgeParams()?.activeSession?.variables,
+      loopProtection,
+    );
+  },
+  createMessageIframeSrcDoc(content, messageId, loopProtection, securityMode) {
+    if (securityMode === "trusted") {
+      if (content.includes("window.__TH_MESSAGE_ID")) return content;
+      return createSillyTavernMessageIframeSrcDoc(content, messageId, loopProtection);
+    }
+    return createIsolatedMessageIframeSrcDoc(
+      content,
+      messageId,
+      getBridgeParams()?.activeSession?.variables,
+    );
   },
   initializeBridge(params) {
     initTavernHelperBridge(adaptBridgeParams(params));
+    initIsolatedBridgeHost();
   },
   updateBridge(update) {
     const params = getBridgeParams();
@@ -102,6 +133,7 @@ const renderer: CompatibilityRendererDefinition = {
     }
   },
   cleanBridge() {
+    cleanIsolatedBridgeHost();
     try {
       cleanTavernHelperBridge();
     } catch {

@@ -40,3 +40,11 @@
 - TavernHelper 全局对象只属于 Renderer/Bridge 实现细节，通用生产代码不得直接读写；状态同步、脚本库就绪检查和 iframe 构建必须经 Renderer 契约。
 - 阶段 5 的 Profile UI 可以关闭整个 SillyTavern Compatibility Runtime；关闭后六类贡献均不得注册，普通 Agent 聊天和多模态底座仍应工作。
 - 旧 `session.variables` 仅作为历史数据读取降级源，生产持久化入口不得重新双写；角色卡 Bridge 内部、消息级 swipe 快照和设置级全局变量不是会话权威状态，必须保持边界名称清晰。
+
+### 6. 角色卡脚本信任边界
+
+- 角色卡 JavaScript 执行默认关闭，用户必须在设置中显式开启。
+- 卡片脚本默认运行在 `sandbox="allow-scripts"` 的 opaque-origin iframe 中；容器必须在首个外部内容之前注入 CSP，默认禁止网络连接、表单提交和父窗口数据访问。
+- 隔离 iframe 只能通过 `postMessage` 调用 Compatibility Runtime 的最小桥。宿主必须同时校验 `event.origin === "null"`、`event.source` 对应已登记隔离 iframe、sandbox 不含 `allow-same-origin`，并对方法、参数大小和危险键名使用白名单校验。目前允许的写操作仅为当前会话变量替换，另允许受限高度回报。
+- `scriptSecurityMode="trusted"` 是显式受信完整兼容模式：为兼容旧 SillyTavern 脚本对 `window.parent` 和完整 `TavernHelper` 的同步访问，可恢复 `allow-same-origin` 与旧父窗口库继承。该模式不是安全沙盒，界面必须明确提示其可访问应用数据与原生能力。
+- `scriptSecurityMode` 缺失时，新设置和未启用脚本的旧数据迁移为 `isolated`；为遵守 `CHANGE-SAFE`，已经启用脚本的旧设置迁移为 `trusted`，由用户确认兼容性后可手动切回隔离模式。
