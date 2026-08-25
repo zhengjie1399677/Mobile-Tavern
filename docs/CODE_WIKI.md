@@ -160,7 +160,7 @@ Mobile-Tavern
 │   │   ├── conditions/                   # 变量表达式引擎
 │   │   ├── memory/                       # 表格记忆 Schema
 │   │   ├── plugins/                      # 插件包解析、宿主桥接、运行时文档
-│   │   └── prompt-composition/           # 自由 Prompt 编排(中立领域模型)
+│   │   └── prompt-composition/           # Prompt 组装(中立领域模型)
 │   ├── hooks/                            # 核心状态钩子
 │   │   ├── useChat/                      # 聊天子 hook 群(sendMessage / reroll / sessionManager 等)
 │   │   └── settings/                     # 设置子 hook 群(loader / persistence / api 等)

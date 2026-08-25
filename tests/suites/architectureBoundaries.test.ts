@@ -510,7 +510,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
     /id:\s*["']composer["'][\s\S]*settings_hub\.composer_title/.test(settingsTab) &&
       /case\s+["']composer["']:[\s\S]*sections=\{\[["']composer["']\]\}/.test(settingsTab) &&
       !read("src/components/presetForm/PromptsConfigSection.tsx").includes("PromptCompositionEditor"),
-    "自由 Prompt 编排必须作为独立设置分类，不能继续嵌在预设提示词面板内"
+    "Prompt 组装必须作为独立设置分类，不能继续嵌在预设提示词面板内"
   );
   assert(
     settingsTab.indexOf('id: "composer"') < settingsTab.indexOf('id: "plugins"') &&

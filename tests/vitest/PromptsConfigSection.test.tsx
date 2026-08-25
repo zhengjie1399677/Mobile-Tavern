@@ -139,7 +139,7 @@ describe("PromptsConfigSection 自由编排区块开关", () => {
   it("空编排时给出明确提示而不是空白", () => {
     render(<Harness initial={withComposition([])} />);
     expect(
-      screen.getByText("当前为空编排，这是合法状态，不会隐式注入内容。"),
+      screen.getByText("当前没有组装内容，这是合法状态，不会隐式注入内容。"),
     ).toBeInTheDocument();
   });
 
@@ -158,7 +158,7 @@ describe("PromptsConfigSection 自由编排区块开关", () => {
       screen.queryByText("条件与 Token 策略"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(/高级编辑，请在「自由 Prompt 编排」中调整/),
+      screen.getByText(/高级编辑，请在「Prompt 组装」中调整/),
     ).toBeInTheDocument();
   });
 
@@ -171,7 +171,7 @@ describe("PromptsConfigSection 自由编排区块开关", () => {
       />,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "前往自由 Prompt 编排" }),
+      screen.getByRole("button", { name: "前往 Prompt 组装" }),
     );
     expect(openComposer).toHaveBeenCalledTimes(1);
   });
