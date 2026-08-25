@@ -1,10 +1,11 @@
 # 当前状态
 
-## 2026-08-24 更新：确定插件式 Agent Runtime 与多模态聊天目标
+## 2026-08-25 更新：Agent Host 五阶段闭环后的当前态
 
-- 产品目标从固定的 SillyTavern 兼容容器演进为本地优先、多模态、可组合的移动端 Agent Host；现有 Tavern 体验继续作为默认 Profile，SillyTavern 角色卡、预设、世界书、MVU、Regex、TavernHelper 和兼容 iframe 将按阶段降级为可关闭的内置 Compatibility Runtime Plugin。
+- 当前产品已从固定的 SillyTavern 兼容容器进入本地优先、多模态、可组合的移动端 Agent Host 阶段；Tavern Profile 继续提供既有兼容体验，Base Profile 可在关闭兼容插件后提供通用聊天、多模态附件和工具能力。
+- SillyTavern 角色卡、预设、世界书、MVU、Regex、TavernHelper 和兼容 iframe 已收敛为可关闭的内置 Compatibility Runtime Plugin；受信 Runtime Plugin 与用户安装的 `.mtplugin` 沙箱仍是两条独立信任边界。
 - 目标架构采用 Runtime Plugin、Worker Plugin、Sandbox App Plugin 三条信任边界；聊天通过 Profile、类型化 Capability Slot、Provider Binding、可叠加 Contribution 和会话级 Composition Snapshot 确定性组合。
-- 第一批实现顺序为 Scope/Effect 可撤销注册、Runtime Plugin/Profile 最小组合、Message Content V2 与 Attachment Data Plane；在对应实现和守卫完成前，现有 `runtime_boundaries.md` 仍是代码必须遵守的当前边界。
+- Scope/Effect、Runtime Plugin/Profile、Message Content V2、Attachment Data Plane、Agent Spine、Compatibility Runtime Plugin 和 Profile UI 的第一批路线已完成当前验收范围；后续增量应在现有 `runtime_boundaries.md` 和路线文档的边界内推进。
 - 阶段 1 已完成：通用父子 `EffectScope` 支持逆序幂等释放、并发提前释放等待、失败后继续清理和错误聚合；核心服务批次、默认 Pipeline 中间件、Capability、消息订阅和主 Tab UI Slot 均返回基于注册身份的 disposer，并统一挂入 Application Scope。Runtime Plugin 配置由 Zod Schema 在装载前校验，类型化 Capability Token 描述 Slot 基数和必选性；Profile Loader 拒绝重复 Provider、Token 冲突、缺失 Binding、错误基数与未知 Contribution。
 - 阶段 2 已完成：消息存储支持 V1 文本与 V2 Content Parts 联合读取，附件使用独立数据库和 `staging/committed/orphaned` 引用生命周期；聊天端已贯通图片选择、预览、重启恢复、编辑、重发、分支、气泡展示和 OpenAI-compatible 请求投影。模型视觉能力未知时默认拒绝，需用户在 API 配置显式确认；Anthropic 原生方言和音视频 Provider 投影不做静默降级。
 - 阶段 3 已完成最小纵向闭环：应用层 Agent Runtime 提供 AgentHandle、Turn/取消、通用聊天 Driver、两个声明式 Provider、Tool Registry 和媒体 Processor；聊天发送与停止已进入 AgentHandle。Tool 输入/输出 Schema、权限、超时、Provider/媒体决定和 Turn 终态进入独立 Agent Journal，新会话冻结 Composition Snapshot。
@@ -12,7 +13,7 @@
 - 阶段 3 已完成：OpenAI-compatible 流可聚合分片 `tool_calls`，通过 Agent Turn 的权限、Schema、超时与取消边界执行工具，再附加 Assistant/Tool 消息继续请求；循环最多 8 个 Step，每步决定及 Call/Result 进入 Agent Journal。
 - 阶段 4 已完成：常驻空 Compatibility Host 提供六类可撤销 Registry，独立 SillyTavern Runtime Plugin 负责连接兼容实现；通用生产代码不再直接导入兼容目录或读写 TavernHelper 生成全局字段。`base` Profile 不加载兼容插件，`tavern` Profile 可关闭、卸载和重载。插件状态进入独立会话命名空间，旧 `variables` 仅保留读取降级。
 - 阶段 5 已完成当前路线闭环：设置页可选择内置 Base/Tavern Agent、复制为用户 Profile，并实际开关 SillyTavern Compatibility、音频 ASR 与视频关键帧贡献；诊断面板展示实际 Provider、Tool、Prompt Section、Renderer 与媒体降级策略。跨 Profile 打开会话会验证目标精确版本、重启并自动恢复会话与角色；目标缺失或版本漂移时明确拒绝且不循环重启。旧 `session.variables` 已停止持久化双写，旧 Bridge 形状只在 Compatibility Plugin 内瞬时投影。
-- `legacy.tavern.driver` 已替换为格式中立的 `mobile-tavern.chat.driver`；旧静态 `capabilityCatalog.ts` 已删除，通用能力改由核心 Runtime Plugin 显式声明。任意 Runtime Plugin 安装仍关闭，签名、来源验证、版本回滚与撤销机制完成前只允许随安装包分发的受信实现。
+- `legacy.tavern.driver` 已替换为格式中立的 `mobile-tavern.chat.driver`；旧的隐式全局能力清单已清除，当前类型化 Capability Token 由具体 Runtime Plugin 显式声明。任意 Runtime Plugin 安装仍关闭，签名、来源验证、版本回滚与撤销机制完成前只允许随安装包分发的受信实现。
 - 五个阶段的当前验收范围均已落地；下一轮工作应按新的产品增量立项，例如更多 Provider/Driver、受控工具插件、原生音视频处理器和受信 Runtime Plugin 签名分发，而不是继续把兼容业务塞回 Kernel。
 - 权威目标、聊天组合规则、阶段任务和验收条件见[插件式 Agent Runtime 与聊天组合路线](agent_plugin_runtime_roadmap.md)。
 

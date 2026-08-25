@@ -5,10 +5,10 @@
 
 ## 一、项目定位
 
-Mobile Tavern 当前是纯移动端的 SillyTavern 兼容运行容器，目标态是本地优先、多模态、可组合的移动端
-Agent Host；SillyTavern 能力将迁移为可关闭的内置 Compatibility Runtime Plugin。移动端位于 `src/`
-与 `src-tauri/`，云端服务位于 `cloud/`，共享契约位于 `shared/`。Kernel 始终只是通用运行时机制，
-Agent、聊天、媒体和兼容能力都不属于 Kernel。目标架构与分阶段路线见
+Mobile Tavern 当前是本地优先、多模态、可组合的移动端 Agent Host，默认 Tavern Profile 继续提供
+SillyTavern 兼容体验，Base Profile 可以关闭兼容插件；SillyTavern 能力由可关闭的内置 Compatibility
+Runtime Plugin 承载。移动端位于 `src/` 与 `src-tauri/`，云端服务位于 `cloud/`，共享契约位于
+`shared/`。Kernel 始终只是通用运行时机制，Agent、聊天、媒体和兼容能力都不属于 Kernel。目标架构与分阶段路线见
 [插件式 Agent Runtime 与聊天组合路线](agent_plugin_runtime_roadmap.md)。
 
 ## 二、阅读决策
