@@ -1,4 +1,4 @@
-import type { IKernelService } from "../kernel/types";
+import type { EffectDisposer, IKernelService } from "../kernel/types";
 export * from "../kernel/types";
 
 import type {
@@ -6,6 +6,24 @@ import type {
   PromptCompositionTrace,
 } from "../domain/prompt-composition";
 import type { LocalResourceMetadata } from "../domain/resources/types";
+import type {
+  AttachmentMetadata,
+  AttachmentBackupRecord,
+  AttachmentReference,
+} from "../domain/attachments/types";
+import type {
+  AgentDriverDefinition,
+  AgentHandle,
+  AgentJournalEvent,
+  AgentCompositionSnapshot,
+  AgentMediaProcessorDefinition,
+  AgentProviderDefinition,
+  AgentToolDefinition,
+  AgentTurnExecutionContext,
+} from "../domain/agents/contracts";
+export type { ICompatibilityRuntimeService } from "./compatibility/contracts";
+export type { IRuntimeProfileService } from "./runtimeProfiles/contracts";
+import type { MessageContentPart } from "../domain/messages/messageContent";
 import type {
   ThemeInteractionConfig,
   ThemeInteractionEventType,
@@ -37,7 +55,58 @@ export const KernelServices = {
   DataMigration: "dataMigration",
   LocalResources: "localResources",
   ThemeInteractions: "themeInteractions",
+  Attachments: "attachments",
+  AgentRuntime: "agentRuntime",
+  CompatibilityRuntime: "compatibilityRuntime",
+  RuntimeProfiles: "runtimeProfiles",
 } as const;
+
+export interface IAgentRuntimeService extends IKernelService {
+  registerDriver(definition: AgentDriverDefinition): EffectDisposer;
+  registerProvider(definition: AgentProviderDefinition): EffectDisposer;
+  registerTool(definition: AgentToolDefinition): EffectDisposer;
+  registerMediaProcessor(definition: AgentMediaProcessorDefinition): EffectDisposer;
+  listDrivers(): AgentDriverDefinition[];
+  listProviders(): AgentProviderDefinition[];
+  listTools(): AgentToolDefinition[];
+  listMediaProcessors(): AgentMediaProcessorDefinition[];
+  getProvider(providerId: string): AgentProviderDefinition;
+  openHandle(options: {
+    sessionId: string;
+    driverId: string;
+    providerId: string;
+    executeLegacy: (context: AgentTurnExecutionContext) => Promise<void>;
+    grantedPermissions: readonly string[];
+  }): AgentHandle;
+  getDiagnostics(): {
+    drivers: ReadonlyArray<{ id: string; version: string }>;
+    providers: ReadonlyArray<{ id: string; version: string }>;
+    tools: ReadonlyArray<{ name: string; version: string }>;
+    mediaProcessors: ReadonlyArray<{ id: string; version: string }>;
+    activeHandles: number;
+  };
+  listJournalBySession(sessionId: string): Promise<AgentJournalEvent[]>;
+  replaceJournal(events: readonly AgentJournalEvent[]): Promise<void>;
+  deleteJournalBySession(sessionId: string): Promise<void>;
+  bindComposition(snapshot: AgentCompositionSnapshot): EffectDisposer;
+  getCompositionSnapshot(): AgentCompositionSnapshot | null;
+}
+
+export interface IAttachmentService extends IKernelService {
+  stageFile(file: File): Promise<AttachmentMetadata>;
+  listAttachments(): Promise<AttachmentMetadata[]>;
+  getMetadata(id: string): Promise<AttachmentMetadata | null>;
+  getBlob(id: string): Promise<Blob>;
+  getObjectUrl(id: string): Promise<string>;
+  reconcileReferences(references: readonly AttachmentReference[]): Promise<void>;
+  patchReferences(
+    references: readonly AttachmentReference[],
+    removedReferenceIds?: readonly string[],
+  ): Promise<void>;
+  collectGarbage(cutoffTime: number): Promise<string[]>;
+  exportAttachments(assetIds?: readonly string[]): Promise<AttachmentBackupRecord[]>;
+  replaceAttachments(records: readonly AttachmentBackupRecord[]): Promise<void>;
+}
 
 
 export interface StreamChunk {
@@ -54,9 +123,23 @@ export interface StreamChunk {
     delta?: {
       content?: string;
       reasoning_content?: string;
+      tool_calls?: Array<{
+        index?: number;
+        id?: string;
+        type?: string;
+        function?: { name?: string; arguments?: string };
+      }>;
     };
     /** 非流式响应中的完整消息（部分 provider 在首 chunk 返回） */
-    message?: { content?: string };
+    message?: {
+      content?: string;
+      tool_calls?: Array<{
+        index?: number;
+        id?: string;
+        type?: string;
+        function?: { name?: string; arguments?: string };
+      }>;
+    };
     /** 部分 provider（如 Anthropic 兼容层）用 text 而非 delta.content */
     text?: string;
     /** 完成原因：stop / length / content_filter 等 */
@@ -347,7 +430,11 @@ export interface IScriptService<TCharacter = unknown, TSession = unknown> extend
  *   `class MultiMessageService implements IMultiMessageService<ChatSession>`
  */
 export interface IMultiMessageService<TSession = unknown> extends IKernelService {
-  queueUserMessage(session: TSession, text: string): Promise<TSession>;
+  queueUserMessage(
+    session: TSession,
+    text: string,
+    additionalParts?: readonly MessageContentPart[],
+  ): Promise<TSession>;
 }
 
 export interface UpdateInfo {
@@ -518,6 +605,12 @@ export interface IAsrService extends IKernelService {
   ): Promise<void>;
   stopListening(): void;
   cancelListening(): void;
+  transcribeFile(
+    blob: Blob,
+    fileName: string,
+    config: AsrConfig,
+    signal?: AbortSignal,
+  ): Promise<string>;
 }
 
 /**

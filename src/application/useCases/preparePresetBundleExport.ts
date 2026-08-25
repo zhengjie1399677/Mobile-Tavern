@@ -4,12 +4,13 @@ import type {
   SamplerPreset,
 } from "../../types";
 import type { CompatibilityReport } from "../../domain/prompt-composition";
-import { exportSillyTavernComposition } from "../../infrastructure/compat/sillytavern";
+import type { CompatibilityCodecDefinition } from "../compatibility/contracts";
 
 export interface PreparePresetBundleExportOptions {
   preset: SamplerPreset;
   promptConfig: PromptConfig;
   presetRegexScripts?: RegexScript[];
+  compatibilityCodec?: CompatibilityCodecDefinition | null;
 }
 
 export interface PreparedPresetBundleExport {
@@ -22,8 +23,11 @@ export function preparePresetBundleExport(
   options: PreparePresetBundleExportOptions,
 ): PreparedPresetBundleExport {
   const { preset, promptConfig } = options;
+  const requiresCompatibilityCodec = Boolean(
+    promptConfig.usePromptComposition && promptConfig.composition,
+  );
   const compositionExport = promptConfig.usePromptComposition && promptConfig.composition
-    ? exportSillyTavernComposition(promptConfig.composition)
+    ? parseCodecExport(options.compatibilityCodec?.encode(promptConfig.composition))
     : undefined;
   const traditionalPrompts = promptConfig.customPrompts ?? [];
   const promptData = compositionExport?.data ?? {
@@ -71,6 +75,44 @@ export function preparePresetBundleExport(
         regex_scripts: options.presetRegexScripts ?? [],
       },
     },
-    report: compositionExport?.report ?? { warnings: [], errors: [] },
+    report: compositionExport?.report ?? (requiresCompatibilityCodec
+      ? {
+          warnings: [],
+          errors: [{
+            level: "error",
+            code: "COMPATIBILITY_CODEC_UNAVAILABLE",
+            message: "当前 Profile 未启用 SillyTavern 兼容 Codec，不能导出自由编排。",
+          }],
+        }
+      : { warnings: [], errors: [] }),
+  };
+}
+
+function parseCodecExport(value: unknown): {
+  data: Record<string, unknown>;
+  report: CompatibilityReport;
+} | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("COMPATIBILITY_CODEC_INVALID_EXPORT_RESULT");
+  }
+  const result = value as Record<string, unknown>;
+  if (
+    !result.data
+    || typeof result.data !== "object"
+    || Array.isArray(result.data)
+    || !result.report
+    || typeof result.report !== "object"
+    || Array.isArray(result.report)
+  ) {
+    throw new Error("COMPATIBILITY_CODEC_INVALID_EXPORT_RESULT");
+  }
+  const report = result.report as Record<string, unknown>;
+  if (!Array.isArray(report.warnings) || !Array.isArray(report.errors)) {
+    throw new Error("COMPATIBILITY_CODEC_INVALID_EXPORT_RESULT");
+  }
+  return {
+    data: result.data as Record<string, unknown>,
+    report: report as unknown as CompatibilityReport,
   };
 }

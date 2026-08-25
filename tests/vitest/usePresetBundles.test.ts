@@ -1,20 +1,27 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ChangeEvent } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { CompatibilityCodecDefinition } from "../../src/application/compatibility/contracts";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import type { SavedPresetBundle, UserSettings } from "../../src/types";
+import { testSillyTavernCompatibilityCodec } from "../fixtures/sillyTavernCompatibilityCodec";
 
 const mocks = vi.hoisted(() => ({
   saveStoredSavedPresets: vi.fn(async (_bundles: SavedPresetBundle[]): Promise<void> => undefined),
   getStoredSavedPresets: vi.fn(async (): Promise<SavedPresetBundle[]> => []),
+  compatibilityCodec: undefined as CompatibilityCodecDefinition | undefined,
 }));
 
 vi.mock("../../src/contexts/KernelContext", () => ({
   useKernel: () => ({
-    getService: () => ({
-      saveStoredSavedPresets: mocks.saveStoredSavedPresets,
-      getStoredSavedPresets: mocks.getStoredSavedPresets,
-    }),
+    hasService: (serviceId: string) => serviceId === "compatibilityRuntime"
+      && mocks.compatibilityCodec !== undefined,
+    getService: (serviceId: string) => serviceId === "compatibilityRuntime"
+      ? { getCodec: () => mocks.compatibilityCodec ?? null }
+      : {
+          saveStoredSavedPresets: mocks.saveStoredSavedPresets,
+          getStoredSavedPresets: mocks.getStoredSavedPresets,
+        },
   }),
 }));
 
@@ -34,6 +41,7 @@ describe("usePresetBundles 预设导入", () => {
     expect(bundled?.isBuiltin).toBe(true);
   });
   beforeEach(() => {
+    mocks.compatibilityCodec = testSillyTavernCompatibilityCodec;
     mocks.saveStoredSavedPresets.mockClear();
     mocks.getStoredSavedPresets.mockClear();
     mocks.getStoredSavedPresets.mockResolvedValue(
@@ -136,6 +144,44 @@ describe("usePresetBundles 预设导入", () => {
     // 规划属于预设：即使取消启用自由编排，编排快照仍随预设包保存，开关记为关闭。
     expect(storedBundle.composition).toBeDefined();
     expect(storedBundle.usePromptComposition).toBe(false);
+  });
+
+  it("base Profile 未装载兼容 Codec 时只导入通用字段并给出降级报告", async () => {
+    mocks.compatibilityCodec = undefined;
+    let latestSettings = structuredClone(DEFAULT_SETTINGS);
+    const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
+      latestSettings = typeof next === "function" ? next(latestSettings) : next;
+    });
+    const showCustomAlert = vi.fn(async () => undefined);
+    const { result } = renderHook(() => usePresetBundles({
+      settings: latestSettings,
+      updateSettings,
+      showCustomAlert,
+      showCustomPrompt: vi.fn(async () => null),
+      showCustomConfirm: vi.fn(async () => true),
+    }));
+    const input = {
+      files: [new File([JSON.stringify({
+        name: "base Profile 导入",
+        temperature: 0.42,
+        prompts: [{ identifier: "main", name: "主 Prompt", content: "内容" }],
+        prompt_order: [{ character_id: 100001, order: [{ identifier: "main", enabled: true }] }],
+      })], "preset.json", { type: "application/json" })],
+      value: "preset.json",
+    };
+
+    act(() => result.current.handleImportPresetJSON({
+      target: input,
+    } as unknown as ChangeEvent<HTMLInputElement>));
+
+    await waitFor(() => expect(mocks.saveStoredSavedPresets).toHaveBeenCalledTimes(1));
+    const storedBundles = mocks.saveStoredSavedPresets.mock.calls[0][0];
+    const storedBundle = storedBundles[storedBundles.length - 1];
+    expect(storedBundle.preset.temperature).toBe(0.42);
+    expect(storedBundle.composition).toBeUndefined();
+    expect(showCustomAlert).toHaveBeenCalledWith(
+      expect.stringContaining("当前 Profile 未启用 SillyTavern 兼容 Codec"),
+    );
   });
 
   it("确认启用自由编排时，预设包携带编排快照并整体激活", async () => {

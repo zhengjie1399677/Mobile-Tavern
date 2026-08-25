@@ -13,6 +13,8 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import { useOptionalKernel } from "../../contexts/KernelContext";
+import { getCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import ChatInputArea from "./ChatInputArea";
 import MessageBubble from "./MessageBubble";
 
@@ -45,6 +47,7 @@ const DialogueHistoryView = ({
   copiedReasoningIds,
   setCopiedReasoningIds,
 }: DialogueHistoryViewProps) => {
+  const kernel = useOptionalKernel();
   const {
     activeCharacter,
     activeSession,
@@ -81,7 +84,7 @@ const DialogueHistoryView = ({
   // 若直接驱动 visibleMessages.map 渲染会阻塞用户滚动等高优先级交互。
   // useDeferredValue 让 React 把"消息列表变化"降级为低优先级更新，
   // 高优先级更新（滚动、点击、输入）能立即响应，流式文本延迟到下次空闲帧合并提交。
-  // 注意：isStreamingThisMsg 判断走 window.TavernHelperStreamingMessageId（同步读取），
+  // 注意：isStreamingThisMsg 判断走可选 Compatibility Host 的同步生成状态，
   // 不依赖此处的 deferred 值，流式渲染判断逻辑不受影响。
   const messagesToRender = React.useDeferredValue(rawMessages);
 
@@ -223,10 +226,7 @@ const DialogueHistoryView = ({
             // 预计算 isStreamingThisMsg：只有流式中的消息和末位消息会变，
             // 其余消息此值为 false 且不随 isSending/messagesToRenderLength 变化而变化，
             // 配合 React.memo 可跳过绝大多数 MessageBubble 的重渲染。
-            const streamingId = typeof window !== "undefined"
-              ? (window as unknown as { TavernHelperStreamingMessageId?: string | undefined })
-                  .TavernHelperStreamingMessageId
-              : undefined;
+            const streamingId = getCompatibilityGenerationState(kernel).streamingMessageId;
             const isStreamingThisMsg = streamingId
               ? streamingId === message.id
               : isSending && vi.index === messagesToRender.length - 1;

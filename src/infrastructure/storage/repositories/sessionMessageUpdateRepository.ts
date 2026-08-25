@@ -13,6 +13,7 @@ import { getDB } from "../idbConnection";
 import { bindTransactionAbort, enqueueWrite } from "../idbQueue";
 import {
   fromStoredMessageRecord,
+  getStoredMessageText,
   toStoredMessageRecord,
   type StoredChatMessageRecord,
 } from "../messageRecord";
@@ -127,8 +128,10 @@ export function updateSessionMessage(
             ...message,
             extra: mergedMetadata,
             metadata: mergedMetadata,
-            tags: existing.content === message.content ? existing.tags : [],
-            extractSource: existing.content === message.content ? existing.extractSource : "none",
+            tags: getStoredMessageText(existing) === message.content ? existing.tags : [],
+            extractSource: getStoredMessageText(existing) === message.content
+              ? existing.extractSource
+              : "none",
           },
           existing.turnIndex,
         );
@@ -164,7 +167,10 @@ export function updateSessionMessage(
           messageCount,
           userMessageCount,
           turnCount: deriveTurnCount(messageCount, userMessageCount),
-          charCount: nextRecords.reduce((total, record) => total + record.content.length, 0),
+          charCount: nextRecords.reduce(
+            (total, record) => total + getStoredMessageText(record).length,
+            0,
+          ),
         };
         sessionsStore.put(nextRecord);
         result = fromSessionStorageRecord(nextRecord);

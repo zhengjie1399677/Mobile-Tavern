@@ -1,6 +1,7 @@
 import { lazy } from "react";
 import {
   KernelServices,
+  type EffectDisposer,
   type IKernel,
   type ISettingsService,
 } from "@/src/application/serviceContracts";
@@ -18,17 +19,49 @@ const SettingsTab = lazy(() => import("../tabs/SettingsTab"));
 const PlaygroundTab = lazy(() => import("../tabs/PlaygroundTab"));
 
 /** 应用层组合根：将 React 页面注册到主界面 Tab 扩展点。 */
-export async function registerMainTabExtensions(kernel: IKernel): Promise<void> {
-  kernel.registerExtension({ id: "characters", targetPoint: "main:tabs", priority: 100, value: CharactersTab, meta: { name: "角色", icon: "VenetianMask", showInBottomBar: true } });
-  const settingsService = kernel.getService<ISettingsService<UserSettings, UsageMetrics>>(
-    KernelServices.Settings,
-  );
-  if (await shouldShowCommunityEntry(settingsService)) {
-    kernel.registerExtension({ id: "community", targetPoint: "main:tabs", priority: 95, value: CommunityTab, meta: { name: "社区", icon: "Users", showInBottomBar: true } });
+export async function registerMainTabExtensions(kernel: IKernel): Promise<EffectDisposer> {
+  const disposers: EffectDisposer[] = [];
+  const register = (extension: Parameters<IKernel["registerExtension"]>[0]): void => {
+    disposers.push(kernel.registerExtension(extension));
+  };
+  const disposeAll = async (): Promise<void> => {
+    const errors: unknown[] = [];
+    for (let index = disposers.length - 1; index >= 0; index--) {
+      try {
+        await disposers[index]();
+      } catch (error: unknown) {
+        errors.push(error);
+      }
+    }
+    if (errors.length > 0) throw new AggregateError(errors, "MAIN_TAB_EXTENSIONS_DISPOSE_FAILED");
+  };
+
+  try {
+    register({ id: "characters", targetPoint: "main:tabs", priority: 100, value: CharactersTab, meta: { name: "角色", icon: "VenetianMask", showInBottomBar: true } });
+    const settingsService = kernel.getService<ISettingsService<UserSettings, UsageMetrics>>(
+      KernelServices.Settings,
+    );
+    if (await shouldShowCommunityEntry(settingsService)) {
+      register({ id: "community", targetPoint: "main:tabs", priority: 95, value: CommunityTab, meta: { name: "社区", icon: "Users", showInBottomBar: true } });
+    }
+    register({ id: "chat-history", targetPoint: "main:tabs", priority: 90, value: ChatHistoryTab, meta: { name: "历史对话", icon: "MessageSquare", showInBottomBar: true, highlightOnActiveTabs: ["chat-history", "chat"] } });
+    register({ id: "chat", targetPoint: "main:tabs", priority: 80, value: ChatTab, meta: { name: "对话", showInBottomBar: false } });
+    register({ id: "global-worldbook", targetPoint: "main:tabs", priority: 70, value: GlobalWorldbookTab, meta: { name: "世界书", icon: "Book", showInBottomBar: true } });
+    register({ id: "settings", targetPoint: "main:tabs", priority: 60, value: SettingsTab, meta: { name: "设置", icon: "Settings", showInBottomBar: true } });
+    register({ id: "playground", targetPoint: "main:tabs", priority: 50, value: PlaygroundTab, meta: { name: "沙盒", showInBottomBar: false } });
+  } catch (error: unknown) {
+    try {
+      await disposeAll();
+    } catch (cleanupError: unknown) {
+      throw new AggregateError([error, cleanupError], "MAIN_TAB_EXTENSIONS_REGISTER_FAILED");
+    }
+    throw error;
   }
-  kernel.registerExtension({ id: "chat-history", targetPoint: "main:tabs", priority: 90, value: ChatHistoryTab, meta: { name: "历史对话", icon: "MessageSquare", showInBottomBar: true, highlightOnActiveTabs: ["chat-history", "chat"] } });
-  kernel.registerExtension({ id: "chat", targetPoint: "main:tabs", priority: 80, value: ChatTab, meta: { name: "对话", showInBottomBar: false } });
-  kernel.registerExtension({ id: "global-worldbook", targetPoint: "main:tabs", priority: 70, value: GlobalWorldbookTab, meta: { name: "世界书", icon: "Book", showInBottomBar: true } });
-  kernel.registerExtension({ id: "settings", targetPoint: "main:tabs", priority: 60, value: SettingsTab, meta: { name: "设置", icon: "Settings", showInBottomBar: true } });
-  kernel.registerExtension({ id: "playground", targetPoint: "main:tabs", priority: 50, value: PlaygroundTab, meta: { name: "沙盒", showInBottomBar: false } });
+
+  let active = true;
+  return async () => {
+    if (!active) return;
+    active = false;
+    await disposeAll();
+  };
 }

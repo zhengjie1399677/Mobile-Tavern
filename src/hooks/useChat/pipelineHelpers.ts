@@ -8,11 +8,20 @@
  */
 import React from "react";
 import { ChatSession, UserSettings, CharacterCard } from "../../types";
-import { IDatabaseService, IKernel, KernelServices } from "@/src/application/serviceContracts";
-import type { OutputPipelineContext } from "../../application/pipeline";
+import {
+  IDatabaseService,
+  IKernel,
+  KernelServices,
+  type ICompatibilityRuntimeService,
+} from "@/src/application/serviceContracts";
+import {
+  bisonModeMiddleware,
+  mvuScriptMiddleware,
+  tableMemoryMiddleware,
+  type OutputPipelineContext,
+} from "../../application/pipeline";
 import { buildOutputContext } from "./helpers/streamHelpers";
 import { cleanSuggestionsFromText } from "./helpers/textParsing";
-import { notifyVariablesUpdated } from "../../compatibility/sillytavern";
 import { Logger } from "../../utils/logger";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
@@ -87,14 +96,17 @@ export async function runOutputPipelineAndSave(params: {
   //   3. 自动总结明确关闭；UI 只持有分页窗口，不能据此估算未总结消息数
   //   4. output 管道仅注册了标准 3 个中间件（无自定义插件中间件）
   // 任一条件不满足则回退到完整管道执行，确保零行为差异。
-  const pipeline = kernel.getPipeline("output");
-  const STANDARD_OUTPUT_MIDDLEWARE_COUNT = 3;
+  const pipeline = kernel.getPipeline<OutputPipelineContext>("output");
   const allFeaturesDisabled =
     !settings.enableTableMemory &&
     !settings.enableScriptExecution &&
     !settings.enableBisonMode &&
     settings.memory?.enableAutoSummary === false;
-  const hasStandardPipeline = pipeline.list().length === STANDARD_OUTPUT_MIDDLEWARE_COUNT;
+  const hasStandardPipeline = pipeline.matches([
+    tableMemoryMiddleware,
+    mvuScriptMiddleware,
+    bisonModeMiddleware,
+  ]);
 
   let bypassed = false;
   if (allFeaturesDisabled && !isBisonConsecutive && hasStandardPipeline) {
@@ -154,7 +166,8 @@ export async function runOutputPipelineAndSave(params: {
     await databaseService.commitSessionTurn(
       parsedSession.id,
       {
-        variables: parsedSession.variables,
+        variables: undefined,
+        runtimePluginState: parsedSession.runtimePluginState,
         tableMemory: parsedSession.tableMemory,
         pinnedMessageIds: parsedSession.pinnedMessageIds,
         mutedMessageIds: parsedSession.mutedMessageIds,
@@ -253,7 +266,14 @@ export async function runOutputPipelineAndSave(params: {
     prev.map((s) => (s.id === parsedSession.id ? parsedSession : s))
   );
   try {
-    notifyVariablesUpdated(parsedSession);
+    if (
+      typeof kernel.hasService === "function"
+      && kernel.hasService(KernelServices.CompatibilityRuntime)
+    ) {
+      kernel
+        .getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+        .notifyStateChanged(parsedSession);
+    }
   } catch (e) {
     log.warn("Failed to notifyVariablesUpdated", { error: e });
   }

@@ -11,6 +11,7 @@ import {
 import { getDB } from "./idbConnection";
 import { deriveTurnCount, toSessionStorageRecord } from "./sessionRecord";
 import {
+  getStoredMessageText,
   normalizeStoredMessageRole,
   toStoredMessageRecord,
   type PersistableMessage,
@@ -480,7 +481,7 @@ export async function replaceSessionBranch(
               } else {
                 retainedMessageCount++;
                 if (record.role === "user") retainedUserMessageCount++;
-                retainedCharCount += record.content?.length ?? 0;
+                retainedCharCount += getStoredMessageText(record).length;
               }
               cursor.continue();
               return;

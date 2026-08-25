@@ -1,10 +1,42 @@
 import { describe, expect, it } from "vitest";
-import { preparePresetBundleExport } from "../../src/application/useCases/preparePresetBundleExport";
-import { preparePresetBundleImport } from "../../src/application/useCases/preparePresetBundleImport";
+import {
+  preparePresetBundleExport as preparePresetBundleExportCore,
+  type PreparePresetBundleExportOptions,
+} from "../../src/application/useCases/preparePresetBundleExport";
+import {
+  preparePresetBundleImport as preparePresetBundleImportCore,
+  type PreparePresetBundleImportOptions,
+} from "../../src/application/useCases/preparePresetBundleImport";
+import { testSillyTavernCompatibilityCodec } from "../fixtures/sillyTavernCompatibilityCodec";
 import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import { SILLY_TAVERN_PRESET_ARCHETYPES } from "../fixtures/sillyTavernPresetArchetypes";
 
+const preparePresetBundleImport = (options: PreparePresetBundleImportOptions) =>
+  preparePresetBundleImportCore({ ...options, compatibilityCodec: testSillyTavernCompatibilityCodec });
+const preparePresetBundleExport = (options: PreparePresetBundleExportOptions) =>
+  preparePresetBundleExportCore({ ...options, compatibilityCodec: testSillyTavernCompatibilityCodec });
+
 describe("preparePresetBundleExport", () => {
+  it("base Profile 未提供 Codec 时拒绝静默丢弃自由编排", () => {
+    const result = preparePresetBundleExportCore({
+      preset: DEFAULT_SETTINGS.preset,
+      promptConfig: {
+        ...DEFAULT_PROMPT_CONFIG,
+        usePromptComposition: true,
+        composition: {
+          id: "base-no-codec",
+          name: "无 Codec",
+          version: 1,
+          blocks: [],
+        },
+      },
+    });
+
+    expect(result.report.errors).toContainEqual(expect.objectContaining({
+      code: "COMPATIBILITY_CODEC_UNAVAILABLE",
+    }));
+  });
+
   it("自由编排正式导出保留顺序、注入、请求整形和安全正则", () => {
     const fixture = getFixture("universal-light-current");
     const imported = preparePresetBundleImport({

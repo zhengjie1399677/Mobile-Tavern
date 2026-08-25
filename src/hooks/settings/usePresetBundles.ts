@@ -3,6 +3,10 @@ import type { SavedPresetBundle, UserSettings } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import type { IPresetService } from "@/src/application/serviceContracts";
 import {
+  getCompatibilityCodec,
+  SILLY_TAVERN_PROMPT_PRESET_FORMAT,
+} from "../../application/useCases/compatibilityGenerationState";
+import {
   formatPresetOperationReport,
   formatSillyTavernCompatibilityAnalysis,
   preparePresetBundleImport,
@@ -56,6 +60,10 @@ export const usePresetBundles = ({
 }: UsePresetBundlesDeps): UsePresetBundlesReturn => {
   const kernel = useKernel();
   const presetService = kernel.getService<IPresetService<SavedPresetBundle>>("preset");
+  const compatibilityCodec = getCompatibilityCodec(
+    kernel,
+    SILLY_TAVERN_PROMPT_PRESET_FORMAT,
+  );
 
   const handleImportPresetJSON = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -69,6 +77,7 @@ export const usePresetBundles = ({
           input: parsed,
           fallbackName: file.name.replace(/\.json$/i, ""),
           currentPromptConfig: settings.promptConfig,
+          compatibilityCodec,
         });
         const importedComposition = prepared.composition;
         const importReportText = formatPresetOperationReport(prepared.report);
@@ -119,13 +128,14 @@ export const usePresetBundles = ({
       }
     };
     reader.readAsText(file);
-  }, [settings.promptConfig, updateSettings, showCustomAlert, showCustomConfirm, presetService]);
+  }, [settings.promptConfig, updateSettings, showCustomAlert, showCustomConfirm, presetService, compatibilityCodec]);
 
   const handleExportPresetJSON = useCallback(() => {
     const prepared = preparePresetBundleExport({
       preset: settings.preset,
       promptConfig: settings.promptConfig,
       presetRegexScripts: settings.presetRegexScripts,
+      compatibilityCodec,
     });
     const reportText = formatPresetOperationReport(prepared.report, "导出");
     if (prepared.report.errors.length > 0) {
@@ -153,7 +163,7 @@ export const usePresetBundles = ({
     downloadAnchor.click();
     downloadAnchor.remove();
     showCustomAlert(`📂 预设配置导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}${reportText ? `\n\n${reportText}` : ""}`);
-  }, [settings, showCustomAlert]);
+  }, [settings, showCustomAlert, compatibilityCodec]);
 
   const handleSaveNewPresetBundle = useCallback(async () => {
     const name = await showCustomPrompt(

@@ -7,6 +7,13 @@
 > 修改代码或架构时继续阅读[架构工作入口](docs/agents/architecture_entry.md)，再按任务命中的路线读取专项文档。
 > 未命中的专项文档、`TECHNICAL.md`、历史归档和排障手册均不属于默认阅读包。
 
+## 产品当前态与目标态
+
+- 当前产品仍是纯移动端的 SillyTavern 兼容运行容器，现有数据、行为和兼容能力必须按 `CHANGE-SAFE` 平滑迁移。
+- 目标产品是本地优先、多模态、可组合的移动端 Agent Host；SillyTavern 能力将降级为可关闭的内置 Compatibility Runtime Plugin。
+- 目标架构不得被解释为把 Agent、聊天、媒体或兼容业务移入 Kernel，也不得把受信 Runtime Plugin 与用户安装的 `.mtplugin` 沙箱合并。
+- 分阶段边界、聊天组合方式和完成条件以[插件式 Agent Runtime 与聊天组合路线](docs/agents/agent_plugin_runtime_roadmap.md)为准；尚未完成的目标不能提前覆盖当前代码边界。
+
 ## 一、规则效力与阅读协议
 
 - 本文件高于仓库内其他开发说明；专项文档负责解释细节，不得放宽本文件。
@@ -18,7 +25,7 @@
 
 ### `ARCH-KERNEL`：Kernel 只能包含通用机制
 
-- `src/kernel/` 只允许容器、生命周期、Pipeline、消息总线、扩展注册、运行时契约及通用校验。
+- `src/kernel/` 只允许容器、生命周期、父子 Scope、可撤销 Effect、Pipeline、消息总线、扩展注册、运行时契约及通用校验。
 - 角色、会话、Prompt、记忆、存储、LLM、TTS、ASR、插件、遥测、页面流程和平台调用均属于业务或适配代码，严禁进入 Kernel。
 - Kernel 不得导入 `application`、`domain`、`infrastructure`、React UI 或业务默认数据；“由 Kernel 托管”不代表“属于 Kernel”。
 - 应用服务和装配进入 `src/application/`，纯领域规则进入 `src/domain/`，外部系统和物理存储进入 `src/infrastructure/`。

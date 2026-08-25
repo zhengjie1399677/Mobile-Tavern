@@ -8,7 +8,10 @@ import {
   stripLegacySessionMessages,
   type SessionStorageRecord,
 } from "../sessionRecord";
-import type { StoredChatMessageRecord } from "../messageRecord";
+import {
+  getStoredMessageText,
+  type StoredChatMessageRecord,
+} from "../messageRecord";
 
 /**
  * 原子删除单条会话消息并清理所有可能引用该消息之后状态的派生记忆。
@@ -109,7 +112,7 @@ export function deleteSessionMessage(
           messageCount: nextMessageCount,
           userMessageCount: nextUserMessageCount,
           turnCount: deriveTurnCount(nextMessageCount, nextUserMessageCount),
-          charCount: Math.max(0, charCount - target.content.length),
+          charCount: Math.max(0, charCount - getStoredMessageText(target).length),
         };
         messagesStore.delete(messageId);
         sessionsStore.put(nextRecord);
@@ -200,7 +203,7 @@ export function deleteSessionMessage(
             const record = cursor.value as StoredChatMessageRecord;
             messageCount++;
             if (record.role === "user") userMessageCount++;
-            charCount += record.content?.length ?? 0;
+            charCount += getStoredMessageText(record).length;
             cursor.continue();
             return;
           }

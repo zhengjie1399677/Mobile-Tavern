@@ -7,6 +7,8 @@ import {
 } from "../../src/domain/chat/sessionStateSnapshot";
 import type { Message, TableMemorySheet } from "../../src/types";
 
+const COMPATIBILITY_PLUGIN_ID = "mobile-tavern.sillytavern-compat";
+
 const message: Message = {
   id: "assistant-1",
   sender: "assistant",
@@ -24,17 +26,20 @@ const tableMemory: TableMemorySheet[] = [{
 }];
 
 describe("会话状态快照", () => {
-  it("助手消息保存完整变量与状态表，读取结果与源对象相互隔离", () => {
+  it("助手消息保存插件命名空间与状态表，读取结果与源对象相互隔离", () => {
     const variables = { affection: 7, nested: { stage: "friend" } };
-    const attached = attachSessionStateSnapshot(message, { variables, tableMemory });
+    const runtimePluginState = { [COMPATIBILITY_PLUGIN_ID]: variables };
+    const attached = attachSessionStateSnapshot(message, { runtimePluginState, tableMemory });
     variables.nested.stage = "changed";
     tableMemory[0].rows[0][1] = "99";
 
     const snapshot = readSessionStateSnapshot(attached);
     expect(attached.extra?.preserved).toBe(true);
     expect(snapshot).toEqual({
-      version: 1,
-      variables: { affection: 7, nested: { stage: "friend" } },
+      version: 2,
+      runtimePluginState: {
+        [COMPATIBILITY_PLUGIN_ID]: { affection: 7, nested: { stage: "friend" } },
+      },
       tableMemory: [{
         id: "sheet-1",
         name: "状态",
@@ -44,14 +49,26 @@ describe("会话状态快照", () => {
       }],
     });
 
-    if (snapshot?.variables) snapshot.variables.affection = 100;
-    expect(readSessionStateSnapshot(attached)?.variables?.affection).toBe(7);
+    if (snapshot?.version === 2 && snapshot.runtimePluginState) {
+      (snapshot.runtimePluginState[COMPATIBILITY_PLUGIN_ID] as Record<string, unknown>).affection = 100;
+    }
+    const reread = readSessionStateSnapshot(attached);
+    expect(reread?.version === 2
+      ? (reread.runtimePluginState?.[COMPATIBILITY_PLUGIN_ID] as Record<string, unknown>)?.affection
+      : undefined).toBe(7);
   });
 
   it("从后向前选择最近快照，并兼容旧 MVU swipe 变量", () => {
-    const older = attachSessionStateSnapshot(message, { variables: { stage: 1 } });
-    const newer = attachSessionStateSnapshot({ ...message, id: "assistant-2" }, { variables: { stage: 2 } });
-    expect(findSessionStateSnapshot([older, newer])?.variables).toEqual({ stage: 2 });
+    const older = attachSessionStateSnapshot(message, {
+      runtimePluginState: { [COMPATIBILITY_PLUGIN_ID]: { stage: 1 } },
+    });
+    const newer = attachSessionStateSnapshot({ ...message, id: "assistant-2" }, {
+      runtimePluginState: { [COMPATIBILITY_PLUGIN_ID]: { stage: 2 } },
+    });
+    const latest = findSessionStateSnapshot([older, newer]);
+    expect(latest?.version === 2
+      ? latest.runtimePluginState?.[COMPATIBILITY_PLUGIN_ID]
+      : undefined).toEqual({ stage: 2 });
 
     const legacy: Message = {
       ...message,

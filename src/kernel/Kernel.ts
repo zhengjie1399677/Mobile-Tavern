@@ -1,4 +1,12 @@
-import { IKernel, IKernelService, IPipeline, IExtension, IMessage, type KernelValidationMode } from "./types";
+import {
+  IKernel,
+  IKernelService,
+  IPipeline,
+  IExtension,
+  IMessage,
+  type EffectDisposer,
+  type KernelValidationMode,
+} from "./types";
 import {
   SAFE_PROXY_SYMBOL,
   validateKernelMessage,
@@ -201,7 +209,7 @@ export class Kernel implements IKernel {
    * @param service 服务实例
    * @param initTimeoutMs 初始化超时阈值（毫秒）
    */
-  async registerService(name: string, service: IKernelService, initTimeoutMs?: number): Promise<void> {
+  async registerService(name: string, service: IKernelService, initTimeoutMs?: number): Promise<EffectDisposer> {
     this.validateServiceAtRegistration(name, service);
     if (this.services.has(name)) {
       logger.warn("Service is already registered. Destroying existing instance before overwriting", { service: name });
@@ -244,6 +252,14 @@ export class Kernel implements IKernel {
       const initTime = Date.now() - startTime;
       this.serviceMetadata.set(name, { state: "ready", initTime });
       logger.info("Service registered and initialized successfully", { service: name, initTimeMs: initTime });
+      let active = true;
+      return async () => {
+        if (!active) return;
+        active = false;
+        // 旧 Scope 的 disposer 不能销毁同名的后注册替代服务。
+        if (this.services.get(name) !== service) return;
+        await this.destroyService(name);
+      };
     } catch (err: unknown) {
       if (timeoutId) clearTimeout(timeoutId);
       controller.abort(); // 若初始化异常，立刻触发 abort 中止内部已经拉起但未释放的临时状态
@@ -255,6 +271,7 @@ export class Kernel implements IKernel {
       if (service.isCritical || isTimeout) {
         throw new Error(`[Kernel] Fatal: ${isTimeout ? "Timeout" : "Critical"} service "${name}" failed to initialize: ${getErrorMessage(err) || err}`);
       }
+      return () => undefined;
     } finally {
       this.activeControllers.delete(controller);
     }
@@ -266,7 +283,7 @@ export class Kernel implements IKernel {
    */
   async registerServiceBatch(
     entries: Array<{ name: string; service: IKernelService; initTimeoutMs?: number }>
-  ): Promise<void> {
+  ): Promise<EffectDisposer> {
     const nameSet = new Set(entries.map(e => e.name));
     const inDegree = new Map<string, number>();
     // graph: dep → dependents (节点 dep 必须先于 dependent 注册初始化)
@@ -327,28 +344,53 @@ export class Kernel implements IKernel {
     // 按计算出来的安全拓扑顺序依次串行注册并初始化。
     // 若中途失败（关键服务异常或超时），逆序销毁本次批量中已成功注册的服务，
     // 防止 Kernel 残留半初始化状态导致后续 initialize 二次注册冲突或资源泄露。
-    const registered: string[] = [];
+    const registered: Array<{ name: string; dispose: EffectDisposer }> = [];
     try {
       for (const { name, service, initTimeoutMs } of sorted) {
-        await this.registerService(name, service, initTimeoutMs);
+        const unavailableDependencies = (service.dependencies ?? [])
+          .filter((dependency) => !this.services.has(dependency));
+        if (unavailableDependencies.length > 0) {
+          throw new Error(
+            `[Kernel] Required dependencies failed to initialize for service "${name}": ` +
+            `[${unavailableDependencies.join(", ")}].`,
+          );
+        }
+        const dispose = await this.registerService(name, service, initTimeoutMs);
         // registerService 对非关键/非超时失败会静默标记 "failed" 且不抛出，
         // 此时 services 中不含该项；仅记录实际进入 services 的成功项用于回滚。
         if (this.services.has(name)) {
-          registered.push(name);
+          registered.push({ name, dispose });
         }
       }
     } catch (err) {
       // 逆序销毁已成功注册的服务（后注册的先销毁，符合 destroy 时的逆序原则）
       for (let i = registered.length - 1; i >= 0; i--) {
         try {
-          await this.destroyService(registered[i]);
+          await registered[i].dispose();
         } catch (cleanupErr) {
           // 清理失败不应掩盖原始错误，仅记录
-          logger.error(`Cleanup during batch rollback failed`, cleanupErr, { service: registered[i] });
+          logger.error(`Cleanup during batch rollback failed`, cleanupErr, { service: registered[i].name });
         }
       }
       throw err;
     }
+
+    let active = true;
+    return async () => {
+      if (!active) return;
+      active = false;
+      const errors: unknown[] = [];
+      for (let index = registered.length - 1; index >= 0; index--) {
+        try {
+          await registered[index].dispose();
+        } catch (error: unknown) {
+          errors.push(error);
+        }
+      }
+      if (errors.length > 0) {
+        throw new AggregateError(errors, "KERNEL_SERVICE_BATCH_DISPOSE_FAILED");
+      }
+    };
   }
 
   /**
@@ -502,8 +544,15 @@ export class Kernel implements IKernel {
     const list = this.subscribers.get(topic)!;
     list.push(entry);
     list.sort((a, b) => b.priority - a.priority);
+    let active = true;
     return () => {
-      this.unsubscribe(topic, handler);
+      if (!active) return;
+      active = false;
+      const current = this.subscribers.get(topic);
+      if (!current) return;
+      const remaining = current.filter((candidate) => candidate !== entry);
+      if (remaining.length === 0) this.subscribers.delete(topic);
+      else this.subscribers.set(topic, remaining);
     };
   }
 
@@ -678,17 +727,30 @@ export class Kernel implements IKernel {
   /**
    * 注册扩展插件插槽组件
    */
-  registerExtension<TValue>(extension: IExtension<TValue>): void {
+  registerExtension<TValue>(extension: IExtension<TValue>): () => void {
     const point = extension.targetPoint;
     if (!this.extensions.has(point)) {
       this.extensions.set(point, []);
     }
     const list = this.extensions.get(point)!;
     const filtered = list.filter(ext => ext.id !== extension.id);
-    filtered.push(extension as IExtension<unknown>);
+    // 每次注册创建独立记录，避免旧 disposer 在同一对象被重复注册时误删新替代项。
+    const registered: IExtension<unknown> = { ...extension };
+    filtered.push(registered);
     // 优先级降序排列，数值高者排在链条前端
     filtered.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
     this.extensions.set(point, filtered);
+
+    let active = true;
+    return () => {
+      if (!active) return;
+      active = false;
+      const current = this.extensions.get(point);
+      if (!current) return;
+      const remaining = current.filter(candidate => candidate !== registered);
+      if (remaining.length === 0) this.extensions.delete(point);
+      else this.extensions.set(point, remaining);
+    };
   }
 
   /**

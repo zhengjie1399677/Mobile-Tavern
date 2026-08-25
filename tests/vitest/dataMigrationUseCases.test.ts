@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildUnifiedBackupPayload,
+  parseRuntimePluginState,
   redactSettingsForPlainBackup,
 } from "../../src/application/useCases/dataMigrationUseCases";
 import { persistImportedChatSession } from "../../src/application/useCases/chatImportUseCases";
@@ -17,6 +18,18 @@ import type {
 } from "../../src/types";
 
 describe("数据迁移应用用例", () => {
+  it("Runtime Plugin 私有状态按命名空间收口并拒绝危险键名", () => {
+    const state = {
+      "mobile-tavern.sillytavern-compat": { stat_data: { affinity: 2 } },
+    };
+    const parsed = parseRuntimePluginState(state);
+
+    expect(parsed).toEqual(state);
+    expect(parsed).not.toBe(state);
+    expect(() => parseRuntimePluginState(JSON.parse('{"__proto__":{"polluted":true}}')))
+      .toThrow(/runtimePluginState|插件 ID/);
+  });
+
   it("导入聊天时同时持久化会话元数据与消息正文", async () => {
     const session = {
       id: "session-imported",
@@ -60,7 +73,7 @@ describe("数据迁移应用用例", () => {
     expect(settings.savedApiProfiles?.[0].apiKey).toBe("sk-profile-1");
   });
 
-  it("v4 统一备份包含独立世界书且不与输入对象共享可变引用", () => {
+  it("v6 统一备份包含独立世界书、附件与 Agent Journal 且不共享可变引用", () => {
     const customWorldbooks: Record<string, CustomWorldbook> = {
       "worldbook-1": {
         id: "worldbook-1",
@@ -82,7 +95,9 @@ describe("数据迁移应用用例", () => {
       isEncrypted: false,
     });
 
-    expect(payload.version).toBe(4);
+    expect(payload.version).toBe(6);
+    expect(payload.attachments).toEqual([]);
+    expect(payload.agentJournal).toEqual([]);
     expect(payload.customWorldbooks).toEqual(customWorldbooks);
     expect(payload.customWorldbooks).not.toBe(customWorldbooks);
   });
@@ -96,6 +111,30 @@ describe("数据迁移应用用例", () => {
       [KernelServices.Database]: {
         getAllSessions: vi.fn().mockResolvedValue([
           { id: "session-1", characterId: "character-1", title: "会话", createdAt: 1, summaries: [], messages: [] },
+        ]),
+        getSessionPromptMessages: vi.fn().mockResolvedValue([
+          {
+            id: "message-1",
+            sender: "system",
+            content: "系统消息",
+            timestamp: 1,
+            turnIndex: 0,
+            tags: ["系统"],
+            extractSource: "dict",
+            extra: { image: "asset://backup-image" },
+            reasoningContent: "备份中的推理",
+            generationTime: 1.5,
+            tokenCount: 24,
+            promptTokenCount: 48,
+            swipes: ["版本一", "版本二"],
+            swipe_id: 1,
+            variables: { affection: 9 },
+            contentVersion: 2,
+            parts: [
+              { type: "text", text: "系统消息" },
+              { type: "image", assetId: "att_backup1" },
+            ],
+          },
         ]),
       },
       [KernelServices.Worldbook]: {
@@ -149,6 +188,24 @@ describe("数据迁移应用用例", () => {
           { id: "preset-1", name: "长篇预设" },
         ]),
       },
+      [KernelServices.Attachments]: {
+        exportAttachments: vi.fn().mockResolvedValue([
+          {
+            id: "att_backup1",
+            kind: "image",
+            mimeType: "image/png",
+            originalName: "backup.png",
+            size: 3,
+            createdAt: 1,
+            updatedAt: 1,
+            dataBase64: "AQID",
+          },
+        ]),
+      },
+      [KernelServices.AgentRuntime]: {
+        listJournalBySession: vi.fn().mockResolvedValue([]),
+        replaceJournal: vi.fn().mockResolvedValue(undefined),
+      },
     };
     service.init({
       getService: vi.fn((name: keyof typeof services) => services[name]),
@@ -178,6 +235,8 @@ describe("数据迁移应用用例", () => {
     expect(payload.savedPresets[0].id).toBe("preset-1");
     expect(Object.keys(payload.customWorldbooks)).toEqual(["worldbook-1"]);
     expect(payload.settings.api.apiKey).toBe("");
+    expect(payload.attachments.map(item => item.id)).toEqual(["att_backup1"]);
+    expect(services[KernelServices.Attachments].exportAttachments).toHaveBeenCalledWith(["att_backup1"]);
     service.destroy();
   });
 });

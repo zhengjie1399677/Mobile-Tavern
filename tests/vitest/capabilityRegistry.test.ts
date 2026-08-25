@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultCapabilityCatalog } from "../../src/application/bootstrap/capabilityCatalog";
+import { coreRuntimeCapabilities } from "../../src/application/runtimePlugins/legacyRuntimePlugin";
 import {
   listRuntimeCapabilities,
   registerRuntimeCapabilities,
@@ -9,7 +9,7 @@ import { CAPABILITY_EXTENSION_POINT, type CapabilityDescriptor } from "../../src
 
 describe("运行时能力登记", () => {
   it("默认能力清单覆盖第一批内部能力索引", () => {
-    const ids = defaultCapabilityCatalog.map((capability) => capability.id);
+    const ids = coreRuntimeCapabilities.map((capability) => capability.id);
 
     expect(ids).toEqual([
       "llm.provider",
@@ -17,7 +17,6 @@ describe("运行时能力登记", () => {
       "asr.provider",
       "storage.memory",
       "plugin.fullscreen",
-      "compat.sillytavern",
       "native.file",
       "native.orientation",
       "prompt.composition",
@@ -25,18 +24,17 @@ describe("运行时能力登记", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("注册后可通过 Kernel 扩展点检查能力快照", () => {
+  it("注册后可通过 Kernel 扩展点检查能力快照", async () => {
     const kernel = createKernel();
-    registerRuntimeCapabilities(kernel);
+    const dispose = registerRuntimeCapabilities(kernel, coreRuntimeCapabilities);
 
     const extensions = kernel.getExtensions<CapabilityDescriptor>(CAPABILITY_EXTENSION_POINT);
-    expect(extensions).toHaveLength(defaultCapabilityCatalog.length);
+    expect(extensions).toHaveLength(coreRuntimeCapabilities.length);
     expect(extensions.map((extension) => extension.id)).toContain("llm.provider");
 
     const capabilities = listRuntimeCapabilities(kernel);
     expect(capabilities.map((capability) => capability.id)).toEqual([
       "asr.provider",
-      "compat.sillytavern",
       "llm.provider",
       "native.file",
       "native.orientation",
@@ -47,6 +45,9 @@ describe("运行时能力登记", () => {
     ]);
     expect(capabilities.find((capability) => capability.id === "plugin.fullscreen")?.permissions)
       .toContain("llm.chatStream");
+
+    await dispose();
+    expect(kernel.getExtensions(CAPABILITY_EXTENSION_POINT)).toEqual([]);
   });
 
   it("拒绝重复 capability id，避免后注册项静默覆盖", () => {

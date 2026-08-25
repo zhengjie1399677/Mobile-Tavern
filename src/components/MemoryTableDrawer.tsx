@@ -4,7 +4,11 @@ import { X, BrainCircuit, LoaderCircle } from "lucide-react";
 import StoryTimelineView from "../tabs/chat/StoryTimelineView";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
-import { notifyVariablesUpdated } from "../compatibility/sillytavern";
+import { useOptionalKernel } from "../contexts/KernelContext";
+import {
+  KernelServices,
+  type ICompatibilityRuntimeService,
+} from "../application/serviceContracts";
 
 const MvuVariablesTabContent = React.lazy(() =>
   import("./MvuVariablesTabContent").then((module) => ({ default: module.MvuVariablesTabContent }))
@@ -34,6 +38,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   enableAutoSummary,
   initialTab
 }) => {
+  const kernel = useOptionalKernel();
   const { setSessionViews, showCustomAlert, showCustomConfirm, lastRecalledMemories, lastMemoryAudit } = useUnifiedApp((state) => ({
     setSessionViews: state.setSessionViews,
     showCustomAlert: state.showCustomAlert,
@@ -185,18 +190,32 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
           {/* TAB 4: 🏮 角色变量 */}
           {activeTab === 'mvu' && (
             <MvuVariablesTabContent
-              variables={activeSession.variables || {}}
+              variables={kernel?.hasService(KernelServices.CompatibilityRuntime)
+                ? kernel
+                    .getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+                    .readState(activeSession)
+                : {}}
               onSave={async (newVars) => {
                 console.log(`[MVU-SAVE-DIAG] onSave called, sessId=${activeSession.id}, varKeys=${Object.keys(newVars?.stat_data || {}).join(',')}`);
-                const nextSession = {
-                  ...activeSession,
-                  variables: newVars
-                };
-                await updateSessionMetadata(nextSession.id, { variables: newVars });
+                const compatibilityRuntime = kernel?.hasService(KernelServices.CompatibilityRuntime)
+                  ? kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+                  : null;
+                if (!compatibilityRuntime?.isEnabled()) {
+                  throw new Error("SILLY_TAVERN_COMPATIBILITY_RUNTIME_DISABLED");
+                }
+                const nextSession = compatibilityRuntime.writeState(activeSession, newVars);
+                await updateSessionMetadata(nextSession.id, {
+                  variables: undefined,
+                  runtimePluginState: nextSession.runtimePluginState,
+                });
                 setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
                 console.log(`[MVU-SAVE-DIAG] setSessionViews done`);
                 try {
-                  notifyVariablesUpdated(nextSession);
+                  if (kernel?.hasService(KernelServices.CompatibilityRuntime)) {
+                    kernel
+                      .getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+                      .notifyStateChanged(nextSession);
+                  }
                   console.log(`[MVU-SAVE-DIAG] notifyVariablesUpdated done`);
                 } catch (e) {
                   console.warn("[MemoryTableDrawer] notifyVariablesUpdated failed:", e);

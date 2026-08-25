@@ -16,6 +16,8 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ScriptService } from "../../src/application/services/ScriptService";
+import { CompatibilityRuntimeService } from "../../src/application/services/CompatibilityRuntimeService";
+import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../../src/application/compatibility/contracts";
 import { Kernel } from "../../src/kernel/Kernel";
 import type { IKernel, IKernelService } from "@/src/application/serviceContracts";
 import type { CharacterCard, Message } from "../../src/types";
@@ -248,6 +250,24 @@ describe("ScriptService", () => {
         notifyVariablesUpdated: vi.fn(),
       };
       service.registerBridge(mockBridge);
+      const compatibilityRuntime = new CompatibilityRuntimeService();
+      await kernel.registerService(compatibilityRuntime.name, compatibilityRuntime);
+      compatibilityRuntime.registerStateReducer({
+        id: "compat.test.state.mvu",
+        version: "1.0.0",
+        initialize: () => ({}),
+        reduce: ({ currentState }) => currentState,
+        read: (currentSession) => currentSession.variables ?? {},
+        write: (currentSession, state) => ({
+          ...currentSession,
+          variables: undefined,
+          runtimePluginState: {
+            ...currentSession.runtimePluginState,
+            [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: state,
+          },
+        }),
+        notify: () => undefined,
+      });
 
       const session: any = {
         id: "sess-1",
@@ -272,7 +292,10 @@ describe("ScriptService", () => {
       const lastMsg = updated.messages[updated.messages.length - 1] as Message;
       expect(lastMsg.extra?.variables[0]).toBeDefined();
       expect(lastMsg.extra?.variables[0]?.stat_data).toEqual({ hp: 80, mp: 20 });
-      expect(updated.variables?.stat_data).toEqual({ hp: 80, mp: 20 });
+      expect(updated.variables).toBeUndefined();
+      expect(updated.runtimePluginState?.[SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]).toEqual({
+        stat_data: { hp: 80, mp: 20 },
+      });
     });
 
     it("多条消息时仅修改最后一条", async () => {

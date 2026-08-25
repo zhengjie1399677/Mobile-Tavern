@@ -6,18 +6,26 @@
 
 | 能力 | 权威入口 | 职责 | 禁止事项 |
 |---|---|---|---|
-| Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts` | 容器、服务生命周期、消息总线、Pipeline 与扩展契约 | 不放任何应用服务、业务装配、生态格式、存储或平台调用 |
-| 应用运行时组合 | `src/application/runtime.ts`、`src/application/bootstrap/` | 把应用服务和默认 Pipeline 注册到 Kernel | 不反向改变 Kernel 的通用机制 |
+| Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts`、`src/kernel/EffectScope.ts` | 容器、服务生命周期、父子 Scope、可撤销 Effect、消息总线、Pipeline 与扩展契约 | 不放任何应用服务、业务装配、生态格式、存储或平台调用 |
+| 应用运行时组合 | `src/application/runtime.ts`、`src/application/runtimePlugins/`、`src/application/bootstrap/` | 解析受信 Runtime Profile，以插件子 Scope 把应用服务、默认 Pipeline 和类型化 Capability 装配到 Kernel | 不反向改变 Kernel 的通用机制，不执行用户安装的任意代码，不把插件配置或秘密写入解析快照；配置必须先过插件 Zod Schema，Slot/Provider 冲突必须在产生 Effect 前失败 |
+| Runtime Profile 管理 | `src/application/runtimeProfiles/`、`RuntimeProfileService.ts`、`src/infrastructure/runtimeProfiles/` | 校验并持久化公开 Profile 选择、复制与能力开关，生成当前受信组合并提供脱敏诊断 | 不保存 API Key、会话正文、Blob 或服务实例；UI 不直接访问 `localStorage`；不开放任意 Runtime Plugin 安装 |
 | 通用数据库服务 | `src/application/services/DatabaseService.ts` | 面向上层提供通用 CRUD、分页、轻量索引统计与跨 Store 事务能力 | 不承载记忆召回、摘要或角色行为 |
 | IndexedDB 物理实现 | `src/infrastructure/storage/` | 连接、Schema、事务队列、仓库和端口适配器 | 不反向导入 `src/utils/localDB.ts` |
 | 数据迁移应用服务 | `src/application/services/DataMigrationService.ts` | 聚合完整备份、统一脱敏，并委托基础设施以单事务覆盖用户数据 | 不在 React Hook 中直接清 Store 或跨 Repository 编排恢复 |
 | 冻结的存储兼容门面 | `src/utils/localDB.ts` | 旧版外部导入兼容与测试重置 | 不允许任何生产调用或新增导出；兼容期结束后删除 |
-| SillyTavern Compatibility Runtime | `src/compatibility/sillytavern/` | 角色卡扩展、MVU、正则脚本和 iframe 兼容解析与降级 | 不注册为通用 Service，不承载存储或原生能力 |
+| Compatibility Host | `src/application/compatibility/`、`CompatibilityRuntimeService.ts` | 提供无生态语义的 Codec、Prompt Section、Context Source、Transform、State Reducer、Renderer 注册与撤销机制 | 不实现 SillyTavern 语义，不依赖 React，不执行用户安装代码 |
+| SillyTavern Compatibility Runtime Plugin | `sillyTavernCompatibilityRuntimePlugin.ts`、`src/compatibility/sillytavern/` | 以受信 Profile Scope 注册角色卡扩展、MVU、正则脚本、预设 Codec 和 iframe 兼容实现 | 不进入 Kernel，不承载通用存储或原生能力，不与 `.mtplugin` 沙箱合并 |
 | Plugin Host RPC | `src/domain/plugins/pluginHostRpc.ts` | 强沙箱插件的权限校验、输入清洗和脱敏 RPC | 不复用 Compatibility Runtime，不直接访问原生平台 |
 | Native Adapter | `src/services/ar/NativeArAdapter.ts` | 将 Web 调用适配为 Tauri/Kotlin AR 命令 | 不承载第三方插件权限或角色卡兼容逻辑 |
 | 应用用例层 | `src/application/useCases/` | 业务初始化、分页、级联流程和跨 Service 协调 | 不保存 React State，不直接渲染界面 |
 | 本地界面资源服务 | `src/application/services/LocalResourceService.ts` | 校验用户导入的图片、视频与音频，管理受控 Blob URL 和 CSS 资源变量 | 不把媒体字节写入 settings，不开放任意远程 URL |
 | 本地界面资源存储 | `src/infrastructure/resources/localResourceStorage.ts` | 在独立数据库中物理分轨资源元数据与文件字节 | 不被 React 组件直接调用，不与插件包存储混用 |
+| 消息附件应用服务 | `src/application/services/AttachmentService.ts` | 校验附件魔数与配额，管理引用状态、备份字节和受控 Blob URL | 不承载 Provider 方言，不借用主题资源数据库 |
+| 消息附件存储 | `src/infrastructure/attachments/attachmentStorage.ts` | 在独立数据库中分轨消息附件元数据和字节，执行引用重建与 GC | 不被 React Hook/组件直接调用，不把媒体塞入主消息记录 |
+| 多模态 Provider 投影 | `src/application/useCases/multimodalProviderProjection.ts` | 把通用 Content Parts 按已确认能力投影为请求方言 | 不修改领域消息，不把 Provider 格式持久化 |
+| Agent Runtime 主干 | `src/application/services/AgentRuntimeService.ts`、`src/domain/agents/`、`src/application/useCases/openAiToolLoop.ts` | 管理 AgentHandle、Turn、Driver、Provider、有限多步 Tool Loop、媒体 Processor、权限、取消与诊断 | 不进入 Kernel，不持有 React State，不绕过 Turn 直接执行 Tool，不执行用户安装的任意代码 |
+| Agent Journal 存储 | `src/infrastructure/agents/agentJournalStorage.ts` | 物理分轨持久化 Turn、Provider/媒体决定与 Tool Call/Result | 不保存插件配置或凭据，不塞入 sessions/messages 大对象 |
+| 浏览器视频关键帧适配 | `src/infrastructure/media/browserVideoFrameExtractor.ts` | 在 WebView 边界解码本地视频并生成有限 JPEG 关键帧 | 不参与 Profile 解析，不直接写会话或消息 |
 | 主题交互应用服务 | `src/application/services/ThemeInteractionService.ts` | 解释主题 1.1 白名单事件、条件与动作，维护有限状态、冷却和延迟任务 | 不接触 DOM、存储、网络或业务数据，不执行主题代码 |
 | 主题媒体宿主 | `src/components/theme-interactions/ThemeInteractionHost.tsx` | 把稳定 `data-ui` 事件、生命周期和三个背景 Surface 适配到主题服务，并解析本地媒体 | 不向主题暴露元素引用，不接受远程 URL 或任意选择器 |
 
@@ -25,14 +33,19 @@
 
 ```text
 界面与业务组合
-  ├─→ application/runtime ─→ Kernel 通用机制
+  ├─→ application/runtime ─→ Runtime Profile/Plugin Scope ─→ Kernel 通用机制
   ├─→ React Context ─→ application/useCases ─→ 应用 Service
   ├─→ 应用 Service ─→ Repository/Adapter ─→ infrastructure/storage
   ├─→ LocalResourceService ───────────────→ infrastructure/resources
+  ├─→ AttachmentService ─────────────────→ infrastructure/attachments
+  ├─→ Chat Use Case ─→ Provider Projection ─→ AttachmentService（按需读取字节）
+  ├─→ Chat UI ─→ AgentHandle ─→ Driver ─→ Provider/Tool/Media Processor
+  │                                  ├─→ Agent Journal Port ─→ infrastructure/agents
+  │                                  └─→ Attachment/ASR/视频关键帧 Adapter
   ├─→ ThemeInteractionHost ─→ ThemeInteractionService ─→ 主题私有运行态
   │                        └→ LocalResourceService（只解析已声明本地媒体）
   ├─→ 记忆领域端口 ───────────────────────→ IndexedDbMemoryPersistenceService
-  ├─→ SillyTavern Compatibility Runtime
+  ├─→ Compatibility Host ─→ 受信 Compatibility Runtime Plugin ─→ SillyTavern 实现
   ├─→ Plugin Host RPC
   └─→ Native Adapter ─→ Tauri IPC
 ```
@@ -43,14 +56,18 @@
 
 - `sessions` Store 只保存 `ChatSessionMetadata`、摘要和内部计数基线；旧记录中的内嵌 `messages` 读取时必须丢弃。
 - `messages` Store 是消息正文的唯一权威来源。消息的展示字段、重生成字段和状态快照统一经过 `messageRecord.ts` 映射，禁止写入路径各自挑选字段。
+- V2 消息以 Content Parts 为唯一权威内容，`Message.content` 只作为兼容文本投影；附件只保存 `att_*` 引用，物理字节进入独立 Attachment 数据库。
 - React 内部将会话元数据与已水合的 `ChatMessageWindow` 分开保存；对外兼容的 `ChatSession` 视图只是投影，不得反向作为全量历史写回数据库。
 - 虚拟列表只减少 DOM 渲染量；消息分页通过最早消息 ID 对应的绝对 `turnIndex` 游标读取，会话目录分页通过 `(createdAt, id)` 游标读取，禁止使用会受并发新增影响的数字 offset 作为持续分页边界。
 - 应用消息新增、编辑、删除或替换统一经过 `commitSessionTurn`、`updateSessionMessage`、`deleteSessionMessage`、`replaceSessionBranch` 跨 Store 事务；低层记忆消息原语不得顺带维护会话统计。
 - 自动总结必须在本轮消息事务提交后读取权威消息 Store；不能在输出中间件尚未持久化助手回复时推进摘要边界。
 - 角色删除由 Character Service 的聚合仓库在单事务内按 `characterId` 级联全部会话和记忆分轨，禁止遍历 React 已加载的会话分页执行删除。
 - 备份恢复的 `replaceCompleteSessions` 是完整替换语义：同一事务内先清理旧消息，再写入最终消息并重算统计，禁止保留旧尾部；普通 UI 分页会话不得调用。
+- 消息事务完成后由 Database Service 串行扫描权威消息记录并重建附件反向引用；主库与附件库跨库提交使用可恢复状态补偿，不能伪装成单个 IndexedDB 原子事务。
 - Prompt 组装必须根据编排配置从数据库读取权威历史窗口；重生成必须传入目标消息边界，不能使用当前 UI 分页切片。
 - 每次完成助手输出后，把变量和状态表快照绑定到该消息。重生成与历史分支优先恢复最近完整快照；旧 MVU 消息只作为变量降级来源，缺失的旧状态表不得伪造为可回放结果。
+- 插件私有会话状态只持久化到 `runtimePluginState[pluginId]`。旧 `session.variables` 只在 Compatibility Plugin 边界作为读取降级或瞬时 Bridge 投影，不得由通用写路径继续双写。
+- 会话 Composition Snapshot 与当前 Profile 不一致时，跨 Profile 恢复必须先验证目标 ID 和精确版本，再以一次性意图重启；目标组合装载后从权威存储恢复会话，缺失或漂移时明确失败且不得循环重启。
 
 ## 四、适配边界命名
 
@@ -70,5 +87,12 @@
 4. Compatibility Runtime、Plugin Host RPC、Native Adapter 不得相互导入。
 5. `src/kernel/` 不得重新出现业务服务、页面业务、应用装配目录或对应用层的反向依赖。
 6. React Context 不得直接访问存储、Compatibility Runtime、Native Adapter 或执行业务 Service 的持久化方法。
+7. Runtime Plugin/Profile 契约只能位于 Application 层；应用组合根必须通过 Profile Loader 装载 legacy runtime，不能恢复散落的直接注册路径。
+8. Agent、Provider、Tool 与媒体 Processor 契约只能位于 Domain/Application 层；Kernel 不得出现 Agent 业务语义，聊天发送必须经 AgentHandle 进入 `mobile-tavern.chat.driver`。
+9. Agent Journal 必须使用独立数据库并通过应用服务访问；React、Driver 和 Tool 不得直连其 IndexedDB 实现。
+10. 通用生产代码不得直接导入 `compatibility/sillytavern` 或读写 TavernHelper 全局字段；只有内置 Compatibility Runtime Plugin 可以连接实现，`base` Profile 必须不装载它。
+11. Profile 启动偏好是公开、类型化的小对象，只能通过 Runtime Profile Service/Infrastructure Port 读写；损坏、缺失 Provider 或找不到 Profile 时必须返回诊断并安全回退，不能把秘密并入 Profile。
+12. Runtime Plugin 配置必须由 Zod Schema 校验，Capability Token/Provider 冲突必须在装载前失败；模型 Tool Call 必须经有限 Step Loop 和 Agent Turn 执行边界。
+13. 跨 Profile 会话恢复必须使用 Schema 校验的一次性意图；兼容会话状态必须单写插件命名空间，旧 `session.variables` 不得恢复为通用持久化路径。
 
 若确需改变这些方向，应先更新本文件与 `TECHNICAL.md`，说明新边界及迁移策略，再修改守卫。

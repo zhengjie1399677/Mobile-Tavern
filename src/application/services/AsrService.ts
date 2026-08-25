@@ -1,5 +1,4 @@
-import { IKernel, IKernelService, IAsrService, AsrConfig } from "../serviceContracts";
-import { publicEnvironment } from "../../config";
+import { IKernel, IAsrService, AsrConfig } from "../serviceContracts";
 import { Logger } from "../../utils/logger";
 
 const logger = Logger.create("AsrService");
@@ -81,7 +80,7 @@ export class AsrService implements IAsrService {
   dependencies = [] as const;
 
   private isListeningState = false; // 是否处于正在倾听/录音状态
-  private activeRecognition: any = null; // webkitSpeechRecognition 实例 (用于 Web Speech API)
+  private activeRecognition: SpeechRecognitionLike | null = null; // webkitSpeechRecognition 实例 (用于 Web Speech API)
   private activeMediaRecorder: MediaRecorder | null = null; // MediaRecorder 实例 (用于录制音频发送给 Whisper)
   private activeStream: MediaStream | null = null; // 麦克风音频流实例
   private abortController: AbortController | null = null; // 用于取消异步任务的控制器
@@ -136,7 +135,7 @@ export class AsrService implements IAsrService {
   async startListening(
     config: AsrConfig,
     onResult: (text: string, isFinal: boolean) => void,
-    onError: (err: any) => void,
+    onError: (err: unknown) => void,
     onEnd?: () => void
   ): Promise<void> {
     // 如果已经在倾听，先取消上一次的倾听
@@ -164,7 +163,7 @@ export class AsrService implements IAsrService {
         recognition.continuous = true; // 是否持续识别而不断开
 
         // 监听识别结果事件
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
           let interimTranscript = "";
           let finalTranscript = "";
 
@@ -183,7 +182,7 @@ export class AsrService implements IAsrService {
         };
 
         // 监听错误事件
-        recognition.onerror = (event: any) => {
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
           logger.error("WebSpeech error", undefined, { error: event.error });
           onError(new Error(`Speech recognition error: ${event.error}`));
           this.cleanupWebSpeech();
@@ -248,7 +247,12 @@ export class AsrService implements IAsrService {
             const extension = mediaRecorder.mimeType.includes("mp4") ? "mp4" : "webm";
             const audioBlob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
             // 调用接口将录音文件上传至 Whisper 服务进行识别
-            const resultText = await this.uploadToWhisper(audioBlob, extension, config);
+            const resultText = await this.uploadToWhisper(
+              audioBlob,
+              `audio.${extension}`,
+              config,
+              this.abortController?.signal,
+            );
             onResult(resultText, true);
           } catch (err: unknown) {
             logger.error("OpenAI Whisper upload error", err);
@@ -302,6 +306,28 @@ export class AsrService implements IAsrService {
     this.cleanupMediaRecorder();
   }
 
+  async transcribeFile(
+    blob: Blob,
+    fileName: string,
+    config: AsrConfig,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    if (config.provider !== "openai") {
+      throw new Error("ASR_FILE_PROVIDER_UNSUPPORTED");
+    }
+    if (blob.size <= 0 || !blob.type.startsWith("audio/")) {
+      throw new Error("ASR_FILE_INVALID");
+    }
+    const normalizedName = fileName.trim().replace(/[\\/:*?"<>|\u0000-\u001F]/g, "_").slice(0, 120)
+      || "audio.bin";
+    const linked = linkAbortSignals([signal, this.abortController?.signal]);
+    try {
+      return await this.uploadToWhisper(blob, normalizedName, config, linked.signal);
+    } finally {
+      linked.dispose();
+    }
+  }
+
   /**
    * 清理 WebSpeech 状态
    */
@@ -342,10 +368,15 @@ export class AsrService implements IAsrService {
   /**
    * 将录音 Blob 数据上传至 Whisper 接口进行语音转文字
    * @param blob 音频文件 Blob
-   * @param extension 音频文件后缀名 (webm / mp4)
+   * @param fileName 上传时使用的安全文件名
    * @param config ASR 配置参数
    */
-  private async uploadToWhisper(blob: Blob, extension: string, config: AsrConfig): Promise<string> {
+  private async uploadToWhisper(
+    blob: Blob,
+    fileName: string,
+    config: AsrConfig,
+    signal?: AbortSignal,
+  ): Promise<string> {
     let fetchFn = tauriFetch || fetch;
     // 如果 Tauri fetch 尚未解析完毕，在此等待解析
     if (!tauriFetch && tauriFetchPromise) {
@@ -353,12 +384,12 @@ export class AsrService implements IAsrService {
       fetchFn = resolvedFetch || fetch;
     }
 
-    let baseUrl = config.openaiBaseUrl ? config.openaiBaseUrl.trim().replace(/\/+$/, "") : "https://api.openai.com/v1";
+    const baseUrl = config.openaiBaseUrl ? config.openaiBaseUrl.trim().replace(/\/+$/, "") : "https://api.openai.com/v1";
     const url = `${baseUrl}/audio/transcriptions`;
 
     // 构建 Whisper API 标准的 FormData 参数
     const formData = new FormData();
-    formData.append("file", blob, `audio.${extension}`);
+    formData.append("file", blob, fileName);
     formData.append("model", config.openaiModel || "whisper-1");
     if (config.language) {
       formData.append("language", config.language);
@@ -369,27 +400,11 @@ export class AsrService implements IAsrService {
       headers["Authorization"] = `Bearer ${config.openaiApiKey}`;
     }
 
-    const isBrowserEnv = typeof window !== "undefined" &&
-                         !(window as TauriWindow).__TAURI_INTERNALS__ &&
-                         !publicEnvironment.isTest;
-    const isRemoteUrl = url.startsWith("https://") || (url.startsWith("http://") && !url.includes("127.0.0.1") && !url.includes("localhost"));
-
-    let finalUrl = url;
-    let finalHeaders = headers;
-    let finalBody: any = formData;
-
-    // 如果在非 Tauri 浏览器环境请求外部 HTTPS 资源，为避免跨域，我们将使用与图片生成、TTS 类似的机制，
-    // 但由于 FormData 序列化的复杂性，在代理端通常需要多端匹配或直接通过 nativeWebView。
-    // 在 WebView 运行环境中通常都是直连。在此我们支持标准代理，如果代理不支持 file 上传则抛出提示。
-    if (isBrowserEnv && isRemoteUrl) {
-      // 浏览器环境由于 CORS 限制，优先检测如果有 native WebView 桥接可以考虑桥接，或者直连。
-      // 这里直接发起 fetch 请求，因为很多中转端或 OpenAI API 开启了 CORS。若确实失败，由用户配置解决。
-    }
-
-    const response = await fetchFn(finalUrl, {
+    const response = await fetchFn(url, {
       method: "POST",
-      headers: finalHeaders,
-      body: finalBody,
+      headers,
+      body: formData,
+      signal,
     });
 
     if (!response.ok) {
@@ -397,7 +412,34 @@ export class AsrService implements IAsrService {
       throw new Error(`OpenAI Whisper request failed with status ${response.status}: ${errText}`);
     }
 
-    const data = await response.json();
-    return data.text || "";
+    const data: unknown = await response.json();
+    if (!data || typeof data !== "object" || typeof (data as { text?: unknown }).text !== "string") {
+      throw new Error("ASR_RESPONSE_INVALID");
+    }
+    return (data as { text: string }).text;
   }
+}
+
+function linkAbortSignals(signals: ReadonlyArray<AbortSignal | undefined>): {
+  signal: AbortSignal;
+  dispose(): void;
+} {
+  const controller = new AbortController();
+  const listeners: Array<{ signal: AbortSignal; listener: () => void }> = [];
+  for (const signal of signals) {
+    if (!signal) continue;
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    const listener = () => controller.abort(signal.reason);
+    signal.addEventListener("abort", listener, { once: true });
+    listeners.push({ signal, listener });
+  }
+  return {
+    signal: controller.signal,
+    dispose() {
+      for (const item of listeners) item.signal.removeEventListener("abort", item.listener);
+    },
+  };
 }

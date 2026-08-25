@@ -12,16 +12,18 @@ import type {
   IKernel,
   IPresetService,
   IWorldbookService,
+  IAttachmentService,
+  IAgentRuntimeService,
 } from "../serviceContracts";
 import { KernelServices } from "../serviceContracts";
 import type { MemoryServiceTyped } from "./memory";
-import type { MessageRecord } from "./memory/types";
 import {
   buildUnifiedBackupPayload,
   redactSettingsForPlainBackup,
   type UnifiedBackupPayload,
 } from "../useCases/dataMigrationUseCases";
 import { replaceLocalDataFromBackup } from "../../infrastructure/storage/repositories/dataMigrationRepository";
+import { collectMessageAssetIds } from "../../domain/messages/messageContent";
 
 type DatabaseService = IDatabaseService<
   ChatSession,
@@ -29,28 +31,6 @@ type DatabaseService = IDatabaseService<
   SummaryCard,
   Message
 >;
-
-function toBackupMessage(record: MessageRecord): Message {
-  return {
-    id: record.id,
-    sender: record.role,
-    content: record.content,
-    timestamp: record.createdAt,
-    extra: record.metadata,
-    turnIndex: record.turnIndex,
-    tags: record.tags,
-    extractSource: record.extractSource,
-    metadata: record.metadata,
-    isSummaryLine: record.isSummaryLine,
-    generationTime: record.generationTime,
-    tokenCount: record.tokenCount,
-    promptTokenCount: record.promptTokenCount,
-    reasoningContent: record.reasoningContent,
-    swipes: record.swipes,
-    swipe_id: record.swipe_id,
-    variables: record.variables,
-  };
-}
 
 /** 数据迁移应用边界：读取完整聚合并委托基础设施执行原子覆盖。 */
 export class DataMigrationService implements IDataMigrationService<UserSettings, UnifiedBackupPayload> {
@@ -62,6 +42,8 @@ export class DataMigrationService implements IDataMigrationService<UserSettings,
     KernelServices.Worldbook,
     KernelServices.Memory,
     KernelServices.Preset,
+    KernelServices.Attachments,
+    KernelServices.AgentRuntime,
   ] as const;
 
   private kernel!: IKernel;
@@ -91,21 +73,30 @@ export class DataMigrationService implements IDataMigrationService<UserSettings,
     const worldbookService = this.kernel.getService(KernelServices.Worldbook) as IWorldbookService;
     const memoryService = this.kernel.getService<MemoryServiceTyped>(KernelServices.Memory);
     const presetService = this.kernel.getService<IPresetService>(KernelServices.Preset);
+    const attachmentService = this.kernel.getService<IAttachmentService>(KernelServices.Attachments);
+    const agentRuntime = this.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
 
     const characters = await characterService.getAllCharacters();
     const sessionMetadata = await databaseService.getAllSessions();
     const storage = memoryService.getStorage();
     const sessions = await Promise.all(sessionMetadata.map(async (session) => ({
       ...session,
-      messages: (await storage.getMessagesBySession(session.id)).map(toBackupMessage),
+      messages: await databaseService.getSessionPromptMessages(session.id, {
+        preserveFirstAssistant: false,
+      }),
     })));
-    const [memoryDictEntries, memoryFragments, memoryFacts, globalLorebook, customWorldbooks, savedPresets] = await Promise.all([
+    const assetIds = Array.from(new Set(sessions.flatMap(session =>
+      session.messages.flatMap(message => collectMessageAssetIds(message.parts ?? [])),
+    )));
+    const [memoryDictEntries, memoryFragments, memoryFacts, globalLorebook, customWorldbooks, savedPresets, agentJournal] = await Promise.all([
       Promise.all(sessionMetadata.map((session) => storage.getDictBySession(session.id))).then((items) => items.flat()),
       Promise.all(sessionMetadata.map((session) => storage.getFragmentsBySession(session.id))).then((items) => items.flat()),
       Promise.all(sessionMetadata.map((session) => storage.getTemporalFactsBySession(session.id))).then((items) => items.flat()),
       worldbookService.getGlobalLorebook(),
       worldbookService.getCustomWorldbooks(),
       presetService.getStoredSavedPresets(),
+      Promise.all(sessionMetadata.map((session) => agentRuntime.listJournalBySession(session.id)))
+        .then((events) => events.flat()),
     ]);
 
     return buildUnifiedBackupPayload({
@@ -120,14 +111,56 @@ export class DataMigrationService implements IDataMigrationService<UserSettings,
       customWorldbooks: customWorldbooks as UnifiedBackupPayload["customWorldbooks"],
       backupDate,
       isEncrypted,
+      attachments: await attachmentService.exportAttachments(assetIds),
+      agentJournal,
     });
   }
 
-  replaceFromBackup(payload: UnifiedBackupPayload, signal?: AbortSignal): Promise<void> {
-    return replaceLocalDataFromBackup(
-      payload,
-      signal || this.abortController?.signal,
-    );
+  async replaceFromBackup(payload: UnifiedBackupPayload, signal?: AbortSignal): Promise<void> {
+    const attachmentService = this.kernel.getService<IAttachmentService>(KernelServices.Attachments);
+    const agentRuntime = this.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+    const references = payload.sessions.flatMap(session => session.messages.flatMap(message => {
+      const assetIds = collectMessageAssetIds(message.parts ?? []);
+      return assetIds.length > 0
+        ? [{ referenceId: `${session.id}/${message.id}`, assetIds }]
+        : [];
+    }));
+    const expectedIds = new Set(references.flatMap(reference => reference.assetIds));
+    const backupIds = new Set(payload.attachments.map(record => record.id));
+    for (const id of expectedIds) {
+      if (!backupIds.has(id)) throw new Error(`ATTACHMENT_BACKUP_MISSING: ${id}`);
+    }
+    const sessionIds = new Set(payload.sessions.map((session) => session.id));
+    for (const event of payload.agentJournal) {
+      if (!sessionIds.has(event.sessionId)) throw new Error(`AGENT_JOURNAL_SESSION_MISSING: ${event.sessionId}`);
+    }
+
+    const previousAttachments = await attachmentService.exportAttachments();
+    const previousSessions = await this.kernel
+      .getService<DatabaseService>(KernelServices.Database)
+      .getAllSessions();
+    const previousJournal = (await Promise.all(previousSessions.map((session) =>
+      agentRuntime.listJournalBySession(session.id),
+    ))).flat();
+    let mainDatabaseReplaced = false;
+    try {
+      await attachmentService.replaceAttachments(payload.attachments);
+      await agentRuntime.replaceJournal(payload.agentJournal);
+      await replaceLocalDataFromBackup(
+        payload,
+        signal || this.abortController?.signal,
+      );
+      mainDatabaseReplaced = true;
+      await attachmentService.reconcileReferences(references);
+    } catch (error) {
+      if (!mainDatabaseReplaced) {
+        await Promise.all([
+          attachmentService.replaceAttachments(previousAttachments),
+          agentRuntime.replaceJournal(previousJournal),
+        ]);
+      }
+      throw error;
+    }
   }
 }
 

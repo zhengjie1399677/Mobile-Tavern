@@ -3,34 +3,36 @@
 
 import React from "react";
 
-import { createScriptIframeSrcDoc, notifyVariablesUpdated, hasCardScripts } from "../../compatibility/sillytavern";
 import { useKernel } from "../../contexts/KernelContext";
-import type { ChatSession } from "../../types";
+import type { CharacterCard, ChatSession, UserSettings } from "../../types";
+import {
+  KernelServices,
+  type ICompatibilityRuntimeService,
+} from "../../application/serviceContracts";
+import type {
+  CompatibilityBackgroundScript,
+  CompatibilityRendererDefinition,
+} from "../../application/compatibility/contracts";
 
 interface HiddenScriptLayerProps {
-  settings: any;
-  activeCharacter: any;
+  settings: UserSettings;
+  activeCharacter: CharacterCard | null;
   announcement: string;
 }
 
-/** iframe / 原生桥接侧动态挂载到 window 的脚本库引用。 */
-interface WindowWithScriptLibs extends Window {
-  TavernHelperMvuLibs?: { defineStore?: unknown };
-  _?: unknown;
-}
-
 interface ScriptIframeItemProps {
-  script: any;
+  script: CompatibilityBackgroundScript;
+  renderer: CompatibilityRendererDefinition;
   enableLoopProtection: boolean;
 }
 
 const ScriptIframeItem = React.memo(
-  ({ script, enableLoopProtection }: ScriptIframeItemProps) => {
+  ({ script, renderer, enableLoopProtection }: ScriptIframeItemProps) => {
     const iframeId = `TH-script--${script.name || "unnamed"}--${script.id}`;
 
     const srcDoc = React.useMemo(() => {
-      return createScriptIframeSrcDoc(script.content, script.id, enableLoopProtection);
-    }, [script.content, script.id, enableLoopProtection]);
+      return renderer.createScriptIframeSrcDoc(script.content, script.id, enableLoopProtection);
+    }, [script.content, script.id, renderer, enableLoopProtection]);
 
     // 强制清理：组件卸载时主动将 iframe 导航到 about:blank，
     // 这会触发 iframe 内部的 beforeunload/pagehide 事件，
@@ -72,6 +74,7 @@ const ScriptIframeItem = React.memo(
   (prev, next) =>
     prev.script.id === next.script.id &&
     prev.script.content === next.script.content &&
+    prev.renderer === next.renderer &&
     prev.enableLoopProtection === next.enableLoopProtection
 );
 
@@ -83,6 +86,11 @@ const HiddenScriptLayer = ({
   announcement,
 }: HiddenScriptLayerProps) => {
   const kernel = useKernel();
+  const compatibilityRuntime = kernel.getService<ICompatibilityRuntimeService>(
+    KernelServices.CompatibilityRuntime,
+  );
+  const renderer = compatibilityRuntime.getRenderer();
+  const backgroundScripts = renderer?.listBackgroundScripts(activeCharacter) ?? [];
   const [libsReady, setLibsReady] = React.useState(false);
 
   // 检测库是否就绪。依赖 activeCharacter 以便在角色切换时重新检查。
@@ -93,15 +101,14 @@ const HiddenScriptLayer = ({
   React.useEffect(() => {
     let isMounted = true;
     const checkLibs = () => {
-      const w = window as WindowWithScriptLibs;
       // P2 修复：统一使用 hasCardScripts 检测角色卡是否含可执行脚本/MVU 配置，
       // 避免与 bridgeCore 的检测逻辑产生分叉。
-      if (!hasCardScripts(activeCharacter)) {
+      if (!renderer?.hasCardScripts(activeCharacter)) {
         if (isMounted) setLibsReady(true);
         return;
       }
 
-      if (w.TavernHelperMvuLibs?.defineStore && w._) {
+      if (renderer.areRuntimeLibrariesReady()) {
         if (isMounted) setLibsReady(true);
       } else {
         setTimeout(checkLibs, 50);
@@ -112,7 +119,7 @@ const HiddenScriptLayer = ({
       isMounted = false;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCharacter?.id]);
+  }, [activeCharacter?.id, renderer]);
 
   // P0-B 修复：订阅 script:mvuVariablesUpdated 降级事件
   // 当 ScriptService 的 bridge 未就绪或 notifyVariablesUpdated 抛错时，
@@ -125,7 +132,7 @@ const HiddenScriptLayer = ({
       const { session } = (msg.payload || {}) as { session?: ChatSession };
       if (session) {
         try {
-          notifyVariablesUpdated(session);
+          compatibilityRuntime.notifyStateChanged(session);
         } catch (e) {
           console.warn("[HiddenScriptLayer] Failed to forward script:mvuVariablesUpdated:", e);
         }
@@ -134,7 +141,7 @@ const HiddenScriptLayer = ({
     return () => {
       unsub();
     };
-  }, [kernel]);
+  }, [compatibilityRuntime, kernel]);
 
   // P1-A 修复：订阅 script:destroyed 事件
   // ScriptService 销毁时广播此事件，通知本组件主动停止渲染 iframe，
@@ -150,7 +157,9 @@ const HiddenScriptLayer = ({
     };
   }, [kernel]);
 
-  const canRenderScripts = libsReady && settings.enableScriptExecution && !scriptDestroyed;
+  const canRenderScripts = Boolean(
+    renderer && libsReady && settings.enableScriptExecution && !scriptDestroyed,
+  );
 
   return (
     <>
@@ -158,7 +167,7 @@ const HiddenScriptLayer = ({
       {/* MVU compatibility: #tavern_helper container with data-script-id elements */}
       <div id="tavern_helper" style={{ display: "none" }} aria-hidden="true">
         {canRenderScripts &&
-          activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
+          backgroundScripts.map((script) => {
             if (script.enabled && script.content) {
               return (
                 <div
@@ -172,12 +181,13 @@ const HiddenScriptLayer = ({
           })}
       </div>
       {canRenderScripts &&
-        activeCharacter?.extensions?.tavern_helper?.scripts?.map((script: any) => {
+        renderer && backgroundScripts.map((script) => {
           if (script.enabled && script.content) {
             return (
               <ScriptIframeItem
                 key={script.id}
                 script={script}
+                renderer={renderer}
                 enableLoopProtection={settings.enableLoopProtection !== false}
               />
             );

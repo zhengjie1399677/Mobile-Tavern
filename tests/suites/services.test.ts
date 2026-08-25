@@ -24,6 +24,8 @@ import type { ITavernHelperBridge } from "../../src/application/services/ScriptS
 import type { ChatSession, CharacterCard, UserSettings } from "../../src/types";
 import { MultiMessageService } from "../../src/application/services/MultiMessageService";
 import { ChatStreamService } from "../../src/application/services/ChatStreamService";
+import { CompatibilityRuntimeService } from "../../src/application/services/CompatibilityRuntimeService";
+import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../../src/application/compatibility/contracts";
 import {
   tableMemoryMiddleware,
   mvuScriptMiddleware,
@@ -117,9 +119,34 @@ export async function testScriptServiceDecoupling() {
   };
 
   scriptService.registerBridge(mockBridge);
+  const compatibilityRuntime = new CompatibilityRuntimeService();
+  await testKernel.registerService(compatibilityRuntime.name, compatibilityRuntime);
+  compatibilityRuntime.registerStateReducer({
+    id: "compat.test.script-state",
+    version: "1.0.0",
+    initialize: () => ({}),
+    reduce: ({ currentState }) => currentState,
+    read: (session) => session.runtimePluginState?.[SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID] as Record<string, unknown>
+      ?? session.variables
+      ?? {},
+    write: (session, state) => ({
+      ...session,
+      variables: undefined,
+      runtimePluginState: {
+        ...session.runtimePluginState,
+        [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: state,
+      },
+    }),
+    notify: () => undefined,
+  });
 
   const result3 = await scriptService.executeMvuScript({ id: "sess-1", variables: { stat_data: { hp: 50 } } } as unknown as ChatSession, "test");
-  assert(result3.variables?.stat_data?.hp === 100, "Should use injected bridge logic to modify variables");
+  assert(result3.variables === undefined, "Should stop writing legacy session.variables");
+  assert(
+    (result3.runtimePluginState?.[SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID] as { stat_data?: { hp?: number } })
+      ?.stat_data?.hp === 100,
+    "Should use injected bridge logic to update namespaced compatibility state",
+  );
 
   const result4 = scriptService.initializeMvuFromCharacter({ name: "银霜" } as CharacterCard);
   assert((result4.stat_data as { hp: number }).hp === 99, "Should use injected bridge logic to initialize variables");

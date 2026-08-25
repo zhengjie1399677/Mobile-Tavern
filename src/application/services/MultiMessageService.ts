@@ -1,5 +1,10 @@
 import { IMultiMessageService, IKernel, IDatabaseService } from "../serviceContracts";
 import { ChatSession, Message } from "../../types";
+import {
+  getMessageContentText,
+  normalizeMessageContentParts,
+  type MessageContentPart,
+} from "../../domain/messages/messageContent";
 
 export class MultiMessageService implements IMultiMessageService<ChatSession> {
   name = "multiMessage";
@@ -22,11 +27,22 @@ export class MultiMessageService implements IMultiMessageService<ChatSession> {
     this.abortController = null;
   }
 
-  async queueUserMessage(session: ChatSession, text: string): Promise<ChatSession> {
+  async queueUserMessage(
+    session: ChatSession,
+    text: string,
+    additionalParts: readonly MessageContentPart[] = [],
+  ): Promise<ChatSession> {
+    const trimmedText = text.trim();
+    const parts = normalizeMessageContentParts([
+      ...(trimmedText ? [{ type: "text" as const, text: trimmedText }] : []),
+      ...additionalParts.filter(part => part.type !== "text"),
+    ]);
     const userMsg: Message = {
       id: "msg_user_" + Math.random().toString(36).substring(2, 9),
       sender: "user",
-      content: text.trim(),
+      content: getMessageContentText(parts),
+      contentVersion: 2,
+      parts,
       timestamp: Date.now(),
     };
 

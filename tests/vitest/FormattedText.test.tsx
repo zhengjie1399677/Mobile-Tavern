@@ -75,15 +75,15 @@ describe("FormattedText component", () => {
     unmount();
   });
 
-  it("卸载时取消 TavernHelper 运行库轮询定时器", () => {
+  it("Compatibility Renderer 未装载时不启动脚本库轮询", () => {
     mockContext.settings.enableScriptExecution = true;
-    const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
     const { unmount } = render(<FormattedText text="<iframe></iframe>" charName="Bot" />);
 
     unmount();
 
-    expect(clearTimeoutSpy).toHaveBeenCalled();
-    clearTimeoutSpy.mockRestore();
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    setTimeoutSpy.mockRestore();
   });
 
   it("should render bold text inside strong tags", () => {

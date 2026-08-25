@@ -20,6 +20,6 @@ React Context 只保存界面状态。角色初始化、会话分页、级联存
 
 ## 能力登记
 
-运行时能力索引位于 `bootstrap/capabilityCatalog.ts` 与 `bootstrap/capabilityRegistry.ts`。它只描述 Mobile Tavern 当前拥有哪些内部能力、由谁提供、需要哪些权限和何时装载，不负责执行插件、替换服务或访问存储。
+运行时能力注册器位于 `bootstrap/capabilityRegistry.ts`，能力清单由对应 Runtime Plugin 显式声明。它只描述 Mobile Tavern 当前拥有哪些内部能力、由谁提供、需要哪些权限和何时装载，不负责执行插件、替换服务或访问存储。
 
 能力语义属于应用层和领域层，挂载到 Kernel extension 只是为了复用通用扩展点和 inspect/debug；不得把 LLM、TTS、ASR、插件、兼容运行时或原生能力的业务实现移入 `src/kernel/`。

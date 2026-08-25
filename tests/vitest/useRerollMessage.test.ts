@@ -136,6 +136,7 @@ function createWeakNetworkHarness(
       getService: vi.fn(() => memoryService),
       getPipeline: vi.fn(() => ({
         list: () => [{}, {}, {}],
+        matches: () => true,
         execute: vi.fn(async () => undefined),
       })),
     },
@@ -280,6 +281,7 @@ describe("useRerollMessage 重发事务锁", () => {
         getService: vi.fn(() => memoryService),
         getPipeline: vi.fn(() => ({
           list: () => [{}, {}, {}],
+          matches: () => true,
           execute: vi.fn(async () => undefined),
         })),
       },
@@ -339,7 +341,7 @@ describe("useRerollMessage 重发事务锁", () => {
     expect(replaceSessionBranch.mock.calls[0][1]).toEqual(["assistant-9"]);
     expect(replaceSessionBranch.mock.calls[0][2]).toHaveLength(1);
     expect(replaceSessionBranch.mock.calls[0][2][0].extra?.mobileTavernSessionState)
-      .toMatchObject({ version: 1 });
+      .toEqual({ version: 2, runtimePluginState: undefined, tableMemory: undefined });
 
     consoleLog.mockRestore();
     consoleClear.mockRestore();
@@ -524,6 +526,7 @@ function createControllableHarness(options: {
       })),
       getPipeline: vi.fn(() => ({
         list: () => [],
+        matches: () => false,
         execute: vi.fn(async () => undefined),
       })),
     },
@@ -799,7 +802,7 @@ describe("useRerollMessage 状态同步与资源清理", () => {
     }
   });
 
-  it("成功重发后清理 TavernHelperStreamingMessageId 与 IsSending 全局标志", async () => {
+  it("未装载兼容插件时成功重发不创建 TavernHelper 全局标志", async () => {
     const session = createMinimalSession();
     const harness = createControllableHarness({
       session,
@@ -813,17 +816,17 @@ describe("useRerollMessage 状态同步与资源清理", () => {
       await result.current.handleRerollLast();
     });
 
-    // 流式完成后，全局标志应被清理
+    // base Profile 不应创建任何生态兼容全局字段。
     const win = window as unknown as Record<string, unknown>;
-    expect(win.TavernHelperStreamingMessageId).toBeNull();
-    expect(win.TavernHelperIsSending).toBe(false);
+    expect(win.TavernHelperStreamingMessageId).toBeUndefined();
+    expect(win.TavernHelperIsSending).toBeUndefined();
     // abortControllerRef 也应被清理
     expect(harness.abortControllerRef.current).toBeNull();
     // pendingUpdateTimeoutRef 应被清理
     expect(harness.pendingUpdateTimeoutRef.current).toBeNull();
   });
 
-  it("流式抛错后 finally 兜底清理全局标志与 abortControllerRef", async () => {
+  it("未装载兼容插件时流式异常不创建全局标志并清理 abortControllerRef", async () => {
     const session = createMinimalSession();
     const harness = createControllableHarness({
       session,
@@ -838,10 +841,10 @@ describe("useRerollMessage 状态同步与资源清理", () => {
       await result.current.handleRerollLast();
     });
 
-    // 异常路径下 finally 也应清理全局标志
+    // 异常路径同样不得创建生态兼容全局字段。
     const win = window as unknown as Record<string, unknown>;
-    expect(win.TavernHelperStreamingMessageId).toBeNull();
-    expect(win.TavernHelperIsSending).toBe(false);
+    expect(win.TavernHelperStreamingMessageId).toBeUndefined();
+    expect(win.TavernHelperIsSending).toBeUndefined();
     expect(harness.abortControllerRef.current).toBeNull();
     expect(harness.pendingUpdateTimeoutRef.current).toBeNull();
     expect(harness.isSendingRef.current).toBe(false);

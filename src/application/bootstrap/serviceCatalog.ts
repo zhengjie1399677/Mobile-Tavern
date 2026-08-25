@@ -1,4 +1,4 @@
-import type { IKernel, IKernelService } from "../serviceContracts";
+import type { EffectDisposer, IKernel, IKernelService } from "../serviceContracts";
 import { KernelServices } from "../serviceContracts";
 import { MEMORY_PERSISTENCE_SERVICE } from "../services/memory/types";
 
@@ -10,6 +10,10 @@ export interface ServiceModuleDescriptor {
 
 /** 官方服务的声明式动态装载目录；新增服务无需再向装配函数添加静态 import。 */
 export const coreServiceCatalog: readonly ServiceModuleDescriptor[] = [
+  { name: KernelServices.AgentRuntime, initTimeoutMs: 3000, load: async () => new (await import("../services/AgentRuntimeService")).AgentRuntimeService() },
+  { name: KernelServices.CompatibilityRuntime, initTimeoutMs: 3000, load: async () => new (await import("../services/CompatibilityRuntimeService")).CompatibilityRuntimeService() },
+  { name: KernelServices.RuntimeProfiles, initTimeoutMs: 3000, load: async () => new (await import("../services/RuntimeProfileService")).RuntimeProfileService() },
+  { name: KernelServices.Attachments, initTimeoutMs: 5000, load: async () => new (await import("../services/AttachmentService")).AttachmentService() },
   { name: KernelServices.Database, initTimeoutMs: 5000, load: async () => new (await import("../services/DatabaseService")).DatabaseService() },
   { name: KernelServices.LLM, initTimeoutMs: 8000, load: async () => new (await import("../services/LLMService")).LLMService() },
   { name: KernelServices.Prompt, initTimeoutMs: 3000, load: async () => new (await import("../services/PromptService")).PromptService() },
@@ -57,6 +61,6 @@ export async function loadServiceModules(
 export async function registerServiceModules(
   kernel: IKernel,
   catalog: readonly ServiceModuleDescriptor[],
-): Promise<void> {
-  await kernel.registerServiceBatch(await loadServiceModules(catalog));
+): Promise<EffectDisposer> {
+  return kernel.registerServiceBatch(await loadServiceModules(catalog));
 }

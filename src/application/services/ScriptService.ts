@@ -1,7 +1,11 @@
-import { IScriptService, IKernel, IDatabaseService } from "../serviceContracts";
+import {
+  IScriptService,
+  IKernel,
+  IDatabaseService,
+  KernelServices,
+} from "../serviceContracts";
+import type { ICompatibilityRuntimeService } from "../compatibility/contracts";
 import { CharacterCard, ChatSession } from "../../types";
-import { parseMvuMessage as parseMvuMessageDirect, applyCharacterRegexScripts } from "../../compatibility/sillytavern/mvuParser";
-import JSON5 from "json5";
 import { Logger } from "../../utils/logger";
 
 const logger = Logger.create("ScriptService");
@@ -108,13 +112,10 @@ function cleanCharacterForMvu(character: CharacterCard | null | undefined): Char
  * 会话输入防腐清洗函数
  *
  * 对输入的 session 进行字段校验与降级处理，
- * 确保变量字段是安全对象。
+ * 确保消息窗口是安全数组；插件状态读取由 Compatibility Host 负责。
  */
 function cleanSessionForMvu(session: ChatSession): ChatSession {
   const cleaned = { ...session };
-  if (!cleaned.variables || typeof cleaned.variables !== "object" || Array.isArray(cleaned.variables)) {
-    cleaned.variables = { stat_data: {} };
-  }
   if (!cleaned.messages || !Array.isArray(cleaned.messages)) {
     cleaned.messages = [];
   }
@@ -156,6 +157,7 @@ function checkAborted(...signals: Array<AbortSignal | undefined>): void {
 
 export class ScriptService implements IScriptService<CharacterCard, ChatSession> {
   name = "script";
+  dependencies = [KernelServices.CompatibilityRuntime] as const;
   private kernel!: IKernel;
   private bridge: ITavernHelperBridge | null = null;
   // P1-1/P1-2: 服务级 AbortController
@@ -201,7 +203,8 @@ export class ScriptService implements IScriptService<CharacterCard, ChatSession>
       if (this.bridge) {
         rawVariables = this.bridge.initializeMvuFromCharacter(safeCharacter);
       } else {
-        rawVariables = localInitializeMvuFromCharacter(safeCharacter);
+        rawVariables = this.getCompatibilityRuntime()?.initializeState(safeCharacter)
+          ?? { stat_data: {} };
       }
       // 防腐隔离：清洗输出，防止脏数据渗透到核心逻辑层
       return cleanMvuVariables(rawVariables);
@@ -227,7 +230,14 @@ export class ScriptService implements IScriptService<CharacterCard, ChatSession>
       if (this.bridge) {
         rawParsed = this.bridge.parseMvuMessage(messageContent, safeCurrentVars, signal);
       } else {
-        rawParsed = parseMvuMessageDirect(messageContent, safeCurrentVars, signal);
+        const runtime = this.getCompatibilityRuntime();
+        rawParsed = runtime?.isEnabled()
+          ? runtime.reduceState(
+              messageContent,
+              safeCurrentVars,
+              signal ?? this.abortController?.signal,
+            )
+          : safeCurrentVars;
       }
       // 防腐隔离：清洗输出
       return cleanMvuVariables(rawParsed);
@@ -266,20 +276,19 @@ export class ScriptService implements IScriptService<CharacterCard, ChatSession>
       
       let processedContent = messageContent;
       if (character) {
-        processedContent = applyCharacterRegexScripts(
-          messageContent,
+        processedContent = this.getCompatibilityRuntime()?.transformText({
+          text: messageContent,
           character,
-          isAi,
-          undefined,
-          undefined,
-          "store",
-          signal ?? this.abortController?.signal,
-        );
+          isAiMessage: isAi,
+          mode: "store",
+          signal: signal ?? this.abortController?.signal,
+        }) ?? messageContent;
       }
       
+      const compatibilityRuntime = this.getCompatibilityRuntime();
       const parsedVariables = this.parseMvuMessage(
         processedContent,
-        safeSession.variables || {},
+        compatibilityRuntime?.readState(safeSession) ?? {},
         signal ?? this.abortController?.signal,
       );
 
@@ -304,11 +313,10 @@ export class ScriptService implements IScriptService<CharacterCard, ChatSession>
         }
       }
 
-      const updatedSession = {
+      const updatedSession = compatibilityRuntime?.writeState({
         ...safeSession,
-        variables: parsedVariables,
         messages: updatedMessages,
-      };
+      }, parsedVariables) ?? { ...safeSession, messages: updatedMessages };
 
       // notifyVariablesUpdated 统一由 pipelineHelpers.ts 在 pipeline 执行完毕后
       // 调用一次（含 mag_variable_initialized / message_received / character_message_rendered），
@@ -325,98 +333,16 @@ export class ScriptService implements IScriptService<CharacterCard, ChatSession>
       return session;
     }
   }
-}
 
-function localInitializeMvuFromCharacter(character: CharacterCard | null | undefined): Record<string, unknown> {
-  if (!character) return { stat_data: {} };
-
-  const ext = (character.extensions || {}) as Record<string, unknown>;
-  const variables: Record<string, unknown> = {
-    stat_data: {},
-    schema: { type: 'object', properties: {} },
-    display_data: {},
-    delta_data: {},
-  };
-
-  let mvuSettings: Record<string, unknown> | string | null | undefined =
-    (ext.mvu_settings as Record<string, unknown> | undefined) ||
-    (ext.mvu as Record<string, unknown> | undefined) ||
-    (ext.MVU as Record<string, unknown> | undefined) ||
-    null;
-
-  if (typeof mvuSettings === "string") {
-    // 取局部变量持有原始字符串，避免 try/catch 跨块重新赋值导致 mvuSettings 类型被放宽回联合类型。
-    const rawStr = mvuSettings;
-    try {
-      mvuSettings = JSON5.parse(rawStr) as Record<string, unknown>;
-    } catch {
-      try {
-        mvuSettings = JSON.parse(rawStr) as Record<string, unknown>;
-      } catch {
-        mvuSettings = null;
-      }
+  private getCompatibilityRuntime(): ICompatibilityRuntimeService | null {
+    if (
+      !this.kernel
+      || typeof this.kernel.hasService !== "function"
+      || !this.kernel.hasService(KernelServices.CompatibilityRuntime)
+    ) {
+      return null;
     }
+    return this.kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime);
   }
-
-  if (mvuSettings && typeof mvuSettings === "object") {
-    const settings = mvuSettings as Record<string, unknown>;
-    if (settings.schema) {
-      variables.schema = settings.schema;
-    }
-    if (settings.stat_data && typeof settings.stat_data === "object") {
-      variables.stat_data = { ...(settings.stat_data as Record<string, unknown>) };
-    } else if (settings.defaults && typeof settings.defaults === "object") {
-      variables.stat_data = { ...(settings.defaults as Record<string, unknown>) };
-    }
-    if (settings.display_data && typeof settings.display_data === "object") {
-      variables.display_data = { ...(settings.display_data as Record<string, unknown>) };
-    }
-  }
-
-  if (!variables.stat_data) {
-    variables.stat_data = {};
-  }
-
-  if (character.first_mes) {
-    try {
-      const processedGreeting = applyCharacterRegexScripts(character.first_mes, character, undefined, undefined, undefined, "store");
-      const parsedVars = parseMvuMessageDirect(processedGreeting, variables);
-      if (parsedVars && parsedVars.stat_data && typeof parsedVars.stat_data === "object") {
-        variables.stat_data = { ...(variables.stat_data as Record<string, unknown>), ...(parsedVars.stat_data as Record<string, unknown>) };
-      }
-    } catch (e) {
-      logger.warn("Failed to parse first_mes initvars", { error: e });
-    }
-  }
-
-  // P0-A 修复：解析 Worldbook/Lorebook 中的 [initvar] 词条
-  // 与 bridgeCore.initializeMvuFromCharacter 保持逻辑一致，
-  // 防止会话创建时 bridge 未注册导致 lorebook 初始变量丢失。
-  // 注意：SillyTavern v2 角色卡的 character_book 字段不在 CharacterCard 显式声明中
-  // （历史数据保留在 extensions.world 或顶层 character_book），此处通过 extensions 兼容读取。
-  const worldFromExt = (ext.world ?? ext.character_book) as { entries?: ReadonlyArray<{ content?: string; comment?: string }> } | undefined;
-  const lorebookEntries = worldFromExt?.entries || [];
-  if (Array.isArray(lorebookEntries)) {
-    for (const entry of lorebookEntries) {
-      if (!entry || !entry.content) continue;
-      const comment = (entry.comment || "").toLowerCase();
-      const content = entry.content;
-      if (comment.includes("initvar") || comment.includes("stat_data") || content.includes("<initvar>") || content.includes("stat_data:")) {
-        try {
-          const parsedVars = parseMvuMessageDirect(content, variables);
-          if (parsedVars && parsedVars.stat_data && typeof parsedVars.stat_data === "object") {
-            const parsedStat = parsedVars.stat_data as Record<string, unknown>;
-            if (Object.keys(parsedStat).length > 0) {
-              variables.stat_data = { ...(variables.stat_data as Record<string, unknown>), ...parsedStat };
-            }
-          }
-        } catch (e) {
-          logger.warn("Failed to parse lorebook initvars", { error: e });
-        }
-      }
-    }
-  }
-
-  return variables;
 }
 

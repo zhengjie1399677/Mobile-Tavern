@@ -25,6 +25,7 @@ import {
 import type { MemoryServiceTyped } from "../application/services/memory";
 import type { MemoryAuditSnapshot } from "../application/services/memory/types";
 import type { InstalledFullscreenPlugin } from "../domain/plugins";
+import { setCompatibilityGenerationState } from "../application/useCases/compatibilityGenerationState";
 
 import { useChatUI } from "./useChat/useChatUI";
 import { useSessionManager } from "./useChat/useSessionManager";
@@ -111,13 +112,17 @@ export const useChat = (
       ui.abortControllerRef.current = null;
       ui.isSendingRef.current = false;
       setIsSending(false);
+      setCompatibilityGenerationState(kernel, {
+        isSending: false,
+        streamingMessageId: null,
+      });
     }
     // P1-8: 会话/角色切换时清理 Bison 链 timer，避免堆积与对旧会话 state 进行更新
     if (ui.bisonChainTimerRef.current) {
       clearTimeout(ui.bisonChainTimerRef.current);
       ui.bisonChainTimerRef.current = null;
     }
-  }, [activeCharId, activeSessionId, setIsSending]);
+  }, [activeCharId, activeSessionId, kernel, setIsSending]);
 
   // P1-2: useMemo 化 sessionManagerParams，避免每次渲染创建新对象导致
   // useSessionManager 内部所有 useCallback 依赖 [p] 形同虚设（每次都变）。
@@ -319,7 +324,7 @@ export const useChat = (
       const persisted = await databaseService.updateSessionMessage(
         s.id,
         messageToSave,
-        { variables: s.variables },
+        { variables: undefined, runtimePluginState: s.runtimePluginState },
       );
       return {
         ...s,

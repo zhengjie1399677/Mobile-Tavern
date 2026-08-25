@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { PromptComposition } from "../../src/domain/prompt-composition";
 import {
   createPromptCompositionFileName,
-  parsePromptCompositionTemplate,
+  parsePromptCompositionTemplate as parsePromptCompositionTemplateCore,
   serializePromptCompositionTemplate,
 } from "../../src/components/presetForm/promptCompositionTransfer";
+import { testSillyTavernCompatibilityCodec } from "../fixtures/sillyTavernCompatibilityCodec";
+
+const parsePromptCompositionTemplate = (input: string) =>
+  parsePromptCompositionTemplateCore(input, testSillyTavernCompatibilityCodec);
 
 const composition: PromptComposition = {
   id: "transfer-test",

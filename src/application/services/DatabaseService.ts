@@ -1,4 +1,12 @@
-import { IDatabaseService, IKernel, IScriptService } from "../serviceContracts";
+import {
+  type IAttachmentService,
+  type IAgentRuntimeService,
+  type ICompatibilityRuntimeService,
+  type IDatabaseService,
+  type IKernel,
+  type IScriptService,
+  KernelServices,
+} from "../serviceContracts";
 import { CharacterCard, ChatSession, ChatSessionMetadataPatch, Message } from "../../types";
 import {
   updateSessionMetadata,
@@ -29,7 +37,7 @@ import {
   updateSessionSummary as dbUpdateSessionSummary,
 } from "../../infrastructure/storage/indexedDbMemoryStore";
 import { updateSessionMessage as dbUpdateSessionMessage } from "../../infrastructure/storage/repositories/sessionMessageUpdateRepository";
-import { applyCharacterRegexScripts } from "../../compatibility/sillytavern/mvuParser";
+import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../compatibility/contracts";
 import { commitSessionTurn as dbCommitSessionTurn } from "../../infrastructure/storage/repositories/sessionTurnRepository";
 import { deleteSessionMessage as dbDeleteSessionMessage } from "../../infrastructure/storage/repositories/sessionMessageDeleteRepository";
 import { hydrateNewestFirstMessagePage } from "../useCases/chatMessageHydration";
@@ -39,6 +47,7 @@ import {
   findSessionStateSnapshot,
 } from "../../domain/chat/sessionStateSnapshot";
 import type { MemoryServiceTyped } from "./memory";
+import { collectMessageAssetIds } from "../../domain/messages/messageContent";
 
 export class DatabaseService implements IDatabaseService<
   ChatSession,
@@ -49,8 +58,14 @@ export class DatabaseService implements IDatabaseService<
 > {
   name = "database";
   isCritical = true;
-  dependencies = ["script"] as const;
+  dependencies = [
+    KernelServices.Script,
+    KernelServices.Attachments,
+    KernelServices.AgentRuntime,
+    KernelServices.CompatibilityRuntime,
+  ] as const;
   private kernel!: IKernel;
+  private attachmentSyncQueue: Promise<void> = Promise.resolve();
   // P1-1/P1-2: 服务级 AbortController
   private abortController: AbortController | null = null;
 
@@ -68,6 +83,7 @@ export class DatabaseService implements IDatabaseService<
       // 兜底：扫描本身异常不得影响 DatabaseService 可用性
       logger.warn("Integrity scan failed", { error: e });
     });
+    void this.scheduleAttachmentReconciliation(true);
   }
 
   // P1-2: 销毁时中止挂起的 IDB 操作（IDB 事务会被 abort）
@@ -181,8 +197,14 @@ export class DatabaseService implements IDatabaseService<
       const messages = hydrateNewestFirstMessagePage(records);
       const snapshot = findSessionStateSnapshot(messages);
       if (snapshot) {
+        const runtimePluginState = snapshot.version === 2
+          ? snapshot.runtimePluginState
+          : snapshot.variables
+            ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: snapshot.variables }
+            : undefined;
         return {
-          variables: snapshot.variables,
+          variables: undefined,
+          runtimePluginState,
           tableMemory: snapshot.tableMemory,
         };
       }
@@ -199,7 +221,13 @@ export class DatabaseService implements IDatabaseService<
         .getStateTable()
         .initDefaultSheets(character?.name || "NPC");
     }
-    return { variables: legacyVariables, tableMemory };
+    return {
+      variables: undefined,
+      runtimePluginState: legacyVariables
+        ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: legacyVariables }
+        : undefined,
+      tableMemory,
+    };
   }
 
   // PERF-03: 分页加载 API，封装 localDB 实现
@@ -277,12 +305,14 @@ export class DatabaseService implements IDatabaseService<
     const messageWithTurn = turnIndex === undefined
       ? message
       : { ...message, turnIndex };
+    await this.assertMessageAttachments([messageWithTurn]);
     await dbCommitSessionTurn(
       sessionId,
       {},
       [messageWithTurn],
       signal ?? this.abortController?.signal,
     );
+    await this.patchMessageAttachmentReferences(sessionId, [messageWithTurn]);
   }
 
   async commitSessionTurn(
@@ -293,16 +323,20 @@ export class DatabaseService implements IDatabaseService<
     traceId?: string,
   ): Promise<void> {
     void traceId;
-    return dbCommitSessionTurn(
+    await this.assertMessageAttachments(messages);
+    await dbCommitSessionTurn(
       sessionId,
       patch,
       messages,
       signal ?? this.abortController?.signal,
     );
+    await this.patchMessageAttachmentReferences(sessionId, messages);
   }
 
   async deleteSessionMessage(sessionId: string, messageId: string, signal?: AbortSignal): Promise<ChatSession> {
-    return dbDeleteSessionMessage(sessionId, messageId, signal ?? this.abortController?.signal);
+    const session = await dbDeleteSessionMessage(sessionId, messageId, signal ?? this.abortController?.signal);
+    await this.patchMessageAttachmentReferences(sessionId, [], [messageId]);
+    return session;
   }
 
   async updateSessionMessage(
@@ -311,12 +345,15 @@ export class DatabaseService implements IDatabaseService<
     patch: ChatSessionMetadataPatch,
     signal?: AbortSignal,
   ): Promise<ChatSession> {
-    return dbUpdateSessionMessage(
+    await this.assertMessageAttachments([message]);
+    const session = await dbUpdateSessionMessage(
       sessionId,
       message,
       patch,
       signal ?? this.abortController?.signal,
     );
+    await this.patchMessageAttachmentReferences(sessionId, [message]);
+    return session;
   }
 
   async replaceSessionBranch(
@@ -325,21 +362,93 @@ export class DatabaseService implements IDatabaseService<
     newMessages: Message[],
     signal?: AbortSignal
   ): Promise<void> {
-    return dbReplaceSessionBranch(
+    await this.assertMessageAttachments(newMessages);
+    await dbReplaceSessionBranch(
       session,
       removedMessageIds,
       newMessages,
       signal ?? this.abortController?.signal
     );
+    await this.patchMessageAttachmentReferences(session.id, newMessages, removedMessageIds);
   }
 
   async deleteSession(id: string, signal?: AbortSignal): Promise<void> {
-    return deleteSession(id, signal ?? this.abortController?.signal);
+    const removedMessageIds = (await getMessagesBySession(id)).map(record => record.id);
+    await deleteSession(id, signal ?? this.abortController?.signal);
+    await this.patchMessageAttachmentReferences(id, [], removedMessageIds);
+    if (this.kernel.hasService(KernelServices.AgentRuntime)) {
+      await this.kernel
+        .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
+        .deleteJournalBySession(id);
+    }
   }
 
   // 批量写入会话（备份恢复 / 跨设备同步场景），跨 sessions+messages Store 事务
   async replaceCompleteSessions(sessionsList: ChatSession[], signal?: AbortSignal): Promise<void> {
-    return dbReplaceCompleteSessions(sessionsList, signal ?? this.abortController?.signal);
+    await this.assertMessageAttachments(sessionsList.flatMap(session => session.messages));
+    await dbReplaceCompleteSessions(sessionsList, signal ?? this.abortController?.signal);
+    await this.scheduleAttachmentReconciliation();
+  }
+
+  private getAttachmentService(): IAttachmentService {
+    return this.kernel.getService<IAttachmentService>(KernelServices.Attachments);
+  }
+
+  /** 写主消息事务前验证新引用，防止把已知悬空 assetId 写入权威消息记录。 */
+  private async assertMessageAttachments(messages: readonly Message[]): Promise<void> {
+    const assetIds = new Set(messages.flatMap(message => collectMessageAssetIds(message.parts ?? [])));
+    const attachmentService = this.getAttachmentService();
+    for (const assetId of assetIds) {
+      if (!await attachmentService.getMetadata(assetId)) throw new Error("ATTACHMENT_NOT_FOUND");
+    }
+  }
+
+  /**
+   * 两个 IndexedDB 不能共享事务，因此以消息库为权威快照串行重建附件反向引用。
+   * 启动修复与每次消息事务后的补偿使用同一队列，进程中断后也可在下次启动恢复。
+   */
+  private scheduleAttachmentReconciliation(runGarbageCollection = false): Promise<void> {
+    const run = this.attachmentSyncQueue.then(async () => {
+      const references: Array<{ referenceId: string; assetIds: string[] }> = [];
+      const sessions = await getAllSessions();
+      for (const session of sessions) {
+        const records = await getMessagesBySession(session.id);
+        for (const record of records) {
+          const assetIds = record.contentVersion === 2
+            ? collectMessageAssetIds(record.content)
+            : [];
+          if (assetIds.length === 0) continue;
+          references.push({ referenceId: `${session.id}/${record.id}`, assetIds });
+        }
+      }
+      const attachmentService = this.getAttachmentService();
+      await attachmentService.reconcileReferences(references);
+      if (runGarbageCollection) {
+        await attachmentService.collectGarbage(Date.now() - 24 * 60 * 60 * 1000);
+      }
+    });
+    this.attachmentSyncQueue = run.catch(error => {
+      logger.warn("Attachment reference reconciliation failed", { error });
+    });
+    return this.attachmentSyncQueue;
+  }
+
+  private patchMessageAttachmentReferences(
+    sessionId: string,
+    messages: readonly Message[],
+    removedMessageIds: readonly string[] = [],
+  ): Promise<void> {
+    const run = this.attachmentSyncQueue.then(() => this.getAttachmentService().patchReferences(
+      messages.map(message => ({
+        referenceId: `${sessionId}/${message.id}`,
+        assetIds: collectMessageAssetIds(message.parts ?? []),
+      })),
+      removedMessageIds.map(messageId => `${sessionId}/${messageId}`),
+    ));
+    this.attachmentSyncQueue = run.catch(error => {
+      logger.warn("Attachment reference patch failed", { error });
+    });
+    return this.attachmentSyncQueue;
   }
 
   // P0-4 / P1-4: 单条直查角色卡，避免全量反序列化
@@ -355,7 +464,11 @@ export class DatabaseService implements IDatabaseService<
     let formattedStarter = (starterMessage || "").trim();
     if (formattedStarter) {
       try {
-        const processedStarter = applyCharacterRegexScripts(formattedStarter, character, undefined, undefined, undefined, "store");
+        const processedStarter = this.getCompatibilityRuntime()?.transformText({
+          text: formattedStarter,
+          character,
+          mode: "store",
+        }) ?? formattedStarter;
         mvuVariables = scriptService.parseMvuMessage(processedStarter, mvuVariables);
       } catch (err) {
         logger.warn("Failed to parse starterMessage variables", { error: err });
@@ -389,7 +502,8 @@ export class DatabaseService implements IDatabaseService<
       createdAt: Date.now(),
       messages,
       summaries: [],
-      variables: mvuVariables,
+      runtimePluginState: this.createCompatibilityState(mvuVariables),
+      compositionSnapshot: this.getAgentCompositionSnapshot(),
     };
     await this.replaceCompleteSessions([newSession]);
     return newSession;
@@ -403,7 +517,11 @@ export class DatabaseService implements IDatabaseService<
     let starterMessage = (character?.first_mes || "").trim();
     if (starterMessage) {
       try {
-        const processedStarter = applyCharacterRegexScripts(starterMessage, character, undefined, undefined, undefined, "store");
+        const processedStarter = this.getCompatibilityRuntime()?.transformText({
+          text: starterMessage,
+          character,
+          mode: "store",
+        }) ?? starterMessage;
         mvuVariables = scriptService.parseMvuMessage(processedStarter, mvuVariables);
       } catch (err) {
         logger.warn("Failed to parse branch starterMessage variables", { error: err });
@@ -435,7 +553,8 @@ export class DatabaseService implements IDatabaseService<
       messages,
       summaries: [],
       createdAt: Date.now(),
-      variables: mvuVariables,
+      runtimePluginState: this.createCompatibilityState(mvuVariables),
+      compositionSnapshot: this.getAgentCompositionSnapshot(),
     };
     await this.replaceCompleteSessions([newSession]);
     return newSession;
@@ -476,6 +595,21 @@ export class DatabaseService implements IDatabaseService<
           .initDefaultSheets(character?.name || "NPC");
       }
     }
+    const snapshotPluginState = snapshot?.version === 2
+      ? snapshot.runtimePluginState
+      : snapshot?.variables
+        ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: snapshot.variables }
+        : undefined;
+    const runtimePluginState = snapshotPluginState
+      ?? (legacyVariables
+        ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(legacyVariables) }
+        : undefined)
+      ?? (msgIndex === fullHistory.length - 1
+        ? structuredClone(sourceSession.runtimePluginState)
+          ?? (sourceSession.variables
+            ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(sourceSession.variables) }
+            : undefined)
+        : undefined);
 
     const newSession: ChatSession = {
       id: "session_branch_" + Math.random().toString(36).substring(2, 9),
@@ -485,14 +619,12 @@ export class DatabaseService implements IDatabaseService<
       messages: sourceSubHistory,
       summaries: filteredSummaries,
       lastSummarizedMessageId,
-      variables: snapshot?.variables
-        ?? legacyVariables
-        ?? (msgIndex === fullHistory.length - 1
-          ? structuredClone(sourceSession.variables)
-          : undefined),
+      runtimePluginState,
       tableMemory,
       parentSessionId: sourceSession.id,
       parentMessageId: msgId,
+      compositionSnapshot: sourceSession.compositionSnapshot
+        ?? this.getAgentCompositionSnapshot(),
     };
     await this.replaceCompleteSessions([newSession]);
     return newSession;
@@ -508,5 +640,30 @@ export class DatabaseService implements IDatabaseService<
       throw new Error("Summary has no message boundary");
     }
     return this.createBacktrackBranch(sourceSession, title, summary.lastMessageId);
+  }
+
+  private getAgentCompositionSnapshot(): ChatSession["compositionSnapshot"] {
+    if (!this.kernel.hasService(KernelServices.AgentRuntime)) return undefined;
+    return this.kernel
+      .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
+      .getCompositionSnapshot() ?? undefined;
+  }
+
+  private getCompatibilityRuntime(): ICompatibilityRuntimeService | null {
+    if (
+      !this.kernel
+      || typeof this.kernel.hasService !== "function"
+      || !this.kernel.hasService(KernelServices.CompatibilityRuntime)
+    ) {
+      return null;
+    }
+    return this.kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime);
+  }
+
+  private createCompatibilityState(
+    state: Record<string, unknown>,
+  ): ChatSession["runtimePluginState"] {
+    if (!this.getCompatibilityRuntime()?.isEnabled()) return undefined;
+    return { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(state) };
   }
 }

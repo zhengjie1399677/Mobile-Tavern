@@ -117,6 +117,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
   );
 
   const allowedKernelFiles = new Set([
+    "src/kernel/EffectScope.ts",
     "src/kernel/index.ts",
     "src/kernel/Kernel.ts",
     "src/kernel/KernelLifecycle.ts",
@@ -200,11 +201,27 @@ export async function testArchitectureBoundaries(): Promise<void> {
   for (const directory of ["src/components", "src/tabs", "src/hooks", "src/contexts"]) {
     for (const file of listCodeFiles(directory)) {
       assert(
-        !/infrastructure\/resources/.test(read(file)),
-        `${file} 不得直接读取本地界面资源存储；必须通过 LocalResourceService 管理字节与 Blob URL`
+        !/infrastructure\/(?:resources|attachments)/.test(read(file)),
+        `${file} 不得直接读取本地界面资源或消息附件存储；必须通过对应应用 Service 管理字节与 Blob URL`
       );
     }
   }
+
+  const attachmentStorage = read("src/infrastructure/attachments/attachmentStorage.ts");
+  assert(
+    attachmentStorage.includes('MobileTavernAttachmentDB') &&
+      attachmentStorage.includes('METADATA_STORE = "metadata"') &&
+      attachmentStorage.includes('CONTENT_STORE = "contents"') &&
+      !read("src/infrastructure/resources/localResourceStorage.ts").includes("Attachment"),
+    "消息附件必须使用独立数据库并分轨元数据与字节，不能回流主题资源存储"
+  );
+  const messageRecord = read("src/infrastructure/storage/messageRecord.ts");
+  assert(
+    messageRecord.includes("contentVersion: 2") &&
+      messageRecord.includes("content: MessageContentPart[]") &&
+      !/contentVersion:\s*2[\s\S]{0,160}\bparts\s*:/.test(messageRecord),
+    "V2 消息记录必须以 Content Parts 作为唯一权威 content，不得并列持久化派生 parts/content 字段"
+  );
 
   assert(
     read("src/components/MainLayout.tsx").includes('data-tab-id={tab.id}') &&
@@ -225,6 +242,76 @@ export async function testArchitectureBoundaries(): Promise<void> {
       `${file} 不得继续使用旧 TavernHelper 导入路径；新代码必须进入 SillyTavern Compatibility Runtime`
     );
   }
+
+  const compatibilityPluginEntry = "src/application/runtimePlugins/sillyTavernCompatibilityRuntimePlugin.ts";
+  for (const file of listCodeFiles("src")) {
+    const normalizedFile = file.replaceAll("\\", "/");
+    if (
+      normalizedFile.startsWith("src/compatibility/sillytavern/")
+      || normalizedFile.startsWith("src/utils/tavernHelper/")
+      || normalizedFile.startsWith("src/infrastructure/compat/sillytavern/")
+      || normalizedFile === compatibilityPluginEntry
+    ) {
+      continue;
+    }
+    const source = read(file);
+    assert(
+      !/(?:from\s+|import\s*\()\s*["'][^"']*compatibility\/sillytavern/.test(source),
+      `${file} 不得直接导入 SillyTavern 实现；通用消费者只能依赖 Compatibility Host 契约`
+    );
+    assert(
+      !/(?:from\s+|import\s*\()\s*["'][^"']*infrastructure\/compat\/sillytavern/.test(source),
+      `${file} 不得绕过 Codec Slot 直接导入 SillyTavern 基础设施 Adapter`
+    );
+    assert(
+      !/TavernHelperIsSending|TavernHelperStreamingMessageId|TavernHelperMvuLibs/.test(source),
+      `${file} 不得直接读写 SillyTavern 运行时全局字段；必须通过 Renderer 契约访问`
+    );
+  }
+
+  const compatibilityHost = read("src/application/services/CompatibilityRuntimeService.ts");
+  assert(
+    compatibilityHost.includes("registerCodec")
+      && compatibilityHost.includes("registerPromptSection")
+      && compatibilityHost.includes("registerContextSource")
+      && compatibilityHost.includes("registerTransform")
+      && compatibilityHost.includes("registerStateReducer")
+      && compatibilityHost.includes("registerRenderer")
+      && !compatibilityHost.includes('from "react"')
+      && !compatibilityHost.includes("from 'react'"),
+    "Compatibility Host 必须在 Application 层提供六类可撤销贡献，且不得依赖 React"
+  );
+  const compatibilityPlugin = read(compatibilityPluginEntry);
+  assert(
+    compatibilityPlugin.includes("SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID")
+      && compatibilityPlugin.includes("scope.add(runtime.registerCodec")
+      && compatibilityPlugin.includes("scope.add(runtime.registerRenderer"),
+    "SillyTavern 兼容能力必须由独立受信 Runtime Plugin 注册，并归属 Profile Scope"
+  );
+  const runtimeProfiles = read("src/application/runtimePlugins/legacyRuntimePlugin.ts");
+  const baseProfileSource = runtimeProfiles.slice(
+    runtimeProfiles.indexOf("export const baseRuntimeProfileDefinition"),
+    runtimeProfiles.indexOf("export const legacyRuntimeProfileDefinition"),
+  );
+  assert(
+    runtimeProfiles.includes("baseRuntimeProfileDefinition")
+      && runtimeProfiles.includes('id: "mobile-tavern.base"')
+      && runtimeProfiles.includes('id: "mobile-tavern.tavern"')
+      && runtimeProfiles.includes("SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID")
+      && !baseProfileSource.includes("SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID"),
+    "运行时必须同时保留不装载兼容实现的 base Profile 与显式装载兼容插件的 Tavern Profile"
+  );
+  const runtimePluginContracts = read("src/application/runtimePlugins/contracts.ts");
+  const runtimeProfileLoader = read("src/application/runtimePlugins/profileLoader.ts");
+  assert(
+    runtimePluginContracts.includes("readonly configSchema: z.ZodType<unknown>")
+      && runtimePluginContracts.includes("RuntimeCapabilityToken")
+      && runtimePluginContracts.includes("defineRuntimePlugin")
+      && runtimeProfileLoader.includes("definition.configSchema.parse")
+      && runtimeProfileLoader.includes("RUNTIME_CAPABILITY_PROVIDER_CONFLICT")
+      && runtimeProfileLoader.includes("RUNTIME_CAPABILITY_TOKEN_CONFLICT"),
+    "Runtime Plugin 必须以 Zod 校验公开配置，并通过类型化 Capability Token 检测 Provider 与 Slot 冲突"
+  );
 
   for (const file of listCodeFiles("src/domain/plugins")) {
     const source = read(file);
@@ -279,6 +366,97 @@ export async function testArchitectureBoundaries(): Promise<void> {
   assert(
     !read("src/hooks/useChat/pipelineHelpers.ts").includes("globalKernel"),
     "聊天输出管线必须使用调用方注入的 IKernel"
+  );
+
+  const applicationRuntime = read("src/application/runtime.ts");
+  assert(
+    applicationRuntime.includes("mountRuntimeProfile") &&
+      applicationRuntime.includes("legacyRuntimePluginCatalog") &&
+      !applicationRuntime.includes("registerCoreServices") &&
+      !applicationRuntime.includes("registerDefaultPipelines") &&
+      !applicationRuntime.includes("registerRuntimeCapabilities"),
+    "应用组合根必须通过 Runtime Profile 装载 legacy runtime，不能恢复服务、Pipeline 和能力清单的散落直接注册"
+  );
+  for (const file of listCodeFiles("src/kernel")) {
+    assert(
+      !/RuntimePlugin|RuntimeProfile|legacy-runtime|AgentHandle|AgentRuntime|ToolRegistry|MediaProcessor/.test(read(file)),
+      `${file} 不得引入 Application 层 Runtime Plugin/Profile/Agent 业务语义`
+    );
+  }
+  const agentRuntime = read("src/application/services/AgentRuntimeService.ts");
+  assert(
+    agentRuntime.includes("openHandle") &&
+      agentRuntime.includes("registerDriver") &&
+      agentRuntime.includes("registerProvider") &&
+      agentRuntime.includes("registerTool") &&
+      agentRuntime.includes("registerMediaProcessor") &&
+      !agentRuntime.includes("from \"react\"") &&
+      !agentRuntime.includes("from 'react'"),
+    "Agent Runtime 必须留在 Application 层，以可撤销 Registry 和 AgentHandle 管理能力，且不得依赖 React"
+  );
+  const sendMessageHook = read("src/hooks/useChat/useSendMessage.ts");
+  assert(
+    sendMessageHook.includes("ensureAgentHandle") &&
+      sendMessageHook.includes("MOBILE_TAVERN_CHAT_DRIVER_ID") &&
+      sendMessageHook.includes("recordDecision(\"provider.request\"") &&
+      sendMessageHook.includes("recordDecision(\"media.projection\""),
+    "聊天发送必须经 AgentHandle/通用聊天 Driver，并记录实际 Provider 与媒体投影决定"
+  );
+  const openAiToolLoop = read("src/application/useCases/openAiToolLoop.ts");
+  assert(
+    sendMessageHook.includes("executeOpenAiToolLoop")
+      && openAiToolLoop.includes("delta.tool_calls")
+      && openAiToolLoop.includes("executeTool")
+      && openAiToolLoop.includes("tool.loop.step")
+      && openAiToolLoop.includes("maxSteps"),
+    "OpenAI-compatible 聊天必须消费分片 tool_calls、经 Agent Turn 执行工具并以有限 Step 继续模型循环"
+  );
+  const agentJournalStorage = read("src/infrastructure/agents/agentJournalStorage.ts");
+  assert(
+    agentJournalStorage.includes("MobileTavernAgentJournalDB") &&
+      agentJournalStorage.includes('EVENT_STORE = "events"') &&
+      !agentJournalStorage.includes("application/"),
+    "Agent Journal 必须使用独立数据库并保持 Infrastructure 不反向依赖 Application"
+  );
+  const agentPlugin = read("src/application/runtimePlugins/agentSpineRuntimePlugin.ts");
+  assert(
+    agentPlugin.includes("media.audio.asr") &&
+      agentPlugin.includes("media.video.keyframes") &&
+      agentPlugin.includes("scope.add(runtime.registerMediaProcessor"),
+    "音频 ASR 与视频关键帧必须作为受信 Runtime Plugin 的可撤销媒体 Processor 注册"
+  );
+  assert(
+    !existsSync(path.join(workspace, "src/application/bootstrap/capabilityCatalog.ts")) &&
+      read("src/application/runtimePlugins/legacyRuntimePlugin.ts").includes("coreRuntimeCapabilities") &&
+      !read("src/application/bootstrap/capabilityRegistry.ts").includes("defaultCapabilityCatalog"),
+    "能力声明必须归属具体 Runtime Plugin，不能恢复旧静态 capability catalog 或隐式默认注册"
+  );
+  assert(
+    applicationRuntime.includes("readRuntimeProfilePreferences") &&
+      applicationRuntime.includes("resolveRuntimeProfileSelection") &&
+      read("src/tabs/settings/SettingsTab.tsx").includes("RuntimeProfileManagerSection") &&
+      sendMessageHook.includes("canRunSessionWithProfile") &&
+      read("src/hooks/useChat/useRerollMessage.ts").includes("canRunSessionWithProfile"),
+    "阶段 5 必须从持久化选择装载 Profile、提供管理 UI，并在发送与重发前守卫会话组合快照"
+  );
+  assert(
+    read("src/contexts/ChatContext.tsx").includes("prepareRuntimeProfileSessionResume")
+      && read("src/contexts/LegacyAppContextProvider.tsx").includes("readRuntimeProfileSessionResumeIntent")
+      && read("src/infrastructure/runtimeProfiles/runtimeProfileSessionResume.ts")
+        .includes("resumeIntentSchema.safeParse"),
+    "跨 Profile 打开会话必须以经过 Schema 校验的一次性意图重启，并在目标组合装载后恢复会话"
+  );
+  const sessionStateSnapshot = read("src/domain/chat/sessionStateSnapshot.ts");
+  assert(
+    compatibilityHost.includes("readState(session")
+      && compatibilityHost.includes("writeState(session")
+      && compatibilityPlugin.includes("variables: undefined")
+      && compatibilityPlugin.includes("runtimePluginState")
+      && sessionStateSnapshot.includes("version: 2")
+      && sessionStateSnapshot.includes("runtimePluginState")
+      && !read("src/application/services/ScriptService.ts").includes("session.variables")
+      && !read("src/components/MemoryTableDrawer.tsx").includes("activeSession.variables"),
+    "兼容会话状态必须经 Compatibility Host 单写插件命名空间；旧 session.variables 只允许在兼容边界读取降级"
   );
 
   assert(

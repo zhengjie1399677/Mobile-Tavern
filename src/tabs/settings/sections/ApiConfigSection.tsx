@@ -107,6 +107,7 @@ export default function ApiConfigSection({
                           bypassProxy: target.bypassProxy,
                           disableReasoning: target.disableReasoning,
                           forceBasicParams: target.forceBasicParams,
+                          supportsVision: target.supportsVision,
                         },
                       }));
                     }
@@ -157,6 +158,7 @@ export default function ApiConfigSection({
                       bypassProxy: settings.api.bypassProxy,
                       disableReasoning: settings.api.disableReasoning,
                       forceBasicParams: settings.api.forceBasicParams,
+                      supportsVision: settings.api.supportsVision,
                     };
                     updateSettings((prev) => ({
                       ...prev,
@@ -447,6 +449,29 @@ export default function ApiConfigSection({
               <SelectItem value="markdown" className="text-xs">{t("api.format_markdown")}</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        {/* forceBasicParams Switch */}
+        <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="space-y-0.5">
+            <label className="text-[12.5px] font-semibold text-foreground">
+              图片输入能力
+            </label>
+            <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
+              仅在当前模型明确支持视觉输入时启用；缺省关闭，避免向文本模型误发图片。
+            </p>
+          </div>
+          <Switch
+            aria-label="图片输入能力"
+            checked={settings.api.supportsVision === true}
+            onCheckedChange={(checked) =>
+              updateSettings((prev) => ({
+                ...prev,
+                api: { ...prev.api, supportsVision: checked },
+              }))
+            }
+            className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+          />
         </div>
 
         {/* forceBasicParams Switch */}

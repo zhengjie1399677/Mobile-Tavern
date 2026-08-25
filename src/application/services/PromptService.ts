@@ -9,10 +9,9 @@ import { PromptBuilder } from "./prompt/PromptBuilder";
 import { PromptCompiler } from "./prompt/PromptCompiler";
 import { RuntimeContext } from "./prompt/types";
 import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
-import { applyCharacterRegexScripts } from "../../compatibility/sillytavern/mvuParser";
+import type { ICompatibilityRuntimeService } from "../compatibility/contracts";
 import { resolveTriggeredLorebookEntries } from "./prompt/LorebookResolver";
 import {
-  formatMvuVariablesForPrompt,
   replacePromptMacros,
   type PromptMacroParams,
 } from "./prompt/PromptMacroFormatter";
@@ -34,6 +33,7 @@ const logger = Logger.create("PromptService");
  */
 export class PromptService implements IPromptService<CharacterCard, ChatSession, UserSettings, LorebookEntry> {
   name = "prompt";
+  dependencies = [KernelServices.CompatibilityRuntime] as const;
   private kernel!: IKernel;
   // P1-1/P1-2: 服务级 AbortController（纯计算服务，主要用于契约一致性）
   private abortController: AbortController | null = null;
@@ -94,11 +94,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
   }
 
   hasCardScripts(character: CharacterCard | null): boolean {
-    if (!character) return false;
-    const ext = character.extensions || {};
-    if (Array.isArray(ext.tavern_helper?.scripts) && ext.tavern_helper.scripts.length > 0) return true;
-    if (ext.mvu_settings || ext.mvu || ext.MVU) return true;
-    return false;
+    return this.getCompatibilityRuntime()?.getRenderer()?.hasCardScripts(character) ?? false;
   }
 
   getTriggeredLorebookEntries(
@@ -164,7 +160,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         userInput,
         allEntries,
         3,
-        { variables: chat.variables, session: createLorebookSessionContext(chat) },
+        { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
       );
       const runtime = buildPromptCompositionRuntimeData({
         character,
@@ -175,15 +171,15 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         recalledMemories,
         cleanHistoryContent: (message) => {
           if (!character.extensions?.regex_scripts) return message.content;
-          return applyCharacterRegexScripts(
-            message.content,
+          return this.getCompatibilityRuntime()?.transformText({
+            text: message.content,
             character,
-            message.sender === "assistant",
-            character.name,
-            settings.userName,
-            "prompt",
-            operationSignal,
-          );
+            isAiMessage: message.sender === "assistant",
+            charName: character.name,
+            userName: settings.userName,
+            mode: "prompt",
+            signal: operationSignal,
+          }) ?? message.content;
         },
       });
       const budgetConfig = composition.tokenBudget;
@@ -272,15 +268,15 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         // 发送给 AI 时应用 promptOnly 正则清理（如隐藏 <StatusPlaceHolderImpl/> 和 <UpdateVariable> 块）
         if (character?.extensions?.regex_scripts) {
           const isAi = msg.sender === "assistant";
-          content = applyCharacterRegexScripts(
-            content,
+          content = this.getCompatibilityRuntime()?.transformText({
+            text: content,
             character,
-            isAi,
-            character.name,
-            settings.userName,
-            "prompt",
-            operationSignal,
-          );
+            isAiMessage: isAi,
+            charName: character.name,
+            userName: settings.userName,
+            mode: "prompt",
+            signal: operationSignal,
+          }) ?? content;
         }
         const name = msg.sender === "assistant"
           ? this.cleanNameForApi(character.name, "char")
@@ -360,7 +356,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         userInput,
         allEntries,
         3,
-        { variables: chat.variables, session: createLorebookSessionContext(chat) },
+        { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
       );
 
       if (activeEntries.length > 0) {
@@ -537,7 +533,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       userInput,
       allEntries,
       3,
-      { variables: chat.variables, session: createLorebookSessionContext(chat) },
+      { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
     );
     // 检测是否有世界书条目使用了 {{format_message_variable::}} 宏，
     // 若有则由宏替换负责注入变量，避免与 mvu_variables section 重复注入
@@ -546,7 +542,10 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     );
     const formatEntryContent = (entry: LorebookEntry): string => {
       // 世界书条目内容需经过宏替换，支持 {{char}}、{{user}}、{{format_message_variable::stat_data}} 等
-      const content = this.replaceMacros(entry.content, { ...macroParams, variables: chat.variables });
+      const content = this.replaceMacros(entry.content, {
+        ...macroParams,
+        variables: this.getCompatibilityState(chat),
+      });
       if (entry.addMemo && entry.comment) {
         return `[设定及备注: ${entry.comment}]\n${content}`;
       }
@@ -702,24 +701,19 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     // 4b. MVU 角色变量状态段（归属于 CONTEXT 事实层，动态可变）
     // 若世界书条目已通过 {{format_message_variable::stat_data}} 宏注入变量，则跳过此 section 避免重复
     // ==================================================
-    let mvuVariablesSection = "";
-    if (settings.enableScriptExecution && this.hasCardScripts(character) && chat.variables && !hasVariableListEntry) {
-      mvuVariablesSection = formatMvuVariablesForPrompt(chat.variables, character);
+    for (const node of this.getCompatibilityRuntime()?.buildPromptSections({
+      character,
+      chat,
+      settings,
+      hasVariableListEntry,
+    }) ?? []) {
+      builder.registerSection({
+        id: node.id,
+        phase: node.phase,
+        enabled: Boolean(node.content),
+        compile: () => node,
+      });
     }
-    builder.registerSection({
-      id: "mvu_variables",
-      phase: "Context",
-      enabled: !!mvuVariablesSection,
-      compile: () => ({
-        id: "mvu_variables",
-        phase: "Context",
-        type: "Context",
-        priority: "High",
-        mutable: true,
-        title: "Variables State",
-        content: mvuVariablesSection,
-      }),
-    });
 
     let recalledMemoriesSection = "";
     if (recalledMemories && recalledMemories.length > 0) {
@@ -892,15 +886,15 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
         // 发送给 AI 时应用 promptOnly 正则清理（如隐藏 <StatusPlaceHolderImpl/> 和 <UpdateVariable> 块）
         if (character?.extensions?.regex_scripts) {
           const isAi = msg.sender === "assistant";
-          content = applyCharacterRegexScripts(
-            content,
+          content = this.getCompatibilityRuntime()?.transformText({
+            text: content,
             character,
-            isAi,
-            character.name,
-            settings.userName,
-            "prompt",
-            operationSignal,
-          );
+            isAiMessage: isAi,
+            charName: character.name,
+            userName: settings.userName,
+            mode: "prompt",
+            signal: operationSignal,
+          }) ?? content;
         }
         const name = msg.sender === "assistant"
           ? this.cleanNameForApi(character.name, "char")
@@ -982,4 +976,18 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
     };
   }
 
+  private getCompatibilityState(chat: ChatSession): Record<string, unknown> {
+    return this.getCompatibilityRuntime()?.readState(chat) ?? {};
+  }
+
+  private getCompatibilityRuntime(): ICompatibilityRuntimeService | null {
+    if (
+      !this.kernel
+      || typeof this.kernel.hasService !== "function"
+      || !this.kernel.hasService(KernelServices.CompatibilityRuntime)
+    ) {
+      return null;
+    }
+    return this.kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime);
+  }
 }

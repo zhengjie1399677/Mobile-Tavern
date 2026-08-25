@@ -7,9 +7,18 @@ import { useSettings } from "../hooks/useSettings";
 import { useCharacters } from "../hooks/useCharacters";
 import { useChat } from "../hooks/useChat";
 import { useUsageTracking } from "../utils/useUsageTracking";
-import { SamplerPreset, PromptConfig, UserSettings } from "../types";
+import { ChatSession, SamplerPreset, PromptConfig, UserSettings } from "../types";
 import { useKernel } from "./KernelContext";
 import type { InstalledFullscreenPlugin } from "../domain/plugins";
+import {
+  KernelServices,
+  type IAgentRuntimeService,
+  type IDatabaseService,
+} from "../application/serviceContracts";
+import {
+  clearRuntimeProfileSessionResumeIntent,
+  readRuntimeProfileSessionResumeIntent,
+} from "../infrastructure/runtimeProfiles/runtimeProfileSessionResume";
 
 const RUNNING_PLUGIN_SESSION_KEY = "mobile-tavern.running-fullscreen-plugin";
 
@@ -111,6 +120,59 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     settingsHook.customWorldbooks,
     launchPlugin
   );
+
+  const resumeAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (resumeAttemptedRef.current || !charState.isDBReady) return;
+    const intent = readRuntimeProfileSessionResumeIntent();
+    if (!intent) {
+      resumeAttemptedRef.current = true;
+      return;
+    }
+    resumeAttemptedRef.current = true;
+    let active = true;
+    void (async () => {
+      try {
+        const composition = kernel
+          .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
+          .getCompositionSnapshot();
+        if (
+          !composition
+          || composition.profileId !== intent.profileId
+          || composition.profileVersion !== intent.profileVersion
+        ) {
+          throw new Error("重载后的 Agent Profile 与目标会话不一致。");
+        }
+        const session = await kernel
+          .getService<IDatabaseService<ChatSession>>(KernelServices.Database)
+          .getSessionById(intent.sessionId);
+        if (!session || session.characterId !== intent.characterId) {
+          throw new Error("待恢复的会话不存在或角色归属已变化。");
+        }
+        const character = await charState.loadCharacterById(intent.characterId);
+        if (!character) throw new Error("待恢复会话的角色卡不存在。");
+        if (!active) return;
+        chatState.setSessionViews((previous) => previous.some((item) => item.id === session.id)
+          ? previous.map((item) => item.id === session.id ? { ...item, ...session } : item)
+          : [...previous, session]);
+        charState.setActiveCharId(intent.characterId);
+        chatState.setActiveSessionId(intent.sessionId);
+        appState.setActiveTab("chat");
+        chatHook.setChatSubTab("dialogue");
+        clearRuntimeProfileSessionResumeIntent();
+      } catch (error: unknown) {
+        clearRuntimeProfileSessionResumeIntent();
+        if (active) {
+          await appState.showCustomAlert(
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [charState.isDBReady, kernel]);
 
   // 刷新恢复 effect：在 chatHook 装配后首次挂载触发，借 selectCharacter 的插件分支解析并启动。
   useEffect(() => {

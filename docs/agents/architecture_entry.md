@@ -5,8 +5,11 @@
 
 ## 一、项目定位
 
-Mobile Tavern 是纯移动端的 SillyTavern 兼容运行容器。移动端位于 `src/` 与 `src-tauri/`，
-云端服务位于 `cloud/`，共享契约位于 `shared/`。Kernel 是通用运行时机制，不是业务层。
+Mobile Tavern 当前是纯移动端的 SillyTavern 兼容运行容器，目标态是本地优先、多模态、可组合的移动端
+Agent Host；SillyTavern 能力将迁移为可关闭的内置 Compatibility Runtime Plugin。移动端位于 `src/`
+与 `src-tauri/`，云端服务位于 `cloud/`，共享契约位于 `shared/`。Kernel 始终只是通用运行时机制，
+Agent、聊天、媒体和兼容能力都不属于 Kernel。目标架构与分阶段路线见
+[插件式 Agent Runtime 与聊天组合路线](agent_plugin_runtime_roadmap.md)。
 
 ## 二、阅读决策
 
@@ -20,8 +23,8 @@ Mobile Tavern 是纯移动端的 SillyTavern 兼容运行容器。移动端位�
 
 | 任务 | 最小入口 | 继续读取 |
 |---|---|---|
-| Kernel、Pipeline、消息总线 | `src/kernel/README.md`、`src/kernel/types.ts`、`src/kernel/Kernel.ts` | `docs/agents/runtime_boundaries.md`、必要时读 `docs/agents/module_contracts.md` |
-| 应用服务与运行时装配 | `src/application/README.md`、`src/application/runtime.ts`、目标服务 | `docs/agents/runtime_boundaries.md` |
+| Kernel、Scope、Effect、Pipeline、消息总线 | `src/kernel/README.md`、`src/kernel/types.ts`、`src/kernel/EffectScope.ts`、`src/kernel/Kernel.ts` | `docs/agents/runtime_boundaries.md`、必要时读 `docs/agents/module_contracts.md` |
+| 应用服务与运行时装配 | `src/application/README.md`、`src/application/runtime.ts`、`src/application/runtimePlugins/`、目标服务 | `docs/agents/runtime_boundaries.md` |
 | 存储、会话、记忆 | `DatabaseService.ts`、`src/infrastructure/storage/`、相关端口 | `docs/agents/runtime_boundaries.md`、`docs/agents/module_contracts.md` |
 | React 状态或业务流程 | 目标组件、Hook、Context 与 `src/application/useCases/` | `docs/agents/runtime_boundaries.md` |
 | 聊天发送、重发、流式输出 | `useChat.tsx`、`useSendMessage.ts`、`useRerollMessage.ts` | 对应回归测试；需要全链路时读 `TECHNICAL.md` |
@@ -34,6 +37,7 @@ Mobile Tavern 是纯移动端的 SillyTavern 兼容运行容器。移动端位�
 | 环境变量、功能开关、灰度策略 | 对应配置入口 | `docs/agents/configuration_strategy.md` |
 | TypeScript 类型或历史 `any` | 目标类型和调用方 | `docs/agents/typescript_discipline.md` |
 | 新服务、中间件、插件或跨层重构 | 目标边界与局部测试 | `docs/agents/isolation_development.md` |
+| Runtime Plugin、Agent、Chat Profile、多模态消息 | `docs/agents/agent_plugin_runtime_roadmap.md` | `docs/agents/runtime_boundaries.md`、`docs/agents/isolation_development.md` |
 | 浏览器或 E2E 自动化 | 已纳入仓库的测试脚本 | `docs/agents/browser_testing.md` |
 | 可复现故障排查 | `docs/agents/troubleshooting_entry.md` | 由排障表继续进入命中模块 |
 | 测试选择、开发服务、文档归档 | `docs/agents/development_workflow.md` | 仅按其中条件继续读取 |
@@ -42,8 +46,9 @@ Mobile Tavern 是纯移动端的 SillyTavern 兼容运行容器。移动端位�
 
 | 能力 | 权威入口 |
 |---|---|
-| 应用组合根 | `src/App.tsx`、`src/application/runtime.ts`、`src/application/bootstrap/registerCoreServices.ts`、`src/application/bootstrap/capabilityRegistry.ts` |
-| Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts`、`src/kernel/Kernel.ts` |
+| 应用组合根与 Runtime Profile | `src/App.tsx`、`src/application/runtime.ts`、`src/application/runtimePlugins/`、`src/application/bootstrap/` |
+| 插件式 Agent 目标架构 | `docs/agents/agent_plugin_runtime_roadmap.md` |
+| Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts`、`src/kernel/EffectScope.ts`、`src/kernel/Kernel.ts` |
 | 聊天编排 | `src/hooks/useChat.tsx`、`src/hooks/useChat/` |
 | 角色与会话用例 | `src/application/useCases/characterUseCases.ts`、`chatSessionUseCases.ts` |
 | 通用数据服务 | `src/application/services/DatabaseService.ts` |

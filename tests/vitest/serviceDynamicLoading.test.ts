@@ -21,13 +21,13 @@ describe("服务动态装载", () => {
   it("支持运行时装载并通过 Kernel 生命周期卸载服务", async () => {
     const kernel = createKernel();
     const destroy = vi.fn();
-    await registerServiceModules(kernel, [{
+    const dispose = await registerServiceModules(kernel, [{
       name: "runtime.demo",
       load: async () => ({ name: "runtime.demo", init: vi.fn(), destroy }),
     }]);
     expect(kernel.hasService("runtime.demo")).toBe(true);
 
-    await kernel.destroyService("runtime.demo");
+    await dispose();
     expect(kernel.hasService("runtime.demo")).toBe(false);
     expect(destroy).toHaveBeenCalledOnce();
   });

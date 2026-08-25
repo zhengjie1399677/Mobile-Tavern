@@ -4,8 +4,18 @@ import { ChatSession, ChatSessionMetadataPatch, UserSettings, CharacterCard, Lor
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService, IMultiMessageService,
-  StreamChunk, IKernel,
+  StreamChunk, IKernel, IAttachmentService, IAgentRuntimeService, KernelServices,
 } from "@/src/application/serviceContracts";
+import type {
+  AgentHandle,
+  AgentTurnExecutionContext,
+} from "../../domain/agents/contracts";
+import {
+  collectMessageAssetIds,
+  getMessageContentText,
+  normalizeMessageContentParts,
+  type MessageContentPart,
+} from "../../domain/messages/messageContent";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { FALLBACK_MODEL } from "../../utils/apiClient";
 import {
@@ -26,23 +36,26 @@ import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/ser
 import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
 import { buildAuthoritativePromptSession } from "../../application/useCases/promptHistoryUseCases";
+import {
+  projectMessagePartsForProvider,
+  type OpenAiProviderMessage,
+} from "../../application/useCases/multimodalProviderProjection";
+import {
+  executeOpenAiToolLoop,
+  OpenAiToolCallAccumulator,
+  type OpenAiToolLoopModelStep,
+} from "../../application/useCases/openAiToolLoop";
+import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
+import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
+import {
+  MOBILE_TAVERN_CHAT_DRIVER_ID,
+  AUDIO_ASR_PROCESSOR_ID,
+  VIDEO_KEYFRAME_PROCESSOR_ID,
+  resolveBuiltinProviderId,
+} from "../../application/runtimePlugins";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useSendMessage");
-
-/**
- * Tavern 全局辅助 window 字段类型收口。
- * 这些字段被 FormattedText.tsx / MessageBubble.tsx / useRerollMessage.ts 等多处
- * 跨 iframe / 原生桥接边界共享读取，本文件内通过本地接口
- * 替代类型逃逸写法，避免类型丢失。
- * 字段标记为可选，反映"运行时动态挂载到 window"的真实语义。
- */
-interface WindowWithTavernHelpers extends Window {
-  /** 当前流式输出的 messageId，供 FormattedText / MessageBubble 判断渲染态 */
-  TavernHelperStreamingMessageId?: string | null;
-  /** 全局发送互斥标志，供 iframe / 原生桥接侧读取 */
-  TavernHelperIsSending?: boolean;
-}
 
 interface SendMessageParams {
   kernel: IKernel;
@@ -84,6 +97,13 @@ interface SendMessageParams {
   draftsRef: React.MutableRefObject<Record<string, string>>;
 }
 
+interface SendMessageOptions {
+  isBisonConsecutive?: boolean;
+  skipAI?: boolean;
+  attachmentIds?: string[];
+  attachmentParts?: MessageContentPart[];
+}
+
 /**
  * 封装"发送消息"与 Bison 连续推进逻辑的 Hook，
  * 不包含任何 UI 状态管理。
@@ -91,14 +111,33 @@ interface SendMessageParams {
 export function useSendMessage(p: SendMessageParams) {
   const pRef = React.useRef<SendMessageParams>(p);
   pRef.current = p;
-
-  const handleSendMessage = useCallback(async (
+  const agentHandleRef = React.useRef<AgentHandle | null>(null);
+  const agentHandleKeyRef = React.useRef<string | null>(null);
+  const runLegacyTurnRef = React.useRef<(
     textToSend: string,
-    options?: { isBisonConsecutive?: boolean; skipAI?: boolean }
+    options: SendMessageOptions | undefined,
+    context: AgentTurnExecutionContext,
+  ) => Promise<void>>(async () => undefined);
+  const sendThroughAgentRef = React.useRef<(
+    textToSend: string,
+    options?: SendMessageOptions,
+  ) => Promise<void>>(async () => undefined);
+
+  const runLegacyTurn = useCallback(async (
+    textToSend: string,
+    options?: SendMessageOptions,
+    agentTurn?: AgentTurnExecutionContext,
   ) => {
     const p = pRef.current;
     const isBisonConsecutive = !!options?.isBisonConsecutive;
     const skipAI = !!options?.skipAI;
+    const additionalParts = options?.attachmentParts
+      ?? (options?.attachmentIds ?? []).map(assetId => ({ type: "image" as const, assetId }));
+    const attachmentIds = Array.from(new Set(additionalParts.flatMap(part =>
+      collectMessageAssetIds([part]),
+    )));
+    const hasNewUserContent = typeof textToSend === "string"
+      && (textToSend.trim().length > 0 || attachmentIds.length > 0);
     let isBisonChainActive = false;
     const traceId = generateTraceId();
     const log = logger.withTrace(traceId);
@@ -114,7 +153,7 @@ export function useSendMessage(p: SendMessageParams) {
         p.activeSession.messages[p.activeSession.messages.length - 1].sender === "user";
 
       if (
-        (!textToSend || typeof textToSend !== "string" || !textToSend.trim()) &&
+        !hasNewUserContent &&
         !hasUnsentUserMessages
       ) return;
 
@@ -125,6 +164,63 @@ export function useSendMessage(p: SendMessageParams) {
       }
 
       if (!p.activeCharacter || !p.activeSession) return;
+
+      const latestQueuedUserMessage = hasUnsentUserMessages
+        ? p.activeSession.messages[p.activeSession.messages.length - 1]
+        : undefined;
+      const pendingMultimodalParts = additionalParts.length > 0
+        ? additionalParts
+        : latestQueuedUserMessage?.parts?.filter(part => part.type !== "text") ?? [];
+      const needsMultimodalProjection = pendingMultimodalParts.length > 0;
+      if (!skipAI && needsMultimodalProjection) {
+        const agentRuntime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+        const canInspectMediaProcessors = typeof agentRuntime.listMediaProcessors === "function";
+        const registeredMediaProcessors = canInspectMediaProcessors
+          ? agentRuntime.listMediaProcessors().map((processor) => processor.id)
+          : [];
+        if (
+          agentTurn
+          && canInspectMediaProcessors
+          && pendingMultimodalParts.some((part) => part.type === "audio")
+          && !registeredMediaProcessors.includes(AUDIO_ASR_PROCESSOR_ID)
+        ) {
+          await p.showCustomAlert("当前 Agent Profile 未启用音频 ASR 降级，无法把音频发送给当前 Provider。");
+          return;
+        }
+        if (
+          agentTurn
+          && canInspectMediaProcessors
+          && pendingMultimodalParts.some((part) => part.type === "video")
+          && !registeredMediaProcessors.includes(VIDEO_KEYFRAME_PROCESSOR_ID)
+        ) {
+          await p.showCustomAlert("当前 Agent Profile 未启用视频关键帧降级，无法把视频发送给当前 Provider。");
+          return;
+        }
+        if (
+          pendingMultimodalParts.some(part => part.type === "audio")
+          && (!p.settings.asrConfig?.enabled || p.settings.asrConfig.provider !== "openai")
+        ) {
+          await p.showCustomAlert("发送音频前需要启用 OpenAI ASR 文件转写；Web Speech 仅支持实时麦克风输入。");
+          return;
+        }
+        const needsVision = pendingMultimodalParts.some(part =>
+          part.type === "image" || part.type === "video",
+        );
+        if (needsVision && p.settings.api.supportsVision !== true) {
+          await p.showCustomAlert("当前 API 配置未启用图片输入能力，请先在 API 配置中确认模型支持视觉输入。");
+          return;
+        }
+        const provider = agentTurn?.provider;
+        const unsupportedPart = provider && pendingMultimodalParts.find(part => {
+          if (part.type === "audio") return false;
+          const requiredModality = part.type === "video" ? "image" : part.type;
+          return !provider.capabilities.inputModalities.includes(requiredModality);
+        });
+        if (unsupportedPart) {
+          await p.showCustomAlert(`当前 Provider 未声明 ${unsupportedPart.type} 输入能力，请切换 Provider 或配置媒体降级。`);
+          return;
+        }
+      }
 
       const modelToReport = p.settings.api.apiKey
         ? (p.settings.api.modelName || FALLBACK_MODEL)
@@ -143,12 +239,20 @@ export function useSendMessage(p: SendMessageParams) {
     }
 
     // skipAI：仅保存用户消息，不调用 LLM
-    if (skipAI && !isBisonConsecutive && textToSend && textToSend.trim()) {
+    if (skipAI && !isBisonConsecutive && hasNewUserContent) {
       try {
-        const updatedSession = await p.multiMessageService.queueUserMessage(p.activeSession!, textToSend);
+        const updatedSession = await p.multiMessageService.queueUserMessage(
+          p.activeSession!,
+          textToSend,
+          additionalParts,
+        );
         p.setSessionViews((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
       } catch (err: unknown) {
         log.error("Failed to save session user message", err);
+        if (attachmentIds.length > 0) {
+          await p.showCustomAlert("附件消息保存失败，附件已保留在输入区，请重试。");
+          throw err;
+        }
       }
       p.triggerScroll("smooth");
       return;
@@ -171,13 +275,24 @@ export function useSendMessage(p: SendMessageParams) {
     }
     const { apiKey: finalApiKey, baseUrl: finalBaseUrl, model: finalModel, chatPath: finalChatPath, isTrial: isTrialMode } = creds;
 
-    const currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
+    let currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
     if (!currentSession) return;
+    if (!currentSession.compositionSnapshot && agentTurn) {
+      const compositionSnapshot = p.kernel
+        .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
+        .getCompositionSnapshot();
+      if (compositionSnapshot) {
+        await p.databaseService.updateSessionMetadata(currentSession.id, { compositionSnapshot });
+        const sessionWithComposition = { ...currentSession, compositionSnapshot };
+        currentSession = sessionWithComposition;
+        p.setSessionViews((previous) => previous.map((session) =>
+          session.id === sessionWithComposition.id ? sessionWithComposition : session,
+        ));
+      }
+    }
     p.isSendingRef.current = true;
     p.setIsSending(true);
-    if (typeof window !== "undefined") {
-      (window as WindowWithTavernHelpers).TavernHelperIsSending = true;
-    }
+    setCompatibilityGenerationState(p.kernel, { isSending: true });
 
     const requestId = ++p.activeRequestIdRef.current;
     let updatedSession = currentSession;
@@ -186,23 +301,27 @@ export function useSendMessage(p: SendMessageParams) {
     // 解决 isSending React state 异步更新延迟导致的 iframe 抢跑问题：
     //   1. 流式开始瞬间 isSending 可能还是 false → FormattedText 误判为非流式 → 直接渲染 iframe（抢跑）
     //   2. Bison 模式 500ms 间隔内 isSending 仍为 true，已完成的第一条消息被误判为流式 → iframe 被替换为 loading placeholder（丢失）
-    // 通过 window 全局同步标记当前正在生成的消息 ID，MessageBubble 可精确判断哪条消息正在流式。
+    // 通过可选 Compatibility Host 同步标记当前正在生成的消息 ID。
     const __streamingMsgIdGuard = (v: string | null) => {
-      if (typeof window !== "undefined") {
-        (window as WindowWithTavernHelpers).TavernHelperStreamingMessageId = v;
-      }
+      setCompatibilityGenerationState(p.kernel, { streamingMessageId: v });
     };
 
-    if (!isBisonConsecutive && textToSend && textToSend.trim()) {
+    if (!isBisonConsecutive && hasNewUserContent) {
       try {
-        updatedSession = await p.multiMessageService.queueUserMessage(currentSession, textToSend);
+        updatedSession = await p.multiMessageService.queueUserMessage(
+          currentSession,
+          textToSend,
+          additionalParts,
+        );
         p.setSessionViews((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
       } catch (err: unknown) {
         log.error("Failed to save session user message", err);
         p.isSendingRef.current = false;
         p.setIsSending(false);
-        if (typeof window !== "undefined") {
-          (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
+        setCompatibilityGenerationState(p.kernel, { isSending: false });
+        if (attachmentIds.length > 0) {
+          await p.showCustomAlert("附件消息保存失败，附件已保留在输入区，请重试。");
+          throw err;
         }
         return;
       }
@@ -211,6 +330,11 @@ export function useSendMessage(p: SendMessageParams) {
 
     const controller = new AbortController();
     p.abortControllerRef.current = controller;
+    const relayAgentAbort = () => {
+      if (!controller.signal.aborted) controller.abort(agentTurn?.signal.reason);
+    };
+    if (agentTurn?.signal.aborted) relayAgentAbort();
+    else agentTurn?.signal.addEventListener("abort", relayAgentAbort, { once: true });
 
     const responseChunks: string[] = [];
     const reasoningChunks: string[] = [];
@@ -262,6 +386,65 @@ export function useSendMessage(p: SendMessageParams) {
         log.warn("Memory recall failed", err);
       }
 
+      const latestUserIndex = findLastUserMessageIndex(updatedSession.messages);
+      const latestUserMessage = latestUserIndex >= 0 ? updatedSession.messages[latestUserIndex] : undefined;
+      if (agentTurn && latestUserMessage?.parts) {
+        const processedParts: MessageContentPart[] = [];
+        let mediaChanged = false;
+        for (const part of latestUserMessage.parts) {
+          if (part.type === "audio") {
+            const hasTranscript = latestUserMessage.parts.some(candidate =>
+              candidate.type === "text" && candidate.text.startsWith("[音频转写]"),
+            );
+            processedParts.push(part);
+            if (!hasTranscript) {
+              const result = await agentTurn.processMedia(AUDIO_ASR_PROCESSOR_ID, {
+                assetId: part.assetId,
+                kind: "audio",
+                options: p.settings.asrConfig,
+              });
+              processedParts.push(...result.projectionParts);
+              mediaChanged = true;
+            }
+            continue;
+          }
+          if (part.type === "video" && (!part.frameAssetIds || part.frameAssetIds.length === 0)) {
+            const result = await agentTurn.processMedia(VIDEO_KEYFRAME_PROCESSOR_ID, {
+              assetId: part.assetId,
+              kind: "video",
+            });
+            processedParts.push(...result.projectionParts);
+            mediaChanged = true;
+            continue;
+          }
+          processedParts.push(part);
+        }
+        if (mediaChanged) {
+          const normalizedParts = normalizeMessageContentParts(processedParts);
+          const processedMessage: Message = {
+            ...latestUserMessage,
+            contentVersion: 2,
+            parts: normalizedParts,
+            content: getMessageContentText(normalizedParts),
+          };
+          await p.databaseService.updateSessionMessage(
+            updatedSession.id,
+            processedMessage,
+            {},
+            controller.signal,
+          );
+          updatedSession = {
+            ...updatedSession,
+            messages: updatedSession.messages.map((message, index) =>
+              index === latestUserIndex ? processedMessage : message,
+            ),
+          };
+          p.setSessionViews(previous => previous.map(session =>
+            session.id === updatedSession.id ? updatedSession : session,
+          ));
+        }
+      }
+
       const promptSession = await buildAuthoritativePromptSession(
         p.databaseService,
         updatedSession,
@@ -277,6 +460,46 @@ export function useSendMessage(p: SendMessageParams) {
         signal: controller.signal,
         traceId,
       });
+
+      const baseProviderMessages: OpenAiProviderMessage[] = promptPayload.messages || [
+        {
+          role: "system",
+          content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction].filter(Boolean).join("\n\n"),
+        },
+        ...promptPayload.history.map((historyMessage: { role: "model" | "user" | "assistant"; name?: string; content: string }) => {
+          const providerMessage: OpenAiProviderMessage = {
+            role: historyMessage.role === "model" ? "assistant" : historyMessage.role,
+            content: historyMessage.content,
+          };
+          if (p.settings.api.sendNames && historyMessage.name) providerMessage.name = historyMessage.name;
+          return providerMessage;
+        }),
+      ];
+      const latestMultimodalUserMessage = [...promptSession.messages]
+        .reverse()
+        .find(message => message.sender === "user" && message.parts?.some(part => part.type !== "text"));
+      const provider = agentTurn?.provider
+        ?? p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
+          .getProvider(resolveBuiltinProviderId(p.settings.api.type));
+      const projection = latestMultimodalUserMessage
+        ? await projectMessagePartsForProvider(
+            baseProviderMessages,
+            latestMultimodalUserMessage,
+            p.kernel.getService<IAttachmentService>(KernelServices.Attachments),
+            { providerId: provider.id, capabilities: provider.capabilities },
+          )
+        : {
+            messages: baseProviderMessages,
+            decision: {
+              providerId: provider.id,
+              messageId: promptSession.messages[promptSession.messages.length - 1]?.id ?? "none",
+              strategy: "text-only" as const,
+              sourceAssetIds: [] as string[],
+              projectedAssetIds: [] as string[],
+            },
+          };
+      const providerMessages = projection.messages;
+      await agentTurn?.recordDecision("media.projection", projection.decision);
 
       // 审计快照以最终 Prompt 编排轨迹为准，只保留在当前聊天运行时。
       const memoryAudit = buildMemoryAuditSnapshot({
@@ -300,30 +523,18 @@ export function useSendMessage(p: SendMessageParams) {
         prev.map((s) => s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)
       );
 
-      const stream = p.chatStreamService.streamLlmResponse({
-        baseUrl: finalBaseUrl,
-        apiKey: finalApiKey,
-        chatPath: finalChatPath,
-        bypassProxy: p.settings.api.bypassProxy,
-        disableReasoning: p.settings.api.disableReasoning,
-        forceBasicParams: p.settings.api.forceBasicParams,
-        reqBody: {
+      const executeProviderStep = async (step: OpenAiToolLoopModelStep) => {
+        responseChunks.splice(0, responseChunks.length);
+        reasoningChunks.splice(0, reasoningChunks.length);
+        const toolCallAccumulator = new OpenAiToolCallAccumulator();
+        const commonRequestBody: Record<string, unknown> = {
           model: finalModel,
           stream: true,
           ...(p.settings.api.type !== "anthropic" && !p.settings.api.forceBasicParams && {
             stream_options: { include_usage: true }
           }),
-          messages: promptPayload.messages || [
-            {
-              role: "system",
-              content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction].filter(Boolean).join("\n\n"),
-            },
-            ...promptPayload.history.map((h: { role: "model" | "user" | "assistant"; name?: string; content: string }) => {
-              const msgObj: { role: string; content: string; name?: string } = { role: h.role === "model" ? "assistant" : h.role, content: h.content };
-              if (p.settings.api.sendNames && h.name) msgObj.name = h.name;
-              return msgObj;
-            }),
-          ],
+          messages: [...providerMessages, ...step.continuationMessages],
+          ...(step.tools.length > 0 ? { tools: step.tools, tool_choice: "auto" } : {}),
           ...(promptPayload.stopSequences?.length ? { stop: promptPayload.stopSequences } : {}),
           temperature: p.settings.preset.temperature,
           top_p: p.settings.preset.topP,
@@ -333,42 +544,82 @@ export function useSendMessage(p: SendMessageParams) {
           presence_penalty: p.settings.preset.presencePenalty ?? 0.0,
           frequency_penalty: p.settings.preset.frequencyPenalty ?? 0.0,
           repetition_penalty: p.settings.preset.repetitionPenalty ?? 1.0,
-        },
-        signal: controller.signal,
-        traceId,
-      });
+        };
+        const providerRequestBody = provider.buildRequestBody(commonRequestBody);
+        await agentTurn?.recordDecision("provider.request", {
+          step: step.step,
+          providerId: provider.id,
+          providerVersion: provider.version,
+          model: finalModel,
+          apiType: p.settings.api.type,
+          streaming: provider.capabilities.supportsStreaming,
+          tools: step.tools.map((tool) => tool.function.name),
+        });
 
-      for await (const chunk of stream) {
-        // StreamChunk 类型未声明 error 字段，但服务商错误响应可能携带，故局部扩展类型
-        const chunkError = (chunk as StreamChunk & { error?: string | { message?: string } }).error;
-        if (chunkError) {
-          const errMsg = typeof chunkError === "string"
-            ? chunkError
-            : (chunkError.message || JSON.stringify(chunkError));
-          throw new Error(`[API Error] ${errMsg}`);
+        const stream = p.chatStreamService.streamLlmResponse({
+          baseUrl: finalBaseUrl,
+          apiKey: finalApiKey,
+          chatPath: finalChatPath,
+          bypassProxy: p.settings.api.bypassProxy,
+          disableReasoning: p.settings.api.disableReasoning,
+          forceBasicParams: p.settings.api.forceBasicParams,
+          reqBody: providerRequestBody,
+          signal: controller.signal,
+          traceId,
+        });
+
+        for await (const chunk of stream) {
+          const chunkError = (chunk as StreamChunk & { error?: string | { message?: string } }).error;
+          if (chunkError) {
+            const errMsg = typeof chunkError === "string"
+              ? chunkError
+              : (chunkError.message || JSON.stringify(chunkError));
+            throw new Error(`[API Error] ${errMsg}`);
+          }
+          if (chunk.__rescuedContent) {
+            responseChunks.push(chunk.__rescuedContent);
+          } else {
+            const choice = chunk.choices?.[0];
+            const reasoning = choice?.delta?.reasoning_content;
+            const delta = choice?.delta?.content || choice?.message?.content || choice?.text;
+            const finishReason = choice?.finish_reason;
+            toolCallAccumulator.append(choice?.delta?.tool_calls ?? choice?.message?.tool_calls);
+
+            if (finishReason === "content_filter") {
+              throw new Error("内容被服务商的安全过滤（Content Filter）拦截，生成终止。");
+            }
+            if (reasoning && !delta) {
+              reasoningChunks.push(reasoning);
+            } else if (delta) {
+              responseChunks.push(delta);
+              if (isFirstTokenForSpeed) { isFirstTokenForSpeed = false; ttftMs = performance.now() - startTime; }
+            }
+            if (chunk.usage) {
+              tokenUsage = {
+                prompt: tokenUsage.prompt + (chunk.usage.prompt_tokens || 0),
+                completion: tokenUsage.completion + (chunk.usage.completion_tokens || 0),
+              };
+            }
+          }
+          throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
         }
-        if (chunk.__rescuedContent) {
-          responseChunks.push(chunk.__rescuedContent);
-        } else {
-          const reasoning = chunk.choices?.[0]?.delta?.reasoning_content;
-          const delta = chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.message?.content || chunk.choices?.[0]?.text;
-          const finishReason = chunk.choices?.[0]?.finish_reason;
+        return {
+          content: responseChunks.join(""),
+          toolCalls: toolCallAccumulator.finalize(),
+        };
+      };
 
-          if (finishReason && finishReason === "content_filter") {
-            throw new Error("内容被服务商的安全过滤（Content Filter）拦截，生成终止。");
-          }
-
-          if (reasoning && !delta) {
-            reasoningChunks.push(reasoning);
-          } else if (delta) {
-            responseChunks.push(delta);
-            if (isFirstTokenForSpeed) { isFirstTokenForSpeed = false; ttftMs = performance.now() - startTime; }
-          }
-          if (chunk.usage) {
-            tokenUsage = { prompt: chunk.usage.prompt_tokens || 0, completion: chunk.usage.completion_tokens || 0 };
-          }
-        }
-        throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
+      if (agentTurn) {
+        const runtime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+        await executeOpenAiToolLoop({
+          context: agentTurn,
+          tools: provider.capabilities.supportsTools && typeof runtime.listTools === "function"
+            ? runtime.listTools()
+            : [],
+          executeModelStep: executeProviderStep,
+        });
+      } else {
+        await executeProviderStep({ step: 0, continuationMessages: [], tools: [] });
       }
 
       if (publicEnvironment.isDevelopment) {
@@ -464,7 +715,7 @@ export function useSendMessage(p: SendMessageParams) {
           // P1-8: 保存 timer id 到 ref，供会话切换/卸载/手动停止时清理
           const timer = setTimeout(() => {
             p.bisonChainTimerRef.current = null;
-            handleSendMessage("", { isBisonConsecutive: true }).catch((err) =>
+            sendThroughAgentRef.current("", { isBisonConsecutive: true }).catch((err) =>
               log.error("Failed in bison consecutive send", err)
             );
           }, 500);
@@ -478,7 +729,11 @@ export function useSendMessage(p: SendMessageParams) {
         if (switchedAiMsg && switchedAiMsg.sender === "assistant") {
           await p.databaseService.commitSessionTurn(
             trueFinalSession.id,
-            { variables: trueFinalSession.variables, tableMemory: trueFinalSession.tableMemory },
+            {
+              variables: undefined,
+              runtimePluginState: trueFinalSession.runtimePluginState,
+              tableMemory: trueFinalSession.tableMemory,
+            },
             [switchedAiMsg],
             undefined,
             traceId,
@@ -558,6 +813,7 @@ export function useSendMessage(p: SendMessageParams) {
         }
       }
     } finally {
+      agentTurn?.signal.removeEventListener("abort", relayAgentAbort);
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
       // finally 兜底：确保 streamingMessageId 被清除，避免任何未捕获路径残留导致 FormattedText 卡死在 loading placeholder
@@ -569,15 +825,82 @@ export function useSendMessage(p: SendMessageParams) {
           p.isSendingRef.current = false;
           p.setIsSending(false);
           p.setIsBisonLocking(false);
-          if (typeof window !== "undefined") {
-            (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-          }
+          setCompatibilityGenerationState(p.kernel, { isSending: false });
         }
       }
     }
   }, []);
+  runLegacyTurnRef.current = async (textToSend, options, context) => {
+    await runLegacyTurn(textToSend, options, context);
+  };
 
-  const handleStopGeneration = useCallback(() => {
+  const ensureAgentHandle = useCallback((): AgentHandle | null => {
+    const current = pRef.current;
+    const sessionId = current.activeSessionIdRef.current ?? current.activeSession?.id;
+    if (!sessionId) return null;
+    const providerId = resolveBuiltinProviderId(current.settings.api.type);
+    const handleKey = `${sessionId}:${MOBILE_TAVERN_CHAT_DRIVER_ID}:${providerId}`;
+    if (agentHandleRef.current && agentHandleKeyRef.current === handleKey) {
+      return agentHandleRef.current;
+    }
+    if (agentHandleRef.current) void agentHandleRef.current.dispose();
+    const runtime = current.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+    const handle = runtime.openHandle({
+      sessionId,
+      driverId: MOBILE_TAVERN_CHAT_DRIVER_ID,
+      providerId,
+      executeLegacy: (context) => runLegacyTurnRef.current(
+        context.input.text,
+        {
+          isBisonConsecutive: context.input.continuation,
+          skipAI: context.input.skipModel,
+          attachmentIds: [...context.input.attachmentIds],
+          attachmentParts: context.input.attachmentParts
+            ? [...context.input.attachmentParts]
+            : undefined,
+        },
+        context,
+      ),
+      grantedPermissions: [],
+    });
+    agentHandleRef.current = handle;
+    agentHandleKeyRef.current = handleKey;
+    return handle;
+  }, []);
+
+  const handleSendMessage = useCallback(async (
+    textToSend: string,
+    options?: SendMessageOptions,
+  ): Promise<void> => {
+    const current = pRef.current;
+    const activeProfile = current.kernel
+      .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
+      .getCompositionSnapshot();
+    if (!canRunSessionWithProfile(current.activeSession, activeProfile)) {
+      await current.showCustomAlert(
+        `此会话固定使用 ${getSessionRuntimeProfileId(current.activeSession)} v${current.activeSession?.compositionSnapshot?.profileVersion ?? "legacy"}，当前运行时为 ${activeProfile ? `${activeProfile.profileId} v${activeProfile.profileVersion}` : "未装载"}。请在设置 → 插件与 Agent Profiles 中切换后再继续。`,
+      );
+      return;
+    }
+    const handle = ensureAgentHandle();
+    if (!handle) {
+      await runLegacyTurn(textToSend, options);
+      return;
+    }
+    const agentAttachmentIds = options?.attachmentParts
+      ? collectMessageAssetIds(options.attachmentParts)
+      : options?.attachmentIds ?? [];
+    await handle.send({
+      text: textToSend,
+      attachmentIds: Array.from(new Set(agentAttachmentIds)),
+      attachmentParts: options?.attachmentParts ? [...options.attachmentParts] : undefined,
+      skipModel: options?.skipAI,
+      continuation: options?.isBisonConsecutive,
+    });
+  }, [ensureAgentHandle, runLegacyTurn]);
+  sendThroughAgentRef.current = handleSendMessage;
+
+  const stopLegacyGeneration = useCallback(() => {
     const p = pRef.current;
     if (p.abortControllerRef.current) {
       p.abortControllerRef.current.abort();
@@ -590,12 +913,29 @@ export function useSendMessage(p: SendMessageParams) {
     }
     p.isSendingRef.current = false;
     p.setIsSending(false);
-    if (typeof window !== "undefined") {
-      (window as WindowWithTavernHelpers).TavernHelperIsSending = false;
-    }
+    setCompatibilityGenerationState(p.kernel, { isSending: false });
     p.bisonRemainingCountRef.current = 0;
     p.setIsBisonLocking(false);
   }, []);
 
+  const handleStopGeneration = useCallback(() => {
+    void agentHandleRef.current?.stop("user");
+    stopLegacyGeneration();
+  }, [stopLegacyGeneration]);
+
+  React.useEffect(() => () => {
+    const handle = agentHandleRef.current;
+    agentHandleRef.current = null;
+    agentHandleKeyRef.current = null;
+    if (handle) void handle.dispose();
+  }, [p.activeSession?.id, p.settings.api.type]);
+
   return { handleSendMessage, handleStopGeneration };
+}
+
+function findLastUserMessageIndex(messages: readonly Message[]): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].sender === "user") return index;
+  }
+  return -1;
 }

@@ -1,5 +1,7 @@
 import type { CustomThemePackage } from "./utils/themePackage";
 import type { PromptComposition, PromptCompositionTemplateRecord } from "./domain/prompt-composition";
+import type { MessageContentPart } from "./domain/messages/messageContent";
+import type { AgentCompositionSnapshot } from "./domain/agents/contracts";
 
 export interface LorebookEntry {
   id: string;
@@ -81,6 +83,10 @@ export interface Message {
   id: string;
   sender: "user" | "assistant" | "system";
   content: string;
+  /** V2 消息的唯一权威正文；`content` 仅为旧调用方使用的派生文本投影。 */
+  parts?: MessageContentPart[];
+  /** 缺失表示原始 V1 string 记录；值 2 表示 Content Parts 记录。 */
+  contentVersion?: 2;
   timestamp: number;
   isSummaryLine?: boolean; // For inline marker
   generationTime?: number; // Time in seconds taken to generate the response
@@ -108,7 +114,8 @@ export interface ChatSession {
   messages: Message[];
   summaries: SummaryCard[]; // Timeline summaries
   lastSummarizedMessageId?: string; // Tracks up to which message the summary has covered
-  variables?: Record<string, any>; // Chat session local variables
+  /** @deprecated 仅供旧会话读取迁移；新写入必须进入对应的 runtimePluginState 命名空间。 */
+  variables?: Record<string, any>;
   tableMemory?: TableMemorySheet[]; // Structured memory sheets for stateful RP tracking
   pinnedMessageIds?: string[]; // IDs of messages explicitly pinned to recall list
   mutedMessageIds?: string[]; // IDs of messages muted from recall list
@@ -118,6 +125,10 @@ export interface ChatSession {
   parentMessageId?: string; // Message ID at which this session split off from parent
   /** 当前会话选择的 Prompt 场景方案；不修改全局预设。 */
   activePromptSceneProfileId?: string;
+  /** 首次进入 Agent Spine 时冻结的安全组合快照；旧会话可缺失并在下一轮补写。 */
+  compositionSnapshot?: AgentCompositionSnapshot;
+  /** Runtime Plugin 私有状态命名空间；兼容期 `variables` 仍作为只读降级源。 */
+  runtimePluginState?: Record<string, unknown>;
 }
 
 /** sessions Store 与界面会话目录共享的轻量会话信息，不包含消息窗口。 */
@@ -152,6 +163,8 @@ export interface ApiConfig {
   sendNames?: boolean;
   disableReasoning?: boolean;
   forceBasicParams?: boolean;
+  /** 用户确认当前模型/接口支持 OpenAI-compatible 图片输入；缺省按不支持处理。 */
+  supportsVision?: boolean;
   contextLimit?: number;
 }
 
@@ -268,6 +281,7 @@ export interface ApiProfile {
   bypassProxy?: boolean;
   disableReasoning?: boolean;
   forceBasicParams?: boolean;
+  supportsVision?: boolean;
 }
 
 /** 预设包只保存传统 Prompt 配置；自由编排拥有独立的状态与模板生命周期。 */
