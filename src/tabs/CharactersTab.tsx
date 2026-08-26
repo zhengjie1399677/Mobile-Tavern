@@ -4,6 +4,7 @@ import { useTranslation } from "../contexts/LanguageContext";
 import CharacterDetailDrawer from "../components/CharacterDetailDrawer";
 import LocalCardScanner from "../components/LocalCardScanner";
 import { CharacterCard } from "../types";
+import type { ICharacterService } from "../application/serviceContracts";
 import {
   Bot,
   Image as ImageIcon,
@@ -50,6 +51,7 @@ export default function CharactersTab() {
     setActiveTab,
     setActiveWorldbookHostId,
     loadCharacterById,
+    getKernelService,
   } = useUnifiedApp(state => ({
     characters: state.characters,
     sessionCountsByCharacter: state.sessionCountsByCharacter,
@@ -67,6 +69,7 @@ export default function CharactersTab() {
     setActiveTab: state.setActiveTab,
     setActiveWorldbookHostId: state.setActiveWorldbookHostId,
     loadCharacterById: state.loadCharacterById,
+    getKernelService: state.getKernelService,
   }));
   const { t } = useTranslation();
   const [selectedDetailChar, setSelectedDetailChar] = React.useState<CharacterCard | null>(null);
@@ -100,6 +103,42 @@ export default function CharactersTab() {
     () => [...characters, ...pluginCards],
     [characters, pluginCards]
   );
+  const handleOpenPureAgent = React.useCallback(async () => {
+    const existingChar = characters.find((c) => c.id === "base-agent-builtin");
+    if (existingChar) {
+      await selectCharacter(existingChar.id);
+      return;
+    }
+    const pureChar: CharacterCard = {
+      id: "base-agent-builtin",
+      name: "通用 AI 助手",
+      description: "纯净的通用 AI 助手，无角色人设、无预设模板，直连大模型问答。",
+      personality: "",
+      scenario: "",
+      first_mes: "你好！我是通用 AI 助手，请问有什么可以帮你的？",
+      mes_example: "",
+      creator_notes: "Built-in Base Profile Agent",
+      system_prompt: "",
+      post_history_instructions: "",
+      tags: ["Base", "Agent", "纯净"],
+      creator: "Mobile Tavern",
+      character_version: "1.0.0",
+      alternate_greetings: [],
+      extensions: {
+        profileId: "mobile-tavern.base",
+      },
+    };
+    try {
+      const characterService = getKernelService<ICharacterService<CharacterCard>>("character");
+      if (characterService) {
+        await characterService.saveCharacter(pureChar);
+      }
+    } catch (e) {
+      console.warn("Failed to auto-persist base-agent-builtin card:", e);
+    }
+    await selectCharacter(pureChar.id);
+  }, [characters, getKernelService, selectCharacter]);
+
   return (
     <div className="relative min-h-screen space-y-3.5 px-4 pb-4 pt-2.5">
       <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-card p-4 shadow-[0_14px_35px_-24px_var(--primary)]">
@@ -168,6 +207,32 @@ export default function CharactersTab() {
           </div>
         </div>
       </section>
+
+      {/* 纯净 AI 助手 (Base Agent) 专属入口卡片 */}
+      <div
+        onClick={handleOpenPureAgent}
+        className="group relative flex items-center justify-between gap-3 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/15 via-primary/5 to-card p-3.5 shadow-sm transition hover:border-primary/50 hover:shadow-md cursor-pointer active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md">
+            <Bot className="h-6 w-6" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-sm font-bold text-foreground truncate">通用 AI 助手</h2>
+              <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+                Base Agent
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-[11px] font-light text-muted-foreground">
+              无角色人设 / 无预设提示词，直连大模型问答与代码辅助
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center justify-center h-8 px-3 rounded-lg bg-primary/15 text-primary text-xs font-semibold group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+          开启对话
+        </div>
+      </div>
 
       <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/70 px-2 py-1.5 shadow-sm" role="group" aria-label={t("characters_tab.layout_group")}>
         <span className="pl-1.5 text-[10px] font-medium text-muted-foreground">{t("characters_tab.layout_group")}</span>

@@ -367,3 +367,89 @@ file  → text extraction / unsupported
 - 不为了追求完整事件溯源立即重写全部会话数据库；允许以 Message V2 和新增事件分轨渐进迁移。
 - 不保证所有模型原生理解视频；目标是能力协商、可见降级和可复现发送。
 - 不让 Profile 成为新的万能设置对象，秘密、用户数据和大字段继续物理分轨。
+
+## 十、后续路线：Agent Tool 产品化与受控生态
+
+阶段 1–5 已完成 Agent Host 的基础闭环：Scope/Effect、Runtime Profile、Message Content V2、Attachment Data Plane、AgentHandle、Provider、Tool Registry、有限 Tool Loop、Agent Journal、媒体处理、Compatibility Runtime 和 Profile UI 均已落地。本阶段不重复建设这些底座，而是把现有契约转化为用户可发现、可使用、可授权的 Agent Tool 能力。
+
+### 10.1 阶段 A：内置 Tool 产品化
+
+目标：在现有 Tool Registry 和 Tool Loop 之上，完成第一个真实可用的 Tool 纵向闭环。
+
+工作项：
+
+- 实际注册 `session.search`、`memory.search`、`character.read` 等低风险内置 Tool；Tool 实现必须位于 Application/Domain，不进入 Kernel。
+- 为每个 Tool 补齐输入输出 Schema、版本身份、取消/超时处理、错误投影和聊天内结果 Renderer。
+- 将 Tool 的可见性与 Profile/会话组合绑定，确保 Base Profile 在关闭 Compatibility Runtime 后仍能使用通用 Tool。
+- 使用现有 Agent Journal 记录 Tool Call/Result、执行失败和关键决定；仅补齐当前 Journal 尚未覆盖的模型可见输入，不新建重复的 Tool 日志体系。
+
+完成条件：用户可以在 Base Profile 的普通聊天中触发至少一个本地 Tool，并看到可理解的调用状态、结果和失败原因；Tavern Profile 的兼容聊天不受影响。
+
+### 10.2 阶段 B：副作用 Tool 与审批策略
+
+目标：为会修改数据、访问外部服务或产生不可逆影响的 Tool 增加最小可用审批能力。
+
+本阶段只处理移动端本地、具有明确副作用或需要用户授权的 Tool：
+
+- `session.branch`：创建会话分支，需要轻量确认并记录来源会话。
+- `memory.write`：写入或修改长期记忆，必须单次确认。
+- 后续的联网、文件写入和角色编辑 Tool：默认拒绝或单次确认，具体能力必须单独声明。
+
+在现有 Tool 权限、超时和取消契约上补充风险级别、副作用和执行 Scope；策略统一返回 `allow`、`deny` 或 `ask`，未知能力和缺失策略必须 fail-closed。
+
+完成条件：高风险 Tool 在没有有效授权时不会执行；允许、拒绝、取消、超时和宿主不可用均能被记录并安全结束。
+
+### 10.3 阶段 C：审批与可发现性
+
+目标：让高风险 Tool 的授权过程可理解、可取消、可追溯，并让用户发现当前 Agent 拥有哪些能力。
+
+工作项：
+
+- 在聊天中提供待审批 Tool Call 卡片，展示 Tool 名称、用途、目标数据、关键参数和风险提示。
+- 支持“允许一次”“拒绝一次”；暂不默认提供永久允许，永久授权必须进入 Profile/Tool 管理页并可撤销。
+- 审批取消、超时、宿主不可用和权限不足统一按拒绝处理，并写入可重放事件。
+- 在 Agent 诊断与会话历史中展示 Tool 调用、审批决定、执行结果和失败原因；复用现有 Journal，不另建平行诊断链路。
+- 将 Tool 能力入口放入通用聊天工作区和 Profile 诊断页，不能只埋在插件设置中。
+
+完成条件：用户能够发现当前 Agent 有哪些 Tool，并能在不阅读开发文档的情况下理解和拒绝一次高风险操作。
+
+### 10.4 阶段 D：受控 Agent Tool Plugin Manifest
+
+目标：在内置 Tool 和审批策略稳定后，开放声明式 Tool 扩展，但不开放任意应用进程代码执行。
+
+Manifest 至少声明：
+
+- 插件 ID、版本、作者、来源和内容哈希。
+- Tool ID、输入输出 Schema、风险级别、副作用和所需能力。
+- 依赖、兼容的 Agent Runtime 版本和目标 Profile。
+- 执行位置：内置 Runtime、Worker 或 Sandbox；默认禁止直接进入 App 进程。
+- 安装、启用、停用、卸载、回滚和权限撤销后的数据清理策略。
+
+在签名、来源验证、版本撤回和原生能力隔离完成前，只允许随安装包分发受信 Runtime Plugin；用户安装的 Agent Tool 只能先落在 Worker/Sandbox 边界，不能复用 `.mtplugin` 以外的信任假设。
+
+完成条件：一个外部 Tool Plugin 可以被发现、安装、授权、停用和卸载；插件无法访问 Manifest 未声明的能力，卸载后不残留注册、任务、凭据或会话数据。
+
+### 10.5 阶段 E：生态试运行
+
+仅在阶段 A–D 完成后评估：
+
+- 官方 Tool Plugin SDK 和模板。
+- 插件目录、版本固定、来源展示和兼容性检查。
+- Provider、Media Processor、Renderer 和 Context Source 的扩展模板。
+- 插件审核、撤回、灰度和安全事件处理流程。
+
+本阶段暂不追求完整桌面 Agent 能力。Shell、PTY、持久终端、通用文件系统、后台 Job、Subagent、Agent Team、Headless Runner 和 ACP 均不作为首批移动端生态的前置条件；如未来需要，必须以独立能力和独立风险评估立项。
+
+### 10.6 总体验收顺序
+
+```text
+现有 Tool Runtime 底座
+  → 内置 Tool 落地
+  → Tool Policy 与审批
+  → 会话事件重放与诊断
+  → Tool Plugin Manifest
+  → Worker/Sandbox 插件试运行
+  → Provider/Media/Renderer 生态扩展
+```
+
+每一阶段都必须遵循 `CHANGE-SAFE`：先定义边界、权限、失败路径和迁移策略，再接入组合根；不得因为开放插件而放宽 `ARCH-KERNEL`、`ARCH-FLOW` 或三类插件信任边界。

@@ -589,32 +589,58 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         </div>
       )}
       {pendingAttachments.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto px-1 py-1" aria-label="待发送附件">
-          {pendingAttachments.map(item => (
-            <div key={item.metadata.id} className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-border bg-muted">
-              {item.metadata.kind === "image" ? (
-                <img
-                  src={item.previewUrl}
-                  alt={item.metadata.originalName}
-                  className="w-full h-full object-cover"
-                />
-              ) : item.metadata.kind === "video" ? (
-                <video src={item.previewUrl} muted preload="metadata" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center px-1 text-[9px] text-center text-muted-foreground break-all">
-                  {item.metadata.kind === "audio" ? "音频" : "文件"}
-                </div>
-              )}
-              <button
-                type="button"
-                aria-label={`移除 ${item.metadata.originalName}`}
-                onClick={() => setPendingAttachments(current => current.filter(candidate => candidate.metadata.id !== item.metadata.id))}
-                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/65 text-white flex items-center justify-center"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
+        <div className="flex flex-col gap-1.5 px-1 py-1 animate-in fade-in slide-in-from-bottom-1 duration-200">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-1">
+            <span className="flex items-center gap-1 text-primary">
+              <Paperclip className="w-3 h-3 text-primary" />
+              已选取 {pendingAttachments.length}/4 个多模态附件
+            </span>
+            <span className="text-[9px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-mono">
+              Content Parts V2
+            </span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto py-0.5" aria-label="待发送附件">
+            {pendingAttachments.map(item => (
+              <div key={item.metadata.id} className="relative w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-primary/30 bg-muted shadow-sm">
+                {item.metadata.kind === "image" ? (
+                  <>
+                    <img
+                      src={item.previewUrl}
+                      alt={item.metadata.originalName}
+                      className="w-full h-full object-cover"
+                    />
+                    <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] text-center py-0.5 font-sans">
+                      图片
+                    </span>
+                  </>
+                ) : item.metadata.kind === "video" ? (
+                  <>
+                    <video src={item.previewUrl} muted preload="metadata" className="w-full h-full object-cover" />
+                    <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] text-center py-0.5 font-sans">
+                      视频
+                    </span>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-1 text-[9px] text-center text-muted-foreground break-all bg-primary/5">
+                    <span className="font-semibold text-foreground text-[10px]">
+                      {item.metadata.kind === "audio" ? "🎵 音频" : "📄 文件"}
+                    </span>
+                    <span className="text-[8px] text-muted-foreground/80 truncate max-w-full">
+                      {item.metadata.originalName}
+                    </span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  aria-label={`移除 ${item.metadata.originalName}`}
+                  onClick={() => setPendingAttachments(current => current.filter(candidate => candidate.metadata.id !== item.metadata.id))}
+                  className="absolute top-1 right-1 w-4 h-4 rounded-full bg-black/75 text-white flex items-center justify-center shadow hover:bg-rose-600 transition"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <div className="flex items-center gap-2 relative">
@@ -637,11 +663,15 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         />
         <button
           type="button"
-          aria-label="添加附件"
-          title="添加图片、音频或视频（最多 4 个）"
+          aria-label="添加多模态附件"
+          title="发送图片、音频或视频附件（最多 4 个）"
           disabled={isSending || isBisonLocking}
           onClick={() => attachmentInputRef.current?.click()}
-          className="p-2.5 rounded-xl border bg-input/30 border-border/80 hover:bg-muted text-muted-foreground transition-all shrink-0 disabled:opacity-45"
+          className={`p-2.5 rounded-xl border transition-all shrink-0 disabled:opacity-45 ${
+            pendingAttachments.length > 0
+              ? "bg-primary/15 text-primary border-primary/40 shadow-sm"
+              : "bg-input/30 border-border/80 hover:bg-muted text-muted-foreground"
+          }`}
         >
           <Paperclip className="w-4 h-4" />
         </button>

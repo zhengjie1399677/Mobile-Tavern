@@ -572,6 +572,13 @@ export default {
   "message_bubble.export_success": "내보내기 성공",
   "message_bubble.click_to_save": "클릭하여 이미지 저장",
   "message_bubble.round_label": "제 {roundNum}턴 대화",
+  "message_bubble.tool_executing": "AI 도구 실행 중 ({current}/{total})...",
+  "message_bubble.tool_called": "{total}개 Agent 도구 호출됨",
+  "message_bubble.tool_failed": "{count}개 실패",
+  "message_bubble.tool_completed": "실행 완료",
+  "message_bubble.tool_input": "매개변수 (Input):",
+  "message_bubble.tool_result": "결과 (Result):",
+  "message_bubble.tool_error": "오류:",
 
   "chat_input.reroll_last": "이전 스토리 다시 불러오기",
   "chat_input.continue": "계속",

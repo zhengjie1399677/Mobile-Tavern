@@ -1,7 +1,8 @@
 import React from "react";
 import { publicEnvironment } from "../../config";
-import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml } from "../formattedTextUtils";
+import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml, escapeHtml } from "../formattedTextUtils";
 import { readFormattedTextSrcdoc, storeFormattedTextSrcdoc } from "./srcdocStore";
+import CodeBlockHeader from "./CodeBlockHeader";
 import type { CompatibilityRendererDefinition } from "../../application/compatibility/contracts";
 import type { CompatibilityScriptSecurityMode } from "../../types";
 
@@ -459,6 +460,22 @@ function domToReact(
           children.length > 0 ? children : null,
         );
 
+  if (tagName === "pre") {
+    const langAttr = element.getAttribute("data-lang");
+    const codeChild = Array.from(element.children).find(c => c.tagName.toLowerCase() === "code");
+    const lang = langAttr || codeChild?.className?.replace(/^language-/, "") || "code";
+    const rawCode = element.textContent || "";
+
+    return (
+      <div key={index} className="my-2.5 rounded-lg border border-border/60 bg-muted/60 overflow-hidden shadow-sm max-w-full">
+        <CodeBlockHeader language={lang} code={rawCode} />
+        <pre className="p-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed text-foreground/90 custom-scrollbar max-h-[420px]">
+          {children}
+        </pre>
+      </div>
+    );
+  }
+
   if (tagName === "table") {
     return (
       <div key={index} className="w-full overflow-x-auto my-2 border border-border/40 rounded-lg custom-scrollbar max-w-full">
@@ -780,8 +797,8 @@ export function preprocessFormattedText(
       });
 
       // 再处理普通 ``` 块，但仅当内容以 HTML 标签开头时才转为 iframe
-      const plainCodeBlockRegex = /```\s*([\s\S]*?)\s*```/g;
-      processed = processed.replace(plainCodeBlockRegex, (_match, codeContent) => {
+      const plainCodeBlockRegex = /```([a-zA-Z0-9_-]*)\s*([\s\S]*?)\s*```/g;
+      processed = processed.replace(plainCodeBlockRegex, (_match, lang, codeContent) => {
         const trimmedContent = codeContent.trim();
         // 内容以 < 开头（HTML 标签），当作 HTML 渲染
         if (trimmedContent.startsWith("<")) {
@@ -797,8 +814,10 @@ export function preprocessFormattedText(
           storeFormattedTextSrcdoc(storeKey, compiledSrcdoc);
           return `<iframe id="${iframeId}" name="${iframeId}" data-th-srcdoc-id="${storeKey}" style="width: 100%; min-height: 0; border: none; display: block; background: transparent; background-color: transparent; will-change: transform; transform: translate3d(0, 0, 0);" allowtransparency="true" class="w-full mvu-message-iframe"></iframe>`;
         }
-        // 非 HTML 内容：保持原始代码块渲染
-        return _match;
+        // 非 HTML 内容：包装为带有 data-lang 属性的 pre 代码块
+        const language = (lang || "").trim() || "code";
+        const escaped = escapeHtml(codeContent);
+        return `<pre data-lang="${language}"><code>${escaped}</code></pre>`;
       });
     }
   }
