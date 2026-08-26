@@ -7,6 +7,21 @@ interface ToolCallBlockProps {
   events?: readonly AgentJournalEvent[];
 }
 
+const MAX_PAYLOAD_LENGTH = 1500;
+
+function formatJsonPayload(data: unknown): string {
+  if (data === undefined || data === null) return "";
+  try {
+    const raw = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+    if (raw.length > MAX_PAYLOAD_LENGTH) {
+      return raw.slice(0, MAX_PAYLOAD_LENGTH) + `\n... [数据已截断 (${raw.length} 字符)]`;
+    }
+    return raw;
+  } catch (_) {
+    return String(data);
+  }
+}
+
 export function ToolCallBlock({ events }: ToolCallBlockProps): React.JSX.Element | null {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = React.useState(false);
@@ -111,13 +126,13 @@ export function ToolCallBlock({ events }: ToolCallBlockProps): React.JSX.Element
               {Boolean(call.arguments) && (
                 <div className="text-[10px] text-muted-foreground bg-muted/40 p-1.5 rounded overflow-x-auto">
                   <span className="text-[9px] font-sans font-semibold text-muted-foreground/80 block mb-0.5">{t("message_bubble.tool_input")}</span>
-                  <pre className="whitespace-pre-wrap leading-tight">{JSON.stringify(call.arguments, null, 2)}</pre>
+                  <pre className="whitespace-pre-wrap leading-tight max-h-48 overflow-y-auto custom-scrollbar">{formatJsonPayload(call.arguments)}</pre>
                 </div>
               )}
               {Boolean(call.result) && (
                 <div className="text-[10px] text-foreground/90 bg-emerald-500/5 border border-emerald-500/20 p-1.5 rounded overflow-x-auto">
                   <span className="text-[9px] font-sans font-semibold text-emerald-600 dark:text-emerald-400 block mb-0.5">{t("message_bubble.tool_result")}</span>
-                  <pre className="whitespace-pre-wrap leading-tight">{JSON.stringify(call.result, null, 2)}</pre>
+                  <pre className="whitespace-pre-wrap leading-tight max-h-48 overflow-y-auto custom-scrollbar">{formatJsonPayload(call.result)}</pre>
                 </div>
               )}
               {Boolean(call.error) && (

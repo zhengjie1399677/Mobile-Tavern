@@ -134,9 +134,13 @@ export default function CharactersTab() {
         await characterService.saveCharacter(pureChar);
       }
     } catch (e) {
-      console.warn("Failed to auto-persist base-agent-builtin card:", e);
+      console.warn("[CharactersTab] Auto-persist base-agent-builtin card fallback:", e);
     }
-    await selectCharacter(pureChar.id);
+    try {
+      await selectCharacter(pureChar.id);
+    } catch (err) {
+      console.error("[CharactersTab] Failed to select Base Agent character:", err);
+    }
   }, [characters, getKernelService, selectCharacter]);
 
   return (

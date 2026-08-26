@@ -35,10 +35,12 @@ export function CodeBlockHeader({ language, code }: CodeBlockHeaderProps): React
         document.body.removeChild(textarea);
       }
       setCopied(true);
-      if (typeof navigator !== "undefined" && navigator.vibrate) {
+      if (typeof window !== "undefined" && typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
         try {
           navigator.vibrate(15);
-        } catch (_) {}
+        } catch (_) {
+          // Ignore vibration restrictions on restricted WebViews
+        }
       }
       if (timerRef.current) {
         clearTimeout(timerRef.current);

@@ -162,17 +162,21 @@ export function AgentHostDiagnosticsModal({ isOpen, onClose }: AgentHostDiagnost
                 ))
               ) : (
                 <div className="text-[10px] text-muted-foreground font-mono space-y-1">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between text-amber-500/90 font-sans font-medium text-[9px] pb-1 border-b border-border/20">
+                    <span>未挂载第三方扩展工具</span>
+                    <span>Phase A 内置备选</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-0.5">
                     <span>session.search</span>
-                    <span className="text-emerald-500">Built-in</span>
+                    <span className="text-emerald-500 font-semibold">Built-in</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>memory.search</span>
-                    <span className="text-emerald-500">Built-in</span>
+                    <span className="text-emerald-500 font-semibold">Built-in</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>character.read</span>
-                    <span className="text-emerald-500">Built-in</span>
+                    <span className="text-emerald-500 font-semibold">Built-in</span>
                   </div>
                 </div>
               )}
