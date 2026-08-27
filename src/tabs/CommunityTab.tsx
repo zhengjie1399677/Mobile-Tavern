@@ -30,6 +30,12 @@ import {
 } from "../utils/cardParser";
 import type { CharacterCard } from "../types";
 import { CommunityCardDetail } from "../components/community/CommunityCardDetail";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 export default function CommunityTab() {
   const {
@@ -79,6 +85,11 @@ export default function CommunityTab() {
   const [downloadProgress, setDownloadProgress] = React.useState(0);
   const [error, setError] = React.useState<string>();
   const [detailCard, setDetailCard] = React.useState<CommunityCardSummary>();
+
+  useMobileBackHandler(uploadOpen, () => {
+    setUploadOpen(false);
+    return true;
+  }, 850);
 
   React.useEffect(() => {
     if (!selectedCharacterId && characters[0]?.id) {
@@ -332,7 +343,7 @@ export default function CommunityTab() {
             <button
               type="button"
               onClick={() => setUploadOpen(true)}
-              className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-primary px-3 text-[11px] font-semibold text-primary-foreground shadow-md shadow-primary/15 transition-all hover:opacity-90 active:scale-95"
+              className="flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-md shadow-primary/15 transition-opacity hover:opacity-90 active:scale-95"
             >
               <Upload className="h-3.5 w-3.5" />
               <span>分享</span>
@@ -351,13 +362,13 @@ export default function CommunityTab() {
               if (event.key === "Enter") void loadCards(search);
             }}
             placeholder={t("community.search_placeholder")}
-            className="h-9 w-full rounded-xl border-0 bg-transparent pl-8 pr-3 text-xs text-foreground outline-none placeholder:text-muted-foreground/70"
+            className="h-11 w-full rounded-xl border-0 bg-transparent pl-8 pr-3 text-xs text-foreground outline-none placeholder:text-muted-foreground/70"
           />
         </div>
         <button
           type="button"
           onClick={() => void loadCards(search)}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/70 text-muted-foreground shadow-sm hover:text-primary active:scale-95 transition"
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/70 text-muted-foreground shadow-sm transition-colors hover:text-primary active:scale-95"
           aria-label={t("community.refresh")}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -365,22 +376,23 @@ export default function CommunityTab() {
       </div>
 
       {/* 上传/分享弹窗 (Modal) */}
-      {uploadOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          {/* 点击外部关闭 */}
-          <div className="absolute inset-0" onClick={() => setUploadOpen(false)} />
-          {/* 弹窗主体 */}
-          <div className="relative w-full max-w-sm glass-panel rounded-2xl shadow-2xl overflow-hidden z-10 p-5 space-y-4 animate-in zoom-in-95 duration-200">
+      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+        <DialogContent
+          showCloseButton={false}
+          overlayClassName="z-[120] bg-black/60 backdrop-blur-sm"
+          className="z-[120] w-full max-w-sm gap-0 overflow-hidden rounded-2xl bg-background/95 p-5 shadow-2xl"
+        >
             {/* 弹窗 Header */}
             <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
-              <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+              <DialogTitle className="flex items-center gap-1.5 text-sm font-bold text-foreground">
                 <Upload className="w-4 h-4 text-primary" />
                 <span>分享角色卡</span>
-              </h3>
+              </DialogTitle>
               <button
                 type="button"
                 onClick={() => setUploadOpen(false)}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transition-all"
+                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+                aria-label="关闭分享角色卡"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -445,11 +457,11 @@ export default function CommunityTab() {
               {/* 已有角色选择器 */}
               {uploadSource === "existing" && characters.length > 0 && (
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground font-semibold">选择本地角色</label>
+                  <label className="text-xs text-muted-foreground font-semibold">选择本地角色</label>
                   <select
                     value={selectedCharacterId}
                     onChange={(event) => setSelectedCharacterId(event.target.value)}
-                    className="h-9 w-full rounded-xl border border-border bg-input px-3 text-xs text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition shadow-inner"
+                    className="h-11 w-full rounded-xl border border-border bg-input px-3 text-xs text-foreground shadow-inner outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
                     aria-label={t("community.select_character")}
                   >
                     {characters.map((character) => (
@@ -463,19 +475,19 @@ export default function CommunityTab() {
 
               {/* 角色名称编辑 */}
               <div className="space-y-1">
-                <label className="text-[10px] text-muted-foreground font-semibold">角色名称</label>
+                <label className="text-xs text-muted-foreground font-semibold">角色名称</label>
                 <input
                   type="text"
                   value={uploadTitle}
                   onChange={(event) => setUploadTitle(event.target.value)}
                   placeholder="请输入角色名称"
-                  className="h-9 w-full rounded-xl border border-border bg-input px-3 text-xs text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition shadow-inner"
+                  className="h-11 w-full rounded-xl border border-border bg-input px-3 text-xs text-foreground shadow-inner outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
                 />
               </div>
 
               {/* 描述编辑域 */}
               <div className="space-y-1">
-                <label className="text-[10px] text-muted-foreground font-semibold">角色介绍（选填）</label>
+                <label className="text-xs text-muted-foreground font-semibold">角色介绍（选填）</label>
                 <textarea
                   value={uploadDescription}
                   onChange={(event) => setUploadDescription(event.target.value.slice(0, 1000))}
@@ -485,7 +497,7 @@ export default function CommunityTab() {
                 />
               </div>
 
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>
                   {t("community.identity_hint", {
                     user: identity.name,
@@ -516,7 +528,7 @@ export default function CommunityTab() {
               <button
                 type="button"
                 onClick={() => setUploadOpen(false)}
-                className="flex-1 h-9 rounded-xl border border-border bg-card text-xs text-foreground font-bold active:scale-95 transition-all"
+                className="h-11 flex-1 rounded-xl border border-border bg-card text-xs font-bold text-foreground transition-colors active:scale-95"
               >
                 取消
               </button>
@@ -529,7 +541,7 @@ export default function CommunityTab() {
                   !uploadTitle.trim()
                 }
                 onClick={() => void handleConfirmUpload()}
-                className="flex-1 h-9 rounded-xl bg-primary text-xs font-bold text-primary-foreground flex items-center justify-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50 transition-all"
+                className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-md transition-opacity active:scale-95 disabled:opacity-50"
               >
                 {uploading ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -539,9 +551,8 @@ export default function CommunityTab() {
                 <span>确认发布</span>
               </button>
             </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {error && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
@@ -564,9 +575,11 @@ export default function CommunityTab() {
               tabIndex={0}
               onClick={() => setDetailCard(card)}
               onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") setDetailCard(card);
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                setDetailCard(card);
               }}
-              className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-lg spring-press-effect"
+              className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-sm outline-none transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring spring-press-effect"
             >
               <div
                 data-testid="community-card-cover"
@@ -598,7 +611,7 @@ export default function CommunityTab() {
                 <h2 className="truncate text-xs font-bold tracking-wide text-foreground">
                   {card.title}
                 </h2>
-                <p className="mt-1.5 line-clamp-2 min-h-[2.4rem] text-[10px] leading-relaxed text-muted-foreground">
+                <p className="mt-1.5 line-clamp-2 min-h-[2.4rem] text-xs leading-relaxed text-muted-foreground">
                   {card.description || t("community.no_description")}
                 </p>
 

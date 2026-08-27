@@ -8,6 +8,12 @@ import {
   validateThemePackage,
 } from "../utils/themePackage";
 import { parseThemeInteractionConfig } from "../domain/themes/themeInteractionContract";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 interface ThemeEditorModalProps {
   isOpen: boolean;
@@ -126,6 +132,12 @@ export default function ThemeEditorModal({
   // 初始化主题对象状态
   const [theme, setTheme] = useState<CustomThemePackage>(() => cloneEditorTheme(themeToEdit));
   const [interactionDraft, setInteractionDraft] = useState(() => buildInteractionDraft(themeToEdit));
+  const cancelRef = React.useRef(onClose);
+
+  useMobileBackHandler(isOpen, () => {
+    cancelRef.current();
+    return true;
+  }, 850);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -159,8 +171,6 @@ export default function ThemeEditorModal({
       document.documentElement.style.colorScheme = "light";
     }
   }, [theme, isOpen]);
-
-  if (!isOpen) return null;
 
   // 辅助检测合法 Hex
   const isHexColor = (val: string) => {
@@ -276,33 +286,42 @@ export default function ThemeEditorModal({
     removeThemePackageStyle("custom_theme_preview");
     onClose();
   };
+  cancelRef.current = handleCancelClick;
+
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[999] flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4 text-foreground">
-      <div className="bg-background border-t sm:border border-border max-h-[95vh] sm:max-h-[90vh] w-full sm:max-w-2xl overflow-hidden rounded-t-2xl sm:rounded-2xl flex flex-col shadow-2xl">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleCancelClick(); }}>
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[999] bg-black/80 backdrop-blur-md"
+        className="!bottom-0 !top-auto z-[999] flex max-h-[95dvh] w-full max-w-2xl !translate-y-0 flex-col gap-0 overflow-hidden rounded-b-none rounded-t-2xl border-x-0 border-b-0 border-t border-border bg-background p-0 text-foreground shadow-2xl sm:!bottom-auto sm:!top-1/2 sm:max-h-[90dvh] sm:!-translate-y-1/2 sm:rounded-2xl sm:border"
+      >
         
         {/* 顶部标题与关闭 */}
         <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
           <div>
-            <p className="font-bold text-sm text-foreground flex items-center gap-1.5">
-              <Eye className="w-4 h-4 text-primary animate-pulse" />
+            <DialogTitle className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+              <Eye className="w-4 h-4 text-primary" aria-hidden="true" />
               {themeToEdit ? `编辑主题: ${themeToEdit.name}` : "新建自定义主题"}
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
               编辑时颜色修改将实时反映至整个应用背景与气泡样式。
             </p>
           </div>
           <button
+            type="button"
             onClick={handleCancelClick}
-            className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition"
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title="关闭并放弃"
+            aria-label="关闭并放弃主题编辑"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* 选项卡切换 */}
-        <div className="flex shrink-0 overflow-x-auto border-b border-border/80 bg-input/50 px-3">
+        <div role="tablist" aria-label="主题编辑分类" className="flex shrink-0 overflow-x-auto border-b border-border/80 bg-input/50 px-3">
           {[
             { id: "basic", label: "基本元数据", icon: FileText },
             { id: "colors", label: "颜色调色板", icon: Palette },
@@ -313,9 +332,12 @@ export default function ThemeEditorModal({
             const active = activeTab === tab.id;
             return (
               <button
+                type="button"
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as EditorTab)}
-                className={`py-2 px-3 text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                role="tab"
+                aria-selected={active}
+                className={`flex min-h-11 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
                   active
                     ? "border-b-2 border-primary text-primary"
                     : "text-muted-foreground hover:text-foreground"
@@ -529,14 +551,16 @@ export default function ThemeEditorModal({
           </div>
           <div className="flex gap-2 shrink-0">
             <button
+              type="button"
               onClick={handleCancelClick}
-              className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground px-4 py-2 rounded-lg text-xs font-semibold transition"
+              className="min-h-11 rounded-lg bg-muted px-4 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
             >
               放弃修改
             </button>
             <button
+              type="button"
               onClick={handleSaveClick}
-              className="bg-primary hover:opacity-90 text-primary-foreground px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg bg-primary px-5 text-xs font-bold text-primary-foreground transition-opacity hover:opacity-90"
             >
               <Save className="w-3.5 h-3.5" />
               保存主题
@@ -544,7 +568,7 @@ export default function ThemeEditorModal({
           </div>
         </div>
 
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

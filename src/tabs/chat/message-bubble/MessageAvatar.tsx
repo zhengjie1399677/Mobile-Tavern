@@ -28,7 +28,7 @@ export function MessageAvatar({
     >
       {isUser ? (
         userAvatar ? (
-          <img src={userAvatar} alt="" className="w-full h-full object-cover" />
+          <img src={userAvatar} alt="" decoding="async" className="w-full h-full object-cover" />
         ) : (
           t("message_bubble.me_avatar")
         )
@@ -36,6 +36,7 @@ export function MessageAvatar({
         <img
           src={characterPortrait}
           alt=""
+          decoding="async"
           className="w-full h-full object-cover animate-fadeIn"
         />
       ) : (

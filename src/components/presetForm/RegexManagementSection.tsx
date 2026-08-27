@@ -5,7 +5,15 @@ import { Switch } from "../../../components/ui/switch";
 import { Checkbox } from "../../../components/ui/checkbox";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
-import type { UserSettings, CharacterCard } from "../../types";
+import type { Dispatch, SetStateAction } from "react";
+import type { UserSettings, CharacterCard, RegexScript } from "../../types";
+import type { EditableRegexScript } from "./usePresetFormState";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../../components/ui/dialog";
+import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 
 interface RegexManagementSectionProps {
   settings: UserSettings;
@@ -25,13 +33,13 @@ interface RegexManagementSectionProps {
   setIsBatchDeletingPresetRegex: (value: boolean | ((prev: boolean) => boolean)) => void;
   handleBatchDeleteGlobalRegex: () => Promise<void>;
   handleBatchDeletePresetRegex: () => Promise<void>;
-  editingRegex: any;
-  setEditingRegex: (value: any) => void;
+  editingRegex: EditableRegexScript | null;
+  setEditingRegex: Dispatch<SetStateAction<EditableRegexScript | null>>;
   isRegexModalOpen: boolean;
   setIsRegexModalOpen: (value: boolean | ((prev: boolean) => boolean)) => void;
   toggleRegexDisabled: (id: string, disabled: boolean, scope: "global" | "preset" | "character") => void;
   deleteRegex: (id: string, name: string, scope: "global" | "preset" | "character") => Promise<void>;
-  saveRegex: (reg: any) => void;
+  saveRegex: (reg: EditableRegexScript) => Promise<void>;
 }
 
 /** 4. 正则过滤脚本管理（全局 / 预设 / 角色只读 + 编辑 Modal） */
@@ -62,6 +70,16 @@ export default function RegexManagementSection({
   saveRegex,
 }: RegexManagementSectionProps) {
   const { t } = useTranslation();
+  const closeRegexModal = () => {
+    setIsRegexModalOpen(false);
+    setEditingRegex(null);
+  };
+
+  useMobileBackHandler(isRegexModalOpen, () => {
+    closeRegexModal();
+    return true;
+  }, 850);
+
   return (
     <>
       <Card className={cn("glass-panel shadow-sm transition-all duration-300", isRegexFolded ? "py-2 gap-0" : "")}>
@@ -432,7 +450,7 @@ export default function RegexManagementSection({
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-                {activeCharacter.extensions.regex_scripts.map((r: any) => {
+                {activeCharacter.extensions.regex_scripts.map((r: RegexScript) => {
                   const targetId = r.id || r.scriptName;
                   return (
                     <div
@@ -494,72 +512,73 @@ export default function RegexManagementSection({
       </Card>
 
       {/* 新建/编辑正则 Modal 浮窗 */}
-      {isRegexModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-background border border-border rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
+      <Dialog open={isRegexModalOpen} onOpenChange={(open) => { if (!open) closeRegexModal(); }}>
+        <DialogContent
+          showCloseButton={false}
+          overlayClassName="bg-black/60 backdrop-blur-sm"
+          className="flex w-full max-w-md flex-col gap-0 overflow-hidden rounded-xl border border-border bg-background p-0 shadow-2xl"
+        >
             <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
-              <p className="text-sm font-bold text-foreground">
+              <DialogTitle className="text-sm font-bold text-foreground">
                 {editingRegex?.id?.startsWith("reg_") ? t("regex.modal_new") : t("regex.modal_edit")}
-              </p>
+              </DialogTitle>
               <button
-                onClick={() => {
-                  setIsRegexModalOpen(false);
-                  setEditingRegex(null);
-                }}
-                className="text-xs text-muted-foreground hover:text-foreground transition font-semibold"
+                type="button"
+                onClick={closeRegexModal}
+                className="min-h-11 rounded-lg px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 {t("regex.modal_close")}
               </button>
             </div>
             <div className="p-4 space-y-4 overflow-y-auto max-h-[70vh]">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground block">{t("regex.modal_name")}</label>
+                <label className="text-xs font-bold text-muted-foreground block">{t("regex.modal_name")}</label>
                 <Input
                   value={editingRegex?.scriptName || ""}
                   onChange={(e) =>
-                    setEditingRegex((prev: any) => ({ ...prev, scriptName: e.target.value }))
+                    setEditingRegex((prev) => prev ? ({ ...prev, scriptName: e.target.value }) : prev)
                   }
                   placeholder={t("regex.modal_name_placeholder")}
-                  className="h-9 text-xs bg-input/50"
+                  className="h-11 text-xs bg-input/50"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground block">{t("regex.modal_find")}</label>
+                <label className="text-xs font-bold text-muted-foreground block">{t("regex.modal_find")}</label>
                 <Input
                   value={editingRegex?.findRegex || ""}
                   onChange={(e) =>
-                    setEditingRegex((prev: any) => ({ ...prev, findRegex: e.target.value }))
+                    setEditingRegex((prev) => prev ? ({ ...prev, findRegex: e.target.value }) : prev)
                   }
                   placeholder={t("regex.modal_find_placeholder")}
-                  className="h-9 text-xs font-mono bg-input/50"
+                  className="h-11 text-xs font-mono bg-input/50"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground block">{t("regex.modal_replace")}</label>
+                <label className="text-xs font-bold text-muted-foreground block">{t("regex.modal_replace")}</label>
                 <Input
                   value={editingRegex?.replaceString || ""}
                   onChange={(e) =>
-                    setEditingRegex((prev: any) => ({ ...prev, replaceString: e.target.value }))
+                    setEditingRegex((prev) => prev ? ({ ...prev, replaceString: e.target.value }) : prev)
                   }
                   placeholder={t("regex.modal_replace_placeholder")}
-                  className="h-9 text-xs bg-input/50"
+                  className="h-11 text-xs bg-input/50"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground block">{t("regex.modal_placement")}</label>
+                <label className="text-xs font-bold text-muted-foreground block">{t("regex.modal_placement")}</label>
                 <div className="flex gap-4">
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
                     <Checkbox
                       checked={editingRegex?.placement?.includes(1) || false}
                       onCheckedChange={(checked) => {
-                        const current = editingRegex?.placement || [2];
+                        const current: number[] = editingRegex?.placement || [2];
                         let next;
                         if (checked) {
-                          next = [...current.filter((x: any) => x !== 1), 1];
+                          next = [...current.filter((value) => value !== 1), 1];
                         } else {
-                          next = current.filter((x: any) => x !== 1);
+                          next = current.filter((value) => value !== 1);
                         }
-                        setEditingRegex((prev: any) => ({ ...prev, placement: next }));
+                        setEditingRegex((prev) => prev ? ({ ...prev, placement: next }) : prev);
                       }}
                     />
                     {t("regex.modal_placement_input")}
@@ -568,14 +587,14 @@ export default function RegexManagementSection({
                     <Checkbox
                       checked={editingRegex?.placement?.includes(2) || false}
                       onCheckedChange={(checked) => {
-                        const current = editingRegex?.placement || [2];
+                        const current: number[] = editingRegex?.placement || [2];
                         let next;
                         if (checked) {
-                          next = [...current.filter((x: any) => x !== 2), 2];
+                          next = [...current.filter((value) => value !== 2), 2];
                         } else {
-                          next = current.filter((x: any) => x !== 2);
+                          next = current.filter((value) => value !== 2);
                         }
-                        setEditingRegex((prev: any) => ({ ...prev, placement: next }));
+                        setEditingRegex((prev) => prev ? ({ ...prev, placement: next }) : prev);
                       }}
                     />
                     {t("regex.modal_placement_output")}
@@ -585,24 +604,23 @@ export default function RegexManagementSection({
             </div>
             <div className="px-4 py-3 border-t border-border bg-muted/20 flex gap-2 justify-end">
               <button
-                onClick={() => {
-                  setIsRegexModalOpen(false);
-                  setEditingRegex(null);
-                }}
-                className="px-3 py-1.5 text-xs font-medium border border-border bg-background hover:bg-muted rounded-md transition"
+                type="button"
+                onClick={closeRegexModal}
+                className="min-h-11 rounded-md border border-border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted"
               >
                 {t("prompts.cancel")}
               </button>
               <button
-                onClick={() => saveRegex(editingRegex)}
-                className="px-4 py-1.5 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition"
+                type="button"
+                disabled={!editingRegex}
+                onClick={() => { if (editingRegex) void saveRegex(editingRegex); }}
+                className="min-h-11 rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
                 {t("regex.modal_save")}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

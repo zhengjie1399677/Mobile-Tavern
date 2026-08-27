@@ -102,6 +102,8 @@ export function GeneratedImageBlock({
           <img
             src={image}
             alt="Generated Scene"
+            loading="lazy"
+            decoding="async"
             className="w-full object-cover max-h-60 cursor-pointer hover:opacity-95 transition-opacity"
             onClick={(event) => {
               event.stopPropagation();

@@ -8,12 +8,13 @@ import {
 import type { UserSettings } from "../types";
 import type { UsageMetrics } from "../domain/usage/metrics";
 import { shouldShowCommunityEntry } from "../domain/community/entryGate";
+import { loadChatTab } from "./mainTabLoaders";
 
 // 主 Tab 均为独立业务域。仅在用户首次进入时下载，避免低频设置、世界书和调试沙盒阻塞首屏。
 const CharactersTab = lazy(() => import("../tabs/CharactersTab"));
 const CommunityTab = lazy(() => import("../tabs/CommunityTab"));
 const ChatHistoryTab = lazy(() => import("../tabs/ChatHistoryTab"));
-const ChatTab = lazy(() => import("../tabs/ChatTab"));
+const ChatTab = lazy(loadChatTab);
 const GlobalWorldbookTab = lazy(() => import("../tabs/GlobalWorldbookTab"));
 const SettingsTab = lazy(() => import("../tabs/SettingsTab"));
 const PlaygroundTab = lazy(() => import("../tabs/PlaygroundTab"));

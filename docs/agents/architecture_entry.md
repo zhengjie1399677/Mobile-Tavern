@@ -39,6 +39,7 @@ Runtime Plugin 承载。移动端位于 `src/` 与 `src-tauri/`，云端服务�
 | 新服务、中间件、插件或跨层重构 | 目标边界与局部测试 | `docs/agents/isolation_development.md` |
 | Runtime Plugin、Agent、Chat Profile、多模态消息 | `docs/agents/agent_plugin_runtime_roadmap.md` | `docs/agents/runtime_boundaries.md`、`docs/agents/isolation_development.md` |
 | 浏览器或 E2E 自动化 | 已纳入仓库的测试脚本 | `docs/agents/browser_testing.md` |
+| WebView 界面、移动交互与 UI 性能 | `src/components/MainLayout.tsx`、目标页面与 UI 基元 | `docs/agents/ui_webview_performance.md`、`docs/agents/mobile_strategy.md` |
 | 可复现故障排查 | `docs/agents/troubleshooting_entry.md` | 由排障表继续进入命中模块 |
 | 测试选择、开发服务、文档归档 | `docs/agents/development_workflow.md` | 仅按其中条件继续读取 |
 

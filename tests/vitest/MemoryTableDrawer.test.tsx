@@ -108,12 +108,13 @@ describe("MemoryTableDrawer", () => {
     );
     // 标题标记
     expect(screen.getByText(/记忆与状态中心/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "记忆与状态中心" })).toBeInTheDocument();
     // 默认表格内容
     expect(await screen.findByText("角色")).toBeInTheDocument();
   }, 25_000);
 
   it("使用紧凑全高外壳，并为各类记忆保留独立标签", () => {
-    const { container } = renderWithI18n(
+    renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
         onClose={onClose}
@@ -126,7 +127,7 @@ describe("MemoryTableDrawer", () => {
       />
     );
 
-    expect(container.querySelector("[data-memory-drawer-surface]"))
+    expect(document.querySelector("[data-memory-drawer-surface]"))
       .toHaveAttribute("data-density", "compact");
     expect(screen.getByRole("tablist", { name: "记忆与状态分类" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "故事年表" })).toHaveAttribute("aria-selected", "false");
@@ -277,6 +278,23 @@ describe("MemoryTableDrawer", () => {
     expect(closeBtn).toBeTruthy();
     fireEvent.click(closeBtn!);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("按 Escape 通过标准 Dialog 关闭", async () => {
+    renderWithI18n(
+      <MemoryTableDrawer
+        isOpen={true}
+        onClose={onClose}
+        activeSession={makeSession()}
+        updateSessionMetadata={saveSession}
+        charName="Alice"
+        enableTableMemory={true}
+        enableAutoSummary={false}
+      />
+    );
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
   // ------------------------------------------------------------------

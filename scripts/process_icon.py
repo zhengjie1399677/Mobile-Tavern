@@ -101,6 +101,32 @@ def main():
                 min(width, right + padding),
                 min(height, bottom + padding),
             ))
+
+        # WebView 启动页复用同一份品牌前景，避免方形非透明 Logo 与主题背景拼接。
+        # 该文件是确定性生成产物，不随用户主题变化。
+        splash_canvas_size = 512
+        splash_logo_size = 480
+        source_width, source_height = foreground_source.size
+        splash_ratio = min(splash_logo_size / source_width, splash_logo_size / source_height)
+        splash_width = max(1, round(source_width * splash_ratio))
+        splash_height = max(1, round(source_height * splash_ratio))
+        splash_resized = foreground_source.resize(
+            (splash_width, splash_height), Image.Resampling.LANCZOS
+        )
+        splash_foreground = Image.new(
+            "RGBA", (splash_canvas_size, splash_canvas_size), (0, 0, 0, 0)
+        )
+        splash_foreground.paste(
+            splash_resized,
+            (
+                (splash_canvas_size - splash_width) // 2,
+                (splash_canvas_size - splash_height) // 2,
+            ),
+            splash_resized,
+        )
+        splash_logo_path = os.path.join(project_root, 'public', 'splash-logo.png')
+        splash_foreground.save(splash_logo_path, "PNG", optimize=True)
+        print(f"Generated transparent WebView splash logo at {splash_logo_path}")
         
         # Mipmap folder density sizes for ic_launcher_foreground.png
         densities = {

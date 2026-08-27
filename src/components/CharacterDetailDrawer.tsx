@@ -2,7 +2,13 @@ import React, { useState } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 import { CharacterCard, LorebookEntry } from "../types";
-import FormattedText from "./FormattedText";
+import FormattedText from "./FormattedText";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../components/ui/dialog";
 import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 import {
   X,
@@ -54,6 +60,11 @@ export default function CharacterDetailDrawer({
   const [loreSearch, setLoreSearch] = useState("");
   const [expandedLoreIds, setExpandedLoreIds] = useState<Record<string, boolean>>({});
 
+  useMobileBackHandler(isOpen, () => {
+    onClose();
+    return true;
+  }, 800);
+
   if (!isOpen || !character) return null;
 
   const handleCopy = (text: string, id: string) => {
@@ -96,29 +107,26 @@ export default function CharacterDetailDrawer({
   const tagsList = character.tags || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center select-none">
-      {/* Dark overlay without backdrop blur (Performance optimized for mobile) */}
-      <div
-        className="absolute inset-0 bg-black/55 transition-opacity"
-        onClick={onClose}
-      />
-
-      {/* Drawer sliding up with hardware acceleration */}
-      <div
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        showCloseButton={false}
         style={{ paddingBottom: `${safeAreas?.bottom ?? 0}px` }}
-        className="w-full max-w-lg bg-background border-t border-border/50 rounded-t-3xl shadow-2xl z-10 flex flex-col max-h-[85vh] transition-transform animate-in slide-in-from-bottom duration-300 will-change-transform"
+        className="!top-auto !bottom-0 !translate-y-0 z-[800] flex max-h-[85dvh] w-full max-w-lg flex-col gap-0 rounded-t-3xl rounded-b-none border-x-0 border-b-0 border-t border-border/50 bg-background p-0 shadow-2xl data-open:slide-in-from-bottom sm:!top-1/2 sm:!bottom-auto sm:!-translate-y-1/2 sm:rounded-3xl sm:border"
       >
-        
+        <DialogTitle className="sr-only">{character.name}</DialogTitle>
+
         {/* Header decoration bar */}
         <div className="flex justify-center py-2.5">
-          <div className="w-12 h-1.5 bg-muted-foreground/30 rounded-full cursor-pointer" onClick={onClose} />
+          <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" aria-hidden="true" />
         </div>
 
         {/* Drawer Header */}
         <div className="px-5 pb-4 border-b border-border/40 relative">
           <button
+            type="button"
             onClick={onClose}
-            className="absolute top-1 right-5 text-muted-foreground hover:text-foreground p-1.5 rounded-full hover:bg-muted transition"
+            aria-label={t("common.close")}
+            className="absolute right-4 top-0 flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
             <X className="w-5 h-5" />
           </button>
@@ -130,6 +138,7 @@ export default function CharacterDetailDrawer({
                 <img
                   src={character.avatar}
                   alt={character.name}
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -172,10 +181,13 @@ export default function CharacterDetailDrawer({
         </div>
 
         {/* Dynamic Navigation Tabs */}
-        <div className="flex border-b border-border/40 bg-muted/20 px-3 py-1.5 justify-around text-sm font-medium">
+        <div role="tablist" aria-label={character.name} className="flex justify-around border-b border-border/40 bg-muted/20 px-3 py-1.5 text-sm font-medium">
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "persona"}
             onClick={() => setActiveTab("persona")}
-            className={`flex items-center gap-1.5 py-1.5 px-4 rounded-lg transition-all ${
+            className={`flex min-h-11 items-center gap-1.5 rounded-lg px-4 transition-colors ${
               activeTab === "persona"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -185,8 +197,11 @@ export default function CharacterDetailDrawer({
             {t("char_detail.tab_persona")}
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "dialogue"}
             onClick={() => setActiveTab("dialogue")}
-            className={`flex items-center gap-1.5 py-1.5 px-4 rounded-lg transition-all ${
+            className={`flex min-h-11 items-center gap-1.5 rounded-lg px-4 transition-colors ${
               activeTab === "dialogue"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -196,8 +211,11 @@ export default function CharacterDetailDrawer({
             {t("char_detail.tab_dialogue")}
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "lore"}
             onClick={() => setActiveTab("lore")}
-            className={`flex items-center gap-1.5 py-1.5 px-4 rounded-lg transition-all ${
+            className={`flex min-h-11 items-center gap-1.5 rounded-lg px-4 transition-colors ${
               activeTab === "lore"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -210,11 +228,11 @@ export default function CharacterDetailDrawer({
 
         {/* Drawer Content Body (Scrollable) */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4 no-scrollbar">
-          
+
           {/* TAB 1: PERSONA */}
           {activeTab === "persona" && (
             <div className="space-y-4 animate-in fade-in duration-200">
-              
+
               {/* Personality */}
               <div className="bg-card border border-border/50 rounded-2xl p-4 space-y-2 shadow-sm">
                 <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
@@ -282,7 +300,7 @@ export default function CharacterDetailDrawer({
           {/* TAB 2: DIALOGUE & ALTERNATE GREETINGS */}
           {activeTab === "dialogue" && (
             <div className="space-y-5 animate-in fade-in duration-200">
-              
+
               {/* Alternate Greetings Selection Slider Header */}
               {(character.alternate_greetings && character.alternate_greetings.length > 0) && (
                 <div className="space-y-1.5">
@@ -292,8 +310,9 @@ export default function CharacterDetailDrawer({
                   <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
                     {/* Default Option */}
                     <button
+                      type="button"
                       onClick={() => setActiveGreetingIdx(-1)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border flex-shrink-0 transition-all ${
+                      className={`min-h-8 flex-shrink-0 rounded-full border px-3 text-xs font-medium transition-colors ${
                         activeGreetingIdx === -1
                           ? "bg-primary text-primary-foreground border-primary shadow-sm"
                           : "bg-card text-muted-foreground border-border/50 hover:bg-muted"
@@ -304,9 +323,10 @@ export default function CharacterDetailDrawer({
                     {/* Alternate Options */}
                     {character.alternate_greetings.map((_, idx) => (
                       <button
+                        type="button"
                         key={idx}
                         onClick={() => setActiveGreetingIdx(idx)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border flex-shrink-0 transition-all ${
+                        className={`min-h-8 flex-shrink-0 rounded-full border px-3 text-xs font-medium transition-colors ${
                           activeGreetingIdx === idx
                             ? "bg-primary text-primary-foreground border-primary shadow-sm"
                             : "bg-card text-muted-foreground border-border/50 hover:bg-muted"
@@ -325,7 +345,7 @@ export default function CharacterDetailDrawer({
                   activeGreetingIdx === -1
                     ? character.first_mes
                     : character.alternate_greetings?.[activeGreetingIdx] || "";
-                
+
                 const isCurrentFirst = currentText === character.first_mes;
 
                 return (
@@ -338,8 +358,9 @@ export default function CharacterDetailDrawer({
                       <div className="flex items-center gap-1.5">
                         {/* Copy Button */}
                         <button
+                          type="button"
                           onClick={() => handleCopy(currentText, "greeting")}
-                          className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition"
+                          className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                           title={t("char_detail.copy_text")}
                         >
                           {copiedText === "greeting" ? (
@@ -351,8 +372,9 @@ export default function CharacterDetailDrawer({
                         {/* Set Default Button */}
                         {!isCurrentFirst && (
                           <button
+                            type="button"
                             onClick={() => handleSetPrimaryGreeting(currentText)}
-                            className="bg-primary/15 text-primary text-[10px] px-2 py-1 rounded hover:bg-primary hover:text-primary-foreground font-bold transition-all active:scale-[0.97]"
+                            className="min-h-11 rounded bg-primary/15 px-3 text-xs font-bold text-primary transition-colors hover:bg-primary hover:text-primary-foreground active:scale-[0.97]"
                             title={t("char_detail.set_primary_greeting_title")}
                           >
                             {t("char_detail.set_primary_greeting")}
@@ -380,8 +402,9 @@ export default function CharacterDetailDrawer({
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
                     <span>{t("char_detail.section_examples")}</span>
                     <button
+                      type="button"
                       onClick={() => handleCopy(character.mes_example || "", "examples")}
-                      className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition"
+                      className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       {copiedText === "examples" ? (
                         <Check className="w-3.5 h-3.5 text-green-500" />
@@ -406,7 +429,7 @@ export default function CharacterDetailDrawer({
           {/* TAB 3: WORLD LOREBOOK */}
           {activeTab === "lore" && (
             <div className="space-y-4 animate-in fade-in duration-200">
-              
+
               {/* Search filter in worldbook entries */}
               <div className="relative">
                 <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
@@ -415,12 +438,13 @@ export default function CharacterDetailDrawer({
                   placeholder={t("char_detail.lore_search_placeholder")}
                   value={loreSearch}
                   onChange={(e) => setLoreSearch(e.target.value)}
-                  className="w-full text-xs pl-9 pr-4 py-2 bg-muted/40 border border-border/50 rounded-xl outline-none focus:border-primary/50 transition"
+                  className="min-h-11 w-full rounded-xl border border-border/50 bg-muted/40 py-2 pl-9 pr-20 text-xs outline-none transition-colors focus:border-primary/50"
                 />
                 {loreSearch && (
                   <button
+                    type="button"
                     onClick={() => setLoreSearch("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                    className="absolute right-1 top-1/2 flex min-h-11 -translate-y-1/2 items-center rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground"
                   >
                     {t("char_detail.clear_search")}
                   </button>
@@ -439,8 +463,10 @@ export default function CharacterDetailDrawer({
                       }`}
                     >
                       {/* Lore Header (Interactive summary bar) */}
-                      <div
-                        className="flex items-start justify-between gap-3 cursor-pointer select-none"
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        className="flex min-h-11 w-full cursor-pointer select-none items-start justify-between gap-3 text-left"
                         onClick={() => toggleLoreExpand(entry.id)}
                       >
                         <div className="space-y-1 min-w-0 flex-1">
@@ -477,7 +503,7 @@ export default function CharacterDetailDrawer({
                             <ChevronDown className="w-4 h-4" />
                           )}
                         </div>
-                      </div>
+                      </button>
 
                       {/* Lore Body (Collapsible detailed drawer) */}
                       {isExpanded && (
@@ -519,7 +545,7 @@ export default function CharacterDetailDrawer({
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

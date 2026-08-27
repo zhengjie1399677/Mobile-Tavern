@@ -121,7 +121,7 @@ export default function PersonaConfigSection({
           <div className="flex gap-2">
             <div className="w-9 h-9 rounded-full bg-muted border border-border flex-shrink-0 overflow-hidden flex items-center justify-center">
               {settings.userAvatar ? (
-                <img src={settings.userAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                <img src={settings.userAvatar} alt="Avatar" decoding="async" className="w-full h-full object-cover" />
               ) : (
                 <UserCheck className="w-4 h-4 text-muted-foreground" />
               )}

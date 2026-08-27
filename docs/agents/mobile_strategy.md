@@ -3,6 +3,9 @@
 > [!IMPORTANT]
 > **此文件为 Mobile Tavern 行为指导手册的子规范，定义了原生 WebView 桥接、状态栏、界面设计与服务安全防护的细则。**
 
+界面流畅度、触控、Dialog/BottomSheet、键盘和性能验收的长期规范见
+[WebView 界面与性能验收规范](ui_webview_performance.md)。
+
 ---
 
 ### 开发与生产隔离

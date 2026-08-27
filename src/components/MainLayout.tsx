@@ -1,12 +1,13 @@
 import React, { Suspense, useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
-import { SplashScreen } from "./SplashScreen";
 import { VenetianMask, MessageSquare, Book, Settings, Users, HelpCircle, LoaderCircle, type LucideIcon } from "lucide-react";
 import { useKernel } from "../contexts/KernelContext";
 import type { IExtension } from "@/src/application/serviceContracts";
 import type { TabType } from "../contexts/AppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 import { getVisibleBottomBarTabs } from "../domain/ui/mainTabVisibility";
+import { isOutsideVisibleViewport, resolveAppViewportHeight } from "../utils/viewportLayout";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 const ICON_MAP: Record<string, LucideIcon> = {
   VenetianMask,
@@ -51,7 +52,6 @@ export default function MainLayout() {
   const {
     activeTab,
     setActiveTab,
-    showSplash,
     safeAreas,
     settings,
     currentTheme,
@@ -62,7 +62,6 @@ export default function MainLayout() {
   } = useUnifiedApp((state) => ({
     activeTab: state.activeTab,
     setActiveTab: state.setActiveTab,
-    showSplash: state.showSplash,
     safeAreas: state.safeAreas,
     settings: state.settings,
     currentTheme: state.currentTheme,
@@ -76,7 +75,7 @@ export default function MainLayout() {
   // 局部 loading 转圈闪现；底栏仍立即使用 activeTab 提供触控反馈。
   const deferredActiveTab = React.useDeferredValue(activeTab);
 
-  const [viewportHeight, setViewportHeight] = React.useState<number | null>(null);
+  const appViewportRef = React.useRef<HTMLDivElement>(null);
   const [promptFocusActive, setPromptFocusActive] = React.useState(false);
 
   React.useEffect(() => {
@@ -88,20 +87,33 @@ export default function MainLayout() {
     setPromptFocusActive(false);
   }, [activeTab, promptFocusActive]);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const vvp = window.visualViewport;
+    let frameId: number | null = null;
+    let lastHeight = -1;
+    const applyViewportHeight = () => {
+      frameId = null;
+      const nextHeight = resolveAppViewportHeight(window.innerHeight, vvp?.height);
+      if (nextHeight <= 0 || nextHeight === lastHeight) return;
+      lastHeight = nextHeight;
+      appViewportRef.current?.style.setProperty("--app-viewport-height", `${nextHeight}px`);
+    };
     const handleResize = () => {
-      setViewportHeight(vvp ? Math.min(vvp.height, window.innerHeight) : window.innerHeight);
+      if (frameId !== null) return;
+      frameId = window.requestAnimationFrame(applyViewportHeight);
     };
     // 同时监听 window.resize 与 visualViewport.resize：interactive-widget=resizes-content
     // 模式下，部分 Android WebView（如 Android 16）键盘弹出时只触发 window.resize 而不触发
     // vvp.resize，仅监听 vvp.resize 会导致容器高度不更新、输入框被键盘遮挡。
     window.addEventListener("resize", handleResize);
+    window.addEventListener("mobileTavernNativeResume", handleResize);
     if (vvp) vvp.addEventListener("resize", handleResize);
     handleResize();
     return () => {
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener("mobileTavernNativeResume", handleResize);
       if (vvp) vvp.removeEventListener("resize", handleResize);
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
     };
   }, []);
 
@@ -109,24 +121,71 @@ export default function MainLayout() {
   // 当任意 input/textarea 获得焦点时，延迟将其滚动到可见区域中央，
   // 解决页面级输入框在软键盘弹出时被遮挡的问题。
   React.useEffect(() => {
+    let focusTimer: number | null = null;
     const handleFocusIn = (e: FocusEvent) => {
       if (activeTab === "chat" || activeTab === "playground") {
         return; // 聊天页面与游乐场有专属的视口动态缩放和精确归底避让，无需且严禁全局逻辑插手
       }
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
-        setTimeout(() => {
-          target.scrollIntoView({ block: "center", behavior: "smooth" });
-        }, 300);
+        if (focusTimer !== null) window.clearTimeout(focusTimer);
+        focusTimer = window.setTimeout(() => {
+          focusTimer = null;
+          if (document.activeElement !== target || !target.isConnected) return;
+          const vvp = window.visualViewport;
+          const viewport = {
+            height: vvp?.height ?? window.innerHeight,
+            offsetTop: vvp?.offsetTop ?? 0,
+          };
+          if (isOutsideVisibleViewport(target.getBoundingClientRect(), viewport)) {
+            target.scrollIntoView({ block: "nearest", behavior: "auto" });
+          }
+        }, 250);
       }
     };
     document.addEventListener("focusin", handleFocusIn);
-    return () => document.removeEventListener("focusin", handleFocusIn);
+    return () => {
+      document.removeEventListener("focusin", handleFocusIn);
+      if (focusTimer !== null) window.clearTimeout(focusTimer);
+    };
   }, [activeTab]);
+
+  useMobileBackHandler(true, React.useCallback(() => {
+    if (promptFocusActive) {
+      setPromptFocusActive(false);
+      return true;
+    }
+    if (activeTab === "characters") return false;
+    setActiveTab("characters");
+    return true;
+  }, [activeTab, promptFocusActive, setActiveTab]), 0);
 
   const tabs = kernel.getExtensions<React.ComponentType<Record<string, unknown>>>("main:tabs");
   const bottomBarTabs = getVisibleBottomBarTabs(tabs, settings.hiddenMainTabs);
   const registeredTabIds = tabs.map((tab) => tab.id).join("|");
+
+  const handleBottomTabKeyDown = React.useCallback((
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) => {
+    if (bottomBarTabs.length === 0) return;
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight") nextIndex = (index + 1) % bottomBarTabs.length;
+    if (event.key === "ArrowLeft") nextIndex = (index - 1 + bottomBarTabs.length) % bottomBarTabs.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = bottomBarTabs.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextTab = bottomBarTabs[nextIndex];
+    setActiveTab(nextTab.id as TabType);
+    window.requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLButtonElement>(
+        `[data-ui="main-tab"][data-tab-id="${nextTab.id}"]`,
+      );
+      target?.focus({ preventScroll: true });
+    });
+  }, [bottomBarTabs, setActiveTab]);
 
   React.useEffect(() => {
     if (tabs.length > 0 && !tabs.some((tab) => tab.id === activeTab)) {
@@ -147,10 +206,10 @@ export default function MainLayout() {
       managed: true,
       setActive: setPromptFocusActive,
     }}>
-      <SplashScreen isVisible={showSplash} />
       <div
-        style={viewportHeight ? { height: `${viewportHeight}px` } : undefined}
-        className={`flex flex-col h-[100dvh] mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] ${
+        ref={appViewportRef}
+        style={{ height: "var(--app-viewport-height, 100dvh)" }}
+        className={`flex flex-col mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] ${
         activeTab === "settings" ? "max-w-lg landscape:max-w-none" : "max-w-lg"
       } ${
         activeTab === "chat" || activeTab === "playground" ? "pt-0" : "pt-[var(--safe-area-top)]"
@@ -170,7 +229,7 @@ export default function MainLayout() {
             style={{ bottom: `${2 + (safeAreas?.bottom ?? 0)}px` }}
             className="absolute left-2 right-2 h-12 rounded-xl bg-card/70 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
           >
-            {bottomBarTabs.map(tab => {
+            {bottomBarTabs.map((tab, index) => {
               const IconComp = ((tab.meta?.icon && ICON_MAP[tab.meta.icon as keyof typeof ICON_MAP]) || HelpCircle) as LucideIcon;
               const selected = isActive(tab);
               const localizedName = t("nav." + tab.id);
@@ -183,6 +242,8 @@ export default function MainLayout() {
                   data-tab-id={tab.id}
                   aria-selected={selected}
                   aria-label={`${localizedName}${selected ? " (selected)" : ""}`}
+                  tabIndex={selected ? 0 : -1}
+                  onKeyDown={(event) => handleBottomTabKeyDown(event, index)}
                   className={`relative flex h-full flex-1 flex-col items-center justify-center rounded-xl tap-scale transition-colors duration-200 ${
                     selected
                       ? "text-primary font-semibold"
@@ -190,7 +251,7 @@ export default function MainLayout() {
                   }`}
                 >
                   <IconComp className={`w-5 h-5 mb-0.5 transition-[filter] ${selected ? "drop-shadow-[0_0_5px_var(--primary)]" : ""}`} aria-hidden="true" />
-                  <span className="text-[10px] landscape:hidden">{localizedName}</span>
+                  <span className="text-xs landscape:hidden">{localizedName}</span>
                   {selected && (
                     <span className="absolute bottom-0.5 h-0.5 w-5 rounded-full bg-primary shadow-[0_0_7px_var(--primary)]" />
                   )}

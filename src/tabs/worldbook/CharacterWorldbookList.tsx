@@ -166,6 +166,8 @@ export default function CharacterWorldbookList({
                       <img
                         src={char.avatar}
                         alt={char.name}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
                       />

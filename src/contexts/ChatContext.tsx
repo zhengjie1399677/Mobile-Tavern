@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useState, useMemo, useEffect, useRef } from "react";
 import {
   ChatMessageWindow,
+  ChatMessageHydrationStatus,
   ChatSession,
   ChatSessionMetadata,
   ChatSessionMetadataPatch,
@@ -65,6 +66,8 @@ interface ChatContextType {
   hasMoreMessages: boolean;
   isLoadingMoreMessages: boolean;
   loadMoreMessages: () => Promise<void>;
+  messageHydrationStatus: ChatMessageHydrationStatus;
+  hydrateSessionMessages: (sessionId: string) => Promise<void>;
 }
 
 interface ConnectionStatus {
@@ -141,24 +144,36 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
   const messagePagingRef = useRef<Record<string, { oldestMessageId?: string; hasMore: boolean }>>({});
+  const messageHydrationBySessionRef = useRef<Record<string, ChatMessageHydrationStatus>>({});
+  const messageHydrationPromisesRef = useRef<Record<string, Promise<void>>>({});
+  const [messageHydrationStatus, setMessageHydrationStatus] = useState<ChatMessageHydrationStatus>("idle");
 
   // sessions 快照 ref：供 useEffect 在不依赖 sessions 数组的前提下读取最新值
   const sessionsRef = useRef<ChatSession[]>([]);
   sessionsRef.current = sessions;
+  const activeSessionIdRef = useRef<string | null>(activeSessionId);
+  activeSessionIdRef.current = activeSessionId;
 
   const setActiveSessionId = useCallback((id: string | null): void => {
+    const commitActiveSession = () => {
+      setMessageHydrationStatus(
+        id ? messageHydrationBySessionRef.current[id] ?? "idle" : "idle"
+      );
+      setHasMoreMessages(id ? messagePagingRef.current[id]?.hasMore ?? false : false);
+      setActiveSessionIdState(id);
+    };
     if (!id) {
-      setActiveSessionIdState(null);
+      commitActiveSession();
       return;
     }
     const targetSession = sessionsRef.current.find((session) => session.id === id);
     if (!targetSession) {
-      setActiveSessionIdState(id);
+      commitActiveSession();
       return;
     }
     const resume = prepareRuntimeProfileSessionResume(kernel, targetSession);
     if (resume.status === "ready") {
-      setActiveSessionIdState(id);
+      commitActiveSession();
       return;
     }
     if (resume.status === "unavailable") {
@@ -252,55 +267,92 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [chatSessionUseCases]);
 
+  const setSessionHydrationStatus = useCallback((
+    sessionId: string,
+    status: ChatMessageHydrationStatus,
+  ) => {
+    messageHydrationBySessionRef.current[sessionId] = status;
+    if (activeSessionIdRef.current === sessionId) {
+      setMessageHydrationStatus(status);
+    }
+  }, []);
+
+  const hydrateSessionMessages = useCallback((sessionId: string): Promise<void> => {
+    const cachedPaging = messagePagingRef.current[sessionId];
+    const cachedStatus = messageHydrationBySessionRef.current[sessionId];
+    if (cachedPaging && cachedStatus === "ready") {
+      return Promise.resolve();
+    }
+
+    const existingSession = sessionsRef.current.find((session) => session.id === sessionId);
+    if (existingSession?.messages?.length) {
+      messagePagingRef.current[sessionId] = cachedPaging ?? {
+        oldestMessageId: existingSession.messages[0]?.id,
+        hasMore: false,
+      };
+      setSessionHydrationStatus(sessionId, "ready");
+      return Promise.resolve();
+    }
+
+    const inFlight = messageHydrationPromisesRef.current[sessionId];
+    if (inFlight) return inFlight;
+
+    setSessionHydrationStatus(sessionId, "loading");
+    const hydrationPromise = chatSessionUseCases
+      .loadMessagePage(sessionId, MESSAGES_PAGE_SIZE)
+      .then((page) => {
+        if (!isMountedRef.current) return;
+        messagePagingRef.current[sessionId] = {
+          oldestMessageId: page.messages[0]?.id,
+          hasMore: page.hasMore,
+        };
+        setSessionViews((previous) => previous.map((session) =>
+          session.id === sessionId
+            ? { ...session, messages: page.messages }
+            : session
+        ));
+        setSessionHydrationStatus(sessionId, "ready");
+      })
+      .catch((error: unknown) => {
+        if (isMountedRef.current) {
+          setSessionHydrationStatus(sessionId, "error");
+        }
+        throw error;
+      })
+      .finally(() => {
+        delete messageHydrationPromisesRef.current[sessionId];
+      });
+
+    messageHydrationPromisesRef.current[sessionId] = hydrationPromise;
+    return hydrationPromise;
+  }, [chatSessionUseCases, setSessionHydrationStatus, setSessionViews]);
+
   // 监听活跃会话切换，异步懒加载其对应的 messages 并填充至 React State
   // 首次加载仅请求最新 MESSAGES_PAGE_SIZE 条消息，避免长会话全量反序列化阻塞首屏。
   useEffect(() => {
-    if (!activeSessionId) return;
+    if (!activeSessionId) {
+      setMessageHydrationStatus("idle");
+      return;
+    }
     // 切换会话时，先从缓存恢复该会话的分页指示器状态
     const cached = messagePagingRef.current[activeSessionId];
-    if (cached) {
-      setHasMoreMessages(cached.hasMore);
-    } else {
-      setHasMoreMessages(false);
+    setHasMoreMessages(cached?.hasMore ?? false);
+    const status = messageHydrationBySessionRef.current[activeSessionId] ?? "idle";
+    setMessageHydrationStatus(status);
+    if (status !== "error") {
+      void hydrateSessionMessages(activeSessionId).catch((error: unknown) => {
+        console.error("Failed to hydrate messages for active session:", error);
+      });
     }
+  }, [activeSessionId, hydrateSessionMessages]);
 
-    const session = sessionsRef.current.find((s) => s.id === activeSessionId);
-    // 仅在会话尚无内存消息且分页缓存也未建立时执行首次分页加载；
-    // 已加载过（含切回）的会话沿用其已有 messages，避免重复请求与视觉跳动。
-    const alreadyPaged = !!cached;
-    if (session && (!session.messages || session.messages.length === 0) && !alreadyPaged) {
-      let isCurrent = true;
-      // descending: true 仅用于高效取最新 N 条；返回批次仍是“最新优先”，
-      // 必须在 Context 适配层转换为界面需要的时间正序。
-      chatSessionUseCases.loadMessagePage(activeSessionId, MESSAGES_PAGE_SIZE)
-        .then((page) => {
-          if (isCurrent && isMountedRef.current) {
-            messagePagingRef.current[activeSessionId] = {
-              oldestMessageId: page.messages[0]?.id,
-              hasMore: page.hasMore,
-            };
-            setHasMoreMessages(page.hasMore);
-            setSessionViews((prev) =>
-              prev.map((s) =>
-                s.id === activeSessionId
-                  ? {
-                      ...s,
-                      messages: page.messages,
-                    }
-                  : s
-              )
-            );
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to lazy load messages for active session:", err);
-        });
-
-      return () => {
-        isCurrent = false;
-      };
+  useEffect(() => {
+    if (!activeSessionId) return;
+    const cached = messagePagingRef.current[activeSessionId];
+    if (messageHydrationStatus === "ready") {
+      setHasMoreMessages(cached?.hasMore ?? false);
     }
-  }, [activeSessionId, chatSessionUseCases]);
+  }, [activeSessionId, messageHydrationStatus]);
 
   const updateSessionMetadata = async (sessionId: string, patch: ChatSessionMetadataPatch) => {
     try {
@@ -320,7 +372,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 加载更多历史消息。
   // 基于当前会话最早消息游标请求下一页，并 prepend 到 messages 数组前部。
-  // 调用方需在加载完成后自行调整滚动位置以保持视觉锚点（见 useChatScroll / DialogueHistoryView）。
+  // 虚拟列表通过消息 key 与锚定策略保持当前视觉位置（见 DialogueHistoryView）。
   const loadMoreMessages = async () => {
     if (!activeSessionId || isLoadingMoreMessages || !hasMoreMessages) return;
     const cached = messagePagingRef.current[activeSessionId];
@@ -369,6 +421,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await chatSessionUseCases.deleteSession(id);
       // 清理被删除会话的分页缓存，避免内存泄漏与幽灵状态
       delete messagePagingRef.current[id];
+      delete messageHydrationBySessionRef.current[id];
+      delete messageHydrationPromisesRef.current[id];
       setSessionViews((prev) => prev.filter((s) => s.id !== id));
       await refreshSessionStatistics();
       if (activeSessionId === id) {
@@ -414,6 +468,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hasMoreMessages,
         isLoadingMoreMessages,
         loadMoreMessages,
+        messageHydrationStatus,
+        hydrateSessionMessages,
       }}
     >
       {children}

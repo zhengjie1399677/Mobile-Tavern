@@ -9,6 +9,12 @@ import {
   KernelServices,
   type ICompatibilityRuntimeService,
 } from "../application/serviceContracts";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 const MvuVariablesTabContent = React.lazy(() =>
   import("./MvuVariablesTabContent").then((module) => ({ default: module.MvuVariablesTabContent }))
@@ -63,32 +69,40 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
     }
   }, [isOpen, initialTab, enableTableMemory, enableAutoSummary]);
 
+  useMobileBackHandler(isOpen, () => {
+    onClose();
+    return true;
+  }, 850);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px] transition-all duration-300">
-      <div
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-50 bg-black/60 backdrop-blur-[2px]"
         data-memory-drawer-surface
         data-density="compact"
-        className="flex h-[92dvh] max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[22px] border-t border-border/80 bg-background/95 shadow-2xl backdrop-blur-xl env-bottom sm:h-[86vh] sm:max-h-[760px] [&_button]:touch-manipulation [&_button]:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-primary/25 [&_button]:disabled:cursor-not-allowed [&_button]:disabled:opacity-50"
+        className="!bottom-0 !top-auto z-50 flex h-[92dvh] max-h-[92dvh] w-full max-w-lg !translate-y-0 flex-col gap-0 overflow-hidden rounded-b-none rounded-t-[22px] border-x-0 border-b-0 border-t border-border/80 bg-background/95 p-0 shadow-2xl backdrop-blur-xl env-bottom sm:!bottom-auto sm:!top-1/2 sm:h-[86vh] sm:max-h-[760px] sm:!-translate-y-1/2 sm:rounded-[22px] sm:border [&_button]:touch-manipulation [&_button]:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-primary/25 [&_button]:disabled:cursor-not-allowed [&_button]:disabled:opacity-50"
       >
 
         {/* Header Section */}
         <div className="flex min-h-12 items-center justify-between border-b border-border/50 bg-muted/20 px-3 py-2">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-foreground">
+            <DialogTitle className="flex min-w-0 items-center gap-2 text-sm font-bold text-foreground">
               <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <BrainCircuit className="size-4" />
+                <BrainCircuit className="size-4" aria-hidden="true" />
               </span>
               {t("memory_drawer.title")}
-            </span>
+            </DialogTitle>
           </div>
           <div className="flex items-center gap-1.5">
             {/* 原 ⚙️管理按钮已迁移至 TableMemoryTab 内部顶部，控制其内部 showConfig 状态 */}
             <button
+              type="button"
               onClick={onClose}
               aria-label="关闭记忆与状态中心"
-              className="flex size-9 items-center justify-center rounded-lg border border-border/50 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              className="flex size-11 items-center justify-center rounded-lg border border-border/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <X className="size-4" />
             </button>
@@ -102,7 +116,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
               onClick={() => setActiveTab('timeline')}
               role="tab"
               aria-selected={activeTab === 'timeline'}
-              className={`min-h-9 shrink-0 rounded-lg border px-3 transition-all ${activeTab === 'timeline' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+              className={`min-h-11 shrink-0 rounded-lg border px-3 transition-colors ${activeTab === 'timeline' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
                 }`}
             >
               {t("memory_drawer.tab_timeline")}
@@ -113,7 +127,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
               onClick={() => setActiveTab('table')}
               role="tab"
               aria-selected={activeTab === 'table'}
-              className={`min-h-9 shrink-0 rounded-lg border px-3 transition-all ${activeTab === 'table' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+              className={`min-h-11 shrink-0 rounded-lg border px-3 transition-colors ${activeTab === 'table' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
                 }`}
             >
               {t("memory_drawer.tab_table")}
@@ -123,7 +137,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             onClick={() => setActiveTab('dict')}
             role="tab"
             aria-selected={activeTab === 'dict'}
-            className={`min-h-9 shrink-0 rounded-lg border px-3 transition-all ${activeTab === 'dict' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+            className={`min-h-11 shrink-0 rounded-lg border px-3 transition-colors ${activeTab === 'dict' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
               }`}
           >
             {t("memory_drawer.tab_dict")}
@@ -132,7 +146,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             onClick={() => setActiveTab('recall')}
             role="tab"
             aria-selected={activeTab === 'recall'}
-            className={`min-h-9 shrink-0 rounded-lg border px-3 transition-all ${activeTab === 'recall' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+            className={`min-h-11 shrink-0 rounded-lg border px-3 transition-colors ${activeTab === 'recall' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
               }`}
           >
             {t("memory_drawer.tab_recall")}
@@ -141,7 +155,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             onClick={() => setActiveTab('mvu')}
             role="tab"
             aria-selected={activeTab === 'mvu'}
-            className={`min-h-9 shrink-0 rounded-lg border px-3 transition-all ${activeTab === 'mvu' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
+            className={`min-h-11 shrink-0 rounded-lg border px-3 transition-colors ${activeTab === 'mvu' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
               }`}
           >
             {t("memory_drawer.tab_mvu")}
@@ -226,8 +240,8 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
           )}
           </React.Suspense>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

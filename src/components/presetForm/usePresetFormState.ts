@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import type { UserSettings, CharacterCard, RegexScript, CustomPromptBlock } from "../../types";
 
+export type RegexEditorScope = "global" | "preset" | "character";
+export type EditableRegexScript = RegexScript & { scope?: RegexEditorScope };
+
 export interface UsePresetFormStateParams {
   settings: UserSettings;
   updateSettings: (newSet: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
@@ -94,7 +97,7 @@ export function usePresetFormState({
   const activeCharRegex = (activeCharacter?.extensions?.regex_scripts || []).filter((r: RegexScript) => !r.disabled).length;
 
   // 正则脚本编辑器局部状态
-  const [editingRegex, setEditingRegex] = useState<RegexScript | null>(null);
+  const [editingRegex, setEditingRegex] = useState<EditableRegexScript | null>(null);
   const [isRegexModalOpen, setIsRegexModalOpen] = useState(false);
 
   const toggleRegexDisabled = async (id: string, disabled: boolean, scope: "global" | "preset" | "character") => {
@@ -157,7 +160,7 @@ export function usePresetFormState({
     });
   };
 
-  const saveRegex = async (reg: RegexScript & { scope?: string }) => {
+  const saveRegex = async (reg: EditableRegexScript) => {
     if (!reg.scriptName || !reg.scriptName.trim() || !reg.findRegex || !reg.findRegex.trim()) {
       showCustomAlert(t("preset_form.regex_empty_error"));
       return;

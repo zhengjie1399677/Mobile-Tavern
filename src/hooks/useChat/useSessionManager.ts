@@ -27,9 +27,9 @@ interface SessionManagerParams {
   setMsgMenuId: React.Dispatch<React.SetStateAction<string | null>>;
   deleteSession: (id: string) => Promise<void>;
   refreshSessionStatistics: () => Promise<void>;
+  hydrateSessionMessages: (sessionId: string) => Promise<void>;
   databaseService: IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>;
   telemetryService: ITelemetryService;
-  triggerScroll: () => void;
   showCustomAlert: (msg: string) => Promise<void>;
   showCustomConfirm: (msg: string) => Promise<boolean>;
   showCustomPrompt: (msg: string, defaultValue?: string) => Promise<string | null>;
@@ -69,7 +69,6 @@ export function useSessionManager(p: SessionManagerParams) {
       p.setSessionViews((prev) => [...prev, newSession]);
       void p.refreshSessionStatistics();
       p.setActiveSessionId(newSession.id);
-      p.triggerScroll();
     } catch (err: unknown) {
       console.error("Failed to save new session:", err);
     }
@@ -88,26 +87,39 @@ export function useSessionManager(p: SessionManagerParams) {
     }
     const loadStartTime = performance.now();
     try {
-      const targetChar = p.loadCharacterById
-        ? await p.loadCharacterById(charId)
-        : p.characters.find((character) => character.id === charId) ?? null;
+      const latestKnownSession = p.sessions
+        .filter((session) => session.characterId === charId)
+        .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
+      const [targetChar, lastSession] = await Promise.all([
+        p.loadCharacterById
+          ? p.loadCharacterById(charId)
+          : Promise.resolve(p.characters.find((character) => character.id === charId) ?? null),
+        latestKnownSession
+          ? Promise.resolve(latestKnownSession)
+          : p.databaseService.getLatestSessionByCharacter(charId),
+      ]);
       if (!targetChar) throw new Error(`CHARACTER_NOT_FOUND:${charId}`);
       p.setActiveCharId(charId);
-      const lastSession = await p.databaseService.getLatestSessionByCharacter(charId);
+      let targetSession: ChatSession;
       if (lastSession) {
         p.setSessionViews((previous) => previous.some((session) => session.id === lastSession.id)
           ? previous
           : [...previous, lastSession]);
-        p.setActiveSessionId(lastSession.id);
+        targetSession = lastSession;
       } else {
         const newSession = await p.databaseService.createNewSession(targetChar, targetChar?.first_mes);
         p.setSessionViews((prev) => [...prev, newSession]);
         void p.refreshSessionStatistics();
-        p.setActiveSessionId(newSession.id);
+        targetSession = newSession;
       }
+      try {
+        await p.hydrateSessionMessages(targetSession.id);
+      } catch (error: unknown) {
+        console.warn("Failed to prepare chat messages before entering:", error);
+      }
+      p.setActiveSessionId(targetSession.id);
       p.setActiveTab("chat");
       p.setChatSubTab("dialogue");
-      p.triggerScroll();
     } finally {
       const duration = performance.now() - loadStartTime;
       try {
@@ -186,7 +198,6 @@ export function useSessionManager(p: SessionManagerParams) {
       p.setMsgMenuId(null);
       p.setChatSubTab("dialogue");
       await p.showCustomAlert("分支故事线创建完美拉起！您已成功无痛回溯至选定对话时间轴。");
-      p.triggerScroll();
     } catch (err: unknown) {
       console.error("Failed to save backtrack branch session:", err);
     }
@@ -212,7 +223,6 @@ export function useSessionManager(p: SessionManagerParams) {
       p.setActiveSessionId(newSession.id);
       p.setChatSubTab("dialogue");
       await p.showCustomAlert(`已基于时间线："${summary.timeTag}" 重构分叉世界！`);
-      p.triggerScroll();
     } catch (err: unknown) {
       console.error("Failed to save backtrack timeline session:", err);
     }

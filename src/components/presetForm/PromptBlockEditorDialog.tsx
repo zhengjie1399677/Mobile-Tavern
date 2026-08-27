@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import { useTranslation } from "../../contexts/LanguageContext";
+import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 import type {
   PromptBlock,
   PromptMessageRole,
@@ -50,6 +51,11 @@ export default function PromptBlockEditorDialog({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showSources, setShowSources] = useState(false);
   const [sourceQuery, setSourceQuery] = useState("");
+
+  useMobileBackHandler(Boolean(block), () => {
+    onClose();
+    return true;
+  }, 950);
 
   const filteredSources = useMemo(() => {
     const query = sourceQuery.trim().toLocaleLowerCase();

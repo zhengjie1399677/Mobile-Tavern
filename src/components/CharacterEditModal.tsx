@@ -4,6 +4,13 @@ import { useTranslation } from "../contexts/LanguageContext";
 import { X } from "lucide-react";
 import CharacterDetailTab from "./character-edit/CharacterDetailTab";
 import LorebookTab from "./character-edit/LorebookTab";
+import { Button } from "../../components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 export default function CharacterEditModal() {
   const { t } = useTranslation();
@@ -43,34 +50,50 @@ export default function CharacterEditModal() {
     safeAreas: state.safeAreas,
   }));
 
+  const closeEditor = () => {
+    setCharModalOpen(false);
+    setEditingChar(null);
+  };
+
+  useMobileBackHandler(charModalOpen, () => {
+    closeEditor();
+    return true;
+  }, 900);
+
   if (!charModalOpen || !editingChar) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[999] flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4">
-      <div className="bg-background border-t sm:border border-border max-h-[92%] sm:max-h-[85%] w-full sm:max-w-3xl overflow-y-auto rounded-t-2xl sm:rounded-2xl flex flex-col shadow-2xl">
+    <Dialog open onOpenChange={(open) => { if (!open) closeEditor(); }}>
+      <DialogContent
+        showCloseButton={false}
+        className="!top-auto !bottom-0 !translate-y-0 z-[900] flex max-h-[92dvh] w-full max-w-3xl flex-col gap-0 overflow-y-auto rounded-t-2xl rounded-b-none border-x-0 border-b-0 border-t border-border bg-background p-0 shadow-2xl data-open:slide-in-from-bottom sm:!top-1/2 sm:!bottom-auto sm:!-translate-y-1/2 sm:max-h-[85dvh] sm:rounded-2xl sm:border"
+      >
         {/* Modal sticky titles */}
         <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10">
-          <p className="font-bold text-foreground text-sm">
+          <DialogTitle className="font-bold text-foreground text-base">
             {String(editingChar.id || "").startsWith("char_ST_")
               ? t("character_editor.modal_title_edit")
               : t("character_editor.modal_title_create")}
-          </p>
-          <button
-            onClick={() => {
-              setCharModalOpen(false);
-              setEditingChar(null);
-            }}
-            className="text-muted-foreground hover:text-foreground"
+          </DialogTitle>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-11 text-muted-foreground hover:text-foreground"
+            aria-label={t("character_editor.cancel_button")}
+            onClick={closeEditor}
           >
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Sub content tab for Detail Config vs Attached Worldbook */}
         <div className="flex border-b border-border/80 bg-input px-3">
           <button
+            type="button"
+            aria-pressed={activeLoreTab === "detail"}
             onClick={() => setActiveLoreTab("detail")}
-            className={`py-2 px-3 text-xs font-semibold ${
+            className={`min-h-11 py-2 px-3 text-sm font-semibold ${
               activeLoreTab === "detail"
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground"
@@ -79,8 +102,10 @@ export default function CharacterEditModal() {
             {t("character_editor.tab_detail")}
           </button>
           <button
+            type="button"
+            aria-pressed={activeLoreTab === "lore"}
             onClick={() => setActiveLoreTab("lore")}
-            className={`py-2 px-3 text-xs font-semibold ${
+            className={`min-h-11 py-2 px-3 text-sm font-semibold ${
               activeLoreTab === "lore"
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground"
@@ -120,23 +145,25 @@ export default function CharacterEditModal() {
           style={{ paddingBottom: `${16 + Math.max(safeAreas?.bottom ?? 0, 16)}px` }}
           className="p-4 bg-input/80 border-t border-border gap-2.5 flex items-center justify-end sticky bottom-0 z-10"
         >
-          <button
-            onClick={() => {
-              setCharModalOpen(false);
-              setEditingChar(null);
-            }}
-            className="bg-muted text-muted-foreground hover:text-foreground px-4 py-2 rounded-lg text-xs font-semibold"
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="min-h-11 min-w-20"
+            onClick={closeEditor}
           >
             {t("character_editor.cancel_button")}
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            className="min-h-11 min-w-20"
             onClick={handleSaveCharacter}
-            className="bg-primary hover:bg-primary text-primary-foreground px-5 py-2 rounded-lg text-xs font-bold"
           >
             {t("character_editor.save_button")}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

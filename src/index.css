@@ -218,124 +218,6 @@
   box-shadow: 0 20px 40px -15px color-mix(in oklch, var(--primary) 50%, transparent);
 }
 
-/* Sub-animations & breath */
-.pulse-glow {
-  animation: pulse-glow-anim 3s infinite ease-in-out;
-}
-
-@keyframes pulse-glow-anim {
-  0%, 100% {
-    opacity: 0.8;
-    filter: drop-shadow(0 0 2px color-mix(in oklch, var(--primary) 20%, transparent));
-  }
-  50% {
-    opacity: 1;
-    filter: drop-shadow(0 0 12px color-mix(in oklch, var(--primary) 60%, transparent));
-  }
-}
-
-@theme inline {
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
-  --animate-fadeIn: fadeIn 0.4s ease-out;
-
-  @keyframes accordion-down {
-    from {
-      height: 0;
-    }
-    to {
-      height: var(--radix-accordion-content-height);
-    }
-  }
-
-  @keyframes accordion-up {
-    from {
-      height: var(--radix-accordion-content-height);
-    }
-    to {
-      height: 0;
-    }
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  --font-heading: var(--font-sans);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground overflow-hidden h-full;
-    position: fixed;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-  }
-  html {
-    @apply font-sans overflow-hidden h-full;
-  }
-}
-
-/* 防止嵌套滚动容器边界回弹带动外层（CR-10） */
-.overflow-y-auto,
-.overflow-auto,
-.overflow-x-auto {
-  overscroll-behavior: contain;
-}
-
-/* Smooth theme switching transition */
-.theme-transitioning,
-.theme-transitioning * {
-  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              fill 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              stroke 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-/* Prevent Android WebView double-tap to zoom on interactive components and improve click latency */
-button,
-a,
-.interactive-element,
-[role="button"],
-.cursor-pointer {
-  touch-action: manipulation;
-}
-
 /* 额外的高级美化工具类 */
 .tap-scale {
   transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1) !important;
@@ -365,52 +247,6 @@ a,
 }
 .glass-border-dark {
   border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-/* 聊天大图渐变保护蒙层 */
-.chat-bg-mask {
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    color-mix(in oklch, var(--background) 40%, transparent) 50%,
-    color-mix(in oklch, var(--background) 90%, transparent) 100%
-  ) !important;
-}
-
-/* 聊天背景肯斯伯恩缓动动画 */
-@keyframes slow-pan-zoom {
-  0% {
-    transform: scale(1) translate(0, 0);
-  }
-  50% {
-    transform: scale(1.12) translate(-2.5%, 1.2%);
-  }
-  100% {
-    transform: scale(1) translate(0, 0);
-  }
-}
-
-.animate-bg-pan-zoom {
-  animation: slow-pan-zoom 24s ease-in-out infinite;
-}
-
-/* 气泡内表格通用美化与防溢出变形规则 */
-.bubble-ai table,
-.bubble-user table {
-  width: 100% !important;
-  border-collapse: collapse !important;
-  margin: 8px 0 !important;
-  font-size: 11px !important;
-  background: color-mix(in oklch, var(--card) 45%, transparent) !important;
-}
-
-.bubble-ai th, .bubble-ai td,
-.bubble-user th, .bubble-user td {
-  border: 1px solid color-mix(in oklch, var(--border) 50%, transparent) !important;
-  padding: 6px 10px !important;
-  min-width: 75px !important;
-  word-break: break-word !important;
-  box-shadow: 0 20px 40px -15px color-mix(in oklch, var(--primary) 50%, transparent);
 }
 
 /* Sub-animations & breath */
@@ -529,37 +365,6 @@ a,
 [role="button"],
 .cursor-pointer {
   touch-action: manipulation;
-}
-
-/* 额外的高级美化工具类 */
-.tap-scale {
-  transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1) !important;
-}
-.tap-scale:active {
-  transform: scale(0.93);
-}
-
-.bubble-ai {
-  border-top-left-radius: 0.2rem !important;
-  border-top-right-radius: 1rem !important;
-  border-bottom-left-radius: 1rem !important;
-  border-bottom-right-radius: 1rem !important;
-}
-
-.bubble-user {
-  border-top-left-radius: 1rem !important;
-  border-top-right-radius: 0.2rem !important;
-  border-bottom-left-radius: 1rem !important;
-  border-bottom-right-radius: 1rem !important;
-  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.22) !important;
-}
-
-/* 毛玻璃高光描边 */
-.glass-border-light {
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-.glass-border-dark {
-  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* 聊天大图渐变保护蒙层 */
@@ -642,7 +447,7 @@ a,
 
 .animate-card-fade-in {
   animation: cardFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both !important;
-  animation-delay: calc(var(--card-index) * 0.04s) !important;
+  animation-delay: min(calc(var(--card-index) * 0.04s), 0.24s) !important;
 }
 
 /* 具有弹性物理质感的 Spring 回弹按压效果 */
@@ -836,4 +641,89 @@ iframe[id^="TH-msg-iframe-"] {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   background: color-mix(in oklch, var(--card) 90%, transparent) !important;
+}
+
+/* 长列表离屏内容跳过布局与绘制，降低 WebView 首屏与快速滚动压力。 */
+.mobile-list-item {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 96px;
+}
+
+/* 触屏设备通常是 APK/WebView 的主运行环境；列表与全屏遮罩使用实色透明层，
+   避免 backdrop-filter 在滚动、键盘动画期间反复触发 GPU 合成。 */
+@media (hover: none) and (pointer: coarse) {
+  .glass-panel,
+  .glass-panel-light,
+  [class*="backdrop-blur"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .glass-panel {
+    background: color-mix(in oklch, var(--card) 94%, transparent);
+  }
+
+  .glass-panel-light {
+    background: color-mix(in oklch, var(--card) 88%, transparent);
+  }
+
+  .animate-bg-pan-zoom {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  /* 原生 button 与历史高密度控件统一保留至少 32px 可点击高度；
+     主要操作仍由 Button 默认 44px 规格负责。 */
+  :where(
+    button,
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    label:has(input[type="file"]),
+    label:has(input[type="checkbox"]),
+    label:has(input[type="radio"])
+  ) {
+    min-block-size: 2rem;
+    min-inline-size: 2rem;
+    touch-action: manipulation;
+  }
+
+  /* 表单在 iOS/Android WebView 中使用 16px 字号，避免聚焦时自动缩放；
+     checkbox/radio/range 保持其原生紧凑尺寸。 */
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+    select,
+    textarea
+  ) {
+    min-block-size: 2.75rem;
+    font-size: 1rem;
+  }
+
+  /* 旧页面的任意低密度字号在触屏端提升到可读下限；桌面布局不受影响。 */
+  :where(
+    .text-\[8px\],
+    .text-\[9px\],
+    .text-\[10px\],
+    .text-\[11px\]
+  ) {
+    font-size: 0.75rem;
+  }
+}
+
+/* 尊重系统“减少动态效果”，并停掉所有无限循环和大幅位移动画。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .animate-bg-pan-zoom,
+  .pulse-glow {
+    animation: none !important;
+    transform: none !important;
+  }
 }

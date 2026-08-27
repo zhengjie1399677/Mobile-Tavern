@@ -53,6 +53,7 @@ const CharacterPortraitSection = ({
               key={activePortraitUrl}
               src={activePortraitUrl}
               alt={`${activeCharacter.name} Portrait`}
+              decoding="async"
               className="w-full h-full object-cover animate-fadeIn mask-feather-bottom"
             />
 

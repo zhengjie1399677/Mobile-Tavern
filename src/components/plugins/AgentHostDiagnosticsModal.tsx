@@ -3,6 +3,12 @@ import { Activity, X, Cpu, Wrench, ShieldCheck, Layers, Eye, RefreshCw, CheckCir
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { IAgentRuntimeService, IRuntimeProfileService, ICompatibilityRuntimeService, KernelServices } from "@/src/application/serviceContracts";
 import type { AgentRuntimeDiagnostics } from "@/src/application/services/AgentRuntimeService";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../../components/ui/dialog";
+import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 
 interface AgentHostDiagnosticsModalProps {
   isOpen: boolean;
@@ -43,13 +49,20 @@ export function AgentHostDiagnosticsModal({ isOpen, onClose }: AgentHostDiagnost
     }
   }, [isOpen, refreshDiagnostics]);
 
+  useMobileBackHandler(isOpen, () => {
+    onClose();
+    return true;
+  }, 850);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative w-full max-w-lg bg-card border border-border/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] z-10">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="bg-black/60 backdrop-blur-sm"
+        className="flex max-h-[85dvh] w-full max-w-lg select-none flex-col gap-0 overflow-hidden rounded-2xl border border-border/80 bg-card p-0 shadow-2xl"
+      >
         {/* Header */}
         <div className="px-4 py-3.5 border-b border-border/60 flex items-center justify-between bg-muted/30">
           <div className="flex items-center gap-2">
@@ -57,7 +70,7 @@ export function AgentHostDiagnosticsModal({ isOpen, onClose }: AgentHostDiagnost
               <Activity className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-foreground leading-tight">Agent Host 运行诊断</h2>
+              <DialogTitle className="text-sm font-bold text-foreground leading-tight">Agent Host 运行诊断</DialogTitle>
               <p className="text-[10px] text-muted-foreground">Runtime Diagnostics & Composition</p>
             </div>
           </div>
@@ -66,15 +79,17 @@ export function AgentHostDiagnosticsModal({ isOpen, onClose }: AgentHostDiagnost
             <button
               type="button"
               onClick={refreshDiagnostics}
-              className="p-1.5 rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition"
+              className="flex size-11 items-center justify-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               title="刷新诊断数据"
+              aria-label="刷新诊断数据"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition"
+              className="flex size-11 items-center justify-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="关闭运行诊断"
             >
               <X className="w-4 h-4" />
             </button>
@@ -198,13 +213,13 @@ export function AgentHostDiagnosticsModal({ isOpen, onClose }: AgentHostDiagnost
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs shadow hover:bg-primary/90 transition"
+            className="min-h-11 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground shadow transition-colors hover:bg-primary/90"
           >
             完成
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

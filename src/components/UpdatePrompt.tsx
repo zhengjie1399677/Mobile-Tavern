@@ -4,6 +4,13 @@ import { IKernel, globalKernel } from "../kernel";
 import { useKernel } from "../contexts/KernelContext";
 import { useTranslation } from "../contexts/LanguageContext";
 import { IUpdateCheckService, UpdateInfo } from "@/src/application/serviceContracts";
+import { Button } from "../../components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 // === 更新检查策略常量 ===
 // 6 小时冷却期：避免用户频繁冷启动 App 导致重复请求 FC 接口
@@ -174,27 +181,32 @@ export default function UpdatePrompt() {
     sessionStorage.setItem("tavern_update_dismissed", "true");
   };
 
+  useMobileBackHandler(show, () => {
+    if (!isDownloading) handleDismiss();
+    return true;
+  }, 950);
+
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-sm rounded-3xl overflow-hidden bg-gradient-to-br from-slate-900/90 via-indigo-950/80 to-violet-950/90 border border-white/10 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col items-center text-center space-y-5">
+    <Dialog open onOpenChange={(open) => { if (!open && !isDownloading) handleDismiss(); }}>
+      <DialogContent showCloseButton={false} className="z-[950] flex w-full max-w-sm flex-col items-center gap-5 overflow-hidden rounded-3xl border-white/10 bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950 p-6 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
 
         {/* 顶部绚丽的光晕底色 */}
         <div className="absolute -top-12 -left-12 w-32 h-32 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* 跃动感的更新图标 */}
-        <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)] animate-bounce">
+        <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)]">
           <DownloadCloud className="w-8 h-8" />
-          <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-indigo-950 animate-ping" />
+          <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-indigo-950" />
         </div>
 
         {/* 主标题 + FC 传下来的更新日志 */}
         <div className="space-y-2 z-10 w-full">
-          <h2 className="text-xl font-extrabold tracking-tight text-white bg-clip-text text-center">
+          <DialogTitle className="text-xl font-extrabold tracking-tight text-white bg-clip-text text-center">
             {t("update.new_version_title", { version: latestVersion })}
-          </h2>
+          </DialogTitle>
           {updateLog ? (
             <div className="text-xs text-slate-200 leading-relaxed max-h-[180px] overflow-y-auto scrollbar-thin bg-white/5 border border-white/10 rounded-xl p-3 whitespace-pre-wrap break-words text-left">
               {updateLog}
@@ -204,10 +216,12 @@ export default function UpdatePrompt() {
 
         {/* 按钮区域 */}
         <div className="w-full space-y-2 z-10">
-          <button
+          <Button
+            type="button"
+            size="lg"
             onClick={handleDownload}
             disabled={isDownloading}
-            className="relative w-full h-11 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:bg-primary/90 active:scale-95 transition-all duration-150 flex items-center justify-center space-x-2 shadow-[0_4px_12px_rgba(var(--primary-rgb),0.2)] disabled:opacity-50"
+            className="relative min-h-11 w-full space-x-2 shadow-[0_4px_12px_rgba(var(--primary-rgb),0.2)]"
           >
             {isDownloading ? (
               <>
@@ -220,27 +234,33 @@ export default function UpdatePrompt() {
                 <span>{t("update.download_now")}</span>
               </>
             )}
-          </button>
+          </Button>
 
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
             onClick={handleDismiss}
             disabled={isDownloading}
-            className="w-full py-2.5 text-[11px] text-slate-400 hover:text-white font-medium hover:underline transition"
+            className="min-h-11 w-full text-slate-400 hover:text-white"
           >
             {t("update.later")}
-          </button>
+          </Button>
         </div>
 
         {/* 右上角关闭小叉 */}
-        <button
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
           onClick={handleDismiss}
           disabled={isDownloading}
-          className="absolute top-4 right-4 text-slate-500 hover:text-white transition"
+          className="absolute top-2 right-2 size-11 text-slate-500 hover:text-white"
           aria-label={t("update.close_aria")}
         >
           <X className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
+        </Button>
+      </DialogContent>
+    </Dialog>
   );
 }

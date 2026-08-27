@@ -24,6 +24,7 @@ import type {
 } from "../../domain/toolPlugins";
 import { KernelServices, type IToolPluginRuntimeService } from "../../application/serviceContracts";
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 
 export default function ToolPluginManagerSection(): React.JSX.Element {
   const { showCustomAlert, showCustomConfirm, showCustomPrompt, getKernelService } = useUnifiedApp((state) => ({
@@ -392,6 +393,10 @@ function InstallReviewDialog({ inspection, busy, onClose, onInstall }: {
   onClose: () => void;
   onInstall: () => void;
 }): React.JSX.Element {
+  useMobileBackHandler(inspection !== null, () => {
+    if (!busy) onClose();
+    return true;
+  }, 900);
   return (
     <Dialog open={inspection !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="top-auto bottom-0 left-1/2 max-h-[88dvh] w-full max-w-xl -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none p-0">

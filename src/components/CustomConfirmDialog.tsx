@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
+import { Button } from "../../components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 export default function CustomConfirmDialog() {
   const {
@@ -17,32 +27,57 @@ export default function CustomConfirmDialog() {
     }
   }, [customDialog]);
 
+  const handleDismiss = () => {
+    if (!customDialog) return;
+    if (customDialog.type === "alert") {
+      customDialog.onConfirm?.();
+      return;
+    }
+    customDialog.onCancel?.();
+  };
+
+  useMobileBackHandler(!!customDialog?.isOpen, () => {
+    handleDismiss();
+    return true;
+  }, 1000);
+
   if (!customDialog || !customDialog.isOpen) return null;
 
+  const handleConfirm = () => {
+    if (customDialog.type === "prompt") {
+      customDialog.onConfirmPrompt?.(localVal);
+    } else {
+      customDialog.onConfirm?.();
+    }
+  };
+
   return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300 z-[1000] animate-fadeIn"
-    >
-      <div className={`glass-panel rounded-2xl w-full p-6 flex flex-col gap-5 shadow-2xl border border-white/10 dark:border-white/5 text-foreground animate-fadeIn ${customDialog.type === "prompt" && customDialog.inputType === "textarea" ? "max-w-lg" : "max-w-sm"}`}>
-        <div className="flex flex-col gap-3">
-          <h4 className="font-bold text-foreground text-sm tracking-wide">
+    <Dialog open onOpenChange={(open) => { if (!open) handleDismiss(); }}>
+      <DialogContent
+        showCloseButton={false}
+        className={`z-[1000] gap-5 border-border/80 bg-popover shadow-2xl ${customDialog.type === "prompt" && customDialog.inputType === "textarea" ? "sm:max-w-lg" : "sm:max-w-sm"}`}
+      >
+        <DialogHeader>
+          <DialogTitle className="font-bold text-foreground text-base tracking-wide">
             {customDialog.title}
-          </h4>
-          <p className="text-xs text-muted-foreground/90 leading-relaxed font-light break-all whitespace-pre-wrap">
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground/90 leading-relaxed break-words whitespace-pre-wrap">
             {customDialog.message}
-          </p>
+          </DialogDescription>
           {customDialog.type === "prompt" && (
             <div className="mt-1">
               {customDialog.inputType === "textarea" ? (
                 <textarea
+                  aria-label={customDialog.title}
                   value={localVal}
                   onChange={(e) => setLocalVal(e.target.value)}
                   autoFocus
                   rows={10}
-                  className="w-full bg-input text-xs text-foreground border border-border/80 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary/50 focus:bg-background/95 transition-all duration-300 shadow-inner block resize-none leading-relaxed"
+                  className="block w-full resize-none rounded-xl border border-border/80 bg-input px-3.5 py-2.5 text-sm leading-relaxed text-foreground shadow-inner outline-none transition-colors focus:border-primary/50 focus:bg-background/95 focus:ring-2 focus:ring-ring/40"
                 />
               ) : (
                 <input
+                  aria-label={customDialog.title}
                   type={customDialog.inputType === "password" ? "password" : "text"}
                   value={localVal}
                   onChange={(e) => setLocalVal(e.target.value)}
@@ -52,36 +87,35 @@ export default function CustomConfirmDialog() {
                     }
                   }}
                   autoFocus
-                  className="w-full bg-input text-xs text-foreground border border-border/80 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary/50 focus:bg-background/95 transition-all duration-300 shadow-inner block"
+                  className="block min-h-11 w-full rounded-xl border border-border/80 bg-input px-3.5 py-2.5 text-sm text-foreground shadow-inner outline-none transition-colors focus:border-primary/50 focus:bg-background/95 focus:ring-2 focus:ring-ring/40"
                 />
               )}
             </div>
           )}
-        </div>
-        <div className="flex items-center justify-end gap-2.5 pt-1">
+        </DialogHeader>
+        <DialogFooter className="flex-row justify-end">
           {(customDialog.type === "confirm" ||
             customDialog.type === "prompt") && (
-            <button
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="min-h-11 min-w-20"
               onClick={() => customDialog.onCancel?.()}
-              className="bg-muted/50 tap-scale text-muted-foreground px-4 py-2 rounded-xl text-xs font-semibold border border-border/60 hover:bg-muted transition-all duration-300"
             >
               {t("dialog.cancel")}
-            </button>
+            </Button>
           )}
-          <button
-            onClick={() => {
-              if (customDialog.type === "prompt") {
-                customDialog.onConfirmPrompt?.(localVal);
-              } else {
-                customDialog.onConfirm?.();
-              }
-            }}
-            className="bg-primary tap-scale text-primary-foreground hover:bg-primary/95 px-5 py-2 rounded-xl text-xs font-bold transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-primary/20"
+          <Button
+            type="button"
+            size="lg"
+            className="min-h-11 min-w-20"
+            onClick={handleConfirm}
           >
             {t("dialog.confirm")}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

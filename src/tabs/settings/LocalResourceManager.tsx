@@ -118,7 +118,7 @@ export default function LocalResourceManager({ showCustomAlert, showCustomConfir
             const resourceReference = getService().getResourceReference(resource.id);
             return (
               <article key={resource.id} data-resource-id={resource.id} className="overflow-hidden rounded-lg border border-border/50 bg-background/45">
-                {resource.kind === "image" && previewUrl && <img src={previewUrl} alt="" className="h-28 w-full object-cover" />}
+                {resource.kind === "image" && previewUrl && <img src={previewUrl} alt="" loading="lazy" decoding="async" className="h-28 w-full object-cover" />}
                 {resource.kind === "video" && previewUrl && <video src={previewUrl} controls preload="metadata" className="max-h-44 w-full bg-black" />}
                 {resource.kind === "audio" && previewUrl && <audio src={previewUrl} controls preload="metadata" className="w-full px-2 pt-2" />}
                 <div className="flex items-center gap-2 p-2.5">

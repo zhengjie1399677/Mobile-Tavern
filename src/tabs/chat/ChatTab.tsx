@@ -43,6 +43,7 @@ export default function ChatTab() {
     hasMoreMessages,
     isLoadingMoreMessages,
     loadMoreMessages,
+    messageHydrationStatus,
   } = useUnifiedApp((state) => ({
     sessions: state.sessions,
     setSessionViews: state.setSessionViews,
@@ -62,6 +63,7 @@ export default function ChatTab() {
     hasMoreMessages: state.hasMoreMessages,
     isLoadingMoreMessages: state.isLoadingMoreMessages,
     loadMoreMessages: state.loadMoreMessages,
+    messageHydrationStatus: state.messageHydrationStatus,
   }));
 
   React.useEffect(() => {
@@ -83,14 +85,20 @@ export default function ChatTab() {
     isSending,
   });
 
-  // 滚动引擎 Hook（MutationObserver / ResizeObserver / 归底逻辑）
-  // 透传消息分页状态与回调，支持顶部触发加载更多历史
-  const { scrollContainerRef, handleScroll, showScrollButton, scrollToBottom } = useChatScroll({
+  // 滚动引擎 Hook：记录用户位置，并在首次末端定位完成后开放顶部分页。
+  const {
+    scrollContainerRef,
+    handleScroll,
+    showScrollButton,
+    scrollToBottom,
+    markInitialPositionReady,
+  } = useChatScroll({
     activeSessionId,
     chatSubTab,
     hasMoreMessages,
     isLoadingMoreMessages,
     onLoadMoreMessages: loadMoreMessages,
+    messageHydrationStatus,
   });
 
   // 立绘/表情 memo 计算逻辑
@@ -175,6 +183,7 @@ export default function ChatTab() {
         handleScroll={handleScroll}
         showScrollButton={showScrollButton}
         scrollToBottom={scrollToBottom}
+        markInitialPositionReady={markInitialPositionReady}
         glowColors={glowColors}
         isOriginalBg={isOriginalBg}
         activePortraitUrl={activePortraitUrl}

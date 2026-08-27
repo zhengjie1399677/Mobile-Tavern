@@ -62,7 +62,7 @@ export function MessageAttachmentParts({ parts }: MessageAttachmentPartsProps): 
         if (part.type === "image") {
           return (
             <AttachmentFrame key={`${part.assetId}-${index}`} icon={ImageIcon} label="图片" name={name} size={size} tone="sky">
-              <img src={asset.url} alt={part.alt || name} loading="lazy" className="max-h-80 w-full object-contain" />
+              <img src={asset.url} alt={part.alt || name} loading="lazy" decoding="async" className="max-h-80 w-full object-contain" />
             </AttachmentFrame>
           );
         }

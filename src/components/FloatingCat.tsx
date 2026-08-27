@@ -390,6 +390,7 @@ export function FloatingCat() {
             <img
               src={currentProcessedSrc}
               alt="Cat mascot"
+              decoding="async"
               className="w-[110%] h-[110%] object-cover pointer-events-none"
             />
           ) : (
@@ -446,6 +447,7 @@ export function FloatingCat() {
                     <img
                       src={processedImages.idle}
                       alt="Cat avatar"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   ) : (

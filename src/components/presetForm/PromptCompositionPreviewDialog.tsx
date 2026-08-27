@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import { useTranslation } from "../../contexts/LanguageContext";
+import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 import type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 
 interface PromptCompositionPreviewDialogProps {
@@ -21,6 +22,10 @@ export default function PromptCompositionPreviewDialog({
   preview,
 }: PromptCompositionPreviewDialogProps) {
   const { t } = useTranslation();
+  useMobileBackHandler(open, () => {
+    onOpenChange(false);
+    return true;
+  }, 900);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="top-auto bottom-0 left-1/2 max-h-[88dvh] w-full max-w-2xl -translate-x-1/2 translate-y-0 overflow-hidden rounded-b-none p-0">

@@ -43,7 +43,15 @@ function createMockSession(overrides?: Partial<ChatSession>): ChatSession {
   } as unknown as ChatSession;
 }
 
-function createMockParams(overrides?: Partial<any>) {
+type SessionManagerParams = Parameters<typeof useSessionManager>[0];
+type MockSessionManagerParams = Omit<SessionManagerParams, "databaseService"> & {
+  databaseService: MockDatabaseService;
+};
+type MockSessionManagerOverrides = Partial<Omit<SessionManagerParams, "databaseService">> & {
+  databaseService?: MockDatabaseService;
+};
+
+function createMockParams(overrides?: MockSessionManagerOverrides): MockSessionManagerParams {
   const setSessionViews = vi.fn();
   const setActiveCharId = vi.fn();
   const setActiveSessionId = vi.fn();
@@ -56,7 +64,7 @@ function createMockParams(overrides?: Partial<any>) {
     persistedSessions = persistedSessions.filter((item: ChatSession) => item.id !== id);
   });
   const refreshSessionStatistics = vi.fn().mockResolvedValue(undefined);
-  const triggerScroll = vi.fn();
+  const hydrateSessionMessages = vi.fn().mockResolvedValue(undefined);
   const showCustomAlert = vi.fn().mockResolvedValue(undefined);
   const showCustomConfirm = vi.fn().mockResolvedValue(true);
   const showCustomPrompt = vi.fn().mockResolvedValue("新分支");
@@ -84,6 +92,7 @@ function createMockParams(overrides?: Partial<any>) {
     setMsgMenuId,
     deleteSession,
     refreshSessionStatistics,
+    hydrateSessionMessages,
     databaseService: {
       getLatestSessionByCharacter: vi.fn(async (characterId: string) =>
         persistedSessions
@@ -98,7 +107,6 @@ function createMockParams(overrides?: Partial<any>) {
     telemetryService: {
       reportUsage: vi.fn(),
     } as unknown as ITelemetryService,
-    triggerScroll,
     showCustomAlert,
     showCustomConfirm,
     showCustomPrompt,
@@ -132,7 +140,6 @@ describe("useSessionManager", () => {
       expect(params.setSessionViews).toHaveBeenCalled();
       expect(params.setActiveSessionId).toHaveBeenCalledWith("new-session");
       expect(params.refreshSessionStatistics).toHaveBeenCalledOnce();
-      expect(params.triggerScroll).toHaveBeenCalled();
     });
 
     it("使用自定义首条消息", async () => {
@@ -214,6 +221,30 @@ describe("useSessionManager", () => {
       expect(params.setActiveCharId).toHaveBeenCalledWith("char-1");
       // 应切换到最近活跃的会话
       expect(params.setActiveSessionId).toHaveBeenCalled();
+      expect(params.hydrateSessionMessages).toHaveBeenCalled();
+      expect(params.databaseService.getLatestSessionByCharacter).not.toHaveBeenCalled();
+      expect(params.setActiveTab).toHaveBeenCalledWith("chat");
+    });
+
+    it("最近消息准备完成后才提交聊天页切换", async () => {
+      let finishHydration: (() => void) | undefined;
+      const hydrateSessionMessages = vi.fn(() => new Promise<void>((resolve) => {
+        finishHydration = resolve;
+      }));
+      const params = createMockParams({ hydrateSessionMessages });
+      const { result } = renderHook(() => useSessionManager(params));
+
+      let selectionPromise: Promise<void>;
+      act(() => {
+        selectionPromise = result.current.selectCharacter("char-1");
+      });
+      await vi.waitFor(() => expect(hydrateSessionMessages).toHaveBeenCalled());
+      expect(params.setActiveTab).not.toHaveBeenCalled();
+
+      finishHydration?.();
+      await act(async () => {
+        await selectionPromise!;
+      });
       expect(params.setActiveTab).toHaveBeenCalledWith("chat");
     });
 

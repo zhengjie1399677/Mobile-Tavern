@@ -97,4 +97,36 @@ describe("useChatScroll hook tests", () => {
     expect(result.current.showScrollButton).toBe(false);
     expect(result.current.isAtBottomRef.current).toBe(true);
   });
+
+  it("初始归底完成前不触发顶部分页，完成后才允许加载", () => {
+    const loadMoreMessages = vi.fn();
+    const { result } = renderHook(() =>
+      useChatScroll({
+        activeSessionId: "session-1",
+        chatSubTab: "dialogue",
+        hasMoreMessages: true,
+        isLoadingMoreMessages: false,
+        onLoadMoreMessages: loadMoreMessages,
+        messageHydrationStatus: "ready",
+      })
+    );
+    const mockContainer = {
+      scrollTop: 0,
+      scrollHeight: 1000,
+      clientHeight: 500,
+      scrollTo: vi.fn(),
+    };
+    (result.current.scrollContainerRef as unknown as MutableRefObject<HTMLDivElement | null>).current = mockContainer as unknown as HTMLDivElement;
+
+    act(() => {
+      result.current.handleScroll();
+    });
+    expect(loadMoreMessages).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.markInitialPositionReady("session-1");
+      result.current.handleScroll();
+    });
+    expect(loadMoreMessages).toHaveBeenCalledOnce();
+  });
 });

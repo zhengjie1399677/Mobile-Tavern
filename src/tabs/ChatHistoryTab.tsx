@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
-import { Trash2, MessageSquare, Clock, Users, ChevronDown, ChevronRight } from "lucide-react";
+import { Trash2, MessageSquare, Clock, Users, ChevronDown, ChevronRight, LoaderCircle } from "lucide-react";
+import { Button } from "../../components/ui/button";
 import { getAvatarGradientClass } from "../utils/avatarUtils";
 
 type ViewMode = "timeline" | "character";
@@ -16,7 +17,10 @@ export default function ChatHistoryTab() {
     setActiveTab,
     setChatSubTab,
     deleteBranch,
-    triggerScroll,
+    totalSessionCount,
+    loadMoreSessions,
+    hasMoreSessions,
+    isLoadingMoreSessions,
   } = useUnifiedApp((state) => ({
     characters: state.characters,
     sessions: state.sessions,
@@ -25,7 +29,10 @@ export default function ChatHistoryTab() {
     setActiveTab: state.setActiveTab,
     setChatSubTab: state.setChatSubTab,
     deleteBranch: state.deleteBranch,
-    triggerScroll: state.triggerScroll,
+    totalSessionCount: state.totalSessionCount,
+    loadMoreSessions: state.loadMoreSessions,
+    hasMoreSessions: state.hasMoreSessions,
+    isLoadingMoreSessions: state.isLoadingMoreSessions,
   }));
 
   // 1. 视图模式状态（按时间平铺 / 按角色卡归纳），支持 localStorage 持久化记住用户选择
@@ -165,7 +172,6 @@ export default function ChatHistoryTab() {
     setActiveSessionId(sessionId);
     setActiveTab("chat");
     setChatSubTab("dialogue");
-    triggerScroll();
   };
 
   return (
@@ -179,8 +185,10 @@ export default function ChatHistoryTab() {
         {/* 顶部 segmented 控制组 */}
         <div className="flex min-w-0 bg-muted/60 p-0.5 rounded-lg border border-border/60 shadow-inner">
           <button
+            type="button"
+            aria-pressed={viewMode === "timeline"}
             onClick={() => handleModeChange("timeline")}
-            className={`flex min-h-7 max-w-[92px] items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+            className={`flex min-h-11 max-w-[112px] items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2 rounded-md text-xs font-medium transition-colors ${
               viewMode === "timeline"
                 ? "bg-card text-primary shadow-sm font-semibold"
                 : "text-muted-foreground hover:text-foreground"
@@ -191,8 +199,10 @@ export default function ChatHistoryTab() {
           </button>
 
           <button
+            type="button"
+            aria-pressed={viewMode === "character"}
             onClick={() => handleModeChange("character")}
-            className={`flex min-h-7 max-w-[92px] items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+            className={`flex min-h-11 max-w-[112px] items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2 rounded-md text-xs font-medium transition-colors ${
               viewMode === "character"
                 ? "bg-card text-primary shadow-sm font-semibold"
                 : "text-muted-foreground hover:text-foreground"
@@ -215,63 +225,69 @@ export default function ChatHistoryTab() {
         <div className="space-y-2.5">
           {enrichedSessions.map(({ s, char, lastMsg, lastActiveTime, totalCharsDisplay, turnCount }) => {
             return (
-              <div
+              <article
                 key={s.id}
-                className="glass-panel rounded-xl p-3 flex items-center gap-3 cursor-pointer hover:border-primary/50 transition shadow-sm"
-                onClick={() => openSession(s.characterId, s.id)}
+                className="mobile-list-item flex items-center gap-1 rounded-xl border border-border/80 bg-card/85 p-1 shadow-sm transition-colors hover:border-primary/50"
               >
-                <div className={`w-10 h-10 rounded-full overflow-hidden border border-border/80 shrink-0 flex items-center justify-center ${
-                  char?.avatar ? "bg-muted" : getAvatarGradientClass(char?.name || "?")
-                }`}>
-                  {char?.avatar ? (
-                    <img
-                      src={char.avatar}
-                      alt="avatar"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-sm font-bold">
-                      {char?.name?.[0] || "?"}
-                    </span>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex justify-between items-start">
-                    <p className="font-bold text-sm truncate text-foreground">
-                      {s.title || t("history.main_timeline")}
-                    </p>
-                    <span className="text-[9px] text-muted-foreground whitespace-nowrap pt-0.5">
-                      {new Date(lastActiveTime).toLocaleString(undefined, {
-                        month: "2-digit",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground truncate opacity-70">
-                    {char?.name || t("history.removed_char")} | {t("history.turns_chars", { turnCount, charCount: totalCharsDisplay })}
-                  </p>
-                  {lastMsg && (
-                    <p className="text-[10px] text-muted-foreground truncate mt-1.5 italic border-t border-border/20 pt-1.5 opacity-80">
-                      <span className="font-semibold text-primary mr-1">
-                        {lastMsg.sender === "user" ? t("history.me") : (char?.name || "AI")}:
-                      </span>
-                      {lastMsg.content}
-                    </p>
-                  )}
-                </div>
                 <button
-                  className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive p-2 rounded shrink-0 transition"
+                  type="button"
+                  className="flex min-h-16 min-w-0 flex-1 items-center gap-3 rounded-lg p-2 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => openSession(s.characterId, s.id)}
+                >
+                  <div className={`w-10 h-10 rounded-full overflow-hidden border border-border/80 shrink-0 flex items-center justify-center ${
+                    char?.avatar ? "bg-muted" : getAvatarGradientClass(char?.name || "?")
+                  }`}>
+                    {char?.avatar ? (
+                      <img
+                        src={char.avatar}
+                        alt={char.name}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-sm font-bold">
+                        {char?.name?.[0] || "?"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex justify-between items-start gap-2">
+                      <p className="font-bold text-sm truncate text-foreground">
+                        {s.title || t("history.main_timeline")}
+                      </p>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap pt-0.5">
+                        {new Date(lastActiveTime).toLocaleString(undefined, {
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate opacity-70">
+                      {char?.name || t("history.removed_char")} | {t("history.turns_chars", { turnCount, charCount: totalCharsDisplay })}
+                    </p>
+                    {lastMsg && (
+                      <p className="text-xs text-muted-foreground truncate mt-1.5 italic border-t border-border/20 pt-1.5 opacity-80">
+                        <span className="font-semibold text-primary mr-1">
+                          {lastMsg.sender === "user" ? t("history.me") : (char?.name || "AI")}:
+                        </span>
+                        {lastMsg.content}
+                      </p>
+                    )}
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${t("history.delete")}: ${s.title || t("history.main_timeline")}`}
+                  className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
                   title={t("history.delete")}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteBranch(s.id);
-                  }}
+                  onClick={() => deleteBranch(s.id)}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
-              </div>
+              </article>
             );
           })}
         </div>
@@ -287,11 +303,13 @@ export default function ChatHistoryTab() {
             return (
               <div
                 key={group.characterId}
-                className="bg-card/70 border border-border/80 rounded-xl overflow-hidden shadow-sm transition-all"
+                className="mobile-list-item bg-card/70 border border-border/80 rounded-xl overflow-hidden shadow-sm transition-colors"
               >
                 {/* 归纳头部：角色卡信息与收起/展开控制 */}
-                <div
-                  className="p-3 bg-muted/40 hover:bg-muted/70 flex items-center justify-between cursor-pointer transition select-none"
+                <button
+                  type="button"
+                  aria-expanded={isExpanded}
+                  className="flex min-h-16 w-full items-center justify-between bg-muted/40 p-3 text-left transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   onClick={() => toggleExpand(group.characterId)}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -302,6 +320,8 @@ export default function ChatHistoryTab() {
                         <img
                           src={group.avatar}
                           alt={group.characterName}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -339,23 +359,26 @@ export default function ChatHistoryTab() {
                       <ChevronRight className="w-5 h-5 transition-transform duration-200" />
                     )}
                   </div>
-                </div>
+                </button>
 
                 {/* 归纳展开后的分支子列表 */}
                 {isExpanded && (
                   <div className="p-2 pt-1 space-y-2 border-t border-border/40 bg-card/30">
                     {group.sessions.map(({ s, char, lastMsg, lastActiveTime, totalCharsDisplay, turnCount }) => (
-                      <div
+                      <article
                         key={s.id}
-                        className="p-2.5 rounded-lg border border-border/50 bg-background/50 hover:bg-primary/5 hover:border-primary/40 transition flex items-center justify-between gap-2 cursor-pointer"
-                        onClick={() => openSession(s.characterId, s.id)}
+                        className="flex items-center justify-between gap-1 rounded-lg border border-border/50 bg-background/50 p-1 transition-colors hover:border-primary/40"
                       >
-                        <div className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          className="min-h-14 min-w-0 flex-1 rounded-md p-2 text-left outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => openSession(s.characterId, s.id)}
+                        >
                           <div className="flex items-center justify-between gap-2">
                             <p className="font-semibold text-xs text-foreground truncate">
                               {s.title || t("history.main_timeline")}
                             </p>
-                            <span className="text-[9px] text-muted-foreground shrink-0 font-mono">
+                            <span className="text-xs text-muted-foreground shrink-0 font-mono">
                               {new Date(lastActiveTime).toLocaleString(undefined, {
                                 month: "2-digit",
                                 day: "2-digit",
@@ -364,38 +387,58 @@ export default function ChatHistoryTab() {
                               })}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground opacity-80">
+                          <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground opacity-80">
                             <span>{t("history.turns", { count: turnCount })}</span>
                             <span>·</span>
                             <span>{t("history.chars", { count: totalCharsDisplay })}</span>
                           </div>
                           {lastMsg && (
-                            <p className="text-[10px] text-muted-foreground truncate mt-1 italic border-t border-border/10 pt-1 opacity-75">
+                            <p className="text-xs text-muted-foreground truncate mt-1 italic border-t border-border/10 pt-1 opacity-75">
                               <span className="font-medium text-primary">
                                 {lastMsg.sender === "user" ? t("history.me") : (char?.name || "AI")}:
                               </span>{" "}
                               {lastMsg.content}
                             </p>
                           )}
-                        </div>
+                        </button>
 
                         <button
-                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive p-1.5 rounded shrink-0 transition"
+                          type="button"
+                          aria-label={`${t("history.delete")}: ${s.title || t("history.main_timeline")}`}
+                          className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
                           title={t("history.delete")}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteBranch(s.id);
-                          }}
+                          onClick={() => deleteBranch(s.id)}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </div>
+                      </article>
                     ))}
                   </div>
                 )}
               </div>
             );
           })}
+        </div>
+      )}
+
+      {sessions.length > 0 && (
+        <div className="flex flex-col items-center gap-2 py-2" aria-live="polite">
+          <p className="text-xs text-muted-foreground">
+            {t("history.loaded_sessions", { loaded: sessions.length, total: totalSessionCount })}
+          </p>
+          {hasMoreSessions && (
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="min-h-11 min-w-36"
+              disabled={isLoadingMoreSessions}
+              onClick={() => void loadMoreSessions()}
+            >
+              {isLoadingMoreSessions && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
+              {isLoadingMoreSessions ? t("history.loading_more") : t("history.load_more")}
+            </Button>
+          )}
         </div>
       )}
     </div>

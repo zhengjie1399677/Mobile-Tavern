@@ -5,7 +5,6 @@ import React from "react";
 
 import lodashCloneDeep from "lodash/cloneDeep";
 import lodashIsEqual from "lodash/isEqual";
-import { chatTabState } from "./utils";
 import { Logger } from "../../utils/logger";
 import { reportUsage } from "../../utils/telemetry";
 
@@ -20,6 +19,11 @@ import {
 import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
 import type { CompatibilityBridgeParams } from "../../application/compatibility/contracts";
+import {
+  resolveAppViewportHeight,
+  resolveKeyboardViewportState,
+  type KeyboardViewportState,
+} from "../../utils/viewportLayout";
 
 interface UseChatAccessibilityDeps
   extends Omit<CompatibilityBridgeParams, "saveSession" | "setSessions"> {
@@ -164,44 +168,55 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
 
   React.useEffect(() => {
-    const handleResize = () => {
+    const initialHeight = resolveAppViewportHeight(window.innerHeight, window.visualViewport?.height);
+    let viewportState: KeyboardViewportState = {
+      baselineHeight: initialHeight,
+      viewportWidth: window.visualViewport?.width ?? window.innerWidth,
+      isOpen: false,
+    };
+    let frameId: number | null = null;
+
+    const applyViewportState = () => {
+      frameId = null;
       const vvp = window.visualViewport;
-      // 视口高度使用 Math.min(vvp.height, window.innerHeight) 以消除 Android 偏大偏差
-      const currentHeight = vvp ? Math.min(vvp.height, window.innerHeight) : window.innerHeight;
+      const currentHeight = resolveAppViewportHeight(window.innerHeight, vvp?.height);
+      const currentWidth = vvp?.width ?? window.innerWidth;
+      const nextState = resolveKeyboardViewportState(viewportState, currentHeight, currentWidth);
 
-      if (currentHeight > chatTabState.maxHeight) {
-        chatTabState.maxHeight = currentHeight;
-      }
-      const threshold = Math.min(chatTabState.maxHeight * 0.15, 100);
-      const diff = chatTabState.maxHeight - currentHeight;
-      const isNowOpen = diff > threshold;
-
-      // 只有在键盘状态转换，或视口高度差变化明显时才输出日志和上报，防止打字高频输入时泛滥
-      if (isKeyboardOpen !== isNowOpen || diff > 30) {
+      // resize 动画只在状态真正转换时触发 React 更新和诊断，避免逐帧重渲染/遥测。
+      if (viewportState.isOpen !== nextState.isOpen) {
+        const diff = nextState.baselineHeight - currentHeight;
         logger.warn("Viewport resize handled (keyboard transition check)", {
           vvpHeight: vvp?.height ?? null,
           windowHeight: window.innerHeight,
           currentHeight,
-          maxHeight: chatTabState.maxHeight,
-          threshold,
+          maxHeight: nextState.baselineHeight,
+          threshold: Math.min(nextState.baselineHeight * 0.15, 100),
           heightDiff: diff,
-          isKeyboardOpen: isNowOpen,
+          isKeyboardOpen: nextState.isOpen,
         });
 
         reportUsage("keyboard_viewport_diagnostic", {
           vvp_height: vvp?.height ?? 0,
           window_height: window.innerHeight,
           current_height: currentHeight,
-          max_height: chatTabState.maxHeight,
+          max_height: nextState.baselineHeight,
           height_diff: diff,
-          is_keyboard_open: isNowOpen,
+          is_keyboard_open: nextState.isOpen,
         });
+        setIsKeyboardOpen(nextState.isOpen);
       }
+      viewportState = nextState;
+    };
 
-      setIsKeyboardOpen(isNowOpen);
+    const handleResize = () => {
+      if (frameId !== null) return;
+      frameId = window.requestAnimationFrame(applyViewportState);
     };
 
     window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+    window.addEventListener("mobileTavernNativeResume", handleResize);
     const vvp = window.visualViewport;
     if (vvp) {
       vvp.addEventListener("resize", handleResize);
@@ -210,9 +225,12 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+      window.removeEventListener("mobileTavernNativeResume", handleResize);
       if (vvp) {
         vvp.removeEventListener("resize", handleResize);
       }
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
     };
   }, []);
 

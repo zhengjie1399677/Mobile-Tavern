@@ -114,6 +114,7 @@ const ChatHeader = ({
               <img
                 src={activeCharacter.avatar}
                 alt={activeCharacter.name}
+                decoding="async"
                 className="w-full h-full object-cover"
               />
             ) : (

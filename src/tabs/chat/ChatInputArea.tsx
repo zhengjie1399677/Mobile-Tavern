@@ -70,6 +70,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     lastRecalledMemories,
     triggerScroll,
     getKernelService,
+    messageHydrationStatus,
   } = useUnifiedApp((state) => ({
     isSending: state.isSending,
     setIsSending: state.setIsSending,
@@ -90,6 +91,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     lastRecalledMemories: state.lastRecalledMemories,
     triggerScroll: state.triggerScroll,
     getKernelService: state.getKernelService,
+    messageHydrationStatus: state.messageHydrationStatus,
   }));
   const compatibilityVariables = activeSession
     ? getKernelService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
@@ -332,13 +334,14 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   }, [activeSession]);
 
   const canSend = React.useMemo(() => {
+    if (!activeSession || messageHydrationStatus !== "ready") return false;
     const hasInput = (localInput || "").trim() !== "";
     const hasAttachments = pendingAttachments.length > 0;
     if (settings.enableMultiMessageQueue) {
       return hasInput || hasAttachments || lastMsgIsUser;
     }
     return hasInput || hasAttachments;
-  }, [localInput, pendingAttachments.length, settings.enableMultiMessageQueue, lastMsgIsUser]);
+  }, [activeSession, localInput, messageHydrationStatus, pendingAttachments.length, settings.enableMultiMessageQueue, lastMsgIsUser]);
 
   const onSendPure = React.useCallback(async () => {
     if (!localInput.trim() && pendingAttachments.length === 0) return;
@@ -472,6 +475,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         <div className="flex items-center justify-between px-2 py-1.5 bg-muted/30 rounded-lg border border-border/20 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={() => handleRerollLast()}
               disabled={
                 isSending ||
@@ -479,22 +483,23 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                 !Array.isArray(activeSession.messages) ||
                 !activeSession.messages.some((m: Message) => m.sender === "assistant")
               }
-              className="flex items-center gap-1.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
               title="消除整条故事分支的最后一条AI回复并进行重新生成"
             >
               <RefreshCw
                 className={`w-3.5 h-3.5 ${isSending ? "animate-spin" : ""}`}
               />
-              <span className="text-[10px] font-medium">{t("chat_input.reroll_last")}</span>
+              <span className="text-xs font-medium">{t("chat_input.reroll_last")}</span>
             </button>
             <button
+              type="button"
               onClick={() => handleSendMessage(t("chat_input.continue"))}
               disabled={isSending || !activeSession}
-              className="flex items-center gap-1.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
               title={`替用户发送"继续"以继续当前剧情`}
             >
               <Play className="w-3.5 h-3.5" />
-              <span className="text-[10px] font-medium">{t("chat_input.continue")}</span>
+              <span className="text-xs font-medium">{t("chat_input.continue")}</span>
             </button>
           </div>
 
@@ -557,7 +562,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       )}
       {settings.enableReplySuggestions && !isSending && replySuggestions && replySuggestions.length > 0 && (
         <div className="flex flex-col gap-1.5 px-1 py-1 border-b border-border/30 animate-fadeIn">
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-1">
+          <div className="flex items-center justify-between text-xs text-muted-foreground font-medium px-1">
             <span className="flex items-center gap-1">{t("chat_input.suggestions_label")}</span>
             <button
               onClick={() => {
@@ -571,7 +576,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                   replySuggestionsClickMode: nextMode,
                 }));
               }}
-              className="px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-[9px] font-semibold flex items-center gap-1 border border-border transition active:scale-95"
+              className="flex min-h-11 items-center gap-1 rounded border border-border bg-muted px-2 text-xs font-semibold transition hover:bg-muted/80 active:scale-95"
             >
               {t("chat_input.click_mode", { mode: clickMode === "send" ? t("chat_input.click_mode_send") : t("chat_input.click_mode_fill") })}
             </button>
@@ -585,7 +590,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                 onClick={(e) => {
                   e.preventDefault();
                 }}
-                className="w-full px-3 py-2 rounded-lg text-[11px] font-normal leading-normal text-left text-foreground bg-primary/5 hover:bg-primary/10 border border-primary/15 hover:border-primary/30 transition active:scale-95 shadow-sm truncate"
+                className="min-h-11 w-full rounded-lg border border-primary/15 bg-primary/5 px-3 py-2 text-left text-xs font-normal leading-normal text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/10 active:scale-95"
                 title={suggestion.description || suggestion.prompt}
               >
                 <span className="block truncate font-medium">{suggestion.label}</span>
@@ -608,7 +613,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         <button
           aria-label="切换快捷工具栏"
           onClick={() => setShowQuickActions(prev => !prev)}
-          className={`p-2.5 rounded-xl border hover:bg-muted text-muted-foreground transition-all duration-200 shrink-0 ${showQuickActions ? "text-primary bg-primary/10 border-primary/20" : "bg-input/30 border-border/80"
+          className={`flex size-11 shrink-0 items-center justify-center rounded-xl border text-muted-foreground transition-colors duration-200 hover:bg-muted ${showQuickActions ? "text-primary bg-primary/10 border-primary/20" : "bg-input/30 border-border/80"
             }`}
           title="切换显示发包预测与快捷工具"
         >
@@ -634,13 +639,15 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               }
             }
           }}
-          disabled={isBisonLocking || isSending}
+          disabled={isBisonLocking || isSending || messageHydrationStatus !== "ready"}
           inputMode="text"
           enterKeyHint="send"
           placeholder={
             isBisonLocking
               ? t("chat_input.placeholder_bison", { name: activeCharacter?.name || "角色" })
-              : isRecording
+              : messageHydrationStatus !== "ready"
+                ? "正在准备聊天记录…"
+                : isRecording
                 ? t("chat_input.placeholder_recording")
                 : isTranscribing
                   ? t("chat_input.placeholder_transcribing")
@@ -648,7 +655,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           }
           aria-label={t("chat_input.aria_label", { name: activeCharacter?.name || "角色" })}
           rows={2}
-          className={`flex-1 bg-input/70 border border-border/80 rounded-xl py-2 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[160px] min-h-[42px] transition-[border-color,background-color] duration-300 shadow-inner ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
+          className={`flex-1 bg-input/70 border border-border/80 rounded-xl py-2 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[160px] min-h-11 transition-[border-color,background-color] duration-300 shadow-inner ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
             }`}
         />
         {settings.asrConfig?.enabled && (
@@ -657,7 +664,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             aria-label={isRecording ? t("chat_input.asr_stop") : isTranscribing ? t("chat_input.asr_recognizing") : t("chat_input.asr_mic")}
             onClick={handleToggleAsr}
             disabled={isSending || isBisonLocking}
-            className={`w-[42px] h-[42px] rounded-xl border transition-all duration-300 shrink-0 flex items-center justify-center ${isRecording
+            className={`size-11 rounded-xl border transition-colors duration-200 shrink-0 flex items-center justify-center ${isRecording
                 ? "bg-red-500/20 border-red-500/40 text-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]"
                 : isTranscribing
                   ? "bg-amber-500/20 border-amber-500/40 text-amber-500"
@@ -679,7 +686,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             onClick={() => handleStopGeneration()}
             aria-label={t("chat_input.stop")}
             title={t("chat_input.stop")}
-            className="w-[42px] h-[42px] rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 cursor-pointer"
+            className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-destructive text-destructive-foreground shadow-md transition-colors duration-200 hover:bg-destructive/90 active:scale-95"
           >
             <Square className="w-4 h-4 fill-current" aria-hidden="true" />
           </button>
@@ -700,7 +707,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                 ? t("chat_input.send_long_press")
                 : t("chat_input.send")
             }
-            className={`w-[42px] h-[42px] rounded-xl bg-primary text-primary-foreground transition-all duration-300 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${canSend
+            className={`size-11 rounded-xl bg-primary text-primary-foreground transition-[background-color,box-shadow,transform] duration-200 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${canSend
                 ? "hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 cursor-pointer opacity-100"
                 : "opacity-45 cursor-not-allowed bg-muted text-muted-foreground shadow-none"
               }`}

@@ -2,7 +2,8 @@
     <!-- Base application theme. -->
     <style name="Theme.app" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
-        <item name="android:windowBackground">#0d1726</item>
-        <item name="android:windowSplashScreenBackground">#0d1726</item>
+        <item name="android:windowBackground">#01091c</item>
+        <item name="android:windowSplashScreenBackground">#01091c</item>
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="s">@mipmap/ic_launcher_foreground</item>
     </style>
 </resources>

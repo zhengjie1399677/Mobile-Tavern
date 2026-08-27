@@ -54,7 +54,7 @@ function AttachmentPreview({
   return (
     <article className={`relative h-[86px] w-[116px] shrink-0 overflow-hidden rounded-xl border ${presentation.border} bg-muted/40`}>
       {item.metadata.kind === "image" ? (
-        <img src={item.previewUrl} alt={item.metadata.originalName} className="h-full w-full object-cover" />
+        <img src={item.previewUrl} alt={item.metadata.originalName} decoding="async" className="h-full w-full object-cover" />
       ) : item.metadata.kind === "video" ? (
         <video src={item.previewUrl} muted preload="metadata" className="h-full w-full object-cover" />
       ) : (

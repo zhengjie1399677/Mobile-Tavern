@@ -12,6 +12,7 @@ import {
 import { listBuiltinPluginMetadata, loadBuiltinPluginById } from "../../infrastructure/plugins/builtinPlugins";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 
 type PluginListItem = InstalledFullscreenPlugin | InstalledPluginMetadata;
 
@@ -153,6 +154,10 @@ export default function PluginManagerSection() {
 function PluginTutorial({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
   const steps = t("plugin_manager.tutorial_steps").split("|");
+  useMobileBackHandler(open, () => {
+    onOpenChange(false);
+    return true;
+  }, 850);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="top-auto bottom-0 left-1/2 max-h-[88dvh] w-full max-w-xl -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none p-0">

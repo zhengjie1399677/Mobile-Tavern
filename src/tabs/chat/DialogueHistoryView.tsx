@@ -18,12 +18,14 @@ import { getCompatibilityGenerationState } from "../../application/useCases/comp
 import ChatInputArea from "./ChatInputArea";
 import MessageBubble from "./MessageBubble";
 import AgentToolActivity from "./message-bubble/AgentToolActivity";
+import type { Message } from "../../types";
 
 interface DialogueHistoryViewProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   handleScroll: () => void;
   showScrollButton: boolean;
   scrollToBottom: () => void;
+  markInitialPositionReady: (sessionId: string) => void;
   glowColors: { light1: string; light2: string };
   isOriginalBg: boolean;
   activePortraitUrl: string;
@@ -39,6 +41,7 @@ const DialogueHistoryView = ({
   handleScroll,
   showScrollButton,
   scrollToBottom,
+  markInitialPositionReady,
   glowColors,
   isOriginalBg,
   activePortraitUrl,
@@ -62,6 +65,8 @@ const DialogueHistoryView = ({
     hasMoreMessages,
     isLoadingMoreMessages,
     loadMoreMessages,
+    messageHydrationStatus,
+    hydrateSessionMessages,
   } = useUnifiedApp((state) => ({
     activeCharacter: state.activeCharacter,
     activeSession: state.activeSession,
@@ -74,12 +79,17 @@ const DialogueHistoryView = ({
     hasMoreMessages: state.hasMoreMessages,
     isLoadingMoreMessages: state.isLoadingMoreMessages,
     loadMoreMessages: state.loadMoreMessages,
+    messageHydrationStatus: state.messageHydrationStatus,
+    hydrateSessionMessages: state.hydrateSessionMessages,
   }));
 
   const [swipedMsgId, setSwipedMsgId] = React.useState<string | null>(null);
 
   // 过滤隐藏的野牛静默消息
-  const rawMessages = (activeSession?.messages || []).filter((m: any) => !m.extra?.isBisonSilent);
+  const rawMessages = (activeSession?.messages || []).filter((message: Message) =>
+    !message.extra?.isBisonSilent
+  );
+  const isMessageHydrated = !activeSession?.id || messageHydrationStatus === "ready";
 
   // 性能优化：流式期间 activeSession.messages 每 60ms 触发一次 setSessionViews，
   // 若直接驱动 visibleMessages.map 渲染会阻塞用户滚动等高优先级交互。
@@ -95,11 +105,11 @@ const DialogueHistoryView = ({
   // 预计算每条消息的轮次编号
   const roundNums: Record<string, number> = {};
   let roundCount = 0;
-  (activeSession?.messages || []).forEach((m: any) => {
-    if (m.sender === "user") {
+  (activeSession?.messages || []).forEach((message: Message) => {
+    if (message.sender === "user") {
       roundCount++;
     }
-    roundNums[m.id] = roundCount;
+    roundNums[message.id] = roundCount;
   });
 
   // 虚拟列表：长会话下 messagesToRender 可达数百条，全量渲染会导致
@@ -110,12 +120,42 @@ const DialogueHistoryView = ({
   // - measureElement：动态测量实际高度，流式消息高度变化时 ResizeObserver 自动重测
   // - gap strategy: paddingBottom 1rem 模拟原 space-y-4 间距
   const virtualizer = useVirtualizer({
-    count: messagesToRender.length,
+    count: isMessageHydrated ? messagesToRender.length : 0,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => 400,
     overscan: 5,
     measureElement: (element) => element.getBoundingClientRect().height,
+    getItemKey: (index) => messagesToRender[index]?.id ?? index,
+    anchorTo: "end",
+    followOnAppend: "auto",
+    scrollEndThreshold: 60,
+    useAnimationFrameWithResizeObserver: true,
   });
+
+  const positionedSessionIdRef = React.useRef<string | null>(null);
+  React.useLayoutEffect(() => {
+    const sessionId = activeSession?.id;
+    if (
+      !sessionId ||
+      messageHydrationStatus !== "ready" ||
+      positionedSessionIdRef.current === sessionId
+    ) {
+      return;
+    }
+
+    positionedSessionIdRef.current = sessionId;
+    virtualizer.scrollToEnd({ behavior: "auto" });
+    const rafId = window.requestAnimationFrame(() => {
+      markInitialPositionReady(sessionId);
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [
+    activeSession?.id,
+    markInitialPositionReady,
+    messageHydrationStatus,
+    messagesToRender.length,
+    virtualizer,
+  ]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
@@ -124,7 +164,7 @@ const DialogueHistoryView = ({
         <>
           {/* 1. 大图背景及动效/模糊层 */}
           <div
-            className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-[opacity,filter] duration-700 ${
+            className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-opacity duration-300 ${
               isOriginalBg ? "" : "mask-feather-y"
             } ${
               (settings.enableChatBgAnimation ?? false) ? "animate-bg-pan-zoom" : ""
@@ -146,7 +186,7 @@ const DialogueHistoryView = ({
           {/* 2. 主题色变暗融合层 */}
           {!isOriginalBg && (
             <div
-              className="absolute inset-0 z-0 pointer-events-none transition-all duration-500"
+              className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-300"
               style={{
                 backgroundColor: "var(--background)",
                 opacity: (settings.chatBackgroundDim ?? 50) / 100,
@@ -161,7 +201,7 @@ const DialogueHistoryView = ({
       {/* 4. 双光源情绪环境光融合层 */}
       {settings.enableEmotionAmbientGlow && (
         <div
-          className="absolute inset-0 pointer-events-none z-0 transition-all duration-1000 ease-in-out overflow-hidden"
+          className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
           style={{
             background: `
               radial-gradient(circle at 75% 75%, ${glowColors.light1} 0%, transparent 75%),
@@ -188,7 +228,38 @@ const DialogueHistoryView = ({
             1. isLoadingMoreMessages=true：显示加载中旋转图标
             2. hasMoreMessages=true 且未在加载：显示可点击的"加载更早消息"按钮（备用入口，正常情况下由顶部滚动自动触发）
             3. 两者皆否：不渲染 */}
-        {(isLoadingMoreMessages || hasMoreMessages) && (
+        {!isMessageHydrated && activeSession?.id && (
+          <div className="flex min-h-full flex-col items-center justify-center gap-3 px-8 text-center">
+            {messageHydrationStatus === "error" ? (
+              <>
+                <AlertCircle className="size-6 text-destructive" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground">聊天记录加载失败，请重试。</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void hydrateSessionMessages(activeSession.id).catch((error: unknown) => {
+                      console.error("Failed to retry chat message hydration:", error);
+                    });
+                  }}
+                  className="min-h-11 rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+                >
+                  重新加载
+                </button>
+              </>
+            ) : (
+              <>
+                <Loader2 className="size-5 animate-spin text-primary" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground">正在准备最近的聊天记录…</p>
+                <div className="w-full max-w-xs space-y-3" aria-hidden="true">
+                  <div className="h-14 w-4/5 animate-pulse rounded-2xl bg-muted/70" />
+                  <div className="ml-auto h-10 w-3/5 animate-pulse rounded-2xl bg-primary/10" />
+                  <div className="h-20 w-5/6 animate-pulse rounded-2xl bg-muted/60" />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        {isMessageHydrated && (isLoadingMoreMessages || hasMoreMessages) && (
           <div className="flex justify-center mb-2">
             {isLoadingMoreMessages ? (
               <div
@@ -203,7 +274,7 @@ const DialogueHistoryView = ({
               <button
                 onClick={() => loadMoreMessages()}
                 aria-label="加载更早的历史消息"
-                className="bg-muted hover:bg-muted/80 border border-border text-[10px] px-4 py-1.5 rounded-full text-muted-foreground shadow-sm flex items-center gap-1.5 transition"
+                className="flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-muted px-4 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-muted/80"
               >
                 <ChevronUp className="w-3 h-3" aria-hidden="true" /> 加载更早的消息
               </button>
@@ -213,7 +284,7 @@ const DialogueHistoryView = ({
         {/* 虚拟列表容器：占位总高度，子项绝对定位。
             顶部按钮与底部 typing/chatBottomRef 流式布局在虚拟列表之外，
             共享同一滚动容器。 */}
-        <div
+        {isMessageHydrated && <div
           style={{
             height: virtualizer.getTotalSize(),
             position: "relative",
@@ -277,7 +348,7 @@ const DialogueHistoryView = ({
               </div>
             );
           })}
-        </div>
+        </div>}
 
         {/* Typing Indicator */}
         {isSending && (
@@ -318,7 +389,7 @@ const DialogueHistoryView = ({
           onClick={scrollToBottom}
           aria-label="回到底部"
           title="回到底部"
-          className="absolute bottom-24 right-4 p-2.5 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 active:scale-95 transition-all z-20 flex items-center justify-center border border-primary/20 cursor-pointer animate-in fade-in zoom-in duration-200"
+          className="absolute bottom-24 right-4 z-20 flex size-11 cursor-pointer items-center justify-center rounded-full border border-primary/20 bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 animate-in fade-in zoom-in duration-200"
         >
           <ArrowDown className="w-4.5 h-4.5" />
         </button>

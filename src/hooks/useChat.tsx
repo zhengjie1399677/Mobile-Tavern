@@ -53,6 +53,7 @@ export const useChat = (
     activeSession, isSending, setIsSending,
     deleteSession,
     refreshSessionStatistics,
+    hydrateSessionMessages,
     isSummarizing, setIsSummarizing,
   } = useChatState();
 
@@ -136,7 +137,7 @@ export const useChat = (
     setShowSessionManager: ui.setShowSessionManager,
     setMsgMenuId: ui.setMsgMenuId,
     deleteSession, refreshSessionStatistics, databaseService, telemetryService,
-    triggerScroll: ui.triggerScroll,
+    hydrateSessionMessages,
     showCustomAlert, showCustomConfirm, showCustomPrompt,
     launchPlugin,
   }), [
@@ -145,7 +146,8 @@ export const useChat = (
     sessions, characters, settings,
     setSessionViews, loadCharacterById, setActiveCharId, setActiveSessionId, setActiveTab,
     ui.setChatSubTab, ui.setShowSessionManager, ui.setMsgMenuId,
-    deleteSession, refreshSessionStatistics, databaseService, telemetryService, ui.triggerScroll,
+    deleteSession, refreshSessionStatistics, databaseService, telemetryService,
+    hydrateSessionMessages,
     showCustomAlert, showCustomConfirm, showCustomPrompt, launchPlugin,
   ]);
 

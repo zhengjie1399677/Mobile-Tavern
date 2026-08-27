@@ -56,6 +56,12 @@ interface TurnMetrics {
   requestSizeKB: number; // 该轮请求体大小（含完整聊天历史）
 }
 
+interface ScrollPerformanceSample {
+  maxScrollDistance: number;
+  p95FrameGapMs: number;
+  maxFrameGapMs: number;
+}
+
 async function sampleMemory(page: Page, turn: number): Promise<MemorySample> {
   const data = await page.evaluate(() => {
     const perf = (performance as unknown as {
@@ -75,6 +81,36 @@ async function sampleMemory(page: Page, turn: number): Promise<MemorySample> {
     };
   });
   return { turn, ...data };
+}
+
+async function sampleChatScroll(page: Page): Promise<ScrollPerformanceSample> {
+  return page.getByRole("log", { name: "聊天消息记录" }).evaluate(async (element) => {
+    const maxScrollDistance = Math.max(0, element.scrollHeight - element.clientHeight);
+    const frameGaps: number[] = [];
+    let previousTimestamp = performance.now();
+    const steps = 48;
+
+    for (let index = 0; index <= steps; index += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame((timestamp) => {
+        frameGaps.push(timestamp - previousTimestamp);
+        previousTimestamp = timestamp;
+        const progress = index / steps;
+        const normalized = progress <= 0.5 ? progress * 2 : (1 - progress) * 2;
+        // 避开 scrollTop=0 的历史分页触发区，单独衡量虚拟列表快速滚动。
+        element.scrollTop = maxScrollDistance * (0.15 + normalized * 0.85);
+        resolve();
+      }));
+    }
+    element.scrollTop = maxScrollDistance;
+
+    const sorted = frameGaps.slice(1).sort((left, right) => left - right);
+    const p95Index = Math.max(0, Math.ceil(sorted.length * 0.95) - 1);
+    return {
+      maxScrollDistance,
+      p95FrameGapMs: sorted[p95Index] ?? 0,
+      maxFrameGapMs: sorted.at(-1) ?? 0,
+    };
+  });
 }
 
 // ─── 测试用例 ─────────────────────────────────────────────────────────────────
@@ -328,6 +364,7 @@ test.describe("长会话压力测试", () => {
     // ─── 步骤 6：最终采样与断言 ───────────────────────────────────────────────
     const finalSample = await sampleMemory(page, TURNS);
     samples.push(finalSample);
+    const scrollPerformance = await sampleChatScroll(page);
 
     const heapGrowthMB = finalSample.usedJSHeapSizeMB - baseline.usedJSHeapSizeMB;
 
@@ -340,6 +377,7 @@ test.describe("长会话压力测试", () => {
     console.log(`Heap 增量:     ${heapGrowthMB.toFixed(2)} MB ` +
       `(baseline ${baseline.usedJSHeapSizeMB.toFixed(2)} MB → final ${finalSample.usedJSHeapSizeMB.toFixed(2)} MB)`);
     console.log(`DOM 节点数:    ${baseline.domNodeCount} → ${finalSample.domNodeCount}`);
+    console.log(`滚动帧间隔:    p95=${scrollPerformance.p95FrameGapMs.toFixed(1)}ms / max=${scrollPerformance.maxFrameGapMs.toFixed(1)}ms`);
 
     // 请求体大小增长趋势
     if (turnMetrics.length > 0) {
@@ -384,7 +422,12 @@ test.describe("长会话压力测试", () => {
       `Latency degraded ${latencyGrowthRatio.toFixed(2)}x from first 5 turns to last 5 turns (limit: ${LATENCY_GROWTH_RATIO_LIMIT}x)`
     ).toBeLessThan(LATENCY_GROWTH_RATIO_LIMIT);
 
-    // 断言 4：采样过程中 heap 趋势不应单调递增（允许波动）
+    // 断言 4：必须实际滚动长列表，且虚拟列表快速往返时不出现持续性主线程停顿。
+    expect(scrollPerformance.maxScrollDistance, "长会话必须形成可滚动区域").toBeGreaterThan(500);
+    expect(scrollPerformance.p95FrameGapMs, "长会话滚动 p95 帧间隔过高").toBeLessThan(180);
+    expect(scrollPerformance.maxFrameGapMs, "长会话滚动出现过长停顿").toBeLessThan(350);
+
+    // 断言 5：采样过程中 heap 趋势不应单调递增（允许波动）
     if (samples.length >= 3) {
       let monotonicIncreaseCount = 0;
       for (let i = 1; i < samples.length; i++) {

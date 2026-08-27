@@ -29,48 +29,56 @@ class MainActivity : TauriActivity() {
     private const val KEY_THEME_DARK = "isDark"
     private const val KEY_THEME_COLOR = "themeColor"
     private const val BACK_EXIT_INTERVAL_MS = 2_000L
+    private const val BRAND_SPLASH_COLOR = "#01091c"
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
 
-    // Apply saved status bar style immediately on launch (before JS bridge is ready)
-    val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-    val savedIsDark = prefs.getBoolean(KEY_THEME_DARK, true)
-    val savedColor = prefs.getString(KEY_THEME_COLOR, "#15171e") ?: "#15171e"
-    applyStatusBar(savedIsDark, savedColor)
+    // 冷启动阶段固定使用品牌色；Web 首帧就绪后再恢复用户主题，避免系统 Splash 与 WebView 跳色。
+    applyStatusBar(true, BRAND_SPLASH_COLOR)
 
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
       override fun handleOnBackPressed() {
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastBackPressedAt <= BACK_EXIT_INTERVAL_MS) {
-          finishAffinity()
+        val webView = appWebView
+        if (webView == null) {
+          handleUnconsumedBackPress()
           return
         }
-        lastBackPressedAt = now
-        Toast.makeText(
-          this@MainActivity,
-          getString(R.string.press_back_again_to_exit),
-          Toast.LENGTH_SHORT
-        ).show()
+        webView.evaluateJavascript(
+          "(function(){try{return window.__mobileTavernHandleBack?.()===true;}catch(e){return false;}})();"
+        ) { consumed ->
+          if (consumed == "true") {
+            lastBackPressedAt = 0L
+          } else {
+            handleUnconsumedBackPress()
+          }
+        }
       }
     })
 
     // Listen for window inset changes (e.g. orientation changes, navigation bar toggles)
     val decorView = window.decorView
     ViewCompat.setOnApplyWindowInsetsListener(decorView) { view, windowInsets ->
-      val statusBarHeight = windowInsets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-      val navigationBarHeight = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+      val systemBarInsets = windowInsets.getInsets(
+        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+      )
+      val statusBarHeight = systemBarInsets.top
+      val navigationBarHeight = systemBarInsets.bottom
+      val leftInset = systemBarInsets.left
+      val rightInset = systemBarInsets.right
       
       val density = view.resources.displayMetrics.density
       val statusBarDp = statusBarHeight / density
       val navigationBarDp = navigationBarHeight / density
+      val leftInsetDp = leftInset / density
+      val rightInsetDp = rightInset / density
 
       appWebView?.let { webView ->
         webView.post {
           webView.evaluateJavascript(
-            "window.dispatchEvent(new CustomEvent('androidSafeAreasChanged', { detail: { top: $statusBarDp, bottom: $navigationBarDp } }));",
+            "window.dispatchEvent(new CustomEvent('androidSafeAreasChanged', { detail: { top: $statusBarDp, bottom: $navigationBarDp, left: $leftInsetDp, right: $rightInsetDp } }));",
             null
           )
         }
@@ -82,9 +90,30 @@ class MainActivity : TauriActivity() {
 
   }
 
+  private fun handleUnconsumedBackPress() {
+    val now = SystemClock.elapsedRealtime()
+    if (now - lastBackPressedAt <= BACK_EXIT_INTERVAL_MS) {
+      finishAffinity()
+      return
+    }
+    lastBackPressedAt = now
+    Toast.makeText(
+      this,
+      getString(R.string.press_back_again_to_exit),
+      Toast.LENGTH_SHORT
+    ).show()
+  }
+
   override fun onResume() {
     super.onResume()
     AndroidThemeBridge.notifyStoragePermissionStateOnResume()
+    ViewCompat.requestApplyInsets(window.decorView)
+    appWebView?.post {
+      appWebView?.evaluateJavascript(
+        "window.dispatchEvent(new CustomEvent('mobileTavernNativeResume'));",
+        null
+      )
+    }
   }
 
   override fun onWebViewCreate(webView: WebView) {
@@ -92,7 +121,7 @@ class MainActivity : TauriActivity() {
     this.appWebView = webView
 
     // Set WebView background color to match the theme background and prevent white flashes during load
-    webView.setBackgroundColor(android.graphics.Color.parseColor("#0d1726"))
+    webView.setBackgroundColor(android.graphics.Color.parseColor(BRAND_SPLASH_COLOR))
 
     // 注意：`window.AndroidThemeBridge` JavascriptInterface 由 Tauri 插件
     // `tauri_plugin_android_bridge` 在 `AndroidBridgePlugin#load` 中统一注入
@@ -115,14 +144,19 @@ class MainActivity : TauriActivity() {
       val insets = ViewCompat.getRootWindowInsets(decorView)
       var statusBarDp = 0f
       var navigationBarDp = 0f
+      var leftInsetDp = 0f
+      var rightInsetDp = 0f
       if (insets != null) {
-        val statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-        val navigationBarHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+        val systemBarInsets = insets.getInsets(
+          WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+        )
         val density = decorView.resources.displayMetrics.density
-        statusBarDp = statusBarHeight / density
-        navigationBarDp = navigationBarHeight / density
+        statusBarDp = systemBarInsets.top / density
+        navigationBarDp = systemBarInsets.bottom / density
+        leftInsetDp = systemBarInsets.left / density
+        rightInsetDp = systemBarInsets.right / density
       }
-      return "{\"top\": $statusBarDp, \"bottom\": $navigationBarDp}"
+      return "{\"top\": $statusBarDp, \"bottom\": $navigationBarDp, \"left\": $leftInsetDp, \"right\": $rightInsetDp}"
     }
 
     @android.webkit.JavascriptInterface

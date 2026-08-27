@@ -5,6 +5,12 @@ import type {
   MemoryFragment,
   MemoryPersistencePort,
 } from "../application/services/memory/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 interface MemoryFragmentEditorProps {
   sessionId: string;
@@ -35,6 +41,11 @@ export default function MemoryFragmentEditor({
   const [newTag, setNewTag] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useMobileBackHandler(true, () => {
+    onClose();
+    return true;
+  }, 950);
 
   const selectFragment = (fragment: MemoryFragment | null) => {
     setSelectedId(fragment?.id ?? null);
@@ -116,22 +127,23 @@ export default function MemoryFragmentEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/65 backdrop-blur-md sm:items-center sm:p-4">
-      <section
-        aria-label={t("memory.audit_title")}
-        className="flex max-h-[88dvh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-t-2xl border border-zinc-800 bg-zinc-900/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-2xl sm:rounded-2xl sm:p-5"
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[1000] bg-black/65 backdrop-blur-md"
+        className="!bottom-0 !top-auto z-[1000] flex max-h-[88dvh] w-full max-w-md !translate-y-0 flex-col gap-4 overflow-y-auto rounded-b-none rounded-t-2xl border border-zinc-800 bg-zinc-900/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-2xl sm:!bottom-auto sm:!top-1/2 sm:!-translate-y-1/2 sm:rounded-2xl sm:p-5"
       >
         <header className="flex items-center justify-between border-b border-zinc-800 pb-3">
           <div>
-            <p className="flex items-center gap-2 text-sm font-bold text-zinc-200">
-              <Tag className="size-4 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-sm font-bold text-zinc-200">
+              <Tag className="size-4 text-primary" aria-hidden="true" />
               {t("memory.audit_title")}
-            </p>
-            <p className="mt-1 text-[10px] text-zinc-500">
+            </DialogTitle>
+            <p className="mt-1 text-xs text-zinc-500">
               {t("memory.turn_label", { turn: String(sourceTurnEnd) })}
             </p>
           </div>
-          <button aria-label={t("common.close")} onClick={onClose} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">
+          <button type="button" aria-label={t("common.close")} onClick={onClose} className="flex size-11 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white">
             <X className="size-4" />
           </button>
         </header>
@@ -141,7 +153,7 @@ export default function MemoryFragmentEditor({
             <button
               key={fragment.id}
               onClick={() => selectFragment(fragment)}
-              className={`min-h-9 shrink-0 rounded-lg border px-3 text-xs ${
+              className={`min-h-11 shrink-0 rounded-lg border px-3 text-xs ${
                 selectedId === fragment.id
                   ? "border-primary bg-primary/15 text-primary"
                   : "border-zinc-800 bg-zinc-950/50 text-zinc-400"
@@ -152,7 +164,7 @@ export default function MemoryFragmentEditor({
           ))}
           <button
             onClick={() => selectFragment(null)}
-            className={`flex min-h-9 shrink-0 items-center gap-1 rounded-lg border px-3 text-xs ${
+            className={`flex min-h-11 shrink-0 items-center gap-1 rounded-lg border px-3 text-xs ${
               selectedId === null
                 ? "border-primary bg-primary/15 text-primary"
                 : "border-zinc-800 bg-zinc-950/50 text-zinc-400"
@@ -177,9 +189,9 @@ export default function MemoryFragmentEditor({
           <span className="text-xs font-semibold text-zinc-400">{t("memory.tags_label")}</span>
           <div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">
             {tags.map((tag) => (
-              <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[10px] text-primary">
+              <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 pl-2 text-xs text-primary">
                 {tag}
-                <button type="button" aria-label={t("memory.remove_tag", { tag })} onClick={() => setTags(tags.filter((item) => item !== tag))}>
+                <button type="button" aria-label={t("memory.remove_tag", { tag })} onClick={() => setTags(tags.filter((item) => item !== tag))} className="size-8 rounded-full">
                   ×
                 </button>
               </span>
@@ -191,9 +203,9 @@ export default function MemoryFragmentEditor({
               value={newTag}
               onChange={(event) => setNewTag(event.target.value)}
               placeholder={t("memory.tag_placeholder")}
-              className="min-h-10 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-xs text-zinc-200 outline-none focus:border-primary"
+              className="min-h-11 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-xs text-zinc-200 outline-none focus:border-primary"
             />
-            <button type="submit" aria-label={t("memory.add_tag")} className="min-h-10 min-w-10 rounded-lg bg-zinc-800 text-zinc-200">
+            <button type="submit" aria-label={t("memory.add_tag")} className="size-11 rounded-lg bg-zinc-800 text-zinc-200">
               <Plus className="mx-auto size-4" />
             </button>
           </form>
@@ -205,7 +217,7 @@ export default function MemoryFragmentEditor({
           <button
             onClick={handleDelete}
             disabled={!selected || isSaving}
-            className="flex min-h-10 items-center gap-1.5 rounded-lg border border-red-900/60 bg-red-950/40 px-3 text-xs text-red-400 disabled:opacity-40"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg border border-red-900/60 bg-red-950/40 px-3 text-xs text-red-400 disabled:opacity-40"
           >
             <Trash2 className="size-3.5" />
             {t("common.delete")}
@@ -213,13 +225,13 @@ export default function MemoryFragmentEditor({
           <button
             onClick={handleSave}
             disabled={!content.trim() || isSaving}
-            className="flex min-h-10 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-40"
           >
             <Check className="size-3.5" />
             {isSaving ? t("common.saving") : t("common.save")}
           </button>
         </footer>
-      </section>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

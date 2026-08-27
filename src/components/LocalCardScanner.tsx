@@ -6,6 +6,12 @@ import { useCharactersState } from "../contexts/CharacterContext";
 import { parseCharacterFile } from "../utils/cardParser";
 import { catbotEventBus } from "../utils/catbotEventBus";
 import { CharacterCard } from "../types";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 // Android 原生桥接接口定义
@@ -260,23 +266,28 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
+  useMobileBackHandler(isOpen, () => {
+    onClose();
+    return true;
+  }, 900);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[999] flex items-center justify-center p-4">
-      <div className="bg-background border border-border rounded-2xl w-full max-w-lg flex flex-col h-[85vh] max-h-[640px] shadow-2xl overflow-hidden text-xs">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent showCloseButton={false} className="z-[900] flex h-[85dvh] max-h-[640px] w-full max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-background p-0 text-sm shadow-2xl">
         
         {/* 头部标题区 */}
         <div className="flex min-h-11 items-center justify-between border-b border-border px-3.5 py-1 shrink-0">
-          <h4 className="font-bold text-foreground flex items-center gap-2 text-sm">
+          <DialogTitle className="font-bold text-foreground flex items-center gap-2 text-base">
             <FolderSearch className="w-4.5 h-4.5 text-primary" />
             <span>{t("scanner.title")}</span>
-          </h4>
+          </DialogTitle>
           <button
             type="button"
             onClick={onClose}
             aria-label={t("scanner.close")}
-            className="text-muted-foreground hover:text-foreground hover:bg-muted/40 w-9 h-9 rounded-lg transition active:scale-95 flex items-center justify-center shrink-0"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted/40 size-11 rounded-lg transition-colors active:scale-95 flex items-center justify-center shrink-0"
           >
             <X className="w-4.5 h-4.5" />
           </button>
@@ -361,7 +372,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                 placeholder={t("scanner.search_placeholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-9 pl-8 pr-2.5 bg-input border border-border rounded-lg text-[11px] text-foreground outline-none focus:border-primary transition"
+                className="w-full min-h-11 pl-8 pr-2.5 bg-input border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary transition-colors"
               />
             </div>
           )}
@@ -436,7 +447,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                 return (
                   <div
                     key={file.path}
-                    className="flex items-center justify-between gap-3 p-2 bg-muted/30 hover:bg-muted/65 border border-border/40 rounded-xl transition duration-200"
+                    className="mobile-list-item flex items-center justify-between gap-3 p-2 bg-muted/30 hover:bg-muted/65 border border-border/40 rounded-xl transition-colors"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <div className="p-2 bg-background border border-border/50 rounded-lg text-primary">
@@ -463,7 +474,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                       type="button"
                       disabled={isImporting || !!importingPath}
                       onClick={() => handleImportFile(file)}
-                      className="min-h-8 px-3 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-lg text-[10px] transition active:scale-95 disabled:opacity-50 shrink-0 flex items-center gap-1"
+                      className="min-h-11 px-3 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-lg text-xs transition-colors active:scale-95 disabled:opacity-50 shrink-0 flex items-center gap-1"
                     >
                       {isImporting ? (
                         <>
@@ -480,7 +491,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

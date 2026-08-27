@@ -19,6 +19,27 @@ interface WindowWithAndroidBridge extends Window {
   AndroidThemeBridge?: AndroidThemeBridge;
 }
 
+interface NativeSafeAreaInsets {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+const normalizeSafeAreaInset = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : 0;
+
+const parseNativeSafeAreaInsets = (value: unknown): NativeSafeAreaInsets | null => {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  return {
+    top: normalizeSafeAreaInset(record.top),
+    bottom: normalizeSafeAreaInset(record.bottom),
+    left: normalizeSafeAreaInset(record.left),
+    right: normalizeSafeAreaInset(record.right),
+  };
+};
+
 export type TabType =
   | "characters"
   | "community"
@@ -49,8 +70,6 @@ interface AppContextType {
   setActiveWorldbookHostId: (id: string | null) => void;
   currentTheme: ThemeType;
   handleThemeChange: (theme: ThemeType) => void;
-  showSplash: boolean;
-  setShowSplash: (show: boolean) => void;
   customDialog: CustomDialogConfig | null;
   setCustomDialog: (config: CustomDialogConfig | null) => void;
   showCustomAlert: (message: string, title?: string) => Promise<void>;
@@ -144,7 +163,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const [activeWorldbookHostId, setActiveWorldbookHostId] = useState<string | null>(null);
-  const [showSplash, setShowSplash] = useState(true);
   const [dialogQueue, setDialogQueue] = useState<CustomDialogConfig[]>([]);
   const setCustomDialog = (config: CustomDialogConfig | null) => {
     if (config === null) {
@@ -180,21 +198,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Synchronize Android Native Safe Area Heights via bridge and custom events
   useEffect(() => {
-    const updateSafeAreas = (top: number, bottom: number) => {
+    const updateSafeAreas = ({ top, bottom, left, right }: NativeSafeAreaInsets) => {
       setSafeAreas({ top, bottom });
       document.documentElement.style.setProperty('--android-safe-area-top', `${top}px`);
       document.documentElement.style.setProperty('--android-safe-area-bottom', `${bottom}px`);
+      document.documentElement.style.setProperty('--android-safe-area-left', `${left}px`);
+      document.documentElement.style.setProperty('--android-safe-area-right', `${right}px`);
       document.documentElement.style.setProperty('--safe-area-top', `${top}px`);
       document.documentElement.style.setProperty('--safe-area-bottom', `${bottom}px`);
+      document.documentElement.style.setProperty('--safe-area-left', `${left}px`);
+      document.documentElement.style.setProperty('--safe-area-right', `${right}px`);
     };
 
     const tryFetchSafeAreas = () => {
       const bridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
       if (bridge && typeof bridge.getSafeAreas === "function") {
         try {
-          const res = JSON.parse(bridge.getSafeAreas());
+          const res = parseNativeSafeAreaInsets(JSON.parse(bridge.getSafeAreas()));
+          if (!res) return false;
           console.log("[AppContext] getSafeAreas success:", res);
-          updateSafeAreas(res.top, res.bottom);
+          updateSafeAreas(res);
           return true;
         } catch (e) {
           console.error("Failed to parse native safe areas:", e);
@@ -222,17 +245,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const handleSafeAreasChange = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
+      const detail = parseNativeSafeAreaInsets((e as CustomEvent<unknown>).detail);
       console.log("[AppContext] androidSafeAreasChanged event received:", detail);
       if (detail) {
-        updateSafeAreas(detail.top, detail.bottom);
+        updateSafeAreas(detail);
       }
     };
 
+    const handleNativeResume = () => {
+      tryFetchSafeAreas();
+    };
+
     window.addEventListener("androidSafeAreasChanged", handleSafeAreasChange);
+    window.addEventListener("mobileTavernNativeResume", handleNativeResume);
     return () => {
       if (timerId) clearInterval(timerId);
       window.removeEventListener("androidSafeAreasChanged", handleSafeAreasChange);
+      window.removeEventListener("mobileTavernNativeResume", handleNativeResume);
     };
   }, []);
 
@@ -318,13 +347,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentTheme]);
 
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
-
   const showCustomAlert = (message: string, title: string = TRANSLATIONS["zh-CN"]["dialog.alert_default_title"]) => {
     return new Promise<void>((resolve) => {
       const newDialog: CustomDialogConfig = {
@@ -392,8 +414,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveWorldbookHostId,
         currentTheme,
         handleThemeChange,
-        showSplash,
-        setShowSplash,
         customDialog: dialogQueue[0] || null,
         setCustomDialog,
         showCustomAlert,

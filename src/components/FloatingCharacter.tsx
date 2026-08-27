@@ -18,6 +18,12 @@ import { MessageSquare, X, ChevronRight } from "lucide-react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useKernel } from "../contexts/KernelContext";
 import type { IKernelService } from "@/src/application/serviceContracts";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 interface RenderStateSnapshot {
   portraitBase64: string;
@@ -62,6 +68,11 @@ export function FloatingCharacter({ enabled }: FloatingCharacterProps) {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPressed = useRef(false);
   const bubbleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useMobileBackHandler(menuOpen, () => {
+    setMenuOpen(false);
+    return true;
+  }, 850);
 
   // 订阅 CharacterRenderService
   useEffect(() => {
@@ -268,6 +279,7 @@ export function FloatingCharacter({ enabled }: FloatingCharacterProps) {
           <img
             src={renderState.portraitBase64}
             alt={activeCharacter.name || "Character"}
+            decoding="async"
             className="w-full h-full object-cover pointer-events-none"
           />
           {/* 情绪徽章 */}
@@ -294,7 +306,7 @@ export function FloatingCharacter({ enabled }: FloatingCharacterProps) {
                   e.stopPropagation();
                   setBubbleVisible(false);
                 }}
-                className="fc-no-drag shrink-0 text-muted-foreground hover:text-foreground pointer-events-auto"
+                className="fc-no-drag pointer-events-auto flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="关闭气泡"
               >
                 <X className="w-3 h-3" />
@@ -312,30 +324,27 @@ export function FloatingCharacter({ enabled }: FloatingCharacterProps) {
       </div>
 
       {/* 长按菜单 */}
-      {menuOpen && (
-        <div
-          className="fc-no-drag fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-          style={{ zIndex: 9997 }}
-          onClick={() => setMenuOpen(false)}
+      <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
+        <DialogContent
+          showCloseButton={false}
+          overlayClassName="fc-no-drag z-[9997] bg-black/40 backdrop-blur-sm"
+          className="fc-no-drag z-[9997] w-full max-w-[280px] gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-2xl"
         >
-          <div
-            className="fc-no-drag w-full max-w-[280px] bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
             {/* 角色信息头 */}
             <div className="p-3 border-b border-border flex items-center gap-3">
               <div className="w-10 h-10 rounded-full overflow-hidden border border-border">
                 <img
                   src={renderState.portraitBase64}
                   alt={activeCharacter.name}
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm text-foreground truncate">
+                <DialogTitle className="truncate text-sm font-semibold text-foreground">
                   {activeCharacter.name || "未命名角色"}
-                </p>
-                <p className="text-[10px] text-muted-foreground">
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground">
                   当前情绪：{renderState.emotion}
                 </p>
               </div>
@@ -373,9 +382,8 @@ export function FloatingCharacter({ enabled }: FloatingCharacterProps) {
             >
               关闭
             </button>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

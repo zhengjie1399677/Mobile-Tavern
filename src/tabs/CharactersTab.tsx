@@ -24,6 +24,7 @@ import {
   History,
   Sparkles,
   UsersRound,
+  LoaderCircle,
 } from "lucide-react";
 import { getAvatarGradientClass } from "../utils/avatarUtils";
 import { listBuiltinPluginCards } from "../infrastructure/plugins/builtinPlugins";
@@ -32,6 +33,13 @@ import {
   saveCharacterLayout,
   type CharacterLayout,
 } from "./characterLayout";
+import { preloadChatTab } from "../composition/mainTabLoaders";
+import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "../../components/ui/dialog";
 
 export default function CharactersTab() {
   const {
@@ -75,6 +83,12 @@ export default function CharactersTab() {
   const [selectedDetailChar, setSelectedDetailChar] = React.useState<CharacterCard | null>(null);
   const [actionMenuChar, setActionMenuChar] = React.useState<CharacterCard | null>(null);
   const [scannerOpen, setScannerOpen] = React.useState(false);
+  const [openingCharacterId, setOpeningCharacterId] = React.useState<string | null>(null);
+  const openingCharacterIdRef = React.useRef<string | null>(null);
+  useMobileBackHandler(!!actionMenuChar, () => {
+    setActionMenuChar(null);
+    return true;
+  }, 850);
   const [characterLayout, setCharacterLayout] = React.useState<CharacterLayout>(() => {
     try {
       return readCharacterLayout(window.localStorage);
@@ -103,10 +117,29 @@ export default function CharactersTab() {
     () => [...characters, ...pluginCards],
     [characters, pluginCards]
   );
+  const openCharacter = React.useCallback(async (characterId: string) => {
+    if (openingCharacterIdRef.current) return;
+    openingCharacterIdRef.current = characterId;
+    setOpeningCharacterId(characterId);
+    try {
+      void preloadChatTab().catch((error: unknown) => {
+        console.warn("[CharactersTab] Failed to preload chat view:", error);
+      });
+      await selectCharacter(characterId);
+    } catch (error: unknown) {
+      console.error("[CharactersTab] Failed to enter character chat:", error);
+    } finally {
+      if (openingCharacterIdRef.current === characterId) {
+        openingCharacterIdRef.current = null;
+      }
+      setOpeningCharacterId((current) => current === characterId ? null : current);
+    }
+  }, [selectCharacter]);
+
   const handleOpenPureAgent = React.useCallback(async () => {
     const existingChar = characters.find((c) => c.id === "base-agent-builtin");
     if (existingChar) {
-      await selectCharacter(existingChar.id);
+      await openCharacter(existingChar.id);
       return;
     }
     const pureChar: CharacterCard = {
@@ -137,11 +170,11 @@ export default function CharactersTab() {
       console.warn("[CharactersTab] Auto-persist base-agent-builtin card fallback:", e);
     }
     try {
-      await selectCharacter(pureChar.id);
+      await openCharacter(pureChar.id);
     } catch (err) {
       console.error("[CharactersTab] Failed to select Base Agent character:", err);
     }
-  }, [characters, getKernelService, selectCharacter]);
+  }, [characters, getKernelService, openCharacter]);
 
   return (
     <div className="relative min-h-screen space-y-3.5 px-4 pb-4 pt-2.5">
@@ -157,19 +190,19 @@ export default function CharactersTab() {
                 Lite
               </span>
             </h1>
-            <p className="mt-1 max-w-[190px] text-[10px] font-light leading-relaxed text-muted-foreground">
+            <p className="mt-1 max-w-[190px] text-xs font-light leading-relaxed text-muted-foreground">
               {t("characters_tab.subtitle")}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={() => setScannerOpen(true)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-sm transition hover:text-foreground active:scale-[0.96]"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground active:scale-[0.96]"
               title={t("characters_tab.scan_title")}
             >
               <FolderSearch className="h-4 w-4" />
             </button>
-            <label className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-background/70 text-muted-foreground shadow-sm backdrop-blur-sm transition hover:text-foreground active:scale-[0.96]" title={t("characters_tab.import_title")}>
+            <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground active:scale-[0.96]" title={t("characters_tab.import_title")}>
               <FileUp className="h-4 w-4" />
               <input
                 type="file"
@@ -180,7 +213,7 @@ export default function CharactersTab() {
             </label>
             <button
               onClick={handleAddNewCharacter}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary font-medium text-primary-foreground shadow-[0_8px_20px_-10px_var(--primary)] transition-all hover:bg-primary/90 active:scale-[0.96]"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary font-medium text-primary-foreground shadow-[0_8px_20px_-10px_var(--primary)] transition-colors hover:bg-primary/90 active:scale-[0.96]"
               title={t("characters_tab.create_title")}
             >
               <Plus className="h-4 w-4" />
@@ -189,16 +222,16 @@ export default function CharactersTab() {
         </div>
 
         <div className="relative mt-4 grid grid-cols-2 gap-2">
-          <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/55 px-3 py-2 backdrop-blur-sm">
+          <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/85 px-3 py-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <UsersRound className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
               <p className="text-sm font-bold leading-none text-foreground">{displayCharacters.length}</p>
-              <p className="mt-1 truncate text-[9px] text-muted-foreground">{t("nav.characters")}</p>
+              <p className="mt-1 truncate text-xs text-muted-foreground">{t("nav.characters")}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/55 px-3 py-2 backdrop-blur-sm">
+          <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/85 px-3 py-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <History className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
@@ -206,16 +239,17 @@ export default function CharactersTab() {
               <p className="text-sm font-bold leading-none text-foreground">
                 {areSessionCountsReady ? totalSessionCount : "…"}
               </p>
-              <p className="mt-1 truncate text-[9px] text-muted-foreground">{t("nav.chat-history")}</p>
+              <p className="mt-1 truncate text-xs text-muted-foreground">{t("nav.chat-history")}</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* 纯净 AI 助手 (Base Agent) 专属入口卡片 */}
-      <div
+      <button
+        type="button"
         onClick={handleOpenPureAgent}
-        className="group relative flex items-center justify-between gap-3 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/15 via-primary/5 to-card p-3.5 shadow-sm transition hover:border-primary/50 hover:shadow-md cursor-pointer active:scale-[0.99]"
+        className="group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/15 via-primary/5 to-card p-3.5 text-left shadow-sm transition-colors hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md">
@@ -228,7 +262,7 @@ export default function CharactersTab() {
                 Base Agent
               </span>
             </div>
-            <p className="mt-0.5 truncate text-[11px] font-light text-muted-foreground">
+            <p className="mt-0.5 truncate text-xs font-light text-muted-foreground">
               无角色人设 / 无预设提示词，直连大模型问答与代码辅助
             </p>
           </div>
@@ -236,10 +270,10 @@ export default function CharactersTab() {
         <div className="flex shrink-0 items-center justify-center h-8 px-3 rounded-lg bg-primary/15 text-primary text-xs font-semibold group-hover:bg-primary group-hover:text-primary-foreground transition-all">
           开启对话
         </div>
-      </div>
+      </button>
 
       <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/70 px-2 py-1.5 shadow-sm" role="group" aria-label={t("characters_tab.layout_group")}>
-        <span className="pl-1.5 text-[10px] font-medium text-muted-foreground">{t("characters_tab.layout_group")}</span>
+        <span className="pl-1.5 text-xs font-medium text-muted-foreground">{t("characters_tab.layout_group")}</span>
         <div className="flex items-center gap-1">
           {([
             ["list", LayoutList, "characters_tab.layout_list"],
@@ -252,7 +286,7 @@ export default function CharactersTab() {
               onClick={() => changeCharacterLayout(layout)}
               aria-pressed={characterLayout === layout}
               title={t(labelKey)}
-              className={`flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 transition active:scale-95 ${
+              className={`flex size-11 items-center justify-center rounded-lg border transition-colors active:scale-95 ${
                 characterLayout === layout
                   ? "border-primary/40 bg-primary/15 text-primary"
                   : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -278,13 +312,22 @@ export default function CharactersTab() {
           const isPluginCard = !!char.extensions?.mt_plugin;
           const branchCount = sessionCountsByCharacter[char.id] ?? 0;
           const isActive = activeCharId === char.id;
+          const isOpening = openingCharacterId === char.id;
 
           return (
             <div
               key={char.id}
-              onClick={() => selectCharacter(char.id)}
-              style={{ "--card-index": index } as React.CSSProperties}
-              className={`relative flex h-auto cursor-pointer select-none rounded-xl border border-border/50 bg-gradient-to-br from-card to-muted/20 spring-press-effect animate-card-fade-in ${
+              onClick={() => { void openCharacter(char.id); }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                void openCharacter(char.id);
+              }}
+              role="button"
+              tabIndex={0}
+              aria-busy={isOpening}
+              style={{ "--card-index": Math.min(index, 6) } as React.CSSProperties}
+              className={`mobile-list-item relative flex h-auto cursor-pointer select-none rounded-xl border border-border/50 bg-gradient-to-br from-card to-muted/20 spring-press-effect outline-none focus-visible:ring-2 focus-visible:ring-ring ${index < 8 ? "animate-card-fade-in" : ""} ${
                 characterLayout === "list"
                   ? "items-center gap-3 min-h-[96px] p-3"
                   : characterLayout === "shelf"
@@ -296,6 +339,12 @@ export default function CharactersTab() {
                   : "shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_10px_25px_-5px_rgba(255,255,255,0.03)] hover:-translate-y-0.5"
               }`}
             >
+              {isOpening && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center gap-2 rounded-xl bg-card/85 text-xs font-semibold text-primary">
+                  <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                  正在进入…
+                </div>
+              )}
               {/* 插件型角色卡互动角标 */}
               {isPluginCard && (
                 <div className="absolute top-1 right-1 flex items-center gap-0.5 text-[8px] opacity-60 text-muted-foreground bg-muted/40 px-1 py-0.5 rounded select-none">
@@ -317,6 +366,9 @@ export default function CharactersTab() {
                   <img
                     src={char.avatar}
                     alt={char.name}
+                    loading={index < 4 ? "eager" : "lazy"}
+                    decoding="async"
+                    fetchPriority={index < 2 ? "high" : "auto"}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -341,7 +393,7 @@ export default function CharactersTab() {
                       >
                         <button
                           onClick={() => setActionMenuChar(char)}
-                          className="text-muted-foreground hover:text-primary w-8 h-8 bg-background/80 backdrop-blur-sm rounded-lg hover:bg-muted transition active:scale-95 flex items-center justify-center shrink-0 shadow-sm"
+                          className="text-muted-foreground hover:text-primary size-11 bg-background/90 rounded-lg hover:bg-muted transition-colors active:scale-95 flex items-center justify-center shrink-0 shadow-sm"
                           title={t("characters_tab.more_title")}
                         >
                           <MoreHorizontal className="w-3.5 h-3.5" />
@@ -383,23 +435,16 @@ export default function CharactersTab() {
 
       {/* 底部操作抽屉 (BottomSheet) */}
       {actionMenuChar && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center select-none">
-          {/* 半透明遮罩层 */}
-          <div
-            className="absolute inset-0 bg-black/55 transition-opacity"
-            onClick={() => setActionMenuChar(null)}
-          />
-          {/* 抽屉面板 */}
-          <div
+        <Dialog open onOpenChange={(open) => { if (!open) setActionMenuChar(null); }}>
+          <DialogContent
+            showCloseButton={false}
             style={{ paddingBottom: `calc(16px + env(safe-area-inset-bottom))` }}
-            className="w-full max-w-lg bg-background border-t border-border/50 rounded-t-3xl shadow-2xl z-10 flex flex-col transition-transform animate-in slide-in-from-bottom duration-200"
+            className="!top-auto !bottom-0 !translate-y-0 z-[900] flex w-full max-w-lg flex-col gap-0 rounded-t-3xl rounded-b-none border-x-0 border-b-0 border-t border-border/50 bg-background p-0 shadow-2xl data-open:slide-in-from-bottom sm:!top-1/2 sm:!bottom-auto sm:!-translate-y-1/2 sm:rounded-3xl sm:border"
           >
+            <DialogTitle className="sr-only">{actionMenuChar.name}</DialogTitle>
             {/* 顶部手柄装饰 */}
             <div className="flex justify-center py-2.5">
-              <div
-                className="w-12 h-1.5 bg-muted-foreground/30 rounded-full cursor-pointer"
-                onClick={() => setActionMenuChar(null)}
-              />
+              <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" aria-hidden="true" />
             </div>
 
             {/* 角色基本信息预览 */}
@@ -408,7 +453,7 @@ export default function CharactersTab() {
                 actionMenuChar.avatar ? "bg-muted" : getAvatarGradientClass(actionMenuChar.name)
               }`}>
                 {actionMenuChar.avatar ? (
-                  <img src={actionMenuChar.avatar} alt={actionMenuChar.name} className="w-full h-full object-cover" />
+                  <img src={actionMenuChar.avatar} alt={actionMenuChar.name} decoding="async" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-xl font-bold">{actionMenuChar.name[0]}</span>
                 )}
@@ -498,8 +543,8 @@ export default function CharactersTab() {
                 <span>{t("characters_tab.delete_char")}</span>
               </button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       <LocalCardScanner

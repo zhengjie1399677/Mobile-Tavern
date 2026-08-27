@@ -1,6 +1,7 @@
 import React, { useSyncExternalStore, useCallback } from "react";
 import {
   CharacterCard,
+  ChatMessageHydrationStatus,
   ChatSession,
   ChatSessionMetadataPatch,
   UserSettings,
@@ -29,8 +30,6 @@ export interface UnifiedAppContextProps {
   setActiveWorldbookHostId: (id: string | null) => void;
   currentTheme: ThemeType;
   handleThemeChange: (theme: ThemeType) => void;
-  showSplash: boolean;
-  setShowSplash: (show: boolean) => void;
   customDialog: CustomDialogConfig | null;
   setCustomDialog: (config: CustomDialogConfig | null) => void;
   showCustomAlert: (message: string, title?: string) => Promise<void>;
@@ -71,6 +70,9 @@ export interface UnifiedAppContextProps {
   connectionStatus: { testing: boolean; success?: boolean; message?: string };
   setConnectionStatus: (status: any) => void;
   loadSessions: () => Promise<void>;
+  loadMoreSessions: () => Promise<void>;
+  hasMoreSessions: boolean;
+  isLoadingMoreSessions: boolean;
   refreshSessionStatistics: () => Promise<void>;
   updateSessionMetadata: (sessionId: string, patch: ChatSessionMetadataPatch) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
@@ -78,6 +80,8 @@ export interface UnifiedAppContextProps {
   hasMoreMessages: boolean;
   isLoadingMoreMessages: boolean;
   loadMoreMessages: () => Promise<void>;
+  messageHydrationStatus: ChatMessageHydrationStatus;
+  hydrateSessionMessages: (sessionId: string) => Promise<void>;
 
   // --- Settings Hook ---
   settings: UserSettings;

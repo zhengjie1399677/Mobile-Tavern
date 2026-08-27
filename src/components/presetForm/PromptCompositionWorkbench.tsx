@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import { useTranslation } from "../../contexts/LanguageContext";
+import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 import type { PromptComposition } from "../../domain/prompt-composition";
 import PromptCompositionGraph from "./PromptCompositionGraph";
 import { PromptCompositionPreviewContent } from "./PromptCompositionPreviewDialog";
@@ -31,6 +32,10 @@ interface PromptCompositionWorkbenchProps {
 
 export default function PromptCompositionWorkbench(props: PromptCompositionWorkbenchProps) {
   const { t } = useTranslation();
+  useMobileBackHandler(Boolean(!props.embedded && props.open), () => {
+    props.onOpenChange?.(false);
+    return true;
+  }, 900);
   const panel = (
     <section role="region" aria-label={t("prompt_composer.workbench_title")} className="overflow-hidden rounded-xl border border-primary/20 bg-background/75">
       <div className="grid grid-cols-3 border-b border-border bg-muted/30 p-1" role="group" aria-label={t("prompt_composer.workbench_view")}>

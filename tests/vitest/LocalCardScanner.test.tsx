@@ -60,7 +60,7 @@ describe("LocalCardScanner Android 权限流程", () => {
     const permissionButton = screen.getByRole("button", { name: "scanner.permission_btn" });
     const closeButton = screen.getByRole("button", { name: "scanner.close" });
     expect(permissionButton).toHaveClass("min-h-9");
-    expect(closeButton).toHaveClass("w-9", "h-9");
+    expect(closeButton).toHaveClass("size-11");
 
     fireEvent.click(closeButton);
     expect(onClose).toHaveBeenCalledTimes(1);

@@ -149,6 +149,9 @@ export interface ChatMessageWindow {
   messages: Message[];
 }
 
+/** 当前活跃会话消息窗口的界面水合状态。 */
+export type ChatMessageHydrationStatus = "idle" | "loading" | "ready" | "error";
+
 export type ApiType = "openai-compat" | "openai" | "anthropic";
 
 export interface ApiConfig {
