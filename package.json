@@ -98,7 +98,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "fake-indexeddb": "^6.2.5",
     "happy-dom": "^15.11.7",
-    "pixi.js": "^8.18.1",
+    "pixi.js": "^8.20.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
