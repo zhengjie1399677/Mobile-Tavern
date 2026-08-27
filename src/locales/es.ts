@@ -26,6 +26,8 @@ export default {
   "settings_hub.composer_desc": "Gestione estructura, orden e inyección de contexto por separado",
   "settings_hub.experimental": "Experimental",
   "settings_hub.advanced_title": "Ajustes avanzados",
+  "settings_hub.plugins_title": "Agents & Plugins",
+  "settings_hub.plugins_desc": "Manage Runtime Profiles, Agent Tool plugins, and isolated fullscreen plugins.",
   "settings_hub.advanced_desc": "Funciones, idioma y herramientas de desarrollo",
   "settings_hub.about_title": "Versión y actualizaciones",
   "settings_hub.about_category_title": "Acerca de nosotros",

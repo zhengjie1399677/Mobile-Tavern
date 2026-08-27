@@ -157,28 +157,11 @@ export function AgentHostDiagnosticsModal({ isOpen, onClose }: AgentHostDiagnost
                     <span className="text-foreground font-semibold flex items-center gap-1">
                       <CheckCircle className="w-3 h-3 text-emerald-500" /> {t.name}
                     </span>
-                    <span className="text-muted-foreground">v{t.version}</span>
+                    <span className="text-muted-foreground">v{t.version} · {t.policy} · {t.riskLevel}</span>
                   </div>
                 ))
               ) : (
-                <div className="text-[10px] text-muted-foreground font-mono space-y-1">
-                  <div className="flex items-center justify-between text-amber-500/90 font-sans font-medium text-[9px] pb-1 border-b border-border/20">
-                    <span>未挂载第三方扩展工具</span>
-                    <span>Phase A 内置备选</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-0.5">
-                    <span>session.search</span>
-                    <span className="text-emerald-500 font-semibold">Built-in</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>memory.search</span>
-                    <span className="text-emerald-500 font-semibold">Built-in</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>character.read</span>
-                    <span className="text-emerald-500 font-semibold">Built-in</span>
-                  </div>
-                </div>
+                <span className="text-[10px] text-muted-foreground italic">当前 Profile 未注册 Agent Tool</span>
               )}
             </div>
           </div>

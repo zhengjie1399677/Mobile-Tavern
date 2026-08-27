@@ -29,7 +29,11 @@ export function ToolCallBlock({ events }: ToolCallBlockProps): React.JSX.Element
   const toolEvents = React.useMemo(() => {
     if (!events || events.length === 0) return [];
     return events.filter(
-      (evt) => evt.type === "tool.called" || evt.type === "tool.result" || evt.type === "tool.failed"
+      (evt) => evt.type === "tool.called"
+        || evt.type === "tool.result"
+        || evt.type === "tool.failed"
+        || evt.type === "tool.approval.requested"
+        || evt.type === "tool.approval.resolved"
     );
   }, [events]);
 
@@ -42,7 +46,10 @@ export function ToolCallBlock({ events }: ToolCallBlockProps): React.JSX.Element
     arguments?: unknown;
     result?: unknown;
     error?: string;
-    status: "running" | "completed" | "failed";
+    errorCode?: string;
+    approval?: "pending" | "allowed" | "denied";
+    approvalReason?: string;
+    status: "running" | "awaiting-approval" | "completed" | "failed";
   }>();
 
   for (const evt of toolEvents) {
@@ -63,7 +70,21 @@ export function ToolCallBlock({ events }: ToolCallBlockProps): React.JSX.Element
       const existing = callsMap.get(evt.callId);
       if (existing) {
         existing.error = evt.errorMessage;
+        existing.errorCode = evt.errorCode;
         existing.status = "failed";
+      }
+    } else if (evt.type === "tool.approval.requested") {
+      const existing = callsMap.get(evt.callId);
+      if (existing) {
+        existing.approval = "pending";
+        existing.status = "awaiting-approval";
+      }
+    } else if (evt.type === "tool.approval.resolved") {
+      const existing = callsMap.get(evt.callId);
+      if (existing) {
+        existing.approval = evt.decision === "allow" ? "allowed" : "denied";
+        existing.approvalReason = evt.reason;
+        if (evt.decision === "allow") existing.status = "running";
       }
     }
   }
@@ -72,7 +93,7 @@ export function ToolCallBlock({ events }: ToolCallBlockProps): React.JSX.Element
   if (calls.length === 0) return null;
 
   const totalCalls = calls.length;
-  const runningCount = calls.filter((c) => c.status === "running").length;
+  const runningCount = calls.filter((c) => c.status === "running" || c.status === "awaiting-approval").length;
   const failedCount = calls.filter((c) => c.status === "failed").length;
 
   return (
@@ -129,6 +150,18 @@ export function ToolCallBlock({ events }: ToolCallBlockProps): React.JSX.Element
                   <pre className="whitespace-pre-wrap leading-tight max-h-48 overflow-y-auto custom-scrollbar">{formatJsonPayload(call.arguments)}</pre>
                 </div>
               )}
+              {call.approval && (
+                <div className={`rounded px-1.5 py-1 text-[10px] ${
+                  call.approval === "allowed"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : call.approval === "denied"
+                      ? "bg-rose-500/10 text-rose-500"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                }`}>
+                  审批：{call.approval === "allowed" ? "已允许一次" : call.approval === "denied" ? "已拒绝" : "等待用户决定"}
+                  {call.approvalReason ? `（${approvalReasonLabel(call.approvalReason)}）` : ""}
+                </div>
+              )}
               {Boolean(call.result) && (
                 <div className="text-[10px] text-foreground/90 bg-emerald-500/5 border border-emerald-500/20 p-1.5 rounded overflow-x-auto">
                   <span className="text-[9px] font-sans font-semibold text-emerald-600 dark:text-emerald-400 block mb-0.5">{t("message_bubble.tool_result")}</span>
@@ -138,7 +171,7 @@ export function ToolCallBlock({ events }: ToolCallBlockProps): React.JSX.Element
               {Boolean(call.error) && (
                 <div className="text-[10px] text-rose-500 bg-rose-500/10 p-1.5 rounded">
                   <span className="font-sans font-semibold block mb-0.5">{t("message_bubble.tool_error")}</span>
-                  <span>{call.error}</span>
+                  <span>{formatToolError(call.errorCode, call.error)}</span>
                 </div>
               )}
             </div>
@@ -147,6 +180,32 @@ export function ToolCallBlock({ events }: ToolCallBlockProps): React.JSX.Element
       )}
     </div>
   );
+}
+
+function approvalReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    user: "用户决定",
+    policy: "策略拒绝",
+    cancelled: "已取消",
+    timeout: "审批超时",
+    "host-unavailable": "审批界面不可用",
+  };
+  return labels[reason] ?? reason;
+}
+
+function formatToolError(code: string | undefined, message: string | undefined): string {
+  const labels: Record<string, string> = {
+    AGENT_TOOL_APPROVAL_DENIED: "用户拒绝了这次操作，Tool 未执行。",
+    AGENT_TOOL_APPROVAL_TIMEOUT: "审批已超时，Tool 未执行。",
+    AGENT_TOOL_APPROVAL_CANCELLED: "审批随当前请求取消，Tool 未执行。",
+    AGENT_TOOL_APPROVAL_HOST_UNAVAILABLE: "审批界面不可用，已按安全策略拒绝执行。",
+    AGENT_TOOL_PERMISSION_DENIED: "当前 Agent 没有执行此 Tool 的权限。",
+    AGENT_TOOL_INPUT_INVALID: "Tool 参数不符合输入规则。",
+    AGENT_TOOL_OUTPUT_INVALID: "Tool 返回结果不符合输出规则。",
+    AGENT_TOOL_TIMEOUT: "Tool 执行超时。",
+  };
+  if (code && labels[code]) return labels[code];
+  return code ? `${code}: ${message ?? "Tool 执行失败"}` : (message ?? "Tool 执行失败");
 }
 
 export default React.memo(ToolCallBlock);

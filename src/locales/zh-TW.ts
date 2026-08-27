@@ -26,6 +26,8 @@ export default {
   "settings_hub.composer_desc": "獨立管理訊息結構、順序與上下文注入",
   "settings_hub.experimental": "實驗性功能",
   "settings_hub.advanced_title": "進階設定",
+  "settings_hub.plugins_title": "Agent 與外掛",
+  "settings_hub.plugins_desc": "管理 Runtime Profile、Agent Tool 外掛和隔離全螢幕外掛。",
   "settings_hub.advanced_desc": "功能開關、語言與開發工具",
   "settings_hub.about_title": "版本與更新",
   "settings_hub.about_category_title": "關於我們",

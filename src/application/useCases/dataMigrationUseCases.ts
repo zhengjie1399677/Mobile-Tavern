@@ -161,6 +161,8 @@ function isAgentJournalEventType(value: unknown): value is AgentJournalEvent["ty
     || value === "tool.called"
     || value === "tool.result"
     || value === "tool.failed"
+    || value === "tool.approval.requested"
+    || value === "tool.approval.resolved"
     || value === "media.processed"
     || value === "turn.completed"
     || value === "turn.cancelled"
@@ -201,6 +203,34 @@ function assertAgentJournalPayload(event: Record<string, unknown>, index: number
       break;
     case "tool.failed":
       requireStrings("callId", "toolName", "errorCode", "errorMessage");
+      break;
+    case "tool.approval.requested":
+      requireStrings(
+        "approvalId",
+        "callId",
+        "toolName",
+        "description",
+        "riskLevel",
+        "sideEffect",
+        "executionScope",
+      );
+      if (
+        !["low", "medium", "high"].includes(String(event.riskLevel))
+        || !["none", "local-write", "external", "irreversible"].includes(String(event.sideEffect))
+        || !["turn", "session", "memory", "character", "external"].includes(String(event.executionScope))
+        || typeof event.expiresAt !== "number"
+      ) {
+        throw new Error(`Agent Journal ${index} 审批请求字段无效。`);
+      }
+      break;
+    case "tool.approval.resolved":
+      requireStrings("approvalId", "callId", "toolName", "decision", "reason");
+      if (
+        !["allow", "deny"].includes(String(event.decision))
+        || !["user", "policy", "cancelled", "timeout", "host-unavailable"].includes(String(event.reason))
+      ) {
+        throw new Error(`Agent Journal ${index} 审批结果字段无效。`);
+      }
       break;
     case "media.processed":
       requireStrings("processorId", "processorVersion");

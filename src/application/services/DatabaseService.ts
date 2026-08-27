@@ -509,7 +509,12 @@ export class DatabaseService implements IDatabaseService<
     return newSession;
   }
 
-  async createEmptyBranch(character: CharacterCard, title: string): Promise<ChatSession> {
+  async createEmptyBranch(
+    character: CharacterCard,
+    title: string,
+    parentSessionId?: string,
+    signal?: AbortSignal,
+  ): Promise<ChatSession> {
     const scriptService = this.kernel.getService<IScriptService<CharacterCard, ChatSession>>("script");
     let mvuVariables = scriptService.initializeMvuFromCharacter(character);
     
@@ -553,10 +558,11 @@ export class DatabaseService implements IDatabaseService<
       messages,
       summaries: [],
       createdAt: Date.now(),
+      parentSessionId,
       runtimePluginState: this.createCompatibilityState(mvuVariables),
       compositionSnapshot: this.getAgentCompositionSnapshot(),
     };
-    await this.replaceCompleteSessions([newSession]);
+    await this.replaceCompleteSessions([newSession], signal);
     return newSession;
   }
 

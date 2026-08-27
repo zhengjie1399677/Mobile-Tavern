@@ -808,10 +808,10 @@ npm run dev:android
 # TypeScript 静态类型校验
 npm run lint
 
-# 自定义集成测试套件(80 组功能套件)
+# 自定义集成测试套件（数量以当次输出为准）
 npm run test
 
-# Vitest 单元测试(348+ 断言)
+# Vitest 单元测试（数量以当次输出为准）
 npm run test:unit
 
 # Playwright E2E

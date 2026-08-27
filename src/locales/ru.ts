@@ -26,6 +26,8 @@ export default {
   "settings_hub.composer_desc": "Отдельное управление структурой, порядком и контекстом",
   "settings_hub.experimental": "Экспериментальная функция",
   "settings_hub.advanced_title": "Расширенные настройки",
+  "settings_hub.plugins_title": "Agents & Plugins",
+  "settings_hub.plugins_desc": "Manage Runtime Profiles, Agent Tool plugins, and isolated fullscreen plugins.",
   "settings_hub.advanced_desc": "Функции, язык и инструменты разработчика",
   "settings_hub.about_title": "Версия и обновления",
   "settings_hub.about_category_title": "О приложении",

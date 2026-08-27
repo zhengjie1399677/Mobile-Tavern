@@ -6,6 +6,7 @@ import {
 } from "../../src/application/services/AgentRuntimeService";
 import type {
   AgentJournalEvent,
+  AgentToolApprovalRequest,
   AgentTurnExecutionContext,
 } from "../../src/domain/agents/contracts";
 import { createKernel } from "../../src/kernel/Kernel";
@@ -203,6 +204,10 @@ describe("AgentRuntimeService", () => {
       },
       outputSchema: z.object({ value: z.number() }),
       permissions: ["compute.basic"],
+      riskLevel: "low",
+      sideEffect: "none",
+      executionScope: "turn",
+      policy: "allow",
       timeoutMs: 100,
       execute: async (input) => ({ value: (input as { value: number }).value * 2 }),
     });
@@ -248,6 +253,163 @@ describe("AgentRuntimeService", () => {
       errorCode: "AGENT_TOOL_PERMISSION_DENIED",
     });
     await deniedHandle.dispose();
+    await handle.dispose();
+    await service.destroy();
+  });
+
+  it("ask Tool 必须经一次性审批后执行，并记录可重放审批事件", async () => {
+    const { journal, service } = await createService();
+    service.registerDriver({
+      id: "driver.approval",
+      version: "1.0.0",
+      async run({ executeTool }) {
+        await executeTool({
+          callId: "call-approval",
+          name: "session.branch",
+          arguments: { title: "新的分支" },
+        });
+      },
+    });
+    service.registerProvider({
+      id: "provider.approval",
+      version: "1.0.0",
+      capabilities: {
+        inputModalities: ["text"],
+        supportsStreaming: true,
+        supportsTools: true,
+      },
+      buildRequestBody: (request) => request,
+    });
+    const execute = vi.fn(async () => ({ sessionId: "session-branch" }));
+    service.registerTool({
+      name: "session.branch",
+      version: "1.0.0",
+      description: "创建新的本地会话分支",
+      inputSchema: z.object({ title: z.string() }),
+      inputJsonSchema: {
+        type: "object",
+        properties: { title: { type: "string" } },
+        required: ["title"],
+        additionalProperties: false,
+      },
+      outputSchema: z.object({ sessionId: z.string() }),
+      permissions: ["session.write"],
+      riskLevel: "medium",
+      sideEffect: "local-write",
+      executionScope: "session",
+      policy: "ask",
+      timeoutMs: 100,
+      approvalTimeoutMs: 1_000,
+      execute,
+    });
+    const requests: AgentToolApprovalRequest[] = [];
+    const unsubscribe = service.subscribeToolApprovals((request) => requests.push(request));
+    const handle = service.openHandle({
+      sessionId: "session-source",
+      driverId: "driver.approval",
+      providerId: "provider.approval",
+      executeLegacy: async () => undefined,
+      grantedPermissions: ["session.write"],
+      enabledToolNames: ["session.branch"],
+    });
+
+    const running = handle.send({ text: "创建一个新分支", attachmentIds: [] });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    expect(service.listPendingToolApprovals()).toEqual([requests[0]]);
+    expect(execute).not.toHaveBeenCalled();
+    expect(service.resolveToolApproval(requests[0].id, "allow")).toBe(true);
+
+    await expect(running).resolves.toMatchObject({ status: "completed" });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(service.listPendingToolApprovals()).toEqual([]);
+    expect(journal.events.map((event) => event.type)).toEqual([
+      "turn.started",
+      "tool.called",
+      "tool.approval.requested",
+      "tool.approval.resolved",
+      "tool.result",
+      "turn.completed",
+    ]);
+    expect(journal.events[3]).toMatchObject({
+      type: "tool.approval.resolved",
+      decision: "allow",
+      reason: "user",
+    });
+
+    unsubscribe();
+    await handle.dispose();
+    await service.destroy();
+  });
+
+  it("ask Tool 在审批宿主不可用时 fail-closed，且不会执行副作用", async () => {
+    const { journal, service } = await createService();
+    service.registerDriver({
+      id: "driver.fail-closed",
+      version: "1.0.0",
+      async run({ executeTool }) {
+        await executeTool({
+          callId: "call-denied",
+          name: "memory.write",
+          arguments: { text: "不要写入" },
+        });
+      },
+    });
+    service.registerProvider({
+      id: "provider.fail-closed",
+      version: "1.0.0",
+      capabilities: {
+        inputModalities: ["text"],
+        supportsStreaming: true,
+        supportsTools: true,
+      },
+      buildRequestBody: (request) => request,
+    });
+    const execute = vi.fn(async () => ({ ok: true }));
+    service.registerTool({
+      name: "memory.write",
+      version: "1.0.0",
+      description: "写入本地长期记忆",
+      inputSchema: z.object({ text: z.string() }),
+      inputJsonSchema: {
+        type: "object",
+        properties: { text: { type: "string" } },
+        required: ["text"],
+        additionalProperties: false,
+      },
+      outputSchema: z.object({ ok: z.boolean() }),
+      permissions: ["memory.write"],
+      riskLevel: "high",
+      sideEffect: "local-write",
+      executionScope: "memory",
+      policy: "ask",
+      timeoutMs: 100,
+      execute,
+    });
+    const handle = service.openHandle({
+      sessionId: "session-fail-closed",
+      driverId: "driver.fail-closed",
+      providerId: "provider.fail-closed",
+      executeLegacy: async () => undefined,
+      grantedPermissions: ["memory.write"],
+      enabledToolNames: ["memory.write"],
+    });
+
+    await expect(handle.send({ text: "写入记忆", attachmentIds: [] }))
+      .rejects.toThrow("AGENT_TOOL_APPROVAL_HOST_UNAVAILABLE");
+    expect(execute).not.toHaveBeenCalled();
+    expect(journal.events.map((event) => event.type)).toEqual([
+      "turn.started",
+      "tool.called",
+      "tool.approval.requested",
+      "tool.approval.resolved",
+      "tool.failed",
+      "turn.failed",
+    ]);
+    expect(journal.events[3]).toMatchObject({
+      type: "tool.approval.resolved",
+      decision: "deny",
+      reason: "host-unavailable",
+    });
     await handle.dispose();
     await service.destroy();
   });

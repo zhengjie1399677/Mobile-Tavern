@@ -185,11 +185,12 @@ someAsyncOp().then(() => {
 | `MobileTavernPluginDB` | 插件数据库（包元数据/存档/文件字节） | v2 |
 | `MobileTavernResourceDB` | 用户本地界面资源（主题图片/视频/音频的元数据与文件字节） | v1 |
 | `MobileTavernAttachmentDB` | 消息附件元数据、引用状态与媒体字节 | v1 |
-| `MobileTavernAgentJournalDB` | Agent Turn、Provider/媒体决定、Tool Call/Result | v1 |
+| `MobileTavernAgentJournalDB` | Agent Turn、Provider/媒体决定、Tool Call/审批/Result | v1 |
+| `MobileTavernToolPluginDB` | External Tool Plugin Manifest、Artifact、加密凭据、授权状态与最多 8 个历史版本 | v2 |
 
 ### 隔离规则
 
-- 五个数据库的连接管理独立，互不影响
+- 六个数据库的连接管理独立，互不影响
 - 插件数据库的 schema 升级不触发主数据库的 `onupgradeneeded`
 - 插件数据库的写操作不经过主数据库的 `enqueueWrite` 队列
 - 本地界面资源不得写入 `settings` 大对象，也不得借用插件包数据库；资源元数据与文件字节必须分 Store 保存。
@@ -198,6 +199,8 @@ someAsyncOp().then(() => {
 - 消息只持久化 `att_*` 引用，附件元数据与字节分别进入 `metadata`、`contents` Store；聊天 UI 只能通过 `AttachmentService` 读取和创建 Blob URL。
 - 主消息库与附件库不能共享 IndexedDB 事务：新附件先进入 `staging`，消息事务成功后从权威消息快照重建引用并转为 `committed`；最后引用移除后进入 `orphaned`，启动修复和 GC 负责崩溃恢复。
 - Agent Journal 只保存可重放的安全数据，不得写入 Profile config、API Key、访问令牌或 Processor 私有输入；会话删除必须同步清理 Journal。
+- Tool Plugin 数据库只保存通过严格 Schema、包限制与规范化 SHA-256 校验的 Manifest、单入口 Artifact、启用状态、权限授权、加密凭据和版本历史；Artifact 与凭据分 Store 保存，执行由应用层 Runtime 编排，不得与 `.mtplugin` 包数据库混用。
+- Tool Plugin 新安装或升级默认停用且无授权；缺少必需权限时禁止启用，撤销必需权限必须自动停用。回滚必须停用并清空授权，卸载必须删除当前 Manifest、全部历史版本和授权状态。
 - v6 完整备份必须携带消息引用的附件字节和 Agent Journal；覆盖恢复先验证引用与会话归属，再将附件字节、状态和反向引用在附件库单事务中一次提交，随后替换 Journal 与主库。主库提交后禁止再执行可能失败的附件引用重建；主库提交前任一步失败都必须恢复旧附件引用快照与 Journal。
 
 ---
@@ -216,9 +219,17 @@ someAsyncOp().then(() => {
 - AgentHandle 同一时刻只允许一个活跃 Turn；`stop()`、Handle 销毁和 Runtime 销毁必须中止 Turn，并等待清理完成后移除活跃句柄。
 - Driver、Provider、Tool 与媒体 Processor 使用稳定 ID/版本注册，每次注册返回基于实例身份的 disposer；重复 ID 必须拒绝，Profile Scope 卸载后不得残留贡献。
 - Tool 输入和输出都必须经过 Schema 校验；执行前检查权限，使用有限超时和 Turn AbortSignal；Call、Result、失败与最终 Turn 状态按序进入 Agent Journal。
+- Tool 必须声明风险级别、副作用、执行 Scope 与 `allow` / `deny` / `ask` 策略；具有副作用或高风险的 Tool 不得默认 `allow`。`ask` 只能授予单次 Call，审批取消、超时、宿主不可用和最后一个审批 UI 卸载均按拒绝处理。
+- Tool 可见性由会话 Composition Snapshot 的 `tool` Contribution 冻结；旧会话不得因当前 Profile 增加 Tool 而静默获得能力。审批请求与决定复用 Agent Journal，并由聊天投影展示，不建立第二套日志或授权存储。
 - OpenAI-compatible 流式 `tool_calls` 必须按 index 聚合分片名称与 JSON 参数；每一步经当前 Turn 的 `executeTool` 执行后，以 Assistant `tool_calls` 和 Tool Result 消息继续请求。循环必须有固定上限，停止、超限和非法参数均进入现有失败/取消语义。
 - Provider 必须声明输入模态、MIME/数量/大小限制、流式与工具能力；实际 Provider/模型选择及 `MediaProjectionDecision` 写入 Journal，重试不得重新猜测。
 - 音频 ASR 结果作为模型可见文本写回 V2 消息；视频关键帧作为派生附件 ID 写回 video part，使重发、分支、备份与 GC 能从持久化事实重建。
+
+## 7.3 受控 Tool Plugin 管理契约
+
+- `mobile-tavern.tool-plugin` v1 Manifest 必须声明来源、版本、规范化内容哈希、最低 Runtime、目标 Profile、依赖、权限、Tool Schema、风险、副作用、执行 Scope 和清理策略。
+- 用户导入仅允许 `worker` 或 `sandbox` 执行位置；`app` 进程执行必须在 Schema 边界拒绝。Tool 不得使用 Manifest 未声明的权限，具有副作用的 Tool 不得标记为低风险。
+- React 管理界面只能通过 `toolPluginManagementUseCases` 访问独立存储。`ToolPluginRuntimeService` 只为已启用、兼容、依赖可用、权限与必需凭据齐全的 v2 插件注册 Tool；外部 Worker 每次调用新建并回收，只能通过宿主代理使用 Manifest 声明的 HTTPS 网络能力。
 
 ---
 
@@ -348,3 +359,4 @@ someAsyncOp().then(() => {
 | 2026-08-24 | 增加空 Compatibility Host、六类可撤销贡献、base/tavern Profile 隔离与插件状态命名空间契约 |
 | 2026-08-24 | 增加 Runtime Profile 公开偏好、复制/开关/诊断 UI、会话快照切换守卫，并删除旧静态 Capability Catalog 与 legacy driver ID |
 | 2026-08-24 | 完成插件配置 Schema、类型化 Capability Token/冲突校验、OpenAI 多步 Tool Loop、跨 Profile 会话自动恢复及兼容状态命名空间单写契约 |
+| 2026-08-26 | 增加内置 Tool、会话冻结的 Tool 可见性、风险/副作用/Scope 策略、一次性审批与 fail-closed Journal 契约 |

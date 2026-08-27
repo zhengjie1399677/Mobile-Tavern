@@ -1,38 +1,36 @@
 # Mobile Tavern 活跃待办
 
-> 本文件只记录尚未完成、需要排期或正在推进的事项，不保存完整实现过程。
-> 当前运行状态见 [CURRENT_STATE.md](docs/agents/CURRENT_STATE.md)；已完成事项与历史变更见文末归档链接。
+> 本文件是未完成事项的唯一清单，只记录可执行任务、依赖和当前优先级。
+> 当前产品状态见 [CURRENT_STATE.md](docs/agents/CURRENT_STATE.md)，目标路线见
+> [插件式 Agent Runtime 与聊天组合路线](docs/agents/agent_plugin_runtime_roadmap.md)，
+> 已完成事项见 [2026 年归档](docs/history/TODO_ARCHIVE_2026.md)。
 
 ## 当前优先级
 
-- [ ] **社区生产版本对齐**：部署最新社区二进制后复验深度健康、双哈希去重、评论限流、管理员删除、上传下载时间戳与测试数据清理闭环；当前线上仍是旧版本。
-- 后续评估面向非开发者的 AI 插件创作层：以双角色或多 NPC 设定生成受控模板，通过气泡交互驱动游戏状态与 LLM 对话，不向用户暴露底层代码权限。
-- 顶层功能首次进入仍采用现有按需加载策略；真机验收未发现明显问题，暂不为消除短暂加载增加常驻内存，后续仅在出现可复现体验问题时调整。
+- [ ] **社区生产版本对齐（P1）**：部署仓库中的最新 `cloud/minimal-community` 二进制，复验 `/health/deep`、双 SHA-256 去重、评论限流、管理员删除、上传/下载时间戳和测试数据清理。需要服务器发布权限与管理员令牌；本地代码和测试已具备，线上状态尚未在本轮验证。
 
-## 重构排期
+## 中期排期
 
-- [ ] **P3-B Store 拆分**：采用保守边界，优先拆出 Settings；实施前先解除 `useSettings` 对 `ChatContext.availableModels` 的反向依赖。更大范围拆分暂缓，只有出现明确维护瓶颈时再评估。
+- [ ] **External Tool Plugin 来源治理（P2，路线阶段 D）**：本地 L2 已完成 `.mttool`、声明式 HTTPS、一次性受限 Worker、精确依赖检查、加密凭据、Agent Runtime/新会话快照、权限撤销和卸载清理；继续实现签名/可信来源、远程版本撤回与生态审核。仍不开放任意 Runtime Plugin 安装、后台常驻或原生能力。
+- [ ] **生态试运行（P2，路线阶段 E）**：阶段 A–D 稳定后，再评估 Tool Plugin SDK、目录、版本固定、审核/撤回流程以及 Provider、Media Processor、Renderer、Context Source 扩展模板。
+- [ ] **测试覆盖补强（P2）**：补充现有 Hook 测试尚未覆盖的边界，并新增跨组件数据流契约测试，优先检查 `useCharacters`、`useCatbot`、`useSendMessage` 与 Profile/聊天切换；数量以 `npm test` 和 `npm run test:unit` 当次结果为准。
+- [ ] **P3-B Store 拆分（P3，条件性）**：先解除 `useSettings` 对 `ChatContext.availableModels` 的反向依赖，再只拆出 Settings；更大范围拆分只有出现明确维护瓶颈时再评估。
 
-## 中期规划
+## 低优先级与外部条件
 
-- [ ] **全双工免手触连续语音扮演模式 (N)**：利用本地 Web Wasm VAD（语音活动检测）过滤噪点，实现无需手动按键的双向交谈。检测到说话结束即自动发送，支持 AI 播报期间随时语音插话打断，适用于做家务/闭眼扮演等免手触伴随场景。
+- [ ] **全双工免手触连续语音扮演模式（N）**：本地 Web Wasm VAD、自动发送、播报插话与中断。
+- [ ] **局域网 P2P 数据热同步与热迁移（G）**：基于 WebRTC 的本地数据增量备份和跨端迁移。
+- [ ] **面向非开发者的 AI 插件创作层**：以双角色或多 NPC 模板生成受控的气泡交互、游戏状态和 LLM 对话，不向用户暴露底层代码权限。
+- [ ] **AR 真机重新验收**：等待具备兼容 ARCore 的测试设备；当前入口已隐藏，不能视为已上线。
+- [ ] **iOS 适配与验收**：当前产品仅完成 Android 方向的开发和构建，iOS 尚未纳入实施计划。
 
-## 中远期规划 (无聊时再做)
+## 已完成摘要
 
-- [ ] **局域网 P2P 数据热同步与热迁移 (G)**：免中转服务器，通过 WebRTC 建立设备直连，实现本地 IndexedDB 数据（角色卡、设定集及聊天历史）的高速增量热备份与跨端热迁移。
+- 2026-08-26：重做多模态附件选择与预览，按图片/视频/音频区分入口和消息展示；完成 External Tool Plugin 本地 L2 执行闭环，后续仅保留签名来源、远程撤回、SDK 与生态审核。
+- 2026-08-26：完成内置 `character.read`、需一次性审批的 `session.branch`、Tool 策略/Journal/聊天卡片闭环，并补齐改动文件 ESLint、Dependabot 和 PR 标题门禁。
+- 2026-08-25：完成 Agent Host 五阶段当前验收范围，包含 Runtime Profile、Message Content V2、Attachment Data Plane、Agent Spine、Compatibility Runtime 和 Profile UI。
+- 2026-08-24：完成 Tool Loop、Agent Journal、音频 ASR、视频关键帧及 Profile 会话恢复的最小纵向闭环。
+- 2026-08-06：修复世界书角色导入重启丢失及 catalog 空壳覆盖完整角色数据的问题。
+- 2026-08-03：统一备份升级到 v4；当前备份链路已继续升级并覆盖附件和 Agent Journal。
 
-## 最近完成
-
-- 2026-07-29：完成全仓库代码审查并修复 P0/P1/P2 共 15 项缺陷：统一 IDB 事务 oncomplete 时序、Kernel 拓扑逆序销毁、SafeProxy 可观测性与阈值遥测、AbortSignal 监听器清理、React 卸载保护与 setTimeout 清理；新增模块边界契约文档与拓扑销毁时序测试，510 项测试全通过。
-- 2026-07-28：长期记忆新增实体关系图谱与时态事实演化，当前事实可按实体召回，事实变更保留有效轮次、来源和替代链。
-- 2026-07-28：完成高级条件变量表达式引擎与插件消息总线 Bridge V2，支持世界书安全条件过滤及插件受权读取上下文、注入动作和触发 AI。
-- 2026-07-28：完成平行分支宇宙与记忆脉络图，支持分支拓扑、拖拽缩放、轮次记忆审计及可追溯的手动增删改。
-- 2026-07-26：基于 WebXR 的 AR 实境酒馆与角色全息悬浮投影完成原型开发，已安全保留底层桥接代码并按真机兼容限制隐去调试入口。
-
-## 归档
-
-- [2026 年已完成事项索引](docs/history/TODO_ARCHIVE_2026.md)
-- [2026 年 7 月变更记录](docs/history/CHANGELOG_2026-07.md)
-- [2026-07-21 整理前的完整 TODO 快照](docs/history/TODO_LEGACY_2026-07-21.md)
-
-历史归档不属于每轮默认阅读内容；只有追溯旧决策、旧测试数据或旧实现背景时才按需打开。
+详细历史索引见 [docs/history/TODO_ARCHIVE_2026.md](docs/history/TODO_ARCHIVE_2026.md)。

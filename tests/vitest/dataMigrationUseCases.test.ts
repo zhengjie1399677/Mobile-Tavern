@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildUnifiedBackupPayload,
+  parseAgentJournalEvents,
   parseRuntimePluginState,
   redactSettingsForPlainBackup,
 } from "../../src/application/useCases/dataMigrationUseCases";
@@ -18,6 +19,58 @@ import type {
 } from "../../src/types";
 
 describe("数据迁移应用用例", () => {
+  it("Agent Journal 导入保留 Tool 审批请求与一次性决定", () => {
+    const base = {
+      sessionId: "session-1",
+      turnId: "turn-1",
+      createdAt: 1,
+    };
+    const events = parseAgentJournalEvents([
+      {
+        ...base,
+        id: "event-1",
+        sequence: 1,
+        type: "tool.approval.requested",
+        approvalId: "approval-1",
+        callId: "call-1",
+        toolName: "session.branch",
+        description: "创建分支",
+        arguments: { title: "新分支" },
+        riskLevel: "medium",
+        sideEffect: "local-write",
+        executionScope: "session",
+        expiresAt: 2,
+      },
+      {
+        ...base,
+        id: "event-2",
+        sequence: 2,
+        type: "tool.approval.resolved",
+        approvalId: "approval-1",
+        callId: "call-1",
+        toolName: "session.branch",
+        decision: "deny",
+        reason: "user",
+      },
+    ]);
+
+    expect(events.map((event) => event.type)).toEqual([
+      "tool.approval.requested",
+      "tool.approval.resolved",
+    ]);
+    expect(() => parseAgentJournalEvents([{
+      ...base,
+      id: "event-invalid",
+      sequence: 1,
+      type: "tool.approval.resolved",
+      approvalId: "approval-1",
+      callId: "call-1",
+      toolName: "session.branch",
+      decision: "always",
+      reason: "user",
+    }])).toThrow(/审批结果/);
+  });
+
   it("Runtime Plugin 私有状态按命名空间收口并拒绝危险键名", () => {
     const state = {
       "mobile-tavern.sillytavern-compat": { stat_data: { affinity: 2 } },

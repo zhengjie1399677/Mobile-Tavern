@@ -26,6 +26,8 @@ export default {
   "settings_hub.composer_desc": "メッセージ構造、順序、コンテキスト注入を独立管理",
   "settings_hub.experimental": "実験的機能",
   "settings_hub.advanced_title": "詳細設定",
+  "settings_hub.plugins_title": "Agents & Plugins",
+  "settings_hub.plugins_desc": "Manage Runtime Profiles, Agent Tool plugins, and isolated fullscreen plugins.",
   "settings_hub.advanced_desc": "機能、言語、開発者ツール",
   "settings_hub.about_title": "バージョンと更新",
   "settings_hub.about_category_title": "このアプリについて",

@@ -15,7 +15,7 @@ import { KernelServices } from "../serviceContracts";
 
 // ─── 工具：函数字段 schema ────────────────────────────────────────────────────
 // 仅校验 typeof === "function"，不校验签名（签名匹配留给 TS 编译期）
-const fnSchema = z.custom<Function>(
+const fnSchema = z.custom<(...args: never[]) => unknown>(
   (val) => typeof val === "function",
   { message: "expected a function" }
 );
@@ -134,6 +134,7 @@ export const P1_SERVICE_NAMES: readonly string[] = [
   KernelServices.AgentRuntime,
   KernelServices.CompatibilityRuntime,
   KernelServices.RuntimeProfiles,
+  KernelServices.ToolConnectors,
 ] as const;
 
 /**

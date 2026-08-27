@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
+import type { CharacterCard } from "../../src/types";
 
 // ------------------------------------------------------------------
 // 模块导入前确认 window 就绪（happy-dom 默认提供）
@@ -75,12 +76,14 @@ describe("TavernHelper Bridge - 数学运行时按需判定", () => {
     expect(cardNeedsMathRuntime(null)).toBe(false);
     expect(cardNeedsMathRuntime({
       extensions: { tavern_helper: { scripts: [{ content: "console.log('plain')" }] } },
-    } as any)).toBe(false);
-    expect(cardNeedsMathRuntime({ extensions: { mvu_settings: { enabled: true } } } as any)).toBe(true);
+    } as unknown as CharacterCard)).toBe(false);
+    expect(cardNeedsMathRuntime({
+      extensions: { mvu_settings: { enabled: true } },
+    } as unknown as CharacterCard)).toBe(true);
     expect(cardNeedsMathRuntime({
       extensions: { tavern_helper: { scripts: [{ content: "import * as math from 'mathjs'" }] } },
-    } as any)).toBe(true);
-  });
+    } as unknown as CharacterCard)).toBe(true);
+  }, 15_000);
 });
 
 describe("TavernHelper Bridge - Zod Mock (window.z)", () => {

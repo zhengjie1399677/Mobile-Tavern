@@ -1,5 +1,8 @@
 #!/bin/sh
 set -e
 
+echo "Running staged TypeScript ESLint..."
+npm run lint:staged
+
 echo "Running pre-commit type check..."
 npm run lint

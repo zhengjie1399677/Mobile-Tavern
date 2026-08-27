@@ -10,6 +10,8 @@ import type {
   AgentMediaProcessingRequest,
   AgentMediaProcessingResult,
   AgentProviderDefinition,
+  AgentToolApprovalDecision,
+  AgentToolApprovalRequest,
   AgentToolCall,
   AgentToolDefinition,
   AgentTurnExecutionContext,
@@ -22,11 +24,17 @@ import {
   replaceAgentJournalEvents,
   deleteAgentJournalBySession,
 } from "../../infrastructure/agents/agentJournalStorage";
+import {
+  ToolApprovalCoordinator,
+  type ToolApprovalResolution,
+} from "./agents/ToolApprovalCoordinator";
 
 const RUNTIME_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,127}$/;
 const TOOL_NAME_PATTERN = /^[a-z][a-z0-9._-]{1,127}$/;
 const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
 const MAX_TOOL_TIMEOUT_MS = 300_000;
+const DEFAULT_APPROVAL_TIMEOUT_MS = 60_000;
+const MAX_APPROVAL_TIMEOUT_MS = 300_000;
 
 export interface AgentJournalPort {
   append(event: AgentJournalEvent): Promise<void>;
@@ -41,12 +49,18 @@ export interface OpenAgentHandleOptions {
   readonly providerId: string;
   readonly executeLegacy: (context: AgentTurnExecutionContext) => Promise<void>;
   readonly grantedPermissions: readonly string[];
+  readonly enabledToolNames?: readonly string[];
 }
 
 export interface AgentRuntimeDiagnostics {
   readonly drivers: ReadonlyArray<{ id: string; version: string }>;
   readonly providers: ReadonlyArray<{ id: string; version: string }>;
-  readonly tools: ReadonlyArray<{ name: string; version: string }>;
+  readonly tools: ReadonlyArray<{
+    name: string;
+    version: string;
+    riskLevel: AgentToolDefinition["riskLevel"];
+    policy: AgentToolDefinition["policy"];
+  }>;
   readonly mediaProcessors: ReadonlyArray<{ id: string; version: string }>;
   readonly activeHandles: number;
 }
@@ -80,6 +94,8 @@ export class AgentRuntimeService implements IAgentRuntimeService {
   private readonly tools = new Map<string, AgentToolDefinition>();
   private readonly mediaProcessors = new Map<string, AgentMediaProcessorDefinition>();
   private readonly handles = new Set<ManagedAgentHandle>();
+  private readonly approvals = new ToolApprovalCoordinator();
+  private readonly journalListeners = new Set<(sessionId: string) => void>();
   private compositionSnapshot: AgentCompositionSnapshot | null = null;
   private active = false;
 
@@ -95,6 +111,8 @@ export class AgentRuntimeService implements IAgentRuntimeService {
     const handles = Array.from(this.handles);
     const results = await Promise.allSettled(handles.map((handle) => handle.dispose()));
     this.handles.clear();
+    this.approvals.destroy();
+    this.journalListeners.clear();
     this.tools.clear();
     this.mediaProcessors.clear();
     this.providers.clear();
@@ -158,6 +176,40 @@ export class AgentRuntimeService implements IAgentRuntimeService {
     }
     if (this.tools.has(definition.name)) {
       throw new AgentRuntimeError("AGENT_TOOL_DUPLICATE");
+    }
+    if (!isToolRiskLevel(definition.riskLevel)) {
+      throw new AgentRuntimeError("AGENT_TOOL_RISK_INVALID");
+    }
+    if (!isToolSideEffect(definition.sideEffect)) {
+      throw new AgentRuntimeError("AGENT_TOOL_SIDE_EFFECT_INVALID");
+    }
+    if (!isToolExecutionScope(definition.executionScope)) {
+      throw new AgentRuntimeError("AGENT_TOOL_EXECUTION_SCOPE_INVALID");
+    }
+    if (!isToolPolicy(definition.policy)) {
+      throw new AgentRuntimeError("AGENT_TOOL_POLICY_INVALID");
+    }
+    if (
+      !Array.isArray(definition.permissions)
+      || definition.permissions.some((permission) => !RUNTIME_ID_PATTERN.test(permission))
+    ) {
+      throw new AgentRuntimeError("AGENT_TOOL_PERMISSIONS_INVALID");
+    }
+    if (
+      definition.policy === "allow"
+      && (definition.riskLevel === "high" || definition.sideEffect !== "none")
+    ) {
+      throw new AgentRuntimeError("AGENT_TOOL_UNSAFE_ALLOW_POLICY");
+    }
+    if (
+      definition.approvalTimeoutMs !== undefined
+      && (
+        !Number.isFinite(definition.approvalTimeoutMs)
+        || definition.approvalTimeoutMs <= 0
+        || definition.approvalTimeoutMs > MAX_APPROVAL_TIMEOUT_MS
+      )
+    ) {
+      throw new AgentRuntimeError("AGENT_TOOL_APPROVAL_TIMEOUT_INVALID");
     }
     this.tools.set(definition.name, definition);
     return createRegistrationDisposer(this.tools, definition.name, definition);
@@ -227,13 +279,25 @@ export class AgentRuntimeService implements IAgentRuntimeService {
     const provider = this.providers.get(options.providerId);
     if (!provider) throw new AgentRuntimeError("AGENT_PROVIDER_NOT_FOUND", options.providerId);
 
+    const enabledToolNames = options.enabledToolNames
+      ? new Set(options.enabledToolNames)
+      : null;
+    const tools = enabledToolNames
+      ? new Map([...this.tools].filter(([name]) => enabledToolNames.has(name)))
+      : this.tools;
     const handle = new ManagedAgentHandle({
-      journal: this.journal,
+      journal: {
+        append: async (event) => {
+          await this.journal.append(event);
+          this.emitJournal(event.sessionId);
+        },
+      },
       driver,
       provider,
-      tools: this.tools,
+      tools,
       mediaProcessors: this.mediaProcessors,
       options,
+      requestToolApproval: (request, signal) => this.requestToolApproval(request, signal),
       onDispose: () => this.handles.delete(handle),
     });
     this.handles.add(handle);
@@ -244,7 +308,12 @@ export class AgentRuntimeService implements IAgentRuntimeService {
     return {
       drivers: this.listDrivers().map(({ id, version }) => ({ id, version })),
       providers: this.listProviders().map(({ id, version }) => ({ id, version })),
-      tools: this.listTools().map(({ name, version }) => ({ name, version })),
+      tools: this.listTools().map(({ name, version, riskLevel, policy }) => ({
+        name,
+        version,
+        riskLevel,
+        policy,
+      })),
       mediaProcessors: this.listMediaProcessors().map(({ id, version }) => ({ id, version })),
       activeHandles: this.handles.size,
     };
@@ -255,15 +324,51 @@ export class AgentRuntimeService implements IAgentRuntimeService {
     return this.journal.listBySession(sessionId);
   }
 
-  replaceJournal(events: readonly AgentJournalEvent[]): Promise<void> {
+  async replaceJournal(events: readonly AgentJournalEvent[]): Promise<void> {
     this.assertActive();
-    return this.journal.replace(events.map((event) => structuredClone(event)));
+    await this.journal.replace(events.map((event) => structuredClone(event)));
+    for (const sessionId of new Set(events.map((event) => event.sessionId))) {
+      this.emitJournal(sessionId);
+    }
   }
 
-  deleteJournalBySession(sessionId: string): Promise<void> {
+  async deleteJournalBySession(sessionId: string): Promise<void> {
     this.assertActive();
     if (!sessionId.trim()) throw new AgentRuntimeError("AGENT_SESSION_ID_INVALID");
-    return this.journal.deleteBySession(sessionId);
+    await this.journal.deleteBySession(sessionId);
+    this.emitJournal(sessionId);
+  }
+
+  listPendingToolApprovals(): AgentToolApprovalRequest[] {
+    return this.approvals.listPending();
+  }
+
+  subscribeToolApprovals(listener: (request: AgentToolApprovalRequest) => void): EffectDisposer {
+    this.assertActive();
+    return this.approvals.subscribe(listener);
+  }
+
+  resolveToolApproval(approvalId: string, decision: AgentToolApprovalDecision): boolean {
+    return this.approvals.resolve(approvalId, decision);
+  }
+
+  subscribeJournal(listener: (sessionId: string) => void): EffectDisposer {
+    this.assertActive();
+    this.journalListeners.add(listener);
+    return () => {
+      this.journalListeners.delete(listener);
+    };
+  }
+
+  private requestToolApproval(
+    request: AgentToolApprovalRequest,
+    signal: AbortSignal,
+  ): Promise<ToolApprovalResolution> {
+    return this.approvals.request(request, signal);
+  }
+
+  private emitJournal(sessionId: string): void {
+    for (const listener of this.journalListeners) listener(sessionId);
   }
 
   private assertActive(): void {
@@ -272,12 +377,16 @@ export class AgentRuntimeService implements IAgentRuntimeService {
 }
 
 interface ManagedAgentHandleDependencies {
-  readonly journal: AgentJournalPort;
+  readonly journal: Pick<AgentJournalPort, "append">;
   readonly driver: AgentDriverDefinition;
   readonly provider: AgentProviderDefinition;
   readonly tools: ReadonlyMap<string, AgentToolDefinition>;
   readonly mediaProcessors: ReadonlyMap<string, AgentMediaProcessorDefinition>;
   readonly options: OpenAgentHandleOptions;
+  readonly requestToolApproval: (
+    request: AgentToolApprovalRequest,
+    signal: AbortSignal,
+  ) => Promise<ToolApprovalResolution>;
   readonly onDispose: () => void;
 }
 
@@ -314,10 +423,11 @@ class ManagedAgentHandle implements AgentHandle {
     this.activeTurnId = turnId;
     this.activeController = controller;
     this.status = "running";
-    this.emit();
 
     const task = this.runTurn(turnId, normalizedInput, controller);
     this.activeTask = task;
+    // 只有 activeTask 已就绪后才对外发布 running，避免 UI 立即 stop 时错过中止窗口。
+    this.emit();
     void task.finally(() => {
       if (this.activeTask !== task) return;
       this.activeTask = null;
@@ -397,6 +507,10 @@ class ManagedAgentHandle implements AgentHandle {
     };
 
     try {
+      if (controller.signal.aborted) {
+        await this.appendCancelled(turnId, controller.signal.reason);
+        return { turnId, status: "cancelled" };
+      }
       await driver.run(context);
       if (controller.signal.aborted) {
         await this.appendCancelled(turnId, controller.signal.reason);
@@ -462,6 +576,8 @@ class ManagedAgentHandle implements AgentHandle {
       arguments: replayInput,
     });
 
+    await this.enforceToolPolicy(turnId, call, tool, replayInput, turnSignal);
+
     const timeoutMs = tool.timeoutMs || DEFAULT_TOOL_TIMEOUT_MS;
     const controller = new AbortController();
     const relayAbort = () => controller.abort(turnSignal.reason);
@@ -504,6 +620,77 @@ class ManagedAgentHandle implements AgentHandle {
       clearTimeout(timeout);
       turnSignal.removeEventListener("abort", relayAbort);
     }
+  }
+
+  private async enforceToolPolicy(
+    turnId: string,
+    call: AgentToolCall,
+    tool: AgentToolDefinition,
+    replayInput: unknown,
+    turnSignal: AbortSignal,
+  ): Promise<void> {
+    if (tool.policy === "allow") return;
+    const approvalId = createId("approval");
+    if (tool.policy === "deny") {
+      await this.appendEvent(turnId, {
+        type: "tool.approval.resolved",
+        approvalId,
+        callId: call.callId,
+        toolName: tool.name,
+        decision: "deny",
+        reason: "policy",
+      });
+      const error = new AgentRuntimeError("AGENT_TOOL_POLICY_DENIED", tool.name);
+      await this.appendToolFailure(turnId, call.callId, tool.name, error);
+      throw error;
+    }
+
+    const expiresAt = Date.now() + (tool.approvalTimeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS);
+    const request: AgentToolApprovalRequest = {
+      id: approvalId,
+      sessionId: this.dependencies.options.sessionId,
+      turnId,
+      callId: call.callId,
+      toolName: tool.name,
+      description: tool.description,
+      arguments: replayInput,
+      riskLevel: tool.riskLevel,
+      sideEffect: tool.sideEffect,
+      executionScope: tool.executionScope,
+      expiresAt,
+    };
+    await this.appendEvent(turnId, {
+      type: "tool.approval.requested",
+      approvalId,
+      callId: call.callId,
+      toolName: tool.name,
+      description: tool.description,
+      arguments: replayInput,
+      riskLevel: tool.riskLevel,
+      sideEffect: tool.sideEffect,
+      executionScope: tool.executionScope,
+      expiresAt,
+    });
+    const resolution = await this.dependencies.requestToolApproval(request, turnSignal);
+    await this.appendEvent(turnId, {
+      type: "tool.approval.resolved",
+      approvalId,
+      callId: call.callId,
+      toolName: tool.name,
+      decision: resolution.decision,
+      reason: resolution.reason,
+    });
+    if (resolution.decision === "allow") return;
+    const errorCode = resolution.reason === "host-unavailable"
+      ? "AGENT_TOOL_APPROVAL_HOST_UNAVAILABLE"
+      : resolution.reason === "timeout"
+        ? "AGENT_TOOL_APPROVAL_TIMEOUT"
+        : resolution.reason === "cancelled"
+          ? "AGENT_TOOL_APPROVAL_CANCELLED"
+          : "AGENT_TOOL_APPROVAL_DENIED";
+    const error = new AgentRuntimeError(errorCode, tool.name);
+    await this.appendToolFailure(turnId, call.callId, tool.name, error);
+    throw error;
   }
 
   private appendToolFailure(
@@ -623,11 +810,27 @@ function assertVersion(version: string, code: string): void {
   }
 }
 
-function createId(prefix: "turn" | "evt"): string {
+function createId(prefix: "turn" | "evt" | "approval"): string {
   const random = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID().replace(/-/g, "")
     : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
   return `${prefix}_${random}`;
+}
+
+function isToolRiskLevel(value: unknown): value is AgentToolDefinition["riskLevel"] {
+  return value === "low" || value === "medium" || value === "high";
+}
+
+function isToolSideEffect(value: unknown): value is AgentToolDefinition["sideEffect"] {
+  return value === "none" || value === "local-write" || value === "external" || value === "irreversible";
+}
+
+function isToolExecutionScope(value: unknown): value is AgentToolDefinition["executionScope"] {
+  return value === "turn" || value === "session" || value === "memory" || value === "character" || value === "external";
+}
+
+function isToolPolicy(value: unknown): value is AgentToolDefinition["policy"] {
+  return value === "allow" || value === "deny" || value === "ask";
 }
 
 function normalizeReplayValue(value: unknown): unknown {

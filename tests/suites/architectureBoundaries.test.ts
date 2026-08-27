@@ -201,8 +201,8 @@ export async function testArchitectureBoundaries(): Promise<void> {
   for (const directory of ["src/components", "src/tabs", "src/hooks", "src/contexts"]) {
     for (const file of listCodeFiles(directory)) {
       assert(
-        !/infrastructure\/(?:resources|attachments)/.test(read(file)),
-        `${file} 不得直接读取本地界面资源或消息附件存储；必须通过对应应用 Service 管理字节与 Blob URL`
+        !/infrastructure\/(?:resources|attachments|toolPlugins)/.test(read(file)),
+        `${file} 不得直接读取本地界面资源、消息附件或 Tool Plugin 存储；必须通过对应应用层入口访问`
       );
     }
   }
@@ -221,6 +221,26 @@ export async function testArchitectureBoundaries(): Promise<void> {
       messageRecord.includes("content: MessageContentPart[]") &&
       !/contentVersion:\s*2[\s\S]{0,160}\bparts\s*:/.test(messageRecord),
     "V2 消息记录必须以 Content Parts 作为唯一权威 content，不得并列持久化派生 parts/content 字段"
+  );
+
+  const toolPluginStorage = read("src/infrastructure/toolPlugins/toolPluginStorage.ts");
+  const toolPluginUseCases = read("src/application/useCases/toolPluginManagementUseCases.ts");
+  const toolPluginManager = read("src/components/plugins/ToolPluginManagerSection.tsx");
+  assert(
+    toolPluginStorage.includes('MobileTavernToolPluginDB')
+      && toolPluginUseCases.includes("infrastructure/toolPlugins/toolPluginStorage")
+      && toolPluginManager.includes("application/useCases/toolPluginManagementUseCases")
+      && !toolPluginManager.includes("infrastructure/toolPlugins"),
+    "Tool Plugin 管理必须使用独立数据库，并由 React 经应用用例访问；管理界面不得直连基础设施"
+  );
+  const toolPluginRuntime = read("src/application/services/ToolPluginRuntimeService.ts");
+  const toolPluginWorker = read("src/infrastructure/toolPlugins/browserToolPluginExecutor.ts");
+  assert(
+    toolPluginRuntime.includes("KernelServices.AgentRuntime")
+      && toolPluginRuntime.includes("TOOL_PLUGIN_RUNTIME_REVOKED")
+      && toolPluginWorker.includes("worker.terminate()")
+      && !toolPluginWorker.includes("getService<"),
+    "External Tool 必须经独立应用服务注册到 Agent Runtime；Worker 必须可回收且不得访问 Kernel"
   );
 
   assert(

@@ -13,8 +13,6 @@ import {
   MicOff,
   Loader2,
   Play,
-  Paperclip,
-  X,
 } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
@@ -29,17 +27,17 @@ import {
 import type { RecalledMessage } from "@/src/application/services/memory/types";
 import type { AttachmentMetadata } from "../../domain/attachments/types";
 import type { MessageContentPart } from "../../domain/messages/messageContent";
+import { AttachmentPicker } from "./attachment-composer/AttachmentPicker";
+import {
+  PendingAttachmentStrip,
+  type PendingAttachment,
+} from "./attachment-composer/PendingAttachmentStrip";
 
 /**
  * 用于在事件 currentTarget 上标记 _touched 状态，
  * 以区分 touchstart 与 mousedown 事件，避免移动端重复触发。
  */
 type TouchTrackedElement = Element & { _touched?: boolean };
-
-interface PendingAttachment {
-  metadata: AttachmentMetadata;
-  previewUrl: string;
-}
 
 function toMessageAttachmentPart(metadata: AttachmentMetadata): MessageContentPart {
   if (metadata.kind === "image") return { type: "image", assetId: metadata.id };
@@ -165,17 +163,12 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [isRecording, setIsRecording] = React.useState(false);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingAttachment[]>([]);
-  const attachmentInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setPendingAttachments([]);
   }, [activeSession?.id]);
 
-  const handleSelectAttachments = React.useCallback(async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  const handleSelectAttachments = React.useCallback(async (files: readonly File[]) => {
     if (files.length === 0) return;
     const remainingSlots = Math.max(0, 4 - pendingAttachments.length);
     if (remainingSlots === 0) {
@@ -197,7 +190,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       await showCustomAlert(`附件导入失败：${message}`);
     }
     if (imported.length > 0) setPendingAttachments(current => [...current, ...imported]);
-  }, [getKernelService, pendingAttachments.length, showCustomAlert]);
+  }, [getKernelService, pendingAttachments.length, setPendingAttachments, showCustomAlert]);
 
   const handleToggleAsr = async () => {
     try {
@@ -363,7 +356,15 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     setLocalInput("");
     setUserInputMessage("");
     setReplySuggestions([]);
-  }, [localInput, pendingAttachments, handleSendMessage, setReplySuggestions, setUserInputMessage]);
+  }, [
+    localInput,
+    pendingAttachments,
+    handleSendMessage,
+    setLocalInput,
+    setPendingAttachments,
+    setReplySuggestions,
+    setUserInputMessage,
+  ]);
 
   const onSendMerged = React.useCallback(async () => {
     const msg = localInput.trim();
@@ -380,7 +381,15 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     setLocalInput("");
     setUserInputMessage("");
     setReplySuggestions([]);
-  }, [localInput, pendingAttachments, handleSendMessage, setReplySuggestions, setUserInputMessage]);
+  }, [
+    localInput,
+    pendingAttachments,
+    handleSendMessage,
+    setLocalInput,
+    setPendingAttachments,
+    setReplySuggestions,
+    setUserInputMessage,
+  ]);
 
   const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasTriggeredLongPress = React.useRef(false);
@@ -588,61 +597,13 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           </div>
         </div>
       )}
-      {pendingAttachments.length > 0 && (
-        <div className="flex flex-col gap-1.5 px-1 py-1 animate-in fade-in slide-in-from-bottom-1 duration-200">
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-1">
-            <span className="flex items-center gap-1 text-primary">
-              <Paperclip className="w-3 h-3 text-primary" />
-              已选取 {pendingAttachments.length}/4 个多模态附件
-            </span>
-            <span className="text-[9px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-mono">
-              Content Parts V2
-            </span>
-          </div>
-          <div className="flex gap-2 overflow-x-auto py-0.5" aria-label="待发送附件">
-            {pendingAttachments.map(item => (
-              <div key={item.metadata.id} className="relative w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-primary/30 bg-muted shadow-sm">
-                {item.metadata.kind === "image" ? (
-                  <>
-                    <img
-                      src={item.previewUrl}
-                      alt={item.metadata.originalName}
-                      className="w-full h-full object-cover"
-                    />
-                    <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] text-center py-0.5 font-sans">
-                      图片
-                    </span>
-                  </>
-                ) : item.metadata.kind === "video" ? (
-                  <>
-                    <video src={item.previewUrl} muted preload="metadata" className="w-full h-full object-cover" />
-                    <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] text-center py-0.5 font-sans">
-                      视频
-                    </span>
-                  </>
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-1 text-[9px] text-center text-muted-foreground break-all bg-primary/5">
-                    <span className="font-semibold text-foreground text-[10px]">
-                      {item.metadata.kind === "audio" ? "🎵 音频" : "📄 文件"}
-                    </span>
-                    <span className="text-[8px] text-muted-foreground/80 truncate max-w-full">
-                      {item.metadata.originalName}
-                    </span>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  aria-label={`移除 ${item.metadata.originalName}`}
-                  onClick={() => setPendingAttachments(current => current.filter(candidate => candidate.metadata.id !== item.metadata.id))}
-                  className="absolute top-1 right-1 w-4 h-4 rounded-full bg-black/75 text-white flex items-center justify-center shadow hover:bg-rose-600 transition"
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <PendingAttachmentStrip
+        items={pendingAttachments}
+        maxCount={4}
+        onRemove={(assetId) => setPendingAttachments((current) => (
+          current.filter((candidate) => candidate.metadata.id !== assetId)
+        ))}
+      />
       <div className="flex items-center gap-2 relative">
         <button
           aria-label="切换快捷工具栏"
@@ -653,28 +614,12 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         >
           <Sliders className="w-4 h-4" />
         </button>
-        <input
-          ref={attachmentInputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp,audio/mpeg,audio/ogg,audio/wav,audio/mp4,video/mp4,video/webm"
-          multiple
-          className="hidden"
-          onChange={handleSelectAttachments}
-        />
-        <button
-          type="button"
-          aria-label="添加多模态附件"
-          title="发送图片、音频或视频附件（最多 4 个）"
+        <AttachmentPicker
           disabled={isSending || isBisonLocking}
-          onClick={() => attachmentInputRef.current?.click()}
-          className={`p-2.5 rounded-xl border transition-all shrink-0 disabled:opacity-45 ${
-            pendingAttachments.length > 0
-              ? "bg-primary/15 text-primary border-primary/40 shadow-sm"
-              : "bg-input/30 border-border/80 hover:bg-muted text-muted-foreground"
-          }`}
-        >
-          <Paperclip className="w-4 h-4" />
-        </button>
+          selectedCount={pendingAttachments.length}
+          maxCount={4}
+          onSelect={handleSelectAttachments}
+        />
         <textarea
           ref={textareaRef}
           value={localInput}

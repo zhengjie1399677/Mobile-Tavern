@@ -131,7 +131,7 @@ fi
 ```markdown
 ## 行为指导手册
 
-**所有贡献者必须首先阅读 [AGENTS.md](AGENTS.md)**。
+**所有贡献者必须首先阅读 [AGENTS.md](../AGENTS.md)**。
 该文件使用稳定标识（如 `ARCH-KERNEL`、`ARCH-FLOW`、`QUALITY-TYPES`）定义核心铁律，
 涵盖：Kernel 边界、业务流程分层、兼容底座、移动端隔离、配置分轨、类型纪律、
 变更安全、测试受控、文档规范与协作身份。

@@ -53,6 +53,32 @@ export interface AgentToolExecutionContext {
   readonly signal: AbortSignal;
 }
 
+export type AgentToolRiskLevel = "low" | "medium" | "high";
+export type AgentToolSideEffect = "none" | "local-write" | "external" | "irreversible";
+export type AgentToolExecutionScope = "turn" | "session" | "memory" | "character" | "external";
+export type AgentToolPolicy = "allow" | "deny" | "ask";
+export type AgentToolApprovalDecision = "allow" | "deny";
+export type AgentToolApprovalReason =
+  | "user"
+  | "policy"
+  | "cancelled"
+  | "timeout"
+  | "host-unavailable";
+
+export interface AgentToolApprovalRequest {
+  readonly id: string;
+  readonly sessionId: string;
+  readonly turnId: string;
+  readonly callId: string;
+  readonly toolName: string;
+  readonly description: string;
+  readonly arguments: unknown;
+  readonly riskLevel: AgentToolRiskLevel;
+  readonly sideEffect: AgentToolSideEffect;
+  readonly executionScope: AgentToolExecutionScope;
+  readonly expiresAt: number;
+}
+
 export interface AgentToolDefinition {
   readonly name: string;
   readonly version: string;
@@ -62,7 +88,13 @@ export interface AgentToolDefinition {
   readonly inputJsonSchema: Readonly<Record<string, unknown>>;
   readonly outputSchema: z.ZodType<unknown>;
   readonly permissions: readonly string[];
+  readonly riskLevel: AgentToolRiskLevel;
+  readonly sideEffect: AgentToolSideEffect;
+  readonly executionScope: AgentToolExecutionScope;
+  /** 未配置永久授权时的 fail-closed 策略；高风险 Tool 不得默认 allow。 */
+  readonly policy: AgentToolPolicy;
   readonly timeoutMs: number;
+  readonly approvalTimeoutMs?: number;
   execute(input: unknown, context: AgentToolExecutionContext): Promise<unknown>;
 }
 
@@ -160,6 +192,26 @@ export type AgentJournalEvent =
       readonly toolName: string;
       readonly errorCode: string;
       readonly errorMessage: string;
+    })
+  | (AgentJournalEventBase & {
+      readonly type: "tool.approval.requested";
+      readonly approvalId: string;
+      readonly callId: string;
+      readonly toolName: string;
+      readonly description: string;
+      readonly arguments: unknown;
+      readonly riskLevel: AgentToolRiskLevel;
+      readonly sideEffect: AgentToolSideEffect;
+      readonly executionScope: AgentToolExecutionScope;
+      readonly expiresAt: number;
+    })
+  | (AgentJournalEventBase & {
+      readonly type: "tool.approval.resolved";
+      readonly approvalId: string;
+      readonly callId: string;
+      readonly toolName: string;
+      readonly decision: AgentToolApprovalDecision;
+      readonly reason: AgentToolApprovalReason;
     })
   | (AgentJournalEventBase & {
       readonly type: "media.processed";
