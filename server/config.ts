@@ -16,7 +16,8 @@ const optionalString = z.preprocess(
 const serverEnvironmentSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
-  TAURI_DEV_HOST: z.string().min(1).default("0.0.0.0"),
+  // 默认仅供本机与 adb reverse 访问；确需局域网联调时由开发者显式覆盖。
+  TAURI_DEV_HOST: z.string().min(1).default("127.0.0.1"),
   HMAC_SIGN_KEY: optionalString,
   AES_ENCRYPT_KEY: optionalString,
   REAL_API_KEY: optionalString,

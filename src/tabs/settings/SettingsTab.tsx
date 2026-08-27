@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   ChevronRight,
   Database,
-  Gamepad2,
   Info,
   KeySquare,
   Loader2,
@@ -15,6 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
   UserCheck,
+  Wrench,
   Workflow,
 } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -39,6 +39,7 @@ const FeaturesSection = React.lazy(() => import("./FeaturesSection"));
 const MemoryStorageSection = React.lazy(() => import("./MemoryStorageSection"));
 const SystemReportSection = React.lazy(() => import("./sections/SystemReportSection"));
 const PluginManagerSection = React.lazy(() => import("../../components/plugins/PluginManagerSection"));
+const ToolPluginManagerSection = React.lazy(() => import("../../components/plugins/ToolPluginManagerSection"));
 const RuntimeProfileManagerSection = React.lazy(() => import("../../components/plugins/RuntimeProfileManagerSection"));
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
@@ -104,9 +105,9 @@ const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
   },
   {
     id: "plugins",
-    titleKey: "plugin_manager.title",
-    descriptionKey: "plugin_manager.description",
-    icon: Gamepad2,
+    titleKey: "settings_hub.plugins_title",
+    descriptionKey: "settings_hub.plugins_desc",
+    icon: Wrench,
     experimental: true,
   },
   {
@@ -346,7 +347,7 @@ export default function SettingsTab() {
       case "composer":
         return <PresetForm sections={["composer"]} />;
       case "plugins":
-        return <div className="space-y-3"><RuntimeProfileManagerSection /><PluginManagerSection /></div>;
+        return <div className="space-y-3"><RuntimeProfileManagerSection /><ToolPluginManagerSection /><PluginManagerSection /></div>;
       case "advanced":
         return (
           <div className="space-y-2">

@@ -2,7 +2,7 @@
 
 > **本文件详细记录了 Mobile Tavern 混合客户端（Android APK）中 Android 原生桥接层与前端 WebView 的双向通信协议、核心 API 契约、Scoped Storage（分区存储）文件持久化设计以及 TTS 生命周期管理。**
 >
-> 遵循 `AGENTS.md` 准则五：全中文表述，技术名词保留英文。
+> 遵循 `AGENTS.md` 的 `DOC-CHINESE`：全中文表述，技术名词保留英文。
 
 ---
 

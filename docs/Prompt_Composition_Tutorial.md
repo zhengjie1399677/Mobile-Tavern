@@ -1,9 +1,9 @@
-# 🧩 Mobile Tavern 自由 Prompt 编排规范与技术说明书
+# 🧩 Mobile Tavern Prompt 组装规范与技术说明书
 
 > 📌 **行为规范与架构声明**：本说明书归档于 Mobile Tavern 项目文档库。重构或扩展编译器逻辑必须遵守 [AGENTS.md](../AGENTS.md) 核心准则。
 > *文档版本：v1.7.2 | 对应领域模块：src/domain/prompt-composition*
 
-本文档为 Mobile Tavern 自由 Prompt 编排系统 (Prompt Composition) 的官方技术说明书，详尽规定了领域模型结构、字段属性契约、历史深度注入算法、Token 预算裁剪优先级以及数据源宏解析机制。
+本文档为 Mobile Tavern Prompt 组装系统 (Prompt Composition) 的官方技术说明书，详尽规定了领域模型结构、字段属性契约、历史深度注入算法、Token 预算裁剪优先级以及数据源宏解析机制。
 
 ---
 

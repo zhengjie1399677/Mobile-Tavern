@@ -3,6 +3,18 @@
 > 本文定义 Mobile Tavern 从当前模块化应用演进为插件式移动端 Agent Host 的目标架构、聊天组合模型、迁移阶段和验收条件。
 > 它描述目标态，不放宽 `AGENTS.md`、`runtime_boundaries.md` 中仍然生效的当前边界；每一阶段只有在代码、迁移和守卫同时完成后，才能更新当前边界。
 
+## 当前状态速览（2026-08-26）
+
+| 路线 | 状态 | 说明 |
+|---|---|---|
+| 阶段 0–5 | 已完成当前验收范围 | Agent Host 基础闭环已落地，详见各阶段的当前进度和 `CURRENT_STATE.md`。 |
+| 阶段 A | 已完成当前验收范围 | Base/Tavern Profile 已注册 `character.read` 与 `session.branch`，诊断只展示真实注册结果。 |
+| 阶段 B–C | 已完成当前验收范围 | Tool 策略、一次性审批卡片、fail-closed 和 Journal 重放已接入。 |
+| 阶段 D | 进行中 | L1 声明式 HTTPS 连接器与 L2 一次性受限 Worker 已接入 Agent Runtime；签名/可信来源、远程版本撤回和生态发布仍未完成。 |
+| 阶段 E | 未开始 | Tool Plugin SDK、目录、审核、灰度和生态试运行尚未开始。 |
+
+阶段 A–E 是阶段 1–5 之后的新路线，不应把 Agent Runtime 已有的 Tool Registry、Tool Call 展示或有限 Tool Loop 误判为这些产品阶段已经完成。
+
 ## 一、目标成品
 
 Mobile Tavern 的目标定位是本地优先、移动端原生混合、多模态、可组合的 Agent Host。
@@ -351,11 +363,11 @@ file  → text extraction / unsupported
 
 ## 八、第一批实施任务
 
-后续代码从以下三个批次开始，不并行扩大到兼容层大迁移：
+以下三个批次是已经完成的首批实施任务，后续工作按本文第十节的新路线推进：
 
 1. **Scope/Effect 契约（已完成）**：为 Kernel extension、消息订阅和 Pipeline 注册补充可撤销 Effect，并建立生命周期测试。
 2. **Runtime Plugin/Profile 最小实现（已完成）**：用 legacy plugin 包装当前 `serviceCatalog`，输出不含配置秘密的可诊断插件快照，不改变用户行为。
-3. **Message Content V2 与 Attachment Data Plane（已完成最小闭环）**：V1/V2 兼容、独立附件存储、引用/回收、图片 UI、OpenAI-compatible 投影和 v5 备份恢复均已接入；复杂媒体处理与 Provider 能力注册进入阶段 3。
+3. **Message Content V2 与 Attachment Data Plane（已完成最小闭环）**：V1/V2 兼容、独立附件存储、引用/回收、图片 UI、OpenAI-compatible 投影和 v6 备份恢复均已接入；复杂媒体处理与 Provider 能力注册进入阶段 3。
 
 每个批次都必须遵循 `CHANGE-SAFE`：先定义公开契约与失败路径测试，再接入组合根；涉及当前边界变化时同步更新 `runtime_boundaries.md`、`module_contracts.md` 和架构守卫。
 
@@ -367,3 +379,243 @@ file  → text extraction / unsupported
 - 不为了追求完整事件溯源立即重写全部会话数据库；允许以 Message V2 和新增事件分轨渐进迁移。
 - 不保证所有模型原生理解视频；目标是能力协商、可见降级和可复现发送。
 - 不让 Profile 成为新的万能设置对象，秘密、用户数据和大字段继续物理分轨。
+
+## 十、后续路线：Agent Tool 产品化与受控生态
+
+阶段 1–5 已完成 Agent Host 的基础闭环：Scope/Effect、Runtime Profile、Message Content V2、Attachment Data Plane、AgentHandle、Provider、Tool Registry、有限 Tool Loop、Agent Journal、媒体处理、Compatibility Runtime 和 Profile UI 均已落地。本阶段不重复建设这些底座，而是把现有契约转化为用户可发现、可使用、可授权的 Agent Tool 能力。
+
+### 10.1 阶段 A：内置 Tool 产品化
+
+目标：在现有 Tool Registry 和 Tool Loop 之上，完成第一个真实可用的 Tool 纵向闭环。
+
+工作项：
+
+- 实际注册 `session.search`、`memory.search`、`character.read` 等低风险内置 Tool；Tool 实现必须位于 Application/Domain，不进入 Kernel。
+- 为每个 Tool 补齐输入输出 Schema、版本身份、取消/超时处理、错误投影和聊天内结果 Renderer。
+- 将 Tool 的可见性与 Profile/会话组合绑定，确保 Base Profile 在关闭 Compatibility Runtime 后仍能使用通用 Tool。
+- 使用现有 Agent Journal 记录 Tool Call/Result、执行失败和关键决定；仅补齐当前 Journal 尚未覆盖的模型可见输入，不新建重复的 Tool 日志体系。
+
+完成条件：用户可以在 Base Profile 的普通聊天中触发至少一个本地 Tool，并看到可理解的调用状态、结果和失败原因；Tavern Profile 的兼容聊天不受影响。
+
+当前进度（2026-08-26）：阶段 A 已完成当前验收范围。`mobile-tavern.agent-spine` 在 Profile 明确启用贡献时注册只读 `character.read` 和本地 `session.branch`；前者只投影当前角色的安全公开字段，后者作为后续审批链的真实副作用 Tool。Tool 输入/输出均经 Zod Schema，支持取消、执行超时和通用错误投影；诊断面板删除未注册占位名称，只展示 Runtime 的真实注册项。旧会话按自己的 Composition Snapshot 冻结 Tool 集合，不会因 App 升级静默获得新能力。
+
+### 10.2 阶段 B：副作用 Tool 与审批策略
+
+目标：为会修改数据、访问外部服务或产生不可逆影响的 Tool 增加最小可用审批能力。
+
+本阶段只处理移动端本地、具有明确副作用或需要用户授权的 Tool：
+
+- `session.branch`：创建会话分支，需要轻量确认并记录来源会话。
+- `memory.write`：写入或修改长期记忆，必须单次确认。
+- 后续的联网、文件写入和角色编辑 Tool：默认拒绝或单次确认，具体能力必须单独声明。
+
+在现有 Tool 权限、超时和取消契约上补充风险级别、副作用和执行 Scope；策略统一返回 `allow`、`deny` 或 `ask`，未知能力和缺失策略必须 fail-closed。
+
+完成条件：高风险 Tool 在没有有效授权时不会执行；允许、拒绝、取消、超时和宿主不可用均能被记录并安全结束。
+
+当前进度（2026-08-26）：阶段 B 已完成当前验收范围。Tool Definition 声明风险级别、副作用、执行 Scope、宿主权限和 `allow` / `deny` / `ask`；具有副作用或高风险的 Tool 禁止默认 `allow`。`session.branch` 使用 `ask`，只有一次性允许后才会以单次写入创建带来源 ID 的本地分支；未知 Tool、权限缺失、策略拒绝、审批取消、超时和宿主不可用均 fail-closed。
+
+### 10.3 阶段 C：审批与可发现性
+
+目标：让高风险 Tool 的授权过程可理解、可取消、可追溯，并让用户发现当前 Agent 拥有哪些能力。
+
+工作项：
+
+- 在聊天中提供待审批 Tool Call 卡片，展示 Tool 名称、用途、目标数据、关键参数和风险提示。
+- 支持“允许一次”“拒绝一次”；暂不默认提供永久允许，永久授权必须进入 Profile/Tool 管理页并可撤销。
+- 审批取消、超时、宿主不可用和权限不足统一按拒绝处理，并写入可重放事件。
+- 在 Agent 诊断与会话历史中展示 Tool 调用、审批决定、执行结果和失败原因；复用现有 Journal，不另建平行诊断链路。
+- 将 Tool 能力入口放入通用聊天工作区和 Profile 诊断页，不能只埋在插件设置中。
+
+完成条件：用户能够发现当前 Agent 有哪些 Tool，并能在不阅读开发文档的情况下理解和拒绝一次高风险操作。
+
+当前进度（2026-08-26）：阶段 C 已完成当前验收范围。聊天区订阅当前会话的待审批 Call，展示用途、参数、风险、副作用和执行 Scope，并提供“允许一次”“拒绝一次”；组件卸载或最后一个审批宿主消失时立即拒绝。审批请求、决定、Tool Result 和友好失败原因进入既有 Agent Journal、备份校验和聊天历史，未建立平行日志体系。
+
+### 10.4 阶段 D：受控 Agent Tool Plugin Manifest
+
+目标：在内置 Tool 和审批策略稳定后，开放声明式 Tool 扩展，但不开放任意应用进程代码执行。
+
+Manifest 至少声明：
+
+- 插件 ID、版本、作者、来源和内容哈希。
+- Tool ID、输入输出 Schema、风险级别、副作用和所需能力。
+- 依赖、兼容的 Agent Runtime 版本和目标 Profile。
+- 执行位置：内置 Runtime、Worker 或 Sandbox；默认禁止直接进入 App 进程。
+- 安装、启用、停用、卸载、回滚和权限撤销后的数据清理策略。
+
+在签名、来源验证、版本撤回和原生能力隔离完成前，只允许随安装包分发受信 Runtime Plugin；用户安装的 Agent Tool 只能先落在 Worker/Sandbox 边界，不能复用 `.mtplugin` 以外的信任假设。
+
+完成条件：一个外部 Tool Plugin 可以被发现、安装、授权、停用和卸载；插件无法访问 Manifest 未声明的能力，卸载后不残留注册、任务、凭据或会话数据。
+
+当前进度（2026-08-26）：阶段 D 已完成本地 L2 执行闭环。`mobile-tavern.tool-plugin` v2 可通过 `.mttool` 包携带单入口 Worker，也可声明无需脚本的 HTTPS Tool；包安装会校验 ZIP 路径与体积、规范化 SHA-256、受支持 JSON Schema 子集和禁用 API。启用后的 Tool 以 `ext.<pluginId>.<toolId>` 注册到 Agent Runtime，新会话快照记录插件版本和 Tool，旧会话保持冻结；每次执行仍重新检查启用状态、内容哈希和权限，使撤销对旧句柄立即生效。Worker 每次调用新建并在完成、失败、取消或超时后终止，不能直接使用网络、动态代码、持久化或子 Worker；网络只能经宿主按精确 HTTPS Origin、方法、请求次数和流量配额代理，凭据加密分轨保存并只在宿主侧注入。安装、授权、停用、最多 8 个历史版本、回滚清权、凭据清理和卸载均已接通。尚未完成的是签名/可信来源、远程版本撤回、生态审核与 SDK；当前也不提供后台常驻、任意原生能力或无界 JavaScript 运行。
+
+### 10.5 阶段 E：生态试运行
+
+仅在阶段 A–D 完成后评估：
+
+- 官方 Tool Plugin SDK 和模板。
+- 插件目录、版本固定、来源展示和兼容性检查。
+- Provider、Media Processor、Renderer 和 Context Source 的扩展模板。
+- 插件审核、撤回、灰度和安全事件处理流程。
+
+本阶段暂不追求完整桌面 Agent 能力。Shell、PTY、持久终端、通用文件系统、后台 Job、Subagent、Agent Team、Headless Runner 和 ACP 均不作为首批移动端生态的前置条件；如未来需要，必须以独立能力和独立风险评估立项。
+
+### 10.6 总体验收顺序
+
+```text
+现有 Tool Runtime 底座
+  → 内置 Tool 落地
+  → Tool Policy 与审批
+  → 会话事件重放与诊断
+  → Tool Plugin Manifest
+  → Worker/Sandbox 插件试运行
+  → Provider/Media/Renderer 生态扩展
+```
+
+每一阶段都必须遵循 `CHANGE-SAFE`：先定义边界、权限、失败路径和迁移策略，再接入组合根；不得因为开放插件而放宽 `ARCH-KERNEL`、`ARCH-FLOW` 或三类插件信任边界。
+
+## 十一、远期展望：可无头运行、由 AI 即时塑形的 Agent Host
+
+> 本节记录阶段 E 之后的产品方向，不是当前实现阶段、排期或边界放宽。当前产品仍遵守
+> `PLATFORM-MOBILE`，生产安装包继续与 `cloud/` 物理隔离。若正式启动本节任一方向，必须先独立立项、
+> 完成风险评估，并同步修改 `AGENTS.md`、运行时边界、移动端/云端策略、共享契约和自动化守卫；不得用远期目标提前覆盖当前代码边界。
+
+### 11.1 产品愿景
+
+Mobile Tavern 远期可以从固定形态的 APK 演进为本地优先、可嵌入、可远程调用、可无头运行的个人
+Agent Host。Android/iOS App 仍是重要的隐私优先部署方式，但 APK 不再定义能力上限，只是 Host 的一种
+部署外壳和官方体验入口。
+
+Host 不强制用户只能使用默认 Tavern UI。默认 Profile、AI 即时工坊、用户安装插件、替代 UI 和外部软件
+都可以成为体验入口；它们共享同一个权限化能力宿主，不复制存储、Agent、工具或原生能力实现。
+
+```text
+                         Headless Tavern Host
+        ┌──────────────────────────────────────────────────┐
+        │ Agent / Chat / Model / Media / Tool / Storage   │
+        │ Capability Broker / Permission / Audit / Scope  │
+        │ Plugin Lifecycle / Recovery / Versioned Contract │
+        └───────────────────────┬──────────────────────────┘
+                                │ 稳定、版本化的 Host Protocol
+              ┌─────────────────┼─────────────────┐
+              │                 │                 │
+        Android/iOS UI      AI 即时工坊       外部软件/替代 UI
+              │                 │                 │
+              └────────── 仅持有已授权 Capability ──────────┘
+```
+
+这里所说的“两个系统”不是两套可以互相绕过的宿主，而是职责分离：
+
+- **能力系统**：提供完整、稳定、可授权、可撤销、可审计的通用能力，是不可被运行时生成物绕过的权力边界。
+- **体验系统**：决定 UI、交互、工作流和外部对接方式，可以被替换、组合或由 AI 临时生成。
+
+入口可以变化，能力可以组合，但权限、数据所有权和生命周期不能出现第二条旁路。
+
+### 11.2 不可由 AI 或普通插件改写的宿主边界
+
+“核心不可更改”是指运行中的 AI、插件和替代 UI 没有改写或绕过权；宿主自身仍可通过正式、可迁移的版本升级演进。
+
+- Kernel 的 Scope、生命周期、可撤销 Effect、Pipeline、注册与通用校验机制。
+- Capability 的签发、裁剪、撤销、风险策略和审批决定。
+- 用户数据所有权、事务、版本迁移、备份恢复与安全删除语义。
+- 插件安装、签名与来源校验、隔离、资源限制、停用、卸载和回滚。
+- 凭据、令牌和秘密解析；生成代码只能持有引用，不得读取秘密明文。
+- Native Adapter、宿主更新、完整性校验、安全模式和崩溃恢复。
+- Host Protocol 的身份、认证、版本协商、重连、流式事件和错误语义。
+
+Agent、聊天、媒体、插件业务和协议 Adapter 仍然位于 Kernel 之上。“无头运行”不得成为把业务移入
+`src/kernel/`，或合并 Compatibility Runtime、Plugin Host RPC 与 Native Adapter 的理由。
+
+### 11.3 AI 即时工坊
+
+Host 可以内置一个可关闭、可替换的受信 AI Builder Runtime。它负责理解用户意图、读取脱敏诊断和公开
+扩展契约，生成临时 UI Patch、Sandbox/Worker Plugin 或外部协议 Adapter；AI Builder 本身不属于 Kernel，
+其生成物也不会因为来源于内置 AI 而自动成为受信 Runtime Plugin。
+
+典型闭环：
+
+```text
+自然语言需求或 UI 故障
+  → 读取公开 Slot、组件描述、错误与布局约束
+  → 从版本化 SDK/模板生成 Patch、Plugin 或 Adapter
+  → Schema / TypeScript / 禁止 API / 依赖与资源预算校验
+  → 声明域名、数据、凭据引用和 Host Capability
+  → 用户审批
+  → 独立 Scope 中预览或试运行
+  → 失败自动撤销；确认后版本化安装
+  → 可停用、回滚、导出或继续交给 AI 修改
+```
+
+AI 生成能力按风险分层：
+
+1. 主题 Token、布局参数和声明式 UI Patch 可以即时预览与撤销。
+2. 普通功能进入 Worker 或 Sandbox Plugin，经过校验、授权和资源限制后热加载。
+3. 涉及宿主架构、数据库迁移、Native 权限、共享契约或正式 Runtime Plugin 的修改只能生成变更提案，不能在运行时自行应用。
+
+AI 不应依靠任意 DOM 操作或修改宿主源码修复界面。长期应提供声明式 UI Slot、Panel、Action、Form、
+Renderer、Theme Token 和稳定组件描述，使生成结果能够跨版本验证和降级。临时修复必须拥有独立 Scope，
+不能覆盖原始资源；确认后可以固化为有 Manifest、版本和权限声明的插件。
+
+### 11.4 Headless Host 与部署形态
+
+在远期目标中，同一组领域契约可以支持三种相互兼容但物理实现独立的 Deployment Profile：
+
+| 部署形态 | Host 位置 | 主要价值 | 约束 |
+|---|---|---|---|
+| 嵌入模式 | 随 Android/iOS App 本地运行 | 离线、隐私、本地优先 | 必须尊重移动端后台和资源限制 |
+| 无头模式 | 独立进程或受控设备服务 | 无固定 UI、长期任务、被多个客户端调用 | 必须独立定义进程、存储和升级边界 |
+| 远程模式 | 用户控制的设备或服务器 | 跨设备访问、对接其他软件 | 必须提供强认证、传输安全、撤销和审计 |
+
+移动端、独立 Host 与远程服务不得通过复制业务类型各自演进。若立项，应先在 `shared/` 定义最小、稳定、
+版本化的 Host Protocol，再由各部署端分别适配；移动端实现继续位于 `src/` 与 `src-tauri/`，云端或独立服务
+不得反向混入生产 APK。
+
+离线本地态仍是默认权威来源。远程模式不能隐式把本地数据变成云端数据；同步、冲突解决、远端删除、
+设备丢失、会话可重放性和附件传输都必须作为独立数据方案设计，不能由通用 RPC 顺带承担。
+
+### 11.5 稳定 Host Protocol 与 AI 生成 Adapter
+
+AI 可以根据外部软件的 HTTP、WebSocket、MCP 或专有协议即时生成 Connector Adapter，但不能为每次连接
+重新发明宿主协议。Host Protocol 应只提供少量稳定原语：
+
+- 查询 Host、协议版本和当前可授权能力。
+- 创建、恢复、分支和订阅会话。
+- 发送 Content Parts，并以流式事件接收 Agent、消息和 Tool 状态。
+- 请求 Tool 执行，提交外部 Tool Result，并传播取消和超时。
+- 读取或修改经过 Capability 授权的数据。
+- 安装、启停、诊断和回滚允许的插件类型。
+- 请求、展示和撤销权限，不传输秘密明文。
+
+外部对接关系应保持为：
+
+```text
+外部软件协议
+  ↕
+AI 生成的 Connector Adapter
+  ↕
+版本化 Host Protocol
+  ↕
+Capability Broker
+```
+
+Connector 必须声明可访问域名、网络方法、数据范围、凭据引用、事件订阅、重试策略和资源预算。所有输入在
+边界清洗，未知能力默认拒绝，联网和副作用操作进入既有审批与 Journal。AI 可以编写和修复 Adapter，
+但不能自行扩大 Manifest、绕过用户审批或获得凭据明文。
+
+Runtime Plugin、Connector Plugin、Sandbox App Plugin 与 Native Adapter 面向不同变化源和信任等级；未来即使
+共享部分 Schema 或 SDK，也不能合并为万能 Bridge 或共用执行权限。
+
+### 11.6 正式立项的前置门槛
+
+本方向只有在当前受控插件生态形成闭环后才进入方案评审。正式实现至少需要：
+
+- 阶段 D–E 的 Manifest、来源验证、权限撤回、卸载清理和生态试运行已经完成。
+- UI 扩展口和 Host Capability 已经版本化，并能在插件缺失或不兼容时安全降级。
+- 生成物具备确定的构建环境、依赖白名单、模拟测试、资源预算、版本固定和可复现产物。
+- Headless Host 的身份、协议、存储权威、升级、发现、认证和恢复模型已经独立评审。
+- 远程访问完成威胁建模；默认不监听公网，不因便利开放 Shell、通用文件系统或宿主进程代码执行。
+- 旧会话、旧 Profile、旧 `.mtplugin` 和 SillyTavern Compatibility Runtime 有明确迁移或兼容降级路径。
+
+远期验收目标不是“AI 能生成一段可以运行的代码”，而是：用户可以在几分钟内用自然语言塑造一套临时
+体验或外部连接，并且每个产物都可解释权限、可隔离验证、可撤销、可回滚、可迁移，不污染宿主核心，
+也不破坏本地优先的数据权威。

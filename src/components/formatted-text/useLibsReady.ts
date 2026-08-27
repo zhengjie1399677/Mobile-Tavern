@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CompatibilityRendererDefinition } from "../../application/compatibility/contracts";
+import type { CompatibilityScriptSecurityMode } from "../../types";
 
 /**
  * 等待可选 Compatibility Renderer 的脚本运行库就绪。
@@ -10,6 +11,7 @@ import type { CompatibilityRendererDefinition } from "../../application/compatib
 export function useLibsReady(
   enableScriptExecution: boolean,
   renderer: CompatibilityRendererDefinition | null,
+  securityMode: CompatibilityScriptSecurityMode,
 ): boolean {
   const [libsReady, setLibsReady] = useState(false);
 
@@ -27,7 +29,7 @@ export function useLibsReady(
       if (!isMounted) return;
 
       checkCount++;
-      const ready = renderer?.areRuntimeLibrariesReady() ?? true;
+      const ready = renderer?.areRuntimeLibrariesReady(securityMode) ?? true;
 
       // 前 3 次与第 20 次、第 60 次打印诊断（避免日志爆炸）
       if (checkCount === 1 || checkCount === 3 || checkCount === 20 || checkCount === 60) {
@@ -53,7 +55,7 @@ export function useLibsReady(
         window.clearTimeout(checkTimer);
       }
     };
-  }, [enableScriptExecution, renderer]);
+  }, [enableScriptExecution, renderer, securityMode]);
 
   return libsReady;
 }

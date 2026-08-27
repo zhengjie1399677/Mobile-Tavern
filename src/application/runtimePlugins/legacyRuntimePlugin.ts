@@ -21,6 +21,10 @@ import { KernelServices } from "../serviceContracts";
 import type { CapabilityDescriptor } from "../../domain/capabilities";
 import { assertUniqueCapabilityIds } from "../../domain/capabilities";
 import { MEMORY_PERSISTENCE_SERVICE } from "../services/memory/types";
+import {
+  CHARACTER_READ_TOOL_NAME,
+  SESSION_BRANCH_TOOL_NAME,
+} from "../tools/builtinAgentTools";
 
 export const LEGACY_RUNTIME_PLUGIN_ID = "mobile-tavern.legacy-runtime";
 
@@ -116,7 +120,7 @@ const baseBindings = {
 } as const;
 
 const baseContributions = {
-  tool: [],
+  tool: [CHARACTER_READ_TOOL_NAME, SESSION_BRANCH_TOOL_NAME],
   "media.processor": ["media.audio.asr", "media.video.keyframes"],
 } as const;
 

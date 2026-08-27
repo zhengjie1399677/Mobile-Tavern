@@ -142,23 +142,46 @@ export default function FeaturesSection({
               </div>
 
               {settings.enableScriptExecution && (
-                <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap pl-4 border-l-2 border-primary/30 mt-1 animate-in slide-in-from-top-1 duration-200">
-                  <div className="space-y-0.5 min-w-0 flex-1">
-                    <label className="text-[11px] font-bold text-foreground">
-                      {t("features.loop_protection")}
-                    </label>
-                    <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
-                      {t("features.loop_protection_desc")}
-                    </p>
+                <div className="space-y-2 pl-4 border-l-2 border-primary/30 mt-1 animate-in slide-in-from-top-1 duration-200">
+                  <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                    <div className="space-y-0.5 min-w-0 flex-1">
+                      <label className="text-[11px] font-bold text-foreground">
+                        {t("features.trusted_script_mode")}
+                      </label>
+                      <p className="text-[9px] text-amber-600/90 leading-relaxed overflow-wrap break-word">
+                        {t("features.trusted_script_mode_desc")}
+                      </p>
+                    </div>
+                    <Switch
+                      aria-label={t("features.trusted_script_mode")}
+                      checked={settings.scriptSecurityMode === "trusted"}
+                      onCheckedChange={(val) =>
+                        updateSettings({
+                          ...settings,
+                          scriptSecurityMode: val ? "trusted" : "isolated",
+                        })
+                      }
+                      className="data-[state=checked]:bg-amber-500 h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
+                    />
                   </div>
-                  <Switch
-                    aria-label={t("features.loop_protection")}
-                    checked={settings.enableLoopProtection !== false}
-                    onCheckedChange={(val) =>
-                      updateSettings({ ...settings, enableLoopProtection: val })
-                    }
-                    className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
-                  />
+                  <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                    <div className="space-y-0.5 min-w-0 flex-1">
+                      <label className="text-[11px] font-bold text-foreground">
+                        {t("features.loop_protection")}
+                      </label>
+                      <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
+                        {t("features.loop_protection_desc")}
+                      </p>
+                    </div>
+                    <Switch
+                      aria-label={t("features.loop_protection")}
+                      checked={settings.enableLoopProtection !== false}
+                      onCheckedChange={(val) =>
+                        updateSettings({ ...settings, enableLoopProtection: val })
+                      }
+                      className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
+                    />
+                  </div>
                 </div>
               )}
 

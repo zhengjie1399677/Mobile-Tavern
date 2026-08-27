@@ -17,6 +17,7 @@ import { useOptionalKernel } from "../../contexts/KernelContext";
 import { getCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import ChatInputArea from "./ChatInputArea";
 import MessageBubble from "./MessageBubble";
+import AgentToolActivity from "./message-bubble/AgentToolActivity";
 
 interface DialogueHistoryViewProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -305,6 +306,8 @@ const DialogueHistoryView = ({
             <span>系统正在整理潜意识碎片...</span>
           </div>
         )}
+
+        {activeSession?.id && <AgentToolActivity sessionId={activeSession.id} />}
 
         <div ref={chatBottomRef} />
       </div>

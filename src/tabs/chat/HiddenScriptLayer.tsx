@@ -4,13 +4,19 @@
 import React from "react";
 
 import { useKernel } from "../../contexts/KernelContext";
-import type { CharacterCard, ChatSession, UserSettings } from "../../types";
+import type {
+  CharacterCard,
+  ChatSession,
+  CompatibilityScriptSecurityMode,
+  UserSettings,
+} from "../../types";
 import {
   KernelServices,
   type ICompatibilityRuntimeService,
 } from "../../application/serviceContracts";
 import type {
   CompatibilityBackgroundScript,
+  CompatibilityIframePolicy,
   CompatibilityRendererDefinition,
 } from "../../application/compatibility/contracts";
 
@@ -24,15 +30,22 @@ interface ScriptIframeItemProps {
   script: CompatibilityBackgroundScript;
   renderer: CompatibilityRendererDefinition;
   enableLoopProtection: boolean;
+  iframePolicy: CompatibilityIframePolicy;
+  securityMode: CompatibilityScriptSecurityMode;
 }
 
 const ScriptIframeItem = React.memo(
-  ({ script, renderer, enableLoopProtection }: ScriptIframeItemProps) => {
+  ({ script, renderer, enableLoopProtection, iframePolicy, securityMode }: ScriptIframeItemProps) => {
     const iframeId = `TH-script--${script.name || "unnamed"}--${script.id}`;
 
     const srcDoc = React.useMemo(() => {
-      return renderer.createScriptIframeSrcDoc(script.content, script.id, enableLoopProtection);
-    }, [script.content, script.id, renderer, enableLoopProtection]);
+      return renderer.createScriptIframeSrcDoc(
+        script.content,
+        script.id,
+        enableLoopProtection,
+        securityMode,
+      );
+    }, [script.content, script.id, renderer, enableLoopProtection, securityMode]);
 
     // 强制清理：组件卸载时主动将 iframe 导航到 about:blank，
     // 这会触发 iframe 内部的 beforeunload/pagehide 事件，
@@ -59,12 +72,8 @@ const ScriptIframeItem = React.memo(
         name={script.name || "unnamed"}
         srcDoc={srcDoc}
         style={{ display: "none" }}
-        // 关键修复：Android WebView 中，srcdoc iframe 若无 sandbox（含 allow-same-origin），
-        // 会被赋予 opaque origin，导致 window.parent.* 访问被跨域策略阻止，
-        // 脚本内库继承（window.parent._、window.parent.TavernHelper 等）会失败。
-        // 必须统一设置 allow-same-origin，使 iframe 继承父文档 of origin。
-        // eslint-disable-next-line react/no-unknown-property
-        sandbox="allow-scripts allow-same-origin"
+        sandbox={iframePolicy.sandbox}
+        data-mt-compat-isolated={iframePolicy.isolated ? "true" : undefined}
       />
     );
   },
@@ -75,7 +84,10 @@ const ScriptIframeItem = React.memo(
     prev.script.id === next.script.id &&
     prev.script.content === next.script.content &&
     prev.renderer === next.renderer &&
-    prev.enableLoopProtection === next.enableLoopProtection
+    prev.enableLoopProtection === next.enableLoopProtection &&
+    prev.iframePolicy.isolated === next.iframePolicy.isolated &&
+    prev.iframePolicy.sandbox === next.iframePolicy.sandbox &&
+    prev.securityMode === next.securityMode
 );
 
 ScriptIframeItem.displayName = "ScriptIframeItem";
@@ -90,6 +102,8 @@ const HiddenScriptLayer = ({
     KernelServices.CompatibilityRuntime,
   );
   const renderer = compatibilityRuntime.getRenderer();
+  const securityMode = settings.scriptSecurityMode ?? "isolated";
+  const iframePolicy = renderer?.getIframePolicy(securityMode);
   const backgroundScripts = renderer?.listBackgroundScripts(activeCharacter) ?? [];
   const [libsReady, setLibsReady] = React.useState(false);
 
@@ -108,7 +122,7 @@ const HiddenScriptLayer = ({
         return;
       }
 
-      if (renderer.areRuntimeLibrariesReady()) {
+      if (renderer.areRuntimeLibrariesReady(securityMode)) {
         if (isMounted) setLibsReady(true);
       } else {
         setTimeout(checkLibs, 50);
@@ -119,7 +133,7 @@ const HiddenScriptLayer = ({
       isMounted = false;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCharacter?.id, renderer]);
+  }, [activeCharacter?.id, renderer, securityMode]);
 
   // P0-B 修复：订阅 script:mvuVariablesUpdated 降级事件
   // 当 ScriptService 的 bridge 未就绪或 notifyVariablesUpdated 抛错时，
@@ -189,6 +203,8 @@ const HiddenScriptLayer = ({
                 script={script}
                 renderer={renderer}
                 enableLoopProtection={settings.enableLoopProtection !== false}
+                iframePolicy={iframePolicy ?? { isolated: true, sandbox: "allow-scripts" }}
+                securityMode={securityMode}
               />
             );
           }

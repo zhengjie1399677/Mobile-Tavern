@@ -114,7 +114,7 @@ describe("PromptCompositionEditor", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
     expect(screen.getByRole("button", { name: "传统 Prompt" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "自由编排" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Prompt 组装" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "编辑区块：唯一消息" }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -125,8 +125,8 @@ describe("PromptCompositionEditor", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
     fireEvent.click(screen.getByRole("button", { name: "使用教程" }));
-    expect(screen.getByRole("heading", { name: "自由编排使用教程" })).toBeInTheDocument();
-    expect(screen.getByText(/先切换到“自由编排”/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Prompt 组装使用教程" })).toBeInTheDocument();
+    expect(screen.getByText(/先切换到“Prompt 组装”/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
     fireEvent.click(screen.getByRole("button", { name: "传统 Prompt" }));
@@ -139,8 +139,8 @@ describe("PromptCompositionEditor", () => {
   it("自由编排可见控件统一使用现代高密度基元", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
-    expect(screen.getByLabelText("编排名称")).toHaveAttribute("data-prompt-control", "input");
-    expect(screen.getByRole("button", { name: "自由编排" })).toHaveAttribute("data-prompt-control", "button");
+    expect(screen.getByLabelText("方案名称")).toHaveAttribute("data-prompt-control", "input");
+    expect(screen.getByRole("button", { name: "Prompt 组装" })).toHaveAttribute("data-prompt-control", "button");
     expect(document.querySelector("select")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "编辑区块：唯一消息" }));
@@ -224,7 +224,7 @@ describe("PromptCompositionEditor", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     const wideEditor = screen.getByRole("region", { name: "宽屏区块配置" });
     expect(wideEditor).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Prompt 可视化工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Prompt 组装工作台" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "图中区块：唯一消息" })).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.change(within(wideEditor).getByLabelText("区块名称"), { target: { value: "横屏改名" } });
@@ -236,8 +236,8 @@ describe("PromptCompositionEditor", () => {
     stubWideViewport(true);
     render(<LanguageProvider><Harness withPreview /></LanguageProvider>);
 
-    const workbench = screen.getByRole("region", { name: "Prompt 可视化工作台" });
-    expect(within(workbench).getByRole("button", { name: "编排图" })).toHaveAttribute("aria-pressed", "true");
+    const workbench = screen.getByRole("region", { name: "Prompt 组装工作台" });
+    expect(within(workbench).getByRole("button", { name: "消息流程" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(within(workbench).getByRole("button", { name: "最终预览" }));
 
     expect(screen.getByText("第一条系统消息")).toBeInTheDocument();
@@ -247,7 +247,7 @@ describe("PromptCompositionEditor", () => {
   it("窄屏可从工具栏打开只读编排图并定位区块", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
-    fireEvent.click(screen.getByRole("button", { name: "编排图" }));
+    fireEvent.click(screen.getByRole("button", { name: "消息流程" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "图中区块：唯一消息" }));
 
@@ -344,7 +344,7 @@ describe("PromptCompositionEditor", () => {
     const file = { size: imported.length, text: vi.fn().mockResolvedValue(imported) };
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
-    fireEvent.change(screen.getByLabelText("选择 Prompt 编排 JSON 文件"), {
+    fireEvent.change(screen.getByLabelText("选择 Prompt 组装 JSON 文件"), {
       target: { files: [file] },
     });
     await waitFor(() => expect(screen.getByTestId("composition-state")).toHaveTextContent("导入消息"));

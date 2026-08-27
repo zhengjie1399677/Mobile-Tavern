@@ -23,8 +23,12 @@
 | 消息附件应用服务 | `src/application/services/AttachmentService.ts` | 校验附件魔数与配额，管理引用状态、备份字节和受控 Blob URL | 不承载 Provider 方言，不借用主题资源数据库 |
 | 消息附件存储 | `src/infrastructure/attachments/attachmentStorage.ts` | 在独立数据库中分轨消息附件元数据和字节，执行引用重建与 GC | 不被 React Hook/组件直接调用，不把媒体塞入主消息记录 |
 | 多模态 Provider 投影 | `src/application/useCases/multimodalProviderProjection.ts` | 把通用 Content Parts 按已确认能力投影为请求方言 | 不修改领域消息，不把 Provider 格式持久化 |
-| Agent Runtime 主干 | `src/application/services/AgentRuntimeService.ts`、`src/domain/agents/`、`src/application/useCases/openAiToolLoop.ts` | 管理 AgentHandle、Turn、Driver、Provider、有限多步 Tool Loop、媒体 Processor、权限、取消与诊断 | 不进入 Kernel，不持有 React State，不绕过 Turn 直接执行 Tool，不执行用户安装的任意代码 |
+| Agent Runtime 主干 | `src/application/services/AgentRuntimeService.ts`、`src/application/services/agents/`、`src/domain/agents/`、`src/application/useCases/openAiToolLoop.ts` | 管理 AgentHandle、Turn、Driver、Provider、有限多步 Tool Loop、媒体 Processor、权限、一次性审批、取消与诊断 | 不进入 Kernel，不持有 React State，不绕过 Turn 直接执行 Tool，不执行用户安装的任意代码；审批宿主缺失时必须 fail-closed |
 | Agent Journal 存储 | `src/infrastructure/agents/agentJournalStorage.ts` | 物理分轨持久化 Turn、Provider/媒体决定与 Tool Call/Result | 不保存插件配置或凭据，不塞入 sessions/messages 大对象 |
+| Tool Plugin 管理用例 | `src/application/useCases/toolPluginManagementUseCases.ts` | 解析和安装受控 Manifest/`.mttool`，编排授权、凭据、停用、回滚与卸载 | 不直接注册 Tool，不把管理状态混入 Runtime Profile 或 `.mtplugin` |
+| Tool Plugin Runtime | `src/application/services/ToolPluginRuntimeService.ts` | 校验兼容性和依赖、注册 External Tool、执行前重查授权、扩展新会话组合快照 | 不执行 `.mtplugin`，不向外部代码暴露 Kernel、存储或明文凭据 |
+| Tool Plugin 执行适配 | `src/infrastructure/toolPlugins/toolPluginHttpClient.ts`、`browserToolPluginExecutor.ts` | 代理受限 HTTPS 请求并运行一次性 Worker | 不允许 Worker 直接联网、持久化、创建子 Worker、动态加载或后台常驻 |
+| Tool Plugin 管理存储 | `src/infrastructure/toolPlugins/toolPluginStorage.ts` | 在独立数据库保存 Manifest、Artifact、加密凭据、授权状态与有限版本历史 | 不被 React 直连，不与 `.mtplugin` 包数据库混用；凭据不进入 Manifest 或会话快照 |
 | 浏览器视频关键帧适配 | `src/infrastructure/media/browserVideoFrameExtractor.ts` | 在 WebView 边界解码本地视频并生成有限 JPEG 关键帧 | 不参与 Profile 解析，不直接写会话或消息 |
 | 主题交互应用服务 | `src/application/services/ThemeInteractionService.ts` | 解释主题 1.1 白名单事件、条件与动作，维护有限状态、冷却和延迟任务 | 不接触 DOM、存储、网络或业务数据，不执行主题代码 |
 | 主题媒体宿主 | `src/components/theme-interactions/ThemeInteractionHost.tsx` | 把稳定 `data-ui` 事件、生命周期和三个背景 Surface 适配到主题服务，并解析本地媒体 | 不向主题暴露元素引用，不接受远程 URL 或任意选择器 |
@@ -42,6 +46,7 @@
   ├─→ Chat UI ─→ AgentHandle ─→ Driver ─→ Provider/Tool/Media Processor
   │                                  ├─→ Agent Journal Port ─→ infrastructure/agents
   │                                  └─→ Attachment/ASR/视频关键帧 Adapter
+  ├─→ Tool Plugin 设置 UI ─→ 管理用例 ─→ infrastructure/toolPlugins
   ├─→ ThemeInteractionHost ─→ ThemeInteractionService ─→ 主题私有运行态
   │                        └→ LocalResourceService（只解析已声明本地媒体）
   ├─→ 记忆领域端口 ───────────────────────→ IndexedDbMemoryPersistenceService
@@ -94,5 +99,6 @@
 11. Profile 启动偏好是公开、类型化的小对象，只能通过 Runtime Profile Service/Infrastructure Port 读写；损坏、缺失 Provider 或找不到 Profile 时必须返回诊断并安全回退，不能把秘密并入 Profile。
 12. Runtime Plugin 配置必须由 Zod Schema 校验，Capability Token/Provider 冲突必须在装载前失败；模型 Tool Call 必须经有限 Step Loop 和 Agent Turn 执行边界。
 13. 跨 Profile 会话恢复必须使用 Schema 校验的一次性意图；兼容会话状态必须单写插件命名空间，旧 `session.variables` 不得恢复为通用持久化路径。
+14. Tool Plugin 管理必须使用独立数据库并经应用用例访问；运行只能由独立 `ToolPluginRuntimeService` 注册到 Agent Runtime。Worker 网络必须经宿主精确白名单代理，权限或必需凭据撤销必须立即阻止旧 Tool 闭包继续执行。
 
 若确需改变这些方向，应先更新本文件与 `TECHNICAL.md`，说明新边界及迁移策略，再修改守卫。

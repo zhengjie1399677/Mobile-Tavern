@@ -4,7 +4,7 @@ import { ChatSession, ChatSessionMetadataPatch, UserSettings, CharacterCard, Lor
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService, IMultiMessageService,
-  StreamChunk, IKernel, IAttachmentService, IAgentRuntimeService, KernelServices,
+  StreamChunk, IKernel, IAttachmentService, IAgentRuntimeService, IToolPluginRuntimeService, KernelServices,
 } from "@/src/application/serviceContracts";
 import type {
   AgentHandle,
@@ -110,7 +110,9 @@ interface SendMessageOptions {
  */
 export function useSendMessage(p: SendMessageParams) {
   const pRef = React.useRef<SendMessageParams>(p);
-  pRef.current = p;
+  React.useLayoutEffect(() => {
+    pRef.current = p;
+  }, [p]);
   const agentHandleRef = React.useRef<AgentHandle | null>(null);
   const agentHandleKeyRef = React.useRef<string | null>(null);
   const runLegacyTurnRef = React.useRef<(
@@ -278,9 +280,12 @@ export function useSendMessage(p: SendMessageParams) {
     let currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
     if (!currentSession) return;
     if (!currentSession.compositionSnapshot && agentTurn) {
-      const compositionSnapshot = p.kernel
+      const baseCompositionSnapshot = p.kernel
         .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
         .getCompositionSnapshot();
+      const compositionSnapshot = baseCompositionSnapshot && p.kernel.hasService(KernelServices.ToolConnectors)
+        ? p.kernel.getService<IToolPluginRuntimeService>(KernelServices.ToolConnectors).extendComposition(baseCompositionSnapshot)
+        : baseCompositionSnapshot;
       if (compositionSnapshot) {
         await p.databaseService.updateSessionMetadata(currentSession.id, { compositionSnapshot });
         const sessionWithComposition = { ...currentSession, compositionSnapshot };
@@ -611,10 +616,15 @@ export function useSendMessage(p: SendMessageParams) {
 
       if (agentTurn) {
         const runtime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+        const enabledToolNames = new Set(
+          updatedSession.compositionSnapshot?.contributionOrder.tool
+            ?? runtime.getCompositionSnapshot()?.contributionOrder.tool
+            ?? [],
+        );
         await executeOpenAiToolLoop({
           context: agentTurn,
           tools: provider.capabilities.supportsTools && typeof runtime.listTools === "function"
-            ? runtime.listTools()
+            ? runtime.listTools().filter((tool) => enabledToolNames.has(tool.name))
             : [],
           executeModelStep: executeProviderStep,
         });
@@ -830,21 +840,33 @@ export function useSendMessage(p: SendMessageParams) {
       }
     }
   }, []);
-  runLegacyTurnRef.current = async (textToSend, options, context) => {
-    await runLegacyTurn(textToSend, options, context);
-  };
+  React.useLayoutEffect(() => {
+    runLegacyTurnRef.current = async (textToSend, options, context) => {
+      await runLegacyTurn(textToSend, options, context);
+    };
+  }, [runLegacyTurn]);
 
   const ensureAgentHandle = useCallback((): AgentHandle | null => {
     const current = pRef.current;
     const sessionId = current.activeSessionIdRef.current ?? current.activeSession?.id;
     if (!sessionId) return null;
     const providerId = resolveBuiltinProviderId(current.settings.api.type);
-    const handleKey = `${sessionId}:${MOBILE_TAVERN_CHAT_DRIVER_ID}:${providerId}`;
+    const runtime = current.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+    const baseComposition = current.activeSession?.compositionSnapshot ?? runtime.getCompositionSnapshot();
+    const composition = !current.activeSession?.compositionSnapshot
+      && baseComposition
+      && current.kernel.hasService(KernelServices.ToolConnectors)
+      ? current.kernel.getService<IToolPluginRuntimeService>(KernelServices.ToolConnectors).extendComposition(baseComposition)
+      : baseComposition;
+    const enabledToolNames = composition?.contributionOrder.tool ?? [];
+    const enabledToolNameSet = new Set(enabledToolNames);
+    const registeredTools = typeof runtime.listTools === "function" ? runtime.listTools() : [];
+    const enabledTools = registeredTools.filter((tool) => enabledToolNameSet.has(tool.name));
+    const handleKey = `${sessionId}:${MOBILE_TAVERN_CHAT_DRIVER_ID}:${providerId}:${enabledToolNames.join(",")}`;
     if (agentHandleRef.current && agentHandleKeyRef.current === handleKey) {
       return agentHandleRef.current;
     }
     if (agentHandleRef.current) void agentHandleRef.current.dispose();
-    const runtime = current.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
     const handle = runtime.openHandle({
       sessionId,
       driverId: MOBILE_TAVERN_CHAT_DRIVER_ID,
@@ -861,7 +883,8 @@ export function useSendMessage(p: SendMessageParams) {
         },
         context,
       ),
-      grantedPermissions: [],
+      grantedPermissions: [...new Set(enabledTools.flatMap((tool) => tool.permissions))],
+      enabledToolNames,
     });
     agentHandleRef.current = handle;
     agentHandleKeyRef.current = handleKey;
@@ -898,7 +921,9 @@ export function useSendMessage(p: SendMessageParams) {
       continuation: options?.isBisonConsecutive,
     });
   }, [ensureAgentHandle, runLegacyTurn]);
-  sendThroughAgentRef.current = handleSendMessage;
+  React.useLayoutEffect(() => {
+    sendThroughAgentRef.current = handleSendMessage;
+  }, [handleSendMessage]);
 
   const stopLegacyGeneration = useCallback(() => {
     const p = pRef.current;

@@ -5,6 +5,8 @@ import type {
   IAgentRuntimeService,
   IAsrService,
   IAttachmentService,
+  ICharacterService,
+  IDatabaseService,
 } from "../serviceContracts";
 import { KernelServices } from "../serviceContracts";
 import { extractVideoKeyframes } from "../../infrastructure/media/browserVideoFrameExtractor";
@@ -19,6 +21,19 @@ import {
   contributeRuntimeCapability,
   provideRuntimeCapability,
 } from "./capabilityTokens";
+import {
+  CHARACTER_READ_TOOL_NAME,
+  SESSION_BRANCH_TOOL_NAME,
+  createCharacterReadTool,
+  createSessionBranchTool,
+} from "../tools/builtinAgentTools";
+import type {
+  CharacterCard,
+  ChatSession,
+  ChatSessionMetadataPatch,
+  Message,
+  SummaryCard,
+} from "../../types";
 
 export const AGENT_SPINE_RUNTIME_PLUGIN_ID = "mobile-tavern.agent-spine";
 export const MOBILE_TAVERN_CHAT_DRIVER_ID = "mobile-tavern.chat.driver";
@@ -73,6 +88,8 @@ export const agentSpineRuntimePlugin = defineRuntimePlugin({
   capabilities: [
     provideRuntimeCapability(AGENT_DRIVER_CAPABILITY, MOBILE_TAVERN_CHAT_DRIVER_ID),
     provideRuntimeCapability(LLM_ROUTE_CAPABILITY, SETTINGS_PROVIDER_ROUTE_ID),
+    contributeRuntimeCapability(TOOL_CAPABILITY, CHARACTER_READ_TOOL_NAME),
+    contributeRuntimeCapability(TOOL_CAPABILITY, SESSION_BRANCH_TOOL_NAME),
     contributeRuntimeCapability(MEDIA_PROCESSOR_CAPABILITY, AUDIO_ASR_PROCESSOR_ID),
     contributeRuntimeCapability(MEDIA_PROCESSOR_CAPABILITY, VIDEO_KEYFRAME_PROCESSOR_ID),
   ],
@@ -94,6 +111,20 @@ export const agentSpineRuntimePlugin = defineRuntimePlugin({
     }));
     scope.add(runtime.registerProvider(openAiCompatibleProvider));
     scope.add(runtime.registerProvider(anthropicCompatibleProvider));
+    const database = kernel.getService<IDatabaseService<
+      ChatSession,
+      CharacterCard,
+      SummaryCard,
+      Message,
+      ChatSessionMetadataPatch
+    >>(KernelServices.Database);
+    if (isContributionEnabled(profile, "tool", CHARACTER_READ_TOOL_NAME)) {
+      const characters = kernel.getService<ICharacterService<CharacterCard>>(KernelServices.Character);
+      scope.add(runtime.registerTool(createCharacterReadTool(database, characters)));
+    }
+    if (isContributionEnabled(profile, "tool", SESSION_BRANCH_TOOL_NAME)) {
+      scope.add(runtime.registerTool(createSessionBranchTool(database)));
+    }
     if (isContributionEnabled(profile, "media.processor", AUDIO_ASR_PROCESSOR_ID)) {
       scope.add(runtime.registerMediaProcessor({
       id: AUDIO_ASR_PROCESSOR_ID,

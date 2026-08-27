@@ -1,11 +1,11 @@
 import { publicEnvironment } from "../../config";
 
 /**
- * scriptIframe.ts — Iframe 沙盒 HTML 工厂
+ * scriptIframe.ts — Iframe 兼容执行 HTML 工厂
  *
  * 职责：
- * - createScriptIframeSrcDoc：构建完整的 MVU 脚本执行沙盒 HTML（含库注入、预定义桥接函数）
- * - createMessageIframeSrcDoc：为消息内嵌 HTML 构建安全沙盒（含 jQuery shim、高度自适应）
+ * - createScriptIframeSrcDoc：构建完整的 MVU 脚本兼容执行 HTML（含库注入、预定义桥接函数）
+ * - createMessageIframeSrcDoc：为消息内嵌 HTML 构建兼容执行容器（含 jQuery shim、高度自适应）
  *
  * ESM CDN 替换逻辑已拆至 esmReplacer.ts；
  * 脚本预处理与懒求值缓存已拆至 scriptPreprocessor.ts。
@@ -15,7 +15,7 @@ import { publicEnvironment } from "../../config";
 import { getProcessedMvuZod, getProcessedMvu, getProcessedMvuBundle, preprocessScriptContent } from "./scriptPreprocessor";
 
 // ─────────────────────             ─────────────────────────────────────────────────────────
-// 脚本执行沙盒 Iframe HTML 生成
+// 脚本兼容执行 Iframe HTML 生成
 // ──────────────────────────────────────────────────────────────────────────────
 
 export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string, enableLoopProtection = true): string {
@@ -35,6 +35,12 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
     scriptContent.replace(/^\s*```[^\n]*\n([\s\S]*?)\n```\s*$/i, "$1"),
     enableLoopProtection
   );
+  // scriptId 来自外部角色卡数据。JSON 序列化保证 JS 字符串边界，
+  // 额外转义 "<" 防止 </script> 被 HTML parser 提前解释为内联脚本结束标签。
+  const serializedScriptId = JSON.stringify(scriptId)
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
 
 
   return `<!DOCTYPE html>
@@ -256,7 +262,7 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
 <script>
   // ─── Step 2: TavernHelper predefine.js ───
   (function() {
-    var iframeId = "${scriptId}";
+    var iframeId = ${serializedScriptId};
     window.__TH_IFRAME_ID = iframeId;
     window.name = iframeId;
 
@@ -468,13 +474,13 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
             if (hasNewKeys) {
               var mergedVars = Object.assign({}, currentVars, { stat_data: mergedStatData });
               bind._replaceVariables(mergedVars, { type: 'chat' });
-              console.log('[TH Bridge Step 3.5] defineMvuDataStore "' + storeId + '" synced ' + Object.keys(mergedStatData).length + ' keys to session.variables');
+              __thLog('[TH Bridge Step 3.5] defineMvuDataStore "' + storeId + '" synced ' + Object.keys(mergedStatData).length + ' keys to session.variables');
             }
           }
         }
       }
     } catch(syncErr) {
-      console.warn('[TH Bridge Step 3.5] defineMvuDataStore sync error for "' + storeId + '":', syncErr);
+      __thWarn('[TH Bridge Step 3.5] defineMvuDataStore sync error for "' + storeId + '":', syncErr);
     }
     return storeFactory;
   };

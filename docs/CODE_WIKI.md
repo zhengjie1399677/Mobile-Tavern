@@ -1,6 +1,9 @@
 ﻿# Mobile Tavern Code Wiki
 
 > **版本**：v1.7.4 | **生成日期**：2026-07-29 | **审查范围**：全仓库代码静态审查 + 隐性 Bug 与漏洞挖掘
+
+> [!WARNING]
+> 本文是基于 v1.7.4 的历史代码审查快照，不是当前产品定位、Runtime Plugin/Profile 架构或测试状态的权威说明。当前架构与进度请以 [`AGENTS.md`](../AGENTS.md)、[`docs/agents/architecture_entry.md`](agents/architecture_entry.md)、[`docs/agents/CURRENT_STATE.md`](agents/CURRENT_STATE.md) 和 [`插件式 Agent Runtime 与聊天组合路线`](agents/agent_plugin_runtime_roadmap.md) 为准；本文中的模块图、数量和旧路径不要直接用于新实现。
 >
 > 本文档基于对 `d:\projects\Mobile-Tavern` 仓库的全量代码审查生成,涵盖项目整体架构、主要模块职责、关键类与函数说明、依赖关系、运行方式,以及审查发现的问题缺陷和整体建议。
 
@@ -160,7 +163,7 @@ Mobile-Tavern
 │   │   ├── conditions/                   # 变量表达式引擎
 │   │   ├── memory/                       # 表格记忆 Schema
 │   │   ├── plugins/                      # 插件包解析、宿主桥接、运行时文档
-│   │   └── prompt-composition/           # 自由 Prompt 编排(中立领域模型)
+│   │   └── prompt-composition/           # Prompt 组装(中立领域模型)
 │   ├── hooks/                            # 核心状态钩子
 │   │   ├── useChat/                      # 聊天子 hook 群(sendMessage / reroll / sessionManager 等)
 │   │   └── settings/                     # 设置子 hook 群(loader / persistence / api 等)
@@ -805,10 +808,10 @@ npm run dev:android
 # TypeScript 静态类型校验
 npm run lint
 
-# 自定义集成测试套件(80 组功能套件)
+# 自定义集成测试套件（数量以当次输出为准）
 npm run test
 
-# Vitest 单元测试(348+ 断言)
+# Vitest 单元测试（数量以当次输出为准）
 npm run test:unit
 
 # Playwright E2E

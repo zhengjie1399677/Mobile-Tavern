@@ -9,10 +9,10 @@
 
 ## 产品当前态与目标态
 
-- 当前产品仍是纯移动端的 SillyTavern 兼容运行容器，现有数据、行为和兼容能力必须按 `CHANGE-SAFE` 平滑迁移。
-- 目标产品是本地优先、多模态、可组合的移动端 Agent Host；SillyTavern 能力将降级为可关闭的内置 Compatibility Runtime Plugin。
+- 当前产品已进入本地优先、多模态、可组合的移动端 Agent Host 阶段；默认 Tavern Profile 继续提供既有 SillyTavern 兼容体验，现有数据、行为和兼容能力必须按 `CHANGE-SAFE` 平滑迁移。
+- SillyTavern 角色卡、预设、世界书、MVU、Regex、TavernHelper 和兼容 iframe 已收敛为可关闭的内置 Compatibility Runtime Plugin；Base Profile 在关闭兼容插件时仍应保有通用聊天、多模态附件和工具能力。
 - 目标架构不得被解释为把 Agent、聊天、媒体或兼容业务移入 Kernel，也不得把受信 Runtime Plugin 与用户安装的 `.mtplugin` 沙箱合并。
-- 分阶段边界、聊天组合方式和完成条件以[插件式 Agent Runtime 与聊天组合路线](docs/agents/agent_plugin_runtime_roadmap.md)为准；尚未完成的目标不能提前覆盖当前代码边界。
+- 分阶段边界、聊天组合方式和完成条件以[插件式 Agent Runtime 与聊天组合路线](docs/agents/agent_plugin_runtime_roadmap.md)为准；后续未完成的目标不能提前覆盖当前代码边界。
 
 ## 一、规则效力与阅读协议
 

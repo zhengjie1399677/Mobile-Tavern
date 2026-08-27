@@ -18,9 +18,9 @@ import { MemoryTableDrawer } from "../../src/components/MemoryTableDrawer";
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import type { ChatSession, TableMemorySheet } from "../../src/types";
 
-// 抽屉依赖 React.lazy 按需加载，全量并行测试时模块转换偶发超过全局 3s 预算，
-// 单独跑必过；本文件统一放宽到 8s，避免把加载耗时误判为功能失败。
-configure({ asyncUtilTimeout: 8000 });
+// 抽屉依赖 React.lazy 按需加载；116 个测试文件并发转换时曾接近 10 秒，
+// 单独运行只需约 400ms。本文件放宽异步查询预算，避免把调度抖动误判为功能失败。
+configure({ asyncUtilTimeout: 20_000 });
 
 // i18n 迁移后 MemoryTableDrawer 内部调用 useTranslation()，必须包裹 LanguageProvider。
 // 统一通过 renderWithI18n 渲染，避免每个用例重复手写 wrapper。
@@ -110,7 +110,7 @@ describe("MemoryTableDrawer", () => {
     expect(screen.getByText(/记忆与状态中心/)).toBeInTheDocument();
     // 默认表格内容
     expect(await screen.findByText("角色")).toBeInTheDocument();
-  }, 10_000);
+  }, 25_000);
 
   it("使用紧凑全高外壳，并为各类记忆保留独立标签", () => {
     const { container } = renderWithI18n(

@@ -55,7 +55,12 @@ const FormattedText = memo(function FormattedText({
     ? kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
     : null;
   const compatibilityRenderer = compatibilityRuntime?.getRenderer() ?? null;
-  const enableScriptExecution = Boolean(context.settings.enableScriptExecution);
+  // Compatibility Runtime 未装载时禁止执行卡片脚本；不能退化为只有 sandbox、
+  // 却缺少 CSP 与受控消息桥的半隔离容器。
+  const enableScriptExecution = Boolean(
+    context.settings.enableScriptExecution && compatibilityRenderer,
+  );
+  const scriptSecurityMode = context.settings.scriptSecurityMode ?? "isolated";
   const enableLoopProtection = context.settings.enableLoopProtection !== false;
   const activeCharacter = character ?? context.activeCharacter;
 
@@ -63,7 +68,7 @@ const FormattedText = memo(function FormattedText({
     compatibilityRenderer?.initializeGlobals();
   }
 
-  const libsReady = useLibsReady(enableScriptExecution, compatibilityRenderer);
+  const libsReady = useLibsReady(enableScriptExecution, compatibilityRenderer, scriptSecurityMode);
   const enableAsteriskFormatting =
     activeCharacter?.visualSettings?.enableAsteriskFormatting !== undefined
       ? Boolean(activeCharacter.visualSettings.enableAsteriskFormatting)
@@ -110,6 +115,7 @@ const FormattedText = memo(function FormattedText({
     isAiMessage,
     isStreamingLastMessage,
     compatibilityRenderer,
+    scriptSecurityMode,
   );
   const hasHtml = enableHtml && /<[a-z/][\s\S]*?>/i.test(processed);
   const swipeId =
@@ -129,6 +135,7 @@ const FormattedText = memo(function FormattedText({
         enableLoopProtection,
         swipeId,
         compatibilityRenderer,
+        scriptSecurityMode,
       )}
     </span>
   ) : (

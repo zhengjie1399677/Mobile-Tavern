@@ -5,18 +5,10 @@
 ## 行为指导手册
 
 **所有贡献者必须首先阅读 [AGENTS.md](AGENTS.md)**。
-该文件定义了本项目的核心行为准则，包括：
-- 准则一：超大规模扩展性与极致底座解耦战略
-- 准则二：SillyTavern 生态兼容与底层原则（纯数据驱动，零硬编码）
-- 准则三：纯移动端战略与原生适配规范
-- 准则四：受控浏览器自动化测试规范
-- 准则五：Markdown 文档编写全中文规范
-- 准则六：应用发布版本号同步修改与一键命令规范 (`npm run bump-version <new_version>`)
-- 准则七：新指令与既有指导手册冲突处理原则
-- 准则八：AI 协作物理隔离开发铁律与实操流程
-- 准则九：开发助手与业务角色“雪团”的身份隔离
-- 准则十：开发服务安全重启与端口清理准则
-- 准则十一：云端后端开发与移动端物理隔离准则
+该文件使用稳定标识定义本项目的核心行为准则，覆盖 `ARCH-KERNEL`、`ARCH-FLOW`、
+`COMPAT-DATA`、`PLATFORM-MOBILE`、`CONFIG-TRACKS`、`QUALITY-TYPES`、`CHANGE-SAFE`、
+`TEST-CONTROLLED`、`DOC-CHINESE` 和 `COLLAB-IDENTITY`。专项入口见
+`docs/agents/architecture_entry.md`，不要使用会随排序变化的数字编号引用规则。
 
 ## 开发环境准备
 
@@ -32,11 +24,11 @@ npm run test:e2e:install
 ## 提交流程
 
 1. **Fork** 仓库并创建特性分支
-2. **开发** 遵循物理隔离开发铁律（准则八/十）：新逻辑在独立文件中编写，禁止侵入无关模块
-3. **测试** 必须通过以下全部验证：
+2. **开发** 遵循 `CHANGE-SAFE`、`TEST-CONTROLLED` 和隔离开发流程：新逻辑在独立文件中编写，禁止侵入无关模块
+3. **测试** 按改动范围遵循 [开发与维护工作流](docs/agents/development_workflow.md) 的最低验证要求。涉及核心链路时至少运行：
    ```bash
    npm run lint          # TypeScript 类型检查
-   npm run test          # 主集成测试套件（41 函数）
+   npm run test          # 主集成测试套件
    npm run test:unit     # Vitest 组件渲染测试
    npm run test:zod      # Zod 兼容性测试
    ```
@@ -52,18 +44,19 @@ npm run test:e2e:install
 
 ### TypeScript
 - 严格模式（`tsc --noEmit` 必须通过）
-- 单文件行数硬上限 **1000 行**（准则一.6），接近时按职责边界拆分
+- 单文件行数硬上限 **1000 行**（`QUALITY-TYPES`），接近时按职责边界拆分
 - 禁止 `any` 类型泄漏
 
 ### 架构解耦
-- 新功能必须按微服务/插件解耦标准设计（准则一.6）
-- 核心业务从上帝 Hook 中解耦，下沉到独立的切面微服务
-- IndexedDB 物理分轨存储：高频大字段分流至独立 store
+- 新功能必须按隔离开发流程设计，先定义边界和失败路径，再接入组合根。
+- 核心业务按职责边界拆分，事务流程保持原子性。
+- IndexedDB 物理分轨存储：高频大字段分流至独立 store。
 
 ### 文档
-- 所有 Markdown 文档必须**全中文**书写（准则五），技术名词保留英文
+- 所有项目 Markdown 文档必须使用中文，技术名词、代码标识符、命令和文件名保留原拼写。
 - 报告类文档命名格式：`<主题>_<YYYY-MM-DD>.md`
 
 ## 版本号同步
 
-修改版本号时，必须同步更新 AGENTS.md 准则六列出的 7 处物理位置。
+修改版本号时必须运行 `npm run bump-version <new_version>`，并在提交前运行
+`npm run check:version`；不要手工跨文件替换版本号。

@@ -11,11 +11,15 @@
  * 用法：
  *   node scripts/lint-changed.cjs            # 默认基准 HEAD：检查工作区未提交改动
  *   node scripts/lint-changed.cjs origin/main # CI：检查与目标分支的差异
+ *   node scripts/lint-changed.cjs --staged    # pre-commit：只检查暂存区
  */
 const { spawnSync } = require("node:child_process");
 const { existsSync } = require("node:fs");
+const { dirname, join } = require("node:path");
 
-const base = process.argv[2] || "HEAD";
+const args = process.argv.slice(2);
+const staged = args.includes("--staged");
+const base = args.find((arg) => arg !== "--staged") || "HEAD";
 
 if (!existsSync(".git")) {
   console.error("未找到 .git，请在仓库根目录运行本脚本。");
@@ -25,31 +29,61 @@ if (!existsSync(".git")) {
 // 变更文件 = 工作区未提交改动 + 与基准分支的差异（去掉已删除文件）
 const diff = spawnSync(
   "git",
-  ["diff", "--name-only", "--diff-filter=ACMR", base],
+  staged
+    ? ["diff", "--cached", "--name-only", "--diff-filter=ACMR"]
+    : ["diff", "--name-only", "--diff-filter=ACMR", base],
   { encoding: "utf8" }
 );
 if (diff.status !== 0) {
-  console.error(`git diff 失败：${diff.stderr.trim()}`);
+  const detail = typeof diff.stderr === "string"
+    ? diff.stderr.trim()
+    : diff.error?.message ?? "未知错误";
+  console.error(`git diff 失败：${detail}`);
   process.exit(1);
 }
 
-const files = diff.stdout
+let changedOutput = diff.stdout;
+if (!staged) {
+  const untracked = spawnSync(
+    "git",
+    ["ls-files", "--others", "--exclude-standard"],
+    { encoding: "utf8" },
+  );
+  if (untracked.status !== 0) {
+    const detail = typeof untracked.stderr === "string"
+      ? untracked.stderr.trim()
+      : untracked.error?.message ?? "未知错误";
+    console.error(`git ls-files 失败：${detail}`);
+    process.exit(1);
+  }
+  changedOutput += `\n${untracked.stdout}`;
+}
+
+const files = [...new Set(changedOutput
   .split("\n")
   .map((f) => f.trim())
-  .filter((f) => /\.(ts|tsx)$/.test(f) && !f.startsWith("node_modules/"));
+  .filter((f) => /\.(ts|tsx)$/.test(f) && !f.startsWith("node_modules/")))];
 
 if (files.length === 0) {
   console.log("本次改动无 TypeScript 文件，跳过 ESLint 严格门禁。");
   process.exit(0);
 }
 
-console.log(`严格门禁检查 ${files.length} 个改动文件（基准 ${base}）：`);
+console.log(
+  staged
+    ? `严格门禁检查 ${files.length} 个暂存 TypeScript 文件：`
+    : `严格门禁检查 ${files.length} 个改动文件（基准 ${base}）：`,
+);
 for (const f of files) console.log(`  - ${f}`);
 
 const result = spawnSync(
-  "npx",
-  ["eslint", ...files, "--quiet"],
-  { encoding: "utf8", stdio: "inherit", shell: process.platform === "win32" }
+  process.execPath,
+  [join(dirname(require.resolve("eslint/package.json")), "bin", "eslint.js"), ...files, "--quiet"],
+  { encoding: "utf8" }
 );
+
+if (result.stdout) process.stdout.write(result.stdout);
+if (result.stderr) process.stderr.write(result.stderr);
+if (result.error) console.error(`ESLint 启动失败：${result.error.message}`);
 
 process.exit(result.status ?? 1);

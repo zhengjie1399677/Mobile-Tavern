@@ -94,13 +94,17 @@
 
 | 层级 | 机制 | 判定内容 | 何时触发 |
 |---|---|---|---|
-| 提交前 | `.githooks/pre-commit`、`pre-push` | 类型检查；推送内容分类与门禁选择 | 每次 commit / push |
+| 提交前 | `.githooks/pre-commit`、`pre-push` | 暂存 TS/TSX ESLint、类型检查；推送内容分类与门禁选择 | 每次 commit / push |
 | 推送前 | `npm run quality:push` / `quality:release` | 普通改动执行完整门禁；可证明的纯版本提交只检查版本一致性 | 每次准备推送 |
-| CI | `.github/workflows/quality.yml` | `lint` + `test` + `build` + Playwright E2E | 每次 PR 到 `main` |
+| CI | `.github/workflows/quality.yml` | PR 标题、改动文件 ESLint、`lint`、`test`、`build` 与 Playwright E2E | 每次 PR 到 `main` |
 | 按范围 | `check:i18n`、`verify:preset-samples`、`check:mobile-assets`、`cargo test`（云端） | 专项完整性 | 改动涉及对应领域时 |
 | 人工 | 本节清单 + 第四节专项清单 | 设计合理性、边界、可维护性、测试质量、自动化覆盖不到的 | 每次 PR 合入前 |
 
 **门禁纪律**：CI 未绿不得合入；CI 失败原因必须查明，禁止"关掉检查硬合"。Blocker 未清零不得合入。
+
+GitHub `main` 分支保护应把 `Quality Gate / 类型、单元、构建与受控浏览器回归` 设为 required check，
+禁止在检查未完成时合入，并至少要求一轮审查。分支保护是远端仓库策略，不能由仓库文件本身强制；
+仓库内通过 `.github/dependabot.yml` 启用 npm 与 GitHub Actions 的受控依赖更新。
 
 ## 六、PR 审查流程
 

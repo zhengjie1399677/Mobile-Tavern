@@ -22,6 +22,10 @@ const doubleTool: AgentToolDefinition = {
   },
   outputSchema: z.object({ value: z.number() }),
   permissions: ["compute.basic"],
+  riskLevel: "low",
+  sideEffect: "none",
+  executionScope: "turn",
+  policy: "allow",
   timeoutMs: 100,
   execute: async () => ({ value: 8 }),
 };

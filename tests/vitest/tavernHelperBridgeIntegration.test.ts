@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
+import type { CharacterCard } from "../../src/types";
 
 // ------------------------------------------------------------------
 // 模块导入前确认 window 就绪（happy-dom 默认提供）
@@ -75,12 +76,14 @@ describe("TavernHelper Bridge - 数学运行时按需判定", () => {
     expect(cardNeedsMathRuntime(null)).toBe(false);
     expect(cardNeedsMathRuntime({
       extensions: { tavern_helper: { scripts: [{ content: "console.log('plain')" }] } },
-    } as any)).toBe(false);
-    expect(cardNeedsMathRuntime({ extensions: { mvu_settings: { enabled: true } } } as any)).toBe(true);
+    } as unknown as CharacterCard)).toBe(false);
+    expect(cardNeedsMathRuntime({
+      extensions: { mvu_settings: { enabled: true } },
+    } as unknown as CharacterCard)).toBe(true);
     expect(cardNeedsMathRuntime({
       extensions: { tavern_helper: { scripts: [{ content: "import * as math from 'mathjs'" }] } },
-    } as any)).toBe(true);
-  });
+    } as unknown as CharacterCard)).toBe(true);
+  }, 15_000);
 });
 
 describe("TavernHelper Bridge - Zod Mock (window.z)", () => {
@@ -242,6 +245,16 @@ const x = 1;
     expect(result).toContain(`import { helper } from "./helpers"`);
     // 普通代码不变
     expect(result).toContain("const x = 1");
+  });
+});
+
+describe("TavernHelper Bridge - 脚本 iframe 标识符边界", () => {
+  it("将外部 scriptId 安全序列化到内联脚本", async () => {
+    const { createScriptIframeSrcDoc } = await import("../../src/utils/tavernHelper");
+    const srcDoc = createScriptIframeSrcDoc("window.__cardScriptRan = true;", 'bad"</script><p>broken</p>');
+
+    expect(srcDoc).toContain('var iframeId = "bad\\"\\u003c/script>\\u003cp>broken\\u003c/p>";');
+    expect(srcDoc).not.toContain('var iframeId = "bad"</script>');
   });
 });
 

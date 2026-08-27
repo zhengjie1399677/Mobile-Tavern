@@ -19,8 +19,14 @@ import type {
   AgentMediaProcessorDefinition,
   AgentProviderDefinition,
   AgentToolDefinition,
+  AgentToolApprovalDecision,
+  AgentToolApprovalRequest,
   AgentTurnExecutionContext,
 } from "../domain/agents/contracts";
+import type {
+  ToolPluginCredentialStatus,
+  ToolPluginRuntimeDiagnostics,
+} from "../domain/toolPlugins";
 export type { ICompatibilityRuntimeService } from "./compatibility/contracts";
 export type { IRuntimeProfileService } from "./runtimeProfiles/contracts";
 import type { MessageContentPart } from "../domain/messages/messageContent";
@@ -59,7 +65,18 @@ export const KernelServices = {
   AgentRuntime: "agentRuntime",
   CompatibilityRuntime: "compatibilityRuntime",
   RuntimeProfiles: "runtimeProfiles",
+  ToolConnectors: "toolConnectors",
 } as const;
+
+export interface IToolPluginRuntimeService extends IKernelService {
+  reload(): Promise<void>;
+  getEnabledToolNames(profileId: string): string[];
+  extendComposition(snapshot: AgentCompositionSnapshot): AgentCompositionSnapshot;
+  getDiagnostics(): ToolPluginRuntimeDiagnostics;
+  listCredentialStatus(pluginId: string): Promise<ToolPluginCredentialStatus[]>;
+  setCredential(pluginId: string, credentialId: string, value: string): Promise<void>;
+  deleteCredential(pluginId: string, credentialId: string): Promise<void>;
+}
 
 export interface IAgentRuntimeService extends IKernelService {
   registerDriver(definition: AgentDriverDefinition): EffectDisposer;
@@ -77,11 +94,17 @@ export interface IAgentRuntimeService extends IKernelService {
     providerId: string;
     executeLegacy: (context: AgentTurnExecutionContext) => Promise<void>;
     grantedPermissions: readonly string[];
+    enabledToolNames?: readonly string[];
   }): AgentHandle;
   getDiagnostics(): {
     drivers: ReadonlyArray<{ id: string; version: string }>;
     providers: ReadonlyArray<{ id: string; version: string }>;
-    tools: ReadonlyArray<{ name: string; version: string }>;
+    tools: ReadonlyArray<{
+      name: string;
+      version: string;
+      riskLevel: AgentToolDefinition["riskLevel"];
+      policy: AgentToolDefinition["policy"];
+    }>;
     mediaProcessors: ReadonlyArray<{ id: string; version: string }>;
     activeHandles: number;
   };
@@ -90,6 +113,10 @@ export interface IAgentRuntimeService extends IKernelService {
   deleteJournalBySession(sessionId: string): Promise<void>;
   bindComposition(snapshot: AgentCompositionSnapshot): EffectDisposer;
   getCompositionSnapshot(): AgentCompositionSnapshot | null;
+  listPendingToolApprovals(): AgentToolApprovalRequest[];
+  subscribeToolApprovals(listener: (request: AgentToolApprovalRequest) => void): EffectDisposer;
+  resolveToolApproval(approvalId: string, decision: AgentToolApprovalDecision): boolean;
+  subscribeJournal(listener: (sessionId: string) => void): EffectDisposer;
 }
 
 export interface IAttachmentService extends IKernelService {
@@ -105,7 +132,10 @@ export interface IAttachmentService extends IKernelService {
   ): Promise<void>;
   collectGarbage(cutoffTime: number): Promise<string[]>;
   exportAttachments(assetIds?: readonly string[]): Promise<AttachmentBackupRecord[]>;
-  replaceAttachments(records: readonly AttachmentBackupRecord[]): Promise<void>;
+  replaceAttachments(
+    records: readonly AttachmentBackupRecord[],
+    references?: readonly AttachmentReference[],
+  ): Promise<void>;
 }
 
 
@@ -274,7 +304,12 @@ export interface IDatabaseService<TSession = unknown, TCharacter = unknown, TSum
    */
   replaceCompleteSessions(sessionsList: TSession[], signal?: AbortSignal): Promise<void>;
   createNewSession(character: TCharacter, starterMessage?: string, initialSuggestions?: string[]): Promise<TSession>;
-  createEmptyBranch(character: TCharacter, title: string): Promise<TSession>;
+  createEmptyBranch(
+    character: TCharacter,
+    title: string,
+    parentSessionId?: string,
+    signal?: AbortSignal,
+  ): Promise<TSession>;
   createBacktrackBranch(sourceSession: TSession, title: string, msgId: string): Promise<TSession>;
   createBacktrackFromTimeline(sourceSession: TSession, title: string, summaryId: string): Promise<TSession>;
   /**

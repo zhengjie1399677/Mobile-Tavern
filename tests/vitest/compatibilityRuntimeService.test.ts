@@ -181,6 +181,7 @@ function createRenderer(cleanBridge: () => void): CompatibilityRendererDefinitio
     areRuntimeLibrariesReady: () => true,
     hasCardScripts: () => false,
     listBackgroundScripts: () => [],
+    getIframePolicy: () => ({ isolated: true, sandbox: "allow-scripts" }),
     createScriptIframeSrcDoc: (content) => content,
     createMessageIframeSrcDoc: (content) => content,
     initializeBridge: () => undefined,

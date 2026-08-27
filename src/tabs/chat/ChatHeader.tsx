@@ -9,12 +9,15 @@ import {
   Volume2,
   VolumeX,
   Box,
+  Activity,
+  Network,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { IBgmService } from "@/src/application/serviceContracts";
 import { useArSync } from "../../hooks/ar/useArSync";
+import AgentHostDiagnosticsModal from "../../components/plugins/AgentHostDiagnosticsModal";
 
 interface ChatHeaderProps {
   openTableDrawer: (tab: 'timeline' | 'table' | 'dict' | 'recall' | 'mvu') => void;
@@ -54,6 +57,7 @@ const ChatHeader = ({
 
   const [isMuted, setIsMuted] = React.useState(false);
   const [showMemoryMenu, setShowMemoryMenu] = React.useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
 
   // AR 入口：仅在 Android + ARCore 可用时显示按钮
@@ -160,6 +164,15 @@ const ChatHeader = ({
 
       {/* Chat sub tabs switches and settings dropdown */}
       <div className="flex items-center gap-1.5 relative">
+        <button
+          aria-label="Agent Host 诊断"
+          onClick={() => setIsDiagnosticsOpen(true)}
+          className="p-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center justify-center shrink-0"
+          title="Agent Host 运行诊断"
+        >
+          <Activity className="w-4 h-4 text-primary animate-pulse" />
+        </button>
+
         {activeCharacter?.visualSettings?.bgmUrl && (
           <button
             aria-label="切换背景音乐静音状态"
@@ -195,7 +208,16 @@ const ChatHeader = ({
             </button>
             
             {showMemoryMenu && (
-              <div className="absolute right-0 top-full mt-1.5 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-xl p-1 shadow-2xl z-50 min-w-[100px] flex flex-col gap-0.5 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute right-0 top-full mt-1.5 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-xl p-1 shadow-2xl z-50 min-w-[120px] flex flex-col gap-0.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                <button
+                  onClick={() => {
+                    setShowMemoryMenu(false);
+                    setShowSessionManager(true);
+                  }}
+                  className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5"
+                >
+                  <Network className="w-3.5 h-3.5 text-primary" /> 平行宇宙图谱
+                </button>
                 {settings.memory?.enableAutoSummary !== false && (
                   <button
                     onClick={() => {
@@ -227,12 +249,16 @@ const ChatHeader = ({
                 >
                   {t("chat_header.dict")}
                 </button>
-
               </div>
             )}
           </div>
         )}
       </div>
+
+      <AgentHostDiagnosticsModal
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
+      />
     </div>
   );
 };

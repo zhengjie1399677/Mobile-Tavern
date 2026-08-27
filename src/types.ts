@@ -314,6 +314,8 @@ export interface UserPersona {
   description?: string;
 }
 
+export type CompatibilityScriptSecurityMode = "isolated" | "trusted";
+
 export interface UserSettings {
   api: ApiConfig;
   preset: SamplerPreset;
@@ -330,6 +332,11 @@ export interface UserSettings {
   expressionTriggers?: Record<string, string>;
   hasInjectedFormatPreset?: boolean; // Track if the format preservation preset has been injected
   enableScriptExecution?: boolean; // Toggle to execute custom interactive iframe scripts
+  /**
+   * isolated：opaque-origin iframe + 最小 postMessage bridge；
+   * trusted：保留旧 SillyTavern 同源父窗口兼容能力，仅用于明确受信角色卡。
+   */
+  scriptSecurityMode?: CompatibilityScriptSecurityMode;
   enableLoopProtection?: boolean; // Protect main thread from infinite script loops
   variables?: Record<string, any>; // Persistent global variables for TavernHelper compatibility
   extensionSettings?: Record<string, any>; // Persistent settings for SillyTavern extensions compatibility

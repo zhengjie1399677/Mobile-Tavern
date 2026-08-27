@@ -1,7 +1,9 @@
 ﻿# 🛠️ Mobile Tavern 技术实现细节与架构设计 (Technical Specifications)
 
-> 📌 **项目行为指导规范**：在理解或重构架构职责与数据流之前，必须首先阅读 [AGENTS.md](AGENTS.md) 中的核心行为准则（大单体防御、生态兼容与纯移动端适配）。
-> *当前版本：v1.7.7*
+> 📌 **项目行为指导规范**：在理解或重构架构职责与数据流之前，必须首先阅读 [AGENTS.md](AGENTS.md) 中的核心行为准则。
+> 当前产品状态与路线以 [CURRENT_STATE.md](docs/agents/CURRENT_STATE.md) 和
+> [agent_plugin_runtime_roadmap.md](docs/agents/agent_plugin_runtime_roadmap.md) 为准；本文保留完整实现链路，
+> 不作为版本、测试数量或活跃待办的权威来源。
 
 本文档归档了 Mobile Tavern 的核心技术实现细节、底层算法架构设计以及非侵入式的模块拓扑原理，专为开发者及技术研究人员提供深度参考。
 
@@ -510,8 +512,9 @@ erDiagram
     }
 ```
 
-### 2. 数据库迁移与升级历程 (Schema Migrations v1 to v5)
-随版本迭代，Mobile Tavern 实现了数据库结构的平滑无损迁移。以下是各版本升级定义（参见 `db.ts`）：
+### 2. 数据库迁移与升级历程
+随版本迭代，Mobile Tavern 实现了数据库结构的平滑无损迁移。当前物理数据库版本以
+`src/infrastructure/storage/dbSchema.ts` 中的 `DB_VERSION` 为准；以下版本是历史升级摘要：
 *   **Version 1**: 
     建立基础 `characters`、`sessions` 及 `settings` 对象存储库。
 *   **Version 2**: 
@@ -574,7 +577,7 @@ erDiagram
 
 ### 1. `promptBuilder.ts` (Prompt 编译组装)
 *   **实现位置**: [promptBuilder.ts](src/utils/promptBuilder.ts)
-*   **核心### 1. 自动化功能测试一览 (The 79 Test Suites)
+*   **核心自动化测试**：详见下方测试清单，数量以当次命令输出为准。
 
 这些测试用例按职责域被高度聚合并物理隔离到 `tests/suites/` 下的各个测试模块中：
 
@@ -846,11 +849,13 @@ Schema 变更由领域纯函数统一处理：列重命名按稳定 ID 保留数
 
 ## 🧪 自动化测试套件与覆盖验证 (Comprehensive Test Suite)
 
-为了在快速迭代中防范逻辑回归，项目内置了全覆盖的自动化测试套件，由项目根目录的 [tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，当前包含 **79 组核心功能验证套件**（含 Vitest 子进程桥接的 331 项 i18n / 组件渲染 / 服务集成断言）。
+为了在快速迭代中防范逻辑回归，项目内置了自动化测试套件，由项目根目录的
+[tests/run_all_tests.ts](tests/run_all_tests.ts) 主入口统一调度，并包含 Vitest、Playwright
+和 Rust 服务测试。测试数量以当次命令输出为准，不在本文固化。
 
 此外，`tsconfig.json` 的 `include` 已扩展至 `tests/` 目录（排除 `.cjs` / `.js`），使 `npm run lint` (`tsc --noEmit`) 能够同时捕获源码与测试代码的类型错误，确保 CI/CD 拦截时自动发现测试用例的类型失效。
 
-### 1. 自动化功能测试一览 (The 79 Test Suites)
+### 1. 自动化功能测试一览
 
 这些测试用例按职责域被高度聚合并物理隔离到 `tests/suites/` 下的各个测试模块中：
 
@@ -994,7 +999,7 @@ TypeScript 编译期类型检查无法拦截运行时形状漂移。为补齐运
 
 ### 4. 动态 topic 黑名单
 
-SillyTavern 兼容契约（AGENTS.md 准则二）要求 `tavern_helper:${event}` 这类由用户脚本决定的动态 topic 不能被强加 schema。`DYNAMIC_TOPIC_PREFIXES = ["tavern_helper:"]` 显式 skip payload 校验，仅保留顶层结构校验。当前登记的静态 topic 只有 2 个：
+SillyTavern 兼容契约（`COMPAT-DATA`）要求 `tavern_helper:${event}` 这类由用户脚本决定的动态 topic 不能被强加 schema。`DYNAMIC_TOPIC_PREFIXES = ["tavern_helper:"]` 显式 skip payload 校验，仅保留顶层结构校验。当前登记的静态 topic 以代码注册表为准：
 
 | Topic | Payload Schema | 来源 |
 |---|---|---|
@@ -1092,7 +1097,7 @@ SillyTavern 兼容契约（AGENTS.md 准则二）要求 `tavern_helper:${event}`
 ```
 
 ### 1. 单元测试层（已建设）
-主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)，包含 79 个核心功能验证用例，并联动 331 项 Vitest 断言，主要覆盖：
+主入口文件为 [run_all_tests.ts](tests/run_all_tests.ts)。主要覆盖：
 * **网络安全与防网闸**：`testSsrfGuard`（防私网 IP、回环及 DNS 重绑定穿透拦截）。
 * **数据库分轨与事务防抖**：`testDbQueue`、`testDatabaseServiceCrud`、`testLocalDBSplitTrack`（并发写 Promise 管道与配置大字段拆分合并）。
 * **Prompt 编译及前缀缓存**：`testPromptBuilder`、`testPromptBuilderSystemMerging`、`testPromptRuntime`（宏安全替换、多 System 消息智能交替合并）。

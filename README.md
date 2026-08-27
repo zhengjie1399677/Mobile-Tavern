@@ -6,9 +6,9 @@
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4.svg?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge)](LICENSE)
 
-Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深度定制的、高性能且轻量级的 AI 角色扮演（Roleplay）客户端。它并非旨在成为桌面端 Silly Tavern 的全盘替代品，而是作为其在**移动设备上的轻量化互补方案**。
+Mobile Tavern 是一款本地优先、多模态、可组合的移动端 Agent Host，专为智能手机和平板设备设计。应用内置 Base 与 Tavern 两类 Profile：Tavern Profile 延续 SillyTavern 生态兼容体验，Base Profile 则可在关闭兼容插件后提供通用聊天、多模态附件和工具能力。SillyTavern 兼容能力由受信的内置 Runtime Plugin 承载，第三方 `.mtplugin` 继续运行在独立的全屏沙箱中。
 
-在桌面端酒馆应用直接运行在手机浏览器中时，用户常常会遇到输入法键盘拉起遮挡聊天框、后台运行长连接中断、Blob 导出文件受限、手势触控缺失以及安全区被刘海屏遮挡等痛点。Mobile Tavern 聚焦于移动端手势触控、屏幕安全区自适应、底层高性能数据本地存储以及极致的上下文缓存优化，为用户在指尖提供媲美原生 App 的沉浸式人设扮演互动体验。
+在移动浏览器中运行桌面端酒馆应用时，用户常常会遇到输入法键盘遮挡聊天框、后台长连接中断、Blob 导出受限、手势触控缺失以及安全区被刘海屏遮挡等问题。Mobile Tavern 聚焦于移动端手势触控、安全区自适应、本地数据存储、可组合的 Agent Runtime 与多模态消息，为用户提供接近原生 App 的沉浸式互动体验。
 
 本软件推崇“无偏向、零侵入、数据驱动”的设计理念。系统内部绝不硬编码任何剧情总结提示词、破限 (Jailbreak) 引导词或分句符号，所有排版和生成行为完全由导入的角色卡、设定集及用户自定义的预设包来驱动。如果导入的角色卡不含自定义视觉扩展，系统将平滑退回最干净、利落的通用聊天布局，以实现极简主义与深度客制化的完美平衡。
 
@@ -17,7 +17,7 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 > * **功能与技术细节归档**：
 >   * 关于 Android 真机调试和网络映射，请查阅：[Android 调试与打包指南](docs/Android_调试与打包指南.md)；原生适配边界见 [移动端规范](docs/agents/mobile_strategy.md)。
 >   * 关于 用户操作步骤、雪团客服挂件说明以及知识库整理，请直接查阅：[knowledge.md](knowledge.md)。
->   * 关于 自由 Prompt 编排完全教程、参数选项通俗字典与实战范例，请直接查阅：[docs/Prompt_Composition_Tutorial.md](docs/Prompt_Composition_Tutorial.md)。
+>   * 关于 Prompt 组装的完整教程、参数选项通俗字典与实战范例，请直接查阅：[docs/Prompt_Composition_Tutorial.md](docs/Prompt_Composition_Tutorial.md)。
 >   * 关于 自定义主题、稳定 UI 选择器、Tab 显隐、本地媒体与 1.1 受限交互，请查阅：[主题与界面扩展开发指南](docs/Theme_Development_Guide.md)。
 >   * 关于 Prefix Cache 缓存优化、项目架构职责、数据库设计以及源码模块剖析等底层技术细节，请直接查阅：[TECHNICAL.md](TECHNICAL.md)。
 
@@ -38,13 +38,13 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 * Android 侧可由用户主动授予“所有文件访问权限”，自动扫描可访问的共享存储、外置存储卷及 `Android/media` 中的 PNG/JSON 角色卡；拒绝授权不会继续扫描，系统隔离的其他应用 `Android/data` 私有目录仍无法读取。
 * 角色目录支持列表、书架和双列大卡三种布局，并在本机记住上次选择。
 
-### 3. 🧩 自由 Prompt 编排与兼容层 (Free Prompt Composition)
+### 3. 🧩 Prompt 组装与兼容能力 (Prompt Composer & Compatibility)
 * 用户可以自由创建、删除、排序任意数量的 `system`、`user`、`assistant` 消息，决定角色卡、世界书、记忆和聊天历史出现的位置；每个历史区块可独立选择全部或最近若干条消息、是否保留欢迎消息，深度注入也可指定目标历史区块。相同角色消息不会被底层强制合并。
-* 编译器没有固定 Prompt、锁定区块或隐藏追加逻辑；空编排是合法状态。现有 Prompt 仅作为可编辑、可删除的基础示例，旧编译路径默认保留用于平滑迁移。
-* SillyTavern Prompt Manager 预设通过 `infrastructure/compat` 防腐适配器导入导出；未知字段隔离保留，无法无损表达的能力生成显式兼容警告，不进入中立领域模型。
+* 编译器没有固定 Prompt、锁定区块或隐藏追加逻辑；空组装是合法状态。现有 Prompt 仅作为可编辑、可删除的基础示例，旧编译路径默认保留用于平滑迁移。
+* SillyTavern Prompt Manager 预设通过 `src/infrastructure/compat` 防腐适配器导入导出；未知字段隔离保留，无法无损表达的能力生成显式兼容警告，不进入中立领域模型。
 * 移动端编辑器采用紧凑消息序列与底部编辑面板，支持触控拖动、上下移动兜底、可搜索数据源宏、条件与兼容元数据查看，并可基于当前会话预览最终 `messages` 顺序、Token 估算和编译诊断。
 * 可用宽度达到 700px 时自动进入双栏工作台：左侧保留消息序列和选中区块的快速配置，右侧常驻只读编排图或真实最终消息预览。窄屏仍使用底部面板；图形节点只定位同一份 `PromptComposition`，不会产生第二套编排状态。Android 原生包额外显示“进入横屏工作台”按钮，进入后只保留编排功能并隐藏设置框架和全局底栏，可随时恢复系统自动旋转；浏览器与其他平台不显示该入口。区块顺序支持触屏拖动，拖动离开手柄后仍由全窗口指针追踪完成落位。
-* 自由编排编辑器提供 30 步有界撤销/重做，连续文本输入会合并为一次历史操作；版本化 JSON 模板可导入、保存、复制和调用系统分享，导入本身也可撤销。Android 保存与分享优先使用原生桥接，浏览器环境分别降级为文件下载与 Web Share API。
+* Prompt Composer 提供 30 步有界撤销/重做，连续文本输入会合并为一次历史操作；版本化 JSON 模板可导入、保存、复制和调用系统分享，导入本身也可撤销。Android 保存与分享优先使用原生桥接，浏览器环境分别降级为文件下载与 Web Share API。
 * 模板库内置轻量对话、长对话省 Token、世界书优先、长期记忆增强和角色卡原味兼容五种场景预设；载入后得到普通、可完全编辑删除的 `PromptComposition`，不会启用隐藏指令或独立运行规则，并可直接撤销恢复。
 
 ### 4. ⏳ 智能故事时间线与多维 RPG 状态追踪 (Story Timeline & RPG Tracking)
@@ -61,24 +61,24 @@ Mobile Tavern 是一款专为移动端设备（如智能手机、平板等）深
 * 所有导入的角色设定、全局预设及聊天会话记录均存储在用户本机的 IndexedDB 数据库中，100% 离线，完全保护隐私，响应时间达到毫秒级。
 * 会话元数据与消息正文物理分轨，长期记忆通过领域端口访问存储适配器，业务召回与摘要规则不会污染通用数据库底座。
 * 关闭应用后重新进入会话时，始终以独立消息 Store 分页水合并恢复时间正序；旧记录残留的内嵌消息切片不会再遮蔽中间历史，加载更早页同样先正序化再合并。
-* 统一备份 v4 覆盖角色、完整消息、自定义预设库、记忆词典、事件记忆、时态事实及全局/独立世界书；明文备份自动移除全部 API 凭证，覆盖恢复前会先导出脱敏安全快照，并以单个 IndexedDB 事务完成替换。
+* 统一备份 v6 覆盖角色、完整消息、附件字节、自定义预设库、记忆词典、事件记忆、时态事实、Agent Journal 及全局/独立世界书；明文备份自动移除全部 API 凭证，覆盖恢复前会先导出脱敏安全快照，并对附件、Journal 和主库执行可恢复的原子替换。
 
 ### 7. 🚀 运行沙盒与可视化拓扑 (Interactive Sandbox)
 * 内置可视化数据流拓扑图，能够直观展示用户输入、世界书匹配、Prompt 组装以及网络流接收的全链路流转，并提供独立的防坍塌宏替换和缓存分流测试台。
 
-### 8. 🧭 模块化微内核与洋葱拦截管道 (Modular Kernel & Onion Pipeline)
-* 采用 DI/IOC 控制反转设计构建解耦底座，将数据持久化、大模型流式通信、Prompt 编译等核心逻辑全部下沉为独立的微服务。
+### 8. 🧭 Agent Runtime、Runtime Plugin 与 Kernel (Agent Runtime & Modular Kernel)
+* 应用层提供 AgentHandle、Turn、Driver、Provider、Tool Registry 和媒体 Processor；Profile 以类型化 Capability Slot、Provider Binding、可叠加 Contribution 与会话级 Composition Snapshot 组合聊天能力，并提供实际运行诊断。
 * 引入洋葱模型中间件管道（Pipeline）与具备优先级排序、并行分发和异常隔离的高能消息总线（MessageBus）。支持服务超时 Abort 熔断与非关键服务崩溃时返回 SafeProxy 的容错自愈。
-* 未注册 Pipeline 会立即报错，Kernel 通过 Provider 显式注入；React 视图统一以 selector 订阅最小状态切片，架构守卫持续阻止业务层反向依赖底座实现。
+* Kernel 只保留容器、生命周期、Effect、Pipeline、消息总线和扩展注册等通用机制；React 视图统一以 selector 订阅最小状态切片，架构守卫持续阻止业务层反向依赖底座实现。
 
 ### 9. 🎮 第三方全屏插件容器
-* 可从“设置 → 第三方全屏插件（实验性功能）”本地导入 `.mtplugin` ZIP 包，并在隔离的全屏 `iframe` 中运行 HTML/CSS/JS Gal 游戏或独立微应用；该入口位于“自由 Prompt 编排”之后，插件包、配置和存档使用独立 `MobileTavernPluginDB`，不会污染主 settings/session。
+* 可从“设置 → 第三方全屏插件（实验性功能）”本地导入 `.mtplugin` ZIP 包，并在隔离的全屏 `iframe` 中运行 HTML/CSS/JS Gal 游戏或独立微应用；该入口位于“Prompt 组装”之后，插件包、配置和存档使用独立 `MobileTavernPluginDB`，不会污染主 settings/session。
 * 正式安装包内置只读的《星渊终焉》和《夜雨试剑》两个 PixiJS 示例，无需导入即可运行；它们与用户安装的插件共用同一强沙箱运行链路，但包体不可卸载，游戏存档仍按插件 ID 独立保存。
 * 运行容器仅授予 `allow-scripts`，不授予同源、表单、弹窗、下载或导航能力；插件不能访问主应用 DOM、Kernel、API 凭证、网络或 Tauri，只能使用版本化宿主桥接进行存档、退出和方向控制。完整格式见 [第三方全屏插件规范](docs/Plugin_System_v1.md)。
 * 主应用外观可通过 `.tavern-theme.json`、受限 `customCss`、稳定 `data-ui` 选择器和本地资源调整；主题 1.1 可使用宿主解释的白名单规则播放本地音视频并驱动私有状态，但仍不能执行 JavaScript、访问网络或读取业务数据。主题与插件的能力差异见 [主题与界面扩展开发指南](docs/Theme_Development_Guide.md)。
 
 ### 10. 🧪 自动化集成测试套件 (Comprehensive Test Suite)
-* 当前主测试链包含 611 个测试用例（拆分：Vitest 95 个测试文件 + Playwright 4 个 E2E 套件 + 自研 CJS 脚本 11 个），覆盖物理 PNG 解码、SSRF 防御、自由 Prompt 编排、撤销重做、JSON 模板迁移与兼容防腐、Android 横屏及分享入口、状态 Schema 迁移、重启消息顺序、IndexedDB 分支尾部原子替换、十轮折叠边界重发、SafeProxy、洋葱管道严格模式及架构依赖边界。
+* 主测试链覆盖物理 PNG 解码、SSRF 防御、Prompt Composer、撤销重做、JSON 模板迁移与兼容防腐、Android 横屏及分享入口、状态 Schema 迁移、重启消息顺序、IndexedDB 分支尾部原子替换、Agent Runtime 工具循环、附件与备份恢复、SafeProxy、洋葱管道严格模式及架构依赖边界；具体测试入口以仓库脚本和 CI 结果为准。
 
 ### 11. 🌐 多语言国际化 (i18n Multi-language)
 * 内置 8 种语言完整翻译：简体中文、繁体中文、English、日本語、Русский、Español、한국어、Português (BR)。
@@ -133,8 +133,10 @@ Mobile-Tavern
     ├── UnifiedAppContext.tsx             # 统一状态选择器入口
     ├── types.ts                          # 全局共享类型定义
     ├── main.tsx                          # 应用入口与挂载
-    ├── kernel                            # 微内核切面底座 (IOC 容器、Pipeline 及官方微服务)
+    ├── kernel                            # 通用 Kernel 机制 (Scope、Pipeline、消息总线与扩展注册)
     ├── application                       # 应用层 (serviceContracts 服务契约、services 服务实现、useCases 用例、bootstrap 启动装配)
+    │   ├── runtimePlugins                 # Runtime Plugin、Capability 与 Agent Runtime 装配
+    │   └── runtimeProfiles                # Base/Tavern 与用户 Profile 管理
     ├── domain                            # 与 React、IndexedDB 无关的纯业务规则 (chat/community/conditions/memory/plugins/prompt-composition/usage)
     ├── infrastructure                    # IndexedDB 等物理基础设施适配器 (compat/plugins/storage)
     ├── compatibility                     # 防腐兼容层 (sillytavern 等外部格式适配)

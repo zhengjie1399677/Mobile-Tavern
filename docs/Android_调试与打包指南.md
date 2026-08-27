@@ -63,7 +63,7 @@ Set-Location "D:\projects\Mobile-Tavern\src-tauri\gen\android"
 | 1 | 冷启动与首次切换 | 首屏稳定；首次进入任何分类不闪回首页，不出现长时间白屏 |
 | 2 | 四个主标签 | 高度一致；主标题层级明确；设置底栏与其余标签一致 |
 | 3 | 记忆与状态中心 | 首次打开可接受；四个标签内容完整；JSON 与表单控件可读可操作 |
-| 4 | 自由编排 | 竖屏内容不截断；进入横屏后只显示编排工作台；文本长度与滚动正常 |
+| 4 | Prompt 组装 | 竖屏内容不截断；进入横屏后只显示组装工作台；文本长度与滚动正常 |
 | 5 | 故事年表 | 长内容可以持续下滑并展示全文，返回对话位置正确 |
 | 6 | 文件能力 | Prompt 模板和记忆词典可保存到公共下载目录，并显示实际保存路径 |
 | 7 | 软键盘与安全区 | 输入框不被键盘、状态栏或导航栏遮挡，收起键盘后布局恢复 |
@@ -74,7 +74,7 @@ Set-Location "D:\projects\Mobile-Tavern\src-tauri\gen\android"
 
 ## Prompt 横屏与原生桥接
 
-自由编排通过 `AndroidThemeBridge.setScreenOrientation("landscape")` 进入传感器横屏，通过 `setScreenOrientation("auto")` 恢复系统旋转。`MainActivity` 已处理 `orientation|screenSize`，旋转不应重建 WebView 或丢失编辑状态。
+Prompt 组装通过 `AndroidThemeBridge.setScreenOrientation("landscape")` 进入传感器横屏，通过 `setScreenOrientation("auto")` 恢复系统旋转。`MainActivity` 已处理 `orientation|screenSize`，旋转不应重建 WebView 或丢失编辑状态。
 
 模板和词典导出优先调用 `AndroidThemeBridge.saveFile`，分享调用 `AndroidThemeBridge.shareText`。浏览器环境没有原生桥接时应安全降级，不得伪装为 Android 保存成功。
 

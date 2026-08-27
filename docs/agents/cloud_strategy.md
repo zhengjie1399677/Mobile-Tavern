@@ -23,9 +23,9 @@
 ### 2. 物理隔离铁律
 
 *   **目录隔离**：云端代码**仅限** `cloud/` 与 `shared/` 两个顶层目录，严禁侵入 `src/`（移动端前端）或 `src-tauri/`（移动端 Rust 后端）。
-*   **打包隔离**：Tauri 移动端打包（`npm run tauri build`）**不会包含** `cloud/` 任何代码。移动端 App 仍是纯原生混合应用，符合准则三。
+*   **打包隔离**：Tauri 移动端打包（`npm run tauri build`）**不会包含** `cloud/` 任何代码。移动端 App 仍是纯原生混合应用，符合 `PLATFORM-MOBILE`。
 *   **依赖隔离**：`cloud/Cargo.toml` 与 `src-tauri/Cargo.toml` 各自独立声明依赖。workspace 层仅共享 `serde` / `serde_json` / `chrono` 三个基础 crate，其余依赖互不影响。
-*   **开发隔离**：云端开发遵循准则八物理隔离流程，新增模块限在 `cloud/src/<module>/` 内读写，通过 `cloud/src/main.rs` 装配路由。
+*   **开发隔离**：云端开发遵循隔离开发流程，新增模块限在 `cloud/src/<module>/` 内读写，通过 `cloud/src/main.rs` 装配路由。
 
 ### 3. 类型共享机制（ts-rs）
 

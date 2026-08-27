@@ -1,6 +1,6 @@
 # Mobile Tavern 云端后端
 
-> ⚠️ 本目录为云端后端服务，与移动端 App 物理隔离。详见 [AGENTS.md 准则十一](../AGENTS.md) 与 [云端后端开发规范](../docs/agents/cloud_strategy.md)。
+> ⚠️ 本目录是已归档的云端后端原型，与移动端 App 物理隔离。详见 [AGENTS.md](../../../AGENTS.md) 与 [云端后端开发规范](../../../docs/agents/cloud_strategy.md)。
 
 ## 定位
 
@@ -74,7 +74,7 @@ cloud/
 
 ## 部署
 
-生产部署详见 [部署指南](../docs/cloud_deployment.md)（待补全）。
+生产部署请以当前 [云端后端开发规范](../../../docs/agents/cloud_strategy.md) 为准；本原型的旧部署指南不再维护。
 
 核心要点：
 - 单 `docker compose up -d` 启动全栈
@@ -86,4 +86,4 @@ cloud/
 
 - 移动端 Tauri 打包**不会包含** `cloud/` 目录任何代码
 - 前后端类型共享通过 `shared/` crate 的 ts-rs 自动导出
-- 详见 [AGENTS.md 准则三（纯移动端战略）](../AGENTS.md) 与 [准则十一（云端后端开发）](../AGENTS.md)
+- 详见 [AGENTS.md](../../../AGENTS.md) 与 [云端后端开发规范](../../../docs/agents/cloud_strategy.md)

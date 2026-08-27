@@ -6,6 +6,10 @@ import {
   SETTINGS_PROVIDER_ROUTE_ID,
   VIDEO_KEYFRAME_PROCESSOR_ID,
 } from "../runtimePlugins/agentSpineRuntimePlugin";
+import {
+  CHARACTER_READ_TOOL_NAME,
+  SESSION_BRANCH_TOOL_NAME,
+} from "../tools/builtinAgentTools";
 import { LEGACY_RUNTIME_PLUGIN_ID } from "../runtimePlugins/legacyRuntimePlugin";
 import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../compatibility/contracts";
 import {
@@ -111,7 +115,7 @@ export function buildRuntimeProfileDefinition(
       "llm.route": SETTINGS_PROVIDER_ROUTE_ID,
     },
     contributions: {
-      tool: [],
+      tool: [CHARACTER_READ_TOOL_NAME, SESSION_BRANCH_TOOL_NAME],
       "media.processor": mediaProcessors,
       ...(compatibility ? {
         "compat.codec": ["compat.sillytavern.codec.prompt-preset"],

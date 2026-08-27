@@ -5,6 +5,7 @@ import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { loadServerConfig } from "./server/config";
 import { ssrfGuard, validateBaseUrlSecurity } from "./server/security";
+import { safeFetch } from "./server/safeFetch";
 import crypto from "crypto";
 
 dotenv.config();
@@ -234,7 +235,7 @@ async function startServer() {
       });
       console.log(`[Proxy TestConnection] Target URL: ${sanitizeSensitiveData(targetUrl)}`);
 
-      const response = await fetch(targetUrl, {
+      const response = await safeFetch(targetUrl, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -299,7 +300,7 @@ async function startServer() {
         }
       }
 
-      const response = await fetch(targetUrl, {
+      const response = await safeFetch(targetUrl, {
         method: "POST",
         headers,
         body: JSON.stringify(cleanedReqBody),
@@ -368,7 +369,7 @@ async function startServer() {
         apiKey,
       });
 
-      const response = await fetch(targetUrl, {
+      const response = await safeFetch(targetUrl, {
         method: "GET",
         headers,
       });
@@ -421,7 +422,7 @@ async function startServer() {
 
       console.log(`[Proxy ImageGen] Forwarding request to: ${targetUrl}`);
 
-      const response = await fetch(targetUrl, {
+      const response = await safeFetch(targetUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

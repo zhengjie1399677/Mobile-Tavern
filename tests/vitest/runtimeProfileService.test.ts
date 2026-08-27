@@ -63,6 +63,10 @@ describe("RuntimeProfileService", () => {
       "mobile-tavern.sillytavern-compat",
     );
     expect(definition.contributions?.["media.processor"]).toEqual(["media.audio.asr"]);
+    expect(definition.contributions?.tool).toEqual([
+      "character.read",
+      "session.branch",
+    ]);
   });
 
   it("删除当前自定义 Profile 时回退 Tavern Agent，不留下悬空选择", () => {

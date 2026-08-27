@@ -342,14 +342,19 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
  * 将酒馆标准 World Info/Lorebook 字段映射为统一的 LorebookEntry 接口格式
  */
 export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
-  const entryKeys: string[] = Array.isArray(entry.keys)
+  const rawKeys = Array.isArray(entry.keys)
     ? entry.keys
     : Array.isArray(entry.key)
       ? entry.key
-      : (entry.key || entry.keys || "")
-          .split(",")
-          .map((k: string) => k.trim())
-          .filter(Boolean);
+      : typeof entry.key === "string"
+        ? entry.key
+        : typeof entry.keys === "string"
+          ? entry.keys
+          : [];
+  const entryKeys = (Array.isArray(rawKeys) ? rawKeys : [rawKeys])
+    .flatMap((key: unknown) => typeof key === "string" ? key.split(",") : [])
+    .map((key: string) => key.trim())
+    .filter(Boolean);
 
   let stPosition = entry.position !== undefined ? entry.position : entry.placement;
   let position: "top" | "after_char_def" | "before_char_def" | "before_last_mes" | "in_chat" = "after_char_def";

@@ -1,5 +1,10 @@
 import type { EffectDisposer, IKernelService } from "../../kernel/types";
-import type { CharacterCard, ChatSession, UserSettings } from "../../types";
+import type {
+  CharacterCard,
+  ChatSession,
+  CompatibilityScriptSecurityMode,
+  UserSettings,
+} from "../../types";
 import type { PromptNode } from "../services/prompt/types";
 
 export const SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID = "mobile-tavern.sillytavern-compat";
@@ -97,17 +102,33 @@ export interface CompatibilityGenerationState {
   readonly streamingMessageId: string | null;
 }
 
+export interface CompatibilityIframePolicy {
+  readonly isolated: boolean;
+  readonly sandbox: string;
+}
+
 export type CompatibilityGenerationStateUpdate = Partial<CompatibilityGenerationState>;
 
 export interface CompatibilityRendererDefinition {
   readonly id: string;
   readonly version: string;
   initializeGlobals(): void;
-  areRuntimeLibrariesReady(): boolean;
+  areRuntimeLibrariesReady(securityMode: CompatibilityScriptSecurityMode): boolean;
   hasCardScripts(character: CharacterCard | null): boolean;
   listBackgroundScripts(character: CharacterCard | null): CompatibilityBackgroundScript[];
-  createScriptIframeSrcDoc(content: string, scriptId: string, loopProtection: boolean): string;
-  createMessageIframeSrcDoc(content: string, messageId: number | undefined, loopProtection: boolean): string;
+  getIframePolicy(securityMode: CompatibilityScriptSecurityMode): CompatibilityIframePolicy;
+  createScriptIframeSrcDoc(
+    content: string,
+    scriptId: string,
+    loopProtection: boolean,
+    securityMode: CompatibilityScriptSecurityMode,
+  ): string;
+  createMessageIframeSrcDoc(
+    content: string,
+    messageId: number | undefined,
+    loopProtection: boolean,
+    securityMode: CompatibilityScriptSecurityMode,
+  ): string;
   initializeBridge(params: CompatibilityBridgeParams): void;
   updateBridge(params: Partial<Pick<CompatibilityBridgeParams, "activeCharacter" | "activeSession" | "settings">>): void;
   getBridgeParams(): CompatibilityBridgeParams | null;

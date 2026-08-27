@@ -188,6 +188,12 @@ export async function validateBaseUrlSecurity(baseUrl: string): Promise<void> {
   }
 
   const hostname = parsedUrl.hostname;
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    throw new Error("Only HTTP and HTTPS targets are allowed");
+  }
+  if (parsedUrl.username || parsedUrl.password) {
+    throw new Error("URL credentials are not allowed");
+  }
   if (!hostname) {
     throw new Error("Host cannot be empty");
   }

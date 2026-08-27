@@ -373,6 +373,10 @@ describe("Legacy Runtime Plugin", () => {
       "media.audio.asr",
       "media.video.keyframes",
     ]);
+    expect(snapshot.contributionOrder.tool).toEqual([
+      "character.read",
+      "session.branch",
+    ]);
   });
 
   it("把现有服务、Pipeline 和能力登记收口到一个可逆插件", async () => {
