@@ -18,6 +18,9 @@ const __dirname = dirname(__filename);
 const SRC_DIR = resolve(__dirname, "../src");
 const LOCALES_DIR = resolve(SRC_DIR, "locales");
 const LANGUAGES = ["zh-CN", "zh-TW", "en", "ja", "ru", "es", "ko", "pt-BR"];
+const SHARED_LOCALE_FRAGMENTS = {
+  sessionManagerEnglishFallback: resolve(LOCALES_DIR, "sessionManagerFallback.ts"),
+} as const;
 
 // ─── 提取翻译 key ────────────────────────────────────────────────────────────
 
@@ -60,6 +63,19 @@ function collectTsFiles(dir: string, exclude: string[] = []): string[] {
 function loadLocaleKeys(lang: string): Set<string> {
   const filePath = resolve(LOCALES_DIR, `${lang}.ts`);
   const content = readFileSync(filePath, "utf-8");
+  const keys = extractLocaleObjectKeys(content);
+
+  // 语言包允许显式展开共享词典；静态检查必须按运行时对象展开后的 key 集合计算，
+  // 否则会把已有英文降级文案误报为 6 份缺失翻译。
+  for (const [exportName, fragmentPath] of Object.entries(SHARED_LOCALE_FRAGMENTS)) {
+    if (!content.includes(`...${exportName}`)) continue;
+    const fragmentContent = readFileSync(fragmentPath, "utf-8");
+    extractLocaleObjectKeys(fragmentContent).forEach((key) => keys.add(key));
+  }
+  return keys;
+}
+
+function extractLocaleObjectKeys(content: string): Set<string> {
   const keys = new Set<string>();
 
   // 匹配 "key": 或 "key" : 模式
