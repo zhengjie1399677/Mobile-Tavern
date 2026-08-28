@@ -4,6 +4,7 @@ import {
   getStoredSavedPresets as dbGetStoredSavedPresets,
   saveStoredSavedPresets as dbSaveStoredSavedPresets,
 } from "../../infrastructure/storage/repositories/settingsRepository";
+import { normalizeSavedPresetPromptPlan } from "../useCases/presetPromptConfig";
 
 /**
  * PresetService - 采样器预设包业务服务插件
@@ -45,10 +46,11 @@ export class PresetService implements IPresetService<SavedPresetBundle> {
   }
 
   async getStoredSavedPresets(): Promise<SavedPresetBundle[] | null> {
-    return dbGetStoredSavedPresets();
+    const presets = await dbGetStoredSavedPresets();
+    return presets?.map(normalizeSavedPresetPromptPlan) ?? null;
   }
 
   async saveStoredSavedPresets(presets: SavedPresetBundle[]): Promise<void> {
-    return dbSaveStoredSavedPresets(presets);
+    return dbSaveStoredSavedPresets(presets.map(normalizeSavedPresetPromptPlan));
   }
 }

@@ -787,6 +787,21 @@ export async function testArchitectureBoundaries(): Promise<void> {
     const lines = read(file).split(/\r?\n/).length;
     assert(lines <= 1000, `${file} 超过单文件 1000 行硬上限：${lines}`);
   }
+  const presetPromptPlan = read("src/application/useCases/presetPromptConfig.ts");
+  const promptService = read("src/application/services/PromptService.ts");
+  const sendMessage = read("src/hooks/useChat/useSendMessage.ts");
+  const rerollMessage = read("src/hooks/useChat/useRerollMessage.ts");
+  assert(
+    read("src/types.ts").includes("interface PromptPresetPlan")
+      && presetPromptPlan.includes("normalizeSavedPresetPromptPlan")
+      && presetPromptPlan.includes('mode: "legacy"')
+      && promptService.includes("assemblePromptComposition")
+      && sendMessage.includes("assembleAuthoritativePromptEnvelope")
+      && rerollMessage.includes("assembleAuthoritativePromptEnvelope")
+      && !sendMessage.includes("promptPayload.messages ||")
+      && !rerollMessage.includes("promptPayload.messages ||"),
+    "Prompt 预设必须经版本快照归一化，发送与重生成只能消费单一权威 messages，不能恢复二次拼装路径"
+  );
   assert(
     read("src/components/FormattedText.tsx").includes("./formatted-text/renderingRuntime") &&
       read("src/tabs/settings/sections/system-report/SystemReportSectionView.tsx").includes("./SystemReportPanel") &&

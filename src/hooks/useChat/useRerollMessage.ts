@@ -23,7 +23,7 @@ import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipel
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
-import { buildAuthoritativePromptSession } from "../../application/useCases/promptHistoryUseCases";
+import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/assemblePromptEnvelopeUseCase";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
 import {
@@ -308,36 +308,20 @@ export function useRerollMessage(p: RerollMessageParams) {
         log.warn("Memory recall failed", err);
       }
 
-      const promptSession = await buildAuthoritativePromptSession(
-        p.databaseService,
-        updatedSession,
-        p.settings,
-        targetMsg.id,
-      );
-      const promptPayload = p.promptService.assemblePrompt({
+      const { promptSession, promptEnvelope: promptPayload } = await assembleAuthoritativePromptEnvelope({
+        databaseService: p.databaseService,
+        promptService: p.promptService,
         character: p.activeCharacter!,
-        chat: promptSession,
+        session: updatedSession,
         userInput: lastUserText,
         settings: p.settings,
         globalLorebook: combinedGlobals,
-        recalledMemories: recalledMemories,
+        recalledMemories,
+        beforeMessageId: targetMsg.id,
         signal: controller.signal,
         traceId,
       });
-      const assembledProviderMessages: OpenAiProviderMessage[] = promptPayload.messages || [
-        {
-          role: "system",
-          content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction].filter(Boolean).join("\n\n"),
-        },
-        ...promptPayload.history.map((historyMessage: { role: "model" | "user" | "assistant"; name?: string; content: string }) => {
-          const providerMessage: OpenAiProviderMessage = {
-            role: historyMessage.role === "model" ? "assistant" : historyMessage.role,
-            content: historyMessage.content,
-          };
-          if (p.settings.api.sendNames && historyMessage.name) providerMessage.name = historyMessage.name;
-          return providerMessage;
-        }),
-      ];
+      const assembledProviderMessages: OpenAiProviderMessage[] = promptPayload.messages;
       const baseProviderMessages = preserveAssistantReasoning(
         assembledProviderMessages,
         promptSession.messages,

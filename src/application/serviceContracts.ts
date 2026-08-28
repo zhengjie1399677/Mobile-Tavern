@@ -393,22 +393,23 @@ export interface IPromptService<TCharacter = unknown, TSession = unknown, TSetti
     /** traceId：用于关联一次用户操作的提示词编译日志与遥测事件 */
     traceId?: string;
   }): {
+    version: 1;
     systemInstruction: string;
     history: Array<{ role: "model" | "user" | "assistant"; name?: string; content: string }>;
     dynamicInstruction: string;
     userInput?: string;
-    messages?: Array<{ role: "system" | "user" | "assistant"; name?: string; content: string }>;
-    diagnostics?: Array<{
+    messages: Array<{ role: "system" | "user" | "assistant"; name?: string; content: string }>;
+    diagnostics: Array<{
       level: "info" | "warning" | "error";
       code: string;
       message: string;
       blockId?: string;
       detail?: string;
     }>;
-    traces?: PromptCompositionTrace[];
+    traces: PromptCompositionTrace[];
     budget?: PromptCompositionBudgetReport;
     stopSequences?: string[];
-    requestShaping?: {
+    requestShaping: {
       enabled: boolean;
       originalMessageCount: number;
       finalMessageCount: number;

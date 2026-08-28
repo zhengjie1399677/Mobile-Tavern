@@ -19,8 +19,8 @@ import {
   formatTableMemoryColumnConstraint,
   getTableMemoryColumnDefinitions,
 } from "../../domain/memory/tableMemorySchema";
-import { applyPromptSceneProfile, compilePromptComposition } from "../../domain/prompt-composition";
 import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
+import { assemblePromptComposition } from "./prompt/PromptCompositionAssembly";
 import type { PromptAssemblyResult } from "./prompt/PromptAssemblyResult";
 import { buildPromptRequestMessages, shapePromptRequest } from "./prompt/PromptRequestShaper";
 import { checkPromptAssemblyAborted, createLorebookSessionContext } from "./prompt/PromptAssemblySupport";
@@ -187,51 +187,15 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
           }) ?? message.content;
         },
       });
-      const budgetConfig = composition.tokenBudget;
-      const modelCapabilities = ModelCapabilityRegistry.getCapabilities(
-        settings.api?.modelName || "",
-        settings.api?.baseUrl,
-      );
-      const contextLimit = settings.api?.contextLimit || modelCapabilities.contextWindow || 200000;
-      const modelPromptBudget = Math.max(1, contextLimit - Math.max(0, settings.preset?.maxTokens || 0));
-      const tokenBudget = budgetConfig?.enabled === false
-        ? undefined
-        : budgetConfig?.mode === "custom"
-          ? budgetConfig.maxTokens
-          : modelPromptBudget;
-      const sceneResolution = applyPromptSceneProfile(composition, chat.activePromptSceneProfileId);
-      const compiled = compilePromptComposition(sceneResolution.composition, runtime, {
-        tokenBudget,
-        estimateTokens: (text) => this.estimateTokens(text),
-      });
-      compiled.diagnostics.unshift(...sceneResolution.diagnostics);
-      compiled.diagnostics.forEach((diagnostic) => {
-        log.warn(`[PromptComposition:${diagnostic.code}] ${diagnostic.message}`);
-      });
-      const shaped = shapePromptRequest(compiled.messages, settings.promptConfig.requestShaping);
-      const systemInstruction = shaped.messages
-        .filter((message) => message.role === "system")
-        .map((message) => message.content)
-        .join("\n\n");
-      return {
-        systemInstruction,
-        dynamicInstruction: "",
-        history: shaped.messages.flatMap((message) => {
-          if (message.role === "system") return [];
-          const role: "user" | "assistant" | "model" =
-            message.role === "assistant" && settings.api.type !== "openai-compat"
-              ? "model"
-              : message.role;
-          return [{ role, name: message.name, content: message.content }];
-        }),
+      return assemblePromptComposition({
+        composition,
+        runtime,
+        activeSceneProfileId: chat.activePromptSceneProfileId,
         userInput,
-        messages: shaped.messages,
-        diagnostics: compiled.diagnostics,
-        traces: compiled.traces,
-        budget: compiled.budget,
-        stopSequences: shaped.stopSequences,
-        requestShaping: shaped.report,
-      };
+        settings,
+        estimateTokens: (text) => this.estimateTokens(text),
+        reportDiagnostic: (code, message) => log.warn(`[PromptComposition:${code}] ${message}`),
+      });
     }
 
     if (settings.promptConfig?.roleplayMode === false) {
@@ -388,11 +352,14 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         settings.promptConfig.requestShaping,
       );
       return {
+        version: 1,
         systemInstruction,
         dynamicInstruction: "",
         history: chatHistory,
         userInput,
         messages: shaped.messages,
+        diagnostics: [],
+        traces: [],
         stopSequences: shaped.stopSequences,
         requestShaping: shaped.report,
       };
@@ -971,11 +938,14 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
       settings.promptConfig.requestShaping,
     );
     return {
+      version: 1,
       systemInstruction: compiledSystemPrompt,
       dynamicInstruction: "",
       history: chatHistory,
       userInput,
       messages: shaped.messages,
+      diagnostics: [],
+      traces: [],
       stopSequences: shaped.stopSequences,
       requestShaping: shaped.report,
     };

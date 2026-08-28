@@ -170,6 +170,35 @@ describe("preparePresetBundleImport", () => {
     }));
   });
 
+  it("没有 prompt_order 时按 prompts 原顺序导入，不静默退回传统字段", () => {
+    const result = preparePresetBundleImport({
+      input: {
+        name: "无顺序容器",
+        prompts: [
+          { identifier: "first", name: "第一段", role: "system", content: "FIRST" },
+          { identifier: "second", name: "第二段", role: "user", content: "SECOND", enabled: false },
+        ],
+      },
+      fallbackName: "fixture",
+      currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+      createId,
+    });
+
+    expect(result.composition?.blocks.map((block) => block.compatibility?.originalIdentifier)).toEqual([
+      "first", "second",
+    ]);
+    expect(result.bundle.promptPlan).toMatchObject({
+      version: 1,
+      mode: "composition",
+      source: "sillytavern",
+    });
+    expect(result.compatibilityAnalysis).toMatchObject({
+      promptCount: 2,
+      orderedPromptCount: 2,
+      enabledPromptCount: 1,
+    });
+  });
+
   it.each(SILLY_TAVERN_PRESET_ARCHETYPES)(
     "$id：真实导入用例与兼容矩阵保持同一分级",
     ({ preset, expected }) => {

@@ -62,7 +62,7 @@ describe("Prompt 权威历史窗口", () => {
     });
   });
 
-  it("自由编排明确区分全量、最近窗口和禁用聊天历史", () => {
+  it("自由编排明确区分全量、最近窗口，并为世界书保留独立扫描窗口", () => {
     expect(resolvePromptHistoryRequirement(session, settingsWithHistorySource({ mode: "all" })))
       .toEqual({ preserveFirstAssistant: false });
     expect(resolvePromptHistoryRequirement(session, settingsWithHistorySource({
@@ -74,7 +74,7 @@ describe("Prompt 权威历史窗口", () => {
     const disabled = settingsWithHistorySource({ mode: "all" });
     disabled.promptConfig.composition!.blocks[0].enabled = false;
     expect(resolvePromptHistoryRequirement(session, disabled))
-      .toEqual({ limit: 0, preserveFirstAssistant: false });
+      .toEqual({ limit: DEFAULT_SETTINGS.memory.recentTurns, preserveFirstAssistant: false });
   });
 
   it("构建提示词会话时把重发边界交给数据库，并不使用 UI 消息切片", async () => {
@@ -103,7 +103,7 @@ describe("Prompt 权威历史窗口", () => {
     );
 
     expect(getSessionPromptMessages).toHaveBeenCalledWith(session.id, {
-      limit: 5,
+      limit: DEFAULT_SETTINGS.memory.recentTurns,
       preserveFirstAssistant: true,
       beforeMessageId: "reroll-boundary",
     });

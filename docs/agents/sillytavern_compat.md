@@ -30,11 +30,14 @@
 - 本地原文件通过 `npm run verify:preset-samples -- <文件路径...>` 验收；工具只输出文件名、大小、兼容等级、计数、诊断数量和耗时，不输出预设内容。
 - `full` 表示通用 Prompt 语义完整兼容；`core` 表示 Prompt 核心可用但插件脚本不执行；`recognize_only` 表示仅安全识别和降级导入。
 - 预设导入遵循 ST Prompt Manager 语义：只有 `prompt_order` 中排序的 Prompt 转为编排区块（顺序与启用状态照搬）；未排序的候选 Prompt 仅存在于 ST 候选库、不进入管理器列表，因此不导入，并产生 `SKIPPED_UNORDERED_PROMPTS` 警告。完全没有 `prompt_order` 时降级保留全部 Prompt，避免静默丢失。
+- 导入后的外部编排必须进入版本化 `promptPlan` 快照；`source="sillytavern"` 只用于来源与往返诊断，运行时只能消费中立 `PromptComposition`。用户暂不启用自由编排时仍要把快照保存在该预设内，禁止继承其他预设的编排。
+- 旧 Mobile Tavern 预设缺少版本快照时明确按 `legacy` 运行，并生成独立、可见的迁移编排草稿；不得因为当前设置正启用自由编排而静默改变旧预设行为。
 - 数据库附着、Agent Marker、TavernHelper/远程脚本和前端 DOM 生命周期不属于通用预设兼容范围，不得因样本流行度绕过边界。
 
 ### 5. Runtime Plugin 边界与旧数据降级
 
 - SillyTavern 兼容实现只由 `mobile-tavern.sillytavern-compat` 受信 Runtime Plugin 接入；Database、Prompt、Script、聊天 Hook 和通用 UI 只能依赖 `CompatibilityRuntimeService` 的类型化贡献契约。
+- SillyTavern `prompts`、`prompt_order`、Marker 与注入字段只能由 Compatibility Codec 转为中立编排；通用 Prompt 管线负责统一编译、请求整形和最终 Token 审计，不得反向识别 SillyTavern identifier。
 - `mobile-tavern.base` 必须在不装载兼容插件时继续提供基础 Agent、纯文本聊天、多模态附件和通用工具；兼容插件卸载时必须清理贡献、Bridge、iframe 运行态和生成标记。
 - 会话插件状态以 `runtimePluginState["mobile-tavern.sillytavern-compat"]` 为新权威位置。新写入不得再镜像至旧 `variables`；读取优先命名空间，缺失时读取旧字段。Bridge 需要旧形状时只能由 Compatibility Plugin 瞬时投影，并在 `setSessions`/`saveSession` 边界归一化回命名空间；不得批量改写旧会话或静默删除未知插件状态。
 - TavernHelper 全局对象只属于 Renderer/Bridge 实现细节，通用生产代码不得直接读写；状态同步、脚本库就绪检查和 iframe 构建必须经 Renderer 契约。

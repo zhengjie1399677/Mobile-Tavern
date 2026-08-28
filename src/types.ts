@@ -304,21 +304,38 @@ export interface ApiProfile {
   supportsAudioInput?: boolean;
 }
 
-/** 预设包只保存传统 Prompt 配置；自由编排拥有独立的状态与模板生命周期。 */
+/** 预设包中的传统 Prompt 字段；用于旧 Mobile Tavern 路径与兼容导出。 */
 export type PresetPromptConfig = Omit<PromptConfig, "usePromptComposition" | "composition">;
+
+export type PromptPresetPlanMode = "legacy" | "composition";
+export type PromptPresetPlanSource = "mobile-tavern" | "sillytavern" | "native";
+
+/**
+ * 预设拥有的版本化 Prompt 运行快照。
+ *
+ * `mode` 明确决定加载预设后使用传统路径还是自由编排，避免旧预设缺字段时
+ * 继承另一个预设的运行模式。`composition` 在 legacy 模式下也可作为待启用快照保留。
+ */
+export interface PromptPresetPlan {
+  version: 1;
+  mode: PromptPresetPlanMode;
+  source: PromptPresetPlanSource;
+  composition?: PromptComposition;
+}
 
 export interface SavedPresetBundle {
   id: string;
   preset: SamplerPreset;
   promptConfig: PresetPromptConfig;
   presetRegexScripts?: RegexScript[];
+  /** 新数据的权威 Prompt 快照；旧数据由应用层从下方兼容字段迁移。 */
+  promptPlan?: PromptPresetPlan;
   /**
-   * 预设携带的提示词编排（规划）。
-   * 规划属于预设而非全局：切换预设时随预设整体切换，区块开关即预设的子节点开关。
-   * 缺省时（旧预设包）保持当前自由编排状态不变，仅应用传统 Prompt 字段。
+   * @deprecated 旧版 Prompt 快照字段，仅用于无损读取历史数据。
+   * 新保存以 `promptPlan` 为准。
    */
   composition?: PromptComposition;
-  /** 该预设是否启用自由编排；缺省时保持当前设置（兼容旧预设包）。 */
+  /** @deprecated 旧版运行模式字段，仅用于无损读取历史数据。 */
   usePromptComposition?: boolean;
   /**
    * 是否为内置（随应用出厂）预设。内置预设由启动加载器强制重建，不可删除；

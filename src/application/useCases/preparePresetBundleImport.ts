@@ -14,7 +14,7 @@ import type {
 } from "../../domain/prompt-composition";
 import { parsePromptComposition } from "../../domain/prompt-composition";
 import type { CompatibilityCodecDefinition } from "../compatibility/contracts";
-import { toPresetPromptConfig } from "./presetPromptConfig";
+import { createPromptPresetPlan, toPresetPromptConfig } from "./presetPromptConfig";
 
 type ExternalRecord = Record<string, unknown>;
 type ImportIdKind = "preset" | "regex" | "bundle";
@@ -86,8 +86,9 @@ export function preparePresetBundleImport(
 
   const promptConfig = preparePromptConfig(data, options.currentPromptConfig);
   const regexResult = parseRegexScripts(data, createId);
-  const isSillyTavernPromptPreset = Array.isArray(data.prompts)
-    && (Array.isArray(data.prompt_order) || Array.isArray(data.promptOrder));
+  // 部分社区预设没有 prompt_order；Codec 会按 prompts 原顺序降级保留，
+  // 因此正式入口只要求存在 prompts，不能在此提前把它排除。
+  const isSillyTavernPromptPreset = Array.isArray(data.prompts);
   const codec = options.compatibilityCodec;
   const compositionImport = isSillyTavernPromptPreset && codec?.canDecode(data)
     ? parseCodecImport(codec.decode({ ...data, name }))
@@ -106,14 +107,29 @@ export function preparePresetBundleImport(
       }]
     : [];
 
+  const bundle: SavedPresetBundle = {
+    id: createId("bundle"),
+    preset,
+    promptConfig,
+    presetRegexScripts: regexResult.scripts,
+  };
+  if (composition) {
+    bundle.promptPlan = {
+      version: 1,
+      mode: "composition",
+      source: "sillytavern",
+      composition,
+    };
+  } else {
+    bundle.promptPlan = createPromptPresetPlan(
+      { ...options.currentPromptConfig, ...promptConfig, usePromptComposition: false },
+      "mobile-tavern",
+    );
+  }
+
   return {
     name,
-    bundle: {
-      id: createId("bundle"),
-      preset,
-      promptConfig,
-      presetRegexScripts: regexResult.scripts,
-    },
+    bundle,
     composition,
     compatibilityAnalysis,
     report: {

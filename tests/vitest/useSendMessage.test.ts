@@ -18,6 +18,18 @@ import type {
   AgentTurnExecutionContext,
 } from "../../src/domain/agents/contracts";
 
+function emptyPromptShapingReport() {
+  return {
+    enabled: false,
+    originalMessageCount: 1,
+    finalMessageCount: 1,
+    mergedMessageCount: 0,
+    squashedSystemMessageCount: 0,
+    assistantPrefillAdded: false,
+    stopSequences: [],
+  };
+}
+
 function createHarness(
   streamLlmResponse: (...args: any[]) => AsyncGenerator<any>,
   providerModalities: readonly AgentInputModality[] = ["text", "image"],
@@ -281,6 +293,7 @@ describe("useSendMessage 弱网与中止事务", () => {
   it("首包失败时移除占位符但只保留一条用户消息，供显式重发", async () => {
     silenceConsole();
     const harness = createHarness(async function* () {
+      yield* [];
       throw new Error("Network connection lost");
     });
     const { result } = renderHook(() => useSendMessage(harness.params));
@@ -359,11 +372,14 @@ describe("useSendMessage 弱网与中止事务", () => {
       supportsVision: true,
     };
     harness.params.promptService.assemblePrompt = vi.fn(() => ({
+      version: 1 as const,
       systemInstruction: "",
       dynamicInstruction: "",
       history: [],
       messages: [{ role: "user" as const, content: "请看图" }],
+      diagnostics: [],
       traces: [],
+      requestShaping: emptyPromptShapingReport(),
     }));
     const { result } = renderHook(() => useSendMessage(harness.params));
 
@@ -417,11 +433,14 @@ describe("useSendMessage 弱网与中止事务", () => {
       supportsAudioInput: true,
     };
     harness.params.promptService.assemblePrompt = vi.fn(() => ({
+      version: 1 as const,
       systemInstruction: "",
       dynamicInstruction: "",
       history: [],
       messages: [{ role: "user" as const, content: "" }],
+      diagnostics: [],
       traces: [],
+      requestShaping: emptyPromptShapingReport(),
     }));
     const { result } = renderHook(() => useSendMessage(harness.params));
 

@@ -144,6 +144,12 @@ export function analyzeSillyTavernPreset(input: unknown): SillyTavernPresetAnaly
 
   const prompts = input.prompts.filter(isRecord);
   const order = readPromptOrder(input.prompt_order ?? input.promptOrder);
+  const effectiveOrder = order.length > 0
+    ? order
+    : prompts.map((prompt, index) => ({
+        identifier: getIdentifier(prompt, index),
+        enabled: prompt.enabled !== false,
+      }));
   const markers = prompts.filter((prompt) => prompt.marker === true);
   const unknownMarkers = markers.filter((prompt, index) => {
     const identifier = getIdentifier(prompt, index);
@@ -192,8 +198,8 @@ export function analyzeSillyTavernPreset(input: unknown): SillyTavernPresetAnaly
   return {
     level,
     promptCount: prompts.length,
-    orderedPromptCount: order.length,
-    enabledPromptCount: order.filter((entry) => entry.enabled).length,
+    orderedPromptCount: effectiveOrder.length,
+    enabledPromptCount: effectiveOrder.filter((entry) => entry.enabled).length,
     markerCount: markers.length,
     unknownMarkerCount: unknownMarkers.length,
     inChatPromptCount: prompts.filter((prompt) => prompt.injection_position === 1).length,

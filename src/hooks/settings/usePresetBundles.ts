@@ -13,7 +13,13 @@ import {
 } from "../../application/useCases/preparePresetBundleImport";
 import { preparePresetBundleExport } from "../../application/useCases/preparePresetBundleExport";
 import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "./defaults";
-import { applyPresetCompositionToPromptConfig, applyPresetPromptConfig, toPresetPromptConfig } from "./presetPromptConfig";
+import {
+  applyPresetCompositionToPromptConfig,
+  applyPresetPromptConfig,
+  createPromptPresetPlan,
+  normalizeSavedPresetPromptPlan,
+  toPresetPromptConfig,
+} from "./presetPromptConfig";
 
 /**
  * 微内核插件式架构：预设包持久化统一走 PresetService。
@@ -86,15 +92,21 @@ export const usePresetBundles = ({
           ? await showCustomConfirm(
               `检测到 SillyTavern Prompt 编排。\n\n${prepared.compatibilityAnalysis
                 ? formatSillyTavernCompatibilityAnalysis(prepared.compatibilityAnalysis)
-                : ""}${importReportText ? `\n\n${importReportText}` : ""}\n\n是否启用自由编排以完整保留 Prompt 顺序、Marker 和注入位置？\n\n选择取消仍会导入传统预设，不会修改当前自由编排。`,
+                : ""}${importReportText ? `\n\n${importReportText}` : ""}\n\n是否立即启用自由编排以完整执行 Prompt 顺序、Marker 和注入位置？\n\n选择取消会以传统模式运行，但该预设仍独立保存其编排快照，之后可随时启用。`,
             )
           : false;
         // 规划属于预设：导入的编排快照与开关随预设包一起保存，切换预设时整体切换。
-        const importedBundle: SavedPresetBundle = {
+        const importedBundle = normalizeSavedPresetPromptPlan({
           ...prepared.bundle,
-          composition: importedComposition,
-          usePromptComposition: enableImportedComposition,
-        };
+          promptPlan: importedComposition
+            ? {
+                version: 1,
+                mode: enableImportedComposition ? "composition" : "legacy",
+                source: "sillytavern",
+                composition: importedComposition,
+              }
+            : prepared.bundle.promptPlan,
+        });
         const importedRegexScripts = importedBundle.presetRegexScripts ?? [];
 
         // DB 是 savedPresets 的单一事实来源，避免陈旧闭包回退已保存预设。
@@ -172,7 +184,7 @@ export const usePresetBundles = ({
     );
     if (!name) return;
 
-    const newBundle = {
+    const newBundle: SavedPresetBundle = {
       id: "bundle_" + Math.random().toString(36).substring(2, 9),
       preset: {
         ...settings.preset,
@@ -180,8 +192,7 @@ export const usePresetBundles = ({
         name,
       },
       promptConfig: toPresetPromptConfig(settings.promptConfig),
-      composition: settings.promptConfig.composition,
-      usePromptComposition: settings.promptConfig.usePromptComposition ?? false,
+      promptPlan: createPromptPresetPlan(settings.promptConfig, "native"),
       presetRegexScripts: settings.presetRegexScripts ? [...settings.presetRegexScripts] : [],
     };
     const nextSaved = [...(settings.savedPresets || []), newBundle];
@@ -224,8 +235,7 @@ export const usePresetBundles = ({
       ? nextSaved[0]
       : {
           promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
-          composition: DEFAULT_SETTINGS.promptConfig.composition,
-          usePromptComposition: DEFAULT_SETTINGS.promptConfig.usePromptComposition,
+          promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
         };
     const nextPromptConfig = applyPresetCompositionToPromptConfig(
       applyPresetPromptConfig(settings.promptConfig, fallbackBundle.promptConfig),
@@ -265,8 +275,7 @@ export const usePresetBundles = ({
         nextPreset = DEFAULT_SETTINGS.preset;
         const defaultBundle = {
           promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
-          composition: DEFAULT_SETTINGS.promptConfig.composition,
-          usePromptComposition: DEFAULT_SETTINGS.promptConfig.usePromptComposition,
+          promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
         };
         nextPromptConfig = applyPresetCompositionToPromptConfig(
           applyPresetPromptConfig(settings.promptConfig, defaultBundle.promptConfig),

@@ -5,5 +5,8 @@
 export {
   applyPresetCompositionToPromptConfig,
   applyPresetPromptConfig,
+  createPromptPresetPlan,
+  normalizeSavedPresetPromptPlan,
+  resolvePromptPresetPlan,
   toPresetPromptConfig,
 } from "../../application/useCases/presetPromptConfig";

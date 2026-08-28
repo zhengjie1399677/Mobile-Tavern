@@ -272,6 +272,15 @@ someAsyncOp().then(() => {
 - 会话目录的持续分页使用 `(createdAt, id)` 稳定游标；分页期间新增最近会话不得导致后续页面跳项。
 - Prompt 历史从数据库按配置读取；重生成历史必须排除目标消息及其后续分支。
 
+### Prompt 预设与最终消息包
+
+- `SavedPresetBundle.promptPlan` 是新预设的唯一权威 Prompt 快照，当前版本为 `1`；`mode` 明确区分 `legacy` 与 `composition`，`source` 只记录来源，不参与通用编译。
+- 旧 `composition` / `usePromptComposition` 仅作为读取降级字段；应用服务归一化后不再写回。完全缺少快照的旧预设必须回到 `legacy`，不能继承当前预设模式。
+- SillyTavern Codec 只输出中立 `PromptComposition`。有 `prompt_order` 时按 100001 优先顺序导入；完全缺失时按 `prompts` 原顺序保留。
+- `PromptAssemblyResult.messages` 是 Provider 投影前唯一权威消息；发送和重生成不得从 `systemInstruction + history` 再建第二份消息。
+- 自由编排依次执行场景覆盖、领域编译、请求整形和最终 Token 审计。role wrapper、system squash 与 assistant prefill 的开销必须进入最终预算报告；不可裁剪内容超限必须产生明确错误诊断。
+- Prompt 历史查询窗口同时满足编排历史块与世界书扫描；未声明 `chat_history` 只代表不发送历史，不代表禁用世界书触发上下文。
+
 ### 会话目录与删除安全
 
 - 旧会话读取时默认补齐 `lifecycle=active`、`updatedAt=createdAt` 和正整数 `contentRevision`；消息、摘要、状态、分支或其他影响恢复结果的写入成功后必须单调推进修订号。

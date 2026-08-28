@@ -69,7 +69,7 @@ describe("PromptService prompt compilation", () => {
       { role: "user", content: "原样  保留" },
       { role: "assistant", content: "原样回复" },
     ]);
-    expect(result.requestShaping).toBeUndefined();
+    expect(result.requestShaping).toMatchObject({ enabled: false, finalMessageCount: 2 });
   });
   it("预先中止时不再进入提示词编排", () => {
     const promptService = new PromptService();
@@ -239,6 +239,73 @@ describe("PromptService prompt compilation", () => {
 
     expect(result.messages).toEqual([{ role: "system", content: "KEEP" }]);
     expect(result.budget).toMatchObject({ limit: 2, used: 1, droppedBlockIds: ["drop"] });
+  });
+
+  it("把请求整形开销计入最终预算并重新执行可裁剪策略", () => {
+    const promptService = new PromptService();
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.usePromptComposition = true;
+    settings.promptConfig.requestShaping = {
+      enabled: true,
+      roleWrappers: { system: { prefix: "1234" } },
+    };
+    settings.promptConfig.composition = {
+      id: "runtime-shaped-budget",
+      name: "整形后预算",
+      version: 1,
+      tokenBudget: { enabled: true, mode: "custom", maxTokens: 2 },
+      blocks: [
+        {
+          id: "keep",
+          name: "保留",
+          enabled: true,
+          role: "system",
+          source: { type: "template" },
+          template: "A",
+          order: 1,
+          placement: { type: "ordered" },
+          tokenPolicy: { priority: 100, overflow: "keep" },
+        },
+        {
+          id: "drop",
+          name: "可裁剪",
+          enabled: true,
+          role: "system",
+          source: { type: "template" },
+          template: "B",
+          order: 2,
+          placement: { type: "ordered" },
+          tokenPolicy: { priority: 1, overflow: "drop" },
+        },
+      ],
+    };
+    const character = {
+      id: "shaped-budget-char",
+      name: "Budget",
+      description: "",
+      personality: "",
+      scenario: "",
+      first_mes: "",
+      mes_example: "",
+      extensions: {},
+      lorebookEntries: [],
+    } as CharacterCard;
+    const chat = {
+      id: "shaped-budget-chat",
+      characterId: character.id,
+      title: "Budget",
+      createdAt: 1,
+      summaries: [],
+      messages: [],
+    } as ChatSession;
+
+    const result = promptService.assemblePrompt({ character, chat, userInput: "", settings });
+
+    expect(result.messages).toEqual([{ role: "system", content: "1234A" }]);
+    expect(result.budget).toEqual({ limit: 2, used: 2, originalUsed: 4, droppedBlockIds: ["drop"] });
+    expect(result.diagnostics).not.toContainEqual(expect.objectContaining({
+      code: "FINAL_TOKEN_BUDGET_EXCEEDED",
+    }));
   });
 
   it("should compile dialogue_examples into system instruction in roleplayMode: true", () => {

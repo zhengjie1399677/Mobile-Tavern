@@ -5,7 +5,7 @@ import {
   DEFAULT_TABLE_MEMORY_PROMPT,
 } from "../../defaults/promptTemplates";
 import { createBasicPromptComposition } from "../../domain/prompt-composition";
-import { toPresetPromptConfig } from "./presetPromptConfig";
+import { createPromptPresetPlan, toPresetPromptConfig } from "./presetPromptConfig";
 
 export { DEFAULT_REPLY_SUGGESTIONS_PROMPT, DEFAULT_TABLE_MEMORY_PROMPT };
 
@@ -380,9 +380,8 @@ export let MOBILE_TAVERN_BASIC_PRESET_BUNDLE: SavedPresetBundle = {
       }
     ]
   },
-  // 规划属于预设：基础预设携带自己的编排快照（默认走传统路径，开关由用户按需切换）。
-  composition: createBasicPromptComposition(),
-  usePromptComposition: false,
+  // 规划属于预设：基础预设显式声明传统运行模式，并保留可切换的编排快照。
+  promptPlan: createPromptPresetPlan(DEFAULT_PROMPT_CONFIG),
 };
 
 export const setMobileTavernBasicPresetBundle = (next: SavedPresetBundle) => {

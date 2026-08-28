@@ -93,7 +93,7 @@ describe("usePresetBundles 预设导入", () => {
     );
   });
 
-  it("导入预设不覆盖或启用自由编排", async () => {
+  it("取消启用时保持传统模式，但预设仍拥有自己的 SillyTavern 编排快照", async () => {
     const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
     initial.promptConfig.usePromptComposition = false;
     initial.promptConfig.composition = {
@@ -135,15 +135,20 @@ describe("usePresetBundles 预设导入", () => {
 
     await waitFor(() => expect(mocks.saveStoredSavedPresets).toHaveBeenCalledTimes(1));
     expect(latestSettings.promptConfig.usePromptComposition).toBe(false);
-    expect(latestSettings.promptConfig.composition?.id).toBe("user-composition");
+    expect(latestSettings.promptConfig.composition?.id).toContain("composition_st_");
     expect(latestSettings.promptCompositionTemplates).toEqual(initial.promptCompositionTemplates);
     const storedBundles = mocks.saveStoredSavedPresets.mock.calls[0][0];
     const storedBundle = storedBundles[storedBundles.length - 1];
     expect(storedBundle.promptConfig).not.toHaveProperty("usePromptComposition");
     expect(storedBundle.promptConfig).not.toHaveProperty("composition");
-    // 规划属于预设：即使取消启用自由编排，编排快照仍随预设包保存，开关记为关闭。
-    expect(storedBundle.composition).toBeDefined();
-    expect(storedBundle.usePromptComposition).toBe(false);
+    expect(storedBundle.promptPlan).toMatchObject({
+      version: 1,
+      mode: "legacy",
+      source: "sillytavern",
+    });
+    expect(storedBundle.promptPlan?.composition).toBeDefined();
+    expect(storedBundle.composition).toBeUndefined();
+    expect(storedBundle.usePromptComposition).toBeUndefined();
   });
 
   it("base Profile 未装载兼容 Codec 时只导入通用字段并给出降级报告", async () => {
@@ -219,13 +224,17 @@ describe("usePresetBundles 预设导入", () => {
     await waitFor(() => expect(mocks.saveStoredSavedPresets).toHaveBeenCalledTimes(1));
     const storedBundles = mocks.saveStoredSavedPresets.mock.calls[0][0];
     const storedBundle = storedBundles[storedBundles.length - 1];
-    expect(storedBundle.composition).toBeDefined();
-    expect(storedBundle.usePromptComposition).toBe(true);
+    expect(storedBundle.promptPlan).toMatchObject({
+      version: 1,
+      mode: "composition",
+      source: "sillytavern",
+    });
+    expect(storedBundle.promptPlan?.composition).toBeDefined();
     expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
-    expect(latestSettings.promptConfig.composition?.id).toBe(storedBundle.composition!.id);
+    expect(latestSettings.promptConfig.composition?.id).toBe(storedBundle.promptPlan?.composition?.id);
   });
 
-  it("加载旧预设包时忽略其中遗留的自由编排字段", () => {
+  it("加载无版本旧预设时明确回到传统模式并生成独立迁移快照", () => {
     const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
     initial.promptConfig.usePromptComposition = true;
     initial.promptConfig.composition = {
@@ -268,8 +277,9 @@ describe("usePresetBundles 预设导入", () => {
     act(() => result.current.handleLoadPresetBundle("legacy-bundle"));
 
     expect(latestSettings.promptConfig.mainPrompt).toBe("旧预设主 Prompt");
-    expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
-    expect(latestSettings.promptConfig.composition?.id).toBe("active-composition");
+    expect(latestSettings.promptConfig.usePromptComposition).toBe(false);
+    expect(latestSettings.promptConfig.composition?.id).not.toBe("active-composition");
+    expect(latestSettings.promptConfig.composition?.compatibility?.source).toBe("mobile-tavern-legacy");
   });
 
   it("加载携带编排的预设时整体切换自由编排与编排快照", () => {
@@ -358,8 +368,8 @@ describe("usePresetBundles 预设导入", () => {
       (bundle: SavedPresetBundle) => bundle.preset.name === "新预设副本",
     );
     expect(saved).toBeDefined();
-    expect(saved?.usePromptComposition).toBe(true);
-    expect(saved?.composition?.id).toBe("save-composition");
+    expect(saved?.promptPlan).toMatchObject({ version: 1, mode: "composition", source: "native" });
+    expect(saved?.promptPlan?.composition?.id).toBe("save-composition");
     expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
     expect(latestSettings.promptConfig.composition?.id).toBe("save-composition");
   });

@@ -26,6 +26,7 @@
 | 消息附件存储 | `src/infrastructure/attachments/attachmentStorage.ts` | 在独立数据库中分轨消息附件元数据和字节，执行引用重建与 GC | 不被 React Hook/组件直接调用，不把媒体塞入主消息记录 |
 | 多模态 Provider 投影 | `src/application/useCases/multimodalProviderProjection.ts` | 把通用 Content Parts 按已确认能力投影为请求方言 | 不修改领域消息，不把 Provider 格式持久化 |
 | LLM Provider 兼容层 | `src/application/services/llmCompatibility/` | 解析端点与模型族，裁剪请求能力、适配思考回放、归一化流式响应，并按完整端点隔离运行时能力学习 | 不进入 Kernel，不持久化 Provider 方言到领域消息，不在 Hook、Prompt 或记忆模块复制厂商分支 |
+| Prompt 预设与组装 | `src/application/useCases/presetPromptConfig.ts`、`src/application/services/prompt/` | 将新旧 Mobile Tavern 与外部 Codec 产物收口为版本化预设快照，经中立编排、请求整形和最终预算审计生成唯一消息包 | 不在 React Hook 解释外部预设语义，不让旧预设继承其他预设模式，不在发送/重生成中二次拼装 Prompt |
 | Agent Runtime 主干 | `src/application/services/AgentRuntimeService.ts`、`src/application/services/agents/`、`src/domain/agents/`、`src/application/useCases/openAiToolLoop.ts` | 管理 AgentHandle、Turn、Driver、Provider、有限多步 Tool Loop、媒体 Processor、权限、一次性审批、取消与诊断 | 不进入 Kernel，不持有 React State，不绕过 Turn 直接执行 Tool，不执行用户安装的任意代码；审批宿主缺失时必须 fail-closed |
 | Agent Journal 存储 | `src/infrastructure/agents/agentJournalStorage.ts` | 物理分轨持久化 Turn、Provider/媒体决定与 Tool Call/Result | 不保存插件配置或凭据，不塞入 sessions/messages 大对象 |
 | Tool Plugin 管理用例 | `src/application/useCases/toolPluginManagementUseCases.ts` | 解析和安装受控 Manifest/`.mttool`，编排授权、凭据、停用、回滚与卸载 | 不直接注册 Tool，不把管理状态混入 Runtime Profile 或 `.mtplugin` |
@@ -74,7 +75,7 @@
 - 角色删除由 Character Service 的聚合仓库在单事务内按 `characterId` 级联全部会话和记忆分轨，禁止遍历 React 已加载的会话分页执行删除。
 - 备份恢复的 `replaceCompleteSessions` 是完整替换语义：同一事务内先清理旧消息，再写入最终消息并重算统计，禁止保留旧尾部；普通 UI 分页会话不得调用。
 - 消息事务完成后由 Database Service 串行扫描权威消息记录并重建附件反向引用；主库与附件库跨库提交使用可恢复状态补偿，不能伪装成单个 IndexedDB 原子事务。
-- Prompt 组装必须根据编排配置从数据库读取权威历史窗口；重生成必须传入目标消息边界，不能使用当前 UI 分页切片。
+- Prompt 组装必须根据编排配置从数据库读取权威历史窗口；即使编排不发送聊天历史，也要为世界书触发保留独立受控扫描窗口。重生成必须传入目标消息边界，不能使用当前 UI 分页切片。
 - 每次完成助手输出后，把变量和状态表快照绑定到该消息。重生成与历史分支优先恢复最近完整快照；旧 MVU 消息只作为变量降级来源，缺失的旧状态表不得伪造为可回放结果。
 - 插件私有会话状态只持久化到 `runtimePluginState[pluginId]`。旧 `session.variables` 只在 Compatibility Plugin 边界作为读取降级或瞬时 Bridge 投影，不得由通用写路径继续双写。
 - 会话 Composition Snapshot 与当前 Profile 不一致时，跨 Profile 恢复必须先验证目标 ID 和精确版本，再以一次性意图重启；目标组合装载后从权威存储恢复会话，缺失或漂移时明确失败且不得循环重启。

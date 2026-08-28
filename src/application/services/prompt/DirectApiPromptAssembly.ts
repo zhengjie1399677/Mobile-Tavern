@@ -1,5 +1,6 @@
 import type { ChatSession } from "../../../types";
 import type { PromptAssemblyResult } from "./PromptAssemblyResult";
+import { shapePromptRequest } from "./PromptRequestShaper";
 
 /** 严格直连只转发真实对话，不经过任何角色、记忆或请求整形编排。 */
 export function buildDirectApiPromptAssembly(
@@ -10,11 +11,16 @@ export function buildDirectApiPromptAssembly(
     if (message.sender !== "user" && message.sender !== "assistant") return [];
     return [{ role: message.sender, content: message.content }];
   });
+  const shaped = shapePromptRequest(messages);
   return {
+    version: 1,
     systemInstruction: "",
     dynamicInstruction: "",
     history: messages,
     userInput,
-    messages,
+    messages: shaped.messages,
+    diagnostics: [],
+    traces: [],
+    requestShaping: shaped.report,
   };
 }
