@@ -75,7 +75,6 @@ export interface UnifiedAppContextProps {
   isLoadingMoreSessions: boolean;
   refreshSessionStatistics: () => Promise<void>;
   updateSessionMetadata: (sessionId: string, patch: ChatSessionMetadataPatch) => Promise<void>;
-  deleteSession: (id: string) => Promise<void>;
   // 单会话消息分页懒加载
   hasMoreMessages: boolean;
   isLoadingMoreMessages: boolean;

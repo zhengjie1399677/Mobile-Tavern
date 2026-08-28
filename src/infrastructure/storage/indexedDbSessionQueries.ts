@@ -1,4 +1,8 @@
 import type { ChatSession } from "../../types";
+import type {
+  SessionDirectoryCursor,
+  SessionDirectorySort,
+} from "../../domain/session-management";
 import { getDB } from "./idbConnection";
 import { bindReadonlyTransactionAbort } from "./idbQueue";
 import {
@@ -109,6 +113,34 @@ export async function getSessionCountsByCharacter(): Promise<Record<string, numb
   });
 }
 
+/** 只遍历 parentSessionId 索引键，不加载会话记录或消息正文。 */
+export async function getSessionBranchCounts(): Promise<Record<string, number>> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("sessions", "readonly");
+    const store = transaction.objectStore("sessions");
+    const counts: Record<string, number> = {};
+    if (!store.indexNames.contains("parentSessionId")) {
+      resolve(counts);
+      return;
+    }
+    const request = store.index("parentSessionId").openKeyCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve(counts);
+        return;
+      }
+      if (typeof cursor.key === "string" && cursor.key) {
+        counts[cursor.key] = (counts[cursor.key] ?? 0) + 1;
+      }
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error);
+    bindReadonlyTransactionAbort(transaction, reject);
+  });
+}
+
 /** 使用 createdAt 索引按最近会话优先分页，只反序列化当前页。 */
 export async function getSessionsPaginated(page: number, pageSize: number): Promise<ChatSession[]> {
   const db = await getDB();
@@ -150,36 +182,64 @@ export async function getSessionsPaginated(page: number, pageSize: number): Prom
 export async function getSessionsPage(options: {
   pageSize: number;
   before?: { createdAt: number; id: string };
-}): Promise<{ sessions: ChatSession[]; hasMore: boolean }> {
+  cursor?: SessionDirectoryCursor;
+  lifecycle?: "active" | "archived";
+  sort?: SessionDirectorySort;
+}): Promise<{ sessions: ChatSession[]; hasMore: boolean; cursor?: SessionDirectoryCursor }> {
   const db = await getDB();
   const pageSize = Math.max(1, Math.floor(options.pageSize) || 20);
+  const sort = options.sort ?? "created_desc";
+  const legacyCursor = options.before
+    ? { sort: "created_desc" as const, value: options.before.createdAt, ...options.before }
+    : undefined;
+  const boundary = options.cursor ?? legacyCursor;
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("sessions", "readonly");
     const store = transaction.objectStore("sessions");
-    const source = store.indexNames.contains("createdAt") ? store.index("createdAt") : store;
+    const indexName = sort === "created_asc" || sort === "created_desc"
+      ? "createdAt"
+      : sort === "title_asc"
+        ? "title"
+        : sort === "turns_desc"
+          ? "turnCount"
+          : "updatedAt";
+    const source = store.indexNames.contains(indexName) ? store.index(indexName) : store;
+    const direction: IDBCursorDirection = sort === "created_asc" || sort === "title_asc" ? "next" : "prev";
     const results: ChatSession[] = [];
-    const range = options.before && store.indexNames.contains("createdAt")
-      ? IDBKeyRange.upperBound(options.before.createdAt)
+    const range = boundary && store.indexNames.contains(indexName)
+      ? direction === "prev"
+        ? IDBKeyRange.upperBound(boundary.value)
+        : IDBKeyRange.lowerBound(boundary.value)
       : null;
-    const request = source.openCursor(range, "prev");
+    const request = source.openCursor(range, direction);
     request.onsuccess = () => {
       const cursor = request.result;
       if (!cursor || results.length > pageSize) {
+        const page = results.slice(0, pageSize);
         resolve({
-          sessions: results.slice(0, pageSize),
+          sessions: page,
           hasMore: results.length > pageSize,
+          cursor: page.length > 0 ? toDirectoryCursor(page[page.length - 1], sort) : undefined,
         });
         return;
       }
       const record = cursor.value as SessionStorageRecord;
-      if (record.lifecycle === "archived") {
+      const lifecycle = record.lifecycle === "archived" ? "archived" : "active";
+      if (options.lifecycle && lifecycle !== options.lifecycle) {
         cursor.continue();
         return;
       }
-      if (options.before) {
-        const isBefore = record.createdAt < options.before.createdAt
-          || (record.createdAt === options.before.createdAt && record.id < options.before.id);
-        if (!isBefore) {
+      if (!options.lifecycle && lifecycle === "archived") {
+        cursor.continue();
+        return;
+      }
+      if (boundary) {
+        const value = getSessionSortValue(record, sort);
+        const comparison = compareDirectoryValues(value, boundary.value);
+        const isPastBoundary = direction === "prev"
+          ? comparison < 0 || (comparison === 0 && record.id < boundary.id)
+          : comparison > 0 || (comparison === 0 && record.id > boundary.id);
+        if (!isPastBoundary) {
           cursor.continue();
           return;
         }
@@ -190,4 +250,30 @@ export async function getSessionsPage(options: {
     request.onerror = () => reject(request.error);
     bindReadonlyTransactionAbort(transaction, reject);
   });
+}
+
+function compareDirectoryValues(left: number | string, right: number | string): number {
+  if (typeof left === "number" && typeof right === "number") return left - right;
+  const leftText = String(left);
+  const rightText = String(right);
+  return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
+}
+
+function getSessionSortValue(
+  session: Pick<ChatSession, "createdAt" | "updatedAt" | "title" | "turnCount">,
+  sort: SessionDirectorySort,
+): number | string {
+  if (sort === "created_asc" || sort === "created_desc") return session.createdAt;
+  if (sort === "title_asc") return session.title;
+  if (sort === "turns_desc") return session.turnCount ?? 0;
+  return session.updatedAt ?? session.createdAt;
+}
+
+function toDirectoryCursor(session: ChatSession, sort: SessionDirectorySort): SessionDirectoryCursor {
+  return {
+    sort,
+    value: getSessionSortValue(session, sort),
+    createdAt: session.createdAt,
+    id: session.id,
+  };
 }

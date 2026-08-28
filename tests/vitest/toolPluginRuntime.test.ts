@@ -13,7 +13,7 @@ import {
 } from "../../src/infrastructure/toolPlugins/toolPluginStorage";
 import { createV2HttpManifest } from "./helpers/toolPluginFixture";
 
-const journal = { append: async () => undefined, listBySession: async () => [], replace: async () => undefined, deleteBySession: async () => undefined };
+const journal = { append: async () => undefined, appendMany: async () => undefined, listBySession: async () => [], replace: async () => undefined, deleteBySession: async () => undefined };
 
 describe("External Tool Plugin Runtime", () => {
   beforeEach(async () => {

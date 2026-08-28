@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
@@ -37,7 +37,17 @@ import { useKernel } from "../../contexts/KernelContext";
 import type { ChatSession } from "../../types";
 import { getAvatarGradientClass } from "../../utils/avatarUtils";
 
-const EMPTY_SNAPSHOT: SessionDirectorySnapshot = { active: [], favorites: [], archived: [] };
+const EMPTY_SNAPSHOT: SessionDirectorySnapshot = {
+  active: [],
+  favorites: [],
+  archived: [],
+  pageInfo: {
+    active: { hasMore: false },
+    favorite: { hasMore: false },
+    archived: { hasMore: false },
+  },
+  characters: [],
+};
 
 interface SessionManagerPanelProps {
   activeSessionId?: string | null;
@@ -84,13 +94,23 @@ export default function SessionManagerPanel({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [mutating, setMutating] = useState(false);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
+  const loadGenerationRef = useRef(0);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (
+    cursor?: SessionDirectorySnapshot["pageInfo"][SessionDirectoryCategory]["cursor"],
+    append = false,
+  ) => {
+    const generation = ++loadGenerationRef.current;
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     try {
-      setSnapshot(await service.queryDirectory({
+      const next = await service.queryDirectory({
+        category,
+        pageSize: 24,
+        cursor,
         search,
         characterId: characterId || undefined,
         createdAfter: getRangeStart(createdRange),
@@ -98,13 +118,19 @@ export default function SessionManagerPanel({
         hasBranch: branchFilter === "" ? undefined : branchFilter === "yes",
         backupStatus: backupStatus === "" ? undefined : backupStatus as "current" | "outdated",
         sort,
-      }));
+      });
+      if (generation !== loadGenerationRef.current) return;
+      setSnapshot((current) => append ? mergeDirectoryPage(current, next, category) : next);
     } catch (error: unknown) {
+      if (generation !== loadGenerationRef.current) return;
       await showAlert(t("session_manager.load_failed", { error: getErrorMessage(error) }));
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
-  }, [backupStatus, branchFilter, characterId, createdRange, search, service, showAlert, sort, t, updatedRange]);
+  }, [backupStatus, branchFilter, category, characterId, createdRange, search, service, showAlert, sort, t, updatedRange]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 120);
@@ -121,13 +147,11 @@ export default function SessionManagerPanel({
     : (category === "active" ? snapshot.active : snapshot.archived).map((entry) => entry.session.id);
   const selectedIds = useMemo(() => new Set(selected), [selected]);
   const allSelected = currentEntryIds.length > 0 && currentEntryIds.every((id) => selectedIds.has(id));
-  const characterOptions = useMemo(() => {
-    const values = new Map<string, string>();
-    for (const entry of [...snapshot.active, ...snapshot.archived]) {
-      values.set(entry.session.characterId, entry.characterName);
-    }
-    return [...values].sort((left, right) => left[1].localeCompare(right[1]));
-  }, [snapshot]);
+  const characterOptions = useMemo(
+    () => snapshot.characters.map(({ id, name }) => [id, name] as const)
+      .sort((left, right) => left[1].localeCompare(right[1])),
+    [snapshot.characters],
+  );
 
   const mutate = async (operation: () => Promise<void>) => {
     if (mutating) return;
@@ -148,6 +172,24 @@ export default function SessionManagerPanel({
     if (!isSending) return true;
     await showAlert(t("session_manager.busy_switch_warning"));
     return false;
+  };
+
+  const openSessionSafely = async (session: ChatSession): Promise<void> => {
+    if (!await ensureIdle()) return;
+    onOpenSession(session);
+  };
+
+  const openUniverseSafely = async (session: ChatSession): Promise<void> => {
+    if (!await ensureIdle()) return;
+    onOpenUniverse(session);
+  };
+
+  const handleFavoriteRestore = async (entry: FavoriteSessionBackupEntry): Promise<void> => {
+    if (!await ensureIdle()) return;
+    await mutate(async () => {
+      const session = await service.restoreFavoriteBackup(entry.metadata.id);
+      onOpenSession(session);
+    });
   };
 
   const selectCategory = (next: SessionDirectoryCategory) => {
@@ -198,11 +240,11 @@ export default function SessionManagerPanel({
         onBack={() => setDetail(null)}
         onContinue={() => {
           const session = detail.kind === "session" ? detail.entry.session : detail.entry.sourceSession;
-          if (session) onOpenSession(session);
+          if (session) void openSessionSafely(session);
         }}
         onUniverse={() => {
           const session = detail.kind === "session" ? detail.entry.session : detail.entry.sourceSession;
-          if (session) onOpenUniverse(session);
+          if (session) void openUniverseSafely(session);
         }}
       />
     );
@@ -383,9 +425,11 @@ export default function SessionManagerPanel({
                 disabled={mutating}
                 onSelect={() => toggleSelected(entry.metadata.id)}
                 onToggleMenu={() => setOpenMenuId((id) => id === entry.metadata.id ? null : entry.metadata.id)}
-                onOpen={() => entry.sourceSession && onOpenSession(entry.sourceSession)}
-                onUpdate={() => void mutate(() => service.updateFavoriteBackup(entry.metadata.id).then(() => undefined))}
-                onRestore={() => void mutate(async () => { const session = await service.restoreFavoriteBackup(entry.metadata.id); onOpenSession(session); })}
+                onOpen={() => { if (entry.sourceSession) void openSessionSafely(entry.sourceSession); }}
+                onUpdate={() => void ensureIdle().then((idle) => {
+                  if (idle) void mutate(() => service.updateFavoriteBackup(entry.metadata.id).then(() => undefined));
+                })}
+                onRestore={() => void handleFavoriteRestore(entry)}
                 onDetails={() => setDetail({ kind: "favorite", entry })}
                 onRemove={() => void handleRemoveFavorite(entry)}
               />
@@ -402,19 +446,36 @@ export default function SessionManagerPanel({
             disabled={mutating}
             onSelect={toggleSelected}
             onToggleMenu={(id) => setOpenMenuId((current) => current === id ? null : id)}
-            onOpen={onOpenSession}
+            onOpen={(session) => void openSessionSafely(session)}
             onRename={(entry) => void mutate(() => onRenameSession(entry.session))}
-            onFavorite={(entry) => void mutate(() => service.favoriteSession(entry.session.id).then(() => undefined))}
+            onFavorite={(entry) => void ensureIdle().then((idle) => {
+              if (idle) void mutate(() => service.favoriteSession(entry.session.id).then(() => undefined));
+            })}
             onUpdateFavorite={(entry) => {
               const favorite = entry.favorite;
-              if (favorite) void mutate(() => service.updateFavoriteBackup(favorite.metadata.id).then(() => undefined));
+              if (favorite) void ensureIdle().then((idle) => {
+                if (idle) void mutate(() => service.updateFavoriteBackup(favorite.metadata.id).then(() => undefined));
+              });
             }}
             onDetails={(entry) => setDetail({ kind: "session", entry })}
-            onUniverse={(entry) => onOpenUniverse(entry.session)}
+            onUniverse={(entry) => void openUniverseSafely(entry.session)}
             onArchive={(entry) => void handleArchive(entry)}
             onRestore={(entry) => void mutate(() => service.restoreSession(entry.session.id))}
             onDelete={(entry) => void handleDelete(entry)}
           />
+        )}
+        {!loading && snapshot.pageInfo[category].hasMore && (
+          <div className="flex justify-center py-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loadingMore || mutating}
+              onClick={() => void load(snapshot.pageInfo[category].cursor, true)}
+            >
+              {loadingMore && <LoaderCircle className="size-4 animate-spin" />}
+              {t("history.load_more")}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -423,7 +484,9 @@ export default function SessionManagerPanel({
           category={category}
           count={selected.size}
           disabled={mutating}
-          onPrimary={() => void mutate(async () => {
+          onPrimary={() => void (async () => {
+            if (!await ensureIdle()) return;
+            await mutate(async () => {
             if (category === "active") {
               for (const id of selected) await service.favoriteSession(id);
             } else if (category === "favorite") {
@@ -434,8 +497,10 @@ export default function SessionManagerPanel({
             } else {
               for (const id of selected) await service.restoreSession(id);
             }
-          })}
+            });
+          })()}
           onSecondary={() => void (async () => {
+            if (category !== "favorite" && !await ensureIdle()) return;
             const confirmationKey = category === "active"
               ? "session_manager.batch_archive_confirm"
               : category === "favorite"
@@ -708,6 +773,31 @@ function SessionAvatar({ name, avatar }: { name: string; avatar?: string }) {
 function BackupBadge({ status }: { status: FavoriteSessionBackupEntry["status"] }) {
   const { t } = useTranslation();
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${status === "outdated" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}>{t(`session_manager.status_${status}`)}</span>;
+}
+
+function mergeDirectoryPage(
+  current: SessionDirectorySnapshot,
+  next: SessionDirectorySnapshot,
+  category: SessionDirectoryCategory,
+): SessionDirectorySnapshot {
+  if (category === "favorite") {
+    const byId = new Map(current.favorites.map((entry) => [entry.metadata.id, entry]));
+    for (const entry of next.favorites) byId.set(entry.metadata.id, entry);
+    return {
+      ...current,
+      favorites: [...byId.values()],
+      pageInfo: { ...current.pageInfo, favorite: next.pageInfo.favorite },
+      characters: next.characters,
+    };
+  }
+  const byId = new Map(current[category].map((entry) => [entry.session.id, entry]));
+  for (const entry of next[category]) byId.set(entry.session.id, entry);
+  return {
+    ...current,
+    [category]: [...byId.values()],
+    pageInfo: { ...current.pageInfo, [category]: next.pageInfo[category] },
+    characters: next.characters,
+  };
 }
 
 function FilterSelect({ label, value, options, onChange }: {

@@ -54,20 +54,30 @@ export function preserveAssistantReasoning(
     return providerMessages.map(cloneProviderMessage);
   }
 
-  const reasoningQueues = new Map<string, string[]>();
-  for (const message of sessionMessages) {
-    if (message.sender !== "assistant" || !message.reasoningContent) continue;
-    const queue = reasoningQueues.get(message.content) ?? [];
-    queue.push(message.reasoningContent);
-    reasoningQueues.set(message.content, queue);
-  }
+  const reasoningCandidates = sessionMessages.flatMap((message) => {
+    if (message.sender !== "assistant" || !message.reasoningContent) return [];
+    return [{
+      content: message.content,
+      reasoning: message.reasoningContent,
+      toolCallKey: readLegacyToolCallKey(message.extra),
+      used: false,
+    }];
+  });
 
   return providerMessages.map((message) => {
     const cloned = cloneProviderMessage(message);
-    if (cloned.role !== "assistant" || typeof cloned.content !== "string") return cloned;
-    const queue = reasoningQueues.get(cloned.content);
-    const reasoning = queue?.shift();
-    return reasoning ? { ...cloned, reasoning_content: reasoning } : cloned;
+    if (cloned.role !== "assistant") return cloned;
+    const toolCallKey = providerToolCallKey(cloned);
+    const candidate = reasoningCandidates.find((item) => !item.used && (
+      typeof cloned.content === "string"
+        ? item.content === cloned.content
+        : cloned.content === null && toolCallKey !== null
+          ? item.toolCallKey === toolCallKey || (!item.toolCallKey && item.content === "")
+          : false
+    ));
+    if (!candidate) return cloned;
+    candidate.used = true;
+    return { ...cloned, reasoning_content: candidate.reasoning };
   });
 }
 
@@ -107,4 +117,24 @@ function cloneProviderMessage(message: OpenAiProviderMessage): OpenAiProviderMes
       function: { ...call.function },
     })),
   };
+}
+
+function providerToolCallKey(message: OpenAiProviderMessage): string | null {
+  if (!message.tool_calls?.length) return null;
+  const ids = message.tool_calls.map((call) => call.id).filter(Boolean);
+  return ids.length === message.tool_calls.length ? ids.join("\u0000") : null;
+}
+
+/** 只读取旧导入数据中的 Provider Tool Call ID；新领域消息不持久化 Provider 方言。 */
+function readLegacyToolCallKey(extra: unknown): string | null {
+  if (!extra || typeof extra !== "object" || Array.isArray(extra)) return null;
+  const record = extra as Record<string, unknown>;
+  const rawCalls = record.tool_calls ?? record.toolCalls;
+  if (!Array.isArray(rawCalls) || rawCalls.length === 0) return null;
+  const ids = rawCalls.map((call) => {
+    if (!call || typeof call !== "object" || Array.isArray(call)) return null;
+    const id = (call as Record<string, unknown>).id;
+    return typeof id === "string" && id ? id : null;
+  });
+  return ids.every((id): id is string => id !== null) ? ids.join("\u0000") : null;
 }

@@ -12,6 +12,8 @@ import {
   reconcileAttachmentReferences,
   patchAttachmentReferences,
   saveStagedAttachment,
+  addAttachmentStorage,
+  deleteUnreferencedAttachments,
   replaceAttachmentStorage,
 } from "../../infrastructure/attachments/attachmentStorage";
 import type { IAttachmentService, IKernel } from "../serviceContracts";
@@ -145,12 +147,36 @@ export class AttachmentService implements IAttachmentService {
     })));
   }
 
+  async importAttachments(records: readonly AttachmentBackupRecord[]): Promise<string[]> {
+    this.assertReady();
+    const current = await listAttachmentMetadata();
+    const currentById = new Map(current.map((item) => [item.id, item]));
+    const decoded = this.decodeBackupRecords(records, currentById);
+    const inserted = decoded.filter((item) => !currentById.has(item.metadata.id));
+    const existingBytes = current.reduce((total, item) => total + item.size, 0);
+    const insertedBytes = inserted.reduce((total, item) => total + item.metadata.size, 0);
+    if (existingBytes + insertedBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+      throw new Error("ATTACHMENT_TOTAL_LIMIT");
+    }
+    await addAttachmentStorage(inserted);
+    return inserted.map((item) => item.metadata.id);
+  }
+
+  async discardUnreferencedAttachments(assetIds: readonly string[]): Promise<void> {
+    this.assertReady();
+    const removed = await deleteUnreferencedAttachments(assetIds);
+    for (const id of removed) {
+      const url = this.objectUrls.get(id);
+      if (url) URL.revokeObjectURL(url);
+      this.objectUrls.delete(id);
+    }
+  }
+
   async replaceAttachments(
     records: readonly AttachmentBackupRecord[],
     references: readonly AttachmentReference[] = [],
   ): Promise<void> {
     this.assertReady();
-    const ids = new Set<string>();
     const referenceIdsByAsset = new Map<string, Set<string>>();
     for (const reference of references) {
       for (const assetId of new Set(reference.assetIds)) {
@@ -159,7 +185,39 @@ export class AttachmentService implements IAttachmentService {
         referenceIdsByAsset.set(assetId, referenceIds);
       }
     }
-    const decoded = records.map(record => {
+    const decoded = this.decodeBackupRecords(records).map(({ metadata, bytes }) => {
+      const referenceIds = Array.from(referenceIdsByAsset.get(metadata.id) ?? []).sort();
+      return {
+        metadata: {
+          ...metadata,
+          state: referenceIds.length > 0 ? "committed" as const : "staging" as const,
+          referenceIds,
+        },
+        bytes,
+      };
+    });
+    const ids = new Set(decoded.map((item) => item.metadata.id));
+    if (decoded.reduce((total, item) => total + item.metadata.size, 0) > MAX_TOTAL_ATTACHMENT_BYTES) {
+      throw new Error("ATTACHMENT_TOTAL_LIMIT");
+    }
+    for (const assetId of referenceIdsByAsset.keys()) {
+      if (!ids.has(assetId)) throw new Error("ATTACHMENT_NOT_FOUND");
+    }
+    for (const url of this.objectUrls.values()) URL.revokeObjectURL(url);
+    this.objectUrls.clear();
+    await replaceAttachmentStorage(decoded);
+  }
+
+  private assertReady(): void {
+    if (this.destroyed) throw new Error("ATTACHMENT_SERVICE_DESTROYED");
+  }
+
+  private decodeBackupRecords(
+    records: readonly AttachmentBackupRecord[],
+    existingById: ReadonlyMap<string, AttachmentMetadata> = new Map(),
+  ): Array<{ metadata: AttachmentMetadata; bytes: ArrayBuffer }> {
+    const ids = new Set<string>();
+    return records.map((record) => {
       assertAttachmentId(record.id);
       if (ids.has(record.id)) throw new Error("ATTACHMENT_BACKUP_DUPLICATE_ID");
       ids.add(record.id);
@@ -174,8 +232,15 @@ export class AttachmentService implements IAttachmentService {
       if (record.size > MAX_ATTACHMENT_BYTES[record.kind]) {
         throw new Error("ATTACHMENT_BACKUP_SIZE_INVALID");
       }
+      const existing = existingById.get(record.id);
+      if (existing && (
+        existing.kind !== record.kind
+        || existing.mimeType !== record.mimeType
+        || existing.size !== record.size
+      )) {
+        throw new Error("ATTACHMENT_BACKUP_ID_CONFLICT");
+      }
       const now = Date.now();
-      const referenceIds = Array.from(referenceIdsByAsset.get(record.id) ?? []).sort();
       return {
         metadata: {
           id: record.id,
@@ -183,27 +248,14 @@ export class AttachmentService implements IAttachmentService {
           mimeType: record.mimeType,
           originalName: normalizeName(record.originalName),
           size: record.size,
-          state: referenceIds.length > 0 ? "committed" as const : "staging" as const,
-          referenceIds,
+          state: "staging",
+          referenceIds: [],
           createdAt: Number.isFinite(record.createdAt) ? record.createdAt : now,
           updatedAt: Number.isFinite(record.updatedAt) ? record.updatedAt : now,
         },
         bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
       };
     });
-    if (decoded.reduce((total, item) => total + item.metadata.size, 0) > MAX_TOTAL_ATTACHMENT_BYTES) {
-      throw new Error("ATTACHMENT_TOTAL_LIMIT");
-    }
-    for (const assetId of referenceIdsByAsset.keys()) {
-      if (!ids.has(assetId)) throw new Error("ATTACHMENT_NOT_FOUND");
-    }
-    for (const url of this.objectUrls.values()) URL.revokeObjectURL(url);
-    this.objectUrls.clear();
-    await replaceAttachmentStorage(decoded);
-  }
-
-  private assertReady(): void {
-    if (this.destroyed) throw new Error("ATTACHMENT_SERVICE_DESTROYED");
   }
 }
 
@@ -254,7 +306,12 @@ function ascii(bytes: Uint8Array, offset: number, length: number): string {
 }
 
 function normalizeName(name: string): string {
-  const normalized = name.trim().replace(/[\u0000-\u001F\u007F]/g, "");
+  const normalized = Array.from(name.trim())
+    .filter((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint > 0x1f && codePoint !== 0x7f;
+    })
+    .join("");
   return (normalized || "未命名附件").slice(0, 160);
 }
 

@@ -18,6 +18,10 @@ class MemoryAgentJournal implements AgentJournalPort {
     this.events.push(structuredClone(event));
   }
 
+  async appendMany(events: AgentJournalEvent[]): Promise<void> {
+    this.events.push(...structuredClone(events));
+  }
+
   async listBySession(sessionId: string): Promise<AgentJournalEvent[]> {
     return this.events.filter((event) => event.sessionId === sessionId);
   }

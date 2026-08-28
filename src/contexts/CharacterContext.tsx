@@ -114,7 +114,10 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     } catch (e: unknown) {
       console.error("Failed to delete character from IndexedDB:", e);
-      showCustomAlert(tChar("chat.delete_character_failed", getErrorMessage(e)));
+      const message = getErrorMessage(e);
+      showCustomAlert(message.includes("CHARACTER_DELETE_REQUIRES_SESSION_CLEANUP")
+        ? "该角色仍有关联会话，请先在会话管理器中归档并永久删除这些会话。"
+        : tChar("chat.delete_character_failed", message));
       throw e;
     }
   };

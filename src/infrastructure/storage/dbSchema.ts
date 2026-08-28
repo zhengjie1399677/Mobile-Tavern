@@ -22,7 +22,8 @@ export const DB_NAME = "MobileTavernLiteDB";
 // v12: 新增 messages.sessionId_turnIndex_createdAt 索引，并按创建时间修复旧消息序号
 // v13: 为 character_catalog 补回首页展示所需头像，仍排除其余角色卡重数据
 // v14: 增加会话生命周期与最近活动索引，并为旧会话补齐安全目录默认值
-export const DB_VERSION = 14;
+// v15: 增加会话目录稳定排序与分支计数索引
+export const DB_VERSION = 15;
 
 export interface IndexSchema {
   name: string;
@@ -53,6 +54,9 @@ export const DB_SCHEMA: StoreSchema[] = [
       { name: "createdAt", keyPath: "createdAt" },
       { name: "lifecycle", keyPath: "lifecycle" },
       { name: "updatedAt", keyPath: "updatedAt" },
+      { name: "title", keyPath: "title" },
+      { name: "turnCount", keyPath: "turnCount" },
+      { name: "parentSessionId", keyPath: "parentSessionId" },
     ],
   },
   // settings / lorebooks / worldbooks 使用 out-of-line keys

@@ -25,7 +25,6 @@ interface SessionManagerParams {
   setChatSubTab: React.Dispatch<React.SetStateAction<"dialogue" | "timeline">>;
   setShowSessionManager: React.Dispatch<React.SetStateAction<boolean>>;
   setMsgMenuId: React.Dispatch<React.SetStateAction<string | null>>;
-  deleteSession: (id: string) => Promise<void>;
   refreshSessionStatistics: () => Promise<void>;
   hydrateSessionMessages: (sessionId: string) => Promise<void>;
   databaseService: IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>;

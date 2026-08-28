@@ -19,6 +19,8 @@ function attachmentService(blob: Blob): IAttachmentService {
     patchReferences: async () => undefined,
     collectGarbage: async () => [],
     exportAttachments: async () => [],
+    importAttachments: async () => [],
+    discardUnreferencedAttachments: async () => undefined,
     replaceAttachments: async () => undefined,
   };
 }

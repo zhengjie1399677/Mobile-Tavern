@@ -65,10 +65,6 @@ export function createChatSessionUseCases(
     updateSessionMetadata(sessionId: string, patch: ChatSessionMetadataPatch): Promise<void> {
       return databaseService.updateSessionMetadata(sessionId, patch);
     },
-
-    deleteSession(id: string): Promise<void> {
-      return databaseService.deleteSession(id);
-    },
   };
 }
 

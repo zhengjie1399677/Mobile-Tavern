@@ -49,6 +49,51 @@ export async function saveStagedAttachment(metadata: AttachmentMetadata, blob: B
   await transactionDone(transaction);
 }
 
+/** 增量写入缺失附件；不会清空或覆盖附件库中的其他记录。 */
+export async function addAttachmentStorage(
+  records: ReadonlyArray<{ metadata: AttachmentMetadata; bytes: ArrayBuffer }>,
+): Promise<void> {
+  if (records.length === 0) return;
+  const db = await openAttachmentDb();
+  const transaction = db.transaction([METADATA_STORE, CONTENT_STORE], "readwrite");
+  const metadataStore = transaction.objectStore(METADATA_STORE);
+  const contentStore = transaction.objectStore(CONTENT_STORE);
+  for (const record of records) {
+    metadataStore.add(record.metadata);
+    contentStore.add({
+      id: record.metadata.id,
+      bytes: record.bytes,
+      mimeType: record.metadata.mimeType,
+    } satisfies AttachmentContentRecord);
+  }
+  await transactionDone(transaction);
+}
+
+/** 仅清理本次恢复新增且仍未被消息引用的附件。 */
+export async function deleteUnreferencedAttachments(ids: readonly string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const db = await openAttachmentDb();
+  const transaction = db.transaction([METADATA_STORE, CONTENT_STORE], "readwrite");
+  const metadataStore = transaction.objectStore(METADATA_STORE);
+  const contentStore = transaction.objectStore(CONTENT_STORE);
+  const removed: string[] = [];
+  try {
+    for (const id of new Set(ids)) {
+      const metadata = await request<AttachmentMetadata | undefined>(metadataStore.get(id));
+      if (!metadata || metadata.referenceIds.length > 0) continue;
+      metadataStore.delete(id);
+      contentStore.delete(id);
+      removed.push(id);
+    }
+    await transactionDone(transaction);
+    return removed;
+  } catch (error) {
+    transaction.abort();
+    await transactionSettled(transaction);
+    throw error;
+  }
+}
+
 /**
  * 以完整消息引用快照重建反向引用。缺少任意附件时事务整体中止，避免半提交。
  */

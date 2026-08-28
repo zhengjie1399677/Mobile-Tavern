@@ -32,6 +32,7 @@ export class VoiceCaptureService implements IVoiceCaptureService {
   private limitTimer: ReturnType<typeof setTimeout> | null = null;
   private finalizePromise: Promise<File> | null = null;
   private completedFile: File | null = null;
+  private stopClaimed = false;
 
   init(_kernel: IKernel): void {}
 
@@ -110,22 +111,22 @@ export class VoiceCaptureService implements IVoiceCaptureService {
   }
 
   async stopCapture(): Promise<File> {
-    if (this.completedFile) {
-      const file = this.completedFile;
-      this.completedFile = null;
-      return file;
-    }
-    if (!this.capturing && !this.finalizePromise) {
+    if (this.stopClaimed || (!this.completedFile && !this.capturing && !this.finalizePromise)) {
       throw new Error("VOICE_CAPTURE_NOT_ACTIVE");
     }
-    const file = await this.beginFinalize();
-    this.completedFile = null;
-    return file;
+    this.stopClaimed = true;
+    try {
+      return this.completedFile ?? await this.beginFinalize();
+    } finally {
+      this.completedFile = null;
+      this.stopClaimed = false;
+    }
   }
 
   async cancelCapture(): Promise<void> {
     this.capturing = false;
     this.completedFile = null;
+    this.stopClaimed = false;
     this.chunks = [];
     this.clearLimitTimer();
     await this.releaseAudioResources();

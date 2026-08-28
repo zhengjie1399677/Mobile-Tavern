@@ -28,6 +28,12 @@ const fixture = vi.hoisted(() => {
       active: query?.search && !`${session.title} 冷启动角色`.includes(query.search) ? [] : [entry],
       favorites: [],
       archived: [],
+      pageInfo: {
+        active: { hasMore: false },
+        favorite: { hasMore: false },
+        archived: { hasMore: false },
+      },
+      characters: [{ id: "character-1", name: "冷启动角色" }],
     })),
     archiveSession: vi.fn().mockResolvedValue(undefined),
     restoreSession: vi.fn().mockResolvedValue(undefined),
@@ -76,10 +82,17 @@ vi.mock("../../src/contexts/LanguageContext", () => ({
 describe("会话管理器页面", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    appState.isSending = false;
     fixture.service.queryDirectory.mockImplementation(async (query?: { search?: string }) => ({
       active: query?.search && !`${fixture.session.title} 冷启动角色`.includes(query.search) ? [] : [fixture.entry],
       favorites: [],
       archived: [],
+      pageInfo: {
+        active: { hasMore: false },
+        favorite: { hasMore: false },
+        archived: { hasMore: false },
+      },
+      characters: [{ id: "character-1", name: "冷启动角色" }],
     }));
   });
 
@@ -140,5 +153,19 @@ describe("会话管理器页面", () => {
     await waitFor(() => expect(appState.updateSessionMetadata).toHaveBeenCalledWith("session-1", {
       title: "新的会话名称",
     }));
+  });
+
+  it("生成中从历史页打开会话会被统一守卫拦截", async () => {
+    appState.isSending = true;
+    render(<ChatHistoryTab />);
+
+    const title = await screen.findByText("旧旅程");
+    const openButton = title.closest("button");
+    expect(openButton).not.toBeNull();
+    fireEvent.click(openButton as HTMLButtonElement);
+
+    await waitFor(() => expect(appState.showCustomAlert).toHaveBeenCalled());
+    expect(appState.setActiveSessionId).not.toHaveBeenCalled();
+    expect(appState.setActiveCharId).not.toHaveBeenCalled();
   });
 });

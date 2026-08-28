@@ -32,7 +32,9 @@ export type { IRuntimeProfileService } from "./runtimeProfiles/contracts";
 import type { MessageContentPart } from "../domain/messages/messageContent";
 import type {
   FavoriteSessionBackupEntry,
+  SessionDirectoryCursor,
   SessionDirectoryQuery,
+  SessionDirectorySort,
   SessionDirectorySnapshot,
 } from "../domain/session-management";
 import type {
@@ -127,6 +129,7 @@ export interface IAgentRuntimeService extends IKernelService {
     activeHandles: number;
   };
   listJournalBySession(sessionId: string): Promise<AgentJournalEvent[]>;
+  appendJournal(events: readonly AgentJournalEvent[]): Promise<void>;
   replaceJournal(events: readonly AgentJournalEvent[]): Promise<void>;
   deleteJournalBySession(sessionId: string): Promise<void>;
   bindComposition(snapshot: AgentCompositionSnapshot): EffectDisposer;
@@ -150,6 +153,8 @@ export interface IAttachmentService extends IKernelService {
   ): Promise<void>;
   collectGarbage(cutoffTime: number): Promise<string[]>;
   exportAttachments(assetIds?: readonly string[]): Promise<AttachmentBackupRecord[]>;
+  importAttachments(records: readonly AttachmentBackupRecord[]): Promise<string[]>;
+  discardUnreferencedAttachments(assetIds: readonly string[]): Promise<void>;
   replaceAttachments(
     records: readonly AttachmentBackupRecord[],
     references?: readonly AttachmentReference[],
@@ -252,12 +257,17 @@ export interface IDatabaseService<TSession = unknown, TCharacter = unknown, TSum
   getSessionsCount(): Promise<number>;
   /** 只扫描索引键汇总每个角色的会话数，供目录统计使用。 */
   getSessionCountsByCharacter(): Promise<Record<string, number>>;
+  /** 只扫描 parentSessionId 索引键汇总分支数量。 */
+  getSessionBranchCounts(): Promise<Record<string, number>>;
   getSessionsPaginated(page: number, pageSize: number): Promise<TSession[]>;
   /** 使用稳定 `(createdAt, id)` 游标读取会话目录页。 */
   getSessionsPage(options: {
     pageSize: number;
     before?: { createdAt: number; id: string };
-  }): Promise<{ sessions: TSession[]; hasMore: boolean }>;
+    cursor?: SessionDirectoryCursor;
+    lifecycle?: "active" | "archived";
+    sort?: SessionDirectorySort;
+  }): Promise<{ sessions: TSession[]; hasMore: boolean; cursor?: SessionDirectoryCursor }>;
   runStorageDiagnostics(): Promise<{
     databaseName: string;
     version: number;

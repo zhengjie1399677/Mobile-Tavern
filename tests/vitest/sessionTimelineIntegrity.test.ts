@@ -171,6 +171,39 @@ describe("长会话消息与时间线摘要完整性", () => {
     expect(second.sessions[0].createdAt).toBeLessThan(cursor.createdAt);
   });
 
+  it("稳定游标用 id 打破相同排序值，跨页不重复不漏项", async () => {
+    const db = await getDB();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction("sessions", "readwrite");
+      const store = transaction.objectStore("sessions");
+      for (let index = 0; index < 45; index += 1) {
+        store.put({
+          id: `same-time-${String(index).padStart(2, "0")}`,
+          characterId: "catalog-character",
+          title: `同刻目录 ${index}`,
+          createdAt: 50_000,
+          updatedAt: 50_000,
+          lifecycle: "active",
+          summaries: [],
+        });
+      }
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+
+    const first = await getSessionsPage({ pageSize: 20, sort: "created_desc" });
+    const second = await getSessionsPage({
+      pageSize: 20,
+      sort: "created_desc",
+      cursor: first.cursor,
+    });
+    const ids = [...first.sessions, ...second.sessions].map((item) => item.id);
+
+    expect(first.hasMore).toBe(true);
+    expect(new Set(ids).size).toBe(40);
+    expect(ids.every((id) => id.startsWith("same-time-"))).toBe(true);
+  });
+
   it("并发追加摘要不会被同键写合并吞掉", async () => {
     await Promise.all([
       appendSessionSummary(sessionId, makeSummary(41)),

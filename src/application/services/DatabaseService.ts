@@ -8,6 +8,10 @@ import {
   KernelServices,
 } from "../serviceContracts";
 import { CharacterCard, ChatSession, ChatSessionMetadataPatch, Message } from "../../types";
+import type {
+  SessionDirectoryCursor,
+  SessionDirectorySort,
+} from "../../domain/session-management";
 import {
   updateSessionMetadata,
   deleteSession,
@@ -24,6 +28,7 @@ import {
   getLatestSessionByCharacter,
   getSessionById,
   getSessionCountsByCharacter,
+  getSessionBranchCounts,
   getSessionsPage,
   getSessionsCount,
   getSessionsPaginated,
@@ -239,6 +244,10 @@ export class DatabaseService implements IDatabaseService<
     return getSessionCountsByCharacter();
   }
 
+  async getSessionBranchCounts(): Promise<Record<string, number>> {
+    return getSessionBranchCounts();
+  }
+
   async getSessionsPaginated(page: number, pageSize: number): Promise<ChatSession[]> {
     return getSessionsPaginated(page, pageSize);
   }
@@ -246,7 +255,14 @@ export class DatabaseService implements IDatabaseService<
   async getSessionsPage(options: {
     pageSize: number;
     before?: { createdAt: number; id: string };
-  }): Promise<{ sessions: ChatSession[]; hasMore: boolean }> {
+    cursor?: SessionDirectoryCursor;
+    lifecycle?: "active" | "archived";
+    sort?: SessionDirectorySort;
+  }): Promise<{
+    sessions: ChatSession[];
+    hasMore: boolean;
+    cursor?: SessionDirectoryCursor;
+  }> {
     return getSessionsPage(options);
   }
 

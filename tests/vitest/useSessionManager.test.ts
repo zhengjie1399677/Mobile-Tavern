@@ -60,7 +60,7 @@ function createMockParams(overrides?: MockSessionManagerOverrides): MockSessionM
   const setShowSessionManager = vi.fn();
   const setMsgMenuId = vi.fn();
   let persistedSessions = overrides?.sessions ?? [createMockSession()];
-  const deleteSession = vi.fn(async (id: string) => {
+  const archiveSession = vi.fn(async (id: string) => {
     persistedSessions = persistedSessions.filter((item: ChatSession) => item.id !== id);
   });
   const refreshSessionStatistics = vi.fn().mockResolvedValue(undefined);
@@ -90,7 +90,6 @@ function createMockParams(overrides?: MockSessionManagerOverrides): MockSessionM
     setChatSubTab,
     setShowSessionManager,
     setMsgMenuId,
-    deleteSession,
     refreshSessionStatistics,
     hydrateSessionMessages,
     databaseService: {
@@ -108,7 +107,7 @@ function createMockParams(overrides?: MockSessionManagerOverrides): MockSessionM
       reportUsage: vi.fn(),
     } as unknown as ITelemetryService,
     sessionManagementService: {
-      archiveSession: vi.fn().mockImplementation(deleteSession),
+      archiveSession,
     } as unknown as SessionManagerParams["sessionManagementService"],
     showCustomAlert,
     showCustomConfirm,
@@ -329,7 +328,7 @@ describe("useSessionManager", () => {
         await result.current.deleteBranch("session-1");
       });
       expect(params.showCustomAlert).toHaveBeenCalled();
-      expect(params.deleteSession).not.toHaveBeenCalled();
+      expect(params.sessionManagementService.archiveSession).not.toHaveBeenCalled();
     });
 
     it("用户取消确认时不删除", async () => {
@@ -340,7 +339,7 @@ describe("useSessionManager", () => {
       await act(async () => {
         await result.current.deleteBranch("session-1");
       });
-      expect(params.deleteSession).not.toHaveBeenCalled();
+      expect(params.sessionManagementService.archiveSession).not.toHaveBeenCalled();
     });
 
     it("正常删除分支", async () => {
@@ -349,7 +348,7 @@ describe("useSessionManager", () => {
       await act(async () => {
         await result.current.deleteBranch("session-to-delete");
       });
-      expect(params.deleteSession).toHaveBeenCalledWith("session-to-delete");
+      expect(params.sessionManagementService.archiveSession).toHaveBeenCalledWith("session-to-delete");
       expect(params.setSessionViews).toHaveBeenCalled();
     });
 
@@ -391,7 +390,7 @@ describe("useSessionManager", () => {
           await vi.advanceTimersByTimeAsync(500);
         });
 
-        expect(params.deleteSession).not.toHaveBeenCalled();
+        expect(params.sessionManagementService.archiveSession).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
       }

@@ -61,7 +61,6 @@ interface ChatContextType {
   hasMoreSessions: boolean;
   isLoadingMoreSessions: boolean;
   updateSessionMetadata: (sessionId: string, patch: ChatSessionMetadataPatch) => Promise<void>;
-  deleteSession: (id: string) => Promise<void>;
   // 单会话消息分页懒加载
   hasMoreMessages: boolean;
   isLoadingMoreMessages: boolean;
@@ -150,9 +149,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // sessions 快照 ref：供 useEffect 在不依赖 sessions 数组的前提下读取最新值
   const sessionsRef = useRef<ChatSession[]>([]);
-  sessionsRef.current = sessions;
   const activeSessionIdRef = useRef<string | null>(activeSessionId);
-  activeSessionIdRef.current = activeSessionId;
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
 
   const setActiveSessionId = useCallback((id: string | null): void => {
     const commitActiveSession = () => {
@@ -416,26 +419,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const deleteSession = async (id: string) => {
-    try {
-      await chatSessionUseCases.deleteSession(id);
-      // 清理被删除会话的分页缓存，避免内存泄漏与幽灵状态
-      delete messagePagingRef.current[id];
-      delete messageHydrationBySessionRef.current[id];
-      delete messageHydrationPromisesRef.current[id];
-      setSessionViews((prev) => prev.filter((s) => s.id !== id));
-      await refreshSessionStatistics();
-      if (activeSessionId === id) {
-        setActiveSessionId(null);
-        setHasMoreMessages(false);
-      }
-    } catch (e: unknown) {
-      console.error("Failed to delete session from IndexedDB:", e);
-      showCustomAlert(tChat("chat.delete_session_failed", getErrorMessage(e)));
-      throw e;
-    }
-  };
-
   return (
     <ChatContext.Provider
       value={{
@@ -463,7 +446,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hasMoreSessions,
         isLoadingMoreSessions,
         updateSessionMetadata,
-        deleteSession,
         // 消息分页懒加载
         hasMoreMessages,
         isLoadingMoreMessages,

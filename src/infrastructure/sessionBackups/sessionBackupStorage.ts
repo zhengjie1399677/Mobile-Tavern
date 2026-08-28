@@ -1,10 +1,12 @@
 import type {
   FavoriteSessionBackupMetadata,
   FavoriteSessionBackupPayload,
+  SessionDirectoryCursor,
+  SessionDirectorySort,
 } from "../../domain/session-management";
 
 const DB_NAME = "MobileTavernSessionBackupDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const METADATA_STORE = "metadata";
 const VERSION_STORE = "versions";
 
@@ -17,6 +19,7 @@ interface StoredBackupVersion {
 
 let openedDb: IDBDatabase | null = null;
 let openingPromise: Promise<IDBDatabase> | null = null;
+let writeQueue: Promise<void> = Promise.resolve();
 
 export async function listFavoriteSessionBackups(): Promise<FavoriteSessionBackupMetadata[]> {
   const database = await openDatabase();
@@ -25,6 +28,68 @@ export async function listFavoriteSessionBackups(): Promise<FavoriteSessionBacku
   const records = await requestResult<FavoriteSessionBackupMetadata[]>(request);
   await transactionDone(transaction);
   return records.sort((left, right) => right.updatedAt - left.updatedAt || left.id.localeCompare(right.id));
+}
+
+export async function listFavoriteSessionBackupsPage(options: {
+  pageSize: number;
+  cursor?: SessionDirectoryCursor;
+  sort?: SessionDirectorySort;
+}): Promise<{
+  records: FavoriteSessionBackupMetadata[];
+  hasMore: boolean;
+  cursor?: SessionDirectoryCursor;
+}> {
+  const database = await openDatabase();
+  const pageSize = Math.max(1, Math.floor(options.pageSize) || 20);
+  const sort = options.sort ?? "updated_desc";
+  const transaction = database.transaction(METADATA_STORE, "readonly");
+  const store = transaction.objectStore(METADATA_STORE);
+  const indexName = sort === "created_asc" || sort === "created_desc"
+    ? "createdAt"
+    : sort === "title_asc"
+      ? "title"
+      : sort === "turns_desc"
+        ? "messageCount"
+        : "updatedAt";
+  const source = store.index(indexName);
+  const direction: IDBCursorDirection = sort === "created_asc" || sort === "title_asc" ? "next" : "prev";
+  const range = options.cursor
+    ? direction === "prev"
+      ? IDBKeyRange.upperBound(options.cursor.value)
+      : IDBKeyRange.lowerBound(options.cursor.value)
+    : null;
+  const records: FavoriteSessionBackupMetadata[] = [];
+  await new Promise<void>((resolve, reject) => {
+    const request = source.openCursor(range, direction);
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor || records.length > pageSize) {
+        resolve();
+        return;
+      }
+      const metadata = cursor.value as FavoriteSessionBackupMetadata;
+      if (options.cursor) {
+        const comparison = compareValues(getMetadataSortValue(metadata, sort), options.cursor.value);
+        const isPastBoundary = direction === "prev"
+          ? comparison < 0 || (comparison === 0 && metadata.id < options.cursor.id)
+          : comparison > 0 || (comparison === 0 && metadata.id > options.cursor.id);
+        if (!isPastBoundary) {
+          cursor.continue();
+          return;
+        }
+      }
+      records.push(metadata);
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error ?? new Error("SESSION_BACKUP_PAGE_FAILED"));
+  });
+  await transactionDone(transaction);
+  const page = records.slice(0, pageSize);
+  return {
+    records: page,
+    hasMore: records.length > pageSize,
+    cursor: page.length > 0 ? toMetadataCursor(page[page.length - 1], sort) : undefined,
+  };
 }
 
 export async function getFavoriteSessionBackupMetadata(
@@ -77,6 +142,13 @@ export async function saveFavoriteSessionBackup(
   metadataInput: Omit<FavoriteSessionBackupMetadata, "versionId" | "integrityHash">,
   payload: FavoriteSessionBackupPayload,
 ): Promise<FavoriteSessionBackupMetadata> {
+  return enqueueBackupWrite(() => saveFavoriteSessionBackupNow(metadataInput, payload));
+}
+
+async function saveFavoriteSessionBackupNow(
+  metadataInput: Omit<FavoriteSessionBackupMetadata, "versionId" | "integrityHash">,
+  payload: FavoriteSessionBackupPayload,
+): Promise<FavoriteSessionBackupMetadata> {
   const database = await openDatabase();
   const integrityHash = await hashBackupPayload(payload);
   const versionId = `session_backup_version_${crypto.randomUUID()}`;
@@ -116,6 +188,10 @@ export async function saveFavoriteSessionBackup(
 }
 
 export async function deleteFavoriteSessionBackup(backupId: string): Promise<void> {
+  return enqueueBackupWrite(() => deleteFavoriteSessionBackupNow(backupId));
+}
+
+async function deleteFavoriteSessionBackupNow(backupId: string): Promise<void> {
   const database = await openDatabase();
   const transaction = database.transaction([METADATA_STORE, VERSION_STORE], "readwrite");
   transaction.objectStore(METADATA_STORE).delete(backupId);
@@ -129,6 +205,38 @@ export async function deleteFavoriteSessionBackup(backupId: string): Promise<voi
     cursor.continue();
   };
   await transactionDone(transaction);
+}
+
+/** 回收崩溃窗口遗留、未被任意元数据指针引用的不可变版本。 */
+export async function pruneOrphanedFavoriteSessionBackupVersions(): Promise<number> {
+  return enqueueBackupWrite(async () => {
+    const database = await openDatabase();
+    const transaction = database.transaction([METADATA_STORE, VERSION_STORE], "readwrite");
+    const metadata = await requestResult<FavoriteSessionBackupMetadata[]>(
+      transaction.objectStore(METADATA_STORE).getAll(),
+    );
+    const referenced = new Set(metadata.map((item) => item.versionId));
+    let removed = 0;
+    await new Promise<void>((resolve, reject) => {
+      const request = transaction.objectStore(VERSION_STORE).openCursor();
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) {
+          resolve();
+          return;
+        }
+        const version = cursor.value as StoredBackupVersion;
+        if (!referenced.has(version.id)) {
+          cursor.delete();
+          removed += 1;
+        }
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error ?? new Error("SESSION_BACKUP_PRUNE_FAILED"));
+    });
+    await transactionDone(transaction);
+    return removed;
+  });
 }
 
 export async function hashBackupPayload(payload: FavoriteSessionBackupPayload): Promise<string> {
@@ -152,15 +260,20 @@ function openDatabase(): Promise<IDBDatabase> {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = () => {
         const database = request.result;
-        if (!database.objectStoreNames.contains(METADATA_STORE)) {
-          const metadata = database.createObjectStore(METADATA_STORE, { keyPath: "id" });
-          metadata.createIndex("sourceSessionId", "sourceSessionId", { unique: true });
-          metadata.createIndex("updatedAt", "updatedAt", { unique: false });
-        }
-        if (!database.objectStoreNames.contains(VERSION_STORE)) {
-          const versions = database.createObjectStore(VERSION_STORE, { keyPath: "id" });
-          versions.createIndex("backupId", "backupId", { unique: false });
-        }
+        const transaction = request.transaction;
+        if (!transaction) throw new Error("SESSION_BACKUP_UPGRADE_TRANSACTION_MISSING");
+        const metadata = database.objectStoreNames.contains(METADATA_STORE)
+          ? transaction.objectStore(METADATA_STORE)
+          : database.createObjectStore(METADATA_STORE, { keyPath: "id" });
+        ensureIndex(metadata, "sourceSessionId", "sourceSessionId", true);
+        ensureIndex(metadata, "updatedAt", "updatedAt");
+        ensureIndex(metadata, "createdAt", "createdAt");
+        ensureIndex(metadata, "title", "title");
+        ensureIndex(metadata, "messageCount", "messageCount");
+        const versions = database.objectStoreNames.contains(VERSION_STORE)
+          ? transaction.objectStore(VERSION_STORE)
+          : database.createObjectStore(VERSION_STORE, { keyPath: "id" });
+        ensureIndex(versions, "backupId", "backupId");
       };
       request.onsuccess = () => {
         openedDb = request.result;
@@ -174,6 +287,50 @@ function openDatabase(): Promise<IDBDatabase> {
     });
   }
   return openingPromise;
+}
+
+function ensureIndex(
+  store: IDBObjectStore,
+  name: string,
+  keyPath: string,
+  unique = false,
+): void {
+  if (!store.indexNames.contains(name)) store.createIndex(name, keyPath, { unique });
+}
+
+function getMetadataSortValue(
+  metadata: FavoriteSessionBackupMetadata,
+  sort: SessionDirectorySort,
+): number | string {
+  if (sort === "created_asc" || sort === "created_desc") return metadata.createdAt;
+  if (sort === "title_asc") return metadata.title;
+  if (sort === "turns_desc") return metadata.messageCount;
+  return metadata.updatedAt;
+}
+
+function toMetadataCursor(
+  metadata: FavoriteSessionBackupMetadata,
+  sort: SessionDirectorySort,
+): SessionDirectoryCursor {
+  return {
+    sort,
+    value: getMetadataSortValue(metadata, sort),
+    createdAt: metadata.createdAt,
+    id: metadata.id,
+  };
+}
+
+function compareValues(left: number | string, right: number | string): number {
+  if (typeof left === "number" && typeof right === "number") return left - right;
+  const leftText = String(left);
+  const rightText = String(right);
+  return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
+}
+
+function enqueueBackupWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const result = writeQueue.then(operation, operation);
+  writeQueue = result.then(() => undefined, () => undefined);
+  return result;
 }
 
 function closeDatabase(): void {

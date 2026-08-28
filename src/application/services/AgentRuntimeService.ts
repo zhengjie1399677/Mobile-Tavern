@@ -20,6 +20,7 @@ import type {
 } from "../../domain/agents/contracts";
 import {
   appendAgentJournalEvent,
+  appendAgentJournalEvents,
   listAgentJournalEventsBySession,
   replaceAgentJournalEvents,
   deleteAgentJournalBySession,
@@ -38,6 +39,7 @@ const MAX_APPROVAL_TIMEOUT_MS = 300_000;
 
 export interface AgentJournalPort {
   append(event: AgentJournalEvent): Promise<void>;
+  appendMany(events: readonly AgentJournalEvent[]): Promise<void>;
   listBySession(sessionId: string): Promise<AgentJournalEvent[]>;
   replace(events: readonly AgentJournalEvent[]): Promise<void>;
   deleteBySession(sessionId: string): Promise<void>;
@@ -67,6 +69,7 @@ export interface AgentRuntimeDiagnostics {
 
 const indexedDbJournal: AgentJournalPort = {
   append: appendAgentJournalEvent,
+  appendMany: appendAgentJournalEvents,
   listBySession: listAgentJournalEventsBySession,
   replace: replaceAgentJournalEvents,
   deleteBySession: deleteAgentJournalBySession,
@@ -328,6 +331,15 @@ export class AgentRuntimeService implements IAgentRuntimeService {
     this.assertActive();
     await this.journal.replace(events.map((event) => structuredClone(event)));
     for (const sessionId of new Set(events.map((event) => event.sessionId))) {
+      this.emitJournal(sessionId);
+    }
+  }
+
+  async appendJournal(events: readonly AgentJournalEvent[]): Promise<void> {
+    this.assertActive();
+    const copies = events.map((event) => structuredClone(event));
+    await this.journal.appendMany(copies);
+    for (const sessionId of new Set(copies.map((event) => event.sessionId))) {
       this.emitJournal(sessionId);
     }
   }

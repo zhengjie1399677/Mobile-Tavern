@@ -15,6 +15,18 @@ export async function appendAgentJournalEvent(event: AgentJournalEvent): Promise
   await transactionDone(transaction);
 }
 
+/** 在单个事务中追加一组 Journal 事件，不影响其他会话正在写入的记录。 */
+export async function appendAgentJournalEvents(
+  events: readonly AgentJournalEvent[],
+): Promise<void> {
+  if (events.length === 0) return;
+  const database = await openAgentJournalDatabase();
+  const transaction = database.transaction(EVENT_STORE, "readwrite");
+  const store = transaction.objectStore(EVENT_STORE);
+  for (const event of events) store.add(event);
+  await transactionDone(transaction);
+}
+
 export async function listAgentJournalEventsBySession(
   sessionId: string,
 ): Promise<AgentJournalEvent[]> {

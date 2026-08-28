@@ -29,6 +29,7 @@ import ThemeEditorModal from "../../components/ThemeEditorModal";
 import LocalResourceManager from "./LocalResourceManager";
 import { PROTECTED_MAIN_TABS, sanitizeHiddenMainTabs } from "../../domain/ui/mainTabVisibility";
 import { useKernel } from "../../contexts/KernelContext";
+import { upsertCustomThemePackage } from "../../domain/themes/themeDocumentDraft";
 
 export type ThemeConfigSectionProps = Pick<UnifiedAppContextProps,
   "settings" | "updateSettings" | "currentTheme" | "handleThemeChange" | "showCustomAlert" | "showCustomConfirm"
@@ -51,38 +52,25 @@ export default function ThemeConfigSection({
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<CustomThemePackage | null>(null);
-  const [originalThemeId, setOriginalThemeId] = useState<string>("");
 
-  const handleSaveEditedTheme = async (updatedTheme: CustomThemePackage) => {
+  const handleSaveEditedTheme = async (updatedTheme: CustomThemePackage, applyAfterSave: boolean) => {
     if (!updatedTheme.id) return;
 
     const oldId = editingTheme?.id;
-    const nextThemes = [...customThemes];
+    updateSettings(previous => {
+      const nextThemes = upsertCustomThemePackage(previous.customThemes ?? [], updatedTheme, oldId);
+      return { ...previous, customThemes: nextThemes };
+    });
 
-    if (oldId) {
-      const idx = nextThemes.findIndex(t => t.id === oldId);
-      if (idx >= 0) {
-        if (oldId !== updatedTheme.id) {
-          removeThemePackageStyle(oldId);
-        }
-        nextThemes[idx] = updatedTheme;
-      } else {
-        nextThemes.push(updatedTheme);
-      }
-    } else {
-      nextThemes.push(updatedTheme);
+    // 保存不应用时，当前启用主题继续使用进入工作室前已经注入的快照。
+    // 非当前主题可安全预注入（style 会保持 disabled），便于之后无闪烁切换。
+    if (applyAfterSave || currentTheme !== updatedTheme.id) {
+      applyThemePackage(updatedTheme);
     }
-
-    updateSettings({ ...settings, customThemes: nextThemes });
-    applyThemePackage(updatedTheme);
-
-    localStorage.setItem("mobile_tavern_custom_is_dark", String(updatedTheme.isDark));
-    handleThemeChange(updatedTheme.id);
-
-    setEditorOpen(false);
-    setEditingTheme(null);
-
-    await showCustomAlert(`主题「${updatedTheme.name}」已成功保存！`, "保存成功");
+    if (applyAfterSave) {
+      localStorage.setItem("mobile_tavern_custom_is_dark", String(updatedTheme.isDark));
+      handleThemeChange(updatedTheme.id);
+    }
   };
 
   // 挂载时与 customThemes 变化时，把所有自定义主题 CSS 注入 document.head。
@@ -90,10 +78,12 @@ export default function ThemeConfigSection({
   useEffect(() => {
     for (const theme of customThemes) {
       if (theme.id) {
+        const existingStyle = document.querySelector(`style[data-tavern-theme="${theme.id}"]`);
+        if (theme.id === currentTheme && existingStyle) continue;
         applyThemePackage(theme);
       }
     }
-  }, [customThemes]);
+  }, [currentTheme, customThemes]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // 主题包导入 / 导出 / 删除 / 应用
@@ -310,7 +300,6 @@ export default function ThemeConfigSection({
               <button
                 type="button"
                 onClick={() => {
-                  setOriginalThemeId(String(currentTheme));
                   setEditingTheme(null);
                   setEditorOpen(true);
                 }}
@@ -369,7 +358,6 @@ export default function ThemeConfigSection({
                       <button
                         type="button"
                         onClick={() => {
-                          setOriginalThemeId(String(currentTheme));
                           setEditingTheme(theme);
                           setEditorOpen(true);
                         }}
@@ -617,9 +605,8 @@ export default function ThemeConfigSection({
           themeToEdit={editingTheme}
           customThemes={customThemes}
           onSave={handleSaveEditedTheme}
-          handleThemeChange={handleThemeChange}
-          originalThemeId={originalThemeId}
           showCustomAlert={showCustomAlert}
+          showCustomConfirm={showCustomConfirm}
         />
       </CardContent>
     </Card>

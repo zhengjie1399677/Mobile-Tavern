@@ -75,7 +75,7 @@ export const useCharacterEditor = () => {
     setCharModalOpen(true);
   }, []);
 
-  // 删除角色（级联清理关联会话）
+  // 删除角色；存在关联会话时由 CharacterService 拒绝，避免绕过归档删除守卫。
   const handleDeleteCharacter = useCallback(async (
     id: string,
     e: React.MouseEvent,
@@ -83,7 +83,7 @@ export const useCharacterEditor = () => {
   ) => {
     e.stopPropagation();
     const ok = await showCustomConfirm(
-      "确认删除该角色卡？其所有衍生聊天记录与世界书皆会被清理。"
+      "确认删除该角色卡？角色内置世界书将一并删除；如仍有关联会话，请先在会话管理器中归档并永久删除。"
     );
     if (ok) {
       setIsDbWriting(true);
@@ -94,6 +94,8 @@ export const useCharacterEditor = () => {
           setActiveCharId(null);
         }
         await onDeleted?.();
+      } catch {
+        // CharacterContext 已把领域错误映射为可操作提示；此处消费拒绝，避免事件处理器产生未处理 Promise。
       } finally {
         setIsDbWriting(false);
       }

@@ -4,6 +4,7 @@
 
 | 日期 | 已完成事项 | 主要入口 |
 |---|---|---|
+| 2026-08-29 | 完成自定义主题工作室阶段一：全屏响应式外壳、独立草稿、隔离预览、离开保护、语义颜色分层和保存/应用分离 | `src/components/ThemeEditorModal.tsx`、`src/domain/themes/themeDocumentDraft.ts` |
 | 2026-08-26 | 完成多模态附件分类入口/预览和 Tool Plugin 安装、权限、停用、回滚、卸载管理面；受控执行与来源治理继续留在 P2 | `src/tabs/chat/attachment-composer/`、`src/components/plugins/ToolPluginManagerSection.tsx` |
 | 2026-08-28 | 完成会话管理器阶段一、二：生命周期/修订目录、归档删除守卫、三分类管理和独立收藏恢复备份 | `src/application/services/SessionManagementService.ts`、`src/components/session-manager/SessionManagerPanel.tsx` |
 | 2026-08-26 | 完成 External Tool Plugin 本地 L2：`.mttool`、HTTPS/Worker 执行、宿主网络与凭据、Agent Runtime、会话快照和即时撤销；签名来源、远程撤回与生态审核继续留在 P2 | `src/application/services/ToolPluginRuntimeService.ts`、`src/infrastructure/toolPlugins/` |

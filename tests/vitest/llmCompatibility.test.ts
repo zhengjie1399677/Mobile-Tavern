@@ -122,6 +122,32 @@ describe("LLM Provider 兼容层", () => {
     expect(result.map((message) => message.reasoning_content)).toEqual(["思考一", "思考二"]);
   });
 
+  it("按 tool_calls ID 为 content=null 的助手消息回填 reasoning_content", () => {
+    const sessionMessages = [{
+      id: "tool-message",
+      sender: "assistant",
+      content: "",
+      reasoningContent: "需要先调用天气工具",
+      timestamp: 1,
+      extra: { tool_calls: [{ id: "call-weather" }] },
+    }] as Message[];
+
+    const result = preserveAssistantReasoning([{
+      role: "assistant",
+      content: null,
+      tool_calls: [{
+        id: "call-weather",
+        type: "function",
+        function: { name: "weather", arguments: "{}" },
+      }],
+    }], sessionMessages, "https://api.deepseek.com/v1", "deepseek-chat");
+
+    expect(result[0]).toMatchObject({
+      content: null,
+      reasoning_content: "需要先调用天气工具",
+    });
+  });
+
   it("归一化 OpenAI 别名、Anthropic SSE、Gemini 与 DashScope 响应", () => {
     expect(normalizeProviderStreamChunk({
       choices: [{ delta: { reasoningContent: "想", text: "答" }, finishReason: "STOP" }],

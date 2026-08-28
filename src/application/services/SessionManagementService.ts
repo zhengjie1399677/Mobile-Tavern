@@ -12,8 +12,10 @@ import type {
   FavoriteSessionBackupMetadata,
   FavoriteSessionBackupPayload,
   SessionDirectoryEntry,
+  SessionDirectoryCursor,
   SessionDirectoryQuery,
   SessionDirectorySnapshot,
+  SessionDirectorySort,
 } from "../../domain/session-management";
 import type {
   CharacterCard,
@@ -27,8 +29,10 @@ import { collectMessageAssetIds } from "../../domain/messages/messageContent";
 import {
   deleteFavoriteSessionBackup,
   getFavoriteSessionBackupBySource,
+  getFavoriteSessionBackupMetadata,
   loadFavoriteSessionBackup,
-  listFavoriteSessionBackups,
+  listFavoriteSessionBackupsPage,
+  pruneOrphanedFavoriteSessionBackupVersions,
   saveFavoriteSessionBackup,
 } from "../../infrastructure/sessionBackups/sessionBackupStorage";
 import { restoreSessionMemorySnapshot } from "../../infrastructure/storage/repositories/sessionMemorySnapshotRepository";
@@ -54,10 +58,16 @@ export class SessionManagementService implements ISessionManagementService<ChatS
 
   private kernel!: IKernel;
   private abortController: AbortController | null = null;
+  private backupMaintenance: Promise<void> | null = null;
 
   init(kernel: IKernel, signal?: AbortSignal): void {
     this.kernel = kernel;
     this.abortController = new AbortController();
+    this.backupMaintenance = pruneOrphanedFavoriteSessionBackupVersions()
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        console.warn("[SessionManagementService] Failed to prune orphaned backup versions", error);
+      });
     if (signal) {
       if (signal.aborted) this.abortController.abort();
       else signal.addEventListener("abort", () => this.abortController?.abort(), { once: true });
@@ -67,53 +77,36 @@ export class SessionManagementService implements ISessionManagementService<ChatS
   destroy(): void {
     this.abortController?.abort();
     this.abortController = null;
+    this.backupMaintenance = null;
   }
 
   async queryDirectory(query: SessionDirectoryQuery = {}): Promise<SessionDirectorySnapshot> {
-    const [sessions, characters, backups] = await Promise.all([
-      this.database.getAllSessions(),
-      this.characters.getCharacterCatalog(),
-      listFavoriteSessionBackups(),
-    ]);
-    const sessionMap = new Map(sessions.map((session) => [session.id, session]));
-    const characterMap = new Map(characters.map((character) => [character.id, character]));
-    const favoriteEntries = backups.map((metadata) => this.toFavoriteEntry(metadata, sessionMap.get(metadata.sourceSessionId ?? "")));
-    const favoriteMap = new Map(
-      favoriteEntries.flatMap((entry) => entry.metadata.sourceSessionId
-        ? [[entry.metadata.sourceSessionId, entry] as const]
-        : []),
-    );
-    const branchCounts = new Map<string, number>();
-    for (const session of sessions) {
-      if (!session.parentSessionId) continue;
-      branchCounts.set(session.parentSessionId, (branchCounts.get(session.parentSessionId) ?? 0) + 1);
+    await this.backupMaintenance;
+    const category = query.category ?? "active";
+    const pageSize = Math.min(100, Math.max(1, Math.floor(query.pageSize ?? 24)));
+    const sort = query.sort ?? "updated_desc";
+    if (query.cursor && (
+      query.cursor.sort !== sort
+      || (query.cursor.category && query.cursor.category !== category)
+    )) {
+      throw new Error("SESSION_DIRECTORY_CURSOR_MISMATCH");
     }
-
-    const entries = sessions.map<SessionDirectoryEntry>((session) => {
-      const character = characterMap.get(session.characterId);
-      return {
-        session,
-        characterName: character?.name || "已移除角色",
-        characterAvatar: character?.avatar,
-        favorite: favoriteMap.get(session.id),
-        branchCount: branchCounts.get(session.id) ?? 0,
-      };
-    });
-    const entryMap = new Map(entries.map((entry) => [entry.session.id, entry]));
-    const filtered = this.filterEntries(entries, query);
-    return {
-      active: filtered.filter((entry) => entry.session.lifecycle !== "archived"),
-      archived: filtered.filter((entry) => entry.session.lifecycle === "archived"),
-      favorites: favoriteEntries
-        .filter((entry) => this.favoriteMatches(
-          entry,
-          query,
-          entry.metadata.sourceSessionId
-            ? entryMap.get(entry.metadata.sourceSessionId)
-            : undefined,
-        ))
-        .sort((left, right) => this.compareFavorites(left, right, query)),
-    };
+    const [characters, branchCounts] = await Promise.all([
+      this.characters.getCharacterCatalog(),
+      this.database.getSessionBranchCounts(),
+    ]);
+    const characterMap = new Map(characters.map((character) => [character.id, character]));
+    const snapshot = emptyDirectorySnapshot(characters.map(({ id, name }) => ({ id, name })));
+    if (category === "favorite") {
+      const page = await this.collectFavoritePage(query, pageSize, sort, characterMap, branchCounts);
+      snapshot.favorites = page.items;
+      snapshot.pageInfo.favorite = { cursor: page.cursor, hasMore: page.hasMore };
+      return snapshot;
+    }
+    const page = await this.collectSessionPage(category, query, pageSize, sort, characterMap, branchCounts);
+    snapshot[category] = page.items;
+    snapshot.pageInfo[category] = { cursor: page.cursor, hasMore: page.hasMore };
+    return snapshot;
   }
 
   async archiveSession(sessionId: string): Promise<void> {
@@ -177,10 +170,10 @@ export class SessionManagementService implements ISessionManagementService<ChatS
     }));
     let characterId = payload.character.id;
     let createdCharacterId: string | null = null;
-    if (!await this.characters.getCharacterById(characterId)) {
+    const characterExists = Boolean(await this.characters.getCharacterById(characterId));
+    if (!characterExists) {
       characterId = `character_restored_${crypto.randomUUID()}`;
       createdCharacterId = characterId;
-      await this.characters.saveCharacter({ ...structuredClone(payload.character), id: characterId });
     }
     const now = Date.now();
     const restoredSession: ChatSession = {
@@ -210,24 +203,6 @@ export class SessionManagementService implements ISessionManagementService<ChatS
       mutedMessageIds: payload.session.mutedMessageIds?.map((id) => messageIdMap.get(id) ?? id),
     };
 
-    const attachmentService = this.attachments;
-    const previousAttachments = await attachmentService.exportAttachments();
-    const previousMetadata = await attachmentService.listAttachments();
-    const previousReferences = previousMetadata.flatMap((item) => item.referenceIds.map((referenceId) => ({
-      referenceId,
-      assetIds: [item.id],
-    })));
-    const mergedAttachments = Array.from(new Map(
-      [...previousAttachments, ...payload.attachments].map((item) => [item.id, item]),
-    ).values());
-    const restoredReferences = messages.flatMap((message) => {
-      const assetIds = collectMessageAssetIds(message.parts ?? []);
-      return assetIds.length > 0 ? [{ referenceId: `${restoreId}/${message.id}`, assetIds }] : [];
-    });
-    const existingSessions = await this.database.getAllSessions();
-    const previousJournal = (await Promise.all(existingSessions.map((session) =>
-      this.agentRuntime.listJournalBySession(session.id),
-    ))).flat();
     const turnIdMap = new Map<string, string>();
     const restoredJournal = payload.agentJournal.map((event, index) => {
       const turnId = turnIdMap.get(event.turnId) ?? `${restoreId}_turn_${crypto.randomUUID()}`;
@@ -239,14 +214,13 @@ export class SessionManagementService implements ISessionManagementService<ChatS
         turnId,
       };
     });
-    let sessionCreated = false;
+    let importedAttachmentIds: string[] = [];
     try {
-      await attachmentService.replaceAttachments(
-        mergedAttachments,
-        mergeReferences([...previousReferences, ...restoredReferences]),
-      );
+      if (createdCharacterId) {
+        await this.characters.saveCharacter({ ...structuredClone(payload.character), id: createdCharacterId });
+      }
+      importedAttachmentIds = await this.attachments.importAttachments(payload.attachments);
       await this.database.replaceCompleteSessions([restoredSession], this.signal);
-      sessionCreated = true;
       await restoreSessionMemorySnapshot({
         dictEntries: payload.memoryDictEntries.map((entry) => ({
           ...structuredClone(entry),
@@ -257,18 +231,19 @@ export class SessionManagementService implements ISessionManagementService<ChatS
         fragments: remapFragments(payload, restoreId, messageIdMap),
         facts: remapFacts(payload, restoreId, messageIdMap),
       }, this.signal);
-      await this.agentRuntime.replaceJournal([...previousJournal, ...restoredJournal]);
+      await this.agentRuntime.appendJournal(restoredJournal);
       return restoredSession;
     } catch (error: unknown) {
-      await Promise.allSettled([
-        attachmentService.replaceAttachments(previousAttachments, mergeReferences(previousReferences)),
-        this.agentRuntime.replaceJournal(previousJournal),
-      ]);
-      if (sessionCreated) {
-        await this.database.updateSessionMetadata(restoreId, { lifecycle: "archived", archivedAt: Date.now() });
-        await this.database.deleteSession(restoreId, this.signal);
+      await this.agentRuntime.deleteJournalBySession(restoreId).catch(() => undefined);
+      const persistedSession = await this.database.getSessionById(restoreId).catch(() => null);
+      if (persistedSession) {
+        await this.database
+          .updateSessionMetadata(restoreId, { lifecycle: "archived", archivedAt: Date.now() })
+          .then(() => this.database.deleteSession(restoreId, this.signal))
+          .catch(() => undefined);
       }
-      if (createdCharacterId) await this.characters.deleteCharacter(createdCharacterId);
+      await this.attachments.discardUnreferencedAttachments(importedAttachmentIds).catch(() => undefined);
+      if (createdCharacterId) await this.characters.deleteCharacter(createdCharacterId).catch(() => undefined);
       throw error;
     }
   }
@@ -350,26 +325,18 @@ export class SessionManagementService implements ISessionManagementService<ChatS
     };
   }
 
-  private filterEntries(entries: SessionDirectoryEntry[], query: SessionDirectoryQuery): SessionDirectoryEntry[] {
+  private entryMatches(entry: SessionDirectoryEntry, query: SessionDirectoryQuery): boolean {
     const normalizedSearch = query.search?.trim().toLocaleLowerCase();
-    const filtered = entries.filter((entry) => {
-      const session = entry.session;
-      if (normalizedSearch && ![session.title, entry.characterName].some((value) =>
-        value.toLocaleLowerCase().includes(normalizedSearch),
-      )) return false;
-      if (query.characterId && session.characterId !== query.characterId) return false;
-      if (query.createdAfter && session.createdAt < query.createdAfter) return false;
-      if (query.updatedAfter && (session.updatedAt ?? session.createdAt) < query.updatedAfter) return false;
-      if (query.hasBranch !== undefined && (entry.branchCount > 0 || Boolean(session.parentSessionId)) !== query.hasBranch) return false;
-      if (query.backupStatus && entry.favorite?.status !== query.backupStatus) return false;
-      return true;
-    });
-    return filtered.sort((left, right) => {
-      if (query.sort === "created_asc") return left.session.createdAt - right.session.createdAt;
-      if (query.sort === "title_asc") return left.session.title.localeCompare(right.session.title);
-      if (query.sort === "turns_desc") return (right.session.turnCount ?? 0) - (left.session.turnCount ?? 0);
-      return (right.session.updatedAt ?? right.session.createdAt) - (left.session.updatedAt ?? left.session.createdAt);
-    });
+    const session = entry.session;
+    if (normalizedSearch && ![session.title, entry.characterName].some((value) =>
+      value.toLocaleLowerCase().includes(normalizedSearch),
+    )) return false;
+    if (query.characterId && session.characterId !== query.characterId) return false;
+    if (query.createdAfter && session.createdAt < query.createdAfter) return false;
+    if (query.updatedAfter && (session.updatedAt ?? session.createdAt) < query.updatedAfter) return false;
+    if (query.hasBranch !== undefined && (entry.branchCount > 0 || Boolean(session.parentSessionId)) !== query.hasBranch) return false;
+    if (query.backupStatus && entry.favorite?.status !== query.backupStatus) return false;
+    return true;
   }
 
   private favoriteMatches(
@@ -394,15 +361,99 @@ export class SessionManagementService implements ISessionManagementService<ChatS
     return true;
   }
 
-  private compareFavorites(
-    left: FavoriteSessionBackupEntry,
-    right: FavoriteSessionBackupEntry,
+  private async collectSessionPage(
+    category: "active" | "archived",
     query: SessionDirectoryQuery,
-  ): number {
-    if (query.sort === "created_asc") return left.metadata.createdAt - right.metadata.createdAt;
-    if (query.sort === "title_asc") return left.metadata.title.localeCompare(right.metadata.title);
-    if (query.sort === "turns_desc") return right.metadata.messageCount - left.metadata.messageCount;
-    return right.metadata.updatedAt - left.metadata.updatedAt;
+    pageSize: number,
+    sort: SessionDirectorySort,
+    characterMap: ReadonlyMap<string, CharacterCard>,
+    branchCounts: Readonly<Record<string, number>>,
+  ): Promise<{ items: SessionDirectoryEntry[]; cursor?: SessionDirectoryCursor; hasMore: boolean }> {
+    const matches: Array<{ entry: SessionDirectoryEntry; cursor: SessionDirectoryCursor }> = [];
+    let sourceCursor = query.cursor;
+    let sourceHasMore = true;
+    while (matches.length <= pageSize && sourceHasMore) {
+      const page = await this.database.getSessionsPage({
+        pageSize: Math.max(32, pageSize * 2),
+        cursor: sourceCursor,
+        lifecycle: category,
+        sort,
+      });
+      sourceHasMore = page.hasMore;
+      sourceCursor = page.cursor;
+      const entries = await Promise.all(page.sessions.map(async (session) => {
+        const character = characterMap.get(session.characterId);
+        const favoriteMetadata = session.favoriteBackupId
+          ? await getFavoriteSessionBackupMetadata(session.favoriteBackupId)
+          : null;
+        return {
+          session,
+          characterName: character?.name || "已移除角色",
+          characterAvatar: character?.avatar,
+          favorite: favoriteMetadata ? this.toFavoriteEntry(favoriteMetadata, session) : undefined,
+          branchCount: branchCounts[session.id] ?? 0,
+        } satisfies SessionDirectoryEntry;
+      }));
+      for (const entry of entries) {
+        if (!this.entryMatches(entry, query)) continue;
+        matches.push({ entry, cursor: toSessionCursor(entry.session, category, sort) });
+        if (matches.length > pageSize) break;
+      }
+      if (page.sessions.length === 0) sourceHasMore = false;
+    }
+    const visible = matches.slice(0, pageSize);
+    return {
+      items: visible.map(({ entry }) => entry),
+      cursor: visible.at(-1)?.cursor,
+      hasMore: matches.length > pageSize,
+    };
+  }
+
+  private async collectFavoritePage(
+    query: SessionDirectoryQuery,
+    pageSize: number,
+    sort: SessionDirectorySort,
+    characterMap: ReadonlyMap<string, CharacterCard>,
+    branchCounts: Readonly<Record<string, number>>,
+  ): Promise<{ items: FavoriteSessionBackupEntry[]; cursor?: SessionDirectoryCursor; hasMore: boolean }> {
+    const matches: Array<{ entry: FavoriteSessionBackupEntry; cursor: SessionDirectoryCursor }> = [];
+    let sourceCursor = query.cursor;
+    let sourceHasMore = true;
+    while (matches.length <= pageSize && sourceHasMore) {
+      const page = await listFavoriteSessionBackupsPage({
+        pageSize: Math.max(32, pageSize * 2),
+        cursor: sourceCursor,
+        sort,
+      });
+      sourceHasMore = page.hasMore;
+      sourceCursor = page.cursor;
+      const sourceSessions = await Promise.all(page.records.map((metadata) =>
+        metadata.sourceSessionId
+          ? this.database.getSessionById(metadata.sourceSessionId)
+          : Promise.resolve(null),
+      ));
+      page.records.forEach((metadata, index) => {
+        const sourceSession = sourceSessions[index] ?? undefined;
+        const entry = this.toFavoriteEntry(metadata, sourceSession);
+        const sourceCharacter = sourceSession ? characterMap.get(sourceSession.characterId) : undefined;
+        const sourceEntry = sourceSession ? {
+          session: sourceSession,
+          characterName: sourceCharacter?.name || metadata.characterName,
+          characterAvatar: sourceCharacter?.avatar,
+          favorite: entry,
+          branchCount: branchCounts[sourceSession.id] ?? 0,
+        } satisfies SessionDirectoryEntry : undefined;
+        if (!this.favoriteMatches(entry, query, sourceEntry)) return;
+        matches.push({ entry, cursor: toFavoriteCursor(metadata, sort) });
+      });
+      if (page.records.length === 0) sourceHasMore = false;
+    }
+    const visible = matches.slice(0, pageSize);
+    return {
+      items: visible.map(({ entry }) => entry),
+      cursor: visible.at(-1)?.cursor,
+      hasMore: matches.length > pageSize,
+    };
   }
 
   private requireSession(sessionId: string): Promise<ChatSession> {
@@ -437,16 +488,61 @@ export class SessionManagementService implements ISessionManagementService<ChatS
   }
 }
 
-function mergeReferences(
-  references: ReadonlyArray<{ referenceId: string; assetIds: string[] }>,
-): Array<{ referenceId: string; assetIds: string[] }> {
-  const merged = new Map<string, Set<string>>();
-  for (const reference of references) {
-    const assetIds = merged.get(reference.referenceId) ?? new Set<string>();
-    for (const assetId of reference.assetIds) assetIds.add(assetId);
-    merged.set(reference.referenceId, assetIds);
-  }
-  return Array.from(merged, ([referenceId, assetIds]) => ({ referenceId, assetIds: [...assetIds] }));
+function emptyDirectorySnapshot(
+  characters: ReadonlyArray<{ id: string; name: string }>,
+): SessionDirectorySnapshot {
+  return {
+    active: [],
+    favorites: [],
+    archived: [],
+    pageInfo: {
+      active: { hasMore: false },
+      favorite: { hasMore: false },
+      archived: { hasMore: false },
+    },
+    characters,
+  };
+}
+
+function sessionSortValue(session: ChatSession, sort: SessionDirectorySort): number | string {
+  if (sort === "created_asc" || sort === "created_desc") return session.createdAt;
+  if (sort === "title_asc") return session.title;
+  if (sort === "turns_desc") return session.turnCount ?? 0;
+  return session.updatedAt ?? session.createdAt;
+}
+
+function toSessionCursor(
+  session: ChatSession,
+  category: "active" | "archived",
+  sort: SessionDirectorySort,
+): SessionDirectoryCursor {
+  return {
+    category,
+    sort,
+    value: sessionSortValue(session, sort),
+    createdAt: session.createdAt,
+    id: session.id,
+  };
+}
+
+function toFavoriteCursor(
+  metadata: FavoriteSessionBackupMetadata,
+  sort: SessionDirectorySort,
+): SessionDirectoryCursor {
+  const value = sort === "created_asc" || sort === "created_desc"
+    ? metadata.createdAt
+    : sort === "title_asc"
+      ? metadata.title
+      : sort === "turns_desc"
+        ? metadata.messageCount
+        : metadata.updatedAt;
+  return {
+    category: "favorite",
+    sort,
+    value,
+    createdAt: metadata.createdAt,
+    id: metadata.id,
+  };
 }
 
 function remapFragments(

@@ -5,6 +5,8 @@ import {
   __sessionBackupStorageTest,
   loadFavoriteSessionBackup,
   listFavoriteSessionBackups,
+  listFavoriteSessionBackupsPage,
+  pruneOrphanedFavoriteSessionBackupVersions,
   saveFavoriteSessionBackup,
 } from "../../src/infrastructure/sessionBackups/sessionBackupStorage";
 import type { CharacterCard, ChatSession } from "../../src/types";
@@ -93,7 +95,7 @@ describe("收藏会话备份存储", () => {
     }, payload());
     __sessionBackupStorageTest.close();
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, 1);
+      const request = indexedDB.open(DB_NAME, 2);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -115,5 +117,79 @@ describe("收藏会话备份存储", () => {
     database.close();
 
     await expect(loadFavoriteSessionBackup("backup-1")).rejects.toThrow("SESSION_BACKUP_INTEGRITY_FAILED");
+  });
+
+  it("按稳定游标分页，同排序值的备份不会重复或漏项", async () => {
+    for (let index = 0; index < 25; index += 1) {
+      await saveFavoriteSessionBackup({
+        id: `backup-${String(index).padStart(2, "0")}`,
+        sourceSessionId: `session-${index}`,
+        sourceRevision: 1,
+        sourceUpdatedAt: 2,
+        createdAt: 3,
+        updatedAt: 4,
+        title: "相同标题",
+        characterName: "角色",
+        messageCount: 1,
+      }, payload());
+    }
+
+    const first = await listFavoriteSessionBackupsPage({ pageSize: 10, sort: "updated_desc" });
+    const second = await listFavoriteSessionBackupsPage({
+      pageSize: 10,
+      sort: "updated_desc",
+      cursor: first.cursor,
+    });
+
+    expect(first.hasMore).toBe(true);
+    expect(new Set([...first.records, ...second.records].map((item) => item.id)).size).toBe(20);
+  });
+
+  it("启动维护会回收未被元数据指针引用的孤儿版本", async () => {
+    await saveFavoriteSessionBackup({
+      id: "backup-1",
+      sourceSessionId: "session-1",
+      sourceRevision: 1,
+      sourceUpdatedAt: 2,
+      createdAt: 3,
+      updatedAt: 3,
+      title: "旅程",
+      characterName: "角色",
+      messageCount: 1,
+    }, payload());
+    __sessionBackupStorageTest.close();
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 2);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const transaction = database.transaction("versions", "readwrite");
+    transaction.objectStore("versions").put({
+      id: "orphan-version",
+      backupId: "missing-backup",
+      integrityHash: "orphan",
+      payload: payload("孤儿版本"),
+    });
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
+
+    await expect(pruneOrphanedFavoriteSessionBackupVersions()).resolves.toBe(1);
+    __sessionBackupStorageTest.close();
+    const verified = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 2);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const verifyTransaction = verified.transaction("versions", "readonly");
+    const orphan = await new Promise<unknown>((resolve, reject) => {
+      const request = verifyTransaction.objectStore("versions").get("orphan-version");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    verified.close();
+    expect(orphan).toBeUndefined();
   });
 });

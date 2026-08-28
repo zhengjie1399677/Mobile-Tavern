@@ -175,6 +175,8 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [isTranscribing, setIsTranscribing] = React.useState(false);
   const [isModelVoiceRecording, setIsModelVoiceRecording] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingAttachment[]>([]);
+  const modelVoiceFinalizingRef = React.useRef(false);
+  const modelVoiceCaptureTokenRef = React.useRef(0);
 
   const supportsNativeAudioInput = React.useMemo(() => {
     if (settings.api.supportsAudioInput !== true) return false;
@@ -191,6 +193,8 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   React.useEffect(() => {
     setPendingAttachments([]);
     setIsModelVoiceRecording(false);
+    modelVoiceCaptureTokenRef.current += 1;
+    modelVoiceFinalizingRef.current = false;
     try {
       void getKernelService<IVoiceCaptureService>(KernelServices.VoiceCapture).cancelCapture();
     } catch {
@@ -288,7 +292,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     }
   };
 
-  const finishModelVoiceCapture = React.useCallback(async () => {
+  const finishModelVoiceCapture = React.useCallback(async (captureToken?: number) => {
+    const token = captureToken ?? modelVoiceCaptureTokenRef.current;
+    if (token !== modelVoiceCaptureTokenRef.current || modelVoiceFinalizingRef.current) return;
+    modelVoiceFinalizingRef.current = true;
     const capture = getKernelService<IVoiceCaptureService>(KernelServices.VoiceCapture);
     try {
       const file = await capture.stopCapture();
@@ -305,9 +312,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         await showCustomAlert(`语音录制失败：${message}`);
       }
     } finally {
-      setIsModelVoiceRecording(false);
+      if (token === modelVoiceCaptureTokenRef.current) setIsModelVoiceRecording(false);
+      modelVoiceFinalizingRef.current = false;
     }
-  }, [getKernelService, showCustomAlert]);
+  }, [getKernelService, setIsModelVoiceRecording, setPendingAttachments, showCustomAlert]);
 
   const handleToggleModelVoice = React.useCallback(async () => {
     if (isModelVoiceRecording) {
@@ -320,9 +328,11 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     }
     try {
       const capture = getKernelService<IVoiceCaptureService>(KernelServices.VoiceCapture);
+      const captureToken = modelVoiceCaptureTokenRef.current + 1;
+      modelVoiceCaptureTokenRef.current = captureToken;
       await capture.startCapture({
         maxDurationMs: 60_000,
-        onLimitReached: () => { void finishModelVoiceCapture(); },
+        onLimitReached: () => { void finishModelVoiceCapture(captureToken); },
       });
       setIsModelVoiceRecording(true);
     } catch (error) {

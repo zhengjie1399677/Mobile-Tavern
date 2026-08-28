@@ -9,6 +9,20 @@ import type { CharacterCard, ChatSession } from "../../types";
 
 export type SessionDirectoryCategory = "active" | "favorite" | "archived";
 export type FavoriteBackupStatus = "current" | "outdated" | "source_missing";
+export type SessionDirectorySort = "updated_desc" | "created_desc" | "created_asc" | "title_asc" | "turns_desc";
+
+export interface SessionDirectoryCursor {
+  category?: SessionDirectoryCategory;
+  sort: SessionDirectorySort;
+  value: number | string;
+  createdAt: number;
+  id: string;
+}
+
+export interface SessionDirectoryPageInfo {
+  cursor?: SessionDirectoryCursor;
+  hasMore: boolean;
+}
 
 export interface FavoriteSessionBackupMetadata {
   id: string;
@@ -54,14 +68,19 @@ export interface SessionDirectorySnapshot {
   active: SessionDirectoryEntry[];
   favorites: FavoriteSessionBackupEntry[];
   archived: SessionDirectoryEntry[];
+  pageInfo: Record<SessionDirectoryCategory, SessionDirectoryPageInfo>;
+  characters: ReadonlyArray<{ id: string; name: string }>;
 }
 
 export interface SessionDirectoryQuery {
+  category?: SessionDirectoryCategory;
+  pageSize?: number;
+  cursor?: SessionDirectoryCursor;
   search?: string;
   characterId?: string;
   createdAfter?: number;
   updatedAfter?: number;
   hasBranch?: boolean;
   backupStatus?: Exclude<FavoriteBackupStatus, "source_missing">;
-  sort?: "updated_desc" | "created_asc" | "title_asc" | "turns_desc";
+  sort?: SessionDirectorySort;
 }

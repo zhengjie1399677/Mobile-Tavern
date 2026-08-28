@@ -7,6 +7,7 @@
 
 ## 当前优先级
 
+- [ ] **自定义主题工作室后续（P1）**：全屏工作室、独立草稿、隔离预览、核心/高级颜色和保存/应用分离已完成；继续实现起点选择、多场景预览、对比度与 CSS 行列诊断、片段库，以及 Theme 1.1 媒体/状态/规则可视化编辑。
 - [ ] **社区生产版本对齐（P1）**：部署仓库中的最新 `cloud/minimal-community` 二进制，复验 `/health/deep`、双 SHA-256 去重、评论限流、管理员删除、上传/下载时间戳和测试数据清理。需要服务器发布权限与管理员令牌；本地代码和测试已具备，线上状态尚未在本轮验证。
 
 ## 中期排期
@@ -26,11 +27,10 @@
 
 ## 已完成摘要
 
+- 2026-08-29：完成自定义主题工作室阶段一，加入独立草稿、隔离预览、离开保护、响应式分区编辑和保存/应用分离，并保留 Theme 1.0/1.1 高级能力。
 - 2026-08-28：完成会话管理器数据底座和三分类页面，加入归档删除守卫、权威搜索/批量管理、独立收藏备份、修订落后提示与收藏恢复；单会话导出和用户人设入口继续按专项设计后续实施。
 - 2026-08-26：重做多模态附件选择与预览，按图片/视频/音频区分入口和消息展示；完成 External Tool Plugin 本地 L2 执行闭环，后续仅保留签名来源、远程撤回、SDK 与生态审核。
 - 2026-08-26：完成内置 `character.read`、需一次性审批的 `session.branch`、Tool 策略/Journal/聊天卡片闭环，并补齐改动文件 ESLint、Dependabot 和 PR 标题门禁。
 - 2026-08-25：完成 Agent Host 五阶段当前验收范围，包含 Runtime Profile、Message Content V2、Attachment Data Plane、Agent Spine、Compatibility Runtime 和 Profile UI。
-- 2026-08-24：完成 Tool Loop、Agent Journal、音频 ASR、视频关键帧及 Profile 会话恢复的最小纵向闭环。
-- 2026-08-06：修复世界书角色导入重启丢失及 catalog 空壳覆盖完整角色数据的问题。
 
 详细历史索引见 [docs/history/TODO_ARCHIVE_2026.md](docs/history/TODO_ARCHIVE_2026.md)。
