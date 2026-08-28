@@ -21,6 +21,22 @@ import type { LLMParams, ModelCapabilities } from './types';
  * （如 'gpt-4.1' 在 'gpt-4' 之前，否则 'gpt-4o' 会先命中 'gpt-4'）。
  */
 const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
+  // OpenAI GPT-5.6 系列（官方 models 页 2026-08：1.05M 上下文、reasoning 支持 none~max）
+  'gpt-5.6': {
+    supportsTopK: false,
+    supportsTopP: false,
+    supportsTemperature: false,
+    supportsJsonSchema: true,
+    supportsFunctionCalling: true,
+    supportsStream: true,
+    supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
+    supportsStreamOptions: true,
+    contextWindow: 1050000,
+    preferredFormat: 'xml',
+    usesMaxCompletionTokens: true,
+  },
   // OpenAI GPT-5 系列（reasoning models）：不支持 temperature/top_p，必须用 max_completion_tokens
   'gpt-5': {
     supportsTopK: false,
@@ -185,19 +201,21 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     preferredFormat: 'xml',
   },
   'claude-': {
-    // Claude 不支持 top_k 参数
+    // Anthropic 官方 OpenAI 兼容层（2026-08 文档）：无 top_k；temperature 上限 1（超限被 cap）；
+    // response_format 被忽略（JSON 输出需原生 Structured Outputs）；stream_options 完全支持。
     supportsTopK: false,
     supportsTopP: true,
     supportsTemperature: true,
-    supportsJsonSchema: true,
+    supportsJsonSchema: false,
     supportsFunctionCalling: true,
     supportsStream: true,
     supportsSystemPrompt: true,
     supportsMinP: false,
     supportsRepetitionPenalty: false,
-    supportsStreamOptions: false,
+    supportsStreamOptions: true,
     contextWindow: 1000000,
     preferredFormat: 'xml',
+    maxTemperature: 1.0,
   },
   'glm-': {
     // 智谱官方 OpenAI 兼容接口无 top_k 参数（2026-08 文档核对）；temperature 上限 1.0
@@ -444,6 +462,10 @@ export class ModelCapabilityRegistry {
 
     switch (family) {
       case 'openai':
+        // GPT-5.1/5.2/5.6 支持 none（可完全关闭思考）；GPT-5/mini/nano 仅支持 minimal
+        if (lowerId.startsWith('gpt-5.6') || lowerId.startsWith('gpt-5.2') || lowerId.startsWith('gpt-5.1')) {
+          return { reasoning_effort: 'none' };
+        }
         if (lowerId.startsWith('gpt-5')) return { reasoning_effort: 'minimal' };
         if (lowerId.startsWith('o1') || lowerId.startsWith('o3') || lowerId.startsWith('o4')) {
           return { reasoning_effort: 'low' };
@@ -455,6 +477,8 @@ export class ModelCapabilityRegistry {
       case 'deepseek':
         return { thinking: { type: 'disabled' } };
       case 'glm':
+        // GLM-5.3/5.3-Flash 官方强制开启思考（thinking 不可 disabled），不注入
+        if (lowerId.startsWith('glm-5.3')) return {};
         return { thinking: { type: 'disabled' } };
       case 'gemini':
         // Gemini 3.x 无法关闭思考；仅 2.5 系列支持 reasoning_effort: "none"

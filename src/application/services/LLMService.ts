@@ -107,14 +107,10 @@ export class LLMService implements ILLMService {
     return trimmed;
   }
 
-  private buildHeaders(apiKey?: string, baseUrl?: string): Record<string, string> {
+  private buildHeaders(apiKey?: string): Record<string, string> {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (apiKey && apiKey.trim()) {
       headers["Authorization"] = `Bearer ${apiKey.trim()}`;
-    }
-    // Anthropic 官方 OpenAI 兼容端点强制要求 anthropic-version 头，缺失返回 400（2026-08 文档核对）
-    if (baseUrl && baseUrl.toLowerCase().includes("anthropic.com")) {
-      headers["anthropic-version"] = "2023-06-01";
     }
     return headers;
   }
@@ -227,7 +223,7 @@ export class LLMService implements ILLMService {
 
       const { baseUrl, apiKey, reqBody, modelName, chatPath, modelsPath } = safePayload;
       const targetBase = this.validateBaseUrl(baseUrl);
-      const headers = this.buildHeaders(apiKey, baseUrl);
+      const headers = this.buildHeaders(apiKey);
 
       // 使用 ?? 替代 ||，允许 chatPath/modelsPath 显式传空字符串（""）以让 baseUrl 自带完整端点路径
       const chatRoute = chatPath ?? "/chat/completions";

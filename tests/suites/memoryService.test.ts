@@ -106,7 +106,10 @@ export async function testModelCapabilityRegistry() {
     assert(cleaned.top_k === undefined, "claude: top_k should be stripped");
     assert(cleaned.top_p === 0.9, "claude: top_p should be retained");
     assert(cleaned.temperature === 0.7, "claude: temperature should be retained");
-    assert(cleaned.response_format !== undefined, "claude: response_format should be retained");
+    assert(
+      cleaned.response_format === undefined,
+      "claude: response_format should be stripped (OpenAI 兼容层官方忽略该字段，JSON 输出需原生 Structured Outputs)"
+    );
 
     const deepseekCleaned = ModelCapabilityRegistry.cleanLLMParams(
       "deepseek-v4-flash",
