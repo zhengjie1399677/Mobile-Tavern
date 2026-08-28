@@ -40,7 +40,7 @@ type MockIDBEventHandler = ((ev: Event) => void) | null;
 export async function testModelCapabilityRegistry() {
   console.log("\n--- Running ModelCapabilityRegistry Verification ---");
   const { ModelCapabilityRegistry } = await import(
-    "../../src/application/services/memory/ModelCapabilityRegistry"
+    "../../src/application/services/llmCompatibility"
   );
 
   // Mock localStorage（Node 环境无原生 localStorage）
@@ -134,9 +134,9 @@ export async function testModelCapabilityRegistry() {
     assert(updated.supportsTopK === false, "Runtime update: topK should NOT be opened");
 
     // 5. 运行时缓存持久化到 localStorage
-    const persisted = JSON.parse(memStore["mt_model_capability_runtime_cache_v2"]);
+    const persisted = JSON.parse(memStore["mt_model_capability_runtime_cache_v3"]);
     assert(
-      persisted["claude-3-opus"].supportsTopP === false,
+      persisted["endpoint:unspecified::claude-3-opus"].supportsTopP === false,
       "Runtime cache should be persisted to localStorage"
     );
 

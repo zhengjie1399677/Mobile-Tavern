@@ -25,6 +25,7 @@
 | 消息附件应用服务 | `src/application/services/AttachmentService.ts` | 校验附件魔数与配额，管理引用状态、备份字节和受控 Blob URL | 不承载 Provider 方言，不借用主题资源数据库 |
 | 消息附件存储 | `src/infrastructure/attachments/attachmentStorage.ts` | 在独立数据库中分轨消息附件元数据和字节，执行引用重建与 GC | 不被 React Hook/组件直接调用，不把媒体塞入主消息记录 |
 | 多模态 Provider 投影 | `src/application/useCases/multimodalProviderProjection.ts` | 把通用 Content Parts 按已确认能力投影为请求方言 | 不修改领域消息，不把 Provider 格式持久化 |
+| LLM Provider 兼容层 | `src/application/services/llmCompatibility/` | 解析端点与模型族，裁剪请求能力、适配思考回放、归一化流式响应，并按完整端点隔离运行时能力学习 | 不进入 Kernel，不持久化 Provider 方言到领域消息，不在 Hook、Prompt 或记忆模块复制厂商分支 |
 | Agent Runtime 主干 | `src/application/services/AgentRuntimeService.ts`、`src/application/services/agents/`、`src/domain/agents/`、`src/application/useCases/openAiToolLoop.ts` | 管理 AgentHandle、Turn、Driver、Provider、有限多步 Tool Loop、媒体 Processor、权限、一次性审批、取消与诊断 | 不进入 Kernel，不持有 React State，不绕过 Turn 直接执行 Tool，不执行用户安装的任意代码；审批宿主缺失时必须 fail-closed |
 | Agent Journal 存储 | `src/infrastructure/agents/agentJournalStorage.ts` | 物理分轨持久化 Turn、Provider/媒体决定与 Tool Call/Result | 不保存插件配置或凭据，不塞入 sessions/messages 大对象 |
 | Tool Plugin 管理用例 | `src/application/useCases/toolPluginManagementUseCases.ts` | 解析和安装受控 Manifest/`.mttool`，编排授权、凭据、停用、回滚与卸载 | 不直接注册 Tool，不把管理状态混入 Runtime Profile 或 `.mtplugin` |
@@ -47,6 +48,7 @@
   ├─→ SessionManagementService ──────────→ infrastructure/sessionBackups
   ├─→ Chat Use Case ─→ Provider Projection ─→ AttachmentService（按需读取字节）
   ├─→ Chat UI ─→ AgentHandle ─→ Driver ─→ Provider/Tool/Media Processor
+  │                                  └─→ LLM Provider 兼容层 ─→ LLMService/ChatStreamService
   │                                  ├─→ Agent Journal Port ─→ infrastructure/agents
   │                                  └─→ Attachment/ASR/视频关键帧 Adapter
   ├─→ Tool Plugin 设置 UI ─→ 管理用例 ─→ infrastructure/toolPlugins
@@ -103,5 +105,6 @@
 12. Runtime Plugin 配置必须由 Zod Schema 校验，Capability Token/Provider 冲突必须在装载前失败；模型 Tool Call 必须经有限 Step Loop 和 Agent Turn 执行边界。
 13. 跨 Profile 会话恢复必须使用 Schema 校验的一次性意图；兼容会话状态必须单写插件命名空间，旧 `session.variables` 不得恢复为通用持久化路径。
 14. Tool Plugin 管理必须使用独立数据库并经应用用例访问；运行只能由独立 `ToolPluginRuntimeService` 注册到 Agent Runtime。Worker 网络必须经宿主精确白名单代理，权限或必需凭据撤销必须立即阻止旧 Tool 闭包继续执行。
+15. LLM Provider 的端点识别、能力裁剪、思考回放与响应归一化必须集中在 `llmCompatibility`；`LLMService` 和 `ChatStreamService` 只通过该边界收发数据，旧记忆路径只允许兼容导出。
 
 若确需改变这些方向，应先更新本文件与 `TECHNICAL.md`，说明新边界及迁移策略，再修改守卫。

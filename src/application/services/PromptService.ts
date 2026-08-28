@@ -8,7 +8,7 @@ import {
 import { PromptBuilder } from "./prompt/PromptBuilder";
 import { PromptCompiler } from "./prompt/PromptCompiler";
 import { RuntimeContext } from "./prompt/types";
-import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
+import { ModelCapabilityRegistry } from "./llmCompatibility";
 import type { ICompatibilityRuntimeService } from "../compatibility/contracts";
 import { resolveTriggeredLorebookEntries } from "./prompt/LorebookResolver";
 import {
@@ -65,7 +65,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
    */
   cleanNameForApi(name: string | undefined, fallback: string): string | undefined {
     if (!name) return undefined;
-    let cleaned = name.replace(/[^a-zA-Z0-9_-]/g, "");
+    const cleaned = name.replace(/[^a-zA-Z0-9_-]/g, "");
     if (!cleaned) {
       return fallback;
     }
@@ -307,7 +307,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
           content = msg.content;
         } else {
           role = "user";
-          let msgContent = msg.content;
+          const msgContent = msg.content;
           if (settings.promptConfig?.instructTemplate !== "default") {
             const prefix = this.replaceMacros(
               settings.promptConfig?.userPrefix || "",
@@ -933,7 +933,7 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
           content = msg.content;
         } else {
           role = "user";
-          let msgContent = msg.content;
+          const msgContent = msg.content;
           if (settings.promptConfig?.instructTemplate !== "default") {
             const prefix = this.replaceMacros(settings.promptConfig?.userPrefix || "", macroParams);
             const suffix = this.replaceMacros(settings.promptConfig?.userSuffix || "", macroParams);

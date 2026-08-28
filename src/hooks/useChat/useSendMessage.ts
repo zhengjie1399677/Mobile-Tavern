@@ -18,6 +18,7 @@ import {
 } from "../../domain/messages/messageContent";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { FALLBACK_MODEL } from "../../utils/apiClient";
+import { preserveAssistantReasoning } from "../../application/services/llmCompatibility";
 import {
   resolveApiCredentials,
   TrialExhaustedError,
@@ -481,7 +482,7 @@ export function useSendMessage(p: SendMessageParams) {
         traceId,
       });
 
-      const baseProviderMessages: OpenAiProviderMessage[] = promptPayload.messages || [
+      const assembledProviderMessages: OpenAiProviderMessage[] = promptPayload.messages || [
         {
           role: "system",
           content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction].filter(Boolean).join("\n\n"),
@@ -496,28 +497,12 @@ export function useSendMessage(p: SendMessageParams) {
         }),
       ];
 
-      // DeepSeek 思考模式 + tools：官方要求历史 assistant 消息必须回传 reasoning_content，否则 400。
-      // 编译链路不保留思维链，这里按 content 精确匹配从原始会话消息回填。
-      if (finalBaseUrl?.toLowerCase().includes("api.deepseek.com")) {
-        const reasoningByContent = new Map<string, string>();
-        for (const sessionMessage of promptSession.messages) {
-          if (
-            sessionMessage.sender === "assistant"
-            && typeof sessionMessage.content === "string"
-            && sessionMessage.reasoningContent
-          ) {
-            reasoningByContent.set(sessionMessage.content, sessionMessage.reasoningContent);
-          }
-        }
-        if (reasoningByContent.size > 0) {
-          for (const providerMessage of baseProviderMessages) {
-            if (providerMessage.role === "assistant" && typeof providerMessage.content === "string") {
-              const reasoning = reasoningByContent.get(providerMessage.content);
-              if (reasoning) providerMessage.reasoning_content = reasoning;
-            }
-          }
-        }
-      }
+      const baseProviderMessages = preserveAssistantReasoning(
+        assembledProviderMessages,
+        promptSession.messages,
+        finalBaseUrl,
+        finalModel,
+      );
       const latestMultimodalUserMessage = [...promptSession.messages]
         .reverse()
         .find(message => message.sender === "user" && message.parts?.some(part => part.type !== "text"));
@@ -631,9 +616,8 @@ export function useSendMessage(p: SendMessageParams) {
             if (finishReason === "content_filter") {
               throw new Error("内容被服务商的安全过滤（Content Filter）拦截，生成终止。");
             }
-            if (reasoning && !delta) {
-              reasoningChunks.push(reasoning);
-            } else if (delta) {
+            if (reasoning) reasoningChunks.push(reasoning);
+            if (delta) {
               responseChunks.push(delta);
               if (isFirstTokenForSpeed) { isFirstTokenForSpeed = false; ttftMs = performance.now() - startTime; }
             }

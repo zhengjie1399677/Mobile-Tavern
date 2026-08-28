@@ -281,41 +281,11 @@ export interface StreamParserOutput {
   memoryContent?: string;
 }
 
-/** 模型能力元数据 */
-export interface ModelCapabilities {
-  supportsTopK: boolean;
-  supportsTopP: boolean;
-  supportsTemperature: boolean;
-  supportsJsonSchema: boolean;
-  supportsFunctionCalling: boolean;
-  supportsStream: boolean;
-  supportsSystemPrompt: boolean;
-  supportsMinP?: boolean;
-  supportsRepetitionPenalty?: boolean;
-  supportsStreamOptions?: boolean;
-  contextWindow?: number;
-  preferredFormat?: 'xml' | 'markdown';
-  /**
-   * 采样温度上限（含）。如智谱 GLM 仅支持 [0, 1]，OpenAI/Gemini 为 [0, 2]。
-   * 定义后 cleanLLMParams 会将越界 temperature 收敛到合法区间，避免严格 API 报 400。
-   */
-  maxTemperature?: number;
-  /**
-   * 是否必须使用 OpenAI 新式 max_completion_tokens 字段。
-   * OpenAI GPT-5 与 o 系列（reasoning models）拒绝 max_tokens，必须改写字段名。
-   */
-  usesMaxCompletionTokens?: boolean;
-}
-
-/** LLM 调用参数（防腐层入口） */
-export interface LLMParams {
-  top_k?: number;
-  top_p?: number;
-  temperature?: number;
-  response_format?: any;
-  functions?: any;
-  [key: string]: any;
-}
+/** @deprecated LLM 兼容类型已迁移；保留导出保证旧调用方平滑迁移。 */
+export type {
+  LLMParams,
+  ModelCapabilities,
+} from "../llmCompatibility/types";
 
 /**
  * 构造 memory_dict Store 的复合键。

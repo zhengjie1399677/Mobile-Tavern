@@ -30,6 +30,7 @@ import {
   projectMessagePartsForProvider,
   type OpenAiProviderMessage,
 } from "../../application/useCases/multimodalProviderProjection";
+import { preserveAssistantReasoning } from "../../application/services/llmCompatibility";
 import { resolveBuiltinProviderId } from "../../application/runtimePlugins/agentSpineRuntimePlugin";
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
@@ -73,7 +74,9 @@ interface RerollMessageParams {
  */
 export function useRerollMessage(p: RerollMessageParams) {
   const pRef = React.useRef<RerollMessageParams>(p);
-  pRef.current = p;
+  React.useLayoutEffect(() => {
+    pRef.current = p;
+  }, [p]);
 
   const handleRerollFromMessage = useCallback(async (targetMsg: Message) => {
     const p = pRef.current;
@@ -321,7 +324,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         signal: controller.signal,
         traceId,
       });
-      const baseProviderMessages: OpenAiProviderMessage[] = promptPayload.messages || [
+      const assembledProviderMessages: OpenAiProviderMessage[] = promptPayload.messages || [
         {
           role: "system",
           content: [promptPayload.systemInstruction, promptPayload.dynamicInstruction].filter(Boolean).join("\n\n"),
@@ -335,6 +338,12 @@ export function useRerollMessage(p: RerollMessageParams) {
           return providerMessage;
         }),
       ];
+      const baseProviderMessages = preserveAssistantReasoning(
+        assembledProviderMessages,
+        promptSession.messages,
+        finalBaseUrl,
+        finalModel,
+      );
       const latestMultimodalUserMessage = [...promptSession.messages]
         .reverse()
         .find(message => message.sender === "user" && message.parts?.some(part => part.type !== "text"));
@@ -437,9 +446,8 @@ export function useRerollMessage(p: RerollMessageParams) {
             throw new Error("内容被服务商的安全过滤（Content Filter）拦截，生成终止。");
           }
 
-          if (reasoning && !delta) {
-            reasoningChunks.push(reasoning);
-          } else if (delta) {
+          if (reasoning) reasoningChunks.push(reasoning);
+          if (delta) {
             responseChunks.push(delta);
             if (isFirstTokenForSpeed) { isFirstTokenForSpeed = false; ttftMs = performance.now() - startTime; }
           }

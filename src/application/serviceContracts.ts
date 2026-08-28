@@ -168,6 +168,7 @@ export interface StreamChunk {
   /** 错误载荷：可能是字符串或 { message: string } 结构 */
   error?: string | { message?: string };
   choices?: Array<{
+    index?: number;
     delta?: {
       content?: string;
       reasoning_content?: string;
@@ -181,6 +182,7 @@ export interface StreamChunk {
     /** 非流式响应中的完整消息（部分 provider 在首 chunk 返回） */
     message?: {
       content?: string;
+      reasoning_content?: string;
       tool_calls?: Array<{
         index?: number;
         id?: string;
@@ -202,7 +204,7 @@ export interface StreamParams {
   bypassProxy?: boolean;
   disableReasoning?: boolean;
   forceBasicParams?: boolean;
-  reqBody: unknown;
+  reqBody: Record<string, unknown>;
   signal?: AbortSignal;
   /** traceId：透传给 LLMService.universalFetch，关联 API 调用链日志 */
   traceId?: string;
@@ -336,18 +338,25 @@ export interface IDatabaseService<TSession = unknown, TCharacter = unknown, TSum
   getCharacterById(id: string): Promise<TCharacter | null>;
 }
 
+export interface LLMProxyRequestConfig {
+  /** 连接配置类型；保留给代理与连接检测识别 Provider 方言。 */
+  type?: string;
+  baseUrl: string;
+  apiKey: string;
+  chatPath?: string;
+  modelsPath?: string;
+  modelName?: string;
+  bypassProxy?: boolean;
+  disableReasoning?: boolean;
+  forceBasicParams?: boolean;
+  /** 模型列表、连接检测等非对话请求可以不携带请求体。 */
+  reqBody?: Record<string, unknown>;
+}
+
 export interface ILLMService extends IKernelService {
   universalFetch(
     type: string,
-    config: {
-      baseUrl: string;
-      apiKey: string;
-      chatPath?: string;
-      bypassProxy?: boolean;
-      disableReasoning?: boolean;
-      forceBasicParams?: boolean;
-      reqBody: unknown;
-    },
+    config: LLMProxyRequestConfig,
     signal?: AbortSignal,
     traceId?: string
   ): Promise<Response>;

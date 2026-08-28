@@ -28,6 +28,7 @@ Runtime Plugin 承载。移动端位于 `src/` 与 `src-tauri/`，云端服务�
 | 存储、会话、记忆 | `DatabaseService.ts`、`src/infrastructure/storage/`、相关端口 | `docs/agents/runtime_boundaries.md`、`docs/agents/module_contracts.md` |
 | React 状态或业务流程 | 目标组件、Hook、Context 与 `src/application/useCases/` | `docs/agents/runtime_boundaries.md` |
 | 聊天发送、重发、流式输出 | `useChat.tsx`、`useSendMessage.ts`、`useRerollMessage.ts` | 对应回归测试；需要全链路时读 `TECHNICAL.md` |
+| LLM Provider 兼容、模型能力与请求/响应方言 | `src/application/services/llmCompatibility/`、`LLMService.ts`、`ChatStreamService.ts` | `docs/agents/runtime_boundaries.md`、`docs/agents/module_contracts.md` |
 | Prompt、角色卡、世界书 | `PromptService.ts`、`src/application/services/prompt/` | `docs/agents/sillytavern_compat.md` |
 | Compatibility Runtime | `src/compatibility/sillytavern/` | `docs/agents/runtime_boundaries.md`、`docs/agents/sillytavern_compat.md` |
 | 第三方全屏插件 | `docs/Plugin_System_v1.md`、`src/domain/plugins/` | `src/components/plugins/`、`src/infrastructure/plugins/pluginStorage.ts` |
@@ -51,6 +52,7 @@ Runtime Plugin 承载。移动端位于 `src/` 与 `src-tauri/`，云端服务�
 | 插件式 Agent 目标架构 | `docs/agents/agent_plugin_runtime_roadmap.md` |
 | Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts`、`src/kernel/EffectScope.ts`、`src/kernel/Kernel.ts` |
 | 聊天编排 | `src/hooks/useChat.tsx`、`src/hooks/useChat/` |
+| LLM Provider 兼容层 | `src/application/services/llmCompatibility/` |
 | 角色与会话用例 | `src/application/useCases/characterUseCases.ts`、`chatSessionUseCases.ts` |
 | 通用数据服务 | `src/application/services/DatabaseService.ts` |
 | 会话目录、归档与收藏备份 | `src/application/services/SessionManagementService.ts`、`src/infrastructure/sessionBackups/` |

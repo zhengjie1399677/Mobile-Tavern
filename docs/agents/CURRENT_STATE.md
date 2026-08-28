@@ -1,6 +1,6 @@
 # 当前状态
 
-> 更新日期：2026-08-28。本文只记录当前产品基线、真实缺口和已知风险；历史过程进入
+> 更新日期：2026-08-29。本文只记录当前产品基线、真实缺口和已知风险；历史过程进入
 > `docs/history/`，可执行事项统一维护在 [TODO.md](../../TODO.md)。
 
 ## 产品与架构基线
@@ -15,6 +15,7 @@
 - Runtime Profile、Capability Slot、Provider Binding、Contribution 和会话级 Composition Snapshot 已接入组合根。
 - Message Content V2、独立附件库、图片/视频/音频分入口选择、分类预览与消息展示、重启恢复、重发/分支、备份恢复和媒体引用生命周期已完成；OpenAI-compatible 图片投影在视觉能力未明确时默认拒绝。
 - AgentHandle、Turn、取消、Provider、Tool Registry、有限 Tool Loop 和 Agent Journal 已完成。Base/Tavern Profile 均实际注册只读 `character.read` 与本地写入 `session.branch`；旧会话继续按自己的 Composition Snapshot 冻结 Tool 集合。
+- LLM Provider 防腐层已集中到 Application：按解析后的端点与模型族裁剪参数、适配关闭思考与 `reasoning_content` 回放、归一化多种流式片段，并按完整 Base URL 与模型隔离运行时参数自愈；发送和重生成共用同一适配入口。
 - Tool 定义声明权限、风险、副作用、执行 Scope 和 `allow` / `deny` / `ask` 策略。`session.branch` 必须在聊天内“允许一次”后执行；拒绝、取消、超时、宿主不可用均 fail-closed，审批请求、决定、结果与失败进入同一 Agent Journal 并在聊天历史展示。
 - 音频 ASR 和视频关键帧处理器已作为受信 Runtime Plugin 贡献接入；Anthropic 原生音视频投影仍明确拒绝，不做静默降级。
 - Compatibility Runtime 已从通用生产代码中隔离。`Base Agent` 不装载兼容插件，`Tavern Agent` 可装载、关闭、卸载和重载；旧 `session.variables` 只保留读取降级和插件内部瞬时投影。

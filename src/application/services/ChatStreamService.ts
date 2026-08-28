@@ -1,8 +1,15 @@
-import { IChatStreamService, IKernel, StreamChunk, StreamParams } from "../serviceContracts";
+import type {
+  IChatStreamService,
+  IKernel,
+  ILLMService,
+  StreamChunk,
+  StreamParams,
+} from "../serviceContracts";
 import { readSSEStream, safeParseSSEData } from "../../utils/streamReader";
 import { API_ENDPOINT } from "../../utils/apiClient";
 import { Logger } from "../../utils/logger";
 import { getErrorMessage, getErrorName } from "../../utils/errorUtils";
+import { normalizeProviderStreamChunk } from "./llmCompatibility";
 
 const logger = Logger.create("ChatStreamService");
 
@@ -123,7 +130,7 @@ export class ChatStreamService implements IChatStreamService {
   private async *attemptStream(params: StreamParams): AsyncGenerator<StreamChunk, AttemptOutcome, unknown> {
     const { baseUrl, apiKey, chatPath, bypassProxy, disableReasoning, forceBasicParams, reqBody, signal, traceId } = params;
 
-    const llmService = this.kernel.getService<any>("llm");
+    const llmService = this.kernel.getService<ILLMService>("llm");
     const response = await llmService.universalFetch(API_ENDPOINT.ProxyOpenAI, {
       baseUrl,
       apiKey,
@@ -171,14 +178,15 @@ export class ChatStreamService implements IChatStreamService {
     readSSEStream(response, {
       onData: (dataStr) => {
         const parsed = safeParseSSEData(dataStr);
-        if (parsed) {
-          if (parsed.error) {
-            const errMsg = typeof parsed.error === "string"
-              ? parsed.error
-              : ((parsed.error as { message?: string }).message || JSON.stringify(parsed.error));
+        const normalized = normalizeProviderStreamChunk(parsed);
+        if (normalized) {
+          if (normalized.error) {
+            const errMsg = typeof normalized.error === "string"
+              ? normalized.error
+              : (normalized.error.message || JSON.stringify(normalized.error));
             throw new Error(`[API Error] ${errMsg}`);
           }
-          queue.push(parsed as StreamChunk);
+          queue.push(normalized);
           if (resolveNext) {
             resolveNext();
             resolveNext = null;

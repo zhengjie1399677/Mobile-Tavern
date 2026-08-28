@@ -376,6 +376,29 @@ export async function testArchitectureBoundaries(): Promise<void> {
     );
   }
 
+  const llmCompatibilityRoot = "src/application/services/llmCompatibility";
+  for (const file of listCodeFiles(llmCompatibilityRoot)) {
+    const source = read(file);
+    assert(
+      !/(?:from\s+["'][^"']*(?:kernel|hooks|components|contexts|infrastructure)\/|from\s+["']react["'])/.test(source),
+      `${file} 的 LLM Provider 兼容层不得反向依赖 Kernel、React、Hook、Context 或基础设施`,
+    );
+  }
+  const legacyModelRegistry = read("src/application/services/memory/ModelCapabilityRegistry.ts");
+  assert(
+    legacyModelRegistry.includes("@deprecated")
+      && legacyModelRegistry.includes('from "../llmCompatibility"')
+      && !legacyModelRegistry.includes("class ModelCapabilityRegistry"),
+    "模型能力注册表的权威实现必须位于 llmCompatibility；memory 路径只允许保留兼容导出",
+  );
+  assert(
+    read("src/application/services/LLMService.ts").includes("prepareProviderRequest")
+      && read("src/application/services/ChatStreamService.ts").includes("normalizeProviderStreamChunk")
+      && read("src/hooks/useChat/useSendMessage.ts").includes("preserveAssistantReasoning")
+      && read("src/hooks/useChat/useRerollMessage.ts").includes("preserveAssistantReasoning"),
+    "LLM 请求、流式响应、发送与重生成必须统一经过 llmCompatibility 防腐边界",
+  );
+
   for (const file of listCodeFiles("src/domain/prompt-composition")) {
     assert(
       !/sillytavern/i.test(read(file)),

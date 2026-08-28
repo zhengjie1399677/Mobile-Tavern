@@ -1,4 +1,8 @@
-import type { IKernel } from "@/src/application/serviceContracts";
+import type {
+  IKernel,
+  ILLMService,
+  LLMProxyRequestConfig,
+} from "@/src/application/serviceContracts";
 import { getRuntimeKernel } from "../kernel/runtimeKernel";
 import { LLMService } from "../application/services/LLMService";
 
@@ -13,10 +17,10 @@ export const API_ENDPOINT = {
 export { TRIAL_KEY_SENTINEL as TRIAL_OPENROUTER_KEY } from "./keyManager";
 
 let fallbackLlm: LLMService | null = null;
-function getLlmService(kernel?: IKernel) {
+function getLlmService(kernel?: IKernel): ILLMService {
   const k = kernel ?? getRuntimeKernel();
   if (k && k.hasService("llm")) {
-    return k.getService<any>("llm");
+    return k.getService<ILLMService>("llm");
   }
   if (!fallbackLlm) {
     fallbackLlm = new LLMService();
@@ -30,7 +34,7 @@ export const isClientMode = (kernel?: IKernel): boolean => {
 
 export const universalFetch = async (
   endpoint: string,
-  proxyPayload: any,
+  proxyPayload: LLMProxyRequestConfig,
   options?: { customSignal?: AbortSignal; kernel?: IKernel }
 ): Promise<Response> => {
   const { customSignal, kernel } = options || {};
@@ -42,7 +46,7 @@ export const apiClient = {
   isClientMode,
   sendCatbotRequest: async (
     content: string,
-    history: any[],
+    history: unknown[],
     clientContext?: unknown,
     kernel?: IKernel
   ): Promise<{ reply: string; expression: string }> => {

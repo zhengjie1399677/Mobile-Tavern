@@ -1,13 +1,17 @@
-import { ILLMService, IKernel } from "../serviceContracts";
+import type { ILLMService, IKernel, LLMProxyRequestConfig } from "../serviceContracts";
 import { getTrialKey, TRIAL_KEY_SENTINEL } from "../../utils/keyManager";
-import { cleanRequestPayload, cleanLLMResponse } from "./requestSchema";
-import { ModelCapabilityRegistry } from "./memory/ModelCapabilityRegistry";
+import { cleanLLMResponse } from "./requestSchema";
+import {
+  ModelCapabilityRegistry,
+  prepareProviderRequest,
+  removeUnsupportedRequestFields,
+} from "./llmCompatibility";
 import { Logger } from "../../utils/logger";
 import { CLOUD_ENDPOINTS } from "../../utils/cloudEndpoints";
 import { FALLBACK_MODEL } from "../../utils/apiClient";
 import { TrialKeyFetchError } from "../../utils/resolveApiCredentials";
 
-import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
+import { getErrorMessage } from "../../utils/errorUtils";
 const logger = Logger.create("LLMService");
 
 declare const IS_MOBILE_NATIVE: boolean;
@@ -115,40 +119,26 @@ export class LLMService implements ILLMService {
     return headers;
   }
 
-  // P0-3: cleanRequestPayload 已下沉到 src/application/services/requestSchema.ts，
-  // 实现请求体字段白名单清洗，剥离非标参数与原型污染键名。
+  // 请求白名单、能力裁剪与 Provider 方言由 llmCompatibility 统一处理。
 
   async universalFetch(
     endpoint: string,
-    proxyPayload: any,
+    proxyPayload: LLMProxyRequestConfig,
     customSignal?: AbortSignal,
     traceId?: string
   ): Promise<Response> {
     const log = traceId ? logger.withTrace(traceId) : logger;
-    let cleanedReqBody = cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, unknown>);
-    
-    const modelId = proxyPayload.reqBody?.model || "";
-
-    // API 级别关闭推理模式：按厂商方言注入（OpenAI→reasoning_effort、Anthropic/DeepSeek/GLM→thinking、
-    // Qwen→enable_thinking、Gemini 2.5→reasoning_effort none；不再向所有厂商硬塞 4 个混合字段）
-    if (proxyPayload.disableReasoning && cleanedReqBody) {
-      const reasoningDisable = ModelCapabilityRegistry.getReasoningDisableParams(
-        modelId,
-        proxyPayload.baseUrl
-      );
-      for (const [key, value] of Object.entries(reasoningDisable)) {
-        cleanedReqBody[key] = value;
-      }
-    }
-
-    if (modelId && cleanedReqBody) {
-      cleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(
-        modelId,
-        cleanedReqBody,
-        proxyPayload.baseUrl,
-        proxyPayload.forceBasicParams
-      );
-    }
+    const rawRequestBody = proxyPayload.reqBody ?? {};
+    const modelId = typeof rawRequestBody.model === "string"
+      ? rawRequestBody.model
+      : proxyPayload.modelName ?? "";
+    let cleanedReqBody = prepareProviderRequest({
+      baseUrl: proxyPayload.baseUrl,
+      modelId,
+      request: rawRequestBody,
+      disableReasoning: proxyPayload.disableReasoning,
+      forceBasicParams: proxyPayload.forceBasicParams,
+    });
     
     let actualApiKey = proxyPayload.apiKey;
     let isTrial = false;
@@ -184,7 +174,7 @@ export class LLMService implements ILLMService {
           // 导致 timeoutSignal 被丢弃，请求在 customSignal 不 abort 时永久挂起。
           // 手动合并：用新 controller 监听两个 signal 的 abort，任一触发即转发。
           const merged = new AbortController();
-          const onAbort = (reason: any) => {
+          const onAbort = (reason: unknown) => {
             if (!merged.signal.aborted) {
               merged.abort(reason);
             }
@@ -246,7 +236,11 @@ export class LLMService implements ILLMService {
           max_tokens: 5,
         };
         if (modelName) {
-          testBody = ModelCapabilityRegistry.cleanLLMParams(modelName, testBody, baseUrl);
+          testBody = prepareProviderRequest({
+            baseUrl,
+            modelId: modelName,
+            request: testBody,
+          });
         }
         try {
           res = await fetchFn(`${targetBase}${chatRoute}`, {
@@ -348,7 +342,7 @@ export class LLMService implements ILLMService {
           );
         }
 
-        let modelsArray: any[] = [];
+        let modelsArray: unknown[] = [];
         if (Array.isArray(data)) {
           modelsArray = data;
         } else if (data && typeof data === "object") {
@@ -368,8 +362,9 @@ export class LLMService implements ILLMService {
         }
 
         const normalized = modelsArray
-          .map((m) => {
-            const id = typeof m.id === "string" ? m.id : typeof m.name === "string" ? m.name : null;
+          .map((value) => {
+            const model = value as ModelLike;
+            const id = typeof model.id === "string" ? model.id : typeof model.name === "string" ? model.name : null;
             return id ? { id } : null;
           })
           .filter((m): m is { id: string } => m !== null);
@@ -381,48 +376,42 @@ export class LLMService implements ILLMService {
       }
 
       if (endpoint === "/api/proxy/openai") {
-        let openAiRes = await fetchFn(`${targetBase}${chatRoute}`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(reqBody),
-          signal,
-        });
-
-        // 运行时自愈拦截与静默重试：遇到 400 等错误时，克隆并判定是否为参数不支持引发，
-        // 是则自动关闭该模型对应 capability 缓存，清洗参数并自动重试一次，彻底消除报错白屏。
-        if (!openAiRes.ok) {
-          try {
-            const clonedRes = openAiRes.clone();
-            const errText = await clonedRes.text();
-            const unsupported = ModelCapabilityRegistry.isUnsupportedParamError(errText);
-            if (unsupported && modelId) {
-              ModelCapabilityRegistry.updateCapabilities(modelId, { [unsupported.param]: false });
-              log.warn("Auto-healing: Disabled unsupported capability", { param: unsupported.param, modelId });
-
-              const recleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(
-                modelId,
-                reqBody,
-                baseUrl,
-                proxyPayload.forceBasicParams
-              );
-              openAiRes = await fetchFn(`${targetBase}${chatRoute}`, {
-                method: "POST",
-                headers,
-                body: JSON.stringify(recleanedReqBody),
-                signal,
-              });
-            }
-          } catch (e) {
-            log.warn("Failed to analyze api error for self-healing or retry", { error: e });
+        let openAiRes: Response | null = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          openAiRes = await fetchFn(`${targetBase}${chatRoute}`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(cleanedReqBody),
+            signal,
+          });
+          if (openAiRes.ok || attempt === 2) break;
+          const errText = await openAiRes.clone().text();
+          const unsupported = ModelCapabilityRegistry.isUnsupportedParamError(errText);
+          if (!unsupported) break;
+          if (unsupported.capability && modelId) {
+            ModelCapabilityRegistry.updateCapabilities(
+              modelId,
+              { [unsupported.capability]: false },
+              baseUrl,
+            );
           }
+          const nextBody = removeUnsupportedRequestFields(cleanedReqBody, unsupported.requestFields);
+          if (JSON.stringify(nextBody) === JSON.stringify(cleanedReqBody)) break;
+          cleanedReqBody = nextBody;
+          log.warn("Auto-healing: removed unsupported provider parameters", {
+            fields: unsupported.requestFields,
+            modelId,
+            attempt: attempt + 1,
+          });
         }
+        if (!openAiRes) throw new Error("LLM_REQUEST_NOT_SENT");
 
         // P1-9: 对非流式响应做字段白名单清洗，剥离中转站注入的非标字段
         // （如 extra_data / debug_info / prompt_hash），
         // 防止脏数据渗透到 sessions 表与消息渲染管线。
         // 流式响应（stream: true）由 streamReader 逐 chunk 处理，仅提取
         // choices[].delta.content / reasoning_content，无需清洗。
-        if (reqBody?.stream !== true && openAiRes.ok) {
+        if (cleanedReqBody.stream !== true && openAiRes.ok) {
           try {
             const data = await openAiRes.json();
             const cleaned = cleanLLMResponse(data);
@@ -452,7 +441,7 @@ export class LLMService implements ILLMService {
 
   async sendCatbotRequest(
     content: string,
-    history: any[],
+    history: unknown[],
     clientContext?: unknown,
     traceId?: string
   ): Promise<{ reply: string; expression: string }> {
@@ -497,7 +486,7 @@ export class LLMService implements ILLMService {
       let errText = "";
       try {
         errText = await res.text();
-      } catch (e) {}
+      } catch {}
       throw new Error(`HTTP error ${res.status}: ${errText}`);
     }
     

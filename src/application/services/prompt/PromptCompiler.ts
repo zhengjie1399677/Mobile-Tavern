@@ -1,6 +1,6 @@
 import { PromptSection, PromptNode, RuntimeContext, SectionPriority, SectionPhase } from "./types";
 import { PromptRenderer, XMLRenderer, MarkdownRenderer } from "./PromptRenderer";
-import { ModelCapabilityRegistry } from "../memory/ModelCapabilityRegistry";
+import { ModelCapabilityRegistry } from "../llmCompatibility";
 import { Logger } from "../../../utils/logger";
 
 const logger = Logger.create("PromptCompiler");
