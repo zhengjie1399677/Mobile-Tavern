@@ -1,4 +1,7 @@
+import { sessionManagerEnglishFallback } from "./sessionManagerFallback";
+
 export default {
+  ...sessionManagerEnglishFallback,
   "control_panel.title": "控制面板",
   "control_panel.subtitle": "系統參數與顆粒化規則調節",
   "control_panel.check_update": "檢查更新",

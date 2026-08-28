@@ -4,12 +4,13 @@ import type {
   MemoryFragmentStatus,
   TemporalFact,
 } from "../../application/services/memory/types";
-import {
-  bindTransactionAbort,
-  enqueueWrite,
-} from "./idbQueue";
+import { bindTransactionAbort, enqueueWrite } from "./idbQueue";
 import { getDB } from "./idbConnection";
-import { deriveTurnCount, toSessionStorageRecord } from "./sessionRecord";
+import {
+  advanceSessionContentRevision,
+  deriveTurnCount,
+  toSessionStorageRecord,
+} from "./sessionRecord";
 import {
   getStoredMessageText,
   normalizeStoredMessageRole,
@@ -505,7 +506,7 @@ export async function replaceSessionBranch(
             );
             const messageCount = retainedMessageCount + newMessages.length;
             const userMessageCount = retainedUserMessageCount + newUserMessageCount;
-            sessionsStore.put({
+            sessionsStore.put(advanceSessionContentRevision({
               ...toSessionStorageRecord(session),
               pinnedMessageIds: session.pinnedMessageIds?.filter((id) => !removedIds.has(id)),
               mutedMessageIds: session.mutedMessageIds?.filter((id) => !removedIds.has(id)),
@@ -513,7 +514,7 @@ export async function replaceSessionBranch(
               userMessageCount,
               turnCount: deriveTurnCount(messageCount, userMessageCount),
               charCount: retainedCharCount + newCharCount,
-            });
+            }, { activityTime: Date.now() }));
 
             // 自动词典不能证明条目未受旧分支影响，分支替换时保守清空并允许后续抽取重建。
             const dictCursor = dictStore.index("sessionId").openCursor(IDBKeyRange.only(session.id));

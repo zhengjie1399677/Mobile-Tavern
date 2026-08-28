@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import { ChatSession, CharacterCard, Message, SummaryCard, UserSettings } from "../../types";
-import { IDatabaseService } from "@/src/application/serviceContracts";
+import { IDatabaseService, ISessionManagementService } from "@/src/application/serviceContracts";
 import { ITelemetryService } from "@/src/application/serviceContracts";
 import { cleanSuggestionsFromText, parseSuggestions } from "./helpers";
 import { listBuiltinPluginMetadata, loadBuiltinPluginById } from "../../infrastructure/plugins/builtinPlugins";
@@ -30,6 +30,7 @@ interface SessionManagerParams {
   hydrateSessionMessages: (sessionId: string) => Promise<void>;
   databaseService: IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>;
   telemetryService: ITelemetryService;
+  sessionManagementService: ISessionManagementService<ChatSession>;
   showCustomAlert: (msg: string) => Promise<void>;
   showCustomConfirm: (msg: string) => Promise<boolean>;
   showCustomPrompt: (msg: string, defaultValue?: string) => Promise<string | null>;
@@ -161,10 +162,10 @@ export function useSessionManager(p: SessionManagerParams) {
       await p.showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再删除分支。");
       return;
     }
-    const confirm = await p.showCustomConfirm("确定要永久删除这个聊天分支吗？(无法恢复)");
+    const confirm = await p.showCustomConfirm("要归档这个聊天分支吗？归档后可在会话管理器中恢复或永久删除。");
     if (!confirm) return;
     try {
-      await p.deleteSession(id);
+      await p.sessionManagementService.archiveSession(id);
       const remaining = p.sessions.filter((s) => s.id !== id);
       if (p.activeSessionId === id) {
         const latest = p.activeCharId

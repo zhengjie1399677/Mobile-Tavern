@@ -1,4 +1,7 @@
+import { sessionManagerEnglishFallback } from "./sessionManagerFallback";
+
 export default {
+  ...sessionManagerEnglishFallback,
   "control_panel.title": "Painel",
   "control_panel.subtitle": "Parâmetros do sistema e regras granulares",
   "control_panel.check_update": "Verificar atualização",

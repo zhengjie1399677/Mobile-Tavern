@@ -59,6 +59,10 @@ export async function getLatestSessionByCharacter(characterId: string): Promise<
       const cursor = request.result;
       if (cursor) {
         const record = cursor.value as SessionStorageRecord;
+        if (record.lifecycle === "archived") {
+          cursor.continue();
+          return;
+        }
         if (!latest || (record.createdAt ?? 0) > (latest.createdAt ?? 0)) latest = record;
         cursor.continue();
         return;
@@ -126,6 +130,10 @@ export async function getSessionsPaginated(page: number, pageSize: number): Prom
         resolve(results);
         return;
       }
+      if ((cursor.value as SessionStorageRecord).lifecycle === "archived") {
+        cursor.continue();
+        return;
+      }
       if (skipped++ < offset) {
         cursor.continue();
         return;
@@ -164,6 +172,10 @@ export async function getSessionsPage(options: {
         return;
       }
       const record = cursor.value as SessionStorageRecord;
+      if (record.lifecycle === "archived") {
+        cursor.continue();
+        return;
+      }
       if (options.before) {
         const isBefore = record.createdAt < options.before.createdAt
           || (record.createdAt === options.before.createdAt && record.id < options.before.id);

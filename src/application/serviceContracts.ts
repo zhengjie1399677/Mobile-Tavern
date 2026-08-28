@@ -31,6 +31,11 @@ export type { ICompatibilityRuntimeService } from "./compatibility/contracts";
 export type { IRuntimeProfileService } from "./runtimeProfiles/contracts";
 import type { MessageContentPart } from "../domain/messages/messageContent";
 import type {
+  FavoriteSessionBackupEntry,
+  SessionDirectoryQuery,
+  SessionDirectorySnapshot,
+} from "../domain/session-management";
+import type {
   ThemeInteractionConfig,
   ThemeInteractionEventType,
   ThemeMediaDefinition,
@@ -67,7 +72,19 @@ export const KernelServices = {
   CompatibilityRuntime: "compatibilityRuntime",
   RuntimeProfiles: "runtimeProfiles",
   ToolConnectors: "toolConnectors",
+  SessionManagement: "sessionManagement",
 } as const;
+
+export interface ISessionManagementService<TSession = unknown> extends IKernelService {
+  queryDirectory(query?: SessionDirectoryQuery): Promise<SessionDirectorySnapshot>;
+  archiveSession(sessionId: string): Promise<void>;
+  restoreSession(sessionId: string): Promise<void>;
+  favoriteSession(sessionId: string): Promise<FavoriteSessionBackupEntry>;
+  updateFavoriteBackup(backupId: string): Promise<FavoriteSessionBackupEntry>;
+  removeFavoriteBackup(backupId: string): Promise<void>;
+  restoreFavoriteBackup(backupId: string): Promise<TSession>;
+  permanentlyDeleteArchivedSession(sessionId: string): Promise<void>;
+}
 
 export interface IToolPluginRuntimeService extends IKernelService {
   reload(): Promise<void>;

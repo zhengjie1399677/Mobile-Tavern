@@ -92,20 +92,10 @@ export async function deleteCharacter(id: string, signal?: AbortSignal): Promise
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(
-        [
-          "characters",
-          "character_catalog",
-          "sessions",
-          "messages",
-          "memory_dict",
-          "memory_fragments",
-          "memory_facts",
-        ],
-        "readwrite",
-      );
+      // 会话删除必须经过“先归档、后永久删除”的显式安全缓冲。
+      // 删除角色卡时保留会话、消息与记忆，目录以“已移除角色”降级展示。
+      const transaction = db.transaction(["characters", "character_catalog"], "readwrite");
       const store = transaction.objectStore("characters");
-      const sessionsStore = transaction.objectStore("sessions");
       const request = store.delete(id);
       transaction.objectStore("character_catalog").delete(id);
 
@@ -113,38 +103,6 @@ export async function deleteCharacter(id: string, signal?: AbortSignal): Promise
         try { transaction.abort(); } catch { /* 事务可能已结束 */ }
         reject(error);
       };
-      const deleteBySession = (storeName: string, sessionId: string) => {
-        const targetStore = transaction.objectStore(storeName);
-        const cursorRequest = targetStore.index("sessionId")
-          .openCursor(IDBKeyRange.only(sessionId));
-        cursorRequest.onsuccess = () => {
-          const cursor = cursorRequest.result;
-          if (!cursor) return;
-          cursor.delete();
-          cursor.continue();
-        };
-        cursorRequest.onerror = () => fail(cursorRequest.error);
-      };
-
-      const sessionCursor = sessionsStore.index("characterId")
-        .openCursor(IDBKeyRange.only(id));
-      sessionCursor.onsuccess = () => {
-        const cursor = sessionCursor.result;
-        if (!cursor) return;
-        const sessionId = cursor.primaryKey;
-        if (typeof sessionId !== "string") {
-          fail(new Error(`[localDB] Invalid session key while deleting character ${id}.`));
-          return;
-        }
-        deleteBySession("messages", sessionId);
-        deleteBySession("memory_dict", sessionId);
-        deleteBySession("memory_fragments", sessionId);
-        deleteBySession("memory_facts", sessionId);
-        cursor.delete();
-        cursor.continue();
-      };
-      sessionCursor.onerror = () => fail(sessionCursor.error);
-
       // 用 oncomplete 判定成功（详见 saveCharacter 注释）
       transaction.oncomplete = () => resolve();
       request.onerror = () => fail(request.error);

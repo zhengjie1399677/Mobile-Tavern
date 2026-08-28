@@ -21,6 +21,7 @@ import { useKernel } from "../contexts/KernelContext";
 import {
   IDatabaseService, IPromptService, ITelemetryService,
   IChatStreamService, IMultiMessageService, IScriptService,
+  ISessionManagementService,
 } from "@/src/application/serviceContracts";
 import type { MemoryServiceTyped } from "../application/services/memory";
 import type { MemoryAuditSnapshot } from "../application/services/memory/types";
@@ -64,6 +65,7 @@ export const useChat = (
   const chatStreamService = kernel.getService<IChatStreamService>("chatStream");
   const multiMessageService = kernel.getService<IMultiMessageService<ChatSession>>("multiMessage");
   const scriptService = kernel.getService<IScriptService<CharacterCard, ChatSession>>("script");
+  const sessionManagementService = kernel.getService<ISessionManagementService<ChatSession>>("sessionManagement");
   const memoryService = kernel.hasService("memory")
     ? kernel.getService<MemoryServiceTyped>("memory")
     : undefined;
@@ -76,12 +78,13 @@ export const useChat = (
 
   // ── 稳定 Ref 镜像（供异步回调安全读取最新值） ─────────────────────────────────
   const sessionsRef = React.useRef(sessions);
-  sessionsRef.current = sessions;
-
   const activeSessionIdRef = React.useRef(activeSessionId);
   const activeCharIdRef    = React.useRef(activeCharId);
-  activeSessionIdRef.current = activeSessionId;
-  activeCharIdRef.current    = activeCharId;
+  useEffect(() => {
+    sessionsRef.current = sessions;
+    activeSessionIdRef.current = activeSessionId;
+    activeCharIdRef.current = activeCharId;
+  }, [activeCharId, activeSessionId, sessions]);
 
   // P1-7: 卸载保护 ref。异步持久化回调在组件卸载后
   // 仍会执行 setSessionViews，导致 React 状态更新泄漏（卸载后 setState 警告）。
@@ -104,14 +107,15 @@ export const useChat = (
   const ui = useChatUI({
     activeSessionId, activeSession, setIsSending, chatBottomRef,
   });
+  const { abortControllerRef, bisonChainTimerRef, isSendingRef } = ui;
 
   // 角色切换时中止正在进行的流式请求
   useEffect(() => {
-    if (ui.abortControllerRef.current) {
+    if (abortControllerRef.current) {
       console.log("[useChat] Aborting stream because active character or session changed");
-      ui.abortControllerRef.current.abort();
-      ui.abortControllerRef.current = null;
-      ui.isSendingRef.current = false;
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      isSendingRef.current = false;
       setIsSending(false);
       setCompatibilityGenerationState(kernel, {
         isSending: false,
@@ -119,17 +123,17 @@ export const useChat = (
       });
     }
     // P1-8: 会话/角色切换时清理 Bison 链 timer，避免堆积与对旧会话 state 进行更新
-    if (ui.bisonChainTimerRef.current) {
-      clearTimeout(ui.bisonChainTimerRef.current);
-      ui.bisonChainTimerRef.current = null;
+    if (bisonChainTimerRef.current) {
+      clearTimeout(bisonChainTimerRef.current);
+      bisonChainTimerRef.current = null;
     }
-  }, [activeCharId, activeSessionId, kernel, setIsSending]);
+  }, [abortControllerRef, activeCharId, activeSessionId, bisonChainTimerRef, isSendingRef, kernel, setIsSending]);
 
   // P1-2: useMemo 化 sessionManagerParams，避免每次渲染创建新对象导致
   // useSessionManager 内部所有 useCallback 依赖 [p] 形同虚设（每次都变）。
   // 稳定化后，仅当 p 的实际字段变化时才重建回调，与 useCallback 语义一致。
   const sessionManagerParams = useMemo(() => ({
-    isSending, isSendingRef: ui.isSendingRef,
+    isSending, isSendingRef,
     activeCharId, activeCharacter, activeSession, activeSessionId,
     sessions, characters, settings,
     setSessionViews, loadCharacterById, setActiveCharId, setActiveSessionId, setActiveTab,
@@ -137,16 +141,18 @@ export const useChat = (
     setShowSessionManager: ui.setShowSessionManager,
     setMsgMenuId: ui.setMsgMenuId,
     deleteSession, refreshSessionStatistics, databaseService, telemetryService,
+    sessionManagementService,
     hydrateSessionMessages,
     showCustomAlert, showCustomConfirm, showCustomPrompt,
     launchPlugin,
   }), [
-    isSending, ui.isSendingRef,
+    isSending, isSendingRef,
     activeCharId, activeCharacter, activeSession, activeSessionId,
     sessions, characters, settings,
     setSessionViews, loadCharacterById, setActiveCharId, setActiveSessionId, setActiveTab,
     ui.setChatSubTab, ui.setShowSessionManager, ui.setMsgMenuId,
     deleteSession, refreshSessionStatistics, databaseService, telemetryService,
+    sessionManagementService,
     hydrateSessionMessages,
     showCustomAlert, showCustomConfirm, showCustomPrompt, launchPlugin,
   ]);
@@ -162,13 +168,13 @@ export const useChat = (
     kernel,
     settings, globalLorebook, customWorldbooks, characters,
     activeCharacter, activeSession, isSending,
-    isSendingRef: ui.isSendingRef,
+    isSendingRef,
     activeRequestIdRef: ui.activeRequestIdRef,
     activeSessionIdRef, sessionsRef,
-    abortControllerRef: ui.abortControllerRef,
+    abortControllerRef,
     pendingUpdateTimeoutRef: ui.pendingUpdateTimeoutRef,
     bisonRemainingCountRef: ui.bisonRemainingCountRef,
-    bisonChainTimerRef: ui.bisonChainTimerRef,
+    bisonChainTimerRef,
     setSessionViews, setIsSending,
     setIsBisonLocking: ui.setIsBisonLocking,
     setReplySuggestions: ui.setReplySuggestions,
@@ -183,10 +189,10 @@ export const useChat = (
     kernel,
     settings, globalLorebook, customWorldbooks, characters,
     activeCharacter, activeSession,
-    isSendingRef: ui.isSendingRef,
+    isSendingRef,
     activeRequestIdRef: ui.activeRequestIdRef,
     activeSessionIdRef, sessionsRef,
-    abortControllerRef: ui.abortControllerRef,
+    abortControllerRef,
     pendingUpdateTimeoutRef: ui.pendingUpdateTimeoutRef,
     setSessionViews, setIsSending,
     setReplySuggestions: ui.setReplySuggestions,

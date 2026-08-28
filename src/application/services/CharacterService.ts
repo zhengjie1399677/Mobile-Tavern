@@ -1,5 +1,5 @@
-import { ICharacterService, IKernel } from "../serviceContracts";
-import { CharacterCard } from "../../types";
+import { ICharacterService, IDatabaseService, IKernel } from "../serviceContracts";
+import { CharacterCard, ChatSession } from "../../types";
 import {
   getAllCharacters,
   getCharacterCatalog,
@@ -92,6 +92,12 @@ export class CharacterService implements ICharacterService<CharacterCard> {
   }
 
   async deleteCharacter(id: string): Promise<void> {
+    const counts = await this.kernel
+      .getService<IDatabaseService<ChatSession>>("database")
+      .getSessionCountsByCharacter();
+    if ((counts[id] ?? 0) > 0) {
+      throw new Error("CHARACTER_DELETE_REQUIRES_SESSION_CLEANUP");
+    }
     return dbDeleteCharacter(id);
   }
 

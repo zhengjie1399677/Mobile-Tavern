@@ -5,6 +5,7 @@ import type {
 import { getDB } from "../idbConnection";
 import { bindTransactionAbort, enqueueWrite } from "../idbQueue";
 import {
+  advanceSessionContentRevision,
   deriveTurnCount,
   stripLegacySessionMessages,
   type SessionStorageRecord,
@@ -81,14 +82,20 @@ export function commitSessionTurn(
           messagesStore.put(toStoredMessageRecord(sessionId, persisted, turnIndex));
         }
 
-        sessionsStore.put({
+        const latestMessage = uniqueMessages.reduce<Message | undefined>((latest, message) =>
+          !latest || message.timestamp > latest.timestamp ? message : latest,
+        undefined);
+        sessionsStore.put(advanceSessionContentRevision({
           ...stripLegacySessionMessages(session),
           ...metadataPatch,
           messageCount,
           userMessageCount,
           turnCount: deriveTurnCount(messageCount, userMessageCount),
           charCount,
-        });
+        }, latestMessage ? {
+          activityTime: latestMessage.timestamp,
+          lastMessagePreview: latestMessage.content,
+        } : undefined));
       };
 
       sessionRequest.onsuccess = () => {

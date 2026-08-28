@@ -34,6 +34,37 @@ export function calculateSessionMessageStats(
   };
 }
 
+const DIRECTORY_PREVIEW_LIMIT = 160;
+
+export function normalizeSessionDirectoryMetadata<T extends ChatSessionMetadata>(
+  session: T,
+): T & Required<Pick<ChatSessionMetadata, "lifecycle" | "updatedAt" | "contentRevision">> {
+  return {
+    ...session,
+    lifecycle: session.lifecycle === "archived" ? "archived" : "active",
+    updatedAt: Number.isFinite(session.updatedAt) ? session.updatedAt as number : session.createdAt,
+    contentRevision: Number.isInteger(session.contentRevision) && (session.contentRevision ?? 0) > 0
+      ? session.contentRevision as number
+      : 1,
+  };
+}
+
+export function advanceSessionContentRevision<T extends SessionStorageRecord>(
+  session: T,
+  options?: { activityTime?: number; lastMessagePreview?: string },
+): T {
+  const normalized = normalizeSessionDirectoryMetadata(session);
+  const preview = options?.lastMessagePreview?.replace(/\s+/g, " ").trim();
+  return {
+    ...normalized,
+    contentRevision: normalized.contentRevision + 1,
+    updatedAt: options?.activityTime === undefined
+      ? normalized.updatedAt
+      : Math.max(normalized.updatedAt, options.activityTime),
+    ...(preview === undefined ? {} : { lastMessagePreview: preview.slice(0, DIRECTORY_PREVIEW_LIMIT) }),
+  };
+}
+
 export function deriveTurnCount(messageCount: number, userMessageCount: number): number {
   if (userMessageCount > 0) return userMessageCount;
   if (messageCount > 1) return Math.floor(messageCount / 2);
@@ -49,9 +80,9 @@ export function toSessionStorageRecord(
 ): ChatSessionMetadata {
   if ("messages" in session) {
     const { messages: _messages, ...record } = session;
-    return record;
+    return normalizeSessionDirectoryMetadata(record);
   }
-  return { ...session };
+  return normalizeSessionDirectoryMetadata({ ...session });
 }
 
 /**
@@ -66,7 +97,7 @@ export function fromSessionStorageRecord(record: SessionStorageRecord): ChatSess
     ...metadata
   } = record;
   return {
-    ...metadata,
+    ...normalizeSessionDirectoryMetadata(metadata),
     messages: [],
     summaries: Array.isArray(metadata.summaries) ? metadata.summaries : [],
   };

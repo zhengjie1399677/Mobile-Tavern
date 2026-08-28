@@ -181,16 +181,17 @@ someAsyncOp().then(() => {
 
 | 数据库 | 用途 | 版本 |
 |--------|------|------|
-| `MobileTavernLiteDB` | 主数据库（角色/会话/消息/记忆/设置） | v13 |
+| `MobileTavernLiteDB` | 主数据库（角色/会话/消息/记忆/设置） | v14 |
 | `MobileTavernPluginDB` | 插件数据库（包元数据/存档/文件字节） | v2 |
 | `MobileTavernResourceDB` | 用户本地界面资源（主题图片/视频/音频的元数据与文件字节） | v1 |
 | `MobileTavernAttachmentDB` | 消息附件元数据、引用状态与媒体字节 | v1 |
 | `MobileTavernAgentJournalDB` | Agent Turn、Provider/媒体决定、Tool Call/审批/Result | v1 |
 | `MobileTavernToolPluginDB` | External Tool Plugin Manifest、Artifact、加密凭据、授权状态与最多 8 个历史版本 | v2 |
+| `MobileTavernSessionBackupDB` | 收藏会话元数据与不可变完整备份版本 | v1 |
 
 ### 隔离规则
 
-- 六个数据库的连接管理独立，互不影响
+- 各数据库的连接管理独立，互不影响
 - 插件数据库的 schema 升级不触发主数据库的 `onupgradeneeded`
 - 插件数据库的写操作不经过主数据库的 `enqueueWrite` 队列
 - 本地界面资源不得写入 `settings` 大对象，也不得借用插件包数据库；资源元数据与文件字节必须分 Store 保存。
@@ -202,6 +203,7 @@ someAsyncOp().then(() => {
 - Tool Plugin 数据库只保存通过严格 Schema、包限制与规范化 SHA-256 校验的 Manifest、单入口 Artifact、启用状态、权限授权、加密凭据和版本历史；Artifact 与凭据分 Store 保存，执行由应用层 Runtime 编排，不得与 `.mtplugin` 包数据库混用。
 - Tool Plugin 新安装或升级默认停用且无授权；缺少必需权限时禁止启用，撤销必需权限必须自动停用。回滚必须停用并清空授权，卸载必须删除当前 Manifest、全部历史版本和授权状态。
 - v6 完整备份必须携带消息引用的附件字节和 Agent Journal；覆盖恢复先验证引用与会话归属，再将附件字节、状态和反向引用在附件库单事务中一次提交，随后替换 Journal 与主库。主库提交后禁止再执行可能失败的附件引用重建；主库提交前任一步失败都必须恢复旧附件引用快照与 Journal。
+- 收藏会话备份必须先写入新的不可变版本、回读并校验 SHA-256，再切换元数据指针和回收旧版本；任一步失败时旧指针与旧载荷必须保持可恢复。载荷只包含目标会话完整消息、摘要/插件状态、角色卡快照、目标会话记忆、引用附件与 Agent Journal，不得包含全局设置或凭据。
 
 ---
 
@@ -261,6 +263,13 @@ someAsyncOp().then(() => {
 - 虚拟列表不替代存储分页；向上加载使用最早消息 ID 对应的绝对 `turnIndex` 游标，禁止数字 offset 作为页面边界。
 - 会话目录的持续分页使用 `(createdAt, id)` 稳定游标；分页期间新增最近会话不得导致后续页面跳项。
 - Prompt 历史从数据库按配置读取；重生成历史必须排除目标消息及其后续分支。
+
+### 会话目录与删除安全
+
+- 旧会话读取时默认补齐 `lifecycle=active`、`updatedAt=createdAt` 和正整数 `contentRevision`；消息、摘要、状态、分支或其他影响恢复结果的写入成功后必须单调推进修订号。
+- “全部”只显示未归档原会话，“收藏”显示独立备份，“已归档”只显示归档原会话；搜索首期只覆盖权威会话名称和角色名称，不得把未水合消息冒充全文搜索。
+- 普通会话不得永久删除；应用服务与数据库服务都必须校验 `lifecycle=archived`。删除角色卡不得级联绕过该守卫，有会话的角色卡必须先处理会话。
+- 收藏后的源会话继续写入只产生 `outdated` 状态，不自动复制；手动更新失败时旧备份仍可恢复。源会话永久删除后收藏元数据与备份载荷继续保留。
 
 ### 消息事务与状态恢复
 
@@ -360,3 +369,4 @@ someAsyncOp().then(() => {
 | 2026-08-24 | 增加 Runtime Profile 公开偏好、复制/开关/诊断 UI、会话快照切换守卫，并删除旧静态 Capability Catalog 与 legacy driver ID |
 | 2026-08-24 | 完成插件配置 Schema、类型化 Capability Token/冲突校验、OpenAI 多步 Tool Loop、跨 Profile 会话自动恢复及兼容状态命名空间单写契约 |
 | 2026-08-26 | 增加内置 Tool、会话冻结的 Tool 可见性、风险/副作用/Scope 策略、一次性审批与 fail-closed Journal 契约 |
+| 2026-08-28 | 增加会话 active/archived 生命周期、修订投影、归档删除守卫和独立收藏备份版本切换契约 |

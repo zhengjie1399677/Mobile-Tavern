@@ -131,6 +131,18 @@ export interface ChatSession {
   compositionSnapshot?: AgentCompositionSnapshot;
   /** Runtime Plugin 私有状态命名空间；兼容期 `variables` 仍作为只读降级源。 */
   runtimePluginState?: Record<string, unknown>;
+  /** 会话目录生命周期；旧记录读取时统一降级为 active。 */
+  lifecycle?: "active" | "archived";
+  /** 最近一次影响会话目录排序的权威活动时间。 */
+  updatedAt?: number;
+  /** 归档时间；仅 lifecycle=archived 时存在。 */
+  archivedAt?: number;
+  /** 指向独立收藏备份元数据，不承载备份正文。 */
+  favoriteBackupId?: string;
+  /** 影响恢复结果的持久化内容修订号。 */
+  contentRevision?: number;
+  /** 有限长度目录投影；消息正文仍以 messages Store 为准。 */
+  lastMessagePreview?: string;
 }
 
 /** sessions Store 与界面会话目录共享的轻量会话信息，不包含消息窗口。 */

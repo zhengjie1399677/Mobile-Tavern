@@ -1,4 +1,7 @@
+import { sessionManagerEnglishFallback } from "./sessionManagerFallback";
+
 export default {
+  ...sessionManagerEnglishFallback,
   "control_panel.title": "제어판",
   "control_panel.subtitle": "시스템 파라미터 및 세부 규칙 조정",
   "control_panel.check_update": "업데이트 확인",

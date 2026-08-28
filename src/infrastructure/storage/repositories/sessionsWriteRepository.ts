@@ -15,11 +15,25 @@ import type {
 import { getDB } from "../idbConnection";
 import { enqueueWrite, bindTransactionAbort } from "../idbQueue";
 import {
+  advanceSessionContentRevision,
   calculateSessionMessageStats,
   stripLegacySessionMessages,
   toSessionStorageRecord,
   type SessionStorageRecord,
 } from "../sessionRecord";
+
+const DIRECTORY_ONLY_PATCH_KEYS = new Set([
+  "lifecycle",
+  "archivedAt",
+  "favoriteBackupId",
+  "updatedAt",
+  "contentRevision",
+  "lastMessagePreview",
+]);
+
+function changesRecoverableContent(patch: ChatSessionMetadataPatch): boolean {
+  return Object.keys(patch).some((key) => !DIRECTORY_ONLY_PATCH_KEYS.has(key));
+}
 import { toStoredMessageRecord, type PersistableMessage } from "../messageRecord";
 
 /**
@@ -55,10 +69,15 @@ export async function updateSessionMetadata(
           reject(new Error(`[localDB] Session ${sessionId} not found for metadata update.`));
           return;
         }
-        const putRequest = sessionsStore.put({
+        const merged = {
           ...stripLegacySessionMessages(existing),
           ...patch,
-        });
+        } as SessionStorageRecord;
+        const putRequest = sessionsStore.put(
+          changesRecoverableContent(patch)
+            ? advanceSessionContentRevision(merged)
+            : merged,
+        );
         putRequest.onerror = () => reject(putRequest.error);
       };
       // 用 oncomplete 判定成功（详见 charactersRepository.saveCharacter 注释）

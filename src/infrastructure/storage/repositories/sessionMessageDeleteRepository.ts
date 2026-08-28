@@ -3,6 +3,7 @@ import type { MemoryFragment, TemporalFact } from "../../../application/services
 import { getDB } from "../idbConnection";
 import { bindTransactionAbort, enqueueWrite } from "../idbQueue";
 import {
+  advanceSessionContentRevision,
   deriveTurnCount,
   fromSessionStorageRecord,
   stripLegacySessionMessages,
@@ -103,7 +104,7 @@ export function deleteSessionMessage(
           0,
           userMessageCount - (target.role === "user" ? 1 : 0),
         );
-        const nextRecord: SessionStorageRecord = {
+        const nextRecord: SessionStorageRecord = advanceSessionContentRevision({
           ...stripLegacySessionMessages(session),
           summaries,
           lastSummarizedMessageId: summaries.at(-1)?.lastMessageId,
@@ -113,7 +114,7 @@ export function deleteSessionMessage(
           userMessageCount: nextUserMessageCount,
           turnCount: deriveTurnCount(nextMessageCount, nextUserMessageCount),
           charCount: Math.max(0, charCount - getStoredMessageText(target).length),
-        };
+        }, { activityTime: Date.now() });
         messagesStore.delete(messageId);
         sessionsStore.put(nextRecord);
         sweepDerivedMemory(target.turnIndex, nextRecord);

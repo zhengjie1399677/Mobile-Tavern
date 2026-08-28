@@ -21,7 +21,8 @@ export const DB_NAME = "MobileTavernLiteDB";
 // v11: 新增 character_catalog Store，首屏只读取轻量角色目录
 // v12: 新增 messages.sessionId_turnIndex_createdAt 索引，并按创建时间修复旧消息序号
 // v13: 为 character_catalog 补回首页展示所需头像，仍排除其余角色卡重数据
-export const DB_VERSION = 13;
+// v14: 增加会话生命周期与最近活动索引，并为旧会话补齐安全目录默认值
+export const DB_VERSION = 14;
 
 export interface IndexSchema {
   name: string;
@@ -50,6 +51,8 @@ export const DB_SCHEMA: StoreSchema[] = [
     indexes: [
       { name: "characterId", keyPath: "characterId" },
       { name: "createdAt", keyPath: "createdAt" },
+      { name: "lifecycle", keyPath: "lifecycle" },
+      { name: "updatedAt", keyPath: "updatedAt" },
     ],
   },
   // settings / lorebooks / worldbooks 使用 out-of-line keys
@@ -224,6 +227,30 @@ export function applyDbSchema(
         cursor.continue();
       };
     }
+  }
+
+  if (oldVersion < 14) {
+    const sessions = transaction.objectStore("sessions");
+    if (typeof sessions.openCursor !== "function") return;
+    const request = sessions.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      const record = cursor.value as Record<string, unknown>;
+      cursor.update({
+        ...record,
+        lifecycle: record.lifecycle === "archived" ? "archived" : "active",
+        updatedAt: typeof record.updatedAt === "number" && Number.isFinite(record.updatedAt)
+          ? record.updatedAt
+          : record.createdAt,
+        contentRevision: typeof record.contentRevision === "number"
+          && Number.isInteger(record.contentRevision)
+          && record.contentRevision > 0
+          ? record.contentRevision
+          : 1,
+      });
+      cursor.continue();
+    };
   }
 }
 

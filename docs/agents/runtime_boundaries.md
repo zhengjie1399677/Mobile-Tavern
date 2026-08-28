@@ -12,6 +12,8 @@
 | 通用数据库服务 | `src/application/services/DatabaseService.ts` | 面向上层提供通用 CRUD、分页、轻量索引统计与跨 Store 事务能力 | 不承载记忆召回、摘要或角色行为 |
 | IndexedDB 物理实现 | `src/infrastructure/storage/` | 连接、Schema、事务队列、仓库和端口适配器 | 不反向导入 `src/utils/localDB.ts` |
 | 数据迁移应用服务 | `src/application/services/DataMigrationService.ts` | 聚合完整备份、统一脱敏，并委托基础设施以单事务覆盖用户数据 | 不在 React Hook 中直接清 Store 或跨 Repository 编排恢复 |
+| 会话管理应用服务 | `src/application/services/SessionManagementService.ts` | 查询权威会话目录，编排归档、收藏备份更新、恢复和归档后永久删除 | 不把收藏载荷塞入 sessions/settings，不允许 UI 直连备份 Store，不绕过 archived 删除守卫 |
+| 收藏会话备份存储 | `src/infrastructure/sessionBackups/sessionBackupStorage.ts` | 在独立数据库保存收藏元数据与不可变备份版本，执行 SHA-256 回读校验和指针切换 | 不保存 API Key、全局设置或其他会话数据；不被 React 直接调用 |
 | 冻结的存储兼容门面 | `src/utils/localDB.ts` | 旧版外部导入兼容与测试重置 | 不允许任何生产调用或新增导出；兼容期结束后删除 |
 | Compatibility Host | `src/application/compatibility/`、`CompatibilityRuntimeService.ts` | 提供无生态语义的 Codec、Prompt Section、Context Source、Transform、State Reducer、Renderer 注册与撤销机制 | 不实现 SillyTavern 语义，不依赖 React，不执行用户安装代码 |
 | SillyTavern Compatibility Runtime Plugin | `sillyTavernCompatibilityRuntimePlugin.ts`、`src/compatibility/sillytavern/` | 以受信 Profile Scope 注册角色卡扩展、MVU、正则脚本、预设 Codec 和 iframe 兼容实现 | 不进入 Kernel，不承载通用存储或原生能力，不与 `.mtplugin` 沙箱合并 |
@@ -42,6 +44,7 @@
   ├─→ 应用 Service ─→ Repository/Adapter ─→ infrastructure/storage
   ├─→ LocalResourceService ───────────────→ infrastructure/resources
   ├─→ AttachmentService ─────────────────→ infrastructure/attachments
+  ├─→ SessionManagementService ──────────→ infrastructure/sessionBackups
   ├─→ Chat Use Case ─→ Provider Projection ─→ AttachmentService（按需读取字节）
   ├─→ Chat UI ─→ AgentHandle ─→ Driver ─→ Provider/Tool/Media Processor
   │                                  ├─→ Agent Journal Port ─→ infrastructure/agents

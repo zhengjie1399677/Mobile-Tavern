@@ -25,7 +25,11 @@ export async function testCharacterService() {
 
   const { CharacterService } = await import("../../src/application/services/CharacterService");
   const service = new CharacterService();
-  service.init({} as unknown as IKernel);
+  service.init({
+    getService: () => ({
+      getSessionCountsByCharacter: async () => ({}),
+    }),
+  } as unknown as IKernel);
 
   // 1. 初始读取应为空数组
   const initial = await service.getAllCharacters();

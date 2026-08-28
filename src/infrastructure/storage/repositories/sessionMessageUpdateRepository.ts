@@ -18,6 +18,7 @@ import {
   type StoredChatMessageRecord,
 } from "../messageRecord";
 import {
+  advanceSessionContentRevision,
   deriveTurnCount,
   fromSessionStorageRecord,
   stripLegacySessionMessages,
@@ -157,7 +158,7 @@ export function updateSessionMessage(
         });
         const messageCount = nextRecords.length;
         const userMessageCount = nextRecords.filter((record) => record.role === "user").length;
-        const nextRecord: SessionStorageRecord = {
+        const nextRecord: SessionStorageRecord = advanceSessionContentRevision({
           ...stripLegacySessionMessages(session),
           ...metadataPatch,
           summaries,
@@ -171,7 +172,7 @@ export function updateSessionMessage(
             (total, record) => total + getStoredMessageText(record).length,
             0,
           ),
-        };
+        }, { activityTime: Date.now() });
         sessionsStore.put(nextRecord);
         result = fromSessionStorageRecord(nextRecord);
       };

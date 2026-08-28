@@ -1,74 +1,42 @@
-import React, { useState } from "react";
-import { LoaderCircle, MessagesSquare } from "lucide-react";
-import { Button } from "../../components/ui/button";
-import SessionDirectory, {
-  type SessionDirectoryView,
-} from "../components/session-manager/SessionDirectory";
+import React from "react";
+import { MessagesSquare } from "lucide-react";
+import SessionManagerPanel from "../components/session-manager/SessionManagerPanel";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import type { ChatSession } from "../types";
 
-const SESSION_VIEW_STORAGE_KEY = "mobile_tavern_history_view_mode";
-
-function readInitialView(): SessionDirectoryView {
-  try {
-    return localStorage.getItem(SESSION_VIEW_STORAGE_KEY) === "character"
-      ? "character"
-      : "recent";
-  } catch {
-    return "recent";
-  }
-}
-
 export default function ChatHistoryTab() {
   const { t } = useTranslation();
   const {
-    characters,
-    sessions,
     activeSessionId,
+    isSending,
     setActiveCharId,
     setActiveSessionId,
     setActiveTab,
     setChatSubTab,
+    setShowSessionManager,
     updateSessionMetadata,
-    deleteBranch,
+    loadSessions,
     showCustomPrompt,
-    totalSessionCount,
-    loadMoreSessions,
-    hasMoreSessions,
-    isLoadingMoreSessions,
+    showCustomConfirm,
+    showCustomAlert,
   } = useUnifiedApp((state) => ({
-    characters: state.characters,
-    sessions: state.sessions,
     activeSessionId: state.activeSessionId,
+    isSending: state.isSending,
     setActiveCharId: state.setActiveCharId,
     setActiveSessionId: state.setActiveSessionId,
     setActiveTab: state.setActiveTab,
     setChatSubTab: state.setChatSubTab,
+    setShowSessionManager: state.setShowSessionManager,
     updateSessionMetadata: state.updateSessionMetadata,
-    deleteBranch: state.deleteBranch,
+    loadSessions: state.loadSessions,
     showCustomPrompt: state.showCustomPrompt,
-    totalSessionCount: state.totalSessionCount,
-    loadMoreSessions: state.loadMoreSessions,
-    hasMoreSessions: state.hasMoreSessions,
-    isLoadingMoreSessions: state.isLoadingMoreSessions,
+    showCustomConfirm: state.showCustomConfirm,
+    showCustomAlert: state.showCustomAlert,
   }));
-  const [view, setView] = useState<SessionDirectoryView>(readInitialView);
-
-  const changeView = (nextView: SessionDirectoryView) => {
-    setView(nextView);
-    try {
-      localStorage.setItem(
-        SESSION_VIEW_STORAGE_KEY,
-        nextView === "character" ? "character" : "timeline",
-      );
-    } catch {
-      // 界面偏好持久化失败不应影响会话管理。
-    }
-  };
 
   const openSession = (session: ChatSession) => {
-    if (session.characterId) setActiveCharId(session.characterId);
+    setActiveCharId(session.characterId);
     setActiveSessionId(session.id);
     setActiveTab("chat");
     setChatSubTab("dialogue");
@@ -86,52 +54,30 @@ export default function ChatHistoryTab() {
   };
 
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-2xl flex-col px-3 pb-4 pt-2 sm:px-4">
-      <header className="mb-3 flex min-h-14 items-center gap-3 border-b border-border/70 px-1 pb-2">
+    <main className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col px-2 pb-3 pt-2 sm:px-4">
+      <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-border/70 px-2">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <MessagesSquare className="size-5" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
-          <h1 className="text-base font-semibold tracking-tight text-foreground">
-            {t("history.title")}
-          </h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {t("history.loaded_sessions", {
-              loaded: sessions.length,
-              total: totalSessionCount,
-            })}
-          </p>
+          <h1 className="text-base font-semibold tracking-tight">{t("history.title")}</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("session_manager.subtitle")}</p>
         </span>
       </header>
-
-      <SessionDirectory
-        sessions={sessions}
-        characters={characters}
+      <SessionManagerPanel
         activeSessionId={activeSessionId}
-        view={view}
-        onViewChange={changeView}
-        onOpen={openSession}
-        onRename={renameSession}
-        onDelete={(session) => deleteBranch(session.id)}
+        isSending={isSending}
+        onOpenSession={openSession}
+        onRenameSession={renameSession}
+        onOpenUniverse={(session) => {
+          setActiveCharId(session.characterId);
+          setActiveSessionId(session.id);
+          setShowSessionManager(true);
+        }}
+        onDataChanged={loadSessions}
+        showConfirm={showCustomConfirm}
+        showAlert={showCustomAlert}
       />
-
-      {sessions.length > 0 && hasMoreSessions && (
-        <div className="flex justify-center py-4" aria-live="polite">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="min-h-11 min-w-40"
-            disabled={isLoadingMoreSessions}
-            onClick={() => void loadMoreSessions()}
-          >
-            {isLoadingMoreSessions && (
-              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-            )}
-            {isLoadingMoreSessions ? t("history.loading_more") : t("history.load_more")}
-          </Button>
-        </div>
-      )}
     </main>
   );
 }

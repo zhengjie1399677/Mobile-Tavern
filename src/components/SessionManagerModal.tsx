@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { MessagesSquare, Network, Plus, X } from "lucide-react";
+import { MessagesSquare, Plus, X } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import {
   Dialog,
@@ -20,7 +20,7 @@ import type { ChatSession } from "../types";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import BranchUniverseDiagram from "./BranchUniverseDiagram";
 import MemoryFragmentEditor from "./MemoryFragmentEditor";
-import SessionDirectory from "./session-manager/SessionDirectory";
+import SessionManagerPanel from "./session-manager/SessionManagerPanel";
 
 type ManagerView = "sessions" | "universe";
 
@@ -33,11 +33,13 @@ export default function SessionManagerModal() {
     activeSession,
     setActiveSessionId,
     updateSessionMetadata,
-    deleteBranch,
     createNewBranch,
     isSending,
     showCustomAlert,
     showCustomPrompt,
+    showCustomConfirm,
+    loadSessions,
+    setActiveCharId,
   } = useUnifiedApp((state) => ({
     showSessionManager: state.showSessionManager,
     setShowSessionManager: state.setShowSessionManager,
@@ -46,11 +48,13 @@ export default function SessionManagerModal() {
     activeSession: state.activeSession,
     setActiveSessionId: state.setActiveSessionId,
     updateSessionMetadata: state.updateSessionMetadata,
-    deleteBranch: state.deleteBranch,
     createNewBranch: state.createNewBranch,
     isSending: state.isSending,
     showCustomAlert: state.showCustomAlert,
     showCustomPrompt: state.showCustomPrompt,
+    showCustomConfirm: state.showCustomConfirm,
+    loadSessions: state.loadSessions,
+    setActiveCharId: state.setActiveCharId,
   }));
   const { t } = useTranslation();
   const kernel = useKernel();
@@ -101,7 +105,7 @@ export default function SessionManagerModal() {
     return true;
   }, 900);
 
-  if (!showSessionManager || !activeCharacter) return null;
+  if (!showSessionManager) return null;
 
   const ensureIdle = (warningKey: string): boolean => {
     if (!isSending) return true;
@@ -143,7 +147,9 @@ export default function SessionManagerModal() {
                 {t("session_manager.title")}
               </DialogTitle>
               <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
-                {activeCharacter.name} · {t("history.sessions_count", { count: characterSessions.length })}
+                {activeCharacter
+                  ? `${activeCharacter.name} · ${t("history.sessions_count", { count: characterSessions.length })}`
+                  : t("session_manager.subtitle")}
               </span>
             </span>
             <Button
@@ -159,48 +165,34 @@ export default function SessionManagerModal() {
           </div>
         </DialogHeader>
 
-        <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-border/60 px-4 py-2">
-          <button
-            type="button"
-            aria-pressed={view === "sessions"}
-            onClick={() => setView("sessions")}
-            className={`min-h-10 rounded-lg px-3 text-xs font-medium transition-colors ${
-              view === "sessions" ? "bg-muted text-foreground" : "text-muted-foreground"
-            }`}
-          >
-            {t("session_manager.tab_list")}
-          </button>
-          <button
-            type="button"
-            aria-pressed={view === "universe"}
-            onClick={() => setView("universe")}
-            className={`flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors ${
-              view === "universe" ? "bg-muted text-foreground" : "text-muted-foreground"
-            }`}
-          >
-            <Network className="size-3.5" aria-hidden="true" />
-            {t("session_manager.tab_diagram")}
-          </button>
-        </div>
+        {view === "universe" && (
+          <div className="shrink-0 border-b border-border/60 px-3 py-2">
+            <Button variant="ghost" size="sm" className="min-h-10" onClick={() => setView("sessions")}>
+              {t("common.back")} · {t("session_manager.tab_diagram")}
+            </Button>
+          </div>
+        )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+        <div className={`min-h-0 flex-1 ${view === "sessions" ? "flex" : "overflow-y-auto overscroll-contain px-3 py-3"}`}>
           {view === "sessions" ? (
-            <SessionDirectory
-              sessions={characterSessions}
-              characters={[activeCharacter]}
+            <SessionManagerPanel
               activeSessionId={activeSession?.id}
-              view="recent"
-              compact
-              onOpen={openSession}
-              onRename={renameSession}
-              onDelete={(session) => {
-                if (!ensureIdle("session_manager.busy_delete_warning")) return;
-                void deleteBranch(session.id);
+              isSending={isSending}
+              onOpenSession={openSession}
+              onRenameSession={renameSession}
+              onOpenUniverse={(session) => {
+                if (!ensureIdle("session_manager.busy_switch_warning")) return;
+                setActiveCharId(session.characterId);
+                setActiveSessionId(session.id);
+                setView("universe");
               }}
+              onDataChanged={loadSessions}
+              showConfirm={showCustomConfirm}
+              showAlert={showCustomAlert}
             />
           ) : (
             <div className="h-full min-h-[320px] w-full overflow-hidden rounded-2xl border border-border/70 bg-card/45">
-              <BranchUniverseDiagram
+              {activeCharacter && <BranchUniverseDiagram
                 sessions={characterSessions}
                 activeSession={activeSession}
                 fragments={fragments}
@@ -211,7 +203,7 @@ export default function SessionManagerModal() {
                 onInspectNode={(sessionId, turn, nodeFragments) => {
                   setAuditNode({ sessionId, turn, fragments: nodeFragments });
                 }}
-              />
+              />}
             </div>
           )}
         </div>

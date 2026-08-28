@@ -7,7 +7,7 @@ import {
   saveCharacter,
 } from "../../src/infrastructure/storage/repositories/charactersRepository";
 import type { CharacterCard } from "../../src/types";
-import { replaceCompleteSessions } from "../../src/infrastructure/storage/repositories/sessionsWriteRepository";
+import { deleteSession, replaceCompleteSessions } from "../../src/infrastructure/storage/repositories/sessionsWriteRepository";
 import { getSessionById } from "../../src/infrastructure/storage/indexedDbSessionQueries";
 import { getMessagesBySession } from "../../src/infrastructure/storage/indexedDbMemoryStore";
 import { getDB } from "../../src/infrastructure/storage/idbConnection";
@@ -60,7 +60,7 @@ describe("角色卡轻量目录", () => {
     });
   });
 
-  it("删除角色时原子级联未加载分页中的全部会话和记忆分轨", async () => {
+  it("删除角色时保留全部会话和记忆，避免绕过归档安全缓冲", async () => {
     const sessionIds = Array.from({ length: 55 }, (_, index) => `${characterId}-session-${index}`);
     await replaceCompleteSessions(sessionIds.map((id, index) => ({
       id,
@@ -102,9 +102,9 @@ describe("角色卡轻量目录", () => {
     await deleteCharacter(characterId);
 
     expect(await getCharacterById(characterId)).toBeNull();
-    expect(await getSessionById(sessionIds[0])).toBeNull();
-    expect(await getSessionById(sessionIds[54])).toBeNull();
-    expect(await getMessagesBySession(sessionIds[54])).toEqual([]);
+    expect(await getSessionById(sessionIds[0])).not.toBeNull();
+    expect(await getSessionById(sessionIds[54])).not.toBeNull();
+    expect(await getMessagesBySession(sessionIds[54])).toHaveLength(1);
     const derivedCounts = await new Promise<number[]>((resolve, reject) => {
       const transaction = db.transaction(
         ["memory_dict", "memory_fragments", "memory_facts"],
@@ -116,6 +116,7 @@ describe("角色卡轻量目录", () => {
       transaction.oncomplete = () => resolve(requests.map((request) => request.result));
       transaction.onerror = () => reject(transaction.error);
     });
-    expect(derivedCounts).toEqual([0, 0, 0]);
+    expect(derivedCounts).toEqual([1, 1, 1]);
+    for (const sessionId of sessionIds) await deleteSession(sessionId);
   });
 });

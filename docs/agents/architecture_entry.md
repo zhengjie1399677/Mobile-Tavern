@@ -53,6 +53,7 @@ Runtime Plugin 承载。移动端位于 `src/` 与 `src-tauri/`，云端服务�
 | 聊天编排 | `src/hooks/useChat.tsx`、`src/hooks/useChat/` |
 | 角色与会话用例 | `src/application/useCases/characterUseCases.ts`、`chatSessionUseCases.ts` |
 | 通用数据服务 | `src/application/services/DatabaseService.ts` |
+| 会话目录、归档与收藏备份 | `src/application/services/SessionManagementService.ts`、`src/infrastructure/sessionBackups/` |
 | IndexedDB 物理实现 | `src/infrastructure/storage/` |
 | 本地图片、视频与音频资源 | `src/application/services/LocalResourceService.ts`、`src/infrastructure/resources/` |
 | 记忆端口与适配器 | `src/application/services/memory/types.ts`、`IndexedDbMemoryPersistenceService.ts` |

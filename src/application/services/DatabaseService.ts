@@ -373,6 +373,11 @@ export class DatabaseService implements IDatabaseService<
   }
 
   async deleteSession(id: string, signal?: AbortSignal): Promise<void> {
+    const session = await getSessionById(id);
+    if (!session) return;
+    if (session.lifecycle !== "archived") {
+      throw new Error("SESSION_DELETE_REQUIRES_ARCHIVE");
+    }
     const removedMessageIds = (await getMessagesBySession(id)).map(record => record.id);
     await deleteSession(id, signal ?? this.abortController?.signal);
     await this.patchMessageAttachmentReferences(id, [], removedMessageIds);

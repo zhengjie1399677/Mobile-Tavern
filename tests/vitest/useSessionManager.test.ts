@@ -107,6 +107,9 @@ function createMockParams(overrides?: MockSessionManagerOverrides): MockSessionM
     telemetryService: {
       reportUsage: vi.fn(),
     } as unknown as ITelemetryService,
+    sessionManagementService: {
+      archiveSession: vi.fn().mockImplementation(deleteSession),
+    } as unknown as SessionManagerParams["sessionManagementService"],
     showCustomAlert,
     showCustomConfirm,
     showCustomPrompt,

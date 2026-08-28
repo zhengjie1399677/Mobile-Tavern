@@ -2,6 +2,7 @@ import type { ChatSession, SummaryCard } from "../../../types";
 import { bindTransactionAbort, enqueueWrite } from "../idbQueue";
 import { getDB } from "../idbConnection";
 import {
+  advanceSessionContentRevision,
   fromSessionStorageRecord,
   stripLegacySessionMessages,
   type SessionStorageRecord,
@@ -34,11 +35,11 @@ export async function appendSessionSummary(
           return;
         }
 
-        const updatedRecord = {
+        const updatedRecord = advanceSessionContentRevision({
           ...stripLegacySessionMessages(existingSession),
           summaries: [...(existingSession.summaries || []), newCard],
           lastSummarizedMessageId: newCard.lastMessageId,
-        };
+        });
         updatedSession = fromSessionStorageRecord(updatedRecord);
 
         const putReq = store.put(updatedRecord);
@@ -97,11 +98,11 @@ function mutateSessionSummaries(
           return;
         }
         const summaries = mutate(Array.isArray(existing.summaries) ? existing.summaries : []);
-        const updatedRecord = {
+        const updatedRecord = advanceSessionContentRevision({
           ...stripLegacySessionMessages(existing),
           summaries,
           lastSummarizedMessageId: summaries[summaries.length - 1]?.lastMessageId,
-        };
+        });
         updatedSession = fromSessionStorageRecord(updatedRecord);
         const putRequest = store.put(updatedRecord);
         putRequest.onerror = () => reject(putRequest.error);

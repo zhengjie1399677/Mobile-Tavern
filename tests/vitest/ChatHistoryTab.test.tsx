@@ -3,104 +3,142 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ChatHistoryTab from "../../src/tabs/ChatHistoryTab";
 
-const appState = vi.hoisted(() => ({
-  characters: [{ id: "character-1", name: "冷启动角色" }],
-  sessions: [{
+const fixture = vi.hoisted(() => {
+  const session = {
     id: "session-1",
     characterId: "character-1",
     title: "旧旅程",
     createdAt: 1_000,
+    updatedAt: Date.now(),
+    lifecycle: "active" as const,
+    contentRevision: 1,
     messages: [],
     summaries: [],
     turnCount: 12,
     charCount: 3_456,
-  }],
+    lastMessagePreview: "仍在旅途中",
+  };
+  const entry = {
+    session,
+    characterName: "冷启动角色",
+    branchCount: 0,
+  };
+  const service = {
+    queryDirectory: vi.fn(async (query?: { search?: string }) => ({
+      active: query?.search && !`${session.title} 冷启动角色`.includes(query.search) ? [] : [entry],
+      favorites: [],
+      archived: [],
+    })),
+    archiveSession: vi.fn().mockResolvedValue(undefined),
+    restoreSession: vi.fn().mockResolvedValue(undefined),
+    favoriteSession: vi.fn().mockResolvedValue(undefined),
+    updateFavoriteBackup: vi.fn().mockResolvedValue(undefined),
+    removeFavoriteBackup: vi.fn().mockResolvedValue(undefined),
+    restoreFavoriteBackup: vi.fn().mockResolvedValue(session),
+    permanentlyDeleteArchivedSession: vi.fn().mockResolvedValue(undefined),
+  };
+  return { session, entry, service };
+});
+
+const appState = vi.hoisted(() => ({
   activeSessionId: "session-1",
+  isSending: false,
   setActiveCharId: vi.fn(),
   setActiveSessionId: vi.fn(),
   setActiveTab: vi.fn(),
   setChatSubTab: vi.fn(),
-  deleteBranch: vi.fn(),
+  setShowSessionManager: vi.fn(),
   updateSessionMetadata: vi.fn().mockResolvedValue(undefined),
+  loadSessions: vi.fn().mockResolvedValue(undefined),
   showCustomPrompt: vi.fn().mockResolvedValue("新的会话名称"),
-  totalSessionCount: 51,
-  loadMoreSessions: vi.fn().mockResolvedValue(undefined),
-  hasMoreSessions: true,
-  isLoadingMoreSessions: false,
-  triggerScroll: vi.fn(),
+  showCustomConfirm: vi.fn().mockResolvedValue(true),
+  showCustomAlert: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../src/UnifiedAppContext", () => ({
   useUnifiedApp: (selector: (state: typeof appState) => unknown) => selector(appState),
 }));
 
+vi.mock("../../src/contexts/KernelContext", () => ({
+  useKernel: () => ({ getService: () => fixture.service }),
+}));
+
 vi.mock("../../src/contexts/LanguageContext", () => ({
   useTranslation: () => ({
     t: (key: string, variables?: Record<string, string | number>) => {
-      if (key === "history.turns_chars") {
-        return `${variables?.turnCount} 回合 · ${variables?.charCount} 字`;
-      }
-      if (key === "history.loaded_sessions") {
-        return `已加载 ${variables?.loaded} / ${variables?.total}`;
-      }
+      if (key === "history.turns") return `${variables?.count} 回合`;
+      if (key === "session_manager.result_count") return `${variables?.count} 个结果`;
       return key;
     },
   }),
 }));
 
-describe("历史记录页", () => {
+describe("会话管理器页面", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.setItem("mobile_tavern_history_view_mode", "timeline");
-    appState.hasMoreSessions = true;
-    appState.isLoadingMoreSessions = false;
+    fixture.service.queryDirectory.mockImplementation(async (query?: { search?: string }) => ({
+      active: query?.search && !`${fixture.session.title} 冷启动角色`.includes(query.search) ? [] : [fixture.entry],
+      favorites: [],
+      archived: [],
+    }));
   });
 
-  it("冷启动消息尚未水合时显示 sessions Store 的持久化统计", () => {
+  it("展示权威目录投影和三个固定分类", async () => {
     render(<ChatHistoryTab />);
 
-    expect(screen.getByText("旧旅程")).toBeInTheDocument();
-    expect(screen.getByText(/12 回合 · 3\.5k 字/)).toBeInTheDocument();
+    expect(await screen.findByText("旧旅程")).toBeInTheDocument();
+    expect(screen.getByText("仍在旅途中")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "session_manager.category_active" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "session_manager.category_favorite" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "session_manager.category_archived" })).toBeInTheDocument();
   });
 
-  it("有更早会话时可通过明确按钮继续加载", () => {
+  it("搜索只查询会话名称和角色名称，不冒充消息全文搜索", async () => {
     render(<ChatHistoryTab />);
+    await screen.findByText("旧旅程");
+    fireEvent.click(screen.getByRole("button", { name: /session_manager.search/ }));
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "不存在" } });
 
-    expect(screen.getByText("已加载 1 / 51")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "history.load_more" }));
-
-    expect(appState.loadMoreSessions).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(fixture.service.queryDirectory).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "不存在" }),
+    ));
+    expect(await screen.findByText("session_manager.empty_active")).toBeInTheDocument();
   });
 
-  it("加载期间禁用分页按钮并显示进度", () => {
-    appState.isLoadingMoreSessions = true;
-
+  it("高级筛选将时间、分支和备份状态交给权威目录查询", async () => {
     render(<ChatHistoryTab />);
+    await screen.findByText("旧旅程");
+    fireEvent.click(screen.getByRole("button", { name: "session_manager.filters" }));
+    fireEvent.change(screen.getByLabelText("session_manager.filter_created"), { target: { value: "7" } });
+    fireEvent.change(screen.getByLabelText("session_manager.filter_branch"), { target: { value: "yes" } });
+    fireEvent.change(screen.getByLabelText("session_manager.filter_backup"), { target: { value: "outdated" } });
 
-    expect(screen.getByRole("button", { name: "history.loading_more" })).toBeDisabled();
+    await waitFor(() => expect(fixture.service.queryDirectory).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        createdAfter: expect.any(Number),
+        hasBranch: true,
+        backupStatus: "outdated",
+      }),
+    ));
   });
 
-  it("支持搜索会话并显示无结果状态", () => {
+  it("未归档会话只提供归档，不提供永久删除", async () => {
     render(<ChatHistoryTab />);
+    await screen.findByText("旧旅程");
+    fireEvent.click(screen.getByRole("button", { name: /history.more_actions/ }));
 
-    fireEvent.change(screen.getByRole("searchbox", { name: "history.search_placeholder" }), {
-      target: { value: "不存在" },
-    });
-
-    expect(screen.queryByText("旧旅程")).not.toBeInTheDocument();
-    expect(screen.getByText("history.search_empty")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "session_manager.archive" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "session_manager.delete_permanent" })).not.toBeInTheDocument();
   });
 
   it("更多操作中可以重命名会话", async () => {
     render(<ChatHistoryTab />);
-
+    await screen.findByText("旧旅程");
     fireEvent.click(screen.getByRole("button", { name: /history.more_actions/ }));
     fireEvent.click(screen.getByRole("button", { name: "history.rename" }));
 
-    await waitFor(() => {
-      expect(appState.updateSessionMetadata).toHaveBeenCalledWith("session-1", {
-        title: "新的会话名称",
-      });
-    });
+    await waitFor(() => expect(appState.updateSessionMetadata).toHaveBeenCalledWith("session-1", {
+      title: "新的会话名称",
+    }));
   });
 });
