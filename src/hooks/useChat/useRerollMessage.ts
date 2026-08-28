@@ -27,9 +27,10 @@ import { buildAuthoritativePromptSession } from "../../application/useCases/prom
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
 import {
-  projectMessagePartsToOpenAi,
+  projectMessagePartsForProvider,
   type OpenAiProviderMessage,
 } from "../../application/useCases/multimodalProviderProjection";
+import { resolveBuiltinProviderId } from "../../application/runtimePlugins/agentSpineRuntimePlugin";
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
 
@@ -207,10 +208,17 @@ export function useRerollMessage(p: RerollMessageParams) {
       setCompatibilityGenerationState(p.kernel, { isSending: false });
       return;
     }
-    if (nextMsgs[lastUserIdx].parts?.some(part => part.type !== "text")) {
-      const reason = p.settings.api.supportsVision !== true
+    const rerollParts = nextMsgs[lastUserIdx].parts ?? [];
+    if (rerollParts.some(part => part.type !== "text")) {
+      const needsVision = rerollParts.some(part => part.type === "image" || part.type === "video");
+      const needsNativeAudio = rerollParts.some(part =>
+        part.type === "audio" && part.purpose === "model-input",
+      );
+      const reason = needsVision && p.settings.api.supportsVision !== true
         ? "当前 API 配置未启用图片输入能力，请先在 API 配置中确认模型支持视觉输入。"
-        : p.settings.api.type === "anthropic"
+        : needsNativeAudio && p.settings.api.supportsAudioInput !== true
+          ? "当前 API 配置未启用模型原生语音输入，请先确认当前模型支持 input_audio。"
+        : p.settings.api.type === "anthropic" && (needsVision || needsNativeAudio)
           ? "当前阶段尚未提供 Anthropic 原生多模态投影，请改用 OpenAI-compatible 接口。"
           : null;
       if (reason) {
@@ -330,12 +338,36 @@ export function useRerollMessage(p: RerollMessageParams) {
       const latestMultimodalUserMessage = [...promptSession.messages]
         .reverse()
         .find(message => message.sender === "user" && message.parts?.some(part => part.type !== "text"));
+      const runtime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+      const provider = typeof runtime.getProvider === "function"
+        ? runtime.getProvider(resolveBuiltinProviderId(p.settings.api.type))
+        : {
+            id: resolveBuiltinProviderId(p.settings.api.type),
+            capabilities: {
+              inputModalities: [
+                "text" as const,
+                ...(p.settings.api.supportsVision === true ? ["image" as const] : []),
+                ...(p.settings.api.supportsAudioInput === true ? ["audio" as const] : []),
+              ],
+              supportedMimeTypes: [
+                "image/png",
+                "image/jpeg",
+                "image/gif",
+                "image/webp",
+                "audio/wav",
+                "audio/mpeg",
+              ],
+              supportsStreaming: true,
+              supportsTools: false,
+            },
+          };
       const providerMessages = latestMultimodalUserMessage
-        ? await projectMessagePartsToOpenAi(
+        ? (await projectMessagePartsForProvider(
             baseProviderMessages,
             latestMultimodalUserMessage,
             p.kernel.getService<IAttachmentService>(KernelServices.Attachments),
-          )
+            { providerId: provider.id, capabilities: provider.capabilities },
+          )).messages
         : baseProviderMessages;
 
       const memoryAudit = buildMemoryAuditSnapshot({

@@ -54,6 +54,11 @@ describe("分层配置体系", () => {
     });
   });
 
+  it("社区在未显式配置时保持关闭，开发环境也不自动展示", () => {
+    const environment = parsePublicEnvironment({ MODE: "development", DEV: true });
+    expect(createFeaturePolicies(environment).communityEntry.enabled).toBe(false);
+  });
+
   it("Node 服务生产环境拒绝开发默认密钥", () => {
     expect(() => parseServerConfig({ NODE_ENV: "production" })).toThrow(
       /HMAC_SIGN_KEY/,

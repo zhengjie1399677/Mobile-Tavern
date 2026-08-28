@@ -108,6 +108,7 @@ export default function ApiConfigSection({
                           disableReasoning: target.disableReasoning,
                           forceBasicParams: target.forceBasicParams,
                           supportsVision: target.supportsVision,
+                          supportsAudioInput: target.supportsAudioInput,
                         },
                       }));
                     }
@@ -159,6 +160,7 @@ export default function ApiConfigSection({
                       disableReasoning: settings.api.disableReasoning,
                       forceBasicParams: settings.api.forceBasicParams,
                       supportsVision: settings.api.supportsVision,
+                      supportsAudioInput: settings.api.supportsAudioInput,
                     };
                     updateSettings((prev) => ({
                       ...prev,
@@ -449,6 +451,28 @@ export default function ApiConfigSection({
               <SelectItem value="markdown" className="text-xs">{t("api.format_markdown")}</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between border-t border-border/40 pt-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="space-y-0.5 pr-4">
+            <label className="text-[12.5px] font-semibold text-foreground">
+              模型直接听语音
+            </label>
+            <p className="max-w-[450px] text-[9.5px] text-muted-foreground/80">
+              仅在当前模型支持 OpenAI-compatible input_audio 时启用；它不等同于语音转文字，也不会改变“+”里的音频附件。
+            </p>
+          </div>
+          <Switch
+            aria-label="模型直接听语音"
+            checked={settings.api.supportsAudioInput === true}
+            onCheckedChange={(checked) =>
+              updateSettings((prev) => ({
+                ...prev,
+                api: { ...prev.api, supportsAudioInput: checked },
+              }))
+            }
+            className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
+          />
         </div>
 
         {/* forceBasicParams Switch */}

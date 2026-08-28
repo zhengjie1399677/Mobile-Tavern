@@ -187,7 +187,7 @@ export function useSessionManager(p: SessionManagerParams) {
     }
     const branchTitle = await p.showCustomPrompt(
       "请输入新分支存档名称:",
-      `${p.activeCharacter.name} - 故事分支分支于 ${new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
+      `${p.activeCharacter.name} - 故事分支 ${new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
     );
     if (!branchTitle) return;
     try {
@@ -200,6 +200,9 @@ export function useSessionManager(p: SessionManagerParams) {
       await p.showCustomAlert("分支故事线创建完美拉起！您已成功无痛回溯至选定对话时间轴。");
     } catch (err: unknown) {
       console.error("Failed to save backtrack branch session:", err);
+      await p.showCustomAlert(
+        `创建分支失败：${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }, [p]);
 

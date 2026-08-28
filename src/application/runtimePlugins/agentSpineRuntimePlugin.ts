@@ -47,8 +47,15 @@ const openAiCompatibleProvider: AgentProviderDefinition = {
   id: OPENAI_COMPATIBLE_PROVIDER_ID,
   version: "1.0.0",
   capabilities: {
-    inputModalities: ["text", "image"],
-    supportedMimeTypes: ["image/png", "image/jpeg", "image/gif", "image/webp"],
+    inputModalities: ["text", "image", "audio"],
+    supportedMimeTypes: [
+      "image/png",
+      "image/jpeg",
+      "image/gif",
+      "image/webp",
+      "audio/wav",
+      "audio/mpeg",
+    ],
     maxAttachmentBytes: 20 * 1024 * 1024,
     maxAttachments: 4,
     supportsStreaming: true,

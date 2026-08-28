@@ -29,6 +29,7 @@ export const coreServiceCatalog: readonly ServiceModuleDescriptor[] = [
   { name: KernelServices.Bgm, initTimeoutMs: 3000, load: async () => new (await import("../services/BgmService")).BgmService() },
   { name: KernelServices.Tts, initTimeoutMs: 3000, load: async () => new (await import("../services/TtsService")).TtsService() },
   { name: KernelServices.Asr, initTimeoutMs: 3000, load: async () => new (await import("../services/AsrService")).AsrService() },
+  { name: KernelServices.VoiceCapture, initTimeoutMs: 3000, load: async () => new (await import("../services/VoiceCaptureService")).VoiceCaptureService() },
   { name: KernelServices.Character, initTimeoutMs: 3000, load: async () => new (await import("../services/CharacterService")).CharacterService() },
   { name: KernelServices.Worldbook, initTimeoutMs: 3000, load: async () => new (await import("../services/WorldbookService")).WorldbookService() },
   { name: KernelServices.Settings, initTimeoutMs: 3000, load: async () => new (await import("../services/SettingsService")).SettingsService() },

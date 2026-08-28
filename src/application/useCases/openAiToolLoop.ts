@@ -9,6 +9,10 @@ import type {
 } from "./multimodalProviderProjection";
 
 export const MAX_AGENT_TOOL_STEPS = 8;
+export const MAX_PROVIDER_FUNCTION_TOOLS = 128;
+export const MAX_PROVIDER_FUNCTION_NAME_LENGTH = 64;
+
+const PROVIDER_FUNCTION_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 export interface OpenAiToolDefinitionPayload {
   readonly type: "function";
@@ -57,7 +61,8 @@ export async function executeOpenAiToolLoop(options: OpenAiToolLoopOptions): Pro
   if (!Number.isInteger(maxSteps) || maxSteps <= 0) {
     throw new Error("AGENT_TOOL_LOOP_STEP_LIMIT_INVALID");
   }
-  const tools = buildOpenAiToolDefinitions(options.tools);
+  const transport = buildOpenAiToolTransport(options.tools);
+  const tools = transport.definitions;
   const continuationMessages: OpenAiProviderMessage[] = [];
 
   for (let step = 0; step < maxSteps; step += 1) {
@@ -73,10 +78,15 @@ export async function executeOpenAiToolLoop(options: OpenAiToolLoopOptions): Pro
     }
     if (tools.length === 0) throw new Error("AGENT_TOOL_LOOP_NO_TOOLS_REGISTERED");
 
+    const internalToolCalls = result.toolCalls.map((call) => ({
+      ...call,
+      name: transport.resolveInternalName(call.name),
+    }));
+
     await options.context.recordDecision("tool.loop.step", {
       step,
-      callIds: result.toolCalls.map((call) => call.callId),
-      toolNames: result.toolCalls.map((call) => call.name),
+      callIds: internalToolCalls.map((call) => call.callId),
+      toolNames: internalToolCalls.map((call) => call.name),
     });
     // 没有后续模型步骤消费 Tool Result 时禁止执行工具，避免副作用成功而 Turn 仍失败。
     if (step === maxSteps - 1) {
@@ -87,7 +97,7 @@ export async function executeOpenAiToolLoop(options: OpenAiToolLoopOptions): Pro
       content: result.content || null,
       tool_calls: result.toolCalls.map(toOpenAiProviderToolCall),
     });
-    for (const call of result.toolCalls) {
+    for (const call of internalToolCalls) {
       const toolResult = await options.context.executeTool(call);
       continuationMessages.push({
         role: "tool",
@@ -103,16 +113,64 @@ export async function executeOpenAiToolLoop(options: OpenAiToolLoopOptions): Pro
 export function buildOpenAiToolDefinitions(
   tools: readonly AgentToolDefinition[],
 ): OpenAiToolDefinitionPayload[] {
-  return [...tools]
-    .sort((left, right) => left.name.localeCompare(right.name))
-    .map((tool) => ({
+  return buildOpenAiToolTransport(tools).definitions;
+}
+
+function buildOpenAiToolTransport(tools: readonly AgentToolDefinition[]): {
+  readonly definitions: OpenAiToolDefinitionPayload[];
+  resolveInternalName(providerName: string): string;
+} {
+  if (tools.length > MAX_PROVIDER_FUNCTION_TOOLS) {
+    throw new Error(`AGENT_PROVIDER_TOOL_LIMIT_EXCEEDED: ${tools.length}`);
+  }
+  const sortedTools = [...tools].sort((left, right) => left.name.localeCompare(right.name));
+  const providerToInternal = new Map<string, string>();
+  const definitions = sortedTools.map((tool) => {
+    const providerName = createProviderFunctionName(tool.name, providerToInternal);
+    providerToInternal.set(providerName, tool.name);
+    return {
       type: "function" as const,
       function: {
-        name: tool.name,
+        name: providerName,
         description: tool.description,
         parameters: structuredClone(tool.inputJsonSchema),
       },
-    }));
+    };
+  });
+  return {
+    definitions,
+    resolveInternalName(providerName: string): string {
+      const internalName = providerToInternal.get(providerName);
+      if (!internalName) throw new Error(`AGENT_PROVIDER_TOOL_NAME_UNMAPPED: ${providerName}`);
+      return internalName;
+    },
+  };
+}
+
+function createProviderFunctionName(
+  internalName: string,
+  usedNames: ReadonlyMap<string, string>,
+): string {
+  if (PROVIDER_FUNCTION_NAME_PATTERN.test(internalName) && !usedNames.has(internalName)) {
+    return internalName;
+  }
+  const normalized = internalName.replace(/[^A-Za-z0-9_-]/g, "_") || "tool";
+  const hash = stableNameHash(internalName);
+  for (let collisionIndex = 0; ; collisionIndex += 1) {
+    const suffix = collisionIndex === 0 ? `_${hash}` : `_${hash}_${collisionIndex}`;
+    const prefixLength = MAX_PROVIDER_FUNCTION_NAME_LENGTH - suffix.length;
+    const candidate = `${normalized.slice(0, prefixLength) || "tool"}${suffix}`;
+    if (!usedNames.has(candidate)) return candidate;
+  }
+}
+
+function stableNameHash(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 /** 聚合流式 delta.tool_calls，并在步骤结束时生成稳定 Tool Call。 */

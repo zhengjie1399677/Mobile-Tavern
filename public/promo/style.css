@@ -7,7 +7,6 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif;
   --font-display: var(--font-sans);
   
-  /* 精致灰度调色盘 */
   --bg-dark: #050507;
   --bg-card: rgba(18, 18, 22, 0.6);
   --border-color: rgba(255, 255, 255, 0.08);
@@ -17,8 +16,7 @@
   --text-secondary: #a1a1aa;
   --text-muted: #52525b;
   
-  /* 现代冷调强调色 */
-  --accent-color: #6366f1; /* 靛蓝 Indigo */
+  --accent-color: #6366f1;
   --accent-glow: rgba(99, 102, 241, 0.15);
   --accent-magenta: #d946ef;
   
@@ -103,6 +101,7 @@ body {
   cursor: pointer;
   text-decoration: none;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn-primary:hover {
@@ -124,6 +123,8 @@ body {
   font-size: 14px;
   padding: 10px 20px;
   border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
   cursor: pointer;
   text-decoration: none;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -134,32 +135,34 @@ body {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.btn-github {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  text-decoration: none;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.btn-github:hover {
-  color: var(--text-primary);
-  border-color: var(--border-hover);
-}
-
-.github-icon {
-  width: 16px;
-  height: 16px;
-}
-
 .btn-large {
   padding: 14px 28px;
   font-size: 16px;
   border-radius: 10px;
+}
+
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.btn-hamburger {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-hamburger svg {
+  width: 20px;
+  height: 20px;
 }
 
 .w-full {
@@ -168,10 +171,6 @@ body {
 
 .text-center {
   text-align: center;
-}
-
-.mt-auto {
-  margin-top: auto;
 }
 
 /* 5. 导航头部 (Site Header) */
@@ -280,7 +279,7 @@ body {
   color: var(--text-secondary);
 }
 
-/* 7. Hero 首屏区域 (极简居中排版) */
+/* 7. 原版 Hero 首屏区域 (极简居中排版) */
 .hero-section {
   position: relative;
   overflow: hidden;
@@ -402,7 +401,232 @@ body {
   color: var(--text-secondary);
 }
 
-/* 10. 合并的极简毛玻璃居中下载卡片 */
+/* 9. 精简四大技术规范 Hub Section */
+.tutorials-section {
+  position: relative;
+  padding: 80px 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.tutorials-tab-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 32px;
+  width: 100%;
+}
+
+.tutorials-tabs {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(18, 18, 22, 0.7);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.tutorials-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.tab-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tab-btn:active {
+  transform: scale(0.96);
+}
+
+.tab-btn.active {
+  color: #000000;
+  background: #ffffff;
+  border-color: #ffffff;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);
+}
+
+.tutorials-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 180px;
+}
+
+.doc-card {
+  border-radius: 16px;
+  padding: 28px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: fadeInDoc 0.25s ease;
+}
+
+@keyframes fadeInDoc {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.doc-card-header {
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.doc-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.doc-sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.doc-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.doc-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.block-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #a78bfa;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spec-list {
+  list-style: none;
+  padding-left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spec-list li {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  position: relative;
+  padding-left: 16px;
+}
+
+.spec-list li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #38bdf8;
+  font-weight: bold;
+}
+
+.spec-list strong {
+  color: var(--text-primary);
+}
+
+.step-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.step-num {
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-color);
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.step-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-heading {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.step-detail {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.code-block {
+  display: inline-block;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border-color);
+  color: #38bdf8;
+  font-family: SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.code-multiline {
+  display: block;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border-color);
+  color: #e4e4e7;
+  font-family: SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 12px 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: pre;
+  margin-top: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 10. 原版极简毛玻璃居中下载卡片 (最下方) */
 .download-container-card {
   margin-top: 80px;
   padding: 48px;
@@ -433,7 +657,7 @@ body {
   line-height: 1.6;
 }
 
-.download-card-body {
+.download-card-header-body {
   display: flex;
   justify-content: center;
   width: 100%;
@@ -552,33 +776,177 @@ body {
   color: var(--text-muted);
 }
 
-/* 12. 响应式布局优化 */
+.footer-right {
+  display: flex;
+  gap: 20px;
+}
+
+.footer-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 13px;
+  transition: color 0.2s;
+}
+
+.footer-link:hover {
+  color: var(--text-primary);
+}
+
+/* 12. 移动端抽屉 */
+.mobile-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  z-index: 199;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.mobile-drawer-overlay.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 280px;
+  height: 100vh;
+  background: #09090d;
+  border-left: 1px solid var(--border-color);
+  z-index: 200;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+}
+
+.mobile-drawer.is-active {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 36px;
+}
+
+.btn-close-drawer {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.btn-close-drawer svg {
+  width: 24px;
+  height: 24px;
+}
+
+.drawer-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.drawer-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.drawer-footer {
+  margin-top: auto;
+}
+
+/* 13. 响应式布局优化 (Responsive Tweaks) */
 @media (max-width: 1024px) {
   .hero-container {
     text-align: center;
     gap: 48px;
   }
-  
+
   .hero-text-content {
     align-items: center;
   }
-  
+
   .hero-actions {
     justify-content: center;
   }
 }
 
 @media (max-width: 768px) {
-  .nav-links {
-    display: none; /* 简易移动端隐藏导航项 */
+  .nav-links, .btn-desktop-only {
+    display: none;
   }
-  
+
+  .btn-hamburger {
+    display: flex;
+  }
+
+  .hero-container {
+    padding-top: 40px;
+    padding-bottom: 32px;
+    min-height: auto;
+  }
+
   .hero-title {
     font-size: 32px;
   }
-  
+
+  .hero-subtitle {
+    font-size: 15px;
+    margin-bottom: 28px;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .hero-actions .btn-primary,
+  .hero-actions .btn-secondary {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 15px;
+  }
+
   .features-grid {
     grid-template-columns: 1fr;
+  }
+
+  .tutorials-section {
+    padding: 48px 0;
+  }
+
+  .tutorials-tab-wrapper {
+    justify-content: flex-start;
+    padding: 0 16px;
+    margin-bottom: 20px;
+    width: calc(100% + 32px);
+    margin-left: -16px;
+  }
+
+  .tutorials-tabs {
+    padding: 4px;
+    gap: 6px;
+    border-radius: 10px;
+  }
+
+  .tab-btn {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+
+  .doc-card {
+    padding: 18px;
+    border-radius: 12px;
   }
 
   .download-container-card {
@@ -589,7 +957,7 @@ body {
   .download-option-block.single-option {
     padding: 24px;
   }
-  
+
   .footer-container {
     flex-direction: column;
     gap: 16px;

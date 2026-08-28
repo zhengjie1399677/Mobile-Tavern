@@ -1,4 +1,4 @@
-// Sub-tab 2 故事时间线年鉴
+// 会话资料中的故事时间线年鉴面板
 // 从原 ChatTab.tsx L1659-1808 抽离
 // 通过 selector 订阅所需上下文字段，接收 visibleExtensions 作为 prop
 
@@ -57,10 +57,7 @@ const StoryTimelineView = () => {
     >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-bold text-foreground">
-            故事年表
-          </p>
-          <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
+          <p className="text-[11px] leading-5 text-muted-foreground">
             记录长期剧情节点，并在发送时加入系统 Prompt。
           </p>
 

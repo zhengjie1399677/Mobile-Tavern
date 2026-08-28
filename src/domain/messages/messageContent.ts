@@ -12,6 +12,8 @@ export interface ImageMessageContentPart {
 export interface AudioMessageContentPart {
   readonly type: "audio";
   readonly assetId: string;
+  /** 缺省表示普通录音/音乐附件；仅显式标记时才允许作为模型原生音频输入。 */
+  readonly purpose?: "model-input";
   readonly transcriptAssetId?: string;
 }
 
@@ -72,6 +74,7 @@ export function normalizeMessageContentParts(
         return {
           type: "audio",
           assetId: part.assetId,
+          purpose: part.purpose === "model-input" ? "model-input" : undefined,
           transcriptAssetId: part.transcriptAssetId,
         };
       case "video":

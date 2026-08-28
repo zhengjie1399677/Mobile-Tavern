@@ -52,6 +52,7 @@ export const KernelServices = {
   Bgm: "bgm",
   Tts: "tts",
   Asr: "asr",
+  VoiceCapture: "voiceCapture",
   Character: "character",
   Worldbook: "worldbook",
   Settings: "settings",
@@ -646,6 +647,19 @@ export interface IAsrService extends IKernelService {
     config: AsrConfig,
     signal?: AbortSignal,
   ): Promise<string>;
+}
+
+export interface VoiceCaptureOptions {
+  readonly maxDurationMs?: number;
+  readonly onLimitReached?: () => void;
+}
+
+/** 只负责采集供模型原生理解的 WAV 语音，不承担 ASR 或音频附件选择。 */
+export interface IVoiceCaptureService extends IKernelService {
+  isCapturing(): boolean;
+  startCapture(options?: VoiceCaptureOptions): Promise<void>;
+  stopCapture(): Promise<File>;
+  cancelCapture(): Promise<void>;
 }
 
 /**

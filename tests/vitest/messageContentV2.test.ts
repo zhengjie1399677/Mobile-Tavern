@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectMessageAssetIds,
   getMessageContentText,
+  normalizeMessageContentParts,
   replaceMessageText,
   type MessageContentPart,
 } from "../../src/domain/messages/messageContent";
@@ -24,6 +25,15 @@ const baseRecord = {
 } as const;
 
 describe("Message Content V2", () => {
+  it("保留模型原生语音用途，同时让旧音频消息继续按普通附件解释", () => {
+    expect(normalizeMessageContentParts([
+      { type: "audio", assetId: "att_voice", purpose: "model-input" },
+      { type: "audio", assetId: "att_music" },
+    ])).toEqual([
+      { type: "audio", assetId: "att_voice", purpose: "model-input", transcriptAssetId: undefined },
+      { type: "audio", assetId: "att_music", purpose: undefined, transcriptAssetId: undefined },
+    ]);
+  });
   it("V1 消息没有 Content Parts 时附件引用集合为空", () => {
     expect(collectMessageAssetIds([])).toEqual([]);
   });

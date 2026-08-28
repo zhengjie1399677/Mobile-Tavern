@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ChatHistoryTab from "../../src/tabs/ChatHistoryTab";
 
@@ -15,11 +15,14 @@ const appState = vi.hoisted(() => ({
     turnCount: 12,
     charCount: 3_456,
   }],
+  activeSessionId: "session-1",
   setActiveCharId: vi.fn(),
   setActiveSessionId: vi.fn(),
   setActiveTab: vi.fn(),
   setChatSubTab: vi.fn(),
   deleteBranch: vi.fn(),
+  updateSessionMetadata: vi.fn().mockResolvedValue(undefined),
+  showCustomPrompt: vi.fn().mockResolvedValue("新的会话名称"),
   totalSessionCount: 51,
   loadMoreSessions: vi.fn().mockResolvedValue(undefined),
   hasMoreSessions: true,
@@ -75,5 +78,29 @@ describe("历史记录页", () => {
     render(<ChatHistoryTab />);
 
     expect(screen.getByRole("button", { name: "history.loading_more" })).toBeDisabled();
+  });
+
+  it("支持搜索会话并显示无结果状态", () => {
+    render(<ChatHistoryTab />);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "history.search_placeholder" }), {
+      target: { value: "不存在" },
+    });
+
+    expect(screen.queryByText("旧旅程")).not.toBeInTheDocument();
+    expect(screen.getByText("history.search_empty")).toBeInTheDocument();
+  });
+
+  it("更多操作中可以重命名会话", async () => {
+    render(<ChatHistoryTab />);
+
+    fireEvent.click(screen.getByRole("button", { name: /history.more_actions/ }));
+    fireEvent.click(screen.getByRole("button", { name: "history.rename" }));
+
+    await waitFor(() => {
+      expect(appState.updateSessionMetadata).toHaveBeenCalledWith("session-1", {
+        title: "新的会话名称",
+      });
+    });
   });
 });

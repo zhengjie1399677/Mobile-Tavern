@@ -11,14 +11,29 @@ import type { IAttachmentService } from "../../src/application/serviceContracts"
 import type { IKernelService } from "../../src/kernel/types";
 
 describe("多模态附件输入", () => {
-  it("从统一按钮展开图片、视频与音频三个独立入口", () => {
+  it("从统一按钮展开图片、视频、音频与快捷栏四个入口", () => {
     const onSelect = vi.fn();
-    render(<AttachmentPicker disabled={false} selectedCount={0} maxCount={4} onSelect={onSelect} />);
+    const onToggleQuickActions = vi.fn();
+    render(
+      <AttachmentPicker
+        disabled={false}
+        selectedCount={0}
+        maxCount={4}
+        quickActionsVisible={false}
+        onSelect={onSelect}
+        onToggleQuickActions={onToggleQuickActions}
+      />,
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: "添加附件" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加内容" }));
     expect(screen.getByRole("menuitem", { name: /图片/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /视频/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /音频/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "快捷栏" }));
+    expect(onToggleQuickActions).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "快捷栏" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "添加内容" }));
 
     const file = new File([new Uint8Array([1, 2, 3])], "cover.png", { type: "image/png" });
     fireEvent.change(screen.getByLabelText("选择图片"), { target: { files: [file] } });
@@ -32,12 +47,14 @@ describe("多模态附件输入", () => {
       createPending("att_image", "image", "cover.png", 2048),
       createPending("att_video", "video", "scene.mp4", 2 * 1024 * 1024),
       createPending("att_audio", "audio", "voice.mp3", 4096),
+      { ...createPending("att_voice", "audio", "voice-input.wav", 8192), purpose: "model-input" },
     ];
     render(<PendingAttachmentStrip items={items} maxCount={4} onRemove={onRemove} />);
 
     expect(screen.getByText("图片")).toBeInTheDocument();
     expect(screen.getByText("视频")).toBeInTheDocument();
     expect(screen.getAllByText("音频").length).toBeGreaterThan(0);
+    expect(screen.getByText("语音输入")).toBeInTheDocument();
     expect(screen.getByText("cover.png")).toBeInTheDocument();
     expect(screen.getByText("2 KB")).toBeInTheDocument();
     expect(screen.getByText("2.0 MB")).toBeInTheDocument();

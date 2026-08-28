@@ -6,7 +6,11 @@ import React from "react";
 import { LoaderCircle } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
-import { IBgmService } from "@/src/application/serviceContracts";
+import {
+  IBgmService,
+  KernelServices,
+  type ICompatibilityRuntimeService,
+} from "@/src/application/serviceContracts";
 import CharacterDetailDrawer from "../../components/CharacterDetailDrawer";
 
 const MemoryTableDrawer = React.lazy(() =>
@@ -21,6 +25,12 @@ import CharacterPortraitSection from "./CharacterPortraitSection";
 import DialogueHistoryView from "./DialogueHistoryView";
 import StoryTimelineView from "./StoryTimelineView";
 import HiddenScriptLayer from "./HiddenScriptLayer";
+
+function hasMvuConfiguration(extensions: unknown): boolean {
+  if (!extensions || typeof extensions !== "object" || Array.isArray(extensions)) return false;
+  const record = extensions as Record<string, unknown>;
+  return Boolean(record.mvu_settings || record.mvu || record.MVU);
+}
 
 export default function ChatTab() {
   const {
@@ -118,6 +128,19 @@ export default function ChatTab() {
   // 背景音乐 (BGM) 自动播放与停止控制
   const bgmUrl = activeCharacter?.visualSettings?.bgmUrl;
   const bgmVolume = activeCharacter?.visualSettings?.bgmVolume ?? 0.5;
+  const enableRecall = settings.memory?.enableRecall !== false;
+  const enableMvuVariables = React.useMemo(() => {
+    if (!settings.enableScriptExecution || !hasMvuConfiguration(activeCharacter?.extensions)) {
+      return false;
+    }
+    try {
+      return getKernelService<ICompatibilityRuntimeService>(
+        KernelServices.CompatibilityRuntime,
+      ).isEnabled();
+    } catch {
+      return false;
+    }
+  }, [activeCharacter?.extensions, getKernelService, settings.enableScriptExecution]);
 
   React.useEffect(() => {
     const bgmService = getKernelService<IBgmService>("bgm");
@@ -154,16 +177,27 @@ export default function ChatTab() {
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-background overflow-hidden">
+    <div
+      data-ui="chat-shell"
+      data-emotion={currentEmotionName}
+      data-emotion-glow={settings.enableEmotionAmbientGlow ? "enabled" : "disabled"}
+      className="chat-shell flex flex-col flex-1 min-h-0 bg-background overflow-hidden"
+      style={{
+        "--emotion-glow-primary": glowColors.light1,
+        "--emotion-glow-secondary": glowColors.light2,
+      } as React.CSSProperties}
+    >
       {safeCustomCss && (
         <style dangerouslySetInnerHTML={{
-          __html: `@media (min-width: 768px) { ${safeCustomCss} }`
+          __html: safeCustomCss
         }} />
       )}
       {/* Embedded Header info card */}
       <ChatHeader
         openTableDrawer={openTableDrawer}
         setIsDetailDrawerOpen={setIsDetailDrawerOpen}
+        enableRecall={enableRecall}
+        enableMvuVariables={enableMvuVariables}
       />
 
       {/* 2.5. Character Big Portrait Section (Dynamic Expressions) */}
@@ -184,7 +218,6 @@ export default function ChatTab() {
         showScrollButton={showScrollButton}
         scrollToBottom={scrollToBottom}
         markInitialPositionReady={markInitialPositionReady}
-        glowColors={glowColors}
         isOriginalBg={isOriginalBg}
         activePortraitUrl={activePortraitUrl}
         isKeyboardOpen={isKeyboardOpen}
@@ -208,10 +241,10 @@ export default function ChatTab() {
       />
       {isTableDrawerOpen && activeSession && activeCharacter && (
         <React.Suspense fallback={(
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px]" role="status" aria-label="正在加载记忆与状态中心">
-            <div className="flex min-h-28 w-full max-w-lg items-center justify-center gap-2 rounded-t-[22px] border-t border-border/80 bg-background/95 text-xs text-muted-foreground">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55" role="status" aria-label="正在加载会话资料">
+            <div className="flex min-h-28 w-full max-w-lg items-center justify-center gap-2 rounded-t-3xl border-t border-border/70 bg-background text-xs text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" />
-              正在打开记忆与状态中心…
+              正在打开会话资料…
             </div>
           </div>
         )}>
@@ -223,6 +256,8 @@ export default function ChatTab() {
             charName={activeCharacter.name}
             enableTableMemory={!!settings.enableTableMemory}
             enableAutoSummary={settings.memory?.enableAutoSummary !== false}
+            enableRecall={enableRecall}
+            enableMvuVariables={enableMvuVariables}
             initialTab={tableDrawerTab}
           />
         </React.Suspense>

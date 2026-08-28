@@ -12,9 +12,14 @@ interface ImageProviderPart {
   image_url: { url: string; detail: "auto" };
 }
 
+interface AudioProviderPart {
+  type: "input_audio";
+  input_audio: { data: string; format: "wav" | "mp3" };
+}
+
 export interface OpenAiProviderMessage {
   role: string;
-  content: string | Array<TextProviderPart | ImageProviderPart> | null;
+  content: string | Array<TextProviderPart | ImageProviderPart | AudioProviderPart> | null;
   name?: string;
   tool_calls?: readonly OpenAiProviderToolCall[];
   tool_call_id?: string;
@@ -35,7 +40,7 @@ export interface MediaProjectionDecision {
   readonly strategy: "text-only" | "direct" | "derived";
   readonly sourceAssetIds: readonly string[];
   readonly projectedAssetIds: readonly string[];
-  readonly reason?: "IMAGE_DIRECT" | "AUDIO_TRANSCRIPT" | "VIDEO_KEYFRAMES";
+  readonly reason?: "IMAGE_DIRECT" | "AUDIO_DIRECT" | "AUDIO_TRANSCRIPT" | "VIDEO_KEYFRAMES";
 }
 
 export interface ProviderProjectionTarget {
@@ -65,10 +70,11 @@ export async function projectMessagePartsForProvider(
     };
   }
 
-  const parts: Array<TextProviderPart | ImageProviderPart> = [];
+  const parts: Array<TextProviderPart | ImageProviderPart | AudioProviderPart> = [];
   const sourceAssetIds: string[] = [];
   const projectedAssetIds: string[] = [];
   let usedDirectImage = false;
+  let usedDirectAudio = false;
   let usedAudioTranscript = false;
   let usedVideoFrames = false;
   const hasAudioTranscript = message.parts.some(part =>
@@ -89,10 +95,19 @@ export async function projectMessagePartsForProvider(
       continue;
     }
 
-    if (part.type === "audio" && hasAudioTranscript) {
+    if (part.type === "audio") {
       sourceAssetIds.push(part.assetId);
-      usedAudioTranscript = true;
-      continue;
+      if (part.purpose === "model-input") {
+        assertModality(target, "audio");
+        await appendAudioPart(parts, projectedAssetIds, part.assetId, attachments, target);
+        usedDirectAudio = true;
+        continue;
+      }
+      if (hasAudioTranscript) {
+        usedAudioTranscript = true;
+        continue;
+      }
+      throw new Error("MULTIMODAL_AUDIO_ATTACHMENT_REQUIRES_TRANSCRIPT");
     }
 
     if (part.type === "video" && part.frameAssetIds && part.frameAssetIds.length > 0) {
@@ -143,7 +158,13 @@ export async function projectMessagePartsForProvider(
     strategy: usedVideoFrames ? "derived" : "direct",
     sourceAssetIds,
     projectedAssetIds,
-    reason: usedVideoFrames ? "VIDEO_KEYFRAMES" : usedDirectImage ? "IMAGE_DIRECT" : undefined,
+    reason: usedVideoFrames
+      ? "VIDEO_KEYFRAMES"
+      : usedDirectAudio
+        ? "AUDIO_DIRECT"
+        : usedDirectImage
+          ? "IMAGE_DIRECT"
+          : undefined,
   };
   return { messages: projectedMessages, decision };
 }
@@ -158,7 +179,14 @@ export async function projectMessagePartsToOpenAi(
     providerId: "provider.openai-compatible",
     capabilities: {
       inputModalities: ["text", "image", "audio", "video", "file"],
-      supportedMimeTypes: ["image/png", "image/jpeg", "image/gif", "image/webp"],
+      supportedMimeTypes: [
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "audio/wav",
+        "audio/mpeg",
+      ],
       supportsStreaming: true,
       supportsTools: true,
     },
@@ -167,7 +195,7 @@ export async function projectMessagePartsToOpenAi(
 }
 
 async function appendImagePart(
-  parts: Array<TextProviderPart | ImageProviderPart>,
+  parts: Array<TextProviderPart | ImageProviderPart | AudioProviderPart>,
   projectedAssetIds: string[],
   assetId: string,
   attachments: IAttachmentService,
@@ -201,7 +229,54 @@ async function appendImagePart(
   });
 }
 
-function assertModality(target: ProviderProjectionTarget, modality: "image"): void {
+async function appendAudioPart(
+  parts: Array<TextProviderPart | ImageProviderPart | AudioProviderPart>,
+  projectedAssetIds: string[],
+  assetId: string,
+  attachments: IAttachmentService,
+  target: ProviderProjectionTarget,
+): Promise<void> {
+  const blob = await attachments.getBlob(assetId);
+  const format = blob.type === "audio/wav"
+    ? "wav"
+    : blob.type === "audio/mpeg"
+      ? "mp3"
+      : null;
+  if (!format) throw new Error(`MULTIMODAL_AUDIO_FORMAT_UNSUPPORTED: ${blob.type || "unknown"}`);
+  assertAttachmentConstraints(blob, projectedAssetIds.length + 1, target);
+  projectedAssetIds.push(assetId);
+  parts.push({
+    type: "input_audio",
+    input_audio: { data: await blobToBase64(blob), format },
+  });
+}
+
+function assertAttachmentConstraints(
+  blob: Blob,
+  nextCount: number,
+  target: ProviderProjectionTarget,
+): void {
+  if (
+    target.capabilities.supportedMimeTypes
+    && !target.capabilities.supportedMimeTypes.includes(blob.type)
+  ) {
+    throw new Error(`MULTIMODAL_PROVIDER_MIME_UNSUPPORTED: ${blob.type}`);
+  }
+  if (
+    target.capabilities.maxAttachmentBytes !== undefined
+    && blob.size > target.capabilities.maxAttachmentBytes
+  ) {
+    throw new Error("MULTIMODAL_PROVIDER_ATTACHMENT_TOO_LARGE");
+  }
+  if (
+    target.capabilities.maxAttachments !== undefined
+    && nextCount > target.capabilities.maxAttachments
+  ) {
+    throw new Error("MULTIMODAL_PROVIDER_ATTACHMENT_COUNT_EXCEEDED");
+  }
+}
+
+function assertModality(target: ProviderProjectionTarget, modality: "image" | "audio"): void {
   if (!target.capabilities.inputModalities.includes(modality)) {
     throw new Error(`MULTIMODAL_PROVIDER_MODALITY_UNSUPPORTED: ${modality}`);
   }
@@ -236,7 +311,9 @@ function cloneProviderMessage(message: OpenAiProviderMessage): OpenAiProviderMes
     content: Array.isArray(message.content)
       ? message.content.map((part) => part.type === "text"
         ? { ...part }
-        : { ...part, image_url: { ...part.image_url } })
+        : part.type === "image_url"
+          ? { ...part, image_url: { ...part.image_url } }
+          : { ...part, input_audio: { ...part.input_audio } })
       : message.content,
     tool_calls: message.tool_calls?.map((call) => ({
       ...call,
@@ -246,11 +323,15 @@ function cloneProviderMessage(message: OpenAiProviderMessage): OpenAiProviderMes
 }
 
 async function blobToDataUrl(blob: Blob): Promise<string> {
+  return `data:${blob.type};base64,${await blobToBase64(blob)}`;
+}
+
+async function blobToBase64(blob: Blob): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   let binary = "";
   const chunkSize = 0x8000;
   for (let offset = 0; offset < bytes.length; offset += chunkSize) {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
   }
-  return `data:${blob.type};base64,${btoa(binary)}`;
+  return btoa(binary);
 }

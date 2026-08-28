@@ -5,12 +5,17 @@
 import React from "react";
 import {
   ArrowLeft,
-  GitFork,
   Volume2,
   VolumeX,
   Box,
   Activity,
-  Network,
+  MessagesSquare,
+  History,
+  Table2,
+  BookOpen,
+  BrainCircuit,
+  Braces,
+  ChevronRight,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -22,11 +27,15 @@ import AgentHostDiagnosticsModal from "../../components/plugins/AgentHostDiagnos
 interface ChatHeaderProps {
   openTableDrawer: (tab: 'timeline' | 'table' | 'dict' | 'recall' | 'mvu') => void;
   setIsDetailDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  enableRecall: boolean;
+  enableMvuVariables: boolean;
 }
 
 const ChatHeader = ({
   openTableDrawer,
   setIsDetailDrawerOpen,
+  enableRecall,
+  enableMvuVariables,
 }: ChatHeaderProps) => {
   const { t } = useTranslation();
   const {
@@ -38,8 +47,6 @@ const ChatHeader = ({
     setSessionViews,
     updateSessionMetadata,
     settings,
-    chatSubTab,
-    setChatSubTab,
     getKernelService,
   } = useUnifiedApp((state) => ({
     activeCharacter: state.activeCharacter,
@@ -50,13 +57,11 @@ const ChatHeader = ({
     setSessionViews: state.setSessionViews,
     updateSessionMetadata: state.updateSessionMetadata,
     settings: state.settings,
-    chatSubTab: state.chatSubTab,
-    setChatSubTab: state.setChatSubTab,
     getKernelService: state.getKernelService,
   }));
 
   const [isMuted, setIsMuted] = React.useState(false);
-  const [showMemoryMenu, setShowMemoryMenu] = React.useState(false);
+  const [showSessionMenu, setShowSessionMenu] = React.useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
 
@@ -64,17 +69,17 @@ const ChatHeader = ({
   const { isArAvailable, launchAr } = useArSync({ activeSession });
 
   React.useEffect(() => {
-    if (!showMemoryMenu) return;
+    if (!showSessionMenu) return;
     const handleOutsideClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMemoryMenu(false);
+        setShowSessionMenu(false);
       }
     };
     document.addEventListener("mousedown", handleOutsideClick);
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
-  }, [showMemoryMenu]);
+  }, [showSessionMenu]);
 
   React.useEffect(() => {
     const bgmService = getKernelService<IBgmService>("bgm");
@@ -93,98 +98,77 @@ const ChatHeader = ({
 
   return (
     <div
-      style={{ paddingTop: "calc(var(--safe-area-top) + 12px)" }}
-      className="bg-card px-3 pb-3 border-b border-border flex items-center justify-between sticky top-0 z-30"
+      style={{ paddingTop: "calc(var(--safe-area-top) + 4px)" }}
+      className="chat-header-shell sticky top-0 z-30 flex items-center justify-between gap-2 px-2.5 pb-1"
     >
-      <div className="flex items-center gap-2.5 min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
         <button
           aria-label={t("chat_header.back_aria")}
           onClick={() => setActiveTab("characters")}
-          className="text-muted-foreground hover:text-foreground"
+          className="chat-header-action flex size-11 shrink-0 items-center justify-center rounded-2xl text-muted-foreground transition hover:text-foreground active:scale-95"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="size-5" />
         </button>
-        <div
+        <button
+          type="button"
           onClick={() => setIsDetailDrawerOpen(true)}
-          className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-85 active:scale-98 transition-all"
+          aria-label={t("chat_header.view_char_detail")}
+          className="chat-header-avatar flex size-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-muted transition-opacity hover:opacity-85 active:scale-95"
           title={t("chat_header.view_char_detail")}
         >
-          <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted border border-border/80 flex items-center justify-center flex-shrink-0">
-            {activeCharacter?.avatar ? (
-              <img
-                src={activeCharacter.avatar}
-                alt={activeCharacter.name}
-                decoding="async"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-base font-serif font-bold text-primary">
-                {activeCharacter?.name?.[0]}
-              </span>
-            )}
-          </div>
-          <div className="min-w-0 flex flex-col">
-            <div className="flex items-center gap-1.5">
-              <h2 className="text-sm font-bold text-foreground truncate leading-tight">
-                {activeCharacter?.name}
-              </h2>
-              <button
-                aria-label={t("chat_header.branch_management")}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowSessionManager(true);
-                }}
-                className="text-primary hover:bg-primary/10 p-0.5 rounded transition"
-                title={t("chat_header.branch_management")}
-              >
-                <GitFork className="w-3 h-3" />
-              </button>
-            </div>
-            <p
-              className="text-[10px] text-muted-foreground truncate mt-0.5 font-light cursor-pointer"
-              onClick={async (e) => {
-                e.stopPropagation();
-                const nextTitle = await showCustomPrompt(
-                  t("chat_header.rename_prompt"),
-                  activeSession?.title || "",
-                );
-                if (nextTitle && activeSession) {
-                  const updated = { ...activeSession, title: nextTitle };
-                  setSessionViews((prev) =>
-                    prev.map((session) => (session.id === updated.id ? updated : session)),
-                  );
-                  await updateSessionMetadata(updated.id, { title: nextTitle });
-                }
-              }}
-            >
-              {activeSession?.title || t("session_manager.default_branch_name")} {t("chat_header.click_to_edit")}
-            </p>
-          </div>
-        </div>
+          {activeCharacter?.avatar ? (
+            <img
+              src={activeCharacter.avatar}
+              alt={activeCharacter.name}
+              decoding="async"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="font-serif text-base font-bold text-primary">
+              {activeCharacter?.name?.[0]}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          className="flex min-h-11 min-w-0 max-w-[48vw] flex-col justify-center text-left transition-opacity hover:opacity-80 active:opacity-65"
+          onClick={async () => {
+            const nextTitle = await showCustomPrompt(
+              t("chat_header.rename_prompt"),
+              activeSession?.title || "",
+            );
+            if (nextTitle && activeSession) {
+              const updated = { ...activeSession, title: nextTitle };
+              setSessionViews((prev) =>
+                prev.map((session) => (session.id === updated.id ? updated : session)),
+              );
+              await updateSessionMetadata(updated.id, { title: nextTitle });
+            }
+          }}
+          aria-label="修改会话名称"
+        >
+          <h2 className="truncate text-[15px] font-semibold leading-tight tracking-[-0.01em] text-foreground">
+            {activeCharacter?.name}
+          </h2>
+          <span className="mt-0.5 block w-full truncate text-[10px] leading-tight text-muted-foreground/70">
+            {activeSession?.title || t("session_manager.default_branch_name")} {t("chat_header.click_to_edit")}
+          </span>
+        </button>
       </div>
 
       {/* Chat sub tabs switches and settings dropdown */}
-      <div className="flex items-center gap-1.5 relative">
-        <button
-          aria-label="Agent Host 诊断"
-          onClick={() => setIsDiagnosticsOpen(true)}
-          className="p-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center justify-center shrink-0"
-          title="Agent Host 运行诊断"
-        >
-          <Activity className="w-4 h-4 text-primary animate-pulse" />
-        </button>
-
+      <div className="relative flex shrink-0 items-center gap-1.5">
         {activeCharacter?.visualSettings?.bgmUrl && (
           <button
             aria-label="切换背景音乐静音状态"
             onClick={toggleMute}
-            className="p-1.5 bg-muted border border-border text-muted-foreground hover:text-foreground rounded-lg transition flex items-center justify-center shrink-0"
+            className="chat-header-action flex size-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition hover:text-foreground active:scale-95"
             title={isMuted ? t("chat_header.bgm_unmute") : t("chat_header.bgm_mute")}
           >
             {isMuted ? (
-              <VolumeX className="w-4 h-4 text-rose-500" />
+              <VolumeX className="size-4 text-rose-500" />
             ) : (
-              <Volume2 className="w-4 h-4 text-emerald-500 animate-pulse" />
+              <Volume2 className="size-4 text-emerald-500" />
             )}
           </button>
         )}
@@ -192,64 +176,132 @@ const ChatHeader = ({
           <button
             aria-label="启动 AR 模式"
             onClick={() => { void launchAr(); }}
-            className="p-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center justify-center shrink-0"
+            className="chat-header-action flex size-10 shrink-0 items-center justify-center rounded-xl text-primary transition hover:bg-primary/10 active:scale-95"
             title="AR 模式"
           >
-            <Box className="w-4 h-4" />
+            <Box className="size-4" />
           </button>
         )}
         {activeSession && (
           <div className="relative shrink-0" ref={menuRef}>
             <button
-              onClick={() => setShowMemoryMenu(!showMemoryMenu)}
-              className="p-1.5 px-2.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-lg transition flex items-center justify-center shrink-0"
-              title={t("chat_header.memory_center")}
+              type="button"
+              onClick={() => setShowSessionMenu(!showSessionMenu)}
+              className="chat-header-action flex h-10 shrink-0 items-center justify-center rounded-xl px-3 text-primary transition hover:bg-primary/10 active:scale-95"
+              aria-expanded={showSessionMenu}
+              aria-controls="chat-session-tools-menu"
+              title={t("chat_header.session_center")}
             >
-              <span className="text-[11px] font-bold">{t("chat_header.memory")}</span>
+              <span className="text-xs font-semibold">{t("chat_header.session")}</span>
             </button>
             
-            {showMemoryMenu && (
-              <div className="absolute right-0 top-full mt-1.5 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-xl p-1 shadow-2xl z-50 min-w-[120px] flex flex-col gap-0.5 animate-in fade-in slide-in-from-top-2 duration-200">
+            {showSessionMenu && (
+              <div
+                id="chat-session-tools-menu"
+                role="menu"
+                aria-label={t("chat_header.session_center")}
+                className="absolute right-0 top-full z-50 mt-1.5 flex max-h-[70vh] w-[min(16rem,calc(100vw-1.5rem))] flex-col gap-1 overflow-y-auto rounded-2xl border border-border/70 bg-popover p-2 text-popover-foreground shadow-xl animate-in fade-in slide-in-from-top-2 duration-200"
+              >
                 <button
+                  type="button"
+                  role="menuitem"
                   onClick={() => {
-                    setShowMemoryMenu(false);
+                    setShowSessionMenu(false);
                     setShowSessionManager(true);
                   }}
-                  className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5"
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors hover:bg-muted"
                 >
-                  <Network className="w-3.5 h-3.5 text-primary" /> 平行宇宙图谱
+                  <MessagesSquare className="size-4 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">{t("session_manager.title")}</span>
+                  <ChevronRight className="size-4 text-muted-foreground/60" aria-hidden="true" />
                 </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setShowSessionMenu(false);
+                    setIsDiagnosticsOpen(true);
+                  }}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  <Activity className="size-4 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">运行诊断</span>
+                  <ChevronRight className="size-4 text-muted-foreground/60" aria-hidden="true" />
+                </button>
+                <div role="separator" className="mx-2 my-0.5 border-t border-border/45" />
                 {settings.memory?.enableAutoSummary !== false && (
                   <button
+                    type="button"
+                    role="menuitem"
                     onClick={() => {
-                      setShowMemoryMenu(false);
+                      setShowSessionMenu(false);
                       openTableDrawer('timeline');
                     }}
-                    className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors hover:bg-muted"
                   >
-                    {t("chat_header.timeline")}
+                    <History className="size-4 text-muted-foreground" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">{t("chat_header.timeline")}</span>
+                    <ChevronRight className="size-4 text-muted-foreground/60" aria-hidden="true" />
                   </button>
                 )}
                 {settings.enableTableMemory && (
                   <button
+                    type="button"
+                    role="menuitem"
                     onClick={() => {
-                      setShowMemoryMenu(false);
+                      setShowSessionMenu(false);
                       openTableDrawer('table');
                     }}
-                    className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors hover:bg-muted"
                   >
-                    {t("chat_header.table")}
+                    <Table2 className="size-4 text-muted-foreground" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">{t("chat_header.table")}</span>
+                    <ChevronRight className="size-4 text-muted-foreground/60" aria-hidden="true" />
                   </button>
                 )}
                 <button
+                  type="button"
+                  role="menuitem"
                   onClick={() => {
-                    setShowMemoryMenu(false);
+                    setShowSessionMenu(false);
                     openTableDrawer('dict');
                   }}
-                  className="w-full text-[11px] text-left hover:bg-primary/10 px-3 py-1.5 rounded-lg font-semibold transition"
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors hover:bg-muted"
                 >
-                  {t("chat_header.dict")}
+                  <BookOpen className="size-4 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">{t("chat_header.dict")}</span>
+                  <ChevronRight className="size-4 text-muted-foreground/60" aria-hidden="true" />
                 </button>
+                {enableRecall && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowSessionMenu(false);
+                      openTableDrawer('recall');
+                    }}
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors hover:bg-muted"
+                  >
+                    <BrainCircuit className="size-4 text-muted-foreground" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">{t("memory_drawer.tab_recall")}</span>
+                    <ChevronRight className="size-4 text-muted-foreground/60" aria-hidden="true" />
+                  </button>
+                )}
+                {enableMvuVariables && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowSessionMenu(false);
+                      openTableDrawer('mvu');
+                    }}
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors hover:bg-muted"
+                  >
+                    <Braces className="size-4 text-muted-foreground" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">{t("memory_drawer.tab_mvu")}</span>
+                    <ChevronRight className="size-4 text-muted-foreground/60" aria-hidden="true" />
+                  </button>
+                )}
               </div>
             )}
           </div>

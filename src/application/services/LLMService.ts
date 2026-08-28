@@ -107,10 +107,14 @@ export class LLMService implements ILLMService {
     return trimmed;
   }
 
-  private buildHeaders(apiKey?: string): Record<string, string> {
+  private buildHeaders(apiKey?: string, baseUrl?: string): Record<string, string> {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (apiKey && apiKey.trim()) {
       headers["Authorization"] = `Bearer ${apiKey.trim()}`;
+    }
+    // Anthropic 官方 OpenAI 兼容端点强制要求 anthropic-version 头，缺失返回 400（2026-08 文档核对）
+    if (baseUrl && baseUrl.toLowerCase().includes("anthropic.com")) {
+      headers["anthropic-version"] = "2023-06-01";
     }
     return headers;
   }
@@ -127,15 +131,20 @@ export class LLMService implements ILLMService {
     const log = traceId ? logger.withTrace(traceId) : logger;
     let cleanedReqBody = cleanRequestPayload(proxyPayload.baseUrl, proxyPayload.reqBody as Record<string, unknown>);
     
-    // API 级别关闭推理模式（直接在 Payload 中设置控制参数）
+    const modelId = proxyPayload.reqBody?.model || "";
+
+    // API 级别关闭推理模式：按厂商方言注入（OpenAI→reasoning_effort、Anthropic/DeepSeek/GLM→thinking、
+    // Qwen→enable_thinking、Gemini 2.5→reasoning_effort none；不再向所有厂商硬塞 4 个混合字段）
     if (proxyPayload.disableReasoning && cleanedReqBody) {
-      cleanedReqBody.reasoning_effort = "low";
-      cleanedReqBody.thinking = { type: "disabled" };
-      cleanedReqBody.max_thinking_tokens = 0;
-      cleanedReqBody.thinking_budget = 0;
+      const reasoningDisable = ModelCapabilityRegistry.getReasoningDisableParams(
+        modelId,
+        proxyPayload.baseUrl
+      );
+      for (const [key, value] of Object.entries(reasoningDisable)) {
+        cleanedReqBody[key] = value;
+      }
     }
 
-    const modelId = proxyPayload.reqBody?.model || "";
     if (modelId && cleanedReqBody) {
       cleanedReqBody = ModelCapabilityRegistry.cleanLLMParams(
         modelId,
@@ -218,7 +227,7 @@ export class LLMService implements ILLMService {
 
       const { baseUrl, apiKey, reqBody, modelName, chatPath, modelsPath } = safePayload;
       const targetBase = this.validateBaseUrl(baseUrl);
-      const headers = this.buildHeaders(apiKey);
+      const headers = this.buildHeaders(apiKey, baseUrl);
 
       // 使用 ?? 替代 ||，允许 chatPath/modelsPath 显式传空字符串（""）以让 baseUrl 自带完整端点路径
       const chatRoute = chatPath ?? "/chat/completions";
@@ -232,15 +241,22 @@ export class LLMService implements ILLMService {
 
       if (endpoint === "/api/test-connection") {
         let res: Response;
+        // 测试连接同样按模型能力清洗参数（如 GPT-5/o 系列须用 max_completion_tokens），
+        // 避免"测试连接失败"误导用户以为网络/Key 有问题。
+        const testModel = modelName || FALLBACK_MODEL;
+        let testBody: Record<string, unknown> = {
+          model: testModel,
+          messages: [{ role: "user", content: "ping" }],
+          max_tokens: 5,
+        };
+        if (modelName) {
+          testBody = ModelCapabilityRegistry.cleanLLMParams(modelName, testBody, baseUrl);
+        }
         try {
           res = await fetchFn(`${targetBase}${chatRoute}`, {
             method: "POST",
             headers,
-            body: JSON.stringify({
-              model: modelName || FALLBACK_MODEL,
-              messages: [{ role: "user", content: "ping" }],
-              max_tokens: 5,
-            }),
+            body: JSON.stringify(testBody),
             signal,
           });
         } catch (fetchErr: unknown) {

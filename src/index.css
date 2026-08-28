@@ -227,18 +227,107 @@
 }
 
 .bubble-ai {
-  border-top-left-radius: 0.2rem !important;
-  border-top-right-radius: 1rem !important;
-  border-bottom-left-radius: 1rem !important;
-  border-bottom-right-radius: 1rem !important;
+  border-top-left-radius: 0.45rem !important;
+  border-top-right-radius: 1.25rem !important;
+  border-bottom-left-radius: 1.25rem !important;
+  border-bottom-right-radius: 1.25rem !important;
 }
 
 .bubble-user {
-  border-top-left-radius: 1rem !important;
-  border-top-right-radius: 0.2rem !important;
-  border-bottom-left-radius: 1rem !important;
-  border-bottom-right-radius: 1rem !important;
-  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.22) !important;
+  border-top-left-radius: 1.25rem !important;
+  border-top-right-radius: 0.45rem !important;
+  border-bottom-left-radius: 1.25rem !important;
+  border-bottom-right-radius: 1.25rem !important;
+}
+
+/* 聊天页视觉层：只定义外观，不介入消息、滚动或输入状态。 */
+.chat-shell {
+  isolation: isolate;
+  background: var(--background);
+}
+
+.chat-header-shell {
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 42%, transparent);
+  background: var(--card);
+  box-shadow: 0 12px 28px -24px color-mix(in oklch, var(--foreground) 38%, transparent);
+}
+
+.chat-header-action {
+  border: 1px solid color-mix(in oklch, var(--border) 45%, transparent);
+  background: color-mix(in oklch, var(--card) 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 7%, transparent);
+}
+
+.chat-header-avatar,
+.chat-message-avatar {
+  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  box-shadow:
+    0 8px 20px -14px color-mix(in oklch, var(--foreground) 42%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 14%, transparent);
+}
+
+.chat-dialogue-stage {
+  background: var(--background);
+}
+
+.chat-message-assistant {
+  background: color-mix(in oklch, var(--card) 82%, var(--background));
+  box-shadow:
+    0 12px 28px -24px color-mix(in oklch, var(--foreground) 46%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 5%, transparent);
+}
+
+.chat-message-user {
+  background: var(--primary);
+  box-shadow:
+    0 14px 30px -22px color-mix(in oklch, var(--primary) 72%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.chat-message-bubble {
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.chat-composer-shell {
+  border-top: 1px solid color-mix(in oklch, var(--border) 26%, transparent);
+  background: var(--background);
+}
+
+.chat-composer-row,
+.chat-composer-popover {
+  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  background: color-mix(in oklch, var(--card) 92%, var(--background));
+  box-shadow:
+    0 16px 38px -26px color-mix(in oklch, var(--foreground) 52%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 7%, transparent);
+}
+
+.chat-composer-row:focus-within {
+  border-color: color-mix(in oklch, var(--primary) 48%, var(--border));
+  box-shadow:
+    0 0 0 3px color-mix(in oklch, var(--primary) 10%, transparent),
+    0 18px 42px -28px color-mix(in oklch, var(--primary) 58%, transparent);
+}
+
+#chat-input-area-container .chat-composer-row [data-ui="attachment-picker"] > button {
+  height: 44px;
+  width: 44px;
+  border-color: transparent;
+  border-radius: 1rem;
+  background: transparent;
+  box-shadow: none;
+}
+
+#chat-input-area-container .chat-composer-row [data-ui="attachment-picker"] > button:hover {
+  background: var(--muted);
+}
+
+.chat-send-button,
+.chat-scroll-bottom {
+  box-shadow:
+    0 14px 26px -16px color-mix(in oklch, var(--primary) 78%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 /* 毛玻璃高光描边 */

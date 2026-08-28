@@ -126,6 +126,7 @@ export const P1_SERVICE_NAMES: readonly string[] = [
   KernelServices.ImageGen,
   KernelServices.Tts,
   KernelServices.Asr,
+  KernelServices.VoiceCapture,
   KernelServices.Bgm,
   KernelServices.MultiMessage,
   KernelServices.LocalResources,

@@ -137,30 +137,41 @@ export default function CharactersTab() {
   }, [selectCharacter]);
 
   const handleOpenPureAgent = React.useCallback(async () => {
-    const existingChar = characters.find((c) => c.id === "base-agent-builtin");
-    if (existingChar) {
-      await openCharacter(existingChar.id);
-      return;
-    }
     const pureChar: CharacterCard = {
       id: "base-agent-builtin",
+      agentMode: "direct-api",
       name: "通用 AI 助手",
-      description: "纯净的通用 AI 助手，无角色人设、无预设模板，直连大模型问答。",
+      description: "",
       personality: "",
       scenario: "",
-      first_mes: "你好！我是通用 AI 助手，请问有什么可以帮你的？",
+      first_mes: "",
       mes_example: "",
-      creator_notes: "Built-in Base Profile Agent",
+      creator_notes: "Built-in direct API agent",
       system_prompt: "",
       post_history_instructions: "",
-      tags: ["Base", "Agent", "纯净"],
+      tags: ["Base", "Agent"],
       creator: "Mobile Tavern",
-      character_version: "1.0.0",
+      character_version: "2.0.0",
       alternate_greetings: [],
       extensions: {
         profileId: "mobile-tavern.base",
       },
     };
+    const existingChar = characters.find((c) => c.id === "base-agent-builtin");
+    if (existingChar) {
+      try {
+        await getKernelService<ICharacterService<CharacterCard>>("character").saveCharacter({
+          ...existingChar,
+          ...pureChar,
+          avatar: existingChar.avatar,
+          visualSettings: existingChar.visualSettings,
+        });
+      } catch (error) {
+        console.warn("[CharactersTab] Failed to normalize direct API agent:", error);
+      }
+      await openCharacter(existingChar.id);
+      return;
+    }
     try {
       const characterService = getKernelService<ICharacterService<CharacterCard>>("character");
       if (characterService) {
@@ -177,22 +188,37 @@ export default function CharactersTab() {
   }, [characters, getKernelService, openCharacter]);
 
   return (
-    <div className="relative min-h-screen space-y-3.5 px-4 pb-4 pt-2.5">
-      <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-card p-4 shadow-[0_14px_35px_-24px_var(--primary)]">
+    <div className="relative min-h-screen space-y-2 px-4 pb-4 pt-2.5">
+      <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-card p-3 shadow-[0_14px_35px_-24px_var(--primary)]">
         <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-primary/15 blur-2xl" />
         <Sparkles className="pointer-events-none absolute right-4 top-4 h-12 w-12 text-primary/10" aria-hidden="true" />
 
         <div className="relative flex items-start justify-between gap-3">
-          <div className="min-w-0 pt-0.5">
+          <div className="min-w-0">
             <h1 className="flex items-center gap-1.5 text-lg font-bold tracking-tight text-foreground">
               <span className="truncate">Mobile Tavern</span>
               <span className="rounded-md border border-primary/20 bg-primary/15 px-1.5 py-0.5 font-mono text-[9px] text-primary">
                 Lite
               </span>
             </h1>
-            <p className="mt-1 max-w-[190px] text-xs font-light leading-relaxed text-muted-foreground">
+            <p className="mt-0.5 max-w-[190px] truncate text-xs font-light text-muted-foreground">
               {t("characters_tab.subtitle")}
             </p>
+            <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <UsersRound className="size-3.5 text-primary" aria-hidden="true" />
+                <strong className="font-semibold text-foreground">{displayCharacters.length}</strong>
+                {t("nav.characters")}
+              </span>
+              <span className="h-3 w-px bg-border" aria-hidden="true" />
+              <span className="flex items-center gap-1.5">
+                <History className="size-3.5 text-primary" aria-hidden="true" />
+                <strong className="font-semibold text-foreground">
+                  {areSessionCountsReady ? totalSessionCount : "…"}
+                </strong>
+                {t("nav.chat-history")}
+              </span>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <button
@@ -221,39 +247,17 @@ export default function CharactersTab() {
           </div>
         </div>
 
-        <div className="relative mt-4 grid grid-cols-2 gap-2">
-          <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/85 px-3 py-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <UsersRound className="h-3.5 w-3.5" aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-bold leading-none text-foreground">{displayCharacters.length}</p>
-              <p className="mt-1 truncate text-xs text-muted-foreground">{t("nav.characters")}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/85 px-3 py-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <History className="h-3.5 w-3.5" aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-bold leading-none text-foreground">
-                {areSessionCountsReady ? totalSessionCount : "…"}
-              </p>
-              <p className="mt-1 truncate text-xs text-muted-foreground">{t("nav.chat-history")}</p>
-            </div>
-          </div>
-        </div>
       </section>
 
       {/* 纯净 AI 助手 (Base Agent) 专属入口卡片 */}
       <button
         type="button"
         onClick={handleOpenPureAgent}
-        className="group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/15 via-primary/5 to-card p-3.5 text-left shadow-sm transition-colors hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
+        className="group relative flex w-full items-center justify-between gap-2.5 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/15 via-primary/5 to-card p-2.5 text-left shadow-sm transition-colors hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md">
-            <Bot className="h-6 w-6" />
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md">
+            <Bot className="size-5" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
@@ -267,12 +271,12 @@ export default function CharactersTab() {
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center justify-center h-8 px-3 rounded-lg bg-primary/15 text-primary text-xs font-semibold group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+        <div className="flex h-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 px-3 text-xs font-semibold text-primary transition-all group-hover:bg-primary group-hover:text-primary-foreground">
           开启对话
         </div>
       </button>
 
-      <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/70 px-2 py-1.5 shadow-sm" role="group" aria-label={t("characters_tab.layout_group")}>
+      <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/70 px-2 py-1 shadow-sm" role="group" aria-label={t("characters_tab.layout_group")}>
         <span className="pl-1.5 text-xs font-medium text-muted-foreground">{t("characters_tab.layout_group")}</span>
         <div className="flex items-center gap-1">
           {([
@@ -286,7 +290,7 @@ export default function CharactersTab() {
               onClick={() => changeCharacterLayout(layout)}
               aria-pressed={characterLayout === layout}
               title={t(labelKey)}
-              className={`flex size-11 items-center justify-center rounded-lg border transition-colors active:scale-95 ${
+              className={`flex size-9 items-center justify-center rounded-lg border transition-colors active:scale-95 ${
                 characterLayout === layout
                   ? "border-primary/40 bg-primary/15 text-primary"
                   : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"

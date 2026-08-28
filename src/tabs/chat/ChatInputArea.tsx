@@ -8,11 +8,10 @@ import {
   RefreshCw,
   Cpu,
   Square,
-  Sliders,
   Mic,
-  MicOff,
   Loader2,
   Play,
+  AudioWaveform,
 } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
@@ -21,9 +20,12 @@ import type { ChatSession, CustomPromptBlock, Message, ReplyChoice, SummaryCard 
 import {
   KernelServices,
   type IAsrService,
+  type IAgentRuntimeService,
   type IAttachmentService,
   type ICompatibilityRuntimeService,
+  type IVoiceCaptureService,
 } from "@/src/application/serviceContracts";
+import { resolveBuiltinProviderId } from "@/src/application/runtimePlugins/agentSpineRuntimePlugin";
 import type { RecalledMessage } from "@/src/application/services/memory/types";
 import type { AttachmentMetadata } from "../../domain/attachments/types";
 import type { MessageContentPart } from "../../domain/messages/messageContent";
@@ -39,9 +41,16 @@ import {
  */
 type TouchTrackedElement = Element & { _touched?: boolean };
 
-function toMessageAttachmentPart(metadata: AttachmentMetadata): MessageContentPart {
+function toMessageAttachmentPart(item: PendingAttachment): MessageContentPart {
+  const { metadata } = item;
   if (metadata.kind === "image") return { type: "image", assetId: metadata.id };
-  if (metadata.kind === "audio") return { type: "audio", assetId: metadata.id };
+  if (metadata.kind === "audio") {
+    return {
+      type: "audio",
+      assetId: metadata.id,
+      purpose: item.purpose === "model-input" ? "model-input" : undefined,
+    };
+  }
   if (metadata.kind === "video") return { type: "video", assetId: metadata.id };
   return { type: "file", assetId: metadata.id, displayName: metadata.originalName };
 }
@@ -162,13 +171,32 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
 
   const [localInput, setLocalInput] = React.useState(userInputMessage);
 
-  const [isRecording, setIsRecording] = React.useState(false);
+  const [isAsrRecording, setIsAsrRecording] = React.useState(false);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
+  const [isModelVoiceRecording, setIsModelVoiceRecording] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingAttachment[]>([]);
+
+  const supportsNativeAudioInput = React.useMemo(() => {
+    if (settings.api.supportsAudioInput !== true) return false;
+    try {
+      const runtime = getKernelService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+      return runtime
+        .getProvider(resolveBuiltinProviderId(settings.api.type))
+        .capabilities.inputModalities.includes("audio");
+    } catch {
+      return false;
+    }
+  }, [getKernelService, settings.api.supportsAudioInput, settings.api.type]);
 
   React.useEffect(() => {
     setPendingAttachments([]);
-  }, [activeSession?.id]);
+    setIsModelVoiceRecording(false);
+    try {
+      void getKernelService<IVoiceCaptureService>(KernelServices.VoiceCapture).cancelCapture();
+    } catch {
+      // 旧测试容器或降级组合根可能尚未注册该可选服务。
+    }
+  }, [activeSession?.id, getKernelService]);
 
   const handleSelectAttachments = React.useCallback(async (files: readonly File[]) => {
     if (files.length === 0) return;
@@ -197,14 +225,14 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const handleToggleAsr = async () => {
     try {
       const asrService = getKernelService<IAsrService>("asr");
-      if (isRecording) {
-        setIsRecording(false);
+      if (isAsrRecording) {
+        setIsAsrRecording(false);
         if (settings.asrConfig?.provider === "openai") {
           setIsTranscribing(true);
         }
         asrService.stopListening();
       } else {
-        setIsRecording(true);
+        setIsAsrRecording(true);
         setIsTranscribing(false);
         let initialText = localInput;
 
@@ -230,7 +258,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           },
           (err: unknown) => {
             console.error("ASR Error:", err);
-            setIsRecording(false);
+            setIsAsrRecording(false);
             setIsTranscribing(false);
 
             const errMsg = err instanceof Error ? err.message : String(err);
@@ -248,17 +276,65 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             }
           },
           () => {
-            setIsRecording(false);
+            setIsAsrRecording(false);
             setIsTranscribing(false);
           }
         );
       }
     } catch (e) {
       console.error("ASR Toggle Error:", e);
-      setIsRecording(false);
+      setIsAsrRecording(false);
       setIsTranscribing(false);
     }
   };
+
+  const finishModelVoiceCapture = React.useCallback(async () => {
+    const capture = getKernelService<IVoiceCaptureService>(KernelServices.VoiceCapture);
+    try {
+      const file = await capture.stopCapture();
+      const attachments = getKernelService<IAttachmentService>(KernelServices.Attachments);
+      const metadata = await attachments.stageFile(file);
+      const previewUrl = await attachments.getObjectUrl(metadata.id);
+      setPendingAttachments((current) => [
+        ...current,
+        { metadata, previewUrl, purpose: "model-input" },
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message !== "VOICE_CAPTURE_NOT_ACTIVE") {
+        await showCustomAlert(`语音录制失败：${message}`);
+      }
+    } finally {
+      setIsModelVoiceRecording(false);
+    }
+  }, [getKernelService, showCustomAlert]);
+
+  const handleToggleModelVoice = React.useCallback(async () => {
+    if (isModelVoiceRecording) {
+      await finishModelVoiceCapture();
+      return;
+    }
+    if (pendingAttachments.length >= 4) {
+      await showCustomAlert("每条消息最多添加 4 个附件。");
+      return;
+    }
+    try {
+      const capture = getKernelService<IVoiceCaptureService>(KernelServices.VoiceCapture);
+      await capture.startCapture({
+        maxDurationMs: 60_000,
+        onLimitReached: () => { void finishModelVoiceCapture(); },
+      });
+      setIsModelVoiceRecording(true);
+    } catch (error) {
+      setIsModelVoiceRecording(false);
+      const message = error instanceof Error ? error.message : String(error);
+      if (/NotAllowedError|not-allowed|permission/i.test(message)) {
+        await showCustomAlert("需要麦克风权限，才能录制给模型直接理解的语音。");
+      } else {
+        await showCustomAlert(`无法开始语音录制：${message}`);
+      }
+    }
+  }, [finishModelVoiceCapture, getKernelService, isModelVoiceRecording, pendingAttachments.length, showCustomAlert]);
 
   React.useEffect(() => {
     setLocalInput(userInputMessage);
@@ -334,14 +410,14 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   }, [activeSession]);
 
   const canSend = React.useMemo(() => {
-    if (!activeSession || messageHydrationStatus !== "ready") return false;
+    if (!activeSession || messageHydrationStatus !== "ready" || isModelVoiceRecording) return false;
     const hasInput = (localInput || "").trim() !== "";
     const hasAttachments = pendingAttachments.length > 0;
     if (settings.enableMultiMessageQueue) {
       return hasInput || hasAttachments || lastMsgIsUser;
     }
     return hasInput || hasAttachments;
-  }, [activeSession, localInput, messageHydrationStatus, pendingAttachments.length, settings.enableMultiMessageQueue, lastMsgIsUser]);
+  }, [activeSession, isModelVoiceRecording, localInput, messageHydrationStatus, pendingAttachments.length, settings.enableMultiMessageQueue, lastMsgIsUser]);
 
   const onSendPure = React.useCallback(async () => {
     if (!localInput.trim() && pendingAttachments.length === 0) return;
@@ -350,7 +426,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       await handleSendMessage(msg, {
         skipAI: true,
         attachmentIds: pendingAttachments.map(item => item.metadata.id),
-        attachmentParts: pendingAttachments.map(item => toMessageAttachmentPart(item.metadata)),
+        attachmentParts: pendingAttachments.map(toMessageAttachmentPart),
       });
     } catch {
       return;
@@ -375,7 +451,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       await handleSendMessage(msg, {
         skipAI: false,
         attachmentIds: pendingAttachments.map(item => item.metadata.id),
-        attachmentParts: pendingAttachments.map(item => toMessageAttachmentPart(item.metadata)),
+        attachmentParts: pendingAttachments.map(toMessageAttachmentPart),
       });
     } catch {
       return;
@@ -469,10 +545,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       style={{
         paddingBottom: `${isKeyboardOpen ? 4 : Math.max(safeAreas?.bottom ?? 0, 10)}px`
       }}
-      className="glass-panel border-t border-border/40 pt-2 px-3 flex flex-col gap-1.5 z-10 shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]"
+      className="chat-composer-shell z-10 flex shrink-0 flex-col gap-2 px-3 pt-2.5"
     >
       {showQuickActions && (
-        <div className="flex items-center justify-between px-2 py-1.5 bg-muted/30 rounded-lg border border-border/20 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="chat-composer-popover flex items-center justify-between rounded-2xl px-2 py-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -561,7 +637,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         </div>
       )}
       {settings.enableReplySuggestions && !isSending && replySuggestions && replySuggestions.length > 0 && (
-        <div className="flex flex-col gap-1.5 px-1 py-1 border-b border-border/30 animate-fadeIn">
+        <div className="chat-composer-popover flex flex-col gap-1.5 rounded-2xl p-2 animate-fadeIn">
           <div className="flex items-center justify-between text-xs text-muted-foreground font-medium px-1">
             <span className="flex items-center gap-1">{t("chat_input.suggestions_label")}</span>
             <button
@@ -609,21 +685,14 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           current.filter((candidate) => candidate.metadata.id !== assetId)
         ))}
       />
-      <div className="flex items-center gap-2 relative">
-        <button
-          aria-label="切换快捷工具栏"
-          onClick={() => setShowQuickActions(prev => !prev)}
-          className={`flex size-11 shrink-0 items-center justify-center rounded-xl border text-muted-foreground transition-colors duration-200 hover:bg-muted ${showQuickActions ? "text-primary bg-primary/10 border-primary/20" : "bg-input/30 border-border/80"
-            }`}
-          title="切换显示发包预测与快捷工具"
-        >
-          <Sliders className="w-4 h-4" />
-        </button>
+      <div className="chat-composer-row relative flex items-end gap-1.5 rounded-[22px] p-1.5">
         <AttachmentPicker
-          disabled={isSending || isBisonLocking}
+          disabled={isSending || isBisonLocking || isModelVoiceRecording}
           selectedCount={pendingAttachments.length}
           maxCount={4}
+          quickActionsVisible={showQuickActions}
           onSelect={handleSelectAttachments}
+          onToggleQuickActions={() => setShowQuickActions((current) => !current)}
         />
         <textarea
           ref={textareaRef}
@@ -647,34 +716,51 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               ? t("chat_input.placeholder_bison", { name: activeCharacter?.name || "角色" })
               : messageHydrationStatus !== "ready"
                 ? "正在准备聊天记录…"
-                : isRecording
+                : isModelVoiceRecording
+                  ? "正在录制给模型的语音…"
+                : isAsrRecording
                 ? t("chat_input.placeholder_recording")
                 : isTranscribing
                   ? t("chat_input.placeholder_transcribing")
                   : t("chat_input.placeholder_default", { name: activeCharacter?.name || "" })
           }
           aria-label={t("chat_input.aria_label", { name: activeCharacter?.name || "角色" })}
-          rows={2}
-          className={`flex-1 bg-input/70 border border-border/80 rounded-xl py-2 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:bg-background/95 resize-none font-light overflow-y-auto max-h-[160px] min-h-11 transition-[border-color,background-color] duration-300 shadow-inner ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
+          rows={1}
+          className={`chat-composer-input min-h-11 max-h-[160px] flex-1 resize-none overflow-y-auto rounded-2xl bg-transparent px-2.5 py-2.5 text-base font-normal leading-6 text-foreground placeholder:text-muted-foreground/55 focus:outline-none ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
             }`}
         />
+        {supportsNativeAudioInput && (
+          <button
+            type="button"
+            aria-label={isModelVoiceRecording ? "停止模型语音录制" : "录制模型语音输入"}
+            onClick={() => { void handleToggleModelVoice(); }}
+            disabled={isSending || isBisonLocking || isAsrRecording || isTranscribing}
+            className={`flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors ${isModelVoiceRecording
+              ? "border-red-500/40 bg-red-500/15 text-red-500 animate-pulse"
+              : "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
+            } ${(isSending || isBisonLocking || isAsrRecording || isTranscribing) ? "cursor-not-allowed opacity-45" : "active:scale-95"}`}
+            title={isModelVoiceRecording ? "停止并附加这段语音" : "让当前模型直接听这段语音"}
+          >
+            <AudioWaveform className="size-4" aria-hidden="true" />
+          </button>
+        )}
         {settings.asrConfig?.enabled && (
           <button
             type="button"
-            aria-label={isRecording ? t("chat_input.asr_stop") : isTranscribing ? t("chat_input.asr_recognizing") : t("chat_input.asr_mic")}
+            aria-label={isAsrRecording ? t("chat_input.asr_stop") : isTranscribing ? t("chat_input.asr_recognizing") : t("chat_input.asr_mic")}
             onClick={handleToggleAsr}
-            disabled={isSending || isBisonLocking}
-            className={`size-11 rounded-xl border transition-colors duration-200 shrink-0 flex items-center justify-center ${isRecording
+            disabled={isSending || isBisonLocking || isModelVoiceRecording}
+            className={`size-11 rounded-xl border transition-colors duration-200 shrink-0 flex items-center justify-center ${isAsrRecording
                 ? "bg-red-500/20 border-red-500/40 text-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]"
                 : isTranscribing
                   ? "bg-amber-500/20 border-amber-500/40 text-amber-500"
                   : "bg-input/30 border-border/80 text-muted-foreground hover:bg-muted"
-              } ${(isSending || isBisonLocking) ? "opacity-45 cursor-not-allowed" : "active:scale-95"}`}
-            title={isRecording ? t("chat_input.asr_stop") : isTranscribing ? t("chat_input.asr_transcribing") : t("chat_input.asr_mic")}
+              } ${(isSending || isBisonLocking || isModelVoiceRecording) ? "opacity-45 cursor-not-allowed" : "active:scale-95"}`}
+            title={isAsrRecording ? t("chat_input.asr_stop") : isTranscribing ? t("chat_input.asr_transcribing") : t("chat_input.asr_mic")}
           >
             {isTranscribing ? (
               <Loader2 className="w-4 h-4 animate-spin" />
-            ) : isRecording ? (
+            ) : isAsrRecording ? (
               <Mic className="w-4 h-4 animate-bounce" />
             ) : (
               <Mic className="w-4 h-4 opacity-70" />
@@ -686,7 +772,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             onClick={() => handleStopGeneration()}
             aria-label={t("chat_input.stop")}
             title={t("chat_input.stop")}
-            className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-destructive text-destructive-foreground shadow-md transition-colors duration-200 hover:bg-destructive/90 active:scale-95"
+            className="chat-send-button flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-destructive text-destructive-foreground transition-colors duration-200 hover:bg-destructive/90 active:scale-95"
           >
             <Square className="w-4 h-4 fill-current" aria-hidden="true" />
           </button>
@@ -707,8 +793,8 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                 ? t("chat_input.send_long_press")
                 : t("chat_input.send")
             }
-            className={`size-11 rounded-xl bg-primary text-primary-foreground transition-[background-color,box-shadow,transform] duration-200 shadow-md flex items-center justify-center shrink-0 active:scale-95 ${canSend
-                ? "hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 cursor-pointer opacity-100"
+            className={`chat-send-button size-11 rounded-2xl bg-primary text-primary-foreground transition-[background-color,box-shadow,transform] duration-200 flex items-center justify-center shrink-0 active:scale-95 ${canSend
+                ? "hover:bg-primary/90 hover:-translate-y-0.5 cursor-pointer opacity-100"
                 : "opacity-45 cursor-not-allowed bg-muted text-muted-foreground shadow-none"
               }`}
           >

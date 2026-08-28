@@ -442,6 +442,19 @@ describe("useSessionManager", () => {
       });
       expect(params.databaseService.createBacktrackBranch).not.toHaveBeenCalled();
     });
+
+    it("分支持久化失败时向用户显示错误", async () => {
+      const params = createMockParams();
+      params.databaseService.createBacktrackBranch = vi.fn().mockRejectedValue(new Error("duplicate message id"));
+      const { result } = renderHook(() => useSessionManager(params));
+      await act(async () => {
+        await result.current.createBacktrackBranch({ id: "msg-1" } as Message);
+      });
+      expect(params.showCustomAlert).toHaveBeenCalledWith(
+        expect.stringContaining("duplicate message id"),
+      );
+      expect(params.setActiveSessionId).not.toHaveBeenCalled();
+    });
   });
 
   describe("createBacktrackFromTimeline", () => {

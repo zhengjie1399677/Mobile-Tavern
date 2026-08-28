@@ -47,6 +47,8 @@ export interface CharacterVisualSettings {
 
 export interface CharacterCard {
   id: string;
+  /** 内置通用助手可声明为严格直连；缺省保持角色卡兼容行为。 */
+  agentMode?: "direct-api";
   name: string;
   avatar?: string; // base64 image data URL
   description: string; // Description of character
@@ -168,6 +170,8 @@ export interface ApiConfig {
   forceBasicParams?: boolean;
   /** 用户确认当前模型/接口支持 OpenAI-compatible 图片输入；缺省按不支持处理。 */
   supportsVision?: boolean;
+  /** 用户确认当前模型/接口支持 OpenAI-compatible input_audio；缺省按不支持处理。 */
+  supportsAudioInput?: boolean;
   contextLimit?: number;
 }
 
@@ -285,6 +289,7 @@ export interface ApiProfile {
   disableReasoning?: boolean;
   forceBasicParams?: boolean;
   supportsVision?: boolean;
+  supportsAudioInput?: boolean;
 }
 
 /** 预设包只保存传统 Prompt 配置；自由编排拥有独立的状态与模板生命周期。 */

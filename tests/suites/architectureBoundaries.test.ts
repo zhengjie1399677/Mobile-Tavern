@@ -564,7 +564,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
       memoryDrawer.includes("./memory-drawer/TableMemoryTab") &&
       memoryDrawer.includes("./memory-drawer/DictTab") &&
       memoryDrawer.includes("./memory-drawer/RecallTab"),
-    "状态数据、记忆词典、召回和 MVU 面板必须与记忆中心外壳分离，并按标签动态加载"
+    "状态数据、记忆词典、召回和 MVU 面板必须与会话资料外壳分离，并按面板动态加载"
   );
 
   const bridgeCore = read("src/utils/tavernHelper/bridgeCore.ts");

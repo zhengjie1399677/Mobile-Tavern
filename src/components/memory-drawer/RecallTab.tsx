@@ -61,13 +61,13 @@ function RecallTab({ activeSession, updateSessionMetadata, lastRecalledMemories,
   };
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-lg border border-border/30 bg-muted/30 px-2.5 py-2 text-[10px] font-medium leading-4 text-muted-foreground">
+    <div className="space-y-5">
+      <p className="px-1 text-[11px] leading-5 text-muted-foreground">
         {t("recall_tab.info")}
-      </div>
+      </p>
 
       {lastMemoryAudit && (
-        <section className="rounded-xl border border-primary/20 bg-primary/[0.035] p-2.5">
+        <section className="border-y border-border/45 py-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div>
               <h3 className="text-xs font-bold text-foreground">{t("recall_tab.packet_title")}</h3>
@@ -96,10 +96,10 @@ function RecallTab({ activeSession, updateSessionMetadata, lastRecalledMemories,
       )}
 
       {lastRecalled.length === 0 ? (
-        <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 px-5 py-6 text-center text-muted-foreground">
-          <BrainCircuit className="size-7 animate-pulse opacity-35" />
-          <span className="text-xs font-bold">{t("recall_tab.empty_title")}</span>
-          <p className="text-[10px] max-w-xs text-muted-foreground mt-1">{t("recall_tab.empty_desc")}</p>
+        <div className="flex min-h-32 flex-col items-center justify-center gap-2 border-y border-border/45 px-5 py-7 text-center text-muted-foreground">
+          <BrainCircuit className="size-6 opacity-35" />
+          <span className="text-xs font-semibold">{t("recall_tab.empty_title")}</span>
+          <p className="mt-0.5 max-w-xs text-[10px] leading-4 text-muted-foreground/75">{t("recall_tab.empty_desc")}</p>
         </div>
       ) : (
         <div className="space-y-2">

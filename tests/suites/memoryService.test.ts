@@ -60,8 +60,12 @@ export async function testModelCapabilityRegistry() {
     ModelCapabilityRegistry.resetRuntimeCacheForTesting();
 
     // 1. 已知模型能力查询（前缀匹配）
-    const deepseekCaps = ModelCapabilityRegistry.getCapabilities("deepseek-chat");
-    assert(deepseekCaps.supportsTopK === true, "deepseek supports top_k");
+    const deepseekCaps = ModelCapabilityRegistry.getCapabilities(
+      "deepseek-chat",
+      "https://api.deepseek.com/v1",
+    );
+    assert(deepseekCaps.supportsTopK === false, "DeepSeek 官方 Chat Completions 不声明 top_k");
+    assert(deepseekCaps.supportsStreamOptions === true, "DeepSeek 官方 API 支持 stream_options");
     assert(deepseekCaps.supportsTopP === true, "deepseek supports top_p");
     assert(deepseekCaps.supportsStream === true, "deepseek supports stream");
 
@@ -104,6 +108,19 @@ export async function testModelCapabilityRegistry() {
     assert(cleaned.temperature === 0.7, "claude: temperature should be retained");
     assert(cleaned.response_format !== undefined, "claude: response_format should be retained");
 
+    const deepseekCleaned = ModelCapabilityRegistry.cleanLLMParams(
+      "deepseek-v4-flash",
+      {
+        top_k: 40,
+        top_p: 0.9,
+        stream_options: { include_usage: true },
+      },
+      "https://api.deepseek.com/v1",
+    );
+    assert(deepseekCleaned.top_k === undefined, "DeepSeek 官方请求必须剥离 top_k");
+    assert(deepseekCleaned.top_p === 0.9, "DeepSeek 官方请求保留 top_p");
+    assert(deepseekCleaned.stream_options !== undefined, "DeepSeek 官方请求保留 stream_options");
+
     // 4. 运行时错误自愈：仅允许关闭能力，不允许开启
     ModelCapabilityRegistry.updateCapabilities("claude-3-opus", {
       supportsTopP: false,
@@ -114,7 +131,7 @@ export async function testModelCapabilityRegistry() {
     assert(updated.supportsTopK === false, "Runtime update: topK should NOT be opened");
 
     // 5. 运行时缓存持久化到 localStorage
-    const persisted = JSON.parse(memStore["mt_model_capability_runtime_cache"]);
+    const persisted = JSON.parse(memStore["mt_model_capability_runtime_cache_v2"]);
     assert(
       persisted["claude-3-opus"].supportsTopP === false,
       "Runtime cache should be persisted to localStorage"

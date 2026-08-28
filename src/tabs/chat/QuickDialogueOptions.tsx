@@ -372,30 +372,37 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
         </button>
       )}
 
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setShowMore(!showMore);
-        }}
-        className={`text-[11px] px-2.5 py-1 rounded flex items-center gap-1 border active:scale-[0.98] transition-all relative ${
-          showMore
-            ? "text-primary border-primary bg-primary/10"
-            : "text-muted-foreground hover:text-foreground border-border/30 hover:bg-muted/10"
-        }`}
-        title={t("quick_dialogue.more_title")}
-      >
-        <MoreHorizontal className="w-3 h-3" /> {t("quick_dialogue.more")}
-
+      <div className="relative">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMore(!showMore);
+          }}
+          aria-expanded={showMore}
+          aria-controls={`quick-message-more-${message.id}`}
+          className={`flex min-h-9 items-center gap-1 rounded border px-2.5 text-[11px] transition-all active:scale-[0.98] ${
+            showMore
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border/30 text-muted-foreground hover:bg-muted/10 hover:text-foreground"
+          }`}
+          title={t("quick_dialogue.more_title")}
+        >
+          <MoreHorizontal className="size-3" /> {t("quick_dialogue.more")}
+        </button>
         {showMore && (
           <div
+            id={`quick-message-more-${message.id}`}
+            role="menu"
+            aria-label={t("quick_dialogue.more_title")}
             onClick={(e) => e.stopPropagation()}
-            className="absolute bottom-full mb-1.5 right-0 bg-popover border border-border shadow-2xl rounded-lg py-1 px-1 min-w-[90px] flex flex-col gap-0.5 z-20 animate-in fade-in slide-in-from-bottom-1.5 duration-100"
+            className="absolute bottom-full right-0 z-20 mb-1.5 flex min-w-44 flex-col gap-0.5 rounded-xl border border-border bg-popover p-1.5 shadow-xl animate-in fade-in slide-in-from-bottom-1.5 duration-100"
           >
             {/* 重发 (Reroll) */}
             {message.id !== activeSession?.messages[0]?.id && (
               <button
                 type="button"
+                role="menuitem"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowMore(false);
@@ -403,7 +410,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                   handleRerollFromMessage(message);
                 }}
                 disabled={isSending}
-                className="w-full text-[11px] text-left text-primary hover:bg-primary/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-xs text-foreground hover:bg-muted disabled:opacity-40"
               >
                 <RefreshCw className="w-3 h-3" /> {t("quick_dialogue.reroll")}
               </button>
@@ -412,14 +419,15 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
             {/* 分支 (Branch) */}
             <button
               type="button"
-              onClick={(e) => {
+              role="menuitem"
+              onClick={async (e) => {
                 e.stopPropagation();
                 setShowMore(false);
+                await createBacktrackBranch(message);
                 setMsgMenuId(null);
-                createBacktrackBranch(message);
               }}
               disabled={isSending}
-              className="w-full text-[11px] text-left text-primary hover:bg-primary/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
+              className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-xs text-foreground hover:bg-muted disabled:opacity-40"
             >
               <GitFork className="w-3 h-3" /> {t("quick_dialogue.branch")}
             </button>
@@ -427,6 +435,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
             {/* 删除 (Delete) */}
             <button
               type="button"
+              role="menuitem"
               onClick={async (e) => {
                 e.stopPropagation();
                 setShowMore(false);
@@ -451,15 +460,16 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                 }
               }}
               disabled={isSending}
-              className="w-full text-[11px] text-left text-red-500 hover:bg-red-500/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
+              className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-xs text-destructive hover:bg-destructive/10 disabled:opacity-40"
             >
               <Trash2 className="w-3 h-3" /> {t("quick_dialogue.delete")}
             </button>
 
             {/* 整理潜意识 (Organize Subconscious) */}
-            {activeSession && (
+            {activeSession && settings.memory?.enableAutoSummary !== false && (
               <button
                 type="button"
+                role="menuitem"
                 onClick={async (e) => {
                   e.stopPropagation();
                   setShowMore(false);
@@ -468,20 +478,23 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                   );
                   if (ok) {
                     setIsSending(true);
-                    await handleAutoSummaryCheck(activeSession, true);
-                    setIsSending(false);
-                    setMsgMenuId(null);
+                    try {
+                      await handleAutoSummaryCheck(activeSession, true);
+                      setMsgMenuId(null);
+                    } finally {
+                      setIsSending(false);
+                    }
                   }
                 }}
                 disabled={isSending}
-                className="w-full text-[11px] text-left text-primary hover:bg-primary/10 px-2 py-1.5 rounded flex items-center gap-1.5 disabled:opacity-40"
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-xs text-foreground hover:bg-muted disabled:opacity-40"
               >
                 <Brain className="w-3 h-3" /> {t("quick_dialogue.summarize")}
               </button>
             )}
           </div>
         )}
-      </button>
+      </div>
     </div>
   );
 };

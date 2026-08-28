@@ -25,6 +25,8 @@ import type { PromptAssemblyResult } from "./prompt/PromptAssemblyResult";
 import { buildPromptRequestMessages, shapePromptRequest } from "./prompt/PromptRequestShaper";
 import { checkPromptAssemblyAborted, createLorebookSessionContext } from "./prompt/PromptAssemblySupport";
 import { Logger } from "../../utils/logger";
+import { isDirectApiCharacter } from "../../domain/agents/directApiMode";
+import { buildDirectApiPromptAssembly } from "./prompt/DirectApiPromptAssembly";
 const logger = Logger.create("PromptService");
 
 /**
@@ -144,6 +146,9 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       userPersona: settings.userInfo || "无",
       mes_example: character.mes_example || "",
     };
+
+    // 必须早于其他编排路径，确保严格直连不受任何角色或全局设定影响。
+    if (isDirectApiCharacter(character)) return buildDirectApiPromptAssembly(chat, userInput);
 
     // 自由编排路径：只有用户显式启用时生效。编译器不会补入任何隐藏区块，
     // 空编排会产生空 messages；旧路径仅作为迁移期显式回退保留。

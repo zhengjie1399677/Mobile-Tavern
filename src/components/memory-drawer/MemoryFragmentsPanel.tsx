@@ -97,16 +97,16 @@ export function MemoryFragmentsPanel({ activeSession, updateSessionMetadata }: M
   );
 
   return (
-    <section className="space-y-2 rounded-xl border border-border/50 bg-card/25 p-2.5">
+    <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h3 className="text-xs font-bold text-foreground">{t("recall_tab.fragment_title")}</h3>
-          <p className="text-[9px] text-muted-foreground">{t("recall_tab.fragment_desc")}</p>
+          <h3 className="text-xs font-semibold text-foreground">{t("recall_tab.fragment_title")}</h3>
+          <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">{t("recall_tab.fragment_desc")}</p>
         </div>
         <button
           type="button"
           onClick={() => setShowHistory((value) => !value)}
-          className="flex min-h-8 items-center gap-1 rounded-lg border border-border/60 px-2 text-[9px] text-muted-foreground"
+          className="flex min-h-11 items-center gap-1.5 rounded-xl px-2.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted"
         >
           <History className="size-3" />
           {showHistory ? t("recall_tab.fragment_active_only") : t("recall_tab.fragment_history")}
@@ -116,7 +116,7 @@ export function MemoryFragmentsPanel({ activeSession, updateSessionMetadata }: M
       {loading ? (
         <p className="py-4 text-center text-[10px] text-muted-foreground">…</p>
       ) : visible.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border/50 py-4 text-center text-[10px] text-muted-foreground">
+        <p className="border-y border-border/45 py-6 text-center text-[10px] text-muted-foreground">
           {t("recall_tab.fragment_empty")}
         </p>
       ) : visible.map((fragment) => (

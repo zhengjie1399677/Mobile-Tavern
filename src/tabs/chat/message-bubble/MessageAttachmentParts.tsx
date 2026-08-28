@@ -74,12 +74,13 @@ export function MessageAttachmentParts({ parts }: MessageAttachmentPartsProps): 
           );
         }
         if (part.type === "audio") {
+          const isModelInput = part.purpose === "model-input";
           return (
-            <article key={`${part.assetId}-${index}`} className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
+            <article key={`${part.assetId}-${index}`} className="rounded-xl border border-border/60 bg-muted/30 p-2.5">
               <div className="mb-2 flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"><AudioLines className="h-4 w-4" /></span>
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground"><AudioLines className="h-4 w-4" /></span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-300">音频</p>
+                  <p className="text-[9px] font-bold text-muted-foreground">{isModelInput ? "语音输入" : "音频"}</p>
                   <p className="truncate text-[10px] font-medium text-foreground">{name}</p>
                 </div>
                 {size && <span className="text-[8px] text-muted-foreground">{size}</span>}

@@ -107,13 +107,13 @@ describe("MemoryTableDrawer", () => {
       />
     );
     // 标题标记
-    expect(screen.getByText(/记忆与状态中心/)).toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "记忆与状态中心" })).toBeInTheDocument();
+    expect(screen.getByText("会话资料")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "状态数据" })).toBeInTheDocument();
     // 默认表格内容
     expect(await screen.findByText("角色")).toBeInTheDocument();
   }, 25_000);
 
-  it("使用紧凑全高外壳，并为各类记忆保留独立标签", () => {
+  it("使用较短的纯色独立面板，不在内容区重复展示其他功能标签", () => {
     renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
@@ -128,16 +128,16 @@ describe("MemoryTableDrawer", () => {
     );
 
     expect(document.querySelector("[data-memory-drawer-surface]"))
-      .toHaveAttribute("data-density", "compact");
-    expect(screen.getByRole("tablist", { name: "记忆与状态分类" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "故事年表" })).toHaveAttribute("aria-selected", "false");
-    expect(screen.getByRole("tab", { name: "状态数据" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "记忆词典" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "唤醒记忆" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "角色变量" })).toBeInTheDocument();
+      .toHaveAttribute("data-density", "comfortable");
+    expect(document.querySelector("[data-memory-drawer-surface]"))
+      .toHaveAttribute("data-panel", "table");
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "状态数据" })).toBeInTheDocument();
+    expect(screen.queryByText("故事年表")).not.toBeInTheDocument();
+    expect(screen.queryByText("角色变量")).not.toBeInTheDocument();
   });
 
-  it("唤醒记忆标签可加载事件记忆管理面板", async () => {
+  it("唤醒记忆入口可加载独立的事件记忆管理面板", async () => {
     renderWithI18n(
       <MemoryTableDrawer
         isOpen={true}
@@ -147,6 +147,7 @@ describe("MemoryTableDrawer", () => {
         charName="Alice"
         enableTableMemory={true}
         enableAutoSummary={true}
+        enableRecall={true}
         initialTab="recall"
       />
     );

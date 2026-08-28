@@ -114,6 +114,7 @@ const MessageBubble = ({
   const bubbleRef = React.useRef<HTMLDivElement>(null);
   const bubbleTextRef = React.useRef<HTMLDivElement>(null);
   const swipeMenuRef = React.useRef<HTMLDivElement>(null);
+  const editorTextareaRef = React.useRef<HTMLTextAreaElement>(null);
   const dragOffsetRef = React.useRef(0);
   const swipeLockedRef = React.useRef<'none' | 'swipe' | 'scroll'>('none');
 
@@ -124,6 +125,11 @@ const MessageBubble = ({
 
   const dragDirection = isUser ? 1 : -1;
   const SWIPE_MENU_WIDTH = 46;
+  const SWIPE_LOCK_THRESHOLD = 18;
+  const SWIPE_DRAG_DEAD_ZONE = 12;
+  const SWIPE_OPEN_THRESHOLD = 56;
+  const SWIPE_CLOSE_THRESHOLD = 36;
+  const SWIPE_VERTICAL_TOLERANCE = 24;
 
   // 侧滑面板中三个按钮的相关可用性
   const showDraw = settings?.imageGenApi?.enabled && !isUser;
@@ -147,6 +153,28 @@ const MessageBubble = ({
       swipeMenuRef.current.style.pointerEvents = '';
     }
   }, [dragDirection]);
+
+  const resizeEditor = React.useCallback(() => {
+    const textarea = editorTextareaRef.current;
+    if (!textarea) return;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const minHeight = Math.max(140, Math.min(220, viewportHeight * 0.32));
+    const maxHeight = Math.max(minHeight, viewportHeight * 0.58);
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight)}px`;
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (editingMsgId !== message.id) return;
+    resizeEditor();
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", resizeEditor);
+    window.addEventListener("resize", resizeEditor);
+    return () => {
+      viewport?.removeEventListener("resize", resizeEditor);
+      window.removeEventListener("resize", resizeEditor);
+    };
+  }, [editingMsgContent, editingMsgId, message.id, resizeEditor]);
 
   // 当其他消息被滑动展开或选中关闭时，自动将本条消息重置并收回（修复1：Refs 已先行声明）
   React.useEffect(() => {
@@ -280,11 +308,24 @@ const MessageBubble = ({
 
       // 手势识别方向锁逻辑
       if (swipeLockedRef.current === 'none') {
-        if (diffY > 8 && diffY > absDiffX) {
+        if (diffY > 10 && diffY >= absDiffX * 0.8) {
           swipeLockedRef.current = 'scroll';
-        } else if (absDiffX > 8 && absDiffX > diffY) {
+        } else if (absDiffX > SWIPE_LOCK_THRESHOLD && absDiffX > diffY * 1.5) {
           swipeLockedRef.current = 'swipe';
         }
+      }
+
+      // 已进入横滑后若手指明显转为纵向，立即交还给滚动，避免斜向浏览消息时误开菜单。
+      if (
+        swipeLockedRef.current === 'swipe' &&
+        diffY > SWIPE_VERTICAL_TOLERANCE &&
+        diffY > absDiffX * 0.7
+      ) {
+        swipeLockedRef.current = 'scroll';
+        dragOffsetRef.current = 0;
+        setDragOffset(0);
+        forceResetDomStyles(0);
+        return;
       }
 
       // 如果已经锁定为滚动，直接退出
@@ -318,7 +359,9 @@ const MessageBubble = ({
 
       // 往中心滑动（展开菜单）
       if (diffX > 0 && diffY < 30) {
-        let offset = isOpen ? SWIPE_MENU_WIDTH + diffX : diffX;
+        let offset = isOpen
+          ? SWIPE_MENU_WIDTH + diffX
+          : Math.max(0, diffX - SWIPE_DRAG_DEAD_ZONE);
         if (offset < 0) offset = 0;
 
         // 阻尼系数
@@ -369,7 +412,7 @@ const MessageBubble = ({
         dragOffsetRef.current = offset;
       }
     }
-  }, [cancelLongPress, isOpen, dragDirection]);
+  }, [cancelLongPress, dragDirection, forceResetDomStyles, isOpen]);
 
   const endTouch = React.useCallback(() => {
     cancelLongPress();
@@ -391,14 +434,14 @@ const MessageBubble = ({
     let finalSwipedOpen = isOpen;
     let finalOffset = isOpen ? SWIPE_MENU_WIDTH : 0;
 
-    if (diffY < 35 && editingMsgId !== message.id) {
+    if (diffY < SWIPE_VERTICAL_TOLERANCE && editingMsgId !== message.id) {
       if (isOpen) {
-        if (diffX < -25) {
+        if (diffX < -SWIPE_CLOSE_THRESHOLD) {
           finalSwipedOpen = false;
           finalOffset = 0;
         }
       } else {
-        if (diffX > 30) {
+        if (diffX > SWIPE_OPEN_THRESHOLD && diffX > diffY * 1.5) {
           finalSwipedOpen = true;
           finalOffset = SWIPE_MENU_WIDTH;
         }
@@ -433,7 +476,7 @@ const MessageBubble = ({
       ref={bubbleRef}
       role="article"
       aria-label={`${isUser ? t("message_bubble.user_said") : (activeCharacter?.name || t("message_bubble.role")) + t("message_bubble.char_said")}：${message.content}`}
-      className={`flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}
+      className={`chat-message-row flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}
     >
       <MessageAvatar
         isUser={isUser}
@@ -444,7 +487,12 @@ const MessageBubble = ({
 
       {/* Speech Bubble */}
       <div
-        className="max-w-[78%] group relative select-none w-full touch-pan-y"
+        className={`group relative w-full select-none touch-pan-y ${editingMsgId === message.id
+          ? "min-w-0 flex-1 max-w-none"
+          : isUser
+            ? "max-w-[78%]"
+            : "max-w-[84%]"
+        }`}
         style={{
           minHeight: (isOpen || dragOffset > 0) ? `${swipeMenuHeight}px` : undefined,
         }}
@@ -572,27 +620,21 @@ const MessageBubble = ({
 
         {editingMsgId === message.id ? (
           <div
-            className={`rounded-xl p-3 shadow-sm text-sm border transition-all ${
-              isUser
-                ? "bg-primary/10 border-primary/50"
-                : "bg-input border-border"
-            }`}
+            className="w-full rounded-2xl border border-border bg-card p-2.5 text-sm shadow-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <textarea
+              ref={editorTextareaRef}
               value={editingMsgContent}
               onChange={(e) =>
                 setEditingMsgContent(e.target.value)
               }
-              className="w-full text-sm bg-muted border border-border rounded-lg p-2.5 text-foreground outline-none leading-relaxed resize-y font-light mb-2 focus:border-primary/50"
+              className="mb-2 block max-h-[58dvh] w-full resize-none overflow-y-auto rounded-xl border border-border bg-background p-3 text-sm font-normal leading-relaxed text-foreground outline-none focus:border-primary/55 focus:ring-2 focus:ring-primary/10"
               style={{
                 fontSize: settings?.chatFontSize ? `${settings.chatFontSize}px` : undefined,
                 lineHeight: settings?.chatLineHeight ? `${settings.chatLineHeight}` : undefined,
               }}
-              rows={Math.max(
-                3,
-                editingMsgContent.split("\n").length,
-              )}
+              rows={1}
               autoFocus
               onFocus={(e) => {
                 setTimeout(() => {
@@ -600,7 +642,7 @@ const MessageBubble = ({
                 }, 300);
               }}
             />
-            <div className="flex gap-2 justify-end">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
@@ -627,7 +669,7 @@ const MessageBubble = ({
                   setEditingMsgId(null);
                 }}
                 disabled={isSending}
-                className="bg-emerald-600 hover:bg-emerald-500 text-foreground px-2.5 py-1 rounded text-[10.5px] font-bold flex items-center gap-1 shadow disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex min-h-11 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Check className="w-3.5 h-3.5" /> {t("message_bubble.edit_save")}
               </button>
@@ -637,7 +679,7 @@ const MessageBubble = ({
                   setEditingMsgId(null);
                 }}
                 disabled={isSending}
-                className="bg-muted active:scale-[0.98] text-muted-foreground px-2.5 py-1 rounded text-[10.5px] font-bold flex items-center gap-1 border border-border shadow disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex min-h-11 items-center gap-1.5 rounded-xl border border-border bg-background px-3.5 text-xs font-semibold text-muted-foreground active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <X className="w-3.5 h-3.5" /> {t("message_bubble.edit_cancel")}
               </button>
@@ -676,14 +718,14 @@ const MessageBubble = ({
                 && (!hasAttachmentParts || Boolean(message.content?.trim()) || isStreamingThisMsg)
                 && (
                 <div
-                  className={`px-3.5 py-2.5 shadow-sm text-sm border font-light tracking-wide transition-all cursor-pointer relative overflow-hidden ${
+                  className={`chat-message-bubble relative cursor-pointer overflow-hidden border px-4 py-3 text-[15px] font-normal leading-relaxed transition-colors ${
                     isUser
                       ? activeCharacter?.visualSettings?.userBubbleColor
                         ? "border-transparent bubble-user"
-                        : "bg-gradient-to-br from-primary to-primary/85 text-primary-foreground border-primary/40 bubble-user hover:from-primary/95 hover:to-primary/80"
+                        : "chat-message-user bubble-user border-primary/15 text-primary-foreground"
                       : activeCharacter?.visualSettings?.bubbleColor
-                        ? "border-transparent bubble-ai pl-4"
-                        : "glass-panel text-foreground shadow-sm bubble-ai pl-4 border-l-4 border-l-primary"
+                        ? "border-transparent bubble-ai"
+                        : "chat-message-assistant bubble-ai border-border/40 text-foreground"
                   }`}
                   style={{
                     backgroundColor: isUser

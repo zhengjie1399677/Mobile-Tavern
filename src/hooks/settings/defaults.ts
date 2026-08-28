@@ -394,7 +394,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     type: "openai-compat",
     baseUrl: "https://api.deepseek.com/v1",
     apiKey: "",
-    modelName: "deepseek-chat",
+    modelName: "deepseek-v4-flash",
     chatPath: "/chat/completions",
     modelsPath: "/models",
     bypassProxy: false,
@@ -402,6 +402,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     disableReasoning: false,
     forceBasicParams: false,
     supportsVision: false,
+    supportsAudioInput: false,
   },
   preset: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset,
   memory: {

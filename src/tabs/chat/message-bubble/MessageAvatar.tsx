@@ -20,10 +20,10 @@ export function MessageAvatar({
   return (
     <div
       aria-hidden="true"
-      className={`w-8 h-8 rounded-[11px] bg-gradient-to-br flex items-center justify-center font-bold text-xs shadow-sm border flex-shrink-0 overflow-hidden ${
+      className={`chat-message-avatar flex size-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br text-xs font-semibold ${
         isUser
-          ? "from-secondary to-muted border-border text-foreground transition-colors duration-300"
-          : "from-card to-muted border-border text-foreground font-serif transition-colors duration-300"
+          ? "from-secondary to-muted text-foreground transition-colors duration-300"
+          : "from-card to-muted text-foreground font-serif transition-colors duration-300"
       }`}
     >
       {isUser ? (

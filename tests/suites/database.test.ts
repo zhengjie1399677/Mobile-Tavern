@@ -135,6 +135,8 @@ export async function testDatabaseServiceCrud() {
   const backtrackSession = await mockDbService.createBacktrackBranch(session, "新分支", session.messages[0].id);
   assert(backtrackSession.title === "新分支", "Backtrack title matches");
   assert(backtrackSession.messages.length === 1, "Backtrack messages count matches");
+  assert(backtrackSession.messages[0].id !== session.messages[0].id, "Backtrack messages receive branch-local IDs");
+  assert(backtrackSession.messages[0].content === session.messages[0].content, "Backtrack message content is preserved");
 
   session.summaries = [{
     id: "sum_1",
@@ -145,7 +147,8 @@ export async function testDatabaseServiceCrud() {
   }];
   const timelineSession = await mockDbService.createBacktrackFromTimeline(session, "时间流分支", "sum_1");
   assert(timelineSession.summaries.length === 1, "Timeline session summaries count matches");
-  assert(timelineSession.messages[0].id === session.messages[0].id, "Timeline branch ends at summary message boundary");
+  assert(timelineSession.messages[0].id !== session.messages[0].id, "Timeline branch receives branch-local message IDs");
+  assert(timelineSession.summaries[0].lastMessageId === timelineSession.messages[0].id, "Timeline summary boundary points to the cloned branch message");
   assert(timelineSession.parentSessionId === session.id, "Timeline branch keeps parent session");
   assert(timelineSession.parentMessageId === session.messages[0].id, "Timeline branch keeps split message");
 

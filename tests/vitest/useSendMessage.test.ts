@@ -21,6 +21,7 @@ import type {
 function createHarness(
   streamLlmResponse: (...args: any[]) => AsyncGenerator<any>,
   providerModalities: readonly AgentInputModality[] = ["text", "image"],
+  attachmentBlob: Blob = new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }),
 ) {
   const welcome: Message = {
     id: "welcome",
@@ -96,7 +97,7 @@ function createHarness(
     version: "1.0.0",
     capabilities: {
       inputModalities: providerModalities,
-      supportedMimeTypes: ["image/png", "image/jpeg", "image/gif", "image/webp"],
+      supportedMimeTypes: ["image/png", "image/jpeg", "image/gif", "image/webp", "audio/wav", "audio/mpeg"],
       supportsStreaming: true,
       supportsTools: true,
     },
@@ -163,7 +164,7 @@ function createHarness(
       getService: vi.fn((name: string) => {
         if (name === "agentRuntime") return agentRuntime;
         return name === "attachments" ? {
-            getBlob: vi.fn(async () => new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" })),
+            getBlob: vi.fn(async () => attachmentBlob),
           }
         : {
             getExtractor: () => ({ scheduleExtraction }),
@@ -399,5 +400,43 @@ describe("useSendMessage 弱网与中止事务", () => {
     expect(harness.showCustomAlert).toHaveBeenCalledWith(expect.stringContaining("video"));
     expect(harness.queueUserMessage).not.toHaveBeenCalled();
     expect(harness.params.chatStreamService.streamLlmResponse).not.toHaveBeenCalled();
+  });
+
+  it("模型语音输入直接投影为 input_audio，不触发普通音频的 ASR 降级", async () => {
+    silenceConsole();
+    const harness = createHarness(
+      async function* () {
+        yield { choices: [{ delta: { content: "听到了" } }] };
+      },
+      ["text", "audio"],
+      new Blob([new Uint8Array([1, 2, 3])], { type: "audio/wav" }),
+    );
+    harness.params.settings.api = {
+      ...harness.params.settings.api,
+      type: "openai-compat",
+      supportsAudioInput: true,
+    };
+    harness.params.promptService.assemblePrompt = vi.fn(() => ({
+      systemInstruction: "",
+      dynamicInstruction: "",
+      history: [],
+      messages: [{ role: "user" as const, content: "" }],
+      traces: [],
+    }));
+    const { result } = renderHook(() => useSendMessage(harness.params));
+
+    await act(async () => {
+      await result.current.handleSendMessage("", {
+        attachmentParts: [{ type: "audio", assetId: "att_voice1", purpose: "model-input" }],
+      });
+    });
+
+    expect(harness.showCustomAlert).not.toHaveBeenCalled();
+    const streamCall = vi.mocked(harness.params.chatStreamService.streamLlmResponse).mock.calls[0][0];
+    const body = streamCall.reqBody as { messages: Array<{ role: string; content: unknown }> };
+    expect(body.messages[0].content).toEqual([{
+      type: "input_audio",
+      input_audio: { data: "AQID", format: "wav" },
+    }]);
   });
 });

@@ -579,10 +579,25 @@ export class DatabaseService implements IDatabaseService<
       throw new Error("Message not found in source session");
     }
     const sourceSubHistory = fullHistory.slice(0, msgIndex + 1);
+    const newSessionId = "session_branch_" + Math.random().toString(36).substring(2, 9);
+    // messages Store 以 message.id 为全局主键，同一消息 ID 不能同时属于源会话和新分支。
+    // 分支必须复制消息并重建 ID；parentMessageId 仍保留源会话边界，供谱系追踪使用。
+    const branchedMessageIds = new Map(
+      sourceSubHistory.map((message, index) => [message.id, `${newSessionId}_msg_${index}`]),
+    );
+    const branchedMessages = sourceSubHistory.map((message) => ({
+      ...structuredClone(message),
+      id: branchedMessageIds.get(message.id)!,
+    }));
     const messageIdsSet = new Set(sourceSubHistory.map((m) => m.id));
     const filteredSummaries = (sourceSession.summaries || [])
       .filter((s) => s.lastMessageId && messageIdsSet.has(s.lastMessageId))
-      .map((s) => ({ ...s }));
+      .map((summary) => ({
+        ...structuredClone(summary),
+        lastMessageId: summary.lastMessageId
+          ? branchedMessageIds.get(summary.lastMessageId)
+          : undefined,
+      }));
 
     const lastSummarizedMessageId = filteredSummaries.length > 0
       ? filteredSummaries[filteredSummaries.length - 1].lastMessageId
@@ -618,11 +633,11 @@ export class DatabaseService implements IDatabaseService<
         : undefined);
 
     const newSession: ChatSession = {
-      id: "session_branch_" + Math.random().toString(36).substring(2, 9),
+      id: newSessionId,
       characterId: sourceSession.characterId,
       title,
       createdAt: Date.now(),
-      messages: sourceSubHistory,
+      messages: branchedMessages,
       summaries: filteredSummaries,
       lastSummarizedMessageId,
       runtimePluginState,

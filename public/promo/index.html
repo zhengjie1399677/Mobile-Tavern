@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Mobile Tavern | 本地优先的无侵入运行时底座</title>
   <meta name="description" content="Mobile Tavern 是一款为移动端深度优化的本地优先、无侵入运行时解耦容器。基于轻量化微内核，保障您的本地数据绝对安全与扩展自由。" />
   <link rel="canonical" href="https://tavern.neural-node.xyz/" />
@@ -22,7 +22,6 @@
   <meta name="twitter:title" content="Mobile Tavern | 本地优先的无侵入运行时底座" />
   <meta name="twitter:description" content="Mobile Tavern 是一款为移动端深度优化的本地优先、无侵入运行时解耦容器。基于轻量化微内核，保障您的本地数据绝对安全与扩展自由。" />
 
-  <!-- 结构化数据：软件应用 -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -33,10 +32,10 @@
     "url": "https://tavern.neural-node.xyz/",
     "applicationCategory": "UtilitiesApplication",
     "operatingSystem": "Android",
-    "softwareVersion": "1.8.7",
+    "softwareVersion": "1.8.6",
     "inLanguage": "zh-CN",
-    "datePublished": "2026-08-27",
-    "downloadUrl": "https://neural-node.xyz/dl/mobile-tavern-1.8.7-release.apk",
+    "datePublished": "2026-08-26",
+    "downloadUrl": "https://neural-node.xyz/dl/mobile-tavern-1.8.6-release.apk",
     "offers": {
       "@type": "Offer",
       "price": "0",
@@ -49,11 +48,28 @@
 </head>
 
 <body>
-  <!-- 背景科技网格与漫反射聚光灯 -->
   <div class="grid-bg"></div>
   <div class="spotlight-glow" id="spotlight-glow"></div>
 
-  <!-- 顶部导航栏 -->
+  <!-- 移动端侧边抽屉导航 -->
+  <div class="mobile-drawer-overlay" id="mobile-drawer-overlay"></div>
+  <div class="mobile-drawer" id="mobile-drawer">
+    <div class="drawer-header">
+      <span class="logo-text">Mobile Tavern</span>
+      <button class="btn-close-drawer" id="btn-close-drawer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <nav class="drawer-nav">
+      <a href="#features" class="drawer-link">核心特性</a>
+      <a href="#tutorials-hub" class="drawer-link">功能教程与规范</a>
+      <a href="#download" class="drawer-link">下载客户端</a>
+    </nav>
+    <div class="drawer-footer">
+      <a href="#download" class="btn-primary w-full text-center">立即下载 (v1.8.6)</a>
+    </div>
+  </div>
+
   <header class="site-header glass">
     <div class="header-container">
       <a href="#" class="logo-area" id="nav-logo-link">
@@ -66,35 +82,39 @@
       
       <nav class="nav-links">
         <a href="#features" class="nav-link" id="link-features">核心特性</a>
+        <a href="#tutorials-hub" class="nav-link" id="link-tutorials">功能教程</a>
         <a href="#download" class="nav-link" id="link-download">下载客户端</a>
       </nav>
 
       <div class="header-actions">
-        <a href="#download" class="btn-primary" id="btn-download-nav">立即下载</a>
+        <a href="#download" class="btn-primary btn-desktop-only" id="btn-download-nav">立即下载</a>
+        <button class="btn-hamburger" id="btn-hamburger" aria-label="Toggle menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
       </div>
     </div>
   </header>
 
-  <!-- 主体内容 -->
   <main class="main-content">
     
-    <!-- Hero 首屏区域 -->
+    <!-- 1. 原版 Hero 区域（最上方开头介绍） -->
     <section class="hero-section">
       <div class="section-container hero-container style-centered" id="hero-container">
         <div class="hero-text-content">
-          <div class="badge glass" id="hero-badge">Mobile Tavern v1.8.7 已发布</div>
+          <div class="badge glass" id="hero-badge">Mobile Tavern v1.8.6 已发布</div>
           <h1 class="hero-title">随时随地，<br><span class="gradient-text">安全纯粹的本地优先运行时底座。</span></h1>
           <p class="hero-subtitle">
             一款专为移动混合应用（Hybrid App）深度优化的解耦运行容器。基于纯底层微内核与沙盒隔离，为您提供极致流畅的本地离线运行底座与扩展运行时支持。
           </p>
           <div class="hero-actions">
             <a href="#download" class="btn-primary btn-large" id="btn-download-hero">下载客户端</a>
+            <a href="#tutorials-hub" class="btn-secondary btn-large" id="btn-tutorials-hero">📖 查阅全功能教程</a>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Features 核心特性网格 -->
+    <!-- 2. 原版 Features 核心特性网格 -->
     <section class="features-section" id="features">
       <div class="section-container">
         <div class="section-header">
@@ -108,7 +128,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feat-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             </div>
             <h3 class="feature-card-title">标准协议无缝兼容</h3>
-            <p class="feature-card-desc">原生解析标准化运行时数据契约，无感适配多维度数据配置集、本地定义文件与离线渲染资源包。</p>
+            <p class="feature-card-desc">原生解析 SillyTavern V2 Spec 角色卡元数据契约，无感适配多维度数据配置集、本地 PNG/JSON 定义文件与离线资源包。</p>
           </div>
 
           <div class="feature-card glass" id="feat-privacy">
@@ -124,7 +144,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feat-icon"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
             </div>
             <h3 class="feature-card-title">流畅的移动手势适配</h3>
-            <p class="feature-card-desc">专为 WebView 沙盒调优。提供原生级高帧率手势惯性滚动、刘海屏安全区域阻尼自适应，交互操作宛如原生 App。</p>
+            <p class="feature-card-desc">专为 WebView 沙盒深度调优。提供原生级高帧率手势惯性滚动、刘海屏安全区域阻尼自适应，交互操作宛如原生 App。</p>
           </div>
 
           <div class="feature-card glass" id="feat-plugin">
@@ -135,47 +155,274 @@
             <p class="feature-card-desc">底座微内核完全解耦，仅托管生命周期、Pipeline 与扩展契约，支持动态装载扩展模块与自定义视图面板。</p>
           </div>
         </div>
-
-        <!-- 合并后的精致居中客户端下载卡片 -->
-        <div class="download-container-card glass" id="download">
-          <div class="download-card-header">
-            <h2 class="download-card-title">即刻获取 Mobile Tavern</h2>
-            <p class="download-card-desc">专为移动端 WebView 沙盒深度优化的极速、安全、本地优先解耦运行时底座。</p>
-          </div>
-          <div class="download-card-header-body" style="display: flex; justify-content: center; width: 100%;">
-            <!-- 居中 Android 下载卡 -->
-            <div class="download-option-block single-option">
-              <h3 class="dl-option-title">Android (APK 安装包)</h3>
-              <p class="dl-option-desc">完全适配移动全面屏手势与安全区阻尼，密钥本地高强度硬加密隔离，提供流畅稳健的离线运行底座。</p>
-              
-              <div class="dl-meta-list">
-                <div class="dl-meta-item"><span>最新版本:</span> <span class="tag">v1.8.7</span></div>
-                <div class="dl-meta-item"><span>安全验证:</span> <span class="hash-code">SHA-256 Verified</span></div>
-                <div class="dl-meta-item"><span>发布日期:</span> <span>2026-08-27</span></div>
-                <div class="dl-meta-item"><span>页面访问:</span> <span id="page-visit-count">-</span></div>
-                <div class="dl-meta-item"><span>累计下载:</span> <span id="download-count">-</span></div>
-              </div>
-              
-              <a href="https://neural-node.xyz/dl/mobile-tavern-1.8.7-release.apk" class="btn-primary dl-btn" id="btn-download-android" download="mobile-tavern-1.8.7-release.apk">立即下载 Android APK</a>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
 
+    <!-- 3. 精确四大核心技术规范中心 (无多余废话) -->
+    <section class="tutorials-section" id="tutorials-hub">
+      <div class="section-container">
+        <div class="section-header">
+          <h2 class="section-title">功能教程与配置中心</h2>
+          <p class="section-desc">分类探索全套移动端功能与开发接口规范。</p>
+        </div>
+
+        <div class="tutorials-tab-wrapper">
+          <div class="tutorials-tabs" id="core-tabs-nav">
+            <button class="tab-btn active" data-target="quickstart">🚀 基础上手</button>
+            <button class="tab-btn" data-target="plugins">🧩 插件 API 规范 (.mtplugin)</button>
+            <button class="tab-btn" data-target="agent">🤖 Agent 宿主能力</button>
+            <button class="tab-btn" data-target="css">🎨 自定义 CSS 与主题规范</button>
+          </div>
+        </div>
+
+        <!-- 挂载节点 -->
+        <div class="tutorials-container" id="core-content-mount"></div>
+
+        <!-- 1. 基础上手 Template -->
+        <template id="tpl-quickstart">
+          <div class="doc-card glass">
+            <div class="doc-card-header">
+              <h2 class="doc-title">🚀 极简 3 分钟上手指南</h2>
+              <p class="doc-sub">从下载容器、接入 API 到导入首张角色卡的全流程。</p>
+            </div>
+            <div class="doc-card-body">
+              <div class="step-item">
+                <div class="step-num">01</div>
+                <div class="step-body">
+                  <div class="step-heading">安装客户端</div>
+                  <div class="step-detail">下载并安装最新 Android APK (v1.8.6)。应用为完全本地离线容器，无服务器后端、无内购与广告。</div>
+                </div>
+              </div>
+              <div class="step-item">
+                <div class="step-num">02</div>
+                <div class="step-body">
+                  <div class="step-heading">配置大模型 API Key</div>
+                  <div class="step-text">进入【系统设置】->【接口配置】，选择“OpenAI 兼容接口”，填入 Base URL（如 DeepSeek: <code class="code-block">https://api.deepseek.com/v1</code> 或 硅基流动: <code class="code-block">https://api.siliconflow.cn/v1</code>）与 API Key（以 <code class="code-block">sk-</code> 开头），点击“获取模型列表”选择模型。如果连接局域网 Ollama，填入 <code class="code-block">http://192.168.x.x:11434</code> 即可离线免网使用。</div>
+                </div>
+              </div>
+              <div class="step-item">
+                <div class="step-num">03</div>
+                <div class="step-body">
+                  <div class="step-heading">导入角色卡对话</div>
+                  <div class="step-detail">前往 Chub.ai 等社区下载酒馆角色卡（PNG 图片或 JSON 文本）。进入【角色名录】点击“导入角色卡”即可解析元数据与感情立绘，开启对话。数据完全存储于本地 IndexedDB 沙盒。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- 2. 插件 API 规范 Template -->
+        <template id="tpl-plugins">
+          <div class="doc-card glass">
+            <div class="doc-card-header">
+              <h2 class="doc-title">🧩 第三方全屏插件规范与 API 声明 (.mtplugin)</h2>
+              <p class="doc-sub">用于制作独立 Galgame 视图、WebGL 实时游戏（如 PixiJS）或全屏交互微应用。</p>
+            </div>
+            <div class="doc-card-body">
+              <div class="doc-block">
+                <h3 class="block-title">1. 能做出什么程度？ (能力边界)</h3>
+                <ul class="spec-list">
+                  <li><strong>独立全屏微应用：</strong>运行于隔离全屏 <code class="code-block">&lt;iframe sandbox="allow-scripts"&gt;</code> 沙箱，包含自带 HTML/CSS/JS、独立的本地 IndexedDB 存储（<code class="code-block">MobileTavernPluginDB</code>），不随卸载主应用丢失。</li>
+                  <li><strong>WebGL 与游戏引擎支持：</strong>支持打成单个 Bundled JS 的 PixiJS 8 / Phaser 游戏（官方内置《星渊终焉》与《夜雨试剑》全屏示例），自带音频/视效离线运行。</li>
+                  <li><strong>物理硬隔离安全限制：</strong>插件禁止访问主应用 DOM、Kernel、API Key 凭证、主数据库或网络；通过清单白名单授权申请受控宿主 API。</li>
+                </ul>
+              </div>
+
+              <div class="doc-block">
+                <h3 class="block-title">2. 包结构与 manifest.json 规范</h3>
+                <div class="step-text"><code class="code-block">.mtplugin</code> 是标准 ZIP 压缩包（不超过 25MB），根目录必须包含 <code class="code-block">manifest.json</code> 与入口 <code class="code-block">index.html</code>：</div>
+                <div class="code-multiline">{
+  "format": "mobile-tavern.plugin",
+  "manifestVersion": 1,
+  "id": "com.example.galgame",
+  "name": "互动 Gal 示例",
+  "version": "1.0.0",
+  "type": "fullscreen",
+  "entry": "index.html",
+  "orientation": "landscape",
+  "permissions": ["context.read", "chat.action", "chat.send"]
+}</div>
+              </div>
+
+              <div class="doc-block">
+                <h3 class="block-title">3. 宿主 API 函数契约 (window.MobileTavernPlugin)</h3>
+                <div class="step-text">插件加载后可通过全同名全局挂载对象调用宿主 API：</div>
+                <div class="code-multiline">interface MobileTavernPluginApiV2 {
+  readonly version: 2;
+  // 1. 初始化确认
+  ready(): Promise<{ apiVersion: 2 }>;
+  
+  // 2. 独立存档 CRUD (slot 长度 1-64, JSON 单槽 ≤ 1MB)
+  save(slot: string, data: unknown): Promise<void>;
+  load(slot: string): Promise<unknown | null>;
+  deleteSave(slot: string): Promise<void>;
+  
+  // 3. 屏幕方向与退出
+  setOrientation(value: "portrait" | "landscape" | "auto"): Promise<void>;
+  exit(): Promise<void>;
+  
+  // 4. 读取脱敏角色与会话摘要 (需声明 permissions: ["context.read"])
+  context: {
+    get(): Promise<{
+      character: { id: string; name: string; description: string; tags: string[] } | null;
+      session: { id: string; title: string; messageCount: number } | null;
+    }>;
+  };
+  
+  // 5. 对话动作注入 (需声明 permissions: ["chat.action", "chat.send"])
+  chat: {
+    injectAction(text: string): Promise<void>; // 注入动作描述（不触发 AI 回复）
+    send(text: string): Promise<void>;         // 发送消息并触发大模型生成
+  };
+}</div>
+              </div>
+
+              <div class="doc-block">
+                <h3 class="block-title">4. 前后台生命周期事件监听</h3>
+                <div class="code-multiline">window.addEventListener("mobile-tavern:lifecycle", (event) => {
+  if (event.detail === "pause") {
+    // 手机切后台：暂停动画、音频并保存检查点
+  } else if (event.detail === "resume") {
+    // 切回前台：恢复运行
+  }
+});</div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- 3. Agent 宿主能力 Template -->
+        <template id="tpl-agent">
+          <div class="doc-card glass">
+            <div class="doc-card-header">
+              <h2 class="doc-title">🤖 Base Profile 无侵入 Agent Host 架构</h2>
+              <p class="doc-sub">解耦微内核托管生命周期与 Pipeline，保持纯粹通用 Agent 宿主形态。</p>
+            </div>
+            <div class="doc-card-body">
+              <div class="doc-block">
+                <h3 class="block-title">1. 能做出什么程度？ (宿主能力界限)</h3>
+                <ul class="spec-list">
+                  <li><strong>通用 Agent 编排与闭环：</strong>Base Profile 在关闭 SillyTavern 兼容插件时仍保有完整的 Agent 工具调用 (Function Calling)、多模态图像/文档分析 (Vision Models)、TTS 语音朗读与 ASR 语音识别能力。</li>
+                  <li><strong>平行宇宙分支树 (Branching History)：</strong>支持从任意历史对话节点秒级切出分支平行宇宙，树状克隆会话路线独立发展。</li>
+                  <li><strong>三级长记忆流水线 (Lorebook / Memory)：</strong>提供角色专属 Lorebook 与全局共享 Worldbook 动态扫描，根据对话关键字毫秒级注入上下文 Prompt，解除长篇剧情记忆限制。</li>
+                </ul>
+              </div>
+
+              <div class="doc-block">
+                <h3 class="block-title">2. Kernel 无侵入解耦契约 (Architectural Boundaries)</h3>
+                <div class="step-text">Kernel (`src/kernel/`) 仅允许包含生命周期、父子 Scope、Pipeline、消息总线与通用校验。角色、Prompt、记忆、模型与界面均分层装配于 `src/application/` 与 `src/domain/`：</div>
+                <div class="code-multiline">/* 宿主核心 Pipeline 通道 */
+kernel.registerPipeline({ name: "input" });    // 用户输入清洗与解耦过滤
+kernel.registerPipeline({ name: "output" });   // 打字机流式 SSE 与格式化
+kernel.registerPipeline({ name: "settings" }); // 本地安全加密持久化</div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- 4. 自定义 CSS 与主题规范 Template -->
+        <template id="tpl-css">
+          <div class="doc-card glass">
+            <div class="doc-card-header">
+              <h2 class="doc-title">🎨 自定义 CSS 与主题包开发规范 (.tavern-theme.json)</h2>
+              <p class="doc-sub">微调应用颜色变量、毛玻璃拟态、气泡布局、状态联动与本地音视频背景。</p>
+            </div>
+            <div class="doc-card-body">
+              <div class="doc-block">
+                <h3 class="block-title">1. 能做出什么程度？ (主题能力界限)</h3>
+                <ul class="spec-list">
+                  <li><strong>全视觉样式定制：</strong>可覆盖 HSL 调色盘、聊天气泡圆角/阴影/高斯模糊（<code class="code-block">backdrop-filter</code>）、字体字号与行距、视差壁纸。支持打包导出为 <code class="code-block">.tavern-theme.json</code> 快捷分享。</li>
+                  <li><strong>主题 1.1 受限声明式交互：</strong>支持监听生命周期事件、切换 <code class="code-block">[data-theme-state]</code> 私有状态与绑定本地视音频背景播放（<code class="code-block">tavern-resource://</code>）。</li>
+                  <li><strong>安全硬限制：</strong>主题禁止包含 JavaScript、网络请求、读写数据库、修改设置偏好；绝对定位限制使用；防隐藏恢复通道机制（阻止隐藏 <code class="code-block">characters</code> 与 <code class="code-block">settings</code> 导航）。</li>
+                </ul>
+              </div>
+
+              <div class="doc-block">
+                <h3 class="block-title">2. 核心支持的主题 CSS 变量 (HSL 格式)</h3>
+                <div class="code-multiline">--background: "222 24% 10%";
+--foreground: "210 25% 96%";
+--primary: "268 90% 72%";
+--card: "222 20% 14%";
+--border: "215 20% 28%";
+--radius: "0.9rem";
+--dialogue-color: "210 25% 96%";
+--prose-color: "210 24% 90%";</div>
+              </div>
+
+              <div class="doc-block">
+                <h3 class="block-title">3. 稳定 DOM 选择器契约 (语义选择器)</h3>
+                <div class="step-text">编写主题 CSS 请优先使用官方稳定 <code class="code-block">[data-ui]</code> 语义选择器，避开 React/Tailwind 生成类名：</div>
+                <div class="code-multiline">/* 示例：为底栏增加玻璃拟态与特定主题气泡阴影 */
+[data-ui="main-tab-bar"] {
+  backdrop-filter: blur(16px) !important;
+  border-top: 1px solid hsl(var(--primary) / 0.3) !important;
+}
+
+[data-ui="main-tab"][aria-selected="true"] {
+  color: hsl(var(--primary)) !important;
+  text-shadow: 0 0 12px hsl(var(--primary) / 0.5);
+}
+
+/* 主题 1.1 状态联动契约 */
+[data-theme-state~="mood-dream"] [data-ui="main-tab-bar"] {
+  box-shadow: 0 0 24px hsl(var(--primary) / 0.4);
+}</div>
+              </div>
+
+              <div class="doc-block">
+                <h3 class="block-title">4. 本地音视频媒体引用契约</h3>
+                <div class="step-text">在【系统设置】->【外观】导入本地界面资源后，可在主题中直接引用稳定 ID：</div>
+                <div class="code-multiline">.character-stage {
+  background-image: var(--tavern-resource-r_0123456789abcdef0123456789abcdef, none);
+  background-size: cover;
+}</div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- 4. 原版真实的极简毛玻璃居中下载卡片 (在最下方!) -->
+    <div class="download-container-card glass" id="download">
+      <div class="download-card-header">
+        <h2 class="download-card-title">即刻获取 Mobile Tavern</h2>
+        <p class="download-card-desc">专为移动端 WebView 沙盒深度优化的极速、安全、本地优先解耦运行时底座。</p>
+      </div>
+      <div class="download-card-header-body" style="display: flex; justify-content: center; width: 100%;">
+        <div class="download-option-block single-option">
+          <h3 class="dl-option-title">Android (APK 安装包)</h3>
+          <p class="dl-option-desc">完全适配移动全面屏手势与安全区阻尼，密钥本地高强度硬加密隔离，提供流畅稳健的离线运行底座。</p>
+          
+          <div class="dl-meta-list">
+            <div class="dl-meta-item"><span>最新版本:</span> <span class="tag">v1.8.6</span></div>
+            <div class="dl-meta-item"><span>安全验证:</span> <span class="hash-code">SHA-256 Verified</span></div>
+            <div class="dl-meta-item"><span>发布日期:</span> <span>2026-08-26</span></div>
+            <div class="dl-meta-item"><span>页面访问:</span> <span id="page-visit-count">-</span></div>
+            <div class="dl-meta-item"><span>累计下载:</span> <span id="download-count">-</span></div>
+          </div>
+          
+          <a href="https://neural-node.xyz/dl/mobile-tavern-1.8.6-release.apk" class="btn-primary dl-btn" id="btn-download-android" download="mobile-tavern-1.8.6-release.apk">立即下载 Android APK</a>
+        </div>
+      </div>
+    </div>
   </main>
 
-  <!-- 页脚 -->
   <footer class="site-footer">
     <div class="footer-container">
       <div class="footer-left">
         <span class="footer-brand">Mobile Tavern</span>
         <p class="footer-copyright">© 2026 Mobile Tavern. 遵循 Apache 2.0 开源协议.</p>
       </div>
+      <div class="footer-right">
+        <a href="#features" class="footer-link">特性</a>
+        <a href="#tutorials-hub" class="footer-link">教程</a>
+        <a href="#download" class="footer-link">下载</a>
+      </div>
     </div>
   </footer>
 
-  <script src="main-1.8.7.js"></script>
+  <script src="main-1.8.6.js"></script>
 </body>
 
 </html>

@@ -59,9 +59,48 @@ describe("多模态 Provider 投影", () => {
     });
   });
 
-  it("明确拒绝尚未定义 Provider 投影的音频，不静默丢弃", async () => {
+  it("把明确标记为模型输入的 WAV 音频投影为 OpenAI input_audio", async () => {
     const message: Message = {
       id: "message-2",
+      sender: "user",
+      content: "",
+      timestamp: 1,
+      contentVersion: 2,
+      parts: [{ type: "audio", assetId: "att_audio1", purpose: "model-input" }],
+    };
+
+    const result = await projectMessagePartsForProvider(
+      [{ role: "user", content: "" }],
+      message,
+      attachmentService(new Blob([new Uint8Array([1, 2, 3])], { type: "audio/wav" })),
+      {
+        providerId: "provider.audio",
+        capabilities: {
+          inputModalities: ["text", "audio"],
+          supportedMimeTypes: ["audio/wav", "audio/mpeg"],
+          supportsStreaming: true,
+          supportsTools: false,
+        },
+      },
+    );
+
+    expect(result.messages[0].content).toEqual([{
+      type: "input_audio",
+      input_audio: { data: "AQID", format: "wav" },
+    }]);
+    expect(result.decision).toEqual({
+      providerId: "provider.audio",
+      messageId: "message-2",
+      strategy: "direct",
+      sourceAssetIds: ["att_audio1"],
+      projectedAssetIds: ["att_audio1"],
+      reason: "AUDIO_DIRECT",
+    });
+  });
+
+  it("不会把普通音频附件误当作模型语音输入", async () => {
+    const message: Message = {
+      id: "message-attachment-audio",
       sender: "user",
       content: "",
       timestamp: 1,
@@ -72,8 +111,8 @@ describe("多模态 Provider 投影", () => {
     await expect(projectMessagePartsToOpenAi(
       [{ role: "user", content: "" }],
       message,
-      attachmentService(new Blob()),
-    )).rejects.toThrow("MULTIMODAL_PART_UNSUPPORTED");
+      attachmentService(new Blob([], { type: "audio/wav" })),
+    )).rejects.toThrow("MULTIMODAL_AUDIO_ATTACHMENT_REQUIRES_TRANSCRIPT");
   });
 
   it("记录 Provider、原始资产与视频关键帧降级决定", async () => {

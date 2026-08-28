@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
 import { ChatSession, ChatSessionMetadataPatch } from "../types";
-import { X, BrainCircuit, LoaderCircle } from "lucide-react";
+import { X, LoaderCircle } from "lucide-react";
 import StoryTimelineView from "../tabs/chat/StoryTimelineView";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
@@ -31,7 +31,28 @@ interface MemoryTableDrawerProps {
   charName: string;
   enableTableMemory: boolean;
   enableAutoSummary: boolean;
-  initialTab?: 'timeline' | 'table' | 'dict' | 'recall' | 'mvu';
+  enableRecall?: boolean;
+  enableMvuVariables?: boolean;
+  initialTab?: MemoryDrawerPanel;
+}
+
+type MemoryDrawerPanel = 'timeline' | 'table' | 'dict' | 'recall' | 'mvu';
+
+const PANEL_LABEL_KEYS: Record<MemoryDrawerPanel, string> = {
+  timeline: "memory_drawer.tab_timeline",
+  table: "memory_drawer.tab_table",
+  dict: "memory_drawer.tab_dict",
+  recall: "memory_drawer.tab_recall",
+  mvu: "memory_drawer.tab_mvu",
+};
+
+function resolvePanel(
+  initialPanel: MemoryDrawerPanel | undefined,
+  availability: Readonly<Record<MemoryDrawerPanel, boolean>>,
+): MemoryDrawerPanel {
+  if (initialPanel && availability[initialPanel]) return initialPanel;
+  return (Object.keys(availability) as MemoryDrawerPanel[])
+    .find((panel) => availability[panel]) ?? 'dict';
 }
 
 export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
@@ -42,6 +63,8 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   charName,
   enableTableMemory,
   enableAutoSummary,
+  enableRecall = false,
+  enableMvuVariables = false,
   initialTab
 }) => {
   const kernel = useOptionalKernel();
@@ -53,21 +76,15 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
     lastMemoryAudit: state.lastMemoryAudit,
   }));
   const { t } = useTranslation();
-  // 大 Tab 面板：'timeline' | 'table' | 'dict' | 'recall' | 'mvu'
-  const [activeTab, setActiveTab] = useState<'timeline' | 'table' | 'dict' | 'recall' | 'mvu'>(
-    initialTab ?? (enableAutoSummary ? 'timeline' : (enableTableMemory ? 'table' : 'recall'))
-  );
-
-  // 当抽屉打开时，根据当前配置或传入初始 Tab 动态重置 Tab
-  React.useEffect(() => {
-    if (isOpen) {
-      if (initialTab) {
-        setActiveTab(initialTab);
-      } else {
-        setActiveTab(enableAutoSummary ? 'timeline' : (enableTableMemory ? 'table' : 'recall'));
-      }
-    }
-  }, [isOpen, initialTab, enableTableMemory, enableAutoSummary]);
+  const availability: Readonly<Record<MemoryDrawerPanel, boolean>> = {
+    timeline: enableAutoSummary,
+    table: enableTableMemory,
+    dict: true,
+    recall: enableRecall,
+    mvu: enableMvuVariables,
+  };
+  const activeTab = resolvePanel(initialTab, availability);
+  const panelTitle = t(PANEL_LABEL_KEYS[activeTab]);
 
   useMobileBackHandler(isOpen, () => {
     onClose();
@@ -80,20 +97,19 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent
         showCloseButton={false}
-        overlayClassName="z-50 bg-black/60 backdrop-blur-[2px]"
+        overlayClassName="z-50 bg-black/55"
         data-memory-drawer-surface
-        data-density="compact"
-        className="!bottom-0 !top-auto z-50 flex h-[92dvh] max-h-[92dvh] w-full max-w-lg !translate-y-0 flex-col gap-0 overflow-hidden rounded-b-none rounded-t-[22px] border-x-0 border-b-0 border-t border-border/80 bg-background/95 p-0 shadow-2xl backdrop-blur-xl env-bottom sm:!bottom-auto sm:!top-1/2 sm:h-[86vh] sm:max-h-[760px] sm:!-translate-y-1/2 sm:rounded-[22px] sm:border [&_button]:touch-manipulation [&_button]:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-primary/25 [&_button]:disabled:cursor-not-allowed [&_button]:disabled:opacity-50"
+        data-panel={activeTab}
+        data-density="comfortable"
+        className="!bottom-0 !top-auto z-50 flex h-[84dvh] max-h-[84dvh] w-full max-w-lg !translate-y-0 flex-col gap-0 overflow-hidden rounded-b-none rounded-t-3xl border-x-0 border-b-0 border-t border-border/70 bg-background p-0 shadow-xl env-bottom sm:!bottom-auto sm:!top-1/2 sm:h-[82vh] sm:max-h-[720px] sm:!-translate-y-1/2 sm:rounded-3xl sm:border [&_button]:touch-manipulation [&_button]:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-primary/25 [&_button]:disabled:cursor-not-allowed [&_button]:disabled:opacity-50"
       >
 
         {/* Header Section */}
-        <div className="flex min-h-12 items-center justify-between border-b border-border/50 bg-muted/20 px-3 py-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <DialogTitle className="flex min-w-0 items-center gap-2 text-sm font-bold text-foreground">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <BrainCircuit className="size-4" aria-hidden="true" />
-              </span>
-              {t("memory_drawer.title")}
+        <div className="flex min-h-14 items-center justify-between border-b border-border/45 bg-background px-4 py-2.5">
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium text-muted-foreground">{t("memory_drawer.title")}</p>
+            <DialogTitle className="truncate text-[15px] font-semibold tracking-[-0.01em] text-foreground">
+              {panelTitle}
             </DialogTitle>
           </div>
           <div className="flex items-center gap-1.5">
@@ -101,77 +117,24 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             <button
               type="button"
               onClick={onClose}
-              aria-label="关闭记忆与状态中心"
-              className="flex size-11 items-center justify-center rounded-lg border border-border/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="关闭会话资料"
+              className="flex size-11 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <X className="size-4" />
             </button>
           </div>
         </div>
 
-        {/* Tab 栏切换器 */}
-        <div role="tablist" aria-label="记忆与状态分类" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/30 bg-muted/10 px-2 py-1.5 text-[11px] font-semibold scrollbar-none">
-          {enableAutoSummary && (
-            <button
-              onClick={() => setActiveTab('timeline')}
-              role="tab"
-              aria-selected={activeTab === 'timeline'}
-              className={`min-h-11 shrink-0 rounded-lg border px-3 transition-colors ${activeTab === 'timeline' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-                }`}
-            >
-              {t("memory_drawer.tab_timeline")}
-            </button>
-          )}
-          {enableTableMemory && (
-            <button
-              onClick={() => setActiveTab('table')}
-              role="tab"
-              aria-selected={activeTab === 'table'}
-              className={`min-h-11 shrink-0 rounded-lg border px-3 transition-colors ${activeTab === 'table' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-                }`}
-            >
-              {t("memory_drawer.tab_table")}
-            </button>
-          )}
-          <button
-            onClick={() => setActiveTab('dict')}
-            role="tab"
-            aria-selected={activeTab === 'dict'}
-            className={`min-h-11 shrink-0 rounded-lg border px-3 transition-colors ${activeTab === 'dict' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-              }`}
-          >
-            {t("memory_drawer.tab_dict")}
-          </button>
-          <button
-            onClick={() => setActiveTab('recall')}
-            role="tab"
-            aria-selected={activeTab === 'recall'}
-            className={`min-h-11 shrink-0 rounded-lg border px-3 transition-colors ${activeTab === 'recall' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-              }`}
-          >
-            {t("memory_drawer.tab_recall")}
-          </button>
-          <button
-            onClick={() => setActiveTab('mvu')}
-            role="tab"
-            aria-selected={activeTab === 'mvu'}
-            className={`min-h-11 shrink-0 rounded-lg border px-3 transition-colors ${activeTab === 'mvu' ? 'bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15' : 'bg-transparent border-transparent text-muted-foreground hover:bg-muted/50'
-              }`}
-          >
-            {t("memory_drawer.tab_mvu")}
-          </button>
-        </div>
-
         {/* Inner Content Area */}
-        <div className={`min-h-0 flex-1 ${activeTab === 'timeline' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto p-3'}`}>
+        <div className={`min-h-0 flex-1 ${activeTab === 'timeline' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto p-4'}`}>
           <React.Suspense fallback={<MemoryTabFallback />}>
 
-          {/* TAB 0: ⏱️ 故事年表 */}
+          {/* 故事年表面板 */}
           {activeTab === 'timeline' && (
             <StoryTimelineView />
           )}
 
-          {/* TAB 1: 📊 状态沙盒 */}
+          {/* 状态数据面板 */}
           {activeTab === 'table' && (
             <TableMemoryTab
               activeSession={activeSession}
@@ -182,7 +145,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             />
           )}
 
-          {/* TAB 2: 📖 记忆词典 */}
+          {/* 记忆词典面板 */}
           {activeTab === 'dict' && (
             <DictTab
               activeSession={activeSession}
@@ -191,7 +154,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             />
           )}
 
-          {/* TAB 3: 唤醒记忆 */}
+          {/* 唤醒记忆面板 */}
           {activeTab === 'recall' && (
             <RecallTab
               activeSession={activeSession}
@@ -201,7 +164,7 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
             />
           )}
 
-          {/* TAB 4: 🏮 角色变量 */}
+          {/* 角色变量面板 */}
           {activeTab === 'mvu' && (
             <MvuVariablesTabContent
               variables={kernel?.hasService(KernelServices.CompatibilityRuntime)

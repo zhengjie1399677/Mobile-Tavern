@@ -46,6 +46,8 @@ const REQUEST_FIELD_WHITELIST = new Set<string>([
   "thinking",
   "max_thinking_tokens",
   "thinking_budget",
+  // 阿里百炼 Qwen 混合思考模式开关（OpenAI 兼容模式 extra_body 字段）
+  "enable_thinking",
   // 多模态
   "modalities",
   "audio",

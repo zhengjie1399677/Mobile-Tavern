@@ -40,6 +40,7 @@ import {
   projectMessagePartsForProvider,
   type OpenAiProviderMessage,
 } from "../../application/useCases/multimodalProviderProjection";
+import { isDirectApiCharacter } from "../../domain/agents/directApiMode";
 import {
   executeOpenAiToolLoop,
   OpenAiToolCallAccumulator,
@@ -176,6 +177,12 @@ export function useSendMessage(p: SendMessageParams) {
       const needsMultimodalProjection = pendingMultimodalParts.length > 0;
       if (!skipAI && needsMultimodalProjection) {
         const agentRuntime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+        const attachmentAudioParts = pendingMultimodalParts.filter((part) =>
+          part.type === "audio" && part.purpose !== "model-input",
+        );
+        const modelAudioParts = pendingMultimodalParts.filter((part) =>
+          part.type === "audio" && part.purpose === "model-input",
+        );
         const canInspectMediaProcessors = typeof agentRuntime.listMediaProcessors === "function";
         const registeredMediaProcessors = canInspectMediaProcessors
           ? agentRuntime.listMediaProcessors().map((processor) => processor.id)
@@ -183,7 +190,7 @@ export function useSendMessage(p: SendMessageParams) {
         if (
           agentTurn
           && canInspectMediaProcessors
-          && pendingMultimodalParts.some((part) => part.type === "audio")
+          && attachmentAudioParts.length > 0
           && !registeredMediaProcessors.includes(AUDIO_ASR_PROCESSOR_ID)
         ) {
           await p.showCustomAlert("当前 Agent Profile 未启用音频 ASR 降级，无法把音频发送给当前 Provider。");
@@ -199,10 +206,14 @@ export function useSendMessage(p: SendMessageParams) {
           return;
         }
         if (
-          pendingMultimodalParts.some(part => part.type === "audio")
+          attachmentAudioParts.length > 0
           && (!p.settings.asrConfig?.enabled || p.settings.asrConfig.provider !== "openai")
         ) {
           await p.showCustomAlert("发送音频前需要启用 OpenAI ASR 文件转写；Web Speech 仅支持实时麦克风输入。");
+          return;
+        }
+        if (modelAudioParts.length > 0 && p.settings.api.supportsAudioInput !== true) {
+          await p.showCustomAlert("当前 API 配置未启用模型原生语音输入，请先确认当前模型支持 input_audio。");
           return;
         }
         const needsVision = pendingMultimodalParts.some(part =>
@@ -212,9 +223,13 @@ export function useSendMessage(p: SendMessageParams) {
           await p.showCustomAlert("当前 API 配置未启用图片输入能力，请先在 API 配置中确认模型支持视觉输入。");
           return;
         }
-        const provider = agentTurn?.provider;
-        const unsupportedPart = provider && pendingMultimodalParts.find(part => {
-          if (part.type === "audio") return false;
+        const provider = agentTurn?.provider
+          ?? agentRuntime.getProvider(resolveBuiltinProviderId(p.settings.api.type));
+        const unsupportedPart = pendingMultimodalParts.find(part => {
+          if (part.type === "audio") {
+            return part.purpose === "model-input"
+              && !provider.capabilities.inputModalities.includes("audio");
+          }
           const requiredModality = part.type === "video" ? "image" : part.type;
           return !provider.capabilities.inputModalities.includes(requiredModality);
         });
@@ -402,7 +417,7 @@ export function useSendMessage(p: SendMessageParams) {
               candidate.type === "text" && candidate.text.startsWith("[音频转写]"),
             );
             processedParts.push(part);
-            if (!hasTranscript) {
+            if (part.purpose !== "model-input" && !hasTranscript) {
               const result = await agentTurn.processMedia(AUDIO_ASR_PROCESSOR_ID, {
                 assetId: part.assetId,
                 kind: "audio",
@@ -616,11 +631,11 @@ export function useSendMessage(p: SendMessageParams) {
 
       if (agentTurn) {
         const runtime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
-        const enabledToolNames = new Set(
-          updatedSession.compositionSnapshot?.contributionOrder.tool
+        const enabledToolNames = new Set(isDirectApiCharacter(p.activeCharacter!)
+          ? []
+          : updatedSession.compositionSnapshot?.contributionOrder.tool
             ?? runtime.getCompositionSnapshot()?.contributionOrder.tool
-            ?? [],
-        );
+            ?? []);
         await executeOpenAiToolLoop({
           context: agentTurn,
           tools: provider.capabilities.supportsTools && typeof runtime.listTools === "function"
@@ -858,7 +873,9 @@ export function useSendMessage(p: SendMessageParams) {
       && current.kernel.hasService(KernelServices.ToolConnectors)
       ? current.kernel.getService<IToolPluginRuntimeService>(KernelServices.ToolConnectors).extendComposition(baseComposition)
       : baseComposition;
-    const enabledToolNames = composition?.contributionOrder.tool ?? [];
+    const enabledToolNames = isDirectApiCharacter(current.activeCharacter!)
+      ? []
+      : composition?.contributionOrder.tool ?? [];
     const enabledToolNameSet = new Set(enabledToolNames);
     const registeredTools = typeof runtime.listTools === "function" ? runtime.listTools() : [];
     const enabledTools = registeredTools.filter((tool) => enabledToolNameSet.has(tool.name));

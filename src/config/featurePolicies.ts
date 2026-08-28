@@ -15,7 +15,7 @@ export function createFeaturePolicies(
 ): FeaturePolicies {
   return Object.freeze({
     communityEntry: Object.freeze({
-      enabled: environment.communityEnabled ?? environment.isDevelopment,
+      enabled: environment.communityEnabled ?? false,
       minFirstUseAgeDays: environment.communityMinFirstUseAgeDays,
       minCumulativeUsageHours: environment.communityMinCumulativeUsageHours,
     }),

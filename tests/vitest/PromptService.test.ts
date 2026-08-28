@@ -4,6 +4,73 @@ import { CharacterCard, ChatSession, UserSettings } from "../../src/types";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 
 describe("PromptService prompt compilation", () => {
+  it("direct-api 模式只发送真实对话，不注入任何系统内容、名字或请求整形", () => {
+    const promptService = new PromptService();
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.userInfo = "不应发送的用户设定";
+    settings.api.sendNames = true;
+    settings.enableReplySuggestions = true;
+    settings.promptConfig.usePromptComposition = true;
+    settings.promptConfig.requestShaping = {
+      enabled: true,
+      roleWrappers: { user: { prefix: "[多余]" } },
+      assistantPrefill: "多余续写",
+    };
+    const character = {
+      id: "base-agent-builtin",
+      agentMode: "direct-api",
+      name: "通用 AI 助手",
+      description: "不应发送的角色设定",
+      personality: "不应发送",
+      scenario: "不应发送",
+      first_mes: "",
+      mes_example: "不应发送",
+      system_prompt: "不应发送",
+      post_history_instructions: "不应发送",
+      extensions: {},
+    } as CharacterCard;
+    const chat = {
+      id: "direct-chat",
+      characterId: character.id,
+      title: "直连",
+      createdAt: 1,
+      summaries: [],
+      messages: [
+        { id: "u1", sender: "user", content: "原样  保留", timestamp: 1 },
+        { id: "a1", sender: "assistant", content: "原样回复", timestamp: 2 },
+        { id: "s1", sender: "system", content: "内部系统消息不得发送", timestamp: 3 },
+      ],
+    } as ChatSession;
+
+    const result = promptService.assemblePrompt({
+      character,
+      chat,
+      userInput: "原样  保留",
+      settings,
+      globalLorebook: [{ id: "lore", keys: [], content: "不应发送", constant: true, enabled: true }],
+      recalledMemories: [{
+        memoryId: "memory",
+        messageId: "message",
+        turnIndex: 1,
+        role: "assistant",
+        content: "不应发送",
+        hitCount: 1,
+        hitTags: ["test"],
+        score: 1,
+        kind: "event",
+        reason: "tag",
+        sourceMessageIds: ["message"],
+      }],
+    });
+
+    expect(result.systemInstruction).toBe("");
+    expect(result.dynamicInstruction).toBe("");
+    expect(result.messages).toEqual([
+      { role: "user", content: "原样  保留" },
+      { role: "assistant", content: "原样回复" },
+    ]);
+    expect(result.requestShaping).toBeUndefined();
+  });
   it("预先中止时不再进入提示词编排", () => {
     const promptService = new PromptService();
     const controller = new AbortController();

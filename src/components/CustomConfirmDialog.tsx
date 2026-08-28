@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Check, Copy } from "lucide-react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
 import { Button } from "../../components/ui/button";
@@ -11,6 +12,7 @@ import {
   DialogTitle,
 } from "../../components/ui/dialog";
 import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
+import { writeTextToClipboard } from "../infrastructure/platform/clipboard";
 
 export default function CustomConfirmDialog() {
   const {
@@ -20,12 +22,20 @@ export default function CustomConfirmDialog() {
   const { t } = useTranslation();
 
   const [localVal, setLocalVal] = useState("");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   useEffect(() => {
+    setCopyState("idle");
     if (customDialog && customDialog.isOpen && customDialog.type === "prompt") {
       setLocalVal(customDialog.defaultValue || "");
     }
   }, [customDialog]);
+
+  useEffect(() => {
+    if (copyState === "idle") return undefined;
+    const timer = window.setTimeout(() => setCopyState("idle"), 2_000);
+    return () => window.clearTimeout(timer);
+  }, [copyState]);
 
   const handleDismiss = () => {
     if (!customDialog) return;
@@ -48,6 +58,16 @@ export default function CustomConfirmDialog() {
       customDialog.onConfirmPrompt?.(localVal);
     } else {
       customDialog.onConfirm?.();
+    }
+  };
+
+  const handleCopy = async () => {
+    try {
+      await writeTextToClipboard(customDialog.message);
+      setCopyState("copied");
+    } catch (error) {
+      console.error("Failed to copy dialog message:", error);
+      setCopyState("failed");
     }
   };
 
@@ -94,6 +114,28 @@ export default function CustomConfirmDialog() {
           )}
         </DialogHeader>
         <DialogFooter className="flex-row justify-end">
+          {customDialog.type === "alert" && (
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="min-h-11 min-w-20 gap-1.5"
+              onClick={() => { void handleCopy(); }}
+            >
+              {copyState === "copied" ? (
+                <Check className="size-4" aria-hidden="true" />
+              ) : (
+                <Copy className="size-4" aria-hidden="true" />
+              )}
+              <span aria-live="polite">
+                {copyState === "copied"
+                  ? t("dialog.copied")
+                  : copyState === "failed"
+                    ? t("dialog.copy_failed")
+                    : t("dialog.copy")}
+              </span>
+            </Button>
+          )}
           {(customDialog.type === "confirm" ||
             customDialog.type === "prompt") && (
             <Button

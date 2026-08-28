@@ -26,7 +26,6 @@ interface DialogueHistoryViewProps {
   showScrollButton: boolean;
   scrollToBottom: () => void;
   markInitialPositionReady: (sessionId: string) => void;
-  glowColors: { light1: string; light2: string };
   isOriginalBg: boolean;
   activePortraitUrl: string;
   isKeyboardOpen: boolean;
@@ -42,7 +41,6 @@ const DialogueHistoryView = ({
   showScrollButton,
   scrollToBottom,
   markInitialPositionReady,
-  glowColors,
   isOriginalBg,
   activePortraitUrl,
   isKeyboardOpen,
@@ -158,7 +156,7 @@ const DialogueHistoryView = ({
   ]);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
+    <div data-ui="chat-surface" className="chat-dialogue-stage relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Custom card background layer */}
       {(activeCharacter?.visualSettings?.backgroundImageUrl || settings.globalChatBg) && (
         <>
@@ -198,19 +196,6 @@ const DialogueHistoryView = ({
         </>
       )}
 
-      {/* 4. 双光源情绪环境光融合层 */}
-      {settings.enableEmotionAmbientGlow && (
-        <div
-          className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
-          style={{
-            background: `
-              radial-gradient(circle at 75% 75%, ${glowColors.light1} 0%, transparent 75%),
-              radial-gradient(circle at 25% 25%, ${glowColors.light2} 0%, transparent 70%)
-            `
-          }}
-        />
-      )}
-
       {/* Dialog Scroll area */}
       <div
         ref={scrollContainerRef}
@@ -219,7 +204,7 @@ const DialogueHistoryView = ({
         aria-label="聊天消息记录"
         aria-live="polite"
         aria-relevant="additions"
-        className="p-3.5 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative z-10"
+        className="custom-scrollbar relative z-10 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-5 pt-4"
         onClick={() => {
           if (msgMenuId) setMsgMenuId(null);
         }}
@@ -315,8 +300,8 @@ const DialogueHistoryView = ({
                   width: "100%",
                   // translateY 而非 top：避免触发 layout，走合成器层
                   transform: `translateY(${vi.start}px)`,
-                  // 模拟原 space-y-4 间距（1rem = 16px）
-                  paddingBottom: "1rem",
+                  // 留出舒展的消息节奏，同时保持虚拟列表测量稳定。
+                  paddingBottom: "1.25rem",
                 }}
               >
                 {isSystem ? (
@@ -324,7 +309,7 @@ const DialogueHistoryView = ({
                     <div
                       role="status"
                       aria-label={`系统提示：${message.content}`}
-                      className="bg-primary/10 text-primary text-xs px-3 py-1.5 rounded-lg border border-primary/30 max-w-xs text-center flex items-start gap-1.5 leading-relaxed"
+                      className="flex max-w-xs items-start gap-1.5 rounded-full border border-primary/15 bg-primary/8 px-3.5 py-2 text-center text-xs leading-relaxed text-primary/90"
                     >
                       <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
                       <span>{message.content}</span>
@@ -352,8 +337,8 @@ const DialogueHistoryView = ({
 
         {/* Typing Indicator */}
         {isSending && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground italic pl-5">
-            <div className="flex items-center gap-1">
+          <div className="ml-10 flex w-fit items-center gap-2 rounded-2xl rounded-tl-md border border-border/35 bg-card/55 px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1" aria-hidden="true">
               <span
                 className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce"
                 style={{ animationDelay: "0ms" }}
@@ -367,7 +352,7 @@ const DialogueHistoryView = ({
                 style={{ animationDelay: "300ms" }}
               ></span>
             </div>
-            <span>{activeCharacter?.name} 正在雕琢语气并思索下文...</span>
+            <span>{activeCharacter?.name} 正在回应…</span>
           </div>
         )}
 
@@ -389,7 +374,7 @@ const DialogueHistoryView = ({
           onClick={scrollToBottom}
           aria-label="回到底部"
           title="回到底部"
-          className="absolute bottom-24 right-4 z-20 flex size-11 cursor-pointer items-center justify-center rounded-full border border-primary/20 bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 animate-in fade-in zoom-in duration-200"
+          className="chat-scroll-bottom absolute bottom-24 right-4 z-20 flex size-11 cursor-pointer items-center justify-center rounded-2xl bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95 animate-in fade-in zoom-in duration-200"
         >
           <ArrowDown className="w-4.5 h-4.5" />
         </button>
