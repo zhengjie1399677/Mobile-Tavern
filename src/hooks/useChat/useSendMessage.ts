@@ -495,6 +495,29 @@ export function useSendMessage(p: SendMessageParams) {
           return providerMessage;
         }),
       ];
+
+      // DeepSeek 思考模式 + tools：官方要求历史 assistant 消息必须回传 reasoning_content，否则 400。
+      // 编译链路不保留思维链，这里按 content 精确匹配从原始会话消息回填。
+      if (finalBaseUrl?.toLowerCase().includes("api.deepseek.com")) {
+        const reasoningByContent = new Map<string, string>();
+        for (const sessionMessage of promptSession.messages) {
+          if (
+            sessionMessage.sender === "assistant"
+            && typeof sessionMessage.content === "string"
+            && sessionMessage.reasoningContent
+          ) {
+            reasoningByContent.set(sessionMessage.content, sessionMessage.reasoningContent);
+          }
+        }
+        if (reasoningByContent.size > 0) {
+          for (const providerMessage of baseProviderMessages) {
+            if (providerMessage.role === "assistant" && typeof providerMessage.content === "string") {
+              const reasoning = reasoningByContent.get(providerMessage.content);
+              if (reasoning) providerMessage.reasoning_content = reasoning;
+            }
+          }
+        }
+      }
       const latestMultimodalUserMessage = [...promptSession.messages]
         .reverse()
         .find(message => message.sender === "user" && message.parts?.some(part => part.type !== "text"));
@@ -626,6 +649,7 @@ export function useSendMessage(p: SendMessageParams) {
         return {
           content: responseChunks.join(""),
           toolCalls: toolCallAccumulator.finalize(),
+          reasoningContent: reasoningChunks.join(""),
         };
       };
 

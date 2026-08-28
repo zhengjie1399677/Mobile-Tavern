@@ -23,6 +23,11 @@ export interface OpenAiProviderMessage {
   name?: string;
   tool_calls?: readonly OpenAiProviderToolCall[];
   tool_call_id?: string;
+  /**
+   * 思维链内容（DeepSeek/GLM/Qwen 思考模式返回）。
+   * DeepSeek 官方要求：携带 tools 的请求必须完整回传历史 reasoning_content，否则 400。
+   */
+  reasoning_content?: string;
 }
 
 export interface OpenAiProviderToolCall {

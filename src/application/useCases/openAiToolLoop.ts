@@ -42,6 +42,11 @@ export interface OpenAiToolLoopModelStep {
 export interface OpenAiToolLoopModelResult {
   readonly content: string;
   readonly toolCalls: readonly AgentToolCall[];
+  /**
+   * 本轮思维链内容（DeepSeek/GLM/Qwen 思考模式）。
+   * DeepSeek 官方要求：携带 tools 的请求必须回传，否则 400。
+   */
+  readonly reasoningContent?: string;
 }
 
 export interface OpenAiToolLoopOptions {
@@ -95,6 +100,7 @@ export async function executeOpenAiToolLoop(options: OpenAiToolLoopOptions): Pro
     continuationMessages.push({
       role: "assistant",
       content: result.content || null,
+      ...(result.reasoningContent ? { reasoning_content: result.reasoningContent } : {}),
       tool_calls: result.toolCalls.map(toOpenAiProviderToolCall),
     });
     for (const call of internalToolCalls) {
