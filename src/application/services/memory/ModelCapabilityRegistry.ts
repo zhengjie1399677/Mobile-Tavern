@@ -37,7 +37,86 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     preferredFormat: 'xml',
     usesMaxCompletionTokens: true,
   },
-  // OpenAI GPT-5 系列（reasoning models）：不支持 temperature/top_p，必须用 max_completion_tokens
+  // OpenAI GPT-5.5 系列（官方 2026-08 当前旗舰主力：1.05M 上下文）
+  'gpt-5.5': {
+    supportsTopK: false,
+    supportsTopP: false,
+    supportsTemperature: false,
+    supportsJsonSchema: true,
+    supportsFunctionCalling: true,
+    supportsStream: true,
+    supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
+    supportsStreamOptions: true,
+    contextWindow: 1050000,
+    preferredFormat: 'xml',
+    usesMaxCompletionTokens: true,
+  },
+  // OpenAI GPT-5.4 mini/nano（官方入门模型线：400K 上下文，须放 gpt-5.4 之前）
+  'gpt-5.4-mini': {
+    supportsTopK: false,
+    supportsTopP: false,
+    supportsTemperature: false,
+    supportsJsonSchema: true,
+    supportsFunctionCalling: true,
+    supportsStream: true,
+    supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
+    supportsStreamOptions: true,
+    contextWindow: 400000,
+    preferredFormat: 'xml',
+    usesMaxCompletionTokens: true,
+  },
+  'gpt-5.4-nano': {
+    supportsTopK: false,
+    supportsTopP: false,
+    supportsTemperature: false,
+    supportsJsonSchema: true,
+    supportsFunctionCalling: true,
+    supportsStream: true,
+    supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
+    supportsStreamOptions: true,
+    contextWindow: 400000,
+    preferredFormat: 'xml',
+    usesMaxCompletionTokens: true,
+  },
+  // OpenAI GPT-5.4（官方 2026-03 发布：1.05M 上下文，性能/成本平衡）
+  'gpt-5.4': {
+    supportsTopK: false,
+    supportsTopP: false,
+    supportsTemperature: false,
+    supportsJsonSchema: true,
+    supportsFunctionCalling: true,
+    supportsStream: true,
+    supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
+    supportsStreamOptions: true,
+    contextWindow: 1050000,
+    preferredFormat: 'xml',
+    usesMaxCompletionTokens: true,
+  },
+  // OpenAI GPT-5.3（含 gpt-5.3-codex，官方 400K 上下文）
+  'gpt-5.3': {
+    supportsTopK: false,
+    supportsTopP: false,
+    supportsTemperature: false,
+    supportsJsonSchema: true,
+    supportsFunctionCalling: true,
+    supportsStream: true,
+    supportsSystemPrompt: true,
+    supportsMinP: false,
+    supportsRepetitionPenalty: false,
+    supportsStreamOptions: true,
+    contextWindow: 400000,
+    preferredFormat: 'xml',
+    usesMaxCompletionTokens: true,
+  },
+  // OpenAI GPT-5 原版（2026-02 已退役，仅兼容旧配置）
   'gpt-5': {
     supportsTopK: false,
     supportsTopP: false,
@@ -53,7 +132,7 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     preferredFormat: 'xml',
     usesMaxCompletionTokens: true,
   },
-  // OpenAI GPT-4.1 系列：1M 上下文
+  // OpenAI GPT-4.1（官方标记弃用，API 兼容期保留）
   'gpt-4.1': {
     supportsTopK: false,
     supportsTopP: true,
@@ -68,7 +147,7 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     contextWindow: 1000000,
     preferredFormat: 'xml',
   },
-  // OpenAI GPT-4o / GPT-4.5 等传统模型：128K 上下文
+  // OpenAI GPT-4o（官方标记弃用，API 兼容期保留）
   'gpt-4o': {
     supportsTopK: false,
     supportsTopP: true,
@@ -81,34 +160,6 @@ const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsRepetitionPenalty: false,
     supportsStreamOptions: true,
     contextWindow: 128000,
-    preferredFormat: 'xml',
-  },
-  'gpt-4': {
-    supportsTopK: false,
-    supportsTopP: true,
-    supportsTemperature: true,
-    supportsJsonSchema: true,
-    supportsFunctionCalling: true,
-    supportsStream: true,
-    supportsSystemPrompt: true,
-    supportsMinP: false,
-    supportsRepetitionPenalty: false,
-    supportsStreamOptions: true,
-    contextWindow: 128000,
-    preferredFormat: 'xml',
-  },
-  'gpt-3.5': {
-    supportsTopK: false,
-    supportsTopP: true,
-    supportsTemperature: true,
-    supportsJsonSchema: true,
-    supportsFunctionCalling: true,
-    supportsStream: true,
-    supportsSystemPrompt: true,
-    supportsMinP: false,
-    supportsRepetitionPenalty: false,
-    supportsStreamOptions: true,
-    contextWindow: 16000,
     preferredFormat: 'xml',
   },
   // OpenAI o 系列（reasoning models）：必须用 max_completion_tokens
@@ -462,10 +513,9 @@ export class ModelCapabilityRegistry {
 
     switch (family) {
       case 'openai':
-        // GPT-5.1/5.2/5.6 支持 none（可完全关闭思考）；GPT-5/mini/nano 仅支持 minimal
-        if (lowerId.startsWith('gpt-5.6') || lowerId.startsWith('gpt-5.2') || lowerId.startsWith('gpt-5.1')) {
-          return { reasoning_effort: 'none' };
-        }
+        // GPT-5.1~5.6 全系列（含 mini/nano/codex）支持 none（可完全关闭思考）
+        if (/^gpt-5\.\d/.test(lowerId)) return { reasoning_effort: 'none' };
+        // GPT-5 原版/mini/nano 仅支持 minimal
         if (lowerId.startsWith('gpt-5')) return { reasoning_effort: 'minimal' };
         if (lowerId.startsWith('o1') || lowerId.startsWith('o3') || lowerId.startsWith('o4')) {
           return { reasoning_effort: 'low' };
