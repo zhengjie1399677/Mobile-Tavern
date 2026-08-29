@@ -465,7 +465,7 @@ export default function CommunityTab() {
                     aria-label={t("community.select_character")}
                   >
                     {characters.map((character) => (
-                      <option key={character.id} value={character.id}>
+                      <option className="bg-card text-foreground" key={character.id} value={character.id}>
                         {character.name}
                       </option>
                     ))}

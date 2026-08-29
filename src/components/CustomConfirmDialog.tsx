@@ -75,13 +75,13 @@ export default function CustomConfirmDialog() {
     <Dialog open onOpenChange={(open) => { if (!open) handleDismiss(); }}>
       <DialogContent
         showCloseButton={false}
-        className={`z-[1000] gap-5 border-border/80 bg-popover shadow-2xl ${customDialog.type === "prompt" && customDialog.inputType === "textarea" ? "sm:max-w-lg" : "sm:max-w-sm"}`}
+        className={`z-[1000] gap-3.5 rounded-2xl border-border/80 bg-popover p-4 shadow-2xl ${customDialog.type === "prompt" && customDialog.inputType === "textarea" ? "sm:max-w-lg" : "sm:max-w-sm"}`}
       >
-        <DialogHeader>
-          <DialogTitle className="font-bold text-foreground text-base tracking-wide">
+        <DialogHeader className="gap-1.5">
+          <DialogTitle className="text-sm font-bold text-foreground">
             {customDialog.title}
           </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground/90 leading-relaxed break-words whitespace-pre-wrap">
+          <DialogDescription className="text-xs text-muted-foreground leading-relaxed break-words whitespace-pre-wrap">
             {customDialog.message}
           </DialogDescription>
           {customDialog.type === "prompt" && (
@@ -92,8 +92,8 @@ export default function CustomConfirmDialog() {
                   value={localVal}
                   onChange={(e) => setLocalVal(e.target.value)}
                   autoFocus
-                  rows={10}
-                  className="block w-full resize-none rounded-xl border border-border/80 bg-input px-3.5 py-2.5 text-sm leading-relaxed text-foreground shadow-inner outline-none transition-colors focus:border-primary/50 focus:bg-background/95 focus:ring-2 focus:ring-ring/40"
+                  rows={6}
+                  className="block w-full resize-none rounded-lg border border-border/80 bg-input p-2.5 text-xs leading-relaxed text-foreground shadow-inner outline-none transition-colors focus:border-primary/50 focus:bg-background/95 focus:ring-2 focus:ring-ring/40"
                 />
               ) : (
                 <input
@@ -107,25 +107,25 @@ export default function CustomConfirmDialog() {
                     }
                   }}
                   autoFocus
-                  className="block min-h-11 w-full rounded-xl border border-border/80 bg-input px-3.5 py-2.5 text-sm text-foreground shadow-inner outline-none transition-colors focus:border-primary/50 focus:bg-background/95 focus:ring-2 focus:ring-ring/40"
+                  className="block h-8.5 w-full rounded-lg border border-border/80 bg-input px-2.5 text-xs text-foreground shadow-inner outline-none transition-colors focus:border-primary/50 focus:bg-background/95 focus:ring-2 focus:ring-ring/40"
                 />
               )}
             </div>
           )}
         </DialogHeader>
-        <DialogFooter className="flex-row justify-end">
+        <DialogFooter className="flex-row justify-end gap-2 pt-1 border-t border-border/60">
           {customDialog.type === "alert" && (
             <Button
               type="button"
               variant="outline"
-              size="lg"
-              className="min-h-11 min-w-20 gap-1.5"
+              size="sm"
+              className="h-8 min-w-16 px-3 text-xs gap-1.5"
               onClick={() => { void handleCopy(); }}
             >
               {copyState === "copied" ? (
-                <Check className="size-4" aria-hidden="true" />
+                <Check className="size-3.5" aria-hidden="true" />
               ) : (
-                <Copy className="size-4" aria-hidden="true" />
+                <Copy className="size-3.5" aria-hidden="true" />
               )}
               <span aria-live="polite">
                 {copyState === "copied"
@@ -141,8 +141,8 @@ export default function CustomConfirmDialog() {
             <Button
               type="button"
               variant="outline"
-              size="lg"
-              className="min-h-11 min-w-20"
+              size="sm"
+              className="h-8 min-w-16 px-3 text-xs"
               onClick={() => customDialog.onCancel?.()}
             >
               {t("dialog.cancel")}
@@ -150,8 +150,8 @@ export default function CustomConfirmDialog() {
           )}
           <Button
             type="button"
-            size="lg"
-            className="min-h-11 min-w-20"
+            size="sm"
+            className="h-8 min-w-16 px-3 text-xs font-semibold"
             onClick={handleConfirm}
           >
             {t("dialog.confirm")}

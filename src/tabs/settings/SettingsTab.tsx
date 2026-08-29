@@ -363,7 +363,7 @@ export default function SettingsTab() {
                 <button
                   type="button"
                   onClick={() => setActiveTab("playground")}
-                  className="min-h-9 px-3 bg-primary/10 text-primary border border-primary/30 text-[10px] font-bold rounded-lg active:scale-95"
+                  className="h-8 px-2.5 bg-primary/10 text-primary border border-primary/30 text-[10px] font-bold rounded-lg active:scale-95"
                 >
                   {t("settings_hub.open")}
                 </button>
@@ -388,7 +388,7 @@ export default function SettingsTab() {
                   type="button"
                   onClick={handleCheckUpdate}
                   disabled={isCheckingUpdate}
-                  className="min-h-9 px-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-[10px] font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                  className="h-8 px-2.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-[10px] font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
                 >
                   {isCheckingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                   {isCheckingUpdate ? t("control_panel.checking") : t("control_panel.check_update")}
@@ -477,7 +477,7 @@ export default function SettingsTab() {
             type="button"
             onClick={() => setActiveSection(null)}
             aria-label={t("settings_hub.back")}
-            className="w-9 h-9 -ml-1 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted active:scale-95 shrink-0"
+            className="w-8 h-8 -ml-1 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted active:scale-95 shrink-0"
           >
             <ArrowLeft className="w-4.5 h-4.5" />
           </button>

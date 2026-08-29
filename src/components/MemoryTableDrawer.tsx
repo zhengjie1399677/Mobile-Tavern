@@ -105,20 +105,19 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
       >
 
         {/* Header Section */}
-        <div className="flex min-h-14 items-center justify-between border-b border-border/45 bg-background px-4 py-2.5">
+        <div className="flex min-h-11 items-center justify-between border-b border-border/45 bg-background px-3.5 py-1.5 shrink-0">
           <div className="min-w-0">
-            <p className="text-[10px] font-medium text-muted-foreground">{t("memory_drawer.title")}</p>
-            <DialogTitle className="truncate text-[15px] font-semibold tracking-[-0.01em] text-foreground">
+            <p className="text-[9px] font-medium text-muted-foreground">{t("memory_drawer.title")}</p>
+            <DialogTitle className="truncate text-sm font-semibold tracking-[-0.01em] text-foreground">
               {panelTitle}
             </DialogTitle>
           </div>
-          <div className="flex items-center gap-1.5">
-            {/* 原 ⚙️管理按钮已迁移至 TableMemoryTab 内部顶部，控制其内部 showConfig 状态 */}
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={onClose}
               aria-label="关闭会话资料"
-              className="flex size-11 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
             >
               <X className="size-4" />
             </button>

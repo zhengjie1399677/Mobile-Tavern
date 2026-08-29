@@ -18,8 +18,10 @@ import { Input } from "../../../../components/ui/input";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import type { ITtsService } from "@/src/application/serviceContracts";
 
-export interface TtsConfigSectionProps
-  extends Pick<UnifiedAppContextProps, "settings" | "updateSettings" | "getKernelService"> {}
+export type TtsConfigSectionProps = Pick<
+  UnifiedAppContextProps,
+  "settings" | "updateSettings" | "getKernelService"
+>;
 
 export default function TtsConfigSection({
   settings,
@@ -458,7 +460,7 @@ export default function TtsConfigSection({
                 <button
                   type="button"
                   onClick={handleStopTest}
-                  className="min-h-9 px-3 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-900/40 text-red-400 text-xs font-bold rounded-lg transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+                  className="h-8 px-3 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-900/40 text-red-400 text-xs font-bold rounded-lg transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                   <span>{t("tts.test_stop")}</span>
@@ -467,7 +469,7 @@ export default function TtsConfigSection({
                 <button
                   type="button"
                   onClick={handlePlayTest}
-                  className="min-h-9 px-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-lg transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+                  className="h-8 px-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-lg transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   <span>{t("tts.test_play")}</span>

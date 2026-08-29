@@ -278,8 +278,8 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
       <DialogContent showCloseButton={false} className="z-[900] flex h-[85dvh] max-h-[640px] w-full max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-background p-0 text-sm shadow-2xl">
         
         {/* 头部标题区 */}
-        <div className="flex min-h-11 items-center justify-between border-b border-border px-3.5 py-1 shrink-0">
-          <DialogTitle className="font-bold text-foreground flex items-center gap-2 text-base">
+        <div className="flex min-h-10 items-center justify-between border-b border-border px-3.5 py-1 shrink-0">
+          <DialogTitle className="font-semibold text-foreground flex items-center gap-2 text-sm">
             <FolderSearch className="w-4.5 h-4.5 text-primary" />
             <span>{t("scanner.title")}</span>
           </DialogTitle>
@@ -287,7 +287,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
             type="button"
             onClick={onClose}
             aria-label={t("scanner.close")}
-            className="text-muted-foreground hover:text-foreground hover:bg-muted/40 size-11 rounded-lg transition-colors active:scale-95 flex items-center justify-center shrink-0"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted/40 size-8 rounded-lg transition-colors active:scale-95 flex items-center justify-center shrink-0"
           >
             <X className="w-4.5 h-4.5" />
           </button>
@@ -372,7 +372,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                 placeholder={t("scanner.search_placeholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full min-h-11 pl-8 pr-2.5 bg-input border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary transition-colors"
+                className="w-full h-8 pl-8 pr-2.5 bg-input border border-border rounded-lg text-xs text-foreground outline-none focus:border-primary transition-colors"
               />
             </div>
           )}
@@ -392,7 +392,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                       key={mode}
                       type="button"
                       onClick={() => setSortMode(mode)}
-                      className={`min-h-8 px-2.5 rounded-md text-[10px] font-medium border transition active:scale-95 ${
+                      className={`h-7 px-2.5 rounded-md text-[10px] font-medium border transition active:scale-95 ${
                         active
                           ? "bg-primary/15 border-primary/50 text-primary"
                           : "bg-background border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -408,7 +408,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                 onClick={() => setSortDirection((d) => (d === "asc" ? "desc" : "asc"))}
                 aria-label={sortDirection === "asc" ? t("scanner.sort_desc") : t("scanner.sort_asc")}
                 title={sortDirection === "asc" ? t("scanner.sort_desc") : t("scanner.sort_asc")}
-                className="ml-auto min-h-8 px-2.5 rounded-md text-[10px] font-medium border bg-background border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition active:scale-95 flex items-center gap-1 shrink-0"
+                className="ml-auto h-7 px-2.5 rounded-md text-[10px] font-medium border bg-background border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition active:scale-95 flex items-center gap-1 shrink-0"
               >
                 {sortDirection === "asc" ? (
                   <ArrowUp className="w-3 h-3" />
@@ -474,7 +474,7 @@ export default function LocalCardScanner({ isOpen, onClose }: LocalCardScannerPr
                       type="button"
                       disabled={isImporting || !!importingPath}
                       onClick={() => handleImportFile(file)}
-                      className="min-h-11 px-3 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-lg text-xs transition-colors active:scale-95 disabled:opacity-50 shrink-0 flex items-center gap-1"
+                      className="h-8 px-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-lg text-xs transition-colors active:scale-95 disabled:opacity-50 shrink-0 flex items-center gap-1"
                     >
                       {isImporting ? (
                         <>

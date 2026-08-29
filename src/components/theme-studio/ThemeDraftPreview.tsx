@@ -24,53 +24,53 @@ export default function ThemeDraftPreview({ theme }: ThemeDraftPreviewProps) {
     >
       <style>{buildThemeCss(previewTheme)}</style>
 
-      <header className="flex min-h-14 items-center justify-between border-b border-border bg-card px-4">
+      <header className="flex min-h-11 items-center justify-between border-b border-border bg-card px-3">
         <div>
-          <p className="text-sm font-bold">远行者酒馆</p>
-          <p className="text-xs text-muted-foreground">固定演示数据 · 不读取真实会话</p>
+          <p className="text-xs font-bold">远行者酒馆</p>
+          <p className="text-[10px] text-muted-foreground">固定演示数据 · 不读取真实会话</p>
         </div>
         <button
           type="button"
           data-ui="preview-settings"
-          className="flex size-11 items-center justify-center rounded-xl border border-border bg-secondary text-secondary-foreground"
+          className="flex size-8 items-center justify-center rounded-lg border border-border bg-secondary text-secondary-foreground"
           aria-label="预览设置按钮"
         >
-          <Settings2 className="size-4" />
+          <Settings2 className="size-3.5" />
         </button>
       </header>
 
-      <div data-ui="main-tab-content" data-active-tab="chat" className="flex-1 space-y-4 overflow-y-auto p-4">
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-card-foreground">
-          <div className="flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <UserRound className="size-5" />
+      <div data-ui="main-tab-content" data-active-tab="chat" className="flex-1 space-y-3 overflow-y-auto p-3">
+        <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5 text-card-foreground">
+          <div className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <UserRound className="size-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold">旅伴</p>
-            <p className="truncate text-xs text-muted-foreground">正在与你整理今晚的行程。</p>
+            <p className="text-xs font-bold">旅伴</p>
+            <p className="truncate text-[10px] text-muted-foreground">正在与你整理今晚的行程。</p>
           </div>
         </div>
 
-        <div className="space-y-3">
-          <div className="mr-10 rounded-2xl rounded-tl-md border border-border bg-card p-3 text-card-foreground">
-            <p className="text-sm leading-relaxed" style={{ color: "var(--dialogue-color)" }}>
+        <div className="space-y-2.5">
+          <div className="mr-8 rounded-2xl rounded-tl-md border border-border bg-card p-2.5 text-card-foreground">
+            <p className="text-xs leading-relaxed" style={{ color: "var(--dialogue-color)" }}>
               我们先去旧城区看看，然后在钟楼下会合。
             </p>
-            <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--prose-color)" }}>
+            <p className="mt-0.5 text-[11px] leading-relaxed" style={{ color: "var(--prose-color)" }}>
               雨点落在窗沿上，远处的灯光逐渐亮起。
             </p>
           </div>
-          <div className="ml-10 rounded-2xl rounded-tr-md bg-primary p-3 text-primary-foreground">
-            <p className="text-sm leading-relaxed">好，我会带上地图和那本旧笔记。</p>
+          <div className="ml-8 rounded-2xl rounded-tr-md bg-primary p-2.5 text-primary-foreground">
+            <p className="text-xs leading-relaxed">好，我会带上地图和那本旧笔记。</p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-popover p-3 text-popover-foreground">
-          <p className="text-xs font-bold">菜单与状态</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-lg bg-secondary px-3 py-2 text-xs text-secondary-foreground">次要操作</span>
-            <span className="rounded-lg bg-accent px-3 py-2 text-xs text-accent-foreground">强调状态</span>
-            <span className="flex items-center gap-1 rounded-lg bg-destructive px-3 py-2 text-xs text-destructive-foreground">
-              <AlertTriangle className="size-3.5" />危险操作
+        <div className="rounded-xl border border-border bg-popover p-2.5 text-popover-foreground">
+          <p className="text-[11px] font-bold">菜单与状态</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <span className="rounded-md bg-secondary px-2 py-1 text-[11px] text-secondary-foreground">次要操作</span>
+            <span className="rounded-md bg-accent px-2 py-1 text-[11px] text-accent-foreground">强调状态</span>
+            <span className="flex items-center gap-1 rounded-md bg-destructive px-2 py-1 text-[11px] text-destructive-foreground">
+              <AlertTriangle className="size-3" />危险操作
             </span>
           </div>
         </div>
@@ -80,12 +80,12 @@ export default function ThemeDraftPreview({ theme }: ThemeDraftPreviewProps) {
           <input
             readOnly
             value="输入内容"
-            className="mt-2 min-h-11 w-full rounded-xl border border-border bg-input px-3 text-base text-foreground outline-none ring-ring focus:ring-2"
+            className="mt-1.5 h-8.5 w-full rounded-lg border border-border bg-input px-2.5 text-xs text-foreground outline-none ring-ring focus:ring-2"
           />
         </label>
       </div>
 
-      <nav data-ui="main-tab-bar" aria-label="预览底栏" className="grid grid-cols-3 border-t border-border bg-card px-2 pb-2 pt-1">
+      <nav data-ui="main-tab-bar" aria-label="预览底栏" className="grid grid-cols-3 border-t border-border bg-card px-2 pb-1.5 pt-1">
         {[
           { id: "characters", label: "角色", icon: UserRound },
           { id: "chat", label: "聊天", icon: MessageCircle },
@@ -100,9 +100,9 @@ export default function ThemeDraftPreview({ theme }: ThemeDraftPreviewProps) {
               data-ui="main-tab"
               data-tab-id={item.id}
               aria-selected={selected}
-              className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg text-xs ${selected ? "text-primary" : "text-muted-foreground"}`}
+              className={`flex min-h-9 flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] ${selected ? "text-primary font-medium" : "text-muted-foreground"}`}
             >
-              <Icon className="size-4" />
+              <Icon className="size-3.5" />
               {item.label}
             </button>
           );

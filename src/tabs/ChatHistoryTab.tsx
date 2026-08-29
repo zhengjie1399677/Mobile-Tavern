@@ -55,13 +55,13 @@ export default function ChatHistoryTab() {
 
   return (
     <main className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col px-2 pb-3 pt-2 sm:px-4">
-      <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-border/70 px-2">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <MessagesSquare className="size-5" aria-hidden="true" />
+      <header className="flex min-h-12 shrink-0 items-center gap-2.5 border-b border-border/70 px-1 pb-1.5">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <MessagesSquare className="size-4" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
           <h1 className="text-base font-semibold tracking-tight">{t("history.title")}</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">{t("session_manager.subtitle")}</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">{t("session_manager.subtitle")}</p>
         </span>
       </header>
       <SessionManagerPanel

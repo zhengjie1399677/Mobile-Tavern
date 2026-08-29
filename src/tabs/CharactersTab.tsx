@@ -22,7 +22,6 @@ import {
   Grid3X3,
   Columns2,
   History,
-  Sparkles,
   UsersRound,
   LoaderCircle,
 } from "lucide-react";
@@ -191,7 +190,6 @@ export default function CharactersTab() {
     <div className="relative min-h-screen space-y-2 px-4 pb-4 pt-2.5">
       <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-card p-3 shadow-[0_14px_35px_-24px_var(--primary)]">
         <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-primary/15 blur-2xl" />
-        <Sparkles className="pointer-events-none absolute right-4 top-4 h-12 w-12 text-primary/10" aria-hidden="true" />
 
         <div className="relative flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -223,12 +221,12 @@ export default function CharactersTab() {
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={() => setScannerOpen(true)}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground active:scale-[0.96]"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground active:scale-[0.96]"
               title={t("characters_tab.scan_title")}
             >
               <FolderSearch className="h-4 w-4" />
             </button>
-            <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground active:scale-[0.96]" title={t("characters_tab.import_title")}>
+            <label className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground active:scale-[0.96]" title={t("characters_tab.import_title")}>
               <FileUp className="h-4 w-4" />
               <input
                 type="file"
@@ -239,7 +237,7 @@ export default function CharactersTab() {
             </label>
             <button
               onClick={handleAddNewCharacter}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary font-medium text-primary-foreground shadow-[0_8px_20px_-10px_var(--primary)] transition-colors hover:bg-primary/90 active:scale-[0.96]"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary font-medium text-primary-foreground shadow-[0_8px_20px_-10px_var(--primary)] transition-colors hover:bg-primary/90 active:scale-[0.96]"
               title={t("characters_tab.create_title")}
             >
               <Plus className="h-4 w-4" />
@@ -256,8 +254,8 @@ export default function CharactersTab() {
         className="group relative flex w-full items-center justify-between gap-2.5 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/15 via-primary/5 to-card p-2.5 text-left shadow-sm transition-colors hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
       >
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md">
-            <Bot className="size-5" />
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md">
+            <Bot className="size-4.5" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
@@ -271,7 +269,7 @@ export default function CharactersTab() {
             </p>
           </div>
         </div>
-        <div className="flex h-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 px-3 text-xs font-semibold text-primary transition-all group-hover:bg-primary group-hover:text-primary-foreground">
+        <div className="flex h-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-all group-hover:bg-primary group-hover:text-primary-foreground">
           开启对话
         </div>
       </button>
@@ -290,7 +288,7 @@ export default function CharactersTab() {
               onClick={() => changeCharacterLayout(layout)}
               aria-pressed={characterLayout === layout}
               title={t(labelKey)}
-              className={`flex size-9 items-center justify-center rounded-lg border transition-colors active:scale-95 ${
+              className={`flex size-8 items-center justify-center rounded-lg border transition-colors active:scale-95 ${
                 characterLayout === layout
                   ? "border-primary/40 bg-primary/15 text-primary"
                   : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -333,10 +331,10 @@ export default function CharactersTab() {
               style={{ "--card-index": Math.min(index, 6) } as React.CSSProperties}
               className={`mobile-list-item relative flex h-auto cursor-pointer select-none rounded-xl border border-border/50 bg-gradient-to-br from-card to-muted/20 spring-press-effect outline-none focus-visible:ring-2 focus-visible:ring-ring ${index < 8 ? "animate-card-fade-in" : ""} ${
                 characterLayout === "list"
-                  ? "items-center gap-3 min-h-[96px] p-3"
+                  ? "items-center gap-3 min-h-[84px] p-2.5"
                   : characterLayout === "shelf"
-                    ? "flex-col items-stretch gap-1.5 p-1.5 min-h-[150px]"
-                    : "flex-col items-stretch gap-2 p-2 min-h-[220px]"
+                    ? "flex-col items-stretch gap-1.5 p-1.5 min-h-[140px]"
+                    : "flex-col items-stretch gap-2 p-2 min-h-[200px]"
               } ${
                 isActive
                   ? "border-primary/50 ring-1 ring-primary/20 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_30px_-8px_rgba(255,255,255,0.06)] bg-primary/[0.03]"
@@ -360,7 +358,7 @@ export default function CharactersTab() {
               <div 
                 className={`${
                   characterLayout === "list"
-                    ? "w-14 h-[72px] shrink-0"
+                    ? "w-13 h-16 shrink-0"
                     : "w-full aspect-[3/4]"
                 } rounded-xl overflow-hidden border border-border/40 flex items-center justify-center relative ${
                   char.avatar ? "bg-muted/30" : getAvatarGradientClass(char.name)
@@ -397,7 +395,7 @@ export default function CharactersTab() {
                       >
                         <button
                           onClick={() => setActionMenuChar(char)}
-                          className="text-muted-foreground hover:text-primary size-11 bg-background/90 rounded-lg hover:bg-muted transition-colors active:scale-95 flex items-center justify-center shrink-0 shadow-sm"
+                          className="text-muted-foreground hover:text-primary size-8 bg-background/90 rounded-lg hover:bg-muted transition-colors active:scale-95 flex items-center justify-center shrink-0 shadow-sm"
                           title={t("characters_tab.more_title")}
                         >
                           <MoreHorizontal className="w-3.5 h-3.5" />

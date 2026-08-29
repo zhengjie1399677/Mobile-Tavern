@@ -46,21 +46,21 @@ export function SystemReportPanel({
         🛠️ {t("report.title")}
         <button
           onClick={onCopyFullReport}
-          className="min-h-9 text-[9px] text-primary hover:underline font-normal cursor-pointer select-none px-3 border border-primary/20 rounded bg-primary/5 hover:bg-primary/10 active:scale-95 transition-all"
+          className="text-[9px] text-primary hover:underline font-normal cursor-pointer select-none px-2 py-0.5 border border-primary/20 rounded bg-primary/5 hover:bg-primary/10 active:scale-95 transition-all"
         >
           {t("report.copy")}
         </button>
         <button
           onClick={() => void onRunSelfCheck()}
           disabled={isChecking}
-          className="min-h-9 text-[9px] text-emerald-400 hover:underline font-normal cursor-pointer select-none px-3 border border-emerald-400/30 rounded bg-emerald-400/10 hover:bg-emerald-400/15 active:scale-95 transition-all disabled:opacity-55"
+          className="text-[9px] text-emerald-400 hover:underline font-normal cursor-pointer select-none px-2 py-0.5 border border-emerald-400/30 rounded bg-emerald-400/10 hover:bg-emerald-400/15 active:scale-95 transition-all disabled:opacity-55"
         >
           {isChecking ? t("report.checking") : t("report.check_start")}
         </button>
         {sections.length > 0 && (errorCount > 0 || warningCount > 0) && (
           <button
             onClick={onCopyErrorsOnly}
-            className="min-h-9 text-[9px] text-amber-400 hover:underline font-normal cursor-pointer select-none px-3 border border-amber-400/30 rounded bg-amber-400/10 hover:bg-amber-400/15 active:scale-95 transition-all"
+            className="text-[9px] text-amber-400 hover:underline font-normal cursor-pointer select-none px-2 py-0.5 border border-amber-400/30 rounded bg-amber-400/10 hover:bg-amber-400/15 active:scale-95 transition-all"
           >
             {t("report.copy_errors")}
           </button>

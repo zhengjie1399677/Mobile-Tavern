@@ -69,8 +69,8 @@ export default function CharacterEditModal() {
         className="!top-auto !bottom-0 !translate-y-0 z-[900] flex max-h-[92dvh] w-full max-w-3xl flex-col gap-0 overflow-y-auto rounded-t-2xl rounded-b-none border-x-0 border-b-0 border-t border-border bg-background p-0 shadow-2xl data-open:slide-in-from-bottom sm:!top-1/2 sm:!bottom-auto sm:!-translate-y-1/2 sm:max-h-[85dvh] sm:rounded-2xl sm:border"
       >
         {/* Modal sticky titles */}
-        <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10">
-          <DialogTitle className="font-bold text-foreground text-base">
+        <div className="px-4 py-2.5 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10">
+          <DialogTitle className="font-bold text-foreground text-sm">
             {String(editingChar.id || "").startsWith("char_ST_")
               ? t("character_editor.modal_title_edit")
               : t("character_editor.modal_title_create")}
@@ -79,11 +79,11 @@ export default function CharacterEditModal() {
             type="button"
             variant="ghost"
             size="icon"
-            className="size-11 text-muted-foreground hover:text-foreground"
+            className="size-8 text-muted-foreground hover:text-foreground"
             aria-label={t("character_editor.cancel_button")}
             onClick={closeEditor}
           >
-            <X className="w-5 h-5" />
+            <X className="size-4" />
           </Button>
         </div>
 
@@ -93,7 +93,7 @@ export default function CharacterEditModal() {
             type="button"
             aria-pressed={activeLoreTab === "detail"}
             onClick={() => setActiveLoreTab("detail")}
-            className={`min-h-11 py-2 px-3 text-sm font-semibold ${
+            className={`h-8.5 py-1 px-3 text-xs font-semibold ${
               activeLoreTab === "detail"
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground"
@@ -105,7 +105,7 @@ export default function CharacterEditModal() {
             type="button"
             aria-pressed={activeLoreTab === "lore"}
             onClick={() => setActiveLoreTab("lore")}
-            className={`min-h-11 py-2 px-3 text-sm font-semibold ${
+            className={`h-8.5 py-1 px-3 text-xs font-semibold ${
               activeLoreTab === "lore"
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground"
@@ -142,22 +142,22 @@ export default function CharacterEditModal() {
 
         {/* Modal final saving operations */}
         <div
-          style={{ paddingBottom: `${16 + Math.max(safeAreas?.bottom ?? 0, 16)}px` }}
-          className="p-4 bg-input/80 border-t border-border gap-2.5 flex items-center justify-end sticky bottom-0 z-10"
+          style={{ paddingBottom: `${8 + Math.max(safeAreas?.bottom ?? 0, 8)}px` }}
+          className="p-2.5 bg-input/80 border-t border-border gap-2 flex items-center justify-end sticky bottom-0 z-10"
         >
           <Button
             type="button"
             variant="outline"
-            size="lg"
-            className="min-h-11 min-w-20"
+            size="sm"
+            className="h-8 min-w-16 px-3 text-xs"
             onClick={closeEditor}
           >
             {t("character_editor.cancel_button")}
           </Button>
           <Button
             type="button"
-            size="lg"
-            className="min-h-11 min-w-20"
+            size="sm"
+            className="h-8 min-w-16 px-3 text-xs font-semibold"
             onClick={handleSaveCharacter}
           >
             {t("character_editor.save_button")}

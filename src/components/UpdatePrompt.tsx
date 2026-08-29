@@ -197,40 +197,40 @@ export default function UpdatePrompt() {
         <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* 跃动感的更新图标 */}
-        <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)]">
-          <DownloadCloud className="w-8 h-8" />
-          <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-indigo-950" />
+        <div className="relative flex items-center justify-center size-11 rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)]">
+          <DownloadCloud className="size-5.5" />
+          <span className="absolute top-1 right-1 size-2 rounded-full bg-rose-500 ring-2 ring-indigo-950" />
         </div>
 
         {/* 主标题 + FC 传下来的更新日志 */}
-        <div className="space-y-2 z-10 w-full">
-          <DialogTitle className="text-xl font-extrabold tracking-tight text-white bg-clip-text text-center">
+        <div className="space-y-1.5 z-10 w-full">
+          <DialogTitle className="text-sm font-bold tracking-tight text-white bg-clip-text text-center">
             {t("update.new_version_title", { version: latestVersion })}
           </DialogTitle>
           {updateLog ? (
-            <div className="text-xs text-slate-200 leading-relaxed max-h-[180px] overflow-y-auto scrollbar-thin bg-white/5 border border-white/10 rounded-xl p-3 whitespace-pre-wrap break-words text-left">
+            <div className="text-[11px] text-slate-200 leading-relaxed max-h-[160px] overflow-y-auto scrollbar-thin bg-white/5 border border-white/10 rounded-xl p-2.5 whitespace-pre-wrap break-words text-left">
               {updateLog}
             </div>
           ) : null}
         </div>
 
         {/* 按钮区域 */}
-        <div className="w-full space-y-2 z-10">
+        <div className="w-full space-y-1.5 z-10">
           <Button
             type="button"
-            size="lg"
+            size="sm"
             onClick={handleDownload}
             disabled={isDownloading}
-            className="relative min-h-11 w-full space-x-2 shadow-[0_4px_12px_rgba(var(--primary-rgb),0.2)]"
+            className="relative h-8.5 w-full space-x-1.5 text-xs font-semibold shadow-[0_4px_12px_rgba(var(--primary-rgb),0.2)]"
           >
             {isDownloading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="size-3.5 animate-spin" />
                 <span>{t("update.downloading")}</span>
               </>
             ) : (
               <>
-                <ArrowUpCircle className="w-4 h-4" />
+                <ArrowUpCircle className="size-3.5" />
                 <span>{t("update.download_now")}</span>
               </>
             )}
@@ -239,10 +239,10 @@ export default function UpdatePrompt() {
           <Button
             type="button"
             variant="ghost"
-            size="lg"
+            size="sm"
             onClick={handleDismiss}
             disabled={isDownloading}
-            className="min-h-11 w-full text-slate-400 hover:text-white"
+            className="h-7.5 w-full text-xs text-slate-400 hover:text-white"
           >
             {t("update.later")}
           </Button>
@@ -255,10 +255,10 @@ export default function UpdatePrompt() {
           size="icon"
           onClick={handleDismiss}
           disabled={isDownloading}
-          className="absolute top-2 right-2 size-11 text-slate-500 hover:text-white"
+          className="absolute top-2 right-2 size-8 text-slate-500 hover:text-white"
           aria-label={t("update.close_aria")}
         >
-          <X className="w-4 h-4" />
+          <X className="size-4" />
         </Button>
       </DialogContent>
     </Dialog>
