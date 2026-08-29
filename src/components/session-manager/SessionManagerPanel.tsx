@@ -229,7 +229,12 @@ export default function SessionManagerPanel({
       t("session_manager.delete_permanent_confirm"),
       t("session_manager.delete_permanent"),
     )) return;
-    await mutate(() => service.permanentlyDeleteArchivedSession(entry.session.id));
+    await mutate(async () => {
+      if (entry.session.lifecycle !== "archived") {
+        await service.archiveSession(entry.session.id);
+      }
+      await service.permanentlyDeleteArchivedSession(entry.session.id);
+    });
   };
 
   const handleRemoveFavorite = async (entry: FavoriteSessionBackupEntry) => {
@@ -259,7 +264,7 @@ export default function SessionManagerPanel({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
       <div className="shrink-0 border-b border-border/70 px-3 pb-2.5 pt-1 space-y-2">
         {fixedCharacterId ? (
           /* 聊天内分支管理模式：精简单行工具栏 */
@@ -520,7 +525,7 @@ export default function SessionManagerPanel({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+      <div className="min-h-0 min-w-0 w-full flex-1 overflow-y-auto overscroll-contain px-3 py-3">
         {loading ? (
           <div className="flex min-h-48 items-center justify-center text-muted-foreground">
             <LoaderCircle className="mr-2 size-5 animate-spin" />
@@ -757,6 +762,7 @@ function SessionRow(props: {
               <ActionButton icon={CircleAlert} label={t("session_manager.details")} onClick={props.onDetails} />
               <ActionButton icon={Network} label={t("session_manager.parallel_universe")} onClick={props.onUniverse} />
               <ActionButton icon={Archive} label={t("session_manager.archive")} onClick={props.onArchive} />
+              <ActionButton destructive icon={Trash2} label={t("history.delete")} onClick={props.onDelete} />
             </>
           ) : (
             <>

@@ -169,7 +169,7 @@ export default function UserPersonaModal({
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent
         showCloseButton={false}
-        className="z-[999] flex h-[min(88dvh,600px)] w-[calc(100vw-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden border-border bg-background p-0 text-foreground shadow-2xl"
+        className="z-[999] flex h-[min(88dvh,600px)] w-[min(32rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border border-border/80 bg-background p-0 text-foreground shadow-2xl"
       >
         <DialogHeader className="shrink-0 border-b border-border/70 px-4 py-3">
           <div className="flex min-h-10 items-center justify-between gap-3">

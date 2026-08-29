@@ -172,7 +172,7 @@ export default function SessionManagerModal() {
     <Dialog open onOpenChange={(open) => { if (!open) setShowSessionManager(false); }}>
       <DialogContent
         showCloseButton={false}
-        className="z-[999] flex h-[min(88dvh,720px)] w-[calc(100vw-1rem)] max-w-2xl flex-col gap-0 overflow-hidden border-border bg-background p-0 text-foreground shadow-2xl"
+        className="z-[999] flex h-[min(88dvh,720px)] w-[min(42rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border border-border/80 bg-background p-0 text-foreground shadow-2xl"
       >
         <DialogHeader className="shrink-0 border-b border-border/70 px-4 py-2.5">
           <div className="flex min-h-10 items-center justify-between gap-3">
@@ -228,7 +228,7 @@ export default function SessionManagerModal() {
           </div>
         </DialogHeader>
 
-        <div className={`min-h-0 flex-1 ${view === "sessions" ? "flex" : "overflow-y-auto overscroll-contain px-3 py-3"}`}>
+        <div className={`min-h-0 min-w-0 w-full flex-1 ${view === "sessions" ? "flex" : "overflow-y-auto overscroll-contain px-3 py-3"}`}>
           {view === "sessions" ? (
             <SessionManagerPanel
               activeSessionId={activeSession?.id}
@@ -268,7 +268,7 @@ export default function SessionManagerModal() {
         </div>
 
         {view === "sessions" && (
-          <div className="shrink-0 border-t border-border/70 bg-background px-3 py-2">
+          <div className="shrink-0 border-t border-border/70 bg-background px-3 pt-2 pb-[max(0.5rem,var(--safe-area-bottom))]">
             <Button
               type="button"
               variant="default"

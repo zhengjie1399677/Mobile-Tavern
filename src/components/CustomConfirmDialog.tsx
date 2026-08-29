@@ -75,7 +75,7 @@ export default function CustomConfirmDialog() {
     <Dialog open onOpenChange={(open) => { if (!open) handleDismiss(); }}>
       <DialogContent
         showCloseButton={false}
-        className={`z-[1000] gap-3.5 rounded-2xl border-border/80 bg-popover p-4 shadow-2xl ${customDialog.type === "prompt" && customDialog.inputType === "textarea" ? "sm:max-w-lg" : "sm:max-w-sm"}`}
+        className={`z-[1000] gap-3.5 rounded-2xl border border-border/80 bg-popover p-4 shadow-2xl ${customDialog.type === "prompt" && customDialog.inputType === "textarea" ? "sm:max-w-lg" : "sm:max-w-sm"}`}
       >
         <DialogHeader className="gap-1.5">
           <DialogTitle className="text-sm font-bold text-foreground">

@@ -55,7 +55,7 @@ export default function TimelineModal() {
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) handleCancel(); }}>
-      <DialogContent showCloseButton={false} className="z-[999] gap-3 border-border bg-background p-4 text-xs shadow-2xl sm:max-w-lg">
+      <DialogContent showCloseButton={false} className="z-[999] gap-3 rounded-2xl border border-border/80 bg-background p-4 text-xs shadow-2xl sm:max-w-lg">
         <DialogHeader className="border-b border-border pb-2.5">
           <DialogTitle className="font-bold text-foreground flex items-center gap-1.5 text-sm">
             <Clock className="w-4 h-4 text-primary" />{" "}
