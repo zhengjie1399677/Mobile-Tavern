@@ -8,7 +8,7 @@ import { TRANSLATIONS } from "../locales/index";
 
 import { getErrorMessage } from '../utils/errorUtils';
 /** CharacterProvider 在 LanguageProvider 上方，无法使用 useTranslation hook。直接从 TRANSLATIONS 读当前语言翻译。 */
-function tChar(key: string, errorMessage: string): string {
+function tChar(key: string, errorMessage = ""): string {
   const lang = (typeof window !== "undefined" && localStorage.getItem("mobile_tavern_language")) || "zh-CN";
   const template = (TRANSLATIONS[lang]?.[key]) || TRANSLATIONS["zh-CN"]?.[key] || key;
   return template.replace("{error}", errorMessage);
@@ -116,7 +116,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.error("Failed to delete character from IndexedDB:", e);
       const message = getErrorMessage(e);
       showCustomAlert(message.includes("CHARACTER_DELETE_REQUIRES_SESSION_CLEANUP")
-        ? "该角色仍有关联会话，请先在会话管理器中归档并永久删除这些会话。"
+        ? tChar("chat.delete_character_session_guard")
         : tChar("chat.delete_character_failed", message));
       throw e;
     }

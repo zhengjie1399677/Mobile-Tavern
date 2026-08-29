@@ -1042,6 +1042,7 @@ export default {
   "chat.load_characters_failed": "Falha ao carregar biblioteca de personagens: {error}",
   "chat.save_character_failed": "Falha ao salvar personagem: {error}",
   "chat.delete_character_failed": "Falha ao excluir personagem: {error}",
+  "chat.delete_character_session_guard": "Este personagem ainda possui sessões associadas. Arquive e exclua-as permanentemente no gerenciador de sessões primeiro.",
   "splash.tagline": "Abra sua Sinfonia de Almas",
   "db.writing_overlay": "Gravando no Banco de Dados",
   "update.new_version_title": "✨ Nova Versão Encontrada v{version}",

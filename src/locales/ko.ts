@@ -1063,6 +1063,7 @@ export default {
   "chat.load_characters_failed": "캐릭터 라이브러리 로딩 실패: {error}",
   "chat.save_character_failed": "캐릭터 저장 실패: {error}",
   "chat.delete_character_failed": "캐릭터 삭제 실패: {error}",
+  "chat.delete_character_session_guard": "이 캐릭터에는 연결된 세션이 남아 있습니다. 먼저 세션 관리자에서 보관한 후 영구 삭제하세요.",
 
   "splash.tagline": "당신의 영혼 교향록을 열어보세요",
   "db.writing_overlay": "데이터베이스 쓰기 중",

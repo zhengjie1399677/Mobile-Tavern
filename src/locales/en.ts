@@ -1114,6 +1114,7 @@ export default {
   "chat.load_characters_failed": "Failed to load character library: {error}",
   "chat.save_character_failed": "Failed to save character: {error}",
   "chat.delete_character_failed": "Failed to delete character: {error}",
+  "chat.delete_character_session_guard": "This character still has related sessions. Archive and permanently delete them in the Session Manager first.",
   "splash.tagline": "Begin your soul symphony",
   "db.writing_overlay": "Writing to database",
   "update.new_version_title": "✨ New version v{version} found",

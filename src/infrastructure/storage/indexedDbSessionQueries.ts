@@ -3,6 +3,11 @@ import type {
   SessionDirectoryCursor,
   SessionDirectorySort,
 } from "../../domain/session-management";
+import {
+  compareDirectoryValues,
+  getSessionSortValue,
+  toSessionDirectoryCursor,
+} from "../../domain/session-management";
 import { getDB } from "./idbConnection";
 import { bindReadonlyTransactionAbort } from "./idbQueue";
 import {
@@ -219,7 +224,9 @@ export async function getSessionsPage(options: {
         resolve({
           sessions: page,
           hasMore: results.length > pageSize,
-          cursor: page.length > 0 ? toDirectoryCursor(page[page.length - 1], sort) : undefined,
+          cursor: page.length > 0
+            ? toSessionDirectoryCursor(page[page.length - 1], sort)
+            : undefined,
         });
         return;
       }
@@ -252,28 +259,3 @@ export async function getSessionsPage(options: {
   });
 }
 
-function compareDirectoryValues(left: number | string, right: number | string): number {
-  if (typeof left === "number" && typeof right === "number") return left - right;
-  const leftText = String(left);
-  const rightText = String(right);
-  return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
-}
-
-function getSessionSortValue(
-  session: Pick<ChatSession, "createdAt" | "updatedAt" | "title" | "turnCount">,
-  sort: SessionDirectorySort,
-): number | string {
-  if (sort === "created_asc" || sort === "created_desc") return session.createdAt;
-  if (sort === "title_asc") return session.title;
-  if (sort === "turns_desc") return session.turnCount ?? 0;
-  return session.updatedAt ?? session.createdAt;
-}
-
-function toDirectoryCursor(session: ChatSession, sort: SessionDirectorySort): SessionDirectoryCursor {
-  return {
-    sort,
-    value: getSessionSortValue(session, sort),
-    createdAt: session.createdAt,
-    id: session.id,
-  };
-}

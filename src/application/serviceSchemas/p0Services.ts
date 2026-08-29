@@ -64,6 +64,7 @@ export const DatabaseServiceSchema = KernelServiceBaseSchema.extend({
   getSessionStateBeforeMessage: fnSchema,
   getSessionsCount: fnSchema,
   getSessionCountsByCharacter: fnSchema,
+  getSessionBranchCounts: fnSchema,
   getSessionsPaginated: fnSchema,
   getSessionsPage: fnSchema,
   runStorageDiagnostics: fnSchema,

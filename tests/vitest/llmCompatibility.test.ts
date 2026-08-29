@@ -148,6 +148,41 @@ describe("LLM Provider 兼容层", () => {
     });
   });
 
+  it("空文本无键候选先于同键候选被 content=null 消息消费，保持线性扫描语义", () => {
+    const sessionMessages = [
+      {
+        id: "fallback",
+        sender: "assistant",
+        content: "",
+        reasoningContent: "兜底思考",
+        timestamp: 1,
+      },
+      {
+        id: "keyed",
+        sender: "assistant",
+        content: "",
+        reasoningContent: "键位思考",
+        timestamp: 2,
+        extra: { tool_calls: [{ id: "call-1" }] },
+      },
+    ] as Message[];
+
+    const result = preserveAssistantReasoning([
+      {
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: "call-1",
+          type: "function",
+          function: { name: "f", arguments: "{}" },
+        }],
+      },
+      { role: "assistant", content: "" },
+    ], sessionMessages, "https://api.deepseek.com/v1", "deepseek-chat");
+
+    expect(result.map((message) => message.reasoning_content)).toEqual(["兜底思考", "键位思考"]);
+  });
+
   it("归一化 OpenAI 别名、Anthropic SSE、Gemini 与 DashScope 响应", () => {
     expect(normalizeProviderStreamChunk({
       choices: [{ delta: { reasoningContent: "想", text: "答" }, finishReason: "STOP" }],

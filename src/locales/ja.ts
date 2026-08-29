@@ -1032,6 +1032,7 @@ export default {
   "chat.load_characters_failed": "ローカルキャラクターライブラリの読み込みに失敗しました：{error}",
   "chat.save_character_failed": "キャラクターの保存に失敗しました：{error}",
   "chat.delete_character_failed": "キャラクターの削除に失敗しました：{error}",
+  "chat.delete_character_session_guard": "このキャラクターには関連セッションが残っています。先にセッションマネージャーでアーカイブして完全に削除してください。",
   "splash.tagline": "あなたの魂の交響曲を始めましょう",
   "db.writing_overlay": "データベースに書き込み中",
   "update.new_version_title": "✨ 新しいバージョン v{version} を発見",

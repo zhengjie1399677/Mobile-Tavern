@@ -152,6 +152,19 @@ export class AttachmentService implements IAttachmentService {
     const current = await listAttachmentMetadata();
     const currentById = new Map(current.map((item) => [item.id, item]));
     const decoded = this.decodeBackupRecords(records, currentById);
+    // 同 ID 已存在时除元数据外还必须校验字节一致，防止备份与库内内容静默分叉。
+    for (const item of decoded) {
+      const existing = currentById.get(item.metadata.id);
+      if (!existing) continue;
+      const stored = await loadAttachmentContent(item.metadata.id);
+      if (!stored) throw new Error("ATTACHMENT_BACKUP_ID_CONFLICT");
+      const storedBytes = new Uint8Array(await stored.arrayBuffer());
+      const incomingBytes = new Uint8Array(item.bytes);
+      if (storedBytes.byteLength !== incomingBytes.byteLength
+        || !storedBytes.every((value, index) => value === incomingBytes[index])) {
+        throw new Error("ATTACHMENT_BACKUP_CONTENT_CONFLICT");
+      }
+    }
     const inserted = decoded.filter((item) => !currentById.has(item.metadata.id));
     const existingBytes = current.reduce((total, item) => total + item.size, 0);
     const insertedBytes = inserted.reduce((total, item) => total + item.metadata.size, 0);

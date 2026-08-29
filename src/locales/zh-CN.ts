@@ -1114,6 +1114,7 @@ export default {
   "chat.load_characters_failed": "加载本地角色库失败: {error}",
   "chat.save_character_failed": "保存角色失败: {error}",
   "chat.delete_character_failed": "删除角色失败: {error}",
+  "chat.delete_character_session_guard": "该角色仍有关联会话，请先在会话管理器中归档并永久删除这些会话。",
   "splash.tagline": "开启你的灵魂交响录",
   "db.writing_overlay": "正在写入数据库",
   "update.new_version_title": "✨ 发现新版本 v{version}",

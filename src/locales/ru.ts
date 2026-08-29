@@ -1032,6 +1032,7 @@ export default {
   "chat.load_characters_failed": "Не удалось загрузить библиотеку персонажей: {error}",
   "chat.save_character_failed": "Не удалось сохранить персонажа: {error}",
   "chat.delete_character_failed": "Не удалось удалить персонажа: {error}",
+  "chat.delete_character_session_guard": "У этого персонажа остались связанные сессии. Сначала заархивируйте и удалите их в менеджере сессий.",
   "splash.tagline": "Начните свою симфонию души",
   "db.writing_overlay": "Запись в базу данных",
   "update.new_version_title": "✨ Найдена новая версия v{version}",

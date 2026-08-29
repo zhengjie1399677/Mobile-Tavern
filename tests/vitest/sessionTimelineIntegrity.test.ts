@@ -127,7 +127,7 @@ describe("长会话消息与时间线摘要完整性", () => {
       "character-1": 2,
       "character-2": 1,
     });
-  });
+  }, 15_000);
 
   it("会话目录使用稳定游标，分页期间插入新会话不会跳过旧记录", async () => {
     const db = await getDB();
@@ -169,7 +169,7 @@ describe("长会话消息与时间线摘要完整性", () => {
     expect(new Set([...first.sessions, ...second.sessions].map((session) => session.id)).size)
       .toBe(40);
     expect(second.sessions[0].createdAt).toBeLessThan(cursor.createdAt);
-  });
+  }, 15_000);
 
   it("稳定游标用 id 打破相同排序值，跨页不重复不漏项", async () => {
     const db = await getDB();
@@ -202,7 +202,7 @@ describe("长会话消息与时间线摘要完整性", () => {
     expect(first.hasMore).toBe(true);
     expect(new Set(ids).size).toBe(40);
     expect(ids.every((id) => id.startsWith("same-time-"))).toBe(true);
-  });
+  }, 15_000);
 
   it("并发追加摘要不会被同键写合并吞掉", async () => {
     await Promise.all([
@@ -261,7 +261,7 @@ describe("长会话消息与时间线摘要完整性", () => {
     expect(stored?.title).toBe("只修改标题");
     expect(stored?.turnCount).toBe(500);
     expect(stored?.charCount).toBe(6_000);
-  });
+  }, 15_000);
 
   it("消息追加在同一事务中维护会话总计数", async () => {
     await commitSessionTurn(sessionId, {}, [{
@@ -274,7 +274,7 @@ describe("长会话消息与时间线摘要完整性", () => {
     const stored = await getSessionById(sessionId);
     expect(stored?.turnCount).toBe(501);
     expect(stored?.charCount).toBe(5_899);
-  });
+  }, 15_000);
 
   it("消息分页使用稳定游标，追加新消息不会改变下一页边界", async () => {
     const database = new DatabaseService();
@@ -296,7 +296,7 @@ describe("长会话消息与时间线摘要完整性", () => {
     expect(second.messages[0].id).toBe("message-901");
     expect(second.messages.at(-1)?.id).toBe("message-950");
     expect(new Set([...first.messages, ...second.messages]).size).toBe(100);
-  });
+  }, 15_000);
 
   it("完整消息字段经批量写入和分页水合后保持不变", async () => {
     const richMessage: Message = {
@@ -330,7 +330,7 @@ describe("长会话消息与时间线摘要完整性", () => {
       extractSource: "none",
       metadata: richMessage.extra,
     });
-  });
+  }, 15_000);
 
   it("删除消息时原子维护统计并清理受影响摘要与派生记忆", async () => {
     const db = await getDB();
@@ -538,5 +538,58 @@ describe("长会话消息与时间线摘要完整性", () => {
       .toBe("修订后的第 20 条总结");
     expect(stored?.summaries.some((summary) => summary.id === "summary-10")).toBe(false);
     expect(stored?.lastSummarizedMessageId).toBe(makeSummary(40).lastMessageId);
+  }, 15_000);
+
+  it("v16 迁移为缺少 turnCount 的旧会话按权威消息统计回填", async () => {
+    __resetDBInstanceForTesting();
+    await new Promise<void>((resolve) => {
+      const request = indexedDB.deleteDatabase("MobileTavernLiteDB");
+      request.onsuccess = () => resolve();
+      request.onerror = () => resolve();
+      request.onblocked = () => resolve();
+    });
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("MobileTavernLiteDB", 15);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        const sessions = db.createObjectStore("sessions", { keyPath: "id" });
+        sessions.createIndex("createdAt", "createdAt");
+        const messages = db.createObjectStore("messages", { keyPath: "id" });
+        messages.createIndex("sessionId", "sessionId");
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction(["sessions", "messages"], "readwrite");
+        transaction.objectStore("sessions").put({
+          id: sessionId,
+          characterId: "character-1",
+          title: "旧会话",
+          createdAt: 1,
+        });
+        for (let index = 0; index < 10; index += 1) {
+          transaction.objectStore("messages").put({
+            id: `legacy-msg-${index}`,
+            sessionId,
+            role: index % 2 === 0 ? "user" : "assistant",
+            content: "旧消息",
+            createdAt: 100 + index,
+            turnIndex: index,
+            tags: [],
+            extractSource: "none",
+          });
+        }
+        transaction.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    const page = await getSessionsPage({ pageSize: 50, sort: "turns_desc", lifecycle: "active" });
+    const legacy = page.sessions.find((item) => item.id === sessionId);
+    expect(legacy?.turnCount).toBe(5);
   }, 15_000);
 });

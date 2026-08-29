@@ -54,7 +54,7 @@ export function preserveAssistantReasoning(
     return providerMessages.map(cloneProviderMessage);
   }
 
-  const reasoningCandidates = sessionMessages.flatMap((message) => {
+  const reasoningCandidates: ReasoningCandidate[] = sessionMessages.flatMap((message) => {
     if (message.sender !== "assistant" || !message.reasoningContent) return [];
     return [{
       content: message.content,
@@ -64,21 +64,82 @@ export function preserveAssistantReasoning(
     }];
   });
 
+  const byContent = new Map<string, CandidateEntry[]>();
+  const byToolCallKey = new Map<string, CandidateEntry[]>();
+  const emptyContentFallback: CandidateEntry[] = [];
+  reasoningCandidates.forEach((candidate, index) => {
+    const entry = { index, candidate };
+    const contentList = byContent.get(candidate.content) ?? [];
+    contentList.push(entry);
+    byContent.set(candidate.content, contentList);
+    if (candidate.toolCallKey) {
+      const keyList = byToolCallKey.get(candidate.toolCallKey) ?? [];
+      keyList.push(entry);
+      byToolCallKey.set(candidate.toolCallKey, keyList);
+    }
+    if (candidate.content === "" && !candidate.toolCallKey) {
+      emptyContentFallback.push(entry);
+    }
+  });
+
+  const EMPTY_LIST: CandidateEntry[] = [];
+  const pointers = new Map<CandidateEntry[], number>();
+  const peekFirstUnused = (list: CandidateEntry[]): CandidateEntry | null => {
+    let index = pointers.get(list) ?? 0;
+    while (index < list.length && list[index].candidate.used) index += 1;
+    pointers.set(list, index);
+    return index < list.length ? list[index] : null;
+  };
+  const takeFrom = (list: CandidateEntry[]): string | null => {
+    const entry = peekFirstUnused(list);
+    if (!entry) return null;
+    pointers.set(list, entry.index + 1);
+    entry.candidate.used = true;
+    return entry.candidate.reasoning;
+  };
+  /** 取两条按全局顺序各自有序的候选中最早未被消费的一个，保持原线性扫描语义。 */
+  const takeFromEither = (
+    primary: CandidateEntry[],
+    fallback: CandidateEntry[],
+  ): string | null => {
+    const primaryEntry = peekFirstUnused(primary);
+    const fallbackEntry = peekFirstUnused(fallback);
+    const entry = primaryEntry && fallbackEntry
+      ? primaryEntry.index <= fallbackEntry.index ? primaryEntry : fallbackEntry
+      : primaryEntry ?? fallbackEntry;
+    if (!entry) return null;
+    pointers.set(
+      entry === primaryEntry ? primary : fallback,
+      entry.index + 1,
+    );
+    entry.candidate.used = true;
+    return entry.candidate.reasoning;
+  };
+
   return providerMessages.map((message) => {
     const cloned = cloneProviderMessage(message);
     if (cloned.role !== "assistant") return cloned;
     const toolCallKey = providerToolCallKey(cloned);
-    const candidate = reasoningCandidates.find((item) => !item.used && (
-      typeof cloned.content === "string"
-        ? item.content === cloned.content
-        : cloned.content === null && toolCallKey !== null
-          ? item.toolCallKey === toolCallKey || (!item.toolCallKey && item.content === "")
-          : false
-    ));
-    if (!candidate) return cloned;
-    candidate.used = true;
-    return { ...cloned, reasoning_content: candidate.reasoning };
+    const reasoning = typeof cloned.content === "string"
+      ? takeFrom(byContent.get(cloned.content) ?? EMPTY_LIST)
+      : cloned.content === null && toolCallKey !== null
+        ? takeFromEither(byToolCallKey.get(toolCallKey) ?? EMPTY_LIST, emptyContentFallback)
+        : null;
+    if (reasoning === null) return cloned;
+    return { ...cloned, reasoning_content: reasoning };
   });
+}
+
+interface ReasoningCandidate {
+  content: string;
+  reasoning: string;
+  toolCallKey: string | null;
+  used: boolean;
+}
+
+interface CandidateEntry {
+  index: number;
+  candidate: ReasoningCandidate;
 }
 
 export function removeUnsupportedRequestFields(

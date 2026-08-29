@@ -1,3 +1,5 @@
+import { deriveTurnCount } from "./sessionRecord";
+
 /**
  * IndexedDB Schema 单一来源。
  *
@@ -23,7 +25,8 @@ export const DB_NAME = "MobileTavernLiteDB";
 // v13: 为 character_catalog 补回首页展示所需头像，仍排除其余角色卡重数据
 // v14: 增加会话生命周期与最近活动索引，并为旧会话补齐安全目录默认值
 // v15: 增加会话目录稳定排序与分支计数索引
-export const DB_VERSION = 15;
+// v16: 为缺少 turnCount 的旧会话按权威消息统计回填，避免轮次排序索引漏项
+export const DB_VERSION = 16;
 
 export interface IndexSchema {
   name: string;
@@ -253,6 +256,44 @@ export function applyDbSchema(
           ? record.contentRevision
           : 1,
       });
+      cursor.continue();
+    };
+  }
+
+  if (oldVersion < 16) {
+    const sessions = transaction.objectStore("sessions");
+    const messages = transaction.objectStore("messages");
+    if (typeof sessions.openCursor !== "function") return;
+    const messageStats = new Map<string, { messages: number; userMessages: number }>();
+    const messageCursorRequest = messages.index("sessionId").openCursor();
+    messageCursorRequest.onsuccess = () => {
+      const cursor = messageCursorRequest.result;
+      if (!cursor) {
+        const sessionCursorRequest = sessions.openCursor();
+        sessionCursorRequest.onsuccess = () => {
+          const sessionCursor = sessionCursorRequest.result;
+          if (!sessionCursor) return;
+          const record = sessionCursor.value as Record<string, unknown>;
+          if (typeof record.turnCount !== "number" || !Number.isFinite(record.turnCount)) {
+            const stats = typeof record.id === "string"
+              ? messageStats.get(record.id) ?? { messages: 0, userMessages: 0 }
+              : { messages: 0, userMessages: 0 };
+            sessionCursor.update({
+              ...record,
+              turnCount: deriveTurnCount(stats.messages, stats.userMessages),
+            });
+          }
+          sessionCursor.continue();
+        };
+        return;
+      }
+      const record = cursor.value as { sessionId?: unknown; role?: unknown };
+      if (typeof record.sessionId === "string") {
+        const stats = messageStats.get(record.sessionId) ?? { messages: 0, userMessages: 0 };
+        stats.messages += 1;
+        if (record.role === "user") stats.userMessages += 1;
+        messageStats.set(record.sessionId, stats);
+      }
       cursor.continue();
     };
   }

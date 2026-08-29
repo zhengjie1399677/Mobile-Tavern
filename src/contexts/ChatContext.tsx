@@ -150,6 +150,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // sessions 快照 ref：供 useEffect 在不依赖 sessions 数组的前提下读取最新值
   const sessionsRef = useRef<ChatSession[]>([]);
   const activeSessionIdRef = useRef<string | null>(activeSessionId);
+  // 刻意不在渲染期写 ref（避免渲染期副作用/React 编译器约束），
+  // 改为 effect 提交后同步；读取点都在异步回调中，effect 已先于用户交互执行。
   useEffect(() => {
     sessionsRef.current = sessions;
   }, [sessions]);

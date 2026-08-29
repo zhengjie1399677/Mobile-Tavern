@@ -17,6 +17,10 @@ import type {
   SessionDirectorySnapshot,
   SessionDirectorySort,
 } from "../../domain/session-management";
+import {
+  toBackupMetadataCursor,
+  toSessionDirectoryCursor,
+} from "../../domain/session-management";
 import type {
   CharacterCard,
   ChatSession,
@@ -237,6 +241,8 @@ export class SessionManagementService implements ISessionManagementService<ChatS
       await this.agentRuntime.deleteJournalBySession(restoreId).catch(() => undefined);
       const persistedSession = await this.database.getSessionById(restoreId).catch(() => null);
       if (persistedSession) {
+        // 若失败发生在 replaceCompleteSessions 之后，附件反向引用已被 reconcile 提交；
+        // deleteSession 会 patchReferences 把它们置为 orphaned，由后续 GC 回收。
         await this.database
           .updateSessionMetadata(restoreId, { lifecycle: "archived", archivedAt: Date.now() })
           .then(() => this.database.deleteSession(restoreId, this.signal))
@@ -396,7 +402,10 @@ export class SessionManagementService implements ISessionManagementService<ChatS
       }));
       for (const entry of entries) {
         if (!this.entryMatches(entry, query)) continue;
-        matches.push({ entry, cursor: toSessionCursor(entry.session, category, sort) });
+        matches.push({
+          entry,
+          cursor: toSessionDirectoryCursor(entry.session, sort, category),
+        });
         if (matches.length > pageSize) break;
       }
       if (page.sessions.length === 0) sourceHasMore = false;
@@ -444,7 +453,10 @@ export class SessionManagementService implements ISessionManagementService<ChatS
           branchCount: branchCounts[sourceSession.id] ?? 0,
         } satisfies SessionDirectoryEntry : undefined;
         if (!this.favoriteMatches(entry, query, sourceEntry)) return;
-        matches.push({ entry, cursor: toFavoriteCursor(metadata, sort) });
+        matches.push({
+          entry,
+          cursor: { ...toBackupMetadataCursor(metadata, sort), category: "favorite" },
+        });
       });
       if (page.records.length === 0) sourceHasMore = false;
     }
@@ -501,47 +513,6 @@ function emptyDirectorySnapshot(
       archived: { hasMore: false },
     },
     characters,
-  };
-}
-
-function sessionSortValue(session: ChatSession, sort: SessionDirectorySort): number | string {
-  if (sort === "created_asc" || sort === "created_desc") return session.createdAt;
-  if (sort === "title_asc") return session.title;
-  if (sort === "turns_desc") return session.turnCount ?? 0;
-  return session.updatedAt ?? session.createdAt;
-}
-
-function toSessionCursor(
-  session: ChatSession,
-  category: "active" | "archived",
-  sort: SessionDirectorySort,
-): SessionDirectoryCursor {
-  return {
-    category,
-    sort,
-    value: sessionSortValue(session, sort),
-    createdAt: session.createdAt,
-    id: session.id,
-  };
-}
-
-function toFavoriteCursor(
-  metadata: FavoriteSessionBackupMetadata,
-  sort: SessionDirectorySort,
-): SessionDirectoryCursor {
-  const value = sort === "created_asc" || sort === "created_desc"
-    ? metadata.createdAt
-    : sort === "title_asc"
-      ? metadata.title
-      : sort === "turns_desc"
-        ? metadata.messageCount
-        : metadata.updatedAt;
-  return {
-    category: "favorite",
-    sort,
-    value,
-    createdAt: metadata.createdAt,
-    id: metadata.id,
   };
 }
 

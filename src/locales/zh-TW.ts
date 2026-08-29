@@ -1042,6 +1042,7 @@ export default {
   "chat.load_characters_failed": "載入本地角色庫失敗: {error}",
   "chat.save_character_failed": "保存角色失敗: {error}",
   "chat.delete_character_failed": "刪除角色失敗: {error}",
+  "chat.delete_character_session_guard": "該角色仍有關聯會話，請先在會話管理器中封存並永久刪除這些會話。",
   "splash.tagline": "開啟你的靈魂交響錄",
   "db.writing_overlay": "正在寫入數據庫",
   "update.new_version_title": "✨ 發現新版本 v{version}",

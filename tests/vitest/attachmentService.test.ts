@@ -169,4 +169,23 @@ describe("消息附件服务", () => {
     expect(await service.getMetadata(metadata.id)).not.toBeNull();
     await service.destroy();
   });
+
+  it("同 ID 已存在且元数据一致但字节不同时拒绝导入，防止静默保留旧内容", async () => {
+    const service = new AttachmentService();
+    await service.init({} as IKernel);
+    const metadata = await service.stageFile(pngFile());
+    const backup = await service.exportAttachments([metadata.id]);
+    const tamperedBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 14]);
+    const tampered = {
+      ...backup[0],
+      dataBase64: Buffer.from(tamperedBytes).toString("base64"),
+    };
+
+    await expect(service.importAttachments([tampered]))
+      .rejects.toThrow("ATTACHMENT_BACKUP_CONTENT_CONFLICT");
+    expect(await service.getMetadata(metadata.id)).not.toBeNull();
+    expect(Array.from(new Uint8Array(await (await service.getBlob(metadata.id)).arrayBuffer())))
+      .toEqual([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]);
+    await service.destroy();
+  });
 });

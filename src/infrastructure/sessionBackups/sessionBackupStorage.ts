@@ -4,6 +4,11 @@ import type {
   SessionDirectoryCursor,
   SessionDirectorySort,
 } from "../../domain/session-management";
+import {
+  compareDirectoryValues,
+  getBackupMetadataSortValue,
+  toBackupMetadataCursor,
+} from "../../domain/session-management";
 
 const DB_NAME = "MobileTavernSessionBackupDB";
 const DB_VERSION = 2;
@@ -20,6 +25,7 @@ interface StoredBackupVersion {
 let openedDb: IDBDatabase | null = null;
 let openingPromise: Promise<IDBDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
+const BACKUP_WRITE_LOCK_NAME = "mobile-tavern-session-backup-write";
 
 export async function listFavoriteSessionBackups(): Promise<FavoriteSessionBackupMetadata[]> {
   const database = await openDatabase();
@@ -69,7 +75,10 @@ export async function listFavoriteSessionBackupsPage(options: {
       }
       const metadata = cursor.value as FavoriteSessionBackupMetadata;
       if (options.cursor) {
-        const comparison = compareValues(getMetadataSortValue(metadata, sort), options.cursor.value);
+        const comparison = compareDirectoryValues(
+          getBackupMetadataSortValue(metadata, sort),
+          options.cursor.value,
+        );
         const isPastBoundary = direction === "prev"
           ? comparison < 0 || (comparison === 0 && metadata.id < options.cursor.id)
           : comparison > 0 || (comparison === 0 && metadata.id > options.cursor.id);
@@ -88,7 +97,7 @@ export async function listFavoriteSessionBackupsPage(options: {
   return {
     records: page,
     hasMore: records.length > pageSize,
-    cursor: page.length > 0 ? toMetadataCursor(page[page.length - 1], sort) : undefined,
+    cursor: page.length > 0 ? toBackupMetadataCursor(page[page.length - 1], sort) : undefined,
   };
 }
 
@@ -142,7 +151,7 @@ export async function saveFavoriteSessionBackup(
   metadataInput: Omit<FavoriteSessionBackupMetadata, "versionId" | "integrityHash">,
   payload: FavoriteSessionBackupPayload,
 ): Promise<FavoriteSessionBackupMetadata> {
-  return enqueueBackupWrite(() => saveFavoriteSessionBackupNow(metadataInput, payload));
+  return withBackupWriteLock(() => saveFavoriteSessionBackupNow(metadataInput, payload));
 }
 
 async function saveFavoriteSessionBackupNow(
@@ -188,7 +197,7 @@ async function saveFavoriteSessionBackupNow(
 }
 
 export async function deleteFavoriteSessionBackup(backupId: string): Promise<void> {
-  return enqueueBackupWrite(() => deleteFavoriteSessionBackupNow(backupId));
+  return withBackupWriteLock(() => deleteFavoriteSessionBackupNow(backupId));
 }
 
 async function deleteFavoriteSessionBackupNow(backupId: string): Promise<void> {
@@ -209,7 +218,7 @@ async function deleteFavoriteSessionBackupNow(backupId: string): Promise<void> {
 
 /** 回收崩溃窗口遗留、未被任意元数据指针引用的不可变版本。 */
 export async function pruneOrphanedFavoriteSessionBackupVersions(): Promise<number> {
-  return enqueueBackupWrite(async () => {
+  return withBackupWriteLock(async () => {
     const database = await openDatabase();
     const transaction = database.transaction([METADATA_STORE, VERSION_STORE], "readwrite");
     const metadata = await requestResult<FavoriteSessionBackupMetadata[]>(
@@ -298,39 +307,21 @@ function ensureIndex(
   if (!store.indexNames.contains(name)) store.createIndex(name, keyPath, { unique });
 }
 
-function getMetadataSortValue(
-  metadata: FavoriteSessionBackupMetadata,
-  sort: SessionDirectorySort,
-): number | string {
-  if (sort === "created_asc" || sort === "created_desc") return metadata.createdAt;
-  if (sort === "title_asc") return metadata.title;
-  if (sort === "turns_desc") return metadata.messageCount;
-  return metadata.updatedAt;
-}
-
-function toMetadataCursor(
-  metadata: FavoriteSessionBackupMetadata,
-  sort: SessionDirectorySort,
-): SessionDirectoryCursor {
-  return {
-    sort,
-    value: getMetadataSortValue(metadata, sort),
-    createdAt: metadata.createdAt,
-    id: metadata.id,
-  };
-}
-
-function compareValues(left: number | string, right: number | string): number {
-  if (typeof left === "number" && typeof right === "number") return left - right;
-  const leftText = String(left);
-  const rightText = String(right);
-  return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
-}
-
 function enqueueBackupWrite<T>(operation: () => Promise<T>): Promise<T> {
   const result = writeQueue.then(operation, operation);
   writeQueue = result.then(() => undefined, () => undefined);
   return result;
+}
+
+/**
+ * 备份写串行化：模块内 writeQueue 只保证当前实例顺序，Web Locks 进一步提供
+ * 跨窗口/跨 WebView 互斥，避免 stage→verify→switch 多事务序列与启动清理交错。
+ * 不支持 Web Locks 的环境（测试、旧 WebView）退化为本地队列。
+ */
+function withBackupWriteLock<T>(operation: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== "undefined" && navigator.locks ? navigator.locks : null;
+  if (!locks) return enqueueBackupWrite(operation);
+  return locks.request(BACKUP_WRITE_LOCK_NAME, () => enqueueBackupWrite(operation));
 }
 
 function closeDatabase(): void {
