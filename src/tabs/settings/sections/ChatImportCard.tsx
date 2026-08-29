@@ -9,7 +9,7 @@ import {
 } from "../../../../components/ui/card";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 
-export interface ChatImportCardProps extends Pick<UnifiedAppContextProps, "handleImportSillyChatHistory"> {}
+export type ChatImportCardProps = Pick<UnifiedAppContextProps, "handleImportSillyChatHistory">;
 
 export default function ChatImportCard({
   handleImportSillyChatHistory,
@@ -18,7 +18,7 @@ export default function ChatImportCard({
   return (
     <Card className="bg-card border-border shadow-sm mt-2">
       <CardHeader className="pb-2.5 border-b border-border/50 px-3 pt-3">
-        <CardTitle className="text-xs flex items-center gap-2 font-bold text-foreground">
+        <CardTitle className="text-sm flex items-center gap-2 font-semibold text-foreground">
           <MessageSquare className="w-4 h-4 text-primary" /> {t("chat_import.title")}
         </CardTitle>
         <CardDescription className="text-[10px] mt-0.5">

@@ -20,7 +20,7 @@ import { DEFAULT_SETTINGS } from "../../../hooks/useSettings";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import SettingsSelect from "../SettingsSelect";
 
-export interface MemoryConfigCardProps extends Pick<UnifiedAppContextProps, "settings" | "updateSettings"> {}
+export type MemoryConfigCardProps = Pick<UnifiedAppContextProps, "settings" | "updateSettings">;
 
 export default function MemoryConfigCard({
   settings,
@@ -30,7 +30,7 @@ export default function MemoryConfigCard({
   return (
     <Card className="bg-card border-border shadow-sm">
       <CardHeader className="pb-2.5 border-b border-border/50 px-3 pt-3">
-        <CardTitle className="text-xs flex items-center gap-2 font-bold text-foreground">
+        <CardTitle className="text-sm flex items-center gap-2 font-semibold text-foreground">
           <Database className="w-4 h-4 text-primary" /> {t("memory_sys.title")}
         </CardTitle>
         <CardDescription className="text-[10px] mt-0.5">

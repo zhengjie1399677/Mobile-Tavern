@@ -300,6 +300,7 @@ export default {
   "image_gen.prompt_template_desc": "시스템은 채팅 설정의 LLM을 사용해 이 가이드 프롬프트를 실행합니다. 내장 플레이스홀더 {appearance}(외형 특징), {context}(대화 컨텍스트), {message}(현재 대사)는 자동으로 치환됩니다.",
 
   "tts.title": "음성 읽기 설정 (TTS)",
+  "tts.subtitle": "텍스트 음성 변환 엔진 및 음성 매개변수 설정",
   "tts.enable": "TTS 음성 읽기 활성화",
   "tts.enable_desc": "활성화 시 메시지 메뉴에서 텍스트 읽기를 지원합니다",
   "tts.trigger": "읽기 트리거 방식",

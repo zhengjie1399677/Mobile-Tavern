@@ -10,10 +10,10 @@ import { Switch } from "../../../../components/ui/switch";
 import { Input } from "../../../../components/ui/input";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 
-export interface BackupRestoreCardProps extends Pick<UnifiedAppContextProps,
+export type BackupRestoreCardProps = Pick<UnifiedAppContextProps,
   | "backupPass" | "setBackupPass" | "backupStatus" | "encryptBackup" | "setEncryptBackup"
   | "showBackupUI" | "setShowBackupUI" | "handleExportLocalDataBackup" | "handleImportLocalDataBackup"
-> {}
+>;
 
 export default function BackupRestoreCard({
   backupPass,
@@ -38,7 +38,7 @@ export default function BackupRestoreCard({
         onClick={() => setShowBackupUI(!showBackupUI)}
       >
         <div className="flex items-center justify-between">
-          <CardTitle className="text-xs flex items-center gap-2 font-bold text-foreground">
+          <CardTitle className="text-sm flex items-center gap-2 font-semibold text-foreground">
             <Lock className="w-4 h-4 text-emerald-500" />{" "}
             {t("backup.title")}
           </CardTitle>

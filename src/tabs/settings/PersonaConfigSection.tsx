@@ -39,7 +39,7 @@ export default function PersonaConfigSection({
   return (
     <Card className="glass-panel shadow-sm">
       <CardHeader className="pb-2.5 border-b border-border/50 px-3 pt-3">
-        <CardTitle className="text-xs flex items-center gap-2 font-bold text-foreground">
+        <CardTitle className="text-sm flex items-center gap-2 font-semibold text-foreground">
           <UserCheck className="w-4 h-4 text-primary" /> {t("persona.title")}
         </CardTitle>
       </CardHeader>

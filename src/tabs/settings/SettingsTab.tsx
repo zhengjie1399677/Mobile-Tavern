@@ -486,7 +486,7 @@ export default function SettingsTab() {
         )}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline gap-2">
-            <h1 className="truncate text-base font-black tracking-tight text-foreground">
+            <h1 className="truncate text-base font-bold tracking-tight text-foreground">
               {selectedMeta ? t(selectedMeta.titleKey) : t("nav.settings")}
             </h1>
             {selectedMeta?.experimental && (

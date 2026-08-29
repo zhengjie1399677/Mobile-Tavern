@@ -298,6 +298,7 @@ export default {
   "image_gen.prompt_template": "Template de Resumo de Descrição de Cena (Prompt Generator Template)",
   "image_gen.prompt_template_desc": "O sistema usará o LLM configurado no chat para executar este prompt guia. Placeholders internos como {appearance} (características visuais), {context} (contexto da conversa), {message} (diálogo atual) serão substituídos automaticamente.",
   "tts.title": "Configuração de Leitura por Voz (TTS)",
+  "tts.subtitle": "Configurar motor de texto para fala e parâmetros de voz",
   "tts.enable": "Ativar Leitura por Voz TTS",
   "tts.enable_desc": "Ao ativar, é possível ouvir o texto das mensagens no menu de opções.",
   "tts.trigger": "Modo de Disparo da Leitura",

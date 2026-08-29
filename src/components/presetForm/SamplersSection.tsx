@@ -26,9 +26,19 @@ export default function SamplersSection({
         onClick={handleToggleSamplersFold}
       >
         <div className="flex items-center justify-between">
-          <CardTitle className="text-xs flex items-center gap-2 shrink-0 font-bold text-foreground">
-            <Sliders className="w-4 h-4 text-primary" /> {t("samplers.title")}
-          </CardTitle>
+          <div className="flex items-center gap-2 shrink-0">
+            <Sliders className="w-4 h-4 text-primary" />
+            <div className="flex flex-col items-start gap-1">
+              <span className="text-sm font-semibold text-foreground">
+                {t("samplers.title")}
+              </span>
+              {!isSamplersFolded && (
+                <span className="text-[10px] text-muted-foreground font-normal">
+                  {t("samplers.subtitle")}
+                </span>
+              )}
+            </div>
+          </div>
           <div className="flex items-center gap-2 overflow-hidden">
             {isSamplersFolded && (
               <span className="text-[10px] text-muted-foreground/80 font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[150px] sm:max-w-none">
@@ -42,11 +52,6 @@ export default function SamplersSection({
             )}
           </div>
         </div>
-        {!isSamplersFolded && (
-          <CardDescription className="text-[10px] mt-0.5">
-            {t("samplers.subtitle")}
-          </CardDescription>
-        )}
       </CardHeader>
       {!isSamplersFolded && (
         <CardContent className="pt-3 px-3 pb-3 space-y-3.5 overflow-hidden w-full">

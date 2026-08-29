@@ -295,6 +295,7 @@ export default {
   "image_gen.prompt_template": "Prompt Generator Template",
   "image_gen.prompt_template_desc": "Guided instructions for summarization LLM. Placeholders {appearance}, {context}, {message} will be replaced.",
   "tts.title": "Text-to-Speech (TTS)",
+  "tts.subtitle": "Configure Text-to-Speech engine and voice parameters",
   "tts.enable": "Enable TTS Speech",
   "tts.enable_desc": "Enables reading message logs aloud in quick actions",
   "tts.trigger": "Trigger Mode",

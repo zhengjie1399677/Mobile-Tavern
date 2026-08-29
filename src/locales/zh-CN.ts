@@ -295,6 +295,7 @@ export default {
   "image_gen.prompt_template": "场景描述总结模板 (Prompt Generator Template)",
   "image_gen.prompt_template_desc": "系统会使用聊天配置的 LLM 运行此引导提示词。内置占位符 {appearance}（外观特征）、{context}（对话上下文）、{message}（当前对白）将自动替换。",
   "tts.title": "语音朗读设置 (TTS)",
+  "tts.subtitle": "配置文字转语音服务与发音参数",
   "tts.enable": "开启 TTS 语音朗读",
   "tts.enable_desc": "启用后支持在消息菜单中朗读文本",
   "tts.trigger": "朗读触发方式",

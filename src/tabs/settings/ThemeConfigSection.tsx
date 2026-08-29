@@ -181,7 +181,7 @@ export default function ThemeConfigSection({
   return (
     <Card className="glass-panel shadow-sm">
       <CardHeader className="pb-1 pt-2.5 px-3">
-        <CardTitle className="text-[12px] flex items-center gap-2 font-bold text-foreground">
+        <CardTitle className="text-sm flex items-center gap-2 font-semibold text-foreground">
           <span>{t("theme.section_title")}</span>
         </CardTitle>
       </CardHeader>

@@ -88,7 +88,7 @@ export default function RegexManagementSection({
           onClick={handleToggleRegexFold}
         >
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2 shrink-0">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 shrink-0 text-foreground">
               <Sparkles className="w-4 h-4 text-primary" /> {t("regex.title")}
             </CardTitle>
             <div className="flex items-center gap-2 overflow-hidden">
@@ -105,7 +105,7 @@ export default function RegexManagementSection({
             </div>
           </div>
           {!isRegexFolded && (
-            <CardDescription className="text-[11px] mt-1">
+            <CardDescription className="text-[10px] text-muted-foreground font-normal mt-0.5">
               {t("regex.subtitle")}
             </CardDescription>
           )}

@@ -272,7 +272,7 @@ export default function PromptsConfigSection({
         onClick={handleTogglePromptsFold}
       >
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm flex items-center gap-2 shrink-0">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2 shrink-0 text-foreground">
             <Brain className="w-4 h-4 text-primary" /> {t("prompts.title")}
           </CardTitle>
           <div className="flex items-center gap-2 overflow-hidden">
@@ -289,7 +289,7 @@ export default function PromptsConfigSection({
           </div>
         </div>
         {!isPromptsFolded && (
-          <CardDescription className="text-[11px] mt-1">
+          <CardDescription className="text-[10px] text-muted-foreground font-normal mt-0.5">
             {t("prompts.subtitle")}
           </CardDescription>
         )}

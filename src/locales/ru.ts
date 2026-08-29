@@ -297,6 +297,7 @@ export default {
   "image_gen.prompt_template": "Шаблон генератора промпта",
   "image_gen.prompt_template_desc": "Инструкции для LLM суммаризации. Плейсхолдеры {appearance}, {context}, {message} будут заменены.",
   "tts.title": "Синтез речи (TTS)",
+  "tts.subtitle": "Настройка движка синтеза речи и параметров голоса",
   "tts.enable": "Включить TTS озвучку",
   "tts.enable_desc": "Включает чтение сообщений вслух в быстрых действиях",
   "tts.trigger": "Режим запуска",

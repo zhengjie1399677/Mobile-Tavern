@@ -60,7 +60,7 @@ export default function ChatHistoryTab() {
           <MessagesSquare className="size-4" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
-          <h1 className="text-base font-semibold tracking-tight">{t("history.title")}</h1>
+          <h1 className="text-base font-bold tracking-tight text-foreground">{t("history.title")}</h1>
           <p className="mt-0.5 text-[10px] text-muted-foreground">{t("session_manager.subtitle")}</p>
         </span>
       </header>

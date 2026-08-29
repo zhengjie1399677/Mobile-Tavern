@@ -56,10 +56,15 @@ export default function TtsConfigSection({
 
   return (
     <AccordionItem value="tts-config" className="glass-panel shadow-sm rounded-xl overflow-hidden mt-2">
-      <AccordionTrigger className="px-4 py-3 hover:no-underline [&[data-state=open]]:bg-muted/40">
+      <AccordionTrigger className="px-3.5 py-2.5 hover:no-underline hover:bg-muted/30 transition">
         <div className="flex items-center gap-2">
           <Volume2 className="w-4 h-4 text-primary" />
-          <span className="text-xs font-bold text-foreground">{t("tts.title")}</span>
+          <div className="flex flex-col items-start gap-1">
+            <span className="text-sm font-semibold text-foreground">{t("tts.title")}</span>
+            <span className="text-[10px] text-muted-foreground font-normal">
+              {t("tts.subtitle")}
+            </span>
+          </div>
         </div>
       </AccordionTrigger>
       <AccordionContent className="p-3 space-y-3">

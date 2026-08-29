@@ -297,6 +297,7 @@ export default {
   "image_gen.prompt_template": "Plantilla Generadora de Prompt",
   "image_gen.prompt_template_desc": "Instrucciones guiadas para el LLM de resumen. Los marcadores {appearance}, {context}, {message} se reemplazarán automáticamente.",
   "tts.title": "Texto a Voz (TTS)",
+  "tts.subtitle": "Configurar el motor de texto a voz y los parámetros de voz",
   "tts.enable": "Activar Lectura TTS",
   "tts.enable_desc": "Permite leer los registros de mensajes en voz alta desde las acciones rápidas",
   "tts.trigger": "Modo de Activación",

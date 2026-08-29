@@ -297,6 +297,7 @@ export default {
   "image_gen.prompt_template": "プロンプト生成テンプレート",
   "image_gen.prompt_template_desc": "要約LLMのためのガイド指示。プレースホルダー {appearance}、{context}、{message} が置換されます。",
   "tts.title": "テキスト読み上げ（TTS）",
+  "tts.subtitle": "音声合成エンジンと音声パラメータを設定",
   "tts.enable": "TTS読み上げを有効にする",
   "tts.enable_desc": "クイックアクションでメッセージログの読み上げを有効にします",
   "tts.trigger": "トリガーモード",

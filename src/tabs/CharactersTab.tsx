@@ -193,7 +193,7 @@ export default function CharactersTab() {
 
         <div className="relative flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="flex items-center gap-1.5 text-lg font-bold tracking-tight text-foreground">
+            <h1 className="flex items-center gap-1.5 text-base font-bold tracking-tight text-foreground">
               <span className="truncate">Mobile Tavern</span>
               <span className="rounded-md border border-primary/20 bg-primary/15 px-1.5 py-0.5 font-mono text-[9px] text-primary">
                 Lite
