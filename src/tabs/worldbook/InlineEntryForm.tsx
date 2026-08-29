@@ -24,7 +24,7 @@ export default function InlineEntryForm({
   setEditingId,
   onSave,
 }: InlineEntryFormProps) {
-  const safeRenderKeys = (keys: any): string => {
+  const safeRenderKeys = (keys: unknown): string => {
     if (Array.isArray(keys)) {
       return keys
         .map((k) => (typeof k === "string" ? k : String(k || "")))
@@ -163,11 +163,11 @@ export default function InlineEntryForm({
               }
               className="w-full bg-input border border-border rounded-lg p-1.5 text-foreground text-xs"
             >
-              <option value="after_char_def">📌 角色定义之后</option>
-              <option value="before_char_def">📌 角色定义之前</option>
-              <option value="top">📌 对话最顶部</option>
-              <option value="before_last_mes">💬 最新发言上方</option>
-              <option value="in_chat">💬 历史对话中 (按深度)</option>
+              <option className="bg-card text-foreground" value="after_char_def">📌 角色定义之后</option>
+              <option className="bg-card text-foreground" value="before_char_def">📌 角色定义之前</option>
+              <option className="bg-card text-foreground" value="top">📌 对话最顶部</option>
+              <option className="bg-card text-foreground" value="before_last_mes">💬 最新发言上方</option>
+              <option className="bg-card text-foreground" value="in_chat">💬 历史对话中 (按深度)</option>
             </select>
           </div>
           <div>

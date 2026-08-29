@@ -122,9 +122,17 @@ describe("会话管理器页面", () => {
     render(<ChatHistoryTab />);
     await screen.findByText("旧旅程");
     fireEvent.click(screen.getByRole("button", { name: "session_manager.filters" }));
-    fireEvent.change(screen.getByLabelText("session_manager.filter_created"), { target: { value: "7" } });
-    fireEvent.change(screen.getByLabelText("session_manager.filter_branch"), { target: { value: "yes" } });
-    fireEvent.change(screen.getByLabelText("session_manager.filter_backup"), { target: { value: "outdated" } });
+    fireEvent.click(screen.getByLabelText("session_manager.filter_created"));
+    const optionCreated = await screen.findByRole("option", { name: "session_manager.filter_last_7_days" });
+    fireEvent.click(optionCreated);
+
+    fireEvent.click(screen.getByLabelText("session_manager.filter_branch"));
+    const optionBranch = await screen.findByRole("option", { name: "session_manager.filter_has_branch" });
+    fireEvent.click(optionBranch);
+
+    fireEvent.click(screen.getByLabelText("session_manager.filter_backup"));
+    const optionBackup = await screen.findByRole("option", { name: "session_manager.status_outdated" });
+    fireEvent.click(optionBackup);
 
     await waitFor(() => expect(fixture.service.queryDirectory).toHaveBeenLastCalledWith(
       expect.objectContaining({

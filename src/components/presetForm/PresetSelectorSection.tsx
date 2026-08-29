@@ -40,11 +40,11 @@ export default function PresetSelectorSection({
             value={activeBundleId}
             onChange={(e) => handleLoadPresetBundle(e.target.value)}
           >
-            <option value="" disabled>
+            <option className="bg-card text-foreground" value="" disabled>
               {t("preset_selector.active_preset", { name: settings.preset.name })}
             </option>
             {(settings.savedPresets || []).map((p) => (
-              <option key={p.id} value={p.id}>
+              <option className="bg-card text-foreground" key={p.id} value={p.id}>
                 {p.isBuiltin
                   ? `📦 ${p.preset.name} · ${t("preset_selector.builtin_badge")}`
                   : `📄 ${p.preset.name} · ${t("preset_selector.custom_badge")}`}

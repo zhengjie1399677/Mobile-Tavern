@@ -177,9 +177,9 @@ export default function CharacterDetailTab({
           }}
           className="w-full bg-input border border-border rounded p-2 text-foreground outline-none text-xs"
         >
-          <option value="inherit">{t("char_detail_tab.asterisk_inherit")}</option>
-          <option value="true">{t("char_detail_tab.asterisk_enable")}</option>
-          <option value="false">{t("char_detail_tab.asterisk_disable")}</option>
+          <option className="bg-card text-foreground" value="inherit">{t("char_detail_tab.asterisk_inherit")}</option>
+          <option className="bg-card text-foreground" value="true">{t("char_detail_tab.asterisk_enable")}</option>
+          <option className="bg-card text-foreground" value="false">{t("char_detail_tab.asterisk_disable")}</option>
         </select>
       </div>
 

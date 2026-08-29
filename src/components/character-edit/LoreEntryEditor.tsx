@@ -150,11 +150,11 @@ export default function LoreEntryEditor({
             }
             className="w-full bg-input border border-border rounded p-1 text-foreground"
           >
-            <option value="after_char_def">{t("lore_editor.position_after_char")}</option>
-            <option value="before_char_def">{t("lore_editor.position_before_char")}</option>
-            <option value="top">{t("lore_editor.position_top")}</option>
-            <option value="before_last_mes">{t("lore_editor.position_before_last")}</option>
-            <option value="in_chat">{t("lore_editor.position_in_chat")}</option>
+            <option className="bg-card text-foreground" value="after_char_def">{t("lore_editor.position_after_char")}</option>
+            <option className="bg-card text-foreground" value="before_char_def">{t("lore_editor.position_before_char")}</option>
+            <option className="bg-card text-foreground" value="top">{t("lore_editor.position_top")}</option>
+            <option className="bg-card text-foreground" value="before_last_mes">{t("lore_editor.position_before_last")}</option>
+            <option className="bg-card text-foreground" value="in_chat">{t("lore_editor.position_in_chat")}</option>
           </select>
         </div>
         <div>

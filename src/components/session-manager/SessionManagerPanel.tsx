@@ -21,6 +21,13 @@ import {
 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Checkbox } from "../../../components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../../components/ui/select";
 import type {
   ISessionManagementService,
 } from "../../application/serviceContracts";
@@ -51,6 +58,7 @@ const EMPTY_SNAPSHOT: SessionDirectorySnapshot = {
 
 interface SessionManagerPanelProps {
   activeSessionId?: string | null;
+  fixedCharacterId?: string;
   isSending: boolean;
   onOpenSession: (session: ChatSession) => void;
   onRenameSession: (session: ChatSession) => Promise<void>;
@@ -65,6 +73,7 @@ type DetailTarget = { kind: "session"; entry: SessionDirectoryEntry }
 
 export default function SessionManagerPanel({
   activeSessionId,
+  fixedCharacterId,
   isSending,
   onOpenSession,
   onRenameSession,
@@ -83,7 +92,7 @@ export default function SessionManagerPanel({
   const [snapshot, setSnapshot] = useState<SessionDirectorySnapshot>(EMPTY_SNAPSHOT);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [characterId, setCharacterId] = useState("");
+  const [characterId, setCharacterId] = useState(fixedCharacterId || "");
   const [sort, setSort] = useState<NonNullable<SessionDirectoryQuery["sort"]>>("updated_desc");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [createdRange, setCreatedRange] = useState("");
@@ -253,10 +262,10 @@ export default function SessionManagerPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 border-b border-border/70 px-3 pb-2">
-        <div className="flex min-h-12 items-center gap-2">
+        <div className="flex min-h-10 items-center gap-2">
           {searchOpen ? (
             <label className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 autoFocus
                 type="search"
@@ -264,33 +273,33 @@ export default function SessionManagerPanel({
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t("session_manager.search_placeholder")}
                 aria-label={t("session_manager.search_placeholder")}
-                className="h-11 w-full rounded-xl border border-border bg-muted/30 pl-9 pr-10 text-base outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+                className="h-8.5 w-full rounded-xl border border-border bg-muted/30 pl-8 pr-9 text-xs outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
               />
               <button
                 type="button"
                 aria-label={t("common.close")}
                 onClick={() => { setSearch(""); setSearchOpen(false); }}
-                className="absolute right-1 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+                className="absolute right-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
               >
-                <X className="size-4" />
+                <X className="size-3.5" />
               </button>
             </label>
           ) : (
             <>
-              <span className="flex-1 text-sm text-muted-foreground">
+              <span className="flex-1 text-xs text-muted-foreground">
                 {t("session_manager.result_count", { count: activeEntries.length })}
               </span>
-              <Button variant="ghost" size="sm" className="min-h-10" onClick={() => setSearchOpen(true)}>
-                <Search className="size-4" />
+              <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs" onClick={() => setSearchOpen(true)}>
+                <Search className="size-3.5" />
                 {t("session_manager.search")}
               </Button>
               <Button
                 variant={manage ? "secondary" : "ghost"}
                 size="sm"
-                className="min-h-10"
+                className="h-8 px-2.5 text-xs"
                 onClick={() => { setManage((value) => !value); setSelected(new Set()); }}
               >
-                <CopyCheck className="size-4" />
+                <CopyCheck className="size-3.5" />
                 {manage ? t("common.cancel") : t("session_manager.manage")}
               </Button>
             </>
@@ -305,7 +314,7 @@ export default function SessionManagerPanel({
               role="tab"
               aria-selected={category === item}
               onClick={() => selectCategory(item)}
-              className={`min-h-10 rounded-lg px-2 text-sm font-medium transition-colors ${
+              className={`h-8 rounded-lg px-2 text-xs font-medium transition-colors ${
                 category === item ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50"
               }`}
             >
@@ -314,40 +323,64 @@ export default function SessionManagerPanel({
           ))}
         </div>
 
-        <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-2">
-          <label className="min-w-0">
-            <span className="sr-only">{t("session_manager.filter_character")}</span>
-            <select
-              value={characterId}
-              onChange={(event) => setCharacterId(event.target.value)}
-              className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground"
-            >
-              <option value="">{t("session_manager.all_characters")}</option>
-              {characterOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-            </select>
-          </label>
-          <label className="min-w-0">
-            <span className="sr-only">{t("session_manager.sort")}</span>
-            <select
+        <div className={`mt-2 grid ${fixedCharacterId ? "grid-cols-[1fr_auto]" : "grid-cols-[1fr_1fr_auto]"} gap-1.5`}>
+          {!fixedCharacterId && (
+            <div className="min-w-0">
+              <Select
+                value={characterId || "__all__"}
+                onValueChange={(val) => setCharacterId(val === "__all__" ? "" : String(val ?? ""))}
+              >
+                <SelectTrigger
+                  aria-label={t("session_manager.filter_character")}
+                  className="h-8 w-full rounded-lg border-border/80 bg-background/90 px-2.5 text-xs text-foreground"
+                >
+                  <SelectValue>
+                    {characterId ? (characterOptions.find(([id]) => id === characterId)?.[1] || t("session_manager.all_characters")) : t("session_manager.all_characters")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent align="start" className="z-[999] max-h-56 overflow-y-auto border border-border bg-popover p-1 shadow-2xl">
+                  <SelectItem value="__all__" className="min-h-8 px-2.5 text-xs font-medium">
+                    {t("session_manager.all_characters")}
+                  </SelectItem>
+                  {characterOptions.map(([id, name]) => (
+                    <SelectItem key={id} value={id} className="min-h-8 px-2.5 text-xs font-medium">
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="min-w-0">
+            <Select
               value={sort}
-              onChange={(event) => setSort(event.target.value as NonNullable<SessionDirectoryQuery["sort"]>)}
-              className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground"
+              onValueChange={(val) => setSort((val ?? "updated_desc") as NonNullable<SessionDirectoryQuery["sort"]>)}
             >
-              <option value="updated_desc">{t("session_manager.sort_updated")}</option>
-              <option value="created_asc">{t("session_manager.sort_created")}</option>
-              <option value="title_asc">{t("session_manager.sort_title")}</option>
-              <option value="turns_desc">{t("session_manager.sort_turns")}</option>
-            </select>
-          </label>
+              <SelectTrigger
+                aria-label={t("session_manager.sort")}
+                className="h-8 w-full rounded-lg border-border/80 bg-background/90 px-2.5 text-xs text-foreground"
+              >
+                <SelectValue>
+                  {sort === "created_asc" ? t("session_manager.sort_created") : sort === "title_asc" ? t("session_manager.sort_title") : sort === "turns_desc" ? t("session_manager.sort_turns") : t("session_manager.sort_updated")}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start" className="z-[999] border border-border bg-popover p-1 shadow-2xl">
+                <SelectItem value="updated_desc" className="min-h-8 px-2.5 text-xs font-medium">{t("session_manager.sort_updated")}</SelectItem>
+                <SelectItem value="created_asc" className="min-h-8 px-2.5 text-xs font-medium">{t("session_manager.sort_created")}</SelectItem>
+                <SelectItem value="title_asc" className="min-h-8 px-2.5 text-xs font-medium">{t("session_manager.sort_title")}</SelectItem>
+                <SelectItem value="turns_desc" className="min-h-8 px-2.5 text-xs font-medium">{t("session_manager.sort_turns")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Button
             type="button"
             variant={filtersOpen ? "secondary" : "outline"}
             size="icon"
-            className="size-10"
+            className="size-8"
             aria-label={t("session_manager.filters")}
             onClick={() => setFiltersOpen((value) => !value)}
           >
-            <SlidersHorizontal className="size-4" />
+            <SlidersHorizontal className="size-3.5" />
           </Button>
         </div>
 
@@ -546,11 +579,11 @@ function SessionSections(props: {
   const { t } = useTranslation();
   const groups = useMemo(() => groupEntries(props.entries), [props.entries]);
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5">
       {groups.map((group) => (
         <section key={group.label}>
-          <h3 className="mb-1.5 px-1 text-xs font-medium text-muted-foreground">{t(`session_manager.group_${group.label}`)}</h3>
-          <div className="space-y-2">
+          <h3 className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">{t(`session_manager.group_${group.label}`)}</h3>
+          <div className="space-y-1.5">
             {group.entries.map((entry) => (
               <SessionRow
                 key={entry.session.id}
@@ -607,30 +640,30 @@ function SessionRow(props: {
   const status = entry.favorite?.status;
   return (
     <article className={`rounded-xl border ${props.active ? "border-primary/50 bg-primary/[0.05]" : "border-border/70 bg-card"}`}>
-      <div className="flex min-h-[76px] items-center gap-2 p-2">
+      <div className="flex min-h-[64px] items-center gap-2.5 p-2">
         {props.manage && <Checkbox checked={props.selected} onCheckedChange={props.onSelect} aria-label={session.title} />}
-        <button type="button" onClick={props.manage ? props.onSelect : props.onOpen} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" onClick={props.manage ? props.onSelect : props.onOpen} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <SessionAvatar name={entry.characterName} avatar={entry.characterAvatar} />
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-2">
-              <strong className="truncate text-sm font-semibold">{session.title || t("history.main_timeline")}</strong>
-              {props.active && <span className="shrink-0 text-[10px] font-medium text-primary">{t("history.active")}</span>}
+              <strong className="truncate text-xs font-semibold leading-tight text-foreground">{session.title || t("history.main_timeline")}</strong>
+              {props.active && <span className="shrink-0 text-[9px] font-medium text-primary">{t("history.active")}</span>}
             </span>
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{entry.characterName} · {formatTime(session.updatedAt ?? session.createdAt)}</span>
-            <span className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground/80">
+            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground leading-tight">{entry.characterName} · {formatTime(session.updatedAt ?? session.createdAt)}</span>
+            <span className="mt-0.5 flex min-w-0 items-center gap-2 text-[10.5px] text-muted-foreground/80 leading-tight">
               <span className="truncate">{session.lastMessagePreview || t("history.turns", { count: session.turnCount ?? 0 })}</span>
               {status && <BackupBadge status={status} />}
             </span>
           </span>
         </button>
         {!props.manage && (
-          <Button variant="ghost" size="icon" className="size-11 shrink-0" aria-label={`${t("history.more_actions")}: ${session.title}`} onClick={props.onToggleMenu}>
+          <Button variant="ghost" size="icon" className="size-8 shrink-0" aria-label={`${t("history.more_actions")}: ${session.title}`} onClick={props.onToggleMenu}>
             {props.menuOpen ? <X className="size-4" /> : <Ellipsis className="size-4" />}
           </Button>
         )}
       </div>
       {props.menuOpen && !props.manage && (
-        <div className="grid grid-cols-2 gap-1 border-t border-border/60 p-2 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-1 border-t border-border/60 p-1.5 sm:grid-cols-3">
           <ActionButton icon={Pencil} label={t("history.rename")} onClick={props.onRename} />
           {props.category === "active" ? (
             <>
@@ -671,21 +704,21 @@ function FavoriteRow(props: {
   const entry = props.entry;
   return (
     <article className="rounded-xl border border-border/70 bg-card">
-      <div className="flex min-h-[76px] items-center gap-2 p-2">
+      <div className="flex min-h-[64px] items-center gap-2.5 p-2">
         {props.manage && <Checkbox checked={props.selected} onCheckedChange={props.onSelect} aria-label={entry.metadata.title} />}
-        <button type="button" disabled={!entry.sourceSession && !props.manage} onClick={props.manage ? props.onSelect : props.onOpen} className="min-w-0 flex-1 rounded-lg px-2 text-left disabled:cursor-default">
+        <button type="button" disabled={!entry.sourceSession && !props.manage} onClick={props.manage ? props.onSelect : props.onOpen} className="min-w-0 flex-1 rounded-lg px-1 text-left disabled:cursor-default">
           <span className="flex items-center gap-2">
-            <strong className="min-w-0 flex-1 truncate text-sm">{entry.metadata.title}</strong>
+            <strong className="min-w-0 flex-1 truncate text-xs font-semibold leading-tight">{entry.metadata.title}</strong>
             <BackupBadge status={entry.status} />
           </span>
-          <span className="mt-1 block truncate text-xs text-muted-foreground">{entry.metadata.characterName} · {t("session_manager.backed_up_at", { time: formatTime(entry.metadata.updatedAt) })}</span>
-          {entry.status === "source_missing" && <span className="mt-1 block text-xs text-muted-foreground">{t("session_manager.source_deleted")}</span>}
-          {entry.status === "outdated" && <span className="mt-1 block text-xs text-amber-600 dark:text-amber-400">{t("session_manager.backup_outdated_detail")}</span>}
+          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground leading-tight">{entry.metadata.characterName} · {t("session_manager.backed_up_at", { time: formatTime(entry.metadata.updatedAt) })}</span>
+          {entry.status === "source_missing" && <span className="mt-0.5 block text-[10.5px] text-muted-foreground">{t("session_manager.source_deleted")}</span>}
+          {entry.status === "outdated" && <span className="mt-0.5 block text-[10.5px] text-amber-600 dark:text-amber-400">{t("session_manager.backup_outdated_detail")}</span>}
         </button>
-        {!props.manage && <Button variant="ghost" size="icon" className="size-11" aria-label={`${t("history.more_actions")}: ${entry.metadata.title}`} onClick={props.onToggleMenu}>{props.menuOpen ? <X className="size-4" /> : <Ellipsis className="size-4" />}</Button>}
+        {!props.manage && <Button variant="ghost" size="icon" className="size-8 shrink-0" aria-label={`${t("history.more_actions")}: ${entry.metadata.title}`} onClick={props.onToggleMenu}>{props.menuOpen ? <X className="size-4" /> : <Ellipsis className="size-4" />}</Button>}
       </div>
       {props.menuOpen && !props.manage && (
-        <div className="grid grid-cols-2 gap-1 border-t border-border/60 p-2 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-1 border-t border-border/60 p-1.5 sm:grid-cols-3">
           {entry.sourceSession && <ActionButton icon={History} label={t("session_manager.open_source")} onClick={props.onOpen} />}
           {entry.sourceSession && <ActionButton icon={CopyCheck} label={t("session_manager.update_backup")} onClick={props.onUpdate} />}
           <ActionButton icon={ArchiveRestore} label={t("session_manager.restore_from_backup")} onClick={props.onRestore} />
@@ -715,14 +748,14 @@ function SessionDetail({ target, mutating, onBack, onContinue, onUniverse }: {
   const turnCount = target.kind === "session" ? target.entry.session.turnCount ?? 0 : target.entry.metadata.messageCount;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex min-h-12 items-center gap-2 border-b border-border/70 px-3">
-        <Button variant="ghost" size="icon" className="size-10" onClick={onBack} aria-label={t("common.back")}><ChevronLeft className="size-5" /></Button>
-        <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{t("session_manager.details")}</h2>
+      <header className="flex min-h-10 items-center gap-2 border-b border-border/70 px-3">
+        <Button variant="ghost" size="icon" className="size-8" onClick={onBack} aria-label={t("common.back")}><ChevronLeft className="size-4.5" /></Button>
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{t("session_manager.details")}</h2>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{characterName}</p>
-        <dl className="mt-5 divide-y divide-border/60 rounded-xl border border-border/70 bg-card px-3">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">{characterName}</p>
+        <dl className="mt-4 divide-y divide-border/60 rounded-xl border border-border/70 bg-card px-3">
           <DetailRow icon={Clock3} label={t("session_manager.created_at")} value={formatTime(createdAt)} />
           <DetailRow icon={History} label={t("session_manager.updated_at")} value={formatTime(updatedAt)} />
           <DetailRow icon={UserRound} label={t("session_manager.turn_count")} value={String(turnCount)} />
@@ -736,9 +769,9 @@ function SessionDetail({ target, mutating, onBack, onContinue, onUniverse }: {
           </>}
           {target.kind === "favorite" && <DetailRow icon={CopyCheck} label={t("session_manager.backup_status")} value={t(`session_manager.status_${target.entry.status}`)} />}
         </dl>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {session?.lifecycle !== "archived" && <Button size="lg" disabled={mutating} onClick={onContinue}>{t("session_manager.continue")}</Button>}
-          {session?.lifecycle !== "archived" && <Button size="lg" variant="outline" disabled={mutating} onClick={onUniverse}><Network className="size-4" />{t("session_manager.parallel_universe")}</Button>}
+        <div className="mt-3.5 grid gap-2 sm:grid-cols-2">
+          {session?.lifecycle !== "archived" && <Button size="default" className="h-9 text-xs" disabled={mutating} onClick={onContinue}>{t("session_manager.continue")}</Button>}
+          {session?.lifecycle !== "archived" && <Button size="default" variant="outline" className="h-9 text-xs" disabled={mutating} onClick={onUniverse}><Network className="size-3.5" />{t("session_manager.parallel_universe")}</Button>}
         </div>
       </div>
     </div>
@@ -746,11 +779,11 @@ function SessionDetail({ target, mutating, onBack, onContinue, onUniverse }: {
 }
 
 function DetailRow({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
-  return <div className="flex min-h-12 items-center gap-3 py-2 text-sm"><Icon className="size-4 text-muted-foreground" /><dt className="flex-1 text-muted-foreground">{label}</dt><dd className="text-right">{value}</dd></div>;
+  return <div className="flex min-h-9 items-center gap-3 py-1.5 text-xs"><Icon className="size-3.5 text-muted-foreground" /><dt className="flex-1 text-muted-foreground">{label}</dt><dd className="text-right">{value}</dd></div>;
 }
 
 function ActionButton({ icon: Icon, label, onClick, destructive = false }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; destructive?: boolean }) {
-  return <Button type="button" variant="ghost" size="sm" onClick={onClick} className={`min-h-10 justify-start text-xs ${destructive ? "text-destructive hover:bg-destructive/10 hover:text-destructive" : ""}`}><Icon className="size-3.5" />{label}</Button>;
+  return <Button type="button" variant="ghost" size="sm" onClick={onClick} className={`h-8 justify-start text-xs ${destructive ? "text-destructive hover:bg-destructive/10 hover:text-destructive" : ""}`}><Icon className="size-3.5" />{label}</Button>;
 }
 
 function BatchBar({ category, count, disabled, onPrimary, onSecondary }: { category: SessionDirectoryCategory; count: number; disabled: boolean; onPrimary: () => void; onSecondary: () => void }) {
@@ -759,20 +792,20 @@ function BatchBar({ category, count, disabled, onPrimary, onSecondary }: { categ
   const secondary = category === "active" ? "archive" : category === "favorite" ? "remove_favorite" : "delete_permanent";
   return (
     <div className="flex shrink-0 items-center gap-2 border-t border-border/70 bg-background p-3">
-      <span className="mr-auto text-sm text-muted-foreground">{t("session_manager.selected_count", { count })}</span>
-      <Button variant="outline" disabled={disabled} onClick={onPrimary}>{t(`session_manager.${primary}`)}</Button>
-      <Button variant={category === "archived" || category === "favorite" ? "destructive" : "secondary"} disabled={disabled} onClick={onSecondary}>{t(`session_manager.${secondary}`)}</Button>
+      <span className="mr-auto text-xs text-muted-foreground">{t("session_manager.selected_count", { count })}</span>
+      <Button variant="outline" size="sm" className="h-8 text-xs" disabled={disabled} onClick={onPrimary}>{t(`session_manager.${primary}`)}</Button>
+      <Button variant={category === "archived" || category === "favorite" ? "destructive" : "secondary"} size="sm" className="h-8 text-xs" disabled={disabled} onClick={onSecondary}>{t(`session_manager.${secondary}`)}</Button>
     </div>
   );
 }
 
 function SessionAvatar({ name, avatar }: { name: string; avatar?: string }) {
-  return <span className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/70 ${avatar ? "bg-muted" : getAvatarGradientClass(name)}`}>{avatar ? <img src={avatar} alt={name} loading="lazy" decoding="async" className="size-full object-cover" /> : <span className="text-sm font-semibold">{name[0] || "?"}</span>}</span>;
+  return <span className={`flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/70 ${avatar ? "bg-muted" : getAvatarGradientClass(name)}`}>{avatar ? <img src={avatar} alt={name} loading="lazy" decoding="async" className="size-full object-cover" /> : <span className="text-xs font-semibold">{name[0] || "?"}</span>}</span>;
 }
 
 function BackupBadge({ status }: { status: FavoriteSessionBackupEntry["status"] }) {
   const { t } = useTranslation();
-  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${status === "outdated" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}>{t(`session_manager.status_${status}`)}</span>;
+  return <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${status === "outdated" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}>{t(`session_manager.status_${status}`)}</span>;
 }
 
 function mergeDirectoryPage(
@@ -806,19 +839,31 @@ function FilterSelect({ label, value, options, onChange }: {
   options: Array<readonly [string, string]>;
   onChange: (value: string) => void;
 }) {
+  const safeVal = value || "__empty__";
+  const selectedLabel = options.find(([optVal]) => (optVal || "__empty__") === safeVal)?.[1] || options[0]?.[1] || "";
+
   return (
-    <label className="min-w-0 text-xs text-muted-foreground">
-      <span className="mb-1 block truncate">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground"
+    <div className="min-w-0 text-[11px] text-muted-foreground">
+      <span className="mb-0.5 block truncate font-medium">{label}</span>
+      <Select
+        value={safeVal}
+        onValueChange={(val) => onChange(val === "__empty__" ? "" : String(val ?? ""))}
       >
-        {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>{optionLabel}</option>
-        ))}
-      </select>
-    </label>
+        <SelectTrigger
+          aria-label={label}
+          className="h-8 w-full rounded-lg border-border/80 bg-background/90 px-2.5 text-xs text-foreground"
+        >
+          <SelectValue>{selectedLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent align="start" className="z-[999] border border-border bg-popover p-1 shadow-2xl">
+          {options.map(([optionValue, optionLabel]) => (
+            <SelectItem key={optionValue || "__empty__"} value={optionValue || "__empty__"} className="min-h-8 px-2.5 text-xs font-medium">
+              {optionLabel}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
