@@ -18,6 +18,8 @@ if (process.platform === 'win32') {
   }
   if (sdkPath) {
     process.env.ANDROID_HOME = sdkPath;
+    // 与 ANDROID_HOME 保持一致，避免 Gradle 因多个 SDK 路径不一致而拒绝构建。
+    process.env.ANDROID_SDK_ROOT = sdkPath;
     process.env.PATH = sdkPath + '\\platform-tools;' + process.env.PATH;
     console.log('Using Android SDK at: ' + sdkPath);
   }
