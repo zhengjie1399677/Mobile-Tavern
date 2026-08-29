@@ -17,7 +17,12 @@
 
 `npm run quality:push` 使用 fail-fast 模式：自定义测试与 Vitest 均在首个失败后停止，且整条门禁由
 watchdog 设置 10 分钟硬上限。超时会先终止完整进程树，再在仓库根目录生成被 Git 忽略的
-`watchdog-report.json`；诊断与参数说明以 `docs/watchdog-run.md` 为准。
+`watchdog-report.json`；诊断与参数说明以 `docs/watchdog-run.md` 为准。门禁输出默认抑制：
+成功时只回显一行结果，完整输出写入被忽略的 `node_modules/.cache/quality-push.log`；
+失败时回显最后 100 行便于定位。`npm test` 的 Vitest 部分默认使用自定义静默
+reporter（`scripts/vitest-quiet-reporter.mjs`）：非交互环境只输出失败与汇总，
+交互终端保持默认进度；测试内 console 由 `--silent` 抑制。需要完整进度时，
+`npm test -- --verbose` 或直接跑 vitest 时加 `--reporter=verbose`。
 
 ## 二、开发服务与网络
 

@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { QuietReporter } from "./scripts/vitest-quiet-reporter.mjs";
 
 /**
  * Vitest 测试配置
@@ -24,6 +25,8 @@ export default defineConfig({
     environment: "happy-dom",
     setupFiles: ["./tests/vitest/setup.ts"],
     include: ["tests/vitest/**/*.test.ts", "tests/vitest/**/*.test.tsx"],
+    // 非 TTY（管道/CI/自动化）只输出失败与汇总，交互终端保持默认进度。
+    reporters: [new QuietReporter()],
     // tavernHelperBridge 通过 ?raw 引入 MVU 脚本字符串，依赖 vite 的 ?raw 处理
     // vitest 基于 vite，原生支持，无需额外配置
     css: false,

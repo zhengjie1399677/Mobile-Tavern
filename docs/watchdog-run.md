@@ -10,6 +10,9 @@ node 进程可能不主动退出（残留 esbuild / tinypool worker 子进程）
 
 `npm run quality:push` 已接入本脚本，整条推送质量门禁硬上限为 10 分钟；门禁内部使用
 fail-fast 测试模式，首个测试失败会立即停止，不会继续等待剩余测试与构建。
+门禁输出默认抑制（`--echo on-failure`）：成功时只回显一行结果，完整输出写入
+`node_modules/.cache/quality-push.log`；失败时回显日志尾部 100 行，避免全量测试
+输出刷屏。
 
 **不是**替代 vitest 单测超时（`--testTimeout`）——那是第一层（抓单测死循环），
 本脚本是第二层（抓"测试完成但进程残留"），两层互补。
@@ -25,6 +28,9 @@ node scripts/watchdog-run.mjs --cmd "npm test -- --run" --timeout 120000 --repor
 
 # 任何命令都可以包裹
 node scripts/watchdog-run.mjs "npm run quality:push" --timeout 300000 --report /tmp/mt.json
+
+# 成功不刷屏、失败才回显尾部，同时保留完整日志
+node scripts/watchdog-run.mjs --cmd "npm test" --timeout 600000 --echo on-failure --log-file /tmp/test.log --tail 100
 ```
 
 | 参数 | 说明 | 默认 |
@@ -33,6 +39,8 @@ node scripts/watchdog-run.mjs "npm run quality:push" --timeout 300000 --report /
 | `--timeout <ms>` | 超时毫秒；`0` = 禁用超时 | `60000` |
 | `--report <path>` | 报告 JSON 输出路径（仅超时/被杀时写入） | `./watchdog-report.json` |
 | `--tail <lines>` | 报告保留日志尾部行数 | `50` |
+| `--echo <mode>` | `always` 实时透传（默认）/ `on-failure` 仅失败回显尾部 / `never` 从不回显 | `always` |
+| `--log-file <path>` | 把完整输出增量写入文件（成功时便于复查） | 不写 |
 
 ## 退出码
 
@@ -64,7 +72,7 @@ node scripts/watchdog-run.mjs "npm run quality:push" --timeout 300000 --report /
 
 | 场景 | 结果 |
 |---|---|
-| 正常退出 | 退出码透传，不写报告，输出实时透传 |
+| 正常退出 | 退出码透传，不写报告；默认实时透传，`--echo on-failure` 时成功仅一行提示、失败回显日志尾部 |
 | 超时 | 124，杀净进程树，报告记录终止原因与根 PID |
 | 模拟"测试通过但进程残留" | 正确提取统计并判定为残留型挂起 |
 | 参数缺失 | 退出码 2 + 用法提示 |

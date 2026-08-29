@@ -36,7 +36,7 @@
     "verify:preset-samples": "tsx scripts/verify-preset-samples.ts",
     "check:i18n": "tsx scripts/check-i18n.ts",
     "check:mobile-assets": "node scripts/check-mobile-assets.cjs",
-    "quality:push": "node scripts/watchdog-run.mjs --cmd \"npm run quality:push:inner\" --timeout 600000 --report ./watchdog-report.json --tail 100",
+    "quality:push": "node scripts/watchdog-run.mjs --cmd \"npm run quality:push:inner\" --timeout 600000 --report ./watchdog-report.json --tail 100 --echo on-failure --log-file node_modules/.cache/quality-push.log",
     "quality:push:inner": "npm run lint && npm run lint:changed && npm run check:i18n && npm test -- --bail && npm run build",
     "quality:release": "npm run check:version",
     "setup:hooks": "node scripts/setup-git-hooks.cjs",

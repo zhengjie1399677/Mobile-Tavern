@@ -20,14 +20,16 @@ import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 
-const isWin = process.platform === "win32";
-const bin = path.join(process.cwd(), "node_modules", ".bin", isWin ? "vitest.cmd" : "vitest");
-const args = process.argv.slice(2);
+// 直接调用 vitest 的 Node ESM 入口，避免 .cmd + shell 拼接参数的兼容问题
+// 与 Node 24 的 deprecation 警告。
+const bin = path.join(process.cwd(), "node_modules", "vitest", "vitest.mjs");
+// 默认静默：vitest.config.ts 的 QuietReporter 在非 TTY 下只输出失败与汇总，
+// --silent 再抑制测试内 console；调用方显式传入 --reporter 可恢复完整输出。
+const args = ["--silent", ...process.argv.slice(2)];
 
-const child = spawn(bin, args, {
+const child = spawn(process.execPath, [bin, ...args], {
   stdio: ["inherit", "pipe", "inherit"],
   cwd: process.cwd(),
-  shell: isWin,
 });
 
 let output = "";
@@ -57,7 +59,7 @@ const settle = (code) => {
   if (settled) return;
   settled = true;
   if (fallback) clearTimeout(fallback);
-  if (isWin) {
+  if (process.platform === "win32") {
     try {
       execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], {
         stdio: "ignore",

@@ -17,6 +17,7 @@
 
 import { execFileSync, spawn } from "child_process";
 import path from "path";
+import { format as utilFormat } from "util";
 import { setKernelStrictMode } from "../src/kernel/Kernel";
 import { runCatbotErrorTests } from "./test_catbot_error_handling";
 import {
@@ -116,27 +117,31 @@ import {
  * 通过子进程调用本地 vitest 二进制执行 `vitest run`，以退出码判定成败：
  *   - 0：通过；非 0：失败并抛出，由主循环捕获计入失败汇总。
  *
- * 跨平台注意：Windows 下 node_modules/.bin/vitest 为 .cmd 批处理，需 shell:true；
- * Unix 下为带 shebang 的软链，可直接 exec。stdio:inherit 使 vitest 输出实时透传。
+ * 直接调用 vitest 的 Node ESM 入口，避免 Windows 下 .cmd + shell 拼接参数的
+ * 兼容问题与 Node 24 的 deprecation 警告；stdout 走管道以捕获完成标记。
  */
-async function runVitestSuite(failFast: boolean): Promise<void> {
+async function runVitestSuite(failFast: boolean, verbose: boolean): Promise<void> {
   console.log("\n--- Running Vitest Suite (tests/vitest/**, 含 i18n 多语言 50 项) ---");
-  const isWin = process.platform === "win32";
   const bin = path.join(
     process.cwd(),
     "node_modules",
-    ".bin",
-    isWin ? "vitest.cmd" : "vitest"
+    "vitest",
+    "vitest.mjs"
   );
   return new Promise<void>((resolve, reject) => {
-    const vitestArgs = failFast ? ["run", "--bail=1"] : ["run"];
-    const child = spawn(bin, vitestArgs, {
+    const vitestArgs = [
+      "run",
+      ...(failFast ? ["--bail=1"] : []),
+      // 默认静默：vitest.config.ts 的 QuietReporter 只输出失败与汇总，
+      // --silent 再抑制测试内 console；verbose 时恢复默认完整输出。
+      ...(verbose ? ["--reporter=default"] : ["--silent"]),
+    ];
+    const child = spawn(process.execPath, [bin, ...vitestArgs], {
       // stdout 走管道以捕获完成标记：Windows 下 vitest 测试完成后偶发进程残留
       // 不退出，close 事件永不触发，导致整个 npm test 挂起（pre-push 门禁卡死）。
       // 捕获输出检测汇总行后启动兜底定时器，超时强制收尾，按输出判定成败。
       stdio: ["inherit", "pipe", "inherit"],
       cwd: process.cwd(),
-      shell: isWin,
     });
     let output = "";
     let settled = false;
@@ -164,7 +169,10 @@ async function runVitestSuite(failFast: boolean): Promise<void> {
         reject(new Error(`Vitest suite failed with exit code ${code}`));
       }
     };
-    const stripAnsi = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
+    const stripAnsi = (text: string) => {
+      const esc = String.fromCharCode(27);
+      return text.replace(new RegExp(`${esc}\\[[0-9;]*m`, "g"), "");
+    };
     const scheduleFallback = () => {
       // 汇总行已出现（如 "Test Files  76 passed (76)"），说明测试已出结果；
       // 再等 5s 让 vitest 自然退出，仍残留则强制杀掉并按输出判定成败。
@@ -197,6 +205,7 @@ async function runVitestSuite(failFast: boolean): Promise<void> {
 
 async function run() {
   const failFast = process.argv.includes("--bail");
+  const verbose = process.argv.includes("--verbose");
   setKernelStrictMode(false); // 默认在测试流程中采用生产（容错自愈）模式
   console.log("=================================================");
   console.log("🚀 STARTING ALL SYSTEM FUNCTIONAL TESTS");
@@ -303,25 +312,58 @@ async function run() {
     { name: "testArchitectureBoundaries", fn: testArchitectureBoundaries },
     { name: "testPromptComposition", fn: testPromptComposition },
     // vitest 套件桥接（i18n 多语言 50 项 + 组件渲染 + 服务集成，共 327 项）
-    { name: "testVitestSuite", fn: () => runVitestSuite(failFast) },
+    { name: "testVitestSuite", fn: () => runVitestSuite(failFast, verbose) },
   ];
 
   let passed = 0;
   let failed = 0;
   const failures: { name: string; index: number; error: unknown }[] = [];
+  const LOG_CAPTURE_LIMIT = 200;
 
   for (let i = 0; i < tests.length; i++) {
     const test = tests[i];
     const label = `[${i + 1}/${tests.length}] ${test.name}`;
+    // 静默模式下按用例捕获 console，成功时丢弃、失败时回显，避免全量测试日志刷屏。
+    const capturedLogs: string[] = [];
+    const captureConsole = (...args: unknown[]) => {
+      capturedLogs.push(utilFormat(...args));
+      if (capturedLogs.length > LOG_CAPTURE_LIMIT) capturedLogs.shift();
+    };
+    const originalLog = console.log;
+    const originalInfo = console.info;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    console.log = captureConsole as typeof console.log;
+    console.info = captureConsole as typeof console.info;
+    console.warn = captureConsole as typeof console.warn;
+    console.error = captureConsole as typeof console.error;
+    const restoreConsole = () => {
+      console.log = originalLog;
+      console.info = originalInfo;
+      console.warn = originalWarn;
+      console.error = originalError;
+    };
     try {
       await test.fn();
       passed++;
-      console.log(`\n✅ ${label} passed`);
+      restoreConsole();
+      if (verbose) {
+        console.log(`\n✅ ${label} passed`);
+        if (capturedLogs.length > 0) {
+          console.log(`[${test.name}] 输出:`);
+          console.log(capturedLogs.join("\n"));
+        }
+      }
     } catch (error: unknown) {
       failed++;
       failures.push({ name: test.name, index: i + 1, error });
+      restoreConsole();
       console.error(`\n❌ ${label} FAILED`);
       console.error(error instanceof Error ? error.stack || error.message : String(error));
+      if (capturedLogs.length > 0) {
+        console.error(`\n[${test.name}] 捕获到 ${capturedLogs.length} 行输出:`);
+        console.error(capturedLogs.join("\n"));
+      }
       if (failFast) {
         console.error("\n⏹ 已启用 --bail，首个失败后停止后续测试。");
         break;

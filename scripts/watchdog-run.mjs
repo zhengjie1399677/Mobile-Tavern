@@ -26,13 +26,13 @@
  * 跨平台：Windows 用 taskkill /T /F 杀进程树，POSIX 用负 PID 信号；快照采集尽力而为，失败不影响主体。
  */
 import { spawn, spawnSync, execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const MAX_KEEP_LINES = 2000;
 
 function parseArgs(argv) {
-  const opts = { cmd: null, timeout: 60000, report: "./watchdog-report.json", tail: 50 };
+  const opts = { cmd: null, timeout: 60000, report: "./watchdog-report.json", tail: 50, echo: "always", logFile: null };
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -40,6 +40,8 @@ function parseArgs(argv) {
     else if (a === "--timeout") opts.timeout = Number(argv[++i]);
     else if (a === "--report") opts.report = argv[++i];
     else if (a === "--tail") opts.tail = Number(argv[++i]);
+    else if (a === "--echo") opts.echo = argv[++i];
+    else if (a === "--log-file") opts.logFile = argv[++i];
     else if (a.startsWith("--")) {
       console.error(`[watchdog] 忽略未知参数: ${a}`);
     } else positional.push(a);
@@ -47,6 +49,7 @@ function parseArgs(argv) {
   if (!opts.cmd && positional.length) opts.cmd = positional.join(" ");
   if (!Number.isFinite(opts.timeout) || opts.timeout < 0) opts.timeout = 60000;
   if (!Number.isFinite(opts.tail) || opts.tail < 1) opts.tail = 50;
+  if (!["always", "on-failure", "never"].includes(opts.echo)) opts.echo = "always";
   return opts;
 }
 
@@ -59,6 +62,8 @@ function usage() {
       "  --timeout <ms>    超时毫秒（默认 60000，0 = 禁用）",
       "  --report <path>   报告 JSON 路径（默认 ./watchdog-report.json）",
       "  --tail <lines>    报告保留日志尾部行数（默认 50）",
+      "  --echo <mode>     输出模式：always（默认实时透传）/ on-failure（仅失败回显尾部）/ never（从不回显）",
+      "  --log-file <path> 将完整输出写入文件，便于成功时复查",
       "退出码: 子进程退出码 / 124=超时 / 2=参数错误 / 130=信号中断",
     ].join("\n"),
   );
@@ -208,6 +213,22 @@ const lines = [];
 let timedOut = false;
 let cpuBefore = null;
 
+// 可选：把完整输出落盘（增量追加，避免占用大量内存）。
+const logPath = opts.logFile ? path.resolve(opts.logFile) : null;
+if (logPath) {
+  try {
+    mkdirSync(path.dirname(logPath), { recursive: true });
+    writeFileSync(logPath, "");
+  } catch (err) {
+    console.error(`[watchdog] 无法初始化日志文件 ${logPath}: ${err.message}`);
+  }
+}
+
+function appendLog(chunk) {
+  if (!logPath) return;
+  try { appendFileSync(logPath, chunk); } catch { /* 日志写入失败不影响主体 */ }
+}
+
 // 注意：Windows 上 detached:true 会导致子进程 stdout/stderr 管道失效（输出被丢弃），
 // 因此仅 POSIX 平台启用 detached（配合负 PID 杀进程组）；Windows 用 taskkill /T 递归杀树。
 const child = spawn(opts.cmd, {
@@ -218,11 +239,13 @@ const child = spawn(opts.cmd, {
 });
 
 child.stdout.on("data", (d) => {
-  process.stdout.write(d);
+  if (opts.echo === "always") process.stdout.write(d);
+  appendLog(d);
   pushLine(lines, d, MAX_KEEP_LINES);
 });
 child.stderr.on("data", (d) => {
-  process.stderr.write(d);
+  if (opts.echo === "always") process.stderr.write(d);
+  appendLog(d);
   pushLine(lines, d, MAX_KEEP_LINES);
 });
 
@@ -257,9 +280,9 @@ function writeReport(reason, exitCode, diagnostics = {}) {
   const abs = path.resolve(opts.report);
   try {
     writeFileSync(abs, JSON.stringify(report, null, 2), "utf8");
-    console.error(`\n[watchdog] ${reason}，现场报告已写入: ${abs}`);
+    console.error(`\n[watchdog] ${reason}，现场报告已写入: ${abs}${logPath ? `，完整日志: ${logPath}` : ""}`);
   } catch (err) {
-    console.error(`\n[watchdog] ${reason}，但报告写入失败: ${err.message}`);
+    console.error(`\n[watchdog] ${reason}，但报告写入失败: ${err.message}${logPath ? `，完整日志: ${logPath}` : ""}`);
   }
 }
 
@@ -282,6 +305,19 @@ child.on("close", (code, signal) => {
   if (timedOut) return; // 超时流程已接管
   if (timer) clearTimeout(timer);
   const finalCode = code ?? (signal ? 130 : 0);
+  if (opts.echo !== "always") {
+    const logRef = logPath ? `，完整日志: ${logPath}` : "";
+    if (finalCode === 0) {
+      console.log(`[watchdog] 命令成功（退出码 0），输出已抑制${logRef}`);
+    } else {
+      console.error(`[watchdog] 命令失败（退出码 ${finalCode}）${logRef}`);
+      if (opts.echo === "on-failure" && lines.length > 0) {
+        const tailLines = Math.min(opts.tail, lines.length);
+        console.error(`[watchdog] 日志尾部 ${tailLines} 行:`);
+        console.error(lines.slice(-tailLines).join("\n"));
+      }
+    }
+  }
   process.exit(finalCode);
 });
 
