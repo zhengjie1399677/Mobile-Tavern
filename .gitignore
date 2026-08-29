@@ -60,6 +60,7 @@ target/
 # 测试诊断日志文件夹
 tests/logs/
 watchdog-report.json
+vitest.config.ts.timestamp-*.mjs
 
 # JetBrains IDEA 本地配置
 .idea/

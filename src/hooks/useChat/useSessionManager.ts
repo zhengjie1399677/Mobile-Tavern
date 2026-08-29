@@ -20,7 +20,7 @@ interface SessionManagerParams {
   setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   loadCharacterById?: (id: string) => Promise<CharacterCard | null>;
   setActiveCharId: (id: string) => void;
-  setActiveSessionId: (id: string | null) => void;
+  setActiveSessionId: (id: string | null) => Promise<boolean>;
   setActiveTab: (tab: string) => void;
   setChatSubTab: React.Dispatch<React.SetStateAction<"dialogue" | "timeline">>;
   setShowSessionManager: React.Dispatch<React.SetStateAction<boolean>>;
@@ -99,7 +99,6 @@ export function useSessionManager(p: SessionManagerParams) {
           : p.databaseService.getLatestSessionByCharacter(charId),
       ]);
       if (!targetChar) throw new Error(`CHARACTER_NOT_FOUND:${charId}`);
-      p.setActiveCharId(charId);
       let targetSession: ChatSession;
       if (lastSession) {
         p.setSessionViews((previous) => previous.some((session) => session.id === lastSession.id)
@@ -117,7 +116,8 @@ export function useSessionManager(p: SessionManagerParams) {
       } catch (error: unknown) {
         console.warn("Failed to prepare chat messages before entering:", error);
       }
-      p.setActiveSessionId(targetSession.id);
+      if (!await p.setActiveSessionId(targetSession.id)) return;
+      p.setActiveCharId(charId);
       p.setActiveTab("chat");
       p.setChatSubTab("dialogue");
     } finally {

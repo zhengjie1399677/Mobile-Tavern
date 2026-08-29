@@ -57,7 +57,7 @@ export interface UnifiedAppContextProps {
   totalSessionCount: number;
   areSessionCountsReady: boolean;
   activeSessionId: string | null;
-  setActiveSessionId: (id: string | null) => void;
+  setActiveSessionId: (id: string | null) => Promise<boolean>;
   activeSession: ChatSession | null;
   isSending: boolean;
   setIsSending: (sending: boolean) => void;

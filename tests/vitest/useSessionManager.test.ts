@@ -54,7 +54,7 @@ type MockSessionManagerOverrides = Partial<Omit<SessionManagerParams, "databaseS
 function createMockParams(overrides?: MockSessionManagerOverrides): MockSessionManagerParams {
   const setSessionViews = vi.fn();
   const setActiveCharId = vi.fn();
-  const setActiveSessionId = vi.fn();
+  const setActiveSessionId = vi.fn().mockResolvedValue(true);
   const setActiveTab = vi.fn();
   const setChatSubTab = vi.fn();
   const setShowSessionManager = vi.fn();
@@ -248,6 +248,20 @@ describe("useSessionManager", () => {
         await selectionPromise!;
       });
       expect(params.setActiveTab).toHaveBeenCalledWith("chat");
+    });
+
+    it("目标会话激活失败时保持当前角色和页面不变", async () => {
+      const params = createMockParams({
+        setActiveSessionId: vi.fn().mockResolvedValue(false),
+      });
+      const { result } = renderHook(() => useSessionManager(params));
+
+      await act(async () => {
+        await result.current.selectCharacter("char-1");
+      });
+
+      expect(params.setActiveCharId).not.toHaveBeenCalled();
+      expect(params.setActiveTab).not.toHaveBeenCalled();
     });
 
     it("角色无历史会话时创建新会话", async () => {

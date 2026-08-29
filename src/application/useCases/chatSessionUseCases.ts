@@ -1,6 +1,10 @@
 import type { IDatabaseService } from "../serviceContracts";
 import type { CharacterCard, ChatSession, ChatSessionMetadataPatch, Message, SummaryCard } from "../../types";
 
+export function canActivateChatSession(session: ChatSession): boolean {
+  return session.lifecycle !== "archived";
+}
+
 export function mergeSessionPage(
   current: readonly ChatSession[],
   incoming: readonly ChatSession[],

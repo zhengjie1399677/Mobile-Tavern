@@ -563,7 +563,7 @@ function SessionSections(props: {
                 disabled={props.disabled}
                 onSelect={() => props.onSelect(entry.session.id)}
                 onToggleMenu={() => props.onToggleMenu(entry.session.id)}
-                onOpen={() => props.onOpen(entry.session)}
+                onOpen={() => props.category === "active" ? props.onOpen(entry.session) : props.onDetails(entry)}
                 onRename={() => props.onRename(entry)}
                 onFavorite={() => props.onFavorite(entry)}
                 onUpdateFavorite={() => props.onUpdateFavorite(entry)}
@@ -737,8 +737,8 @@ function SessionDetail({ target, mutating, onBack, onContinue, onUniverse }: {
           {target.kind === "favorite" && <DetailRow icon={CopyCheck} label={t("session_manager.backup_status")} value={t(`session_manager.status_${target.entry.status}`)} />}
         </dl>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {session && <Button size="lg" disabled={mutating} onClick={onContinue}>{t("session_manager.continue")}</Button>}
-          {session && <Button size="lg" variant="outline" disabled={mutating} onClick={onUniverse}><Network className="size-4" />{t("session_manager.parallel_universe")}</Button>}
+          {session?.lifecycle !== "archived" && <Button size="lg" disabled={mutating} onClick={onContinue}>{t("session_manager.continue")}</Button>}
+          {session?.lifecycle !== "archived" && <Button size="lg" variant="outline" disabled={mutating} onClick={onUniverse}><Network className="size-4" />{t("session_manager.parallel_universe")}</Button>}
         </div>
       </div>
     </div>

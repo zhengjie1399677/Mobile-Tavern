@@ -1041,6 +1041,8 @@ export default {
   "app.kernel_init_failed_desc": "關鍵致命服務（如本地數據庫）初始化發生錯誤，係统已熔斷阻斷以防靜默讀寫導致數據損壞。",
   "app.kernel_retry_button": "🔄 重新嘗試冷啟動",
   "chat.load_sessions_failed": "加載聊天記錄失敗: {error}",
+  "chat.session_unavailable": "無法開啟這個會話，它可能已被刪除。",
+  "chat.archived_session_requires_restore": "請先在會話管理器中恢復這個已封存會話，再繼續對話。",
   "chat.load_more_sessions_failed": "加載更多聊天記錄失敗: {error}",
   "chat.save_session_failed": "保存聊天記錄失敗: {error}",
   "chat.load_more_messages_failed": "加載更早的消息失敗: {error}",

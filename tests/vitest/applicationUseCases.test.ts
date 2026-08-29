@@ -4,13 +4,17 @@ import {
   normalizeCharacterCard,
 } from "../../src/application/useCases/characterUseCases";
 import {
+  canActivateChatSession,
   createChatSessionUseCases,
   mergeSessionPage,
 } from "../../src/application/useCases/chatSessionUseCases";
+import { loadActiveSessionsForCharacter } from "../../src/application/useCases/sessionDirectoryUseCases";
 import type {
   ICharacterService,
   IDatabaseService,
+  ISessionManagementService,
 } from "../../src/application/serviceContracts";
+import type { SessionDirectorySnapshot } from "../../src/domain/session-management";
 import type {
   CharacterCard,
   ChatSession,
@@ -87,5 +91,41 @@ describe("application useCases 边界回归", () => {
 
     await expect(useCases.loadSessionForActivation(session.id)).resolves.toEqual(session);
     await expect(useCases.loadSessionForActivation("missing")).resolves.toBeNull();
+  });
+
+  it("归档会话不能进入普通聊天激活流程", () => {
+    expect(canActivateChatSession(session)).toBe(true);
+    expect(canActivateChatSession({ ...session, lifecycle: "archived" })).toBe(false);
+  });
+
+  it("角色会话目录通过稳定游标加载完整分页，并可限制最近条数", async () => {
+    const second = { ...session, id: "session-2", updatedAt: 2 };
+    const cursor = { category: "active", sort: "updated_desc", value: 2, createdAt: 1, id: second.id } as const;
+    const emptySnapshot = (): SessionDirectorySnapshot => ({
+      active: [], favorites: [], archived: [],
+      pageInfo: {
+        active: { hasMore: false },
+        favorite: { hasMore: false },
+        archived: { hasMore: false },
+      },
+      characters: [],
+    });
+    const first = emptySnapshot();
+    first.active = [{ session: second, characterName: character.name, branchCount: 0 }];
+    first.pageInfo.active = { hasMore: true, cursor };
+    const last = emptySnapshot();
+    last.active = [{ session, characterName: character.name, branchCount: 0 }];
+    const service = {
+      queryDirectory: vi.fn()
+        .mockResolvedValueOnce(first)
+        .mockResolvedValueOnce(last),
+    } as unknown as ISessionManagementService<ChatSession>;
+
+    await expect(loadActiveSessionsForCharacter(service, character.id)).resolves.toEqual([second, session]);
+    expect(service.queryDirectory).toHaveBeenNthCalledWith(2, expect.objectContaining({ cursor }));
+
+    service.queryDirectory = vi.fn().mockResolvedValue(first);
+    await expect(loadActiveSessionsForCharacter(service, character.id, 1)).resolves.toEqual([second]);
+    expect(service.queryDirectory).toHaveBeenCalledOnce();
   });
 });

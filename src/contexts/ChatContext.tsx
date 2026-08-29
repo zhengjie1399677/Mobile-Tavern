@@ -12,6 +12,7 @@ import {
 import { useKernel } from "./KernelContext";
 import { IDatabaseService } from "@/src/application/serviceContracts";
 import {
+  canActivateChatSession,
   createChatSessionUseCases,
   mergeSessionPage,
 } from "../application/useCases/chatSessionUseCases";
@@ -30,7 +31,7 @@ const SESSIONS_PAGE_SIZE = 50;
 const MESSAGES_PAGE_SIZE = 50;
 
 /** ChatProvider 在 LanguageProvider 上层，无法使用 useTranslation hook。此处直接从 TRANSLATIONS 读取当前语言的翻译。 */
-function tChat(key: string, errorMessage: string): string {
+function tChat(key: string, errorMessage = ""): string {
   const lang = (typeof window !== "undefined" && localStorage.getItem("mobile_tavern_language")) || "zh-CN";
   const template = (TRANSLATIONS[lang]?.[key]) || TRANSLATIONS["zh-CN"]?.[key] || key;
   return template.replace("{error}", errorMessage);
@@ -43,7 +44,7 @@ interface ChatContextType {
   totalSessionCount: number;
   areSessionCountsReady: boolean;
   activeSessionId: string | null;
-  setActiveSessionId: (id: string | null) => void;
+  setActiveSessionId: (id: string | null) => Promise<boolean>;
   activeSession: ChatSession | null;
   isSending: boolean;
   setIsSending: (sending: boolean) => void;
@@ -161,7 +162,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     activeSessionIdRef.current = activeSessionId;
   }, [activeSessionId]);
 
-  const setActiveSessionId = useCallback((id: string | null): void => {
+  const setActiveSessionId = useCallback(async (id: string | null): Promise<boolean> => {
     const requestId = ++activationRequestRef.current;
     const commitActiveSession = (sessionId: string | null) => {
       setMessageHydrationStatus(
@@ -170,45 +171,51 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setHasMoreMessages(sessionId ? messagePagingRef.current[sessionId]?.hasMore ?? false : false);
       setActiveSessionIdState(sessionId);
     };
-    const activateSession = (session: ChatSession) => {
-      if (!isMountedRef.current || requestId !== activationRequestRef.current) return;
+    const activateSession = async (session: ChatSession): Promise<boolean> => {
+      if (!isMountedRef.current || requestId !== activationRequestRef.current) return false;
+      if (!canActivateChatSession(session)) {
+        await showCustomAlert(tChat("chat.archived_session_requires_restore"));
+        return false;
+      }
       const resume = prepareRuntimeProfileSessionResume(kernel, session);
       if (resume.status === "ready") {
         commitActiveSession(session.id);
-        return;
+        return true;
       }
       if (resume.status === "unavailable") {
-        void showCustomAlert(resume.message);
-        return;
+        await showCustomAlert(resume.message);
+        return false;
       }
       window.location.reload();
+      return false;
     };
     if (!id) {
       commitActiveSession(null);
-      return;
+      return true;
     }
     const targetSession = sessionsRef.current.find((session) => session.id === id);
     if (targetSession) {
-      activateSession(targetSession);
-      return;
+      return activateSession(targetSession);
     }
 
     // 会话目录与聊天窗口分别分页。目录里选中的会话可能不在当前 React 页中，
     // 必须先从应用用例载入并合并，再执行 Runtime Profile 恢复检查和激活。
-    void chatSessionUseCases.loadSessionForActivation(id).then((loadedSession) => {
+    try {
+      const loadedSession = await chatSessionUseCases.loadSessionForActivation(id);
       if (!loadedSession || !isMountedRef.current || requestId !== activationRequestRef.current) {
         if (!loadedSession && requestId === activationRequestRef.current) {
-          void showCustomAlert("无法打开这个会话，它可能已被归档或删除。");
+          await showCustomAlert(tChat("chat.session_unavailable"));
         }
-        return;
+        return false;
       }
       sessionsRef.current = mergeSessionPage(sessionsRef.current, [loadedSession]);
       setSessionViews((previous) => mergeSessionPage(previous, [loadedSession]));
-      activateSession(loadedSession);
-    }).catch((error: unknown) => {
-      if (!isMountedRef.current || requestId !== activationRequestRef.current) return;
-      void showCustomAlert(tChat("chat.load_sessions_failed", getErrorMessage(error)));
-    });
+      return activateSession(loadedSession);
+    } catch (error: unknown) {
+      if (!isMountedRef.current || requestId !== activationRequestRef.current) return false;
+      await showCustomAlert(tChat("chat.load_sessions_failed", getErrorMessage(error)));
+      return false;
+    }
   }, [chatSessionUseCases, kernel, setSessionViews, showCustomAlert]);
 
   useEffect(() => {

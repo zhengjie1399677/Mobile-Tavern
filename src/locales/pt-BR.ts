@@ -1041,6 +1041,8 @@ export default {
   "app.kernel_init_failed_desc": "Erro na inicialização de serviços críticos (como o banco de dados local). O sistema foi interrompido para evitar corrupção silenciosa de dados.",
   "app.kernel_retry_button": "🔄 Tentar Inicialização Novamente",
   "chat.load_sessions_failed": "Falha ao carregar histórico de conversas: {error}",
+  "chat.session_unavailable": "Não foi possível abrir esta conversa porque ela pode ter sido excluída.",
+  "chat.archived_session_requires_restore": "Restaure esta conversa arquivada no gerenciador antes de continuar.",
   "chat.load_more_sessions_failed": "Falha ao carregar mais conversas: {error}",
   "chat.save_session_failed": "Falha ao salvar conversa: {error}",
   "chat.load_more_messages_failed": "Falha ao carregar mensagens anteriores: {error}",

@@ -7,7 +7,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
-import type { IKernelService } from "@/src/application/serviceContracts";
+import {
+  KernelServices,
+  type IKernelService,
+  type ISessionManagementService,
+} from "@/src/application/serviceContracts";
+import { loadActiveSessionsForCharacter } from "../application/useCases/sessionDirectoryUseCases";
 import {
   MEMORY_PERSISTENCE_SERVICE,
   type MemoryFragment,
@@ -74,7 +79,7 @@ export default function SessionManagerModal() {
       : [],
     [activeCharacter, sessions],
   );
-  const universeSessions = useMemo(() => {
+  const seededUniverseSessions = useMemo(() => {
     const targetCharacterId = universeCharacterId ?? activeCharacter?.id;
     const matches = targetCharacterId
       ? sessions.filter((session) => session.characterId === targetCharacterId)
@@ -84,6 +89,11 @@ export default function SessionManagerModal() {
     }
     return [...matches, universeSeedSession];
   }, [activeCharacter?.id, sessions, universeCharacterId, universeSeedSession]);
+  const [universeSessions, setUniverseSessions] = useState<ChatSession[]>([]);
+  const sessionManagement = useMemo(
+    () => kernel.getService<ISessionManagementService<ChatSession>>(KernelServices.SessionManagement),
+    [kernel],
+  );
   const persistence = useMemo(
     () => kernel.getService<MemoryPersistencePort & IKernelService>(MEMORY_PERSISTENCE_SERVICE),
     [kernel],
@@ -112,6 +122,20 @@ export default function SessionManagerModal() {
     if (showSessionManager && view === "universe") void loadFragments();
   }, [loadFragments, showSessionManager, view]);
 
+  useEffect(() => {
+    if (!showSessionManager || view !== "universe" || !universeCharacterId) return;
+    let cancelled = false;
+    setUniverseSessions(seededUniverseSessions);
+    void loadActiveSessionsForCharacter(sessionManagement, universeCharacterId)
+      .then((loaded) => {
+        if (!cancelled) setUniverseSessions(loaded);
+      })
+      .catch((error: unknown) => {
+        console.warn("[SessionManagerModal] Failed to load complete universe", error);
+      });
+    return () => { cancelled = true; };
+  }, [seededUniverseSessions, sessionManagement, showSessionManager, universeCharacterId, view]);
+
   useMobileBackHandler(showSessionManager, () => {
     setShowSessionManager(false);
     return true;
@@ -125,10 +149,10 @@ export default function SessionManagerModal() {
     return false;
   };
 
-  const openSession = (session: ChatSession) => {
+  const openSession = async (session: ChatSession) => {
     if (!ensureIdle("session_manager.busy_switch_warning")) return;
+    if (!await setActiveSessionId(session.id)) return;
     setActiveCharId(session.characterId);
-    setActiveSessionId(session.id);
     setShowSessionManager(false);
   };
 
@@ -197,14 +221,15 @@ export default function SessionManagerModal() {
               isSending={isSending}
               onOpenSession={openSession}
               onRenameSession={renameSession}
-              onOpenUniverse={(session) => {
+              onOpenUniverse={(session) => { void (async () => {
                 if (!ensureIdle("session_manager.busy_switch_warning")) return;
+                if (!await setActiveSessionId(session.id)) return;
                 setUniverseCharacterId(session.characterId);
                 setUniverseSeedSession(session);
+                setUniverseSessions([session]);
                 setActiveCharId(session.characterId);
-                setActiveSessionId(session.id);
                 setView("universe");
-              }}
+              })(); }}
               onDataChanged={loadSessions}
               showConfirm={showCustomConfirm}
               showAlert={showCustomAlert}
@@ -217,7 +242,7 @@ export default function SessionManagerModal() {
                 fragments={fragments}
                 onSelectSession={(id) => {
                   const session = universeSessions.find((item) => item.id === id);
-                  if (session) openSession(session);
+                  if (session) void openSession(session);
                 }}
                 onInspectNode={(sessionId, turn, nodeFragments) => {
                   setAuditNode({ sessionId, turn, fragments: nodeFragments });

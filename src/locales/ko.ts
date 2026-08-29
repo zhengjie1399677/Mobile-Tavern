@@ -1062,6 +1062,8 @@ export default {
   "app.kernel_retry_button": "🔄 콜드 스타트 재시도",
 
   "chat.load_sessions_failed": "채팅 기록 로드 실패: {error}",
+  "chat.session_unavailable": "이 대화는 삭제되었을 수 있어 열 수 없습니다.",
+  "chat.archived_session_requires_restore": "계속하기 전에 대화 관리자에서 보관된 대화를 복원하세요.",
   "chat.load_more_sessions_failed": "더 많은 채팅 기록 로드 실패: {error}",
   "chat.save_session_failed": "채팅 기록 저장 실패: {error}",
   "chat.load_more_messages_failed": "더 이전 메시지 로드 실패: {error}",

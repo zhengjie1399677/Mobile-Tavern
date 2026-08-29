@@ -1113,6 +1113,8 @@ export default {
   "app.kernel_init_failed_desc": "Critical fatal services (such as local database) initialization error. The system has been fused and blocked to prevent silent read/write data corruption.",
   "app.kernel_retry_button": "🔄 Retry cold start",
   "chat.load_sessions_failed": "Failed to load chat sessions: {error}",
+  "chat.session_unavailable": "This conversation cannot be opened because it may have been deleted.",
+  "chat.archived_session_requires_restore": "Restore this archived conversation in the conversation manager before continuing.",
   "chat.load_more_sessions_failed": "Failed to load more chat sessions: {error}",
   "chat.save_session_failed": "Failed to save chat session: {error}",
   "chat.load_more_messages_failed": "Failed to load earlier messages: {error}",

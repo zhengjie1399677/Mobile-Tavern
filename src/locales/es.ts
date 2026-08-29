@@ -1031,6 +1031,8 @@ export default {
   "app.kernel_init_failed_desc": "Error de inicialización de servicios críticos (como la base de datos local). El sistema se ha bloqueado por fusible para evitar la corrupción silenciosa de datos por lectura/escritura.",
   "app.kernel_retry_button": "🔄 Reintentar arranque en frío",
   "chat.load_sessions_failed": "Error al cargar sesiones de chat: {error}",
+  "chat.session_unavailable": "No se puede abrir esta conversación porque puede haber sido eliminada.",
+  "chat.archived_session_requires_restore": "Restaura esta conversación archivada en el gestor antes de continuar.",
   "chat.load_more_sessions_failed": "Error al cargar más sesiones de chat: {error}",
   "chat.save_session_failed": "Error al guardar sesión de chat: {error}",
   "chat.load_more_messages_failed": "Error al cargar mensajes anteriores: {error}",

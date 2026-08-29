@@ -23,7 +23,13 @@ import {
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { IBgmService } from "@/src/application/serviceContracts";
+import {
+  IBgmService,
+  KernelServices,
+  type ISessionManagementService,
+} from "@/src/application/serviceContracts";
+import { loadActiveSessionsForCharacter } from "../../application/useCases/sessionDirectoryUseCases";
+import type { ChatSession } from "../../types";
 import { useArSync } from "../../hooks/ar/useArSync";
 import AgentHostDiagnosticsModal from "../../components/plugins/AgentHostDiagnosticsModal";
 
@@ -44,7 +50,6 @@ const ChatHeader = ({
   const {
     activeCharacter,
     activeSession,
-    sessions,
     setActiveSessionId,
     handleStartNewSession,
     setShowSessionManager,
@@ -60,7 +65,6 @@ const ChatHeader = ({
   } = useUnifiedApp((state) => ({
     activeCharacter: state.activeCharacter,
     activeSession: state.activeSession,
-    sessions: state.sessions,
     setActiveSessionId: state.setActiveSessionId,
     handleStartNewSession: state.handleStartNewSession,
     setShowSessionManager: state.setShowSessionManager,
@@ -79,12 +83,21 @@ const ChatHeader = ({
   const [showSessionMenu, setShowSessionMenu] = React.useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
-  const recentCharacterSessions = React.useMemo(() => (
-    sessions
-      .filter((session) => session.characterId === activeCharacter?.id && session.lifecycle !== "archived")
-      .sort((left, right) => (right.updatedAt ?? right.createdAt) - (left.updatedAt ?? left.createdAt))
-      .slice(0, 5)
-  ), [activeCharacter?.id, sessions]);
+  const [recentCharacterSessions, setRecentCharacterSessions] = React.useState<ChatSession[]>([]);
+
+  React.useEffect(() => {
+    if (!showSessionMenu || !activeCharacter) return;
+    let cancelled = false;
+    const service = getKernelService<ISessionManagementService<ChatSession>>(KernelServices.SessionManagement);
+    void loadActiveSessionsForCharacter(service, activeCharacter.id, 5)
+      .then((loaded) => {
+        if (!cancelled) setRecentCharacterSessions(loaded);
+      })
+      .catch((error: unknown) => {
+        console.warn("[ChatHeader] Failed to load recent sessions", error);
+      });
+    return () => { cancelled = true; };
+  }, [activeCharacter, getKernelService, showSessionMenu]);
 
   // AR 入口：仅在 Android + ARCore 可用时显示按钮
   const { isArAvailable, launchAr } = useArSync({ activeSession });

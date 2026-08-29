@@ -1113,6 +1113,8 @@ export default {
   "app.kernel_init_failed_desc": "关键致命服务（如本地数据库）初始化发生错误，系统已熔断阻断以防静默读写导致数据损坏。",
   "app.kernel_retry_button": "🔄 重新尝试冷启动",
   "chat.load_sessions_failed": "加载聊天记录失败: {error}",
+  "chat.session_unavailable": "无法打开这个会话，它可能已被删除。",
+  "chat.archived_session_requires_restore": "请先在会话管理器中恢复这个归档会话，再继续对话。",
   "chat.load_more_sessions_failed": "加载更多聊天记录失败: {error}",
   "chat.save_session_failed": "保存聊天记录失败: {error}",
   "chat.load_more_messages_failed": "加载更早的消息失败: {error}",

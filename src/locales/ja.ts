@@ -1031,6 +1031,8 @@ export default {
   "app.kernel_init_failed_desc": "重要な致命的サービス（ローカルデータベースなど）の初期化エラー。サイレントな読み書きによるデータ破損を防ぐため、システムはヒューズ遮断されました。",
   "app.kernel_retry_button": "🔄 コールドスタートを再試行",
   "chat.load_sessions_failed": "チャットセッションの読み込みに失敗しました：{error}",
+  "chat.session_unavailable": "この会話は削除された可能性があるため開けません。",
+  "chat.archived_session_requires_restore": "続ける前に、会話マネージャーでこのアーカイブ済み会話を復元してください。",
   "chat.load_more_sessions_failed": "より多くのチャットセッションの読み込みに失敗しました：{error}",
   "chat.save_session_failed": "チャットセッションの保存に失敗しました：{error}",
   "chat.load_more_messages_failed": "以前のメッセージの読み込みに失敗しました：{error}",
