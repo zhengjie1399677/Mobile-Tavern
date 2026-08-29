@@ -175,4 +175,12 @@ describe("PromptsConfigSection 自由编排区块开关", () => {
     );
     expect(openComposer).toHaveBeenCalledTimes(1);
   });
+
+  it("自由编排模式下支持通过新建模组按钮添加新区块并打开编辑器", () => {
+    render(<Harness initial={withComposition(sampleBlocks)} />);
+    const createBtn = screen.getByRole("button", { name: "新建模组" });
+    fireEvent.click(createBtn);
+    expect(screen.getByText("编辑 Prompt 区块")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("未命名 Prompt 区块 3")).toBeInTheDocument();
+  });
 });

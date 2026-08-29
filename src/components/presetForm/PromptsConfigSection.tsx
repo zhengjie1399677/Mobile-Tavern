@@ -134,6 +134,40 @@ function CompositionBlockToggleList({
     deleteConfirmTimerRef.current = setTimeout(() => setConfirmingDeleteId(undefined), 2500);
   };
 
+  const handleAddBlock = (sourceType: "template" | "chat_history" = "template") => {
+    const order = blocks.length === 0
+      ? 100
+      : Math.max(...blocks.map((block) => block.order)) + 100;
+    const newId = `prompt_block_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const newBlock: PromptBlock = {
+      id: newId,
+      name: `${t("prompt_composer.new_block")} ${blocks.length + 1}`,
+      enabled: true,
+      role: "system",
+      source: sourceType === "chat_history"
+        ? { type: "chat_history", selection: { mode: "all" } }
+        : { type: "template" },
+      template: "",
+      order,
+      placement: { type: "ordered" },
+    };
+    updateSettings((prev) => {
+      const current = prev.promptConfig.composition;
+      if (!current) return prev;
+      return {
+        ...prev,
+        promptConfig: {
+          ...prev.promptConfig,
+          composition: {
+            ...current,
+            blocks: [...current.blocks, newBlock],
+          },
+        },
+      };
+    });
+    setEditingBlockId(newId);
+  };
+
   const handleDuplicateBlock = (blockId: string) => {
     updateSettings((prev) => {
       const current = prev.promptConfig.composition;
@@ -156,18 +190,37 @@ function CompositionBlockToggleList({
   };
 
   return (
-    <div className="space-y-1">
-      <span className="block text-[10px] font-mono text-muted-foreground">
-        {t("prompt_composer.list_stats", {
-          visible: enabledCount,
-          total: blocks.length,
-          tokens: totalTokens,
-        })}
-      </span>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2 pb-1 border-b border-border/50">
+        <span className="text-[10px] font-mono text-muted-foreground">
+          {t("prompt_composer.list_stats", {
+            visible: enabledCount,
+            total: blocks.length,
+            tokens: totalTokens,
+          })}
+        </span>
+        <button
+          type="button"
+          onClick={() => handleAddBlock("template")}
+          className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded border border-primary/20 flex items-center gap-1 transition tap-scale shrink-0"
+        >
+          <Plus className="w-3 h-3" /> {t("prompts.create_module")}
+        </button>
+      </div>
       {blocks.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground">
-          {t("prompt_composer.empty_valid")}
-        </p>
+        <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+          <HelpCircle className="w-6 h-6 opacity-50" />
+          <span className="text-xs font-semibold">
+            {t("prompt_composer.empty_valid")}
+          </span>
+          <button
+            type="button"
+            onClick={() => handleAddBlock("template")}
+            className="mt-1 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg border border-primary/20 flex items-center gap-1.5 transition tap-scale"
+          >
+            <Plus className="w-3.5 h-3.5" /> {t("prompts.create_module")}
+          </button>
+        </div>
       ) : (
         <div className="max-h-72 overflow-y-auto pr-1 divide-y divide-border/40">
           {blocks.map((block) => (
