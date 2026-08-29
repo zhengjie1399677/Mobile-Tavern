@@ -761,8 +761,7 @@ iframe[id^="TH-msg-iframe-"] {
     transform: none !important;
   }
 
-  /* 原生 button 与历史高密度控件统一保留至少 32px 可点击高度；
-     主要操作仍由 Button 默认 44px 规格负责。 */
+  /* 触屏交互优化：优化触控响应延迟，由各组件自主控制紧凑尺寸 */
   :where(
     button,
     [role="button"],
@@ -772,23 +771,10 @@ iframe[id^="TH-msg-iframe-"] {
     label:has(input[type="checkbox"]),
     label:has(input[type="radio"])
   ) {
-    min-block-size: 2rem;
-    min-inline-size: 2rem;
     touch-action: manipulation;
   }
 
-  /* 表单在 iOS/Android WebView 中使用 16px 字号，避免聚焦时自动缩放；
-     checkbox/radio/range 保持其原生紧凑尺寸。 */
-  :where(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
-    select,
-    textarea
-  ) {
-    min-block-size: 2.75rem;
-    font-size: 1rem;
-  }
-
-  /* 易读密度是显式偏好，不再把 a11y 字号强加给所有触屏用户。 */
+  /* 易读密度是显式偏好，开启时提升微小标签字号；默认紧凑模式不强行放大 */
   [data-ui-density="accessible"] :where(
     .text-\[8px\],
     .text-\[8\.5px\],

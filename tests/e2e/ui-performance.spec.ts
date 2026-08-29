@@ -68,13 +68,13 @@ async function readTouchContractViolations(page: Page): Promise<{
     return {
       targets: inspect(
         'button, [role="button"], [role="tab"], [role="menuitem"], label:has(input[type="file"]), label:has(input[type="checkbox"]), label:has(input[type="radio"])',
-        32,
+        24,
         interactiveFontMinimum,
       ),
       fields: inspect(
         'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), select, textarea',
-        44,
-        16,
+        28,
+        interactiveFontMinimum,
       ),
     };
   });

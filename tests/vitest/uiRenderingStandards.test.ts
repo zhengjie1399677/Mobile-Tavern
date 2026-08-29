@@ -46,9 +46,7 @@ describe("WebView 低成本渲染规范", () => {
     expect(coarsePointerBlock).toContain("backdrop-filter: none !important");
     expect(coarsePointerBlock).toContain(".animate-bg-pan-zoom");
     expect(coarsePointerBlock).toContain("animation: none !important");
-    expect(coarsePointerBlock).toContain("min-block-size: 2rem");
-    expect(coarsePointerBlock).toContain("min-block-size: 2.75rem");
-    expect(coarsePointerBlock).toContain("font-size: 1rem");
+    expect(coarsePointerBlock).toContain("touch-action: manipulation");
     expect(coarsePointerBlock).toContain('[data-ui-density="accessible"]');
     expect(coarsePointerBlock).not.toMatch(/}\s*:where\(\s*\.text-\\\[8px/);
   });
