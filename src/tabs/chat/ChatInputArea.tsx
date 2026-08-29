@@ -368,7 +368,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.max(42, Math.min(textarea.scrollHeight, 160))}px`;
+    textarea.style.height = `${Math.max(38, Math.min(textarea.scrollHeight, 160))}px`;
 
     // 用户在输入长文本换行导致输入框高度改变时，若软键盘处于打开状态且聚焦，通过滚动消息历史确保最新可见，不顶起整个视口
     if (isKeyboardOpen && document.activeElement === textarea) {
@@ -695,7 +695,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           current.filter((candidate) => candidate.metadata.id !== assetId)
         ))}
       />
-      <div className="chat-composer-row relative flex w-full max-w-3xl items-end gap-1.5 rounded-[22px] p-1.5">
+      <div className="chat-composer-row relative flex w-full max-w-3xl items-end gap-1 rounded-2xl p-1">
         <AttachmentPicker
           disabled={isSending || isBisonLocking || isModelVoiceRecording}
           selectedCount={pendingAttachments.length}
@@ -736,7 +736,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           }
           aria-label={t("chat_input.aria_label", { name: activeCharacter?.name || "角色" })}
           rows={1}
-          className={`chat-composer-input min-h-11 max-h-[160px] flex-1 resize-none overflow-y-auto rounded-2xl bg-transparent px-2.5 py-2.5 text-base font-normal leading-6 text-foreground placeholder:text-muted-foreground/55 focus:outline-none ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
+          className={`chat-composer-input min-h-[38px] max-h-[160px] flex-1 resize-none overflow-y-auto rounded-xl bg-transparent px-2.5 py-[9px] text-sm font-normal leading-5 text-foreground placeholder:text-muted-foreground/55 focus:outline-none ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
             }`}
         />
         {supportsNativeAudioInput && (
@@ -745,7 +745,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             aria-label={isModelVoiceRecording ? "停止模型语音录制" : "录制模型语音输入"}
             onClick={() => { void handleToggleModelVoice(); }}
             disabled={isSending || isBisonLocking || isAsrRecording || isTranscribing}
-            className={`flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors ${isModelVoiceRecording
+            className={`flex size-[38px] shrink-0 items-center justify-center rounded-xl border transition-colors ${isModelVoiceRecording
               ? "border-red-500/40 bg-red-500/15 text-red-500 animate-pulse"
               : "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
             } ${(isSending || isBisonLocking || isAsrRecording || isTranscribing) ? "cursor-not-allowed opacity-45" : "active:scale-95"}`}
@@ -760,7 +760,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             aria-label={isAsrRecording ? t("chat_input.asr_stop") : isTranscribing ? t("chat_input.asr_recognizing") : t("chat_input.asr_mic")}
             onClick={handleToggleAsr}
             disabled={isSending || isBisonLocking || isModelVoiceRecording}
-            className={`size-11 rounded-xl border transition-colors duration-200 shrink-0 flex items-center justify-center ${isAsrRecording
+            className={`size-[38px] rounded-xl border transition-colors duration-200 shrink-0 flex items-center justify-center ${isAsrRecording
                 ? "bg-red-500/20 border-red-500/40 text-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]"
                 : isTranscribing
                   ? "bg-amber-500/20 border-amber-500/40 text-amber-500"
@@ -782,9 +782,9 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             onClick={() => handleStopGeneration()}
             aria-label={t("chat_input.stop")}
             title={t("chat_input.stop")}
-            className="chat-send-button flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-destructive text-destructive-foreground transition-colors duration-200 hover:bg-destructive/90 active:scale-95"
+            className="chat-send-button flex size-[38px] shrink-0 cursor-pointer items-center justify-center rounded-xl bg-destructive text-destructive-foreground transition-colors duration-200 hover:bg-destructive/90 active:scale-95"
           >
-            <Square className="w-4 h-4 fill-current" aria-hidden="true" />
+            <Square className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
           </button>
         ) : (
           <button
@@ -803,12 +803,12 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                 ? t("chat_input.send_long_press")
                 : t("chat_input.send")
             }
-            className={`chat-send-button size-11 rounded-2xl bg-primary text-primary-foreground transition-[background-color,box-shadow,transform] duration-200 flex items-center justify-center shrink-0 active:scale-95 ${canSend
+            className={`chat-send-button size-[38px] rounded-xl bg-primary text-primary-foreground transition-[background-color,box-shadow,transform] duration-200 flex items-center justify-center shrink-0 active:scale-95 ${canSend
                 ? "hover:bg-primary/90 hover:-translate-y-0.5 cursor-pointer opacity-100"
                 : "opacity-45 cursor-not-allowed bg-muted text-muted-foreground shadow-none"
               }`}
           >
-            <Send className={`w-4 h-4 transition-transform duration-300 ${canSend ? "scale-110" : ""}`} aria-hidden="true" />
+            <Send className={`w-3.5 h-3.5 transition-transform duration-300 ${canSend ? "scale-110" : ""}`} aria-hidden="true" />
           </button>
         )}
       </div>

@@ -311,10 +311,10 @@
 }
 
 #chat-input-area-container .chat-composer-row [data-ui="attachment-picker"] > button {
-  height: 44px;
-  width: 44px;
+  height: 38px;
+  width: 38px;
   border-color: transparent;
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   background: transparent;
   box-shadow: none;
 }

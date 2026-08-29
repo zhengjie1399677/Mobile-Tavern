@@ -66,14 +66,14 @@ export function AttachmentPicker({
   }, [open]);
 
   return (
-    <div className="relative shrink-0" data-ui="attachment-picker">
+    <div className="shrink-0" data-ui="attachment-picker">
       <button
         type="button"
         aria-label="添加内容"
         aria-expanded={open}
         aria-controls="attachment-source-menu"
         onClick={() => setOpen((current) => !current)}
-        className={`relative flex h-[42px] w-[42px] items-center justify-center rounded-xl border transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+        className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
           open || selectedCount > 0
             ? "border-primary/40 bg-primary/15 text-primary shadow-sm"
             : "border-border/80 bg-input/30 text-muted-foreground hover:bg-muted"
@@ -92,7 +92,7 @@ export function AttachmentPicker({
           id="attachment-source-menu"
           role="menu"
           aria-label="添加内容与输入工具"
-          className="absolute bottom-[calc(100%+0.6rem)] left-0 z-30 grid w-[min(22rem,calc(100vw-1.5rem))] grid-cols-4 gap-1 rounded-2xl border border-border/70 bg-popover p-1.5 shadow-xl animate-in fade-in slide-in-from-bottom-2"
+          className="absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-30 grid w-full grid-cols-4 gap-1 rounded-2xl border border-border/70 bg-popover p-1 shadow-xl animate-in fade-in slide-in-from-bottom-2"
         >
           <button
             type="button"
@@ -102,13 +102,13 @@ export function AttachmentPicker({
               onToggleQuickActions();
               setOpen(false);
             }}
-            className={`flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium transition-colors active:scale-95 ${
+            className={`flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium transition-colors active:scale-95 ${
               quickActionsVisible
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
-            <SlidersHorizontal className="size-4" aria-hidden="true" />
+            <SlidersHorizontal className="size-3.5" aria-hidden="true" />
             <span>快捷栏</span>
           </button>
           {CHOICES.map((choice) => {
@@ -134,9 +134,9 @@ export function AttachmentPicker({
                   role="menuitem"
                   disabled={disabled || full}
                   onClick={() => inputRefs.current[choice.kind]?.click()}
-                  className="flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-35"
+                  className="flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-35"
                 >
-                  <Icon className="size-4" aria-hidden="true" />
+                  <Icon className="size-3.5" aria-hidden="true" />
                   <span>{choice.label}</span>
                 </button>
               </div>
