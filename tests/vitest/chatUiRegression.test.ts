@@ -26,12 +26,12 @@ describe("聊天界面回归守卫", () => {
     expect(source.indexOf("<span>快捷栏</span>")).toBeLessThan(source.indexOf("CHOICES.map"));
   });
 
-  it("会话菜单直接提供新建会话、切换会话与切换人设", () => {
+  it("会话菜单直接提供新建分支、切换分支与管理切换人设", () => {
     const source = readSource("src/tabs/chat/ChatHeader.tsx");
     expect(source).toContain("handleStartNewSession");
     expect(source).toContain("setActiveSessionId(session.id)");
-    expect(source).toContain("switchUserPersona(event.target.value)");
-    expect(source).toContain("addUserPersona");
+    expect(source).toContain("UserPersonaModal");
+    expect(source).toContain("setIsPersonaModalOpen");
   });
 
   it("平行宇宙以目标角色和目录会话作为进入种子", () => {

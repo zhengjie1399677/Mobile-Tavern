@@ -461,7 +461,7 @@ export default {
   "worldbook.import": "インポート",
   "worldbook.export": "エクスポート",
   "worldbook.export_alert": "エクスポートする前にワールドブック（グローバルまたはキャラクター）を選択してください。",
-  "worldbook.list_header": "👤 キャラクター専用ワールドブック",
+  "worldbook.list_header": "キャラクター専用ワールドブック",
   "worldbook.list_count": "合計 {count} 冊",
   "worldbook.custom_tip": "🔒 独立ワールドブック（長押しで削除）",
   "worldbook.no_characters": "📭 キャラクターカードが見つかりません。設定タブでキャラクターカードを作成すると、キャラクター専用ワールドブックが利用可能になります！",

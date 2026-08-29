@@ -466,7 +466,7 @@ export default {
   "worldbook.import": "导入",
   "worldbook.export": "导出",
   "worldbook.export_alert": "请先点击进入一个记忆回路（全局或角色），再进行导出。",
-  "worldbook.list_header": "👤 角色专属设定集 (Character Bound Worldbooks)",
+  "worldbook.list_header": "角色专属设定集",
   "worldbook.list_count": "共 {count} 个设定集",
   "worldbook.custom_tip": "🔒 独立设定集 (长按删除)",
   "worldbook.no_characters": "📭 暂未检索到有效的角色宿体。请到「宿体配置」面板创建一个角色卡，即可解锁对应的专属世界书回路！",

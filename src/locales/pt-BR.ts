@@ -469,7 +469,7 @@ export default {
   "worldbook.import": "Importar",
   "worldbook.export": "Exportar",
   "worldbook.export_alert": "Por favor, primeiro clique para entrar em um circuito de memória (Global ou Personagem) antes de exportar.",
-  "worldbook.list_header": "👤 Conjuntos Exclusivos de Personagem (Character Bound Worldbooks)",
+  "worldbook.list_header": "Conjuntos Exclusivos de Personagem",
   "worldbook.list_count": "Total de {count} conjunto(s)",
   "worldbook.custom_tip": "🔒 Conjunto Independente (Pressione Longamente para Excluir)",
   "worldbook.no_characters": "📭 Nenhum hospedeiro de personagem válido encontrado. Vá ao painel 'Configuração de Hospedeiro' para criar uma carta e desbloquear o circuito exclusivo do Mundolivro!",

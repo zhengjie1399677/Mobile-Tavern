@@ -461,7 +461,7 @@ export default {
   "worldbook.import": "Importar",
   "worldbook.export": "Exportar",
   "worldbook.export_alert": "Seleccione primero un libro de mundo (global o de personaje) antes de exportar.",
-  "worldbook.list_header": "👤 Libros de Mundo Vinculados a Personajes",
+  "worldbook.list_header": "Libros de Mundo Vinculados a Personajes",
   "worldbook.list_count": "{count} libros en total",
   "worldbook.custom_tip": "🔒 Libro de Mundo Independiente (Mantener presionado para eliminar)",
   "worldbook.no_characters": "📭 No se encontraron cartas de personaje. ¡Cree una carta de personaje en la pestaña de Configuración para desbloquear los libros de mundo vinculados!",

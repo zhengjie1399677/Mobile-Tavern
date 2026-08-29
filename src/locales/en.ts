@@ -466,7 +466,7 @@ export default {
   "worldbook.import": "Import",
   "worldbook.export": "Export",
   "worldbook.export_alert": "Please select a worldbook (global or character) first before exporting.",
-  "worldbook.list_header": "👤 Character Bound Worldbooks",
+  "worldbook.list_header": "Character Bound Worldbooks",
   "worldbook.list_count": "{count} books total",
   "worldbook.custom_tip": "🔒 Independent Worldbook (Long press to delete)",
   "worldbook.no_characters": "📭 No character cards found. Create a character card in the Settings tab to unlock character-bound worldbooks!",

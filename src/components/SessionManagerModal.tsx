@@ -172,52 +172,67 @@ export default function SessionManagerModal() {
     <Dialog open onOpenChange={(open) => { if (!open) setShowSessionManager(false); }}>
       <DialogContent
         showCloseButton={false}
-        className="z-[999] flex h-[min(88dvh,720px)] w-[calc(100vw-1rem)] max-w-2xl flex-col gap-0 overflow-hidden border-border bg-background p-0 text-foreground shadow-xl"
+        className="z-[999] flex h-[min(88dvh,720px)] w-[calc(100vw-1rem)] max-w-2xl flex-col gap-0 overflow-hidden border-border bg-background p-0 text-foreground shadow-2xl"
       >
-        <DialogHeader className="shrink-0 border-b border-border/70 px-4 py-3">
-          <div className="flex min-h-11 items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <MessagesSquare className="size-4.5" aria-hidden="true" />
-            </span>
-            <span className="min-w-0 flex-1 text-left">
-              <DialogTitle className="truncate text-base font-semibold">
-                {t("session_manager.title")}
-              </DialogTitle>
-              <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
-                {activeCharacter
-                  ? `${activeCharacter.name} · ${t("history.sessions_count", { count: characterSessions.length })}`
-                  : t("session_manager.subtitle")}
+        <DialogHeader className="shrink-0 border-b border-border/70 px-4 py-2.5">
+          <div className="flex min-h-10 items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <MessagesSquare className="size-4" aria-hidden="true" />
               </span>
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-11 shrink-0 text-muted-foreground"
-              aria-label={t("common.close")}
-              onClick={() => setShowSessionManager(false)}
-            >
-              <X className="size-4" />
-            </Button>
+              <div className="min-w-0">
+                <DialogTitle className="truncate text-sm font-semibold">
+                  {activeCharacter ? `${activeCharacter.name} · 分支管理` : t("session_manager.title")}
+                </DialogTitle>
+                <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                  {activeCharacter
+                    ? `共 ${characterSessions.length} 个对话分支 · 多线探索与平行宇宙`
+                    : t("session_manager.subtitle")}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                type="button"
+                variant={view === "universe" ? "secondary" : "outline"}
+                size="sm"
+                className="h-7.5 px-2.5 text-xs gap-1.5"
+                onClick={() => {
+                  if (view === "sessions") {
+                    setUniverseCharacterId(activeCharacter?.id || null);
+                    setUniverseSeedSession(activeSession);
+                    setUniverseSessions(activeSession ? [activeSession] : []);
+                    setView("universe");
+                  } else {
+                    setView("sessions");
+                    setUniverseCharacterId(null);
+                    setUniverseSeedSession(null);
+                  }
+                }}
+              >
+                <Plus className={`size-3.5 transition-transform ${view === "universe" ? "rotate-45" : "hidden"}`} />
+                <span>{view === "sessions" ? "🌌 时空图谱" : "📋 分支列表"}</span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0 text-muted-foreground"
+                aria-label={t("common.close")}
+                onClick={() => setShowSessionManager(false)}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
           </div>
         </DialogHeader>
-
-        {view === "universe" && (
-          <div className="shrink-0 border-b border-border/60 px-3 py-2">
-            <Button variant="ghost" size="sm" className="min-h-10" onClick={() => {
-              setView("sessions");
-              setUniverseCharacterId(null);
-              setUniverseSeedSession(null);
-            }}>
-              {t("common.back")} · {t("session_manager.tab_diagram")}
-            </Button>
-          </div>
-        )}
 
         <div className={`min-h-0 flex-1 ${view === "sessions" ? "flex" : "overflow-y-auto overscroll-contain px-3 py-3"}`}>
           {view === "sessions" ? (
             <SessionManagerPanel
               activeSessionId={activeSession?.id}
+              fixedCharacterId={activeCharacter?.id}
               isSending={isSending}
               onOpenSession={openSession}
               onRenameSession={renameSession}
@@ -253,19 +268,20 @@ export default function SessionManagerModal() {
         </div>
 
         {view === "sessions" && (
-          <div className="shrink-0 border-t border-border/70 bg-background px-3 py-3">
+          <div className="shrink-0 border-t border-border/70 bg-background px-3 py-2">
             <Button
               type="button"
-              variant="outline"
-              size="lg"
-              className="min-h-11 w-full"
+              variant="default"
+              size="sm"
+              className="h-8.5 w-full text-xs font-semibold gap-1.5 shadow-sm"
               onClick={() => {
                 if (!ensureIdle("session_manager.busy_create_warning")) return;
+                setShowSessionManager(false);
                 void createNewBranch();
               }}
             >
-              <Plus className="size-4" aria-hidden="true" />
-              {t("session_manager.new_branch")}
+              <Plus className="size-3.5" aria-hidden="true" />
+              <span>新建分支 (新对话)</span>
             </Button>
           </div>
         )}

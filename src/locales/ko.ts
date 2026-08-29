@@ -476,7 +476,7 @@ export default {
   "worldbook.import": "가져오기",
   "worldbook.export": "내보내기",
   "worldbook.export_alert": "먼저 메모리 회로(글로벌 또는 캐릭터)에 진입한 후 내보내기하세요.",
-  "worldbook.list_header": "👤 캐릭터 전용 설정집 (Character Bound Worldbooks)",
+  "worldbook.list_header": "캐릭터 전용 설정집",
   "worldbook.list_count": "총 {count}개 설정집",
   "worldbook.custom_tip": "🔒 독립 설정집 (길게 눌러 삭제)",
   "worldbook.no_characters": "📭 유효한 캐릭터 호스트를 찾을 수 없습니다. 「호스트 설정」패널에서 캐릭터 카드를 생성하면 해당 전용 세계 설정 회로가 해제됩니다!",
