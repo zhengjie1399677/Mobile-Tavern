@@ -179,10 +179,16 @@ export default function UserPersonaModal({
               </span>
               <div className="min-w-0">
                 <DialogTitle className="truncate text-sm font-semibold">
-                  {editingPersona ? (isCreating ? "新建玩家人设" : "编辑玩家人设") : "玩家人设管理"}
+                  {editingPersona
+                    ? isCreating
+                      ? t("persona.modal_create_title")
+                      : t("persona.modal_edit_title")
+                    : t("persona.modal_title")}
                 </DialogTitle>
                 <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                  {editingPersona ? "设置你的称呼与性格背景" : "切换或管理在对话中展示的身份"}
+                  {editingPersona
+                    ? t("persona.modal_edit_subtitle")
+                    : t("persona.modal_subtitle")}
                 </p>
               </div>
             </div>
@@ -213,11 +219,13 @@ export default function UserPersonaModal({
                   )}
                 </div>
                 <div className="flex-1 space-y-1">
-                  <label className="text-[11px] font-medium text-muted-foreground">头像</label>
+                  <label className="text-[11px] font-medium text-muted-foreground">
+                    {t("persona.avatar_label")}
+                  </label>
                   <div className="flex gap-2">
                     <label className="flex h-7 items-center gap-1 rounded-lg border border-border bg-muted/50 px-2.5 text-xs text-foreground cursor-pointer hover:bg-muted">
                       <Upload className="size-3" />
-                      <span>上传头像</span>
+                      <span>{t("persona.upload_avatar")}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -226,7 +234,7 @@ export default function UserPersonaModal({
                           const file = e.target.files?.[0];
                           if (file) {
                             if (file.size > 5 * 1024 * 1024) {
-                              void showCustomAlert("图片文件不能超过 5MB！");
+                              void showCustomAlert(t("persona.avatar_too_large"));
                               return;
                             }
                             compressImage(file, 256, 256, 0.8, "image/png")
@@ -234,7 +242,7 @@ export default function UserPersonaModal({
                                 setEditingPersona((prev) => prev ? { ...prev, avatar: base64 } : prev);
                               })
                               .catch((err: unknown) => {
-                                void showCustomAlert("图片处理失败: " + String(err));
+                                void showCustomAlert(t("persona.avatar_failed") + String(err));
                               });
                           }
                         }}
@@ -248,7 +256,7 @@ export default function UserPersonaModal({
                         className="h-7 text-xs text-destructive hover:bg-destructive/10"
                         onClick={() => setEditingPersona((prev) => prev ? { ...prev, avatar: "" } : prev)}
                       >
-                        移除
+                        {t("persona.remove_avatar")}
                       </Button>
                     )}
                   </div>
@@ -257,32 +265,30 @@ export default function UserPersonaModal({
 
               <div className="space-y-1">
                 <label className="text-[11px] font-medium text-foreground">
-                  人设名称 <span className="text-destructive">*</span>
+                  {t("persona.name_label")} <span className="text-destructive">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={editingPersona.name || ""}
                   onChange={(e) => setEditingPersona((prev) => prev ? { ...prev, name: e.target.value } : prev)}
-                  placeholder="例如：旅人、指挥官、侦探..."
+                  placeholder={t("persona.name_placeholder_new")}
                   className="h-8.5 w-full rounded-lg border border-border bg-input px-2.5 text-xs text-foreground outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] font-medium text-foreground">
-                  人设备注与设定描述 (Persona Description)
+                  {t("persona.desc_label")}
                 </label>
                 <textarea
                   rows={4}
                   value={editingPersona.description || ""}
                   onChange={(e) => setEditingPersona((prev) => prev ? { ...prev, description: e.target.value } : prev)}
-                  placeholder="描述你在世界观中的背景身份、性格特征、说话口吻等。此内容将作为玩家信息注入到 AI 提示词中..."
+                  placeholder={t("persona.desc_placeholder_new")}
                   className="w-full resize-y rounded-lg border border-border bg-input p-2.5 text-xs text-foreground outline-none focus:ring-2 focus:ring-primary/20 min-h-[96px]"
                 />
-                <p className="text-[10px] text-muted-foreground">
-                  该设定会在对话中告诉 AI 模型你的背景信息，丰富沉浸感。
-                </p>
+                <p className="text-[10px] text-muted-foreground">{t("persona.desc_hint")}</p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-border/60">
@@ -296,10 +302,10 @@ export default function UserPersonaModal({
                     setIsCreating(false);
                   }}
                 >
-                  取消
+                  {t("dialog.cancel")}
                 </Button>
                 <Button type="submit" size="sm" className="h-8 text-xs">
-                  保存并应用
+                  {t("persona.save_apply")}
                 </Button>
               </div>
             </form>
@@ -307,7 +313,7 @@ export default function UserPersonaModal({
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted-foreground">
-                  已有玩家人设 ({personas.length})
+                  {t("persona.existing_count", { count: personas.length })}
                 </span>
                 <Button
                   type="button"
@@ -317,7 +323,7 @@ export default function UserPersonaModal({
                   onClick={handleStartCreate}
                 >
                   <Plus className="size-3" />
-                  <span>新建人设</span>
+                  <span>{t("persona.create_new")}</span>
                 </Button>
               </div>
 
@@ -351,12 +357,12 @@ export default function UserPersonaModal({
                           {isActive && (
                             <span className="flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-medium text-primary">
                               <Check className="size-2.5" />
-                              当前使用
+                              {t("persona.active_badge")}
                             </span>
                           )}
                         </div>
                         <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-relaxed">
-                          {persona.description || "暂无详细设定描述"}
+                          {persona.description || t("persona.no_description")}
                         </p>
                       </div>
 
@@ -369,7 +375,7 @@ export default function UserPersonaModal({
                             className="h-7 px-2 text-xs"
                             onClick={() => void handleSelectPersona(persona.id)}
                           >
-                            使用
+                            {t("persona.use")}
                           </Button>
                         )}
                         <Button
@@ -377,7 +383,7 @@ export default function UserPersonaModal({
                           variant="ghost"
                           size="icon"
                           className="size-7 text-muted-foreground hover:text-foreground"
-                          title="编辑人设"
+                          title={t("persona.edit_action")}
                           onClick={() => handleStartEdit(persona)}
                         >
                           <Edit2 className="size-3.5" />
@@ -388,7 +394,7 @@ export default function UserPersonaModal({
                             variant="ghost"
                             size="icon"
                             className="size-7 text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
-                            title="删除人设"
+                            title={t("persona.delete_action")}
                             onClick={() => void handleDelete(persona)}
                           >
                             <Trash2 className="size-3.5" />

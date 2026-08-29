@@ -223,7 +223,7 @@ export default function ThemeEditorModal({
           </aside>
         </div>
 
-        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border bg-background px-3 py-2 sm:px-5">
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border bg-background px-3 pt-2 pb-[max(0.5rem,var(--safe-area-bottom))] sm:px-5">
           <Button type="button" variant="outline" size="sm" className="h-8 px-3 text-xs" disabled={saveState === "validating"} onClick={() => void persistDraft(false)}>
             <Save className="size-3.5" />保存主题
           </Button>

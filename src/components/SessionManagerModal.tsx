@@ -182,11 +182,11 @@ export default function SessionManagerModal() {
               </span>
               <div className="min-w-0">
                 <DialogTitle className="truncate text-sm font-semibold">
-                  {activeCharacter ? `${activeCharacter.name} · 分支管理` : t("session_manager.title")}
+                  {activeCharacter ? `${activeCharacter.name} · ${t("session_manager.branch_title")}` : t("session_manager.title")}
                 </DialogTitle>
                 <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
                   {activeCharacter
-                    ? `共 ${characterSessions.length} 个对话分支 · 多线探索与平行宇宙`
+                    ? t("session_manager.branch_count_hint", { count: characterSessions.length })
                     : t("session_manager.subtitle")}
                 </span>
               </div>
@@ -212,7 +212,7 @@ export default function SessionManagerModal() {
                 }}
               >
                 <Plus className={`size-3.5 transition-transform ${view === "universe" ? "rotate-45" : "hidden"}`} />
-                <span>{view === "sessions" ? "🌌 时空图谱" : "📋 分支列表"}</span>
+                <span>{view === "sessions" ? t("session_manager.tab_universe") : t("session_manager.tab_sessions")}</span>
               </Button>
               <Button
                 type="button"
@@ -281,7 +281,7 @@ export default function SessionManagerModal() {
               }}
             >
               <Plus className="size-3.5" aria-hidden="true" />
-              <span>新建分支 (新对话)</span>
+              <span>{t("session_manager.new_branch_chat")}</span>
             </Button>
           </div>
         )}

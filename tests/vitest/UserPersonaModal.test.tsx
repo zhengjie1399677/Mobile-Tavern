@@ -35,10 +35,10 @@ describe("UserPersonaModal", () => {
       />
     );
 
-    expect(screen.getByText("玩家人设管理")).toBeInTheDocument();
+    expect(screen.getByText("User Persona Manager")).toBeInTheDocument();
     expect(screen.getByText("探险家")).toBeInTheDocument();
     expect(screen.getByText("侦探")).toBeInTheDocument();
-    expect(screen.getByText("当前使用")).toBeInTheDocument();
+    expect(screen.getByText("In use")).toBeInTheDocument();
   });
 
   it("warns and prompts confirmation when switching persona mid-conversation", async () => {
@@ -58,7 +58,7 @@ describe("UserPersonaModal", () => {
       />
     );
 
-    const useButtons = screen.getAllByRole("button", { name: "使用" });
+    const useButtons = screen.getAllByRole("button", { name: "Use" });
     fireEvent.click(useButtons[0]);
 
     await waitFor(() => {
@@ -84,7 +84,7 @@ describe("UserPersonaModal", () => {
       />
     );
 
-    const useButtons = screen.getAllByRole("button", { name: "使用" });
+    const useButtons = screen.getAllByRole("button", { name: "Use" });
     fireEvent.click(useButtons[0]);
 
     await waitFor(() => {
@@ -107,9 +107,9 @@ describe("UserPersonaModal", () => {
       />
     );
 
-    fireEvent.click(screen.getByText("新建人设"));
-    expect(screen.getByText("新建玩家人设")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/例如：旅人、指挥官、侦探/)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/描述你在世界观中的背景身份/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("New persona"));
+    expect(screen.getByText("New User Persona")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/e\.g\., Traveler, Commander, Detective/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Describe your background, personality, and speaking style/)).toBeInTheDocument();
   });
 });

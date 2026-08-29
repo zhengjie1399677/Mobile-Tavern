@@ -124,14 +124,17 @@ describe("会话管理器页面", () => {
     fireEvent.click(screen.getByRole("button", { name: "session_manager.filters" }));
     fireEvent.click(screen.getByLabelText("session_manager.filter_created"));
     const optionCreated = await screen.findByRole("option", { name: "session_manager.filter_last_7_days" });
+    fireEvent.pointerDown(optionCreated);
     fireEvent.click(optionCreated);
 
     fireEvent.click(screen.getByLabelText("session_manager.filter_branch"));
     const optionBranch = await screen.findByRole("option", { name: "session_manager.filter_has_branch" });
+    fireEvent.pointerDown(optionBranch);
     fireEvent.click(optionBranch);
 
     fireEvent.click(screen.getByLabelText("session_manager.filter_backup"));
     const optionBackup = await screen.findByRole("option", { name: "session_manager.status_outdated" });
+    fireEvent.pointerDown(optionBackup);
     fireEvent.click(optionBackup);
 
     await waitFor(() => expect(fixture.service.queryDirectory).toHaveBeenLastCalledWith(

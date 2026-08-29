@@ -4,21 +4,15 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const SelectContext = React.createContext<{
-  onValueChange?: (value: any) => void;
-}>({});
-
 function Select<Value = unknown, Multiple extends boolean = false>({
   onValueChange,
   children,
   ...props
 }: SelectPrimitive.Root.Props<Value, Multiple>) {
   return (
-    <SelectContext.Provider value={{ onValueChange: onValueChange as ((value: any) => void) | undefined }}>
-      <SelectPrimitive.Root onValueChange={onValueChange} {...props}>
-        {children}
-      </SelectPrimitive.Root>
-    </SelectContext.Provider>
+    <SelectPrimitive.Root onValueChange={onValueChange} {...props}>
+      {children}
+    </SelectPrimitive.Root>
   );
 }
 
@@ -152,10 +146,8 @@ function SelectItem({
   className,
   children,
   value,
-  onClick,
   ...props
 }: SelectPrimitive.Item.Props) {
-  const ctx = React.useContext(SelectContext);
   return (
     <SelectPrimitive.Item
       value={value}
@@ -164,12 +156,6 @@ function SelectItem({
         "relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-7 pl-1.5 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className
       )}
-      onClick={(e) => {
-        if (value !== undefined) {
-          ctx.onValueChange?.(value);
-        }
-        onClick?.(e);
-      }}
       {...props}
     >
       <SelectPrimitive.ItemText className="flex flex-1 shrink-0 gap-2 whitespace-nowrap">

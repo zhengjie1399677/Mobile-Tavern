@@ -16,7 +16,6 @@ import {
   BrainCircuit,
   Braces,
   ChevronRight,
-  MessageSquarePlus,
   UserRound,
   Plus,
 } from "lucide-react";
@@ -63,7 +62,6 @@ const ChatHeader = ({
     settings,
     updateSettings,
     switchUserPersona,
-    addUserPersona,
     isSending,
     getKernelService,
   } = useUnifiedApp((state) => ({
@@ -81,7 +79,6 @@ const ChatHeader = ({
     settings: state.settings,
     updateSettings: state.updateSettings,
     switchUserPersona: state.switchUserPersona,
-    addUserPersona: state.addUserPersona,
     isSending: state.isSending,
     getKernelService: state.getKernelService,
   }));
@@ -248,7 +245,7 @@ const ChatHeader = ({
                 <div className="flex items-center justify-between px-2 pt-0.5 pb-1">
                   <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
                     <MessagesSquare className="size-3.5 text-primary" />
-                    <span>分支管理</span>
+                    <span>{t("chat_header.branch_management")}</span>
                   </span>
                   <button
                     type="button"
@@ -258,7 +255,7 @@ const ChatHeader = ({
                     }}
                     className="text-[10px] text-primary hover:underline font-medium"
                   >
-                    全部分支 ({recentCharacterSessions.length}) ›
+                    {t("chat_header.all_branches", { count: recentCharacterSessions.length })}
                   </button>
                 </div>
 
@@ -273,7 +270,7 @@ const ChatHeader = ({
                   className="flex min-h-8.5 w-full items-center gap-2 rounded-xl bg-primary/10 px-2.5 text-left text-xs font-semibold text-primary transition-colors hover:bg-primary/15 disabled:opacity-40"
                 >
                   <Plus className="size-3.5" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">新建对话分支</span>
+                  <span className="min-w-0 flex-1 truncate">{t("chat_header.new_branch")}</span>
                 </button>
 
                 <div className="space-y-0.5">
@@ -305,7 +302,7 @@ const ChatHeader = ({
                 <div className="flex items-center justify-between px-2 pt-0.5 pb-1">
                   <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
                     <UserRound className="size-3.5 text-primary" />
-                    <span>玩家人设</span>
+                    <span>{t("chat_header.persona_section")}</span>
                   </span>
                   <button
                     type="button"
@@ -315,7 +312,7 @@ const ChatHeader = ({
                     }}
                     className="text-[10px] text-primary hover:underline font-medium"
                   >
-                    管理与切换 ›
+                    {t("chat_header.persona_manage")}
                   </button>
                 </div>
 
@@ -341,10 +338,10 @@ const ChatHeader = ({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-xs font-semibold text-foreground">
-                          {activePersona?.name || "未知探客"}
+                          {activePersona?.name || t("persona.name_placeholder")}
                         </div>
                         <p className="truncate text-[10px] text-muted-foreground">
-                          {activePersona?.description || "点击设置详细人设备注"}
+                          {activePersona?.description || t("persona.click_to_configure")}
                         </p>
                       </div>
                       <ChevronRight className="size-3 text-muted-foreground/60 shrink-0" />
