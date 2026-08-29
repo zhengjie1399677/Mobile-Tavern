@@ -21,7 +21,7 @@ export function PendingAttachmentStrip({
   if (items.length === 0) return null;
   return (
     <section
-      className="flex items-center gap-2 overflow-x-auto rounded-xl border border-border/55 bg-card/70 p-1.5 animate-in fade-in slide-in-from-bottom-1"
+      className="flex w-full max-w-3xl items-center gap-2 overflow-x-auto rounded-xl border border-border/55 bg-card/70 p-1.5 animate-in fade-in slide-in-from-bottom-1"
       aria-label="待发送附件"
       data-ui="pending-attachments"
     >

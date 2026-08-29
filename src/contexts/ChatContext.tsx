@@ -150,6 +150,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // sessions 快照 ref：供 useEffect 在不依赖 sessions 数组的前提下读取最新值
   const sessionsRef = useRef<ChatSession[]>([]);
   const activeSessionIdRef = useRef<string | null>(activeSessionId);
+  const activationRequestRef = useRef(0);
+  const isMountedRef = useRef(true);
   // 刻意不在渲染期写 ref（避免渲染期副作用/React 编译器约束），
   // 改为 effect 提交后同步；读取点都在异步回调中，effect 已先于用户交互执行。
   useEffect(() => {
@@ -160,35 +162,55 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [activeSessionId]);
 
   const setActiveSessionId = useCallback((id: string | null): void => {
-    const commitActiveSession = () => {
+    const requestId = ++activationRequestRef.current;
+    const commitActiveSession = (sessionId: string | null) => {
       setMessageHydrationStatus(
-        id ? messageHydrationBySessionRef.current[id] ?? "idle" : "idle"
+        sessionId ? messageHydrationBySessionRef.current[sessionId] ?? "idle" : "idle"
       );
-      setHasMoreMessages(id ? messagePagingRef.current[id]?.hasMore ?? false : false);
-      setActiveSessionIdState(id);
+      setHasMoreMessages(sessionId ? messagePagingRef.current[sessionId]?.hasMore ?? false : false);
+      setActiveSessionIdState(sessionId);
+    };
+    const activateSession = (session: ChatSession) => {
+      if (!isMountedRef.current || requestId !== activationRequestRef.current) return;
+      const resume = prepareRuntimeProfileSessionResume(kernel, session);
+      if (resume.status === "ready") {
+        commitActiveSession(session.id);
+        return;
+      }
+      if (resume.status === "unavailable") {
+        void showCustomAlert(resume.message);
+        return;
+      }
+      window.location.reload();
     };
     if (!id) {
-      commitActiveSession();
+      commitActiveSession(null);
       return;
     }
     const targetSession = sessionsRef.current.find((session) => session.id === id);
-    if (!targetSession) {
-      commitActiveSession();
+    if (targetSession) {
+      activateSession(targetSession);
       return;
     }
-    const resume = prepareRuntimeProfileSessionResume(kernel, targetSession);
-    if (resume.status === "ready") {
-      commitActiveSession();
-      return;
-    }
-    if (resume.status === "unavailable") {
-      void showCustomAlert(resume.message);
-      return;
-    }
-    window.location.reload();
-  }, [kernel, showCustomAlert]);
 
-  const isMountedRef = useRef(true);
+    // 会话目录与聊天窗口分别分页。目录里选中的会话可能不在当前 React 页中，
+    // 必须先从应用用例载入并合并，再执行 Runtime Profile 恢复检查和激活。
+    void chatSessionUseCases.loadSessionForActivation(id).then((loadedSession) => {
+      if (!loadedSession || !isMountedRef.current || requestId !== activationRequestRef.current) {
+        if (!loadedSession && requestId === activationRequestRef.current) {
+          void showCustomAlert("无法打开这个会话，它可能已被归档或删除。");
+        }
+        return;
+      }
+      sessionsRef.current = mergeSessionPage(sessionsRef.current, [loadedSession]);
+      setSessionViews((previous) => mergeSessionPage(previous, [loadedSession]));
+      activateSession(loadedSession);
+    }).catch((error: unknown) => {
+      if (!isMountedRef.current || requestId !== activationRequestRef.current) return;
+      void showCustomAlert(tChat("chat.load_sessions_failed", getErrorMessage(error)));
+    });
+  }, [chatSessionUseCases, kernel, setSessionViews, showCustomAlert]);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {

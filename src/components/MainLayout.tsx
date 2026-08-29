@@ -208,6 +208,7 @@ export default function MainLayout() {
     }}>
       <div
         ref={appViewportRef}
+        data-ui-density={settings.uiDensity ?? "compact"}
         style={{ height: "var(--app-viewport-height, 100dvh)" }}
         className={`flex flex-col mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] ${
         activeTab === "settings" ? "max-w-lg landscape:max-w-none" : "max-w-lg"

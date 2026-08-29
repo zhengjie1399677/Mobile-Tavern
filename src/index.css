@@ -788,15 +788,17 @@ iframe[id^="TH-msg-iframe-"] {
     font-size: 1rem;
   }
 
-  /* 旧页面的任意低密度字号在触屏端提升到可读下限；桌面布局不受影响。 */
-  :where(
+  /* 易读密度是显式偏好，不再把 a11y 字号强加给所有触屏用户。 */
+  [data-ui-density="accessible"] :where(
     .text-\[8px\],
+    .text-\[8\.5px\],
     .text-\[9px\],
     .text-\[10px\],
     .text-\[11px\]
   ) {
     font-size: 0.75rem;
   }
+
 }
 
 /* 尊重系统“减少动态效果”，并停掉所有无限循环和大幅位移动画。 */

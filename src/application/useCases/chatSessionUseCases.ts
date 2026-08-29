@@ -50,6 +50,10 @@ export function createChatSessionUseCases(
       return databaseService.getSessionsPage({ pageSize, before });
     },
 
+    loadSessionForActivation(sessionId: string): Promise<ChatSession | null> {
+      return databaseService.getSessionById(sessionId);
+    },
+
     async loadMessagePage(sessionId: string, pageSize: number, beforeMessageId?: string) {
       const window = await databaseService.getSessionMessageWindow(sessionId, {
         pageSize,

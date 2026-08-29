@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useChatScroll } from "../../src/tabs/chat/useChatScroll";
 
@@ -8,6 +8,28 @@ import { useChatScroll } from "../../src/tabs/chat/useChatScroll";
 type MutableRefObject<T> = { current: T };
 
 describe("useChatScroll hook tests", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => (
+      window.setTimeout(() => callback(performance.now()), 0)
+    ));
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((frameId) => {
+      window.clearTimeout(frameId);
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  const flushScrollFrame = () => {
+    act(() => {
+      vi.advanceTimersByTime(20);
+    });
+  };
+
   it("should initialize correctly", () => {
     const { result } = renderHook(() =>
       useChatScroll({ activeSessionId: "session-1", chatSubTab: "dialogue" })
@@ -37,6 +59,7 @@ describe("useChatScroll hook tests", () => {
     act(() => {
       result.current.handleScroll();
     });
+    flushScrollFrame();
 
     // distanceToBottom = 1000 - 100 - 500 = 400 > 300
     expect(result.current.showScrollButton).toBe(true);
@@ -59,6 +82,7 @@ describe("useChatScroll hook tests", () => {
     act(() => {
       result.current.handleScroll();
     });
+    flushScrollFrame();
 
     // distanceToBottom = 1000 - 450 - 500 = 50 < 60
     expect(result.current.showScrollButton).toBe(false);
@@ -83,6 +107,7 @@ describe("useChatScroll hook tests", () => {
     act(() => {
       result.current.handleScroll();
     });
+    flushScrollFrame();
     expect(result.current.showScrollButton).toBe(true);
 
     // Call scrollToBottom
@@ -121,12 +146,41 @@ describe("useChatScroll hook tests", () => {
     act(() => {
       result.current.handleScroll();
     });
+    flushScrollFrame();
     expect(loadMoreMessages).not.toHaveBeenCalled();
 
     act(() => {
       result.current.markInitialPositionReady("session-1");
       result.current.handleScroll();
     });
+    flushScrollFrame();
     expect(loadMoreMessages).toHaveBeenCalledOnce();
+  });
+
+  it("同一帧内合并连续滚动事件，只按最后位置更新一次", () => {
+    const { result } = renderHook(() =>
+      useChatScroll({ activeSessionId: "session-1", chatSubTab: "dialogue" })
+    );
+    const mockContainer = {
+      scrollTop: 0,
+      scrollHeight: 1000,
+      clientHeight: 500,
+      scrollTo: vi.fn(),
+    };
+    (result.current.scrollContainerRef as unknown as MutableRefObject<HTMLDivElement | null>).current = mockContainer as unknown as HTMLDivElement;
+    const requestFrame = vi.mocked(window.requestAnimationFrame);
+    requestFrame.mockClear();
+
+    act(() => {
+      result.current.handleScroll();
+      mockContainer.scrollTop = 490;
+      result.current.handleScroll();
+      result.current.handleScroll();
+    });
+
+    expect(requestFrame).toHaveBeenCalledOnce();
+    flushScrollFrame();
+    expect(result.current.isAtBottomRef.current).toBe(true);
+    expect(result.current.showScrollButton).toBe(false);
   });
 });

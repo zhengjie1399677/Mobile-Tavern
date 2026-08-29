@@ -78,4 +78,14 @@ describe("application useCases 边界回归", () => {
     expect(mergeSessionPage([session], [session, second]).map((item) => item.id))
       .toEqual(["session-1", "session-2"]);
   });
+
+  it("激活分页外会话前通过用例层读取完整会话元数据", async () => {
+    const database = {
+      getSessionById: vi.fn(async (id: string) => id === session.id ? session : null),
+    } as unknown as IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message, ChatSessionMetadataPatch>;
+    const useCases = createChatSessionUseCases(database);
+
+    await expect(useCases.loadSessionForActivation(session.id)).resolves.toEqual(session);
+    await expect(useCases.loadSessionForActivation("missing")).resolves.toBeNull();
+  });
 });

@@ -471,6 +471,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   enableAsteriskFormatting: false,
   chatFontSize: 14,
   chatLineHeight: 1.5,
+  uiDensity: "compact",
   customThemes: [],
   hiddenMainTabs: [],
   themeMediaEnabled: false,

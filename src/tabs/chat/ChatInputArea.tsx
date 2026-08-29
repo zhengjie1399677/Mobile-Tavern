@@ -555,10 +555,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       style={{
         paddingBottom: `${isKeyboardOpen ? 4 : Math.max(safeAreas?.bottom ?? 0, 10)}px`
       }}
-      className="chat-composer-shell z-10 flex shrink-0 flex-col gap-2 px-3 pt-2.5"
+      className="chat-composer-shell z-10 flex shrink-0 flex-col items-center gap-2 px-3 pt-2.5"
     >
       {showQuickActions && (
-        <div className="chat-composer-popover flex items-center justify-between rounded-2xl px-2 py-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="chat-composer-popover flex w-full max-w-3xl items-center justify-between rounded-2xl px-2 py-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -647,7 +647,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         </div>
       )}
       {settings.enableReplySuggestions && !isSending && replySuggestions && replySuggestions.length > 0 && (
-        <div className="chat-composer-popover flex flex-col gap-1.5 rounded-2xl p-2 animate-fadeIn">
+        <div className="chat-composer-popover flex w-full max-w-3xl flex-col gap-1.5 rounded-2xl p-2 animate-fadeIn">
           <div className="flex items-center justify-between text-xs text-muted-foreground font-medium px-1">
             <span className="flex items-center gap-1">{t("chat_input.suggestions_label")}</span>
             <button
@@ -695,7 +695,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           current.filter((candidate) => candidate.metadata.id !== assetId)
         ))}
       />
-      <div className="chat-composer-row relative flex items-end gap-1.5 rounded-[22px] p-1.5">
+      <div className="chat-composer-row relative flex w-full max-w-3xl items-end gap-1.5 rounded-[22px] p-1.5">
         <AttachmentPicker
           disabled={isSending || isBisonLocking || isModelVoiceRecording}
           selectedCount={pendingAttachments.length}

@@ -59,6 +59,8 @@ export default function SessionManagerModal() {
   const { t } = useTranslation();
   const kernel = useKernel();
   const [view, setView] = useState<ManagerView>("sessions");
+  const [universeCharacterId, setUniverseCharacterId] = useState<string | null>(null);
+  const [universeSeedSession, setUniverseSeedSession] = useState<ChatSession | null>(null);
   const [fragments, setFragments] = useState<MemoryFragment[]>([]);
   const [auditNode, setAuditNode] = useState<{
     sessionId: string;
@@ -72,6 +74,16 @@ export default function SessionManagerModal() {
       : [],
     [activeCharacter, sessions],
   );
+  const universeSessions = useMemo(() => {
+    const targetCharacterId = universeCharacterId ?? activeCharacter?.id;
+    const matches = targetCharacterId
+      ? sessions.filter((session) => session.characterId === targetCharacterId)
+      : [];
+    if (!universeSeedSession || matches.some((session) => session.id === universeSeedSession.id)) {
+      return matches;
+    }
+    return [...matches, universeSeedSession];
+  }, [activeCharacter?.id, sessions, universeCharacterId, universeSeedSession]);
   const persistence = useMemo(
     () => kernel.getService<MemoryPersistencePort & IKernelService>(MEMORY_PERSISTENCE_SERVICE),
     [kernel],
@@ -79,7 +91,7 @@ export default function SessionManagerModal() {
   const loadFragments = useCallback(async () => {
     try {
       const groups = await Promise.all(
-        characterSessions.map((session) => persistence.getFragmentsBySession(session.id)),
+        universeSessions.map((session) => persistence.getFragmentsBySession(session.id)),
       );
       const next = groups.flat();
       setFragments(next);
@@ -94,7 +106,7 @@ export default function SessionManagerModal() {
       console.warn("[SessionManagerModal] Failed to load memory fragments", error);
       setFragments([]);
     }
-  }, [characterSessions, persistence]);
+  }, [persistence, universeSessions]);
 
   useEffect(() => {
     if (showSessionManager && view === "universe") void loadFragments();
@@ -115,6 +127,7 @@ export default function SessionManagerModal() {
 
   const openSession = (session: ChatSession) => {
     if (!ensureIdle("session_manager.busy_switch_warning")) return;
+    setActiveCharId(session.characterId);
     setActiveSessionId(session.id);
     setShowSessionManager(false);
   };
@@ -167,7 +180,11 @@ export default function SessionManagerModal() {
 
         {view === "universe" && (
           <div className="shrink-0 border-b border-border/60 px-3 py-2">
-            <Button variant="ghost" size="sm" className="min-h-10" onClick={() => setView("sessions")}>
+            <Button variant="ghost" size="sm" className="min-h-10" onClick={() => {
+              setView("sessions");
+              setUniverseCharacterId(null);
+              setUniverseSeedSession(null);
+            }}>
               {t("common.back")} · {t("session_manager.tab_diagram")}
             </Button>
           </div>
@@ -182,6 +199,8 @@ export default function SessionManagerModal() {
               onRenameSession={renameSession}
               onOpenUniverse={(session) => {
                 if (!ensureIdle("session_manager.busy_switch_warning")) return;
+                setUniverseCharacterId(session.characterId);
+                setUniverseSeedSession(session);
                 setActiveCharId(session.characterId);
                 setActiveSessionId(session.id);
                 setView("universe");
@@ -192,18 +211,18 @@ export default function SessionManagerModal() {
             />
           ) : (
             <div className="h-full min-h-[320px] w-full overflow-hidden rounded-2xl border border-border/70 bg-card/45">
-              {activeCharacter && <BranchUniverseDiagram
-                sessions={characterSessions}
+              <BranchUniverseDiagram
+                sessions={universeSessions}
                 activeSession={activeSession}
                 fragments={fragments}
                 onSelectSession={(id) => {
-                  const session = characterSessions.find((item) => item.id === id);
+                  const session = universeSessions.find((item) => item.id === id);
                   if (session) openSession(session);
                 }}
                 onInspectNode={(sessionId, turn, nodeFragments) => {
                   setAuditNode({ sessionId, turn, fragments: nodeFragments });
                 }}
-              />}
+              />
             </div>
           )}
         </div>

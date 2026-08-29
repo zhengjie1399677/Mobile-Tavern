@@ -406,6 +406,32 @@ export default function ThemeConfigSection({
           <LocalResourceManager showCustomAlert={showCustomAlert} showCustomConfirm={showCustomConfirm} />
         </div>
 
+        <div className="mt-2.5 border-t border-border/30 pt-2.5 space-y-1">
+          <label className="block text-[11px] font-semibold text-muted-foreground">
+            {t("theme.ui_density")}
+          </label>
+          <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-border/40 bg-muted/20 p-1.5">
+            {(["compact", "accessible"] as const).map((density) => (
+              <button
+                key={density}
+                type="button"
+                aria-pressed={(settings.uiDensity ?? "compact") === density}
+                onClick={() => updateSettings((previous) => ({ ...previous, uiDensity: density }))}
+                className={`min-h-9 rounded-md px-2 text-xs font-semibold transition-colors ${
+                  (settings.uiDensity ?? "compact") === density
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {t(`theme.ui_density_${density}`)}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            {t("theme.ui_density_desc")}
+          </p>
+        </div>
+
         {/* 聊天字体大小调节 */}
         <div className="mt-2.5 pt-2.5 border-t border-border/30 space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground block">

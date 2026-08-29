@@ -487,11 +487,8 @@ const MessageBubble = ({
 
       {/* Speech Bubble */}
       <div
-        className={`group relative w-full select-none touch-pan-y ${editingMsgId === message.id
-          ? "min-w-0 flex-1 max-w-none"
-          : isUser
-            ? "max-w-[78%]"
-            : "max-w-[84%]"
+        className={`group relative min-w-0 w-full select-none touch-pan-y ${
+          isUser ? "max-w-[78%]" : "max-w-[84%]"
         }`}
         style={{
           minHeight: (isOpen || dragOffset > 0) ? `${swipeMenuHeight}px` : undefined,
@@ -637,12 +634,12 @@ const MessageBubble = ({
               rows={1}
               autoFocus
               onFocus={(e) => {
-                setTimeout(() => {
-                  e.target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                }, 300);
+                window.requestAnimationFrame(() => {
+                  e.target.scrollIntoView({ block: "nearest", behavior: "auto" });
+                });
               }}
             />
-            <div className="flex justify-end gap-2">
+            <div className={`flex gap-2 ${isUser ? "justify-end" : "justify-start"}`}>
               <button
                 onClick={async (e) => {
                   e.stopPropagation();

@@ -48,7 +48,7 @@ export const useSettingsLoader = ({
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        let storedSet = await settingsService.getStoredSettings();
+        const storedSet = await settingsService.getStoredSettings();
         const storedSavedPresets = await presetService.getStoredSavedPresets();
         const storedLores = await worldbookService.getGlobalLorebook();
         const storedWorldbooks = await worldbookService.getCustomWorldbooks();
@@ -174,7 +174,7 @@ export const useSettingsLoader = ({
             needSave = true;
           }
 
-          let personas = storedSet.userPersonas && storedSet.userPersonas.length > 0
+          const personas = storedSet.userPersonas && storedSet.userPersonas.length > 0
             ? storedSet.userPersonas
             : [
                 {
@@ -229,7 +229,7 @@ export const useSettingsLoader = ({
           let roleUpdated = false;
           let customPromptsUpdated = false;
           const mergedCustomPrompts = [...userPrompts].map((p: any) => {
-            let nextPrompt = { ...p };
+            const nextPrompt = { ...p };
             if (nextPrompt.role !== "system") {
               roleUpdated = true;
               nextPrompt.role = "system" as const;
@@ -355,6 +355,7 @@ export const useSettingsLoader = ({
             enableAsteriskFormatting: storedSet.enableAsteriskFormatting ?? DEFAULT_SETTINGS.enableAsteriskFormatting,
             chatFontSize: storedSet.chatFontSize ?? DEFAULT_SETTINGS.chatFontSize,
             chatLineHeight: storedSet.chatLineHeight ?? DEFAULT_SETTINGS.chatLineHeight,
+            uiDensity: storedSet.uiDensity === "accessible" ? "accessible" : "compact",
             customThemes: Array.isArray(storedSet.customThemes) ? storedSet.customThemes : DEFAULT_SETTINGS.customThemes,
             hiddenMainTabs: Array.isArray(storedSet.hiddenMainTabs) ? storedSet.hiddenMainTabs : DEFAULT_SETTINGS.hiddenMainTabs,
             themeMediaEnabled: storedSet.themeMediaEnabled ?? DEFAULT_SETTINGS.themeMediaEnabled,
@@ -381,7 +382,7 @@ export const useSettingsLoader = ({
           }
         } else {
           // 全新安装/首次运行（storedSet 为空），默认把初始化的预设组合包写入数据库并持久化设置
-          let initialSet = { ...DEFAULT_SETTINGS };
+          const initialSet = { ...DEFAULT_SETTINGS };
           if (externalPreset) {
             initialSet.promptConfig = {
               ...initialSet.promptConfig,

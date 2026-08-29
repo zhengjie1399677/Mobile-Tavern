@@ -352,6 +352,7 @@ export interface UserPersona {
 }
 
 export type CompatibilityScriptSecurityMode = "isolated" | "trusted";
+export type UiDensity = "compact" | "accessible";
 
 export interface UserSettings {
   api: ApiConfig;
@@ -400,6 +401,7 @@ export interface UserSettings {
   imageGenApi?: ImageGenApiConfig; // 独立的生图 API 配置
   chatFontSize?: number; // Chat bubble font size in px
   chatLineHeight?: number; // Chat bubble line height (multiplier)
+  uiDensity?: UiDensity; // compact 为普通用户默认；accessible 提升低优先级小字可读性
   ttsConfig?: TtsConfig; // TTS 朗读配置
   asrConfig?: AsrConfig; // ASR 语音输入配置
   lastBackupTime?: number; // 上次成功执行每日自动备份的时间戳

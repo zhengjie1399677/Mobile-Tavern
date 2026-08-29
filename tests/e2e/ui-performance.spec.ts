@@ -48,6 +48,8 @@ async function readTouchContractViolations(page: Page): Promise<{
   fields: TouchContractViolation[];
 }> {
   return page.evaluate(() => {
+    const density = document.querySelector<HTMLElement>('[data-ui-density]')?.dataset.uiDensity;
+    const interactiveFontMinimum = density === "accessible" ? 12 : 10;
     const inspect = (selector: string, minimumSize: number, minimumFontSize: number) =>
       Array.from(document.querySelectorAll<HTMLElement>(selector)).flatMap((element) => {
         const rect = element.getBoundingClientRect();
@@ -67,7 +69,7 @@ async function readTouchContractViolations(page: Page): Promise<{
       targets: inspect(
         'button, [role="button"], [role="tab"], [role="menuitem"], label:has(input[type="file"]), label:has(input[type="checkbox"]), label:has(input[type="radio"])',
         32,
-        12,
+        interactiveFontMinimum,
       ),
       fields: inspect(
         'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), select, textarea',
@@ -186,7 +188,7 @@ test.describe("Web 与移动 WebView UI 性能契约", () => {
 
     await resetUiMetrics(page);
     const coldSwitchDurations: number[] = [];
-    for (const tabName of ["设置", "角色", "历史", "角色"]) {
+    for (const tabName of ["设置", "角色", "会话", "角色"]) {
       const started = await page.evaluate(() => performance.now());
       const tab = page.getByRole("tab", { name: tabName });
       await tab.click();
@@ -195,7 +197,7 @@ test.describe("Web 与移动 WebView UI 性能契约", () => {
     }
 
     const warmSwitchDurations: number[] = [];
-    for (const tabName of ["设置", "历史", "角色"]) {
+    for (const tabName of ["设置", "会话", "角色"]) {
       const started = await page.evaluate(() => performance.now());
       const tab = page.getByRole("tab", { name: tabName });
       await tab.click();
@@ -310,7 +312,7 @@ test.describe("Web 与移动 WebView UI 性能契约", () => {
       await tab.click();
       await expect(page.locator('[data-ui="main-tab-content"]')).toHaveAttribute("data-active-tab", tabId);
       const violations = await readTouchContractViolations(page);
-      expect(violations.targets, `${tabId} 存在低于 32px 或 12px 的可见互动控件`).toEqual([]);
+      expect(violations.targets, `${tabId} 存在低于 32px 或当前界面密度字号下限的可见互动控件`).toEqual([]);
       expect(violations.fields, `${tabId} 存在低于 44px 或 16px 的可见表单控件`).toEqual([]);
     }
   });

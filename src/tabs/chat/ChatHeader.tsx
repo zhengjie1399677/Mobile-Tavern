@@ -16,6 +16,9 @@ import {
   BrainCircuit,
   Braces,
   ChevronRight,
+  MessageSquarePlus,
+  UserRound,
+  Plus,
 } from "lucide-react";
 
 import { useUnifiedApp } from "../../UnifiedAppContext";
@@ -41,22 +44,34 @@ const ChatHeader = ({
   const {
     activeCharacter,
     activeSession,
+    sessions,
+    setActiveSessionId,
+    handleStartNewSession,
     setShowSessionManager,
     setActiveTab,
     showCustomPrompt,
     setSessionViews,
     updateSessionMetadata,
     settings,
+    switchUserPersona,
+    addUserPersona,
+    isSending,
     getKernelService,
   } = useUnifiedApp((state) => ({
     activeCharacter: state.activeCharacter,
     activeSession: state.activeSession,
+    sessions: state.sessions,
+    setActiveSessionId: state.setActiveSessionId,
+    handleStartNewSession: state.handleStartNewSession,
     setShowSessionManager: state.setShowSessionManager,
     setActiveTab: state.setActiveTab,
     showCustomPrompt: state.showCustomPrompt,
     setSessionViews: state.setSessionViews,
     updateSessionMetadata: state.updateSessionMetadata,
     settings: state.settings,
+    switchUserPersona: state.switchUserPersona,
+    addUserPersona: state.addUserPersona,
+    isSending: state.isSending,
     getKernelService: state.getKernelService,
   }));
 
@@ -64,6 +79,12 @@ const ChatHeader = ({
   const [showSessionMenu, setShowSessionMenu] = React.useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const recentCharacterSessions = React.useMemo(() => (
+    sessions
+      .filter((session) => session.characterId === activeCharacter?.id && session.lifecycle !== "archived")
+      .sort((left, right) => (right.updatedAt ?? right.createdAt) - (left.updatedAt ?? left.createdAt))
+      .slice(0, 5)
+  ), [activeCharacter?.id, sessions]);
 
   // AR 入口：仅在 Android + ARCore 可用时显示按钮
   const { isArAvailable, launchAr } = useArSync({ activeSession });
@@ -200,8 +221,77 @@ const ChatHeader = ({
                 id="chat-session-tools-menu"
                 role="menu"
                 aria-label={t("chat_header.session_center")}
-                className="absolute right-0 top-full z-50 mt-1.5 flex max-h-[70vh] w-[min(16rem,calc(100vw-1.5rem))] flex-col gap-1 overflow-y-auto rounded-2xl border border-border/70 bg-popover p-2 text-popover-foreground shadow-xl animate-in fade-in slide-in-from-top-2 duration-200"
+                className="absolute right-0 top-full z-50 mt-1.5 flex max-h-[70vh] w-[min(18rem,calc(100vw-1.5rem))] flex-col gap-1 overflow-y-auto rounded-2xl border border-border/70 bg-popover p-2 text-popover-foreground shadow-xl animate-in fade-in slide-in-from-top-2 duration-200"
               >
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={isSending}
+                  onClick={() => {
+                    setShowSessionMenu(false);
+                    void handleStartNewSession();
+                  }}
+                  className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-primary/10 px-3 text-left text-xs font-semibold text-primary transition-colors hover:bg-primary/15 disabled:opacity-40"
+                >
+                  <MessageSquarePlus className="size-4" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">{t("chat_header.new_conversation")}</span>
+                </button>
+
+                <div className="px-2 pb-1 pt-2 text-[10px] font-medium text-muted-foreground">
+                  {t("chat_header.recent_sessions")}
+                </div>
+                {recentCharacterSessions.map((session) => (
+                  <button
+                    key={session.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={session.id === activeSession.id}
+                    disabled={isSending}
+                    onClick={() => {
+                      setShowSessionMenu(false);
+                      setActiveSessionId(session.id);
+                    }}
+                    className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-xs transition-colors disabled:opacity-40 ${
+                      session.id === activeSession.id ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                    }`}
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {session.title || t("session_manager.default_branch_name")}
+                    </span>
+                    {session.id === activeSession.id && <span className="text-[9px] text-primary">{t("history.active")}</span>}
+                  </button>
+                ))}
+
+                <div role="separator" className="mx-2 my-1 border-t border-border/45" />
+                <div role="none" className="flex min-h-11 items-center gap-2 px-2">
+                  <UserRound className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <label className="min-w-0 flex-1">
+                    <span className="sr-only">{t("persona.active")}</span>
+                    <select
+                      value={settings.activePersonaId || settings.userPersonas?.[0]?.id || ""}
+                      onChange={(event) => switchUserPersona(event.target.value)}
+                      className="h-9 w-full min-w-0 rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary/60"
+                    >
+                      {(settings.userPersonas || []).map((persona) => (
+                        <option key={persona.id} value={persona.id}>{persona.name || t("persona.unnamed")}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    aria-label={t("persona.create")}
+                    title={t("persona.create")}
+                    onClick={() => {
+                      setShowSessionMenu(false);
+                      void addUserPersona();
+                    }}
+                    className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
+                  >
+                    <Plus className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div role="separator" className="mx-2 my-1 border-t border-border/45" />
                 <button
                   type="button"
                   role="menuitem"

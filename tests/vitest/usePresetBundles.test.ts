@@ -373,6 +373,37 @@ describe("usePresetBundles 预设导入", () => {
     expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
     expect(latestSettings.promptConfig.composition?.id).toBe("save-composition");
   });
+
+  it("新增预设以 Preset Store 为准，不覆盖设置页尚未同步的预设", async () => {
+    const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
+    initial.savedPresets = [];
+    const storedExisting: SavedPresetBundle = {
+      id: "stored-existing",
+      preset: { ...DEFAULT_SETTINGS.preset, id: "stored-preset", name: "已保存预设" },
+      promptConfig: structuredClone(DEFAULT_SETTINGS.promptConfig),
+    };
+    mocks.getStoredSavedPresets.mockResolvedValueOnce([storedExisting]);
+    let latestSettings = initial;
+    const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
+      latestSettings = typeof next === "function" ? next(latestSettings) : next;
+    });
+    const { result } = renderHook(() => usePresetBundles({
+      settings: initial,
+      updateSettings,
+      showCustomAlert: vi.fn(async () => undefined),
+      showCustomPrompt: vi.fn(async () => "新预设"),
+      showCustomConfirm: vi.fn(async () => true),
+    }));
+
+    await act(async () => {
+      await result.current.handleSaveNewPresetBundle();
+    });
+
+    const persisted = mocks.saveStoredSavedPresets.mock.calls[0][0] as SavedPresetBundle[];
+    expect(persisted.map((bundle) => bundle.id)).toContain("stored-existing");
+    expect(persisted.some((bundle) => bundle.preset.name === "新预设")).toBe(true);
+    expect(latestSettings.savedPresets).toEqual(persisted);
+  });
   it("imports ST order 100001, identifiers, and extended fields", async () => {
     let latestSettings = structuredClone(DEFAULT_SETTINGS);
     const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {

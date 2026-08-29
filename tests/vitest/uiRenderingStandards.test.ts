@@ -49,6 +49,8 @@ describe("WebView 低成本渲染规范", () => {
     expect(coarsePointerBlock).toContain("min-block-size: 2rem");
     expect(coarsePointerBlock).toContain("min-block-size: 2.75rem");
     expect(coarsePointerBlock).toContain("font-size: 1rem");
+    expect(coarsePointerBlock).toContain('[data-ui-density="accessible"]');
+    expect(coarsePointerBlock).not.toMatch(/}\s*:where\(\s*\.text-\\\[8px/);
   });
 
   it("减少动态效果时停止无限动画并缩短过渡", () => {

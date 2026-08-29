@@ -17,7 +17,7 @@
 ### P1：移动交互与渲染成本
 
 - 主要操作默认触控目标为 44 CSS px；明确标为紧凑型的次要控件不得小于 32 CSS px，且相邻目标必须留有间距。
-- 正文和主要状态信息使用至少 `text-xs`；`text-[8px]`～`text-[11px]` 只允许装饰性角标或低优先级元数据，不得承载关键操作。
+- 默认使用紧凑密度：正文和主要状态信息使用至少 `text-xs`，互动控件文字不得低于 10 CSS px；`text-[8px]`～`text-[9px]` 只允许装饰性角标或低优先级元数据，不得承载关键操作。易读密度将 8～11 CSS px 的辅助文字提升到 12 CSS px；触控、焦点与读屏语义在两种密度下都必须保持，不得把易读密度强制给所有用户。
 - 触屏端对历史原生控件统一施加 32 CSS px 互动下限；文本输入、选择器和文本域必须至少 44 CSS px、16px 字号，避免 iOS/Android WebView 聚焦缩放。桌面端可以保留高密度布局。
 - Button 使用 `components/ui/button.tsx`；其 `xs` / `sm` 紧凑尺寸同样不得小于 32 CSS px。需要阻塞背景的弹窗或 BottomSheet 使用 Base UI Dialog 基元，必须具备标题、焦点圈定、焦点恢复、Escape 和 TalkBack 语义，禁止用可点击的空白 `div` 充当遮罩关闭入口。
 - Android 返回键按优先级关闭最上层 Dialog/BottomSheet，再返回上级 Tab；只在角色主页保留“双击退出”。
@@ -47,7 +47,7 @@ npm run test:e2e -- tests/e2e/ui-performance.spec.ts
 阈值调整必须附带同环境前后数据，禁止用放宽阈值掩盖回归。
 
 移动尺寸项目还会逐页检查角色、历史、世界书和设置页的所有可见互动控件及表单尺寸；
-任一控件低于上述下限都会直接使 E2E 失败。互动 Dialog 源文件另由 `tests/vitest/uiOverlayStandards.test.ts`
+紧凑密度互动文字下限为 10 CSS px，易读密度为 12 CSS px，任一控件低于当前密度下限都会直接使 E2E 失败。互动 Dialog 源文件另由 `tests/vitest/uiOverlayStandards.test.ts`
 守卫统一 Dialog 标题、Android 返回键栈及禁止手工全屏遮罩。
 
 Base UI Dialog 的真实键盘行为由 `tests/vitest/DialogAccessibility.test.tsx` 验证：打开后焦点必须进入

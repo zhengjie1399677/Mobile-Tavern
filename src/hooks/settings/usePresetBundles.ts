@@ -195,16 +195,25 @@ export const usePresetBundles = ({
       promptPlan: createPromptPresetPlan(settings.promptConfig, "native"),
       presetRegexScripts: settings.presetRegexScripts ? [...settings.presetRegexScripts] : [],
     };
-    const nextSaved = [...(settings.savedPresets || []), newBundle];
-    updateSettings({
-      ...settings,
-      preset: newBundle.preset,
-      promptConfig: applyPresetPromptConfig(settings.promptConfig, newBundle.promptConfig),
-      presetRegexScripts: newBundle.presetRegexScripts,
-      savedPresets: nextSaved,
-    });
-    await presetService.saveStoredSavedPresets(nextSaved);
-    await showCustomAlert(`成功保存新预设：${name}`);
+    try {
+      // Preset Store 是保存列表的单一来源。设置页可能仍持有启动阶段的旧快照，
+      // 直接从 settings.savedPresets 追加会覆盖刚导入或刚保存的预设。
+      const stored = await presetService.getStoredSavedPresets();
+      const currentSaved = stored ?? settings.savedPresets ?? [];
+      const nextSaved = [...currentSaved, newBundle];
+      await presetService.saveStoredSavedPresets(nextSaved);
+      updateSettings((prev) => ({
+        ...prev,
+        preset: newBundle.preset,
+        promptConfig: applyPresetPromptConfig(prev.promptConfig, newBundle.promptConfig),
+        presetRegexScripts: newBundle.presetRegexScripts,
+        savedPresets: nextSaved,
+      }));
+      await showCustomAlert(`成功保存新预设：${name}`);
+    } catch (error: unknown) {
+      console.error("Failed to save preset bundle:", error);
+      await showCustomAlert("新预设保存失败，请稍后重试。", "保存失败");
+    }
   }, [settings, showCustomPrompt, updateSettings, showCustomAlert, presetService]);
 
   const handleLoadPresetBundle = useCallback((bundleId: string) => {

@@ -94,6 +94,23 @@ export function AttachmentPicker({
           aria-label="添加内容与输入工具"
           className="absolute bottom-[calc(100%+0.6rem)] left-0 z-30 grid w-[min(22rem,calc(100vw-1.5rem))] grid-cols-4 gap-1 rounded-2xl border border-border/70 bg-popover p-1.5 shadow-xl animate-in fade-in slide-in-from-bottom-2"
         >
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={quickActionsVisible}
+            onClick={() => {
+              onToggleQuickActions();
+              setOpen(false);
+            }}
+            className={`flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium transition-colors active:scale-95 ${
+              quickActionsVisible
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <SlidersHorizontal className="size-4" aria-hidden="true" />
+            <span>快捷栏</span>
+          </button>
           {CHOICES.map((choice) => {
             const Icon = choice.icon;
             return (
@@ -125,23 +142,6 @@ export function AttachmentPicker({
               </div>
             );
           })}
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={quickActionsVisible}
-            onClick={() => {
-              onToggleQuickActions();
-              setOpen(false);
-            }}
-            className={`flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium transition-colors active:scale-95 ${
-              quickActionsVisible
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <SlidersHorizontal className="size-4" aria-hidden="true" />
-            <span>快捷栏</span>
-          </button>
         </div>
       )}
     </div>

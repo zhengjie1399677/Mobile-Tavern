@@ -64,14 +64,16 @@ export function useTimelineSummary(params: {
         setSessionViews((prev) =>
           prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
         );
-        if (force) await showCustomAlert("记忆整理完毕，已收录至潜意识年表！");
+        if (force) await showCustomAlert("会话记忆已整理并更新到故事年表。");
       } else if (force) {
-        await showCustomAlert("当前无需强制压缩。");
+        await showCustomAlert("当前没有需要整理的新对话内容。");
       }
     } catch (e: unknown) {
       if (getErrorName(e) === "AbortError" || getErrorMessage(e) === "AbortError") return;
-      console.warn("Auto-compactor service bypassed or offline:", e);
-      if (force) await showCustomAlert("记忆整理出错: " + getErrorMessage(e));
+      console.warn("Conversation memory summary failed:", e);
+      if (force) {
+        await showCustomAlert("会话记忆暂未整理完成。请检查当前模型服务配置，或稍后重试。");
+      }
     } finally {
       setIsSummarizing(false);
     }
