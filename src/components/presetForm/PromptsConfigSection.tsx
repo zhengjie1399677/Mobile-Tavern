@@ -135,37 +135,42 @@ function CompositionBlockToggleList({
   };
 
   const handleAddBlock = (sourceType: "template" | "chat_history" = "template") => {
-    const order = blocks.length === 0
-      ? 100
-      : Math.max(...blocks.map((block) => block.order)) + 100;
-    const newId = `prompt_block_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const newBlock: PromptBlock = {
-      id: newId,
-      name: `${t("prompt_composer.new_block")} ${blocks.length + 1}`,
-      enabled: true,
-      role: "system",
-      source: sourceType === "chat_history"
-        ? { type: "chat_history", selection: { mode: "all" } }
-        : { type: "template" },
-      template: "",
-      order,
-      placement: { type: "ordered" },
-    };
+    let createdBlockId = "";
     updateSettings((prev) => {
       const current = prev.promptConfig.composition;
       if (!current) return prev;
+      const currentBlocks = current.blocks;
+      const order = currentBlocks.length === 0
+        ? 100
+        : Math.max(...currentBlocks.map((block) => block.order)) + 100;
+      const newId = `prompt_block_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      createdBlockId = newId;
+      const newBlock: PromptBlock = {
+        id: newId,
+        name: `${t("prompt_composer.new_block")} ${currentBlocks.length + 1}`,
+        enabled: true,
+        role: "system",
+        source: sourceType === "chat_history"
+          ? { type: "chat_history", selection: { mode: "all" } }
+          : { type: "template" },
+        template: "",
+        order,
+        placement: { type: "ordered" },
+      };
       return {
         ...prev,
         promptConfig: {
           ...prev.promptConfig,
           composition: {
             ...current,
-            blocks: [...current.blocks, newBlock],
+            blocks: [...currentBlocks, newBlock],
           },
         },
       };
     });
-    setEditingBlockId(newId);
+    if (createdBlockId) {
+      setEditingBlockId(createdBlockId);
+    }
   };
 
   const handleDuplicateBlock = (blockId: string) => {

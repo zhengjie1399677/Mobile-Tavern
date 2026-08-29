@@ -6,6 +6,68 @@ import type {
 
 const TEMPLATE_MACRO_REGEX = /\{\{\s*([a-zA-Z0-9_.:-]+)\s*\}\}/g;
 
+const ALLOWED_MACRO_NAMESPACES = [
+  "getvar::",
+  "setvar::",
+  "getglobalvar::",
+  "setglobalvar::",
+  "var::",
+  "globalvar::",
+  "char::",
+  "user::",
+  "persona::",
+  "world::",
+  "lore::",
+  "lorebook::",
+  "st::",
+  "tavern::",
+  "macro::",
+  "regex::",
+];
+
+const KNOWN_BUILTIN_MACROS = new Set([
+  "char",
+  "user",
+  "char_name",
+  "user_name",
+  "char_version",
+  "char_prompt",
+  "char_persona",
+  "description",
+  "persona",
+  "personality",
+  "scenario",
+  "mesexamples",
+  "system",
+  "post_history_instructions",
+  "wibefore",
+  "wiafter",
+  "input",
+  "lastmessage",
+  "lastmessageid",
+  "lastusermessage",
+  "lastcharmessage",
+  "idle_duration",
+  "trim",
+  "date",
+  "time",
+  "datetime",
+  "model",
+  "guid",
+  "random",
+  "noop",
+  "newline",
+]);
+
+function isRecognizedMacroKey(key: string, available: Set<string>): boolean {
+  if (key === "chat.history" || available.has(key)) return true;
+  if (key.startsWith("//")) return true;
+  const lowerKey = key.toLowerCase();
+  if (KNOWN_BUILTIN_MACROS.has(lowerKey)) return true;
+  if (ALLOWED_MACRO_NAMESPACES.some((prefix) => lowerKey.startsWith(prefix))) return true;
+  return false;
+}
+
 export interface PromptCompositionValidationOptions {
   availableDataKeys?: Iterable<string>;
 }
@@ -106,13 +168,7 @@ export function validatePromptComposition(
 
     if (available) {
       for (const key of collectPromptBlockDataKeys(block)) {
-        if (
-          key === "chat.history" ||
-          available.has(key) ||
-          key.includes("::") ||
-          key.startsWith("//") ||
-          /^(trim|date|time|datetime|char_version|model|guid|random|noop|newline)$/i.test(key)
-        ) continue;
+        if (isRecognizedMacroKey(key, available)) continue;
         diagnostics.push({
           level: "error",
           code: "UNAVAILABLE_DATA_SOURCE",

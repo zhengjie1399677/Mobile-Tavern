@@ -3,6 +3,7 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
+import { DialogPortalContext } from "@/components/ui/dialog"
 
 function Select<Value = unknown, Multiple extends boolean = false>({
   onValueChange,
@@ -100,6 +101,7 @@ function SelectContent({
   alignOffset = 0,
   alignItemWithTrigger = true,
   portal = true,
+  container: containerProp,
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<
@@ -108,7 +110,11 @@ function SelectContent({
   > & {
     positionerClassName?: string
     portal?: boolean
+    container?: HTMLElement | null | React.RefObject<HTMLElement | null>
   }) {
+  const dialogContainer = React.useContext(DialogPortalContext);
+  const targetContainer = containerProp !== undefined ? containerProp : (dialogContainer || undefined);
+
   const content = (
     <SelectPrimitive.Positioner
       side={side}
@@ -138,7 +144,7 @@ function SelectContent({
     return content;
   }
 
-  return <SelectPrimitive.Portal>{content}</SelectPrimitive.Portal>;
+  return <SelectPrimitive.Portal container={targetContainer}>{content}</SelectPrimitive.Portal>;
 }
 
 function SelectLabel({

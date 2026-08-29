@@ -308,7 +308,7 @@ export default function SessionManagerPanel({
                         {sort === "created_asc" ? t("session_manager.sort_created") : sort === "title_asc" ? t("session_manager.sort_title") : sort === "turns_desc" ? t("session_manager.sort_turns") : t("session_manager.sort_updated")}
                       </SelectValue>
                     </SelectTrigger>
-                    <SelectContent portal={false} align="end" className="border border-border bg-popover p-1 shadow-2xl">
+                    <SelectContent align="end" className="border border-border bg-popover p-1 shadow-2xl">
                       <SelectItem value="updated_desc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_updated")}</SelectItem>
                       <SelectItem value="created_asc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_created")}</SelectItem>
                       <SelectItem value="title_asc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_title")}</SelectItem>
@@ -427,7 +427,7 @@ export default function SessionManagerPanel({
                       {characterId ? (characterOptions.find(([id]) => id === characterId)?.[1] || t("session_manager.all_characters")) : t("session_manager.all_characters")}
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent portal={false} align="start" className="max-h-56 overflow-y-auto border border-border bg-popover p-1 shadow-2xl">
+                  <SelectContent align="start" className="max-h-56 overflow-y-auto border border-border bg-popover p-1 shadow-2xl">
                     <SelectItem value="__all__" className="min-h-7.5 px-2 text-xs font-medium">
                       {t("session_manager.all_characters")}
                     </SelectItem>
@@ -452,7 +452,7 @@ export default function SessionManagerPanel({
                       {sort === "created_asc" ? t("session_manager.sort_created") : sort === "title_asc" ? t("session_manager.sort_title") : sort === "turns_desc" ? t("session_manager.sort_turns") : t("session_manager.sort_updated")}
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent portal={false} align="start" className="border border-border bg-popover p-1 shadow-2xl">
+                  <SelectContent align="start" className="border border-border bg-popover p-1 shadow-2xl">
                     <SelectItem value="updated_desc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_updated")}</SelectItem>
                     <SelectItem value="created_asc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_created")}</SelectItem>
                     <SelectItem value="title_asc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_title")}</SelectItem>
@@ -946,7 +946,7 @@ function FilterSelect({ label, value, options, onChange }: {
         >
           <SelectValue>{selectedLabel}</SelectValue>
         </SelectTrigger>
-        <SelectContent portal={false} align="start" className="border border-border bg-popover p-1 shadow-2xl">
+        <SelectContent align="start" className="border border-border bg-popover p-1 shadow-2xl">
           {options.map(([optionValue, optionLabel]) => (
             <SelectItem key={optionValue || "__empty__"} value={optionValue || "__empty__"} className="min-h-8 px-2.5 text-xs font-medium">
               {optionLabel}

@@ -183,4 +183,44 @@ describe("PromptsConfigSection 自由编排区块开关", () => {
     expect(screen.getByText("编辑 Prompt 区块")).toBeInTheDocument();
     expect(screen.getByDisplayValue("未命名 Prompt 区块 3")).toBeInTheDocument();
   });
+
+  it("连续点击新建模组不会产生重复名字和 order 冲突", () => {
+    function CustomHarness() {
+      const [settings, setSettings] = useState<UserSettings>(withComposition(sampleBlocks));
+      return (
+        <LanguageProvider>
+          <div data-testid="composition-blocks">
+            {JSON.stringify(settings.promptConfig.composition?.blocks ?? [])}
+          </div>
+          <PromptsConfigSection
+            settings={settings}
+            updateSettings={setSettings}
+            handleToggleCustomPrompt={vi.fn()}
+            handleUpdateCustomPrompt={vi.fn()}
+            handleAddNewCustomPrompt={vi.fn()}
+            handleDeleteCustomPrompt={vi.fn(async () => undefined)}
+            isPromptsFolded={false}
+            handleTogglePromptsFold={vi.fn()}
+            coreStatusText="0/4"
+            activeCustomPrompts={0}
+            selectedPromptIds={[]}
+            setSelectedPromptIds={vi.fn()}
+            isBatchDeletingPrompts={false}
+            setIsBatchDeletingPrompts={vi.fn()}
+            handleBatchDeletePrompts={vi.fn(async () => undefined)}
+          />
+        </LanguageProvider>
+      );
+    }
+    render(<CustomHarness />);
+    const createBtn = screen.getByRole("button", { name: "新建模组" });
+    fireEvent.click(createBtn);
+    fireEvent.click(createBtn);
+
+    const blocks = JSON.parse(screen.getByTestId("composition-blocks").textContent ?? "[]");
+    expect(blocks.length).toBe(4);
+    expect(blocks[2].name).toBe("未命名 Prompt 区块 3");
+    expect(blocks[3].name).toBe("未命名 Prompt 区块 4");
+    expect(blocks[3].order).toBeGreaterThan(blocks[2].order);
+  });
 });

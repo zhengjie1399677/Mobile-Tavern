@@ -418,7 +418,7 @@ export default function PromptCompositionEditor({
               className={`h-8 gap-1 px-2 text-xs transition ${showAdvancedOptions ? "bg-primary/20 text-primary border-primary/30" : "text-muted-foreground border-border"}`}
             >
               <Settings2 className="h-3.5 w-3.5" />
-              <span>高级</span>
+              <span>{t("prompt_composer.advanced_toggle")}</span>
               <ChevronDown className={`h-3 w-3 transition-transform ${showAdvancedOptions ? "rotate-180" : ""}`} />
             </PromptComposerButton>
           )}
@@ -430,7 +430,7 @@ export default function PromptCompositionEditor({
         <SaveStatus state={saveState} lastSavedAt={lastSavedAt} t={t} />
         {compatibilityCount > 0 && (
           <span className="rounded bg-sky-500/10 px-2 py-0.5 text-sky-700 dark:text-sky-300 font-sans">
-            ST 兼容 {compatibilityCount} 项
+            {t("prompt_composer.st_compat_badge", { count: String(compatibilityCount) })}
           </span>
         )}
       </div>
@@ -452,7 +452,7 @@ export default function PromptCompositionEditor({
               <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-bold text-foreground">
                 <span className="flex items-center gap-1.5">
                   <Settings2 className="h-3.5 w-3.5 text-primary" />
-                  <span>模板与高级工具</span>
+                  <span>{t("prompt_composer.advanced_tools_title")}</span>
                 </span>
                 <div className="flex items-center gap-1.5">
                   {orientationControl.available && (
@@ -728,7 +728,7 @@ function PromptCompositionTutorial({ open, onOpenChange }: { open: boolean; onOp
           <div className="space-y-2">
             <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
-              <span>核心机制与操作指南</span>
+              <span>{t("prompt_composer.tutorial_core_title")}</span>
             </div>
             {steps.map((step, index) => (
               <div key={`${step}-${index}`} className="flex gap-2.5 rounded-xl border border-border/70 bg-card/60 p-3 items-start">
@@ -744,24 +744,24 @@ function PromptCompositionTutorial({ open, onOpenChange }: { open: boolean; onOp
           <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-3">
             <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
               <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
-              <span>常用动态标签（宏变量）速查</span>
+              <span>{t("prompt_composer.tutorial_macros_title")}</span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div className="rounded-lg border border-border/50 bg-background/80 p-2">
                 <code className="text-primary font-bold">{"{{char}}"}</code>
-                <p className="text-[10px] text-muted-foreground mt-0.5">当前角色名称</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{t("prompt_composer.macro_char_desc")}</p>
               </div>
               <div className="rounded-lg border border-border/50 bg-background/80 p-2">
                 <code className="text-primary font-bold">{"{{user}}"}</code>
-                <p className="text-[10px] text-muted-foreground mt-0.5">当前用户名称 / 称呼</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{t("prompt_composer.macro_user_desc")}</p>
               </div>
               <div className="rounded-lg border border-border/50 bg-background/80 p-2">
                 <code className="text-primary font-bold">{"{{description}}"}</code>
-                <p className="text-[10px] text-muted-foreground mt-0.5">角色卡详细描述设定</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{t("prompt_composer.macro_description_desc")}</p>
               </div>
               <div className="rounded-lg border border-border/50 bg-background/80 p-2">
                 <code className="text-primary font-bold">{"{{personality}}"}</code>
-                <p className="text-[10px] text-muted-foreground mt-0.5">角色性格特征</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{t("prompt_composer.macro_personality_desc")}</p>
               </div>
             </div>
           </div>
