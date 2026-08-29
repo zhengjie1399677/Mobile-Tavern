@@ -261,10 +261,11 @@ export default function SessionManagerPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-border/70 px-3 pb-2">
-        <div className="flex min-h-10 items-center gap-2">
-          {searchOpen ? (
-            <label className="relative flex-1">
+      <div className="shrink-0 border-b border-border/70 px-3 pb-2.5 pt-1 space-y-2">
+        {fixedCharacterId ? (
+          /* 聊天内分支管理模式：精简单行工具栏 */
+          searchOpen ? (
+            <label className="relative flex items-center">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 autoFocus
@@ -273,116 +274,201 @@ export default function SessionManagerPanel({
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t("session_manager.search_placeholder")}
                 aria-label={t("session_manager.search_placeholder")}
-                className="h-8.5 w-full rounded-xl border border-border bg-muted/30 pl-8 pr-9 text-xs outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+                className="h-8 w-full rounded-lg border border-border bg-muted/30 pl-8 pr-8 text-xs outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
               />
               <button
                 type="button"
                 aria-label={t("common.close")}
                 onClick={() => { setSearch(""); setSearchOpen(false); }}
-                className="absolute right-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+                className="absolute right-1 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
               >
                 <X className="size-3.5" />
               </button>
             </label>
           ) : (
-            <>
-              <span className="flex-1 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground font-medium truncate">
                 {t("session_manager.result_count", { count: activeEntries.length })}
               </span>
-              <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs" onClick={() => setSearchOpen(true)}>
-                <Search className="size-3.5" />
-                {t("session_manager.search")}
-              </Button>
-              <Button
-                variant={manage ? "secondary" : "ghost"}
-                size="sm"
-                className="h-8 px-2.5 text-xs"
-                onClick={() => { setManage((value) => !value); setSelected(new Set()); }}
-              >
-                <CopyCheck className="size-3.5" />
-                {manage ? t("common.cancel") : t("session_manager.manage")}
-              </Button>
-            </>
-          )}
-        </div>
-
-        <div className="grid grid-cols-3 gap-1" role="tablist" aria-label={t("session_manager.categories")}>
-          {(["active", "favorite", "archived"] as const).map((item) => (
-            <button
-              key={item}
-              type="button"
-              role="tab"
-              aria-selected={category === item}
-              onClick={() => selectCategory(item)}
-              className={`h-8 rounded-lg px-2 text-xs font-medium transition-colors ${
-                category === item ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50"
-              }`}
-            >
-              {t(`session_manager.category_${item}`)}
-            </button>
-          ))}
-        </div>
-
-        <div className={`mt-2 grid ${fixedCharacterId ? "grid-cols-[1fr_auto]" : "grid-cols-[1fr_1fr_auto]"} gap-1.5`}>
-          {!fixedCharacterId && (
-            <div className="min-w-0">
-              <Select
-                value={characterId || "__all__"}
-                onValueChange={(val) => setCharacterId(val === "__all__" ? "" : String(val ?? ""))}
-              >
-                <SelectTrigger
-                  aria-label={t("session_manager.filter_character")}
-                  className="h-8 w-full rounded-lg border-border/80 bg-background/90 px-2.5 text-xs text-foreground"
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="w-28 sm:w-32">
+                  <Select
+                    value={sort}
+                    onValueChange={(val) => setSort((val ?? "updated_desc") as NonNullable<SessionDirectoryQuery["sort"]>)}
+                  >
+                    <SelectTrigger
+                      aria-label={t("session_manager.sort")}
+                      className="h-7.5 w-full rounded-lg border-border/80 bg-background/90 px-2 text-xs text-foreground"
+                    >
+                      <SelectValue>
+                        {sort === "created_asc" ? t("session_manager.sort_created") : sort === "title_asc" ? t("session_manager.sort_title") : sort === "turns_desc" ? t("session_manager.sort_turns") : t("session_manager.sort_updated")}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent align="end" className="z-[999] border border-border bg-popover p-1 shadow-2xl">
+                      <SelectItem value="updated_desc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_updated")}</SelectItem>
+                      <SelectItem value="created_asc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_created")}</SelectItem>
+                      <SelectItem value="title_asc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_title")}</SelectItem>
+                      <SelectItem value="turns_desc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_turns")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7.5"
+                  aria-label={t("session_manager.search")}
+                  onClick={() => setSearchOpen(true)}
                 >
-                  <SelectValue>
-                    {characterId ? (characterOptions.find(([id]) => id === characterId)?.[1] || t("session_manager.all_characters")) : t("session_manager.all_characters")}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent align="start" className="z-[999] max-h-56 overflow-y-auto border border-border bg-popover p-1 shadow-2xl">
-                  <SelectItem value="__all__" className="min-h-8 px-2.5 text-xs font-medium">
-                    {t("session_manager.all_characters")}
-                  </SelectItem>
-                  {characterOptions.map(([id, name]) => (
-                    <SelectItem key={id} value={id} className="min-h-8 px-2.5 text-xs font-medium">
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <Search className="size-3.5" />
+                </Button>
+                <Button
+                  variant={manage ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-7.5 px-2 text-xs"
+                  onClick={() => { setManage((value) => !value); setSelected(new Set()); }}
+                >
+                  <CopyCheck className="size-3.5" />
+                  <span className="hidden sm:inline">{manage ? t("common.cancel") : t("session_manager.manage")}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={filtersOpen ? "secondary" : "outline"}
+                  size="icon"
+                  className="size-7.5"
+                  aria-label={t("session_manager.filters")}
+                  onClick={() => setFiltersOpen((value) => !value)}
+                >
+                  <SlidersHorizontal className="size-3.5" />
+                </Button>
+              </div>
             </div>
-          )}
-          <div className="min-w-0">
-            <Select
-              value={sort}
-              onValueChange={(val) => setSort((val ?? "updated_desc") as NonNullable<SessionDirectoryQuery["sort"]>)}
-            >
-              <SelectTrigger
-                aria-label={t("session_manager.sort")}
-                className="h-8 w-full rounded-lg border-border/80 bg-background/90 px-2.5 text-xs text-foreground"
+          )
+        ) : (
+          /* 全局主会话管理器模式 */
+          <>
+            <div className="flex items-center justify-between gap-2">
+              {searchOpen ? (
+                <label className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    autoFocus
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder={t("session_manager.search_placeholder")}
+                    aria-label={t("session_manager.search_placeholder")}
+                    className="h-8 w-full rounded-lg border border-border bg-muted/30 pl-8 pr-8 text-xs outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+                  />
+                  <button
+                    type="button"
+                    aria-label={t("common.close")}
+                    onClick={() => { setSearch(""); setSearchOpen(false); }}
+                    className="absolute right-1 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </label>
+              ) : (
+                <>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    {t("session_manager.result_count", { count: activeEntries.length })}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="ghost" size="sm" className="h-7.5 px-2 text-xs" onClick={() => setSearchOpen(true)}>
+                      <Search className="size-3.5" />
+                      <span>{t("session_manager.search")}</span>
+                    </Button>
+                    <Button
+                      variant={manage ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-7.5 px-2 text-xs"
+                      onClick={() => { setManage((value) => !value); setSelected(new Set()); }}
+                    >
+                      <CopyCheck className="size-3.5" />
+                      <span>{manage ? t("common.cancel") : t("session_manager.manage")}</span>
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/30 p-0.5" role="tablist" aria-label={t("session_manager.categories")}>
+              {(["active", "favorite", "archived"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  role="tab"
+                  aria-selected={category === item}
+                  onClick={() => selectCategory(item)}
+                  className={`h-7.5 rounded-md px-2 text-xs font-medium transition-all ${
+                    category === item ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t(`session_manager.category_${item}`)}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <div className="min-w-0 flex-1">
+                <Select
+                  value={characterId || "__all__"}
+                  onValueChange={(val) => setCharacterId(val === "__all__" ? "" : String(val ?? ""))}
+                >
+                  <SelectTrigger
+                    aria-label={t("session_manager.filter_character")}
+                    className="h-7.5 w-full rounded-lg border-border/80 bg-background/90 px-2 text-xs text-foreground"
+                  >
+                    <SelectValue>
+                      {characterId ? (characterOptions.find(([id]) => id === characterId)?.[1] || t("session_manager.all_characters")) : t("session_manager.all_characters")}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent align="start" className="z-[999] max-h-56 overflow-y-auto border border-border bg-popover p-1 shadow-2xl">
+                    <SelectItem value="__all__" className="min-h-7.5 px-2 text-xs font-medium">
+                      {t("session_manager.all_characters")}
+                    </SelectItem>
+                    {characterOptions.map(([id, name]) => (
+                      <SelectItem key={id} value={id} className="min-h-7.5 px-2 text-xs font-medium">
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-0 flex-1">
+                <Select
+                  value={sort}
+                  onValueChange={(val) => setSort((val ?? "updated_desc") as NonNullable<SessionDirectoryQuery["sort"]>)}
+                >
+                  <SelectTrigger
+                    aria-label={t("session_manager.sort")}
+                    className="h-7.5 w-full rounded-lg border-border/80 bg-background/90 px-2 text-xs text-foreground"
+                  >
+                    <SelectValue>
+                      {sort === "created_asc" ? t("session_manager.sort_created") : sort === "title_asc" ? t("session_manager.sort_title") : sort === "turns_desc" ? t("session_manager.sort_turns") : t("session_manager.sort_updated")}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent align="start" className="z-[999] border border-border bg-popover p-1 shadow-2xl">
+                    <SelectItem value="updated_desc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_updated")}</SelectItem>
+                    <SelectItem value="created_asc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_created")}</SelectItem>
+                    <SelectItem value="title_asc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_title")}</SelectItem>
+                    <SelectItem value="turns_desc" className="min-h-7.5 px-2 text-xs font-medium">{t("session_manager.sort_turns")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant={filtersOpen ? "secondary" : "outline"}
+                size="icon"
+                className="size-7.5 shrink-0"
+                aria-label={t("session_manager.filters")}
+                onClick={() => setFiltersOpen((value) => !value)}
               >
-                <SelectValue>
-                  {sort === "created_asc" ? t("session_manager.sort_created") : sort === "title_asc" ? t("session_manager.sort_title") : sort === "turns_desc" ? t("session_manager.sort_turns") : t("session_manager.sort_updated")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start" className="z-[999] border border-border bg-popover p-1 shadow-2xl">
-                <SelectItem value="updated_desc" className="min-h-8 px-2.5 text-xs font-medium">{t("session_manager.sort_updated")}</SelectItem>
-                <SelectItem value="created_asc" className="min-h-8 px-2.5 text-xs font-medium">{t("session_manager.sort_created")}</SelectItem>
-                <SelectItem value="title_asc" className="min-h-8 px-2.5 text-xs font-medium">{t("session_manager.sort_title")}</SelectItem>
-                <SelectItem value="turns_desc" className="min-h-8 px-2.5 text-xs font-medium">{t("session_manager.sort_turns")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            type="button"
-            variant={filtersOpen ? "secondary" : "outline"}
-            size="icon"
-            className="size-8"
-            aria-label={t("session_manager.filters")}
-            onClick={() => setFiltersOpen((value) => !value)}
-          >
-            <SlidersHorizontal className="size-3.5" />
-          </Button>
-        </div>
+                <SlidersHorizontal className="size-3.5" />
+              </Button>
+            </div>
+          </>
+        )}
 
         {filtersOpen && (
           <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-border/70 bg-muted/20 p-2">
