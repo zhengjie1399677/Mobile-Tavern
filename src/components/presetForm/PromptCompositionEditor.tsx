@@ -2,16 +2,21 @@ import {
   ArrowDown,
   ArrowUp,
   AlertTriangle,
+  BookOpen,
   CheckCircle2,
+  ChevronDown,
   CloudAlert,
   Eye,
   GitBranch,
   GripVertical,
   History,
   HelpCircle,
+  Lightbulb,
   LoaderCircle,
   MessageSquarePlus,
   CheckSquare2,
+  Settings2,
+  Sparkles,
   Square,
   RotateCw,
   RotateCcw,
@@ -90,6 +95,7 @@ export default function PromptCompositionEditor({
   const [workbenchView, setWorkbenchView] = useState<PromptWorkbenchView>("graph");
   const [fullEditorOpen, setFullEditorOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [dragTargetId, setDragTargetId] = useState<string>();
   const [draggingId, setDraggingId] = useState<string>();
   const [dragAnnouncement, setDragAnnouncement] = useState("");
@@ -350,54 +356,105 @@ export default function PromptCompositionEditor({
     (composition.compatibility?.preservedRootFields ? Object.keys(composition.compatibility.preservedRootFields).length : 0);
 
   return (
-    <section className={`w-full max-w-full min-w-0 overflow-hidden rounded-xl border border-primary/25 bg-primary/5 ${isWideWorkbench ? "space-y-2 p-2" : "space-y-3 p-3"}`}>
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-bold">{t("prompt_composer.title")}</div>
-          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("prompt_composer.description")}</p>
+    <section className={`w-full max-w-full min-w-0 overflow-hidden rounded-xl border border-primary/25 bg-primary/5 ${isWideWorkbench ? "space-y-2 p-2" : "space-y-2.5 p-2.5"}`}>
+      {/* 顶部紧凑控制栏 */}
+      <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-border/50">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <PromptComposerInput
+            value={composition.name}
+            onChange={(event) => updateComposition({ ...composition, name: event.target.value }, "composition-name")}
+            aria-label={t("prompt_composer.composition_name")}
+            className="h-8 text-xs font-bold min-w-[120px] max-w-[220px] flex-1"
+          />
         </div>
-        <PromptComposerButton
-          type="button"
-          onClick={() => setTutorialOpen(true)}
-          className="shrink-0 gap-1.5 border-primary/30 bg-background/80 px-2.5 text-[10px] text-primary"
-        >
-          <HelpCircle className="h-3.5 w-3.5" />
-          {t("prompt_composer.tutorial")}
-        </PromptComposerButton>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <PromptComposerButton
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="h-8 gap-1 border-primary/25 bg-primary/10 px-2 text-xs text-primary font-bold hover:bg-primary/15"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            {t("prompt_composer.preview")}
+          </PromptComposerButton>
+          <PromptComposerButton
+            type="button"
+            onClick={() => setTutorialOpen(true)}
+            className="h-8 gap-1 border-border bg-background/80 px-2 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            {t("prompt_composer.tutorial")}
+          </PromptComposerButton>
+          {!isWideWorkbench && (
+            <PromptComposerButton
+              type="button"
+              aria-expanded={showAdvancedOptions}
+              onClick={() => setShowAdvancedOptions((prev) => !prev)}
+              className={`h-8 gap-1 px-2 text-xs transition ${showAdvancedOptions ? "bg-primary/20 text-primary border-primary/30" : "text-muted-foreground border-border"}`}
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              <span>高级</span>
+              <ChevronDown className={`h-3 w-3 transition-transform ${showAdvancedOptions ? "rotate-180" : ""}`} />
+            </PromptComposerButton>
+          )}
+        </div>
       </div>
 
-      {!promptFocus.active && (
-        <div className="grid grid-cols-2 rounded-xl border border-border bg-muted/50 p-1" role="group" aria-label={t("prompt_composer.mode")}>
-          <ModeButton active={!freeMode} onClick={() => setMode(false)}>{t("prompt_composer.legacy_mode")}</ModeButton>
-          <ModeButton active={freeMode} onClick={() => setMode(true)}>{t("prompt_composer.free_mode")}</ModeButton>
+      {/* 极简状态栏与模式切换 */}
+      <div className="flex flex-wrap items-center justify-between gap-1.5 px-0.5 text-[10px] text-muted-foreground font-mono">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <SaveStatus state={saveState} lastSavedAt={lastSavedAt} t={t} />
+          {compatibilityCount > 0 && (
+            <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-sky-700 dark:text-sky-300 font-sans">
+              ST 兼容 {compatibilityCount} 项
+            </span>
+          )}
         </div>
-      )}
+        {!promptFocus.active && (
+          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5" role="group" aria-label={t("prompt_composer.mode")}>
+            <ModeButton active={!freeMode} onClick={() => setMode(false)}>{t("prompt_composer.legacy_mode")}</ModeButton>
+            <ModeButton active={freeMode} onClick={() => setMode(true)}>{t("prompt_composer.free_mode")}</ModeButton>
+          </div>
+        )}
+      </div>
 
       {!freeMode && !promptFocus.active && <TraditionalPromptFlow />}
 
       {(freeMode || promptFocus.active) && (
         <>
-          <div className={isWideWorkbench ? "grid grid-cols-[minmax(300px,0.85fr)_minmax(400px,1.15fr)] items-start gap-2 min-[1100px]:grid-cols-[minmax(300px,0.72fr)_minmax(340px,0.82fr)_minmax(420px,1fr)]" : "space-y-3"}>
-            <div className="space-y-3">
-              <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-2 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
-                {t("prompt_composer.no_hidden_prompt")}
+          <div className="space-y-2">
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-2 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-bold text-foreground">
+                <span className="flex items-center gap-1.5">
+                  <Settings2 className="h-3.5 w-3.5 text-primary" />
+                  <span>模板与高级工具</span>
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {orientationControl.available && (
+                    <PromptComposerButton
+                      type="button"
+                      aria-pressed={orientationControl.forcedLandscape}
+                      onClick={orientationControl.toggleOrientation}
+                      className="h-6 gap-1 px-1.5 text-[9px] text-primary"
+                    >
+                      <RotateCw className="h-3 w-3" />
+                      {t(orientationControl.forcedLandscape
+                        ? "prompt_composer.restore_auto_rotation"
+                        : "prompt_composer.enter_landscape")}
+                    </PromptComposerButton>
+                  )}
+                  {!isWideWorkbench && (
+                    <PromptComposerButton
+                      type="button"
+                      onClick={() => { setWorkbenchView("graph"); setWorkbenchOpen(true); }}
+                      className="h-6 gap-1 px-1.5 text-[9px]"
+                    >
+                      <GitBranch className="h-3 w-3" />
+                      {t("prompt_composer.graph")}
+                    </PromptComposerButton>
+                  )}
+                </div>
               </div>
-
-              <SaveStatus state={saveState} lastSavedAt={lastSavedAt} t={t} />
-
-              {orientationControl.available && (
-                <PromptComposerButton
-                  type="button"
-                  aria-pressed={orientationControl.forcedLandscape}
-                  onClick={orientationControl.toggleOrientation}
-                  className="gap-1.5 border-primary/35 bg-primary/15 px-2.5 text-[10px] text-primary hover:bg-primary/20 active:bg-primary/25"
-                >
-                  <RotateCw className="h-3.5 w-3.5" />
-                  {t(orientationControl.forcedLandscape
-                    ? "prompt_composer.restore_auto_rotation"
-                    : "prompt_composer.enter_landscape")}
-                </PromptComposerButton>
-              )}
 
               <PromptCompositionTransferToolbar
                 composition={composition}
@@ -425,39 +482,6 @@ export default function PromptCompositionEditor({
                 }}
               />
 
-              <div className="flex gap-2">
-                <PromptComposerInput
-                  value={composition.name}
-                  onChange={(event) => updateComposition({ ...composition, name: event.target.value }, "composition-name")}
-                  aria-label={t("prompt_composer.composition_name")}
-                  className="min-w-0 flex-1"
-                />
-                {!isWideWorkbench && (
-                  <>
-                    <PromptComposerButton
-                      type="button"
-                      onClick={() => { setWorkbenchView("graph"); setWorkbenchOpen(true); }}
-                      className="shrink-0 gap-1.5 px-2.5"
-                    >
-                      <GitBranch className="h-3.5 w-3.5" />{t("prompt_composer.graph")}
-                    </PromptComposerButton>
-                    <PromptComposerButton
-                      type="button"
-                      onClick={() => setPreviewOpen(true)}
-                      className="shrink-0 gap-1.5 border-primary/25 bg-primary/10 px-2.5 text-primary hover:bg-primary/15"
-                    >
-                      <Eye className="h-3.5 w-3.5" />{t("prompt_composer.preview")}
-                    </PromptComposerButton>
-                  </>
-                )}
-              </div>
-
-              {compatibilityCount > 0 && (
-                <div className="rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-[10px] text-sky-700 dark:text-sky-300">
-                  {t("prompt_composer.compatibility_summary", { count: String(compatibilityCount), source: composition.compatibility?.source ?? "external" })}
-                </div>
-              )}
-
               <PromptCompositionBudgetSettings
                 composition={composition}
                 preview={preview}
@@ -468,7 +492,12 @@ export default function PromptCompositionEditor({
                 composition={composition}
                 onChange={(next) => updateComposition(next, "scene-profiles")}
               />
+            </div>
+          </div>
 
+          {/* 主工作区 */}
+          <div className={isWideWorkbench ? "grid grid-cols-[minmax(300px,0.85fr)_minmax(400px,1.15fr)] items-start gap-2 min-[1100px]:grid-cols-[minmax(300px,0.72fr)_minmax(340px,0.82fr)_minmax(420px,1fr)]" : "space-y-2.5"}>
+            <div className="space-y-2.5">
               <PromptBlockListToolbar
                 query={blockQuery}
                 onQueryChange={setBlockQuery}
@@ -487,19 +516,19 @@ export default function PromptCompositionEditor({
               />
 
               {validationDiagnostics.length > 0 && (
-                <section className="space-y-1.5 rounded-xl border border-destructive/30 bg-destructive/5 p-3 min-w-0 max-w-full overflow-hidden" aria-live="polite">
+                <section className="space-y-1.5 rounded-xl border border-destructive/30 bg-destructive/5 p-2.5 min-w-0 max-w-full overflow-hidden" aria-live="polite">
                   <div className="flex items-center gap-2 text-xs font-bold text-destructive min-w-0 truncate">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">{t("prompt_composer.validation_title", { count: String(validationDiagnostics.length) })}</span>
                   </div>
-                  <div className="max-h-48 overflow-y-auto space-y-1 pr-1 min-w-0 max-w-full">
+                  <div className="max-h-36 overflow-y-auto space-y-1 pr-1 min-w-0 max-w-full">
                     {validationDiagnostics.map((diagnostic, index) => (
                       <PromptComposerButton
                         type="button"
                         key={`${diagnostic.code}-${diagnostic.blockId ?? "root"}-${index}`}
                         onClick={() => diagnostic.blockId && setEditingBlockId(diagnostic.blockId)}
                         variant="ghost"
-                        className="flex h-auto min-h-7 w-full min-w-0 max-w-full justify-start rounded-md px-1.5 py-1 text-left text-[10px] leading-relaxed text-destructive/90 shadow-none hover:bg-destructive/10 break-all"
+                        className="flex h-auto min-h-6 w-full min-w-0 max-w-full justify-start rounded-md px-1.5 py-0.5 text-left text-[10px] leading-relaxed text-destructive/90 shadow-none hover:bg-destructive/10 break-all"
                       >
                         <code className="mr-1 font-bold font-mono shrink-0">{diagnostic.code}</code>
                         <span className="min-w-0 break-all">{diagnostic.message}</span>
@@ -510,24 +539,24 @@ export default function PromptCompositionEditor({
               )}
 
               {composition.blocks.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-destructive/35 bg-destructive/5 p-5 text-center text-xs text-destructive">
-              {t("prompt_composer.empty_send_warning")}
-            </div>
-              ) : (
-            <div ref={blockListRef} className="space-y-3">
-              {visibleBlockItems.length === 0 && (
-                <div className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">
-                  {t("prompt_composer.list_empty")}
+                <div className="rounded-xl border border-dashed border-destructive/35 bg-destructive/5 p-5 text-center text-xs text-destructive">
+                  {t("prompt_composer.empty_send_warning")}
                 </div>
-              )}
-              {blockGroups.map((group) => (
-                <section key={group.key} className="space-y-2">
-                  {blockGroupMode !== "none" && (
-                    <header className="flex items-center gap-2 px-1 text-[10px] font-bold text-muted-foreground">
-                      <span>{describeBlockGroup(group.key, t)}</span>
-                      <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[9px]">{group.items.length}</span>
-                    </header>
+              ) : (
+                <div ref={blockListRef} className="space-y-2">
+                  {visibleBlockItems.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">
+                      {t("prompt_composer.list_empty")}
+                    </div>
                   )}
+                  {blockGroups.map((group) => (
+                    <section key={group.key} className="space-y-1.5">
+                      {blockGroupMode !== "none" && (
+                        <header className="flex items-center gap-2 px-1 text-[10px] font-bold text-muted-foreground">
+                          <span>{describeBlockGroup(group.key, t)}</span>
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[9px]">{group.items.length}</span>
+                        </header>
+                      )}
               {group.items.map(({ block, index, estimatedTokens }) => {
                 const blockDiagnosticCount = validationDiagnostics.filter((diagnostic) => diagnostic.blockId === block.id).length;
                 const selected = selectedBlockIds.has(block.id);
@@ -705,16 +734,59 @@ function PromptCompositionTutorial({ open, onOpenChange }: { open: boolean; onOp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="top-auto bottom-0 left-1/2 max-h-[88dvh] w-full max-w-xl -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none p-0">
         <DialogHeader className="border-b border-border px-4 pb-3 pt-4 pr-12">
-          <DialogTitle>{t("prompt_composer.tutorial_title")}</DialogTitle>
-          <DialogDescription>{t("prompt_composer.tutorial_intro")}</DialogDescription>
+          <DialogTitle className="flex items-center gap-2 text-base font-bold">
+            <BookOpen className="h-4.5 w-4.5 text-primary" />
+            {t("prompt_composer.tutorial_title")}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+            {t("prompt_composer.tutorial_intro")}
+          </DialogDescription>
         </DialogHeader>
-        <div className="space-y-2 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-          {steps.map((step, index) => (
-            <div key={`${step}-${index}`} className="flex gap-3 rounded-xl border border-border bg-card/70 p-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">{index + 1}</span>
-              <p className="text-[10px] leading-relaxed text-foreground">{step}</p>
+
+        <div className="space-y-4 p-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] text-xs text-foreground">
+          {/* 四大核心步骤 */}
+          <div className="space-y-2">
+            <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span>核心机制与操作指南</span>
             </div>
-          ))}
+            {steps.map((step, index) => (
+              <div key={`${step}-${index}`} className="flex gap-2.5 rounded-xl border border-border/70 bg-card/60 p-3 items-start">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary mt-0.5">
+                  {index + 1}
+                </span>
+                <p className="text-[11px] leading-relaxed text-foreground/90">{step}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 常用宏变量速查 */}
+          <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-3">
+            <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+              <span>常用动态标签（宏变量）速查</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="rounded-lg border border-border/50 bg-background/80 p-2">
+                <code className="text-primary font-bold">{"{{char}}"}</code>
+                <p className="text-[10px] text-muted-foreground mt-0.5">当前角色名称</p>
+              </div>
+              <div className="rounded-lg border border-border/50 bg-background/80 p-2">
+                <code className="text-primary font-bold">{"{{user}}"}</code>
+                <p className="text-[10px] text-muted-foreground mt-0.5">当前用户名称 / 称呼</p>
+              </div>
+              <div className="rounded-lg border border-border/50 bg-background/80 p-2">
+                <code className="text-primary font-bold">{"{{description}}"}</code>
+                <p className="text-[10px] text-muted-foreground mt-0.5">角色卡详细描述设定</p>
+              </div>
+              <div className="rounded-lg border border-border/50 bg-background/80 p-2">
+                <code className="text-primary font-bold">{"{{personality}}"}</code>
+                <p className="text-[10px] text-muted-foreground mt-0.5">角色性格特征</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 传统模式流程对比 */}
           <TraditionalPromptFlow />
         </div>
       </DialogContent>
@@ -744,8 +816,9 @@ function SaveStatus({
           ? t("prompt_composer.save_saved_at", { time: new Date(lastSavedAt).toLocaleTimeString() })
           : t("prompt_composer.save_ready");
   return (
-    <div role="status" aria-live="polite" className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[10px] ${isError ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border bg-background/70 text-muted-foreground"}`}>
-      <Icon className={`h-3.5 w-3.5 ${isBusy ? "animate-spin text-primary" : ""}`} />{label}
+    <div role="status" aria-live="polite" className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] ${isError ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border/60 bg-background/80 text-muted-foreground"}`}>
+      <Icon className={`h-3 w-3 shrink-0 ${isBusy ? "animate-spin text-primary" : isError ? "text-destructive" : "text-emerald-500"}`} />
+      <span className="truncate">{label}</span>
     </div>
   );
 }

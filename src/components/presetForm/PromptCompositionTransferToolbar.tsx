@@ -134,23 +134,23 @@ export default function PromptCompositionTransferToolbar({
 
   return (
     <div className="space-y-2 rounded-xl border border-border bg-background/70 p-2">
-      <div className="grid grid-cols-3 gap-2">
-        <TransferButton disabled={!canUndo} onClick={onUndo} icon={<Undo2 className="h-3.5 w-3.5" />}>
+      <div className="flex flex-wrap items-center gap-1">
+        <TransferButton disabled={!canUndo} onClick={onUndo} icon={<Undo2 className="h-3 w-3" />}>
           {t("prompt_composer.undo")}
         </TransferButton>
-        <TransferButton disabled={!canRedo} onClick={onRedo} icon={<Redo2 className="h-3.5 w-3.5" />}>
+        <TransferButton disabled={!canRedo} onClick={onRedo} icon={<Redo2 className="h-3 w-3" />}>
           {t("prompt_composer.redo")}
         </TransferButton>
-        <TransferButton onClick={() => inputRef.current?.click()} icon={<Upload className="h-3.5 w-3.5" />}>
+        <TransferButton onClick={() => inputRef.current?.click()} icon={<Upload className="h-3 w-3" />}>
           {t("prompt_composer.import_json")}
         </TransferButton>
-        <TransferButton onClick={exportJson} icon={<Download className="h-3.5 w-3.5" />}>
+        <TransferButton onClick={exportJson} icon={<Download className="h-3 w-3" />}>
           {t("prompt_composer.export_json")}
         </TransferButton>
-        <TransferButton onClick={() => void copyJson()} icon={<Copy className="h-3.5 w-3.5" />}>
+        <TransferButton onClick={() => void copyJson()} icon={<Copy className="h-3 w-3" />}>
           {t("prompt_composer.copy_json")}
         </TransferButton>
-        <TransferButton onClick={() => void shareJson()} icon={<Share2 className="h-3.5 w-3.5" />}>
+        <TransferButton onClick={() => void shareJson()} icon={<Share2 className="h-3 w-3" />}>
           {t("prompt_composer.share_json")}
         </TransferButton>
       </div>
@@ -190,7 +190,7 @@ function TransferButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="min-h-10 gap-1 px-1.5 text-[10px] disabled:opacity-35"
+      className="min-h-7 h-7 gap-1 rounded-lg px-2 py-0 text-[10px] disabled:opacity-35"
     >
       {icon}{children}
     </PromptComposerButton>
