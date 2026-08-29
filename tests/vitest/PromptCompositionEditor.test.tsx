@@ -159,8 +159,16 @@ describe("PromptCompositionEditor", () => {
     expect(editButton).toHaveClass("min-w-0", "overflow-hidden");
   });
 
+function openAdvancedIfPresent() {
+  const btn = screen.queryByRole("button", { name: "高级" });
+  if (btn && btn.getAttribute("aria-expanded") === "false") {
+    fireEvent.click(btn);
+  }
+}
+
   it("新增操作使用明确文案，并创建未命名 Prompt 区块", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
+    openAdvancedIfPresent();
 
     expect(screen.getByRole("button", { name: "添加聊天历史" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "载入基础示例" })).toBeInTheDocument();
@@ -172,6 +180,7 @@ describe("PromptCompositionEditor", () => {
 
   it("可载入场景化预设，并把载入操作纳入撤销历史", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
+    openAdvancedIfPresent();
 
     fireEvent.click(screen.getByRole("button", { name: /轻量对话/ }));
     expect(screen.getByTestId("composition-state")).toHaveTextContent("轻量对话");
@@ -246,6 +255,7 @@ describe("PromptCompositionEditor", () => {
 
   it("窄屏可从工具栏打开只读编排图并定位区块", () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
+    openAdvancedIfPresent();
 
     fireEvent.click(screen.getByRole("button", { name: "消息流程" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -258,6 +268,7 @@ describe("PromptCompositionEditor", () => {
     const setScreenOrientation = vi.fn().mockReturnValue(true);
     (window as unknown as WindowWithOrientationBridge).AndroidThemeBridge = { setScreenOrientation };
     render(<LanguageProvider><ManagedFocusHarness /></LanguageProvider>);
+    openAdvancedIfPresent();
 
     fireEvent.click(screen.getByRole("button", { name: "进入横屏工作台" }));
     expect(setScreenOrientation).toHaveBeenCalledWith("landscape");
@@ -275,6 +286,7 @@ describe("PromptCompositionEditor", () => {
 
   it("删除与排序等自由编辑可以撤销并重做", async () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
+    openAdvancedIfPresent();
 
     expect(screen.getByRole("button", { name: "撤销" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "删除区块" }));
@@ -312,6 +324,7 @@ describe("PromptCompositionEditor", () => {
     (window as unknown as WindowWithOrientationBridge).AndroidThemeBridge = { saveFile, shareText };
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     render(<LanguageProvider><Harness /></LanguageProvider>);
+    openAdvancedIfPresent();
 
     fireEvent.click(screen.getByRole("button", { name: "导出 JSON" }));
     expect(saveFile).toHaveBeenCalledOnce();
@@ -343,6 +356,7 @@ describe("PromptCompositionEditor", () => {
     });
     const file = { size: imported.length, text: vi.fn().mockResolvedValue(imported) };
     render(<LanguageProvider><Harness /></LanguageProvider>);
+    openAdvancedIfPresent();
 
     fireEvent.change(screen.getByLabelText("选择 Prompt 组装 JSON 文件"), {
       target: { files: [file] },

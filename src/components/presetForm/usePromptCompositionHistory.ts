@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { PromptComposition } from "../../domain/prompt-composition";
 
 const MAX_HISTORY_ENTRIES = 30;
@@ -12,76 +12,95 @@ interface HistoryState {
   mergeAt: number;
 }
 
+type CompositionChangeHandler = (next: PromptComposition) => void;
+
 export function usePromptCompositionHistory(
   composition: PromptComposition,
-  onChange: (next: PromptComposition) => void,
+  onChange: CompositionChangeHandler,
 ) {
-  const historyRef = useRef<HistoryState>({
+  const [history, setHistory] = useState<HistoryState>(() => ({
     current: composition,
     past: [],
     future: [],
     mergeAt: 0,
-  });
-  const [, refresh] = useReducer((value: number) => value + 1, 0);
+  }));
 
   useEffect(() => {
-    const history = historyRef.current;
-    if (composition === history.current) return;
-    if (JSON.stringify(composition) === JSON.stringify(history.current)) {
-      history.current = composition;
-      return;
-    }
-    historyRef.current = { current: composition, past: [], future: [], mergeAt: 0 };
-    refresh();
+    setHistory((prev) => {
+      if (composition === prev.current) return prev;
+      if (
+        composition.name === prev.current.name &&
+        composition.blocks.length === prev.current.blocks.length &&
+        composition.blocks === prev.current.blocks
+      ) {
+        return { ...prev, current: composition };
+      }
+      return { current: composition, past: [], future: [], mergeAt: 0 };
+    });
   }, [composition]);
 
-  const commit = (next: PromptComposition, mergeKey?: string) => {
-    const history = historyRef.current;
-    if (next === history.current) return;
+  const commit = useCallback((next: PromptComposition, mergeKey?: string) => {
+    setHistory((prev) => {
+      if (next === prev.current) return prev;
+      const now = Date.now();
+      const shouldMerge = Boolean(
+        mergeKey && prev.mergeKey === mergeKey && now - prev.mergeAt <= MERGE_WINDOW_MS,
+      );
+      const newPast = shouldMerge ? [...prev.past] : [...prev.past, prev.current];
+      if (newPast.length > MAX_HISTORY_ENTRIES) newPast.shift();
 
-    const now = Date.now();
-    const shouldMerge = Boolean(
-      mergeKey && history.mergeKey === mergeKey && now - history.mergeAt <= MERGE_WINDOW_MS,
-    );
-    if (!shouldMerge) {
-      history.past.push(history.current);
-      if (history.past.length > MAX_HISTORY_ENTRIES) history.past.shift();
-    }
-    history.current = next;
-    history.future = [];
-    history.mergeKey = mergeKey;
-    history.mergeAt = now;
-    onChange(next);
-    refresh();
-  };
+      onChange(next);
+      return {
+        current: next,
+        past: newPast,
+        future: [],
+        mergeKey,
+        mergeAt: now,
+      };
+    });
+  }, [onChange]);
 
-  const undo = () => {
-    const history = historyRef.current;
-    const previous = history.past.pop();
-    if (!previous) return;
-    history.future.push(history.current);
-    history.current = previous;
-    history.mergeKey = undefined;
-    onChange(previous);
-    refresh();
-  };
+  const undo = useCallback(() => {
+    setHistory((prev) => {
+      if (prev.past.length === 0) return prev;
+      const newPast = [...prev.past];
+      const previous = newPast.pop();
+      if (!previous) return prev;
 
-  const redo = () => {
-    const history = historyRef.current;
-    const next = history.future.pop();
-    if (!next) return;
-    history.past.push(history.current);
-    history.current = next;
-    history.mergeKey = undefined;
-    onChange(next);
-    refresh();
-  };
+      onChange(previous);
+      return {
+        current: previous,
+        past: newPast,
+        future: [...prev.future, prev.current],
+        mergeKey: undefined,
+        mergeAt: 0,
+      };
+    });
+  }, [onChange]);
+
+  const redo = useCallback(() => {
+    setHistory((prev) => {
+      if (prev.future.length === 0) return prev;
+      const newFuture = [...prev.future];
+      const next = newFuture.pop();
+      if (!next) return prev;
+
+      onChange(next);
+      return {
+        current: next,
+        past: [...prev.past, prev.current],
+        future: newFuture,
+        mergeKey: undefined,
+        mergeAt: 0,
+      };
+    });
+  }, [onChange]);
 
   return {
     commit,
     undo,
     redo,
-    canUndo: historyRef.current.past.length > 0,
-    canRedo: historyRef.current.future.length > 0,
+    canUndo: history.past.length > 0,
+    canRedo: history.future.length > 0,
   };
 }

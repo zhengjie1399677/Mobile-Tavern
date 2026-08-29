@@ -105,7 +105,7 @@ export function PromptComposerSelect({
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent align="start" className="z-[90] border border-border bg-popover p-1 shadow-xl">
+      <SelectContent portal={false} align="start" className="z-[90] border border-border bg-popover p-1 shadow-xl">
         {options.map((option) => (
           <SelectItem
             key={option.value || EMPTY_OPTION_VALUE}

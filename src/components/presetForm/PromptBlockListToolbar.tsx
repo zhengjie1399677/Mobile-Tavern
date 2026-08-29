@@ -27,8 +27,8 @@ export default function PromptBlockListToolbar(props: {
   const { t } = useTranslation();
   const hasSelection = props.selectedCount > 0;
   return (
-    <section className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
-      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px_150px]">
+    <section className="space-y-1.5 rounded-xl border border-border bg-muted/20 p-2">
+      <div className="space-y-1.5 sm:grid sm:grid-cols-[minmax(0,1fr)_140px_140px] sm:gap-1.5 sm:space-y-0">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <PromptComposerInput
@@ -36,29 +36,33 @@ export default function PromptBlockListToolbar(props: {
             onChange={(event) => props.onQueryChange(event.target.value)}
             placeholder={t("prompt_composer.list_search")}
             aria-label={t("prompt_composer.list_search")}
-            className="pl-8"
+            className="h-8 pl-8 text-xs"
           />
         </div>
-        <PromptComposerSelect
-          value={props.groupMode}
-          onValueChange={(value) => props.onGroupModeChange(value as PromptBlockGroupMode)}
-          ariaLabel={t("prompt_composer.list_group")}
-          options={[
-            { value: "none", label: t("prompt_composer.group_none") },
-            { value: "role", label: t("prompt_composer.group_role") },
-            { value: "source", label: t("prompt_composer.group_source") },
-            { value: "placement", label: t("prompt_composer.group_placement") },
-          ]}
-        />
-        <PromptComposerSelect
-          value={props.sortMode}
-          onValueChange={(value) => props.onSortModeChange(value as PromptBlockSortMode)}
-          ariaLabel={t("prompt_composer.list_sort")}
-          options={[
-            { value: "order", label: t("prompt_composer.sort_order") },
-            { value: "tokens", label: t("prompt_composer.sort_tokens") },
-          ]}
-        />
+        <div className="grid grid-cols-2 gap-1.5 sm:contents">
+          <PromptComposerSelect
+            value={props.groupMode}
+            onValueChange={(value) => props.onGroupModeChange(value as PromptBlockGroupMode)}
+            ariaLabel={t("prompt_composer.list_group")}
+            className="h-8"
+            options={[
+              { value: "none", label: t("prompt_composer.group_none") },
+              { value: "role", label: t("prompt_composer.group_role") },
+              { value: "source", label: t("prompt_composer.group_source") },
+              { value: "placement", label: t("prompt_composer.group_placement") },
+            ]}
+          />
+          <PromptComposerSelect
+            value={props.sortMode}
+            onValueChange={(value) => props.onSortModeChange(value as PromptBlockSortMode)}
+            ariaLabel={t("prompt_composer.list_sort")}
+            className="h-8"
+            options={[
+              { value: "order", label: t("prompt_composer.sort_order") },
+              { value: "tokens", label: t("prompt_composer.sort_tokens") },
+            ]}
+          />
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-muted-foreground">
         <span>{t("prompt_composer.list_stats", {

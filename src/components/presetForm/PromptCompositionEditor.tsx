@@ -22,7 +22,7 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import type { PromptBlock, PromptComposition } from "../../domain/prompt-composition";
 import type { PromptCompositionTemplateRecord } from "../../domain/prompt-composition";
@@ -123,6 +123,18 @@ export default function PromptCompositionEditor({
     () => validatePromptComposition(composition, { availableDataKeys: PROMPT_DATA_SOURCE_KEYS }),
     [composition]
   );
+  const diagnosticCountsByBlockId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const diagnostic of validationDiagnostics) {
+      if (diagnostic.blockId) {
+        map.set(diagnostic.blockId, (map.get(diagnostic.blockId) || 0) + 1);
+      }
+    }
+    return map;
+  }, [validationDiagnostics]);
+  const blockNamesById = useMemo(() => {
+    return new Map(composition.blocks.map((b) => [b.id, b.name]));
+  }, [composition.blocks]);
   const tokenByBlockId = useMemo(
     () => {
       const traced = new Map((preview?.traces ?? []).map((trace) => [trace.blockId, trace.estimatedTokens]));
@@ -238,13 +250,13 @@ export default function PromptCompositionEditor({
     });
   }, [composition, updateComposition]);
 
-  const moveBlock = (index: number, offset: -1 | 1) => {
+  const moveBlock = useCallback((index: number, offset: -1 | 1) => {
     const target = composition.blocks[index + offset];
     const source = composition.blocks[index];
     if (source && target) reorder(source.id, target.id);
-  };
+  }, [composition.blocks, reorder]);
 
-  const deleteBlock = async (id: string) => {
+  const deleteBlock = useCallback(async (id: string) => {
     if (!await showCustomConfirm(t("prompt_composer.confirm_delete"))) return;
     updateComposition(removePromptBlocks(composition, new Set([id])));
     setSelectedBlockIds((previous) => {
@@ -253,7 +265,20 @@ export default function PromptCompositionEditor({
       return next;
     });
     if (editingBlockId === id) setEditingBlockId(undefined);
-  };
+  }, [composition, editingBlockId, showCustomConfirm, t, updateComposition]);
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedBlockIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleEditBlock = useCallback((id: string) => {
+    setEditingBlockId(id);
+  }, []);
 
   useEffect(() => {
     const currentIds = new Set(composition.blocks.map((block) => block.id));
@@ -281,7 +306,7 @@ export default function PromptCompositionEditor({
     setEditingBlockId(duplicate.id);
   };
 
-  const handleDragStart = (event: ReactPointerEvent<HTMLButtonElement>, blockId: string) => {
+  const handleDragStart = useCallback((event: ReactPointerEvent<HTMLButtonElement>, blockId: string) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -295,7 +320,7 @@ export default function PromptCompositionEditor({
     const source = composition.blocks.find((block) => block.id === blockId);
     setDragAnnouncement(t("prompt_composer.drag_started", { name: source?.name ?? blockId }));
     setDragTargetId(blockId);
-  };
+  }, [composition.blocks, t]);
 
   const updateDragTarget = useCallback((pointerId: number, clientY: number) => {
     const drag = dragRef.current;
@@ -400,30 +425,30 @@ export default function PromptCompositionEditor({
         </div>
       </div>
 
-      {/* 极简状态栏与模式切换 */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 px-0.5 text-[10px] text-muted-foreground font-mono">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <SaveStatus state={saveState} lastSavedAt={lastSavedAt} t={t} />
-          {compatibilityCount > 0 && (
-            <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-sky-700 dark:text-sky-300 font-sans">
-              ST 兼容 {compatibilityCount} 项
-            </span>
-          )}
-        </div>
-        {!promptFocus.active && (
-          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5" role="group" aria-label={t("prompt_composer.mode")}>
-            <ModeButton active={!freeMode} onClick={() => setMode(false)}>{t("prompt_composer.legacy_mode")}</ModeButton>
-            <ModeButton active={freeMode} onClick={() => setMode(true)}>{t("prompt_composer.free_mode")}</ModeButton>
-          </div>
+      {/* 极简状态行 */}
+      <div className="flex items-center justify-between gap-2 px-1 text-[10px] text-muted-foreground font-mono">
+        <SaveStatus state={saveState} lastSavedAt={lastSavedAt} t={t} />
+        {compatibilityCount > 0 && (
+          <span className="rounded bg-sky-500/10 px-2 py-0.5 text-sky-700 dark:text-sky-300 font-sans">
+            ST 兼容 {compatibilityCount} 项
+          </span>
         )}
       </div>
+
+      {/* 全宽模式切换 */}
+      {!promptFocus.active && (
+        <div className="grid grid-cols-2 rounded-xl border border-border bg-muted/50 p-1 w-full" role="group" aria-label={t("prompt_composer.mode")}>
+          <ModeButton active={!freeMode} onClick={() => setMode(false)}>{t("prompt_composer.legacy_mode")}</ModeButton>
+          <ModeButton active={freeMode} onClick={() => setMode(true)}>{t("prompt_composer.free_mode")}</ModeButton>
+        </div>
+      )}
 
       {!freeMode && !promptFocus.active && <TraditionalPromptFlow />}
 
       {(freeMode || promptFocus.active) && (
         <>
-          <div className="space-y-2">
-            <div className="rounded-xl border border-border/80 bg-muted/20 p-2 space-y-2">
+          {(showAdvancedOptions || isWideWorkbench) && (
+            <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-2.5">
               <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-bold text-foreground">
                 <span className="flex items-center gap-1.5">
                   <Settings2 className="h-3.5 w-3.5 text-primary" />
@@ -493,11 +518,11 @@ export default function PromptCompositionEditor({
                 onChange={(next) => updateComposition(next, "scene-profiles")}
               />
             </div>
-          </div>
+          )}
 
           {/* 主工作区 */}
-          <div className={isWideWorkbench ? "grid grid-cols-[minmax(300px,0.85fr)_minmax(400px,1.15fr)] items-start gap-2 min-[1100px]:grid-cols-[minmax(300px,0.72fr)_minmax(340px,0.82fr)_minmax(420px,1fr)]" : "space-y-2.5"}>
-            <div className="space-y-2.5">
+          <div className={isWideWorkbench ? "grid grid-cols-[minmax(300px,0.85fr)_minmax(400px,1.15fr)] items-start gap-2 min-[1100px]:grid-cols-[minmax(300px,0.72fr)_minmax(340px,0.82fr)_minmax(420px,1fr)]" : "space-y-2"}>
+            <div className="space-y-2">
               <PromptBlockListToolbar
                 query={blockQuery}
                 onQueryChange={setBlockQuery}
@@ -543,7 +568,7 @@ export default function PromptCompositionEditor({
                   {t("prompt_composer.empty_send_warning")}
                 </div>
               ) : (
-                <div ref={blockListRef} className="space-y-2">
+                <div ref={blockListRef} className="space-y-1.5">
                   {visibleBlockItems.length === 0 && (
                     <div className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">
                       {t("prompt_composer.list_empty")}
@@ -557,78 +582,33 @@ export default function PromptCompositionEditor({
                           <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[9px]">{group.items.length}</span>
                         </header>
                       )}
-              {group.items.map(({ block, index, estimatedTokens }) => {
-                const blockDiagnosticCount = validationDiagnostics.filter((diagnostic) => diagnostic.blockId === block.id).length;
-                const selected = selectedBlockIds.has(block.id);
-                return (
-                <article
-                  key={`${block.id}-${index}`}
-                  data-prompt-block-id={block.id}
-                  className={`relative grid min-h-[76px] grid-cols-[36px_32px_minmax(0,1fr)_40px] overflow-hidden rounded-xl border bg-background transition duration-150 ${selected ? "border-primary/70 ring-1 ring-primary/20" : dragTargetId === block.id && draggingId !== block.id ? "border-primary ring-2 ring-primary/20 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary" : blockDiagnosticCount > 0 ? "border-destructive/60" : "border-border"} ${draggingId === block.id ? "scale-[0.985] opacity-65 shadow-lg" : block.enabled ? "" : "opacity-55"}`}
-                >
-                  <PromptComposerButton
-                    type="button"
-                    aria-label={t("prompt_composer.drag_block", { name: block.name })}
-                    onPointerDown={(event) => blockSortMode === "order" && handleDragStart(event, block.id)}
-                    onPointerMove={(event) => updateDragTarget(event.pointerId, event.clientY)}
-                    onPointerUp={(event) => finishDrag(event.pointerId, true)}
-                    onPointerCancel={(event) => finishDrag(event.pointerId, false)}
-                    variant="ghost"
-                    disabled={blockSortMode !== "order"}
-                    className="h-full min-h-0 w-9 touch-none rounded-none border-0 border-r border-border px-0 text-muted-foreground shadow-none active:bg-muted"
-                  >
-                    <GripVertical className="h-4 w-4" />
-                  </PromptComposerButton>
-
-                  <PromptComposerButton
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setSelectedBlockIds((previous) => {
-                      const next = new Set(previous);
-                      if (next.has(block.id)) next.delete(block.id); else next.add(block.id);
-                      return next;
-                    })}
-                    aria-label={t(selected ? "prompt_composer.unselect_block" : "prompt_composer.select_block", { name: block.name })}
-                    className="h-full min-h-0 w-8 rounded-none border-0 border-r border-border px-0 text-muted-foreground shadow-none"
-                  >
-                    {selected ? <CheckSquare2 className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
-                  </PromptComposerButton>
-
-                  <PromptComposerButton
-                    type="button"
-                    aria-label={t("prompt_composer.edit_block", { name: block.name })}
-                    onClick={() => setEditingBlockId(block.id)}
-                    variant="ghost"
-                    className="h-full min-h-0 min-w-0 w-full justify-start overflow-hidden rounded-none border-0 p-3 text-left shadow-none hover:bg-muted/30 active:scale-100"
-                  >
-                    <div className="min-w-0 w-full overflow-hidden">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="w-5 shrink-0 font-mono text-[10px] text-muted-foreground">{index + 1}</span>
-                        <span className="min-w-0 flex-1 truncate text-xs font-semibold">{block.name}</span>
-                        <RoleBadge role={block.source.type === "chat_history" ? "history" : block.role} />
-                      </div>
-                      <div className="mt-2 flex min-w-0 gap-1 overflow-hidden pl-7 text-[9px] text-muted-foreground">
-                      <span className="max-w-[48%] min-w-0 truncate rounded bg-muted px-1.5 py-0.5">{describeSource(block, t)}</span>
-                      <span className="max-w-[48%] min-w-0 truncate rounded bg-muted px-1.5 py-0.5">{describePlacement(block, composition, t)}</span>
-                      {(block.condition || block.tokenPolicy) && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">{t("prompt_composer.advanced_active")}</span>}
-                      {block.compatibility && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-700 dark:text-sky-300">{block.compatibility.source}</span>}
-                      <span className="rounded bg-violet-500/15 px-1.5 py-0.5 font-mono text-violet-700 dark:text-violet-300">{estimatedTokens} T</span>
-                      {blockDiagnosticCount > 0 && <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-bold text-destructive">{t("prompt_composer.validation_badge", { count: String(blockDiagnosticCount) })}</span>}
-                      </div>
-                    </div>
-                  </PromptComposerButton>
-
-                  <div className="flex w-10 shrink-0 flex-col border-l border-border">
-                    <PromptComposerButton variant="ghost" size="icon-xs" disabled={blockSortMode !== "order" || index === 0} onClick={() => moveBlock(index, -1)} aria-label={t("prompt_composer.move_up")} className="h-auto min-h-0 flex-1 rounded-none border-0 shadow-none disabled:opacity-20"><ArrowUp className="h-3 w-3" /></PromptComposerButton>
-                    <PromptComposerButton variant="ghost" size="icon-xs" disabled={blockSortMode !== "order" || index === composition.blocks.length - 1} onClick={() => moveBlock(index, 1)} aria-label={t("prompt_composer.move_down")} className="h-auto min-h-0 flex-1 rounded-none border-x-0 border-y border-border shadow-none disabled:opacity-20"><ArrowDown className="h-3 w-3" /></PromptComposerButton>
-                    <PromptComposerButton variant="ghost" size="icon-xs" onClick={() => deleteBlock(block.id)} aria-label={t("prompt_composer.delete_block")} className="h-auto min-h-0 flex-1 rounded-none border-0 text-destructive shadow-none hover:bg-destructive/10"><Trash2 className="h-3 w-3" /></PromptComposerButton>
-                  </div>
-                </article>
-                );
-              })}
-                </section>
-              ))}
-            </div>
+                      {group.items.map(({ block, index, estimatedTokens }) => (
+                        <PromptBlockItemRow
+                          key={block.id}
+                          block={block}
+                          index={index}
+                          totalBlocks={composition.blocks.length}
+                          estimatedTokens={estimatedTokens}
+                          diagnosticCount={diagnosticCountsByBlockId.get(block.id) || 0}
+                          selected={selectedBlockIds.has(block.id)}
+                          isDragging={draggingId === block.id}
+                          isDragTarget={dragTargetId === block.id}
+                          isOrderSort={blockSortMode === "order"}
+                          targetPlacementName={block.placement.type === "ordered" ? undefined : blockNamesById.get(block.placement.historyBlockId || "")}
+                          onToggleSelect={handleToggleSelect}
+                          onEdit={handleEditBlock}
+                          onMove={moveBlock}
+                          onDelete={deleteBlock}
+                          onDragStart={handleDragStart}
+                          onDragMove={(e) => updateDragTarget(e.pointerId, e.clientY)}
+                          onDragEnd={(pointerId) => finishDrag(pointerId, true)}
+                          onDragCancel={(pointerId) => finishDrag(pointerId, false)}
+                          t={t}
+                        />
+                      ))}
+                    </section>
+                  ))}
+                </div>
               )}
 
               <p className="sr-only" role="status" aria-live="assertive">{dragAnnouncement}</p>
@@ -864,11 +844,121 @@ function describeSource(block: PromptBlock, t: (key: string, params?: Record<str
   return t("prompt_composer.all_messages");
 }
 
-function describePlacement(block: PromptBlock, composition: PromptComposition, t: (key: string, params?: Record<string, string>) => string): string {
-  if (block.placement.type === "ordered") return t("prompt_composer.ordered");
-  const placement = block.placement;
-  const target = composition.blocks.find((candidate) => candidate.id === placement.historyBlockId)?.name;
-  return target
-    ? t("prompt_composer.depth_target", { depth: String(placement.depth), target })
-    : t("prompt_composer.depth_all", { depth: String(placement.depth) });
+interface PromptBlockItemRowProps {
+  block: PromptBlock;
+  index: number;
+  totalBlocks: number;
+  estimatedTokens: number;
+  diagnosticCount: number;
+  selected: boolean;
+  isDragging: boolean;
+  isDragTarget: boolean;
+  isOrderSort: boolean;
+  targetPlacementName?: string;
+  onToggleSelect: (id: string) => void;
+  onEdit: (id: string) => void;
+  onMove: (index: number, offset: -1 | 1) => void;
+  onDelete: (id: string) => void;
+  onDragStart: (event: ReactPointerEvent<HTMLButtonElement>, id: string) => void;
+  onDragMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onDragEnd: (pointerId: number) => void;
+  onDragCancel: (pointerId: number) => void;
+  t: (key: string, params?: Record<string, string>) => string;
 }
+
+const PromptBlockItemRow = memo(function PromptBlockItemRow({
+  block,
+  index,
+  totalBlocks,
+  estimatedTokens,
+  diagnosticCount,
+  selected,
+  isDragging,
+  isDragTarget,
+  isOrderSort,
+  targetPlacementName,
+  onToggleSelect,
+  onEdit,
+  onMove,
+  onDelete,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  onDragCancel,
+  t,
+}: PromptBlockItemRowProps) {
+  const placementText = block.placement.type === "ordered"
+    ? t("prompt_composer.ordered")
+    : targetPlacementName
+      ? t("prompt_composer.depth_target", { depth: String(block.placement.depth), target: targetPlacementName })
+      : t("prompt_composer.depth_all", { depth: String(block.placement.depth) });
+
+  return (
+    <article
+      data-prompt-block-id={block.id}
+      className={`relative grid min-h-[58px] grid-cols-[36px_32px_minmax(0,1fr)_40px] overflow-hidden rounded-xl border bg-background transition duration-100 ${
+        selected
+          ? "border-primary/70 ring-1 ring-primary/20"
+          : isDragTarget && !isDragging
+            ? "border-primary ring-2 ring-primary/20 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary"
+            : diagnosticCount > 0
+              ? "border-destructive/60"
+              : "border-border"
+      } ${isDragging ? "scale-[0.985] opacity-65 shadow-lg" : block.enabled ? "" : "opacity-50"}`}
+    >
+      <PromptComposerButton
+        type="button"
+        aria-label={t("prompt_composer.drag_block", { name: block.name })}
+        onPointerDown={(event) => isOrderSort && onDragStart(event, block.id)}
+        onPointerMove={onDragMove}
+        onPointerUp={(event) => onDragEnd(event.pointerId)}
+        onPointerCancel={(event) => onDragCancel(event.pointerId)}
+        variant="ghost"
+        disabled={!isOrderSort}
+        className="h-full min-h-0 w-9 touch-none rounded-none border-0 border-r border-border px-0 text-muted-foreground shadow-none active:bg-muted"
+      >
+        <GripVertical className="h-4 w-4" />
+      </PromptComposerButton>
+
+      <PromptComposerButton
+        type="button"
+        variant="ghost"
+        onClick={() => onToggleSelect(block.id)}
+        aria-label={t(selected ? "prompt_composer.unselect_block" : "prompt_composer.select_block", { name: block.name })}
+        className="h-full min-h-0 w-8 rounded-none border-0 border-r border-border px-0 text-muted-foreground shadow-none"
+      >
+        {selected ? <CheckSquare2 className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+      </PromptComposerButton>
+
+      <PromptComposerButton
+        type="button"
+        aria-label={t("prompt_composer.edit_block", { name: block.name })}
+        onClick={() => onEdit(block.id)}
+        variant="ghost"
+        className="h-full min-h-0 min-w-0 w-full justify-start overflow-hidden rounded-none border-0 p-2.5 text-left shadow-none hover:bg-muted/30 active:scale-100"
+      >
+        <div className="min-w-0 w-full overflow-hidden">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="w-5 shrink-0 font-mono text-[10px] text-muted-foreground">{index + 1}</span>
+            <span className="min-w-0 flex-1 truncate text-xs font-semibold">{block.name}</span>
+            <RoleBadge role={block.source.type === "chat_history" ? "history" : block.role} />
+          </div>
+          <div className="mt-1 flex min-w-0 gap-1 overflow-hidden pl-6 text-[9px] text-muted-foreground">
+            <span className="max-w-[48%] min-w-0 truncate rounded bg-muted px-1.5 py-0.5">{describeSource(block, t)}</span>
+            <span className="max-w-[48%] min-w-0 truncate rounded bg-muted px-1.5 py-0.5">{placementText}</span>
+            {(block.condition || block.tokenPolicy) && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">{t("prompt_composer.advanced_active")}</span>}
+            {block.compatibility && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-700 dark:text-sky-300">{block.compatibility.source}</span>}
+            <span className="rounded bg-violet-500/15 px-1.5 py-0.5 font-mono text-violet-700 dark:text-violet-300">{estimatedTokens} T</span>
+            {diagnosticCount > 0 && <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-bold text-destructive">{t("prompt_composer.validation_badge", { count: String(diagnosticCount) })}</span>}
+          </div>
+        </div>
+      </PromptComposerButton>
+
+      <div className="flex w-9 shrink-0 flex-col border-l border-border">
+        <PromptComposerButton variant="ghost" size="icon-xs" disabled={!isOrderSort || index === 0} onClick={() => onMove(index, -1)} aria-label={t("prompt_composer.move_up")} className="h-auto min-h-0 flex-1 rounded-none border-0 shadow-none disabled:opacity-20"><ArrowUp className="h-3 w-3" /></PromptComposerButton>
+        <PromptComposerButton variant="ghost" size="icon-xs" disabled={!isOrderSort || index === totalBlocks - 1} onClick={() => onMove(index, 1)} aria-label={t("prompt_composer.move_down")} className="h-auto min-h-0 flex-1 rounded-none border-x-0 border-y border-border shadow-none disabled:opacity-20"><ArrowDown className="h-3 w-3" /></PromptComposerButton>
+        <PromptComposerButton variant="ghost" size="icon-xs" onClick={() => onDelete(block.id)} aria-label={t("prompt_composer.delete_block")} className="h-auto min-h-0 flex-1 rounded-none border-0 text-destructive shadow-none hover:bg-destructive/10"><Trash2 className="h-3 w-3" /></PromptComposerButton>
+      </div>
+    </article>
+  );
+});
