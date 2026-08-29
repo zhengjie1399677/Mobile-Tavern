@@ -106,7 +106,13 @@ export function validatePromptComposition(
 
     if (available) {
       for (const key of collectPromptBlockDataKeys(block)) {
-        if (key === "chat.history" || available.has(key)) continue;
+        if (
+          key === "chat.history" ||
+          available.has(key) ||
+          key.includes("::") ||
+          key.startsWith("//") ||
+          /^(trim|date|time|datetime|char_version|model|guid|random|noop|newline)$/i.test(key)
+        ) continue;
         diagnostics.push({
           level: "error",
           code: "UNAVAILABLE_DATA_SOURCE",

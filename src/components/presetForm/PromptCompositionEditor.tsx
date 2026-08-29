@@ -350,7 +350,7 @@ export default function PromptCompositionEditor({
     (composition.compatibility?.preservedRootFields ? Object.keys(composition.compatibility.preservedRootFields).length : 0);
 
   return (
-    <section className={`rounded-xl border border-primary/25 bg-primary/5 ${isWideWorkbench ? "space-y-2 p-2" : "space-y-3 p-3"}`}>
+    <section className={`w-full max-w-full min-w-0 overflow-hidden rounded-xl border border-primary/25 bg-primary/5 ${isWideWorkbench ? "space-y-2 p-2" : "space-y-3 p-3"}`}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-bold">{t("prompt_composer.title")}</div>
@@ -487,22 +487,25 @@ export default function PromptCompositionEditor({
               />
 
               {validationDiagnostics.length > 0 && (
-                <section className="space-y-1.5 rounded-xl border border-destructive/30 bg-destructive/5 p-3" aria-live="polite">
-                  <div className="flex items-center gap-2 text-xs font-bold text-destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    {t("prompt_composer.validation_title", { count: String(validationDiagnostics.length) })}
+                <section className="space-y-1.5 rounded-xl border border-destructive/30 bg-destructive/5 p-3 min-w-0 max-w-full overflow-hidden" aria-live="polite">
+                  <div className="flex items-center gap-2 text-xs font-bold text-destructive min-w-0 truncate">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{t("prompt_composer.validation_title", { count: String(validationDiagnostics.length) })}</span>
                   </div>
-                  {validationDiagnostics.map((diagnostic, index) => (
-                    <PromptComposerButton
-                      type="button"
-                      key={`${diagnostic.code}-${diagnostic.blockId ?? "root"}-${index}`}
-                      onClick={() => diagnostic.blockId && setEditingBlockId(diagnostic.blockId)}
-                      variant="ghost"
-                      className="block h-auto min-h-7 w-full justify-start rounded-md px-1 py-0.5 text-left text-[10px] leading-relaxed text-destructive/90 shadow-none hover:bg-destructive/10"
-                    >
-                      <code className="mr-1 font-bold">{diagnostic.code}</code>{diagnostic.message}
-                    </PromptComposerButton>
-                  ))}
+                  <div className="max-h-48 overflow-y-auto space-y-1 pr-1 min-w-0 max-w-full">
+                    {validationDiagnostics.map((diagnostic, index) => (
+                      <PromptComposerButton
+                        type="button"
+                        key={`${diagnostic.code}-${diagnostic.blockId ?? "root"}-${index}`}
+                        onClick={() => diagnostic.blockId && setEditingBlockId(diagnostic.blockId)}
+                        variant="ghost"
+                        className="flex h-auto min-h-7 w-full min-w-0 max-w-full justify-start rounded-md px-1.5 py-1 text-left text-[10px] leading-relaxed text-destructive/90 shadow-none hover:bg-destructive/10 break-all"
+                      >
+                        <code className="mr-1 font-bold font-mono shrink-0">{diagnostic.code}</code>
+                        <span className="min-w-0 break-all">{diagnostic.message}</span>
+                      </PromptComposerButton>
+                    ))}
+                  </div>
                 </section>
               )}
 

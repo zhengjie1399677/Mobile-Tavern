@@ -558,8 +558,8 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
       className="chat-composer-shell z-10 flex shrink-0 flex-col items-center gap-2 px-3 pt-2.5"
     >
       {showQuickActions && (
-        <div className="chat-composer-popover flex w-full max-w-3xl items-center justify-between rounded-2xl px-2 py-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="flex items-center gap-3">
+        <div className="chat-composer-popover flex w-full max-w-3xl items-center justify-between rounded-xl px-2 py-1 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => handleRerollLast()}
@@ -569,7 +569,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
                 !Array.isArray(activeSession.messages) ||
                 !activeSession.messages.some((m: Message) => m.sender === "assistant")
               }
-              className="flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
+              className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
               title="消除整条故事分支的最后一条AI回复并进行重新生成"
             >
               <RefreshCw
@@ -581,7 +581,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               type="button"
               onClick={() => handleSendMessage(t("chat_input.continue"))}
               disabled={isSending || !activeSession}
-              className="flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
+              className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
               title={`替用户发送"继续"以继续当前剧情`}
             >
               <Play className="w-3.5 h-3.5" />
@@ -591,7 +591,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
 
           <div
             aria-hidden="true"
-            className="flex items-center gap-1.5 text-muted-foreground font-mono text-[9px] opacity-75"
+            className="flex items-center gap-1.5 pr-1 text-muted-foreground font-mono text-[9px] opacity-75"
           >
             <Cpu className="w-3 h-3" />
             <span>

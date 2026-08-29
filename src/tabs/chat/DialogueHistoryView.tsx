@@ -335,27 +335,6 @@ const DialogueHistoryView = ({
           })}
         </div>}
 
-        {/* Typing Indicator */}
-        {isSending && (
-          <div className="ml-10 flex w-fit items-center gap-2 rounded-2xl rounded-tl-md border border-border/35 bg-card/55 px-3 py-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1" aria-hidden="true">
-              <span
-                className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce"
-                style={{ animationDelay: "0ms" }}
-              ></span>
-              <span
-                className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce"
-                style={{ animationDelay: "150ms" }}
-              ></span>
-              <span
-                className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce"
-                style={{ animationDelay: "300ms" }}
-              ></span>
-            </div>
-            <span>{activeCharacter?.name} 正在回应…</span>
-          </div>
-        )}
-
         {isSummarizing && (
           <div className="flex items-center gap-2 text-xs text-primary italic pl-5 py-1 animate-pulse">
             <Brain className="w-3.5 h-3.5 text-primary shrink-0" />
