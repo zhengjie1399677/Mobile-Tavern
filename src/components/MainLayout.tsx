@@ -71,9 +71,21 @@ export default function MainLayout() {
     showSessionManager: state.showSessionManager,
   }));
   const { t } = useTranslation();
-  // Suspense 在新的懒加载页就绪前继续渲染上一个已完成页面，避免快速分包加载时
-  // 局部 loading 转圈闪现；底栏仍立即使用 activeTab 提供触控反馈。
-  const deferredActiveTab = React.useDeferredValue(activeTab);
+  // 已激活过的 Tab 集合，用于 Keep-Alive 离屏保活。
+  // 首次访问按需触发代码分块下载与挂载，之后保持挂载并通过 CSS display: none 切换，
+  // 避免高频来回切换时的重复 Unmount / 销毁重绘与滚动丢失。
+  const [mountedTabIds, setMountedTabIds] = React.useState<Set<string>>(
+    () => new Set([activeTab]),
+  );
+
+  React.useEffect(() => {
+    setMountedTabIds((prev) => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
 
   const appViewportRef = React.useRef<HTMLDivElement>(null);
   const [promptFocusActive, setPromptFocusActive] = React.useState(false);
@@ -191,7 +203,7 @@ export default function MainLayout() {
     if (tabs.length > 0 && !tabs.some((tab) => tab.id === activeTab)) {
       setActiveTab("characters");
     }
-  }, [activeTab, registeredTabIds, setActiveTab, tabs]);
+  }, [activeTab, registeredTabIds, setActiveTab]);
 
   const isActive = (tab: IExtension<React.ComponentType<Record<string, unknown>>>) => {
     if (tab.meta?.highlightOnActiveTabs) {
@@ -266,29 +278,41 @@ export default function MainLayout() {
         <div
           data-ui="main-tab-content"
           data-active-tab={activeTab}
-          aria-busy={deferredActiveTab !== activeTab}
-          style={activeTab !== "chat" && activeTab !== "playground" && !promptFocusActive ? {
-            paddingBottom: `${54 + (safeAreas?.bottom ?? 0)}px`
-          } : undefined}
-          className={`flex-1 relative ${activeTab === "chat" || activeTab === "playground" || promptFocusActive
-              ? "flex flex-col min-h-0 pb-0 overflow-hidden"
-              : "overflow-y-auto"
-            }`}
+          className="flex-1 relative flex flex-col min-h-0 overflow-hidden"
         >
-          {tabs.map(tab => {
-            if (deferredActiveTab !== tab.id) return null;
+          {tabs.map((tab) => {
+            if (!mountedTabIds.has(tab.id)) return null;
+            const isCurrent = activeTab === tab.id;
             const Comp = tab.value;
-            if (tab.id === "playground") {
-              return (
-                <Suspense key={tab.id} fallback={<TabLoadingFallback />}>
-                  <Comp onBack={() => setActiveTab("settings")} />
-                </Suspense>
-              );
-            }
+            const isFullScreenTab = tab.id === "chat" || tab.id === "playground" || promptFocusActive;
+
             return (
-              <Suspense key={tab.id} fallback={<TabLoadingFallback />}>
-                <Comp />
-              </Suspense>
+              <div
+                key={tab.id}
+                role="tabpanel"
+                id={`main-tabpanel-${tab.id}`}
+                aria-labelledby={`main-tab-${tab.id}`}
+                aria-hidden={!isCurrent}
+                style={{
+                  display: isCurrent ? undefined : "none",
+                  paddingBottom: !isFullScreenTab && activeTab !== "chat" && activeTab !== "playground" && !promptFocusActive
+                    ? `${54 + (safeAreas?.bottom ?? 0)}px`
+                    : undefined,
+                }}
+                className={`w-full h-full ${
+                  isFullScreenTab
+                    ? "flex flex-col min-h-0 pb-0 overflow-hidden"
+                    : "overflow-y-auto flex-1"
+                }`}
+              >
+                <Suspense fallback={<TabLoadingFallback />}>
+                  {tab.id === "playground" ? (
+                    <Comp onBack={() => setActiveTab("settings")} />
+                  ) : (
+                    <Comp />
+                  )}
+                </Suspense>
+              </div>
             );
           })}
         </div>

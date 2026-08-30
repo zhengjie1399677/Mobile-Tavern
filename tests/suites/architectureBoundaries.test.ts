@@ -517,9 +517,9 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "主功能页必须使用局部加载态承接首次代码分块加载"
   );
   assert(
-    /useDeferredValue\(activeTab\)/.test(mainLayout) &&
-      /deferredActiveTab\s*!==\s*tab\.id/.test(mainLayout),
-    "主功能页必须在新分块就绪前保留已完成页面，避免短时 loading 动画闪烁"
+    /mountedTabIds/.test(mainLayout) &&
+      /role="tabpanel"/.test(mainLayout),
+    "主功能页必须采用已访问页签离屏保活机制，避免重复销毁重构"
   );
   const appContext = read("src/contexts/AppContext.tsx");
   assert(

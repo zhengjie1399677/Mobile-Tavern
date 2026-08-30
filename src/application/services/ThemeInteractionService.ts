@@ -109,15 +109,24 @@ export class ThemeInteractionService implements IThemeInteractionService {
   }
 
   setEnvironment(patch: Partial<ThemeInteractionEnvironment>): void {
-    this.environment = { ...this.environment, ...patch };
+    const nextEnv = { ...this.environment, ...patch };
+    const envChanged = (Object.keys(nextEnv) as Array<keyof ThemeInteractionEnvironment>).some(
+      key => this.environment[key] !== nextEnv[key],
+    );
+    if (!envChanged) return;
+    this.environment = nextEnv;
     const mediaAllowed = this.environment.mediaEnabled && this.environment.appVisible;
-    const media = Object.fromEntries(Object.entries(this.snapshot.media).map(([id, runtime]) => [
-      id,
-      mediaAllowed || runtime.status !== "playing"
-        ? runtime
-        : { ...runtime, status: "paused" as const },
-    ]));
-    this.commit({ mediaEnabled: this.environment.mediaEnabled, media });
+    let mediaChanged = this.snapshot.mediaEnabled !== this.environment.mediaEnabled;
+    const media = Object.fromEntries(Object.entries(this.snapshot.media).map(([id, runtime]) => {
+      if (!mediaAllowed && runtime.status === "playing") {
+        mediaChanged = true;
+        return [id, { ...runtime, status: "paused" as const }];
+      }
+      return [id, runtime];
+    }));
+    if (mediaChanged) {
+      this.commit({ mediaEnabled: this.environment.mediaEnabled, media });
+    }
   }
 
   dispatch(event: ThemeInteractionEvent): void {

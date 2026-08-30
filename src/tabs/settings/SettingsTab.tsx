@@ -32,15 +32,15 @@ import {
 import { verifyCommunityAdmin } from "../../domain/community/api";
 
 const PresetForm = React.lazy(() => import("../../components/PresetForm"));
-const GeneralConfigSection = React.lazy(() => import("./GeneralConfigSection"));
-const ThemeConfigSection = React.lazy(() => import("./ThemeConfigSection"));
-const PersonaConfigSection = React.lazy(() => import("./PersonaConfigSection"));
+import GeneralConfigSection from "./GeneralConfigSection";
+import ThemeConfigSection from "./ThemeConfigSection";
+import PersonaConfigSection from "./PersonaConfigSection";
 const FeaturesSection = React.lazy(() => import("./FeaturesSection"));
-const MemoryStorageSection = React.lazy(() => import("./MemoryStorageSection"));
-const SystemReportSection = React.lazy(() => import("./sections/SystemReportSection"));
-const PluginManagerSection = React.lazy(() => import("../../components/plugins/PluginManagerSection"));
-const ToolPluginManagerSection = React.lazy(() => import("../../components/plugins/ToolPluginManagerSection"));
-const RuntimeProfileManagerSection = React.lazy(() => import("../../components/plugins/RuntimeProfileManagerSection"));
+import MemoryStorageSection from "./MemoryStorageSection";
+import SystemReportSection from "./sections/SystemReportSection";
+import PluginManagerSection from "../../components/plugins/PluginManagerSection";
+import ToolPluginManagerSection from "../../components/plugins/ToolPluginManagerSection";
+import RuntimeProfileManagerSection from "../../components/plugins/RuntimeProfileManagerSection";
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
 interface TauriWindow extends Window {

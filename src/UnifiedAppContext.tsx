@@ -1,4 +1,5 @@
-import React, { useSyncExternalStore, useCallback } from "react";
+import React, { useCallback } from "react";
+import { useSyncExternalStoreWithSelector } from "use-sync-external-store/shim/with-selector";
 import {
   CharacterCard,
   ChatMessageHydrationStatus,
@@ -236,7 +237,7 @@ function createStore<T>(initialState: T) {
 
   const getState = () => state;
 
-  const setState = (nextState: T) => {
+  const setState = (nextState: Partial<T>) => {
     let hasChanged = false;
     for (const key in nextState) {
       if (nextState[key] !== state[key]) {
@@ -245,7 +246,7 @@ function createStore<T>(initialState: T) {
       }
     }
     if (hasChanged) {
-      state = nextState;
+      state = { ...state, ...nextState };
       listeners.forEach((l) => l());
     }
   };
@@ -259,29 +260,12 @@ function createStore<T>(initialState: T) {
   };
 
   function useStore<SelectorOutput>(selector: (state: T) => SelectorOutput): SelectorOutput {
-    const lastStateRef = React.useRef<T | undefined>(undefined);
-    const lastResultRef = React.useRef<SelectorOutput | undefined>(undefined);
-    const hasInitRef = React.useRef(false);
-
-    const getSnapshot = React.useCallback(() => {
-      const currentState = state;
-      if (!hasInitRef.current || currentState !== lastStateRef.current) {
-        const nextResult = selector(currentState);
-        if (hasInitRef.current && shallowEqual(nextResult, lastResultRef.current)) {
-          lastStateRef.current = currentState;
-        } else {
-          lastStateRef.current = currentState;
-          lastResultRef.current = nextResult;
-          hasInitRef.current = true;
-        }
-      }
-      return lastResultRef.current as SelectorOutput;
-    }, [selector]);
-
-    return useSyncExternalStore(
+    return useSyncExternalStoreWithSelector(
       subscribe,
-      getSnapshot,
-      getSnapshot
+      getState,
+      getState,
+      selector,
+      shallowEqual,
     );
   }
 

@@ -55,9 +55,17 @@ export function ThemeInteractionHost({
     () => kernel.getService<ILocalResourceService>(KernelServices.LocalResources),
     [kernel],
   );
-  const snapshot = React.useSyncExternalStore(
-    listener => interactionService.subscribe(listener),
+  const subscribe = React.useCallback(
+    (listener: () => void) => interactionService.subscribe(listener),
+    [interactionService],
+  );
+  const getSnapshot = React.useCallback(
     () => interactionService.getSnapshot(),
+    [interactionService],
+  );
+  const snapshot = React.useSyncExternalStore(
+    subscribe,
+    getSnapshot,
     () => EMPTY_SNAPSHOT,
   );
   const [resourceUrls, setResourceUrls] = React.useState<Record<string, string>>({});
