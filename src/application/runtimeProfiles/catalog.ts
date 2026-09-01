@@ -114,7 +114,11 @@ export function buildRuntimeProfileDefinition(
       ...(compatibility
         ? [{ id: SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID, version: "1.0.0" }]
         : []),
-      { id: AGENT_SPINE_RUNTIME_PLUGIN_ID, version: "1.0.0" },
+      {
+        id: AGENT_SPINE_RUNTIME_PLUGIN_ID,
+        version: "1.0.0",
+        config: profile.agent,
+      },
     ],
     bindings: {
       "agent.driver": MOBILE_TAVERN_CHAT_DRIVER_ID,

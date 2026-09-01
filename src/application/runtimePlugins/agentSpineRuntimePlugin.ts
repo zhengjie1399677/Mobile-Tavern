@@ -1,5 +1,4 @@
 import type { AgentProviderDefinition } from "../../domain/agents/contracts";
-import { z } from "zod";
 import type {
   AsrConfig,
   IAgentRuntimeService,
@@ -34,6 +33,10 @@ import type {
   Message,
   SummaryCard,
 } from "../../types";
+import {
+  AGENT_PROFILE_SETTINGS_DECISION_ID,
+  runtimeProfileAgentSettingsSchema,
+} from "../runtimeProfiles/agentSettings";
 
 export const AGENT_SPINE_RUNTIME_PLUGIN_ID = "mobile-tavern.agent-spine";
 export const MOBILE_TAVERN_CHAT_DRIVER_ID = "mobile-tavern.chat.driver";
@@ -85,7 +88,7 @@ export const agentSpineRuntimePlugin = defineRuntimePlugin({
   id: AGENT_SPINE_RUNTIME_PLUGIN_ID,
   version: "1.0.0",
   requires: ["mobile-tavern.legacy-runtime"],
-  configSchema: z.undefined(),
+  configSchema: runtimeProfileAgentSettingsSchema.optional(),
   capabilitySlots: [
     AGENT_DRIVER_CAPABILITY,
     LLM_ROUTE_CAPABILITY,
@@ -100,7 +103,7 @@ export const agentSpineRuntimePlugin = defineRuntimePlugin({
     contributeRuntimeCapability(MEDIA_PROCESSOR_CAPABILITY, AUDIO_ASR_PROCESSOR_ID),
     contributeRuntimeCapability(MEDIA_PROCESSOR_CAPABILITY, VIDEO_KEYFRAME_PROCESSOR_ID),
   ],
-  setup({ kernel, scope, profile }): void {
+  setup({ kernel, scope, profile }, agentSettings): void {
     const runtime = kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
     scope.add(runtime.bindComposition({
       profileId: profile.profileId,
@@ -109,7 +112,9 @@ export const agentSpineRuntimePlugin = defineRuntimePlugin({
       providerBindings: { ...profile.providerBindings },
       contributionOrder: Object.fromEntries(Object.entries(profile.contributionOrder)
         .map(([slotId, ids]) => [slotId, [...ids]])),
-      capabilityDecisions: {},
+      capabilityDecisions: agentSettings
+        ? { [AGENT_PROFILE_SETTINGS_DECISION_ID]: agentSettings }
+        : {},
     }));
     scope.add(runtime.registerDriver({
       id: MOBILE_TAVERN_CHAT_DRIVER_ID,

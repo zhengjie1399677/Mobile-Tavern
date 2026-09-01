@@ -69,6 +69,29 @@ describe("RuntimeProfileService", () => {
     ]);
   });
 
+  it("编辑自定义 Agent 粘合配置时递增版本并保持内置 Profile 只读", () => {
+    const service = new RuntimeProfileService();
+    const copied = service.copyProfile(BUILTIN_BASE_PROFILE_ID, "可编辑 Agent");
+    const updated = service.updateAgentSettings(copied.id, {
+      characterId: "character-guide",
+      toolMounts: [{ name: "character.read", version: "1.0.0" }],
+      promptPresetId: "preset-guide",
+      sampling: {
+        temperature: 0.6,
+        topP: 0.9,
+        topK: 40,
+        repetitionPenalty: 1.05,
+        maxTokens: 800,
+      },
+    });
+
+    expect(updated.version).toBe(2);
+    expect(readRuntimeProfilePreferences().state.customProfiles[0].agent).toEqual(updated.agent);
+    expect(() => service.updateAgentSettings(BUILTIN_BASE_PROFILE_ID, {
+      toolMounts: [],
+    })).toThrow(`RUNTIME_PROFILE_NOT_EDITABLE: ${BUILTIN_BASE_PROFILE_ID}`);
+  });
+
   it("删除当前自定义 Profile 时回退 Tavern Agent，不留下悬空选择", () => {
     const service = new RuntimeProfileService();
     const copied = service.copyProfile(BUILTIN_BASE_PROFILE_ID, "临时 Profile");

@@ -5,6 +5,7 @@ import {
   type IDatabaseService,
   type IKernel,
   type IScriptService,
+  type IToolPluginRuntimeService,
   KernelServices,
 } from "../serviceContracts";
 import { CharacterCard, ChatSession, ChatSessionMetadataPatch, Message } from "../../types";
@@ -686,9 +687,13 @@ export class DatabaseService implements IDatabaseService<
 
   private getAgentCompositionSnapshot(): ChatSession["compositionSnapshot"] {
     if (!this.kernel.hasService(KernelServices.AgentRuntime)) return undefined;
-    return this.kernel
+    const snapshot = this.kernel
       .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
       .getCompositionSnapshot() ?? undefined;
+    if (!snapshot || !this.kernel.hasService(KernelServices.ToolConnectors)) return snapshot;
+    return this.kernel
+      .getService<IToolPluginRuntimeService>(KernelServices.ToolConnectors)
+      .extendComposition(snapshot);
   }
 
   private getCompatibilityRuntime(): ICompatibilityRuntimeService | null {

@@ -34,6 +34,7 @@ import { preserveAssistantReasoning } from "../../application/services/llmCompat
 import { resolveBuiltinProviderId } from "../../application/runtimePlugins/agentSpineRuntimePlugin";
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
+import { resolveAgentSessionSettings } from "../../application/useCases/resolveAgentSessionSettings";
 
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
@@ -106,6 +107,21 @@ export function useRerollMessage(p: RerollMessageParams) {
 
     if (!targetMsg?.id || !p.activeCharacter || !currentSession) return;
 
+    let effectiveSettings: UserSettings;
+    try {
+      effectiveSettings = resolveAgentSessionSettings(
+        p.settings,
+        currentSession.compositionSnapshot,
+      );
+    } catch (error: unknown) {
+      await p.showCustomAlert(
+        error instanceof Error && error.message.startsWith("AGENT_PROMPT_PRESET_NOT_FOUND")
+          ? "此会话固定使用的行为预设已不存在，请恢复该预设或新建 Agent 会话。"
+          : "此会话的 Agent 行为快照无效，已停止重发以避免静默改用其他配置。",
+      );
+      return;
+    }
+
     // 立即锁定发送状态（防止异步弹窗与后续重复点击导致竞争）
     p.isSendingRef.current = true;
     p.setIsSending(true);
@@ -114,7 +130,7 @@ export function useRerollMessage(p: RerollMessageParams) {
     // API 参数解析（试用 / 正式 Key 选择）：收口到 resolveApiCredentials helper
     let creds: ResolvedApiCredentials;
     try {
-      creds = resolveApiCredentials(p.settings, { requireModel: true });
+      creds = resolveApiCredentials(effectiveSettings, { requireModel: true });
     } catch (e) {
       if (e instanceof TrialExhaustedError) {
         await p.showCustomAlert("💡 您的 10 次公共免 Key 体验次数已用完，请前往\"设置 -> API配置\"中填写您自己的 API Key。");
@@ -180,7 +196,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       return;
     }
 
-    const modelToReport = p.settings.api.apiKey ? (p.settings.api.modelName || FALLBACK_MODEL) : "openrouter/free";
+    const modelToReport = effectiveSettings.api.apiKey ? (effectiveSettings.api.modelName || FALLBACK_MODEL) : "openrouter/free";
     p.telemetryService.reportUsage("regenerate_message", { modelName: modelToReport, characterName: p.activeCharacter.name, traceId });
 
     const removedMessageIds = rawMessages.slice(nextMsgsIdx).map((message) => message.id);
@@ -289,8 +305,8 @@ export function useRerollMessage(p: RerollMessageParams) {
       let recalledMemories: RecalledMessage[] = [];
       try {
         const memoryService = p.kernel.getService<MemoryServiceTyped>("memory");
-        if (memoryService && p.settings.memory?.enableRecall !== false) {
-          const recallTopK = p.settings.memory?.recallTopK ?? 3;
+        if (memoryService && effectiveSettings.memory?.enableRecall !== false) {
+          const recallTopK = effectiveSettings.memory?.recallTopK ?? 3;
           recalledMemories = await recallWithTimeout(
             memoryService.getRecall().recall(
               updatedSession.id,
@@ -300,7 +316,7 @@ export function useRerollMessage(p: RerollMessageParams) {
                 currentTurnIndex: targetMsg.turnIndex ?? nextMsgsIdx,
               }
             ),
-            p.settings.memory?.recallTimeoutMs,
+            effectiveSettings.memory?.recallTimeoutMs,
             "useRerollMessage"
           );
         }
@@ -314,7 +330,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         character: p.activeCharacter!,
         session: updatedSession,
         userInput: lastUserText,
-        settings: p.settings,
+        settings: effectiveSettings,
         globalLorebook: combinedGlobals,
         recalledMemories,
         beforeMessageId: targetMsg.id,
@@ -367,7 +383,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         session: updatedSession,
         query: lastUserText,
         recalled: recalledMemories,
-        settings: p.settings,
+        settings: effectiveSettings,
         traces: promptPayload.traces,
         estimateTokens: (content) => p.promptService.estimateTokens(content),
       });
@@ -399,14 +415,14 @@ export function useRerollMessage(p: RerollMessageParams) {
           }),
           messages: providerMessages,
           ...(promptPayload.stopSequences?.length ? { stop: promptPayload.stopSequences } : {}),
-          temperature: p.settings.preset.temperature,
-          top_p: p.settings.preset.topP,
-          top_k: p.settings.preset.topK,
-          min_p: p.settings.preset.minP,
-          max_tokens: p.settings.preset.maxTokens,
-          presence_penalty: p.settings.preset.presencePenalty ?? 0.0,
-          frequency_penalty: p.settings.preset.frequencyPenalty ?? 0.0,
-          repetition_penalty: p.settings.preset.repetitionPenalty ?? 1.0,
+          temperature: effectiveSettings.preset.temperature,
+          top_p: effectiveSettings.preset.topP,
+          top_k: effectiveSettings.preset.topK,
+          min_p: effectiveSettings.preset.minP,
+          max_tokens: effectiveSettings.preset.maxTokens,
+          presence_penalty: effectiveSettings.preset.presencePenalty ?? 0.0,
+          frequency_penalty: effectiveSettings.preset.frequencyPenalty ?? 0.0,
+          repetition_penalty: effectiveSettings.preset.repetitionPenalty ?? 1.0,
         },
         signal: controller.signal,
         traceId,
@@ -496,7 +512,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           session: trueFinalSession,
           responseText: extractThinkContent(responseChunks.join("").trim(), reasoningChunks.join("").trim(), false).content,
           reasoningText: extractThinkContent(responseChunks.join("").trim(), reasoningChunks.join("").trim(), false).reasoningContent || "",
-          settings: p.settings,
+          settings: effectiveSettings,
           activeCharacter: p.activeCharacter!,
           controller,
           isStillActive,
@@ -570,7 +586,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: parsed.content, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: effectiveSettings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
           } else {
             await persistRerollSession(trueFinalSession);
           }
@@ -588,7 +604,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: effectiveSettings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
           } else {
             await persistRerollSession(trueFinalSession);
           }

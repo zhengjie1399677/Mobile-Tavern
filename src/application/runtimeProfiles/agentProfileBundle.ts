@@ -4,6 +4,10 @@ import type {
   RuntimeProfileSamplingSettings,
   RuntimeProfileToolMount,
 } from "./contracts";
+import {
+  runtimeProfileSamplingSchema,
+  runtimeProfileToolMountSchema,
+} from "./agentSettings";
 
 export const AGENT_PROFILE_BUNDLE_KIND = "mobile-tavern.agent-profile";
 export const AGENT_PROFILE_BUNDLE_SCHEMA_VERSION = 1;
@@ -13,22 +17,6 @@ const RUNTIME_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,127}$/;
 const resourceReferenceSchema = z.object({
   id: z.string().regex(RUNTIME_ID_PATTERN),
   name: z.string().trim().min(1).max(120),
-}).strict();
-
-const toolMountSchema = z.object({
-  name: z.string().regex(RUNTIME_ID_PATTERN),
-  version: z.string().trim().min(1).max(64).optional(),
-}).strict();
-
-const samplingSchema = z.object({
-  temperature: z.number().finite().min(0).max(5),
-  topP: z.number().finite().min(0).max(1),
-  topK: z.number().int().min(0).max(1000),
-  repetitionPenalty: z.number().finite().min(0).max(5),
-  frequencyPenalty: z.number().finite().min(-2).max(2).optional(),
-  presencePenalty: z.number().finite().min(-2).max(2).optional(),
-  minP: z.number().finite().min(0).max(1).optional(),
-  maxTokens: z.number().int().positive().max(1_000_000),
 }).strict();
 
 const capabilitiesSchema = z.object({
@@ -49,10 +37,10 @@ export const agentProfileBundleSchema = z.object({
     }).strict(),
     capabilities: capabilitiesSchema,
     character: resourceReferenceSchema.optional(),
-    tools: z.array(toolMountSchema).max(64),
+    tools: z.array(runtimeProfileToolMountSchema).max(64),
     behavior: z.object({
       promptPreset: resourceReferenceSchema.optional(),
-      sampling: samplingSchema.optional(),
+      sampling: runtimeProfileSamplingSchema.optional(),
     }).strict(),
   }).strict().superRefine((profile, context) => {
     const names = new Set<string>();

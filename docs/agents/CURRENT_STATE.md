@@ -13,7 +13,7 @@
 ## 已完成的当前验收范围
 
 - Runtime Profile、Capability Slot、Provider Binding、Contribution 和会话级 Composition Snapshot 已接入组合根。
-- `mobile-tavern.agent-profile` v1 已提供严格校验的文件级粘合契约，可保存角色/Prompt 引用、Tool 身份、有限采样参数和能力开关；导入生成新 Profile ID，并对来源冲突、缺失依赖和 Tool 版本漂移返回诊断。Profile 仍不保存角色卡/Prompt 正文、插件包或任何凭据；文件入口和新手引导表单尚未接入。
+- `mobile-tavern.agent-profile` v1 已完成文件级闭环：严格校验的小型粘合契约可保存角色/Prompt 引用、Tool 身份、有限采样参数和能力开关，Android WebView 通过原生文件桥保存、Web 通过下载降级；设置页按“角色 → Tool → 行为 → 高级采样”渐进编辑，导入生成新 Profile ID，并对来源冲突、缺失依赖和 Tool 版本漂移返回诊断。Profile 仍不保存角色卡/Prompt 正文、插件包或任何凭据。
 - Message Content V2、独立附件库、图片/视频/音频分入口选择、分类预览与消息展示、重启恢复、重发/分支、备份恢复和媒体引用生命周期已完成；OpenAI-compatible 图片投影在视觉能力未明确时默认拒绝。
 - AgentHandle、Turn、取消、Provider、Tool Registry、有限 Tool Loop 和 Agent Journal 已完成。Base/Tavern Profile 均实际注册只读 `character.read` 与本地写入 `session.branch`；旧会话继续按自己的 Composition Snapshot 冻结 Tool 集合。
 - LLM Provider 防腐层已集中到 Application：按解析后的端点与模型族裁剪参数、适配关闭思考与 `reasoning_content` 回放、归一化多种流式片段，并按完整 Base URL 与模型隔离运行时参数自愈；发送和重生成共用同一适配入口。
@@ -21,7 +21,7 @@
 - Tool 定义声明权限、风险、副作用、执行 Scope 和 `allow` / `deny` / `ask` 策略。`session.branch` 必须在聊天内“允许一次”后执行；拒绝、取消、超时、宿主不可用均 fail-closed，审批请求、决定、结果与失败进入同一 Agent Journal 并在聊天历史展示。
 - 音频 ASR 和视频关键帧处理器已作为受信 Runtime Plugin 贡献接入；Anthropic 原生音视频投影仍明确拒绝，不做静默降级。
 - Compatibility Runtime 已从通用生产代码中隔离。`Base Agent` 不装载兼容插件，`Tavern Agent` 可装载、关闭、卸载和重载；旧 `session.variables` 只保留读取降级和插件内部瞬时投影。
-- Profile 设置、复制、能力开关、跨 Profile 会话恢复和运行诊断已完成。旧 `legacy.tavern.driver`、隐式全局 capability catalog 和默认注册路径已清理；任意 Runtime Plugin 安装仍关闭。
+- Profile 设置、复制、能力开关、跨 Profile 会话恢复和运行诊断已完成。“保存并开始”会先校验角色、行为预设和 Tool 精确版本，再通过一次性意图重载目标 Profile、创建新会话，并把角色/Tool/行为/采样决定冻结到 Composition Snapshot；发送和重生成按该快照解析行为，引用丢失时 fail-closed。旧 `legacy.tavern.driver`、隐式全局 capability catalog 和默认注册路径已清理；任意 Runtime Plugin 安装仍关闭。
 - External Tool Plugin 已完成本地 L2 闭环：严格校验 v1 Manifest 与 v2 `.mttool`、SHA-256、包路径/体积和 JSON Schema；支持声明式 HTTPS Tool、一次性受限 Worker、宿主网络配额、加密凭据注入、Agent Runtime 注册、新会话快照、即时权限撤销、停用、回滚清权与完整卸载。它与受信 Runtime Plugin、内置 Worker Plugin 和 `.mtplugin` 沙箱保持独立。
 - 社区服务仓库代码已经包含 20 MB 上传限制、双哈希去重、评论限流、缩略图、管理员删除和时间戳记录；社区功能默认关闭，不在生产启用，也不纳入发布验收。
 - GitHub Quality Gate 已执行相对目标分支的改动文件 ESLint，`pre-commit` 已执行暂存 TS/TSX ESLint；Dependabot 和 PR 语义化标题校验已配置。`main` 分支保护的 required check 仍需仓库管理员在 GitHub 设置中启用。
@@ -34,17 +34,15 @@
 
 ## 当前未完成事项
 
-1. **自定义 Agent 闭环**：Bundle v1 契约和持久化底座已完成；尚需接入文件选择/保存入口、新手引导式编辑表单，并把角色、Tool、行为与采样选择落实到新会话组合和跨设备依赖恢复。
-2. **External Tool Plugin 来源治理**：L2 本地执行、精确版本依赖检查和生命周期已完成；尚无签名/可信来源、远程版本撤回、生态审核与官方 SDK。任意 Runtime Plugin 安装仍关闭，External Tool 也不开放后台常驻和原生能力。
-3. **质量治理外部项**：`main` 分支保护与 required check 需要仓库管理员在 GitHub 设置中启用；覆盖率门禁尚未配置。
-4. **测试与平台**：Hook/跨组件契约测试仍需补强；Android UI 性能与 AR 兼容性待已授权真机复验；iOS 尚未开发或构建。
-5. **主题工作室后续**：起点选择、多场景切换、颜色对比度、CSS 语法高亮/行列诊断、片段库，以及媒体/状态/规则的可视化构建器尚待完成；高级 JSON 在此期间继续作为无损兼容入口。
+1. **External Tool Plugin 来源治理**：L2 本地执行、精确版本依赖检查和生命周期已完成；尚无签名/可信来源、远程版本撤回、生态审核与官方 SDK。任意 Runtime Plugin 安装仍关闭，External Tool 也不开放后台常驻和原生能力。
+2. **质量治理外部项**：`main` 分支保护与 required check 需要仓库管理员在 GitHub 设置中启用；覆盖率门禁尚未配置。
+3. **测试与平台**：Hook/跨组件契约测试仍需补强；Android UI 性能与 AR 兼容性待已授权真机复验；iOS 尚未开发或构建。
+4. **主题工作室后续**：起点选择、多场景切换、颜色对比度、CSS 语法高亮/行列诊断、片段库，以及媒体/状态/规则的可视化构建器尚待完成；高级 JSON 在此期间继续作为无损兼容入口。
 
 ## 推荐执行顺序
 
-1. 完成自定义 Agent 闭环的文件入口、新手表单和新会话组合接入，并以跨设备依赖诊断和 Base/Tavern 无回归为验收重点。
-2. 扩充联网、记忆写入等能力积木，再接续 External Tool Plugin 的签名/可信来源、远程版本撤回、生态审核与 SDK。
-3. 在不阻塞 P0 的前提下继续主题工作室后续；阶段 D 稳定后再进入 Tool Plugin SDK 与生态试运行，并同步补强跨组件回归测试。
+1. 扩充联网、记忆写入等能力积木，再接续 External Tool Plugin 的签名/可信来源、远程版本撤回、生态审核与 SDK。
+2. 在不阻塞 Agent/Tool 主线的前提下继续主题工作室后续；阶段 D 稳定后再进入 Tool Plugin SDK 与生态试运行，并同步补强跨组件回归测试。
 
 ## 权威入口
 

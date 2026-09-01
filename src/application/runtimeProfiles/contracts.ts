@@ -102,6 +102,10 @@ export interface IRuntimeProfileService extends IKernelService {
     profileId: string,
     capabilities: Partial<RuntimeProfileCapabilities>,
   ): RuntimeProfileRecord;
+  updateAgentSettings(
+    profileId: string,
+    agent: RuntimeProfileAgentSettings,
+  ): RuntimeProfileRecord;
   deleteProfile(profileId: string): void;
   selectProfile(profileId: string): RuntimeProfileRecord;
   getDiagnostics(profileId: string, apiType: ApiType): RuntimeProfileRuntimeDiagnostics;

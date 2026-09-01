@@ -1,10 +1,16 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   BUILTIN_BASE_PROFILE_ID,
   BUILTIN_TAVERN_PROFILE_ID,
   type RuntimeProfileRecord,
 } from "../../src/application/runtimeProfiles/contracts";
 import { buildRuntimeProfileDefinition } from "../../src/application/runtimeProfiles/catalog";
+import { agentSpineRuntimePlugin } from "../../src/application/runtimePlugins/agentSpineRuntimePlugin";
+import type { IEffectScope, IKernel } from "../../src/kernel/types";
+import {
+  AGENT_PROFILE_SETTINGS_DECISION_ID,
+  readAgentSettingsFromComposition,
+} from "../../src/application/runtimeProfiles/agentSettings";
 import { RuntimeProfileService } from "../../src/application/services/RuntimeProfileService";
 import { prepareAgentProfileBundleExport } from "../../src/application/useCases/prepareAgentProfileBundleExport";
 import { prepareAgentProfileBundleImport } from "../../src/application/useCases/prepareAgentProfileBundleImport";
@@ -205,8 +211,70 @@ describe("Agent/Profile Bundle v1", () => {
   });
 
   it("自定义 Tool 挂载只把已选择的内置 Tool 写入 Profile 组合", () => {
-    expect(buildRuntimeProfileDefinition(sourceProfile).contributions?.tool).toEqual([
+    const definition = buildRuntimeProfileDefinition(sourceProfile);
+    expect(definition.contributions?.tool).toEqual([
       "character.read",
     ]);
+    expect(definition.plugins.find((plugin) => plugin.id === "mobile-tavern.agent-spine")?.config)
+      .toEqual(sourceProfile.agent);
+  });
+
+  it("从不可变组合快照读取 Agent 行为，旧会话与损坏快照分别降级和拒绝", () => {
+    const snapshot = {
+      profileId: sourceProfile.id,
+      profileVersion: sourceProfile.version,
+      pluginVersions: {},
+      providerBindings: {},
+      contributionOrder: {},
+      capabilityDecisions: {
+        [AGENT_PROFILE_SETTINGS_DECISION_ID]: sourceProfile.agent,
+      },
+    };
+
+    expect(readAgentSettingsFromComposition(snapshot)).toEqual(sourceProfile.agent);
+    expect(readAgentSettingsFromComposition({ ...snapshot, capabilityDecisions: {} }))
+      .toBeUndefined();
+    expect(() => readAgentSettingsFromComposition({
+      ...snapshot,
+      capabilityDecisions: { [AGENT_PROFILE_SETTINGS_DECISION_ID]: { toolMounts: "bad" } },
+    })).toThrow("AGENT_PROFILE_SESSION_SETTINGS_INVALID");
+  });
+
+  it("Agent Spine 装载时把公开 Agent 配置写入组合决定而不进入插件版本快照", () => {
+    const bindComposition = vi.fn(() => () => undefined);
+    const runtime = {
+      bindComposition,
+      registerDriver: vi.fn(() => () => undefined),
+      registerProvider: vi.fn(() => () => undefined),
+    };
+    const kernel = {
+      getService: (name: string) => name === "agentRuntime" ? runtime : {},
+    } as unknown as IKernel;
+    const scope = {
+      add: vi.fn(),
+    } as unknown as IEffectScope;
+    const resolvedProfile = {
+      profileId: sourceProfile.id,
+      profileVersion: sourceProfile.version,
+      plugins: [{ id: agentSpineRuntimePlugin.id, version: agentSpineRuntimePlugin.version }],
+      providerBindings: {},
+      contributionOrder: {},
+    };
+
+    agentSpineRuntimePlugin.setup(
+      { kernel, scope, profile: resolvedProfile },
+      sourceProfile.agent,
+    );
+
+    expect(bindComposition).toHaveBeenCalledWith(expect.objectContaining({
+      profileId: sourceProfile.id,
+      capabilityDecisions: {
+        [AGENT_PROFILE_SETTINGS_DECISION_ID]: sourceProfile.agent,
+      },
+    }));
+    expect(resolvedProfile.plugins).toEqual([{
+      id: agentSpineRuntimePlugin.id,
+      version: agentSpineRuntimePlugin.version,
+    }]);
   });
 });

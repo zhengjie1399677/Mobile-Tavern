@@ -501,6 +501,19 @@ export async function testArchitectureBoundaries(): Promise<void> {
         .includes("resumeIntentSchema.safeParse"),
     "跨 Profile 打开会话必须以经过 Schema 校验的一次性意图重启，并在目标组合装载后恢复会话"
   );
+  assert(
+    read("src/components/plugins/RuntimeProfileManagerSection.tsx")
+      .includes("AgentProfileEditor")
+      && read("src/components/plugins/RuntimeProfileManagerSection.tsx")
+        .includes("AndroidThemeBridge")
+      && read("src/application/useCases/runtimeProfileAgentLaunch.ts")
+        .includes("writeRuntimeProfileAgentLaunchIntent")
+      && read("src/contexts/LegacyAppContextProvider.tsx")
+        .includes("readRuntimeProfileAgentLaunchIntent")
+      && sendMessageHook.includes("resolveAgentSessionSettings")
+      && read("src/hooks/useChat/useRerollMessage.ts").includes("resolveAgentSessionSettings"),
+    "自定义 Agent 必须提供移动端文件入口、引导编辑、一次性启动意图，并按会话快照应用行为"
+  );
   const agentProfileBundle = read("src/application/runtimeProfiles/agentProfileBundle.ts");
   const agentProfileExport = read("src/application/useCases/prepareAgentProfileBundleExport.ts");
   const agentProfileImport = read("src/application/useCases/prepareAgentProfileBundleImport.ts");
@@ -515,7 +528,9 @@ export async function testArchitectureBoundaries(): Promise<void> {
       && agentProfileImport.includes("PROFILE_ID_REGENERATED")
       && agentProfileImport.includes("CHARACTER_NOT_FOUND")
       && agentProfileImport.includes("TOOL_VERSION_MISMATCH")
-      && runtimeProfilePreferences.includes("agent: agentSchema.optional()"),
+      && runtimeProfilePreferences.includes("agent: runtimeProfileAgentSettingsSchema.optional()")
+      && read("src/application/runtimeProfiles/agentSettings.ts")
+        .includes("runtimeProfileAgentSettingsSchema"),
     "Agent/Profile Bundle 必须在 Application 边界严格校验、按公开字段导出，并对新 ID 与缺失依赖返回诊断"
   );
   const sessionStateSnapshot = read("src/domain/chat/sessionStateSnapshot.ts");

@@ -49,6 +49,7 @@ import {
 } from "../../application/useCases/openAiToolLoop";
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
+import { resolveAgentSessionSettings } from "../../application/useCases/resolveAgentSessionSettings";
 import {
   MOBILE_TAVERN_CHAT_DRIVER_ID,
   AUDIO_ASR_PROCESSOR_ID,
@@ -311,6 +312,20 @@ export function useSendMessage(p: SendMessageParams) {
         ));
       }
     }
+    let effectiveSettings: UserSettings;
+    try {
+      effectiveSettings = resolveAgentSessionSettings(
+        p.settings,
+        currentSession.compositionSnapshot,
+      );
+    } catch (error: unknown) {
+      await p.showCustomAlert(
+        error instanceof Error && error.message.startsWith("AGENT_PROMPT_PRESET_NOT_FOUND")
+          ? "此会话固定使用的行为预设已不存在，请恢复该预设或新建 Agent 会话。"
+          : "此会话的 Agent 行为快照无效，已停止发送以避免静默改用其他配置。",
+      );
+      return;
+    }
     p.isSendingRef.current = true;
     p.setIsSending(true);
     setCompatibilityGenerationState(p.kernel, { isSending: true });
@@ -384,15 +399,15 @@ export function useSendMessage(p: SendMessageParams) {
       let recalledMemories: RecalledMessage[] = [];
       try {
         const memoryService = p.memoryService;
-        if (memoryService && p.settings.memory?.enableRecall !== false) {
-          const recallTopK = p.settings.memory?.recallTopK ?? 3;
+        if (memoryService && effectiveSettings.memory?.enableRecall !== false) {
+          const recallTopK = effectiveSettings.memory?.recallTopK ?? 3;
           recalledMemories = await recallWithTimeout(
             memoryService.getRecall().recall(
               updatedSession.id,
               isBisonConsecutive ? "" : textToSend,
               { topK: recallTopK }
             ),
-            p.settings.memory?.recallTimeoutMs,
+            effectiveSettings.memory?.recallTimeoutMs,
             "useSendMessage"
           );
           if (publicEnvironment.isDevelopment) {
@@ -422,7 +437,7 @@ export function useSendMessage(p: SendMessageParams) {
               const result = await agentTurn.processMedia(AUDIO_ASR_PROCESSOR_ID, {
                 assetId: part.assetId,
                 kind: "audio",
-                options: p.settings.asrConfig,
+                options: effectiveSettings.asrConfig,
               });
               processedParts.push(...result.projectionParts);
               mediaChanged = true;
@@ -472,7 +487,7 @@ export function useSendMessage(p: SendMessageParams) {
         character: p.activeCharacter!,
         session: updatedSession,
         userInput: isBisonConsecutive ? "" : textToSend,
-        settings: p.settings,
+        settings: effectiveSettings,
         globalLorebook: combinedGlobals,
         recalledMemories,
         signal: controller.signal,
@@ -518,7 +533,7 @@ export function useSendMessage(p: SendMessageParams) {
         session: promptSession,
         query: isBisonConsecutive ? "" : textToSend,
         recalled: recalledMemories,
-        settings: p.settings,
+        settings: effectiveSettings,
         traces: promptPayload.traces,
         estimateTokens: (content) => p.promptService.estimateTokens(content),
       });
@@ -548,14 +563,14 @@ export function useSendMessage(p: SendMessageParams) {
           messages: [...providerMessages, ...step.continuationMessages],
           ...(step.tools.length > 0 ? { tools: step.tools, tool_choice: "auto" } : {}),
           ...(promptPayload.stopSequences?.length ? { stop: promptPayload.stopSequences } : {}),
-          temperature: p.settings.preset.temperature,
-          top_p: p.settings.preset.topP,
-          top_k: p.settings.preset.topK,
-          min_p: p.settings.preset.minP,
-          max_tokens: isBisonConsecutive ? 300 : p.settings.preset.maxTokens,
-          presence_penalty: p.settings.preset.presencePenalty ?? 0.0,
-          frequency_penalty: p.settings.preset.frequencyPenalty ?? 0.0,
-          repetition_penalty: p.settings.preset.repetitionPenalty ?? 1.0,
+          temperature: effectiveSettings.preset.temperature,
+          top_p: effectiveSettings.preset.topP,
+          top_k: effectiveSettings.preset.topK,
+          min_p: effectiveSettings.preset.minP,
+          max_tokens: isBisonConsecutive ? 300 : effectiveSettings.preset.maxTokens,
+          presence_penalty: effectiveSettings.preset.presencePenalty ?? 0.0,
+          frequency_penalty: effectiveSettings.preset.frequencyPenalty ?? 0.0,
+          repetition_penalty: effectiveSettings.preset.repetitionPenalty ?? 1.0,
         };
         const providerRequestBody = provider.buildRequestBody(commonRequestBody);
         await agentTurn?.recordDecision("provider.request", {
@@ -689,7 +704,7 @@ export function useSendMessage(p: SendMessageParams) {
           session: trueFinalSession,
           responseText: extractThinkContent(responseChunks.join("").trim(), reasoningChunks.join("").trim(), false).content,
           reasoningText: extractThinkContent(responseChunks.join("").trim(), reasoningChunks.join("").trim(), false).reasoningContent || "",
-          settings: p.settings,
+          settings: effectiveSettings,
           activeCharacter: p.activeCharacter!,
           controller,
           isStillActive,
@@ -803,7 +818,7 @@ export function useSendMessage(p: SendMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: parsed.content, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, traceId });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: effectiveSettings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, traceId });
           } else {
             await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, undefined, undefined, traceId)
               .catch((e) => log.error("Failed to save AI message on abort", e));
@@ -819,7 +834,7 @@ export function useSendMessage(p: SendMessageParams) {
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
           const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
           if (isStillActive) {
-            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: p.settings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, traceId });
+            await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: effectiveSettings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, traceId });
           } else {
             await p.databaseService.appendSessionMessage(trueFinalSession.id, finishedAiMsg, undefined, undefined, traceId)
               .catch((e) => log.error("Failed to save AI message on error", e));

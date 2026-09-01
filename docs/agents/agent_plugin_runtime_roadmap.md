@@ -360,7 +360,7 @@ file  → text extraction / unsupported
 
 完成条件：用户可以用同一聊天端创建至少一个 base Agent 和一个 Tavern Agent；两者共享通用多模态与 Provider 底座，兼容能力互不污染。
 
-当前进度（2026-09-01）：阶段 5 已完成当前路线定义的产品闭环。设置页提供现代化的 Profile 卡片、内置 Base/Tavern 选择、复制、自定义 Compatibility/音频/视频能力开关和实际运行诊断；当前运行区提供明确的 Compatibility Runtime 开关，开启/关闭分别切换 Tavern/Base Profile，并在确认后卸载旧组合、重载应用运行时。启动组合从独立公开偏好恢复，损坏、悬空或旧版本记录安全回退。打开绑定其他 Profile 的会话时，应用会验证目标 Profile 与精确版本，写入一次性恢复意图并重启；目标组合装载后从权威存储恢复会话、角色和聊天页，目标已删除或版本不匹配时明确拒绝且不会形成重启循环。旧 `session.variables` 已停止持久化双写，仅保留旧数据读取降级；Bridge 内部需要旧形状时由 Compatibility Plugin 瞬时投影并在保存边界归一化回命名空间。`legacy.tavern.driver`、旧静态 capability catalog 与隐式默认注册均已删除。受信 Runtime Plugin 仍只随安装包分发；外部任意 Runtime Plugin 安装继续作为安全方案完成前的明确非目标。
+当前进度（2026-09-01）：阶段 5 已完成当前路线定义的产品闭环。设置页提供 Profile 卡片、内置 Base/Tavern 选择、复制、自定义 Compatibility/音频/视频能力开关和实际运行诊断，并提供“角色 → Tool → 行为 → 高级采样”的移动端渐进编辑、Android/Web 文件导入导出与“保存并开始”入口。Agent 文件只保存稳定引用和公开小字段；角色卡、Prompt 正文、插件包与凭据继续物理分轨。启动前校验角色、预设、Tool 及精确版本，再以一次性意图重载目标 Profile 并创建新会话；组合根把 Agent 决定与外部 Tool 贡献冻结到 Composition Snapshot，发送和重生成按会话快照解析行为，引用丢失时拒绝静默漂移。当前运行区提供明确的 Compatibility Runtime 开关，开启/关闭分别切换 Tavern/Base Profile。打开绑定其他 Profile 的旧会话时同样验证目标 Profile 与精确版本后恢复，目标已删除或版本不匹配时明确拒绝且不会形成重启循环。旧 `session.variables` 已停止持久化双写，仅保留旧数据读取降级；`legacy.tavern.driver`、旧静态 capability catalog 与隐式默认注册均已删除。受信 Runtime Plugin 仍只随安装包分发；外部任意 Runtime Plugin 安装继续作为安全方案完成前的明确非目标。
 
 ## 八、第一批实施任务
 

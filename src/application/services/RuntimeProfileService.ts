@@ -2,10 +2,12 @@ import type { IKernel } from "../../kernel/types";
 import type {
   IRuntimeProfileService,
   RuntimeProfileCapabilities,
+  RuntimeProfileAgentSettings,
   RuntimeProfileCatalogSnapshot,
   RuntimeProfileRecord,
   RuntimeProfileRuntimeDiagnostics,
 } from "../runtimeProfiles/contracts";
+import { parseRuntimeProfileAgentSettings } from "../runtimeProfiles/agentSettings";
 import { BUILTIN_TAVERN_PROFILE_ID } from "../runtimeProfiles/contracts";
 import {
   findRuntimeProfile,
@@ -110,6 +112,28 @@ export class RuntimeProfileService implements IRuntimeProfileService {
       ...existing,
       version: existing.version + 1,
       capabilities: { ...existing.capabilities, ...capabilities },
+      updatedAt: Date.now(),
+    };
+    writeRuntimeProfilePreferences({
+      ...state,
+      customProfiles: state.customProfiles.map((profile) =>
+        profile.id === profileId ? updated : profile),
+    });
+    return updated;
+  }
+
+  updateAgentSettings(
+    profileId: string,
+    agent: RuntimeProfileAgentSettings,
+  ): RuntimeProfileRecord {
+    const state = readRuntimeProfilePreferences().state;
+    const existing = state.customProfiles.find((profile) => profile.id === profileId);
+    if (!existing) throw new Error(`RUNTIME_PROFILE_NOT_EDITABLE: ${profileId}`);
+    const parsed = parseRuntimeProfileAgentSettings(agent);
+    const updated: RuntimeProfileRecord = {
+      ...existing,
+      version: existing.version + 1,
+      agent: cloneAgentSettings(parsed),
       updatedAt: Date.now(),
     };
     writeRuntimeProfilePreferences({

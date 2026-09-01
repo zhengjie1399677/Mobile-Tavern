@@ -7,7 +7,7 @@ import { useSettings } from "../hooks/useSettings";
 import { useCharacters } from "../hooks/useCharacters";
 import { useChat } from "../hooks/useChat";
 import { useUsageTracking } from "../utils/useUsageTracking";
-import { ChatSession, SamplerPreset, PromptConfig, UserSettings } from "../types";
+import { CharacterCard, ChatSession, SamplerPreset, PromptConfig, UserSettings } from "../types";
 import { useKernel } from "./KernelContext";
 import type { InstalledFullscreenPlugin } from "../domain/plugins";
 import {
@@ -19,6 +19,10 @@ import {
   clearRuntimeProfileSessionResumeIntent,
   readRuntimeProfileSessionResumeIntent,
 } from "../infrastructure/runtimeProfiles/runtimeProfileSessionResume";
+import {
+  clearRuntimeProfileAgentLaunchIntent,
+  readRuntimeProfileAgentLaunchIntent,
+} from "../infrastructure/runtimeProfiles/runtimeProfileAgentLaunch";
 
 const RUNNING_PLUGIN_SESSION_KEY = "mobile-tavern.running-fullscreen-plugin";
 
@@ -124,8 +128,9 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
   const resumeAttemptedRef = useRef(false);
   useEffect(() => {
     if (resumeAttemptedRef.current || !charState.isDBReady) return;
-    const intent = readRuntimeProfileSessionResumeIntent();
-    if (!intent) {
+    const resumeIntent = readRuntimeProfileSessionResumeIntent();
+    const launchIntent = resumeIntent ? null : readRuntimeProfileAgentLaunchIntent();
+    if (!resumeIntent && !launchIntent) {
       resumeAttemptedRef.current = true;
       return;
     }
@@ -136,32 +141,41 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
         const composition = kernel
           .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
           .getCompositionSnapshot();
+        const intent = resumeIntent ?? launchIntent!;
         if (
           !composition
           || composition.profileId !== intent.profileId
           || composition.profileVersion !== intent.profileVersion
         ) {
-          throw new Error("重载后的 Agent Profile 与目标会话不一致。");
+          throw new Error("重载后的 Agent Profile 与目标操作不一致。");
         }
-        const session = await kernel
-          .getService<IDatabaseService<ChatSession>>(KernelServices.Database)
-          .getSessionById(intent.sessionId);
-        if (!session || session.characterId !== intent.characterId) {
-          throw new Error("待恢复的会话不存在或角色归属已变化。");
-        }
+        const database = kernel.getService<IDatabaseService<ChatSession, CharacterCard>>(
+          KernelServices.Database,
+        );
         const character = await charState.loadCharacterById(intent.characterId);
-        if (!character) throw new Error("待恢复会话的角色卡不存在。");
+        if (!character) throw new Error("Agent 引用的角色卡不存在。");
+        const session = resumeIntent
+          ? await database.getSessionById(resumeIntent.sessionId)
+          : await database.createNewSession(character, character.first_mes);
+        if (!session || session.characterId !== intent.characterId) {
+          throw new Error(resumeIntent
+            ? "待恢复的会话不存在或角色归属已变化。"
+            : "Agent 新会话创建失败。");
+        }
         if (!active) return;
         chatState.setSessionViews((previous) => previous.some((item) => item.id === session.id)
           ? previous.map((item) => item.id === session.id ? { ...item, ...session } : item)
           : [...previous, session]);
         charState.setActiveCharId(intent.characterId);
-        chatState.setActiveSessionId(intent.sessionId);
+        void chatState.setActiveSessionId(session.id);
         appState.setActiveTab("chat");
         chatHook.setChatSubTab("dialogue");
-        clearRuntimeProfileSessionResumeIntent();
+        if (resumeIntent) clearRuntimeProfileSessionResumeIntent();
+        else clearRuntimeProfileAgentLaunchIntent();
+        if (launchIntent) void chatState.refreshSessionStatistics();
       } catch (error: unknown) {
         clearRuntimeProfileSessionResumeIntent();
+        clearRuntimeProfileAgentLaunchIntent();
         if (active) {
           await appState.showCustomAlert(
             error instanceof Error ? error.message : String(error),
@@ -322,6 +336,8 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
 
   // 仅在首次渲染且 store 尚未初始化时同步写入，防止下游子组件在初次挂载时由于解构空对象而崩溃
   if (Object.keys(unifiedAppStore.getState()).length === 0) {
+    // 首帧外部 Store 必须在子组件 useUnifiedApp 读取前完成同步引导；这里只传递 ref 对象，不读取 current。
+    // eslint-disable-next-line react-hooks/refs
     unifiedAppStore.setRawState(appContextValue);
   }
 
