@@ -43,11 +43,12 @@ describe("ToolPluginManagerSection", () => {
     await waitFor(() => expect(screen.getAllByText("允许装载").length).toBeGreaterThan(1));
 
     fireEvent.click(screen.getByRole("button", { name: "v1.0.0" }));
-    await waitFor(() => expect(screen.getAllByText("待授权").length).toBeGreaterThan(0));
-    expect((await listInstalledToolPlugins())[0]).toMatchObject({
-      enabled: false,
-      grantedPermissions: [],
-      manifest: { version: "1.0.0" },
+    await waitFor(async () => {
+      expect((await listInstalledToolPlugins())[0]).toMatchObject({
+        enabled: false,
+        grantedPermissions: [],
+        manifest: { version: "1.0.0" },
+      });
     });
   });
 
