@@ -137,9 +137,12 @@ export default function ToolPluginManagerSection(): React.JSX.Element {
           <SummaryStat label="待授权" value={awaitingPermissionCount} tone="amber" />
         </div>
 
-        <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 p-2.5 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
-          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>L2 仅开放宿主代理网络与一次性 Worker：域名、方法、流量、超时和调用次数均受 Manifest 配额约束，凭据不会暴露给 Worker。</p>
+        <div role="note" className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 p-2.5 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+          <ShieldAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="space-y-1">
+            <p className="font-semibold">来源标签只用于辨识发布来源，不代表 Mobile Tavern 已审核代码或保证安全；未验证来源仍可安装。</p>
+            <p>L2 仅开放宿主代理网络与一次性 Worker：域名、方法、流量、超时和调用次数均受 Manifest 配额约束，凭据不会暴露给 Worker。</p>
+          </div>
         </div>
 
         <input
@@ -466,6 +469,13 @@ function InstallReviewDialog({ inspection, busy, onClose, onInstall }: {
                     : "无"}
                 />
               </div>
+              <div role="note" className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 p-2.5 text-[9px] leading-relaxed text-amber-800 dark:text-amber-200">
+                <ShieldAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-bold">来源风险提示</p>
+                  <p className="mt-0.5">{sourceRiskNotice(inspection.sourceVerification)}</p>
+                </div>
+              </div>
               <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5">
                 <p className="text-[8px] font-bold text-muted-foreground">SHA-256 内容哈希</p>
                 <p className="mt-1 break-all font-mono text-[8px] text-foreground">{manifest.contentHash}</p>
@@ -542,6 +552,21 @@ function sourceVerificationLabel(
   return verification.verificationMethod === "bundled"
     ? "官方内置"
     : verification.signerLabel ? `官方签名 · ${verification.signerLabel}` : "官方签名";
+}
+
+function sourceRiskNotice(
+  verification: ToolPluginInspection["sourceVerification"] | InstalledToolPlugin["sourceVerification"],
+): string {
+  if (!verification || verification.trustLevel === "unverified") {
+    return "此插件没有可验证的签名，作者身份与文件来源无法确认。Mobile Tavern 不会阻止安装，但无法为其代码背书；启用后它会在受限环境运行，并可使用你随后授予的网络或数据权限。";
+  }
+  if (verification.trustLevel === "signed") {
+    return "签名有效只证明此包与所示密钥一致，不代表签名者身份已获信任或代码已经安全审核；启用前仍需核对权限、网络目标和数据影响。";
+  }
+  if (verification.trustLevel === "trusted") {
+    return "可信签名只确认当前包由宿主登记的密钥发布，不代表插件绝对安全；启用前仍需核对权限、网络目标和数据影响。";
+  }
+  return "官方来源只确认发布来源，不代表插件绝对安全或已经审查每项行为；启用前仍需核对权限、网络目标和数据影响。";
 }
 
 function normalizeError(error: unknown): string {

@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ToolPluginManagerSection from "../../src/components/plugins/ToolPluginManagerSection";
 import { parseToolPluginManifest } from "../../src/domain/toolPlugins";
@@ -32,9 +32,12 @@ describe("ToolPluginManagerSection", () => {
     expect(screen.getByRole("button", { name: "导入 .mttool / Manifest" })).toBeInTheDocument();
     expect(screen.getAllByText("待授权").length).toBeGreaterThan(0);
     expect(screen.getByText("Worker 隔离")).toBeInTheDocument();
+    expect(screen.getByText(/来源标签只用于辨识发布来源/u)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "权限、Tool 与版本" }));
-    expect(screen.getByText(/未验证来源/u)).toBeInTheDocument();
+    const sourceSection = screen.getByText("来源与版本").parentElement;
+    expect(sourceSection).not.toBeNull();
+    expect(within(sourceSection as HTMLElement).getByText(/未验证来源/u)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "授予权限 session.read" }));
     await waitFor(() => expect(screen.getByRole("switch", { name: "撤销权限 session.read" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("switch", { name: "授予权限 session.write" }));
@@ -65,6 +68,27 @@ describe("ToolPluginManagerSection", () => {
     expect(await listInstalledToolPlugins()).toEqual([]);
   });
 
+  it("允许安装未验证来源，但在确认前明确告知代码与授权风险", async () => {
+    const manifest = await createToolPluginManifest();
+    render(<ToolPluginManagerSection />);
+    await screen.findByRole("button", { name: "导入 .mttool / Manifest" });
+
+    fireEvent.change(screen.getByLabelText("选择 Tool Plugin Manifest"), {
+      target: {
+        files: [new File([JSON.stringify(manifest)], "community.mttool.json", { type: "application/json" })],
+      },
+    });
+
+    expect(await screen.findByText("确认安装 会话助手")).toBeInTheDocument();
+    expect(screen.getByText(/没有可验证的签名/u)).toBeInTheDocument();
+    expect(screen.getByText(/不会阻止安装/u)).toBeInTheDocument();
+    expect(screen.getByText(/使用你随后授予的网络或数据权限/u)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "确认安装，稍后授权" }));
+    await waitFor(() => expect(screen.getByText("会话助手")).toBeInTheDocument());
+    expect((await listInstalledToolPlugins())[0].sourceVerification?.trustLevel).toBe("unverified");
+  });
+
   it("从官方能力积木完成审阅安装且保持默认停用和未授权", async () => {
     render(<ToolPluginManagerSection />);
     const reviewButton = await screen.findByRole("button", { name: "查看并安装 Brave 网页搜索" });
@@ -74,6 +98,8 @@ describe("ToolPluginManagerSection", () => {
     expect(screen.getByText("确认安装 Brave 网页搜索")).toBeInTheDocument();
     expect(screen.getByText("network.request")).toBeInTheDocument();
     expect(screen.getByText("官方内置")).toBeInTheDocument();
+    expect(screen.getByText(/官方来源只确认发布来源/u)).toBeInTheDocument();
+    expect(screen.getByText(/仍需核对权限/u)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "确认安装，稍后授权" }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "已安装 Brave 网页搜索" })).toBeDisabled());
