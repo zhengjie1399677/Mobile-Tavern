@@ -66,6 +66,7 @@ describe("ToolPluginManagerSection", () => {
   it("从官方能力积木完成审阅安装且保持默认停用和未授权", async () => {
     render(<ToolPluginManagerSection />);
     const reviewButton = await screen.findByRole("button", { name: "查看并安装 Brave 网页搜索" });
+    expect(screen.getByRole("button", { name: "查看并安装 长期记忆写入" })).toBeInTheDocument();
 
     fireEvent.click(reviewButton);
     expect(screen.getByText("确认安装 Brave 网页搜索")).toBeInTheDocument();
@@ -78,5 +79,14 @@ describe("ToolPluginManagerSection", () => {
       enabled: false,
       grantedPermissions: [],
     }]);
+  });
+
+  it("把声明式 memory.write 明确标注为宿主授权能力", async () => {
+    render(<ToolPluginManagerSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "查看并安装 长期记忆写入" }));
+
+    expect(screen.getByText("宿主授权能力")).toBeInTheDocument();
+    expect(screen.getByText("宿主 Capability 代理")).toBeInTheDocument();
+    expect(screen.getByText("memory.write")).toBeInTheDocument();
   });
 });

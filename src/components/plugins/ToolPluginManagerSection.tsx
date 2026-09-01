@@ -19,6 +19,7 @@ import type {
   InstalledToolPlugin,
   ToolPluginCredentialStatus,
   ToolPluginInspection,
+  ToolPluginManifest,
   ToolPluginPermission,
   ToolPluginPermissionDeclaration,
   ToolPluginRuntimeDiagnostics,
@@ -167,7 +168,7 @@ export default function ToolPluginManagerSection(): React.JSX.Element {
               <Globe2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
               <div className="min-w-0 flex-1">
                 <h3 className="text-[10px] font-bold text-foreground">官方能力积木</h3>
-                <p className="mt-0.5 text-[8px] leading-relaxed text-muted-foreground">固定来源与网络边界，安装后仍需单独配置凭据、授权并启用。</p>
+                <p className="mt-0.5 text-[8px] leading-relaxed text-muted-foreground">固定来源与权限边界，安装后仍需单独配置所需凭据、授权并启用。</p>
               </div>
             </div>
             <div className="mt-2 space-y-2">
@@ -290,7 +291,7 @@ function ToolPluginCard({
           <p className="mt-1 line-clamp-2 text-[8.5px] leading-relaxed text-muted-foreground">{plugin.manifest.description}</p>
           <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-[8px] text-muted-foreground">
             <span>{plugin.manifest.author}</span>
-            <span>{plugin.manifest.runtime.execution === "worker" ? "Worker 隔离" : "Sandbox 隔离"}</span>
+            <span>{executionLabel(plugin.manifest)}</span>
             <span>{plugin.manifest.tools.length} 个 Tool</span>
             <span className="font-mono">{plugin.manifest.contentHash.slice(7, 17)}…</span>
           </div>
@@ -452,8 +453,8 @@ function InstallReviewDialog({ inspection, busy, onClose, onInstall }: {
               <div className="grid grid-cols-2 gap-2 text-[9px]">
                 <ReviewField label="版本" value={`v${manifest.version}`} />
                 <ReviewField label="最低 Runtime" value={`v${manifest.runtime.minVersion}`} />
-                <ReviewField label="执行位置" value={manifest.runtime.execution === "worker" ? "Worker 隔离" : "Sandbox 隔离"} />
-                <ReviewField label="包能力" value={inspection.artifact?.entryCode ? "L2 受限 Worker" : manifest.tools.some((tool) => tool.handler?.kind === "http") ? "L1 HTTP 连接器" : "仅清单"} />
+                <ReviewField label="执行位置" value={executionLabel(manifest)} />
+                <ReviewField label="包能力" value={inspection.artifact?.entryCode ? "L2 受限 Worker" : manifest.tools.some((tool) => tool.handler?.kind === "http") ? "L1 HTTP 连接器" : manifest.tools.some((tool) => tool.handler?.kind === "host") ? "宿主 Capability 代理" : "仅清单"} />
                 <ReviewField label="来源" value={manifest.source.label} />
                 <ReviewField label="目标 Profile" value={manifest.targetProfiles.join("、")} />
                 <ReviewField
@@ -510,6 +511,11 @@ function StatusBadge({ plugin, registered, runtimeFailure }: { plugin: Installed
 function hasRequiredPermissions(plugin: InstalledToolPlugin): boolean {
   const granted = new Set(plugin.grantedPermissions);
   return plugin.manifest.permissions.every((permission) => permission.optional || granted.has(permission.id));
+}
+
+function executionLabel(manifest: ToolPluginManifest): string {
+  if (manifest.tools.some((tool) => tool.handler?.kind === "host")) return "宿主授权能力";
+  return manifest.runtime.execution === "worker" ? "Worker 隔离" : "Sandbox 隔离";
 }
 
 function riskLabel(risk: "low" | "medium" | "high"): string {

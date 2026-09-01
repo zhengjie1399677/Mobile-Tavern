@@ -13,12 +13,19 @@ import {
 } from "../../src/infrastructure/toolPlugins/toolPluginStorage";
 import { createV2HttpManifest } from "./helpers/toolPluginFixture";
 import { AGENT_PROFILE_SETTINGS_DECISION_ID } from "../../src/application/runtimeProfiles/agentSettings";
+import {
+  listOfficialToolPluginInspections,
+  MEMORY_TOOL_PLUGIN_ID,
+  MEMORY_WRITE_TOOL_NAME,
+} from "../../src/application/toolPlugins/officialCatalog";
+import { KernelServices } from "../../src/application/serviceContracts";
+import type { MemoryServiceTyped } from "../../src/application/services/memory";
 
 const journal = { append: async () => undefined, appendMany: async () => undefined, listBySession: async () => [], replace: async () => undefined, deleteBySession: async () => undefined };
 
 describe("External Tool Plugin Runtime", () => {
   beforeEach(async () => {
-    vi.stubGlobal("__APP_VERSION__", "1.8.3");
+    vi.stubGlobal("__APP_VERSION__", "1.8.9");
     await __toolPluginStorageTest.reset();
   });
 
@@ -108,6 +115,91 @@ describe("External Tool Plugin Runtime", () => {
         [AGENT_PROFILE_SETTINGS_DECISION_ID]: { toolMounts: [{ name: toolName, version: "1.0.0" }] },
       },
     }).contributionOrder.tool).toEqual([toolName]);
+
+    await service.destroy();
+    await agentRuntime.destroy();
+  });
+
+  it("通过宿主能力把已审批事实写入带来源的长期记忆，并在来源缺失时拒绝", async () => {
+    const inspections = await listOfficialToolPluginInspections();
+    const manifest = inspections.find((item) => item.manifest.id === MEMORY_TOOL_PLUGIN_ID)!.manifest;
+    await installToolPluginManifest(manifest);
+    await setToolPluginPermissions(manifest.id, ["memory.write"]);
+    await setToolPluginEnabled(manifest.id, true);
+
+    const source = {
+      id: "message-user-1",
+      sessionId: "session-memory",
+      role: "user" as const,
+      content: "请记住集合地点是钟楼。",
+      createdAt: 10,
+      turnIndex: 4,
+      tags: ["钟楼"],
+      extractSource: "dict" as const,
+    };
+    const getMessagesBySession = vi.fn()
+      .mockResolvedValueOnce([source])
+      .mockResolvedValueOnce([]);
+    const upsertFragment = vi.fn(async () => undefined);
+    const invalidateCache = vi.fn();
+    const memory = {
+      getStorage: () => ({
+        getMessagesBySession,
+        getFragmentById: vi.fn(async () => null),
+        upsertFragment,
+      }),
+      getRecall: () => ({ invalidateCache }),
+    } as unknown as MemoryServiceTyped;
+    const agentRuntime = new AgentRuntimeService(journal);
+    const kernel = {
+      getService: (name: string) => name === KernelServices.Memory ? memory : agentRuntime,
+      hasService: () => true,
+    } as unknown as IKernel;
+    agentRuntime.init(kernel);
+    const service = new ToolPluginRuntimeService(
+      { request: async () => ({ status: 200, contentType: "application/json", body: {} }) },
+      { execute: async () => ({}), getActiveWorkerCount: () => 0, destroy: () => undefined },
+    );
+    await service.init(kernel);
+
+    const tool = agentRuntime.listTools().find((item) => item.name === MEMORY_WRITE_TOOL_NAME)!;
+    expect(tool).toMatchObject({
+      policy: "ask",
+      permissions: ["memory.write"],
+      riskLevel: "high",
+      sideEffect: "local-write",
+      executionScope: "memory",
+    });
+    const input = {
+      content: "集合地点是钟楼。",
+      participants: ["用户"],
+      tags: ["集合", "钟楼"],
+      importance: 0.8,
+    };
+    const context = {
+      sessionId: "session-memory",
+      turnId: "turn-memory",
+      callId: "call-memory-1",
+      signal: new AbortController().signal,
+    };
+    await expect(tool.execute(input, context)).resolves.toMatchObject({
+      status: "active",
+      sourceMessageId: source.id,
+    });
+    expect(getMessagesBySession).toHaveBeenCalledWith("session-memory", { limit: 1, descending: true });
+    expect(upsertFragment).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: "session-memory",
+      content: input.content,
+      sourceMessageIds: [source.id],
+      sourceTurnStart: 4,
+      sourceTurnEnd: 4,
+      confidence: 1,
+    }), true, context.signal);
+    expect(invalidateCache).toHaveBeenCalledWith("session-memory");
+
+    await expect(tool.execute(input, { ...context, callId: "call-memory-no-source" }))
+      .rejects.toThrow("TOOL_PLUGIN_MEMORY_SOURCE_NOT_FOUND");
+    expect(upsertFragment).toHaveBeenCalledTimes(1);
 
     await service.destroy();
     await agentRuntime.destroy();

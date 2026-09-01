@@ -3,6 +3,8 @@ import { computeToolPluginManifestHash } from "../../domain/toolPlugins";
 
 export const BRAVE_SEARCH_TOOL_PLUGIN_ID = "official.brave-search";
 export const BRAVE_SEARCH_TOOL_NAME = `ext.${BRAVE_SEARCH_TOOL_PLUGIN_ID}.web.search`;
+export const MEMORY_TOOL_PLUGIN_ID = "official.memory";
+export const MEMORY_WRITE_TOOL_NAME = `ext.${MEMORY_TOOL_PLUGIN_ID}.memory.write`;
 
 const braveSearchManifest = {
   format: "mobile-tavern.tool-plugin",
@@ -83,9 +85,82 @@ const braveSearchManifest = {
   },
 } as const satisfies Omit<ToolPluginManifest, "contentHash">;
 
+const memoryManifest = {
+  format: "mobile-tavern.tool-plugin",
+  manifestVersion: 2,
+  id: MEMORY_TOOL_PLUGIN_ID,
+  name: "长期记忆写入",
+  version: "1.0.0",
+  description: "让 Agent 在用户逐次确认后，把结构化事实写入当前会话的长期记忆。",
+  author: "Mobile Tavern",
+  source: {
+    label: "Mobile Tavern 官方预置",
+    url: "https://github.com/zhengjie1399677/Mobile-Tavern",
+  },
+  runtime: {
+    minVersion: "1.8.9",
+    execution: "worker",
+    timeoutMs: 5_000,
+  },
+  targetProfiles: ["*"],
+  dependencies: [],
+  permissions: [{
+    id: "memory.write",
+    reason: "向当前会话的长期记忆写入一条可召回事实。",
+    riskLevel: "high",
+  }],
+  tools: [{
+    id: "memory.write",
+    name: "写入长期记忆",
+    description: "保存一条以后需要召回的事实。只在信息明确、长期有用且用户批准本次写入时使用。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        content: { type: "string", minLength: 1, maxLength: 2_000 },
+        participants: {
+          type: "array",
+          items: { type: "string", minLength: 1, maxLength: 120 },
+          maxItems: 16,
+        },
+        tags: {
+          type: "array",
+          items: { type: "string", minLength: 1, maxLength: 120 },
+          minItems: 1,
+          maxItems: 24,
+        },
+        importance: { type: "number", minimum: 0, maximum: 1 },
+      },
+      required: ["content", "participants", "tags", "importance"],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        status: { type: "string", enum: ["active"] },
+        sourceMessageId: { type: "string" },
+      },
+      required: ["id", "status", "sourceMessageId"],
+      additionalProperties: false,
+    },
+    permissions: ["memory.write"],
+    riskLevel: "high",
+    sideEffect: "local-write",
+    executionScope: "memory",
+    handler: { kind: "host", capability: "memory.write" },
+  }],
+  cleanup: {
+    onDisable: "revoke-runtime",
+    onPermissionRevoke: "disable-dependent-tools",
+    onUninstall: ["registrations", "credentials", "plugin-data"],
+  },
+} as const satisfies Omit<ToolPluginManifest, "contentHash">;
+
 export async function listOfficialToolPluginInspections(): Promise<ToolPluginInspection[]> {
-  const contentHash = await computeToolPluginManifestHash(braveSearchManifest);
-  return [{
-    manifest: structuredClone({ ...braveSearchManifest, contentHash }) as ToolPluginManifest,
-  }];
+  return Promise.all([braveSearchManifest, memoryManifest].map(async (manifest) => ({
+    manifest: structuredClone({
+      ...manifest,
+      contentHash: await computeToolPluginManifestHash(manifest),
+    }) as ToolPluginManifest,
+  })));
 }

@@ -218,11 +218,15 @@ export class MemoryStorage {
 
   // ===== memory_fragments Store CRUD =====
 
-  async upsertFragment(fragment: MemoryFragment, requireSourceMessages = false): Promise<void> {
+  async upsertFragment(
+    fragment: MemoryFragment,
+    requireSourceMessages = false,
+    signal?: AbortSignal,
+  ): Promise<void> {
     this.ensureInitialized();
     await this.persistence.upsertFragment(
       fragment,
-      this.getActiveSignal(),
+      signal ?? this.getActiveSignal(),
       { requireSourceMessages },
     );
   }

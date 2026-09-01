@@ -5,6 +5,7 @@ import type {
 } from "../agents/contracts";
 
 export type ToolPluginExecutionTarget = "worker" | "sandbox";
+export type ToolPluginHostCapability = "memory.write";
 
 export type ToolPluginHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -41,6 +42,10 @@ export interface ToolPluginToolDeclaration {
     | {
         readonly kind: "worker";
         readonly exportName: string;
+      }
+    | {
+        readonly kind: "host";
+        readonly capability: ToolPluginHostCapability;
       };
 }
 

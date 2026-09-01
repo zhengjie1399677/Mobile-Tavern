@@ -3,6 +3,8 @@ import {
   BRAVE_SEARCH_TOOL_NAME,
   BRAVE_SEARCH_TOOL_PLUGIN_ID,
   listOfficialToolPluginInspections,
+  MEMORY_TOOL_PLUGIN_ID,
+  MEMORY_WRITE_TOOL_NAME,
 } from "../../src/application/toolPlugins/officialCatalog";
 import { parseToolPluginManifest } from "../../src/domain/toolPlugins";
 
@@ -27,5 +29,25 @@ describe("官方 Tool Plugin 目录", () => {
       }],
     });
     expect(`ext.${parsed.id}.${parsed.tools[0].id}`).toBe(BRAVE_SEARCH_TOOL_NAME);
+  });
+
+  it("提供高风险、逐次确认的长期记忆写入能力", async () => {
+    const inspections = await listOfficialToolPluginInspections();
+    const inspection = inspections.find((item) => item.manifest.id === MEMORY_TOOL_PLUGIN_ID)!;
+    const parsed = await parseToolPluginManifest(JSON.stringify(inspection.manifest));
+
+    expect(parsed).toMatchObject({
+      targetProfiles: ["*"],
+      permissions: [{ id: "memory.write", riskLevel: "high" }],
+      tools: [{
+        id: "memory.write",
+        permissions: ["memory.write"],
+        riskLevel: "high",
+        sideEffect: "local-write",
+        executionScope: "memory",
+        handler: { kind: "host", capability: "memory.write" },
+      }],
+    });
+    expect(`ext.${parsed.id}.${parsed.tools[0].id}`).toBe(MEMORY_WRITE_TOOL_NAME);
   });
 });

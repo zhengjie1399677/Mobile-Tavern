@@ -31,6 +31,8 @@ import {
   type IToolPluginRuntimeService,
 } from "../serviceContracts";
 import { readAgentSettingsFromComposition } from "../runtimeProfiles/agentSettings";
+import type { MemoryServiceTyped } from "./memory";
+import { executeToolPluginHostCapability } from "../toolPlugins/hostCapabilityExecutor";
 
 const OUTPUT_LIMIT_BYTES = 2 * 1024 * 1024;
 
@@ -43,7 +45,7 @@ interface RegisteredTool {
 export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
   readonly name = KernelServices.ToolConnectors;
   readonly isCritical = false;
-  readonly dependencies = [KernelServices.AgentRuntime] as const;
+  readonly dependencies = [KernelServices.AgentRuntime, KernelServices.Memory] as const;
 
   private kernel: IKernel | null = null;
   private registrations: EffectDisposer[] = [];
@@ -193,7 +195,7 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
     let result: unknown;
     if (handler.kind === "http") {
       result = await network(resolveHttpTemplate(handler.request, input));
-    } else {
+    } else if (handler.kind === "worker") {
       if (!entryCode) throw new Error("TOOL_PLUGIN_ARTIFACT_MISSING");
       result = await this.worker.execute({
         pluginId: current.id,
@@ -203,6 +205,13 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
         signal: context.signal,
         maxRequests: current.manifest.network?.maxRequestsPerCall ?? 0,
         network,
+      });
+    } else {
+      result = await executeToolPluginHostCapability({
+        capability: handler.capability,
+        input,
+        context,
+        memory: this.getMemoryService(),
       });
     }
     if (new TextEncoder().encode(JSON.stringify(result) ?? "null").byteLength > OUTPUT_LIMIT_BYTES) {
@@ -225,6 +234,11 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
   private getAgentRuntime(): IAgentRuntimeService {
     if (!this.kernel) throw new Error("TOOL_PLUGIN_RUNTIME_NOT_ACTIVE");
     return this.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+  }
+
+  private getMemoryService(): MemoryServiceTyped {
+    if (!this.kernel) throw new Error("TOOL_PLUGIN_RUNTIME_NOT_ACTIVE");
+    return this.kernel.getService<MemoryServiceTyped>(KernelServices.Memory);
   }
 
   private async disposeRegistrations(): Promise<void> {

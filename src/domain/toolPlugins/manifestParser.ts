@@ -37,6 +37,10 @@ const toolHandlerSchema = z.discriminatedUnion("kind", [
     kind: z.literal("worker"),
     exportName: z.string().regex(/^[A-Za-z_$][A-Za-z0-9_$]{0,79}$/),
   }).strict(),
+  z.object({
+    kind: z.literal("host"),
+    capability: z.literal("memory.write"),
+  }).strict(),
 ]);
 
 const manifestSchema = z.object({
@@ -167,6 +171,18 @@ const manifestSchema = z.object({
         if (/^(?:authorization|cookie|proxy-authorization)$/i.test(header)) {
           context.addIssue({ code: "custom", message: `敏感 Header ${header} 必须通过凭据注入`, path: ["tools"] });
         }
+      }
+    }
+    if (tool.handler?.kind === "host" && tool.handler.capability === "memory.write") {
+      if (!tool.permissions.includes("memory.write")) {
+        context.addIssue({ code: "custom", message: `Host Tool ${tool.id} 必须声明 memory.write`, path: ["tools"] });
+      }
+      if (tool.riskLevel !== "high" || tool.sideEffect !== "local-write" || tool.executionScope !== "memory") {
+        context.addIssue({
+          code: "custom",
+          message: `Host Tool ${tool.id} 的 memory.write 必须是高风险、本地写入和 memory Scope`,
+          path: ["tools"],
+        });
       }
     }
   }

@@ -30,7 +30,7 @@
 | Agent Runtime 主干 | `src/application/services/AgentRuntimeService.ts`、`src/application/services/agents/`、`src/domain/agents/`、`src/application/useCases/openAiToolLoop.ts` | 管理 AgentHandle、Turn、Driver、Provider、有限多步 Tool Loop、媒体 Processor、权限、一次性审批、取消与诊断 | 不进入 Kernel，不持有 React State，不绕过 Turn 直接执行 Tool，不执行用户安装的任意代码；审批宿主缺失时必须 fail-closed |
 | Agent Journal 存储 | `src/infrastructure/agents/agentJournalStorage.ts` | 物理分轨持久化 Turn、Provider/媒体决定与 Tool Call/Result | 不保存插件配置或凭据，不塞入 sessions/messages 大对象 |
 | Tool Plugin 管理用例 | `src/application/useCases/toolPluginManagementUseCases.ts` | 解析和安装受控 Manifest/`.mttool`，编排授权、凭据、停用、回滚与卸载 | 不直接注册 Tool，不把管理状态混入 Runtime Profile 或 `.mtplugin` |
-| Tool Plugin Runtime | `src/application/services/ToolPluginRuntimeService.ts` | 校验兼容性和依赖、注册 External Tool、执行前重查授权、扩展新会话组合快照 | 不执行 `.mtplugin`，不向外部代码暴露 Kernel、存储或明文凭据 |
+| Tool Plugin Runtime | `src/application/services/ToolPluginRuntimeService.ts`、`src/application/toolPlugins/hostCapabilityExecutor.ts` | 校验兼容性和依赖、注册 External Tool、执行前重查授权、扩展新会话组合快照，并把白名单 Host Capability 代理到类型化应用服务 | 不执行 `.mtplugin`，不向外部代码暴露 Kernel、存储或明文凭据；Host handler 不执行插件代码且不得绕过 Tool 单次审批 |
 | Tool Plugin 执行适配 | `src/infrastructure/toolPlugins/toolPluginHttpClient.ts`、`browserToolPluginExecutor.ts` | 代理受限 HTTPS 请求并运行一次性 Worker | 不允许 Worker 直接联网、持久化、创建子 Worker、动态加载或后台常驻 |
 | Tool Plugin 管理存储 | `src/infrastructure/toolPlugins/toolPluginStorage.ts` | 在独立数据库保存 Manifest、Artifact、加密凭据、授权状态与有限版本历史 | 不被 React 直连，不与 `.mtplugin` 包数据库混用；凭据不进入 Manifest 或会话快照 |
 | 浏览器视频关键帧适配 | `src/infrastructure/media/browserVideoFrameExtractor.ts` | 在 WebView 边界解码本地视频并生成有限 JPEG 关键帧 | 不参与 Profile 解析，不直接写会话或消息 |
@@ -53,6 +53,7 @@
   │                                  ├─→ Agent Journal Port ─→ infrastructure/agents
   │                                  └─→ Attachment/ASR/视频关键帧 Adapter
   ├─→ Tool Plugin 设置 UI ─→ 管理用例 ─→ infrastructure/toolPlugins
+  │                              └→ Tool Plugin Runtime ─→ 白名单 Host Capability ─→ MemoryService ─→ 记忆领域端口
   ├─→ ThemeInteractionHost ─→ ThemeInteractionService ─→ 主题私有运行态
   │                        └→ LocalResourceService（只解析已声明本地媒体）
   ├─→ 记忆领域端口 ───────────────────────→ IndexedDbMemoryPersistenceService

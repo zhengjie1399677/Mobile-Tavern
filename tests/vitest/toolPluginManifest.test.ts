@@ -37,4 +37,25 @@ describe("受控 Tool Plugin Manifest", () => {
       targetProfiles: ["*"],
     });
   });
+
+  it("拒绝把 memory.write Host Capability 降低风险或伪装成无副作用 Tool", async () => {
+    const manifest = await createToolPluginManifest({
+      manifestVersion: 2,
+      permissions: [{ id: "memory.write", reason: "写入长期记忆", riskLevel: "high" }],
+      tools: [{
+        id: "memory.write",
+        name: "写入长期记忆",
+        description: "写入一条长期记忆。",
+        inputSchema: { type: "object", properties: {} },
+        outputSchema: { type: "object", properties: {} },
+        permissions: ["memory.write"],
+        riskLevel: "medium",
+        sideEffect: "none",
+        executionScope: "turn",
+        handler: { kind: "host", capability: "memory.write" },
+      }],
+    });
+    await expect(parseToolPluginManifest(JSON.stringify(manifest)))
+      .rejects.toThrow("必须是高风险、本地写入和 memory Scope");
+  });
 });
