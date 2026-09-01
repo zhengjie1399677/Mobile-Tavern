@@ -257,8 +257,9 @@ file  → text extraction / unsupported
 |---|---|
 | 角色卡 PNG/JSON 导入导出 | `character.codec`、`importer/exporter` |
 | ST 预设 | `prompt.composition.codec` |
-| 世界书格式和触发语义 | `context.source`、兼容 Codec |
+| 世界书格式和触发语义 | `context.source`、`compat.world-info-resolver`、兼容 Codec |
 | MVU 与 Regex | `input.transform`、`output.transform`、`session.state.reducer` |
+| Depth Prompt、Author's Note | `prompt.section`，由通用消息整形器按 `in_chat/depth/role` 插入 |
 | TavernHelper | Compatibility RPC，不进入通用全局对象 |
 | 消息 iframe | `message.renderer` |
 | 专属设置 | `settings.panel` |
@@ -335,7 +336,7 @@ file  → text extraction / unsupported
 
 工作项：
 
-- 建立 Codec、Prompt Section、Context Source、Transform、State Reducer 和 Renderer Slot。
+- 建立 Codec、Prompt Section、Context Source、Transform、State Reducer、World Info Resolver 和 Renderer Slot。
 - 迁移 Database、Prompt、Script、消息渲染和变量通知中的直接兼容调用。
 - 将兼容状态放入插件命名空间并提供旧数据读取降级。
 - 建立关闭兼容插件的 base Profile 回归测试。
@@ -343,7 +344,7 @@ file  → text extraction / unsupported
 
 完成条件：通用生产代码不再 import `compatibility/sillytavern`；Compatibility Runtime Plugin 可关闭和重载；旧用户数据无静默丢失。
 
-当前进度（2026-08-24）：阶段 4 已完成。Application 层新增默认为空的 `CompatibilityRuntimeService`，提供 Codec、Prompt Section、Context Source、Transform、State Reducer 和 Renderer 六类可撤销贡献；`mobile-tavern.sillytavern-compat` 作为独立受信 Runtime Plugin 连接现有 SillyTavern 实现。Database、Prompt、Script、消息渲染、变量通知和聊天生成状态已改为只消费 Host 契约，通用生产代码不再直接导入 `compatibility/sillytavern` 或读写 TavernHelper 生成全局字段。`mobile-tavern.base` 不装载兼容插件，`mobile-tavern.tavern` 显式装载并可在同一 Host 卸载、重载。会话状态以 `runtimePluginState[pluginId]` 为新权威位置，旧 `variables` 仅在兼容插件边界读取和瞬时投影，统一备份恢复对命名空间执行边界校验。
+当前进度（2026-08-31）：阶段 4 已完成并补齐兼容基线。Application 层新增默认为空的 `CompatibilityRuntimeService`，提供 Codec、Prompt Section、Context Source、Transform、State Reducer、World Info Resolver 和 Renderer 七类可撤销贡献；`mobile-tavern.sillytavern-compat` 作为独立受信 Runtime Plugin 连接现有 SillyTavern 实现。角色卡导入导出保留来源扩展字段，World Info 触发、递归、选择逻辑和预算在插件专属 resolver 中执行，Depth Prompt 与 Author's Note 通过通用 `in_chat/depth/role` 元数据进入最终消息历史，global/preset/character Regex 按链路执行，脚本 iframe 按会话隔离并在卸载或页面生命周期结束时清理计时器、动画帧、Blob URL、媒体和动态资源。Database、Prompt、Script、消息渲染、变量通知和聊天生成状态仍只消费 Host 契约，通用生产代码不直接导入 `compatibility/sillytavern` 或读写 TavernHelper 生成全局字段。`mobile-tavern.base` 不装载兼容插件，`mobile-tavern.tavern` 显式装载并可在同一 Host 卸载、重载；会话状态以 `runtimePluginState[pluginId]` 为新权威位置，旧 `variables` 仅在兼容插件边界读取和瞬时投影，统一备份恢复对命名空间执行边界校验。
 
 ### 阶段 5：Profile UI、生态扩展与旧路径清理
 
@@ -359,7 +360,7 @@ file  → text extraction / unsupported
 
 完成条件：用户可以用同一聊天端创建至少一个 base Agent 和一个 Tavern Agent；两者共享通用多模态与 Provider 底座，兼容能力互不污染。
 
-当前进度（2026-08-24）：阶段 5 已完成当前路线定义的产品闭环。设置页提供内置 Base/Tavern 选择、复制、自定义 Compatibility/音频/视频能力开关和实际运行诊断；启动组合从独立公开偏好恢复，损坏、悬空或旧版本记录安全回退。打开绑定其他 Profile 的会话时，应用会验证目标 Profile 与精确版本，写入一次性恢复意图并重启；目标组合装载后从权威存储恢复会话、角色和聊天页，目标已删除或版本不匹配时明确拒绝且不会形成重启循环。旧 `session.variables` 已停止持久化双写，仅保留旧数据读取降级；Bridge 内部需要旧形状时由 Compatibility Plugin 瞬时投影并在保存边界归一化回命名空间。`legacy.tavern.driver`、旧静态 capability catalog 与隐式默认注册均已删除。受信 Runtime Plugin 仍只随安装包分发；外部任意 Runtime Plugin 安装继续作为安全方案完成前的明确非目标。
+当前进度（2026-09-01）：阶段 5 已完成当前路线定义的产品闭环。设置页提供现代化的 Profile 卡片、内置 Base/Tavern 选择、复制、自定义 Compatibility/音频/视频能力开关和实际运行诊断；当前运行区提供明确的 Compatibility Runtime 开关，开启/关闭分别切换 Tavern/Base Profile，并在确认后卸载旧组合、重载应用运行时。启动组合从独立公开偏好恢复，损坏、悬空或旧版本记录安全回退。打开绑定其他 Profile 的会话时，应用会验证目标 Profile 与精确版本，写入一次性恢复意图并重启；目标组合装载后从权威存储恢复会话、角色和聊天页，目标已删除或版本不匹配时明确拒绝且不会形成重启循环。旧 `session.variables` 已停止持久化双写，仅保留旧数据读取降级；Bridge 内部需要旧形状时由 Compatibility Plugin 瞬时投影并在保存边界归一化回命名空间。`legacy.tavern.driver`、旧静态 capability catalog 与隐式默认注册均已删除。受信 Runtime Plugin 仍只随安装包分发；外部任意 Runtime Plugin 安装继续作为安全方案完成前的明确非目标。
 
 ## 八、第一批实施任务
 

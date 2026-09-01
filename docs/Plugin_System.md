@@ -1,6 +1,8 @@
 # Mobile Tavern 第三方全屏插件规范
 
 > `.mtplugin` 用于独立全屏微应用，不是主应用主题，也不能访问主应用 DOM。需要修改主界面视觉、隐藏可选 Tab 或引用主题图片时，请先阅读[主题与界面扩展开发指南](Theme_Development_Guide.md)。
+>
+> 版本说明：运行时宿主 API 已升级到 **V2**（`MobileTavernPlugin.version === 2`），但清单 `manifestVersion` 仍为 `1`。二者是两个独立维度，不要混淆；本文以源码 `src/domain/plugins/` 的实际契约为准。
 
 ## 1. 能力边界
 
@@ -53,11 +55,13 @@ example.mtplugin
   "entry": "index.html",
   "description": "演示全屏运行、独立存档和方向控制。",
   "author": "作者名称",
-  "orientation": "landscape"
+  "orientation": "landscape",
+  "permissions": ["context.read", "chat.action", "llm.chat"],
+  "llm": { "syncPreset": true }
 }
 ```
 
-`id` 必须采用小写反向域名式标识；`version` 必须是语义版本；`orientation` 可选值为 `portrait`、`landscape` 或 `auto`。
+`id` 必须采用小写反向域名式标识；`version` 必须是语义版本；`orientation` 可选值为 `portrait`、`landscape` 或 `auto`。`permissions` 可选，取值限 `context.read`、`chat.action`、`chat.send`、`llm.chat`、`llm.chatStream`、`llm.preset.list`；`llm.syncPreset` 为 `true` 时同步宿主当前预设采样参数，为 `false` 时由插件在 `llm.chat` / `llm.chatStream` 的 `sampling` 中自管。
 
 使用相同 `id` 再次安装会覆盖旧包，但保留独立存档。卸载插件会同时删除它的全部存档。
 
@@ -111,12 +115,37 @@ interface MobileTavernPluginApiV2 {
     injectAction(text: string): Promise<void>;
     send(text: string): Promise<void>;
   };
+  llm: {
+    chat(opts: LlmChatOptions): Promise<{ text: string }>;
+    chatStream(opts: LlmChatOptions): LlmStreamHandle;
+    listPresets(): Promise<{ syncPreset: boolean }>;
+  };
+}
+
+interface LlmChatOptions {
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  sampling?: {
+    temperature?: number;
+    top_p?: number;
+    top_k?: number;
+    min_p?: number;
+    max_tokens?: number;
+    presence_penalty?: number;
+    frequency_penalty?: number;
+  };
+}
+
+interface LlmStreamHandle {
+  onChunk(fn: (chunk: string) => void): LlmStreamHandle;
+  onDone(fn: () => void): LlmStreamHandle;
+  onError(fn: (err: Error) => void): LlmStreamHandle;
+  cancel(): void;
 }
 ```
 
 存档槽位只能包含英文字母、数字、下划线和连字符，长度为 1–64；每个槽位的 JSON 数据不超过 1 MiB。插件存档位于独立 `MobileTavernPluginDB`，不会写入主 settings 或 session。
 
-Bridge V2 能力必须在清单 `permissions` 中逐项声明：`context.read` 允许读取脱敏后的活跃角色和会话摘要；`chat.action` 允许注入不触发 AI 的动作描述；`chat.send` 允许注入用户消息并触发 AI。宿主不会暴露消息正文、变量、头像、API 凭证或数据库对象；写入文本经长度和控制字符校验，未授权调用统一拒绝。
+Bridge V2 能力必须在清单 `permissions` 中逐项声明，共六种：`context.read` 允许读取脱敏后的活跃角色和会话摘要；`chat.action` 允许注入不触发 AI 的动作描述；`chat.send` 允许注入用户消息并触发 AI；`llm.chat` 允许一次性 LLM 请求；`llm.chatStream` 允许流式 LLM 请求；`llm.preset.list` 允许查询宿主预设同步状态。宿主不会暴露消息正文、变量、头像、API 凭证或数据库对象；写入文本经长度和控制字符校验，未授权调用统一拒绝。声明 `llm` 配置时，`permissions` 必须至少包含一个 `llm.*` 权限。
 
 插件可监听生命周期：
 

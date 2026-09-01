@@ -37,7 +37,8 @@ export default function GeneralConfigSection({
   freeCount,
 }: GeneralConfigSectionProps) {
   return (
-    <Accordion className="w-full">
+    <div className="settings-connection-page">
+      <Accordion defaultValue={["api-config"]} className="settings-connection-stack">
       <ApiConfigSection
         settings={settings}
         updateSettings={updateSettings}
@@ -54,6 +55,7 @@ export default function GeneralConfigSection({
       <ImageGenConfigSection settings={settings} updateSettings={updateSettings} />
       <TtsConfigSection settings={settings} updateSettings={updateSettings} getKernelService={getKernelService} />
       <AsrConfigSection settings={settings} updateSettings={updateSettings} />
-    </Accordion>
+      </Accordion>
+    </div>
   );
 }

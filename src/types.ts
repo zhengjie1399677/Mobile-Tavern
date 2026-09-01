@@ -25,6 +25,11 @@ export interface LorebookEntry {
   isGlobal?: boolean; // Whether this lorebook is global
   /** 可选安全条件表达式；在关键词触发后根据 MVU 变量与会话状态二次过滤。 */
   condition?: string;
+  /**
+   * 适配器保留的原始来源字段；通用 Prompt 层不得解释其内容。
+   * Compatibility Runtime 可据此恢复来源格式中尚未归一化的语义。
+   */
+  sourceMetadata?: Record<string, unknown>;
 }
 
 export interface CharacterVisualSettings {
@@ -66,6 +71,8 @@ export interface CharacterCard {
   tags?: string[];                // Character tags
   character_version?: string;     // Card version
   extensions?: Record<string, any>; // ST extensions or custom settings
+  /** 适配器保留的原始卡片字段；通用业务不得解释其来源语义。 */
+  sourceMetadata?: Record<string, unknown>;
   visualSettings?: CharacterVisualSettings; // Front-end cosmetic styling settings
   variables?: Record<string, any>; // Character persistent variables
 }

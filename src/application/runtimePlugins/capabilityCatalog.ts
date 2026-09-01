@@ -11,6 +11,7 @@ import type {
   CompatibilityRendererDefinition,
   CompatibilityStateReducerDefinition,
   CompatibilityTransformDefinition,
+  CompatibilityWorldInfoResolverDefinition,
 } from "../compatibility/contracts";
 import { createRuntimeCapabilityToken } from "./capabilityTokens";
 
@@ -58,6 +59,11 @@ export const COMPATIBILITY_TRANSFORM_CAPABILITY = createRuntimeCapabilityToken<C
 
 export const COMPATIBILITY_STATE_REDUCER_CAPABILITY = createRuntimeCapabilityToken<CompatibilityStateReducerDefinition>({
   id: "compat.state-reducer",
+  cardinality: "multiple",
+});
+
+export const COMPATIBILITY_WORLD_INFO_RESOLVER_CAPABILITY = createRuntimeCapabilityToken<CompatibilityWorldInfoResolverDefinition>({
+  id: "compat.world-info-resolver",
   cardinality: "multiple",
 });
 

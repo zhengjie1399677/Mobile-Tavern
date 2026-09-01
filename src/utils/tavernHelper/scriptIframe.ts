@@ -13,6 +13,7 @@ import { publicEnvironment } from "../../config";
  */
 
 import { getProcessedMvuZod, getProcessedMvu, getProcessedMvuBundle, preprocessScriptContent } from "./scriptPreprocessor";
+import { createIframeResourceCleanupBootstrap } from "./iframeResourceCleanup";
 
 // ─────────────────────             ─────────────────────────────────────────────────────────
 // 脚本兼容执行 Iframe HTML 生成
@@ -47,6 +48,7 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
 <html>
 <head>
 <meta charset="utf-8" />
+<script>${createIframeResourceCleanupBootstrap()}</script>
 <script>
   window.onerror = function(message, source, lineno, colno, error) {
     console.error("[TH Iframe Uncaught Error]:", message, "at", source, ":", lineno, ":", colno, error);
@@ -528,6 +530,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
 
   const scriptInjects = `
 <script>
+  ${createIframeResourceCleanupBootstrap()}
   window.__TH_MESSAGE_ID = ${messageIndex !== undefined ? messageIndex : 'undefined'};
   var __TH_DEBUG = ${publicEnvironment.isDevelopment ? 'true' : 'false'};
   var __thLog = __TH_DEBUG ? console.log.bind(console) : function(){};

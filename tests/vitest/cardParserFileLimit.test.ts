@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  injectPngMetadata,
   isCharacterCardFileSizeAllowed,
   mapSillyTavernLorebookEntry,
   MAX_CHARACTER_CARD_FILE_BYTES,
+  parseCharacterFile,
 } from "../../src/utils/cardParser";
+import type { CharacterCard } from "../../src/types";
+import { parsePngMetadataLocal } from "../suites/testUtils";
 
 describe("角色卡文件大小限制", () => {
   it("允许最大 20 MB，并拒绝超过边界的文件", () => {
@@ -36,5 +40,90 @@ describe("角色卡世界书键名归一化", () => {
       key: { unexpected: true },
       content: "设定",
     }).keys).toEqual([]);
+  });
+
+  it("保留未归一化的 SillyTavern 条目字段供兼容插件恢复", () => {
+    const entry = mapSillyTavernLorebookEntry({
+      uid: 42,
+      key: ["城门"],
+      content: "城门设定",
+      extensions: {
+        exclude_recursion: true,
+        prevent_recursion: true,
+        delay_until_recursion: 2,
+        group: "location",
+        group_weight: 7,
+        role: "system",
+      },
+    });
+
+    expect(entry.sourceMetadata).toMatchObject({
+      uid: 42,
+      extensions: {
+        exclude_recursion: true,
+        prevent_recursion: true,
+        delay_until_recursion: 2,
+        group: "location",
+        group_weight: 7,
+        role: "system",
+      },
+    });
+  });
+});
+
+describe("角色卡来源字段保真", () => {
+  it("导入并导出时保留未知卡片字段与 World Info 来源字段", async () => {
+    const parsed = await parseCharacterFile(new File([JSON.stringify({
+      data: {
+        name: "保真角色",
+        description: "描述",
+        personality: "性格",
+        scenario: "场景",
+        first_mes: "你好",
+        mes_example: "例句",
+        custom_card_field: { provider: "st" },
+        extensions: { custom_extension: { enabled: true } },
+        character_book: {
+          custom_book_field: "keep-me",
+          entries: [{
+            uid: 42,
+            key: ["城门"],
+            content: "城门设定",
+            extensions: { exclude_recursion: true, group: "location" },
+          }],
+        },
+      },
+    })], "card.json", { type: "application/json" }));
+
+    expect(parsed.sourceMetadata).toMatchObject({
+      custom_card_field: { provider: "st" },
+      extensions: { custom_extension: { enabled: true } },
+      character_book: { custom_book_field: "keep-me" },
+    });
+
+    const character: CharacterCard = {
+      id: "card-1",
+      name: parsed.name ?? "",
+      description: parsed.description ?? "",
+      personality: parsed.personality ?? "",
+      scenario: parsed.scenario ?? "",
+      first_mes: parsed.first_mes ?? "",
+      mes_example: parsed.mes_example ?? "",
+      ...parsed,
+    };
+    const basePng = Uint8Array.from(atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    ), (value) => value.charCodeAt(0)).buffer;
+    const exported = parsePngMetadataLocal(
+      await (await injectPngMetadata(basePng, character)).arrayBuffer(),
+    );
+
+    expect(exported.data.custom_card_field).toEqual({ provider: "st" });
+    expect(exported.data.extensions.custom_extension).toEqual({ enabled: true });
+    expect(exported.data.character_book.custom_book_field).toBe("keep-me");
+    expect(exported.data.character_book.entries[0]).toMatchObject({
+      uid: 42,
+      extensions: { exclude_recursion: true, group: "location" },
+    });
   });
 });

@@ -296,10 +296,18 @@ export async function testArchitectureBoundaries(): Promise<void> {
       && compatibilityHost.includes("registerContextSource")
       && compatibilityHost.includes("registerTransform")
       && compatibilityHost.includes("registerStateReducer")
+      && compatibilityHost.includes("registerWorldInfoResolver")
       && compatibilityHost.includes("registerRenderer")
       && !compatibilityHost.includes('from "react"')
       && !compatibilityHost.includes("from 'react'"),
-    "Compatibility Host 必须在 Application 层提供六类可撤销贡献，且不得依赖 React"
+    "Compatibility Host 必须在 Application 层提供七类可撤销贡献，且不得依赖 React"
+  );
+  const genericRenderingRuntime = read("src/components/formatted-text/renderingRuntime.tsx");
+  assert(
+    !genericRenderingRuntime.includes("regex_scripts")
+      && !genericRenderingRuntime.includes("globalRegexScripts")
+      && !genericRenderingRuntime.includes("presetRegexScripts"),
+    "通用渲染层不得读取或解释 Compatibility Runtime 的 Regex 来源"
   );
   const compatibilityPlugin = read(compatibilityPluginEntry);
   assert(
@@ -478,9 +486,13 @@ export async function testArchitectureBoundaries(): Promise<void> {
     applicationRuntime.includes("readRuntimeProfilePreferences") &&
       applicationRuntime.includes("resolveRuntimeProfileSelection") &&
       read("src/tabs/settings/SettingsTab.tsx").includes("RuntimeProfileManagerSection") &&
+      read("src/components/plugins/RuntimeProfileManagerSection.tsx").includes("SettingsToggleRow") &&
+      read("src/components/plugins/RuntimeProfileManagerSection.tsx").includes("BUILTIN_TAVERN_PROFILE_ID") &&
+      read("src/components/plugins/RuntimeProfileManagerSection.tsx").includes("service.selectProfile") &&
+      read("src/components/plugins/RuntimeProfileManagerSection.tsx").includes("destroyApplicationRuntime") &&
       sendMessageHook.includes("canRunSessionWithProfile") &&
       read("src/hooks/useChat/useRerollMessage.ts").includes("canRunSessionWithProfile"),
-    "阶段 5 必须从持久化选择装载 Profile、提供管理 UI，并在发送与重发前守卫会话组合快照"
+    "阶段 5 必须从持久化选择装载 Profile、提供可切换兼容插件的管理 UI，并在发送与重发前守卫会话组合快照"
   );
   assert(
     read("src/contexts/ChatContext.tsx").includes("prepareRuntimeProfileSessionResume")
@@ -541,6 +553,16 @@ export async function testArchitectureBoundaries(): Promise<void> {
   );
 
   const settingsTab = read("src/tabs/settings/SettingsTab.tsx");
+  const apiConfigSection = read("src/tabs/settings/sections/ApiConfigSection.tsx");
+  assert(
+    settingsTab.includes("settings-shell")
+      && settingsTab.includes("settings-category-list")
+      && !settingsTab.includes("settings-home-summary")
+      && !settingsTab.includes("settings-home-hero")
+      && apiConfigSection.includes("SettingsToggleRow")
+      && apiConfigSection.includes("settings-panel"),
+    "设置页必须使用现代聊天式设置壳，API 能力开关必须使用统一设置行"
+  );
   assert(
     /case\s+["']prompt["']:[\s\S]*sections=\{\[["']preset["'],\s*["']prompts["'],\s*["']regex["']\]\}/.test(settingsTab),
     "预设导入、切换与管理入口必须挂载在用户可见的“预设”分类中"

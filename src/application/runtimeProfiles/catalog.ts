@@ -119,10 +119,15 @@ export function buildRuntimeProfileDefinition(
       "media.processor": mediaProcessors,
       ...(compatibility ? {
         "compat.codec": ["compat.sillytavern.codec.prompt-preset"],
-        "compat.prompt-section": ["compat.sillytavern.prompt.mvu-state"],
+        "compat.prompt-section": [
+          "compat.sillytavern.prompt.mvu-state",
+          "compat.sillytavern.prompt.world-info",
+          "compat.sillytavern.prompt.injection-prompts",
+        ],
         "compat.context-source": ["compat.sillytavern.context.mvu-state"],
         "compat.transform": ["compat.sillytavern.transform.regex"],
         "compat.state-reducer": ["compat.sillytavern.state.mvu"],
+        "compat.world-info-resolver": ["compat.sillytavern.world-info"],
         "compat.renderer": ["compat.sillytavern.renderer"],
       } : {}),
     },

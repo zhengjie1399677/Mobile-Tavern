@@ -13,6 +13,7 @@
 - SillyTavern 角色卡、预设、世界书、MVU、Regex、TavernHelper 和兼容 iframe 已收敛为可关闭的内置 Compatibility Runtime Plugin；Base Profile 在关闭兼容插件时仍应保有通用聊天、多模态附件和工具能力。
 - 目标架构不得被解释为把 Agent、聊天、媒体或兼容业务移入 Kernel，也不得把受信 Runtime Plugin 与用户安装的 `.mtplugin` 沙箱合并。
 - 分阶段边界、聊天组合方式和完成条件以[插件式 Agent Runtime 与聊天组合路线](docs/agents/agent_plugin_runtime_roadmap.md)为准；后续未完成的目标不能提前覆盖当前代码边界。
+- 产品「做什么、不做什么、为什么」以[产品方向](docs/agents/product_direction.md)为唯一权威来源；核心定性为「底座是唯一核心，SillyTavern 兼容只是一个插件」。
 
 ## 一、规则效力与阅读协议
 

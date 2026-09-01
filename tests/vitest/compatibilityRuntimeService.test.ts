@@ -89,10 +89,15 @@ describe("CompatibilityRuntimeService", () => {
       ],
       contributions: {
         "compat.codec": ["compat.sillytavern.codec.prompt-preset"],
-        "compat.prompt-section": ["compat.sillytavern.prompt.mvu-state"],
+        "compat.prompt-section": [
+          "compat.sillytavern.prompt.mvu-state",
+          "compat.sillytavern.prompt.world-info",
+          "compat.sillytavern.prompt.injection-prompts",
+        ],
         "compat.context-source": ["compat.sillytavern.context.mvu-state"],
         "compat.transform": ["compat.sillytavern.transform.regex"],
         "compat.state-reducer": ["compat.sillytavern.state.mvu"],
+        "compat.world-info-resolver": ["compat.sillytavern.world-info"],
         "compat.renderer": ["compat.sillytavern.renderer"],
       },
     };
@@ -107,10 +112,15 @@ describe("CompatibilityRuntimeService", () => {
     const first = await mountRuntimeProfile({ kernel, profile: tavernProfile, plugins: catalog });
     expect(service.getDiagnostics()).toEqual({
       codecs: ["compat.sillytavern.codec.prompt-preset"],
-      promptSections: ["compat.sillytavern.prompt.mvu-state"],
+      promptSections: [
+        "compat.sillytavern.prompt.injection-prompts",
+        "compat.sillytavern.prompt.mvu-state",
+        "compat.sillytavern.prompt.world-info",
+      ],
       contextSources: ["compat.sillytavern.context.mvu-state"],
       transforms: ["compat.sillytavern.transform.regex"],
       stateReducers: ["compat.sillytavern.state.mvu"],
+      worldInfoResolvers: ["compat.sillytavern.world-info"],
       renderers: ["compat.sillytavern.renderer"],
     });
     expect(listRuntimeCapabilities(kernel).some((item) => item.id === "compat.sillytavern"))

@@ -33,11 +33,11 @@ export default function FeaturesSection({
   return (
     <>
       {/* 1. 多语言设置 (Language Settings) */}
-      <Card className="glass-panel shadow-sm">
+      <Card className="settings-feature-card glass-panel shadow-sm">
         <CardContent className="p-3 space-y-3">
           <div className="flex items-center gap-2 pb-1.5 border-b border-border/50 mb-1.5 select-none">
             <Globe className="w-4 h-4 text-primary" />
-            <span className="text-[13.5px] font-black text-foreground tracking-wide">
+            <span className="text-sm font-bold text-foreground tracking-wide">
               {t("lang.section_title")}
             </span>
           </div>
@@ -72,21 +72,21 @@ export default function FeaturesSection({
       </Card>
 
       {/* 2. 功能设置 (Features) */}
-      <Card className="glass-panel shadow-sm mt-2">
+      <Card className="settings-feature-card glass-panel shadow-sm mt-3">
         <button
           type="button"
           aria-expanded={showFeatureDetails}
           onClick={() => setShowFeatureDetails((current) => !current)}
-          className="flex min-h-11 w-full items-center gap-2 px-3 text-left"
+          className="flex min-h-14 w-full items-center gap-3 px-4 text-left"
         >
             <FlaskConical className="w-4 h-4 text-primary" />
-            <span className="flex-1 text-[13px] font-black text-foreground tracking-wide">
+            <span className="flex-1 text-sm font-bold text-foreground tracking-wide">
               {t("features.section_title")}
             </span>
             <ChevronDown className={`size-4 text-muted-foreground transition-transform ${showFeatureDetails ? "rotate-180" : ""}`} />
         </button>
         {showFeatureDetails && (
-        <CardContent className="space-y-3 border-t border-border/40 px-3 pb-3 pt-2">
+        <CardContent className="space-y-4 border-t border-border/40 px-4 pb-4 pt-3">
 
           {/* 子分类 1：界面渲染与交互特性 */}
           <div className="space-y-2">
@@ -465,15 +465,15 @@ export default function FeaturesSection({
       </Card>
 
       {/* 3. 全局表情情绪匹配正则词典 */}
-      <Card className="glass-panel shadow-sm mt-2">
+      <Card className="settings-feature-card glass-panel shadow-sm mt-3">
         <CardHeader className="p-0">
           <button
             type="button"
             aria-expanded={showExpressionDictionary}
             onClick={() => setShowExpressionDictionary((current) => !current)}
-            className="flex min-h-11 w-full items-center gap-2 px-3 text-left"
+            className="flex min-h-14 w-full items-center gap-3 px-4 text-left"
           >
-            <span className="flex-1 text-xs font-bold text-foreground">
+            <span className="flex-1 text-sm font-bold text-foreground">
               {t("features.expression_dict_title")}
             </span>
             <ChevronDown className={`size-4 text-muted-foreground transition-transform ${showExpressionDictionary ? "rotate-180" : ""}`} />

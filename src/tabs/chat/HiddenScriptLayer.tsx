@@ -23,6 +23,7 @@ import type {
 interface HiddenScriptLayerProps {
   settings: UserSettings;
   activeCharacter: CharacterCard | null;
+  activeSessionId: string | null;
   announcement: string;
 }
 
@@ -32,11 +33,12 @@ interface ScriptIframeItemProps {
   enableLoopProtection: boolean;
   iframePolicy: CompatibilityIframePolicy;
   securityMode: CompatibilityScriptSecurityMode;
+  scopeKey: string;
 }
 
 const ScriptIframeItem = React.memo(
-  ({ script, renderer, enableLoopProtection, iframePolicy, securityMode }: ScriptIframeItemProps) => {
-    const iframeId = `TH-script--${script.name || "unnamed"}--${script.id}`;
+  ({ script, renderer, enableLoopProtection, iframePolicy, securityMode, scopeKey }: ScriptIframeItemProps) => {
+    const iframeId = `TH-script--${scopeKey}--${script.name || "unnamed"}--${script.id}`;
 
     const srcDoc = React.useMemo(() => {
       return renderer.createScriptIframeSrcDoc(
@@ -87,7 +89,8 @@ const ScriptIframeItem = React.memo(
     prev.enableLoopProtection === next.enableLoopProtection &&
     prev.iframePolicy.isolated === next.iframePolicy.isolated &&
     prev.iframePolicy.sandbox === next.iframePolicy.sandbox &&
-    prev.securityMode === next.securityMode
+    prev.securityMode === next.securityMode &&
+    prev.scopeKey === next.scopeKey
 );
 
 ScriptIframeItem.displayName = "ScriptIframeItem";
@@ -95,6 +98,7 @@ ScriptIframeItem.displayName = "ScriptIframeItem";
 const HiddenScriptLayer = ({
   settings,
   activeCharacter,
+  activeSessionId,
   announcement,
 }: HiddenScriptLayerProps) => {
   const kernel = useKernel();
@@ -105,6 +109,9 @@ const HiddenScriptLayer = ({
   const securityMode = settings.scriptSecurityMode ?? "isolated";
   const iframePolicy = renderer?.getIframePolicy(securityMode);
   const backgroundScripts = renderer?.listBackgroundScripts(activeCharacter) ?? [];
+  // 兼容脚本的执行上下文必须随会话隔离；同一角色切换会话时，
+  // React key 变化会主动销毁旧 iframe，触发其 pagehide/beforeunload 清理。
+  const runtimeScopeKey = `${activeCharacter?.id ?? "none"}--${activeSessionId ?? "none"}`;
   const [libsReady, setLibsReady] = React.useState(false);
 
   // 检测库是否就绪。依赖 activeCharacter 以便在角色切换时重新检查。
@@ -114,7 +121,9 @@ const HiddenScriptLayer = ({
   // → React 自动 unmount 旧 iframe、mount 新 iframe，无需手动干预。
   React.useEffect(() => {
     let isMounted = true;
+    let pollTimer: number | null = null;
     const checkLibs = () => {
+      if (!isMounted) return;
       // P2 修复：统一使用 hasCardScripts 检测角色卡是否含可执行脚本/MVU 配置，
       // 避免与 bridgeCore 的检测逻辑产生分叉。
       if (!renderer?.hasCardScripts(activeCharacter)) {
@@ -125,12 +134,13 @@ const HiddenScriptLayer = ({
       if (renderer.areRuntimeLibrariesReady(securityMode)) {
         if (isMounted) setLibsReady(true);
       } else {
-        setTimeout(checkLibs, 50);
+        pollTimer = window.setTimeout(checkLibs, 50);
       }
     };
     checkLibs();
     return () => {
       isMounted = false;
+      if (pollTimer !== null) window.clearTimeout(pollTimer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCharacter?.id, renderer, securityMode]);
@@ -199,12 +209,13 @@ const HiddenScriptLayer = ({
           if (script.enabled && script.content) {
             return (
               <ScriptIframeItem
-                key={script.id}
+                key={`${runtimeScopeKey}--${script.id}`}
                 script={script}
                 renderer={renderer}
                 enableLoopProtection={settings.enableLoopProtection !== false}
                 iframePolicy={iframePolicy ?? { isolated: true, sandbox: "allow-scripts" }}
                 securityMode={securityMode}
+                scopeKey={runtimeScopeKey}
               />
             );
           }

@@ -22,7 +22,7 @@
 - Compatibility Runtime 已从通用生产代码中隔离。`Base Agent` 不装载兼容插件，`Tavern Agent` 可装载、关闭、卸载和重载；旧 `session.variables` 只保留读取降级和插件内部瞬时投影。
 - Profile 设置、复制、能力开关、跨 Profile 会话恢复和运行诊断已完成。旧 `legacy.tavern.driver`、隐式全局 capability catalog 和默认注册路径已清理；任意 Runtime Plugin 安装仍关闭。
 - External Tool Plugin 已完成本地 L2 闭环：严格校验 v1 Manifest 与 v2 `.mttool`、SHA-256、包路径/体积和 JSON Schema；支持声明式 HTTPS Tool、一次性受限 Worker、宿主网络配额、加密凭据注入、Agent Runtime 注册、新会话快照、即时权限撤销、停用、回滚清权与完整卸载。它与受信 Runtime Plugin、内置 Worker Plugin 和 `.mtplugin` 沙箱保持独立。
-- 社区服务仓库代码已经包含 20 MB 上传限制、双哈希去重、评论限流、缩略图、管理员删除和时间戳记录；线上最新二进制是否部署必须单独复验。
+- 社区服务仓库代码已经包含 20 MB 上传限制、双哈希去重、评论限流、缩略图、管理员删除和时间戳记录；社区功能默认关闭，不在生产启用，也不纳入发布验收。
 - GitHub Quality Gate 已执行相对目标分支的改动文件 ESLint，`pre-commit` 已执行暂存 TS/TSX ESLint；Dependabot 和 PR 语义化标题校验已配置。`main` 分支保护的 required check 仍需仓库管理员在 GitHub 设置中启用。
 - 聊天入口已改为并行准备角色、会话和最近消息，长消息使用虚拟列表底部锚定；历史页已接通 cursor 分页。触屏端关闭大面积毛玻璃和背景循环平移，图片分批请求与异步解码，键盘 viewport 同步不再触发主布局 React 重渲染。
 - 全局确认/输入、角色编辑、会话管理、年表、角色详情、角色操作、本地扫描、记忆中心/片段编辑、主题编辑、Regex 编辑、社区上传/详情和运行诊断等交互遮罩已收敛到 Base UI Dialog/BottomSheet 语义；Android 返回键按遮罩、子页、主页分层处理，前台恢复会重新同步 Safe Area 与可视视口。
@@ -34,17 +34,15 @@
 ## 当前未完成事项
 
 1. **External Tool Plugin 来源治理**：L2 本地执行、精确版本依赖检查和生命周期已完成；尚无签名/可信来源、远程版本撤回、生态审核与官方 SDK。任意 Runtime Plugin 安装仍关闭，External Tool 也不开放后台常驻和原生能力。
-2. **社区生产对齐**：本地实现与线上部署存在版本差异，需服务器权限、管理员令牌和真实公网验收。
-3. **质量治理外部项**：`main` 分支保护与 required check 需要仓库管理员在 GitHub 设置中启用；覆盖率门禁尚未配置。
-4. **测试与平台**：Hook/跨组件契约测试仍需补强；Android UI 性能与 AR 兼容性待已授权真机复验；iOS 尚未开发或构建。
-5. **主题工作室后续**：起点选择、多场景切换、颜色对比度、CSS 语法高亮/行列诊断、片段库，以及媒体/状态/规则的可视化构建器尚待完成；高级 JSON 在此期间继续作为无损兼容入口。
+2. **质量治理外部项**：`main` 分支保护与 required check 需要仓库管理员在 GitHub 设置中启用；覆盖率门禁尚未配置。
+3. **测试与平台**：Hook/跨组件契约测试仍需补强；Android UI 性能与 AR 兼容性待已授权真机复验；iOS 尚未开发或构建。
+4. **主题工作室后续**：起点选择、多场景切换、颜色对比度、CSS 语法高亮/行列诊断、片段库，以及媒体/状态/规则的可视化构建器尚待完成；高级 JSON 在此期间继续作为无损兼容入口。
 
 ## 推荐执行顺序
 
 1. 完成主题工作室阶段二至五，并以 Theme 1.0/1.1 无损往返和移动端编辑为验收重点。
-2. 完成社区线上版本对齐（外部发布条件满足时执行）。
-3. 接续 External Tool Plugin 的签名/可信来源、远程版本撤回、生态审核与 SDK。
-4. 阶段 D 稳定后再进入 Tool Plugin SDK 与生态试运行，并同步补强跨组件回归测试。
+2. 接续 External Tool Plugin 的签名/可信来源、远程版本撤回、生态审核与 SDK。
+3. 阶段 D 稳定后再进入 Tool Plugin SDK 与生态试运行，并同步补强跨组件回归测试。
 
 ## 权威入口
 

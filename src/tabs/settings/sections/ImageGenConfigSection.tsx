@@ -29,13 +29,13 @@ export default function ImageGenConfigSection({
 }: ImageGenConfigSectionProps) {
   const { t } = useTranslation();
   return (
-    <AccordionItem value="image-gen-api" className="glass-panel shadow-sm rounded-xl overflow-hidden mt-2">
-      <AccordionTrigger className="px-3.5 py-2.5 hover:no-underline hover:bg-muted/30 transition">
+    <AccordionItem value="image-gen-api" className="settings-connection-item overflow-hidden">
+      <AccordionTrigger className="settings-panel-trigger px-3.5 py-3 hover:no-underline hover:bg-muted/30 transition">
         <div className="flex items-center gap-2">
-          <Palette className="w-4 h-4 text-primary" />
+          <span className="settings-panel-icon"><Palette className="w-4 h-4 text-primary" /></span>
           <div className="flex flex-col items-start gap-1">
-            <span className="text-sm font-semibold">{t("image_gen.title")}</span>
-            <span className="text-[10px] text-muted-foreground font-normal flex items-center gap-1.5">
+            <span className="text-sm font-semibold text-foreground">{t("image_gen.title")}</span>
+            <span className="text-xs text-muted-foreground font-normal flex items-center gap-1.5">
               {t("image_gen.subtitle")}
             </span>
           </div>

@@ -364,7 +364,7 @@ someAsyncOp().then(() => {
 
 ## 12. Compatibility Host 与生态状态契约
 
-- `CompatibilityRuntimeService` 是常驻但默认为空的 Application Host，只提供 Codec、Prompt Section、Context Source、Transform、State Reducer 和 Renderer 六类可撤销 Registry；它本身不得包含 SillyTavern 语义或依赖 React。
+- `CompatibilityRuntimeService` 是常驻但默认为空的 Application Host，只提供 Codec、Prompt Section、Context Source、Transform、State Reducer、World Info Resolver 和 Renderer 七类可撤销 Registry；它本身不得包含 SillyTavern 语义或依赖 React。
 - `mobile-tavern.base` 不装载生态兼容实现；`mobile-tavern.tavern` 显式装载 `mobile-tavern.sillytavern-compat`。插件卸载必须逆序移除全部贡献、清理 Bridge 和生成状态，同一 Host 随后可以重新装载。
 - Database、Prompt、Script、聊天 Hook 和消息 UI 只能依赖 Compatibility Host 契约，不得直接导入 `compatibility/sillytavern`，也不得直接读写 TavernHelper 全局字段。
 - 插件私有会话状态单写 `runtimePluginState[pluginId]`；读取时优先命名空间、缺失时降级读取旧 `variables`。Compatibility Bridge 需要旧会话形状时只允许插件内部瞬时投影，保存边界必须归一化回命名空间并清除旧字段，不得因插件关闭或旧备份恢复静默丢失数据。
@@ -383,6 +383,7 @@ someAsyncOp().then(() => {
 | 2026-08-24 | 增加 Application 层 Runtime Plugin/Profile 依赖解析、脱敏快照、Scoped 装载回滚与 legacy runtime 装配契约 |
 | 2026-08-24 | 增加 AgentHandle、Provider/Tool/媒体 Processor、Agent Journal、会话组合快照与 v6 备份契约 |
 | 2026-08-24 | 增加空 Compatibility Host、六类可撤销贡献、base/tavern Profile 隔离与插件状态命名空间契约 |
+| 2026-08-31 | 增加 World Info Resolver 轨道，并固化卡片来源字段保真、Prompt 注入和兼容 iframe 资源清理边界 |
 | 2026-08-24 | 增加 Runtime Profile 公开偏好、复制/开关/诊断 UI、会话快照切换守卫，并删除旧静态 Capability Catalog 与 legacy driver ID |
 | 2026-08-24 | 完成插件配置 Schema、类型化 Capability Token/冲突校验、OpenAI 多步 Tool Loop、跨 Profile 会话自动恢复及兼容状态命名空间单写契约 |
 | 2026-08-26 | 增加内置 Tool、会话冻结的 Tool 可见性、风险/副作用/Scope 策略、一次性审批与 fail-closed Journal 契约 |

@@ -308,6 +308,9 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
     character_version: data.character_version || data.version || "1.0.0",
     // P1-10: 对 extensions 做防腐清洗，移除原型污染键名，限制嵌套深度
     extensions: sanitizeExtensions(data.extensions || {}),
+    // 保留卡片顶层未知字段；导出时由 Compatibility Runtime 以标准字段覆盖
+    // 需要修改的值，避免不同 ST 版本的扩展字段静默丢失。
+    sourceMetadata: sanitizeExtensions(data),
     visualSettings: (() => {
       const ext = data.extensions || {};
       const rawStyle = ext.style || ext.character_style || {};
@@ -356,7 +359,7 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
     .map((key: string) => key.trim())
     .filter(Boolean);
 
-  let stPosition = entry.position !== undefined ? entry.position : entry.placement;
+  const stPosition = entry.position !== undefined ? entry.position : entry.placement;
   let position: "top" | "after_char_def" | "before_char_def" | "before_last_mes" | "in_chat" = "after_char_def";
   if (stPosition !== undefined) {
     const numPos = Number(stPosition);
@@ -384,9 +387,9 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
   }
 
   let depth = entry.depth !== undefined ? Number(entry.depth) : 4;
-  let order = entry.order !== undefined ? Number(entry.order) : 100;
-  let probability = entry.probability !== undefined ? Number(entry.probability) : 100;
-  let addMemo = !!entry.addMemo;
+  const order = entry.order !== undefined ? Number(entry.order) : 100;
+  const probability = entry.probability !== undefined ? Number(entry.probability) : 100;
+  const addMemo = !!entry.addMemo;
 
   const extensions = entry.extensions || {};
   if (extensions.position !== undefined) {
@@ -445,6 +448,9 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
     order,
     probability,
     addMemo,
+    // 保留 ST 原始条目，供 Compatibility Runtime 解释未归一化字段。
+    // 这里只保存经过防腐清洗的快照，不让通用 Prompt 层读取其语义。
+    sourceMetadata: sanitizeExtensions(entry),
   };
 }
 
@@ -471,10 +477,22 @@ export function injectPngMetadata(
   const insertOffset = PNG_IHDR_END_OFFSET;
 
   // Prepare json block
+  const sourceMetadata = char.sourceMetadata || {};
+  const sourceExtensions = sourceMetadata.extensions;
+  const normalizedSourceExtensions =
+    sourceExtensions && typeof sourceExtensions === "object" && !Array.isArray(sourceExtensions)
+      ? sourceExtensions as Record<string, unknown>
+      : {};
+  const sourceCharacterBook = sourceMetadata.character_book;
+  const normalizedSourceCharacterBook =
+    sourceCharacterBook && typeof sourceCharacterBook === "object" && !Array.isArray(sourceCharacterBook)
+      ? sourceCharacterBook as Record<string, unknown>
+      : {};
   const payload = {
     schema: "SillyTavernCard",
     version: 2,
     data: {
+      ...sourceMetadata,
       name: char.name,
       description: char.description,
       personality: char.personality,
@@ -482,11 +500,14 @@ export function injectPngMetadata(
       first_mes: char.first_mes,
       mes_example: char.mes_example,
       system_prompt: char.system_prompt || "",
+      post_history_instructions: char.post_history_instructions || "",
+      alternate_greetings: char.alternate_greetings || [],
       creator: char.creator || "",
       creator_notes: char.creator_notes || "",
       tags: char.tags || [],
       character_version: char.character_version || "1.0.0",
       extensions: {
+        ...normalizedSourceExtensions,
         ...(char.extensions || {}),
         style: {
           ...(char.extensions?.style || char.extensions?.character_style || {}),
@@ -506,8 +527,15 @@ export function injectPngMetadata(
         }
       },
       character_book: {
+        ...normalizedSourceCharacterBook,
         entries:
           char.lorebookEntries?.map((e) => {
+            const sourceMetadata = e.sourceMetadata || {};
+            const sourceExtensions = sourceMetadata.extensions;
+            const normalizedSourceExtensions =
+              sourceExtensions && typeof sourceExtensions === "object" && !Array.isArray(sourceExtensions)
+                ? sourceExtensions as Record<string, unknown>
+                : {};
             let selectiveLogicVal = 0;
             if (e.selectiveLogic === "AND_ANY") selectiveLogicVal = 1;
             else if (e.selectiveLogic === "AND_ALL") selectiveLogicVal = 2;
@@ -527,6 +555,7 @@ export function injectPngMetadata(
             }
 
             return {
+              ...sourceMetadata,
               keys: e.keys,
               secondary_keys: e.secondary_keys || [],
               content: e.content,
@@ -536,6 +565,7 @@ export function injectPngMetadata(
               position: stPosStr,
               use_regex: !!e.useRegex,
               extensions: {
+                ...normalizedSourceExtensions,
                 position: stPosNum,
                 probability: e.probability !== undefined ? e.probability : 100,
                 depth: e.depth !== undefined ? e.depth : 4,

@@ -1,27 +1,16 @@
 import React from "react";
 import { publicEnvironment } from "../../config";
 import { parseStyleString, resolveExpressionUrl, convertMarkdownTablesToHtml, escapeHtml } from "../formattedTextUtils";
-import { readFormattedTextSrcdoc, storeFormattedTextSrcdoc } from "./srcdocStore";
+import { readFormattedTextSrcdoc, removeFormattedTextSrcdoc, storeFormattedTextSrcdoc } from "./srcdocStore";
 import CodeBlockHeader from "./CodeBlockHeader";
 import type { CompatibilityRendererDefinition } from "../../application/compatibility/contracts";
 import type { CompatibilityScriptSecurityMode } from "../../types";
-
-interface RegexScript {
-  id?: string;
-  scriptName?: string;
-  findRegex?: string;
-  replaceString?: string;
-  disabled?: boolean;
-  promptOnly?: boolean;
-  placement?: number | number[];
-}
 
 export interface FormattedCharacterLike {
   id?: string;
   name?: string;
   avatar?: string;
   extensions?: {
-    regex_scripts?: RegexScript[] | Record<string, RegexScript>;
     tavern_helper?: { scripts?: unknown[] };
     mvu_settings?: unknown;
     mvu?: unknown;
@@ -34,6 +23,7 @@ type SafeIframeProps = Omit<
   "srcDoc"
 > & {
   srcDoc?: string;
+  srcDocStoreKey?: string;
 };
 
 type RenderElementProps = Record<string, unknown> & {
@@ -41,6 +31,7 @@ type RenderElementProps = Record<string, unknown> & {
   id?: string;
   name?: string;
   srcDoc?: string;
+  srcDocStoreKey?: string;
   style?: React.CSSProperties;
   sandbox?: string;
   allowtransparency?: string;
@@ -49,6 +40,15 @@ type RenderElementProps = Record<string, unknown> & {
   marginHeight?: string;
 };
 
+function createIframeScopeKey(sessionId?: string): string {
+  const value = sessionId || "preview";
+  let hash = 0;
+  for (let index = 0; index < value.length; index++) {
+    hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+  }
+  return `s${(hash >>> 0).toString(36)}`;
+}
+
 // ─── Srcdoc Store ─────────────────────────────────────────────────────────────
 // Android WebView 的 DOMParser 在解析超长 HTML attribute 值时，遇到 attribute
 // 内的 `<` 字符会提前终止属性解析，导致 iframe 的 srcdoc 被截断或丢失（PC
@@ -56,7 +56,7 @@ type RenderElementProps = Record<string, unknown> & {
 // 解决方案：将 srcdoc 内容存入模块级 Map，iframe 只携带短 ID；domToReact
 // 从 Map 中取出完整 srcdoc 赋值，彻底绕开 DOMParser 对属性值大小的限制。
 const SafeIframe = React.memo((props: SafeIframeProps) => {
-  const { srcDoc, ...rest } = props;
+  const { srcDoc, srcDocStoreKey, ...rest } = props;
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
   // 关键修复：Android WebView 对超长 srcdoc attribute（50KB+）有硬性截断限制，
@@ -78,11 +78,29 @@ const SafeIframe = React.memo((props: SafeIframeProps) => {
     }
   }, [srcDoc]);
 
+  React.useEffect(() => {
+    const storedKey = srcDocStoreKey;
+    return () => {
+      if (storedKey) removeFormattedTextSrcdoc(storedKey);
+      const iframe = iframeRef.current;
+      if (!iframe) return;
+      try {
+        iframe.srcdoc = "";
+        iframe.src = "about:blank";
+      } catch {
+        // 浏览上下文销毁本身已经是最后一道清理兜底。
+      }
+    };
+  }, [srcDocStoreKey]);
+
   // 不通过 React prop 传递 srcDoc，由 useLayoutEffect 直接写入 DOM property
   return <iframe ref={iframeRef} {...rest} />;
 }, (prevProps, nextProps) => {
   // srcDoc 变化时必须允许重新渲染，否则 useLayoutEffect 不会触发，切换分支时会白屏。
   if (prevProps.srcDoc !== nextProps.srcDoc) {
+    return false;
+  }
+  if (prevProps.srcDocStoreKey !== nextProps.srcDocStoreKey) {
     return false;
   }
   // srcDoc 未变化时跳过渲染，保持 iframe 存活，避免不必要的脚本重新执行
@@ -254,6 +272,7 @@ function domToReact(
   swipeId?: number,
   compatibilityRenderer?: CompatibilityRendererDefinition | null,
   scriptSecurityMode: CompatibilityScriptSecurityMode = "isolated",
+  sessionId?: string,
 ): React.ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
     return renderTextNode(node.nodeValue || "", enableAsteriskFormatting, index);
@@ -284,7 +303,7 @@ function domToReact(
       return null;
     }
     return Array.from(element.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer, scriptSecurityMode)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer, scriptSecurityMode, sessionId)
     );
   }
 
@@ -346,6 +365,7 @@ function domToReact(
             }
           }
           props.srcDoc = resolvedSrcdoc;
+          props.srcDocStoreKey = val;
           if (publicEnvironment.isDevelopment) {
             console.log('[FormattedText] srcdoc retrieved from store, id:', val, 'len:', resolvedSrcdoc.length);
           } else {
@@ -403,9 +423,10 @@ function domToReact(
       ?? { isolated: true, sandbox: "allow-scripts" };
     props.sandbox = iframePolicy.sandbox;
     if (iframePolicy.isolated) props["data-mt-compat-isolated"] = "true";
+    const sessionScopeKey = createIframeScopeKey(sessionId);
     if (!props.id && messageIndex !== undefined) {
-      props.id = `TH-msg-iframe-${messageIndex}`;
-      props.name = `TH-msg-iframe-${messageIndex}`;
+      props.id = `TH-msg-iframe-${sessionScopeKey}-${messageIndex}`;
+      props.name = `TH-msg-iframe-${sessionScopeKey}-${messageIndex}`;
     }
     // Force React to destroy and recreate the iframe element when content changes
     // 使用 srcDoc 内容哈希作为 key 的一部分，确保内容变化时 iframe 被销毁重建，
@@ -417,7 +438,7 @@ function domToReact(
     for (let hi = 0; hi < Math.min(srcDocForHash.length, 2000); hi++) {
       contentHash = ((contentHash << 5) - contentHash + srcDocForHash.charCodeAt(hi)) | 0;
     }
-    props.key = `iframe-${charId}-${messageIndex !== undefined ? messageIndex : "temp"}-${sId}-${index}-${contentHash}`;
+    props.key = `iframe-${charId}-${sessionScopeKey}-${messageIndex !== undefined ? messageIndex : "temp"}-${sId}-${index}-${contentHash}`;
 
     // Force transparent background, full width, no border and GPU acceleration on message iframes
     props.style = {
@@ -448,7 +469,7 @@ function domToReact(
   }
 
   const children = Array.from(element.childNodes).map((child, i) => 
-    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer, scriptSecurityMode)
+    domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer, scriptSecurityMode, sessionId)
   );
   
   const reactElement =
@@ -537,6 +558,7 @@ export function parseSafeHtmlToReact(
   swipeId?: number,
   compatibilityRenderer?: CompatibilityRendererDefinition | null,
   scriptSecurityMode: CompatibilityScriptSecurityMode = "isolated",
+  sessionId?: string,
 ): React.ReactNode {
   try {
     const parser = new DOMParser();
@@ -548,7 +570,7 @@ export function parseSafeHtmlToReact(
     if (!container) return html;
 
     return Array.from(container.childNodes).map((child, i) => 
-      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer, scriptSecurityMode)
+      domToReact(child, i, enableAsteriskFormatting, enableScriptExecution, activeCharacter, messageIndex, libsReady, enableLoopProtection, swipeId, compatibilityRenderer, scriptSecurityMode, sessionId)
     );
   } catch (err) {
     console.error("Failed to parse HTML safely:", err);
@@ -562,14 +584,14 @@ export function preprocessFormattedText(
   userName: string,
   activeCharacter: FormattedCharacterLike | null | undefined,
   enableScriptExecution: boolean,
-  globalRegexScripts?: RegexScript[],
-  presetRegexScripts?: RegexScript[],
   messageIndex?: number,
   enableLoopProtection?: boolean,
   isAiMessage?: boolean,
   isStreamingLastMsg?: boolean,
   compatibilityRenderer?: CompatibilityRendererDefinition | null,
   scriptSecurityMode: CompatibilityScriptSecurityMode = "isolated",
+  transformText?: (text: string) => string,
+  sessionId?: string,
 ): string {
   if (!text) return "";
 
@@ -598,136 +620,10 @@ export function preprocessFormattedText(
     .replace(/\{\{user\}\}/gi, userName)
     .replace(/<USER>/gi, userName);
 
-  // 2. 合并全局、预设与角色局部已启用正则
-  const mergedScripts: RegexScript[] = [];
-  
-  // 全局正则
-  if (Array.isArray(globalRegexScripts)) {
-    for (const script of globalRegexScripts) {
-      if (!script.disabled) {
-        mergedScripts.push(script);
-      }
-    }
-  }
-
-  // 预设正则
-  if (Array.isArray(presetRegexScripts)) {
-    for (const script of presetRegexScripts) {
-      if (!script.disabled) {
-        const exists = mergedScripts.some(
-          (s) => (script.id && s.id && s.id === script.id) || (s.scriptName === script.scriptName && s.findRegex === script.findRegex)
-        );
-        if (!exists) {
-          mergedScripts.push(script);
-        }
-      }
-    }
-  }
-  
-  // 角色局部正则
-  const rawCharScripts = activeCharacter?.extensions?.regex_scripts;
-  const charRegexScripts = Array.isArray(rawCharScripts)
-    ? rawCharScripts
-    : (rawCharScripts && typeof rawCharScripts === "object" ? Object.values(rawCharScripts) : []);
-
-  if (publicEnvironment.isDevelopment) {
-    console.log("[charRegexScripts Raw] for activeCharacter:", activeCharacter?.name, charRegexScripts);
-  }
-
-  if (charRegexScripts.length > 0) {
-    for (const script of charRegexScripts) {
-      if (script && !script.disabled) {
-        const exists = mergedScripts.some(
-          (s) => (script.id && s.id && s.id === script.id) || (s.scriptName === script.scriptName && s.findRegex === script.findRegex)
-        );
-        if (!exists) {
-          mergedScripts.push(script);
-        }
-      }
-    }
-  }
-
-  // 依次执行过滤清洗
-  if (publicEnvironment.isDevelopment) {
-    console.log("[RegexScripts List] for messageIndex:", messageIndex, mergedScripts.map(s => ({
-      name: s.scriptName || s.id,
-      findRegex: s.findRegex,
-      replaceString: s.replaceString ? s.replaceString.substring(0, 60) + "..." : "",
-      disabled: s.disabled,
-      placement: s.placement
-    })));
-  }
-
-  for (const script of mergedScripts) {
-    if (!script || script.disabled || script.promptOnly) continue;
-
-    const placement = script.placement;
-    let isAllowedPlacement = true;
-    if (placement !== undefined && placement !== null) {
-      if (Array.isArray(placement)) {
-        if (placement.length > 0) {
-          const targetPlacement = isAiMessage === true ? 2 : (isAiMessage === false ? 1 : null);
-          if (targetPlacement !== null) {
-            if (!placement.includes(targetPlacement)) {
-              isAllowedPlacement = false;
-            }
-          } else {
-            if (!placement.includes(1) && !placement.includes(2)) {
-              isAllowedPlacement = false;
-            }
-          }
-        }
-      } else if (typeof placement === "number") {
-        const targetPlacement = isAiMessage === true ? 2 : (isAiMessage === false ? 1 : null);
-        if (targetPlacement !== null) {
-          if (placement !== targetPlacement) {
-            isAllowedPlacement = false;
-          }
-        } else {
-          if (placement !== 1 && placement !== 2) {
-            isAllowedPlacement = false;
-          }
-        }
-      }
-    }
-    if (!isAllowedPlacement) {
-      continue;
-    }
-
-    let findRegexStr = script.findRegex;
-    const replaceString = script.replaceString || "";
-    if (!findRegexStr) continue;
-
-    // 关键功能实现：支持 SillyTavern 标准的 "Substitute (raw)" 宏替换功能。
-    // 在编译正则表达式之前，必须将 findRegex 字符串中的宏占位符（如 {{char}} 或 {{user}}）替换为真实的名称。
-    // 否则当文本中已经替换为真实姓名后，正则表达式将由于寻找 literal 的 "{{char}}" 字符串而匹配失败。
-    findRegexStr = findRegexStr
-      .replace(/\{\{char\}\}/gi, charName)
-      .replace(/<BOT>/gi, charName)
-      .replace(/\{\{user\}\}/gi, userName)
-      .replace(/<USER>/gi, userName);
-
-    try {
-      let regex: RegExp;
-      const match = findRegexStr.match(/^\/(.*)\/([gimsuy]*)$/);
-      if (match) {
-        regex = new RegExp(match[1], match[2]);
-      } else {
-        regex = new RegExp(findRegexStr, "gi");
-      }
-      const beforeLen = processed.length;
-      processed = processed.replace(regex, replaceString);
-      if (publicEnvironment.isDevelopment) {
-        const tempRegex = new RegExp(regex.source, regex.flags.replace('g', ''));
-        const hasMatch = tempRegex.test(processed);
-        console.log(`[RegexScript] Applied: "${script.scriptName || script.id}", beforeLen: ${beforeLen}, afterLen: ${processed.length}, hasMatch: ${hasMatch}`);
-        if (script.scriptName?.includes("变量更新") || script.scriptName?.includes("完整变量表") || beforeLen !== processed.length) {
-          console.log(`[RegexScript DEBUG] scriptName: "${script.scriptName}", regexSource: "${regex.source}", flags: "${regex.flags}", text contains <UpdateVariable>: ${processed.includes("<UpdateVariable>") || processed.includes("UpdateVariable")}, text length: ${processed.length}, text sample:`, processed.substring(0, 500));
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to apply regex script:", findRegexStr, err);
-    }
+  // 2. Regex 由 Compatibility Runtime Plugin 统一解释；渲染器只接收已经
+  // 过基础占位符替换的文本，避免通用 UI 复制 SillyTavern 来源合并语义。
+  if (transformText) {
+    processed = transformText(processed);
   }
 
   // 3. Wrap code blocks in sandboxed iframes
@@ -749,7 +645,10 @@ export function preprocessFormattedText(
     //   2. 第二个及之后的 iframe 的 bridge 通信失败（postMessage target 命中第一个）
     //   3. 表现为"第二句话/第二个挂件前端丢失"
     // 现在使用递增子序号 `TH-msg-iframe-${messageIndex}-${subIdx}` 确保唯一
-    const baseMsgId = messageIndex !== undefined ? `TH-msg-iframe-${messageIndex}` : `TH-msg-iframe-temp`;
+    const sessionScopeKey = createIframeScopeKey(sessionId);
+    const baseMsgId = messageIndex !== undefined
+      ? `TH-msg-iframe-${sessionScopeKey}-${messageIndex}`
+      : `TH-msg-iframe-${sessionScopeKey}-temp`;
     let iframeSubIdx = 0;
     const nextIframeId = () => `${baseMsgId}-${iframeSubIdx++}`;
 

@@ -74,7 +74,7 @@ Mobile Tavern 是一款本地优先、多模态、可组合的移动端 Agent Ho
 ### 9. 🎮 第三方全屏插件容器
 * 可从“设置 → 第三方全屏插件（实验性功能）”本地导入 `.mtplugin` ZIP 包，并在隔离的全屏 `iframe` 中运行 HTML/CSS/JS Gal 游戏或独立微应用；该入口位于“Prompt 组装”之后，插件包、配置和存档使用独立 `MobileTavernPluginDB`，不会污染主 settings/session。
 * 正式安装包内置只读的《星渊终焉》和《夜雨试剑》两个 PixiJS 示例，无需导入即可运行；它们与用户安装的插件共用同一强沙箱运行链路，但包体不可卸载，游戏存档仍按插件 ID 独立保存。
-* 运行容器仅授予 `allow-scripts`，不授予同源、表单、弹窗、下载或导航能力；插件不能访问主应用 DOM、Kernel、API 凭证、网络或 Tauri，只能使用版本化宿主桥接进行存档、退出和方向控制。完整格式见 [第三方全屏插件规范](docs/Plugin_System_v1.md)。
+* 运行容器仅授予 `allow-scripts`，不授予同源、表单、弹窗、下载或导航能力；插件不能访问主应用 DOM、Kernel、API 凭证、网络或 Tauri，只能通过权限化宿主桥接（`MobileTavernPlugin` v2 API）使用独立存档、退出、方向控制、脱敏上下文读取、聊天桥接与 LLM 能力。完整格式见 [第三方全屏插件规范](docs/Plugin_System.md)。
 * 主应用外观可通过 `.tavern-theme.json`、受限 `customCss`、稳定 `data-ui` 选择器和本地资源调整；主题 1.1 可使用宿主解释的白名单规则播放本地音视频并驱动私有状态，但仍不能执行 JavaScript、访问网络或读取业务数据。主题与插件的能力差异见 [主题与界面扩展开发指南](docs/Theme_Development_Guide.md)。
 
 ### 10. 🧪 自动化集成测试套件 (Comprehensive Test Suite)

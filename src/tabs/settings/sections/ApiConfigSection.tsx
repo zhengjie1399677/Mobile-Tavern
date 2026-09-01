@@ -12,9 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../components/ui/select";
-import { Switch } from "../../../../components/ui/switch";
 import { Input } from "../../../../components/ui/input";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
+import SettingsToggleRow from "../SettingsToggleRow";
 
 export type SaveState = "idle" | "saving" | "saved";
 
@@ -49,13 +49,13 @@ export default function ApiConfigSection({
 }: ApiConfigSectionProps) {
   const { t } = useTranslation();
   return (
-    <AccordionItem value="api-config" className="glass-panel shadow-sm rounded-xl overflow-hidden">
-      <AccordionTrigger className="px-3.5 py-2.5 hover:no-underline hover:bg-muted/30 transition">
+    <AccordionItem value="api-config" className="settings-connection-item overflow-hidden">
+      <AccordionTrigger className="settings-panel-trigger px-3.5 py-3 hover:no-underline hover:bg-muted/30 transition">
         <div className="flex items-center gap-2">
-          <KeySquare className="w-4 h-4 text-primary" />
+          <span className="settings-panel-icon"><KeySquare className="w-5 h-5 text-primary" /></span>
           <div className="flex flex-col items-start gap-1">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold">{t("api.title")}</span>
+              <span className="text-base font-bold">{t("api.title")}</span>
               {saveState === "saving" && (
                 <span className="text-[10px] text-sky-500 flex items-center gap-1 font-semibold animate-pulse">
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping" />
@@ -69,14 +69,16 @@ export default function ApiConfigSection({
                 </span>
               )}
             </div>
-            <span className="text-[10px] text-muted-foreground font-normal">{t("api.subtitle")}</span>
+            <span className="text-xs text-muted-foreground font-normal">{t("api.subtitle")}</span>
           </div>
         </div>
       </AccordionTrigger>
-      <AccordionContent className="p-3 pt-1 border-t border-border/50 space-y-3">
+      <AccordionContent className="settings-panel-content settings-form p-0 border-t border-border/50">
         {/* API 通道配置档案选择与切换 */}
-        <div className="space-y-1.5 pb-2.5 mb-1 border-b border-border/30">
-          <label className="text-[11px] font-semibold text-muted-foreground block">
+        <section className="settings-form-group">
+          <h3 className="settings-form-group-title">通道</h3>
+          <div className="settings-profile-section space-y-2.5">
+          <label className="text-xs font-semibold text-muted-foreground block">
             {t("api.select_profile")}
           </label>
           <div className="flex flex-col gap-2">
@@ -115,7 +117,7 @@ export default function ApiConfigSection({
                   }
                 }}
               >
-                <SelectTrigger className="h-9 bg-input/50 text-xs flex-1 truncate">
+                <SelectTrigger className="h-10 rounded-xl bg-input/50 text-sm flex-1 truncate">
                   <SelectValue placeholder={t("api.select_profile")}>
                     {(() => {
                       if (!settings.currentApiProfileId) return t("api.temp_profile");
@@ -169,7 +171,7 @@ export default function ApiConfigSection({
                     }));
                   }
                 }}
-                className="h-9 px-3 bg-primary/10 border border-primary/25 text-primary text-xs font-medium rounded-md hover:bg-primary/20 transition shrink-0 tap-scale"
+                className="h-10 px-3.5 bg-primary/10 border border-primary/25 text-primary text-xs font-semibold rounded-xl hover:bg-primary/20 transition shrink-0 tap-scale"
               >
                 {t("api.save_profile")}
               </button>
@@ -224,10 +226,13 @@ export default function ApiConfigSection({
               </div>
             )}
           </div>
-        </div>
+          </div>
+        </section>
 
+        <section className="settings-form-group">
+          <h3 className="settings-form-group-title">连接</h3>
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-          <label className="text-[11px] font-semibold text-muted-foreground flex justify-between items-center">
+          <label className="text-xs font-semibold text-muted-foreground flex justify-between items-center">
             <span>{t("api.base_url")}</span>
             <span className="text-[9px] text-primary/70">{t("api.base_url_tip")}</span>
           </label>
@@ -261,7 +266,7 @@ export default function ApiConfigSection({
                 api: { ...prev.api, baseUrl: val },
               }));
             }}
-            className="h-9 text-xs font-mono bg-input/50"
+            className="h-10 rounded-xl text-sm font-mono bg-input/50"
             placeholder="https://api.openai.com/v1"
           />
           <datalist id="saved-api-urls">
@@ -305,7 +310,7 @@ export default function ApiConfigSection({
         </div>
 
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-          <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
+          <label className="text-xs font-semibold text-muted-foreground flex justify-between">
             <span>{t("api.api_key")}</span>
             <button
               aria-label={t("api.test_conn")}
@@ -318,7 +323,7 @@ export default function ApiConfigSection({
           <div className="flex gap-2">
             <Input
               type="text"
-              className="font-mono text-xs h-9 bg-input/50 flex-1"
+              className="font-mono text-sm h-10 rounded-xl bg-input/50 flex-1"
               autoComplete="off"
               spellCheck={false}
               autoCorrect="off"
@@ -336,7 +341,7 @@ export default function ApiConfigSection({
             <button
               onClick={handleFetchModels}
               disabled={isFetchingModels}
-              className="h-9 px-3 bg-primary text-primary-foreground text-xs font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
+              className="h-10 px-3.5 bg-primary text-primary-foreground text-xs font-semibold rounded-xl hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
             >
               {isFetchingModels ? t("api.fetching_models") : t("api.fetch_models")}
             </button>
@@ -356,9 +361,12 @@ export default function ApiConfigSection({
             </div>
           )}
         </div>
+        </section>
 
+        <section className="settings-form-group">
+          <h3 className="settings-form-group-title">模型</h3>
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-          <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
+          <label className="text-xs font-semibold text-muted-foreground flex justify-between">
             <span>{t("api.model_id")}</span>
           </label>
           {availableModels.length > 0 ? (
@@ -373,7 +381,7 @@ export default function ApiConfigSection({
                 }))
               }
             >
-              <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-mono">
+              <SelectTrigger className="w-full text-sm h-10 rounded-xl bg-input/50 font-mono">
                 <SelectValue placeholder={t("api.select_model_placeholder")} />
               </SelectTrigger>
               <SelectContent className="max-h-[300px]">
@@ -399,7 +407,7 @@ export default function ApiConfigSection({
                   api: { ...prev.api, modelName: val },
                 }));
               }}
-              className="h-9 text-xs font-mono bg-input/50"
+              className="h-10 rounded-xl text-sm font-mono bg-input/50"
               placeholder="gpt-4o"
             />
           )}
@@ -407,7 +415,7 @@ export default function ApiConfigSection({
 
         {/* contextLimit Input */}
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-          <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
+          <label className="text-xs font-semibold text-muted-foreground flex justify-between">
             <span>{t("api.context_limit")}</span>
             <span className="text-[9px] text-muted-foreground/80">{t("api.context_limit_tip")}</span>
           </label>
@@ -421,14 +429,17 @@ export default function ApiConfigSection({
                 api: { ...prev.api, contextLimit: val },
               }));
             }}
-            className="h-9 text-xs font-mono bg-input/50"
+            className="h-10 rounded-xl text-sm font-mono bg-input/50"
             placeholder="e.g. 100000 (100k)"
           />
         </div>
+        </section>
 
+        <section className="settings-form-group">
+          <h3 className="settings-form-group-title">请求格式</h3>
         {/* renderingFormat Select */}
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-          <label className="text-[11px] font-semibold text-muted-foreground flex justify-between">
+          <label className="text-xs font-semibold text-muted-foreground flex justify-between">
             <span>{t("api.prompt_format")}</span>
             <span className="text-[9px] text-muted-foreground/80">{t("api.prompt_format_tip")}</span>
           </label>
@@ -442,7 +453,7 @@ export default function ApiConfigSection({
               }))
             }
           >
-            <SelectTrigger className="w-full text-xs h-9 bg-input/50">
+            <SelectTrigger className="w-full text-sm h-10 rounded-xl bg-input/50">
               <SelectValue placeholder={t("api.format_auto")} />
             </SelectTrigger>
             <SelectContent>
@@ -452,121 +463,64 @@ export default function ApiConfigSection({
             </SelectContent>
           </Select>
         </div>
+        </section>
 
-        <div className="mt-3 flex items-center justify-between border-t border-border/40 pt-3 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="space-y-0.5 pr-4">
-            <label className="text-[12.5px] font-semibold text-foreground">
-              模型直接听语音
-            </label>
-            <p className="max-w-[450px] text-[9.5px] text-muted-foreground/80">
-              仅在当前模型支持 OpenAI-compatible input_audio 时启用；它不等同于语音转文字，也不会改变“+”里的音频附件。
-            </p>
-          </div>
-          <Switch
-            aria-label="模型直接听语音"
-            checked={settings.api.supportsAudioInput === true}
-            onCheckedChange={(checked) =>
-              updateSettings((prev) => ({
-                ...prev,
-                api: { ...prev.api, supportsAudioInput: checked },
-              }))
-            }
-            className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
-          />
-        </div>
+        <section className="settings-form-group settings-form-group-last">
+          <h3 className="settings-form-group-title">能力与行为</h3>
+        <SettingsToggleRow
+          label="模型直接听语音"
+          description="仅在当前模型支持 OpenAI-compatible input_audio 时启用；它不等同于语音转文字，也不会改变“+”里的音频附件。"
+          checked={settings.api.supportsAudioInput === true}
+          onCheckedChange={(checked) => updateSettings((prev) => ({
+            ...prev,
+            api: { ...prev.api, supportsAudioInput: checked },
+          }))}
+        />
 
         {/* forceBasicParams Switch */}
-        <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="space-y-0.5">
-            <label className="text-[12.5px] font-semibold text-foreground">
-              图片输入能力
-            </label>
-            <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
-              仅在当前模型明确支持视觉输入时启用；缺省关闭，避免向文本模型误发图片。
-            </p>
-          </div>
-          <Switch
-            aria-label="图片输入能力"
-            checked={settings.api.supportsVision === true}
-            onCheckedChange={(checked) =>
-              updateSettings((prev) => ({
-                ...prev,
-                api: { ...prev.api, supportsVision: checked },
-              }))
-            }
-            className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
-          />
-        </div>
+        <SettingsToggleRow
+          label="图片输入能力"
+          description="仅在当前模型明确支持视觉输入时启用；缺省关闭，避免向文本模型误发图片。"
+          checked={settings.api.supportsVision === true}
+          onCheckedChange={(checked) => updateSettings((prev) => ({
+            ...prev,
+            api: { ...prev.api, supportsVision: checked },
+          }))}
+        />
 
         {/* forceBasicParams Switch */}
-        <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="space-y-0.5">
-            <label className="text-[12.5px] font-semibold text-foreground">
-              {t("api.fallback_title")}
-            </label>
-            <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
-              {t("api.fallback_desc")}
-            </p>
-          </div>
-          <Switch
-            aria-label={t("api.fallback_title")}
-            checked={settings.api.forceBasicParams || false}
-            onCheckedChange={(checked) =>
-              updateSettings((prev) => ({
-                ...prev,
-                api: { ...prev.api, forceBasicParams: checked },
-              }))
-            }
-            className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
-          />
-        </div>
+        <SettingsToggleRow
+          label={t("api.fallback_title")}
+          description={t("api.fallback_desc")}
+          checked={settings.api.forceBasicParams || false}
+          onCheckedChange={(checked) => updateSettings((prev) => ({
+            ...prev,
+            api: { ...prev.api, forceBasicParams: checked },
+          }))}
+        />
 
         {/* sendNames Switch */}
-        <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="space-y-0.5">
-            <label className="text-[12.5px] font-semibold text-foreground">
-              {t("api.send_names_title")}
-            </label>
-            <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
-              {t("api.send_names_desc")}
-            </p>
-          </div>
-          <Switch
-            aria-label={t("api.send_names_title")}
-            checked={settings.api.sendNames || false}
-            onCheckedChange={(checked) =>
-              updateSettings((prev) => ({
-                ...prev,
-                api: { ...prev.api, sendNames: checked },
-              }))
-            }
-            className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
-          />
-        </div>
+        <SettingsToggleRow
+          label={t("api.send_names_title")}
+          description={t("api.send_names_desc")}
+          checked={settings.api.sendNames || false}
+          onCheckedChange={(checked) => updateSettings((prev) => ({
+            ...prev,
+            api: { ...prev.api, sendNames: checked },
+          }))}
+        />
 
         {/* disableReasoning Switch */}
-        <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="space-y-0.5">
-            <label className="text-[12.5px] font-semibold text-foreground">
-              {t("api.disable_reasoning_title")}
-            </label>
-            <p className="text-[9.5px] text-muted-foreground/80 max-w-[450px]">
-              {t("api.disable_reasoning_desc")}
-            </p>
-          </div>
-          <Switch
-            aria-label={t("api.disable_reasoning_title")}
-            checked={settings.api.disableReasoning || false}
-            onCheckedChange={(checked) =>
-              updateSettings((prev) => ({
-                ...prev,
-                api: { ...prev.api, disableReasoning: checked },
-              }))
-            }
-            className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3"
-          />
-        </div>
-
+        <SettingsToggleRow
+          label={t("api.disable_reasoning_title")}
+          description={t("api.disable_reasoning_desc")}
+          checked={settings.api.disableReasoning || false}
+          onCheckedChange={(checked) => updateSettings((prev) => ({
+            ...prev,
+            api: { ...prev.api, disableReasoning: checked },
+          }))}
+        />
+        </section>
       </AccordionContent>
     </AccordionItem>
   );

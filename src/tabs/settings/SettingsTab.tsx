@@ -233,7 +233,6 @@ export default function SettingsTab() {
   const lastApiRef = React.useRef(JSON.stringify(settings.api));
   const selectedSection = activeSection ?? (isLandscape ? "connection" : null);
   const selectedMeta = SETTINGS_SECTIONS.find((section) => section.id === selectedSection);
-
   const handleCheckUpdate = async () => {
     if (isCheckingUpdate) return;
     setIsCheckingUpdate(true);
@@ -430,7 +429,7 @@ export default function SettingsTab() {
   }
 
   const renderSectionList = (compact: boolean) => (
-    <nav aria-label={t("settings_hub.categories")} className={compact ? "space-y-1" : "space-y-2"}>
+    <nav aria-label={t("settings_hub.categories")} className={`settings-category-list ${compact ? "settings-category-list-compact" : ""}`}>
       {SETTINGS_SECTIONS.map((section) => {
         const Icon = section.icon;
         const selected = section.id === selectedSection;
@@ -440,25 +439,26 @@ export default function SettingsTab() {
             type="button"
             onClick={() => setActiveSection(section.id)}
             aria-current={selected ? "page" : undefined}
-            className={`w-full flex items-center text-left border transition-colors active:scale-[0.99] ${
-              compact ? "min-h-10 rounded-xl px-2.5 py-1.5 gap-2.5" : "min-h-12 rounded-xl px-3 py-2 gap-2.5"
-            } ${selected ? "bg-primary/10 border-primary/30" : "bg-card/55 border-border/70 hover:bg-muted/60"}`}
+            data-selected={selected ? "true" : "false"}
+            className={`settings-category-row w-full flex items-center text-left transition-colors active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+              compact ? "settings-category-row-compact" : ""
+            }`}
           >
-            <span className={`rounded-xl flex items-center justify-center shrink-0 ${compact ? "w-8 h-8" : "w-10 h-10"} ${selected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>
+            <span className={`settings-category-icon flex items-center justify-center shrink-0 ${compact ? "settings-category-icon-compact" : ""}`}>
               <Icon className={compact ? "w-4 h-4" : "w-5 h-5"} />
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-baseline gap-1.5">
-                <span className={`${compact ? "text-[11px]" : "text-[12px]"} truncate font-bold text-foreground`}>
+                <span className={`${compact ? "text-sm" : "text-base"} font-semibold text-foreground`}>
                   {t(section.titleKey)}
                 </span>
                 {section.experimental && (
-                  <span className="shrink-0 text-[8px] font-normal text-muted-foreground/75">
+                  <span className="shrink-0 text-[10px] font-normal text-muted-foreground/75">
                     {t("settings_hub.experimental")}
                   </span>
                 )}
               </span>
-              <span className={`${compact ? "text-[8.5px]" : "text-[9px]"} block text-muted-foreground truncate mt-0.5`}>
+              <span className={`${compact ? "text-xs" : "text-sm"} block text-muted-foreground leading-snug mt-1`}>
                 {t(section.descriptionKey)}
               </span>
             </span>
@@ -470,23 +470,23 @@ export default function SettingsTab() {
   );
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden px-1.5 pt-1.5 pb-1">
-      <header className="min-h-12 shrink-0 flex items-center gap-2 px-1 pb-2 border-b border-border/70">
+    <div className="settings-shell h-full min-h-0 flex flex-col overflow-hidden px-2 pt-2 pb-1">
+      <header className="settings-header min-h-14 shrink-0 flex items-center gap-3 px-2 pb-3">
         {!isLandscape && selectedSection ? (
           <button
             type="button"
             onClick={() => setActiveSection(null)}
             aria-label={t("settings_hub.back")}
-            className="w-8 h-8 -ml-1 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted active:scale-95 shrink-0"
+            className="w-9 h-9 -ml-1 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted active:scale-95 shrink-0"
           >
             <ArrowLeft className="w-4.5 h-4.5" />
           </button>
         ) : (
-          <Settings className="w-4.5 h-4.5 text-primary" />
+          <span className="settings-header-icon"><Settings className="w-5 h-5 text-primary" /></span>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline gap-2">
-            <h1 className="truncate text-base font-bold tracking-tight text-foreground">
+            <h1 className="truncate text-lg font-bold tracking-tight text-foreground">
               {selectedMeta ? t(selectedMeta.titleKey) : t("nav.settings")}
             </h1>
             {selectedMeta?.experimental && (
@@ -495,7 +495,7 @@ export default function SettingsTab() {
               </span>
             )}
           </div>
-          <p className="mt-0.5 truncate text-[10px] font-light text-muted-foreground">
+          <p className="mt-1 truncate text-xs font-light text-muted-foreground">
             {selectedMeta ? t(selectedMeta.descriptionKey) : t("settings_hub.home_desc")}
           </p>
         </div>
@@ -503,7 +503,7 @@ export default function SettingsTab() {
           <button
             type="button"
             onClick={() => void handleVersionTap()}
-            className="flex h-9 items-center gap-1 rounded-lg px-2 text-[9px] font-mono text-muted-foreground active:bg-muted"
+            className="flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-[10px] font-mono text-muted-foreground active:bg-muted"
             aria-label="应用版本"
           >
             {adminMode && <ShieldCheck className="h-3 w-3 text-emerald-500" />}
@@ -513,20 +513,21 @@ export default function SettingsTab() {
       </header>
 
       {isLandscape ? (
-        <div className="flex-1 min-h-0 grid grid-cols-[minmax(205px,27%)_1fr] gap-2 pt-2">
+        <div className="flex-1 min-h-0 grid grid-cols-[minmax(220px,29%)_1fr] gap-3 pt-2">
           <aside className="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
             {renderSectionList(true)}
           </aside>
-          <section className="min-w-0 min-h-0 overflow-y-auto pr-1 pb-2 custom-scrollbar">
+          <section className="settings-content min-w-0 min-h-0 overflow-y-auto pr-1 pb-2 custom-scrollbar">
             {selectedSection && renderLazySection(selectedSection)}
           </section>
         </div>
       ) : selectedSection ? (
-        <main className="flex-1 min-h-0 overflow-y-auto pt-2 pb-2 custom-scrollbar">
+        <main className="settings-content flex-1 min-h-0 overflow-y-auto pt-3 pb-2 custom-scrollbar">
           {renderLazySection(selectedSection)}
         </main>
       ) : (
-        <main className="flex-1 min-h-0 overflow-y-auto pt-2 pb-2 custom-scrollbar">
+        <main className="settings-content flex-1 min-h-0 overflow-y-auto pt-3 pb-2 custom-scrollbar">
+          <p className="settings-category-heading">{t("settings_hub.categories")}</p>
           {renderSectionList(false)}
         </main>
       )}

@@ -41,7 +41,7 @@
 - `mobile-tavern.base` 必须在不装载兼容插件时继续提供基础 Agent、纯文本聊天、多模态附件和通用工具；兼容插件卸载时必须清理贡献、Bridge、iframe 运行态和生成标记。
 - 会话插件状态以 `runtimePluginState["mobile-tavern.sillytavern-compat"]` 为新权威位置。新写入不得再镜像至旧 `variables`；读取优先命名空间，缺失时读取旧字段。Bridge 需要旧形状时只能由 Compatibility Plugin 瞬时投影，并在 `setSessions`/`saveSession` 边界归一化回命名空间；不得批量改写旧会话或静默删除未知插件状态。
 - TavernHelper 全局对象只属于 Renderer/Bridge 实现细节，通用生产代码不得直接读写；状态同步、脚本库就绪检查和 iframe 构建必须经 Renderer 契约。
-- 阶段 5 的 Profile UI 可以关闭整个 SillyTavern Compatibility Runtime；关闭后六类贡献均不得注册，普通 Agent 聊天和多模态底座仍应工作。
+- 阶段 5 的 Profile UI 可以关闭整个 SillyTavern Compatibility Runtime；关闭后七类贡献均不得注册，普通 Agent 聊天和多模态底座仍应工作。七类贡献为 Codec、Prompt Section、Context Source、Transform、State Reducer、World Info Resolver 和 Renderer。
 - 旧 `session.variables` 仅作为历史数据读取降级源，生产持久化入口不得重新双写；角色卡 Bridge 内部、消息级 swipe 快照和设置级全局变量不是会话权威状态，必须保持边界名称清晰。
 
 ### 6. 角色卡脚本信任边界

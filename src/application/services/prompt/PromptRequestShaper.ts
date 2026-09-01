@@ -1,4 +1,4 @@
-import type { PromptMessage } from "../../../domain/prompt-composition";
+import type { PromptMessage, PromptMessageRole } from "../../../domain/prompt-composition";
 import type { PromptRequestShapingConfig } from "../../../types";
 
 export interface PromptRequestShapingReport {
@@ -15,6 +15,55 @@ export interface ShapedPromptRequest {
   messages: PromptMessage[];
   stopSequences?: string[];
   report: PromptRequestShapingReport;
+}
+
+interface InChatPromptNode {
+  readonly content: string;
+  readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * 将带有通用 in-chat metadata 的 Prompt Node 插入消息历史。
+ * 该函数只处理 position/depth/role 机制，不解释任何来源格式。
+ */
+export function applyInChatPromptNodes(
+  messages: ReadonlyArray<PromptMessage>,
+  nodes: ReadonlyArray<InChatPromptNode>,
+): PromptMessage[] {
+  const injections = nodes.flatMap((node, index) => {
+    const metadata = node.metadata;
+    if (metadata?.position !== "in_chat" || !node.content.trim()) return [];
+    const rawDepth = metadata.depth;
+    const depth = typeof rawDepth === "number" && Number.isFinite(rawDepth)
+      ? Math.max(0, Math.floor(rawDepth))
+      : 0;
+    const rawRole = metadata.role;
+    const role: PromptMessageRole = rawRole === "assistant" || rawRole === "user"
+      ? rawRole
+      : "system";
+    const rawOrder = metadata.order;
+    const order = typeof rawOrder === "number" && Number.isFinite(rawOrder) ? rawOrder : 100;
+    const rawName = metadata.name;
+    const name = typeof rawName === "string" && rawName ? rawName : undefined;
+    return [{ node: { role, name, content: node.content }, depth, order, index }];
+  });
+  if (injections.length === 0) return messages.map((message) => ({ ...message }));
+
+  const baseLength = messages.length;
+  const grouped = new Map<number, typeof injections>();
+  for (const injection of injections) {
+    const target = Math.max(1, baseLength - injection.depth);
+    const group = grouped.get(target) ?? [];
+    group.push(injection);
+    grouped.set(target, group);
+  }
+
+  const result = messages.map((message) => ({ ...message }));
+  for (const [target, group] of [...grouped.entries()].sort(([left], [right]) => right - left)) {
+    group.sort((left, right) => left.order - right.order || left.index - right.index);
+    result.splice(target, 0, ...group.map(({ node }) => node));
+  }
+  return result;
 }
 
 export function buildPromptRequestMessages(

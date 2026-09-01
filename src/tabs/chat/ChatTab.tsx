@@ -231,6 +231,7 @@ export default function ChatTab() {
       <HiddenScriptLayer
         settings={settings}
         activeCharacter={activeCharacter}
+        activeSessionId={activeSessionId}
         announcement={announcement}
       />
 

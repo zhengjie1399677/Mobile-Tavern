@@ -338,7 +338,7 @@ describe("Runtime Plugin Profile", () => {
 });
 
 describe("Legacy Runtime Plugin", () => {
-  it("base Profile 不装载生态兼容插件，Tavern Profile 显式声明六类兼容贡献", () => {
+  it("base Profile 不装载生态兼容插件，Tavern Profile 显式声明兼容贡献轨道", () => {
     const baseSnapshot = resolveRuntimeProfile(
       baseRuntimeProfileDefinition,
       legacyRuntimePluginCatalog,
@@ -354,9 +354,19 @@ describe("Legacy Runtime Plugin", () => {
     expect(tavernSnapshot.plugins.map((plugin) => plugin.id)).toContain(
       "mobile-tavern.sillytavern-compat",
     );
-    expect(Object.keys(tavernSnapshot.contributionOrder).filter((slot) =>
+    const compatibilitySlots = Object.keys(tavernSnapshot.contributionOrder).filter((slot) =>
       slot.startsWith("compat."),
-    )).toHaveLength(6);
+    );
+    expect(compatibilitySlots).toHaveLength(7);
+    expect(compatibilitySlots).toEqual(expect.arrayContaining([
+      "compat.codec",
+      "compat.prompt-section",
+      "compat.context-source",
+      "compat.transform",
+      "compat.state-reducer",
+      "compat.world-info-resolver",
+      "compat.renderer",
+    ]));
   });
 
   it("Profile 快照声明 Agent Driver、Provider 与媒体处理顺序", () => {

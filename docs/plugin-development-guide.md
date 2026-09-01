@@ -135,7 +135,7 @@ my-plugin/
   "description": "插件描述文本",
   "author": "作者名称",
   "orientation": "landscape",
-  "permissions": ["llm.chat", "llm.chatStream", "llm.preset.list"],
+  "permissions": ["context.read", "chat.action", "llm.chat", "llm.chatStream", "llm.preset.list"],
   "llm": { "syncPreset": true }
 }
 ```
@@ -169,13 +169,16 @@ my-plugin/
 
 ### permissions 权限声明
 
-调用 LLM 相关 API 必须在 `permissions` 中声明对应权限：
+调用受保护 API 前必须在 `permissions` 中声明对应权限：
 
 | 权限 | 允许调用的方法 |
 |------|----------------|
 | `llm.chat` | `MobileTavernPlugin.llm.chat()` |
 | `llm.chatStream` | `MobileTavernPlugin.llm.chatStream()` |
 | `llm.preset.list` | `MobileTavernPlugin.llm.listPresets()` |
+| `context.read` | `MobileTavernPlugin.context.get()` |
+| `chat.action` | `MobileTavernPlugin.chat.injectAction()` |
+| `chat.send` | `MobileTavernPlugin.chat.send()` |
 
 如果声明了 `llm` 配置，`permissions` 中必须至少包含一个 `llm.*` 权限。
 
@@ -236,10 +239,10 @@ my-plugin/
 
 ```typescript
 interface MobileTavernPlugin {
-  version: 1;
+  version: 2;
 
   // 生命周期
-  ready(): Promise<{ apiVersion: 1 }>;
+  ready(): Promise<{ apiVersion: 2 }>;
   exit(): Promise<void>;
 
   // 屏幕方向
@@ -247,10 +250,24 @@ interface MobileTavernPlugin {
 
   // 存储
   save(slot: string, data: unknown): Promise<void>;
-  load(slot: string): Promise<unknown>;
+  load(slot: string): Promise<unknown | null>;
   deleteSave(slot: string): Promise<void>;
 
-  // LLM
+  // 角色与会话上下文（需 context.read 权限）
+  context: {
+    get(): Promise<{
+      character: null | { id: string; name: string; description: string; personality: string; scenario: string; tags: string[] };
+      session: null | { id: string; title: string; characterId: string; messageCount: number; parentSessionId: string | null };
+    }>;
+  };
+
+  // 聊天桥接（需 chat.action / chat.send 权限）
+  chat: {
+    injectAction(text: string): Promise<void>;
+    send(text: string): Promise<void>;
+  };
+
+  // LLM（需 llm.* 权限）
   llm: {
     chat(opts: ChatOptions): Promise<{ text: string }>;
     chatStream(opts: ChatOptions): StreamHandle;
@@ -265,7 +282,7 @@ interface MobileTavernPlugin {
 
 ```javascript
 const info = await window.MobileTavernPlugin.ready();
-console.log(info.apiVersion); // 1
+console.log(info.apiVersion); // 2
 ```
 
 ### host.exit()
@@ -752,20 +769,30 @@ Mobile Tavern 内置两个示例插件，可作为开发参考：
   // debug-mock.js（仅开发环境引入）
   if (!window.MobileTavernPlugin) {
     window.MobileTavernPlugin = {
-      version: 1,
-      ready: () => Promise.resolve({ apiVersion: 1 }),
+      version: 2,
+      ready: () => Promise.resolve({ apiVersion: 2 }),
       exit: () => console.log('exit()'),
       setOrientation: (o) => console.log('setOrientation:', o),
       save: (s, d) => localStorage.setItem('plugin:' + s, JSON.stringify(d)),
       load: (s) => JSON.parse(localStorage.getItem('plugin:' + s) || 'null'),
       deleteSave: (s) => localStorage.removeItem('plugin:' + s),
+      context: {
+        get: () => Promise.resolve({ character: null, session: null })
+      },
+      chat: {
+        injectAction: (text) => console.log('chat.injectAction:', text),
+        send: (text) => console.log('chat.send:', text)
+      },
       llm: {
         chat: async (opts) => {
           console.log('llm.chat:', opts);
           return { text: '（模拟回复）' };
         },
         chatStream: (opts) => ({
-          onChunk: () => {}, onDone: () => {}, onError: () => {}, cancel: () => {}
+          onChunk: function (cb) { cb?.('（模拟流式文本）'); return this; },
+          onDone: function (cb) { cb?.(); return this; },
+          onError: function (cb) { return this; },
+          cancel: function () {}
         }),
         listPresets: () => Promise.resolve({ syncPreset: false })
       }
@@ -816,8 +843,8 @@ Mobile Tavern 内置两个示例插件，可作为开发参考：
 
 ### 版本兼容
 
-- `manifestVersion` 当前为 1，未来版本可能引入新字段
-- `MobileTavernPlugin.version` 为 1，未来可能推出 v2 API
+- `manifestVersion` 当前为 1（清单格式版本）
+- `MobileTavernPlugin.version` 为 2（运行时宿主 API 版本，与 `manifestVersion` 相互独立）
 - 建议在 `ready()` 后检查 `apiVersion` 确认兼容性
 
 ---
@@ -837,7 +864,7 @@ Mobile Tavern 对可导入的文件格式有严格约定，只支持以下固定
 
 | 扩展名 | 格式说明 | 导入入口 |
 |--------|----------|----------|
-| `.mtplugin` | ZIP 压缩包，根目录必须含 `manifest.json` 和 `game.js` | 设置 → 插件管理 → 导入 |
+| `.mtplugin` | ZIP 压缩包，根目录必须含 `manifest.json`，入口由 `manifest.entry` 指定 | 设置 → 插件管理 → 导入 |
 
 ### 安全边界
 
@@ -853,8 +880,8 @@ Mobile Tavern 对可导入的文件格式有严格约定，只支持以下固定
 2. **结构校验**：
    - JSON 角色卡：必须含 `name` 字段
    - PNG 角色卡：必须含有效的 `chara` tEXt chunk
-   - 插件包：必须含 `manifest.json`（含 `format: "mobile-tavern.plugin"`）和 `game.js`
-3. **大小限制**：单个文件不超过 50MB
+   - 插件包：必须含 `manifest.json`（含 `format: "mobile-tavern.plugin"`）和合法的 `entry` 文件
+3. **大小限制**：压缩包 ≤ 25 MiB，解压后 ≤ 100 MiB，单文件 ≤ 32 MiB
 
 ### 未来扩展
 
@@ -888,4 +915,4 @@ Mobile Tavern 对可导入的文件格式有严格约定，只支持以下固定
 
 ---
 
-*本文档适用于 Mobile Tavern 1.7.x 版本。如遇 API 行为与文档不符，以实际代码为准。*
+*本文档适用于 Mobile Tavern 1.8.x 版本。如遇 API 行为与文档不符，以实际代码为准。*

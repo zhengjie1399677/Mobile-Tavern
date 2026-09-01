@@ -1,9 +1,78 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { PromptService } from "../../src/application/services/PromptService";
 import { CharacterCard, ChatSession, UserSettings } from "../../src/types";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
+import { createKernel } from "../../src/kernel/Kernel";
+import { CompatibilityRuntimeService } from "../../src/application/services/CompatibilityRuntimeService";
 
 describe("PromptService prompt compilation", () => {
+  it("仅配置 global/preset Regex 时也通过 Compatibility Runtime 进入 Prompt Transform", async () => {
+    const kernel = createKernel();
+    const compatibilityRuntime = new CompatibilityRuntimeService();
+    await kernel.registerService(compatibilityRuntime.name, compatibilityRuntime);
+    const transform = vi.fn(({ text, globalRegexScripts, presetRegexScripts }) => {
+      expect(globalRegexScripts).toHaveLength(1);
+      expect(presetRegexScripts).toHaveLength(1);
+      return text.replace("global-only", "transformed");
+    });
+    compatibilityRuntime.registerTransform({
+      id: "compat.test.prompt-transform",
+      version: "1.0.0",
+      transform,
+    });
+
+    const promptService = new PromptService();
+    promptService.init(kernel);
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.roleplayMode = false;
+    settings.globalRegexScripts = [{
+      id: "global",
+      scriptName: "global",
+      findRegex: "global-only",
+      replaceString: "x",
+      disabled: false,
+      placement: [1, 2],
+    }];
+    settings.presetRegexScripts = [{
+      id: "preset",
+      scriptName: "preset",
+      findRegex: "preset-only",
+      replaceString: "x",
+      disabled: false,
+      placement: [1, 2],
+    }];
+    const character = {
+      id: "global-regex-character",
+      name: "角色",
+      description: "",
+      personality: "",
+      scenario: "",
+      first_mes: "",
+      mes_example: "",
+      extensions: {},
+    } as CharacterCard;
+    const chat = {
+      id: "global-regex-chat",
+      characterId: character.id,
+      title: "Regex",
+      createdAt: 1,
+      messages: [{ id: "m1", sender: "user", content: "global-only", timestamp: 1 }],
+      summaries: [],
+    } as ChatSession;
+
+    const result = promptService.assemblePrompt({
+      character,
+      chat,
+      userInput: "继续",
+      settings,
+    });
+
+    expect(transform).toHaveBeenCalled();
+    expect(result.messages.some((message) => message.content.includes("transformed"))).toBe(true);
+    await compatibilityRuntime.destroy();
+    promptService.destroy();
+  });
+
   it("direct-api 模式只发送真实对话，不注入任何系统内容、名字或请求整形", () => {
     const promptService = new PromptService();
     const settings = structuredClone(DEFAULT_SETTINGS);

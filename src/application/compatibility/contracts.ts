@@ -3,6 +3,8 @@ import type {
   CharacterCard,
   ChatSession,
   CompatibilityScriptSecurityMode,
+  LorebookEntry,
+  Message,
   UserSettings,
 } from "../../types";
 import type { PromptNode } from "../services/prompt/types";
@@ -51,12 +53,32 @@ export interface CompatibilityPromptSectionRequest {
   readonly chat: ChatSession;
   readonly settings: UserSettings;
   readonly hasVariableListEntry: boolean;
+  readonly userInput?: string;
+  readonly triggeredLorebookEntries?: readonly LorebookEntry[];
 }
 
 export interface CompatibilityPromptSectionDefinition {
   readonly id: string;
   readonly version: string;
   build(request: CompatibilityPromptSectionRequest): readonly PromptNode[];
+}
+
+export interface CompatibilityWorldInfoResolverRequest {
+  readonly messages: readonly Message[];
+  readonly userInput: string;
+  readonly entries: readonly LorebookEntry[];
+  readonly maxRecursionDepth?: number;
+  readonly conditionContext?: {
+    readonly variables?: Record<string, unknown>;
+    readonly session?: Record<string, unknown>;
+  };
+}
+
+/** 由兼容插件解释来源格式的 World Info 语义，通用 Prompt 层只消费结果。 */
+export interface CompatibilityWorldInfoResolverDefinition {
+  readonly id: string;
+  readonly version: string;
+  resolve(request: CompatibilityWorldInfoResolverRequest): readonly LorebookEntry[];
 }
 
 export interface CompatibilityContextSourceDefinition {
@@ -143,6 +165,7 @@ export interface CompatibilityRuntimeDiagnostics {
   readonly contextSources: readonly string[];
   readonly transforms: readonly string[];
   readonly stateReducers: readonly string[];
+  readonly worldInfoResolvers: readonly string[];
   readonly renderers: readonly string[];
 }
 
@@ -152,6 +175,7 @@ export interface ICompatibilityRuntimeService extends IKernelService {
   registerContextSource(definition: CompatibilityContextSourceDefinition): EffectDisposer;
   registerTransform(definition: CompatibilityTransformDefinition): EffectDisposer;
   registerStateReducer(definition: CompatibilityStateReducerDefinition): EffectDisposer;
+  registerWorldInfoResolver(definition: CompatibilityWorldInfoResolverDefinition): EffectDisposer;
   registerRenderer(definition: CompatibilityRendererDefinition): EffectDisposer;
   transformText(request: CompatibilityTransformRequest): string;
   initializeState(character: CharacterCard | null): Record<string, unknown>;
@@ -164,6 +188,7 @@ export interface ICompatibilityRuntimeService extends IKernelService {
   writeState(session: ChatSession, state: Record<string, unknown>): ChatSession;
   notifyStateChanged(session: ChatSession, messageId?: number): void;
   buildPromptSections(request: CompatibilityPromptSectionRequest): PromptNode[];
+  getWorldInfoResolver(): CompatibilityWorldInfoResolverDefinition | null;
   readContextSources(session: ChatSession): Readonly<Record<string, unknown>>;
   getCodec(format: string): CompatibilityCodecDefinition | null;
   getRenderer(): CompatibilityRendererDefinition | null;

@@ -9,7 +9,8 @@ Mobile Tavern 当前是本地优先、多模态、可组合的移动端 Agent Ho
 SillyTavern 兼容体验，Base Profile 可以关闭兼容插件；SillyTavern 能力由可关闭的内置 Compatibility
 Runtime Plugin 承载。移动端位于 `src/` 与 `src-tauri/`，云端服务位于 `cloud/`，共享契约位于
 `shared/`。Kernel 始终只是通用运行时机制，Agent、聊天、媒体和兼容能力都不属于 Kernel。目标架构与分阶段路线见
-[插件式 Agent Runtime 与聊天组合路线](agent_plugin_runtime_roadmap.md)。
+[插件式 Agent Runtime 与聊天组合路线](agent_plugin_runtime_roadmap.md)，产品「做什么、不做什么」见
+[产品方向](product_direction.md)。
 
 ## 二、阅读决策
 
@@ -31,7 +32,7 @@ Runtime Plugin 承载。移动端位于 `src/` 与 `src-tauri/`，云端服务�
 | LLM Provider 兼容、模型能力与请求/响应方言 | `src/application/services/llmCompatibility/`、`LLMService.ts`、`ChatStreamService.ts` | `docs/agents/runtime_boundaries.md`、`docs/agents/module_contracts.md` |
 | Prompt、角色卡、世界书 | `PromptService.ts`、`src/application/services/prompt/` | `docs/agents/sillytavern_compat.md` |
 | Compatibility Runtime | `src/compatibility/sillytavern/` | `docs/agents/runtime_boundaries.md`、`docs/agents/sillytavern_compat.md` |
-| 第三方全屏插件 | `docs/Plugin_System_v1.md`、`src/domain/plugins/` | `src/components/plugins/`、`src/infrastructure/plugins/pluginStorage.ts` |
+| 第三方全屏插件 | `docs/Plugin_System.md`、`src/domain/plugins/` | `src/components/plugins/`、`src/infrastructure/plugins/pluginStorage.ts` |
 | 自定义主题、Tab 显隐、本地界面资源与受限交互 | `docs/Theme_Development_Guide.md`、`src/domain/themes/` | `ThemeInteractionService.ts`、`src/components/theme-interactions/`、`LocalResourceService.ts` |
 | Native Adapter、Android、Tauri、打包 | 对应 Adapter、`src-tauri/` | `docs/agents/mobile_strategy.md`、Android 调试指南 |
 | 云端服务 | 目标 `cloud/<service>/`、其 README 和 Config | `docs/agents/cloud_strategy.md`、相关 `shared/` 契约 |

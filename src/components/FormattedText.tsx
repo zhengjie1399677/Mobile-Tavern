@@ -33,8 +33,6 @@ const FormattedText = memo(function FormattedText({
   character,
   isStreaming,
 }: FormattedTextProps) {
-  if (!text) return null;
-
   const kernel = useOptionalKernel();
   const [isExpanded, setIsExpanded] = useState(false);
   const isTooLong = text.length > 50000;
@@ -61,6 +59,14 @@ const FormattedText = memo(function FormattedText({
     context.settings.enableScriptExecution && compatibilityRenderer,
   );
   const scriptSecurityMode = context.settings.scriptSecurityMode ?? "isolated";
+  const libsReady = useLibsReady(
+    Boolean(text) && enableScriptExecution,
+    compatibilityRenderer,
+    scriptSecurityMode,
+  );
+
+  if (!text) return null;
+
   const enableLoopProtection = context.settings.enableLoopProtection !== false;
   const activeCharacter = character ?? context.activeCharacter;
 
@@ -68,7 +74,6 @@ const FormattedText = memo(function FormattedText({
     compatibilityRenderer?.initializeGlobals();
   }
 
-  const libsReady = useLibsReady(enableScriptExecution, compatibilityRenderer, scriptSecurityMode);
   const enableAsteriskFormatting =
     activeCharacter?.visualSettings?.enableAsteriskFormatting !== undefined
       ? Boolean(activeCharacter.visualSettings.enableAsteriskFormatting)
@@ -108,14 +113,25 @@ const FormattedText = memo(function FormattedText({
     userName,
     activeCharacter,
     enableScriptExecution,
-    context.settings.globalRegexScripts,
-    context.settings.presetRegexScripts,
     messageIndex,
     enableLoopProtection,
     isAiMessage,
     isStreamingLastMessage,
     compatibilityRenderer,
     scriptSecurityMode,
+    compatibilityRuntime
+      ? (value) => compatibilityRuntime.transformText({
+        text: value,
+        character: activeCharacter ?? null,
+        mode: "display",
+        isAiMessage,
+        charName,
+        userName,
+        globalRegexScripts: context.settings.globalRegexScripts,
+        presetRegexScripts: context.settings.presetRegexScripts,
+      })
+      : undefined,
+    activeSession?.id,
   );
   const hasHtml = enableHtml && /<[a-z/][\s\S]*?>/i.test(processed);
   const swipeId =
@@ -136,6 +152,7 @@ const FormattedText = memo(function FormattedText({
         swipeId,
         compatibilityRenderer,
         scriptSecurityMode,
+        activeSession?.id,
       )}
     </span>
   ) : (

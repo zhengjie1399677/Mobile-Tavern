@@ -1,4 +1,5 @@
 import { injectLoopProtection } from "../../utils/tavernHelper/scriptPreprocessor";
+import { createIframeResourceCleanupBootstrap } from "../../utils/tavernHelper/iframeResourceCleanup";
 
 const ISOLATED_CSP = [
   "default-src 'none'",
@@ -84,7 +85,7 @@ export function createIsolatedScriptIframeSrcDoc(
 ): string {
   const source = stripCodeFence(content);
   const prepared = enableLoopProtection ? injectLoopProtection(source) : source;
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${ISOLATED_CSP}"></head><body>${createBridgeBootstrap(initialVariables, `script:${scriptId}`)}<script>${prepared}\n<\/script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${ISOLATED_CSP}"><script>${createIframeResourceCleanupBootstrap()}</script></head><body>${createBridgeBootstrap(initialVariables, `script:${scriptId}`)}<script>${prepared}\n<\/script></body></html>`;
 }
 
 /** 为消息 HTML 注入同一最小桥；原 HTML 保留，但网络、表单与父窗口访问由 CSP/sandbox 阻断。 */
@@ -93,7 +94,7 @@ export function createIsolatedMessageIframeSrcDoc(
   messageId: number | undefined,
   initialVariables: unknown,
 ): string {
-  const securityHead = `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${ISOLATED_CSP}">${createBridgeBootstrap(initialVariables, `message:${messageId ?? "unknown"}`)}`;
+  const securityHead = `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${ISOLATED_CSP}"><script>${createIframeResourceCleanupBootstrap()}</script>${createBridgeBootstrap(initialVariables, `message:${messageId ?? "unknown"}`)}`;
   if (/<head(?:\s[^>]*)?>/i.test(content)) {
     return content.replace(/<head(?:\s[^>]*)?>/i, match => `${match}${securityHead}`);
   }

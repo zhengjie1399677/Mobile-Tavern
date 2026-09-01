@@ -9,6 +9,7 @@ import type {
   CompatibilityStateReducerDefinition,
   CompatibilityTransformDefinition,
   CompatibilityTransformRequest,
+  CompatibilityWorldInfoResolverDefinition,
   ICompatibilityRuntimeService,
 } from "../compatibility/contracts";
 import type { CharacterCard, ChatSession } from "../../types";
@@ -26,6 +27,7 @@ export class CompatibilityRuntimeService implements ICompatibilityRuntimeService
   private readonly contextSources = new Map<string, CompatibilityContextSourceDefinition>();
   private readonly transforms = new Map<string, CompatibilityTransformDefinition>();
   private readonly stateReducers = new Map<string, CompatibilityStateReducerDefinition>();
+  private readonly worldInfoResolvers = new Map<string, CompatibilityWorldInfoResolverDefinition>();
   private readonly renderers = new Map<string, CompatibilityRendererDefinition>();
   private active = false;
 
@@ -40,6 +42,7 @@ export class CompatibilityRuntimeService implements ICompatibilityRuntimeService
     this.transforms.clear();
     this.contextSources.clear();
     this.promptSections.clear();
+    this.worldInfoResolvers.clear();
     this.codecs.clear();
   }
 
@@ -61,6 +64,10 @@ export class CompatibilityRuntimeService implements ICompatibilityRuntimeService
 
   registerStateReducer(definition: CompatibilityStateReducerDefinition) {
     return this.register(this.stateReducers, definition.id, definition);
+  }
+
+  registerWorldInfoResolver(definition: CompatibilityWorldInfoResolverDefinition) {
+    return this.register(this.worldInfoResolvers, definition.id, definition);
   }
 
   registerRenderer(definition: CompatibilityRendererDefinition) {
@@ -139,6 +146,10 @@ export class CompatibilityRuntimeService implements ICompatibilityRuntimeService
     return sorted(this.promptSections).flatMap((definition) => definition.build(request));
   }
 
+  getWorldInfoResolver(): CompatibilityWorldInfoResolverDefinition | null {
+    return sorted(this.worldInfoResolvers)[0] ?? null;
+  }
+
   readContextSources(session: ChatSession): Readonly<Record<string, unknown>> {
     return Object.freeze(Object.fromEntries(sorted(this.contextSources)
       .map((definition) => [definition.id, structuredClone(definition.read(session))])));
@@ -159,6 +170,7 @@ export class CompatibilityRuntimeService implements ICompatibilityRuntimeService
       contextSources: ids(this.contextSources),
       transforms: ids(this.transforms),
       stateReducers: ids(this.stateReducers),
+      worldInfoResolvers: ids(this.worldInfoResolvers),
       renderers: ids(this.renderers),
     };
   }

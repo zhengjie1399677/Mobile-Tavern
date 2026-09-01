@@ -22,12 +22,26 @@ import {
 import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
 import { assemblePromptComposition } from "./prompt/PromptCompositionAssembly";
 import type { PromptAssemblyResult } from "./prompt/PromptAssemblyResult";
-import { buildPromptRequestMessages, shapePromptRequest } from "./prompt/PromptRequestShaper";
+import { applyInChatPromptNodes, buildPromptRequestMessages, shapePromptRequest } from "./prompt/PromptRequestShaper";
 import { checkPromptAssemblyAborted, createLorebookSessionContext } from "./prompt/PromptAssemblySupport";
 import { Logger } from "../../utils/logger";
 import { isDirectApiCharacter } from "../../domain/agents/directApiMode";
 import { buildDirectApiPromptAssembly } from "./prompt/DirectApiPromptAssembly";
+import { formatTriggeredLorebookEntries } from "./prompt/PromptLorebookFormatter";
+import {
+  cleanPromptNameForApi,
+  estimatePromptTokens,
+  sanitizePromptName,
+} from "./prompt/PromptTextUtils";
 const logger = Logger.create("PromptService");
+
+function hasConfiguredRegexScripts(character: CharacterCard, settings: UserSettings): boolean {
+  const characterScripts = character.extensions?.regex_scripts;
+  return (Array.isArray(characterScripts) && characterScripts.length > 0)
+    || (characterScripts !== null && typeof characterScripts === "object")
+    || (settings.globalRegexScripts?.length ?? 0) > 0
+    || (settings.presetRegexScripts?.length ?? 0) > 0;
+}
 
 /**
  * 提示词编译与组装服务
@@ -59,40 +73,19 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     this.abortController?.abort();
     this.abortController = null;
   }
-
   /**
    * 清洗名称以适配 API 的角色命名限制（只允许数字、字母、下划线及横杠，最大长度 64）
    */
   cleanNameForApi(name: string | undefined, fallback: string): string | undefined {
-    if (!name) return undefined;
-    const cleaned = name.replace(/[^a-zA-Z0-9_-]/g, "");
-    if (!cleaned) {
-      return fallback;
-    }
-    return cleaned.slice(0, 64);
+    return cleanPromptNameForApi(name, fallback);
   }
 
   estimateTokens(text: string): number {
-    if (!text) return 0;
-    let asciiCount = 0;
-    let nonAsciiCount = 0;
-    for (let i = 0; i < text.length; i++) {
-      if (text.charCodeAt(i) <= 127) {
-        asciiCount++;
-      } else {
-        nonAsciiCount++;
-      }
-    }
-    // 针对中文等非 ASCII 字符使用更安全的 2.0 倍率估算，防止高频中文对话时分词器膨胀越界
-    return Math.ceil(asciiCount * 0.25 + nonAsciiCount * 2.0);
+    return estimatePromptTokens(text);
   }
 
   sanitizeName(name: string): string {
-    if (!name) return "";
-    let sanitized = name.replace(/[^a-zA-Z0-9_-]/g, "_");
-    sanitized = sanitized.replace(/^[^a-zA-Z0-9_-]+/, "");
-    sanitized = sanitized.slice(0, 64);
-    return /^[a-zA-Z0-9_-]+$/.test(sanitized) ? sanitized : "";
+    return sanitizePromptName(name);
   }
 
   hasCardScripts(character: CharacterCard | null): boolean {
@@ -106,6 +99,16 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     maxRecursionDepth: number = 3,
     conditionContext: { variables?: Record<string, unknown>; session?: Record<string, unknown> } = {},
   ): LorebookEntry[] {
+    const compatibilityResolver = this.getCompatibilityRuntime()?.getWorldInfoResolver();
+    if (compatibilityResolver) {
+      return [...compatibilityResolver.resolve({
+        messages,
+        userInput,
+        entries,
+        maxRecursionDepth,
+        conditionContext,
+      })];
+    }
     return resolveTriggeredLorebookEntries(
       messages,
       userInput,
@@ -175,7 +178,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         triggeredLorebook,
         recalledMemories,
         cleanHistoryContent: (message) => {
-          if (!character.extensions?.regex_scripts) return message.content;
+          if (!hasConfiguredRegexScripts(character, settings)) return message.content;
           return this.getCompatibilityRuntime()?.transformText({
             text: message.content,
             character,
@@ -184,6 +187,8 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
             userName: settings.userName,
             mode: "prompt",
             signal: operationSignal,
+            globalRegexScripts: settings.globalRegexScripts,
+            presetRegexScripts: settings.presetRegexScripts,
           }) ?? message.content;
         },
       });
@@ -235,7 +240,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         let role: "user" | "model" | "assistant" = "user";
         let content = msg.content;
         // 发送给 AI 时应用 promptOnly 正则清理（如隐藏 <StatusPlaceHolderImpl/> 和 <UpdateVariable> 块）
-        if (character?.extensions?.regex_scripts) {
+        if (hasConfiguredRegexScripts(character, settings)) {
           const isAi = msg.sender === "assistant";
           content = this.getCompatibilityRuntime()?.transformText({
             text: content,
@@ -245,6 +250,8 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
             userName: settings.userName,
             mode: "prompt",
             signal: operationSignal,
+            globalRegexScripts: settings.globalRegexScripts,
+            presetRegexScripts: settings.presetRegexScripts,
           }) ?? content;
         }
         const name = msg.sender === "assistant"
@@ -271,7 +278,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
           content = msg.content;
         } else {
           role = "user";
-          const msgContent = msg.content;
+          const msgContent = content;
           if (settings.promptConfig?.instructTemplate !== "default") {
             const prefix = this.replaceMacros(
               settings.promptConfig?.userPrefix || "",
@@ -327,9 +334,28 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         3,
         { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
       );
+      const compatibilityRuntime = this.getCompatibilityRuntime();
+      const hasCompatibilityWorldInfo = Boolean(compatibilityRuntime?.getWorldInfoResolver());
+      const hasVariableListEntry = activeEntries.some(e =>
+        e.content && /\{\{format_message_variable::/i.test(e.content)
+      );
+      const compatibilityWorldInfo = hasCompatibilityWorldInfo
+        ? compatibilityRuntime?.buildPromptSections({
+          character,
+          chat,
+          settings,
+          hasVariableListEntry,
+          userInput,
+          triggeredLorebookEntries: activeEntries,
+        })
+          .filter((node) => node.id.startsWith("sillytavern_world_info_"))
+          .map((node) => node.content)
+          .join("\n\n")
+        : "";
 
       if (activeEntries.length > 0) {
-        cleanSystem += `=== Reference Lore ===\n${activeEntries.map((e) => e.content).join("\n\n")}\n\n`;
+        const lore = compatibilityWorldInfo || activeEntries.map((e) => e.content).join("\n\n");
+        cleanSystem += `=== Reference Lore ===\n${lore}\n\n`;
       }
 
       const modelName = (settings.api?.modelName || "").toLowerCase();
@@ -347,8 +373,20 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       }
 
       const systemInstruction = (finalSystem + reasoningGuidance).trim();
-      const shaped = shapePromptRequest(
+      const compatibilityNodes = compatibilityRuntime?.buildPromptSections({
+        character,
+        chat,
+        settings,
+        hasVariableListEntry,
+        userInput,
+        triggeredLorebookEntries: activeEntries,
+      }) ?? [];
+      const promptMessages = applyInChatPromptNodes(
         buildPromptRequestMessages(systemInstruction, chatHistory, settings.api.sendNames),
+        compatibilityNodes,
+      );
+      const shaped = shapePromptRequest(
+        promptMessages,
         settings.promptConfig.requestShaping,
       );
       return {
@@ -507,40 +545,24 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       3,
       { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
     );
+    const compatibilityRuntime = this.getCompatibilityRuntime();
+    const hasCompatibilityWorldInfo = Boolean(compatibilityRuntime?.getWorldInfoResolver());
     // 检测是否有世界书条目使用了 {{format_message_variable::}} 宏，
     // 若有则由宏替换负责注入变量，避免与 mvu_variables section 重复注入
     const hasVariableListEntry = activeEntries.some(e =>
       e.content && /\{\{format_message_variable::/i.test(e.content)
     );
-    const formatEntryContent = (entry: LorebookEntry): string => {
-      // 世界书条目内容需经过宏替换，支持 {{char}}、{{user}}、{{format_message_variable::stat_data}} 等
-      const content = this.replaceMacros(entry.content, {
-        ...macroParams,
-        variables: this.getCompatibilityState(chat),
-      });
-      if (entry.addMemo && entry.comment) {
-        return `[设定及备注: ${entry.comment}]\n${content}`;
-      }
-      return content;
-    };
-    const formatEntryBlock = (entriesBlock: LorebookEntry[]): string => {
-      if (entriesBlock.length === 0) return "";
-      const sorted = [...entriesBlock].sort((a, b) => {
-        const depthA = a.depth !== undefined ? a.depth : 4;
-        const depthB = b.depth !== undefined ? b.depth : 4;
-        if (depthB !== depthA) return depthB - depthA;
-        const orderA = a.order !== undefined ? a.order : 100;
-        const orderB = b.order !== undefined ? b.order : 100;
-        return orderA - orderB;
-      });
-      return sorted.map((e) => formatEntryContent(e)).join("\n\n");
-    };
-    const lorebookText = formatEntryBlock(activeEntries);
+    const lorebookText = formatTriggeredLorebookEntries(
+      activeEntries,
+      macroParams,
+      (text, params) => this.replaceMacros(text, params),
+      this.getCompatibilityState(chat),
+    );
 
     builder.registerSection({
       id: "lorebook",
       phase: "Context",
-      enabled: !!lorebookText,
+      enabled: !hasCompatibilityWorldInfo && !!lorebookText,
       compile: () => ({
         id: "lorebook",
         phase: "Context",
@@ -673,12 +695,16 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     // 4b. MVU 角色变量状态段（归属于 CONTEXT 事实层，动态可变）
     // 若世界书条目已通过 {{format_message_variable::stat_data}} 宏注入变量，则跳过此 section 避免重复
     // ==================================================
-    for (const node of this.getCompatibilityRuntime()?.buildPromptSections({
+    const compatibilityPromptNodes = this.getCompatibilityRuntime()?.buildPromptSections({
       character,
       chat,
       settings,
       hasVariableListEntry,
-    }) ?? []) {
+      userInput,
+      triggeredLorebookEntries: activeEntries,
+    }) ?? [];
+    for (const node of compatibilityPromptNodes) {
+      if (node.metadata?.position === "in_chat") continue;
       builder.registerSection({
         id: node.id,
         phase: node.phase,
@@ -856,7 +882,7 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
         let role: "user" | "model" | "assistant" = "user";
         let content = msg.content;
         // 发送给 AI 时应用 promptOnly 正则清理（如隐藏 <StatusPlaceHolderImpl/> 和 <UpdateVariable> 块）
-        if (character?.extensions?.regex_scripts) {
+        if (hasConfiguredRegexScripts(character, settings)) {
           const isAi = msg.sender === "assistant";
           content = this.getCompatibilityRuntime()?.transformText({
             text: content,
@@ -866,6 +892,8 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
             userName: settings.userName,
             mode: "prompt",
             signal: operationSignal,
+            globalRegexScripts: settings.globalRegexScripts,
+            presetRegexScripts: settings.presetRegexScripts,
           }) ?? content;
         }
         const name = msg.sender === "assistant"
@@ -900,7 +928,7 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
           content = msg.content;
         } else {
           role = "user";
-          const msgContent = msg.content;
+          const msgContent = content;
           if (settings.promptConfig?.instructTemplate !== "default") {
             const prefix = this.replaceMacros(settings.promptConfig?.userPrefix || "", macroParams);
             const suffix = this.replaceMacros(settings.promptConfig?.userSuffix || "", macroParams);
@@ -934,7 +962,10 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
     }
 
     const shaped = shapePromptRequest(
-      buildPromptRequestMessages(compiledSystemPrompt, chatHistory, settings.api.sendNames),
+      applyInChatPromptNodes(
+        buildPromptRequestMessages(compiledSystemPrompt, chatHistory, settings.api.sendNames),
+        compatibilityPromptNodes,
+      ),
       settings.promptConfig.requestShaping,
     );
     return {
