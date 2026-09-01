@@ -12,6 +12,7 @@ import {
   computeToolPluginKeyFingerprint,
   verifyToolPluginSourceProof,
 } from "../../src/infrastructure/toolPlugins/toolPluginSourceVerifier";
+import { toolPluginManagementUseCases } from "../../src/application/useCases/toolPluginManagementUseCases";
 import { parseToolPluginPackage } from "../../src/domain/toolPlugins";
 import { createV2WorkerPackage } from "./helpers/toolPluginFixture";
 
@@ -59,6 +60,31 @@ describe("Tool Plugin 包签名验证", () => {
       trustLevel: "official",
     }])).rejects.toThrow("TOOL_PLUGIN_SOURCE_SIGNER_KEY_MISMATCH");
     expect(fingerprint).not.toBe(`sha256:${"0".repeat(64)}`);
+  });
+
+  it("在文件审阅边界验证签名，未签名包明确降级", async () => {
+    const unsignedBytes = await createV2WorkerPackage();
+    const manifest = (await parseToolPluginPackage(unsignedBytes)).manifest;
+    const { proof } = await createSignedProof(manifest);
+    const signedBytes = await createV2WorkerPackage(undefined, proof);
+
+    await expect(toolPluginManagementUseCases.inspectFile(
+      new File([signedBytes], "signed.mttool"),
+    )).resolves.toMatchObject({
+      sourceVerification: {
+        trustLevel: "signed",
+        verificationMethod: "package-signature",
+        signerId: "example.publisher",
+      },
+    });
+    await expect(toolPluginManagementUseCases.inspectFile(
+      new File([unsignedBytes], "unsigned.mttool"),
+    )).resolves.toMatchObject({
+      sourceVerification: {
+        trustLevel: "unverified",
+        verificationMethod: "unsigned",
+      },
+    });
   });
 });
 

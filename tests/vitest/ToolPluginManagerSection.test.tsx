@@ -34,6 +34,7 @@ describe("ToolPluginManagerSection", () => {
     expect(screen.getByText("Worker 隔离")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "权限、Tool 与版本" }));
+    expect(screen.getByText(/未验证来源/u)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "授予权限 session.read" }));
     await waitFor(() => expect(screen.getByRole("switch", { name: "撤销权限 session.read" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("switch", { name: "授予权限 session.write" }));
@@ -72,6 +73,7 @@ describe("ToolPluginManagerSection", () => {
     fireEvent.click(reviewButton);
     expect(screen.getByText("确认安装 Brave 网页搜索")).toBeInTheDocument();
     expect(screen.getByText("network.request")).toBeInTheDocument();
+    expect(screen.getByText("官方内置")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "确认安装，稍后授权" }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "已安装 Brave 网页搜索" })).toBeDisabled());
@@ -79,6 +81,10 @@ describe("ToolPluginManagerSection", () => {
       id: "official.brave-search",
       enabled: false,
       grantedPermissions: [],
+      sourceVerification: {
+        trustLevel: "official",
+        verificationMethod: "bundled",
+      },
     }]);
   });
 

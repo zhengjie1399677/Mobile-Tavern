@@ -29,6 +29,12 @@ describe("官方 Tool Plugin 目录", () => {
       }],
     });
     expect(`ext.${parsed.id}.${parsed.tools[0].id}`).toBe(BRAVE_SEARCH_TOOL_NAME);
+    expect(inspection.sourceVerification).toEqual({
+      trustLevel: "official",
+      verificationMethod: "bundled",
+      signerId: "mobile-tavern.bundled-catalog",
+      signerLabel: "Mobile Tavern 内置目录",
+    });
   });
 
   it("提供高风险、逐次确认的长期记忆写入能力", async () => {

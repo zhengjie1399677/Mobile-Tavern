@@ -4,7 +4,9 @@ import type {
   ToolPluginCredentialStatus,
   ToolPluginManifest,
   ToolPluginPermission,
+  ToolPluginSourceVerification,
 } from "../../domain/toolPlugins";
+import { unsignedToolPluginSource } from "../../domain/toolPlugins";
 import { decryptValue, encryptValue } from "../storage/settingsCrypto";
 
 const DB_NAME = "MobileTavernToolPluginDB";
@@ -38,12 +40,13 @@ export async function installToolPluginManifest(
   manifest: ToolPluginManifest,
   now = Date.now(),
 ): Promise<InstalledToolPlugin> {
-  return installToolPlugin(manifest, undefined, now);
+  return installToolPlugin(manifest, undefined, unsignedToolPluginSource(), now);
 }
 
 export async function installToolPlugin(
   manifest: ToolPluginManifest,
   artifact?: ToolPluginArtifact,
+  sourceVerification: ToolPluginSourceVerification = unsignedToolPluginSource(),
   now = Date.now(),
 ): Promise<InstalledToolPlugin> {
   if (artifact && (artifact.pluginId !== manifest.id || artifact.contentHash !== manifest.contentHash)) {
@@ -55,13 +58,21 @@ export async function installToolPlugin(
   }
   const history = previous && previous.manifest.contentHash !== manifest.contentHash
     ? [
-        { manifest: previous.manifest, archivedAt: now },
+        {
+          manifest: previous.manifest,
+          ...(previous.sourceVerification ? { sourceVerification: previous.sourceVerification } : {}),
+          archivedAt: now,
+        },
         ...previous.history.filter((item) => item.manifest.contentHash !== previous.manifest.contentHash),
       ].slice(0, 8)
     : previous?.history ?? [];
+  const resolvedSourceVerification = previous?.manifest.contentHash === manifest.contentHash
+    ? strongerSourceVerification(previous.sourceVerification, sourceVerification)
+    : sourceVerification;
   const record: InstalledToolPlugin = {
     id: manifest.id,
     manifest: structuredClone(manifest),
+    sourceVerification: structuredClone(resolvedSourceVerification),
     installedAt: previous?.installedAt ?? now,
     updatedAt: now,
     enabled: previous?.manifest.contentHash === manifest.contentHash ? previous.enabled : false,
@@ -137,12 +148,17 @@ export async function rollbackToolPlugin(
     const target = record.history.find((item) => item.manifest.contentHash === contentHash);
     if (!target) throw new Error("TOOL_PLUGIN_ROLLBACK_VERSION_NOT_FOUND");
     const nextHistory = [
-      { manifest: record.manifest, archivedAt: now },
+      {
+        manifest: record.manifest,
+        ...(record.sourceVerification ? { sourceVerification: record.sourceVerification } : {}),
+        archivedAt: now,
+      },
       ...record.history.filter((item) => item.manifest.contentHash !== contentHash),
     ].slice(0, 8);
     return {
       ...record,
       manifest: target.manifest,
+      sourceVerification: target.sourceVerification ?? unsignedToolPluginSource(),
       enabled: false,
       grantedPermissions: [],
       history: nextHistory,
@@ -340,6 +356,15 @@ async function pruneToolPluginArtifacts(plugin: InstalledToolPlugin): Promise<vo
 
 function credentialKey(pluginId: string, credentialId: string): string {
   return `${pluginId}:${credentialId}`;
+}
+
+function strongerSourceVerification(
+  previous: ToolPluginSourceVerification | undefined,
+  incoming: ToolPluginSourceVerification,
+): ToolPluginSourceVerification {
+  if (!previous) return incoming;
+  const rank = { unverified: 0, signed: 1, trusted: 2, official: 3 } as const;
+  return rank[incoming.trustLevel] > rank[previous.trustLevel] ? incoming : previous;
 }
 
 async function getCredentialCryptoKey(): Promise<CryptoKey> {

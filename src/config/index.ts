@@ -9,3 +9,7 @@ export {
   type CommunityEntryPolicy,
   type FeaturePolicies,
 } from "./featurePolicies";
+export {
+  toolPluginTrustPolicy,
+  type ToolPluginTrustPolicy,
+} from "./toolPluginTrustPolicy";

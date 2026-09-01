@@ -115,6 +115,7 @@ export interface ToolPluginManifest {
 
 export interface ToolPluginVersionSnapshot {
   readonly manifest: ToolPluginManifest;
+  readonly sourceVerification?: ToolPluginSourceVerification;
   readonly archivedAt: number;
 }
 
@@ -136,6 +137,7 @@ export interface ToolPluginInspection {
 export interface InstalledToolPlugin {
   readonly id: string;
   readonly manifest: ToolPluginManifest;
+  readonly sourceVerification?: ToolPluginSourceVerification;
   readonly installedAt: number;
   readonly updatedAt: number;
   readonly enabled: boolean;

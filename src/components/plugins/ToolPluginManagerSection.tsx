@@ -377,6 +377,7 @@ function ToolPluginCard({
               <p className="text-[8.5px] font-bold text-foreground">来源与版本</p>
               <div className="mt-0.5 flex items-center gap-1.5 text-[8px] text-muted-foreground">
                 <span className="truncate">{plugin.manifest.source.label}</span>
+                <span>· {sourceVerificationLabel(plugin.sourceVerification)}</span>
                 {plugin.manifest.source.url && <a href={plugin.manifest.source.url} target="_blank" rel="noreferrer" aria-label="打开插件来源" className="text-primary"><ExternalLink className="h-3 w-3" /></a>}
               </div>
             </div>
@@ -456,6 +457,7 @@ function InstallReviewDialog({ inspection, busy, onClose, onInstall }: {
                 <ReviewField label="执行位置" value={executionLabel(manifest)} />
                 <ReviewField label="包能力" value={inspection.artifact?.entryCode ? "L2 受限 Worker" : manifest.tools.some((tool) => tool.handler?.kind === "http") ? "L1 HTTP 连接器" : manifest.tools.some((tool) => tool.handler?.kind === "host") ? "宿主 Capability 代理" : "仅清单"} />
                 <ReviewField label="来源" value={manifest.source.label} />
+                <ReviewField label="来源验证" value={sourceVerificationLabel(inspection.sourceVerification)} />
                 <ReviewField label="目标 Profile" value={manifest.targetProfiles.join("、")} />
                 <ReviewField
                   label="依赖"
@@ -529,6 +531,19 @@ function effectLabel(effect: "none" | "local-write" | "external" | "irreversible
   return "无副作用";
 }
 
+function sourceVerificationLabel(
+  verification: ToolPluginInspection["sourceVerification"] | InstalledToolPlugin["sourceVerification"],
+): string {
+  if (!verification || verification.trustLevel === "unverified") return "未验证来源";
+  if (verification.trustLevel === "signed") return "签名有效 · 未受信";
+  if (verification.trustLevel === "trusted") {
+    return verification.signerLabel ? `可信签名 · ${verification.signerLabel}` : "可信签名";
+  }
+  return verification.verificationMethod === "bundled"
+    ? "官方内置"
+    : verification.signerLabel ? `官方签名 · ${verification.signerLabel}` : "官方签名";
+}
+
 function normalizeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -541,5 +556,9 @@ function describeError(error: unknown): string {
   if (message.includes("REQUIRED_CREDENTIAL_MISSING")) return "请先配置全部必需凭据。";
   if (message.includes("PACKAGE_REQUIRED")) return "含 Worker 的 v2 插件必须以完整 .mttool 包导入，不能只导入 Manifest。";
   if (message.includes("FORBIDDEN_API")) return "Worker 入口使用了 L2 禁止的网络、动态代码、存储或子 Worker API。";
+  if (message.includes("SOURCE_SIGNATURE_INVALID")) return "包签名无效，文件可能已被篡改。";
+  if (message.includes("SOURCE_PROOF_IDENTITY_MISMATCH")) return "来源证明与插件 ID、版本或内容哈希不匹配。";
+  if (message.includes("SOURCE_SIGNER_KEY_MISMATCH")) return "签名者 ID 使用了与宿主可信记录不一致的公钥。";
+  if (message.includes("SOURCE_PUBLIC_KEY_INVALID")) return "来源证明中的公钥无效。";
   return message;
 }

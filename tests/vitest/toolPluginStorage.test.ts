@@ -4,6 +4,7 @@ import { parseToolPluginManifest } from "../../src/domain/toolPlugins";
 import {
   __toolPluginStorageTest,
   installToolPluginManifest,
+  installToolPlugin,
   deleteToolPluginCredential,
   listInstalledToolPlugins,
   rollbackToolPlugin,
@@ -78,5 +79,28 @@ describe("Tool Plugin 独立管理存储", () => {
     await setToolPluginEnabled(manifest.id, true);
     await deleteToolPluginCredential(manifest.id, "api-key");
     expect((await listInstalledToolPlugins())[0].enabled).toBe(false);
+  });
+
+  it("保存来源验证、同内容不降级，并在回滚时恢复版本对应来源", async () => {
+    const v1 = await parseToolPluginManifest(JSON.stringify(await createToolPluginManifest()));
+    const v2 = await parseToolPluginManifest(JSON.stringify(await createToolPluginManifest({ version: "2.0.0" })));
+    await installToolPlugin(v1, undefined, {
+      trustLevel: "trusted",
+      verificationMethod: "package-signature",
+      signerId: "example.publisher",
+      signerLabel: "示例发布者",
+      keyFingerprint: `sha256:${"a".repeat(64)}`,
+    }, 10);
+    await installToolPlugin(v1, undefined, undefined, 11);
+    expect((await listInstalledToolPlugins())[0].sourceVerification?.trustLevel).toBe("trusted");
+
+    await installToolPlugin(v2, undefined, undefined, 20);
+    const upgraded = (await listInstalledToolPlugins())[0];
+    expect(upgraded.sourceVerification?.trustLevel).toBe("unverified");
+    const rolledBack = await rollbackToolPlugin(v1.id, v1.contentHash, 30);
+    expect(rolledBack.sourceVerification).toMatchObject({
+      trustLevel: "trusted",
+      signerId: "example.publisher",
+    });
   });
 });

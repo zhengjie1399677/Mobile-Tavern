@@ -162,5 +162,11 @@ export async function listOfficialToolPluginInspections(): Promise<ToolPluginIns
       ...manifest,
       contentHash: await computeToolPluginManifestHash(manifest),
     }) as ToolPluginManifest,
+    sourceVerification: {
+      trustLevel: "official",
+      verificationMethod: "bundled",
+      signerId: "mobile-tavern.bundled-catalog",
+      signerLabel: "Mobile Tavern 内置目录",
+    },
   })));
 }
