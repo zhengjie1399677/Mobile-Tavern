@@ -30,6 +30,7 @@ import {
   type IAgentRuntimeService,
   type IToolPluginRuntimeService,
 } from "../serviceContracts";
+import { readAgentSettingsFromComposition } from "../runtimeProfiles/agentSettings";
 
 const OUTPUT_LIMIT_BYTES = 2 * 1024 * 1024;
 
@@ -82,13 +83,16 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
 
   getEnabledToolNames(profileId: string): string[] {
     return [...this.tools.entries()]
-      .filter(([, tool]) => tool.profileIds.includes(profileId))
+      .filter(([, tool]) => tool.profileIds.includes("*") || tool.profileIds.includes(profileId))
       .map(([name]) => name)
       .sort();
   }
 
   extendComposition(snapshot: AgentCompositionSnapshot): AgentCompositionSnapshot {
-    const toolNames = this.getEnabledToolNames(snapshot.profileId);
+    const selectedToolNames = readAgentSettingsFromComposition(snapshot)?.toolMounts
+      .map((tool) => tool.name);
+    const toolNames = this.getEnabledToolNames(snapshot.profileId)
+      .filter((name) => selectedToolNames === undefined || selectedToolNames.includes(name));
     if (toolNames.length === 0) return snapshot;
     const versions = { ...snapshot.pluginVersions };
     for (const toolName of toolNames) {

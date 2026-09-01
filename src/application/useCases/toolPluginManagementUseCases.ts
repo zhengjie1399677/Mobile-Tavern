@@ -12,9 +12,11 @@ import {
   setToolPluginPermissions,
   uninstallToolPlugin,
 } from "../../infrastructure/toolPlugins/toolPluginStorage";
+import { listOfficialToolPluginInspections } from "../toolPlugins/officialCatalog";
 
 export const toolPluginManagementUseCases = {
   list: listInstalledToolPlugins,
+  listOfficial: listOfficialToolPluginInspections,
   async inspectFile(file: File) {
     const bytes = await file.arrayBuffer();
     if (file.name.toLowerCase().endsWith(".mttool")) return parseToolPluginPackage(bytes);

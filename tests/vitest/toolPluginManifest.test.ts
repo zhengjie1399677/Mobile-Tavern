@@ -30,4 +30,11 @@ describe("受控 Tool Plugin Manifest", () => {
     await expect(parseToolPluginManifest(JSON.stringify(manifest)))
       .rejects.toThrow("未声明权限");
   });
+
+  it("允许显式星号把 Tool 声明为适用于全部 Profile", async () => {
+    const manifest = await createToolPluginManifest({ targetProfiles: ["*"] });
+    await expect(parseToolPluginManifest(JSON.stringify(manifest))).resolves.toMatchObject({
+      targetProfiles: ["*"],
+    });
+  });
 });

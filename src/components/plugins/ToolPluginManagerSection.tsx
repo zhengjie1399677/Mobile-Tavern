@@ -2,6 +2,7 @@ import React from "react";
 import {
   ChevronDown,
   ExternalLink,
+  Globe2,
   Loader2,
   PackageCheck,
   Power,
@@ -34,6 +35,7 @@ export default function ToolPluginManagerSection(): React.JSX.Element {
     getKernelService: state.getKernelService,
   }));
   const [plugins, setPlugins] = React.useState<InstalledToolPlugin[]>([]);
+  const [officialPlugins, setOfficialPlugins] = React.useState<ToolPluginInspection[]>([]);
   const [busy, setBusy] = React.useState(false);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [review, setReview] = React.useState<ToolPluginInspection | null>(null);
@@ -42,8 +44,12 @@ export default function ToolPluginManagerSection(): React.JSX.Element {
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const reload = React.useCallback(async () => {
-    const next = await toolPluginManagementUseCases.list();
+    const [next, official] = await Promise.all([
+      toolPluginManagementUseCases.list(),
+      toolPluginManagementUseCases.listOfficial(),
+    ]);
     setPlugins(next);
+    setOfficialPlugins(official);
     const statuses = await Promise.all(next.map(async (plugin) => [
       plugin.id,
       await toolPluginManagementUseCases.listCredentialStatus(plugin.id),
@@ -108,6 +114,7 @@ export default function ToolPluginManagerSection(): React.JSX.Element {
 
   const enabledCount = plugins.filter((plugin) => plugin.enabled).length;
   const awaitingPermissionCount = plugins.filter((plugin) => !hasRequiredPermissions(plugin)).length;
+  const installedIds = new Set(plugins.map((plugin) => plugin.id));
 
   return (
     <section className="overflow-hidden rounded-2xl border border-cyan-500/25 bg-card/75 shadow-sm" data-ui="tool-plugin-manager">
@@ -154,6 +161,39 @@ export default function ToolPluginManagerSection(): React.JSX.Element {
       </div>
 
       <div className="space-y-2.5 p-3">
+        {officialPlugins.length > 0 && (
+          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+            <div className="flex items-center gap-2">
+              <Globe2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[10px] font-bold text-foreground">官方能力积木</h3>
+                <p className="mt-0.5 text-[8px] leading-relaxed text-muted-foreground">固定来源与网络边界，安装后仍需单独配置凭据、授权并启用。</p>
+              </div>
+            </div>
+            <div className="mt-2 space-y-2">
+              {officialPlugins.map((inspection) => {
+                const installed = installedIds.has(inspection.manifest.id);
+                return (
+                  <div key={inspection.manifest.id} className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/70 p-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[9px] font-bold text-foreground">{inspection.manifest.name}</p>
+                      <p className="mt-0.5 line-clamp-2 text-[8px] leading-relaxed text-muted-foreground">{inspection.manifest.description}</p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy || installed}
+                      aria-label={`${installed ? "已安装" : "查看并安装"} ${inspection.manifest.name}`}
+                      onClick={() => setReview(inspection)}
+                      className="min-h-9 shrink-0 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 text-[8px] font-bold text-cyan-700 disabled:border-border disabled:bg-muted disabled:text-muted-foreground dark:text-cyan-300"
+                    >
+                      {installed ? "已安装" : "查看并安装"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {plugins.length === 0 ? (
           <div className="flex flex-col items-center rounded-2xl border border-dashed border-border px-4 py-7 text-center">
             <PackageCheck className="h-7 w-7 text-muted-foreground/60" />

@@ -75,7 +75,7 @@ const manifestSchema = z.object({
       prefix: z.string().max(80).optional(),
     }).strict(),
   }).strict()).max(16).optional(),
-  targetProfiles: z.array(runtimeIdSchema).min(1).max(16),
+  targetProfiles: z.array(z.union([runtimeIdSchema, z.literal("*")])).min(1).max(16),
   dependencies: z.array(z.object({
     id: runtimeIdSchema,
     version: semverSchema,

@@ -12,6 +12,7 @@
 - [x] **自定义 Agent 闭环（P0，方向②）**：已把「定义 Agent = 选角色 + 挂工具 + 调行为」做成可存、可改、可文件级分享的最小闭环。`mobile-tavern.agent-profile` v1 提供严格导入导出、凭据隔离、依赖诊断和旧 Profile 降级；设置页已接入 Android/Web 文件入口与引导式表单，角色、Tool、行为和采样进入新会话不可变组合，缺失依赖与版本漂移 fail-closed。
 
 - [ ] **能力积木层扩充（P1，方向①）**：内置 Tool 从 2 个补齐联网、记忆写入、图像、TTS、日历等外部能力实例，media processor 从 2 个同步扩充；优先联网与记忆写入，其余按需。全部走 External Tool Plugin 框架，不进 Kernel。
+  - 2026-09-02：已加入首个官方预置能力实例 `official.brave-search`。它通过 External Tool Plugin 的固定 HTTPS Origin、加密凭据注入、单次审批和流量配额提供网页搜索，默认未安装、未授权且未启用；下一步补 `memory.write`。
 
 - [ ] **自定义主题工作室后续（P1）**：全屏工作室、独立草稿、隔离预览、核心/高级颜色和保存/应用分离已完成；继续实现起点选择、多场景预览、对比度与 CSS 行列诊断、片段库，以及 Theme 1.1 媒体/状态/规则可视化编辑。
 

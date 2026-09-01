@@ -12,6 +12,7 @@ import {
   setToolPluginPermissions,
 } from "../../src/infrastructure/toolPlugins/toolPluginStorage";
 import { createV2HttpManifest } from "./helpers/toolPluginFixture";
+import { AGENT_PROFILE_SETTINGS_DECISION_ID } from "../../src/application/runtimeProfiles/agentSettings";
 
 const journal = { append: async () => undefined, appendMany: async () => undefined, listBySession: async () => [], replace: async () => undefined, deleteBySession: async () => undefined };
 
@@ -62,6 +63,52 @@ describe("External Tool Plugin Runtime", () => {
     await expect(tool.execute({ city: "上海" }, {
       sessionId: "session", turnId: "turn", callId: "call-2", signal: new AbortController().signal,
     })).rejects.toThrow("TOOL_PLUGIN_RUNTIME_REVOKED");
+    await service.destroy();
+    await agentRuntime.destroy();
+  });
+
+  it("星号目标可用于自定义 Profile，且只向组合快照加入 Agent 已挂载的 Tool", async () => {
+    const manifest = await parseToolPluginManifest(JSON.stringify(await createV2HttpManifest({
+      targetProfiles: ["*"],
+    })));
+    await installToolPluginManifest(manifest);
+    await setToolPluginPermissions(manifest.id, ["network.request"]);
+    await setToolPluginEnabled(manifest.id, true);
+
+    const agentRuntime = new AgentRuntimeService(journal);
+    const kernel = {
+      getService: () => agentRuntime,
+      hasService: () => true,
+    } as unknown as IKernel;
+    agentRuntime.init(kernel);
+    const service = new ToolPluginRuntimeService(
+      { request: async () => ({ status: 200, contentType: "application/json", body: {} }) },
+      { execute: async () => ({}), getActiveWorkerCount: () => 0, destroy: () => undefined },
+    );
+    await service.init(kernel);
+
+    const toolName = "ext.example.weather.weather.get";
+    expect(service.getEnabledToolNames("user.profile.custom")).toContain(toolName);
+    const baseSnapshot = {
+      profileId: "user.profile.custom",
+      profileVersion: 1,
+      pluginVersions: {},
+      providerBindings: {},
+      contributionOrder: { tool: [] },
+    } as const;
+    expect(service.extendComposition({
+      ...baseSnapshot,
+      capabilityDecisions: {
+        [AGENT_PROFILE_SETTINGS_DECISION_ID]: { toolMounts: [] },
+      },
+    }).contributionOrder.tool).toEqual([]);
+    expect(service.extendComposition({
+      ...baseSnapshot,
+      capabilityDecisions: {
+        [AGENT_PROFILE_SETTINGS_DECISION_ID]: { toolMounts: [{ name: toolName, version: "1.0.0" }] },
+      },
+    }).contributionOrder.tool).toEqual([toolName]);
+
     await service.destroy();
     await agentRuntime.destroy();
   });

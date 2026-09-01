@@ -62,4 +62,21 @@ describe("ToolPluginManagerSection", () => {
     await waitFor(() => expect(screen.getByText("尚未安装 Tool Plugin Manifest")).toBeInTheDocument());
     expect(await listInstalledToolPlugins()).toEqual([]);
   });
+
+  it("从官方能力积木完成审阅安装且保持默认停用和未授权", async () => {
+    render(<ToolPluginManagerSection />);
+    const reviewButton = await screen.findByRole("button", { name: "查看并安装 Brave 网页搜索" });
+
+    fireEvent.click(reviewButton);
+    expect(screen.getByText("确认安装 Brave 网页搜索")).toBeInTheDocument();
+    expect(screen.getByText("network.request")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认安装，稍后授权" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "已安装 Brave 网页搜索" })).toBeDisabled());
+    expect(await listInstalledToolPlugins()).toMatchObject([{
+      id: "official.brave-search",
+      enabled: false,
+      grantedPermissions: [],
+    }]);
+  });
 });
