@@ -239,6 +239,8 @@ someAsyncOp().then(() => {
 
 - `mobile-tavern.tool-plugin` v1 Manifest 必须声明来源、版本、规范化内容哈希、最低 Runtime、目标 Profile、依赖、权限、Tool Schema、风险、副作用、执行 Scope 和清理策略。
 - 用户导入仅允许 `worker` 或 `sandbox` 执行位置；`app` 进程执行必须在 Schema 边界拒绝。Tool 不得使用 Manifest 未声明的权限，具有副作用的 Tool 不得标记为低风险。
+- v2 `.mttool` 可携带独立 `provenance.json`，使用 ECDSA P-256/SHA-256 对插件 ID、版本、内容哈希、签名者 ID 和 SPKI 公钥的规范化载荷签名。证明文件不参与内容哈希以避免签名循环，但必须经过严格 Schema、身份一致性和 WebCrypto 验签；签名有效不等于来源可信。
+- 来源等级只允许“未验证、签名有效但未受信、可信签名、官方来源”四级。可信签名者只能由宿主固定公钥指纹策略提供；旧安装记录缺少来源字段时降级为未验证，同内容重新导入不得降低既有信任等级，版本升级和回滚必须绑定各自来源记录。
 - React 管理界面只能通过 `toolPluginManagementUseCases` 访问独立存储。`ToolPluginRuntimeService` 只为已启用、兼容、依赖可用、权限与必需凭据齐全的 v2 插件注册 Tool；外部 Worker 每次调用新建并回收，只能通过宿主代理使用 Manifest 声明的 HTTPS 网络能力。
 
 ---

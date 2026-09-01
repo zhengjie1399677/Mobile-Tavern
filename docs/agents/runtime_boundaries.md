@@ -29,7 +29,8 @@
 | Prompt 预设与组装 | `src/application/useCases/presetPromptConfig.ts`、`src/application/services/prompt/` | 将新旧 Mobile Tavern 与外部 Codec 产物收口为版本化预设快照，经中立编排、请求整形和最终预算审计生成唯一消息包 | 不在 React Hook 解释外部预设语义，不让旧预设继承其他预设模式，不在发送/重生成中二次拼装 Prompt |
 | Agent Runtime 主干 | `src/application/services/AgentRuntimeService.ts`、`src/application/services/agents/`、`src/domain/agents/`、`src/application/useCases/openAiToolLoop.ts` | 管理 AgentHandle、Turn、Driver、Provider、有限多步 Tool Loop、媒体 Processor、权限、一次性审批、取消与诊断 | 不进入 Kernel，不持有 React State，不绕过 Turn 直接执行 Tool，不执行用户安装的任意代码；审批宿主缺失时必须 fail-closed |
 | Agent Journal 存储 | `src/infrastructure/agents/agentJournalStorage.ts` | 物理分轨持久化 Turn、Provider/媒体决定与 Tool Call/Result | 不保存插件配置或凭据，不塞入 sessions/messages 大对象 |
-| Tool Plugin 管理用例 | `src/application/useCases/toolPluginManagementUseCases.ts` | 解析和安装受控 Manifest/`.mttool`，编排授权、凭据、停用、回滚与卸载 | 不直接注册 Tool，不把管理状态混入 Runtime Profile 或 `.mtplugin` |
+| Tool Plugin 管理用例 | `src/application/useCases/toolPluginManagementUseCases.ts` | 解析和安装受控 Manifest/`.mttool`，编排来源验签、授权、凭据、停用、回滚与卸载 | 不直接注册 Tool，不把管理状态混入 Runtime Profile 或 `.mtplugin`，不把包内自声明公钥直接提升为可信来源 |
+| Tool Plugin 来源验证 | `src/infrastructure/toolPlugins/toolPluginSourceVerifier.ts`、`src/config/toolPluginTrustPolicy.ts` | 以 WebCrypto 校验 ECDSA P-256/SHA-256 包签名，并把签名有效性与宿主信任等级分开判定 | 不读取私钥，不从插件包或网络响应动态添加可信签名者，不把未知签名显示为可信 |
 | Tool Plugin Runtime | `src/application/services/ToolPluginRuntimeService.ts`、`src/application/toolPlugins/hostCapabilityExecutor.ts` | 校验兼容性和依赖、注册 External Tool、执行前重查授权、扩展新会话组合快照，并把白名单 Host Capability 代理到类型化应用服务 | 不执行 `.mtplugin`，不向外部代码暴露 Kernel、存储或明文凭据；Host handler 不执行插件代码且不得绕过 Tool 单次审批 |
 | Tool Plugin 执行适配 | `src/infrastructure/toolPlugins/toolPluginHttpClient.ts`、`browserToolPluginExecutor.ts` | 代理受限 HTTPS 请求并运行一次性 Worker | 不允许 Worker 直接联网、持久化、创建子 Worker、动态加载或后台常驻 |
 | Tool Plugin 管理存储 | `src/infrastructure/toolPlugins/toolPluginStorage.ts` | 在独立数据库保存 Manifest、Artifact、加密凭据、授权状态与有限版本历史 | 不被 React 直连，不与 `.mtplugin` 包数据库混用；凭据不进入 Manifest 或会话快照 |
@@ -52,7 +53,7 @@
   │                                  └─→ LLM Provider 兼容层 ─→ LLMService/ChatStreamService
   │                                  ├─→ Agent Journal Port ─→ infrastructure/agents
   │                                  └─→ Attachment/ASR/视频关键帧 Adapter
-  ├─→ Tool Plugin 设置 UI ─→ 管理用例 ─→ infrastructure/toolPlugins
+  ├─→ Tool Plugin 设置 UI ─→ 管理用例 ─→ 来源验证/管理存储 ─→ infrastructure/toolPlugins
   │                              └→ Tool Plugin Runtime ─→ 白名单 Host Capability ─→ MemoryService ─→ 记忆领域端口
   ├─→ ThemeInteractionHost ─→ ThemeInteractionService ─→ 主题私有运行态
   │                        └→ LocalResourceService（只解析已声明本地媒体）
@@ -106,7 +107,7 @@
 11. Profile 启动偏好是公开、类型化的小对象，只能通过 Runtime Profile Service/Infrastructure Port 读写；损坏、缺失 Provider 或找不到 Profile 时必须返回诊断并安全回退，不能把秘密并入 Profile。
 12. Runtime Plugin 配置必须由 Zod Schema 校验，Capability Token/Provider 冲突必须在装载前失败；模型 Tool Call 必须经有限 Step Loop 和 Agent Turn 执行边界。
 13. 跨 Profile 会话恢复必须使用 Schema 校验的一次性意图；兼容会话状态必须单写插件命名空间，旧 `session.variables` 不得恢复为通用持久化路径。
-14. Tool Plugin 管理必须使用独立数据库并经应用用例访问；运行只能由独立 `ToolPluginRuntimeService` 注册到 Agent Runtime。Worker 网络必须经宿主精确白名单代理，权限或必需凭据撤销必须立即阻止旧 Tool 闭包继续执行。
+14. Tool Plugin 管理必须使用独立数据库并经应用用例访问；运行只能由独立 `ToolPluginRuntimeService` 注册到 Agent Runtime。Worker 网络必须经宿主精确白名单代理，权限或必需凭据撤销必须立即阻止旧 Tool 闭包继续执行。包签名必须在安装审阅边界验证，包内公钥只能证明签名一致性，可信等级只能来自宿主固定策略或随 App 分发的内置目录。
 15. LLM Provider 的端点识别、能力裁剪、思考回放与响应归一化必须集中在 `llmCompatibility`；`LLMService` 和 `ChatStreamService` 只通过该边界收发数据，旧记忆路径只允许兼容导出。
 16. Agent/Profile Bundle 必须留在 Application 契约与用例边界，以严格 Schema 和公开字段白名单导入导出；Runtime Profile 持久化只接收小型引用和采样参数，不得携带角色卡/Prompt 正文、插件包或凭据。
 

@@ -19,7 +19,7 @@
 
 ## 中期排期
 
-- [ ] **External Tool Plugin 来源治理（P2，方向③，路线阶段 D）**：本地 L2 已完成 `.mttool`、声明式 HTTPS、一次性受限 Worker、精确依赖检查、加密凭据、Agent Runtime/新会话快照、权限撤销和卸载清理；继续实现签名/可信来源、远程版本撤回与生态审核。仍不开放任意 Runtime Plugin 安装、后台常驻或原生能力。
+- [ ] **External Tool Plugin 来源治理（P2，方向③，路线阶段 D）**：来源证明、ECDSA P-256/SHA-256 验签、可信指纹分级、安装展示和版本历史已完成；继续实现签名者登记/轮换、SDK 私钥签名命令、远程版本撤回与生态审核。仍不开放任意 Runtime Plugin 安装、后台常驻或原生能力。
 - [ ] **生态试运行（P2，方向③，路线阶段 E）**：仓库内 Tool Plugin SDK、确定性 `.mttool` 打包器和官方无权限文本工具箱示例已完成；继续评估 SDK 独立发布、目录、版本固定、审核/撤回流程以及 Provider、Media Processor、Renderer、Context Source 扩展模板。
 - [ ] **测试覆盖补强（P2）**：补充现有 Hook 测试尚未覆盖的边界，并新增跨组件数据流契约测试，优先检查 `useCharacters`、`useCatbot`、`useSendMessage` 与 Profile/聊天切换；数量以 `npm test` 和 `npm run test:unit` 当次结果为准。
 - [ ] **P3-B Store 拆分（P3，条件性）**：先解除 `useSettings` 对 `ChatContext.availableModels` 的反向依赖，再只拆出 Settings；更大范围拆分只有出现明确维护瓶颈时再评估。
@@ -34,11 +34,10 @@
 
 ## 已完成摘要
 
+- 2026-09-02：完成 Tool Plugin 来源证明与包验签基线，严格绑定插件身份、内容哈希和签名者公钥，区分未知有效签名、可信指纹与官方内置来源；旧记录降级且版本历史不丢失。
 - 2026-09-02：完成仓库内 Tool Plugin 作者 SDK 与官方文本工具箱示例，覆盖 v2 Manifest/Worker 类型、确定性打包、可安装产物和运行时契约一致性测试；生态后续保留签名来源、远程撤回、独立发布与审核流程。
 - 2026-08-29：完成自定义主题工作室阶段一，加入独立草稿、隔离预览、离开保护、响应式分区编辑和保存/应用分离，并保留 Theme 1.0/1.1 高级能力。
 - 2026-08-28：完成会话管理器数据底座和三分类页面，加入归档删除守卫、权威搜索/批量管理、独立收藏备份、修订落后提示与收藏恢复；单会话导出和用户人设入口继续按专项设计后续实施。
 - 2026-08-26：重做多模态附件选择与预览，按图片/视频/音频区分入口和消息展示；完成 External Tool Plugin 本地 L2 执行闭环，后续保留签名来源、远程撤回与生态审核。
-- 2026-08-26：完成内置 `character.read`、需一次性审批的 `session.branch`、Tool 策略/Journal/聊天卡片闭环，并补齐改动文件 ESLint、Dependabot 和 PR 标题门禁。
-- 2026-08-25：完成 Agent Host 五阶段当前验收范围，包含 Runtime Profile、Message Content V2、Attachment Data Plane、Agent Spine、Compatibility Runtime 和 Profile UI。
 
 详细历史索引见 [docs/history/TODO_ARCHIVE_2026.md](docs/history/TODO_ARCHIVE_2026.md)。

@@ -10,7 +10,7 @@
 | 阶段 0–5 | 已完成当前验收范围 | Agent Host 基础闭环已落地，详见各阶段的当前进度和 `CURRENT_STATE.md`。 |
 | 阶段 A | 已完成当前验收范围 | Base/Tavern Profile 已注册 `character.read` 与 `session.branch`，诊断只展示真实注册结果。 |
 | 阶段 B–C | 已完成当前验收范围 | Tool 策略、一次性审批卡片、fail-closed 和 Journal 重放已接入。 |
-| 阶段 D | 进行中 | L1 声明式 HTTPS 连接器、白名单 Host Capability 与 L2 一次性受限 Worker 已接入 Agent Runtime；签名/可信来源、远程版本撤回和生态发布仍未完成。 |
+| 阶段 D | 进行中 | L1 HTTPS、Host Capability、L2 Worker、包验签与来源等级已接入；外部可信签名者登记/轮换、远程版本撤回和生态发布仍未完成。 |
 | 阶段 E | 进行中 | 仓库内 Tool Plugin SDK 与官方最小示例已完成；独立发布、审核、灰度和生态试运行尚未完成。 |
 
 阶段 A–E 是阶段 1–5 之后的新路线，不应把 Agent Runtime 已有的 Tool Registry、Tool Call 展示或有限 Tool Loop 误判为这些产品阶段已经完成。
@@ -448,7 +448,7 @@ Manifest 至少声明：
 
 完成条件：一个外部 Tool Plugin 可以被发现、安装、授权、停用和卸载；插件无法访问 Manifest 未声明的能力，卸载后不残留注册、任务、凭据或会话数据。
 
-当前进度（2026-09-02）：阶段 D 已完成本地 L2 执行闭环。`mobile-tavern.tool-plugin` v2 可通过 `.mttool` 包携带单入口 Worker，也可声明无需脚本的 HTTPS Tool；包安装会校验 ZIP 路径与体积、规范化 SHA-256、受支持 JSON Schema 子集和禁用 API。启用后的 Tool 以 `ext.<pluginId>.<toolId>` 注册到 Agent Runtime，新会话快照记录插件版本和 Tool，旧会话保持冻结；每次执行仍重新检查启用状态、内容哈希和权限，使撤销对旧句柄立即生效。Worker 每次调用新建并在完成、失败、取消或超时后终止，不能直接使用网络、动态代码、持久化或子 Worker；网络只能经宿主按精确 HTTPS Origin、方法、请求次数和流量配额代理，凭据加密分轨保存并只在宿主侧注入。安装、授权、停用、最多 8 个历史版本、回滚清权、凭据清理和卸载均已接通。官方目录现提供默认未安装、未授权、未启用的 `official.brave-search` 与 `official.memory`；前者固定 Brave Search Origin，后者使用当前唯一开放的声明式 Host handler `memory.write`，经高风险单次审批后通过 `MemoryService` 写入带来源消息的长期记忆，来源缺失时 fail-closed。`targetProfiles: ["*"]` 只声明连接器可供任意 Profile 选择，自定义 Agent 的实际组合仍按其 `toolMounts` 白名单冻结。仓库内作者 SDK 已提供 v2 Manifest/Worker 类型、确定性 `.mttool` 打包器和无权限文本工具箱示例。尚未完成的是签名/可信来源、远程版本撤回、生态审核与 SDK 独立发布；当前也不提供后台常驻、任意原生能力或无界 JavaScript 运行。
+当前进度（2026-09-02）：阶段 D 已完成本地 L2 执行闭环。`mobile-tavern.tool-plugin` v2 可通过 `.mttool` 包携带单入口 Worker，也可声明无需脚本的 HTTPS Tool；包安装会校验 ZIP 路径与体积、规范化 SHA-256、受支持 JSON Schema 子集和禁用 API。可选 `provenance.json` 使用 ECDSA P-256/SHA-256 绑定插件 ID、版本、内容哈希、签名者 ID 和 SPKI 公钥；安装审阅会以 WebCrypto 验签，并把未知有效签名与宿主固定可信指纹、官方内置目录分级展示。证明篡改、身份错配或可信 ID 换钥均 fail-closed，旧安装记录降级为未验证且不会丢失。启用后的 Tool 以 `ext.<pluginId>.<toolId>` 注册到 Agent Runtime，新会话快照记录插件版本和 Tool，旧会话保持冻结；每次执行仍重新检查启用状态、内容哈希和权限，使撤销对旧句柄立即生效。Worker 每次调用新建并在完成、失败、取消或超时后终止，不能直接使用网络、动态代码、持久化或子 Worker；网络只能经宿主按精确 HTTPS Origin、方法、请求次数和流量配额代理，凭据加密分轨保存并只在宿主侧注入。安装、授权、停用、最多 8 个历史版本、回滚清权、凭据清理和卸载均已接通。官方目录现提供默认未安装、未授权、未启用的 `official.brave-search` 与 `official.memory`。仓库内作者 SDK 已提供 v2 Manifest/Worker 类型、确定性 `.mttool` 打包器和无权限文本工具箱示例。尚未完成的是外部可信签名者登记/轮换、SDK 私钥签名命令、远程版本撤回、生态审核与 SDK 独立发布；当前也不提供后台常驻、任意原生能力或无界 JavaScript 运行。
 
 ### 10.5 阶段 E：生态试运行
 
