@@ -96,6 +96,12 @@ export function buildRuntimeProfileDefinition(
   profile: RuntimeProfileRecord,
 ): RuntimeProfileDefinition {
   const compatibility = profile.capabilities.sillyTavernCompatibility;
+  const defaultTools = [CHARACTER_READ_TOOL_NAME, SESSION_BRANCH_TOOL_NAME];
+  const selectedBuiltinTools = profile.agent
+    ? profile.agent.toolMounts
+      .map((tool) => tool.name)
+      .filter((name) => defaultTools.includes(name))
+    : defaultTools;
   const mediaProcessors = [
     ...(profile.capabilities.audioAsrFallback ? [AUDIO_ASR_PROCESSOR_ID] : []),
     ...(profile.capabilities.videoKeyframeFallback ? [VIDEO_KEYFRAME_PROCESSOR_ID] : []),
@@ -115,7 +121,7 @@ export function buildRuntimeProfileDefinition(
       "llm.route": SETTINGS_PROVIDER_ROUTE_ID,
     },
     contributions: {
-      tool: [CHARACTER_READ_TOOL_NAME, SESSION_BRANCH_TOOL_NAME],
+      tool: [...new Set(selectedBuiltinTools)],
       "media.processor": mediaProcessors,
       ...(compatibility ? {
         "compat.codec": ["compat.sillytavern.codec.prompt-preset"],

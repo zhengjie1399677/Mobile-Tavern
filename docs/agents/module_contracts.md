@@ -355,7 +355,8 @@ someAsyncOp().then(() => {
 - 每个 Profile 与插件拥有独立子 Scope。插件应把每次注册立即加入自己的 Scope；初始化中途失败时由 Profile Scope 统一逆序回滚。
 - 插件 `setup` 返回的 disposer 也由插件 Scope 托管；Profile 卸载按插件依赖逆序释放且保持幂等。
 - `ResolvedRuntimeProfileSnapshot` 只保存 Profile ID/版本、插件 ID/版本、Provider Binding 与 Contribution 顺序。插件 config、API Key、令牌、服务实例与 Blob 均不得进入快照。
-- Runtime Profile 偏好只保存内置引用或用户复制后的能力布尔值，并由 Zod 在 Infrastructure 边界校验；启动时重建为当前插件版本的定义，损坏或悬空选择回退 Tavern Agent并返回诊断。
+- Runtime Profile 偏好只保存内置引用、用户复制后的能力布尔值，以及可移植 Agent 所需的小型角色/Prompt 引用、Tool 身份和有限采样参数，并由 Zod 在 Infrastructure 边界校验；角色卡与 Prompt 正文、插件包、API Key、令牌和其他凭据不得进入 Profile。启动时重建为当前插件版本的定义，损坏或悬空选择回退 Tavern Agent 并返回诊断。
+- `mobile-tavern.agent-profile` v1 Bundle 是文件级粘合契约，只导出上述公开字段和依赖名称；导入必须生成新的本地 Profile ID，对来源 ID 冲突、缺失角色/Prompt/Tool 和 Tool 版本漂移返回明确诊断，不得静默替换引用或覆盖现有 Profile。
 - 内置 Profile 只读；用户必须先复制才能修改 Compatibility、音频 ASR 或视频关键帧开关。开关必须改变实际注册贡献，不能只改变 UI 文案。
 - 会话 Composition Snapshot 一经创建不得被全局 Profile 静默覆盖；发送与重发在 Profile ID 不一致时必须阻止并引导显式切换。
 - 从会话列表打开其他 Profile 的会话时，必须验证精确 Profile ID/版本并写入经过 Schema 校验的一次性恢复意图；重启装载目标组合后从数据库恢复目标会话和角色并清除意图，缺失或版本漂移不得继续重启。

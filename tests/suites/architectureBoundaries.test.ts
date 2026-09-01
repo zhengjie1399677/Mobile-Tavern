@@ -501,6 +501,23 @@ export async function testArchitectureBoundaries(): Promise<void> {
         .includes("resumeIntentSchema.safeParse"),
     "跨 Profile 打开会话必须以经过 Schema 校验的一次性意图重启，并在目标组合装载后恢复会话"
   );
+  const agentProfileBundle = read("src/application/runtimeProfiles/agentProfileBundle.ts");
+  const agentProfileExport = read("src/application/useCases/prepareAgentProfileBundleExport.ts");
+  const agentProfileImport = read("src/application/useCases/prepareAgentProfileBundleImport.ts");
+  const runtimeProfilePreferences = read(
+    "src/infrastructure/runtimeProfiles/runtimeProfilePreferences.ts"
+  );
+  assert(
+    agentProfileBundle.includes("agentProfileBundleSchema")
+      && agentProfileBundle.includes(".strict()")
+      && agentProfileExport.includes("capabilities: { ...profile.capabilities }")
+      && !agentProfileExport.includes("...profile,")
+      && agentProfileImport.includes("PROFILE_ID_REGENERATED")
+      && agentProfileImport.includes("CHARACTER_NOT_FOUND")
+      && agentProfileImport.includes("TOOL_VERSION_MISMATCH")
+      && runtimeProfilePreferences.includes("agent: agentSchema.optional()"),
+    "Agent/Profile Bundle 必须在 Application 边界严格校验、按公开字段导出，并对新 ID 与缺失依赖返回诊断"
+  );
   const sessionStateSnapshot = read("src/domain/chat/sessionStateSnapshot.ts");
   assert(
     compatibilityHost.includes("readState(session")

@@ -15,6 +15,41 @@ const capabilitiesSchema = z.object({
   videoKeyframeFallback: z.boolean(),
 });
 
+const toolMountSchema = z.object({
+  name: z.string().regex(RUNTIME_ID_PATTERN),
+  version: z.string().trim().min(1).max(64).optional(),
+}).strict();
+
+const samplingSchema = z.object({
+  temperature: z.number().finite().min(0).max(5),
+  topP: z.number().finite().min(0).max(1),
+  topK: z.number().int().min(0).max(1000),
+  repetitionPenalty: z.number().finite().min(0).max(5),
+  frequencyPenalty: z.number().finite().min(-2).max(2).optional(),
+  presencePenalty: z.number().finite().min(-2).max(2).optional(),
+  minP: z.number().finite().min(0).max(1).optional(),
+  maxTokens: z.number().int().positive().max(1_000_000),
+}).strict();
+
+const agentSchema = z.object({
+  characterId: z.string().regex(RUNTIME_ID_PATTERN).optional(),
+  toolMounts: z.array(toolMountSchema).max(64),
+  promptPresetId: z.string().regex(RUNTIME_ID_PATTERN).optional(),
+  sampling: samplingSchema.optional(),
+}).strict().superRefine((agent, context) => {
+  const names = new Set<string>();
+  agent.toolMounts.forEach((tool, index) => {
+    if (names.has(tool.name)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["toolMounts", index, "name"],
+        message: "duplicate tool mount",
+      });
+    }
+    names.add(tool.name);
+  });
+});
+
 const profileSchema = z.object({
   id: z.string().regex(RUNTIME_ID_PATTERN),
   name: z.string().min(1).max(80),
@@ -23,6 +58,7 @@ const profileSchema = z.object({
   builtin: z.literal(false),
   copiedFrom: z.string().regex(RUNTIME_ID_PATTERN).optional(),
   capabilities: capabilitiesSchema,
+  agent: agentSchema.optional(),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
 });
@@ -89,6 +125,13 @@ function freezeState(value: z.infer<typeof stateSchema>): RuntimeProfilePreferen
   const customProfiles: RuntimeProfileRecord[] = value.customProfiles.map((profile) => Object.freeze({
     ...profile,
     capabilities: Object.freeze({ ...profile.capabilities }),
+    agent: profile.agent ? Object.freeze({
+      ...profile.agent,
+      toolMounts: Object.freeze(profile.agent.toolMounts.map((tool) => Object.freeze({ ...tool }))),
+      sampling: profile.agent.sampling
+        ? Object.freeze({ ...profile.agent.sampling })
+        : undefined,
+    }) : undefined,
   }));
   return Object.freeze({
     schemaVersion: 1,

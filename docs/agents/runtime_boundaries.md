@@ -8,7 +8,7 @@
 |---|---|---|---|
 | Kernel 通用机制 | `src/kernel/index.ts`、`src/kernel/types.ts`、`src/kernel/EffectScope.ts` | 容器、服务生命周期、父子 Scope、可撤销 Effect、消息总线、Pipeline 与扩展契约 | 不放任何应用服务、业务装配、生态格式、存储或平台调用 |
 | 应用运行时组合 | `src/application/runtime.ts`、`src/application/runtimePlugins/`、`src/application/bootstrap/` | 解析受信 Runtime Profile，以插件子 Scope 把应用服务、默认 Pipeline 和类型化 Capability 装配到 Kernel | 不反向改变 Kernel 的通用机制，不执行用户安装的任意代码，不把插件配置或秘密写入解析快照；配置必须先过插件 Zod Schema，Slot/Provider 冲突必须在产生 Effect 前失败 |
-| Runtime Profile 管理 | `src/application/runtimeProfiles/`、`RuntimeProfileService.ts`、`src/infrastructure/runtimeProfiles/` | 校验并持久化公开 Profile 选择、复制与能力开关，生成当前受信组合并提供脱敏诊断 | 不保存 API Key、会话正文、Blob 或服务实例；UI 不直接访问 `localStorage`；不开放任意 Runtime Plugin 安装 |
+| Runtime Profile 管理 | `src/application/runtimeProfiles/`、`RuntimeProfileService.ts`、`src/infrastructure/runtimeProfiles/` | 校验并持久化公开 Profile 选择、复制、能力开关和小型 Agent 粘合引用，生成当前受信组合并提供脱敏诊断 | 不保存 API Key、角色卡/Prompt 正文、Blob 或服务实例；UI 不直接访问 `localStorage`；不开放任意 Runtime Plugin 安装 |
 | 通用数据库服务 | `src/application/services/DatabaseService.ts` | 面向上层提供通用 CRUD、分页、轻量索引统计与跨 Store 事务能力 | 不承载记忆召回、摘要或角色行为 |
 | IndexedDB 物理实现 | `src/infrastructure/storage/` | 连接、Schema、事务队列、仓库和端口适配器 | 不反向导入 `src/utils/localDB.ts` |
 | 数据迁移应用服务 | `src/application/services/DataMigrationService.ts` | 聚合完整备份、统一脱敏，并委托基础设施以单事务覆盖用户数据 | 不在 React Hook 中直接清 Store 或跨 Repository 编排恢复 |
@@ -107,5 +107,6 @@
 13. 跨 Profile 会话恢复必须使用 Schema 校验的一次性意图；兼容会话状态必须单写插件命名空间，旧 `session.variables` 不得恢复为通用持久化路径。
 14. Tool Plugin 管理必须使用独立数据库并经应用用例访问；运行只能由独立 `ToolPluginRuntimeService` 注册到 Agent Runtime。Worker 网络必须经宿主精确白名单代理，权限或必需凭据撤销必须立即阻止旧 Tool 闭包继续执行。
 15. LLM Provider 的端点识别、能力裁剪、思考回放与响应归一化必须集中在 `llmCompatibility`；`LLMService` 和 `ChatStreamService` 只通过该边界收发数据，旧记忆路径只允许兼容导出。
+16. Agent/Profile Bundle 必须留在 Application 契约与用例边界，以严格 Schema 和公开字段白名单导入导出；Runtime Profile 持久化只接收小型引用和采样参数，不得携带角色卡/Prompt 正文、插件包或凭据。
 
 若确需改变这些方向，应先更新本文件与 `TECHNICAL.md`，说明新边界及迁移策略，再修改守卫。

@@ -1,6 +1,6 @@
 # 当前状态
 
-> 更新日期：2026-08-29。本文只记录当前产品基线、真实缺口和已知风险；历史过程进入
+> 更新日期：2026-09-01。本文只记录当前产品基线、真实缺口和已知风险；历史过程进入
 > `docs/history/`，可执行事项统一维护在 [TODO.md](../../TODO.md)。
 
 ## 产品与架构基线
@@ -13,6 +13,7 @@
 ## 已完成的当前验收范围
 
 - Runtime Profile、Capability Slot、Provider Binding、Contribution 和会话级 Composition Snapshot 已接入组合根。
+- `mobile-tavern.agent-profile` v1 已提供严格校验的文件级粘合契约，可保存角色/Prompt 引用、Tool 身份、有限采样参数和能力开关；导入生成新 Profile ID，并对来源冲突、缺失依赖和 Tool 版本漂移返回诊断。Profile 仍不保存角色卡/Prompt 正文、插件包或任何凭据；文件入口和新手引导表单尚未接入。
 - Message Content V2、独立附件库、图片/视频/音频分入口选择、分类预览与消息展示、重启恢复、重发/分支、备份恢复和媒体引用生命周期已完成；OpenAI-compatible 图片投影在视觉能力未明确时默认拒绝。
 - AgentHandle、Turn、取消、Provider、Tool Registry、有限 Tool Loop 和 Agent Journal 已完成。Base/Tavern Profile 均实际注册只读 `character.read` 与本地写入 `session.branch`；旧会话继续按自己的 Composition Snapshot 冻结 Tool 集合。
 - LLM Provider 防腐层已集中到 Application：按解析后的端点与模型族裁剪参数、适配关闭思考与 `reasoning_content` 回放、归一化多种流式片段，并按完整 Base URL 与模型隔离运行时参数自愈；发送和重生成共用同一适配入口。
@@ -33,16 +34,17 @@
 
 ## 当前未完成事项
 
-1. **External Tool Plugin 来源治理**：L2 本地执行、精确版本依赖检查和生命周期已完成；尚无签名/可信来源、远程版本撤回、生态审核与官方 SDK。任意 Runtime Plugin 安装仍关闭，External Tool 也不开放后台常驻和原生能力。
-2. **质量治理外部项**：`main` 分支保护与 required check 需要仓库管理员在 GitHub 设置中启用；覆盖率门禁尚未配置。
-3. **测试与平台**：Hook/跨组件契约测试仍需补强；Android UI 性能与 AR 兼容性待已授权真机复验；iOS 尚未开发或构建。
-4. **主题工作室后续**：起点选择、多场景切换、颜色对比度、CSS 语法高亮/行列诊断、片段库，以及媒体/状态/规则的可视化构建器尚待完成；高级 JSON 在此期间继续作为无损兼容入口。
+1. **自定义 Agent 闭环**：Bundle v1 契约和持久化底座已完成；尚需接入文件选择/保存入口、新手引导式编辑表单，并把角色、Tool、行为与采样选择落实到新会话组合和跨设备依赖恢复。
+2. **External Tool Plugin 来源治理**：L2 本地执行、精确版本依赖检查和生命周期已完成；尚无签名/可信来源、远程版本撤回、生态审核与官方 SDK。任意 Runtime Plugin 安装仍关闭，External Tool 也不开放后台常驻和原生能力。
+3. **质量治理外部项**：`main` 分支保护与 required check 需要仓库管理员在 GitHub 设置中启用；覆盖率门禁尚未配置。
+4. **测试与平台**：Hook/跨组件契约测试仍需补强；Android UI 性能与 AR 兼容性待已授权真机复验；iOS 尚未开发或构建。
+5. **主题工作室后续**：起点选择、多场景切换、颜色对比度、CSS 语法高亮/行列诊断、片段库，以及媒体/状态/规则的可视化构建器尚待完成；高级 JSON 在此期间继续作为无损兼容入口。
 
 ## 推荐执行顺序
 
-1. 完成主题工作室阶段二至五，并以 Theme 1.0/1.1 无损往返和移动端编辑为验收重点。
-2. 接续 External Tool Plugin 的签名/可信来源、远程版本撤回、生态审核与 SDK。
-3. 阶段 D 稳定后再进入 Tool Plugin SDK 与生态试运行，并同步补强跨组件回归测试。
+1. 完成自定义 Agent 闭环的文件入口、新手表单和新会话组合接入，并以跨设备依赖诊断和 Base/Tavern 无回归为验收重点。
+2. 扩充联网、记忆写入等能力积木，再接续 External Tool Plugin 的签名/可信来源、远程版本撤回、生态审核与 SDK。
+3. 在不阻塞 P0 的前提下继续主题工作室后续；阶段 D 稳定后再进入 Tool Plugin SDK 与生态试运行，并同步补强跨组件回归测试。
 
 ## 权威入口
 

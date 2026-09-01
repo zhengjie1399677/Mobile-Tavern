@@ -15,6 +15,35 @@ export interface RuntimeProfileCapabilities {
   readonly videoKeyframeFallback: boolean;
 }
 
+export interface RuntimeProfileToolMount {
+  readonly name: string;
+  readonly version?: string;
+}
+
+export interface RuntimeProfileSamplingSettings {
+  readonly temperature: number;
+  readonly topP: number;
+  readonly topK: number;
+  readonly repetitionPenalty: number;
+  readonly frequencyPenalty?: number;
+  readonly presencePenalty?: number;
+  readonly minP?: number;
+  readonly maxTokens: number;
+}
+
+/**
+ * 用户可移植 Agent 的小型粘合配置。
+ *
+ * 这里只保存稳定引用、Tool 身份和有限采样参数；角色卡、Prompt 正文、插件包、
+ * API Key 与其他凭据继续留在各自的权威存储中。
+ */
+export interface RuntimeProfileAgentSettings {
+  readonly characterId?: string;
+  readonly toolMounts: readonly RuntimeProfileToolMount[];
+  readonly promptPresetId?: string;
+  readonly sampling?: RuntimeProfileSamplingSettings;
+}
+
 export interface RuntimeProfileRecord {
   readonly id: string;
   readonly name: string;
@@ -23,6 +52,7 @@ export interface RuntimeProfileRecord {
   readonly builtin: boolean;
   readonly copiedFrom?: string;
   readonly capabilities: RuntimeProfileCapabilities;
+  readonly agent?: RuntimeProfileAgentSettings;
   readonly createdAt: number;
   readonly updatedAt: number;
 }
@@ -66,6 +96,7 @@ export interface RuntimeProfileRuntimeDiagnostics {
 
 export interface IRuntimeProfileService extends IKernelService {
   listProfiles(): RuntimeProfileCatalogSnapshot;
+  createProfile(profile: RuntimeProfileRecord): RuntimeProfileRecord;
   copyProfile(sourceProfileId: string, name: string): RuntimeProfileRecord;
   updateCapabilities(
     profileId: string,

@@ -58,6 +58,22 @@ export class RuntimeProfileService implements IRuntimeProfileService {
     };
   }
 
+  createProfile(profile: RuntimeProfileRecord): RuntimeProfileRecord {
+    const state = readRuntimeProfilePreferences().state;
+    if (profile.builtin || profile.schemaVersion !== 1 || profile.version !== 1) {
+      throw new Error("RUNTIME_PROFILE_IMPORT_INVALID");
+    }
+    if (findRuntimeProfile(state, profile.id)) {
+      throw new Error(`RUNTIME_PROFILE_ALREADY_EXISTS: ${profile.id}`);
+    }
+    const created = cloneProfile(profile);
+    writeRuntimeProfilePreferences({
+      ...state,
+      customProfiles: [...state.customProfiles, created],
+    });
+    return created;
+  }
+
   copyProfile(sourceProfileId: string, name: string): RuntimeProfileRecord {
     const state = readRuntimeProfilePreferences().state;
     const source = findRuntimeProfile(state, sourceProfileId);
@@ -72,6 +88,7 @@ export class RuntimeProfileService implements IRuntimeProfileService {
       builtin: false,
       copiedFrom: source.id,
       capabilities: { ...source.capabilities },
+      agent: cloneAgentSettings(source.agent),
       createdAt: now,
       updatedAt: now,
     };
@@ -198,4 +215,23 @@ function createUserProfileId(): string {
     ? crypto.randomUUID().replace(/-/g, "")
     : Math.random().toString(36).slice(2);
   return `user.profile.${Date.now().toString(36)}.${randomPart}`;
+}
+
+function cloneProfile(profile: RuntimeProfileRecord): RuntimeProfileRecord {
+  return {
+    ...profile,
+    capabilities: { ...profile.capabilities },
+    agent: cloneAgentSettings(profile.agent),
+  };
+}
+
+function cloneAgentSettings(
+  agent: RuntimeProfileRecord["agent"],
+): RuntimeProfileRecord["agent"] {
+  if (!agent) return undefined;
+  return {
+    ...agent,
+    toolMounts: agent.toolMounts.map((tool) => ({ ...tool })),
+    sampling: agent.sampling ? { ...agent.sampling } : undefined,
+  };
 }
