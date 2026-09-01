@@ -22,7 +22,7 @@
 - 音频 ASR 和视频关键帧处理器已作为受信 Runtime Plugin 贡献接入；Anthropic 原生音视频投影仍明确拒绝，不做静默降级。
 - Compatibility Runtime 已从通用生产代码中隔离。`Base Agent` 不装载兼容插件，`Tavern Agent` 可装载、关闭、卸载和重载；旧 `session.variables` 只保留读取降级和插件内部瞬时投影。
 - Profile 设置、复制、能力开关、跨 Profile 会话恢复和运行诊断已完成。“保存并开始”会先校验角色、行为预设和 Tool 精确版本，再通过一次性意图重载目标 Profile、创建新会话，并把角色/Tool/行为/采样决定冻结到 Composition Snapshot；发送和重生成按该快照解析行为，引用丢失时 fail-closed。旧 `legacy.tavern.driver`、隐式全局 capability catalog 和默认注册路径已清理；任意 Runtime Plugin 安装仍关闭。
-- External Tool Plugin 已完成本地 L2 闭环：严格校验 v1 Manifest 与 v2 `.mttool`、SHA-256、包路径/体积和 JSON Schema；支持声明式 HTTPS Tool、一次性受限 Worker、宿主网络配额、加密凭据注入、Agent Runtime 注册、新会话快照、即时权限撤销、停用、回滚清权与完整卸载。可选 `provenance.json` 通过 ECDSA P-256/SHA-256 验证插件身份与内容哈希，管理界面区分未验证、未知有效签名、可信签名和官方内置来源；旧记录安全降级且版本历史保留各自来源等级。仓库内作者 SDK 已提供 v2 Manifest/Worker 类型、确定性打包器和可直接导入的无权限文本工具箱示例；SDK 尚未独立发布。它与受信 Runtime Plugin、内置 Worker Plugin 和 `.mtplugin` 沙箱保持独立。
+- External Tool Plugin 已完成本地 L2 闭环：严格校验 v1 Manifest 与 v2 `.mttool`、SHA-256、包路径/体积和 JSON Schema；支持声明式 HTTPS Tool、一次性受限 Worker、宿主网络配额、加密凭据注入、Agent Runtime 注册、新会话快照、即时权限撤销、停用、回滚清权与完整卸载。可选 `provenance.json` 通过 ECDSA P-256/SHA-256 验证插件身份与内容哈希，管理界面区分未验证、未知有效签名、可信签名和官方内置来源；来源等级只作风险提示，无签名包仍可安装，确认页会说明作者身份、代码审核和后续授权风险。验签失败或身份错配的证明仍拒绝，运行时权限、隔离和高风险单次审批不因来源等级放宽。仓库内作者 SDK 已提供 v2 Manifest/Worker 类型、确定性打包器和可直接导入的无权限文本工具箱示例；SDK 尚未独立发布。它与受信 Runtime Plugin、内置 Worker Plugin 和 `.mtplugin` 沙箱保持独立。
 - 社区服务仓库代码已经包含 20 MB 上传限制、双哈希去重、评论限流、缩略图、管理员删除和时间戳记录；社区功能默认关闭，不在生产启用，也不纳入发布验收。
 - GitHub Quality Gate 已执行相对目标分支的改动文件 ESLint，`pre-commit` 已执行暂存 TS/TSX ESLint；Dependabot 和 PR 语义化标题校验已配置。`main` 分支保护的 required check 仍需仓库管理员在 GitHub 设置中启用。
 - 聊天入口已改为并行准备角色、会话和最近消息，长消息使用虚拟列表底部锚定；历史页已接通 cursor 分页。触屏端关闭大面积毛玻璃和背景循环平移，图片分批请求与异步解码，键盘 viewport 同步不再触发主布局 React 重渲染。
@@ -34,14 +34,14 @@
 
 ## 当前未完成事项
 
-1. **External Tool Plugin 来源治理**：L2 本地执行、生命周期、来源证明契约、包验签、信任等级展示、仓库内作者 SDK 和官方最小示例已完成；外部可信签名者列表仍为空，尚无签名者登记/轮换、SDK 私钥签名命令、远程版本撤回、生态审核和独立 SDK 发布。任意 Runtime Plugin 安装仍关闭，External Tool 也不开放后台常驻和原生能力。
+1. **External Tool Plugin 生态发布**：仓库内 SDK 尚未独立发布，也未开放公开第三方目录。签名者登记/轮换、SDK 私钥签名命令、远程版本撤回、后台服务和生态审核暂不实现，仅在公开分发规模产生真实治理需求时重新评估。任意 Runtime Plugin 安装仍关闭，External Tool 也不开放后台常驻和原生能力。
 2. **质量治理外部项**：`main` 分支保护与 required check 需要仓库管理员在 GitHub 设置中启用；覆盖率门禁尚未配置。
 3. **测试与平台**：Hook/跨组件契约测试仍需补强；Android UI 性能与 AR 兼容性待已授权真机复验；iOS 尚未开发或构建。
 4. **主题工作室后续**：起点选择、多场景切换、颜色对比度、CSS 语法高亮/行列诊断、片段库，以及媒体/状态/规则的可视化构建器尚待完成；高级 JSON 在此期间继续作为无损兼容入口。
 
 ## 推荐执行顺序
 
-1. 先完成 External Tool Plugin 签名者登记/轮换与 SDK 签名工具，再进入远程版本撤回和生态审核，之后评估 SDK 独立发布与更多扩展模板。
+1. 按实际需求继续补充 External Tool Plugin 能力实例；只有准备开放公开第三方目录时，再立项签名工具、密钥轮换、远程撤回和生态审核。
 2. 在不阻塞 Agent/Tool 主线的前提下继续主题工作室后续，并同步补强跨组件回归测试。
 
 ## 权威入口

@@ -8,6 +8,6 @@
 
 SDK 不开放应用进程、存储、Kernel、原生能力或明文凭据。Worker 网络请求只能调用宿主提供的 `host.network()`，最终仍受 Manifest 的 HTTPS Origin、方法、流量和授权限制。
 
-Runtime 已支持可选 `provenance.json` 和 ECDSA P-256/SHA-256 验签，但当前 SDK 尚未提供私钥签名命令，外部可信签名者列表也仍为空。不要把私钥写入 Manifest、插件包、仓库或 `VITE_*` 配置；后续签名工具必须从显式的本地秘密入口读取，并只把 SPKI 公钥与签名写入包。
+Runtime 支持可选 `provenance.json` 和 ECDSA P-256/SHA-256 验签。签名不是安装前置条件：无签名包仍可导入，但管理界面会明确标注来源未验证，并提醒用户代码与后续授权风险；签名有效也不等于代码经过安全审核。当前 SDK 不提供私钥签名命令，外部可信签名者列表为空，签名工具、密钥轮换和远程撤回不在当前实现范围。不要把私钥写入 Manifest、插件包、仓库或 `VITE_*` 配置。
 
 完整用法以 `examples/tool-plugin-text-toolkit/` 为准。当前 SDK 随仓库源码分发，尚未作为独立 npm 包发布。
