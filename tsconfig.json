@@ -30,7 +30,8 @@
   },
   "include": [
     "src",
-    "tests"
+    "tests",
+    "sdk"
   ],
   "exclude": [
     "node_modules",
