@@ -35,6 +35,7 @@ export interface ToolPluginTrustedSigner {
 
 export interface ToolPluginSourceVerification {
   readonly trustLevel: ToolPluginSourceTrustLevel;
+  readonly verificationMethod: "unsigned" | "package-signature" | "bundled";
   readonly signerId?: string;
   readonly signerLabel?: string;
   readonly keyFingerprint?: `sha256:${string}`;
@@ -89,5 +90,5 @@ export function createToolPluginSourceSigningPayload(proof: ToolPluginSourceProo
 }
 
 export function unsignedToolPluginSource(): ToolPluginSourceVerification {
-  return { trustLevel: "unverified" };
+  return { trustLevel: "unverified", verificationMethod: "unsigned" };
 }

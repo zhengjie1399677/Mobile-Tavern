@@ -3,6 +3,7 @@ import type {
   AgentToolRiskLevel,
   AgentToolSideEffect,
 } from "../agents/contracts";
+import type { ToolPluginSourceProof, ToolPluginSourceVerification } from "./sourceProof";
 
 export type ToolPluginExecutionTarget = "worker" | "sandbox";
 export type ToolPluginHostCapability = "memory.write";
@@ -121,12 +122,15 @@ export interface ToolPluginArtifact {
   readonly pluginId: string;
   readonly contentHash: `sha256:${string}`;
   readonly entryCode?: string;
+  readonly sourceProof?: ToolPluginSourceProof;
   readonly installedAt: number;
 }
 
 export interface ToolPluginInspection {
   readonly manifest: ToolPluginManifest;
   readonly artifact?: ToolPluginArtifact;
+  readonly sourceProof?: ToolPluginSourceProof;
+  readonly sourceVerification?: ToolPluginSourceVerification;
 }
 
 export interface InstalledToolPlugin {

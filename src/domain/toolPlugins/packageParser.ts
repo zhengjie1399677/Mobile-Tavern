@@ -4,6 +4,10 @@ import {
   canonicalizeToolPluginValue,
   parseToolPluginManifestValue,
 } from "./manifestParser";
+import {
+  parseToolPluginSourceProof,
+  TOOL_PLUGIN_SOURCE_PROOF_PATH,
+} from "./sourceProof";
 
 export const TOOL_PLUGIN_PACKAGE_LIMITS = {
   compressedBytes: 1024 * 1024,
@@ -11,6 +15,7 @@ export const TOOL_PLUGIN_PACKAGE_LIMITS = {
   fileBytes: 2 * 1024 * 1024,
   entryBytes: 512 * 1024,
   manifestBytes: 64 * 1024,
+  sourceProofBytes: 16 * 1024,
   files: 16,
 } as const;
 
@@ -55,6 +60,15 @@ export async function parseToolPluginPackage(
   const computedHash = await computeToolPluginPackageHash(manifest, files);
   if (computedHash !== manifest.contentHash) throw new Error("TOOL_PLUGIN_CONTENT_HASH_MISMATCH");
 
+  let sourceProof;
+  const sourceProofBytes = files[TOOL_PLUGIN_SOURCE_PROOF_PATH];
+  if (sourceProofBytes) {
+    if (sourceProofBytes.byteLength > TOOL_PLUGIN_PACKAGE_LIMITS.sourceProofBytes) {
+      throw new Error("TOOL_PLUGIN_SOURCE_PROOF_TOO_LARGE");
+    }
+    sourceProof = parseToolPluginSourceProof(sourceProofBytes);
+  }
+
   let entryCode: string | undefined;
   if (manifest.runtime.entry) {
     const entry = files[manifest.runtime.entry];
@@ -74,9 +88,10 @@ export async function parseToolPluginPackage(
     pluginId: manifest.id,
     contentHash: manifest.contentHash,
     ...(entryCode ? { entryCode } : {}),
+    ...(sourceProof ? { sourceProof } : {}),
     installedAt: now,
   };
-  return { manifest, artifact };
+  return { manifest, artifact, ...(sourceProof ? { sourceProof } : {}) };
 }
 
 export async function computeToolPluginPackageHash(
@@ -85,7 +100,9 @@ export async function computeToolPluginPackageHash(
 ): Promise<`sha256:${string}`> {
   const { contentHash: _contentHash, ...hashable } = manifest as ToolPluginManifest;
   const fileHashes: string[] = [];
-  for (const path of Object.keys(files).filter((path) => path !== MANIFEST_PATH).sort()) {
+  for (const path of Object.keys(files).filter((path) => (
+    path !== MANIFEST_PATH && path !== TOOL_PLUGIN_SOURCE_PROOF_PATH
+  )).sort()) {
     const digest = await sha256(files[path]);
     fileHashes.push(`${path}:${digest}`);
   }

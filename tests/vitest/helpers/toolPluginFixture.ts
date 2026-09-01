@@ -3,6 +3,8 @@ import {
   computeToolPluginManifestHash,
   computeToolPluginPackageHash,
 } from "../../../src/domain/toolPlugins";
+import type { ToolPluginSourceProof } from "../../../src/domain/toolPlugins";
+import { TOOL_PLUGIN_SOURCE_PROOF_PATH } from "../../../src/domain/toolPlugins";
 
 export async function createToolPluginManifest(
   overrides: Record<string, unknown> = {},
@@ -88,7 +90,10 @@ export async function createV2HttpManifest(
   });
 }
 
-export async function createV2WorkerPackage(entryCode = `globalThis.MobileTavernToolPlugin = { tools: { echo: async (input) => ({ value: input.value }) } };`): Promise<Uint8Array> {
+export async function createV2WorkerPackage(
+  entryCode = `globalThis.MobileTavernToolPlugin = { tools: { echo: async (input) => ({ value: input.value }) } };`,
+  sourceProof?: ToolPluginSourceProof,
+): Promise<Uint8Array> {
   const entryBytes = new TextEncoder().encode(entryCode);
   const hashable = {
     format: "mobile-tavern.tool-plugin" as const,
@@ -123,5 +128,11 @@ export async function createV2WorkerPackage(entryCode = `globalThis.MobileTavern
   };
   const contentHash = await computeToolPluginPackageHash(hashable, { "index.js": entryBytes });
   const manifest = new TextEncoder().encode(JSON.stringify({ ...hashable, contentHash }));
-  return zipSync({ "manifest.json": manifest, "index.js": entryBytes });
+  return zipSync({
+    "manifest.json": manifest,
+    "index.js": entryBytes,
+    ...(sourceProof ? {
+      [TOOL_PLUGIN_SOURCE_PROOF_PATH]: new TextEncoder().encode(JSON.stringify(sourceProof)),
+    } : {}),
+  });
 }

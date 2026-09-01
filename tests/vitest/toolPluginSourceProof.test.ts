@@ -29,7 +29,10 @@ const proof = {
 describe("Tool Plugin 来源证明契约", () => {
   it("严格解析签名者、包身份和固定算法", () => {
     expect(parseToolPluginSourceProof(JSON.stringify(proof))).toEqual(proof);
-    expect(unsignedToolPluginSource()).toEqual({ trustLevel: "unverified" });
+    expect(unsignedToolPluginSource()).toEqual({
+      trustLevel: "unverified",
+      verificationMethod: "unsigned",
+    });
   });
 
   it("签名载荷不包含 signature 且不受对象字段顺序影响", () => {
