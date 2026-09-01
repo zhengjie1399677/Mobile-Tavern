@@ -63,7 +63,7 @@ jobs:
 
       - name: 上传失败轨迹
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-failure-artifacts
           path: |
