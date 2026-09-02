@@ -6,7 +6,7 @@ import type {
 import type { ToolPluginSourceProof, ToolPluginSourceVerification } from "./sourceProof";
 
 export type ToolPluginExecutionTarget = "worker" | "sandbox";
-export type ToolPluginHostCapability = "memory.write";
+export type ToolPluginHostCapability = "memory.write" | "system.time";
 
 export type ToolPluginHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 

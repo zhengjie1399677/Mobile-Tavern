@@ -8,6 +8,8 @@ export interface ToolPluginHostCapabilityExecution {
   readonly context: AgentToolExecutionContext;
   readonly memory: MemoryServiceTyped;
   readonly now?: () => number;
+  readonly locale?: string;
+  readonly timeZone?: string;
 }
 
 export async function executeToolPluginHostCapability(
@@ -16,7 +18,33 @@ export async function executeToolPluginHostCapability(
   switch (execution.capability) {
     case "memory.write":
       return executeMemoryWrite(execution);
+    case "system.time":
+      return executeSystemTime(execution);
   }
+}
+
+function executeSystemTime(
+  execution: ToolPluginHostCapabilityExecution,
+): { text: string } {
+  assertNotAborted(execution.context.signal);
+  const date = new Date(execution.now?.() ?? Date.now());
+  const locale = execution.locale ?? globalThis.navigator?.language ?? "zh-CN";
+  const timeZone = (execution.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone) || "UTC";
+  const dateText = new Intl.DateTimeFormat(locale, {
+    timeZone,
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(date);
+  const timeText = new Intl.DateTimeFormat(locale, {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+  return { text: `📅 ${dateText}\n🕒 ${timeText} · ${timeZone}` };
 }
 
 async function executeMemoryWrite(

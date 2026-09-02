@@ -45,7 +45,7 @@ const toolHandlerSchema = z.discriminatedUnion("kind", [
   }).strict(),
   z.object({
     kind: z.literal("host"),
-    capability: z.literal("memory.write"),
+    capability: z.enum(["memory.write", "system.time"]),
   }).strict(),
 ]);
 
@@ -207,6 +207,20 @@ const manifestSchema = z.object({
         context.addIssue({
           code: "custom",
           message: `Host Tool ${tool.id} 的 memory.write 必须是高风险、本地写入和 memory Scope`,
+          path: ["tools"],
+        });
+      }
+    }
+    if (tool.handler?.kind === "host" && tool.handler.capability === "system.time") {
+      if (
+        tool.permissions.length > 0
+        || tool.riskLevel !== "low"
+        || tool.sideEffect !== "none"
+        || tool.executionScope !== "turn"
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: `Host Tool ${tool.id} 的 system.time 必须无权限、低风险、无副作用并使用 turn Scope`,
           path: ["tools"],
         });
       }

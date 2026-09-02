@@ -5,6 +5,8 @@ export const BRAVE_SEARCH_TOOL_PLUGIN_ID = "official.brave-search";
 export const BRAVE_SEARCH_TOOL_NAME = `ext.${BRAVE_SEARCH_TOOL_PLUGIN_ID}.web.search`;
 export const MEMORY_TOOL_PLUGIN_ID = "official.memory";
 export const MEMORY_WRITE_TOOL_NAME = `ext.${MEMORY_TOOL_PLUGIN_ID}.memory.write`;
+export const DEVICE_TIME_TOOL_PLUGIN_ID = "official.device-time";
+export const DEVICE_TIME_TOOL_NAME = `ext.${DEVICE_TIME_TOOL_PLUGIN_ID}.system.time`;
 
 const braveSearchManifest = {
   format: "mobile-tavern.tool-plugin",
@@ -156,8 +158,57 @@ const memoryManifest = {
   },
 } as const satisfies Omit<ToolPluginManifest, "contentHash">;
 
+const deviceTimeManifest = {
+  format: "mobile-tavern.tool-plugin",
+  manifestVersion: 2,
+  id: DEVICE_TIME_TOOL_PLUGIN_ID,
+  name: "设备日期时间",
+  version: "1.0.0",
+  description: "读取当前设备的本地日期、时间和时区；无需联网或申请权限。",
+  author: "Mobile Tavern",
+  source: {
+    label: "Mobile Tavern 官方预置",
+    url: "https://github.com/zhengjie1399677/Mobile-Tavern",
+  },
+  runtime: {
+    minVersion: "1.8.9",
+    execution: "worker",
+    timeoutMs: 1_000,
+  },
+  targetProfiles: ["*"],
+  dependencies: [],
+  permissions: [],
+  tools: [{
+    id: "system.time",
+    name: "当前设备时间",
+    description: "读取当前设备的本地日期、时间和 IANA 时区，并生成可直接发送的文本。",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: { text: { type: "string" } },
+      required: ["text"],
+      additionalProperties: false,
+    },
+    permissions: [],
+    riskLevel: "low",
+    sideEffect: "none",
+    executionScope: "turn",
+    composerCommand: { name: "time", outputProperty: "text" },
+    handler: { kind: "host", capability: "system.time" },
+  }],
+  cleanup: {
+    onDisable: "revoke-runtime",
+    onPermissionRevoke: "disable-dependent-tools",
+    onUninstall: ["registrations", "credentials", "plugin-data"],
+  },
+} as const satisfies Omit<ToolPluginManifest, "contentHash">;
+
 export async function listOfficialToolPluginInspections(): Promise<ToolPluginInspection[]> {
-  return Promise.all([braveSearchManifest, memoryManifest].map(async (manifest) => ({
+  return Promise.all([braveSearchManifest, memoryManifest, deviceTimeManifest].map(async (manifest) => ({
     manifest: structuredClone({
       ...manifest,
       contentHash: await computeToolPluginManifestHash(manifest),

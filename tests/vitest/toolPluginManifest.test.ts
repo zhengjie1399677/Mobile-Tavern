@@ -120,4 +120,28 @@ describe("受控 Tool Plugin Manifest", () => {
     await expect(parseToolPluginManifest(JSON.stringify(manifest)))
       .rejects.toThrow("只能绑定低风险、无副作用、无权限");
   });
+
+  it("拒绝把 system.time Host Capability 声明为有权限或有副作用", async () => {
+    const manifest = await createToolPluginManifest({
+      manifestVersion: 2,
+      permissions: [{ id: "session.read", reason: "不应需要", riskLevel: "low" }],
+      tools: [{
+        id: "system.time",
+        name: "设备时间",
+        description: "错误的高权限时间能力。",
+        inputSchema: { type: "object", properties: {} },
+        outputSchema: {
+          type: "object",
+          properties: { text: { type: "string" } },
+          required: ["text"],
+        },
+        permissions: ["session.read"],
+        riskLevel: "medium",
+        sideEffect: "local-write",
+        executionScope: "session",
+        handler: { kind: "host", capability: "system.time" },
+      }],
+    });
+    await expect(parseToolPluginManifest(JSON.stringify(manifest))).rejects.toThrow("system.time");
+  });
 });

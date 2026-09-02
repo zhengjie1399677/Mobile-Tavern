@@ -127,7 +127,7 @@ export interface ToolPluginManifestDefinition {
         }
       | {
           readonly kind: "host";
-          readonly capability: "memory.write";
+          readonly capability: "memory.write" | "system.time";
         };
   }[];
   readonly cleanup: {

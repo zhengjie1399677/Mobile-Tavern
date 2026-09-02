@@ -15,6 +15,7 @@ import {
 import { createV2HttpManifest, createV2WorkerPackage } from "./helpers/toolPluginFixture";
 import { AGENT_PROFILE_SETTINGS_DECISION_ID } from "../../src/application/runtimeProfiles/agentSettings";
 import {
+  DEVICE_TIME_TOOL_PLUGIN_ID,
   listOfficialToolPluginInspections,
   MEMORY_TOOL_PLUGIN_ID,
   MEMORY_WRITE_TOOL_NAME,
@@ -184,6 +185,41 @@ describe("External Tool Plugin Runtime", () => {
       name: "echo",
       argument: "拒绝",
     })).rejects.toThrow("TOOL_PLUGIN_COMPOSER_COMMAND_PROFILE_UNAVAILABLE");
+
+    await service.destroy();
+    await agentRuntime.destroy();
+  });
+
+  it("官方设备时间插件在所有 Profile 暴露 /time 并通过 Host Capability 回填", async () => {
+    const inspections = await listOfficialToolPluginInspections();
+    const manifest = inspections.find((item) => item.manifest.id === DEVICE_TIME_TOOL_PLUGIN_ID)!.manifest;
+    await installToolPluginManifest(manifest);
+    await setToolPluginEnabled(manifest.id, true);
+
+    const agentRuntime = new AgentRuntimeService(journal);
+    const kernel = {
+      getService: () => agentRuntime,
+      hasService: () => true,
+    } as unknown as IKernel;
+    agentRuntime.init(kernel);
+    const service = new ToolPluginRuntimeService(
+      { request: async () => ({ status: 200, contentType: "application/json", body: {} }) },
+      { execute: async () => ({}), getActiveWorkerCount: () => 0, destroy: () => undefined },
+    );
+    await service.init(kernel);
+
+    expect(service.listComposerCommands("mobile-tavern.base")).toEqual([
+      expect.objectContaining({ name: "time", acceptsArgument: false }),
+    ]);
+    expect(service.listComposerCommands("mobile-tavern.tavern")).toEqual([
+      expect.objectContaining({ name: "time" }),
+    ]);
+    await expect(service.executeComposerCommand({
+      profileId: "mobile-tavern.base",
+      sessionId: "session-time",
+      name: "time",
+      argument: "",
+    })).resolves.toMatch(/^📅 .+\n🕒 .+ · .+$/);
 
     await service.destroy();
     await agentRuntime.destroy();
