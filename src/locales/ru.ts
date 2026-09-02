@@ -909,6 +909,7 @@ export default {
   "prompt_composer.list_search": "Поиск по имени, содержимому, ID или источнику",
   "prompt_composer.list_group": "Группировка Prompt",
   "prompt_composer.list_sort": "Сортировка Prompt",
+  "prompt_composer.manage_toggle": "Поиск и управление",
   "prompt_composer.group_none": "Без группировки",
   "prompt_composer.group_role": "По роли",
   "prompt_composer.group_source": "По источнику",

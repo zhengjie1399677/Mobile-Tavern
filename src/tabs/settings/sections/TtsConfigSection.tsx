@@ -56,15 +56,24 @@ export default function TtsConfigSection({
 
   return (
     <AccordionItem value="tts-config" className="settings-connection-item overflow-hidden">
-      <AccordionTrigger className="settings-panel-trigger px-3.5 py-3 hover:no-underline hover:bg-muted/30 transition">
-        <div className="flex items-center gap-2">
-          <span className="settings-panel-icon"><Volume2 className="w-4 h-4 text-primary" /></span>
-          <div className="flex flex-col items-start gap-1">
-            <span className="text-sm font-semibold text-foreground">{t("tts.title")}</span>
-            <span className="text-xs text-muted-foreground font-normal">
-              {t("tts.subtitle")}
-            </span>
+      <AccordionTrigger className="settings-panel-trigger px-3 py-2 hover:no-underline hover:bg-muted/30 transition">
+        <div className="flex items-center justify-between w-full pr-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="settings-panel-icon"><Volume2 className="w-4 h-4 text-primary" /></span>
+            <div className="flex flex-col items-start gap-0.5 min-w-0">
+              <span className="text-xs sm:text-[13px] font-semibold text-foreground">{t("tts.title")}</span>
+              <span className="text-[10.5px] text-muted-foreground/75 font-normal truncate">
+                {t("tts.subtitle")}
+              </span>
+            </div>
           </div>
+          <span className={`shrink-0 items-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold font-mono ${
+            settings.ttsConfig?.enabled
+              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+              : "bg-muted/40 text-muted-foreground border border-border/40"
+          }`}>
+            {settings.ttsConfig?.enabled ? "已启用" : "未启用"}
+          </span>
         </div>
       </AccordionTrigger>
       <AccordionContent className="p-3 space-y-3">
@@ -129,7 +138,7 @@ export default function TtsConfigSection({
                     }));
                   }}
                 >
-                  <SelectTrigger aria-label={t("tts.trigger")} className="w-full text-xs h-9 bg-input/50 font-semibold">
+                  <SelectTrigger aria-label={t("tts.trigger")} className="w-full text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs font-medium">
                     <SelectValue placeholder="Trigger Mode" />
                   </SelectTrigger>
                   <SelectContent>
@@ -165,7 +174,7 @@ export default function TtsConfigSection({
                     }));
                   }}
                 >
-                  <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-semibold">
+                  <SelectTrigger className="w-full text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs font-medium">
                     <SelectValue placeholder="Content Range" />
                   </SelectTrigger>
                   <SelectContent>
@@ -203,7 +212,7 @@ export default function TtsConfigSection({
                   }));
                 }}
               >
-                <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-semibold">
+                <SelectTrigger className="w-full text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs font-medium">
                   <SelectValue placeholder="Select Engine" />
                 </SelectTrigger>
                 <SelectContent>
@@ -352,7 +361,7 @@ export default function TtsConfigSection({
                       }));
                     }}
                     placeholder="sk-..."
-                    className="h-9 text-xs bg-input/50"
+                    className="h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                   />
                 </div>
 
@@ -382,7 +391,7 @@ export default function TtsConfigSection({
                       }));
                     }}
                     placeholder="https://api.openai.com/v1"
-                    className="h-9 text-xs bg-input/50"
+                    className="h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                   />
                 </div>
 
@@ -413,7 +422,7 @@ export default function TtsConfigSection({
                         }));
                       }}
                       placeholder="tts-1"
-                      className="h-9 text-xs bg-input/50"
+                      className="h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                     />
                   </div>
 
@@ -443,7 +452,7 @@ export default function TtsConfigSection({
                         }));
                       }}
                     >
-                      <SelectTrigger className="w-full text-xs h-9 bg-input/50 font-semibold">
+                      <SelectTrigger className="w-full text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs font-medium">
                         <SelectValue placeholder="alloy" />
                       </SelectTrigger>
                       <SelectContent>

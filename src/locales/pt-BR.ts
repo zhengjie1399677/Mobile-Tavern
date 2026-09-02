@@ -919,6 +919,7 @@ export default {
   "prompt_composer.list_search": "Buscar nome, conteúdo, ID ou origem",
   "prompt_composer.list_group": "Agrupamento de Prompt",
   "prompt_composer.list_sort": "Ordenação de Prompt",
+  "prompt_composer.manage_toggle": "Buscar e gerenciar",
   "prompt_composer.group_none": "Sem agrupamento",
   "prompt_composer.group_role": "Agrupar por função",
   "prompt_composer.group_source": "Agrupar por origem",

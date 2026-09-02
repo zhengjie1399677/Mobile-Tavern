@@ -919,6 +919,7 @@ export default {
   "prompt_composer.list_search": "搜尋名稱、內容、ID 或來源",
   "prompt_composer.list_group": "Prompt 分組",
   "prompt_composer.list_sort": "Prompt 排序",
+  "prompt_composer.manage_toggle": "搜尋與管理",
   "prompt_composer.group_none": "不分組",
   "prompt_composer.group_role": "依角色分組",
   "prompt_composer.group_source": "依來源分組",

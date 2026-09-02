@@ -62,7 +62,7 @@ export default function PromptSceneProfileManager({
   };
 
   return (
-    <section className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
+    <section className="space-y-2 rounded-xl bg-background/50 p-3">
       <div className="flex items-center gap-2 text-xs font-bold">
         <Layers3 className="h-4 w-4 text-primary" />
         {t("prompt_composer.scene_profiles")}

@@ -444,25 +444,27 @@ export default function SettingsTab() {
               compact ? "settings-category-row-compact" : ""
             }`}
           >
-            <span className={`settings-category-icon flex items-center justify-center shrink-0 ${compact ? "settings-category-icon-compact" : ""}`}>
-              <Icon className={compact ? "w-4 h-4" : "w-5 h-5"} />
+            <span className={`flex items-center justify-center shrink-0 rounded-lg bg-primary/10 text-primary transition-colors ${
+              compact ? "w-6 h-6" : "w-7.5 h-7.5"
+            } ${selected ? "bg-primary text-primary-foreground shadow-xs" : ""}`}>
+              <Icon className={compact ? "w-3.5 h-3.5" : "w-4 h-4"} />
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-baseline gap-1.5">
-                <span className={`${compact ? "text-sm" : "text-base"} font-semibold text-foreground`}>
+                <span className={`${compact ? "text-xs" : "text-xs sm:text-[13px]"} font-semibold text-foreground`}>
                   {t(section.titleKey)}
                 </span>
                 {section.experimental && (
-                  <span className="shrink-0 text-[10px] font-normal text-muted-foreground/75">
+                  <span className="shrink-0 rounded bg-amber-500/15 px-1 py-0.2 font-mono text-[9px] font-semibold text-amber-600 dark:text-amber-400">
                     {t("settings_hub.experimental")}
                   </span>
                 )}
               </span>
-              <span className={`${compact ? "text-xs" : "text-sm"} block text-muted-foreground leading-snug mt-1`}>
+              <span className={`${compact ? "text-[10px]" : "text-[11px]"} block text-muted-foreground/75 leading-tight mt-0.5 truncate`}>
                 {t(section.descriptionKey)}
               </span>
             </span>
-            <ChevronRight className={`w-4 h-4 shrink-0 ${selected ? "text-primary" : "text-muted-foreground/60"}`} />
+            <ChevronRight className={`w-3.5 h-3.5 shrink-0 transition-transform ${selected ? "text-primary translate-x-0.5" : "text-muted-foreground/40"}`} />
           </button>
         );
       })}
@@ -471,31 +473,31 @@ export default function SettingsTab() {
 
   return (
     <div className="settings-shell h-full min-h-0 flex flex-col overflow-hidden px-2 pt-2 pb-1">
-      <header className="settings-header min-h-14 shrink-0 flex items-center gap-3 px-2 pb-3">
+      <header className="settings-header min-h-11 shrink-0 flex items-center gap-2.5 px-2 pb-2.5">
         {!isLandscape && selectedSection ? (
           <button
             type="button"
             onClick={() => setActiveSection(null)}
             aria-label={t("settings_hub.back")}
-            className="w-9 h-9 -ml-1 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted active:scale-95 shrink-0"
+            className="w-8 h-8 -ml-1 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted active:scale-95 shrink-0"
           >
-            <ArrowLeft className="w-4.5 h-4.5" />
+            <ArrowLeft className="w-4 h-4" />
           </button>
         ) : (
-          <span className="settings-header-icon"><Settings className="w-5 h-5 text-primary" /></span>
+          <span className="settings-header-icon"><Settings className="w-4 h-4 text-primary" /></span>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <h1 className="truncate text-lg font-bold tracking-tight text-foreground">
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <h1 className="truncate text-sm sm:text-base font-bold tracking-tight text-foreground">
               {selectedMeta ? t(selectedMeta.titleKey) : t("nav.settings")}
             </h1>
             {selectedMeta?.experimental && (
-              <span className="shrink-0 text-[8px] font-normal text-muted-foreground/75">
+              <span className="shrink-0 rounded bg-amber-500/15 px-1 py-0.2 font-mono text-[8px] font-semibold text-amber-600 dark:text-amber-400">
                 {t("settings_hub.experimental")}
               </span>
             )}
           </div>
-          <p className="mt-1 truncate text-xs font-light text-muted-foreground">
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
             {selectedMeta ? t(selectedMeta.descriptionKey) : t("settings_hub.home_desc")}
           </p>
         </div>
@@ -503,7 +505,7 @@ export default function SettingsTab() {
           <button
             type="button"
             onClick={() => void handleVersionTap()}
-            className="flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-[10px] font-mono text-muted-foreground active:bg-muted"
+            className="flex h-7 items-center gap-1 rounded-lg border border-border/60 bg-muted/30 px-2 text-[10px] font-mono text-muted-foreground active:bg-muted"
             aria-label="应用版本"
           >
             {adminMode && <ShieldCheck className="h-3 w-3 text-emerald-500" />}

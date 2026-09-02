@@ -937,6 +937,7 @@ export default {
   "prompt_composer.list_search": "이름, 내용, ID 또는 출처 검색",
   "prompt_composer.list_group": "Prompt 그룹",
   "prompt_composer.list_sort": "Prompt 정렬",
+  "prompt_composer.manage_toggle": "검색 및 관리",
   "prompt_composer.group_none": "그룹 없음",
   "prompt_composer.group_role": "역할별 그룹",
   "prompt_composer.group_source": "출처별 그룹",

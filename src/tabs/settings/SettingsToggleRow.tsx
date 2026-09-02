@@ -31,12 +31,12 @@ export default function SettingsToggleRow({
       data-enabled={checked ? "true" : "false"}
       data-disabled={disabled ? "true" : "false"}
     >
-      <div className="min-w-0 flex-1 space-y-1">
+      <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex items-center gap-2 flex-wrap">
-          <label className="text-sm font-semibold text-foreground leading-tight">{label}</label>
+          <label className="text-xs sm:text-[13px] font-semibold text-foreground leading-tight">{label}</label>
           {badge && <span className={badgeClass}>{badge}</span>}
         </div>
-        <p className="text-xs leading-relaxed text-muted-foreground/85">{description}</p>
+        <p className="text-[10.5px] leading-normal text-muted-foreground/75">{description}</p>
       </div>
       <Switch
         aria-label={label}

@@ -279,63 +279,61 @@ export default function RuntimeProfileManagerSection() {
   const compatibilityEnabled = activeProfile?.capabilities.sillyTavernCompatibility ?? false;
 
   return (
-    <section className="runtime-profile-shell p-3.5 sm:p-4">
-      <header className="flex items-start gap-3">
-        <span className="settings-header-icon shrink-0 text-primary">
-          <Cpu className="h-5 w-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-bold text-foreground sm:text-base">Agent Runtime</h2>
-            <span className="settings-toggle-badge">Profile 组合</span>
-          </div>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            选择聊天底座与可撤销能力。Compatibility Runtime 是独立的受信插件，不会进入 Base Agent 或 Kernel。
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={refresh}
-          aria-label="刷新 Profile"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background/70 text-muted-foreground transition hover:text-primary active:scale-95"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </button>
-      </header>
-
+    <section className="runtime-profile-shell space-y-3 pb-4">
+      {/* 1. 活跃 Agent Runtime 运行看板 */}
       {activeProfile && (
-        <div className="runtime-profile-active-card mt-4">
-          <div className="flex items-start gap-3">
-            <div className="runtime-profile-active-icon">
-              {compatibilityEnabled ? <Sparkles className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-bold">{activeProfile.name}</span>
-                <span className="runtime-profile-status"><span className="settings-status-dot" />运行中</span>
+        <div className="rounded-2xl border border-border/70 bg-card/60 p-3 backdrop-blur-md shadow-xs space-y-2.5 transition-all">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary shadow-xs">
+                {compatibilityEnabled ? <Sparkles className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs sm:text-[13px] font-bold text-foreground truncate">
+                    {activeProfile.name}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.2 text-[9px] font-semibold font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    运行中
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-muted-foreground truncate mt-0.5">
+                  v{activeProfile.version} · {compatibilityEnabled ? "兼容聊天能力已装载" : "通用聊天底座"}
+                </p>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                v{activeProfile.version} · {compatibilityEnabled ? "兼容聊天能力已装载" : "通用聊天底座"}
-              </p>
             </div>
+
+            <button
+              type="button"
+              onClick={refresh}
+              aria-label="刷新 Profile"
+              className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-background/60 text-muted-foreground hover:text-primary transition-all active:scale-95 shadow-2xs"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
           </div>
-          <SettingsToggleRow
-            label="SillyTavern Compatibility Runtime"
-            description="开启会切换到 Tavern Agent；关闭会回到 Base Agent。切换会卸载当前插件并重载运行时，会话数据不会被删除。"
-            checked={compatibilityEnabled}
-            disabled={busy}
-            onCheckedChange={toggleCompatibility}
-            badge="独立插件"
-            tone={compatibilityEnabled ? "warning" : "default"}
-          />
-          <div className="runtime-profile-reload-note">
-            <Power className="h-3.5 w-3.5 shrink-0" />
-            <span>{busy ? "正在保存 Profile 并重载运行时…" : "开关只改变 Profile 组合，不会安装用户代码。"}</span>
+
+          <div className="border-t border-border/40 pt-2 space-y-2">
+            <SettingsToggleRow
+              label="SillyTavern Compatibility Runtime"
+              description="开启切换至 Tavern Agent；关闭回到 Base Agent。切换会卸载插件并重载运行时，会话数据不丢失。"
+              checked={compatibilityEnabled}
+              disabled={busy}
+              onCheckedChange={toggleCompatibility}
+              badge="独立插件"
+              tone={compatibilityEnabled ? "warning" : "default"}
+            />
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/75 px-0.5">
+              <Power className="h-3 w-3 shrink-0 text-primary/70" />
+              <span>{busy ? "正在保存 Profile 并重载运行时…" : "开关只改变 Profile 组合，不会安装外部代码。"}</span>
+            </div>
           </div>
         </div>
       )}
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      {/* 2. Profile 组合切换网格 */}
+      <div className="grid gap-2 sm:grid-cols-2">
         {catalog.profiles.map((profile) => {
           const active = isActive(profile);
           const selected = inspected.id === profile.id;
@@ -344,15 +342,32 @@ export default function RuntimeProfileManagerSection() {
               key={profile.id}
               type="button"
               onClick={() => setInspectedId(profile.id)}
-              className={`runtime-profile-choice ${selected ? "runtime-profile-choice-selected" : ""}`}
+              className={`rounded-xl border p-2.5 text-left transition-all active:scale-[0.99] shadow-2xs ${
+                selected
+                  ? "border-primary/50 bg-primary/10 shadow-xs"
+                  : "border-border/60 bg-card/40 hover:bg-card/70 hover:border-primary/30"
+              }`}
             >
-              <div className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{profile.name}</span>
-                {active && <span className="runtime-profile-status">运行中</span>}
-                {profile.builtin && <span className="text-[10px] text-muted-foreground">内置</span>}
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="flex items-center justify-between gap-1.5">
+                <span className="min-w-0 flex-1 truncate text-xs sm:text-[13px] font-semibold text-foreground">
+                  {profile.name}
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {active && (
+                    <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.2 text-[8.5px] font-semibold font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                      <span className="h-1 w-1 rounded-full bg-emerald-500" />
+                      运行中
+                    </span>
+                  )}
+                  {profile.builtin && (
+                    <span className="text-[9px] font-mono text-muted-foreground/80 bg-muted/40 px-1 py-0.2 rounded border border-border/40">
+                      内置
+                    </span>
+                  )}
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+                </div>
               </div>
-              <div className="mt-1.5 flex flex-wrap gap-x-2 text-[10px] text-muted-foreground">
+              <div className="mt-1 flex flex-wrap gap-x-1.5 text-[10px] text-muted-foreground/75">
                 <span>v{profile.version}</span>
                 <span>·</span>
                 <span>{profile.capabilities.sillyTavernCompatibility ? "兼容插件" : "通用底座"}</span>
@@ -363,38 +378,56 @@ export default function RuntimeProfileManagerSection() {
         })}
       </div>
 
-      <div className="runtime-profile-detail mt-3">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* 3. 查看与编辑 Profile 详情 */}
+      <div className="rounded-2xl border border-border/70 bg-card/60 p-3 backdrop-blur-md shadow-xs space-y-3">
+        <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2.5">
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold">{inspected.name}</div>
-            <div className="mt-1 text-[10px] text-muted-foreground">Profile v{inspected.version} · Schema v{inspected.schemaVersion}</div>
+            <div className="text-xs sm:text-[13px] font-bold text-foreground truncate">{inspected.name}</div>
+            <div className="mt-0.5 text-[10px] font-mono text-muted-foreground/80">
+              Profile v{inspected.version} · Schema v{inspected.schemaVersion}
+            </div>
           </div>
-          <button type="button" onClick={() => void copyProfile(inspected)} className="flex min-h-10 items-center gap-1.5 rounded-xl border border-border bg-background/60 px-3 text-xs font-bold transition hover:border-primary/40 hover:text-primary active:scale-95">
-            <Copy className="h-3.5 w-3.5" />复制
-          </button>
-          {!inspected.builtin && (
-            <button type="button" onClick={() => void deleteProfile(inspected)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-destructive/25 text-destructive transition hover:bg-destructive/10 active:scale-95" aria-label="删除 Profile">
-              <Trash2 className="h-3.5 w-3.5" />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => void copyProfile(inspected)}
+              className="flex h-7.5 items-center gap-1 rounded-xl border border-border/60 bg-background/70 px-2.5 text-xs font-bold text-foreground hover:border-primary/40 hover:text-primary active:scale-95 transition-all shadow-2xs"
+            >
+              <Copy className="h-3 w-3" />
+              <span>复制</span>
             </button>
-          )}
+            {!inspected.builtin && (
+              <button
+                type="button"
+                onClick={() => void deleteProfile(inspected)}
+                className="flex h-7.5 w-7.5 items-center justify-center rounded-xl border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 active:scale-95 transition-all shadow-2xs"
+                aria-label="删除 Profile"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {/* 导入 / 导出 工具栏 */}
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             disabled={busy}
             onClick={() => importInputRef.current?.click()}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-background/70 px-3 text-xs font-bold text-foreground transition-colors hover:border-primary/40 hover:text-primary active:bg-muted disabled:opacity-50"
+            className="flex h-8.5 items-center justify-center gap-1.5 rounded-xl border border-border/70 bg-background/80 px-2.5 text-xs font-bold text-foreground hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95 disabled:opacity-50 transition-all shadow-2xs"
           >
-            <Upload aria-hidden="true" className="h-4 w-4" />导入 Agent 文件
+            <Upload aria-hidden="true" className="h-3.5 w-3.5" />
+            <span>导入 Agent 文件</span>
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={() => void exportProfile()}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-background/70 px-3 text-xs font-bold text-foreground transition-colors hover:border-primary/40 hover:text-primary active:bg-muted disabled:opacity-50"
+            className="flex h-8.5 items-center justify-center gap-1.5 rounded-xl border border-border/70 bg-background/80 px-2.5 text-xs font-bold text-foreground hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95 disabled:opacity-50 transition-all shadow-2xs"
           >
-            <Download aria-hidden="true" className="h-4 w-4" />导出当前 Agent
+            <Download aria-hidden="true" className="h-3.5 w-3.5" />
+            <span>导出当前 Agent</span>
           </button>
           <input
             ref={importInputRef}
@@ -406,6 +439,7 @@ export default function RuntimeProfileManagerSection() {
           />
         </div>
 
+        {/* 内嵌 Agent 编辑器 */}
         <AgentProfileEditor
           profile={inspected}
           characters={characters}
@@ -418,7 +452,8 @@ export default function RuntimeProfileManagerSection() {
           onSaveAndStart={saveAgentAndStart}
         />
 
-        <div className="mt-4 space-y-2">
+        {/* 底层能力降级开关 */}
+        <div className="space-y-2 border-t border-border/40 pt-2.5">
           <SettingsToggleRow
             label="Compatibility capability"
             description={inspected.builtin ? "内置 Profile 的插件组合固定不变；请使用上方开关在 Base/Tavern 之间切换。" : "自定义 Profile 可独立启用 SillyTavern 兼容贡献。"}
@@ -445,7 +480,8 @@ export default function RuntimeProfileManagerSection() {
           />
         </div>
 
-        <div className="mt-4 grid gap-2 text-[10px] sm:grid-cols-2">
+        {/* 诊断参数双列网格 */}
+        <div className="grid gap-1.5 text-[10px] sm:grid-cols-2 border-t border-border/40 pt-2.5">
           <DiagnosticRow label="Provider" value={`${diagnostics.provider.id}${diagnostics.provider.available ? "" : "（缺失）"}`} />
           <DiagnosticRow label="输入模态" value={diagnostics.provider.inputModalities.join(" / ") || "无"} />
           <DiagnosticRow label="Tools" value={diagnostics.tools.join("、") || "未注册"} />
@@ -455,23 +491,25 @@ export default function RuntimeProfileManagerSection() {
         </div>
 
         {diagnostics.warnings.map((warning) => (
-          <div key={warning} className="mt-2 flex gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{warning}
+          <div key={warning} className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="text-[11px]">{warning}</span>
           </div>
         ))}
 
+        {/* 底部激活主按钮 */}
         <button
           type="button"
           disabled={busy || isActive(inspected)}
           onClick={() => void activateProfile(inspected)}
-          className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground transition hover:brightness-105 active:scale-[0.99] disabled:opacity-50"
+          className="flex h-8.5 w-full items-center justify-center gap-1.5 rounded-xl bg-primary hover:bg-primary/90 px-3 text-xs font-bold text-primary-foreground transition-all active:scale-[0.99] disabled:opacity-50 shadow-xs"
         >
-          {isActive(inspected) ? <Check className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
-          {isActive(inspected) ? "当前运行中" : busy ? "正在切换…" : "切换并重载运行时"}
+          {isActive(inspected) ? <Check className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+          <span>{isActive(inspected) ? "当前运行中" : busy ? "正在切换…" : "切换并重载运行时"}</span>
         </button>
       </div>
 
-      <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+      <p className="text-[10.5px] leading-relaxed text-muted-foreground/75 px-1">
         Runtime Plugin 目前只允许随安装包分发的受信实现。签名、来源验证与回滚机制完成前，不开放任意 Runtime Plugin 安装。
       </p>
     </section>
@@ -480,9 +518,9 @@ export default function RuntimeProfileManagerSection() {
 
 function DiagnosticRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="runtime-profile-diagnostic-row">
-      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-1.5 break-words font-mono text-[10px] leading-relaxed">{value}</div>
+    <div className="rounded-xl bg-background/50 p-2 border border-border/40 shadow-2xs">
+      <div className="text-[9px] uppercase tracking-wide text-muted-foreground font-semibold">{label}</div>
+      <div className="mt-1 break-words font-mono text-[10px] leading-relaxed text-foreground">{value}</div>
     </div>
   );
 }

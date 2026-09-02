@@ -102,6 +102,7 @@ describe("PromptCompositionEditor", () => {
   it("允许删除最后一个区块，并把空编排保留为合法状态", async () => {
     render(<LanguageProvider><Harness /></LanguageProvider>);
 
+    fireEvent.click(screen.getByRole("button", { name: "编辑区块：唯一消息" }));
     fireEvent.click(screen.getByRole("button", { name: "删除区块" }));
 
     await waitFor(() => {
@@ -289,6 +290,7 @@ function openAdvancedIfPresent() {
     openAdvancedIfPresent();
 
     expect(screen.getByRole("button", { name: "撤销" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "编辑区块：唯一消息" }));
     fireEvent.click(screen.getByRole("button", { name: "删除区块" }));
     await waitFor(() => expect(screen.queryByText("唯一消息")).not.toBeInTheDocument());
 

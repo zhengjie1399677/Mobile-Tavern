@@ -20,20 +20,22 @@ export default function SamplersSection({
 }: SamplersSectionProps) {
   const { t } = useTranslation();
   return (
-    <Card className={cn("glass-panel shadow-sm transition-all duration-300", isSamplersFolded ? "py-1.5 gap-0" : "")}>
+    <Card className={cn("glass-panel shadow-sm transition-all duration-300 rounded-2xl border border-border/60 bg-card/60 backdrop-blur-xs overflow-hidden", isSamplersFolded ? "gap-0" : "")}>
       <CardHeader
-        className={cn("cursor-pointer hover:bg-muted/20 transition select-none py-2.5 px-3", isSamplersFolded ? "pb-0 border-b-0" : "pb-2 border-b border-border/30")}
+        className={cn("cursor-pointer hover:bg-muted/20 transition select-none py-2 px-3", isSamplersFolded ? "border-b-0" : "border-b border-border/30")}
         onClick={handleToggleSamplersFold}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 shrink-0">
-            <Sliders className="w-4 h-4 text-primary" />
-            <div className="flex flex-col items-start gap-1">
-              <span className="text-sm font-semibold text-foreground">
+            <span className="flex items-center justify-center w-7.5 h-7.5 rounded-lg bg-primary/10 text-primary shrink-0">
+              <Sliders className="w-4 h-4" />
+            </span>
+            <div className="flex flex-col items-start gap-0.5">
+              <span className="text-xs sm:text-[13px] font-semibold text-foreground">
                 {t("samplers.title")}
               </span>
               {!isSamplersFolded && (
-                <span className="text-[10px] text-muted-foreground font-normal">
+                <span className="text-[10.5px] text-muted-foreground/75 font-normal">
                   {t("samplers.subtitle")}
                 </span>
               )}

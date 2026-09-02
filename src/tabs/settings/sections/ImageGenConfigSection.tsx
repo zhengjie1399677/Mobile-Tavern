@@ -30,15 +30,24 @@ export default function ImageGenConfigSection({
   const { t } = useTranslation();
   return (
     <AccordionItem value="image-gen-api" className="settings-connection-item overflow-hidden">
-      <AccordionTrigger className="settings-panel-trigger px-3.5 py-3 hover:no-underline hover:bg-muted/30 transition">
-        <div className="flex items-center gap-2">
-          <span className="settings-panel-icon"><Palette className="w-4 h-4 text-primary" /></span>
-          <div className="flex flex-col items-start gap-1">
-            <span className="text-sm font-semibold text-foreground">{t("image_gen.title")}</span>
-            <span className="text-xs text-muted-foreground font-normal flex items-center gap-1.5">
-              {t("image_gen.subtitle")}
-            </span>
+      <AccordionTrigger className="settings-panel-trigger px-3 py-2 hover:no-underline hover:bg-muted/30 transition">
+        <div className="flex items-center justify-between w-full pr-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="settings-panel-icon"><Palette className="w-4 h-4 text-primary" /></span>
+            <div className="flex flex-col items-start gap-0.5 min-w-0">
+              <span className="text-xs sm:text-[13px] font-semibold text-foreground">{t("image_gen.title")}</span>
+              <span className="text-[10.5px] text-muted-foreground/75 font-normal truncate">
+                {t("image_gen.subtitle")}
+              </span>
+            </div>
           </div>
+          <span className={`shrink-0 items-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold font-mono ${
+            settings.imageGenApi?.enabled
+              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+              : "bg-muted/40 text-muted-foreground border border-border/40"
+          }`}>
+            {settings.imageGenApi?.enabled ? "已启用" : "未启用"}
+          </span>
         </div>
       </AccordionTrigger>
       <AccordionContent className="p-3 pt-1 border-t border-border/50 space-y-3">
@@ -173,7 +182,7 @@ export default function ImageGenConfigSection({
                   }))
                 }
               >
-                <SelectTrigger aria-label={t("image_gen.protocol_title")} className="w-full h-9 text-xs bg-input/40 border border-border">
+                <SelectTrigger aria-label={t("image_gen.protocol_title")} className="w-full h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs font-medium">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground border border-border shadow-lg">
@@ -189,7 +198,7 @@ export default function ImageGenConfigSection({
               <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.base_url")}</label>
               <Input
                 type="text"
-                className="font-mono text-xs h-9 bg-input/50"
+                className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                 spellCheck={false}
                 value={settings.imageGenApi?.baseUrl || ""}
                 onChange={(e) => {
@@ -224,7 +233,7 @@ export default function ImageGenConfigSection({
               <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.api_key")}</label>
               <Input
                 type="password"
-                className="font-mono text-xs h-9 bg-input/50"
+                className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                 spellCheck={false}
                 value={settings.imageGenApi?.apiKey || ""}
                 onChange={(e) => {
@@ -259,7 +268,7 @@ export default function ImageGenConfigSection({
               <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.model")}</label>
               <Input
                 type="text"
-                className="font-mono text-xs h-9 bg-input/50"
+                className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                 spellCheck={false}
                 value={settings.imageGenApi?.modelName || ""}
                 onChange={(e) => {
@@ -295,7 +304,7 @@ export default function ImageGenConfigSection({
                 <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.width")}</label>
                 <Input
                   type="number"
-                  className="font-mono text-xs h-9 bg-input/50"
+                  className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                   value={settings.imageGenApi?.width || 512}
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 512;
@@ -326,7 +335,7 @@ export default function ImageGenConfigSection({
                 <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.height")}</label>
                 <Input
                   type="number"
-                  className="font-mono text-xs h-9 bg-input/50"
+                  className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                   value={settings.imageGenApi?.height || 512}
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 512;
@@ -361,7 +370,7 @@ export default function ImageGenConfigSection({
                 <label className="text-[10px] font-semibold text-muted-foreground">{t("image_gen.steps")}</label>
                 <Input
                   type="number"
-                  className="font-mono text-xs h-9 bg-input/50"
+                  className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                   value={settings.imageGenApi?.steps || 20}
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 20;
@@ -393,7 +402,7 @@ export default function ImageGenConfigSection({
                 <Input
                   type="number"
                   step="0.1"
-                  className="font-mono text-xs h-9 bg-input/50"
+                  className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                   value={settings.imageGenApi?.cfgScale || 7.0}
                   onChange={(e) => {
                     const val = parseFloat(e.target.value) || 7.0;
@@ -424,7 +433,7 @@ export default function ImageGenConfigSection({
                 <label className="text-[10px] font-semibold text-muted-foreground">{t("image_gen.sampler")}</label>
                 <Input
                   type="text"
-                  className="font-mono text-xs h-9 bg-input/50"
+                  className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
                   value={settings.imageGenApi?.sampler || ""}
                   onChange={(e) => {
                     const val = e.target.value;

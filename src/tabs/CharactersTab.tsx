@@ -21,8 +21,6 @@ import {
   LayoutList,
   Grid3X3,
   Columns2,
-  History,
-  UsersRound,
   LoaderCircle,
 } from "lucide-react";
 import { getAvatarGradientClass } from "../utils/avatarUtils";
@@ -187,8 +185,8 @@ export default function CharactersTab() {
   }, [characters, getKernelService, openCharacter]);
 
   return (
-    <div className="relative min-h-screen space-y-2 px-4 pb-4 pt-2.5">
-      <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-card p-3 shadow-[0_14px_35px_-24px_var(--primary)]">
+    <div className="relative min-h-screen space-y-3.5 px-4 pb-8 pt-3">
+      <section className="relative overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-br from-primary/10 via-card to-card p-4 shadow-[0_18px_40px_-30px_var(--primary)]">
         <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-primary/15 blur-2xl" />
 
         <div className="relative flex items-start justify-between gap-3">
@@ -202,20 +200,12 @@ export default function CharactersTab() {
             <p className="mt-0.5 max-w-[190px] truncate text-xs font-light text-muted-foreground">
               {t("characters_tab.subtitle")}
             </p>
-            <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <UsersRound className="size-3.5 text-primary" aria-hidden="true" />
-                <strong className="font-semibold text-foreground">{displayCharacters.length}</strong>
-                {t("nav.characters")}
-              </span>
-              <span className="h-3 w-px bg-border" aria-hidden="true" />
-              <span className="flex items-center gap-1.5">
-                <History className="size-3.5 text-primary" aria-hidden="true" />
-                <strong className="font-semibold text-foreground">
-                  {areSessionCountsReady ? totalSessionCount : "…"}
-                </strong>
-                {t("nav.chat-history")}
-              </span>
+            <div className="mt-2.5 flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{displayCharacters.length}</span>
+              <span>{t("nav.characters")}</span>
+              <span className="text-muted-foreground/40">·</span>
+              <span>{areSessionCountsReady ? totalSessionCount : "…"}</span>
+              <span>{t("nav.chat-history")}</span>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
@@ -274,9 +264,9 @@ export default function CharactersTab() {
         </div>
       </button>
 
-      <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/70 px-2 py-1 shadow-sm" role="group" aria-label={t("characters_tab.layout_group")}>
+      <div className="flex items-center justify-between px-1 py-0.5" role="group" aria-label={t("characters_tab.layout_group")}>
         <span className="pl-1.5 text-xs font-medium text-muted-foreground">{t("characters_tab.layout_group")}</span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 rounded-xl bg-muted/50 p-1">
           {([
             ["list", LayoutList, "characters_tab.layout_list"],
             ["shelf", Grid3X3, "characters_tab.layout_shelf"],
@@ -306,8 +296,8 @@ export default function CharactersTab() {
         characterLayout === "list"
           ? "space-y-2.5"
           : characterLayout === "shelf"
-            ? "grid grid-cols-3 gap-2"
-            : "grid grid-cols-2 gap-3"
+            ? "grid grid-cols-3 gap-3"
+            : "grid grid-cols-2 gap-4"
       }>
       {/* characters array is pre-sorted by last chat time via useMemo in LegacyAppContextProvider */}
         {displayCharacters.map((char, index) => {
@@ -329,7 +319,7 @@ export default function CharactersTab() {
               tabIndex={0}
               aria-busy={isOpening}
               style={{ "--card-index": Math.min(index, 6) } as React.CSSProperties}
-              className={`mobile-list-item relative flex h-auto cursor-pointer select-none rounded-xl border border-border/50 bg-gradient-to-br from-card to-muted/20 spring-press-effect outline-none focus-visible:ring-2 focus-visible:ring-ring ${index < 8 ? "animate-card-fade-in" : ""} ${
+              className={`mobile-list-item relative flex h-auto cursor-pointer select-none rounded-2xl border border-border/50 bg-gradient-to-br from-card to-muted/20 spring-press-effect outline-none focus-visible:ring-2 focus-visible:ring-ring ${index < 8 ? "animate-card-fade-in" : ""} ${
                 characterLayout === "list"
                   ? "items-center gap-3 min-h-[84px] p-2.5"
                   : characterLayout === "shelf"
@@ -360,7 +350,7 @@ export default function CharactersTab() {
                   characterLayout === "list"
                     ? "w-13 h-16 shrink-0"
                     : "w-full aspect-[3/4]"
-                } rounded-xl overflow-hidden border border-border/40 flex items-center justify-center relative ${
+                } rounded-2xl overflow-hidden border border-border/40 flex items-center justify-center relative ${
                   char.avatar ? "bg-muted/30" : getAvatarGradientClass(char.name)
                 }`}
               >

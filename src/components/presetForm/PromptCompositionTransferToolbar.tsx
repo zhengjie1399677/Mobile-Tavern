@@ -133,7 +133,7 @@ export default function PromptCompositionTransferToolbar({
   };
 
   return (
-    <div className="space-y-2 rounded-xl border border-border bg-background/70 p-2">
+    <div className="space-y-2 rounded-xl bg-background/50 p-2">
       <div className="flex flex-wrap items-center gap-1">
         <TransferButton disabled={!canUndo} onClick={onUndo} icon={<Undo2 className="h-3 w-3" />}>
           {t("prompt_composer.undo")}

@@ -1,28 +1,19 @@
 import {
-  ArrowDown,
-  ArrowUp,
   AlertTriangle,
+  ArrowDown,
   BookOpen,
-  CheckCircle2,
   ChevronDown,
-  CloudAlert,
-  Eye,
   GitBranch,
-  GripVertical,
   History,
-  HelpCircle,
   Lightbulb,
-  LoaderCircle,
   MessageSquarePlus,
-  CheckSquare2,
-  Settings2,
-  Sparkles,
-  Square,
-  RotateCw,
   RotateCcw,
-  Trash2,
+  RotateCw,
+  Settings2,
+  SlidersHorizontal,
+  Sparkles,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import type { PromptBlock, PromptComposition } from "../../domain/prompt-composition";
 import type { PromptCompositionTemplateRecord } from "../../domain/prompt-composition";
@@ -49,6 +40,8 @@ import { PROMPT_DATA_SOURCE_KEYS } from "./promptDataSources";
 import PromptCompositionTemplateManager from "./PromptCompositionTemplateManager";
 import PromptSceneProfileManager from "./PromptSceneProfileManager";
 import PromptBlockListToolbar from "./PromptBlockListToolbar";
+import PromptBlockItemRow from "./PromptBlockItemRow";
+import PromptCompositionHeader from "./PromptCompositionHeader";
 import {
   buildPromptBlockListGroups,
   estimatePromptBlockTokens,
@@ -58,7 +51,7 @@ import {
   type PromptBlockSortMode,
 } from "./promptBlockListTools";
 import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
-import { PromptComposerButton, PromptComposerInput } from "./PromptComposerControls";
+import { PromptComposerButton } from "./PromptComposerControls";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 import {
@@ -100,6 +93,7 @@ export default function PromptCompositionEditor({
   const [draggingId, setDraggingId] = useState<string>();
   const [dragAnnouncement, setDragAnnouncement] = useState("");
   const [blockQuery, setBlockQuery] = useState("");
+  const [manageOpen, setManageOpen] = useState(false);
   const [blockGroupMode, setBlockGroupMode] = useState<PromptBlockGroupMode>("none");
   const [blockSortMode, setBlockSortMode] = useState<PromptBlockSortMode>("order");
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(() => new Set());
@@ -116,13 +110,16 @@ export default function PromptCompositionEditor({
     pointerId: number;
     handle: HTMLButtonElement;
   } | null>(null);
+
   const editingBlock = composition.blocks.find((block) => block.id === editingBlockId);
   const historyBlocks = composition.blocks.filter((block) => block.source.type === "chat_history");
   const freeMode = settings.promptConfig.usePromptComposition === true;
+
   const validationDiagnostics = useMemo(
     () => validatePromptComposition(composition, { availableDataKeys: PROMPT_DATA_SOURCE_KEYS }),
-    [composition]
+    [composition],
   );
+
   const diagnosticCountsByBlockId = useMemo(() => {
     const map = new Map<string, number>();
     for (const diagnostic of validationDiagnostics) {
@@ -132,19 +129,19 @@ export default function PromptCompositionEditor({
     }
     return map;
   }, [validationDiagnostics]);
+
   const blockNamesById = useMemo(() => {
     return new Map(composition.blocks.map((b) => [b.id, b.name]));
   }, [composition.blocks]);
-  const tokenByBlockId = useMemo(
-    () => {
-      const traced = new Map((preview?.traces ?? []).map((trace) => [trace.blockId, trace.estimatedTokens]));
-      return new Map(composition.blocks.map((block) => [
-        block.id,
-        traced.get(block.id) ?? estimatePromptBlockTokens(block),
-      ]));
-    },
-    [composition.blocks, preview?.traces],
-  );
+
+  const tokenByBlockId = useMemo(() => {
+    const traced = new Map((preview?.traces ?? []).map((trace) => [trace.blockId, trace.estimatedTokens]));
+    return new Map(composition.blocks.map((block) => [
+      block.id,
+      traced.get(block.id) ?? estimatePromptBlockTokens(block),
+    ]));
+  }, [composition.blocks, preview?.traces]);
+
   const blockGroups = useMemo(() => buildPromptBlockListGroups({
     blocks: composition.blocks,
     query: blockQuery,
@@ -152,6 +149,7 @@ export default function PromptCompositionEditor({
     sortMode: blockSortMode,
     tokenByBlockId,
   }), [blockGroupMode, blockQuery, blockSortMode, composition.blocks, tokenByBlockId]);
+
   const visibleBlockItems = blockGroups.flatMap((group) => group.items);
   const visibleBlockIds = visibleBlockItems.map((item) => item.block.id);
   const visibleTokens = visibleBlockItems.reduce((total, item) => total + item.estimatedTokens, 0);
@@ -250,11 +248,12 @@ export default function PromptCompositionEditor({
     });
   }, [composition, updateComposition]);
 
-  const moveBlock = useCallback((index: number, offset: -1 | 1) => {
-    const target = composition.blocks[index + offset];
-    const source = composition.blocks[index];
-    if (source && target) reorder(source.id, target.id);
-  }, [composition.blocks, reorder]);
+  const handleToggleEnabled = useCallback((id: string, enabled: boolean) => {
+    updateComposition({
+      ...composition,
+      blocks: composition.blocks.map((block) => block.id === id ? { ...block, enabled } : block),
+    }, `block:${id}`);
+  }, [composition, updateComposition]);
 
   const deleteBlock = useCallback(async (id: string) => {
     if (!await showCustomConfirm(t("prompt_composer.confirm_delete"))) return;
@@ -381,77 +380,33 @@ export default function PromptCompositionEditor({
     (composition.compatibility?.preservedRootFields ? Object.keys(composition.compatibility.preservedRootFields).length : 0);
 
   return (
-    <section className={`w-full max-w-full min-w-0 overflow-hidden rounded-xl border border-primary/25 bg-primary/5 ${isWideWorkbench ? "space-y-2 p-2" : "space-y-2.5 p-2.5"}`}>
-      {/* 顶部紧凑控制栏 */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-border/50">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <PromptComposerInput
-            value={composition.name}
-            onChange={(event) => updateComposition({ ...composition, name: event.target.value }, "composition-name")}
-            aria-label={t("prompt_composer.composition_name")}
-            className="h-8 text-xs font-bold min-w-[120px] max-w-[220px] flex-1"
-          />
-        </div>
-
-        <div className="flex items-center gap-1 shrink-0">
-          <PromptComposerButton
-            type="button"
-            onClick={() => setPreviewOpen(true)}
-            className="h-8 gap-1 border-primary/25 bg-primary/10 px-2 text-xs text-primary font-bold hover:bg-primary/15"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            {t("prompt_composer.preview")}
-          </PromptComposerButton>
-          <PromptComposerButton
-            type="button"
-            onClick={() => setTutorialOpen(true)}
-            className="h-8 gap-1 border-border bg-background/80 px-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <HelpCircle className="h-3.5 w-3.5" />
-            {t("prompt_composer.tutorial")}
-          </PromptComposerButton>
-          {!isWideWorkbench && (
-            <PromptComposerButton
-              type="button"
-              aria-expanded={showAdvancedOptions}
-              onClick={() => setShowAdvancedOptions((prev) => !prev)}
-              className={`h-8 gap-1 px-2 text-xs transition ${showAdvancedOptions ? "bg-primary/20 text-primary border-primary/30" : "text-muted-foreground border-border"}`}
-            >
-              <Settings2 className="h-3.5 w-3.5" />
-              <span>{t("prompt_composer.advanced_toggle")}</span>
-              <ChevronDown className={`h-3 w-3 transition-transform ${showAdvancedOptions ? "rotate-180" : ""}`} />
-            </PromptComposerButton>
-          )}
-        </div>
-      </div>
-
-      {/* 极简状态行 */}
-      <div className="flex items-center justify-between gap-2 px-1 text-[10px] text-muted-foreground font-mono">
-        <SaveStatus state={saveState} lastSavedAt={lastSavedAt} t={t} />
-        {compatibilityCount > 0 && (
-          <span className="rounded bg-sky-500/10 px-2 py-0.5 text-sky-700 dark:text-sky-300 font-sans">
-            {t("prompt_composer.st_compat_badge", { count: String(compatibilityCount) })}
-          </span>
-        )}
-      </div>
-
-      {/* 全宽模式切换 */}
-      {!promptFocus.active && (
-        <div className="grid grid-cols-2 rounded-xl border border-border bg-muted/50 p-1 w-full" role="group" aria-label={t("prompt_composer.mode")}>
-          <ModeButton active={!freeMode} onClick={() => setMode(false)}>{t("prompt_composer.legacy_mode")}</ModeButton>
-          <ModeButton active={freeMode} onClick={() => setMode(true)}>{t("prompt_composer.free_mode")}</ModeButton>
-        </div>
-      )}
+    <section className={`w-full max-w-full min-w-0 overflow-hidden rounded-2xl border border-border/80 bg-card/40 backdrop-blur-sm shadow-sm ${isWideWorkbench ? "space-y-2 p-2.5" : "space-y-3 p-3"}`}>
+      {/* 顶部现代化控制栏 */}
+      <PromptCompositionHeader
+        composition={composition}
+        onUpdateName={(name) => updateComposition({ ...composition, name }, "composition-name")}
+        saveState={saveState}
+        lastSavedAt={lastSavedAt}
+        compatibilityCount={compatibilityCount}
+        freeMode={freeMode}
+        onSetMode={setMode}
+        isWideWorkbench={isWideWorkbench}
+        promptFocusActive={promptFocus.active}
+        showAdvancedOptions={showAdvancedOptions}
+        onToggleAdvancedOptions={() => setShowAdvancedOptions((prev) => !prev)}
+        onOpenPreview={() => setPreviewOpen(true)}
+        onOpenTutorial={() => setTutorialOpen(true)}
+      />
 
       {!freeMode && !promptFocus.active && <TraditionalPromptFlow />}
 
       {(freeMode || promptFocus.active) && (
         <>
           {(showAdvancedOptions || isWideWorkbench) && (
-            <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-bold text-foreground">
+            <div className="space-y-2.5 rounded-2xl border border-border/70 bg-muted/20 p-3 backdrop-blur-xs shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-foreground">
                 <span className="flex items-center gap-1.5">
-                  <Settings2 className="h-3.5 w-3.5 text-primary" />
+                  <Settings2 className="h-4 w-4 text-primary" />
                   <span>{t("prompt_composer.advanced_tools_title")}</span>
                 </span>
                 <div className="flex items-center gap-1.5">
@@ -460,7 +415,7 @@ export default function PromptCompositionEditor({
                       type="button"
                       aria-pressed={orientationControl.forcedLandscape}
                       onClick={orientationControl.toggleOrientation}
-                      className="h-6 gap-1 px-1.5 text-[9px] text-primary"
+                      className="h-7 gap-1 px-2 text-[10px] text-primary font-bold shadow-xs"
                     >
                       <RotateCw className="h-3 w-3" />
                       {t(orientationControl.forcedLandscape
@@ -472,15 +427,16 @@ export default function PromptCompositionEditor({
                     <PromptComposerButton
                       type="button"
                       onClick={() => { setWorkbenchView("graph"); setWorkbenchOpen(true); }}
-                      className="h-6 gap-1 px-1.5 text-[9px]"
+                      className="h-7 gap-1 px-2 text-[10px] font-bold shadow-xs"
                     >
-                      <GitBranch className="h-3 w-3" />
+                      <GitBranch className="h-3 w-3 text-primary" />
                       {t("prompt_composer.graph")}
                     </PromptComposerButton>
                   )}
                 </div>
               </div>
 
+              {/* 导入导出工具栏 */}
               <PromptCompositionTransferToolbar
                 composition={composition}
                 canUndo={compositionHistory.canUndo}
@@ -494,6 +450,7 @@ export default function PromptCompositionEditor({
                 }}
               />
 
+              {/* 模板管理中心 */}
               <PromptCompositionTemplateManager
                 composition={composition}
                 templates={settings.promptCompositionTemplates || []}
@@ -507,12 +464,14 @@ export default function PromptCompositionEditor({
                 }}
               />
 
+              {/* Token 预算可视化配置 */}
               <PromptCompositionBudgetSettings
                 composition={composition}
                 preview={preview}
                 onChange={(next) => updateComposition(next, "token-budget")}
               />
 
+              {/* 场景预设配置 */}
               <PromptSceneProfileManager
                 composition={composition}
                 onChange={(next) => updateComposition(next, "scene-profiles")}
@@ -520,30 +479,56 @@ export default function PromptCompositionEditor({
             </div>
           )}
 
-          {/* 主工作区 */}
-          <div className={isWideWorkbench ? "grid grid-cols-[minmax(300px,0.85fr)_minmax(400px,1.15fr)] items-start gap-2 min-[1100px]:grid-cols-[minmax(300px,0.72fr)_minmax(340px,0.82fr)_minmax(420px,1fr)]" : "space-y-2"}>
+          {/* 主工作区画布 */}
+          <div className={isWideWorkbench ? "grid grid-cols-[minmax(300px,0.85fr)_minmax(400px,1.15fr)] items-start gap-2.5 min-[1100px]:grid-cols-[minmax(300px,0.72fr)_minmax(340px,0.82fr)_minmax(420px,1fr)]" : "space-y-2.5"}>
             <div className="space-y-2">
-              <PromptBlockListToolbar
-                query={blockQuery}
-                onQueryChange={setBlockQuery}
-                groupMode={blockGroupMode}
-                onGroupModeChange={setBlockGroupMode}
-                sortMode={blockSortMode}
-                onSortModeChange={setBlockSortMode}
-                visibleCount={visibleBlockItems.length}
-                totalCount={composition.blocks.length}
-                visibleTokens={visibleTokens}
-                selectedCount={selectedBlockIds.size}
-                onSelectVisible={() => setSelectedBlockIds(new Set(visibleBlockIds))}
-                onClearSelection={() => setSelectedBlockIds(new Set())}
-                onSetEnabled={batchSetEnabled}
-                onDelete={() => void batchDelete()}
-              />
+              <div className="flex items-center justify-between gap-2 px-1">
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  {t("prompt_composer.list_stats", {
+                    visible: String(visibleBlockItems.length),
+                    total: String(composition.blocks.length),
+                    tokens: String(visibleTokens),
+                  })}
+                </span>
+                <PromptComposerButton
+                  type="button"
+                  variant="ghost"
+                  aria-expanded={manageOpen}
+                  onClick={() => {
+                    if (manageOpen) setSelectedBlockIds(new Set());
+                    setManageOpen(!manageOpen);
+                  }}
+                  className="h-7 gap-1 px-2 text-[10px] text-muted-foreground shadow-none hover:text-foreground active:scale-95"
+                >
+                  <SlidersHorizontal className="h-3 w-3" />
+                  <span>{t("prompt_composer.manage_toggle")}</span>
+                  <ChevronDown className={`h-3 w-3 transition-transform duration-150 ${manageOpen ? "rotate-180" : ""}`} />
+                </PromptComposerButton>
+              </div>
+
+              {manageOpen && (
+                <PromptBlockListToolbar
+                  query={blockQuery}
+                  onQueryChange={setBlockQuery}
+                  groupMode={blockGroupMode}
+                  onGroupModeChange={setBlockGroupMode}
+                  sortMode={blockSortMode}
+                  onSortModeChange={setBlockSortMode}
+                  visibleCount={visibleBlockItems.length}
+                  totalCount={composition.blocks.length}
+                  visibleTokens={visibleTokens}
+                  selectedCount={selectedBlockIds.size}
+                  onSelectVisible={() => setSelectedBlockIds(new Set(visibleBlockIds))}
+                  onClearSelection={() => setSelectedBlockIds(new Set())}
+                  onSetEnabled={batchSetEnabled}
+                  onDelete={() => void batchDelete()}
+                />
+              )}
 
               {validationDiagnostics.length > 0 && (
-                <section className="space-y-1.5 rounded-xl border border-destructive/30 bg-destructive/5 p-2.5 min-w-0 max-w-full overflow-hidden" aria-live="polite">
+                <section className="space-y-1.5 rounded-2xl border border-destructive/40 bg-destructive/10 p-3 min-w-0 max-w-full overflow-hidden shadow-xs" aria-live="polite">
                   <div className="flex items-center gap-2 text-xs font-bold text-destructive min-w-0 truncate">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
                     <span className="truncate">{t("prompt_composer.validation_title", { count: String(validationDiagnostics.length) })}</span>
                   </div>
                   <div className="max-h-36 overflow-y-auto space-y-1 pr-1 min-w-0 max-w-full">
@@ -553,9 +538,9 @@ export default function PromptCompositionEditor({
                         key={`${diagnostic.code}-${diagnostic.blockId ?? "root"}-${index}`}
                         onClick={() => diagnostic.blockId && setEditingBlockId(diagnostic.blockId)}
                         variant="ghost"
-                        className="flex h-auto min-h-6 w-full min-w-0 max-w-full justify-start rounded-md px-1.5 py-0.5 text-left text-[10px] leading-relaxed text-destructive/90 shadow-none hover:bg-destructive/10 break-all"
+                        className="flex h-auto min-h-6 w-full min-w-0 max-w-full justify-start rounded-lg px-2 py-1 text-left text-[10px] leading-relaxed text-destructive shadow-none hover:bg-destructive/15 break-all"
                       >
-                        <code className="mr-1 font-bold font-mono shrink-0">{diagnostic.code}</code>
+                        <code className="mr-1.5 font-bold font-mono shrink-0">{diagnostic.code}</code>
                         <span className="min-w-0 break-all">{diagnostic.message}</span>
                       </PromptComposerButton>
                     ))}
@@ -564,22 +549,22 @@ export default function PromptCompositionEditor({
               )}
 
               {composition.blocks.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-destructive/35 bg-destructive/5 p-5 text-center text-xs text-destructive">
+                <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/5 p-6 text-center text-xs font-semibold text-destructive shadow-xs">
                   {t("prompt_composer.empty_send_warning")}
                 </div>
               ) : (
-                <div ref={blockListRef} className="space-y-1.5">
+                <div ref={blockListRef} className="space-y-2">
                   {visibleBlockItems.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">
+                    <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
                       {t("prompt_composer.list_empty")}
                     </div>
                   )}
                   {blockGroups.map((group) => (
                     <section key={group.key} className="space-y-1.5">
                       {blockGroupMode !== "none" && (
-                        <header className="flex items-center gap-2 px-1 text-[10px] font-bold text-muted-foreground">
+                        <header className="flex items-center gap-2 px-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
                           <span>{describeBlockGroup(group.key, t)}</span>
-                          <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[9px]">{group.items.length}</span>
+                          <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[9px]">{group.items.length}</span>
                         </header>
                       )}
                       {group.items.map(({ block, index, estimatedTokens }) => (
@@ -587,7 +572,6 @@ export default function PromptCompositionEditor({
                           key={block.id}
                           block={block}
                           index={index}
-                          totalBlocks={composition.blocks.length}
                           estimatedTokens={estimatedTokens}
                           diagnosticCount={diagnosticCountsByBlockId.get(block.id) || 0}
                           selected={selectedBlockIds.has(block.id)}
@@ -596,9 +580,8 @@ export default function PromptCompositionEditor({
                           isOrderSort={blockSortMode === "order"}
                           targetPlacementName={block.placement.type === "ordered" ? undefined : blockNamesById.get(block.placement.historyBlockId || "")}
                           onToggleSelect={handleToggleSelect}
+                          onToggleEnabled={handleToggleEnabled}
                           onEdit={handleEditBlock}
-                          onMove={moveBlock}
-                          onDelete={deleteBlock}
                           onDragStart={handleDragStart}
                           onDragMove={(e) => updateDragTarget(e.pointerId, e.clientY)}
                           onDragEnd={(pointerId) => finishDrag(pointerId, true)}
@@ -613,21 +596,28 @@ export default function PromptCompositionEditor({
 
               <p className="sr-only" role="status" aria-live="assertive">{dragAnnouncement}</p>
 
-              <div className="grid grid-cols-3 gap-2">
-                <ToolbarButton onClick={() => addBlock("template")} icon={<MessageSquarePlus className="h-4 w-4" />}>{t("prompt_composer.add_message")}</ToolbarButton>
-                <ToolbarButton onClick={() => addBlock("chat_history")} icon={<History className="h-4 w-4" />}>{t("prompt_composer.add_history")}</ToolbarButton>
+              {/* 底部新增与重置操作条 */}
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <ToolbarButton onClick={() => addBlock("template")} icon={<MessageSquarePlus className="h-4 w-4 text-primary" />}>
+                  {t("prompt_composer.add_message")}
+                </ToolbarButton>
+                <ToolbarButton onClick={() => addBlock("chat_history")} icon={<History className="h-4 w-4 text-amber-500" />}>
+                  {t("prompt_composer.add_history")}
+                </ToolbarButton>
                 <ToolbarButton
                   onClick={async () => {
                     if (await showCustomConfirm(t("prompt_composer.confirm_reset"))) {
                       updateComposition(createBasicPromptComposition());
                     }
                   }}
-                  icon={<RotateCcw className="h-4 w-4" />}
-                >{t("prompt_composer.reset_example")}</ToolbarButton>
+                  icon={<RotateCcw className="h-4 w-4 text-muted-foreground" />}
+                >
+                  {t("prompt_composer.reset_example")}
+                </ToolbarButton>
               </div>
-
             </div>
 
+            {/* 宽屏工作台辅助面板 */}
             {isWideWorkbench && (
               <div className="sticky top-2 space-y-2 min-[1100px]:col-span-2 min-[1100px]:grid min-[1100px]:grid-cols-[minmax(340px,0.82fr)_minmax(420px,1fr)] min-[1100px]:items-start">
                 {editingBlock && (
@@ -656,6 +646,7 @@ export default function PromptCompositionEditor({
         </>
       )}
 
+      {/* 区块详细编辑弹窗 */}
       <PromptBlockEditorDialog
         block={!isWideWorkbench || fullEditorOpen ? editingBlock : undefined}
         historyBlocks={historyBlocks}
@@ -664,7 +655,11 @@ export default function PromptCompositionEditor({
         onDelete={() => editingBlock && deleteBlock(editingBlock.id)}
         onDuplicate={() => editingBlock && duplicateBlock(editingBlock.id)}
       />
+
+      {/* 预览模拟弹窗 */}
       <PromptCompositionPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} preview={preview} />
+
+      {/* 窄屏工作台弹窗 */}
       {!isWideWorkbench && (
         <PromptCompositionWorkbench
           composition={composition}
@@ -677,25 +672,27 @@ export default function PromptCompositionEditor({
           onOpenChange={setWorkbenchOpen}
         />
       )}
+
+      {/* 教程弹窗 */}
       <PromptCompositionTutorial open={tutorialOpen} onOpenChange={setTutorialOpen} />
     </section>
   );
 }
 
-function TraditionalPromptFlow() {
+export function TraditionalPromptFlow() {
   const { t } = useTranslation();
   const steps = t("prompt_composer.legacy_flow_steps").split("|");
   return (
-    <section className="rounded-xl border border-border bg-background/70 p-3" aria-label={t("prompt_composer.legacy_flow_title")}>
+    <section className="rounded-2xl border border-border/80 bg-card/60 p-3.5 backdrop-blur-xs shadow-xs" aria-label={t("prompt_composer.legacy_flow_title")}>
       <div className="text-xs font-bold text-foreground">{t("prompt_composer.legacy_flow_title")}</div>
-      <p className="mt-1 text-[9px] leading-relaxed text-muted-foreground">{t("prompt_composer.legacy_flow_description")}</p>
+      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("prompt_composer.legacy_flow_description")}</p>
       <div className="mt-3 flex flex-col items-center gap-1.5">
         {steps.map((step, index) => (
           <div key={`${step}-${index}`} className="contents">
-            <div className="w-full rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-center text-[10px] font-semibold text-foreground">
+            <div className="w-full rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-2 text-center text-[11px] font-bold text-foreground shadow-xs">
               {step}
             </div>
-            {index < steps.length - 1 && <ArrowDown className="h-3.5 w-3.5 text-primary/70" aria-hidden="true" />}
+            {index < steps.length - 1 && <ArrowDown className="h-3.5 w-3.5 text-primary/70 animate-bounce" aria-hidden="true" />}
           </div>
         ))}
       </div>
@@ -706,17 +703,21 @@ function TraditionalPromptFlow() {
 function PromptCompositionTutorial({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
   const steps = t("prompt_composer.tutorial_steps").split("|");
+
   useMobileBackHandler(open, () => {
     onOpenChange(false);
     return true;
   }, 850);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="top-auto bottom-0 left-1/2 max-h-[88dvh] w-full max-w-xl -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none p-0">
-        <DialogHeader className="border-b border-border px-4 pb-3 pt-4 pr-12">
-          <DialogTitle className="flex items-center gap-2 text-base font-bold">
-            <BookOpen className="h-4.5 w-4.5 text-primary" />
-            {t("prompt_composer.tutorial_title")}
+      <DialogContent className="top-auto bottom-0 left-1/2 max-h-[88dvh] w-full max-w-xl -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none border border-border/80 bg-background/95 p-0 backdrop-blur-md shadow-2xl">
+        <DialogHeader className="border-b border-border/70 px-4 pb-3 pt-4 pr-12">
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15 text-primary shadow-xs">
+              <BookOpen className="h-4 w-4" />
+            </span>
+            <span>{t("prompt_composer.tutorial_title")}</span>
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
             {t("prompt_composer.tutorial_intro")}
@@ -725,43 +726,46 @@ function PromptCompositionTutorial({ open, onOpenChange }: { open: boolean; onOp
 
         <div className="space-y-4 p-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] text-xs text-foreground">
           {/* 四大核心步骤 */}
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <Sparkles className="h-4 w-4 text-primary" />
               <span>{t("prompt_composer.tutorial_core_title")}</span>
             </div>
             {steps.map((step, index) => (
-              <div key={`${step}-${index}`} className="flex gap-2.5 rounded-xl border border-border/70 bg-card/60 p-3 items-start">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary mt-0.5">
+              <div
+                key={`${step}-${index}`}
+                className="flex gap-3 rounded-2xl border border-border/70 bg-card/60 p-3.5 items-start backdrop-blur-xs shadow-xs"
+              >
+                <span className="flex h-5.5 w-5.5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[11px] font-bold text-primary ring-2 ring-primary/20 mt-0.5">
                   {index + 1}
                 </span>
-                <p className="text-[11px] leading-relaxed text-foreground/90">{step}</p>
+                <p className="text-[11px] leading-relaxed text-foreground/90 font-medium">{step}</p>
               </div>
             ))}
           </div>
 
           {/* 常用宏变量速查 */}
-          <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-3">
+          <div className="space-y-2.5 rounded-2xl border border-border/80 bg-muted/25 p-3.5 backdrop-blur-xs">
             <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+              <Lightbulb className="h-4 w-4 text-amber-500" />
               <span>{t("prompt_composer.tutorial_macros_title")}</span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <div className="rounded-lg border border-border/50 bg-background/80 p-2">
-                <code className="text-primary font-bold">{"{{char}}"}</code>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{t("prompt_composer.macro_char_desc")}</p>
+              <div className="rounded-xl border border-border/60 bg-background/80 p-2.5 shadow-2xs">
+                <code className="text-primary font-bold font-mono">{"{{char}}"}</code>
+                <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{t("prompt_composer.macro_char_desc")}</p>
               </div>
-              <div className="rounded-lg border border-border/50 bg-background/80 p-2">
-                <code className="text-primary font-bold">{"{{user}}"}</code>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{t("prompt_composer.macro_user_desc")}</p>
+              <div className="rounded-xl border border-border/60 bg-background/80 p-2.5 shadow-2xs">
+                <code className="text-primary font-bold font-mono">{"{{user}}"}</code>
+                <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{t("prompt_composer.macro_user_desc")}</p>
               </div>
-              <div className="rounded-lg border border-border/50 bg-background/80 p-2">
-                <code className="text-primary font-bold">{"{{description}}"}</code>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{t("prompt_composer.macro_description_desc")}</p>
+              <div className="rounded-xl border border-border/60 bg-background/80 p-2.5 shadow-2xs">
+                <code className="text-primary font-bold font-mono">{"{{description}}"}</code>
+                <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{t("prompt_composer.macro_description_desc")}</p>
               </div>
-              <div className="rounded-lg border border-border/50 bg-background/80 p-2">
-                <code className="text-primary font-bold">{"{{personality}}"}</code>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{t("prompt_composer.macro_personality_desc")}</p>
+              <div className="rounded-xl border border-border/60 bg-background/80 p-2.5 shadow-2xs">
+                <code className="text-primary font-bold font-mono">{"{{personality}}"}</code>
+                <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{t("prompt_composer.macro_personality_desc")}</p>
               </div>
             </div>
           </div>
@@ -774,52 +778,16 @@ function PromptCompositionTutorial({ open, onOpenChange }: { open: boolean; onOp
   );
 }
 
-function SaveStatus({
-  state,
-  lastSavedAt,
-  t,
-}: {
-  state: SettingsSaveState;
-  lastSavedAt?: number;
-  t: (key: string, params?: Record<string, string>) => string;
-}) {
-  const isBusy = state === "pending" || state === "saving";
-  const isError = state === "error";
-  const Icon = isError ? CloudAlert : isBusy ? LoaderCircle : CheckCircle2;
-  const label = state === "pending"
-    ? t("prompt_composer.save_pending")
-    : state === "saving"
-      ? t("prompt_composer.save_saving")
-      : state === "error"
-        ? t("prompt_composer.save_error")
-        : state === "saved" && lastSavedAt
-          ? t("prompt_composer.save_saved_at", { time: new Date(lastSavedAt).toLocaleTimeString() })
-          : t("prompt_composer.save_ready");
-  return (
-    <div role="status" aria-live="polite" className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] ${isError ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border/60 bg-background/80 text-muted-foreground"}`}>
-      <Icon className={`h-3 w-3 shrink-0 ${isBusy ? "animate-spin text-primary" : isError ? "text-destructive" : "text-emerald-500"}`} />
-      <span className="truncate">{label}</span>
-    </div>
-  );
-}
-
-function ModeButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return <PromptComposerButton aria-pressed={active} onClick={onClick} variant="ghost" className={`border-0 px-3 shadow-none ${active ? "bg-background text-primary shadow-sm ring-1 ring-border hover:bg-background" : "text-muted-foreground"}`}>{children}</PromptComposerButton>;
-}
-
 function ToolbarButton({ onClick, icon, children }: { onClick: () => void; icon: ReactNode; children: ReactNode }) {
-  return <PromptComposerButton onClick={onClick} className="min-h-11 gap-1.5 rounded-xl px-2 text-[10px]">{icon}{children}</PromptComposerButton>;
-}
-
-function RoleBadge({ role }: { role: string }) {
-  const classes = role === "system"
-    ? "bg-violet-500/15 text-violet-600 dark:text-violet-300"
-    : role === "assistant"
-      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
-      : role === "history"
-        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-        : "bg-sky-500/15 text-sky-600 dark:text-sky-300";
-  return <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold ${classes}`}>{role.toUpperCase()}</span>;
+  return (
+    <PromptComposerButton
+      onClick={onClick}
+      className="min-h-11 gap-1.5 rounded-2xl px-2.5 text-[11px] font-bold shadow-xs hover:border-primary/40 hover:bg-muted/40 transition-all"
+    >
+      {icon}
+      <span>{children}</span>
+    </PromptComposerButton>
+  );
 }
 
 function describeBlockGroup(key: string, t: (key: string, params?: Record<string, string>) => string): string {
@@ -835,130 +803,3 @@ function describeBlockGroup(key: string, t: (key: string, params?: Record<string
   }[key];
   return translationKey ? t(translationKey) : key;
 }
-
-function describeSource(block: PromptBlock, t: (key: string, params?: Record<string, string>) => string): string {
-  if (block.source.type === "template") return t("prompt_composer.template_source");
-  if (block.source.selection?.mode === "recent") {
-    return t("prompt_composer.recent_count", { count: String(block.source.selection.count) });
-  }
-  return t("prompt_composer.all_messages");
-}
-
-interface PromptBlockItemRowProps {
-  block: PromptBlock;
-  index: number;
-  totalBlocks: number;
-  estimatedTokens: number;
-  diagnosticCount: number;
-  selected: boolean;
-  isDragging: boolean;
-  isDragTarget: boolean;
-  isOrderSort: boolean;
-  targetPlacementName?: string;
-  onToggleSelect: (id: string) => void;
-  onEdit: (id: string) => void;
-  onMove: (index: number, offset: -1 | 1) => void;
-  onDelete: (id: string) => void;
-  onDragStart: (event: ReactPointerEvent<HTMLButtonElement>, id: string) => void;
-  onDragMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onDragEnd: (pointerId: number) => void;
-  onDragCancel: (pointerId: number) => void;
-  t: (key: string, params?: Record<string, string>) => string;
-}
-
-const PromptBlockItemRow = memo(function PromptBlockItemRow({
-  block,
-  index,
-  totalBlocks,
-  estimatedTokens,
-  diagnosticCount,
-  selected,
-  isDragging,
-  isDragTarget,
-  isOrderSort,
-  targetPlacementName,
-  onToggleSelect,
-  onEdit,
-  onMove,
-  onDelete,
-  onDragStart,
-  onDragMove,
-  onDragEnd,
-  onDragCancel,
-  t,
-}: PromptBlockItemRowProps) {
-  const placementText = block.placement.type === "ordered"
-    ? t("prompt_composer.ordered")
-    : targetPlacementName
-      ? t("prompt_composer.depth_target", { depth: String(block.placement.depth), target: targetPlacementName })
-      : t("prompt_composer.depth_all", { depth: String(block.placement.depth) });
-
-  return (
-    <article
-      data-prompt-block-id={block.id}
-      className={`relative grid min-h-[58px] grid-cols-[36px_32px_minmax(0,1fr)_40px] overflow-hidden rounded-xl border bg-background transition duration-100 ${
-        selected
-          ? "border-primary/70 ring-1 ring-primary/20"
-          : isDragTarget && !isDragging
-            ? "border-primary ring-2 ring-primary/20 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary"
-            : diagnosticCount > 0
-              ? "border-destructive/60"
-              : "border-border"
-      } ${isDragging ? "scale-[0.985] opacity-65 shadow-lg" : block.enabled ? "" : "opacity-50"}`}
-    >
-      <PromptComposerButton
-        type="button"
-        aria-label={t("prompt_composer.drag_block", { name: block.name })}
-        onPointerDown={(event) => isOrderSort && onDragStart(event, block.id)}
-        onPointerMove={onDragMove}
-        onPointerUp={(event) => onDragEnd(event.pointerId)}
-        onPointerCancel={(event) => onDragCancel(event.pointerId)}
-        variant="ghost"
-        disabled={!isOrderSort}
-        className="h-full min-h-0 w-9 touch-none rounded-none border-0 border-r border-border px-0 text-muted-foreground shadow-none active:bg-muted"
-      >
-        <GripVertical className="h-4 w-4" />
-      </PromptComposerButton>
-
-      <PromptComposerButton
-        type="button"
-        variant="ghost"
-        onClick={() => onToggleSelect(block.id)}
-        aria-label={t(selected ? "prompt_composer.unselect_block" : "prompt_composer.select_block", { name: block.name })}
-        className="h-full min-h-0 w-8 rounded-none border-0 border-r border-border px-0 text-muted-foreground shadow-none"
-      >
-        {selected ? <CheckSquare2 className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
-      </PromptComposerButton>
-
-      <PromptComposerButton
-        type="button"
-        aria-label={t("prompt_composer.edit_block", { name: block.name })}
-        onClick={() => onEdit(block.id)}
-        variant="ghost"
-        className="h-full min-h-0 min-w-0 w-full justify-start overflow-hidden rounded-none border-0 p-2.5 text-left shadow-none hover:bg-muted/30 active:scale-100"
-      >
-        <div className="min-w-0 w-full overflow-hidden">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span className="w-5 shrink-0 font-mono text-[10px] text-muted-foreground">{index + 1}</span>
-            <span className="min-w-0 flex-1 truncate text-xs font-semibold">{block.name}</span>
-            <RoleBadge role={block.source.type === "chat_history" ? "history" : block.role} />
-          </div>
-          <div className="mt-1 flex min-w-0 gap-1 overflow-hidden pl-6 text-[9px] text-muted-foreground">
-            <span className="max-w-[48%] min-w-0 truncate rounded bg-muted px-1.5 py-0.5">{describeSource(block, t)}</span>
-            <span className="max-w-[48%] min-w-0 truncate rounded bg-muted px-1.5 py-0.5">{placementText}</span>
-            {(block.condition || block.tokenPolicy) && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">{t("prompt_composer.advanced_active")}</span>}
-            {block.compatibility && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-700 dark:text-sky-300">{block.compatibility.source}</span>}
-            <span className="rounded bg-violet-500/15 px-1.5 py-0.5 font-mono text-violet-700 dark:text-violet-300">{estimatedTokens} T</span>
-            {diagnosticCount > 0 && <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-bold text-destructive">{t("prompt_composer.validation_badge", { count: String(diagnosticCount) })}</span>}
-          </div>
-        </div>
-      </PromptComposerButton>
-
-      <div className="flex w-9 shrink-0 flex-col border-l border-border">
-        <PromptComposerButton variant="ghost" size="icon-xs" disabled={!isOrderSort || index === 0} onClick={() => onMove(index, -1)} aria-label={t("prompt_composer.move_up")} className="h-auto min-h-0 flex-1 rounded-none border-0 shadow-none disabled:opacity-20"><ArrowUp className="h-3 w-3" /></PromptComposerButton>
-        <PromptComposerButton variant="ghost" size="icon-xs" disabled={!isOrderSort || index === totalBlocks - 1} onClick={() => onMove(index, 1)} aria-label={t("prompt_composer.move_down")} className="h-auto min-h-0 flex-1 rounded-none border-x-0 border-y border-border shadow-none disabled:opacity-20"><ArrowDown className="h-3 w-3" /></PromptComposerButton>
-        <PromptComposerButton variant="ghost" size="icon-xs" onClick={() => onDelete(block.id)} aria-label={t("prompt_composer.delete_block")} className="h-auto min-h-0 flex-1 rounded-none border-0 text-destructive shadow-none hover:bg-destructive/10"><Trash2 className="h-3 w-3" /></PromptComposerButton>
-      </div>
-    </article>
-  );
-});

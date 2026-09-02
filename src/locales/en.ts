@@ -991,6 +991,7 @@ export default {
   "prompt_composer.list_search": "Search name, content, ID, or source",
   "prompt_composer.list_group": "Prompt grouping",
   "prompt_composer.list_sort": "Prompt sorting",
+  "prompt_composer.manage_toggle": "Search & manage",
   "prompt_composer.group_none": "No grouping",
   "prompt_composer.group_role": "Group by role",
   "prompt_composer.group_source": "Group by source",

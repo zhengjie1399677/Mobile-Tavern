@@ -34,15 +34,24 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
 
   return (
     <AccordionItem value="asr-api-config" className="settings-connection-item overflow-hidden">
-      <AccordionTrigger className="settings-panel-trigger px-3.5 py-3 hover:no-underline hover:bg-muted/30 transition">
-        <div className="flex items-center gap-2">
-          <span className="settings-panel-icon"><Mic className="w-4 h-4 text-primary" /></span>
-          <div className="flex flex-col items-start gap-1">
-            <span className="text-sm font-semibold">{t("asr.title")}</span>
-            <span className="text-xs text-muted-foreground font-normal">
-              {t("asr.subtitle")}
-            </span>
+      <AccordionTrigger className="settings-panel-trigger px-3 py-2 hover:no-underline hover:bg-muted/30 transition">
+        <div className="flex items-center justify-between w-full pr-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="settings-panel-icon"><Mic className="w-4 h-4 text-primary" /></span>
+            <div className="flex flex-col items-start gap-0.5 min-w-0">
+              <span className="text-xs sm:text-[13px] font-semibold text-foreground">{t("asr.title")}</span>
+              <span className="text-[10.5px] text-muted-foreground/75 font-normal truncate max-w-[200px] sm:max-w-none">
+                {t("asr.subtitle")}
+              </span>
+            </div>
           </div>
+          <span className={`shrink-0 items-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold font-mono ${
+            asrConfig.enabled
+              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+              : "bg-muted/40 text-muted-foreground border border-border/40"
+          }`}>
+            {asrConfig.enabled ? "已启用" : "未启用"}
+          </span>
         </div>
       </AccordionTrigger>
       <AccordionContent className="p-3 pt-1 border-t border-border/50 space-y-3">
@@ -73,7 +82,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
                 value={asrConfig.provider}
                 onValueChange={(val: "web-speech" | "openai") => updateAsr({ provider: val })}
               >
-                <SelectTrigger aria-label={t("asr.engine")} className="w-full h-9 text-xs bg-input/40 border border-border">
+                <SelectTrigger aria-label={t("asr.engine")} className="w-full h-8.5 text-xs bg-background/80 border-border/70 rounded-xl shadow-2xs font-medium">
                   <SelectValue placeholder="Select Provider" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground border border-border shadow-lg">
@@ -92,7 +101,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
               <label className="text-[11px] font-semibold text-muted-foreground">{t("asr.lang")}</label>
               <Input
                 type="text"
-                className="font-mono text-xs h-9 bg-input/50"
+                className="font-mono text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs"
                 value={asrConfig.language}
                 onChange={(e) => updateAsr({ language: e.target.value })}
                 placeholder={t("asr.lang_placeholder")}
@@ -110,7 +119,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
                   <label className="text-[11px] font-semibold text-muted-foreground">API Key</label>
                   <Input
                     type="password"
-                    className="font-mono text-xs h-9 bg-input/50"
+                    className="font-mono text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs"
                     spellCheck={false}
                     value={asrConfig.openaiApiKey || ""}
                     onChange={(e) => updateAsr({ openaiApiKey: e.target.value })}
@@ -123,7 +132,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
                   <label className="text-[11px] font-semibold text-muted-foreground">Base URL</label>
                   <Input
                     type="text"
-                    className="font-mono text-xs h-9 bg-input/50"
+                    className="font-mono text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs"
                     spellCheck={false}
                     value={asrConfig.openaiBaseUrl || ""}
                     onChange={(e) => updateAsr({ openaiBaseUrl: e.target.value })}
@@ -136,7 +145,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
                   <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.model")}</label>
                   <Input
                     type="text"
-                    className="font-mono text-xs h-9 bg-input/50"
+                    className="font-mono text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs"
                     spellCheck={false}
                     value={asrConfig.openaiModel || ""}
                     onChange={(e) => updateAsr({ openaiModel: e.target.value })}

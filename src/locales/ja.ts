@@ -909,6 +909,7 @@ export default {
   "prompt_composer.list_search": "名前、内容、ID、出典を検索",
   "prompt_composer.list_group": "Prompt グループ",
   "prompt_composer.list_sort": "Prompt 並び順",
+  "prompt_composer.manage_toggle": "検索と管理",
   "prompt_composer.group_none": "グループなし",
   "prompt_composer.group_role": "ロール別",
   "prompt_composer.group_source": "出典別",

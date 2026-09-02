@@ -209,23 +209,26 @@
 .settings-header-icon {
   display: grid;
   place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 1.85rem;
+  height: 1.85rem;
   border: 1px solid color-mix(in oklch, var(--primary) 24%, transparent);
-  border-radius: 0.8rem;
+  border-radius: 0.6rem;
   background: color-mix(in oklch, var(--primary) 10%, transparent);
 }
 
 .settings-category-list {
-  border-top: 1px solid color-mix(in oklch, var(--border) 46%, transparent);
-  border-bottom: 1px solid color-mix(in oklch, var(--border) 46%, transparent);
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+  background: color-mix(in oklch, var(--card) 60%, transparent);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
 }
 
 .settings-category-row {
-  min-height: 4.5rem;
-  gap: 0.85rem;
-  padding: 0.75rem 0.2rem;
-  border-bottom: 1px solid color-mix(in oklch, var(--border) 42%, transparent);
+  min-height: 3.25rem;
+  gap: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 40%, transparent);
 }
 
 .settings-category-row:last-child {
@@ -234,19 +237,19 @@
 
 .settings-category-row:hover,
 .settings-category-row[data-selected="true"] {
-  background: color-mix(in oklch, var(--primary) 5%, transparent);
+  background: color-mix(in oklch, var(--primary) 7%, transparent);
 }
 
 .settings-category-row-compact {
-  min-height: 3.75rem;
-  gap: 0.7rem;
-  padding: 0.55rem 0.2rem;
+  min-height: 2.75rem;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem;
 }
 
 .settings-category-heading {
-  margin: 0 0 0.6rem;
+  margin: 0 0 0.4rem 0.25rem;
   color: var(--muted-foreground);
-  font-size: 0.68rem;
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -258,12 +261,15 @@
 
 .settings-connection-stack {
   gap: 0;
-  border-top: 1px solid color-mix(in oklch, var(--border) 46%, transparent);
-  border-bottom: 1px solid color-mix(in oklch, var(--border) 46%, transparent);
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+  background: color-mix(in oklch, var(--card) 60%, transparent);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
 }
 
 .settings-connection-item {
-  border-bottom: 1px solid color-mix(in oklch, var(--border) 42%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 40%, transparent);
   overflow: hidden;
 }
 
@@ -272,30 +278,29 @@
 }
 
 .settings-connection-stack .settings-panel-trigger {
-  min-height: 4.5rem;
-  padding-top: 0.85rem;
-  padding-bottom: 0.85rem;
+  min-height: 3.25rem;
+  padding: 0.5rem 0.65rem;
   border-radius: 0;
 }
 
 .settings-category-icon {
-  width: 2.6rem;
-  height: 2.6rem;
+  width: 1.85rem;
+  height: 1.85rem;
   color: var(--primary);
-  border-radius: 0.85rem;
+  border-radius: 0.55rem;
   background: color-mix(in oklch, var(--primary) 8%, transparent);
   transition: color 150ms ease, background-color 150ms ease;
 }
 
 .settings-category-icon-compact {
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .settings-status-dot {
   display: inline-block;
-  width: 0.4rem;
-  height: 0.4rem;
+  width: 0.35rem;
+  height: 0.35rem;
   flex: 0 0 auto;
   border-radius: 999px;
   background: currentColor;
@@ -304,10 +309,10 @@
 .settings-panel-icon {
   display: grid;
   place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 1.85rem;
+  height: 1.85rem;
   flex: 0 0 auto;
-  border-radius: 0.9rem;
+  border-radius: 0.55rem;
   background: color-mix(in oklch, var(--primary) 11%, transparent);
 }
 
@@ -321,11 +326,11 @@
 
 .settings-connection-stack .settings-panel-trigger > div > div > span:last-child {
   max-width: 100%;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .settings-form-group {
-  padding: 1rem 0.9rem;
+  padding: 0.75rem 0.75rem;
   border-bottom: 1px solid color-mix(in oklch, var(--border) 36%, transparent);
 }
 
@@ -334,9 +339,9 @@
 }
 
 .settings-form-group-title {
-  margin: 0 0 0.8rem;
+  margin: 0 0 0.5rem;
   color: var(--foreground);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -478,8 +483,8 @@
 
 @media (max-width: 420px) {
   .settings-shell { padding-left: 0.5rem; padding-right: 0.5rem; }
-  .settings-category-row { min-height: 4.25rem; padding-left: 0; padding-right: 0; }
-  .settings-connection-stack .settings-panel-trigger { min-height: 4.25rem; }
+  .settings-category-row { min-height: 3.25rem; padding-left: 0.5rem; padding-right: 0.5rem; }
+  .settings-connection-stack .settings-panel-trigger { min-height: 3.5rem; }
   .settings-form-group { padding-left: 0; padding-right: 0; }
 }
 

@@ -37,7 +37,7 @@ export default function FeaturesSection({
         <CardContent className="p-3 space-y-3">
           <div className="flex items-center gap-2 pb-1.5 border-b border-border/50 mb-1.5 select-none">
             <Globe className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold text-foreground tracking-wide">
+            <span className="text-xs sm:text-[13px] font-semibold text-foreground tracking-wide">
               {t("lang.section_title")}
             </span>
           </div>
@@ -77,13 +77,13 @@ export default function FeaturesSection({
           type="button"
           aria-expanded={showFeatureDetails}
           onClick={() => setShowFeatureDetails((current) => !current)}
-          className="flex min-h-14 w-full items-center gap-3 px-4 text-left"
+          className="flex min-h-11 w-full items-center gap-2.5 px-3 text-left"
         >
             <FlaskConical className="w-4 h-4 text-primary" />
-            <span className="flex-1 text-sm font-bold text-foreground tracking-wide">
+            <span className="flex-1 text-xs sm:text-[13px] font-semibold text-foreground tracking-wide">
               {t("features.section_title")}
             </span>
-            <ChevronDown className={`size-4 text-muted-foreground transition-transform ${showFeatureDetails ? "rotate-180" : ""}`} />
+            <ChevronDown className={`size-3.5 text-muted-foreground transition-transform ${showFeatureDetails ? "rotate-180" : ""}`} />
         </button>
         {showFeatureDetails && (
         <CardContent className="space-y-4 border-t border-border/40 px-4 pb-4 pt-3">

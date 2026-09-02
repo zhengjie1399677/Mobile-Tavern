@@ -91,6 +91,7 @@ export function PromptComposerSelect({
 }) {
   const toInternalValue = (nextValue: string) => nextValue === "" ? EMPTY_OPTION_VALUE : nextValue;
   const fromInternalValue = (nextValue: unknown) => nextValue === EMPTY_OPTION_VALUE ? "" : String(nextValue);
+  const selectedLabel = options.find((option) => option.value === value)?.label;
 
   return (
     <Select
@@ -103,7 +104,7 @@ export function PromptComposerSelect({
         data-prompt-control="select"
         className={cn("h-9 rounded-lg text-xs font-semibold", controlSurfaceClass, className)}
       >
-        <SelectValue />
+        <SelectValue>{selectedLabel}</SelectValue>
       </SelectTrigger>
       <SelectContent align="start" className="z-[90] border border-border bg-popover p-1 shadow-xl">
         {options.map((option) => (
@@ -118,5 +119,56 @@ export function PromptComposerSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+export function PromptComposerSegmentedControl<T extends string>({
+  value,
+  onValueChange,
+  options,
+  ariaLabel,
+  disabled,
+  className,
+}: {
+  value: T;
+  onValueChange: (value: T) => void;
+  options: readonly { value: T; label: ReactNode; icon?: ReactNode; disabled?: boolean }[];
+  ariaLabel?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className={cn(
+        "inline-flex w-full items-center gap-1 rounded-xl border border-border/70 bg-muted/40 p-1 backdrop-blur-sm",
+        disabled && "pointer-events-none opacity-60",
+        className,
+      )}
+    >
+      {options.map((option) => {
+        const isActive = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={isActive}
+            disabled={disabled || option.disabled}
+            onClick={() => onValueChange(option.value)}
+            className={cn(
+              "inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-[0.98]",
+              isActive
+                ? "bg-background text-primary shadow-sm ring-1 ring-border/80 font-bold"
+                : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
+            )}
+          >
+            {option.icon}
+            <span className="truncate">{option.label}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

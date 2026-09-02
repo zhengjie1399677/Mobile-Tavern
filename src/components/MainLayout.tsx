@@ -240,7 +240,7 @@ export default function MainLayout() {
             aria-label="底栏导航页签"
             data-ui="main-tab-bar"
             style={{ bottom: `${2 + (safeAreas?.bottom ?? 0)}px` }}
-            className="absolute left-2 right-2 h-12 rounded-xl bg-card/70 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)]"
+            className="absolute left-2 right-2 h-11.5 rounded-xl bg-card/80 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_4px_24px_0_rgba(0,0,0,0.15)]"
           >
             {bottomBarTabs.map((tab, index) => {
               const IconComp = ((tab.meta?.icon && ICON_MAP[tab.meta.icon as keyof typeof ICON_MAP]) || HelpCircle) as LucideIcon;
@@ -263,10 +263,10 @@ export default function MainLayout() {
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <IconComp className={`w-5 h-5 mb-0.5 transition-[filter] ${selected ? "drop-shadow-[0_0_5px_var(--primary)]" : ""}`} aria-hidden="true" />
-                  <span className="text-xs landscape:hidden">{localizedName}</span>
+                  <IconComp className={`w-4 h-4 mb-0.5 transition-[filter] ${selected ? "drop-shadow-[0_0_4px_var(--primary)]" : ""}`} aria-hidden="true" />
+                  <span className="text-[10px] font-medium leading-none landscape:hidden">{localizedName}</span>
                   {selected && (
-                    <span className="absolute bottom-0.5 h-0.5 w-5 rounded-full bg-primary shadow-[0_0_7px_var(--primary)]" />
+                    <span className="absolute bottom-0.5 h-0.5 w-4 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]" />
                   )}
                 </button>
               );
