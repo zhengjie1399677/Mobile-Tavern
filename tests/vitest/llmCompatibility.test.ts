@@ -122,6 +122,23 @@ describe("LLM Provider 兼容层", () => {
     expect(result.map((message) => message.reasoning_content)).toEqual(["思考一", "思考二"]);
   });
 
+  it("历史助手文本被请求包装后仍回填 reasoning_content", () => {
+    const sessionMessages = [{
+      id: "wrapped-assistant",
+      sender: "assistant",
+      content: "原始回复",
+      reasoningContent: "原始思考",
+      timestamp: 1,
+    }] as Message[];
+
+    const result = preserveAssistantReasoning([{
+      role: "assistant",
+      content: "<center>\n原始回复\n</center>",
+    }], sessionMessages, "https://api.deepseek.com/v1", "deepseek-chat");
+
+    expect(result[0].reasoning_content).toBe("原始思考");
+  });
+
   it("按 tool_calls ID 为 content=null 的助手消息回填 reasoning_content", () => {
     const sessionMessages = [{
       id: "tool-message",

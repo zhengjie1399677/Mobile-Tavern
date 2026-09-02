@@ -290,6 +290,47 @@ describe("useSendMessage 弱网与中止事务", () => {
       .toBeLessThan(harness.checkAndSummarize.mock.invocationCallOrder[0]);
   });
 
+  it("正常发送会为请求包装后的历史助手消息回放 reasoning_content", async () => {
+    silenceConsole();
+    const harness = createHarness(async function* () {
+      yield { choices: [{ delta: { content: "下一轮回复" } }] };
+    });
+    harness.getSessions()[0].messages[0].reasoningContent = "上一轮思考";
+    harness.params.settings.api = {
+      ...harness.params.settings.api,
+      type: "openai-compat",
+      modelName: "deepseek-chat",
+      baseUrl: "https://api.deepseek.com/v1",
+    };
+    harness.params.promptService.assemblePrompt = vi.fn(() => ({
+      version: 1 as const,
+      systemInstruction: "",
+      dynamicInstruction: "",
+      history: [],
+      messages: [
+        { role: "assistant" as const, content: "<center>\n欢迎消息\n</center>" },
+        { role: "user" as const, content: "继续" },
+      ],
+      diagnostics: [],
+      traces: [],
+      requestShaping: emptyPromptShapingReport(),
+    }));
+    const { result } = renderHook(() => useSendMessage(harness.params));
+
+    await act(async () => {
+      await result.current.handleSendMessage("继续");
+    });
+
+    const streamCall = vi.mocked(harness.params.chatStreamService.streamLlmResponse).mock.calls[0][0];
+    const body = streamCall.reqBody as {
+      messages: Array<{ role: string; content: unknown; reasoning_content?: string }>;
+    };
+    expect(body.messages[0]).toMatchObject({
+      role: "assistant",
+      reasoning_content: "上一轮思考",
+    });
+  });
+
   it("首包失败时移除占位符但只保留一条用户消息，供显式重发", async () => {
     silenceConsole();
     const harness = createHarness(async function* () {

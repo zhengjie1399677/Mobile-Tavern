@@ -40,7 +40,7 @@ export function prepareProviderRequest(options: PrepareProviderRequestOptions): 
 }
 
 /**
- * Preserved Thinking 适配：按相同可见文本的出现顺序回填，避免重复对白被 Map 覆盖。
+ * Preserved Thinking 适配：按相同或仅被请求包装的可见文本依次回填。
  * 仅向声明该方言的模型族添加 reasoning_content，未知模型保持原请求。
  */
 export function preserveAssistantReasoning(
@@ -115,13 +115,21 @@ export function preserveAssistantReasoning(
     entry.candidate.used = true;
     return entry.candidate.reasoning;
   };
+  const takeWrappedContent = (providerContent: string): string | null => {
+    const candidate = reasoningCandidates.find((item) =>
+      !item.used && isRequestWrappedContent(providerContent, item.content)
+    );
+    if (!candidate) return null;
+    candidate.used = true;
+    return candidate.reasoning;
+  };
 
   return providerMessages.map((message) => {
     const cloned = cloneProviderMessage(message);
     if (cloned.role !== "assistant") return cloned;
     const toolCallKey = providerToolCallKey(cloned);
     const reasoning = typeof cloned.content === "string"
-      ? takeFrom(byContent.get(cloned.content) ?? EMPTY_LIST)
+      ? takeFrom(byContent.get(cloned.content) ?? EMPTY_LIST) ?? takeWrappedContent(cloned.content)
       : cloned.content === null && toolCallKey !== null
         ? takeFromEither(byToolCallKey.get(toolCallKey) ?? EMPTY_LIST, emptyContentFallback)
         : null;
@@ -184,6 +192,18 @@ function providerToolCallKey(message: OpenAiProviderMessage): string | null {
   if (!message.tool_calls?.length) return null;
   const ids = message.tool_calls.map((call) => call.id).filter(Boolean);
   return ids.length === message.tool_calls.length ? ids.join("\u0000") : null;
+}
+
+/**
+ * Prompt 编排可以在历史消息外增加角色包装、结构标签或开场消息补全。
+ * 原始内容仍完整存在时视为同一条消息；不做模糊相似匹配，避免把思考内容错配给注入消息。
+ */
+function isRequestWrappedContent(providerContent: string, sessionContent: string): boolean {
+  const normalizedProvider = providerContent.trim();
+  const normalizedSession = sessionContent.trim();
+  return normalizedSession.length > 0
+    && normalizedProvider !== normalizedSession
+    && normalizedProvider.includes(normalizedSession);
 }
 
 /** 只读取旧导入数据中的 Provider Tool Call ID；新领域消息不持久化 Provider 方言。 */
