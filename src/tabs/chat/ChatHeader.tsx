@@ -51,7 +51,7 @@ const ChatHeader = ({
     activeCharacter,
     activeSession,
     setActiveSessionId,
-    handleStartNewSession,
+    createNewBranch,
     setShowSessionManager,
     setActiveTab,
     showCustomPrompt,
@@ -68,7 +68,7 @@ const ChatHeader = ({
     activeCharacter: state.activeCharacter,
     activeSession: state.activeSession,
     setActiveSessionId: state.setActiveSessionId,
-    handleStartNewSession: state.handleStartNewSession,
+    createNewBranch: state.createNewBranch,
     setShowSessionManager: state.setShowSessionManager,
     setActiveTab: state.setActiveTab,
     showCustomPrompt: state.showCustomPrompt,
@@ -265,7 +265,7 @@ const ChatHeader = ({
                   disabled={isSending}
                   onClick={() => {
                     setShowSessionMenu(false);
-                    void handleStartNewSession();
+                    void createNewBranch();
                   }}
                   className="flex min-h-8.5 w-full items-center gap-2 rounded-xl bg-primary/10 px-2.5 text-left text-xs font-semibold text-primary transition-colors hover:bg-primary/15 disabled:opacity-40"
                 >

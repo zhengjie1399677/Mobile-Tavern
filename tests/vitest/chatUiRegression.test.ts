@@ -28,7 +28,9 @@ describe("聊天界面回归守卫", () => {
 
   it("会话菜单直接提供新建分支、切换分支与管理切换人设", () => {
     const source = readSource("src/tabs/chat/ChatHeader.tsx");
-    expect(source).toContain("handleStartNewSession");
+    expect(source).toContain("createNewBranch: state.createNewBranch");
+    expect(source).toContain("void createNewBranch();");
+    expect(source).not.toContain("void handleStartNewSession();");
     expect(source).toContain("setActiveSessionId(session.id)");
     expect(source).toContain("UserPersonaModal");
     expect(source).toContain("setIsPersonaModalOpen");
