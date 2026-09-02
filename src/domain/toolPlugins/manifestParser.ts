@@ -20,6 +20,14 @@ const jsonSchemaSchema = z.record(z.string(), z.unknown()).refine(
   "Tool JSON Schema 必须以 object 为根类型",
 );
 
+const pureHostCapabilities: readonly string[] = [
+  "system.time",
+  "random.dice",
+  "random.coin",
+  "random.pick",
+  "text.count",
+];
+
 const composerCommandSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
   inputProperty: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/).optional(),
@@ -45,7 +53,14 @@ const toolHandlerSchema = z.discriminatedUnion("kind", [
   }).strict(),
   z.object({
     kind: z.literal("host"),
-    capability: z.enum(["memory.write", "system.time"]),
+    capability: z.enum([
+      "memory.write",
+      "system.time",
+      "random.dice",
+      "random.coin",
+      "random.pick",
+      "text.count",
+    ]),
   }).strict(),
 ]);
 
@@ -211,7 +226,7 @@ const manifestSchema = z.object({
         });
       }
     }
-    if (tool.handler?.kind === "host" && tool.handler.capability === "system.time") {
+    if (tool.handler?.kind === "host" && pureHostCapabilities.includes(tool.handler.capability)) {
       if (
         tool.permissions.length > 0
         || tool.riskLevel !== "low"
@@ -220,7 +235,7 @@ const manifestSchema = z.object({
       ) {
         context.addIssue({
           code: "custom",
-          message: `Host Tool ${tool.id} 的 system.time 必须无权限、低风险、无副作用并使用 turn Scope`,
+          message: `Host Tool ${tool.id} 的 ${tool.handler.capability} 必须无权限、低风险、无副作用并使用 turn Scope`,
           path: ["tools"],
         });
       }

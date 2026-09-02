@@ -127,7 +127,13 @@ export interface ToolPluginManifestDefinition {
         }
       | {
           readonly kind: "host";
-          readonly capability: "memory.write" | "system.time";
+          readonly capability:
+            | "memory.write"
+            | "system.time"
+            | "random.dice"
+            | "random.coin"
+            | "random.pick"
+            | "text.count";
         };
   }[];
   readonly cleanup: {

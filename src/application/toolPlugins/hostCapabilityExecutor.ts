@@ -10,6 +10,8 @@ export interface ToolPluginHostCapabilityExecution {
   readonly now?: () => number;
   readonly locale?: string;
   readonly timeZone?: string;
+  /** [0, 1) 随机源，缺省回退 Math.random；仅用于无副作用随机能力，便于测试注入。 */
+  readonly random?: () => number;
 }
 
 export async function executeToolPluginHostCapability(
@@ -20,6 +22,14 @@ export async function executeToolPluginHostCapability(
       return executeMemoryWrite(execution);
     case "system.time":
       return executeSystemTime(execution);
+    case "random.dice":
+      return executeRandomDice(execution);
+    case "random.coin":
+      return executeRandomCoin(execution);
+    case "random.pick":
+      return executeRandomPick(execution);
+    case "text.count":
+      return executeTextCount(execution);
   }
 }
 
@@ -45,6 +55,97 @@ function executeSystemTime(
     hour12: false,
   }).format(date);
   return { text: `📅 ${dateText}\n🕒 ${timeText} · ${timeZone}` };
+}
+
+function executeRandomDice(
+  execution: ToolPluginHostCapabilityExecution,
+): { text: string } {
+  assertNotAborted(execution.context.signal);
+  const input = parseDiceExpression(execution.input);
+  const random = execution.random ?? Math.random;
+  const rolls: number[] = [];
+  for (let i = 0; i < input.count; i += 1) {
+    rolls.push(1 + Math.floor(random() * input.sides));
+  }
+  const total = rolls.reduce((sum, value) => sum + value, 0) + input.modifier;
+  return { text: `🎲 ${input.expression} = [${rolls.join(", ")}] → ${total}` };
+}
+
+interface DiceExpression {
+  readonly expression: string;
+  readonly count: number;
+  readonly sides: number;
+  readonly modifier: number;
+}
+
+function parseDiceExpression(input: unknown): DiceExpression {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("TOOL_PLUGIN_DICE_INPUT_INVALID");
+  }
+  const value = input as Record<string, unknown>;
+  if (typeof value.expression !== "string") throw new Error("TOOL_PLUGIN_DICE_INPUT_INVALID");
+  const expression = value.expression.trim();
+  const match = /^(\d{1,3})d(\d{1,4})([+-]\d{1,6})?$/i.exec(expression);
+  if (!match) throw new Error("TOOL_PLUGIN_DICE_INPUT_INVALID");
+  const count = Number(match[1]);
+  const sides = Number(match[2]);
+  const modifier = match[3] ? Number(match[3]) : 0;
+  if (count < 1 || count > 100 || sides < 2 || sides > 1000) {
+    throw new Error("TOOL_PLUGIN_DICE_INPUT_INVALID");
+  }
+  return { expression, count, sides, modifier };
+}
+
+function executeRandomCoin(
+  execution: ToolPluginHostCapabilityExecution,
+): { text: string } {
+  assertNotAborted(execution.context.signal);
+  const random = execution.random ?? Math.random;
+  return { text: random() < 0.5 ? "🪙 正面" : "🪙 反面" };
+}
+
+function executeRandomPick(
+  execution: ToolPluginHostCapabilityExecution,
+): { text: string } {
+  assertNotAborted(execution.context.signal);
+  const options = parsePickOptions(execution.input);
+  const random = execution.random ?? Math.random;
+  const picked = options[Math.floor(random() * options.length)];
+  return { text: `🎯 从 ${options.length} 个选项抽中：${picked}` };
+}
+
+function parsePickOptions(input: unknown): string[] {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("TOOL_PLUGIN_PICK_INPUT_INVALID");
+  }
+  const value = input as Record<string, unknown>;
+  if (typeof value.options !== "string") throw new Error("TOOL_PLUGIN_PICK_INPUT_INVALID");
+  const options = [...new Set(
+    value.options.split(/[,，、;；\n]/).map((item) => item.trim()).filter(Boolean),
+  )];
+  if (options.length < 2 || options.length > 100) throw new Error("TOOL_PLUGIN_PICK_INPUT_INVALID");
+  return options;
+}
+
+function executeTextCount(
+  execution: ToolPluginHostCapabilityExecution,
+): { text: string } {
+  assertNotAborted(execution.context.signal);
+  const text = parseTextInput(execution.input);
+  const chars = [...text].length;
+  const nonSpace = [...text.replace(/\s/g, "")].length;
+  const han = [...text].filter((char) => /\p{Script=Han}/u.test(char)).length;
+  const lines = text.length === 0 ? 0 : text.split(/\r?\n/).length;
+  return { text: `字符 ${chars}（含空白）· 非空白 ${nonSpace} · 汉字 ${han} · 行 ${lines}` };
+}
+
+function parseTextInput(input: unknown): string {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("TOOL_PLUGIN_TEXT_INPUT_INVALID");
+  }
+  const value = input as Record<string, unknown>;
+  if (typeof value.text !== "string") throw new Error("TOOL_PLUGIN_TEXT_INPUT_INVALID");
+  return value.text;
 }
 
 async function executeMemoryWrite(

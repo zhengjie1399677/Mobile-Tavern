@@ -144,4 +144,28 @@ describe("受控 Tool Plugin Manifest", () => {
     });
     await expect(parseToolPluginManifest(JSON.stringify(manifest))).rejects.toThrow("system.time");
   });
+
+  it("拒绝把 text.count Host Capability 声明为有权限或有副作用", async () => {
+    const manifest = await createToolPluginManifest({
+      manifestVersion: 2,
+      permissions: [{ id: "session.read", reason: "不应需要", riskLevel: "low" }],
+      tools: [{
+        id: "text.count",
+        name: "字数统计",
+        description: "错误的越权统计能力。",
+        inputSchema: { type: "object", properties: {} },
+        outputSchema: {
+          type: "object",
+          properties: { text: { type: "string" } },
+          required: ["text"],
+        },
+        permissions: ["session.read"],
+        riskLevel: "medium",
+        sideEffect: "none",
+        executionScope: "session",
+        handler: { kind: "host", capability: "text.count" },
+      }],
+    });
+    await expect(parseToolPluginManifest(JSON.stringify(manifest))).rejects.toThrow("text.count");
+  });
 });

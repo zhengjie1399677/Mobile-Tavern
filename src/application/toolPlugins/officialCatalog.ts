@@ -7,6 +7,11 @@ export const MEMORY_TOOL_PLUGIN_ID = "official.memory";
 export const MEMORY_WRITE_TOOL_NAME = `ext.${MEMORY_TOOL_PLUGIN_ID}.memory.write`;
 export const DEVICE_TIME_TOOL_PLUGIN_ID = "official.device-time";
 export const DEVICE_TIME_TOOL_NAME = `ext.${DEVICE_TIME_TOOL_PLUGIN_ID}.system.time`;
+export const UTILITY_TOOL_PLUGIN_ID = "official.utility";
+export const UTILITY_DICE_TOOL_NAME = `ext.${UTILITY_TOOL_PLUGIN_ID}.random.dice`;
+export const UTILITY_COIN_TOOL_NAME = `ext.${UTILITY_TOOL_PLUGIN_ID}.random.coin`;
+export const UTILITY_PICK_TOOL_NAME = `ext.${UTILITY_TOOL_PLUGIN_ID}.random.pick`;
+export const UTILITY_COUNT_TOOL_NAME = `ext.${UTILITY_TOOL_PLUGIN_ID}.text.count`;
 
 const braveSearchManifest = {
   format: "mobile-tavern.tool-plugin",
@@ -207,8 +212,123 @@ const deviceTimeManifest = {
   },
 } as const satisfies Omit<ToolPluginManifest, "contentHash">;
 
+const utilityManifest = {
+  format: "mobile-tavern.tool-plugin",
+  manifestVersion: 2,
+  id: UTILITY_TOOL_PLUGIN_ID,
+  name: "本地实用工具",
+  version: "1.0.0",
+  description: "一批纯本地、无权限、无副作用的实用小工具，通过输入框命令直接生成可发送的文本草稿。",
+  author: "Mobile Tavern",
+  source: {
+    label: "Mobile Tavern 官方预置",
+    url: "https://github.com/zhengjie1399677/Mobile-Tavern",
+  },
+  runtime: {
+    minVersion: "1.8.9",
+    execution: "worker",
+    timeoutMs: 1_000,
+  },
+  targetProfiles: ["*"],
+  dependencies: [],
+  permissions: [],
+  tools: [{
+    id: "random.dice",
+    name: "掷骰子",
+    description: "掷 NdM 骰子（如 2d6、1d20、3d6+2），返回每次结果与总和。",
+    inputSchema: {
+      type: "object",
+      properties: { expression: { type: "string", minLength: 2, maxLength: 20 } },
+      required: ["expression"],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: { text: { type: "string" } },
+      required: ["text"],
+      additionalProperties: false,
+    },
+    permissions: [],
+    riskLevel: "low",
+    sideEffect: "none",
+    executionScope: "turn",
+    composerCommand: { name: "dice", inputProperty: "expression", outputProperty: "text" },
+    handler: { kind: "host", capability: "random.dice" },
+  }, {
+    id: "random.coin",
+    name: "掷硬币",
+    description: "掷一枚硬币，返回正面或反面。",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: { text: { type: "string" } },
+      required: ["text"],
+      additionalProperties: false,
+    },
+    permissions: [],
+    riskLevel: "low",
+    sideEffect: "none",
+    executionScope: "turn",
+    composerCommand: { name: "coin", outputProperty: "text" },
+    handler: { kind: "host", capability: "random.coin" },
+  }, {
+    id: "random.pick",
+    name: "随机抽取",
+    description: "从逗号分隔的多个选项中随机抽取一个。",
+    inputSchema: {
+      type: "object",
+      properties: { options: { type: "string", minLength: 2, maxLength: 2_000 } },
+      required: ["options"],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: { text: { type: "string" } },
+      required: ["text"],
+      additionalProperties: false,
+    },
+    permissions: [],
+    riskLevel: "low",
+    sideEffect: "none",
+    executionScope: "turn",
+    composerCommand: { name: "pick", inputProperty: "options", outputProperty: "text" },
+    handler: { kind: "host", capability: "random.pick" },
+  }, {
+    id: "text.count",
+    name: "字数统计",
+    description: "统计一段文本的字符数、非空白字符数、汉字数和行数。",
+    inputSchema: {
+      type: "object",
+      properties: { text: { type: "string", minLength: 1, maxLength: 20_000 } },
+      required: ["text"],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: { text: { type: "string" } },
+      required: ["text"],
+      additionalProperties: false,
+    },
+    permissions: [],
+    riskLevel: "low",
+    sideEffect: "none",
+    executionScope: "turn",
+    composerCommand: { name: "count", inputProperty: "text", outputProperty: "text" },
+    handler: { kind: "host", capability: "text.count" },
+  }],
+  cleanup: {
+    onDisable: "revoke-runtime",
+    onPermissionRevoke: "disable-dependent-tools",
+    onUninstall: ["registrations", "credentials", "plugin-data"],
+  },
+} as const satisfies Omit<ToolPluginManifest, "contentHash">;
+
 export async function listOfficialToolPluginInspections(): Promise<ToolPluginInspection[]> {
-  return Promise.all([braveSearchManifest, memoryManifest, deviceTimeManifest].map(async (manifest) => ({
+  return Promise.all([braveSearchManifest, memoryManifest, deviceTimeManifest, utilityManifest].map(async (manifest) => ({
     manifest: structuredClone({
       ...manifest,
       contentHash: await computeToolPluginManifestHash(manifest),

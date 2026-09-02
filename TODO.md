@@ -14,6 +14,7 @@
 - [ ] **能力积木层扩充（P1，方向①）**：内置 Tool 从 2 个补齐联网、记忆写入、图像、TTS、日历等外部能力实例，media processor 从 2 个同步扩充；优先联网与记忆写入，其余按需。全部走 External Tool Plugin 框架，不进 Kernel。
   - 2026-09-02：已加入首个官方预置能力实例 `official.brave-search`。它通过 External Tool Plugin 的固定 HTTPS Origin、加密凭据注入、单次审批和流量配额提供网页搜索，默认未安装、未授权且未启用；下一步补 `memory.write`。
   - 2026-09-02：已加入 `official.memory`，通过 Manifest 白名单 Host Capability 把 `memory.write` 接到 `MemoryService`；每次写入均需高风险单次审批，并绑定当前会话来源消息，来源缺失时 fail-closed。联网与记忆写入两项优先能力已完成，其余能力按需继续。
+  - 2026-09-02：已加入 `official.utility` 本地实用工具包（按软件性质筛掉开发者向工具，只保留角色扮演/跑团/聊天场景）：`/dice` 掷骰（NdM±K）、`/coin` 掷硬币、`/pick` 随机抽取、`/count` 字数统计，四个均为无权限、低风险、无副作用的 turn composer 命令，走 Host Capability（random.dice / random.coin / random.pick / text.count），执行结果直接回填输入框草稿不自动发送。
 
 - [ ] **自定义主题工作室后续（P1）**：全屏工作室、独立草稿、隔离预览、核心/高级颜色和保存/应用分离已完成；继续实现起点选择、多场景预览、对比度与 CSS 行列诊断、片段库，以及 Theme 1.1 媒体/状态/规则可视化编辑。
 

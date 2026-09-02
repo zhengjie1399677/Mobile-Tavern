@@ -19,6 +19,7 @@ import {
   listOfficialToolPluginInspections,
   MEMORY_TOOL_PLUGIN_ID,
   MEMORY_WRITE_TOOL_NAME,
+  UTILITY_TOOL_PLUGIN_ID,
 } from "../../src/application/toolPlugins/officialCatalog";
 import { KernelServices } from "../../src/application/serviceContracts";
 import type { MemoryServiceTyped } from "../../src/application/services/memory";
@@ -220,6 +221,59 @@ describe("External Tool Plugin Runtime", () => {
       name: "time",
       argument: "",
     })).resolves.toMatch(/^📅 .+\n🕒 .+ · .+$/);
+
+    await service.destroy();
+    await agentRuntime.destroy();
+  });
+
+  it("官方本地实用工具插件暴露四个输入框命令并回填草稿", async () => {
+    const inspections = await listOfficialToolPluginInspections();
+    const manifest = inspections.find((item) => item.manifest.id === UTILITY_TOOL_PLUGIN_ID)!.manifest;
+    await installToolPluginManifest(manifest);
+    await setToolPluginEnabled(manifest.id, true);
+
+    const agentRuntime = new AgentRuntimeService(journal);
+    const kernel = {
+      getService: () => agentRuntime,
+      hasService: () => true,
+    } as unknown as IKernel;
+    agentRuntime.init(kernel);
+    const service = new ToolPluginRuntimeService(
+      { request: async () => ({ status: 200, contentType: "application/json", body: {} }) },
+      { execute: async () => ({}), getActiveWorkerCount: () => 0, destroy: () => undefined },
+    );
+    await service.init(kernel);
+
+    expect(service.listComposerCommands("mobile-tavern.base").map((command) => command.name))
+      .toEqual(["coin", "count", "dice", "pick"]);
+
+    await expect(service.executeComposerCommand({
+      profileId: "mobile-tavern.base",
+      sessionId: "session-utility",
+      name: "dice",
+      argument: "2d6",
+    })).resolves.toMatch(/^🎲 2d6 = \[\d, \d\] → \d+$/);
+
+    await expect(service.executeComposerCommand({
+      profileId: "mobile-tavern.base",
+      sessionId: "session-utility",
+      name: "coin",
+      argument: "",
+    })).resolves.toMatch(/^(🪙 正面|🪙 反面)$/);
+
+    await expect(service.executeComposerCommand({
+      profileId: "mobile-tavern.base",
+      sessionId: "session-utility",
+      name: "pick",
+      argument: "苹果,香蕉",
+    })).resolves.toMatch(/^🎯 从 2 个选项抽中：(苹果|香蕉)$/);
+
+    await expect(service.executeComposerCommand({
+      profileId: "mobile-tavern.base",
+      sessionId: "session-utility",
+      name: "count",
+      argument: "hello",
+    })).resolves.toBe("字符 5（含空白）· 非空白 5 · 汉字 0 · 行 1");
 
     await service.destroy();
     await agentRuntime.destroy();

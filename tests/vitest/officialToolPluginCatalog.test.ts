@@ -7,6 +7,11 @@ import {
   listOfficialToolPluginInspections,
   MEMORY_TOOL_PLUGIN_ID,
   MEMORY_WRITE_TOOL_NAME,
+  UTILITY_COIN_TOOL_NAME,
+  UTILITY_COUNT_TOOL_NAME,
+  UTILITY_DICE_TOOL_NAME,
+  UTILITY_PICK_TOOL_NAME,
+  UTILITY_TOOL_PLUGIN_ID,
 } from "../../src/application/toolPlugins/officialCatalog";
 import { parseToolPluginManifest } from "../../src/domain/toolPlugins";
 
@@ -78,5 +83,32 @@ describe("官方 Tool Plugin 目录", () => {
       }],
     });
     expect(`ext.${parsed.id}.${parsed.tools[0].id}`).toBe(DEVICE_TIME_TOOL_NAME);
+  });
+
+  it("提供本地实用工具包，暴露四个无权限输入框命令", async () => {
+    const inspections = await listOfficialToolPluginInspections();
+    const inspection = inspections.find((item) => item.manifest.id === UTILITY_TOOL_PLUGIN_ID)!;
+    const parsed = await parseToolPluginManifest(JSON.stringify(inspection.manifest));
+
+    expect(parsed).toMatchObject({ targetProfiles: ["*"], permissions: [] });
+    expect(parsed.tools.map((tool) => tool.composerCommand?.name))
+      .toEqual(["dice", "coin", "pick", "count"]);
+    expect(parsed.tools.map((tool) => tool.handler)).toEqual([
+      { kind: "host", capability: "random.dice" },
+      { kind: "host", capability: "random.coin" },
+      { kind: "host", capability: "random.pick" },
+      { kind: "host", capability: "text.count" },
+    ]);
+    expect(parsed.tools.every((tool) => (
+      tool.permissions.length === 0
+      && tool.riskLevel === "low"
+      && tool.sideEffect === "none"
+      && tool.executionScope === "turn"
+    ))).toBe(true);
+
+    expect(`ext.${parsed.id}.${parsed.tools[0].id}`).toBe(UTILITY_DICE_TOOL_NAME);
+    expect(`ext.${parsed.id}.${parsed.tools[1].id}`).toBe(UTILITY_COIN_TOOL_NAME);
+    expect(`ext.${parsed.id}.${parsed.tools[2].id}`).toBe(UTILITY_PICK_TOOL_NAME);
+    expect(`ext.${parsed.id}.${parsed.tools[3].id}`).toBe(UTILITY_COUNT_TOOL_NAME);
   });
 });
