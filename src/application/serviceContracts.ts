@@ -24,6 +24,8 @@ import type {
   AgentTurnExecutionContext,
 } from "../domain/agents/contracts";
 import type {
+  ToolPluginComposerCommand,
+  ToolPluginComposerCommandExecution,
   ToolPluginCredentialStatus,
   ToolPluginRuntimeDiagnostics,
 } from "../domain/toolPlugins";
@@ -93,6 +95,8 @@ export interface IToolPluginRuntimeService extends IKernelService {
   getEnabledToolNames(profileId: string): string[];
   extendComposition(snapshot: AgentCompositionSnapshot): AgentCompositionSnapshot;
   getDiagnostics(): ToolPluginRuntimeDiagnostics;
+  listComposerCommands(profileId: string): ToolPluginComposerCommand[];
+  executeComposerCommand(execution: ToolPluginComposerCommandExecution): Promise<string>;
   listCredentialStatus(pluginId: string): Promise<ToolPluginCredentialStatus[]>;
   setCredential(pluginId: string, credentialId: string, value: string): Promise<void>;
   deleteCredential(pluginId: string, credentialId: string): Promise<void>;

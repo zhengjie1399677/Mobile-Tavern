@@ -23,9 +23,16 @@ import {
   type IAgentRuntimeService,
   type IAttachmentService,
   type ICompatibilityRuntimeService,
+  type IToolPluginRuntimeService,
   type IVoiceCaptureService,
 } from "@/src/application/serviceContracts";
 import { resolveBuiltinProviderId } from "@/src/application/runtimePlugins/agentSpineRuntimePlugin";
+import { getSessionRuntimeProfileId } from "@/src/application/useCases/runtimeProfileSession";
+import {
+  filterComposerCommandSuggestions,
+  resolveComposerCommandInvocation,
+} from "@/src/application/useCases/composerCommandUseCases";
+import type { ToolPluginComposerCommand } from "@/src/domain/toolPlugins";
 import type { RecalledMessage } from "@/src/application/services/memory/types";
 import type { AttachmentMetadata } from "../../domain/attachments/types";
 import type { MessageContentPart } from "../../domain/messages/messageContent";
@@ -174,6 +181,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [isAsrRecording, setIsAsrRecording] = React.useState(false);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
   const [isModelVoiceRecording, setIsModelVoiceRecording] = React.useState(false);
+  const [isExecutingComposerCommand, setIsExecutingComposerCommand] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingAttachment[]>([]);
   const modelVoiceFinalizingRef = React.useRef(false);
   const modelVoiceCaptureTokenRef = React.useRef(0);
@@ -419,18 +427,85 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     return activeSession.messages[activeSession.messages.length - 1].sender === "user";
   }, [activeSession]);
 
+  const composerProfileId = React.useMemo(
+    () => getSessionRuntimeProfileId(activeSession),
+    [activeSession],
+  );
+  const composerCommands = React.useMemo<ToolPluginComposerCommand[]>(() => {
+    if (!composerProfileId) return [];
+    try {
+      return getKernelService<IToolPluginRuntimeService>(KernelServices.ToolConnectors)
+        .listComposerCommands(composerProfileId);
+    } catch {
+      // Tool Plugin Runtime 是可降级服务；缺失时输入框维持普通文本行为。
+      return [];
+    }
+  }, [composerProfileId, getKernelService]);
+  const composerCommandSuggestions = filterComposerCommandSuggestions(localInput, composerCommands);
+
+  const executeComposerCommand = React.useCallback(async (
+    command: ToolPluginComposerCommand,
+    argument: string,
+  ): Promise<void> => {
+    if (!activeSession || !composerProfileId || isExecutingComposerCommand) return;
+    if (command.acceptsArgument && !argument) {
+      await showCustomAlert(`/${command.name} 需要在命令后输入参数。`, "命令参数缺失");
+      return;
+    }
+    if (!command.acceptsArgument && argument) {
+      await showCustomAlert(`/${command.name} 不接受额外参数。`, "命令参数无效");
+      return;
+    }
+    setIsExecutingComposerCommand(true);
+    try {
+      const result = await getKernelService<IToolPluginRuntimeService>(KernelServices.ToolConnectors)
+        .executeComposerCommand({
+          profileId: composerProfileId,
+          sessionId: activeSession.id,
+          name: command.name,
+          argument,
+        });
+      setLocalInput(result);
+      setUserInputMessage(result);
+      setReplySuggestions([]);
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await showCustomAlert(`无法执行 /${command.name}：${message}`, "输入框命令失败");
+    } finally {
+      setIsExecutingComposerCommand(false);
+    }
+  }, [
+    activeSession,
+    composerProfileId,
+    getKernelService,
+    isExecutingComposerCommand,
+    setLocalInput,
+    setReplySuggestions,
+    setUserInputMessage,
+    showCustomAlert,
+  ]);
+
+  const executeComposerCommandIfPresent = React.useCallback(async (): Promise<boolean> => {
+    const invocation = resolveComposerCommandInvocation(localInput, composerCommands);
+    if (!invocation) return false;
+    await executeComposerCommand(invocation.command, invocation.argument);
+    return true;
+  }, [composerCommands, executeComposerCommand, localInput]);
+
   const canSend = React.useMemo(() => {
-    if (!activeSession || messageHydrationStatus !== "ready" || isModelVoiceRecording) return false;
+    if (!activeSession || messageHydrationStatus !== "ready" || isModelVoiceRecording || isExecutingComposerCommand) return false;
     const hasInput = (localInput || "").trim() !== "";
     const hasAttachments = pendingAttachments.length > 0;
     if (settings.enableMultiMessageQueue) {
       return hasInput || hasAttachments || lastMsgIsUser;
     }
     return hasInput || hasAttachments;
-  }, [activeSession, isModelVoiceRecording, localInput, messageHydrationStatus, pendingAttachments.length, settings.enableMultiMessageQueue, lastMsgIsUser]);
+  }, [activeSession, isExecutingComposerCommand, isModelVoiceRecording, localInput, messageHydrationStatus, pendingAttachments.length, settings.enableMultiMessageQueue, lastMsgIsUser]);
 
   const onSendPure = React.useCallback(async () => {
     if (!localInput.trim() && pendingAttachments.length === 0) return;
+    if (await executeComposerCommandIfPresent()) return;
     const msg = localInput;
     try {
       await handleSendMessage(msg, {
@@ -448,6 +523,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   }, [
     localInput,
     pendingAttachments,
+    executeComposerCommandIfPresent,
     handleSendMessage,
     setLocalInput,
     setPendingAttachments,
@@ -456,6 +532,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   ]);
 
   const onSendMerged = React.useCallback(async () => {
+    if (await executeComposerCommandIfPresent()) return;
     const msg = localInput.trim();
     try {
       await handleSendMessage(msg, {
@@ -473,6 +550,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   }, [
     localInput,
     pendingAttachments,
+    executeComposerCommandIfPresent,
     handleSendMessage,
     setLocalInput,
     setPendingAttachments,
@@ -646,7 +724,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           </div>
         </div>
       )}
-      {settings.enableReplySuggestions && !isSending && replySuggestions && replySuggestions.length > 0 && (
+      {settings.enableReplySuggestions && !isSending && composerCommandSuggestions.length === 0 && replySuggestions && replySuggestions.length > 0 && (
         <div className="chat-composer-popover flex w-full max-w-3xl flex-col gap-1.5 rounded-2xl p-2 animate-fadeIn">
           <div className="flex items-center justify-between text-xs text-muted-foreground font-medium px-1">
             <span className="flex items-center gap-1">{t("chat_input.suggestions_label")}</span>
@@ -686,6 +764,36 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               </button>
             ))}
           </div>
+        </div>
+      )}
+      {!isSending && composerCommandSuggestions.length > 0 && (
+        <div className="chat-composer-popover flex w-full max-w-3xl flex-col gap-1 rounded-2xl p-2 animate-fadeIn">
+          <div className="px-1 text-xs font-medium text-muted-foreground">输入框命令</div>
+          {composerCommandSuggestions.map((command) => (
+            <button
+              key={`${command.pluginId}:${command.name}`}
+              type="button"
+              disabled={isExecutingComposerCommand}
+              onClick={() => {
+                if (command.acceptsArgument) {
+                  const nextInput = `/${command.name} `;
+                  setLocalInput(nextInput);
+                  setUserInputMessage(nextInput);
+                  requestAnimationFrame(() => textareaRef.current?.focus());
+                } else {
+                  void executeComposerCommand(command, "");
+                }
+              }}
+              className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-primary/10 active:scale-[0.99] disabled:opacity-50"
+            >
+              <span className="shrink-0 font-mono text-sm font-semibold text-primary">/{command.name}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-medium text-foreground">{command.label}</span>
+                <span className="block truncate text-[10px] text-muted-foreground">{command.description}</span>
+              </span>
+              {isExecutingComposerCommand && <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />}
+            </button>
+          ))}
         </div>
       )}
       <PendingAttachmentStrip

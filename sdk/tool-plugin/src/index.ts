@@ -111,6 +111,11 @@ export interface ToolPluginManifestDefinition {
     readonly riskLevel: ToolPluginRiskLevel;
     readonly sideEffect: ToolPluginSideEffect;
     readonly executionScope: ToolPluginExecutionScope;
+    readonly composerCommand?: {
+      readonly name: string;
+      readonly inputProperty?: string;
+      readonly outputProperty: string;
+    };
     readonly handler:
       | {
           readonly kind: "http";

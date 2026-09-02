@@ -93,6 +93,7 @@ export async function createV2HttpManifest(
 export async function createV2WorkerPackage(
   entryCode = `globalThis.MobileTavernToolPlugin = { tools: { echo: async (input) => ({ value: input.value }) } };`,
   sourceProof?: ToolPluginSourceProof,
+  overrides: Record<string, unknown> = {},
 ): Promise<Uint8Array> {
   const entryBytes = new TextEncoder().encode(entryCode);
   const hashable = {
@@ -125,6 +126,7 @@ export async function createV2WorkerPackage(
       onPermissionRevoke: "disable-dependent-tools" as const,
       onUninstall: ["registrations", "credentials", "plugin-data"] as const,
     },
+    ...overrides,
   };
   const contentHash = await computeToolPluginPackageHash(hashable, { "index.js": entryBytes });
   const manifest = new TextEncoder().encode(JSON.stringify({ ...hashable, contentHash }));

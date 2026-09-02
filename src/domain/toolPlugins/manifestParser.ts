@@ -20,6 +20,12 @@ const jsonSchemaSchema = z.record(z.string(), z.unknown()).refine(
   "Tool JSON Schema 必须以 object 为根类型",
 );
 
+const composerCommandSchema = z.object({
+  name: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
+  inputProperty: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/).optional(),
+  outputProperty: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/),
+}).strict();
+
 const httpRequestSchema = z.object({
   method: httpMethodSchema,
   url: z.string().trim().min(1).max(2048).refine(
@@ -100,6 +106,7 @@ const manifestSchema = z.object({
     riskLevel: riskSchema,
     sideEffect: z.enum(["none", "local-write", "external", "irreversible"]),
     executionScope: z.enum(["turn", "session", "memory", "character", "external"]),
+    composerCommand: composerCommandSchema.optional(),
     handler: toolHandlerSchema.optional(),
   }).strict()).min(1).max(32),
   cleanup: z.object({
@@ -127,12 +134,31 @@ const manifestSchema = z.object({
     }
   }
   const toolIds = new Set<string>();
+  const commandNames = new Set<string>();
   const credentialIds = new Set((manifest.credentials ?? []).map((credential) => credential.id));
   for (const tool of manifest.tools) {
     if (toolIds.has(tool.id)) {
       context.addIssue({ code: "custom", message: `Tool ID 重复：${tool.id}`, path: ["tools"] });
     }
     toolIds.add(tool.id);
+    if (tool.composerCommand) {
+      if (manifest.manifestVersion !== 2) {
+        context.addIssue({
+          code: "custom",
+          message: "输入框命令只支持 v2 Tool Plugin",
+          path: ["tools"],
+        });
+      }
+      if (commandNames.has(tool.composerCommand.name)) {
+        context.addIssue({
+          code: "custom",
+          message: `输入框命令重复：/${tool.composerCommand.name}`,
+          path: ["tools"],
+        });
+      }
+      commandNames.add(tool.composerCommand.name);
+      validateComposerCommand(tool, context);
+    }
     try {
       assertSupportedToolPluginJsonSchema(tool.inputSchema, `tools.${tool.id}.inputSchema`);
       assertSupportedToolPluginJsonSchema(tool.outputSchema, `tools.${tool.id}.outputSchema`);
@@ -187,6 +213,77 @@ const manifestSchema = z.object({
     }
   }
 });
+
+function validateComposerCommand(
+  tool: z.infer<typeof manifestSchema>["tools"][number],
+  context: z.RefinementCtx,
+): void {
+  const command = tool.composerCommand;
+  if (!command) return;
+  if (
+    tool.riskLevel !== "low"
+    || tool.sideEffect !== "none"
+    || tool.executionScope !== "turn"
+    || tool.permissions.length > 0
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: `输入框命令 /${command.name} 只能绑定低风险、无副作用、无权限的 turn Tool`,
+      path: ["tools"],
+    });
+  }
+  const inputProperties = readSchemaProperties(tool.inputSchema);
+  const requiredInputs = readRequiredProperties(tool.inputSchema);
+  if (command.inputProperty) {
+    if (
+      readSchemaType(inputProperties[command.inputProperty]) !== "string"
+      || requiredInputs.length !== 1
+      || requiredInputs[0] !== command.inputProperty
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: `输入框命令 /${command.name} 的参数字段必须是唯一必填字符串`,
+        path: ["tools"],
+      });
+    }
+  } else if (requiredInputs.length > 0) {
+    context.addIssue({
+      code: "custom",
+      message: `无参数输入框命令 /${command.name} 不能绑定含必填输入的 Tool`,
+      path: ["tools"],
+    });
+  }
+  const outputProperties = readSchemaProperties(tool.outputSchema);
+  if (
+    readSchemaType(outputProperties[command.outputProperty]) !== "string"
+    || !readRequiredProperties(tool.outputSchema).includes(command.outputProperty)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: `输入框命令 /${command.name} 的输出字段必须是必填字符串`,
+      path: ["tools"],
+    });
+  }
+}
+
+function readSchemaProperties(schema: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const properties = schema.properties;
+  return properties && typeof properties === "object" && !Array.isArray(properties)
+    ? properties as Record<string, unknown>
+    : {};
+}
+
+function readRequiredProperties(schema: Readonly<Record<string, unknown>>): string[] {
+  return Array.isArray(schema.required)
+    ? schema.required.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function readSchemaType(schema: unknown): string | null {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return null;
+  const type = (schema as Record<string, unknown>).type;
+  return typeof type === "string" ? type : null;
+}
 
 export async function parseToolPluginManifest(input: string | ArrayBuffer | Uint8Array): Promise<ToolPluginManifest> {
   const text = typeof input === "string"

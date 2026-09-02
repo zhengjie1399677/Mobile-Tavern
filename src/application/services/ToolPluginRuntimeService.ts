@@ -4,6 +4,8 @@ import type { AgentCompositionSnapshot, AgentToolExecutionContext } from "../../
 import {
   createToolPluginValueSchema,
   type InstalledToolPlugin,
+  type ToolPluginComposerCommand,
+  type ToolPluginComposerCommandExecution,
   type ToolPluginHttpRequestTemplate,
   type ToolPluginManifest,
   type ToolPluginRuntimeDiagnostics,
@@ -42,6 +44,14 @@ interface RegisteredTool {
   readonly version: string;
 }
 
+interface RegisteredComposerCommand {
+  readonly plugin: InstalledToolPlugin;
+  readonly tool: ToolPluginToolDeclaration;
+  readonly entryCode?: string;
+  readonly toolName: string;
+  readonly profileIds: readonly string[];
+}
+
 export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
   readonly name = KernelServices.ToolConnectors;
   readonly isCritical = false;
@@ -50,6 +60,7 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
   private kernel: IKernel | null = null;
   private registrations: EffectDisposer[] = [];
   private readonly tools = new Map<string, RegisteredTool>();
+  private readonly composerCommands = new Map<string, RegisteredComposerCommand>();
   private failures: Record<string, string> = {};
 
   constructor(
@@ -88,6 +99,72 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
       .filter(([, tool]) => tool.profileIds.includes("*") || tool.profileIds.includes(profileId))
       .map(([name]) => name)
       .sort();
+  }
+
+  listComposerCommands(profileId: string): ToolPluginComposerCommand[] {
+    return [...this.composerCommands.entries()]
+      .filter(([, command]) => command.profileIds.includes("*") || command.profileIds.includes(profileId))
+      .map(([name, command]) => ({
+        name,
+        label: command.tool.name,
+        description: command.tool.description,
+        pluginId: command.plugin.id,
+        toolName: command.toolName,
+        acceptsArgument: command.tool.composerCommand?.inputProperty !== undefined,
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async executeComposerCommand(execution: ToolPluginComposerCommandExecution): Promise<string> {
+    const name = execution.name.trim().toLowerCase();
+    const registered = this.composerCommands.get(name);
+    if (!registered) throw new Error("TOOL_PLUGIN_COMPOSER_COMMAND_NOT_FOUND");
+    if (!registered.profileIds.includes("*") && !registered.profileIds.includes(execution.profileId)) {
+      throw new Error("TOOL_PLUGIN_COMPOSER_COMMAND_PROFILE_UNAVAILABLE");
+    }
+    const declaration = registered.tool.composerCommand;
+    if (!declaration) throw new Error("TOOL_PLUGIN_COMPOSER_COMMAND_INVALID");
+    const argument = execution.argument.trim();
+    if (!declaration.inputProperty && argument) {
+      throw new Error("TOOL_PLUGIN_COMPOSER_COMMAND_ARGUMENT_UNSUPPORTED");
+    }
+    if (declaration.inputProperty && !argument) {
+      throw new Error("TOOL_PLUGIN_COMPOSER_COMMAND_ARGUMENT_REQUIRED");
+    }
+    const input = declaration.inputProperty ? { [declaration.inputProperty]: argument } : {};
+    const parsedInput = await createToolPluginValueSchema(registered.tool.inputSchema).parseAsync(input);
+    const controller = new AbortController();
+    const relayAbort = () => controller.abort(execution.signal?.reason);
+    if (execution.signal?.aborted) relayAbort();
+    else execution.signal?.addEventListener("abort", relayAbort, { once: true });
+    const timeout = setTimeout(() => {
+      controller.abort(new Error("TOOL_PLUGIN_COMPOSER_COMMAND_TIMEOUT"));
+    }, registered.plugin.manifest.runtime.timeoutMs ?? 15_000);
+    try {
+      const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+      const rawResult = await this.executeTool(
+        registered.plugin,
+        registered.tool,
+        registered.entryCode,
+        parsedInput,
+        {
+          sessionId: execution.sessionId,
+          turnId: `composer-${nonce}`,
+          callId: `composer-call-${nonce}`,
+          signal: controller.signal,
+        },
+      );
+      const result = await createToolPluginValueSchema(registered.tool.outputSchema).parseAsync(rawResult);
+      if (!result || typeof result !== "object" || Array.isArray(result)) {
+        throw new Error("TOOL_PLUGIN_COMPOSER_COMMAND_OUTPUT_INVALID");
+      }
+      const text = (result as Record<string, unknown>)[declaration.outputProperty];
+      if (typeof text !== "string") throw new Error("TOOL_PLUGIN_COMPOSER_COMMAND_OUTPUT_INVALID");
+      return text;
+    } finally {
+      clearTimeout(timeout);
+      execution.signal?.removeEventListener("abort", relayAbort);
+    }
   }
 
   extendComposition(snapshot: AgentCompositionSnapshot): AgentCompositionSnapshot {
@@ -166,11 +243,27 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
         });
         pending.push(disposer);
         this.tools.set(name, { pluginId: plugin.id, profileIds: plugin.manifest.targetProfiles, version: plugin.manifest.version });
+        const command = tool.composerCommand;
+        if (command) {
+          if (this.composerCommands.has(command.name)) {
+            throw new Error(`TOOL_PLUGIN_COMPOSER_COMMAND_DUPLICATE:${command.name}`);
+          }
+          this.composerCommands.set(command.name, {
+            plugin,
+            tool,
+            entryCode: artifact?.entryCode,
+            toolName: name,
+            profileIds: plugin.manifest.targetProfiles,
+          });
+        }
       }
       this.registrations.push(...pending);
     } catch (error) {
       for (const dispose of pending.reverse()) await dispose();
       for (const [name, item] of this.tools) if (item.pluginId === plugin.id) this.tools.delete(name);
+      for (const [name, command] of this.composerCommands) {
+        if (command.plugin.id === plugin.id) this.composerCommands.delete(name);
+      }
       throw error;
     }
   }
@@ -244,6 +337,7 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
   private async disposeRegistrations(): Promise<void> {
     const disposers = this.registrations.splice(0).reverse();
     this.tools.clear();
+    this.composerCommands.clear();
     const results = await Promise.allSettled(disposers.map((dispose) => dispose()));
     const failure = results.find((item): item is PromiseRejectedResult => item.status === "rejected");
     if (failure) throw failure.reason;

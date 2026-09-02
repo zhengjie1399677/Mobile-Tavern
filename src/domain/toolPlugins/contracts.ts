@@ -18,6 +18,32 @@ export type ToolPluginPermission =
   | "memory.write"
   | "network.request";
 
+export interface ToolPluginComposerCommandDeclaration {
+  /** 不含前导斜杠，例如 time 对应 /time。 */
+  readonly name: string;
+  /** 有参数命令把斜杠命令后的原始文本写入这个字符串字段；省略表示无参数。 */
+  readonly inputProperty?: string;
+  /** Tool 输出对象中用于回填聊天输入框的字符串字段。 */
+  readonly outputProperty: string;
+}
+
+export interface ToolPluginComposerCommand {
+  readonly name: string;
+  readonly label: string;
+  readonly description: string;
+  readonly pluginId: string;
+  readonly toolName: string;
+  readonly acceptsArgument: boolean;
+}
+
+export interface ToolPluginComposerCommandExecution {
+  readonly profileId: string;
+  readonly sessionId: string;
+  readonly name: string;
+  readonly argument: string;
+  readonly signal?: AbortSignal;
+}
+
 export interface ToolPluginPermissionDeclaration {
   readonly id: ToolPluginPermission;
   readonly reason: string;
@@ -35,6 +61,7 @@ export interface ToolPluginToolDeclaration {
   readonly riskLevel: AgentToolRiskLevel;
   readonly sideEffect: AgentToolSideEffect;
   readonly executionScope: AgentToolExecutionScope;
+  readonly composerCommand?: ToolPluginComposerCommandDeclaration;
   readonly handler?:
     | {
         readonly kind: "http";

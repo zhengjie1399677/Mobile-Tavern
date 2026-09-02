@@ -4,14 +4,15 @@ import type { IKernel } from "../../src/kernel/types";
 import { AgentRuntimeService } from "../../src/application/services/AgentRuntimeService";
 import { ToolPluginRuntimeService } from "../../src/application/services/ToolPluginRuntimeService";
 import type { ToolPluginHttpPort } from "../../src/application/toolPlugins/executionContracts";
-import { parseToolPluginManifest } from "../../src/domain/toolPlugins";
+import { parseToolPluginManifest, parseToolPluginPackage } from "../../src/domain/toolPlugins";
 import {
   __toolPluginStorageTest,
   installToolPluginManifest,
+  installToolPlugin,
   setToolPluginEnabled,
   setToolPluginPermissions,
 } from "../../src/infrastructure/toolPlugins/toolPluginStorage";
-import { createV2HttpManifest } from "./helpers/toolPluginFixture";
+import { createV2HttpManifest, createV2WorkerPackage } from "./helpers/toolPluginFixture";
 import { AGENT_PROFILE_SETTINGS_DECISION_ID } from "../../src/application/runtimeProfiles/agentSettings";
 import {
   listOfficialToolPluginInspections,
@@ -115,6 +116,74 @@ describe("External Tool Plugin Runtime", () => {
         [AGENT_PROFILE_SETTINGS_DECISION_ID]: { toolMounts: [{ name: toolName, version: "1.0.0" }] },
       },
     }).contributionOrder.tool).toEqual([toolName]);
+
+    await service.destroy();
+    await agentRuntime.destroy();
+  });
+
+  it("只向匹配 Profile 暴露纯 Tool 输入框命令，并通过原执行器回填字符串结果", async () => {
+    const bytes = await createV2WorkerPackage(undefined, undefined, {
+      tools: [{
+        id: "echo",
+        name: "回显",
+        description: "回显输入。",
+        inputSchema: {
+          type: "object",
+          properties: { value: { type: "string" } },
+          required: ["value"],
+          additionalProperties: false,
+        },
+        outputSchema: {
+          type: "object",
+          properties: { value: { type: "string" } },
+          required: ["value"],
+          additionalProperties: false,
+        },
+        permissions: [],
+        riskLevel: "low",
+        sideEffect: "none",
+        executionScope: "turn",
+        composerCommand: { name: "echo", inputProperty: "value", outputProperty: "value" },
+        handler: { kind: "worker", exportName: "echo" },
+      }],
+    });
+    const inspection = await parseToolPluginPackage(bytes);
+    await installToolPlugin(inspection.manifest, inspection.artifact);
+    await setToolPluginEnabled(inspection.manifest.id, true);
+
+    const agentRuntime = new AgentRuntimeService(journal);
+    const kernel = {
+      getService: () => agentRuntime,
+      hasService: () => true,
+    } as unknown as IKernel;
+    agentRuntime.init(kernel);
+    const execute = vi.fn(async ({ input }: { input: unknown }) => input);
+    const service = new ToolPluginRuntimeService(
+      { request: async () => ({ status: 200, contentType: "application/json", body: {} }) },
+      { execute, getActiveWorkerCount: () => 0, destroy: () => undefined },
+    );
+    await service.init(kernel);
+
+    expect(service.listComposerCommands("mobile-tavern.base")).toEqual([
+      expect.objectContaining({ name: "echo", acceptsArgument: true }),
+    ]);
+    expect(service.listComposerCommands("mobile-tavern.tavern")).toEqual([]);
+    await expect(service.executeComposerCommand({
+      profileId: "mobile-tavern.base",
+      sessionId: "session-composer",
+      name: "echo",
+      argument: "现在几点",
+    })).resolves.toBe("现在几点");
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      pluginId: "example.worker",
+      input: { value: "现在几点" },
+    }));
+    await expect(service.executeComposerCommand({
+      profileId: "mobile-tavern.tavern",
+      sessionId: "session-composer",
+      name: "echo",
+      argument: "拒绝",
+    })).rejects.toThrow("TOOL_PLUGIN_COMPOSER_COMMAND_PROFILE_UNAVAILABLE");
 
     await service.destroy();
     await agentRuntime.destroy();
