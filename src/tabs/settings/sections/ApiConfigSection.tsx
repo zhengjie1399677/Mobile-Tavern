@@ -474,7 +474,9 @@ export default function ApiConfigSection({
                   }
                 >
                   <SelectTrigger className="w-full text-xs h-8.5 rounded-xl bg-background/80 border-border/70 font-mono shadow-2xs">
-                    <SelectValue placeholder={t("api.select_model_placeholder")} />
+                    <SelectValue placeholder={t("api.select_model_placeholder")}>
+                      {settings.api.modelName || t("api.select_model_placeholder")}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="max-h-[280px]">
                     {availableModels.map((m) => (
@@ -551,7 +553,13 @@ export default function ApiConfigSection({
               }
             >
               <SelectTrigger className="w-full text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs">
-                <SelectValue placeholder={t("api.format_auto")} />
+                <SelectValue placeholder={t("api.format_auto")}>
+                  {settings.promptConfig?.renderingFormat === "xml"
+                    ? t("api.format_xml")
+                    : settings.promptConfig?.renderingFormat === "markdown"
+                      ? t("api.format_markdown")
+                      : t("api.format_auto")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto" className="text-xs">{t("api.format_auto")}</SelectItem>

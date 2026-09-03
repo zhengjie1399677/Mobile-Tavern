@@ -26,6 +26,8 @@ export default function SettingsSelect({
   ariaLabel: string;
   className?: string;
 }) {
+  const selected = options.find((option) => option.value === value);
+
   return (
     <Select value={value} onValueChange={(nextValue) => onValueChange(String(nextValue))}>
       <SelectTrigger
@@ -33,7 +35,7 @@ export default function SettingsSelect({
         data-settings-control="select"
         className={cn("h-9 rounded-lg border-border/80 bg-background/80 text-xs font-bold shadow-sm focus-visible:ring-2 focus-visible:ring-primary/20", className)}
       >
-        <SelectValue />
+        <SelectValue>{selected?.label ?? value}</SelectValue>
       </SelectTrigger>
       <SelectContent align="start" className="z-[90] border border-border bg-popover p-1 shadow-xl">
         {options.map((option) => (

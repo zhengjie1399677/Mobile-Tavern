@@ -139,7 +139,9 @@ export default function TtsConfigSection({
                   }}
                 >
                   <SelectTrigger aria-label={t("tts.trigger")} className="w-full text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs font-medium">
-                    <SelectValue placeholder="Trigger Mode" />
+                    <SelectValue placeholder={t("tts.trigger")}>
+                      {settings.ttsConfig?.playMode === "auto" ? t("tts.trigger_auto") : t("tts.trigger_manual")}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="auto" className="text-xs font-semibold">{t("tts.trigger_auto")}</SelectItem>
@@ -175,7 +177,9 @@ export default function TtsConfigSection({
                   }}
                 >
                   <SelectTrigger className="w-full text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs font-medium">
-                    <SelectValue placeholder="Content Range" />
+                    <SelectValue placeholder={t("tts.range")}>
+                      {settings.ttsConfig?.readMode === "dialogue_only" ? t("tts.range_dialogue") : t("tts.range_all")}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all" className="text-xs font-semibold">{t("tts.range_all")}</SelectItem>
@@ -213,7 +217,9 @@ export default function TtsConfigSection({
                 }}
               >
                 <SelectTrigger className="w-full text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs font-medium">
-                  <SelectValue placeholder="Select Engine" />
+                  <SelectValue placeholder={t("tts.engine")}>
+                    {settings.ttsConfig?.provider === "openai" ? t("tts.engine_openai") : t("tts.engine_system")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="speech-synthesis" className="text-xs font-semibold">{t("tts.engine_system")}</SelectItem>

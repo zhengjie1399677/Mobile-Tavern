@@ -83,7 +83,9 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
                 onValueChange={(val: "web-speech" | "openai") => updateAsr({ provider: val })}
               >
                 <SelectTrigger aria-label={t("asr.engine")} className="w-full h-8.5 text-xs bg-background/80 border-border/70 rounded-xl shadow-2xs font-medium">
-                  <SelectValue placeholder="Select Provider" />
+                  <SelectValue placeholder={t("asr.engine")}>
+                    {asrConfig.provider === "openai" ? t("asr.engine_whisper") : t("asr.engine_system")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground border border-border shadow-lg">
                   <SelectItem value="web-speech" className="text-xs">

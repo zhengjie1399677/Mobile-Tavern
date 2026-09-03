@@ -67,7 +67,9 @@ export function MemoryDrawerSelect({
         data-memory-control="select"
         className={cn("h-9 rounded-lg text-xs font-semibold", controlSurfaceClass, className)}
       >
-        <SelectValue />
+        <SelectValue>
+          {options.find((o) => (o.value === "" ? EMPTY_OPTION_VALUE : o.value) === internalValue)?.label ?? value}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent align="start" className="z-[90] border border-border bg-popover p-1 shadow-xl">
         {options.map((option) => (

@@ -183,7 +183,13 @@ export default function ImageGenConfigSection({
                 }
               >
                 <SelectTrigger aria-label={t("image_gen.protocol_title")} className="w-full h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs font-medium">
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue placeholder="Select type">
+                    {settings.imageGenApi?.type === "sd-webui"
+                      ? "Stable Diffusion WebUI"
+                      : settings.imageGenApi?.type === "novelai"
+                        ? "NovelAI API"
+                        : "OpenAI DALL-E (DALL-E 3)"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground border border-border shadow-lg">
                   <SelectItem value="openai-dalle" className="text-xs">OpenAI DALL-E (DALL-E 3)</SelectItem>
