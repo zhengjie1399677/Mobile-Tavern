@@ -234,6 +234,13 @@ export default function MainLayout() {
           activeTab={activeTab}
           mediaEnabled={settings.themeMediaEnabled ?? false}
         />
+
+        {/* 全局微环境光晕：极度克制 (4%~6%)，为全站所有页面的毛玻璃（底栏、顶栏、抽屉卡片）注入真实光学漫反射底色 */}
+        <div className="pointer-events-none fixed inset-0 overflow-hidden z-0" aria-hidden="true">
+          <div className="absolute -top-32 right-[-10%] h-[460px] w-[460px] rounded-full bg-indigo-500/[0.06] blur-[140px]" />
+          <div className="absolute -bottom-36 left-[-10%] h-[440px] w-[440px] rounded-full bg-cyan-500/[0.05] blur-[140px]" />
+        </div>
+
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
         {activeTab !== "chat" && activeTab !== "playground" && !promptFocusActive && (
           <div
@@ -241,7 +248,7 @@ export default function MainLayout() {
             aria-label="底栏导航页签"
             data-ui="main-tab-bar"
             style={{ bottom: `${2 + (safeAreas?.bottom ?? 0)}px` }}
-            className="absolute left-2 right-2 h-11.5 rounded-xl bg-card/80 backdrop-blur-xl border border-white/10 flex items-center justify-around z-20 shadow-[0_4px_24px_0_rgba(0,0,0,0.15)]"
+            className="absolute left-2.5 right-2.5 h-12 rounded-2xl bg-card/75 backdrop-blur-2xl border border-white/12 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.36),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transition-all"
           >
             {bottomBarTabs.map((tab, index) => {
               const IconComp = ((tab.meta?.icon && ICON_MAP[tab.meta.icon as keyof typeof ICON_MAP]) || HelpCircle) as LucideIcon;
