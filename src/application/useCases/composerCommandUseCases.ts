@@ -109,3 +109,131 @@ export function filterComposerCommandSuggestions(
   const prefix = match[1].toLowerCase();
   return commands.filter((command) => command.name.toLowerCase().startsWith(prefix));
 }
+
+export interface ExecuteBuiltinComposerCommandContext {
+  commandName: string;
+  argument: string;
+  hasActiveSession: boolean;
+  continueText: string;
+  handleSendMessage: (text: string) => Promise<void>;
+  handleRerollLast: () => Promise<void>;
+  handleStartNewSession: () => Promise<void>;
+  createNewBranch: () => Promise<void>;
+  handleAutoSummaryCheck: () => Promise<void>;
+  showCustomConfirm: (message: string, title?: string) => Promise<boolean>;
+  showCustomAlert: (message: string, title?: string) => Promise<void>;
+  setLocalInput: (val: string) => void;
+  setUserInputMessage: (val: string) => void;
+  setReplySuggestions: () => void;
+  focusTextarea: () => void;
+  availableCommands: readonly ToolPluginComposerCommand[];
+}
+
+export async function executeBuiltinComposerCommand(
+  ctx: ExecuteBuiltinComposerCommandContext,
+): Promise<void> {
+  const {
+    commandName,
+    argument,
+    hasActiveSession,
+    continueText,
+    handleSendMessage,
+    handleRerollLast,
+    handleStartNewSession,
+    createNewBranch,
+    handleAutoSummaryCheck,
+    showCustomConfirm,
+    showCustomAlert,
+    setLocalInput,
+    setUserInputMessage,
+    setReplySuggestions,
+    focusTextarea,
+    availableCommands,
+  } = ctx;
+
+  switch (commandName) {
+    case "continue": {
+      setLocalInput("");
+      setUserInputMessage("");
+      setReplySuggestions();
+      await handleSendMessage(continueText);
+      return;
+    }
+    case "reroll": {
+      setLocalInput("");
+      setUserInputMessage("");
+      setReplySuggestions();
+      await handleRerollLast();
+      return;
+    }
+    case "clear": {
+      const confirmed = await showCustomConfirm(
+        "确认清空当前对话记录并开启新一轮会话吗？此操作不可撤销。",
+        "清空会话",
+      );
+      if (confirmed) {
+        setLocalInput("");
+        setUserInputMessage("");
+        setReplySuggestions();
+        await handleStartNewSession();
+      }
+      return;
+    }
+    case "branch": {
+      setLocalInput("");
+      setUserInputMessage("");
+      setReplySuggestions();
+      await createNewBranch();
+      return;
+    }
+    case "sys": {
+      if (!argument) {
+        const nextInput = "/sys ";
+        setLocalInput(nextInput);
+        setUserInputMessage(nextInput);
+        requestAnimationFrame(focusTextarea);
+        return;
+      }
+      setLocalInput("");
+      setUserInputMessage("");
+      setReplySuggestions();
+      await handleSendMessage(`[系统状态/旁白]: ${argument}`);
+      return;
+    }
+    case "send":
+    case "say": {
+      if (!argument) {
+        const nextInput = `/${commandName} `;
+        setLocalInput(nextInput);
+        setUserInputMessage(nextInput);
+        requestAnimationFrame(focusTextarea);
+        return;
+      }
+      setLocalInput("");
+      setUserInputMessage("");
+      setReplySuggestions();
+      await handleSendMessage(argument);
+      return;
+    }
+    case "memo": {
+      setLocalInput("");
+      setUserInputMessage("");
+      setReplySuggestions();
+      if (hasActiveSession) {
+        await handleAutoSummaryCheck();
+        await showCustomAlert("已立即触发当前会话的历史摘要与长期记忆提炼。", "记忆提取");
+      }
+      return;
+    }
+    case "help": {
+      setLocalInput("");
+      setUserInputMessage("");
+      setReplySuggestions();
+      const helpLines = availableCommands.map(
+        (cmd) => `/${cmd.name}${cmd.acceptsArgument ? " <参数>" : ""} - ${cmd.label}：${cmd.description}`,
+      );
+      await showCustomAlert(helpLines.join("\n\n"), "斜杠命令列表与说明");
+      return;
+    }
+  }
+}

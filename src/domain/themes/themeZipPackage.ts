@@ -5,7 +5,6 @@ import {
   generateThemeId,
 } from "../../utils/themePackage";
 import type { ILocalResourceService } from "../../application/serviceContracts";
-import { loadLocalResourceContent } from "../../infrastructure/resources/localResourceStorage";
 
 export const THEME_ZIP_LIMITS = {
   compressedBytes: 150 * 1024 * 1024, // 150MB 压缩包上限（考虑到高清背景视频）
@@ -330,7 +329,7 @@ export async function importThemeZipPackage(
  */
 export async function exportThemeZipPackage(
   theme: CustomThemePackage,
-  _localResourceService: ILocalResourceService,
+  localResourceService: ILocalResourceService,
 ): Promise<Blob> {
   const zipFiles: Record<string, Uint8Array> = {};
   const themeClone = JSON.parse(JSON.stringify(theme)) as CustomThemePackage;
@@ -349,8 +348,11 @@ export async function exportThemeZipPackage(
   const idToNewPath = new Map<string, string>();
   for (const id of resourceIds) {
     try {
-      const blob = await loadLocalResourceContent(id);
-      if (!blob) continue;
+      const objectUrl = await localResourceService.getObjectUrl(id);
+      if (!objectUrl) continue;
+      const res = await fetch(objectUrl);
+      if (!res.ok) continue;
+      const blob = await res.blob();
       const arrayBuffer = await blob.arrayBuffer();
       const ext = blob.type.split("/").pop() ?? "bin";
       const filename = `${id}.${ext}`;
