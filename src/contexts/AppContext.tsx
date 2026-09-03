@@ -45,6 +45,7 @@ export type TabType =
   | "community"
   | "chat"
   | "chat-history"
+  | "workbench"
   | "settings"
   | "global-worldbook"
   | "playground";

@@ -16,6 +16,7 @@ const CommunityTab = lazy(() => import("../tabs/CommunityTab"));
 const ChatHistoryTab = lazy(() => import("../tabs/ChatHistoryTab"));
 const ChatTab = lazy(loadChatTab);
 const GlobalWorldbookTab = lazy(() => import("../tabs/GlobalWorldbookTab"));
+const WorkbenchTab = lazy(() => import("../tabs/WorkbenchTab"));
 const SettingsTab = lazy(() => import("../tabs/SettingsTab"));
 const PlaygroundTab = lazy(() => import("../tabs/PlaygroundTab"));
 
@@ -47,6 +48,7 @@ export async function registerMainTabExtensions(kernel: IKernel): Promise<Effect
     }
     register({ id: "chat-history", targetPoint: "main:tabs", priority: 90, value: ChatHistoryTab, meta: { name: "历史对话", icon: "MessageSquare", showInBottomBar: true, highlightOnActiveTabs: ["chat-history", "chat"] } });
     register({ id: "chat", targetPoint: "main:tabs", priority: 80, value: ChatTab, meta: { name: "对话", showInBottomBar: false } });
+    register({ id: "workbench", targetPoint: "main:tabs", priority: 75, value: WorkbenchTab, meta: { name: "工作台", icon: "LayoutGrid", showInBottomBar: true } });
     register({ id: "global-worldbook", targetPoint: "main:tabs", priority: 70, value: GlobalWorldbookTab, meta: { name: "世界书", icon: "Book", showInBottomBar: true } });
     register({ id: "settings", targetPoint: "main:tabs", priority: 60, value: SettingsTab, meta: { name: "设置", icon: "Settings", showInBottomBar: true } });
     register({ id: "playground", targetPoint: "main:tabs", priority: 50, value: PlaygroundTab, meta: { name: "沙盒", showInBottomBar: false } });

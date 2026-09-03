@@ -207,8 +207,9 @@ export default {
 
   "nav.characters": "캐릭터",
   "nav.community": "커뮤니티",
-  "nav.chat-history": "세션",
-  "nav.global-worldbook": "세계 설정",
+  "nav.chat-history": "대화",
+  "nav.workbench": "워크벤치",
+  "nav.global-worldbook": "세계관",
   "nav.settings": "설정",
   "community.title": "캐릭터 커뮤니티",
   "community.subtitle": "캐릭터 카드를 찾고 공유하고 다운로드하세요",

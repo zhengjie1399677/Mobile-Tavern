@@ -208,6 +208,7 @@ export default {
   "nav.characters": "Персонажи",
   "nav.community": "Сообщество",
   "nav.chat-history": "Чаты",
+  "nav.workbench": "Рабочая зона",
   "nav.global-worldbook": "Книга",
   "nav.settings": "Настройки",
   "community.title": "Сообщество персонажей",

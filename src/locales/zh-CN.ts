@@ -205,6 +205,7 @@ export default {
   "nav.characters": "角色",
   "nav.community": "社区",
   "nav.chat-history": "会话",
+  "nav.workbench": "工作台",
   "nav.global-worldbook": "世界书",
   "nav.settings": "设置",
   "community.title": "角色卡社区",

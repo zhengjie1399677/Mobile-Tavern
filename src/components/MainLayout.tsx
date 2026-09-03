@@ -1,6 +1,6 @@
 import React, { Suspense, useContext } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
-import { VenetianMask, MessageSquare, Book, Settings, Users, HelpCircle, LoaderCircle, type LucideIcon } from "lucide-react";
+import { VenetianMask, MessageSquare, Book, Settings, Users, LayoutGrid, HelpCircle, LoaderCircle, type LucideIcon } from "lucide-react";
 import { useKernel } from "../contexts/KernelContext";
 import type { IExtension } from "@/src/application/serviceContracts";
 import type { TabType } from "../contexts/AppContext";
@@ -13,6 +13,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   VenetianMask,
   Users,
   MessageSquare,
+  LayoutGrid,
   Book,
   Settings,
 };

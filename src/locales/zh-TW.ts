@@ -206,10 +206,11 @@ export default {
   "theme.bg_animation": "啟用背景慢速呼吸動效 (肯斯伯恩效果)",
   
   "nav.characters": "角色",
-  "nav.community": "社群",
+  "nav.community": "社區",
   "nav.chat-history": "會話",
+  "nav.workbench": "工作台",
   "nav.global-worldbook": "世界書",
-  "nav.settings": "設置",
+  "nav.settings": "設定",
   "community.title": "角色卡社群",
   "community.subtitle": "探索、分享與下載角色卡",
   "community.preparing_title": "社群入口已就緒",

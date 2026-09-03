@@ -207,8 +207,9 @@ export default {
   
   "nav.characters": "キャラ",
   "nav.community": "コミュニティ",
-  "nav.chat-history": "セッション",
-  "nav.global-worldbook": "世界設定",
+  "nav.chat-history": "履歴",
+  "nav.workbench": "ワークベンチ",
+  "nav.global-worldbook": "ワールド",
   "nav.settings": "設定",
   "community.title": "キャラクターコミュニティ",
   "community.subtitle": "キャラクターカードを探す・共有する・ダウンロードする",

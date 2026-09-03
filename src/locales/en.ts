@@ -205,6 +205,7 @@ export default {
   "nav.characters": "Characters",
   "nav.community": "Community",
   "nav.chat-history": "Chats",
+  "nav.workbench": "Workbench",
   "nav.global-worldbook": "Worldbook",
   "nav.settings": "Settings",
   "community.title": "Character Community",
