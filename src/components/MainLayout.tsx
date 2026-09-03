@@ -235,10 +235,21 @@ export default function MainLayout() {
           mediaEnabled={settings.themeMediaEnabled ?? false}
         />
 
-        {/* 全局微环境光晕：极度克制 (4%~6%)，为全站所有页面的毛玻璃（底栏、顶栏、抽屉卡片）注入真实光学漫反射底色 */}
+        {/* 全局环境光晕与点阵画布：为全站所有页面的毛玻璃（底栏、顶栏、卡片）提供真实透光背景 */}
         <div className="pointer-events-none fixed inset-0 overflow-hidden z-0" aria-hidden="true">
-          <div className="absolute -top-32 right-[-10%] h-[460px] w-[460px] rounded-full bg-indigo-500/[0.06] blur-[140px]" />
-          <div className="absolute -bottom-36 left-[-10%] h-[440px] w-[440px] rounded-full bg-cyan-500/[0.05] blur-[140px]" />
+          <div className="absolute -top-12 -right-12 h-80 w-80 rounded-full bg-purple-600/18 blur-[90px] animate-pulse" />
+          <div
+            className="absolute top-96 -left-16 h-88 w-88 rounded-full bg-cyan-500/16 blur-[100px] animate-pulse"
+            style={{ animationDuration: "4s" }}
+          />
+          <div className="absolute -bottom-10 right-10 h-72 w-72 rounded-full bg-indigo-500/14 blur-[90px]" />
+          <div
+            className="absolute inset-0 opacity-[0.035] dark:opacity-[0.06]"
+            style={{
+              backgroundImage: "radial-gradient(currentColor 1px, transparent 1px)",
+              backgroundSize: "16px 16px",
+            }}
+          />
         </div>
 
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
@@ -248,7 +259,7 @@ export default function MainLayout() {
             aria-label="底栏导航页签"
             data-ui="main-tab-bar"
             style={{ bottom: `${2 + (safeAreas?.bottom ?? 0)}px` }}
-            className="absolute left-2.5 right-2.5 h-12 rounded-2xl bg-card/75 backdrop-blur-2xl border border-white/12 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.36),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transition-all"
+            className="absolute left-2.5 right-2.5 h-12 rounded-2xl bg-card/45 backdrop-blur-2xl border border-white/12 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.36),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transition-all"
           >
             {bottomBarTabs.map((tab, index) => {
               const IconComp = ((tab.meta?.icon && ICON_MAP[tab.meta.icon as keyof typeof ICON_MAP]) || HelpCircle) as LucideIcon;
