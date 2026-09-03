@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { HostCalendarWidget } from "../components/workbench/HostCalendarWidget";
+import { RussellMoodCompassWidget } from "../components/workbench/RussellMoodCompassWidget";
 import { ActivityRingsOrbitWidget } from "../components/workbench/ActivityRingsOrbitWidget";
 import { TrendSparklineWaveWidget } from "../components/workbench/TrendSparklineWaveWidget";
 import { HostStorageMetricsWidget } from "../components/workbench/HostStorageMetricsWidget";
@@ -85,16 +86,19 @@ export default function WorkbenchTab(): React.JSX.Element {
         {/* 1. 时空活跃热力日历 (Calendar Heatmap Matrix) */}
         <HostCalendarWidget />
 
-        {/* 2. 宿主活跃脉搏与昼夜罗盘 (Activity Rings & 24H Diurnal Sector) */}
+        {/* 2. 心智气象罗盘 (Russell Polar Valence-Arousal Compass) */}
+        <RussellMoodCompassWidget />
+
+        {/* 3. 宿主活跃脉搏与昼夜罗盘 (Activity Rings & 24H Diurnal Sector) */}
         <ActivityRingsOrbitWidget />
 
-        {/* 3. 7日活跃流光波形图 (Trend Sparkline Wave) */}
+        {/* 4. 7日活跃流光波形图 (Trend Sparkline Wave) */}
         <TrendSparklineWaveWidget />
 
-        {/* 4. 本地存储与持久化透视 */}
+        {/* 5. 本地存储与持久化透视 */}
         <HostStorageMetricsWidget />
 
-        {/* 5. 宿主 Tool 插件生态 */}
+        {/* 6. 宿主 Tool 插件生态 */}
         <ToolCapabilitiesWidget />
       </div>
     </div>

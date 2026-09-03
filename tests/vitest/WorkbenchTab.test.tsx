@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import WorkbenchTab from "../../src/tabs/WorkbenchTab";
 import { HostCalendarWidget } from "../../src/components/workbench/HostCalendarWidget";
+import { RussellMoodCompassWidget } from "../../src/components/workbench/RussellMoodCompassWidget";
 import { ActivityRingsOrbitWidget } from "../../src/components/workbench/ActivityRingsOrbitWidget";
 import { TrendSparklineWaveWidget } from "../../src/components/workbench/TrendSparklineWaveWidget";
 import { HostStorageMetricsWidget } from "../../src/components/workbench/HostStorageMetricsWidget";
@@ -58,12 +59,20 @@ describe("WorkbenchTab (宿主工作台)", () => {
 
   it("日历热力矩阵能够正常渲染并支持切换今天", () => {
     render(<HostCalendarWidget />);
-    expect(screen.getByText("时空活跃热力日历")).toBeInTheDocument();
+    expect(screen.getByText("时空活跃热力与心相色谱")).toBeInTheDocument();
     expect(screen.getByText("今天")).toBeInTheDocument();
 
     const todayBtn = screen.getByText("今天");
     fireEvent.click(todayBtn);
     expect(todayBtn).toBeInTheDocument();
+  });
+
+  it("心智气象罗盘组件能够正常渲染极坐标象限与定锚星核", () => {
+    render(<RussellMoodCompassWidget />);
+    expect(screen.getByText("心智气象罗盘")).toBeInTheDocument();
+    expect(screen.getByText("极坐标双轴心相定锚")).toBeInTheDocument();
+    expect(screen.getAllByText("充沛 · 灵感").length).toBeGreaterThan(0);
+    expect(screen.getByText("宁静 · 自洽")).toBeInTheDocument();
   });
 
   it("活跃流光罗盘能正常渲染双环与昼夜时相盘", () => {

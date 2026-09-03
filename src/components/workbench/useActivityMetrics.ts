@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 
 export interface DayMetric {
@@ -7,14 +7,25 @@ export interface DayMetric {
   count: number;
 }
 
+export interface MoodPoint {
+  x: number; // -1 (负向) .. 1 (正向)
+  y: number; // -1 (低能) .. 1 (高能)
+  updatedAt: number;
+}
+
 export interface ActivityMetricsResult {
   dailyHeatmap: Map<string, number>;
+  dailyMoods: Map<string, MoodPoint>;
   todayCount: number;
   todaySessionCount: number;
+  todayMood: MoodPoint | null;
   last7Days: DayMetric[];
   hourlyDistribution: number[]; // 0..23
   maxDailyCount: number;
+  saveMood: (point: { x: number; y: number }, dateKey?: string) => void;
 }
+
+const STORAGE_KEY = "mobile_tavern_workbench_moods_v1";
 
 const formatDateKey = (date: Date): string => {
   const y = date.getFullYear();
@@ -23,28 +34,100 @@ const formatDateKey = (date: Date): string => {
   return `${y}-${m}-${d}`;
 };
 
+export function getMoodColor(x: number, y: number): {
+  primary: string;
+  glow: string;
+  label: string;
+} {
+  if (x >= 0 && y >= 0) {
+    // 象限 1：高能 + 愉悦 (充沛 / 灵感)
+    return {
+      primary: "#f59e0b",
+      glow: "rgba(245, 158, 11, 0.6)",
+      label: "充沛 · 灵感",
+    };
+  }
+  if (x >= 0 && y < 0) {
+    // 象限 2：低能 + 愉悦 (宁静 / 自洽)
+    return {
+      primary: "#10b981",
+      glow: "rgba(16, 185, 129, 0.6)",
+      label: "宁静 · 自洽",
+    };
+  }
+  if (x < 0 && y >= 0) {
+    // 象限 3：高能 + 负向 (紧绷 / 焦灼)
+    return {
+      primary: "#a855f7",
+      glow: "rgba(168, 85, 247, 0.6)",
+      label: "紧绷 · 焦灼",
+    };
+  }
+  // 象限 4：低能 + 负向 (疲惫 / 虚耗)
+  return {
+    primary: "#6366f1",
+    glow: "rgba(99, 102, 241, 0.6)",
+    label: "疲惫 · 虚耗",
+  };
+}
+
 export function useActivityMetrics(): ActivityMetricsResult {
   const { sessions } = useUnifiedApp((state) => ({
     sessions: state.sessions,
   }));
 
+  // 本地持久化心相记录
+  const [moodRecords, setMoodRecords] = useState<Record<string, MoodPoint>>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    return {};
+  });
+
+  const dailyMoods = useMemo(() => {
+    return new Map<string, MoodPoint>(Object.entries(moodRecords));
+  }, [moodRecords]);
+
+  const todayKey = useMemo(() => formatDateKey(new Date()), []);
+  const todayMood = dailyMoods.get(todayKey) ?? null;
+
+  const saveMood = useCallback(
+    (point: { x: number; y: number }, targetDateKey = todayKey) => {
+      const updated: MoodPoint = {
+        x: Math.max(-1, Math.min(1, Number(point.x.toFixed(2)))),
+        y: Math.max(-1, Math.min(1, Number(point.y.toFixed(2)))),
+        updatedAt: Date.now(),
+      };
+      setMoodRecords((prev) => {
+        const next = { ...prev, [targetDateKey]: updated };
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    },
+    [todayKey]
+  );
+
   return useMemo(() => {
     const dailyHeatmap = new Map<string, number>();
     const hourlyDistribution = new Array<number>(24).fill(0);
     const today = new Date();
-    const todayKey = formatDateKey(today);
     let todayCount = 0;
     const todaySessionIds = new Set<string>();
 
-    // 扫描所有会话中的消息时间戳
     for (const session of sessions) {
       if (Array.isArray(session.messages)) {
         for (const msg of session.messages) {
           if (typeof msg.timestamp === "number" && msg.timestamp > 0) {
             const date = new Date(msg.timestamp);
             const key = formatDateKey(date);
-            const current = dailyHeatmap.get(key) ?? 0;
-            dailyHeatmap.set(key, current + 1);
+            dailyHeatmap.set(key, (dailyHeatmap.get(key) ?? 0) + 1);
 
             const hour = date.getHours();
             if (hour >= 0 && hour < 24) {
@@ -58,7 +141,6 @@ export function useActivityMetrics(): ActivityMetricsResult {
           }
         }
       } else if (typeof session.updatedAt === "number") {
-        // 兜底：若消息未水合，使用 updatedAt
         const date = new Date(session.updatedAt);
         const key = formatDateKey(date);
         dailyHeatmap.set(key, (dailyHeatmap.get(key) ?? 0) + 1);
@@ -73,7 +155,6 @@ export function useActivityMetrics(): ActivityMetricsResult {
       if (val > maxDailyCount) maxDailyCount = val;
     }
 
-    // 近 7 天趋势数据
     const last7Days: DayMetric[] = [];
     const weekLabels = ["日", "一", "二", "三", "四", "五", "六"];
     for (let i = 6; i >= 0; i--) {
@@ -89,11 +170,14 @@ export function useActivityMetrics(): ActivityMetricsResult {
 
     return {
       dailyHeatmap,
+      dailyMoods,
       todayCount,
       todaySessionCount: todaySessionIds.size,
+      todayMood,
       last7Days,
       hourlyDistribution,
       maxDailyCount,
+      saveMood,
     };
-  }, [sessions]);
+  }, [sessions, dailyMoods, todayKey, todayMood, saveMood]);
 }
