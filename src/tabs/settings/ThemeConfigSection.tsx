@@ -15,7 +15,7 @@ import {
 } from "../../../components/ui/select";
 import { compressImage } from "../../utils/imageCompressor";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
-import { Upload, Download, Trash2, Check, Plus, Edit } from "lucide-react";
+import { Upload, Download, Trash2, Check, Plus, Edit, Globe } from "lucide-react";
 import {
   applyThemePackage,
   detectCriticalNavigationHiding,
@@ -43,7 +43,7 @@ export default function ThemeConfigSection({
   showCustomAlert,
   showCustomConfirm,
 }: ThemeConfigSectionProps) {
-  const { t } = useTranslation();
+  const { t, language, changeLanguage } = useTranslation();
   const kernel = useKernel();
   const customThemes = settings.customThemes ?? [];
   const hiddenMainTabs = sanitizeHiddenMainTabs(settings.hiddenMainTabs);
@@ -235,6 +235,47 @@ export default function ThemeConfigSection({
             />
             <div className="checkBox-transition" />
           </label>
+        </section>
+
+        {/* 多语言切换 (Interface Language) */}
+        <section className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/35 p-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Globe className="w-4 h-4 text-primary shrink-0" />
+            <div className="min-w-0">
+              <h4 className="text-xs font-bold text-foreground">{t("lang.section_title")}</h4>
+              <p className="text-[10px] text-muted-foreground truncate">{t("lang.select_desc")}</p>
+            </div>
+          </div>
+          <Select
+            value={language}
+            onValueChange={changeLanguage}
+          >
+            <SelectTrigger aria-label={t("lang.select_label")} className="w-36 text-xs h-8 bg-input/50 font-medium shrink-0">
+              <SelectValue placeholder={t("lang.select_label")}>
+                {language === "zh-CN"
+                  ? "简体中文"
+                  : language === "zh-TW"
+                    ? "繁體中文"
+                    : language === "en"
+                      ? "English"
+                      : language === "ja"
+                        ? "日本語"
+                        : language === "ru"
+                          ? "Русский"
+                          : language === "es"
+                            ? "Español"
+                            : language}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="zh-CN" label="简体中文" className="text-xs">简体中文</SelectItem>
+              <SelectItem value="zh-TW" label="繁體中文" className="text-xs">繁體中文</SelectItem>
+              <SelectItem value="en" label="English" className="text-xs">English</SelectItem>
+              <SelectItem value="ja" label="日本語" className="text-xs">日本語</SelectItem>
+              <SelectItem value="ru" label="Русский" className="text-xs">Русский</SelectItem>
+              <SelectItem value="es" label="Español" className="text-xs">Español</SelectItem>
+            </SelectContent>
+          </Select>
         </section>
 
         <Select

@@ -1,18 +1,31 @@
 import { useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  Bot,
   Check,
   ChevronRight,
   Copy,
   Cpu,
   Download,
+  ExternalLink,
+  FileText,
+  Layers,
   Power,
   RefreshCw,
+  Settings2,
   ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
+  User,
+  Wrench,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../../../components/ui/dialog";
 import { useKernel } from "../../contexts/KernelContext";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { destroyApplicationRuntime } from "../../application/runtime";
@@ -68,6 +81,7 @@ export default function RuntimeProfileManagerSection() {
   const [catalog, setCatalog] = useState(() => service.listProfiles());
   const [inspectedId, setInspectedId] = useState(catalog.selectedProfileId);
   const [busy, setBusy] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const inspected = catalog.profiles.find((profile) => profile.id === inspectedId)
     ?? catalog.profiles[0];
@@ -135,6 +149,7 @@ export default function RuntimeProfileManagerSection() {
     try {
       service.updateAgentSettings(inspected.id, agent);
       refresh();
+      setEditorOpen(false);
       await showCustomAlert("Agent 配置已保存。", "保存成功");
     } catch (error: unknown) {
       await showCustomAlert(normalizeError(error), "保存 Agent 失败");
@@ -161,6 +176,7 @@ export default function RuntimeProfileManagerSection() {
         await showCustomAlert(result.message, "无法开始 Agent");
         return;
       }
+      setEditorOpen(false);
       await destroyApplicationRuntime();
       window.location.reload();
     } catch (error: unknown) {
@@ -276,158 +292,22 @@ export default function RuntimeProfileManagerSection() {
 
   if (!inspected || !diagnostics) return null;
 
-  const compatibilityEnabled = activeProfile?.capabilities.sillyTavernCompatibility ?? false;
-
   return (
-    <section className="runtime-profile-shell space-y-3 pb-4">
-      {/* 1. 活跃 Agent Runtime 运行看板 */}
-      {activeProfile && (
-        <div className="rounded-2xl border border-border/70 bg-card/60 p-3 backdrop-blur-md shadow-xs space-y-2.5 transition-all">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary shadow-xs">
-                {compatibilityEnabled ? <Sparkles className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
-              </span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs sm:text-[13px] font-bold text-foreground truncate">
-                    {activeProfile.name}
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.2 text-[9px] font-semibold font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    运行中
-                  </span>
-                </div>
-                <p className="text-[10.5px] text-muted-foreground truncate mt-0.5">
-                  v{activeProfile.version} · {compatibilityEnabled ? "兼容聊天能力已装载" : "通用聊天底座"}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={refresh}
-              aria-label="刷新 Profile"
-              className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-background/60 text-muted-foreground hover:text-primary transition-all active:scale-95 shadow-2xs"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          <div className="border-t border-border/40 pt-2 space-y-2">
-            <SettingsToggleRow
-              label="SillyTavern Compatibility Runtime"
-              description="开启切换至 Tavern Agent；关闭回到 Base Agent。切换会卸载插件并重载运行时，会话数据不丢失。"
-              checked={compatibilityEnabled}
-              disabled={busy}
-              onCheckedChange={toggleCompatibility}
-              badge="独立插件"
-              tone={compatibilityEnabled ? "warning" : "default"}
-            />
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/75 px-0.5">
-              <Power className="h-3 w-3 shrink-0 text-primary/70" />
-              <span>{busy ? "正在保存 Profile 并重载运行时…" : "开关只改变 Profile 组合，不会安装外部代码。"}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2. Profile 组合切换网格 */}
-      <div className="grid gap-2 sm:grid-cols-2">
-        {catalog.profiles.map((profile) => {
-          const active = isActive(profile);
-          const selected = inspected.id === profile.id;
-          return (
-            <button
-              key={profile.id}
-              type="button"
-              onClick={() => setInspectedId(profile.id)}
-              className={`rounded-xl border p-2.5 text-left transition-all active:scale-[0.99] shadow-2xs ${
-                selected
-                  ? "border-primary/50 bg-primary/10 shadow-xs"
-                  : "border-border/60 bg-card/40 hover:bg-card/70 hover:border-primary/30"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-1.5">
-                <span className="min-w-0 flex-1 truncate text-xs sm:text-[13px] font-semibold text-foreground">
-                  {profile.name}
-                </span>
-                <div className="flex items-center gap-1 shrink-0">
-                  {active && (
-                    <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.2 text-[8.5px] font-semibold font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                      <span className="h-1 w-1 rounded-full bg-emerald-500" />
-                      运行中
-                    </span>
-                  )}
-                  {profile.builtin && (
-                    <span className="text-[9px] font-mono text-muted-foreground/80 bg-muted/40 px-1 py-0.2 rounded border border-border/40">
-                      内置
-                    </span>
-                  )}
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
-                </div>
-              </div>
-              <div className="mt-1 flex flex-wrap gap-x-1.5 text-[10px] text-muted-foreground/75">
-                <span>v{profile.version}</span>
-                <span>·</span>
-                <span>{profile.capabilities.sillyTavernCompatibility ? "兼容插件" : "通用底座"}</span>
-                {!profile.builtin && <span>· 自定义</span>}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 3. 查看与编辑 Profile 详情 */}
-      <div className="rounded-2xl border border-border/70 bg-card/60 p-3 backdrop-blur-md shadow-xs space-y-3">
-        <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2.5">
-          <div className="min-w-0 flex-1">
-            <div className="text-xs sm:text-[13px] font-bold text-foreground truncate">{inspected.name}</div>
-            <div className="mt-0.5 text-[10px] font-mono text-muted-foreground/80">
-              Profile v{inspected.version} · Schema v{inspected.schemaVersion}
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => void copyProfile(inspected)}
-              className="flex h-7.5 items-center gap-1 rounded-xl border border-border/60 bg-background/70 px-2.5 text-xs font-bold text-foreground hover:border-primary/40 hover:text-primary active:scale-95 transition-all shadow-2xs"
-            >
-              <Copy className="h-3 w-3" />
-              <span>复制</span>
-            </button>
-            {!inspected.builtin && (
-              <button
-                type="button"
-                onClick={() => void deleteProfile(inspected)}
-                className="flex h-7.5 w-7.5 items-center justify-center rounded-xl border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 active:scale-95 transition-all shadow-2xs"
-                aria-label="删除 Profile"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* 导入 / 导出 工具栏 */}
-        <div className="grid grid-cols-2 gap-2">
+    <section className="runtime-profile-shell space-y-3 pb-2">
+      {/* 顶部标题与导入 */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+          选择运行模式 / Profile
+        </span>
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             disabled={busy}
             onClick={() => importInputRef.current?.click()}
-            className="flex h-8.5 items-center justify-center gap-1.5 rounded-xl border border-border/70 bg-background/80 px-2.5 text-xs font-bold text-foreground hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95 disabled:opacity-50 transition-all shadow-2xs"
+            className="text-xs text-primary font-semibold flex items-center gap-1 hover:underline active:scale-95"
           >
-            <Upload aria-hidden="true" className="h-3.5 w-3.5" />
-            <span>导入 Agent 文件</span>
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void exportProfile()}
-            className="flex h-8.5 items-center justify-center gap-1.5 rounded-xl border border-border/70 bg-background/80 px-2.5 text-xs font-bold text-foreground hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95 disabled:opacity-50 transition-all shadow-2xs"
-          >
-            <Download aria-hidden="true" className="h-3.5 w-3.5" />
-            <span>导出当前 Agent</span>
+            <Upload className="h-3 w-3" />
+            <span>导入 Agent</span>
           </button>
           <input
             ref={importInputRef}
@@ -438,78 +318,237 @@ export default function RuntimeProfileManagerSection() {
             onChange={(event) => void importProfile(event.target.files?.[0])}
           />
         </div>
-
-        {/* 内嵌 Agent 编辑器 */}
-        <AgentProfileEditor
-          profile={inspected}
-          characters={characters}
-          promptPresets={settings.savedPresets ?? []}
-          fallbackSampling={settings.preset}
-          tools={editableTools}
-          unavailableToolNames={unavailableToolNames}
-          busy={busy}
-          onSave={saveAgent}
-          onSaveAndStart={saveAgentAndStart}
-        />
-
-        {/* 底层能力降级开关 */}
-        <div className="space-y-2 border-t border-border/40 pt-2.5">
-          <SettingsToggleRow
-            label="Compatibility capability"
-            description={inspected.builtin ? "内置 Profile 的插件组合固定不变；请使用上方开关在 Base/Tavern 之间切换。" : "自定义 Profile 可独立启用 SillyTavern 兼容贡献。"}
-            checked={inspected.capabilities.sillyTavernCompatibility}
-            disabled={inspected.builtin || busy}
-            onCheckedChange={(checked) => updateCapability(inspected, { sillyTavernCompatibility: checked })}
-            badge={inspected.builtin ? "内置锁定" : "自定义"}
-          />
-          <SettingsToggleRow
-            label="音频 → ASR 文本降级"
-            description="当 Provider 不接收音频时，将音频转换为可发送的文本。"
-            checked={inspected.capabilities.audioAsrFallback}
-            disabled={inspected.builtin || busy}
-            onCheckedChange={(checked) => updateCapability(inspected, { audioAsrFallback: checked })}
-            badge={inspected.builtin ? "内置锁定" : undefined}
-          />
-          <SettingsToggleRow
-            label="视频 → 关键帧图片降级"
-            description="当 Provider 不支持视频时，提取关键帧并按图片发送。"
-            checked={inspected.capabilities.videoKeyframeFallback}
-            disabled={inspected.builtin || busy}
-            onCheckedChange={(checked) => updateCapability(inspected, { videoKeyframeFallback: checked })}
-            badge={inspected.builtin ? "内置锁定" : undefined}
-          />
-        </div>
-
-        {/* 诊断参数双列网格 */}
-        <div className="grid gap-1.5 text-[10px] sm:grid-cols-2 border-t border-border/40 pt-2.5">
-          <DiagnosticRow label="Provider" value={`${diagnostics.provider.id}${diagnostics.provider.available ? "" : "（缺失）"}`} />
-          <DiagnosticRow label="输入模态" value={diagnostics.provider.inputModalities.join(" / ") || "无"} />
-          <DiagnosticRow label="Tools" value={diagnostics.tools.join("、") || "未注册"} />
-          <DiagnosticRow label="Prompt Sections" value={diagnostics.promptSections.join("、") || "无"} />
-          <DiagnosticRow label="Renderer" value={diagnostics.renderers.join("、") || "普通文本"} />
-          <DiagnosticRow label="音频/视频策略" value={`${diagnostics.mediaFallbacks.audio} / ${diagnostics.mediaFallbacks.video}`} />
-        </div>
-
-        {diagnostics.warnings.map((warning) => (
-          <div key={warning} className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span className="text-[11px]">{warning}</span>
-          </div>
-        ))}
-
-        {/* 底部激活主按钮 */}
-        <button
-          type="button"
-          disabled={busy || isActive(inspected)}
-          onClick={() => void activateProfile(inspected)}
-          className="flex h-8.5 w-full items-center justify-center gap-1.5 rounded-xl bg-primary hover:bg-primary/90 px-3 text-xs font-bold text-primary-foreground transition-all active:scale-[0.99] disabled:opacity-50 shadow-xs"
-        >
-          {isActive(inspected) ? <Check className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-          <span>{isActive(inspected) ? "当前运行中" : busy ? "正在切换…" : "切换并重载运行时"}</span>
-        </button>
       </div>
 
-      <p className="text-[10.5px] leading-relaxed text-muted-foreground/75 px-1">
+      {/* 核心自包含 Agent 模式卡片列表（直观切换与直接装配，拒绝重复大卡片） */}
+      <div className="space-y-2.5">
+        {catalog.profiles.map((profile) => {
+          const active = isActive(profile);
+          const isTavern = profile.capabilities.sillyTavernCompatibility;
+          const profileBoundCharacter = characters.find((c) => c.id === profile.agent?.characterId);
+          const profileBoundPreset = (settings.savedPresets ?? []).find((p) => p.id === profile.agent?.promptPresetId);
+          const profileToolsCount = profile.agent?.toolMounts.length ?? 0;
+
+          return (
+            <div
+              key={profile.id}
+              className={`surface-card rounded-2xl p-4 transition-all space-y-3 ${
+                active
+                  ? "border-primary/60 bg-primary/10 ring-1 ring-primary/25 shadow-xs"
+                  : "border-border/60 bg-card/60 hover:border-primary/30"
+              }`}
+            >
+              {/* 头部：图标、名称、状态徽章与操作按钮 */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                    isTavern ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "bg-primary/15 text-primary"
+                  }`}>
+                    {isTavern ? <Sparkles className="h-4.5 w-4.5" /> : <Bot className="h-4.5 w-4.5" />}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold text-foreground truncate">
+                        {profile.name}
+                      </span>
+                      <span className="text-[11px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-full">
+                        v{profile.version}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      {isTavern ? "SillyTavern 兼容扩展 · 角色卡/世界书/宏" : "纯净原生通用 Agent · 零外部规则干扰"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {active ? (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      运行中
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void activateProfile(profile, "切换并应用")}
+                      className="flex h-8 items-center gap-1 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground px-3 text-xs font-bold transition-all active:scale-95 shadow-xs"
+                    >
+                      <Power className="h-3.5 w-3.5" />
+                      <span>切换运行</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 紧凑装配插槽与快捷操作行 */}
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40 text-xs">
+                <div className="flex items-center gap-2 text-muted-foreground flex-wrap min-w-0">
+                  <span className="inline-flex items-center gap-1 truncate">
+                    <User className="h-3 w-3 shrink-0 text-muted-foreground/80" />
+                    <span>{profileBoundCharacter?.name || "通用助手"}</span>
+                  </span>
+                  <span className="text-border/80">·</span>
+                  <span className="inline-flex items-center gap-1 truncate">
+                    <FileText className="h-3 w-3 shrink-0 text-muted-foreground/80" />
+                    <span>{profileBoundPreset?.preset.name || "默认预设"}</span>
+                  </span>
+                  {profileToolsCount > 0 && (
+                    <>
+                      <span className="text-border/80">·</span>
+                      <span className="inline-flex items-center gap-1 truncate">
+                        <Wrench className="h-3 w-3 shrink-0 text-muted-foreground/80" />
+                        <span>{profileToolsCount} 个工具</span>
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInspectedId(profile.id);
+                      setEditorOpen(true);
+                    }}
+                    className="flex h-7 items-center gap-1 rounded-lg border border-border/60 bg-background/60 hover:bg-muted px-2 text-[11px] font-semibold text-foreground transition-all active:scale-95"
+                  >
+                    <Settings2 className="h-3 w-3 text-primary" />
+                    <span>装配</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void copyProfile(profile)}
+                    className="p-1.5 rounded-lg border border-border/60 bg-background/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
+                    title="复制 Agent"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setInspectedId(profile.id);
+                      void exportProfile();
+                    }}
+                    className="p-1.5 rounded-lg border border-border/60 bg-background/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
+                    title="导出 Agent"
+                  >
+                    <Download className="h-3 w-3" />
+                  </button>
+                  {!profile.builtin && (
+                    <button
+                      type="button"
+                      onClick={() => void deleteProfile(profile)}
+                      className="p-1.5 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all active:scale-95"
+                      title="删除 Agent"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 诊断与降级策略折叠抽屉 */}
+      <details className="group border border-border/60 bg-card/40 rounded-2xl p-3 backdrop-blur-md">
+        <summary className="cursor-pointer list-none flex items-center justify-between text-xs font-bold text-muted-foreground hover:text-foreground transition select-none">
+          <span className="flex items-center gap-1.5">
+            <Cpu className="h-3.5 w-3.5 text-primary" />
+            底层能力与技术诊断参数
+          </span>
+          <span className="text-[10px] font-mono group-open:rotate-90 transition-transform">▶</span>
+        </summary>
+
+        <div className="pt-3 space-y-3">
+          {inspected.builtin ? (
+            <div className="flex flex-wrap gap-1.5">
+              <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold ${
+                inspected.capabilities.sillyTavernCompatibility
+                  ? "bg-primary/10 text-primary border border-primary/20"
+                  : "bg-muted/80 text-muted-foreground"
+              }`}>
+                {inspected.capabilities.sillyTavernCompatibility ? "✓ SillyTavern 兼容插件" : "✕ 纯净底座 (无兼容插件)"}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                ✓ 音频 ASR 降级
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                ✓ 视频关键帧提取降级
+              </span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <SettingsToggleRow
+                label="SillyTavern 兼容能力贡献"
+                description="自定义 Profile 可独立启用 SillyTavern 兼容贡献。"
+                checked={inspected.capabilities.sillyTavernCompatibility}
+                disabled={busy}
+                onCheckedChange={(checked) => updateCapability(inspected, { sillyTavernCompatibility: checked })}
+                badge="自定义"
+              />
+              <SettingsToggleRow
+                label="音频 → ASR 文本降级"
+                description="当模型不支持音频输入时，自动转换为文本发送。"
+                checked={inspected.capabilities.audioAsrFallback}
+                disabled={busy}
+                onCheckedChange={(checked) => updateCapability(inspected, { audioAsrFallback: checked })}
+              />
+              <SettingsToggleRow
+                label="视频 → 关键帧图片降级"
+                description="当模型不支持视频输入时，自动提取关键帧发送。"
+                checked={inspected.capabilities.videoKeyframeFallback}
+                disabled={busy}
+                onCheckedChange={(checked) => updateCapability(inspected, { videoKeyframeFallback: checked })}
+              />
+            </div>
+          )}
+
+          <div className="grid gap-1.5 text-xs sm:grid-cols-2 pt-2 border-t border-border/40">
+            <DiagnosticRow label="Provider" value={`${diagnostics.provider.id}${diagnostics.provider.available ? "" : "（缺失）"}`} />
+            <DiagnosticRow label="输入模态" value={diagnostics.provider.inputModalities.join(" / ") || "无"} />
+            <DiagnosticRow label="Tools" value={diagnostics.tools.join("、") || "未注册"} />
+            <DiagnosticRow label="Renderer" value={diagnostics.renderers.join("、") || "普通文本"} />
+          </div>
+
+          {diagnostics.warnings.map((warning) => (
+            <div key={warning} className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span className="text-xs">{warning}</span>
+            </div>
+          ))}
+        </div>
+      </details>
+
+      {/* 4. Agent 编辑 Dialog 弹窗（避免在设置列表内直接内嵌庞大表单） */}
+      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto p-4 custom-scrollbar">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Wrench className="h-4 w-4 text-primary" />
+              <span>装配与编辑 Agent - {inspected.name}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="pt-2">
+            <AgentProfileEditor
+              profile={inspected}
+              characters={characters}
+              promptPresets={settings.savedPresets ?? []}
+              fallbackSampling={settings.preset}
+              tools={editableTools}
+              unavailableToolNames={unavailableToolNames}
+              busy={busy}
+              onSave={saveAgent}
+              onSaveAndStart={saveAgentAndStart}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <p className="text-xs leading-relaxed text-muted-foreground/75 px-1">
         Runtime Plugin 目前只允许随安装包分发的受信实现。签名、来源验证与回滚机制完成前，不开放任意 Runtime Plugin 安装。
       </p>
     </section>

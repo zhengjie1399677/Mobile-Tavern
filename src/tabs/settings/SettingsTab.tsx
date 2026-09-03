@@ -1,6 +1,7 @@
 import React from "react";
 import {
   ArrowLeft,
+  Bot,
   ChevronRight,
   Database,
   Info,
@@ -24,12 +25,6 @@ import { getDeviceModel, getFreeTrialCount, useViewportSize } from "./utils";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
 import { getErrorMessage } from "../../utils/errorUtils";
-import {
-  clearCommunityAdminToken,
-  isCommunityAdmin,
-  setCommunityAdminToken,
-} from "../../domain/community/adminSession";
-import { verifyCommunityAdmin } from "../../domain/community/api";
 
 const PresetForm = React.lazy(() => import("../../components/PresetForm"));
 import GeneralConfigSection from "./GeneralConfigSection";
@@ -133,8 +128,6 @@ export default function SettingsTab() {
   const freeCount = getFreeTrialCount();
   const isLandscape = viewportSize.w >= 600 && viewportSize.w > viewportSize.h;
   const promptFocus = usePromptWorkbenchFocus();
-  const versionTapTimes = React.useRef<number[]>([]);
-  const [adminMode, setAdminMode] = React.useState(isCommunityAdmin);
 
   const {
     settings,
@@ -196,38 +189,8 @@ export default function SettingsTab() {
     getKernelService: state.getKernelService,
   }));
 
-  const handleVersionTap = async () => {
-    const now = Date.now();
-    versionTapTimes.current = [...versionTapTimes.current, now]
-      .filter((timestamp) => now - timestamp <= 2000)
-      .slice(-3);
-    if (versionTapTimes.current.length < 3) return;
-    versionTapTimes.current = [];
-
-    if (isCommunityAdmin()) {
-      clearCommunityAdminToken();
-      setAdminMode(false);
-      await showCustomAlert("已退出社区管理员模式");
-      return;
-    }
-    const token = await showCustomPrompt(
-      "管理员密码只在本次 App 运行期间保存在内存中，关闭 App 后自动清除。",
-      "",
-      "社区管理员验证",
-      "text",
-    );
-    if (!token) return;
-    try {
-      await verifyCommunityAdmin(token);
-      setCommunityAdminToken(token);
-      setAdminMode(true);
-      await showCustomAlert("社区管理员模式已启用");
-    } catch {
-      await showCustomAlert("管理员密码验证失败");
-    }
-  };
-
   const [activeSection, setActiveSection] = React.useState<SettingsSectionId | null>(null);
+  const [pluginsSubTab, setPluginsSubTab] = React.useState<"profiles" | "tools" | "apps">("profiles");
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
   const [isCheckingUpdate, setIsCheckingUpdate] = React.useState(false);
   const lastApiRef = React.useRef(JSON.stringify(settings.api));
@@ -346,7 +309,54 @@ export default function SettingsTab() {
       case "composer":
         return <PresetForm sections={["composer"]} />;
       case "plugins":
-        return <div className="space-y-3"><RuntimeProfileManagerSection /><ToolPluginManagerSection /><PluginManagerSection /></div>;
+        return (
+          <div className="space-y-3 pb-2">
+            {/* 顶部三合一分段导航胶囊 */}
+            <div className="flex rounded-xl bg-muted/60 p-1 border border-border/50">
+              <button
+                type="button"
+                onClick={() => setPluginsSubTab("profiles")}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1.5 ${
+                  pluginsSubTab === "profiles"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Bot className="w-3.5 h-3.5" />
+                <span>运行模式</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPluginsSubTab("tools")}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1.5 ${
+                  pluginsSubTab === "tools"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                <span>Tool 插件</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPluginsSubTab("apps")}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1.5 ${
+                  pluginsSubTab === "apps"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Puzzle className="w-3.5 h-3.5" />
+                <span>扩展应用</span>
+              </button>
+            </div>
+
+            {/* 内容按 Tab 独立挂载，彻底告别三巨头堆叠 */}
+            {pluginsSubTab === "profiles" && <RuntimeProfileManagerSection />}
+            {pluginsSubTab === "tools" && <ToolPluginManagerSection />}
+            {pluginsSubTab === "apps" && <PluginManagerSection />}
+          </div>
+        );
       case "advanced":
         return (
           <div className="space-y-2">
@@ -502,15 +512,12 @@ export default function SettingsTab() {
           </p>
         </div>
         {!selectedMeta && (
-          <button
-            type="button"
-            onClick={() => void handleVersionTap()}
-            className="flex h-7 items-center gap-1 rounded-lg border border-border/60 bg-muted/30 px-2 text-[10px] font-mono text-muted-foreground active:bg-muted"
+          <span
+            className="flex h-7 items-center gap-1 rounded-lg border border-border/60 bg-muted/30 px-2 text-[10px] font-mono text-muted-foreground select-none"
             aria-label="应用版本"
           >
-            {adminMode && <ShieldCheck className="h-3 w-3 text-emerald-500" />}
             v{__APP_VERSION__}
-          </button>
+          </span>
         )}
       </header>
 

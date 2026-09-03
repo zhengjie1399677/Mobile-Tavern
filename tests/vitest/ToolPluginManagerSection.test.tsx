@@ -18,6 +18,7 @@ describe("ToolPluginManagerSection", () => {
       ...unifiedAppStore.getState(),
       showCustomAlert: vi.fn(),
       showCustomConfirm: vi.fn(async () => true),
+      showCustomPrompt: vi.fn(async () => "test-api-key"),
     });
   });
 
@@ -31,22 +32,27 @@ describe("ToolPluginManagerSection", () => {
     await waitFor(() => expect(screen.getByText("会话助手")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "导入 .mttool / Manifest" })).toBeInTheDocument();
     expect(screen.getAllByText("待授权").length).toBeGreaterThan(0);
-    expect(screen.getByText("Worker 隔离")).toBeInTheDocument();
+    expect(screen.getAllByText("Worker 隔离").length).toBeGreaterThan(0);
     expect(screen.getByText(/来源标签只用于辨识发布来源/u)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "权限、Tool 与版本" }));
+    const sessionCard = screen.getByText("会话助手").closest("article");
+    expect(sessionCard).not.toBeNull();
+    fireEvent.click(within(sessionCard as HTMLElement).getByRole("button", { name: "权限、Tool 与版本" }));
+
     const sourceSection = screen.getByText("来源与版本").parentElement;
     expect(sourceSection).not.toBeNull();
     expect(within(sourceSection as HTMLElement).getByText(/未验证来源/u)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "授予权限 session.read" }));
     await waitFor(() => expect(screen.getByRole("switch", { name: "撤销权限 session.read" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("switch", { name: "授予权限 session.write" }));
-    await waitFor(() => expect(screen.getByText("已授权 · 停用")).toBeInTheDocument());
+    await waitFor(() => expect(within(sessionCard as HTMLElement).getByText("已授权 · 停用")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "允许装载 会话助手" }));
-    await waitFor(() => expect(screen.getAllByText("允许装载").length).toBeGreaterThan(1));
+    await waitFor(() => expect(within(sessionCard as HTMLElement).getByText("允许装载")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "v1.0.0" }));
+    const rollbackBtn = await screen.findByRole("button", { name: "v1.0.0" });
+    await waitFor(() => expect(rollbackBtn).not.toBeDisabled());
+    fireEvent.click(rollbackBtn);
     await waitFor(async () => {
       expect((await listInstalledToolPlugins())[0]).toMatchObject({
         enabled: false,
@@ -62,9 +68,11 @@ describe("ToolPluginManagerSection", () => {
     render(<ToolPluginManagerSection />);
     await waitFor(() => expect(screen.getByText("会话助手")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "权限、Tool 与版本" }));
-    fireEvent.click(screen.getByRole("button", { name: "卸载 会话助手" }));
-    await waitFor(() => expect(screen.getByText("尚未安装 Tool Plugin Manifest")).toBeInTheDocument());
+    const sessionCard = screen.getByText("会话助手").closest("article");
+    expect(sessionCard).not.toBeNull();
+    fireEvent.click(within(sessionCard as HTMLElement).getByRole("button", { name: "权限、Tool 与版本" }));
+    fireEvent.click(within(sessionCard as HTMLElement).getByRole("button", { name: "卸载 会话助手" }));
+    await waitFor(() => expect(screen.queryByText("会话助手")).not.toBeInTheDocument());
     expect(await listInstalledToolPlugins()).toEqual([]);
   });
 
@@ -79,47 +87,41 @@ describe("ToolPluginManagerSection", () => {
       },
     });
 
-    expect(await screen.findByText("确认安装 会话助手")).toBeInTheDocument();
+    expect(await screen.findByText("导入插件 会话助手")).toBeInTheDocument();
     expect(screen.getByText(/没有可验证的签名/u)).toBeInTheDocument();
     expect(screen.getByText(/不会阻止安装/u)).toBeInTheDocument();
     expect(screen.getByText(/使用你随后授予的网络或数据权限/u)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "确认安装，稍后授权" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认导入，稍后授权" }));
     await waitFor(() => expect(screen.getByText("会话助手")).toBeInTheDocument());
     expect((await listInstalledToolPlugins())[0].sourceVerification?.trustLevel).toBe("unverified");
   });
 
-  it("从官方能力积木完成审阅安装且保持默认停用和未授权", async () => {
+  it("官方能力开箱即用直接呈现，支持一键启用装载", async () => {
     render(<ToolPluginManagerSection />);
-    const reviewButton = await screen.findByRole("button", { name: "查看并安装 Brave 网页搜索" });
-    expect(screen.getByRole("button", { name: "查看并安装 长期记忆写入" })).toBeInTheDocument();
+    expect(await screen.findByText("Brave 网页搜索")).toBeInTheDocument();
+    expect(screen.getByText("长期记忆写入")).toBeInTheDocument();
+    expect(screen.getByText("设备日期时间")).toBeInTheDocument();
+    expect(screen.getByText("本地实用工具")).toBeInTheDocument();
 
-    fireEvent.click(reviewButton);
-    expect(screen.getByText("确认安装 Brave 网页搜索")).toBeInTheDocument();
-    expect(screen.getByText("network.request")).toBeInTheDocument();
-    expect(screen.getByText("官方内置")).toBeInTheDocument();
-    expect(screen.getByText(/官方来源只确认发布来源/u)).toBeInTheDocument();
-    expect(screen.getByText(/仍需核对权限/u)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "确认安装，稍后授权" }));
-
-    await waitFor(() => expect(screen.getByRole("button", { name: "已安装 Brave 网页搜索" })).toBeDisabled());
-    expect(await listInstalledToolPlugins()).toMatchObject([{
-      id: "official.brave-search",
-      enabled: false,
-      grantedPermissions: [],
-      sourceVerification: {
-        trustLevel: "official",
-        verificationMethod: "bundled",
-      },
-    }]);
+    fireEvent.click(screen.getByRole("button", { name: "允许装载 设备日期时间" }));
+    await waitFor(async () => {
+      const installed = await listInstalledToolPlugins();
+      expect(installed.length).toBeGreaterThan(0);
+      expect(installed[0]).toMatchObject({
+        id: "official.device-time",
+        enabled: true,
+      });
+    });
   });
 
   it("把声明式 memory.write 明确标注为宿主授权能力", async () => {
     render(<ToolPluginManagerSection />);
-    fireEvent.click(await screen.findByRole("button", { name: "查看并安装 长期记忆写入" }));
-
-    expect(screen.getByText("宿主授权能力")).toBeInTheDocument();
-    expect(screen.getByText("宿主 Capability 代理")).toBeInTheDocument();
-    expect(screen.getByText("memory.write")).toBeInTheDocument();
+    expect(await screen.findByText("长期记忆写入")).toBeInTheDocument();
+    expect(screen.getAllByText("宿主授权能力").length).toBeGreaterThan(0);
+    const memoryCard = screen.getByText("长期记忆写入").closest("article");
+    expect(memoryCard).not.toBeNull();
+    fireEvent.click(within(memoryCard as HTMLElement).getByRole("button", { name: "权限、Tool 与版本" }));
+    expect(within(memoryCard as HTMLElement).getAllByText("memory.write").length).toBeGreaterThan(0);
   });
 });

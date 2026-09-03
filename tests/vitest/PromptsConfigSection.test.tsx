@@ -8,10 +8,16 @@ import type { UserSettings } from "../../src/types";
 
 function Harness({
   initial,
-  onOpenComposer,
+  onToggleCustomPrompt,
+  onUpdateCustomPrompt,
+  onAddNewCustomPrompt,
+  onDeleteCustomPrompt,
 }: {
   initial: UserSettings;
-  onOpenComposer?: () => void;
+  onToggleCustomPrompt?: (id: string, enabled: boolean) => void;
+  onUpdateCustomPrompt?: (id: string, name: string, role: any, content: string) => void;
+  onAddNewCustomPrompt?: () => void;
+  onDeleteCustomPrompt?: (id: string) => Promise<void>;
 }) {
   const [settings, setSettings] = useState<UserSettings>(initial);
   const updateSettings = (next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
@@ -22,205 +28,81 @@ function Harness({
       <PromptsConfigSection
         settings={settings}
         updateSettings={updateSettings}
-        handleToggleCustomPrompt={vi.fn()}
-        handleUpdateCustomPrompt={vi.fn()}
-        handleAddNewCustomPrompt={vi.fn()}
-        handleDeleteCustomPrompt={vi.fn(async () => undefined)}
+        handleToggleCustomPrompt={onToggleCustomPrompt ?? vi.fn()}
+        handleUpdateCustomPrompt={onUpdateCustomPrompt ?? vi.fn()}
+        handleAddNewCustomPrompt={onAddNewCustomPrompt ?? vi.fn()}
+        handleDeleteCustomPrompt={onDeleteCustomPrompt ?? vi.fn(async () => undefined)}
         isPromptsFolded={false}
         handleTogglePromptsFold={vi.fn()}
         coreStatusText="0/4"
-        activeCustomPrompts={0}
+        activeCustomPrompts={settings.promptConfig.customPrompts?.length ?? 0}
         selectedPromptIds={[]}
         setSelectedPromptIds={vi.fn()}
         isBatchDeletingPrompts={false}
         setIsBatchDeletingPrompts={vi.fn()}
         handleBatchDeletePrompts={vi.fn(async () => undefined)}
-        onOpenComposer={onOpenComposer}
       />
     </LanguageProvider>
   );
 }
 
-function withComposition(
-  blocks: NonNullable<UserSettings["promptConfig"]["composition"]>["blocks"],
-): UserSettings {
-  const initial = structuredClone(DEFAULT_SETTINGS);
-  initial.promptConfig.usePromptComposition = true;
-  initial.promptConfig.composition = {
-    id: "section-test",
-    name: "区块开关测试",
-    version: 1,
-    blocks,
-  };
-  return initial;
-}
-
-const sampleBlocks: NonNullable<UserSettings["promptConfig"]["composition"]>["blocks"] = [
-  {
-    id: "block-pov",
-    name: "视角-第一人称",
-    enabled: false,
-    role: "system",
-    source: { type: "template" },
-    template: "第一人称约束",
-    order: 100,
-    placement: { type: "ordered" },
-  },
-  {
-    id: "block-style",
-    name: "文风-轻小说",
-    enabled: true,
-    role: "user",
-    source: { type: "template" },
-    template: "轻小说文风",
-    order: 200,
-    placement: { type: "ordered" },
-  },
-];
-
-describe("PromptsConfigSection 自由编排区块开关", () => {
+describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
   beforeEach(() => {
     localStorage.setItem("mobile_tavern_language", "zh-CN");
   });
 
-  it("自由编排模式下直接列出当前编排的 Prompt 区块与开关状态", () => {
-    render(<Harness initial={withComposition(sampleBlocks)} />);
-    expect(screen.getByText("视角-第一人称")).toBeInTheDocument();
-    expect(screen.getByText("文风-轻小说")).toBeInTheDocument();
-    const switches = screen.getAllByRole("switch");
-    expect(switches).toHaveLength(2);
-    expect(switches[0]).not.toBeChecked();
-    expect(switches[1]).toBeChecked();
-  });
-
-  it("点击开关即更新对应区块的启用状态", () => {
-    render(<Harness initial={withComposition(sampleBlocks)} />);
-    const firstSwitch = screen.getByRole("switch", { name: /视角-第一人称/ });
-    fireEvent.click(firstSwitch);
-    expect(firstSwitch).toBeChecked();
-    const secondSwitch = screen.getByRole("switch", { name: /文风-轻小说/ });
-    fireEvent.click(secondSwitch);
-    expect(secondSwitch).not.toBeChecked();
-  });
-
-  it("点击编辑按钮可直接修改区块名称与内容", () => {
-    render(<Harness initial={withComposition(sampleBlocks)} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /编辑 Prompt 区块 视角-第一人称/ }),
-    );
-    const nameInput = screen.getByLabelText("区块名称");
-    fireEvent.change(nameInput, { target: { value: "视角-第二人称" } });
-    expect(screen.getByDisplayValue("视角-第二人称")).toBeInTheDocument();
-  });
-
-  it("点击删除按钮二次确认后移除对应区块", () => {
-    render(<Harness initial={withComposition(sampleBlocks)} />);
-    const deleteButton = screen.getByRole("button", {
-      name: /删除区块 视角-第一人称/,
-    });
-    fireEvent.click(deleteButton);
-    fireEvent.click(deleteButton);
-    expect(screen.queryByText("视角-第一人称")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(1);
-  });
-
-  it("编辑对话框中可复制区块", () => {
-    render(<Harness initial={withComposition(sampleBlocks)} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /编辑 Prompt 区块 视角-第一人称/ }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "复制区块" }));
-    // 复制后列表出现副本条目；不再以对话框内开关数量断言（高级字段已收敛
-    // 到编排页，对话框仅保留基础开关）。
-    expect(screen.getByText("视角-第一人称 副本")).toBeInTheDocument();
-    expect(screen.getByText("视角-第一人称")).toBeInTheDocument();
-  });
-
-  it("空编排时给出明确提示而不是空白", () => {
-    render(<Harness initial={withComposition([])} />);
-    expect(
-      screen.getByText("当前没有组装内容，这是合法状态，不会隐式注入内容。"),
-    ).toBeInTheDocument();
-  });
-
-  it("传统模式仍渲染 CORE PROMPTS 与 PROMPT MODULES", () => {
+  it("统一呈现提示词列表，不设 CORE PROMPTS 或 PROMPT MODULES 分区", () => {
     render(<Harness initial={structuredClone(DEFAULT_SETTINGS)} />);
-    expect(screen.getByText("CORE PROMPTS")).toBeInTheDocument();
-    expect(screen.getByText("PROMPT MODULES")).toBeInTheDocument();
+    expect(screen.queryByText("CORE PROMPTS")).not.toBeInTheDocument();
+    expect(screen.queryByText("PROMPT MODULES")).not.toBeInTheDocument();
+    expect(screen.getByText(/提示词列表/)).toBeInTheDocument();
+    expect(screen.getAllByText(/底层扮演/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/规则提示/).length).toBeGreaterThan(0);
   });
 
-  it("预设界面编辑对话框不展示高级字段，仅提示前往自由 Prompt 编排", () => {
-    render(<Harness initial={withComposition(sampleBlocks)} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /编辑 Prompt 区块 视角-第一人称/ }),
-    );
-    expect(
-      screen.queryByText("条件与 Token 策略"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/高级编辑，请在「Prompt 组装」中调整/),
-    ).toBeInTheDocument();
-  });
-
-  it("提供 onOpenComposer 时渲染前往编排按钮并触发回调", () => {
-    const openComposer = vi.fn();
+  it("支持新建提示词模组", () => {
+    const handleAddNew = vi.fn();
     render(
       <Harness
-        initial={withComposition(sampleBlocks)}
-        onOpenComposer={openComposer}
+        initial={structuredClone(DEFAULT_SETTINGS)}
+        onAddNewCustomPrompt={handleAddNew}
       />,
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "前往 Prompt 组装" }),
+    fireEvent.click(screen.getByRole("button", { name: "新建模组" }));
+    expect(handleAddNew).toHaveBeenCalledTimes(1);
+  });
+
+  it("所有提示词一视同仁支持开关与删除", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.customPrompts = [
+      {
+        id: "custom-1",
+        name: "第一人称约束",
+        role: "system",
+        content: "必须使用第一人称进行回答。",
+        enabled: true,
+      },
+    ];
+
+    const handleToggle = vi.fn();
+    const handleDelete = vi.fn(async () => undefined);
+
+    render(
+      <Harness
+        initial={settings}
+        onToggleCustomPrompt={handleToggle}
+        onDeleteCustomPrompt={handleDelete}
+      />,
     );
-    expect(openComposer).toHaveBeenCalledTimes(1);
-  });
 
-  it("自由编排模式下支持通过新建模组按钮添加新区块并打开编辑器", () => {
-    render(<Harness initial={withComposition(sampleBlocks)} />);
-    const createBtn = screen.getByRole("button", { name: "新建模组" });
-    fireEvent.click(createBtn);
-    expect(screen.getByText("编辑 Prompt 区块")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("未命名 Prompt 区块 3")).toBeInTheDocument();
-  });
+    expect(screen.getByText("第一人称约束")).toBeInTheDocument();
+    const toggleSwitch = screen.getByRole("switch", { name: "启用提示词 第一人称约束" });
+    expect(toggleSwitch).toBeChecked();
 
-  it("连续点击新建模组不会产生重复名字和 order 冲突", () => {
-    function CustomHarness() {
-      const [settings, setSettings] = useState<UserSettings>(withComposition(sampleBlocks));
-      return (
-        <LanguageProvider>
-          <div data-testid="composition-blocks">
-            {JSON.stringify(settings.promptConfig.composition?.blocks ?? [])}
-          </div>
-          <PromptsConfigSection
-            settings={settings}
-            updateSettings={setSettings}
-            handleToggleCustomPrompt={vi.fn()}
-            handleUpdateCustomPrompt={vi.fn()}
-            handleAddNewCustomPrompt={vi.fn()}
-            handleDeleteCustomPrompt={vi.fn(async () => undefined)}
-            isPromptsFolded={false}
-            handleTogglePromptsFold={vi.fn()}
-            coreStatusText="0/4"
-            activeCustomPrompts={0}
-            selectedPromptIds={[]}
-            setSelectedPromptIds={vi.fn()}
-            isBatchDeletingPrompts={false}
-            setIsBatchDeletingPrompts={vi.fn()}
-            handleBatchDeletePrompts={vi.fn(async () => undefined)}
-          />
-        </LanguageProvider>
-      );
-    }
-    render(<CustomHarness />);
-    const createBtn = screen.getByRole("button", { name: "新建模组" });
-    fireEvent.click(createBtn);
-    fireEvent.click(createBtn);
+    fireEvent.click(toggleSwitch);
+    expect(handleToggle).toHaveBeenCalledWith("custom-1", false);
 
-    const blocks = JSON.parse(screen.getByTestId("composition-blocks").textContent ?? "[]");
-    expect(blocks.length).toBe(4);
-    expect(blocks[2].name).toBe("未命名 Prompt 区块 3");
-    expect(blocks[3].name).toBe("未命名 Prompt 区块 4");
-    expect(blocks[3].order).toBeGreaterThan(blocks[2].order);
+    fireEvent.click(screen.getByRole("button", { name: "删除提示词 第一人称约束" }));
+    expect(handleDelete).toHaveBeenCalledWith("custom-1");
   });
 });
